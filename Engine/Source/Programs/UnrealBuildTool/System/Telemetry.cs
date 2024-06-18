@@ -151,19 +151,34 @@ namespace UnrealBuildTool
 		public int RetriedLocalActions { get; }
 		public int RetriedDisabledActions { get; }
 
+		public int TotalCoordinators { get; }
+		public int SucceededCoordinators { get; }
+		public int FailedCoordinators { get; }
+
+		public TimeSpan DurationWaitingForRemote { get; }
+
 		public double RetriedLocalRate => RetriedLocalActions / (double)TotalActions;
 		public double RetriedDisabledRate => RetriedDisabledActions / (double)TotalActions;
 
 		public double LocalUsage => LocalActions / (double)(TotalActions + RetriedLocalActions + RetriedDisabledActions - SkippedActions);
 		public double RemoteUsage => RemoteActions / (double)(TotalActions + RetriedLocalActions + RetriedDisabledActions - SkippedActions);
 
-		public TelemetryExecutorUBAEvent(string executor, DateTime startUTC, bool result, int totalActions, int succeededActions, int failedActions, int cacheHitActions, int cacheMissActions, int localActions, int remoteActions, int retriedLocalActions, int retriedDisabledActions, DateTime timestamp)
+		public TelemetryExecutorUBAEvent(string executor, DateTime startUTC, bool result, int totalActions, int succeededActions, int failedActions, int cacheHitActions, int cacheMissActions,
+			int localActions, int remoteActions,
+			int retriedLocalActions, int retriedDisabledActions,
+			int totalCoordinators, int succeededCoordinators, int failedCoordinators,
+			TimeSpan durationWaitingForRemote,
+			DateTime timestamp)
 			: base(executor, startUTC, result, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions, timestamp)
 		{
 			LocalActions = localActions;
 			RemoteActions = remoteActions;
 			RetriedLocalActions = retriedLocalActions;
 			RetriedDisabledActions = retriedDisabledActions;
+			TotalCoordinators = totalCoordinators;
+			SucceededCoordinators = succeededCoordinators;
+			FailedCoordinators = failedCoordinators;
+			DurationWaitingForRemote = durationWaitingForRemote;
 		}
 	}
 

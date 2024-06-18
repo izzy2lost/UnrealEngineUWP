@@ -36,10 +36,18 @@ namespace UnrealBuildTool
 		uint _actionsQueuedThatCanRunRemotely = UInt32.MaxValue;
 		readonly ThreadedLogger _threadedLogger;
 
+		DateTime _ubaStartTimeUtc = DateTime.UtcNow;
+		TimeSpan _ubaDurationWaitingForRemote = TimeSpan.Zero;
+
 		// Tracking for LinkedActions that failed remotely that should be retried locally
 		readonly ConcurrentDictionary<LinkedAction, bool> _localRetryActions = new();
 		// Tracking for LinkedActions that failed locally that should be retried without UBA
 		readonly ConcurrentDictionary<LinkedAction, bool> _forcedRetryActions = new();
+
+		// Tracking for successful coordinator connections
+		int _successfulCoordinatorConnections = 0;
+		// Tracking for failed coordinator connections
+		int _failedCoordinatorConnections = 0;
 
 		// Tracking for all actions processed locally
 		int _localProcessedActions = 0;
@@ -177,6 +185,18 @@ namespace UnrealBuildTool
 			using System.Security.Cryptography.RandomNumberGenerator random = System.Security.Cryptography.RandomNumberGenerator.Create();
 			random.GetBytes(bytes);
 			return BitConverter.ToString(bytes).Replace("-", "", StringComparison.OrdinalIgnoreCase).ToLowerInvariant(); // "1234567890abcdef1234567890abcdef";
+		}
+
+		public void AgentCoordinatorInitialized(IUBAAgentCoordinator coordinator, bool successful)
+		{
+			if (successful)
+			{
+				Interlocked.Add(ref _successfulCoordinatorConnections, 1);
+			}
+			else
+			{
+				Interlocked.Add(ref _failedCoordinatorConnections, 1);
+			}
 		}
 
 		class UBAArtifactCache : IArtifactCache
@@ -440,7 +460,7 @@ namespace UnrealBuildTool
 		/// <returns>True if all the tasks successfully executed, or false if any of them failed.</returns>
 		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache, System.Action onCancel)
 		{
-			DateTime startTimeUTC = DateTime.UtcNow;
+			_ubaStartTimeUtc = DateTime.UtcNow;
 			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, UBAConfig.CacheMaxWorkers, logger);
 			int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
 			queue.CreateAutomaticRunner(action => RunActionLocal(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
@@ -496,8 +516,12 @@ namespace UnrealBuildTool
 				bool res = queue.RunTillDone().Result; // Using inline wait to avoid possible thread switch
 
 				queue.GetActionResultCounts(out int totalActions, out int succeededActions, out int failedActions, out int cacheHitActions, out int cacheMissActions);
-				telemetryEvent = new TelemetryExecutorUBAEvent(Name, startTimeUTC, res, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions,
-					_localProcessedActions, _remoteProcessedActions, _localRetryActions.Count, _forcedRetryActions.Count, DateTime.UtcNow);
+				telemetryEvent = new TelemetryExecutorUBAEvent(Name, _ubaStartTimeUtc, res, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions,
+					_localProcessedActions, _remoteProcessedActions,
+					_localRetryActions.Count, _forcedRetryActions.Count,
+					!UBAConfig.bDisableRemote ? _agentCoordinators.Count : 0, !UBAConfig.bDisableRemote ? _successfulCoordinatorConnections : 0, !UBAConfig.bDisableRemote ? _failedCoordinatorConnections : 0,
+					!UBAConfig.bDisableRemote ? _ubaDurationWaitingForRemote : TimeSpan.Zero,
+					DateTime.UtcNow);
 
 				return res;
 			}
@@ -770,6 +794,10 @@ namespace UnrealBuildTool
 
 			return () =>
 			{
+				if (_ubaDurationWaitingForRemote == TimeSpan.Zero)
+				{
+					_ubaDurationWaitingForRemote = DateTime.UtcNow - _ubaStartTimeUtc;
+				}
 				if (_bIsCancelled)
 				{
 					HandleActionCancelled(queue, null, action);

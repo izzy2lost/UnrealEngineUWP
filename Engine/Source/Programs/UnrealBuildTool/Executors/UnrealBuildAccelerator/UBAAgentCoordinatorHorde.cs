@@ -582,6 +582,7 @@ namespace UnrealBuildTool
 			_cancellationSource = new CancellationTokenSource();
 			_hordeSessionTask = UBAHordeSession.TryCreateHordeSessionAsync(HordeConfig, executor, _ubaConfig.bStrict, _logger, _cancellationSource.Token);
 			await _hordeSessionTask;
+			executor.AgentCoordinatorInitialized(this, _hordeSessionTask.IsCompletedSuccessfully && _hordeSessionTask.Result != null);
 		}
 
 		public void Start(ImmediateActionQueue queue, Func<LinkedAction, bool> canRunRemotely)
