@@ -225,6 +225,7 @@ bool dtNavLinkBuilder::findEdges(rcContext& ctx, const rcConfig& cfg, const dtLi
 	m_linkBuilderConfig = builderConfig;
 
 	m_cs = cfg.cs;
+	m_csSquared = dtSqr(cfg.cs);
 	m_ch = cfg.ch;
 	m_invCs = 1.0/cfg.cs;
 	m_solid = solidHF;
@@ -710,8 +711,7 @@ void dtNavLinkBuilder::initTrajectory(Trajectory2D* tra) const
 
 		const float y = dtLerp(pa[1], pb[1], u);
 		
-		// Todo: revisit starting height and trajectory heights to handle ledge corner when jumping down.
-		s.ymin = dtMin(y0,y1) + (2*m_linkBuilderConfig.agentClimb) - y;	
+		s.ymin = dtMin(y0,y1) + m_linkBuilderConfig.agentClimb - y;	
 		s.ymax = dtMax(y0,y1) + m_linkBuilderConfig.agentHeight - y; 
 	}
 }
@@ -726,7 +726,7 @@ int dtNavLinkBuilder::findPotentialJumpOverEdges(const dtReal* sp, const dtReal*
 	
 	// Find potential edges to join to.
 	const float widthRange = sqrtf(dtVdistSqr(sp,sq));
-	const float amin[3] = {0, -heightRange*0.5f, 0};
+	const float amin[3] = { 0, -heightRange*0.5f, 0 };
 	const float amax[3] = { widthRange, heightRange*0.5f, depthRange};
 	
 	const dtReal thr = cosf((180.0 - 45.0)/180.0*RC_PI);
@@ -890,13 +890,9 @@ int dtNavLinkBuilder::findPotentialJumpOverEdges(const dtReal* sp, const dtReal*
 
 void dtNavLinkBuilder::initJumpDownRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
 										const float jumpStartDist, const float jumpLength,
-										const float jumpDownDist, const float groundRange)
+										const float jumpDownDist, const float groundRange) const
 {
 	es->action = DT_LINK_ACTION_JUMP_DOWN;
-
-	// Set edge
-	dtVcopy(es->rigp, sp);
-	dtVcopy(es->rigq, sq);
 
 	// Set axes
 	dtVsub(es->ax, sq, sp);
@@ -905,11 +901,27 @@ void dtNavLinkBuilder::initJumpDownRig(EdgeSampler* es, const dtReal* sp, const 
 	dtVnormalize(es->az);
 	dtVset(es->ay, 0, 1, 0);
 	
+	// Set edge
+	const dtReal edgeLengthSqr = dtVdistSqr(sp, sq);
+	if (edgeLengthSqr > m_csSquared)
+	{
+		// Trim tips by cellSize to account for edges overlapping the rasterization borders.
+		// This avoids getting the wrong height in getCompactHeightfieldHeight that need to lookup multiple cells.
+		dtVmad(es->rigp, sp, es->ax, m_cs);
+		dtVmad(es->rigq, sq, es->ax, -m_cs);
+	}
+	else
+	{
+		// If it's impossible because the edge is too short, just keep the original edge.
+		dtVcopy(es->rigp, sp);
+		dtVcopy(es->rigq, sq);
+	}
+	
 	// Build action sampling spine.
 	es->trajectory.nspine = MAX_SPINE;
 	for (int i = 0; i < MAX_SPINE; ++i)
 	{
-		float* pt = &es->trajectory.spine[i*2];
+		float* pt = &es->trajectory.spine[i*2];			// pt: [xy] (x is toward jump end, y is up)
 		const float u = (float)i/(float)(MAX_SPINE-1);
 		pt[0] = -jumpStartDist + (u*jumpLength);
 		pt[1] = u*u*u * jumpDownDist;
@@ -969,8 +981,8 @@ bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNa
 	else if (desiredAction == DT_LINK_ACTION_JUMP_OVER)
 	{
 		const dtNavLinkBuilderJumpOverConfig& config = builderConfig.jumpOverConfig;
-		const float jumpDist = config.jumpLength;
-		const float heightRange = config.jumpHeightTolerance;
+		const float jumpDist = config.jumpGapWidth;
+		const float heightRange = config.jumpGapHeightTolerance;
 		static constexpr int NSEGS = 8;
 		dtReal segs[NSEGS*6];
 		int nsegs = findPotentialJumpOverEdges(sp, sq, jumpDist, heightRange, segs, NSEGS);
@@ -992,11 +1004,11 @@ bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNa
 			return false;
 		}
 
-		const float jumpStartDist = config.jumpDistanceFromEdge; 
+		const float jumpStartDist = config.jumpDistanceFromGapCenter; 
 		const float jumpHeight = config.jumpHeight;
 		const float groundRange = config.jumpEndsHeightTolerance;
 		samplingSeparationFactor = config.samplingSeparationFactor;
-		initJumpOverRig(es, &segs[ibest*6+0], &segs[ibest*6+3], jumpStartDist, jumpStartDist, jumpHeight, groundRange);
+		initJumpOverRig(es, &segs[ibest*6+0], &segs[ibest*6+3], -jumpStartDist, jumpStartDist, jumpHeight, groundRange);
 	}
 	
 	initTrajectory(&es->trajectory);

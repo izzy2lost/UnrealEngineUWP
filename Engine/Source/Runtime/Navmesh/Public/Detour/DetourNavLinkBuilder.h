@@ -42,6 +42,7 @@ class dtNavLinkBuilder
 	dtLinkBuilderConfig m_linkBuilderConfig;
 
 	dtReal m_cs = 0;
+	dtReal m_csSquared = 0;
 	dtReal m_ch = 0;
 	dtReal m_invCs = 0;
 	const rcHeightfield* m_solid = nullptr;
@@ -66,7 +67,8 @@ public:
 	{
 		Trajectory2D() : nspine(0) {}
 
-		float spine[2*MAX_SPINE];		// [x,y] relative points representing the desired trajectory (2 spines)
+		float spine[2*MAX_SPINE];		// [x,y] relative points representing the desired trajectory (one spine with MAX_SPINE points)
+
 		TArray<TrajectorySample, TInlineAllocator<8>> samples;	// samples along trajectory slices to check for collision
 		
 		unsigned char nspine;			// @todo: remove (use direclty MAX_SPINE) or make relative to trajectory type and config
@@ -132,8 +134,8 @@ public:
 	{
 		dtReal spine0[MAX_SPINE*3];
 		dtReal spine1[MAX_SPINE*3];
-		int nspine;
-		JumpLinkFlag flags;
+		int nspine = 0;
+		JumpLinkFlag flags = VALID;
 		dtNavLinkAction action = DT_LINK_ACTION_UNSET;
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)		
 		short debugSourceEdge = -1;
@@ -165,9 +167,9 @@ private:
 								   const float depthRange, const float heightRange,
 								   dtReal* outSegs, const int maxOutSegs) const;
 	
-	static void initJumpDownRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
+	void initJumpDownRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
 						 const float jumpStartDist, const float jumpEndDist,
-						 const float jumpDownDist, const float groundRange);
+						 const float jumpDownDist, const float groundRange) const;
 
 	static void initJumpOverRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
 						 const float jumpStartDist, const float jumpEndDist,

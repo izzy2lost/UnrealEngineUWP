@@ -22,7 +22,7 @@ struct FNavLinkGenerationJumpDownConfig
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
 	float JumpLength = 150.f; 
 
-	/** How far from the edge is the jump started */
+	/** How far from the edge is the jump started. */
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
 	float JumpDistanceFromEdge = 10.f; 
 
@@ -59,19 +59,23 @@ struct FNavLinkGenerationJumpOverConfig
 	UPROPERTY(EditAnywhere, Config, Category = Settings)
 	bool bEnabled = true;
 	
-	// @todo: Rename, describe and find best defaults for those parameters.
+	/* Maximum jumpable gap size used when matching edges to jump over. */
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
-	float JumpLength = 200.f; 
+	float JumpGapWidth = 200.f; 
 
+	/** Vertical tolerance used when matching edges to jump over. */
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
-	float JumpDistanceFromEdge = 100.f; 
+	float JumpGapHeightTolerance = 100.f; 
 	
+	/** How far from the center of the gap is the jump started. */
+	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
+	float JumpDistanceFromGapCenter = 100.f; 
+
+	/** Height at the top of the jump trajectory. */
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
 	float JumpHeight = 100.f; 
 
-	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
-	float JumpHeightTolerance = 100.f; 
-
+	/** Tolerance at both ends of the jump to find ground. */
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
 	float JumpEndsHeightTolerance = 80.f;
 

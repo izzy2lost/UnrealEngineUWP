@@ -3458,24 +3458,21 @@ void ARecastNavMesh::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 
 		// If any, get the category of the parent node. 
 		FProperty* MemberProperty = nullptr;
-		const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode = PropertyChangedChainEvent.PropertyChain.GetActiveNode();
+
+		const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode = PropertyChangedChainEvent.PropertyChain.GetActiveMemberNode();
 		if (PropertyNode)
 		{
-			const FEditPropertyChain::TDoubleLinkedListNode* PreviousNode = PropertyNode->GetPrevNode();
-			if (PreviousNode)
+			MemberProperty = PropertyNode->GetValue();
+			if (MemberProperty)
 			{
-				MemberProperty = PreviousNode->GetValue();
-				if (MemberProperty)
-				{
-					CategoryName = FObjectEditorUtils::GetCategoryFName(MemberProperty);
-				}
+				CategoryName = FObjectEditorUtils::GetCategoryFName(MemberProperty);
 			}
 		}
 		
 		if (CategoryName == NAME_Generation)
 		{
-			static const FName NAME_NavLinkJumpDownConfig = FName(TEXT("NavLinkJumpDownConfig"));
-			static const FName NAME_NavLinkJumpOverConfig = FName(TEXT("NavLinkJumpOverConfig"));
+			static const FName NAME_NavLinkJumpDownConfig = GET_MEMBER_NAME_CHECKED(ARecastNavMesh, NavLinkJumpDownConfig);
+			static const FName NAME_NavLinkJumpOverConfig = GET_MEMBER_NAME_CHECKED(ARecastNavMesh, NavLinkJumpOverConfig);
 			
 			const FName PropName = PropertyChangedChainEvent.Property->GetFName();
 			bool bRebuild = false;

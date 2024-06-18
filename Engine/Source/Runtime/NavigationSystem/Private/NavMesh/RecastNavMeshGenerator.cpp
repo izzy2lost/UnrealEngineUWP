@@ -3853,6 +3853,9 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 		dtVlerp(midA, &link.spine0[0], &link.spine1[0], 0.5);
 		dtReal midB[3];
 		dtVlerp(midB, &link.spine0[(link.nspine-1)*3], &link.spine1[(link.nspine-1)*3], 0.5);
+		// Since trajectory validation starts at agentClimb height to ignore small bumps, remove the offset for the actual link height.
+		midA[1] -= linkBuilderConfig.agentClimb;
+		midB[1] -= linkBuilderConfig.agentClimb;
 		OutGeneratedLinks.Add(FNavigationLink(Recast2UnrealPoint(midA), Recast2UnrealPoint(midB)));
 	}
 	
@@ -4984,7 +4987,7 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 		JumpOver.CopyToDetourConfig(OutConfig.JumpOverConfig);
 
 		const float JumpDownSpillDistance = JumpDown.bEnabled ? JumpDown.JumpLength - JumpDown.JumpDistanceFromEdge : 0.f;
-		const float JumpOverSpillDistance = JumpOver.bEnabled ? JumpOver.JumpLength - JumpOver.JumpDistanceFromEdge : 0.f;
+		const float JumpOverSpillDistance = JumpOver.bEnabled ? JumpOver.JumpDistanceFromGapCenter : 0.f;
 		OutConfig.LinkSpillDistance = FMath::Max(JumpDownSpillDistance, JumpOverSpillDistance);
 	}
 	
