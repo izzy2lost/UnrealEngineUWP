@@ -83,4 +83,7 @@ public:
 
 	// To be used by app delegate, call it from handleEventsForBackgroundURLSession.
 	static void HandleEventsForBackgroundURLSession(const FString& SessionIdentifier);
+
+	// To be used by ApplePlatformBackgroundHttpManager
+	static void SaveBackgroundHttpFileHashHelperState();
 };

@@ -98,7 +98,7 @@ bool FApplePlatformBackgroundHttpManager::Tick(float DeltaTime)
 		PendingRemoveRequests.Empty();
 	}
 
-	GetFileHashHelper()->SaveData();
+	FBackgroundURLSessionHandler::SaveBackgroundHttpFileHashHelperState();
 
 	return true;
 }
