@@ -423,7 +423,7 @@ public:
 };
 
 UCLASS(Abstract, BlueprintType, Blueprintable, EditInlineNew)
-class CHAOSVEHICLESCORE_API UVehicleInputProducerBase : public UClass
+class CHAOSVEHICLESCORE_API UVehicleInputProducerBase : public UObject
 {
 	GENERATED_BODY()
 	
