@@ -26,8 +26,6 @@ namespace UE::MultiUserClient
 		/** Refreshes the properties that the user can select given the objects currently displayed in the bottom view. */
 		void RefreshSelectableProperties(TConstArrayView<ConcertSharedSlate::FObjectGroup> DisplayedObjectGroups);
 
-		/** Contains one source for each object group. Each source displays common properties, configured in the project settings. */
-		const TArray<TSharedRef<IPropertyItemSource>>& GetPerObjectGroup_CommonPropertiesSources() const { return PerObjectGroup_CommonPropertiesSources; }
 		/** Contains one source for each object group. Each source displays all root properties in that class. */
 		const TArray<TSharedRef<IPropertyItemSource>>& GetPerObjectGroup_AllPropertiesSources() const { return PerObjectGroup_AllPropertiesSources; }
 
@@ -36,9 +34,6 @@ namespace UE::MultiUserClient
 		/** Determines the display string of an object. */
 		const FGetObjectDisplayString GetObjectDisplayStringDelegate;
 
-		// TODO UE-216094: Populate this array.
-		/** Contains one source for each object group. Each source displays common properties, configured in the project settings. */
-		TArray<TSharedRef<IPropertyItemSource>> PerObjectGroup_CommonPropertiesSources;
 		/** Contains one source for each object group. Each source displays all root properties in that class. */
 		TArray<TSharedRef<IPropertyItemSource>> PerObjectGroup_AllPropertiesSources;
 	};

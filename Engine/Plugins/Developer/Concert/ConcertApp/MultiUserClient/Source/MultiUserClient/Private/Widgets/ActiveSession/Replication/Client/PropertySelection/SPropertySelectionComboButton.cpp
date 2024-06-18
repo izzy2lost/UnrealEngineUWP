@@ -79,23 +79,6 @@ namespace UE::MultiUserClient
 			FText::GetEmpty()
 		);
 		
-		MenuBuilder.BeginSection(NAME_None, LOCTEXT("Section.CommonProperties", "Common Properties"));
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("Configure.Label", "Configure Common Properties"),
-			LOCTEXT("Configure.ToolTip", "Opens the project settings in which you can set up common properties"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateLambda([]()
-				{
-					// TODO UE-216094: Open project settings
-				}))
-			);
-		for (const TSharedRef<IPropertyItemSource>& ItemSource : PropertySourceModel->GetPerObjectGroup_CommonPropertiesSources())
-		{
-			FModelBuilder::AddOptionToMenu(ItemSource, PickerArgs, MenuBuilder);
-		}
-		MenuBuilder.EndSection();
-		
 		MenuBuilder.BeginSection(NAME_None, LOCTEXT("Section.AllProperties", "All Properties"));
 		for (const TSharedRef<IPropertyItemSource>& ItemSource : PropertySourceModel->GetPerObjectGroup_AllPropertiesSources())
 		{

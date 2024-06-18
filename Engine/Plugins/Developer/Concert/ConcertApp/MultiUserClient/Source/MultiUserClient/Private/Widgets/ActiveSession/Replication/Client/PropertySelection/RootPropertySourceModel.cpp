@@ -19,7 +19,6 @@ namespace UE::MultiUserClient
 
 	void FRootPropertySourceModel::RefreshSelectableProperties(TConstArrayView<ConcertSharedSlate::FObjectGroup> DisplayedObjectGroups)
 	{
-		PerObjectGroup_CommonPropertiesSources.Empty(DisplayedObjectGroups.Num());
 		PerObjectGroup_AllPropertiesSources.Empty(DisplayedObjectGroups.Num());
 		
 		for (const ConcertSharedSlate::FObjectGroup& Group : DisplayedObjectGroups)
