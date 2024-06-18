@@ -5,6 +5,56 @@
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 
+namespace UE::RemoteControl::Private
+{
+	TArray<UObject*> ResolveObjects(TConstArrayView<TWeakObjectPtr<UObject>> InObjects)
+	{
+		TArray<UObject*> ResolvedObjects;
+		ResolvedObjects.Reserve(InObjects.Num());
+		for (const TWeakObjectPtr<UObject>& ObjectWeak : InObjects)
+		{
+			if (UObject* Object = ObjectWeak.Get())
+			{
+				ResolvedObjects.Add(Object);
+			}
+		}
+		return ResolvedObjects;
+	}
+
+	UObject* FindContext(const FRCSignatureField& InField, UObject* InOuterObject, UClass* InSupportedClass)
+	{
+		UObject* Context;
+
+		if (InField.ObjectRelativePath.IsEmpty())
+		{
+			Context = InOuterObject;
+		}
+		else
+		{
+			UClass* FindClass = InSupportedClass ? InSupportedClass : UObject::StaticClass();
+			Context = StaticFindObject(FindClass, InOuterObject, *InField.ObjectRelativePath);
+
+			// Slow Path: if Subobject Path did not find the object, try to find the first sub-object of the actor matching the class.
+			if (!Context && InSupportedClass)
+			{
+				ForEachObjectWithOuterBreakable(InOuterObject, [&Context, InSupportedClass](UObject* InSubobject)->bool
+					{
+						UClass* SubobjectClass = InSubobject->GetClass();
+						if (SubobjectClass && SubobjectClass->IsChildOf(InSupportedClass))
+						{
+							Context = InSubobject;
+							return false;
+						}
+						return true;
+					}
+					, /*bIncludeNestedObjects*/true);
+			}
+		}
+
+		return Context;
+	}
+}
+
 FRCSignatureField FRCSignatureField::CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, FProperty* InProperty)
 {
 	UClass* SupportedBindingClass = nullptr;
@@ -56,25 +106,15 @@ int32 FRCSignature::AddFields(TConstArrayView<FRCSignatureField> InFields)
 	return Fields.Num() - PreviousNum;
 }
 
-int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayView<TWeakObjectPtr<AActor>> InActors) const
+int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayView<TWeakObjectPtr<UObject>> InObjects) const
 {
-	if (!InPreset || InActors.IsEmpty())
+	if (!InPreset || InObjects.IsEmpty())
 	{
 		return 0;
 	}
 
-	// Resolve Weak Actors
-	TArray<AActor*> ResolvedActors;
-	ResolvedActors.Reserve(InActors.Num());
-	for (const TWeakObjectPtr<AActor>& ActorWeak : InActors)
-	{
-		if (AActor* Actor = ActorWeak.Get())
-		{
-			ResolvedActors.Add(Actor);
-		}
-	}
-
-	if (ResolvedActors.IsEmpty())
+	TArray<UObject*> ResolvedObjects = UE::RemoteControl::Private::ResolveObjects(InObjects);
+	if (ResolvedObjects.IsEmpty())
 	{
 		return false;
 	}
@@ -90,44 +130,31 @@ int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayVi
 			continue;
 		}
 
-		// Resolve, not load. It should be loaded already if relevant to the Actors to apply this signature to
+		// Resolve, not load. It should be loaded already if relevant to the Objects to apply this signature to
 		UClass* SupportedClass = Field.SupportedClass.ResolveClass();
-		UClass* FindClass = SupportedClass ? SupportedClass : UObject::StaticClass();
 
+		// Copy field path as it's going to be used to resolve (mutable)
 		FRCFieldPathInfo Path = Field.FieldPath;
-		for (AActor* Actor : ResolvedActors)
+
+		for (UObject* Object : ResolvedObjects)
 		{
-			UObject* Context;
-			if (Field.ObjectRelativePath.IsEmpty())
-			{
-				Context = Actor;
-			}
-			else
-			{
-				Context = StaticFindObject(FindClass, Actor, *Field.ObjectRelativePath);
+			UObject* Context = UE::RemoteControl::Private::FindContext(Field, Object, SupportedClass);
 
-				// Slow Path: if Subobject Path did not find the object, try to find the first sub-object of the actor matching the class.
-				if (!Context && SupportedClass)
-				{
-					ForEachObjectWithOuterBreakable(Actor, [&Context, SupportedClass](UObject* InSubobject)->bool
-						{
-							UClass* SubobjectClass = InSubobject->GetClass();
-							if (SubobjectClass && SubobjectClass->IsChildOf(SupportedClass))
-							{
-								Context = InSubobject;
-								return false;
-							}
-							return true;
-						}
-						, /*bIncludeNestedObjects*/true);
-				}
+			// Attempt to resolve the path from the given context
+			if (!Context || !Path.Resolve(Context))
+			{
+				continue;
 			}
 
-			if (Context && Path.Resolve(Context))
+			// If path resolved, expose the property
+			TSharedPtr<FRemoteControlProperty> Property = InPreset->ExposeProperty(Context, Field.FieldPath, ExposeArgs).Pin();
+			if (!Property.IsValid())
 			{
-				InPreset->ExposeProperty(Context, Field.FieldPath, ExposeArgs);
-				++ExposeCount;
+				continue;
 			}
+
+			// Property was exposed successfully, increase expose count
+			++ExposeCount;
 		}
 	}
 

@@ -2,6 +2,7 @@
 
 #include "AvaRCSignatureCustomization.h"
 #include "DragDropOps/AvaOutlinerItemDragDropOp.h"
+#include "GameFramework/Actor.h"
 #include "UI/Signature/IRCSignatureItem.h"
 
 bool FAvaRCSignatureCustomization::CanAcceptDrop(const FDragDropEvent& InDragDropEvent, IRCSignatureItem* InSignatureItem) const
@@ -16,7 +17,9 @@ FReply FAvaRCSignatureCustomization::AcceptDrop(const FDragDropEvent& InDragDrop
 	{
 		TArray<TWeakObjectPtr<AActor>> DragDropActors;
 		OutlinerDragDrop->GetDragDropOpActors(DragDropActors);
-		InSignatureItem->ApplySignature(DragDropActors);
+
+		TArray<TWeakObjectPtr<UObject>> DragDropObjects(MoveTemp(DragDropActors));
+		InSignatureItem->ApplySignature(DragDropObjects);
 		return FReply::Handled();
 	}
 

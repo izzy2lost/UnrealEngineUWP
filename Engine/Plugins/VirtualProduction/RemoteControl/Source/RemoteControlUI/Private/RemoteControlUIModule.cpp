@@ -1516,7 +1516,7 @@ bool FRemoteControlUIModule::HasChildPropertiesExposed(const FRCExposesPropertyA
 					ChildArgs.PropertyPath = (*It)->GetPathName(nullptr);
 					ChildArgs.PropertyHandle = InPropertyArgs.PropertyHandle->GetChildHandle(ChildHandleIndex++);
 
-					if (Panel->IsExposed(ChildArgs))
+					if (ChildArgs.IsValid() && Panel->IsExposed(ChildArgs))
 					{
 						return true;
 					}

@@ -6,6 +6,7 @@
 #include "DragAndDrop/CompositeDragDropOp.h"
 #include "DragAndDrop/FolderDragDropOp.h"
 #include "EditorActorFolders.h"
+#include "GameFramework/Actor.h"
 #include "Items/RCSignatureTreeItemBase.h"
 #include "Items/RCSignatureTreeSignatureItem.h"
 #include "RemoteControlUIModule.h"
@@ -160,7 +161,8 @@ FReply SRCSignatureRow::OnRowAcceptDrop(const FDragDropEvent& InDragDropEvent
 
 void SRCSignatureRow::HandleActorDragDrop(IRCSignatureItem* InSignatureItem, const FActorDragDropOp& InActorDragDropOp)
 {
-	InSignatureItem->ApplySignature(InActorDragDropOp.Actors);
+	TArray<TWeakObjectPtr<UObject>> DragDropObjects(InActorDragDropOp.Actors);
+	InSignatureItem->ApplySignature(DragDropObjects);
 }
 
 void SRCSignatureRow::HandleFolderDragDrop(IRCSignatureItem* InSignatureItem, const FFolderDragDropOp& InFolderDragDropOp)
@@ -169,6 +171,8 @@ void SRCSignatureRow::HandleFolderDragDrop(IRCSignatureItem* InSignatureItem, co
 	{
 		TArray<TWeakObjectPtr<AActor>> Actors;
 		FActorFolders::GetWeakActorsFromFolders(*World, InFolderDragDropOp.Folders, Actors);
-		InSignatureItem->ApplySignature(Actors);
+
+		TArray<TWeakObjectPtr<UObject>> DragDropObjects(MoveTemp(Actors));
+		InSignatureItem->ApplySignature(DragDropObjects);
 	}
 }

@@ -5,11 +5,11 @@
 #include "Containers/ContainersFwd.h"
 #include "UObject/WeakObjectPtrTemplatesFwd.h"
 
-class AActor;
+class UObject;
 
 /** Interface for external implementations to interact with the Signature View Model */
 class IRCSignatureItem
 {
 public:
-	virtual void ApplySignature(TConstArrayView<TWeakObjectPtr<AActor>> InActors) = 0;
+	virtual void ApplySignature(TConstArrayView<TWeakObjectPtr<UObject>> InObjects) = 0;
 };

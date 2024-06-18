@@ -65,9 +65,9 @@ bool FRCSignatureTreeSignatureItem::AddField(URemoteControlSignatureRegistry* In
 	return Signature->AddFields(Fields) > 0;
 }
 
-void FRCSignatureTreeSignatureItem::ApplySignature(TConstArrayView<TWeakObjectPtr<AActor>> InActors)
+void FRCSignatureTreeSignatureItem::ApplySignature(TConstArrayView<TWeakObjectPtr<UObject>> InObjects)
 {
-	if (InActors.IsEmpty())
+	if (InObjects.IsEmpty())
 	{
 		return;
 	}
@@ -84,9 +84,9 @@ void FRCSignatureTreeSignatureItem::ApplySignature(TConstArrayView<TWeakObjectPt
 		return;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("ApplySignatureActors", "Apply Signature to Actors"));
+	FScopedTransaction Transaction(LOCTEXT("ApplySignature", "Apply Signature"));
 
-	int32 ExposedCount = Signature->ApplySignature(Preset, InActors);
+	int32 ExposedCount = Signature->ApplySignature(Preset, InObjects);
 
 	if (ExposedCount == 0)
 	{

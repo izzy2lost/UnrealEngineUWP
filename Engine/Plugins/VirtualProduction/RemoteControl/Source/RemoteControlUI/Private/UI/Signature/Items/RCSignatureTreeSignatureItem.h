@@ -29,7 +29,7 @@ public:
 	bool AddField(URemoteControlSignatureRegistry* InRegistry, const FRCExposesPropertyArgs& InPropertyArgs);
 
 	//~ Begin IRCSignatureItem
-	virtual void ApplySignature(TConstArrayView<TWeakObjectPtr<AActor>> InActors) override;
+	virtual void ApplySignature(TConstArrayView<TWeakObjectPtr<UObject>> InObjects) override;
 	//~ End IRCSignatureItem
 
 protected:

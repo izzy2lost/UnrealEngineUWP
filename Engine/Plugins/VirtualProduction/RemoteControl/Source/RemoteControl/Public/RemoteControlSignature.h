@@ -7,6 +7,7 @@
 
 class URemoteControlPreset;
 
+/** Representation class of a Field (e.g. Property) in an Object */
 USTRUCT()
 struct FRCSignatureField
 {
@@ -60,10 +61,10 @@ struct FRCSignature
 	/**
 	 * Applies this Signature to the given Actors by exposing all this Signature's fields to the given preset
 	 * @param InPreset the preset where these properties will be exposed to
-	 * @param InActors the actors whose properties to expose
+	 * @param InObjects the objects whose properties or properties of its subojects to expose
 	 * @return the number of properties affected in total
 	 */
-	REMOTECONTROL_API int32 ApplySignature(URemoteControlPreset* InPreset, TConstArrayView<TWeakObjectPtr<AActor>> InActors) const;
+	REMOTECONTROL_API int32 ApplySignature(URemoteControlPreset* InPreset, TConstArrayView<TWeakObjectPtr<UObject>> InObjects) const;
 
 	/** User facing friendly name. Used as the Label when exposing */
 	UPROPERTY()
