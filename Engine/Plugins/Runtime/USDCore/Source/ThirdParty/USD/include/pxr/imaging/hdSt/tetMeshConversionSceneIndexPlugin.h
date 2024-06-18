@@ -1,5 +1,5 @@
 //
-// Copyright 2023 Pixar
+// Copyright 2024 Pixar
 //
 // Licensed under the Apache License, Version 2.0 (the "Apache License")
 // with the following modification; you may not use this file except in
@@ -20,28 +20,34 @@
 // distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
-//
-#ifndef PXR_USD_IMAGING_USD_IMAGING_FLATTENED_MATERIAL_BINDINGS_DATA_SOURCE_PROVIDER_H
-#define PXR_USD_IMAGING_USD_IMAGING_FLATTENED_MATERIAL_BINDINGS_DATA_SOURCE_PROVIDER_H
 
-#include "pxr/imaging/hd/api.h"
+#ifndef PXR_IMAGING_HD_ST_TET_MESH_CONVERSION_SCENE_INDEX_PLUGIN_H
+#define PXR_IMAGING_HD_ST_TET_MESH_CONVERSION_SCENE_INDEX_PLUGIN_H
 
-#include "pxr/imaging/hd/flattenedDataSourceProvider.h"
+#include "pxr/pxr.h"
+#include "pxr/imaging/hdSt/api.h"
+#include "pxr/imaging/hd/sceneIndexPlugin.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-class UsdImagingFlattenedDirectMaterialBindingsDataSourceProvider
-    : public HdFlattenedDataSourceProvider
+/// \class HdSt_TetMeshConversionSceneIndexPlugin
+///
+/// Storm scene index plugin that configures the Tet Mesh Conversion scene index
+/// to generate meshes for Tet Meshes.
+/// \note Storm does _not_ natively support Tet Meshes, so they need to
+/// be transformed into meshes.
+///
+class HdSt_TetMeshConversionSceneIndexPlugin : public HdSceneIndexPlugin
 {
-    HD_API
-    HdContainerDataSourceHandle GetFlattenedDataSource(
-        const Context&) const override;
+public:
+    HdSt_TetMeshConversionSceneIndexPlugin();
 
-    HD_API
-    void ComputeDirtyLocatorsForDescendants(
-        HdDataSourceLocatorSet * locators) const override;
+protected:
+    HdSceneIndexBaseRefPtr _AppendSceneIndex(
+        const HdSceneIndexBaseRefPtr &inputScene,
+        const HdContainerDataSourceHandle &inputArgs) override;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // PXR_USD_IMAGING_USD_IMAGING_FLATTENED_MATERIAL_BINDINGS_DATA_SOURCE_PROVIDER_H
+#endif // PXR_IMAGING_HD_ST_TET_MESH_CONVERSION_SCENE_INDEX_PLUGIN_H
