@@ -100,6 +100,21 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 		}
 	}
 
+	/** Static methods for more meaningful construction sites. */
+	COREUOBJECT_API static FSoftObjectPath ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, const FString& InSubPathString);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, FString&& InSubPathString);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromPackageAsset(FName InPackageName, FName InAssetName);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromAssetPath(FTopLevelAssetPath InAssetPath);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromStringPath(FStringView InPath);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromStringPath(FUtf8StringView InPath);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromObject(const UObject* InObject);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromObject(const FObjectPtr& InObject);
+	template <typename T>
+	static FSoftObjectPath ConstructFromObject(const TObjectPtr<T>& InObject)
+	{
+		return ConstructFromObject(InObject.Get());
+	}
+
 	FSoftObjectPath& operator=(const FTopLevelAssetPath Path)			{ SetPath(Path); return *this; }
 	FSoftObjectPath& operator=(const FString& Path)						{ SetPath(FStringView(Path)); return *this; }
 	FSoftObjectPath& operator=(FWideStringView Path)					{ SetPath(Path); return *this; }

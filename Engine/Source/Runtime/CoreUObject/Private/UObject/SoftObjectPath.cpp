@@ -22,6 +22,52 @@ FSoftObjectPath::FSoftObjectPath(FName InAssetPathName, FString InSubPathString)
 	SubPathString = MoveTemp(InSubPathString);
 }
 
+/** Static methods for more meaningful construction sites. */
+FSoftObjectPath FSoftObjectPath::ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, const FString& InSubPathString)
+{
+	return FSoftObjectPath(InPackageName, InAssetName, InSubPathString);
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, FString&& InSubPathString)
+{
+	return FSoftObjectPath(InPackageName, InAssetName, MoveTemp(InSubPathString));
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromPackageAsset(FName InPackageName, FName InAssetName)
+{
+	return FSoftObjectPath(InPackageName, InAssetName, {});
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromAssetPath(FTopLevelAssetPath InAssetPath)
+{
+	return FSoftObjectPath(InAssetPath);
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromStringPath(FStringView InPath)
+{
+	FSoftObjectPath Tmp;
+	Tmp.SetPath(InPath);
+	return Tmp;
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromStringPath(FUtf8StringView InPath)
+{
+	FSoftObjectPath Tmp;
+	Tmp.SetPath(InPath);
+	return Tmp;
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromObject(const FObjectPtr& InObject)
+{
+	return FSoftObjectPath(InObject);
+}
+
+FSoftObjectPath FSoftObjectPath::ConstructFromObject(const UObject* InObject)
+{
+	return FSoftObjectPath(InObject);
+}
+
+
 FString FSoftObjectPath::ToString() const
 {
 	// Most of the time there is no sub path so we can do a single string allocation
