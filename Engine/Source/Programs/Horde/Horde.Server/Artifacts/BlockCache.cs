@@ -311,7 +311,7 @@ namespace Horde.Server.Artifacts
 		{
 			// Try to allocate a new block
 			int numAllocatedBlocks = _numAllocatedBlocks;
-			while(numAllocatedBlocks < _numBlocks)
+			while (numAllocatedBlocks < _numBlocks)
 			{
 				int initialNumAllocatedBlocks = Interlocked.CompareExchange(ref _numAllocatedBlocks, numAllocatedBlocks + 1, numAllocatedBlocks);
 				if (initialNumAllocatedBlocks == numAllocatedBlocks)
