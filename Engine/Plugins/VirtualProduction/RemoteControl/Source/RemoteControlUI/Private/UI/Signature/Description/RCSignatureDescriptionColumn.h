@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "UI/Signature/Columns/IRCSignatureColumn.h"
+#include "UI/Signature/IRCSignatureColumn.h"
 
 class FRCSignatureDescriptionColumn : public IRCSignatureColumn
 {

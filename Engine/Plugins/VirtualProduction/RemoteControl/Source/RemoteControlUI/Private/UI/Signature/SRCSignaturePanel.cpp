@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCSignaturePanel.h"
-#include "Columns/RCSignatureDescriptionColumn.h"
-#include "Columns/RCSignatureLabelColumn.h"
+#include "Description/RCSignatureDescriptionColumn.h"
 #include "Items/RCSignatureTreeSignatureItem.h"
+#include "Label/RCSignatureLabelColumn.h"
 #include "Misc/MessageDialog.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSignatureRegistry.h"

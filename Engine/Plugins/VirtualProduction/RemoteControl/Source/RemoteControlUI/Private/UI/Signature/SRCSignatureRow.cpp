@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCSignatureRow.h"
-#include "Columns/IRCSignatureColumn.h"
 #include "DragAndDrop/ActorDragDropOp.h"
 #include "DragAndDrop/CompositeDragDropOp.h"
 #include "DragAndDrop/FolderDragDropOp.h"
 #include "EditorActorFolders.h"
 #include "GameFramework/Actor.h"
+#include "IRCSignatureColumn.h"
 #include "Items/RCSignatureTreeItemBase.h"
 #include "Items/RCSignatureTreeSignatureItem.h"
 #include "RemoteControlUIModule.h"

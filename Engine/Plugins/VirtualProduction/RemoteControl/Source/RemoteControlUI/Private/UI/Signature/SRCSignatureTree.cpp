@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCSignatureTree.h"
-#include "Columns/IRCSignatureColumn.h"
+#include "IRCSignatureColumn.h"
 #include "Items/RCSignatureTreeItemBase.h"
 #include "Items/RCSignatureTreeRootItem.h"
 #include "Items/RCSignatureTreeSignatureItem.h"
