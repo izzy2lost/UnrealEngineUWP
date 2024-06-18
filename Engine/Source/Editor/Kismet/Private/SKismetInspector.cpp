@@ -403,6 +403,8 @@ void SKismetInspector::Construct(const FArguments& InArgs)
 	DetailsViewArgs.bHideSelectionTip = true;
 	DetailsViewArgs.NotifyHook = NotifyHook;
 	DetailsViewArgs.ViewIdentifier = InArgs._ViewIdentifier;
+	DetailsViewArgs.ExternalScrollbar = InArgs._ExternalScrollbar;
+	DetailsViewArgs.ScrollbarAlignment = InArgs._ScrollbarAlignment;
 	if (Kismet2.IsValid())
 	{
 		TSharedPtr<IClassViewerFilter> ImportedClassFilter = Kismet2->GetImportedClassViewerFilter();

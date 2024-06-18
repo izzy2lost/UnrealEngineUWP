@@ -534,7 +534,7 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 	for (int32 LeftIndex = 0; LeftIndex < Panels.Num(); ++LeftIndex)
 	{
 		const FPanel& LeftPanel = Panels[LeftIndex];
-		if (!LeftPanel.DiffRight.IsBound())
+		if (!LeftPanel.DiffRight.IsSet())
 		{
 			continue;
 		}
@@ -668,7 +668,7 @@ FReply SDetailsSplitter::OnMouseMove(const FGeometry& MyGeometry, const FPointer
 	for (int32 LeftIndex = 0; LeftIndex < Panels.Num() - 1; ++LeftIndex)
 	{
 		const FPanel& LeftPanel = Panels[LeftIndex];
-		if (!LeftPanel.DiffRight.IsBound())
+		if (!LeftPanel.DiffRight.IsSet())
 		{
 			continue;
 		}

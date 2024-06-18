@@ -31,6 +31,7 @@ class SBorder;
 class SDockTab;
 class SMyBlueprint;
 class SWidget;
+class SScrollBar;
 class UObject;
 struct FGeometry;
 struct FPropertyChangedEvent;
@@ -50,6 +51,7 @@ public:
 		, _SetNotifyHook(true)
 		, _ShowTitleArea(false)
 		, _ShowLocalVariables(false)
+		, _ScrollbarAlignment(HAlign_Right)
 		{}
 
 		SLATE_ARGUMENT(TWeakPtr<FBlueprintEditor>, Kismet2)
@@ -62,6 +64,8 @@ public:
 		SLATE_ARGUMENT( bool, SetNotifyHook)
 		SLATE_ARGUMENT( bool, ShowTitleArea)
 		SLATE_ARGUMENT( bool, ShowLocalVariables)
+		SLATE_ARGUMENT( TSharedPtr<SScrollBar>, ExternalScrollbar)
+		SLATE_ARGUMENT( EHorizontalAlignment, ScrollbarAlignment)
 	SLATE_END_ARGS()
 	
 	void Construct(const FArguments& InArgs);
