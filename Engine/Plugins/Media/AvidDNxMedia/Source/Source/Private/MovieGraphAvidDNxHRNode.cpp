@@ -50,12 +50,17 @@ FSlateIcon UMovieGraphAvidDNxHRNode::GetIconAndTint(FLinearColor& OutColor) cons
 	return AvidDNxHRIcon;
 }
 
-TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initialize_GameThread(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InFileName, FIntPoint InResolution, EImagePixelType InPixelType, ERGBFormat InPixelFormat, uint8 InBitDepth, uint8 InNumChannels, bool bAllowOCIO)
+TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initialize_GameThread(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName, const FString& InFileName, FIntPoint InResolution, EImagePixelType InPixelType, ERGBFormat InPixelFormat, uint8 InBitDepth, uint8 InNumChannels, bool bAllowOCIO)
 {
-	constexpr bool bIncludeCDOs = true;
+	bool bIncludeCDOs = true;
 	constexpr bool bExactMatch = true;
 	UMovieGraphGlobalOutputSettingNode* OutputSetting =
 		InEvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
+
+	bIncludeCDOs = false;
+	const UMovieGraphAvidDNxHRNode* EvaluatedNode = Cast<UMovieGraphAvidDNxHRNode>(
+		InEvaluatedConfig->GetSettingForBranch(GetClass(), FName(InBranchName), bIncludeCDOs, bExactMatch));
+	checkf(EvaluatedNode, TEXT("Avid DNxHR node could not be found in the graph in branch [%s]."), *InBranchName);
 	
 	const FFrameRate SourceFrameRate = InPipeline->GetDataSourceInstance()->GetDisplayRate();
 	const FFrameRate EffectiveFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSetting, SourceFrameRate);
@@ -64,6 +69,7 @@ TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initia
 	Options.OutputFilename = InFileName;
 	Options.Width = InResolution.X;
 	Options.Height = InResolution.Y;
+	Options.Quality = EvaluatedNode->Quality;
 	Options.FrameRate = EffectiveFrameRate;
 	Options.bCompress = true;
 	Options.NumberOfEncodingThreads = 4;
@@ -72,8 +78,15 @@ TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initia
 	NewWriter->Writer = MakeUnique<FAvidDNxEncoder>(Options);
 	NewWriter->FileName = InFileName;
 
-	// If OCIO is enabled, don't do additional color conversion
-	NewWriter->bConvertToSrgb = !(bOverride_OCIOConfiguration && OCIOConfiguration.bIsEnabled && bAllowOCIO);
+	// If OCIO is enabled, don't do additional color conversion. RGB444 12-bit is never converted to sRGB.
+	if (EvaluatedNode->Quality == EAvidDNxEncoderQuality::RGB444_12bit)
+	{
+		NewWriter->bConvertToSrgb = false;
+	}
+	else
+	{
+		NewWriter->bConvertToSrgb = !(bOverride_OCIOConfiguration && OCIOConfiguration.bIsEnabled && bAllowOCIO);
+	}
 
 	CachedPipeline = InPipeline;
 	
@@ -98,8 +111,16 @@ void UMovieGraphAvidDNxHRNode::WriteFrame_EncodeThread(MovieRenderGraph::IVideoC
 	
 	const UE::MovieGraph::FMovieGraphSampleState* Payload = InPixelData->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 
-	// Quantize our 16-bit float data to 8-bit and apply sRGB if needed
-	const TUniquePtr<FImagePixelData> QuantizedPixelData = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(InPixelData, 8, nullptr, InWriter->bConvertToSrgb);
+	constexpr bool bIncludeCDOs = false;
+	constexpr bool bExactMatch = true;
+	const FName BranchName = Payload->TraversalContext.RenderDataIdentifier.RootBranchName;
+	const UMovieGraphAvidDNxHRNode* EvaluatedNode = Cast<UMovieGraphAvidDNxHRNode>(
+		InEvaluatedConfig->GetSettingForBranch(GetClass(), BranchName, bIncludeCDOs, bExactMatch));
+	checkf(EvaluatedNode, TEXT("Avid DNxHR node could not be found in the graph in branch [%s]."), *BranchName.ToString());
+
+	// Quantize our 16-bit float data to 8/16-bit and apply sRGB if needed
+	const int32 BitDepth = ((EvaluatedNode->Quality == EAvidDNxEncoderQuality::HQX_10bit) || (EvaluatedNode->Quality == EAvidDNxEncoderQuality::RGB444_12bit)) ? 16 : 8;
+	TUniquePtr<FImagePixelData> QuantizedPixelData = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(InPixelData, BitDepth, nullptr, InWriter->bConvertToSrgb);
 
 	TArray<FPixelPreProcessor> PixelPreProcessors;
 
@@ -138,7 +159,14 @@ void UMovieGraphAvidDNxHRNode::WriteFrame_EncodeThread(MovieRenderGraph::IVideoC
 	int64 DataSize;
 	QuantizedPixelData->GetRawData(Data, DataSize);
 
-	CodecWriter->Writer->WriteFrame((uint8*)Data);
+	if (BitDepth == 8)
+	{
+		CodecWriter->Writer->WriteFrame((uint8*)Data);
+	}
+	else
+	{
+		CodecWriter->Writer->WriteFrame_16bit((FFloat16Color*)Data);
+	}
 }
 
 void UMovieGraphAvidDNxHRNode::BeginFinalize_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter)

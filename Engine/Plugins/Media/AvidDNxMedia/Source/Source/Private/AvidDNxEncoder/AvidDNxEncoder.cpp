@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvidDNxEncoder/AvidDNxEncoder.h"
+
+#include "Async/ParallelFor.h"
 #include "AvidDNxMediaModule.h"
 #include "HAL/PlatformTime.h"
 #include "Runtime/Launch/Resources/Version.h"
@@ -17,21 +19,44 @@ namespace AvidDNx
 	const wchar_t* ProductUID = L"06.9d.41.48.a0.cb.48.d4.af.19.54.da.bd.09.2a.9f";
 
 	/**
-	 * Creates one sub-sampled pixel stored in Y0CbY1Cr from two input BGRA pixels.
+	 * Converts two RGB pixels (InputColor0 and InputColor1) to sub-sampled YCbCr Rec. 709 and video range. Supports both 8-bit and 16-bit color.
 	 *
-	 * @note The input colors will be transformed to 709 and video range at 8 bit.
+	 * InputType supports FColor and FFloat16Color.
+	 * ColorComponentType supports uint8 and unsigned short.
+	 * ColorContainer supports FY0CbY1Cr and FY0CbY1Cr_16bit.
 	 */
-	FAvidDNxEncoder::FY0CbY1Cr SubSample422(const FColor* InBgra0, const FColor* InBgra1)
+	template<typename InputType, typename ColorComponentType, typename ColorContainer>
+	ColorContainer RBGtoYCbCrRec709(const InputType* InputColor0, const InputType* InputColor1)
 	{
-		const float R0 = InBgra0->R / 255.0f;
-		const float G0 = InBgra0->G / 255.0f;
-		const float B0 = InBgra0->B / 255.0f;
+		static_assert(std::is_same_v<ColorComponentType, uint8> || std::is_same_v<ColorComponentType, unsigned short>, "Unsupported color component type");
 
-		const float R1 = InBgra1->R / 255.0f;
-		const float G1 = InBgra1->G / 255.0f;
-		const float B1 = InBgra1->B / 255.0f;
+		float R0, G0, B0, R1, G1, B1;
 
-		// 709 conversion
+		if constexpr (std::is_same_v<ColorComponentType, uint8>)
+		{
+			R0 = InputColor0->R / 255.f;
+			G0 = InputColor0->G / 255.f;
+			B0 = InputColor0->B / 255.f;
+
+			R1 = InputColor1->R / 255.f;
+			G1 = InputColor1->G / 255.f;
+			B1 = InputColor1->B / 255.f;
+		}
+		else
+		{
+			// ColorComponentType == unsigned short
+			
+			R0 = InputColor0->R.GetFloat();
+			G0 = InputColor0->G.GetFloat();
+			B0 = InputColor0->B.GetFloat();
+
+			R1 = InputColor1->R.GetFloat();
+			G1 = InputColor1->G.GetFloat();
+			B1 = InputColor1->B.GetFloat();
+		}
+
+		// Rec. 709 conversion
+		// See: https://en.wikipedia.org/wiki/YCbCr#ITU-R_BT.709_conversion
 		const float Yfull0 = R0 * 0.212639f + G0 * 0.7151687f + B0 * 0.0721932f;
 		const float Yfull1 = R1 * 0.212639f + G1 * 0.7151687f + B1 * 0.0721932f;
 		const float CbFull0 = R0 * (-0.1145922f) + G0 * (-0.3854078f) + B0 * 0.5f;
@@ -42,19 +67,63 @@ namespace AvidDNx
 		const float CbAvg = (CbFull0 + CbFull1) / 2.0f;
 		const float CrAvg = (CrFull0 + CrFull1) / 2.0f;
 
-		// video range conversion
-		const uint8 YVideoRange0 = (uint8)FMath::RoundToInt((219 * Yfull0 + 16));
-		const uint8 YVideoRange1 = (uint8)FMath::RoundToInt((219 * Yfull1 + 16));
-		const uint8 CbVideoRange = (uint8)FMath::RoundToInt((224 * CbAvg + 128));
-		const uint8 CrVideoRange = (uint8)FMath::RoundToInt((224 * CrAvg + 128));
+		// Video range conversion. 8-bit values are from the Rec. 709 specification. The 16-bit values were derived from this.
+		// Example: WhitePoint_Y_16bit = 235/256 * 65536, where 256 is the max value of a uint8, and 65536 for uint16.
+		constexpr uint8 WhitePoint_Y_8bit = 235;
+		constexpr uint8 WhitePoint_CbCr_8bit = 240;
+		constexpr uint8 BlackPoint_8bit = 16;
+		constexpr uint8 Midpoint_8bit = 128;
+		
+		constexpr uint16 WhitePoint_Y_16bit = 60160;
+		constexpr uint16 WhitePoint_CbCr_16bit = 61440;
+		constexpr uint16 BlackPoint_16bit = 4096;
+		constexpr uint16 Midpoint_16bit = 32768;
 
-		return
+		ColorComponentType RangeDifference_Y;
+		ColorComponentType RangeDifference_CbCr;
+		ColorComponentType BlackPoint;
+		ColorComponentType Midpoint;
+		if constexpr (std::is_same_v<ColorComponentType, uint8>)
 		{
-			YVideoRange0,
-			CbVideoRange,
-			YVideoRange1,
-			CrVideoRange
-		};
+			RangeDifference_Y = WhitePoint_Y_8bit - BlackPoint_8bit;
+			RangeDifference_CbCr = WhitePoint_CbCr_8bit - BlackPoint_8bit;
+			BlackPoint = BlackPoint_8bit;
+			Midpoint = Midpoint_8bit;
+		}
+		else if constexpr (std::is_same_v<ColorComponentType, unsigned short>)
+		{
+			RangeDifference_Y = WhitePoint_Y_16bit - BlackPoint_16bit;
+			RangeDifference_CbCr = WhitePoint_CbCr_16bit - BlackPoint_16bit;
+			BlackPoint = BlackPoint_16bit;
+			Midpoint = Midpoint_16bit;
+		}
+		
+		const ColorComponentType YVideoRange0 = static_cast<ColorComponentType>(FMath::RoundToInt((RangeDifference_Y * Yfull0 + BlackPoint)));
+		const ColorComponentType YVideoRange1 = static_cast<ColorComponentType>(FMath::RoundToInt((RangeDifference_Y * Yfull1 + BlackPoint)));
+		const ColorComponentType CbVideoRange = static_cast<ColorComponentType>(FMath::RoundToInt((RangeDifference_CbCr * CbAvg + Midpoint)));
+		const ColorComponentType CrVideoRange = static_cast<ColorComponentType>(FMath::RoundToInt((RangeDifference_CbCr * CrAvg + Midpoint)));
+
+		return ColorContainer(YVideoRange0, CbVideoRange, YVideoRange1, CrVideoRange);
+	}
+
+	/** Converts a FFloat16Color to Rec. 709 and video range. */
+	FAvidDNxEncoder::FRGB_16bit RGBtoRec709(const FFloat16Color* InColor)
+	{
+		constexpr unsigned short WhitePoint = 60160;
+		constexpr unsigned short BlackPoint = 4096;
+		constexpr unsigned short Difference = WhitePoint - BlackPoint;
+		constexpr float GammaExponent = 1.f / 2.4f;
+
+		// Rec. 709 conversion
+		const float R = FMath::Pow(InColor->R, GammaExponent);
+		const float G = FMath::Pow(InColor->G, GammaExponent);
+		const float B = FMath::Pow(InColor->B, GammaExponent);
+
+		// Convert to video range
+		return FAvidDNxEncoder::FRGB_16bit(
+			static_cast<unsigned short>(R * Difference + BlackPoint),
+			static_cast<unsigned short>(G * Difference + BlackPoint),
+			static_cast<unsigned short>(B * Difference + BlackPoint));
 	}
 
 	int32 GCD(int32 A, int32 B)
@@ -90,6 +159,8 @@ FAvidDNxEncoder::FAvidDNxEncoder(const FAvidDNxEncoderOptions& InOptions)
 	: Options(InOptions)
 	, bInitialized(false)
 	, bFinalized(false)
+	, WriteStartTimeSeconds(0)
+	, WriteEndTimeSeconds(0)
 	, DNxHRencoder(nullptr)
 	, DNxUncEncoder(nullptr)
 	, MXFwriter(nullptr)
@@ -142,13 +213,25 @@ bool FAvidDNxEncoder::Initialize()
 
 bool FAvidDNxEncoder::InitializeCompressedEncoder()
 {
+	const bool bIsRGB = (Options.Quality == EAvidDNxEncoderQuality::RGB444_12bit);
+	
+	DNX_ComponentType_t ComponentType = DNX_CT_UCHAR;
+	if (Options.Quality == EAvidDNxEncoderQuality::HQX_10bit)
+	{
+		ComponentType = DNX_CT_USHORT_10_6;
+	}
+	else if (Options.Quality == EAvidDNxEncoderQuality::RGB444_12bit)
+	{
+		ComponentType = DNX_CT_USHORT_12_4;
+	}
+	
 	const DNX_UncompressedParams_t UncompressedParamsHR =
 	{
 		sizeof(DNX_UncompressedParams_t),
-		DNX_CT_UCHAR, // Component type
+		ComponentType, // Component type
 		DNX_CV_709, // Color volume
-		DNX_CF_YCbCr, // Color format
-		DNX_CCO_YCbYCr_NoA, // Component order
+		bIsRGB ? DNX_CF_RGB : DNX_CF_YCbCr, // Color format
+		bIsRGB ? DNX_CCO_RGB_NoA : DNX_CCO_YCbYCr_NoA, // Component order
 		DNX_BFO_Progressive, // Field order
 		DNX_RGT_Display, // Raster geometry type
 		0, // Interfield gap bytes
@@ -161,17 +244,27 @@ bool FAvidDNxEncoder::InitializeCompressedEncoder()
 		0 // Row bytes2
 	};
 
+	unsigned int BitDepth = 8;
+	if (Options.Quality == EAvidDNxEncoderQuality::HQX_10bit)
+	{
+		BitDepth = 10;
+	}
+	else if (Options.Quality == EAvidDNxEncoderQuality::RGB444_12bit)
+	{
+		BitDepth = 12;
+	}
+
 	const DNX_CompressedParams_t CompressedParamsHR =
 	{
 		sizeof(DNX_CompressedParams_t),
 		Options.Width,
 		Options.Height,
-		DNX_HQ_COMPRESSION_ID,
+		static_cast<DNX_CompressionID_t>(Options.Quality),
 		DNX_CV_709, // Color volume
-		DNX_CF_YCbCr, // Color format
+		bIsRGB ? DNX_CF_RGB : DNX_CF_YCbCr, // Color format
 		// Parameters below are used for RI only
-		DNX_SSC_422, // Sub-sampling
-		8, // bit-depth, is used only for RI compression IDs
+		bIsRGB ? DNX_SSC_444 : DNX_SSC_422, // Sub-sampling
+		BitDepth, // bit-depth, is used only for RI compression IDs
 		1, // PARC
 		1, // PARN
 		0, // CRC-presence
@@ -275,47 +368,21 @@ bool FAvidDNxEncoder::InitializeMXFWriter()
 	return true;
 }
 
-bool FAvidDNxEncoder::WriteFrame(const uint8* InFrameData)
+bool FAvidDNxEncoder::WriteFrame_Avid(const void* InSubSampledBuffer, const int32 InSubSampledBufferSize, void* OutEncodedBuffer, const int32 InEncodedBufferSize)
 {
-	const double StartTime = FPlatformTime::Seconds();
-
-	int32 NumPixels = Options.Width * Options.Height;
-
-	TArray<FY0CbY1Cr, TAlignedHeapAllocator<16>> SubSampledBuffer;
-	SubSampledBuffer.AddUninitialized(NumPixels / 2);
-	TArray<uint8, TAlignedHeapAllocator<16>> EncodedBuffer;
-	EncodedBuffer.AddUninitialized(EncodedBufferSize);
-	ensure(NumPixels % 2 == 0);
-
-
-	const FColor* ColorData = reinterpret_cast<const FColor*>(InFrameData);
-	for (size_t InIdx = 0, OutIdx = 0; InIdx < NumPixels; InIdx += 2, ++OutIdx)
-	{
-		// FAvidDNxEncoder::FY0CbY1Cr SubSample422(const FColor & InBgra0, const FColor & InBgra1)
-		const FColor* PixelA = &ColorData[InIdx];
-		const FColor* PixelB = &ColorData[InIdx + 1];
-
-		SubSampledBuffer[OutIdx] = AvidDNx::SubSample422(PixelA, PixelB);
-	}
-
-	const char* InBuffer = (const char*)SubSampledBuffer.GetData();
-	const unsigned int InputBufferSize = SubSampledBuffer.Num() * 4;
-
-	char* OutBuffer = (char*)EncodedBuffer.GetData();
-	const int32 OutBufferSize = EncodedBuffer.Num();
 	unsigned int CompressedFrameSize = 0;
 	bool bEncodingSuccessful = false;
 
-	const double ConvertionTime = FPlatformTime::Seconds();
+	const double ConversionTime = FPlatformTime::Seconds();
 
 	if (Options.bCompress)
 	{
 		const int EncodeStatus = DNX_EncodeFrame(
 			DNxHRencoder,
-			InBuffer,
-			OutBuffer,
-			InputBufferSize,
-			OutBufferSize,
+			InSubSampledBuffer,
+			OutEncodedBuffer,
+			InSubSampledBufferSize,
+			InEncodedBufferSize,
 			&CompressedFrameSize);
 
 		if (EncodeStatus != DNX_NO_ERROR)
@@ -337,24 +404,24 @@ bool FAvidDNxEncoder::WriteFrame(const uint8* InFrameData)
 			DNxUncEncoder,
 			&DNxUncUncompressedParams,
 			&DNxUncCompressedParams,
-			InBuffer,
+			InSubSampledBuffer,
 			UncompressedBufferSize,
-			OutBuffer,
-			OutBufferSize,
+			OutEncodedBuffer,
+			InEncodedBufferSize,
 			&CompressedFrameSize);
 		bEncodingSuccessful = EncodeStatus == DNX_UNCOMPRESSED_ERR_SUCCESS; // errors will be logged through DNxUncompressedErrorHandler
 	}
 
 	if (bEncodingSuccessful)
 	{
-		DNXMXF_WriteFrame(MXFwriter, OutBuffer, CompressedFrameSize);
+		DNXMXF_WriteFrame(MXFwriter, OutEncodedBuffer, CompressedFrameSize);
 	}
 
-	const double EndTime = FPlatformTime::Seconds();
+	WriteEndTimeSeconds = FPlatformTime::Seconds();
 
-	const double ConversionDeltaTimeMs = (ConvertionTime - StartTime) * 1000.0;
-	const double CodecDeltaTimeMs = (EndTime - ConvertionTime) * 1000.0;
-	const double TotalDeltaTimeMs = (EndTime - StartTime) * 1000.0;
+	const double ConversionDeltaTimeMs = (ConversionTime - WriteStartTimeSeconds) * 1000.0;
+	const double CodecDeltaTimeMs = (WriteEndTimeSeconds - ConversionTime) * 1000.0;
+	const double TotalDeltaTimeMs = (WriteEndTimeSeconds - WriteStartTimeSeconds) * 1000.0;
 
 	// FVideoFrameData* FramePayload = InFrame.GetPayload<FVideoFrameData>();
 	// UE_LOG(LogAvidDNxMedia, Verbose, TEXT("Processing Frame:%dx%d Frame:%d Conversion:%fms Codec:%fms Total:%fms"),
@@ -364,7 +431,113 @@ bool FAvidDNxEncoder::WriteFrame(const uint8* InFrameData)
 	// 	ConversionDeltaTimeMs,
 	// 	CodecDeltaTimeMs,
 	// 	TotalDeltaTimeMs);
+	
 	return bEncodingSuccessful;
+}
+
+bool FAvidDNxEncoder::WriteFrame(const uint8* InFrameData)
+{
+	WriteStartTimeSeconds = FPlatformTime::Seconds();
+	
+	const int32 NumPixels = Options.Width * Options.Height;
+
+	TArray<FY0CbY1Cr, TAlignedHeapAllocator<16>> SubSampledBuffer;
+	SubSampledBuffer.AddUninitialized(NumPixels / 2);
+	
+	TArray<uint8, TAlignedHeapAllocator<16>> EncodedBuffer;
+	EncodedBuffer.AddUninitialized(EncodedBufferSize);
+	
+	ensure(NumPixels % 2 == 0);
+
+	const FColor* ColorData = reinterpret_cast<const FColor*>(InFrameData);
+	ParallelFor(NumPixels / 2, [&SubSampledBuffer, &ColorData](const int32 SubSampledPixelIndex)
+	{
+		// The sub-sampled index goes from 0 -> NumPixels/2.
+		// The input index goes from 0 -> NumPixels.
+		
+		const int32 InputIndex = SubSampledPixelIndex * 2;
+		
+		const FColor* PixelA = &ColorData[InputIndex];
+		const FColor* PixelB = &ColorData[InputIndex + 1];
+
+		SubSampledBuffer[SubSampledPixelIndex] = AvidDNx::RBGtoYCbCrRec709<FColor, uint8, FY0CbY1Cr>(PixelA, PixelB);
+	});
+	
+	const char* InBuffer = reinterpret_cast<const char*>(SubSampledBuffer.GetData());
+	const int32 InputBufferSize = SubSampledBuffer.Num() * 4;
+
+	char* OutBuffer = reinterpret_cast<char*>(EncodedBuffer.GetData());
+	const int32 OutBufferSize = EncodedBuffer.Num();
+
+	return WriteFrame_Avid(InBuffer, InputBufferSize, OutBuffer, OutBufferSize);
+}
+
+bool FAvidDNxEncoder::WriteFrame_16bit(const FFloat16Color* InFrameData)
+{
+	const bool bIsRGB = (Options.Quality == EAvidDNxEncoderQuality::RGB444_12bit);
+
+	if (bIsRGB)
+	{
+		return WriteFrame_16bit_Impl<FRGB_16bit>(InFrameData);
+	}
+
+	return WriteFrame_16bit_Impl<FY0CbY1Cr_16bit>(InFrameData);
+}
+
+template <typename EncodedBufferType>
+bool FAvidDNxEncoder::WriteFrame_16bit_Impl(const FFloat16Color* InFrameData)
+{
+	WriteStartTimeSeconds = FPlatformTime::Seconds();
+	
+	const int32 NumPixels = Options.Width * Options.Height;
+	ensure(NumPixels % 2 == 0);
+
+	const bool bIs444 = (Options.Quality == EAvidDNxEncoderQuality::RGB444_12bit);
+	const bool bIsRGB = (Options.Quality == EAvidDNxEncoderQuality::RGB444_12bit);
+
+	// The buffer that the encoder will fill in
+	TArray<uint8, TAlignedHeapAllocator<16>> EncodedBuffer;
+	EncodedBuffer.AddUninitialized(EncodedBufferSize);
+
+	// The buffer provided to the encoder. Depending on the format, this buffer may not be sub-sampled at all (eg, RGB 4:4:4).
+	TArray<EncodedBufferType, TAlignedHeapAllocator<16>> SubSampledBuffer;
+	SubSampledBuffer.AddUninitialized(bIs444 ? NumPixels : NumPixels / 2);
+
+	// RGB -> Rec. 709 RGB
+	if constexpr (std::is_same_v<EncodedBufferType, FRGB_16bit>)
+	{
+		ParallelFor(NumPixels, [&SubSampledBuffer, &InFrameData](const int32 PixelIndex)
+		{
+			SubSampledBuffer[PixelIndex] = AvidDNx::RGBtoRec709(&InFrameData[PixelIndex]);
+		});
+	}
+
+	// RGB -> Rec. 709 YCbCr
+	else
+	{
+		ParallelFor(NumPixels / 2, [&SubSampledBuffer, &InFrameData](const int32 SubSampledPixelIndex)
+		{
+			// The sub-sampled index goes from 0 -> NumPixels/2.
+			// The input index goes from 0 -> NumPixels.
+			
+			const int32 InputIndex = SubSampledPixelIndex * 2;
+			
+			// Sub-sample the pixel data
+			const FFloat16Color* PixelA = &InFrameData[InputIndex];
+			const FFloat16Color* PixelB = &InFrameData[InputIndex + 1];
+
+			// Convert to video range and Rec 709
+			SubSampledBuffer[SubSampledPixelIndex] = AvidDNx::RBGtoYCbCrRec709<FFloat16Color, unsigned short, EncodedBufferType>(PixelA, PixelB);
+		});
+	}
+
+	const char* InBuffer = reinterpret_cast<const char*>(SubSampledBuffer.GetData());
+	const int32 InputBufferSize = bIsRGB ? sizeof(FRGB_16bit) * NumPixels : sizeof(FY0CbY1Cr_16bit) * NumPixels;
+
+	void* OutBuffer = EncodedBuffer.GetData();
+	const int32 OutBufferSize = EncodedBuffer.Num();
+
+	return WriteFrame_Avid(InBuffer, InputBufferSize, OutBuffer, OutBufferSize);
 }
 
 void FAvidDNxEncoder::Finalize()

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AvidDNxEncoder/AvidDNxEncoder.h"
 #include "Graph/MovieGraphNode.h"
 #include "Graph/Nodes/MovieGraphVideoOutputNode.h"
 
@@ -15,13 +16,6 @@ enum class EMovieGraphAvidDNxHRFormat : uint8
 {
 	Mxf UMETA(DisplayName = "Material Exchange Format (MXF)"),
 	Mov UMETA(DisplayName = "QuickTime (MOV)")
-};
-
-/** The codecs available for use with the Avid DNxHR node. */
-UENUM(BlueprintType)
-enum class EMovieGraphAvidDNxHRCodec : uint8
-{
-	HQ8Bit UMETA(DisplayName = "DNxHR HQ 8-bit"),
 };
 
 /** A node which can output Avid DNxHR movies. */
@@ -45,7 +39,7 @@ public:
 
 protected:
 	// UMovieGraphVideoOutputNode Interface
-	virtual TUniquePtr<MovieRenderGraph::IVideoCodecWriter> Initialize_GameThread(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InFileName, FIntPoint InResolution, EImagePixelType InPixelType, ERGBFormat InPixelFormat, uint8 InBitDepth, uint8 InNumChannels, bool bAllowOCIO) override;
+	virtual TUniquePtr<MovieRenderGraph::IVideoCodecWriter> Initialize_GameThread(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName, const FString& InFileName, FIntPoint InResolution, EImagePixelType InPixelType, ERGBFormat InPixelFormat, uint8 InBitDepth, uint8 InNumChannels, bool bAllowOCIO) override;
 	virtual bool Initialize_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter) override;
 	virtual void WriteFrame_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter, FImagePixelData* InPixelData, TArray<FMovieGraphPassData>&& InCompositePasses, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig) override;
 	virtual void BeginFinalize_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter) override;
@@ -68,7 +62,7 @@ public:
 	uint8 bOverride_Format : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_Codec : 1;
+	uint8 bOverride_Quality : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OCIOConfiguration : 1;
@@ -80,9 +74,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Avid DNxHR", meta=(EditCondition="bOverride_Format"))
 	EMovieGraphAvidDNxHRFormat Format;
 
-	/** Movie Render Queue currently supports the Avid DNxHR HQ 8-bit codec only. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Avid DNxHR", meta=(EditCondition="bOverride_Codec"))
-	EMovieGraphAvidDNxHRCodec Codec;
+	/**  */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Avid DNxHR", meta=(EditCondition="bOverride_Quality"))
+	EAvidDNxEncoderQuality Quality = EAvidDNxEncoderQuality::HQ_8bit;
 
 	/**
 	* OCIO configuration/transform settings.
