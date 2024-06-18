@@ -8,10 +8,14 @@
 
 #include "RHI.h"
 #include "RHIUtilities.h"
+#include "RenderGraphDefinitions.h"
 
 class FPrimitiveSceneProxy;
 class FScene;
 class FSceneView;
+class FViewInfo;
+class FRDGBuilder;
+class FRayTracingGeometry;
 struct FMeshComputeDispatchCommand;
 struct FRayTracingDynamicGeometryUpdateParams;
 
@@ -41,19 +45,37 @@ public:
 
 	// Starts an update batch and returns the current shared buffer generation ID which is used for validation.
 	RENDERER_API int64 BeginUpdate();
+
+	UE_DEPRECATED(5.5, "Use AddDynamicGeometryUpdatePass instead.")
 	RENDERER_API void DispatchUpdates(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer);
+
+	UE_DEPRECATED(5.5, "Use AddDynamicGeometryUpdatePass instead.")
 	RENDERER_API void EndUpdate();
+
+	RENDERER_API void AddDynamicGeometryUpdatePass(const FViewInfo& View, FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags, FRDGBufferRef& OutDynamicGeometryScratchBuffer);
 
 	// Clears the working arrays to not hold any references.
 	RENDERER_API void Clear();
 
+	UE_DEPRECATED(5.5, "Use AddDynamicGeometryUpdatePass instead which allocates scratch buffer internally.")
 	RENDERER_API uint32 ComputeScratchBufferSize();
 
 private:
 
+	// Prepares DispatchCommands and BuildParams and returns the number of bytes needed for scratch buffer
+	uint32 Update();
+
+	struct FRayTracingDynamicGeometryBuildParams
+	{
+		TArray<FMeshComputeDispatchCommand> DispatchCommands;
+		FRayTracingGeometry* Geometry;
+	};
+
+	TArray<FRayTracingDynamicGeometryBuildParams> DynamicGeometryBuilds;
+	TArray<FRayTracingDynamicGeometryBuildParams> DynamicGeometryUpdates;
+
 	TArray<FMeshComputeDispatchCommand> DispatchCommands;
 	TArray<FRayTracingGeometryBuildParams> BuildParams;
-	TArray<FRayTracingGeometrySegment> Segments;
 
 	struct FVertexPositionBuffer
 	{
