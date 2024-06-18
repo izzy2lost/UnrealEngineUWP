@@ -7,13 +7,14 @@
 #include "MassEntityQuery.h"
 #include "MassSubsystemAccess.h"
 
-
 #define CHECK_IF_VALID(View, Type) \
-	checkf(View \
+	testableCheckfReturn(View \
+		, return {} \
 		, TEXT("Requested fragment type not bound, type %s. Make sure it has been listed as required."), *GetNameSafe(Type))
 
 #define CHECK_IF_READWRITE(View) \
-	checkf(View == nullptr || View->Requirement.AccessMode == EMassFragmentAccess::ReadWrite \
+	testableCheckfReturn(View == nullptr || View->Requirement.AccessMode == EMassFragmentAccess::ReadWrite \
+		, return {} \
 		, TEXT("Requested fragment type not bound for writing, type %s. Make sure it has been listed as required in ReadWrite mode.") \
 		, View ? *GetNameSafe(View->Requirement.StructType) : TEXT("[Not found]"))
 
