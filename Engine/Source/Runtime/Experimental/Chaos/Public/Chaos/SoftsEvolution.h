@@ -63,12 +63,16 @@ public:
 	 * @return SoftBodyId
 	 */
 	CHAOS_API int32 AddSoftBody(uint32 GroupId, int32 NumParticles, bool bEnable);
+	// TODO: add garbage collection. Currently soft bodies and their particles are recycled only if another softbody with the exact same number of particles is requested. 
+	// This is the common use case with cloth collision ranges, but we will likely need something more sophisticated.
+	// (Or we could have each SoftBody own its own SolverParticles--we don't take advantage of a single Particle list anywhere)
+	CHAOS_API void RemoveSoftBody(int32 SoftBodyId);
 	int32 GetSoftBodyParticleNum(int32 SoftBodyId) const { return SoftBodies.ParticleRanges[SoftBodyId].GetRangeSize(); }
 	int32 GetSoftBodyGroupId(int32 SoftBodyId) const { return SoftBodies.GroupId[SoftBodyId]; }
 	CHAOS_API void SetSoftBodyProperties(int32 SoftBodyId, const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
 	CHAOS_API void ActivateSoftBody(int32 SoftBodyId, bool bActivate);
-	bool IsSoftBodyActive(int32 SoftBodyId) const { return SoftBodies.Active[SoftBodyId]; }
+	bool IsSoftBodyActive(int32 SoftBodyId) const { return SoftBodies.Status[SoftBodyId] == FSoftBodies::EStatus::Active; }
 	FSolverParticlesRange& GetSoftBodyParticles(int32 SoftBodyId) { return SoftBodies.ParticleRanges[SoftBodyId]; }
 	const FSolverParticlesRange& GetSoftBodyParticles(int32 SoftBodyId) const { return SoftBodies.ParticleRanges[SoftBodyId]; }
 	const TArray<int32>& GetGroupSoftBodies(uint32 GroupId) const { return Groups.SoftBodies[GroupId]; }
@@ -106,99 +110,97 @@ public:
 	typedef TFunction<void(const FSolverParticlesRange&, const FSolverReal Dt, const TArray<FSolverCollisionParticlesRange>&, FEvolutionLinearSystem&)> UpdateLinearSystemCollisionsFunc;
 
 	/* Add Ranges to allocate space for your rules. */
-	// Warning: Rules are allocated into shared buffers. The ArrayViews may go stale if you allocate ANY new rules.
-	// Allocate your batch of rules, then get your array views.	
 
 	// Presubstep init methods (always run at beginning of substep)
 	void AllocatePreSubstepParallelInitRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, ParallelInitRules, SoftBodies.PreSubstepParallelInits);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.PreSubstepParallelInits);
 	}
 	// PBD Rules that apply external forces (only run if doing PBD)
 	void AllocatePBDExternalForceRulesRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, PBDConstraintRules, SoftBodies.PBDExternalForceRules);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.PBDExternalForceRules);
 	}
 	// Post initial guess init methods (always run after kinematic and initial guess update, before any solving.) 
 	void AllocatePostInitialGuessParallelInitRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, ParallelInitRules, SoftBodies.PostInitialGuessParallelInits);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.PostInitialGuessParallelInits);
 	}
 	// Rules that run once per substep after all initial guess and initialization is done.
 	void AllocatePreSubstepConstraintRulesRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, ConstraintRules, SoftBodies.PreSubstepConstraintRules);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.PreSubstepConstraintRules);
 	}
 	// Normal per-iteration PBD rules (only run if doing PBD)
 	void AllocatePerIterationPBDConstraintRulesRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, PBDConstraintRules, SoftBodies.PerIterationPBDConstraintRules);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.PerIterationPBDConstraintRules);
 	}
 	// Collision per-iteration PBD rules (only run if doing PBD)
 	void AllocatePerIterationCollisionPBDConstraintRulesRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, PBDCollisionConstraintRules, SoftBodies.PerIterationCollisionPBDConstraintRules);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.PerIterationCollisionPBDConstraintRules);
 	}
 	// Normal per-iteration PBD rules that run after collisions (only run if doing PBD)
 	void AllocatePerIterationPostCollisionsPBDConstraintRulesRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, PBDConstraintRules, SoftBodies.PerIterationPostCollisionsPBDConstraintRules);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.PerIterationPostCollisionsPBDConstraintRules);
 	}
 	// Linear system rules (only run if doing ForceBased)
 	void AllocateUpdateLinearSystemRulesRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, UpdateLinearSystemRules, SoftBodies.UpdateLinearSystemRules);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.UpdateLinearSystemRules);
 	}
 	// Linear system collision rules (only run if doing ForceBased)
 	void AllocateUpdateLinearSystemCollisionsRulesRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, UpdateLinearSystemCollisionsRules, SoftBodies.UpdateLinearSystemCollisionsRules);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.UpdateLinearSystemCollisionsRules);
 	}
 	// Post substep rules (always run at end of substep)
 	void AllocatePostSubstepConstraintRulesRange(int32 SoftBodyId, int32 NumRules)
 	{
-		return AllocateRulesRange(SoftBodyId, NumRules, ConstraintRules, SoftBodies.PostSubstepConstraintRules);
+		return AllocateRules(SoftBodyId, NumRules, SoftBodies.PostSubstepConstraintRules);
 	}
 
 	TArrayView<ParallelInitFunc> GetPreSubstepParallelInitRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.PreSubstepParallelInits);
+		return GetRules(SoftBodyId, SoftBodies.PreSubstepParallelInits);
 	}
 	TArrayView<PBDConstraintRuleFunc> GetPBDExternalForceRulesRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.PBDExternalForceRules);
+		return GetRules(SoftBodyId, SoftBodies.PBDExternalForceRules);
 	}
 	TArrayView<ParallelInitFunc> GetPostInitialGuessParallelInitRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.PostInitialGuessParallelInits);
+		return GetRules(SoftBodyId, SoftBodies.PostInitialGuessParallelInits);
 	}
 	TArrayView<ConstraintRuleFunc> GetPreSubstepConstraintRulesRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.PreSubstepConstraintRules);
+		return GetRules(SoftBodyId, SoftBodies.PreSubstepConstraintRules);
 	}
 	TArrayView<PBDConstraintRuleFunc> GetPerIterationPBDConstraintRulesRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.PerIterationPBDConstraintRules);
+		return GetRules(SoftBodyId, SoftBodies.PerIterationPBDConstraintRules);
 	}
 	TArrayView<PBDCollisionConstraintRuleFunc> GetPerIterationCollisionPBDConstraintRulesRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.PerIterationCollisionPBDConstraintRules);
+		return GetRules(SoftBodyId, SoftBodies.PerIterationCollisionPBDConstraintRules);
 	}
 	TArrayView<PBDConstraintRuleFunc> GetPerIterationPostCollisionsPBDConstraintRulesRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.PerIterationPostCollisionsPBDConstraintRules);
+		return GetRules(SoftBodyId, SoftBodies.PerIterationPostCollisionsPBDConstraintRules);
 	}
 	TArrayView<UpdateLinearSystemFunc> GetUpdateLinearSystemRulesRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.UpdateLinearSystemRules);
+		return GetRules(SoftBodyId, SoftBodies.UpdateLinearSystemRules);
 	}
 	TArrayView<UpdateLinearSystemCollisionsFunc> GetUpdateLinearSystemCollisionsRulesRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.UpdateLinearSystemCollisionsRules);
+		return GetRules(SoftBodyId, SoftBodies.UpdateLinearSystemCollisionsRules);
 	}
 	TArrayView<ConstraintRuleFunc> GetPostSubstepConstraintRulesRange(int32 SoftBodyId)
 	{
-		return GetRulesRange(SoftBodyId, SoftBodies.PostSubstepConstraintRules);
+		return GetRules(SoftBodyId, SoftBodies.PostSubstepConstraintRules);
 	}
 
 	/** Solver settings */
@@ -256,7 +258,7 @@ private:
 	{
 		FSoftBodies()
 		{
-			TArrayCollection::AddArray(&Active);
+			TArrayCollection::AddArray(&Status);
 			TArrayCollection::AddArray(&GroupId);
 			TArrayCollection::AddArray(&ParticleRanges);
 			TArrayCollection::AddArray(&GlobalDampings);
@@ -288,7 +290,14 @@ private:
 			return Offset;
 		}
 
-		TArrayCollectionArray<bool> Active;
+		enum struct EStatus : uint8
+		{
+			Invalid = 0,
+			Active = 1,
+			Inactive = 2,
+			Free = 3 // Available for recycling
+		};
+		TArrayCollectionArray<EStatus> Status;
 		TArrayCollectionArray<uint32> GroupId;
 		TArrayCollectionArray<FSolverParticlesRange> ParticleRanges;
 		TArrayCollectionArray<FSolverReal> GlobalDampings;
@@ -296,16 +305,16 @@ private:
 		TArrayCollectionArray<bool> UsePerParticleDamping;
 		TArrayCollectionArray<FEvolutionLinearSystem> LinearSystems;
 
-		TArrayCollectionArray<TArrayRange<ParallelInitFunc>> PreSubstepParallelInits;
-		TArrayCollectionArray<TArrayRange<PBDConstraintRuleFunc>> PBDExternalForceRules;
-		TArrayCollectionArray<TArrayRange<ParallelInitFunc>> PostInitialGuessParallelInits;
-		TArrayCollectionArray<TArrayRange<ConstraintRuleFunc>> PreSubstepConstraintRules;
-		TArrayCollectionArray<TArrayRange<PBDConstraintRuleFunc>> PerIterationPBDConstraintRules;
-		TArrayCollectionArray<TArrayRange<PBDCollisionConstraintRuleFunc>> PerIterationCollisionPBDConstraintRules;
-		TArrayCollectionArray<TArrayRange<PBDConstraintRuleFunc>> PerIterationPostCollisionsPBDConstraintRules;
-		TArrayCollectionArray<TArrayRange<UpdateLinearSystemFunc>> UpdateLinearSystemRules;
-		TArrayCollectionArray<TArrayRange<UpdateLinearSystemCollisionsFunc>> UpdateLinearSystemCollisionsRules;
-		TArrayCollectionArray<TArrayRange<ConstraintRuleFunc>> PostSubstepConstraintRules;
+		TArrayCollectionArray<TArray<ParallelInitFunc>> PreSubstepParallelInits;
+		TArrayCollectionArray<TArray<PBDConstraintRuleFunc>> PBDExternalForceRules;
+		TArrayCollectionArray<TArray<ParallelInitFunc>> PostInitialGuessParallelInits;
+		TArrayCollectionArray<TArray<ConstraintRuleFunc>> PreSubstepConstraintRules;
+		TArrayCollectionArray<TArray<PBDConstraintRuleFunc>> PerIterationPBDConstraintRules;
+		TArrayCollectionArray<TArray<PBDCollisionConstraintRuleFunc>> PerIterationCollisionPBDConstraintRules;
+		TArrayCollectionArray<TArray<PBDConstraintRuleFunc>> PerIterationPostCollisionsPBDConstraintRules;
+		TArrayCollectionArray<TArray<UpdateLinearSystemFunc>> UpdateLinearSystemRules;
+		TArrayCollectionArray<TArray<UpdateLinearSystemCollisionsFunc>> UpdateLinearSystemCollisionsRules;
+		TArrayCollectionArray<TArray<ConstraintRuleFunc>> PostSubstepConstraintRules;
 	};
 
 	// CollisionBodyRange SOA
@@ -402,16 +411,16 @@ private:
 	};
 
 	template<typename RuleFunc>
-	void AllocateRulesRange(int32 SoftBodyId, int32 NumRules, TArray<RuleFunc>& RuleArray, TArrayCollectionArray<TArrayRange<RuleFunc>>& RangeArray)
+	void AllocateRules(int32 SoftBodyId, int32 NumRules, TArrayCollectionArray<TArray<RuleFunc>>& RuleArray)
 	{
-		check(RangeArray[SoftBodyId].IsEmpty());
-		RangeArray[SoftBodyId] = TArrayRange<RuleFunc>::AddRange(RuleArray, NumRules);
+		check(RuleArray[SoftBodyId].IsEmpty());
+		RuleArray[SoftBodyId].SetNum(NumRules);
 	}
 
 	template<typename RuleFunc>
-	TArrayView<RuleFunc> GetRulesRange(int32 SoftBodyId, TArrayCollectionArray<TArrayRange<RuleFunc>>& RangeArray)
+	TArrayView<RuleFunc> GetRules(int32 SoftBodyId, TArrayCollectionArray<TArray<RuleFunc>>& RuleArray)
 	{
-		return RangeArray[SoftBodyId].GetArrayView();
+		return TArrayView<RuleFunc>(RuleArray[SoftBodyId]);
 	}
 
 	void AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 TimeDependentNumIterations, uint32 GroupId);
@@ -438,6 +447,9 @@ private:
 	// Per-SoftBody data
 	FSoftBodies SoftBodies;
 
+	// SoftBody free-list
+	TMap<int32, TArray<int32>> SoftBodyFreeList; // Key = NumParticles, Value = SoftBodyId(s)
+
 	// Per-CollisionBodyRange data
 	FCollisionBodyRanges CollisionRanges;
 
@@ -450,16 +462,6 @@ private:
 
 	KinematicUpdateFunc KinematicUpdate;
 	CollisionKinematicUpdateFunc CollisionKinematicUpdate;
-
-	// Rules that run on ParticleRanges (SoftBodies will have views into these)
-	TArray<ParallelInitFunc> ParallelInitRules;
-	TArray<ConstraintRuleFunc> ConstraintRules;
-	TArray<PBDConstraintRuleFunc> PBDConstraintRules;
-	TArray<PBDCollisionConstraintRuleFunc> PBDCollisionConstraintRules;
-	TArray<UpdateLinearSystemFunc> UpdateLinearSystemRules;
-	TArray<UpdateLinearSystemCollisionsFunc> UpdateLinearSystemCollisionsRules;
-
-	// Collision Rules
 
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(DampingCoefficient, float);
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(LocalDampingCoefficient, float);

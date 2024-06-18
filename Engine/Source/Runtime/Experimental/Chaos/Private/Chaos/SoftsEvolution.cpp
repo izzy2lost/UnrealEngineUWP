@@ -185,13 +185,6 @@ void FEvolution::Reset()
 
 	Groups.Reset();
 
-	ParallelInitRules.Reset();
-	ConstraintRules.Reset();
-	PBDConstraintRules.Reset();
-	PBDCollisionConstraintRules.Reset();
-	UpdateLinearSystemRules.Reset();
-	UpdateLinearSystemCollisionsRules.Reset();
-
 	KinematicUpdate.Reset();
 	CollisionKinematicUpdate.Reset();
 }
@@ -215,20 +208,58 @@ int32 FEvolution::AddSoftBody(uint32 GroupId, int32 NumParticles, bool bEnable)
 	{
 		Groups.AddGroupsToSize(GroupId + 1);
 	}
-	const int32 SoftBodyId = SoftBodies.AddSoftBody();
+
+	int32 SoftBodyId = INDEX_NONE;
+	TArray<int32>* const FreeList = SoftBodyFreeList.Find(NumParticles);
+	if (FreeList && FreeList->Num())
+	{
+		SoftBodyId = FreeList->Pop();
+		check(SoftBodies.Status[SoftBodyId] == FSoftBodies::EStatus::Free);
+	}
+	else
+	{
+		SoftBodyId = SoftBodies.AddSoftBody();
+		SoftBodies.ParticleRanges[SoftBodyId] = FSolverParticlesRange::AddParticleRange(Particles, NumParticles);
+	}
+
 	Groups.SoftBodies[GroupId].Emplace(SoftBodyId);
 
-	SoftBodies.ParticleRanges[SoftBodyId] = FSolverParticlesRange::AddParticleRange(Particles, NumParticles);
-
 	// Set properties
-	SoftBodies.Active[SoftBodyId] = false;
+	SoftBodies.Status[SoftBodyId] = FSoftBodies::EStatus::Inactive;
 	SoftBodies.GroupId[SoftBodyId] = GroupId;
 	SoftBodies.GlobalDampings[SoftBodyId] = Private::EvolutionSoftBodyDefault::GlobalDamping;
 	SoftBodies.LocalDampings[SoftBodyId] = Private::EvolutionSoftBodyDefault::LocalDamping;
 	SoftBodies.UsePerParticleDamping[SoftBodyId] = Private::EvolutionSoftBodyDefault::bUsePerParticleDamping;
+	SoftBodies.PreSubstepParallelInits[SoftBodyId].Reset();
+	SoftBodies.PBDExternalForceRules[SoftBodyId].Reset();
+	SoftBodies.PostInitialGuessParallelInits[SoftBodyId].Reset();
+	SoftBodies.PreSubstepConstraintRules[SoftBodyId].Reset();
+	SoftBodies.PerIterationPBDConstraintRules[SoftBodyId].Reset();
+	SoftBodies.PerIterationCollisionPBDConstraintRules[SoftBodyId].Reset();
+	SoftBodies.PerIterationPostCollisionsPBDConstraintRules[SoftBodyId].Reset();
+	SoftBodies.UpdateLinearSystemRules[SoftBodyId].Reset();
+	SoftBodies.UpdateLinearSystemCollisionsRules[SoftBodyId].Reset();
+	SoftBodies.PostSubstepConstraintRules[SoftBodyId].Reset();
 	ActivateSoftBody(SoftBodyId, bEnable);
 	return SoftBodyId;
 }
+
+void FEvolution::RemoveSoftBody(int32 SoftBodyId)
+{
+	check(SoftBodies.Status[SoftBodyId] == FSoftBodies::EStatus::Active || SoftBodies.Status[SoftBodyId] == FSoftBodies::EStatus::Inactive);
+
+	// Remove from active group if it was active.
+	Groups.ActiveSoftBodies[SoftBodies.GroupId[SoftBodyId]].Remove(SoftBodyId);
+
+	// Mark free
+	SoftBodies.Status[SoftBodyId] = FSoftBodies::EStatus::Free;
+
+	// Add to free list
+	const int32 NumParticles = SoftBodies.ParticleRanges[SoftBodyId].GetRangeSize();
+	TArray<int32>& FreeList = SoftBodyFreeList.FindOrAdd(NumParticles);
+	FreeList.Add(SoftBodyId);
+}
+
 
 void FEvolution::SetSoftBodyProperties(int32 SoftBodyId, const FCollectionPropertyConstFacade& PropertyCollection,
 	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps)
@@ -257,7 +288,8 @@ void FEvolution::SetSoftBodyProperties(int32 SoftBodyId, const FCollectionProper
 
 void FEvolution::ActivateSoftBody(int32 SoftBodyId, bool bActivate)
 {
-	SoftBodies.Active[SoftBodyId] = bActivate;
+	check(SoftBodies.Status[SoftBodyId] != FSoftBodies::EStatus::Free);
+	SoftBodies.Status[SoftBodyId] = bActivate ? FSoftBodies::EStatus::Active : FSoftBodies::EStatus::Inactive;
 	if (bActivate)
 	{
 		Groups.ActiveSoftBodies[SoftBodies.GroupId[SoftBodyId]].Add(SoftBodyId);
@@ -386,9 +418,9 @@ void FEvolution::AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 Ti
 	// Right now, typically groups only have one active softbody in them, so don't parallelize softbodies
 	for (const int32 SoftBodyId : Groups.ActiveSoftBodies[GroupId])
 	{
-		check(SoftBodies.Active[SoftBodyId]);
+		check(SoftBodies.Status[SoftBodyId] == FSoftBodies::EStatus::Active);
 
-		const bool bDoNewtonUpdate = bEnableForceBasedSolver && NumNewtonIterations > 0 && LinearSystemParameters.MaxNumCGIterations > 0 && SoftBodies.UpdateLinearSystemRules[SoftBodyId].GetRangeSize() > 0;
+		const bool bDoNewtonUpdate = bEnableForceBasedSolver && NumNewtonIterations > 0 && LinearSystemParameters.MaxNumCGIterations > 0 && !SoftBodies.UpdateLinearSystemRules[SoftBodyId].IsEmpty();
 
 		// Do at least one PBD iteration if not doing a newton update.
 		const int32 NumPBDIterations = bDoNewtonUpdate ? TimeDependentNumIterations : FMath::Max(1, TimeDependentNumIterations);
@@ -404,7 +436,7 @@ void FEvolution::AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 Ti
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FSoftsEvolution_AdvanceOneTimeStepInternal_PreSubstepParallelInits);
 
-			TConstArrayView<ParallelInitFunc> PreSubstepParallelInits = SoftBodies.PreSubstepParallelInits[SoftBodyId].GetConstArrayView();
+			TConstArrayView<ParallelInitFunc> PreSubstepParallelInits(SoftBodies.PreSubstepParallelInits[SoftBodyId]);
 			const int32 NumPreSubstepInits = PreSubstepParallelInits.Num() + (bDoLocalDamping ? 1 : 0);
 			PhysicsParallelFor(NumPreSubstepInits,
 				[this, &PreSubstepParallelInits, &DampVelocityRule, Dt, SoftBodyId, SolverMode](int32 FuncIdx)
@@ -451,7 +483,7 @@ void FEvolution::AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 Ti
 				else
 				{
 					// ExternalForceRules
-					TConstArrayView<PBDConstraintRuleFunc> ExternalForceRules = SoftBodies.PBDExternalForceRules[SoftBodyId].GetConstArrayView();
+					TConstArrayView<PBDConstraintRuleFunc> ExternalForceRules(SoftBodies.PBDExternalForceRules[SoftBodyId]);
 					for (const PBDConstraintRuleFunc& ExternalForceRule : ExternalForceRules)
 					{
 						ExternalForceRule(SoftBodies.ParticleRanges[SoftBodyId], Dt);
@@ -479,7 +511,7 @@ void FEvolution::AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 Ti
 		{
 			// Parallel Inits
 			TRACE_CPUPROFILER_EVENT_SCOPE(FSoftsEvolution_AdvanceOneTimeStepInternal_PostInitialGuessParallelInits);
-			TConstArrayView<ParallelInitFunc> ConstraintParallelInits = SoftBodies.PostInitialGuessParallelInits[SoftBodyId].GetConstArrayView();
+			TConstArrayView<ParallelInitFunc> ConstraintParallelInits(SoftBodies.PostInitialGuessParallelInits[SoftBodyId]);
 			PhysicsParallelFor(ConstraintParallelInits.Num(),
 				[this, &ConstraintParallelInits, Dt, SoftBodyId, SolverMode](int32 Index)
 			{
@@ -489,7 +521,7 @@ void FEvolution::AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 Ti
 		{
 			// PreSubstep rules
 			TRACE_CPUPROFILER_EVENT_SCOPE(FSoftsEvolution_AdvanceOneTimeStepInternal_PreSubstepConstraintRules);
-			TConstArrayView<ConstraintRuleFunc> PreSubstepConstraintRules = SoftBodies.PreSubstepConstraintRules[SoftBodyId].GetConstArrayView();
+			TConstArrayView<ConstraintRuleFunc> PreSubstepConstraintRules(SoftBodies.PreSubstepConstraintRules[SoftBodyId]);
 			for (const ConstraintRuleFunc& ConstraintRule : PreSubstepConstraintRules)
 			{
 				ConstraintRule(SoftBodies.ParticleRanges[SoftBodyId], Dt, SolverMode);
@@ -502,19 +534,19 @@ void FEvolution::AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 Ti
 				TRACE_CPUPROFILER_EVENT_SCOPE(FSoftsEvolution_AdvanceOneTimeStepInternal_IterationLoop);
 				for (int32 i = 0; i < NumPBDIterations; ++i)
 				{
-					TConstArrayView<PBDConstraintRuleFunc> PerIterationConstraintRules = SoftBodies.PerIterationPBDConstraintRules[SoftBodyId].GetConstArrayView();
+					TConstArrayView<PBDConstraintRuleFunc> PerIterationConstraintRules(SoftBodies.PerIterationPBDConstraintRules[SoftBodyId]);
 					for (const PBDConstraintRuleFunc& ConstraintRule : PerIterationConstraintRules)
 					{
 						ConstraintRule(SoftBodies.ParticleRanges[SoftBodyId], Dt);
 					}
 
-					TConstArrayView<PBDCollisionConstraintRuleFunc> PerIterationCollisionConstraintRules = SoftBodies.PerIterationCollisionPBDConstraintRules[SoftBodyId].GetConstArrayView();
+					TConstArrayView<PBDCollisionConstraintRuleFunc> PerIterationCollisionConstraintRules(SoftBodies.PerIterationCollisionPBDConstraintRules[SoftBodyId]);
 					for (const PBDCollisionConstraintRuleFunc& ConstraintRule : PerIterationCollisionConstraintRules)
 					{
 						ConstraintRule(SoftBodies.ParticleRanges[SoftBodyId], Dt, ActiveCollisionRanges);
 					}
 
-					TConstArrayView<PBDConstraintRuleFunc> PerIterationPostCollisionsConstraintRules = SoftBodies.PerIterationPostCollisionsPBDConstraintRules[SoftBodyId].GetConstArrayView();
+					TConstArrayView<PBDConstraintRuleFunc> PerIterationPostCollisionsConstraintRules(SoftBodies.PerIterationPostCollisionsPBDConstraintRules[SoftBodyId]);
 					for (const PBDConstraintRuleFunc& ConstraintRule : PerIterationPostCollisionsConstraintRules)
 					{
 						ConstraintRule(SoftBodies.ParticleRanges[SoftBodyId], Dt);
@@ -543,9 +575,9 @@ void FEvolution::AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 Ti
 		// If we did, the linear system would need to live at the group level.
 		if (bDoNewtonUpdate)
 		{
-			TConstArrayView<UpdateLinearSystemFunc> LinearSystemRules = SoftBodies.UpdateLinearSystemRules[SoftBodyId].GetConstArrayView();
+			TConstArrayView<UpdateLinearSystemFunc> LinearSystemRules(SoftBodies.UpdateLinearSystemRules[SoftBodyId]);
 			check(LinearSystemRules.Num());
-			TConstArrayView<UpdateLinearSystemCollisionsFunc> LinearSystemCollisionRules = SoftBodies.UpdateLinearSystemCollisionsRules[SoftBodyId].GetConstArrayView();
+			TConstArrayView<UpdateLinearSystemCollisionsFunc> LinearSystemCollisionRules(SoftBodies.UpdateLinearSystemCollisionsRules[SoftBodyId]);
 			check(NumNewtonIterations > 0);
 			for (int32 NewtonIteration = 0; NewtonIteration < NumNewtonIterations; ++NewtonIteration)
 			{
@@ -574,7 +606,7 @@ void FEvolution::AdvanceOneTimeStepInternal(const FSolverReal Dt, const int32 Ti
 		{
 			// Post Substep Rules
 			TRACE_CPUPROFILER_EVENT_SCOPE(FSoftsEvolution_AdvanceOneTimeStepInternal_PostSubstep);
-			TConstArrayView<ConstraintRuleFunc> PostSubstepConstraintRules = SoftBodies.PostSubstepConstraintRules[SoftBodyId].GetConstArrayView();
+			TConstArrayView<ConstraintRuleFunc> PostSubstepConstraintRules(SoftBodies.PostSubstepConstraintRules[SoftBodyId]);
 			for (const ConstraintRuleFunc& ConstraintRule : PostSubstepConstraintRules)
 			{
 				ConstraintRule(SoftBodies.ParticleRanges[SoftBodyId], Dt, SolverMode);
