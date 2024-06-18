@@ -101,6 +101,8 @@
 #include "LightFunctionAtlas.h"
 #include "EnvironmentComponentsFlags.h"
 #include "VolumetricCloudProxy.h"
+#include "VT/VirtualTextureScalability.h"
+#include "VT/VirtualTextureSystem.h"
 #include <type_traits>
 
 /*-----------------------------------------------------------------------------
@@ -5831,6 +5833,26 @@ void FRendererModule::FlushVirtualTextureCache()
 	FVirtualTextureSystem::Get().FlushCache();
 }
 
+void FRendererModule::FlushVirtualTextureCache(IAllocatedVirtualTexture* AllocatedVT, const FVector2f& InUV0, const FVector2f& InUV1)
+{
+	if (AllocatedVT != nullptr)
+	{
+		const uint32 NumLayers = AllocatedVT->GetNumTextureLayers();
+		const uint32 SpaceID = AllocatedVT->GetSpaceID();
+		const uint32 Width = AllocatedVT->GetBlockWidthInTiles() * AllocatedVT->GetVirtualTileSize();
+		const uint32 Height = AllocatedVT->GetBlockHeightInTiles() * AllocatedVT->GetVirtualTileSize();
+		const FIntPoint Texel0 = FIntPoint(FMath::FloorToInt32(InUV0.X * Width), FMath::FloorToInt32(InUV0.Y * Height));
+		const FIntPoint Texel1 = FIntPoint(FMath::CeilToInt32(InUV1.X * Width), FMath::CeilToInt32(InUV1.Y * Height));
+		const FIntRect TextureRect(Texel0, Texel1);
+		const uint32 MaxLevel = AllocatedVT->GetMaxLevel();
+		const uint32 MaxAgeToKeepMapped = VirtualTextureScalability::GetKeepDirtyPageMappedFrameThreshold();
+
+		for (uint32 LayerIndex = 0; LayerIndex < NumLayers;  ++LayerIndex)
+		{
+			FVirtualTextureSystem::Get().FlushCache(AllocatedVT->GetProducerHandle(LayerIndex), SpaceID, TextureRect, MaxLevel, MaxAgeToKeepMapped);
+		}
+	}
+}
 
 uint64 FRendererModule::GetNaniteRequestRecordBuffer(TArray<uint32>& OutPageRequests)
 {
