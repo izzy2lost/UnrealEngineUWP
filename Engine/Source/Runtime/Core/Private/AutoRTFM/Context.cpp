@@ -33,7 +33,36 @@ FAutoRTFMMetrics GetAutoRTFMMetrics()
 	return GAutoRTFMMetrics;
 }
 
-thread_local TUniquePtr<FContext> ContextTls;
+// A memory blob that can placement new store an FContext class.
+struct alignas(alignof(FContext)) FContextData final
+{
+	uint8 Payload[sizeof(FContext)] = {};
+};
+
+thread_local FContextData ContextDataTls;
+
+// This holder's entire job is to call the destructor on the memory we placement newed
+// into `ContextDataTls` above, and then zero out the data. This is to prevent the
+// problem where global destruction order is undefined, and we could call a destructor
+// that wants to call into the runtime after we have destroyed it. By zeroing out the
+// memory the runtime will *always* return safe defaults if it is queried after these
+// values are destroyed.
+struct FContextHolder final
+{
+	~FContextHolder()
+	{
+		if (Context)
+		{
+			Context->~FContext();
+			memset(Context, 0, sizeof(FContext));
+			Context = nullptr;
+		}
+	}
+
+	FContext* Context = nullptr;
+};
+
+thread_local FContextHolder ContextTls;
 
 void FContext::InitializeGlobalData()
 {
@@ -41,12 +70,12 @@ void FContext::InitializeGlobalData()
 
 FContext* FContext::TryGet()
 {
-    return ContextTls.Get();
+    return ContextTls.Context;
 }
 
 void FContext::Set()
 {
-    ContextTls.Reset(this);
+    ContextTls.Context = this;
 }
 
 FContext* FContext::Get()
@@ -55,7 +84,7 @@ FContext* FContext::Get()
 
     if (!Result)
     {
-        Result = new FContext();
+        Result = new (&ContextDataTls) FContext();
         Result->Set();
     }
 

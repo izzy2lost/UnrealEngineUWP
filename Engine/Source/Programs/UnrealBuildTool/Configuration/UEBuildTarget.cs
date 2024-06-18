@@ -5328,6 +5328,15 @@ namespace UnrealBuildTool
 				GlobalCompileEnvironment.Definitions.Add("UE_TRACE_ENABLED=0");
 			}
 
+			if (Rules.bForceEnableTrace)
+			{
+				GlobalCompileEnvironment.Definitions.Add("UE_TRACE_FORCE_ENABLED=1");
+			}
+			else
+			{
+				GlobalCompileEnvironment.Definitions.Add("UE_TRACE_FORCE_ENABLED=0");
+			}
+
 			// TODO - Sooner or later these should be removed.  bUseVerse has already been removed
 			GlobalCompileEnvironment.Definitions.Add("WITH_VERSE=1");
 			GlobalCompileEnvironment.Definitions.Add("UE_USE_VERSE_PATHS=1");

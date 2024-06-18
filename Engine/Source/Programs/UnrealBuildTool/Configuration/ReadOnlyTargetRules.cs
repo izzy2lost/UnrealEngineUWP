@@ -209,6 +209,8 @@ namespace UnrealBuildTool
 
 		public bool bEnableTrace => Inner.bEnableTrace;
 
+		public bool bForceEnableTrace => Inner.bForceEnableTrace;
+
 		public bool bCompileAgainstEditor => Inner.bCompileAgainstEditor;
 
 		public bool bCompileRecast => Inner.bCompileRecast;

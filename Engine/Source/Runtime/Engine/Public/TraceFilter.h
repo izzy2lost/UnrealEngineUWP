@@ -13,8 +13,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Object.h"
 
-
-#if UE_TRACE_ENABLED && !IS_PROGRAM && !UE_BUILD_SHIPPING
+#if UE_TRACE_FORCE_ENABLED || (UE_TRACE_ENABLED && !IS_PROGRAM && !UE_BUILD_SHIPPING)
 #define TRACE_FILTERING_ENABLED 1
 #else
 #define TRACE_FILTERING_ENABLED 0

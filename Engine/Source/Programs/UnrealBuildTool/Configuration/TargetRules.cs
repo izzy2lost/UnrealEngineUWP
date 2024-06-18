@@ -1196,6 +1196,25 @@ namespace UnrealBuildTool
 		private bool? bEnableTracePrivate;
 
 		/// <summary>
+		/// Force enable tracing - used to allow testing programs to verify tracing works as intended.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public virtual bool bForceEnableTrace
+		{
+			get
+			{
+				if (bForceEnableTracePrivate.HasValue)
+				{
+					return bForceEnableTracePrivate.Value;
+				}
+				
+				return false;
+			}
+			set => bForceEnableTracePrivate = value;
+		}
+		private bool? bForceEnableTracePrivate;
+
+		/// <summary>
 		/// Manually specified value for bCompileAgainstEditor.
 		/// </summary>
 		bool? bCompileAgainstEditorOverride;
