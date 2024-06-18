@@ -8,13 +8,10 @@
 #include "ModelingToolsEditorModeStyle.h"
 #include "Widgets/Input/SSegmentedControl.h"
 #include "SkeletalMesh/SkinWeightsPaintTool.h"
-#include "SSkinWeightProfileImportOptions.h"
 #include "Selection/PolygonSelectionMechanic.h"
-#include "UObject/UnrealTypePrivate.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
-#include "Widgets/Input/SSlider.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #define LOCTEXT_NAMESPACE "SkinWeightToolSettingsEditor"
@@ -25,6 +22,22 @@ float FSkinWeightDetailCustomization::WeightEditingLabelsPercent = 0.40f;
 float FSkinWeightDetailCustomization::WeightEditVerticalPadding = 4.0f;
 float FSkinWeightDetailCustomization::WeightEditHorizontalPadding = 2.0f;
 
+// add a buffer to the weight sliders to prevent ever fully getting a value to 1 or 0 using the slider alone
+// doing so will remove other influences and cause the slider to no longer function as all other influences
+// will be culled by normalization thus making the slider "stuck" at full value.
+constexpr float SliderBuffer = UE::AnimationCore::BoneWeightThreshold * 2.f;
+
+FSkinWeightDetailCustomization::~FSkinWeightDetailCustomization()
+{
+	if (Tool.IsValid())
+	{
+		Tool->OnSelectionChanged.RemoveAll(this);
+	}
+
+	Tool.Reset();
+	ToolSettings.Reset();
+}
+
 void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	CurrentDetailBuilder = &DetailBuilder;
@@ -34,7 +47,9 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 
 	// should be impossible to get multiple settings objects for a single tool
 	ensure(DetailObjects.Num()==1);
-	SkinToolSettings = Cast<USkinWeightsPaintToolProperties>(DetailObjects[0]);
+	ToolSettings = Cast<USkinWeightsPaintToolProperties>(DetailObjects[0]);
+	Tool = ToolSettings->WeightTool;
+	Tool->OnSelectionChanged.AddSP(this, &FSkinWeightDetailCustomization::OnSelectionChanged);
 
 	// Edit SkinWeightLayer category first 
 	IDetailCategoryBuilder& SkinWeightLayerCategory = DetailBuilder.EditCategory("SkinWeightLayer", FText::GetEmpty(), ECategoryPriority::Important);
@@ -57,12 +72,12 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 					"Bones: select and manipulate bones to preview deformations.\n"))
 			.Value_Lambda([this]()
 			{
-				return SkinToolSettings->EditingMode;
+				return ToolSettings->EditingMode;
 			})
 			.OnValueChanged_Lambda([this](EWeightEditMode Mode)
 			{
-				SkinToolSettings->EditingMode = Mode;
-				SkinToolSettings->WeightTool->ToggleEditingMode();
+				ToolSettings->EditingMode = Mode;
+				ToolSettings->WeightTool->ToggleEditingMode();
 				if (CurrentDetailBuilder)
 				{
 					CurrentDetailBuilder->ForceRefreshDetails();
@@ -78,13 +93,13 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 	];
 
 	// BRUSH editing mode UI
-	if (SkinToolSettings->EditingMode == EWeightEditMode::Brush)
+	if (ToolSettings->EditingMode == EWeightEditMode::Brush)
 	{
 		AddBrushUI(DetailBuilder);
 	}
 
 	// MESH editing mode UI
-	if (SkinToolSettings->EditingMode == EWeightEditMode::Mesh)
+	if (ToolSettings->EditingMode == EWeightEditMode::Mesh)
 	{
 		AddSelectionUI(DetailBuilder);
 	}
@@ -108,11 +123,11 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 					"Full Material: Displays normal mesh materials with textures.\n"))
 			.Value_Lambda([this]()
 			{
-				return SkinToolSettings->ColorMode;
+				return ToolSettings->ColorMode;
 			})
 			.OnValueChanged_Lambda([this](EWeightColorMode Mode)
 			{
-				SkinToolSettings->SetColorMode(Mode);
+				ToolSettings->SetColorMode(Mode);
 			})
 			+ SSegmentedControl<EWeightColorMode>::Slot(EWeightColorMode::Greyscale)
 			.Text(LOCTEXT("GreyscaleMode", "Greyscale"))
@@ -146,9 +161,6 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 
 void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuilder)
 {
-	// pointer to capture
-	TObjectPtr<USkinWeightsPaintToolProperties> ToolSettings = SkinToolSettings.Pin().Get();
-	
 	// custom display of falloff mode as segmented toggle buttons
 	IDetailCategoryBuilder& BrushCategory = DetailBuilder.EditCategory("Brush", FText::GetEmpty(), ECategoryPriority::Important);
 
@@ -168,11 +180,11 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 				"This command operates on the selected bone(s) and selected vertices.\n"
 				"If no bones are selected, ALL bones are considered.\n"
 				"If no vertices are selected, ALL vertices are considered."))
-			.Value_Lambda([ToolSettings]()
+			.Value_Lambda([this]()
 			{
 				return ToolSettings->BrushMode;
 			})
-			.OnValueChanged_Lambda([ToolSettings](EWeightEditOperation Mode)
+			.OnValueChanged_Lambda([this](EWeightEditOperation Mode)
 			{
 				ToolSettings->SetBrushMode(Mode);
 			})
@@ -198,11 +210,11 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 			.ToolTipText(LOCTEXT("BrushFalloffModeTooltip",
 					"Surface: falloff is based on the distance along the surface from the brush center to nearby connected vertices.\n"
 					"Volume: falloff is based on the straight-line distance from the brush center to surrounding vertices.\n"))
-			.Value_Lambda([ToolSettings]()
+			.Value_Lambda([this]()
 			{
 				return ToolSettings->GetBrushConfig().FalloffMode;
 			})
-			.OnValueChanged_Lambda([ToolSettings](EWeightBrushFalloffMode Mode)
+			.OnValueChanged_Lambda([this](EWeightBrushFalloffMode Mode)
 			{
 				ToolSettings->SetFalloffMode(Mode);
 			})
@@ -228,18 +240,18 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 		.MaxSliderValue(20.f)
 		.Value(10.0f)
 		.SupportDynamicSliderMaxValue(true)
-		.Value_Lambda([ToolSettings]()
+		.Value_Lambda([this]()
 		{
 			return ToolSettings->GetBrushConfig().Radius;
 		})
-		.OnValueChanged_Lambda([ToolSettings](float NewValue)
+		.OnValueChanged_Lambda([this](float NewValue)
 		{
 			ToolSettings->BrushRadius = NewValue;
 			ToolSettings->GetBrushConfig().Radius = NewValue;
 			FPropertyChangedEvent PropertyChangedEvent(UBrushBaseProperties::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushRadius)));
 			ToolSettings->PostEditChangeProperty(PropertyChangedEvent);
 		})
-		.OnValueCommitted_Lambda([ToolSettings](float NewValue, ETextCommit::Type CommitType)
+		.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
 		{
 			ToolSettings->SaveConfig();
 		})
@@ -261,18 +273,18 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 		.MaxSliderValue(1.f)
 		.Value(1.0f)
 		.SupportDynamicSliderMaxValue(true)
-		.Value_Lambda([ToolSettings]()
+		.Value_Lambda([this]()
 		{
 			return ToolSettings->GetBrushConfig().Strength;
 		})
-		.OnValueChanged_Lambda([ToolSettings](float NewValue)
+		.OnValueChanged_Lambda([this](float NewValue)
 		{
 			ToolSettings->BrushStrength = NewValue;
 			ToolSettings->GetBrushConfig().Strength = NewValue;
 			FPropertyChangedEvent PropertyChangedEvent(UBrushBaseProperties::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushStrength)));
 			ToolSettings->PostEditChangeProperty(PropertyChangedEvent);
 		})
-		.OnValueCommitted_Lambda([ToolSettings](float NewValue, ETextCommit::Type CommitType)
+		.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
 		{
 			ToolSettings->SaveConfig();
 		})
@@ -291,18 +303,18 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 		SNew(SSpinBox<float>)
 		.MinValue(0.f)
 		.MaxValue(1.f)
-		.Value_Lambda([ToolSettings]()
+		.Value_Lambda([this]()
 		{
 			return ToolSettings->GetBrushConfig().Falloff;
 		})
-		.OnValueChanged_Lambda([ToolSettings](float NewValue)
+		.OnValueChanged_Lambda([this](float NewValue)
 		{
 			ToolSettings->BrushFalloffAmount = NewValue;
 			ToolSettings->GetBrushConfig().Falloff = NewValue;
 			FPropertyChangedEvent PropertyChangedEvent(UBrushBaseProperties::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushFalloffAmount)));
 			ToolSettings->PostEditChangeProperty(PropertyChangedEvent);
 		})
-		.OnValueCommitted_Lambda([ToolSettings](float NewValue, ETextCommit::Type CommitType)
+		.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
 		{
 			ToolSettings->SaveConfig();
 		})
@@ -311,10 +323,6 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 
 void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& DetailBuilder)
 {
-	// pointers to capture
-	TObjectPtr<USkinWeightsPaintToolProperties> ToolSettings = SkinToolSettings.Get();
-	TObjectPtr<USkinWeightsPaintTool> Tool = SkinToolSettings->WeightTool;
-	
 	// custom display of weight editing tools
 	IDetailCategoryBuilder& EditSelectionCategory = DetailBuilder.EditCategory("Edit Selection", FText::GetEmpty(), ECategoryPriority::Important);
 	EditSelectionCategory.InitiallyCollapsed(true);
@@ -327,18 +335,18 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	ToolbarBuilder.BeginSection("SelectionFilter");
 	ToolbarBuilder.BeginBlockGroup();
 	
-	auto AddToggleButtonForBool = [&ToolbarBuilder, ToolSettings](EComponentSelectionMode Mode, const FText& Label, const FText& Tooltip, const FName IconName)
+	auto AddToggleButtonForBool = [&ToolbarBuilder, this](EComponentSelectionMode Mode, const FText& Label, const FText& Tooltip, const FName IconName)
 	{
 		ToolbarBuilder.AddToolBarButton(FUIAction(
-		FExecuteAction::CreateLambda([ToolSettings, Mode]()
+		FExecuteAction::CreateLambda([this, Mode]()
 		{
 			ToolSettings->SetComponentMode(Mode);
 		}),
-		FCanExecuteAction::CreateLambda([ToolSettings]()
+		FCanExecuteAction::CreateLambda([this]()
 		{
 			return ToolSettings->EditingMode == EWeightEditMode::Mesh;
 		}),
-		FIsActionChecked::CreateLambda([ToolSettings, Mode]()
+		FIsActionChecked::CreateLambda([this, Mode]()
 		{
 			return ToolSettings->ComponentSelectionMode == Mode;
 		})),
@@ -399,18 +407,18 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 					.ToolTipText(LOCTEXT("IsolateSelectedTooltip",
 							"Shows only the selected faces in the viewport.\n"
 							"Weight editing operations will not affect hidden vertices.\n "))
-					.IsEnabled_Lambda([Tool]()
+					.IsEnabled_Lambda([this]()
 					{
 						const bool bHasSelection = Tool->IsAnyComponentSelected();
 						const bool bAlreadyIsolatingSelection = Tool->IsSelectionIsolated();
 						return bHasSelection ||  bAlreadyIsolatingSelection;
 					})
-					.IsChecked_Lambda([Tool]()
+					.IsChecked_Lambda([this]()
 					{
 						const bool bAlreadyIsolatingSelection = Tool->IsSelectionIsolated();
 						return bAlreadyIsolatingSelection ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 					})
-					.OnCheckStateChanged_Lambda([Tool](ECheckBoxState InCheckBoxState)
+					.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
 					{
 						if (InCheckBoxState == ECheckBoxState::Checked)
 						{
@@ -423,7 +431,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 					})
 					[
 						SNew(STextBlock)
-						.Text_Lambda([Tool]()
+						.Text_Lambda([this]()
 						{
 							if (Tool->IsSelectionIsolated())
 							{
@@ -450,7 +458,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 				.Text(LOCTEXT("GrowSelectionButtonLabel", "Grow"))
 				.ToolTipText(LOCTEXT("GrowSelectionTooltip",
 						"Grow the current selection by adding connected neighbors to current selection.\n"))
-				.OnClicked_Lambda([Tool]()
+				.OnClicked_Lambda([this]()
 				{
 					Tool->GrowSelection();
 					return FReply::Handled();
@@ -466,7 +474,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 				.Text(LOCTEXT("ShrinkSelectionButtonLabel", "Shrink"))
 				.ToolTipText(LOCTEXT("ShrinkSelectionTooltip",
 						"Shrink the current selection by removing components on the border of the current selection.\n"))
-				.OnClicked_Lambda([Tool]()
+				.OnClicked_Lambda([this]()
 				{
 					Tool->ShrinkSelection();
 					return FReply::Handled();
@@ -482,7 +490,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 				.Text(LOCTEXT("FloodSelectionButtonLabel", "Flood"))
 				.ToolTipText(LOCTEXT("FloodSelectionTooltip",
 						"Flood the current selection by adding all connected components to the current selection.\n"))
-				.OnClicked_Lambda([Tool]()
+				.OnClicked_Lambda([this]()
 				{
 					Tool->FloodSelection();
 					return FReply::Handled();
@@ -495,114 +503,187 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	IDetailCategoryBuilder& EditWeightsCategory = DetailBuilder.EditCategory("Edit Weights", FText::GetEmpty(), ECategoryPriority::Important);
 	EditWeightsCategory.InitiallyCollapsed(true);
 
-	// FLOOD WEIGHTS category
-	EditWeightsCategory.AddCustomRow(LOCTEXT("FloodWeightsRow", "Flood"), false)
+	// FLOOD WEIGHTS SLIDER category
+	ToolSettings->DirectEditState.Reset();
+	EditWeightsCategory.AddCustomRow(LOCTEXT("FloodWeightsRow", "Flood Weights Slider"), false)
+	.WholeRowContent()
+	[
+		SNew(SHorizontalBox)
+
+		+SHorizontalBox::Slot()
+		[
+			SNew(SSegmentedControl<EWeightEditOperation>)
+			.ToolTipText(LOCTEXT("EditModeTooltip",
+				"Add: applies the current weight plus the flood value to the new weight.\n"
+				"Multiply: applies the current weight multiplied by the flood value to the new weight.\n"))
+			.Value_Lambda([this]()
+			{
+				return ToolSettings->DirectEditState.EditMode;
+			})
+			.OnValueChanged_Lambda([this](EWeightEditOperation Mode)
+			{
+				ToolSettings->DirectEditState.EditMode = Mode;
+				ToolSettings->DirectEditState.Reset();
+			})
+			+SSegmentedControl<EWeightEditOperation>::Slot(EWeightEditOperation::Add)
+			.Text(LOCTEXT("BrushAddMode", "Add"))
+			+ SSegmentedControl<EWeightEditOperation>::Slot(EWeightEditOperation::Multiply)
+			.Text(LOCTEXT("BrushMultiplyMode", "Multiply"))
+		]
+		
+		+SHorizontalBox::Slot()
+		.FillWidth(1)
+		[
+			SNew(SVerticalBox)
+
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(SSpinBox<float>)
+				.Visibility_Lambda([this]()
+				{
+					const bool bIsVisible = ToolSettings->DirectEditState.EditMode != EWeightEditOperation::Relax;
+					return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+				})
+				.MinSliderValue_Lambda([this]()
+				{
+					return ToolSettings->DirectEditState.GetModeMinValue() + SliderBuffer;
+				})
+				.MaxSliderValue_Lambda([this]()
+				{
+					return ToolSettings->DirectEditState.GetModeMaxValue() - SliderBuffer;
+				})
+				.MinValue_Lambda([this]()
+				{
+					return ToolSettings->DirectEditState.GetModeMinValue();
+				})
+				.MaxValue_Lambda([this]()
+				{
+					return ToolSettings->DirectEditState.GetModeMaxValue();
+				})
+				.Value_Lambda([this]()
+				{
+					return ToolSettings->DirectEditState.CurrentValue;
+				})
+				.OnValueChanged_Lambda([this](float NewValue)
+				{
+					ToolSettings->DirectEditState.CurrentValue = NewValue;
+					
+					if (ToolSettings->DirectEditState.bInTransaction)
+					{
+						
+						float Value = NewValue;
+						if (ToolSettings->DirectEditState.EditMode == EWeightEditOperation::Add)
+						{
+							Value = NewValue - ToolSettings->DirectEditState.StartValue;
+						}
+						
+						constexpr bool bShouldTransact = false;
+						
+						Tool->EditWeightsOnVertices(
+							Tool->GetCurrentBoneIndex(),
+							Value,
+							ToolSettings->DirectEditState.EditMode,
+							Tool->GetVerticesToEdit(),
+							bShouldTransact);
+					}
+				})
+				.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
+				{
+					if (!ToolSettings->DirectEditState.bInTransaction)
+					{
+						constexpr bool bShouldTransact = true;
+						Tool->EditWeightsOnVertices(
+							Tool->GetCurrentBoneIndex(),
+							NewValue, 
+							ToolSettings->DirectEditState.EditMode,
+							Tool->GetVerticesToEdit(),
+							bShouldTransact);
+					}
+					ToolSettings->DirectEditState.bInTransaction = false;
+				})
+				.OnBeginSliderMovement_Lambda([this]()
+				{
+					ToolSettings->DirectEditState.StartValue = ToolSettings->DirectEditState.CurrentValue;
+					ToolSettings->DirectEditState.bInTransaction = true;
+					Tool->BeginChange();
+				})
+				.OnEndSliderMovement_Lambda([this](float)
+				{
+					const FText TransactionLabel = LOCTEXT("FloodWeightChange", "Flood weights on vertices.");
+					Tool->EndChange(TransactionLabel);
+					ToolSettings->DirectEditState.bInTransaction = false;
+
+					// reset slider after each edit because multiplying operation is always relative to 1.0
+					if (ToolSettings->DirectEditState.EditMode == EWeightEditOperation::Multiply)
+					{
+						ToolSettings->DirectEditState.CurrentValue = 1.0f;
+						ToolSettings->DirectEditState.StartValue = 1.0f;
+					}
+				})
+				.ToolTipText(LOCTEXT("FloodWeightsToolTip", "Drag the slider to interactively adjust weights on the selected vertices."))
+			]	
+		]
+	];
+
+	// REPLACE WEIGHTS category
+	EditWeightsCategory.AddCustomRow(LOCTEXT("ReplaceWeightsRow", "Replace"), false)
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
 
 		+ SVerticalBox::Slot()
-		.Padding(0.f, WeightEditVerticalPadding)
+		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
 		[
 			SNew(SHorizontalBox)
-				
+					
 			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
 			.FillWidth(WeightEditingLabelsPercent)
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("FloodAmountLabel", "Flood Amount"))
+				.Text(LOCTEXT("ReplaceLabel", "Replace"))
 				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.ToolTipText(LOCTEXT("FloodAmountTooltip", "The amount of weight to apply in Flood operation."))
+				.ToolTipText(LOCTEXT("ReplaceTooltip", "Replace the current weight."))
 			]
 
 			+SHorizontalBox::Slot()
-			.MaxWidth(WeightSliderWidths)
 			[
 				SNew(SSpinBox<float>)
 				.MinValue(0.f)
-				.MaxValue(2.0f)
-				.MaxSliderValue(1.f)
-				.Value(1.0f)
-				.SupportDynamicSliderMaxValue(true)
-				.Value_Lambda([ToolSettings]()
+				.MaxValue(1.f)
+				.Value_Lambda([this]()
 				{
-					return ToolSettings->FloodValue;
+					return ToolSettings->ReplaceValue;
 				})
-				.OnValueChanged_Lambda([ToolSettings](float NewValue)
+				.OnValueChanged_Lambda([this](float NewValue)
 				{
-					ToolSettings->FloodValue = NewValue;
+					ToolSettings->ReplaceValue = NewValue;
 				})
-				.OnValueCommitted_Lambda([ToolSettings](float NewValue, ETextCommit::Type CommitType)
+				.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
 				{
 					ToolSettings->SaveConfig();
 				})
 			]
-		]
-
-		+SVerticalBox::Slot()
-		.Padding(0.f, WeightEditVerticalPadding)
-		[
-			SNew(SHorizontalBox)
-			
-			+SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			.FillWidth(WeightEditingLabelsPercent)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("FloodOperationLabel", "Flood Operation"))
-				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.ToolTipText(LOCTEXT("FloodOperationTooltip", "Various weight editing operations applied to the current selection."))
-			]
 
 			+SHorizontalBox::Slot()
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.Text(LOCTEXT("AddWeightsButtonLabel", "Add"))
-					.ToolTipText(LOCTEXT("AddOpTooltip", "Add: adds the Flood Amount value to the current weight."))
-					.OnClicked_Lambda([ToolSettings, Tool]()
-					{
-						Tool->FloodWeights(ToolSettings->FloodValue, EWeightEditOperation::Add);
-						return FReply::Handled();
-					})
-				]
-				+ SHorizontalBox::Slot()
+				SNew(SBox)
 				[
 					SNew(SButton)
 					.HAlign(HAlign_Center)
 					.Text(LOCTEXT("ReplaceWeightsButtonLabel", "Replace"))
-					.ToolTipText(LOCTEXT("ReplaceOpTooltip", "Replace: applies the current weight minus the flood amount to the new weight."))
-					.OnClicked_Lambda([ToolSettings, Tool]()
+					.ToolTipText(LOCTEXT("ReplaceButtonTooltip",
+						"Replace: the weight of selected vertices is replaced by the specified value.\n"))
+					.OnClicked_Lambda([this]()
 					{
-						Tool->FloodWeights(ToolSettings->FloodValue, EWeightEditOperation::Replace);
-						return FReply::Handled();
-					})
-				]
-				+ SHorizontalBox::Slot()
-				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.Text(LOCTEXT("MultiplyeightsButtonLabel", "Multiply"))
-					.ToolTipText(LOCTEXT("MultiplyOpTooltip", "Multiply: applies the current weight multiplied by the flood amount to the new weight."))
-					.OnClicked_Lambda([ToolSettings, Tool]()
-					{
-						Tool->FloodWeights(ToolSettings->FloodValue, EWeightEditOperation::Multiply);
-						return FReply::Handled();
-					})
-				]
-				+ SHorizontalBox::Slot()
-				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.Text(LOCTEXT("RelaxWeightsButtonLabel", "Relax"))
-					.ToolTipText(LOCTEXT("RelaxeOpTooltip", "Relax: applies the average of the connected (by edge) vertex weights to the new vertex weight, scaled by the flood amount."))
-					.OnClicked_Lambda([ToolSettings, Tool]()
-					{
-						Tool->FloodWeights(ToolSettings->FloodValue, EWeightEditOperation::Relax);
+						constexpr bool bShouldTransact = true;
+						Tool->EditWeightsOnVertices(
+							Tool->GetCurrentBoneIndex(),
+							ToolSettings->ReplaceValue, 
+							EWeightEditOperation::Replace,
+							Tool->GetVerticesToEdit(),
+							bShouldTransact);
 						return FReply::Handled();
 					})
 				]
@@ -610,51 +691,68 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 		]
 	];
 
-	// AVERAGE/NORMALIZE WEIGHTS category
-	EditWeightsCategory.AddCustomRow(LOCTEXT("NormalizeWeightsRow", "Normalize"), false)
+	// RELAX WEIGHTS category
+	EditWeightsCategory.AddCustomRow(LOCTEXT("RelaxWeightsRow", "Relax"), false)
 	.WholeRowContent()
 	[
-		SNew(SHorizontalBox)
+		SNew(SVerticalBox)
 
-		+SHorizontalBox::Slot()
-		.Padding(2.f, WeightEditVerticalPadding)
+		+ SVerticalBox::Slot()
+		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
 		[
-			SNew(SButton)
-			.HAlign(HAlign_Center)
+			SNew(SHorizontalBox)
+					
+			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
-			.Text(LOCTEXT("AverageWeightsButtonLabel", "Average"))
-			.ToolTipText(LOCTEXT("AverageWeightsTooltip",
-					"Takes the average of vertex weights and applies it to the selected vertices.\n"
-					"This command operates on the selected bone(s) and selected vertices.\n "
-					"If no bones are selected, ALL bone weights are considered.\n "
-					"If no vertices are selected, ALL vertices are considered."))
-			.OnClicked_Lambda([Tool]()
-			{
-				Tool->AverageWeights();
-				return FReply::Handled();
-			})
-		]
+			.FillWidth(WeightEditingLabelsPercent)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("RelaxIterationsLabel", "Iterations"))
+				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+				.ToolTipText(LOCTEXT("PruneThresholdTooltip", "The number of iterations of relaxation to apply."))
+			]
 
-		+SHorizontalBox::Slot()
-		.Padding(2.f, WeightEditVerticalPadding)
-		[
-			SNew(SButton)
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.Text(LOCTEXT("NormalizeWeightsButtonLabel", "Normalize"))
-			.ToolTipText(LOCTEXT("NormalizeWeightsTooltip",
-					"Forces the weights on the selected vertices to sum to 1.\n"
-					"This command operates on the selected vertices.\n "
-					"If no vertices are selected, ALL vertices are considered."))
-			.IsEnabled_Lambda([ToolSettings]()
-			{
-				return ToolSettings->EditingMode == EWeightEditMode::Mesh;
-			})
-			.OnClicked_Lambda([Tool]()
-			{
-				Tool->NormalizeWeights();
-				return FReply::Handled();
-			})
+			+SHorizontalBox::Slot()
+			[
+				SNew(SSpinBox<int32>)
+				.MinValue(1)
+				.MaxValue(10)
+				.Value_Lambda([this]()
+				{
+					return ToolSettings->RelaxIterations;
+				})
+				.OnValueChanged_Lambda([this](int32 NewValue)
+				{
+					ToolSettings->RelaxIterations = NewValue;
+				})
+				.OnValueCommitted_Lambda([this](int32 NewValue, ETextCommit::Type CommitType)
+				{
+					ToolSettings->SaveConfig();
+				})
+			]
+
+			+SHorizontalBox::Slot()
+			[
+				SNew(SBox)
+				[
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.Text(LOCTEXT("RelaxWeightsButtonLabel", "Relax"))
+					.ToolTipText(LOCTEXT("PruneButtonTooltip",
+						"Relax: the weight of each vertex is replaced by the average of it's neighbors. This smooths weights across the mesh.\n"))
+					.OnClicked_Lambda([this]()
+					{
+						constexpr bool bShouldTransact = true;
+						Tool->EditWeightsOnVertices(
+							Tool->GetCurrentBoneIndex(),
+							ToolSettings->RelaxIterations, 
+							EWeightEditOperation::Relax,
+							Tool->GetVerticesToEdit(),
+							bShouldTransact);
+						return FReply::Handled();
+					})
+				]
+			]
 		]
 	];
 	
@@ -684,15 +782,15 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 				SNew(SSpinBox<float>)
 				.MinValue(0.f)
 				.MaxValue(1.f)
-				.Value_Lambda([ToolSettings]()
+				.Value_Lambda([this]()
 				{
 					return ToolSettings->PruneValue;
 				})
-				.OnValueChanged_Lambda([ToolSettings](float NewValue)
+				.OnValueChanged_Lambda([this](float NewValue)
 				{
 					ToolSettings->PruneValue = NewValue;
 				})
-				.OnValueCommitted_Lambda([ToolSettings](float NewValue, ETextCommit::Type CommitType)
+				.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
 				{
 					ToolSettings->SaveConfig();
 				})
@@ -712,11 +810,59 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 						"If no vertices are selected, ALL vertices are considered."))
 					.OnClicked_Lambda([this]()
 					{
-						SkinToolSettings->WeightTool->PruneWeights(SkinToolSettings->PruneValue);
+						ToolSettings->WeightTool->PruneWeights(ToolSettings->PruneValue);
 						return FReply::Handled();
 					})
 				]
 			]
+		]
+	];
+
+	// AVERAGE/NORMALIZE WEIGHTS category
+	EditWeightsCategory.AddCustomRow(LOCTEXT("NormalizeWeightsRow", "Normalize"), false)
+	.WholeRowContent()
+	[
+		SNew(SHorizontalBox)
+
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Text(LOCTEXT("AverageWeightsButtonLabel", "Average"))
+			.ToolTipText(LOCTEXT("AverageWeightsTooltip",
+					"Takes the average of vertex weights and applies it to the selected vertices.\n"
+					"This command operates on the selected bone(s) and selected vertices.\n "
+					"If no bones are selected, ALL bone weights are considered.\n "
+					"If no vertices are selected, ALL vertices are considered."))
+			.OnClicked_Lambda([this]()
+			{
+				Tool->AverageWeights();
+				return FReply::Handled();
+			})
+		]
+
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Text(LOCTEXT("NormalizeWeightsButtonLabel", "Normalize"))
+			.ToolTipText(LOCTEXT("NormalizeWeightsTooltip",
+					"Forces the weights on the selected vertices to sum to 1.\n"
+					"This command operates on the selected vertices.\n "
+					"If no vertices are selected, ALL vertices are considered."))
+			.IsEnabled_Lambda([this]()
+			{
+				return ToolSettings->EditingMode == EWeightEditMode::Mesh;
+			})
+			.OnClicked_Lambda([this]()
+			{
+				Tool->NormalizeWeights();
+				return FReply::Handled();
+			})
 		]
 	];
 
@@ -752,11 +898,11 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 						"X: copies weights across the YZ plane.\n"
 						"Y: copies weights across the XZ plane.\n"
 						"Z: copies weights across the XY plane."))
-					.Value_Lambda([ToolSettings]()
+					.Value_Lambda([this]()
 					{
 						return ToolSettings->MirrorAxis;
 					})
-					.OnValueChanged_Lambda([ToolSettings](EAxis::Type Mode)
+					.OnValueChanged_Lambda([this](EAxis::Type Mode)
 					{
 						ToolSettings->MirrorAxis = Mode;
 					})
@@ -772,11 +918,11 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 				[
 					SNew(SSegmentedControl<EMirrorDirection>)
 					.ToolTipText(LOCTEXT("MirrorDirectionTooltip", "The direction that determines what side of the plane to copy weights from."))
-					.Value_Lambda([ToolSettings]()
+					.Value_Lambda([this]()
 					{
 						return ToolSettings->MirrorDirection;
 					})
-					.OnValueChanged_Lambda([ToolSettings](EMirrorDirection Mode)
+					.OnValueChanged_Lambda([this](EMirrorDirection Mode)
 					{
 						ToolSettings->MirrorDirection = Mode;
 					})
@@ -801,7 +947,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 					"This command operates on the selected bone(s) and selected vertices.\n "
 					"If no bones are selected, ALL bone weights are considered.\n "
 					"If no vertices are selected, ALL vertices are considered."))
-				.OnClicked_Lambda([ToolSettings, Tool]()
+				.OnClicked_Lambda([this]()
 				{
 					Tool->MirrorWeights(ToolSettings->MirrorAxis, ToolSettings->MirrorDirection);
 					return FReply::Handled();
@@ -814,7 +960,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	EditWeightsCategory.AddCustomRow(LOCTEXT("VertexEditorRow", "Component Editor"), false)
 	.WholeRowContent()
 	[
-		SNew(SVertexWeightEditor, SkinToolSettings->WeightTool)
+		SNew(SVertexWeightEditor, ToolSettings->WeightTool)
 	];
 }
 
@@ -835,11 +981,6 @@ TSharedRef<SWidget> SVertexWeightItem::GenerateWidgetForColumn(const FName& Colu
 
 	if (ColumnName == "Weight")
 	{
-		// add a buffer to the slider to prevent ever fully getting a value to 1 or 0 using the slider alone
-		// doing so will remove other influences and cause the slider to no longer function as all other influences
-		// will be culled by normalization thus making the slider "stuck" at full value.
-		constexpr float SliderBuffer = 0.001f;
-		
 		return SNew(SNumericEntryBox<float>)
 		.AllowSpin(true)
 		.MinSliderValue(SliderBuffer)
@@ -848,26 +989,43 @@ TSharedRef<SWidget> SVertexWeightItem::GenerateWidgetForColumn(const FName& Colu
 		.MaxValue(1.f)
 		.Value_Lambda([this]()
 		{
-			return ParentTable->Tool->GetAverageWeightOnBone(Element->BoneIndex, ParentTable->SelectedVertices);
+			if (bInTransaction)
+			{
+				return ValueDuringSlide;
+			}
+			
+			return ParentTable->Tool->GetAverageWeightOnBone(Element->BoneIndex, ParentTable->Tool->GetVerticesToEdit());
 		})
 		.OnValueChanged_Lambda([this](float NewValue)
 		{
-			TArray<VertexIndex> VerticesToEdit;
-			ParentTable->Tool->GetSelectedVertices(VerticesToEdit);
-			ParentTable->Tool->SetBoneWeightOnVertices(Element->BoneIndex, NewValue, VerticesToEdit, !bInTransaction);
+			if (bInTransaction)
+			{
+				ValueDuringSlide = NewValue;
+				
+				const float ScaleMultiplier = NewValue / FMath::Max(ValueAtStartOfSlide, SliderBuffer);
+				constexpr bool bShouldTransact = false;
+				ParentTable->Tool->EditWeightsOnVertices(Element->BoneIndex, ScaleMultiplier, EWeightEditOperation::Multiply, ParentTable->Tool->GetVerticesToEdit(), bShouldTransact);
+			}
 		})
 		.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
 		{
+			if (!bInTransaction)
+			{
+				constexpr bool bShouldTransact = true;
+				ParentTable->Tool->EditWeightsOnVertices(Element->BoneIndex, NewValue, EWeightEditOperation::Replace, ParentTable->Tool->GetVerticesToEdit(), bShouldTransact);
+			}
 			bInTransaction = false;
 		})
 		.OnBeginSliderMovement_Lambda([this]()
 		{
 			ParentTable->Tool->BeginChange();
+			ValueAtStartOfSlide = ParentTable->Tool->GetAverageWeightOnBone(Element->BoneIndex, ParentTable->Tool->GetVerticesToEdit());
+			ValueDuringSlide = ValueAtStartOfSlide;
 			bInTransaction = true;
 		})
 		.OnEndSliderMovement_Lambda([this](float)
 		{
-			const FText TransactionLabel = LOCTEXT("DirectWeightChange", "Set weights on vertices.");
+			const FText TransactionLabel = LOCTEXT("DirectWeightChange", "Scale weights on vertices.");
 			ParentTable->Tool->EndChange(TransactionLabel);
 			bInTransaction = false;
 		})
@@ -924,14 +1082,10 @@ void SVertexWeightEditor::RefreshView()
 	{
 		return; 
 	}
-
-	// get list of selected vertex indices
-	SelectedVertices.Reset();
-	Tool->GetSelectedVertices(SelectedVertices);
 	
 	// get all bones affecting the selected vertices
 	TArray<int32> Influences;
-	Tool->GetInfluences(SelectedVertices, Influences);
+	Tool->GetInfluences(Tool->GetVerticesToEdit(), Influences);
 
 	// generate list view items
 	ListViewItems.Reset();

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "IDetailCustomization.h"
+#include "SkeletalMesh/SkinWeightsPaintTool.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/SListView.h"
@@ -15,6 +16,8 @@ class FSkinWeightDetailCustomization : public IDetailCustomization
 {
 public:
 
+	virtual ~FSkinWeightDetailCustomization() override;
+
 	static TSharedRef<IDetailCustomization> MakeInstance()
 	{
 		return MakeShareable(new FSkinWeightDetailCustomization);
@@ -23,13 +26,19 @@ public:
 	/** IDetailCustomization interface */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
+	void OnSelectionChanged()
+	{
+		ToolSettings.Get()->DirectEditState.Reset();
+	};
+
 private:
 
 	void AddBrushUI(IDetailLayoutBuilder& DetailBuilder);
 	void AddSelectionUI(IDetailLayoutBuilder& DetailBuilder);
 
 	IDetailLayoutBuilder* CurrentDetailBuilder;
-	TWeakObjectPtr<USkinWeightsPaintToolProperties> SkinToolSettings;
+	TWeakObjectPtr<USkinWeightsPaintToolProperties> ToolSettings;
+	TWeakObjectPtr<USkinWeightsPaintTool> Tool;
 
 	static float WeightSliderWidths;
 	static float WeightEditingLabelsPercent;
@@ -64,6 +73,8 @@ private:
 	TSharedPtr<FWeightEditorElement> Element;
 	TSharedPtr<SVertexWeightEditor> ParentTable;
 	bool bInTransaction = false;
+	float ValueAtStartOfSlide;
+	float ValueDuringSlide;
 };
 
 typedef SListView< TSharedPtr<FWeightEditorElement> > SWeightEditorListViewType;
@@ -86,7 +97,6 @@ private:
 	TSharedPtr<SWeightEditorListViewType> ListView;
 	TArray< TSharedPtr<FWeightEditorElement> > ListViewItems;
 	TWeakObjectPtr<USkinWeightsPaintTool> Tool;
-	TArray<int32> SelectedVertices;
 
 	friend SVertexWeightItem;
 };

@@ -97,10 +97,10 @@ namespace SkinPaintTool
 	struct FVertexBoneWeight
 	{
 		FVertexBoneWeight() : BoneIndex(INDEX_NONE), VertexInBoneSpace(FVector::ZeroVector), Weight(0.0f) {}
-		FVertexBoneWeight(int32 InBoneIndex, const FVector& InPosInRefPose, float InWeight) :
+		FVertexBoneWeight(BoneIndex InBoneIndex, const FVector& InPosInRefPose, float InWeight) :
 			BoneIndex(InBoneIndex), VertexInBoneSpace(InPosInRefPose), Weight(InWeight){}
 		
-		int32 BoneIndex;
+		BoneIndex BoneIndex;
 		FVector VertexInBoneSpace;
 		float Weight;
 	};
@@ -152,6 +152,7 @@ namespace SkinPaintTool
 		void MergeSingleEdit(const int32 BoneIndex, const int32 VertexID, const float OldWeight, const float NewWeight);
 		void MergeEdits(const FSingleBoneWeightEdits& BoneWeightEdits);
 		float GetVertexDeltaFromEdits(const int32 BoneIndex, const int32 VertexIndex);
+		void GetEditedVertexIndices(TSet<int32>& OutVerticesToEdit) const;
 
 		// map of bone indices to weight edits made to that bone
 		TMap<BoneIndex, FSingleBoneWeightEdits> PerBoneWeightEdits;
@@ -295,6 +296,19 @@ struct FSkinWeightBrushConfig
 	EWeightBrushFalloffMode FalloffMode = EWeightBrushFalloffMode::Surface;
 };
 
+struct MESHMODELINGTOOLSEDITORONLYEXP_API FDirectEditWeightState
+{
+	EWeightEditOperation EditMode;
+	float StartValue = 0.f;
+	float CurrentValue = 0.f;
+	bool bInTransaction = false;
+
+	void Reset();
+	float GetModeDefaultValue();
+	float GetModeMinValue();
+	float GetModeMaxValue();
+};
+
 // Container for properties displayed in Details panel while using USkinWeightsPaintTool
 UCLASS(config = EditorSettings)
 class MESHMODELINGTOOLSEDITORONLYEXP_API USkinWeightsPaintToolProperties : public UBrushBaseProperties
@@ -327,7 +341,6 @@ public:
 	FLinearColor MinColor;
 	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
 	FLinearColor MaxColor;
-	bool bColorModeChanged = false;
 
 	// weight editing arguments
 	UPROPERTY(Config)
@@ -335,9 +348,13 @@ public:
 	UPROPERTY(Config)
 	EMirrorDirection MirrorDirection = EMirrorDirection::PositiveToNegative;
 	UPROPERTY(Config)
-	float FloodValue = 1.f;
-	UPROPERTY(Config)
 	float PruneValue = 0.01;
+	UPROPERTY(Config)
+	float ReplaceValue = 1.0;
+	UPROPERTY(Config)
+	int32 RelaxIterations = 5;
+	// the state of the direct weight editing tools (mode buttons + slider)
+	FDirectEditWeightState DirectEditState;
 
 	// save/restore user specified settings for each tool mode
 	FSkinWeightBrushConfig& GetBrushConfig();
@@ -413,15 +430,15 @@ public:
 
 	// weight editing operations (selection based)
 	void MirrorWeights(EAxis::Type Axis, EMirrorDirection Direction);
-	void FloodWeights(const float Weight, const EWeightEditOperation FloodMode);
 	void PruneWeights(const float Threshold);
 	void AverageWeights();
 	void NormalizeWeights();
 	
 	// method to set weights directly (numeric input, for example)
-	void SetBoneWeightOnVertices(
+	void EditWeightsOnVertices(
 		BoneIndex Bone,
-		const float Weight,
+		const float Value,
+		EWeightEditOperation EditOperation,
 		const TArray<VertexIndex>& VerticesToEdit,
 		const bool bShouldTransact);
 
@@ -438,42 +455,42 @@ public:
 	bool IsSelectionIsolated() const;
 	void SetIsolateSelected(const bool bIsolateSelection);
 
-	// get a list of currently selected components (converting other components)
-	void GetSelectedVertices(TArray<int32>& OutVertexIndices) const;
+	// get a list of currently selected vertices (converting edges and faces to vertices)
+	const TArray<int32>& GetSelectedVertices() const;
+	const TArray<int32>& GetVerticesToEdit();
 	void GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const;
 
 	// get the average weight value of each influence on the given vertices
 	void GetInfluences(const TArray<int32>& VertexIndices, TArray<BoneIndex>& OutBoneIndices);
-
 	// get the average weight value of a single bone on the given vertices
 	float GetAverageWeightOnBone(const BoneIndex InBoneIndex, const TArray<int32>& VertexIndices);
-
 	// convert an index to a name
 	FName GetBoneNameFromIndex(BoneIndex InIndex) const;
+	// get the currently selected bone
+	BoneIndex GetCurrentBoneIndex() const;
 
 	// toggle the display of weights on the preview mesh (if false, uses the normal skeletal mesh material)
-	void SetDisplayVertexColors(bool bShowVertexColors=true) const;
+	void SetDisplayVertexColors(bool bShowVertexColors=true);
 	// set focus back to viewport so that hotkeys are immediately detected while hovering
 	void SetFocusInViewport() const;
 
 	// HOW TO EDIT WEIGHTS WITH UNDO/REDO:
 	//
-	// Live Edits:
+	// "Interactive" Edits:
 	// For multiple weight editing operations that need to be grouped into a single transaction, like dragging a slider or
-	// dragging a brush, you must call BeginChange(), then ApplyWeightsEditsToMesh(bShouldTransact=false), then EndChange().
-	// All the edits are stored into the "ActiveChange" and applied as a single transaction. Deformations and vertex
-	// colors will be updated throughout the duration of the change.
-	//
-	// Single Edits:
-	// For all one-and-done edits, you can call ApplyWeightEditsToMesh(bShouldTransact=True).
-	// It will Begin/End the change and create a transaction for it.
-	//
+	// dragging a brush, you must call:
+	//  1. BeginChange()
+	//  2. ApplyWeightEditsToMeshMidChange() (this may be called multiple times)
+	//  2. EndChange()
+	// All the edits are stored into the "ActiveChange" and applied as a single transaction in EndChange().
+	// Deformations and vertex colors will be updated throughout the duration of the change.
 	void BeginChange();
 	void EndChange(const FText& TransactionLabel);
-	void ApplyWeightEditsToMesh(
-		const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits,
-		const FText& TransactionLabel,
-		const bool bShouldTransact);
+	void ApplyWeightEditsToMeshMidChange(const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits);
+	// "One-off" Edits:
+	// For all one-and-done edits, you can call ApplyWeightEditsAsTransaction().
+	// It will Begin/End the change and create a transaction for it.
+	void ApplyWeightEditsAsTransaction(const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits, const FText& TransactionLabel);
 
 	// called whenever the selection is modified
 	DECLARE_MULTICAST_DELEGATE(FOnSelectionChanged);
@@ -523,6 +540,7 @@ protected:
 	void RelaxWeightOnVertices(
 		TArray<int32> VerticesToEdit,
 		TArray<float> VertexFalloffs,
+		int32 Iterations,
 		const float UseStrength,
 		SkinPaintTool::FMultiBoneWeightEdits& InOutWeightEdits);
 
@@ -566,10 +584,14 @@ protected:
 	TUniquePtr<UE::Geometry::TSmoothBoneWeights<int32, float>> SmoothWeightsOp;
 	void InitializeSmoothWeightsOperator();
 
-	// vertex colors updated when switching current bone or editing weights
-	void UpdateCurrentBoneVertexColors();
+	// vertex colors updated when switching current bone or initializing whole mesh
+	void UpdateVertexColorForAllVertices();
+	bool bVertexColorsNeedUpdated = false;
+	// vertex colors updated when make sparse edits to subset of vertices
+	void UpdateVertexColorForSubsetOfVertices();
+	TSet<int32> VerticesToUpdateColor;
+	
 	FVector4f GetColorOfVertex(VertexIndex InVertexIndex, BoneIndex InBoneIndex) const;
-	bool bVisibleWeightsValid = false;
 
 	// which bone are we currently painting?
 	void UpdateCurrentBone(const FName &BoneName);
@@ -579,7 +601,7 @@ protected:
 	TArray<BoneIndex> SelectedBoneIndices;
 
 	// determines the set of vertices to operate on, using selection as the priority
-	void GetVerticesToEdit(TArray<VertexIndex>& OutVertexIndices) const;
+	void UpdateSelectedVertices();
 	
 	BoneIndex GetBoneIndexFromName(const FName BoneName) const;
 
@@ -592,6 +614,8 @@ protected:
 	TUniquePtr<UE::Geometry::FDynamicMeshAABBTree3> MeshSpatial = nullptr;
 	TUniquePtr<UE::Geometry::FTriangleGroupTopology> SelectionTopology = nullptr;
 	void InitializeSelectionMechanic();
+	TArray<VertexIndex> SelectedVertices;
+	TArray<VertexIndex> VerticesToEdit;
 
 	// isolate selection sub-meshes
 	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;

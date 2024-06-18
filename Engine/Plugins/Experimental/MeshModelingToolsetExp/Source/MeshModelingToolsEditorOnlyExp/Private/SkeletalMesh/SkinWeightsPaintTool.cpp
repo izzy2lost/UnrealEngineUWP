@@ -157,6 +157,48 @@ protected:
 	const SkinPaintTool::FSkinToolWeights* Weights = nullptr;
 };
 
+void FDirectEditWeightState::Reset()
+{
+	bInTransaction = false;
+	StartValue = CurrentValue = GetModeDefaultValue();
+}
+
+float FDirectEditWeightState::GetModeDefaultValue()
+{
+	static TMap<EWeightEditOperation, float> DefaultModeValues = {
+		{EWeightEditOperation::Add, 0.0f},
+		{EWeightEditOperation::Replace, .0f},
+		{EWeightEditOperation::Multiply, 1.f},
+		{EWeightEditOperation::Relax, 0.f}
+	};
+
+	return DefaultModeValues[EditMode];
+}
+
+float FDirectEditWeightState::GetModeMinValue()
+{
+	static TMap<EWeightEditOperation, float> MinModeValues = {
+		{EWeightEditOperation::Add, -1.f},
+		{EWeightEditOperation::Replace, 0.f},
+		{EWeightEditOperation::Multiply, 0.f},
+		{EWeightEditOperation::Relax, 0.f}
+	};
+
+	return MinModeValues[EditMode];
+}
+
+float FDirectEditWeightState::GetModeMaxValue()
+{
+	static TMap<EWeightEditOperation, float> MaxModeValues = {
+		{EWeightEditOperation::Add, 1.f},
+		{EWeightEditOperation::Replace, 1.f},
+		{EWeightEditOperation::Multiply, 2.f},
+		{EWeightEditOperation::Relax, 10.f}
+	};
+
+	return MaxModeValues[EditMode];
+}
+
 USkinWeightsPaintToolProperties::USkinWeightsPaintToolProperties()
 {
 	ColorRamp.Add(FLinearColor::Blue);
@@ -265,6 +307,16 @@ float FMultiBoneWeightEdits::GetVertexDeltaFromEdits(const int32 BoneIndex, cons
 	}
 
 	return 0.0f;
+}
+
+void FMultiBoneWeightEdits::GetEditedVertexIndices(TSet<int32>& OutVerticesToEdit) const
+{
+	TSet<int32> VerticesInEdit;
+	for (const TTuple<int32, FSingleBoneWeightEdits>& Pair : PerBoneWeightEdits)
+	{
+		Pair.Value.NewWeights.GetKeys(VerticesInEdit);
+		OutVerticesToEdit.Append(VerticesInEdit);
+	}
 }
 
 void FSkinToolDeformer::Initialize(const USkeletalMeshComponent* InSkelMeshComponent, const FMeshDescription* InMeshDescription)
@@ -530,7 +582,7 @@ void FSkinToolWeights::EditVertexWeightAndNormalize(
 	TArray<int32> BonesAffectingVertex;
 	TArray<float> ValuesToNormalize;
 	float Total = 0.0f;
-	const VertexWeights& VertexData = CurrentWeights[VertexID];
+	const VertexWeights& VertexData = PreChangeWeights[VertexID];
 	for (const FVertexBoneWeight& VertexBoneData : VertexData)
 	{
 		if (VertexBoneData.BoneIndex == BoneToHoldIndex)
@@ -579,14 +631,20 @@ void FSkinToolWeights::EditVertexWeightAndNormalize(
 	// is the user trying to prune ALL weight from this vertex, AND all other weights are equal to zero?
 	// in this case, we have two options:
 	// 1. if there are other influences recorded for this vertex, then split remaining influence among them
-	// 2. if there are NO other influences recorded for this vertex, then move the weight to the root as last ditch effort
+	// 2. if there are NO other influences recorded for this vertex, then move the weight to the parent as last ditch effort
 	const bool bApplyZeroWeightToThisVertex = NewWeightValue <= MinimumWeightThreshold;
 	if (bApplyZeroWeightToThisVertex && bVertexHasNoOtherInfluences)
 	{
 		if (ValuesToNormalize.IsEmpty())
 		{
-			// assign all weight to the root
-			constexpr int32 BoneIndex = 0;
+			// assign all weight to the parent
+			int32 BoneIndex = 0;
+			if (const USkeletalMesh* SkeletalMesh = Deformer.Component->GetSkeletalMeshAsset())
+			{
+				BoneIndex = SkeletalMesh->GetRefSkeleton().GetParentIndex(BoneToHoldIndex);
+				BoneIndex = BoneIndex == INDEX_NONE ? 0 : BoneIndex;
+			}
+			
 			constexpr float OldWeight = 0.f;
 			constexpr float NewWeight = 1.f;
 			WeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
@@ -960,6 +1018,7 @@ void USkinWeightsPaintTool::Setup()
 	// notify preview mesh when triangle selection has been updated
 	PolygonSelectionMechanic->OnSelectionChanged.AddWeakLambda(this, [this]()
 	{
+		UpdateSelectedVertices();
 		PreviewMesh->FastNotifySecondaryTrianglesChanged();
 	});
 	PolygonSelectionMechanic->OnFaceSelectionPreviewChanged.AddWeakLambda(this, [this]()
@@ -1037,13 +1096,12 @@ FBox USkinWeightsPaintTool::GetWorldSpaceFocusBox()
 	case EWeightEditMode::Mesh:
 		{
 			FAxisAlignedBox3d Bounds = FAxisAlignedBox3d::Empty();
-			TArray<int32> SelectedVertexIndices;
-			GetSelectedVertices(SelectedVertexIndices);
-			if (!SelectedVertexIndices.IsEmpty())
+			UpdateSelectedVertices();
+			if (!SelectedVertices.IsEmpty())
 			{
 				const FDynamicMesh3* Mesh = PreviewMesh->GetMesh();
 				const FTransform3d Transform(PreviewMesh->GetTransform());
-				for (const int32 VertexID : SelectedVertexIndices)
+				for (const int32 VertexID : SelectedVertices)
 				{
 					Bounds.Contain(Transform.TransformPosition(Mesh->GetVertex(VertexID)));
 				}
@@ -1169,11 +1227,16 @@ void USkinWeightsPaintTool::OnTick(float DeltaTime)
 		PendingCurrentBone.Reset();
 	}
 
-	if (bVisibleWeightsValid == false || WeightToolProperties->bColorModeChanged)
+	if (bVertexColorsNeedUpdated)
 	{
-		UpdateCurrentBoneVertexColors();
-		bVisibleWeightsValid = true;
-		WeightToolProperties->bColorModeChanged = false;
+		UpdateVertexColorForAllVertices();
+		bVertexColorsNeedUpdated = false;
+	}
+
+	if (!VerticesToUpdateColor.IsEmpty())
+	{
+		UpdateVertexColorForSubsetOfVertices();
+		VerticesToUpdateColor.Empty();
 	}
 
 	// sparsely updates vertex positions (only on vertices with modified weights)
@@ -1210,7 +1273,7 @@ void USkinWeightsPaintTool::PostEditMeshInitialization(
 	}
 	Weights.Profile = WeightToolProperties->ActiveSkinWeightProfile;
 	Weights.InitializeSkinWeights(InComponent, &InMeshDescription);
-	bVisibleWeightsValid = false;
+	bVertexColorsNeedUpdated = true;
 	
 	// update smooth operator (this must be done after PreviewMesh & Weights have been updated)
 	InitializeSmoothWeightsOperator();
@@ -1242,7 +1305,6 @@ void USkinWeightsPaintToolProperties::SetComponentMode(EComponentSelectionMode I
 
 void USkinWeightsPaintToolProperties::SetFalloffMode(EWeightBrushFalloffMode InFalloffMode)
 {
-	bColorModeChanged = true;
 	GetBrushConfig().FalloffMode = InFalloffMode;
 	SaveConfig();
 
@@ -1252,8 +1314,6 @@ void USkinWeightsPaintToolProperties::SetFalloffMode(EWeightBrushFalloffMode InF
 void USkinWeightsPaintToolProperties::SetColorMode(EWeightColorMode InColorMode)
 {
 	ColorMode = InColorMode;
-	bColorModeChanged = true;
-
 	WeightTool->SetDisplayVertexColors(ColorMode!=EWeightColorMode::FullMaterial);
 	WeightTool->SetFocusInViewport();
 }
@@ -1556,8 +1616,10 @@ FVector4f USkinWeightsPaintTool::GetColorOfVertex(VertexIndex InVertexIndex, Bon
 }
 
 
-void USkinWeightsPaintTool::UpdateCurrentBoneVertexColors()
+void USkinWeightsPaintTool::UpdateVertexColorForAllVertices()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::UpdateVertexColors);
+	
 	const int32 CurrentBoneIndex = GetBoneIndexFromName(CurrentBone);
 	
 	// update mesh with new value colors
@@ -1573,6 +1635,31 @@ void USkinWeightsPaintTool::UpdateCurrentBoneVertexColors()
 		}
 		
 	}, false);
+	PreviewMesh->NotifyDeferredEditCompleted(UPreviewMesh::ERenderUpdateMode::FastUpdate, EMeshRenderAttributeFlags::VertexColors, false);
+}
+
+void USkinWeightsPaintTool::UpdateVertexColorForSubsetOfVertices()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::UpdateVertexColors);
+	
+	PreviewMesh->DeferredEditMesh([this](FDynamicMesh3& Mesh)
+		{
+			TArray<int> ElementIds;
+			UE::Geometry::FDynamicMeshColorOverlay* ColorOverlay = Mesh.Attributes()->PrimaryColors();
+			const int32 CurrentBoneIndex = Weights.Deformer.BoneNameToIndexMap[CurrentBone];
+			const int32 NumVerticesInStamp = VerticesToUpdateColor.Num();
+			for (const int32 VertexID : VerticesToUpdateColor)
+			{
+				FVector4f NewColor(GetColorOfVertex(VertexID, CurrentBoneIndex));
+				ColorOverlay->GetVertexElements(VertexID, ElementIds);
+				for (const int32 ElementId : ElementIds)
+				{
+					ColorOverlay->SetElement(ElementId, NewColor);
+				}
+				ElementIds.Reset();
+			}
+			
+		}, false);
 	PreviewMesh->NotifyDeferredEditCompleted(UPreviewMesh::ERenderUpdateMode::FastUpdate, EMeshRenderAttributeFlags::VertexColors, false);
 }
 
@@ -1617,7 +1704,8 @@ void USkinWeightsPaintTool::ApplyStamp(const FBrushStampData& Stamp)
 		{
 			// use mesh topology to iteratively smooth weights across neighboring vertices
 			const float UseStrength = CalculateBrushStrengthToUse(EWeightEditOperation::Relax);
-			RelaxWeightOnVertices(VerticesInStamp, VertexFalloffs, UseStrength, WeightEditsFromStamp);
+			constexpr int32 RelaxIterationsPerStamp = 3;
+			RelaxWeightOnVertices(VerticesInStamp, VertexFalloffs, RelaxIterationsPerStamp, UseStrength, WeightEditsFromStamp);
 		}
 		else
 		{
@@ -1633,46 +1721,9 @@ void USkinWeightsPaintTool::ApplyStamp(const FBrushStampData& Stamp)
 				WeightEditsFromStamp);
 		}
 	}
-	
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::ApplyWeightEditsToActiveChange);
-		// store weight edits from all stamps made during a single stroke (1 transaction per stroke)
-		for (const TTuple<int32, FSingleBoneWeightEdits>& BoneWeightEdits : WeightEditsFromStamp.PerBoneWeightEdits)
-		{
-			ActiveChange->AddBoneWeightEdit(BoneWeightEdits.Value);
-		}
-	}
-	
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::ApplyWeightEditsToCurrentWeights);
-		// apply weights to current weights
-		Weights.ApplyEditsToCurrentWeights(WeightEditsFromStamp);
-	}
 
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::UpdateVertexColors);
-		// update vertex colors
-		PreviewMesh->DeferredEditMesh([&](FDynamicMesh3& Mesh)
-		{
-			TArray<int> ElementIds;
-			UE::Geometry::FDynamicMeshColorOverlay* ColorOverlay = Mesh.Attributes()->PrimaryColors();
-			const int32 CurrentBoneIndex = Weights.Deformer.BoneNameToIndexMap[CurrentBone];
-			const int32 NumVerticesInStamp = VerticesInStamp.Num();
-			for (int32 StampVertexIndex = 0; StampVertexIndex < NumVerticesInStamp; ++StampVertexIndex)
-			{
-				const int32 VertexID = VerticesInStamp[StampVertexIndex];
-				FVector4f NewColor(GetColorOfVertex(VertexID, CurrentBoneIndex));
-				ColorOverlay->GetVertexElements(VertexID, ElementIds);
-				for (const int32 ElementId : ElementIds)
-				{
-					ColorOverlay->SetElement(ElementId, NewColor);
-				}
-				ElementIds.Reset();
-			}
-			
-		}, false);
-		PreviewMesh->NotifyDeferredEditCompleted(UPreviewMesh::ERenderUpdateMode::FastUpdate, EMeshRenderAttributeFlags::VertexColors, false);
-	}
+	// apply weight edits to the mesh without closing the transaction
+	ApplyWeightEditsToMeshMidChange(WeightEditsFromStamp);
 }
 
 float USkinWeightsPaintTool::CalculateBrushStrengthToUse(EWeightEditOperation EditMode) const
@@ -1712,17 +1763,17 @@ float USkinWeightsPaintTool::CalculateBrushStrengthToUse(EWeightEditOperation Ed
 void USkinWeightsPaintTool::EditWeightOfBoneOnVertices(
 	EWeightEditOperation EditOperation,
 	const BoneIndex Bone,
-	const TArray<int32>& VerticesToEdit,
+	const TArray<int32>& VertexIndices,
 	const TArray<float>& VertexFalloffs,
 	const float UseStrength,
 	FMultiBoneWeightEdits& InOutWeightEdits)
 {
 	// spin through the vertices in the stamp and store new weight values in NewValuesFromStamp
 	// afterwards, these values are normalized while taking into consideration the user's desired changes
-	const int32 NumVerticesInStamp = VerticesToEdit.Num();
+	const int32 NumVerticesInStamp = VertexIndices.Num();
 	for (int32 Index = 0; Index < NumVerticesInStamp; ++Index)
 	{
-		const int32 VertexID = VerticesToEdit[Index];
+		const int32 VertexID = VertexIndices[Index];
 		const float UseFalloff = VertexFalloffs.IsValidIndex(Index) ? VertexFalloffs[Index] : 1.f;
 		const float ValueBeforeStroke = Weights.GetWeightOfBoneOnVertex(Bone, VertexID, Weights.PreChangeWeights);
 
@@ -1751,7 +1802,7 @@ void USkinWeightsPaintTool::EditWeightOfBoneOnVertices(
 			checkNoEntry();
 		}
 
-		// normalize the values across all bones affecting the vertices in the stamp, and record the bone edits
+		// normalize the values across all bones affecting this vertex, and record the bone edits
 		// normalization is done while holding all weights on the current bone constant so that user edits are not overwritten
 		Weights.EditVertexWeightAndNormalize(
 			Bone,
@@ -1762,8 +1813,9 @@ void USkinWeightsPaintTool::EditWeightOfBoneOnVertices(
 }
 
 void USkinWeightsPaintTool::RelaxWeightOnVertices(
-	TArray<int32> VerticesToEdit,
+	TArray<int32> VertexIndices,
 	TArray<float> VertexFalloffs,
+	int32 Iterations,
 	const float UseStrength,
 	FMultiBoneWeightEdits& InOutWeightEdits)
 {
@@ -1771,14 +1823,13 @@ void USkinWeightsPaintTool::RelaxWeightOnVertices(
 	{
 		return;
 	}
-
-	constexpr int32 NumRelaxIterations = 3;
-	constexpr float PercentPerIteration = 0.9f;
-	for (int32 Iteration=0; Iteration<NumRelaxIterations; ++Iteration)
+	
+	constexpr float PercentPerIteration = 0.95f;
+	for (int32 Iteration=0; Iteration<Iterations; ++Iteration)
 	{
-		for (int32 VertexIndex = 0; VertexIndex < VerticesToEdit.Num(); ++VertexIndex)
+		for (int32 VertexIndex = 0; VertexIndex < VertexIndices.Num(); ++VertexIndex)
 		{
-			const int32 VertexID = VerticesToEdit[VertexIndex];
+			const int32 VertexID = VertexIndices[VertexIndex];
 			const float UseFalloff = (VertexFalloffs.IsValidIndex(VertexIndex) ? VertexFalloffs[VertexIndex] * UseStrength : UseStrength) * PercentPerIteration;
 
 			TMap<int32, float> FinalWeights;
@@ -1864,80 +1915,52 @@ void USkinWeightsPaintTool::InitializeSmoothWeightsOperator()
 	SmoothWeightsOp->MinimumWeightThreshold = MinimumWeightThreshold;
 }
 
-void USkinWeightsPaintTool::ApplyWeightEditsToMesh(
-	const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits,
-	const FText& TransactionLabel,
-	const bool bShouldTransact)
+void USkinWeightsPaintTool::ApplyWeightEditsToMeshMidChange(const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits)
 {
-	if (bShouldTransact)
+	// store weight edits from all stamps made during a single stroke (1 transaction per stroke)
 	{
-		// clear the active change to start a new one
-		BeginChange();
+		TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::ApplyWeightEditsToActiveChange);
+		for (const TTuple<BoneIndex, SkinPaintTool::FSingleBoneWeightEdits>& BoneWeightEdits : WeightEdits.PerBoneWeightEdits)
+		{
+			ActiveChange->AddBoneWeightEdit(BoneWeightEdits.Value);
+		}
 	}
 
+	// apply weights to current weights (triggers sparse deformation update)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::ApplyWeightEditsToCurrentWeights);
+		Weights.ApplyEditsToCurrentWeights(WeightEdits);
+	}
+	
+	// queue update of vertex colors
+	WeightEdits.GetEditedVertexIndices(VerticesToUpdateColor);
+}
+
+void USkinWeightsPaintTool::ApplyWeightEditsAsTransaction(const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits, const FText& TransactionLabel)
+{
+	// clear the active change to start a new one
+	BeginChange();
+
 	// store weight edits in the active change
-	for (const TTuple<int32, FSingleBoneWeightEdits>& BoneWeightEdits : WeightEdits.PerBoneWeightEdits)
+	for (const TTuple<BoneIndex, FSingleBoneWeightEdits>& BoneWeightEdits : WeightEdits.PerBoneWeightEdits)
 	{
 		ActiveChange->AddBoneWeightEdit(BoneWeightEdits.Value);
 	}
-
-	// apply the weight edits to the actual mesh
-	// (copies weight modifications to the tool's weight data structure and updates the vertex colors
-	// in brush mode, this is normally called by the tool itself after a stroke)
+	
+	// apply the weight edits of the active change to the actual mesh
+	// - copies weight modifications to the tool's weight data structure and updates the vertex colors
+	// - updates PreChangeWeights
 	ActiveChange->Apply(this);
-
-	if (bShouldTransact)
-	{
-		// store active change in the transaction buffer
-		EndChange(TransactionLabel);
-	}
+	
+	// store active change in the transaction buffer
+	EndChange(TransactionLabel);
 }
 
 void USkinWeightsPaintTool::UpdateCurrentBone(const FName& BoneName)
 {
 	CurrentBone = BoneName;
-	bVisibleWeightsValid = false;
-}
-
-void USkinWeightsPaintTool::GetVerticesToEdit(TArray<VertexIndex>& OutVertexIndices) const
-{
-	OutVertexIndices.Reset();
-
-	//
-	// 1. Prioritize selected vertices
-	GetSelectedVertices(OutVertexIndices);
-	if (!OutVertexIndices.IsEmpty())
-	{
-		return;
-	}
-
-	//
-	// 2. Fallback on vertices weighted to selected bones
-	if (!SelectedBoneIndices.IsEmpty())
-	{
-		VertexIndex VertexID = 0;
-		for (const VertexWeights& VertWeights : Weights.PreChangeWeights)
-		{
-			for (const FVertexBoneWeight& BoneWeight : VertWeights)
-			{
-				if (SelectedBoneIndices.Contains(BoneWeight.BoneIndex) && BoneWeight.Weight > MinimumWeightThreshold)
-				{
-					OutVertexIndices.Add(VertexID);	
-				}
-			}
-			++VertexID;
-		}
-		return;
-	}
-
-	//
-	// 3. Finally, fallback to ALL vertices in the mesh
-	const int32 NumVertices = EditedMesh->Vertices().Num();
-	OutVertexIndices.Reset(NumVertices);
-	for (VertexIndex VertexID = 0; VertexID < NumVertices; VertexID++)
-	{
-		OutVertexIndices.Add(VertexID);
-	}
+	bVertexColorsNeedUpdated = true;
+	OnSelectionChanged.Broadcast();
 }
 
 BoneIndex USkinWeightsPaintTool::GetBoneIndexFromName(const FName BoneName) const
@@ -2037,12 +2060,9 @@ void USkinWeightsPaintTool::ExternalUpdateWeights(const int32 BoneIndex, const T
 		const float Weight = Pair.Value;
 		Weights.SetWeightOfBoneOnVertex(BoneIndex, VertexID, Weight, Weights.CurrentWeights);
 		Weights.SetWeightOfBoneOnVertex(BoneIndex, VertexID, Weight, Weights.PreChangeWeights);
-	}
 
-	const FName BoneName = GetBoneNameFromIndex(BoneIndex);
-	if (BoneName == CurrentBone)
-	{
-		UpdateCurrentBoneVertexColors();
+		// queue update of vertex colors
+		VerticesToUpdateColor.Add(VertexID);
 	}
 
 	Weights.UpdateIsBoneWeighted(BoneIndex);
@@ -2220,13 +2240,12 @@ void USkinWeightsPaintTool::MirrorWeights(EAxis::Type Axis, EMirrorDirection Dir
 	const TMap<int32, int32>& VertexMirrorMap = MirrorData.GetVertexMap(); // <Target, Source>
 
 	// get set of vertices to mirror
-	TArray<VertexIndex> SelectedVertices;
-	GetVerticesToEdit(SelectedVertices);
+	TArray<VertexIndex> AllVerticesToEdit = GetVerticesToEdit();
 
 	// convert all vertex indices to the target side of the mirror plane
 	TSet<VertexIndex> VerticesToMirror;
 	
-	for (const VertexIndex SelectedVertex : SelectedVertices)
+	for (const VertexIndex SelectedVertex : AllVerticesToEdit)
 	{
 		if (VertexMirrorMap.Contains(SelectedVertex))
 		{
@@ -2275,8 +2294,7 @@ void USkinWeightsPaintTool::MirrorWeights(EAxis::Type Axis, EMirrorDirection Dir
 
 	// apply the changes
 	const FText TransactionLabel = LOCTEXT("MirrorWeightChange", "Mirror skin weights.");
-	constexpr bool bShouldTransact = true;
-	ApplyWeightEditsToMesh(WeightEditsFromMirroring, TransactionLabel, bShouldTransact);
+	ApplyWeightEditsAsTransaction(WeightEditsFromMirroring, TransactionLabel);
 
 	// warn if some vertices were not mirrored
 	if (!MirrorData.GetAllVerticesMirrored())
@@ -2285,64 +2303,53 @@ void USkinWeightsPaintTool::MirrorWeights(EAxis::Type Axis, EMirrorDirection Dir
 	}
 }
 
-void USkinWeightsPaintTool::FloodWeights(const float Weight, const EWeightEditOperation FloodMode)
-{
-	if (CurrentBone == NAME_None)
-	{
-		return;
-	}
-
-	// flood the weights on selected vertices
-	const int32 CurrentBoneIndex = Weights.Deformer.BoneNameToIndexMap[CurrentBone];
-	FMultiBoneWeightEdits WeightEditsFromFlood;
-	TArray<VertexIndex> VerticesToEdit;
-	GetVerticesToEdit(VerticesToEdit);
-	const TArray<float> VertexFalloffs = {};
-	if (FloodMode == EWeightEditOperation::Relax)
-	{
-		RelaxWeightOnVertices(VerticesToEdit, VertexFalloffs, Weight, WeightEditsFromFlood);
-	}
-	else
-	{
-		EditWeightOfBoneOnVertices(FloodMode, CurrentBoneIndex, VerticesToEdit, VertexFalloffs, Weight, WeightEditsFromFlood);	
-	}
-
-	// apply the changes
-	const FText TransactionLabel = LOCTEXT("FloodWeightChange", "Flood skin weights.");
-	constexpr bool bShouldTransact = true;
-	ApplyWeightEditsToMesh(WeightEditsFromFlood, TransactionLabel, bShouldTransact);
-}
-
-void USkinWeightsPaintTool::SetBoneWeightOnVertices(
+void USkinWeightsPaintTool::EditWeightsOnVertices(
 	BoneIndex Bone,
-	const float Weight,
-	const TArray<VertexIndex>& VerticesToEdit,
+	const float Value,
+	EWeightEditOperation EditOperation,
+	const TArray<VertexIndex>& VertexIndices,
 	const bool bShouldTransact)
 {
 	// create weight edits from setting the weight directly
 	FMultiBoneWeightEdits DirectWeightEdits;
 	const TArray<float> VertexFalloffs = {}; // no falloff
-	EditWeightOfBoneOnVertices(
-				EWeightEditOperation::Replace,
+
+	if (EditOperation == EWeightEditOperation::Relax)
+	{
+		const int32 Iterations = static_cast<int32>(Value);
+		constexpr float Strength = 1.0f; // always use max strength, and interpret value as iterations for relaxation
+		RelaxWeightOnVertices(GetVerticesToEdit(), VertexFalloffs, Iterations, Strength, DirectWeightEdits);
+	}
+	else
+	{
+		EditWeightOfBoneOnVertices(
+				EditOperation,
 				Bone,
-				VerticesToEdit,
+				VertexIndices,
 				VertexFalloffs,
-				Weight,
+				Value,
 				DirectWeightEdits);
+	}
 	
 	// apply the changes
-	const FText TransactionLabel = LOCTEXT("SetWeightChange", "Set skin weights directly.");
-	ApplyWeightEditsToMesh(DirectWeightEdits, TransactionLabel, bShouldTransact);
+	if (bShouldTransact)
+	{
+		const FText TransactionLabel = LOCTEXT("EditWeightChange", "Edit skin weights directly.");
+		ApplyWeightEditsAsTransaction(DirectWeightEdits, TransactionLabel);
+	}
+	else
+	{
+		ApplyWeightEditsToMeshMidChange(DirectWeightEdits);
+	}
 }
 
 void USkinWeightsPaintTool::PruneWeights(float Threshold)
 {
 	// set weights below the given threshold to zero
 	FMultiBoneWeightEdits WeightEditsFromPrune;
-	TArray<VertexIndex> VerticesToEdit;
-	GetVerticesToEdit(VerticesToEdit);
+	const TArray<VertexIndex>& VerticesToPrune = GetVerticesToEdit();
 	const bool bPruningAllBones = SelectedBoneIndices.IsEmpty();
-	for (const VertexIndex VertexID : VerticesToEdit)
+	for (const VertexIndex VertexID : VerticesToPrune)
 	{
 		const VertexWeights& VertexWeights = Weights.CurrentWeights[VertexID];
 		for (const FVertexBoneWeight& BoneWeight : VertexWeights)
@@ -2367,19 +2374,17 @@ void USkinWeightsPaintTool::PruneWeights(float Threshold)
 
 	// apply the changes
 	const FText TransactionLabel = LOCTEXT("PruneWeightValuesChange", "Prune skin weights.");
-	constexpr bool bShouldTransact = true;
-	ApplyWeightEditsToMesh(WeightEditsFromPrune, TransactionLabel, bShouldTransact);
+	ApplyWeightEditsAsTransaction(WeightEditsFromPrune, TransactionLabel);
 }
 
 void USkinWeightsPaintTool::AverageWeights()
 {
 	// get vertices to edit weights on
-	TArray<VertexIndex> VerticesToEdit;
-	GetVerticesToEdit(VerticesToEdit);
+	const TArray<VertexIndex>& VerticesToAverage = GetVerticesToEdit();
 
 	// accumulate ALL the weights on the vertices
 	TMap<BoneIndex, float> AccumulatedWeightMap;
-	for (const VertexIndex VertexID : VerticesToEdit)
+	for (const VertexIndex VertexID : VerticesToAverage)
 	{
 		for (const FVertexBoneWeight& BoneWeight : Weights.PreChangeWeights[VertexID])
 		{
@@ -2421,7 +2426,7 @@ void USkinWeightsPaintTool::AverageWeights()
 
 	// apply averaged weights to vertices
 	FMultiBoneWeightEdits WeightEditsFromAveraging;
-	for (const VertexIndex VertexID : VerticesToEdit)
+	for (const VertexIndex VertexID : VerticesToAverage)
 	{
 		// remove influences not a part of the average results
 		for (const FVertexBoneWeight& BoneWeight : Weights.PreChangeWeights[VertexID])
@@ -2446,17 +2451,15 @@ void USkinWeightsPaintTool::AverageWeights()
 
 	// apply the changes
 	const FText TransactionLabel = LOCTEXT("AverageWeightValuesChange", "Average skin weights.");
-	constexpr bool bShouldTransact = true;
-	ApplyWeightEditsToMesh(WeightEditsFromAveraging, TransactionLabel, bShouldTransact);
+	ApplyWeightEditsAsTransaction(WeightEditsFromAveraging, TransactionLabel);
 }
 
 void USkinWeightsPaintTool::NormalizeWeights()
 {
 	// re-set a weight on each vertex to force normalization
 	FMultiBoneWeightEdits WeightEditsFromNormalization;
-	TArray<VertexIndex> SelectedVertices;
-	GetVerticesToEdit(SelectedVertices);
-	for (const VertexIndex VertexID : SelectedVertices)
+	const TArray<VertexIndex> VerticesToNormalize = GetVerticesToEdit();
+	for (const VertexIndex VertexID : VerticesToNormalize)
 	{
 		const VertexWeights& VertexWeights = Weights.CurrentWeights[VertexID];
 		for (const FVertexBoneWeight& BoneWeight : VertexWeights)
@@ -2468,8 +2471,7 @@ void USkinWeightsPaintTool::NormalizeWeights()
 
 	// apply the changes
 	const FText TransactionLabel = LOCTEXT("NormalizeWeightValuesChange", "Normalize skin weights.");
-	constexpr bool bShouldTransact = true;
-	ApplyWeightEditsToMesh(WeightEditsFromNormalization, TransactionLabel, bShouldTransact);
+	ApplyWeightEditsAsTransaction(WeightEditsFromNormalization, TransactionLabel);
 }
 
 void USkinWeightsPaintTool::HandleSkeletalMeshModified(const TArray<FName>& InBoneNames, const ESkeletalMeshNotifyType InNotifyType)
@@ -2570,7 +2572,7 @@ void USkinWeightsPaintTool::OnActiveSkinWeightProfileChanged()
 	Weights = FSkinToolWeights();
 	Weights.Profile = WeightToolProperties->ActiveSkinWeightProfile;
 	Weights.InitializeSkinWeights(SkeletalMeshComponent, EditedMesh);
-	bVisibleWeightsValid = false;
+	bVertexColorsNeedUpdated = true;
 }
 
 bool USkinWeightsPaintTool::IsProfileValid(const FName InProfileName) const
@@ -2809,9 +2811,9 @@ void USkinWeightsPaintTool::FinishIsolatedSelection()
 	PartialMeshDescription = nullptr;
 }
 
-void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices) const
+void USkinWeightsPaintTool::UpdateSelectedVertices()
 {
-	OutVertexIndices.Empty();
+	SelectedVertices.Empty();
 	if (!PolygonSelectionMechanic)
 	{
 		return;
@@ -2822,12 +2824,12 @@ void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices)
 	const FVertexArray& AllVertices = EditedMesh->Vertices();
 
 	// validate and add vertices to the output array
-	auto AddVertices = [&OutVertexIndices, &AllVertices](const TSet<int32>& VerticesToAdd)
+	auto AddVertices = [this, &AllVertices](const TSet<int32>& VerticesToAdd)
 	{
 		// we have to make sure that the vertex ids are safe to use as PolygonSelectionMechanic does not act on the
 		// mesh description but on the dynamic mesh that can duplicate vertices when dealing with degenerate triangles.
 		// cf. FMeshDescriptionToDynamicMesh::Convert for more details.
-		Algo::CopyIf(VerticesToAdd, OutVertexIndices, [&](int32 VertexID)
+		Algo::CopyIf(VerticesToAdd, SelectedVertices, [&](int32 VertexID)
 		{
 			return AllVertices.IsValid(VertexID);	
 		});
@@ -2862,6 +2864,40 @@ void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices)
 		
 		AddVertices(VerticesInSelectedFaces);
 	}
+}
+
+const TArray<int32>& USkinWeightsPaintTool::GetSelectedVertices() const
+{
+	return SelectedVertices;
+}
+
+const TArray<int32>& USkinWeightsPaintTool::GetVerticesToEdit()
+{
+	// prioritize re-using selected vertices array (if there are any)
+	if (!SelectedVertices.IsEmpty())
+	{
+		return SelectedVertices;
+	}
+	
+	// fallback on vertices weighted to selected bones
+	VerticesToEdit.Reset();
+	if (!SelectedBoneIndices.IsEmpty())
+	{
+		VertexIndex VertexID = 0;
+		for (const VertexWeights& VertWeights : Weights.PreChangeWeights)
+		{
+			for (const FVertexBoneWeight& BoneWeight : VertWeights)
+			{
+				if (SelectedBoneIndices.Contains(BoneWeight.BoneIndex) && BoneWeight.Weight > MinimumWeightThreshold)
+				{
+					VerticesToEdit.Add(VertexID);	
+				}
+			}
+			++VertexID;
+		}
+	}
+
+	return VerticesToEdit;
 }
 
 void USkinWeightsPaintTool::GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const
@@ -2955,12 +2991,19 @@ FName USkinWeightsPaintTool::GetBoneNameFromIndex(BoneIndex InIndex) const
 	return NAME_None;
 }
 
-void USkinWeightsPaintTool::SetDisplayVertexColors(bool bShowVertexColors) const
+
+BoneIndex USkinWeightsPaintTool::GetCurrentBoneIndex() const
+{
+	return GetBoneIndexFromName(CurrentBone);
+}
+
+void USkinWeightsPaintTool::SetDisplayVertexColors(bool bShowVertexColors)
 {
 	if (bShowVertexColors)
 	{
 		UMaterialInterface* VtxColorMaterial = GetToolManager()->GetContextQueriesAPI()->GetStandardMaterial(EStandardToolContextMaterials::VertexColorMaterial);
 		PreviewMesh->SetOverrideRenderMaterial(VtxColorMaterial);
+		bVertexColorsNeedUpdated = true;
 	}
 	else
 	{
@@ -2999,7 +3042,7 @@ void USkinWeightsPaintTool::OnPropertyModified(UObject* ModifiedObject, FPropert
 		GET_MEMBER_NAME_STRING_CHECKED(FLinearColor, A)};
 	if (ColorPropertyNames.Contains(NameOfModifiedProperty))
 	{
-		bVisibleWeightsValid = false;
+		bVertexColorsNeedUpdated = true;
 
 		// force all colors to have Alpha = 1
 		WeightToolProperties->MinColor.A = 1.f;
