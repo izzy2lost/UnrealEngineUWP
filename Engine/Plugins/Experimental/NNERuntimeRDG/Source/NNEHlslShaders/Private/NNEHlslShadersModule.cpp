@@ -28,7 +28,10 @@ public:
 
 		FString ModuleShaderDir = FPaths::Combine(BaseDir, TEXT("Shaders"));
 		
-		AddShaderSourceDirectoryMapping(TEXT("/NNE"), ModuleShaderDir);
+		if (FPaths::DirectoryExists(ModuleShaderDir))
+		{
+			AddShaderSourceDirectoryMapping(TEXT("/NNE"), ModuleShaderDir);
+		}
 	}
 
 	virtual void ShutdownModule() override
