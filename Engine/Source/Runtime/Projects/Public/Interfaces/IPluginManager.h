@@ -180,6 +180,17 @@ public:
 	virtual void SetVersePath(FString&& InVersePath) = 0;
 
 	/**
+	 * Return the Verse language version to compile the plugin with (if unspecified, the latest stable version is used)
+	 */
+	virtual TOptional<uint32> GetVerseVersion() const = 0;
+
+	/**
+	 * Sets the Verse language version to compile the plugin with (if unspecified, the latest stable version is used)
+	 * @param InVerseVersion Verse version to set on the plugin
+	 */
+	virtual void SetVerseVersion(TOptional<uint32> InVerseVersion) = 0;
+
+	/**
 	 * Returns the plugin's location
 	 *
 	 * @return Where the plugin was loaded from

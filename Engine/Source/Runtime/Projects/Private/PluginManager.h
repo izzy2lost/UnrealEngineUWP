@@ -111,6 +111,16 @@ public:
 		Descriptor.VersePath = MoveTemp(InVersePath);
 	}
 
+	virtual TOptional<uint32> GetVerseVersion() const override
+	{
+		return Descriptor.VerseVersion;
+	}
+
+	virtual void SetVerseVersion(TOptional<uint32> InVerseVersion) override
+	{
+		Descriptor.VerseVersion = InVerseVersion;
+	}
+
 	virtual EPluginType GetType() const override
 	{
 		return Type;
