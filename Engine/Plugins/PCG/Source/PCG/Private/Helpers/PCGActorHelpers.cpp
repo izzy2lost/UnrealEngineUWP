@@ -90,7 +90,7 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 #if WITH_EDITOR
 	const bool bMeshHasNaniteData = StaticMesh->IsNaniteEnabled();
 #else
-	const bool bMeshHasNaniteData = StaticMesh->GetRenderData()->HasValidNaniteData();
+	const bool bMeshHasNaniteData = StaticMesh->GetRenderData() && StaticMesh->GetRenderData()->HasValidNaniteData();
 #endif
 
 	FString ComponentName;
