@@ -1435,12 +1435,7 @@ static void ActivateApp_EventThread()
 	DEVELOPER_LOG_COMMANDCB_CASE(ActivateApp_EventThread);
 	if (bAppIsActive_EventThread)
 	{
-		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("UNEXPECTED -- event thread, activate app, ALREADY have HW window lock according to bAppIsActive_EventThread. bReadyToProcessEvents=%d, bAppIsActive_EventThread=%d"), bReadyToProcessEvents, bAppIsActive_EventThread);
-
-#if !USE_ANDROID_STANDALONE // SUSPECT TODO should remove the #if?
-		// Seems this can occur.
 		return;
-#endif
 	}
 
 	// Unlock window when we're ready.

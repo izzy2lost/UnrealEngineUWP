@@ -91,8 +91,6 @@ static void ClearCachedWindowRects()
 	CachedWindowRect_EventThread = FAndroidCachedWindowRectParams();
 }
 
-static int32 GSurfaceViewX = 0;
-static int32 GSurfaceViewY = 0;
 int32 GSurfaceViewWidth = -1;
 int32 GSurfaceViewHeight = -1;
 
@@ -200,11 +198,8 @@ JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeSetSurfa
 	ANativeWindow* prev = (ANativeWindow*)GAndroidWindowOverride;
 	if (surface != 0)
 	{
-		GSurfaceViewX = x;
-		GSurfaceViewY = y;
-
 		GAndroidWindowOverride = (ANativeWindow*)ANativeWindow_fromSurface(jenv, surface);
-		UE_LOG(LogAndroid, Log, TEXT("nativeSetSurfaceOverride applied: prev to new %p -> %p, pos(%d, %d)"), prev, GAndroidWindowOverride, GSurfaceViewX, GSurfaceViewY);
+		UE_LOG(LogAndroid, Log, TEXT("nativeSetSurfaceOverride applied: prev to new %p -> %p, pos(%d, %d)"), prev, GAndroidWindowOverride, x, y);
 
 	}
 	else
