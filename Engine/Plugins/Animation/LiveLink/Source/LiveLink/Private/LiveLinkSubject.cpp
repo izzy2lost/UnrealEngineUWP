@@ -56,6 +56,8 @@ FLiveLinkSubject::~FLiveLinkSubject()
 
 void FLiveLinkSubject::Update()
 {
+	FScopeLock Lock(&SettingsCriticalSection);
+
 	// Clear all frames that are too old
 	if (FrameData.Num() > CachedSettings.BufferSettings.MaxNumberOfFrameToBuffered)
 	{
@@ -334,8 +336,6 @@ bool FLiveLinkSubject::HasStaticData() const
 
 void FLiveLinkSubject::AddFrameData(FLiveLinkFrameDataStruct&& InFrameData)
 {
-	check(IsInGameThread());
-
 	if (!ValidateFrameData(InFrameData))
 	{
 		return;
@@ -1017,8 +1017,6 @@ void FLiveLinkSubject::RemoveFrames(int32 InCount)
 
 void FLiveLinkSubject::SetStaticData(TSubclassOf<ULiveLinkRole> InRole, FLiveLinkStaticDataStruct&& InStaticData)
 {
-	check(IsInGameThread());
-
 	if (Role == nullptr)
 	{
 		static const FName NAME_NoRoleForSubject = "LiveLinkSubject_NoRoleForSubject";
@@ -1026,7 +1024,7 @@ void FLiveLinkSubject::SetStaticData(TSubclassOf<ULiveLinkRole> InRole, FLiveLin
 		return;
 	}
 
-	if(Role == InRole)
+	if (Role == InRole)
 	{
 		//Set initial blending processor to the role's default one. User will be able to modify it afterwards.
 		FrameData.Reset();
@@ -1042,7 +1040,7 @@ void FLiveLinkSubject::SetStaticData(TSubclassOf<ULiveLinkRole> InRole, FLiveLin
 
 void FLiveLinkSubject::CacheSettings(ULiveLinkSourceSettings* SourceSetting, ULiveLinkSubjectSettings* SubjectSetting)
 {
-	check(IsInGameThread());
+	FScopeLock Lock(&SettingsCriticalSection);
 
 	if (SourceSetting)
 	{

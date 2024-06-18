@@ -192,6 +192,11 @@ protected:
 	virtual FLiveLinkSkeletonStaticData* GetSubjectAnimationStaticData_Deprecation(const FLiveLinkSubjectKey& SubjectKey) override;
 	//~ End FLiveLinkClient_Base_DEPRECATED implementation
 
+	/** Add delegates that will be triggered for all subjects. */
+	bool RegisterGlobalSubjectFramesDelegate(const FOnLiveLinkSubjectStaticDataAdded::FDelegate& InOnStaticDataAdded, const FOnLiveLinkSubjectFrameDataAdded::FDelegate& InOnFrameDataAdded, FDelegateHandle& OutStaticDataAddedHandle, FDelegateHandle& OutFrameDataAddedHandle);
+	/** Remove the delegates that were triggered for all subjects. */
+	void UnregisterGlobalSubjectFramesDelegate(FDelegateHandle& InStaticDataAddedHandle, FDelegateHandle& InFrameDataAddedHandle);
+
 private:
 	/** Struct that hold the pending static data that will be pushed next tick. */
 	struct FPendingSubjectStatic
@@ -253,8 +258,8 @@ protected:
 	/** LiveLink Provider for rebroadcasting */
 	TSharedPtr<ILiveLinkProvider> RebroadcastLiveLinkProvider;
 
-	/** Lock to stop multiple threads accessing the Subjects from the collection at the same time */
-    mutable FCriticalSection CollectionAccessCriticalSection;
+	/** Lock to protect access on SubjectFrameToPush and SubjectStaticToPush. */
+	mutable FCriticalSection PendingFramesCriticalSection;
 
 private:
 	/** Pending static info to add to a subject. */
@@ -293,6 +298,9 @@ private:
 	FString RebroadcastLiveLinkProviderName;
 	TSet<FLiveLinkSubjectKey> RebroadcastedSubjects;
 
+	/** Name token  used to register to all subject updates. */
+	const FName ALL_SUBJECTS_DELEGATE_TOKEN = "__Internal_AllSubjects_Update";
+
 #if WITH_EDITOR
 	/** Delegate when a subject is evaluated. */
 	FOnLiveLinkSubjectEvaluated OnLiveLinkSubjectEvaluatedDelegate;
@@ -302,12 +310,3 @@ private:
 	TOptional<FQualifiedFrameTime> CachedEngineFrameTime;
 #endif
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "ILiveLinkSource.h"
-#include "LiveLinkProvider.h"
-#include "LiveLinkSourceSettings.h"
-#include "LiveLinkVirtualSubject.h"
-#include "Tickable.h"
-#include "UObject/GCObject.h"
-#endif

@@ -4,6 +4,8 @@
 
 #include "UObject/Object.h"
 
+#include "Misc/FrameRate.h"
+
 #include "LiveLinkHubSettings.generated.h"
 
 /**
@@ -26,4 +28,16 @@ public:
 	/** Which project settings sections to display when opening the settings viewer. */
 	UPROPERTY(config)
 	TArray<FName> ProjectSettingsToDisplay;
+
+	/**
+	 * - Experimental - If this is disabled, LiveLinkHub's LiveLink Client will tick outside of the game thread.
+	 * This allows processing LiveLink frame snapshots without the risk of being blocked by the game / ui thread.
+	 * Note that this should only be relevant for virtual subjects since data is already forwarded to UE outside of the game thread.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "LiveLinkHub", meta = (ConfigRestartRequired = true))
+	bool bTickOnGameThread = false;
+
+	/** Target framerate for ticking LiveLinkHub. */
+	UPROPERTY(config, EditAnywhere, Category="LiveLinkHub", meta = (ConfigRestartRequired = true, ClampMin="15.0"))
+	float TargetFrameRate = 120.0f;
 };

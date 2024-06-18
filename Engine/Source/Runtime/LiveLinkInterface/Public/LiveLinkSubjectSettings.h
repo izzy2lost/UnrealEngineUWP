@@ -27,6 +27,9 @@ class ULiveLinkSubjectSettings : public UObject
 public:
 	GENERATED_BODY()
 
+	/** Initialize the settings. */
+	virtual void Initialize(FLiveLinkSubjectKey InSubjectKey) {}
+
 	/** List of available preprocessor the subject will use. */
 	UPROPERTY(EditAnywhere, Instanced, Category = "LiveLink", meta = (DisplayName = "Pre Processors"))
 	TArray<TObjectPtr<ULiveLinkFramePreProcessor>> PreProcessors;

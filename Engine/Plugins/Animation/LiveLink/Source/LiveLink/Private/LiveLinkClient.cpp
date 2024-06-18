@@ -2,6 +2,8 @@
 
 #include "LiveLinkClient.h"
 
+#include "Algo/ForEach.h"
+#include "Algo/Transform.h"
 #include "Engine/Blueprint.h"
 #include "Engine/Engine.h"
 #include "LiveLinkAnimationVirtualSubject.h"
@@ -51,6 +53,7 @@ static TAutoConsoleVariable<int32> CVarMaxNewFrameDataPerUpdate(
 
 
 FLiveLinkClient::FLiveLinkClient()
+	: Collection(MakeUnique<FLiveLinkSourceCollection>())
 {
 	LLM_SCOPE_BYTAG(LiveLink_LiveLinkClient);
 
@@ -58,7 +61,6 @@ FLiveLinkClient::FLiveLinkClient()
 	CachedEngineTime = 0.0;
 #endif
 
-	Collection = MakeUnique<FLiveLinkSourceCollection>();
 	OnLiveLinkSubjectRemoved().AddRaw(this, &FLiveLinkClient::OnSubjectRemovedCallback);
 	FCoreDelegates::OnPreExit.AddRaw(this, &FLiveLinkClient::Shutdown);
 
@@ -84,7 +86,6 @@ void FLiveLinkClient::Tick()
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLink_Client_Tick);
 
-	FScopeLock Lock(&CollectionAccessCriticalSection);
 	DoPendingWork();
 	CacheValues();
 	UpdateSources();
@@ -95,6 +96,8 @@ void FLiveLinkClient::Tick()
 
 void FLiveLinkClient::DoPendingWork()
 {
+	FScopeLock PendingFramesLock(&PendingFramesCriticalSection);
+
 	check(Collection);
 
 	// Remove Sources and Subjects
@@ -119,10 +122,10 @@ void FLiveLinkClient::DoPendingWork()
 
 void FLiveLinkClient::UpdateSources()
 {
-	for (FLiveLinkCollectionSourceItem& SourceItem : Collection->GetSources())
+	Collection->ForEachSource([](const FLiveLinkCollectionSourceItem& SourceItem)
 	{
 		SourceItem.Source->Update();
-	}
+	});
 }
 
 void FLiveLinkClient::BuildThisTicksSubjectSnapshot()
@@ -134,14 +137,42 @@ void FLiveLinkClient::BuildThisTicksSubjectSnapshot()
 	TSet<FGuid> TaggedSources;
 
 	// Update the Live Subject before the Virtual Subject
-	for (const FLiveLinkCollectionSubjectItem& SubjectItem : Collection->GetSubjects())
+	Collection->ForEachSubject([this, &TaggedSources](FLiveLinkCollectionSourceItem& SourceItem, FLiveLinkCollectionSubjectItem& SubjectItem)
 	{
 		if (FLiveLinkSubject* LiveSubject = SubjectItem.GetLiveSubject())
 		{
 			if (SubjectItem.bEnabled)
 			{
-				ULiveLinkSourceSettings* SourceSettings = GetSourceSettings(SubjectItem.Key.Source);
+				ULiveLinkSourceSettings* SourceSettings = SourceItem.Setting.Get();
 				ULiveLinkSubjectSettings* SubjectSettings = SubjectItem.GetLinkSettings();
+
+				LiveSubject->CacheSettings(SourceSettings, SubjectSettings);
+				LiveSubject->Update();
+				EnabledSubjects.Add(SubjectItem.Key.SubjectName, SubjectItem.Key);
+
+				// Update Source FrameRate from first enabled subject with valid data.
+				if (LiveSubject->HasValidFrameSnapshot() && SubjectSettings->FrameRate.IsValid() && !TaggedSources.Contains(SubjectItem.Key.Source))
+				{
+					SourceSettings->BufferSettings.DetectedFrameRate = SubjectSettings->FrameRate;
+					TaggedSources.Add(SubjectItem.Key.Source);
+				}
+			}
+			else
+			{
+				LiveSubject->ClearFrames();
+			}
+		}
+	});
+
+	Collection->ForEachSubject([this, &TaggedSources](FLiveLinkCollectionSourceItem& SourceItem, FLiveLinkCollectionSubjectItem& SubjectItem)
+	{
+		if (FLiveLinkSubject* LiveSubject = SubjectItem.GetLiveSubject())
+		{
+			if (SubjectItem.bEnabled)
+			{
+				ULiveLinkSourceSettings* SourceSettings = SourceItem.Setting.Get();
+				ULiveLinkSubjectSettings* SubjectSettings = SubjectItem.GetLinkSettings();
+
 				LiveSubject->CacheSettings(SourceSettings, SubjectSettings);
 				LiveSubject->Update();
 				EnabledSubjects.Add(SubjectItem.Key.SubjectName, SubjectItem.Key);
@@ -158,11 +189,10 @@ void FLiveLinkClient::BuildThisTicksSubjectSnapshot()
 				LiveSubject->ClearFrames();
 			}
 		}
-	}
+	});
 
-	for (const FLiveLinkCollectionSubjectItem& SubjectItem : Collection->GetSubjects())
+	Collection->ForEachSubject([this](FLiveLinkCollectionSourceItem& SourceItem, FLiveLinkCollectionSubjectItem& SubjectItem)
 	{
-		
 		if (ULiveLinkVirtualSubject* VSubject = SubjectItem.GetVirtualSubject())
 		{
 			if (SubjectItem.bEnabled)
@@ -176,7 +206,7 @@ void FLiveLinkClient::BuildThisTicksSubjectSnapshot()
 				VSubject->ClearFrames();
 			}
 		}
-	}
+	});
 }
 
 void FLiveLinkClient::CacheValues()
@@ -215,7 +245,6 @@ void FLiveLinkClient::Shutdown()
 		bool bContinue = true;
 		while(bContinue)
 		{
-			FScopeLock Lock(&CollectionAccessCriticalSection);
 			bContinue = !Collection->RequestShutdown();
 
 			if (FPlatformTime::Seconds() - StartShutdownSeconds > Timeout)
@@ -345,7 +374,8 @@ FGuid FLiveLinkClient::AddSource(TSharedPtr<ILiveLinkSource> InSource)
 		{
 			UClass* SourceSettingsClass = InSource->GetSettingsClass().Get();
 			UClass* SettingsClass = SourceSettingsClass ? SourceSettingsClass : ULiveLinkSourceSettings::StaticClass();
-			Settings = Data.Setting = NewObject<ULiveLinkSourceSettings>(GetTransientPackage(), SettingsClass);
+			Data.Setting = TStrongObjectPtr(NewObject<ULiveLinkSourceSettings>(GetTransientPackage(), SettingsClass));
+			Settings = Data.Setting.Get();
 		}
 		Collection->AddSource(MoveTemp(Data));
 
@@ -372,7 +402,7 @@ FGuid FLiveLinkClient::AddVirtualSubjectSource(FName SourceName)
 
 		ULiveLinkVirtualSubjectSourceSettings* NewSettings = NewObject<ULiveLinkVirtualSubjectSourceSettings>(GetTransientPackage(), ULiveLinkVirtualSubjectSourceSettings::StaticClass());
 		NewSettings->SourceName = SourceName;
-		Data.Setting = NewSettings;
+		Data.Setting = TStrongObjectPtr(NewSettings);
 		Data.bIsVirtualSource = true;
 		Collection->AddSource(MoveTemp(Data));
 
@@ -453,11 +483,12 @@ bool FLiveLinkClient::CreateSource(const FLiveLinkSourcePreset& InSourcePreset)
 		FLiveLinkLog::Info(TEXT("Creating Source '%s' from Preset: Settings class '%s' is not what is expected ('%s'). Updating to new class."), *InSourcePreset.SourceType.ToString(), *InSourcePreset.Settings->GetClass()->GetName(), *SourceSettingsClass->GetName());
 		Setting = NewObject<ULiveLinkSourceSettings>(GetTransientPackage(), SourceSettingsClass);
 		UEngine::CopyPropertiesForUnrelatedObjects(InSourcePreset.Settings, Setting);
-		Data.Setting = Setting;
+		Data.Setting = TStrongObjectPtr(Setting);
 	}
 	else
 	{
-		Setting = Data.Setting = DuplicateObject<ULiveLinkSourceSettings>(InSourcePreset.Settings, GetTransientPackage());
+		Data.Setting = TStrongObjectPtr(DuplicateObject<ULiveLinkSourceSettings>(InSourcePreset.Settings, GetTransientPackage()));
+		Setting = Data.Setting.Get();
 	}
 
 	Collection->AddSource(MoveTemp(Data));
@@ -488,16 +519,16 @@ void FLiveLinkClient::RemoveSource(FGuid InEntryGuid)
 void FLiveLinkClient::RemoveAllSources()
 {
 	check(Collection);
-	for (FLiveLinkCollectionSourceItem& SourceItem : Collection->GetSources())
+	Collection->ForEachSource([](FLiveLinkCollectionSourceItem& SourceItem)
 	{
 		SourceItem.bPendingKill = true;
-	}
+	});
 }
 
 bool FLiveLinkClient::HasSourceBeenAdded(TSharedPtr<ILiveLinkSource> InSource) const
 {
 	check(Collection);
-	if (FLiveLinkCollectionSourceItem* SourceItem = Collection->FindSource(InSource))
+	if (const FLiveLinkCollectionSourceItem* SourceItem = Collection->FindSource(InSource))
 	{
 		return !SourceItem->bPendingKill;
 	}
@@ -509,13 +540,14 @@ TArray<FGuid> FLiveLinkClient::GetSources(bool bEvenIfPendingKill) const
 	check(Collection);
 
 	TArray<FGuid> Result;
-	for (const FLiveLinkCollectionSourceItem& SourceItem : Collection->GetSources())
+	Collection->ForEachSource([&Result, bEvenIfPendingKill](const FLiveLinkCollectionSourceItem& SourceItem)
 	{
 		if ((!SourceItem.bPendingKill || bEvenIfPendingKill) && !SourceItem.IsVirtualSource())
 		{
 			Result.Add(SourceItem.Guid);
 		}
-	}
+	});
+
 	return Result;
 }
 
@@ -524,13 +556,15 @@ TArray<FGuid> FLiveLinkClient::GetVirtualSources(bool bEvenIfPendingKill) const
 	check(Collection);
 
 	TArray<FGuid> Result;
-	for (const FLiveLinkCollectionSourceItem& SourceItem : Collection->GetSources())
+
+	Collection->ForEachSource([&Result, bEvenIfPendingKill](const FLiveLinkCollectionSourceItem& SourceItem)
 	{
 		if ((!SourceItem.bPendingKill || bEvenIfPendingKill) && SourceItem.IsVirtualSource())
 		{
 			Result.Add(SourceItem.Guid);
 		}
-	}
+	});
+
 	return Result;
 }
 
@@ -541,13 +575,13 @@ FLiveLinkSourcePreset FLiveLinkClient::GetSourcePreset(FGuid InSourceGuid, UObje
 	UObject* DuplicatedObjectOuter = InDuplicatedObjectOuter ? InDuplicatedObjectOuter : GetTransientPackage();
 
 	FLiveLinkSourcePreset SourcePreset;
-	if (FLiveLinkCollectionSourceItem* SourceItem = Collection->FindSource(InSourceGuid))
+	if (const FLiveLinkCollectionSourceItem* SourceItem = Collection->FindSource(InSourceGuid))
 	{
 		if (SourceItem->Guid != FLiveLinkSourceCollection::DefaultVirtualSubjectGuid && SourceItem->Setting && SourceItem->Source)
 		{
 			SourcePreset.Guid = SourceItem->Guid;
 			SourcePreset.SourceType = SourceItem->Source->CanBeDisplayedInUI() ? SourceItem->Source->GetSourceType() : FText::GetEmpty();
-			SourcePreset.Settings = DuplicateObject<ULiveLinkSourceSettings>(SourceItem->Setting, DuplicatedObjectOuter);
+			SourcePreset.Settings = DuplicateObject<ULiveLinkSourceSettings>(SourceItem->Setting.Get(), DuplicatedObjectOuter);
 		}
 	}
 	return SourcePreset;
@@ -559,7 +593,7 @@ void FLiveLinkClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectKey&
 	const int32 MaxNumBufferToCached = CVarMaxNewStaticDataPerUpdate.GetValueOnAnyThread();
 	bool bLogError = false;
 	{
-		FScopeLock Lock(&CollectionAccessCriticalSection);
+		FScopeLock Lock(&PendingFramesCriticalSection);
 		if (SubjectStaticToPush.Num() > MaxNumBufferToCached) // Something is wrong somewhere. Warn the user and discard the new Static Data.
 		{
 			bLogError = true;
@@ -626,33 +660,41 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 	}
 
 	FLiveLinkSubject* LiveLinkSubject = nullptr;
-	if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectStaticData.SubjectKey))
 	{
-		if (!SubjectItem->bPendingKill)
+		if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectStaticData.SubjectKey))
 		{
-			LiveLinkSubject = SubjectItem->GetLiveSubject();
-
-			if (LiveLinkSubject->GetRole() != SubjectStaticData.Role)
+			if (!SubjectItem->bPendingKill)
 			{
-				FLiveLinkLog::Warning(TEXT("Subject '%s' of role '%s' is changing its role to '%s'. Current subject will be removed and a new one will be created"), *SubjectStaticData.SubjectKey.SubjectName.ToString(), *LiveLinkSubject->GetRole().GetDefaultObject()->GetDisplayName().ToString(), *SubjectStaticData.Role.GetDefaultObject()->GetDisplayName().ToString());
+				LiveLinkSubject = SubjectItem->GetLiveSubject();
 
-				Collection->RemoveSubject(SubjectStaticData.SubjectKey);
-				LiveLinkSubject = nullptr;
-			}
-			else
-			{
-				LiveLinkSubject->ClearFrames();
+				if (LiveLinkSubject->GetRole() != SubjectStaticData.Role)
+				{
+					FLiveLinkLog::Warning(TEXT("Subject '%s' of role '%s' is changing its role to '%s'. Current subject will be removed and a new one will be created"), *SubjectStaticData.SubjectKey.SubjectName.ToString(), *LiveLinkSubject->GetRole().GetDefaultObject()->GetDisplayName().ToString(), *SubjectStaticData.Role.GetDefaultObject()->GetDisplayName().ToString());
+
+					Collection->RemoveSubject(SubjectStaticData.SubjectKey);
+					LiveLinkSubject = nullptr;
+				}
+				else
+				{
+					LiveLinkSubject->ClearFrames();
+				}
 			}
 		}
 	}
 
-	if(LiveLinkSubject == nullptr)
+
+	// Prevent GC while we're creating UObjects since LL Client can potentially be ticked outside of the game thread.
+	FGCScopeGuard Guard;
+
+	if (LiveLinkSubject == nullptr)
 	{
 		const ULiveLinkSettings* LiveLinkSettings = GetDefault<ULiveLinkSettings>();
 		const FLiveLinkRoleProjectSetting DefaultSetting = LiveLinkSettings->GetDefaultSettingForRole(SubjectStaticData.Role.Get());
 
+		// We use a strong object ptr to prevent GC for this object in case this was created outside the game thread.
+		TStrongObjectPtr<ULiveLinkSubjectSettings> SubjectSettings = nullptr;
+
 		// Setting class should always be valid
-		ULiveLinkSubjectSettings* SubjectSettings = nullptr;
 		{
 			UClass* SettingClass = DefaultSetting.SettingClass.Get();
 			if (SettingClass == nullptr)
@@ -660,7 +702,9 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 				SettingClass = ULiveLinkSubjectSettings::StaticClass();
 			}
 
-			SubjectSettings = NewObject<ULiveLinkSubjectSettings>(GetTransientPackage(), SettingClass);
+			SubjectSettings = TStrongObjectPtr{NewObject<ULiveLinkSubjectSettings>(GetTransientPackage(), SettingClass)};
+			SubjectSettings->Initialize(SubjectStaticData.SubjectKey);
+
 			SubjectSettings->Role = SubjectStaticData.Role;
 
 			UClass* FrameInterpolationProcessorClass = DefaultSetting.FrameInterpolationProcessor.Get();
@@ -669,7 +713,9 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 				UClass* InterpolationRole = FrameInterpolationProcessorClass->GetDefaultObject<ULiveLinkFrameInterpolationProcessor>()->GetRole();
 				if (SubjectStaticData.Role->IsChildOf(InterpolationRole))
 				{
-					SubjectSettings->InterpolationProcessor = NewObject<ULiveLinkFrameInterpolationProcessor>(SubjectSettings, FrameInterpolationProcessorClass);
+					SubjectSettings->InterpolationProcessor = NewObject<ULiveLinkFrameInterpolationProcessor>(SubjectSettings.Get(), FrameInterpolationProcessorClass);
+					// Clear async flag since this might've been created outside the game thread.
+					SubjectSettings->InterpolationProcessor->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
 				}
 				else
 				{
@@ -685,7 +731,9 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 					UClass* InterpolationRole = FallbackInterpolationProcessorClass->GetDefaultObject<ULiveLinkFrameInterpolationProcessor>()->GetRole();
 					if (SubjectStaticData.Role->IsChildOf(InterpolationRole))
 					{
-						SubjectSettings->InterpolationProcessor = NewObject<ULiveLinkFrameInterpolationProcessor>(SubjectSettings, FallbackInterpolationProcessorClass);
+						SubjectSettings->InterpolationProcessor = NewObject<ULiveLinkFrameInterpolationProcessor>(SubjectSettings.Get(), FallbackInterpolationProcessorClass);
+						// Clear async flag since this might've been created outside the game thread.
+						SubjectSettings->InterpolationProcessor->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
 					}
 				}
 			}
@@ -697,7 +745,9 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 					UClass* PreProcessorRole = PreProcessor->GetDefaultObject<ULiveLinkFramePreProcessor>()->GetRole();
 					if (SubjectStaticData.Role->IsChildOf(PreProcessorRole))
 					{
-						SubjectSettings->PreProcessors.Add(NewObject<ULiveLinkFramePreProcessor>(SubjectSettings, PreProcessor.Get()));
+						TObjectPtr<ULiveLinkFramePreProcessor>& FramePreprocessor = SubjectSettings->PreProcessors.Add_GetRef(NewObject<ULiveLinkFramePreProcessor>(SubjectSettings.Get(), PreProcessor.Get()));
+						// Clear async flag since this might've been created outside the game thread.
+						FramePreprocessor->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
 					}
 					else
 					{
@@ -708,8 +758,11 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 		}
 
 		bool bEnabled = Collection->FindEnabledSubject(SubjectStaticData.SubjectKey.SubjectName) == nullptr;
-		FLiveLinkCollectionSubjectItem CollectionSubjectItem(SubjectStaticData.SubjectKey, MakeUnique<FLiveLinkSubject>(SourceItem->TimedData), SubjectSettings, bEnabled);
+		FLiveLinkCollectionSubjectItem CollectionSubjectItem(SubjectStaticData.SubjectKey, MakeUnique<FLiveLinkSubject>(SourceItem->TimedData), SubjectSettings.Get(), bEnabled);
 		CollectionSubjectItem.GetLiveSubject()->Initialize(SubjectStaticData.SubjectKey, SubjectStaticData.Role.Get(), this);
+
+		// Clear the async flag since we've passed  the SubjectSettings to the subject collection item.
+		SubjectSettings->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
 
 		LiveLinkSubject = CollectionSubjectItem.GetLiveSubject();
 
@@ -721,6 +774,10 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 		if (const FSubjectFramesAddedHandles* Handles = SubjectFrameAddedHandles.Find(SubjectStaticData.SubjectKey.SubjectName))
 		{
 			Handles->OnStaticDataAdded.Broadcast(SubjectStaticData.SubjectKey, SubjectStaticData.Role, SubjectStaticData.StaticData);
+		}
+		else if (const FSubjectFramesAddedHandles* AllSubjectsHandler = SubjectFrameAddedHandles.Find(ALL_SUBJECTS_DELEGATE_TOKEN))
+		{
+			AllSubjectsHandler->OnStaticDataAdded.Broadcast(SubjectStaticData.SubjectKey, SubjectStaticData.Role, SubjectStaticData.StaticData);
 		}
 
 		LiveLinkSubject->SetStaticData(SubjectStaticData.Role, MoveTemp(SubjectStaticData.StaticData));
@@ -750,7 +807,7 @@ void FLiveLinkClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& 
 
 	bool bCanPushFrame = true;
 	{
-		FScopeLock Lock(&CollectionAccessCriticalSection);
+		FScopeLock Lock(&PendingFramesCriticalSection);
 
 		if (SubjectFrameToPush.Num() > MaxNumBufferToCached) // Something is wrong somewhere. Warn the user and discard the new Frame Data.
 		{
@@ -769,7 +826,7 @@ void FLiveLinkClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& 
 		// The lock was released so that OnFrameDataReceived doesn't need to be called with the lock on,
 		// which can hang the game thread when it calls EvaluateFrame if the broadcast takes longer than usual.
 
-		FScopeLock Lock(&CollectionAccessCriticalSection);
+		FScopeLock Lock(&PendingFramesCriticalSection);
 		SubjectFrameToPush.Add(MoveTemp(SubjectFrame));
 	}
 
@@ -792,7 +849,7 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 		return;
 	}
 
-	//To add a frame data, we need to find our subject but also have a static data associated to it. 
+	//To add a frame data, we need to find our subject but also have a static data associated to it.
 	//With presets, the subject could exist but no static data received yet.
 	FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectFrameData.SubjectKey);
 	if (SubjectItem == nullptr)
@@ -804,15 +861,15 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 	{
 		return;
 	}
-	
+
 	FLiveLinkSubject* LinkSubject = SubjectItem->GetLiveSubject();
 	if (LinkSubject == nullptr)
 	{
 		FLiveLinkLog::Error(TEXT("The Subject is not allowed to push to a virtual subject."));
 		return;
 	}
-	
-	
+
+
 	if (!LinkSubject->HasStaticData())
 	{
 		return;
@@ -835,7 +892,7 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 		return;
 	}
 
-	//Stamp arrival time of each packet to track clock difference when it is effectively added to the stash. 
+	//Stamp arrival time of each packet to track clock difference when it is effectively added to the stash.
 	//Doing it in the Add_AnyThread would mean that we stamp it up to 1 frame time behind, causing the offset to always be 1 frame behind
 	//and requiring 2.5 frames or so to have a valid smooth offset
 	if (SubjectFrameData.FrameData.GetBaseData())
@@ -847,13 +904,18 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 			SubjectFrameData.FrameData.GetBaseData()->ArrivalTime.SceneTime = *CurrentTime;
 		}
 	}
-	
+
 	//Let source data know about this new frame to get latest clock offset
 	SourceItem->TimedData->ProcessNewFrameTimingInfo(*SubjectFrameData.FrameData.GetBaseData());
 
 	if (const FSubjectFramesAddedHandles* Handles = SubjectFrameAddedHandles.Find(SubjectFrameData.SubjectKey.SubjectName))
 	{
 		Handles->OnFrameDataAdded.Broadcast(SubjectItem->Key, Role, SubjectFrameData.FrameData);
+	}
+	else if (const FSubjectFramesAddedHandles* AllSubjectsHandler = SubjectFrameAddedHandles.Find(ALL_SUBJECTS_DELEGATE_TOKEN))
+	{
+		// NAME_None means we registered for all subjects update.
+		AllSubjectsHandler->OnFrameDataAdded.Broadcast(SubjectItem->Key, Role, SubjectFrameData.FrameData);
 	}
 
 	HandleSubjectRebroadcast(LinkSubject, SubjectFrameData.FrameData);
@@ -894,7 +956,6 @@ bool FLiveLinkClient::CreateSubject(const FLiveLinkSubjectPreset& InSubjectPrese
 	FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectPreset.Key);
 	if (SubjectItem != nullptr)
 	{
-		FScopeLock Lock(&CollectionAccessCriticalSection);
 		if (SubjectItem->bPendingKill)
 		{
 			Collection->RemoveSubject(InSubjectPreset.Key);
@@ -913,7 +974,6 @@ bool FLiveLinkClient::CreateSubject(const FLiveLinkSubjectPreset& InSubjectPrese
 		FLiveLinkCollectionSubjectItem VSubjectData(InSubjectPreset.Key, VSubject, bEnabled);
 		VSubject->Initialize(VSubjectData.Key, VSubject->GetRole(), this);
 
-		FScopeLock Lock(&CollectionAccessCriticalSection);
 		Collection->AddSubject(MoveTemp(VSubjectData));
 		Collection->SetSubjectEnabled(InSubjectPreset.Key, InSubjectPreset.bEnabled);
 	}
@@ -933,7 +993,6 @@ bool FLiveLinkClient::CreateSubject(const FLiveLinkSubjectPreset& InSubjectPrese
 		FLiveLinkCollectionSubjectItem CollectionSubjectItem(InSubjectPreset.Key, MakeUnique<FLiveLinkSubject>(SourceItem->TimedData), SubjectSettings, bEnabled);
 		CollectionSubjectItem.GetLiveSubject()->Initialize(InSubjectPreset.Key, InSubjectPreset.Role.Get(), this);
 
-		FScopeLock Lock(&CollectionAccessCriticalSection);
 		Collection->AddSubject(MoveTemp(CollectionSubjectItem));
 		Collection->SetSubjectEnabled(InSubjectPreset.Key, InSubjectPreset.bEnabled);
 	}
@@ -942,8 +1001,6 @@ bool FLiveLinkClient::CreateSubject(const FLiveLinkSubjectPreset& InSubjectPrese
 
 void FLiveLinkClient::RemoveSubject_AnyThread(const FLiveLinkSubjectKey& InSubjectKey)
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (Collection)
 	{
 		if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
@@ -966,12 +1023,9 @@ bool FLiveLinkClient::AddVirtualSubject(const FLiveLinkSubjectKey& InVirtualSubj
 		}
 		else
 		{
-			FScopeLock Lock(&CollectionAccessCriticalSection);
-			const bool bFoundVirtualSubject = nullptr != Collection->GetSubjects().FindByPredicate(
-				[InVirtualSubjectKey](const FLiveLinkCollectionSubjectItem& Other)
-			{
-				return Other.Key == InVirtualSubjectKey && Other.GetVirtualSubject() != nullptr;
-			});
+
+			const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InVirtualSubjectKey);
+			const bool bFoundVirtualSubject = SubjectItem && SubjectItem->GetVirtualSubject();
 
 			if (!bFoundVirtualSubject)
 			{
@@ -990,7 +1044,7 @@ bool FLiveLinkClient::AddVirtualSubject(const FLiveLinkSubjectKey& InVirtualSubj
 					{
 						Blueprint->OnCompiled().AddLambda([this, SubjectKey = VSubjectData.Key](UBlueprint* BP) {
 							this->ReinitializeVirtualSubject(SubjectKey);
-						});
+							});
 					}
 				}
 #endif
@@ -1011,7 +1065,6 @@ bool FLiveLinkClient::AddVirtualSubject(const FLiveLinkSubjectKey& InVirtualSubj
 
 void FLiveLinkClient::RemoveVirtualSubject(const FLiveLinkSubjectKey& InVirtualSubjectKey)
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
 	if (Collection)
 	{
 		Collection->RemoveSubject(InVirtualSubjectKey);
@@ -1020,8 +1073,6 @@ void FLiveLinkClient::RemoveVirtualSubject(const FLiveLinkSubjectKey& InVirtualS
 
 void FLiveLinkClient::ClearSubjectsFrames_AnyThread(FLiveLinkSubjectName InSubjectName)
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	// Use the subject enabled for at this frame
 	if (FLiveLinkSubjectKey* SubjectKey = EnabledSubjects.Find(InSubjectName))
 	{
@@ -1031,27 +1082,25 @@ void FLiveLinkClient::ClearSubjectsFrames_AnyThread(FLiveLinkSubjectName InSubje
 
 void FLiveLinkClient::ClearSubjectsFrames_AnyThread(const FLiveLinkSubjectKey& InSubjectKey)
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (Collection)
 	{
 		if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
 		{
 			SubjectItem->GetSubject()->ClearFrames();
+
+
 		}
 	}
 }
 
 void FLiveLinkClient::ClearAllSubjectsFrames_AnyThread()
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (Collection)
 	{
-		for (const FLiveLinkCollectionSubjectItem& SubjectItem : Collection->GetSubjects())
+		Collection->ForEachSubject([](FLiveLinkCollectionSourceItem& SourceItem, FLiveLinkCollectionSubjectItem& SubjectItem)
 		{
 			SubjectItem.GetSubject()->ClearFrames();
-		}
+		});
 	}
 }
 
@@ -1076,6 +1125,7 @@ FLiveLinkSubjectPreset FLiveLinkClient::GetSubjectPreset(const FLiveLinkSubjectK
 	UObject* DuplicatedObjectOuter = InDuplicatedObjectOuter ? InDuplicatedObjectOuter : GetTransientPackage();
 
 	FLiveLinkSubjectPreset SubjectPreset;
+
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
 	{
 		SubjectPreset.Key = SubjectItem->Key;
@@ -1090,21 +1140,24 @@ FLiveLinkSubjectPreset FLiveLinkClient::GetSubjectPreset(const FLiveLinkSubjectK
 			SubjectPreset.Settings = DuplicateObject<ULiveLinkSubjectSettings>(SubjectItem->GetLinkSettings(), DuplicatedObjectOuter);
 		}
 	}
+
+
 	return SubjectPreset;
 }
 
 TArray<FLiveLinkSubjectKey> FLiveLinkClient::GetSubjects(bool bIncludeDisabledSubject, bool bIncludeVirtualSubject) const
 {
 	TArray<FLiveLinkSubjectKey> SubjectEntries;
-	SubjectEntries.Reserve(Collection->GetSubjects().Num());
 
-	for (const FLiveLinkCollectionSubjectItem& SubjectItem : Collection->GetSubjects())
+	SubjectEntries.Reserve(Collection->NumSubjects());
+
+	Collection->ForEachSubject([this, bIncludeDisabledSubject, bIncludeVirtualSubject, &SubjectEntries](const FLiveLinkCollectionSourceItem& SourceItem, const FLiveLinkCollectionSubjectItem& SubjectItem)
 	{
 		if ((SubjectItem.bEnabled || bIncludeDisabledSubject) && (bIncludeVirtualSubject || SubjectItem.GetVirtualSubject() == nullptr))
 		{
 			SubjectEntries.Add(SubjectItem.Key);
 		}
-	}
+	});
 
 	return SubjectEntries;
 }
@@ -1143,6 +1196,7 @@ bool FLiveLinkClient::IsSubjectEnabled(const FLiveLinkSubjectKey& InSubjectKey, 
 		}
 		return false;
 	}
+
 	return Collection->IsSubjectEnabled(InSubjectKey);
 }
 
@@ -1182,8 +1236,6 @@ bool FLiveLinkClient::IsSubjectTimeSynchronized(FLiveLinkSubjectName InSubjectNa
 
 TSubclassOf<ULiveLinkRole> FLiveLinkClient::GetSubjectRole_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
 	{
 		return SubjectItem->GetSubject()->GetRole();
@@ -1194,8 +1246,6 @@ TSubclassOf<ULiveLinkRole> FLiveLinkClient::GetSubjectRole_AnyThread(const FLive
 
 TSubclassOf<ULiveLinkRole> FLiveLinkClient::GetSubjectRole_AnyThread(FLiveLinkSubjectName InSubjectName) const
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindEnabledSubject(InSubjectName))
 	{
 		return SubjectItem->GetSubject()->GetRole();
@@ -1206,8 +1256,6 @@ TSubclassOf<ULiveLinkRole> FLiveLinkClient::GetSubjectRole_AnyThread(FLiveLinkSu
 
 bool FLiveLinkClient::DoesSubjectSupportsRole_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, TSubclassOf<ULiveLinkRole> InSupportedRole) const
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
 	{
 		return SubjectItem->GetSubject()->SupportsRole(InSupportedRole);
@@ -1218,8 +1266,6 @@ bool FLiveLinkClient::DoesSubjectSupportsRole_AnyThread(const FLiveLinkSubjectKe
 
 bool FLiveLinkClient::DoesSubjectSupportsRole_AnyThread(FLiveLinkSubjectName InSubjectName, TSubclassOf<ULiveLinkRole> InSupportedRole) const
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindEnabledSubject(InSubjectName))
 	{
 		return SubjectItem->GetSubject()->SupportsRole(InSupportedRole);
@@ -1250,7 +1296,8 @@ TArray<FLiveLinkTime> FLiveLinkClient::GetSubjectFrameTimes(FLiveLinkSubjectName
 TArray<FLiveLinkSubjectKey> FLiveLinkClient::GetSubjectsSupportingRole(TSubclassOf<ULiveLinkRole> InSupportedRole, bool bIncludeDisabledSubject, bool bIncludeVirtualSubject) const
 {
 	TArray<FLiveLinkSubjectKey> SubjectKeys;
-	for (const FLiveLinkCollectionSubjectItem& SubjectItem : Collection->GetSubjects())
+
+	Collection->ForEachSubject([this, &SubjectKeys, InSupportedRole, bIncludeDisabledSubject, bIncludeVirtualSubject](const FLiveLinkCollectionSourceItem& SourceItem, const FLiveLinkCollectionSubjectItem& SubjectItem)
 	{
 		if (SubjectItem.GetSubject()->SupportsRole(InSupportedRole))
 		{
@@ -1259,15 +1306,14 @@ TArray<FLiveLinkSubjectKey> FLiveLinkClient::GetSubjectsSupportingRole(TSubclass
 				SubjectKeys.Add(SubjectItem.Key);
 			}
 		}
-	}
+	});
+
 	return SubjectKeys;
 }
 
 bool FLiveLinkClient::EvaluateFrameFromSource_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, TSubclassOf<ULiveLinkRole> InDesiredRole, FLiveLinkSubjectFrameData& OutFrame)
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLink_EvaluateFrame);
-
-	FScopeLock Lock(&CollectionAccessCriticalSection);
 
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
 	{
@@ -1285,15 +1331,13 @@ void FLiveLinkClient::ForceTick()
 
 bool FLiveLinkClient::HasPendingSubjectFrames()
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
+	FScopeLock PendingFramesLock(&PendingFramesCriticalSection);
 	return !SubjectFrameToPush.IsEmpty();
 }
 
 bool FLiveLinkClient::EvaluateFrame_AnyThread(FLiveLinkSubjectName InSubjectName, TSubclassOf<ULiveLinkRole> InDesiredRole, FLiveLinkSubjectFrameData& OutFrame)
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLink_EvaluateFrame);
-
-	FScopeLock Lock(&CollectionAccessCriticalSection);
 
 	bool bResult = false;
 
@@ -1329,8 +1373,6 @@ bool FLiveLinkClient::EvaluateFrame_AnyThread(FLiveLinkSubjectName InSubjectName
 bool FLiveLinkClient::EvaluateFrameAtWorldTime_AnyThread(FLiveLinkSubjectName InSubjectName, double InWorldTime, TSubclassOf<ULiveLinkRole> InDesiredRole, FLiveLinkSubjectFrameData& OutFrame)
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLink_EvaluateFrame);
-
-	FScopeLock Lock(&CollectionAccessCriticalSection);
 
 	bool bResult = false;
 
@@ -1374,7 +1416,7 @@ bool FLiveLinkClient::EvaluateFrameAtSceneTime_AnyThread(FLiveLinkSubjectName In
 {
 	SCOPE_CYCLE_COUNTER(STAT_LiveLink_EvaluateFrame);
 
-	FScopeLock Lock(&CollectionAccessCriticalSection);
+
 
 	bool bResult = false;
 
@@ -1423,24 +1465,19 @@ TArray<FGuid> FLiveLinkClient::GetDisplayableSources(bool bIncludeVirtualSources
 {
 	TArray<FGuid> Results;
 
-	const TArray<FLiveLinkCollectionSourceItem>& PresetSources = Collection->GetSources();
-	Results.Reserve(PresetSources.Num());
-
-	for (const FLiveLinkCollectionSourceItem& Data : PresetSources)
+	Collection->ForEachSource([&Results, bIncludeVirtualSources](const FLiveLinkCollectionSourceItem& SourceItem)
 	{
-		if (Data.Source->CanBeDisplayedInUI() || (bIncludeVirtualSources && Data.IsVirtualSource()))
+		if (SourceItem.Source->CanBeDisplayedInUI() || (bIncludeVirtualSources && SourceItem.IsVirtualSource()))
 		{
-			Results.Add(Data.Guid);
+			Results.Add(SourceItem.Guid);
 		}
-	}
+	});
 
 	return Results;
 }
 
 FLiveLinkSubjectTimeSyncData FLiveLinkClient::GetTimeSyncData(FLiveLinkSubjectName InSubjectName)
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindEnabledSubject(InSubjectName))
 	{
 		if (FLiveLinkSubject* LinkSubject = SubjectItem->GetLiveSubject())
@@ -1499,9 +1536,10 @@ bool FLiveLinkClient::IsVirtualSubject(const FLiveLinkSubjectKey& InSubjectKey) 
 
 void FLiveLinkClient::OnPropertyChanged(FGuid InEntryGuid, const FPropertyChangedEvent& InPropertyChangedEvent)
 {
+
 	if (const FLiveLinkCollectionSourceItem* SourceItem = Collection->FindSource(InEntryGuid))
 	{
-		SourceItem->Source->OnSettingsChanged(SourceItem->Setting, InPropertyChangedEvent);
+		SourceItem->Source->OnSettingsChanged(SourceItem->Setting.Get(), InPropertyChangedEvent);
 	}
 }
 
@@ -1509,7 +1547,7 @@ ULiveLinkSourceSettings* FLiveLinkClient::GetSourceSettings(const FGuid& InEntry
 {
 	if (const FLiveLinkCollectionSourceItem* SourceItem = Collection->FindSource(InEntryGuid))
 	{
-		return SourceItem->Setting;
+		return SourceItem->Setting.Get();
 	}
 	return nullptr;
 }
@@ -1525,7 +1563,6 @@ UObject* FLiveLinkClient::GetSubjectSettings(const FLiveLinkSubjectKey& InSubjec
 
 const FLiveLinkStaticDataStruct* FLiveLinkClient::GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
 	{
 		if (FLiveLinkSubject* LiveLinkSubject = SubjectItem->GetLiveSubject())
@@ -1617,7 +1654,6 @@ FSimpleMulticastDelegate& FLiveLinkClient::OnLiveLinkSubjectsChanged()
 	return Collection->OnLiveLinkSubjectsChanged();
 }
 
-
 FOnLiveLinkSourceChangedDelegate& FLiveLinkClient::OnLiveLinkSourceAdded()
 {
 	return Collection->OnLiveLinkSourceAdded();
@@ -1651,18 +1687,14 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
  */
 void FLiveLinkClient::AquireLock_Deprecation() 
 {
-	CollectionAccessCriticalSection.Lock();
 }
 
 void FLiveLinkClient::ReleaseLock_Deprecation()
 {
-	CollectionAccessCriticalSection.Unlock();
 }
 
 void FLiveLinkClient::ClearFrames_Deprecation(const FLiveLinkSubjectKey& InSubjectKey)
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (Collection)
 	{
 		if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
@@ -1674,8 +1706,6 @@ void FLiveLinkClient::ClearFrames_Deprecation(const FLiveLinkSubjectKey& InSubje
 
 FLiveLinkSkeletonStaticData* FLiveLinkClient::GetSubjectAnimationStaticData_Deprecation(const FLiveLinkSubjectKey& InSubjectKey)
 {
-	FScopeLock Lock(&CollectionAccessCriticalSection);
-
 	if (Collection)
 	{
 		if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
@@ -1690,6 +1720,23 @@ FLiveLinkSkeletonStaticData* FLiveLinkClient::GetSubjectAnimationStaticData_Depr
 	return nullptr;
 }
 
+void FLiveLinkClient::UnregisterGlobalSubjectFramesDelegate(FDelegateHandle& InStaticDataAddedHandle, FDelegateHandle& InFrameDataAddedHandle)
+{
+	if (FSubjectFramesAddedHandles* Handles = SubjectFrameAddedHandles.Find(ALL_SUBJECTS_DELEGATE_TOKEN))
+	{
+		Handles->OnStaticDataAdded.Remove(InStaticDataAddedHandle);
+		Handles->OnFrameDataAdded.Remove(InFrameDataAddedHandle);
+	}
+}
+
+bool FLiveLinkClient::RegisterGlobalSubjectFramesDelegate(const FOnLiveLinkSubjectStaticDataAdded::FDelegate& InOnStaticDataAdded, const FOnLiveLinkSubjectFrameDataAdded::FDelegate& InOnFrameDataAdded, FDelegateHandle& OutStaticDataAddedHandle, FDelegateHandle& OutFrameDataAddedHandle)
+{
+	FSubjectFramesAddedHandles& Handles = SubjectFrameAddedHandles.FindOrAdd(ALL_SUBJECTS_DELEGATE_TOKEN);
+	OutStaticDataAddedHandle = Handles.OnStaticDataAdded.Add(InOnStaticDataAdded);
+	OutFrameDataAddedHandle = Handles.OnFrameDataAdded.Add(InOnFrameDataAdded);
+
+	return true;
+}
 
 /**
  * Function that are now deprecated

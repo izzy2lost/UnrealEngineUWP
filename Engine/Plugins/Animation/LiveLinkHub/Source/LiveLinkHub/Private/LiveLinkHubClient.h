@@ -53,7 +53,6 @@ public:
 	//~ Begin ILiveLinkClient interface
 	virtual bool CreateSource(const FLiveLinkSourcePreset& InSourcePreset) override;
 	virtual bool CreateSubject(const FLiveLinkSubjectPreset& InSubjectPreset) override;
-	virtual void PushSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& InStaticData) override;
 	virtual void PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, FLiveLinkFrameDataStruct&& FrameData) override;
 	virtual FText GetSourceStatus(FGuid InEntryGuid) const override;
 	virtual bool IsSubjectValid(const FLiveLinkSubjectKey& InSubjectKey) const override;
@@ -74,6 +73,10 @@ private:
 	/** Broadcast a static data update to this client's listeners. */
 	void BroadcastStaticDataUpdate(FLiveLinkSubject* InLiveSubject, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticData) const;
 
+	//~ Delegates called by LiveLinkClient
+	void OnStaticDataAdded(FLiveLinkSubjectKey SubjectKey, TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkStaticDataStruct& InStaticData);
+	void OnFrameDataAdded(FLiveLinkSubjectKey InSubjectKey, TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkFrameDataStruct& InFrameData);
+
 private:
 	/** Weak pointer to the live link hub. */
 	TWeakPtr<ILiveLinkHub> LiveLinkHub;
@@ -85,4 +88,8 @@ private:
 	FOnSubjectMarkedPendingKill_AnyThread OnSubjectMarkedPendingKillDelegate_AnyThread;
 	/** Whether there are virtual subjects at the moment. Used to determine if we should cache frame data for their usage. */
 	std::atomic<bool> bVirtualSubjectsPresent = false;
+
+	//~ Delegate handles given by FLiveLinkClient.
+	FDelegateHandle StaticDataAddedHandle;
+	FDelegateHandle FrameDataAddedHandle;
 };

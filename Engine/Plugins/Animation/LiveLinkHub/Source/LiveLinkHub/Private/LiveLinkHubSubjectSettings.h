@@ -15,8 +15,9 @@ class ULiveLinkHubSubjectSettings : public ULiveLinkSubjectSettings
 {
 	GENERATED_BODY()
 public:
-	/** Fetch information from the livelink client to initialize this settings object. */
-	void Initialize(FLiveLinkSubjectKey InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, FLiveLinkHubClient* InLiveLinkClient);
+
+	/** Initialize the settings. */
+	virtual void Initialize(FLiveLinkSubjectKey InSubjectKey) override;
 
 	/** Notify connected clients that this subject's name has changed. */
 	void NotifyRename();

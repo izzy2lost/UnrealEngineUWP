@@ -63,7 +63,11 @@ public:
 	virtual FLiveLinkStaticDataStruct& GetStaticData() override { return StaticData; }
 	virtual const FLiveLinkStaticDataStruct& GetStaticData() const override { return StaticData; }
 	virtual TArray<FLiveLinkTime> GetFrameTimes() const override;
-	virtual const TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> GetFrameTranslators() const override { return FrameTranslators; }
+	virtual const TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> GetFrameTranslators() const override
+	{
+		FScopeLock Lock(&SettingsCriticalSection);
+		return FrameTranslators;
+	}
 	virtual bool IsRebroadcasted() const override { return bRebroadcastSubject; }
 	virtual bool HasStaticDataBeenRebroadcasted() const override { return bRebroadcastStaticDataSent; }
 	virtual void SetStaticDataAsRebroadcasted(const bool bInSent) override { bRebroadcastStaticDataSent = bInSent; }
@@ -232,5 +236,9 @@ private:
 	 * Evaluation can be done on any thread so we need to protect statistic logging 
 	 * Some stats requires more than atomic sized vars so a critical section is used to protect when necessary
 	 */
+
 	mutable FCriticalSection StatisticCriticalSection;
+
+	/** Used to protect access to translators, preprocessors and interpolation processors since they can be set and accessed in different threads. */
+	mutable FCriticalSection SettingsCriticalSection;
 };

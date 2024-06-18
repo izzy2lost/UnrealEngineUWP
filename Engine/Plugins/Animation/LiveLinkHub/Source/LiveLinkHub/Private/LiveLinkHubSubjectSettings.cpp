@@ -7,14 +7,15 @@
 #include "Features/IModularFeatures.h"
 #include "Clients/LiveLinkHubProvider.h"
 
-void ULiveLinkHubSubjectSettings::Initialize(FLiveLinkSubjectKey InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, FLiveLinkHubClient* InLiveLinkClient)
+void ULiveLinkHubSubjectSettings::Initialize(FLiveLinkSubjectKey InSubjectKey)
 {
+	ILiveLinkClient* LiveLinkClient = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 	SubjectName = InSubjectKey.SubjectName.ToString();
 	SubjectKey = InSubjectKey;
 
 	OutboundName = SubjectName;
 
-	Source = InLiveLinkClient->GetSourceType(InSubjectKey.Source).ToString();
+	Source = LiveLinkClient->GetSourceType(InSubjectKey.Source).ToString();
 }
 
 void ULiveLinkHubSubjectSettings::NotifyRename()
