@@ -63,6 +63,41 @@ private:
 	virtual bool OnOutputTypeChanged(const FDataflowOutput* Input) override;
 };
 
+
+USTRUCT(meta = (Icon = "GraphEditor.Branch_16x"))
+struct FDataflowSelectNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowSelectNode, "Select", "FlowControl", "")
+
+public:
+	FDataflowSelectNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const;
+
+public:
+	UPROPERTY()
+	TArray<FDataflowAnyType> Inputs;
+
+	UPROPERTY(EditAnywhere, Category = "Condition", meta = (DataflowInput))
+	int32 SelectedIndex = 0;
+
+	UPROPERTY(meta = (DataflowOutput, DataflowPassthrough = "Inputs[0]"))
+	FDataflowAnyType Result;
+
+private:
+	virtual bool OnInputTypeChanged(const FDataflowInput* Input) override;
+	virtual bool OnOutputTypeChanged(const FDataflowOutput* Input) override;
+	virtual TArray<Dataflow::FPin> AddPins() override;
+	virtual bool CanAddPin() const override { return true; }
+	virtual bool CanRemovePin() const override { return Inputs.Num() > 2; }
+	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
+	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
+	virtual void Serialize(FArchive& Ar) override;
+
+	Dataflow::TConnectionReference<FDataflowAnyType> GetConnectionReference(int32 Index) const;
+};
+
 /** 
 * Print value in the log
 * Supports any type comnvertible to a string 
