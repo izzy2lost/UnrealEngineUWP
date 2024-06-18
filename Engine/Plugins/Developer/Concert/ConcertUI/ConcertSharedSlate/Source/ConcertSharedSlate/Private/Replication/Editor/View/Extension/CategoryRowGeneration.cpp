@@ -19,7 +19,6 @@ namespace UE::ConcertSharedSlate
 
 			SLATE_BEGIN_ARGS(SDefaultCategoryRow){}
 				SLATE_ARGUMENT(FText, Label)
-				SLATE_ATTRIBUTE(FText, HighlightText)
 			SLATE_END_ARGS()
 
 			void Construct(const FArguments& InArgs)
@@ -27,9 +26,9 @@ namespace UE::ConcertSharedSlate
 				Label = InArgs._Label;
 				ChildSlot
 				[
+					// Do not give this widget any highlight text because category rows are not part of the search
 					SNew(STextBlock)
 					.Text(Label)
-					.HighlightText(InArgs._HighlightText)
 					.Font(FAppStyle::Get().GetFontStyle("DetailsView.CategoryFontStyle"))
 					.TextStyle(FAppStyle::Get(), "DetailsView.CategoryTextStyle")
 				];
@@ -58,10 +57,10 @@ namespace UE::ConcertSharedSlate
 			const FText Label = ContextObjects.IsEmpty()
 				? FText::GetEmpty()
 				: NameModel->GetObjectDisplayName(ContextObjects[0]);
-			
+
+			// Do not give this widget any highlight text because category rows are not part of the search
 			return SNew(Private::SDefaultCategoryRow)
-				.Label(Label)
-				.HighlightText(Args.HighlightText);
+				.Label(Label);
 		});
 	}
 }

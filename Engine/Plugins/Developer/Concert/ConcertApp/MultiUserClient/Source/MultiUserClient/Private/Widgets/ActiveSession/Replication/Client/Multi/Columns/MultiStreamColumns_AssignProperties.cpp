@@ -25,15 +25,17 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	{
 		static void ForEachStreamAssignedTo(
 			const ConcertSharedSlate::IMultiReplicationStreamEditor& MultiEditor,
-			const FConcertPropertyChain& Property,
+			const ConcertSharedSlate::FPropertyTreeRowContext& InItem,
 			TFunctionRef<void(const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>& Stream)> Consume
 		)
 		{
+			const FConcertPropertyChain& Property = InItem.RowData.GetProperty();
+		
 			for (const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>& Stream : MultiEditor.GetMultiStreamModel().GetEditableStreams())
 			{
-				for (const TSoftObjectPtr<>& SelectedObject : MultiEditor.GetEditorBase().GetSelectedObjects())
+				for (const TSoftObjectPtr<>& ContextObject : InItem.RowData.GetContextObjects())
 				{
-					const bool bStreamAssignedToProperty = Stream->HasProperty(SelectedObject.GetUniqueID(), Property);
+					const bool bStreamAssignedToProperty = Stream->HasProperty(ContextObject.GetUniqueID(), Property);
 					if (bStreamAssignedToProperty)
 					{
 						Consume(Stream);
@@ -122,7 +124,9 @@ namespace UE::MultiUserClient::MultiStreamColumns
 			
 			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
 			{
-				AssignPropertyColumnUtils::ForEachStreamAssignedTo(*MultiStreamEditor.Get(), InItem.RowData.GetProperty(),
+				AssignPropertyColumnUtils::ForEachStreamAssignedTo(
+					*MultiStreamEditor.Get(),
+					InItem,
 					[this, &InOutSearchStrings](const TSharedRef<IEditableReplicationStreamModel>& Stream)
 					{
 						InOutSearchStrings.Add(AssignPropertyColumnUtils::GetClientDisplayText(*ConcertClient, ClientManager, *Stream));

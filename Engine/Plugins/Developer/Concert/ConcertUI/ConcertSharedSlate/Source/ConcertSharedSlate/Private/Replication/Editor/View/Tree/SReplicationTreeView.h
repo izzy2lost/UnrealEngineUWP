@@ -349,10 +349,11 @@ namespace UE::ConcertSharedSlate
 		 */
 		TMap<FName, TSharedRef<IReplicationTreeColumn<TItemType>>> ColumnInstances;
 
+		/** Item source passed to the STreeView. */
 		TArray<TSharedPtr<TItemType>>* AllRootItems = nullptr;
-		/** Contains only the root items that passed the filters */
+		/** Contains only the root items that passed the filters. */
 		TArray<TSharedPtr<TItemType>> FilteredRootItems;
-		/** Includes ALL items in the hierarchy that have passed the filter. */
+		/** Includes ALL items in the hierarchy that have itself passed the filter or one of its children has passed the filter. */
 		TSet<TSharedPtr<TItemType>> AllFilteredItems;
 
 		struct FItemMetaData
@@ -426,6 +427,9 @@ namespace UE::ConcertSharedSlate
 		void ReapplyExpansionStates();
 		/** Callback into tree view when expansion state is changed. */
 		void OnItemExpansionChanged(TSharedPtr<TItemType> Item, bool bIsExpanded);
+
+		/** @return Whether currently searching. */
+		bool IsSearching() const { return !SearchTextFilter->GetRawFilterText().IsEmpty(); }
 
 		// Sorting
 		void Resort();
@@ -735,11 +739,11 @@ namespace UE::ConcertSharedSlate
 			});
 			bPassesAtLeastOnce = bChildPassedAtLeastOnce;
 		}
-		
-		if (ItemFilterResult == EItemFilterResult::Include
-			 || (ItemFilterResult == EItemFilterResult::IncludeOnlyIfChildIsIncluded && bChildPassedAtLeastOnce))
+
+		bPassesAtLeastOnce |= ItemFilterResult == EItemFilterResult::Include
+			 || (ItemFilterResult == EItemFilterResult::IncludeOnlyIfChildIsIncluded && bChildPassedAtLeastOnce);
+		if (bPassesAtLeastOnce)
 		{
-			bPassesAtLeastOnce = true;
 			FilteredItemsToShow.Add(Item);
 		}
 
@@ -761,8 +765,15 @@ namespace UE::ConcertSharedSlate
 	template <typename TItemType>
 	void SReplicationTreeView<TItemType>::CleanseItemMetaData()
 	{
+		// While searching, all items are force expanded.
+		// Do not remove items from ItemMetaData while searching because we want to restore the expansion states after search is done.
+		if (IsSearching())
+		{
+			return;
+		}
+		
 		TMap<TSharedPtr<TItemType>, FItemMetaData> NewItemMetaData;
-		for (const TSharedPtr<TItemType>& Item : *AllRootItems)
+		for (const TSharedPtr<TItemType>& Item : AllFilteredItems)
 		{
 			NewItemMetaData.Add(Item, ItemMetaData.FindOrAdd(Item));
 		}
@@ -773,12 +784,18 @@ namespace UE::ConcertSharedSlate
 	void SReplicationTreeView<TItemType>::ReapplyExpansionStates()
 	{
 		// While searching, expand all items
-		bForceParentItemsExpanded = !SearchTextFilter->GetRawFilterText().IsEmpty();
-		
-		for (const TPair<TSharedPtr<TItemType>, FItemMetaData> MetaDataPair : ItemMetaData)
+		bForceParentItemsExpanded = IsSearching();
+
+		for (const TSharedPtr<TItemType> Item : AllFilteredItems)
 		{
-			const TSharedPtr<TItemType>& Item = MetaDataPair.Key;
-			TreeView->SetItemExpansion(Item, MetaDataPair.Value.bIsExpanded || bForceParentItemsExpanded);
+			if (const FItemMetaData* ItemInfo = ItemMetaData.Find(Item))
+			{
+				TreeView->SetItemExpansion(Item, ItemInfo->bIsExpanded || bForceParentItemsExpanded);
+			}
+			else
+			{
+				TreeView->SetItemExpansion(Item, bForceParentItemsExpanded);
+			}
 		}
 	}
 

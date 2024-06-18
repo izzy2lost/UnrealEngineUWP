@@ -16,8 +16,6 @@ namespace UE::ConcertSharedSlate
 {
 	void SCategoryColumnRow::Construct(const FArguments& InArgs, TSharedRef<STableViewBase> InOwner)
 	{
-		const FLinearColor BackgroundTint(0.6f, 0.6f, 0.6f, 1.0f);
-
 		// rebuilds the whole table row from scratch
 		ChildSlot
 		.Padding(0.0f, 2.0f, 0.0f, 0.0f)
