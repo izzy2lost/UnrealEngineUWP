@@ -312,6 +312,15 @@ void FODSCManager::RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialS
 	}
 }
  
+bool FODSCManager::CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const
+{
+	if (Thread)
+	{
+		return Thread->CheckIfRequestAlreadySent(RequestShaderIds, MaterialName);
+	}
+	return false;
+}
+
 void FODSCManager::TryLoadGlobalShaders(EShaderPlatform ShaderPlatform)
 {
 	check(IsODSCActive());

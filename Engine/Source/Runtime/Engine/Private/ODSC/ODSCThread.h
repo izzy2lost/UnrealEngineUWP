@@ -168,6 +168,9 @@ public:
 	void RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap);
 
 	void ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel);
+
+	bool CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const;
+
 protected:
 
 	//~ Begin FRunnable Interface
@@ -209,6 +212,7 @@ private:
 	TQueue<FODSCMessageHandler*, EQueueMode::Spsc> CompletedThreadedRequests;
 
 	/** Lock to access the RequestHashes TMap */
+	mutable FRWLock RequestHashesRWLock;
 	FCriticalSection RequestHashCriticalSection;
 
 
@@ -217,8 +221,48 @@ private:
 		TSet<FString> RequestStrings;
 	};
 
+	struct FODSCShaderId
+	{
+	public:
+		inline FODSCShaderId() {}
+		FODSCShaderId(const FShaderId& ShaderId);
+
+		FSHAHash MaterialShaderMapHash;
+		FHashedName ShaderTypeHashedName = 0;
+		FHashedName VFTypeHashedName = 0;
+		FHashedName ShaderPipelineName = 0;
+		int32 PermutationId = 0;
+		uint32 Platform : SP_NumBits = SP_NumPlatforms;
+
+		friend inline uint32 GetTypeHash( const FODSCShaderId& Id )
+		{
+			return HashCombine(
+				GetTypeHash(Id.ShaderTypeHashedName),
+				HashCombine(GetTypeHash(Id.VFTypeHashedName),
+							HashCombine(GetTypeHash(Id.ShaderPipelineName),
+										HashCombine(GetTypeHash(Id.MaterialShaderMapHash),
+													HashCombine(GetTypeHash(Id.PermutationId), GetTypeHash(Id.Platform))))));
+		}
+
+		friend bool operator==(const FODSCShaderId& X, const FODSCShaderId& Y)
+		{
+			return X.ShaderTypeHashedName == Y.ShaderTypeHashedName
+			&& X.MaterialShaderMapHash == Y.MaterialShaderMapHash
+			&& X.ShaderPipelineName == Y.ShaderPipelineName
+			&& X.VFTypeHashedName == Y.VFTypeHashedName
+			&& X.PermutationId == Y.PermutationId 
+			&& X.Platform == Y.Platform;
+		}
+
+		friend bool operator!=(const FODSCShaderId& X, const FODSCShaderId& Y)
+		{
+			return !(X == Y);
+		}
+	};
+
+
 	/** Hashes for all Pending or Completed requests.  This is so we avoid making the same request multiple times. */
-	TMap<FShaderId, FMaterialRequestsHashes> RequestHashes;
+	TMap<FODSCShaderId, FMaterialRequestsHashes> RequestHashes;
 
 	/** Pointer to Runnable Thread */
 	FRunnableThread* Thread = nullptr;

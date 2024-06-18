@@ -168,7 +168,7 @@ void FODSCThread::ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel)
 	FlushRenderingCommands();
 
 	{
-		FScopeLock Lock(&RequestHashCriticalSection);
+		FWriteScopeLock WriteLock(RequestHashesRWLock);
 
 		// this will stop the rendering thread, and reattach components, in the destructor
 		FMaterialUpdateContext UpdateContext(FMaterialUpdateContext::EOptions::Default);
@@ -194,6 +194,35 @@ void FODSCThread::ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel)
 #endif
 }
 
+FODSCThread::FODSCShaderId::FODSCShaderId(const FShaderId& ShaderId)
+: MaterialShaderMapHash(ShaderId.MaterialShaderMapHash)
+, ShaderTypeHashedName(ShaderId.Type ? ShaderId.Type->GetHashedName() : 0)
+, VFTypeHashedName(ShaderId.VFType ? ShaderId.VFType->GetHashedName() : 0)
+, ShaderPipelineName(ShaderId.ShaderPipelineName)
+, PermutationId(ShaderId.PermutationId)
+, Platform(ShaderId.Platform)
+{}
+
+bool FODSCThread::CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const
+{
+	FReadScopeLock ReadLock(RequestHashesRWLock);
+	for (const FShaderId& ShaderId : RequestShaderIds)
+	{
+		const FMaterialRequestsHashes* MaterialRequestHashes = RequestHashes.Find(ShaderId);
+		if (MaterialRequestHashes == nullptr)
+		{
+			return false;
+		}
+			
+		if (!MaterialRequestHashes->RequestStrings.Contains(MaterialName))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void FODSCThread::AddRequest(const TArray<FString>& MaterialsToCompile, const FString& ShaderTypesToLoad, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel, EMaterialQualityLevel::Type QualityLevel, ODSCRecompileCommand RecompileCommandType)
 {
 	PendingMaterialThreadedRequests.Enqueue(new FODSCMessageHandler(MaterialsToCompile, ShaderTypesToLoad, ShaderPlatform, FeatureLevel, QualityLevel, RecompileCommandType));
@@ -211,41 +240,39 @@ void FODSCThread::AddShaderPipelineRequest(
 	const TArray<FShaderId>& RequestShaderIds
 )
 {
-	// TODO: Requests for individual permutations come in here, but a single coalesced payload is submitted to the server since 
-	// we compile all material shader permutations encountered for the moment. Consider batching up requested permutations and 
-	// have the server skip compiling those not in the list. Ensure that DDC key and shader map assumptions are correct!
-
-	FString RequestString = (MaterialName + VertexFactoryName + PipelineName);
-	for (const auto& ShaderTypeName : ShaderTypeNames)
-	{
-		RequestString += ShaderTypeName;
-	}
-	const FString RequestHash = FMD5::HashAnsiString(*RequestString);
-
-	FScopeLock Lock(&RequestHashCriticalSection);
-
 	bool bShouldAddRequest = false;
-
-	for (const FShaderId& ShaderId : RequestShaderIds)
 	{
-		FMaterialRequestsHashes& MaterialRequestHashes = RequestHashes.FindOrAdd(ShaderId);
-		bool bAlreadyInSet = false;
-		MaterialRequestHashes.RequestStrings.Add(RequestString, &bAlreadyInSet);
-		if (!bAlreadyInSet)
+		FWriteScopeLock WriteLock(RequestHashesRWLock);
+
+		for (const FShaderId& ShaderId : RequestShaderIds)
 		{
-			bShouldAddRequest = true;
+			FMaterialRequestsHashes& MaterialRequestHashes = RequestHashes.FindOrAdd(ShaderId);
+			bool bAlreadyInSet = false;
+			MaterialRequestHashes.RequestStrings.Add(MaterialName, &bAlreadyInSet);
+			if (!bAlreadyInSet)
+			{
+				bShouldAddRequest = true;
+			}
 		}
 	}
 
 	if (bShouldAddRequest)
 	{
+		SCOPED_NAMED_EVENT(AddShaderPipelineRequest_AddRequest, FColor::Emerald);
+
+		FString RequestString = (MaterialName + VertexFactoryName + PipelineName);
+		for (const auto& ShaderTypeName : ShaderTypeNames)
+		{
+			RequestString += ShaderTypeName;
+		}
+		const FString RequestHash = FMD5::HashAnsiString(*RequestString);
 		PendingMeshMaterialThreadedRequests.Enqueue(FODSCRequestPayload(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestHash));
 	}
 }
 
 void FODSCThread::RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap)
 {
-	FScopeLock Lock(&RequestHashCriticalSection);
+	FWriteScopeLock WriteLock(RequestHashesRWLock);
 
 	TMap<FShaderId, TShaderRef<FShader>> ShadersInMap;
 	MaterialShaderMap.GetShaderList(ShadersInMap);
@@ -319,7 +346,6 @@ void FODSCThread::Process()
 	FODSCRequestPayload Payload;
 	TArray<FODSCRequestPayload> PayloadsToAggregate;
 	{
-		FScopeLock Lock(&RequestHashCriticalSection);
 		while (PendingMeshMaterialThreadedRequests.Dequeue(Payload))
 		{
 			PayloadsToAggregate.Add(Payload);

@@ -3772,6 +3772,30 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 				}
 			}
 		}
+
+#if WITH_ODSC
+		TArray<FShaderId> RequestShaderIds;
+		TArray<FString> ShaderStageNamesToCompile;
+		FString MaterialName;
+        bool bODSCRequestAlreadySent = false;
+		if (bShouldForceRecompile)
+		{
+			MaterialName = GetFullPath();
+			for (auto* ShaderType : InTypes.PipelineType->GetStages())
+			{
+				ShaderStageNamesToCompile.Add(ShaderType->GetName());
+				RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, InTypes.PipelineType->GetHashedName(), InVertexFactoryType, kUniqueShaderPermutationId, ShaderPlatform));
+			}
+
+			bODSCRequestAlreadySent = GODSCManager->CheckIfRequestAlreadySent(RequestShaderIds, MaterialName);
+			if (bODSCRequestAlreadySent)
+			{
+				bShouldForceRecompile = false;
+			}
+
+		}
+#endif
+
         // we don't do 'else' here because when bShouldForceRecompile is true, we still want to use the current 
         // pipeline until we have a new one ready. The ODSC server might fail to find the right shader, and this might
         // skew results when doing some A/B comparisons		
@@ -3794,21 +3818,12 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 #endif // WITH_EDITOR || WITH_ODSC
 
 #if WITH_ODSC
-				if (FPlatformProperties::RequiresCookedData())
+				if (FPlatformProperties::RequiresCookedData() && !bODSCRequestAlreadySent)
 				{
 					if (GODSCManager->IsHandlingRequests())
 					{
-						const FString MaterialName = GetFullPath();
 						const FString VFTypeName(InVertexFactoryType ? InVertexFactoryType->GetName() : TEXT(""));
 						const FString PipelineName(InTypes.PipelineType->GetName());
-						TArray<FString> ShaderStageNamesToCompile;
-						TArray<FShaderId> RequestShaderIds;
-						for (auto* ShaderType : InTypes.PipelineType->GetStages())
-						{
-							ShaderStageNamesToCompile.Add(ShaderType->GetName());
-							RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, InTypes.PipelineType->GetHashedName(), InVertexFactoryType, kUniqueShaderPermutationId, ShaderPlatform));
-						}
-
 						GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), MaterialName, VFTypeName, PipelineName, 
 						                                               ShaderStageNamesToCompile, kUniqueShaderPermutationId, RequestShaderIds);
 					}
@@ -3879,6 +3894,24 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 		        // we don't do 'else' here because when bShouldForceRecompile is true, we still want to use the current 
 		        // shader until we have a new one ready. The ODSC server might fail to find the right shader, and this might
 		        // skew results when doing some A/B comparisons		
+#if WITH_ODSC
+
+				TArray<FShaderId> RequestShaderIds;
+				FString MaterialName;
+                bool bODSCRequestAlreadySent = false;
+				if (bShouldForceRecompile)
+				{
+					MaterialName = GetFullPath();
+					RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, FHashedName(), InVertexFactoryType, PermutationId, ShaderPlatform));
+
+					bODSCRequestAlreadySent = GODSCManager->CheckIfRequestAlreadySent(RequestShaderIds, MaterialName);
+					if (bODSCRequestAlreadySent)
+					{
+						bShouldForceRecompile = false;
+					}
+				}
+#endif
+				
 				if (Shader == nullptr || bShouldForceRecompile)
 				{
 					bMissingShader = (Shader == nullptr);
@@ -3891,18 +3924,14 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 #endif // WITH_EDITOR || WITH_ODSC
 
 #if WITH_ODSC
-					if (FPlatformProperties::RequiresCookedData())
+					if (FPlatformProperties::RequiresCookedData() && !bODSCRequestAlreadySent)
 					{
 						if (GODSCManager->IsHandlingRequests())
 						{
-							const FString MaterialName = GetFullPath();
 							const FString VFTypeName(InVertexFactoryType ? InVertexFactoryType->GetName() : TEXT(""));
 							const FString PipelineName;
 							TArray<FString> ShaderStageNamesToCompile;
 							ShaderStageNamesToCompile.Add(ShaderType->GetName());
-
-							TArray<FShaderId> RequestShaderIds;
-							RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, FHashedName(), InVertexFactoryType, PermutationId, ShaderPlatform));
 
 							GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), MaterialName, VFTypeName, PipelineName, 
 							                                               ShaderStageNamesToCompile, PermutationId, RequestShaderIds);

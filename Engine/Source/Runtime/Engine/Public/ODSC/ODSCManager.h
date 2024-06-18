@@ -109,6 +109,8 @@ public:
 
 	static void ReportODSCError(const FString& InErrorMessage);
 
+	bool CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const;
+
 private:
 
 	ENGINE_API void OnEnginePreExit();
