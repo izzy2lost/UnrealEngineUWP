@@ -135,8 +135,6 @@ namespace Metasound::Frontend
 		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
 		TSharedRef<FDocumentCache> Cache = MakeShared<FDocumentCache>(InDocument, Delegates);
 
-		// Right now the assumption is the whole doc cache is invalidated when swapping pages.  Need to migrate to supporting associated caches per page
-		// (i.e. a node and edge cache per page)
 		Cache->Init(InBuildPageID, bPrimeCache);
 		return Cache;
 	}
@@ -491,9 +489,7 @@ namespace Metasound::Frontend
 
 		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
 		TSharedRef<FDocumentGraphNodeCache> Cache = MakeShared<FDocumentGraphNodeCache>(ParentCache, InPageID);
-		Cache->Init(InPageID.IsValid()
-			? OutDelegates.PageNodeDelegates.FindOrAdd(InPageID)
-			: OutDelegates.NodeDelegates);
+		Cache->Init(OutDelegates.FindNodeDelegatesChecked(InPageID));
 		return Cache;
 	}
 
@@ -893,10 +889,7 @@ namespace Metasound::Frontend
 
 		// Factory style constructor as restrictions on construction of shared pointers disallows passing of this document cache's pointer to sub-caches
 		TSharedRef<FDocumentGraphEdgeCache> Cache = MakeShared<FDocumentGraphEdgeCache>(ParentCache, InPageID);
-		Cache->Init(InPageID.IsValid()
-			? OutDelegates.PageEdgeDelegates.FindOrAdd(InPageID)
-			: OutDelegates.EdgeDelegates);
-
+		Cache->Init(OutDelegates.FindEdgeDelegatesChecked(InPageID));
 		return Cache;
 	}
 

@@ -119,6 +119,9 @@ namespace Metasound::Engine
 		// Returns all builder objects registered and active associated with the given ClassName.
 		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& InClassName) const;
 
+		// Given the provided document, returns the valid page ID to be executed.
+		virtual FGuid ResolveExecutablePageID(const TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface) const;
+
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
 
 		void SetEventLogVerbosity(ELogEvent Event, ELogVerbosity::Type Verbosity);

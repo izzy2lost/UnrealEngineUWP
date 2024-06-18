@@ -121,6 +121,7 @@ private:
 	const UMetaSoundSource& GetMetaSoundSource() const;
 	UMetaSoundSource& GetMetaSoundSource();
 
+	void InitExecutablePageDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates);
 
 	void OnEdgeAdded(int32 EdgeIndex) const;
 	void OnInputAdded(int32 InputIndex);
@@ -128,11 +129,13 @@ private:
 	void OnNodeAdded(int32 NodeIndex) const;
 	void OnNodeInputLiteralSet(int32 NodeIndex, int32 VertexIndex, int32 LiteralIndex) const;
 	void OnOutputAdded(int32 OutputIndex) const;
+	void OnPageAdded(const Metasound::Frontend::FDocumentMutatePageArgs& InArgs);
 	void OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIndex) const;
 	void OnRemovingInput(int32 InputIndex);
 	void OnRemoveSwappingNode(int32 SwapIndex, int32 LastIndex) const;
 	void OnRemovingNodeInputLiteral(int32 NodeIndex, int32 VertexIndex, int32 LiteralIndex) const;
 	void OnRemovingOutput(int32 OutputIndex) const;
+	void OnRemovingPage(const Metasound::Frontend::FDocumentMutatePageArgs& InArgs);
 
 	using FAuditionableTransaction = TFunctionRef<bool(Metasound::DynamicGraph::FDynamicOperatorTransactor&)>;
 	bool ExecuteAuditionableTransaction(FAuditionableTransaction Transaction) const;

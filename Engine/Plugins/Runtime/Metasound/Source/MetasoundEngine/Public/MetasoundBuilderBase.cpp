@@ -458,7 +458,7 @@ void UMetaSoundBuilderBase::ConvertToPreset(const TScriptInterface<IMetaSoundDoc
 
 	const FMetasoundFrontendDocument& ReferencedDocument = ReferencedInterface->GetConstDocument();
 
-	TSharedRef<FDocumentModifyDelegates> DocumentDelegates = MakeShared<FDocumentModifyDelegates>();
+	TSharedRef<FDocumentModifyDelegates> DocumentDelegates = MakeShared<FDocumentModifyDelegates>(ReferencedDocument);
 	InitDelegates(*DocumentDelegates);
 	const bool bConvertToPreset = Builder.ConvertToPreset(ReferencedDocument, DocumentDelegates);
 	ConformObjectToDocument();
@@ -772,9 +772,9 @@ void UMetaSoundBuilderBase::Initialize()
 
 	const EObjectFlags NewObjectFlags = RF_Public | RF_Transient;
 	TScriptInterface<IMetaSoundDocumentInterface> DocObject = NewObject<UObject>(GetTransientPackage(), &GetBaseMetaSoundUClass(), { }, NewObjectFlags);
-	TSharedRef<FDocumentModifyDelegates> DocumentDelegates = MakeShared<FDocumentModifyDelegates>();
-	InitDelegates(*DocumentDelegates);
+	TSharedRef<FDocumentModifyDelegates> DocumentDelegates = MakeShared<FDocumentModifyDelegates>(DocObject->GetConstDocument());
 	Builder = FMetaSoundFrontendDocumentBuilder(DocObject, DocumentDelegates);
+	InitDelegates(*DocumentDelegates);
 	Builder.InitDocument();
 }
 
@@ -900,7 +900,7 @@ void UMetaSoundBuilderBase::Reload(bool bPrimeCache)
 {
 	using namespace Metasound::Frontend;
 
-	TSharedRef<FDocumentModifyDelegates> DocumentDelegates = MakeShared<FDocumentModifyDelegates>();
+	TSharedRef<FDocumentModifyDelegates> DocumentDelegates = MakeShared<FDocumentModifyDelegates>(GetConstBuilder().GetConstDocumentChecked());
 	InitDelegates(*DocumentDelegates);
 	Builder.Reload(DocumentDelegates, bPrimeCache);
 }

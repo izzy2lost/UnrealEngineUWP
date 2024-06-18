@@ -4,6 +4,7 @@
 
 #include "MetasoundAssetManager.h"
 #include "MetasoundGlobals.h"
+#include "MetasoundSettings.h"
 #include "MetasoundTrace.h"
 #include "MetasoundUObjectRegistry.h"
 
@@ -230,6 +231,12 @@ namespace Metasound::Engine
 		}
 
 		return FoundBuilders;
+	}
+
+	FGuid FDocumentBuilderRegistry::ResolveExecutablePageID(const TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface) const
+	{
+		// TODO: implement selection logic.  For now default to 0 guid, which is always valid on an asset.
+		return FGuid();
 	}
 
 	FMetaSoundFrontendDocumentBuilder* FDocumentBuilderRegistry::FindOutermostBuilder(const UObject& InSubObject) const

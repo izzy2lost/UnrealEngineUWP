@@ -877,58 +877,86 @@ FMetasoundFrontendGraphClass::FMetasoundFrontendGraphClass()
 	Metadata.SetType(EMetasoundFrontendClassType::Graph);
 }
 
-void FMetasoundFrontendGraphClass::AddNewGraphPage(const FGuid& InPageID)
+const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph, bool bSetAsBuildGraph)
 {
-	checkf(ContainsGraphPage(InPageID), TEXT("Cannot add new graph page with existing PageID"));
 	checkf(InPageID.IsValid(), TEXT("Cannot add graph with invalid PageID"))
+	checkf(!ContainsGraphPage(InPageID), TEXT("Cannot add new graph page with existing PageID"));
 
-	FMetasoundFrontendGraph& NewGraph = PagedGraphs.AddDefaulted_GetRef();
-	NewGraph.PageID = InPageID;
+	FMetasoundFrontendGraph* NewGraph = nullptr;
+	if (bDuplicateLastGraph)
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FMetasoundFrontendGraph ToDuplicate = PagedGraphs.IsEmpty() ? Graph : PagedGraphs.Last();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		NewGraph = &PagedGraphs.Add_GetRef(MoveTemp(ToDuplicate));
+	}
+	else
+	{
+		NewGraph = &PagedGraphs.AddDefaulted_GetRef();
+	}
+
+	NewGraph->PageID = InPageID;
+	return *NewGraph;
 }
 
 bool FMetasoundFrontendGraphClass::ContainsGraphPage(const FGuid& InPageID) const
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (InPageID == Graph.PageID)
 	{
 		return true;
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	auto MatchesPageID = [&InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
 	return PagedGraphs.ContainsByPredicate(MatchesPageID);
 }
 
-void FMetasoundFrontendGraphClass::DuplicateLastGraphPage(const FGuid& InPageID)
-{
-	checkf(ContainsGraphPage(InPageID), TEXT("Cannot add new graph page with existing PageID"));
-	checkf(InPageID.IsValid(), TEXT("Cannot add graph with invalid PageID"))
-
-	FMetasoundFrontendGraph* ToDuplicate = PagedGraphs.IsEmpty() ? &Graph : &PagedGraphs.Last();
-	FMetasoundFrontendGraph& NewGraph = PagedGraphs.Add_GetRef(*ToDuplicate);
-	NewGraph.PageID = InPageID;
-}
-
 void FMetasoundFrontendGraphClass::RemoveAllGraphPages()
 {
 	PagedGraphs.Empty();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Graph.PageID = FGuid();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID)
+bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID, FGuid* OutAdjacentPageID)
 {
-	const bool bRemoved = PagedGraphs.RemoveAllSwap([&InPageID](const FMetasoundFrontendGraph& Iter)
+	if (InPageID != FGuid())
 	{
-		return Iter.PageID == InPageID;
-	}, EAllowShrinking::Yes) > 0;
+		for (int32 Index = 0; Index < PagedGraphs.Num(); ++Index)
+		{
+			if (PagedGraphs[Index].PageID == InPageID)
+			{
+				PagedGraphs.RemoveAtSwap(Index, EAllowShrinking::Yes);
 
-	return bRemoved;
+				if (OutAdjacentPageID)
+				{
+					*OutAdjacentPageID = (Index > 0) ? PagedGraphs[Index - 1].PageID : FGuid();
+				}
+
+				return true;
+			}
+		}
+	}
+
+	if (OutAdjacentPageID)
+	{
+		*OutAdjacentPageID = FGuid();
+	}
+
+	return false;
 }
 
 FMetasoundFrontendGraph* FMetasoundFrontendGraphClass::FindGraph(const FGuid& InPageID)
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (InPageID == Graph.PageID)
 	{
 		return &Graph;
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	auto MatchesPageID = [this, &InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
 	FMetasoundFrontendGraph* PageGraph = PagedGraphs.FindByPredicate(MatchesPageID);
@@ -944,10 +972,12 @@ FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::FindGraphChecked(const FG
 
 const FMetasoundFrontendGraph* FMetasoundFrontendGraphClass::FindConstGraph(const FGuid& InPageID) const
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (InPageID == Graph.PageID)
 	{
 		return &Graph;
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	auto MatchesPageID = [this, &InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
 	const FMetasoundFrontendGraph* PageGraph = PagedGraphs.FindByPredicate(MatchesPageID);
@@ -973,7 +1003,9 @@ const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::GetConstDefaultGrap
 
 void FMetasoundFrontendGraphClass::IterateGraphPages(TFunctionRef<void(FMetasoundFrontendGraph&)> IterFunc)
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	IterFunc(Graph);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	for (FMetasoundFrontendGraph& Iter : PagedGraphs)
 	{
@@ -983,7 +1015,9 @@ void FMetasoundFrontendGraphClass::IterateGraphPages(TFunctionRef<void(FMetasoun
 
 void FMetasoundFrontendGraphClass::IterateGraphPages(TFunctionRef<void(const FMetasoundFrontendGraph&)> IterFunc) const
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	IterFunc(Graph);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	for (const FMetasoundFrontendGraph& Iter : PagedGraphs)
 	{
@@ -994,8 +1028,11 @@ void FMetasoundFrontendGraphClass::IterateGraphPages(TFunctionRef<void(const FMe
 void FMetasoundFrontendGraphClass::ResetGraphs()
 {
 	PagedGraphs.Empty();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Graph.Nodes.Reset();
 	Graph.Edges.Reset();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FMetasoundFrontendVersionNumber FMetasoundFrontendDocument::GetMaxVersion()

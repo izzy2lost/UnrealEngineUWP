@@ -69,10 +69,8 @@ namespace Metasound::Engine
 		{
 			InMetaSound.GetModifyContext().SetForceRefreshViews();
 
-			if (UMetaSoundBuilderBase* Builder = UMetaSoundBuilderSubsystem::GetChecked().FindBuilderOfDocument(&InMetaSound))
-			{
-				Builder->Reload();
-			}
+			const FMetasoundFrontendClassName& ClassName = InMetaSound.GetConstDocument().RootGraph.Metadata.GetClassName();
+			Frontend::IDocumentBuilderRegistry::GetChecked().ReloadBuilder(ClassName);
 
 			if (UMetasoundEditorGraphBase* Graph = Cast<UMetasoundEditorGraphBase>(InMetaSound.GetGraph()))
 			{

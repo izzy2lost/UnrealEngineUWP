@@ -6,6 +6,7 @@
 #include "Templates/SharedPointer.h"
 
 
+// TODO: Move these to namespace
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnMetaSoundFrontendDocumentMutateArray, int32 /* Index */);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnMetaSoundFrontendDocumentMutateInterfaceArray, const FMetasoundFrontendInterface& /* Interface */);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMetaSoundFrontendDocumentRemoveSwappingArray, int32 /* Index */, int32 /* LastIndex */);
@@ -15,6 +16,20 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnMetaSoundFrontendDocumentMutateNodeInp
 
 namespace Metasound::Frontend
 {
+	struct METASOUNDFRONTEND_API FDocumentMutatePageArgs
+	{
+		FGuid PageID;
+	};
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnDocumentPageAdded, const FDocumentMutatePageArgs& /* Args */);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnDocumentRemovingPage, const FDocumentMutatePageArgs& /* Args */);
+
+	struct METASOUNDFRONTEND_API FPageModifyDelegates
+	{
+		FOnDocumentPageAdded OnPageAdded;
+		FOnDocumentRemovingPage OnRemovingPage;
+	};
+
 	struct METASOUNDFRONTEND_API FInterfaceModifyDelegates
 	{
 		FOnMetaSoundFrontendDocumentMutateInterfaceArray OnInterfaceAdded;
@@ -45,15 +60,70 @@ namespace Metasound::Frontend
 
 	struct METASOUNDFRONTEND_API FDocumentModifyDelegates : TSharedFromThis<FDocumentModifyDelegates>
 	{
+		FDocumentModifyDelegates() = default;
+		FDocumentModifyDelegates(const FMetasoundFrontendDocument& Document);
+
 		FOnMetaSoundFrontendDocumentMutateArray OnDependencyAdded;
 		FOnMetaSoundFrontendDocumentRemoveSwappingArray OnRemoveSwappingDependency;
 		FOnMetaSoundFrontendDocumentRenameClass OnRenamingDependencyClass;
 
+		FPageModifyDelegates PageDelegates;
 		FInterfaceModifyDelegates InterfaceDelegates;
+
+		UE_DEPRECATED(5.5, "Public exposition of NodeDelegates will be removed in a future build.  Use accessor 'FindNodeDelegates' instead")
 		FNodeModifyDelegates NodeDelegates;
+
+		UE_DEPRECATED(5.5, "Public exposition of EdgeDelegates will be removed in a future build.  Use accessor 'FindEdgeDelegates' instead")
 		FEdgeModifyDelegates EdgeDelegates;
 
+		void AddPageDelegates(const FGuid& InPageID);
+		void RemovePageDelegates(const FGuid& InPageID);
+
+	private:
 		TSortedMap<FGuid, FNodeModifyDelegates> PageNodeDelegates;
 		TSortedMap<FGuid, FEdgeModifyDelegates> PageEdgeDelegates;
+
+	public:
+		FNodeModifyDelegates& FindNodeDelegatesChecked(const FGuid& InPageID)
+		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			return InPageID.IsValid()
+				? PageNodeDelegates.FindChecked(InPageID)
+				: NodeDelegates;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+
+		FEdgeModifyDelegates& FindEdgeDelegatesChecked(const FGuid& InPageID)
+		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			return InPageID.IsValid()
+				? PageEdgeDelegates.FindChecked(InPageID)
+				: EdgeDelegates;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+
+		void IterateGraphEdgeDelegates(TFunctionRef<void(FEdgeModifyDelegates&)> Func)
+		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Func(EdgeDelegates);
+
+			for (TPair<FGuid, FEdgeModifyDelegates>& Delegates : PageEdgeDelegates)
+			{
+				Func(Delegates.Value);
+			}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+
+		void IterateGraphNodeDelegates(TFunctionRef<void(FNodeModifyDelegates&)> Func)
+		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			Func(NodeDelegates);
+
+			for (TPair<FGuid, FNodeModifyDelegates>& Delegates : PageNodeDelegates)
+			{
+				Func(Delegates.Value);
+			}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
 	};
 } // namespace Metasound::Frontend

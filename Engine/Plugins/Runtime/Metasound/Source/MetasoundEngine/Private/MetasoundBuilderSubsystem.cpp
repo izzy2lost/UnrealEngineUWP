@@ -258,18 +258,64 @@ void UMetaSoundSourceBuilder::InitDelegates(Metasound::Frontend::FDocumentModify
 {
 	Super::InitDelegates(OutDocumentDelegates);
 
-	OutDocumentDelegates.EdgeDelegates.OnEdgeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnEdgeAdded);
-	OutDocumentDelegates.EdgeDelegates.OnRemoveSwappingEdge.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingEdge);
+	OutDocumentDelegates.PageDelegates.OnPageAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnPageAdded);
+	OutDocumentDelegates.PageDelegates.OnRemovingPage.AddUObject(this, &UMetaSoundSourceBuilder::OnRemovingPage);
 
 	OutDocumentDelegates.InterfaceDelegates.OnInputAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnInputAdded);
 	OutDocumentDelegates.InterfaceDelegates.OnOutputAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnOutputAdded);
 	OutDocumentDelegates.InterfaceDelegates.OnRemovingInput.AddUObject(this, &UMetaSoundSourceBuilder::OnRemovingInput);
 	OutDocumentDelegates.InterfaceDelegates.OnRemovingOutput.AddUObject(this, &UMetaSoundSourceBuilder::OnRemovingOutput);
 
-	OutDocumentDelegates.NodeDelegates.OnNodeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnNodeAdded);
-	OutDocumentDelegates.NodeDelegates.OnNodeInputLiteralSet.AddUObject(this, &UMetaSoundSourceBuilder::OnNodeInputLiteralSet);
-	OutDocumentDelegates.NodeDelegates.OnRemoveSwappingNode.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingNode);
-	OutDocumentDelegates.NodeDelegates.OnRemovingNodeInputLiteral.AddUObject(this, &UMetaSoundSourceBuilder::OnRemovingNodeInputLiteral);
+	InitExecutablePageDelegates(OutDocumentDelegates);
+}
+
+void UMetaSoundSourceBuilder::InitExecutablePageDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates)
+{
+	using namespace Metasound::DynamicGraph;
+	using namespace Metasound::Engine;
+	using namespace Metasound::Frontend;
+
+	// If currently executing live audition, must call stop as provided transactions may
+	// get corrupted by the fact that the executable page ID may now resolve to a different value.
+	ExecuteAuditionableTransaction([this](FDynamicOperatorTransactor& Transactor)
+	{
+		bool bComponentsStopped = false;
+		for (uint64 AudioComponentID : LiveComponentIDs)
+		{
+			if (UAudioComponent* AudioComponent = UAudioComponent::GetAudioComponentFromID(AudioComponentID))
+			{
+				AudioComponent->Stop();
+				bComponentsStopped = true;
+			}
+		}
+		return bComponentsStopped;
+	});
+
+	OutDocumentDelegates.IterateGraphNodeDelegates([this](FNodeModifyDelegates& NodeDelegates)
+	{
+		NodeDelegates.OnNodeAdded.RemoveAll(this);
+		NodeDelegates.OnNodeInputLiteralSet.RemoveAll(this);
+		NodeDelegates.OnRemoveSwappingNode.RemoveAll(this);
+		NodeDelegates.OnRemovingNodeInputLiteral.RemoveAll(this);
+	});
+
+	OutDocumentDelegates.IterateGraphEdgeDelegates([this](FEdgeModifyDelegates& EdgeDelegates)
+	{
+		EdgeDelegates.OnEdgeAdded.RemoveAll(this);
+		EdgeDelegates.OnRemoveSwappingEdge.RemoveAll(this);
+	});
+
+	const FGuid ExecutablePageID = FDocumentBuilderRegistry::GetChecked().ResolveExecutablePageID(&GetMetaSoundSource());
+
+	FEdgeModifyDelegates& EdgeDelegates = OutDocumentDelegates.FindEdgeDelegatesChecked(ExecutablePageID);
+	EdgeDelegates.OnEdgeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnEdgeAdded);
+	EdgeDelegates.OnRemoveSwappingEdge.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingEdge);
+
+	FNodeModifyDelegates& NodeDelegates = OutDocumentDelegates.FindNodeDelegatesChecked(ExecutablePageID);
+	NodeDelegates.OnNodeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnNodeAdded);
+	NodeDelegates.OnNodeInputLiteralSet.AddUObject(this, &UMetaSoundSourceBuilder::OnNodeInputLiteralSet);
+	NodeDelegates.OnRemoveSwappingNode.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingNode);
+	NodeDelegates.OnRemovingNodeInputLiteral.AddUObject(this, &UMetaSoundSourceBuilder::OnRemovingNodeInputLiteral);
 }
 
 void UMetaSoundSourceBuilder::OnAssetReferenceAdded(TScriptInterface<IMetaSoundDocumentInterface> DocInterface)
@@ -504,6 +550,23 @@ void UMetaSoundSourceBuilder::OnOutputAdded(int32 OutputIndex) const
 		Transactor.AddOutputDataSource(NewOutput.NodeID, NewOutput.Name);
 		return true;
 	});
+}
+
+void UMetaSoundSourceBuilder::OnPageAdded(const Metasound::Frontend::FDocumentMutatePageArgs& Args)
+{
+	using namespace Metasound::Frontend;
+
+	FDocumentModifyDelegates& DocDelegates = Builder.GetDocumentDelegates();
+	InitExecutablePageDelegates(DocDelegates);
+}
+
+void UMetaSoundSourceBuilder::OnRemovingPage(const Metasound::Frontend::FDocumentMutatePageArgs& Args)
+{
+	using namespace Metasound::Frontend;
+
+	FDocumentModifyDelegates& DocDelegates = Builder.GetDocumentDelegates();
+	InitExecutablePageDelegates(DocDelegates);
+
 }
 
 void UMetaSoundSourceBuilder::OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIndex) const
