@@ -16,7 +16,7 @@ public class AutoRTFMEngineTestsTarget : TargetRules
 		bBuildWithEditorOnlyData = false;
 
 		bCompileAgainstEngine = true;
-		bCompileAgainstCoreUObject = false;
+		bCompileAgainstCoreUObject = true;
 		bCompileAgainstApplicationCore = true;
         bCompileWithPluginSupport = true;
         bBuildDeveloperTools = false;

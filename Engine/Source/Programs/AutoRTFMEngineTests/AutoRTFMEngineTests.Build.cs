@@ -26,7 +26,6 @@ public class AutoRTFMEngineTests : ModuleRules
 				"MoviePlayerProxy",
 				"PreLoadScreen",
 				"ProfilerService",
-				"ReplicationSystemTestPlugin",
 				"SessionServices",
 				"SlateNullRenderer",
 				"SlateRHIRenderer",
