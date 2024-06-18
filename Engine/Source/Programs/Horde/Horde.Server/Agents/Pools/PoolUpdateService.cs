@@ -99,15 +99,20 @@ namespace Horde.Server.Agents.Pools
 			span.SetAttribute("numShutdown", c);
 		}
 
-		private bool HasGracePeriodExpired(IAgent agent, IReadOnlyList<IPoolConfig> pools, TimeSpan globalGracePeriod)
+		private bool HasGracePeriodExpired(IAgent agent, IReadOnlyList<IPoolConfig> pools, TimeSpan? globalGracePeriod)
 		{
 			if (agent.LastStatusChange == null)
 			{
 				return false;
 			}
 
-			TimeSpan gracePeriod = GetGracePeriod(agent, pools) ?? globalGracePeriod;
-			DateTime expirationTime = agent.LastStatusChange.Value + gracePeriod;
+			TimeSpan? gracePeriod = GetGracePeriod(agent, pools) ?? globalGracePeriod;
+			if (gracePeriod == null)
+			{
+				return false;
+			}
+			
+			DateTime expirationTime = agent.LastStatusChange.Value + gracePeriod.Value;
 			return _clock.UtcNow > expirationTime;
 		}
 

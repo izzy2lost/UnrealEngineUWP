@@ -53,8 +53,24 @@ public class PoolUpdateServiceTest : TestSetup
 	}
 
 	[TestMethod]
+	public async Task ShutdownDisabledAgents_WithDefaultGlobalGracePeriod_DoesNotRequestShutdownAsync()
+	{
+		// Act
+		await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
+		await RefreshAgentsAsync();
+
+		// Assert
+		Assert.IsFalse(_enabledAgent.RequestShutdown);
+		Assert.IsFalse(_disabledAgent.RequestShutdown);
+		Assert.IsFalse(_disabledAgentBeyondGracePeriod.RequestShutdown);
+	}
+	
+	[TestMethod]
 	public async Task ShutdownDisabledAgents_WithGlobalGracePeriod_RequestsShutdownAsync()
 	{
+		// Arrange
+		UpdateConfig(config => config.AgentShutdownIfDisabledGracePeriod = TimeSpan.FromHours(3.0));
+		
 		// Act
 		await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
 		await RefreshAgentsAsync();

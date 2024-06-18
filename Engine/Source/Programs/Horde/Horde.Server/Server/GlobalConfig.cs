@@ -235,7 +235,7 @@ namespace Horde.Server.Server
 		/// Time to wait before shutting down an agent that has been disabled
 		/// Used if no value is set on the actual pool.
 		/// </summary>
-		public TimeSpan AgentShutdownIfDisabledGracePeriod { get; set; } = TimeSpan.FromHours(8);
+		public TimeSpan? AgentShutdownIfDisabledGracePeriod { get; set; } = null;
 
 		/// <summary>
 		/// Storage configuration
