@@ -32,6 +32,7 @@ public:
 
 	// Begin EdGraphNode interface
 	UEdGraphPin* GetInputMeshPin() const;
+	UEdGraphPin* GetTablePosePin() const;
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	// End EdGraphNode interface

@@ -3934,39 +3934,61 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 	else if (const UCustomizableObjectNodeAnimationPose* TypedNode = Cast<UCustomizableObjectNodeAnimationPose>(Node))
 	{
-		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNode->GetInputMeshPin()))
+		if (const UEdGraphPin* InputMeshPin = FollowInputPin(*TypedNode->GetInputMeshPin()))
 		{
-			mu::Ptr<mu::NodeMesh> InputMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, false, bOnlyConnectedLOD);
+			mu::Ptr<mu::NodeMesh> InputMeshNode = GenerateMutableSourceMesh(InputMeshPin, GenerationContext, MeshData, false, bOnlyConnectedLOD);
 
-			if (TypedNode->PoseAsset && GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh)
+			if (GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh)
 			{
-				TArray<FName> ArrayBoneName;
-				TArray<FTransform> ArrayTransform;
-				UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(TypedNode->PoseAsset, GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh, ArrayBoneName, ArrayTransform);
-				mu::NodeMeshApplyPosePtr NodeMeshApplyPose = CreateNodeMeshApplyPose(GenerationContext, InputMeshNode, ArrayBoneName, ArrayTransform);
-
-				if (NodeMeshApplyPose)
+				if (TypedNode->PoseAsset)
 				{
-					Result = NodeMeshApplyPose;
+					TArray<FName> ArrayBoneName;
+					TArray<FTransform> ArrayTransform;
+					UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(TypedNode->PoseAsset, GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh, ArrayBoneName, ArrayTransform);
+					mu::NodeMeshApplyPosePtr NodeMeshApplyPose = CreateNodeMeshApplyPose(GenerationContext, InputMeshNode, ArrayBoneName, ArrayTransform);
+
+					if (NodeMeshApplyPose)
+					{
+						Result = NodeMeshApplyPose;
+					}
+					else
+					{
+						FString msg = FString::Printf(TEXT("Couldn't get bone transform information from a Pose Asset."));
+						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+
+						Result = nullptr;
+					}
+				}
+				else if (const UEdGraphPin* TablePosePin = FollowInputPin(*TypedNode->GetTablePosePin()))
+				{
+					if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(TablePosePin->GetOwningNode()))
+					{
+						mu::NodeMeshApplyPosePtr NodeMeshApplyPose = new mu::NodeMeshApplyPose();
+						mu::Ptr<mu::NodeMesh> MeshTableNode = GenerateMutableSourceMesh(TablePosePin, GenerationContext, MeshData, false, bOnlyConnectedLOD);
+
+						NodeMeshApplyPose->SetBase(InputMeshNode);
+						NodeMeshApplyPose->SetPose(MeshTableNode);
+
+						Result = NodeMeshApplyPose;
+					}
 				}
 				else
 				{
-					FString msg = FString::Printf(TEXT("Couldn't get bone transform information from a Pose Asset."));
-					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
+					if (!TypedNode->PoseAsset) // Check if the slot has a selected pose. Could be left empty by the user
+					{
+						FString msg = FString::Printf(TEXT("Found pose mesh node without a pose asset assigned."));
+						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNode);
+					}
 
-					Result = nullptr;
+					Result = InputMeshNode;
 				}
 			}
-			else
-			{
-				Result = InputMeshNode;
-			}
+			
 		}
 	}
 
 	else if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Node))
 	{
-		//This node will add a checker texture in case of error
 		mu::NodeMeshConstantPtr EmptyNode = new mu::NodeMeshConstant();
 		Result = EmptyNode;
 		bool bSuccess = true;
@@ -3975,6 +3997,8 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 		if (DataTable)
 		{
+			const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+
 			// Getting the real name of the data table column
 			FString DataTableColumnName = TypedNodeTable->GetColumnNameByPin(Pin);
 			FProperty* Property = DataTable->FindTableProperty(FName(*DataTableColumnName));
@@ -3989,8 +4013,9 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 			USkeletalMesh* DefaultSkeletalMesh = TypedNodeTable->GetColumnDefaultAssetByType<USkeletalMesh>(Pin);
 			UStaticMesh* DefaultStaticMesh = TypedNodeTable->GetColumnDefaultAssetByType<UStaticMesh>(Pin);
+			UPoseAsset* DefaultPoseAsset = TypedNodeTable->GetColumnDefaultAssetByType<UPoseAsset>(Pin);
 
-			if (bSuccess && !DefaultSkeletalMesh && !DefaultStaticMesh)
+			if (bSuccess && !DefaultSkeletalMesh && !DefaultStaticMesh && !DefaultPoseAsset)
 			{
 				FString Msg = FString::Printf(TEXT("Couldn't find a default value in the data table's struct for the column [%s]."), *DataTableColumnName);
 				GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
@@ -4010,24 +4035,28 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					
 					int32 LODIndexConnected = -1; // LOD which the pin is connected to
 					int32 SectionIndexConnected = -1;
-					
 					int32 LODIndex = 0;
 					int32 SectionIndex = 0;
 
-					TypedNodeTable->GetPinLODAndSection(Pin, LODIndexConnected, SectionIndexConnected);
-
 					// Getting the mutable table mesh column name
-					FString MutableColumnName;
-					if (DefaultSkeletalMesh)
+					FString MutableColumnName = DataTableColumnName;
+
+					if (Pin->PinType.PinCategory == Schema->PC_Mesh)
 					{
-						GetLODAndSectionForAutomaticLODs(GenerationContext, *Node, *DefaultSkeletalMesh, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD);
-						MutableColumnName = TypedNodeTable->GenerateSkeletalMeshMutableColumName(DataTableColumnName, LODIndex, SectionIndex);
+						// LOD and sections are relevant for Skeletal and Static meshes but not for Pose Assets
+						TypedNodeTable->GetPinLODAndSection(Pin, LODIndexConnected, SectionIndexConnected);
+
+						if (DefaultSkeletalMesh)
+						{
+							GetLODAndSectionForAutomaticLODs(GenerationContext, *Node, *DefaultSkeletalMesh, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD);
+							MutableColumnName = TypedNodeTable->GenerateSkeletalMeshMutableColumName(DataTableColumnName, LODIndex, SectionIndex);
+						}
+						else
+						{
+							MutableColumnName = TypedNodeTable->GenerateStaticMeshMutableColumName(DataTableColumnName, SectionIndexConnected);
+						}
 					}
-					else
-					{
-						MutableColumnName = TypedNodeTable->GenerateStaticMeshMutableColumName(DataTableColumnName, SectionIndexConnected);
-					}
-					
+
 					// Generating a new Mesh column if not exists
 					if (Table->FindColumn(MutableColumnName) == INDEX_NONE)
 					{
@@ -4050,83 +4079,87 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						MeshTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
 						MeshTableNode->SetDefaultRowName(TypedNodeTable->DefaultRowName.ToString());
 
-						if (DefaultSkeletalMesh)
+						// Pose Assets do not need this part of the code
+						if (Pin->PinType.PinCategory == Schema->PC_Mesh)
 						{
-							FSkeletalMeshModel* ImportedModel = DefaultSkeletalMesh->GetImportedModel();
-
-							if (ImportedModel->LODModels.IsValidIndex(LODIndex) &&
-								ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
+							if (DefaultSkeletalMesh)
 							{
-								// TODO: this should be made for all the meshes of the Column to support meshes with different values
-								// Filling Mesh Data
-								MeshData.bHasVertexColors = DefaultSkeletalMesh->GetHasVertexColors();
-								MeshData.NumTexCoordChannels = ImportedModel->LODModels[LODIndex].NumTexCoords;
-								MeshData.MaxBoneIndexTypeSizeBytes = ImportedModel->LODModels[LODIndex].RequiredBones.Num() > 256 ? 2 : 1;
-								MeshData.MaxNumBonesPerVertex = ImportedModel->LODModels[LODIndex].GetMaxBoneInfluences();
+								FSkeletalMeshModel* ImportedModel = DefaultSkeletalMesh->GetImportedModel();
 
-								// When mesh data is combined we will get an upper and lower bound of the number of triangles.
-								MeshData.MaxNumTriangles = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].NumTriangles;
-								MeshData.MinNumTriangles = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].NumTriangles;
-
-								// With tables we have to use the default skeletal mesh to tell if the surface mesh needs morphs or clothing.
-								// For now tables will not have morphs as there isn't a way to select them.
-								MeshData.bHasRealTimeMorphs = false;
-								MeshData.bHasClothing = GenerationContext.Options.bClothingEnabled && ImportedModel->LODModels[LODIndex].HasClothData();
-							}
-						}
-
-						TArray<UCustomizableObjectLayout*> Layouts = TypedNodeTable->GetLayouts(Pin);
-						MeshTableNode->SetLayoutCount(Layouts.Num());
-
-						if (Layouts.Num())
-						{
-							// Generating node Layouts
-							for (int32 i = 0; i < Layouts.Num(); ++i)
-							{
-								mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout;
-
-								LayoutNode->Layout->SetGridSize(Layouts[i]->GetGridSize().X, Layouts[i]->GetGridSize().Y);
-								LayoutNode->Layout->SetMaxGridSize(Layouts[i]->GetMaxGridSize().X, Layouts[i]->GetMaxGridSize().Y);
-								LayoutNode->Layout->SetBlockCount(Layouts[i]->Blocks.Num() ? Layouts[i]->Blocks.Num() : 1);
-
-								mu::EPackStrategy PackStrategy = ConvertLayoutStrategy(Layouts[i]->GetPackingStrategy());
-								LayoutNode->Layout->SetLayoutPackingStrategy(PackStrategy);
-								
-								LayoutNode->Layout->ReductionMethod = (Layouts[i]->GetBlockReductionMethod() == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::HALVE_REDUCTION : mu::EReductionMethod::UNITARY_REDUCTION);
-
-								if (bLinkedToExtendMaterial)
+								if (ImportedModel->LODModels.IsValidIndex(LODIndex) &&
+									ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
 								{
-									// Layout warnings can be safely ignored in this case. Vertices that do not belong to any layout block will be removed (Extend Materials only)
-									LayoutNode->FirstLODToIgnoreWarnings = 0;
+									// TODO: this should be made for all the meshes of the Column to support meshes with different values
+									// Filling Mesh Data
+									MeshData.bHasVertexColors = DefaultSkeletalMesh->GetHasVertexColors();
+									MeshData.NumTexCoordChannels = ImportedModel->LODModels[LODIndex].NumTexCoords;
+									MeshData.MaxBoneIndexTypeSizeBytes = ImportedModel->LODModels[LODIndex].RequiredBones.Num() > 256 ? 2 : 1;
+									MeshData.MaxNumBonesPerVertex = ImportedModel->LODModels[LODIndex].GetMaxBoneInfluences();
+
+									// When mesh data is combined we will get an upper and lower bound of the number of triangles.
+									MeshData.MaxNumTriangles = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].NumTriangles;
+									MeshData.MinNumTriangles = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].NumTriangles;
+
+									// With tables we have to use the default skeletal mesh to tell if the surface mesh needs morphs or clothing.
+									// For now tables will not have morphs as there isn't a way to select them.
+									MeshData.bHasRealTimeMorphs = false;
+									MeshData.bHasClothing = GenerationContext.Options.bClothingEnabled && ImportedModel->LODModels[LODIndex].HasClothData();
 								}
+							}
 
-								if (Layouts[i]->Blocks.Num())
+							TArray<UCustomizableObjectLayout*> Layouts = TypedNodeTable->GetLayouts(Pin);
+							MeshTableNode->SetLayoutCount(Layouts.Num());
+
+							if (Layouts.Num())
+							{
+								// Generating node Layouts
+								for (int32 i = 0; i < Layouts.Num(); ++i)
 								{
-									for (int BlockIndex = 0; BlockIndex < Layouts[i]->Blocks.Num(); ++BlockIndex)
+									mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout;
+
+									LayoutNode->Layout->SetGridSize(Layouts[i]->GetGridSize().X, Layouts[i]->GetGridSize().Y);
+									LayoutNode->Layout->SetMaxGridSize(Layouts[i]->GetMaxGridSize().X, Layouts[i]->GetMaxGridSize().Y);
+									LayoutNode->Layout->SetBlockCount(Layouts[i]->Blocks.Num() ? Layouts[i]->Blocks.Num() : 1);
+
+									mu::EPackStrategy PackStrategy = ConvertLayoutStrategy(Layouts[i]->GetPackingStrategy());
+									LayoutNode->Layout->SetLayoutPackingStrategy(PackStrategy);
+
+									LayoutNode->Layout->ReductionMethod = (Layouts[i]->GetBlockReductionMethod() == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::HALVE_REDUCTION : mu::EReductionMethod::UNITARY_REDUCTION);
+
+									if (bLinkedToExtendMaterial)
 									{
-										LayoutNode->Layout->Blocks[BlockIndex] = ToMutable( Layouts[i]->Blocks[BlockIndex] );
+										// Layout warnings can be safely ignored in this case. Vertices that do not belong to any layout block will be removed (Extend Materials only)
+										LayoutNode->FirstLODToIgnoreWarnings = 0;
 									}
-								}
-								else
-								{
-									FString msg = "Mesh Column [" + MutableColumnName + "] Layout doesn't has any block. A grid sized block will be used instead.";
-									GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
 
-									LayoutNode->Layout->Blocks[0].Min = { 0,0 };
-									LayoutNode->Layout->Blocks[0].Size = { uint16(Layouts[i]->GetGridSize().X), uint16(Layouts[i]->GetGridSize().Y)};
-									LayoutNode->Layout->Blocks[0].Priority = 0;
-									LayoutNode->Layout->Blocks[0].bReduceBothAxes = false;
-									LayoutNode->Layout->Blocks[0].bReduceByTwo = false;
-								}
+									if (Layouts[i]->Blocks.Num())
+									{
+										for (int BlockIndex = 0; BlockIndex < Layouts[i]->Blocks.Num(); ++BlockIndex)
+										{
+											LayoutNode->Layout->Blocks[BlockIndex] = ToMutable(Layouts[i]->Blocks[BlockIndex]);
+										}
+									}
+									else
+									{
+										FString msg = "Mesh Column [" + MutableColumnName + "] Layout doesn't has any block. A grid sized block will be used instead.";
+										GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
 
-								MeshTableNode->SetLayout(i, LayoutNode);
+										LayoutNode->Layout->Blocks[0].Min = { 0,0 };
+										LayoutNode->Layout->Blocks[0].Size = { uint16(Layouts[i]->GetGridSize().X), uint16(Layouts[i]->GetGridSize().Y) };
+										LayoutNode->Layout->Blocks[0].Priority = 0;
+										LayoutNode->Layout->Blocks[0].bReduceBothAxes = false;
+										LayoutNode->Layout->Blocks[0].bReduceByTwo = false;
+									}
+
+									MeshTableNode->SetLayout(i, LayoutNode);
+								}
 							}
-						}
 
-						// Applying Mesh Morph Nodes
-						if (DefaultSkeletalMesh && GenerationContext.MeshMorphStack.Num())
-						{
-							MorphResult = GenerateMorphMesh(Pin, GenerationContext.MeshMorphStack, 0, Result, GenerationContext, MeshData, bOnlyConnectedLOD, MutableColumnName);
+							// Applying Mesh Morph Nodes
+							if (DefaultSkeletalMesh && GenerationContext.MeshMorphStack.Num())
+							{
+								MorphResult = GenerateMorphMesh(Pin, GenerationContext.MeshMorphStack, 0, Result, GenerationContext, MeshData, bOnlyConnectedLOD, MutableColumnName);
+							}
 						}
 					}
 				}

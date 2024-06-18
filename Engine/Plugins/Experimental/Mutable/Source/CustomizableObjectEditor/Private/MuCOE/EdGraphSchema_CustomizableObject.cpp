@@ -237,6 +237,7 @@ const FName UEdGraphSchema_CustomizableObject::PC_Enum("enum");
 const FName UEdGraphSchema_CustomizableObject::PC_Stack("stack");
 const FName UEdGraphSchema_CustomizableObject::PC_MaterialAsset("materialAsset");
 const FName UEdGraphSchema_CustomizableObject::PC_Wildcard("wildcard");
+const FName UEdGraphSchema_CustomizableObject::PC_PoseAsset("poseAsset");
 
 
 TSharedPtr<FCustomizableObjectSchemaAction_NewNode> UEdGraphSchema_CustomizableObject::AddNewNodeAction(FGraphActionListBuilderBase& ContextMenuBuilder, const FString& Category, const FText& MenuDesc, const FText& Tooltip, const int32 Grouping, const FString& Keywords)
@@ -510,7 +511,7 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 
 	{
 		// External Pin Nodes
-		TArray<FName> PinTypes({ PC_Material, PC_Mesh, PC_Image, PC_Projector, PC_GroupProjector, PC_Color, PC_Float, PC_Bool, PC_Enum, PC_Stack, PC_PassThroughImage, PC_MaterialAsset });
+		TArray<FName> PinTypes({ PC_Material, PC_Mesh, PC_Image, PC_Projector, PC_GroupProjector, PC_Color, PC_Float, PC_Bool, PC_Enum, PC_Stack, PC_PassThroughImage, PC_MaterialAsset, PC_PoseAsset });
 
 		// Add pin types from extensions
 		for (const FRegisteredCustomizableObjectPinType& PinType : ICustomizableObjectModule::Get().GetExtendedPinTypes())
@@ -716,6 +717,10 @@ FLinearColor UEdGraphSchema_CustomizableObject::GetPinTypeColor(const FName& Typ
 	else if (TypeString == PC_Wildcard)
 	{
 		return FLinearColor(1.000000f, 1.000000f, 1.000000f, 1.000000f); // White
+	}
+	else if (TypeString == PC_PoseAsset)
+	{
+		return FLinearColor(0.700000f, 0.000000f, 0.000000f, 1.000000f); // Dark Red
 	}
 
 	for (const FRegisteredCustomizableObjectPinType& PinType : ICustomizableObjectModule::Get().GetExtendedPinTypes())
@@ -1355,6 +1360,10 @@ FText UEdGraphSchema_CustomizableObject::GetPinCategoryName(const FName& PinCate
 	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Wildcard)
 	{
 		return LOCTEXT("Wildcard_Pin_Category", "Wildcard");
+	}
+	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_PoseAsset)
+	{
+		return LOCTEXT("Pose_Pin_Category", "PoseAsset");
 	}
 	else
 	{

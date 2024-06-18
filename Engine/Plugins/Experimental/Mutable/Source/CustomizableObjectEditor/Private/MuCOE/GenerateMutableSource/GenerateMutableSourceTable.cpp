@@ -3,6 +3,7 @@
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceTable.h"
 
 #include "Animation/AnimInstance.h"
+#include "Animation/PoseAsset.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/CompositeDataTable.h"
@@ -18,6 +19,7 @@
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeAnimationPose.h"
 #include "MuR/Mesh.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Rendering/SkeletalMeshLODModel.h"
@@ -28,7 +30,7 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr MutableTable,	const FString& ColumnName,	const FString& RowName,	const int32 RowIdx,	uint8* CellData, const FProperty* ColumnProperty,
+bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr MutableTable, const FString& ColumnName, const FString& RowName, const int32 RowIdx, uint8* CellData, const FProperty* ColumnProperty,
 	const int LODIndexConnected, const int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex, const bool bOnlyConnectedLOD, FMutableGraphGenerationContext& GenerationContext)
 {
 	int32 CurrentColumn;
@@ -584,6 +586,42 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 				MutableTable->SetCell(ColumnIndex, RowIdx, Proxy.get());
 
 				return true;
+			}
+		}
+
+		else if (SoftObjectProperty->PropertyClass->IsChildOf(UPoseAsset::StaticClass()))
+		{
+			if (UPoseAsset* PoseAsset = Cast<UPoseAsset>(Object))
+			{
+				CurrentColumn = MutableTable.get()->FindColumn(ColumnName);
+
+				if (CurrentColumn == -1)
+				{
+					CurrentColumn = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Mesh);
+				}
+
+				TArray<FName> ArrayBoneName;
+				TArray<FTransform> ArrayTransform;
+				UCustomizableObjectNodeAnimationPose::StaticRetrievePoseInformation(PoseAsset, GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh, ArrayBoneName, ArrayTransform);
+
+				mu::Ptr<mu::Mesh> MutableMesh = new mu::Mesh();
+				mu::Ptr<mu::Skeleton> MutableSkeleton = new mu::Skeleton;
+
+				MutableMesh->SetSkeleton(MutableSkeleton);
+				MutableMesh->SetBonePoseCount(ArrayBoneName.Num());
+				MutableSkeleton->SetBoneCount(ArrayBoneName.Num());
+
+				for (int32 i = 0; i < ArrayBoneName.Num(); ++i)
+				{
+					const FName BoneName = ArrayBoneName[i];
+					const mu::FBoneName& BoneId = GenerationContext.GetBoneUnique(BoneName);
+
+					MutableSkeleton->SetDebugName(i, BoneName);
+					MutableSkeleton->SetBoneName(i, { BoneId });
+					MutableMesh->SetBonePose(i, BoneId, (FTransform3f)ArrayTransform[i], mu::EBoneUsageFlags::Skinning);
+				}
+
+				MutableTable->SetCell(CurrentColumn, RowIdx, MutableMesh.get());
 			}
 		}
 

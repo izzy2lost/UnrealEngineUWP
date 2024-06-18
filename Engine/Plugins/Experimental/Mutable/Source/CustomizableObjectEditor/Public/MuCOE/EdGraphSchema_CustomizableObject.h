@@ -105,6 +105,7 @@ public:
 	static const FName PC_Stack;
 	static const FName PC_MaterialAsset;
 	static const FName PC_Wildcard;
+	static const FName PC_PoseAsset;
 
 	// EdGraphSchema interface
 	virtual void GetAssetsGraphHoverMessage(const TArray<FAssetData>& Assets, const UEdGraph* HoverGraph, FString& OutTooltipText, bool& OutOkIcon) const override;

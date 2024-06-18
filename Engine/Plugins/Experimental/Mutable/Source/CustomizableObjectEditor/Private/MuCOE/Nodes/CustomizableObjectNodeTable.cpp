@@ -2,6 +2,7 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 
+#include "Animation/PoseAsset.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/Texture2DArray.h"
@@ -392,7 +393,8 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 		UStaticMesh::StaticClass(),
 		UTexture2D::StaticClass(),
 		UTexture::StaticClass(),
-		UMaterialInstance::StaticClass()
+		UMaterialInstance::StaticClass(),
+		UPoseAsset::StaticClass()
 	};
 
 	TArray<UEdGraphPin*> OldPins(Pins);
@@ -491,6 +493,15 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 						PinData->StructColumnId = ColumnPropertyId;
 
 						OutPin = CustomCreatePin(EGPD_Output, Schema->PC_MaterialAsset, FName(*PinName), PinData);
+					}
+
+					else if (Object->IsA(UPoseAsset::StaticClass()))
+					{
+						UCustomizableObjectNodeTableObjectPinData* PinData = NewObject<UCustomizableObjectNodeTableObjectPinData>(this);
+						PinData->ColumnName = ColumnName;
+						PinData->StructColumnId = ColumnPropertyId;
+
+						OutPin = CustomCreatePin(EGPD_Output, Schema->PC_PoseAsset, FName(*PinName), PinData);
 					}
 				}
 				else
@@ -776,6 +787,17 @@ bool UCustomizableObjectNodeTable::IsNodeOutDatedAndNeedsRefresh()
 
 					NumPins++;
 				}
+				else if (Object->IsA(UPoseAsset::StaticClass()))
+				{
+					FString PinName = DataTableUtils::GetPropertyExportName(ColumnProperty);
+					
+					if (CheckPinUpdated(PinName, Schema->PC_PoseAsset))
+					{
+						bNeedsUpdate = true;
+					}
+
+					NumPins++;
+				}
 			}
 			else if (const FStructProperty* StructProperty = CastField<FStructProperty>(ColumnProperty))
 			{
@@ -1038,7 +1060,7 @@ FString UCustomizableObjectNodeTable::GetColumnNameByPin(const UEdGraphPin* Pin)
 		return PinData->ColumnName;
 	}
 
-	return FString();
+	return Pin->PinFriendlyName.ToString();
 }
 
 
@@ -1476,6 +1498,7 @@ FSkeletalMaterial* UCustomizableObjectNodeTable::GetDefaultSkeletalMaterialFor(c
 
 	return nullptr;
 }
+
 
 int32 UCustomizableObjectNodeTable::GetDefaultSkeletalMaterialIndexFor(const UEdGraphPin& MeshPin) const
 {

@@ -31,18 +31,32 @@ void UCustomizableObjectNodeAnimationPose::AllocateDefaultPins(UCustomizableObje
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
 	FString PinName = TEXT("Input Mesh");
-	UEdGraphPin* PinImagePin = CustomCreatePin(EGPD_Input, Schema->PC_Mesh, FName(*PinName));
-	PinImagePin->bDefaultValueIsIgnored = true;
+	UEdGraphPin* InMeshPin = CustomCreatePin(EGPD_Input, Schema->PC_Mesh, FName(*PinName));
+	InMeshPin->bDefaultValueIsIgnored = true;
+
+	PinName = TEXT("Table Pose");
+	UEdGraphPin* TablePosePin = CustomCreatePin(EGPD_Input, Schema->PC_PoseAsset, FName(*PinName));
+	TablePosePin->bDefaultValueIsIgnored = true;
 
 	PinName = TEXT("Output Mesh");
-	PinImagePin = CustomCreatePin(EGPD_Output, Schema->PC_Mesh, FName(*PinName));
-	PinImagePin->bDefaultValueIsIgnored = true;
+	UEdGraphPin* OutMeshPin = CustomCreatePin(EGPD_Output, Schema->PC_Mesh, FName(*PinName));
+	OutMeshPin->bDefaultValueIsIgnored = true;
 }
 
 
 UEdGraphPin* UCustomizableObjectNodeAnimationPose::GetInputMeshPin() const
 {
 	FString PinName = FString(TEXT("Input Mesh"));
+
+	UEdGraphPin* Pin = FindPin(PinName);
+
+	return Pin;
+}
+
+
+UEdGraphPin* UCustomizableObjectNodeAnimationPose::GetTablePosePin() const
+{
+	FString PinName = FString(TEXT("Table Pose"));
 
 	UEdGraphPin* Pin = FindPin(PinName);
 
