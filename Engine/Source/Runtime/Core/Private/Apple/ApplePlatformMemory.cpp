@@ -350,7 +350,7 @@ FMalloc* FApplePlatformMemory::BaseAllocator()
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
 	FLowLevelMemTracker::Get().SetProgramSize(MemStats.UsedPhysical);
 #endif
-	FPlatformMemory::ProgramSize = Stats.UsedPhysical;
+	FPlatformMemory::ProgramSize = MemStats.UsedPhysical;
 
     SetAllocatorToUse();
     
