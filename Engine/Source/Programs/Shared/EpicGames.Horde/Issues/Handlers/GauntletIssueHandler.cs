@@ -47,6 +47,16 @@ namespace EpicGames.Horde.Issues.Handlers
 		static readonly Utf8String s_callstackLogType = new Utf8String("Callstack");
 
 		/// <summary>
+		/// Summary log type property
+		/// </summary>
+		static readonly Utf8String s_summaryLogType = new Utf8String("Summary");
+
+		/// <summary>
+		/// Regex pattern to match assertion, ensure and other crash report summary from UE
+		/// </summary>
+		static readonly Regex s_summaryPattern = new Regex(@"\w[\w ]+:\s+.+\s+\[[^]]+\.[^]]+\](?:\s*\[[^]]+\])?(?:\s*\n\w+.+)?", RegexOptions.Multiline | RegexOptions.ExplicitCapture);
+
+		/// <summary>
 		/// Max Message Length to hash
 		/// </summary>
 		const int MaxMessageLength = 2000;
@@ -123,10 +133,22 @@ namespace EpicGames.Horde.Issues.Handlers
 
 		private static bool TryGetHash(IssueEvent issueEvent, out Md5Hash hash)
 		{
-			string sanitized = issueEvent.Message.ToUpperInvariant();
+			string? sanitized = GetSummaryProperty(issueEvent);
+			// Use only the summary if one is found instead of the full callstack
+			if (sanitized == null)
+			{
+				sanitized = issueEvent.Message;
+				// Let's try with regex
+				Match matchSummary = s_summaryPattern.Match(sanitized);
+				if (matchSummary.Success)
+				{
+					sanitized = matchSummary.Groups[0].Value;
+				}
+			}
 			sanitized = sanitized.Length > MaxMessageLength ? sanitized.Substring(0, MaxMessageLength) : sanitized;
-			sanitized = Regex.Replace(sanitized, @"(?<![a-zA-Z])(?:[A-Z]:|/)[^ :]+[/\\]SYNC[/\\]", "{root}/"); // Redact things that look like workspace roots; may be different between agents
-			sanitized = Regex.Replace(sanitized, @"0[xX][0-9a-fA-F]+", "H"); // Redact hex strings
+			sanitized = sanitized.Trim().ToUpperInvariant();
+			sanitized = Regex.Replace(sanitized, @"(?<![A-Z])(?:[A-Z]:|/)[^ :]+[/\\]SYNC[/\\]", "{root}/"); // Redact things that look like workspace roots; may be different between agents
+			sanitized = Regex.Replace(sanitized, @"0X[0-9A-F]+", "H"); // Redact hex strings
 			sanitized = Regex.Replace(sanitized, @"\d[\d.,:]*", "n"); // Redact numbers and timestamp like things
 
 			if (sanitized.Length > 30)
@@ -144,6 +166,19 @@ namespace EpicGames.Horde.Issues.Handlers
 		private static bool EventHasCallstackProperty(IssueEvent issueEvent)
 		{
 			return issueEvent.Lines.Any(x => FindNestedPropertyOfType(x, s_callstackLogType) != null);
+		}
+
+		private static string? GetSummaryProperty(IssueEvent issueEvent)
+		{
+			foreach (JsonLogEvent logEvent in issueEvent.Lines)
+			{
+				JsonProperty? property = FindNestedPropertyOfType(logEvent, s_summaryLogType);
+				if (property != null)
+				{
+					return property.Value.Value.GetString();
+				}
+			}
+			return null;
 		}
 
 		private static JsonProperty? FindNestedPropertyOfType(JsonLogEvent logEvent, Utf8String type)
