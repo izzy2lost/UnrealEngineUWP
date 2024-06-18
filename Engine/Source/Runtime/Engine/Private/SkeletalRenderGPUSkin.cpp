@@ -1584,7 +1584,11 @@ const FVertexFactory* FSkeletalMeshObjectGPUSkin::GetSkinVertexFactory(const FSc
 	// If a mesh deformer cache was used, return the passthrough vertex factory
 	if (DynamicData->GPUSkinTechnique == ESkeletalMeshGPUSkinTechnique::MeshDeformer)
 	{
-		return LOD.GPUSkinVertexFactories.PassthroughVertexFactories[ChunkIdx].Get();
+		if (LOD.GPUSkinVertexFactories.PassthroughVertexFactories.IsValidIndex(ChunkIdx))
+		{
+			return LOD.GPUSkinVertexFactories.PassthroughVertexFactories[ChunkIdx].Get();
+		}
+		return nullptr;
 	}
 
 #if RHI_RAYTRACING
