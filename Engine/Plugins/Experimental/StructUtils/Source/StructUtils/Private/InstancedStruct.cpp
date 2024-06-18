@@ -9,7 +9,7 @@
 #if WITH_ENGINE
 #include "Engine/PackageMapClient.h"
 #include "Engine/NetConnection.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Net/RepLayout.h"
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/MemoryReader.h"

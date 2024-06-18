@@ -47,7 +47,7 @@
 #include "Engine/TextureRenderTargetCube.h"
 #include "GameFramework/TouchInterface.h"
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Animation/AnimInstance.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Factories/AnimBlueprintFactory.h"

@@ -3,7 +3,7 @@
 #include "SInstancedStructPicker.h"
 #include "DetailLayoutBuilder.h"
 #include "Editor.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "InstancedStruct.h"
 #include "IPropertyUtilities.h"
 #include "Modules/ModuleManager.h"

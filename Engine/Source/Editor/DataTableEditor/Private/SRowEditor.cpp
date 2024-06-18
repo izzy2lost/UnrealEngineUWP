@@ -6,7 +6,7 @@
 #include "DataTableUtils.h"
 #include "DetailsViewArgs.h"
 #include "Engine/DataTable.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "HAL/PlatformMisc.h"
 #include "IStructureDetailsView.h"
 #include "Internationalization/Internationalization.h"

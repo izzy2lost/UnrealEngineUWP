@@ -7,7 +7,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Async/ParallelFor.h"
 #include "AsyncLoadingTests_Shared.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "UObject/UObjectHash.h"
 
 #if WITH_DEV_AUTOMATION_TESTS

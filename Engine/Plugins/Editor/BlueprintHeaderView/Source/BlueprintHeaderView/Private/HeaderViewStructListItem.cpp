@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HeaderViewStructListItem.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "IAssetTools.h"
 #include "String/LineEndings.h"
 #include "Kismet2/StructureEditorUtils.h"

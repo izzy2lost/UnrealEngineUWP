@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "AISenseBlueprintListener.generated.h"
 
 UCLASS(ClassGroup=AI, MinimalAPI)

@@ -11,6 +11,7 @@
 #include "UObject/StructOnScope.h"
 #include "EditorUndoClient.h"
 #include "Kismet2/StructureEditorUtils.h"
+#include "StructUtils/UserDefinedStructEditorUtils.h"
 #include "UserDefinedStructEditorData.generated.h"
 
 class ITransactionObjectAnnotation;
@@ -127,12 +128,12 @@ struct TStructOpsTypeTraits< FStructVariableDescription > : public TStructOpsTyp
 };
 
 UCLASS(MinimalAPI)
-class UUserDefinedStructEditorData : public UObject, public FEditorUndoClient
+class UUserDefinedStructEditorData : public UUserDefinedStructEditorDataBase, public FEditorUndoClient
 {
 	GENERATED_UCLASS_BODY()
 
 private:
-	// the property is used to generate an uniqe name id for member variable
+	// the property is used to generate a unique name id for member variable
 	UPROPERTY(NonTransactional) 
 	uint32 UniqueNameId;
 
@@ -149,7 +150,7 @@ public:
 	UNREALED_API virtual void Serialize(FArchive& Ar) override;
 	UNREALED_API virtual void PostEditUndo() override;
 	UNREALED_API virtual void PostEditUndo(TSharedPtr<ITransactionObjectAnnotation> TransactionAnnotation) override;
-	UNREALED_API virtual void PostLoadSubobjects(struct FObjectInstancingGraph* OuterInstanceGraph) override;
+	UNREALED_API virtual void PostLoadSubobjects(FObjectInstancingGraph* OuterInstanceGraph) override;
 	UNREALED_API virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	// End of UObject interface.
 
@@ -160,13 +161,17 @@ public:
 
 
 	UNREALED_API uint32 GenerateUniqueNameIdForMemberVariable();
-	UNREALED_API class UUserDefinedStruct* GetOwnerStruct() const;
+	UNREALED_API UUserDefinedStruct* GetOwnerStruct() const;
 
 	UNREALED_API const uint8* GetDefaultInstance() const;
-	UNREALED_API void RecreateDefaultInstance(FString* OutLog = nullptr);
-	UNREALED_API void ReinitializeDefaultInstance(FString* OutLog = nullptr);
+	UNREALED_API virtual void RecreateDefaultInstance(FString* OutLog = nullptr) override;
+	UNREALED_API virtual void ReinitializeDefaultInstance(FString* OutLog = nullptr) override;
 	UNREALED_API void CleanDefaultInstance();
 	UNREALED_API void RefreshValuesFromDefaultInstance();
+	
+	UNREALED_API virtual FString GetTooltip() const override;
+	UNREALED_API virtual FProperty* FindProperty(const UUserDefinedStruct* Struct, FName Name) const override;
+	UNREALED_API virtual FString GetFriendlyNameForProperty(const UUserDefinedStruct* Struct, const FProperty* Property) const override;
 
 private:
 

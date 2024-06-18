@@ -4,7 +4,7 @@
 
 #include "RigVMModule.h"
 #include "RigVMTypeUtils.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Misc/AssertionMacros.h"
 #include "UObject/TextProperty.h"
 

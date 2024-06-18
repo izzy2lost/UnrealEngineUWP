@@ -2,7 +2,7 @@
 #include "InstancedStructContainer.h"
 
 #if WITH_ENGINE && WITH_EDITOR
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/ArchiveUObject.h"

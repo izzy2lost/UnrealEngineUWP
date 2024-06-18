@@ -7,7 +7,7 @@
 #include "Editor.h"
 #include "Editor/UnrealEdEngine.h"
 #include "EditorSupportDelegates.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "InstancedReferenceSubobjectHelper.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Misc/ConfigCacheIni.h"

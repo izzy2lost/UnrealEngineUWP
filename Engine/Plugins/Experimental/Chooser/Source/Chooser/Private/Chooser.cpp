@@ -4,7 +4,7 @@
 #include "ChooserPropertyAccess.h"
 #include "ChooserTrace.h"
 #include "ObjectTrace.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Engine/Blueprint.h"
 #include "ChooserIndexArray.h"
 #include "IChooserParameterGameplayTag.h"

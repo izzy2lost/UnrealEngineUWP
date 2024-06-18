@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Delegates/DelegateCombinations.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Subsystems/EngineSubsystem.h"
 #include "Templates/SharedPointer.h"
 
