@@ -19,6 +19,11 @@ namespace PCGGrammar
 	{
 		struct FSubmodule
 		{
+			FSubmodule(const FName InID, const int8 InWeight)
+				: ID(InID)
+				, Weight(InWeight)
+			{}
+
 			FName ID;
 			int8 Weight;
 		};
