@@ -539,10 +539,12 @@ namespace RayTracing
 							{
 								RelevantPrimitive->CachedRayTracingMeshCommandIndices = SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD[LODIndex];
 							}
-							else
-							{
-								// TODO: check if this ever happens. should probably skip primitive if so
-							}
+
+							// CacheInstances expects to have one ray tracing mesh command per BLAS segment.
+							// If that's not the case in the future, other logic such as NumCachedStaticVisibleMeshCommands calculation needs to be updated.
+							checkf(RelevantPrimitive->CachedRayTracingMeshCommandIndices.Num() == SceneInfo->CachedRayTracingInstance.GeometryRHI->GetNumSegments(),
+								TEXT("Expected to have one ray tracing mesh command per BLAS segment (primitive has %d cached mesh commands but BLAS has %d segments)."),
+								RelevantPrimitive->CachedRayTracingMeshCommandIndices.Num(), SceneInfo->CachedRayTracingInstance.GeometryRHI->GetNumSegments());
 
 							const bool bNeedMainInstance = !RelevantPrimitive->bAllSegmentsDecal;
 

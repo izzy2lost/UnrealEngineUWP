@@ -744,6 +744,12 @@ void FRayTracingGeometryManager::ProcessCompletedStreamingRequests(FRHICommandLi
 
 				RegisteredGeometry.Status = FRegisteredGeometry::FStatus::StreamedIn;
 
+				if (!RegisteredGeometry.Geometry->GetRequiresBuild())
+				{
+					// only need to request here if no build will be requested since build path already requests update as necessary
+					RequestUpdateCachedRenderState(RegisteredGeometry.Geometry->GroupHandle);
+				}
+
 				RegisteredGeometry.Geometry->RequestBuildIfNeeded(RHICmdList, ERTAccelerationStructureBuildPriority::Normal);
 			}
 		}
