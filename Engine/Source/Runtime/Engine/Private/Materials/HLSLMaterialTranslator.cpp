@@ -11336,6 +11336,18 @@ int32 FHLSLMaterialTranslator::DepthOfFieldFunction(int32 Depth, int32 FunctionV
 		*GetParameterCode(Depth), FunctionValueIndex);
 }
 
+int32 FHLSLMaterialTranslator::PostVolumeUserFlagTestFunction(int32 Input)
+{
+	if (Input == INDEX_NONE)
+	{
+		return INDEX_NONE;
+	}
+
+	return AddCodeChunk(MCT_Float,
+		TEXT("PostVolumeUserFlagTest(%s)"),
+		*GetParameterCode(Input));
+}
+
 int32 FHLSLMaterialTranslator::Sobol(int32 Cell, int32 Index, int32 Seed)
 {
 	AddEstimatedTextureSample(2);

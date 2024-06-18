@@ -189,6 +189,7 @@
 #include "Materials/MaterialExpressionPerInstanceCustomData.h"
 #include "Materials/MaterialExpressionPixelDepth.h"
 #include "Materials/MaterialExpressionPixelNormalWS.h"
+#include "Materials/MaterialExpressionPostVolumeUserFlagTest.h"
 #include "Materials/MaterialExpressionPower.h"
 #include "Materials/MaterialExpressionPreSkinnedNormal.h"
 #include "Materials/MaterialExpressionPreSkinnedPosition.h"
@@ -22449,6 +22450,53 @@ int32 UMaterialExpressionDepthOfFieldFunction::Compile(class FMaterialCompiler* 
 void UMaterialExpressionDepthOfFieldFunction::GetCaption(TArray<FString>& OutCaptions) const
 {
 	OutCaptions.Add(FString(TEXT("DepthOfFieldFunction")));
+}
+#endif // WITH_EDITOR
+
+///////////////////////////////////////////////////////////////////////////////
+// UMaterialExpressionPostVolumeUserFlagTest
+///////////////////////////////////////////////////////////////////////////////
+UMaterialExpressionPostVolumeUserFlagTest::UMaterialExpressionPostVolumeUserFlagTest(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_GetPostProcessSetting;
+		FConstructorStatics()
+			: NAME_GetPostProcessSetting(LOCTEXT("Get Post Process Setting", "Get Post Process Setting"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	MenuCategories.Add(ConstructorStatics.NAME_GetPostProcessSetting);
+
+	bCollapsed = true;
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionPostVolumeUserFlagTest::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	int32 BitIndexCompiled;
+
+	if (BitIndex.GetTracedInput().Expression)
+	{
+		BitIndexCompiled = BitIndex.Compile(Compiler);
+	}
+	else
+	{
+		BitIndexCompiled = Compiler->Constant((float)ConstBitIndex);
+	}
+
+	if (BitIndexCompiled == INDEX_NONE)
+	{
+		return INDEX_NONE;
+	}
+
+	return Compiler->PostVolumeUserFlagTestFunction(BitIndexCompiled);
 }
 #endif // WITH_EDITOR
 

@@ -153,6 +153,7 @@
 #include "Materials/MaterialExpressionPerInstanceRandom.h"
 #include "Materials/MaterialExpressionPixelDepth.h"
 #include "Materials/MaterialExpressionPixelNormalWS.h"
+#include "Materials/MaterialExpressionPostVolumeUserFlagTest.h"
 #include "Materials/MaterialExpressionPower.h"
 #include "Materials/MaterialExpressionPrecomputedAOMask.h"
 #include "Materials/MaterialExpressionPreSkinnedLocalBounds.h"
@@ -1468,6 +1469,19 @@ bool UMaterialExpressionParticleMotionBlurFade::GenerateHLSLExpression(FMaterial
 {
 	using namespace UE::HLSLTree;
 	OutExpression = Generator.NewExternalInput(Material::EExternalInput::ParticleMotionBlurFade);
+	return true;
+}
+
+bool UMaterialExpressionPostVolumeUserFlagTest::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	const FExpression* BitIndexExpression = BitIndex.AcquireHLSLExpressionOrConstant(Generator, Scope, (float)ConstBitIndex);
+	if (!BitIndexExpression)
+	{
+		return false;
+	}
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionPostVolumeUserFlagTest>(BitIndexExpression);
 	return true;
 }
 

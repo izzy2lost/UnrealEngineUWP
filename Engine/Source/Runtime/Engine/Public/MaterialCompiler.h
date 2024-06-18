@@ -569,6 +569,7 @@ public:
 		return SamplePhysicsField(PositionArg, EPositionOrigin::Absolute, OutputType, TargetIndex);
 	}
 	virtual int32 DepthOfFieldFunction(int32 Depth, int32 FunctionValueIndex) = 0;
+	virtual int32 PostVolumeUserFlagTestFunction(int32 Input) = 0;
 	virtual int32 AtmosphericFogColor(int32 WorldPosition, EPositionOrigin PositionOrigin) = 0;
 	UE_DEPRECATED(5.4, "Use AtmosphericFogColor(int32, EPositionOrigin) instead")
 	int32 AtmosphericFogColor(int32 WorldPosition)
@@ -1103,6 +1104,7 @@ public:
 		return Compiler->DepthOfFieldFunction(Depth, FunctionValueIndex);
 	}
 
+	virtual int32 PostVolumeUserFlagTestFunction(int32 Input) override { return Compiler->PostVolumeUserFlagTestFunction(Input); }
 	virtual int32 GetHairUV() override { return Compiler->GetHairUV(); }
 	virtual int32 GetHairDimensions() override { return Compiler->GetHairDimensions(); }
 	virtual int32 GetHairSeed() override { return Compiler->GetHairSeed(); }

@@ -1178,6 +1178,9 @@ struct FPostProcessSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_ScreenSpaceReflectionRoughnessScale:1; // TODO: look useless...
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_UserFlags:1;
+
 	// -----------------------------------------------------------------------
 
 	// Ray Tracing
@@ -2280,6 +2283,10 @@ struct FPostProcessSettings
 
 	UPROPERTY()
 	float ScreenPercentage_DEPRECATED;
+
+	/** Per-view user flags accessible in materials via TestPostVolumeUserFlag node, allowing per-view overrides of material behavior. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rendering Features", meta = (editcondition = "bOverride_UserFlags", DisplayName = "User Flags"))
+	int32 UserFlags;
 
 
 

@@ -1854,6 +1854,8 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		SET_PP(MotionBlurTargetFPS);
 
 		SET_PP(AutoExposureApplyPhysicalCameraExposure);
+
+		SET_PP(UserFlags);
 	}
 
 	// Blendable objects

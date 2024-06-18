@@ -1592,6 +1592,7 @@ void FViewInfo::SetupUniformBufferParameters(
 	}
 
 	ViewUniformShaderParameters.MaterialMaxEmissiveValue = MaterialMaxEmissiveValue;
+	ViewUniformShaderParameters.PostVolumeUserFlags = FinalPostProcessSettings.UserFlags;
 
 	// This should probably be in SetupCommonViewUniformBufferParameters, but drags in too many dependencies
 	UpdateNoiseTextureParameters(ViewUniformShaderParameters);
@@ -2952,6 +2953,16 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		FSceneView NewView(ViewInitOptions);
 		FViewInfo* ViewInfo = &CustomRenderPassInfo.Views.Emplace_GetRef(&NewView);
 		CustomRenderPassInfo.ViewFamily.Views.Add(ViewInfo);
+
+		if (PassInput.bOverridesPostVolumeUserFlags)
+		{
+			ViewInfo->FinalPostProcessSettings.UserFlags = PassInput.PostVolumeUserFlags;
+		}
+		else
+		{
+			// Arbitrarily use the post process UserFlags from the first view.
+			ViewInfo->FinalPostProcessSettings.UserFlags = Views[0].FinalPostProcessSettings.UserFlags;
+		}
 
 		// Must initialize to have a GPUScene connected to be able to collect dynamic primitives.
 		ViewInfo->DynamicPrimitiveCollector = FGPUScenePrimitiveCollector(&GPUSceneDynamicContext);

@@ -1115,6 +1115,11 @@ float GetWaterWaveParamIndex(FMaterialVertexParameters Parameters)
 #endif
 }
 
+float PostVolumeUserFlagTest(float CompareValue)
+{
+	return (((int)1 << (int)CompareValue) & View.PostVolumeUserFlags) ? 1.0 : 0.0;
+}
+
 // Returns whether a scene texture id is a for a post process input or not.
 bool IsPostProcessInputSceneTexture(const uint SceneTextureId)
 {

@@ -498,6 +498,19 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 };
 
+class FExpressionPostVolumeUserFlagTest : public FExpression
+{
+public:
+	const FExpression* InputExpression;
+
+	FExpressionPostVolumeUserFlagTest(const FExpression* InInputExpression)
+		: InputExpression(InInputExpression)
+	{}
+
+	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
+	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
+};
+
 struct DataDrivenShaderPlatformData
 {
 	FName PlatformName;

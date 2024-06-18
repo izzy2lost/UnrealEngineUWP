@@ -649,6 +649,8 @@ FPostProcessSettings::FPostProcessSettings()
 
 	bMobileHQGaussian = false;
 
+	UserFlags = 0;
+
 #if DO_CHECK && WITH_EDITOR
 	static bool bCheckedMembers = false;
 	if (!bCheckedMembers)

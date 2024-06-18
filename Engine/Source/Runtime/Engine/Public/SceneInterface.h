@@ -704,8 +704,10 @@ public:
 		FEngineShowFlags EngineShowFlags;
 		const AActor* ViewActor = nullptr;
 		class FSceneViewStateInterface* ViewStateInterface = nullptr;
+		int32 PostVolumeUserFlags = 0;						// UserFlags from Post Process Volume, used if bOverridesPostVolumeUserFlags set, allows per-view material overrides
 		bool bIsSceneCapture = false;
 		bool bUseMainViewFamilyShowFlags = false;			// Custom render pass should use flags from main view family, rather than ones in this structure
+		bool bOverridesPostVolumeUserFlags = false;			// Use PostVolumeUserFlags, instead of flags from main view family
 
 		class FCustomRenderPassBase* CustomRenderPass = nullptr;
 	};
