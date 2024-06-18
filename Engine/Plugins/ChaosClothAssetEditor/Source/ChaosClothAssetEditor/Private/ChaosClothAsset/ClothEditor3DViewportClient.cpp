@@ -127,58 +127,6 @@ void FChaosClothAssetEditor3DViewportClient::AddReferencedObjects(FReferenceColl
 	Collector.AddReferencedObject(InputBehaviorSet);
 }
 
-void FChaosClothAssetEditor3DViewportClient::Tick(float DeltaSeconds)
-{
-	FEditorViewportClient::Tick(DeltaSeconds);
-
-	auto GetLatestTimestamp = [](const UDataflow* Dataflow, const Dataflow::FContext* Context) -> Dataflow::FTimestamp
-	{
-		if (Dataflow && Context)
-		{
-			return FMath::Max(Dataflow->GetRenderingTimestamp().Value, Context->GetTimestamp().Value);
-		}
-		return Dataflow::FTimestamp::Invalid;
-	};
-
-	if (TSharedPtr<const FChaosClothAssetEditorToolkit> PinnedClothToolkit = ClothToolkit.Pin())
-	{
-		if (const TSharedPtr<Dataflow::FContext> Context = PinnedClothToolkit->GetDataflowContext())
-		{
-			if (const UDataflow* const Dataflow = PinnedClothToolkit->GetDataflow())
-			{
-				if (UDataflowComponent* const DataflowComponent = ClothEdMode->GetDataflowComponent())
-				{
-					const Dataflow::FTimestamp SystemTimestamp = GetLatestTimestamp(Dataflow, Context.Get());
-
-					if (SystemTimestamp >= LastModifiedTimestamp)
-					{
-						if (Dataflow->GetRenderTargets().Num())
-						{
-							// Component Object Rendering
-							DataflowComponent->ResetRenderTargets();
-							DataflowComponent->SetDataflow(Dataflow);
-							DataflowComponent->SetContext(Context);
-							for (const UDataflowEdNode* const Node : Dataflow->GetRenderTargets())
-							{
-								DataflowComponent->AddRenderTarget(Node);
-							}
-						}
-						else
-						{
-							DataflowComponent->ResetRenderTargets();
-						}
-
-						LastModifiedTimestamp = GetLatestTimestamp(Dataflow, Context.Get()).Value + 1;
-					}
-				}
-			}
-		}
-	}
-
-	// Note: we don't tick the PreviewWorld here, that is done in UChaosClothAssetEditorMode::ModeTick()
-
-}
-
 void FChaosClothAssetEditor3DViewportClient::EnableRenderMeshWireframe(bool bEnable)
 {
 	bRenderMeshWireframe = bEnable;

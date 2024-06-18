@@ -474,12 +474,6 @@ void UChaosClothAssetEditorMode::Exit()
 	}
 	SurfaceNormalDraw = nullptr;
 
-	if (DataflowComponent)
-	{
-		DataflowComponent->UnregisterComponent();
-		DataflowComponent->DestroyComponent();
-	}
-
 	PropertyObjectsToTick.Empty();
 	PreviewScene = nullptr;
 
@@ -1084,9 +1078,6 @@ void UChaosClothAssetEditorMode::InitializeTargets(const TArray<TObjectPtr<UObje
 	check(PreviewScene);
 
 	UBaseCharacterFXEditorMode::InitializeTargets(AssetsIn);
-
-	DataflowComponent = NewObject<UDataflowComponent>();
-	DataflowComponent->RegisterComponentWithWorld(PreviewScene->GetWorld());
 }
 
 void UChaosClothAssetEditorMode::SoftResetSimulation()
@@ -1198,11 +1189,6 @@ int32 UChaosClothAssetEditorMode::GetNumLODs() const
 		return PreviewScene->GetClothComponent()->GetNumLODs();
 	}
 	return 0;
-}
-
-UDataflowComponent* UChaosClothAssetEditorMode::GetDataflowComponent() const
-{
-	return DataflowComponent;
 }
 
 void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)

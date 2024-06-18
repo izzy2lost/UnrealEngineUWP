@@ -27,7 +27,6 @@ class UChaosClothComponent;
 class FEditorViewportClient;
 class FViewport;
 class UDataflow;
-class UDataflowComponent;
 class SDataflowGraphEditor;
 struct FManagedArrayCollection;
 
@@ -127,8 +126,6 @@ public:
 	bool IsLODModelSelected(int32 LODIndex) const;
 	int32 GetLODModel() const;
 	int32 GetNumLODs() const;
-
-	UDataflowComponent* GetDataflowComponent() const;
 
 	TObjectPtr<UEditorInteractiveToolsContext> GetActiveToolsContext()
 	{
@@ -308,9 +305,6 @@ private:
 	bool bShouldResetSimulation = false;
 	bool bHardReset = false;
 	bool bShouldClearTeleportFlag = false;
-
-	UPROPERTY()
-	TObjectPtr<UDataflowComponent> DataflowComponent = nullptr;
 
 	TWeakObjectPtr<UDataflow> DataflowGraph = nullptr;
 
