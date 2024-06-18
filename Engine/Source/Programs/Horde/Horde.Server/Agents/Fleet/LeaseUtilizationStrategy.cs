@@ -288,4 +288,33 @@ namespace Horde.Server.Agents.Fleet
 			return new string(values.Select(x => Greyscale[Math.Clamp((int)(x * Greyscale.Length), 0, Greyscale.Length - 1)]).ToArray());
 		}
 	}
+
+	/// <summary>
+	/// Factory for <see cref="LeaseUtilizationStrategy"/>
+	/// </summary>
+	public class LeaseUtilizationStrategyFactory : PoolSizeStrategyFactory<LeaseUtilizationSettings>
+	{
+		readonly AgentService _agentService;
+		readonly IPoolCollection _poolCollection;
+		readonly ILeaseCollection _leaseCollection;
+		readonly IClock _clock;
+		readonly IMemoryCache _memoryCache;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public LeaseUtilizationStrategyFactory(AgentService agentService, IPoolCollection poolCollection, ILeaseCollection leaseCollection, IClock clock, IMemoryCache memoryCache)
+			: base(PoolSizeStrategy.LeaseUtilization)
+		{
+			_agentService = agentService;
+			_poolCollection = poolCollection;
+			_leaseCollection = leaseCollection;
+			_clock = clock;
+			_memoryCache = memoryCache;
+		}
+
+		/// <inheritdoc/>
+		public override IPoolSizeStrategy Create(LeaseUtilizationSettings settings)
+			=> new LeaseUtilizationStrategy(_agentService, _poolCollection, _leaseCollection, _clock, _memoryCache, settings);
+	}
 }

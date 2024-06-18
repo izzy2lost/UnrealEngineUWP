@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
@@ -118,6 +120,57 @@ namespace Horde.Server.Agents.Fleet
 	}
 
 	/// <summary>
+	/// Factory for creating <see cref="IPoolSizeStrategy"/> instances
+	/// </summary>
+	public interface IPoolSizeStrategyFactory
+	{
+		/// <summary>
+		/// Strategy type
+		/// </summary>
+		PoolSizeStrategy Type { get; }
+
+		/// <summary>
+		/// Create a new <see cref="IPoolSizeStrategy"/> instance from the given configuration
+		/// </summary>
+		IPoolSizeStrategy Create(string config);
+	}
+
+	/// <summary>
+	/// Base implementation of <see cref="IPoolSizeStrategyFactory"/> which deserializes options into a concrete settings type
+	/// </summary>
+	public abstract class PoolSizeStrategyFactory<TConfig> : IPoolSizeStrategyFactory where TConfig : new()
+	{
+		/// <inheritdoc/>
+		public PoolSizeStrategy Type { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		protected PoolSizeStrategyFactory(PoolSizeStrategy type)
+			=> Type = type;
+
+		/// <inheritdoc/>
+		public IPoolSizeStrategy Create(string? config)
+			=> Create(DeserializeConfig<TConfig>(config));
+
+		/// <summary>
+		/// Creates a new strategy object from the given config
+		/// </summary>
+		public abstract IPoolSizeStrategy Create(TConfig config);
+
+		private static T DeserializeConfig<T>(string? json)
+		{
+			json = String.IsNullOrEmpty(json) ? "{}" : json;
+			T? config = JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+			if (config == null)
+			{
+				throw new ArgumentException("Unable to deserialize config: " + json);
+			}
+			return config;
+		}
+	}
+
+	/// <summary>
 	/// No-operation strategy that won't resize pools, just return the existing count.
 	/// Used to ensure there's always a strategy available for dependency injection, even if it does nothing.
 	/// </summary>
@@ -131,6 +184,14 @@ namespace Horde.Server.Agents.Fleet
 
 		/// <inheritdoc/>
 		public string Name { get; } = "NoOp";
+	}
+
+	class NoOpPoolSizeStrategyFactory : IPoolSizeStrategyFactory
+	{
+		public PoolSizeStrategy Type => PoolSizeStrategy.NoOp;
+
+		public IPoolSizeStrategy Create(string config)
+			=> new NoOpPoolSizeStrategy();
 	}
 
 	/// <summary>

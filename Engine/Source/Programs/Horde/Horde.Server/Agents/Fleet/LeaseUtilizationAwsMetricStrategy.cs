@@ -138,3 +138,30 @@ public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 	}
 }
 
+/// <summary>
+/// Factory for <see cref="LeaseUtilizationAwsMetricStrategy"/>
+/// </summary>
+public class LeaseUtilizationAwsMetricStrategyFactory : PoolSizeStrategyFactory<LeaseUtilizationAwsMetricSettings>
+{
+	readonly ILeaseCollection _leaseCollection;
+	readonly IAmazonCloudWatch _cloudWatch;
+	readonly IClock _clock;
+	readonly ILogger<LeaseUtilizationAwsMetricStrategy> _logger;
+
+	/// <summary>
+	/// Constructor
+	/// </summary>
+	public LeaseUtilizationAwsMetricStrategyFactory(ILeaseCollection leaseCollection, IAmazonCloudWatch cloudWatch, IClock clock, ILogger<LeaseUtilizationAwsMetricStrategy> logger)
+		: base(PoolSizeStrategy.LeaseUtilizationAwsMetric)
+	{
+		_leaseCollection = leaseCollection;
+		_cloudWatch = cloudWatch;
+		_clock = clock;
+		_logger = logger;
+	}
+
+	/// <inheritdoc/>
+	public override IPoolSizeStrategy Create(LeaseUtilizationAwsMetricSettings settings)
+		=> new LeaseUtilizationAwsMetricStrategy(_leaseCollection, _cloudWatch, settings, _clock, _logger);
+}
+

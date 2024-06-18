@@ -249,4 +249,30 @@ namespace Horde.Server.Agents.Fleet
 			}
 		}
 	}
+
+	class JobQueueStrategyFactory : PoolSizeStrategyFactory<JobQueueSettings>
+	{
+		readonly IGraphCollection _graphCollection;
+		readonly IJobCollection _jobCollection;
+		readonly IStreamCollection _streamCollection;
+		readonly IDowntimeService _downtimeService;
+		readonly IClock _clock;
+		readonly IMemoryCache _memoryCache;
+		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
+
+		public JobQueueStrategyFactory(IGraphCollection graphCollection, IJobCollection jobCollection, IStreamCollection streamCollection, IDowntimeService downtimeService, IClock clock, IMemoryCache memoryCache, IOptionsMonitor<GlobalConfig> globalConfig)
+			: base(PoolSizeStrategy.JobQueue)
+		{
+			_graphCollection = graphCollection;
+			_jobCollection = jobCollection;
+			_streamCollection = streamCollection;
+			_downtimeService = downtimeService;
+			_clock = clock;
+			_memoryCache = memoryCache;
+			_globalConfig = globalConfig;
+		}
+
+		public override IPoolSizeStrategy Create(JobQueueSettings settings)
+			=> new JobQueueStrategy(_jobCollection, _graphCollection, _streamCollection, _clock, _memoryCache, _downtimeService.IsDowntimeActive, _globalConfig, settings);
+	}
 }

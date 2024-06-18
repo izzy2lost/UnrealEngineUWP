@@ -157,4 +157,29 @@ namespace Horde.Server.Agents.Fleet
 			return new PoolSizeResult(numAgents, numAgents);
 		}
 	}
+
+	/// <summary>
+	/// Factory for <see cref="LeaseUtilizationStrategy"/>
+	/// </summary>
+	public class ComputeQueueAwsMetricStrategyFactory : PoolSizeStrategyFactory<ComputeQueueAwsMetricSettings>
+	{
+		readonly IAmazonCloudWatch _cloudWatch;
+		readonly ComputeTaskSource _computeTaskSource;
+		readonly ILogger<ComputeQueueAwsMetricStrategy> _logger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public ComputeQueueAwsMetricStrategyFactory(IAmazonCloudWatch cloudWatch, ComputeTaskSource computeTaskSource, ILogger<ComputeQueueAwsMetricStrategy> logger)
+			: base(PoolSizeStrategy.ComputeQueueAwsMetric)
+		{
+			_cloudWatch = cloudWatch;
+			_computeTaskSource = computeTaskSource;
+			_logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public override IPoolSizeStrategy Create(ComputeQueueAwsMetricSettings settings)
+			=> new ComputeQueueAwsMetricStrategy(_cloudWatch, _computeTaskSource, settings, _logger);
+	}
 }

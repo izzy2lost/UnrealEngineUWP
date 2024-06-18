@@ -5,21 +5,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
-using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
 using Horde.Server.Server;
-using Horde.Server.Streams;
 using Horde.Server.Utilities;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -65,23 +58,18 @@ namespace Horde.Server.Agents.Fleet
 		private const int MaxParallelTasks = 10;
 
 		private readonly AgentService _agentService;
-		private readonly IGraphCollection _graphCollection;
-		private readonly IJobCollection _jobCollection;
-		private readonly ILeaseCollection _leaseCollection;
 		private readonly IPoolCollection _poolCollection;
 		private readonly IDowntimeService _downtimeService;
-		private readonly IStreamCollection _streamCollection;
 		private readonly Meter _meter;
 		private readonly IFleetManagerFactory _fleetManagerFactory;
 		private readonly IClock _clock;
-		private readonly IMemoryCache _cache;
+		private readonly IEnumerable<IPoolSizeStrategyFactory> _poolSizeStrategyFactories;
 		private readonly ITicker _ticker;
 		private readonly ITicker _tickerHighFrequency;
 		private readonly TimeSpan _defaultScaleOutCooldown;
 		private readonly TimeSpan _defaultScaleInCooldown;
 		private readonly IOptions<ServerSettings> _settings;
 		private readonly IOptionsMonitor<GlobalConfig> _globalConfig;
-		private readonly IServiceProvider _provider;
 		private readonly Tracer _tracer;
 		private readonly ILogger<FleetService> _logger;
 
@@ -90,38 +78,28 @@ namespace Horde.Server.Agents.Fleet
 		/// </summary>
 		public FleetService(
 			AgentService agentService,
-			IGraphCollection graphCollection,
-			IJobCollection jobCollection,
-			ILeaseCollection leaseCollection,
 			IPoolCollection poolCollection,
 			IDowntimeService downtimeService,
-			IStreamCollection streamCollection,
 			Meter meter,
 			IFleetManagerFactory fleetManagerFactory,
 			IClock clock,
-			IMemoryCache cache,
+			IEnumerable<IPoolSizeStrategyFactory> poolSizeStrategyFactories,
 			IOptions<ServerSettings> settings,
 			IOptionsMonitor<GlobalConfig> globalConfig,
-			IServiceProvider provider,
 			Tracer tracer,
 			ILogger<FleetService> logger)
 		{
 			_agentService = agentService;
-			_graphCollection = graphCollection;
-			_jobCollection = jobCollection;
-			_leaseCollection = leaseCollection;
 			_poolCollection = poolCollection;
 			_downtimeService = downtimeService;
-			_streamCollection = streamCollection;
 			_meter = meter;
 			_fleetManagerFactory = fleetManagerFactory;
 			_clock = clock;
-			_cache = cache;
 			_globalConfig = globalConfig;
 			_tracer = tracer;
 			_logger = logger;
+			_poolSizeStrategyFactories = poolSizeStrategyFactories;
 			_settings = settings;
-			_provider = provider;
 			_defaultScaleOutCooldown = TimeSpan.FromSeconds(settings.Value.AgentPoolScaleOutCooldownSeconds);
 			_defaultScaleInCooldown = TimeSpan.FromSeconds(settings.Value.AgentPoolScaleInCooldownSeconds);
 
@@ -204,7 +182,7 @@ namespace Horde.Server.Agents.Fleet
 		{
 			List<IAgent> agents = (await _agentService.GetCachedAgentsAsync(cancellationToken))
 				.Where(x => x is { Status: AgentStatus.Ok, Enabled: true, RequestShutdown: false }).ToList();
-			
+
 			List<IAgent> GetAgentsInPool(PoolId poolId) => agents.FindAll(a => a.Pools.Any(p => p == poolId));
 			IReadOnlyList<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(cancellationToken);
 
@@ -389,43 +367,30 @@ namespace Horde.Server.Agents.Fleet
 				{
 					if (info.Condition == null || info.Condition.Evaluate(GetPropValues))
 					{
-						switch (info.Type)
+						IPoolSizeStrategyFactory? factory = _poolSizeStrategyFactories.FirstOrDefault(x => x.Type == info.Type);
+						if (factory == null)
 						{
-							case PoolSizeStrategy.JobQueue:
-								JobQueueSettings jqSettings = DeserializeConfig<JobQueueSettings>(info.Config);
-								JobQueueStrategy jqStrategy = new(_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _downtimeService.IsDowntimeActive, _globalConfig, jqSettings);
-								return info.ExtraAgentCount != 0 ? new ExtraAgentCountStrategy(jqStrategy, info.ExtraAgentCount) : jqStrategy;
-
-							case PoolSizeStrategy.LeaseUtilization:
-								LeaseUtilizationSettings luSettings = DeserializeConfig<LeaseUtilizationSettings>(info.Config);
-								LeaseUtilizationStrategy luStrategy = new(_agentService, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
-								return info.ExtraAgentCount != 0 ? new ExtraAgentCountStrategy(luStrategy, info.ExtraAgentCount) : luStrategy;
-
-							case PoolSizeStrategy.ComputeQueueAwsMetric:
-								ComputeQueueAwsMetricSettings cqamSettings = DeserializeConfig<ComputeQueueAwsMetricSettings>(info.Config);
-								return ActivatorUtilities.CreateInstance<ComputeQueueAwsMetricStrategy>(_provider, cqamSettings);
-
-							case PoolSizeStrategy.LeaseUtilizationAwsMetric:
-								LeaseUtilizationAwsMetricSettings luamSettings = DeserializeConfig<LeaseUtilizationAwsMetricSettings>(info.Config);
-								return ActivatorUtilities.CreateInstance<LeaseUtilizationAwsMetricStrategy>(_provider, luamSettings);
-
-							case PoolSizeStrategy.NoOp:
-								NoOpPoolSizeStrategy noStrategy = new();
-								return info.ExtraAgentCount != 0 ? new ExtraAgentCountStrategy(noStrategy, info.ExtraAgentCount) : noStrategy;
-
-							default:
-								throw new ArgumentException("Invalid pool size strategy type " + info.Type);
+							throw new ArgumentException("Invalid pool size strategy type " + info.Type);
 						}
+
+						IPoolSizeStrategy strategy = factory.Create(info.Config);
+						if (info.ExtraAgentCount != 0)
+						{
+							strategy = new ExtraAgentCountStrategy(strategy, info.ExtraAgentCount);
+						}
+
+						return strategy;
 					}
 				}
 			}
 
 			// These is the legacy way of creating and configuring strategies (list-based approach above is preferred)
 #pragma warning disable CS0618
+
 			switch (pool.SizeStrategy ?? _settings.Value.DefaultAgentPoolSizeStrategy)
 			{
 				case PoolSizeStrategy.JobQueue:
-					return new JobQueueStrategy(_jobCollection, _graphCollection, _streamCollection, _clock, _cache, _downtimeService.IsDowntimeActive, _globalConfig, pool.JobQueueSettings);
+					return _poolSizeStrategyFactories.OfType<PoolSizeStrategyFactory<JobQueueSettings>>().First().Create(pool.JobQueueSettings ?? new JobQueueSettings());
 				case PoolSizeStrategy.LeaseUtilization:
 					LeaseUtilizationSettings luSettings = new();
 					if (pool.MinAgents != null)
@@ -436,7 +401,7 @@ namespace Horde.Server.Agents.Fleet
 					{
 						luSettings.NumReserveAgents = pool.NumReserveAgents.Value;
 					}
-					return new LeaseUtilizationStrategy(_agentService, _poolCollection, _leaseCollection, _clock, _cache, luSettings);
+					return _poolSizeStrategyFactories.OfType<PoolSizeStrategyFactory<LeaseUtilizationSettings>>().First().Create(luSettings);
 				case PoolSizeStrategy.NoOp:
 					return new NoOpPoolSizeStrategy();
 				default:
@@ -461,7 +426,7 @@ namespace Horde.Server.Agents.Fleet
 				.Where(x => x is { Status: AgentStatus.Ok, Enabled: true })
 				.Where(x => x.Pools.Contains(pool.Id))
 				.ToList();
-			
+
 			int numShutdownsCancelled = 0;
 			foreach (IAgent agent in agents)
 			{
@@ -489,17 +454,6 @@ namespace Horde.Server.Agents.Fleet
 
 			ScaleResult result = await scaleOutFunc(agentsToAdd);
 			return new ScaleResult(result.Outcome, result.AgentsAddedCount + numShutdownsCancelled, result.AgentsRemovedCount, result.Message);
-		}
-
-		private static T DeserializeConfig<T>(string json)
-		{
-			json = String.IsNullOrEmpty(json) ? "{}" : json;
-			T? config = JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-			if (config == null)
-			{
-				throw new ArgumentException("Unable to deserialize config: " + json);
-			}
-			return config;
 		}
 	}
 }
