@@ -33,7 +33,10 @@ class nDisplayMonitor(QAbstractTableModel):
 
     # If false, the button to disable full screen optimizations is hidden
     # and periodic polling of the state of this feature is disabled.
-    use_exe_flags = True
+    show_disable_fso_btn = False
+
+    # Determines if GPU stats are regularly queried or not.
+    poll_gpu_stats = False
 
     def __init__(self, parent):
         QAbstractTableModel.__init__(self, parent)
@@ -69,12 +72,6 @@ class nDisplayMonitor(QAbstractTableModel):
             'InFocus':
                 'Whether nDisplay instance window is in focus. It is '
                 'recommended to be in focus.',
-            'ExeFlags':
-                'It is recommended to disable fullscreen optimizations in the\n'
-                'unreal executable because it has been associated with tearing.\n'
-                'Only available once the render node process is running. \n'
-                '(Expected value is "DISABLEDXMAXIMIZEDWINDOWEDMODE")',
-            'OsVer': 'Operating system version',
             'CpuUtilization':
                 'CPU utilization average. The number of overloaded cores (>'
                 f'{self.CORE_OVERLOAD_THRESH}% load) will be displayed in '
@@ -89,10 +86,13 @@ class nDisplayMonitor(QAbstractTableModel):
             'GpuTemperature':
                 'GPU temperature in degrees celsius. (Max across all '
                 'sensors.)',
+            'FSO':
+                'It is recommended to disable Full Screen Optimizations in the\n'
+                'unreal executable because it has been associated with tearing.\n'
+                'Only available once the render node process is running. \n'
+                '(Expected value is "no")',
+            'OsVer': 'Operating system version',
         }
-
-        if not self.use_exe_flags:
-            HEADER_DATA.pop('ExeFlags')
 
         self.colnames = list(HEADER_DATA.keys())
         self.tooltips = list(HEADER_DATA.values())
@@ -125,8 +125,8 @@ class nDisplayMonitor(QAbstractTableModel):
             is_good = (not is_program_running) or ('yes' in value)
             return self.COLOR_NORMAL if is_good else self.COLOR_WARNING
 
-        if colname == 'ExeFlags':
-            is_good = (not is_program_running) or ('DISABLEDXMAXIMIZEDWINDOWEDMODE' in value)
+        if colname == 'FSO':
+            is_good = (not is_program_running) or ('no' in value)
             return self.COLOR_NORMAL if is_good else self.COLOR_WARNING
 
         if colname == 'Displays':
@@ -336,8 +336,10 @@ class nDisplayMonitor(QAbstractTableModel):
         request_flags &= ~SyncStatusRequestFlags.MosaicTopos
         request_flags &= ~SyncStatusRequestFlags.DriverInfo
 
-        if not self.use_exe_flags:
-            request_flags &= ~SyncStatusRequestFlags.ProgramLayers
+        if not self.poll_gpu_stats:
+            request_flags &= ~SyncStatusRequestFlags.GpuCoreClockKhz
+            request_flags &= ~SyncStatusRequestFlags.GpuTemperature
+            request_flags &= ~SyncStatusRequestFlags.GpuUtilization
 
         self.poll_sync_status(request_flags)
 
@@ -501,8 +503,13 @@ class nDisplayMonitor(QAbstractTableModel):
 
         # Show Exe flags (like Disable Fullscreen Optimization)
         if SyncStatusRequestFlags.ProgramLayers in request_flags:
-            data['ExeFlags'] = '\n'.join([
-                layer for layer in sync_status['programLayers'][1:]])
+            layers = '\n'.join([layer for layer in sync_status['programLayers'][1:]])
+            if 'DISABLEDXMAXIMIZEDWINDOWEDMODE' in layers:
+                data['FSO'] = 'no'
+            elif len(device.program_start_queue.running_programs_named('unreal')):
+                data['FSO'] = 'yes'
+            else:
+                data['FSO'] = 'n/a'
 
         # Driver version
         if SyncStatusRequestFlags.DriverInfo in request_flags:
@@ -540,7 +547,7 @@ class nDisplayMonitor(QAbstractTableModel):
             except (KeyError, ValueError):
                 data['CpuUtilization'] = self.DATA_MISSING
 
-        # Memory utilization
+        # Host memory utilization
         if SyncStatusRequestFlags.AvailablePhysicalMemory in request_flags:
             try:
                 gb = 1024 * 1024 * 1024
@@ -552,33 +559,40 @@ class nDisplayMonitor(QAbstractTableModel):
             except TypeError:
                 data['MemUtilization'] = self.DATA_MISSING
 
-        # GPU utilization + clocks
-        if (SyncStatusRequestFlags.GpuUtilization | SyncStatusRequestFlags.GpuCoreClockKhz) in request_flags:
-            try:
-                gpu_stats = list(map(
-                    lambda x: f"#{x[0]}: {x[1]:.0f}% ({x[2] / 1000:.0f} MHz)",
-                    zip(count(), sync_status['gpuUtilization'],
-                        sync_status['gpuCoreClocksKhz'])))
+        if self.poll_gpu_stats:
 
-                if len(gpu_stats) > 0:
-                    data['GpuUtilization'] = '\n'.join(gpu_stats)
-                else:
+            # GPU utilization + clocks
+            if (SyncStatusRequestFlags.GpuUtilization | SyncStatusRequestFlags.GpuCoreClockKhz) in request_flags:
+                try:
+                    gpu_stats = list(map(
+                        lambda x: f"#{x[0]}: {x[1]:.0f}% ({x[2] / 1000:.0f} MHz)",
+                        zip(count(), sync_status['gpuUtilization'],
+                            sync_status['gpuCoreClocksKhz'])))
+
+                    if len(gpu_stats) > 0:
+                        data['GpuUtilization'] = '\n'.join(gpu_stats)
+                    else:
+                        data['GpuUtilization'] = self.DATA_MISSING
+                except (KeyError, TypeError):
                     data['GpuUtilization'] = self.DATA_MISSING
-            except (KeyError, TypeError):
-                data['GpuUtilization'] = self.DATA_MISSING
 
-        # GPU temperature
-        if SyncStatusRequestFlags.GpuTemperature in request_flags:
-            try:
-                temps = [t if t != -2147483648 else self.DATA_MISSING for t in sync_status['gpuTemperature']]
+            # GPU temperature
+            if SyncStatusRequestFlags.GpuTemperature in request_flags:
+                try:
+                    temps = [t if t != -2147483648 else self.DATA_MISSING for t in sync_status['gpuTemperature']]
 
-                if len(temps) > 0:
-                    data['GpuTemperature'] = '\n'.join(
-                        map(lambda x: f"#{x[0]}: {x[1]}° C", zip(count(), temps)))
-                else:
+                    if len(temps) > 0:
+                        data['GpuTemperature'] = '\n'.join(
+                            map(lambda x: f"#{x[0]}: {x[1]}° C", zip(count(), temps)))
+                    else:
+                        data['GpuTemperature'] = self.DATA_MISSING
+                except (KeyError, TypeError):
                     data['GpuTemperature'] = self.DATA_MISSING
-            except (KeyError, TypeError):
-                data['GpuTemperature'] = self.DATA_MISSING
+        else:
+            # If we're generally not polling stats, show n/a as to not be misleading
+            # since it is such a volatile metric.
+            data['GpuTemperature'] = 'n/a'
+            data['GpuUtilization'] = 'n/a'
 
     def on_get_sync_status(self, device, message):
         '''
@@ -741,16 +755,15 @@ class nDisplayMonitor(QAbstractTableModel):
         self.poll_sync_status(SyncStatusRequestFlags.all())
 
     @QtCore.Slot()
-    def on_fix_exe_flags_clicked(self):
+    def on_disable_fso_clicked(self):
         ''' Tries to force the correct UnrealEditor.exe flags '''
         for devicedata in self.devicedatas.values():
             device = devicedata['device']
             data = devicedata['data']
 
-            good_string = 'DISABLEDXMAXIMIZEDWINDOWEDMODE'
-
-            if good_string not in data['ExeFlags']:
-                device.fix_exe_flags()
+            # Generally, want FSO to be disabled.
+            if data['FSO'] != 'no':
+                device.disable_fso()
 
     @QtCore.Slot()
     def on_soft_kill_clicked(self):
@@ -770,3 +783,11 @@ class nDisplayMonitor(QAbstractTableModel):
         for devicedata in self.devicedatas.values():
             device = devicedata['device']
             device.minimize_windows()
+
+    @QtCore.Slot()
+    def on_gpu_stats_toggled(self, state: int):
+        ''' Called when the GPU Stats checkbox is toggled. We update the state variable accordingly. '''
+        if state == Qt.Checked.value:
+            self.poll_gpu_stats = True
+        else:
+            self.poll_gpu_stats = False

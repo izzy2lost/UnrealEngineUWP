@@ -20,6 +20,7 @@
 #include "GenericPlatform/GenericPlatformProcess.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
+#include "HAL/PlatformTime.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "IPAddress.h"
 #include "Logging/StructuredLog.h"
@@ -28,12 +29,10 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
+
 #include <atomic>
 
-
 #if PLATFORM_WINDOWS
-
-#include "GpuClocker.h"
 
 #pragma warning(push)
 #pragma warning(disable : 4005)	// Disable macro redefinition warning for compatibility with Windows SDK 8+
@@ -42,12 +41,11 @@
 #include <Windows.h>
 #include <WinUser.h>
 #include <shellapi.h>
-#include "nvapi.h"
 #include "Windows/HideWindowsPlatformTypes.h"
 
-#pragma warning(pop)
+#include "ScopedNvApi.h"
 
-static void FillOutMosaicTopologies(TArray<FMosaicTopo>& MosaicTopos);
+#pragma warning(pop)
 
 #endif
 
@@ -160,6 +158,85 @@ namespace
 		}
 		return TEXT("Unknown MsQuic error.");
 	}
+
+#if PLATFORM_WINDOWS
+
+	/** 
+	 * Manages an instance of FScopedNvApi to keep the library initialized until it doesn't get used for a while.
+	 * The objective is to work around an issue where NvApi can sometimes cause hitches after it has been initialized for 
+	 * around 12 hours. If the client is disconnected or is not requesting data that requires NvApi, then this
+	 * object will not keep an instance of FScopedNvApi so that the libary can be uninitialized. But if it is being
+	 * actively used, then it will keep this object alive and hence the library initialized for normal usage.
+	 */
+	class FWorkaroundForHitchingAfterHours
+	{
+	private:
+
+		FWorkaroundForHitchingAfterHours()
+		{
+			FScopedNvApi::GetOnNvApiInstantiated().AddRaw(this, &FWorkaroundForHitchingAfterHours::OnNvApiInstantiated);
+		}
+
+		~FWorkaroundForHitchingAfterHours()
+		{
+			FScopedNvApi::GetOnNvApiInstantiated().RemoveAll(this);
+		}
+
+		/** Called when a new insance of FScopedNvApi is created. This will signal that it is being used elsewhere. */
+		void OnNvApiInstantiated()
+		{
+			LastTimeInstantiatedSeconds = FPlatformTime::Seconds();
+			bNvApiInstanceNeeded = true;
+		}
+
+	public:
+
+		/** Singleton getter. We only want one instance of this workaround class. */
+		static FWorkaroundForHitchingAfterHours& Get()
+		{
+			static FWorkaroundForHitchingAfterHours Instance;
+			return Instance;
+		}
+
+		/** Call this periodically in the main thread to update the internal instance of FScopedNvApi */
+		void Tick()
+		{
+			if (bNvApiInstanceNeeded)
+			{
+				if (!ScopedNvApi.IsValid())
+				{
+					ScopedNvApi = MakeShared<FScopedNvApi>();
+				}
+
+				bNvApiInstanceNeeded = false;
+			}
+			else if (ScopedNvApi.IsValid())
+			{
+				const double NowSeconds = FPlatformTime::Seconds();
+				const double ElapsedSeconds = NowSeconds - LastTimeInstantiatedSeconds;
+
+				if (ElapsedSeconds > NvApiUsageTimeoutMinutes * 60)
+				{
+					ScopedNvApi.Reset();
+				}
+			}
+		}
+
+	private:
+
+		/** No new instancing of FScopedNvApi for this time will trigger a reset of the local instance kept by this object */
+		const double NvApiUsageTimeoutMinutes = 10;
+
+		/** Signals a request of creating a new instance of FScopedNvApi */
+		std::atomic<bool> bNvApiInstanceNeeded = false;
+
+		/** A record of the last time that an instance of FScopedNvApi was created. Use to detect usage timeouts. */
+		std::atomic<double> LastTimeInstantiatedSeconds = 0;
+
+		/** The instance of ScopedNvApi that will be kept alive until a timout of lack of usage of the library */
+		TSharedPtr<FScopedNvApi> ScopedNvApi;
+	};
+#endif // PLATFORM_WINDOWS
 }
 
 struct FRunningProcess
@@ -290,98 +367,6 @@ FString FSwitchboardCommandLineOptions::ToString(bool bIncludeRedeploy /* = fals
 }
 
 
-#if PLATFORM_WINDOWS
-/** Used to limit NvApi loading to the current scope (recursive allowed) and thread. */
-class FScopedNvApi
-{
-private:
-
-	/** Global recursive lock for NvApi usage */
-	static UE::FRecursiveMutex NvApiLock;
-
-	/** Keeps track of failed unloads. Useful to recover from potential NvApi unloading errors */
-	static std::atomic<int32> OwedUnloads;
-
-	/** Used to repeatedly show NvAPI initialization errors. Once is enough. */
-	static bool bErrorLoggedOnce;
-
-	/** True if the NvAPI was initialized */
-	bool bIsNvApiInitialized;
-
-public:
-	FScopedNvApi()
-		: bIsNvApiInitialized(false)
-	{
-		NvApiLock.Lock(); // Unlocked at the end of the destructor
-
-		// Initialize NvAPI.
-
-		if (OwedUnloads)
-		{
-			OwedUnloads--;
-			bIsNvApiInitialized = true; // If it isn't true, the calls to the api will simply fail.
-		}
-		else
-		{
-			const NvAPI_Status Result = NvAPI_Initialize();
-
-			if (Result == NVAPI_OK)
-			{
-				bIsNvApiInitialized = true;
-			}
-			else if (!bErrorLoggedOnce)
-			{
-				bErrorLoggedOnce = false;
-
-				NvAPI_ShortString ErrorString;
-				NvAPI_GetErrorMessage(Result, ErrorString);
-				UE_LOG(LogSwitchboard, Error, TEXT("NvAPI_Initialize failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-			}
-		}
-	}
-
-	~FScopedNvApi()
-	{
-		// Only unload NvApi if it was initialized
-		if (bIsNvApiInitialized)
-		{
-			const NvAPI_Status Result = NvAPI_Unload();
-
-			if (Result == NVAPI_OK)
-			{
-				bIsNvApiInitialized = false;
-			}
-			else
-			{
-				// This would be an unexpected event because the lock prevents concurrent usage of the library.
-				// We try to compensate by not loading next time.
-
-				OwedUnloads++;
-
-				NvAPI_ShortString ErrorString;
-				NvAPI_GetErrorMessage(Result, ErrorString);
-				UE_LOG(LogSwitchboard, Error, TEXT("NvAPI_Unload unexpectedly failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-			}
-		}
-
-		NvApiLock.Unlock();
-	}
-
-	/** Returns true if the NvAPI was initialized successfully */
-	bool IsNvApiInitialized()
-	{
-		return bIsNvApiInitialized;
-	}
-};
-
-// Initialize static member variables
-bool FScopedNvApi::bErrorLoggedOnce = false;
-std::atomic<int32> FScopedNvApi::OwedUnloads = 0;
-UE::FRecursiveMutex FScopedNvApi::NvApiLock;
-
-#endif // PLATFORM_WINDOWS
-
-
 FSwitchboardListener::FSwitchboardListener(const FSwitchboardCommandLineOptions& InOptions)
 	: Options(InOptions)
 	, CpuMonitor(MakeShared<FCpuUtilizationMonitor>())
@@ -391,7 +376,8 @@ FSwitchboardListener::FSwitchboardListener(const FSwitchboardCommandLineOptions&
 {
 #if PLATFORM_WINDOWS
 	// Cache Mosaic Topologies
-	FillOutMosaicTopologies(*CachedMosaicTopos);
+	FScopedNvApi NvApi;
+	NvApi.FillOutMosaicTopologies(*CachedMosaicTopos);
 #endif // PLATFORM_WINDOWS
 
 	const int32 NumLogicalProcessors = FPlatformMisc::NumberOfCoresIncludingHyperthreads();
@@ -634,6 +620,10 @@ void FSwitchboardListener::Tick()
 	HandleRunningProcesses(FlipModeMonitors, false);
 	SendMessageFutures();
 	SBLHelper->Tick();
+
+#if PLATFORM_WINDOWS
+	FWorkaroundForHitchingAfterHours::Get().Tick();
+#endif // PLATFORM_WINDOWS
 
 	OnTickDelegate.Broadcast();
 }
@@ -1901,220 +1891,6 @@ stream_receive_outer_break:
 
 
 #if PLATFORM_WINDOWS
-static void FillOutSyncTopologies(TArray<FSyncTopo>& SyncTopos)
-{
-	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutSyncTopologies);
-
-	FScopedNvApi ScopedNvApi;
-
-	if (!ScopedNvApi.IsNvApiInitialized())
-	{
-		return;
-	}
-
-	// Normally there is a single sync card. BUT an RTX Server could have more, and we need to account for that.
-
-	// Detect sync cards
-
-	NvU32 GSyncCount = 0;
-	NvGSyncDeviceHandle GSyncHandles[NVAPI_MAX_GSYNC_DEVICES];
-	NvAPI_GSync_EnumSyncDevices(GSyncHandles, &GSyncCount); // GSyncCount will be zero if error, so no need to check error.
-
-	for (NvU32 GSyncIdx = 0; GSyncIdx < GSyncCount; GSyncIdx++)
-	{
-		NvU32 GSyncGPUCount = 0;
-		NvU32 GSyncDisplayCount = 0;
-
-		// gather info first with null data pointers, just to get the count and subsequently allocate necessary memory.
-		{
-			const NvAPI_Status Result = NvAPI_GSync_GetTopology(GSyncHandles[GSyncIdx], &GSyncGPUCount, nullptr, &GSyncDisplayCount, nullptr);
-
-			if (Result != NVAPI_OK)
-			{
-				NvAPI_ShortString ErrorString;
-				NvAPI_GetErrorMessage(Result, ErrorString);
-				UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GSync_GetTopology failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-				continue;
-			}
-		}
-
-		// allocate memory for data
-		TArray<NV_GSYNC_GPU> GSyncGPUs;
-		TArray<NV_GSYNC_DISPLAY> GSyncDisplays;
-		{
-			GSyncGPUs.SetNumUninitialized(GSyncGPUCount, EAllowShrinking::No);
-
-			for (NvU32 GSyncGPUIdx = 0; GSyncGPUIdx < GSyncGPUCount; GSyncGPUIdx++)
-			{
-				GSyncGPUs[GSyncGPUIdx].version = NV_GSYNC_GPU_VER;
-			}
-
-			GSyncDisplays.SetNumUninitialized(GSyncDisplayCount, EAllowShrinking::No);
-
-			for (NvU32 GSyncDisplayIdx = 0; GSyncDisplayIdx < GSyncDisplayCount; GSyncDisplayIdx++)
-			{
-				GSyncDisplays[GSyncDisplayIdx].version = NV_GSYNC_DISPLAY_VER;
-			}
-		}
-
-		// get real info
-		{
-			const NvAPI_Status Result = NvAPI_GSync_GetTopology(GSyncHandles[GSyncIdx], &GSyncGPUCount, GSyncGPUs.GetData(), &GSyncDisplayCount, GSyncDisplays.GetData());
-
-			if (Result != NVAPI_OK)
-			{
-				NvAPI_ShortString ErrorString;
-				NvAPI_GetErrorMessage(Result, ErrorString);
-				UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GSync_GetTopology failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-				continue;
-			}
-		}
-
-		// Build outbound structure
-
-		FSyncTopo SyncTopo;
-
-		for (NvU32 GpuIdx = 0; GpuIdx < GSyncGPUCount; GpuIdx++)
-		{
-			FSyncGpu SyncGpu;
-
-			SyncGpu.bIsSynced = GSyncGPUs[GpuIdx].isSynced;
-			SyncGpu.Connector = int32(GSyncGPUs[GpuIdx].connector);
-
-			SyncTopo.SyncGpus.Emplace(SyncGpu);
-		}
-
-		for (NvU32 DisplayIdx = 0; DisplayIdx < GSyncDisplayCount; DisplayIdx++)
-		{
-			FSyncDisplay SyncDisplay;
-
-			switch (GSyncDisplays[DisplayIdx].syncState)
-			{
-			case NVAPI_GSYNC_DISPLAY_SYNC_STATE_UNSYNCED:
-				SyncDisplay.SyncState = TEXT("Unsynced");
-				break;
-			case NVAPI_GSYNC_DISPLAY_SYNC_STATE_SLAVE:
-				SyncDisplay.SyncState = TEXT("Follower");
-				break;
-			case NVAPI_GSYNC_DISPLAY_SYNC_STATE_MASTER:
-				SyncDisplay.SyncState = TEXT("Leader");
-				break;
-			default:
-				SyncDisplay.SyncState = TEXT("Unknown");
-				break;
-			}
-
-			// get color information for each display
-			{
-				NV_COLOR_DATA ColorData;
-
-				ColorData.version = NV_COLOR_DATA_VER;
-				ColorData.cmd = NV_COLOR_CMD_GET;
-				ColorData.size = sizeof(NV_COLOR_DATA);
-
-				const NvAPI_Status Result = NvAPI_Disp_ColorControl(GSyncDisplays[DisplayIdx].displayId, &ColorData);
-
-				if (Result == NVAPI_OK)
-				{
-					SyncDisplay.Bpc = ColorData.data.bpc;
-					SyncDisplay.Depth = ColorData.data.depth;
-					SyncDisplay.ColorFormat = ColorData.data.colorFormat;
-				}
-			}
-
-			SyncTopo.SyncDisplays.Emplace(SyncDisplay);
-		}
-
-		// Sync Status Parameters
-		{
-			NV_GSYNC_STATUS_PARAMS GSyncStatusParams;
-			GSyncStatusParams.version = NV_GSYNC_STATUS_PARAMS_VER;
-
-			const NvAPI_Status Result = NvAPI_GSync_GetStatusParameters(GSyncHandles[GSyncIdx], &GSyncStatusParams);
-
-			if (Result != NVAPI_OK)
-			{
-				NvAPI_ShortString ErrorString;
-				NvAPI_GetErrorMessage(Result, ErrorString);
-				UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GSync_GetStatusParameters failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-				continue;
-			}
-
-			SyncTopo.SyncStatusParams.RefreshRate = GSyncStatusParams.refreshRate;
-			SyncTopo.SyncStatusParams.HouseSyncIncoming = GSyncStatusParams.houseSyncIncoming;
-			SyncTopo.SyncStatusParams.bHouseSync = !!GSyncStatusParams.bHouseSync;
-			SyncTopo.SyncStatusParams.bInternalSecondary = GSyncStatusParams.bInternalSlave;
-		}
-
-		// Sync Control Parameters
-		{
-			NV_GSYNC_CONTROL_PARAMS GSyncControlParams;
-			GSyncControlParams.version = NV_GSYNC_CONTROL_PARAMS_VER;
-
-			const NvAPI_Status Result = NvAPI_GSync_GetControlParameters(GSyncHandles[GSyncIdx], &GSyncControlParams);
-
-			if (Result != NVAPI_OK)
-			{
-				NvAPI_ShortString ErrorString;
-				NvAPI_GetErrorMessage(Result, ErrorString);
-				UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_GSync_GetControlParameters failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-				continue;
-			}
-
-			SyncTopo.SyncControlParams.bInterlaced = !!GSyncControlParams.interlaceMode;
-			SyncTopo.SyncControlParams.bSyncSourceIsOutput = !!GSyncControlParams.syncSourceIsOutput;
-			SyncTopo.SyncControlParams.Interval = GSyncControlParams.interval;
-			SyncTopo.SyncControlParams.Polarity = GSyncControlParams.polarity;
-			SyncTopo.SyncControlParams.Source = GSyncControlParams.source;
-			SyncTopo.SyncControlParams.VMode = GSyncControlParams.vmode;
-
-			SyncTopo.SyncControlParams.SyncSkew.MaxLines = GSyncControlParams.syncSkew.maxLines;
-			SyncTopo.SyncControlParams.SyncSkew.MinPixels = GSyncControlParams.syncSkew.minPixels;
-			SyncTopo.SyncControlParams.SyncSkew.NumLines = GSyncControlParams.syncSkew.numLines;
-			SyncTopo.SyncControlParams.SyncSkew.NumPixels = GSyncControlParams.syncSkew.numPixels;
-
-			SyncTopo.SyncControlParams.StartupDelay.MaxLines = GSyncControlParams.startupDelay.maxLines;
-			SyncTopo.SyncControlParams.StartupDelay.MinPixels = GSyncControlParams.startupDelay.minPixels;
-			SyncTopo.SyncControlParams.StartupDelay.NumLines = GSyncControlParams.startupDelay.numLines;
-			SyncTopo.SyncControlParams.StartupDelay.NumPixels = GSyncControlParams.startupDelay.numPixels;
-		}
-
-		SyncTopos.Emplace(SyncTopo);
-	}
-}
-#endif // PLATFORM_WINDOWS
-
-#if PLATFORM_WINDOWS
-static void FillOutDriverVersion(FSyncStatus& SyncStatus)
-{
-	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutDriverVersion);
-
-	FScopedNvApi ScopedNvApi;
-
-	if (!ScopedNvApi.IsNvApiInitialized())
-	{
-		return;
-	}
-
-	NvU32 DriverVersion;
-	NvAPI_ShortString BuildBranchString;
-
-	const NvAPI_Status Result = NvAPI_SYS_GetDriverAndBranchVersion(&DriverVersion, BuildBranchString);
-
-	if (Result != NVAPI_OK)
-	{
-		NvAPI_ShortString ErrorString;
-		NvAPI_GetErrorMessage(Result, ErrorString);
-		UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_SYS_GetDriverAndBranchVersion failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-		return;
-	}
-
-	SyncStatus.DriverVersion = DriverVersion;
-	SyncStatus.DriverBranch = UTF8_TO_TCHAR(BuildBranchString);
-}
-#endif // PLATFORM_WINDOWS
-
-#if PLATFORM_WINDOWS
 static void FillOutTaskbarAutoHide(FSyncStatus& SyncStatus)
 {
 	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutTaskbarAutoHide);
@@ -2137,73 +1913,6 @@ static void FillOutTaskbarAutoHide(FSyncStatus& SyncStatus)
 }
 #endif // PLATFORM_WINDOWS
 
-
-#if PLATFORM_WINDOWS
-static void FillOutMosaicTopologies(TArray<FMosaicTopo>& MosaicTopos)
-{
-	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutMosaicTopologies);
-
-	FScopedNvApi ScopedNvApi;
-
-	if (!ScopedNvApi.IsNvApiInitialized())
-	{
-		return;
-	}
-
-	NvU32 GridCount = 0;
-	TArray<NV_MOSAIC_GRID_TOPO> GridTopologies;
-
-	// count how many grids
-	{
-		const NvAPI_Status Result = NvAPI_Mosaic_EnumDisplayGrids(nullptr, &GridCount);
-
-		if (Result != NVAPI_OK)
-		{
-			NvAPI_ShortString ErrorString;
-			NvAPI_GetErrorMessage(Result, ErrorString);
-			UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_Mosaic_EnumDisplayGrids failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-			return;
-		}
-	}
-
-	// get the grids
-	{
-		GridTopologies.SetNumUninitialized(GridCount, EAllowShrinking::No);
-
-		for (NvU32 TopoIdx = 0; TopoIdx < GridCount; TopoIdx++)
-		{
-			GridTopologies[TopoIdx].version = NV_MOSAIC_GRID_TOPO_VER;
-		}
-
-		const NvAPI_Status Result = NvAPI_Mosaic_EnumDisplayGrids(GridTopologies.GetData(), &GridCount);
-
-		if (Result != NVAPI_OK)
-		{
-			NvAPI_ShortString ErrorString;
-			NvAPI_GetErrorMessage(Result, ErrorString);
-			UE_LOG(LogSwitchboard, Warning, TEXT("NvAPI_Mosaic_EnumDisplayGrids failed. Error: %s"), ANSI_TO_TCHAR(ErrorString));
-			return;
-		}
-
-		for (NvU32 TopoIdx = 0; TopoIdx < GridCount; TopoIdx++)
-		{
-			FMosaicTopo MosaicTopo;
-			NV_MOSAIC_GRID_TOPO& GridTopo = GridTopologies[TopoIdx];
-
-			MosaicTopo.Columns = GridTopo.columns;
-			MosaicTopo.Rows = GridTopo.rows;
-			MosaicTopo.DisplayCount = GridTopo.displayCount;
-
-			MosaicTopo.DisplaySettings.Bpp = GridTopo.displaySettings.bpp;
-			MosaicTopo.DisplaySettings.Freq = GridTopo.displaySettings.freq;
-			MosaicTopo.DisplaySettings.Height = GridTopo.displaySettings.height;
-			MosaicTopo.DisplaySettings.Width = GridTopo.displaySettings.width;
-
-			MosaicTopos.Emplace(MosaicTopo);
-		}
-	}
-}
-#endif // PLATFORM_WINDOWS
 
 #if PLATFORM_WINDOWS
 FRunningProcess* FSwitchboardListener::FindOrStartFlipModeMonitorForUUID(const FGuid& UUID)
@@ -2406,69 +2115,6 @@ static void FillOutDisableFullscreenOptimizationForProcess(FSyncStatus& SyncStat
 }
 #endif // PLATFORM_WINDOWS
 
-#if PLATFORM_WINDOWS
-static void FillOutPhysicalGpuStats(FSyncStatus& SyncStatus, bool bGetUtilizations, bool bGetClocks, bool bGetTemperatures)
-{
-	SWITCHBOARD_TRACE_CPUPROFILER_EVENT_SCOPE(FillOutPhysicalGpuStats);
-
-	if (!bGetUtilizations && !bGetClocks && !bGetTemperatures)
-	{
-		return;
-	}
-
-	FGpuClocker GpuClocker;
-
-	uint32 GpuCount;
-
-	if (!GpuClocker.GetGpuCount(GpuCount))
-	{
-		return;
-	}
-
-	SyncStatus.GpuUtilization.SetNumUninitialized(GpuCount);
-	SyncStatus.GpuCoreClocksKhz.SetNumUninitialized(GpuCount);
-	SyncStatus.GpuTemperature.SetNumUninitialized(GpuCount);
-
-	for (uint32 GpuIdx = 0; GpuIdx < GpuCount; ++GpuIdx)
-	{
-		SyncStatus.GpuUtilization[GpuIdx] = -1;
-		SyncStatus.GpuCoreClocksKhz[GpuIdx] = -1;
-		SyncStatus.GpuTemperature[GpuIdx] = MIN_int32;
-
-		if (bGetUtilizations)
-		{
-			uint32 UsageKernel;
-			uint32 UsageMemory;
-
-			if (GpuClocker.GetGpuUsage(GpuIdx, UsageKernel, UsageMemory))
-			{
-				SyncStatus.GpuUtilization[GpuIdx] = static_cast<int8>(UsageKernel);
-			}
-		}
-
-		if (bGetClocks)
-		{
-			uint32 GraphicsMHz;
-			uint32 MemoryMHz;
-
-			if (GpuClocker.GetGpuMHz(GpuIdx, GraphicsMHz, MemoryMHz))
-			{
-				SyncStatus.GpuCoreClocksKhz[GpuIdx] = GraphicsMHz * 1000;
-			}
-		}
-
-		if (bGetTemperatures)
-		{
-			uint32 Celsius;
-
-			if (GpuClocker.GetGpuCelsius(GpuIdx, Celsius))
-			{
-				SyncStatus.GpuTemperature[GpuIdx] = static_cast<int32>(Celsius);
-			}
-		}
-	}
-}
-#endif
 
 bool FSwitchboardListener::EquivalentTaskFutureExists(uint32 TaskEquivalenceHash) const
 {
@@ -2547,12 +2193,12 @@ bool FSwitchboardListener::Task_GetSyncStatus(const FSwitchboardGetSyncStatusTas
 
 				if (EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::DriverInfo))
 				{
-					FillOutDriverVersion(SyncStatus.Get());
+					ScopedNvApi.FillOutDriverVersion(SyncStatus.Get());
 				}
 
 				if (EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::SyncTopos))
 				{
-					FillOutSyncTopologies(SyncStatus->SyncTopos);
+					ScopedNvApi.FillOutSyncTopologies(SyncStatus->SyncTopos);
 				}
 			}
 
@@ -2589,7 +2235,11 @@ bool FSwitchboardListener::Task_GetSyncStatus(const FSwitchboardGetSyncStatusTas
 				const bool bGetClocks = EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::GpuCoreClockKhz);
 				const bool bGetTemperatures = EnumHasAnyFlags(RequestFlags, ESyncStatusRequestFlags::GpuTemperature);
 
-				FillOutPhysicalGpuStats(SyncStatus.Get(), bGetUtilizations, bGetClocks, bGetTemperatures);
+				if (bGetUtilizations || bGetClocks || bGetTemperatures)
+				{
+					FScopedNvApi ScopedNvApi;
+					ScopedNvApi.FillOutPhysicalGpuStats(SyncStatus.Get(), bGetUtilizations, bGetClocks, bGetTemperatures);
+				}
 			}
 
 			return CreateSyncStatusMessage(SyncStatus.Get(), RequestFlags);
@@ -2647,7 +2297,9 @@ bool FSwitchboardListener::Task_RefreshMosaics(const FSwitchboardRefreshMosaicsT
 
 			FWriteScopeLock Lock(*CachedMosaicToposLock);
 			CachedMosaicTopos->Reset();
-			FillOutMosaicTopologies(*CachedMosaicTopos);
+
+			FScopedNvApi ScopedNvApi;
+			ScopedNvApi.FillOutMosaicTopologies(*CachedMosaicTopos);
 			
 			return FString();
 		}

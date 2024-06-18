@@ -969,6 +969,8 @@ class DeviceUnreal(Device):
             super().connecting_listener, QtCore.Qt.QueuedConnection)
         listener_qt_handler.listener_connected.connect(
             super().connect_listener, QtCore.Qt.QueuedConnection)
+        listener_qt_handler.listener_connected.connect(
+            self._on_listener_connected, QtCore.Qt.QueuedConnection)
         listener_qt_handler.listener_connection_failed.connect(
             self._on_listener_connection_failed, QtCore.Qt.QueuedConnection)
 
@@ -1136,6 +1138,10 @@ class DeviceUnreal(Device):
         if len(DeviceUnreal.active_unreal_devices) == 0:
             if DeviceUnreal.rsync_server.is_running():
                 DeviceUnreal.rsync_server.shutdown()
+
+    @QtCore.Slot()
+    def _on_listener_connected(self):
+        pass
 
     @QtCore.Slot()
     def _on_about_to_quit(self):
@@ -1801,8 +1807,8 @@ class DeviceUnreal(Device):
         else:
             self.status = DeviceStatus.CLOSING
 
-    def fix_exe_flags(self):
-        ''' Tries to force the correct UnrealEditor.exe flags '''
+    def disable_fso(self):
+        ''' Tries to disable Full Screen Optimizations on the remote UnrealEditor.exe executable '''
         unreals = self.program_start_queue.running_programs_named('unreal')
 
         if not len(unreals):

@@ -1727,7 +1727,15 @@ class DevicenDisplay(DeviceUnreal):
     # ~ Begin DeviceUnreal Interface
     @QtCore.Slot()
     def _on_listener_connected(self):
+        super()._on_listener_connected()
         if self.__class__.ndisplay_monitor:
             # Poll the sync status to get an immediate update on its state
             self.__class__.ndisplay_monitor.poll_sync_status_for_device(self, SyncStatusRequestFlags.all())
+
+    def on_unreal_started(self):
+        super().on_unreal_started()
+
+        # Always try to disable Full Screen Optimizations. If this is removed, you can add back
+        # the "Disable FSO" button using ndisplay_monitor.show_disable_fso_btn
+        self.disable_fso()
     # ~ End DeviceUnrealInterface
