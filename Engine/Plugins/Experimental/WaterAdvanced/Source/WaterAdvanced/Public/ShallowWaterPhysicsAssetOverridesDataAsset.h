@@ -14,7 +14,7 @@ class USkeletalMesh;
  * 
  */
 UCLASS(Blueprintable)
-class WATERADVANCED_API UShallowWaterPhysicsAssetOverridesDataAsset : public UDataAsset
+class WATERADVANCED_API UShallowWaterPhysicsAssetOverridesDataAsset : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 
