@@ -45,6 +45,7 @@ enum class ECoreRedirectFlags : uint32
 	Type_Function =				0x00000010, // UFunction
 	Type_Property =				0x00000020, // FProperty
 	Type_Package =				0x00000040, // UPackage
+	Type_Asset =				0x00000080, // Redirects derived from UObjectRedirectors. Implicitly included with other search types
 	Type_AllMask =				0x0000FFFF, // Bit mask of all possible Types
 
 	// Category flags.  A Query will only match Redirects that have the same value for every category bit.
@@ -69,6 +70,10 @@ enum class ECoreRedirectMatchFlags
 	/** The passed-in CoreRedirectObjectName has null fields in Package, Outer, or Name, and should still be allowed to match
 	 against redirectors that were created with a full Package.[Outer:]Name. */
 	AllowPartialMatch = (1 << 0),
+	/** Used for Type_Asset redirects to ensure package redirects only match package queries and 
+	 *  full path redirects only match full path queries
+	 */
+	DisallowPartialLHSMatch = (1<<1)
 };
 ENUM_CLASS_FLAGS(ECoreRedirectMatchFlags);
 
@@ -165,15 +170,7 @@ struct FCoreRedirectObjectName
 	COREUOBJECT_API void UnionFieldsInline(const FCoreRedirectObjectName& Other);
 
 	/** Returns the name used as the key into the acceleration map */
-	FName GetSearchKey(ECoreRedirectFlags Type) const
-	{
-		if ((Type & ECoreRedirectFlags::Type_Package) == ECoreRedirectFlags::Type_Package)
-		{
-			return PackageName;
-		}
-
-		return ObjectName;
-	}
+	FName GetSearchKey(ECoreRedirectFlags Type) const;
 
 	/** Returns true if this refers to an actual object */
 	bool IsValid() const
@@ -363,8 +360,11 @@ struct FCoreRedirects
 	/** Validate a named list of redirects */
 	static COREUOBJECT_API void ValidateRedirectList(TArrayView<const FCoreRedirect> Redirects, const FString& SourceString);
 
-	/** Validates all known redirects and warn if they seem to point to missing things */
+	/** Validates all known redirects and warn if they seem to point to missing things or violate other constraints */
 	static COREUOBJECT_API void ValidateAllRedirects();
+
+	/** Validates asset redirects and warns if chains are detected. Chains should be resolved before adding asset redirects. */
+	static COREUOBJECT_API bool ValidateAssetRedirects();
 
 	/** Gets map from config key -> Flags. It may only be accessed once it becomes constant data after the system is initialized */
 	static COREUOBJECT_API const TMap<FName, ECoreRedirectFlags>& GetConfigKeyMap();
@@ -398,6 +398,15 @@ struct FCoreRedirects
 	/** Runs set of redirector tests, returns false on failure */
 	static COREUOBJECT_API bool RunTests();
 
+	/** Adds a collection of redirects as Type_Asset. These allow FCoreRedirects to support the functions
+	 *  of UObjectRedirector. Any duplicate sources are logged and discarded (only the first redirect from a path is used)
+	 *  Package redirects corresponding to the soft object paths are implicitly created.
+	 */
+	static COREUOBJECT_API void AddAssetRedirects(const TMap<FSoftObjectPath, FSoftObjectPath>& InRedirects);
+
+	/** Clears all redirects added via AddAssetRedirects */
+	static COREUOBJECT_API void RemoveAllAssetRedirects();
+	 
 private:
 	typedef UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForRead FCoreRedirectorScopeLockForRead;
 	typedef UE::CoreRedirects::Private::FRWWithExclusiveRecursionScopeLockForWrite FCoreRedirectorScopeLockForWrite;
@@ -429,6 +438,9 @@ private:
 	static COREUOBJECT_API bool RedirectNameAndValuesUnderReadLock(ECoreRedirectFlags Type, const FCoreRedirectObjectName& OldObjectName,
 		FCoreRedirectObjectName& NewObjectName, const FCoreRedirect** FoundValueRedirect,
 		ECoreRedirectMatchFlags MatchFlags, const FCoreRedirectorScopeLockForRead& HeldLock);
+
+	/** Internal implementation for ValidateAssetRedirects that requires a read lock to already have been acquired */
+	static COREUOBJECT_API bool ValidateAssetRedirectsUnderReadLock(const FCoreRedirectorScopeLockForRead& HeldLock);
 
 	/** Container for managing Wildcard redirects (substrings, prefixes, suffixes) */
 	struct FWildcardData
