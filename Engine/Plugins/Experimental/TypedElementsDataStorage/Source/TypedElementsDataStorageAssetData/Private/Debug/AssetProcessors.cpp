@@ -4,13 +4,13 @@
 
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
-#include "TypedElementAssetColumns.h"
+#include "TedsAssetDataColumns.h"
 
 void UTypedElementAssetFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) 
 {
 	DataStorage.RegisterTable(
 		TTypedElementColumnTypeList<
-			FTypedElementLabelColumn, FTypedElementClassTypeInfoColumn,
+			FTypedElementLabelColumn, FTypedElementClassTypeInfoColumn, FAssetPathColumn_Experimental,
 			FAssetTag, FDiskSizeColumn, FVersePathColumn>(),
 		FName("Editor_PlaceholderAssetTable"));
 }
