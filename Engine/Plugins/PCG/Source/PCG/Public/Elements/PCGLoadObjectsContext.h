@@ -8,7 +8,7 @@
 
 struct FPCGLoadObjectsFromPathContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
-	bool InitializeAndRequestLoad(
+	PCG_API bool InitializeAndRequestLoad(
 		FName InputPinName,
 		const FPCGAttributePropertyInputSelector& InputAttributeSelector,
 		const TArray<FSoftObjectPath>& StaticObjectPaths,

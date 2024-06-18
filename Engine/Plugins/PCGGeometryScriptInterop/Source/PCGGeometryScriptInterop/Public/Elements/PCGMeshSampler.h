@@ -5,7 +5,7 @@
 #include "PCGContext.h"
 #include "PCGElement.h"
 #include "PCGSettings.h"
-#include "Async/PCGAsyncLoadingContext.h"
+#include "Elements/PCGLoadObjectsContext.h"
 
 #include "Async/Future.h"
 #include "GeometryScript/GeometryScriptTypes.h"
@@ -49,7 +49,7 @@ enum class EPCGColorChannel
 };
 
 /**
-* Sample points on a mesh
+* Sample points on a mesh.
 */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCGGEOMETRYSCRIPTINTEROP_API UPCGMeshSamplerSettings : public UPCGSettings
@@ -79,12 +79,24 @@ protected:
 	// ~End UPCGSettings interface
 
 public:
+	/** 
+	* Can provide a list of inputs to sample the meshes from. It can be a list of StaticMeshes, a list of Actors that have a Scene Component (like a Static Mesh Component), or a list of Scene Components directly.
+	* Geometry Script needs to be able to extract a dynamic mesh from this scene component (so won't work for ISMCs for example) and for now will work only with a single scene component.
+	* Each entry (either in the same data or seperate data) will produce a unique output data.
+	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
-	EPCGMeshSamplingMethod SamplingMethod = EPCGMeshSamplingMethod::OnePointPerTriangle;
+	bool bExtractMeshFromInput = false;
 
 	/** Soft Object Path to the mesh to sample from. Will be loaded. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (PCG_Overridable, EditCondition = "!bExtractMeshFromInput", EditConditionHides, ShowAfter = "bExtractMeshFromInput"))
 	TSoftObjectPtr<UStaticMesh> StaticMesh;
+
+	/** Selector to read data from. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (PCG_Overridable, EditCondition = "bExtractMeshFromInput", EditConditionHides, ShowAfter = "bExtractMeshFromInput"))
+	FPCGAttributePropertyInputSelector InputSource;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+	EPCGMeshSamplingMethod SamplingMethod = EPCGMeshSamplingMethod::OnePointPerTriangle;
 
 	/** Will extract the color channel into the density. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Color & Density", meta = (PCG_Overridable, InlineEditConditionToggle, PCG_OverrideAliases="bUseRedAsDensity"))
@@ -159,39 +171,44 @@ protected:
 /**
 * Extra context to store all the data that need to be kept between multiple executions (time slicing)
 */
-struct FPCGMeshSamplerContext : public FPCGContext, public IPCGAsyncLoadingContext
+struct FPCGMeshSamplerContext : public FPCGLoadObjectsFromPathContext
 {
 public:
 	~FPCGMeshSamplerContext();
+
+	using SetPointDensityFunc = void(*)(const FLinearColor&, FPCGPoint&);
+
+	void SetUVValueAndTriangleId(int32 UVChannel, int32 TriangleId, const FVector& BarycentricCoord, FPCGPoint& OutPoint, int32 DataIndex);
+	void SetPointColorAndDensity(SetPointDensityFunc SetPointDensityFuncPtr, int32 TriangleId, const FVector& BarycentricCoord, FPCGPoint& OutPoint, int32 DataIndex);
 
 protected:
 	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override;
 	
 public:
-	// Dynamic mesh. Will be added to root.
-	TObjectPtr<UDynamicMesh> DynamicMesh;
+	// Dynamic meshes. Will be added to root.
+	TArray<TObjectPtr<UDynamicMesh>> DynamicMeshes;
 
-	// Lists extracted from the mesh
-	FGeometryScriptVectorList Positions;
-	FGeometryScriptColorList Colors;
-	FGeometryScriptVectorList Normals;
-	FGeometryScriptIndexList TriangleIds;
+	// Lists extracted from the meshes
+	TArray<FGeometryScriptVectorList> Positions;
+	TArray<FGeometryScriptColorList> Colors;
+	TArray<FGeometryScriptVectorList> Normals;
+	TArray<FGeometryScriptIndexList> TriangleIds;
 
-	// Output point data
-	UPCGPointData* OutPointData = nullptr;
+	// Output point data.
+	TArray<UPCGPointData*> OutPointData;
 
 	// Optional attributes.
-	FPCGMetadataAttribute<FVector2D>* UVAttribute = nullptr;
-	FPCGMetadataAttribute<int32>* TriangleIdAttribute = nullptr;
+	TArray<FPCGMetadataAttribute<FVector2D>*> UVAttributes;
+	TArray<FPCGMetadataAttribute<int32>*> TriangleIdAttributes;
 
-	// For Poisson sampling, we are starting a future that is not framebound
-	// Store the future and synchronisation items in the context
-	TFuture<bool> SamplingFuture;
+	// For Poisson sampling, we are starting futures that are not framebound
+	// Store the futures and synchronisation items in the context
+	TArray<TFuture<bool>> SamplingFutures;
 	std::atomic<bool> StopSampling = false;
 	TUniquePtr<FProgressCancel> SamplingProgess;
 
-	// Number of iterations to be done
-	int32 Iterations = 0;
+	// Starting indices for each different object to sample. If we have 3 meshes of 20 elements (like vertices) each, the array will be [0, 20, 40, 60]
+	TArray<int32> StartingIndices;
 
 	// Set to true if prepared data succeeded.
 	bool bDataPrepared = false;
