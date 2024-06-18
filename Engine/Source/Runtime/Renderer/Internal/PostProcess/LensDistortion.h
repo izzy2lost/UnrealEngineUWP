@@ -55,3 +55,41 @@ struct FPaniniProjectionConfig
 	/** Add a RDG pass to generate the lens distortion LUT from the settings. */
 	FLensDistortionLUT GenerateLUTPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View) const;
 };
+
+namespace LensDistortion
+{
+	// Possible pass locations of the lens distortion application in post-processing.
+	enum class EPassLocation : uint8
+	{
+		TSR,
+		PrimaryUpscale
+	};
+
+	/**
+	 * Get the pass location of the lens distortion application in post-processing.
+	 *
+	 * @param InViewInfo Active view info.
+	 * @return Location enum.
+	 */
+	EPassLocation GetPassLocation(const FViewInfo& InViewInfo);
+
+	/**
+	 * Get the pass location of the lens distortion application in post-processing.
+	 * Unsafe to due internal argument cast from "FSceneView" to "FViewInfo".
+	 *
+	 * @param InView Active view info.
+	 * @return EPassLocation enum.
+	 */
+	RENDERER_API EPassLocation GetPassLocationUnsafe(const FSceneView& InView);
+
+	/**
+	 * Get the view lens distortion LUT.
+	 * Unsafe to due internal argument cast from "FSceneView" to "FViewInfo".
+	 *
+	 * @param InView Active view info.
+	 * @return FLensDistortionLUT texture struct.
+	 */
+	RENDERER_API const FLensDistortionLUT& GetLUTUnsafe(const FSceneView& InView);
+
+} // end namespace LensDistortion
+

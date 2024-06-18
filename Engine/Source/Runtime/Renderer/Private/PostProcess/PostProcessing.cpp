@@ -379,8 +379,8 @@ void AddPostProcessingPasses(
 	// Temporal Anti-aliasing. Also may perform a temporal upsample from primary to secondary view rect.
 	const EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(View);
 
-	bool bApplyLensDistortion = View.LensDistortionLUT.IsEnabled();
-	bool bApplyLensDistortionInTSR = TAAConfig == EMainTAAPassConfig::TSR && bPostProcessingEnabled && IsTSRLensDistortionEnabled(View.GetShaderPlatform());
+	const bool bApplyLensDistortion = View.LensDistortionLUT.IsEnabled();
+	const bool bApplyLensDistortionInTSR = (LensDistortion::GetPassLocation(View) == LensDistortion::EPassLocation::TSR);
 
 	enum class EPass : uint32
 	{

@@ -1,9 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PostProcess/LensDistortion.h"
+
+#include "PostProcessing.h"
 #include "PostProcess/SceneFilterRendering.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "SceneRendering.h"
+#include "TemporalAA.h"
 
 namespace
 {
@@ -216,3 +219,32 @@ FLensDistortionLUT FPaniniProjectionConfig::GenerateLUTPasses(FRDGBuilder& Graph
 
 	return LensDistortionLUT;
 }
+
+LensDistortion::EPassLocation LensDistortion::GetPassLocation(const FViewInfo& InViewInfo)
+{
+	if (IsPostProcessingEnabled(InViewInfo)
+		&& GetMainTAAPassConfig(InViewInfo) == EMainTAAPassConfig::TSR
+		&& IsTSRLensDistortionEnabled(InViewInfo.GetShaderPlatform()))
+	{
+		return LensDistortion::EPassLocation::TSR;
+	}
+	else
+	{
+		return LensDistortion::EPassLocation::PrimaryUpscale;
+	}
+}
+
+LensDistortion::EPassLocation LensDistortion::GetPassLocationUnsafe(const FSceneView& InView)
+{
+	check(InView.bIsViewInfo);
+
+	return LensDistortion::GetPassLocation(static_cast<const FViewInfo&>(InView));
+}
+
+const FLensDistortionLUT& LensDistortion::GetLUTUnsafe(const FSceneView& InView)
+{
+	check(InView.bIsViewInfo);
+
+	return static_cast<const FViewInfo&>(InView).LensDistortionLUT;
+}
+
