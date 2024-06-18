@@ -554,6 +554,9 @@ void URecastNavMeshDataChunk::ReleaseTiles()
 // Deprecated
 void URecastNavMeshDataChunk::GetTiles(const FPImplRecastNavMesh* NavMeshImpl, const TArray<int32>& TileIndices, const EGatherTilesCopyMode CopyMode, const bool bMarkAsAttached /*= true*/)
 {
+	Tiles.Empty(TileIndices.Num());
+
+#if WITH_RECAST
 	if (NavMeshImpl)
 	{
 		TArray<uint32> TileUnsignedIndices;
@@ -563,13 +566,14 @@ void URecastNavMeshDataChunk::GetTiles(const FPImplRecastNavMesh* NavMeshImpl, c
 		FNavTileRef::DeprecatedMakeTileRefsFromTileIds(NavMeshImpl, TileUnsignedIndices, TileRefs);
 		GetTiles(NavMeshImpl, TileRefs, CopyMode, bMarkAsAttached);
 	}
+#endif // WITH_RECAST
 }
 
+#if WITH_RECAST
 void URecastNavMeshDataChunk::GetTiles(const FPImplRecastNavMesh* NavMeshImpl, const TArray<FNavTileRef>& TileRefs, const EGatherTilesCopyMode CopyMode, const bool bMarkAsAttached /*= true*/)
 {
 	Tiles.Empty(TileRefs.Num());
 
-#if WITH_RECAST
 	const dtNavMesh* NavMesh = NavMeshImpl->DetourNavMesh;
 	
 	for (const FNavTileRef TileRef : TileRefs)
@@ -608,24 +612,28 @@ void URecastNavMeshDataChunk::GetTiles(const FPImplRecastNavMesh* NavMeshImpl, c
 			Tiles.Add(RecastTileData);
 		}
 	}
-#endif // WITH_RECAST
 }
+#endif // WITH_RECAST
 
 // Deprecated
 void URecastNavMeshDataChunk::GetTilesBounds(const FPImplRecastNavMesh& NavMeshImpl, const TArray<int32>& TileIndices, FBox& OutBounds) const
 {
+	OutBounds.Init();
+#if WITH_RECAST
 	TArray<uint32> TileUnsignedIndices;
 	TileUnsignedIndices.Append(TileIndices);
 
 	TArray<FNavTileRef> TileRefs;
 	FNavTileRef::DeprecatedMakeTileRefsFromTileIds(&NavMeshImpl, TileUnsignedIndices, TileRefs);
 	GetTilesBounds(NavMeshImpl, TileRefs, OutBounds);
+#endif // WITH_RECAST
 }
 
+#if WITH_RECAST
 void URecastNavMeshDataChunk::GetTilesBounds(const FPImplRecastNavMesh& NavMeshImpl, const TArray<FNavTileRef>& TileRefs, FBox& OutBounds) const
 {
 	OutBounds.Init();
-#if WITH_RECAST
+
 	const dtNavMesh* NavMesh = NavMeshImpl.DetourNavMesh;
 
 	for (const FNavTileRef TileRef : TileRefs)
@@ -636,5 +644,5 @@ void URecastNavMeshDataChunk::GetTilesBounds(const FPImplRecastNavMesh& NavMeshI
 			OutBounds += Recast2UnrealBox(Tile->header->bmin, Tile->header->bmax);
 		}
 	}
-#endif // WITH_RECAST
 }
+#endif // WITH_RECAST

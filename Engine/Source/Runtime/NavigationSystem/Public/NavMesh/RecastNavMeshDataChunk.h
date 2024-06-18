@@ -119,8 +119,10 @@ class URecastNavMeshDataChunk : public UNavigationDataChunk
 	UE_DEPRECATED(5.5, "Use the version of this function that takes an array of FNavTileRefs instead.")
 	NAVIGATIONSYSTEM_API void GetTilesBounds(const FPImplRecastNavMesh& NavMeshImpl, const TArray<int32>& TileIndices, FBox& OutBounds) const;
 
+#if WITH_RECAST
 	/** Returns the AABB for the given tiles. */
 	NAVIGATIONSYSTEM_API void GetTilesBounds(const FPImplRecastNavMesh& NavMeshImpl, const TArray<FNavTileRef>& TileRefs, FBox& OutBounds) const;
+#endif // WITH_RECAST
 
 	/** Mutable accessor to the list of tiles in the data chunk. */
 	TArray<FRecastTileData>& GetMutableTiles() { return Tiles; }
@@ -132,8 +134,10 @@ class URecastNavMeshDataChunk : public UNavigationDataChunk
 	UE_DEPRECATED(5.5, "Use the version of this function that takes an array of FNavTileRefs instead.")
 	NAVIGATIONSYSTEM_API void GetTiles(const FPImplRecastNavMesh* NavMeshImpl, const TArray<int32>& TileIndices, const EGatherTilesCopyMode CopyMode, const bool bMarkAsAttached = true);
 
+#if WITH_RECAST
 	/** Collect tiles with data and/or cache data from the provided tile references. */
 	NAVIGATIONSYSTEM_API void GetTiles(const FPImplRecastNavMesh* NavMeshImpl, const TArray<FNavTileRef>& TileRefs, const EGatherTilesCopyMode CopyMode, const bool bMarkAsAttached = true);
+#endif // WITH_RECAST
 
 private:
 #if WITH_RECAST
