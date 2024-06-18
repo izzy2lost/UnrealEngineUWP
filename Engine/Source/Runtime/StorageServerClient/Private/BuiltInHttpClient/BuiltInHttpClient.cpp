@@ -162,7 +162,7 @@ IStorageServerHttpClient::FResult FBuiltInHttpClient::RequestSync(
 
 	TOptional<FIoBuffer> ResponsePayload = ContentLength > 0
 		? (OptDestination.IsSet() && ((int64)OptDestination->GetSize() >= ContentLength) ? OptDestination.GetValue() : FIoBuffer(ContentLength))
-		: TOptional<FIoBuffer>();
+		: FIoBuffer(0);
 
 	if (ContentLength)
 	{
