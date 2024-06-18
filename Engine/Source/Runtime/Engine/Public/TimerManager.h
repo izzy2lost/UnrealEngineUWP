@@ -10,6 +10,7 @@
 #include "Stats/Stats.h"
 #include "UObject/Object.h"
 #include "Engine/TimerHandle.h"
+#include "Misc/TVariant.h"
 #include "Templates/Function.h"
 
 class UGameInstance;
@@ -19,6 +20,8 @@ struct FTimerSourceList;
 // using "not checked" user policy (means race detection is disabled) because this delegate is stored in a TSparseArray and causes its reallocation
 // from inside delegate's execution. This is incompatible with race detection that needs to access the delegate instance after its execution
 using FTimerDelegate = TDelegate<void(), FNotThreadSafeNotCheckedDelegateUserPolicy>;
+using FTimerFunction = TFunction<void(void)>;
+using FTimerDelegateVariant = TVariant<TYPE_OF_NULLPTR, FTimerDelegate, FTimerDynamicDelegate, FTimerFunction>;
 
 #ifndef UE_ENABLE_TRACKING_TIMER_SOURCES
 #define UE_ENABLE_TRACKING_TIMER_SOURCES !UE_BUILD_SHIPPING
@@ -28,60 +31,23 @@ using FTimerDelegate = TDelegate<void(), FNotThreadSafeNotCheckedDelegateUserPol
 struct FTimerUnifiedDelegate
 {
 	/** Holds the delegate to call. */
-	FTimerDelegate FuncDelegate;
-	/** Holds the dynamic delegate to call. */
-	FTimerDynamicDelegate FuncDynDelegate;
-	/** Holds the TFunction callback to call. */
-	TFunction<void(void)> FuncCallback;
+	FTimerDelegateVariant VariantDelegate;
 
 	FTimerUnifiedDelegate() {};
-	FTimerUnifiedDelegate(FTimerDelegate const& D) : FuncDelegate(D) {};
-	FTimerUnifiedDelegate(FTimerDynamicDelegate const& D) : FuncDynDelegate(D) {};
-	FTimerUnifiedDelegate(TFunction<void(void)>&& Callback) : FuncCallback(MoveTemp(Callback)) {}
+
+	FTimerUnifiedDelegate(FTimerDelegate const& D) : VariantDelegate(TInPlaceType<FTimerDelegate>(), D) {}
+	FTimerUnifiedDelegate(FTimerDynamicDelegate const& D) : VariantDelegate(TInPlaceType<FTimerDynamicDelegate>(), D) {}
+	FTimerUnifiedDelegate(FTimerFunction&& Callback) : VariantDelegate(TInPlaceType<FTimerFunction>(), MoveTemp(Callback)) {}
 	
-	inline void Execute()
-	{
-		if (FuncDelegate.IsBound())
-		{
-			FScopeCycleCounterUObject Context(FuncDelegate.GetUObject());
-			FuncDelegate.Execute();
-		}
-		else if (FuncDynDelegate.IsBound())
-		{
-			// stat scope is handled by UObject::ProcessEvent for the UFunction.
-			FuncDynDelegate.ProcessDelegate<UObject>(nullptr);
-		}
-		else if ( FuncCallback )
-		{
-			QUICK_SCOPE_CYCLE_COUNTER(STAT_FTimerUnifiedDelegate_Execute);
-			FuncCallback();
-		}
-	}
+	void Execute() const;
 
-	inline bool IsBound() const
-	{
-		return ( FuncDelegate.IsBound() || FuncDynDelegate.IsBound() || FuncCallback );
-	}
+	bool IsBound() const;
 
-	inline const void* GetBoundObject() const
-	{
-		if (FuncDelegate.IsBound())
-		{
-			return FuncDelegate.GetObjectForTimerManager();
-		}
-		else if (FuncDynDelegate.IsBound())
-		{
-			return FuncDynDelegate.GetUObject();
-		}
+	const void* GetBoundObject() const;
 
-		return nullptr;
-	}
-
-	inline void Unbind()
+	void Unbind()
 	{
-		FuncDelegate.Unbind();
-		FuncDynDelegate.Unbind();
-		FuncCallback = nullptr;
+		VariantDelegate.Set<TYPE_OF_NULLPTR>(nullptr);
 	}
 
 	/** Utility to output info about delegate as a string. */
