@@ -95,11 +95,6 @@ namespace UE::MultiUserClient
 		   {
 			   return StreamEditor;
 		   });
-		const TAttribute<IObjectHierarchyModel*> ObjectHierarchyAttribute =
-		   TAttribute<IObjectHierarchyModel*>::CreateLambda([this]()
-		   {
-			   return ObjectHierarchy.Get();
-		   });
 		FGetAutoAssignTarget GetAutoAssignTargetDelegate = FGetAutoAssignTarget::CreateLambda([this](TConstArrayView<UObject*>)
 		{
 			const TSharedRef<IEditableReplicationStreamModel>& LocalStream = ClientManager->GetLocalClient().GetClientEditModel();
@@ -147,7 +142,7 @@ namespace UE::MultiUserClient
 			.ObjectColumns =
 			{
 				MultiStreamColumns::MuteToggleColumn(MuteManager.GetChangeTracker()),
-				MultiStreamColumns::AssignedClientsColumn(InConcertClient, MultiStreamEditorAttribute, ObjectHierarchyAttribute, ClientManager->GetReassignmentLogic(), *ClientManager)
+				MultiStreamColumns::AssignedClientsColumn(InConcertClient, MultiStreamEditorAttribute, *ObjectHierarchy, ClientManager->GetReassignmentLogic(), *ClientManager)
 			},
 			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject)
 		};

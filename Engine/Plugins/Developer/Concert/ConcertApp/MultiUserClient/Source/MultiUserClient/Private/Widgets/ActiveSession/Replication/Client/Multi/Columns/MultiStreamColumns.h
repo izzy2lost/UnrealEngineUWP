@@ -56,16 +56,16 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 *
 	 * @param ConcertClient Used to look up client names
 	 * @param MultiStreamModelAttribute Used for requesting resorting the column
-	 * @param ObjectHierarchyModelAttribute Used to get child objects
-	 * @param ReassignmentLogic Performs the act of reassigning
+	 * @param ObjectHierarchy Used to display clients when a child object is replicated
+	 * @param ReassignmentLogic Used to get the assigned clients and detect when they change.
 	 * @param ClientManager Used to access all clients for display in the combo box drop-down
 	 * @param ColumnsSortPriority The order relative to the other columns
 	 */
 	ConcertSharedSlate::FObjectColumnEntry AssignedClientsColumn(
 		TSharedRef<IConcertClient> ConcertClient,
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
-		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
-		FReassignObjectPropertiesLogic& ReassignmentLogic,
+		const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy UE_LIFETIMEBOUND,
+		FReassignObjectPropertiesLogic& ReassignmentLogic UE_LIFETIMEBOUND,
 		const FReplicationClientManager& ClientManager UE_LIFETIMEBOUND,
 		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReassignOwnership)
 		);
