@@ -179,7 +179,16 @@ FPrecomputedVolumetricLightmapData& FStaticLightingBuildContext::GetOrCreateLeve
 		}
 	}
 
-	UMapBuildDataRegistry* Registry = GetOrCreateRegistryForLevelGuid(LevelId);
+	UMapBuildDataRegistry* Registry = nullptr;
+	if (LightingScenario)
+	{
+		Registry = LightingScenario->GetOrCreateMapBuildData();
+	}
+	else
+	{
+		Registry = GetOrCreateRegistryForLevelGuid(LevelId);
+	}
+	
 	FGuid BuildDataID = GetLevelBuildDataID(LevelId);
 	if (FPrecomputedVolumetricLightmapData* Data = Registry->GetLevelPrecomputedVolumetricLightmapBuildData(BuildDataID))
 	{
