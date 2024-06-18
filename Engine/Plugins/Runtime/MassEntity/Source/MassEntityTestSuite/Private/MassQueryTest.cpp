@@ -311,22 +311,11 @@ struct FQueryTest_FragmentPresent : FEntityTestBase
 		EntityManager->BatchCreateEntities(FloatsIntsArchetype, NumberOfEntitiesToAddB, MatchingEntities);
 		ensure(MatchingEntities.Num() == NumberOfEntitiesToAddA + NumberOfEntitiesToAddB);
 
-		bool bMutablesBound = true;
-		bool bConstsBound = true;
 		int TotalProcessed = 0;
 		FMassExecutionContext ExecContext(*EntityManager.Get());
-		{
-			AITEST_SCOPED_CHECK("Requested fragment type not bound", 4);
-			Query.ForEachEntityChunk(*EntityManager, ExecContext, [&TotalProcessed, &bMutablesBound, &bConstsBound](FMassExecutionContext& Context) {
-				TotalProcessed += Context.GetNumEntities();
-				TArrayView<FTestFragment_Int> MutableView = Context.GetMutableFragmentView<FTestFragment_Int>();
-				bMutablesBound = bMutablesBound && !MutableView.IsEmpty();
-				TConstArrayView<FTestFragment_Int> ConstView = Context.GetFragmentView<FTestFragment_Int>();
-				bConstsBound = bConstsBound && !ConstView.IsEmpty();
-			});
-		}
-		AITEST_FALSE("The fragment with None access is not being bound in RW mode", bMutablesBound);
-		AITEST_FALSE("The fragment with None access is not being bound in RO mode", bConstsBound);
+		Query.ForEachEntityChunk(*EntityManager, ExecContext, [&TotalProcessed](FMassExecutionContext& Context) {
+			TotalProcessed += Context.GetNumEntities();
+		});
 		AITEST_EQUAL("We expect the number of entities processed to match number added to matching archetypes", MatchingEntities.Num(), TotalProcessed);
 
 		return true;
