@@ -65,13 +65,13 @@ public:
 
 	uint8& operator[](size_t I)
 	{
-		UNSYNC_ASSERT(I < BufferSize);
+		UNSYNC_ASSERTF(I < BufferSize, L"Buffer index is out of bounds. Index=%llu, BufferSize=%llu.", llu(I), llu(BufferSize));
 		return Buffer[I];
 	}
 
 	const uint8& operator[](size_t I) const
 	{
-		UNSYNC_ASSERT(I < BufferSize);
+		UNSYNC_ASSERTF(I < BufferSize, L"Buffer index is out of bounds. Index=%llu, BufferSize=%llu", llu(I), llu(BufferSize));
 		return Buffer[I];
 	}
 

@@ -69,9 +69,20 @@ Decompress(const uint8* Data, uint64 DataSize)
 {
 	uint64	DecompressedSizeExpected = ZSTD_getDecompressedSize(Data, DataSize);
 	FBuffer Result(DecompressedSizeExpected);
-	uint64	DecompressedSizeActual = ZSTD_decompress(&Result[0], DecompressedSizeExpected, Data, DataSize);
+
+	if (DecompressedSizeExpected == 0)
+	{
+		UNSYNC_ERROR(L"Compressed zstd frame is invalid!");
+		return Result;
+	}
+
+	uint64 DecompressedSizeActual = ZSTD_decompress(Result.Data(), DecompressedSizeExpected, Data, DataSize);
 	if (DecompressedSizeExpected != DecompressedSizeActual)
 	{
+		UNSYNC_ERROR(L"Failed to decompress zstd frame. DecompressedSizeExpected=%llu, DecompressedSizeActual=%llu.",
+					 llu(DecompressedSizeExpected),
+					 llu(DecompressedSizeActual));
+
 		Result.Clear();
 	}
 	return Result;

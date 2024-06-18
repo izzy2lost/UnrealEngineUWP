@@ -88,24 +88,55 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 
 		if (ChunkContentEncoding == "zstd")
 		{
-			DecompressedBuffer				 = Decompress(Payload.Data, Payload.Size);
-			DownloadedBlock.Data			 = DecompressedBuffer.Data();
-			DownloadedBlock.DecompressedSize = DecompressedBuffer.Size();
+			if (BlobHeader.DecompressedSize != 0)
+			{
+				DecompressedBuffer				 = Decompress(Payload.Data, Payload.Size);
+				DownloadedBlock.Data			 = DecompressedBuffer.Data();
+				DownloadedBlock.DecompressedSize = DecompressedBuffer.Size();
+			}
+			else
+			{
+				DownloadedBlock.Data			 = DecompressedBuffer.Data();
+				DownloadedBlock.DecompressedSize = DecompressedBuffer.Size();
+			}
 		}
 		else if (ChunkContentEncoding == "" || ChunkContentEncoding == "identity")
 		{
-			UNSYNC_ASSERT(BlobHeader.DecompressedSize == BlobHeader.PayloadSize);
 			DownloadedBlock.Data			 = Payload.Data;
 			DownloadedBlock.DecompressedSize = Payload.Size;
+
+			if (BlobHeader.DecompressedSize != BlobHeader.PayloadSize)
+			{
+				UNSYNC_ERROR(L"Received blob size (%llu bytes) does not match expected size (%llu bytes)",
+							 llu(BlobHeader.DecompressedSize),
+							 llu(BlobHeader.PayloadSize));
+				return FDownloadError(EDownloadRetryMode::Abort);
+			}
 		}
 		else
 		{
 			std::string Value = std::string(ChunkContentEncoding);
-			UNSYNC_FATAL(L"Unexpected chunk content encoding: '%hs'", Value.c_str());
+			UNSYNC_ERROR(L"Unexpected chunk content encoding: '%hs'", Value.c_str());
+			return FDownloadError(EDownloadRetryMode::Abort);
+		}
+
+		if (DecompressedBuffer.Size() != BlobHeader.DecompressedSize)
+		{
+			UNSYNC_ERROR(L"Received blob size (%llu bytes) does not match expected size (%llu bytes)",
+						 llu(DecompressedBuffer.Size()),
+						 llu(BlobHeader.DecompressedSize));
+			return FDownloadError(EDownloadRetryMode::Abort);
 		}
 
 		FGenericHash BlockHash	  = ComputeHash(DownloadedBlock.Data, DownloadedBlock.DecompressedSize, StrongHasher);
-		UNSYNC_ASSERT(BlockHash.ToHash160() == BlobHeader.DecompressedHash);
+
+		if (BlockHash.ToHash160() != BlobHeader.DecompressedHash)
+		{
+			std::string BlockHashStr	= HashToHexString(BlockHash.ToHash160());
+			std::string ExpectedHashStr = HashToHexString(BlobHeader.DecompressedHash);
+			UNSYNC_ERROR(L"Received blob hash (%hs) does not match expected size (%hs)", BlockHashStr.c_str(), ExpectedHashStr.c_str());
+			return FDownloadError(EDownloadRetryMode::Abort);
+		}
 
 		FHash128	 BlockHash128 = BlockHash.ToHash128();
 
