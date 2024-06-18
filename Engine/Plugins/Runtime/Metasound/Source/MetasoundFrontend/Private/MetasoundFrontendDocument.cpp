@@ -879,7 +879,7 @@ FMetasoundFrontendGraphClass::FMetasoundFrontendGraphClass()
 
 const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph, bool bSetAsBuildGraph)
 {
-	checkf(InPageID.IsValid(), TEXT("Cannot add graph with invalid PageID"))
+	checkf(InPageID != Metasound::Frontend::DefaultGraphPageID, TEXT("Cannot add graph with DefaultPageID"))
 	checkf(!ContainsGraphPage(InPageID), TEXT("Cannot add new graph page with existing PageID"));
 
 	FMetasoundFrontendGraph* NewGraph = nullptr;

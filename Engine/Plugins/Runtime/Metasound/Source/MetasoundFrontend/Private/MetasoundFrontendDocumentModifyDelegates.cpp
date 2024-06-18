@@ -5,7 +5,19 @@
 
 namespace Metasound::Frontend
 {
+	FDocumentModifyDelegates::FDocumentModifyDelegates()
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		: NodeDelegates()
+		, EdgeDelegates()
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	{
+	}
+
 	FDocumentModifyDelegates::FDocumentModifyDelegates(const FMetasoundFrontendDocument& Document)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		: NodeDelegates()
+		, EdgeDelegates()
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		Document.RootGraph.IterateGraphPages([this](const FMetasoundFrontendGraph& Graph)
 		{

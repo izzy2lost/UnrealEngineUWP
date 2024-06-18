@@ -60,7 +60,7 @@ namespace Metasound::Frontend
 
 	struct METASOUNDFRONTEND_API FDocumentModifyDelegates : TSharedFromThis<FDocumentModifyDelegates>
 	{
-		FDocumentModifyDelegates() = default;
+		FDocumentModifyDelegates();
 		FDocumentModifyDelegates(const FMetasoundFrontendDocument& Document);
 
 		FOnMetaSoundFrontendDocumentMutateArray OnDependencyAdded;
@@ -87,18 +87,18 @@ namespace Metasound::Frontend
 		FNodeModifyDelegates& FindNodeDelegatesChecked(const FGuid& InPageID)
 		{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return InPageID.IsValid()
-				? PageNodeDelegates.FindChecked(InPageID)
-				: NodeDelegates;
+			return InPageID == DefaultGraphPageID
+				? NodeDelegates
+				: PageNodeDelegates.FindChecked(InPageID);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		FEdgeModifyDelegates& FindEdgeDelegatesChecked(const FGuid& InPageID)
 		{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return InPageID.IsValid()
-				? PageEdgeDelegates.FindChecked(InPageID)
-				: EdgeDelegates;
+			return InPageID == DefaultGraphPageID
+				? EdgeDelegates
+				: PageEdgeDelegates.FindChecked(InPageID);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
@@ -125,5 +125,13 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
+	};
+
+	class METASOUNDFRONTEND_API IDocumentBuilderListener : public TSharedFromThis<IDocumentBuilderListener>
+	{
+	public:
+		virtual ~IDocumentBuilderListener() = default;
+
+		virtual void AddDocumentBuilderDelegates(FDocumentModifyDelegates& OutDelegates) = 0;
 	};
 } // namespace Metasound::Frontend

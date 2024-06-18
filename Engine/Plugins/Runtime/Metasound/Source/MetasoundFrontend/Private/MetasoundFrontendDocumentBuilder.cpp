@@ -2599,14 +2599,17 @@ void FMetaSoundFrontendDocumentBuilder::BeginBuilding(TSharedPtr<Metasound::Fron
 	{
 		DocumentDelegates = Delegates;
 	}
-	else if (DocumentInterface)
-	{
-		const FMetasoundFrontendDocument& Document = GetConstDocumentChecked();
-		DocumentDelegates = Delegates.IsValid() ? Delegates : MakeShared<FDocumentModifyDelegates>(Document);
-	}
 	else
 	{
-		DocumentDelegates = MakeShared<FDocumentModifyDelegates>();
+		if (DocumentInterface)
+		{
+			const FMetasoundFrontendDocument& Document = GetConstDocumentChecked();
+			DocumentDelegates = MakeShared<FDocumentModifyDelegates>(Document);
+		}
+		else
+		{
+			DocumentDelegates = MakeShared<FDocumentModifyDelegates>();
+		}
 	}
 
 	if (DocumentInterface)
@@ -2639,13 +2642,13 @@ void FMetaSoundFrontendDocumentBuilder::RemoveAllGraphPages()
 	{
 		using namespace Metasound::Frontend;
 
-		if (Graph.PageID.IsValid())
+		if (Graph.PageID != Metasound::Frontend::DefaultGraphPageID)
 		{
-			DocumentDelegates->PageDelegates.OnRemovingPage.Broadcast(FDocumentMutatePageArgs { Graph.PageID });
+			DocumentDelegates->PageDelegates.OnRemovingPage.Broadcast(Metasound::Frontend::FDocumentMutatePageArgs { Graph.PageID });
 		}
 	});
 	RootGraph.RemoveAllGraphPages();
-	if (BuildPageID.IsValid())
+	if (BuildPageID == Metasound::Frontend::DefaultGraphPageID)
 	{
 		SetBuildPageID(FGuid());
 	}

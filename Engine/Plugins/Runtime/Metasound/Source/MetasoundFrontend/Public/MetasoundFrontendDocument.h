@@ -35,6 +35,8 @@ namespace Metasound
 
 	namespace Frontend
 	{
+		constexpr FGuid DefaultGraphPageID(0, 0, 0, 0);
+
 		namespace DisplayStyle
 		{
 			namespace EdgeAnimation
