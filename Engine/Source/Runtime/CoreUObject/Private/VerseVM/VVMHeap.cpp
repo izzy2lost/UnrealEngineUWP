@@ -112,6 +112,10 @@ void FHeap::Initialize()
 
 		CollectorThread = new FThread(TEXT("Verse GC Thread"), CollectorThreadMain, 0, TPri_Normal, FThreadAffinity(), FThread::Forkable);
 
+		// Create the main thread context, regardless of whether we are about to enable or disable FrankenGC.
+		FIOContext Context = FIOContext::CreateForManualStackScanning();
+		Context.AcquireAccessForManualStackScanning();
+
 		// Fetch the FrankenGC mode directly
 		check(GConfig);
 		bool bEnableFrankenGC = true;
@@ -129,6 +133,16 @@ void FHeap::Initialize()
 
 		// Enable/Disable franken GC before cells are created.
 		UE::GC::EnableFrankenGCMode(bEnableFrankenGC);
+	}
+}
+
+void FHeap::Deinitialize()
+{
+	if (bIsInitialized)
+	{
+		FRunningContext RunningContext = FRunningContextPromise{};
+		FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
+		Context.ReleaseForManualStackScanning();
 	}
 }
 

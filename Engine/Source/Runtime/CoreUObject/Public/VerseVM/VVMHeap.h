@@ -53,6 +53,8 @@ public:
 	// Must call this before doing anything with the heap.
 	COREUOBJECT_API static void Initialize();
 
+	COREUOBJECT_API static void Deinitialize();
+
 	// Space for objects that are fast to GC: they have no destructors and do not require census. Ideally most
 	// objects we allocate dynamically are fast.
 	COREUOBJECT_API static FSubspace* FastSpace;

@@ -104,6 +104,8 @@
 
 	#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 		#include "VerseVM/VVMVerse.h"
+	#else
+		#include "VerseVM/VVMExecutionContext.h"
 	#endif
 #endif
 
@@ -3493,8 +3495,12 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 	PreInitContext.CommandletCommandLine = CommandletCommandLine;
 #endif // UE_EDITOR || WITH_ENGINE
 
-#if (WITH_VERSE_VM || defined(__INTELLISENSE__)) && WITH_COREUOBJECT
+#if WITH_COREUOBJECT
+#if (WITH_VERSE_VM || defined(__INTELLISENSE__))
 	Verse::VerseVM::Startup();
+#else
+	verse::FExecutionContext::Create();
+#endif
 #endif
 
 	return 0;

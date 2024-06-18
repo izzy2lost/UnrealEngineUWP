@@ -18,14 +18,12 @@ TGlobalTrivialEmergentTypePtr<&VFalse::StaticCppClassInfo> VFalse::GlobalTrivial
 TGlobalHeapPtr<VFalse> GlobalFalsePtr;
 TGlobalHeapPtr<VOption> GlobalTruePtr;
 
-void VFalse::InitializeGlobals()
+void VFalse::InitializeGlobals(Verse::FAllocationContext Context)
 {
-	FRunningContext::Create([](Verse::FAllocationContext Context) {
-		Verse::GlobalFalsePtr.Set(Context, &VFalse::New(Context));
+	Verse::GlobalFalsePtr.Set(Context, &VFalse::New(Context));
 
-		VValue True(*GlobalFalsePtr.Get());
-		Verse::GlobalTruePtr.Set(Context, &VOption::New(Context, True));
-	});
+	VValue True(*GlobalFalsePtr.Get());
+	Verse::GlobalTruePtr.Set(Context, &VOption::New(Context, True));
 }
 
 void VFalse::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)

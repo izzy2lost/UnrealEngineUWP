@@ -38,21 +38,13 @@ struct FExecutionContext
 		ensure(!bBlockAllExecution);
 	}
 
-	template <typename TFunc>
-	static void Create(const TFunc& Func)
+#if WITH_VERSE_BPVM
+	static FExecutionContext Create()
 	{
 		ensure(!bBlockAllExecution);
-#if WITH_VERSE_BPVM
-		FExecutionContext ExecContext(FExecutionContextImpl::Claim());
-		Func(ExecContext);
-		ExecContext.Impl->Release();
-#else
-		::Verse::FRunningContext::Create([&](::Verse::FRunningContext Context) {
-			Context.EnableManualStackScanning();
-			Func(FExecutionContext(Context));
-		});
-#endif
+		return FExecutionContext(FExecutionContextImpl::Claim());
 	}
+#endif
 
 	static FExecutionContext GetActiveContext()
 	{

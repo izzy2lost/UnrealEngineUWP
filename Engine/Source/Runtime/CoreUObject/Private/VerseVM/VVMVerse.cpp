@@ -20,10 +20,10 @@ IEngineEnvironment* GEngineEnvironment = nullptr;
 void VerseVM::Startup()
 {
 	Verse::FHeap::Initialize();
-	Verse::VEmergentTypeCreator::Initialize();
+	Verse::FRunningContext Context = Verse::FRunningContextPromise{};
 
-	// We initialize the global True/False ptr's at module startup to avoid checking if they are initialized elsewhere
-	Verse::VFalse::InitializeGlobals();
+	Verse::VEmergentTypeCreator::Initialize(Context);
+	Verse::VFalse::InitializeGlobals(Context);
 
 	// VerseVM requires RTFM enabled
 #if UE_AUTORTFM || defined(__INTELLISENSE__)
@@ -36,14 +36,13 @@ void VerseVM::Startup()
 
 	if (!Verse::GlobalProgram)
 	{
-		FRunningContext::Create([](FRunningContext Context) {
-			GlobalProgram.Set(Context, &VProgram::New(Context, 32));
-		});
+		GlobalProgram.Set(Context, &VProgram::New(Context, 32));
 	}
 }
 
 void VerseVM::Shutdown()
 {
+	FHeap::Deinitialize();
 }
 
 IEngineEnvironment* VerseVM::GetEngineEnvironment()

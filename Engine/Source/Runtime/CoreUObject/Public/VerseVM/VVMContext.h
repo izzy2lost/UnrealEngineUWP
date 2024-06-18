@@ -155,6 +155,11 @@ protected:
 	uintptr_t EncodedWord = 0;
 };
 
+struct FIOContextPromise
+{
+	FIOContextPromise() = default;
+};
+
 // Having an IO context means:
 //
 // - You cannot access the heap.
@@ -173,6 +178,12 @@ struct FIOContext : FContext
 		CheckIOInvariants();
 	}
 
+	FIOContext(const FIOContextPromise& Other)
+		: FContext(FContextImpl::GetCurrentImpl(), EIsInHandshake::No)
+	{
+		CheckIOInvariants();
+	}
+
 	// Create the context for this thread and run some code in it without heap access. You can only have one
 	// context created per thread.
 	template <typename TFunc>
@@ -185,6 +196,23 @@ struct FIOContext : FContext
 
 	template <typename TFunc>
 	void AcquireAccess(const TFunc& Func) const;
+
+	// Create the context for this thread, and enable manual stack scanning.
+	// Makes sense in places like the UE game thread that manage their own GC marking without conservative stack.
+	static FIOContext CreateForManualStackScanning()
+	{
+		FIOContext Context(FContextImpl::ClaimOrAllocateContext(EContextHeapRole::Mutator), EIsInHandshake::No);
+		Context.EnableManualStackScanning();
+		return Context;
+	}
+
+	void ReleaseForManualStackScanning()
+	{
+		checkSlow(UsesManualStackScanning());
+		GetImpl()->ReleaseContext();
+	}
+
+	FRunningContext AcquireAccessForManualStackScanning();
 
 	// Wait until the target context runs the given function. If that context doesn't have access, the action
 	// runs immediately and on the calling thread.
@@ -450,6 +478,14 @@ struct FRunningContext : FAccessContext
 		CheckInvariants();
 	}
 
+	FIOContext RelinquishAccessForManualStackScanning()
+	{
+		checkSlow(UsesManualStackScanning());
+		CheckInvariants();
+		GetImpl()->RelinquishAccess();
+		return FIOContext(*this);
+	}
+
 	void CheckForHandshake() const
 	{
 		CheckInvariants();
@@ -633,6 +669,13 @@ void FIOContext::AcquireAccess(const TFunc& Func) const
 		Func(FRunningContext(*this));
 	});
 	GetImpl()->RelinquishAccess();
+}
+
+inline FRunningContext FIOContext::AcquireAccessForManualStackScanning()
+{
+	checkSlow(UsesManualStackScanning());
+	GetImpl()->AcquireAccess();
+	return FRunningContext(*this);
 }
 
 } // namespace Verse

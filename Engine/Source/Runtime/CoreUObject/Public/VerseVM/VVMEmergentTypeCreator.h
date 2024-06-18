@@ -32,7 +32,7 @@ class VEmergentTypeCreator
 	VEmergentTypeCreator() = delete;
 
 public:
-	COREUOBJECT_API static void Initialize();
+	COREUOBJECT_API static void Initialize(FAllocationContext Context);
 	COREUOBJECT_API static VEmergentType* GetOrCreate(FAllocationContext Context, VType* Type, VCppClassInfo* CppClassInfo);
 	COREUOBJECT_API static VEmergentType* GetOrCreate(FAllocationContext Context, VShape* InShape, VType* Type, VCppClassInfo* CppClassInfo);
 

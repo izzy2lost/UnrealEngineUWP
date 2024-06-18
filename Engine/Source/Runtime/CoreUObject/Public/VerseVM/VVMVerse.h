@@ -3,6 +3,7 @@
 #pragma once
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "CoreMinimal.h"
 
 namespace Verse
 {

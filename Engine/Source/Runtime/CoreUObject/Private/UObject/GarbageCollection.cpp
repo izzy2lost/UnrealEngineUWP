@@ -3762,9 +3762,10 @@ static bool UpdateFrankenGCMode()
 		bFrankenGCEnabled = bNewState;
 		if (bFrankenGCEnabled)
 		{
-			Verse::FIOContext::Create([](Verse::FIOContext Context) {
-				Verse::FHeap::EnableExternalControl(Context);
-				});
+			Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
+			Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
+			Verse::FHeap::EnableExternalControl(Context);
+			Context.AcquireAccessForManualStackScanning();
 		}
 		else
 		{
@@ -3792,12 +3793,12 @@ static FORCEINLINE void StartVerseGC()
 	GIsFrankenGCCollecting = UpdateFrankenGCMode();
 	if (GIsFrankenGCCollecting)
 	{
-		Verse::FRunningContext Context = Verse::FRunningContextPromise{};
-		Context.RelinquishAccess([](Verse::FIOContext Context) {
-			Context.SetIsInManuallyEmptyStack(true);
-			Verse::FHeap::ExternallySynchronouslyStartGC(Context);
-			VerseCycleRequest = Verse::FHeap::StartCollectingIfNotCollecting();
-		});
+		Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
+		Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
+
+		Context.SetIsInManuallyEmptyStack(true);
+		Verse::FHeap::ExternallySynchronouslyStartGC(Context);
+		VerseCycleRequest = Verse::FHeap::StartCollectingIfNotCollecting();
 	}
 }
 
@@ -3809,12 +3810,13 @@ static FORCEINLINE void StopVerseGC()
 	{
 		GIsFrankenGCCollecting = false;
 
-		Verse::FRunningContext Context = Verse::FRunningContextPromise{};
-		Context.RelinquishAccess([](Verse::FIOContext Context) { 
-			Verse::FHeap::ExternallySynchronouslyTerminateGC(Context);
-			Context.SetIsInManuallyEmptyStack(false);
-			VerseCycleRequest.Wait(Context);
-		});
+		Verse::FIOContext Context = Verse::FIOContextPromise{};
+
+		Verse::FHeap::ExternallySynchronouslyTerminateGC(Context);
+		VerseCycleRequest.Wait(Context);
+		Context.SetIsInManuallyEmptyStack(false);
+
+		Context.AcquireAccessForManualStackScanning();
 	}
 }
 #else
@@ -4326,12 +4328,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			return false;
 		}
 
-		bool bIsDone = false;
-		Verse::FRunningContext Context = Verse::FRunningContextPromise{};
-		Context.RelinquishAccess([&bIsDone](Verse::FIOContext Context) {
-			bIsDone = Verse::FHeap::IsGCTerminationPendingExternalSignal(Context);
-		});
-		return !bIsDone;
+		Verse::FIOContext Context = Verse::FIOContextPromise{};
+		return !Verse::FHeap::IsGCTerminationPendingExternalSignal(Context);
 #else
 		return false;
 #endif

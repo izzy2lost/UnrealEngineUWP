@@ -20,9 +20,6 @@
 #if PLATFORM_WINDOWS
 	#include "Windows/WindowsHWrapper.h"
 #endif
-#if WITH_COREUOBJECT
-	#include "VerseVM/VVMExecutionContext.h"
-#endif
 
 #ifdef UE_LIVE_CODING_ENGINE_DIR
 const TCHAR* GLiveCodingEngineDir = TEXT(UE_LIVE_CODING_ENGINE_DIR);
@@ -121,21 +118,6 @@ int32 GuardedMain( const TCHAR* CmdLine )
 	// Super early init code. DO NOT MOVE THIS ANYWHERE ELSE!
 	FCoreDelegates::GetPreMainInitDelegate().Broadcast();
 
-	// Set up minidump filename. We cannot do this directly inside main as we use an FString that requires 
-	// destruction and main uses SEH.
-	// These names will be updated as soon as the Filemanager is set up so we can write to the log file.
-	// That will also use the user folder for installed builds so we don't write into program files or whatever.
-#if PLATFORM_WINDOWS
-	FCString::Strcpy(MiniDumpFilenameW, *FString::Printf(TEXT("unreal-v%i-%s.dmp"), FEngineVersion::Current().GetChangelist(), *FDateTime::Now().ToString()));
-#endif
-
-	FTrackedActivity::GetEngineActivity().Update(TEXT("Initializing"));
-	int32 ErrorLevel = EnginePreInit( CmdLine );
-
-#if WITH_COREUOBJECT
-	verse::FExecutionContext::Create([&](verse::FExecutionContext Context) {
-#endif
-
 	// make sure GEngineLoop::Exit() is always called.
 	struct EngineLoopCleanupGuard 
 	{ 
@@ -150,14 +132,21 @@ int32 GuardedMain( const TCHAR* CmdLine )
 		}
 	} CleanupGuard;
 
+	// Set up minidump filename. We cannot do this directly inside main as we use an FString that requires 
+	// destruction and main uses SEH.
+	// These names will be updated as soon as the Filemanager is set up so we can write to the log file.
+	// That will also use the user folder for installed builds so we don't write into program files or whatever.
+#if PLATFORM_WINDOWS
+	FCString::Strcpy(MiniDumpFilenameW, *FString::Printf(TEXT("unreal-v%i-%s.dmp"), FEngineVersion::Current().GetChangelist(), *FDateTime::Now().ToString()));
+#endif
+
+	FTrackedActivity::GetEngineActivity().Update(TEXT("Initializing"));
+	int32 ErrorLevel = EnginePreInit( CmdLine );
+
 	// exit if PreInit failed.
 	if ( ErrorLevel != 0 || IsEngineExitRequested() )
 	{
-#if WITH_COREUOBJECT
-		return;
-#else
 		return ErrorLevel;
-#endif
 	}
 
 	{
@@ -210,11 +199,6 @@ int32 GuardedMain( const TCHAR* CmdLine )
 		EditorExit();
 	}
 #endif
-
-#if WITH_COREUOBJECT
-	});
-#endif
-
 	return ErrorLevel;
 }
 
