@@ -488,8 +488,6 @@ namespace HarmonixMetasound
 		InVertexData.SetValue(METASOUND_GET_PARAM_NAME(MidiPlayerNodePinNames::KillVoicesOnSeek), bKillVoicesOnSeek);
 		InVertexData.SetValue(METASOUND_GET_PARAM_NAME(MidiPlayerNodePinNames::KillVoicesOnMidiChange), bKillVoicesOnMidiChange);
 
-		SetupNewMidiFile(MidiAssetInPin->GetMidiProxy());
-
 		NeedsTransportInit = true;
 	}
 
