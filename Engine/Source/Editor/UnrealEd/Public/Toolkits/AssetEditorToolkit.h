@@ -347,6 +347,9 @@ protected:
 	/** Internal function to check if the asset can be saved that calls CanSaveAsset */
 	bool CanSaveAsset_Internal() const;
 
+	/** Called to test if "Save" should be visible for this asset */
+	UNREALED_API virtual bool IsSaveAssetVisible() const;
+
 	/** Called when "Save" is clicked for this asset */
 	UNREALED_API virtual void SaveAsset_Execute();
 
@@ -358,6 +361,9 @@ protected:
 
 	/** Internal function to check if the asset can be saved that calls CanSaveAssetAs */
 	bool CanSaveAssetAs_Internal() const;
+
+	/** Called to test if "Save As" should be visible for this asset */
+	UNREALED_API virtual bool IsSaveAssetAsVisible() const;
 
 	/** Called when "Save As" is clicked for this asset */
 	UNREALED_API virtual void SaveAssetAs_Execute();

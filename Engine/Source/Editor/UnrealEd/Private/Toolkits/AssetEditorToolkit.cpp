@@ -252,16 +252,20 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 
 	check( ToolkitHost.IsValid() );
 	ToolkitManager.RegisterNewToolkit( SharedThis( this ) );
-	
+
 	ToolkitCommands->MapAction(
 		FAssetEditorCommonCommands::Get().SaveAsset,
 		FExecuteAction::CreateSP( this, &FAssetEditorToolkit::SaveAsset_Execute ),
-		FCanExecuteAction::CreateSP( this, &FAssetEditorToolkit::CanSaveAsset_Internal ));
+		FCanExecuteAction::CreateSP( this, &FAssetEditorToolkit::CanSaveAsset_Internal ),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP( this, &FAssetEditorToolkit::IsSaveAssetVisible ));
 
 	ToolkitCommands->MapAction(
 		FAssetEditorCommonCommands::Get().SaveAssetAs,
 		FExecuteAction::CreateSP( this, &FAssetEditorToolkit::SaveAssetAs_Execute ),
-		FCanExecuteAction::CreateSP( this, &FAssetEditorToolkit::CanSaveAssetAs_Internal ));
+		FCanExecuteAction::CreateSP( this, &FAssetEditorToolkit::CanSaveAssetAs_Internal ),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP( this, &FAssetEditorToolkit::IsSaveAssetAsVisible ));
 
 	ToolkitCommands->MapAction(
 		FGlobalEditorCommonCommands::Get().FindInContentBrowser,
@@ -639,6 +643,11 @@ bool FAssetEditorToolkit::CanSaveAsset_Internal() const
 	return CanSaveAsset();
 }
 
+bool FAssetEditorToolkit::IsSaveAssetVisible() const
+{
+	return true;
+}
+
 void FAssetEditorToolkit::SaveAsset_Execute()
 {
 	if (EditingObjects.Num() == 0)
@@ -686,6 +695,11 @@ bool FAssetEditorToolkit::CanSaveAssetAs_Internal() const
 	}
 
 	return CanSaveAssetAs();
+}
+
+bool FAssetEditorToolkit::IsSaveAssetAsVisible() const
+{
+	return IsActuallyAnAsset();
 }
 
 void FAssetEditorToolkit::SaveAssetAs_Execute()
@@ -1079,10 +1093,7 @@ void FAssetEditorToolkit::FillDefaultFileMenuCommands(FToolMenuSection& InSectio
 	if (UAssetEditorToolkitMenuContext* Context = InSection.FindContext<UAssetEditorToolkitMenuContext>())
 	{
 		InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAsset, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAsset")).InsertPosition = InsertPosition;
-		if( IsActuallyAnAsset() )
-		{
-			InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAssetAs, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAssetAs")).InsertPosition = InsertPosition;
-		}
+		InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAssetAs, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAssetAs")).InsertPosition = InsertPosition;
 	}
 
 	if( IsWorldCentricAssetEditor() )
