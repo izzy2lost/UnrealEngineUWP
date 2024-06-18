@@ -235,6 +235,13 @@ protected: // for unit tests
 
 enum ECustomLoadMethod { Construct, Assign };
 
+/// Load/save a struct with custom code to handle:
+/// * reference types
+/// * private members
+/// * non-default constructible types
+/// * custom delta semantics
+/// * other runtime representations than struct/class, e.g. serialize database
+/// * optimization for very common struct
 class ICustomBinding
 {
 public:

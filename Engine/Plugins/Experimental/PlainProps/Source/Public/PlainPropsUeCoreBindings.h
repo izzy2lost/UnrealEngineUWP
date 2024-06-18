@@ -6,6 +6,7 @@
 #include "Math/Quat.h"
 #include "Math/Vector.h"
 #include "Math/Transform.h"
+#include "Misc/Optional.h"
 #include "PlainPropsBind.h"
 #include "PlainPropsLoad.h"
 #include "PlainPropsRead.h"
@@ -22,7 +23,6 @@ PP_REFLECT_STRUCT(, FVector4, void, X, Y, Z, W);
 PP_REFLECT_STRUCT(, FQuat, void, X, Y, Z, W);
 PP_NAME_STRUCT(, FTransform);
 }
-
 
 namespace PlainProps::UE
 {
@@ -247,6 +247,58 @@ struct TUniquePtrBinding : public IItemRangeBinding
 	{
 		const TUniquePtr<T>& Ptr = Ctx.Request.GetRange<TUniquePtr<T>>();
 		Ctx.Items.SetAll(Ptr.Get(), Ptr ? 1 : 0);
+	}
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+struct TOptionalBinding : public IItemRangeBinding
+{
+	using SizeType = bool;
+	using ItemType = T;
+
+	virtual void MakeItems(FLoadRangeContext& Ctx) const override
+	{
+		TOptional<T>& Opt = Ctx.Request.GetRange<TOptional<T>>();
+		
+		if (Ctx.Request.NumTotal() == 0)
+		{
+			Opt.Reset();
+		}
+		else if constexpr (std::is_default_constructible_v<T>)
+		{
+			if (!Opt)
+			{
+				Opt.Emplace();
+			}
+			Ctx.Items.Set(reinterpret_cast<T*>(&Opt), 1);
+		}
+		else if (Opt)
+		{
+			Ctx.Items.Set(reinterpret_cast<T*>(&Opt), 1);
+		}
+		else
+		{
+			if (Ctx.Request.IsFirstCall())
+			{
+				Ctx.Items.SetUnconstructed();
+				Ctx.Items.RequestFinalCall();
+				Ctx.Items.Set(reinterpret_cast<T*>(&Opt), 1);	
+			}
+			else
+			{
+				// Move-construct from self reference
+				Opt.Emplace(reinterpret_cast<T&&>(Opt));
+			}
+		}
+	}
+
+	virtual void ReadItems(FSaveRangeContext& Ctx) const override
+	{
+		const TOptional<T>& Opt = Ctx.Request.GetRange<TOptional<T>>();
+		check(!Opt || reinterpret_cast<const T*>(&Opt) == &Opt.GetValue());
+		Ctx.Items.SetAll(reinterpret_cast<const T*>(Opt ? &Opt : nullptr), Opt ? 1 : 0);
 	}
 };
 
@@ -601,8 +653,6 @@ struct TSetDeltaBinding : public ICustomBinding
 }
 
 
-
-
 namespace PlainProps
 {
 
@@ -632,6 +682,13 @@ struct TRangeBind<TSet<T>>
 {
 	using Type = UE::TSetBinding<T>;
 };
+
+template<typename T>
+struct TRangeBind<TOptional<T>>
+{
+	using Type = UE::TOptionalBinding<T>;
+};
+
 
 template<>
 struct TCustomBind<FTransform>

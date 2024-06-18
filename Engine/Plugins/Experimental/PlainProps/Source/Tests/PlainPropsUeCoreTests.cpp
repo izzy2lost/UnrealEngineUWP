@@ -407,15 +407,6 @@ static void Run(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
 //{
 //	TArray<FSub> Subs;
 //};
-//
-//struct FNDC
-//{
-//	int X = -1;
-//	explicit FNDC(int I) : X(I) {}
-//	friend bool operator==(FNDC A, FNDC B) = default;
-//	friend inline uint32 GetTypeHash(FNDC I) { return ::GetTypeHash(I.X); }
-//};
-//PP_REFLECT_STRUCT(PlainProps::UE::Test, FNDC, void, X);
 
 struct FInt { int32 X; };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FInt, void, X);
@@ -530,6 +521,36 @@ TArray<TUniquePtr<T>> MakeTwo(T&& A, T&& B)
 	Out.Add(MakeOne(MoveTemp(B)));
 	return Out;
 }
+
+//////////////////////////////////////////////////////////////////////////
+
+struct FNDC
+{
+	int X = -1;
+	explicit FNDC(int I) : X(I) {}
+	friend bool operator==(FNDC A, FNDC B) = default;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FNDC, void, X);
+
+struct FNDCIntrusive : FNDC
+{
+	FNDCIntrusive() : FNDC(-1) {}
+	explicit FNDCIntrusive(FIntrusiveUnsetOptionalState) : FNDC(-1) {}
+	explicit FNDCIntrusive(int I) : FNDC(I) {}
+	friend bool operator==(FNDCIntrusive, FNDCIntrusive) = default;
+	bool operator==(FIntrusiveUnsetOptionalState) const { return X == -1;}
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FNDCIntrusive, void, X);
+
+struct FOpts
+{
+	TOptional<bool> Bit;
+	TOptional<FNDC> NDC;
+	TOptional<FNDCIntrusive> NDCI;
+
+	friend bool operator==(const FOpts&, const FOpts&) = default;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FOpts, void, Bit, NDC, NDCI);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -700,6 +721,27 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			{
 				CHECK(Batch.Load<FUniquePtrs>() == FUniquePtrs{});
 				CHECK(Batch.Load<FUniquePtrs>() == FUniquePtrs{MakeOne(true), MakeOne(FInt{3}), MakeOne(MakeOne(2)), MakeTwo(1.0, 2.0)});
+			});
+	}
+
+	SECTION("TOptional")
+	{
+		TScopedStructBinding<FNDC> NDC;
+		TScopedStructBinding<FNDCIntrusive> NDCI;
+		TScopedStructBinding<FOpts> Opts;
+		Run([](FBatchSaver& Batch)
+			{
+				Batch.Save(FOpts{});
+				Batch.Save(FOpts{{true}, {FNDC{2}}, {FNDCIntrusive{3}}});
+				Batch.Save(FOpts{{true}, {FNDC{2}}, {FNDCIntrusive{3}}});
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FOpts>() == FOpts{});
+				CHECK(Batch.Load<FOpts>() == FOpts{{true}, {FNDC{2}}, {FNDCIntrusive{3}}});
+				FOpts AlreadySet = {{false}, {FNDC{0}}, {FNDCIntrusive{1}}};
+				Batch.LoadInto(AlreadySet);
+				CHECK(AlreadySet == FOpts{{true}, {FNDC{2}}, {FNDCIntrusive{3}}});
 			});
 	}
 
