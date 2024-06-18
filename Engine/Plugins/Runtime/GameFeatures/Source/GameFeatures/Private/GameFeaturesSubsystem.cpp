@@ -168,7 +168,7 @@ const FString LexToString(const EGameFeatureTargetState GameFeatureTargetState)
 			return TEXT("Unknown");
 	}
 
-	static_assert((uint8)EGameFeatureTargetState::Count == 4, TEXT("Update LexToString to include new EGameFeatureTargetState"));
+	static_assert((uint8)EGameFeatureTargetState::Count == 4, "Update LexToString to include new EGameFeatureTargetState");
 }
 
 void LexFromString(EGameFeatureTargetState& ValueOut, const TCHAR* StringIn)

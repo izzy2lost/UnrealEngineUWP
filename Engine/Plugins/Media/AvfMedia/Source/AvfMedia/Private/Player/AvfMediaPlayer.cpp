@@ -370,7 +370,7 @@ void FAvfMediaPlayer::OnEndReached()
 {
 	if (ShouldLoop)
 	{
-		PlayerTasks.Enqueue([=]()
+		PlayerTasks.Enqueue([this]()
 		{
 			EventSink.ReceiveMediaEvent(EMediaEvent::PlaybackEndReached);
 			Seek(CurrentRate < 0.f ? Duration : FTimespan::Zero());
@@ -381,7 +381,7 @@ void FAvfMediaPlayer::OnEndReached()
 		CurrentState = EMediaState::Paused;
 		CurrentRate = 0.0f;
 
-		PlayerTasks.Enqueue([=]()
+		PlayerTasks.Enqueue([this]()
 		{
 			Seek(FTimespan::Zero());
 			EventSink.ReceiveMediaEvent(EMediaEvent::PlaybackEndReached);
@@ -393,7 +393,7 @@ void FAvfMediaPlayer::OnEndReached()
 
 void FAvfMediaPlayer::OnStatusNotification()
 {
-	PlayerTasks.Enqueue([=]()
+	PlayerTasks.Enqueue([this]()
 	{
 		switch(PlayerItem.status)
 		{
@@ -428,7 +428,7 @@ void FAvfMediaPlayer::OnStatusNotification()
 							#if 0
 								if (bFinished)
 								{
-									PlayerTasks.Enqueue([=]()
+									PlayerTasks.Enqueue([this]()
 									{
 										if(PlayerItem.status == AVPlayerItemStatusReadyToPlay)
 										{
@@ -440,14 +440,14 @@ void FAvfMediaPlayer::OnStatusNotification()
 								}
 								else
 								{
-									PlayerTasks.Enqueue([=]()
+									PlayerTasks.Enqueue([this]()
 									{
 										CurrentState = EMediaState::Error;
 										EventSink.ReceiveMediaEvent(EMediaEvent::MediaOpenFailed);
 									});
 								}
 							#else
-								PlayerTasks.Enqueue([=]()
+								PlayerTasks.Enqueue([this]()
 								{
 									if(PlayerItem.status == AVPlayerItemStatusReadyToPlay)
 									{
@@ -754,7 +754,7 @@ bool FAvfMediaPlayer::Open(const FString& Url, const IMediaOptions* /*Options*/)
 			// File movies will be ready now
 			if (PlayerItem.status == AVPlayerItemStatusReadyToPlay)
 			{
-				PlayerTasks.Enqueue([=]()
+				PlayerTasks.Enqueue([this]()
 				{
 					OnStatusNotification();
 				});
@@ -767,7 +767,7 @@ bool FAvfMediaPlayer::Open(const FString& Url, const IMediaOptions* /*Options*/)
 
 			UE_LOG(LogAvfMedia, Warning, TEXT("Failed to load video tracks. [%s]"), *FString(errstr));
 
-			PlayerTasks.Enqueue([=]()
+			PlayerTasks.Enqueue([this]()
 			{
 				CurrentState = EMediaState::Error;
 				EventSink.ReceiveMediaEvent(EMediaEvent::MediaOpenFailed);
@@ -992,7 +992,7 @@ bool FAvfMediaPlayer::Seek(const FTimespan& Time)
 		{
 			if(bFinished)
 			{
-				PlayerTasks.Enqueue([=]()
+				PlayerTasks.Enqueue([this]()
 				{
 					bSeeking = false;
 					EventSink.ReceiveMediaEvent(EMediaEvent::SeekCompleted);

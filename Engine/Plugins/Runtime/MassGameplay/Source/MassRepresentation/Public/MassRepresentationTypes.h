@@ -204,7 +204,7 @@ private:
 	// prevalent use in FMassRepresentationFragment. Perhaps serial number could be formed from the referenced 
 	// FStaticMeshInstanceVisualizationDesc's hash.
 };
-static_assert(sizeof(FStaticMeshInstanceVisualizationDescHandle) == sizeof(uint16), TEXT("FStaticMeshInstanceVisualizationDescHandle must be uint16 sized to ensure FMassRepresentationFragment memory isn't unexpectedly bloated"));
+static_assert(sizeof(FStaticMeshInstanceVisualizationDescHandle) == sizeof(uint16), "FStaticMeshInstanceVisualizationDescHandle must be uint16 sized to ensure FMassRepresentationFragment memory isn't unexpectedly bloated");
 
 class UInstancedStaticMeshComponent;
 
