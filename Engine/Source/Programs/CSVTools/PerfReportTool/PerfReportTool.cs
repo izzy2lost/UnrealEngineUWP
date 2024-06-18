@@ -1951,7 +1951,7 @@ namespace PerfReportTool
 			if (multipleCSVs)
 			{
 				graphParams.showEventNames.Add("CSV:*");
-				graphParams.showEventNameText = false;
+				graphParams.showEventNameTextMode = ShowEventTextMode.Hide;
 			}
 			else
 			{

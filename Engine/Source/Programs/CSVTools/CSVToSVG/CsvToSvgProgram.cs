@@ -63,6 +63,7 @@ namespace CSVTools
 			"       -fixedPointPrecisionScale <1..N> - scale for fixed point graph rendering (>1 gives subpixel accuracy)"+
 			"       -graphOnly\n" +
 			"       -hideEventNames <1|0>\n" +
+			"       -showAllEventNames <1|0> - don't filter out event names if they're too dense\n" +
 			"       -hideStatPrefix <list>\n" +
 			"       -hierarchySeparator <character>\n" +
 			"       -highlightEventRegions <startEventName,endEventName>\n" +
@@ -327,7 +328,14 @@ namespace CSVTools
 
 			// Events
 			graphParams.showEventNames = GetListArg("showEvents");
-			graphParams.showEventNameText = GetIntArg("hideEventNames", 0) == 0;
+			if ( GetIntArg("hideEventNames", 0) == 1 )
+			{
+				graphParams.showEventNameTextMode = ShowEventTextMode.Hide;
+			}
+			else if (GetIntArg("showAllEventNames", 0) == 1)
+			{
+				graphParams.showEventNameTextMode = ShowEventTextMode.ShowAll;
+			}
 			graphParams.highlightEventRegions = GetListArg("highlightEventRegions", ',');
 
 			// Start/end event
