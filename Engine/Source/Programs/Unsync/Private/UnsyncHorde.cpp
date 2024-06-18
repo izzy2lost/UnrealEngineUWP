@@ -134,7 +134,7 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 		{
 			std::string BlockHashStr	= HashToHexString(BlockHash.ToHash160());
 			std::string ExpectedHashStr = HashToHexString(BlobHeader.DecompressedHash);
-			UNSYNC_ERROR(L"Received blob hash (%hs) does not match expected size (%hs)", BlockHashStr.c_str(), ExpectedHashStr.c_str());
+			UNSYNC_ERROR(L"Received blob hash (%hs) does not match expected hash (%hs)", BlockHashStr.c_str(), ExpectedHashStr.c_str());
 			return FDownloadError(EDownloadRetryMode::Abort);
 		}
 

@@ -343,7 +343,7 @@ AcquireAuthToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig)
 
 	std::thread ServerThread = StartHttpCallbackServer(CallbackListenSocket, CallbackServerDesc.RequestPath, RandomState, HttpCallbackData);
 
-	UNSYNC_LOG(L"Authorization URL: %hs", AuthorizeUrl.c_str());
+	UNSYNC_LOG(L"Opening authorization URL in default browser");
 	OpenUrlInDefaultBrowser(AuthorizeUrl.c_str());
 
 	UNSYNC_LOG(L"Waiting for HTTP callback on port %d...", int(CallbackPortNumber));
@@ -417,6 +417,10 @@ AcquireAuthToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig)
 				{
 					Result.ExirationTime = int64(Field.number_value());
 				}
+			}
+			else
+			{
+				return MoveError<FAuthToken>(DecodedAccessTokenResult);
 			}
 
 			Result.Raw = JsonString;
