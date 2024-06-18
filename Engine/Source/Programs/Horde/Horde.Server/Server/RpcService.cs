@@ -50,14 +50,13 @@ namespace Horde.Server.Server
 		readonly IToolCollection _toolCollection;
 		readonly IAgentTelemetryCollection _agentTelemetryCollection;
 		readonly AclService _aclService;
-		readonly IServiceProvider _serviceProvider;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RpcService(AgentService agentService, LifetimeService lifetimeService, ITelemetrySink telemetrySink, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, AclService aclService, IServiceProvider serviceProvider, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
+		public RpcService(AgentService agentService, LifetimeService lifetimeService, ITelemetrySink telemetrySink, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
 		{
 			_agentService = agentService;
 			_lifetimeService = lifetimeService;
@@ -65,7 +64,6 @@ namespace Horde.Server.Server
 			_toolCollection = toolCollection;
 			_agentTelemetryCollection = agentTelemetryCollection;
 			_aclService = aclService;
-			_serviceProvider = serviceProvider;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}
