@@ -248,11 +248,13 @@ UMovieSceneControlRigParameterSection* FControlConstraintChannelInterface::GetCo
 			const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();
 			for (const FMovieSceneBinding& Binding : Bindings)
 			{
-				UMovieSceneTrack* Track = MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid());
-				UMovieSceneControlRigParameterTrack* ControlRigTrack = Cast<UMovieSceneControlRigParameterTrack>(Track);
-				if (ControlRigTrack && ControlRigTrack->GetControlRig() == ControlRig)
+				for (UMovieSceneTrack* Track : MovieScene->FindTracks(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid()))
 				{
-					return ControlRigTrack;
+					UMovieSceneControlRigParameterTrack* ControlRigTrack = Cast<UMovieSceneControlRigParameterTrack>(Track);
+					if (ControlRigTrack && ControlRigTrack->GetControlRig() == ControlRig)
+					{
+						return ControlRigTrack;
+					}
 				}
 			}
 		}
