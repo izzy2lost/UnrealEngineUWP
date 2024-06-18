@@ -32,7 +32,7 @@ private:
 	
 	/** User settings */
 	UPROPERTY(EditAnywhere, Category = "Procedural Parameters")
-	unsigned KeyCount;
+	unsigned KeyCount = 24;
 	
 	UPROPERTY(EditAnywhere, Category = "Procedural Parameters")
 	FDateTime Time;
