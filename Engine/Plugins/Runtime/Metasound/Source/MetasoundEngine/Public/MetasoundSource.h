@@ -75,6 +75,9 @@ class METASOUNDENGINE_API UMetaSoundSource : public USoundWaveProcedural, public
 
 	friend struct Metasound::Engine::FAssetHelper;
 	friend class UMetaSoundSourceBuilder;
+	
+	//Forward declare
+	class FAudioParameterCollector;
 
 	// FRuntimeInput represents an input to a MetaSound which can be manipulated.
 	struct FRuntimeInput
@@ -308,9 +311,20 @@ public:
 	Metasound::FMetasoundEnvironment CreateEnvironment(const FSoundGeneratorInitParams& InParams) const;
 	const TArray<Metasound::FVertexName>& GetOutputAudioChannelOrder() const;
 
+	/** Find the Source related to this Preset.
+	 * 
+	 * If this MetaSound is a preset and preset graph inflation is enabled, this
+	 * will traverse the MetaSound Preset hierarchy until a UMetaSoundSource is 
+	 * found which is either 
+	 *  	- Not a preset
+	 * 		AND/OR
+	 *  	- Has modified constructor pin overrides.
+	 */
+	const UMetaSoundSource& FindFirstNoninflatableSource(Metasound::FMetasoundEnvironment& InOutEnvironment, TFunctionRef<void(const UMetaSoundSource&)> OnTraversal) const;
+
 private:
-	TSharedPtr<const Metasound::IGraph> TryGetMetaSoundPresetBaseGraph() const;
-	void MergePresetOverridesAndSuppliedDefaults(const TArray<FAudioParameter>& InSuppliedDefaults, TArray<FAudioParameter>& OutMerged);
+	const UMetaSoundSource& FindFirstNoninflatableSourceInternal(TArray<FGuid>& OutHierarchy, TFunctionRef<void(const UMetaSoundSource&)> OnTraversal) const;
+	TSharedPtr<const Metasound::IGraph> FindFirstNoninflatableGraph(UMetaSoundSource::FAudioParameterCollector& InOutParameterCollector, Metasound::FMetasoundEnvironment& InOutEnvironment) const;
 	
 	Metasound::FMetasoundEnvironment CreateEnvironment() const;
 	Metasound::FMetasoundEnvironment CreateEnvironment(const Audio::FParameterTransmitterInitParams& InParams) const;

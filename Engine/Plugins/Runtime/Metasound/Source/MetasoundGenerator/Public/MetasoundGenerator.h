@@ -80,6 +80,30 @@ namespace Metasound
 		};
 	}
 
+	/** ID for looking up a operator in the operator pool */
+	struct METASOUNDGENERATOR_API FOperatorPoolEntryID final
+	{
+		/** Construct an ID
+		 *
+		 * InOperatorID - ID of the operator.
+		 * InSettings - Operator settings used to create the operator.
+		 */
+		FOperatorPoolEntryID(FGuid InOperatorID, FOperatorSettings InSettings);
+
+		FString ToString() const;
+
+		METASOUNDGENERATOR_API friend bool operator<(const FOperatorPoolEntryID& InLHS, const FOperatorPoolEntryID& InRHS);
+		METASOUNDGENERATOR_API friend bool operator==(const FOperatorPoolEntryID& InLHS, const FOperatorPoolEntryID& InRHS);
+		friend FORCEINLINE uint32 GetTypeHash(const FOperatorPoolEntryID& InID)
+		{
+			return HashCombineFast(GetTypeHash(InID.OperatorID), GetTypeHash(InID.OperatorSettings));
+		}
+
+	private:
+		FGuid OperatorID;
+		FOperatorSettings OperatorSettings;
+	};
+
 	// Struct needed for building the metasound graph
 	struct METASOUNDGENERATOR_API FMetasoundGeneratorInitParams
 	{
@@ -402,7 +426,7 @@ namespace Metasound
 
 		TUniquePtr<FMetasoundEnvironment> EnvironmentPtr;
 		TUniquePtr<FAsyncTaskBase> BuilderTask;
-		FGuid OperatorID;
+		TOptional<FOperatorPoolEntryID> OperatorPoolID;
 		bool bUseOperatorPool = false;
 	};
 

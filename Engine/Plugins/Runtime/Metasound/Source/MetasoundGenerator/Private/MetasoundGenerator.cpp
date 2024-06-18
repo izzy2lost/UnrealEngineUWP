@@ -491,6 +491,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		GraphOutputAudio.Reset();
 		OnFinishedTriggerRef = TDataWriteReference<FTrigger>::CreateNew(OperatorSettings);
 		GraphAnalyzer.Reset();
+		OutputAnalyzers.Reset();
 		ParameterSetters.Reset();
 		ParameterPackSetters.Reset();
 
@@ -924,6 +925,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		if (bUseOperatorPool)
 		{
+			UpdateGraphIfPending();
 			ReleaseOperatorToCache();
 		}
 	}
@@ -938,11 +940,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (OperatorPool.IsValid())
 		{
 			// See if the cache has an operator with matching OperatorID
-			OperatorID = InInitParams.Graph->GetInstanceID();
-			FOperatorAndInputs GraphOperatorAndInputs = OperatorPool->ClaimOperator(OperatorID);
+			OperatorPoolID = FOperatorPoolEntryID{InInitParams.Graph->GetInstanceID(), InInitParams.OperatorSettings};
+			FOperatorAndInputs GraphOperatorAndInputs = OperatorPool->ClaimOperator(*OperatorPoolID);
 			if (GraphOperatorAndInputs.Operator.IsValid())
 			{
-				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Using cached operator %s for MetaSound %s"), *LexToString(OperatorID), *InInitParams.MetaSoundName);
+				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Using cached operator %s for MetaSound %s"), *OperatorPoolID->ToString(), *InInitParams.MetaSoundName);
 				bUseOperatorPool = true; // raise this flag to make sure we put the operator back in the pool (regardless of CVAR state)
 
 				// Apply and default inputs to the operator.
@@ -973,16 +975,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		using namespace MetasoundGeneratorPrivate;
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetasoundConstGraphGenerator::ReleaseOperatorToCache);
 
-		if (OperatorID.IsValid())
+		if (OperatorPoolID.IsSet())
 		{
 			FMetasoundGeneratorModule& Module = FModuleManager::GetModuleChecked<FMetasoundGeneratorModule>("MetasoundGenerator");
 			TSharedPtr<FOperatorPool> OperatorPool = Module.GetOperatorPool();
 			TUniquePtr<IOperator> GraphOperator = ReleaseGraphOperator();
+			FInputVertexInterfaceData InputData = ReleaseInputVertexData();
 
 			if (OperatorPool.IsValid() && GraphOperator.IsValid())
 			{
 				// Release graph operator and input data to the cache
-				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Caching operator %s"), *LexToString(OperatorID));
+				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Caching operator %s"), *OperatorPoolID->ToString());
 
 				// give the operator a chance to reduce its memory footprint before being cached
 				// in the future this should be a conanical phase of an operator's lifecycle (i.e. Reset, Execute, Hybernate)
@@ -995,13 +998,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					}
 				}
 
-				OperatorPool->AddOperator(OperatorID, MoveTemp(GraphOperator), ReleaseInputVertexData());
+				// Clear out any internal references to graph data before adding to
+				// operator pool. MetaSound data references are not thread safe which
+				// requires that data references be removed before transferring 
+				// data references to the operator pool. The operator pool is accessed
+				// from multiple threads and so failure to remove internal data
+				// references may result in a race condition on deallocating references.
+				ClearGraph();
+
+				OperatorPool->AddOperator(*OperatorPoolID, MoveTemp(GraphOperator), MoveTemp(InputData));
 
 			}
 		}
-
-		// Clear out any internal references to graph data
-		ClearGraph();
 	}
 
 	void FMetasoundConstGraphGenerator::BuildGraph(FMetasoundGeneratorInitParams&& InInitParams)

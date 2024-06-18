@@ -116,9 +116,13 @@ void UMetaSoundCacheSubsystem::PrecacheMetaSoundInternal(UMetaSoundSource* InMet
 		return;
 	}
 
+	// Graph inflation may interact with cache. Need to find the same graph registry key
+	// that is found when a MetaSound generator is created. 
+	const UMetaSoundSource&	NoninflatableSource = InMetaSound->FindFirstNoninflatableSource(InitParams->Environment, [](const UMetaSoundSource&){});
+
 	TUniquePtr<FOperatorBuildData> Data = MakeUnique<FOperatorBuildData>(
 		  MoveTemp(InitParams.GetValue())
-		, InMetaSound->GetGraphRegistryKey()
+		, NoninflatableSource.GetGraphRegistryKey()
 		, InMetaSound->AssetClassID
 		, InNumInstances
 		, bTouchExisting
@@ -157,6 +161,6 @@ void UMetaSoundCacheSubsystem::RemoveCachedOperatorsForMetaSound(UMetaSoundSourc
 
 	if (TSharedPtr<FOperatorPool> OperatorPool = Module->GetOperatorPool())
 	{
-		OperatorPool->RemoveOperatorsWithID(InMetaSound->AssetClassID);
+		OperatorPool->RemoveOperatorsWithAssetClassID(InMetaSound->AssetClassID);
 	}
 }

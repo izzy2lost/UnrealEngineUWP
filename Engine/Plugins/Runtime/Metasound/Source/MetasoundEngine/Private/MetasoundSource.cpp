@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "MetasoundSource.h"
 
 #include "Algo/AnyOf.h"
@@ -330,6 +331,74 @@ FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalRUntimePresetGraphInflati
 	TEXT("Default: false"),
 	ECVF_Default);
 
+// FAudioParameterCollector is used during preset graph inflation to collect audio parameters
+// overriden by preset graphs. This collection process is needed because preset graph inflation
+// circumvents the normal storage location of default inputs (They are stored on the registered
+// IGraph). 
+class UMetaSoundSource::FAudioParameterCollector
+{
+	// Utilitiy for sorting parameters by ParamName
+	struct FSortPredicate
+	{
+		FORCEINLINE bool operator()(const FAudioParameter& InLHS, const FAudioParameter& InRHS) const
+		{
+			return InLHS.ParamName.FastLess(InRHS.ParamName);
+		}
+	};
+
+	// Utility for accessing the ParamName from a audio parameter
+	struct FProjection
+	{
+		FORCEINLINE FName operator()(const FAudioParameter& InParam) const
+		{
+			return InParam.ParamName;
+		}
+	};
+
+public:
+	
+	// FAudioParameterCollection merges new parameter into the provided array. The array is manipulated
+	// in-place and so care must be taken that the `FAudioParameterCollector` does not attempt to access
+	// invalid parameter arrays. 
+	FAudioParameterCollector(TArray<FAudioParameter>& InOutParameters)
+	: Parameters(InOutParameters)
+	{
+		Algo::Sort(Parameters, FSortPredicate());
+	}
+	
+	// Do not allow the FAudioParameterCollector to escape scope in order to prevent accidental
+	// invalid access to Parameter array reference.
+	FAudioParameterCollector(const FAudioParameterCollector&) = delete;
+	FAudioParameterCollector(FAudioParameterCollector&&) = delete;
+	FAudioParameterCollector& operator=(const FAudioParameterCollector&) = delete;
+	FAudioParameterCollector& operator=(FAudioParameterCollector&&) = delete;
+
+	// Merge in parameters from this preset.
+	void CollectPresetOverrides(const TSet<Metasound::FVertexName>& InInputsInheritingDefault, const Metasound::TSortedVertexNameMap<FRuntimeInput>& InInputMap)
+	{
+		using namespace Metasound;
+
+		for (const TPair<FVertexName, FRuntimeInput>& Pair : InInputMap)
+		{
+			// Avoid adding parameters which already exist in the ParameterArray
+			int32 InsertPos = Algo::LowerBoundBy(Parameters, Pair.Key, FProjection(), FSortPredicate());
+			const bool bDoesNotAlreadyExist = (InsertPos >= Parameters.Num()) || (Pair.Key != Parameters[InsertPos].ParamName);
+
+			if (bDoesNotAlreadyExist)
+			{
+				// Avoid adding parameters which are NOT overriding a default. 
+				if (!InInputsInheritingDefault.Contains(Pair.Key))
+				{
+					Parameters.Insert(Pair.Value.DefaultParameter, InsertPos);
+				}
+			}
+		}
+	}
+
+private:
+
+	TArray<FAudioParameter>& Parameters;
+};
 
 UMetaSoundSource::UMetaSoundSource(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -997,46 +1066,12 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 		// us to retrieve that specific graph. We also supply the parameters that were overridden
 		// in the preset to the FMetaSoundGenerator, because they are not backed into
 		// the base IGraph. 
-		if (ConsoleVariables::bEnableExperimentalRuntimePresetGraphInflation && bIsPresetGraphInflationSupported)
+		FAudioParameterCollector AudioParameterCollector(InDefaultParameters);
+		TSharedPtr<const IGraph> MetasoundGraph = FindFirstNoninflatableGraph(AudioParameterCollector, Environment);
+
+		if (MetasoundGraph.IsValid())
 		{
-			// Get the graph associated with base graph which this preset wraps.
-			TSharedPtr<const IGraph> MetasoundGraph = TryGetMetaSoundPresetBaseGraph();
-
-			if (MetasoundGraph.IsValid())
-			{
-				// Combine the supplied parameters with the overridden parameters set on the preset.
-				TArray<FAudioParameter> MergedParameters;
-				MergePresetOverridesAndSuppliedDefaults(InDefaultParameters, MergedParameters);
-
-				// Update Graph Hierarchy with the asset unique ID (the hierarchy was collapsed by only using the base graph)
-				Environment.SetValue<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy, TArray<FGuid>({ AssetClassID }));
-
-				// Create generator.
-				FMetasoundGeneratorInitParams InitParams
-				{
-					InSettings,
-					MoveTemp(BuilderSettings),
-					MetasoundGraph,
-					Environment,
-					GetName(),
-					GetOutputAudioChannelOrder(),
-					MoveTemp(MergedParameters),
-					bBuildSynchronous,
-					DataChannel
-				};
-
-				Generator = MakeShared<FMetasoundConstGraphGenerator>(MoveTemp(InitParams));
-			}
-		}
-
-		if (!Generator.IsValid())
-		{
-			TSharedPtr<const FGraph> MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetGraphRegistryKey());
-			if (!MetasoundGraph.IsValid())
-			{
-				return ISoundGeneratorPtr(nullptr);
-			}
-
+			// Create generator.
 			FMetasoundGeneratorInitParams InitParams
 			{
 				InSettings,
@@ -1777,75 +1812,68 @@ void UMetaSoundSource::InvalidateCachedRuntimeInputData()
 	RuntimeInputData.bIsValid.store(false);
 }
 
-TSharedPtr<const Metasound::IGraph> UMetaSoundSource::TryGetMetaSoundPresetBaseGraph() const
+const UMetaSoundSource& UMetaSoundSource::FindFirstNoninflatableSource(Metasound::FMetasoundEnvironment& InOutEnvironment, TFunctionRef<void(const UMetaSoundSource&)> OnTraversal) const
 {
-	using namespace Metasound;
+	TArray<FGuid> GraphHierarchy;
 
-	TSharedPtr<const IGraph> MetasoundGraph;
-	if (ReferencedAssetClassObjects.Num() == 1)
-	{
-		// Get first element from TSet<>
-		TObjectPtr<const UObject> BaseGraph = *ReferencedAssetClassObjects.CreateConstIterator();
+	const UMetaSoundSource& FoundSource = FindFirstNoninflatableSourceInternal(GraphHierarchy, OnTraversal);
 
-		// Get the reference graph as a UMetaSoundSource
-		TObjectPtr<const UMetaSoundSource> BaseMetaSoundSource = Cast<const UMetaSoundSource>(BaseGraph);
-		if (BaseMetaSoundSource)
-		{
-			// Get registered graph of base metasound source.
-			MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(BaseMetaSoundSource->GetGraphRegistryKey());
-		}
-	}
-	else
+	if (GraphHierarchy.Num())
 	{
-		UE_LOG(LogMetaSound, Warning, TEXT("Attempt to reference parent of metasound preset failed due to unexpected number of reference asses (%d) from MetaSound Preset %s"), ReferencedAssetClassObjects.Num(), *GetOwningAssetName());
+		// Preset graph inflation needs to emulate the graph hierarchy for nodes which depend upon accurate graph hierarchies. 
+		InOutEnvironment.SetValue<TArray<FGuid>>(Metasound::CoreInterface::Environment::GraphHierarchy, MoveTemp(GraphHierarchy));
 	}
 
-	return MetasoundGraph;
+	return FoundSource;
 }
 
-void UMetaSoundSource::MergePresetOverridesAndSuppliedDefaults(const TArray<FAudioParameter>& InSuppliedDefaults, TArray<FAudioParameter>& OutMerged)
+const UMetaSoundSource& UMetaSoundSource::FindFirstNoninflatableSourceInternal(TArray<FGuid>& OutHierarchy, TFunctionRef<void(const UMetaSoundSource&)> OnTraversal) const
 {
 	using namespace Metasound;
 
-	if(!RuntimeInputData.bIsValid.load())
+	const bool bIsDynamic = DynamicTransactor.IsValid();
+	if (!bIsDynamic && ConsoleVariables::bEnableExperimentalRuntimePresetGraphInflation && bIsPresetGraphInflationSupported)
 	{
-		UE_CLOG(SourcePrivate::HasNotBeenLoggedForThisObject(*this, __LINE__), LogMetaSound, Warning, TEXT("Failed to use experimental preset inflation due to invalid runtime data on MetaSound %s. Ensure that UMetaSoundSource::InitResources() is executed on the game thread before CreateSoundGenerator"), *GetOwningAssetName());
-	}
-	else
-	{
-		// Get parameters that are overridden in the Preset.
-		for (const TPair<FVertexName, FRuntimeInput>& Pair : RuntimeInputData.InputMap)
+		if (ReferencedAssetClassObjects.Num() == 1)
 		{
-			if (!RootMetasoundDocument.RootGraph.PresetOptions.InputsInheritingDefault.Contains(Pair.Key))
+			// Get first element from TSet<>
+			TObjectPtr<const UObject> BaseGraph = *ReferencedAssetClassObjects.CreateConstIterator();
+
+			// Get the reference graph as a UMetaSoundSource
+			TObjectPtr<const UMetaSoundSource> BaseMetaSoundSource = Cast<const UMetaSoundSource>(BaseGraph);
+			if (ensure(BaseMetaSoundSource)) // SourcePresets assume they are referencing a UMetaSoundSource
 			{
-				OutMerged.Add(Pair.Value.DefaultParameter);
+				// Preset graph inflation needs to emulate the graph hierarchy for nodes which depend upon accurate graph hierarchies. 
+				OutHierarchy.Add(AssetClassID);
+
+				OnTraversal(*this);
+
+				// If the base metasound is also a preset that can be inflate, recurse into it. 
+				return BaseMetaSoundSource->FindFirstNoninflatableSourceInternal(OutHierarchy, OnTraversal);
 			}
 		}
-
-		// Instead of using `FAudioParameter::Merge(...)` we roll custom merge logic because
-		// FAudioParameter::Merge(...) requires us to move the InSuppliedDefaults into the
-		// OutMerged array. This unwanted in this case because we want to maintain InSuppliedDefaults
-		// for the scenario that the experimental preset override fails to create a generator
-		// in which case we are forced to use the prior codepath which does not merge these
-		// two parameter arrays. 
-		for (const FAudioParameter& SuppliedParameter : InSuppliedDefaults)
+		else
 		{
-			auto HasSameName = [&Name=SuppliedParameter.ParamName](const FAudioParameter& InOtherParam) -> bool
-			{
-				return InOtherParam.ParamName == Name;
-			};
-
-			// The supplied defaults generally come from BP and should override any other parameters.
-			if (FAudioParameter* Param = OutMerged.FindByPredicate(HasSameName))
-			{
-				*Param = SuppliedParameter;
-			}
-			else
-			{
-				OutMerged.Add(SuppliedParameter);
-			}
+			UE_LOG(LogMetaSound, Warning, TEXT("Attempt to reference parent of metasound preset failed due to unexpected number of reference asses (%d) from MetaSound Preset %s"), ReferencedAssetClassObjects.Num(), *GetOwningAssetName());
 		}
 	}
+
+	return *this;
+}
+
+TSharedPtr<const Metasound::IGraph> UMetaSoundSource::FindFirstNoninflatableGraph(UMetaSoundSource::FAudioParameterCollector& InOutParameterCollector, Metasound::FMetasoundEnvironment& InOutEnvironment) const
+{
+	using namespace Metasound;
+
+	auto OnGraphInflation = [&InOutParameterCollector](const UMetaSoundSource& InInflatedSource)
+	{
+		// Any preset overrides on this object need to be baked in to the parameters
+		InOutParameterCollector.CollectPresetOverrides(InInflatedSource.RootMetasoundDocument.RootGraph.PresetOptions.InputsInheritingDefault, InInflatedSource.RuntimeInputData.InputMap);
+	};
+
+	const UMetaSoundSource& NoninflatableSource = FindFirstNoninflatableSource(InOutEnvironment, OnGraphInflation);
+
+	return FMetasoundFrontendRegistryContainer::Get()->GetGraph(NoninflatableSource.GetGraphRegistryKey());
 }
 
 #undef LOCTEXT_NAMESPACE // MetaSound

@@ -63,6 +63,7 @@ namespace Metasound
 		uint32 MaxNumOperators = 64;
 	};
 
+
 	// Data required to build an operator without immediately playing it
 	struct METASOUNDGENERATOR_API FOperatorBuildData
 	{
@@ -90,32 +91,44 @@ namespace Metasound
 	class METASOUNDGENERATOR_API FOperatorPool : public TSharedFromThis<FOperatorPool>
 	{
 	public:
+
 		FOperatorPool(const FOperatorPoolSettings& InSettings);
 		~FOperatorPool();
 
-		FOperatorAndInputs ClaimOperator(const FGuid& InOperatorID);
 
+		UE_DEPRECATED(5.5, "Use ClaimOperator(const FOperatorPoolEntryID&) instead")
+		FOperatorAndInputs ClaimOperator(const FGuid& InOperatorID);
+		FOperatorAndInputs ClaimOperator(const FOperatorPoolEntryID& InOperatorID);
+
+		UE_DEPRECATED(5.5, "Use AddOperator(const FOperatorPoolEntryID&, ...) instead")
 		void AddOperator(const FGuid& InOperatorID, TUniquePtr<IOperator>&& InOperator, FInputVertexInterfaceData&& InputData);
+		void AddOperator(const FOperatorPoolEntryID& InOperatorID, TUniquePtr<IOperator>&& InOperator, FInputVertexInterfaceData&& InputData);
+
+		UE_DEPRECATED(5.5, "Use AddOperator(const FOperatorPoolEntryID&, ...) instead")
 		void AddOperator(const FGuid& InOperatorID, FOperatorAndInputs&& OperatorAndInputs);
+		void AddOperator(const FOperatorPoolEntryID& InOperatorID, FOperatorAndInputs&& OperatorAndInputs);
 
 		void BuildAndAddOperator(TUniquePtr<FOperatorBuildData> InBuildData);
 
+		UE_DEPRECATED(5.5, "Use TouchOperators(const FOperatorPoolEntryID&, ...) instead")
 		void TouchOperators(const FGuid& InOperatorID, int32 NumToTouch = 1);
-		UE_DEPRECATED(5.5, "Operators can now be directly identified by asset class id.")
+		void TouchOperators(const FOperatorPoolEntryID& InOperatorID, int32 NumToTouch = 1);
 		void TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, int32 NumToTouch = 1);
 
 		bool IsStopping() const;
 
+		UE_DEPRECATED(5.5, "Use RemoveOperatorsWithID(const FOperatorPoolEntryID&) instead")
 		void RemoveOperatorsWithID(const FGuid& InOperatorID);
-		UE_DEPRECATED(5.5, "Operators can now be directly identified by asset class id.")
+		void RemoveOperatorsWithID(const FOperatorPoolEntryID& InOperatorID);
 		void RemoveOperatorsWithAssetClassID(const FGuid& InAssetClassID);
 
+		UE_DEPRECATED(5.5, "Use GetNumCachedOperatorsWithID(const FOperatorPoolEntryID&) instead")
 		int32 GetNumCachedOperatorsWithID(const FGuid& InOperatorID) const;
-		UE_DEPRECATED(5.5, "Operators can now be directly identified by asset class id.")
+		int32 GetNumCachedOperatorsWithID(const FOperatorPoolEntryID& InOperatorID) const;
 		int32 GetNumCachedOperatorsWithAssetClassID(const FGuid& InAssetClassID) const;
 
-		UE_DEPRECATED(5.5, "Operators can now be directly identified by asset class id, so lookup is not needed anymore.")
-		void AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FGuid& InOperatorID) {}
+		UE_DEPRECATED(5.5, "Adding id to look-up is now private implementation")
+		void AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FOperatorPoolEntryID& InOperatorID) { }
 
 		void SetMaxNumOperators(uint32 InMaxNumOperators);
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
@@ -133,7 +146,8 @@ namespace Metasound
 	private:
 		FTaskId LastTaskId = 0;
 
-		void AddOperatorInternal(const FGuid& InOperatorID, FOperatorAndInputs&& OperatorAndInputs);
+		void AddAssetIdToGraphIdLookUpInternal(const FGuid& InAssetClassID, const FOperatorPoolEntryID& InOperatorID);
+		void AddOperatorInternal(const FOperatorPoolEntryID& InOperatorID, FOperatorAndInputs&& OperatorAndInputs);
 		bool ExecuteTaskAsync(FTaskFunction&& InFunction);
 		void Trim();
 
@@ -151,8 +165,10 @@ namespace Metasound
 		TMap<FTaskId, UE::Tasks::FTask> ActiveBuildTasks;
 		UE::Tasks::FPipe AsyncBuildPipe;
 
-		TMap<FGuid, TArray<FOperatorAndInputs>> Operators;
-		TArray<FGuid> Stack;
+		TMap<FOperatorPoolEntryID, TArray<FOperatorAndInputs>> Operators;
+		TMap<FGuid, FOperatorPoolEntryID> AssetIdToGraphIdLookUp;
+		TMultiMap<FOperatorPoolEntryID, FGuid> GraphIdToAssetIdLookUp;
+		TArray<FOperatorPoolEntryID> Stack;
 	};
 } // namespace Metasound
 
