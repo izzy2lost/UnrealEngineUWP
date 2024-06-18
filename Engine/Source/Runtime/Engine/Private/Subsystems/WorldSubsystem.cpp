@@ -3,6 +3,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Engine/World.h"
 #include "Subsystems/Subsystem.h"
+#include "Streaming/StreamingWorldSubsystemInterface.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldSubsystem)
 
@@ -41,6 +42,15 @@ bool UWorldSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) con
 	return WorldType == EWorldType::Game || WorldType == EWorldType::Editor || WorldType == EWorldType::PIE;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void UWorldSubsystem::UpdateStreamingState()
+{
+	if (IStreamingWorldSubsystemInterface* StreamingWorldSubsystem = Cast<IStreamingWorldSubsystemInterface>(this))
+	{
+		StreamingWorldSubsystem->OnUpdateStreamingState();
+	}
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 // ----------------------------------------------------------------------------------
 

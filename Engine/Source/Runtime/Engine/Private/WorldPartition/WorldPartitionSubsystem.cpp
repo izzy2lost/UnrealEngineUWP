@@ -1101,7 +1101,7 @@ void UWorldPartitionSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	}
 }
 
-void UWorldPartitionSubsystem::UpdateStreamingState()
+void UWorldPartitionSubsystem::OnUpdateStreamingState()
 {
 	SCOPE_CYCLE_COUNTER(STAT_WorldPartitionUpdateStreamingState);
 

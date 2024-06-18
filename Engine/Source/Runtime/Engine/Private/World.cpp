@@ -79,6 +79,7 @@
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "Streaming/ServerStreamingLevelsVisibility.h"
 #include "Streaming/LevelStreamingDelegates.h"
+#include "Streaming/StreamingWorldSubsystemInterface.h"
 
 #if WITH_EDITOR
 	#include "DerivedDataCacheInterface.h"
@@ -4271,10 +4272,11 @@ void UWorld::InternalUpdateStreamingState()
 	{
 		WorldComposition->UpdateStreamingState();
 	}
-
+	
 	// Update World Subsystems required streaming levels
-	SubsystemCollection.ForEachSubsystem([](UWorldSubsystem* WorldSubsystem){
-	    WorldSubsystem->UpdateStreamingState();
+	SubsystemCollection.ForEachSubsystemWithInterface<UStreamingWorldSubsystemInterface>([](UWorldSubsystem* WorldSubsystem)
+	{
+		CastChecked<IStreamingWorldSubsystemInterface>(WorldSubsystem)->OnUpdateStreamingState();
 	});
 }
 

@@ -12,6 +12,7 @@
 #include "WorldPartition/WorldPartitionHandle.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "LevelInstance/LevelInstancePropertyOverrideAsset.h"
+#include "Streaming/StreamingWorldSubsystemInterface.h"
 
 #if WITH_EDITOR
 #include "EditorLevelUtils.h"
@@ -50,7 +51,7 @@ ENUM_CLASS_FLAGS(ELevelInstanceBreakFlags);
  * ULevelInstanceSubsystem
  */
 UCLASS(MinimalAPI)
-class ULevelInstanceSubsystem : public UWorldSubsystem
+class ULevelInstanceSubsystem : public UWorldSubsystem, public IStreamingWorldSubsystemInterface
 {
 	GENERATED_BODY()
 
@@ -68,9 +69,9 @@ public:
 	ENGINE_API virtual bool DoesSupportWorldType(EWorldType::Type WorldType) const override;
 	//~ End USubsystem Interface.
 	
-	//~ Begin UWorldSubsystem Interface.
-	ENGINE_API virtual void UpdateStreamingState() override;
-	//~ End UWorldSubsystem Interface.
+	//~Begin IStreamingWorldSubsystemInterface
+	ENGINE_API virtual void OnUpdateStreamingState() override;
+	//~End IStreamingWorldSubsystemInterface
 
 	ENGINE_API ILevelInstanceInterface* GetLevelInstance(const FLevelInstanceID& LevelInstanceID) const;
 	ENGINE_API ILevelInstanceInterface* GetOwningLevelInstance(const ULevel* Level) const;

@@ -38,8 +38,8 @@ public:
 	/** Called after world components (e.g. line batcher and all level components) have been updated */
 	virtual void OnWorldComponentsUpdated(UWorld& World) {}
 
-	/** Updates sub-system required streaming levels (called by world's UpdateStreamingState function) */
-	virtual void UpdateStreamingState() {}
+	UE_DEPRECATED(5.5, "Implement IStreamingWorldSubsystemInterface instead.")
+	ENGINE_API virtual void UpdateStreamingState();
 
 protected:
 	ENGINE_API virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const;

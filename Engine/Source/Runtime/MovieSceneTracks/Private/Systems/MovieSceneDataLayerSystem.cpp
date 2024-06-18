@@ -560,7 +560,7 @@ void UMovieSceneDataLayerSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites
 				FlushTypeString = TEXT("FlushStreamingVisibility");
 
 				// Make sure any DataLayer state change is processed before flushing visibility					
-				WorldPartitionSubsystem->UpdateStreamingState();
+				WorldPartitionSubsystem->OnUpdateStreamingState();
 				World->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
 			}
 

@@ -7,6 +7,7 @@
 #include "WorldPartition/Filter/WorldPartitionActorFilter.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "WorldPartition/WorldPartitionHandle.h"
+#include "Streaming/StreamingWorldSubsystemInterface.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "Misc/Guid.h"
@@ -47,7 +48,7 @@ private:
  */
 
 UCLASS(MinimalAPI)
-class UWorldPartitionSubsystem : public UTickableWorldSubsystem
+class UWorldPartitionSubsystem : public UTickableWorldSubsystem, public IStreamingWorldSubsystemInterface
 {
 	GENERATED_BODY()
 
@@ -61,9 +62,12 @@ public:
 
 	//~ Begin UWorldSubsystem Interface.
 	ENGINE_API virtual void OnWorldBeginPlay(UWorld& InWorld) override;
-	ENGINE_API virtual void UpdateStreamingState() override;
 	ENGINE_API virtual void OnWorldComponentsUpdated(UWorld& World) override;
 	//~ End UWorldSubsystem Interface.
+
+	//~Begin IStreamingWorldSubsystemInterface
+	ENGINE_API virtual void OnUpdateStreamingState() override;
+	//~End IStreamingWorldSubsystemInterface
 
 	//~ Begin FTickableGameObject
 	ENGINE_API virtual void Tick(float DeltaSeconds) override;

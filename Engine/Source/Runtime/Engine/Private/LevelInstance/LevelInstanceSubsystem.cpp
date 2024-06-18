@@ -255,7 +255,7 @@ bool ULevelInstanceSubsystem::IsLoading(const ILevelInstanceInterface* LevelInst
 	return LevelInstance->HasValidLevelInstanceID() && LoadingLevelInstances.Contains(LevelInstance->GetLevelInstanceID());
 }
 
-void ULevelInstanceSubsystem::UpdateStreamingState()
+void ULevelInstanceSubsystem::OnUpdateStreamingState()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ULevelInstanceSubsystem::UpdateStreamingState);
 
@@ -918,7 +918,7 @@ void ULevelInstanceSubsystem::Tick()
 	// For non-game world, Tick is responsible of processing LevelInstances to update/load/unload
 	if (!GetWorld()->IsGameWorld())
 	{
-		UpdateStreamingState();
+		OnUpdateStreamingState();
 
 		// Update Editor Mode if we are the GEditor world's Subsystem
 		if (GEditor->GetEditorWorldContext().World() == GetWorld())
@@ -2777,7 +2777,7 @@ void ULevelInstanceSubsystem::BlockOnLoading()
 	// Blocking until LevelInstance is loaded and all its child LevelInstances
 	while (LevelInstancesToLoadOrUpdate.Num())
 	{
-		UpdateStreamingState();
+		OnUpdateStreamingState();
 	}
 }
 
