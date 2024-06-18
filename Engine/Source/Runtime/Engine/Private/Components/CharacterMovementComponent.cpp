@@ -1718,7 +1718,7 @@ void UCharacterMovementComponent::PostPhysicsTickComponent(float DeltaTime, FCha
 
 void UCharacterMovementComponent::AdjustProxyCapsuleSize()
 {
-	if (bShrinkProxyCapsule && CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy)
+	if (bShrinkProxyCapsule && CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy && CharacterOwner->GetCapsuleComponent() != nullptr)
 	{
 		bShrinkProxyCapsule = false;
 
