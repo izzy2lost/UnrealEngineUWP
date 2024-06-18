@@ -4143,7 +4143,7 @@ bool FOpenXRHMD::HasVisibleAreaMesh() const
 	return VisibleAreaMeshes.Num() > 0;
 }
 
-void FOpenXRHMD::DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const
+void FOpenXRHMD::DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex, int32 InstanceCount) const
 {
 	check(ViewIndex != INDEX_NONE);
 
@@ -4154,12 +4154,12 @@ void FOpenXRHMD::DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 Vie
 		if (Mesh.IsValid())
 		{
 			RHICmdList.SetStreamSource(0, Mesh.VertexBufferRHI, 0);
-			RHICmdList.DrawIndexedPrimitive(Mesh.IndexBufferRHI, 0, 0, Mesh.NumVertices, 0, Mesh.NumTriangles, 1);
+			RHICmdList.DrawIndexedPrimitive(Mesh.IndexBufferRHI, 0, 0, Mesh.NumVertices, 0, Mesh.NumTriangles, InstanceCount);
 		}
 	}
 }
 
-void FOpenXRHMD::DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const
+void FOpenXRHMD::DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex, int32 InstanceCount) const
 {
 	check(ViewIndex != INDEX_NONE);
 	check(ViewIndex < VisibleAreaMeshes.Num());
@@ -4169,13 +4169,23 @@ void FOpenXRHMD::DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 Vi
 		const FHMDViewMesh& Mesh = VisibleAreaMeshes[ViewIndex];
 
 		RHICmdList.SetStreamSource(0, Mesh.VertexBufferRHI, 0);
-		RHICmdList.DrawIndexedPrimitive(Mesh.IndexBufferRHI, 0, 0, Mesh.NumVertices, 0, Mesh.NumTriangles, 1);
+		RHICmdList.DrawIndexedPrimitive(Mesh.IndexBufferRHI, 0, 0, Mesh.NumVertices, 0, Mesh.NumTriangles, InstanceCount);
 	}
 	else
 	{
 		// Invalid mesh means that entire area is visible, draw a fullscreen quad to simulate
 		FPixelShaderUtils::DrawFullscreenQuad(RHICmdList, 1);
 	}
+}
+
+void FOpenXRHMD::DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const
+{
+	DrawHiddenAreaMesh(RHICmdList, ViewIndex, 1);
+}
+
+void FOpenXRHMD::DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const
+{
+	DrawVisibleAreaMesh(RHICmdList, ViewIndex, 1);
 }
 
 void FOpenXRHMD::UpdateLayer(FOpenXRLayer& ManagerLayer, uint32 LayerId, bool bIsValid)

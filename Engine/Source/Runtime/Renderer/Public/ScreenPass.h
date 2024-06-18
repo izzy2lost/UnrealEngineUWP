@@ -417,16 +417,19 @@ ENUM_CLASS_FLAGS(EScreenPassDrawFlags);
 struct FScreenPassViewInfo
 {
 	const int32 StereoViewIndex;
+	const int32 InstanceCount;
 	const bool bHMDHiddenAreaMaskActive;
 
 	FScreenPassViewInfo()
 		: StereoViewIndex(INDEX_NONE)
+		, InstanceCount(1)
 		, bHMDHiddenAreaMaskActive(IsHMDHiddenAreaMaskActive())
 	{
 	}
 
 	FScreenPassViewInfo(const FSceneView& View)
 		: StereoViewIndex(View.StereoViewIndex)
+		, InstanceCount(View.GetStereoPassInstanceFactor())
 		, bHMDHiddenAreaMaskActive(View.bHMDHiddenAreaMaskActive)
 	{
 	}

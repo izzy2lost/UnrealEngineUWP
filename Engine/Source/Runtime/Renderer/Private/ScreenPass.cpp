@@ -261,7 +261,8 @@ void DrawScreenPass_PostSetup(
 		PipelineState.VertexShader,
 		ViewInfo.StereoViewIndex,
 		bUseHMDHiddenAreaMask,
-		DrawRectangleFlags);
+		DrawRectangleFlags,
+		ViewInfo.InstanceCount);
 }
 
 void AddDrawTexturePass(

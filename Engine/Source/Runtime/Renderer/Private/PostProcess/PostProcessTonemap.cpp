@@ -309,7 +309,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FFilmGrainParameters, )
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FTonemapParameters, )
-	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FFilmGrainParameters, FilmGrain)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FTonemapperOutputDeviceParameters, OutputDevice)
 	SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Color)
@@ -707,7 +707,7 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 	#endif
 
 	FTonemapParameters CommonParameters;
-	CommonParameters.View = View.ViewUniformBuffer;
+	CommonParameters.View = View.GetShaderParameters();
 
 	{
 		uint8 FrameIndexMod8 = 0;

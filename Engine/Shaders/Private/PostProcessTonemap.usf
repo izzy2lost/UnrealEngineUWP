@@ -30,7 +30,7 @@ SCREEN_PASS_TEXTURE_VIEWPORT(Output)
 
 #define MOBILE_MULTI_VIEW_FALLBACK (MOBILE_MULTI_VIEW && INSTANCED_STEREO)
 
-#if USE_MULTI_VIEW_ID_SV || MOBILE_MULTI_VIEW_FALLBACK
+#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
 Texture2DArray ColorTexture;
 #else
 Texture2D ColorTexture;
@@ -41,7 +41,12 @@ SamplerState ColorSampler;
 FScreenTransform ColorToBloom;
 float2 BloomUVViewportBilinearMin;
 float2 BloomUVViewportBilinearMax;
-Texture2D BloomTexture;
+
+#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
+	Texture2DArray BloomTexture;
+#else
+	Texture2D BloomTexture;
+#endif
 SamplerState BloomSampler;
 
 #if SUPPORTS_SCENE_COLOR_APPLY_PARAMETERS
@@ -242,10 +247,20 @@ void MainVS(
 	out noperspective 	float2 OutVignette				: TEXCOORD1,
 	out noperspective 	float4 OutGrainUV 				: TEXCOORD2,
 	out noperspective 	float2 OutScreenPos 			: TEXCOORD3,
-	out noperspective 	float2 OutFullViewUV 			: TEXCOORD4,
-	out 				float4 OutPosition 				: SV_POSITION
+	out noperspective 	float2 OutFullViewUV 			: TEXCOORD4
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in uint InstanceId : SV_InstanceID
+	, out nointerpolation uint OutViewId : VIEW_ID
+	, out uint LayerIndex : SV_RenderTargetArrayIndex
+#endif
+	, out 				float4 OutPosition 				: SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	OutViewId = GetEyeIndex(InstanceId);
+	LayerIndex = OutViewId;
+#endif
+
 	DrawRectangle(InPosition, InTexCoord, OutPosition, OutTexCoord);
     TonemapCommonVS(OutPosition, OutTexCoord, OutVignette, OutGrainUV, OutScreenPos, OutFullViewUV);
 }
@@ -258,11 +273,11 @@ float max4(float4 x)
 float4 SampleSceneColor(float2 SceneUV, float ArrayIndex)
 {
 	SceneUV = clamp(SceneUV, Color_UVViewportBilinearMin, Color_UVViewportBilinearMax);
-	#if USE_MULTI_VIEW_ID_SV || MOBILE_MULTI_VIEW_FALLBACK
+#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
 	return Texture2DArraySample(ColorTexture, ColorSampler, float3(SceneUV.xy,ArrayIndex));
-	#else
+#else
 	return Texture2DSample(ColorTexture, ColorSampler, SceneUV);
-	#endif
+#endif
 }
 
 half3 LookupSceneColor(float2 SceneUV, float ArrayIndex, float2 PixelOffset)
@@ -347,7 +362,12 @@ float4 TonemapCommonPS(
 		}
 		#endif
 
-		float4 RawBloom = Texture2DSample(BloomTexture, BloomSampler, BloomUV);
+		float4 RawBloom;
+		#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
+			RawBloom = Texture2DArraySample(BloomTexture, BloomSampler, float3(BloomUV,ArrayIndex));
+		#else
+			RawBloom = Texture2DSample(BloomTexture, BloomSampler, BloomUV);
+		#endif
 
 		#if FEATURE_LEVEL == FEATURE_LEVEL_ES3_1
 		{
@@ -586,9 +606,11 @@ void MainPS(
 	in noperspective float4 GrainUV : TEXCOORD2,
 	in noperspective float2 ScreenPos : TEXCOORD3,
 	in noperspective float2 FullViewUV : TEXCOORD4,
-	#if USE_MULTI_VIEW_ID_SV
-	in uint MultiViewId : SV_ViewID,
-	#endif
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in nointerpolation uint InViewId : VIEW_ID,
+#elif MOBILE_MULTI_VIEW
+	in uint InViewId : SV_ViewID,
+#endif
 	float4 SvPosition : SV_POSITION,		// after all interpolators
 	out float4 OutColor : SV_Target0
 #if OUTPUT_LUMINANCE
@@ -596,13 +618,13 @@ void MainPS(
 #endif
 	)
 {
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif
+
 	float Luminance;
-	#if USE_MULTI_VIEW_ID_SV
-		float3 UVI = float3(UV.xy,MultiViewId);
-	#else
-		float3 UVI = float3(UV.xy,0);
-	#endif
-    OutColor = TonemapCommonPS(UVI, InVignette, GrainUV, ScreenPos, FullViewUV, SvPosition, Luminance);
+	float3 UVI = float3(UV.xy, InViewId);
+	OutColor = TonemapCommonPS(UVI, InVignette, GrainUV, ScreenPos, FullViewUV, SvPosition, Luminance);
 #if OUTPUT_LUMINANCE
 	OutLuminance = Luminance;
 #endif

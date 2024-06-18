@@ -215,10 +215,24 @@ public:
 	virtual void DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const {};
 
 	/**
+	* Optional method to draw a view's hidden area mesh where supported.
+	* This can be used to avoid rendering pixels which are not included as input into the final distortion pass.
+	* Supports instanced rendering.
+	*/
+	virtual void DrawHiddenAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex, int32 InstanceCount) const {};
+
+	/**
 	* Optional method to draw a view's visible area mesh where supported.
 	* This can be used instead of a full screen quad to avoid rendering pixels which are not included as input into the final distortion pass.
 	*/
 	virtual void DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex) const {};
+
+	/**
+	* Optional method to draw a view's visible area mesh where supported.
+	* This can be used instead of a full screen quad to avoid rendering pixels which are not included as input into the final distortion pass.
+	* Supports instanced rendering.
+	*/
+	virtual void DrawVisibleAreaMesh(class FRHICommandList& RHICmdList, int32 ViewIndex, int32 InstanceCount) const {};
 
 	virtual void DrawDistortionMesh_RenderThread(struct FHeadMountedDisplayPassContext& Context, const FIntPoint& TextureSize) {}
 

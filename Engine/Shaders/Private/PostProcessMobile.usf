@@ -9,11 +9,15 @@
 #include "PostprocessHistogramCommon.ush"
 #include "ScreenPass.ush"
 
-#if USE_MULTI_VIEW_ID_SV
-Texture2DArray SceneColorTexture;
+#define MOBILE_MULTI_VIEW_FALLBACK (INSTANCED_STEREO && MOBILE_MULTI_VIEW)
+
+#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
+#define MultiViewTexture2D Texture2DArray<half4>
 #else
-Texture2D SceneColorTexture;
+#define MultiViewTexture2D Texture2D<half4>
 #endif
+
+MultiViewTexture2D SceneColorTexture;
 SamplerState SceneColorSampler;
 
 Texture2D LastFrameSceneColorTexture;
@@ -31,13 +35,13 @@ SamplerState DofDownSampler;
 Texture2D DofBlurTexture;
 SamplerState DofBlurSampler;
 
-Texture2D BloomDownSourceTexture;
+MultiViewTexture2D BloomDownSourceTexture;
 SamplerState BloomDownSourceSampler;
 
-Texture2D BloomUpSourceATexture;
+MultiViewTexture2D BloomUpSourceATexture;
 SamplerState BloomUpSourceASampler;
 
-Texture2D BloomUpSourceBTexture;
+MultiViewTexture2D BloomUpSourceBTexture;
 SamplerState BloomUpSourceBSampler;
 
 Texture2D SunAlphaTexture;
@@ -46,10 +50,10 @@ SamplerState SunAlphaSampler;
 Texture2D SunBlurTexture;
 SamplerState SunBlurSampler;
 
-Texture2D BloomSetup_BloomTexture;
+MultiViewTexture2D BloomSetup_BloomTexture;
 SamplerState BloomSetup_BloomSampler;
 
-Texture2D BloomUpTexture;
+MultiViewTexture2D BloomUpTexture;
 SamplerState BloomUpSampler;
 
 Texture2D SunMergeTexture;
@@ -136,13 +140,45 @@ half2 SunConstDepthMaskScaleBias()
 	return half2(Scale,-DepthMin * Scale);
 }
 
+half4 SampleMultiViewTexture(MultiViewTexture2D Texture, SamplerState Sampler, float2 SceneUV, float ArrayIndex)
+{
+#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
+	return Texture.Sample(Sampler, float3(SceneUV.xy,ArrayIndex));
+#else
+	return Texture.Sample(Sampler, SceneUV);
+#endif
+}
+
 float4 SampleSceneColor(float2 SceneUV, float ArrayIndex)
 {
-#if USE_MULTI_VIEW_ID_SV
-	return Texture2DArraySample(SceneColorTexture, SceneColorSampler, float3(SceneUV.xy, ArrayIndex));
-#else
-	return Texture2DSample(SceneColorTexture, SceneColorSampler, SceneUV);
-#endif
+	return SampleMultiViewTexture(SceneColorTexture, SceneColorSampler, SceneUV.xy, ArrayIndex);
+}
+
+half4 SampleBloomDown(float2 SceneUV, float ArrayIndex)
+{
+	return SampleMultiViewTexture(BloomDownSourceTexture, BloomDownSourceSampler, SceneUV.xy, ArrayIndex);
+}
+
+half4 SampleBloomUpA(float2 SceneUV, float ArrayIndex)
+{
+	return SampleMultiViewTexture(BloomUpSourceATexture, BloomUpSourceASampler, SceneUV.xy, ArrayIndex);
+}
+
+// Sampling BloomUpB requires float return type to avoid precision issues leading to artifacts
+// e.g. blue tint all over the view when looking partially at the sky.
+float4 SampleBloomUpB(float2 SceneUV, float ArrayIndex)
+{
+	return SampleMultiViewTexture(BloomUpSourceBTexture, BloomUpSourceBSampler, SceneUV.xy, ArrayIndex);
+}
+
+half4 SampleBloomSetup(float2 SceneUV, float ArrayIndex)
+{
+	return SampleMultiViewTexture(BloomSetup_BloomTexture, BloomSetup_BloomSampler, SceneUV.xy, ArrayIndex);
+}
+
+half4 SampleBloomUp(float2 SceneUV, float ArrayIndex)
+{
+	return SampleMultiViewTexture(BloomUpTexture, BloomUpSampler, SceneUV.xy, ArrayIndex);
 }
 
 //
@@ -152,21 +188,24 @@ float4 SampleSceneColor(float2 SceneUV, float ArrayIndex)
 #if SHADER_SUN_MASK
 
 void SunMaskPS_Mobile(
-	float4 InUVPos : TEXCOORD0,
-#if USE_MULTI_VIEW_ID_SV
-	in uint MultiViewId : SV_ViewID,
+	float4 InUVPos : TEXCOORD0
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in uint InViewId : SV_ViewID
 #endif
-	out HALF_TYPE OutSunShaftAndDof : SV_Target0
+	, out HALF_TYPE OutSunShaftAndDof : SV_Target0
 #if MOBILE_USESUN && METAL_MSAA_HDR_DECODE
 	, out HALF4_TYPE OutColor : SV_Target1
 #endif
 	)
 {
-	#if !USE_MULTI_VIEW_ID_SV
-		uint MultiViewId = 0;
-	#endif
 
-	half4 SceneColor = SampleSceneColor(InUVPos.xy,MultiViewId);
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif
+
+	half4 SceneColor = SampleSceneColor(InUVPos.xy,InViewId);
 
 	#if MOBILE_USEDEPTHTEXTURE 
 		half InDepth = ConvertFromDeviceZ(Texture2DSampleLevel(MobileSceneTextures.SceneDepthTexture, MobileSceneTextures.SceneDepthTextureSampler, InUVPos.xy, 0).r);
@@ -224,8 +263,21 @@ void PreTonemapMSAA_Mobile(
 #endif
 }
 
-Texture2D InputTexture;
+#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
+	Texture2DArray InputTexture;
+#else
+	Texture2D InputTexture;
+#endif
 SamplerState InputSampler;
+
+float4 SampleInput(float2 SceneUV, float ArrayIndex)
+{
+#if MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK
+	return Texture2DArraySample(InputTexture, InputSampler, float3(SceneUV.xy,ArrayIndex));
+#else
+	return Texture2DSample(InputTexture, InputSampler, SceneUV);
+#endif
+}
 
 void MSAADecodeAndCopyRectPS(
 	noperspective float4 UVAndScreenPos : TEXCOORD0,
@@ -247,9 +299,19 @@ void BloomVS_Mobile(
 	in float4 InPosition : ATTRIBUTE0,
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float2 OutTexCoords[4] : TEXCOORD0,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint OutViewId : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif 
 	out float4 OutPosition : SV_POSITION
 	)
-{
+{	
+#if MOBILE_MULTI_VIEW_FALLBACK
+	OutViewId = GetEyeIndex(InstanceId);
+	LayerIndex = OutViewId;
+#endif 
+
 	float2 TransformedUV;
 	DrawRectangle(InPosition, InTexCoord, OutPosition, TransformedUV);
 
@@ -278,8 +340,10 @@ float HdrWeightInv4(float3 Color)
 
 void BloomPS_Mobile(
 	float2 InUVs[4] : TEXCOORD0
-#if USE_MULTI_VIEW_ID_SV
-	, in uint MultiViewId : SV_ViewID
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
 #endif
 #if MOBILE_USEBLOOM
 
@@ -326,15 +390,15 @@ void BloomPS_Mobile(
 	half3 AverageColor = 0.0f;
 
 #if MOBILE_USEBLOOM || MOBILE_USESUN || MOBILE_USEEYEADAPTATION
-
-#if !USE_MULTI_VIEW_ID_SV
-	uint MultiViewId = 0;
-#endif
 	
-	float4 C0 = SampleSceneColor(InUVs[0],MultiViewId);
-	float4 C1 = SampleSceneColor(InUVs[1],MultiViewId);
-	float4 C2 = SampleSceneColor(InUVs[2],MultiViewId);
-	float4 C3 = SampleSceneColor(InUVs[3],MultiViewId);
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
+	
+	float4 C0 = SampleSceneColor(InUVs[0],InViewId);
+	float4 C1 = SampleSceneColor(InUVs[1],InViewId);
+	float4 C2 = SampleSceneColor(InUVs[2],InViewId);
+	float4 C3 = SampleSceneColor(InUVs[3],InViewId);
 
 	C0 *= HdrWeight4(C0);
 	C1 *= HdrWeight4(C1);
@@ -446,9 +510,19 @@ void BloomDownVS_Mobile(
 	in float4 InPosition : ATTRIBUTE0,
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float4 OutTexCoords[8] : TEXCOORD0,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+
 	DrawRectangle(InPosition, InTexCoord, OutPosition, InTexCoord);
 
 	float Start = 2.0/14.0;
@@ -473,25 +547,34 @@ void BloomDownVS_Mobile(
 }
 
 void BloomDownPS_Mobile(
-	float4 InUVs[8] : TEXCOORD0,
-	out HALF4_TYPE OutColor : SV_Target0
+	float4 InUVs[8] : TEXCOORD0
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
+#endif
+	, out HALF4_TYPE OutColor : SV_Target0
 	)
 {
-	half4 N0 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[0].xy).rgba;
-	half4 N1 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[0].zw).rgba;
-	half4 N2 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[1].xy).rgba;
-	half4 N3 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[1].zw).rgba;
-	half4 N4 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[2].xy).rgba;
-	half4 N5 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[2].zw).rgba;
-	half4 N6 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[3].xy).rgba;
-	half4 N7 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[3].zw).rgba;
-	half4 N8 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[4].xy).rgba;
-	half4 N9 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[4].zw).rgba;
-	half4 N10 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[5].xy).rgba;
-	half4 N11 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[5].zw).rgba;
-	half4 N12 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[6].xy).rgba;
-	half4 N13 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[6].zw).rgba;
-	half4 N14 = BloomDownSourceTexture.Sample(BloomDownSourceSampler, InUVs[7].xy).rgba;
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
+
+	half4 N0 = SampleBloomDown(InUVs[0].xy, InViewId).rgba;
+	half4 N1 = SampleBloomDown(InUVs[0].zw, InViewId).rgba;
+	half4 N2 = SampleBloomDown(InUVs[1].xy, InViewId).rgba;
+	half4 N3 = SampleBloomDown(InUVs[1].zw, InViewId).rgba;
+	half4 N4 = SampleBloomDown(InUVs[2].xy, InViewId).rgba;
+	half4 N5 = SampleBloomDown(InUVs[2].zw, InViewId).rgba;
+	half4 N6 = SampleBloomDown(InUVs[3].xy, InViewId).rgba;
+	half4 N7 = SampleBloomDown(InUVs[3].zw, InViewId).rgba;
+	half4 N8 = SampleBloomDown(InUVs[4].xy, InViewId).rgba;
+	half4 N9 = SampleBloomDown(InUVs[4].zw, InViewId).rgba;
+	half4 N10 = SampleBloomDown(InUVs[5].xy, InViewId).rgba;
+	half4 N11 = SampleBloomDown(InUVs[5].zw, InViewId).rgba;
+	half4 N12 = SampleBloomDown(InUVs[6].xy, InViewId).rgba;
+	half4 N13 = SampleBloomDown(InUVs[6].zw, InViewId).rgba;
+	half4 N14 = SampleBloomDown(InUVs[7].xy, InViewId).rgba;
 	float W = 1.0/15.0;
 	OutColor.rgb = 
 		(N0 * W) +
@@ -523,9 +606,19 @@ void BloomUpVS_Mobile(
 	in float4 InPosition : ATTRIBUTE0,
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float4 OutTexCoords[8] : TEXCOORD0,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+	
 	DrawRectangle(InPosition, InTexCoord, OutPosition, InTexCoord);
 
 	float Start;
@@ -562,27 +655,36 @@ float4 BloomTintA;
 float4 BloomTintB;
 
 void BloomUpPS_Mobile(
-	float4 InUVs[8] : TEXCOORD0,
-	out HALF4_TYPE OutColor : SV_Target0
+	float4 InUVs[8] : TEXCOORD0
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
+#endif
+	, out HALF4_TYPE OutColor : SV_Target0
 	)
 {
-	half3 A0 = BloomUpSourceATexture.Sample(BloomUpSourceASampler, InUVs[0].xy).rgb;
-	half3 A1 = BloomUpSourceATexture.Sample(BloomUpSourceASampler, InUVs[0].zw).rgb;
-	half3 A2 = BloomUpSourceATexture.Sample(BloomUpSourceASampler, InUVs[1].xy).rgb;
-	half3 A3 = BloomUpSourceATexture.Sample(BloomUpSourceASampler, InUVs[1].zw).rgb;
-	half3 A4 = BloomUpSourceATexture.Sample(BloomUpSourceASampler, InUVs[2].xy).rgb;
-	half3 A5 = BloomUpSourceATexture.Sample(BloomUpSourceASampler, InUVs[2].zw).rgb;
-	half3 A6 = BloomUpSourceATexture.Sample(BloomUpSourceASampler, InUVs[3].xy).rgb;
-	half3 A7 = BloomUpSourceATexture.Sample(BloomUpSourceASampler, InUVs[3].zw).rgb;
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
 
-	half3 B0 = BloomUpSourceBTexture.Sample(BloomUpSourceBSampler, InUVs[3].zw).rgb;
-	half3 B1 = BloomUpSourceBTexture.Sample(BloomUpSourceBSampler, InUVs[4].xy).rgb;
-	half3 B2 = BloomUpSourceBTexture.Sample(BloomUpSourceBSampler, InUVs[4].zw).rgb;
-	half3 B3 = BloomUpSourceBTexture.Sample(BloomUpSourceBSampler, InUVs[5].xy).rgb;
-	half3 B4 = BloomUpSourceBTexture.Sample(BloomUpSourceBSampler, InUVs[5].zw).rgb;
-	half3 B5 = BloomUpSourceBTexture.Sample(BloomUpSourceBSampler, InUVs[6].xy).rgb;
-	half3 B6 = BloomUpSourceBTexture.Sample(BloomUpSourceBSampler, InUVs[6].zw).rgb;
-	half3 B7 = BloomUpSourceBTexture.Sample(BloomUpSourceBSampler, InUVs[7].xy).rgb;
+	half3 A0 = SampleBloomUpA(InUVs[0].xy, InViewId).rgb;
+	half3 A1 = SampleBloomUpA(InUVs[0].zw, InViewId).rgb;
+	half3 A2 = SampleBloomUpA(InUVs[1].xy, InViewId).rgb;
+	half3 A3 = SampleBloomUpA(InUVs[1].zw, InViewId).rgb;
+	half3 A4 = SampleBloomUpA(InUVs[2].xy, InViewId).rgb;
+	half3 A5 = SampleBloomUpA(InUVs[2].zw, InViewId).rgb;
+	half3 A6 = SampleBloomUpA(InUVs[3].xy, InViewId).rgb;
+	half3 A7 = SampleBloomUpA(InUVs[3].zw, InViewId).rgb;
+										   
+	half3 B0 = SampleBloomUpB(InUVs[3].zw, InViewId).rgb;
+	half3 B1 = SampleBloomUpB(InUVs[4].xy, InViewId).rgb;
+	half3 B2 = SampleBloomUpB(InUVs[4].zw, InViewId).rgb;
+	half3 B3 = SampleBloomUpB(InUVs[5].xy, InViewId).rgb;
+	half3 B4 = SampleBloomUpB(InUVs[5].zw, InViewId).rgb;
+	half3 B5 = SampleBloomUpB(InUVs[6].xy, InViewId).rgb;
+	half3 B6 = SampleBloomUpB(InUVs[6].zw, InViewId).rgb;
+	half3 B7 = SampleBloomUpB(InUVs[7].xy, InViewId).rgb;
 
 	// A is the same size source.
 	half3 WA = BloomTintA.rgb;
@@ -619,9 +721,19 @@ void DofNearVS_Mobile(
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float2 OutTexCoords2 : TEXCOORD0,
 	out float4 OutTexCoords4[4] : TEXCOORD1,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+
 	DrawRectangle(InPosition, InTexCoord, OutPosition, InTexCoord);
 
 	OutTexCoords2 = InTexCoord;
@@ -636,11 +748,20 @@ void DofNearVS_Mobile(
 }
 
 void DofNearPS_Mobile(
-	float2 InUVs2 : TEXCOORD0,
-	float4 InUVs[4] : TEXCOORD1,
-	out HALF_TYPE OutColor : SV_Target0
+	float2 InUVs2 : TEXCOORD0
+	, float4 InUVs[4] : TEXCOORD1
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
+#endif
+	, out HALF_TYPE OutColor : SV_Target0
 	)
 {
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
+
 	half N0 = SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs2).r;
 	half N1 = SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs[0].xy).r;
 	half N2 = SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs[0].zw).r;
@@ -692,9 +813,19 @@ void DofDownVS_Mobile(
 	in float4 InPosition : ATTRIBUTE0,
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float2 OutTexCoords[5] : TEXCOORD0,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+
 	DrawRectangle(InPosition, InTexCoord, OutPosition, InTexCoord);
 
 	// Near position fixed to use UV based out output position.
@@ -707,11 +838,13 @@ void DofDownVS_Mobile(
 }
 
 void DofDownPS_Mobile(
-	float2 InUVs[5] : TEXCOORD0,
-#if USE_MULTI_VIEW_ID_SV
-	in uint MultiViewId : SV_ViewID,
+	float2 InUVs[5] : TEXCOORD0
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
 #endif
-	out HALF4_TYPE OutColor : SV_Target0
+	, out HALF4_TYPE OutColor : SV_Target0
 	)
 {
 	// This shader needs float precision to work.
@@ -719,14 +852,14 @@ void DofDownPS_Mobile(
 	// Fetch near diolation and scale to (0 to 16384.0) range.
 	float N = DofNearTexture.Sample(DofNearSampler, InUVs[0]).r * 16384.0;
 
-#if !USE_MULTI_VIEW_ID_SV
-	uint MultiViewId = 0;
-#endif
-	
-	float4 A = SampleSceneColor(InUVs[1],MultiViewId);
-	float4 B = SampleSceneColor(InUVs[2],MultiViewId);
-	float4 C = SampleSceneColor(InUVs[3],MultiViewId);
-	float4 D = SampleSceneColor(InUVs[4],MultiViewId);
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
+
+	float4 A = SampleSceneColor(InUVs[1], InViewId);
+	float4 B = SampleSceneColor(InUVs[2], InViewId);
+	float4 C = SampleSceneColor(InUVs[3], InViewId);
+	float4 D = SampleSceneColor(InUVs[4], InViewId);
 
 	A.a = SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs[1]).r;
 	B.a = SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs[2]).r;
@@ -836,9 +969,19 @@ void DofBlurVS_Mobile(
 	in float4 InPosition : ATTRIBUTE0,
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float2 OutTexCoords[5] : TEXCOORD0,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+
 	DrawRectangle(InPosition, InTexCoord, OutPosition, InTexCoord);
 
     OutTexCoords[0] = InTexCoord.xy;
@@ -849,10 +992,19 @@ void DofBlurVS_Mobile(
 }
 
 void DofBlurPS_Mobile(
-	float2 InUVs[5] : TEXCOORD0,
-	out HALF4_TYPE OutColor : SV_Target0
+	float2 InUVs[5] : TEXCOORD0
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
+#endif
+	, out HALF4_TYPE OutColor : SV_Target0
 	)
 {
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
+
 	// Near diolation size is copied into alpha for the tonemapper pass.
 	OutColor.a = DofNearTexture.Sample(DofNearSampler, InUVs[0]).r;
 
@@ -887,9 +1039,19 @@ void IntegrateDOFVS_Mobile(
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float4 OutTexCoords : TEXCOORD0,
 	out float2 OutFineDofGrain : TEXCOORD1,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 )
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+
 	DrawRectangle(InPosition, InTexCoord, OutPosition, OutTexCoords.xy);
 
 	// Fine adjustment is inside the possible non-full viewport in the full resolution texture.
@@ -903,21 +1065,23 @@ void IntegrateDOFVS_Mobile(
 }
 
 void IntegrateDOFPS_Mobile(
-	in float4 TexCoords : TEXCOORD0,
-	in float2 FineDofGrain : TEXCOORD1,
-#if USE_MULTI_VIEW_ID_SV
-	in uint MultiViewId : SV_ViewID,
+	in float4 TexCoords : TEXCOORD0
+	, in float2 FineDofGrain : TEXCOORD1
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
 #endif
-	out HALF4_TYPE OutColor : SV_Target0
+	, out HALF4_TYPE OutColor : SV_Target0
 )
 {
-	#if !USE_MULTI_VIEW_ID_SV
-		uint MultiViewId = 0;;
-	#endif
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
 	
-	half4 SceneColor = SampleSceneColor(TexCoords.xy,MultiViewId);
-	half4 DofFine = SampleSceneColor(FineDofGrain.xy,MultiViewId);
-	
+	half4 SceneColor = SampleSceneColor(TexCoords.xy, InViewId);
+	half4 DofFine = SampleSceneColor(FineDofGrain.xy, InViewId);
+
 	half4 Dof = Texture2DSample(DofBlurTexture, DofBlurSampler, TexCoords.zw);
 	half DofCoc = Texture2DSample(SunShaftAndDofTexture, SunShaftAndDofSampler, TexCoords.xy).r;
 	// Convert alpha back into circle of confusion.
@@ -989,9 +1153,19 @@ void SunAlphaVS_Mobile(
 	in float4 InPosition : ATTRIBUTE0,
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float2 OutTexCoords[8] : TEXCOORD0,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+
 	DrawRectangle(InPosition, InTexCoord, OutPosition, InTexCoord);
 
     OutTexCoords[0] = SunShaftRect(OutPosition.xy, 1.0 - SUN_P0 * SUN_M);
@@ -1018,10 +1192,19 @@ half SunUnBias(half A)
 }
 
 void SunAlphaPS_Mobile(
-	float2 InUVs[8] : TEXCOORD0,
-	out HALF_TYPE OutColor : SV_Target0
+	float2 InUVs[8] : TEXCOORD0
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
+#endif
+	, out HALF_TYPE OutColor : SV_Target0
 	)
 {
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
+
 	OutColor = 
 		SunUnBias(SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs[0]).r) * 0.125 +
 		SunUnBias(SunShaftAndDofTexture.Sample(SunShaftAndDofSampler, InUVs[1]).r) * 0.125 +
@@ -1047,9 +1230,19 @@ void SunBlurVS_Mobile(
 	in float4 InPosition : ATTRIBUTE0,
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float2 OutTexCoords[8] : TEXCOORD0,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+
 	DrawRectangle(InPosition, InTexCoord, OutPosition, InTexCoord);
 
     OutTexCoords[0] = SunShaftRect(OutPosition.xy, 1.0 - SUN_P0 * SUN_M);
@@ -1065,10 +1258,19 @@ void SunBlurVS_Mobile(
 #undef SUN_M
 
 void SunBlurPS_Mobile(
-	float2 InUVs[8] : TEXCOORD0,
-	out HALF_TYPE OutColor : SV_Target0
+	float2 InUVs[8] : TEXCOORD0
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
+#endif
+	, out HALF_TYPE OutColor : SV_Target0
 	)
 {
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
+
 	OutColor = 
 		SunAlphaTexture.Sample(SunAlphaSampler, InUVs[0]).r * 0.125 +
 		SunAlphaTexture.Sample(SunAlphaSampler, InUVs[1]).r * 0.125 +
@@ -1092,9 +1294,19 @@ void SunMergeVS_Mobile(
 	in float2 InTexCoord : ATTRIBUTE1,
 	out float4 OutTexCoordVignette : TEXCOORD0,
 	out float4 OutTexCoords[7] : TEXCOORD1,
+#if MOBILE_MULTI_VIEW_FALLBACK
+	in uint InstanceId : SV_InstanceID,
+	out nointerpolation uint EyeIndex : VIEW_ID,
+	out uint LayerIndex : SV_RenderTargetArrayIndex,
+#endif
 	out float4 OutPosition : SV_POSITION
 	)
 {
+#if MOBILE_MULTI_VIEW_FALLBACK
+	EyeIndex = GetEyeIndex(InstanceId);
+	LayerIndex = EyeIndex;
+#endif
+	
 	DrawRectangle(InPosition, InTexCoord, OutPosition, InTexCoord);
 
 	OutTexCoordVignette.xy = InTexCoord.xy;
@@ -1134,11 +1346,20 @@ SamplerState BloomDirtMaskSampler;
 float4 BloomDirtMaskTint;
 
 void SunMergePS_Mobile(
-	float4 InUVVignette : TEXCOORD0,
-	float4 InUVs[7] : TEXCOORD1,
-	out HALF4_TYPE OutColor : SV_Target0
+	float4 InUVVignette : TEXCOORD0
+	, float4 InUVs[7] : TEXCOORD1
+#if MOBILE_MULTI_VIEW_FALLBACK
+	, in nointerpolation uint InViewId : VIEW_ID
+#elif MOBILE_MULTI_VIEW
+	, in nointerpolation uint InViewId : SV_ViewID
+#endif
+	, out HALF4_TYPE OutColor : SV_Target0
 	)
 {
+#if !(MOBILE_MULTI_VIEW || MOBILE_MULTI_VIEW_FALLBACK)
+	const uint InViewId = 0;
+#endif 
+
 	#if MOBILE_USEBLOOM
 
 		float Scale1 = 1.0/7.0;
@@ -1146,15 +1367,15 @@ void SunMergePS_Mobile(
 		float Scale2 = 1.0/7.0;
 
 		half3 Bloom2 = (
-			BloomSetup_BloomTexture.Sample(BloomSetup_BloomSampler, InUVVignette.xy).rgba *Scale1 +
-			BloomSetup_BloomTexture.Sample(BloomSetup_BloomSampler, InUVs[0].xy).rgba * Scale2 +
-			BloomSetup_BloomTexture.Sample(BloomSetup_BloomSampler, InUVs[1].xy).rgba * Scale2 +
-			BloomSetup_BloomTexture.Sample(BloomSetup_BloomSampler, InUVs[2].xy).rgba * Scale2 +
-			BloomSetup_BloomTexture.Sample(BloomSetup_BloomSampler, InUVs[3].xy).rgba * Scale2 +
-			BloomSetup_BloomTexture.Sample(BloomSetup_BloomSampler, InUVs[4].xy).rgba * Scale2 +
-			BloomSetup_BloomTexture.Sample(BloomSetup_BloomSampler, InUVs[5].xy).rgba * Scale2) * rcp(Scale1 * 1.0 + Scale2 * 6.0);
+			SampleBloomSetup(InUVVignette.xy, InViewId).rgba *Scale1 +
+			SampleBloomSetup(InUVs[0].xy, InViewId).rgba * Scale2 +
+			SampleBloomSetup(InUVs[1].xy, InViewId).rgba * Scale2 +
+			SampleBloomSetup(InUVs[2].xy, InViewId).rgba * Scale2 +
+			SampleBloomSetup(InUVs[3].xy, InViewId).rgba * Scale2 +
+			SampleBloomSetup(InUVs[4].xy, InViewId).rgba * Scale2 +
+			SampleBloomSetup(InUVs[5].xy, InViewId).rgba * Scale2) * rcp(Scale1 * 1.0 + Scale2 * 6.0);
 
-		OutColor.rgb = BloomUpTexture.Sample(BloomUpSampler, InUVVignette.xy);
+		OutColor.rgb = SampleBloomUp(InUVVignette.xy, InViewId);
 
 		half3 BloomDirtMaskColor = BloomDirtMaskTexture.Sample(BloomDirtMaskSampler, InUVVignette.xy).rgb * BloomDirtMaskTint.rgb;
 
@@ -1267,7 +1488,7 @@ void AverageLuminance_MainCS(
 
 				Weight = max(AdaptationWeightTexture(BufferUV), 0.05f);
 
-				GroupLuminance.x += Texture2DSample(InputTexture, InputSampler, BufferUV).x * Weight;
+				GroupLuminance.x += SampleInput(BufferUV, 0).x * Weight;
 				GroupLuminance.y += Weight;
 			}
 		}
@@ -1423,7 +1644,7 @@ void Histogram_MainCS(
 				BufferUV = (float2)TexelPos + float2(1.0f, 1.0f); // offset pixel pos by 1 to use bilinear filter
 				BufferUV = BufferUV * SourceSizeAndInvSize.zw;
 
-				LogLuminance = Texture2DSample(InputTexture, InputSampler, BufferUV).x;
+				LogLuminance = SampleInput(BufferUV, 0).x;
 				ScreenWeight = AdaptationWeightTexture(BufferUV);
 
 				// Map the normalized histogram position into texels.

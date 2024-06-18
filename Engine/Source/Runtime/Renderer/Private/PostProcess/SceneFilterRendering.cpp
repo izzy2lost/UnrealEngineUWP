@@ -282,7 +282,8 @@ void DrawHmdMesh(
 	FIntPoint TargetSize,
 	FIntPoint TextureSize,
 	int32 StereoView,
-	const TShaderRef<FShader>& VertexShader
+	const TShaderRef<FShader>& VertexShader,
+	int32 InstanceCount
 	)
 {
 	{
@@ -297,7 +298,7 @@ void DrawHmdMesh(
 
 	if (GEngine->XRSystem->GetHMDDevice())
 	{
-		GEngine->XRSystem->GetHMDDevice()->DrawVisibleAreaMesh(RHICmdList, StereoView);
+		GEngine->XRSystem->GetHMDDevice()->DrawVisibleAreaMesh(RHICmdList, StereoView, InstanceCount);
 	}
 }
 
@@ -316,15 +317,16 @@ void DrawPostProcessPass(
 	const TShaderRef<FShader>& VertexShader,
 	int32 StereoViewIndex,
 	bool bHasCustomMesh,
-	EDrawRectangleFlags Flags)
+	EDrawRectangleFlags Flags,
+	int32 InstanceCount)
 {
 	if (bHasCustomMesh && StereoViewIndex != INDEX_NONE)
 	{
-		DrawHmdMesh(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, StereoViewIndex, VertexShader);
+		DrawHmdMesh(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, StereoViewIndex, VertexShader, InstanceCount);
 	}
 	else
 	{
-		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags);
+		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags, InstanceCount);
 	}
 }
 
@@ -370,7 +372,8 @@ namespace UE::Renderer::PostProcess
 				View.ViewRect.Width(), View.ViewRect.Height(),
 				View.UnconstrainedViewRect.Size(),
 				View.UnconstrainedViewRect.Size(),
-				Flags);
+				Flags,
+				InstanceCount);
 		}
 	}
 
