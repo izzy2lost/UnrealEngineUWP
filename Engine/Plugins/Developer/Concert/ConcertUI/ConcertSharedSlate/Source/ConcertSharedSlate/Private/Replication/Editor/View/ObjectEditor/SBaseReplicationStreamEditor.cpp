@@ -315,7 +315,8 @@ namespace UE::ConcertSharedSlate
 			}),
 			FBuilderDelegates::FIsItemSelected::CreateLambda([this](const FSelectableObjectInfo& Item)
 			{
-				return EditablePropertiesModel->ContainsObjects({ Item.Object.Get() } );
+				const UObject* Object = Item.Object.Get();
+				return !Object || ReplicationViewer->IsDisplayedInTopView(Object);
 			}),
 			TAttribute<bool>::CreateLambda([this]() { return !IsEditingDisabled(); }),
 			TAttribute<FText>::CreateLambda([this]() { return GetEditingDisabledText(); }),

@@ -106,6 +106,9 @@ namespace UE::ConcertSharedSlate
 		/** Expands the given objects, recursively if desired. */
 		void ExpandObjects(TConstArrayView<TSoftObjectPtr<>> Objects, bool bRecursive, bool bAtEndOfTick = false);
 
+		/** @return Whether Object is being displayed in the top object panel. */
+		bool IsDisplayedInTopView(const FSoftObjectPath& Object) const;
+
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
 		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedObjectItems() const;
 

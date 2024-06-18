@@ -159,6 +159,21 @@ namespace UE::ConcertSharedSlate
 			});
 			return Subobjects;
 		}
+
+		/** @return Whether the predicate holds true for any of Root's subobjects. */
+		template<typename TLambda> requires std::is_invocable_r_v<bool, TLambda, const FSoftObjectPath&>
+		bool AnyOfSubobjects(const FSoftObjectPath& Root, TLambda&& Lambda)
+		{
+			bool bResult = false;
+			ForEachSubobject(
+				Root,
+				[&Lambda, &bResult](const FSoftObjectPath& Child)
+				{
+					bResult = Lambda(Child);
+					return bResult ? EBreakBehavior::Break : EBreakBehavior::Continue;
+				});
+			return bResult;
+		}
 		
 		virtual ~IReplicationStreamModel() = default;
 	};

@@ -147,7 +147,17 @@ namespace UE::ConcertSharedSlate
 			ReplicatedObjects->SetExpandedItems(ItemsToExpand, true);
 		}
 	}
-	
+
+	bool SReplicationStreamViewer::IsDisplayedInTopView(const FSoftObjectPath& Object) const
+	{
+		const bool bIsContainedActor = PropertiesModel->ContainsObjects({ Object } );
+		const bool bIsContainedSubobject = PropertiesModel->AnyOfSubobjects(Object, [this](const FSoftObjectPath& SubobjectPath)
+		{
+			return PropertiesModel->ContainsObjects({ SubobjectPath } );
+		});
+		return bIsContainedActor || bIsContainedSubobject;
+	}
+
 	TArray<TSharedPtr<FReplicatedObjectData>> SReplicationStreamViewer::GetSelectedObjectItems() const
 	{
 		TArray<TSharedPtr<FReplicatedObjectData>> SelectedItems = ReplicatedObjects->GetSelectedItems();
