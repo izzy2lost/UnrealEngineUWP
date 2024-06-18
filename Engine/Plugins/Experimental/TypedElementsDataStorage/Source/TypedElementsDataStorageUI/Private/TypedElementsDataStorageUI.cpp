@@ -10,7 +10,9 @@
 
 #define LOCTEXT_NAMESPACE "FTypedElementsDataStorageModule"
 
-FAutoConsoleCommandWithOutputDevice PrintWidgetPurposesConsoleCommand(
+namespace UE::TypedElementsDataStorageUI::Private
+{
+	FAutoConsoleCommandWithOutputDevice PrintWidgetPurposesConsoleCommand(
 	TEXT("TEDS.UI.PrintWidgetPurposes"),
 	TEXT("Prints a list of all the known widget purposes."),
 	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Output)
@@ -27,6 +29,16 @@ FAutoConsoleCommandWithOutputDevice PrintWidgetPurposesConsoleCommand(
 				Output.Log(TEXT("End of Typed Elements Data Storage widget purpose list."));
 			}
 		}));
+
+	static bool bUseNewTEDSUIWidgets = false;
+	FAutoConsoleVariableRef UseNewWidgetsCvar(
+		TEXT("TEDS.UI.UseNewWidgets"),
+		bUseNewTEDSUIWidgets,
+		TEXT("If true, TEDS UI will use new attribute binding driven widgets (needs to be set at startup)")
+	);
+}
+
+
 
 void FTypedElementsDataStorageUiModule::StartupModule()
 {

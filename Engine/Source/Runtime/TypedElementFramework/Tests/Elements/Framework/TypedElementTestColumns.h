@@ -49,6 +49,25 @@ struct FTestColumnG final : public FTypedElementDataStorageColumn
 	GENERATED_BODY()
 };
 
+USTRUCT(meta = (DisplayName = "ColumnInt"))
+struct FTestColumnInt final : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+	
+	UPROPERTY()
+	int TestInt = 0;
+};
+
+USTRUCT(meta = (DisplayName = "ColumnString"))
+struct FTestColumnString final : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+	
+	UPROPERTY()
+    FString TestString;
+};
+
+
 USTRUCT(meta = (DisplayName = "TagA"))
 struct FTestTagColumnA final : public FTypedElementDataStorageTag
 {
