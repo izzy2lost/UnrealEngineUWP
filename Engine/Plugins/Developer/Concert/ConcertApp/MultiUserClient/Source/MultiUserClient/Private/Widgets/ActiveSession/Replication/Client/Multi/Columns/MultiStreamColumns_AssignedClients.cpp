@@ -34,7 +34,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 				{
 					if (Ownership == FReassignObjectPropertiesLogic::EOwnershipState::HasObjectRegistered)
 					{
-						ClientsWithOwnership.Add(ClientId);
+						ClientsWithOwnership.AddUnique(ClientId);
 					}
 					return EBreakBehavior::Continue;
 				});
