@@ -261,7 +261,13 @@ void FNFORDenoiseModule::StartupModule()
 	{
 		FString ModuleDir = Plugin->GetBaseDir() + TEXT("/Source/NFORDenoise");
 		FString ModuleShaderDir = FPaths::Combine(ModuleDir, TEXT("Shaders"));
-		if (FPaths::DirectoryExists(ModuleShaderDir))
+
+		// If there is no editor data and does not allow shader compiling, we should not
+		// register the denoiser.
+		const bool bShouldDisableShaderCompiling = FPlatformProperties::RequiresCookedData() || !AllowShaderCompiling();
+
+		if (FPaths::DirectoryExists(ModuleShaderDir)
+			&& !bShouldDisableShaderCompiling)
 		{
 			AddShaderSourceDirectoryMapping(TEXT("/NFORDenoise"), ModuleShaderDir);
 			RegisterSpatialTemporalDenoiser(MakeUnique<FNFORDenoiser>(), TEXT("NFOR"));
