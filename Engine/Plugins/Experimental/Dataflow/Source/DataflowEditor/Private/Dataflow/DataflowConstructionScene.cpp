@@ -8,6 +8,7 @@
 #include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowEditorStyle.h"
+#include "Dataflow/DataflowRenderingFactory.h"
 #include "Drawing/MeshElementsVisualizer.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Selection.h"
@@ -141,8 +142,7 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 					GeometryCollection::Facades::FRenderingFacade Facade(*RenderCollection);
 					Facade.DefineSchema();
 
-					check(EditorContent->GetConstructionViewMode());
-					Target->Render(Facade, DataflowContext.ToSharedRef(), *EditorContent->GetConstructionViewMode());
+					Dataflow::RenderNodeOutput(Facade, *Target, *EditorContent);
 
 					const int32 NumGeometry = Facade.NumGeometry();
 					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; ++MeshIndex)
@@ -180,8 +180,7 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 					GeometryCollection::Facades::FRenderingFacade Facade(*RenderCollection);
 					Facade.DefineSchema();
 
-					check(EditorContent->GetConstructionViewMode());
-					Target->Render(Facade, DataflowContext.ToSharedRef(), *EditorContent->GetConstructionViewMode());
+					Dataflow::RenderNodeOutput(Facade, *Target, *EditorContent);
 
 					const int32 NumGeometry = Facade.NumGeometry();
 					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; ++MeshIndex)

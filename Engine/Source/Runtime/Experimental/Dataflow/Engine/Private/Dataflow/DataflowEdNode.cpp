@@ -6,7 +6,6 @@
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowCoreNodes.h"
 #include "Dataflow/DataflowObject.h"
-#include "Dataflow/DataflowRenderingFactory.h"
 #include "GeometryCollection/Facades/CollectionRenderingFacade.h"
 #include "Logging/LogMacros.h"
 #include "Textures/SlateIcon.h"
@@ -759,51 +758,6 @@ TArray<Dataflow::FRenderingParameter> UDataflowEdNode::GetRenderParameters() con
 	return 	TArray<Dataflow::FRenderingParameter>();
 }
 
-
-bool UDataflowEdNode::Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedRef<Dataflow::FContext> Context, const Dataflow::IDataflowConstructionViewMode& ViewMode) const
-{
-	bool bNeedsRefresh = false;
-	if (DataflowGraph)
-	{
-		if (TSharedPtr<const FDataflowNode> NodeTarget = DataflowGraph->FindBaseNode(FName(GetName())))
-		{
-			if (Dataflow::FRenderingFactory* Factory = Dataflow::FRenderingFactory::GetInstance())
-			{
-				if (GetRenderParameters().Num())
-				{
-					for (Dataflow::FRenderingParameter& Parameter : GetRenderParameters())
-					{
-						Factory->RenderNodeOutput(RenderData, Dataflow::FGraphRenderingState{ GetDataflowNodeGuid(), NodeTarget.Get(), Parameter, Context.Get(), ViewMode});
-						bNeedsRefresh = true;
-					}
-				}
-			}
-		}
-	}
-	return bNeedsRefresh;
-}
-
-
-bool UDataflowEdNode::CanRender(const TSharedRef<Dataflow::FContext> Context, const Dataflow::IDataflowConstructionViewMode& ViewMode) const
-{
-	if (DataflowGraph)
-	{
-		if (TSharedPtr<const FDataflowNode> NodeTarget = DataflowGraph->FindBaseNode(FName(GetName())))
-		{
-			if (const Dataflow::FRenderingFactory* const Factory = Dataflow::FRenderingFactory::GetInstance())
-			{
-				for (const Dataflow::FRenderingParameter& Parameter : GetRenderParameters())
-				{
-					if (Factory->CanRenderNodeOutput(Dataflow::FGraphRenderingState{ GetDataflowNodeGuid(), NodeTarget.Get(), Parameter, Context.Get(), ViewMode }))
-					{
-						return true;
-					}
-				}
-			}
-		}
-	}
-	return false;
-}
 
 #undef LOCTEXT_NAMESPACE
 

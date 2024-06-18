@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowCore.h"
-#include "Dataflow/DataflowRenderingFactory.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "GeometryCollection/GeometryCollection.h"
@@ -101,9 +100,6 @@ public:
 	DATAFLOWENGINE_API bool CanEnableWireframeRenderNode() const;
 
 	DATAFLOWENGINE_API TArray<Dataflow::FRenderingParameter> GetRenderParameters() const;
-	DATAFLOWENGINE_API virtual bool Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedRef<Dataflow::FContext> Context, const Dataflow::IDataflowConstructionViewMode& ViewMode) const;
-
-	DATAFLOWENGINE_API virtual bool CanRender(const TSharedRef<Dataflow::FContext> Context, const Dataflow::IDataflowConstructionViewMode& ViewMode) const;
 
 private:
 

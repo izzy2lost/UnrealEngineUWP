@@ -19,6 +19,7 @@
 #include "Dataflow/DataflowEditorModeToolkit.h"
 #include "Dataflow/DataflowEditorModule.h"
 #include "Dataflow/DataflowEditorModeUILayer.h"
+#include "Dataflow/DataflowEditorUtil.h"
 #include "Dataflow/DataflowConstructionViewport.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowGraphEditor.h"
@@ -26,7 +27,7 @@
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowObjectInterface.h"
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
-#include "Dataflow/DataflowConstructionScene.h"
+#include "Dataflow/DataflowRenderingFactory.h"
 #include "Dataflow/DataflowSimulationScene.h"
 #include "Dataflow/DataflowSchema.h"
 #include "Dataflow/DataflowSkeletonView.h"
@@ -721,6 +722,10 @@ void FDataflowEditorToolkit::OnNodeTitleCommitted(const FText& InNewText, ETextC
 
 void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewSelection)
 {
+	//
+	// Local helper lambdas
+	//
+
 	auto FindDataflowNodesInSet = [](const TSet<TObjectPtr<UObject>>& InSet) {
 		TSet<TObjectPtr<UObject>> Results;
 		for (UObject* Item : InSet)
@@ -798,8 +803,10 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 		}
 	};
 
-
-
+	//
+	// Actual function
+	// 
+	
 	// Despite this function's name, we might not have actually changed which node is selected
 	bool bPrimarySelectionChanged = false;
 
@@ -924,42 +931,36 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 	{
 		bool bFoundViewMode = true;
 
-		if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
+		if (PrimarySelection && GetEditorContent())
 		{
-			if (const TSharedPtr<Dataflow::FEngineContext> Context = EditorContent->GetDataflowContext())
+			if (!Dataflow::CanRenderNodeOutput(*PrimarySelection, *GetEditorContent(), *DataflowMode->GetConstructionViewMode()))
 			{
-				if (PrimarySelection)
+				// Selected node can't render with the current view mode. Check through available view modes and see if it can render with any of them
+
+				bFoundViewMode = false;
+
+				TArray<Dataflow::FRenderingParameter> RenderingParameters = PrimarySelection->GetRenderParameters();
+				for (const Dataflow::FRenderingParameter& Param : RenderingParameters)
 				{
-					if (!PrimarySelection->CanRender(Context.ToSharedRef(), *DataflowMode->GetConstructionViewMode()))
+					const FName NodeOutputTypeName = Param.Type;
+
+					for (const TPair<FName, TUniquePtr<Dataflow::IDataflowConstructionViewMode>>& ViewMode : Dataflow::FRenderingViewModeFactory::GetInstance().GetViewModes())
 					{
-						// Selected node can't render with the current view mode. Check through available view modes and see if it can render with any of them
+						check(ViewMode.Value.IsValid());
 
-						bFoundViewMode = false;
+						const bool bCanRender = Dataflow::CanRenderNodeOutput(*PrimarySelection, *GetEditorContent(), *ViewMode.Value);
 
-						TArray<Dataflow::FRenderingParameter> RenderingParameters = PrimarySelection->GetRenderParameters();
-						for (const Dataflow::FRenderingParameter& Param : RenderingParameters)
+						if (bCanRender)
 						{
-							const FName NodeOutputTypeName = Param.Type;
-
-							for (const TPair<FName, TUniquePtr<Dataflow::IDataflowConstructionViewMode>>& ViewMode : Dataflow::FRenderingViewModeFactory::GetInstance().GetViewModes())
-							{
-								check(ViewMode.Value.IsValid());
-
-								const bool bCanRender = PrimarySelection->CanRender(Context.ToSharedRef(), *ViewMode.Value);
-
-								if (bCanRender)
-								{
-									DataflowMode->SetConstructionViewMode(ViewMode.Key);
-									bFoundViewMode = true;
-									break;
-								}
-							}
-
-							if (bFoundViewMode)
-							{
-								break;
-							}
+							DataflowMode->SetConstructionViewMode(ViewMode.Key);
+							bFoundViewMode = true;
+							break;
 						}
+					}
+
+					if (bFoundViewMode)
+					{
+						break;
 					}
 				}
 			}

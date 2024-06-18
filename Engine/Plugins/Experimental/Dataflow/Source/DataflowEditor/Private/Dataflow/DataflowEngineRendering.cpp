@@ -3,7 +3,7 @@
 #include "Dataflow/DataflowEngineRendering.h"
 
 #include "Dataflow/DataflowConnectionTypes.h"
-#include "Dataflow/DataflowEnginePlugin.h"
+#include "Dataflow/DataflowEditorModule.h"
 #include "Dataflow/DataflowRenderingFactory.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "Field/FieldSystemTypes.h"
@@ -86,7 +86,7 @@ namespace Dataflow
 			}
 		}
 
-		// Copy VertexColors from the Collection if exists otherwise set it to IDataflowEnginePlugin::SurfaceColor
+		// Copy VertexColors from the Collection if exists otherwise set it to FDataflowEditorModule::SurfaceColor
 		TArray<FLinearColor> VertexColors; VertexColors.AddUninitialized(Vertex.Num());
 		if (VertexColorOverride && VertexColorOverride->Num() == Vertex.Num())
 		{
@@ -108,7 +108,7 @@ namespace Dataflow
 			{
 				for (int32 VertexIdx = 0; VertexIdx < VertexColors.Num(); ++VertexIdx)
 				{
-					VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
+					VertexColors[VertexIdx] = FLinearColor(FDataflowEditorModule::SurfaceColor);
 				}
 			}
 		}
@@ -205,7 +205,7 @@ namespace Dataflow
 				}
 			}
 
-			// Copy VertexColors from the Collection if exists otherwise set it to IDataflowEnginePlugin::SurfaceColor
+			// Copy VertexColors from the Collection if exists otherwise set it to FDataflowEditorModule::SurfaceColor
 			TArray<FLinearColor> VertexColors; VertexColors.AddUninitialized(Vertices.Num());
 			if (VertexColorOverride && VertexColorOverride->Num() == TotalVertices)
 			{
@@ -229,7 +229,7 @@ namespace Dataflow
 				{
 					for (int32 VertexIdx = 0; VertexIdx < VertexColors.Num(); ++VertexIdx)
 					{
-						VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
+						VertexColors[VertexIdx] = FLinearColor(FDataflowEditorModule::SurfaceColor);
 					}
 				}
 			}
@@ -456,7 +456,7 @@ namespace Dataflow
 						{
 							// TODO: Get the normal from FDynamicMesh3
 							VertexNormals[VertexIdx] = FVector3f(0.f);
-							VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
+							VertexColors[VertexIdx] = FLinearColor(FDataflowEditorModule::SurfaceColor);
 						}
 
 						int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());
@@ -525,7 +525,7 @@ namespace Dataflow
 				for (int32 VertexIdx = 0; VertexIdx < VertexNormals.Num(); ++VertexIdx)
 				{
 					VertexNormals[VertexIdx] = FVector3f(0.f);
-					VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
+					VertexColors[VertexIdx] = FLinearColor(FDataflowEditorModule::SurfaceColor);
 				}
 
 				int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());
@@ -581,7 +581,7 @@ namespace Dataflow
 						VertexNormals[3 * i] = TriangleNormal;
 						VertexNormals[3 * i + 1] = TriangleNormal;
 						VertexNormals[3 * i + 2] = TriangleNormal;
-						VertexColors[i] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
+						VertexColors[i] = FLinearColor(FDataflowEditorModule::SurfaceColor);
 					}
 
 					int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());

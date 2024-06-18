@@ -2,6 +2,7 @@
 
 #include "Dataflow/ChaosFleshCreateTetrahedralCollectionNode.h"
 
+#include "Chaos/Utilities.h"
 #include "ChaosFlesh/ChaosFlesh.h"
 #include "ChaosFlesh/FleshCollection.h"
 #include "ChaosFlesh/FleshCollectionUtility.h"

@@ -29,7 +29,6 @@ public:
 
 
 	//~ USceneComponent Interface.
-	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 
 	//~ UPrimitiveComponent Interface.
@@ -52,8 +51,6 @@ public:
 	void SetRenderingCollection(FManagedArrayCollection&& InCollection);
 	const FManagedArrayCollection& GetRenderingCollection() const;
 	      FManagedArrayCollection& ModifyRenderingCollection();
-	void BuildRenderCollection();
-
 
 	/** Dataflow */
 	void SetDataflow(const UDataflow* InDataflow) { Dataflow = InDataflow; }

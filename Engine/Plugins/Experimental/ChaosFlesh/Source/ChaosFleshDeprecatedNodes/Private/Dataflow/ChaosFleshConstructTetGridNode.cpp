@@ -2,6 +2,7 @@
 
 #include "Dataflow/ChaosFleshConstructTetGridNode.h"
 
+#include "Chaos/Utilities.h"
 #include "ChaosFlesh/FleshCollection.h"
 #include "ChaosFlesh/ChaosFlesh.h"
 #include "ChaosLog.h"

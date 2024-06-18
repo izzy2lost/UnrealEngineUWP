@@ -9,17 +9,17 @@ namespace Dataflow
 {
 	bool IDataflowConstructionViewMode::IsPerspective() const
 	{
-		return GetViewportType() == EDataflowViewportType::DVT_Perspective;
+		return GetViewportType() == ELevelViewportType::LVT_Perspective;
 	}
 
-	EDataflowViewportType FDataflowConstruction2DViewModeBase::GetViewportType() const
+	ELevelViewportType FDataflowConstruction2DViewModeBase::GetViewportType() const
 	{
-		return EDataflowViewportType::DVT_OrthoNegativeXY;
+		return ELevelViewportType::LVT_OrthoNegativeXY;
 	}
 
-	EDataflowViewportType FDataflowConstruction3DViewModeBase::GetViewportType() const
+	ELevelViewportType FDataflowConstruction3DViewModeBase::GetViewportType() const
 	{
-		return EDataflowViewportType::DVT_Perspective;
+		return ELevelViewportType::LVT_Perspective;
 	}
 
 	FName FDataflowConstruction2DViewMode::Name = FName("2DView");

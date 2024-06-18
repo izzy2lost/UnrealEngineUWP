@@ -15,6 +15,7 @@
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorModeToolkit.h"
+#include "Dataflow/DataflowEditorUtil.h"
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
 #include "Dataflow/DataflowConstructionScene.h"
@@ -589,24 +590,19 @@ bool UDataflowEditorMode::CanChangeConstructionViewModeTo(const FName& NewViewMo
 {
 	if (!GetToolManager()->HasActiveTool(EToolSide::Left))
 	{
-		if (const TSharedPtr<const SDataflowGraphEditor> PinnedDataflowGraphEditor = DataflowGraphEditor.Pin())
+		if (const TObjectPtr<UDataflowBaseContent>& EditorContent = ConstructionScene->GetEditorContent())
 		{
-			if (const UEdGraphNode* const SelectedNode = PinnedDataflowGraphEditor->GetSingleSelectedNode())
+			if (const TSharedPtr<const SDataflowGraphEditor> PinnedDataflowGraphEditor = DataflowGraphEditor.Pin())
 			{
-				if (const UDataflowEdNode* const SelectedDataflowNode = Cast<UDataflowEdNode>(SelectedNode))
+				if (const UEdGraphNode* const SelectedNode = PinnedDataflowGraphEditor->GetSingleSelectedNode())
 				{
-					const Dataflow::FRenderingViewModeFactory& ViewModeFactory = Dataflow::FRenderingViewModeFactory::GetInstance();
-
-					if (const Dataflow::IDataflowConstructionViewMode* const ViewMode = ViewModeFactory.GetViewMode(NewViewModeName))
+					if (const UDataflowEdNode* const SelectedDataflowEdNode = Cast<UDataflowEdNode>(SelectedNode))
 					{
-						if (const TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetEditorContent())
+						if (const Dataflow::IDataflowConstructionViewMode* const ViewMode = Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(NewViewModeName))
 						{
-							if (const TSharedPtr<Dataflow::FEngineContext> Context = EditorContent->GetDataflowContext())
+							if (Dataflow::CanRenderNodeOutput(*SelectedDataflowEdNode, *EditorContent, *ViewMode))
 							{
-								if (SelectedDataflowNode->CanRender(Context.ToSharedRef(), *ViewMode))
-								{
-									return true;
-								}
+								return true;
 							}
 						}
 					}

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UObject/NameTypes.h"
+#include "Editor/UnrealEdTypes.h"
 #include "ChaosLog.h"
 
 namespace Dataflow
@@ -25,36 +26,17 @@ namespace Dataflow
 	//    - The Render function should return different RenderCollections depending on what the current view mode is (which can be determined from the FGraphRenderingState parameter.)
 	//
 
-
-	//
-	// Equivalent to ELevelViewportType, but we don't want to add an Editor dependency here
-	//
-	enum EDataflowViewportType : int
-	{
-		DVT_OrthoXY = 0,
-		DVT_OrthoXZ = 1,
-		DVT_OrthoYZ = 2,
-		DVT_Perspective = 3,
-		DVT_OrthoFreelook = 4,
-		DVT_OrthoNegativeXY = 5,
-		DVT_OrthoNegativeXZ = 6,
-		DVT_OrthoNegativeYZ = 7,
-		DVT_MAX,
-		DVT_None = 255,
-	};
-
-
 	class IDataflowConstructionViewMode
 	{
 	public:
 		virtual ~IDataflowConstructionViewMode() = default;
 
-		DATAFLOWENGINE_API virtual FName GetName() const = 0;
-		DATAFLOWENGINE_API virtual FText GetButtonText() const = 0;
-		DATAFLOWENGINE_API virtual FText GetTooltipText() const = 0;
-		DATAFLOWENGINE_API virtual EDataflowViewportType GetViewportType() const = 0;
+		DATAFLOWEDITOR_API virtual FName GetName() const = 0;
+		DATAFLOWEDITOR_API virtual FText GetButtonText() const = 0;
+		DATAFLOWEDITOR_API virtual FText GetTooltipText() const = 0;
+		DATAFLOWEDITOR_API virtual ELevelViewportType GetViewportType() const = 0;
 		
-		DATAFLOWENGINE_API bool IsPerspective() const;
+		DATAFLOWEDITOR_API bool IsPerspective() const;
 	};
 
 	// Base 2D and 3D types
@@ -62,13 +44,13 @@ namespace Dataflow
 	class FDataflowConstruction2DViewModeBase : public IDataflowConstructionViewMode
 	{
 	public:
-		DATAFLOWENGINE_API virtual EDataflowViewportType GetViewportType() const override;
+		DATAFLOWEDITOR_API virtual ELevelViewportType GetViewportType() const override;
 	};
 
 	class FDataflowConstruction3DViewModeBase : public IDataflowConstructionViewMode
 	{
 	public:
-		DATAFLOWENGINE_API virtual EDataflowViewportType GetViewportType() const override;
+		DATAFLOWEDITOR_API virtual ELevelViewportType GetViewportType() const override;
 	};
 
 	// Concrete default 2D and 3D types
@@ -76,23 +58,23 @@ namespace Dataflow
 	class FDataflowConstruction2DViewMode : public FDataflowConstruction2DViewModeBase
 	{
 	public:
-		DATAFLOWENGINE_API static FName Name;
+		DATAFLOWEDITOR_API static FName Name;
 		virtual ~FDataflowConstruction2DViewMode() = default;
 	private:
-		DATAFLOWENGINE_API virtual FName GetName() const override;
-		DATAFLOWENGINE_API virtual FText GetButtonText() const override;
-		DATAFLOWENGINE_API virtual FText GetTooltipText() const override;
+		DATAFLOWEDITOR_API virtual FName GetName() const override;
+		DATAFLOWEDITOR_API virtual FText GetButtonText() const override;
+		DATAFLOWEDITOR_API virtual FText GetTooltipText() const override;
 	};
 
 	class FDataflowConstruction3DViewMode : public FDataflowConstruction3DViewModeBase
 	{
 	public:
-		DATAFLOWENGINE_API static FName Name;
+		DATAFLOWEDITOR_API static FName Name;
 		virtual ~FDataflowConstruction3DViewMode() = default;
 	private:
-		DATAFLOWENGINE_API virtual FName GetName() const override;
-		DATAFLOWENGINE_API virtual FText GetButtonText() const override;
-		DATAFLOWENGINE_API virtual FText GetTooltipText() const override;
+		DATAFLOWEDITOR_API virtual FName GetName() const override;
+		DATAFLOWEDITOR_API virtual FText GetButtonText() const override;
+		DATAFLOWEDITOR_API virtual FText GetTooltipText() const override;
 	};
 
 	//
@@ -106,19 +88,19 @@ namespace Dataflow
 		FRenderingViewModeFactory();
 
 		// FLazySingleton
-		static DATAFLOWENGINE_API FRenderingViewModeFactory& GetInstance();
-		static DATAFLOWENGINE_API void TearDown();
+		static DATAFLOWEDITOR_API FRenderingViewModeFactory& GetInstance();
+		static DATAFLOWEDITOR_API void TearDown();
 
-		DATAFLOWENGINE_API void RegisterViewMode(TUniquePtr<IDataflowConstructionViewMode>&& ViewMode);
-		DATAFLOWENGINE_API void DeregisterViewMode(const FName& ViewModeName);
+		DATAFLOWEDITOR_API void RegisterViewMode(TUniquePtr<IDataflowConstructionViewMode>&& ViewMode);
+		DATAFLOWEDITOR_API void DeregisterViewMode(const FName& ViewModeName);
 
-		DATAFLOWENGINE_API const IDataflowConstructionViewMode* GetViewMode(const FName& ViewModeName) const;
+		DATAFLOWEDITOR_API const IDataflowConstructionViewMode* GetViewMode(const FName& ViewModeName) const;
 
-		DATAFLOWENGINE_API const TMap<FName, TUniquePtr<IDataflowConstructionViewMode>>& GetViewModes() const;
+		DATAFLOWEDITOR_API const TMap<FName, TUniquePtr<IDataflowConstructionViewMode>>& GetViewModes() const;
 
 	private:
 
-		DATAFLOWENGINE_API static TUniquePtr<FRenderingViewModeFactory> Instance;
+		DATAFLOWEDITOR_API static TUniquePtr<FRenderingViewModeFactory> Instance;
 
 		TMap<FName, TUniquePtr<IDataflowConstructionViewMode>> ViewModeMap;
 	};

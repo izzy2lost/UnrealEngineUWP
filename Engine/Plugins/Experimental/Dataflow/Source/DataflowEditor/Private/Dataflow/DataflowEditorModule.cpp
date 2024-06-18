@@ -7,6 +7,7 @@
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEditorCommands.h"
+#include "Dataflow/DataflowEngineRendering.h"
 #include "Dataflow/DataflowSNodeFactories.h"
 
 #include "CoreMinimal.h"
@@ -16,12 +17,16 @@
 
 #define LOCTEXT_NAMESPACE "DataflowEditor"
 
+const FColor FDataflowEditorModule::SurfaceColor = FLinearColor(0.6, 0.6, 0.6).ToRGBE();
+
 void FDataflowEditorModule::StartupModule()
 {
 	FDataflowEditorStyle::Get();
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
-	}
+
+	Dataflow::RenderingCallbacks();
+}
 
 void FDataflowEditorModule::ShutdownModule()
 {	

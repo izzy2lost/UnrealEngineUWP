@@ -16,6 +16,8 @@ class USkeletalMesh;
 class USkeleton;
 class UAnimationAsset;
 class UMaterial;
+class UDataflowEdNode;
+namespace Dataflow { class IDataflowConstructionViewMode; }
 
 namespace UE::Dataflow::Private
 {
@@ -45,4 +47,7 @@ namespace UE
 namespace Dataflow
 {
 	TSharedPtr<::Dataflow::FEngineContext> GetContext(TObjectPtr<UDataflowBaseContent> Content);
+
+	bool CanRenderNodeOutput(const UDataflowEdNode& EdNode, const UDataflowBaseContent& EditorContent, const ::Dataflow::IDataflowConstructionViewMode& ViewMode);
+	void RenderNodeOutput(GeometryCollection::Facades::FRenderingFacade& Facade, const UDataflowEdNode& Node, const UDataflowBaseContent& EditorContent);
 }

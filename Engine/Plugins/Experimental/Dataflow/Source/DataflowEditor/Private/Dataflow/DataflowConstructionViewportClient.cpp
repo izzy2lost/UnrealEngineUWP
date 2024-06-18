@@ -19,19 +19,6 @@
 #include "SGraphPanel.h"
 #include "SNodePanel.h"
 
-
-static_assert(std::is_same<std::underlying_type_t<ELevelViewportType>, int>::value);
-static_assert(std::is_same<std::underlying_type_t<Dataflow::EDataflowViewportType>, int>::value);
-static_assert(static_cast<int>(ELevelViewportType::LVT_OrthoXY) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_OrthoXY));
-static_assert(static_cast<int>(ELevelViewportType::LVT_OrthoXZ) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_OrthoXZ));
-static_assert(static_cast<int>(ELevelViewportType::LVT_OrthoYZ) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_OrthoYZ));
-static_assert(static_cast<int>(ELevelViewportType::LVT_Perspective) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_Perspective));
-static_assert(static_cast<int>(ELevelViewportType::LVT_OrthoFreelook) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_OrthoFreelook));
-static_assert(static_cast<int>(ELevelViewportType::LVT_OrthoNegativeXY) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_OrthoNegativeXY));
-static_assert(static_cast<int>(ELevelViewportType::LVT_OrthoNegativeXZ) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_OrthoNegativeXZ));
-static_assert(static_cast<int>(ELevelViewportType::LVT_OrthoNegativeYZ) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_OrthoNegativeYZ));
-static_assert(static_cast<int>(ELevelViewportType::LVT_MAX) == static_cast<int>(Dataflow::EDataflowViewportType::DVT_MAX));
-
 #define LOCTEXT_NAMESPACE "DataflowConstructionViewportClient"
 
 FDataflowConstructionViewportClient::FDataflowConstructionViewportClient(FEditorModeTools* InModeTools,

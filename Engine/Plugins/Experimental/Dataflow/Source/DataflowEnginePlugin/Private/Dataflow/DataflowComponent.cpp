@@ -4,7 +4,6 @@
 #include "DataflowEngineSceneProxy.h"
 
 #include "Dataflow/DataflowEdNode.h"
-#include "Dataflow/DataflowRenderingFactory.h"
 #include "GeometryCollection/Facades/CollectionRenderingFacade.h"
 #include "GeometryCollection/Facades/CollectionBoundsFacade.h"
 #include "GeometryCollection/GeometryCollection.h"
@@ -48,68 +47,6 @@ void UDataflowComponent::AddRenderTarget(const UDataflowEdNode* InTarget)
 	Invalidate();
 }
 
-void UDataflowComponent::BuildRenderCollection()
-{
-	RenderCollection = FManagedArrayCollection();
-	GeometryCollection::Facades::FRenderingFacade Facade(RenderCollection);
-	Facade.DefineSchema();
-
-	if (Context && Dataflow)
-	{
-		for (const UDataflowEdNode* Target : RenderTargets)
-		{
-			if (Target && ViewMode)
-			{
-				Target->Render(Facade, Context.ToSharedRef(), *ViewMode);
-			}
-		}
-	}
-	MarkRenderStateDirty();
-}
-
-void UDataflowComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
-{
-	bool bNeedsSceneProxyUpdate = false;
-
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (bUpdateRender)
-	{
-		SelectionState.Vertices.Empty();
-		RenderCollection = FManagedArrayCollection();
-		GeometryCollection::Facades::FRenderingFacade Facade(RenderCollection);
-		Facade.DefineSchema();
-
-		if (Context && Dataflow)
-		{
-			for (const UDataflowEdNode* Target : RenderTargets)
-			{
-				if (Target && ViewMode)
-				{
-					Target->Render(Facade, Context.ToSharedRef(), *ViewMode);
-				}
-			}
-		}
-
-		bBoundsNeedsUpdate = true;
-		UpdateLocalBounds();
-
-		bUpdateRender = false;
-		bNeedsSceneProxyUpdate = true;
-	}
-
-	if (bUpdateSelection)
-	{
-		SelectionState.UpdateSelection(this);
-		bUpdateSelection = false;
-		bNeedsSceneProxyUpdate = true;
-	}
-
-	if (bNeedsSceneProxyUpdate)
-	{
-		MarkRenderStateDirty();
-	}
-}
 
 void UDataflowComponent::UpdateLocalBounds()
 {

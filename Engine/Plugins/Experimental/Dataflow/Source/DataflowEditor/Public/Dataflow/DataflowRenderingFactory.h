@@ -15,7 +15,8 @@ namespace Dataflow
 	class FContext;
 	typedef TPair<FString, FName> FRenderKey;
 
-	struct FGraphRenderingState {
+	struct FGraphRenderingState 
+	{
 		FGraphRenderingState(const FGuid InGuid, const FDataflowNode* InNode, const FRenderingParameter& InParameters, Dataflow::FContext& InContext, const Dataflow::IDataflowConstructionViewMode& ViewMode)
 			: NodeGuid(InGuid)
 			, Node(InNode)
@@ -75,14 +76,14 @@ namespace Dataflow
 
 		~FRenderingFactory() { delete Instance; }
 
-		DATAFLOWENGINE_API static FRenderingFactory* GetInstance();
+		DATAFLOWEDITOR_API static FRenderingFactory* GetInstance();
 
-		DATAFLOWENGINE_API void RegisterCallbacks(TUniquePtr<ICallbackInterface> InCallbacks);
-		DATAFLOWENGINE_API void DeregisterCallbacks(const FRenderKey& Key);
+		DATAFLOWEDITOR_API void RegisterCallbacks(TUniquePtr<ICallbackInterface> InCallbacks);
+		DATAFLOWEDITOR_API void DeregisterCallbacks(const FRenderKey& Key);
 
-		DATAFLOWENGINE_API bool Contains(const FRenderKey& InKey) const { return CallbackMap.Contains(InKey); }
-		DATAFLOWENGINE_API void RenderNodeOutput(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State);
-		DATAFLOWENGINE_API bool CanRenderNodeOutput(const FGraphRenderingState& State) const;
+		DATAFLOWEDITOR_API bool Contains(const FRenderKey& InKey) const { return CallbackMap.Contains(InKey); }
+		DATAFLOWEDITOR_API void RenderNodeOutput(GeometryCollection::Facades::FRenderingFacade& RenderData, const FGraphRenderingState& State);
+		DATAFLOWEDITOR_API bool CanRenderNodeOutput(const FGraphRenderingState& State) const;
 
 	private:
 
