@@ -990,6 +990,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 							OnDataTypeSelected(FName(*InNewName));
 						}
 					})
+					.bAlwaysSelectItem(true)
 					.Content()
 					[
 						SNew(STextBlock)

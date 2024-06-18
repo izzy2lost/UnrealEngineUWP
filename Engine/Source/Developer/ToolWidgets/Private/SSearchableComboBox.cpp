@@ -18,6 +18,7 @@ void SSearchableComboBox::Construct(const FArguments& InArgs)
 
 	this->OnComboBoxOpening = InArgs._OnComboBoxOpening;
 	this->OnSelectionChanged = InArgs._OnSelectionChanged;
+	this->bAlwaysSelectItem = InArgs._bAlwaysSelectItem;
 	this->OnGenerateWidget = InArgs._OnGenerateWidget;
 
 	OptionsSource = InArgs._OptionsSource;
@@ -223,7 +224,7 @@ void SSearchableComboBox::OnSelectionChanged_Internal(TSharedPtr<FString> Propos
 	}
 
 	// Ensure that the proposed selection is different from selected
-	if (ProposedSelection != SelectedItem)
+	if (ProposedSelection != SelectedItem || bAlwaysSelectItem)
 	{
 		SelectedItem = ProposedSelection;
 		OnSelectionChanged.ExecuteIfBound(ProposedSelection, SelectInfo);
