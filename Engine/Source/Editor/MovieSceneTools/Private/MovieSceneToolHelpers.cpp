@@ -4586,7 +4586,7 @@ bool MovieSceneToolHelpers::IsValidAsset(UMovieSceneSequence* Sequence, const FA
 	}
 
 	FAssetReferenceFilterContext AssetReferenceFilterContext;
-	AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(Sequence));
+	AssetReferenceFilterContext.AddReferencingAsset(FAssetData(Sequence));
 
 	TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 

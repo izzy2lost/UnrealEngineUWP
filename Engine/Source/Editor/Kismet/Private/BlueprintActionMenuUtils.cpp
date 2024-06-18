@@ -538,7 +538,7 @@ void FBlueprintActionMenuUtils::MakeContextMenu(FBlueprintActionContext const& C
 	FAssetReferenceFilterContext AssetReferenceFilterContext;
 	for (UBlueprint* Blueprint : Context.Blueprints)
 	{
-		AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(Blueprint));
+		AssetReferenceFilterContext.AddReferencingAsset(FAssetData(Blueprint));
 	}
 
 	MainMenuFilter.AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);

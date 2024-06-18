@@ -16,7 +16,7 @@ FDomainAssetReferenceFilter::FDomainAssetReferenceFilter(const FAssetReferenceFi
 	: IAssetReferenceFilter()
 	, DomainDB(InDomainDB)
 {
-	OriginalReferencingAssets = Context.ReferencingAssets;
+	OriginalReferencingAssets = Context.GetReferencingAssets();
 
 	DetermineReferencingDomain();
 
@@ -42,7 +42,10 @@ void FDomainAssetReferenceFilter::DetermineReferencingDomain()
 	TArray<FAssetData> PendingAssets;
 	TSet<FAssetData> AssetsConsidered;
 
-	PendingAssets.Append(OriginalReferencingAssets);
+	for (const FAssetReferenceFilterReferencerInfo& AssetReferencer : OriginalReferencingAssets)
+	{
+		PendingAssets.Add(AssetReferencer.Data);
+	}
 
 	while (!PendingAssets.IsEmpty())
 	{

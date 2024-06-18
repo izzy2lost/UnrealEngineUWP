@@ -1923,7 +1923,7 @@ bool AActor::CanAddDataLayer(const UDataLayerInstance* InDataLayerInstance, FTex
 	auto PassesAssetReferenceFiltering = [](const UObject * InReferencingObject, const UDataLayerAsset * InDataLayerAsset, FText* OutReason)
 	{
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(InReferencingObject));
+		AssetReferenceFilterContext.AddReferencingAsset(FAssetData(InReferencingObject));
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 		return AssetReferenceFilter.IsValid() ? AssetReferenceFilter->PassesFilter(FAssetData(InDataLayerAsset), OutReason) : true;
 	};

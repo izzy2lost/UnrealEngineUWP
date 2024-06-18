@@ -3,9 +3,8 @@
 #pragma once
 
 #include "AssetRegistry/AssetData.h"
+#include "Editor/EditorEngine.h"
 #include "Editor/AssetReferenceFilter.h"
-
-struct FAssetReferenceFilterContext;
 
 struct FAssetData;
 struct FDomainDatabase;
@@ -36,7 +35,7 @@ private:
 
 	TSharedPtr<FDomainDatabase> DomainDB;
 
-	TArray<FAssetData> OriginalReferencingAssets;
+	TArray<FAssetReferenceFilterReferencerInfo> OriginalReferencingAssets;
 	TSet<TSharedPtr<FDomainData>> ReferencingDomains;
 
 	FText Failure_CouldNotDetermineDomain;

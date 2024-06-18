@@ -109,9 +109,8 @@ namespace UE::Private::ExternalDataLayerHelper
 		uint32 ErrorCount = 0;
 		if (InReferencedAssets.Num() > 0)
 		{
-			FAssetData ReferencingAssetData = FAssetData(InAsset);
 			FAssetReferenceFilterContext AssetReferenceFilterContext;
-			AssetReferenceFilterContext.ReferencingAssets = { ReferencingAssetData };
+			AssetReferenceFilterContext.AddReferencingAsset(FAssetData(InAsset));
 			TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor ? GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext) : nullptr;
 			if (ensure(AssetReferenceFilter.IsValid()))
 			{

@@ -101,7 +101,7 @@ TValueOrError<void, TArray<FAssetReferenceError>> UAssetReferencingPolicySubsyst
 	if (AllDependencyAssets.Num() > 0)
 	{
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		AssetReferenceFilterContext.ReferencingAssets = { InAssetData };
+		AssetReferenceFilterContext.AddReferencingAsset(InAssetData);
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor ? GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext) : nullptr;
 		if (ensure(AssetReferenceFilter.IsValid()))
 		{

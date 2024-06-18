@@ -447,6 +447,68 @@ ERHIFeatureLevel::Type FPreviewPlatformInfo::GetEffectivePreviewFeatureLevel() c
 	return bPreviewFeatureLevelActive ? PreviewFeatureLevel : GMaxRHIFeatureLevel;
 }
 
+void FAssetReferenceFilterContext::AddReferencingAsset(const FAssetData& InReferencingAsset, EAssetReferenceFilterProperties InProperties)
+{
+	if (InReferencingAsset.IsValid())
+	{
+		ReferencingAssetInfo.Emplace(InReferencingAsset, InProperties);
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		ReferencingAssets.Add(InReferencingAsset);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+}
+
+void FAssetReferenceFilterContext::AddReferencingAssets(const TArray<FAssetData>& InReferencingAssets, EAssetReferenceFilterProperties InProperties)
+{
+	for (const FAssetData& ReferencingAsset : InReferencingAssets)
+	{
+		AddReferencingAsset(ReferencingAsset);
+	}
+}
+
+void FAssetReferenceFilterContext::AddReferencingAssetsFromPropertyHandle(const TSharedPtr<IPropertyHandle>& PropertyHandle)
+{
+	if (!PropertyHandle.IsValid())
+	{
+		return;
+	}
+
+	EAssetReferenceFilterProperties ReferencerProperties = EAssetReferenceFilterProperties::None;
+
+	// Determine if this is an editor only property by following the parent property chain and checking if any are editor only
+	{
+		TSharedPtr<IPropertyHandle> CurrentPropertyHandle = PropertyHandle;
+		while (CurrentPropertyHandle.IsValid())
+		{
+			const FProperty* Property = CurrentPropertyHandle->GetProperty();
+			if (Property != nullptr && Property->HasAnyPropertyFlags(CPF_EditorOnly))
+			{
+				ReferencerProperties |= EAssetReferenceFilterProperties::EditorOnly;
+				break;
+			}
+
+			CurrentPropertyHandle = CurrentPropertyHandle->GetParentHandle();
+		}
+	}
+
+	TArray<UObject*> ReferencingObjects;
+	PropertyHandle->GetOuterObjects(ReferencingObjects);
+
+	for (UObject* ReferencingObject : ReferencingObjects)
+	{
+		if (ReferencingObject)
+		{
+			FAssetData ReferencingObjectData(ReferencingObject);
+			ReferencingAssetInfo.Emplace(ReferencingObjectData, ReferencerProperties);
+			
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			ReferencingAssets.Add(ReferencingObjectData);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 // UEditorEngine
 

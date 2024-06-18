@@ -1644,30 +1644,10 @@ bool SPropertyEditorAsset::CanSetBasedOnAssetReferenceFilter( const FAssetData& 
 {
 	if (GEditor && InAssetData.IsValid())
 	{
-		TSharedPtr<IPropertyHandle> PropertyHandleToUse = GetMostSpecificPropertyHandle();
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		if (PropertyHandleToUse.IsValid())
-		{
-			TArray<UObject*> ReferencingObjects;
-			PropertyHandleToUse->GetOuterObjects(ReferencingObjects);
-			for (UObject* ReferencingObject : ReferencingObjects)
-			{
-				AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(ReferencingObject));
-			}
-		}
+		AssetReferenceFilterContext.AddReferencingAssets(OwnerAssetDataArray);
+		AssetReferenceFilterContext.AddReferencingAssetsFromPropertyHandle(GetMostSpecificPropertyHandle());
 		
-		if(OwnerAssetDataArray.Num() > 0)
-		{
-			for (const FAssetData& AssetData : OwnerAssetDataArray)
-			{
-				if (AssetData.IsValid())
-				{
-					//Use add unique in case the PropertyHandle as already add the referencing asset
-					AssetReferenceFilterContext.ReferencingAssets.AddUnique(AssetData);
-				}
-			}
-		}
-
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 		if (AssetReferenceFilter.IsValid() && !AssetReferenceFilter->PassesFilter(InAssetData, OutOptionalFailureReason))
 		{

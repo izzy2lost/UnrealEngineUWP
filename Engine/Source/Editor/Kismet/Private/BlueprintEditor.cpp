@@ -406,11 +406,9 @@ namespace BlueprintEditorImpl
 		FPermissionsPinTypeSelectorFilter(TConstArrayView<UBlueprint*> InBlueprints)
 		{
 			FAssetReferenceFilterContext Context;
-			Context.ReferencingAssets.Reserve(InBlueprints.Num());
-
 			for (UBlueprint* Blueprint : InBlueprints)
 			{
-				Context.ReferencingAssets.Add(FAssetData(Blueprint));
+				Context.AddReferencingAsset(FAssetData(Blueprint));
 			}
 
 			AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(Context);

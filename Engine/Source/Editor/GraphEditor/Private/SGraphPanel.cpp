@@ -1365,7 +1365,7 @@ bool SGraphPanel::PassesAssetReferenceFilter(const TArray<FAssetData>& Reference
 		UObject* GraphOuter = GraphObj ? GraphObj->GetOuter() : nullptr;
 		if (GraphOuter)
 		{
-			AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(GraphOuter));
+			AssetReferenceFilterContext.AddReferencingAsset(FAssetData(GraphOuter));
 		}
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 		if (AssetReferenceFilter.IsValid())

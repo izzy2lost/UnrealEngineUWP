@@ -28,7 +28,7 @@ bool ULevelEditorDragDropHandler::PassesFilter(UWorld* World, const FAssetData& 
 		auto AssetPassesFilter = [](const FAssetData& InAssetData, const UObject* InReferencingAsset, FText* OutFailureReason = nullptr)
 		{
 			FAssetReferenceFilterContext AssetReferenceFilterContext;
-			AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(InReferencingAsset));
+			AssetReferenceFilterContext.AddReferencingAsset(FAssetData(InReferencingAsset));
 
 			TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
 			return AssetReferenceFilter.IsValid() ? AssetReferenceFilter->PassesFilter(InAssetData, OutFailureReason) : true;

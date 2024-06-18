@@ -276,10 +276,46 @@ struct FPreviewPlatformInfo
 	UNREALED_API ERHIFeatureLevel::Type GetEffectivePreviewFeatureLevel() const;
 };
 
+enum class EAssetReferenceFilterProperties : uint8
+{
+	None = 0,
+	EditorOnly = 1
+};
+ENUM_CLASS_FLAGS(EAssetReferenceFilterProperties);
+
+struct FAssetReferenceFilterReferencerInfo
+{
+	FAssetData Data;
+	EAssetReferenceFilterProperties Properties;
+
+	FAssetReferenceFilterReferencerInfo() : Properties(EAssetReferenceFilterProperties::None) {}
+	FAssetReferenceFilterReferencerInfo(const FAssetData& InData) : Data(InData), Properties(EAssetReferenceFilterProperties::None) {}
+	FAssetReferenceFilterReferencerInfo(const FAssetData& InData, EAssetReferenceFilterProperties InProperties) : Data(InData), Properties(InProperties) {}
+	bool operator==(const FAssetReferenceFilterReferencerInfo& Other) const
+	{
+		return Data == Other.Data && Properties == Other.Properties;
+	}
+
+	bool operator!=(const FAssetReferenceFilterReferencerInfo& Other) const
+	{
+		return !(*this == Other);
+	}
+};
+
 /** Struct used in filtering allowed references between assets. Passes context about the referencers to game-level filters */
 struct FAssetReferenceFilterContext
 {
+	UNREALED_API void AddReferencingAsset(const FAssetData& InReferencingAsset, EAssetReferenceFilterProperties InProperties = EAssetReferenceFilterProperties::None);
+	UNREALED_API void AddReferencingAssets(const TArray<FAssetData>& InReferencingAssets, EAssetReferenceFilterProperties InProperties = EAssetReferenceFilterProperties::None);
+	UNREALED_API void AddReferencingAssetsFromPropertyHandle(const TSharedPtr<class IPropertyHandle>& PropertyHandle);
+
+	const TArray<FAssetReferenceFilterReferencerInfo>& GetReferencingAssets() const { return ReferencingAssetInfo; }
+
+	UE_DEPRECATED(5.5, "ReferencingAssets is deprecated. Use the AddReferencingAsset functions to add referencers and GetReferencingAssets to get them.")
 	TArray<FAssetData> ReferencingAssets;
+
+private:
+	TArray<FAssetReferenceFilterReferencerInfo> ReferencingAssetInfo;
 };
 
 /**

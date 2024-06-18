@@ -130,16 +130,9 @@ void SToolInputAssetPicker::Construct( const FArguments& InArgs )
 	FOnShouldFilterAsset ShouldFilterAssetDelegate;
 	{
 		FAssetReferenceFilterContext AssetReferenceFilterContext;
-		AssetReferenceFilterContext.ReferencingAssets = InArgs._AssetPickerConfig.AdditionalReferencingAssets;
-		if (InArgs._AssetPickerConfig.PropertyHandle.IsValid())
-		{
-			TArray<UObject*> ReferencingObjects;
-			InArgs._AssetPickerConfig.PropertyHandle->GetOuterObjects(ReferencingObjects);
-			for (UObject* ReferencingObject : ReferencingObjects)
-			{
-				AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(ReferencingObject));
-			}
-		}
+		AssetReferenceFilterContext.AddReferencingAssets(InArgs._AssetPickerConfig.AdditionalReferencingAssets);
+		AssetReferenceFilterContext.AddReferencingAssetsFromPropertyHandle(InArgs._AssetPickerConfig.PropertyHandle);
+		
 		TSharedPtr<IAssetReferenceFilter> AssetReferenceFilter = GEditor ? GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext) : nullptr;
 		if (AssetReferenceFilter.IsValid())
 		{

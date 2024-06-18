@@ -224,7 +224,7 @@ TSharedRef<SWidget> SInstancedStructPicker::GenerateStructPicker()
 		StructProperty->GetOuterPackages(OuterPackages);
 		for (UPackage* OuterPackage : OuterPackages)
 		{
-			AssetReferenceFilterContext.ReferencingAssets.Add(FAssetData(OuterPackage));
+			AssetReferenceFilterContext.AddReferencingAsset(FAssetData(OuterPackage));
 		}
 
 		StructFilter->AssetReferenceFilter = GEditor->MakeAssetReferenceFilter(AssetReferenceFilterContext);
