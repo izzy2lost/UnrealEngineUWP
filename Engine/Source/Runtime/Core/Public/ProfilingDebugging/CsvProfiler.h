@@ -513,6 +513,10 @@ private:
 
 	float ProcessStatData();
 
+	void BeginCaptureInternal(const FCsvCaptureCommand& CurrentCommand);
+
+	bool TryEndCaptureInternal(const FCsvCaptureCommand& CurrentCommand);
+
 	int32 NumFramesToCapture;
 	int32 CaptureFrameNumber;
 	int32 CaptureFrameNumberRT;
@@ -523,6 +527,8 @@ private:
 
 	uint64 LastEndFrameTimestamp;
 	uint32 CaptureEndFrameCount;
+
+	double CaptureStartTime;
 
 	FString OutputFilename;
 	TQueue<FCsvCaptureCommand> CommandQueue;
