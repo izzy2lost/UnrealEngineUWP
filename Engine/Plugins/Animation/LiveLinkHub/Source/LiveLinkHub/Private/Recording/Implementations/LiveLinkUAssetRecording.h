@@ -149,26 +149,54 @@ public:
 	int32 GetMaxFrames() const { return RecordingMaxFrames; }
 
 	/** The size in bytes of each animation frame. */
-	int32 GetFrameDiskSize() const { return FrameDiskSize; }
+	int32 GetFrameDiskSize() const { return MaxFrameDiskSize; }
 	
-	/** Return the currently buffered frame range. */
+	/** Return the minimum buffered frame range. */
 	TRange<int32> GetBufferedFrames() const;
 
 	/** Copy the asset's loaded recording data to a format suitable for playback in live link. */
 	void CopyRecordingData(FLiveLinkPlaybackTracks& InOutLiveLinkPlaybackTracks) const;
 	
 private:
+	/** Frame data file information when loading from a recording file. */
+	struct FFrameFileData
+	{
+		/** The subject key used for the frame data. */
+		TSharedPtr<FLiveLinkSubjectKey> FrameDataSubjectKey;
+		/** The struct for this frame data. */
+		TWeakObjectPtr<UScriptStruct> LoadedStruct;
+		/** The position in the file recording where frame data begins. */
+		int64 RecordingStartFrameFilePosition = 0;
+		/** Maximum number of frames. */
+		int32 MaxFrames = 0;
+		/** Total size of the structure. */
+		int32 SerializedStructureSize = 0;
+		/** The size in bytes of each animation frame. */
+		int32 FrameDiskSize;
+		/** Buffered frames for this framedata. */
+		TRange<int32> BufferedFrames = TRange<int32>(0, 0);
+
+		/** Find the correct file offset based on the frame index. */
+		int64 GetFrameFilePosition(const int32 InFrameIdx) const
+		{
+			return RecordingStartFrameFilePosition + (FrameDiskSize * InFrameIdx);
+		};
+	};
+	
 	/** Update the buffered frame range. */
-	void SetBufferedFrames(const TRange<int32>& InNewRange);
+	void SetBufferedFrames(FFrameFileData& InFrameData, const TRange<int32>& InNewRange);
 	
 	/** Serialize the number of frames (array size) of the BaseDataContainer to the archive. */
 	void SaveFrameData(FArchive* InFileWriter, const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkRecordingBaseDataContainer& InBaseDataContainer);
 	
 	/** Initialize or update an async load. */
 	void LoadRecordingAsync(int32 InStartFrame, int32 InCurrentFrame, int32 InNumFramesToLoad);
+
+	/** Initial processing on a frame, finding the correct struct and offsets. The RecordingFileReader is assumed to be at the correct position.  */
+	bool LoadInitialFrameData(FFrameFileData& OutFrameData);
 	
 	/** Load frame data to a data container. */
-	void LoadFrameData(FLiveLinkRecordingBaseDataContainer* DataContainer,
+	void LoadFrameData(FFrameFileData& InFrameData, FLiveLinkRecordingBaseDataContainer& InDataContainer,
 		int32 RequestedStartFrame, int32 RequestedInitialFrame, int32 RequestedFramesToLoad);
 	
 	/** Retrieve the recording data file path for this asset. */
@@ -204,12 +232,9 @@ private:
 	/** The file reader for the recording data. */
 	FArchive* RecordingFileReader = nullptr;
 
-	/** The subject key used for the frame data. */
-	TSharedPtr<FLiveLinkSubjectKey> FrameDataSubjectKey;
-	
-	/** The position in the file recording where frame data begins. */
-	int64 RecordingStartFrameFilePosition = 0;
-	
+	/** The loaded frame data keys and position. */
+	TArray<FFrameFileData> FrameFileData;
+
 	/** The maximum frames for this recording. */
 	int32 RecordingMaxFrames = 0;
 	
@@ -230,12 +255,9 @@ private:
 
 	/** True once a full initial load has been performed -- static + frame data. */
 	std::atomic<bool> bPerformedInitialLoad = false;
-	
-	/** The size in bytes of each animation frame. */
-	std::atomic<int32> FrameDiskSize = 0;
 
-	/** Frames that are loaded and buffered. */
-	TRange<int32> BufferedFrames = TRange<int32>(0, 0);
+	/** The maximum frame disk size across frame data. */
+	std::atomic<int32> MaxFrameDiskSize = 0;
 
 	/** Mutex for accessing the buffered frames. */
 	mutable FCriticalSection BufferedFrameMutex;
@@ -246,6 +268,9 @@ private:
 	/** The thread streaming data from disk. */
 	TUniquePtr<FAsyncTask<FLiveLinkStreamAsyncTask>> AsyncStreamTask;
 
+	/** Test slow frame buffering. */
+	float DebugSleepTime = 0.f;
+	
 	/** The current version of the recording. */
 	const int32 RecordingVersion = 1;
 };
