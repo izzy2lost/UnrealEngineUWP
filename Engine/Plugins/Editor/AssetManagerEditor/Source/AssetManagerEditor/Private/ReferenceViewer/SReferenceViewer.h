@@ -19,6 +19,8 @@ template <typename OptionType> class SComboBox;
 
 class UEdGraph;
 
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnReferenceViewerSelectionChanged, const TArray<FAssetIdentifier>&, const TArray<FAssetIdentifier>&)
+
 /**
  * 
  */
@@ -52,6 +54,8 @@ public:
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;
+
+	FOnReferenceViewerSelectionChanged& OnReferenceViewerSelectionChanged() { return OnReferenceViewerSelectionChangedDelegate; }
 
 private:
 
@@ -287,6 +291,9 @@ private:
 
 	/** Handle to know if dirty */
 	FDelegateHandle AssetRefreshHandle;
+
+	/** Called when expanding a node, or manually updating the asset path */
+	FOnReferenceViewerSelectionChanged OnReferenceViewerSelectionChangedDelegate;
 };
 
 enum class EDependencyPinCategory

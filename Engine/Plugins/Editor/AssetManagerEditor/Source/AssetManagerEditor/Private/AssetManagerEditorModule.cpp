@@ -426,6 +426,17 @@ private:
 
 	FCanOpenReferenceViewerUI CanOpenReferenceViewerUIDelegate;
 
+	/**
+	 * When currently selected assets are changed for an already opened Reference Viewer Tab,
+	 * this function can be called to properly update Tab Hash and Label
+	 */
+	void UpdateReferenceViewerTabHashAndLabel(const TArray<FAssetIdentifier>& InPreviousSelection, const TArray<FAssetIdentifier>& InCurrentSelection);
+
+	/** Returns a unique Hash for the specified list of Asset Identifiers, and an optional Label to represent them */
+	static uint32 GetHashFromAssetsSelection(const TArray<FAssetIdentifier>& InAssetIdentifiers, FName* OutLabel = nullptr);
+
+	void OnReferenceViewerSelectionChanged(const TArray<FAssetIdentifier>& InPreviousSelection, const TArray<FAssetIdentifier>& InNewSelection);
+
 	void CreateAssetContextMenu(FToolMenuSection& InSection);
 	void OnExtendContentBrowserCommands(TSharedRef<FUICommandList> CommandList, FOnContentBrowserGetSelection GetSelectionDelegate);
 	void OnExtendLevelEditorCommands(TSharedRef<FUICommandList> CommandList);
@@ -655,6 +666,11 @@ void FAssetManagerEditorModule::ShutdownModule()
 			{
 				if (const TSharedPtr<SDockTab>& Tab = Pair.Value.Pin())
 				{
+					if (const TSharedPtr<SReferenceViewer>& ReferenceViewer = StaticCastSharedRef<SReferenceViewer>(Tab->GetContent()))
+					{
+						ReferenceViewer->OnReferenceViewerSelectionChanged().RemoveAll(this);
+					}
+
 					Tab->RequestCloseTab();
 				}
 			}
@@ -795,55 +811,10 @@ IAssetManagerEditorModule::FCanOpenReferenceViewerUI& FAssetManagerEditorModule:
 
 void FAssetManagerEditorModule::OpenReferenceViewerTab(const TArray<FAssetIdentifier>& InAssetIdentifiers, const FReferenceViewerParams& ReferenceViewerParams)
 {
-	TArray<FName> PackageNames;
-	for (const FAssetIdentifier& AssetIdentifier : InAssetIdentifiers)
-	{
-		PackageNames.Add(AssetIdentifier.PackageName);
-	}
-
-	TMap<FName, FAssetData> PackageToAssetDataMap;
-	UE::AssetRegistry::GetAssetForPackages(PackageNames, PackageToAssetDataMap);
-
-	FString TabLabel;
-
-	if (!PackageToAssetDataMap.IsEmpty())
-	{
-		TabLabel = PackageToAssetDataMap[PackageNames[0]].AssetName.ToString();
-	}
-
-	// C++ classes will lead to no asset, so we retrieve their package instead
-	// (TODO: this needs to be addressed in order to properly show reference viewer graph for C++ Assets)
-
-	if (!PackageToAssetDataMap.Contains(PackageNames[0]))
-	{
-		if (TabLabel.IsEmpty())
-		{
-			TabLabel = PackageNames[0].ToString();
-		}
-	}
-
-	// Label for multiple assets matches Path field at the top of Reference Viewer graph
-	if (InAssetIdentifiers.Num() > 1)
-	{
-		TabLabel += TEXT(" and ") + FString::FromInt(InAssetIdentifiers.Num() - 1) + TEXT(" others");
-	}
+	FName TabLabel;
+	uint32 SelectionHash = GetHashFromAssetsSelection(InAssetIdentifiers, &TabLabel);
 
 	FName TabID;
-
-	// Create a hash from the concatenation of package names from all the selected assets. This hash is used to match a selection with a Tab ID
-	// This allows to ignore selection order when comparing selections while looking for an existing Reference Viewer for the current selection
-	// We sort package names, so that selection order is not be taken into account
-
-	PackageNames.Sort([](const FName& NameA, const FName& NameB)
-	{ 
-		return NameA.FastLess(NameB);
-	});
-
-	uint32 SelectionHash = 0;
-	for (const FName PackageName : PackageNames)
-	{
-		SelectionHash ^= GetTypeHash(PackageName);
-	}
 
 	// Look for possibly existing Tab for the same assets
 	if (const FName* TabIDPtr = AssetsHashToTabID.Find(SelectionHash))
@@ -914,13 +885,15 @@ void FAssetManagerEditorModule::OpenReferenceViewerTab(const TArray<FAssetIdenti
 		CurrentAssetTab->SetContent(SAssignNew(ReferenceViewerUI, SReferenceViewer));
 		CurrentAssetTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FAssetManagerEditorModule::OnReferenceViewerTabClosed));
 		CurrentAssetTab->SetTabIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.ReferenceViewer").GetIcon());
-		CurrentAssetTab->SetLabel(FText::FromString(TabLabel));
+		CurrentAssetTab->SetLabel(FText::FromName(TabLabel));
 
 		ReferenceViewerTabs.Emplace(TabID, CurrentAssetTab);
 		AssetsHashToTabID.Emplace(SelectionHash, TabID);
 
 		const TSharedPtr<SReferenceViewer>& ReferenceViewer = StaticCastSharedRef<SReferenceViewer>(CurrentAssetTab->GetContent());
 		ReferenceViewer->SetGraphRootIdentifiers(InAssetIdentifiers, ReferenceViewerParams);
+
+		ReferenceViewer->OnReferenceViewerSelectionChanged().AddRaw(this, &FAssetManagerEditorModule::OnReferenceViewerSelectionChanged);
 	}
 }
 
@@ -1098,6 +1071,114 @@ TArray<FName> FAssetManagerEditorModule::GetContentBrowserSelectedAssetPackages(
 	}
 
 	return PackageNames.Array();
+}
+
+void FAssetManagerEditorModule::UpdateReferenceViewerTabHashAndLabel(const TArray<FAssetIdentifier>& InPreviousSelection, const TArray<FAssetIdentifier>& InCurrentSelection)
+{
+	uint32 HashToChange = GetHashFromAssetsSelection(InPreviousSelection);
+
+	FName TabLabel;
+	uint32 NewHash = GetHashFromAssetsSelection(InCurrentSelection, &TabLabel);
+
+	if (!AssetsHashToTabID.Contains(HashToChange))
+	{
+		return;
+	}
+
+	FName TabId;
+	AssetsHashToTabID.RemoveAndCopyValue(HashToChange, TabId);
+	AssetsHashToTabID.Emplace(NewHash, TabId);
+
+	if (const TWeakPtr<SDockTab>* TabWeak = ReferenceViewerTabs.Find(TabId))
+	{
+		if (const TSharedPtr<SDockTab> Tab = TabWeak->Pin())
+		{
+			Tab->SetLabel(FText::FromName(TabLabel));
+		}
+	}
+
+	return;
+}
+
+uint32 FAssetManagerEditorModule::GetHashFromAssetsSelection(const TArray<FAssetIdentifier>& InAssetIdentifiers, FName* OutLabel)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FAssetManagerEditorModule::GetHashFromAssetsSelection);
+
+	TArray<FName> PackageNames;
+	for (const FAssetIdentifier& AssetIdentifier : InAssetIdentifiers)
+	{
+		PackageNames.Add(AssetIdentifier.PackageName);
+	}
+
+	TMap<FName, FAssetData> PackageToAssetDataMap;
+	UE::AssetRegistry::GetAssetForPackages(PackageNames, PackageToAssetDataMap);
+
+	FString TabLabel;
+
+	if (!PackageToAssetDataMap.IsEmpty())
+	{
+		TabLabel = PackageToAssetDataMap[PackageNames[0]].AssetName.ToString();
+	}
+
+	bool bNoAsset = false;
+	// C++ classes will lead to no asset, so we retrieve their package instead
+	// (TODO: this needs to be addressed in order to properly show reference viewer graph for C++ Assets)
+
+	if (!PackageToAssetDataMap.Contains(PackageNames[0]))
+	{
+		bNoAsset = true;
+		if (TabLabel.IsEmpty())
+		{
+			TabLabel = PackageNames[0].ToString();
+
+			if (!InAssetIdentifiers[0].ValueName.IsNone())
+			{
+				TabLabel += TEXT(":") + InAssetIdentifiers[0].ValueName.ToString();
+			}
+		}
+	}
+
+	// Label for multiple assets matches Path field at the top of Reference Viewer graph
+	if (InAssetIdentifiers.Num() > 1)
+	{
+		TabLabel += TEXT(" and ") + FString::FromInt(InAssetIdentifiers.Num() - 1) + TEXT(" others");
+	}
+
+	// Create a hash from the concatenation of package names from all the selected assets. This hash is used to match a selection with a Tab ID
+	// This allows to ignore selection order when comparing selections while looking for an existing Reference Viewer for the current selection
+	// We sort package names, so that selection order is not be taken into account
+
+	PackageNames.Sort([](const FName& NameA, const FName& NameB)
+	{ 
+		return NameA.FastLess(NameB);
+	});
+
+	uint32 SelectionHash = 0;
+	for (const FName PackageName : PackageNames)
+	{
+		// In case there is no asset, we might get the same Hash for potentially different graphs (e.g. GameplayTags),
+		// so let's use the tab label, which in that specific case should include both package name and value
+		if (bNoAsset)
+		{
+			SelectionHash ^= GetTypeHash(TabLabel);
+		}
+		else
+		{
+			SelectionHash ^= GetTypeHash(PackageName);
+		}
+	}
+
+	if (OutLabel)
+	{
+		*OutLabel = FName(TabLabel);
+	}
+
+	return SelectionHash;
+}
+
+void FAssetManagerEditorModule::OnReferenceViewerSelectionChanged(const TArray<FAssetIdentifier>& InPreviousSelection, const TArray<FAssetIdentifier>& InNewSelection)
+{
+	UpdateReferenceViewerTabHashAndLabel(InPreviousSelection, InNewSelection);
 }
 
 void FAssetManagerEditorModule::CreateAssetContextMenu(FToolMenuSection& InSection)
@@ -1434,6 +1515,11 @@ void FAssetManagerEditorModule::OnReferenceViewerTabClosed(TSharedRef<SDockTab> 
 			PairToRemove = Pair.Key;
 			break;
 		}
+	}
+
+	if (const TSharedPtr<SReferenceViewer>& ReferenceViewer = StaticCastSharedRef<SReferenceViewer>(InClosedTab->GetContent()))
+	{
+		ReferenceViewer->OnReferenceViewerSelectionChanged().RemoveAll(this);
 	}
 
 	AssetsHashToTabID.Remove(PairToRemove);

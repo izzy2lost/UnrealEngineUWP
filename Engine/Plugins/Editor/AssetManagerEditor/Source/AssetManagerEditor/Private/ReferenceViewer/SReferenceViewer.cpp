@@ -706,8 +706,14 @@ void SReferenceViewer::SetCurrentRegistrySource(const FAssetManagerEditorRegistr
 
 void SReferenceViewer::OnNodeDoubleClicked(UEdGraphNode* Node)
 {
+	if (!GraphObj)
+	{
+		return;
+	}
 
-	bool bFoundOverflow = false;
+	const TArray<FAssetIdentifier> CurrentlyVisualizedAssets = GraphObj->GetCurrentGraphRootIdentifiers();
+
+	UEdGraphNode* ParentNode = nullptr;
 	if (UEdGraphNode_Reference* ReferenceNode = Cast<UEdGraphNode_Reference>(Node))
 	{
 		// Overflow nodes have no identifiers
@@ -715,28 +721,23 @@ void SReferenceViewer::OnNodeDoubleClicked(UEdGraphNode* Node)
 		{
 			if (ReferenceNode->GetReferencerPin()->LinkedTo.Num() > 0)
 			{
-				if (UEdGraphNode* ParentNode = ReferenceNode->GetReferencerPin()->LinkedTo[0]->GetOwningNode())
-				{
-					if (UEdGraphNode_Reference* ParentReferenceNode = Cast<UEdGraphNode_Reference>(ParentNode))
-					{
-						FAssetIdentifier ParentID = ParentReferenceNode->GetIdentifier();
-						GraphObj->ExpandNode(false, ParentID);
-						bFoundOverflow = true;
-					}
-				}
+				ParentNode = ReferenceNode->GetReferencerPin()->LinkedTo[0]->GetOwningNode();
 			}
 			else if (ReferenceNode->GetDependencyPin()->LinkedTo.Num() > 0)
 			{
-				if (UEdGraphNode* ParentNode = ReferenceNode->GetDependencyPin()->LinkedTo[0]->GetOwningNode())
-				{
-					if (UEdGraphNode_Reference* ParentReferenceNode = Cast<UEdGraphNode_Reference>(ParentNode))
-					{
-						FAssetIdentifier ParentID = ParentReferenceNode->GetIdentifier();
-						GraphObj->ExpandNode(true, ParentID);
-						bFoundOverflow = true;
-					}
-				}
+				ParentNode = ReferenceNode->GetDependencyPin()->LinkedTo[0]->GetOwningNode();
 			}
+		}
+	}
+
+	bool bFoundOverflow = false;
+	if (ParentNode)
+	{
+		if (UEdGraphNode_Reference* ParentReferenceNode = Cast<UEdGraphNode_Reference>(ParentNode))
+		{
+			FAssetIdentifier ParentID = ParentReferenceNode->GetIdentifier();
+			GraphObj->ExpandNode(true, ParentID);
+			bFoundOverflow = true;
 		}
 	}
 
@@ -749,6 +750,8 @@ void SReferenceViewer::OnNodeDoubleClicked(UEdGraphNode* Node)
 		Nodes.Add(Node);
 		ReCenterGraphOnNodes( Nodes );
 	}
+
+	OnReferenceViewerSelectionChanged().Broadcast(CurrentlyVisualizedAssets, GraphObj->GetCurrentGraphRootIdentifiers());
 }
 
 void SReferenceViewer::RebuildGraph()
@@ -934,6 +937,13 @@ void SReferenceViewer::OnAddressBarTextCommitted(const FText& NewText, ETextComm
 {
 	if (CommitInfo == ETextCommit::OnEnter)
 	{
+		if (!GraphObj)
+		{
+			return;
+		}
+
+		const TArray<FAssetIdentifier> CurrentlyVisualizedAssets = GraphObj->GetCurrentGraphRootIdentifiers();
+
 		TArray<FAssetIdentifier> NewPaths;
 		FAssetIdentifier NewPath = FAssetIdentifier::FromString(NewText.ToString());
 
@@ -948,6 +958,8 @@ void SReferenceViewer::OnAddressBarTextCommitted(const FText& NewText, ETextComm
 		}
 
 		SetGraphRootIdentifiers(NewPaths);
+
+		OnReferenceViewerSelectionChanged().Broadcast(CurrentlyVisualizedAssets, GraphObj->GetCurrentGraphRootIdentifiers());
 	}
 }
 
