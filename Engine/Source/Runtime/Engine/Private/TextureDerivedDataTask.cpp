@@ -1484,19 +1484,31 @@ static void DDC1_FetchAndFillDerivedData(
 	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.DDC1_FetchAndFillDerivedData);
 
 	bool bForceRebuild = EnumHasAnyFlags(CacheFlags, ETextureCacheFlags::ForceRebuild);
+	FString FetchOrBuildKeySuffix;
+	GetTextureDerivedDataKeySuffix(Texture, BuildSettingsPerLayerFetchOrBuild.GetData(), FetchOrBuildKeySuffix);
+
+	if (bForceRebuild)
+	{
+		// If we know we are rebuilding, don't touch the cache.
+		bSucceeded = false;
+		bInvalidVirtualTextureCompression = false;
+		KeySuffix = MoveTemp(FetchOrBuildKeySuffix);
+
+		FString FetchOrBuildKey;
+		GetTextureDerivedDataKeyFromSuffix(KeySuffix, FetchOrBuildKey);
+		DerivedData->DerivedDataKey.Emplace<FString>(MoveTemp(FetchOrBuildKey));
+		DerivedData->ResultMetadata = FetchOrBuildMetadata;
+		return;
+	}
+		
 	bool bForVirtualTextureStreamingBuild = EnumHasAnyFlags(CacheFlags, ETextureCacheFlags::ForVirtualTextureStreamingBuild);
 
 	FSharedBuffer RawDerivedData;
 	const FSharedString SharedTexturePathName(TexturePathName);
-	const FSharedString SharedTextureMetaPathName(WriteToString<256>(TexturePathName, TEXTVIEW(" [Meta]")));
 	const FSharedString SharedTextureFastPathName(WriteToString<256>(TexturePathName, TEXTVIEW(" [Fast]")));
-	const FSharedString SharedTextureFastMetaPathName(WriteToString<256>(TexturePathName, TEXTVIEW(" [Fast][Meta]")));
 
 	FString LocalDerivedDataKeySuffix;
 	FString LocalDerivedDataKey;
-
-	FString FetchOrBuildKeySuffix;
-	GetTextureDerivedDataKeySuffix(Texture, BuildSettingsPerLayerFetchOrBuild.GetData(), FetchOrBuildKeySuffix);
 
 	bool bGotDDCData = false;
 	bool bUsedFetchFirst = false;
@@ -1512,7 +1524,8 @@ static void DDC1_FetchAndFillDerivedData(
 			GetTextureDerivedDataKeyFromSuffix(FetchFirstKeySuffix, FetchFirstKey);
 
 			TArray<FCacheGetValueRequest, TInlineAllocator<1>> Requests;
-			Requests.Add({ SharedTexturePathName, ConvertLegacyCacheKey(FetchFirstKey), ECachePolicy::Default, 0 /* UserData */});
+			const FSharedString& TexturePathRequestName = (FetchFirstMetadata.EncodeSpeed == (uint8) ETextureEncodeSpeed::Fast) ? SharedTextureFastPathName : SharedTexturePathName;
+			Requests.Add({ TexturePathRequestName, ConvertLegacyCacheKey(FetchFirstKey), ECachePolicy::Default, 0 /* UserData */});
 
 			FRequestOwner BlockingOwner(EPriority::Blocking);
 
@@ -1542,7 +1555,8 @@ static void DDC1_FetchAndFillDerivedData(
 		GetTextureDerivedDataKeyFromSuffix(LocalDerivedDataKeySuffix, LocalDerivedDataKey);
 
 		TArray<FCacheGetValueRequest, TInlineAllocator<1>> Requests;
-		Requests.Add({ SharedTextureFastPathName, ConvertLegacyCacheKey(LocalDerivedDataKey), ECachePolicy::Default, 0 /* UserData */ });
+		const FSharedString& TexturePathRequestName = (FetchOrBuildMetadata.EncodeSpeed == (uint8) ETextureEncodeSpeed::Fast) ? SharedTextureFastPathName : SharedTexturePathName;
+		Requests.Add({ TexturePathRequestName, ConvertLegacyCacheKey(LocalDerivedDataKey), ECachePolicy::Default, 0 /* UserData */ });
 
 		FRequestOwner BlockingOwner(EPriority::Blocking);
 
