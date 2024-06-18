@@ -74,14 +74,14 @@ public:
 };
 
 
-UCLASS(meta = (ScriptName = "GeometryScript_Bake"))
+UCLASS(meta = (ScriptName = "GeometryScript_VolumeBake"))
 class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_VolumeTextureBakeFunctions : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 public:
 
 	// Write a distance field to the given existing volume texture
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Bake")
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|VolumeBake")
 	static UPARAM(DisplayName = "Success") bool BakeSignedDistanceToVolumeTexture(
 		const UDynamicMesh* TargetMesh,
 		UVolumeTexture* VolumeTexture,
