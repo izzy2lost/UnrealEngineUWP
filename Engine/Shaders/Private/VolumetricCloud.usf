@@ -5,6 +5,8 @@
  */  
 
 
+ // Change this to force recompilation of all volumetric cloud material shaders
+#pragma message("UESHADERMETADATA_VERSION BFF66DE1-56ED-4BFA-AE26-D7FCF6E790CE")
 
 // Change this to force recompilation of all shaders referencing this file.
 #pragma message("UESHADERMETADATA_VERSION 58372ED6-B830-41C4-829E-A21186A68401")
