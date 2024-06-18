@@ -635,9 +635,9 @@ private:
 			PreparedRenderItems[NextRenderItem % PipelineDepth] =
 				Async(
 					EAsyncExecution::ThreadPool,
-					[this, NextRenderItem=NextRenderItem]()
+					[this, Index=NextRenderItem]()
 					{
-						return PrepareRenderItems_AnyThread(ProcessingOrder[NextRenderItem]);
+						return PrepareRenderItems_AnyThread(ProcessingOrder[Index]);
 					}
 			);
 		}
@@ -908,12 +908,12 @@ public:
 	~FMaterialBakingProcessorMultiOutput()
 	{
 		ENQUEUE_RENDER_COMMAND(ProcessRemainingReads)(
-		[this, PipelineIndex=PipelineIndex](FRHICommandListImmediate& RHICmdList)
+		[this, InPipelineIndex=PipelineIndex](FRHICommandListImmediate& RHICmdList)
 		{
 			// Enqueue remaining reads
 			for (int32 Index = 0; Index < PipelineDepth; Index++)
 			{
-				int32 LocalPipelineIndex = (PipelineIndex + Index) % PipelineDepth;
+				int32 LocalPipelineIndex = (InPipelineIndex + Index) % PipelineDepth;
 
 				if (PipelineContext[LocalPipelineIndex].ReadCommand)
 				{
@@ -949,7 +949,7 @@ private:
 	virtual void OnMaterialPropertyBaked(const FMaterialDataEx& CurrentMaterialSettings, const FMaterialPropertyEx& Property, FMeshMaterialRenderItem* RenderItem, UTextureRenderTarget2D* RenderTarget, FExportMaterialProxy* ExportMaterialProxy, FBakeOutputEx& CurrentOutput) override
 	{
 		ENQUEUE_RENDER_COMMAND(CopyStagingBuffer)(
-			[this, RenderTarget, Property, ExportMaterialProxy, &CurrentMaterialSettings, &CurrentOutput, PipelineIndex=PipelineIndex](FRHICommandListImmediate& RHICmdList)
+			[this, RenderTarget, Property, ExportMaterialProxy, &CurrentMaterialSettings, &CurrentOutput, InPipelineIndex=PipelineIndex](FRHICommandListImmediate& RHICmdList)
 			{
 				FTextureRenderTargetResource* RenderTargetResource = RenderTarget->GetRenderTargetResource();
 
@@ -1010,13 +1010,13 @@ private:
 					};
 
 				// Run previous command if we're going to overwrite it meaning pipeline depth has been reached
-				if (PipelineContext[PipelineIndex].ReadCommand)
+				if (PipelineContext[InPipelineIndex].ReadCommand)
 				{
-					PipelineContext[PipelineIndex].ReadCommand(RHICmdList);
+					PipelineContext[InPipelineIndex].ReadCommand(RHICmdList);
 				}
 
 				// Generate a texture reading command that will be executed once it reaches the end of the pipeline
-				PipelineContext[PipelineIndex].ReadCommand =
+				PipelineContext[InPipelineIndex].ReadCommand =
 					[FinalProcessing_AnyThread, StagingBufferRef = MoveTemp(StagingBufferRef), GPUFence = MoveTemp(GPUFence)](FRHICommandListImmediate& RHICmdList) mutable
 					{
 						TRACE_CPUPROFILER_EVENT_SCOPE(MapAndEnqueue)

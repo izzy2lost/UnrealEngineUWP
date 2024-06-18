@@ -351,9 +351,9 @@ void FDetailsDiffControl::GenerateTreeEntriesWithoutComments(
 	for (auto&[Object, DetailsDiff] : DetailsDiffs)
 	{
 		Algo::Transform(DifferingProperties, PropertyAllowList,
-        [&Object = Object](const FSingleObjectDiffEntry& DiffEntry)
+        [&InObject = Object](const FSingleObjectDiffEntry& DiffEntry)
         {
-        	return DiffEntry.Identifier.ResolvePath(Object);
+        	return DiffEntry.Identifier.ResolvePath(InObject);
         });
         
         DetailsDiff.DetailsWidget()->UpdatePropertyAllowList(PropertyAllowList);

@@ -111,13 +111,13 @@ void UTG_EdGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, class UGraphNod
 			LOCTEXT("SelectPinTooltip", "Set this pin as thumb and preview"),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateLambda([Pin = Context->Pin, Node = Context->Node, this]
+				FExecuteAction::CreateLambda([Pin = Context->Pin, InNode = Context->Node, this]
 				{
-					const UTG_EdGraphNode* TGEdNode = Cast<UTG_EdGraphNode>(Node);
+					const UTG_EdGraphNode* TGEdNode = Cast<UTG_EdGraphNode>(InNode);
 					if (TGEdNode)
 					{
 						const_cast<UTG_EdGraphNode*>(TGEdNode)->SelectPin(const_cast<UEdGraphPin*>(Pin), true); // assign the current selected pin ion the node
-						UTG_EdGraph* TSEdGraph = Cast<UTG_EdGraph>(Node->GetGraph());
+						UTG_EdGraph* TSEdGraph = Cast<UTG_EdGraph>(InNode->GetGraph());
 						TSEdGraph->PinSelectionManager.UpdateSelection(const_cast<UEdGraphPin*>(Pin));
 					}
 				}),
