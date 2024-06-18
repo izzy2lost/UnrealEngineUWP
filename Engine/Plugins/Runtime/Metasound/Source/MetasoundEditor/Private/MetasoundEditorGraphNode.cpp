@@ -1366,6 +1366,50 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 #endif // WITH_EDITOR
 }
 
+void UMetasoundEditorGraphExternalNode::HideUnconnectedPins(const bool InHidePins)
+{
+	using namespace Metasound::Frontend;
+	using namespace Metasound::Editor;
+
+	UObject& MetaSound = GetMetasoundChecked();
+	MetaSound.Modify();
+
+	if (const FMetasoundFrontendNode* FrontendNode = GetFrontendNode())
+	{
+		FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&MetaSound);	
+		Builder.SetNodeUnconnectedPinsHidden(GetNodeID(), InHidePins);
+	}
+
+	if (!InHidePins)
+	{
+		bool bIsAdvancedView = false;
+		for (const UEdGraphPin* Pin : Pins)
+		{
+			if (Pin && Pin->bAdvancedView)
+			{
+				bIsAdvancedView = true;			
+			}
+		}
+
+		if (!bIsAdvancedView)
+		{
+			AdvancedPinDisplay = ENodeAdvancedPins::NoPins;
+		}
+	}
+	else
+	{
+		AdvancedPinDisplay = ENodeAdvancedPins::Hidden;
+	}
+
+	if (TSharedPtr<FEditor> MetaSoundEditor = FGraphBuilder::GetEditorForMetasound(GetMetasoundChecked()))
+	{
+		if (TSharedPtr<SGraphEditor> GraphEditor = MetaSoundEditor->GetGraphEditor())
+		{
+			GraphEditor->RefreshNode(*this);
+		}
+	}
+}
+
 const FMetasoundEditorGraphNodeBreadcrumb& UMetasoundEditorGraphExternalNode::GetBreadcrumb() const
 {
 	return Breadcrumb;

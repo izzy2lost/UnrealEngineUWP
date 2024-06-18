@@ -3537,6 +3537,28 @@ bool FMetaSoundFrontendDocumentBuilder::SetNodeLocation(const FGuid& InNodeID, c
 
 	return false;
 }
+
+bool FMetaSoundFrontendDocumentBuilder::SetNodeUnconnectedPinsHidden(const FGuid& InNodeID, const bool bUnconnectedPinsHidden)
+{
+	if (FMetasoundFrontendNode* Node = FindNodeInternal(InNodeID))
+	{
+		Node->Style.bUnconnectedPinsHidden = bUnconnectedPinsHidden;
+		return true;
+	}
+
+	return false;
+}
+
+const FMetasoundFrontendNodeStyle* FMetaSoundFrontendDocumentBuilder::GetNodeStyle(const FGuid& InNodeID)
+{
+	if (const FMetasoundFrontendNode* Node = FindNodeInternal(InNodeID))
+	{
+		return &Node->Style;
+	}
+
+	return nullptr;
+}
+
 #endif // WITH_EDITOR
 
 void FMetaSoundFrontendDocumentBuilder::SetVersionNumber(const FMetasoundFrontendVersionNumber& InDocumentVersionNumber)

@@ -242,22 +242,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 
-			void SelectNodeInEditor(UMetasoundEditorGraph& InMetaSoundGraph, UMetasoundEditorGraphNode& InNode)
+			void SelecteNodeInEditor(UMetasoundEditorGraph& InMetaSoundGraph, UMetasoundEditorGraphNode& InNode)
 			{
 				TSharedPtr<FEditor> MetasoundEditor = FGraphBuilder::GetEditorForGraph(InMetaSoundGraph);
 				if (MetasoundEditor.IsValid())
 				{
 					MetasoundEditor->ClearSelectionAndSelectNode(&InNode);
-				}
-			}
-
-			void SelectNodeInEditorForRename(UMetasoundEditorGraph& InMetaSoundGraph, UMetasoundEditorGraphNode& InNode)
-			{
-				TSharedPtr<FEditor> MetasoundEditor = FGraphBuilder::GetEditorForGraph(InMetaSoundGraph);
-				if (MetasoundEditor.IsValid())
-				{
-					MetasoundEditor->ClearSelectionAndSelectNode(&InNode);
-					MetasoundEditor->SetDelayedRename();
 				}
 			}
 
@@ -326,7 +316,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 							if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, &FromPin)))
 							{
 								FGraphBuilder::RegisterGraphWithFrontend(ParentMetaSound);
-								SelectNodeInEditorForRename(*MetaSoundGraph, *NewGraphNode);
+								SelecteNodeInEditor(*MetaSoundGraph, *NewGraphNode);
 								return EdGraphNode;
 							}
 						}
@@ -476,7 +466,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewNode::PerformAction(UEdGraph* Paren
 		NewGraphNode->UpdateFrontendNodeLocation(Location);
 		NewGraphNode->SyncLocationFromFrontendNode();
 		SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*NewGraphNode, FromPin);
-		SchemaPrivate::SelectNodeInEditor(*MetaSoundGraph, *NewGraphNode);
+		SchemaPrivate::SelecteNodeInEditor(*MetaSoundGraph, *NewGraphNode);
 		return NewGraphNode;
 	}
 
@@ -593,7 +583,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToInput::PerformAction(UEdGraph
 				if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, FromPin)))
 				{
 					FGraphBuilder::RegisterGraphWithFrontend(ParentMetasound);
-					SchemaPrivate::SelectNodeInEditorForRename(*MetasoundGraph, *NewGraphNode);
+					SchemaPrivate::SelecteNodeInEditor(*MetasoundGraph, *NewGraphNode);
 					return EdGraphNode;
 				}
 			}
@@ -803,7 +793,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToOutput::PerformAction(UEdGrap
 				if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, FromPin)))
 				{
 					FGraphBuilder::RegisterGraphWithFrontend(ParentMetasound);
-					SchemaPrivate::SelectNodeInEditorForRename(*MetasoundGraph, *NewGraphNode);
+					SchemaPrivate::SelecteNodeInEditor(*MetasoundGraph, *NewGraphNode);
 					return EdGraphNode;
 				}
 			}
@@ -1324,6 +1314,8 @@ void UMetasoundEditorGraphSchema::GetContextMenuActions(class UToolMenu* Menu, c
 			LOCTEXT("FindReferencesInGraph_Tooltip", "Find References to the selected Node in the current Graph"),
 			FSlateIcon());
 
+		FToolMenuSection& OrganizationSection = Menu->AddSection("MetasoundGraphSchemaNodeActionsOrganization", LOCTEXT("NodeActionsOrganizationMenuHeader", "Organization"));
+
 		// Only display update ability if node is of type external
 		// and node registry is reporting a major update is available.
 		if (const UMetasoundEditorGraphExternalNode* ExternalNode = Cast<UMetasoundEditorGraphExternalNode>(Context->Node))
@@ -1339,6 +1331,18 @@ void UMetasoundEditorGraphSchema::GetContextMenuActions(class UToolMenu* Menu, c
 			if (bHasNewVersion || !bIsClassNative)
 			{
 				Section.AddMenuEntry(FEditorCommands::Get().UpdateNodeClass);
+			}
+
+			FMetasoundFrontendNodeStyle Style = NodeHandle->GetNodeStyle();		
+			if (Style.bUnconnectedPinsHidden)
+			{
+				OrganizationSection.AddMenuEntry(FGraphEditorCommands::Get().ShowAllPins, LOCTEXT("ShowUnconnectedPins", "Show Unconnected Pins"),
+					LOCTEXT("ShowUnconnectedPins_Tooltip", "Shows all pins with no connection"),
+					FSlateIcon());
+			}
+			else
+			{
+				OrganizationSection.AddMenuEntry(FGraphEditorCommands::Get().HideNoConnectionPins);
 			}
 		}
 	}

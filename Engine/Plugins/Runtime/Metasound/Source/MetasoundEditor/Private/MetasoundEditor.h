@@ -349,6 +349,12 @@ namespace Metasound
 			/** Find selected node from Graph*/
 			void FindSelectedNodeInGraph();
 
+			/**Hide pins without connection*/
+			void HideUnconnectedPins();
+			
+			/**Show pins without connection*/
+			void ShowUnconnectedPins();
+
 		private:
 			void RemoveInvalidSelection();
 
