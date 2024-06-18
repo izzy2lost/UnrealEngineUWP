@@ -2,10 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Logging/LogMacros.h"
-#include "Chaos/ParticleHandleFwd.h"
 #include "Chaos/GeometryParticlesfwd.h"
+#include "Chaos/ParticleHandleFwd.h"
+#include "Logging/LogMacros.h"
 #include "SimModule/ModuleFactoryRegister.h"
 #include "SimModule/ModuleInput.h"
 
@@ -175,7 +174,12 @@ namespace Chaos
 		virtual eSimType GetSimType() const = 0;
 
 		/**
-		* Is Module active and simulating
+		 * The specific simulation type
+		 */
+		virtual FName GetSimTypeName() const { return NAME_None; }
+
+		/**
+		 * Is Module active and simulating
 		 */
 		virtual bool IsEnabled() const { return (StateFlags == eSimModuleState::Enabled); }
 
@@ -376,6 +380,7 @@ namespace Chaos
 		virtual ~FModuleNetData() {}
 
 		virtual eSimType GetType() = 0;
+		virtual FName GetTypeName() const { return NAME_None; };
 		virtual void Serialize(FArchive& Ar) = 0;
 		virtual void FillNetState(const ISimulationModuleBase* SimModule) = 0;
 		virtual void FillSimState(ISimulationModuleBase* SimModule) = 0;
@@ -404,6 +409,7 @@ namespace Chaos
 		virtual ~FSimOutputData() {}
 
 		virtual eSimType GetType() = 0;
+		virtual FName GetTypeName() const { return NAME_None; };
 		virtual bool IsEnabled() { return bEnabled; }
 		virtual FSimOutputData* MakeNewData() = 0;
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule);
