@@ -160,7 +160,7 @@ void UModularVehicleBaseComponent::OnCreatePhysicsState()
 
 	if (InputProducerClass)
 	{
-		InputProducer = InputProducerClass->GetDefaultObject<UVehicleInputProducerBase>();
+		InputProducer = NewObject<UVehicleInputProducerBase>(this, InputProducerClass);
 	}
 
 	if (ClusterUnionComponent)

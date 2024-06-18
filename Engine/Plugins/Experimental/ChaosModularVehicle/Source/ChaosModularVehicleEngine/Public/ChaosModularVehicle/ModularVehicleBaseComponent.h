@@ -375,7 +375,10 @@ private:
 	TArray<FModuleAnimationSetup> ModuleAnimationSetups;
 
 	FInputNameMap InputNameMap;	// map input name to input container array index
+
+	UPROPERTY(Transient)
 	TObjectPtr<UVehicleInputProducerBase> InputProducer = nullptr;
+
 	FModuleInputContainer InputsContainer;
 
 };
