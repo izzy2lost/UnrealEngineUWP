@@ -104,12 +104,12 @@ void UMovieGraphVideoOutputNode::OnReceiveImageDataImpl(UMovieGraphPipeline* InP
 			}
 
 			// Notify the encoder to write this frame
-			this->WriteFrame_EncodeThread(OutputWriter->CodecWriter.Get(), RawRenderPassData, MoveTemp(CompositesForThisCamera), EvaluatedConfig);
+			this->WriteFrame_EncodeThread(OutputWriter->CodecWriter.Get(), RawRenderPassData, MoveTemp(CompositesForThisCamera), EvaluatedConfig, RenderPassData.Key.RootBranchName.ToString());
 		}
 		else
 		{
 			TArray<FMovieGraphPassData> Dummy;
-			this->WriteFrame_EncodeThread(OutputWriter->CodecWriter.Get(), RawRenderPassData, MoveTemp(Dummy), EvaluatedConfig);
+			this->WriteFrame_EncodeThread(OutputWriter->CodecWriter.Get(), RawRenderPassData, MoveTemp(Dummy), EvaluatedConfig, RenderPassData.Key.RootBranchName.ToString());
 		}
 	}
 }
@@ -165,6 +165,9 @@ void UMovieGraphVideoOutputNode::GetOutputFilePaths(const UMovieGraphPipeline* I
 	UMovieGraphGlobalOutputSettingNode* OutputSettingsNode =
 		EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
 
+	UMovieGraphVideoOutputNode* EvaluatedNode = Cast<UMovieGraphVideoOutputNode>(
+		EvaluatedConfig->GetSettingForBranch(GetClass(), InRenderPassData.Key.RootBranchName, bIncludeCDOs, bExactMatch));
+
 	const TMap<FString, FString> FileNameFormatOverrides =  {
 		{TEXT("camera_name"), InRenderPassData.Key.CameraName},
 		{TEXT("render_pass"), InRenderPassData.Key.RendererName},
@@ -172,11 +175,11 @@ void UMovieGraphVideoOutputNode::GetOutputFilePaths(const UMovieGraphPipeline* I
 	};
 	FMovieGraphFilenameResolveParams ResolveParams =
 		FMovieGraphFilenameResolveParams::MakeResolveParams(InRenderPassData.Key, InPipeline, EvaluatedConfig, InRawFrameData->TraversalContext, FileNameFormatOverrides);
-	ResolveParams.FileNameOverride = FileNameFormat;
+	ResolveParams.FileNameOverride = EvaluatedNode->FileNameFormat;
 	ResolveParams.Version = Shot ? Shot->ShotInfo.VersionNumber : UMovieGraphBlueprintLibrary::ResolveVersionNumber(ResolveParams);
 	
 	FMovieGraphResolveArgs FinalFormatArgs;
-	FString FileNameFormatString = FileNameFormat;
+	FString FileNameFormatString = EvaluatedNode->FileNameFormat;
 	
 	// If we're writing more than one render pass out, we need to ensure the file name has the format string in it so we don't
 	// overwrite the same file multiple times. Burn In overlays don't count because they get composited on top of an existing file.

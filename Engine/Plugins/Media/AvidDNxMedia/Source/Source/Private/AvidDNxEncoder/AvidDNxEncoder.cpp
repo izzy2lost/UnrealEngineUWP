@@ -484,6 +484,11 @@ bool FAvidDNxEncoder::WriteFrame_16bit(const FFloat16Color* InFrameData)
 	return WriteFrame_16bit_Impl<FY0CbY1Cr_16bit>(InFrameData);
 }
 
+const FAvidDNxEncoderOptions& FAvidDNxEncoder::GetOptions() const
+{
+	return Options;
+}
+
 template <typename EncodedBufferType>
 bool FAvidDNxEncoder::WriteFrame_16bit_Impl(const FFloat16Color* InFrameData)
 {

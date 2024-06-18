@@ -14,18 +14,12 @@ namespace MovieRenderGraph
 {
 	struct IVideoCodecWriter
 	{
-		/** The filename to actually write to disk with. This may include "de-duplication" numbers (MyFile (1).ext etc.) */
-		FString FileName;
-		
 		/**
 		 * The filename without de-duplication numbers, used to match up multiple incoming frames back to the same writer.
 		 * We use this when looking for existing writers so that we can avoid the de-duplication numbers perpetually increasing
 		 * due to the file existing on disk after the first frame comes in, and then the next one de-duplicating to one more than that.
 		 */
 		FString StableFileName;
-
-		/** Whether the data should be converted to sRGB. Should not be used when OCIO is active. */
-		bool bConvertToSrgb;
 	};
 }
 
@@ -51,7 +45,7 @@ protected:
 
 	virtual TUniquePtr<MovieRenderGraph::IVideoCodecWriter> Initialize_GameThread(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName, const FString& InFileName, FIntPoint InResolution, EImagePixelType InPixelType, ERGBFormat InPixelFormat, uint8 InBitDepth, uint8 InNumChannels, bool bAllowOCIO)  PURE_VIRTUAL(UMovieGraphVideoOutputNode::Initialize_GameThread, return nullptr; );
 	virtual bool Initialize_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter) PURE_VIRTUAL(UMovieGraphVideoOutputNode::Initialize_EncodeThread, return true;);
-	virtual void WriteFrame_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter, FImagePixelData* InPixelData, TArray<FMovieGraphPassData>&& InCompositePasses, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig) PURE_VIRTUAL(UMovieGraphVideoOutputNode::WriteFrame_EncodeThread);
+	virtual void WriteFrame_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter, FImagePixelData* InPixelData, TArray<FMovieGraphPassData>&& InCompositePasses, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName) PURE_VIRTUAL(UMovieGraphVideoOutputNode::WriteFrame_EncodeThread);
 	virtual void BeginFinalize_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter) PURE_VIRTUAL(UMovieGraphVideoOutputNode::BeginFinalize_EncodeThread);
 	virtual void Finalize_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter) PURE_VIRTUAL(UMovieGraphVideoOutputNode::Finalize_EncodeThread);
 	virtual const TCHAR* GetFilenameExtension() const PURE_VIRTUAL(UMovieGraphVideoOutputNode::GetFilenameExtension, return TEXT(""););

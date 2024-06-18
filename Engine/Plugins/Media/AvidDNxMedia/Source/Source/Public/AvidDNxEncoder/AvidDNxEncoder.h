@@ -63,6 +63,9 @@ struct FAvidDNxEncoderOptions
 
 	/** The quality setting that the encoder should use. */
 	EAvidDNxEncoderQuality Quality;
+	
+	/** Whether the data should be converted to sRGB before being sent to the encoder. Should not be used when OCIO is active. */
+	bool bConvertToSrgb;
 
 	/** Frame Rate of the output video. */
 	FFrameRate FrameRate;
@@ -95,6 +98,9 @@ public:
 
 	/** Appends a new frame onto the output file (16-bit). */
 	bool WriteFrame_16bit(const FFloat16Color* InFrameData);
+
+	/** Gets the options that the encoder was initialized with. */
+	const FAvidDNxEncoderOptions& GetOptions() const;
 
 private:
 	bool InitializeCompressedEncoder();

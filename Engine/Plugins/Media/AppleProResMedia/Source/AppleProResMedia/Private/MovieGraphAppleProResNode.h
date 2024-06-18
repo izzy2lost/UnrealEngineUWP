@@ -2,30 +2,20 @@
 
 #pragma once
 
-#include "AvidDNxEncoder/AvidDNxEncoder.h"
+#include "AppleProResEncoder/AppleProResEncoder.h"
 #include "Graph/MovieGraphNode.h"
 #include "Graph/Nodes/MovieGraphVideoOutputNode.h"
 
-#include "MovieGraphAvidDNxHRNode.generated.h"
+#include "MovieGraphAppleProResNode.generated.h"
 
-class FAvidDNxEncoder;
-
-/** The container formats available for use with the Avid DNxHR node. */
-UENUM(BlueprintType)
-enum class EMovieGraphAvidDNxHRFormat : uint8
-{
-	Mxf UMETA(DisplayName = "Material Exchange Format (MXF)"),
-	Mov UMETA(DisplayName = "QuickTime (MOV)")
-};
-
-/** A node which can output Avid DNxHR movies. */
+/** A node which can output Apple ProRes movies. */
 UCLASS(BlueprintType, PrioritizeCategories=("FileOutput"))
-class UMovieGraphAvidDNxHRNode : public UMovieGraphVideoOutputNode
+class UMovieGraphAppleProResNode : public UMovieGraphVideoOutputNode
 {
 	GENERATED_BODY()
 
 public:
-	UMovieGraphAvidDNxHRNode() = default;
+	UMovieGraphAppleProResNode();
 
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
 
@@ -49,9 +39,9 @@ protected:
 	// ~UMovieGraphVideoOutputNode Interface
 
 protected:
-	struct FAvidWriter : public MovieRenderGraph::IVideoCodecWriter
+	struct FProResWriter : public MovieRenderGraph::IVideoCodecWriter
 	{
-		TUniquePtr<FAvidDNxEncoder> Writer;
+		TUniquePtr<FAppleProResEncoder> Writer;
 	};
 	
 	/** The pipeline that is running this node. */
@@ -59,24 +49,31 @@ protected:
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_Format : 1;
+	uint8 bOverride_Quality : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_Quality : 1;
+	uint8 bOverride_CustomTimecodeStart : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bDropFrameTimecode : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OCIOConfiguration : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OCIOContext : 1;
+	
+	/** The Apple ProRes codec that should be used. See Apple documentation for more specifics. Uses Rec 709 color primaries. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Apple ProRes", meta = (EditCondition = "bOverride_Quality"))
+	EAppleProResEncoderCodec Quality;
 
-	/** The format to output the movie to. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Avid DNxHR", meta=(EditCondition="bOverride_Format"))
-	EMovieGraphAvidDNxHRFormat Format;
+	/** Start the timecode at a specific value, rather than the value coming from the Level Sequence. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Apple ProRes", meta = (EditCondition = "bOverride_CustomTimecodeStart"))
+	FTimecode CustomTimecodeStart;
 
-	/**  */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Avid DNxHR", meta=(EditCondition="bOverride_Quality"))
-	EAvidDNxEncoderQuality Quality = EAvidDNxEncoderQuality::HQ_8bit;
+	/** Whether the embedded timecode track should be written using drop-frame format. Only applicable if the sequence framerate is 29.97 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Apple ProRes", DisplayName = "Use DF Timecode if 29.97 FPS", meta = (EditCondition = "bOverride_bDropFrameTimecode"))
+	bool bDropFrameTimecode;
 
 	/**
 	* OCIO configuration/transform settings.

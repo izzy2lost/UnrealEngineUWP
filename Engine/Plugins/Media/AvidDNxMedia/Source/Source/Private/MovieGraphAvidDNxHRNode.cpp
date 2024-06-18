@@ -73,20 +73,19 @@ TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initia
 	Options.FrameRate = EffectiveFrameRate;
 	Options.bCompress = true;
 	Options.NumberOfEncodingThreads = 4;
-	
-	TUniquePtr<FAvidWriter> NewWriter = MakeUnique<FAvidWriter>();
-	NewWriter->Writer = MakeUnique<FAvidDNxEncoder>(Options);
-	NewWriter->FileName = InFileName;
 
 	// If OCIO is enabled, don't do additional color conversion. RGB444 12-bit is never converted to sRGB.
 	if (EvaluatedNode->Quality == EAvidDNxEncoderQuality::RGB444_12bit)
 	{
-		NewWriter->bConvertToSrgb = false;
+		Options.bConvertToSrgb = false;
 	}
 	else
 	{
-		NewWriter->bConvertToSrgb = !(bOverride_OCIOConfiguration && OCIOConfiguration.bIsEnabled && bAllowOCIO);
+		Options.bConvertToSrgb = !(bOverride_OCIOConfiguration && OCIOConfiguration.bIsEnabled && bAllowOCIO);
 	}
+	
+	TUniquePtr<FAvidWriter> NewWriter = MakeUnique<FAvidWriter>();
+	NewWriter->Writer = MakeUnique<FAvidDNxEncoder>(Options);
 
 	CachedPipeline = InPipeline;
 	
@@ -105,7 +104,7 @@ bool UMovieGraphAvidDNxHRNode::Initialize_EncodeThread(MovieRenderGraph::IVideoC
 	return true;
 }
 
-void UMovieGraphAvidDNxHRNode::WriteFrame_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter, FImagePixelData* InPixelData, TArray<FMovieGraphPassData>&& InCompositePasses, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig)
+void UMovieGraphAvidDNxHRNode::WriteFrame_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter, FImagePixelData* InPixelData, TArray<FMovieGraphPassData>&& InCompositePasses, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName)
 {
 	const FAvidWriter* CodecWriter = static_cast<FAvidWriter*>(InWriter);
 	
@@ -120,7 +119,7 @@ void UMovieGraphAvidDNxHRNode::WriteFrame_EncodeThread(MovieRenderGraph::IVideoC
 
 	// Quantize our 16-bit float data to 8/16-bit and apply sRGB if needed
 	const int32 BitDepth = ((EvaluatedNode->Quality == EAvidDNxEncoderQuality::HQX_10bit) || (EvaluatedNode->Quality == EAvidDNxEncoderQuality::RGB444_12bit)) ? 16 : 8;
-	TUniquePtr<FImagePixelData> QuantizedPixelData = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(InPixelData, BitDepth, nullptr, InWriter->bConvertToSrgb);
+	TUniquePtr<FImagePixelData> QuantizedPixelData = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(InPixelData, BitDepth, nullptr, CodecWriter->Writer->GetOptions().bConvertToSrgb);
 
 	TArray<FPixelPreProcessor> PixelPreProcessors;
 
