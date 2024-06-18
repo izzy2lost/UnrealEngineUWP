@@ -20,6 +20,8 @@ namespace UE::ConcertSharedSlate
 	class IPropertySourceProcessor;
 	class IReplicationStreamModel;
 
+	struct FSelectableObjectInfo;
+
 	/** A predicate for determining Left < Right. */
 	DECLARE_DELEGATE_RetVal_TwoParams(bool, FSortPropertyPredicate, const FPropertyData& Left, const FPropertyData& Right);
 
@@ -31,4 +33,7 @@ namespace UE::ConcertSharedSlate
 
 	/** Delegate for deciding whether an object should be displayed. */
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FShouldDisplayObject, const FSoftObjectPath& ObjectPath);
+
+	/** Delegate executed when object options are selected from the Add button to the left of the search bar in the top view of the replication panel. */
+	DECLARE_DELEGATE_OneParam(FSelectObjectsFromComboButton, TConstArrayView<FSelectableObjectInfo>);
 }

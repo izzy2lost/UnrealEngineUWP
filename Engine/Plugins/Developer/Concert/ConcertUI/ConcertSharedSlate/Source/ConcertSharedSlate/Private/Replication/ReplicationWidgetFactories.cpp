@@ -34,6 +34,8 @@ namespace UE::ConcertSharedSlate
 			.ObjectHierarchy(MoveTemp(ViewerParams.ObjectHierarchy))
 			.NameModel(MoveTemp(ViewerParams.NameModel))
 			.OnExtendObjectsContextMenu(MoveTemp(ViewerParams.OnExtendObjectsContextMenu))
+			.OnPreAddSelectedObjectsDelegate(MoveTemp(EditorParams.OnPreAddSelectedObjectsDelegate))
+			.OnPostAddSelectedObjectsDelegate(MoveTemp(EditorParams.OnPostAddSelectedObjectsDelegate))
 			.ShouldDisplayObject(MoveTemp(ViewerParams.ShouldDisplayObjectDelegate))
 			.LeftOfObjectSearchBar() [ MoveTemp(ViewerParams.LeftOfObjectSearchBar.Widget) ]
 			.RightOfObjectSearchBar() [ MoveTemp(ViewerParams.RightOfObjectSearchBar.Widget) ]

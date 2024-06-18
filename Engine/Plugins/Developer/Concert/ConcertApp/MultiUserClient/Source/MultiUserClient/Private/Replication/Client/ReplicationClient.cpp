@@ -35,14 +35,12 @@ namespace UE::MultiUserClient
 			FGetStreamContent::CreateLambda([this](){ return &StreamSynchronizer->GetServerState(); }),
 			SubmissionQueue
 			)
+		, StreamExtender(MakeShared<FMultiUserStreamExtender>(EndpointId, InDiscoveryContainer))
 		, LocalClientEditModel(
 			// Transact ClientContentStorage
 			ConcertClientSharedSlate::CreateTransactionalStreamModel(
 				// Read & write the stream data in ClientContentStorage
-				CreateBaseStreamModel(
-					ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
-					MakeShared<FMultiUserStreamExtender>(EndpointId, InDiscoveryContainer)
-					),
+				CreateBaseStreamModel(ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(), StreamExtender),
 				*ClientContentStorage->Stream
 				)
 			)

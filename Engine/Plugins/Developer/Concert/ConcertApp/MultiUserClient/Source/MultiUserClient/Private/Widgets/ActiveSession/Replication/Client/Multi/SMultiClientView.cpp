@@ -15,6 +15,7 @@
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
+#include "Replication/Stream/Discovery/MultiUserStreamExtender.h"
 #include "Widgets/ActiveSession/Replication/Client/Context/ContextMenuUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/PropertySelection/SPropertySelectionComboButton.h"
@@ -131,7 +132,9 @@ namespace UE::MultiUserClient
 			.ConsolidatedObjectModel = ConcertClientSharedSlate::CreateTransactionalStreamModel(),
 			.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
 			.PropertySource = PropertySourceModel,
-			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate)
+			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate),
+			.OnPreAddSelectedObjectsDelegate = FSelectObjectsFromComboButton::CreateSP(this, &SMultiClientView::OnPreAddObjectsFromComboButton),
+			.OnPostAddSelectedObjectsDelegate = FSelectObjectsFromComboButton::CreateSP(this, &SMultiClientView::OnPostAddObjectsFromComboButton),
 		};
 		FCreateViewerParams ViewerParams
 		{
@@ -144,7 +147,7 @@ namespace UE::MultiUserClient
 				MultiStreamColumns::MuteToggleColumn(MuteManager.GetChangeTracker()),
 				MultiStreamColumns::AssignedClientsColumn(InConcertClient, MultiStreamEditorAttribute, *ObjectHierarchy, ClientManager->GetReassignmentLogic(), *ClientManager)
 			},
-			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject)
+			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject),
 		};
 		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params), MoveTemp(ViewerParams));
 		check(StreamEditor);
@@ -239,6 +242,19 @@ namespace UE::MultiUserClient
 	bool SMultiClientView::ShouldDisplayObject(const FSoftObjectPath& Object) const
 	{
 		return HideObjectsNotInEditorWorld.ShouldShowObject(Object);
+	}
+
+	void SMultiClientView::OnPreAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>)
+	{
+		// When the user adds using the combo button, automatically add discover relevant objects and properties
+		ClientManager->GetLocalClient().GetStreamExtender()
+			.SetShouldExtend(true);
+	}
+
+	void SMultiClientView::OnPostAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>)
+	{
+		ClientManager->GetLocalClient().GetStreamExtender()
+			.SetShouldExtend(false);
 	}
 }
 

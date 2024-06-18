@@ -19,6 +19,8 @@ namespace UE::ConcertSharedSlate
 			.DataModel = ConsolidatedModel.ToSharedRef(),
 			.ObjectSource = MoveTemp(EditorParams.ObjectSource),
 			.PropertySource = MoveTemp(EditorParams.PropertySource),
+			.OnPreAddSelectedObjectsDelegate = MoveTemp(EditorParams.OnPreAddSelectedObjectsDelegate),
+			.OnPostAddSelectedObjectsDelegate = MoveTemp(EditorParams.OnPostAddSelectedObjectsDelegate)
 		};
 		EditorView = CreateBaseStreamEditor(MoveTemp(BaseEditorParams), MoveTemp(ViewerParams));
 

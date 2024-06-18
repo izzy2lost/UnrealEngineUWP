@@ -28,6 +28,7 @@ namespace UE::ConcertSharedSlate
 
 namespace UE::MultiUserClient
 {
+	class FMultiUserStreamExtender;
 	class FReplicationDiscoveryContainer;
 	class ISubmissionWorkflow;
 	
@@ -60,6 +61,7 @@ namespace UE::MultiUserClient
 		~FReplicationClient();
 
 		UMultiUserReplicationClientPreset* GetClientContent() const { return ClientContentStorage; }
+		FMultiUserStreamExtender& GetStreamExtender() { return *StreamExtender; }
 		/**
 		 * This is used so the UI can construct the IReplicationStreamEditor.
 		 * @see CreateBaseStreamEditor and FCreateEditorParams.
@@ -125,7 +127,9 @@ namespace UE::MultiUserClient
 		FSubmissionQueue SubmissionQueue;
 		/** Enqueues external change requests into the SubmissionQueue. */
 		FExternalClientChangeRequestHandler ExternalRequestHandler;
-		
+
+		/** Injected into LocalClientEditModel during construction. Adds additional objects and properties when a new object is added to the stream. */
+		TSharedRef<FMultiUserStreamExtender> StreamExtender;
 		/**
 		 * Used to detect changes made to the client's config by the local editor.
 		 * Those changes can later be applied to the client.

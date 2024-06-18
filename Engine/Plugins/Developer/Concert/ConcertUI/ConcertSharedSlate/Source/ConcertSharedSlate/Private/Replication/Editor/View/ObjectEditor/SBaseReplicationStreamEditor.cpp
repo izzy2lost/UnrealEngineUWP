@@ -40,6 +40,8 @@ namespace UE::ConcertSharedSlate
 		IsEditingEnabledAttribute = InArgs._IsEditingEnabled;
 		EditingDisabledToolTipTextAttribute = InArgs._EditingDisabledToolTipText;
 		OnExtendObjectsContextMenuDelegate = InArgs._OnExtendObjectsContextMenu;
+		OnPreAddSelectedObjectsDelegate = InArgs._OnPreAddSelectedObjectsDelegate;
+		OnPostAddSelectedObjectsDelegate = InArgs._OnPostAddSelectedObjectsDelegate;
 		
 		ChildSlot
 		[
@@ -200,7 +202,9 @@ namespace UE::ConcertSharedSlate
 			);
 
 		TGuardValue<bool> GuardObjectSelection(bIsAddingFromSelection, true);
+		OnPreAddSelectedObjectsDelegate.ExecuteIfBound(ObjectsToAdd);
 		EditablePropertiesModel->AddObjects(Objects);
+		OnPostAddSelectedObjectsDelegate.ExecuteIfBound(ObjectsToAdd);
 	}
 
 	void SBaseReplicationStreamEditor::OnDeleteObjects(const TArray<TSharedPtr<FReplicatedObjectData>>& ObjectsToDelete) const

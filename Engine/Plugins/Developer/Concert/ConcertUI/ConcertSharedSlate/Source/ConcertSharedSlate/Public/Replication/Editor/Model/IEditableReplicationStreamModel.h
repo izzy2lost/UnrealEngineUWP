@@ -25,6 +25,13 @@ namespace UE::ConcertSharedSlate
 		 */
 		ExternalChange
 	};
+
+	enum class EReplicatedAddObjectFlags : uint8
+	{
+		None,
+
+		SkipStreamExtension
+	};
 	
 	/**
 	 * Abstracts the concept of mapping objects to properties. This allows writing.

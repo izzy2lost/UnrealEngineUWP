@@ -13,11 +13,6 @@
 #include "Misc/Attribute.h"
 #include "Templates/SharedPointer.h"
 
-namespace UE::ConcertSharedSlate
-{
-	class IPropertyAssignmentView;
-}
-
 class UObject;
 
 struct FConcertStreamObjectAutoBindingRules;
@@ -30,6 +25,7 @@ namespace UE::ConcertSharedSlate
 	class IMultiReplicationStreamEditor;
 	class IObjectNameModel;
 	class IObjectSelectionSourceModel;
+	class IPropertyAssignmentView;
 	class IPropertyTreeView;
 	class IReplicationStreamModel;
 	class IReplicationStreamEditor;
@@ -119,6 +115,11 @@ namespace UE::ConcertSharedSlate
 		TAttribute<bool> IsEditingEnabled;
 		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 		TAttribute<FText> EditingDisabledToolTipText;
+
+		/** Called just before the passed objects are added to the stream model. Called in response to the user selecting these objects from the combo button. */
+		FSelectObjectsFromComboButton OnPreAddSelectedObjectsDelegate;
+		/** Called just after the passed objects have been added to the stream model. Called in response to the user selecting these objects from the combo button. */
+		FSelectObjectsFromComboButton OnPostAddSelectedObjectsDelegate;
 	};
 
 	/**
@@ -175,6 +176,11 @@ namespace UE::ConcertSharedSlate
 
 		/** Optional. If set, the Add button should automatically assign the added object to stream returned by this callback. */
 		FGetAutoAssignTarget GetAutoAssignToStreamDelegate;
+		
+		/** Called just before the passed objects are added to the stream model. Called in response to the user selecting these objects from the combo button. */
+		FSelectObjectsFromComboButton OnPreAddSelectedObjectsDelegate;
+		/** Called just after the passed objects have been added to the stream model. Called in response to the user selecting these objects from the combo button. */
+		FSelectObjectsFromComboButton OnPostAddSelectedObjectsDelegate;
 	};
 
 	/**

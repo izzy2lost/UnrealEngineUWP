@@ -23,8 +23,11 @@ namespace UE::MultiUserClient
 
 	void FMultiUserStreamExtender::ExtendStream(UObject& ExtendedObject, ConcertSharedSlate::IStreamExtensionContext& Context)
 	{
-		ExtendBySettings.ExtendStream(ExtendedObject, Context);
-		ExtendStreamWithRegisteredDiscoverers(ExtendedObject, Context);
+		if (bShouldExtend)
+		{
+			ExtendBySettings.ExtendStream(ExtendedObject, Context);
+			ExtendStreamWithRegisteredDiscoverers(ExtendedObject, Context);
+		}
 	}
 	
 	void FMultiUserStreamExtender::ExtendStreamWithRegisteredDiscoverers(UObject& ExtendedObject, ConcertSharedSlate::IStreamExtensionContext& Context) const
