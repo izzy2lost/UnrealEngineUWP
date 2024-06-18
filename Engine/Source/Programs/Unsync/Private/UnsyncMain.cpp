@@ -111,6 +111,7 @@ InnerMain(int Argc, char** Argv)
 	bool					 bNoOutputRevisions  = false;
 	bool					 bPackOnlySmallFiles = false;
 	bool					 bPackFiles		     = false;
+	bool					 bNoCompression		 = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
@@ -134,7 +135,7 @@ InnerMain(int Argc, char** Argv)
 		App->add_flag("--insecure", bAllowInsecureTls, "Skip remote server TLS certificate validation")->group(DangerousGroupId);
 	};
 
-	auto AddProxyOptions = [&RemoteAddressUtf8, &ProtocolName, &bNoProxySelect](CLI::App* App)
+	auto AddProxyOptions = [&RemoteAddressUtf8, &ProtocolName, &bNoProxySelect, &bNoCompression](CLI::App* App)
 	{
 		App->add_option("--proxy, --remote, --server",
 						RemoteAddressUtf8,
@@ -142,6 +143,9 @@ InnerMain(int Argc, char** Argv)
 		App->add_flag("--no-proxy-select",
 					  bNoProxySelect,
 					  "Skip automatic server selection and use the exact one specified by command line or environment variable");
+		App->add_flag("--no-compression",
+					  bNoCompression,
+					  "Disable compression when downloading blocks from the server, if possible (intended for debugging)");
 		App->add_option("--protocol", ProtocolName, "Explicitly specify server protocol instead of inferring it from URL")
 			->required(false)
 			->check(CLI::IsMember({"unsync", "jupiter", "horde"}));
@@ -656,6 +660,12 @@ InnerMain(int Argc, char** Argv)
 						 ParsedRemoteDesc.TryError()->Context.c_str());
 			return 1;
 		}
+	}
+
+	if (bNoCompression)
+	{
+		UNSYNC_VERBOSE(L"Uncompressed data transfer is preferred");
+		RemoteDesc.bPreferCompression = false;
 	}
 
 	FPath InputFilename			 = NormalizeFilenameUtf8(InputFilenameUtf8);

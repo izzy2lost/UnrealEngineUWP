@@ -20,8 +20,9 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 {
 	std::string RequestJson = FormatBlockRequestJson(*RequestMap, NeedBlocks);
 
-	std::string RequestUrl = fmt::format("/{}/unsync-blobs", ProxyPool.RemoteDesc.RequestPath);
-	//std::string RequestUrl = fmt::format("/{}/unsync-blobs?compress=false", ProxyPool.RemoteDesc.RequestPath);
+	std::string RequestUrl = fmt::format("/{}/unsync-blobs?compress={}",
+										 ProxyPool.RemoteDesc.RequestPath,
+										 ProxyPool.RemoteDesc.bPreferCompression ? "true" : "false");
 
 	const EStrongHashAlgorithmID StrongHasher = RequestMap->GetStrongHasher();
 
@@ -81,7 +82,7 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 		}
 
 		FDownloadedBlock DownloadedBlock;
-		DownloadedBlock.bCompressed = false;
+		DownloadedBlock.bCompressed = false; // we always decompress the block before handing it over to the caller
 
 		FBufferView Payload = Response.Buffer.View(Reader.Tell(), BlobHeader.PayloadSize);
 		FBuffer		DecompressedBuffer;
@@ -120,15 +121,15 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 			return FDownloadError(EDownloadRetryMode::Abort);
 		}
 
-		if (DecompressedBuffer.Size() != BlobHeader.DecompressedSize)
+		if (DownloadedBlock.DecompressedSize != BlobHeader.DecompressedSize)
 		{
 			UNSYNC_ERROR(L"Received blob size (%llu bytes) does not match expected size (%llu bytes)",
-						 llu(DecompressedBuffer.Size()),
+						 llu(DownloadedBlock.DecompressedSize),
 						 llu(BlobHeader.DecompressedSize));
 			return FDownloadError(EDownloadRetryMode::Abort);
 		}
 
-		FGenericHash BlockHash	  = ComputeHash(DownloadedBlock.Data, DownloadedBlock.DecompressedSize, StrongHasher);
+		FGenericHash BlockHash = ComputeHash(DownloadedBlock.Data, DownloadedBlock.DecompressedSize, StrongHasher);
 
 		if (BlockHash.ToHash160() != BlobHeader.DecompressedHash)
 		{

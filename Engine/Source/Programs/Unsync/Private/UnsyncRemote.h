@@ -62,6 +62,8 @@ struct FRemoteDesc
 	std::optional<FHostAddressAndPort> PrimaryHost;	 // Optional address of the server used for login requests and other queries. If
 													 // empty, then HostAddress is used.
 
+	bool bPreferCompression = true;	 // Whether to prefer compressed encoding during bulk data transfer
+
 	const FHostAddressAndPort& GetPrimaryHostAddress() const { return PrimaryHost ? *PrimaryHost : Host; }
 
 	uint32 RecvTimeoutSeconds = 0;

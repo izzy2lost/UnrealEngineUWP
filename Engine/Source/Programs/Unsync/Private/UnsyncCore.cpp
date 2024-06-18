@@ -297,6 +297,29 @@ ValidateTarget(FIOReader& Reader, const FNeedList& NeedList, EStrongHashAlgorith
 	return NumInvalidBlocks == 0;
 }
 
+static FBuildTargetParams
+GetBuildTargetParams(const FSyncFileOptions& Options)
+{
+	FBuildTargetParams Result;
+
+	Result.StrongHasher		= Options.Algorithm.StrongHashAlgorithmId;
+	Result.ProxyPool		= Options.ProxyPool;
+	Result.BlockCache		= Options.BlockCache;
+	Result.ScavengeDatabase = Options.ScavengeDatabase;
+
+	if (IsFileSystemSource(Options.SourceType))
+	{
+		Result.SourceType = FBuildTargetParams::ESourceType::File;
+	}
+	else
+	{
+		Result.SourceType = FBuildTargetParams::ESourceType::Server;
+	}
+	
+
+	return Result;
+}
+
 FFileSyncResult
 SyncFile(const FNeedList&		   NeedList,
 		 const FPath&			   SourceFilePath,
@@ -407,12 +430,7 @@ SyncFile(const FNeedList&		   NeedList,
 				}
 			});
 
-		FBuildTargetParams BuildParams;
-		BuildParams.StrongHasher	 = Options.Algorithm.StrongHashAlgorithmId;
-		BuildParams.ProxyPool		 = Options.ProxyPool;
-		BuildParams.BlockCache		 = Options.BlockCache;
-		BuildParams.ScavengeDatabase = Options.ScavengeDatabase;
-
+		FBuildTargetParams BuildParams = GetBuildTargetParams(Options);
 		FBuildTargetResult BuildResult = BuildTarget(*TargetFile, SourceFile, BaseDataReader, NeedList, BuildParams);
 
 		Result.SourceBytes = BuildResult.SourceBytes;

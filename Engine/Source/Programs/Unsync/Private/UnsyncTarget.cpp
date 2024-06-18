@@ -165,6 +165,21 @@ BuildTarget(FIOWriter& Output, FIOReader& Source, FIOReader& Base, const FNeedLi
 
 	FBuildTargetResult BuildResult;
 
+	if (Params.SourceType == FBuildTargetParams::ESourceType::Server)
+	{
+		if (Params.ProxyPool == nullptr)
+		{
+			UNSYNC_FATAL(L"Connection pool must be provided when syncing from server");
+			return BuildResult;
+		}
+
+		if (!Params.ProxyPool->IsValid())
+		{
+			UNSYNC_FATAL(L"Server connection cannot be established because connection pool is invalid");
+			return BuildResult;
+		}
+	}
+
 	auto TimeBegin = TimePointNow();
 
 	const FNeedListSize			 SizeInfo		  = ComputeNeedListSize(NeedList);
