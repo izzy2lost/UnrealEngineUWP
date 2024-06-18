@@ -183,7 +183,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 
 		FRDGBufferRef OutputStatsBuffer = GraphBuilder.CreateBuffer(OutputStatsBufferDesc, TEXT("FRayTracingScene::OutputStatsBuffer"));
 		FRDGBufferUAVRef OutputStatsBufferUAV = GraphBuilder.CreateUAV(OutputStatsBuffer);
-		AddClearUAVPass(GraphBuilder, OutputStatsBufferUAV, 0);
+		AddClearUAVPass(GraphBuilder, OutputStatsBufferUAV, 0, ComputePassFlags);
 #endif
 
 		FRDGBufferUAVRef DebugInstanceGPUSceneIndexBufferUAV = nullptr;
