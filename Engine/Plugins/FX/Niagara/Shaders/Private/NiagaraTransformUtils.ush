@@ -16,7 +16,7 @@ FNiagaraTransform LoadTransform(ByteAddressBuffer Buffer, uint Offset)
 	FNiagaraTransform R;
 	R.Translation	= asfloat(Buffer.Load3(Offset + 0));
 	R.Rotation		= asfloat(Buffer.Load4(Offset + 12));
-	R.Scale			= asfloat(Buffer.Load3(Offset + 20));
+	R.Scale			= asfloat(Buffer.Load3(Offset + 28));
 	return R;
 }
 

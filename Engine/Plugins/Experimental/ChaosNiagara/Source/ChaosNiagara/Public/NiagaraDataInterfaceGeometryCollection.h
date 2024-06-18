@@ -4,6 +4,7 @@
 
 #include "NiagaraDataInterface.h"
 #include "RHIUtilities.h"
+#include "GeometryCollection/GeometryCollectionObject.h"
 
 #include "NiagaraDataInterfaceGeometryCollection.generated.h"
 
@@ -19,6 +20,8 @@ struct FNDIGeometryCollectionArrays
 	TArray<FVector4f> WorldInverseTransformBuffer;
 	TArray<FVector4f> PrevWorldInverseTransformBuffer;
 	TArray<FVector4f> BoundsBuffer;
+	TArray<FTransform> ComponentRestTransformBuffer;
+	TArray<uint32> ElementIndexToTransformBufferMapping;
 
 	FNDIGeometryCollectionArrays()
 	{
@@ -39,6 +42,8 @@ struct FNDIGeometryCollectionArrays
 		WorldInverseTransformBuffer = Other->WorldInverseTransformBuffer;
 		PrevWorldInverseTransformBuffer = Other->PrevWorldInverseTransformBuffer;
 		BoundsBuffer = Other->BoundsBuffer;
+		ComponentRestTransformBuffer = Other->ComponentRestTransformBuffer;
+		ElementIndexToTransformBufferMapping = Other->ElementIndexToTransformBufferMapping;
 	}
 
 	void Resize(uint32 Num)
@@ -50,6 +55,8 @@ struct FNDIGeometryCollectionArrays
 		WorldInverseTransformBuffer.Init(FVector4f(0, 0, 0, 0), 3 * NumPieces);
 		PrevWorldInverseTransformBuffer.Init(FVector4f(0, 0, 0, 0), 3 * NumPieces);
 		BoundsBuffer.Init(FVector4f(0, 0, 0, 0), NumPieces);
+		ComponentRestTransformBuffer.Init(FTransform(), 1);
+		ElementIndexToTransformBufferMapping.Init(0, NumPieces);
 	}
 
 	uint32 NumPieces = 100;
@@ -82,10 +89,16 @@ struct FNDIGeometryCollectionBuffer : public FRenderResource
 	/** Element extent buffer */
 	FReadBuffer BoundsBuffer;
 
-	/** number of transforms */
-	uint32 NumPieces;
+	/** Per-element transform buffer */
+	TRefCountPtr<FRDGPooledBuffer>	ComponentRestTransformBuffer;
 
-	void SetNumPieces(uint32 Num)
+	/** Raw data for the transform buffer */
+	TArray<uint8> DataToUpload;
+
+	/** number of transforms */
+	int32 NumPieces;
+
+	void SetNumPieces(int32 Num)
 	{
 		NumPieces = Num;
 	}
@@ -108,6 +121,9 @@ struct FNDIGeometryCollectionData
 	/** The instance ticking group */
 	ETickingGroup TickingGroup;
 
+	/** Actor or geometry collection component world transform, adjusted by lwc system tile */
+	FTransform RootTransform;
+	
 	/** Geometry Collection Bounds */
 	FVector3f BoundsOrigin;
 
@@ -117,11 +133,55 @@ struct FNDIGeometryCollectionData
 	FNDIGeometryCollectionBuffer* AssetBuffer = nullptr;
 
 	/** Physics asset Cpu arrays */
-	FNDIGeometryCollectionArrays *AssetArrays = nullptr;	
+	FNDIGeometryCollectionArrays* AssetArrays = nullptr;
+
+	bool bHasPendingComponentTransformUpdate = false;
+};
+
+UENUM()
+enum class ENDIGeometryCollection_SourceMode : uint8
+{
+	/**
+	Default behavior follows the order of.
+	- Use "Source" when specified (either set explicitly or via blueprint with Set Niagara Geometry Collection Component).
+	- Use Parameter Binding if valid
+	- Find Geometry Collection Component, Attached Actor, Attached Component
+	- Falls back to 'Default Geometry Collection' specified on the data interface
+	*/
+	Default,
+
+	/**	Only use "Source" (either set explicitly or via blueprint with Set Niagara Geometry Collection Component). */
+	Source,
+
+	/**	Only use the parent actor or component the system is attached to. */
+	AttachParent,
+
+	/** Only use the "Default Geometry Collection" specified. */
+	DefaultCollectionOnly,
+
+	/** Only use the parameter binding. */
+	ParameterBinding,
+};
+
+USTRUCT()
+struct FResolvedNiagaraGeometryCollection
+{
+	GENERATED_BODY()
+	
+	const UGeometryCollection* GetGeometryCollection() const;
+	FTransform GetComponentRootTransform(FNiagaraSystemInstance* SystemInstance) const;
+	FTransform GetComponentSpaceTransform(int32 TransformIndex) const;
+	TArray<FTransform> GetInitialLocalRestTransforms() const;
+	
+	UPROPERTY()
+	TWeakObjectPtr<UGeometryCollection> Collection;
+
+	UPROPERTY()
+	TWeakObjectPtr<UGeometryCollectionComponent> Component;
 };
 
 /** Data Interface for the Collisions */
-UCLASS(EditInlineNew, Category = "Collision", meta = (DisplayName = "Geometry Collection"))
+UCLASS(EditInlineNew, Category = "Chaos", meta = (DisplayName = "Geometry Collection"), MinimalAPI)
 class UNiagaraDataInterfaceGeometryCollection : public UNiagaraDataInterface
 {
 	GENERATED_UCLASS_BODY()
@@ -129,30 +189,66 @@ class UNiagaraDataInterfaceGeometryCollection : public UNiagaraDataInterface
 	BEGIN_SHADER_PARAMETER_STRUCT(FShaderParameters, )
 		SHADER_PARAMETER(FVector3f,				BoundsMin)
 		SHADER_PARAMETER(FVector3f,				BoundsMax)
-		SHADER_PARAMETER(uint32,				NumPieces)
+		SHADER_PARAMETER(int32,					NumPieces)
+		SHADER_PARAMETER(FVector3f,				RootTransform_Translation)
+		SHADER_PARAMETER(FQuat4f,				RootTransform_Rotation)
+		SHADER_PARAMETER(FVector3f,				RootTransform_Scale)
 		SHADER_PARAMETER_SRV(Buffer<float4>,	WorldTransformBuffer)
 		SHADER_PARAMETER_SRV(Buffer<float4>,	PrevWorldTransformBuffer)
 		SHADER_PARAMETER_SRV(Buffer<float4>,	WorldInverseTransformBuffer)
 		SHADER_PARAMETER_SRV(Buffer<float4>,	PrevWorldInverseTransformBuffer)
 		SHADER_PARAMETER_SRV(Buffer<float4>,	BoundsBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer,	ElementTransforms)
 	END_SHADER_PARAMETER_STRUCT()
 
-public:
+	/** Controls how to retrieve the Skeletal Mesh Component to attach to. */
 	UPROPERTY(EditAnywhere, Category = "Geometry Collection")
-	TObjectPtr<AGeometryCollectionActor> GeometryCollectionActor;
+	ENDIGeometryCollection_SourceMode SourceMode = ENDIGeometryCollection_SourceMode::Default;
+
+#if WITH_EDITORONLY_DATA
+	/** Geometry collection used to sample from when not overridden by a source actor from the scene. Only available in editor for previewing. This is removed in cooked builds. */
+	UPROPERTY(EditAnywhere, Category = "Geometry Collection")
+	TSoftObjectPtr<UGeometryCollection> PreviewCollection;
+#endif
+
+	/** GeometryCollection used to sample from when not overridden by a source actor from the scene. This reference is NOT removed from cooked builds. */
+	UPROPERTY(EditAnywhere, Category = "Geometry Collection", meta = (EditConditionHides, EditCondition = "SourceMode == ENDIGeometryCollection_SourceMode::Default || SourceMode == ENDISocketReaderSourceMode::DefaultCollectionOnly"))
+	TObjectPtr<UGeometryCollection> DefaultGeometryCollection;
+
+	/** The source actor from which to sample. Takes precedence over the direct geometry collection. Note that this can only be set when used as a user variable on a niagara component in the world.*/
+	UPROPERTY(EditAnywhere, Category = "Geometry Collection", meta = (DisplayName = "Source Actor", EditConditionHides, EditCondition = "SourceMode == ENDIGeometryCollection_SourceMode::Default || SourceMode == ENDIGeometryCollection_SourceMode::Source"))
+	TSoftObjectPtr<AGeometryCollectionActor> GeometryCollectionActor;
+
+	/** The source component from which to sample. Takes precedence over the direct mesh. Not exposed to the user, only indirectly accessible from blueprints. */
+	UPROPERTY(Transient)
+	TObjectPtr<UGeometryCollectionComponent> SourceComponent;
+
+	/** Reference to a user parameter if we're reading one. */
+	UPROPERTY(EditAnywhere, Category = "Geometry Collection", meta = (EditConditionHides, EditCondition = "SourceMode == ENDIGeometryCollection_SourceMode::Default || SourceMode == ENDISocketReaderSourceMode::ParameterBinding"))
+	FNiagaraUserParameterBinding GeometryCollectionUserParameter;
+	
+	// If true then this data interface will also read and write intermediate bones or geometry, otherwise only leaf nodes are considered
+	UPROPERTY(EditAnywhere, Category = "Geometry Collection")
+	bool bIncludeIntermediateBones = false;
+
+	UPROPERTY(Transient)
+	FResolvedNiagaraGeometryCollection ResolvedSource;
 
 	/** UObject Interface */
 	virtual void PostInitProperties() override;
 
 	/** UNiagaraDataInterface Interface */
 	virtual void GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc) override;
-	virtual bool CanExecuteOnTarget(ENiagaraSimTarget Target) const override { return Target == ENiagaraSimTarget::GPUComputeSim; }
+	virtual bool CanExecuteOnTarget(ENiagaraSimTarget Target) const override { return true; }
 	virtual bool InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance) override;
 	virtual void DestroyPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)override;
 	virtual bool PerInstanceTick(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float DeltaSeconds) override;
 	virtual int32 PerInstanceDataSize()const override { return sizeof(FNDIGeometryCollectionData); }
+	virtual bool PerInstanceTickPostSimulate(void* PerInstanceData, FNiagaraSystemInstance* InSystemInstance, float DeltaSeconds) override;
 	virtual bool Equals(const UNiagaraDataInterface* Other) const override;
 	virtual bool HasPreSimulateTick() const override { return true; }
+	virtual bool HasPostSimulateTick() const override { return true; }
+	virtual bool PostSimulateCanOverlapFrames() const override { return false; }
 	virtual bool HasTickGroupPrereqs() const override { return true; }
 	virtual ETickingGroup CalculateTickGroup(const void* PerInstanceData) const override;
 
@@ -162,11 +258,21 @@ public:
 	virtual bool AppendCompileHash(FNiagaraCompileHashVisitor* InVisitor) const override;
 	virtual void GetParameterDefinitionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, FString& OutHLSL) override;
 	virtual bool GetFunctionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, const FNiagaraDataInterfaceGeneratedFunction& FunctionInfo, int FunctionInstanceIndex, FString& OutHLSL) override;
+	virtual bool UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature) override;
 #endif
 	virtual void BuildShaderParameters(FNiagaraShaderParametersBuilder& ShaderParametersBuilder) const override;
 	virtual void SetShaderParameters(const FNiagaraDataInterfaceSetShaderParametersContext& Context) const override;
 
 	virtual void ProvidePerInstanceDataForRenderThread(void* DataForRenderThread, void* PerInstanceData, const FNiagaraSystemInstanceID& SystemInstance) override;
+
+private:
+	// VM functions
+	void GetNumGeometryElements(FVectorVMExternalFunctionContext& Context);
+	void GetElementBounds(FVectorVMExternalFunctionContext& Context);
+	void GetElementTransformCS(FVectorVMExternalFunctionContext& Context);
+	void SetElementTransformCS(FVectorVMExternalFunctionContext& Context);
+	void SetElementTransformWS(FVectorVMExternalFunctionContext& Context);
+	void GetActorTransform(FVectorVMExternalFunctionContext& Context);
 
 protected:
 #if WITH_EDITORONLY_DATA
@@ -175,6 +281,14 @@ protected:
 
 	/** Copy one niagara DI to this */
 	virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
+
+private:
+	void ResolveGeometryCollection(FNiagaraSystemInstance* SystemInstance, UObject* UserParameter);
+	bool ResolveGeometryCollectionFromDirectSource();
+	bool ResolveGeometryCollectionFromAttachParent(FNiagaraSystemInstance* SystemInstance);
+	bool ResolveGeometryCollectionFromActor(AActor* Actor);
+	bool ResolveGeometryCollectionFromDefaultCollection();
+	bool ResolveGeometryCollectionFromParamterBinding(UObject* UserParameter);
 };
 
 /** Proxy to send data to gpu */
@@ -198,7 +312,3 @@ struct FNDIGeometryCollectionProxy : public FNiagaraDataInterfaceProxy
 	/** List of proxy data for each system instances*/
 	TMap<FNiagaraSystemInstanceID, FNDIGeometryCollectionData> SystemInstancesToProxyData;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "GeometryCollection/GeometryCollectionActor.h"
-#endif

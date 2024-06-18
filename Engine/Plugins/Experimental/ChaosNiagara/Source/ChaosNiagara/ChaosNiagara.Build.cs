@@ -20,7 +20,6 @@ public class ChaosNiagara : ModuleRules
 				"RenderCore",
                 "Chaos",
 				"PhysicsCore",
-				"PhysicsCore",
 			}
         );
 					
