@@ -21,13 +21,13 @@
 	"Modules": [
 		{
 			"Name": "NNEHlslShaders",
-			"Type": "RuntimeAndProgram",
+			"Type": "ClientOnly",
 			"LoadingPhase": "PostConfigInit",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},
 		{
 			"Name": "NNERuntimeRDG",
-			"Type": "RuntimeAndProgram",
+			"Type": "ClientOnly",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},

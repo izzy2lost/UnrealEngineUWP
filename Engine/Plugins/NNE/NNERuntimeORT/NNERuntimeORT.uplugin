@@ -18,7 +18,7 @@
 	"Modules": [
 		{
 			"Name": "NNERuntimeORT",
-			"Type": "RuntimeAndProgram",
+			"Type": "ClientOnly",
 			"LoadingPhase": "PreDefault",
 			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
