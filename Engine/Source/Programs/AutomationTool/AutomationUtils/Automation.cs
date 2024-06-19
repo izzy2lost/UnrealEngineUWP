@@ -8,10 +8,12 @@ using System.Reflection;
 using System.Diagnostics;
 using UnrealBuildTool;
 using EpicGames.Core;
+using EpicGames.Horde;
 using OpenTracing.Util;
 using UnrealBuildBase;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 using static AutomationTool.CommandUtils;
 
@@ -255,42 +257,56 @@ namespace AutomationTool
 		/// <param name="Commands"></param>
 		public static async Task<ExitCode> ExecuteAsync(List<CommandInfo> CommandsToExecute, Dictionary<string, Type> Commands)
 		{
-			Logger.LogInformation("Executing commands...");
-			for (int CommandIndex = 0; CommandIndex < CommandsToExecute.Count; ++CommandIndex)
+			ServiceCollection serviceCollection = new ServiceCollection();
+			serviceCollection.AddLogging(builder => builder.AddEpicDefault());
+			serviceCollection.AddHorde(options => options.AllowAuthPrompt = !CommandUtils.IsBuildMachine);
+
+			await using ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider();
+			try
 			{
-				var CommandInfo = CommandsToExecute[CommandIndex];
-				Logger.LogDebug("Attempting to execute {CommandInfo}", CommandInfo.ToString());
-				Type CommandType;
-				if (!Commands.TryGetValue(CommandInfo.CommandName, out CommandType))
-				{
-					throw new AutomationException("Failed to find command {0}", CommandInfo.CommandName);
-				}
+				CommandUtils.ServiceProvider = serviceProvider;
 
-				BuildCommand Command = (BuildCommand)Activator.CreateInstance(CommandType);
-				Command.Params = CommandInfo.Arguments.ToArray();
-				try
+				Logger.LogInformation("Executing commands...");
+				for (int CommandIndex = 0; CommandIndex < CommandsToExecute.Count; ++CommandIndex)
 				{
-					ExitCode Result = await Command.ExecuteAsync();
-					if(Result != ExitCode.Success)
+					var CommandInfo = CommandsToExecute[CommandIndex];
+					Logger.LogDebug("Attempting to execute {CommandInfo}", CommandInfo.ToString());
+					Type CommandType;
+					if (!Commands.TryGetValue(CommandInfo.CommandName, out CommandType))
 					{
-						return Result;
+						throw new AutomationException("Failed to find command {0}", CommandInfo.CommandName);
 					}
-					Logger.LogInformation("BUILD SUCCESSFUL");
-				}
-				finally
-				{
-					// dispose of the class if necessary
-					var CommandDisposable = Command as IDisposable;
-					if (CommandDisposable != null)
-					{
-						CommandDisposable.Dispose();
-					}
-				}
 
-				// Make sure there's no directories on the stack.
-				CommandUtils.ClearDirStack();
+					BuildCommand Command = (BuildCommand)Activator.CreateInstance(CommandType);
+					Command.Params = CommandInfo.Arguments.ToArray();
+					try
+					{
+						ExitCode Result = await Command.ExecuteAsync();
+						if (Result != ExitCode.Success)
+						{
+							return Result;
+						}
+						Logger.LogInformation("BUILD SUCCESSFUL");
+					}
+					finally
+					{
+						// dispose of the class if necessary
+						var CommandDisposable = Command as IDisposable;
+						if (CommandDisposable != null)
+						{
+							CommandDisposable.Dispose();
+						}
+					}
+
+					// Make sure there's no directories on the stack.
+					CommandUtils.ClearDirStack();
+				}
+				return ExitCode.Success;
 			}
-			return ExitCode.Success;
+			finally
+			{
+				CommandUtils.ServiceProvider = null!;
+			}
 		}
 
 		/// <summary>
