@@ -116,10 +116,10 @@ void FStreamingGenerationLogErrorHandler::OnLevelInstanceInvalidWorldAsset(const
 	case ELevelInstanceInvalidReason::WorldAssetNotFound:
 		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s has an invalid world asset %s"), *ActorName, *WorldAsset.ToString());
 		break;
-	case ELevelInstanceInvalidReason::WorldAssetDontContainActorsMetadata:
-		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s world asset %s is not using external actors, resave level to add compatibility."), *ActorName, *WorldAsset.ToString());
+	case ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors:
+		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s world asset %s is not using external actors"), *ActorName, *WorldAsset.ToString());
 		break;
-	case ELevelInstanceInvalidReason::WorldAssetIncompatiblePartitioned:
+	case ELevelInstanceInvalidReason::WorldAssetImcompatiblePartitioned:
 		UE_ASSET_LOG_ACTORDESCVIEW(LogWorldPartition, Log, ActorDescView, TEXT("Actor %s world asset %s is partitioned but not marked as compatible"), *ActorName, *WorldAsset.ToString());
 		break;
 	case ELevelInstanceInvalidReason::WorldAssetHasInvalidContainer:

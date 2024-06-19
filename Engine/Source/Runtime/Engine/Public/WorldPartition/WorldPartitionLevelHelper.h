@@ -89,7 +89,9 @@ private:
 	void RemoveReferences(FPackageReferencer* InReferencer);
 	void PreGarbageCollect();
 
+	static FString GetContainerPackage(const FActorContainerID& InContainerID, const FString& InPackageName, const FString& InDestLevelPackageName = FString());
 	static UWorld::InitializationValues GetWorldInitializationValues();
+
 
 	friend class FContentBundleEditor;
 	static bool RemapLevelCellPathInContentBundle(ULevel* Level, const class FContentBundleEditor* ContentBundleEditor, const UWorldPartitionRuntimeCell* Cell);

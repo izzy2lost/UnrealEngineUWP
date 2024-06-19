@@ -203,9 +203,8 @@ bool FLevelInstanceActorDesc::IsChildContainerInstanceInternal() const
 	{
 		return false;
 	}
-
-	if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(GetChildContainerPackage()) && 
-		!ULevel::GetIsLevelUsingActorsDescsFromPackage(GetChildContainerPackage()))
+	
+	if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(GetChildContainerPackage()))
 	{
 		return false;
 	}
@@ -246,23 +245,16 @@ void FLevelInstanceActorDesc::CheckForErrors(const IWorldPartitionActorDescInsta
 	{
 		ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetNotFound);
 	}
-	else
+	else if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(ChildContainerPackage))
 	{
-		if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(ChildContainerPackage))
+		if (DesiredRuntimeBehavior != ELevelInstanceRuntimeBehavior::LevelStreaming)
 		{
-			if (DesiredRuntimeBehavior != ELevelInstanceRuntimeBehavior::LevelStreaming)
-			{
-				if (!ULevel::GetIsLevelUsingActorsDescsFromPackage(ChildContainerPackage))
-				{
-					ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetDontContainActorsMetadata);
-				}
-			}
+			ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors);
 		}
-	
-		if (!ValidateCircularReference(InActorDescView->GetContainerInstance(), ChildContainerPackage))
-		{
-			ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
-		}
+	}
+	else if (!ValidateCircularReference(InActorDescView->GetContainerInstance(), ChildContainerPackage))
+	{
+		ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
 	}
 }
 

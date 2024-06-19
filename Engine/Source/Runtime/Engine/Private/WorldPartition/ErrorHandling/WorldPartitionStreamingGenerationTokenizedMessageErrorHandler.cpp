@@ -228,11 +228,11 @@ void ITokenizedMessageErrorHandler::OnLevelInstanceInvalidWorldAsset(const IWorl
 		MessageSeverity = EMessageSeverity::Error;
 		ReasonText = LOCTEXT("TokenMessage_WorldPartition_HasInvalidWorldAsset", "has an invalid world asset");
 		break;
-	case ELevelInstanceInvalidReason::WorldAssetDontContainActorsMetadata:
+	case ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors:
 		MessageSeverity = EMessageSeverity::Error;
-		ReasonText = LOCTEXT("TokenMessage_WorldPartition_WorldAssetIsNotUsingExternalActors", "is not using external actors, resave level to add compatibility");
+		ReasonText = LOCTEXT("TokenMessage_WorldPartition_WorldAssetIsNotUsingExternalActors", "is not using external actors");
 		break;
-	case ELevelInstanceInvalidReason::WorldAssetIncompatiblePartitioned:
+	case ELevelInstanceInvalidReason::WorldAssetImcompatiblePartitioned:
 		MessageSeverity = EMessageSeverity::Error;
 		ReasonText = LOCTEXT("TokenMessage_WorldPartition_WorldAssetIsPartitionedIncompatible", "is partitioned but not marked as compatible");
 		break;

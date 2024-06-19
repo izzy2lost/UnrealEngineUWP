@@ -722,9 +722,6 @@ public:
 	ENGINE_API static bool GetIsLevelUsingExternalActorsFromAsset(const FAssetData& Asset);
 	ENGINE_API static bool GetIsLevelUsingExternalActorsFromPackage(FName LevelPackage);
 
-	ENGINE_API static bool GetIsLevelUsingActorsDescsFromAsset(const FAssetData& Asset);
-	ENGINE_API static bool GetIsLevelUsingActorsDescsFromPackage(FName LevelPackage);
-
 	ENGINE_API static bool GetIsUsingActorFoldersFromAsset(const FAssetData& Asset);
 	ENGINE_API static bool GetIsUsingActorFoldersFromPackage(FName LevelPackage);
 
