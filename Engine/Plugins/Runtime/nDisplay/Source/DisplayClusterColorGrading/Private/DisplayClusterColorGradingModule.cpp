@@ -4,8 +4,6 @@
 
 #include "DisplayClusterColorGradingCommands.h"
 #include "DataModelGenerators/DisplayClusterColorGradingGenerator_RootActor.h"
-#include "DataModelGenerators/DisplayClusterColorGradingGenerator_PostProcessVolume.h"
-#include "DataModelGenerators/DisplayClusterColorGradingGenerator_ColorCorrectRegion.h"
 #include "Drawer/DisplayClusterColorGradingDrawerSingleton.h"
 #include "Drawer/SDisplayClusterColorGradingDrawer.h"
 
@@ -21,17 +19,14 @@ void FDisplayClusterColorGradingModule::StartupModule()
 {
 	ColorGradingDrawerSingleton = MakeUnique<FDisplayClusterColorGradingDrawerSingleton>();
 
-	FDisplayClusterColorGradingDataModel::RegisterColorGradingDataModelGenerator<ADisplayClusterRootActor>(
-		FGetColorGradingDataModelGenerator::CreateStatic(&FDisplayClusterColorGradingGenerator_RootActor::MakeInstance));
+	FColorGradingEditorDataModel::RegisterColorGradingDataModelGenerator<ADisplayClusterRootActor>(
+		FGetDetailsDataModelGenerator::CreateStatic(&FDisplayClusterColorGradingGenerator_RootActor::MakeInstance));
 
-	FDisplayClusterColorGradingDataModel::RegisterColorGradingDataModelGenerator<UDisplayClusterICVFXCameraComponent>(
-		FGetColorGradingDataModelGenerator::CreateStatic(&FDisplayClusterColorGradingGenerator_ICVFXCamera::MakeInstance));
+	FColorGradingEditorDataModel::RegisterColorGradingDataModelGenerator<UDisplayClusterICVFXCameraComponent>(
+		FGetDetailsDataModelGenerator::CreateStatic(&FDisplayClusterColorGradingGenerator_ICVFXCamera::MakeInstance));
 
-	FDisplayClusterColorGradingDataModel::RegisterColorGradingDataModelGenerator<APostProcessVolume>(
-		FGetColorGradingDataModelGenerator::CreateStatic(&FDisplayClusterColorGradingGenerator_PostProcessVolume::MakeInstance));
-
-	FDisplayClusterColorGradingDataModel::RegisterColorGradingDataModelGenerator<AColorCorrectRegion>(
-		FGetColorGradingDataModelGenerator::CreateStatic(&FDisplayClusterColorGradingGenerator_ColorCorrectRegion::MakeInstance));
+	FColorGradingListItem::RegisterColorGradingListItemGenerator<FDisplayClusterColorGradingListItemGenerator_RootActor>();
+	FColorGradingListItem::RegisterColorGradingListItemGenerator<FDisplayClusterColorGradingListItemGenerator_ICVFXCamera>();
 
 	FDisplayClusterColorGradingCommands::Register();
 }

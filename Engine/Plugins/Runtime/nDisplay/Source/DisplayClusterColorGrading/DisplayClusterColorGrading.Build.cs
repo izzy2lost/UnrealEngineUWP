@@ -16,6 +16,7 @@ public class DisplayClusterColorGrading : ModuleRules
 				"ApplicationCore",
 				"AppFramework",
 				"ColorCorrectRegions",
+				"ColorGradingEditor",
 				"Core",
 				"CoreUObject",
 				"DetailCustomizations",

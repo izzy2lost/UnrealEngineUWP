@@ -145,6 +145,15 @@
 			]
 		},
 		{
+			"Name": "DisplayClusterDetails",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Linux"
+			]
+		},
+		{
 			"Name": "DisplayClusterStageMonitoring",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
@@ -245,6 +254,10 @@
 	"Plugins": [
 		{
 			"Name": "ColorCorrectRegions",
+			"Enabled": true
+		},
+		{
+			"Name": "ColorGrading",
 			"Enabled": true
 		},
 		{
