@@ -179,6 +179,35 @@ namespace Horde.Server.Artifacts
 		}
 
 		/// <summary>
+		/// Finds artifacts matching certain criteria
+		/// </summary>
+		/// <param name="streamId">Stream to search</param>
+		/// <param name="minChange">Minimum changelist number for artifacts to return</param>
+		/// <param name="maxChange">Maximum changelist number for artifacts to return</param>
+		/// <param name="name">Artifact name</param>
+		/// <param name="type">Type of the artifact</param>
+		/// <param name="keys">Keys to find</param>
+		/// <param name="maxResults">Maximum number of results to return</param>
+		/// <param name="filter">Filter for returned values</param>
+		/// <returns>Information about all the artifacts</returns>
+		[HttpGet]
+		[Route("/api/v2/artifacts")]
+		[ProducesResponseType(typeof(FindArtifactsResponse), 200)]
+		public async Task<ActionResult<object>> FindArtifactsAsync([FromQuery] StreamId? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery(Name = "name")] ArtifactName? name = null, [FromQuery(Name = "type")] ArtifactType? type = null, [FromQuery(Name = "key")] IEnumerable<string>? keys = null, [FromQuery] int maxResults = 100, [FromQuery] PropertyFilter? filter = null)
+		{
+			FindArtifactsResponse response = new FindArtifactsResponse();
+			await foreach (IArtifact artifact in _artifactCollection.FindAsync(streamId, minChange, maxChange, name, type, keys, maxResults, HttpContext.RequestAborted))
+			{
+				if (_globalConfig.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+				{
+					response.Artifacts.Add(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.StreamId, artifact.Change, artifact.Keys, artifact.Metadata));
+				}
+			}
+
+			return PropertyFilter.Apply(response, filter);
+		}
+
+		/// <summary>
 		/// Gets metadata about an artifact object
 		/// </summary>
 		/// <param name="id">Identifier of the artifact to retrieve</param>
@@ -886,40 +915,6 @@ namespace Horde.Server.Artifacts
 		public async Task<ActionResult<object>> CreateZipFromFilterAsync(ArtifactId id, CreateZipRequest request, CancellationToken cancellationToken = default)
 		{
 			return await DownloadInternalAsync(id, DownloadArtifactFormat.Zip, request.Filter, cancellationToken);
-		}
-
-		/// <summary>
-		/// Finds artifacts matching certain criteria
-		/// </summary>
-		/// <param name="streamId">Stream to search</param>
-		/// <param name="minChange">Minimum changelist number for artifacts to return</param>
-		/// <param name="maxChange">Maximum changelist number for artifacts to return</param>
-		/// <param name="name">Artifact name</param>
-		/// <param name="type">Type of the artifact</param>
-		/// <param name="keys">Keys to find</param>
-		/// <param name="maxResults">Maximum number of results to return</param>
-		/// <param name="filter">Filter for returned values</param>
-		/// <returns>Information about all the artifacts</returns>
-		[HttpGet]
-		[Route("/api/v2/artifacts")]
-		[ProducesResponseType(typeof(FindArtifactsResponse), 200)]
-		public async Task<ActionResult<object>> FindArtifactsAsync([FromQuery] StreamId? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery(Name = "name")] ArtifactName? name = null, [FromQuery(Name = "type")] ArtifactType? type = null, [FromQuery(Name = "key")] IEnumerable<string>? keys = null, [FromQuery] int maxResults = 100, [FromQuery] PropertyFilter? filter = null)
-		{
-			if (streamId == null && keys == null)
-			{
-				return BadRequest("Missing streamId or key parameter");
-			}
-
-			FindArtifactsResponse response = new FindArtifactsResponse();
-			await foreach (IArtifact artifact in _artifactCollection.FindAsync(streamId, minChange, maxChange, name, type, keys, maxResults, HttpContext.RequestAborted))
-			{
-				if (_globalConfig.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
-				{
-					response.Artifacts.Add(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.StreamId, artifact.Change, artifact.Keys, artifact.Metadata));
-				}
-			}
-
-			return PropertyFilter.Apply(response, filter);
 		}
 	}
 }
