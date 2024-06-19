@@ -207,9 +207,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		});
 	}
 
-	inline const UPCGSpatialData* ComputeBoundingShape(const FPCGContext* Context, FName BoundingShapeLabel, bool& bOutUnionWasCreated)
+	inline const UPCGSpatialData* ComputeBoundingShape(FPCGContext* Context, FName BoundingShapeLabel, bool& bOutUnionWasCreated)
 	{
-		const UPCGSpatialData* BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(BoundingShapeLabel, bOutUnionWasCreated);
+		const UPCGSpatialData* BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(Context, BoundingShapeLabel, bOutUnionWasCreated);
 
 		// Fallback to getting bounds from actor
 		if (!BoundingShape && Context->SourceComponent.IsValid())

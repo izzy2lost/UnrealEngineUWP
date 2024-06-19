@@ -1513,7 +1513,7 @@ bool FPCGSplineSamplerElement::ExecuteInternal(FPCGContext* Context) const
 		// TODO: Once we support time-slicing, put this in the context and root (see FPCGSurfaceSamplerContext)
 		bool bUnionCreated = false;
 		// Grab the Bounding Shape input if there is one.
-		BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(PCGSplineSamplerConstants::BoundingShapeLabel, bUnionCreated);
+		BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(Context, PCGSplineSamplerConstants::BoundingShapeLabel, bUnionCreated);
 
 		// Fallback to getting bounds from actor
 		if (!BoundingShape && Context->SourceComponent.IsValid())

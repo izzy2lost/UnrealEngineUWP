@@ -64,7 +64,7 @@ bool FPCGElevationIsolinesElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 
 	bool bOutUnionDataCreated = false;
-	const UPCGSpatialData* BoundingShape = InContext->InputData.GetSpatialUnionOfInputsByPin(TEXT("BoundingShape"), bOutUnionDataCreated);
+	const UPCGSpatialData* BoundingShape = InContext->InputData.GetSpatialUnionOfInputsByPin(InContext, TEXT("BoundingShape"), bOutUnionDataCreated);
 
 	// Fallback to getting bounds from actor
 	if (!BoundingShape && InContext->SourceComponent.IsValid())

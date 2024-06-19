@@ -115,7 +115,7 @@ bool FPCGOuterIntersectionElement::ExecuteInternal(FPCGContext* Context) const
 		}
 
 		bool bDummy;
-		if (const UPCGSpatialData* UnionData = Context->InputData.GetSpatialUnionOfInputsByPin(InputPin->Properties.Label, bDummy))
+		if (const UPCGSpatialData* UnionData = Context->InputData.GetSpatialUnionOfInputsByPin(Context, InputPin->Properties.Label, bDummy))
 		{
 			SecondarySourceUnionArray.Push(UnionData);
 		}

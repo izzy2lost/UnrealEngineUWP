@@ -194,7 +194,7 @@ namespace PCGVolumeSamplerHelpers
 		{
 			bool bUnionWasCreated;
 			// Get a union of inputs and if successful, add it to the root. Will be removed and marked for GC in the state destructor
-			OutState.BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(PCGVolumeSamplerConstants::BoundingShapeLabel, bUnionWasCreated);
+			OutState.BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(Context, PCGVolumeSamplerConstants::BoundingShapeLabel, bUnionWasCreated);
 			if (OutState.BoundingShape && bUnionWasCreated)
 			{
 				Context->TrackObject(OutState.BoundingShape);

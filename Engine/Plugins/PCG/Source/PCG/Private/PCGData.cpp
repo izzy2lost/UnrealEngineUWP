@@ -2,6 +2,7 @@
 
 #include "PCGData.h"
 
+#include "PCGContext.h"
 #include "PCGNode.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
@@ -192,6 +193,12 @@ int32 FPCGDataCollection::GetSpatialInputCountByPin(const FName& InPinLabel) con
 
 const UPCGSpatialData* FPCGDataCollection::GetSpatialUnionOfInputsByPin(const FName& InPinLabel, bool& bOutUnionDataCreated) const
 {
+	check(IsInGameThread());
+	return GetSpatialUnionOfInputsByPin(nullptr, InPinLabel, bOutUnionDataCreated);
+}
+
+const UPCGSpatialData* FPCGDataCollection::GetSpatialUnionOfInputsByPin(FPCGContext* InContext, const FName& InPinLabel, bool& bOutUnionDataCreated) const
+{
 	TArray<FPCGTaggedData> SpatialDataOnPin = TaggedData.FilterByPredicate([&InPinLabel](const FPCGTaggedData& Data) {
 		return Data.Pin == InPinLabel && Data.Data && Data.Data->IsA<UPCGSpatialData>();
 	});
@@ -216,7 +223,7 @@ const UPCGSpatialData* FPCGDataCollection::GetSpatialUnionOfInputsByPin(const FN
 			if (!Union)
 			{
 				// Second valid data - set up union
-				Union = NewObject<UPCGUnionData>();
+				Union = FPCGContext::NewObject_AnyThread<UPCGUnionData>(InContext);
 				Union->Initialize(Result, SpatialInput);
 
 				// Make result union

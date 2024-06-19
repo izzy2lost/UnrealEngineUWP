@@ -147,7 +147,11 @@ struct PCG_API FPCGDataCollection
 	/** Gets number of spatial data items on a given pin */
 	int32 GetSpatialInputCountByPin(const FName& InPinLabel) const;
 	/** Returns spatial union of all data on a given pin, returns null if no such data exists. bOutUnionDataCreated indicates if new data created that may need rooting. */
+	const UPCGSpatialData* GetSpatialUnionOfInputsByPin(FPCGContext* InContext, const FName& InPinLabel, bool& bOutUnionDataCreated) const;
+
+	UE_DEPRECATED(5.5, "Use version with FPCGContext param")
 	const UPCGSpatialData* GetSpatialUnionOfInputsByPin(const FName& InPinLabel, bool& bOutUnionDataCreated) const;
+
 	/** Returns all spatial data in the collection with the given tag */
 	TArray<FPCGTaggedData> GetTaggedInputs(const FString& InTag) const;
 	/** Returns all settings in the collection */
