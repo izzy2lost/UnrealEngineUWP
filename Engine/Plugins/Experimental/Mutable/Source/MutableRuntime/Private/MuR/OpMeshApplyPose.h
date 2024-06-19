@@ -131,7 +131,7 @@ namespace mu
 			EBoneUsageFlags UsageFlags = BaseMesh->GetBoneUsageFlags(BoneIndex);
 			EnumAddFlags(UsageFlags, EBoneUsageFlags::Reshaped);
 			
-			Result->SetBonePose(FoundPoseIndex, BoneName, ModelRefTransform * PoseTransform, UsageFlags);
+			Result->SetBonePose(BoneIndex, BoneName, ModelRefTransform * PoseTransform, UsageFlags);
 		}
 
 		MeshBufferIterator<MBF_FLOAT32, float, 3> TargetPositionIterBegin(Result->VertexBuffers, MBS_POSITION, 0);
