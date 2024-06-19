@@ -158,11 +158,11 @@ void FDataflowSimulationGenerator::StartGenerateSimulation()
 
 	TaskManager->SimulationTask = MakeUnique<FAsyncTask<FDataflowSimulationTask>>();
 	TaskManager->SimulationTask->GetTask().TaskManager = TaskManager;
-	TaskManager->SimulationTask->GetTask().bBackgroundTask = bBackgroundTask;
+	TaskManager->SimulationTask->GetTask().bBackgroundTask = CacheParams.bBackgroundTask;
 	
-	TaskManager->AllocateSimulationResource(TimeRange, FrameRate, CacheAsset, ActorClass, DataflowContent);
+	TaskManager->AllocateSimulationResource(CacheParams.TimeRange, CacheParams.FrameRate, CacheAsset, BlueprintClass, DataflowContent);
 
-	if(bBackgroundTask)
+	if(CacheParams.bBackgroundTask)
 	{
 		TaskManager->SimulationTask->StartBackgroundTask();
 	}
@@ -222,15 +222,10 @@ void FDataflowSimulationGenerator::TickGenerateSimulation()
 		PendingAction = EDataflowGeneratorActions::NoAction;
 	}
 }
-
-void FDataflowSimulationGenerator::SetFrameRate(const int32 InFrameRate) 
+	
+void FDataflowSimulationGenerator::SetCacheParams(const FDataflowPreviewCacheParams& InCacheParams)
 {
-	FrameRate = InFrameRate;
-}
-
-void FDataflowSimulationGenerator::SetTimeRange(const FVector2f& InTimeRange) 
-{
-	TimeRange = InTimeRange;
+	CacheParams = InCacheParams;
 }
 
 void FDataflowSimulationGenerator::SetCacheAsset(const TObjectPtr<UChaosCacheCollection>& InCacheAsset) 
@@ -238,14 +233,9 @@ void FDataflowSimulationGenerator::SetCacheAsset(const TObjectPtr<UChaosCacheCol
 	CacheAsset = InCacheAsset;
 }
 
-void FDataflowSimulationGenerator::SetActorClass(const TSubclassOf<AActor>& InActorClass)
+void FDataflowSimulationGenerator::SetBlueprintClass(const TSubclassOf<AActor>& InBlueprintClass)
 {
-	ActorClass = InActorClass;
-}
-
-void FDataflowSimulationGenerator::SetBackgroundTask(const bool bInBackgroundTask)
-{
-	bBackgroundTask = bInBackgroundTask;
+	BlueprintClass = InBlueprintClass;
 }
 
 void FDataflowSimulationGenerator::SetDataflowContent(const TObjectPtr<UDataflowBaseContent>& InDataflowContent)

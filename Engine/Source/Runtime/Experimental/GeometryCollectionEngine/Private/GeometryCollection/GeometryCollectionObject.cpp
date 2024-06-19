@@ -46,6 +46,7 @@
 #include "Chaos/ChaosArchive.h"
 #include "Chaos/MassProperties.h"
 #include "GeometryCollectionProxyData.h"
+#include "Dataflow/DataflowObject.h"
 #include "GeometryCollection/Facades/CollectionHierarchyFacade.h"
 #include "GeometryCollection/Facades/CollectionInstancedMeshFacade.h"
 
@@ -2060,12 +2061,12 @@ TObjectPtr<UDataflowBaseContent> UGeometryCollection::CreateDataflowContent()
 	BaseContent->SetDataflowOwner(this);
 	BaseContent->SetTerminalAsset(this);
 	
-	UpdateDataflowContent(BaseContent);
+	WriteDataflowContent(BaseContent);
 	
 	return BaseContent;
 }
 
-void UGeometryCollection::UpdateDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
+void UGeometryCollection::WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
 {
 	if(const TObjectPtr<UDataflowBaseContent> BaseContent = Cast<UDataflowBaseContent>(DataflowContent))
 	{
@@ -2073,6 +2074,9 @@ void UGeometryCollection::UpdateDataflowContent(const TObjectPtr<UDataflowBaseCo
 		BaseContent->SetDataflowTerminal(DataflowTerminal);
 	}
 }
+
+void UGeometryCollection::ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent)
+{}
 
 #if WITH_EDITOR
 bool UGeometryCollection::CanEditChange(const FProperty* InProperty) const

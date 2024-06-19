@@ -18,6 +18,7 @@ bool bDataflowEnableContextCaching = true;
 FAutoConsoleVariableRef CVARDataflowEnableContextCaching(TEXT("p.Dataflow.Editor.ContextCaching"), bDataflowEnableContextCaching,
 	TEXT("Allow the Dataflow editor to crate and use a pre-evaluated graph when the dataflow editor is re-opened.[def:true]"));
 
+
 namespace DataflowContextHelpers
 {
 
@@ -307,7 +308,7 @@ void UDataflowBaseContent::UpdateContentDatas()
 	{
 		if(const IDataflowContentOwner* ContentOwner = Cast<IDataflowContentOwner>(GetDataflowOwner()))
 		{
-			ContentOwner->UpdateDataflowContent(this);
+			ContentOwner->WriteDataflowContent(this);
 		}
 	}
 }
@@ -343,6 +344,20 @@ TObjectPtr<UDataflow> UDataflowBaseContent::GetDataflowAsset() const
 {
 	return DataflowContext ? DataflowContext->Graph : nullptr; 
 }
+
+#if WITH_EDITOR
+
+void UDataflowBaseContent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) 
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	
+	if(IDataflowContentOwner* ContentOwner = Cast<IDataflowContentOwner>(GetDataflowOwner()))
+	{
+		ContentOwner->ReadDataflowContent(this);
+	}
+}
+
+#endif //if WITH_EDITOR
 
 void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp, bool bMakeDirty) 
 { 
@@ -392,7 +407,7 @@ void UDataflowBaseContent::AddReferencedObjects(UObject* InThis, FReferenceColle
 	Super::AddReferencedObjects(InThis, Collector);
 }
 
-void OverrideActorProperty(TObjectPtr<AActor>& PreviewActor, const TObjectPtr<UObject>& PropertyValue, const FName& PropertyName)
+void OverrideActorProperty(const TObjectPtr<AActor>& PreviewActor, TObjectPtr<UObject> PropertyValue, const FName& PropertyName)
 {
 	if(PreviewActor && PropertyValue)
 	{
@@ -425,7 +440,7 @@ UDataflowSkeletalContent::UDataflowSkeletalContent() : Super()
 {
 }
 
-void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& SkeletalMeshAsset)
+void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& SkeletalMeshAsset, const bool bHideAsset)
 {
 	SkeletalMesh = SkeletalMeshAsset;
 	if(SkeletalMesh)
@@ -435,17 +450,19 @@ void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& 
 			SetSkeleton(SkeletalMesh->GetSkeleton());
 		}
 	}
+	bHideSkeletalMesh = bHideAsset;
 	SetConstructionDirty(true);
 	SetSimulationDirty(true);
 }
 
-void UDataflowSkeletalContent::SetAnimationAsset(const TObjectPtr<UAnimationAsset>& SkeletalAnimationAsset)
+void UDataflowSkeletalContent::SetAnimationAsset(const TObjectPtr<UAnimationAsset>& SkeletalAnimationAsset, const bool bHideAsset)
 {
 	AnimationAsset = SkeletalAnimationAsset;
 	if(AnimationAsset && (AnimationAsset->GetSkeleton()) != Skeleton)
 	{
 		SetSkeleton(AnimationAsset->GetSkeleton());
 	}
+	bHideAnimationAsset = bHideAsset;
 	SetConstructionDirty(true);
 	SetSimulationDirty(true);
 }
@@ -469,10 +486,8 @@ void UDataflowSkeletalContent::SetSkeleton(const TObjectPtr<USkeleton>& Skeleton
 
 void UDataflowSkeletalContent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) 
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-	
 	const FName PropertyName = PropertyChangedEvent.Property->GetFName();
-	
+
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSkeletalContent, SkeletalMesh))
 	{
 		SetSkeletalMesh(SkeletalMesh);
@@ -485,6 +500,27 @@ void UDataflowSkeletalContent::PostEditChangeProperty(FPropertyChangedEvent& Pro
 	{
 		SetSkeleton(Skeleton);
 	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+bool UDataflowSkeletalContent::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	const FName& Name = InProperty->GetFName();
+	if (Name == GET_MEMBER_NAME_CHECKED(ThisClass, SkeletalMesh))
+	{
+		return bHideSkeletalMesh == false;
+	}
+	else if(Name == GET_MEMBER_NAME_CHECKED(ThisClass, AnimationAsset))
+	{
+		return bHideAnimationAsset == false;
+	}
+
+	return true;
 }
 
 #endif //if WITH_EDITOR
@@ -497,9 +533,9 @@ void UDataflowSkeletalContent::AddContentObjects(FReferenceCollector& Collector)
 void UDataflowSkeletalContent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	UDataflowSkeletalContent* This = CastChecked<UDataflowSkeletalContent>(InThis);
+	Collector.AddReferencedObject(This->Skeleton);
 	Collector.AddReferencedObject(This->SkeletalMesh);
 	Collector.AddReferencedObject(This->AnimationAsset);
-	Collector.AddReferencedObject(This->Skeleton);
 	Super::AddReferencedObjects(InThis, Collector);
 }
 
@@ -510,4 +546,3 @@ void UDataflowSkeletalContent::SetActorProperties(TObjectPtr<AActor>& PreviewAct
 	OverrideActorProperty(PreviewActor, AnimationAsset, TEXT("AnimationAsset"));
 	OverrideActorProperty(PreviewActor, SkeletalMesh, TEXT("SkeletalMesh"));
 }
-

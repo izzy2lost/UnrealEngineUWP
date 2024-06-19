@@ -107,7 +107,10 @@ public:
 	}
 	
 	/** Interface to update a dataflow content instance from that owner */
-	virtual void UpdateDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const = 0;
+	virtual void WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const = 0;
+
+	/** Interface to update a dataflow content instance from that owner */
+	virtual void ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) = 0;
 	
 protected :
 
@@ -191,6 +194,10 @@ public:
 	//~ UObject interface
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif //if WITH_EDITOR
+
 protected:
 	
 	/** Data flow terminal path for evaluation */
@@ -235,6 +242,7 @@ public:
 	virtual ~UDataflowSkeletalContent() override{}
 	
 #if WITH_EDITOR
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif //if WITH_EDITOR
 
@@ -242,7 +250,7 @@ public:
 	virtual void AddContentObjects(FReferenceCollector& Collector) override;
 
 	/** Data flow skeletal mesh accessors */
-	void SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& InMesh);
+	void SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& InMesh, const bool bHideAsset = false);
 	const TObjectPtr<USkeletalMesh>& GetSkeletalMesh() const { return SkeletalMesh; }
 
 	/** Data flow skeleton accessors */
@@ -250,7 +258,7 @@ public:
 	const TObjectPtr<USkeleton>& GetSkeleton() const { return Skeleton; }
 
 	/** Data flow animation asset accessors */
-	void SetAnimationAsset(const TObjectPtr<UAnimationAsset>& InAnimation);
+	void SetAnimationAsset(const TObjectPtr<UAnimationAsset>& InAnimation, const bool bHideAsset = false);
 	const TObjectPtr<UAnimationAsset>& GetAnimationAsset() const { return AnimationAsset; }
 
 	//~ UObject interface
@@ -272,4 +280,10 @@ protected:
 	/** Animation asset to be used to preview simulation */
 	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
 	TObjectPtr<UAnimationAsset> AnimationAsset = nullptr;
+
+	/** Boolean to control if the skeletal mesh could be edited or not */
+	bool bHideSkeletalMesh = false;
+
+	/** Boolean to control if the animation asset could be edited or not */
+	bool bHideAnimationAsset = false;
 };

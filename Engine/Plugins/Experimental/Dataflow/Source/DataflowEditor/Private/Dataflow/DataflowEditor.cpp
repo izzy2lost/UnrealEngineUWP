@@ -82,16 +82,12 @@ void UDataflowEditor::UpdateEditorContent()
 	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(EditorContent))
 	{
 		// Add a skeleton mesh in case we don't have one
-		if(!SkeletalContent->GetSkeleton() && !SkeletalContent->GetSkeletalMesh())
+		if(!SkeletalContent->GetSkeleton())
 		{
-			const FName SkeletalMeshName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeletalMesh"));
-			USkeletalMesh* SkeletalMesh = NewObject<USkeletalMesh>(SkeletalContent->GetDataflowAsset(), SkeletalMeshName);
-
 			const FName SkeletonName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeleton"));
 			USkeleton* Skeleton = NewObject<USkeleton>(SkeletalContent->GetDataflowAsset(), SkeletonName);
-			
-			SkeletalMesh->SetSkeleton(Skeleton);
-			SkeletalContent->SetSkeletalMesh(SkeletalMesh);
+
+			SkeletalContent->SetSkeleton(Skeleton);
 		}
 	}
 	if(EditorContent && EditorContent->GetDataflowAsset())

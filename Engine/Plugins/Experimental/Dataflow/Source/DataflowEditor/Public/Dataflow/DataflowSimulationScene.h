@@ -28,25 +28,17 @@ public:
 	/** Set the simulation scene */
 	void SetSimulationScene(class FDataflowSimulationScene* SimulationScene);
 
+	/** Caching blueprint actor class to spawn */
+	UPROPERTY(EditAnywhere, Category = "Preview")
+	TSubclassOf<AActor> BlueprintClass = nullptr;
+
 	/** Caching asset to be used to record the simulation  */
 	UPROPERTY(EditAnywhere, Category="Caching")
 	TObjectPtr<UChaosCacheCollection> CacheAsset = nullptr;
 
-	/** Number of sampling frames per second for caching*/
+	/** Caching params used to record the simulation */
 	UPROPERTY(EditAnywhere, Category="Caching")
-	int32 FrameRate = 30;
-
-	/** Number of sampling frames per second for caching*/
-	UPROPERTY(EditAnywhere, Category="Caching")
-	FVector2f TimeRange = FVector2f(0.0f, 5.0f);
-
-	/** Caching actor class to spawn */
-	UPROPERTY(EditAnywhere, Category = "Caching")
-	TSubclassOf<AActor> ActorClass;
-
-	/** Boolean to check if the caching will be done on an async thread (if yes no GT dependency) */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Caching")
-	bool bBackgroundTask = true;
+	FDataflowPreviewCacheParams CacheParams;
 
 private:
 

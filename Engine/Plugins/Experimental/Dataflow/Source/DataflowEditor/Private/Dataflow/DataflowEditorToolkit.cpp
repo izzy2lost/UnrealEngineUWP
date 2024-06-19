@@ -547,11 +547,14 @@ public:
 FDataflowPreviewSceneDescriptionCustomization::FDataflowPreviewSceneDescriptionCustomization(const TArray<UDataflowBaseContent*>& DataflowContents) :
 	IDetailCustomization(), ContentTypesObjects()
 {
-	static const FString CategoryName = TEXT("Terminals");
+	static const FString PreviewCategory = TEXT("Preview");
+	TArray<UObject*>& PreviewObjects = ContentTypesObjects.FindOrAdd(PreviewCategory);
 	for(UDataflowBaseContent* DataflowContent : DataflowContents)
 	{
-		TArray<UObject*>& ContentTypeObjects = ContentTypesObjects.FindOrAdd(CategoryName);
-		ContentTypeObjects.Add(DataflowContent); 
+		if(DataflowContent)
+		{
+			PreviewObjects.Add(DataflowContent); 
+		}
 	}
 }
 

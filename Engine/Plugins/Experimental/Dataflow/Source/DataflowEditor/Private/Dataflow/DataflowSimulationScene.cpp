@@ -23,7 +23,20 @@ FDataflowSimulationScene::FDataflowSimulationScene(FPreviewScene::ConstructionVa
 	SimulationGenerator = MakeShared<Dataflow::FDataflowSimulationGenerator>();
 	RootSceneActor = GetWorld()->SpawnActor<AChaosCacheManager>();
 
-	SceneDescription->ActorClass = GetEditorContent()->GetPreviewClass();
+	if(GetEditorContent())
+	{
+#if WITH_EDITORONLY_DATA
+		if(SceneDescription->BlueprintClass == nullptr)
+		{
+			SceneDescription->BlueprintClass = GetEditorContent()->GetPreviewClass();
+		}
+		if(const UDataflow* DataflowAsset = GetEditorContent()->GetDataflowAsset())
+		{
+			SceneDescription->CacheParams = DataflowAsset->PreviewCacheParams;
+			SceneDescription->CacheAsset = Cast<UChaosCacheCollection>(DataflowAsset->PreviewCacheAsset.Get());
+		}
+#endif
+	}
 
 	CreateSimulationScene();
 }
@@ -126,23 +139,21 @@ void FDataflowSimulationScene::CreateSimulationScene()
 {
 	if(SimulationGenerator && SceneDescription && GetWorld())
 	{
-		SimulationGenerator->SetFrameRate(SceneDescription->FrameRate);
+		SimulationGenerator->SetCacheParams(SceneDescription->CacheParams);
 		SimulationGenerator->SetCacheAsset(SceneDescription->CacheAsset);
-		SimulationGenerator->SetActorClass(SceneDescription->ActorClass);
-		SimulationGenerator->SetTimeRange(SceneDescription->TimeRange);
-		SimulationGenerator->SetBackgroundTask(SceneDescription->bBackgroundTask);
+		SimulationGenerator->SetBlueprintClass(SceneDescription->BlueprintClass);
 		SimulationGenerator->SetDataflowContent(GetEditorContent());
 
-		TimeRange = SceneDescription->TimeRange;
-		NumFrames = (TimeRange[1] > TimeRange[0]) ? FMath::Floor((TimeRange[1] - TimeRange[0]) * SceneDescription->FrameRate) : 0;
+		TimeRange = SceneDescription->CacheParams.TimeRange;
+		NumFrames = (TimeRange[1] > TimeRange[0]) ? FMath::Floor((TimeRange[1] - TimeRange[0]) * SceneDescription->CacheParams.FrameRate) : 0;
 		
-		PreviewActor = Dataflow::SpawnSimulatedActor(SceneDescription->ActorClass, Cast<AChaosCacheManager>(RootSceneActor),
+		PreviewActor = Dataflow::SpawnSimulatedActor(SceneDescription->BlueprintClass, Cast<AChaosCacheManager>(RootSceneActor),
 			SceneDescription->CacheAsset, false, GetEditorContent());
 
 		// Setup all the skelmesh animations
 		Dataflow::SetupSkeletonAnimation(PreviewActor);
 		
-		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationEnabled(SceneDescription->CacheAsset == nullptr);
+		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationEnabled(false);
 	}
 
 	// update the selection binding since we are constantly editing the graph
@@ -197,18 +208,11 @@ void FDataflowSimulationScene::AddReferencedObjects(FReferenceCollector& Collect
 
 void FDataflowSimulationScene::SceneDescriptionPropertyChanged(const FName& PropertyName)
 {
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, FrameRate))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, CacheParams))
 	{
 		if(SimulationGenerator)
 		{
-			SimulationGenerator->SetFrameRate(SceneDescription->FrameRate);
-		}
-	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, TimeRange))
-	{
-		if(SimulationGenerator)
-		{
-			SimulationGenerator->SetTimeRange(SceneDescription->TimeRange);
+			SimulationGenerator->SetCacheParams(SceneDescription->CacheParams);
 		}
 	}
 	else if(PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, CacheAsset))
@@ -218,20 +222,25 @@ void FDataflowSimulationScene::SceneDescriptionPropertyChanged(const FName& Prop
 			SimulationGenerator->SetCacheAsset(SceneDescription->CacheAsset);
 		}
 	}
-	else if(PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, ActorClass))
+	else if(PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, BlueprintClass))
 	{
 		if(SimulationGenerator)
 		{
-			SimulationGenerator->SetActorClass(SceneDescription->ActorClass);
+			SimulationGenerator->SetBlueprintClass(SceneDescription->BlueprintClass);
 		}
 	}
-	else if(PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSimulationSceneDescription, bBackgroundTask))
+	if(GetEditorContent())
 	{
-		if(SimulationGenerator)
+		if(UDataflow* DataflowAsset = GetEditorContent()->GetDataflowAsset())
 		{
-			SimulationGenerator->SetBackgroundTask(SceneDescription->bBackgroundTask);
+#if WITH_EDITORONLY_DATA
+			DataflowAsset->PreviewCacheParams = SceneDescription->CacheParams;
+			DataflowAsset->PreviewCacheAsset = SceneDescription->CacheAsset;
+			DataflowAsset->PreviewBlueprintClass = SceneDescription->BlueprintClass;
+#endif
 		}
 	}
+	
 	// Unregister components, cache manager, selection...
 	ResetSimulationScene();
 

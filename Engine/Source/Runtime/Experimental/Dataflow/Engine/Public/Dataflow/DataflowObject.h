@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "CoreMinimal.h"
+#include "DataflowPreview.h"
 #include "Dataflow/DataflowCore.h"
 #include "EdGraph/EdGraph.h"
 #include "Templates/Function.h"
@@ -139,6 +140,32 @@ public:
 	const TArray< TObjectPtr<const UDataflowEdNode> >& GetWireframeRenderTargets() const { return WireframeRenderTargets; }
 
 	const Dataflow::FTimestamp& GetRenderingTimestamp() const { return LastModifiedRenderTarget; }
+
+#if WITH_EDITORONLY_DATA
+
+	/*
+	* The following PreviewScene properties are modeled after PreviewSkeletalMesh in USkeleton
+	*	- they are inside WITH_EDITORONLY_DATA because they are not used at game runtime
+	*	- TSoftObjectPtrs since that will make it possible to avoid loading these assets until the PreviewScene asks for them
+	*	- DuplicateTransient so that if you copy a ClothAsset it won't copy these preview properties
+	*	- AssetRegistrySearchable makes it so that if the user searches the name of a PreviewScene asset in the Asset Browser
+	*/
+
+	/** Cachie params used in this asset */
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	FDataflowPreviewCacheParams PreviewCacheParams;
+
+	/** Cache asset used in this asset */
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	TSoftObjectPtr<UObject> PreviewCacheAsset = nullptr;
+
+	/** Caching blueprint actor class to spawn */
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	TSubclassOf<AActor> PreviewBlueprintClass = nullptr;
+
+#endif
+
+
 
 };
 

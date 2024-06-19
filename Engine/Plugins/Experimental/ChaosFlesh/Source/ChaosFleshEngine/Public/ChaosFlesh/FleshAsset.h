@@ -102,10 +102,12 @@ public:
 
 	void Serialize(FArchive& Ar);
 
-	/** IDataflowContentOwner interface */
+	//~ Begin IDataflowContentOwner interface
 	virtual TObjectPtr<UDataflowBaseContent> CreateDataflowContent() override;
-	virtual void UpdateDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const override;
-
+	virtual void WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const override;
+	virtual void ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) override;
+	//~ End IDataflowContentOwner interface
+	
 	//
 	// Dataflow
 	//
@@ -147,6 +149,19 @@ public:
 	/** Information for thumbnail rendering */
 	UPROPERTY()
 	TObjectPtr<class UThumbnailInfo> ThumbnailInfo;
+
+	/*
+	* The following PreviewScene properties are modeled after PreviewSkeletalMesh in USkeleton
+	*	- they are inside WITH_EDITORONLY_DATA because they are not used at game runtime
+	*	- TSoftObjectPtrs since that will make it possible to avoid loading these assets until the PreviewScene asks for them
+	*	- DuplicateTransient so that if you copy a ClothAsset it won't copy these preview properties
+	*	- AssetRegistrySearchable makes it so that if the user searches the name of a PreviewScene asset in the Asset Browser
+	*/
+
+	/** Animation asset used in this asset */
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	TSoftObjectPtr<UAnimationAsset> PreviewAnimationAsset = nullptr;
+	
 #endif // WITH_EDITORONLY_DATA
 
 };

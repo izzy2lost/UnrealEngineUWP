@@ -80,20 +80,34 @@ TObjectPtr<UDataflowBaseContent> UFleshAsset::CreateDataflowContent()
 	SkeletalContent->SetDataflowOwner(this);
 	SkeletalContent->SetTerminalAsset(this);
 
-	UpdateDataflowContent(SkeletalContent);
+	WriteDataflowContent(SkeletalContent);
 	
 	return SkeletalContent;
 }
 
-void UFleshAsset::UpdateDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
+void UFleshAsset::WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
 {
 	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
 	{
 		SkeletalContent->SetDataflowAsset(DataflowAsset);
 		SkeletalContent->SetDataflowTerminal(DataflowTerminal);
 		
-		SkeletalContent->SetSkeletalMesh(SkeletalMesh);
+		SkeletalContent->SetSkeletalMesh(SkeletalMesh, true);
 		SkeletalContent->SetSkeleton(Skeleton);
+
+#if WITH_EDITORONLY_DATA
+		SkeletalContent->SetAnimationAsset(PreviewAnimationAsset.Get());
+#endif
+	}
+}
+
+void UFleshAsset::ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent)
+{
+	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	{
+#if WITH_EDITORONLY_DATA
+		PreviewAnimationAsset = SkeletalContent->GetAnimationAsset();
+#endif
 	}
 }
 

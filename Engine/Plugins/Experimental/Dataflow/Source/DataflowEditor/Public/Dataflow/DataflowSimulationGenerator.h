@@ -8,6 +8,7 @@
 #include "Logging/LogMacros.h"
 #include "Misc/AsyncTaskNotification.h"
 #include "Dataflow/DataflowContent.h"
+#include "Dataflow/DataflowPreview.h"
 #include "Dataflow/DataflowSimulationUtils.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDataflowSimulationGenerator, Log, All);
@@ -151,23 +152,17 @@ namespace Dataflow
 		virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
 		//~ End FTickableEditorObject Interface
 
-		/** Set the frame rate for cache recording */
-		void SetFrameRate(const int32 InFrameRate);
-
-		/** Set the time range for cache recording */
-		void SetTimeRange(const FVector2f& InTimeRange);
+		/** Set the blueprint class for cache recording */
+		void SetBlueprintClass(const TSubclassOf<AActor>& InBlueprintClass);
+		
+		/** Set the cache params for cache recording */
+		void SetCacheParams(const FDataflowPreviewCacheParams& InCacheParams);
 
 		/** Set the cache asset for cache recording */
 		void SetCacheAsset(const TObjectPtr<UChaosCacheCollection>& InCacheAsset);
 
-		/** Set the actor class for cache recording */
-		void SetActorClass(const TSubclassOf<AActor>& InActorClass);
-
 		/** Set the dataflow content */
 		void SetDataflowContent(const TObjectPtr<UDataflowBaseContent>& InDataflowContent);
-
-		/** Set the background task boolean */
-		void SetBackgroundTask(const bool bInBackgroundTask);
 
 		/** Enqueue a generator action to be processed on the async thread */
 		void RequestGeneratorAction(EDataflowGeneratorActions Action);
@@ -186,17 +181,11 @@ namespace Dataflow
 		/** Cache asset to store the caches */
 		TObjectPtr<UChaosCacheCollection> CacheAsset = nullptr;
 
-		/** Frame rate used to record the cache */
-		int32 FrameRate = 30;
+		/** Cache params used to record simulation */
+		FDataflowPreviewCacheParams CacheParams;
 
-		/** Time range used to generate the cache */
-		FVector2f TimeRange = FVector2f(0.0f, 5.0f);
-
-		/** Boolean to control if the task is going to be run in the background */
-		bool bBackgroundTask = false;
-
-		/** Chaos cache manager BP class to be spawned */
-		TSubclassOf<AActor> ActorClass;
+		/** Blueprint class used to spawn the actor */
+		TSubclassOf<AActor> BlueprintClass = nullptr;
 
 		/** Dataflow content */
 		TObjectPtr<UDataflowBaseContent> DataflowContent;
