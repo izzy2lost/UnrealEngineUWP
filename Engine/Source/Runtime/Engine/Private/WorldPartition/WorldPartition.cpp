@@ -1101,7 +1101,11 @@ UWorldPartition* UWorldPartition::CreateOrRepairWorldPartition(AWorldSettings* W
 
 		WorldSettings->MarkPackageDirty();
 
-		WorldPartition->DefaultHLODLayer = UHLODLayer::GetEngineDefaultHLODLayersSetup();
+		// Assign a copy of the default HLOD layers setup to this new map
+		if (UHLODLayer* HLODLayerTemplate = UHLODLayer::GetEngineDefaultHLODLayersSetup())
+		{
+			WorldPartition->DefaultHLODLayer = UHLODLayer::DuplicateHLODLayersSetup(HLODLayerTemplate, WorldPartition->GetPackage()->GetName(), WorldPartition->GetWorld()->GetName());
+		}
 
 		AWorldDataLayers* WorldDataLayers = OuterWorld->GetWorldDataLayers();
 		if (!WorldDataLayers)

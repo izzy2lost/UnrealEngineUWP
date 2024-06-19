@@ -45,6 +45,7 @@
 #include "SNewLevelInstanceDialog.h"
 #include "MessageLogModule.h"
 #include "Settings/EditorExperimentalSettings.h"
+#include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/WorldPartitionConverter.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "ScopedTransaction.h"
@@ -777,6 +778,16 @@ struct FLevelInstanceMenuUtils
 			TSet<UPackage*> PackagesToSaveSet(PackagesToSave);
 
 			PackagesToSaveSet.Add(WorldAsset->GetPackage());
+			
+			UHLODLayer* NewHLODLayer = WorldAsset->GetWorldPartition()->GetDefaultHLODLayer();
+			while (NewHLODLayer && NewHLODLayer->GetPackage())
+			{
+				if (NewHLODLayer->GetPackage()->IsDirty())
+				{
+					PackagesToSaveSet.Emplace(NewHLODLayer->GetPackage());
+				}
+				NewHLODLayer = NewHLODLayer->GetParentLayer();
+			}
 
 			const bool bPromptUserToSave = false;
 			const bool bSaveMapPackages = true;
