@@ -78,6 +78,18 @@ struct FTestFragment_Array : public FMassFragment
 };
 
 USTRUCT()
+struct FFragmentWithSharedPtr : public FMassFragment
+{
+	GENERATED_BODY()
+	TSharedPtr<int32> Data;
+
+	FFragmentWithSharedPtr() = default;
+	FFragmentWithSharedPtr(TSharedPtr<int32>& InData)
+		: Data(InData)
+	{}
+};
+
+USTRUCT()
 struct FTestChunkFragment_Int : public FMassChunkFragment
 {
 	GENERATED_BODY()
