@@ -171,7 +171,7 @@ FName UOptimusNode_ComputeKernelFunction::GetNodeCategory() const
 }
 
 
-FString UOptimusNode_ComputeKernelFunction::GetKernelName() const
+FString UOptimusNode_ComputeKernelFunction::GetKernelHlslName() const
 {
 	return GetGeneratorClass()->KernelName.ToString();
 }
@@ -185,7 +185,7 @@ FIntVector UOptimusNode_ComputeKernelFunction::GetGroupSize() const
 
 FString UOptimusNode_ComputeKernelFunction::GetKernelSourceText() const
 {
-	return Optimus::GetCookedKernelSource(GetPathName(), GetGeneratorClass()->ShaderSource, GetKernelName(), GetGroupSize());
+	return Optimus::GetCookedKernelSource(GetPathName(), GetGeneratorClass()->ShaderSource, GetKernelHlslName(), GetGroupSize());
 }
 
 

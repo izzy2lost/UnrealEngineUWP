@@ -54,7 +54,7 @@ public:
 	void PostLoadNodeSpecificData() override;
 
 	// UOptimusNode_ComputeKernelBase overrides
-	FString GetKernelName() const override { return KernelName.ToString(); }
+	FString GetKernelHlslName() const override;
 	FIntVector GetGroupSize() const override { return GroupSize; }
 	FString GetKernelSourceText() const override;
 	TArray<TObjectPtr<UComputeSource>> GetAdditionalSources() const override { return AdditionalSources; }
