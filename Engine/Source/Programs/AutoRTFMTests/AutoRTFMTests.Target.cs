@@ -34,5 +34,7 @@ public class AutoRTFMTestsTarget : TargetRules
 		}
 
 		bFNameOutlineNumber = true;
+
+		MinCpuArchX64 = MinimumCpuArchitectureX64.AVX;
 	}
 }

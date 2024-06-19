@@ -93,6 +93,29 @@ extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write_8(void* P
 	Context->RecordWrite<8>(Ptr);
 }
 
+extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_masked_write(void* Ptr, uintptr_t Mask, int MaskWidthBits, int ValueSizeBytes)
+{
+	// check for writes to null here so we end up crashing in the user
+	// code rather than in the autortfm runtime.
+	if (UNLIKELY(nullptr == Ptr))
+	{
+		return;
+	}
+
+	FContext* Context = FContext::Get();
+
+	char* IncrementablePtr = static_cast<char*>(Ptr);
+	for(int i = 0; i < MaskWidthBits; i++)
+	{
+		if (Mask & (1u << i))
+		{
+			autortfm_record_write(IncrementablePtr, ValueSizeBytes);
+		}
+
+		IncrementablePtr += ValueSizeBytes;
+	}
+}
+
 extern "C" UE_AUTORTFM_API void* autortfm_lookup_function(void* OriginalFunction, const char* Where)
 {
 	FContext* Context = FContext::Get();
