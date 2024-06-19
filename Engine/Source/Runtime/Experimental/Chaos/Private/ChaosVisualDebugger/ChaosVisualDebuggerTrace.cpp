@@ -18,6 +18,7 @@
 #include "Compression/OodleDataCompressionUtil.h"
 #include "DataWrappers/ChaosVDCharacterGroundConstraintDataWrappers.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
+#include "DataWrappers/ChaosVDDebugShapeDataWrapper.h"
 #include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
 #include "DataWrappers/ChaosVDJointDataWrappers.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
@@ -846,6 +847,120 @@ void FChaosVisualDebuggerTrace::TraceNetworkTickOffset(int32 TickOffset, int32 S
 	UE_TRACE_LOG(ChaosVDLogger, ChaosVDNetworkTickOffset, ChaosVDChannel)
 		<< ChaosVDNetworkTickOffset.Offset(TickOffset)
 		<< ChaosVDNetworkTickOffset.SolverID(SolverID);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawBox(const FBox& InBox, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawBoxDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.Box = InBox;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawBoxDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawLine(const FVector& InStartLocation, const FVector& InEndLocation, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawLineDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.StartLocation = InStartLocation;
+	DataWrapper.EndLocation = InEndLocation;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawLineDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawVector(const FVector& InStartLocation, const FVector& InVector, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawLineDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.StartLocation = InStartLocation;
+	DataWrapper.EndLocation = InStartLocation + InVector;
+	DataWrapper.bIsArrow = true;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawLineDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawSphere(const FVector& Center, float Radius, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawSphereDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.Origin = Center;
+	DataWrapper.Radius = Radius;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawSphereDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceDebugDrawImplicitObject(const Chaos::FImplicitObject* Implicit, const FTransform& InParentTransform, FName Tag, FColor Color, int32 SolverID)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	FChaosVDDebugDrawImplicitObjectDataWrapper DataWrapper;
+	DataWrapper.SolverID = SolverID;
+	DataWrapper.Tag = Tag;
+	DataWrapper.Color = Color;
+	DataWrapper.ParentTransform = InParentTransform;
+
+	const uint32 GeometryHash = GeometryTracerObject.GetGeometryHashForImplicit(Implicit);
+	TraceImplicitObject({ GeometryHash, const_cast<Chaos::FImplicitObject*>(Implicit) });
+
+	DataWrapper.ImplicitObjectHash = GeometryHash;
+
+	DataWrapper.MarkAsValid();
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+	Chaos::VisualDebugger::WriteDataToBuffer(TLSDataBuffer.BufferRef, DataWrapper);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDDebugDrawImplicitObjectDataWrapper::WrapperTypeName);
 }
 
 bool FChaosVisualDebuggerTrace::IsTracing()

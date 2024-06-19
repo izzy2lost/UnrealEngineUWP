@@ -198,7 +198,8 @@ public:
 	 */
 	TSharedPtr<UE::Geometry::FMeshShapeGenerator> CreateMeshGeneratorForImplicitObject(const Chaos::FImplicitObject* InImplicit, float SimpleShapesComplexityFactor = 1.0f);
 
-private:
+	/** Returns true if the implicit object if of one of the types we need to unpack before generating a mesh for it */
+	bool ImplicitObjectNeedsUnpacking(const Chaos::FImplicitObject* InImplicitObject) const;
 
 	const Chaos::FImplicitObject* UnpackImplicitObject(const Chaos::FImplicitObject* InImplicitObject, Chaos::FRigidTransform3& InOutTransform) const;
 	
@@ -212,9 +213,6 @@ private:
 	 * @return Returns a handle to the generated data that can be used to access the generated mesh when ready
 	 */
 	TSharedPtr<FChaosVDExtractedGeometryDataHandle> ExtractGeometryDataForImplicit(const Chaos::FImplicitObject* InImplicitObject, const Chaos::FRigidTransform3& InTransform);
-
-	/** Returns true if the implicit object if of one of the types we need to unpack before generating a mesh for it */
-	bool ImplicitObjectNeedsUnpacking(const Chaos::FImplicitObject* InImplicitObject) const;
 
 	/**
 	 * Creates a Mesh from the provided Implicit object geometry data. This is a async operation, and the mesh will be assigned to the component once is ready

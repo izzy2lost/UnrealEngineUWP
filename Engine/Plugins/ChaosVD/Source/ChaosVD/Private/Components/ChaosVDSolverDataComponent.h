@@ -6,6 +6,7 @@
 #include "ChaosVDSolverDataComponent.generated.h"
 
 class FChaosVDScene;
+struct FChaosVDGameFrameData;
 /**
  * Base class for all components that stores recorded solver data
  */
@@ -17,8 +18,14 @@ public:
 	virtual void ClearData() PURE_VIRTUAL(UChaosVDSolverDataComponent::ClearData);
 	virtual void SetScene(const TWeakPtr<FChaosVDScene>& InSceneWeakPtr);
 
+	virtual void UpdateFromNewGameFrameData(const FChaosVDGameFrameData& InGameFrameData) {};
+	
+	void SetSolverID(int32 InSolverID) { SolverID = InSolverID; }
+
 protected:
 
 	TWeakPtr<FChaosVDScene> SceneWeakPtr;
+
+	int32 SolverID = INDEX_NONE;
 };
 

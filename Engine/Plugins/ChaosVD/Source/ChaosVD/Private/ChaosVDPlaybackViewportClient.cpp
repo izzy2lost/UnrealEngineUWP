@@ -14,7 +14,9 @@
 #include "SEditorViewport.h"
 #include "Selection.h"
 #include "UnrealWidget.h"
+#include "Actors/ChaosVDGameFrameInfoActor.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
+#include "Components/ChaosVDGenericDebugDrawDataComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 #include "Widgets/SChaosVDMainTab.h"
@@ -238,21 +240,19 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 	{
 		//TODO: Currently we can safely assume that any component in these actors is meant to have a visualizer, but we might need a proper interface for these components in the future
 		TInlineComponentArray<const UActorComponent*> ComponentsToVisualize;
-		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverInfoWithID : ScenePtr->GetSolverInfoActorsMap())
+
+
+		TConstArrayView<TObjectPtr<AChaosVDDataContainerBaseActor>> DataContainerActors = ScenePtr->GetDataContainerActorsView();
+		for (const TObjectPtr<AChaosVDDataContainerBaseActor>& DataContainerActor : DataContainerActors)
 		{
-			if (SolverInfoWithID.Value)
+			if (DataContainerActor)
 			{
 				constexpr bool bIncludeFromChildActors = false;
-				SolverInfoWithID.Value->ForEachComponent(bIncludeFromChildActors, [&ComponentsToVisualize](UActorComponent* Component)
+				DataContainerActor->ForEachComponent(bIncludeFromChildActors, [&ComponentsToVisualize](UActorComponent* Component)
 				{
 					ComponentsToVisualize.Emplace(Component);
 				});
 			}
-		}
-
-		if (const UChaosVDSceneQueryDataComponent* SceneQueryDataComponent = ScenePtr->GetSceneQueryDataContainerComponent())
-		{
-			ComponentsToVisualize.Emplace(SceneQueryDataComponent);
 		}
 
 		for (const UActorComponent* Component : ComponentsToVisualize)

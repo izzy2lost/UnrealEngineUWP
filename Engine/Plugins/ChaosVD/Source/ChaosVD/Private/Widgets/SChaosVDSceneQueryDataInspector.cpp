@@ -318,10 +318,10 @@ void SChaosVDSceneQueryDataInspector::SetQueryDataToInspect(const TSharedPtr<FCh
 		{
 			TArray<TSharedPtr<FName>> NewSubQueryNameList;
 			NewSubQueryNameList.Reserve(QueryDataToInspect->SubQueriesIDs.Num());
-			Algo::Transform(QueryDataToInspect->SubQueriesIDs, NewSubQueryNameList, [this](int32 QueryID)
+			Algo::Transform(QueryDataToInspect->SubQueriesIDs, NewSubQueryNameList, [this, &QueryDataToInspect](int32 QueryID)
 			{
 				TSharedPtr<FName> NewName = MakeShared<FName>(FString::Format(TEXT("Query ID {0}"), {QueryID}));
-				CurrentSubQueriesByName.Add(NewName, QueryID);
+				CurrentSubQueriesByName.Add(NewName, {QueryID, QueryDataToInspect->WorldSolverID});
 				return NewName;
 			});
 
@@ -370,7 +370,8 @@ void SChaosVDSceneQueryDataInspector::HandleQueryStepSelectionUpdated(int32 NewS
 		return;
 	}
 
-	UChaosVDSceneQueryDataComponent* SQDataComponent = ScenePtr->GetSceneQueryDataContainerComponent();
+	AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(QueryDataBeingInspected->WorldSolverID);
+	UChaosVDSceneQueryDataComponent* SQDataComponent = SolverInfoActor ? SolverInfoActor->GetSceneQueryDataComponent() : nullptr;
 	if (!SQDataComponent)
 	{
 		ClearInspector();
@@ -467,7 +468,7 @@ FReply SChaosVDSceneQueryDataInspector::SelectParticleForCurrentQueryData() cons
 	return FReply::Handled();
 }
 
-FReply SChaosVDSceneQueryDataInspector::SelectQueryToInspectByID(int32 QueryID)
+FReply SChaosVDSceneQueryDataInspector::SelectQueryToInspectByID(int32 QueryID, int32 SolverID)
 {
 	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
 	if (!ScenePtr)
@@ -481,7 +482,8 @@ FReply SChaosVDSceneQueryDataInspector::SelectQueryToInspectByID(int32 QueryID)
 		return FReply::Handled();
 	}
 
-	if (UChaosVDSceneQueryDataComponent* SQDataComponent = ScenePtr->GetSceneQueryDataContainerComponent())
+	AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(SolverID);
+	if (UChaosVDSceneQueryDataComponent* SQDataComponent = SolverInfoActor ? SolverInfoActor->GetSceneQueryDataComponent() : nullptr)
 	{						
 		SelectionObject->SelectData(SelectionObject->MakeSelectionHandle(SQDataComponent->GetQueryByID(QueryID)));
 	}
@@ -496,10 +498,10 @@ FReply SChaosVDSceneQueryDataInspector::SelectQueryToInspectByID(int32 QueryID)
 FReply SChaosVDSceneQueryDataInspector::SelectParentQuery()
 {
 	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
-	const UChaosVDSceneQueryDataComponent* SQDataComponent = ScenePtr ? ScenePtr->GetSceneQueryDataContainerComponent() : nullptr;
-	if (const TSharedPtr<FChaosVDQueryDataWrapper> SelectedQuery = SQDataComponent ? CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>() : nullptr)
-	{
-		SelectQueryToInspectByID(SelectedQuery->ParentQueryID);
+
+	if (const TSharedPtr<FChaosVDQueryDataWrapper> SelectedQuery = CurrentSceneQueryBeingInspectedHandle->GetDataAsShared<FChaosVDQueryDataWrapper>())
+	{		
+		SelectQueryToInspectByID(SelectedQuery->ParentQueryID, SelectedQuery->WorldSolverID);
 	}
 	else
 	{
@@ -543,9 +545,9 @@ void SChaosVDSceneQueryDataInspector::HandleSubQueryNameSelected(TSharedPtr<FNam
 		return;
 	}
 
-	if (const int32* SelectedQueryID = CurrentSubQueriesByName.Find(Name))
+	if (const FChaosVDSQSubQueryID* SelectedQueryID = CurrentSubQueriesByName.Find(Name))
 	{
-		SelectQueryToInspectByID(*SelectedQueryID);
+		SelectQueryToInspectByID(SelectedQueryID->QueryID, SelectedQueryID->SolverID);
 		return;
 	}
 

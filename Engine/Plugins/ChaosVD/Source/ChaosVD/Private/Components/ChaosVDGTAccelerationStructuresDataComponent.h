@@ -5,8 +5,8 @@
 #include "ChaosVDSolverDataComponent.h"
 #include "ChaosVDGTAccelerationStructuresDataComponent.generated.h"
 
-
 struct FChaosVDAABBTreeDataWrapper;
+struct FChaosVDGameFrameData;
 
 UCLASS()
 class UChaosVDGTAccelerationStructuresDataComponent : public UChaosVDSolverDataComponent
@@ -20,6 +20,8 @@ public:
 	void UpdateAABBTreeData(TConstArrayView<TSharedPtr<FChaosVDAABBTreeDataWrapper>> AABBTreeDataView);
 
 	TConstArrayView<TSharedPtr<FChaosVDAABBTreeDataWrapper>> GetAABBTreeData() const { return RecordedABBTreeData; }
+
+	virtual void UpdateFromNewGameFrameData(const FChaosVDGameFrameData& InGameFrameData) override;
 
 	virtual void ClearData() override;
 protected:

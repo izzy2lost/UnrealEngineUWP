@@ -12,12 +12,40 @@
 
 #include "Chaos/Character/CharacterGroundConstraintContainer.h"
 #include "Chaos/Collision/ParticlePairMidPhase.h"
-#include "Chaos/Collision/CollisionConstraintAllocator.h"
 #include "Chaos/ParticleHandle.h"
 #include "ChaosVisualDebugger/ChaosVDSerializedNameTable.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Math/UnitConversion.h"
+
+namespace Chaos::VisualDebugger::Utils
+{
+	FGeometryParticle* GetPayloadForExternalThread(const Chaos::FAccelerationStructureHandle& Payload)
+	{
+		return Payload.GetExternalGeometryParticle_ExternalThread();	
+	}
+
+	/** Calculates and returns the current Game Thread bounds for the provided particle */
+	FBox GetGeometricGTParticleBounds(const FGeometryParticle* GeometryParticle)
+	{
+		using namespace Chaos;
+		const FShapesArray& Shapes = GeometryParticle->ShapesArray();
+
+		FBox Bounds(ForceInitToZero);
+
+		for (const TUniquePtr<FPerShapeData>& Shape : Shapes)
+		{
+			Bounds += FBox(Shape->GetWorldSpaceShapeBounds().Min(), Shape->GetWorldSpaceShapeBounds().Max());
+		}
+
+		return Bounds;
+	}
+
+	FBox GetPayloadBounds(const FAccelerationStructureHandle& Payload)
+	{
+		return GetGeometricGTParticleBounds(GetPayloadForExternalThread(Payload));
+	}
+}
 
 void FChaosVDDataWrapperUtils::CopyManifoldPointsToDataWrapper(const Chaos::FManifoldPoint& InCopyFrom, FChaosVDManifoldPoint& OutCopyTo)
 {
@@ -493,6 +521,7 @@ void FChaosVDDataWrapperUtils::AddTreeLeaves(const TConstArrayView<Chaos::TAABBT
 			FChaosVDAABBTreePayloadBoundsElement CVELeafElement;
 			CVELeafElement.ParticleIndex = GetUniqueIdx(Elem).Idx;
 			CVELeafElement.Bounds = ConvertToFBox(Elem.Bounds);
+			CVELeafElement.ActualBounds = VisualDebugger::Utils::GetPayloadBounds(Elem.Payload);
 
 			CVELeafElement.MarkAsValid();
 	

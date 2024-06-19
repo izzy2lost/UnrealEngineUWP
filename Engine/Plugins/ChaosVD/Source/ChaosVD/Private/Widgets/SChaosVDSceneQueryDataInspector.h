@@ -16,6 +16,12 @@ struct FChaosVDQueryDataWrapper;
 class IStructureDetailsView;
 class FChaosVDScene;
 
+struct FChaosVDSQSubQueryID
+{
+	int32 QueryID = INDEX_NONE;
+	int32 SolverID = INDEX_NONE;
+};
+
 /**
  * Widget for the Chaos Visual Debugger Scene Queries data inspector
  */
@@ -53,7 +59,7 @@ protected:
 	FText GetSQVisitsStepsText() const;
 	
 	FReply SelectParticleForCurrentQueryData() const;
-	FReply SelectQueryToInspectByID(int32 QueryID);
+	FReply SelectQueryToInspectByID(int32 QueryID, int32 SolverID);
 	FReply SelectParentQuery();
 
 	static TSharedPtr<IStructureDetailsView> CreateDataDetailsView();
@@ -88,7 +94,7 @@ protected:
 
 	TWeakPtr<FEditorModeTools> EditorModeToolsWeakPtr;
 
-	TMap<TSharedPtr<FName>, int32> CurrentSubQueriesByName;
+	TMap<TSharedPtr<FName>, FChaosVDSQSubQueryID> CurrentSubQueriesByName;
 	
 	TSharedRef<FChaosVDSolverDataSelectionHandle> CurrentSceneQueryBeingInspectedHandle;
 

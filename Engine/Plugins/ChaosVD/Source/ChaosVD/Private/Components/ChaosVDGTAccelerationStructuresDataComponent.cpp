@@ -2,6 +2,7 @@
 
 #include "ChaosVDGTAccelerationStructuresDataComponent.h"
 
+#include "ChaosVDRecording.h"
 #include "Algo/Copy.h"
 
 UChaosVDGTAccelerationStructuresDataComponent::UChaosVDGTAccelerationStructuresDataComponent()
@@ -16,6 +17,14 @@ void UChaosVDGTAccelerationStructuresDataComponent::UpdateAABBTreeData(TConstArr
 {
 	RecordedABBTreeData.Reset(AABBTreeDataView.Num());
 	Algo::Copy(AABBTreeDataView, RecordedABBTreeData);
+}
+
+void UChaosVDGTAccelerationStructuresDataComponent::UpdateFromNewGameFrameData(const FChaosVDGameFrameData& InGameFrameData)
+{
+	if (const TArray<TSharedPtr<FChaosVDAABBTreeDataWrapper>>* RecordedAABBTreesData = InGameFrameData.RecordedAABBTreesBySolverID.Find(SolverID))
+	{
+		UpdateAABBTreeData(*RecordedAABBTreesData);
+	}
 }
 
 void UChaosVDGTAccelerationStructuresDataComponent::ClearData()

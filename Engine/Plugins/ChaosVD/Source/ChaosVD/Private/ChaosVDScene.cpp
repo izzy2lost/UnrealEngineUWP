@@ -2,7 +2,6 @@
 
 #include "ChaosVDScene.h"
 
-#include "Actors/ChaosVDSceneQueryDataContainer.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
@@ -28,10 +27,10 @@
 #include "Materials/Material.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Selection.h"
+#include "Actors/ChaosVDGameFrameInfoActor.h"
 #include "Settings/ChaosVDCoreSettings.h"
 #include "UObject/Package.h"
 #include "Actors/ChaosVDGeometryContainer.h"
-#include "Components/ChaosVDGTAccelerationStructuresDataComponent.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -137,6 +136,7 @@ void FChaosVDScene::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(ObjectSelection);
 	Collector.AddReferencedObject(ActorSelection);
 	Collector.AddReferencedObject(ComponentSelection);
+	Collector.AddStableReferenceArray(&AvailableDataContainerActors);
 }
 
 void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData)
@@ -283,31 +283,51 @@ void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& 
 	}
 }
 
-void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
+AChaosVDSolverInfoActor* FChaosVDScene::GetOrCreateSolverInfoActor(int32 SolverID)
 {
-	if (!SolverDataContainerBySolverID.Contains(SolverID))
+	if (AChaosVDSolverInfoActor** SolverInfoActorPtrPtr = SolverDataContainerBySolverID.Find(SolverID))
 	{
-		AChaosVDSolverInfoActor* SolverDataInfo = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
-		check(SolverDataInfo);
-
-		FName SolverName = LoadedRecording->GetSolverFName_AssumedLocked(SolverID);
-		FString NameAsString = SolverName.ToString();
-		const bool bIsServer = NameAsString.Contains(TEXT("Server"));
-
-		const FStringFormatOrderedArguments Args {NameAsString, FString::FromInt(SolverID)};
-		const FName FolderPath = *FString::Format(TEXT("Solver {0} | ID {1}"), Args);
-
-		SolverDataInfo->SetFolderPath(FolderPath);
-
-		SolverDataInfo->SetSolverID(SolverID);
-		SolverDataInfo->SetSolverName(SolverName);
-		SolverDataInfo->SetScene(AsWeak());
-		SolverDataInfo->SetIsServer(bIsServer);
-
-		SolverDataContainerBySolverID.Add(SolverID, SolverDataInfo);
-
-		SolverInfoActorCreatedDelegate.Broadcast(SolverDataInfo);
+		return *SolverInfoActorPtrPtr;
 	}
+	
+	AChaosVDSolverInfoActor* SolverDataInfo = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
+	check(SolverDataInfo);
+
+	FName SolverName = LoadedRecording->GetSolverFName_AssumedLocked(SolverID);
+	FString NameAsString = SolverName.ToString();
+	const bool bIsServer = NameAsString.Contains(TEXT("Server"));
+
+	const FStringFormatOrderedArguments Args {NameAsString, FString::FromInt(SolverID)};
+	const FName FolderPath = *FString::Format(TEXT("Solver {0} | ID {1}"), Args);
+
+	SolverDataInfo->SetFolderPath(FolderPath);
+
+	SolverDataInfo->SetSolverID(SolverID);
+	SolverDataInfo->SetSolverName(SolverName);
+	SolverDataInfo->SetScene(AsWeak());
+	SolverDataInfo->SetIsServer(bIsServer);
+
+	SolverDataContainerBySolverID.Add(SolverID, SolverDataInfo);
+	AvailableDataContainerActors.Add(SolverDataInfo);
+
+	SolverInfoActorCreatedDelegate.Broadcast(SolverDataInfo);
+
+	return SolverDataInfo;
+}
+
+AChaosVDGameFrameInfoActor* FChaosVDScene::GetOrCreateGameFrameInfoActor()
+{
+	if (!GameFrameDataInfoActor)
+	{
+		const FName FolderPath("ChaosVisualDebugger/GameFrameData");
+
+		GameFrameDataInfoActor = PhysicsVDWorld->SpawnActor<AChaosVDGameFrameInfoActor>();
+		GameFrameDataInfoActor->SetFolderPath(FolderPath);
+		GameFrameDataInfoActor->SetScene(AsWeak());
+		AvailableDataContainerActors.Add(GameFrameDataInfoActor);
+	}
+
+	return GameFrameDataInfoActor;
 }
 
 void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32, TInlineAllocator<16>>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData, TArray<int32, TInlineAllocator<16>>& OutRemovedSolversIds)
@@ -325,7 +345,10 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 	{
 		AvailableSolversSet.Add(SolverID);
 
-		CreateSolverInfoActor(SolverID);
+		if (AChaosVDSolverInfoActor* SolverInfoActor = GetOrCreateSolverInfoActor(SolverID))
+		{
+			SolverInfoActor->UpdateFromNewGameFrameData(InNewGameFrameData);
+		}
 	}
 
 	int32 AmountRemoved = 0;
@@ -338,6 +361,7 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 
 			if (AChaosVDSolverInfoActor* SolverInfoActor = RemoveIterator.Value())
 			{
+				AvailableDataContainerActors.Remove(SolverInfoActor);
 				PhysicsVDWorld->DestroyActor(SolverInfoActor);
 			}
 
@@ -353,26 +377,9 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 	}
 
-	if (SceneQueriesContainer)
+	if (AChaosVDGameFrameInfoActor* GameFrameDataContainer = GetOrCreateGameFrameInfoActor())
 	{
-		if (UChaosVDSceneQueryDataComponent* QueryDataComponent = SceneQueriesContainer->GetSceneQueryDataComponent())
-		{
-			QueryDataComponent->UpdateQueriesFromFrameData(InNewGameFrameData);
-		}
-	}
-
-	for (const TPair<int32, TArray<TSharedPtr<FChaosVDAABBTreeDataWrapper>>>& AABBTreeDataWithSolverID : InNewGameFrameData.RecordedAABBTreesBySolverID)
-	{
-		if (AChaosVDSolverInfoActor** SolverInfoActorPtrPtr =  SolverDataContainerBySolverID.Find(AABBTreeDataWithSolverID.Key))
-		{
-			if (AChaosVDSolverInfoActor* SolverInfoActorPtr = *SolverInfoActorPtrPtr)
-			{
-				if (UChaosVDGTAccelerationStructuresDataComponent* GTAccelerationStructureDataComponent = SolverInfoActorPtr->GetGTAccelerationStructuresDataComponent())
-				{
-					GTAccelerationStructureDataComponent->UpdateAABBTreeData(AABBTreeDataWithSolverID.Value);
-				}
-			}
-		}
+		GameFrameDataContainer->UpdateFromNewGameFrameData(InNewGameFrameData);
 	}
 }
 
@@ -393,9 +400,13 @@ void FChaosVDScene::HandleEnterNewSolverFrame(int32 FrameNumber, const FChaosVDS
 
 void FChaosVDScene::CleanUpScene(EChaosVDSceneCleanUpOptions Options)
 {
+	// AvailableDataContainerActors should always be at least the number of solver actors created
+	ensure(AvailableDataContainerActors.Num() >= SolverDataContainerBySolverID.Num());
+
+	if (AvailableDataContainerActors.Num() > 0)
 	{
 		constexpr float AmountOfWork = 1.0f;
-		const float PercentagePerElement = 1.0f / SolverDataContainerBySolverID.Num();
+		const float PercentagePerElement = 1.0f / AvailableDataContainerActors.Num();
 
 		FScopedSlowTask CleaningSceneSlowTask(AmountOfWork, LOCTEXT("CleaningupSceneSolverMessage", "Clearing Solver Data ..."));
 		CleaningSceneSlowTask.MakeDialog();
@@ -404,14 +415,20 @@ void FChaosVDScene::CleanUpScene(EChaosVDSceneCleanUpOptions Options)
 
 		if (PhysicsVDWorld)
 		{
-			for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
+			for (TObjectPtr<AChaosVDDataContainerBaseActor>& DataContainerActor : AvailableDataContainerActors)
 			{
-				PhysicsVDWorld->DestroyActor(SolverDataInfoWithID.Value);
+				if (DataContainerActor)
+				{
+					PhysicsVDWorld->DestroyActor(DataContainerActor.Get());
+				}
+
 				CleaningSceneSlowTask.EnterProgressFrame(PercentagePerElement);
 			}
 		}
 
+		AvailableDataContainerActors.Reset();
 		SolverDataContainerBySolverID.Reset();
+		GameFrameDataInfoActor = nullptr;
 	}
 
 	if (Chaos::VisualDebugger::Cvars:: bReInitializeGeometryBuilderOnCleanup && EnumHasAnyFlags(Options, EChaosVDSceneCleanUpOptions::ReInitializeGeometryBuilder))
@@ -427,8 +444,6 @@ void FChaosVDScene::CleanUpScene(EChaosVDSceneCleanUpOptions Options)
 		GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
 		GeometryGenerator->Initialize(AsWeak());
 	}
-	
-	SceneQueriesContainer->CleanUp();
 
 	if (EnumHasAnyFlags(Options, EChaosVDSceneCleanUpOptions::CollectGarbage))
 	{
@@ -492,11 +507,6 @@ bool FChaosVDScene::IsSolverForServer(int32 SolverID) const
 	}
 
 	return false;
-}
-
-UChaosVDSceneQueryDataComponent* FChaosVDScene::GetSceneQueryDataContainerComponent() const
-{
-	return SceneQueriesContainer ? SceneQueriesContainer->GetSceneQueryDataComponent() : nullptr;
 }
 
 AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData, const FChaosVDSolverFrameData& InFrameData)
@@ -567,15 +577,6 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 	}
 }
 
-void FChaosVDScene::CreateSceneQueriesContainer(UWorld* TargetWorld)
-{
-	const FName FolderPath("ChaosVisualDebugger/SceneQueries");
-
-	SceneQueriesContainer = TargetWorld->SpawnActor<AChaosVDSceneQueryDataContainer>();
-	SceneQueriesContainer->SetFolderPath(FolderPath);
-	SceneQueriesContainer->SetScene(AsWeak());
-}
-
 AActor* FChaosVDScene::CreateMeshComponentsContainer(UWorld* TargetWorld)
 {
 	const FName GeometryFolderPath("ChaosVisualDebugger/GeneratedMeshComponents");
@@ -612,7 +613,6 @@ UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 	}
 
 	CreateBaseLights(NewWorld);
-	CreateSceneQueriesContainer(NewWorld);
 	CreateMeshComponentsContainer(NewWorld);
 
 	ActorDestroyedHandle = NewWorld->AddOnActorDestroyedHandler(FOnActorDestroyed::FDelegate::CreateRaw(this, &FChaosVDScene::HandleActorDestroyed));

@@ -24,6 +24,10 @@ enum class EChaosVDAccelerationStructureDataVisualizationFlags : uint32
 	DrawDynamicTrees = 1 << 5,
 	/** If Set, all static trees will be drawn */
 	DrawStaticTrees = 1 << 6,
+	/** If Set, draws the real bounds of each element (not the bounds recorded in the leaf) in the leaves of the tree -
+	 * This should match the bounds recorded in the leaf itself, otherwise it means the AABBtree might have out of sync data */
+	DrawLeavesRealElementBounds = 1 << 7 UMETA(Hidden), // TODO: This will be unhidden in the nex CL with the required object version bump
+
 	/** If set, enabled debug drawing for any recorded acceleration structure available at the current visualized frame */
 	EnableDraw = DrawDynamicTrees | DrawStaticTrees
 };

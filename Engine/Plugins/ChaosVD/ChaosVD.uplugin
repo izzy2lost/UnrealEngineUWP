@@ -20,6 +20,11 @@
 			"Name": "ChaosVD",
 			"Type": "EditorAndProgram",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ChaosVDBlueprint",
+			"Type": "RuntimeAndProgram",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [

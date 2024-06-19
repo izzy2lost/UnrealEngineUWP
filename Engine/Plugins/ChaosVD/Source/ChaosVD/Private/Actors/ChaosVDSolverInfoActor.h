@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "ChaosVDDataContainerBaseActor.h"
 #include "ChaosVDParticleActor.h"
-#include "ChaosVDSceneObjectBase.h"
 #include "ChaosVDSceneSelectionObserver.h"
 #include "GameFramework/Actor.h"
 #include "ChaosVDSolverInfoActor.generated.h"
@@ -13,21 +13,25 @@ class UChaosVDSolverCharacterGroundConstraintDataComponent;
 class UChaosVDSolverJointConstraintDataComponent;
 struct FChaosVDParticleDataWrapper;
 class AChaosVDParticleActor;
-class UChaosVDSolverCollisionDataComponent;
+class UChaosVDGenericDebugDrawDataComponent;
 class UChaosVDParticleDataComponent;
+class UChaosVDSceneQueryDataComponent;
+class UChaosVDSolverCollisionDataComponent;
+struct FChaosVDGameFrameData;
 
 enum class EChaosVDParticleType : uint8;
 
-UCLASS()
-class AChaosVDSolverInfoActor : public AActor, public FChaosVDSceneObjectBase, public FChaosVDSceneSelectionObserver
+/** Actor that contains all relevant data for the current visualized solver frame */
+UCLASS(NotBlueprintable, NotPlaceable)
+class AChaosVDSolverInfoActor : public AChaosVDDataContainerBaseActor, public FChaosVDSceneSelectionObserver
 {
 	GENERATED_BODY()
 
 public:
 
-	AChaosVDSolverInfoActor(const FObjectInitializer& ObjectInitializer);
+	AChaosVDSolverInfoActor();
 
-	void SetSolverID(int32 InSolverID) { SolverID = InSolverID; }
+	void SetSolverID(int32 InSolverID);
 	int32 GetSolverID() const { return SolverID; }
 
 	void SetSolverName(const FName& InSolverName);
@@ -46,6 +50,8 @@ public:
 	UChaosVDSolverJointConstraintDataComponent* GetJointsDataComponent() { return JointsDataComponent; }
 	UChaosVDSolverCharacterGroundConstraintDataComponent* GetCharacterGroundConstraintDataComponent() { return CharacterGroundConstraintDataComponent; }
 	UChaosVDGTAccelerationStructuresDataComponent* GetGTAccelerationStructuresDataComponent() { return GTAccelerationStructuresDataComponent; }
+	UChaosVDSceneQueryDataComponent* GetSceneQueryDataComponent() const { return SceneQueryDataComponent.Get(); }
+	UChaosVDGenericDebugDrawDataComponent* GetGenericDebugDrawDataComponent() const { return GenericDebugDrawDataComponent.Get(); }
 
 	void RegisterParticleActor(int32 ParticleID, AChaosVDParticleActor* ParticleActor);
 
@@ -66,7 +72,7 @@ public:
 
 	void RemoveSolverFolders(UWorld* World);
 
-	bool IsVisible() const;
+	virtual bool IsVisible() const override;
 
 #if WITH_EDITOR
 	void SetIsTemporarilyHiddenInEditor(bool bIsHidden) override;
@@ -118,6 +124,12 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UChaosVDGTAccelerationStructuresDataComponent> GTAccelerationStructuresDataComponent;
+
+	UPROPERTY()
+	TObjectPtr<UChaosVDSceneQueryDataComponent> SceneQueryDataComponent;
+	
+	UPROPERTY()
+	TObjectPtr<UChaosVDGenericDebugDrawDataComponent> GenericDebugDrawDataComponent;
 };
 
 template <typename TCallback>

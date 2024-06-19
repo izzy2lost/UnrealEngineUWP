@@ -177,17 +177,42 @@
 			}
 	#endif
 
-#ifndef CVD_TRACE_NETWORK_TICK_OFFSET
-	#define CVD_TRACE_NETWORK_TICK_OFFSET(TickOffset, SolverID) \
-	{ \
-		FChaosVisualDebuggerTrace::TraceNetworkTickOffset(TickOffset, SolverID); \
-	}
-#endif
+	#ifndef CVD_TRACE_NETWORK_TICK_OFFSET
+		#define CVD_TRACE_NETWORK_TICK_OFFSET(TickOffset, SolverID) \
+		{ \
+			FChaosVisualDebuggerTrace::TraceNetworkTickOffset(TickOffset, SolverID); \
+		}
+	#endif
 
-#ifndef CVD_TRACE_GET_SOLVER_ID_FROM_WORLD
-	#define CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(World) \
-			FChaosVisualDebuggerTrace::GetSolverIDFromWorld(World)
-#endif
+	#ifndef CVD_TRACE_GET_SOLVER_ID_FROM_WORLD
+		#define CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(World) \
+				FChaosVisualDebuggerTrace::GetSolverIDFromWorld(World)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_BOX
+      		#define CVD_TRACE_DEBUG_DRAW_BOX(Box, ...) \
+      		FChaosVisualDebuggerTrace::TraceDebugDrawBox(Box, ##__VA_ARGS__)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_LINE
+		#define CVD_TRACE_DEBUG_DRAW_LINE(StartLocation, EndLocation, ...) \
+		FChaosVisualDebuggerTrace::TraceDebugDrawLine(StartLocation, EndLocation, ##__VA_ARGS__)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_VECTOR
+		#define CVD_TRACE_DEBUG_DRAW_VECTOR(StartLocation, Vector, ...) \
+		FChaosVisualDebuggerTrace::TraceDebugDrawVector(StartLocation, Vector, ##__VA_ARGS__)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_SPHERE
+		#define CVD_TRACE_DEBUG_DRAW_SPHERE(Center, Radius, ...) \
+		FChaosVisualDebuggerTrace::TraceDebugDrawSphere(Center, Radius, ##__VA_ARGS__)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_IMPLICIT_OBJECT
+		#define CVD_TRACE_DEBUG_DRAW_IMPLICIT_OBJECT(ImplicitObject, ParentTransform, ...) \
+		FChaosVisualDebuggerTrace::TraceDebugDrawImplicitObject(ImplicitObject, ParentTransform,  ##__VA_ARGS__)
+	#endif
 
 #else // WITH_CHAOS_VISUAL_DEBUGGER
 
@@ -293,8 +318,28 @@
 		#define CVD_TRACE_NETWORK_TICK_OFFSET(TickOffset, SolverID)
 	#endif
 
-#ifndef CVD_TRACE_GET_SOLVER_ID_FROM_WORLD
-	#define CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(World)
-#endif
+	#ifndef CVD_TRACE_GET_SOLVER_ID_FROM_WORLD
+		#define CVD_TRACE_GET_SOLVER_ID_FROM_WORLD(World)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_BOX
+			  #define CVD_TRACE_DEBUG_DRAW_BOX(Box, ...)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_LINE
+		#define CVD_TRACE_DEBUG_DRAW_LINE(StartLocation, EndLocation, ...)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_VECTOR
+		#define CVD_TRACE_DEBUG_DRAW_VECTOR(StartLocation, Vector, ...)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_SPHERE
+		#define CVD_TRACE_DEBUG_DRAW_SPHERE(...)
+	#endif
+
+	#ifndef CVD_TRACE_DEBUG_DRAW_IMPLICIT_OBJECT
+		#define CVD_TRACE_DEBUG_DRAW_IMPLICIT_OBJECT(ImplicitObject, ParentTransform, ...)
+	#endif
 
 #endif // WITH_CHAOS_VISUAL_DEBUGGER

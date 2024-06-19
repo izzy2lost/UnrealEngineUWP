@@ -102,8 +102,13 @@ struct FChaosVDAABBTreePayloadBoundsElement : public FChaosVDWrapperDataBase
 	UPROPERTY(VisibleAnywhere, Category="Leaf")
 	int32 ParticleIndex = INDEX_NONE;
 
+	/** Bounds used to add this element into the AABBTree */
 	UPROPERTY(VisibleAnywhere, Category="Leaf")
 	FBox Bounds = FBox(ForceInitToZero);
+
+	/** Real Bounds of the element at the time we recorded the AABB Tree */
+	//UPROPERTY(VisibleAnywhere, Category="Leaf")
+	FBox ActualBounds = FBox(ForceInitToZero);
 	
 	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };

@@ -33,13 +33,17 @@ bool FChaosVDSceneQueryDataProcessor::ProcessRawData(const TArray<uint8>& InData
 			// If ParentQueryID was set, this is a sub query, so find the parent add it to the sub-queries list so we can navigate trough the query "hierarchy" later on
 			if (QueryData->ParentQueryID != INDEX_NONE)
 			{
-				if (const TSharedPtr<FChaosVDQueryDataWrapper>* ParentQueryData = CurrentFrameData->RecordedSceneQueries.Find(QueryData->ParentQueryID))
+				if (TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>>* ParentQueryDataByQueryIDPtr = CurrentFrameData->RecordedSceneQueriesBySolverID.Find(QueryData->WorldSolverID))
 				{
-					(*ParentQueryData)->SubQueriesIDs.Add(QueryData->ID);
-				}
+					if (const TSharedPtr<FChaosVDQueryDataWrapper>* ParentQueryData = ParentQueryDataByQueryIDPtr->Find(QueryData->ParentQueryID))
+					{
+						(*ParentQueryData)->SubQueriesIDs.Add(QueryData->ID);
+					}
+				}	
 			}
 
-			CurrentFrameData->RecordedSceneQueries.Add(QueryData->ID, QueryData);
+			CurrentFrameData->RecordedSceneQueriesByQueryID.Add(QueryData->ID, QueryData);
+			CurrentFrameData->RecordedSceneQueriesBySolverID.FindOrAdd(QueryData->WorldSolverID).Add(QueryData->ID, QueryData);
 		}
 	}
 

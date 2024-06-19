@@ -13,12 +13,13 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
 
+class AChaosVDDataContainerBaseActor;
 class AChaosVDGeometryContainer;
 class IChaosVDGeometryOwnerInterface;
 class FChaosVDSelectionCustomization;
 class ITypedElementSelectionInterface;
 struct FTypedElementSelectionOptions;
-class AChaosVDSceneQueryDataContainer;
+class AChaosVDGameFrameInfoActor;
 class AChaosVDSolverInfoActor;
 class AChaosVDSceneCollisionContainer;
 class UChaosVDCoreSettings;
@@ -131,8 +132,6 @@ public:
 
 	AActor* GetMeshComponentsContainerActor() const { return MeshComponentContainerActor; }
 
-	UChaosVDSceneQueryDataComponent* GetSceneQueryDataContainerComponent() const;
-
 	FChaosVDActorUpdatedDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }
 	FChaosVDActorUpdatedDelegate& OnActorLabelChanged() { return ParticleLabelUpdateDelegate; }
 
@@ -144,6 +143,8 @@ public:
 	void UpdateSelectionProxiesForActors(TArrayView<AActor*> SelectedActors);
 
 	TWeakPtr<FChaosVDSolverDataSelection> GetSolverDataSelectionObject() { return SolverDataSelectionObject ? SolverDataSelectionObject : nullptr;}
+
+	TConstArrayView<TObjectPtr<AChaosVDDataContainerBaseActor>> GetDataContainerActorsView() const { return AvailableDataContainerActors; }
 
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
 
@@ -159,10 +160,11 @@ private:
 
 	void CreateBaseLights(UWorld* TargetWorld) const;
 
-	void CreateSceneQueriesContainer(UWorld* TargetWorld);
-
 	/** Creates an actor that will contain all solver data for the provided Solver ID*/
-	void CreateSolverInfoActor(int32 SolverID);
+	AChaosVDSolverInfoActor* GetOrCreateSolverInfoActor(int32 SolverID);
+
+	/** Creates an actor that will contain all non-solver data for recorded from any thread*/
+	AChaosVDGameFrameInfoActor* GetOrCreateGameFrameInfoActor();
 
 	AActor* CreateMeshComponentsContainer(UWorld* TargetWorld);
 
@@ -212,7 +214,8 @@ private:
 	mutable AActor* SkySphere = nullptr;
 
 	AActor* MeshComponentContainerActor = nullptr;
-	AChaosVDSceneQueryDataContainer* SceneQueriesContainer = nullptr;
+
+	AChaosVDGameFrameInfoActor* GameFrameDataInfoActor = nullptr;
 
 	bool bIsInitialized = false;
 
@@ -228,6 +231,8 @@ private:
 	TMap<uint32, TArray<IChaosVDGeometryOwnerInterface*>> ObjectsWaitingForGeometry;
 	
 	TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelectionObject;
+
+	TArray<TObjectPtr<AChaosVDDataContainerBaseActor>> AvailableDataContainerActors;
 
 	friend FChaosVDSelectionCustomization;
 };

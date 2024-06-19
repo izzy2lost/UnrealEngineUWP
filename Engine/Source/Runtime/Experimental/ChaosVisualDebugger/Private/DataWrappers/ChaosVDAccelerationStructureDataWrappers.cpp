@@ -86,9 +86,11 @@ bool FChaosVDAABBTreePayloadBoundsElement::Serialize(FArchive& Ar)
 	Ar << ParticleIndex;
 	Ar << Bounds;
 
+	// TODO: This will be uncommented in the nex CL with the required object version bump
+	//Ar << ActualBounds;
+
 	return !Ar.IsError();
 }
-
 
 bool FChaosVDAABBTreeLeafDataWrapper::Serialize(FArchive& Ar)
 {

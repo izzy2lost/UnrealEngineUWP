@@ -7,8 +7,10 @@
 #include "ChaosVDScene.h"
 #include "ChaosVDSettingsManager.h"
 #include "EditorActorFolders.h"
+#include "Components/ChaosVDGenericDebugDrawDataComponent.h"
 #include "Components/ChaosVDGTAccelerationStructuresDataComponent.h"
 #include "Components/ChaosVDParticleDataComponent.h"
+#include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
@@ -19,13 +21,15 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+AChaosVDSolverInfoActor::AChaosVDSolverInfoActor()
 {
 	CollisionDataComponent = CreateDefaultSubobject<UChaosVDSolverCollisionDataComponent>(TEXT("SolverCollisionDataComponent"));
 	ParticleDataComponent = CreateDefaultSubobject<UChaosVDParticleDataComponent>(TEXT("ParticleCollisionDataComponent"));
 	JointsDataComponent = CreateDefaultSubobject<UChaosVDSolverJointConstraintDataComponent>(TEXT("JointDataComponent"));
 	CharacterGroundConstraintDataComponent = CreateDefaultSubobject<UChaosVDSolverCharacterGroundConstraintDataComponent>(TEXT("CharacterGroundConstraintDataComponent"));
 	GTAccelerationStructuresDataComponent = CreateDefaultSubobject<UChaosVDGTAccelerationStructuresDataComponent>(TEXT("GTAccelerationStructuresDataComponent"));
+	SceneQueryDataComponent = CreateDefaultSubobject<UChaosVDSceneQueryDataComponent>(TEXT("ChaosVDSceneQueryDataComponent"));
+	GenericDebugDrawDataComponent = CreateDefaultSubobject<UChaosVDGenericDebugDrawDataComponent>(TEXT("UChaosVDGenericDebugDrawDataComponent"));
 	bIsServer = false;
 
 	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationSettings>())
@@ -39,6 +43,20 @@ AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& Objec
 	}
 }
 
+void AChaosVDSolverInfoActor::SetSolverID(int32 InSolverID)
+{
+	SolverID = InSolverID;
+	
+	TInlineComponentArray<UChaosVDSolverDataComponent*> SolverDataComponents(this);
+	for (UChaosVDSolverDataComponent* Component : SolverDataComponents)
+	{
+		if (Component)
+		{
+			Component->SetSolverID(InSolverID);
+		}
+	}
+}
+
 void AChaosVDSolverInfoActor::SetSolverName(const FName& InSolverName)
 {
 	SolverName = InSolverName;
@@ -47,14 +65,14 @@ void AChaosVDSolverInfoActor::SetSolverName(const FName& InSolverName)
 
 void AChaosVDSolverInfoActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
 {
-	FChaosVDSceneObjectBase::SetScene(InScene);
+	Super::SetScene(InScene);
 
 	if (TSharedPtr<FChaosVDScene> ScenePtr = InScene.Pin())
 	{
 		RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
 	}
 
-	TInlineComponentArray<UChaosVDSolverDataComponent*> SolverDataComponents;
+	TInlineComponentArray<UChaosVDSolverDataComponent*> SolverDataComponents(this);
 	GetComponents(SolverDataComponents);
 
 	for (UChaosVDSolverDataComponent* Component : SolverDataComponents)

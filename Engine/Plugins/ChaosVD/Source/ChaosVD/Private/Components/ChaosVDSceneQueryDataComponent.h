@@ -19,7 +19,7 @@ class UChaosVDSceneQueryDataComponent : public UChaosVDSolverDataComponent
 public:
 	UChaosVDSceneQueryDataComponent();
 
-	void UpdateQueriesFromFrameData(const FChaosVDGameFrameData& InGameFrameData);
+	virtual void UpdateFromNewGameFrameData(const FChaosVDGameFrameData& InGameFrameData) override;
 
 	TConstArrayView<TSharedPtr<FChaosVDQueryDataWrapper>> GetQueriesByType(EChaosVDSceneQueryType Type) const;
 	TConstArrayView<TSharedPtr<FChaosVDQueryDataWrapper>> GetAllQueries() const;

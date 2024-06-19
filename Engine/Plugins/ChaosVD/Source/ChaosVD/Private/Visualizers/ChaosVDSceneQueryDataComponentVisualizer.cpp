@@ -2,7 +2,7 @@
 
 #include "Visualizers/ChaosVDSceneQueryDataComponentVisualizer.h"
 
-#include "Actors/ChaosVDSceneQueryDataContainer.h"
+#include "Actors/ChaosVDGameFrameInfoActor.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDScene.h"
@@ -58,13 +58,18 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawVisualization(const UActorCo
 		return;
 	}
 
-	const AChaosVDSceneQueryDataContainer* SceneQueryDataContainer = Cast<AChaosVDSceneQueryDataContainer>(SceneQueryDataComponent->GetOwner());
-	if (!SceneQueryDataContainer)
+	const AChaosVDSolverInfoActor* SolverInfoActor = Cast<AChaosVDSolverInfoActor>(SceneQueryDataComponent->GetOwner());
+	if (!SolverInfoActor)
 	{
 		return;
 	}
 
-	const TSharedPtr<FChaosVDScene> CVDScene = SceneQueryDataContainer->GetScene().Pin();
+	if (!SolverInfoActor->IsVisible())
+	{
+		return;
+	}
+
+	const TSharedPtr<FChaosVDScene> CVDScene = SolverInfoActor->GetScene().Pin();
 	if (!CVDScene)
 	{
 		return;
@@ -89,7 +94,7 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawVisualization(const UActorCo
 	}
 
 	FChaosVDSceneQueryVisualizationDataContext VisualizationContext;
-	VisualizationContext.CVDScene = SceneQueryDataContainer->GetScene();
+	VisualizationContext.CVDScene = SolverInfoActor->GetScene();
 	VisualizationContext.SpaceTransform = FTransform::Identity;
 	VisualizationContext.GeometryGenerator = GeometryGenerator;
 	VisualizationContext.SolverDataSelectionObject = SolverDataSelectionObject;
@@ -311,17 +316,6 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawSceneQuery(const UActorCompo
 	VisualizationContext.DataSelectionHandle = nullptr;
 
 	if (!Query)
-	{
-		return;
-	}
-
-	AChaosVDSolverInfoActor* SolverInfoActor = CVDScene->GetSolverInfoActor(Query->WorldSolverID);
-	if (!SolverInfoActor)
-	{
-		return;
-	}
-	
-	if (!SolverInfoActor->IsVisible())
 	{
 		return;
 	}

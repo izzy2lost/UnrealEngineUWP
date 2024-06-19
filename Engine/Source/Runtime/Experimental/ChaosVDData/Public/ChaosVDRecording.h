@@ -17,6 +17,7 @@
 #include <atomic>
 
 #include "DataWrappers/ChaosVDAccelerationStructureDataWrappers.h"
+#include "DataWrappers/ChaosVDDebugShapeDataWrapper.h"
 
 namespace Chaos::VisualDebugger
 {
@@ -129,6 +130,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 struct FChaosVDGameFrameData
 {
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FChaosVDGameFrameData() = default;
+	FChaosVDGameFrameData(const FChaosVDGameFrameData& Other) = default;
+	FChaosVDGameFrameData(FChaosVDGameFrameData&& Other) noexcept = default;
+	FChaosVDGameFrameData& operator=(const FChaosVDGameFrameData& Other) = default;
+	FChaosVDGameFrameData& operator=(FChaosVDGameFrameData&& Other) noexcept = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	uint64 FirstCycle;
 	uint64 LastCycle;
 	double StartTime = -1.0;
@@ -149,8 +159,18 @@ struct FChaosVDGameFrameData
 
 	TMap<FName, FChaosVDTrackedLocation> RecordedNonSolverLocationsByID;
 	TMap<FName, FChaosVDTrackedTransform> RecordedNonSolverTransformsByID;
+	TMap<int32, TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>>> RecordedSceneQueriesBySolverID;
+
+	UE_DEPRECATED(5.5, "RecordedSceneQueries is deprecated and will be removed in a future release, use RecordedSceneQueriesByQueryID instead.")
 	TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>> RecordedSceneQueries;
+
+	TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>> RecordedSceneQueriesByQueryID;
 	TMap<int32, TArray<TSharedPtr<FChaosVDAABBTreeDataWrapper>>> RecordedAABBTreesBySolverID;
+
+	TMap<int32,TArray<TSharedPtr<FChaosVDDebugDrawBoxDataWrapper>>> RecordedDebugDrawBoxesBySolverID;
+	TMap<int32,TArray<TSharedPtr<FChaosVDDebugDrawLineDataWrapper>>> RecordedDebugDrawLinesBySolverID;
+	TMap<int32,TArray<TSharedPtr<FChaosVDDebugDrawSphereDataWrapper>>> RecordedDebugDrawSpheresBySolverID;
+	TMap<int32,TArray<TSharedPtr<FChaosVDDebugDrawImplicitObjectDataWrapper>>> RecordedDebugDrawImplicitObjectsBySolverID;
 };
 
 /**

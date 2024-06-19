@@ -10,6 +10,10 @@
 
 #include "Compression/OodleDataCompressionUtil.h"
 #include "DataProcessors/ChaosVDAABBTreeDataProcessor.h"
+#include "DataProcessors/ChaosVDDebugDrawBoxDataProcessor.h"
+#include "DataProcessors/ChaosVDDebugDrawImplicitObjectDataProcessor.h"
+#include "DataProcessors/ChaosVDDebugDrawLineDataProcessor.h"
+#include "DataProcessors/ChaosVDDebugDrawSphereDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDCharacterGroundConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDJointConstraintDataProcessor.h"
@@ -278,6 +282,22 @@ void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
 	TSharedPtr<FChaosVDAABBTreeDataProcessor> AABBTreeDataProcessor = MakeShared<FChaosVDAABBTreeDataProcessor>();
 	AABBTreeDataProcessor->SetTraceProvider(AsShared());
 	RegisterDataProcessor(AABBTreeDataProcessor);
+
+	TSharedPtr<FChaosVDDebugDrawBoxDataProcessor> DebugDrawBoxesDataProcessor = MakeShared<FChaosVDDebugDrawBoxDataProcessor>();
+	DebugDrawBoxesDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(DebugDrawBoxesDataProcessor);
+
+	TSharedPtr<FChaosVDDebugDrawLineDataProcessor> DebugDrawLinesDataProcessor = MakeShared<FChaosVDDebugDrawLineDataProcessor>();
+	DebugDrawLinesDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(DebugDrawLinesDataProcessor);
+
+	TSharedPtr<FChaosVDDebugDrawSphereDataProcessor> DebugDrawSpheresDataProcessor = MakeShared<FChaosVDDebugDrawSphereDataProcessor>();
+	DebugDrawSpheresDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(DebugDrawSpheresDataProcessor);
+
+	TSharedPtr<FChaosVDDebugDrawImplicitObjectDataProcessor> DebugDrawImplicitObjectDataProcessor = MakeShared<FChaosVDDebugDrawImplicitObjectDataProcessor>();
+	DebugDrawImplicitObjectDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(DebugDrawImplicitObjectDataProcessor);
 
 	bDefaultDataProcessorsRegistered = true;
 }

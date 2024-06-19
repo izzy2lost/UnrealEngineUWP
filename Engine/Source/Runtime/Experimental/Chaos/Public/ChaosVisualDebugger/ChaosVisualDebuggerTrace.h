@@ -260,16 +260,89 @@ public:
 	 */
 	static CHAOS_API void InvalidateGeometryFromCache(const Chaos::FImplicitObject* CachedGeometryToInvalidate);
 
+	/** Records a visit step of a scene query. This needs to me called within the scope of an inflight scene query
+	 * @param InputGeometry : Geometry used as input to perform the query we are recording
+	 * @param GeometryOrientation : Orientation of the input geometry
+	 * @param Start : Start location of the Query.
+	 * @param End : End location of the Query
+	 * @param TraceChannel : Trace channel used for the query we are recording.
+	 * @param Params : Collision query params used for the query we are recording.
+	 * @param ResponseParams :  Collision response params used for the query we are recording.
+	 * @param ObjectParams :  Collision object query params used for the query we are recording.
+	 * @param SolverID : ID of the solver this where query is being performed.
+	 * @param bIsRetry : Set to true if the query que are recording it is from a retry attempt.
+	 * */
 	static CHAOS_API void TraceSceneQueryStart(const Chaos::FImplicitObject* InputGeometry, const FQuat& GeometryOrientation, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, FChaosVDCollisionQueryParams&& Params, FChaosVDCollisionResponseParams&& ResponseParams, FChaosVDCollisionObjectQueryParams&& ObjectParams, EChaosVDSceneQueryType QueryType, EChaosVDSceneQueryMode QueryMode, int32 SolverID, bool bIsRetry);
+
+	/** Records a visit step of a scene query. This needs to me called within the scope of an inflight scene query
+	 * @param InQueryVisitData : Processed Scene Query step data.
+	 * */
 	static CHAOS_API void TraceSceneQueryVisit(FChaosVDQueryVisitStep&& InQueryVisitData);
 
+	/** Records all the suppported accelerations structures contained by the provided acceleration structure collection
+	 * @param InAccelerationCollection : Ptr to the collection we want to evaluate and trace.
+	 * */
 	static CHAOS_API void TraceSceneAccelerationStructures(const Chaos::ISpatialAccelerationCollection<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>* InAccelerationCollection);
 
+	/** Records the current tick offset for any given solver. This is used in the CVD editor to sync solver tracks based on their network tick
+	 * @param TickOffset : Offset relative to the server's solver current tick number.
+	 * @param SolverID : Solver ID of the solver that has this offset.
+	 * */
 	static CHAOS_API void TraceNetworkTickOffset(int32 TickOffset, int32 SolverID);
 
+	/** Records the provided box and the rest of the arguments, so then it can be visualized via debug draw during playback in the CVD editor
+	 * @param InBox : Shape to record.
+	 * @param Tag : FName that will be used as a tag for filtering & search, and debug draw as a text tag in CVD's viewport.
+	 * @param Color : Color to apply to this shape when it is debug drawn in CVD.
+	 * @param SolverID : ID of the solver this shape should be associated with. if no ID is provided, this shape will be added as part of the current game frame data bucket.
+	 */
+	static CHAOS_API void TraceDebugDrawBox(const FBox& InBox, FName Tag = NAME_None, FColor Color = FColor::Blue, int32 SolverID = INDEX_NONE);
+	
+	/** Records the provided Line and the rest of the arguments, so then it can be visualized via debug draw during playback in the CVD editor
+	 * @param InStartLocation : Start point of the line.
+	 * @param InEndLocation : End point of the line.
+	 * @param Tag : FName that will be used as a tag for filtering & search, and debug draw as a text tag in CVD's viewport.
+	 * @param Color : Color to apply to this shape when it is debug drawn in CVD.
+	 * @param SolverID : ID of the solver this shape should be associated with. if no ID is provided, this shape will be added as part of the current game frame data bucket.
+	 */
+	static CHAOS_API void TraceDebugDrawLine(const FVector& InStartLocation, const FVector& InEndLocation, FName Tag = NAME_None, FColor Color = FColor::Blue, int32 SolverID = INDEX_NONE);
+	
+	/** Records the provided Vector and the rest of the arguments, so then it can be visualized via debug draw during playback in the CVD editor
+	 * @param InStartLocation : Start point of the line.
+	 * @param InVector : Vector we want to record.
+	 * @param Tag : FName that will be used as a tag for filtering & search, and debug draw as a text tag in CVD's viewport.
+	 * @param Color : Color to apply to this shape when it is debug drawn in CVD.
+	 * @param SolverID : ID of the solver this shape should be associated with. if no ID is provided, this shape will be added as part of the current game frame data bucket.
+	 */
+	static CHAOS_API void TraceDebugDrawVector(const FVector& InStartLocation, const FVector& InVector, FName Tag = NAME_None, FColor Color = FColor::Blue, int32 SolverID = INDEX_NONE);
+
+	/** Records the provided Sphere and the rest of the arguments, so then it can be visualized via debug draw during playback in the CVD editor
+	 * @param Center : Origin point of the Sphere.
+	 * @param Radius : Radius of the Sphere.
+	 * @param Tag : FName that will be used as a tag for filtering & search, and debug draw as a text tag in CVD's viewport.
+	 * @param Color : Color to apply to this shape when it is debug drawn in CVD.
+	 * @param SolverID : ID of the solver this shape should be associated with. if no ID is provided, this shape will be added as part of the current game frame data bucket.
+	 */
+	static CHAOS_API void TraceDebugDrawSphere(const FVector& Center, float Radius, FName Tag = NAME_None, FColor Color = FColor::Blue, int32 SolverID = INDEX_NONE);
+
+	/** Records the provided Implicit Object and the rest of the arguments, so then it can be visualized via debug draw during playback in the CVD editor
+	 * @param Implicit : Ptr to the implicit object to record.
+	 * @param InParentTransform : Root transform of the object that owns this geometry.
+	 * @param Tag : FName that will be used as a tag for filtering & search, and debug draw as a text tag in CVD's viewport.
+	 * @param Color : Color to apply to this shape when it is debug drawn in CVD.
+	 * @param SolverID : ID of the solver this shape should be associated with. if no ID is provided, this shape will be added as part of the current game frame data bucket.
+	 */
+	static CHAOS_API void TraceDebugDrawImplicitObject(const Chaos::FImplicitObject* Implicit, const FTransform& InParentTransform, FName Tag = NAME_None, FColor Color = FColor::Blue, int32 SolverID = INDEX_NONE);
+
+	/** Returns the ID of the main solver of the provided world
+	 * @param World Ptr to the world we want to get the solverID from
+	 */
 	template<typename WorldType>
 	static int32 GetSolverIDFromWorld(WorldType* World);
 
+	/** Returns the CVD solver ID of the provided solver
+	 * @param Solver Reference to the solver instance we want to get the id from
+	 */
 	static int32 CHAOS_API GetSolverID(Chaos::FPhysicsSolverBase& Solver);
 
 	/** Returns true if the provided solver ID needs a Full Capture */

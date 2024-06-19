@@ -357,6 +357,11 @@ void FChaosVDGTAccelerationStructureDataComponentVisualizer::DrawAABBTreeArrayLe
 		{	
 			Chaos::VisualDebugger::Utils::DrawFBoxAtLocation(PDI, TreeArrayLeafElement.Bounds, ColorByDensity, VisualizationContext.DepthPriority, FinalThickness * 0.7f);
 		}
+
+		if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDAccelerationStructureDataVisualizationFlags::DrawLeavesRealElementBounds))
+		{
+			Chaos::VisualDebugger::Utils::DrawFBoxAtLocation(PDI, TreeArrayLeafElement.ActualBounds, FColor::Red, VisualizationContext.DepthPriority, FinalThickness * 0.7f);
+		}
 	}
 
 	PDI->SetHitProxy(nullptr);

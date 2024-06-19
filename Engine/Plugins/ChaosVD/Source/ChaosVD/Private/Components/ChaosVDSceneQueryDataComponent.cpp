@@ -3,6 +3,8 @@
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 
 #include "ChaosVDRecording.h"
+#include "Actors/ChaosVDSolverInfoActor.h"
+
 
 UChaosVDSceneQueryDataComponent::UChaosVDSceneQueryDataComponent()
 {
@@ -12,15 +14,23 @@ UChaosVDSceneQueryDataComponent::UChaosVDSceneQueryDataComponent()
 	bNavigationRelevant = false;
 }
 
-void UChaosVDSceneQueryDataComponent::UpdateQueriesFromFrameData(const FChaosVDGameFrameData& InGameFrameData)
+void UChaosVDSceneQueryDataComponent::UpdateFromNewGameFrameData(const FChaosVDGameFrameData& InGameFrameData)
 {
-	const int32 RecordedQueriesNum = InGameFrameData.RecordedSceneQueries.Num();
+
+	const TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>>* RecordedQueriesByQueryID = InGameFrameData.RecordedSceneQueriesBySolverID.Find(SolverID);
+
+	if (!RecordedQueriesByQueryID)
+	{
+		return;
+	}
+	
+	const int32 RecordedQueriesNum = RecordedQueriesByQueryID->Num();
 
 	RecordedQueriesByType.Empty(RecordedQueriesNum);
 	RecordedQueriesByID.Empty(RecordedQueriesNum);
 	RecordedQueries.Empty(RecordedQueriesNum);
 
-	for (const TPair<int32, TSharedPtr<FChaosVDQueryDataWrapper>>& QueryIDPair : InGameFrameData.RecordedSceneQueries)
+	for (const TPair<int32, TSharedPtr<FChaosVDQueryDataWrapper>>& QueryIDPair : (*RecordedQueriesByQueryID))
 	{
 		if (TSharedPtr<FChaosVDQueryDataWrapper> QueryData = QueryIDPair.Value)
 		{
