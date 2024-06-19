@@ -2010,7 +2010,7 @@ namespace Horde.Server.Tests.Issues
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 1))
 				{
-					logger.LogError(KnownLogEvents.Gauntlet_FatalEvent, "Engine encounter a critical failure\n{Message}\n{Callstack}", logMessage, logAlternateCallstack);
+					logger.LogError(KnownLogEvents.Gauntlet_FatalEvent, "Engine encounter a critical failure\n{Summary}\n{Callstack}", logMessage, logAlternateCallstack);
 				}
 				await UpdateCompleteStepAsync(job, 0, 1, JobStepOutcome.Failure);
 
