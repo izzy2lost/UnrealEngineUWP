@@ -59,6 +59,9 @@ public:
 	FString SignallingServerURL = "ws://localhost:8888";
 
 	UPROPERTY(EditAnywhere, Category = "PixelStreaming")
+	bool UsePixelStreamingURL = false;
+
+	UPROPERTY(EditAnywhere, Category = "PixelStreaming")
 	int32 StreamFPS = 60;
 
 	UPROPERTY(EditAnywhere, Category = "PixelStreaming")
