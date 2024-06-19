@@ -1094,6 +1094,8 @@ struct FFileSyncTaskBatch
 
 	std::unique_ptr<FBlockCache> CreateBlockCache(FProxyPool& ProxyPool, EStrongHashAlgorithmID StrongHasher) const
 	{
+		FTimePoint TimeBegin = TimePointNow();
+
 		std::unique_ptr<FBlockCache> Result = std::make_unique<FBlockCache>();
 
 		Result->BlockData.Resize(NeedBytesFromSource);
@@ -1152,6 +1154,14 @@ struct FFileSyncTaskBatch
 							Result->BlockMap[BlockHash] = FBufferView{OutputView.Data, OutputView.Size};
 							OutputCursor += Block.DecompressedSize;
 						}
+						else
+						{
+							UNSYNC_WARNING(L"Received a corrupt block");
+						}
+					}
+					else
+					{
+						UNSYNC_WARNING(L"Received a block with unexpected hash");
 					}
 				}
 			};
@@ -1159,12 +1169,53 @@ struct FFileSyncTaskBatch
 			FDownloadResult DownloadResult =
 				Proxy->Download(MakeView<FNeedBlock>(UniqueNeedBlocks.data(), UniqueNeedBlocks.size()), DownloadCallback);
 
+			const uint64 NumExpected = UniqueNeedBlocks.size();
+			const uint64 NumDownloaded = Result->BlockMap.size();
+			if (NumExpected != NumDownloaded)
+			{
+				THashSet<FHash128> MissingBlocks = UniqueBlockSet;
+				for (const auto& It : Result->BlockMap)
+				{
+					MissingBlocks.erase(It.first);
+				}
+
+				if (MissingBlocks.size() <= 10)
+				{
+					std::string MissingBlockStr;
+					for (const FHash128& Hash : MissingBlocks)
+					{
+						if (!MissingBlockStr.empty())
+						{
+							MissingBlockStr += ", ";
+						}
+						MissingBlockStr += HashToHexString(Hash);
+					}
+
+					UNSYNC_WARNING(
+						L"Could not download all required data while building block cache. "
+						L"Blocks expected: %llu, actual: %llu. Missing blocks: %hs",
+						llu(NumExpected),
+						llu(NumDownloaded),
+						MissingBlockStr.c_str());
+				}
+				else
+				{
+					UNSYNC_WARNING(
+						L"Could not download all required data while building block cache. "
+						L"Blocks expected: %llu, actual: %llu.",
+						llu(NumExpected),
+						llu(NumDownloaded));
+				}
+			}
+
 			UNSYNC_UNUSED(DownloadResult);
 		}
 
 		ProxyPool.Dealloc(std::move(Proxy));
 
 		GScheduler->NetworkSemaphore.Release();
+
+		Result->InitDuration = TimePointNow() - TimeBegin;
 
 		return Result;
 	}

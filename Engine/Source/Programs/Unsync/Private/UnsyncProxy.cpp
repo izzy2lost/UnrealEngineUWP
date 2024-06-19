@@ -262,7 +262,7 @@ FProxy::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCa
 	}
 	else
 	{
-		return FDownloadResult(EDownloadRetryMode::Abort);
+		return FDownloadResult(EDownloadRetryMode::Disconnect);
 	}
 }
 
@@ -294,7 +294,7 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 {
 	if (!IsValid())
 	{
-		return FDownloadResult(EDownloadRetryMode::Abort);
+		return FDownloadResult(EDownloadRetryMode::Disconnect);
 	}
 
 	const EStrongHashAlgorithmID StrongHasher = RequestMap->GetStrongHasher();
@@ -390,7 +390,7 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 	if (!bOk)
 	{
 		bIsConnetedToHost = false;
-		return FDownloadResult(EDownloadRetryMode::Abort);
+		return FDownloadResult(EDownloadRetryMode::Disconnect);
 	}
 
 	uint64 BytesDownloaded = 0;
@@ -559,7 +559,7 @@ FUnsyncHttpProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const
 {
 	if (!IsValid())
 	{
-		return FDownloadResult(EDownloadRetryMode::Abort);
+		return FDownloadResult(EDownloadRetryMode::Disconnect);
 	}
 
 	std::string RequestJson = FormatBlockRequestJson(*RequestMap, NeedBlocks);
@@ -657,6 +657,10 @@ ProxyQuery::Hello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc)
 		if (AuthTokenResult.IsOk())
 		{
 			BearerToken = std::move(AuthTokenResult.GetData().Access);
+		}
+		else
+		{
+			return MoveError<ProxyQuery::FHelloResponse>(AuthTokenResult);
 		}
 	}
 

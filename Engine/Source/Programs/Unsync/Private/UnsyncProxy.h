@@ -24,8 +24,9 @@ struct FHttpConnection;
 
 enum class EDownloadRetryMode
 {
-	Retry,	// potentially recoverable error (caller can retry)
-	Abort,	// unrecoverable error
+	Retry,		 // potentially recoverable error (caller can retry the same request)
+	Abort,		 // issuing the same request will likely fail, but other requests may succeed
+	Disconnect,	 // further server API calls are likely to fail
 };
 
 struct FDownloadError : FError
@@ -35,7 +36,7 @@ struct FDownloadError : FError
 
 	EDownloadRetryMode RetryMode = EDownloadRetryMode::Abort;
 
-	bool CanRetry() const { return RetryMode == EDownloadRetryMode ::Retry; }
+	bool CanRetry() const { return RetryMode == EDownloadRetryMode::Retry; }
 };
 
 using FDownloadResult = TResult<FEmpty, FDownloadError>;

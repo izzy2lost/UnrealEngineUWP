@@ -823,7 +823,7 @@ FJupiterProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FB
 {
 	if (!IsValid())
 	{
-		return FDownloadError(EDownloadRetryMode::Abort);
+		return FDownloadError(EDownloadRetryMode::Disconnect);
 	}
 
 	if (NeedBlocks.Size() == 0)
@@ -1034,7 +1034,6 @@ FJupiterProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FB
 						|| ErrorsSinceLastSuccess > 10	// Give up after some arbitrary excessive number of errors
 					)
 					{
-						Invalidate();
 						return FDownloadResult(EDownloadRetryMode::Abort);
 					}
 				}

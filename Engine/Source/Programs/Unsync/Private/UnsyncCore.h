@@ -93,6 +93,7 @@ class FBlockCache
 public:
 	FBuffer							BlockData;
 	THashMap<FHash128, FBufferView> BlockMap;  // Decompressed block data by hash
+	FTimeDuration					InitDuration; // How long it took to create the cache (i.e. download / read all the blocks)
 };
 
 inline uint64

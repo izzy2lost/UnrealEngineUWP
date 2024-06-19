@@ -557,6 +557,10 @@ RefreshAuthToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig, c
 					Result.ExirationTime = int64(Field.number_value());
 				}
 			}
+			else
+			{
+				return MoveError<FAuthToken>(DecodedAccessTokenResult);
+			}
 
 			Result.Raw = JsonString;
 		}
@@ -701,6 +705,10 @@ LoadAuthToken(const FPath& Path)
 			{
 				AuthToken.ExirationTime = int64(Field.number_value());
 			}
+		}
+		else
+		{
+			return MoveError<FAuthToken>(DecodedAccessTokenResult);
 		}
 
 		return ResultOk(std::move(AuthToken));

@@ -18,6 +18,11 @@ FHordeProtocolImpl::FHordeProtocolImpl(const FRemoteDesc& InRemoteDesc, const FB
 
 FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
 {
+	if (NeedBlocks.Size() == 0)
+	{
+		return ResultOk<FDownloadError>();
+	}
+
 	std::string RequestJson = FormatBlockRequestJson(*RequestMap, NeedBlocks);
 
 	std::string RequestUrl = fmt::format("/{}/unsync-blobs?compress={}",
@@ -33,7 +38,7 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 	if (!HttpConnection.IsValid())
 	{
 		UNSYNC_ERROR(L"HTTP connection cannot be used");
-		return FDownloadError(EDownloadRetryMode::Abort);
+		return FDownloadError(EDownloadRetryMode::Disconnect);
 	}
 
 	FHttpRequest Request;
@@ -60,6 +65,12 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 	{
 		std::string Value = std::string(ContentType);
 		UNSYNC_ERROR(L"Got unexpected blob content type header: '%hs'", Value.c_str());
+		return FDownloadError(EDownloadRetryMode::Abort);
+	}
+
+	if (Response.Buffer.Size() == 0)
+	{
+		UNSYNC_ERROR(L"Got unexpected empty response body while downloading blocks from Horde");
 		return FDownloadError(EDownloadRetryMode::Abort);
 	}
 
