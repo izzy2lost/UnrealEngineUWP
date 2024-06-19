@@ -268,19 +268,19 @@ namespace AutomationTool
 		public override async Task<ExitCode> ExecuteAsync()
 		{
 			// Parse the command line parameters
-			string className = ParseParamValue("Class", null);
-			string scriptFileName = ParseParamValue("Script", null);
+			string? className = ParseParamValue("Class", null);
+			string? scriptFileName = ParseParamValue("Script", null);
 			string[] targetNames = ParseParamValues("Target").SelectMany(x => x.Split(';', '+').Select(y => y.Trim()).Where(y => y.Length > 0)).ToArray();
-			string documentationFileName = ParseParamValue("Documentation", null);
-			string schemaFileName = ParseParamValue("Schema", null);
-			string importSchemaFileName = ParseParamValue("ImportSchema", null);
-			string exportFileName = ParseParamValue("Export", null);
-			string hordeExportFileName = ParseParamValue("HordeExport", null);
-			string preprocessedFileName = ParseParamValue("Preprocess", null);
-			string sharedStorageDir = ParseParamValue("SharedStorageDir", null);
-			string singleNodeName = ParseParamValue("SingleNode", null);
-			string triggerName = ParseParamValue("Trigger", null);
-			string tokenSignature = ParseParamValue("TokenSignature", null);
+			string? documentationFileName = ParseParamValue("Documentation", null);
+			string? schemaFileName = ParseParamValue("Schema", null);
+			string? importSchemaFileName = ParseParamValue("ImportSchema", null);
+			string? exportFileName = ParseParamValue("Export", null);
+			string? hordeExportFileName = ParseParamValue("HordeExport", null);
+			string? preprocessedFileName = ParseParamValue("Preprocess", null);
+			string? sharedStorageDir = ParseParamValue("SharedStorageDir", null);
+			string? singleNodeName = ParseParamValue("SingleNode", null);
+			string? triggerName = ParseParamValue("Trigger", null);
+			string? tokenSignature = ParseParamValue("TokenSignature", null);
 			bool skipTargetsWithoutTokens = ParseParam("SkipTargetsWithoutTokens");
 			bool resume = singleNodeName != null || ParseParam("Resume");
 			bool listOnly = ParseParam("ListOnly");
@@ -288,8 +288,8 @@ namespace AutomationTool
 			bool writeToSharedStorage = ParseParam("WriteToSharedStorage") || CommandUtils.IsBuildMachine;
 			bool publicTasksOnly = ParseParam("PublicTasksOnly");
 			bool skipValidation = ParseParam("SkipValidation");
-			string reportName = ParseParamValue("ReportName", null);
-			string branchOverride = ParseParamValue("Branch", null);
+			string? reportName = ParseParamValue("ReportName", null);
+			string? branchOverride = ParseParamValue("Branch", null);
 
 			GraphPrintOptions printOptions = GraphPrintOptions.ShowCommandLineOptions;
 			if (ParseParam("ShowDeps"))
@@ -364,7 +364,7 @@ namespace AutomationTool
 			}
 
 			// If the -project flag is given, pass useful information into the graph
-			FileReference projectFile = ParseProjectParam();
+			FileReference? projectFile = ParseProjectParam();
 			if (projectFile != null)
 			{
 				defaultProperties["ProjectName"] = projectFile.GetFileNameWithoutExtension();

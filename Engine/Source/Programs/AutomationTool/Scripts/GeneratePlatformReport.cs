@@ -37,7 +37,7 @@ namespace AutomationTool
 		{
 			// Parse parameters
 			string[] Platforms = ParseParamValue("Platforms", "").Split('+', StringSplitOptions.RemoveEmptyEntries);
-			string CsvFile = ParseParamValue("CsvOut");
+			string? CsvFile = ParseParamValue("CsvOut");
 			string DDPISection = ParseParamValue("DDPISection","DataDrivenPlatformInfo");
 			bool bFriendlyNames = !ParseParam("UseFieldNames");
 			bool bOpenReport = ParseParam("OpenReport");

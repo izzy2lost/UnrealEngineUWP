@@ -1609,7 +1609,7 @@ namespace AutomationTool
 		/// </summary>
 		public override void ExecuteBuild()
 		{
-			string tempStorageDir = ParseParamValue("TempStorageDir", null);
+			string? tempStorageDir = ParseParamValue("TempStorageDir", null);
 			if (tempStorageDir == null)
 			{
 				throw new AutomationException("Missing -TempStorageDir parameter");
@@ -1621,7 +1621,7 @@ namespace AutomationTool
 				return;
 			}
 
-			string days = ParseParamValue("Days", null);
+			string? days = ParseParamValue("Days", null);
 			if (days == null)
 			{
 				throw new AutomationException("Missing -Days parameter");
