@@ -27,17 +27,18 @@ namespace UE::VCamCore
 		UpdateViewport(RegisteredVCams, EVCamTargetViewportID::Viewport3);
 		UpdateViewport(RegisteredVCams, EVCamTargetViewportID::Viewport4);
 	}
-	
+
 	void FViewportLockManager::UpdateViewport(TConstArrayView<TWeakObjectPtr<UVCamComponent>> RegisteredVCams, EVCamTargetViewportID ViewportID)
 	{
-		const TWeakObjectPtr<const UVCamOutputProviderBase>& WeakLockReason = GetLockState(ViewportID).LockReason;
+		FViewportLockState& LockInfo = GetLockState(ViewportID);
+		const TWeakObjectPtr<const UVCamOutputProviderBase>& WeakLockReason = LockInfo.LockReason;
 		const UVCamOutputProviderBase* LockReason = WeakLockReason.Get();
 		const bool bWasLockReasonInvalidated = LockReason
 			&& (!HasViewportOwnershipDelegate.Execute(*LockReason)
 				|| LockReason->GetTargetViewport() != ViewportID);
 		if (bWasLockReasonInvalidated || WeakLockReason.IsStale())
 		{
-			ViewportLocker.SetActorLock(ViewportID, FActorLockContext{ nullptr });
+			ClearActorLock(ViewportID, LockInfo);
 		}
 		
 		for (const TWeakObjectPtr<UVCamComponent>& VCamComponent : RegisteredVCams)
@@ -50,6 +51,21 @@ namespace UE::VCamCore
 				}
 			}
 		}
+	}
+	
+	void FViewportLockManager::ClearActorLock(EVCamTargetViewportID ViewportID, FViewportLockState& LockInfo)
+	{
+		const TWeakObjectPtr<AActor> WeakCurrentLock = ViewportLocker.GetActorLock(ViewportID);
+		const AActor* CurrentLock = WeakCurrentLock.Get();
+		const bool bHasLockedActorChanged = CurrentLock && LockInfo.OwningActor != CurrentLock;
+
+		// If an external system has the lock, do not accidentally clear it.
+		if (!bHasLockedActorChanged)
+		{
+			ViewportLocker.SetActorLock(ViewportID, FActorLockContext{ nullptr });
+		}
+		
+		LockInfo.Reset();
 	}
 
 	void FViewportLockManager::UpdateLockStateFor(UVCamOutputProviderBase& OutputProvider)
@@ -65,7 +81,7 @@ namespace UE::VCamCore
 		if (ensure(OwningActor) && !bIsExternalLockInPlace && bWantsLock)
 		{
 			ViewportLocker.SetActorLock(TargetViewportID, FActorLockContext{ &OutputProvider });
-			GetLockState(TargetViewportID).LockReason = &OutputProvider;
+			GetLockState(TargetViewportID).SetLockReason(OutputProvider, *OwningActor);
 		}
 	}
 }

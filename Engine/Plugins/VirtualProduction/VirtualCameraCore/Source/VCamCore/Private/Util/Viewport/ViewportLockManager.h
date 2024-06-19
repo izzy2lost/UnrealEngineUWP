@@ -5,6 +5,7 @@
 #include "Containers/ContainersFwd.h"
 #include "Delegates/Delegate.h"
 #include "HAL/Platform.h"
+#include "Output/VCamOutputProviderBase.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
@@ -47,11 +48,30 @@ namespace UE::VCamCore
 		struct FViewportLockState
 		{
 			TWeakObjectPtr<const UVCamOutputProviderBase> LockReason;
+			/** The actor that owns LockReason. Set together with LockReason. */
+			TWeakObjectPtr<const AActor> OwningActor;
+
+			void SetLockReason(const UVCamOutputProviderBase& InLockReason, const AActor& InOwningActor)
+			{
+				check(InLockReason.IsIn(&InOwningActor));
+				LockReason = &InLockReason;
+				OwningActor = &InOwningActor;
+			}
+
+			void Reset()
+			{
+				LockReason.Reset();
+				OwningActor.Reset();
+			}
 		} LockState[4];
 
 		FViewportLockState& GetLockState(EVCamTargetViewportID ViewportID);
-		
+
+		/** Updates the viewport lock given the registered VCams. */
 		void UpdateViewport(TConstArrayView<TWeakObjectPtr<UVCamComponent>> RegisteredVCams, EVCamTargetViewportID ViewportID);
+		/** Takes away the viewport from an output provider assigned to ViewportID. */
+		void ClearActorLock(EVCamTargetViewportID ViewportID, FViewportLockState& LockInfo);
+		/** Assigns the viewport lock to OutputProvider if allowed. */
 		void UpdateLockStateFor(UVCamOutputProviderBase& OutputProvider);
 	};
 }
