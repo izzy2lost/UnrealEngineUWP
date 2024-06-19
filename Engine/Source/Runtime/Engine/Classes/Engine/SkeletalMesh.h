@@ -512,10 +512,19 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** Returns the number of source models.
-	 *  \note This value is the same as the return value of GetLODNum, as these two are kept in sync.
 	 */
 	ENGINE_API int32 GetNumSourceModels() const;
 
+	/** Returns all source models as immutable. See GetSourceModel for description of what each source model contains.
+	 *  \return The list of all source models. 
+	 */
+	ENGINE_API TConstArrayView<FSkeletalMeshSourceModel> GetAllSourceModels() const;
+
+	/** Returns all source models. See GetSourceModel for description of what each source model contains.
+	 *  \return The list of all source models. 
+	 */
+	ENGINE_API TArrayView<FSkeletalMeshSourceModel> GetAllSourceModels();
+	
 	/** Returns the source model object for the skeletal mesh of a given LOD. This source models stores
 	 *  an optional mesh description that the renderable data is generated from. If there is no mesh description
 	 *  object, then the geometry of this LOD is automatically generated from an earlier LOD.
@@ -574,23 +583,38 @@ public:
 	struct FCommitMeshDescriptionParams
 	{
 		FCommitMeshDescriptionParams() {}
+
+		/** Update the alternate skin weight profile list based on presence of non-default skin weight attributes in the  
+		 *  committed mesh. If a skin weight attribute exists on the mesh but not in the list of profiles, then the profile
+		 *  is added. Likewise, if a profile exists but there's no corresponding skin weight attribute then that profile
+		 *  is removed.
+		 */
+		bool bUpdateSkinWeightProfiles = true;
+		
+		/** Update the LOD's vertex attribute list based on presence of vertex attributes in the committed mesh. 
+		 *  If a vertex attribute is defined on the committed mesh but doesn't exist in the list of vertex attributes 
+		 *  on the LOD, then that vertex attribute is added to the LOD. Likewise, vertex attribute exists on the LOD, 
+		 *  but not on the committed mesh, then the attribute is removed from the LOD. 
+		 */
+		bool bUpdateVertexAttributes = true;
 		
 		/** Mark the package as dirty. If calling CommitMeshDescription from a non-game thread,
 		 *  this value should be set to \c false.
 		 */
 		bool bMarkPackageDirty = true;
 
-		/** Force the render data to update. By default the render data uses the hash of the mesh to check if
+		/** Force the render data to update. By default, the render data uses the hash of the mesh to check if
 		 *  an update is required, this forces this hash to be unique, causing the render data to update whether
 		 *  the mesh has changed or not.
 		 */
 		bool bForceUpdate = false;
 	};
 
-	/* Commits the stored mesh description object to bulk storage. This also forces the imported bounds to update
-	 * if the mesh committed is on LOD 0. If there is no stored mesh description, the bulk storage will be emptied.
+	/** Commits the stored mesh description object to bulk storage. This also forces the imported bounds to update
+	 *  if the mesh committed is on LOD 0. If there is no stored mesh description, the bulk storage will be emptied.
+	 *  \note It is thread-safe to commit multiple meshes simultaneously, as long as they're all on different LODs. 
 	 *  \param InLODIndex The LOD index at which to commit the mesh description to bulk storage.
-	 *  \param InParams An optional object to control how the commit is done.
+	 *  \param InParams An optional object to control what happens during the commit.
 	 *  \return \c true if the commit was successful. Even if there was no mesh description to store, the commit
 	 *    is still successful.
 	 */
@@ -631,52 +655,36 @@ public:
 	// Raw mesh data DDC string ID, there is no API to retrieve it, since only the LODModels need this value
 	
 
-	/* Fill the OutMesh with the imported data */
 	UE_DEPRECATED(5.4, "Use GetMeshDescription instead.")
 	ENGINE_API void LoadLODImportedData(const int32 LODIndex, FSkeletalMeshImportData& OutMesh) const;
 
-	/* Fill the asset LOD entry with the InMesh. */
 	UE_DEPRECATED(5.4, "Use CommitMeshDescription instead.")
 	ENGINE_API void SaveLODImportedData(const int32 LODIndex, const FSkeletalMeshImportData& InMesh);
 	
-	/* Return true if the imported data has all the necessary data to use the skeletalmesh builder. Return False otherwise.
-	 * Old asset before the refactor will not be able to be build until it get fully re-import.
-	 * This value is cache in the LODModel and update when we call SaveLODImportedData.
-	 */
 	UE_DEPRECATED(5.4, "Use HasMeshDescription instead.")
 	ENGINE_API bool IsLODImportedDataBuildAvailable(const int32 LODIndex) const;
 	
-	/* Return true if the imported data is present. Return false otherwise.
-	 * Old asset before the split workflow will not have this data and will not support import geo only or skinning only.
-	 * This value is cache in the LODModel and update when we call SaveLODImportedData.
-	 */
 	UE_DEPRECATED(5.4, "Use HasMeshDescription instead.")
 	ENGINE_API bool IsLODImportedDataEmpty(const int32 LODIndex) const;
 
-	/* Get the Versions of the geo and skinning data. We use those versions to answer to IsLODImportedDataBuildAvailable function. */
 	UE_DEPRECATED(5.4, "No equivalent provided since versioning is not surfaced for mesh description bulk data.")
 	ENGINE_API void GetLODImportedDataVersions(const int32 LODIndex, ESkeletalMeshGeoImportVersions& OutGeoImportVersion, ESkeletalMeshSkinningImportVersions& OutSkinningImportVersion) const;
 
-	/* Set the Versions of the geo and skinning data. We use those versions to answer to IsLODImportedDataBuildAvailable function. */
 	UE_DEPRECATED(5.4, "No equivalent provided since versioning is not surfaced for mesh description bulk data.")
 	ENGINE_API void SetLODImportedDataVersions(const int32 LODIndex, const ESkeletalMeshGeoImportVersions& InGeoImportVersion, const ESkeletalMeshSkinningImportVersions& InSkinningImportVersion);
 
-	/* Static function that copy the LOD import data from a source skeletal mesh to a destination skeletal mesh*/
 	UE_DEPRECATED(5.4, "Use GetMeshDescription and CreateMeshDescription instead.")
 	static ENGINE_API void CopyImportedData(int32 SrcLODIndex, USkeletalMesh* SrcSkeletalMesh, int32 DestLODIndex, USkeletalMesh* DestSkeletalMesh);
 
-	/* Allocate the space we need. Use this before calling this API in multithreaded. */
 	UE_DEPRECATED(5.4, "No equivalent provided. All LODs should be added up-front for multi-threaded use.")
 	ENGINE_API void ReserveLODImportData(int32 MaxLODIndex);
 	
 	UE_DEPRECATED(5.4, "No equivalent provided.")
 	ENGINE_API void ForceBulkDataResident(const int32 LODIndex);
 
-	/* Remove the import data for the specified LOD */
 	UE_DEPRECATED(5.4, "Use ClearMeshDescriptionAndBulkData instead.")
 	ENGINE_API void EmptyLODImportData(const int32 LODIndex);
 
-	/* Remove the import data for all the LODs */
 	UE_DEPRECATED(5.4, "Use ClearMeshDescriptionAndBulkData instead.")
 	ENGINE_API void EmptyAllImportData();
 
@@ -1415,16 +1423,6 @@ public:
 	{
 		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::BodySetup);
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return BodySetup;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	UE_DEPRECATED(4.27, "Please do not use this non const function; use the combination of USkeletalMesh::CreateBodySetup() and USkeletalMesh::GetBodySetup() const. Cast the skeletal mesh caller to const to force the compiler to use the USkeletalMesh::GetBodySetup() const function and avoid the deprecation warning")
-	class UBodySetup* GetBodySetup()
-	{
-		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::BodySetup);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		CreateBodySetup();
 		return BodySetup;
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}

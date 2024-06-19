@@ -2420,6 +2420,22 @@ void USkeletalMesh::RemoveSourceModelInternal(const int32 InLODIndex)
 }
 
 
+TConstArrayView<FSkeletalMeshSourceModel> USkeletalMesh::GetAllSourceModels() const
+{
+	WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::SourceModels);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return SourceModels;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+TArrayView<FSkeletalMeshSourceModel> USkeletalMesh::GetAllSourceModels()
+{
+	WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::SourceModels);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return SourceModels;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
 const FSkeletalMeshSourceModel& USkeletalMesh::GetSourceModel(const int32 InLODIndex) const
 {
 	WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::SourceModels);
@@ -2515,6 +2531,107 @@ bool USkeletalMesh::CommitMeshDescription(
 	if (InLODIndex == 0)
 	{
 		SetImportedBounds(SourceModel.GetBoundsFast());
+	}
+	
+	if (SourceModel.HasMeshDescription())
+	{
+		if (InParams.bUpdateSkinWeightProfiles)
+		{
+			static FCriticalSection ProfileUpdateMutex;
+
+			// Since SkinWeightProfiles is a USkeletalMesh member, we want to avoid multiple
+			// threads all mutating it at the same time, in case we have a geometry processor
+			// that is committing multiple meshes across differing LODs simultaneously.
+			FScopeLock ScopeLock(&ProfileUpdateMutex);
+			
+			FSkeletalMeshConstAttributes Attributes(*SourceModel.GetMeshDescription());
+
+			TArray<FSkinWeightProfileInfo>& ExistingProfiles = GetSkinWeightProfiles();
+			TMap<FName, int32> ProfileIndexes;
+
+			for (int32 Index = 0; Index < ExistingProfiles.Num(); Index++)
+			{
+				ProfileIndexes.Add(ExistingProfiles[Index].Name, Index);
+			}
+
+			// Get all profiles from all LODs, since we may have some that weren't defined 
+			TSet<FName> ValidProfiles;
+			for (const FSkeletalMeshSourceModel& OtherSourceModels: GetAllSourceModels())
+			{
+				ValidProfiles.Append(OtherSourceModels.GetSkinWeightProfileNames());
+			}
+			for (const FName& ProfileName: ValidProfiles)
+			{
+				if (!ProfileIndexes.Contains(ProfileName))
+				{
+					FSkinWeightProfileInfo& NewProfile = ExistingProfiles.AddDefaulted_GetRef();
+					NewProfile.Name = ProfileName;
+				}
+			}
+
+			ExistingProfiles.RemoveAll([ValidProfiles](const FSkinWeightProfileInfo& InProfileInfo)
+			{
+				return !ValidProfiles.Contains(InProfileInfo.Name);
+			});
+		}
+		
+		if (InParams.bUpdateVertexAttributes)
+		{
+			TSet<FName> MeshVertexAttributes;
+			
+			// NOTE: We're currently limited to just single-channel attributes for rendering.
+			SourceModel.GetMeshDescription()->VertexAttributes().ForEachByType<float>([&MeshVertexAttributes](const FName InAttributeName, TVertexAttributesConstRef<float> InAttributeRef)
+			{
+				if (!FSkeletalMeshAttributes::IsReservedAttributeName(InAttributeName))
+				{
+					MeshVertexAttributes.Add(InAttributeName);
+				}
+			});
+
+			bool bVertexAttributesChanged = false;
+			TArray<FSkeletalMeshVertexAttributeInfo>& ExistingVertexAttributes = GetLODInfo(InLODIndex)->VertexAttributes;
+			TSet<FName> ExistingVertexAttributeNames;
+			for (const FSkeletalMeshVertexAttributeInfo& AttributeInfo: ExistingVertexAttributes)
+			{
+				ExistingVertexAttributeNames.Add(AttributeInfo.Name);
+			}
+			
+			for (FName AttributeName: MeshVertexAttributes)
+			{
+				if (!ExistingVertexAttributeNames.Contains(AttributeName))
+				{
+					FSkeletalMeshVertexAttributeInfo& NewAttribute = ExistingVertexAttributes.AddDefaulted_GetRef();
+					NewAttribute.Name = AttributeName;
+
+					bVertexAttributesChanged = true;
+				}
+			}
+
+			// Remove all attributes from the LOD that no longer exist on the mesh.
+			if (ExistingVertexAttributes.RemoveAll([&MeshVertexAttributes](const FSkeletalMeshVertexAttributeInfo& InInfo)
+				{
+					return !MeshVertexAttributes.Contains(InInfo.Name);
+				}))
+			{
+				bVertexAttributesChanged = true;
+			}
+
+			if (bVertexAttributesChanged)
+			{
+#if WITH_EDITOR
+				// Notify UI and other systems of the change
+				// Dispatch it on the game thread for thread-safety as this can be called on a worker thread
+				FFunctionGraphTask::CreateAndDispatchWhenReady(
+					[WeakSkelMesh = TWeakObjectPtr<USkeletalMesh>(this)]()
+					{
+						if (USkeletalMesh* SkeletalMesh = WeakSkelMesh.Get())
+						{
+							SkeletalMesh->GetOnVertexAttributesArrayChanged().Broadcast();
+						}
+					}, TStatId(), nullptr, ENamedThreads::GameThread);	
+#endif			
+			}
+		}
 	}
 
 	if (ensure(GetImportedModel()->LODModels.IsValidIndex(InLODIndex)))

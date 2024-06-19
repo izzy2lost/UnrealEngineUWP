@@ -7,11 +7,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkeletalMeshVertexAttribute)
 
 
-FName FSkeletalMeshVertexAttributeInfo::GetRequirementName() const
-{
-	return FName(FString::Printf(TEXT("Vertex.%s"), *Name.ToString()));
-}
-
 bool FSkeletalMeshVertexAttributeInfo::IsEnabledForRender() const
 {
 	return EnabledForRender.GetValue();

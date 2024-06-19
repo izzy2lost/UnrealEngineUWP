@@ -358,7 +358,7 @@ FSkinWeightsVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexSki
 	return {};
 }
 
-TArray<FName> FSkeletalMeshAttributesShared::GetSkinWeightProfileNames() const
+TArray<FName> FSkeletalMeshAttributesShared::GetSkinWeightProfileNames(const bool bInUserDefinedOnly) const
 {
 	TArray<FName> AllAttributeNames;
 	MeshDescriptionShared.VertexAttributes().GetAttributeNames(AllAttributeNames);
@@ -379,7 +379,7 @@ TArray<FName> FSkeletalMeshAttributesShared::GetSkinWeightProfileNames() const
 	}
 
 	SkinWeightProfileNames.Sort([](const FName A, const FName B) -> bool { return A.FastLess(B); });
-	if (bHasDefault)
+	if (bHasDefault && !bInUserDefinedOnly)
 	{
 		SkinWeightProfileNames.Insert(DefaultSkinWeightProfileName, 0);
 	}

@@ -120,11 +120,21 @@ struct FSkeletalMeshSourceModel
 	{
 		return Bounds;
 	}
-	
+
+	/**
+	 * Returns the list of names of alternate skin weight profiles stored on the mesh, if any.
+	 */
+	TConstArrayView<FName> GetSkinWeightProfileNames() const;
+
+	/**
+	 * Returns the list names of morph targets stored on the mesh, if any.
+	 */
+	TConstArrayView<FName> GetMorphTargetNames() const;
+
 private:
 #if WITH_EDITOR
 	USkeletalMesh* GetOwner() const;
-
+	
 	/**
 	 * Ensures that any old raw mesh bulk data has been converted to new data. Used prior to saving out an
 	 * asset, since the old bulk data will not be saved out again and would otherwise be lost.
@@ -157,6 +167,12 @@ private:
 	 *   the statistics are reset to zero, for the counts, and an empty bounds.
 	 */
 	void UpdateCachedMeshStatistics(const FMeshDescription* InMeshDescription);
+
+	/**
+	 *  Update the cached mesh statistics from either resident mesh, or by loading
+	 *  and then unloading the bulkd data, to conserve memory.
+	 */
+	void UpdateCachedMeshStatisticsFromBulkIfNeeded();
 #endif
 	
 	UPROPERTY()
@@ -167,6 +183,17 @@ private:
 
 	UPROPERTY()
 	FBoxSphereBounds Bounds;
+
+	// List of all alternate skin weight profiles stored on the mesh,
+	// NOTE: The default value is single-entry array with NAME_None to mark
+	// that this value has not been initialized yet / TOptional does not work
+	// with containers. 
+	UPROPERTY()
+	TArray<FName> CachedSkinWeightProfileNames{ NAME_None };
+
+	// List of all morph targets stored on the mesh.
+	UPROPERTY()
+	TArray<FName> CachedMorphTargetNames{ NAME_None };
 	
 #if WITH_EDITORONLY_DATA
 	/**

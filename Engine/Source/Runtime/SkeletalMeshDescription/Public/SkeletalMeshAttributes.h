@@ -95,8 +95,11 @@ public:
 	// Skin Weights Methods
 	//
 
-	/// Returns the list of all registered skin weight profile names on this mesh.
-	SKELETALMESHDESCRIPTION_API TArray<FName> GetSkinWeightProfileNames() const;
+	/** Returns the list of all registered skin weight profile names on this mesh.
+	 *  \param bInUserDefinedOnly Only return user-defined profiles, not the default profile.
+	 *  \return The list of the profile names.
+	 */
+	SKELETALMESHDESCRIPTION_API TArray<FName> GetSkinWeightProfileNames(const bool bInUserDefinedOnly = false) const;
 	
 	/// Returns \c true if the given identifier is a valid profile name. If the name is empty, or matches the default profile,
 	/// then the profile name is considered invalid. 

@@ -3109,13 +3109,13 @@ bool FLODUtilities::UpdateLODInfoVertexAttributes(
 
 	FSkeletalMeshLODModel& TargetLODModel = InSkeletalMesh->GetImportedModel()->LODModels[InTargetLODIndex];
 	
-	TArray<FSkeletalMeshVertexAttributeInfo>& SkelMeshAttributeInfos = InSkeletalMesh->GetLODInfo(InTargetLODIndex)->VertexAttributes; 
+	const TArray<FSkeletalMeshVertexAttributeInfo>& SkelMeshAttributeInfos = InSkeletalMesh->GetLODInfo(InTargetLODIndex)->VertexAttributes; 
 
 	// Retain any existing attribute infos and match based on names.
-	TMap<FName, FSkeletalMeshVertexAttributeInfo> ExistingAttributeInfos;
-	for (FSkeletalMeshVertexAttributeInfo& AttributeInfo: SkelMeshAttributeInfos)
+	TMap<FName, const FSkeletalMeshVertexAttributeInfo*> ExistingAttributeInfos;
+	for (const FSkeletalMeshVertexAttributeInfo& AttributeInfo: SkelMeshAttributeInfos)
 	{
-		ExistingAttributeInfos.Add(AttributeInfo.Name, MoveTemp(AttributeInfo));
+		ExistingAttributeInfos.Add(AttributeInfo.Name, &AttributeInfo);
 	}
 	
 	const FMeshDescription* MeshDescription = InSkeletalMesh->GetMeshDescription(InSourceLODIndex);
@@ -3130,8 +3130,6 @@ bool FLODUtilities::UpdateLODInfoVertexAttributes(
 		}
 	});
  
-	SkelMeshAttributeInfos.Reset(SourceAttributes.Num());
-
 	// If we're not copying the values, leave the existing data in place.
 	if (bInCopyAttributeValues)
 	{
@@ -3146,24 +3144,18 @@ bool FLODUtilities::UpdateLODInfoVertexAttributes(
 		const FName AttributeName(SourceAttributeInfo.Key);
 
 		// Did this definition already exist? Try to retain as much of the existing information as possible.
-		FSkeletalMeshVertexAttributeInfo Info;
+		const FSkeletalMeshVertexAttributeInfo* AttributeInfo = nullptr;
 		
 		if (ExistingAttributeInfos.Contains(AttributeName))
 		{
-			Info = MoveTemp(ExistingAttributeInfos[AttributeName]);
-		}
-		else
-		{
-			Info.Name = AttributeName;
+			AttributeInfo = ExistingAttributeInfos[AttributeName];
 		}
 
-		SkelMeshAttributeInfos.Add(Info);
-
-		if (Info.IsEnabledForRender() && bInCopyAttributeValues)
+		if (AttributeInfo && AttributeInfo->IsEnabledForRender() && bInCopyAttributeValues)
 		{
 			FSkeletalMeshModelVertexAttribute& ModelAttribute = TargetLODModel.VertexAttributes.FindOrAdd(AttributeName);
 
-			ModelAttribute.DataType = Info.DataType;
+			ModelAttribute.DataType = AttributeInfo->DataType;
 			ModelAttribute.ComponentCount = 1;
 
 			if (InTargetLODIndex == InSourceLODIndex)
@@ -3192,19 +3184,6 @@ bool FLODUtilities::UpdateLODInfoVertexAttributes(
 	// Wait for all the attribute conversion tasks to complete.
 	UE::Tasks::Wait(ConversionTasks);
 
-#if WITH_EDITOR
-	// Notify UI and other systems of the change
-	// Dispatch it on the game thread for thread safty as this can be called during cook on a worker thread
-	FFunctionGraphTask::CreateAndDispatchWhenReady(
-		[WeakSkelMesh = TWeakObjectPtr<USkeletalMesh>(InSkeletalMesh)]()
-		{
-			USkeletalMesh* InSkeletalMesh = WeakSkelMesh.Get();
-			if (InSkeletalMesh)
-			{
-				InSkeletalMesh->GetOnVertexAttributesArrayChanged().Broadcast();
-			}
-		}, TStatId(), NULL, ENamedThreads::GameThread);	
-#endif
 	
 	return true;
 }

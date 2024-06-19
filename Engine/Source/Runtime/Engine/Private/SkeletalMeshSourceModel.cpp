@@ -216,6 +216,24 @@ const FMeshDescriptionBulkData* FSkeletalMeshSourceModel::GetMeshDescriptionBulk
 }
 
 
+TConstArrayView<FName> FSkeletalMeshSourceModel::GetSkinWeightProfileNames() const
+{
+	if (CachedSkinWeightProfileNames.Num() == 1 && CachedSkinWeightProfileNames[0] == NAME_None)
+	{
+		const_cast<FSkeletalMeshSourceModel*>(this)->UpdateCachedMeshStatisticsFromBulkIfNeeded();
+	}
+	return CachedSkinWeightProfileNames;
+}
+
+TConstArrayView<FName> FSkeletalMeshSourceModel::GetMorphTargetNames() const
+{
+	if (CachedMorphTargetNames.Num() == 1 && CachedMorphTargetNames[0] == NAME_None)
+	{
+		const_cast<FSkeletalMeshSourceModel*>(this)->UpdateCachedMeshStatisticsFromBulkIfNeeded();
+	}
+	return CachedMorphTargetNames;
+}
+
 USkeletalMesh* FSkeletalMeshSourceModel::GetOwner() const
 {
 	if (!ensure(MeshDescriptionBulkData))
@@ -349,11 +367,57 @@ void FSkeletalMeshSourceModel::UpdateCachedMeshStatistics(const FMeshDescription
 		TriangleCount = InMeshDescription->Triangles().Num();
 		VertexCount = InMeshDescription->Vertices().Num();
 		Bounds = InMeshDescription->GetBounds();
+		
+		FSkeletalMeshConstAttributes Attributes(*InMeshDescription);
+		constexpr bool bInUserDefinedOnly = true;
+		CachedSkinWeightProfileNames = Attributes.GetSkinWeightProfileNames(bInUserDefinedOnly);
+		CachedMorphTargetNames = Attributes.GetMorphTargetNames();
 	}
 	else
 	{
 		TriangleCount = VertexCount = 0;
 		Bounds = FBoxSphereBounds{ForceInitToZero};
+		CachedSkinWeightProfileNames.Reset();
+		CachedMorphTargetNames.Reset();
+	}
+}
+
+void FSkeletalMeshSourceModel::UpdateCachedMeshStatisticsFromBulkIfNeeded()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FSkeletalMeshSourceData::UpdateCachedMeshStatisticsFromBulkIfNeeded);
+
+	FScopeLock Lock(&MeshDescriptionBulkDataMutex);
+
+	if (!ensure(MeshDescriptionBulkData))
+	{
+		return;
+	}
+	
+	if (MeshDescriptionBulkData->HasCachedMeshDescription())
+	{
+		UpdateCachedMeshStatistics(&MeshDescriptionBulkData->GetMeshDescription()->GetMeshDescription());
+	}
+
+	if (!MeshDescriptionBulkData->IsBulkDataValid())
+	{
+		if (RawMeshBulkData.IsValid())
+		{
+			// This call will implicitly update the mesh statistics.
+			ConvertRawMeshToMeshDescriptionBulkData();
+		}
+		else
+		{
+			UpdateCachedMeshStatistics(nullptr);
+		}
+	}
+	else
+	{
+		// Temporarily load the mesh description from the bulk data, we don't care about fixing up the morph targets
+		// in this instance (as would be the case with LoadMeshDescriptionFromBulkData).
+		FMeshDescription MeshDescription;
+		MeshDescriptionBulkData->GetBulkData().LoadMeshDescription(MeshDescription);
+
+		UpdateCachedMeshStatistics(&MeshDescription);
 	}
 }
 
