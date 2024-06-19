@@ -135,19 +135,35 @@ FArchive& FActorDescArchive::operator<<(FSoftObjectPath& Value)
 
 FArchive& FActorDescArchivePatcher::operator<<(FName& Value)
 {
-	TGuardValue<bool> GuardIsPatching(bIsPatching, true);
-	FActorDescArchive::operator<<(Value);
-	AssetDataPatcher->DoPatch(Value);
-	OutAr << Value;
+	{
+		TGuardValue<bool> GuardIsPatching(bIsPatching, true);
+		FActorDescArchive::operator<<(Value);
+		AssetDataPatcher->DoPatch(Value);
+	}
+
+    // Only write out values if we aren't already patching since this function can be called
+	// from other patching functions which will perform the final write of the patched values
+	if (!bIsPatching)
+	{
+		OutAr << Value;
+	}
 	return *this;
 }
 
 FArchive& FActorDescArchivePatcher::operator<<(FSoftObjectPath& Value)
 {
-	TGuardValue<bool> GuardIsPatching(bIsPatching, true);
-	FActorDescArchive::operator<<(Value);
-	AssetDataPatcher->DoPatch(Value);
-	Value.SerializePathWithoutFixup(OutAr);
+	{
+		TGuardValue<bool> GuardIsPatching(bIsPatching, true);
+		FActorDescArchive::operator<<(Value);
+		AssetDataPatcher->DoPatch(Value);
+	}
+
+    // Only write out values if we aren't already patching since this function can be called
+	// from other patching functions which will perform the final write of the patched values
+	if (!bIsPatching)
+	{
+		Value.SerializePathWithoutFixup(OutAr);
+	}
 	return *this;
 }
 
