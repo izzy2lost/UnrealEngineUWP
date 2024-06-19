@@ -66,7 +66,10 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeComponentMesh : public
 {
 public:
 	GENERATED_BODY()
-		
+
+	UPROPERTY(EditAnywhere, Category = Mesh)
+	FName ComponentName;
+
 	UPROPERTY(EditAnywhere, Category = Mesh, Meta = (DisplayName = Mesh, AllowedClasses = "/Script/Engine.StaticMesh, /Script/Engine.SkeletalMesh"))
 	FSoftObjectPath Mesh;
 

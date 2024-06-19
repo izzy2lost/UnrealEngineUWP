@@ -94,13 +94,15 @@ UObject* UCustomizableObjectFactory::FactoryCreateNew(UClass* Class, UObject* In
 		}
 	}
 
+	if (!BaseObjectNode)
+	{
+		return NewObj;
+	}
+
+	NewObj->GetPrivate()->MutableMeshComponents.SetNum(CreationSettings.NumMeshComponents);
+
 	if (!CreationSettings.bEmptyObject)
 	{
-		if (!BaseObjectNode)
-		{
-			return NewObj;
-		}
-
 		if (CreationSettings.bIsChildObject && CreationSettings.ParentObject.IsValid())
 		{
 			BaseObjectNode->ParentObject = CreationSettings.ParentObject.Get();
@@ -125,14 +127,11 @@ UObject* UCustomizableObjectFactory::FactoryCreateNew(UClass* Class, UObject* In
 		}
 		else
 		{
-			BaseObjectNode->NumMeshComponents = CreationSettings.NumMeshComponents;
+			check(CreationSettings.ReferenceSkeletalMeshes.Num() == CreationSettings.NumMeshComponents);
 
 			for (int32 MeshIndex = 0; MeshIndex < CreationSettings.ReferenceSkeletalMeshes.Num(); ++MeshIndex)
 			{
-				if (CreationSettings.ReferenceSkeletalMeshes[MeshIndex].IsValid())
-				{
-					NewObj->ReferenceSkeletalMeshes.Add(CreationSettings.ReferenceSkeletalMeshes[MeshIndex].Get());
-				}
+				NewObj->GetPrivate()->MutableMeshComponents[MeshIndex].ReferenceSkeletalMesh = CreationSettings.ReferenceSkeletalMeshes[MeshIndex].Get();
 			}
 		}
 	}

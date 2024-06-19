@@ -179,17 +179,33 @@ void FCustomizableObjectNodeObjectDetails::CustomizeDetails( IDetailLayoutBuilde
 	{
 		// Properties
 		TSharedRef<IPropertyHandle> StatesProperty = DetailBuilder.GetProperty("States");
+		//TODO(Max UE-215837)
+		//TSharedRef<IPropertyHandle> ComponentsProperty = DetailBuilder.GetProperty("Components");
 		TSharedRef<IPropertyHandle> ParentObjectProperty = DetailBuilder.GetProperty("ParentObject");
-		TSharedRef<IPropertyHandle> ComponentsProperty = DetailBuilder.GetProperty("NumMeshComponents");
 		TSharedRef<IPropertyHandle> LODsProperty = DetailBuilder.GetProperty("NumLODs");
 		TSharedRef<IPropertyHandle> ComponentSettingsProperty= DetailBuilder.GetProperty("ComponentSettings");
 
-		FName BonesToRemovePropertyPath = FName("ComponentSettings[" + FString::FromInt(BaseObjectNode->CurrentComponent) + "].LODReductionSettings[" + FString::FromInt(BaseObjectNode->CurrentLOD) + "].BonesToRemove");
+		// Index of the component shown in the Bones to edit widget
+		int32 CurrentComponentIndex = 0;
+
+		for (int32 ComponentIndex = 0; ComponentIndex < BaseObjectNode->ComponentSettings.Num(); ++ComponentIndex)
+		{
+			if (BaseObjectNode->CurrentComponent == BaseObjectNode->ComponentSettings[ComponentIndex].ComponentName)
+			{
+				CurrentComponentIndex = ComponentIndex;
+				break;
+			}
+		}
+
+		FName BonesToRemovePropertyPath = FName("ComponentSettings[" + FString::FromInt(CurrentComponentIndex) + "].LODReductionSettings[" + FString::FromInt(BaseObjectNode->CurrentLOD) + "].BonesToRemove");
 		TSharedRef<IPropertyHandle> BonesToRemoveProperty = DetailBuilder.GetProperty(BonesToRemovePropertyPath);
 
 		// Callbacks
 		StatesProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnStatesPropertyChanged));
-		ComponentsProperty->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnNumComponentsOrLODsChanged));
+
+		//TODO(Max UE-215837)
+		//ComponentsProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnStatesPropertyChanged));
+		//NumComponentsProperty->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnNumComponentsOrLODsChanged));
 		LODsProperty->SetOnPropertyValueChangedWithData(TDelegate<void(const FPropertyChangedEvent&)>::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnNumComponentsOrLODsChanged));
 
 		// Hidden Properties
@@ -257,6 +273,9 @@ void FCustomizableObjectNodeObjectDetails::CustomizeDetails( IDetailLayoutBuilde
 				];
 
 				DetailBuilder.HideProperty("NumMeshComponents");
+				DetailBuilder.HideProperty(StatesProperty);
+				//TODO(Max UE-215837)
+				//DetailBuilder.HideProperty(ComponentsProperty);
 			}
             else
             {
@@ -443,17 +462,20 @@ TSharedRef<SWidget> FCustomizableObjectNodeObjectDetails::OnGenerateComponentMen
 {
 	if (BaseObjectNode.IsValid())
 	{
-		int32 NumComponents = BaseObjectNode->NumMeshComponents;
-		FMenuBuilder MenuBuilder(true, NULL);
-
-		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+		if (const UCustomizableObject* ParentObject = Cast<UCustomizableObject>(BaseObjectNode->GetOutermostObject()))
 		{
-			FText ComponentString = FText::FromString((TEXT("Component ") + FString::FromInt(ComponentIndex)));
-			FUIAction Action(FExecuteAction::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnSelectedComponentChanged, ComponentIndex));
-			MenuBuilder.AddMenuEntry(ComponentString, FText::GetEmpty(), FSlateIcon(), Action);
-		}
+			int32 NumComponents = ParentObject->GetPrivate()->MutableMeshComponents.Num();
+			FMenuBuilder MenuBuilder(true, NULL);
 
-		return MenuBuilder.MakeWidget();
+			for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+			{
+				FText ComponentString = FText::FromName(ParentObject->GetPrivate()->MutableMeshComponents[ComponentIndex].Name);
+				FUIAction Action(FExecuteAction::CreateSP(this, &FCustomizableObjectNodeObjectDetails::OnSelectedComponentChanged, ParentObject->GetPrivate()->MutableMeshComponents[ComponentIndex].Name));
+				MenuBuilder.AddMenuEntry(ComponentString, FText::GetEmpty(), FSlateIcon(), Action);
+			}
+
+			return MenuBuilder.MakeWidget();
+		}
 	}
 
 	return SNullWidget::NullWidget;
@@ -481,11 +503,11 @@ TSharedRef<SWidget> FCustomizableObjectNodeObjectDetails::OnGenerateLODMenuForPi
 }
 
 
-void FCustomizableObjectNodeObjectDetails::OnSelectedComponentChanged(int32 NewComponentIndex)
+void FCustomizableObjectNodeObjectDetails::OnSelectedComponentChanged(const FName NewComponentSelected)
 {
 	if (BaseObjectNode.IsValid())
 	{
-		BaseObjectNode->CurrentComponent = NewComponentIndex;
+		BaseObjectNode->CurrentComponent = NewComponentSelected;
 		BaseObjectNode->CurrentLOD = 0;
 	}
 	
@@ -510,7 +532,7 @@ FText FCustomizableObjectNodeObjectDetails::GetCurrentComponentName() const
 
 	if (BaseObjectNode.IsValid())
 	{
-		ComponentText = FText::FromString(FString(TEXT("Component ")) + FString::FromInt(BaseObjectNode->CurrentComponent));
+		ComponentText = FText::FromName(BaseObjectNode->CurrentComponent);
 	}
 
 	return ComponentText;
@@ -534,20 +556,21 @@ void FCustomizableObjectNodeObjectDetails::OnNumComponentsOrLODsChanged(const FP
 {
 	if (DetailBuilderPtr && PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
 	{
-		int32 ComponentToSelect = FMath::Min(BaseObjectNode->NumMeshComponents - 1, BaseObjectNode->CurrentComponent);
-
-		if (ComponentToSelect != BaseObjectNode->CurrentComponent)
+		if (const UCustomizableObject* ParentObject = Cast<UCustomizableObject>(BaseObjectNode->GetOutermostObject()))
 		{
-			BaseObjectNode->CurrentComponent = ComponentToSelect;
+			if (ParentObject->GetPrivate()->MutableMeshComponents.FindByPredicate([&](const FMutableMeshComponentData& Component) { return Component.Name == BaseObjectNode->CurrentComponent; }) == nullptr)
+			{
+				BaseObjectNode->CurrentComponent = ParentObject->GetPrivate()->MutableMeshComponents.Last().Name;
 
-			// Reset the LOD selection
-			BaseObjectNode->CurrentLOD = 0;
+				// Reset the LOD selection
+				BaseObjectNode->CurrentLOD = 0;
+			}
+			else
+			{
+				BaseObjectNode->CurrentLOD = FMath::Min(BaseObjectNode->NumLODs - 1, BaseObjectNode->CurrentLOD);
+			}
 		}
-		else
-		{
-			BaseObjectNode->CurrentLOD = FMath::Min(BaseObjectNode->NumLODs - 1, BaseObjectNode->CurrentLOD);
-		}
-
+	
 		DetailBuilderPtr->ForceRefreshDetails();
 	}
 }
@@ -570,7 +593,7 @@ void FCustomizableObjectNodeObjectDetails::FillParameterNamesArray()
 	// Full tree graph of customizable objects
 	TSet<UCustomizableObject*> CustomObjectTree;
 
-	// Get the whole tree of customizable object
+	// Get and load the whole tree of customizable object
 	GetAllObjectsInGraph(RootObjet, CustomObjectTree);
 
 	// Array to store all the ids of group nodes of type toggle

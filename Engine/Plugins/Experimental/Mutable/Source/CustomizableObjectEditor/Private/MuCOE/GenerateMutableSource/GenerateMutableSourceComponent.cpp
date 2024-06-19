@@ -21,7 +21,6 @@
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
-
 mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin * Pin, FMutableGraphGenerationContext& GenerationContext)
 {
 	check(Pin)
@@ -41,6 +40,15 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin * Pi
 	
 	if (const UCustomizableObjectNodeComponentMesh* TypedComponentMesh = Cast<UCustomizableObjectNodeComponentMesh>(Node))
 	{
+		GenerationContext.CurrentMeshComponent = TypedComponentMesh->ComponentName;
+
+		if (TypedComponentMesh->ComponentName.IsNone())
+		{
+			FString Msg = FString::Printf(TEXT("Invalid Component Name."));
+			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), TypedComponentMesh, EMessageSeverity::Warning);
+			return nullptr;
+		}
+
 		if (!TypedComponentMesh->Mesh.IsValid())
 		{
 			FString Msg = FString::Printf(TEXT("No mesh set for component node."));
@@ -71,7 +79,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin * Pi
 
 		// Create the component node
 		mu::Ptr<mu::NodeComponentNew> ComponentNode = new mu::NodeComponentNew;
-		ComponentNode->Id = GenerationContext.CurrentMeshComponent;
+		ComponentNode->Id = GenerationContext.NumMeshComponentsInRoot - 1 + GenerationContext.NumExplicitMeshComponents; // Last root component id + Num explicit components
 
 		// Create a LOD for each pass-through mesh LOD.
 		const FSkeletalMeshModel* Model = SkeletalMesh->GetImportedModel();
@@ -101,6 +109,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin * Pi
 			}
 		}
 
+		GenerationContext.CurrentMeshComponent = FName();
 		Result = ComponentNode;
 	}
 

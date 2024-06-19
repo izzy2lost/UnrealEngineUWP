@@ -730,10 +730,10 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 	mu::MeshPtr MutableMesh = new mu::Mesh();
 
-	// CurrentMeshComponent < 0 implies IgnoreSkeleton flag.  
-	// CurrentMeshComponent < 0 will only happen with modifiers and, for now, any mesh generated from a modifier
+	// CurrentMeshComponent == None implies IgnoreSkeleton flag.
+	// CurrentMeshComponent == None will only happen with modifiers and, for now, any mesh generated from a modifier
 	// should ignore skinning.
-	check(!(GenerationContext.CurrentMeshComponent < 0) || bIgnoreSkeleton);
+	check(!(GenerationContext.CurrentMeshComponent.IsNone()) || bIgnoreSkeleton);
 
 	bool bBoneMapModified = false;
 	TArray<FBoneIndexType> BoneMap;
@@ -2687,7 +2687,7 @@ bool GetAndValidateReshapeBonesToDeform(
 	else if (SelectionMethod == EBoneDeformSelectionMethod::DEFORM_REF_SKELETON)
 	{
 		// Getting reference skeleton from the reference skeletal mesh of the current component
-		const FReferenceSkeleton RefSkeleton = GenerationContext.ComponentInfos[GenerationContext.CurrentMeshComponent].RefSkeletalMesh->GetRefSkeleton();
+		const FReferenceSkeleton RefSkeleton = GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh->GetRefSkeleton(); //GenerationContext.ComponentInfos[GenerationContext.CurrentMeshComponent].RefSkeletalMesh->GetRefSkeleton();
 		int32 NumBones = RefSkeleton.GetRawBoneNum();
 
 		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
@@ -2702,7 +2702,7 @@ bool GetAndValidateReshapeBonesToDeform(
 	else if (SelectionMethod == EBoneDeformSelectionMethod::DEFORM_NONE_REF_SKELETON)
 	{
 		// Getting reference skeleton from the reference skeletal mesh of the current component
-		const FReferenceSkeleton RefSkeleton = GenerationContext.ComponentInfos[GenerationContext.CurrentMeshComponent].RefSkeletalMesh->GetRefSkeleton();
+		const FReferenceSkeleton RefSkeleton = GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh->GetRefSkeleton();
 
 		for (const MeshInfoType& Mesh : SkeletalMeshesInfo)
 		{
@@ -2800,7 +2800,7 @@ bool GetAndValidateReshapePhysicsToDeform(
 	if (bIsReferenceSkeletalMeshMethod)
 	{
 		const FReferenceSkeleton& RefSkeleton =
-			GenerationContext.ComponentInfos[GenerationContext.CurrentMeshComponent].RefSkeletalMesh->GetRefSkeleton();
+			GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh->GetRefSkeleton();
 
 		const int32 RefSkeletonNumBones = RefSkeleton.GetRawBoneNum();
 			BoneNames.SetNum(RefSkeletonNumBones);
@@ -2831,10 +2831,10 @@ bool GetAndValidateReshapePhysicsToDeform(
 
 	for (const PhysicsInfoType& PhysicsInfo : ContributingPhysicsAssetsInfo)
 	{
-		check(GenerationContext.ComponentInfos[GenerationContext.CurrentMeshComponent].RefSkeletalMesh);
+		check(GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh);
 
 		const FReferenceSkeleton& RefSkeleton = bIsReferenceSkeletalMeshMethod
-			? GenerationContext.ComponentInfos[GenerationContext.CurrentMeshComponent].RefSkeletalMesh->GetRefSkeleton()
+			? GenerationContext.GetCurrentComponentInfo().RefSkeletalMesh->GetRefSkeleton()
 			: PhysicsInfo.Get<const FReferenceSkeleton&>();
 
 		UPhysicsAsset* PhysicsAsset = PhysicsInfo.Get<UPhysicsAsset*>();

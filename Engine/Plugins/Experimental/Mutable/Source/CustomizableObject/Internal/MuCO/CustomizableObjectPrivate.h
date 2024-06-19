@@ -816,6 +816,28 @@ struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
 };
 
 
+USTRUCT()
+struct CUSTOMIZABLEOBJECT_API FMutableMeshComponentData
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Name to identify this component. */
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	FName Name;
+
+	/** All the SkeletalMeshes generated for this CustomizableObject instances will use the Reference Skeletal Mesh
+	* properties for everything that Mutable doesn't create or modify. This includes data like LOD distances, Physics
+	* properties, Bounding Volumes, Skeleton, etc.
+	*
+	* While a CustomizableObject instance is being created for the first time, and in some situation with lots of
+	* objects this may require some seconds, the Reference Skeletal Mesh is used for the actor. This works as a better
+	* solution than the alternative of not showing anything, although this can be disabled with the function
+	* "SetReplaceDiscardedWithReferenceMeshEnabled" (See the c++ section). */
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	TObjectPtr<USkeletalMesh> ReferenceSkeletalMesh;
+};
+
+
 UCLASS()
 class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 {
@@ -970,6 +992,10 @@ public:
 	bool bLocked = false;
 
 #if WITH_EDITORONLY_DATA
+
+	/** Necessary information to generate each component of the Customizable Object. */
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	TArray<FMutableMeshComponentData> MutableMeshComponents;
 
 	/** Unique Identifier - Deterministic. Used to locate Model and Streamable data on disk. Should not be modified. */
 	FGuid Identifier;

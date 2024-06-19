@@ -35,7 +35,7 @@ public:
 	// UCustomizableObjectNodeMaterialBase interface
 	virtual UMaterialInterface* GetMaterial() const override;
 	virtual bool IsReuseMaterialBetweenLODs() const override;
-	virtual int32 GetMeshComponentIndex() const override;
+	virtual FName GetMeshComponentName() const override;
 	virtual TArray<FString> GetTags() const override;
 	virtual UEdGraphPin* GetMaterialAssetPin() const override;
 	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;

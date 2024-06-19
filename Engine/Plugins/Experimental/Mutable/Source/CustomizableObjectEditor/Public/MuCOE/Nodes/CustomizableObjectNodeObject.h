@@ -48,6 +48,9 @@ struct FComponentSettings
 {
 	GENERATED_USTRUCT_BODY()
 	
+	UPROPERTY(VisibleInstanceOnly, Category = CustomizableObject)
+	FString ComponentName;
+
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TArray<FLODReductionSettings> LODReductionSettings;
 };
@@ -175,8 +178,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	ECustomizableObjectAutomaticLODStrategy AutoLODStrategy = ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh;
 
-	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (ClampMin = "1"))
-	int32 NumMeshComponents = 1;
+	UPROPERTY()
+	int32 NumMeshComponents_DEPRECATED = 1;
 
 	UPROPERTY(EditAnywhere, Category=CustomizableObject ,meta = (TitleProperty = "Name"))
 	TArray<FCustomizableObjectState> States;
@@ -207,7 +210,7 @@ public:
 	TArray<FComponentSettings> ComponentSettings;
 	
 	// UObject interface.
-	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
 	// EdGraphNode interface
 	FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
@@ -279,13 +282,8 @@ public:
 
 	bool IsSingleOutputNode() const override;
 
-	void SetMeshComponentNumFromParent(int32 MeshComponentNum)
-	{
-		NumMeshComponents = MeshComponentNum;
-	}
-
 	// Node Details Support
-	int32 CurrentComponent = 0;
+	FName CurrentComponent;
 	int32 CurrentLOD = 0;
 
 	// Array filled in the Details of the node to store all the parameter names of a CO graph (full tree)

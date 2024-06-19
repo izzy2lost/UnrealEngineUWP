@@ -150,9 +150,13 @@ const struct FReferenceSkeleton& FCustomizableObjectLODReductionSettings::GetRef
 	{
 		if (const UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(ObjectNode->GetCustomizableObjectGraph()->GetOuter()))
 		{
-			if (CustomizableObject->ReferenceSkeletalMeshes.IsValidIndex(ObjectNode->CurrentComponent))
+			if (const FMutableMeshComponentData* Component = CustomizableObject->GetPrivate()->MutableMeshComponents.FindByPredicate(
+				[&](const FMutableMeshComponentData& Component) 
+				{ 
+					return Component.Name == ObjectNode->CurrentComponent; 
+				}))
 			{
-				SkeletalMesh = CustomizableObject->ReferenceSkeletalMeshes[ObjectNode->CurrentComponent];
+				SkeletalMesh = Component->ReferenceSkeletalMesh;
 			}
 		}
 	}

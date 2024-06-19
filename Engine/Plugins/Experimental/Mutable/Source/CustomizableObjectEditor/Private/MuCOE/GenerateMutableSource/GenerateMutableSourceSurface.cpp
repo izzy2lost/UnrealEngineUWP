@@ -259,7 +259,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 	{
 		bool bGeneratingImplicitComponent = GenerationContext.ComponentMeshOverride.get()!=nullptr;
 
-		bool bValidForCurrentComponent = bGeneratingImplicitComponent || (TypedNodeMat->GetMeshComponentIndex() == GenerationContext.CurrentMeshComponent);
+		bool bValidForCurrentComponent = bGeneratingImplicitComponent || (TypedNodeMat->GetMeshComponentName() == GenerationContext.CurrentMeshComponent);
 		if (!bValidForCurrentComponent)
 		{
 			return Result;

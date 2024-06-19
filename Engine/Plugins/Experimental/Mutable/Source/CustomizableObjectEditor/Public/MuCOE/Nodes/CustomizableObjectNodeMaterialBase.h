@@ -41,7 +41,7 @@ public:
 	
 	virtual bool IsReuseMaterialBetweenLODs() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::IsReuseMaterialBetweenLODs, return {}; );
 
-	virtual int32 GetMeshComponentIndex() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetMeshComponentIndex, return {}; );
+	virtual FName GetMeshComponentName() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetComponentName, return {}; );
 	
 	virtual TArray<FString> GetTags() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetTags, return {}; );
 	
@@ -126,6 +126,7 @@ public:
 	
 	virtual FPostImagePinModeChangedDelegate* GetPostImagePinModeChangedDelegate() PURE_VIRTUAL(UCustomizableObjectNodeMaterial::OutputPin, return {}; );
 	
+	/** Return true if a Material Parameter has changed on which we had a pin connected or data saved. */
 	virtual bool RealMaterialDataHasChanged() const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::OutputPin, return {}; );
 };
 

@@ -218,15 +218,15 @@ bool UCustomizableObjectNodeCopyMaterial::IsReuseMaterialBetweenLODs() const
 }
 
 
-int32 UCustomizableObjectNodeCopyMaterial::GetMeshComponentIndex() const
+FName UCustomizableObjectNodeCopyMaterial::GetMeshComponentName() const
 {
 	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
 	{
-		return NodeMaterial->GetMeshComponentIndex();
+		return NodeMaterial->GetMeshComponentName();
 	}
 	else
 	{
-		return INDEX_NONE;
+		return FName();
 	}
 }
 

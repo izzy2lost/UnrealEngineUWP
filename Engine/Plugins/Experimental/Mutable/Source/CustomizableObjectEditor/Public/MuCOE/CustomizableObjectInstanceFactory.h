@@ -24,6 +24,5 @@ protected:
 	//~ End UActorFactory Interface
 
 	USkeletalMesh* GetSkeletalMeshFromAsset(UObject* Asset, int32 ComponentIndex = 0) const;
-	int32 GetNumberOfComponents(class UCustomizableObjectInstance* COInstance);
 	FQuat AlignObjectToSurfaceNormal(const FVector& InSurfaceNormal, const FQuat& ActorRotation) const;
 };

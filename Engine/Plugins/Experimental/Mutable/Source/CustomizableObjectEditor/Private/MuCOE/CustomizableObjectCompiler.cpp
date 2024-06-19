@@ -648,23 +648,46 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 
 		VisitedObjects.Empty();
 		ActualRootObject = Root->ParentObject ? GetFullGraphRootObject(Root, VisitedObjects) : Object;
-
 	}
 
 	// Ensure that the CO has a valid AutoLODStrategy on the ActualRoot.
 	if (ActualRoot->AutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::Inherited)
 	{
-		CompilerLog(LOCTEXT("RootInheritsFromParent", "Error! Base CustomizableObject's LOD Strategy can't be set to 'Inherit from parent object'"), ActualRoot);
+		CompilerLog(LOCTEXT("RootInheritsFromParent", "Error! Base CustomizableObject's LOD Strategy can't be set to 'Inherit from parent object'"), ActualRoot, EMessageSeverity::Error);
 		return nullptr;
 	}
 
-	// Make sure we have a valid Reference SkeletalMesh and Skeleton for each component
-	for (int32 ComponentIndex = 0; ComponentIndex < ActualRoot->NumMeshComponents; ++ComponentIndex)
+	if (ActualRootObject->GetPrivate()->MutableMeshComponents.IsEmpty())
 	{
+		CompilerLog(LOCTEXT("EmptyComponentName", "Error! There are no components defined in the Object Properties Tab."), ActualRoot, EMessageSeverity::Error);
+		return nullptr;
+	}
+
+	TArray<const FName> ComponentNames;
+
+	// Make sure we have a valid Name, Reference SkeletalMesh and Skeleton for each component
+	for (int32 ComponentIndex = 0; ComponentIndex < ActualRootObject->GetPrivate()->MutableMeshComponents.Num(); ++ComponentIndex)
+	{
+		FName ComponentName = ActualRootObject->GetPrivate()->MutableMeshComponents[ComponentIndex].Name;
+
+		if (ComponentName.IsNone())
+		{
+			CompilerLog(LOCTEXT("EmptyComponentName", "Error! Missing name in a component of the Customizable Object."), ActualRoot, EMessageSeverity::Error);
+			return nullptr;
+		}
+		else if (ComponentNames.Contains(ComponentName))
+		{
+			CompilerLog(FText::Format(LOCTEXT("RepeatedComponentName", "Error! Repeated name [{0}] used in more than one Component"),
+				FText::FromName(ComponentName)), ActualRoot, EMessageSeverity::Error);
+			return nullptr;
+		}
+
+		ComponentNames.Add(ComponentName);
+
 		USkeletalMesh* RefSkeletalMesh = ActualRootObject->GetRefSkeletalMesh(ComponentIndex);
 		if (!RefSkeletalMesh)
 		{
-			CompilerLog(LOCTEXT("NoReferenceMeshObjectTab", "Error! Missing reference mesh in the Object Properties Tab"), ActualRoot);
+			CompilerLog(LOCTEXT("NoReferenceMeshObjectTab", "Error! Missing reference mesh in the Object Properties Tab"), ActualRoot, EMessageSeverity::Error);
 			return nullptr;
 		}
 
@@ -674,20 +697,22 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 			FText Msg = FText::Format(LOCTEXT("NoReferenceSkeleton", "Error! Missing skeleton in the reference mesh [{0}]"),
 				FText::FromString(GenerationContext.CustomizableObjectWithCycle->GetPathName()));
 
-			CompilerLog(Msg, ActualRoot);
+			CompilerLog(Msg, ActualRoot, EMessageSeverity::Error);
 			return nullptr;
 		}
 
-		// Add a new entry to the list of Component Infos 
-		GenerationContext.ComponentInfos.Add(RefSkeletalMesh);
+		// Add a new entry to the list of Component Infos
+		GenerationContext.ComponentInfos.Add(FMutableComponentInfo(ComponentName, RefSkeletalMesh));
 
 		// Make sure the Skeleton from the reference mesh is added to the list of referenced Skeletons.
 		GenerationContext.ReferencedSkeletons.Add(RefSkeleton);
+
+		// Add reference meshes to the participating objects
+		GenerationContext.AddParticipatingObject(*RefSkeletalMesh);
 	}
 
-	Object->ReferenceSkeletalMeshes = ActualRootObject->ReferenceSkeletalMeshes;
-
-	GenerationContext.AddParticipatingObject(Object->ReferenceSkeletalMeshes);
+	// Copy component data to the object being compiled
+	Object->GetPrivate()->MutableMeshComponents = ActualRootObject->GetPrivate()->MutableMeshComponents;
 
     GenerationContext.RealTimeMorphTargetsOverrides = ActualRoot->RealTimeMorphSelectionOverrides;
     GenerationContext.RealTimeMorphTargetsOverrides.Reset();

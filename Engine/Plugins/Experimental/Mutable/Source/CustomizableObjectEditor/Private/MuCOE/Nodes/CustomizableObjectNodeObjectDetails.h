@@ -111,7 +111,7 @@ private:
 	TSharedRef<SWidget> OnGenerateLODMenuForPicker();
 
 	// Component and LOD OnSelect callbacks
-	void OnSelectedComponentChanged(int32 NewComponentIndex);
+	void OnSelectedComponentChanged(const FName NewComponentSelected);
 	void OnSelectedLODChanged(int32 NewLODIndex);
 
 	// Component and LOD name generation callbacks

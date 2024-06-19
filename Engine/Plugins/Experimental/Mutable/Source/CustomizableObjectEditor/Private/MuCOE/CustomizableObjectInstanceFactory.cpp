@@ -33,7 +33,7 @@ void UCustomizableObjectInstanceFactory::PostSpawnActor(UObject* Asset, AActor* 
 	ACustomizableSkeletalMeshActor* NewCSMActor = CastChecked<ACustomizableSkeletalMeshActor>(NewActor);
 	if (NewCSMActor && COInstance)
 	{
-		int32 NumComponents = GetNumberOfComponents(COInstance);
+		int32 NumComponents = COInstance->GetNumComponents();
 
 		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 		{
@@ -59,6 +59,7 @@ void UCustomizableObjectInstanceFactory::PostSpawnActor(UObject* Asset, AActor* 
 					CustomSkeletalComp->UnregisterComponent();
 					CustomSkeletalComp->CustomizableObjectInstance = COInstance;
 					CustomSkeletalComp->ComponentIndex = ComponentIndex;
+					//CustomSkeletalComp->ComponentName = GetComponentName(Asset,ComponentIndex);
 					CustomSkeletalComp->SetSkeletalMesh(SkeletalMesh);
 					CustomSkeletalComp->UpdateSkeletalMeshAsync();
 					CustomSkeletalComp->RegisterComponent();
@@ -135,6 +136,7 @@ bool UCustomizableObjectInstanceFactory::CanCreateActorFrom(const FAssetData& As
     return true;
 }
 
+
 USkeletalMesh* UCustomizableObjectInstanceFactory::GetSkeletalMeshFromAsset(UObject* Asset, int32 ComponentIndex) const
 {
     USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Asset);
@@ -157,36 +159,26 @@ USkeletalMesh* UCustomizableObjectInstanceFactory::GetSkeletalMeshFromAsset(UObj
 }
 
 
+//FName UCustomizableObjectInstanceFactory::GetComponentName(UObject* Asset, int32 ComponentIndex) const
+//{
+//	UCustomizableObjectInstance* CustomizableObjectInstance = Cast<UCustomizableObjectInstance>(Asset);
+//
+//	if (CustomizableObjectInstance != nullptr)
+//	{
+//		if (UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
+//		{
+//			return CustomizableObject->GetPrivate()->Components[ComponentIndex].Name;
+//		}
+//	}
+//
+//	return FName();
+//}
+
+
 FQuat UCustomizableObjectInstanceFactory::AlignObjectToSurfaceNormal(const FVector& InSurfaceNormal, const FQuat& ActorRotation) const
 {
     // Meshes align the Z (up) axis with the surface normal
     return FindActorAlignmentRotation(ActorRotation, FVector(0.f, 0.f, 1.f), InSurfaceNormal);
 }
-
-
-int32 UCustomizableObjectInstanceFactory::GetNumberOfComponents(UCustomizableObjectInstance* COInstance)
-{
-	int32 NumMeshComponents = 0;
-
-	if (const UCustomizableObject* CustomizableObject = COInstance->GetCustomizableObject();
-		CustomizableObject &&
-		CustomizableObject->GetPrivate()->GetSource())
-	{
-		TArray<UCustomizableObjectNodeObject*> RootNodes;
-		CustomizableObject->GetPrivate()->GetSource()->GetNodesOfClass<UCustomizableObjectNodeObject>(RootNodes);
-
-		for (int32 i = 0; i < RootNodes.Num(); ++i)
-		{
-			if (RootNodes[i]->bIsBase)
-			{
-				NumMeshComponents = RootNodes[i]->NumMeshComponents;
-				break;
-			}
-		}
-	}
-
-	return NumMeshComponents;
-}
-
 
 #undef LOCTEXT_NAMESPACE

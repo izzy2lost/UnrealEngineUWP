@@ -88,7 +88,7 @@ void FTestingCustomizableObject::StartTest(UCustomizableObject* CustomizableObje
 
 	Instance = CustomizableObject->CreateInstance();
 
-	const int32 NumComponents = CustomizableObject->ReferenceSkeletalMeshes.Num();
+	const int32 NumComponents = CustomizableObject->GetPrivate()->MutableMeshComponents.Num();
 	SkeletalMeshComponents.Reset(NumComponents);
 	CustomizableSkeletalComponents.Reset(NumComponents);
 
@@ -101,6 +101,8 @@ void FTestingCustomizableObject::StartTest(UCustomizableObject* CustomizableObje
 			
 			CustomizableSkeletalComponent->CustomizableObjectInstance = Instance;
 			CustomizableSkeletalComponent->ComponentIndex = ComponentIndex;
+			//CustomizableSkeletalComponent->ComponentName = CustomizableObject->GetPrivate()->Components[ComponentIndex].Name;
+
 
 			USkeletalMeshComponent* SkeletalMeshComponent = NewObject<USkeletalMeshComponent>(GetTransientPackage(), NAME_None, RF_Transient);
 			if (SkeletalMeshComponent)

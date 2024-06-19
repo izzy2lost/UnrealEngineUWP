@@ -411,8 +411,8 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			{
 				// Poses will only affect component 0 of the CO,
 				// TODO UE-206803
-				int32 OldCurrentMeshComponent = GenerationContext.CurrentMeshComponent;
-				GenerationContext.CurrentMeshComponent = 0;
+				FName OldCurrentMeshComponent = GenerationContext.CurrentMeshComponent;
+				GenerationContext.CurrentMeshComponent = GenerationContext.ComponentInfos[0].ComponentName;
 
 				PoseEnumParameterNode->SetValue(0, 0.f, "Default pose");
 

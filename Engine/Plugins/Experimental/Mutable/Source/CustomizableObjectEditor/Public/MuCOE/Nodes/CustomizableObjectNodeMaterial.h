@@ -139,7 +139,7 @@ public:
 	virtual UEdGraphPin* OutputPin() const override;
 	virtual UMaterialInterface* GetMaterial() const override;
 	virtual bool IsReuseMaterialBetweenLODs() const override;
-	virtual int32 GetMeshComponentIndex() const override;
+	virtual FName GetMeshComponentName() const override;
 	virtual TArray<FString> GetTags() const override;
 	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;
 	virtual FGuid GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
@@ -165,8 +165,7 @@ public:
 	// Own Interface
 
 	void SetMaterial(UMaterialInterface* InMaterial);
-	
-	/** Return true if a Material Parameter has changed on which we had a pin connected or data saved. */
+	void SetComponentName(const FName& Name);
 
 private:
 	/** Delegate called when a Texture Parameter Pin Mode changes. */
@@ -181,9 +180,12 @@ private:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TArray<FString> Tags;
 
+	UPROPERTY()
+	int32 MeshComponentIndex_DEPRECATED = 0;
+
 	/** Selects which Mesh component of the Instance this material belongs to */
-	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (ClampMin = "0"))
-	int32 MeshComponentIndex = 0;
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	FName MeshComponentName;
 
 	/** Materials will be reused between LODs when possible unless explicitly disabled. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)

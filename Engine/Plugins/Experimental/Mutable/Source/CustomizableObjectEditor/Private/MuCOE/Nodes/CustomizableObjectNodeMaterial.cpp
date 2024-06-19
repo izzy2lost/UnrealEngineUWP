@@ -638,6 +638,11 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			}
 		}
 	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NewComponentOptions)
+	{
+		MeshComponentName = FName(FString::FromInt(MeshComponentIndex_DEPRECATED));
+	}
 }
 
 
@@ -1113,11 +1118,27 @@ bool UCustomizableObjectNodeMaterial::CustomRemovePin(UEdGraphPin& Pin)
 	return Super::CustomRemovePin(Pin);
 }
 
+
 void UCustomizableObjectNodeMaterial::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode)
 {
 	Super::ReconstructNode(RemapPinsMode);
 
 	UpdateAllImagesPinMode();
+
+	// When a material node is created, the first component is set as its mesh component
+	if (MeshComponentName.IsNone())
+	{
+		if (UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(GetOutermostObject()))
+		{
+			if (UCustomizableObject* RootObject = GetRootObject(CustomizableObject))
+			{
+				if (RootObject->GetPrivate()->MutableMeshComponents.Num())
+				{
+					MeshComponentName = RootObject->GetPrivate()->MutableMeshComponents[0].Name;
+				}
+			}
+		}
+	}
 }
 
 
@@ -1139,9 +1160,9 @@ bool UCustomizableObjectNodeMaterial::IsReuseMaterialBetweenLODs() const
 }
 
 
-int32 UCustomizableObjectNodeMaterial::GetMeshComponentIndex() const
+FName UCustomizableObjectNodeMaterial::GetMeshComponentName() const
 {
-	return MeshComponentIndex;	
+	return MeshComponentName;
 }
 
 
@@ -1404,5 +1425,12 @@ void UCustomizableObjectNodeMaterial::BreakExistingConnectionsPostConnection(UEd
 		}
 	}
 }
+
+
+void UCustomizableObjectNodeMaterial::SetComponentName(const FName& Name)
+{
+	MeshComponentName = Name;
+}
+
 
 #undef LOCTEXT_NAMESPACE

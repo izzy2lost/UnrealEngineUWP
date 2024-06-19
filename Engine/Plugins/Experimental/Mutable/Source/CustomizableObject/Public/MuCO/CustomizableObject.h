@@ -361,20 +361,14 @@ public:
 
 #if WITH_EDITORONLY_DATA
 private:
+
 	UPROPERTY()
 	TObjectPtr<USkeletalMesh> ReferenceSkeletalMesh_DEPRECATED;
 
+	UPROPERTY()
+	TArray<TObjectPtr<USkeletalMesh>> ReferenceSkeletalMeshes_DEPRECATED;
+
 public:
-	/** All the SkeletalMeshes generated for this CustomizableObject instances will use the Reference Skeletal Mesh
-	* properties for everything that Mutable doesn't create or modify. This includes data like LOD distances, Physics
-	* properties, Bounding Volumes, Skeleton, etc.
-	*
-	* While a CustomizableObject instance is being created for the first time, and in some situation with lots of
-	* objects this may require some seconds, the Reference Skeletal Mesh is used for the actor. This works as a better
-	* solution than the alternative of not showing anything, although this can be disabled with the function
-	* "SetReplaceDiscardedWithReferenceMeshEnabled" (See the c++ section). */
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	TArray<TObjectPtr<USkeletalMesh>> ReferenceSkeletalMeshes;
 
 	/**
 	  * The optional VersionBridge asset, which must implement the ICustomizableObjectVersionBridgeInterface, will be used to

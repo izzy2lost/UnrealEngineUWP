@@ -94,6 +94,15 @@ void UCustomizableObjectNodeObject::BackwardsCompatibleFixup()
 			State.UIMetadata.ExtraAssets = State.StateUIMetadata_DEPRECATED.ExtraAssets;
 		}
 	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NewComponentOptions)
+	{
+		// Like we did in the CO components, we use the index of the component as the name of the component
+		for (int32 ComponentIndex = 0; ComponentIndex < ComponentSettings.Num(); ++ComponentIndex)
+		{
+			ComponentSettings[ComponentIndex].ComponentName = FString::FromInt(ComponentIndex);
+		}
+	}
 }
 
 
@@ -124,16 +133,6 @@ void UCustomizableObjectNodeObject::PostEditChangeProperty(FPropertyChangedEvent
 		ReconstructNode();
 	}
 
-	if (PropertyThatChanged && PropertyThatChanged->GetName() == TEXT("NumMeshComponents"))
-	{
-		ComponentSettings.SetNum(NumMeshComponents);
-
-		for (int32 CompSetIndex = 0; CompSetIndex < ComponentSettings.Num(); ++CompSetIndex)
-		{
-			ComponentSettings[CompSetIndex].LODReductionSettings.SetNum(NumLODs);
-		}
-	}
-	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
@@ -297,13 +296,16 @@ void UCustomizableObjectNodeObject::PostBackwardsCompatibleFixup()
 {
 	Super::PostBackwardsCompatibleFixup();
 
-	// Fix up ComponentSettings
-	if (ComponentSettings.IsEmpty())
+	// Fix up ComponentSettings. Only root nodes
+	if (ComponentSettings.IsEmpty() && bIsBase && !ParentObject)
 	{
 		FComponentSettings ComponentSettingsTemplate;
 		ComponentSettingsTemplate.LODReductionSettings.SetNum(NumLODs);
 
-		ComponentSettings.Init(ComponentSettingsTemplate, NumMeshComponents);
+		if (UCustomizableObject* CurrentObject = Cast<UCustomizableObject>(GetOutermostObject()))
+		{
+			ComponentSettings.Init(ComponentSettingsTemplate, CurrentObject->GetPrivate()->MutableMeshComponents.Num());
+		}
 	}
 
 	// Reconstruct in case any extension pins have changed

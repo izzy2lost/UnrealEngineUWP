@@ -89,7 +89,9 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 		CustomizableObject = Cast<UCustomizableObject>(DetailsView->GetSelectedObjects()[0].Get());
 	}
 
+	IDetailCategoryBuilder& CustomizableObjectCategory = DetailBuilder.EditCategory("CustomizableObject");
 	IDetailCategoryBuilder& StatesCategory = DetailBuilder.EditCategory( "States" );
+	IDetailCategoryBuilder& VersioningCategory = DetailBuilder.EditCategory( "Versioning" );
 	//StatesCategory.CategoryIcon( "ActorClassIcon.CustomizableObject" );
 
 	DetailBuilder.HideProperty("States");
@@ -129,20 +131,6 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 	];
 
 	StatesTree->SetIsRightClickScrollingEnabled(false);
-	
-	TSharedRef<IPropertyHandle> Property = DetailBuilder.GetProperty("ReferenceSkeletalMeshes");
-
-	if (Property->IsValidHandle() && CustomizableObject)
-	{
-		if (CustomizableObject->IsChildObject())
-		{
-			Property->MarkHiddenByCustomization();
-		}
-		else
-		{
-			Property->MarkResetToDefaultCustomized();
-		}
-	}
 
 	TSharedRef<IPropertyHandle> VersionBridgeProperty = DetailBuilder.GetProperty("VersionBridge");
 
@@ -170,6 +158,15 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 		{
 			VersionStructProperty->MarkHiddenByCustomization();
 		}
+	}
+
+	// Add Private's components property.
+	if (CustomizableObject && !CustomizableObject->IsChildObject())
+	{
+		TArray<UObject*> Private;
+		Private.Add(CustomizableObject->GetPrivate());
+
+		CustomizableObjectCategory.AddExternalObjectProperty(Private, "MutableMeshComponents");
 	}
 }
 

@@ -296,13 +296,6 @@ bool GetParentsUntilRoot(UCustomizableObject* Object, TArray<UCustomizableObject
 		if (Root->ParentObject != nullptr)
 		{
 			bSuccess = GetParentsUntilRoot(Root->ParentObject, ArrayNodeObject, ArrayCustomizableObject);
-
-			UCustomizableObjectNodeObject* ParentRoot = GetRootNode(Root->ParentObject, MultipleBaseObjectsFound);
-
-			if (!MultipleBaseObjectsFound && (ParentRoot != nullptr))
-			{
-				Root->SetMeshComponentNumFromParent(ParentRoot->NumMeshComponents);
-			}
 		}
 	}
 

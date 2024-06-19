@@ -253,7 +253,7 @@ void UCustomizableObject::PostLoad()
 #if WITH_EDITOR
 	if (ReferenceSkeletalMesh_DEPRECATED)
 	{
-		ReferenceSkeletalMeshes.Add(ReferenceSkeletalMesh_DEPRECATED);
+		ReferenceSkeletalMeshes_DEPRECATED.Add(ReferenceSkeletalMesh_DEPRECATED);
 		ReferenceSkeletalMesh_DEPRECATED = nullptr;
 	}
 
@@ -265,6 +265,23 @@ void UCustomizableObject::PostLoad()
 		GetPrivate()->bUseDiskCompilation = CompileOptions_DEPRECATED.bUseDiskCompilation;
 		GetPrivate()->EmbeddedDataBytesLimit = CompileOptions_DEPRECATED.EmbeddedDataBytesLimit;
 		GetPrivate()->PackagedDataBytesLimit = CompileOptions_DEPRECATED.PackagedDataBytesLimit;
+	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NewComponentOptions)
+	{
+		if (GetPrivate()->MutableMeshComponents.IsEmpty())
+		{
+			for (int32 SkeletalMeshIndex = 0; SkeletalMeshIndex < ReferenceSkeletalMeshes_DEPRECATED.Num(); ++SkeletalMeshIndex)
+			{
+				FMutableMeshComponentData NewComponent;
+				NewComponent.Name = FName(FString::FromInt(SkeletalMeshIndex));
+				NewComponent.ReferenceSkeletalMesh = ReferenceSkeletalMeshes_DEPRECATED[SkeletalMeshIndex];
+
+				GetPrivate()->MutableMeshComponents.Add(NewComponent);
+			}
+
+			ReferenceSkeletalMeshes_DEPRECATED.Empty();
+		}
 	}
 #endif
 
@@ -297,6 +314,7 @@ void UCustomizableObject::PostLoad()
 			GetPrivate()->LoadCompiledDataFromDisk();
 		}
 	}
+
 #endif
 }
 
@@ -1115,9 +1133,9 @@ void UCustomizableObjectPrivate::AddUncompiledCOWarning(const FString& Additiona
 USkeletalMesh* UCustomizableObject::GetRefSkeletalMesh(int32 ComponentIndex) const
 {
 #if WITH_EDITORONLY_DATA
-	if (ReferenceSkeletalMeshes.IsValidIndex(ComponentIndex))
+	if (GetPrivate()->MutableMeshComponents.IsValidIndex(ComponentIndex))
 	{
-		return ReferenceSkeletalMeshes[ComponentIndex];
+		return GetPrivate()->MutableMeshComponents[ComponentIndex].ReferenceSkeletalMesh;
 	}
 #else
 	const FModelResources& ModelResources = Private->GetModelResources();

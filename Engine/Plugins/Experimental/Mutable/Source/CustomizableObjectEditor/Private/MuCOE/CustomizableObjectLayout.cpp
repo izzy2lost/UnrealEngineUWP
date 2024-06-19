@@ -113,7 +113,7 @@ void UCustomizableObjectLayout::GenerateBlocksFromUVs()
 
 			GenerationContext.MeshGenerationFlags.Push(ShapeFlags);
 
-			GenerationContext.ComponentInfos.Add(SkeletalMesh);
+			GenerationContext.ComponentInfos.Add(FMutableComponentInfo(FName(), SkeletalMesh));
 			MutableMesh = ConvertSkeletalMeshToMutable(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LOD, Material, LOD, Material, GenerationContext, Node);
 		}
 		else if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(Mesh))

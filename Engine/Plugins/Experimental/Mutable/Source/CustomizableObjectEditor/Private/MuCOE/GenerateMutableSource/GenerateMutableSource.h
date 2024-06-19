@@ -393,9 +393,11 @@ inline uint32 GetTypeHash(const FMeshData& Key)
 /** Struct used to store info specific to each component during compilation */
 struct FMutableComponentInfo
 {
-	FMutableComponentInfo(USkeletalMesh* InRefSkeletalMesh);
+	FMutableComponentInfo(FName InComponentName, USkeletalMesh* InRefSkeletalMesh);
 
 	void AccumulateBonesToRemovePerLOD(const FComponentSettings& ComponentSettings, int32 NumLODs);
+
+	FName ComponentName;
 
 	// Each component must have a reference SkeletalMesh with a valid Skeleton
 	USkeletalMesh* RefSkeletalMesh = nullptr;
@@ -792,7 +794,7 @@ struct FMutableGraphGenerationContext
 
 	uint8 FromLOD = 0; // LOD to append to the CurrentLOD when using AutomaticLODs. 
 	uint8 CurrentLOD = 0;
-	int32 CurrentMeshComponent = 0;
+	FName CurrentMeshComponent;
 
 	/** If this is set, we are genreating materials for a "passthrough" component, with a fixed mesh. */
 	mu::Ptr<mu::NodeMesh> ComponentMeshOverride;
@@ -952,4 +954,3 @@ mu::Ptr<mu::Mesh> GenerateMeshConstant(const USkeletalMesh*, FMutableGraphGenera
 
 /** Generates a mutable image descriptor from an unreal engine texture */
 mu::FImageDesc GenerateImageDescriptor(UTexture* Texture);
-

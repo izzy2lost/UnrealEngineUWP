@@ -446,8 +446,11 @@ mu::FBoneName FMutableGraphGenerationContext::GetBoneUnique(const FName& InBoneN
 
 FMutableComponentInfo& FMutableGraphGenerationContext::GetCurrentComponentInfo()
 {
-	check(ComponentInfos.IsValidIndex(CurrentMeshComponent));
-	return ComponentInfos[CurrentMeshComponent];
+	FMutableComponentInfo* CurrentComponentInfo = ComponentInfos.FindByPredicate(
+		[this](const FMutableComponentInfo& Component) { return Component.ComponentName == CurrentMeshComponent; });
+	check(CurrentComponentInfo);
+
+	return *CurrentComponentInfo;
 }
 
 
@@ -1007,7 +1010,7 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		// Mesh components per instance
 		if (!GenerationContext.NumMeshComponentsInRoot)
 		{
-			GenerationContext.NumMeshComponentsInRoot = TypedNodeObj->NumMeshComponents;
+			GenerationContext.NumMeshComponentsInRoot = GenerationContext.Object->GetPrivate()->MutableMeshComponents.Num();
 		}
 
 		const int32 NumLODsInRoot = GenerationContext.NumLODsInRoot;
@@ -1023,7 +1026,8 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 		// Add implicit components
 		for (int32 CurrentComponent = 0; CurrentComponent < NumImplicitComponents; ++CurrentComponent)
 		{
-			GenerationContext.CurrentMeshComponent = CurrentComponent;
+			FName ComponentName = GenerationContext.Object->GetPrivate()->MutableMeshComponents[CurrentComponent].Name;
+			GenerationContext.CurrentMeshComponent = ComponentName;
 
 			mu::Ptr<mu::NodeComponent> ComponentNode = Invoke([&GenerationContext, CurrentComponent]() -> mu::Ptr<mu::NodeComponent>
 				{
@@ -1111,13 +1115,13 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 							continue;
 						}
 
-						// Set it to -1 to indicate we don't care about component id.
-						GenerationContext.CurrentMeshComponent = -1;
+						// Set it to "None" to indicate we don't care about component id.
+						GenerationContext.CurrentMeshComponent = FName();
 
 						mu::NodeModifierPtr ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
 						LODNode->Modifiers.Add(ModifierNode);
 
-						GenerationContext.CurrentMeshComponent = CurrentComponent;
+						GenerationContext.CurrentMeshComponent = ComponentName;
 					}
 				}
 			}
@@ -1138,12 +1142,8 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 
 			++GenerationContext.NumExplicitMeshComponents;
 
-			GenerationContext.CurrentMeshComponent = ObjectNode->Components.Num();
-
 			mu::Ptr<mu::NodeComponent> ComponentNode = GenerateMutableSourceComponent(ComponentNodePin, GenerationContext);
 			ObjectNode->Components.Add(ComponentNode);
-
-			GenerationContext.CurrentMeshComponent = -1;
 		}
 
 
@@ -1481,9 +1481,12 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 	check(Pin);
 	RETURN_ON_CYCLE(*Pin, GenerationContext)
 	
-	int32 ComponentIndex = INDEX_NONE;
-
+	FName ComponentName = FName();
 	const UCustomizableObjectNode* Node = CastChecked<UCustomizableObjectNode>(Pin->GetOwningNode());
+
+	// Parent material for extend and edit material nodes
+	UCustomizableObjectNodeMaterialBase* OriginalParentMaterialNode = nullptr;
+
 	if (const UCustomizableObjectNodeMaterialVariation* TypedNodeVar = Cast<UCustomizableObjectNodeMaterialVariation>(Node))
 	{
 		bool bAffectsCurrentComponent = false;
@@ -1494,7 +1497,7 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 			{
 				if (bAffectsCurrentComponent)
 				{
-					FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material variation node have different component index"));
+					FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material variation node have different component name"));
 					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
 				}
 
@@ -1514,7 +1517,7 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 					{
 						if (bAffectsCurrentComponent)
 						{
-							FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material variation node have different component index"));
+							FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material variation node have different component name"));
 							GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
 						}
 
@@ -1544,7 +1547,7 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 					{
 						if (bAffectsCurrentComponent)
 						{
-							FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material switch node have different component index"));
+							FString Msg = FString::Printf(TEXT("Error! One or more materials nodes linked to a material switch node have different component name"));
 							GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
 						}
 
@@ -1561,24 +1564,24 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 
 	else if (const UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
 	{
-		ComponentIndex = TypedNodeMat->GetMeshComponentIndex();
+		ComponentName = TypedNodeMat->GetMeshComponentName();
 	}
 	else if (const UCustomizableObjectNodeExtendMaterial* TypedNodeExt = Cast<UCustomizableObjectNodeExtendMaterial>(Node))
 	{
-		UCustomizableObjectNodeMaterialBase* OriginalParentMaterialNode = TypedNodeExt->GetParentMaterialNode();
-		ComponentIndex = OriginalParentMaterialNode ? OriginalParentMaterialNode->GetMeshComponentIndex() : GenerationContext.CurrentMeshComponent;
+		OriginalParentMaterialNode = TypedNodeExt->GetParentMaterialNode();
+		ComponentName = OriginalParentMaterialNode ? OriginalParentMaterialNode->GetMeshComponentName() : GenerationContext.CurrentMeshComponent;
 	}
 	else if (const UCustomizableObjectNodeEditMaterialBase* TypedNodeEdit = Cast<UCustomizableObjectNodeEditMaterialBase>(Node))
 	{
-		UCustomizableObjectNodeMaterialBase* OriginalParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
-		ComponentIndex = OriginalParentMaterialNode ? OriginalParentMaterialNode->GetMeshComponentIndex() : GenerationContext.CurrentMeshComponent;
+		OriginalParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
+		ComponentName = OriginalParentMaterialNode ? OriginalParentMaterialNode->GetMeshComponentName() : GenerationContext.CurrentMeshComponent;
 	}
 	else if (const UCustomizableObjectNodeModifierBase* TypedNodeModifier = Cast<UCustomizableObjectNodeModifierBase>(Node))
 	{
 		// Because of the current implementation, modifiers affect all components at lod level. If there is only one component it is ok, but otherwise rise an error.
 		if (GenerationContext.NumMeshComponentsInRoot == 1)
 		{
-			ComponentIndex = 0;
+			ComponentName = GenerationContext.ComponentInfos[0].ComponentName;
 			return true;
 		}
 		else
@@ -1586,7 +1589,7 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 			// This case is not supported yet
 			FString Msg = FString::Printf(TEXT("Error! Node has modifiers when using multiple components in root object. This is currently not supported."));
 			GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Error);
-			ComponentIndex = 0;
+			ComponentName = GenerationContext.ComponentInfos[0].ComponentName;
 			return false;
 		}
 	}
@@ -1596,7 +1599,14 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 		return false;
 	}
 
-	return ComponentIndex == GenerationContext.CurrentMeshComponent;
+	// Check if this material has a valid component
+	if (!GenerationContext.Object->GetPrivate()->MutableMeshComponents.ContainsByPredicate([&](const FMutableMeshComponentData& Component) { return Component.Name == ComponentName; }))
+	{
+		FString Msg = ("Error! Material Node with an invalid Component assigned.");
+		GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), OriginalParentMaterialNode ? OriginalParentMaterialNode : Node, EMessageSeverity::Error);
+	}
+
+	return ComponentName == GenerationContext.CurrentMeshComponent;
 }
 
 int32 AddTagToMutableMeshUnique(mu::Mesh& MutableMesh, const FString& Tag)
@@ -2058,8 +2068,10 @@ void AddSocketTagsToMesh(const USkeletalMesh* SourceMesh, mu::Ptr<mu::Mesh> Muta
 }
 
 
-FMutableComponentInfo::FMutableComponentInfo(USkeletalMesh* InRefSkeletalMesh)
+FMutableComponentInfo::FMutableComponentInfo(FName InComponentName, USkeletalMesh* InRefSkeletalMesh)
 {
+	ComponentName = InComponentName;
+
 	if (!InRefSkeletalMesh || !InRefSkeletalMesh->GetSkeleton())
 	{
 		return;
