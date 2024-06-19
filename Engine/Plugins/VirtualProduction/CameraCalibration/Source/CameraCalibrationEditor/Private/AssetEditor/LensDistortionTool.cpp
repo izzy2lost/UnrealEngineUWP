@@ -949,6 +949,7 @@ void ULensDistortionTool::ImportCalibrationDataset()
 
 	// Import the session data
 	FDateTime ImportedSessionDateTime = FDateTime::Now();
+	EDatasetVersion ImportedDatasetVersion = EDatasetVersion::Invalid;
 	{
 		const FString SessionFile = SelectedDirectory / SessionFileName;
 
@@ -970,6 +971,33 @@ void ULensDistortionTool::ImportCalibrationDataset()
 				else
 				{
 					UE_LOG(LogCameraCalibrationEditor, Verbose, TEXT("Lens Distortion Tool failed to deserialize the date/time from the session file: %s"), *SessionFile);
+				}
+
+				int32 Version = 0;
+				if (JsonSessionData->TryGetNumberField(LensDistortionTool::Version, Version))
+				{
+					ImportedDatasetVersion = (EDatasetVersion)Version;
+				}
+
+				// This version predates the calibration pattern field, but the data can be reconstructed by looking at the "Algo Name" field.
+				if (ImportedDatasetVersion == EDatasetVersion::SeparateAlgoClasses)
+				{
+					FString AlgoString;
+					if (JsonSessionData->TryGetStringField(TEXT("AlgoName"), AlgoString))
+					{
+						if (AlgoString.Contains(TEXT("Checkerboard"), ESearchCase::IgnoreCase))
+						{
+							CaptureSettings.CalibrationPattern = ECalibrationPattern::Checkerboard;
+						}
+						else if (AlgoString.Contains(TEXT("Aruco"), ESearchCase::IgnoreCase))
+						{
+							CaptureSettings.CalibrationPattern = ECalibrationPattern::Aruco;
+						}
+						else if (AlgoString.Contains(TEXT("Points"), ESearchCase::IgnoreCase))
+						{
+							CaptureSettings.CalibrationPattern = ECalibrationPattern::Points;
+						}
+					}
 				}
 			}
 			else
@@ -1005,7 +1033,7 @@ void ULensDistortionTool::ImportCalibrationDataset()
 			TSharedPtr<FJsonObject> JsonRowData = MakeShared<FJsonObject>();
 			if (FJsonSerializer::Deserialize(JsonReader, JsonRowData))
 			{
-				int32 RowNum = ImportCalibrationRow(JsonRowData.ToSharedRef(), RowImage);
+				int32 RowNum = ImportCalibrationRow(JsonRowData.ToSharedRef(), RowImage, ImportedDatasetVersion);
 				MaxRowIndex = FMath::Max(MaxRowIndex, RowNum);
 			}
 			else
@@ -1040,7 +1068,9 @@ void ULensDistortionTool::ExportSessionData()
 	using namespace UE::CameraCalibration::Private;
 
 	TSharedPtr<FJsonObject> JsonSessionData = MakeShared<FJsonObject>();
-	JsonSessionData->SetNumberField(LensDistortionTool::Version, 2);
+
+	int32 DatasetVersion = (int32)EDatasetVersion::CurrentVersion;
+	JsonSessionData->SetNumberField(LensDistortionTool::Version, DatasetVersion);
 
 	// Start a calibration session (if one is not currently active)
 	StartCalibrationSession();
@@ -1114,28 +1144,197 @@ void ULensDistortionTool::ExportCalibrationRow(TSharedPtr<FCalibrationRow> Row)
 	}
 }
 
-int32 ULensDistortionTool::ImportCalibrationRow(const TSharedRef<FJsonObject>& CalibrationRowObject, const FImage& RowImage)
+int32 ULensDistortionTool::ImportCalibrationRow(const TSharedRef<FJsonObject>& CalibrationRowObject, const FImage& RowImage, EDatasetVersion DatasetVersion)
 {
 	// Create a new row to populate with data from the Json object
 	TSharedPtr<FCalibrationRow> NewRow = MakeShared<FCalibrationRow>();
 
-	// We enforce strict mode to ensure that every field in the UStruct of row data is present in the imported json.
-	// If any fields are missing, it is likely the row will be invalid, which will lead to errors in the calibration.
-	constexpr int64 CheckFlags = 0;
-	constexpr int64 SkipFlags = 0;
-	constexpr bool bStrictMode = true;
-	if (FJsonObjectConverter::JsonObjectToUStruct<FCalibrationRow>(CalibrationRowObject, NewRow.Get(), CheckFlags, SkipFlags, bStrictMode))
+	if (!RowImage.RawData.IsEmpty())
 	{
-		if (!RowImage.RawData.IsEmpty())
+		NewRow->MediaImage = RowImage;
+	}
+
+	if (DatasetVersion == EDatasetVersion::SeparateAlgoClasses)
+	{
+		NewRow->Pattern = CaptureSettings.CalibrationPattern;
+
+		CalibrationRowObject->TryGetNumberField(TEXT("index"), NewRow->Index);
+
+		if (NewRow->Pattern == ECalibrationPattern::Checkerboard)
 		{
-			NewRow->MediaImage = RowImage;
+			const TArray<TSharedPtr<FJsonValue>>* Points3DArray;
+			if (CalibrationRowObject->TryGetArrayField(TEXT("points3d"), Points3DArray))
+			{
+				for (TSharedPtr<FJsonValue> PointValue : *Points3DArray)
+				{
+					TSharedPtr<FJsonObject> PointObject = PointValue->AsObject();
+					FVector NewPoint;
+					PointObject->TryGetNumberField(TEXT("x"), NewPoint.X);
+					PointObject->TryGetNumberField(TEXT("y"), NewPoint.Y);
+					PointObject->TryGetNumberField(TEXT("z"), NewPoint.Z);
+
+					NewRow->ObjectPoints.Points.Add(NewPoint);
+				}
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* Points2DArray;
+			if (CalibrationRowObject->TryGetArrayField(TEXT("points2d"), Points2DArray))
+			{
+				for (TSharedPtr<FJsonValue> PointValue : *Points2DArray)
+				{
+					TSharedPtr<FJsonObject> PointObject = PointValue->AsObject();
+					FVector2D NewPoint;
+					PointObject->TryGetNumberField(TEXT("x"), NewPoint.X);
+					PointObject->TryGetNumberField(TEXT("y"), NewPoint.Y);
+
+					NewRow->ImagePoints.Points.Add(NewPoint);
+				}
+			}
+
+			CalibrationRowObject->TryGetNumberField(TEXT("numCornerCols"), NewRow->CheckerboardDimensions.X);
+			CalibrationRowObject->TryGetNumberField(TEXT("numCornerRows"), NewRow->CheckerboardDimensions.Y);
+
+			if (!NewRow->ObjectPoints.Points.IsEmpty() && NewRow->ObjectPoints.Points.Num() == (NewRow->CheckerboardDimensions.X * NewRow->CheckerboardDimensions.Y))
+			{
+				FVector TopLeft = NewRow->ObjectPoints.Points[0];
+				FVector TopRight = NewRow->ObjectPoints.Points[NewRow->CheckerboardDimensions.Y - 1];
+				FVector BottomLeft = NewRow->ObjectPoints.Points[NewRow->CheckerboardDimensions.X * (NewRow->CheckerboardDimensions.Y - 1)];
+
+				NewRow->TargetPose.SetLocation(TopLeft);
+
+				FRotator BoardRotation = FRotationMatrix::MakeFromYZ(TopRight - TopLeft, TopLeft - BottomLeft).Rotator();
+				NewRow->TargetPose.SetRotation(BoardRotation.Quaternion());
+			}
+		}
+		else if (NewRow->Pattern == ECalibrationPattern::Aruco)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* ArucoPointArray;
+			if (CalibrationRowObject->TryGetArrayField(TEXT("arucoPoints"), ArucoPointArray))
+			{
+				for (TSharedPtr<FJsonValue> ArucoPointValue : *ArucoPointArray)
+				{
+					TSharedPtr<FJsonObject> ArucoPointObject = ArucoPointValue->AsObject();
+
+					const TArray<TSharedPtr<FJsonValue>>* Corners3DArray;
+					if (ArucoPointObject->TryGetArrayField(TEXT("corners3D"), Corners3DArray))
+					{
+						for (TSharedPtr<FJsonValue> CornerValue : *Corners3DArray)
+						{
+							TSharedPtr<FJsonObject> CornerObject = CornerValue->AsObject();
+
+							FVector Corner;
+							CornerObject->TryGetNumberField(TEXT("x"), Corner.X);
+							CornerObject->TryGetNumberField(TEXT("y"), Corner.Y);
+							CornerObject->TryGetNumberField(TEXT("z"), Corner.Z);
+
+							NewRow->ObjectPoints.Points.Add(Corner);
+						}
+					}
+
+					const TArray<TSharedPtr<FJsonValue>>* Corners2DArray;
+					if (ArucoPointObject->TryGetArrayField(TEXT("corners2D"), Corners2DArray))
+					{
+						for (TSharedPtr<FJsonValue> CornerValue : *Corners2DArray)
+						{
+							TSharedPtr<FJsonObject> CornerObject = CornerValue->AsObject();
+
+							FVector2D Corner;
+							CornerObject->TryGetNumberField(TEXT("x"), Corner.X);
+							CornerObject->TryGetNumberField(TEXT("y"), Corner.Y);
+
+							NewRow->ImagePoints.Points.Add(Corner);
+						}
+					}
+
+					if (NewRow->ObjectPoints.Points.Num() >= 4)
+					{
+						FVector TopLeft = NewRow->ObjectPoints.Points[0];
+						FVector TopRight = NewRow->ObjectPoints.Points[1];
+						FVector BottomLeft = NewRow->ObjectPoints.Points[3];
+
+						NewRow->TargetPose.SetLocation(TopLeft);
+
+						FRotator FirstMarkerRotation = FRotationMatrix::MakeFromYZ(TopRight - TopLeft, TopLeft - BottomLeft).Rotator();
+						NewRow->TargetPose.SetRotation(FirstMarkerRotation.Quaternion());
+					}
+				}
+			}
+		}
+		else if (NewRow->Pattern == ECalibrationPattern::Points)
+		{
+			const TSharedPtr<FJsonObject>* PointDataJsonObject;
+			if (CalibrationRowObject->TryGetObjectField(TEXT("calibratorPointData"), PointDataJsonObject))
+			{
+				const TSharedPtr<FJsonObject>* Point3DJsonObject;
+				if (PointDataJsonObject->Get()->TryGetObjectField(TEXT("point3d"), Point3DJsonObject))
+				{
+					FVector NewPoint;
+					Point3DJsonObject->Get()->TryGetNumberField(TEXT("x"), NewPoint.X);
+					Point3DJsonObject->Get()->TryGetNumberField(TEXT("y"), NewPoint.Y);
+					Point3DJsonObject->Get()->TryGetNumberField(TEXT("z"), NewPoint.Z);
+
+					NewRow->ObjectPoints.Points.Add(NewPoint);
+				}
+
+				const TSharedPtr<FJsonObject>* Point2DJsonObject;
+				if (PointDataJsonObject->Get()->TryGetObjectField(TEXT("point2d"), Point2DJsonObject))
+				{
+					FVector2D NewPoint;
+					Point2DJsonObject->Get()->TryGetNumberField(TEXT("x"), NewPoint.X);
+					Point2DJsonObject->Get()->TryGetNumberField(TEXT("y"), NewPoint.Y);
+
+					NewRow->ImagePoints.Points.Add(NewPoint);
+				}
+			}
+		}
+
+		const TSharedPtr<FJsonObject>* CameraDataJsonObject;
+		if (CalibrationRowObject->TryGetObjectField(TEXT("cameraData"), CameraDataJsonObject))
+		{
+			const TSharedPtr<FJsonObject>* CameraPoseJsonObject;
+			if (CameraDataJsonObject->Get()->TryGetObjectField(TEXT("pose"), CameraPoseJsonObject))
+			{
+				const TSharedPtr<FJsonObject>* RotationJsonObject;
+				if (CameraPoseJsonObject->Get()->TryGetObjectField(TEXT("rotation"), RotationJsonObject))
+				{
+					FQuat Rotation;
+					RotationJsonObject->Get()->TryGetNumberField(TEXT("x"), Rotation.X);
+					RotationJsonObject->Get()->TryGetNumberField(TEXT("y"), Rotation.Y);
+					RotationJsonObject->Get()->TryGetNumberField(TEXT("z"), Rotation.Z);
+					RotationJsonObject->Get()->TryGetNumberField(TEXT("w"), Rotation.W);
+					NewRow->CameraPose.SetRotation(Rotation);
+				}
+
+				const TSharedPtr<FJsonObject>* TranslationJsonObject;
+				if (CameraPoseJsonObject->Get()->TryGetObjectField(TEXT("translation"), TranslationJsonObject))
+				{
+					FVector Translation;
+					TranslationJsonObject->Get()->TryGetNumberField(TEXT("x"), Translation.X);
+					TranslationJsonObject->Get()->TryGetNumberField(TEXT("y"), Translation.Y);
+					TranslationJsonObject->Get()->TryGetNumberField(TEXT("z"), Translation.Z);
+					NewRow->CameraPose.SetTranslation(Translation);
+				}
+			}
 		}
 
 		Dataset.CalibrationRows.Add(NewRow);
 	}
-	else
+	else if (DatasetVersion == EDatasetVersion::CombinedAlgoClasses)
 	{
-		UE_LOG(LogCameraCalibrationEditor, Warning, TEXT("Failed to import calibration row because at least one field could not be deserialized from the json file."));
+		// We enforce strict mode to ensure that every field in the UStruct of row data is present in the imported json.
+		// If any fields are missing, it is likely the row will be invalid, which will lead to errors in the calibration.
+		constexpr int64 CheckFlags = 0;
+		constexpr int64 SkipFlags = 0;
+		constexpr bool bStrictMode = true;
+		if (FJsonObjectConverter::JsonObjectToUStruct<FCalibrationRow>(CalibrationRowObject, NewRow.Get(), CheckFlags, SkipFlags, bStrictMode))
+		{
+			CaptureSettings.CalibrationPattern = NewRow->Pattern;
+			Dataset.CalibrationRows.Add(NewRow);
+		}
+		else
+		{
+			UE_LOG(LogCameraCalibrationEditor, Warning, TEXT("Failed to import calibration row because at least one field could not be deserialized from the json file."));
+		}
 	}
 
 	return NewRow->Index;

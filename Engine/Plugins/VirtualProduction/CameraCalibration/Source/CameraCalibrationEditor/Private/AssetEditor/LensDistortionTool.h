@@ -38,6 +38,17 @@ enum class ECalibrationType : uint8
 	Everything
 };
 
+/** Version info to support backwards compatibility of dataset importing */
+enum class EDatasetVersion : uint8
+{
+	Invalid = 0,
+	SeparateAlgoClasses = 1,
+	CombinedAlgoClasses = 2,
+
+	// Add new versions above
+	CurrentVersion = CombinedAlgoClasses
+};
+
 /** The data associated with a single captured calibration pattern/point */
 USTRUCT()
 struct FCalibrationRow
@@ -251,7 +262,7 @@ private:
 	 * Import a JsonObject of calibration data that represents a single calibration row.
 	 * Returns the row index of the imported row.
 	 */
-	int32 ImportCalibrationRow(const TSharedRef<FJsonObject>& CalibrationRowObject, const FImage& RowImage);
+	int32 ImportCalibrationRow(const TSharedRef<FJsonObject>& CalibrationRowObject, const FImage& RowImage, EDatasetVersion DatasetVersion);
 
 	/** Export global session data to a .json file */
 	void ExportSessionData();

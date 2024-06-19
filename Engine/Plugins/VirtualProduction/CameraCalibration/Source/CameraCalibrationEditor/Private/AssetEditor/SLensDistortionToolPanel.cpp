@@ -13,7 +13,6 @@
 #include "UI/SImageTexture.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/SWindow.h"
 
 #define LOCTEXT_NAMESPACE "SLensDistortionToolPanel"
 
@@ -296,9 +295,7 @@ void SLensDistortionToolPanel::OnCaptureSettingsChanged(const FPropertyChangedEv
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FLensCaptureSettings, CalibrationPattern))
 	{
-		DatasetListHeader->SetShowGeneratedColumn("Image", (Tool->CaptureSettings.CalibrationPattern != ECalibrationPattern::Points));
-		DatasetListHeader->SetShowGeneratedColumn("ImagePoint", (Tool->CaptureSettings.CalibrationPattern == ECalibrationPattern::Points));
-		DatasetListHeader->SetShowGeneratedColumn("ObjectPoint", (Tool->CaptureSettings.CalibrationPattern == ECalibrationPattern::Points));
+		RefreshListView();
 	}
 }
 
@@ -414,6 +411,10 @@ void SLensDistortionToolPanel::RefreshListView()
 {
 	if (DatasetListView)
 	{
+		DatasetListHeader->SetShowGeneratedColumn("Image", (Tool->CaptureSettings.CalibrationPattern != ECalibrationPattern::Points));
+		DatasetListHeader->SetShowGeneratedColumn("ImagePoint", (Tool->CaptureSettings.CalibrationPattern == ECalibrationPattern::Points));
+		DatasetListHeader->SetShowGeneratedColumn("ObjectPoint", (Tool->CaptureSettings.CalibrationPattern == ECalibrationPattern::Points));
+
 		DatasetListView->RequestListRefresh();
 	}
 }
