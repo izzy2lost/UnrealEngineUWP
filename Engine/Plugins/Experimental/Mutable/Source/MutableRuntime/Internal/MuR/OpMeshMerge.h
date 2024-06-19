@@ -458,12 +458,35 @@ namespace mu
 				}
 
 				FMeshSurface& NewSurface = Result->Surfaces.AddDefaulted_GetRef();
-				NewSurface.VertexCount = pFirst->GetVertexCount() + pSecond->GetVertexCount();
-				NewSurface.IndexCount = pFirst->GetIndexCount() + pSecond->GetIndexCount();
 				NewSurface.BoneMapCount = Result->BoneMap.Num();
+
+				int32 NumFirstSubMeshes = 0;
+				for (const FMeshSurface& Surf : pFirst->Surfaces)
+				{
+					NewSurface.SubMeshes.Append(Surf.SubMeshes);
+					NumFirstSubMeshes += Surf.SubMeshes.Num();
+				}
+
+				for (const FMeshSurface& Surf : pSecond->Surfaces)
+				{
+					NewSurface.SubMeshes.Append(Surf.SubMeshes);
+				}
+
+				// Fix surface Submesh ranges.
+				if (NumFirstSubMeshes > 0)
+				{
+					const int32 NumResultSubMeshes = NewSurface.SubMeshes.Num();
 				
-				//All merged surfaces will have the same bCastShadow value. Decided by the first merged mesh
-				NewSurface.bCastShadow = pFirst->Surfaces.Last().bCastShadow;
+					const FSurfaceSubMesh LastFromFirstMesh = pFirst->Surfaces.Last().SubMeshes.Last();
+	
+					for (int32 SecondSubMeshIndex = NumFirstSubMeshes; SecondSubMeshIndex < NumResultSubMeshes; ++SecondSubMeshIndex)
+					{
+						NewSurface.SubMeshes[SecondSubMeshIndex].VertexBegin += LastFromFirstMesh.VertexEnd;	
+						NewSurface.SubMeshes[SecondSubMeshIndex].VertexEnd += LastFromFirstMesh.VertexEnd;	
+						NewSurface.SubMeshes[SecondSubMeshIndex].IndexBegin += LastFromFirstMesh.IndexEnd;	
+						NewSurface.SubMeshes[SecondSubMeshIndex].IndexEnd += LastFromFirstMesh.IndexEnd;	
+					}
+				}
 			}
 			else
 			{
@@ -473,13 +496,20 @@ namespace mu
 				// Add pFirst surfaces
 				Result->Surfaces = pFirst->Surfaces;
 
-				const int32 FirstVertexIndex = pFirst->GetVertexCount();
-				const int32 FirstIndexIndex = pFirst->GetIndexCount();
+				const int32 FirstVertexEnd = pFirst->GetVertexCount();
+				const int32 FirstIndexEnd = pFirst->GetIndexCount();
 
 				check(pSecond->Surfaces.Num() == 1);
 				FMeshSurface& NewSurface = Result->Surfaces.Add_GetRef(pSecond->Surfaces[0]);
-				NewSurface.FirstVertex += FirstVertexIndex;
-				NewSurface.FirstIndex += FirstIndexIndex;
+				
+				for (FSurfaceSubMesh& SubMesh : NewSurface.SubMeshes)
+				{
+					SubMesh.VertexBegin += FirstVertexEnd;
+					SubMesh.VertexEnd += FirstVertexEnd;
+					SubMesh.IndexBegin += FirstIndexEnd;
+					SubMesh.IndexEnd += FirstIndexEnd;
+				}
+
 				NewSurface.BoneMapIndex += NumFirstBonesInBoneMap;
 			}
 

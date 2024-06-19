@@ -208,15 +208,15 @@ namespace mu
 		if (VerticesToRemove.Num())
 		{
 			// Unpack vertices into a mask
-			TArray<uint8> VertexMask;
-			VertexMask.SetNumZeroed(pApplied->GetVertexCount());
-			for ( int32 VertexIndex: VerticesToRemove )
+			TBitArray<> VertexMask;
+			VertexMask.SetNum(pApplied->GetVertexCount(), false);
+			for (int32 VertexIndex : VerticesToRemove)
 			{
-				VertexMask[VertexIndex] = 1;
+				VertexMask[VertexIndex] = true;
 			}
 	
 			// Remove
-			MeshRemoveVerticesWithMap( pApplied, VertexMask.GetData(), (uint32)VertexMask.Num());
+			MeshRemoveVerticesWithCullSet(pApplied, VertexMask);
 		}
 
 		//

@@ -18,6 +18,8 @@
 #include "MuR/Skeleton.h"
 #include "Templates/Tuple.h"
 
+#include <type_traits>
+
 class FString;
 
 namespace mu
@@ -32,34 +34,45 @@ namespace mu
     typedef Ptr<Mesh> MeshPtr;
     typedef Ptr<const Mesh> MeshPtrConst;
 
+	struct FSurfaceSubMesh
+	{
+		
+		int32 VertexBegin = 0;
+		int32 VertexEnd = 0;
+		int32 IndexBegin = 0;
+		int32 IndexEnd = 0;
+
+		uint32 ExternalId = 0;
+
+		friend bool operator==(const FSurfaceSubMesh& Lhs, const FSurfaceSubMesh& Rhs)
+		{
+			return FMemory::Memcmp(&Lhs, &Rhs, sizeof(FSurfaceSubMesh)) == 0;
+		}
+	};
+	static_assert(std::has_unique_object_representations_v<FSurfaceSubMesh>);
+	
+	MUTABLE_DEFINE_POD_SERIALISABLE(FSurfaceSubMesh);
+	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FSurfaceSubMesh);
+
 	struct FMeshSurface
 	{
-		int32 FirstVertex=0;
-		int32 VertexCount=0;
-		int32 FirstIndex=0;
-		int32 IndexCount=0;
-		uint32 Id=0;
-		
-		uint32 BoneMapIndex=0;
-		uint32 BoneMapCount=0;
+		TArray<FSurfaceSubMesh, TInlineAllocator<1>> SubMeshes; 
 
-		bool bCastShadow=false;
+		uint32 BoneMapIndex = 0;
+		uint32 BoneMapCount = 0;
+		uint32 Id = 0;
 
-		inline bool operator==(const FMeshSurface& o) const
+		friend bool operator==(const FMeshSurface& Lhs, const FMeshSurface& Rhs)
 		{
-			return FirstVertex == o.FirstVertex
-				&& VertexCount == o.VertexCount
-				&& FirstIndex == o.FirstIndex
-				&& IndexCount == o.IndexCount
-				&& Id == o.Id
-				&& BoneMapIndex == o.BoneMapIndex
-				&& BoneMapCount == o.BoneMapCount
-				&& bCastShadow == o.bCastShadow;
+			return
+				Lhs.Id == Rhs.Id &&
+				Lhs.BoneMapIndex == Rhs.BoneMapIndex &&
+				Lhs.BoneMapCount == Rhs.BoneMapCount &&
+				Lhs.SubMeshes == Rhs.SubMeshes;
 		}
 
-		inline void Serialise(OutputArchive& arch) const;
-		inline void Unserialise(InputArchive& arch);
-
+		inline void Serialise(OutputArchive& Arch) const;
+		inline void Unserialise(InputArchive& Arch);
 	};
 
 
@@ -225,16 +238,15 @@ namespace mu
 
         //! Get the number of surfaces defined in this mesh. Surfaces are buffer-contiguous mesh
         //! fragments that share common properties (usually material)
-		int32 GetSurfaceCount() const;
-        void GetSurface( int32 surfaceIndex,
-                         int32* FirstVertex, int32* VertexCount,
-                         int32* FirstIndex, int32* IndexCount,
-						 int32* FirstBone, int32* BoneCount,
-						 bool* bCastShadow) const;
+        int32 GetSurfaceCount() const;
+        void GetSurface(int32 SurfaceIndex,
+                        int32& OutFirstVertex, int32& OutVertexCount,
+                        int32& OutFirstIndex, int32& OutIndexCount,
+						int32& OutFirstBone, int32& OutBoneCount) const;
 
         //! Return an internal id that can be used to match mesh surfaces and instance surfaces.
         //! Only valid for meshes that are part of instances.
-        uint32 GetSurfaceId( int32 surfaceIndex ) const;
+        uint32 GetSurfaceId(int32 SurfaceIndex) const;
 
         //! \}
 

@@ -382,6 +382,9 @@ namespace MutableMeshPreviewUtils
 
 			FSkeletalMeshLODRenderData& LODResource = OutSkeletalMesh->GetResourceForRendering()->LODRenderData[0];
 
+			TArray<const FMutableSurfaceMetadata*> MeshSurfacesMetadata;
+			MeshSurfacesMetadata.Init(nullptr, InMutableMesh->Surfaces.Num());
+
 			// Load buffer data found on the mutable model onto the out skeletal mesh
 			// It includes vertex and index buffers
 			UnrealConversionUtils::SetupRenderSections(
@@ -389,7 +392,8 @@ namespace MutableMeshPreviewUtils
 				InMutableMesh,
 				BoneMap,
 				BoneInfoMap,
-				0);
+				0,
+				MeshSurfacesMetadata);
 
 			UnrealConversionUtils::CopyMutableVertexBuffers(
 				LODResource,

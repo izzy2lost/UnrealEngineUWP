@@ -5,31 +5,31 @@
 #include "MuR/MeshPrivate.h"
 #include "MuR/Platform.h"
 
+#include "MuR/OpMeshRemove.h"
 
 namespace mu
 {
-
-
-    //---------------------------------------------------------------------------------------------
     inline void MeshExtractFromVertices( const Mesh* Source,
                                          Mesh* Result,
-                                         const TArray<int32>& oldToNew,
-                                         const TArray<int32>& newToOld )
+                                         const TArray<int32>& OldToNew,
+                                         const TArray<int32>& NewToOld )
     {
-        int32 ResultVertices = newToOld.Num();
+        int32 ResultVertices = NewToOld.Num();
 
         // Assemble the new vertex buffer
         Result->GetVertexBuffers().SetElementCount(ResultVertices);
-        for ( int b=0; b<Result->GetVertexBuffers().GetBufferCount(); ++b )
+        for (int32 BufferIndex = 0; BufferIndex < Result->GetVertexBuffers().GetBufferCount(); ++BufferIndex)
         {
-            const uint8* pSourceData = Source->GetVertexBuffers().GetBufferData(b);
-            uint8* pDest = Result->GetVertexBuffers().GetBufferData(b);
-            int32 size = Result->GetVertexBuffers().GetElementSize(b);
-            for ( int32 NewIndex =0; NewIndex < ResultVertices; ++NewIndex)
+            const uint8* pSourceData = Source->GetVertexBuffers().GetBufferData(BufferIndex);
+            uint8* pDest = Result->GetVertexBuffers().GetBufferData(BufferIndex);
+            int32 Size = Result->GetVertexBuffers().GetElementSize(BufferIndex);
+
+            for (int32 NewIndex = 0; NewIndex < ResultVertices; ++NewIndex)
             {
-                int32 OldIndex = newToOld[NewIndex];
-                FMemory::Memcpy( pDest, pSourceData + size*OldIndex, size );
-                pDest+=size;
+                int32 OldIndex = NewToOld[NewIndex];
+                FMemory::Memcpy(pDest, pSourceData + Size*OldIndex, Size);
+
+                pDest += Size;
             }
         }
 
@@ -54,68 +54,74 @@ namespace mu
 
 			for (int32 NewIndex = 0; NewIndex < ResultVertices; ++NewIndex)
 			{
-				uint32 OldIndex = newToOld[NewIndex];
+				uint32 OldIndex = NewToOld[NewIndex];
 				(*pIdData++) = OldIndex;
 			}
 		}
 
         // Assemble the new index buffers
-		TArray<bool> usedSourceFaces;
-		usedSourceFaces.SetNumZeroed(Source->GetFaceCount());
-        UntypedMeshBufferIteratorConst itIndex( Source->GetIndexBuffers(), MBS_VERTEXINDEX );
-        UntypedMeshBufferIterator itResultIndex( Result->GetIndexBuffers(), MBS_VERTEXINDEX );
-        int indexCount = 0;
-        if ( itIndex.GetFormat()==MBF_UINT32 )
+		TBitArray<> UsedSourceFaces;
+
+		UsedSourceFaces.SetNum(Source->GetFaceCount(), false);
+        UntypedMeshBufferIteratorConst itIndex(Source->GetIndexBuffers(), MBS_VERTEXINDEX);
+        UntypedMeshBufferIterator itResultIndex(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
+        
+        int32 IndexCount = 0;
+        if (itIndex.GetFormat() == MBF_UINT32)
         {
-            const uint32* pIndices = reinterpret_cast<const uint32_t*>( itIndex.ptr() );
-            uint32* pDestIndices = reinterpret_cast<uint32_t*>( itResultIndex.ptr() );
-            for ( int32 i=0; i<Source->GetIndexCount()/3; ++i )
+            const uint32* pIndices = reinterpret_cast<const uint32*>(itIndex.ptr());
+            uint32* pDestIndices = reinterpret_cast<uint32*>(itResultIndex.ptr());
+            for (int32 i = 0; i < Source->GetIndexCount()/3; ++i)
             {
-                if ( oldToNew[ pIndices[i*3+0] ]>=0
-                     &&
-                     oldToNew[ pIndices[i*3+1] ]>=0
-                     &&
-                     oldToNew[ pIndices[i*3+2] ]>=0 )
+                if (OldToNew[pIndices[i*3 + 0]] >= 0 && OldToNew[pIndices[i*3 + 1]] >= 0 && OldToNew[pIndices[i*3 + 2]] >= 0)
                 {
-                    usedSourceFaces[i] = true;
+                    UsedSourceFaces[i] = true;
 
                     // Clamp in case triangles go across blocks
-                    pDestIndices[ indexCount++ ] = FMath::Max( 0, oldToNew[ pIndices[i*3+0] ] );
-                    pDestIndices[ indexCount++ ] = FMath::Max( 0, oldToNew[ pIndices[i*3+1] ] );
-                    pDestIndices[ indexCount++ ] = FMath::Max( 0, oldToNew[ pIndices[i*3+2] ] );
+                    pDestIndices[IndexCount++] = FMath::Max(0, OldToNew[pIndices[i*3 + 0]]);
+                    pDestIndices[IndexCount++] = FMath::Max(0, OldToNew[pIndices[i*3 + 1]]);
+                    pDestIndices[IndexCount++] = FMath::Max(0, OldToNew[pIndices[i*3 + 2]]);
                 }
             }
         }
-        else if ( itIndex.GetFormat()==MBF_UINT16 )
+        else if (itIndex.GetFormat() == MBF_UINT16)
         {
-            const uint16* pIndices = reinterpret_cast<const uint16*>( itIndex.ptr() );
-            uint16* pDestIndices = reinterpret_cast<uint16*>( itResultIndex.ptr() );
-            for ( int32 i=0; i<Source->GetIndexCount()/3; ++i )
+            const uint16* pIndices = reinterpret_cast<const uint16*>(itIndex.ptr());
+            uint16* pDestIndices = reinterpret_cast<uint16*>(itResultIndex.ptr());
+            for (int32 i = 0; i < Source->GetIndexCount()/3; ++i)
             {
-                if ( oldToNew[ pIndices[i*3+0] ]>=0
-                     &&
-                     oldToNew[ pIndices[i*3+1] ]>=0
-                     &&
-                     oldToNew[ pIndices[i*3+2] ]>=0 )
+                if (OldToNew[pIndices[i*3 + 0]] >= 0 && OldToNew[pIndices[i*3 + 1]] >= 0 && OldToNew[pIndices[i*3 + 2]] >= 0)
                 {
-                    usedSourceFaces[i] = true;
+                    UsedSourceFaces[i] = true;
 
                     // Clamp in case triangles go across blocks
-                    pDestIndices[ indexCount++ ] = (uint16)FMath::Max( 0, oldToNew[ pIndices[i*3+0] ] );
-                    pDestIndices[ indexCount++ ] = (uint16)FMath::Max( 0, oldToNew[ pIndices[i*3+1] ] );
-                    pDestIndices[ indexCount++ ] = (uint16)FMath::Max( 0, oldToNew[ pIndices[i*3+2] ] );
+                    pDestIndices[IndexCount++] = (uint16)FMath::Max(0, OldToNew[pIndices[i*3 + 0]]);
+                    pDestIndices[IndexCount++] = (uint16)FMath::Max(0, OldToNew[pIndices[i*3 + 1]]);
+                    pDestIndices[IndexCount++] = (uint16)FMath::Max(0, OldToNew[pIndices[i*3 + 2]]);
                 }
             }
         }
         else
         {
-            check( false );
+            check(false);
         }
-        Result->GetIndexBuffers().SetElementCount( indexCount );
+     
+        Result->GetIndexBuffers().SetElementCount(IndexCount);
+
+        const int32 NumOriginalVerts = OldToNew.Num();
+
+        TBitArray<> UsedVertices;
+        UsedVertices.SetNum(NumOriginalVerts, false);
+
+        for (int32 I = 0; I < NumOriginalVerts; ++I)
+        {
+            UsedVertices[I] = OldToNew[I] >= 0;
+        }
+
+        MeshRemoveRecreateSurface(Result, UsedVertices, UsedSourceFaces);
     }
 
 
-	//---------------------------------------------------------------------------------------------
     inline void MeshExtractLayoutBlock(Mesh* Result, const Mesh* Source,
                                            uint32 LayoutIndex,
                                            uint16 BlockCount,
@@ -123,42 +129,42 @@ namespace mu
 	{
 		check(Source);
 		bOutSuccess = true;
-		
+
 		// TODO: Optimise
 		Result->CopyFrom(*Source);
 
 		UntypedMeshBufferIteratorConst itBlocks(Source->GetVertexBuffers(), MBS_LAYOUTBLOCK, LayoutIndex);
 
-        if (itBlocks.GetFormat()!=MBF_NONE)
+        if (itBlocks.GetFormat() != MBF_NONE)
         {
             int32 ResultVertices = 0;
-			TArray<int32> oldToNew;
-			oldToNew.Init(-1,Source->GetVertexCount());
-			TArray<int32> newToOld;
-            newToOld.Reserve( Source->GetVertexCount() );
+			TArray<int32> OldToNew;
+			OldToNew.Init(-1, Source->GetVertexCount());
+			TArray<int32> NewToOld;
+            NewToOld.Reserve(Source->GetVertexCount());
 
-            if ( itBlocks.GetFormat()==MBF_UINT16 )
+            if (itBlocks.GetFormat() == MBF_UINT16)
             {
-                const uint16* pBlocks = reinterpret_cast<const uint16*>( itBlocks.ptr() );
+                const uint16* pBlocks = reinterpret_cast<const uint16*>(itBlocks.ptr());
                 for ( int32 i=0; i<Source->GetVertexCount(); ++i )
                 {
                     uint64 VertexBlockRelative = pBlocks[i];
 					uint64 VertexBlockId = (uint64(Source->MeshIDPrefix) << 32) | VertexBlockRelative;
 
-                    bool found = false;
-                    for ( int32 j=0; j< BlockCount; ++j)
+                    bool bFound = false;
+                    for (int32 j = 0; j < BlockCount; ++j)
                     {
                         if (VertexBlockId == BlockIds[j])
                         {
-                            found = true;
+                            bFound = true;
                             break;
                         }
                     }
 
-                    if ( found )
+                    if (bFound)
                     {
-                        oldToNew[i] = ResultVertices++;
-                        newToOld.Add( i );
+                        OldToNew[i] = ResultVertices++;
+                        NewToOld.Add(i);
                     }
                 }
             }
@@ -169,34 +175,30 @@ namespace mu
 				{
 					uint64 VertexBlockId = pBlocks[i];
 
-					bool found = false;
-					for (int j = 0; j < BlockCount; ++j)
+					bool bFound = false;
+					for (int32 j = 0; j < BlockCount; ++j)
 					{
 						if (VertexBlockId == BlockIds[j])
 						{
-							found = true;
+							bFound = true;
 							break;
 						}
 					}
 
-					if (found)
+					if (bFound)
 					{
-						oldToNew[i] = ResultVertices++;
-						newToOld.Add(i);
+						OldToNew[i] = ResultVertices++;
+						NewToOld.Add(i);
 					}
 				}
 			}
 			else
-
             {
                 check( false );
             }
 
-            MeshExtractFromVertices(Source, Result, oldToNew, newToOld);
+            MeshExtractFromVertices(Source, Result, OldToNew, NewToOld);
         }
-
-        Result->Surfaces.Empty();
-        Result->EnsureSurfaceData();
 	}
 
 }

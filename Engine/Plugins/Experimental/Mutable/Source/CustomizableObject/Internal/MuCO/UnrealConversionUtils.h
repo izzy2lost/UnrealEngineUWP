@@ -18,11 +18,11 @@ namespace mu
 	struct FBoneName;
 }
 struct FReferenceSkeleton;
+struct FMutableSurfaceMetadata;
 
 class FSkeletalMeshLODRenderData;
 class USkeletalMesh;
 class USkeleton;
-
 
 namespace UnrealConversionUtils
 {
@@ -38,13 +38,15 @@ namespace UnrealConversionUtils
 	 * @param InMutableMesh - Mutable mesh to be used as reference for the section data update on the Skeletal Mesh
 	 * @param InBoneMap - Bones to be set as part of the sections.
 	 * @param InFirstBoneMapIndex - Index to the first BoneMap bone that belongs to this LODResource.
+	 * @param SectionMetadata - Section metadata for each surface in InMutableMesh. 
 	 */
 	CUSTOMIZABLEOBJECT_API void SetupRenderSections(
 		FSkeletalMeshLODRenderData& LODResource,
 		const mu::Ptr<const mu::Mesh> InMutableMesh,
 		const TArray<mu::FBoneName>& InBoneMap,
 		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap,
-		const int32 InFirstBoneMapIndex);
+		const int32 InFirstBoneMapIndex,
+		const TArray<const FMutableSurfaceMetadata*>& SectionMetadata);
 
 
 	/** Initializes the LODResource's VertexBuffers with dummy data to prepare it for streaming.

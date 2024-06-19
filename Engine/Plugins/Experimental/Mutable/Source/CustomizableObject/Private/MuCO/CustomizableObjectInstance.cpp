@@ -3990,8 +3990,8 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 				const int32 SurfaceCount = MutableMesh->GetSurfaceCount();
 				for (int32 Section = 0; Section < SurfaceCount; ++Section)
 				{
-					int32 FirstVertex, VerticesCount, FirstIndex, IndicesCount;
-					MutableMesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndicesCount, nullptr, nullptr, nullptr);
+					int32 FirstVertex, VerticesCount, FirstIndex, IndicesCount, UnusedBoneIndex, UnusedBoneCount;
+					MutableMesh->GetSurface(Section, FirstVertex, VerticesCount, FirstIndex, IndicesCount, UnusedBoneIndex, UnusedBoneCount);
 
 					if (VerticesCount == 0 || IndicesCount == 0)
 					{
@@ -4699,8 +4699,8 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 				for (int32 Section = 0; Section < SurfaceCount; ++Section)
 				{
 					// Check that is a valid surface.
-					int32 FirstVertex, VerticesCount, FirstIndex, IndicesCount;
-					MutableMesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndicesCount, nullptr, nullptr, nullptr);
+					int32 FirstVertex, VerticesCount, FirstIndex, IndicesCount, UnusedBoneIndex, UnusedBoneCount;
+					MutableMesh->GetSurface(Section, FirstVertex, VerticesCount, FirstIndex, IndicesCount, UnusedBoneIndex, UnusedBoneCount);
 
 					if (VerticesCount == 0 || IndicesCount == 0)
 					{
@@ -4929,13 +4929,34 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 			LODResource.RequiredBones.Sort();
 		}
 
+
+		// Find referenced surface metadata.
+		const int32 MeshNumSurfaces = LOD.Mesh->Surfaces.Num();
+		TArray<const FMutableSurfaceMetadata*> MeshSurfacesMetadata;
+		MeshSurfacesMetadata.Init(nullptr, MeshNumSurfaces);
+
+		for (int32 MeshSectionIndex = 0; MeshSectionIndex < MeshNumSurfaces; ++MeshSectionIndex)
+		{
+			uint32 MeshSurfaceId = LOD.Mesh->GetSurfaceId(MeshSectionIndex);
+			uint32 InstanceSurfaceIndex = OperationData->MutableInstance->FindSurfaceById(ComponentIndex, LODIndex, MeshSurfaceId);
+			
+			if (InstanceSurfaceIndex < 0)
+			{
+				continue;
+			}
+			
+			uint32 SurfaceMetadataId = OperationData->MutableInstance->GetSurfaceCustomId(ComponentIndex, LODIndex, InstanceSurfaceIndex);
+			MeshSurfacesMetadata[MeshSectionIndex] = ModelResources.SurfaceMetadata.Find(SurfaceMetadataId);
+		}
+
 		// Set RenderSections
 		UnrealConversionUtils::SetupRenderSections(
 			LODResource,
 			LOD.Mesh,
 			OperationData->InstanceUpdateData.BoneMaps,
 			BoneInfoMap,
-			LOD.FirstBoneMap);
+			LOD.FirstBoneMap,
+			MeshSurfacesMetadata);
 
 		if (LODResource.bStreamedDataInlined) // Non-streamable LOD
 		{

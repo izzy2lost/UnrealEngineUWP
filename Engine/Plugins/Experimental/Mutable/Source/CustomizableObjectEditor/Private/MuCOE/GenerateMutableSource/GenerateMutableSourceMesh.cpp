@@ -727,6 +727,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 	const EMutableMeshConversionFlags CurrentFlags = GenerationContext.MeshGenerationFlags.Last();
 	const bool bIgnoreSkeleton = EnumHasAnyFlags(CurrentFlags, EMutableMeshConversionFlags::IgnoreSkinning);
 	const bool bIgnorePhysics = EnumHasAnyFlags(CurrentFlags, EMutableMeshConversionFlags::IgnorePhysics);
+	const bool bDoNotCreateMeshMetadata = EnumHasAnyFlags(CurrentFlags, EMutableMeshConversionFlags::DoNotCreateMeshMetadata);
 
 	mu::MeshPtr MutableMesh = new mu::Mesh();
 
@@ -1856,14 +1857,6 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 		}
 	}
 
-	// Ensure Surface Data
-	mu::FMeshSurface MeshSurface;
-	MeshSurface.VertexCount = MutableMesh->VertexBuffers.GetElementCount();
-	MeshSurface.IndexCount = MutableMesh->IndexBuffers.GetElementCount();
-	MeshSurface.BoneMapCount = MutableMesh->BoneMap.Num();
-	MeshSurface.bCastShadow = MeshSection.bCastShadow;
-	MutableMesh->Surfaces.Add(MeshSurface);
-
 	if (!bIgnorePhysics && InSkeletalMesh->GetPhysicsAsset() && MutableMesh->GetSkeleton() && GenerationContext.Options.bPhysicsAssetMergeEnabled)
 	{
 		// Find BodySetups with relevant bones.
@@ -2103,6 +2096,52 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 			MutableMesh->AddAdditionalPhysicsBody(MutableBody);
 		}
+	}
+
+	if (!bDoNotCreateMeshMetadata)
+	{
+		FMutableMeshMetadata MeshMetadata;
+		FMemory::Memzero(MeshMetadata);
+
+		// TODO: Store morph and cloth metadata in this struct, currenlty its added per vertex. With per mesh metadata
+		// this info can be stored in the CO per mesh.
+		MeshMetadata.MorphMetadataId = 0;
+		MeshMetadata.ClothingMetadataId = 0;
+
+		auto HashMeshMetadataFunc = [](const FMutableMeshMetadata& Data) -> uint32
+		{
+			return CityHash32(reinterpret_cast<const char*>(&Data), sizeof(FMutableMeshMetadata));
+		};
+
+		auto CompareMeshMetadataFunc = [](const FMutableMeshMetadata& A, const FMutableMeshMetadata& B) -> bool
+		{
+			return FMemory::Memcmp(&A, &B, sizeof(FMutableMeshMetadata)) == 0;
+		};
+
+		const uint32 MeshMetadataUniqueHash = Private::GenerateUniquePersistentHash(
+				MeshMetadata, GenerationContext.MeshMetadata, HashMeshMetadataFunc, CompareMeshMetadataFunc);
+		
+		if (MeshMetadataUniqueHash != 0)
+		{
+			GenerationContext.MeshMetadata.FindOrAdd(MeshMetadataUniqueHash, MeshMetadata);
+		}
+		else
+		{
+			UE_LOG(LogMutable, Error, TEXT("Maximum number of meshes reached."));
+		}
+
+		// Ensure Surface Data
+		mu::FMeshSurface& MeshSurface = MutableMesh->Surfaces.Emplace_GetRef();
+	
+		MeshSurface.SubMeshes.Emplace(
+				mu::FSurfaceSubMesh 
+				{
+					0, MutableMesh->VertexBuffers.GetElementCount(), 
+					0, MutableMesh->IndexBuffers.GetElementCount(),
+					MeshMetadataUniqueHash	
+				});
+
+		MeshSurface.BoneMapCount = MutableMesh->BoneMap.Num();
 	}
 
 	return MutableMesh;

@@ -1936,8 +1936,8 @@ namespace impl
 						Elem = 0;
 					}
 
-					int32 FirstVertex, VerticesCount, FirstIndex, IndiciesCount;
-					LOD.Mesh->GetSurface(Section, &FirstVertex, &VerticesCount, &FirstIndex, &IndiciesCount, nullptr, nullptr, nullptr);
+					int32 FirstVertex, VerticesCount, FirstIndex, IndiciesCount, UnusedBoneIndex, UnusedBoneCount;
+					LOD.Mesh->GetSurface(Section, FirstVertex, VerticesCount, FirstIndex, IndiciesCount, UnusedBoneIndex, UnusedBoneCount);
 
 					for (int32 VertexIdx = FirstVertex; VertexIdx < FirstVertex + VerticesCount;)
 					{

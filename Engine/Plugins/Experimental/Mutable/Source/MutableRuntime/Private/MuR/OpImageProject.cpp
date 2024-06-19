@@ -3102,7 +3102,7 @@ void MeshProject(Mesh* Result, const Mesh* pMesh, const FProjector& projector, b
 
 	if (bOutSuccess)
 	{
-		Result->Surfaces.SetNum(0);
+		Result->Surfaces.Empty();
 		Result->EnsureSurfaceData();
 		Result->ResetStaticFormatFlags();
 	}

@@ -7,6 +7,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "GPUSkinVertexFactory.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuR/Skeleton.h"
 #include "MuR/Mesh.h"
 #include "MuR/MeshBufferSet.h"
@@ -165,7 +166,8 @@ namespace UnrealConversionUtils
 		const mu::MeshPtrConst InMutableMesh,
 		const TArray<mu::FBoneName>& InBoneMap,
 		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap,
-		const int32 InFirstBoneMapIndex)
+		const int32 InFirstBoneMapIndex,
+		const TArray<const FMutableSurfaceMetadata*>& SurfacesMetadata)
 	{
 		check(InMutableMesh);
 
@@ -193,8 +195,7 @@ namespace UnrealConversionUtils
 			int32 VertexCount;
 			int32 FirstBone;
 			int32 BoneCount;
-			bool bCastShadow;
-			InMutableMesh->GetSurface(SurfaceIndex, &FirstVertex, &VertexCount, &FirstIndex, &IndexCount, &FirstBone, &BoneCount, &bCastShadow);
+			InMutableMesh->GetSurface(SurfaceIndex, FirstVertex, VertexCount, FirstIndex, IndexCount, FirstBone, BoneCount);
 			FSkelMeshRenderSection& Section = LODResource.RenderSections[SurfaceIndex];
 
 			Section.DuplicatedVerticesBuffer.Init(1, TMap<int, TArray<int32>>());
@@ -211,8 +212,11 @@ namespace UnrealConversionUtils
 			Section.MaxBoneInfluences = NumBoneInfluences;
 			Section.NumVertices = VertexCount;
 
-			//TODO(Max): MTBL-1779
-			//Section.bCastShadow = bCastShadow;
+			check(SurfacesMetadata.Num() == InMutableMesh->Surfaces.Num());
+			if (SurfacesMetadata[SurfaceIndex])
+			{
+				Section.bCastShadow = SurfacesMetadata[SurfaceIndex]->bCastShadow;
+			}
 
 			// InBoneMaps may contain bonemaps from other sections. Copy the bones belonging to this mesh.
 			FirstBone += InFirstBoneMapIndex;

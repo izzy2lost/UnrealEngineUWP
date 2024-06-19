@@ -6,17 +6,19 @@
 #include "MuR/ConvertData.h"
 #include "MuR/ParametersPrivate.h"
 #include "MuR/Platform.h"
+#include "MuR/OpMeshRemove.h"
 
+#include "Math/IntVector.h"
 
 namespace mu
 {
-	inline bool PointInBoundingBox(const FVector3f& point, const FShape& selectionShape)
+	inline bool PointInBoundingBox(const FVector3f& Point, const FShape& SelectionShape)
 	{
-		FVector3f v = point - selectionShape.position;
+		FVector3f V = Point - SelectionShape.position;
 
-		for (int i = 0; i < 3; ++i)
+		for (int32 i = 0; i < 3; ++i)
 		{
-			if (fabs(v[i]) > selectionShape.size[i])
+			if (FMath::Abs(V[i]) > SelectionShape.size[i])
 			{
 				return false;
 			}
@@ -25,39 +27,39 @@ namespace mu
 		return true;
 	}
 
-	inline bool VertexIsInMaxRadius(const FVector3f& vertex, const FVector3f& origin, float vertexSelectionBoneMaxRadius)
+	inline bool VertexIsInMaxRadius(const FVector3f& Position, const FVector3f& Origin, float VertexSelectionBoneMaxRadius)
 	{
-		if (vertexSelectionBoneMaxRadius < 0.f)
+		if (VertexSelectionBoneMaxRadius < 0.f)
 		{
 			return true;
 		}
 
-		FVector3f radiusVec = vertex - origin;
-		float radius = FVector3f::DotProduct(radiusVec, radiusVec);
+		FVector3f RadiusVec = Position - Origin;
+		float Radius2 = FVector3f::DotProduct(RadiusVec, RadiusVec);
 
-		return radius < vertexSelectionBoneMaxRadius* vertexSelectionBoneMaxRadius;
+		return Radius2 < VertexSelectionBoneMaxRadius*VertexSelectionBoneMaxRadius;
 	}
 
-	struct vertex_bone_info
+	struct FVertexBoneInfo
 	{
-		TArray<int32> bone_indices;
-		TArray<int32> bone_weights;
+		TArray<int32, TFixedAllocator<16>> BoneIndices;
+		TArray<int32, TFixedAllocator<16>> BoneWeights;
 	};
 
-	inline bool VertexIsAffectedByBone(int32 vertex_idx, const TArray<bool>& bone_is_affected, const TArray<vertex_bone_info>& vertex_info)
+	inline bool VertexIsAffectedByBone(int32 VertexIdx, const TBitArray<>& BoneIsAffected, const TArray<FVertexBoneInfo>& VertexInfo)
 	{
-		if (vertex_idx >= (int)vertex_info.Num())
+		if (VertexIdx >= VertexInfo.Num())
 		{
 			return false;
 		}
 
-		check(vertex_info[vertex_idx].bone_indices.Num() == vertex_info[vertex_idx].bone_weights.Num());		
+		check(VertexInfo[VertexIdx].BoneIndices.Num() == VertexInfo[VertexIdx].BoneWeights.Num());
 
-        for (size_t i = 0; i < vertex_info[vertex_idx].bone_indices.Num(); ++i)
+        for (int32 i = 0; i < VertexInfo[VertexIdx].BoneIndices.Num(); ++i)
 		{			
-            check(vertex_info[vertex_idx].bone_indices[i] <= (int)bone_is_affected.Num());
+            check(VertexInfo[VertexIdx].BoneIndices[i] <= BoneIsAffected.Num());
 
-			if (bone_is_affected[vertex_info[vertex_idx].bone_indices[i]] && vertex_info[vertex_idx].bone_weights[i] > 0)
+			if (BoneIsAffected[VertexInfo[VertexIdx].BoneIndices[i]] && VertexInfo[VertexIdx].BoneWeights[i] > 0)
 			{
 				return true;
 			}
@@ -69,47 +71,47 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//! Reference version
 	//---------------------------------------------------------------------------------------------
-	inline void MeshClipMorphPlane(Mesh* Result, const Mesh* pBase, const FVector3f& origin, const FVector3f& normal, float dist, float factor, float radius,
-		float radius2, float angle, const FShape& selectionShape, bool& bOutSuccess, const FBoneName* BoneId = nullptr, float vertexSelectionBoneMaxRadius = -1.f)
+	inline void MeshClipMorphPlane(Mesh* Result, const Mesh* pBase, const FVector3f& Origin, const FVector3f& Normal, float Dist, float Factor, float Radius,
+		float Radius2, float Angle, const FShape& SelectionShape, bool& bOutSuccess, const FBoneName* BoneId = nullptr, float VertexSelectionBoneMaxRadius = -1.f)
 	{
 		bOutSuccess = true;
-		//float radius = 8.f;
-		//float radius2 = 4.f;
-		//float factor = 1.f;
+		//float Radius = 8.f;
+		//float Radius2 = 4.f;
+		//float Factor = 1.f;
 
 		// Generate vector perpendicular to normal for ellipse rotation reference base
-		FVector3f aux_base(0.f, 1.f, 0.f);
+		FVector3f AuxBase(0.f, 1.f, 0.f);
 
-		if (FMath::Abs(FVector3f::DotProduct(normal, aux_base)) > 0.95f)		// fabs = absolute value
+		if (FMath::Abs(FVector3f::DotProduct(Normal, AuxBase)) > 0.95f)
 		{
-			aux_base = FVector3f(0.f, 0.f, 1.f);
+			AuxBase = FVector3f(0.f, 0.f, 1.f);
 		}
 		
-		FVector3f origin_radius_vector = FVector3f::CrossProduct(normal, aux_base);		// PERPENDICULAR VECTOR TO THE PLANE normal and aux base
-		check(FMath::Abs(FVector3f::DotProduct(normal, origin_radius_vector)) < 0.05f);
+		FVector3f OriginRadiusVector = FVector3f::CrossProduct(Normal, AuxBase);		// Perpendicular vector to the plane normal and aux base
+		check(FMath::Abs(FVector3f::DotProduct(Normal, OriginRadiusVector)) < 0.05f);
 
-        uint32 vcount = pBase->GetVertexBuffers().GetElementCount();
+        uint32 VertexCount = pBase->GetVertexBuffers().GetElementCount();
 
-		if (!vcount)
+		if (!VertexCount)
 		{
 			bOutSuccess = false;
 			return;
 		}
 
-		TArray<vertex_bone_info> vertex_info;
+		TArray<FVertexBoneInfo> VertexInfo;
 
         Ptr<const Skeleton> BaseSkeleton = pBase->GetSkeleton();
 
-		TArray<bool> AffectedBoneMapIndices;
+		TBitArray<> AffectedBoneMapIndices;
 		const int32 BaseBoneIndex = BaseSkeleton && BoneId ? BaseSkeleton->FindBone(*BoneId) : INDEX_NONE;
         if (BaseBoneIndex != INDEX_NONE)
 		{
 			const TArray<FBoneName>& BoneMap = pBase->BoneMap;
-			AffectedBoneMapIndices.SetNum(BoneMap.Num());
+			AffectedBoneMapIndices.SetNum(BoneMap.Num(), false);
 
 			const int32 BoneCount = BaseSkeleton->GetBoneCount();
-			TArray<bool> AffectedSkeletonBones;
-			AffectedSkeletonBones.SetNum(BoneCount);
+			TBitArray<> AffectedSkeletonBones;
+			AffectedSkeletonBones.SetNum(BoneCount, false);
 
             for (int32 BoneIndex = 0; BoneIndex < BoneCount; ++BoneIndex)
 			{
@@ -135,74 +137,77 @@ namespace mu
 			}
 
 			// Look for affected vertex indices
-			vertex_info.SetNum(vcount);
-			//int firstCount = pBase->GetVertexBuffers().GetElementCount();
+			VertexInfo.SetNum(VertexCount);
+			//int32 FirstCount = pBase->GetVertexBuffers().GetElementCount();
 
-			for (int32 vb = 0; vb < pBase->GetVertexBuffers().m_buffers.Num(); ++vb)
+			for (int32 BufferIndex = 0; BufferIndex < pBase->GetVertexBuffers().m_buffers.Num(); ++BufferIndex)
 			{
-				const FMeshBuffer& result = pBase->GetVertexBuffers().m_buffers[vb];
+				const FMeshBuffer& Buffer = pBase->GetVertexBuffers().m_buffers[BufferIndex];
 
-				int elemSize = pBase->GetVertexBuffers().GetElementSize((int)vb);
-				//int firstSize = firstCount * elemSize;
+				int32 ElemSize = pBase->GetVertexBuffers().GetElementSize(BufferIndex);
+				//int32 FirstSize = FirstCount * ElemSize;
 
-				for (int c = 0; c < pBase->GetVertexBuffers().GetBufferChannelCount((int)vb); ++c)
+				for (int32 ChannelIndex = 0; ChannelIndex < pBase->GetVertexBuffers().GetBufferChannelCount(BufferIndex); ++ChannelIndex)
 				{
 					// Get info about the destination channel
-					EMeshBufferSemantic semantic = MBS_NONE;
-					int semanticIndex = 0;
-					EMeshBufferFormat format = MBF_NONE;
-					int components = 0;
-					int offset = 0;
-					pBase->GetVertexBuffers().GetChannel((int)vb, c, &semantic, &semanticIndex, &format, &components, &offset);
+					EMeshBufferSemantic Semantic = MBS_NONE;
+					int32 SemanticIndex = 0;
+					EMeshBufferFormat Format = MBF_NONE;
+					int32 Components = 0;
+					int32 Offset = 0;
+					pBase->GetVertexBuffers().GetChannel(BufferIndex, ChannelIndex, &Semantic, &SemanticIndex, &Format, &Components, &Offset);
 
-					int secondOffset = offset;
-					//int resultOffset = firstSize + offset;
+					checkf(Components <= 16, TEXT("FVertexBoneInfo allocation is fixed to 16 elements."));
 
-					if (semantic == MBS_BONEINDICES)
+					//int32 ResultOffset = FirstSize + Offset;
+
+					if (Semantic == MBS_BONEINDICES)
 					{
-						for (int i = 0; i < pBase->GetVertexCount(); ++i)
+						int32 NumVertices = pBase->GetVertexCount();
 						{
-							switch (format)
+							switch (Format)
 							{
 							case MBF_INT8:
 							case MBF_UINT8:
 							{
-                                const uint8_t* pD = &result.m_data[secondOffset];
-								
-								for (int j = 0; j < components; ++j)
+								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									vertex_info[i].bone_indices.Add(pD[j]);
+									const uint8* pD = &Buffer.m_data[i*ElemSize + Offset];
+									for (int32 j = 0; j < Components; ++j)
+									{
+										VertexInfo[i].BoneIndices.Add(pD[j]);
+									}
 								}
-
-								secondOffset += elemSize;
 								break;
 							}
 
 							case MBF_INT16:
 							case MBF_UINT16:
 							{
-								const uint16* pD = reinterpret_cast<const uint16*>(&result.m_data[secondOffset]);
-
-								for (int j = 0; j < components; ++j)
+								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									vertex_info[i].bone_indices.Add(pD[j]);
-								}
+									const uint16* pD = reinterpret_cast<const uint16*>(&Buffer.m_data[i*ElemSize + Offset]);
 
-								secondOffset += elemSize;
+									for (int32 j = 0; j < Components; ++j)
+									{
+										VertexInfo[i].BoneIndices.Add(pD[j]);
+									}
+								}
 								break;
 							}
 
 							case MBF_INT32:
 							case MBF_UINT32:
 							{
-								const uint32* pD = reinterpret_cast<const uint32*>(&result.m_data[secondOffset]);
-
-								for (int j = 0; j < components; ++j)
+								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									vertex_info[i].bone_indices.Add(pD[j]);
-								}
+									const uint32* pD = reinterpret_cast<const uint32*>(&Buffer.m_data[i*ElemSize + Offset]);
 
-								secondOffset += elemSize;
+									for (int32 j = 0; j < Components; ++j)
+									{
+										VertexInfo[i].BoneIndices.Add(pD[j]);
+									}
+								}
 								break;
 							}
 
@@ -211,24 +216,25 @@ namespace mu
 							}
 						}
 					}
-					else if (semantic == MBS_BONEWEIGHTS)
+					else if (Semantic == MBS_BONEWEIGHTS)
 					{
-						for (int i = 0; i < pBase->GetVertexCount(); ++i)
+						const int32 NumVertices = pBase->GetVertexCount();
 						{
-							switch (format)
+							switch (Format)
 							{
 							case MBF_INT8:
 							case MBF_UINT8:
 							case MBF_NUINT8:
 							{
-								const uint8_t* pD = &result.m_data[secondOffset];
-
-								for (int j = 0; j < components; ++j)
+								for (int32 i = 0; i < NumVertices; ++i)
 								{
-                                    vertex_info[i].bone_weights.Add(pD[j]);
-								}
+									const uint8* pD = &Buffer.m_data[i*ElemSize + Offset];
 
-								secondOffset += elemSize;
+									for (int32 j = 0; j < Components; ++j)
+									{
+										VertexInfo[i].BoneWeights.Add(pD[j]);
+									}
+								}
 								break;
 							}
 
@@ -236,14 +242,15 @@ namespace mu
 							case MBF_UINT16:
 							case MBF_NUINT16:
 							{
-								const uint16* pD = reinterpret_cast<const uint16*>(&result.m_data[secondOffset]);
-
-								for (int j = 0; j < components; ++j)
+								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									vertex_info[i].bone_weights.Add(pD[j]);
-								}
+									const uint16* pD = reinterpret_cast<const uint16*>(&Buffer.m_data[i*ElemSize + Offset]);
 
-								secondOffset += elemSize;
+									for (int32 j = 0; j < Components; ++j)
+									{
+										VertexInfo[i].BoneWeights.Add(pD[j]);
+									}
+								}
 								break;
 							}
 
@@ -251,27 +258,29 @@ namespace mu
 							case MBF_UINT32:
 							case MBF_NUINT32:
 							{
-								const uint32* pD = reinterpret_cast<const uint32*>(&result.m_data[secondOffset]);
-
-								for (int j = 0; j < components; ++j)
+								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									vertex_info[i].bone_weights.Add(pD[j]);
-								}
+									const uint32* pD = reinterpret_cast<const uint32*>(&Buffer.m_data[i*ElemSize + Offset]);
 
-								secondOffset += elemSize;
+									for (int32 j = 0; j < Components; ++j)
+									{
+										VertexInfo[i].BoneWeights.Add(pD[j]);
+									}
+								}
 								break;
 							}
 
                             case MBF_FLOAT32:
                             {
-								const float* pD = reinterpret_cast<const float*>(&result.m_data[secondOffset]);
+								for (int32 i = 0; i < NumVertices; ++i)
+								{
+									const float* pD = reinterpret_cast<const float*>(&Buffer.m_data[i*ElemSize + Offset]);
 
-                                for (int j = 0; j < components; ++j)
-                                {
-                                    vertex_info[i].bone_weights.Add(pD[j]>0.0f);
-                                }
-
-                                secondOffset += elemSize;
+									for (int32 j = 0; j < Components; ++j)
+									{
+										VertexInfo[i].BoneWeights.Add(pD[j] > 0.0f);
+									}
+								}
                                 break;
                             }
 
@@ -286,148 +295,83 @@ namespace mu
 
 		Result->CopyFrom(*pBase);
 
-		// TODO: Replace with an array of bools?
-        TArray<bool> RemovedVertices;
-		RemovedVertices.Init(false, Result->GetVertexCount());
-
-		const FMeshBufferSet& MBSPriv = Result->GetVertexBuffers();
-		for (int32 b = 0; b < MBSPriv.m_buffers.Num(); ++b)
-		{
-			for (int32 c = 0; c < MBSPriv.m_buffers[b].m_channels.Num(); ++c)
-			{
-				EMeshBufferSemantic sem = MBSPriv.m_buffers[b].m_channels[c].m_semantic;
-				int semIndex = MBSPriv.m_buffers[b].m_channels[c].m_semanticIndex;
-
-				UntypedMeshBufferIterator it(Result->GetVertexBuffers(), sem, semIndex);
-
-				switch (sem)
-				{
-				case MBS_POSITION:
-                    for (uint32 v = 0; v < vcount; ++v)
-					{
-						FVector3f vertex(0.0f, 0.0f, 0.0f);
-						for (int i = 0; i < 3; ++i)
-						{
-							ConvertData(i, &vertex[0], MBF_FLOAT32, it.ptr(), it.GetFormat());
-						}
-
-						const bool bIsVertexAffectedBone = 
-								BaseBoneIndex != INDEX_NONE &&
-								VertexIsInMaxRadius(vertex, origin, vertexSelectionBoneMaxRadius) &&
-								VertexIsAffectedByBone(v, AffectedBoneMapIndices, vertex_info);
-						
-						const bool bIsVertexAffectedNoShape = 
-								BaseBoneIndex == INDEX_NONE && 
-								selectionShape.type == (uint8_t)FShape::Type::None;
-
-						const bool bIsVertexAffectedBoundingBox = 
-								(selectionShape.type == (uint8_t)FShape::Type::AABox && 
-								PointInBoundingBox(vertex, selectionShape));
-
-						if (bIsVertexAffectedBone || bIsVertexAffectedNoShape || bIsVertexAffectedBoundingBox)
-						{
-							FVector3f morph_plane_center = origin;					// MORPH PLANE POS relative to root of the selected bone
-							FVector3f clip_plane_center = origin + normal * dist;	// CPLIPPING PLANE POS
-							FVector3f aux_morph = vertex - morph_plane_center;		// MORPH PLANE --> CURRENT VERTEX
-							FVector3f aux_clip = vertex - clip_plane_center;		// CLIPPING PLANE --> CURRENT VERTEX
-
-							float dot_morph = FVector3f::DotProduct(aux_morph, normal);			// ANGLE (MORPH PLANE TO VERTEX AND NORMAL)
-							float dot_cut = FVector3f::DotProduct(aux_clip, normal);				// ANGLE (CLIPPING PLANE TO VERTEX AND NORMAL )
-
-							if (dot_morph >= 0.f || dot_cut >= 0.f)				// CHECK IF CLIPPING OR MORPH SHOULD BE COMPUTED FOR V VERTEX
-							{
-								FVector3f current_center = morph_plane_center + normal * dot_morph;	// PROJECTED POINT FROM THE MROPH PLANE (THE CLOSER THE DOT VALUE OF NORMAL AND VERTEX THE FURTHER IT GOES )
-								FVector3f radius_vector = vertex - current_center;					// 	
-								float radius_vector_len = radius_vector.Length();
-								FVector3f radius_vector_unit = radius_vector_len != 0.f ? radius_vector / radius_vector_len : FVector3f(0.f, 0.f, 0.f); // UNITARY VECTOR THAT GOES FROM THE POINT TO THE VERTEX
-
-								float angle_from_origin = acosf(FVector3f::DotProduct(radius_vector_unit, origin_radius_vector));
-
-								// Cross product between the perpendicular vector from radius vector and origin radius and the normal vector
-								if (FVector3f::DotProduct(FVector3f::CrossProduct(radius_vector_unit, origin_radius_vector), normal) < 0)
-								{
-									angle_from_origin = -angle_from_origin;
-								}
-
-								angle_from_origin += angle * PI / 180.f;
-
-								float term1 = radius2 * cosf(angle_from_origin);
-								float term2 = radius * sinf(angle_from_origin);
-								float ellipse_radius_at_angle = radius * radius2 / sqrtf(term1 * term1 + term2 * term2);
-
-								FVector3f vertex_proj_ellipse = current_center + radius_vector_unit * ellipse_radius_at_angle;
-								//FVector3f vertex_proj_ellipse = current_center + radius_vector_unit * radius;
-
-								float morph_alpha = dist != 0.f && dot_morph <= dist ? FMath::Clamp(powf(dot_morph / dist, factor),0.f, 1.f) : 1.f;
-
-								vertex = vertex * (1.f - morph_alpha) + vertex_proj_ellipse * morph_alpha;
-
-								if (dot_cut >= 0.f)		// CHECK IF THE VERTEX SHOULD BE CLIPPED
-								{
-									FVector3f vert_displ = normal * -dot_cut;
-									vertex = vertex + vert_displ;
-									RemovedVertices[v] = true;
-								}
-							}
-						}
-
-						for (int i = 0; i < 3; ++i)
-						{
-							ConvertData(i, it.ptr(), it.GetFormat(), &vertex[0], MBF_FLOAT32);
-						}
-
-						++it;
-					}
-					break;
-
-				default:
-					break;
-				}
-			}
-		}
-
-		// Now remove all the faces from the result mesh that have all vertices removed
-		UntypedMeshBufferIteratorConst itBase(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-		UntypedMeshBufferIterator itDest(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-		int32 aFaceCount = Result->GetFaceCount();
-
-		UntypedMeshBufferIteratorConst ito(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-		for (int f = 0; f < aFaceCount; ++f)
-		{
-            FUint32Vector3 ov;
-			ov[0] = ito.GetAsUINT32(); ++ito;
-			ov[1] = ito.GetAsUINT32(); ++ito;
-			ov[2] = ito.GetAsUINT32(); ++ito;
+		const int32 NumVertices = Result->GetVertexCount();
+        TBitArray<> VerticesToCull;
+		VerticesToCull.SetNum(NumVertices, false);
 		
-			bool all_vertexs_removed = RemovedVertices[ov[0]] && RemovedVertices[ov[1]] && RemovedVertices[ov[2]];
+		// Positions can  be assumed to be in a FVector3f struct but changing the iterator to a untyped one should 
+		// work as well.
+		const MeshBufferIterator<MBF_FLOAT32, float, 3> PositionIterBegin(Result->GetVertexBuffers(), MBS_POSITION);
+		for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+		{	
+			FVector3f Position = (PositionIterBegin + VertexIndex).GetAsVec3f();
 
-			if (!all_vertexs_removed)
+			const bool bIsVertexAffectedBone = 
+					BaseBoneIndex != INDEX_NONE &&
+					VertexIsInMaxRadius(Position, Origin, VertexSelectionBoneMaxRadius) &&
+					VertexIsAffectedByBone(VertexIndex, AffectedBoneMapIndices, VertexInfo);
+			
+			const bool bIsVertexAffectedNoShape = 
+					BaseBoneIndex == INDEX_NONE && 
+					SelectionShape.type == (uint8)FShape::Type::None;
+
+			const bool bIsVertexAffectedBoundingBox = 
+					(SelectionShape.type == (uint8)FShape::Type::AABox && 
+					PointInBoundingBox(Position, SelectionShape));
+
+			bool bRemovedVertex = false;
+			if (bIsVertexAffectedBone || bIsVertexAffectedNoShape || bIsVertexAffectedBoundingBox)
 			{
-				if (itDest.ptr() != itBase.ptr())
-				{
-					FMemory::Memcpy(itDest.ptr(), itBase.ptr(), itBase.GetElementSize() * 3);
-				}
+				FVector3f MorphPlaneCenter = Origin; // Morph plane pos relative to root of the selected bone
+				FVector3f ClipPlaneCenter = Origin + Normal*Dist; // Clipping plane pos
+				FVector3f AuxMorph = Position - MorphPlaneCenter; // Morph plane --> current vertex
+				FVector3f AuxClip = Position - ClipPlaneCenter;   // Clipping plane --> current vertex
 
-				itDest += 3;
+				float DotMorph = FVector3f::DotProduct(AuxMorph, Normal); // Angle (morph plane to vertex and normal)
+				float DotCut = FVector3f::DotProduct(AuxClip, Normal);    // Angle (clipping plane to vertex and normal)
+
+				// Check if clipping or morph should be computed for v vertex
+				if (DotMorph >= 0.f || DotCut >= 0.f)
+				{
+					FVector3f CurrentCenter = MorphPlaneCenter + Normal*DotMorph; // Projected point from the mroph plane (the closer the dot value of normal and vertex the further it goes)
+					FVector3f RadiusVector = Position - CurrentCenter;	
+					float RadiusVectorLen = RadiusVector.Length();
+					FVector3f RadiusVectorUnit = RadiusVectorLen != 0.f ? RadiusVector / RadiusVectorLen : FVector3f(0.f, 0.f, 0.f); // Unitary vector that goes from the point to the vertex
+
+					float AngleFromOrigin = FMath::Acos(FVector3f::DotProduct(RadiusVectorUnit, OriginRadiusVector));
+
+					// Cross product between the perpendicular vector from radius vector and origin radius and the normal vector
+					if (FVector3f::DotProduct(FVector3f::CrossProduct(RadiusVectorUnit, OriginRadiusVector), Normal) < 0.0f)
+					{
+						AngleFromOrigin = -AngleFromOrigin;
+					}
+
+					AngleFromOrigin += Angle * PI / 180.f;
+
+					float Term1 = Radius2 * FMath::Cos(AngleFromOrigin);
+					float Term2 = Radius * FMath::Sin(AngleFromOrigin);
+					float EllipseRadiusAtAngle = Radius * Radius2 * FMath::InvSqrt(Term1*Term1 + Term2*Term2);
+
+					FVector3f VertexProjEllipse = CurrentCenter + RadiusVectorUnit * EllipseRadiusAtAngle;
+					// FVector3f VertexProjEllipse = CurrentCenter + RadiusVectorUnit * Radius;
+
+					float MorphAlpha = Dist != 0.f && DotMorph <= Dist ? FMath::Clamp(FMath::Pow(DotMorph/Dist, Factor), 0.f, 1.f) : 1.f;
+
+					Position = Position * (1.f - MorphAlpha) + VertexProjEllipse*MorphAlpha;
+
+					// check if the vertex should be clipped
+					if (DotCut >= 0.f)		
+					{
+						FVector3f VertDispl = Normal * -DotCut;
+						Position = Position + VertDispl;
+						VerticesToCull[VertexIndex] = true;
+					}
+				}
 			}
 
-			itBase += 3;
+			(PositionIterBegin + VertexIndex).SetFromVec3f(Position);
 		}
 
-		SIZE_T removedIndices = itBase - itDest;
-		check(removedIndices % 3 == 0);
-
-		Result->GetIndexBuffers().SetElementCount(aFaceCount * 3 - (int32)removedIndices);
-
-		// TODO: Should redo/reorder the face buffer before SetElementCount since some deleted faces could be left and some remaining faces deleted.
-
-        // Fix the surface data if present.
-        if (Result->Surfaces.Num())
-        {
-            // We assume there will be only one.
-            check(Result->Surfaces.Num()==1);
-
-            Result->Surfaces[0].IndexCount -= (int32)removedIndices;
-        }
+        MeshRemoveVerticesWithCullSet(Result, VerticesToCull);
 	}
 }

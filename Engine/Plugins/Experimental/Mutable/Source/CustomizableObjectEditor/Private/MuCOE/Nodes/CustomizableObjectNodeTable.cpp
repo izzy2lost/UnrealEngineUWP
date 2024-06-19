@@ -1480,6 +1480,39 @@ TArray<FAssetData> UCustomizableObjectNodeTable::GetParentTables() const
 	return DataTableAssets;
 }
 
+const FSkelMeshSection* UCustomizableObjectNodeTable::GetDefaultSkeletalMeshSectionFor(const UEdGraphPin& MeshPin) const
+{
+	USkeletalMesh* SkeletalMesh = GetColumnDefaultAssetByType<USkeletalMesh>(&MeshPin);
+
+	if (!SkeletalMesh)
+	{
+		return nullptr;
+	}
+	const FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
+
+	if (!ImportedModel)
+	{
+		return nullptr;
+	}
+
+	int32 LODIndex;
+	int32 SectionIndex;
+	GetPinLODAndSection(&MeshPin, LODIndex, SectionIndex);
+	
+	if (!ImportedModel->LODModels.IsValidIndex(LODIndex))
+	{
+		return nullptr;
+	}
+
+	const FSkeletalMeshLODModel& LODModel = ImportedModel->LODModels[LODIndex];
+
+	if (!LODModel.Sections.IsValidIndex(SectionIndex))
+	{
+		return nullptr;
+	}
+
+	return &LODModel.Sections[SectionIndex];
+}
 
 FSkeletalMaterial* UCustomizableObjectNodeTable::GetDefaultSkeletalMaterialFor(const UEdGraphPin& MeshPin) const
 {

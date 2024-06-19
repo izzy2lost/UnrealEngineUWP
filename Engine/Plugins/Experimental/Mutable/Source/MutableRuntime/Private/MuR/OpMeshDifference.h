@@ -204,7 +204,7 @@ namespace mu
 
 
         // Morphs are always single surfaced
-        Result->Surfaces.SetNum(0);
+        Result->Surfaces.Empty();
         Result->EnsureSurfaceData();
 	}
 

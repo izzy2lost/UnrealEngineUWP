@@ -386,6 +386,15 @@ int32 UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialIndexFor(const UEd
 	return GetSkeletalMaterialIndexFor(LODIndex, SectionIndex);
 }
 
+const FSkelMeshSection* UCustomizableObjectNodeSkeletalMesh::GetSkeletalMeshSectionFor(const UEdGraphPin& Pin) const
+{
+	int32 LODIndex;
+	int32 SectionIndex;
+	int32 LayoutIndex;
+	GetPinSection(Pin, LODIndex, SectionIndex, LayoutIndex);
+	
+	return GetSkeletalMeshSectionFor(LODIndex, SectionIndex);
+}
 
 bool UCustomizableObjectNodeSkeletalMesh::IsPinRelevant(const UEdGraphPin* Pin) const
 {
@@ -739,6 +748,33 @@ FSkeletalMaterial* UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialFor(c
 	return nullptr;
 }
 
+const FSkelMeshSection* UCustomizableObjectNodeSkeletalMesh::GetSkeletalMeshSectionFor(const int32 LODIndex, const int32 SectionIndex) const
+{	
+	if (!SkeletalMesh)
+	{
+		return nullptr;
+	}
+	const FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
+
+	if (!ImportedModel)
+	{
+		return nullptr;
+	}
+
+	if (LODIndex < 0 && LODIndex >= ImportedModel->LODModels.Num())
+	{
+		return nullptr;
+	}
+
+	const FSkeletalMeshLODModel& LODModel = ImportedModel->LODModels[LODIndex];
+
+	if (SectionIndex < 0 && SectionIndex >= LODModel.Sections.Num())
+	{
+		return nullptr;
+	}
+
+	return &LODModel.Sections[SectionIndex];
+}
 
 int32 UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialIndexFor(const int32 LODIndex, const int32 SectionIndex) const
 {

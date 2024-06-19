@@ -4,12 +4,13 @@
 
 
 #include "MuR/OpMeshBind.h"
-
+#include "MuR/OpMeshRemove.h"
 #include "MuR/MutableTrace.h"
 
 #include "MuR/MeshPrivate.h"
 
 #include "Algo/Copy.h"
+
 
 
 // TODO: Make the handling of rotations an option. It is more expensive on CPU and memory, and for some
@@ -271,8 +272,8 @@ namespace mu
 		// Update the result mesh positions
 		int32 MeshVertexCount = BaseMesh->GetVertexCount();
 
-		TArray<uint8> ExcludedVertices;
-		ExcludedVertices.SetNumZeroed(MeshVertexCount);
+		TBitArray<> VerticesToCull;
+		VerticesToCull.SetNum(MeshVertexCount, false);
 		{
 			MUTABLE_CPUPROFILER_SCOPE(UpdateClipDeformVertices);
 
@@ -309,7 +310,7 @@ namespace mu
 						ItTangent.SetFromVec3f(NewTangent);
 					}
 					
-					ExcludedVertices[MeshVertexIndex] = ClipWeight >= (1.0f - SMALL_NUMBER);	
+					VerticesToCull[MeshVertexIndex] = ClipWeight >= (1.0f - SMALL_NUMBER);	
 				}
 
 				++ItPosition;
@@ -326,133 +327,6 @@ namespace mu
 			}
 		}
 
-		// Remove excluded vertices
-		{
-			MUTABLE_CPUPROFILER_SCOPE(RemoveExcludedVertices);
-			
-			const int32 NumOriginalVerts = ExcludedVertices.Num();
-		
-			// Remove faces only if all vertices are gone.
-			UntypedMeshBufferIteratorConst ItSrc(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-			UntypedMeshBufferIterator ItDest(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-
-			UntypedMeshBufferIterator It(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-
-			// We cannot reintroduce vertices to the same set ExcludedVertices since some other triangle exclusion might
-			// depend on those.
-			TArray<uint8> FinalExcludedVertices;
-			FinalExcludedVertices.Init(1, ExcludedVertices.Num());
-
-			const SIZE_T TriangleSizeBytes =  ItSrc.GetElementSize() * 3;
-			const int32 SrcTriangleCount = Result->GetIndexCount() / 3;
-			for (int32 TriangleIndex = 0; TriangleIndex < SrcTriangleCount; ++TriangleIndex)
-			{
-				int32 A = It.GetAsUINT32();
-				++It;
-				int32 B = It.GetAsUINT32();
-				++It;
-				int32 C = It.GetAsUINT32();
-				++It;
-
-				const bool bAllVerticesExcluded = static_cast<bool>( ExcludedVertices[A] & ExcludedVertices[B] & ExcludedVertices[C] );
-
-				// Some sort of latching mechanisms is needed, if a vertex needs to be included for a vertex triangle
-				// but not for another, the vertex must stay.
-				FinalExcludedVertices[A] = FMath::Min((uint8)bAllVerticesExcluded, FinalExcludedVertices[A] );
-				FinalExcludedVertices[B] = FMath::Min((uint8)bAllVerticesExcluded, FinalExcludedVertices[B] );
-				FinalExcludedVertices[C] = FMath::Min((uint8)bAllVerticesExcluded, FinalExcludedVertices[C] );
-			 
-				if (!bAllVerticesExcluded)
-				{
-					if (ItSrc.ptr() != ItDest.ptr())
-					{
-						FMemory::Memcpy( ItDest.ptr(), ItSrc.ptr(),  TriangleSizeBytes);
-					}
-
-					ItDest += 3;
-				}
-			 
-				ItSrc += 3;
-			}
-
-			const int32 NumRemainingTris = SrcTriangleCount - ( ( ItSrc.ptr() - ItDest.ptr() ) / TriangleSizeBytes ); 
-			Result->GetIndexBuffers().SetElementCount( NumRemainingTris*3 );
-		
-			TArray<int32> IndexMap;
-			IndexMap.Init(-1, NumOriginalVerts);
-		
-			int32 NumRemainingVerts = 0;
-			for ( int32 I = 0; I < NumOriginalVerts; ++I )
-			{
-				if ( FinalExcludedVertices[I] == 0 )
-				{
-					IndexMap[I] = NumRemainingVerts++;
-				}
-			}
-		
-			UntypedMeshBufferIterator ResIndicesIt(Result->GetIndexBuffers(), MBS_VERTEXINDEX);
-		
-			// Remap Indices
-			for ( int32 TIdx = 0; TIdx < NumRemainingTris; ++TIdx )
-			{
-				const int32 A = ResIndicesIt.GetAsUINT32();
-				check(IndexMap[A] >= 0);
-				ResIndicesIt.SetFromUINT32(IndexMap[A]);
-				++ResIndicesIt;
-			
-				const int32 B = ResIndicesIt.GetAsUINT32();
-				check(IndexMap[B] >= 0);
-				ResIndicesIt.SetFromUINT32(IndexMap[B]);
-				++ResIndicesIt;
-
-				const int32 C = ResIndicesIt.GetAsUINT32();
-				check(IndexMap[C] >= 0);
-				ResIndicesIt.SetFromUINT32(IndexMap[C]);
-				++ResIndicesIt;
-			}
-
-
-			if ( NumRemainingVerts == NumOriginalVerts )
-			{
-				return;
-			}
-		
-			// We are guaranteed to find a removed vertex.
-			int32 SpanStart = 0; // points at the span first element
-			while ( FinalExcludedVertices[SpanStart++] == 1 );
-			--SpanStart;
-		
-			int32 DestEnd = 0;
-		
-			const int32 VertexBufferCount = Result->GetVertexBuffers().GetBufferCount();
-			while ( SpanStart < NumOriginalVerts )
-			{
-				// Find span to move.
-				int32 SpanEnd = SpanStart; // Points at the last span element + 1
-				for (; SpanEnd < NumOriginalVerts && FinalExcludedVertices[SpanEnd] == 0; SpanEnd++ );
-
-				const int32 SpanSize = SpanEnd - SpanStart;
-
-				// Assume we always have large spans, so it is more work to find the spans than iterate over the different
-				// buffers. This probably is not the best strategy and recomputing the spans for every buffer might be
-				// more performant.
-
-				if (SpanStart > 0)
-				{
-					for (int32 B = 0; B < VertexBufferCount; ++B)
-					{
-						const int32 ElementSize = Result->GetVertexBuffers().GetElementSize(B);
-						uint8* Ptr = Result->GetVertexBuffers().GetBufferData(B);
-						FMemory::Memmove( Ptr + DestEnd*ElementSize, Ptr + SpanStart*ElementSize , SpanSize*ElementSize );
-					}
-				}
-			
-				DestEnd += SpanSize;
-				
-				for (SpanStart = SpanEnd; SpanStart < NumOriginalVerts && FinalExcludedVertices[SpanStart] == 1; ++SpanStart);
-			}
-
-			Result->GetVertexBuffers().SetElementCount( DestEnd );
-		}
+		MeshRemoveVerticesWithCullSet(Result, VerticesToCull);
 	}
 }

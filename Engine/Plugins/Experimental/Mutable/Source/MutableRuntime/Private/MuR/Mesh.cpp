@@ -502,59 +502,63 @@ int Mesh::GetSurfaceCount() const
 }
 
 
-void Mesh::GetSurface( int32 surfaceIndex,
-                       int32* firstVertex, int32* vertexCount,
-                       int32* firstIndex, int32* indexCount,
-					   int32* BoneIndex, int32* BoneCount,
-					   bool* bCastShadow) const
+void Mesh::GetSurface(int32 SurfaceIndex,
+                      int32& OutFirstVertex, int32& OutVertexCount,
+                      int32& OutFirstIndex, int32& OutIndexCount,
+					  int32& OutBoneIndex, int32& OutBoneCount) const
 {
-    int count = GetSurfaceCount();
+    int32 Count = GetSurfaceCount();
 
-    if (surfaceIndex>=0 && surfaceIndex<count)
+    if (SurfaceIndex >= 0 && SurfaceIndex < Count)
     {
-        if (surfaceIndex<Surfaces.Num())
+        if (SurfaceIndex < Surfaces.Num())
         {
-            const FMeshSurface& surf = Surfaces[surfaceIndex];
-            if (firstVertex) *firstVertex = surf.FirstVertex;
-            if (vertexCount) *vertexCount = surf.VertexCount;
-            if (firstIndex) *firstIndex = surf.FirstIndex;
-            if (indexCount) *indexCount = surf.IndexCount;
-            if (BoneIndex) *BoneIndex = surf.BoneMapIndex;
-            if (BoneCount) *BoneCount = surf.BoneMapCount;
-            if (bCastShadow) *bCastShadow = surf.bCastShadow;
+            const FMeshSurface& Surf = Surfaces[SurfaceIndex];
+
+			check(Surf.SubMeshes.Num());
+
+			// Surfaces submeshes are sorted and have no gaps. 
+            OutFirstVertex = Surf.SubMeshes[0].VertexBegin;
+            OutVertexCount = Surf.SubMeshes.Last().VertexEnd - OutFirstVertex;
+            OutFirstIndex = Surf.SubMeshes[0].IndexBegin;
+            OutIndexCount = Surf.SubMeshes.Last().IndexEnd - OutFirstIndex;
+            OutBoneIndex = Surf.BoneMapIndex;
+            OutBoneCount = Surf.BoneMapCount;
         }
-        else
+        else if (!Surfaces.Num())
         {
             // No surfaces defined, means only one surface using all the mesh
-            if (firstVertex) *firstVertex = 0;
-            if (vertexCount) *vertexCount = GetVertexCount();
-            if (firstIndex) *firstIndex = 0;
-            if (indexCount) *indexCount = GetIndexCount();
-			if (BoneIndex) *BoneIndex = 0;
-			if (BoneCount) *BoneCount = BoneMap.Num();
-			if (bCastShadow) *bCastShadow = false;
+            OutFirstVertex = 0;
+            OutVertexCount = GetVertexCount();
+            OutFirstIndex = 0;
+            OutIndexCount = GetIndexCount();
+			OutBoneIndex = 0;
+			OutBoneCount = BoneMap.Num();
         }
+		else
+		{
+			check(false);
+		}
     }
     else
     {
-        check( false );
-        if (firstVertex) *firstVertex = 0;
-        if (vertexCount) *vertexCount = 0;
-        if (firstIndex) *firstIndex = 0;
-        if (indexCount) *indexCount = 0;
-		if (BoneIndex) *BoneIndex = 0;
-		if (BoneCount) *BoneCount = 0;
-		if (bCastShadow) *bCastShadow = false;
+        check(false);
+        OutFirstVertex = 0;
+        OutVertexCount = 0;
+        OutFirstIndex = 0;
+        OutIndexCount = 0;
+		OutBoneIndex = 0;
+		OutBoneCount = 0;
     }
 }
 
 
-uint32 Mesh::GetSurfaceId( int32 surfaceIndex ) const
+uint32 Mesh::GetSurfaceId(int32 SurfaceIndex) const
 {
-    if (surfaceIndex>=0 && surfaceIndex<Surfaces.Num())
+    if (SurfaceIndex >= 0 && SurfaceIndex < Surfaces.Num())
     {
-        const FMeshSurface& surf = Surfaces[surfaceIndex];
-        return surf.Id;
+        const FMeshSurface& Surf = Surfaces[SurfaceIndex];
+        return Surf.Id;
     }
 
     return 0;
@@ -938,11 +942,15 @@ void Mesh::EnsureSurfaceData()
 {
 	if (!Surfaces.Num() && VertexBuffers.GetElementCount())
 	{
-		FMeshSurface s;
-		s.VertexCount = VertexBuffers.GetElementCount();
-		s.IndexCount = IndexBuffers.GetElementCount();
-		s.BoneMapCount = BoneMap.Num();
-		Surfaces.Add(s);
+		FMeshSurface& NewSurface = Surfaces.Emplace_GetRef();
+
+		FSurfaceSubMesh& SubMesh = NewSurface.SubMeshes.Emplace_GetRef();
+		SubMesh.VertexBegin = 0;
+		SubMesh.VertexEnd = VertexBuffers.GetElementCount();
+		SubMesh.IndexBegin = 0;
+		SubMesh.IndexEnd = IndexBuffers.GetElementCount();
+
+		NewSurface.BoneMapCount = BoneMap.Num();
 	}
 }
 
@@ -953,72 +961,26 @@ void Mesh::ResetBufferIndices()
 	IndexBuffers.ResetBufferIndices();
 }
 
+MUTABLE_IMPLEMENT_POD_SERIALISABLE(FSurfaceSubMesh);
+MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FSurfaceSubMesh);
 
-void UnserialiseLegacySurfaces(InputArchive& arch, TArray<FMeshSurface>& OutMeshSurfaces)
+void FMeshSurface::Serialise(OutputArchive& Arch) const
 {
-	struct FMeshSurfaceLegacy
-	{
-		FMeshSurfaceLegacy()
-		{}
+	Arch << SubMeshes;
 
-		int32 FirstVertex = 0;
-		int32 VertexCount = 0;
-		int32 FirstIndex = 0;
-		int32 IndexCount = 0;
-		uint32 Id = 0;
-
-		void Unserialise(InputArchive& arch)
-		{
-			arch >> FirstVertex;
-			arch >> VertexCount;
-			arch >> FirstIndex;
-			arch >> IndexCount;
-			arch >> Id;
-		}
-	}; 
-
-	TArray<FMeshSurfaceLegacy> LegacyMeshSurfaces;
-	arch >> LegacyMeshSurfaces;
-	
-	const int32 NumSurfaces = LegacyMeshSurfaces.Num();
-	OutMeshSurfaces.SetNumZeroed(NumSurfaces);
-
-	for (int32 SurfaceIndex = 0; SurfaceIndex < NumSurfaces; ++SurfaceIndex)
-	{
-		FMeshSurfaceLegacy& LegacySurface = LegacyMeshSurfaces[SurfaceIndex];
-		FMeshSurface& Surface = OutMeshSurfaces[SurfaceIndex];
-		Surface.FirstVertex = LegacySurface.FirstVertex;
-		Surface.VertexCount = LegacySurface.VertexCount;
-		Surface.FirstIndex = LegacySurface.FirstIndex;
-		Surface.IndexCount = LegacySurface.IndexCount;
-		Surface.Id = LegacySurface.Id;
-	}
+	Arch << BoneMapIndex;
+	Arch << BoneMapCount;
+	Arch << Id;
 }
 
 
-void FMeshSurface::Serialise(OutputArchive& arch) const
+void FMeshSurface::Unserialise(InputArchive& Arch)
 {
-	arch << FirstVertex;
-	arch << VertexCount;
-	arch << FirstIndex;
-	arch << IndexCount;
-	arch << BoneMapIndex;
-	arch << BoneMapCount;
-	arch << bCastShadow;
-	arch << Id;
-}
+	Arch >> SubMeshes;
 
-
-void FMeshSurface::Unserialise(InputArchive& arch)
-{
-	arch >> FirstVertex;
-	arch >> VertexCount;
-	arch >> FirstIndex;
-	arch >> IndexCount;
-	arch >> BoneMapIndex;
-	arch >> BoneMapCount;
-	arch >> bCastShadow;
-	arch >> Id;
+	Arch >> BoneMapIndex;
+	Arch >> BoneMapCount;
+	Arch >> Id;
 }
 
 
@@ -1038,69 +1000,69 @@ void Mesh::FBonePose::Unserialise(InputArchive& arch)
 }
 
 
-void Mesh::Serialise(OutputArchive& arch) const
+void Mesh::Serialise(OutputArchive& Arch) const
 {
-	uint32 ver = 22;
-	arch << ver;
+	uint32 Version = 23;
+	Arch << Version;
 
-	arch << IndexBuffers;
-	arch << VertexBuffers;
-	arch << AdditionalBuffers;
-	arch << Layouts;
+	Arch << IndexBuffers;
+	Arch << VertexBuffers;
+	Arch << AdditionalBuffers;
+	Arch << Layouts;
 
-	arch << SkeletonIDs;
+	Arch << SkeletonIDs;
 
-	arch << Skeleton;
-	arch << PhysicsBody;
+	Arch << Skeleton;
+	Arch << PhysicsBody;
 
-	arch << uint32(Flags);
-	arch << Surfaces;
+	Arch << uint32(Flags);
+	Arch << Surfaces;
 
-	arch << Tags;
-	arch << StreamedResources;
+	Arch << Tags;
+	Arch << StreamedResources;
 
-	arch << BonePoses;
-	arch << BoneMap;
+	Arch << BonePoses;
+	Arch << BoneMap;
 
-	arch << AdditionalPhysicsBodies;
+	Arch << AdditionalPhysicsBodies;
 
-	arch << MeshIDPrefix;
-	arch << ReferenceID;
+	Arch << MeshIDPrefix;
+	Arch << ReferenceID;
 }
 
 
-void Mesh::Unserialise(InputArchive& arch)
+void Mesh::Unserialise(InputArchive& Arch)
 {
-	uint32 ver;
-	arch >> ver;
-	check(ver == 22);
+	uint32 Version;
+	Arch >> Version;
+	check(Version == 23);
 
-	arch >> IndexBuffers;
-	arch >> VertexBuffers;
-	arch >> AdditionalBuffers;
-	arch >> Layouts;
+	Arch >> IndexBuffers;
+	Arch >> VertexBuffers;
+	Arch >> AdditionalBuffers;
+	Arch >> Layouts;
 
-	arch >> SkeletonIDs;
+	Arch >> SkeletonIDs;
 
-	arch >> Skeleton;
-	arch >> PhysicsBody;
+	Arch >> Skeleton;
+	Arch >> PhysicsBody;
 
 	uint32 Temp;
-	arch >> Temp;
+	Arch >> Temp;
 	Flags = static_cast<EMeshFlags>(Temp);
 
-	arch >> Surfaces;
+	Arch >> Surfaces;
 
-	arch >> Tags;
-	arch >> StreamedResources;
+	Arch >> Tags;
+	Arch >> StreamedResources;
 
-	arch >> BonePoses;
-	arch >> BoneMap;
+	Arch >> BonePoses;
+	Arch >> BoneMap;
 
-	arch >> AdditionalPhysicsBodies;
+	Arch >> AdditionalPhysicsBodies;
 
-	arch >> MeshIDPrefix;
-	arch >> ReferenceID;
+	Arch >> MeshIDPrefix;
+	Arch >> ReferenceID;
 }
 
 

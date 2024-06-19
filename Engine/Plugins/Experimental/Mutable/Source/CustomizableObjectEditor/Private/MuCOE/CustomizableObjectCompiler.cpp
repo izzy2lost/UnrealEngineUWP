@@ -1101,6 +1101,9 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			 ClothingAssetData.ConfigsData.RemoveAllSwap(IsSharedConfigData);
 		}
 
+		ModelResources.MeshMetadata = MoveTemp(GenerationContext.MeshMetadata);
+		ModelResources.SurfaceMetadata = MoveTemp(GenerationContext.SurfaceMetadata);
+
 		CurrentObject->GetPrivate()->GroupNodeMap = GenerationContext.GroupNodeMap;
 
 		if (GenerationContext.Options.OptimizationLevel == 0)

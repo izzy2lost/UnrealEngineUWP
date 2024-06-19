@@ -96,7 +96,10 @@ enum class EMutableMeshConversionFlags : uint32
 	IgnoreSkinning = 1 << 0,
 
 	// Ignore Physics assets
-	IgnorePhysics = 1 << 1
+	IgnorePhysics = 1 << 1,
+
+	// Prevent this mesh generation from adding per mesh metadata. 
+	DoNotCreateMeshMetadata = 1 << 2
 };
 
 ENUM_CLASS_FLAGS(EMutableMeshConversionFlags)
@@ -777,6 +780,9 @@ struct FMutableGraphGenerationContext
 	TArray<FCustomizableObjectClothingAssetData> ClothingAssetsData;
 	TMap<uint32, FClothingMeshData> ClothingPerMeshData;
 
+	TMap<uint32, FMutableMeshMetadata> MeshMetadata;
+	TMap<uint32, FMutableSurfaceMetadata> SurfaceMetadata;
+
 	// Data used for SkinWeightProfiles reconstruction
 	TArray<FMutableSkinWeightProfileInfo> SkinWeightProfilesInfo;
 
@@ -906,6 +912,61 @@ private:
 #define SCOPED_PIN_DATA(Context, Pin) \
 	FScopedPinData ScopedPinData(Context, Pin);
 
+
+namespace Private
+{
+	template<class HashableType, class HashDataSetType, class HashFuncType, class CompareFuncType>
+	uint32 GenerateUniquePersistentHash(const HashableType& HashableData, const HashDataSetType& HashDataSet, HashFuncType&& HashFunc, CompareFuncType&& CompareFunc)
+	{
+		constexpr uint32 InvalidResourceId = 0;
+		
+		const uint32 DataHash = HashFunc(HashableData);
+
+		uint32 UniqueHash = DataHash == InvalidResourceId ? DataHash + 1 : DataHash;
+
+		const HashableType* FoundHash = HashDataSet.Find(UniqueHash);
+
+		bool bIsDataAlreadyCollected = false;
+		
+		if (FoundHash)
+		{
+			bIsDataAlreadyCollected = CompareFunc(*FoundHash, HashableData); 
+		}
+
+		// NOTE: This way of unique hash generation guarantees all valid values can be used but given its 
+		// sequential nature a cascade of changes can occur if new meshes are added. Not many hash collisions 
+		// are expected so it should not be problematic.
+		if (FoundHash && !bIsDataAlreadyCollected)
+		{
+			uint32 NumTries = 0;
+			for (; NumTries < TNumericLimits<uint32>::Max(); ++NumTries)
+			{
+				FoundHash = HashDataSet.Find(UniqueHash);
+				
+				if (!FoundHash)
+				{
+					break;
+				}
+
+				bIsDataAlreadyCollected = CompareFunc(*FoundHash, HashableData);
+
+				if (bIsDataAlreadyCollected)
+				{
+					break;
+				}
+
+				UniqueHash = UniqueHash + 1 == InvalidResourceId ? InvalidResourceId + 1 : UniqueHash + 1;
+			}
+
+			if (NumTries == TNumericLimits<uint32>::Max())
+			{
+				UniqueHash = InvalidResourceId;
+			}	
+		}
+
+		return UniqueHash;
+	}
+} //Private
 
 //
 mu::Ptr<mu::NodeObject> GenerateMutableSource(const class UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext, bool bPartialCompilation);

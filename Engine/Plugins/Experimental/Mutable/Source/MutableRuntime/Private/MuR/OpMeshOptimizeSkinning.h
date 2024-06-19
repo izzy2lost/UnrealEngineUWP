@@ -151,32 +151,35 @@ namespace mu
 				{
 					const uint32 NumBonesInBoneMap = Surface.BoneMapCount;
 
-					for (int32 VertexIndex = 0; VertexIndex < Surface.VertexCount; ++VertexIndex)
+					for (const FSurfaceSubMesh SubMesh : Surface.SubMeshes)
 					{
-						FMemory::Memcpy(Data, SourceData, BoneIndexChannelOffset);
-						Data += BoneIndexChannelOffset;
-						SourceData += BoneIndexChannelOffset;
-
-						for (int32 ComponentIndex = 0; ComponentIndex < BoneIndexComponentCount; ++ComponentIndex)
+						for (int32 VertexIndex = SubMesh.VertexBegin; VertexIndex < SubMesh.VertexEnd; ++VertexIndex)
 						{
-							const uint16 SourceIndex = *((const uint16*)SourceData);
-							if (SourceIndex < NumBonesInBoneMap)
+							FMemory::Memcpy(Data, SourceData, BoneIndexChannelOffset);
+							Data += BoneIndexChannelOffset;
+							SourceData += BoneIndexChannelOffset;
+
+							for (int32 ComponentIndex = 0; ComponentIndex < BoneIndexComponentCount; ++ComponentIndex)
 							{
-								*Data = (uint8)SourceIndex;
+								const uint16 SourceIndex = *((const uint16*)SourceData);
+								if (SourceIndex < NumBonesInBoneMap)
+								{
+									*Data = (uint8)SourceIndex;
+								}
+								else
+								{
+									*Data = 0;
+								}
+								
+								Data += BoneIndexSize;
+								SourceData += SourceBoneIndexSize;
 							}
-							else
-							{
-								*Data = 0;
-							}
-							
-							Data += BoneIndexSize;
-							SourceData += SourceBoneIndexSize;
+
+
+							FMemory::Memcpy(Data, SourceData, TailSize);
+							Data += TailSize;
+							SourceData += TailSize;
 						}
-
-
-						FMemory::Memcpy(Data, SourceData, TailSize);
-						Data += TailSize;
-						SourceData += TailSize;
 					}
 				}
 			}

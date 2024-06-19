@@ -510,6 +510,43 @@ struct FRealTimeMorphStreamable
 	}
 };
 
+USTRUCT()
+struct FMutableMeshMetadata
+{
+	GENERATED_USTRUCT_BODY()
+	
+	UPROPERTY()
+	uint32 MorphMetadataId = 0;
+
+	UPROPERTY()
+	uint32 ClothingMetadataId = 0;
+
+	friend FArchive& operator<<(FArchive& Ar, FMutableMeshMetadata& Elem)
+	{
+		Ar << Elem.MorphMetadataId;
+		Ar << Elem.ClothingMetadataId;
+
+		return Ar;
+	}
+};
+
+
+USTRUCT()
+struct FMutableSurfaceMetadata
+{
+	GENERATED_USTRUCT_BODY()
+	
+	UPROPERTY()
+	bool bCastShadow = false;
+
+	friend FArchive& operator<<(FArchive& Ar, FMutableSurfaceMetadata& Elem)
+	{
+		Ar << Elem.bCastShadow;
+
+		return Ar;
+	}
+};
+
 
 USTRUCT()
 struct FClothingStreamable
@@ -720,6 +757,12 @@ struct FModelResources
 
 	UPROPERTY()
 	TArray<FMutableModelImageProperties> ImageProperties;
+
+	UPROPERTY()
+	TMap<uint32, FMutableMeshMetadata> MeshMetadata;
+
+	UPROPERTY()
+	TMap<uint32, FMutableSurfaceMetadata> SurfaceMetadata;
 
 	/** Parameter UI metadata information for all the dependencies of this Customizable Object. */
 	UPROPERTY()
@@ -1116,6 +1159,8 @@ public:
 		AddedRomFlags,
 
 		LayoutNodeCleanup,
+
+		AddSurfaceAndMeshMetadata,
 
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion

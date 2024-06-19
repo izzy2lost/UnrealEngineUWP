@@ -23,7 +23,7 @@ class UTexture2DArray;
 class UAnimInstance;
 struct FGuid;
 struct FSkeletalMaterial;
-
+struct FSkelMeshSection;
 
 /** Enum class for the different types of image pins */
 UENUM()
@@ -395,7 +395,9 @@ public:
 
 	/** Returns the index of the skeletal material associated to the given skeletal mesh output pin. */
 	int32 GetDefaultSkeletalMaterialIndexFor(const UEdGraphPin& MeshPin) const;
-	
+
+	/** Returns the SkeletalMesh section associated to the given skeletal mesh output pin. */
+	const FSkelMeshSection* GetDefaultSkeletalMeshSectionFor(const UEdGraphPin& MeshPin) const;
 private:
 
 	/** Number of properties to know when the node needs an update */

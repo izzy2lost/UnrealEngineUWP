@@ -28,6 +28,7 @@ class USkeletalMesh;
 class UTexture2D;
 struct FPropertyChangedEvent;
 struct FSkeletalMaterial;
+struct FSkelMeshSection;
 struct FSlateBrush;
 
 
@@ -231,6 +232,9 @@ public:
 	FSkeletalMaterial* GetSkeletalMaterialFor(const UEdGraphPin& Pin) const;
 	int32 GetSkeletalMaterialIndexFor(const UEdGraphPin& Pin) const;
 
+	const FSkelMeshSection* GetSkeletalMeshSectionFor(const UEdGraphPin& Pin) const;
+
+
 	virtual bool ProvidesCustomPinRelevancyTest() const override { return true; }
 	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
 
@@ -253,6 +257,8 @@ private:
 	UMaterialInterface* GetMaterialInterfaceFor(const int32 LODIndex, const int32 MaterialIndex) const;
 	FSkeletalMaterial* GetSkeletalMaterialFor(const int32 LODIndex, const int32 SectionIndex) const;
 	int32 GetSkeletalMaterialIndexFor(const int32 LODIndex, const int32 SectionIndex) const;
+	
+	const FSkelMeshSection* GetSkeletalMeshSectionFor(const int32 LODIndex, const int32 SectionIndex) const;
 
 	// Deprecated
 	

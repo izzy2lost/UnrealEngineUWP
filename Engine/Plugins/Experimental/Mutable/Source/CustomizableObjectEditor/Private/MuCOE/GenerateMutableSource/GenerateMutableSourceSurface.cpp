@@ -13,6 +13,7 @@
 #include "TextureCompressorModule.h"
 #include "Materials/MaterialInstance.h"
 #include "GPUSkinVertexFactory.h"
+#include "Rendering/SkeletalMeshLODModel.h"
 
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/MutableMeshBufferUtils.h"
@@ -286,6 +287,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		SharedSurface.bMakeUnique = !TypedNodeMat->IsReuseMaterialBetweenLODs();
 
 		int32 ReferencedMaterialsIndex = -1;
+		uint32 SurfaceMetadataUniqueHash = 0; // Value 0 is used as invalid hash.
 		if (TypedNodeMat->GetMaterial())
 		{
 			GenerationContext.AddParticipatingObject(*TypedNodeMat->GetMaterial());
@@ -307,15 +309,18 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					if (const UEdGraphPin* SkeletalMeshPin = FindMeshBaseSource(*ConnectedMaterialPin, false))
 					{
 						FSkeletalMaterial* SkeletalMaterial = nullptr;
-
+						const FSkelMeshSection* ReferenceSkelMeshSection = nullptr;
+						
 						if (const UCustomizableObjectNodeSkeletalMesh* SkeletalMeshNode = Cast<UCustomizableObjectNodeSkeletalMesh>(SkeletalMeshPin->GetOwningNode()))
 						{
 							SkeletalMaterial = SkeletalMeshNode->GetSkeletalMaterialFor(*SkeletalMeshPin);
+							ReferenceSkelMeshSection = SkeletalMeshNode->GetSkeletalMeshSectionFor(*SkeletalMeshPin);
 						}
 
 						else if (const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(SkeletalMeshPin->GetOwningNode()))
 						{
 							SkeletalMaterial = TableNode->GetDefaultSkeletalMaterialFor(*SkeletalMeshPin);
+							ReferenceSkelMeshSection = TableNode->GetDefaultSkeletalMeshSectionFor(*SkeletalMeshPin);
 						}
 
 						if (SkeletalMaterial)
@@ -331,8 +336,39 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 								SlotNameFound = true;
 							}
 						}
+
+						if (ReferenceSkelMeshSection)
+						{
+							auto HashSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& Data) -> uint32
+							{
+								return CityHash32(reinterpret_cast<const char*>(&Data), sizeof(FMutableSurfaceMetadata));
+							};
+
+							auto CompareSurfaceMetadataFunc = [](const FMutableSurfaceMetadata& A, const FMutableSurfaceMetadata& B)
+							{
+								return FMemory::Memcmp(&A, &B, sizeof(FMutableSurfaceMetadata)) == 0;
+							};
+
+							FMutableSurfaceMetadata SurfaceMetadata;
+							FMemory::Memzero(SurfaceMetadata);
+							
+							SurfaceMetadata.bCastShadow = ReferenceSkelMeshSection->bCastShadow;
+
+							SurfaceMetadataUniqueHash = Private::GenerateUniquePersistentHash(
+									SurfaceMetadata, GenerationContext.SurfaceMetadata, HashSurfaceMetadataFunc, CompareSurfaceMetadataFunc);
+
+							if (SurfaceMetadataUniqueHash != 0)
+							{
+								GenerationContext.SurfaceMetadata.FindOrAdd(SurfaceMetadataUniqueHash, SurfaceMetadata);
+							}
+							else
+							{
+								UE_LOG(LogMutable, Error, TEXT("Maximum number of surfaces reached."));
+							}
+						}
 					}
 				}
+
 
 				// No name was found, we need to keep index parity, so we add empty value. We may find the value later.
 				if (IsNewSlotName && !SlotNameFound)
@@ -375,6 +411,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 					MeshFormatNode->SetMessageContext(Node);
 
+					SurfNode->SetCustomID(SurfaceMetadataUniqueHash);
 					SurfNode->SetMesh(MeshFormatNode);
 				}
 				else
@@ -982,7 +1019,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		{
 			mu::NodeSurfaceNewPtr SurfNode2 = new mu::NodeSurfaceNew;
 
-			SurfNode2->SetCustomID(ReferencedMaterialsIndex);
+			SurfNode2->SetCustomID(SurfaceMetadataUniqueHash);
 
 			SurfNode2->SetMesh(SurfNode->GetMesh());
 
