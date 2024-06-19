@@ -2276,16 +2276,6 @@ const FViewInfo* FViewInfo::GetPrimaryView() const
 	return this;
 }
 
-const FViewInfo* FViewInfo::GetInstancedView() const
-{
-	// Extra checks are needed because some code relies on this function to return NULL if ISR is disabled.
-	if (bIsInstancedStereoEnabled || bIsMobileMultiViewEnabled)
-	{
-		return static_cast<const FViewInfo*>(GetInstancedSceneView());
-	}
-	return nullptr;
-}
-
 struct FViewInfoSnapshotCache
 {
 	// These are not real view infos, just dumb memory blocks

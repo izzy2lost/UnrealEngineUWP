@@ -2818,8 +2818,8 @@ const FSceneView* FSceneView::GetPrimarySceneView() const
 
 const FSceneView* FSceneView::GetInstancedSceneView() const
 {
-	// if we don't have ISR (or MMV) enabled, we don't have instanced views
-	if (bIsMultiViewportEnabled || bIsMobileMultiViewEnabled)
+	// if we don't have ISR or MMV enabled, or we're rendering a full pass, we don't have instanced views
+	if ((bIsMultiViewportEnabled || bIsMobileMultiViewEnabled) && StereoPass != EStereoscopicPass::eSSP_FULL)
 	{
 		// If called on the first secondary view it'll return itself.
 		if (Family && Family->Views.IsValidIndex(PrimaryViewIndex + 1))

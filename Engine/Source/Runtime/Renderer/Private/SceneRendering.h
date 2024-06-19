@@ -1697,7 +1697,7 @@ public:
 	const FViewInfo* GetPrimaryView() const;
 
 	/** Returns the instanced view associated with the input view, or null if none exists. */
-	const FViewInfo* GetInstancedView() const;
+	inline const FViewInfo* GetInstancedView() const { return static_cast<const FViewInfo*>(GetInstancedSceneView()); }
 
 	/** Create a snapshot of this view info on the scene allocator. */
 	FViewInfo* CreateSnapshot() const;
