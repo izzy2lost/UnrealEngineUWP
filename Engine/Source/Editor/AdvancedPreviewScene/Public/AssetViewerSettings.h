@@ -155,6 +155,10 @@ struct FPreviewSceneProfile
 
 	void SetShowFlags(FEngineShowFlags& ShowFlags) const
 	{
+		// for reasons I haven't been able to discern exactly, this must be called prior to EnableAdvancedFeatures()
+		// to prevent a crash in the renderer caused by unallocated or missing resources
+		ShowFlags.DisableAdvancedFeatures();
+		
 		if (bPostProcessingEnabled)
 		{
 			ShowFlags.EnableAdvancedFeatures();
