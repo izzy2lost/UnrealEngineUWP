@@ -25,7 +25,7 @@
 #include "UObject/UnrealType.h"
 #include "Engine/BlueprintCore.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "GameFramework/Actor.h"
 #include "Interfaces/IPluginManager.h"

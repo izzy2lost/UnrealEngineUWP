@@ -26,7 +26,7 @@
 #include "Components/ChildActorComponent.h"
 #include "Engine/Selection.h"
 #include "Engine/UserDefinedEnum.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Textures/SlateIcon.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandList.h"

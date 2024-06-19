@@ -8,7 +8,7 @@
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "StructViewerModule.h"
 #include "StructViewerFilter.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 
 #define LOCTEXT_NAMESPACE "PropertyEditor"
 

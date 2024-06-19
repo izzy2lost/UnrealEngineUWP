@@ -19,7 +19,7 @@
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
 #include "Engine/LatentActionManager.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "BPTerminal.h"
 #include "EdGraphSchema_K2.h"
 #include "K2Node_MacroInstance.h"

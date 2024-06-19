@@ -24,7 +24,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 
 #include "UserDefinedStructureCompilerUtils.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "IMessageLogListing.h"
 #include "Engine/Engine.h"
 

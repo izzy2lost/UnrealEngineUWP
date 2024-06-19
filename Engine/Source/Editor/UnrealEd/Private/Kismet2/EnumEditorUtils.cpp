@@ -17,7 +17,7 @@
 #include "Internationalization/TextPackageNamespaceUtil.h"
 #include "ScopedTransaction.h"
 #include "UObject/PropertyIterator.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Kismet2/StructureEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "Enum"

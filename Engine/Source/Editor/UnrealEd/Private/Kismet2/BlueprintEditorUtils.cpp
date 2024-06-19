@@ -39,7 +39,7 @@
 #include "Engine/LevelScriptActor.h"
 #include "Components/TimelineComponent.h"
 #include "Engine/TimelineTemplate.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "UObject/PropertyPortFlags.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
 #include "EngineUtils.h"

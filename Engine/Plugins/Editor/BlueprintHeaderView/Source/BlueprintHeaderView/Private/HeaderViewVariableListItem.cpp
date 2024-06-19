@@ -2,7 +2,7 @@
 
 #include "HeaderViewVariableListItem.h"
 #include "EdMode.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "String/LineEndings.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/StructureEditorUtils.h"

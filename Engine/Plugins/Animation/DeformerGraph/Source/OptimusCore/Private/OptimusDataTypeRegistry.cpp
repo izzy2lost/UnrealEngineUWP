@@ -14,7 +14,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ComputeFramework/ComputeMetadataBuilder.h"
 
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 
 #include "UObject/UnrealType.h"
 

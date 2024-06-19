@@ -16,7 +16,7 @@
 #include "Metadata/Accessors/PCGPropertyAccessor.h"
 #include "Metadata/Accessors/PCGAttributeExtractor.h"
 
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "UObject/EnumProperty.h"
 
 namespace PCGAttributeAccessorHelpers

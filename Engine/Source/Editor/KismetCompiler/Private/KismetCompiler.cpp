@@ -21,7 +21,7 @@
 #include "Editor/EditorEngine.h"
 #include "Components/TimelineComponent.h"
 #include "Engine/TimelineTemplate.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Blueprint/BlueprintExtension.h"
 #include "EdGraphUtilities.h"
 #include "INotifyFieldValueChanged.h"

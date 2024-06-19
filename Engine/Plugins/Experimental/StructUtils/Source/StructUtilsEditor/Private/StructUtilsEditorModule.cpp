@@ -5,7 +5,7 @@
 #include "PropertyBagDetails.h"
 #include "PropertyEditorModule.h"
 #include "StructUtilsTypes.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "UserDefinedStructure/UserDefinedStructEditorData.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"

@@ -15,7 +15,7 @@
 #include "EdMode.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "GameFramework/Actor.h"
 #include "HAL/PlatformCrt.h"
 #include "HAL/PlatformMath.h"

@@ -19,7 +19,7 @@
 
 #if WITH_EDITOR
 #include "Editor.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #endif
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTree)
 

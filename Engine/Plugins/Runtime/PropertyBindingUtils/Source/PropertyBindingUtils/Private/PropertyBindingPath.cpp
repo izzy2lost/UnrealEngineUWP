@@ -8,7 +8,7 @@
 #include "UObject/CoreRedirects.h"
 #include "UObject/Package.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Kismet2/StructureEditorUtils.h"
 #include "UObject/Field.h"
 #endif

@@ -6,7 +6,7 @@
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 #include "ShaderParameterMetadataBuilder.h"
 #include "ShaderParameterMetadata.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 
 FName Optimus::GetUniqueNameForScope(UObject* InScopeObj, FName InName)
 {

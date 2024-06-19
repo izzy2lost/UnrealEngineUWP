@@ -6,7 +6,7 @@
 #include "UObject/TextProperty.h"
 
 #if WITH_ENGINE && WITH_EDITOR
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/ArchiveUObject.h"

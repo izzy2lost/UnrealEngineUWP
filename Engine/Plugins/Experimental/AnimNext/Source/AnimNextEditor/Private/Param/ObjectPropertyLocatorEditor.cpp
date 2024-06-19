@@ -8,7 +8,7 @@
 #include "SParameterPicker.h"
 #include "UniversalObjectLocator.h"
 #include "UniversalObjectLocatorFragmentTypeHandle.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Framework/PropertyViewer/IFieldIterator.h"
 #include "Modules/ModuleManager.h"
 #include "Param/AnimNextObjectPropertyLocatorFragment.h"

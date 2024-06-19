@@ -3,7 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "Misc/Guid.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Kismet2/ListenerManager.h"
 
 struct FEdGraphPinType;
@@ -27,7 +27,7 @@ public:
 
 	class FStructEditorManager : public FListenerManager<UUserDefinedStruct, EStructureEditorChangeInfo>
 	{
-		FStructEditorManager();
+		FStructEditorManager() {}
 	public:
 		UNREALED_API static FStructEditorManager& Get();
 

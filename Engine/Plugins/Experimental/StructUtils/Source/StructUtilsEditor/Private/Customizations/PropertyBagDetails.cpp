@@ -12,7 +12,7 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "ScopedTransaction.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "SPinTypeSelector.h"
 #include "StructUtilsMetadata.h"
 #include "Templates/ValueOrError.h"

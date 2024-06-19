@@ -14,7 +14,7 @@
 #include "Internationalization/InternationalizationManifest.h"
 #include "Internationalization/InternationalizationArchive.h"
 #include "UserDefinedStructure/UserDefinedStructEditorData.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Serialization/JsonInternationalizationManifestSerializer.h"
 #include "Serialization/JsonInternationalizationArchiveSerializer.h"
 #include "Internationalization/TextPackageNamespaceUtil.h"

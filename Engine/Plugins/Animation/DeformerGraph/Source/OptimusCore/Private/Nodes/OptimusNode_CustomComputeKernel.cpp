@@ -18,7 +18,7 @@
 #include "IOptimusDeprecatedExecutionDataInterface.h"
 #include "IOptimusUnnamedNodePinProvider.h"
 #include "OptimusNode_ResourceAccessorBase.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusNode_CustomComputeKernel)
 

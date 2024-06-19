@@ -6,7 +6,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Units/RigUnitContext.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimAttribute)
 

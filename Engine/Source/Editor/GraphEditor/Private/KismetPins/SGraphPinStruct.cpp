@@ -9,7 +9,7 @@
 #include "EdGraph/EdGraphSchema.h"
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Internationalization/Internationalization.h"
 #include "Layout/Margin.h"
 #include "Misc/Attribute.h"

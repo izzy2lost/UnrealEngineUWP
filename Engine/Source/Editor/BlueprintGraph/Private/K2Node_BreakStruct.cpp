@@ -14,7 +14,7 @@
 #include "EdGraphUtilities.h"
 #include "EditorCategoryUtils.h"
 #include "Engine/Blueprint.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "EngineLogs.h"
 #include "Internationalization/Internationalization.h"
 #include "K2Node_StructOperation.h"

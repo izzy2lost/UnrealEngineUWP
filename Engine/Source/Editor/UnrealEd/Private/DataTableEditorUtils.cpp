@@ -8,7 +8,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Application/SlateUser.h"
 #include "Styling/AppStyle.h"
-#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedStruct.h"
 #include "Misc/StringUtility.h"
 #include "ScopedTransaction.h"
 #include "K2Node_GetDataTableRow.h"
