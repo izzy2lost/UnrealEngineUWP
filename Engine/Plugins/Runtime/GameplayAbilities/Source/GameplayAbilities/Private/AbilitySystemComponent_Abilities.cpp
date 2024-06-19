@@ -2775,7 +2775,9 @@ void UAbilitySystemComponent::AbilityLocalInputPressed(int32 InputID)
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 					// Fixing this up to use the instance activation, but this function should be deprecated as it cannot work with InstancedPerExecution
-					const FGameplayAbilityActivationInfo& ActivationInfo = Spec.GetPrimaryInstance() ? Spec.GetPrimaryInstance()->GetCurrentActivationInfoRef() : Spec.ActivationInfo;
+					UE_CLOG(Spec.Ability->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::InstancedPerExecution, LogAbilitySystem, Warning, TEXT("%hs: %s is InstancedPerExecution. This is unreliable for Input as you may only interact with the latest spawned Instance"), __func__, *GetNameSafe(Spec.Ability));
+					TArray<UGameplayAbility*> Instances = Spec.GetAbilityInstances();
+					const FGameplayAbilityActivationInfo& ActivationInfo = Instances.IsEmpty() ? Spec.ActivationInfo : Instances.Last()->GetCurrentActivationInfoRef();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					// Invoke the InputPressed event. This is not replicated here. If someone is listening, they may replicate the InputPressed event to the server.
 					InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, ActivationInfo.GetActivationPredictionKey());					
@@ -2809,7 +2811,9 @@ void UAbilitySystemComponent::AbilityLocalInputReleased(int32 InputID)
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				// Fixing this up to use the instance activation, but this function should be deprecated as it cannot work with InstancedPerExecution
-				const FGameplayAbilityActivationInfo& ActivationInfo = Spec.GetPrimaryInstance() ? Spec.GetPrimaryInstance()->GetCurrentActivationInfoRef() : Spec.ActivationInfo;
+				UE_CLOG(Spec.Ability->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::InstancedPerExecution, LogAbilitySystem, Warning, TEXT("%hs: %s is InstancedPerExecution. This is unreliable for Input as you may only interact with the latest spawned Instance"), __func__, *GetNameSafe(Spec.Ability));
+				TArray<UGameplayAbility*> Instances = Spec.GetAbilityInstances();
+				const FGameplayAbilityActivationInfo& ActivationInfo = Instances.IsEmpty() ? Spec.ActivationInfo : Instances.Last()->GetCurrentActivationInfoRef();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputReleased, Spec.Handle, ActivationInfo.GetActivationPredictionKey());
 			}
