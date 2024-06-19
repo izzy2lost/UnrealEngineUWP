@@ -295,6 +295,7 @@ FDeferredLightData GetDirectionalLightData(float4 ScreenPosition, float4 SvPosit
 	LightData.Direction = MobileDirectionalLight.DirectionalLightDirectionAndShadowTransition.xyz;
 	LightData.bRadialLight = false;
 	LightData.SpecularScale = MobileDirectionalLight.DirectionalLightDistanceFadeMADAndSpecularScale.z;
+	LightData.DiffuseScale = MobileDirectionalLight.DirectionalLightDistanceFadeMADAndSpecularScale.w;
 	LightData.ShadowedBits = 1;
 	LightData.HairTransmittance = InitHairTransmittanceData();
 	LightData.ShadowMapChannelMask = UnpackShadowMapChannelMask(MobileDirectionalLight.DirectionalLightShadowMapChannelMask);
@@ -687,6 +688,7 @@ void MergeLocalLights(const FCulledLightsGridData InLightGridData
 
 		FDeferredLightData LightData = ConvertToDeferredLight_Mobile(LocalLight);
 		LightData.SpecularScale	= UnpackLightSpecularScale(LocalLight);
+		LightData.DiffuseScale	= UnpackLightDiffuseScale(LocalLight);
 
 		float3 L = LightData.Direction;	// Already normalized
 		float3 ToLight = L;

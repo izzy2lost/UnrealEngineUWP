@@ -1105,6 +1105,7 @@ struct FLightShaderConstants
 	float  FalloffExponent;
 	float3 Direction;
 	float  SpecularScale;
+	float  DiffuseScale;
 	float3 Tangent;
 	float  SourceRadius;
 	float3 PositionLow;
@@ -1124,6 +1125,7 @@ struct FLightShaderConstants
 		LightShaderParameters.FalloffExponent = FalloffExponent;
 		LightShaderParameters.Direction = Direction;
 		LightShaderParameters.SpecularScale = SpecularScale;
+		LightShaderParameters.DiffuseScale = DiffuseScale;
 		LightShaderParameters.Tangent = Tangent;
 		LightShaderParameters.SourceRadius = SourceRadius;
 		LightShaderParameters.SpotAngles = SpotAngles;

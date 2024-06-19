@@ -251,6 +251,7 @@ public:
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_LightEnabled() { return Particles_LightEnabled; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_LightVolumetricScattering() { return Particles_LightVolumetricScattering; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_LightSpecularScale() { return Particles_LightSpecularScale; }
+	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_LightDiffuseScale() { return Particles_LightDiffuseScale; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_RibbonID() { return Particles_RibbonID; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_RibbonWidth() { return Particles_RibbonWidth; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_RibbonTwist() { return Particles_RibbonTwist; }
@@ -392,6 +393,7 @@ private:
 	static NIAGARA_API FNiagaraVariable Particles_LightEnabled;
 	static NIAGARA_API FNiagaraVariable Particles_LightVolumetricScattering;
 	static NIAGARA_API FNiagaraVariable Particles_LightSpecularScale;
+	static NIAGARA_API FNiagaraVariable Particles_LightDiffuseScale;
 	static NIAGARA_API FNiagaraVariable Particles_RibbonID;
 	static NIAGARA_API FNiagaraVariable Particles_RibbonWidth;
 	static NIAGARA_API FNiagaraVariable Particles_RibbonTwist;

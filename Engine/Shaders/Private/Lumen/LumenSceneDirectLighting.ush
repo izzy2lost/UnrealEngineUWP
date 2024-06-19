@@ -101,7 +101,7 @@ struct FLumenPackedLight
 	float FalloffExponent;
 
 	float3 Direction;
-	float SpecularScale;
+	uint DiffuseAndSpecularScale;
 
 	float3 Tangent;
 	float SourceRadius;
@@ -166,8 +166,9 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exp
 	DeferredLightData.SpotAngles = PackedLight.SpotAngles;
 	DeferredLightData.SourceRadius = PackedLight.SourceRadius;
 	DeferredLightData.SourceLength = PackedLight.SourceLength;
-	DeferredLightData.SoftSourceRadius = PackedLight.SoftSourceRadius;
-	DeferredLightData.SpecularScale = PackedLight.SpecularScale;
+	DeferredLightData.SoftSourceRadius = PackedLight.SoftSourceRadius;	
+	DeferredLightData.DiffuseScale = UnpackFloat2FromUInt(PackedLight.DiffuseAndSpecularScale).x;
+	DeferredLightData.SpecularScale = UnpackFloat2FromUInt(PackedLight.DiffuseAndSpecularScale).y;
 	DeferredLightData.ContactShadowLength = 0.0f;
 	DeferredLightData.ContactShadowLengthInWS = false;
 	DeferredLightData.DistanceFadeMAD = 0.0f;

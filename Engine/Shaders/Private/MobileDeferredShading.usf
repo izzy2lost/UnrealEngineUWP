@@ -228,6 +228,7 @@ FDeferredLightData InitDeferredLightFromLightParameters(FLightShaderParameters I
 	Out.Tangent					= In.Tangent;
 	Out.SpotAngles				= In.SpotAngles;
 	Out.SpecularScale			= In.SpecularScale;
+	Out.DiffuseScale			= In.DiffuseScale;
 	Out.SourceRadius			= In.SourceRadius;
 	Out.SoftSourceRadius		= In.SoftSourceRadius;
 	Out.SourceLength			= In.SourceLength;

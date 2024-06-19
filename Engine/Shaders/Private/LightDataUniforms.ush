@@ -22,6 +22,7 @@ FDeferredLightData InitDeferredLightFromUniforms(uint InLightType)
 	Out.SourceLength			= bIsRadial ? DeferredLightUniforms.SourceLength : 0;
 	Out.SoftSourceRadius		= DeferredLightUniforms.SoftSourceRadius;
 	Out.SpecularScale			= DeferredLightUniforms.SpecularScale;
+	Out.DiffuseScale			= DeferredLightUniforms.DiffuseScale;
 	Out.ContactShadowLength		= abs(DeferredLightUniforms.ContactShadowLength);
 	Out.ContactShadowLengthInWS = DeferredLightUniforms.ContactShadowLength < 0.0f;
 	Out.ContactShadowCastingIntensity = DeferredLightUniforms.ContactShadowCastingIntensity;
@@ -68,6 +69,7 @@ FDeferredLightData SetupLightDataForStandardDeferred_Mobile(uint InLightType)
 	Out.Direction				= DeferredLightUniforms.Direction;
 	Out.SpotAngles				= DeferredLightUniforms.SpotAngles;
 	Out.SpecularScale			= DeferredLightUniforms.SpecularScale;
+	Out.DiffuseScale			= DeferredLightUniforms.DiffuseScale;
 	Out.ShadowMapChannelMask	= DeferredLightUniforms.ShadowMapChannelMask;
 	Out.ShadowedBits			= DeferredLightUniforms.ShadowedBits;
 	Out.bInverseSquared			= DeferredLightUniforms.FalloffExponent == 0; // Directional lights don't use 'inverse squared attenuation'

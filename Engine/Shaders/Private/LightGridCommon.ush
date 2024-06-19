@@ -203,6 +203,7 @@ FDirectionalLightData GetDirectionalLightData(uint EyeIndex)
 		Result.DirectionalLightSourceRadius			= ForwardLightData.DirectionalLightSourceRadius;
 		Result.DirectionalLightSoftSourceRadius		= ForwardLightData.DirectionalLightSoftSourceRadius;
 		Result.DirectionalLightSpecularScale		= ForwardLightData.DirectionalLightSpecularScale;
+		Result.DirectionalLightDiffuseScale			= ForwardLightData.DirectionalLightDiffuseScale;
 		Result.LightFunctionAtlasLightIndex			= ForwardLightData.LightFunctionAtlasLightIndex;
 		Result.bAffectsTranslucentLighting			= ForwardLightData.bAffectsTranslucentLighting;
 
@@ -218,6 +219,7 @@ FDirectionalLightData GetDirectionalLightData(uint EyeIndex)
 		Result.DirectionalLightSourceRadius			= ForwardLightDataISR.DirectionalLightSourceRadius;
 		Result.DirectionalLightSoftSourceRadius		= ForwardLightDataISR.DirectionalLightSoftSourceRadius;
 		Result.DirectionalLightSpecularScale		= ForwardLightDataISR.DirectionalLightSpecularScale;
+		Result.DirectionalLightDiffuseScale			= ForwardLightDataISR.DirectionalLightDiffuserScale;
 		Result.LightFunctionAtlasLightIndex			= ForwardLightDataISR.LightFunctionAtlasLightIndex;
 		Result.bAffectsTranslucentLighting			= ForwardLightDataISR.bAffectsTranslucentLighting;
 	}

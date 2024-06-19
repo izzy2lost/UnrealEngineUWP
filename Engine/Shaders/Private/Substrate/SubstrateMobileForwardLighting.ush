@@ -284,6 +284,8 @@ float3 SubstrateMobileForwardLighting(
 					LightData.Tangent			= 0;
 					LightData.SoftSourceRadius	= 0;
 					LightData.SpecularScale		= LocalLightB.a;
+					LightData.DiffuseScale		= 1.f;
+					LightData.DirectionScale	= 1.f;
 					LightData.bSpotLight		= false;
 					LightData.bRectLight		= false;
 					LightData.Color 			= LocalLightA.rgb;
@@ -354,6 +356,7 @@ float3 SubstrateMobileForwardLighting(
 						LightData.Tangent			= 0;
 						LightData.SoftSourceRadius	= 0;
 						LightData.SpecularScale		= MergedSpecularScale;
+						LightData.DiffuseScale		= 1.f;
 						LightData.bSpotLight		= false;
 						LightData.bRectLight		= false;
 						LightData.Color 			= MergedLightColor;

@@ -413,6 +413,7 @@ namespace RemoteControlPropertyUtilities
 		static const FName LightShadowBiasPropertyName = TEXT("ShadowBias");
 		static const FName LightShadowSlopeBiasPropertyName = TEXT("ShadowSlopeBias");
 		static const FName LightSpecularScalePropertyName = TEXT("SpecularScale");
+		static const FName LightDiffuseScalePropertyName = TEXT("DiffuseScale");
 		static const FName LightTemperaturePropertyName = TEXT("Temperature");
 		static const FName LightTransmissionPropertyName = TEXT("Transmission");
 		static const FName LightUseIESBrightnessPropertyName = TEXT("bUseIESBrightness");
@@ -447,6 +448,7 @@ namespace RemoteControlPropertyUtilities
 			{ LightShadowBiasPropertyName, TEXT("SetShadowBias") },	
 			{ LightShadowSlopeBiasPropertyName, TEXT("SetShadowSlopeBias") },
 			{ LightSpecularScalePropertyName, TEXT("SetSpecularScale") },
+			{ LightDiffuseScalePropertyName, TEXT("SetDiffuseScale") },
 			{ LightTemperaturePropertyName, TEXT("SetTemperature") },
 			{ LightTransmissionPropertyName, TEXT("SetTransmission") },
 			{ LightUseIESBrightnessPropertyName, TEXT("SetUseIESBrightness") },

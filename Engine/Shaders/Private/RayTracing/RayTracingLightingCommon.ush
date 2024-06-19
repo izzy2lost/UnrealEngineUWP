@@ -40,7 +40,8 @@ FDeferredLightData GetRayTracingDeferredLightData(
 	LightData.SourceRadius = RayTracingLightData.SourceRadius;
 	LightData.SourceLength = RayTracingLightData.SourceLength;
 	LightData.SoftSourceRadius = RayTracingLightData.SoftSourceRadius;
-	LightData.SpecularScale = RayTracingLightData.SpecularScale;
+	LightData.DiffuseScale = UnpackFloat2FromUInt(RayTracingLightData.DiffuseSpecularScale).x;
+	LightData.SpecularScale = UnpackFloat2FromUInt(RayTracingLightData.DiffuseSpecularScale).y;
 	LightData.RectLightData.BarnCosAngle = RayTracingLightData.RectLightBarnCosAngle;
 	LightData.RectLightData.BarnLength = RayTracingLightData.RectLightBarnLength;
 	LightData.DistanceFadeMAD = RayTracingLightData.DistanceFadeMAD;

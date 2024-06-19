@@ -1222,6 +1222,7 @@ void EvaluateLighting(
 		DirLightData.DistanceFadeMAD = ForwardLightData.DirectionalLightDistanceFadeMAD;
 		DirLightData.bRadialLight = false;
 		DirLightData.SpecularScale = ForwardLightData.DirectionalLightSpecularScale;
+		DirLightData.DiffuseScale = ForwardLightData.DirectionalLightDiffuseScale;
 		float4 DirLightAttenuation = float4(1, 1, 1, 1);
 		DirLightData.ShadowedBits = 1;
 		DirLightData.ShadowMapChannelMask.x = 1;

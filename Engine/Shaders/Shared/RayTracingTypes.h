@@ -27,7 +27,7 @@ struct FRTLightingData
 	float3 Direction;
 	float  FalloffExponent;
 	float3 LightColor;
-	float  SpecularScale;
+	uint   DiffuseSpecularScale;
 	float3 Tangent;
 	float  SourceRadius;
 	float2 SpotAngles;
@@ -50,7 +50,7 @@ struct FPathTracingLight
 	float3  Color;
 	float2  Dimensions; // Radius,Length or RectWidth,RectHeight or Sin(Angle/2),0 depending on light type
 	float2  Shaping;    // Barndoor controls for RectLights, Cone angles for spot lights
-	float   SpecularScale;
+	uint    DiffuseSpecularScale;
 	float   Attenuation;
 	float   FalloffExponent; // for non-inverse square decay lights only
 	float   VolumetricScatteringIntensity;  // scale for volume contributions

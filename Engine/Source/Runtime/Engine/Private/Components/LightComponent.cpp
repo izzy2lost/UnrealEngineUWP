@@ -358,7 +358,8 @@ void FLightRenderParameters::MakeShaderParameters(const FViewMatrices& ViewMatri
 	OutShaderParameters.Color = FVector3f(Color) * GetLightExposureScale(Exposure);
 	OutShaderParameters.FalloffExponent = FalloffExponent;
 	OutShaderParameters.Direction = Direction;
-	OutShaderParameters.SpecularScale = SpecularScale;
+	OutShaderParameters.SpecularScale = FMath::Clamp(SpecularScale, 0.f, 1.f);
+	OutShaderParameters.DiffuseScale = FMath::Clamp(DiffuseScale, 0.f, 1.f);
 	OutShaderParameters.Tangent = Tangent;
 	OutShaderParameters.SourceRadius = SourceRadius;
 	OutShaderParameters.SpotAngles = SpotAngles;
@@ -455,6 +456,7 @@ ULightComponent::ULightComponent(const FObjectInitializer& ObjectInitializer)
 	LightFunctionFadeDistance = 100000.0f;
 	DisabledBrightness = 0.5f;
 	SpecularScale = 1.0f;
+	DiffuseScale = 1.0f;
 
 	bEnableLightShaftBloom = false;
 	BloomScale = .2f;
@@ -717,6 +719,7 @@ void ULightComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		Intensity = FMath::Max(0.0f, Intensity);
 	}
 	SpecularScale = FMath::Clamp( SpecularScale, 0.0f, 1.0f );
+	DiffuseScale = FMath::Clamp( DiffuseScale, 0.0f, 1.0f );
 
 	if (HasStaticLighting())
 	{
@@ -744,6 +747,7 @@ void ULightComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bAffectTranslucentLighting) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bTransmission) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, SpecularScale) &&
+		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, DiffuseScale) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, LightFunctionMaterial) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, LightFunctionScale) &&
 		PropertyName != GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, LightFunctionFadeDistance) &&
@@ -1224,10 +1228,22 @@ void ULightComponent::SetShadowSlopeBias(float NewValue)
 
 void ULightComponent::SetSpecularScale(float NewValue)
 {
+	NewValue = FMath::Clamp(NewValue, 0.f, 1.f);
 	if (AreDynamicDataChangesAllowed()
 		&& SpecularScale != NewValue)
 	{
 		SpecularScale = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+
+void ULightComponent::SetDiffuseScale(float NewValue)
+{
+	NewValue = FMath::Clamp(NewValue, 0.f, 1.f);
+	if (AreDynamicDataChangesAllowed()
+		&& DiffuseScale != NewValue)
+	{
+		DiffuseScale = NewValue;
 		MarkRenderStateDirty();
 	}
 }

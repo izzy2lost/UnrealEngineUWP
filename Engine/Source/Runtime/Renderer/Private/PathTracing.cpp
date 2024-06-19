@@ -701,6 +701,8 @@ struct FPathTracingState
 	uint32_t FrameIndex = 0;
 };
 
+uint32 PackRG16(float In0, float In1);
+
 namespace PathTracing
 {
 	bool UsesDecals(const FSceneViewFamily& ViewFamily)
@@ -2536,7 +2538,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		DestLight.Flags |= PATHTRACING_LIGHT_SKY;
 		DestLight.Flags |= Scene->SkyLight->bCastShadows ? PATHTRACER_FLAG_CAST_SHADOW_MASK : 0;
 		DestLight.Flags |= Scene->SkyLight->bCastVolumetricShadow ? PATHTRACER_FLAG_CAST_VOL_SHADOW_MASK : 0;
-		DestLight.SpecularScale = 1.0f;
+		DestLight.DiffuseSpecularScale = PackRG16(1.f, 1.f);
 		DestLight.VolumetricScatteringIntensity = Scene->SkyLight->VolumetricScatteringIntensity;
 		DestLight.IESAtlasIndex = INDEX_NONE;
 		DestLight.MissShaderIndex = 0;
@@ -2600,7 +2602,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 			DestLight.Normal = -LightParameters.Direction;
 			DestLight.Tangent = LightParameters.Tangent;
 			DestLight.Shaping = FVector2f(0.0f, 0.0f);
-			DestLight.SpecularScale = LightParameters.SpecularScale;
+			DestLight.DiffuseSpecularScale = PackRG16(LightParameters.DiffuseScale, LightParameters.SpecularScale);
 			DestLight.Attenuation = LightParameters.InvRadius;
 			DestLight.FalloffExponent = 0;
 			DestLight.VolumetricScatteringIntensity = Light.LightSceneInfo->Proxy->GetVolumetricScatteringIntensity();
@@ -2664,7 +2666,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 		DestLight.Normal = -LightParameters.Direction;
 		DestLight.Tangent = LightParameters.Tangent;
 		DestLight.Shaping = FVector2f(0.0f, 0.0f);
-		DestLight.SpecularScale = LightParameters.SpecularScale;
+		DestLight.DiffuseSpecularScale = PackRG16(LightParameters.DiffuseScale, LightParameters.SpecularScale);
 		DestLight.Attenuation = LightParameters.InvRadius;
 		DestLight.FalloffExponent = 0;
 		DestLight.VolumetricScatteringIntensity = Light.LightSceneInfo->Proxy->GetVolumetricScatteringIntensity();

@@ -1443,7 +1443,7 @@ struct FLumenPackedLight
 	float FalloffExponent;
 
 	FVector3f Direction;
-	float SpecularScale;
+	uint32 DiffuseAndSpecularScale;
 
 	FVector3f Tangent;
 	float SourceRadius;
@@ -1692,6 +1692,8 @@ struct FLumenDirectLightingTaskData
 	bool bHasLightFunctions = false;
 };
 
+uint32 PackRG16(float In0, float In1);
+
 void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFrameTemporaries& FrameTemporaries, FLumenDirectLightingTaskData*& TaskData, IVisibilityTaskData* VisibilityTaskData)
 {
 	bool bAnyLumenActive = false;
@@ -1791,7 +1793,7 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 			LightData.FalloffExponent = ShaderParameters.FalloffExponent;
 
 			LightData.Direction = ShaderParameters.Direction;
-			LightData.SpecularScale = ShaderParameters.SpecularScale;
+			LightData.DiffuseAndSpecularScale = PackRG16(ShaderParameters.DiffuseScale, ShaderParameters.SpecularScale);
 
 			LightData.Tangent = ShaderParameters.Tangent;
 			LightData.SourceRadius = ShaderParameters.SourceRadius;

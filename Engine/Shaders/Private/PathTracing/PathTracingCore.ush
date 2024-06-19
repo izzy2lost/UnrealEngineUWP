@@ -1700,7 +1700,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 				if (any(LightSample.RadianceOverPdf > 0))
 				{
 					// Evaluate material
-					float2 LightDiffuseSpecularScale = DiffuseSpecularScale * float2(1.0, GetLightSpecularScale(LightId));
+					float2 LightDiffuseSpecularScale = DiffuseSpecularScale * float2(GetLightDiffuseScale(LightId), GetLightSpecularScale(LightId));
 
 					FMaterialEval MaterialEval = EvalMaterial(-PathState.Ray.Direction, LightSample.Direction, Payload, LightDiffuseSpecularScale);
 
@@ -1830,7 +1830,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 			{
 				case PATHTRACER_SCATTER_DIFFUSE:
 				{
-					LightContrib *= DiffuseSpecularScale.x;
+					LightContrib *= GetLightDiffuseScale(LightId) * DiffuseSpecularScale.x;
 					break;
 				}
 				case PATHTRACER_SCATTER_SPECULAR:

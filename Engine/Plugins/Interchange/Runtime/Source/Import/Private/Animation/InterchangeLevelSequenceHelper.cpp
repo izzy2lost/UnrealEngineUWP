@@ -141,6 +141,7 @@ namespace UE::Interchange::Private
 			{EInterchangePropertyTracks::LightSourceSoftAngle, {UMovieSceneFloatTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(UDirectionalLightComponent, LightSourceSoftAngle) , TEXT("Source Soft Angle")}},
 			{EInterchangePropertyTracks::LightSourceWidth, {UMovieSceneFloatTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(URectLightComponent, SourceWidth) , TEXT("Source Width")}},
 			{EInterchangePropertyTracks::LightSpecularScale, {UMovieSceneFloatTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, SpecularScale) , TEXT("Specular Scale")}},
+			{EInterchangePropertyTracks::LightDiffuseScale, {UMovieSceneFloatTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, DiffuseScale) , TEXT("Diffuse Scale")}},
 			{EInterchangePropertyTracks::LightTemperature, {UMovieSceneFloatTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, Temperature) , TEXT("Temperature")}},
 			{EInterchangePropertyTracks::LightTransmission, {UMovieSceneBoolTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(ULightComponentBase, bTransmission) , TEXT("Transmission")}},
 			{EInterchangePropertyTracks::LightUseIESBrightness, {UMovieSceneBoolTrack::StaticClass()->GetName(),  GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bUseIESBrightness) , TEXT("Use IES Intensity")}},

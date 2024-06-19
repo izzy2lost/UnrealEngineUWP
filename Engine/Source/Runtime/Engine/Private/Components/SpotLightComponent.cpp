@@ -65,7 +65,8 @@ public:
 		LightParameters.Direction = FVector3f(-GetDirection());
 		LightParameters.Tangent = FVector3f(WorldToLight.M[0][2], WorldToLight.M[1][2], WorldToLight.M[2][2]);
 		LightParameters.SpotAngles = FVector2f(CosOuterCone, InvCosConeDifference);
-		LightParameters.SpecularScale = SpecularScale;
+		LightParameters.SpecularScale = FMath::Clamp(SpecularScale, 0.f, 1.f);
+		LightParameters.DiffuseScale = FMath::Clamp(DiffuseScale, 0.f, 1.f);
 		LightParameters.SourceRadius = SourceRadius;
 		LightParameters.SoftSourceRadius = SoftSourceRadius;
 		LightParameters.SourceLength = SourceLength;

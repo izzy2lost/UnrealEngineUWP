@@ -408,7 +408,8 @@ public:
 		LightParameters.Tangent = (FVector3f)-GetDirection();
 
 		LightParameters.SpotAngles = FVector2f::ZeroVector;
-		LightParameters.SpecularScale = SpecularScale;
+		LightParameters.SpecularScale = FMath::Clamp(SpecularScale, 0.f, 1.f);
+		LightParameters.DiffuseScale = FMath::Clamp(DiffuseScale, 0.f, 1.f);
 		LightParameters.SourceRadius = FMath::Sin( 0.5f * FMath::DegreesToRadians( LightSourceAngle ) );
 		LightParameters.SoftSourceRadius = FMath::Sin( 0.5f * FMath::DegreesToRadians( LightSourceSoftAngle ) );
 		LightParameters.SourceLength = 0.0f;

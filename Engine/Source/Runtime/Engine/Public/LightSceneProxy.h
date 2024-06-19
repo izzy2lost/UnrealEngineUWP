@@ -192,6 +192,7 @@ public:
 	inline float GetContactShadowCastingIntensity() const { return ContactShadowCastingIntensity; }
 	inline float GetContactShadowNonCastingIntensity() const { return ContactShadowNonCastingIntensity; }
 	inline float GetSpecularScale() const { return SpecularScale; }
+	inline float GetDiffuseScale() const { return DiffuseScale; }
 	inline FVector GetLightFunctionScale() const { return LightFunctionScale; }
 	inline float GetLightFunctionFadeDistance() const { return LightFunctionFadeDistance; }
 	inline float GetLightFunctionDisabledBrightness() const { return LightFunctionDisabledBrightness; }
@@ -352,6 +353,9 @@ protected:
 
 	/** Specular scale */
 	float SpecularScale;
+
+	/** Diffuse scale */
+	float DiffuseScale;
 
 	/** The light's persistent shadowing GUID. */
 	FGuid LightGuid;

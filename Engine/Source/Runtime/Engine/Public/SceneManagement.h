@@ -1245,6 +1245,9 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLightShaderParameters, ENGINE_API)
 	// Factor to applies on the specular.
 	SHADER_PARAMETER(float, SpecularScale)
 
+	// Factor to applies on the diffuse.
+	SHADER_PARAMETER(float, DiffuseScale)
+
 	// One tangent of the light if applies.
 	// Note: BiTangent is on purpose not stored for memory optimisation purposes.
 	SHADER_PARAMETER(FVector3f, Tangent)
@@ -1322,6 +1325,9 @@ struct FLightRenderParameters
 
 	// Factor to applies on the specular.
 	float SpecularScale;
+
+	// Factor to applies on the diffuse.
+	float DiffuseScale;
 
 	// One tangent of the light if applies.
 	// Note: BiTangent is on purpose not stored for memory optimisation purposes.

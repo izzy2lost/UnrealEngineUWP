@@ -590,6 +590,7 @@ bool SEnvironmentLightingViewer::GetIsPropertyVisible(const FPropertyAndParent& 
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("IndirectLightingSaturation"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("ShadowAmount"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("SpecularScale"))
+				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("DiffuseScale"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("IndirectLightingIntensity"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("VolumetricScatteringIntensity"))
 				|| PropertyAndParent.Property.GetNameCPP().Equals(TEXT("AtmosphereSunDiskColorScale"))

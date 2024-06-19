@@ -286,6 +286,7 @@ FLightRenderParameters FDirectionalLightRenderState::GetLightShaderParameters() 
 
 	LightParameters.SpotAngles = FVector2f(0, 0);
 	LightParameters.SpecularScale = 0; // Irrelevant when tracing shadow rays
+	LightParameters.DiffuseScale = 0;  // Irrelevant when tracing shadow rays
 	LightParameters.SourceRadius = FMath::Sin(0.5f * FMath::DegreesToRadians(LightSourceAngle));
 	LightParameters.SoftSourceRadius = 0; // Irrelevant when tracing shadow rays. FMath::Sin(0.5f * FMath::DegreesToRadians(LightSourceSoftAngle));
 	LightParameters.SourceLength = 0.0f;

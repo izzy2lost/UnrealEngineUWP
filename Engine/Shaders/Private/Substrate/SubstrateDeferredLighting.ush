@@ -147,7 +147,7 @@ FSubstrateDeferredLighting SubstrateDeferredLighting(
 
 		SubstrateLighting.EstimatedCost += 0.4;	// add the cost of the lighting computations (should sum up to 1 form one light)
 
-		float3 DiffuseLuminance = BSDFEvaluate.IntegratedDiffuseValue;
+		float3 DiffuseLuminance = BSDFEvaluate.IntegratedDiffuseValue * LightData.DiffuseScale;
 		float3 SpecularLuminance = BSDFEvaluate.IntegratedSpecularValue * LightData.SpecularScale;
 
 		const float3 CommonMultiplier = LightData.Color * LightMask * LuminanceWeight(BSDFContext, BSDF)

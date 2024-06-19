@@ -244,6 +244,8 @@ static bool ShouldIncludeRayTracingLight(const FLightSceneInfoCompact& Light)
 	return !bHasStaticLighting && bAffectReflection;
 }
 
+uint32 PackRG16(float In0, float In1);
+
 TRDGUniformBufferRef<FRayTracingLightGrid> CreateRayTracingLightData(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
@@ -315,7 +317,7 @@ TRDGUniformBufferRef<FRayTracingLightGrid> CreateRayTracingLightData(
 			LightDataElement.DistanceFadeMAD = FVector2f(DistanceFadeMAD);
 
 			LightDataElement.InvRadius = LightParameters.InvRadius;
-			LightDataElement.SpecularScale = LightParameters.SpecularScale;
+			LightDataElement.DiffuseSpecularScale = PackRG16(LightParameters.DiffuseScale, LightParameters.SpecularScale);
 			LightDataElement.FalloffExponent = LightParameters.FalloffExponent;
 			LightDataElement.SourceRadius = LightParameters.SourceRadius;
 			LightDataElement.SourceLength = LightParameters.SourceLength;

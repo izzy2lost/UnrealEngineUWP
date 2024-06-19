@@ -901,6 +901,7 @@ void Main(
 		MergedLightData.Tangent			= 0;
 		MergedLightData.SoftSourceRadius= 0;
 		MergedLightData.SpecularScale	= LocalLightB.a;
+		MergedLightData.DiffuseScale	= 1.f; // Diffuse scale is not handled with merged light
 		MergedLightData.bSpotLight		= false;
 		MergedLightData.bRectLight		= false;
 		MergedLightData.Color = LocalLightA.rgb;
@@ -941,6 +942,7 @@ void Main(
 			MergedLightData.Tangent			= 0;
 			MergedLightData.SoftSourceRadius= 0;
 			MergedLightData.SpecularScale	= MergedSpecularScale;
+			MergedLightData.DiffuseScale	= 1.f; // Diffuse scale is not handled with merged light
 			MergedLightData.bSpotLight		= false;
 			MergedLightData.bRectLight		= false;
 			MergedLightData.Color = MergedLightColor;

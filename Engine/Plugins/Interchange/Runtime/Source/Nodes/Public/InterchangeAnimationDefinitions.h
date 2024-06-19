@@ -118,6 +118,7 @@ enum class EInterchangePropertyTracks : int32
 	LightSourceSoftAngle,
 	LightSourceWidth,
 	LightSpecularScale,
+	LightDiffuseScale,
 	LightTemperature,
 	LightTransmission,
 	LightUseIESBrightness,

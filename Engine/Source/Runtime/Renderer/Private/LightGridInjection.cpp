@@ -306,9 +306,19 @@ FVector GetLightGridZParams(float NearPlane, float FarPlane)
 	return FVector(B, O, S);
 }
 
-static uint32 PackRG16(float In0, float In1)
+uint32 PackRG16(float In0, float In1)
 {
 	return uint32(FFloat16(In0).Encoded) | (uint32(FFloat16(In1).Encoded) << 16);
+}
+
+static uint32 PackRGB10(float In0, float In1, float In2)
+{
+	return 
+		(uint32(FMath::Clamp(In0 * 1023u, 0u, 1023u))      )|
+		(uint32(FMath::Clamp(In0 * 1023u, 0u, 1023u)) << 10)|
+		(uint32(FMath::Clamp(In0 * 1023u, 0u, 1023u)) << 10);
+
+	//return uint32(FFloat16(In0).Encoded) | (uint32(FFloat16(In1).Encoded) << 16);
 }
 
 static FVector2f PackLightColor(const FVector3f& LightColor)
@@ -374,9 +384,10 @@ static void PackLocalLightData(
 	const uint32 RectPackedZ = FFloat16(-2.f).Encoded;
 
 	// Pack specular scale and IES profile index
-	const float SpecularScale = 1.f;
+	const float SpecularScale = SimpleLight.SpecularScale;
+	const float DiffuseScale  = SimpleLight.DiffuseScale;
 	const float IESAtlasIndex = INDEX_NONE;
-	const uint32 SpecularScaleAndIESData = PackRG16(SpecularScale, IESAtlasIndex);
+	const uint32 SpecularScale_DiffuseScale_IESData = PackRGB10(SpecularScale, DiffuseScale, IESAtlasIndex);
 
 	const FVector3f LightColor = (FVector3f)SimpleLight.Color * FLightRenderParameters::GetLightExposureScale(View.GetLastEyeAdaptationExposure(), SimpleLight.InverseExposureBlend);
 	const FVector2f LightColorPacked = PackLightColor(LightColor);
@@ -387,7 +398,7 @@ static void PackLocalLightData(
 	Out.LightColorAndIdAndFalloffExponent					= FVector4f(LightColorPacked.X, LightColorPacked.Y, INDEX_NONE, SimpleLight.Exponent);
 	Out.LightDirectionAndShadowMapChannelMask				= FVector4f(FVector3f(1, 0, 0), FMath::AsFloat(ShadowMapChannelMask));
 	Out.SpotAnglesAndSourceRadiusPacked						= FVector4f(-2, 1, FMath::AsFloat(PackedZ), FMath::AsFloat(PackedW));
-	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(1.0f, 0.0f, 0.0f, FMath::AsFloat(SpecularScaleAndIESData));
+	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(1.0f, 0.0f, 0.0f, FMath::AsFloat(SpecularScale_DiffuseScale_IESData));
 	Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex	= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), FMath::AsFloat(RectPackedZ), FMath::AsFloat(VirtualShadowMapIdAndPrevLocalLightIndex));
 }
 
@@ -418,7 +429,7 @@ static void PackLocalLightData(
 	RectPackedZ |= uint32(FMath::Clamp(LightParameters.RectLightAtlasMaxLevel, 0.f, 63.f)) << 26;			//  6 bits
 
 	// Pack specular scale and IES profile index
-	const uint32 SpecularScaleAndIESData = PackRG16(LightParameters.SpecularScale, LightParameters.IESAtlasIndex); // pack atlas id here? 16bit specular 8bit IES and 8 bit LightFunction
+	const uint32 SpecularScale_DiffuseScale_IESData = PackRGB10(LightParameters.SpecularScale, LightParameters.DiffuseScale, LightParameters.IESAtlasIndex); // pack atlas id here? 16bit specular 8bit IES and 8 bit LightFunction
 
 	const FVector2f LightColorPacked = PackLightColor(FVector3f(LightParameters.Color));
 
@@ -430,7 +441,7 @@ static void PackLocalLightData(
 	Out.LightColorAndIdAndFalloffExponent					= FVector4f(LightColorPacked.X, LightColorPacked.Y, LightSceneId, LightParameters.FalloffExponent);
 	Out.LightDirectionAndShadowMapChannelMask				= FVector4f(LightParameters.Direction, FMath::AsFloat(LightTypeAndShadowMapChannelMaskAndLightFunctionIndexPacked));
 	Out.SpotAnglesAndSourceRadiusPacked						= FVector4f(LightParameters.SpotAngles.X, LightParameters.SpotAngles.Y, FMath::AsFloat(PackedZ), FMath::AsFloat(PackedW));
-	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(LightParameters.Tangent, FMath::AsFloat(SpecularScaleAndIESData));
+	Out.LightTangentAndIESDataAndSpecularScale				= FVector4f(LightParameters.Tangent, FMath::AsFloat(SpecularScale_DiffuseScale_IESData));
 	Out.RectDataAndVirtualShadowMapIdOrPrevLocalLightIndex	= FVector4f(FMath::AsFloat(RectPackedX), FMath::AsFloat(RectPackedY), FMath::AsFloat(RectPackedZ), FMath::AsFloat(VirtualShadowMapIdAndPrevLocalLightIndex));
 }
 
@@ -657,7 +668,8 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							ForwardLightData->HasDirectionalLight = 1;
 							ForwardLightData->DirectionalLightColor = FVector3f(LightParameters.Color);
 							ForwardLightData->DirectionalLightVolumetricScatteringIntensity = LightProxy->GetVolumetricScatteringIntensity();
-							ForwardLightData->DirectionalLightSpecularScale = LightProxy->GetSpecularScale();
+							ForwardLightData->DirectionalLightSpecularScale = FMath::Clamp(LightProxy->GetSpecularScale(), 0.f, 1.f);
+							ForwardLightData->DirectionalLightDiffuseScale = FMath::Clamp(LightProxy->GetDiffuseScale(), 0.f, 1.f);
 							ForwardLightData->DirectionalLightDirection = LightParameters.Direction;
 							ForwardLightData->DirectionalLightSourceRadius = LightParameters.SourceRadius;
 							ForwardLightData->DirectionalLightSoftSourceRadius = LightParameters.SoftSourceRadius;

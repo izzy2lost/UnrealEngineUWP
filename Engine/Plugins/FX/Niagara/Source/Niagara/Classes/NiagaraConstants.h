@@ -128,6 +128,7 @@
 #define SYS_PARAM_PARTICLES_LIGHT_ENABLED                INiagaraModule::GetVar_Particles_LightEnabled()
 #define SYS_PARAM_PARTICLES_LIGHT_VOLUMETRIC_SCATTERING  INiagaraModule::GetVar_Particles_LightVolumetricScattering()
 #define SYS_PARAM_PARTICLES_LIGHT_SPECULAR_SCALE         INiagaraModule::GetVar_Particles_LightSpecularScale()
+#define SYS_PARAM_PARTICLES_LIGHT_DIFFUSE_SCALE          INiagaraModule::GetVar_Particles_LightDiffuseScale()
 #define SYS_PARAM_PARTICLES_VISIBILITY_TAG				 INiagaraModule::GetVar_Particles_VisibilityTag()
 #define SYS_PARAM_PARTICLES_MESH_INDEX					 INiagaraModule::GetVar_Particles_MeshIndex()
 #define SYS_PARAM_PARTICLES_COMPONENTS_ENABLED           INiagaraModule::GetVar_Particles_ComponentsEnabled()

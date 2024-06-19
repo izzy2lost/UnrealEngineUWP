@@ -359,7 +359,12 @@ float GetVolumetricScatteringIntensity(int LightId)
 
 float GetLightSpecularScale(int LightId)
 {
-	return SceneLights[LightId].SpecularScale;
+	return UnpackFloat2FromUInt(SceneLights[LightId].DiffuseSpecularScale).y;
+}
+
+float GetLightDiffuseScale(int LightId)
+{
+	return UnpackFloat2FromUInt(SceneLights[LightId].DiffuseSpecularScale).x;
 }
 
 uint GetLightMissShaderIndex(int LightId)

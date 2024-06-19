@@ -389,6 +389,7 @@ FLightAccumulator AccumulateDynamicLighting(
 		}
 
 		Lighting.Specular *= LightData.SpecularScale;
+		Lighting.Diffuse *= LightData.DiffuseScale;
 				
 		LightAccumulator_AddSplit( LightAccumulator, Lighting.Diffuse, Lighting.Specular, Lighting.Diffuse, MaskedLightColor * Shadow.SurfaceShadow, bNeedsSeparateSubsurfaceLightAccumulation );
 		LightAccumulator_AddSplit( LightAccumulator, Lighting.Transmission, 0.0f, Lighting.Transmission, MaskedLightColor * Shadow.TransmissionShadow, bNeedsSeparateSubsurfaceLightAccumulation );
@@ -442,6 +443,7 @@ FLightAccumulator AccumulateDynamicLighting(
 			}
 
 			Lighting.Specular *= LightData.SpecularScale;
+			Lighting.Diffuse  *= LightData.DiffuseScale;
 
 		#if USE_LIGHT_FUNCTION_ATLAS
 			MaskedLightColor *= GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
@@ -573,5 +575,5 @@ float3 GetIrradianceForLight(FDeferredLightData LightData, float3 WorldNormal,	f
 		NoL = Context.NoL;
 	}
 
-	return LightColor * AreaLightFalloffColor * (CombinedAttenuation * NoL);
+	return LightColor * AreaLightFalloffColor * (CombinedAttenuation * NoL * LightData.DiffuseScale);
 }

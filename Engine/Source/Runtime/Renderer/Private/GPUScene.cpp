@@ -760,6 +760,7 @@ void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bo
 	DataOut.FalloffExponent = LightParams.FalloffExponent;
 	DataOut.Direction = LightParams.Direction;
 	DataOut.SpecularScale = LightParams.SpecularScale;
+	DataOut.DiffuseScale = LightParams.DiffuseScale;
 	DataOut.Tangent = LightParams.Tangent;
 	DataOut.SourceRadius = LightParams.SourceRadius;
 	DataOut.SpotAngles = LightParams.SpotAngles;

@@ -125,6 +125,7 @@ FNiagaraDynamicDataBase* FNiagaraRendererLights::GenerateDynamicData(const FNiag
 	const int32 DefaultVisibilityTag = ParameterStore.GetParameterValueOrDefault(Properties->RendererVisibilityTagBinding.GetParamMapBindableVariable(), Properties->RendererVisibility);
 	const float DefaultExponent = ParameterStore.GetParameterValueOrDefault(Properties->LightExponentBinding.GetParamMapBindableVariable(), Properties->DefaultExponent);
 	const float DefaultSpecularScale = ParameterStore.GetParameterValueOrDefault(Properties->SpecularScaleBinding.GetParamMapBindableVariable(), Properties->SpecularScale);
+	const float DefaultDiffuseScale = ParameterStore.GetParameterValueOrDefault(Properties->DiffuseScaleBinding.GetParamMapBindableVariable(), Properties->DiffuseScale);
 
 	const float InverseExposureBlend = Properties->bOverrideInverseExposureBlend ? Properties->InverseExposureBlend : GetDefault<UNiagaraSettings>()->DefaultLightInverseExposureBlend;
 
@@ -141,6 +142,7 @@ FNiagaraDynamicDataBase* FNiagaraRendererLights::GenerateDynamicData(const FNiag
 		const auto EnabledReader = Properties->EnabledDataSetAccessor.GetReader(Data);
 		const auto VisTagReader = Properties->RendererVisibilityTagAccessor.GetReader(Data);
 		const auto SpecularScaleReader = Properties->SpecularScaleAccessor.GetReader(Data);
+		const auto DiffuseScaleReader = Properties->DiffuseScaleAccessor.GetReader(Data);
 
 		for (uint32 ParticleIndex = 0; ParticleIndex < DataToRender->GetNumInstances(); ParticleIndex++)
 		{
@@ -162,6 +164,7 @@ FNiagaraDynamicDataBase* FNiagaraRendererLights::GenerateDynamicData(const FNiag
 				LightData.LightEntry.bAffectTranslucency = Properties->bAffectsTranslucency;
 				LightData.LightEntry.VolumetricScatteringIntensity = ScatteringReader.GetSafe(ParticleIndex, DefaultScattering);
 				LightData.LightEntry.SpecularScale = SpecularScaleReader.GetSafe(ParticleIndex, DefaultSpecularScale);
+				LightData.LightEntry.DiffuseScale = DiffuseScaleReader.GetSafe(ParticleIndex, DefaultDiffuseScale);
 				LightData.PerViewEntry.Position = SimToWorld.TransformPosition(FVector(SimPos));
 			}
 		}
@@ -187,6 +190,7 @@ FNiagaraDynamicDataBase* FNiagaraRendererLights::GenerateDynamicData(const FNiag
 			LightData.LightEntry.bAffectTranslucency = Properties->bAffectsTranslucency;
 			LightData.LightEntry.VolumetricScatteringIntensity = LightScattering;
 			LightData.LightEntry.SpecularScale = Properties->SpecularScale;
+			LightData.LightEntry.DiffuseScale = Properties->DiffuseScale;
 
 			LightData.PerViewEntry.Position = SimToWorld.TransformPosition(FVector(SimPos));
 		}

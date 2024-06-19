@@ -86,6 +86,7 @@ FSSDSignalDomainKnowledge GetSignalDomainKnowledge(uint BatchedSignalId)
 	SignalDomain.Light.Tangent = 0;
 	SignalDomain.Light.SpotAngles = 0;
 	SignalDomain.Light.SpecularScale = 0;
+	SignalDomain.Light.DiffuseScale = 0;
 	SignalDomain.Light.SoftSourceRadius = 0;	
 	SignalDomain.Light.TranslatedWorldPosition = LightPositionAndRadius[BatchedSignalId].xyz;
 	SignalDomain.Light.Direction = LightDirectionAndLength[BatchedSignalId].xyz;

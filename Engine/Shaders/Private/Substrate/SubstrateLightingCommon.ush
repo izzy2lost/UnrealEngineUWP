@@ -138,7 +138,7 @@ float3 SubstrateForwardLightingCommon(
 			FLATTEN
 			if (LightChannelMask & PrimitiveLightingChannelMask)
 			{
-				float3 DiffuseLuminance = BSDFEvaluate.IntegratedDiffuseValue;
+				float3 DiffuseLuminance = BSDFEvaluate.IntegratedDiffuseValue * LightData.DiffuseScale;
 				float3 SpecularLuminance = BSDFEvaluate.IntegratedSpecularValue * LightData.SpecularScale;
 				float3 LightCommonMultiplier = LightData.Color * LightMask;
 

@@ -183,6 +183,7 @@ void MainPS(
 					LightData.SourceLength				= 0.f;
 					LightData.SoftSourceRadius			= 0.f;
 					LightData.SpecularScale				= 1.0f;
+					LightData.DiffuseScale				= 1.0f;
 					LightData.ContactShadowLength		= 0.f;
 					LightData.ContactShadowLengthInWS	= 0.f;
 					LightData.ContactShadowCastingIntensity = 1.f;

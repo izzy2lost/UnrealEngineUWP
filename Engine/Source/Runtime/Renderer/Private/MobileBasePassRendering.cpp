@@ -419,7 +419,8 @@ void SetupMobileDirectionalLightUniformParameters(
 		const FVector2D FadeParams = Light->Proxy->GetDirectionalLightDistanceFadeParameters(FeatureLevel, Light->IsPrecomputedLightingValid(), SceneView.MaxShadowCascades);
 		Params.DirectionalLightDistanceFadeMADAndSpecularScale.X = FadeParams.Y;
 		Params.DirectionalLightDistanceFadeMADAndSpecularScale.Y = -FadeParams.X * FadeParams.Y;
-		Params.DirectionalLightDistanceFadeMADAndSpecularScale.Z = Light->Proxy->GetSpecularScale();
+		Params.DirectionalLightDistanceFadeMADAndSpecularScale.Z = FMath::Clamp(Light->Proxy->GetSpecularScale(), 0.f, 1.f);
+		Params.DirectionalLightDistanceFadeMADAndSpecularScale.W = FMath::Clamp(Light->Proxy->GetDiffuseScale(), 0.f, 1.f);
 
 		const int32 ShadowMapChannel = IsStaticLightingAllowed() ? Light->Proxy->GetShadowMapChannel() : INDEX_NONE;
 		int32 DynamicShadowMapChannel = Light->GetDynamicShadowMapChannel();
@@ -456,7 +457,6 @@ void SetupMobileDirectionalLightUniformParameters(
 						Params.DirectionalLightShadowTexture = ShadowInfo->RenderTargets.DepthTarget->GetRHI();
 						Params.DirectionalLightDirectionAndShadowTransition.W = 1.0f / ShadowInfo->ComputeTransitionSize();
 						Params.DirectionalLightShadowSize = ShadowBufferSizeValue;
-						Params.DirectionalLightDistanceFadeMADAndSpecularScale.W = ShadowInfo->GetShaderReceiverDepthBias();
 					}
 					Params.DirectionalLightScreenToShadow[OutShadowIndex] = FMatrix44f(ShadowInfo->GetScreenToShadowMatrix(SceneView));		// LWC_TODO: Precision loss?
 					Params.DirectionalLightShadowDistances[OutShadowIndex] = ShadowInfo->CascadeSettings.SplitFar;
