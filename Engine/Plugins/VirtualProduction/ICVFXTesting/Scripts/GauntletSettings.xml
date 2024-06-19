@@ -46,6 +46,11 @@
 	<Option Name="WithVirtualShadowMaps" Restrict="true|false" DefaultValue="true" Description="Whether to use virtual shadow maps"/>
 	<Option Name="WithTrace" Restrict="true|false" DefaultValue="false" Description="Whether to run with unreal insights."/>
 	
+	<!-- PRS Specific Options -->
+	<Option Name="NoLocalReports" Restrict="true|false" DefaultValue="false" Description="Whether to generate the local test reports."/>
+	<Option Name="SkipPerfReportServer" Restrict="true|false" DefaultValue="false" Description="Whether to skip uploading gauntlet perf data to the PRS."/>
+	<Option Name="PerfReportServerImportDir" DefaultValue="" Description="Override the server import directory for PRS."/>
+	
 	
 	<Property Name="Platform" Value="Win64"/>
 
@@ -88,7 +93,11 @@
 	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.EnableTrace" If="$(WithTrace)"/>
 	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.TraceRootFolder=$(TestOutputDir)/$(BuildNamePath)" If="$(WithTrace)"/>
 	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.PerfCacheFolder=$(ReportCacheDirRoot)"/>
-	
+	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.NoLocalReports" If="$(NoLocalReports)"/>
+	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.SkipPerfReportServer" If="$(SkipPerfReportServer)"/>
+	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.PerfReportServerImportDir=$(PerfReportServerImportDir)"/>
+	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.BuildName=$(EscapedBranch)-CL-$(Change)" />
+
 	<!-- Common Gauntlet settings -->
 	<Include Script="../../../../../Engine/Build/Graph/Tasks/Inc/GauntletSettings.xml" />
 
