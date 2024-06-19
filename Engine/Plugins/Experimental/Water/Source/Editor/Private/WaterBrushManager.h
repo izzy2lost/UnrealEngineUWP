@@ -30,10 +30,10 @@ class AWaterBrushManager : public AWaterLandscapeBrush
 public:
 	GENERATED_BODY()
 	
- 	UPROPERTY()
+ 	UPROPERTY(Transient)
 	TObjectPtr<USceneCaptureComponent2D> SceneCaptureComponent2D = nullptr;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TObjectPtr<UJumpFloodComponent2D> JumpFloodComponent2D = nullptr;
 
 	// RTs
@@ -270,6 +270,7 @@ private:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual bool AllocateRTs();
 	virtual void SetMPCParams();
+
 	virtual bool SetupRiverSplineRenderMIDs(const FBrushActorRenderContext& BrushActorRenderContext, bool bRestoreMIDs, TArray<UMaterialInterface*>& InOutMIDs);
 	virtual void CaptureMeshDepth(const TArrayView<UStaticMeshComponent*>& MeshComponents);
 	virtual void CacheBrushDistanceField(const FBrushActorRenderContext& BrushActorRenderContext);

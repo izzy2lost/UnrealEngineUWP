@@ -59,6 +59,7 @@ AWaterBrushManager::AWaterBrushManager(const FObjectInitializer& ObjectInitializ
 	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Atmosphere"), false } );
 	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Bloom"), false } );
 	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Lighting"), false } );
+	ShowFlagSettings.Add(FEngineShowFlagsSetting { TEXT("Fog"), false } );
 	SceneCaptureComponent2D->SetShowFlagSettings(ShowFlagSettings);
 
 	PrimaryActorTick.TickGroup = ETickingGroup::TG_PrePhysics;
