@@ -51,6 +51,9 @@ public:
 	/** Sets the static data for this subject as rebroadcasted */
 	virtual void SetStaticDataAsRebroadcasted(const bool bInSent) = 0;
 
+	/** Apply this subject's preprocessors to a frame data. */
+	virtual void PreprocessFrame(FLiveLinkFrameDataStruct& InOutFrameData) {};
+
 protected:
 	virtual const FLiveLinkSubjectFrameData& GetFrameSnapshot() const = 0;
 

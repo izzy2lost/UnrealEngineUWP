@@ -74,6 +74,9 @@ FLiveLinkClient::FLiveLinkClient()
 
 	// Setup rebroadcaster name in case we need it later
 	RebroadcastLiveLinkProviderName = TEXT("LiveLink Rebroadcast");
+
+	bPreProcessRebroadcastedFrames = GetDefault<ULiveLinkSettings>()->bPreProcessRebroadcastedFrames;
+	bTranslateRebroadcastedFrames = GetDefault<ULiveLinkSettings>()->bTranslateRebroadcastedFrames;
 }
 
 FLiveLinkClient::~FLiveLinkClient()
@@ -263,7 +266,7 @@ void FLiveLinkClient::HandleSubjectRebroadcast(ILiveLinkSubject* InSubject, cons
 	// Check the rebroadcast flag and act accordingly, creating the LiveLinkProvider and/or sending the static data if needed
 	if (InSubject->IsRebroadcasted())
 	{
-		if(InSubject->GetStaticData().IsValid() && InFrameData.IsValid())
+		if (InSubject->GetStaticData().IsValid() && InFrameData.IsValid())
 		{
 			// Setup rebroadcast provider
 			if (!RebroadcastLiveLinkProvider.IsValid())
@@ -273,18 +276,39 @@ void FLiveLinkClient::HandleSubjectRebroadcast(ILiveLinkSubject* InSubject, cons
 				
 			if (RebroadcastLiveLinkProvider.IsValid())
 			{
+				// Make a copy of the data for use by the rebroadcaster
+				FLiveLinkFrameDataStruct FrameDataCopy;
+				FrameDataCopy.InitializeWith(InFrameData);
+
+				if (bPreProcessRebroadcastedFrames)
+				{
+					FLiveLinkSubject* LiveSubject = static_cast<FLiveLinkSubject*>(InSubject);
+					InSubject->PreprocessFrame(FrameDataCopy);
+				}
+
+				FLiveLinkStaticDataStruct StaticDataCopy;
+	            StaticDataCopy.InitializeWith(InSubject->GetStaticData());
+
+				if (bTranslateRebroadcastedFrames)
+				{
+					TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> Translators = InSubject->GetFrameTranslators();
+					if (Translators.Num() && Translators[0].IsValid())
+					{
+						FLiveLinkSubjectFrameData TranslatedFrameData;
+						if (Translators[0]->Translate(InSubject->GetStaticData(), FrameDataCopy, TranslatedFrameData))
+						{
+							StaticDataCopy = MoveTemp(TranslatedFrameData.StaticData);
+							FrameDataCopy = MoveTemp(TranslatedFrameData.FrameData);
+						}
+					}
+				}
+
 				if (!InSubject->HasStaticDataBeenRebroadcasted())
 				{
-					FLiveLinkStaticDataStruct StaticDataCopy;
-					StaticDataCopy.InitializeWith(InSubject->GetStaticData());
 					RebroadcastLiveLinkProvider->UpdateSubjectStaticData(InSubject->GetSubjectKey().SubjectName, InSubject->GetRole(), MoveTemp(StaticDataCopy));
 					InSubject->SetStaticDataAsRebroadcasted(true);
 					RebroadcastedSubjects.Add(InSubject->GetSubjectKey());
 				}
-				
-				// Make a copy of the data for use by the rebroadcaster
-				FLiveLinkFrameDataStruct FrameDataCopy;
-				FrameDataCopy.InitializeWith(InFrameData);
 
 				RebroadcastLiveLinkProvider->UpdateSubjectFrameData(InSubject->GetSubjectKey().SubjectName, MoveTemp(FrameDataCopy));
 			}
@@ -990,6 +1014,7 @@ bool FLiveLinkClient::CreateSubject(const FLiveLinkSubjectPreset& InSubjectPrese
 		}
 
 		bool bEnabled = false;
+
 		FLiveLinkCollectionSubjectItem CollectionSubjectItem(InSubjectPreset.Key, MakeUnique<FLiveLinkSubject>(SourceItem->TimedData), SubjectSettings, bEnabled);
 		CollectionSubjectItem.GetLiveSubject()->Initialize(InSubjectPreset.Key, InSubjectPreset.Role.Get(), this);
 

@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "CoreMinimal.h"
+#include "ILiveLinkSubject.h"
 #include "LiveLinkRole.h"
 #include "Misc/FrameRate.h"
 #include "Templates/SubclassOf.h"
@@ -12,12 +13,36 @@
 #include "UObject/ObjectPtr.h"
 #include "UObject/UObjectGlobals.h"
 
+
 #include "LiveLinkSubjectSettings.generated.h"
 
+class FLiveLinkTimedDataInput;
 class ULiveLinkFrameInterpolationProcessor;
 class ULiveLinkFramePreProcessor;
 class ULiveLinkFrameTranslator;
 class ULiveLinkRole;
+
+/**
+ * Utility class that allows specifying default values for Subject settings.
+ */
+UCLASS(config=Engine, defaultconfig)
+class ULiveLinkDefaultSubjectSettings : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Whether subjects should be rebroadcasted by default. */
+	UPROPERTY(config)
+	bool bRebroadcastSubjectsByDefault = false;
+
+	/**
+	 * Whether a user should be able to edit the bRebroadcastSubject property.
+	 * Setting this to false in a target config will prevent a user from turning on or off the rebroadcast flag on a subject.
+	 *
+	 */
+	UPROPERTY(config)
+	bool bAllowEditingRebroadcastProperty = true;
+};
 
 
 // Base class for live link subject settings
@@ -26,6 +51,15 @@ class ULiveLinkSubjectSettings : public UObject
 {
 public:
 	GENERATED_BODY()
+
+	LIVELINKINTERFACE_API ULiveLinkSubjectSettings()
+	{
+		if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+		{
+			bRebroadcastSubject = GetDefault<ULiveLinkDefaultSubjectSettings>()->bRebroadcastSubjectsByDefault;
+			bAllowModifyingRebroadcast = GetDefault<ULiveLinkDefaultSubjectSettings>()->bAllowEditingRebroadcastProperty;
+		}
+	}
 
 	/** Initialize the settings. */
 	virtual void Initialize(FLiveLinkSubjectKey InSubjectKey) {}
@@ -48,9 +82,13 @@ public:
 	/** Last FrameRate estimated by the subject. If in Timecode mode, this will come directly from the QualifiedFrameTime. */
 	UPROPERTY(VisibleAnywhere, Category="LiveLink")
 	FFrameRate FrameRate;
+
+	/** Allows settings to dictate whether the rebroadcast flag is editable. */
+	UPROPERTY()
+	bool bAllowModifyingRebroadcast = true;
 	
 	/** If enabled, rebroadcast this subject */
-	UPROPERTY(EditAnywhere, Category = "LiveLink")
+	UPROPERTY(EditAnywhere, Category = "LiveLink", meta=(EditConditionHides, EditCondition="bAllowModifyingRebroadcast"))
     bool bRebroadcastSubject;
 
 	/** Validate PreProcessors, Translators and Interpolation processors. Usually called after a property change event.

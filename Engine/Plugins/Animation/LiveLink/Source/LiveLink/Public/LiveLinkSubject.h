@@ -71,6 +71,7 @@ public:
 	virtual bool IsRebroadcasted() const override { return bRebroadcastSubject; }
 	virtual bool HasStaticDataBeenRebroadcasted() const override { return bRebroadcastStaticDataSent; }
 	virtual void SetStaticDataAsRebroadcasted(const bool bInSent) override { bRebroadcastStaticDataSent = bInSent; }
+	virtual void PreprocessFrame(FLiveLinkFrameDataStruct& InOutFrameData) override;
 protected:
 	virtual const FLiveLinkSubjectFrameData& GetFrameSnapshot() const override { return FrameSnapshot; }
 	//~ End ILiveLinkSubject Interface
@@ -114,9 +115,6 @@ public:
 	double GetLastPushTime() const { return LastPushTime; }
 	/** Set the last time a frame was received. */
 	void SetLastPushTime(double InLastPushTime) { LastPushTime = InLastPushTime; }
-
-	/** Apply this subject's preprocessors to a frame data. */
-	void PreprocessFrame(FLiveLinkFrameDataStruct& InOutFrameData);
 
 	/** Validates if the incoming frame data is compatible with the static data for this subject. */
 	bool ValidateFrameData(const FLiveLinkFrameDataStruct& InFrameData);

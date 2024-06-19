@@ -121,7 +121,15 @@ public:
 	/** Subjects will be removed when their source has been unresponsive for this long. */
 	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category = "LiveLink", meta=(ForceUnits=s))
 	double MessageBusTimeBeforeRemovingInactiveSource;
-	
+
+	/** Whether to Preprocess frames before rebroadcasting them. */
+	UPROPERTY(config)
+	bool bPreProcessRebroadcastedFrames = false;
+
+	/** Whether to translate frames before rebroadcasting them. */
+	UPROPERTY(config)
+	bool bTranslateRebroadcastedFrames = false;
+
 	/**
 	 * A source may still exist but does not send frames for a subject.
 	 * Time before considering the subject as "invalid".

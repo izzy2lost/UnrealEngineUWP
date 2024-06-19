@@ -299,10 +299,6 @@ private:
 			return EntryPtr->IsSubjectValid() ? GetDefault<ULiveLinkSettings>()->GetValidColor() : GetDefault<ULiveLinkSettings>()->GetInvalidColor();
 		}
 
-		if (!EntryPtr->IsSubjectEnabled() && EntryPtr->IsSubject())
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Entry %s disabled"), *EntryPtr->SubjectKey.SubjectName.ToString());
-		}
 		return FLinearColor(0.f, 0.f, 0.f, 0.f);
 	}
 

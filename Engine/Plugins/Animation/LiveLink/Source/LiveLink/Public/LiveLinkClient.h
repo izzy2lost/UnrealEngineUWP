@@ -301,6 +301,12 @@ private:
 	/** Name token  used to register to all subject updates. */
 	const FName ALL_SUBJECTS_DELEGATE_TOKEN = "__Internal_AllSubjects_Update";
 
+	/** Whether to Preprocess frames before rebroadcasting them. */
+	bool bPreProcessRebroadcastedFrames = false;
+
+	/** Whether to translate frames before rebroadcasting them. */
+	bool bTranslateRebroadcastedFrames = false;
+
 #if WITH_EDITOR
 	/** Delegate when a subject is evaluated. */
 	FOnLiveLinkSubjectEvaluated OnLiveLinkSubjectEvaluatedDelegate;
