@@ -10,7 +10,6 @@
 #include "Animation/BlendSpace.h"
 #include "BlendStack/AnimNode_BlendStack.h"
 #include "IObjectChooser.h"
-#include "StructUtilsTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_ChooserPlayer)
 

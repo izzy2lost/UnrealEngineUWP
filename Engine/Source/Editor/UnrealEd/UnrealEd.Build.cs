@@ -239,7 +239,8 @@ public class UnrealEd : ModuleRules
 				"CSVtoSVG",
 				"SourceControlWindowExtender",
 				"AnimationSettings",
-				"GameplayDebuggerEditor"
+				"GameplayDebuggerEditor",
+				"StructUtilsTestSuite"
 			}
 		);
 

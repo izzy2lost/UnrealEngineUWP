@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "StructTypeBitSet.h"
+#include "StructUtils/StructTypeBitSet.h"
 #include "MassProcessingTypes.h"
-#include "StructArrayView.h"
+#include "StructUtils/StructArrayView.h"
 #include "Subsystems/Subsystem.h"
 #include "MassExternalSubsystemTraits.h"
-#include "SharedStruct.h"
+#include "StructUtils/SharedStruct.h"
 #include "MassEntityTypes.generated.h"
 #ifdef WITH_AITESTSUITE
 #include "TestableEnsures.h"

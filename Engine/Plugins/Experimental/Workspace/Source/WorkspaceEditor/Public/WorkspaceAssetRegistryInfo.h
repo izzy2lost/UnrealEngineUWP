@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "StructUtils/Public/InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "WorkspaceAssetRegistryInfo.generated.h"
 
 USTRUCT()

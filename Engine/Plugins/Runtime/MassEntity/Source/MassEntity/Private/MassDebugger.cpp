@@ -10,7 +10,6 @@
 #include "MassArchetypeData.h"
 #include "MassRequirements.h"
 #include "MassEntityQuery.h"
-#include "StructTypeBitSet.h"
 #include "Misc/OutputDevice.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"

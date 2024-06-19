@@ -3,7 +3,6 @@
 #include "MassEntityTypes.h"
 
 #include "MassArchetypeData.h"
-#include "StructUtilsTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MassEntityTypes)
 

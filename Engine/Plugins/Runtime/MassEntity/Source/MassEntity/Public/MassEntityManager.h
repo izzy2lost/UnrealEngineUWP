@@ -5,9 +5,11 @@
 #include "UObject/GCObject.h"
 #include "MassEntityTypes.h"
 #include "MassProcessingTypes.h"
-#include "InstancedStruct.h"
 #include "MassEntityQuery.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "InstancedStruct.h"
 #include "StructUtilsTypes.h"
+#endif
 #include "MassObserverManager.h"
 #include "Containers/MpscQueue.h"
 #include "MassRequirementAccessDetector.h"
@@ -15,6 +17,7 @@
 #include "MassEntityManagerStorage.h"
 
 
+struct FInstancedStruct;
 struct FMassEntityQuery;
 struct FMassExecutionContext;
 struct FMassArchetypeData;
@@ -193,7 +196,7 @@ public:
 
 	/**
 	 * Creates fully built entity ready to be used by the subsystem
-	 * @param Archetype you want this entity to be
+	 * @param ArchetypeHandle you want this entity to be
 	 * @param SharedFragmentValues to be associated with the entity
 	 * @return FMassEntityHandle id of the newly created entity */
 	FMassEntityHandle CreateEntity(const FMassArchetypeHandle& ArchetypeHandle, const FMassArchetypeSharedFragmentValues& SharedFragmentValues = {});
@@ -202,7 +205,6 @@ public:
 	 * Creates fully built entity ready to be used by the subsystem
 	 * @param FragmentInstanceList is the fragments to create the entity from and initialize values
 	 * @param SharedFragmentValues to be associated with the entity
-	 * @param ArchetypeDebugName Name to identify the archetype while debugging
 	 * @return FMassEntityHandle id of the newly created entity */
 	FMassEntityHandle CreateEntity(TConstArrayView<FInstancedStruct> FragmentInstanceList, const FMassArchetypeSharedFragmentValues& SharedFragmentValues = {}, const FMassArchetypeCreationParams& CreationParams = FMassArchetypeCreationParams());
 
@@ -262,7 +264,7 @@ public:
 
 	/**
 	 * A version of CreateEntity that's creating a number of entities (Count) in one go
-	 * @param Archetype you want this entity to be
+	 * @param ArchetypeHandle you want this entity to be
 	 * @param SharedFragmentValues to be associated with the entities
 	 * @param ReservedEntities a list of reserved entities that have not yet been assigned to an archetype.
 	 * @return a creation context that will notify all the interested observers about newly created fragments once the context is released */
@@ -275,7 +277,7 @@ public:
 	}
 	/**
 	 * A version of CreateEntity that's creating a number of entities (Count) in one go
-	 * @param Archetype you want this entity to be
+	 * @param ArchetypeHandle you want this entity to be
 	 * @param SharedFragmentValues to be associated with the entities
 	 * @param Count number of entities to create
 	 * @param InOutEntities the newly created entities are appended to given array, i.e. the pre-existing content of OutEntities won't be affected by the call
@@ -299,7 +301,7 @@ public:
 	/**
 	 * Builds an entity for it to be ready to be used by the subsystem
 	 * @param Entity to build which was retrieved with ReserveEntity() method
-	 * @param Archetype you want this entity to be
+	 * @param ArchetypeHandle you want this entity to be
 	 * @param SharedFragmentValues to be associated with the entity
 	 */
 	void BuildEntity(FMassEntityHandle Entity, const FMassArchetypeHandle& ArchetypeHandle, const FMassArchetypeSharedFragmentValues& SharedFragmentValues = {});
@@ -550,10 +552,6 @@ public:
 	 */
 	void AppendCommands(TSharedPtr<FMassCommandBuffer>& InOutCommandBuffer);
 
-
-	/** 
-	 * @param HashOverride if provided will be used instead of the auto-calculated hash
-	 */
 	template<typename T>
 	const FConstSharedStruct& GetOrCreateConstSharedFragmentByHash(const uint32 Hash, const T& Fragment)
 	{

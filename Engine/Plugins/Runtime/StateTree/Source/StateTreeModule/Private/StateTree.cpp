@@ -12,7 +12,6 @@
 #include "StateTreeDelegates.h"
 #include "Logging/LogScopedVerbosityOverride.h"
 #include "Misc/DataValidation.h"
-#include "StructUtilsDelegates.h"
 #include "Misc/EnumerateRange.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "StateTreePropertyFunctionBase.h"
@@ -20,7 +19,9 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #include "StructUtils/UserDefinedStruct.h"
+#include "StructUtilsDelegates.h"
 #endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTree)
 
 const FGuid FStateTreeCustomVersion::GUID(0x28E21331, 0x501F4723, 0x8110FA64, 0xEA10DA1E);

@@ -42,6 +42,11 @@ namespace UnrealBuildTool.Rules
 						"BlueprintGraph",
 					}
 				);
+				PrivateDependencyModuleNames.AddRange(
+					new [] {
+						"StructUtilsEditor"
+					}
+				);
 			}
 
 			// Allow debugger traces on all non-shipping targets and shipping editors (UEFN)

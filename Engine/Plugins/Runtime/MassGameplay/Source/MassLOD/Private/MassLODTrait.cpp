@@ -4,7 +4,6 @@
 #include "MassEntityTemplateRegistry.h"
 #include "Engine/World.h"
 #include "MassCommonFragments.h"
-#include "StructUtilsTypes.h"
 #include "MassLODFragments.h"
 #include "MassEntityUtils.h"
 

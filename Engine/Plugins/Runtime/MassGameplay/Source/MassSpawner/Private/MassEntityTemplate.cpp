@@ -3,8 +3,6 @@
 #include "MassEntityTemplate.h"
 #include "VisualLogger/VisualLoggerTypes.h"
 #include "MassDebugger.h"
-#include "MassSpawnerTypes.h"
-#include "StructUtilsTypes.h"
 #include "Algo/Find.h"
 
 //----------------------------------------------------------------------//

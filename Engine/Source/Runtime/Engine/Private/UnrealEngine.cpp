@@ -245,6 +245,7 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 
 #include "IDeviceProfileSelectorModule.h"
 #include "HDRHelper.h"
+#include "StructUtils/InstancedStruct.h"
 #include "UObject/PropertyBagRepository.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/OverridableManager.h"
@@ -308,6 +309,24 @@ void FEngineModule::StartupModule()
 #if WITH_EDITOR
 	USkinnedMeshComponent::BindWorldDelegates();
 #endif
+
+	FInstancedStruct::NetSerializeScriptStructDelegate.BindLambda([](FInstancedStruct& InstancedStruct, FArchive& Ar, UPackageMap* Map)
+	{
+		UPackageMapClient* MapClient = Cast<UPackageMapClient>(Map);
+		check(::IsValid(MapClient));
+
+		UNetConnection* NetConnection = MapClient->GetConnection();
+		check(::IsValid(NetConnection));
+		check(::IsValid(NetConnection->GetDriver()));
+
+		UStruct* NonConstStruct = const_cast<UScriptStruct*>(InstancedStruct.GetScriptStruct());
+		const TSharedPtr<FRepLayout> RepLayout = NetConnection->GetDriver()->GetStructRepLayout(NonConstStruct);
+		check(RepLayout.IsValid());
+
+		bool bHasUnmapped = false;
+		RepLayout->SerializePropertiesForStruct(NonConstStruct, static_cast<FBitArchive&>(Ar), Map, InstancedStruct.GetMutableMemory(), bHasUnmapped);
+		return true;
+	});
 
 	IPrimitiveComponent::AddImplementer({UPrimitiveComponent::StaticClass(),  [](UObject* Obj){return Cast<UPrimitiveComponent>(Obj)->GetPrimitiveComponentInterface();}});
 	IStaticMeshComponent::AddImplementer({UStaticMeshComponent::StaticClass(), [](UObject* Obj){return Cast<UStaticMeshComponent>(Obj)->GetStaticMeshComponentInterface();}});

@@ -5,7 +5,6 @@
 #include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Memento/TypedElementMementoTranslators.h"
-#include "StructArrayView.h"
 #include "TypedElementMementoRowTypes.h"
 #include "TypedElementDatabase.h"
 
