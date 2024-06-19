@@ -1273,12 +1273,14 @@ FToolMenuEntry CreateViewportToolbarShowSubmenu()
 
 					UnnamedSection.AddSeparator("ViewportStatsSeparator");
 
+#if STATS
 					// Override the label of the stats submenu for the new viewport toolbar.
 					{
 						FToolMenuEntry StatsSubmenu = UE::LevelEditor::CreateShowStatsSubmenu();
 						StatsSubmenu.Label = LOCTEXT("ViewportStatsLabel", "Viewport Stats");
 						UnnamedSection.AddEntry(StatsSubmenu);
 					}
+#endif
 				}
 
 				{
