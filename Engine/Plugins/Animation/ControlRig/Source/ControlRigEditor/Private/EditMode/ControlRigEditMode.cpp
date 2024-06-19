@@ -4703,6 +4703,21 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 {
 	bool bTransformChanged = false;
 
+	// In case for some reason the shape actor was detached, make sure to attach it again to the scene component
+	if (!ShapeActor->GetAttachParentActor())
+	{
+		if (UControlRig* ControlRig = ShapeActor->ControlRig.Get())
+		{
+			if (USceneComponent* SceneComponent = GetHostingSceneComponent(ControlRig))
+			{
+				if (AActor* OwnerActor = SceneComponent->GetOwner())
+				{
+					ShapeActor->AttachToActor(OwnerActor, FAttachmentTransformRules::KeepWorldTransform);
+				}
+			}
+		}
+	}
+
 	auto RotatorToStr = [](const FRotator& InRotator)
 	{
 		FRigPreferredEulerAngles EulerAngles;
