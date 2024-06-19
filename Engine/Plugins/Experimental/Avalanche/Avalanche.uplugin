@@ -314,10 +314,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
 			"Name": "SVGImporter",
 			"Enabled": true
 		},

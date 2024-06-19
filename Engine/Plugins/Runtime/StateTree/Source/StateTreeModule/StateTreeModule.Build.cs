@@ -20,9 +20,7 @@ namespace UnrealBuildTool.Rules
 					"DeveloperSettings",
 					"Engine",
 					"AIModule",
-					"GameplayTags",
-					"StructUtils",
-					"StructUtilsEngine",
+					"GameplayTags"
 				}
 			);
 
@@ -39,7 +37,7 @@ namespace UnrealBuildTool.Rules
 				PublicDependencyModuleNames.AddRange(
 					new [] {
 						"UnrealEd",
-						"BlueprintGraph",
+						"BlueprintGraph"
 					}
 				);
 				PrivateDependencyModuleNames.AddRange(

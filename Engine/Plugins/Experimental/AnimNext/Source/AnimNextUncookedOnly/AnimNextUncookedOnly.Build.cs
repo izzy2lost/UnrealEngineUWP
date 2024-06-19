@@ -14,7 +14,6 @@ namespace UnrealBuildTool.Rules
 					"ControlRig",
 					"ControlRigDeveloper",
 					"AnimNext",
-					"StructUtils",
 				}
 			);
 

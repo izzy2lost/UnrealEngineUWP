@@ -53,7 +53,6 @@ public class AvalancheSequencer : ModuleRules
 				"Slate",
 				"StateTreeEditorModule",
 				"StateTreeModule",
-				"StructUtils",
 				"TimeManagement",
 				"ToolMenus",
 				"ToolWidgets",

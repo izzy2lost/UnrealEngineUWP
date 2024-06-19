@@ -14,7 +14,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"InputCore",
-					"StructUtils",
 					"MassEntity",
 					"SlateCore",
 					"Slate",

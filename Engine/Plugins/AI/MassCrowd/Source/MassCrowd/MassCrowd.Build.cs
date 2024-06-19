@@ -30,7 +30,6 @@ namespace UnrealBuildTool.Rules
 					"MassAIBehavior",
 					"NetCore",
 					"StateTreeModule",
-					"StructUtils",
 					"ZoneGraph",
 					"ZoneGraphAnnotations",
 					"ZoneGraphDebug"

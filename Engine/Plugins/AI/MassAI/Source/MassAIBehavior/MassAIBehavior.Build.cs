@@ -35,7 +35,6 @@ namespace UnrealBuildTool.Rules
 					"NavigationSystem",
 					"SmartObjectsModule",
 					"StateTreeModule",
-					"StructUtils",
 					"ZoneGraph",
 					"ZoneGraphAnnotations",
 					"MassGameplayExternalTraits"

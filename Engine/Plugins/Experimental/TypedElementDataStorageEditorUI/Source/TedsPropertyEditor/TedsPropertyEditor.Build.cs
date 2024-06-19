@@ -23,7 +23,6 @@ public class TedsPropertyEditor : ModuleRules
 					"SceneOutliner",
 					"Slate",
 					"SlateCore",
-					"StructUtils",
 					"TypedElementFramework",
 					"TedsOutliner"
 				});

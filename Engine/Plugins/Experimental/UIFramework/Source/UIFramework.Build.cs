@@ -18,7 +18,6 @@ public class UIFramework : ModuleRules
 				"ModelViewViewModel",
 				"SlateCore",
 				"Slate",
-				"StructUtils",
 				"UMG",
 			}
 		);

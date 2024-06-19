@@ -13,7 +13,6 @@ public class PropertyAnimatorCore : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
-				"StructUtils"
 			});
 
 		PrivateDependencyModuleNames.AddRange(
@@ -22,7 +21,6 @@ public class PropertyAnimatorCore : ModuleRules
 				"ApplicationCore",
 				"CoreUObject",
 				"Engine",
-				"StructUtils"
 			});
 
 		if (Target.Type == TargetRules.TargetType.Editor)

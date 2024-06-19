@@ -10,7 +10,6 @@ public class RemoteControlLogic : ModuleRules
 			new string[] {
 				"Core",
 				"CoreUObject",
-				"StructUtils"
 			}
 		);
 
@@ -22,7 +21,6 @@ public class RemoteControlLogic : ModuleRules
 				"HTTP",
 				"RemoteControl",
 				"Serialization",
-				"StructUtils"
 			}
 		);
 		

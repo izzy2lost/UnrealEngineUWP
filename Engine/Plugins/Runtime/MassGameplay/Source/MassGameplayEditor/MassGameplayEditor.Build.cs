@@ -35,7 +35,6 @@ namespace UnrealBuildTool.Rules
 				"ComponentVisualizers",
 				"Projects",
 				"EditorSubsystem",
-				"StructUtils"
 			}
 			);
 

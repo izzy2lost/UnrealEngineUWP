@@ -22,7 +22,6 @@ namespace UnrealBuildTool.Rules
 					"MassSpawner",
 					"MassLOD",
 					"NetCore",
-					"StructUtils",
 					"MassMovement",
 					"ZoneGraph"
 				}

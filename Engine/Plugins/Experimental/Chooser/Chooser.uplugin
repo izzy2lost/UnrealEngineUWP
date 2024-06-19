@@ -21,10 +21,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
 			"Name": "BlendStack",
 			"Enabled": true
 		},

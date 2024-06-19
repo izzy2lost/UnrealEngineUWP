@@ -14,7 +14,6 @@ public class ActorModifierCore : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"StructUtils"
 			}
 		);
 

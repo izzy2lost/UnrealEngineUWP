@@ -15,7 +15,6 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"PropertyBindingUtils",
 					"AITestSuite",
-					"StructUtils",
 				}
 			);
 

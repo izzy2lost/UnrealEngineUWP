@@ -45,10 +45,6 @@
 		{
 			"Name": "CustomDetailsView",
 			"Enabled": true
-		},
-		{
-			"Name": "StructUtils",
-			"Enabled": true
 		}
 	]
 }

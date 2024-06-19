@@ -15,7 +15,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"AnimNext",
-					"StructUtils",
 					"RigVM",
 				}
 			);

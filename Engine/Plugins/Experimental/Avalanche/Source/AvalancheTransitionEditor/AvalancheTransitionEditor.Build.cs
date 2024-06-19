@@ -35,7 +35,6 @@ public class AvalancheTransitionEditor : ModuleRules
                 "Slate",
                 "SlateCore",
                 "StateTreeModule",
-                "StructUtils",
                 "StructUtilsEditor",
                 "ToolMenus",
                 "UnrealEd",

@@ -38,7 +38,6 @@ public class CustomizableObject : ModuleRules
             "GameplayTags",
 			"MutableRuntime",
 			"AnimGraphRuntime",
-			"StructUtils"
 		});
 
 		if (TargetRules.bBuildEditor == true)

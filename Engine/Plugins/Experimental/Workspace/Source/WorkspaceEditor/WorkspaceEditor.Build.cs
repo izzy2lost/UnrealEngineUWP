@@ -11,7 +11,6 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core", 
 					"UnrealEd", 
-					"StructUtils"
 				});
 			
 			PrivateDependencyModuleNames.AddRange(

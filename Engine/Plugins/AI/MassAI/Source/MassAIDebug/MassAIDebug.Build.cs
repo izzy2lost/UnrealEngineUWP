@@ -33,8 +33,6 @@ namespace UnrealBuildTool.Rules
 					"MassRepresentation",
 					"MassSignals",
 					"MassLOD",
-					"StructUtils",
-					"StructUtils",
 					"MassSmartObjects",
 					"SmartObjectsModule",
 				}

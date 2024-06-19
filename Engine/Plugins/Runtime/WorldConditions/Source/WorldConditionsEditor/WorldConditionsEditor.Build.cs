@@ -22,7 +22,6 @@ namespace UnrealBuildTool.Rules
 					"Slate",
 					"WorldConditions",
 					"UnrealEd",
-					"StructUtils",
 				}
 			);
 

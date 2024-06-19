@@ -85,10 +85,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
 			"Name": "MassEntity",
 			"Enabled": true
 		},

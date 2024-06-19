@@ -20,7 +20,6 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"CoreUObject",
 					"Engine",
-					"StructUtils"
 					// ... add private dependencies that you statically link with here ...
 				}
 			);

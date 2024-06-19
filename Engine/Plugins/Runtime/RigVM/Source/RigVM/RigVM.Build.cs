@@ -18,7 +18,6 @@ public class RigVM : ModuleRules
 				"DeveloperSettings",
 				"Engine",
 				"Projects",
-				"StructUtils",
 			}
 		);
 

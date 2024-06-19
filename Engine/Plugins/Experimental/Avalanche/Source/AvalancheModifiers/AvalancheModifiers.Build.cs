@@ -36,7 +36,6 @@ public class AvalancheModifiers : ModuleRules
 				"ModelingComponents",
 				"ModelingOperators",
 				"ProceduralMeshComponent",
-				"StructUtils",
 				"Text3D"
 			}
 		);

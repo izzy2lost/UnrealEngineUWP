@@ -23,7 +23,6 @@ namespace UnrealBuildTool.Rules
 					"MassSimulation",
 					"MassReplication",
 					"MassSignals",
-					"StructUtils",
 					"NetCore",
 				}
 			);

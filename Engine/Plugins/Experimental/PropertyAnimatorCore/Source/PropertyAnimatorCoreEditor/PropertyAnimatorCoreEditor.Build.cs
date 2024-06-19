@@ -30,7 +30,6 @@ public class PropertyAnimatorCoreEditor : ModuleRules
 				"PropertyEditor",
 		        "SlateCore",
 		        "Slate",
-		        "StructUtils",
 		        "ToolMenus",
 		        "UnrealEd"
 	        }

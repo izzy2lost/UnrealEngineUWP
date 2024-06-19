@@ -14,7 +14,6 @@ public class PropertyAnimator : ModuleRules
 				"Core",
 				"MovieScene",
 				"PropertyAnimatorCore",
-				"StructUtils"
 			});
 
 		PrivateDependencyModuleNames.AddRange(
@@ -25,7 +24,6 @@ public class PropertyAnimator : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"MovieSceneTracks",
-				"StructUtils", 
 				"Text3D"
 			});
 

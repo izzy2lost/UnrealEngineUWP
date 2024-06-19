@@ -20,7 +20,6 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"AITestSuite",
 					"MassEntity",
-					"StructUtils"
 				}
 			);
 

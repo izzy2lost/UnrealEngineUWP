@@ -27,7 +27,6 @@ namespace UnrealBuildTool.Rules
 					"MassSimulation",
 					"MassRepresentation",
 					"MassLOD",
-					"StructUtils",
 				}
 			);
 

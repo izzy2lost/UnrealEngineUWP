@@ -16,7 +16,6 @@ public class ClonerEffector : ModuleRules
 				"Engine",
 				"Niagara",
 				"NiagaraCore",
-				"StructUtils"
 			}
 		);
 

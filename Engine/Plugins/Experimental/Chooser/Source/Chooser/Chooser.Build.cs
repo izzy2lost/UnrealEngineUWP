@@ -9,7 +9,6 @@ namespace UnrealBuildTool.Rules
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"StructUtils",
 					// ... add other public dependencies that you statically link with here ...
 				}
 			);

@@ -28,7 +28,6 @@ public class AvalancheMedia : ModuleRules
 				"MediaIOCore",
 				"RemoteControl",
 				"RemoteControlLogic",
-				"StructUtils"
 			}
 		);
 

@@ -39,7 +39,6 @@ public class LiveLinkHub : ModuleRules
 				"Slate",
 				"SlateCore",
 				"StandaloneRenderer",
-				"StructUtils",
 				"TimeManagement",
 				"ToolMenus",
 				"ToolWidgets",

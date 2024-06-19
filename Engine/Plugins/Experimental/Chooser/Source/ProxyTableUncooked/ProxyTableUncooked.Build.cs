@@ -18,7 +18,6 @@ namespace UnrealBuildTool.Rules
 					"UnrealEd",
 					"AssetDefinition",
 					"GameplayTags",
-					"StructUtils",
 					"BlueprintGraph",
 					"KismetCompiler"
 					// ... add private dependencies that you statically link with here ...

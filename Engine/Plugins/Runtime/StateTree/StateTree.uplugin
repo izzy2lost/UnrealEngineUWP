@@ -33,10 +33,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "StructUtils",
-			"Enabled": true
-		},
-		{
 			"Name": "PropertyAccessEditor",
 			"Enabled": true
 		}

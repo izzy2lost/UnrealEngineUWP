@@ -23,7 +23,6 @@ namespace UnrealBuildTool.Rules
 				"GameplayTags",
 				"GameplayAbilities",
 				"RHI",
-				"StructUtils",
 				"WorldConditions",
 				"NavigationSystem",
 				"TargetingSystem",

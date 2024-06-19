@@ -12,7 +12,6 @@ public class RemoteControl : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"RemoteControlCommon",
-				"StructUtils"
 			}
 		);
 

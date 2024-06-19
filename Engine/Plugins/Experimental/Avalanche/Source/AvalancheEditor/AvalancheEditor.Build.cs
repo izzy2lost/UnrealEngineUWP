@@ -101,7 +101,6 @@ public class AvalancheEditor : ModuleRules
 				"StateTreeEditorModule",
 				"StateTreeModule",
 				"StatusBar",
-				"StructUtils",
 				"SubobjectDataInterface",
 				"SubobjectEditor",
 				"Text3D",

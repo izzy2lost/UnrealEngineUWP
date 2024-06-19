@@ -21,7 +21,6 @@ namespace UnrealBuildTool.Rules
 					"Projects",
 					"RenderCore",
 					"RHI",
-					"StructUtils"
 				});
 
 			PrivateDependencyModuleNames.AddRange(

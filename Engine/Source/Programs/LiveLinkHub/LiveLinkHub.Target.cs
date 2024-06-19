@@ -48,7 +48,6 @@ public class LiveLinkHubTarget : TargetRules
 			"ProceduralMeshComponent", // Needed by LensComponent
 			"PropertyAccessEditor",
 			"PythonScriptPlugin",
-			"StructUtils",
 			"UdpMessaging"
 		});
 		

@@ -29,7 +29,6 @@ namespace UnrealBuildTool.Rules
 					"GraphEditor",
 					"GameplayTags",
 					"GameplayTagsEditor",
-					"StructUtils",
 					"KismetCompiler",
 					"BlendStack",
 					"TraceAnalysis",

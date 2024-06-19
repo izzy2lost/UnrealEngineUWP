@@ -25,7 +25,6 @@ public class TypedElementsDataStorage : ModuleRules
 					"MassSimulation",
 					"TypedElementFramework",
 					"SlateCore",
-					"StructUtils",
 					"UnrealEd"
 				});
 

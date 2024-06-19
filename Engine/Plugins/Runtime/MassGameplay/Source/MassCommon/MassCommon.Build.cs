@@ -17,7 +17,6 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"AIModule",
 					"MassEntity",
-					"StructUtils",
 				}
 			);
 

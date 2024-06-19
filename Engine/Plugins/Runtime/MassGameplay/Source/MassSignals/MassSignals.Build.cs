@@ -16,7 +16,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"MassEntity",
-					"StructUtils",
 				}
 			);
 

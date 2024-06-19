@@ -24,7 +24,6 @@ namespace UnrealBuildTool.Rules
 					"MassSimulation",
 					"MassSpawner",
 					"SmartObjectsModule",
-					"StructUtils",
 					"ZoneGraph",
 					"ZoneGraphAnnotations",
 					"MassGameplayExternalTraits"

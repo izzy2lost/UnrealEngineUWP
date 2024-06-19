@@ -24,7 +24,6 @@ namespace UnrealBuildTool.Rules
 					"MassCommon",
 					"MassEntity",
 					"MassSignals",
-					"StructUtils"
 				}
 			);
 		}

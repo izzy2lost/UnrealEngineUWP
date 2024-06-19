@@ -16,7 +16,6 @@ public class AvalancheShapes : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"StructUtils"
 			}
 		);
 

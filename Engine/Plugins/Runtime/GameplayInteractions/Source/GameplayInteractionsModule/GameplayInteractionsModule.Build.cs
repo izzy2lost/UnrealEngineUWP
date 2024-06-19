@@ -22,7 +22,6 @@ namespace UnrealBuildTool.Rules
 					"NavigationSystem",
 					"SmartObjectsModule",
 					"StateTreeModule",
-					"StructUtils",
 				}
 			);
 		}

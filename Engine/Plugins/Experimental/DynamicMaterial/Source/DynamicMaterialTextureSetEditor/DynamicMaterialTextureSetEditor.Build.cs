@@ -29,7 +29,6 @@ public class DynamicMaterialTextureSetEditor : ModuleRules
 				"PropertyEditor",
 				"Slate",
 				"SlateCore",
-				"StructUtils"
 			}
 		);
 

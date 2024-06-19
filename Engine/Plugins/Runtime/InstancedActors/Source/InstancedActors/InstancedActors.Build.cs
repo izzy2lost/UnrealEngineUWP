@@ -22,7 +22,6 @@ namespace UnrealBuildTool.Rules
 					"MassLOD",
 					"MassSmartObjects",
 					"MassSignals",
-					"StructUtils",
 					"DataRegistry",
 					"DeveloperSettings",
 					"NetCore",

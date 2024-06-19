@@ -38,7 +38,6 @@ public class MovieRenderPipelineCore : ModuleRules
 				"ImageWriteQueue", // For debug tile writing
 				"OpenColorIO",
 				"CinematicCamera",
-				"StructUtils"
 			}
 		);
 

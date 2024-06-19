@@ -16,7 +16,6 @@ public class DynamicMaterial : ModuleRules
 				"DynamicMaterialTextureSet",
 				"Slate",
 				"SlateCore",
-				"StructUtils",
 				"UMG"
 			}
 		);

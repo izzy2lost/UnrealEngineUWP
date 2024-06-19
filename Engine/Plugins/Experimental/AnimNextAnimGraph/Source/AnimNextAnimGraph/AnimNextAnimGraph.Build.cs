@@ -15,7 +15,6 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"AnimNext",
 					"Chooser",
-					"StructUtils",
 				}
 			);
 		}

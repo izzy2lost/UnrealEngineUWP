@@ -21,7 +21,6 @@ namespace UnrealBuildTool.Rules
 					"GameplayTasks",
 					"NavigationSystem",
 					"StateTreeModule",
-					"StructUtils"
 				}
 			);
 		}

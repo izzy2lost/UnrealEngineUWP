@@ -12,7 +12,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"LocalizableMessage",
-					"StructUtils"
 				});
 		}
 	}

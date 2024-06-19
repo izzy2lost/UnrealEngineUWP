@@ -16,7 +16,6 @@ public class AvalancheTransition : ModuleRules
                 "CoreUObject",
                 "Engine",
                 "StateTreeModule",
-                "StructUtils",
             }
         );
 

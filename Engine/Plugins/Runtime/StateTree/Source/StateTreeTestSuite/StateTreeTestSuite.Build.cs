@@ -24,7 +24,6 @@ namespace UnrealBuildTool.Rules
 					"StateTreeModule",
 					"StateTreeEditorModule",
 					"AITestSuite",
-					"StructUtils",
 					"GameplayTags",
 				}
 			);

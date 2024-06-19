@@ -22,7 +22,6 @@ namespace UnrealBuildTool.Rules
 				"GameplayTags",
 				"SmartObjectsModule",
 				"SourceControl",
-				"StructUtils",
 				"UnrealEd",
 				"WorldConditions",
 			}
