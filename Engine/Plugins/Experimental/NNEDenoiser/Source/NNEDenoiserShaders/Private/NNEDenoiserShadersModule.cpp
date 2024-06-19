@@ -15,24 +15,16 @@ public:
 	// Begin IModuleInterface
 	virtual void StartupModule() override
 	{
-		FString BaseDir;
-
 		const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("NNEDenoiser"));
-		
 		if (Plugin.IsValid())
 		{
-			BaseDir = Plugin->GetBaseDir() + TEXT("/Source/NNEDenoiserShaders");
+			const FString ShadersDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"));
+
+			AddShaderSourceDirectoryMapping(TEXT("/NNEDenoiserShaders"), ShadersDir);
 		}
 		else
 		{
 			UE_LOG(LogNNEDenoiserShaders, Warning, TEXT("Shaders directory not added. Failed to find NNEDenoiser plugin"));
-		}
-
-		FString ModuleShaderDir = FPaths::Combine(BaseDir, TEXT("Shaders"));
-		
-		if (FPaths::DirectoryExists(ModuleShaderDir))
-		{
-			AddShaderSourceDirectoryMapping(TEXT("/NNEDenoiserShaders"), ModuleShaderDir);
 		}
 	}
 
