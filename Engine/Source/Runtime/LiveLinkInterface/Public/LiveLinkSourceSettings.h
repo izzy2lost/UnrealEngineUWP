@@ -17,6 +17,21 @@
 
 #include "LiveLinkSourceSettings.generated.h"
 
+/**
+ * Utility class that allows specifying default values for Source settings.
+ */
+UCLASS(config=Engine, defaultconfig)
+class ULiveLinkDefaultSourceSettings : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Default number of frames that should be buffered by a LiveLink source. */
+	UPROPERTY(config)
+	int32 DefaultSourceFrameBufferSize = 10;
+};
+
+
 class FArchive;
 class FProperty;
 class ULiveLinkSourceFactory;
@@ -147,6 +162,8 @@ class ULiveLinkSourceSettings : public UObject
 {
 public:
 	GENERATED_BODY()
+
+	LIVELINKINTERFACE_API ULiveLinkSourceSettings();
 
 	/**
 	 * The the subject how to create the frame snapshot.
