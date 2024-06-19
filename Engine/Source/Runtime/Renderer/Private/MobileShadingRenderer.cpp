@@ -109,6 +109,17 @@ static TAutoConsoleVariable<int32> CVarMobileTonemapSubpass(
 	TEXT(" 1 = On"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
+
+static TAutoConsoleVariable<int32> CVarMobileXRMSAAMode(
+	TEXT("r.Mobile.XRMSAAMode"),
+	0,
+	TEXT(" Whether to modify how mobile XR msaa support works\n")
+	TEXT(" 0 = Standard depth pass/swapchain mode [default]\n")
+	TEXT(" 1 = Perform a copy of depth to the depth resolve target")
+	TEXT(" 2 = Make the depth swap chain be MSAA and use it directly as scene depth"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+
 static bool IsMobileTonemapSubpassEnabled(const FStaticShaderPlatform Platform)
 {
 	static auto* MobileTonemapSubpassPathCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.TonemapSubpass"));
@@ -1447,6 +1458,11 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 							{ 
 								AddMobilePostProcessingPasses(GraphBuilder, Scene, Views[ViewIndex], ViewIndex, GetSceneUniforms(), PostProcessingInputs, InstanceCullingManager);
 							}
+
+							if (CVarMobileXRMSAAMode.GetValueOnAnyThread() == 1)
+							{
+								AddDrawTexturePass(GraphBuilder, Views[ViewIndex], SceneTextures.Depth.Target, SceneTextures.Depth.Resolve);
+							}
 						}
 					}
 				}
@@ -1520,7 +1536,7 @@ FRenderTargetBindingSlots FMobileSceneRenderer::InitRenderTargetBindings_Forward
 	}
 	SceneDepth = SceneTextures.Depth.Target;
 	SceneDepthResolve = GRHISupportsDepthStencilResolve && bMobileMSAA && SceneTextures.Depth.IsSeparate() ? SceneTextures.Depth.Resolve : nullptr;
-
+	
 	FRenderTargetBindingSlots BasePassRenderTargets;
 	BasePassRenderTargets[0] = FRenderTargetBinding(SceneColor, SceneColorResolve, ERenderTargetLoadAction::EClear);
 	if (bRequiresSceneDepthAux)

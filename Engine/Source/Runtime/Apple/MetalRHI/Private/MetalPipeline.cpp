@@ -741,8 +741,8 @@ static bool ConfigureRenderPipelineDescriptor(TDescriptorType* RenderPipelineDes
 		RenderPipelineDesc->setStencilAttachmentPixelFormat((MTL::PixelFormat)GPixelFormats[PF_DepthStencil].PlatformFormat);
 	}
 	
-	static bool bNoMSAA = FParse::Param(FCommandLine::Get(), TEXT("nomsaa"));
-	uint16 NumSamples = !bNoMSAA ? FMath::Max(Init.NumSamples, (uint16)1u) : (uint16)1u;
+	static bool bAllowMSAA = AllowMSAA();
+	uint16 NumSamples = bAllowMSAA ? FMath::Max(Init.NumSamples, (uint16)1u) : (uint16)1u;
 	if constexpr(bIsRenderPipelineDesc)
 	{
 		RenderPipelineDesc->setSampleCount(NumSamples);

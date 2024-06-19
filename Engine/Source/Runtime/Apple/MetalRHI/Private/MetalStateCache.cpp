@@ -52,6 +52,23 @@ static MTL::DepthClipMode TranslateDepthClipMode(ERasterizerDepthClipMode DepthC
 	}
 }
 
+static MTL::StoreAction ConditionalOverrideStoreAction(MTL::StoreAction StoreAction, bool bIsDepth, bool bIsMSAA)
+{
+	if (!bIsMSAA)
+	{
+		return StoreAction;
+	}
+	
+	static int Mode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.XRMSAAMode"))->GetValueOnAnyThread();
+	if (Mode != 0)
+	{
+		// @todo visionos: this needs to be experimented on to find best mode
+		return MTL::StoreActionStoreAndMultisampleResolve;
+	}
+	
+	return StoreAction;
+}
+
 FORCEINLINE MTL::StoreAction GetMetalRTStoreAction(ERenderTargetStoreAction StoreAction)
 {
 	switch(StoreAction)
@@ -62,7 +79,7 @@ FORCEINLINE MTL::StoreAction GetMetalRTStoreAction(ERenderTargetStoreAction Stor
         //because we may render to the same MSAA target twice in two separate passes.  BasePass, then some stuff, then translucency for example and we need to not lose the prior MSAA contents to do this properly.
 		case ERenderTargetStoreAction::EMultisampleResolve:
 		{
-            static bool bNoMSAA = FParse::Param(FCommandLine::Get(), TEXT("nomsaa"));
+            static bool bNoMSAA = !AllowMSAA();
 			static bool bSupportsMSAAStoreResolve = FMetalCommandQueue::SupportsFeature(EMetalFeaturesMSAAStoreAndResolve) && (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
             if (bNoMSAA)
             {
@@ -653,8 +670,12 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
 #endif
 					// set up an MSAA attachment
 					ColorAttachment->setTexture(Surface.MSAATexture.get());
+
 					NewColorStore[RenderTargetIndex] = GetMetalRTStoreAction(ERenderTargetStoreAction::EMultisampleResolve);
-					ColorAttachment->setStoreAction(!bMemoryless && GRHIDeviceId > 2 ? MTL::StoreActionUnknown : NewColorStore[RenderTargetIndex]);
+					MTL::StoreAction FinalStoreAction = !bMemoryless && GRHIDeviceId > 2 ? MTL::StoreActionUnknown : NewColorStore[RenderTargetIndex];
+					FinalStoreAction = ConditionalOverrideStoreAction(FinalStoreAction, false, !!Surface.MSAATexture);
+					ColorAttachment->setStoreAction(FinalStoreAction);
+					
 					ColorAttachment->setResolveTexture(Surface.MSAAResolveTexture ? Surface.MSAAResolveTexture.get() : Surface.Texture.get());
 					SampleCount = Surface.MSAATexture->sampleCount();
 				}
@@ -909,7 +930,9 @@ bool FMetalStateCache::SetRenderPassInfo(FRHIRenderPassInfo const& InRenderTarge
                 //needed to quiet the metal validation that runs when you end renderpass. (it requires some kind of 'resolve' for an msaa target)
 				//But with deferredstore we don't set the real one until submit time.
 				NewDepthStore = !Surface.MSAATexture || bSupportsMSAADepthResolve ? GetMetalRTStoreAction(HighLevelStoreAction) : MTL::StoreActionDontCare;
-				DepthAttachment->setStoreAction(!bDepthTextureMemoryless && Surface.MSAATexture && GRHIDeviceId > 2 ? MTL::StoreActionUnknown : NewDepthStore);
+				MTL::StoreAction FinalStoreAction = !bDepthTextureMemoryless && Surface.MSAATexture && GRHIDeviceId > 2 ? MTL::StoreActionUnknown : NewDepthStore;
+				FinalStoreAction = ConditionalOverrideStoreAction(FinalStoreAction, true, !!Surface.MSAATexture);
+				DepthAttachment->setStoreAction(FinalStoreAction);
 				DepthAttachment->setClearDepth(DepthClearValue);
 				check(SampleCount > 0);
 

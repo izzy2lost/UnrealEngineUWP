@@ -662,19 +662,7 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 					}
 
 					{
-						//HACK BEGIN
-						// using LastCompleteFrame, the color result, is very wrong, but the depth texture is not yet plumbed through
-						// on the mobile rendere and providing nothing results in an all black scene while this results in mostly-ok-pixels.
-						// With the deferred renderer depth does already work, so flip this to using depth.
-						static bool bUseRealDepth = false;
-						static bool bCheckedConfig = false;
-						if (bCheckedConfig == false) {
-							GConfig->GetBool(TEXT("/Script/IOSRuntimeSettings.IOSRuntimeSettings"), TEXT("bSupportsMetalMRT"), bUseRealDepth, GEngineIni);
-							bCheckedConfig = true;
-						}
-						TRefCountPtr<FMetalSurface> Texture = bUseRealDepth ? MyLastCompleteDepth : MyLastCompleteFrame;
-						//HACK END
-						
+						TRefCountPtr<FMetalSurface> Texture = MyLastCompleteDepth;
 						check(IsValidRef(Texture));
 						MTLTexturePtr Src = Texture->Texture;
 						MTLTexturePtr& Dst = DrawableDepthTexture;
@@ -685,7 +673,6 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 						RenderPass.CopyFromTextureToTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
 					}
 				}
-
 				RenderPass.EndRenderPass();
 				RenderPass.Submit(EMetalSubmitFlagsCreateCommandBuffer);
 				RenderPass.EncodePresentImmersive(VisionOSParams.SwiftDrawable, VisionOSParams.SwiftFrame);

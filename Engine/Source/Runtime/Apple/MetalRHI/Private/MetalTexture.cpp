@@ -42,6 +42,25 @@ FAutoConsoleVariableRef CVarMetalDisableIOSMemoryless(
 													  TEXT("If true, disabled the use of Memoryless textures on iOS"),
 													  ECVF_ReadOnly|ECVF_RenderThreadSafe);
 
+bool ShouldUseMemoryless(ETextureCreateFlags Flags)
+{
+	constexpr bool bIsMobile = PLATFORM_IOS;
+	const bool bWantsMemoryless = EnumHasAnyFlags(Flags, TexCreate_Memoryless);
+
+	constexpr bool bIsVisionOS = PLATFORM_VISIONOS;
+	const bool bIsDepth = EnumHasAnyFlags(Flags, TexCreate_DepthStencilTargetable | TexCreate_DepthStencilResolveTarget);
+	static int MSAAMode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.XRMSAAMode"))->GetValueOnAnyThread();
+
+	// allow memoryless on mobile if not disabled
+	return bIsMobile && bWantsMemoryless && !GMetalDisableIOSMemoryless && !(bIsVisionOS && bIsDepth && MSAAMode == 1);
+}
+
+bool AllowMSAA()
+{
+	static const bool bAllowMSAA = !FParse::Param(FCommandLine::Get(), TEXT("nomsaa"));	
+	return bAllowMSAA;
+}
+
 /** Given a pointer to a RHI texture that was created by the Metal RHI, returns a pointer to the FMetalTextureBase it encapsulates. */
 FMetalSurface* GetMetalSurfaceFromRHITexture(FRHITexture* Texture)
 {
@@ -508,8 +527,7 @@ FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& In
 #endif
 		}
 
-#if PLATFORM_IOS
-		if (!GMetalDisableIOSMemoryless && EnumHasAnyFlags(InDesc.Flags, TexCreate_Memoryless))
+		if (ShouldUseMemoryless(InDesc.Flags))
 		{
 			ensure(EnumHasAnyFlags(InDesc.Flags, (TexCreate_RenderTargetable | TexCreate_DepthStencilTargetable)));
 			ensure(!EnumHasAnyFlags(InDesc.Flags, (TexCreate_CPUReadback | TexCreate_CPUWritable)));
@@ -517,7 +535,6 @@ FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& In
 			Desc->setStorageMode(MTL::StorageModeMemoryless);
 			Desc->setResourceOptions((MTL::ResourceOptions)(MTL::ResourceCPUCacheModeDefaultCache | MTL::ResourceStorageModeMemoryless));
 		}
-#endif
 
 		MTL::ResourceOptions HazardTrackingMode = MTL::ResourceHazardTrackingModeUntracked;
 		static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
@@ -566,7 +583,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 		return;
 	}
     
-    bool bIsMSAARequired = CreateDesc.NumSamples > 1 && !FParse::Param(FCommandLine::Get(), TEXT("nomsaa"));
+    bool bIsMSAARequired = CreateDesc.NumSamples > 1 && AllowMSAA();
 
 	FResourceBulkDataInterface* BulkData = CreateDesc.BulkData;
 
@@ -627,9 +644,8 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 
         FMetalTextureCreateDesc NewCreateDesc = CreateDesc;
         
-#if PLATFORM_IOS
         // If we are attempting to create an MSAA texture the texture cannot be memoryless unless we are creating a depth texture
-        if(bIsMSAARequired && CreateDesc.Format != PF_DepthStencil && !GMetalDisableIOSMemoryless && EnumHasAllFlags(CreateDesc.Flags, TexCreate_Memoryless))
+        if(ShouldUseMemoryless(CreateDesc.Flags) && bIsMSAARequired && CreateDesc.Format != PF_DepthStencil)
         {
             NewCreateDesc.Flags &= ~TexCreate_Memoryless;
             
@@ -644,8 +660,8 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
                 NewCreateDesc.Desc->setResourceOptions((MTL::ResourceOptions)(MTL::ResourceCPUCacheModeDefaultCache | MTL::ResourceStorageModePrivate));
             }
         }
-#endif
-        const bool bAtomicCompatible = EnumHasAllFlags(CreateDesc.Flags, TexCreate_AtomicCompatible) || EnumHasAllFlags(CreateDesc.Flags, ETextureCreateFlags::Atomic64Compatible);
+
+		const bool bAtomicCompatible = EnumHasAllFlags(CreateDesc.Flags, TexCreate_AtomicCompatible) || EnumHasAllFlags(CreateDesc.Flags, ETextureCreateFlags::Atomic64Compatible);
 		
 		bool bIsBindless = IsMetalBindlessEnabled();
 		
@@ -751,14 +767,12 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 
 		bool bMemoryless = false;
         
-#if PLATFORM_IOS
-		if (!GMetalDisableIOSMemoryless && EnumHasAllFlags(CreateDesc.Flags, TexCreate_Memoryless))
+		if (ShouldUseMemoryless(CreateDesc.Flags))
 		{
 			bMemoryless = true;
 			Desc->setStorageMode(MTL::StorageModeMemoryless);
 			Desc->setResourceOptions(MTL::ResourceStorageModeMemoryless);
 		}
-#endif
 
 		MSAATexture = GetMetalDeviceContext().CreateTexture(this, Desc.get());
 			

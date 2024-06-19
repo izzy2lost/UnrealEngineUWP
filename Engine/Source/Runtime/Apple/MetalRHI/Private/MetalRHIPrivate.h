@@ -314,3 +314,7 @@ FORCEINLINE NS::String* FStringToNSString(const FString& InputString)
 {
     return ((NS::String*)InputString.GetCFString())->autorelease();
 }
+
+// helper functions to reduce copy and pasted checks all around
+bool ShouldUseMemoryless(ETextureCreateFlags Flags);
+bool AllowMSAA();
