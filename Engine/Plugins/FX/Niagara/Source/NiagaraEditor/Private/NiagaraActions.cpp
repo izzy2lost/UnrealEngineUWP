@@ -20,6 +20,7 @@
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
 #include "Misc/MessageDialog.h"
 #include "Widgets/SNiagaraParameterName.h"
+#include "Widgets/SNiagaraParameterMenu.h"
 #include "Widgets/SToolTip.h"
 
 #include "NiagaraDataChannel.h"
@@ -725,6 +726,23 @@ void INiagaraDataInterfaceNodeActionProvider::CollectAddPinActions(UClass* DICla
 		}
 	}
 }
+
+TSharedPtr<SWidget> INiagaraDataInterfaceNodeActionProvider::GetCustomFunctionSpecifierWidget(UClass* DIClass, UNiagaraNodeFunctionCall* FunctionCallNode)
+{
+	if (DIClass && FunctionCallNode)
+	{
+		while (DIClass && DIClass != UObject::StaticClass())
+		{
+			if (TUniquePtr<INiagaraDataInterfaceNodeActionProvider>* Provider = RegisteredActionProviders.Find(DIClass->GetFName()))
+			{
+				return (*Provider)->GetCustomFunctionSpecifierWidgetImpl(FunctionCallNode);
+			}
+			DIClass = DIClass->GetSuperClass();
+		}
+	}
+	return nullptr;
+}
+
 ////////////////////////
 
 namespace NiagaraActionsLocal
@@ -740,7 +758,7 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelWrite::GetNodeContextMen
 	using namespace NiagaraActionsLocal;
 
 	//For all functions except "Num", add a context menu to initialized to a specific data channel.
-	if (Signature.Name == TEXT("Num"))
+	if (Signature.Name == TEXT("Num") || Signature.Name == TEXT("SpawnConditional"))
 	{
 		return;
 	}
@@ -799,7 +817,7 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelRead::GetNodeContextMenu
 	using namespace NiagaraActionsLocal;
 
 	//For all functions except "Num", add a context menu to initialized to a specific data channel.
-	if (Signature.Name == TEXT("Num"))
+	if (Signature.Name != TEXT("Read") && Signature.Name != TEXT("Consume"))
 	{
 		return;
 	}
@@ -829,8 +847,8 @@ INiagaraDataInterfaceNodeActionProvider::FInlineMenuDisplayOptions FNiagaraDataI
 	{
 		return {};
 	}
-	
-	if(FunctionCall->Signature.Name == TEXT("Num"))
+
+	if (FunctionCall->Signature.Name != TEXT("Read") && FunctionCall->Signature.Name != TEXT("Consume"))
 	{
 		return {};
 	}
@@ -943,6 +961,28 @@ void FNiagaraDataInterfaceNodeActionProvider_DataChannelRead::AddDataChannelInit
 	};
 
 	UNiagaraDataChannel::ForEachDataChannel(InitForDataChannelSection);
+}
+
+TSharedPtr<SWidget> FNiagaraDataInterfaceNodeActionProvider_DataChannelRead::GetCustomFunctionSpecifierWidgetImpl(UNiagaraNodeFunctionCall* FunctionCallNode) const
+{
+	TArray<FNiagaraTypeDefinition> AllowedTypes;
+	if(FunctionCallNode->Signature.Name == TEXT("SpawnDirect"))
+	{
+		AllowedTypes.Add(FNiagaraTypeDefinition::GetIntDef());
+	}
+	else if(FunctionCallNode->Signature.Name == TEXT("ScaleSpawnCount"))
+	{
+		AllowedTypes.Add(FNiagaraTypeDefinition::GetIntDef());
+		AllowedTypes.Add(FNiagaraTypeHelper::GetDoubleDef());
+		AllowedTypes.Add(FNiagaraTypeHelper::GetVector2DDef());
+		AllowedTypes.Add(FNiagaraTypeHelper::GetVectorDef());
+		AllowedTypes.Add(FNiagaraTypeHelper::GetVector4Def());
+		AllowedTypes.Add(FNiagaraTypeDefinition::GetPositionDef());
+	}
+
+	return SNew(SNiagaraFunctionSpecifierNDCVariablesSelector)
+		.WeakNodeToModify(FunctionCallNode)
+		.AllowedTypes(MoveTemp(AllowedTypes));
 }
 
 #undef LOCTEXT_NAMESPACE

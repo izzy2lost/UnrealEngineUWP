@@ -20,15 +20,28 @@ void SNiagaraGraphNodeFunctionCallWithSpecifiers::Construct(const FArguments& In
 
 TSharedRef<SWidget> SNiagaraGraphNodeFunctionCallWithSpecifiers::CreateNodeContentArea()
 {
-	TSharedPtr<SVerticalBox> FunctionSpecifierWidget = SNew(SVerticalBox);
-	for (TTuple<FName, FName>& Entry : *FunctionSpecifiers)
+	TSharedPtr<SWidget> FunctionSpecifierWidget = nullptr;
+
+	UNiagaraNodeFunctionCall* FuncNode = CastChecked<UNiagaraNodeFunctionCall>(GraphNode);
+	if(FuncNode)
 	{
-		FunctionSpecifierWidget->AddSlot()
-			.VAlign(VAlign_Center)
-			[
-				SNew(SNiagaraFunctionSpecifier, Entry.Key, Entry.Value, *FunctionSpecifiers)
+		FunctionSpecifierWidget = INiagaraDataInterfaceNodeActionProvider::GetCustomFunctionSpecifierWidget(FuncNode->GetDIClass(), FuncNode);
+	}
+	
+	//Fall back to default if there is no override for this DI function.
+	if(FunctionSpecifierWidget == nullptr)
+	{
+		TSharedPtr<SVerticalBox> DefaultFunctionSpecifierWidget = SNew(SVerticalBox);
+		for (TTuple<FName, FName>& Entry : *FunctionSpecifiers)
+		{
+			DefaultFunctionSpecifierWidget->AddSlot()
+				.VAlign(VAlign_Center)
+				[
+					SNew(SNiagaraFunctionSpecifier, Entry.Key, Entry.Value, *FunctionSpecifiers)
 					.OnValueNameChanged(this, &SNiagaraGraphNodeFunctionCallWithSpecifiers::OnValueNameChanged)
-			];
+				];
+		}
+		FunctionSpecifierWidget = DefaultFunctionSpecifierWidget;
 	}
 
 	TSharedRef<SWidget> ContentAreaWidget = SGraphNode::CreateNodeContentArea();

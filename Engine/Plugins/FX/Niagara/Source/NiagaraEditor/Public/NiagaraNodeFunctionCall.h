@@ -192,6 +192,12 @@ public:
 	virtual bool GetValidateDataInterfaces() const { return true; };
 
 	void RemoveAllDynamicPins();
+
+	//If this is a DI function call, return the UClass of the DI. returns null for non DI function calls.
+	UClass* GetDIClass()const;
+
+	void SetFunctionSpecifier(FName Key, FName Value);
+
 protected:
 	UEdGraphPin* AddStaticSwitchInputPin(FNiagaraVariable Input);
 

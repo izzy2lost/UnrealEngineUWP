@@ -268,6 +268,28 @@ void UNiagaraNodeFunctionCall::RemoveAllDynamicPins()
 	}
 }
 
+UClass* UNiagaraNodeFunctionCall::GetDIClass()const
+{
+	if(Signature.IsValid())
+	{
+		if (Signature.Inputs.Num() > 0)
+		{
+			if (Signature.Inputs[0].GetType().IsDataInterface() && GetValidateDataInterfaces())
+			{
+				return Signature.Inputs[0].GetType().GetClass();
+			}
+		}
+	}
+	return nullptr;	
+}
+
+void UNiagaraNodeFunctionCall::SetFunctionSpecifier(FName Key, FName Value)
+{
+	Modify();
+	FunctionSpecifiers.FindOrAdd(Key) = Value;
+	MarkNodeRequiresSynchronization(__FUNCTION__, true);
+}
+
 UEdGraphPin* UNiagaraNodeFunctionCall::AddStaticSwitchInputPin(FNiagaraVariable Input)
 {
 	UNiagaraGraph* Graph = GetCalledGraph();
@@ -799,27 +821,24 @@ void UNiagaraNodeFunctionCall::Compile(FTranslator* Translator, TArray<int32>& O
 	}
 	else if (MutableThis->Signature.IsValid())
 	{
-		if (MutableThis->Signature.Inputs.Num() > 0)
+		UClass* DIClass = GetDIClass();
+		if (DIClass)
 		{
-			if (MutableThis->Signature.Inputs[0].GetType().IsDataInterface() && GetValidateDataInterfaces())
+			if (UNiagaraDataInterface* DataInterfaceCDO = Cast<UNiagaraDataInterface>(DIClass->GetDefaultObject()))
 			{
-				UClass* DIClass = MutableThis->Signature.Inputs[0].GetType().GetClass();
-				if (UNiagaraDataInterface* DataInterfaceCDO = Cast<UNiagaraDataInterface>(DIClass->GetDefaultObject()))
+				TArray<FText> ValidationErrors;
+				DataInterfaceCDO->ValidateFunction(Signature, ValidationErrors);
+
+				bError = ValidationErrors.Num() > 0;
+
+				for (FText& ValidationError : ValidationErrors)
 				{
-					TArray<FText> ValidationErrors;
-					DataInterfaceCDO->ValidateFunction(Signature, ValidationErrors);
+					Translator->Error(ValidationError, this, nullptr);
+				}
 
-					bError = ValidationErrors.Num() > 0;
-
-					for (FText& ValidationError : ValidationErrors)
-					{
-						Translator->Error(ValidationError, this, nullptr);
-					}
-
-					if (bError)
-					{
-						return;
-					}
+				if (bError)
+				{
+					return;
 				}
 			}
 		}

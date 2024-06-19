@@ -58,6 +58,29 @@ static FAutoConsoleVariableRef CVarNDCReadForcePrevFrame(
 	ECVF_Default
 );
 
+const static FName VarNameKey(TEXT("VarName"));
+const static FName VarTypeKey(TEXT("VarType"));
+
+//Decode a function specifier value back into a Niagara Variable.
+FNiagaraVariableBase DecodeVariableFromSpecifiers(const FVMExternalFunctionBindingInfo& BindingInfo)
+{
+	const FVMFunctionSpecifier* NameSpec = BindingInfo.FindSpecifier(VarNameKey);
+	const FVMFunctionSpecifier* TypeSpec = BindingInfo.FindSpecifier(VarTypeKey);
+	if(NameSpec && TypeSpec)
+	{
+		FStringOutputDevice ErrorOut;
+		const UScriptStruct* TypeStruct = FNiagaraTypeDefinition::StaticStruct();
+		FNiagaraTypeDefinition TypeDef;
+		if (TypeStruct->ImportText(*TypeSpec->Value.ToString(), &TypeDef, nullptr, PPF_None, &ErrorOut, TypeStruct->GetName(), true))
+		{
+			return FNiagaraVariableBase(TypeDef, NameSpec->Value);
+		}
+
+		UE_LOG(LogNiagara, Error, TEXT("%s"), *ErrorOut);		
+	}
+	return FNiagaraVariableBase();
+}
+
 namespace NDIDataChannelReadLocal
 {
 	static const TCHAR* CommonShaderFile = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelCommon.ush");
@@ -100,7 +123,7 @@ namespace NDIDataChannelReadLocal
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Particle;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
-			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Spawned Particle Exec Index")), LOCTEXT("GetNDCSpawnData_InExecIndexDesc","The execution index of the spawned particle."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Spawned Particle Exec Index")), 0, LOCTEXT("GetNDCSpawnData_InExecIndexDesc","The execution index of the spawned particle."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Index")), LOCTEXT("GetNDCSpawnData_OutNDCIndexDesc","Index of the NDC item that spawned this particle."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Spawn Index")), LOCTEXT("GetNDCSpawnData_OutNDCSpawnIndexDesc","The index of this particle in relation to all the particle spawned by the same NDC item."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Spawn Count")), LOCTEXT("GetNDCSpawnData_OutNDCSpawnCountDesc","The number of particles spawned by the same NDC item."));
@@ -121,7 +144,7 @@ namespace NDIDataChannelReadLocal
 			Sig.bMemberFunction = true;
 			Sig.bExperimental = true;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexInputDesc", "The index to read."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), 0, LOCTEXT("ConsumeIndexInputDesc", "The index to read."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
 			Sig.RequiredOutputs = Sig.Outputs.Num();//The user defines what we read in the graph.			
 		}
@@ -141,7 +164,7 @@ namespace NDIDataChannelReadLocal
 			Sig.bMemberFunction = true;
 			Sig.bExperimental = true;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Consume")), LOCTEXT("ConsumeInputDesc", "True if this instance (particle/emitter etc) should consume data from the data channel in this call."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Consume")), FNiagaraBool(true), LOCTEXT("ConsumeInputDesc", "True if this instance (particle/emitter etc) should consume data from the data channel in this call."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexOutputDesc", "The index we actually read from. If reading failed this can be -1. This allows subsequent reads of the data channel at this index."));
 			Sig.RequiredOutputs = Sig.Outputs.Num();//The user defines what we read in the graph.			
@@ -160,9 +183,6 @@ namespace NDIDataChannelReadLocal
 		static FNiagaraFunctionSignature Sig;
 		if(!Sig.IsValid())
 		{
-			FNiagaraVariable EnabledVar(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable"));
-			EnabledVar.SetValue(FNiagaraBool(true));
-
 			Sig.Name = TEXT("SpawnConditional");
 #if WITH_EDITORONLY_DATA
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
@@ -172,7 +192,6 @@ namespace NDIDataChannelReadLocal
 		For compound data types that contain multiple component floats or ints, comparissons are done on a per component basis.\n\
 		For example if you add a Vector condition parameter it will be compared against each component of the corresponding Vector in the Data Channel.\n\
 		Result = (Param.X == ChannelValue.X) && (Param.Y == ChannelValue.Y) && (Param.Z == ChannelValue.Z)");
-
 			Sig.FunctionVersion = (uint32)FunctionVersion_SpawnConditional::EmitterIDParameter;
 #endif
 			Sig.bMemberFunction = true;
@@ -180,13 +199,69 @@ namespace NDIDataChannelReadLocal
 			Sig.bRequiresExecPin = true;
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInput(EnabledVar, LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
-			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "A mode switch that controls how this funciton will behave."));
+			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "A mode switch that controls how this funciton will behave and interact with other calls to spawn functions."));
 			Sig.AddInput(FNiagaraVariable(StaticEnum<ENiagaraConditionalOperator>(), TEXT("Operator")), LOCTEXT("SpawnCondOpInputDesc", "The comparison operator to use when comparing values in the data channel to conditional parameters."));
-			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the data channel."));
-			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Max Spawn Count")), LOCTEXT("MaxSpawnCountInputDesc", "Maximum number of particles to spawn for each element in the data channel."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), 1, LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the data channel."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Max Spawn Count")), 1, LOCTEXT("MaxSpawnCountInputDesc", "Maximum number of particles to spawn for each element in the data channel."));
 			Sig.RequiredInputs = Sig.Inputs.Num();
+		}
+		return Sig;
+	}
+
+	const FNiagaraFunctionSignature& GetFunctionSig_SpawnDirect()
+	{
+		static FNiagaraFunctionSignature Sig;
+		if (!Sig.IsValid())
+		{
+			Sig.Name = TEXT("SpawnDirect");
+#if WITH_EDITORONLY_DATA
+			Sig.Description = LOCTEXT("SpawnDirectFunctionDescription", "Spawns particles into a given emitter for each entry in the bound NDC. Spawn count is determined directly from a value in the NDC. Additional per NDC random scale and a clamp is available.");
+			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
+#endif
+			Sig.FunctionSpecifiers.Add(VarNameKey);
+			Sig.FunctionSpecifiers.Add(VarTypeKey);
+			Sig.bMemberFunction = true;
+			Sig.bExperimental = true;
+			Sig.bRequiresExecPin = true;
+			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
+			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "A mode switch that controls how this funciton will behave and interact with other calls to spawn functions."));			
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("RandomScaleMin")), 1.0f, LOCTEXT("SpawnDirectRandomScaleMinInputDesc", "Minimum value for an additional random scale applied to each NDC spawn count."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("RandomScaleMax")), 1.0f, LOCTEXT("SpawnDirectRandomScaleMaxInputDesc", "Maximum value for an additional random scale applied to each NDC spawn count."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("ClampMin")), 0, LOCTEXT("SpawnDirectClampMinInputDesc", "Minimum Spawn Count to use after random scale is applied."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("ClampMax")), 1, LOCTEXT("SpawnDirectClampMaxInputDesc", "Minimum Spawn Count to use after random scale is applied. If < 0, No max clamp is applied."));
+		}
+		return Sig;
+	}
+
+	const FNiagaraFunctionSignature& GetFunctionSig_ScaleSpawnCount()
+	{
+		static FNiagaraFunctionSignature Sig;
+		if (!Sig.IsValid())
+		{
+			Sig.Name = TEXT("ScaleSpawnCount");
+#if WITH_EDITORONLY_DATA
+			Sig.Description = LOCTEXT("ScaleSpawnCountFunctionDescription", "Applies a scaling value for each NDC spawn based on some element in the NDC data. Optional additional random scale and clamp operations to the value read from each NDC entry.");
+			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
+#endif
+			Sig.FunctionSpecifiers.Add(VarNameKey);
+			Sig.FunctionSpecifiers.Add(VarTypeKey);
+			Sig.bMemberFunction = true;
+			Sig.bExperimental = true;
+			Sig.bRequiresExecPin = true;
+			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
+			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnScaleMode>(), TEXT("Mode")), LOCTEXT("SpawnScaleModeInputDesc", "Control whether to override or combine this scale with previously set scales when calling this function multiple times."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("RandomScaleMin")), 1.0f, LOCTEXT("ScaleSpawnCountRandomScaleMinInputDesc", "Minimum value for a random additional scale applied to each NDC spawn."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("RandomScaleMax")), 1.0f, LOCTEXT("ScaleSpawnCountRandomScaleMaxInputDesc", "Maximum value for a random additional scale applied to each NDC spawn."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("ClampMin")), 0.0f, LOCTEXT("ScaleSpawnCountClampMinInputDesc", "A minimum value for the scale value. If < 0 then no minimum is applied to the final scale."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("ClampMax")), 1.0f, LOCTEXT("ScaleSpawnCountClampMaxInputDesc", "A maximum value for the scale value. If < 0 then no maximum is applied to the final scale."));
 		}
 		return Sig;
 	}
@@ -614,96 +689,104 @@ void UNiagaraDataInterfaceDataChannelRead::PostStageTick(FNDICpuPostStageContext
 	for (auto& EmitterInstanceDataPair : InstanceData->EmitterInstanceData)
 	{
 		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstanceDataPair.Value;
+		FNiagaraEmitterInstance* TargetEmitter = EmitterInstanceDataPair.Key;
+		if(TargetEmitter == nullptr)
+		{
+			EmitterInstData.Reset();
+			continue;
+		}
 
-		TArray<int32> PerNDCSpawnCounts = MoveTemp(EmitterInstData.NDCSpawnCounts);
-	
+		TArray<uint32> PerNDCSpawnCounts;
+		PerNDCSpawnCounts.Reserve(EmitterInstData.NDCSpawnCounts.Num());
+		for(FNDIDataChannelRead_EmitterSpawnInfo& Info : EmitterInstData.NDCSpawnCounts)
+		{
+			PerNDCSpawnCounts.Add(Info.Get());
+		}
+
 		EmitterInstData.Reset();
 
-		if(FNiagaraEmitterInstance* TargetEmitter = EmitterInstanceDataPair.Key)
+		//-TODO:Stateless:
+		if (FNiagaraEmitterInstanceImpl* StatefulEmitter = TargetEmitter->AsStateful())
 		{
-			//-TODO:Stateless:
-			if (FNiagaraEmitterInstanceImpl* StatefulEmitter = TargetEmitter->AsStateful())
+			if (bOverrideSpawnGroupToDataChannelIndex)
 			{
-				if (bOverrideSpawnGroupToDataChannelIndex)
+				//If we're overriding the spawn group then we must submit one SpawnInfo per NDC entry.
+				FNiagaraSpawnInfo NewSpawnInfo(0, 0.0f, 0.0f, 0);
+				for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
 				{
-					//If we're overriding the spawn group then we must submit one SpawnInfo per NDC entry.
-					FNiagaraSpawnInfo NewSpawnInfo(0,0.0f,0.0f,0);
-					for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
+					uint32 SpawnCount = PerNDCSpawnCounts[i];
+					if (SpawnCount > 0)
 					{
-						int32 SpawnCount = PerNDCSpawnCounts[i];
-						if (SpawnCount > 0)
-						{
-							NewSpawnInfo.Count = SpawnCount;
-							NewSpawnInfo.SpawnGroup = i;
-							StatefulEmitter->GetSpawnInfo().Emplace(NewSpawnInfo);
-						}
+						NewSpawnInfo.Count = SpawnCount;
+						NewSpawnInfo.SpawnGroup = i;
+						StatefulEmitter->GetSpawnInfo().Emplace(NewSpawnInfo);
 					}
 				}
-				else 
+			}
+			else
+			{
+				//No need for indirection table but we're not overriding the spawn group either so still push a single combined spawn info.
+				FNiagaraSpawnInfo NewSpawnInfo(0, 0.0f, 0.0f, 0);
+				for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
 				{
-					//No need for indirection table but we're not overriding the spawn group either so still push a single combined spawn info.
-					FNiagaraSpawnInfo NewSpawnInfo(0, 0.0f, 0.0f, 0);
-					for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
-					{
-						NewSpawnInfo.Count += PerNDCSpawnCounts[i];
-					}
-					StatefulEmitter->GetSpawnInfo().Emplace(NewSpawnInfo);
+					NewSpawnInfo.Count += PerNDCSpawnCounts[i];
 				}
+				StatefulEmitter->GetSpawnInfo().Emplace(NewSpawnInfo);
+			}
 
-				if(CompiledData.NeedSpawnDataTable())
+			if (CompiledData.NeedSpawnDataTable())
+			{
+				//Build an indirection table that allows us to map from ExecIndex back to the NDCIndex that generated it.
+				//The indirection table is arranged in power of two buckets.
+				//An NDC that spawns say 37 particles would add an entry to the 32, 4 and 1 buckets.
+				//This allows us to spawn any number of particles from each NDC and only have a max of 16 indirection table entries.
+				//Vs the naive per particle approach of 1 entry per particle.
+				//Buckets are processed in descending size order.
+
+				//TODO: It should be possible to write this from the GPU too as long as we allocate fixed size buckets.
+				int32* SpawnDataBuckets = EmitterInstData.NDCSpawnData.NDCSpawnDataBuckets;
+
+				TArray<int32>& NDCSpawnData = EmitterInstData.NDCSpawnData.NDCSpawnData;
+
+				//Start of the buffer is the per NDC spawn counts.
+				uint32 TotalNDCSpawnDataSize = PerNDCSpawnCounts.Num();
+
+				for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
 				{
-					//Build an indirection table that allows us to map from ExecIndex back to the NDCIndex that generated it.
-					//The indirection table is arranged in power of two buckets.
-					//An NDC that spawns say 37 particles would add an entry to the 32, 4 and 1 buckets.
-					//This allows us to spawn any number of particles from each NDC and only have a max of 16 indirection table entries.
-					//Vs the naive per particle approach of 1 entry per particle.
-					//Buckets are processed in descending size order.
+					uint32 Count = PerNDCSpawnCounts[i];
 
-					//TODO: It should be possible to write this from the GPU too as long as we allocate fixed size buckets.
-					int32* SpawnDataBuckets = EmitterInstData.NDCSpawnData.NDCSpawnDataBuckets;					
+					//First section is the per NDC counts.
+					NDCSpawnData.Add(Count);
 
-					TArray<int32>& NDCSpawnData = EmitterInstData.NDCSpawnData.NDCSpawnData;
-
-					//Start of the buffer is the per NDC spawn counts.
-					uint32 TotalNDCSpawnDataSize = PerNDCSpawnCounts.Num();
-
-					for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
-					{						
-						uint32 Count = PerNDCSpawnCounts[i];
-
-						//First section is the per NDC counts.
-						NDCSpawnData.Add(Count);
-
-						for (uint32 Bucket = 0; Bucket < 16; ++Bucket)
-						{
-							uint32 BucketSize = (1<<15) >> Bucket;
-							uint32 Mask = (0xFFFF >> (Bucket + 1));
-							uint32 CountMasked = Count & ~Mask;
-							Count &= Mask;
-							uint32 NumBucketEntries = CountMasked / BucketSize;
-							SpawnDataBuckets[Bucket] += NumBucketEntries;
-							TotalNDCSpawnDataSize += NumBucketEntries;
-						}
-					}
-
-					//Second part is the counts decomposed into power of two buckets that allows us to map ExecIndex at runtime to an NDCIndex entry in this table.
-					for (int32 Bucket = 0; Bucket < 16; ++Bucket)
+					for (uint32 Bucket = 0; Bucket < 16; ++Bucket)
 					{
 						uint32 BucketSize = (1 << 15) >> Bucket;
-						uint32 StartSize = NDCSpawnData.Num();
-						for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
-						{
-							int32& Count = PerNDCSpawnCounts[i];
-							while ((uint32)Count >= BucketSize)
-							{
-								Count -= BucketSize;
-								NDCSpawnData.Add(i);
-							}
-						}
-
-						uint32 EndSize = NDCSpawnData.Num();
-						check(EndSize - StartSize == SpawnDataBuckets[Bucket]);
+						uint32 Mask = (0xFFFF >> (Bucket + 1));
+						uint32 CountMasked = Count & ~Mask;
+						Count &= Mask;
+						uint32 NumBucketEntries = CountMasked / BucketSize;
+						SpawnDataBuckets[Bucket] += NumBucketEntries;
+						TotalNDCSpawnDataSize += NumBucketEntries;
 					}
+				}
+
+				//Second part is the counts decomposed into power of two buckets that allows us to map ExecIndex at runtime to an NDCIndex entry in this table.
+				for (int32 Bucket = 0; Bucket < 16; ++Bucket)
+				{
+					uint32 BucketSize = (1 << 15) >> Bucket;
+					uint32 StartSize = NDCSpawnData.Num();
+					for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
+					{
+						uint32& Count = PerNDCSpawnCounts[i];
+						while (Count >= BucketSize)
+						{
+							Count -= BucketSize;
+							NDCSpawnData.Add(i);
+						}
+					}
+
+					uint32 EndSize = NDCSpawnData.Num();
+					check(EndSize - StartSize == SpawnDataBuckets[Bucket]);
 				}
 			}
 		}
@@ -821,7 +904,10 @@ void UNiagaraDataInterfaceDataChannelRead::ProvidePerInstanceDataForRenderThread
 				TargetNDCSpawnData.Add(EmitterInstData.NDCSpawnData.NDCSpawnDataBuckets[i]);
 			}
 			//Next the per NDC Spawn Counts
-			TargetNDCSpawnData.Append(EmitterInstData.NDCSpawnCounts);
+			for(int32 i=0; i < EmitterInstData.NDCSpawnCounts.Num(); ++i)
+			{
+				TargetNDCSpawnData.Add(EmitterInstData.NDCSpawnCounts[i].Get());
+			}
 			//Finally the exec index to NDC index mapping table
 			TargetNDCSpawnData.Append(EmitterInstData.NDCSpawnData.NDCSpawnData);
 		}
@@ -1101,6 +1187,8 @@ void UNiagaraDataInterfaceDataChannelRead::GetFunctionsInternal(TArray<FNiagaraF
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Read());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Consume());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_SpawnConditional());
+	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_SpawnDirect());
+	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_ScaleSpawnCount());
 }
 #endif
 
@@ -1113,6 +1201,68 @@ void UNiagaraDataInterfaceDataChannelRead::GetVMExternalFunction(const FVMExtern
 	else if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_GetNDCSpawnData().Name)
 	{
 		OutFunc = FVMExternalFunction::CreateLambda([this](FVectorVMExternalFunctionContext& Context) { this->GetNDCSpawnData(Context); });
+	}
+	else if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_SpawnDirect().Name)
+	{
+		//Find the appropriate variable from the function binding and determine it's type to bind to the correct impl for ScaleSpawnCount and provide the variable index.
+		FNiagaraVariableBase FuncSpecVariable = DecodeVariableFromSpecifiers(BindingInfo);
+
+		//TODO: We are currently storing these as FNames and encoding/decoding the variable.
+		//This is slow, clunky, brittle and generally bad. Ideally imo we could change function specifiers to be FInstancedStructs and allow and DI to provide and handle their own types.
+		const FNiagaraDataChannelVariable* NDCVar = Channel->Get()->GetVariables().FindByPredicate(
+			[&](const FNiagaraDataChannelVariable& Var)
+			{
+				return Var.GetName() == FuncSpecVariable.GetName() && Var.GetType() == FuncSpecVariable.GetType();
+			});
+
+		if (NDCVar)
+		{
+			FName NDCVarName = NDCVar->GetName();
+			FNiagaraTypeDefinition NDCVarType = NDCVar->GetType();
+			if (NDCVarType == FNiagaraTypeDefinition::GetIntDef()) OutFunc = FVMExternalFunction::CreateLambda([this, NDCVarName](FVectorVMExternalFunctionContext& Context) { this->SpawnDirect<int32>(Context, NDCVarName); });
+			else
+			{
+				UE_LOG(LogTemp, Display, TEXT("Failed to bind Data Interface function as this is not a valid variable type for SpawnDirect.\nDI: %s.\nReceived Name: %s\nNDC: %s"), *GetPathNameSafe(this), *BindingInfo.Name.ToString(), *GetPathNameSafe(Channel));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display, TEXT("Failed to bind Data Interface function due to missing NDC variable for %s.\nReceived Name: %s\nNDC: %s"), *GetPathNameSafe(this), *BindingInfo.Name.ToString(), *GetPathNameSafe(Channel));
+		}
+	}
+	else if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_ScaleSpawnCount().Name)
+	{
+		//Find the appropriate variable from the function binding and determine it's type to bind to the correct impl for ScaleSpawnCount and provide the variable index.
+			//Can we do this decode on the PostCompile? Also would be good to validate/warn on missing or invalid types.
+		FNiagaraVariableBase FuncSpecVariable = DecodeVariableFromSpecifiers(BindingInfo);
+
+		//TODO: We are currently storing these as FNames and encoding/decoding the variable.
+		//This is slow, clunky, brittle and generally bad. Ideally imo we could change function specifiers to be FInstancedStructs and allow and DI to provide and handle their own types.
+		const FNiagaraDataChannelVariable* NDCVar = Channel->Get()->GetVariables().FindByPredicate(
+			[&](const FNiagaraDataChannelVariable& Var)
+			{
+				return Var.GetName() == FuncSpecVariable.GetName() && Var.GetType() == FuncSpecVariable.GetType();
+			});
+
+		if (NDCVar)
+		{
+			FName NDCVarName = NDCVar->GetName();
+			FNiagaraTypeDefinition NDCVarType = NDCVar->GetType();
+			if (NDCVarType == FNiagaraTypeDefinition::GetIntDef()) OutFunc = FVMExternalFunction::CreateLambda([this, NDCVarName](FVectorVMExternalFunctionContext& Context) { this->ScaleSpawnCount<int32>(Context, NDCVarName); });
+			else if (NDCVarType == FNiagaraTypeHelper::GetDoubleDef()) OutFunc = FVMExternalFunction::CreateLambda([this, NDCVarName](FVectorVMExternalFunctionContext& Context) { this->ScaleSpawnCount<double>(Context, NDCVarName); });
+			else if (NDCVarType == FNiagaraTypeHelper::GetVector2DDef()) OutFunc = FVMExternalFunction::CreateLambda([this, NDCVarName](FVectorVMExternalFunctionContext& Context) { this->ScaleSpawnCount<FVector2D>(Context, NDCVarName); });
+			else if (NDCVarType == FNiagaraTypeHelper::GetVectorDef()) OutFunc = FVMExternalFunction::CreateLambda([this, NDCVarName](FVectorVMExternalFunctionContext& Context) { this->ScaleSpawnCount<FVector>(Context, NDCVarName); });
+			else if (NDCVarType == FNiagaraTypeHelper::GetVector4Def()) OutFunc = FVMExternalFunction::CreateLambda([this, NDCVarName](FVectorVMExternalFunctionContext& Context) { this->ScaleSpawnCount<FVector4>(Context, NDCVarName); });
+			else if (NDCVarType == FNiagaraTypeDefinition::GetPositionDef()) OutFunc = FVMExternalFunction::CreateLambda([this, NDCVarName](FVectorVMExternalFunctionContext& Context) { this->ScaleSpawnCount<FNiagaraPosition>(Context, NDCVarName); });
+			else
+			{
+				UE_LOG(LogTemp, Display, TEXT("Failed to bind Data Interface function as this is not a valid variable type for ScaleSpawnCount.\nDI: %s.\nReceived Name: %s\nNDC: %s"), *GetPathNameSafe(this), *BindingInfo.Name.ToString(), *GetPathNameSafe(Channel));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display, TEXT("Failed to bind Data Interface function due to missing NDC variable for %s.\nReceived Name: %s\nNDC: %s"), *GetPathNameSafe(this), *BindingInfo.Name.ToString(), *GetPathNameSafe(Channel));
+		}
 	}
 	else
 	{
@@ -1536,13 +1686,13 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 			return;
 		}
 
-		int32 SpawnMin = InSpawnMin.GetAndAdvance();
-		int32 SpawnMax = InSpawnMax.GetAndAdvance();
+		int32 SpawnMin = FMath::Max(0, InSpawnMin.GetAndAdvance());
+		int32 SpawnMax = FMath::Max(0, InSpawnMax.GetAndAdvance());
 
 		//Each data channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
 		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = InstData->EmitterInstanceData.FindOrAdd(EmitterInst);
-		TArray<int32>& EmitterConditionalSpawns = EmitterInstData.NDCSpawnCounts;
-		EmitterConditionalSpawns.SetNumZeroed(NumDataChannelInstances);
+		TArray<FNDIDataChannelRead_EmitterSpawnInfo>& EmitterConditionalSpawns = EmitterInstData.NDCSpawnCounts;
+		EmitterConditionalSpawns.SetNum(NumDataChannelInstances);
 
 		for (int32 DataChannelIdx = 0; DataChannelIdx < NumDataChannelInstances; ++DataChannelIdx)
 		{
@@ -1570,12 +1720,203 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 				int32 Count = RandHelper.RandRange(DataChannelIdx, SpawnMin, SpawnMax);
 				if (Mode == ENDIDataChannelSpawnMode::Accumulate)
 				{
-					EmitterConditionalSpawns[DataChannelIdx] += Count;
+					EmitterConditionalSpawns[DataChannelIdx].Append(Count);
 				}
 				else if (Mode == ENDIDataChannelSpawnMode::Override)
 				{
-					EmitterConditionalSpawns[DataChannelIdx] = Count;
+					EmitterConditionalSpawns[DataChannelIdx].SetCount(Count);
 				}
+			}
+		}
+	}
+}
+
+template<typename T> 
+float NDCValueSize(const T& Value){ return 1.0f; }
+
+template<> float NDCValueSize<int32>(const int32& Value){ return FMath::Abs(Value); }
+template<> float NDCValueSize<float>(const float& Value) { return FMath::Abs(Value); }
+template<> float NDCValueSize<FVector2f>(const FVector2f& Value) { return Value.Size(); }
+template<> float NDCValueSize<FVector3f>(const FVector3f& Value) { return Value.Size(); }
+template<> float NDCValueSize<FVector4f>(const FVector4f& Value) { return Value.Size(); }
+
+template<typename T>
+T NDCValueDefault() { return 1.0f; }
+template<> int32 NDCValueDefault<int32>() { return 1; }
+template<> float NDCValueDefault<float>() { return 1.0f; }
+template<> FVector2f NDCValueDefault<FVector2f>() { return FVector2f(1.0f); }
+template<> FVector3f NDCValueDefault<FVector3f>() { return FVector3f(1.0f); }
+template<> FVector4f NDCValueDefault<FVector4f>() { return FVector4f(1.0f); }
+
+template <typename T> FNiagaraTypeDefinition GetTypeDef() { return FNiagaraTypeDefinition(); }
+template <typename T> FNiagaraTypeDefinition GetSimTypeDef() { return FNiagaraTypeDefinition(); }
+
+template<> FNiagaraTypeDefinition GetTypeDef<int32>() { return FNiagaraTypeDefinition::GetIntDef(); }
+template<> FNiagaraTypeDefinition GetTypeDef<double>() { return FNiagaraTypeHelper::GetDoubleDef(); }
+template<> FNiagaraTypeDefinition GetTypeDef<FVector2D>() { return FNiagaraTypeHelper::GetVector2DDef(); }
+template<> FNiagaraTypeDefinition GetTypeDef<FVector>() { return FNiagaraTypeHelper::GetVectorDef(); }
+template<> FNiagaraTypeDefinition GetTypeDef<FVector4>() { return FNiagaraTypeHelper::GetVector4Def(); }
+template<> FNiagaraTypeDefinition GetTypeDef<FNiagaraPosition>() { return FNiagaraTypeDefinition::GetPositionDef(); }
+
+template<> FNiagaraTypeDefinition GetSimTypeDef<int32>() { return FNiagaraTypeDefinition::GetIntDef(); }
+template<> FNiagaraTypeDefinition GetSimTypeDef<double>() { return FNiagaraTypeDefinition::GetFloatDef(); }
+template<> FNiagaraTypeDefinition GetSimTypeDef<FVector2D>() { return FNiagaraTypeDefinition::GetVec2Def(); }
+template<> FNiagaraTypeDefinition GetSimTypeDef<FVector>() { return FNiagaraTypeDefinition::GetVec3Def(); }
+template<> FNiagaraTypeDefinition GetSimTypeDef<FVector4>() { return FNiagaraTypeDefinition::GetVec4Def(); }
+template<> FNiagaraTypeDefinition GetSimTypeDef<FNiagaraPosition>() { return FNiagaraTypeDefinition::GetVec3Def(); }
+
+template<typename TLWCType>
+struct TLWCToSimType {};
+
+template<> struct TLWCToSimType<int32> { typedef int32 TSimType; };
+template<> struct TLWCToSimType<double> { typedef float TSimType;  };
+template<> struct TLWCToSimType<FVector2D> { typedef FVector2f TSimType; };
+template<> struct TLWCToSimType<FVector> { typedef FVector3f TSimType; };
+template<> struct TLWCToSimType<FVector4> { typedef FVector4f TSimType; };
+template<> struct TLWCToSimType<FNiagaraPosition> { typedef FVector3f TSimType; };
+
+template<typename T>
+void UNiagaraDataInterfaceDataChannelRead::SpawnDirect(FVectorVMExternalFunctionContext& Context, FName NDCVarName)
+{
+	//This should only be called from emitter scripts and since it has per instance data then we process them individually.
+	check(Context.GetNumInstances() == 1);
+
+	using TSimType = TLWCToSimType<T>::TSimType;
+	VectorVM::FUserPtrHandler<FNDIDataChannelReadInstanceData> InstData(Context);
+
+	FNDIInputParam<FNiagaraBool> InEnabled(Context);
+	FNDIInputParam<FNiagaraEmitterID> InEmitterID(Context);
+
+	FNDIInputParam<int32> InMode(Context);
+
+	FNDIInputParam<float> InRandMinScale(Context);
+	FNDIInputParam<float> InRandMaxScale(Context);
+	FNDIInputParam<int32> InClampMin(Context);
+	FNDIInputParam<int32> InClampMax(Context);
+
+	FNiagaraSystemInstance* SystemInstance = InstData->Owner;
+	check(SystemInstance);
+
+	const FNiagaraEmitterID EmitterID = InEmitterID.GetAndAdvance();
+	const int32 NumEmitters = SystemInstance->GetEmitters().Num();
+	FNiagaraEmitterInstance* EmitterInst = SystemInstance->GetEmitterByID(EmitterID);
+
+	FNiagaraDataChannelData* DataChannelData = InstData->DataChannelData.Get();
+
+	const bool bReadPrevFrame = bReadCurrentFrame == false || GNDCReadForcePrevFrame;
+	FNiagaraDataBuffer* Data = DataChannelData ? DataChannelData->GetCPUData(bReadPrevFrame) : nullptr;
+
+	const bool bApply = INiagaraModule::DataChannelsEnabled() && Data && Data->GetNumInstances() > 0 && EmitterInst && EmitterInst->IsActive() && InEnabled.GetAndAdvance();
+	if (bApply)
+	{
+		FNDIRandomHelperFromStream RandHelper(Context);
+
+		int32 NumDataChannelInstances = Data->GetNumInstances();
+
+		ENDIDataChannelSpawnMode Mode = (ENDIDataChannelSpawnMode)InMode.GetAndAdvance();
+
+		float RandMinScale = InRandMinScale.GetAndAdvance();
+		float RandMaxScale = InRandMaxScale.GetAndAdvance();
+		int32 ClampMin = FMath::Max(0, InClampMin.GetAndAdvance());
+		int32 ClampMax = InClampMax.GetAndAdvance();
+		ClampMax = ClampMax < 0 ? INT_MAX : ClampMax;
+
+		//Each data channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
+		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = InstData->EmitterInstanceData.FindOrAdd(EmitterInst);
+		TArray<FNDIDataChannelRead_EmitterSpawnInfo>& EmitterConditionalSpawns = EmitterInstData.NDCSpawnCounts;
+		EmitterConditionalSpawns.SetNum(NumDataChannelInstances);
+
+		const auto ValueData = FNiagaraDataSetAccessor<TSimType>::CreateReader(Data, NDCVarName);
+
+		for (int32 DataChannelIndex = 0; DataChannelIndex < NumDataChannelInstances; DataChannelIndex++)
+		{
+			TSimType NDCValue = ValueData.GetSafe(DataChannelIndex, NDCValueDefault<TSimType>());
+			double VarSize = NDCValueSize(NDCValue);
+			float Scale = RandHelper.RandRange(DataChannelIndex, RandMinScale, RandMaxScale);
+			int32 ScaledCount = VarSize * Scale;
+			int32 FinalCount = FMath::Clamp(ScaledCount, ClampMin, ClampMax);
+
+			if (Mode == ENDIDataChannelSpawnMode::Accumulate)
+			{
+				EmitterConditionalSpawns[DataChannelIndex].Append(FinalCount);
+			}
+			else if (Mode == ENDIDataChannelSpawnMode::Override)
+			{
+				EmitterConditionalSpawns[DataChannelIndex].SetCount(FinalCount);
+			}
+		}
+	}
+}
+
+template<typename T>
+void UNiagaraDataInterfaceDataChannelRead::ScaleSpawnCount(FVectorVMExternalFunctionContext& Context, FName NDCVarName)
+{
+	//This should only be called from emitter scripts and since it has per instance data then we process them individually.
+	check(Context.GetNumInstances() == 1);
+
+	using TSimType = TLWCToSimType<T>::TSimType;
+	VectorVM::FUserPtrHandler<FNDIDataChannelReadInstanceData> InstData(Context);
+
+	FNDIInputParam<FNiagaraBool> InEnabled(Context);
+	FNDIInputParam<FNiagaraEmitterID> InEmitterID(Context);
+	FNDIInputParam<int32> InMode(Context);
+
+	FNDIInputParam<float> InRandMinScale(Context);
+	FNDIInputParam<float> InRandMaxScale(Context);
+	FNDIInputParam<float> InClampMin(Context);
+	FNDIInputParam<float> InClampMax(Context);
+	
+	FNiagaraSystemInstance* SystemInstance = InstData->Owner;
+	check(SystemInstance);
+
+	const FNiagaraEmitterID EmitterID = InEmitterID.GetAndAdvance();
+	const int32 NumEmitters = SystemInstance->GetEmitters().Num();
+	FNiagaraEmitterInstance* EmitterInst = SystemInstance->GetEmitterByID(EmitterID);
+
+	FNiagaraDataChannelData* DataChannelData = InstData->DataChannelData.Get();
+
+	const bool bReadPrevFrame = bReadCurrentFrame == false || GNDCReadForcePrevFrame;
+	FNiagaraDataBuffer* Data = DataChannelData ? DataChannelData->GetCPUData(bReadPrevFrame) : nullptr;
+
+	const bool bApplyScale = INiagaraModule::DataChannelsEnabled() && Data && Data->GetNumInstances() > 0 && EmitterInst && EmitterInst->IsActive() && InEnabled.GetAndAdvance();
+	if (bApplyScale)
+	{
+		int32 Mode = InMode.GetAndAdvance();
+		bool bOverrideScale = Mode == (int32)ENDIDataChannelSpawnScaleMode::Override;
+
+		FNDIRandomHelperFromStream RandHelper(Context);
+
+		int32 NumDataChannelInstances = Data->GetNumInstances();
+
+		float RandMinScale = InRandMinScale.GetAndAdvance();
+		float RandMaxScale = InRandMaxScale.GetAndAdvance();
+		float ClampMin = FMath::Max(0.0f, InClampMin.GetAndAdvance());
+		float ClampMax = InClampMax.GetAndAdvance();
+		ClampMax = ClampMax < 0.0f ? FLT_MAX : ClampMax;
+
+		//Each data channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
+		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = InstData->EmitterInstanceData.FindOrAdd(EmitterInst);
+		TArray<FNDIDataChannelRead_EmitterSpawnInfo>& EmitterConditionalSpawns = EmitterInstData.NDCSpawnCounts;
+		EmitterConditionalSpawns.SetNumZeroed(NumDataChannelInstances);
+
+		const auto ValueData = FNiagaraDataSetAccessor<TSimType>::CreateReader(Data, NDCVarName);
+
+		for(int32 DataChannelIndex = 0; DataChannelIndex < NumDataChannelInstances; DataChannelIndex++)
+		{
+			TSimType NDCValue = ValueData.GetSafe(DataChannelIndex, NDCValueDefault<TSimType>());
+			float VarSize = NDCValueSize(NDCValue);
+			float Scale = RandHelper.RandRange(DataChannelIndex, RandMinScale, RandMaxScale);			
+			float FinalScale = VarSize * Scale;
+			FinalScale = FMath::Clamp(FinalScale, ClampMin, ClampMax);
+
+			//TODO: Either change this to a float/double or add a separate scale value applied at the end so that multiple scales will combine correctly.
+			if(bOverrideScale)
+			{
+				EmitterConditionalSpawns[DataChannelIndex].SetScale(FinalScale);
+			}
+			else
+			{
+				EmitterConditionalSpawns[DataChannelIndex].ApplyScale(FinalScale);
 			}
 		}
 	}
@@ -1981,7 +2322,7 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 		InstParameters->HalfStride = 0;
 		
 		FRDGBufferRef DummyBuffer = GSystemTextures.GetDefaultBuffer(Context.GetGraphBuilder(), 4, 0u);
-		InstParameters->NDCSpawnDataBuffer = Context.GetGraphBuilder().CreateSRV(DummyBuffer);		
+		InstParameters->NDCSpawnDataBuffer = Context.GetGraphBuilder().CreateSRV(DummyBuffer, PF_R32_SINT);		
 	}
 }
 
@@ -1989,7 +2330,7 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::PreStage(const FNDIGpuComputePr
 {
 	FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
 
-	if(InstanceData->NDCSpawnDataBuffer == nullptr)
+	if(InstanceData && InstanceData->NDCSpawnDataBuffer == nullptr)
 	{
 		InstanceData->NDCSpawnDataBuffer = CreateUploadBuffer<int32>(
 			Context.GetGraphBuilder(),
@@ -2002,8 +2343,10 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::PostSimulate(const FNDIGpuCompu
 {
 	if (Context.IsFinalPostSimulate())
 	{
-		FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
-		InstanceData->NDCSpawnDataBuffer = nullptr;
+		if(FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID()))
+		{
+			InstanceData->NDCSpawnDataBuffer = nullptr;
+		}
 	}
 }
 

@@ -621,6 +621,18 @@ struct FNiagaraFunctionSignature
 		}
 	#endif
 	}
+	
+	template<typename T>
+	void AddInputWithDefault(FNiagaraVariable InputVar, const T& Default, FText Tooltip = FText())
+	{
+		Inputs.Add_GetRef(InputVar).SetData((uint8*)&Default);
+#if WITH_EDITORONLY_DATA
+		if (!Tooltip.IsEmpty())
+		{
+			InputDescriptions.Add(InputVar, Tooltip);
+		}
+#endif
+	}
 
 	void AddOutput(FNiagaraVariable OutputVar, const FText& Tooltip = FText())
 	{

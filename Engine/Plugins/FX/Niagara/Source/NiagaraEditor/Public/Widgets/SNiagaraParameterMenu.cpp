@@ -27,6 +27,15 @@
 #include "ViewModels/TNiagaraViewModelManager.h"
 #include "Widgets/SNiagaraActionMenuExpander.h"
 
+#include "Widgets/Input/SComboButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Layout/SScaleBox.h"
+#include "NiagaraEditorStyle.h"
+#include "Widgets/SNiagaraPinTypeSelector.h"
+
+
+#include "NiagaraDataChannel.h"
+
 #define LOCTEXT_NAMESPACE "SNiagaraParameterMenu"
 namespace UE::Private
 {
@@ -928,6 +937,227 @@ void SNiagaraChangePinTypeMenu::CollectAllActions(FGraphActionListBuilderBase& O
 	}
 
 	Collector.AddAllActionsTo(OutAllActions);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Change Pin Type Menu													///
+///////////////////////////////////////////////////////////////////////////////
+
+void SNiagaraFunctionSpecifierNDCVariablesMenu::Construct(const FArguments& InArgs)
+{
+	checkf(InArgs._Owner != nullptr, TEXT("Tried to construct NDC Variable menu without an owner."));
+	Owner = InArgs._Owner;
+	AllowedTypes = InArgs._AllowedTypes;
+
+	SNiagaraParameterMenu::FArguments SuperArgs;
+	SuperArgs._AutoExpandMenu = InArgs._AutoExpandMenu;
+	SNiagaraParameterMenu::Construct(SuperArgs);
+}
+
+void SNiagaraFunctionSpecifierNDCVariablesMenu::OnSelectionChanged(FNiagaraVariableBase Var)
+{
+	check(Owner);
+	Owner->OnMenuSelectionChanged(Var);
+}
+
+void SNiagaraFunctionSpecifierNDCVariablesMenu::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
+{
+	FNiagaraMenuActionCollector Collector;
+
+	UNiagaraDataChannel::ForEachDataChannel([&](UNiagaraDataChannel* DataChannel)
+	{
+		const UNiagaraDataChannelAsset* NDCAsset = DataChannel->GetAsset();
+		if(NDCAsset)
+		{
+			for (const FNiagaraDataChannelVariable& NDCVar : DataChannel->GetVariables())
+			{
+				FText Category = FText::FromString(NDCAsset->GetName());
+				const FText DisplayName = FText::FromName(NDCVar.GetName());
+				const FText Tooltip = FText::Format(LOCTEXT("SNiagaraFunctionSpecifierNDCVariablesMenu_TooltipFmt", "Variable {0} from Data Channel {1}"), DisplayName, Category);
+
+				if(AllowedTypes.Num() > 0 && !AllowedTypes.Contains(NDCVar.GetType()))
+				{
+					continue;//This type is not on the allowed list.
+				}
+
+				TSharedPtr<FNiagaraMenuAction> Action(new FNiagaraMenuAction(
+					Category, DisplayName, Tooltip, 0, FText::GetEmpty(),
+					FNiagaraMenuAction::FOnExecuteStackAction::CreateRaw(this, &SNiagaraFunctionSpecifierNDCVariablesMenu::OnSelectionChanged, FNiagaraVariableBase(NDCVar))));
+
+				//TODO: The base niagara action widget will store this parameter and display this regardless of a change in the NDC variable.
+				//Need to subclass this and have it refresh it's parameter on construction from the NDCVar that matches it's guid.
+				Action->SetParameterVariable(NDCVar);
+				Collector.AddAction(Action, 0);
+			}
+		}
+	});
+
+	Collector.AddAllActionsTo(OutAllActions);
+}
+
+
+//////////////////////////////////////////////////////////////////////////
+
+const static FName VarNameSpecifierKey(TEXT("VarName"));
+const static FName VarTypeSpecifierKey(TEXT("VarType"));
+
+//Encode a Niagara Variable as a function specifier value.
+void EncodeVariableAsSpecifiers(const FNiagaraVariableBase& Var, UNiagaraNodeFunctionCall* TargetNode)
+{
+	if(TargetNode)
+	{
+		FString TypeStr;
+		UScriptStruct* TypeStruct = FNiagaraTypeDefinition::StaticStruct();
+		FNiagaraTypeDefinition TypeDef = Var.GetType();
+		TypeStruct->ExportText(TypeStr, &TypeDef, nullptr, nullptr, PPF_None, nullptr);
+
+		TargetNode->SetFunctionSpecifier(VarNameSpecifierKey, Var.GetName());
+		TargetNode->SetFunctionSpecifier(VarTypeSpecifierKey, *TypeStr);
+	}
+}
+
+FNiagaraVariableBase DecodeVariableAsSpecifiers(UNiagaraNodeFunctionCall* Node)
+{
+	if(Node)
+	{
+		const FName* FuncSpecVarName = Node->FunctionSpecifiers.Find(VarNameSpecifierKey);
+		const FName* FuncSpecVarType = Node->FunctionSpecifiers.Find(VarTypeSpecifierKey);
+		if (FuncSpecVarName && FuncSpecVarType)
+		{
+			FStringOutputDevice ErrorOut;
+			UScriptStruct* TypeStruct = FNiagaraTypeDefinition::StaticStruct();
+			FNiagaraTypeDefinition TypeDef;
+			if (TypeStruct->ImportText(*FuncSpecVarType->ToString(), &TypeDef, nullptr, PPF_None, &ErrorOut, TypeStruct->GetName(), true))
+			{
+				return FNiagaraVariableBase(TypeDef, *FuncSpecVarName);
+			}
+		}
+	}
+	return FNiagaraVariableBase();
+}
+
+
+void SNiagaraFunctionSpecifierNDCVariablesSelector::Construct(const FArguments& InArgs)
+{
+	checkf(InArgs._WeakNodeToModify != nullptr, TEXT("Tried to construct change pin type menu without valid pin ptr!"));
+	this->WeakNodeToModify = InArgs._WeakNodeToModify;
+	this->AllowedTypes = InArgs._AllowedTypes;
+
+	GenerateButtonWidget();
+
+	SelectorButton = SNew(SComboButton)
+		.ContentPadding(3)
+		.MenuPlacement(MenuPlacement_BelowAnchor)
+		.HasDownArrow(true)
+		.ButtonStyle(FAppStyle::Get(), "Button")
+		.ToolTipText(GetTooltipText())
+		.OnGetMenuContent(this, &SNiagaraFunctionSpecifierNDCVariablesSelector::GetMenuContent)
+		.ButtonContent()
+		[
+			ButtonContent.ToSharedRef()
+		];
+
+	ChildSlot
+		.VAlign(VAlign_Fill)
+		.HAlign(HAlign_Fill)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.AutoWidth()
+			.Padding(5)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromName(TEXT("NDC Variable")))
+			]
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.AutoWidth()
+			.Padding(5)
+			[
+				SelectorButton.ToSharedRef()
+			]
+		];
+}
+
+void SNiagaraFunctionSpecifierNDCVariablesSelector::OnMenuSelectionChanged(const FNiagaraVariableBase& Var)
+{
+	if (UNiagaraNodeFunctionCall* NodeToModify = WeakNodeToModify.Get())
+	{
+		EncodeVariableAsSpecifiers(Var, NodeToModify);
+		GenerateButtonWidget();
+	}
+}
+
+void SNiagaraFunctionSpecifierNDCVariablesSelector::GenerateButtonWidget()
+{
+	if (UNiagaraNodeFunctionCall* NodeToModify = WeakNodeToModify.Get())
+	{
+		FNiagaraVariableBase FuncSpecVariable = DecodeVariableAsSpecifiers(NodeToModify);
+		FText			   IconToolTip = FuncSpecVariable.GetType().GetNameText();
+		FSlateBrush const* IconBrush = FuncSpecVariable.GetType().IsStatic() ? FNiagaraEditorStyle::Get().GetBrush(TEXT("NiagaraEditor.StaticIcon")) : FAppStyle::GetBrush(TEXT("Kismet.AllClasses.VariableIcon"));
+		const FLinearColor TypeColor = UEdGraphSchema_Niagara::GetTypeColor(FuncSpecVariable.GetType());
+		FSlateColor        IconColor = FSlateColor(TypeColor);
+		FString			   IconDocLink, IconDocExcerpt;
+		FSlateBrush const* SecondaryIconBrush = FAppStyle::GetBrush(TEXT("NoBrush"));
+		FSlateColor        SecondaryIconColor = IconColor;
+		TSharedRef<SWidget> IconWidget = SNew(SScaleBox)
+			[
+				SNew(SNiagaraIconWidget)
+				.IconToolTip(IconToolTip)
+			.IconBrush(IconBrush)
+			.IconColor(IconColor)
+			.DocLink(IconDocLink)
+			.DocExcerpt(IconDocExcerpt)
+			.SecondaryIconBrush(SecondaryIconBrush)
+			.SecondaryIconColor(SecondaryIconColor)
+			];
+
+		ButtonContent = SNew(SBox)
+			.MinDesiredWidth(150.0f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.AutoWidth()
+			.Padding(0)
+			[
+				IconWidget
+			]
+		+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.AutoWidth()
+			.Padding(0)
+			[
+				SNew(STextBlock).Text(FText::FromName(FuncSpecVariable.GetName()))
+			]
+			];
+
+		return;
+	}
+
+	ButtonContent = SNew(STextBlock).Text(LOCTEXT("NDCVarButtonError","Error"));
+}
+
+TSharedRef<SWidget> SNiagaraFunctionSpecifierNDCVariablesSelector::GetMenuContent()
+{
+	TSharedRef<SNiagaraFunctionSpecifierNDCVariablesMenu> MenuWidget = SNew(SNiagaraFunctionSpecifierNDCVariablesMenu)
+			.Owner(StaticCastSharedRef<SNiagaraFunctionSpecifierNDCVariablesSelector>(AsShared()).ToSharedPtr())
+			.AutoExpandMenu(false)
+			.AllowedTypes(AllowedTypes);
+
+	SelectorButton->SetMenuContentWidgetToFocus(MenuWidget->GetSearchBox());
+	return SNew(SBorder)
+		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+		.Padding(1)
+		[
+			MenuWidget
+		];
+}
+
+FText SNiagaraFunctionSpecifierNDCVariablesSelector::GetTooltipText() const
+{
+	return LOCTEXT("FunctionSpecifierNDCVariableSelectorTooltip", "Select an NDC Variable to use.");
 }
 
 #undef LOCTEXT_NAMESPACE /*"SNiagaraParameterMenu"*/

@@ -515,6 +515,11 @@ namespace NiagaraDataSetPrivate
 	{
 		return DataSet.GetCompiledData();
 	}
+	
+	inline const FNiagaraDataSetCompiledData& GetCompiledData(const FNiagaraDataBuffer* DataBuffer)
+	{
+		return DataBuffer->GetOwner()->GetCompiledData();
+	}
 
 	inline FNiagaraDataBuffer* GetCurrentData(const FNiagaraDataSet& DataSet)
 	{

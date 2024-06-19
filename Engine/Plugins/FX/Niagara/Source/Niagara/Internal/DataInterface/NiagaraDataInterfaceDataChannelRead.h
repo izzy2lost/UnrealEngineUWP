@@ -52,6 +52,19 @@ enum class ENDIDataChannelSpawnMode
 	Max UMETA(Hidden),
 };
 
+/** Mode controlling the behavior of the ScaleSpawnCount function for Niagara's Data Channel Read Data Interface.*/
+UENUM()
+enum class ENDIDataChannelSpawnScaleMode
+{
+	/** This mode will override any previously set scale values. */
+	Override,
+
+	/** This mode will combine with previously set scales. e.g. Two calls that scale by 0.5 will result in a final spawn scale of 0.25. */
+	Scale,
+
+	Max UMETA(Hidden),
+};
+
 UCLASS(Experimental, EditInlineNew, Category = "Data Channels", CollapseCategories, meta = (DisplayName = "Data Channel Reader"), MinimalAPI)
 class UNiagaraDataInterfaceDataChannelRead : public UNiagaraDataInterfaceRWBase
 {
@@ -161,6 +174,12 @@ public:
 	//Emitter only functions.
 	NIAGARA_API void SpawnConditional(FVectorVMExternalFunctionContext& Context, int32 FuncIndex);
 
+	template<typename T>
+	NIAGARA_API void SpawnDirect(FVectorVMExternalFunctionContext& Context, FName NDCVarName);
+	
+	template<typename T>
+	NIAGARA_API void ScaleSpawnCount(FVectorVMExternalFunctionContext& Context, FName NDCVarName);
+
 	FNDIDataChannelCompiledData& GetCompiledData() { return CompiledData; }
 
 protected:
@@ -186,6 +205,21 @@ struct FNDIDataChannelRead_EmitterSpawnData
 	}
 };
 
+struct FNDIDataChannelRead_EmitterSpawnInfo
+{
+private:
+	uint32 Count = 0;
+	float Scale = 1.0f;
+
+public:
+	uint32 Get()const { return Count * Scale; }
+	
+	void SetCount(uint32 NewCount) { Count = NewCount; }
+	void Append(uint32 NewCount) { Count += NewCount; }
+	void SetScale(float NewScale) { Scale = NewScale; }
+	void ApplyScale(float NewScale) { Scale *= NewScale; }
+};
+
 struct FNDIDataChannelRead_EmitterInstanceData
 {
 	//Spawn data buffers needed for accessing the correct NDCIndex and spawn data from a particle during CPU or GPU execution.
@@ -193,7 +227,7 @@ struct FNDIDataChannelRead_EmitterInstanceData
 	FNDIDataChannelRead_EmitterSpawnData NDCSpawnData;
 
 	//Spawn Counts for each entry in the NDC.
-	TArray<int32> NDCSpawnCounts;
+	TArray<FNDIDataChannelRead_EmitterSpawnInfo> NDCSpawnCounts;
 
 	void Reset()
 	{

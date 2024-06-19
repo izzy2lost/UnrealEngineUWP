@@ -22,6 +22,7 @@ class UNiagaraNodeAssignment;
 class UNiagaraNodeWithDynamicPins;
 class UNiagaraParameterDefinitions;
 class UNiagaraScriptVariable;
+class SComboButton;
 
 
 class SNiagaraParameterMenu : public SCompoundWidget
@@ -208,4 +209,59 @@ protected:
 
 private:
 	UEdGraphPin* PinToModify;
+};
+
+class SNiagaraFunctionSpecifierNDCVariablesSelector;
+class SNiagaraFunctionSpecifierNDCVariablesMenu : public SNiagaraParameterMenu
+{
+public:
+
+	SLATE_BEGIN_ARGS(SNiagaraFunctionSpecifierNDCVariablesMenu)
+		: _AutoExpandMenu(false)
+	{}
+		//~ Begin Required Args
+		SLATE_ARGUMENT(TSharedPtr<SNiagaraFunctionSpecifierNDCVariablesSelector>, Owner)
+		SLATE_ARGUMENT(TArray<FNiagaraTypeDefinition>, AllowedTypes)
+		//~ End Required Args
+		SLATE_ARGUMENT(bool, AutoExpandMenu)
+	SLATE_END_ARGS();
+
+	void Construct(const FArguments& InArgs);
+
+	void OnSelectionChanged(FNiagaraVariableBase Var);
+
+protected:
+	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) override;
+
+	TSharedPtr<SNiagaraFunctionSpecifierNDCVariablesSelector> Owner = nullptr;
+	TArray<FNiagaraTypeDefinition> AllowedTypes;
+};
+
+class SNiagaraFunctionSpecifierNDCVariablesSelector : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SNiagaraFunctionSpecifierNDCVariablesSelector)
+		: _WeakNodeToModify(nullptr)		
+	{}
+	SLATE_ARGUMENT(TWeakObjectPtr<UNiagaraNodeFunctionCall>, WeakNodeToModify)
+	SLATE_ARGUMENT(TArray<FNiagaraTypeDefinition>, AllowedTypes)
+	//~ End Required Args
+	SLATE_END_ARGS()
+public:
+	NIAGARAEDITOR_API void Construct(const FArguments& InArgs);
+
+	void OnMenuSelectionChanged(const FNiagaraVariableBase& NewSelection);
+
+protected:
+	NIAGARAEDITOR_API virtual TSharedRef<SWidget>	GetMenuContent();
+	NIAGARAEDITOR_API FText GetTooltipText() const;
+	NIAGARAEDITOR_API FText GetSelectionText() const;
+
+	NIAGARAEDITOR_API void GenerateButtonWidget();
+
+private:
+	TWeakObjectPtr<UNiagaraNodeFunctionCall> WeakNodeToModify;
+	TArray<FNiagaraTypeDefinition> AllowedTypes;
+	TSharedPtr<SComboButton> SelectorButton;
+	TSharedPtr<SWidget> ButtonContent;
 };
