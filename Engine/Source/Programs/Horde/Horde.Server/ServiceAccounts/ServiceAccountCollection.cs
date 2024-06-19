@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
@@ -43,7 +44,7 @@ namespace Horde.Server.ServiceAccounts
 			public ServiceAccountId Id { get; set; }
 
 			/// <inheritdoc/>
-			public string SecretToken { get; set; } = string.Empty;
+			public string SecretToken { get; set; } = String.Empty;
 
 			[BsonElement("Claims2")]
 			public List<ClaimDocument> Claims { get; set; } = new List<ClaimDocument>();

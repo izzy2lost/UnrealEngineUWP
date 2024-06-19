@@ -98,7 +98,7 @@ namespace Horde.Server.ServiceAccounts
 		/// <param name="claim">Claim to test for</param>
 		/// <returns>True if the user has the claim</returns>
 		public static bool HasClaim(this IServiceAccount account, AclClaimConfig claim)
-			=> HasClaim(account, claim);
+			=> HasClaim(account, claim.Type, claim.Value);
 
 		/// <summary>
 		/// Update settings for the account, retrying if the account object has changed
