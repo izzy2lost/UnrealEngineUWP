@@ -242,7 +242,7 @@ void Blobber::UpdateBlobCache()
 		// if the blob has a single ref count left then we can safely de-cache it
 		if (Entry->BlobObj.use_count() == 1)
 		{
-			UE_LOG(LogBlob, Log, TEXT("Removing permanent blob %s (Hash: %llu)"), *Entry->BlobObj->DisplayName(), Entry->BlobObj->Hash()->Value());
+			UE_LOG(LogBlob, VeryVerbose, TEXT("Removing permanent blob %s (Hash: %llu)"), *Entry->BlobObj->DisplayName(), Entry->BlobObj->Hash()->Value());
 			HashesToRemove.push_back(Iter.Key());
 
 			HashTypeVec IntermediateHashes = Entry->BlobObj->Hash()->GetIntermediateHashes();
@@ -270,7 +270,7 @@ void Blobber::UpdateBlobCache()
 
 	if (!HashesToRemove.empty())
 	{
-		UE_LOG(LogBlob, Log, TEXT("Removing num items from the cache: %llu"), HashesToRemove.size());
+		UE_LOG(LogBlob, VeryVerbose, TEXT("Removing num items from the cache: %llu"), HashesToRemove.size());
 		for (size_t RemoveIndex = 0; RemoveIndex < HashesToRemove.size(); RemoveIndex++)
 		{
 			HashType HashToRemove = HashesToRemove[RemoveIndex];

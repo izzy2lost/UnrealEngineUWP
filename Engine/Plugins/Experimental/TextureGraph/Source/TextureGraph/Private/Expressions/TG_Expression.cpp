@@ -304,6 +304,7 @@ void UTG_Expression::CopyVarToExpressionArgument(const FTG_Argument& Arg, FTG_Va
 
 	CopyVarGeneric(Arg, InVar, true);
 }
+
 void UTG_Expression::CopyVarFromExpressionArgument(const FTG_Argument& Arg, FTG_Var* InVar)
 {
 	if (InVar->CopyGeneric(this, Arg, false))

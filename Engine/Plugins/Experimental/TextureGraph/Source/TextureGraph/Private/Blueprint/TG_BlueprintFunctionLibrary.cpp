@@ -13,6 +13,7 @@
 #include "Expressions/Input/TG_Expression_Color.h"
 #include "Expressions/Input/TG_Expression_OutputSettings.h"
 #include "TG_HelperFunctions.h"
+#include "Engine/Texture2D.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TG_BlueprintFunctionLibrary)
 
@@ -35,7 +36,8 @@ void UTG_BlueprintFunctionLibrary::SetTextureParameterValue(UObject* WorldContex
 				if (ExpressionPtr)
 				{
 					bFoundParameter = true;
-					ExpressionPtr->SetAsset(ParameterValue);
+					UTexture2D* DupTexture = (UTexture2D*)StaticDuplicateObject(ParameterValue, GetTransientPackage(), NAME_None, ~RF_Standalone, UTexture2D::StaticClass());
+					ExpressionPtr->SetAsset(DupTexture);
 				}
 			}
 		}
