@@ -12,6 +12,15 @@
 #if WITH_EDITOR
 DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkSubjectSettings, Warning, Warning);
 
+ULiveLinkSubjectSettings::ULiveLinkSubjectSettings()
+{
+	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		bRebroadcastSubject = GetDefault<ULiveLinkDefaultSubjectSettings>()->bRebroadcastSubjectsByDefault;
+		bAllowModifyingRebroadcast = GetDefault<ULiveLinkDefaultSubjectSettings>()->bAllowEditingRebroadcastProperty;
+	}
+}
+
 bool ULiveLinkSubjectSettings::ValidateProcessors()
 {
 	UClass* RoleClass = Role.Get();

@@ -52,14 +52,7 @@ class ULiveLinkSubjectSettings : public UObject
 public:
 	GENERATED_BODY()
 
-	LIVELINKINTERFACE_API ULiveLinkSubjectSettings()
-	{
-		if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
-		{
-			bRebroadcastSubject = GetDefault<ULiveLinkDefaultSubjectSettings>()->bRebroadcastSubjectsByDefault;
-			bAllowModifyingRebroadcast = GetDefault<ULiveLinkDefaultSubjectSettings>()->bAllowEditingRebroadcastProperty;
-		}
-	}
+	LIVELINKINTERFACE_API ULiveLinkSubjectSettings();
 
 	/** Initialize the settings. */
 	virtual void Initialize(FLiveLinkSubjectKey InSubjectKey) {}
