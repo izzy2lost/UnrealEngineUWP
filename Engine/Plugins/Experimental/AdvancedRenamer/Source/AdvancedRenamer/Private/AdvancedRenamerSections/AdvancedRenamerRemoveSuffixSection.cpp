@@ -48,17 +48,15 @@ TSharedRef<SWidget> FAdvancedRenamerRemoveSuffixSection::GetWidget()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				.AutoWidth()
-				.Padding(NameWidgetPadding)
+				.Padding(FirstWidgetPadding)
 				[
 					SAssignNew(RemoveOldSuffixCheckBox, SCheckBox)
 					.IsChecked(this, &FAdvancedRenamerRemoveSuffixSection::IsRemoveOldSuffixChecked)
 					.OnCheckStateChanged(this, &FAdvancedRenamerRemoveSuffixSection::OnRemoveOldSuffixCheckBoxChanged)
 				]
 				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				.AutoWidth()
-				.Padding(VerticalAddNumberPadding)
 				[
 					SNew(STextBlock)
 					.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
@@ -77,7 +75,7 @@ TSharedRef<SWidget> FAdvancedRenamerRemoveSuffixSection::GetWidget()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				.AutoWidth()
-				.Padding(NameWidgetPadding)
+				.Padding(FirstWidgetPadding)
 				[
 					SNew(SBox)
 					.HeightOverride(25.f)
@@ -100,7 +98,7 @@ TSharedRef<SWidget> FAdvancedRenamerRemoveSuffixSection::GetWidget()
 					]
 				]
 				+ SHorizontalBox::Slot()
-				.Padding(ValueWidgetPadding)
+				.Padding(LastWidgetPadding)
 				[
 					SNew(SWidgetSwitcher)
 					.IsEnabled(this, &FAdvancedRenamerRemoveSuffixSection::IsRemoveOldSuffixEnabled)
@@ -109,7 +107,6 @@ TSharedRef<SWidget> FAdvancedRenamerRemoveSuffixSection::GetWidget()
 					+ SWidgetSwitcher::Slot()
 					[
 						SAssignNew(SuffixSeparatorTextBox, SEditableTextBox)
-						.BackgroundColor(FStyleColors::Background.GetSpecifiedColor())
 						.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
 						.Text(this, &FAdvancedRenamerRemoveSuffixSection::GetSuffixSeparatorText)
 						.OnVerifyTextChanged(this, &FAdvancedRenamerRemoveSuffixSection::OnSuffixSeparatorVerifyTextChanged)
@@ -139,23 +136,20 @@ TSharedRef<SWidget> FAdvancedRenamerRemoveSuffixSection::GetWidget()
 				+ SHorizontalBox::Slot()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
-				.Padding(NameWidgetPadding)
+				.Padding(FirstWidgetPadding)
 				.AutoWidth()
 				[
 					SAssignNew(SuffixRemoveNumberCheckBox, SCheckBox)
-					.IsEnabled(this, &FAdvancedRenamerRemoveSuffixSection::IsRemoveOldSuffixEnabled)
 					.IsChecked(this, &FAdvancedRenamerRemoveSuffixSection::IsSuffixRemoveNumberChecked)
 					.OnCheckStateChanged(this, &FAdvancedRenamerRemoveSuffixSection::OnSuffixRemoveNumberCheckBoxChanged)
 				]
 				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
-				.Padding(VerticalAddNumberPadding)
 				.AutoWidth()
 				[
 					SNew(STextBlock)
 					.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
-					.Text(LOCTEXT("AR_SuffixRemoveNumber", "Remove Number"))
+					.Text(LOCTEXT("AR_SuffixRemoveNumber", "Remove Old Numbering"))
 				]
 			]
 		];
@@ -306,13 +300,13 @@ void FAdvancedRenamerRemoveSuffixSection::ApplyRemoveSuffixNumbers(FString& OutO
 
 void FAdvancedRenamerRemoveSuffixSection::ApplyRemoveSuffixOperation(FString& OutOriginalName)
 {
+	if (CanApplyRemoveSuffixNumbers())
+	{
+		ApplyRemoveSuffixNumbers(OutOriginalName);
+	}
+
 	if (bRemoveOldSuffixSection)
 	{
-		if (CanApplyRemoveSuffixNumbers())
-		{
-			ApplyRemoveSuffixNumbers(OutOriginalName);
-		}
-
 		if (CanApplyRemoveSuffixSeparatorOperation())
 		{
 			ApplyRemoveSuffixSeparatorOperation(OutOriginalName);

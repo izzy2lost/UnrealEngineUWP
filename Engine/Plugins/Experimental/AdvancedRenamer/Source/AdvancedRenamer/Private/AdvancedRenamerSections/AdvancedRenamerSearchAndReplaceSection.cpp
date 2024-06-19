@@ -45,7 +45,7 @@ TSharedRef<SWidget> FAdvancedRenamerSearchAndReplaceSection::GetWidget()
 			[
 				SNew(STextBlock)
 				.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.TitleFont"))
-				.Text(LOCTEXT("AR_SearchReplaceTitle", "Search and Replace"))
+				.Text(LOCTEXT("AR_SearchReplaceTitle", "Rename"))
 			]
 
 			+ SVerticalBox::Slot()
@@ -58,7 +58,7 @@ TSharedRef<SWidget> FAdvancedRenamerSearchAndReplaceSection::GetWidget()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				.AutoWidth()
-				.Padding(NameWidgetPadding)
+				.Padding(FirstWidgetPadding)
 				[
 					SNew(SBox)
 					.HeightOverride(25.f)
@@ -122,24 +122,59 @@ TSharedRef<SWidget> FAdvancedRenamerSearchAndReplaceSection::GetWidget()
 			.Padding(SectionContentMiddleEntriesPadding)
 			.FillHeight(1.f)
 			[
-				SAssignNew(SearchReplaceSearchTextBox, SEditableTextBox)
-				.BackgroundColor(FStyleColors::Background.GetSpecifiedColor())
-				.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
-				.HintText(LOCTEXT("AR_RegexSearchHint", "Search"))
-				.Text(this, &FAdvancedRenamerSearchAndReplaceSection::GetSearchText)
-				.OnTextChanged(this, &FAdvancedRenamerSearchAndReplaceSection::OnSearchTextChanged)
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.Padding(FirstWidgetPadding)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(SBox)
+					.WidthOverride(65.f)
+					[
+						SNew(STextBlock)
+						.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
+						.Text(LOCTEXT("AR_SearchLabel", "Search"))
+					]
+				]
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.f)
+				[
+					SAssignNew(SearchReplaceSearchTextBox, SEditableTextBox)
+					.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
+					.HintText(LOCTEXT("AR_RegexSearchHint", "Search (Optional)"))
+					.Text(this, &FAdvancedRenamerSearchAndReplaceSection::GetSearchText)
+					.OnTextChanged(this, &FAdvancedRenamerSearchAndReplaceSection::OnSearchTextChanged)
+				]
 			]
 
+			// Rename/Replace text
 			+ SVerticalBox::Slot()
 			.Padding(SectionContentMiddleEntriesPadding)
 			.FillHeight(1.f)
 			[
-				SAssignNew(SearchReplaceReplaceTextBox, SEditableTextBox)
-				.BackgroundColor(FStyleColors::Background.GetSpecifiedColor())
-				.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
-				.HintText(LOCTEXT("AR_RegexReplaceHint", "Rename To"))
-				.Text(this, &FAdvancedRenamerSearchAndReplaceSection::GetReplaceText)
-				.OnTextChanged(this, &FAdvancedRenamerSearchAndReplaceSection::OnReplaceTextChanged)
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.Padding(FirstWidgetPadding)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
+					.Text(LOCTEXT("AR_RenameReplaceLabel", "Rename To"))
+				]
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.f)
+				[
+					SAssignNew(SearchReplaceReplaceTextBox, SEditableTextBox)
+					.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
+					.HintText(LOCTEXT("AR_RenameReplaceHint", "Replace"))
+					.Text(this, &FAdvancedRenamerSearchAndReplaceSection::GetReplaceText)
+					.OnTextChanged(this, &FAdvancedRenamerSearchAndReplaceSection::OnReplaceTextChanged)
+				]
 			]
 		];
 }

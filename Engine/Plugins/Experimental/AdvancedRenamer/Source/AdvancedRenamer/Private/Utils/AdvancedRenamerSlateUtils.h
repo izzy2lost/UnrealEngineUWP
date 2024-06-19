@@ -15,12 +15,12 @@ namespace AdvancedRenamerSlateUtils::Default
 {
 	static FName OriginalNameColumnName = TEXT("OriginalName");
 	static FName NewNameColumnName = TEXT("NewName");
-	static FMargin NameWidgetPadding = FMargin(0.f, 0.f, 4.f, 0.f);
-	static FMargin ValueWidgetPadding = FMargin(4.f, 0.f, 0.f, 0.f);
+	static FMargin FirstWidgetPadding = FMargin(0.f, 0.f, 4.f, 0.f);
+	static FMargin LastWidgetPadding = FMargin(4.f, 0.f, 0.f, 0.f);
+	static FMargin MiddleWidgetPadding = FMargin(4.f, 0.f, 4.f, 0.f);
 	static FMargin SectionContentFirstEntryPadding = FMargin(8.f, 8.f);
 	static FMargin SectionContentMiddleEntriesPadding = FMargin(8.f, 0.f, 8.f, 8.f);
-	static FMargin VerticalAddNumberPadding = FMargin(0.f, 4.f);
-	static FMargin AddNumberStepPadding = FMargin(8.f, 0.f, 0.f, 0.f);
+	static FMargin VerticalPadding = FMargin(0.f, 4.f);
 	static FMargin ChangeCaseFirstButtonPadding = FMargin(0.f, 0.f, 4.f, 0.f);
 	static FMargin ChangeCaseMiddleButtonsPadding = FMargin(4.f, 0.f);
 	static FMargin ChangeCaseLastButtonPadding = FMargin(4.f, 0.f, 0.f, 0.f);

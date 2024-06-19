@@ -6,6 +6,7 @@
 #include "AdvancedRenamerCommands.h"
 #include "AdvancedRenamerSections/AdvancedRenamerAddPrefixSuffixSection.h"
 #include "AdvancedRenamerSections/AdvancedRenamerChangeCaseSection.h"
+#include "AdvancedRenamerSections/AdvancedRenamerNumberingSection.h"
 #include "AdvancedRenamerSections/AdvancedRenamerRemovePrefixSection.h"
 #include "AdvancedRenamerSections/AdvancedRenamerRemoveSuffixSection.h"
 #include "AdvancedRenamerSections/AdvancedRenamerSearchAndReplaceSection.h"
@@ -29,12 +30,13 @@ namespace UE::AdvancedRenamer::Private
 	{
 		return SNew(SWindow)
 			.Title(LOCTEXT("AdvancedRenameWindow", "Batch Renamer"))
-			.ClientSize(FVector2D(731, 547))
+			.ClientSize(FVector2D(731, 603))
 			.SizingRule(ESizingRule::UserSized)
 			.SupportsMaximize(false)
 			.SupportsMinimize(false)
 			.MinWidth(737)
-			.MinHeight(586.5f);
+			.MaxHeight(626.f)
+			.MinHeight(626.f);
 	}
 }
 
@@ -216,6 +218,7 @@ void FAdvancedRenamerModule::RegisterDefaultSections()
 	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerRemovePrefixSection>());
 	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerRemoveSuffixSection>());
 	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerAddPrefixSuffixSection>());
+	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerNumberingSection>());
 	Sections.Add(IAdvancedRenamerSection::MakeInstance<FAdvancedRenamerChangeCaseSection>());
 }
 

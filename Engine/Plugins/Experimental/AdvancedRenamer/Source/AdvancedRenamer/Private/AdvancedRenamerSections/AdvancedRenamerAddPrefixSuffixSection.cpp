@@ -24,7 +24,6 @@ void FAdvancedRenamerAddPrefixSuffixSection::Init(TSharedRef<IAdvancedRenamer> I
 {
 	FAdvancedRenamerSectionBase::Init(InRenamer);
 	Section.SectionName = TEXT("AddPrefixSuffixNumber");
-	Section.OnBeforeOperationExecutionStart().BindSP(this, &FAdvancedRenamerAddPrefixSuffixSection::ResetCurrentSuffixNumber);
 	Section.OnOperationExecuted().BindSP(this, &FAdvancedRenamerAddPrefixSuffixSection::ApplyAddPrefixSuffixNumberOperation);
 	InRenamer->AddSection(Section);
 }
@@ -54,14 +53,6 @@ TSharedRef<SWidget> FAdvancedRenamerAddPrefixSuffixSection::GetWidget()
 			[
 				CreateAddSuffix()
 			]
-			
-			// Add Number
-			+ SVerticalBox::Slot()
-			.Padding(SectionContentMiddleEntriesPadding)
-			.AutoHeight()
-			[
-				CreateAddNumber()
-			]
 		];
 }
 
@@ -69,10 +60,6 @@ void FAdvancedRenamerAddPrefixSuffixSection::ResetToDefault()
 {
 	PrefixText = FText::GetEmpty();
 	SuffixText = FText::GetEmpty();
-	bAddSuffixNumbers = false;
-	SuffixNumberStartValue = 1;
-	CurrentSuffixNumber = 1;
-	SuffixNumberStepValue = 1;
 }
 
 TSharedRef<SWidget> FAdvancedRenamerAddPrefixSuffixSection::CreateAddPrefix()
@@ -84,7 +71,7 @@ TSharedRef<SWidget> FAdvancedRenamerAddPrefixSuffixSection::CreateAddPrefix()
 		.HAlign(HAlign_Left)
 		.VAlign(VAlign_Center)
 		.AutoWidth()
-		.Padding(NameWidgetPadding)
+		.Padding(FirstWidgetPadding)
 		[
 			SNew(SBox)
 			.WidthOverride(70.f)
@@ -98,10 +85,9 @@ TSharedRef<SWidget> FAdvancedRenamerAddPrefixSuffixSection::CreateAddPrefix()
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.FillWidth(1.f)
-		.Padding(ValueWidgetPadding)
+		.Padding(LastWidgetPadding)
 		[
 			SAssignNew(PrefixTextBox, SEditableTextBox)
-			.BackgroundColor(FStyleColors::Background.GetSpecifiedColor())
 			.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
 			.HintText(LOCTEXT("AR_PrefixHint", "New Prefix"))
 			.Text(this, &FAdvancedRenamerAddPrefixSuffixSection::GetPrefixText)
@@ -118,7 +104,7 @@ TSharedRef<SWidget> FAdvancedRenamerAddPrefixSuffixSection::CreateAddSuffix()
 		.HAlign(HAlign_Left)
 		.VAlign(VAlign_Center)
 		.AutoWidth()
-		.Padding(NameWidgetPadding)
+		.Padding(FirstWidgetPadding)
 		[
 			SNew(SBox)
 			.WidthOverride(70.f)
@@ -131,95 +117,13 @@ TSharedRef<SWidget> FAdvancedRenamerAddPrefixSuffixSection::CreateAddSuffix()
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.FillWidth(1.f)
-		.Padding(ValueWidgetPadding)
+		.Padding(LastWidgetPadding)
 		[
 			SAssignNew(SuffixTextBox, SEditableTextBox)
-			.BackgroundColor(FStyleColors::Background.GetSpecifiedColor())
 			.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
 			.HintText(LOCTEXT("AR_SuffixHint", "New Suffix"))
 			.Text(this, &FAdvancedRenamerAddPrefixSuffixSection::GetSuffixText)
 			.OnTextChanged(this, &FAdvancedRenamerAddPrefixSuffixSection::OnSuffixChanged)
-		];
-}
-
-TSharedRef<SWidget> FAdvancedRenamerAddPrefixSuffixSection::CreateAddNumber()
-{
-	using namespace AdvancedRenamerSlateUtils::Default;
-
-	return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		.Padding(NameWidgetPadding)
-		[
-			SAssignNew(SuffixNumberCheckBox, SCheckBox)
-			.IsChecked(this, &FAdvancedRenamerAddPrefixSuffixSection::IsSuffixNumberChecked)
-			.OnCheckStateChanged(this, &FAdvancedRenamerAddPrefixSuffixSection::OnSuffixNumberCheckBoxChanged)
-		]
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		[
-			SNew(STextBlock)
-			.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
-			.Text(LOCTEXT("AR_SuffixNumber", "Add Number"))
-		]
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SSpacer)
-		]
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		[
-			SNew(STextBlock)
-			.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
-			.Text(LOCTEXT("AR_Start", "Start"))
-		]
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		.Padding(ValueWidgetPadding)
-		[
-			SAssignNew(SuffixNumberStartSpinBox, SSpinBox<int32>)
-			.Style(&FAppStyle::Get(), "Menu.SpinBox")
-			.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
-			.MinValue(1)
-			.MaxValue(99)
-			.Value(this, &FAdvancedRenamerAddPrefixSuffixSection::GetSuffixNumberStart)
-			.IsEnabled(this, &FAdvancedRenamerAddPrefixSuffixSection::IsSuffixNumberEnabled)
-			.OnValueChanged(this, &FAdvancedRenamerAddPrefixSuffixSection::OnSuffixNumberStartChanged)
-		]
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		.Padding(AddNumberStepPadding)
-		[
-			SNew(STextBlock)
-			.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
-			.Text(LOCTEXT("AR_Step", "Step"))
-		]
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		.Padding(ValueWidgetPadding)
-		[
-			SAssignNew(SuffixNumberStepSpinBox, SSpinBox<int32>)
-			.Style(&FAppStyle::Get(), "Menu.SpinBox")
-			.Font(FAdvancedRenamerStyle::Get().GetFontStyle("AdvancedRenamer.Style.RegularFont"))
-			.MinValue(1)
-			.MaxValue(99)
-			.Value(this, &FAdvancedRenamerAddPrefixSuffixSection::GetSuffixNumberStep)
-			.IsEnabled(this, &FAdvancedRenamerAddPrefixSuffixSection::IsSuffixNumberEnabled)
-			.OnValueChanged(this, &FAdvancedRenamerAddPrefixSuffixSection::OnSuffixNumberStepChanged)
 		];
 }
 
@@ -231,26 +135,6 @@ FText FAdvancedRenamerAddPrefixSuffixSection::GetPrefixText() const
 FText FAdvancedRenamerAddPrefixSuffixSection::GetSuffixText() const
 {
 	return SuffixText;
-}
-
-int32 FAdvancedRenamerAddPrefixSuffixSection::GetSuffixNumberStart() const
-{
-	return SuffixNumberStartValue;
-}
-
-int32 FAdvancedRenamerAddPrefixSuffixSection::GetSuffixNumberStep() const
-{
-	return SuffixNumberStepValue;
-}
-
-ECheckBoxState FAdvancedRenamerAddPrefixSuffixSection::IsSuffixNumberChecked() const
-{
-	return bAddSuffixNumbers ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-}
-
-bool FAdvancedRenamerAddPrefixSuffixSection::IsSuffixNumberEnabled() const
-{
-	return bAddSuffixNumbers;
 }
 
 void FAdvancedRenamerAddPrefixSuffixSection::OnPrefixChanged(const FText& InNewText)
@@ -265,24 +149,6 @@ void FAdvancedRenamerAddPrefixSuffixSection::OnSuffixChanged(const FText& InNewT
 	MarkRenamerDirty();
 }
 
-void FAdvancedRenamerAddPrefixSuffixSection::OnSuffixNumberCheckBoxChanged(ECheckBoxState InNewState)
-{
-	bAddSuffixNumbers = InNewState == ECheckBoxState::Checked;
-	MarkRenamerDirty();
-}
-
-void FAdvancedRenamerAddPrefixSuffixSection::OnSuffixNumberStartChanged(int32 InNewValue)
-{
-	SuffixNumberStartValue = InNewValue;
-	MarkRenamerDirty();
-}
-
-void FAdvancedRenamerAddPrefixSuffixSection::OnSuffixNumberStepChanged(int32 InNewValue)
-{
-	SuffixNumberStepValue = InNewValue;
-	MarkRenamerDirty();
-}
-
 bool FAdvancedRenamerAddPrefixSuffixSection::CanApplyAddPrefixOperation()
 {
 	return !PrefixText.IsEmpty();
@@ -291,11 +157,6 @@ bool FAdvancedRenamerAddPrefixSuffixSection::CanApplyAddPrefixOperation()
 bool FAdvancedRenamerAddPrefixSuffixSection::CanApplyAddSuffixOperation()
 {
 	return !SuffixText.IsEmpty();
-}
-
-bool FAdvancedRenamerAddPrefixSuffixSection::CanApplyAddSuffixNumberOperation()
-{
-	return IsSuffixNumberEnabled();
 }
 
 void FAdvancedRenamerAddPrefixSuffixSection::ApplyAddPrefixOperation(FString& OutOriginalName)
@@ -308,17 +169,6 @@ void FAdvancedRenamerAddPrefixSuffixSection::ApplyAddSuffixOperation(FString& Ou
 	OutOriginalName = OutOriginalName + SuffixText.ToString();
 }
 
-void FAdvancedRenamerAddPrefixSuffixSection::ApplyAddSuffixNumberOperation(FString& OutOriginalName)
-{
-	OutOriginalName = OutOriginalName + FString::FromInt(CurrentSuffixNumber);
-	CurrentSuffixNumber += SuffixNumberStepValue;
-}
-
-void FAdvancedRenamerAddPrefixSuffixSection::ResetCurrentSuffixNumber()
-{
-	CurrentSuffixNumber = SuffixNumberStartValue;
-}
-
 void FAdvancedRenamerAddPrefixSuffixSection::ApplyAddPrefixSuffixNumberOperation(FString& OutOriginalName)
 {
 	if (CanApplyAddPrefixOperation())
@@ -329,11 +179,6 @@ void FAdvancedRenamerAddPrefixSuffixSection::ApplyAddPrefixSuffixNumberOperation
 	if (CanApplyAddSuffixOperation())
 	{
 		ApplyAddSuffixOperation(OutOriginalName);
-	}
-
-	if (CanApplyAddSuffixNumberOperation())
-	{
-		ApplyAddSuffixNumberOperation(OutOriginalName);
 	}
 }
 

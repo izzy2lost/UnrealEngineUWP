@@ -19,67 +19,59 @@ public:
 
 	virtual ~FAdvancedRenamerAddPrefixSuffixSection() {}
 
+	/** Init the given section */
 	virtual void Init(TSharedRef<IAdvancedRenamer> InRenamer) override;
 
+	/** Return the widget for this section*/
 	virtual TSharedRef<SWidget> GetWidget() override;
 
+	/** Reset all values of the section to the default ones */
 	virtual void ResetToDefault() override;
 
 private:
+	/** Create the AddPrefix widget */
 	TSharedRef<SWidget> CreateAddPrefix();
 
+	/** Create the AddSuffix widget */
 	TSharedRef<SWidget> CreateAddSuffix();
 
-	TSharedRef<SWidget> CreateAddNumber();
-
+	/** Get the Prefix text */
 	FText GetPrefixText() const;
 
+	/** Get the Suffix text */
 	FText GetSuffixText() const;
 
-	int32 GetSuffixNumberStart() const;
-
-	int32 GetSuffixNumberStep() const;
-
-	ECheckBoxState IsSuffixNumberChecked() const;
-
-	bool IsSuffixNumberEnabled() const;
-
+	/** Called when the Prefix text change */
 	void OnPrefixChanged(const FText& InNewText);
 
+	/** Called when the Suffix text change */
 	void OnSuffixChanged(const FText& InNewText);
 
-	void OnSuffixNumberCheckBoxChanged(ECheckBoxState InNewState);
-
-	void OnSuffixNumberStartChanged(int32 InNewValue);
-
-	void OnSuffixNumberStepChanged(int32 InNewValue);
-
+	/** Whether the AddPrefix operation can be executed */
 	bool CanApplyAddPrefixOperation();
 
+	/** Whether the AddSuffix operation can be executed */
 	bool CanApplyAddSuffixOperation();
 
-	bool CanApplyAddSuffixNumberOperation();
-
+	/** Execute logic for the AddPrefix */
 	void ApplyAddPrefixOperation(FString& OutOriginalName);
 
+	/** Execute logic for the AddSuffix */
 	void ApplyAddSuffixOperation(FString& OutOriginalName);
 
-	void ApplyAddSuffixNumberOperation(FString& OutOriginalName);
-
-	void ResetCurrentSuffixNumber();
-
+	/** Execute logic for this section */
 	void ApplyAddPrefixSuffixNumberOperation(FString& OutOriginalName);
 
 private:
+	/** AddPrefix TextBox */
 	TSharedPtr<SEditableTextBox> PrefixTextBox;
+	
+	/** AddSuffix TextBox */
 	TSharedPtr<SEditableTextBox> SuffixTextBox;
-	TSharedPtr<SCheckBox> SuffixNumberCheckBox;
-	TSharedPtr<SSpinBox<int32>> SuffixNumberStartSpinBox;
-	TSharedPtr<SSpinBox<int32>> SuffixNumberStepSpinBox;
+
+	/** AddPrefix Text */
 	FText PrefixText;
+
+	/** AddSuffix text */
 	FText SuffixText;
-	bool bAddSuffixNumbers;
-	int32 SuffixNumberStartValue;
-	int32 SuffixNumberStepValue;
-	int32 CurrentSuffixNumber;
 };

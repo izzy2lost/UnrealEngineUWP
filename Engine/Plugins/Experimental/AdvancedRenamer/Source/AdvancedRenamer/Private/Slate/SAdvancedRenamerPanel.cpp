@@ -118,7 +118,6 @@ void SAdvancedRenamerPanel::Construct(const FArguments& InArgs, const TSharedRef
 				[
 					SNew(SSplitter)
 					.PhysicalSplitterHandleSize(2.f)
-					.MinimumSlotHeight(499.5f)
 					.Style(&FAdvancedRenamerStyle::Get().GetWidgetStyle<FSplitterStyle>("AdvancedRenamer.Style.Splitter"))
 
 					+ SSplitter::Slot()
