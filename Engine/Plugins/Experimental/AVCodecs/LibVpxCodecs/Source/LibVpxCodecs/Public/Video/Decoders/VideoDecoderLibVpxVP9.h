@@ -4,6 +4,7 @@
 
 #include "Video/VideoDecoder.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigLibVpx.h"
+#include "Video/Decoders/Configs/VideoDecoderConfigVP9.h"
 #include "Video/Resources/VideoResourceCPU.h"
 
 #include "Containers/Queue.h"
@@ -20,18 +21,18 @@ private:
 
 	bool bIsOpen = false;
 
-	vpx_codec_ctx_t* Decoder = nullptr;
+	vpx_codec_ctx_t *Decoder = nullptr;
 
 	bool bKeyFrameRequired = true;
 
 	struct FFrame
 	{
 		TArray<uint8> RawData;
-		int			  StrideY = 0;
-		int			  StrideUV = 0;
-		int			  Width = 0;
-		int			  Height = 0;
-		uint64		  FrameNumber = 0;
+		int StrideY = 0;
+		int StrideUV = 0;
+		int Width = 0;
+		int Height = 0;
+		uint64 FrameNumber = 0;
 	};
 
 	TQueue<FFrame> Frames;
@@ -40,17 +41,17 @@ public:
 	TVideoDecoderLibVpxVP9() = default;
 	virtual ~TVideoDecoderLibVpxVP9() override;
 
-	virtual bool	  IsOpen() const override;
-	virtual FAVResult Open(TSharedRef<FAVDevice> const& NewDevice, TSharedRef<FAVInstance> const& NewInstance) override;
-	virtual void	  Close() override;
+	virtual bool IsOpen() const override;
+	virtual FAVResult Open(TSharedRef<FAVDevice> const &NewDevice, TSharedRef<FAVInstance> const &NewInstance) override;
+	virtual void Close() override;
 
 	bool IsInitialized() const;
 
 	virtual FAVResult ApplyConfig() override;
 
-	virtual FAVResult ReceiveFrame(TResolvableVideoResource<TResource>& InOutResource) override;
+	virtual FAVResult ReceiveFrame(TResolvableVideoResource<TResource> &InOutResource) override;
 
-	virtual FAVResult SendPacket(FVideoPacket const& Packet) override;
+	virtual FAVResult SendPacket(FVideoPacket const &Packet) override;
 
 private:
 	FAVResult Destroy();
