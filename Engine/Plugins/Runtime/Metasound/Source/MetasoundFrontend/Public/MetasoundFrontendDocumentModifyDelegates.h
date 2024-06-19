@@ -61,7 +61,12 @@ namespace Metasound::Frontend
 	struct METASOUNDFRONTEND_API FDocumentModifyDelegates : TSharedFromThis<FDocumentModifyDelegates>
 	{
 		FDocumentModifyDelegates();
+		FDocumentModifyDelegates(const FDocumentModifyDelegates& InModifyDelegates);
+		FDocumentModifyDelegates(FDocumentModifyDelegates&&);
 		FDocumentModifyDelegates(const FMetasoundFrontendDocument& Document);
+		FDocumentModifyDelegates& operator=(const FDocumentModifyDelegates&);
+		FDocumentModifyDelegates& operator=(FDocumentModifyDelegates&&);
+
 
 		FOnMetaSoundFrontendDocumentMutateArray OnDependencyAdded;
 		FOnMetaSoundFrontendDocumentRemoveSwappingArray OnRemoveSwappingDependency;
@@ -84,23 +89,8 @@ namespace Metasound::Frontend
 		TSortedMap<FGuid, FEdgeModifyDelegates> PageEdgeDelegates;
 
 	public:
-		FNodeModifyDelegates& FindNodeDelegatesChecked(const FGuid& InPageID)
-		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return InPageID == DefaultGraphPageID
-				? NodeDelegates
-				: PageNodeDelegates.FindChecked(InPageID);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		}
-
-		FEdgeModifyDelegates& FindEdgeDelegatesChecked(const FGuid& InPageID)
-		{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return InPageID == DefaultGraphPageID
-				? EdgeDelegates
-				: PageEdgeDelegates.FindChecked(InPageID);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		}
+		FNodeModifyDelegates& FindNodeDelegatesChecked(const FGuid& InPageID);
+		FEdgeModifyDelegates& FindEdgeDelegatesChecked(const FGuid& InPageID);
 
 		void IterateGraphEdgeDelegates(TFunctionRef<void(FEdgeModifyDelegates&)> Func)
 		{
