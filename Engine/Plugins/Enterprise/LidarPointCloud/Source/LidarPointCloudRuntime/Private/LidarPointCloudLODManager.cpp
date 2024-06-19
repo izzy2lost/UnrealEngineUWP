@@ -155,7 +155,7 @@ bool FLidarPointCloudViewData::ComputeFromEditorViewportClient(FViewportClient* 
 		{
 			FSceneViewFamily::ConstructionValues CVS(nullptr, nullptr, FEngineShowFlags(EShowFlagInitMode::ESFIM_Game));
 			CVS.SetTime(FGameTime());
-			FSceneViewFamily ViewFamily(CVS);
+			FSceneViewFamilyContext ViewFamily(CVS);
 			FSceneView* View = Client->CalcSceneView(&ViewFamily);
 
 			const FMatrix& ProjectionMatrix = View->ViewMatrices.GetProjectionMatrix();
