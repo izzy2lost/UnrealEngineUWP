@@ -1108,8 +1108,10 @@ void SLevelViewportToolBar::FillCameraMenu(UToolMenu* Menu) const
 TSharedRef<SWidget> SLevelViewportToolBar::GenerateShowMenu() const
 {
 	static const FName MenuName("LevelEditor.LevelViewportToolbar.Show");
-	if (!UToolMenus::Get()->IsMenuRegistered(MenuName))
+	static bool bDidRegisterMenu = false;
+	if (!bDidRegisterMenu)
 	{
+		bDidRegisterMenu = true;
 		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(MenuName);
 		Menu->AddDynamicSection(
 			"LevelDynamicSection",
