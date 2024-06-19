@@ -493,9 +493,12 @@ FString FMassDebugger::GetArchetypeRequirementCompatibilityDescription(const FMa
 	}
 
 	const FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(ArchetypeHandle);
+	return FMassDebugger::GetArchetypeRequirementCompatibilityDescription(Requirements, ArchetypeData.GetCompositionDescriptor());
+}
+	
+FString FMassDebugger::GetArchetypeRequirementCompatibilityDescription(const FMassFragmentRequirements& Requirements, const FMassArchetypeCompositionDescriptor& ArchetypeComposition)
+{
 	FStringOutputDevice OutDescription;
-
-	const FMassArchetypeCompositionDescriptor& ArchetypeComposition = ArchetypeData.GetCompositionDescriptor();
 
 	if (ArchetypeComposition.Fragments.HasAll(Requirements.RequiredAllFragments) == false)
 	{

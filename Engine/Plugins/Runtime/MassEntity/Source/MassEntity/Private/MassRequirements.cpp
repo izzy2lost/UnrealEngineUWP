@@ -126,9 +126,12 @@ bool FMassFragmentRequirements::DoesArchetypeMatchRequirements(const FMassArchet
 	check(ArchetypeHandle.IsValid());
 	const FMassArchetypeData* Archetype = FMassArchetypeHelper::ArchetypeDataFromHandle(ArchetypeHandle);
 	CA_ASSUME(Archetype);
-	
-	const FMassArchetypeCompositionDescriptor& ArchetypeComposition = Archetype->GetCompositionDescriptor();
 
+	return DoesArchetypeMatchRequirements(Archetype->GetCompositionDescriptor());
+}
+	
+bool FMassFragmentRequirements::DoesArchetypeMatchRequirements(const FMassArchetypeCompositionDescriptor& ArchetypeComposition) const
+{
 	return ArchetypeComposition.Fragments.HasAll(RequiredAllFragments)
 		&& (RequiredAnyFragments.IsEmpty() || ArchetypeComposition.Fragments.HasAny(RequiredAnyFragments))
 		&& ArchetypeComposition.Fragments.HasNone(RequiredNoneFragments)

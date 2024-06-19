@@ -1790,11 +1790,6 @@ void FMassEntityManager::GetMatchingArchetypes(const FMassFragmentRequirements& 
 		}
 	}
 
-#if WITH_MASSENTITY_DEBUG
-	FStringOutputDevice LogOutput;
-	LogOutput.SetAutoEmitLineTerminator(true);
-#endif // WITH_MASSENTITY_DEBUG
-
 	// Then verify that they contain *all* required fragments
 	for (TSharedPtr<FMassArchetypeData>& ArchetypePtr : AnyArchetypes)
 	{
@@ -1806,19 +1801,15 @@ void FMassEntityManager::GetMatchingArchetypes(const FMassFragmentRequirements& 
 			continue;
 		}
 
-		if (FMassArchetypeHelper::DoesArchetypeMatchRequirements(Archetype, Requirements
-#if WITH_MASSENTITY_DEBUG
-			, /*bBailOutOnFirstFail=*/true, & LogOutput
-#endif // WITH_MASSENTITY_DEBUG
-		))
+		if (Requirements.DoesArchetypeMatchRequirements(Archetype.GetCompositionDescriptor()))
 		{
 			OutValidArchetypes.Add(ArchetypePtr);
 		}
 #if WITH_MASSENTITY_DEBUG
 		else
 		{
-			UE_VLOG_UELOG(GetOwner(), LogMass, VeryVerbose, TEXT("%s"), *LogOutput);
-			LogOutput.Reset();
+			UE_VLOG_UELOG(GetOwner(), LogMass, VeryVerbose, TEXT("%s")
+				, *FMassDebugger::GetArchetypeRequirementCompatibilityDescription(Requirements, Archetype.GetCompositionDescriptor()));
 		}
 #endif // WITH_MASSENTITY_DEBUG
 	}

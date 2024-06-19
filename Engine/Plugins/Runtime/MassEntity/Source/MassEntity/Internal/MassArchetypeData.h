@@ -425,9 +425,11 @@ struct FMassArchetypeHelper
 	 * @param bBailOutOnFirstFail if true will skip the remaining tests as soon as a single mismatch is detected. This option
 	 *	is used when looking for matching archetypes. For debugging purposes use `false` to list all the mismatching elements.
 	 */
-	MASSENTITY_API static bool DoesArchetypeMatchRequirements(const FMassArchetypeData& Archetype, const FMassFragmentRequirements& Requirements
 #if WITH_MASSENTITY_DEBUG
-		, const bool bBailOutOnFirstFail = true, FOutputDevice* OutputDevice = nullptr
+	MASSENTITY_API static bool DoesArchetypeMatchRequirements(const FMassArchetypeData& Archetype, const FMassFragmentRequirements& Requirements
+		, const bool bBailOutOnFirstFail = true, FOutputDevice* OutputDevice = nullptr);
 #endif // WITH_MASSENTITY_DEBUG
-		);
+
+	MASSENTITY_API static bool DoesArchetypeMatchRequirements(const FMassArchetypeData& Archetype, const FMassFragmentRequirements& Requirements);
+	MASSENTITY_API static bool DoesArchetypeMatchRequirements(const FMassArchetypeCompositionDescriptor& ArchetypeComposition, const FMassFragmentRequirements& Requirements);
 };
