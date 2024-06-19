@@ -122,6 +122,7 @@ struct ShooterTestsActorAnimationTest : public ShooterTestsActorBaseTest<Derived
 
 	/**
 	 * Calls the parent method to get our Lyra Player Pawn and all associated systems and functionality needed for our Player before setting up functionality needed for input handling and animations.
+	 * 
 	 * @see ShooterTestsActorBaseTest<Derived, AsserterType>::PreparePlayerPawn()
 	 */
 	void PreparePlayerPawn() override
@@ -134,10 +135,8 @@ struct ShooterTestsActorAnimationTest : public ShooterTestsActorBaseTest<Derived
 		UActorComponent* ActorComponent = Player->GetComponentByClass(USkeletalMeshComponent::StaticClass());
 		ASSERT_THAT(IsTrue(IsValid(ActorComponent), TEXT("Cannot find SkeletalMeshComponent from Player")));
 
-		USkeletalMeshComponent* PlayerMesh = Cast<USkeletalMeshComponent>(ActorComponent);
+		PlayerMesh = Cast<USkeletalMeshComponent>(ActorComponent);
 		ASSERT_THAT(IsTrue(IsValid(PlayerMesh), TEXT("Cannot cast component to SkeletalMeshComponent")));
-
-		AnimationTestHelper.SetSkeletalMeshComponent(PlayerMesh);
 	}
 
 	/**
@@ -146,7 +145,7 @@ struct ShooterTestsActorAnimationTest : public ShooterTestsActorBaseTest<Derived
 	 */
 	void GetExpectedAnimation(const FString& AnimationName)
 	{
-		ExpectedAnimation = AnimationTestHelper.FindAnimationAsset(AnimationName);
+		ExpectedAnimation = AnimationTestHelper.FindAnimationAsset(PlayerMesh, AnimationName);
 		ASSERT_THAT(IsTrue(IsValid(ExpectedAnimation), FString::Format(TEXT("Cannot find animation '{0}'"), { AnimationName })));
 	}
 
@@ -161,11 +160,14 @@ struct ShooterTestsActorAnimationTest : public ShooterTestsActorBaseTest<Derived
 		GetExpectedAnimation(AnimationName);
 		TestCommandBuilder
 			.Do(InputAction)
-			.Until([this]() { return AnimationTestHelper.IsAnimationPlaying(ExpectedAnimation); });
+			.Until([this]() { return AnimationTestHelper.IsAnimationPlaying(PlayerMesh, ExpectedAnimation); });
 	}
 
 	/** Animation helper object. */
 	FShooterTestsAnimationTestHelper AnimationTestHelper;
+
+	/** Reference to the player's skeletal mesh component. */
+	USkeletalMeshComponent* PlayerMesh{ nullptr };
 
 	/** Reference to our animation asset. */
 	UAnimationAsset* ExpectedAnimation{ nullptr };

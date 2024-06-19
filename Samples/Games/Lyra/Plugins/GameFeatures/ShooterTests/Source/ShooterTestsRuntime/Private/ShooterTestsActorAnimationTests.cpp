@@ -45,9 +45,9 @@ ACTOR_ANIMATION_TEST(InputCrouchAnimationTest, "Project.Functional Tests.Shooter
 		ShooterTestsActorAnimationTest::Setup();
 
 		TestCommandBuilder
-			.Do([this]() { GetExpectedAnimation(TEXT("MM_Pistol_Crouch_Idle")); })
+			.Do([this]() { GetExpectedAnimation(FShooterTestsAnimationTestHelper::PistolCrouchIdleAnimationName); })
 			.Then([this]() { PawnActions->ToggleCrouch(); })
-			.Until([this]() { return AnimationTestHelper.IsAnimationPlaying(ExpectedAnimation); });
+			.Until([this]() { return AnimationTestHelper.IsAnimationPlaying(PlayerMesh, ExpectedAnimation); });
 	}
 	
 	/**
@@ -56,32 +56,32 @@ ACTOR_ANIMATION_TEST(InputCrouchAnimationTest, "Project.Functional Tests.Shooter
 	 */
 	TEST_METHOD(PlayerCrouched_ForwardMovement)
 	{
-		TestInputActionAnimation(TEXT("MM_Pistol_Crouch_Walk_Fwd"), [this]() { PawnActions->MoveForward(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::PistolCrouchWalkForwardAnimationName, [this]() { PawnActions->MoveForward(); });
 	}
 	
 	TEST_METHOD(PlayerCrouched_BackwardMovement)
 	{
-		TestInputActionAnimation(TEXT("MM_Pistol_Crouch_Walk_Bwd"), [this]() { PawnActions->MoveBackward(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::PistolCrouchWalkBackwardAnimationName, [this]() { PawnActions->MoveBackward(); });
 	}
 	
 	TEST_METHOD(PlayerCrouched_StrafeLeftMovement)
 	{
-		TestInputActionAnimation(TEXT("MM_Pistol_Crouch_Walk_Left"), [this]() { PawnActions->StrafeLeft(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::PistolCrouchStrafeLeftAnimationName, [this]() { PawnActions->StrafeLeft(); });
 	}
 	
 	TEST_METHOD(PlayerCrouched_StrafeRightMovement)
 	{
-		TestInputActionAnimation(TEXT("MM_Pistol_Crouch_Walk_Right"), [this]() { PawnActions->StrafeRight(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::PistolCrouchStrafeRightAnimationName, [this]() { PawnActions->StrafeRight(); });
 	}
 	
 	TEST_METHOD(PlayerCrouched_RotateLeftMovement)
 	{
-		TestInputActionAnimation(TEXT("MM_Pistol_Crouch_TurnLeft_90"), [this]() { PawnActions->RotateLeft(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::PistolCrouchRotateLeftAnimationName, [this]() { PawnActions->RotateLeft(); });
 	}
 	
 	TEST_METHOD(PlayerCrouched_RotateRightMovement)
 	{
-		TestInputActionAnimation(TEXT("MM_Pistol_Crouch_TurnRight_90"), [this]() { PawnActions->RotateRight(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::PistolCrouchRotateRightAnimationName, [this]() { PawnActions->RotateRight(); });
 	}
 };
 
@@ -158,19 +158,19 @@ ACTOR_ANIMATION_TEST_WITH_FLAGS(WeaponMeleeAnimationTest, "Project.Functional Te
 	TEST_METHOD(WeaponMelee_Pistol)
 	{
 		EquipSpawnedWeapon(TEXT("/Pistol/"), TEXT("WeaponPickupData_Pistol"), TEXT("B_WeaponInstance_Pistol_C"));
-		TestInputActionAnimation(TEXT("AM_MM_Pistol_Melee"), [this]() { PawnActions->PerformMelee(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::PistolMeleeAnimationName, [this]() { PawnActions->PerformMelee(); });
 	}
 	
 	TEST_METHOD(WeaponMelee_Rifle)
 	{
 		EquipSpawnedWeapon(TEXT("/Rifle/"), TEXT("WeaponPickupData_Rifle"), TEXT("B_WeaponInstance_Rifle_C"));
-		TestInputActionAnimation(TEXT("AM_MM_Rifle_Melee"), [this]() { PawnActions->PerformMelee(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::RifleMeleeAnimationName, [this]() { PawnActions->PerformMelee(); });
 	}
 	
 	TEST_METHOD(WeaponMelee_Shotgun)
 	{
 		EquipSpawnedWeapon(TEXT("/Shotgun/"), TEXT("WeaponPickupData_Shotgun"), TEXT("B_WeaponInstance_Shotgun_C"));
-		TestInputActionAnimation(TEXT("AM_MM_Shotgun_Melee"), [this]() { PawnActions->PerformMelee(); });
+		TestInputActionAnimation(FShooterTestsAnimationTestHelper::ShotgunMeleeAnimationName, [this]() { PawnActions->PerformMelee(); });
 	}
 };
 

@@ -31,5 +31,15 @@ public class ShooterTestsRuntime : ModuleRules
 				// ... add private dependencies that you statically link with here ...	
 			}
 		);
+
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"EngineSettings",
+					"LevelEditor",
+					"UnrealEd"
+			});
+		}
 	}
 }

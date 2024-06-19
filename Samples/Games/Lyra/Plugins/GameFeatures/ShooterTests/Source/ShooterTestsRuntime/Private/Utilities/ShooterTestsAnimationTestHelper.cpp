@@ -26,7 +26,7 @@ bool IsExpectedAnimationPlaying(const UAnimationAsset* ExpectedAnimation, const 
 
 } //anonymous
 
-UAnimationAsset* FShooterTestsAnimationTestHelper::FindAnimationAsset(const FString& AnimationName)
+UAnimationAsset* FShooterTestsAnimationTestHelper::FindAnimationAsset(USkeletalMeshComponent* SkeletalMeshComponent, const FString& AnimationName)
 {
 	check(SkeletalMeshComponent);
 
@@ -49,7 +49,7 @@ UAnimationAsset* FShooterTestsAnimationTestHelper::FindAnimationAsset(const FStr
 	return nullptr;
 }
 
-bool FShooterTestsAnimationTestHelper::IsAnimationPlaying(const UAnimationAsset* ExpectedAnimation)
+bool FShooterTestsAnimationTestHelper::IsAnimationPlaying(USkeletalMeshComponent* SkeletalMeshComponent, const UAnimationAsset* ExpectedAnimation)
 {
 	check(SkeletalMeshComponent);
 	

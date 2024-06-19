@@ -115,11 +115,7 @@ void FMapTestSpawner::AddWaitUntilLoadedCommand(FAutomationTestBase* TestRunner)
 
 			// We only want to set our PieWorld if the loaded World name matches our expected World name
 			FString WorldMapName = FPackageName::GetShortName(World->GetMapName());
-			if (World->GetOutermost()->GetPIEInstanceID() != INDEX_NONE)
-			{
-				FString PIEPrefix = FString::Printf(PLAYWORLD_PACKAGE_PREFIX TEXT("_%d_"), World->GetOutermost()->GetPIEInstanceID());
-				WorldMapName.ReplaceInline(*PIEPrefix, TEXT(""));
-			}
+			WorldMapName = UWorld::RemovePIEPrefix(WorldMapName);
 			if (((Context.WorldType == EWorldType::PIE) || (Context.WorldType == EWorldType::Game)) && (WorldMapName.Equals(MapName)))
 			{
 				PieWorld = Context.World();

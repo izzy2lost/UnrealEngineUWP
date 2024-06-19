@@ -71,6 +71,12 @@ void FTestAction::FindInputAction(const APawn* Pawn)
 
 FInputTestActions::~FInputTestActions()
 {
+	StopAllActions();
+}
+
+void FInputTestActions::StopAllActions()
+{
+	TestActions.Empty();
 	Reset();
 }
 

@@ -12,6 +12,11 @@ void FShooterTestsPawnTestActions::PerformMelee()
 	PerformAction(FMeleeTestAction{});
 }
 
+void FShooterTestsPawnTestActions::PerformJump()
+{
+	PerformAction(FJumpTestAction{});
+}
+
 void FShooterTestsPawnTestActions::MoveForward()
 {
 	PerformAxisAction(FMoveForwardTestAction{});

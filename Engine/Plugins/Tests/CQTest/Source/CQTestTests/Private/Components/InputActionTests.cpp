@@ -44,6 +44,15 @@ TEST_CLASS(PawnActionTests, "TestFramework.CQTest.Input")
 			.Then([this]() { ASSERT_THAT(IsFalse(PawnActions->IsCompleted(FCQTestInputSubsystemHelper::TestAxisActionName))); })
 			.Until([this]() { return PawnActions->IsCompleted(FCQTestInputSubsystemHelper::TestAxisActionName); });
 	}
+
+	TEST_METHOD(PawnAction_CanClearActiveActions)
+	{
+		TestCommandBuilder
+			.Do([this]() { PawnActions->HoldAxis(FCQTestInputSubsystemHelper::TestAxisActionName, FInputActionValue(1.0f), FTimespan::FromSeconds(30)); })
+			.Then([this]() { ASSERT_THAT(IsTrue(PawnActions->HasActiveActions())); })
+			.Then([this]() { PawnActions->StopAllActions(); })
+			.Then([this]() { ASSERT_THAT(IsFalse(PawnActions->HasActiveActions())); });
+	}
 };
 
 #endif // WITH_EDITOR && WITH_AUTOMATION_TESTS

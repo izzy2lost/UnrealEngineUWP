@@ -34,6 +34,20 @@ struct FMeleeTestAction : public FTestAction
 };
 
 /**
+ * Input action to handle the Lyra player's jump action.
+ *
+ * @note Jump is handled by a button press which is a boolean value.
+ */
+struct FJumpTestAction : public FTestAction
+{
+	FJumpTestAction()
+	{
+		InputActionName = TEXT("IA_Jump");
+		InputActionValue = FInputActionValue(true);
+	}
+};
+
+/**
  * Base input action to handle the Lyra player's movement.
  *
  * @note Movement is setup as a 2D axis with the X-axis handling strafing and the Y-axis handling moving forward/backward.
@@ -114,7 +128,7 @@ struct FRotateRightTestAction : public FLookTestAction
 /**
  * Inherited InputTestAction used for testing our button and axis interactions for the Lyra player.
  * 
- * @see FInputTestActions.
+ * @see FInputTestActions
  */
 class FShooterTestsPawnTestActions : public FInputTestActions
 {
@@ -133,6 +147,9 @@ public:
 
 	/** Simulate a button press for our melee action. */
 	void PerformMelee();
+
+	/** Simulate a button press for our jump action. */
+	void PerformJump();
 
 	/** Simulates player movement input actions. */
 	void MoveForward();

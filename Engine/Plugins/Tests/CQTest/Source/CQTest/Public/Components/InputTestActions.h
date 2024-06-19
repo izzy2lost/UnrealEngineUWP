@@ -47,6 +47,12 @@ public:
 
 	virtual ~FInputTestActions();
 
+	/** Stops any actively running actions and clears the action queue. */
+	void StopAllActions();
+
+	/** Returns true if there are actions in the array. */
+	bool HasActiveActions() const { return !TestActions.IsEmpty(); }
+
 protected:
 	/**
 	 * Processes the action within the current tick.
