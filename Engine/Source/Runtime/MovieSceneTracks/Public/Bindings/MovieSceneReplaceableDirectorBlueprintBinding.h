@@ -53,5 +53,7 @@ protected:
 	MOVIESCENETRACKS_API virtual TSubclassOf<UMovieSceneSpawnableBindingBase> GetInnerSpawnableClass() const override { return PreviewSpawnableType; }
 	
 	virtual bool SupportsBindingCreationFromObject(const UObject* SourceObject) const override { return true; }
+
+	virtual UMovieSceneSpawnableBindingBase* CreateInnerSpawnable(UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
 };
 

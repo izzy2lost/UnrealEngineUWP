@@ -48,4 +48,16 @@ FMovieSceneBindingResolveResult UMovieSceneReplaceableDirectorBlueprintBinding::
 	return ResolveResult;
 }
 
+UMovieSceneSpawnableBindingBase* UMovieSceneReplaceableDirectorBlueprintBinding::CreateInnerSpawnable(UObject* SourceObject, UMovieScene& OwnerMovieScene)
+{
+#if WITH_EDITOR
+	// If no inner spawnable class has been set, and it's available, set it to Spawnable Actor so we at least get some preview when converting an existing binding to this type
+	if (!PreviewSpawnableType && UMovieScene::IsCustomBindingClassAllowed(UMovieSceneSpawnableActorBinding::StaticClass()))
+	{
+		PreviewSpawnableType = UMovieSceneSpawnableActorBinding::StaticClass();
+	}
+#endif
+	return UMovieSceneReplaceableBindingBase::CreateInnerSpawnable(SourceObject, OwnerMovieScene);
+}
+
 #undef LOCTEXT_NAMESPACE
