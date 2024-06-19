@@ -1162,6 +1162,8 @@ public:
 
 		AddSurfaceAndMeshMetadata,
 
+		TablesPropertyNameBug,
+
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};
