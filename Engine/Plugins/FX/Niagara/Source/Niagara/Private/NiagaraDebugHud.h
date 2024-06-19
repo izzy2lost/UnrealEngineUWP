@@ -162,6 +162,8 @@ class FNiagaraDebugHud
 	template<typename TCounterType>
 	struct FSmoothedCounter
 	{
+		FSmoothedCounter() {}
+
 		uint64			LastFrameSeen = 0;
 		bool			SmoothedSetOnce = false;
 		TCounterType	SmoothedFrameMax = TCounterType();
