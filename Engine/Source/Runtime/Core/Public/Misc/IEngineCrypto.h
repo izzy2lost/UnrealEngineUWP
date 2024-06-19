@@ -61,7 +61,7 @@ struct IEngineCrypto : public IModularFeature
 	virtual int32 DecryptPublic(const TArrayView<const uint8> InSource, TArray<uint8>& OutDestination, FRSAKeyHandle InKey) = 0;
 
 	/**
-	 * Encrypt the supplied byte data using the given private key
+	 * Decrypt the supplied byte data using the given private key
 	 */
 	virtual int32 DecryptPrivate(const TArrayView<const uint8> InSource, TArray<uint8>& OutDestination, FRSAKeyHandle InKey) = 0;
 };
