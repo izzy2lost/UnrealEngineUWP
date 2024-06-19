@@ -175,7 +175,7 @@ void UCEClonerHoneycombLayout::OnLayoutParametersChanged(UCEClonerComponent* InC
 
 	InComponent->SetFloatParameter(TEXT("HoneycombHeightSpacing"), HeightSpacing);
 
-	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetAsset()->GetExposedParameters();
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
 	static const FNiagaraVariable HoneycombPlaneVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerPlane>()), TEXT("HoneycombPlane"));
 	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(Plane), HoneycombPlaneVar);
 

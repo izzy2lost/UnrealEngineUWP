@@ -7,7 +7,6 @@
 #include "Cloner/Extensions/CEClonerExtensionBase.h"
 #include "Cloner/Layouts/CEClonerLayoutBase.h"
 #include "Components/BillboardComponent.h"
-#include "Components/BrushComponent.h"
 #include "Components/DynamicMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
@@ -16,7 +15,6 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraSystem.h"
-#include "ProceduralMeshComponent.h"
 #include "Settings/CEClonerEffectorSettings.h"
 #include "Subsystems/CEClonerSubsystem.h"
 #include "UDynamicMesh.h"
@@ -65,6 +63,7 @@ UCEClonerComponent::UCEClonerComponent()
 	if (!IsTemplate())
 	{
 		UCEClonerSubsystem::OnClonerSetEnabled().AddUObject(this, &UCEClonerComponent::OnClonerSetEnabled);
+		USceneComponent::MarkRenderStateDirtyEvent.AddUObject(this, &UCEClonerComponent::OnRenderStateDirty);
 
 		// Bind to delegate to detect material changes
 #if WITH_EDITOR
@@ -249,27 +248,30 @@ void UCEClonerComponent::UpdateAttachmentTree()
 	// Did we need to update meshes
 	TArray<TWeakObjectPtr<AActor>> ClonedActors;
 	ClonerTree.ItemAttachmentMap.GenerateKeyArray(ClonedActors);
-	for (const TWeakObjectPtr<AActor>& ClonedActor : ClonedActors)
+	for (const TWeakObjectPtr<AActor>& ClonedActorWeak : ClonedActors)
 	{
-		FCEClonerAttachmentItem* ClonedItem = ClonerTree.ItemAttachmentMap.Find(ClonedActor);
+		FCEClonerAttachmentItem* ClonedItem = ClonerTree.ItemAttachmentMap.Find(ClonedActorWeak);
 
 		if (!ClonedItem)
 		{
 			continue;
 		}
 
+		AActor* ClonedActor = ClonedActorWeak.Get();
+
 		if (ClonedItem->Status == ECEClonerAttachmentStatus::Invalid)
 		{
-			InvalidateBakedStaticMesh(ClonedActor.Get());
-			UnbindActorDelegates(ClonedActor.Get());
+			InvalidateBakedStaticMesh(ClonedActor);
+			UnbindActorDelegates(ClonedActor);
 			ClonerTree.ItemAttachmentMap.Remove(ClonedItem->ItemActor);
+			SetActorVisibility(ClonedActor, true);
 		}
 		else if (ClonedItem->Status == ECEClonerAttachmentStatus::Outdated)
 		{
 			if (ClonedItem->MeshStatus == ECEClonerAttachmentStatus::Outdated)
 			{
 				ClonerTree.DirtyItemAttachments.Add(ClonedItem);
-				InvalidateBakedStaticMesh(ClonedActor.Get());
+				InvalidateBakedStaticMesh(ClonedActor);
 			}
 			bClonerMeshesDirty = true;
 			ClonedItem->Status = ECEClonerAttachmentStatus::Updated;
@@ -353,6 +355,7 @@ void UCEClonerComponent::UpdateActorAttachment(AActor* InActor, AActor* InParent
 		AttachmentItem->Status = ECEClonerAttachmentStatus::Outdated;
 		InvalidateBakedStaticMesh(InActor);
 		BindActorDelegates(InActor);
+		SetActorVisibility(InActor, false);
 	}
 
 	if (AttachmentItem->ChildrenActors.Num() != ChildrenActors.Num())
@@ -375,14 +378,10 @@ void UCEClonerComponent::BindActorDelegates(AActor* InActor)
 		return;
 	}
 
-#if WITH_EDITOR
-	// Hide new actor when attached to cloner
-	InActor->SetIsTemporarilyHiddenInEditor(true);
-#endif
-	InActor->SetActorHiddenInGame(true);
-
-	InActor->OnDestroyed.RemoveAll(this);
-	InActor->OnDestroyed.AddDynamic(this, &UCEClonerComponent::OnActorDestroyed);
+	if (!InActor->OnDestroyed.IsAlreadyBound(this, &UCEClonerComponent::OnActorDestroyed))
+	{
+		InActor->OnDestroyed.AddDynamic(this, &UCEClonerComponent::OnActorDestroyed);
+	}
 
 #if WITH_EDITOR
 	// Detect static mesh change
@@ -408,6 +407,17 @@ void UCEClonerComponent::BindActorDelegates(AActor* InActor)
 			DynamicMeshComponent->OnMeshChanged.AddUObject(this, &UCEClonerComponent::OnMeshChanged, NullComponent, InActor);
 		}
 	}
+
+	// Detect components transform
+	TArray<USceneComponent*> SceneComponents;
+	InActor->GetComponents(SceneComponents, /** IncludeChildren */false);
+	for (USceneComponent* SceneComponent : SceneComponents)
+	{
+		if (!SceneComponent->TransformUpdated.IsBoundToObject(this))
+		{
+			SceneComponent->TransformUpdated.AddUObject(this, &UCEClonerComponent::OnComponentTransformed);
+		}
+	}
 }
 
 void UCEClonerComponent::UnbindActorDelegates(AActor* InActor) const
@@ -416,12 +426,6 @@ void UCEClonerComponent::UnbindActorDelegates(AActor* InActor) const
 	{
 		return;
 	}
-
-#if WITH_EDITOR
-	// Show new actor when detached to cloner
-	InActor->SetIsTemporarilyHiddenInEditor(false);
-#endif
-	InActor->SetActorHiddenInGame(false);
 
 	InActor->OnDestroyed.RemoveAll(this);
 
@@ -440,6 +444,26 @@ void UCEClonerComponent::UnbindActorDelegates(AActor* InActor) const
 	{
 		DynamicMeshComponent->OnMeshChanged.RemoveAll(this);
 	}
+
+	TArray<USceneComponent*> SceneComponents;
+	InActor->GetComponents(SceneComponents, /** IncludeChildren */false);
+	for (USceneComponent* SceneComponent : SceneComponents)
+	{
+		SceneComponent->TransformUpdated.RemoveAll(this);
+	}
+}
+
+void UCEClonerComponent::SetActorVisibility(AActor* InActor, bool bInVisibility)
+{
+	if (!InActor)
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	InActor->SetIsTemporarilyHiddenInEditor(!bInVisibility);
+#endif
+	InActor->SetActorHiddenInGame(!bInVisibility);
 }
 
 void UCEClonerComponent::OnActorDestroyed(AActor* InDestroyedActor)
@@ -449,6 +473,7 @@ void UCEClonerComponent::OnActorDestroyed(AActor* InDestroyedActor)
 		InvalidateBakedStaticMesh(InDestroyedActor);
 		UnbindActorDelegates(InDestroyedActor);
 		ClonerTree.ItemAttachmentMap.Remove(InDestroyedActor);
+		SetActorVisibility(InDestroyedActor, true);
 		bClonerMeshesDirty = true;
 	}
 }
@@ -489,84 +514,30 @@ void UCEClonerComponent::OnMaterialChanged(UObject* InObject)
 		return;
 	}
 
+	TArray<UPrimitiveComponent*> PrimitiveComponents;
+	ActorChanged->GetComponents(PrimitiveComponents, /** IncludeChildrenActors */false);
+
 	int32 MatIdx = 0;
-	TArray<TWeakObjectPtr<UMaterialInterface>> NewMaterials;
 	bool bMaterialChanged = false;
+	TArray<TWeakObjectPtr<UMaterialInterface>> NewMaterials;
+	NewMaterials.Reserve(PrimitiveComponents.Num());
 
-	TArray<UDynamicMeshComponent*> DynamicMeshComponents;
-	ActorChanged->GetComponents(DynamicMeshComponents, false);
-	for (const UDynamicMeshComponent* DynamicMeshComponent : DynamicMeshComponents)
+	for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
 	{
-		for (UMaterialInterface* Material : DynamicMeshComponent->GetMaterials())
-		{
-			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != Material)
-			{
-				bMaterialChanged = true;
-			}
-			NewMaterials.Add(Material);
-			MatIdx++;
-		}
-	}
-
-	TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
-	ActorChanged->GetComponents(SkeletalMeshComponents, false);
-	for (const USkeletalMeshComponent* SkeletalMeshComponent : SkeletalMeshComponents)
-	{
-		for (UMaterialInterface* Material : SkeletalMeshComponent->GetMaterials())
-		{
-			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != Material)
-			{
-				bMaterialChanged = true;
-			}
-			NewMaterials.Add(Material);
-			MatIdx++;
-		}
-	}
-
-	TArray<UBrushComponent*> BrushComponents;
-	ActorChanged->GetComponents(BrushComponents, false);
-	for (const UBrushComponent* BrushComponent : BrushComponents)
-	{
-		for (int32 Idx = 0; Idx < BrushComponent->GetNumMaterials(); Idx++)
-		{
-			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != BrushComponent->GetMaterial(Idx))
-			{
-				bMaterialChanged = true;
-			}
-			NewMaterials.Add(BrushComponent->GetMaterial(Idx));
-			MatIdx++;
-		}
-	}
-
-	TArray<UProceduralMeshComponent*> ProceduralMeshComponents;
-	ActorChanged->GetComponents(ProceduralMeshComponents, false);
-	for (const UProceduralMeshComponent* ProceduralMeshComponent : ProceduralMeshComponents)
-	{
-		if (ProceduralMeshComponent->GetNumSections() == 0)
+		if (!PrimitiveComponent || !FCEClonerMeshBuilder::HasAnyGeometry(PrimitiveComponent))
 		{
 			continue;
 		}
-		for (UMaterialInterface* Material : ProceduralMeshComponent->GetMaterials())
-		{
-			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != Material)
-			{
-				bMaterialChanged = true;
-			}
-			NewMaterials.Add(Material);
-			MatIdx++;
-		}
-	}
 
-	TArray<UStaticMeshComponent*> StaticMeshComponents;
-	ActorChanged->GetComponents(StaticMeshComponents, false);
-	for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
-	{
-		for (UMaterialInterface* Material : StaticMeshComponent->GetMaterials())
+		for (int32 MatIndex = 0; MatIndex < PrimitiveComponent->GetNumMaterials(); MatIndex++)
 		{
+			UMaterialInterface* Material = PrimitiveComponent->GetMaterial(MatIndex);
+
 			if (!AttachmentItem->BakedMaterials.IsValidIndex(MatIdx) || AttachmentItem->BakedMaterials[MatIdx] != Material)
 			{
 				bMaterialChanged = true;
 			}
+
 			NewMaterials.Add(Material);
 			MatIdx++;
 		}
@@ -587,11 +558,6 @@ void UCEClonerComponent::OnMaterialChanged(UObject* InObject)
 
 		InvalidateBakedStaticMesh(ActorChanged);
 	}
-}
-
-void UCEClonerComponent::OnTransformUpdated(USceneComponent* InUpdatedComponent, EUpdateTransformFlags InUpdateTransformFlags, ETeleportType InTeleport)
-{
-	InvalidateBakedStaticMesh(InUpdatedComponent->GetOwner());
 }
 
 void UCEClonerComponent::OnMeshChanged(UStaticMeshComponent*, AActor* InActor)
@@ -853,9 +819,8 @@ void UCEClonerComponent::UpdateRootActorBakedStaticMesh(AActor* InRootActor)
 	TArray<FCEClonerAttachmentItem*> AttachmentItems;
 	GetActorAttachmentItems(InRootActor, AttachmentItems);
 
-#if WITH_EDITOR
 	int32 ReadOnlyMaterialCount = 0;
-#endif
+	UMaterialInterface* DefaultClonerMaterial = nullptr;
 
 	for (FCEClonerAttachmentItem* AttachmentItem : AttachmentItems)
 	{
@@ -882,21 +847,25 @@ void UCEClonerComponent::UpdateRootActorBakedStaticMesh(AActor* InRootActor)
 		{
 			UMaterialInterface* MaterialInterface = BakedMaterial.Get();
 
-#if WITH_EDITOR
 			if (MaterialInterface && !IsMaterialUsageFlagSet(MaterialInterface))
 			{
 				if (!IsMaterialDirtyable(MaterialInterface))
 				{
 					ReadOnlyMaterialCount++;
-					MaterialInterface = nullptr;
-					UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : The following materials (%s) on actor (%s) does not have the required usage flag (bUsedWithNiagaraMeshParticles) to work with the cloner, this material cannot be dirtied due to its read-only location, skipping material and proceeding"), *ClonerActor->GetActorNameOrLabel(), MaterialInterface ? *MaterialInterface->GetMaterial()->GetPathName() : TEXT("Invalid Material"), *InRootActor->GetActorNameOrLabel());
+					UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : The following materials (%s) on actor (%s) does not have the required usage flag (bUsedWithNiagaraMeshParticles) to work with the cloner, this material cannot be dirtied due to its read-only location, replacing material by default cloner material and proceeding"), *ClonerActor->GetActorNameOrLabel(), MaterialInterface ? *MaterialInterface->GetMaterial()->GetPathName() : TEXT("Invalid Material"), *InRootActor->GetActorNameOrLabel());
+
+					if (!DefaultClonerMaterial)
+					{
+						DefaultClonerMaterial = LoadObject<UMaterialInterface>(nullptr, UCEClonerEffectorSettings::DefaultMaterialPath);
+					}
+
+					MaterialInterface = DefaultClonerMaterial;
 				}
 				else
 				{
-					UE_LOG(LogCEClonerComponent, Log, TEXT("%s : The following materials (%s) on actor (%s) does not have the required usage flag (bUsedWithNiagaraMeshParticles) to work with the cloner, dirtying material and proceeding, please save the asset for working runtime result"), *ClonerActor->GetActorNameOrLabel(), MaterialInterface ? *MaterialInterface->GetMaterial()->GetPathName() : TEXT("Invalid Material"), *InRootActor->GetActorNameOrLabel());
+					UE_LOG(LogCEClonerComponent, Log, TEXT("%s : The following materials (%s) on actor (%s) does not have the required usage flag (bUsedWithNiagaraMeshParticles) to work with the cloner, setting the flag on material and proceeding, please resave the asset with the flag set"), *ClonerActor->GetActorNameOrLabel(), MaterialInterface ? *MaterialInterface->GetMaterial()->GetPathName() : TEXT("Invalid Material"), *InRootActor->GetActorNameOrLabel());
 				}
 			}
-#endif
 
 			MeshMaterials.Add(MaterialInterface);
 		}
@@ -911,12 +880,22 @@ void UCEClonerComponent::UpdateRootActorBakedStaticMesh(AActor* InRootActor)
 
 	ClonerTree.MergedBakedMeshes[RootIdx] = Mesh;
 
-#if WITH_EDITOR
 	if (ReadOnlyMaterialCount > 0)
 	{
-		ShowMaterialWarning(ReadOnlyMaterialCount);
-	}
+		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : %i invalid material(s) detected due to missing niagara usage flag (bUsedWithNiagaraMeshParticles) on actor (%s)"), *ClonerActor->GetActorNameOrLabel(), ReadOnlyMaterialCount, *InRootActor->GetActorNameOrLabel());
+
+#if WITH_EDITOR
+		// Fire warning notification when invalid materials are found and at least 5s has elapsed since last notification
+		constexpr double MinNotificationElapsedTime = 5.0;
+		const double CurrentTime = FApp::GetCurrentTime();
+
+		if (CurrentTime - LastNotificationTime > MinNotificationElapsedTime)
+		{
+			LastNotificationTime = CurrentTime;
+			ShowMaterialWarning(ReadOnlyMaterialCount);
+		}
 #endif
+	}
 }
 
 void UCEClonerComponent::GetActorAttachmentItems(AActor* InActor, TArray<FCEClonerAttachmentItem*>& OutAttachmentItems)
@@ -1371,11 +1350,8 @@ void UCEClonerComponent::RequestClonerUpdate(bool bInImmediate)
 	{
 		bNeedsRefresh = false;
 
-		if (UNiagaraSystem* ActiveSystem = GetAsset())
-		{
-			FNiagaraUserRedirectionParameterStore& UserParameterStore = ActiveSystem->GetExposedParameters();
-			UserParameterStore.PostGenericEditChange();
-		}
+		FNiagaraUserRedirectionParameterStore& UserParameterStore = GetOverrideParameters();
+		UserParameterStore.PostGenericEditChange();
 	}
 	else
 	{
@@ -1488,6 +1464,88 @@ void UCEClonerComponent::OnVisualizerSpriteVisibleChanged()
 	}
 }
 #endif
+
+void UCEClonerComponent::OnRenderStateDirty(UActorComponent& InActorComponent)
+{
+	AActor* Owner = InActorComponent.GetOwner();
+	const AActor* ClonerActor = GetOwner();
+
+	if (!Owner || Owner->GetLevel() != ClonerActor->GetLevel())
+	{
+		return;
+	}
+
+	// Does it contain geometry that we can convert
+	if (!FCEClonerMeshBuilder::IsComponentSupported(&InActorComponent))
+	{
+		return;
+	}
+
+	FCEClonerAttachmentItem* Item = ClonerTree.ItemAttachmentMap.Find(Owner);
+
+	if (!Item)
+	{
+		return;
+	}
+
+	UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Render state changed for %s"), *ClonerActor->GetActorNameOrLabel(), *Owner->GetActorNameOrLabel());
+
+	// Rebind delegates as new components might be available
+	BindActorDelegates(Owner);
+
+	Item->MeshStatus = ECEClonerAttachmentStatus::Outdated;
+	InvalidateBakedStaticMesh(Owner);
+	ClonerTree.DirtyItemAttachments.Add(Item);
+}
+
+void UCEClonerComponent::OnComponentTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InTeleport)
+{
+	if (!InComponent || !InComponent->GetOwner() || InFlags == EUpdateTransformFlags::PropagateFromParent)
+	{
+		return;
+	}
+
+	AActor* Owner = InComponent->GetOwner();
+	const AActor* RootActor = GetRootActor(Owner);
+
+	// Skip update if root component has moved, since we can simply offset the mesh
+	if (!RootActor || (RootActor == Owner && RootActor->GetRootComponent() == InComponent))
+	{
+		return;
+	}
+
+	bool bComponentSupported = FCEClonerMeshBuilder::IsComponentSupported(InComponent);
+
+	if (!bComponentSupported)
+	{
+		for (const TObjectPtr<USceneComponent>& ChildComponent : InComponent->GetAttachChildren())
+		{
+			if (FCEClonerMeshBuilder::IsComponentSupported(ChildComponent))
+			{
+				bComponentSupported = true;
+				break;
+			}
+		}
+	}
+
+	if (!bComponentSupported)
+	{
+		return;
+	}
+
+	FCEClonerAttachmentItem* Item = ClonerTree.ItemAttachmentMap.Find(Owner);
+
+	if (!Item)
+	{
+		return;
+	}
+
+	UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Transform state changed for %s"), *GetOwner()->GetActorNameOrLabel(), *Owner->GetActorNameOrLabel());
+
+	Item->MeshStatus = ECEClonerAttachmentStatus::Outdated;
+	InvalidateBakedStaticMesh(Owner);
+	ClonerTree.DirtyItemAttachments.Add(Item);
+}
 
 UCEClonerLayoutBase* UCEClonerComponent::FindOrAddLayout(TSubclassOf<UCEClonerLayoutBase> InClass)
 {
@@ -1673,12 +1731,6 @@ void UCEClonerComponent::ActivateLayout(UCEClonerLayoutBase* InLayout)
 		return;
 	}
 
-	// Copy data interfaces to new layout
-	if (ActiveLayout && ActiveLayout->IsLayoutLoaded())
-	{
-		ActiveLayout->CopyTo(InLayout);
-	}
-
 	// Deactivate previous layout
 	if (ActiveLayout && ActiveLayout->IsLayoutActive())
 	{
@@ -1758,7 +1810,7 @@ void UCEClonerComponent::UpdateClonerMeshes()
 
 	if (ActiveLayout->GetSystem() != ActiveSystem)
 	{
-		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : Invalid asset for cloner layout"), *ClonerActor->GetActorNameOrLabel());
+		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : Invalid system for cloner layout"), *ClonerActor->GetActorNameOrLabel());
 		return;
 	}
 

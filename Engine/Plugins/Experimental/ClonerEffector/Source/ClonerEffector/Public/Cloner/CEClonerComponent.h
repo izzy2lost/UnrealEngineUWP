@@ -238,24 +238,6 @@ protected:
 	void UpdateAttachmentTree();
 	void UpdateActorAttachment(AActor* InActor, AActor* InParent);
 
-	void BindActorDelegates(AActor* InActor);
-	void UnbindActorDelegates(AActor* InActor) const;
-
-	void OnTransformUpdated(USceneComponent* InUpdatedComponent, EUpdateTransformFlags InUpdateTransformFlags, ETeleportType InTeleport);
-
-	UFUNCTION()
-	void OnActorDestroyed(AActor* InDestroyedActor);
-
-#if WITH_EDITOR
-	void OnActorPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
-#endif
-
-	/** Called when a material has changed in any cloned actors */
-	void OnMaterialChanged(UObject* InObject);
-
-	/** Called when a mesh has been updated and cloner needs to update instances */
-	void OnMeshChanged(UStaticMeshComponent*, AActor* InActor);
-
 	/** Get cloner direct children in the correct order */
 	void GetOrderedRootActors(TArray<AActor*>& OutActors) const;
 
@@ -365,6 +347,31 @@ private:
 	void OnVisualizerSpriteVisibleChanged();
 #endif
 
+	void BindActorDelegates(AActor* InActor);
+	void UnbindActorDelegates(AActor* InActor) const;
+
+	void SetActorVisibility(AActor* InActor, bool bInVisibility);
+
+#if WITH_EDITOR
+	void OnActorPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
+#endif
+
+	/** Called when a cloned actor is destroyed */
+	UFUNCTION()
+	void OnActorDestroyed(AActor* InDestroyedActor);
+
+	/** Called when a material has changed in any cloned actors */
+	void OnMaterialChanged(UObject* InObject);
+
+	/** Called when a mesh has changed in any cloned actors */
+	void OnMeshChanged(UStaticMeshComponent*, AActor* InActor);
+
+	/** Called when the render state of a cloned component changes */
+	void OnRenderStateDirty(UActorComponent& InActorComponent);
+
+	/** Called when the transform state of a cloned component changes */
+	void OnComponentTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InTeleport);
+
 	template<
 		typename InLayoutClass
 		UE_REQUIRES(TIsDerivedFrom<InLayoutClass, UCEClonerLayoutBase>::Value)>
@@ -419,6 +426,8 @@ private:
 	FTSTicker::FDelegateHandle ClonerTickerHandle;
 
 #if WITH_EDITOR
+	double LastNotificationTime = 0.0;
+
 	/** Used for PECP */
 	static const TCEPropertyChangeDispatcher<UCEClonerComponent> PropertyChangeDispatcher;
 #endif

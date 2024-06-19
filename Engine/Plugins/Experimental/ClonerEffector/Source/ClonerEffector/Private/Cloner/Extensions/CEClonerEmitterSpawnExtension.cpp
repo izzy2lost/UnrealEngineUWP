@@ -3,7 +3,6 @@
 #include "Cloner/Extensions/CEClonerEmitterSpawnExtension.h"
 
 #include "Cloner/CEClonerComponent.h"
-#include "Cloner/Layouts/CEClonerLayoutBase.h"
 #include "NiagaraSystem.h"
 #include "NiagaraUserRedirectionParameterStore.h"
 
@@ -81,22 +80,20 @@ void UCEClonerEmitterSpawnExtension::OnExtensionParametersChanged(UCEClonerCompo
 {
 	Super::OnExtensionParametersChanged(InComponent);
 
-	if (const UCEClonerLayoutBase* ActiveSystem = GetClonerLayout())
-	{
-		FNiagaraUserRedirectionParameterStore& ExposedParameters = ActiveSystem->GetSystem()->GetExposedParameters();
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
 
-		InComponent->SetFloatParameter(TEXT("SpawnLoopInterval"), SpawnLoopInterval);
+	const FNiagaraVariable SpawnLoopModeVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerSpawnLoopMode>()), TEXT("SpawnLoopMode"));
+	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(SpawnLoopMode), SpawnLoopModeVar);
 
-		InComponent->SetIntParameter(TEXT("SpawnLoopIterations"), SpawnLoopIterations);
+	const ECEClonerSpawnBehaviorMode BehaviorMode = SpawnLoopMode == ECEClonerSpawnLoopMode::Once ? ECEClonerSpawnBehaviorMode::Instant : SpawnBehaviorMode;
+	const FNiagaraVariable SpawnBehaviorModeVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerSpawnBehaviorMode>()), TEXT("SpawnBehaviorMode"));
+	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(BehaviorMode), SpawnBehaviorModeVar);
 
-		InComponent->SetFloatParameter(TEXT("SpawnRate"), SpawnRate);
+	InComponent->SetFloatParameter(TEXT("SpawnLoopInterval"), SpawnLoopInterval);
 
-		const FNiagaraVariable SpawnBehaviorModeVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerSpawnBehaviorMode>()), TEXT("SpawnBehaviorMode"));
-		ExposedParameters.SetParameterValue<int32>(static_cast<int32>(SpawnBehaviorMode), SpawnBehaviorModeVar);
+	InComponent->SetIntParameter(TEXT("SpawnLoopIterations"), SpawnLoopIterations);
 
-		const FNiagaraVariable SpawnLoopModeVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerSpawnLoopMode>()), TEXT("SpawnLoopMode"));
-		ExposedParameters.SetParameterValue<int32>(static_cast<int32>(SpawnLoopMode), SpawnLoopModeVar);
-	}
+	InComponent->SetFloatParameter(TEXT("SpawnRate"), SpawnRate);
 }
 
 #if WITH_EDITOR

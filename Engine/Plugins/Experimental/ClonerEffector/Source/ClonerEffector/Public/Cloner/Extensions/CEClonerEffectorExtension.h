@@ -42,9 +42,6 @@ public:
 	/** Checks if an effector is linked with this cloner */
 	CLONEREFFECTOR_API bool IsEffectorLinked(const AActor* InEffectorActor) const;
 
-	/** Used by effector actors to apply transformations to this cloner instances */
-	const FCEClonerEffectorDataInterfaces* GetEffectorDataInterfaces() const;
-
 #if WITH_EDITOR
 	/** This will create a new effector actor, link it to this cloner and select it */
 	UFUNCTION(CallInEditor, Category="Effector")
@@ -62,6 +59,7 @@ protected:
 	//~ Begin UCEClonerExtensionBase
 	virtual void OnExtensionActivated() override;
 	virtual void OnExtensionDeactivated() override;
+	virtual void OnExtensionParametersChanged(UCEClonerComponent* InComponent) override;
 	//~ End UCEClonerExtensionBase
 
 	void OnEffectorIdentifierChanged(UCEEffectorComponent* InEffector, int32 InOldIdentifier, int32 InNewIdentifier);

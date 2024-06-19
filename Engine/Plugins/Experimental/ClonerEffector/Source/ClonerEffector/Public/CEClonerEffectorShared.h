@@ -5,7 +5,6 @@
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
-#include "NiagaraDataInterfaceArrayInt.h"
 #include "CEClonerEffectorShared.generated.h"
 
 class AActor;
@@ -447,33 +446,6 @@ protected:
 
 	void Write(UNiagaraDataChannelWriter* InWriter) const;
 	void Read(const UNiagaraDataChannelReader* InReader);
-};
-
-USTRUCT()
-struct FCEClonerEffectorDataInterfaces
-{
-	friend class UCEClonerLayoutBase;
-
-	GENERATED_BODY()
-
-	static inline const FName IndexName = TEXT("EffectorIndexArray");
-
-	explicit FCEClonerEffectorDataInterfaces(const UNiagaraSystem* InSystem);
-	FCEClonerEffectorDataInterfaces() = default;
-
-	void Clear() const;
-	void CopyTo(FCEClonerEffectorDataInterfaces& InOther) const;
-	void Resize(int32 InSize) const;
-	void Remove(int32 InIndex) const;
-	bool IsValid() const;
-	int32 Num() const;
-	void Commit() const;
-
-	UNiagaraDataInterfaceArrayInt32* GetIndexArray() const;
-
-protected:
-	UPROPERTY()
-	TMap<FName, TObjectPtr<UNiagaraDataInterface>> DataInterfaces;
 };
 
 USTRUCT(BlueprintType)

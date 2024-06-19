@@ -118,13 +118,9 @@ void UCEClonerMeshRendererExtension::OnExtensionParametersChanged(UCEClonerCompo
 {
 	Super::OnExtensionParametersChanged(InComponent);
 
-	if (const UCEClonerLayoutBase* CurrentLayout = InComponent->GetClonerActiveLayout())
-	{
-		FNiagaraUserRedirectionParameterStore& ExposedParameters = CurrentLayout->GetSystem()->GetExposedParameters();
-
-		static const FNiagaraVariable MeshModeVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerMeshRenderMode>()), TEXT("MeshRenderMode"));
-		ExposedParameters.SetParameterValue<int32>(static_cast<int32>(MeshRenderMode), MeshModeVar);;
-	}
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
+	static const FNiagaraVariable MeshModeVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerMeshRenderMode>()), TEXT("MeshRenderMode"));
+	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(MeshRenderMode), MeshModeVar);
 }
 
 int32 UCEClonerMeshRendererExtension::GetClonerMeshesMaterialCount() const

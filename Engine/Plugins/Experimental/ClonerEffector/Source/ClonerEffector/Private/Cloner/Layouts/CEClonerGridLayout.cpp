@@ -128,7 +128,7 @@ void UCEClonerGridLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 
 	InComponent->SetFloatParameter(TEXT("TwistFactor"), TwistFactor / 100.f);
 
-	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetAsset()->GetExposedParameters();
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
 	static const FNiagaraVariable TwistAxisVar(FNiagaraTypeDefinition(StaticEnum<ENiagaraOrientationAxis>()), TEXT("TwistAxis"));
 	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(TwistAxis), TwistAxisVar);
 }

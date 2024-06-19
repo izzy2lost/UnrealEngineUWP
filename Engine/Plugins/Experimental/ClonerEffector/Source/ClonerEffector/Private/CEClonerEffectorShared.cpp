@@ -9,7 +9,6 @@
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "NiagaraDataChannelAccessor.h"
-#include "NiagaraSystem.h"
 #include "PrimitiveSceneProxy.h"
 #include "SceneManagement.h"
 #include "UObject/UObjectGlobals.h"
@@ -103,105 +102,6 @@ void FCEClonerEffectorChannelData::Read(const UNiagaraDataChannelReader* InReade
 	DragForceLinear = InReader->ReadFloat(DragForceLinearName, Identifier, bIsValid);
 	DragForceRotational = InReader->ReadFloat(DragForceRotationalName, Identifier, bIsValid);
 	VectorNoiseForceAmount = InReader->ReadFloat(VectorNoiseForceAmountName, Identifier, bIsValid);
-}
-
-FCEClonerEffectorDataInterfaces::FCEClonerEffectorDataInterfaces(const UNiagaraSystem* InSystem)
-{
-	check(InSystem);
-	const FNiagaraUserRedirectionParameterStore& UserParameterStore = InSystem->GetExposedParameters();
-
-	static const FNiagaraVariable EffectorIndexDIVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceArrayInt32::StaticClass()), FCEClonerEffectorDataInterfaces::IndexName);
-	UNiagaraDataInterfaceArrayInt32* IndexArrayDI = CastChecked<UNiagaraDataInterfaceArrayInt32>(UserParameterStore.GetDataInterface(EffectorIndexDIVar));
-	DataInterfaces.Add(EffectorIndexDIVar.GetName(), IndexArrayDI);
-}
-
-void FCEClonerEffectorDataInterfaces::Clear() const
-{
-	if (UNiagaraDataInterfaceArrayInt32* IndexArray = GetIndexArray())
-	{
-		IndexArray->GetArrayReference().Empty();
-	}
-}
-
-void FCEClonerEffectorDataInterfaces::CopyTo(FCEClonerEffectorDataInterfaces& InOther) const
-{
-	for (const TPair<FName, TObjectPtr<UNiagaraDataInterface>>& DataInterfacePair : DataInterfaces)
-	{
-		const TObjectPtr<UNiagaraDataInterface> DataInterface = DataInterfacePair.Value;
-		const TObjectPtr<UNiagaraDataInterface>* OtherDataInterface = InOther.DataInterfaces.Find(DataInterfacePair.Key);
-
-		if (!OtherDataInterface || !DataInterface)
-		{
-			continue;
-		}
-
-		DataInterface->CopyTo(*OtherDataInterface);
-	}
-}
-
-void FCEClonerEffectorDataInterfaces::Resize(int32 InSize) const
-{
-	if (UNiagaraDataInterfaceArrayInt32* IndexArray = GetIndexArray())
-	{
-		IndexArray->GetArrayReference().SetNum(InSize);
-	}
-}
-
-void FCEClonerEffectorDataInterfaces::Remove(int32 InIndex) const
-{
-	UNiagaraDataInterfaceArrayInt32* IndexArray = GetIndexArray();
-	if (IndexArray && IndexArray->GetArrayReference().IsValidIndex(InIndex))
-	{
-		IndexArray->GetArrayReference().RemoveAt(InIndex);
-	}
-}
-
-bool FCEClonerEffectorDataInterfaces::IsValid() const
-{
-	for (const TPair<FName, TObjectPtr<UNiagaraDataInterface>>& DataInterfacePair : DataInterfaces)
-	{
-		if (!DataInterfacePair.Value.Get())
-		{
-			return false;
-		}
-	}
-
-	return !DataInterfaces.IsEmpty();
-}
-
-int32 FCEClonerEffectorDataInterfaces::Num() const
-{
-	UNiagaraDataInterfaceArrayInt32* IndexDI = GetIndexArray();
-
-	const int32 IndexSize = IndexDI->GetArrayReference().Num();
-
-	return IndexSize;
-}
-
-void FCEClonerEffectorDataInterfaces::Commit() const
-{
-	for (const TPair<FName, TObjectPtr<UNiagaraDataInterface>>& DataInterfacePair : DataInterfaces)
-	{
-		if (UNiagaraDataInterface* NiagaraDataInterface = DataInterfacePair.Value.Get())
-		{
-			if (UNiagaraSystem* System = NiagaraDataInterface->GetTypedOuter<UNiagaraSystem>())
-			{
-				FNiagaraUserRedirectionParameterStore& UserParameterStore = System->GetExposedParameters();
-				const FNiagaraVariable DIVar(FNiagaraTypeDefinition(NiagaraDataInterface->GetClass()), DataInterfacePair.Key);
-				UserParameterStore.SetDataInterface(NiagaraDataInterface, DIVar);
-			}
-		}
-	}
-}
-
-UNiagaraDataInterfaceArrayInt32* FCEClonerEffectorDataInterfaces::GetIndexArray() const
-{
-	if (const TObjectPtr<UNiagaraDataInterface>* Array = DataInterfaces.Find(FCEClonerEffectorDataInterfaces::IndexName))
-	{
-		return Cast<UNiagaraDataInterfaceArrayInt32>(Array->Get());
-	}
-
-	return nullptr;
 }
 
 #if WITH_EDITOR

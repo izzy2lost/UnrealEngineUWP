@@ -24,30 +24,6 @@
 
 #define LOCTEXT_NAMESPACE "Text3D"
 
-#if WITH_EDITOR
-namespace UE::Text3D::Private
-{
-	/** Get the Group Type according to the material name. */
-	static TMap<FName, EText3DGroupType> MaterialToGroup =
-	{
-		{ TEXT("FrontMaterial"), EText3DGroupType::Front },
-		{ TEXT("BackMaterial"), EText3DGroupType::Back },
-		{ TEXT("ExtrudeMaterial"), EText3DGroupType::Extrude },
-		{ TEXT("BevelMaterial"), EText3DGroupType::Bevel }
-	};
-
-	/** Sets the material based on the group name. */
-	using FGetter = TMemFunPtrType<true, UText3DComponent, UMaterialInterface*()>::Type;
-	static TMap<FName, FGetter> GroupToMaterial =
-	{
-		{ TEXT("FrontMaterial"), &UText3DComponent::GetFrontMaterial },
-		{ TEXT("BackMaterial"), &UText3DComponent::GetBackMaterial },
-		{ TEXT("ExtrudeMaterial"), &UText3DComponent::GetExtrudeMaterial },
-		{ TEXT("BevelMaterial"), &UText3DComponent::GetBevelMaterial }
-	};
-}
-#endif
-
 struct FText3DShapedText
 {
 	FText3DShapedText()
@@ -327,9 +303,12 @@ void UText3DComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 	{
 		MarkForLayoutUpdate();
 	}
-	else if (const EText3DGroupType* MaterialGroup = UE::Text3D::Private::MaterialToGroup.Find(Name))
+	else if (Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, FrontMaterial)
+		|| Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, BevelMaterial)
+		|| Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, ExtrudeMaterial)
+		|| Name == GET_MEMBER_NAME_CHECKED(UText3DComponent, BackMaterial))
 	{
-		UpdateMaterial(*MaterialGroup, Invoke(UE::Text3D::Private::GroupToMaterial[Name], this));
+		OnMaterialChanged();
 	}
 
 	RebuildInternal();
@@ -665,7 +644,7 @@ void UText3DComponent::SetMaterial(const EText3DGroupType Type, UMaterialInterfa
 		}
 		}
 
-		UpdateMaterial(Type, Value);
+		OnMaterialChanged();
 	}
 }
 
@@ -1302,11 +1281,7 @@ void UText3DComponent::BuildTextMeshInternal(const bool& bCleanCache)
 		}
 	}
 
-	for (int32 Index = 0; Index < static_cast<int32>(EText3DGroupType::TypeCount); Index++)
-	{
-		const EText3DGroupType Type = static_cast<EText3DGroupType>(Index);
-		UpdateMaterial(Type, GetMaterial(Type));
-	}
+	OnMaterialChanged();
 
 	TextGeneratedNativeDelegate.Broadcast();
 	TextGeneratedDelegate.Broadcast();
@@ -1332,28 +1307,47 @@ float UText3DComponent::MaxBevel() const
 	return Extrude / 2.0f;
 }
 
-void UText3DComponent::UpdateMaterial(const EText3DGroupType Type, UMaterialInterface* Material)
+void UText3DComponent::OnMaterialChanged()
 {
-	// Material indices are affected by some options
-	const bool bHasBevel = !bOutline && !FMath::IsNearlyZero(Bevel);
-	if (!bHasBevel && Type == EText3DGroupType::Bevel)
+	// Material indices are affected by some options and can differ
+	auto GetMaterialTypeIndex = [this](EText3DGroupType InType)->int32
 	{
-		return; 
-	}
+		const bool bHasBevel = !bOutline && !FMath::IsNearlyZero(Bevel);
 
-	const bool bHasExtrude = !FMath::IsNearlyZero(Extrude);
-	if (!bHasExtrude && Type == EText3DGroupType::Extrude)
-	{
-		return;
-	}
+		int32 MaterialIndex = static_cast<int32>(InType);
 
-	int32 Index = static_cast<int32>(Type);
-	Index -= !bHasBevel && Type >= EText3DGroupType::Bevel ? 1 : 0; // if no bevel, and the input is bevel or above (bevel, side/extrude, back), offset -1
-	Index -= !bHasExtrude && Type >= EText3DGroupType::Extrude ? 1 : 0; // if no extrude, and the input is side/extrude or above (back), offset -1
+		if (InType >= EText3DGroupType::Extrude && !bHasBevel)
+		{
+			MaterialIndex -= 1;
+		}
 
+		return MaterialIndex;
+	};
+
+	/**
+	* GetNumMaterials should return 4 but the index of the material changes based on options used
+	* [Front, (Extrude|Bevel), Back] if no extrude or bevel
+	* [Front, Extrude, Back] if no bevel since bevel only works when there is extrude anyway
+	* [Front, Bevel, Extrude, Back] if extrude and bevel is set
+	 */
 	for (UStaticMeshComponent* StaticMeshComponent : CharacterMeshes)
 	{
-		StaticMeshComponent->SetMaterial(Index, Material);
+		const int32 MaterialCount = StaticMeshComponent->GetNumMaterials();
+
+		for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; MaterialIndex++)
+		{
+			// Should not have any material slot above the back material slot but in case set them as nullptr
+			if (MaterialIndex >= static_cast<int32>(EText3DGroupType::TypeCount))
+			{
+				StaticMeshComponent->SetMaterial(MaterialIndex, nullptr);
+				continue;
+			}
+
+			// Get the material type from the current index and based on text options adapt the index to assign proper material
+			const EText3DGroupType MaterialType = static_cast<EText3DGroupType>(MaterialIndex);
+			const int32 MaterialTypeIndex = GetMaterialTypeIndex(MaterialType);
+			StaticMeshComponent->SetMaterial(MaterialTypeIndex, GetMaterial(MaterialType));
+		}
 	}
 }
 

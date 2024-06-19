@@ -58,11 +58,6 @@ public:
 		return MeshRenderer;
 	}
 
-	const FCEClonerEffectorDataInterfaces& GetDataInterfaces() const
-	{
-		return DataInterfaces;
-	}
-
 	TMulticastDelegateRegistration<void(UCEClonerLayoutBase*, bool)>& OnLayoutLoadedDelegate()
 	{
 		return OnClonerLayoutLoadedDelegate;
@@ -99,9 +94,6 @@ public:
 
 	/** Deactivate this layout system if active */
 	bool DeactivateLayout();
-
-	/** Copies this layout data interfaces to other layout */
-	bool CopyTo(UCEClonerLayoutBase* InOtherLayout) const;
 
 	/** Gets the cloner extensions supported by this layout */
 	TSet<TSubclassOf<UCEClonerExtensionBase>> GetSupportedExtensions() const;
@@ -164,10 +156,6 @@ private:
 	/** Mesh renderer in this niagara system */
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraMeshRendererProperties> MeshRenderer;
-
-	/** Data interfaces used by the effectors */
-	UPROPERTY(Transient)
-	FCEClonerEffectorDataInterfaces DataInterfaces;
 
 	int32 LoadRequestIdentifier = INDEX_NONE;
 

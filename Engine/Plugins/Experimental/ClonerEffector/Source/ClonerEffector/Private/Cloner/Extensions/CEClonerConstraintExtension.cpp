@@ -168,7 +168,7 @@ void UCEClonerConstraintExtension::OnExtensionParametersChanged(UCEClonerCompone
 {
 	Super::OnExtensionParametersChanged(InComponent);
 
-	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetAsset()->GetExposedParameters();
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
 	static const FNiagaraVariable ConstraintVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerGridConstraint>()), TEXT("Constraint"));
 	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(Constraint), ConstraintVar);
 

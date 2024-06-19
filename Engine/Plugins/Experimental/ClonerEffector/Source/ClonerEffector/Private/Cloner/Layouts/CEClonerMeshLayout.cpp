@@ -104,7 +104,7 @@ void UCEClonerMeshLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 
 	InComponent->SetIntParameter(TEXT("SampleMeshCount"), Count);
 
-	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetAsset()->GetExposedParameters();
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
 
 	static const FNiagaraVariable SampleMeshAssetVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerMeshAsset>()), TEXT("SampleMeshAsset"));
 	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(Asset), SampleMeshAssetVar);

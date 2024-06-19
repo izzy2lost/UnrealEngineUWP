@@ -17,16 +17,120 @@
 #include "GeometryScript/MeshBasicEditFunctions.h"
 #include "GeometryScript/SceneUtilityFunctions.h"
 #include "Materials/MaterialInterface.h"
+#include "Model.h"
 #include "NiagaraComponent.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraSimCacheFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "ProceduralMeshComponent.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "StaticMeshOperations.h"
 #include "UDynamicMesh.h"
 
 const FCEClonerMeshBuilder::FCEClonerMeshBuilderParams FCEClonerMeshBuilder::DefaultParams;
+
+bool FCEClonerMeshBuilder::HasAnyGeometry(UActorComponent* InComponent)
+{
+	if (!IsComponentSupported(InComponent))
+	{
+		return false;
+	}
+
+	if (UDynamicMeshComponent* DynamicMeshComponent = Cast<UDynamicMeshComponent>(InComponent))
+	{
+		return DynamicMeshComponent->GetDynamicMesh()
+			&& DynamicMeshComponent->GetDynamicMesh()->GetTriangleCount() > 0;
+	}
+
+	if (const USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InComponent))
+	{
+		if (SkeletalMeshComponent->GetSkeletalMeshAsset())
+		{
+			if (FSkeletalMeshRenderData* RenderData = SkeletalMeshComponent->GetSkeletalMeshRenderData())
+			{
+				return !RenderData->LODRenderData.IsEmpty() && RenderData->LODRenderData[0].GetNumVertices() > 0;
+			}
+		}
+
+		return false;
+	}
+
+	if (const UBrushComponent* BrushComponent = Cast<UBrushComponent>(InComponent))
+	{
+		return BrushComponent->Brush
+			&& !BrushComponent->Brush->Verts.IsEmpty();
+	}
+
+	if (UProceduralMeshComponent* ProceduralMeshComponent = Cast<UProceduralMeshComponent>(InComponent))
+	{
+		for (int32 SectionIndex = 0; SectionIndex < ProceduralMeshComponent->GetNumSections(); SectionIndex++)
+		{
+			if (const FProcMeshSection* Section = ProceduralMeshComponent->GetProcMeshSection(SectionIndex))
+			{
+				if (Section->bSectionVisible && !Section->ProcVertexBuffer.IsEmpty() && !Section->ProcIndexBuffer.IsEmpty())
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	if (const UInstancedStaticMeshComponent* ISMComponent = Cast<UInstancedStaticMeshComponent>(InComponent))
+	{
+		if (ISMComponent->GetStaticMesh() && ISMComponent->GetStaticMesh()->GetNumTriangles(/**LOD*/0) > 0)
+		{
+			return ISMComponent->GetNumInstances() > 0;
+		}
+
+		return false;
+	}
+
+	if (const USplineMeshComponent* SplineMeshComponent = Cast<USplineMeshComponent>(InComponent))
+	{
+		return SplineMeshComponent->GetStaticMesh() && SplineMeshComponent->GetStaticMesh()->GetNumTriangles(/**LOD*/0) > 0;
+	}
+
+	if (const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(InComponent))
+	{
+		return StaticMeshComponent->GetStaticMesh() && StaticMeshComponent->GetStaticMesh()->GetNumTriangles(/**LOD*/0) > 0;
+	}
+
+	if (const UNiagaraComponent* NiagaraComponent = Cast<UNiagaraComponent>(InComponent))
+	{
+		if (UNiagaraSystem* System = NiagaraComponent->GetAsset())
+		{
+			if (System->GetActiveInstancesCount() > 0)
+			{
+				for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+				{
+					if (const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData())
+					{
+						for (UNiagaraRendererProperties* EmitterRenderer : EmitterData->GetRenderers())
+						{
+							if (UNiagaraMeshRendererProperties* MeshRenderer = Cast<UNiagaraMeshRendererProperties>(EmitterRenderer))
+							{
+								for (const FNiagaraMeshRendererMeshProperties& MeshProperty : MeshRenderer->Meshes)
+								{
+									if (MeshProperty.Mesh && MeshProperty.Mesh->GetNumTriangles(/**LOD*/0) > 0)
+									{
+										return true;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	return false;
+}
 
 FCEClonerMeshBuilder::FCEClonerMeshBuilder()
 {
@@ -38,6 +142,16 @@ TArray<uint32> FCEClonerMeshBuilder::GetMeshIndexes() const
 	TArray<uint32> MeshIndexes;
 	Meshes.GenerateKeyArray(MeshIndexes);
 	return MeshIndexes;
+}
+
+bool FCEClonerMeshBuilder::IsActorSupported(const AActor* InActor)
+{
+	return InActor && InActor->FindComponentByClass<UPrimitiveComponent>();
+}
+
+bool FCEClonerMeshBuilder::IsComponentSupported(const UActorComponent* InComponent)
+{
+	return InComponent && InComponent->IsA<UPrimitiveComponent>();
 }
 
 void FCEClonerMeshBuilder::Reset()

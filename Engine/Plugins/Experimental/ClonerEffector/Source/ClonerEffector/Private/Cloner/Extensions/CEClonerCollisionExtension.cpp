@@ -162,7 +162,7 @@ void UCEClonerCollisionExtension::OnExtensionParametersChanged(UCEClonerComponen
 			}
 		}
 
-		const FNiagaraUserRedirectionParameterStore& ExposedParameters = LayoutSystem->GetSystem()->GetExposedParameters();
+		const FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
 
 		static const FNiagaraVariable CollisionRadiiVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceArrayFloat::StaticClass()), TEXT("CollisionRadii"));
 

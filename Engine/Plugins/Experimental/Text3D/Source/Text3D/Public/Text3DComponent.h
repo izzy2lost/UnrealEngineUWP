@@ -464,7 +464,7 @@ private:
 	/** Slot based Material accessors. */
 	UMaterialInterface* GetMaterial(const EText3DGroupType Type) const;
 	void SetMaterial(const EText3DGroupType Type, UMaterialInterface* Material);
-	void UpdateMaterial(const EText3DGroupType Type, UMaterialInterface* Material);
+	void OnMaterialChanged();
 
 	/** Validation and context sensitive limits applied to the current bevel value. */
 	void CheckBevel();

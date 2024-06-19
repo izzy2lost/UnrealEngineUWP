@@ -6,6 +6,7 @@
 #include "Cloner/Layouts/CEClonerLayoutBase.h"
 #include "Effector/CEEffectorActor.h"
 #include "Effector/CEEffectorComponent.h"
+#include "NiagaraDataInterfaceArrayInt.h"
 #include "Subsystems/CEEffectorSubsystem.h"
 
 #if WITH_EDITOR
@@ -67,24 +68,12 @@ int32 UCEClonerEffectorExtension::GetEffectorCount() const
 	return EffectorActorsWeak.Num();
 }
 
-const FCEClonerEffectorDataInterfaces* UCEClonerEffectorExtension::GetEffectorDataInterfaces() const
-{
-	if (const UCEClonerLayoutBase* LayoutSystem = GetClonerLayout())
-	{
-		return &LayoutSystem->GetDataInterfaces();
-	}
-
-	return nullptr;
-}
-
 void UCEClonerEffectorExtension::OnExtensionActivated()
 {
 	Super::OnExtensionActivated();
 
 	UCEEffectorSubsystem::OnEffectorIdentifierChanged().RemoveAll(this);
 	UCEEffectorSubsystem::OnEffectorIdentifierChanged().AddUObject(this, &UCEClonerEffectorExtension::OnEffectorIdentifierChanged);
-
-	OnEffectorsChanged();
 }
 
 void UCEClonerEffectorExtension::OnExtensionDeactivated()
@@ -92,6 +81,13 @@ void UCEClonerEffectorExtension::OnExtensionDeactivated()
 	Super::OnExtensionDeactivated();
 
 	UCEEffectorSubsystem::OnEffectorIdentifierChanged().RemoveAll(this);
+}
+
+void UCEClonerEffectorExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)
+{
+	Super::OnExtensionParametersChanged(InComponent);
+
+	OnEffectorsChanged();
 }
 
 void UCEClonerEffectorExtension::OnEffectorIdentifierChanged(UCEEffectorComponent* InEffector, int32 InOldIdentifier, int32 InNewIdentifier)
@@ -104,9 +100,19 @@ void UCEClonerEffectorExtension::OnEffectorIdentifierChanged(UCEEffectorComponen
 
 void UCEClonerEffectorExtension::OnEffectorsChanged()
 {
-	const FCEClonerEffectorDataInterfaces* EffectorDataInterfaces = GetEffectorDataInterfaces();
+	UNiagaraComponent* Component = GetClonerComponent();
 
-	if (!EffectorDataInterfaces || !EffectorDataInterfaces->GetIndexArray())
+	if (!Component)
+	{
+		return;
+	}
+
+	const FNiagaraUserRedirectionParameterStore& ExposedParameters = Component->GetOverrideParameters();
+
+	static const FNiagaraVariable EffectorIndexDIVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceArrayInt32::StaticClass()), TEXT("EffectorIndexArray"));
+	UNiagaraDataInterfaceArrayInt32* EffectorIndexArrayDI = CastChecked<UNiagaraDataInterfaceArrayInt32>(ExposedParameters.GetDataInterface(EffectorIndexDIVar));
+
+	if (!EffectorIndexArrayDI)
 	{
 		return;
 	}
@@ -179,7 +185,7 @@ void UCEClonerEffectorExtension::OnEffectorsChanged()
 		}
 	}
 
-	TArray<int32>& EffectorIndexArray = EffectorDataInterfaces->GetIndexArray()->GetArrayReference();
+	TArray<int32>& EffectorIndexArray = EffectorIndexArrayDI->GetArrayReference();
 	EffectorIndexArray.Empty(EffectorIndexes.Num());
 
 	for (const int32 EffectorIndex : EffectorIndexes)

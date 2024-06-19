@@ -65,7 +65,7 @@ bool UCEClonerLayoutBase::IsLayoutValid() const
 
 bool UCEClonerLayoutBase::IsLayoutLoaded() const
 {
-	return !IsTemplate() && NiagaraSystem && MeshRenderer && DataInterfaces.IsValid();
+	return !IsTemplate() && NiagaraSystem && MeshRenderer;
 }
 
 void UCEClonerLayoutBase::LoadLayout()
@@ -86,7 +86,7 @@ void UCEClonerLayoutBase::LoadLayout()
 		return;
 	}
 
-	UCEClonerComponent* ClonerComponent = GetClonerComponent();
+	const UCEClonerComponent* ClonerComponent = GetClonerComponent();
 
 	if (!IsValid(ClonerComponent))
 	{
@@ -113,7 +113,7 @@ void UCEClonerLayoutBase::LoadLayout()
 	Params.CustomPackageName = FName(TEXT("/") + FString::FromInt(ClonerComponent->GetUniqueID()) + TEXT("_") + GetLayoutName().ToString());
 	Params.CompletionDelegate = MakeUnique<FLoadPackageAsyncDelegate>(FLoadPackageAsyncDelegate::CreateUObject(this, &UCEClonerLayoutBase::OnSystemPackageLoaded));
 
-	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("Cloner layout %s : Template system (%s) loading package (%s) async..."), *LayoutName.ToString(), *LayoutAssetPath, *Params.CustomPackageName.ToString())
+	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout load requested %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *Params.CustomPackageName.ToString())
 
 	LoadRequestIdentifier = LoadPackageAsync(PackagePath, MoveTemp(Params));
 }
@@ -131,9 +131,10 @@ bool UCEClonerLayoutBase::UnloadLayout()
 		return false;
 	}
 
-	DataInterfaces = FCEClonerEffectorDataInterfaces();
 	MeshRenderer = nullptr;
 	NiagaraSystem = nullptr;
+
+	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout unloaded %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString())
 
 	OnLayoutUnloaded();
 
@@ -174,6 +175,8 @@ bool UCEClonerLayoutBase::ActivateLayout()
 
 	ClonerComponent->SetAsset(NiagaraSystem);
 
+	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout activated %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString())
+
 	OnLayoutActive();
 
 	return true;
@@ -195,30 +198,9 @@ bool UCEClonerLayoutBase::DeactivateLayout()
 
 	ClonerComponent->SetAsset(nullptr);
 
+	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout deactivated %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString())
+
 	OnLayoutInactive();
-
-	return true;
-}
-
-bool UCEClonerLayoutBase::CopyTo(UCEClonerLayoutBase* InOtherLayout) const
-{
-	if (!InOtherLayout || InOtherLayout == this)
-	{
-		return false;
-	}
-
-	if (!IsLayoutLoaded())
-	{
-		return false;
-	}
-
-	const UNiagaraSystem* OtherSystem = InOtherLayout->NiagaraSystem;
-	if (!OtherSystem)
-	{
-		return false;
-	}
-
-	DataInterfaces.CopyTo(InOtherLayout->DataInterfaces);
 
 	return true;
 }
@@ -310,9 +292,8 @@ void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* I
 #endif
 
 						MeshRenderer = EmitterMeshRenderer;
-						DataInterfaces = FCEClonerEffectorDataInterfaces(NiagaraSystem);
 
-						UE_LOG(LogCEClonerLayoutBase, Log, TEXT("Cloner layout %s : Template system (%s) package (%s) loaded"), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
+						UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout loaded %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
 
 						OnLayoutLoaded();
 					}
@@ -322,7 +303,7 @@ void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* I
 	}
 	else
 	{
-		UE_LOG(LogCEClonerLayoutBase, Warning, TEXT("Cloner layout %s : Template system (%s) package (%s) could not be async loaded"), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
+		UE_LOG(LogCEClonerLayoutBase, Warning, TEXT("%s : Cloner layout load failed %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *InName.ToString())
 	}
 
 	OnClonerLayoutLoadedDelegate.Broadcast(this, IsLayoutLoaded());
@@ -336,7 +317,7 @@ UCEClonerComponent* UCEClonerLayoutBase::GetClonerComponent() const
 
 AActor* UCEClonerLayoutBase::GetClonerActor() const
 {
-	if (UCEClonerComponent* ClonerComponent = GetClonerComponent())
+	if (const UCEClonerComponent* ClonerComponent = GetClonerComponent())
 	{
 		return ClonerComponent->GetOwner();
 	}

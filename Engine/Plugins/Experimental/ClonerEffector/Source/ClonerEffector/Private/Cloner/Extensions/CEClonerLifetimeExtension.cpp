@@ -93,29 +93,26 @@ void UCEClonerLifetimeExtension::OnExtensionParametersChanged(UCEClonerComponent
 
 	InComponent->SetBoolParameter(TEXT("LifetimeScaleEnabled"), bLifetimeEnabled && bLifetimeScaleEnabled);
 
-	if (const UCEClonerLayoutBase* ActiveSystem = GetClonerLayout())
+	FNiagaraUserRedirectionParameterStore& ExposedParameters = InComponent->GetOverrideParameters();
+
+	static const FNiagaraVariable LifetimeScaleCurveVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceCurve::StaticClass()), TEXT("LifetimeScaleCurve"));
+
+#if WITH_EDITOR
+	if (UNiagaraDataInterfaceCurve* LifetimeCurve = LifetimeScaleCurveDIWeak.Get())
 	{
-		FNiagaraUserRedirectionParameterStore& ExposedParameters = ActiveSystem->GetSystem()->GetExposedParameters();
-
-		static const FNiagaraVariable LifetimeScaleCurveVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceCurve::StaticClass()), TEXT("LifetimeScaleCurve"));
-
-#if WITH_EDITOR
-		if (UNiagaraDataInterfaceCurve* LifetimeCurve = LifetimeScaleCurveDIWeak.Get())
-		{
-			LifetimeCurve->OnChanged().RemoveAll(this);
-		}
+		LifetimeCurve->OnChanged().RemoveAll(this);
+	}
 #endif
 
-		if (UNiagaraDataInterfaceCurve* LifetimeScaleCurveDI = Cast<UNiagaraDataInterfaceCurve>(ExposedParameters.GetDataInterface(LifetimeScaleCurveVar)))
-		{
-			LifetimeScaleCurveDIWeak = LifetimeScaleCurveDI;
-			LifetimeScaleCurveDI->Curve = LifetimeScaleCurve;
+	if (UNiagaraDataInterfaceCurve* LifetimeScaleCurveDI = Cast<UNiagaraDataInterfaceCurve>(ExposedParameters.GetDataInterface(LifetimeScaleCurveVar)))
+	{
+		LifetimeScaleCurveDIWeak = LifetimeScaleCurveDI;
+		LifetimeScaleCurveDI->Curve = LifetimeScaleCurve;
 
 #if WITH_EDITOR
-			LifetimeScaleCurveDI->UpdateLUT();
-			LifetimeScaleCurveDI->OnChanged().AddUObject(this, &UCEClonerLifetimeExtension::OnLifetimeScaleCurveChanged);
+		LifetimeScaleCurveDI->UpdateLUT();
+		LifetimeScaleCurveDI->OnChanged().AddUObject(this, &UCEClonerLifetimeExtension::OnLifetimeScaleCurveChanged);
 #endif
-		}
 	}
 }
 

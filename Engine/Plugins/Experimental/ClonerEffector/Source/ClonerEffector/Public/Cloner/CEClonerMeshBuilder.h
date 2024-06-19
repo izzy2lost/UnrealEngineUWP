@@ -6,6 +6,8 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "CEClonerMeshBuilder.generated.h"
 
+class AActor;
+class UActorComponent;
 class UBrushComponent;
 class UDynamicMesh;
 class UDynamicMeshComponent;
@@ -40,6 +42,15 @@ struct FCEClonerMeshBuilder
 	};
 
 	static const FCEClonerMeshBuilderParams DefaultParams;
+
+	/** Checks if the component contains any geometry data */
+	static bool HasAnyGeometry(UActorComponent* InComponent);
+
+	/** Does the mesh builder supports this actor */
+	static bool IsActorSupported(const AActor* InActor);
+
+	/** Does the mesh builder supports this component */
+	static bool IsComponentSupported(const UActorComponent* InComponent);
 
 	FCEClonerMeshBuilder();
 

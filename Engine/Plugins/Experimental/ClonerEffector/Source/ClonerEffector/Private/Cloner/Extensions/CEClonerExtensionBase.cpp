@@ -4,6 +4,8 @@
 
 #include "Cloner/CEClonerComponent.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogCEClonerExtensionBase, Log, All);
+
 #if WITH_EDITOR
 FCEExtensionSection UCEClonerExtensionBase::GetExtensionSection() const
 {
@@ -32,7 +34,7 @@ UCEClonerComponent* UCEClonerExtensionBase::GetClonerComponentChecked() const
 
 UCEClonerLayoutBase* UCEClonerExtensionBase::GetClonerLayout() const
 {
-	if (UCEClonerComponent* ClonerComponent = GetClonerComponent())
+	if (const UCEClonerComponent* ClonerComponent = GetClonerComponent())
 	{
 		return ClonerComponent->GetActiveLayout();
 	}
@@ -45,6 +47,8 @@ void UCEClonerExtensionBase::ActivateExtension()
 	if (!bExtensionActive)
 	{
 		bExtensionActive = true;
+		const UCEClonerComponent* ClonerComponent = GetClonerComponentChecked();
+		UE_LOG(LogCEClonerExtensionBase, Verbose, TEXT("%s : Cloner extension activated %s"), *ClonerComponent->GetOwner()->GetActorNameOrLabel(), *GetExtensionName().ToString());
 		OnExtensionActivated();
 	}
 }
@@ -54,6 +58,8 @@ void UCEClonerExtensionBase::DeactivateExtension()
 	if (bExtensionActive)
 	{
 		bExtensionActive = false;
+		const UCEClonerComponent* ClonerComponent = GetClonerComponentChecked();
+		UE_LOG(LogCEClonerExtensionBase, Verbose, TEXT("%s : Cloner extension deactivated %s"), *ClonerComponent->GetOwner()->GetActorNameOrLabel(), *GetExtensionName().ToString());
 		OnExtensionDeactivated();
 	}
 }
