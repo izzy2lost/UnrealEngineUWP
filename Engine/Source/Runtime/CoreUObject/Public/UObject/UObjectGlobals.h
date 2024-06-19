@@ -3301,8 +3301,6 @@ COREUOBJECT_API bool GetAllowNativeComponentClassOverrides();
 
 namespace UE
 {
-class FAssetLog;
-COREUOBJECT_API void SerializeForLog(FCbWriter& Writer, const FAssetLog& AssetLog);
 
 class FAssetLog
 {
