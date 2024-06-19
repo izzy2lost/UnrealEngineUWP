@@ -738,6 +738,10 @@ private:
 
 	struct FPrimTwinBindings
 	{
+		// clang fix for std::is_default_constructible_v 
+		// returning false in inlined code of outer class
+		FPrimTwinBindings() {}
+
 		ULevelSequence* Sequence = nullptr;
 
 		// For now we support one binding per component type (mostly so we can fit a binding to a scene component and

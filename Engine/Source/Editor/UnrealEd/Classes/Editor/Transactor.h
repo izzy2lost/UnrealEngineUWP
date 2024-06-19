@@ -220,6 +220,10 @@ protected:
 
 	struct FObjectRecords
 	{
+		// clang fix for std::is_default_constructible_v 
+		// returning false in inlined code of outer class
+		FObjectRecords() {}
+
 		friend FArchive& operator<<(FArchive& Ar, FObjectRecords& ObjectRecords)
 		{
 			Ar << ObjectRecords.SaveCount;
@@ -239,6 +243,10 @@ protected:
 
 	struct FPackageRecord
 	{
+		// clang fix for std::is_default_constructible_v 
+		// returning false in inlined code of outer class
+		FPackageRecord() {}
+
 		friend FArchive& operator<<(FArchive& Ar, FPackageRecord& PackageRecord)
 		{
 			Ar << PackageRecord.DirtyFenceCount;

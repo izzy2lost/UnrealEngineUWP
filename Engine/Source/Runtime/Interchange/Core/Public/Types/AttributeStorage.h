@@ -700,6 +700,10 @@ namespace UE
 			/** Structure used to hold the attribute information stored in the attribute allocation table. */
 			struct FAttributeAllocationInfo
 			{
+				// clang fix for std::is_default_constructible_v 
+				// returning false in inlined code of outer class
+				FAttributeAllocationInfo() {}
+				
         		//The offset in the storage
         		uint64 Offset = 0;
         		//The size of the data in the storage

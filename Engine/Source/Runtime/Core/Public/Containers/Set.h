@@ -160,7 +160,7 @@ class TSetElementBase
 public:
 	typedef InElementType ElementType;
 
-	FORCEINLINE TSetElementBase() {}
+	TSetElementBase() = default;
 
 	/** Initialization constructor. */
 	template <
@@ -194,7 +194,7 @@ class TSetElementBase<InElementType, true>
 public:
 	typedef InElementType ElementType;
 
-	FORCEINLINE TSetElementBase() {}
+	TSetElementBase() = default;
 
 	/** Initialization constructor. */
 	template <
@@ -228,8 +228,7 @@ class TSetElement : public TSetElementBase<InElementType, THasTypeLayout<InEleme
 	using Super = TSetElementBase<InElementType, THasTypeLayout<InElementType>::Value>;
 public:
 	/** Default constructor. */
-	FORCEINLINE TSetElement()
-	{}
+	TSetElement() = default;
 
 	/** Initialization constructor. */
 	template <
