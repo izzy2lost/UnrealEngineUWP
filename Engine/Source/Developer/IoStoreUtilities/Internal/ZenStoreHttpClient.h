@@ -56,7 +56,6 @@ public:
 	const TCHAR* GetHostName() const { return ZenService.GetInstance().GetHostName(); }
 	uint16 GetPort() const { return ZenService.GetInstance().GetPort(); }
 	const UE::Zen::FZenServiceInstance& GetZenServiceInstance() const { return ZenService.GetInstance(); }
-	UE::Zen::FZenServiceInstance& GetZenServiceInstance() { return ZenService.GetInstance(); }
 #else // Default to localhost:8558 for platforms where Zen wouldn't be supported yet
 	const TCHAR* GetHostName() const { return TEXT("localhost"); }
 	uint16 GetPort() const { return 8558; }

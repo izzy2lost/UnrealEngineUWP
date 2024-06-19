@@ -19,11 +19,9 @@ using UnrealBuildBase;
 using System.Text.Json;
 using System.Net.Http;
 using EpicGames.Serialization;
-using EpicGames.ProjectStore;
 using Microsoft.Extensions.Logging;
 
 using static AutomationTool.CommandUtils;
-using System.Text.Json.Serialization;
 
 namespace AutomationScripts
 {
@@ -831,130 +829,37 @@ namespace AutomationScripts
 			return Plugins.ToList();
 		}
 
-		private static List<string> ReadZenCookedFilesFromZenServer(string Host, int Port, string ProjectId, string OplogId, ProjectParams Params, DeploymentContext SC, bool bAutoLaunch, string PackageStoreFileArgName, string PackageStoreFileArgValue)
-		{
-			List<string> ZenCookedFiles = new List<string>();
-
-			bool bAttemptAutoLaunchOnFailure = bAutoLaunch;
-			HttpResponseMessage HttpGetResult = null;
-			for (; ; )
-			{
-				HttpClient HttpClient = new HttpClient();
-				using var Request = new HttpRequestMessage(HttpMethod.Get, string.Format("http://{0}:{1}/prj/{2}/oplog/{3}/entries", Host, Port, ProjectId, OplogId));
-				Request.Headers.Add("Accept", "application/x-ue-cb");
-				try
-				{
-					HttpGetResult = HttpClient.Send(Request);
-					break;
-				}
-				catch
-				{
-					if (bAttemptAutoLaunchOnFailure)
-					{
-						string Arguments = String.Format("IoStore -StartZenServerForStage -SponsorProcessID={0} -{1}={2}", Environment.ProcessId, PackageStoreFileArgName, MakePathSafeToUseWithCommandLine(PackageStoreFileArgValue));
-						if (Params.Unattended)
-						{
-							Arguments += " -unattended";
-						}
-
-						RunUnrealPak(Params.RawProjectPath, Arguments, "ZenAutoLaunch");
-						bAttemptAutoLaunchOnFailure = false;
-					}
-					else
-					{
-						throw new AutomationException(String.Format("Failed sending oplog request to Zen at {0}:{1}. Ensure that the server is running.", Host, Port));
-					}
-				}
-			}
-			if (!HttpGetResult.IsSuccessStatusCode)
-			{
-				throw new AutomationException(String.Format("Failed reading oplog {0}.{1} from Zen. Ensure that cooking was successful.", ProjectId, OplogId));
-			}
-			Task<byte[]> ReadOplogTask = HttpGetResult.Content.ReadAsByteArrayAsync();
-			ReadOplogTask.Wait();
-			byte[] OplogData = ReadOplogTask.Result;
-			CbObject OplogObject = new CbField(OplogData).AsObject();
-			foreach (CbField EntryField in OplogObject["entries"].AsArray())
-			{
-				foreach (CbField PackageDataField in EntryField["packagedata"].AsArray())
-				{
-					string RelativeFilename = PackageDataField["filename"].AsString();
-					ZenCookedFiles.Add(FileReference.Combine(SC.PlatformCookDir, RelativeFilename).FullName);
-				}
-				foreach (CbField PackageDataField in EntryField["bulkdata"].AsArray())
-				{
-					string RelativeFilename = PackageDataField["filename"].AsString();
-					ZenCookedFiles.Add(FileReference.Combine(SC.PlatformCookDir, RelativeFilename).FullName);
-				}
-				if (EntryField["key"].AsString() == "EndCook")
-				{
-					foreach (CbField PackageDataField in EntryField["files"].AsArray())
-					{
-						string RelativeFilename = PackageDataField["clientpath"].AsString();
-						if (RelativeFilename.EndsWith(".bin") || RelativeFilename.EndsWith(".ushaderbytecode"))
-						{
-							RelativeFilename = RelativeFilename.Replace("/{engine}/", "Engine/");
-							RelativeFilename = RelativeFilename.Replace("/{project}/", SC.ShortProjectName+"/");
-							ZenCookedFiles.Add(FileReference.Combine(SC.PlatformCookDir, RelativeFilename).FullName);
-						}
-					}
-				}
-				else
-				{
-					foreach (CbField PackageDataField in EntryField["files"].AsArray())
-					{
-						string RelativeFilename = PackageDataField["clientpath"].AsString();
-						RelativeFilename = RelativeFilename.Replace("/{engine}/", "Engine/");
-						RelativeFilename = RelativeFilename.Replace("/{project}/", SC.ShortProjectName+"/");
-						ZenCookedFiles.Add(FileReference.Combine(SC.PlatformCookDir, RelativeFilename).FullName);
-					}
-				}
-			}
-
-			return ZenCookedFiles;
-		}
-
-		private static void LoadPackageStoreData(ProjectParams Params, DeploymentContext SC)
+		private static void LoadPackageStoreManifest(ProjectParams Params, DeploymentContext SC)
 		{
 			if (!ShouldCreateIoStoreContainerFiles(Params, SC))
 			{
 				return;
 			}
-
-			FileReference ProjectStoreFile = FileReference.Combine(SC.PlatformCookDir, "ue.projectstore");
-			System.IO.FileInfo ProjectStoreFileInfo = ProjectStoreFile.ToFileInfo();
-			if (ProjectStoreFileInfo.Exists)
-			{
-				SC.PackageStoreData = new PackageStoreData();
-				SC.PackageStoreData.MarkerFullPath = ProjectStoreFile.FullName;
-				byte[] ProjectStoreBytes = FileReference.ReadAllBytes(ProjectStoreFile);
-
-				JsonSerializerOptions Options = new JsonSerializerOptions();
-				Options.AllowTrailingCommas = true;
-				Options.ReadCommentHandling = JsonCommentHandling.Skip;
-				Options.PropertyNameCaseInsensitive = true;
-				Options.Converters.Add(new JsonStringEnumConverter());
-				ProjectStoreData ParsedProjectStore = JsonSerializer.Deserialize<ProjectStoreData>(ProjectStoreBytes, Options)!;
-
-				if ((ParsedProjectStore != null) && (ParsedProjectStore.ZenServer != null))
-				{
-					Logger.LogInformation("Reading oplog from Zen...");
-					ZenServerStoreData ZenServer = ParsedProjectStore.ZenServer;
-					SC.PackageStoreData.ZenCookedFiles = ReadZenCookedFilesFromZenServer(ZenServer.HostName, ZenServer.HostPort, ZenServer.ProjectId, ZenServer.OplogId, Params, SC, true, "ProjectStore", ProjectStoreFile.FullName);
-					return;
-				}
-			}
-
 			FileReference PackageStoreManifestFile = FileReference.Combine(SC.MetadataDir, "packagestore.manifest");
 			System.IO.FileInfo PackageStoreManifestFileInfo = PackageStoreManifestFile.ToFileInfo();
 			if (PackageStoreManifestFileInfo.Exists)
 			{
-				SC.PackageStoreData = new PackageStoreData();
-				SC.PackageStoreData.ManifestFullPath = PackageStoreManifestFile.FullName;
+				SC.PackageStoreManifest = new PackageStoreManifest();
+				SC.PackageStoreManifest.FullPath = PackageStoreManifestFile.FullName;
 				if (PackageStoreManifestFileInfo.Length > (64 << 10))
 				{
 					// We assume that this is a loose file deploy and we only need to read zen manifests here
 					return;
+				}
+
+				{
+					// Temporary solution until we can reliably read the oplog from UAT
+					FileReference CookedFilesManifestFile = FileReference.Combine(SC.MetadataDir, "cookedfiles.manifest");
+					if (FileReference.Exists(CookedFilesManifestFile))
+					{
+						SC.PackageStoreManifest.ZenCookedFiles = new List<string>();
+						string[] CookedFiles = FileReference.ReadAllLines(CookedFilesManifestFile);
+						foreach (string RelativeFilename in CookedFiles)
+						{
+							SC.PackageStoreManifest.ZenCookedFiles.Add(FileReference.Combine(SC.PlatformCookDir, RelativeFilename).FullName);
+						}
+						return;
+					}
 				}
 
 				byte[] ManifestData = File.ReadAllBytes(PackageStoreManifestFile.FullName);
@@ -985,12 +890,66 @@ namespace AutomationScripts
 						}
 					}
 
-					SC.PackageStoreData.ZenCookedFiles = ReadZenCookedFilesFromZenServer(Host, Port, ProjectId, OplogId, Params, SC, bAutoLaunch, "PackageStoreManifest", PackageStoreManifestFile.FullName);
-					return;
+					SC.PackageStoreManifest.ZenCookedFiles = new List<string>();
+
+					bool bAttemptAutoLaunchOnFailure = bAutoLaunch;
+					HttpResponseMessage HttpGetResult = null;
+					for (; ; )
+					{
+						HttpClient HttpClient = new HttpClient();
+						using var Request = new HttpRequestMessage(HttpMethod.Get, string.Format("http://{0}:{1}/prj/{2}/oplog/{3}/entries", Host, Port, ProjectId, OplogId));
+						Request.Headers.Add("Accept", "application/x-ue-cb");
+						try
+						{
+							HttpGetResult = HttpClient.Send(Request);
+							break;
+						}
+						catch
+						{
+							if (bAttemptAutoLaunchOnFailure)
+							{
+								string Arguments = String.Format("IoStore -StartZenServerForStage -PackageStoreManifest={0}", MakePathSafeToUseWithCommandLine(SC.PackageStoreManifest.FullPath));
+								if (Params.Unattended)
+								{
+									Arguments += " -unattended";
+								}
+
+								RunUnrealPak(Params.RawProjectPath, Arguments, "ZenAutoLaunch");
+								bAttemptAutoLaunchOnFailure = false;
+							}
+							else
+							{
+								throw new AutomationException(String.Format("Failed sending oplog request to Zen at {0}:{1}. Ensure that the server is running.", Host, Port));
+							}
+						}
+					}
+					if (!HttpGetResult.IsSuccessStatusCode)
+					{
+						throw new AutomationException(String.Format("Failed reading oplog {0}.{1} from Zen. Ensure that cooking was successful.", ProjectId, OplogId));
+					}
+					Task<byte[]> ReadOplogTask = HttpGetResult.Content.ReadAsByteArrayAsync();
+					ReadOplogTask.Wait();
+					byte[] OplogData = ReadOplogTask.Result;
+					CbObject OplogObject = new CbField(OplogData).AsObject();
+					foreach (CbField EntryField in OplogObject["entries"].AsArray())
+					{
+						foreach (CbField PackageDataField in EntryField["packagedata"].AsArray())
+						{
+							string RelativeFilename = PackageDataField["filename"].AsString();
+							SC.PackageStoreManifest.ZenCookedFiles.Add(FileReference.Combine(SC.PlatformCookDir, RelativeFilename).FullName);
+						}
+						foreach (CbField PackageDataField in EntryField["bulkdata"].AsArray())
+						{
+							string RelativeFilename = PackageDataField["filename"].AsString();
+							SC.PackageStoreManifest.ZenCookedFiles.Add(FileReference.Combine(SC.PlatformCookDir, RelativeFilename).FullName);
+						}
+					}
 				}
 			}
-
-			throw new AutomationException(String.Format("A package store manifest or project store is required when staging to IoStore. Expected to find {0} or {1}. Ensure that cooking was successful.", PackageStoreManifestFile.FullName, ProjectStoreFile.FullName));
+			else
+			{
+				throw new AutomationException(String.Format("A package store manifest is required when staging to IoStore. Expected to find {0}. Ensure that cooking was successful.", PackageStoreManifestFile.FullName));
+			}
 		}
 
 		private static bool CanCookedFileBeStaged(FileReference File)
@@ -1185,25 +1144,18 @@ namespace AutomationScripts
 				// Stage all the cooked data, this is the same rule as normal stage except we may skip Engine
 				List<FileReference> CookedFiles = new List<FileReference>();
 
-				// When cooking to Zen get the list of cooked package files
-				LoadPackageStoreData(Params, SC);
-				if (SC.PackageStoreData != null && SC.PackageStoreData.ZenCookedFiles != null)
+				if (DirectoryReference.Exists(SC.PlatformCookDir))
 				{
-					if (DirectoryReference.Exists(SC.PlatformCookDir))
-					{
-						CookedFiles.AddRange(DirectoryReference.EnumerateFiles(SC.PlatformCookDir, "*.projectstore", SearchOption.TopDirectoryOnly).ToList());
-					}
-					foreach (string FilePath in SC.PackageStoreData.ZenCookedFiles)
+					CookedFiles.AddRange(DirectoryReference.EnumerateFiles(SC.PlatformCookDir, "*", SearchOption.AllDirectories).ToList());
+				}
+
+				// When cooking to Zen get the list of cooked package files from the manifest
+				LoadPackageStoreManifest(Params, SC);
+				if (SC.PackageStoreManifest != null && SC.PackageStoreManifest.ZenCookedFiles != null)
+				{
+					foreach (string FilePath in SC.PackageStoreManifest.ZenCookedFiles)
 					{
 						CookedFiles.Add(new FileReference(FilePath));
-					}
-				}
-				else
-				{
-
-					if (DirectoryReference.Exists(SC.PlatformCookDir))
-					{
-						CookedFiles.AddRange(DirectoryReference.EnumerateFiles(SC.PlatformCookDir, "*", SearchOption.AllDirectories).ToList());
 					}
 				}
 
@@ -1548,11 +1500,11 @@ namespace AutomationScripts
 					{
 						List<FileReference> CookedFiles = DirectoryReference.EnumerateFiles(SC.PlatformCookDir, "*", SearchOption.AllDirectories).ToList();
 
-						// When cooking to Zen get the list of cooked package files
-						LoadPackageStoreData(Params, SC);
-						if (SC.PackageStoreData != null && SC.PackageStoreData.ZenCookedFiles != null)
+						// When cooking to Zen get the list of cooked package files from the manifest
+						LoadPackageStoreManifest(Params, SC);
+						if (SC.PackageStoreManifest != null && SC.PackageStoreManifest.ZenCookedFiles != null)
 						{
-							foreach (string FilePath in SC.PackageStoreData.ZenCookedFiles)
+							foreach (string FilePath in SC.PackageStoreManifest.ZenCookedFiles)
 							{
 								CookedFiles.Add(new FileReference(FilePath));
 							}
@@ -4208,23 +4160,11 @@ namespace AutomationScripts
 				CommandletParams += String.Format("-CreateGlobalContainer={0}", MakePathSafeToUseWithCommandLine(GlobalContainerOutputLocation.FullName));
 			}
 
-			if (!string.IsNullOrEmpty(SC.PackageStoreData.ManifestFullPath))
-			{
-				CommandletParams += String.Format(" -PackageStoreManifest={0}",
-					MakePathSafeToUseWithCommandLine(SC.PackageStoreData.ManifestFullPath));
-			}
-
-			if (!string.IsNullOrEmpty(SC.PackageStoreData.MarkerFullPath))
-			{
-				CommandletParams += String.Format(" -ProjectStore={0}",
-					MakePathSafeToUseWithCommandLine(SC.PackageStoreData.MarkerFullPath));
-			}
-
-			CommandletParams += String.Format(" -CookedDirectory={0} -Commands={1}",
+			CommandletParams += String.Format(" -CookedDirectory={0} -PackageStoreManifest={1} -Commands={2}",
 				MakePathSafeToUseWithCommandLine(SC.PlatformCookDir.ToString()),
+				MakePathSafeToUseWithCommandLine(SC.PackageStoreManifest.FullPath),
 				MakePathSafeToUseWithCommandLine(CommandsFileName));
-
-			if (SC.PackageStoreData.ZenCookedFiles == null)
+			if (SC.PackageStoreManifest.ZenCookedFiles == null)
 			{
 				FileReference ScriptObjectsFile = FileReference.Combine(SC.MetadataDir, "scriptobjects.bin");
 				if (!FileReference.Exists(ScriptObjectsFile))
