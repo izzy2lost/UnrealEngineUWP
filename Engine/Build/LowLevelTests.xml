@@ -222,7 +222,7 @@
 					</Do>
 
 					<Command Name="RunLowLevelTests"
-							Arguments="-test=LowLevelTests -testapp=$(TargetName)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -VeryVerbose" If="!$(DryRun)"/>
+							Arguments="-test=LowLevelTests -testapp=$(TargetName)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -VeryVerbose" If="!$(DryRun) and '$(RunUnsupported)' == ''"/>
 
 					<Do If="'$(AppRunsContainerized)' == 'True'">
 						<Property Name="TestTargetLowercase" Value=""/>
