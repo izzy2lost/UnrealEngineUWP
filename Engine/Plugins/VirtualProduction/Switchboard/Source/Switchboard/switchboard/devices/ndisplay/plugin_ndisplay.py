@@ -1726,13 +1726,17 @@ class DevicenDisplay(DeviceUnreal):
 
     # ~ Begin DeviceUnreal Interface
     @QtCore.Slot()
-    def _on_listener_connected(self):
+    def _on_listener_connected(self) -> None:
         super()._on_listener_connected()
         if self.__class__.ndisplay_monitor:
-            # Poll the sync status to get an immediate update on its state
-            self.__class__.ndisplay_monitor.poll_sync_status_for_device(self, SyncStatusRequestFlags.all())
+            self.__class__.ndisplay_monitor.on_device_connected(device=self)
 
-    def on_unreal_started(self):
+    def on_listener_disconnect(self, unexpected=False, exception=None) -> None:
+        super().on_listener_disconnect(unexpected, exception)
+        if self.__class__.ndisplay_monitor:
+            self.__class__.ndisplay_monitor.on_device_disconnected(device=self)
+
+    def on_unreal_started(self) -> None:
         super().on_unreal_started()
 
         # Always try to disable Full Screen Optimizations. If this is removed, you can add back
