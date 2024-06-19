@@ -74,7 +74,8 @@ namespace UE::MultiUserClient
 
 		/** Broadcasts when the user property selection changes. */
 		FOnPropertySelectionChanged OnPropertySelectionChangedDelegate;
-		
+
+		/** Called when a remote client joins. */
 		void OnClientAdded(FRemoteReplicationClient& Client) { RegisterClient(Client); }
 		/** Ensures that whenever the client's server state changes, its properties are tracked as user selected. */
 		void RegisterClient(FReplicationClient& Client);
@@ -85,7 +86,10 @@ namespace UE::MultiUserClient
 		void TrackProperties(const FConcertObjectReplicationMap& ReplicationMap);
 
 		/** If PropertySelection is transacted, broadcast OnPropertySelectionChangedDelegate. */
-		void OnObjectTransacted(UObject* Object, const FTransactionObjectEvent& TransactionObjectEvent);
+		void OnObjectTransacted(UObject* Object, const FTransactionObjectEvent&) const;
+		
+		void InternalAddSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties);
+		void InternalRemoveSelectedProperties(UObject* Object, TConstArrayView<FConcertPropertyChain> Properties);
 	};
 }
 
