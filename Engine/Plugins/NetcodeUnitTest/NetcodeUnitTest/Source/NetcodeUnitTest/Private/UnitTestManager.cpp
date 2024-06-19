@@ -2002,16 +2002,22 @@ void UUnitTestManager::Serialize(const TCHAR* Data, ELogVerbosity::Type Verbosit
 					//					(there is still a way though...raw memory-scanning lambda objects...very nasty, but possible)
 					//					NOTE: The use-case for this, is UFortMCPTask's online logging, happening through timer manager
 
-					if (TimerData != nullptr && TimerData->TimerDelegate.IsBound())
+					if (TimerData != nullptr)
 					{
 						UObject* TimerObj = nullptr;
-						if (FTimerDelegate* TimerDelegatge = TimerData->TimerDelegate.VariantDelegate.TryGet<FTimerDelegate>())
+						if (FTimerDelegate* TimerDelegate = TimerData->TimerDelegate.VariantDelegate.TryGet<FTimerDelegate>())
 						{
-							TimerObj = TimerDelegatge->GetUObject();
+							if (TimerDelegate->IsBound())
+							{
+								TimerObj = TimerDelegate->GetUObject();
+							}
 						}
-						else if (FTimerDynamicDelegate* TimerDynDelegatge = TimerData->TimerDelegate.VariantDelegate.TryGet<FTimerDynamicDelegate>())
+						else if (FTimerDynamicDelegate* TimerDynDelegate = TimerData->TimerDelegate.VariantDelegate.TryGet<FTimerDynamicDelegate>())
 						{
-							TimerObj = TimerDynDelegatge->GetUObject();
+							if (TimerDynDelegate->IsBound())
+							{
+								TimerObj = TimerDynDelegate->GetUObject();
+							}
 						}
 
 						if (TimerObj != nullptr)
