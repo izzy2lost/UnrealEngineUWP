@@ -4,7 +4,7 @@
 
 #include "Param/ClassProxy.h"
 #include "Param/IParameterSource.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "UObject/GCObject.h"
 
 class UAnimNextParameterSchema;

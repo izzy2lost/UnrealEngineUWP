@@ -5,7 +5,7 @@
 #include "IChooserColumn.h"
 #include "IChooserParameterStruct.h"
 #include "ChooserPropertyAccess.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "OutputStructColumn.generated.h"
 
 struct FBindingChainElement;

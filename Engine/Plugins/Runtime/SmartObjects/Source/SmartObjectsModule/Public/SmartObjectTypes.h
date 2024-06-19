@@ -9,9 +9,9 @@
 #include "Engine/EngineTypes.h"
 #include "EngineDefines.h"
 #include "GameplayTagContainer.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Math/Box.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "SmartObjectTypes.generated.h"
 
 class FDebugRenderSceneProxy;

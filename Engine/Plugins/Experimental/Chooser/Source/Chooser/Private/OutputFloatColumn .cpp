@@ -3,7 +3,7 @@
 #include "ChooserPropertyAccess.h"
 #include "FloatRangeColumn.h"
 #if WITH_EDITOR
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #endif
 
 FOutputFloatColumn::FOutputFloatColumn()

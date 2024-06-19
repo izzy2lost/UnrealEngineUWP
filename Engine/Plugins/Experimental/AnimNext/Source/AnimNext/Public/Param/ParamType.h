@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"

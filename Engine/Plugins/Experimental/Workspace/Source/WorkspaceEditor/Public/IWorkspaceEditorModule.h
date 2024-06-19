@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GraphEditor.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "WorkspaceFactory.h"
 #include "Misc/Attribute.h"
 #include "Modules/ModuleInterface.h"

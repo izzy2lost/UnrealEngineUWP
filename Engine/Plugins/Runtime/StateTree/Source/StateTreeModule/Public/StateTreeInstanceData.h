@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "InstancedStructContainer.h"
+#include "StructUtils/InstancedStructContainer.h"
 #include "StateTreeEvents.h"
 #include "StateTreeTypes.h"
 #include "StateTreeExecutionTypes.h"

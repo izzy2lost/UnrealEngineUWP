@@ -6,7 +6,7 @@
 #include "PCGGraph.h"
 #include "Helpers/PCGBlueprintHelpers.h"
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "Templates/ValueOrError.h"
 #include "UObject/Script.h"
 #include "UObject/Stack.h"

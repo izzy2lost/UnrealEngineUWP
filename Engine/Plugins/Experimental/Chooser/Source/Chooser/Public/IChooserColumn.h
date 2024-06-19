@@ -7,7 +7,7 @@
 #include "UObject/Interface.h"
 #include "IObjectChooser.h"
 #include "IChooserParameterBase.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IChooserColumn.generated.h"
 
 UINTERFACE(NotBlueprintType, meta = (CannotImplementInterfaceInBlueprint))

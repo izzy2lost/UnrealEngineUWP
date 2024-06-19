@@ -3,7 +3,7 @@
 #include "ChooserPropertyAccess.h"
 #include "BoolColumn.h"
 #if WITH_EDITOR
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #endif
 
 FOutputBoolColumn::FOutputBoolColumn()

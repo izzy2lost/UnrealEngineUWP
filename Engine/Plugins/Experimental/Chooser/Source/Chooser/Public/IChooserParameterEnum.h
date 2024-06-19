@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IChooserParameterBase.h"
 #include "IChooserParameterEnum.generated.h"
 

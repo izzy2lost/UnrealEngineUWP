@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "UObject/Interface.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IChooserParameterBase.h"
 #include "IChooserParameterRandomize.generated.h"
 

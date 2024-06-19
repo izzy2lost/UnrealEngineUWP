@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "WorldConditionTypes.generated.h"
 
 WORLDCONDITIONS_API DECLARE_LOG_CATEGORY_EXTERN(LogWorldCondition, Warning, All);

@@ -5,7 +5,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/WorldSettings.h"
 #include "IStructureDetailsView.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "PoseSearchDatabaseAssetBrowser.h"
 #include "Modules/ModuleManager.h"
 #include "PoseSearch/PoseSearchDerivedData.h"

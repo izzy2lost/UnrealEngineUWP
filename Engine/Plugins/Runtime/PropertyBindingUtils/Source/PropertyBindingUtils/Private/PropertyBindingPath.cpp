@@ -2,7 +2,7 @@
 #include "PropertyBindingPath.h"
 #include "UObject/EnumProperty.h"
 #include "Misc/EnumerateRange.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 #if WITH_EDITOR
 #include "UObject/CoreRedirects.h"

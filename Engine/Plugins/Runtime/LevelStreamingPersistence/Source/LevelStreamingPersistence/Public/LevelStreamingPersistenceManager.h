@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "Containers/StaticArray.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Subsystems/WorldSubsystem.h"

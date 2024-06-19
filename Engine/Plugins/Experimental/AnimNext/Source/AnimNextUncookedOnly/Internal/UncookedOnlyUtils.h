@@ -8,7 +8,7 @@
 #include "Param/AnimNextParamInstanceIdentifier.h"
 #include "Param/ParamTypeHandle.h"
 #include "RigVMCore/RigVMTemplate.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "UncookedOnlyUtils.generated.h"
 
 struct FAnimNextEditorParam;

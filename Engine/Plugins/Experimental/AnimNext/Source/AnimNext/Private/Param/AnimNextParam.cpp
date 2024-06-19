@@ -2,7 +2,7 @@
 
 #include "Param/AnimNextParam.h"
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Param/AnimNextEditorParam.h"
 #include "Param/AnimNextParamInstanceIdentifier.h"
 

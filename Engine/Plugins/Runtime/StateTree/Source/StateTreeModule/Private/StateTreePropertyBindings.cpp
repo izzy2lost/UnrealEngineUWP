@@ -3,7 +3,7 @@
 #include "UObject/EnumProperty.h"
 #include "Misc/EnumerateRange.h"
 #include "PropertyPathHelpers.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "StateTreePropertyRef.h"
 
 #if WITH_EDITOR

@@ -5,7 +5,7 @@
 #include "IChooserColumn.h"
 #include "IChooserParameterRandomize.h"
 #include "ChooserPropertyAccess.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "RandomizeColumn.generated.h"
 
 USTRUCT(DisplayName = "Randomize Property Binding")

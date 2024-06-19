@@ -3,7 +3,7 @@
 #include "PoseSearchDatabaseEditorClipboard.h"
 
 #include "Factories.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Animation/AnimComposite.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimMontage.h"

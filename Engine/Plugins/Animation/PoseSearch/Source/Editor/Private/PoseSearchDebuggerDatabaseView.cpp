@@ -5,7 +5,7 @@
 #include "Animation/AnimComposite.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequence.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Internationalization/Regex.h"
 #include "PoseSearchDebuggerDatabaseRow.h"
 #include "PoseSearchDebuggerView.h"

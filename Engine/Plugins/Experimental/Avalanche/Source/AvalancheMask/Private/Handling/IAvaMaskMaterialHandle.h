@@ -7,11 +7,11 @@
 #include "AvaMaskUtilities.h"
 #include "Engine/Texture.h"
 #include "IAvaMaterialHandle.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Materials/AvaMaterialUtils.h"
 #include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 
 class UAvaMaskMaterialInstanceSubsystem;
 

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 /** Extension helper class to allow templatization without dirtying the PCGGraph.h file */
 class PCG_API FPCGGraphParameterExtension

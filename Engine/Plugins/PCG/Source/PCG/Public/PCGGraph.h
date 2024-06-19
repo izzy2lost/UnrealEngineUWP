@@ -8,7 +8,7 @@
 #include "Graph/PCGStackContext.h"
 #include "Helpers/PCGGraphParameterExtension.h"
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "UObject/ObjectPtr.h"
 
 #include "PCGGraph.generated.h"

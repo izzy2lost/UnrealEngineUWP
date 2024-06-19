@@ -13,7 +13,7 @@
 #include "Animation/BuiltInAttributeTypes.h"
 #include "Animation/AnimTrace.h"
 #include "GameFramework/Character.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "PoseSearch/AnimNode_MotionMatching.h"
 #include "PoseSearch/AnimNode_PoseSearchHistoryCollector.h"
 #include "PoseSearch/MultiAnimAsset.h"

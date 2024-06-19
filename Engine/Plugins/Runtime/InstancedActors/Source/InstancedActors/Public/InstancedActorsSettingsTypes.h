@@ -4,8 +4,8 @@
 
 #include "Engine/DataTable.h"
 #include "GameFramework/Actor.h"
-#include "StructView.h"
-#include "InstancedStruct.h"
+#include "StructUtils/StructView.h"
+#include "StructUtils/InstancedStruct.h"
 #include "InstancedActorsSettingsTypes.generated.h"
 
 

@@ -4,7 +4,7 @@
 #include "ChooserPropertyAccess.h"
 #include "ChooserTrace.h"
 #if WITH_EDITOR
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #endif
 
 

@@ -5,6 +5,3 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "StructUtils/PropertyBag.h"
 #endif
-
-// Temporary and will be removed in a following change
-#include "StructUtils/PropertyBag.h"

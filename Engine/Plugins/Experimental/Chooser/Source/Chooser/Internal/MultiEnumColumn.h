@@ -5,7 +5,7 @@
 #include "EnumColumn.h"
 #include "IChooserColumn.h"
 #include "IChooserParameterEnum.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "ChooserPropertyAccess.h"
 #include "Serialization/MemoryReader.h"
 #include "MultiEnumColumn.generated.h"

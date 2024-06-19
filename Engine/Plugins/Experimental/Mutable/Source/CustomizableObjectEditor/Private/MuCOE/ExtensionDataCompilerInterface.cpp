@@ -2,7 +2,7 @@
 
 #include "MuCOE/ExtensionDataCompilerInterface.h"
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "MuCO/CustomizableObjectStreamedResourceData.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSource.h"
 #include "MuCOE/CustomizableObjectCompiler.h"

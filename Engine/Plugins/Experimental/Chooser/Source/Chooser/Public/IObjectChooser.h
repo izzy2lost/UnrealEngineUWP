@@ -5,8 +5,8 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "UObject/Interface.h"
-#include "InstancedStruct.h"
-#include "StructView.h"
+#include "StructUtils/InstancedStruct.h"
+#include "StructUtils/StructView.h"
 #include "IObjectChooser.generated.h"
 
 #if UE_TRACE_ENABLED && !IS_PROGRAM && !UE_BUILD_SHIPPING && !UE_BUILD_TEST

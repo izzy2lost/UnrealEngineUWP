@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "GameplayTagContainer.h"
 #include "StateTreeReference.generated.h"
 

@@ -5,7 +5,7 @@
 #include "AvaTagHandle.h"
 #include "AvaTransitionEnums.h"
 #include "AvaTransitionScene.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "AvaTransitionContext.generated.h"
 
 /**

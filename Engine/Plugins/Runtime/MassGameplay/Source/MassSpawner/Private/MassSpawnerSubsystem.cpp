@@ -7,7 +7,7 @@
 #include "MassEntityTemplateRegistry.h"
 #include "Engine/World.h"
 #include "MassExecutor.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "VisualLogger/VisualLogger.h"
 #include "MassSpawner.h"
 #include "MassObserverProcessor.h"

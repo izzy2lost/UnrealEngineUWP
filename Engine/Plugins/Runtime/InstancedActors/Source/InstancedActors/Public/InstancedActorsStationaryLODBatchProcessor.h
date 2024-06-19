@@ -4,7 +4,7 @@
 
 #include "MassProcessor.h"
 #include "InstancedActorsTypes.h"
-#include "SharedStruct.h"
+#include "StructUtils/SharedStruct.h"
 #include "InstancedActorsStationaryLODBatchProcessor.generated.h"
 
 

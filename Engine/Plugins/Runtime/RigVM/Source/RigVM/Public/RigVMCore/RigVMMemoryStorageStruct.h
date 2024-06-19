@@ -5,7 +5,7 @@
 #include "RigVMDefines.h"
 #include "RigVMCore/RigVMMemoryStorage.h"
 #include "RigVMCore/RigVMPropertyPath.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "RigVMMemoryStorageStruct.generated.h"
 
 USTRUCT()

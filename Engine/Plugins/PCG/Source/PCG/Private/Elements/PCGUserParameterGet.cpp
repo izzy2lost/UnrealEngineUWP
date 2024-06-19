@@ -13,8 +13,8 @@
 #include "Helpers/PCGPropertyHelpers.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 
-#include "PropertyBag.h"
-#include "StructView.h"
+#include "StructUtils/PropertyBag.h"
+#include "StructUtils/StructView.h"
 
 #define LOCTEXT_NAMESPACE "PCGUserParameterGetElement"
 

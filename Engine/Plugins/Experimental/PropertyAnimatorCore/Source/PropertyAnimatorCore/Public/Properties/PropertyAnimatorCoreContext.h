@@ -3,7 +3,7 @@
 #pragma once
 
 #include "PropertyAnimatorCoreData.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "UObject/Object.h"
 #include "PropertyAnimatorCoreContext.generated.h"
 

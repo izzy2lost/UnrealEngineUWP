@@ -6,7 +6,7 @@
 #include "IChooserParameterGameplayTag.h"
 #include "ChooserPropertyAccess.h"
 #include "GameplayTagContainer.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Serialization/MemoryReader.h"
 #include "GameplayTagColumn.generated.h"
 

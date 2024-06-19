@@ -6,7 +6,7 @@
 #include "Action/RCFunctionAction.h"
 #include "Action/RCPropertyAction.h"
 #include "Behaviour/Builtin/Conditional/RCBehaviourConditionalNode.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "RCVirtualProperty.h"
 #include "RemoteControlField.h"
 #include "Controller/RCController.h"

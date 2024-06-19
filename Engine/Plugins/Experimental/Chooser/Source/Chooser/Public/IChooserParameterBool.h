@@ -6,7 +6,7 @@
 #include "UObject/Object.h"
 #include "UObject/Interface.h"
 #include "IChooserParameterBase.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IChooserParameterBool.generated.h"
 
 UINTERFACE(NotBlueprintType, meta = (CannotImplementInterfaceInBlueprint))

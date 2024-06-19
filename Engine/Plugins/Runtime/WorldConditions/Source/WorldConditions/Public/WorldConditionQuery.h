@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "InstancedStructContainer.h"
+#include "StructUtils/InstancedStructContainer.h"
 #include "WorldConditionBase.h"
 #include "Templates/SubclassOf.h"
 #include "WorldConditionQuery.generated.h"

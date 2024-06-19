@@ -6,7 +6,7 @@
 
 #if WITH_EDITOR
 #include "IPropertyAccessEditor.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #endif
 
 FOutputObjectColumn::FOutputObjectColumn()

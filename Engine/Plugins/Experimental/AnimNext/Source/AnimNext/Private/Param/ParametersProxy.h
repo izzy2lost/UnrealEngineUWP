@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Param/IParameterSource.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "UObject/StrongObjectPtr.h"
 
 class UAnimNextModule;

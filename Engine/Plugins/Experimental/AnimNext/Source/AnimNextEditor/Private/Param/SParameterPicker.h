@@ -9,7 +9,7 @@
 #include "Param/ParameterPickerArgs.h"
 #include "Widgets/PropertyViewer/SPropertyViewer.h"
 #include "Widgets/Views/STreeView.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "Misc/NotifyHook.h"
 #include "Param/AnimNextEditorParam.h"
 

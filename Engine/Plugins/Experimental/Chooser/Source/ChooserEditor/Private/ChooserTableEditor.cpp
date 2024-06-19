@@ -18,7 +18,7 @@
 #include "ObjectChooser_Asset.h"
 #include "ObjectChooser_Class.h"
 #include "PersonaModule.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
 #include "SAssetDropTarget.h"

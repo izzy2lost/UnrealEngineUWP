@@ -13,7 +13,7 @@
 #include "Controller/RCController.h"
 #include "IRemoteControlPropertyHandle.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "RCVirtualProperty.h"
 #include "RCVirtualPropertyContainer.h"
 #include "RemoteControlField.h"

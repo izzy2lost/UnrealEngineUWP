@@ -12,7 +12,7 @@
 #include "Components/CapsuleComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Modules/ModuleManager.h"
 #include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"

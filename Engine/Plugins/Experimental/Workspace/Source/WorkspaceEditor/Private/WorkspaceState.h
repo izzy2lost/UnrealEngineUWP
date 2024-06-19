@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "WorkspaceState.generated.h"
 
 class UWorkspace;

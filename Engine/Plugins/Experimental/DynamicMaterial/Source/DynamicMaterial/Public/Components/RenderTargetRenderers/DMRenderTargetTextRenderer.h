@@ -6,7 +6,7 @@
 #include "Delegates/IDelegateInstance.h"
 #include "Fonts/FontCache.h"
 #include "Framework/Text/TextLayout.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Internationalization/Text.h"
 #include "Math/Color.h"
 #include "Math/Vector2D.h"

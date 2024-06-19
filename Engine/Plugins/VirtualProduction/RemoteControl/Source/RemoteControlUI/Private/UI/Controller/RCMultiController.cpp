@@ -2,7 +2,7 @@
 
 #include "RCMultiController.h"
 #include "Controller/RCController.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "TypeTranslator/RCTypeTranslator.h"
 #include "RCVirtualProperty.h"
 #include "RemoteControlPreset.h"

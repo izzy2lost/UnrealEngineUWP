@@ -4,7 +4,7 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "IObjectChooser.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IChooserColumn.h"
 #include "IHasContext.h"
 #if WITH_EDITOR

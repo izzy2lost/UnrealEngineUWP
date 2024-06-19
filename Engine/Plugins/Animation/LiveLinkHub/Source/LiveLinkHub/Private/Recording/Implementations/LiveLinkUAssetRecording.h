@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Async/AsyncWork.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "LiveLinkPreset.h"
 #include "LiveLinkRole.h"
 #include "LiveLinkTypes.h"

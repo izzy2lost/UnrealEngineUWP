@@ -7,7 +7,7 @@
 #include "IAvaObjectHandle.h"
 #include "MaterialTypes.h"
 #include "Misc/TVariant.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 
 class UMaterialInstance;
 class UMaterialInstanceDynamic;

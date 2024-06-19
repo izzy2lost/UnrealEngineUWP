@@ -8,7 +8,7 @@
 #include "Controller/RCCustomControllerUtilities.h"
 #include "Engine/Texture2D.h"
 #include "IRemoteControlPropertyHandle.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "RCVirtualProperty.h"
 #include "RemoteControlField.h"
 

@@ -5,7 +5,7 @@
 #include "IChooserColumn.h"
 #include "IChooserParameterBool.h"
 #include "ChooserPropertyAccess.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "OutputBoolColumn.generated.h"
 
 USTRUCT()

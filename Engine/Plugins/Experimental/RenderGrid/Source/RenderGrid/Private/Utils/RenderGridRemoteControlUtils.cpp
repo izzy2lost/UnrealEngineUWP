@@ -2,7 +2,7 @@
 
 #include "Utils/RenderGridRemoteControlUtils.h"
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "StructDeserializer.h"
 #include "StructSerializer.h"
 #include "Backends/JsonStructDeserializerBackend.h"

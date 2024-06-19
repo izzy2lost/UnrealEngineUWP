@@ -5,7 +5,7 @@
 #include "IObjectChooser.h"
 #include "ChooserPropertyAccess.h"
 #include "IChooserParameterProxyTable.h"
-#include "InstancedStructContainer.h"
+#include "StructUtils/InstancedStructContainer.h"
 #include "ProxyTable.h"
 #include "LookupProxy.generated.h"
 

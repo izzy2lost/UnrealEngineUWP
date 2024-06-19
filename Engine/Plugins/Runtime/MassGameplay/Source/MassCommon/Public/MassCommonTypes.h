@@ -4,7 +4,7 @@
 
 #include "MassEntityTypes.h"
 #include "MassProcessingTypes.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "SequentialID.h"
 #include "MassCommonTypes.generated.h"
 

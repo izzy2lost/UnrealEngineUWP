@@ -8,7 +8,7 @@
 #include "WorldConditionQuery.h"
 #include "WorldConditions/SmartObjectWorldConditionSchema.h"
 #include "SmartObjectTypes.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "PropertyBindingPath.h"
 #include "SmartObjectDefinition.generated.h"
 

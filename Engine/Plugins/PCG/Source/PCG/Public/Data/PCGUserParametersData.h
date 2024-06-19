@@ -4,7 +4,7 @@
 
 #include "PCGData.h"
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 
 #include "PCGUserParametersData.generated.h"
 

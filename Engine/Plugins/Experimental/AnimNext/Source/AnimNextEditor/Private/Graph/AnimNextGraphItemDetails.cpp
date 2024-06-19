@@ -5,7 +5,7 @@
 #include "Toolkits/AssetEditorToolkitMenuContext.h"
 #include "Graph/AnimNextModule_AnimationGraph.h"
 #include "Module/AnimNextModule_EventGraph.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Module/AnimNextModuleWorkspaceAssetUserData.h"
 #include "RigVMModel/RigVMGraph.h"
 #include "WorkspaceItemMenuContext.h"

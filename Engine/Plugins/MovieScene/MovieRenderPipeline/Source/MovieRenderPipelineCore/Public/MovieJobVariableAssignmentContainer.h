@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Graph/MovieGraphCommon.h"
 #include "Graph/MovieGraphValueContainer.h"	// For GetOptionalValue()
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 #include "MovieJobVariableAssignmentContainer.generated.h"
 

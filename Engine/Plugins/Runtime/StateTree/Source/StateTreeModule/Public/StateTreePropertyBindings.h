@@ -5,7 +5,7 @@
 #include "StateTreeNodeBase.h"
 #include "StateTreeTypes.h"
 #include "StateTreePropertyRefHelpers.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "StateTreeIndexTypes.h"
 #include "StateTreePropertyBindings.generated.h"
 

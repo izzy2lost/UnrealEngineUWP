@@ -4,7 +4,7 @@
 
 #include "LiveLinkRole.h"
 #include "LiveLinkTypes.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "Templates/SubclassOf.h"
 
 class ULiveLinkRecording;

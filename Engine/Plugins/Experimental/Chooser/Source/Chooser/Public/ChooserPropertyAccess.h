@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "IHasContext.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IObjectChooser.h"
 #include "ChooserPropertyAccess.generated.h"
 

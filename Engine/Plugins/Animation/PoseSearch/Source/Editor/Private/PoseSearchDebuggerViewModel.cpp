@@ -7,7 +7,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "IAnimationProvider.h"
 #include "IGameplayProvider.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IRewindDebugger.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchDerivedData.h"

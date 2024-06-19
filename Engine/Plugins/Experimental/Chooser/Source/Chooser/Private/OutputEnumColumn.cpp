@@ -3,7 +3,7 @@
 #include "EnumColumn.h"
 #include "ChooserPropertyAccess.h"
 #if WITH_EDITOR
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #endif
 
 FOutputEnumColumn::FOutputEnumColumn()

@@ -5,8 +5,8 @@
 #include "Tests/PCGTestsCommon.h"
 
 #include "PCGGraph.h"
-#include "PropertyBag.h"
-#include "StructView.h"
+#include "StructUtils/PropertyBag.h"
+#include "StructUtils/StructView.h"
 
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphNoUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.NoUserParameters", PCGTestsCommon::TestFlags)
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphAddSingleUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.AddSingleUserParameter", PCGTestsCommon::TestFlags)

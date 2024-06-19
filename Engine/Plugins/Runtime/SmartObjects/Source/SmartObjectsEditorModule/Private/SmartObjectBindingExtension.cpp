@@ -4,7 +4,7 @@
 #include "EdGraphSchema_K2.h"
 #include "Features/IModularFeatures.h"
 #include "IPropertyAccessEditor.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "PropertyBindingPath.h"
 #include "Styling/AppStyle.h"
 #include "UObject/EnumProperty.h"

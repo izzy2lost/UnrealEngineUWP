@@ -3,7 +3,7 @@
 #include "Properties/PropertyAnimatorCoreContext.h"
 
 #include "Containers/Ticker.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Properties/PropertyAnimatorCoreGroupBase.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"

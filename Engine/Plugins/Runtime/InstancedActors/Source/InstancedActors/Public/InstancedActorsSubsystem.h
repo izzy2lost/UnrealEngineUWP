@@ -7,7 +7,7 @@
 #include "GameplayTagContainer.h"
 #include "HierarchicalHashGrid2D.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "SharedStruct.h"
+#include "StructUtils/SharedStruct.h"
 #include "UObject/ObjectKey.h"
 #include "InstancedActorsSubsystem.generated.h"
 

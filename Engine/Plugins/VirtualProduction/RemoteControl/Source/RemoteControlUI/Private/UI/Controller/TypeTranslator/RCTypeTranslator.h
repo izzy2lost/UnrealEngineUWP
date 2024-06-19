@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "RCTypeHandler.h"
 #include "Controller/RCController.h"
 

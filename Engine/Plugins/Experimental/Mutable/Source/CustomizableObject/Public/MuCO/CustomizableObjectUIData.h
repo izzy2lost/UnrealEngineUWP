@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Engine/Texture2D.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
 

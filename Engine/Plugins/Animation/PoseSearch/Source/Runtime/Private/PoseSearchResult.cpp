@@ -2,7 +2,7 @@
 
 #include "PoseSearch/PoseSearchResult.h"
 #include "Animation/BlendSpace.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchSchema.h"
 

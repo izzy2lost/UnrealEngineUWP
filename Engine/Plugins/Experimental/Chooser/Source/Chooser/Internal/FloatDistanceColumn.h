@@ -7,7 +7,7 @@
 #include "IChooserColumn.h"
 #include "IChooserParameterFloat.h"
 #include "ChooserPropertyAccess.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Serialization/MemoryReader.h"
 #include "Templates/SubclassOf.h"
 #include "FloatDistanceColumn.generated.h"

@@ -6,7 +6,7 @@
 #include "ChooserTrace.h"
 
 #if WITH_EDITOR
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #endif
 
 bool FBoolContextProperty::GetValue(FChooserEvaluationContext& Context, bool& OutResult) const

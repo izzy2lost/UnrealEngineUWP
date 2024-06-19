@@ -4,7 +4,7 @@
 
 #include "CoreTypes.h"
 #include "UObject/UnrealType.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 struct FLevelStreamingPersistentObjectPropertyBag
 {

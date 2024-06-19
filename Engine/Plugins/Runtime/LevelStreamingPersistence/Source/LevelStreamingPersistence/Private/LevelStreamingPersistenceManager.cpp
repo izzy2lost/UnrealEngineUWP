@@ -11,7 +11,7 @@
 #include "Streaming/LevelStreamingDelegates.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "PropertyPathHelpers.h"
 #include "Engine/World.h"
 #include "Engine/Level.h"

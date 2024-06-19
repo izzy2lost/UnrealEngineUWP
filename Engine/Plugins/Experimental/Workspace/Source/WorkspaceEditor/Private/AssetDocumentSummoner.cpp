@@ -5,7 +5,7 @@
 #include "WorkspaceEditor.h"
 #include "AssetDefinitionRegistry.h"
 #include "ClassIconFinder.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "WorkspaceEditorModule.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SSpacer.h"

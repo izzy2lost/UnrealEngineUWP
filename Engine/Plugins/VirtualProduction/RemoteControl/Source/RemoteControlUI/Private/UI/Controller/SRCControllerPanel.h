@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "UI/BaseLogicUI/SRCLogicPanelBase.h"
 
 class FRCControllerModel;

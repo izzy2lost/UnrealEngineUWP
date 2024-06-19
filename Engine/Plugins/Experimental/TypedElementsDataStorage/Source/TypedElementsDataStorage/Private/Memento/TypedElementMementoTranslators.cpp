@@ -3,7 +3,7 @@
 #include "Memento/TypedElementMementoTranslators.h"
 
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 
 const UScriptStruct* UTypedElementDefaultMementoTranslator::GetMementoType() const

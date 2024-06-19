@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Param/ParamType.h"
 #include "UniversalObjectLocator.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "AnimNextEditorParam.generated.h"
 
 struct FAnimNextParam;

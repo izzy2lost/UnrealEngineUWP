@@ -11,7 +11,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Misc/CoreDelegates.h"
 #if ENABLE_ANIM_DEBUG
 #include "Misc/FileHelper.h"

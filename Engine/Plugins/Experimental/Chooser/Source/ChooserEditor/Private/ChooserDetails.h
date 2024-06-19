@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "IDetailCustomization.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "ChooserDetails.generated.h"
 
 class UChooserTable;

@@ -3,7 +3,7 @@
 #include "Param/ParamStack.h"
 
 #include "Param/ParamHelpers.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "EngineLogs.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"

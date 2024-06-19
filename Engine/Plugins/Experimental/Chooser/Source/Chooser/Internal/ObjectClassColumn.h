@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "IChooserColumn.h"
 #include "IChooserParameterObject.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Serialization/MemoryReader.h"
 #include "ObjectColumn.h"
 #include "ObjectClassColumn.generated.h"

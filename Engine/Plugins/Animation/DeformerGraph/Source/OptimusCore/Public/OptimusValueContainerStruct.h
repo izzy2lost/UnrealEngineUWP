@@ -2,9 +2,12 @@
 
 #pragma once
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
+#endif
+
 #include "OptimusDataType.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "OptimusValueContainerStruct.generated.h"
 
 USTRUCT()

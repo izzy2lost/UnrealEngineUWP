@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MassArchetypeTypes.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "MassEntityView.generated.h"
 
 

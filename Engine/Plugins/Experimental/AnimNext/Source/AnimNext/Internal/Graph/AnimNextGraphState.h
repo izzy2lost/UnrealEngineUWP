@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #include "AnimNextGraphState.generated.h"
 
 // Default state for a graph entry point

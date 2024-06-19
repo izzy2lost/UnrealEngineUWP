@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MassEntityManager.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "MassSubsystemBase.h"
 #include "MassEntityTemplateRegistry.h"
 #include "MassSpawnerSubsystem.generated.h"

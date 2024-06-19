@@ -7,7 +7,7 @@
 #include "Animation/AnimationAsset.h"
 #include "CoreMinimal.h"
 #include "IHasContext.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IObjectChooser.h"
 #include "BlendStack/AnimNode_BlendStack.h"
 

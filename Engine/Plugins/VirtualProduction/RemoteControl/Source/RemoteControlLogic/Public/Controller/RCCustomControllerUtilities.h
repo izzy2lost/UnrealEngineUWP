@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 
 class URCVirtualPropertyBase;
 class URCVirtualPropertyInContainer;

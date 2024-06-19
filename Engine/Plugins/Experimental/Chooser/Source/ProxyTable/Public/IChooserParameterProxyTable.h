@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
 #include "IChooserParameterBase.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IObjectChooser.h"
 #include "IChooserParameterProxyTable.generated.h"
 

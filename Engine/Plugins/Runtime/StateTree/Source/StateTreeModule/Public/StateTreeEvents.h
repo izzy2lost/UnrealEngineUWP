@@ -3,7 +3,7 @@
 #pragma once
 
 #include "GameplayTagContainer.h"
-#include "StructView.h"
+#include "StructUtils/StructView.h"
 #include "StateTreeIndexTypes.h"
 #include "StateTreeEvents.generated.h"
 

@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "MovieGraphPin.h"
-#include "InstancedStruct.h"
-#include "PropertyBag.h"
+#include "StructUtils/InstancedStruct.h"
+#include "StructUtils/PropertyBag.h"
 #include "Graph/MovieGraphValueContainer.h"
 #include "Graph/MovieGraphFilenameResolveParams.h"
 #include "UObject/Interface.h"

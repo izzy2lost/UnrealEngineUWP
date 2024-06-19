@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "InstancedStruct.h"
 #include "StructUtils/StructUtilsTypes.h"
+#include "StructUtils/InstancedStruct.h"
 #include "MassProcessingTypes.generated.h"
 
 #ifndef MASS_DO_PARALLEL

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Engine/DataAsset.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "PoseSearch/PoseSearchAssetSampler.h"
 #include "PoseSearch/PoseSearchCost.h"
 #include "PoseSearch/PoseSearchIndex.h"

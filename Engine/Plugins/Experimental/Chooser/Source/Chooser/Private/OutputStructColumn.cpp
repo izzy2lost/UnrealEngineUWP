@@ -5,7 +5,7 @@
 
 #if WITH_EDITOR
 #include "IPropertyAccessEditor.h"
-#include "PropertyBag.h"
+#include "StructUtils/PropertyBag.h"
 #endif
 
 bool FStructContextProperty::SetValue(FChooserEvaluationContext& Context, const FInstancedStruct& InValue) const

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "InstancedStructContainer.h"
+#include "StructUtils/InstancedStructContainer.h"
 #include "ZoneGraphTypes.h"
 #include "ZoneGraphAnnotationTypes.h"
 #include "Misc/MTAccessDetector.h"

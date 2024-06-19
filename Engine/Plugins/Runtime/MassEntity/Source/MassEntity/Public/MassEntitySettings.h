@@ -5,7 +5,7 @@
 #include "MassSettings.h"
 #include "MassProcessingPhaseManager.h"
 #include "MassProcessor.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "MassEntitySettings.generated.h"
 
 

@@ -11,7 +11,7 @@
 #include "Features/IModularFeatures.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "FileHelpers.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "IContentBrowserSingleton.h"
 #include "LiveLinkHub.h"
 #include "LiveLinkHubClient.h"

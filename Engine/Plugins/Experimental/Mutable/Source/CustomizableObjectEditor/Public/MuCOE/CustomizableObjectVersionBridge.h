@@ -3,7 +3,7 @@
 #pragma once
 
 #include "UObject/Interface.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "CustomizableObjectVersionBridge.generated.h"
 
 UINTERFACE(MinimalAPI, Blueprintable)

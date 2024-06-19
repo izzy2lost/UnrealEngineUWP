@@ -4,7 +4,7 @@
 
 
 #include "CoreMinimal.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "RenderGridRemoteControlUtils.generated.h"
 

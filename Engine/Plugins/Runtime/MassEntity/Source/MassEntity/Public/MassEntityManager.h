@@ -7,8 +7,8 @@
 #include "MassProcessingTypes.h"
 #include "MassEntityQuery.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
-#include "InstancedStruct.h"
-#include "StructUtilsTypes.h"
+#include "StructUtils/InstancedStruct.h"
+#include "StructUtils/StructUtilsTypes.h"
 #endif
 #include "MassObserverManager.h"
 #include "Containers/MpscQueue.h"

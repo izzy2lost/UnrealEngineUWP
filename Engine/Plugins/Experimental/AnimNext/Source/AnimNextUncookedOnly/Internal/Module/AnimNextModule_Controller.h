@@ -6,7 +6,7 @@
 #include "Param/ParamType.h"
 #include "RigVMModel/RigVMController.h"
 #include "Param/AnimNextParamInstanceIdentifier.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "AnimNextModule_Controller.generated.h"
 
 struct FAnimNextParamType;
