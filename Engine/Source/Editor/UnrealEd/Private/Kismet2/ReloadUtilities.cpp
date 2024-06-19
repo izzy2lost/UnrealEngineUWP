@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "Kismet2/ReloadUtilities.h"
+#include "AssetCompilingManager.h"
 #include "Async/AsyncWork.h"
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
@@ -1176,6 +1177,7 @@ const UObject* FReload::GetReinstancedCDO(const UObject* CDO)
 
 void FReload::Finalize(bool bRunGC)
 {
+	FAssetCompilingManager::Get().FinishAllCompilation();
 
 	// Make sure new classes have the token stream assembled
 	UClass::AssembleReferenceTokenStreams();
