@@ -2514,6 +2514,25 @@ bool ULevel::GetIsLevelUsingExternalActorsFromPackage(FName LevelPackage)
 	});
 }
 
+bool ULevel::GetIsLevelUsingActorsDescsFromAsset(const FAssetData& Asset)
+{
+	FString ActorsMetaDataStr;
+	static FName NAME_ActorsMetaData(TEXT("ActorsMetaData"));
+	if (Asset.GetTagValue(NAME_ActorsMetaData, ActorsMetaDataStr))
+	{
+		return true;
+	}
+	return false;
+}
+
+bool ULevel::GetIsLevelUsingActorsDescsFromPackage(FName LevelPackage)
+{
+	return LevelAssetRegistryHelper::GetLevelInfoFromAssetRegistry(LevelPackage, [](const FAssetData& Asset)
+	{
+		return GetIsLevelUsingActorsDescsFromAsset(Asset);
+	});
+}
+
 bool ULevel::GetIsUsingActorFoldersFromAsset(const FAssetData& Asset)
 {
 	FString LevelIsUsingActorFoldersStr;

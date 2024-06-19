@@ -82,7 +82,6 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 	}
 	else
 	{
-		check(InActor->IsPackageExternal());
 		check(InActor->GetActorGuid().IsValid());
 		Guid = InActor->GetActorGuid();
 	}
@@ -176,8 +175,7 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 			ParentActor = AttachParentActor->GetActorGuid();
 		}
 
-		const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(const_cast<AActor*>(InActor))
-			.SetRequiredFlags(RF_HasExternalPackage);
+		const ActorsReferencesUtils::FGetActorReferencesParams Params = ActorsReferencesUtils::FGetActorReferencesParams(const_cast<AActor*>(InActor));
 		TArray<ActorsReferencesUtils::FActorReference> ActorReferences = ActorsReferencesUtils::GetActorReferences(Params);
 
 		if (ActorReferences.Num())
