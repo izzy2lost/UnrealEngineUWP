@@ -23,6 +23,7 @@ public class Landscape : ModuleRules
 				"Engine",
 				"RenderCore",
 				"ImageCore",
+				"MathCore",
 				"RHI",
 				"Renderer",
 				"Foliage",
