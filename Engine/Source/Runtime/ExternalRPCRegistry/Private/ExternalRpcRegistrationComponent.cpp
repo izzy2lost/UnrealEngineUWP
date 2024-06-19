@@ -92,8 +92,7 @@ TUniquePtr<FHttpServerResponse> UExternalRpcRegistrationComponent::CreateSimpleR
 	JsonWriter->Close();
 	return FHttpServerResponse::Create(ResponseStr, TEXT("application/json"));
 }
-// Put any logic changes that should be applied to all of our API calls and no other API calls
-// inthis lambda
+
 FHttpRequestHandler UExternalRpcRegistrationComponent::CreateRouteHandle(TDelegate<bool(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)> InFunc)
 {
 	FHttpRequestHandler OutHandler = nullptr;

@@ -24,6 +24,10 @@
 #include "ReplaySubsystem.h"
 #include "Development/LyraDeveloperSettings.h"
 #include "GameMapsSettings.h"
+#if WITH_RPC_REGISTRY
+#include "Tests/LyraGameplayRpcRegistrationComponent.h"
+#include "HttpServerModule.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LyraPlayerController)
 
@@ -56,6 +60,19 @@ void ALyraPlayerController::PreInitializeComponents()
 void ALyraPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+	#if WITH_RPC_REGISTRY
+	FHttpServerModule::Get().StartAllListeners();
+	int32 RpcPort = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("rpcport="), RpcPort))
+	{
+		ULyraGameplayRpcRegistrationComponent* ObjectInstance = ULyraGameplayRpcRegistrationComponent::GetInstance();
+		if (ObjectInstance && ObjectInstance->IsValidLowLevel())
+		{
+			ObjectInstance->RegisterAlwaysOnHttpCallbacks();
+			ObjectInstance->RegisterInMatchHttpCallbacks();
+		}
+	}
+	#endif
 	SetActorHiddenInGame(false);
 }
 
