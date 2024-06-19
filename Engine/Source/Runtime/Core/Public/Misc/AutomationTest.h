@@ -9,6 +9,7 @@
 #include "Containers/Queue.h"
 #include "Containers/Set.h"
 #include "Containers/UnrealString.h"
+#include "Containers/StringView.h"
 #include "CoreTypes.h"
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateBase.h"
@@ -1818,8 +1819,17 @@ public:
 	CORE_API bool TestEqual(const TCHAR* What, const FColor Actual, const FColor Expected);
 	CORE_API bool TestEqual(const TCHAR* What, const FLinearColor Actual, const FLinearColor Expected);
 	CORE_API bool TestEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestEqual(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
+	CORE_API bool TestNotEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestNotEqual(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestNotEqual(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
 	CORE_API bool TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
 	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected);
+	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, FStringView Actual, FStringView Expected);
+	CORE_API bool TestNotEqualInsensitive(const TCHAR* What, FUtf8StringView Actual, FUtf8StringView Expected);
 
 	bool TestEqual(const FString& What, const int32 Actual, const int32 Expected)
 	{
@@ -1861,94 +1871,21 @@ public:
 		return TestEqual(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const TCHAR* What, const FString& Actual, const TCHAR* Expected)
+	bool TestEqual(const FString& What, FUtf8StringView Actual, FUtf8StringView  Expected)
 	{
-		return TestEqualInsensitive(What, *Actual, Expected);
+		return TestEqualInsensitive(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const FString& What, const FString& Actual, const TCHAR* Expected)
+	bool TestEqual(const FString& What, FStringView Actual, FStringView Expected)
 	{
-		return TestEqualInsensitive(*What, *Actual, Expected);
+		return TestEqualInsensitive(*What, Actual, Expected);
 	}
 
-	bool TestEqual(const TCHAR* What, const TCHAR* Actual, const FString& Expected)
+	bool TestEqual(const FString& What, FStringView Actual, FUtf8StringView Expected)
 	{
-		return TestEqualInsensitive(What, Actual, *Expected);
-	}
-
-	bool TestEqual(const FString& What, const TCHAR* Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(*What, Actual, *Expected);
-	}
-
-	bool TestEqual(const TCHAR* What, const FString& Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(What, *Actual, *Expected);
-	}
-
-	bool TestEqual(const FString& What, const FString& Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(*What, *Actual, *Expected);
-	}
-
-	bool TestEqualInsensitive(const TCHAR* What, const FString& Actual, const TCHAR* Expected)
-	{
-		return TestEqualInsensitive(What, *Actual, Expected);
-	}
-
-	bool TestEqualInsensitive(const FString& What, const FString& Actual, const TCHAR* Expected)
-	{
-		return TestEqualInsensitive(*What, *Actual, Expected);
-	}
-
-	bool TestEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(What, Actual, *Expected);
-	}
-
-	bool TestEqualInsensitive(const FString& What, const TCHAR* Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(*What, Actual, *Expected);
-	}
-
-	bool TestEqualInsensitive(const TCHAR* What, const FString& Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(What, *Actual, *Expected);
-	}
-
-	bool TestEqualInsensitive(const FString& What, const FString& Actual, const FString& Expected)
-	{
-		return TestEqualInsensitive(*What, *Actual, *Expected);
-	}
-
-	bool TestNotEqualInsensitive(const TCHAR* What, const FString& Actual, const TCHAR* Expected)
-	{
-		return TestNotEqualInsensitive(What, *Actual, Expected);
-	}
-
-	bool TestNotEqualInsensitive(const FString& What, const FString& Actual, const TCHAR* Expected)
-	{
-		return TestNotEqualInsensitive(*What, *Actual, Expected);
-	}
-
-	bool TestNotEqualInsensitive(const TCHAR* What, const TCHAR* Actual, const FString& Expected)
-	{
-		return TestNotEqualInsensitive(What, Actual, *Expected);
-	}
-
-	bool TestNotEqualInsensitive(const FString& What, const TCHAR* Actual, const FString& Expected)
-	{
-		return TestNotEqualInsensitive(*What, Actual, *Expected);
-	}
-
-	bool TestNotEqualInsensitive(const TCHAR* What, const FString& Actual, const FString& Expected)
-	{
-		return TestNotEqualInsensitive(What, *Actual, *Expected);
-	}
-
-	bool TestNotEqualInsensitive(const FString& What, const FString& Actual, const FString& Expected)
-	{
-		return TestNotEqualInsensitive(*What, *Actual, *Expected);
+		// This overload is here because there are some tests that have raw string literals as the expected value.
+		FString Tmp(Expected);
+		return TestEqualInsensitive(*What, Actual, Tmp);
 	}
 
 	/**
