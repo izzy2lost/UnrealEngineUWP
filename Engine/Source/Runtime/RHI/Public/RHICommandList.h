@@ -4189,6 +4189,8 @@ public:
 			{
 				ALLOC_COMMAND(FRHICommandSetBindingsOnShaderBindingTable)(SBT, Pipeline, NumBindings, Bindings, BindingType);
 			}
+
+			RHIThreadFence(true);
 		}
 	}
 
