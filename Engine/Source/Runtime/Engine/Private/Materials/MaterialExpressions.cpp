@@ -17337,6 +17337,340 @@ void FMaterialLayersFunctionsID::Append(FShaderKeyGenerator& KeyGen) const
 
 const FGuid FMaterialLayersFunctions::BackgroundGuid(2u, 0u, 0u, 0u);
 
+
+bool FMaterialLayersFunctionsTree::Serialize(FArchive& Ar)
+{
+	Ar << Nodes;
+	Ar << Payloads;
+	Ar << Root;
+	return true;
+}
+
+using FLayerNodeId = FMaterialLayersFunctionsTree::FNodeId;
+using FLayerNode = FMaterialLayersFunctionsTree::FNode;
+using FLayerNodePayload = FMaterialLayersFunctionsTree::FPayload;
+using FLayerNodeIdArray = TArray<FLayerNodeId>;
+
+FLayerNodeId FMaterialLayersFunctionsTree::AllocNode(const FPayload& InPayload)
+{
+	Nodes.AddDefaulted();
+	Payloads.Add(InPayload);
+	return (FNodeId)Nodes.Num() - 1;
+}
+
+
+// Find and return the node at the specified Id or null if invalid 
+FLayerNode* FMaterialLayersFunctionsTree::GetNode(FNodeId InNodeId) const
+{
+	if (IsValidId(InNodeId))
+	{
+		return const_cast<FNode*>(Nodes.GetData() + InNodeId);
+	}
+
+	return nullptr; // invalid index => return null
+}
+
+// Find and return the node payload at the specified Id or null if invalid 
+FLayerNodePayload* FMaterialLayersFunctionsTree::GetPayload(FNodeId InNodeId) const
+{
+	if (IsValidId(InNodeId))
+	{
+		return const_cast<FPayload*>(Payloads.GetData() + InNodeId);
+	}
+
+	return nullptr; // invalid index => return null
+}
+
+// Find and return the parent node at the specified Id or null if invalid 
+FLayerNode* FMaterialLayersFunctionsTree::GetParent(FNodeId InNodeId) const
+{
+	FNode* Node = GetNode(InNodeId);
+	if (Node && IsValidId(Node->Parent))
+	{
+		return GetNode(Node->Parent);
+	}
+
+	return nullptr; // invalid parent => return null
+}
+
+// Return the depth of the node in the tree, the root is depth 0
+// the first valid node in the tree under the root is depth 1
+FLayerNodeIdArray FMaterialLayersFunctionsTree::GetChildrenIds(FNodeId InNodeId) const
+{
+	FLayerNodeIdArray ChildrendIds;
+
+	FNodeId NextChildId = Root;
+	FNode* Node = GetNode(InNodeId);
+	if (Node)
+		NextChildId = Node->ChildrenHead;
+
+	while (IsValidId(NextChildId))
+	{
+		ChildrendIds.Add(NextChildId);
+		Node = GetNode(NextChildId);
+		if (Node)
+			NextChildId = Node->NextSibling;
+		else
+			NextChildId = -1;
+	}
+
+	return ChildrendIds;
+}
+
+int32 FMaterialLayersFunctionsTree::GetDepth(FNodeId InNodeId) const
+{
+	int32 Depth = 0;
+	FNode* Node = GetNode(InNodeId);
+	while (Node)
+	{
+		Node = GetNode(Node->Parent);
+		Depth++;
+	}
+
+	return Depth;
+}
+
+
+// Find the node which is the head of the list of siblings where InNodeID belongs
+FLayerNodeId FMaterialLayersFunctionsTree::GetSiblingHeadId(FNodeId InNodeId) const
+{
+	if (!IsValidId(InNodeId))
+		return InvalidId;
+
+	FNode* TargetNode = const_cast<FNode*>(Nodes.GetData() + InNodeId);
+
+	FNodeId HeadNodeId = Root;
+	if (TargetNode->Parent != InvalidId)
+	{
+		HeadNodeId =Nodes[TargetNode->Parent].ChildrenHead;
+	}
+
+	return HeadNodeId;
+}
+
+FLayerNodeId FMaterialLayersFunctionsTree::AddNode(const FPayload& InPayload, FNodeId InParent, int32 InAtChildIndex)
+{
+	// Check Parent id
+	if (!IsValidId(InParent))
+	{
+		// Bad parent id, allocate at root at the end
+		InParent = -1;
+	}
+
+	// Allocate the new node setting the payload value
+	FNodeId NodeId = AllocNode(InPayload);
+
+	// Let's connect the new node in the hierarchy
+	FNode* NewNode = Nodes.GetData() + NodeId;
+	NewNode->Parent = InParent;
+
+	// First find the parent node and from that the head node for the list in which we will add the new node
+	// Initialize the case if parent is the tree root
+	FNodeId HeadSiblingId = Root;
+	FNodeId* ParentChildrenHeaddPtr = &Root;
+	// Parent is actually a node and not the root:
+	if (InParent >= 0)
+	{
+		FNode* ParentNode = Nodes.GetData() + InParent;
+		HeadSiblingId = ParentNode->ChildrenHead;
+		ParentChildrenHeaddPtr = &ParentNode->ChildrenHead;
+	}
+
+	// When Insert at head or no siblings yet then update parent sub
+	if ((InAtChildIndex == 0) || (HeadSiblingId < 0))
+	{
+		(*ParentChildrenHeaddPtr) = NodeId;
+		NewNode->NextSibling = HeadSiblingId;
+
+		// Done
+		return NodeId;
+	}
+
+	// Second insert the new node among the siblings AFTER head
+	FNode* SiblingNode = Nodes.GetData() + HeadSiblingId;
+
+	int32 SiblingNextIdx = 1;
+	while (SiblingNode->NextSibling >= 0)
+	{
+		// if the next sibling is where we want to insert then insert
+		if (InAtChildIndex == SiblingNextIdx)
+		{
+			NewNode->NextSibling = SiblingNode->NextSibling;
+			SiblingNode->NextSibling = NodeId;
+
+			// Done
+			return NodeId;
+		}
+
+		// next sibling
+		SiblingNode = Nodes.GetData() + SiblingNode->NextSibling;
+		SiblingNextIdx++;
+	}
+
+	// we went through the siblings and now hold the tail node, let's add the new node as the new tail
+	SiblingNode->NextSibling = NodeId;
+
+	// Done
+	return NodeId;
+}	
+
+
+
+FLayerNodeIdArray FMaterialLayersFunctionsTree::RemoveNode(FNodeId RemovedNodeId)
+{
+	FLayerNodeIdArray RemovedIds;
+
+	FNode* RemovedNode = GetNode(RemovedNodeId);
+	if (!RemovedNode)
+		return RemovedIds;
+
+	FNodeId NextId = RemovedNode->NextSibling;
+
+	FNodeId HeadId = GetSiblingHeadId(RemovedNodeId);
+	FNode* HeadSibling = GetNode(HeadId);
+
+	// walk from head sibling to removed node
+	// then detach from tree
+	FNodeId NextPrevNodeId = HeadId;
+	FNode* PrevNode = HeadSibling; // prev node is the head sibling at first
+	FNode* NextPrevNode = HeadSibling; // next prev node is the head sibling at first
+	while (NextPrevNode)
+	{
+		if (NextPrevNodeId == RemovedNodeId)
+		{
+			break;
+		}
+		PrevNode = NextPrevNode;
+		NextPrevNodeId = PrevNode->NextSibling;
+		NextPrevNode = GetNode(PrevNode->NextSibling);
+	}
+
+	// Removed node is the sibling head
+	// adjust parent link to children
+	if (NextPrevNode == HeadSibling)
+	{
+		FNodeId OldChildHeadId = Root;
+
+		if (RemovedNode->Parent != InvalidId)
+		{
+			FNode* ParentNode = Nodes.GetData() + RemovedNode->Parent;
+			OldChildHeadId = ParentNode->ChildrenHead;
+			ParentNode->ChildrenHead = NextId;
+		}
+		else // Parent is the root so relink root
+		{
+			Root = NextId;
+		}
+	}
+	// Removed node in the middle of the siblings
+	else
+	{
+		PrevNode->NextSibling = NextId;
+	}
+
+	Nodes[RemovedNodeId] = FNode();
+	Payloads[RemovedNodeId] = FPayload();
+	RemovedIds.Add(RemovedNodeId);
+
+	return RemovedIds;
+}
+
+FString FMaterialLayersFunctionsTree::Log(FString InTab) const
+{
+	FString NewLine = TEXT("\r\n");
+	FString LogMessage;
+
+	auto Visitor = [&](FNodeId InNodeId, int32 InDepth, int32 InSiblingNum, FPayload InPayload)
+		{
+			FString Tab = InTab;
+			for (int d = 0; d < InDepth; d++)
+				Tab += "  ";
+			LogMessage += Tab + FString::Printf(TEXT("%i %i - L%i B%i"), InNodeId, InSiblingNum, InPayload.Layer, InPayload.Blend) + NewLine;
+		};
+
+	Traverse(Visitor);
+
+	return LogMessage;
+}
+
+namespace MLFT {
+
+	void RemovePayloadIndex(FMaterialLayersFunctionsTree& Tree, int32 InRemovedIdx)
+	{
+		for (auto& Payload : Tree.Payloads)
+		{
+			if (Payload.Layer > InRemovedIdx)
+			{
+				Payload.Layer--;
+			}
+			if (Payload.Blend > InRemovedIdx - 1)
+			{
+				Payload.Blend--;
+			}
+		}
+	}
+
+
+	FString Print(const FMaterialLayersFunctionsRuntimeData* LFRD, FString InTab)
+	{
+		FString NewLine = TEXT("\r\n");
+		FString LogMessage; // = InTab + TEXT("FMaterialLayersFunctionsRuntimeData") + NewLine;
+
+		InTab += "  ";
+
+		// Layers
+		LogMessage += InTab + TEXT("Layers:") + NewLine;
+		for (int32 i = 0; i < LFRD->Layers.Num(); ++i)
+		{
+			FString LayerHead = InTab + FString::Printf(TEXT("%i - "), i);
+			auto Layer = LFRD->Layers[i];
+			if (Layer)
+			{
+				LayerHead += FString::Printf(TEXT("%s"), *Layer->GetName());
+			}
+			LogMessage += LayerHead + NewLine;
+		}
+		// Blends
+		LogMessage += InTab + TEXT("Blends:") + NewLine;
+		for (int32 i = 0; i < LFRD->Blends.Num(); ++i)
+		{
+			FString BlendHead = InTab + FString::Printf(TEXT("%i - "), i);
+			auto Blend = LFRD->Blends[i];
+			if (Blend)
+			{
+				BlendHead += FString::Printf(TEXT("%s"), *Blend->GetName());
+			}
+			LogMessage += BlendHead + NewLine;
+		}
+		// Tree
+		LogMessage += InTab + TEXT("Tree:") + NewLine;
+		LogMessage += LFRD->Tree.Log(InTab);
+		return LogMessage;
+	}
+
+
+	void Log(const FMaterialLayersFunctionsRuntimeData* LFRD, FString CallingSite = FString())
+	{
+		FString NewLine = TEXT("\r\n");
+		FString LogMessage;
+		FString Tab = " ";
+
+		LogMessage += FString::Printf(TEXT("**** FMaterialLayersFunctionsRuntimeData from <%s> ****"), *CallingSite) + NewLine;
+		LogMessage += Print(LFRD, Tab);
+		LogMessage += TEXT("**** *********** ****") + NewLine;
+
+		TArray<FString> Lines;
+		LogMessage.ParseIntoArray(Lines, TEXT("\n"));
+		for (const FString& Line : Lines)
+		{
+			UE_LOG(LogMaterial, Log, TEXT("%s"), *Line);
+		}
+	}
+
+
+}
+
+
 FMaterialLayersFunctionsRuntimeData::~FMaterialLayersFunctionsRuntimeData()
 {
 #if WITH_EDITORONLY_DATA
@@ -17363,6 +17697,49 @@ bool FMaterialLayersFunctionsRuntimeData::SerializeFromMismatchedTag(const FProp
 #endif // WITH_EDITORONLY_DATA
 	return false;
 }
+
+
+bool FMaterialLayersFunctionsRuntimeData::Serialize(FArchive& Ar)
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	// TODO: We d like to do rely on the custom version of the branch or something:
+	// Ar.UsingCustomVersion(FRenderingObjectVersion::GUID);
+	// we are using our custom version indicator for now in the tree
+	if (!Ar.IsLoading())
+	{
+		Tree.EnableMaterialLayersFunctionsTree();
+	}
+#endif
+
+	// Use default serialization for most properties for
+	// archive configurations supported by UStruct::SerializeVersionedTaggedProperties 
+	if (Ar.IsLoading() || Ar.IsSaving() || Ar.IsCountingMemory() || Ar.IsObjectReferenceCollector())
+	{
+		StaticStruct()->SerializeTaggedProperties(Ar, (uint8*)this, StaticStruct(), nullptr);
+	}
+
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	// For PRE substrate tree layer version:
+	// TODO: As commented above, we could use:
+	// 	if (Ar.CustomVer(FRenderingObjectVersion::GUID) < FRenderingObjectVersion::AddedMaterialLayersSubstrateSupport)
+	if (!Tree.IsMaterialLayersFunctionsTreeEnabled())
+	{
+		// When loading, The tree need to be recreated from the list
+		// of layers and blends assuming this is a flat hierarchy of layers:
+		if (Ar.IsLoading())
+		{
+			Tree.Empty();
+			for (int32 l = 0; l < Layers.Num(); ++l)
+			{
+				Tree.AddNode({ l, l - 1 }, -1);
+			}
+		}
+	}
+#endif
+
+	return true;
+}
+
 
 #if WITH_EDITOR
 const FMaterialLayersFunctionsID FMaterialLayersFunctionsRuntimeData::GetID(const FMaterialLayersFunctionsEditorOnlyData& EditorOnly) const
@@ -17485,14 +17862,40 @@ void FMaterialLayersFunctions::PostSerialize(const FArchive& Ar)
 				}
 			}
 		}
+
+
 	}
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_EDITORONLY_DATA	
 }
+
+
 #if WITH_EDITOR
+
+void FMaterialLayersFunctions::AddDefaultBackgroundLayer()
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	// This call is only valid for the very first layer created in the Layer tree.
+	check(Layers.Num() == 0 && Tree.IsEmpty());
+	Tree.AddNode({ 0, -1 }, -1);
+#endif
+
+	// Default to a non-blended "background" layer
+	Layers.AddDefaulted();	
+	EditorOnly.LayerStates.Add(true);
+	FText LayerName = FText(LOCTEXT("Background", "Background"));
+	EditorOnly.LayerNames.Add(LayerName);
+	EditorOnly.RestrictToLayerRelatives.Add(false);
+	// Use a consistent Guid for the background layer
+	// Default constructor assigning different guids will break FStructUtils::AttemptToFindUninitializedScriptStructMembers
+	EditorOnly.LayerGuids.Add(BackgroundGuid);
+	EditorOnly.LayerLinkStates.Add(EMaterialLayerLinkState::NotFromParent);
+}
+
 int32 FMaterialLayersFunctions::AppendBlendedLayer()
 {
 	const int32 LayerIndex = Layers.AddDefaulted();
 	Blends.AddDefaulted();
+
 	EditorOnly.LayerStates.Add(true);
 	FText LayerName = FText::Format(LOCTEXT("LayerPrefix", "Layer {0}"), Layers.Num() - 1);
 	EditorOnly.LayerNames.Add(LayerName);
@@ -17500,6 +17903,7 @@ int32 FMaterialLayersFunctions::AppendBlendedLayer()
 	EditorOnly.RestrictToBlendRelatives.Add(false);
 	EditorOnly.LayerGuids.Add(FGuid::NewGuid());
 	EditorOnly.LayerLinkStates.Add(EMaterialLayerLinkState::NotFromParent);
+
 	return LayerIndex;
 }
 
@@ -17517,7 +17921,7 @@ int32 FMaterialLayersFunctions::AddLayerCopy(const FMaterialLayersFunctionsRunti
 	{
 		Blends.Add(Source.Blends[SourceLayerIndex - 1]);
 	}
-	
+
 	EditorOnly.LayerStates.Add(bVisible);
 	EditorOnly.LayerNames.Add(SourceEditorOnly.LayerNames[SourceLayerIndex]);
 	EditorOnly.RestrictToLayerRelatives.Add(SourceEditorOnly.RestrictToLayerRelatives[SourceLayerIndex]);
@@ -17527,6 +17931,7 @@ int32 FMaterialLayersFunctions::AddLayerCopy(const FMaterialLayersFunctionsRunti
 	}
 	EditorOnly.LayerGuids.Add(SourceEditorOnly.LayerGuids[SourceLayerIndex]);
 	EditorOnly.LayerLinkStates.Add(LinkState);
+
 	return LayerIndex;
 }
 
@@ -17540,7 +17945,7 @@ void FMaterialLayersFunctions::InsertLayerCopy(const FMaterialLayersFunctionsRun
 	check(LayerIndex > 0);
 	Layers.Insert(Source.Layers[SourceLayerIndex], LayerIndex);
 	Blends.Insert(Source.Blends[SourceLayerIndex - 1], LayerIndex - 1);
-	
+
 	EditorOnly.LayerStates.Insert(SourceEditorOnly.LayerStates[SourceLayerIndex], LayerIndex);
 	EditorOnly.LayerNames.Insert(SourceEditorOnly.LayerNames[SourceLayerIndex], LayerIndex);
 	EditorOnly.RestrictToLayerRelatives.Insert(SourceEditorOnly.RestrictToLayerRelatives[SourceLayerIndex], LayerIndex);
@@ -17701,7 +18106,7 @@ bool FMaterialLayersFunctions::ResolveParent(const FMaterialLayersFunctionsRunti
 	FMaterialLayersFunctionsEditorOnlyData& EditorOnly,
 	TArray<int32>& OutRemapLayerIndices)
 {
-	check(EditorOnly.LayerGuids.Num() == Runtime.Layers.Num());
+ 	check(EditorOnly.LayerGuids.Num() == Runtime.Layers.Num());
 	check(EditorOnly.LayerLinkStates.Num() == Runtime.Layers.Num());
 
 	FMaterialLayersFunctions ResolvedLayers;
@@ -17873,8 +18278,39 @@ bool FMaterialLayersFunctions::ResolveParent(const FMaterialLayersFunctionsRunti
 		}
 	}
 
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	struct Traverser
+	{
+		void Recursive(const FMaterialLayersFunctionsTree& Source, FLayerNodeId InSourceId, FMaterialLayersFunctionsTree& Dest, FLayerNodeId InDestParentId)
+		{
+
+			FLayerNode* SourceNode = Source.GetNode(InSourceId);
+			FLayerNodeId NewNodeId = FMaterialLayersFunctionsTree::InvalidId;
+			FLayerNodePayload Payload;
+			if (SourceNode)
+			{
+				Payload = Source.Payloads[InSourceId];
+				NewNodeId = Dest.AddNode(Payload, InDestParentId);
+			}
+
+			auto ChildrenIds = Source.GetChildrenIds(InSourceId);
+			for (auto SourceSubId : ChildrenIds)
+			{
+				Recursive(Source, SourceSubId, Dest, NewNodeId);
+			}
+
+		}
+	} ReplicateTree;
+	
+	ReplicateTree.Recursive(Runtime.Tree, -1, ResolvedLayers.Tree, -1);
+
+	// NOTE: For debug purpose at the moment, we want to monitor the end result tree data state.
+	MLFT::Log(&Runtime, __FUNCTION__);
+#endif
+
 	Runtime = MoveTemp(static_cast<FMaterialLayersFunctionsRuntimeData&>(ResolvedLayers));
 	EditorOnly = MoveTemp(ResolvedLayers.EditorOnly);
+
 
 	return bUpdatedLayerIndices;
 }
@@ -17889,6 +18325,115 @@ void FMaterialLayersFunctions::Validate(const FMaterialLayersFunctionsRuntimeDat
 		check(Runtime.Layers.Num() == EditorOnly.LayerGuids.Num());
 		check(Runtime.Layers.Num() == EditorOnly.LayerLinkStates.Num());
 	}
+}
+
+
+
+
+FLayerNodeId FMaterialLayersFunctions::GetNodeParent(FLayerNodeId InNodeId) const
+{
+	FLayerNode* Node = Tree.GetNode(InNodeId);
+	if (Node)
+		return Node->Parent;
+
+	return FMaterialLayersFunctionsTree::InvalidId;
+}
+
+FMaterialLayersFunctions::FLayerNodeIdArray FMaterialLayersFunctions::GetNodeChildren(FLayerNodeId InNodeId) const
+{
+	return Tree.GetChildrenIds(InNodeId);
+}
+
+FMaterialLayersFunctions::FLayerNodePayload FMaterialLayersFunctions::GetNodePayload(FLayerNodeId InNodeId) const
+{
+	FLayerNodePayload* Payload = Tree.GetPayload(InNodeId);
+	if (Payload)
+		return *Payload;
+
+	return {};
+}
+
+int32 FMaterialLayersFunctions::GetLayerFuncIndex(FLayerNodeId InNodeId) const
+{
+	return GetNodePayload(InNodeId).Layer;
+}
+
+int32 FMaterialLayersFunctions::GetBlendFuncIndex(FLayerNodeId InNodeId) const
+{
+	return GetNodePayload(InNodeId).Blend;
+}
+
+int32 FMaterialLayersFunctions::GetNodeDepth(FLayerNodeId InNodeId) const
+{
+	return Tree.GetDepth(InNodeId);
+}
+
+bool FMaterialLayersFunctions::CanAppendLayerNode(FLayerNodeId InParent) const
+{
+	// NOTE: Current design only allows for 2 levels depth in the tree
+	return  !(GetNodeDepth(InParent) > 1);
+}
+
+FLayerNodeId FMaterialLayersFunctions::AppendLayerNode(FLayerNodeId InParent, int32 InSiblingIndex)
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if (!CanAppendLayerNode(InParent))
+		return FMaterialLayersFunctionsTree::InvalidId;
+
+	const int32 LayerIndex = AppendBlendedLayer();
+
+	// InPayload
+	FLayerNodeId NewNodeId = Tree.AddNode({ LayerIndex, LayerIndex - 1 }, InParent, InSiblingIndex);
+
+	MLFT::Log(this, __FUNCTION__);
+
+	return NewNodeId;
+#else
+	return FMaterialLayersFunctionsTree::InvalidId;
+#endif
+}
+
+bool FMaterialLayersFunctions::CanRemoveLayerNode(FLayerNodeId InNodeId) const
+{
+	// NOTE: Current design prevent to delete 1st default node
+	if (Tree.IsValidId(InNodeId))
+	{
+		if (InNodeId != 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void FMaterialLayersFunctions::RemoveLayerNodeAt(FLayerNodeId InNodeId)
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	if (!CanRemoveLayerNode(InNodeId))
+		return;
+
+	if (Tree.IsValidId(InNodeId))
+	{
+		FLayerNodePayload* Payload = Tree.GetPayload(InNodeId);
+		if (Payload && (Payload->Layer >= 0 && Payload->Layer < Layers.Num()))
+		{
+			RemoveBlendedLayerAt(Payload->Layer);
+
+			MLFT::RemovePayloadIndex(Tree, Payload->Layer);
+		}
+
+		Tree.RemoveNode(InNodeId);
+	}
+
+	MLFT::Log(this, __FUNCTION__);
+#endif
+}
+	
+
+
+void FMaterialLayersFunctions::MoveLayerNode(FLayerNodeId InNodeId, FLayerNodeId DstParentId, int32 InSiblingIndex)
+{
+
 }
 
 #endif // WITH_EDITOR

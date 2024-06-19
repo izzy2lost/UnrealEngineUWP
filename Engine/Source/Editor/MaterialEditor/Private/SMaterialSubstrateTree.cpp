@@ -54,6 +54,15 @@
 #define LOCTEXT_NAMESPACE "MaterialSubstrateTree"
 
 
+FString CreateNodeKeyForBackgroundParameter(const FString& InNodeKeyBase)
+{
+	return FString(InNodeKeyBase + TEXT("_BackgroundParameter"));
+}
+bool IsNodeKeyForBackgroundParameter(const FString InNodeKey)
+{
+	return (InNodeKey.Find(TEXT("_BackgroundParameter")) >= 0);
+}
+
 /// ===========================================================================================================
 /// SMaterialSubstrateItem Methods
 /// ===========================================================================================================
@@ -138,19 +147,45 @@ ECheckBoxState SMaterialSubstrateTreeItem::GetFilterChecked(SMaterialSubstrateTr
 	return GetFilterState(InTree, InStackData) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
-FText SMaterialSubstrateTreeItem::GetLayerName(SMaterialSubstrateTree* InTree, int32 Counter) const
+FReply SMaterialSubstrateTreeItem::ToggleLayerVisibility()
 {
-	return InTree->FunctionInstance->GetLayerName(Counter);
+	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
+	return Tree->ToggleLayerVisibility(LayerFuncIndex);
 }
 
-void SMaterialSubstrateTreeItem::OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo, SMaterialSubstrateTree* InTree, int32 Counter)
+bool SMaterialSubstrateTreeItem::IsLayerVisible() const
+{
+	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
+	return Tree->IsLayerVisible(LayerFuncIndex);
+}
+
+FReply SMaterialSubstrateTreeItem::UnlinkLayer()
+{
+	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
+	return Tree->UnlinkLayer(LayerFuncIndex);
+}
+
+EVisibility SMaterialSubstrateTreeItem::GetUnlinkLayerVisibility() const
+{
+	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
+	return Tree->GetUnlinkLayerVisibility(LayerFuncIndex);
+}
+
+FText SMaterialSubstrateTreeItem::GetLayerName() const
+{
+	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
+	return Tree->FunctionInstance->GetLayerName(LayerFuncIndex);
+}
+
+void SMaterialSubstrateTreeItem::OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo)
 {
 	const FScopedTransaction Transaction(LOCTEXT("RenamedSection", "Renamed layer and blend section"));
-	InTree->FunctionInstanceHandle->NotifyPreChange();
-	InTree->FunctionInstance->EditorOnly.LayerNames[Counter] = InText;
-	InTree->FunctionInstance->UnlinkLayerFromParent(Counter);
-	InTree->MaterialEditorInstance->CopyToSourceInstance(true);
-	InTree->FunctionInstanceHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
+	Tree->FunctionInstanceHandle->NotifyPreChange();
+	Tree->FunctionInstance->EditorOnly.LayerNames[LayerFuncIndex] = InText;
+	Tree->FunctionInstance->UnlinkLayerFromParent(LayerFuncIndex);
+	Tree->MaterialEditorInstance->CopyToSourceInstance(true);
+	Tree->FunctionInstanceHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 }
 
 TOptional<EItemDropZone> SMaterialSubstrateTreeItem::CanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FSortedParamDataPtr Item)
@@ -186,6 +221,30 @@ FReply SMaterialSubstrateTreeItem::OnLayerDrop(const FDragDropEvent& DragDropEve
 
 		if (AssetDropOp.IsValid())
 		{
+			bool bIsBackgroundItem = IsNodeKeyForBackgroundParameter(StackParameterData->NodeKey);
+
+			// Drop above or below could CREATE a new layer node:
+			int32 TargetNodeId = StackParameterData->ParameterInfo.Index;
+			int32 ParentNodeId = (bIsBackgroundItem ? TargetNodeId : Tree->FunctionInstance->GetNodeParent(TargetNodeId));
+			auto ChildrenNodeId = Tree->FunctionInstance->GetNodeChildren(ParentNodeId);
+			int32 SiblingIdx = -1;
+			bool FoundTarget = ChildrenNodeId.Find(TargetNodeId, SiblingIdx);
+
+			switch (DropZone)
+			{
+			// NOTE: the Sibling Idx should be swaped when we will disoplay the items from bottom up
+			case EItemDropZone::AboveItem:
+				TargetNodeId = Tree->FunctionInstance->AppendLayerNode(ParentNodeId, SiblingIdx);
+				break;
+
+			case EItemDropZone::BelowItem:
+				TargetNodeId = Tree->FunctionInstance->AppendLayerNode(ParentNodeId, SiblingIdx + 1);
+				break;
+			default:
+				break;
+			}
+
+			// Then drop
 			bool DidModifyTree = false;
 			for (const FAssetData& AssetData : AssetDropOp->GetAssets())
 			{
@@ -194,13 +253,14 @@ FReply SMaterialSubstrateTreeItem::OnLayerDrop(const FDragDropEvent& DragDropEve
 				if (AssetData.AssetClassPath.GetAssetName() == TEXT("MaterialFunctionMaterialLayer"))
 				{
 					InAssociation = EMaterialParameterAssociation::LayerParameter;
-					Tree->InsertLayerFromAsset(AssetData, StackParameterData->ParameterInfo.Index, InAssociation);
+
+					Tree->RefreshOnAssetChange(AssetData, TargetNodeId, InAssociation);
 					DidModifyTree = true;
 				}
 				else if (AssetData.AssetClassPath.GetAssetName() == TEXT("MaterialFunctionMaterialLayerBlend"))
 				{
 					InAssociation = EMaterialParameterAssociation::BlendParameter;
-					Tree->InsertLayerFromAsset(AssetData, StackParameterData->ParameterInfo.Index, InAssociation);
+					Tree->RefreshOnAssetChange(AssetData, TargetNodeId, InAssociation);
 					DidModifyTree = true;
 				}
 			}
@@ -290,12 +350,6 @@ void  SMaterialSubstrateTreeItem::OnOverrideParameter(bool NewValue, TObjectPtr<
 	OnOverrideParameter(NewValue, Parameter.Get());
 }
 
-void SMaterialSubstrateTreeItem::AddSubLayer()
-{
-	// create an empty sub layer at this point at the top of the sub-stack
-	
-}
-
 void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView)
 {
 	StackParameterData = InArgs._StackParameterData;
@@ -308,6 +362,12 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 	FText NameOverride;
 	TSharedRef<SVerticalBox> WrapperWidget = SNew(SVerticalBox);
 	EHorizontalAlignment ValueAlignment = HAlign_Left;
+
+	bool bIsBackgroundItem = IsNodeKeyForBackgroundParameter(StackParameterData->NodeKey);
+	bool bCanAppendSubLayer = Tree->FunctionInstance->CanAppendLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
+	bool bCanRemoveLayer = Tree->FunctionInstance->CanRemoveLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
+	bool bCanReorderLayer = !(bIsBackgroundItem || StackParameterData->ParameterInfo.Index == 0);
+
 // STACK --------------------------------------------------
 	if (StackParameterData->StackDataType == EStackDataType::Stack)
 	{
@@ -318,16 +378,18 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 		// 		SNullWidget::NullWidget
 		// 	];
 #if WITH_EDITOR
-		NameOverride = Tree->FunctionInstance->GetLayerName(StackParameterData->ParameterInfo.Index);
+		int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
+		int32 BlendFuncIndex = Tree->FunctionInstance->GetBlendFuncIndex(StackParameterData->ParameterInfo.Index);
+		NameOverride = Tree->FunctionInstance->GetLayerName(LayerFuncIndex);
 #endif
 		TSharedRef<SHorizontalBox> HeaderRowWidget = SNew(SHorizontalBox);
 
 		if (StackParameterData->ParameterInfo.Index != 0)
 		{
-			TAttribute<bool>::FGetter IsEnabledGetter = TAttribute<bool>::FGetter::CreateSP(Tree, &SMaterialSubstrateTree::IsLayerVisible, StackParameterData->ParameterInfo.Index);
+			TAttribute<bool>::FGetter IsEnabledGetter = TAttribute<bool>::FGetter::CreateSP(this, &SMaterialSubstrateTreeItem::IsLayerVisible);
 			TAttribute<bool> IsEnabledAttribute = TAttribute<bool>::Create(IsEnabledGetter);
 
-			FOnClicked VisibilityClickedDelegate = FOnClicked::CreateSP(Tree, &SMaterialSubstrateTree::ToggleLayerVisibility, StackParameterData->ParameterInfo.Index);
+			FOnClicked VisibilityClickedDelegate = FOnClicked::CreateSP(this, &SMaterialSubstrateTreeItem::ToggleLayerVisibility);
 
 			HeaderRowWidget->AddSlot()
 				.AutoWidth()
@@ -338,47 +400,51 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 		}
 		const float ThumbnailSize = 64.0f;
 		TArray<TSharedPtr<FSortedParamData>> AssetChildren = StackParameterData->Children;
+		// Extract the asset elements to represent them as thumbnail boxes
 		for (TSharedPtr<FSortedParamData> AssetChild : AssetChildren)
 		{
-			TSharedPtr<SBox> ThumbnailBox;
-			UObject* AssetObject = nullptr;
-			AssetChild->ParameterHandle->GetValue(AssetObject);
-			int32 PreviewIndex = INDEX_NONE;
-			int32 ThumbnailIndex = INDEX_NONE;
-			EMaterialParameterAssociation PreviewAssociation = EMaterialParameterAssociation::GlobalParameter;
-			if (AssetObject)
+			if (AssetChild->StackDataType == EStackDataType::Asset)
 			{
-				if (Cast<UMaterialFunctionInterface>(AssetObject)->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer)
+				TSharedPtr<SBox> ThumbnailBox;
+				UObject* AssetObject = nullptr;
+				AssetChild->ParameterHandle->GetValue(AssetObject);
+				int32 PreviewIndex = INDEX_NONE;
+				int32 ThumbnailIndex = INDEX_NONE;
+				EMaterialParameterAssociation PreviewAssociation = EMaterialParameterAssociation::GlobalParameter;
+				if (AssetObject)
 				{
-					PreviewIndex = StackParameterData->ParameterInfo.Index;
-					PreviewAssociation = EMaterialParameterAssociation::LayerParameter;
-					Tree->UpdateThumbnailMaterial(PreviewAssociation, PreviewIndex);
-					ThumbnailIndex = PreviewIndex;
+					if (Cast<UMaterialFunctionInterface>(AssetObject)->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayer)
+					{
+						PreviewIndex = LayerFuncIndex;
+						PreviewAssociation = EMaterialParameterAssociation::LayerParameter;
+						Tree->UpdateThumbnailMaterial(PreviewAssociation, PreviewIndex);
+						ThumbnailIndex = PreviewIndex;
+					}
+					if (Cast<UMaterialFunctionInterface>(AssetObject)->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
+					{
+						PreviewIndex = BlendFuncIndex;
+						PreviewAssociation = EMaterialParameterAssociation::BlendParameter;
+						Tree->UpdateThumbnailMaterial(PreviewAssociation, PreviewIndex);
+						ThumbnailIndex = PreviewIndex;
+					}
 				}
-				if (Cast<UMaterialFunctionInterface>(AssetObject)->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
-				{
-					PreviewIndex = StackParameterData->ParameterInfo.Index;
-					PreviewAssociation = EMaterialParameterAssociation::BlendParameter;
-					Tree->UpdateThumbnailMaterial(PreviewAssociation, PreviewIndex, true);
-					ThumbnailIndex = PreviewIndex - 1;
-				}
-			}
-			HeaderRowWidget->AddSlot()
-				.AutoWidth()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				.Padding(4.0f)
-				.MaxWidth(ThumbnailSize)
-				[
-					SAssignNew(ThumbnailBox, SBox)
+				HeaderRowWidget->AddSlot()
+					.AutoWidth()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.Padding(4.0f)
+					.MaxWidth(ThumbnailSize)
 					[
-						Tree->CreateThumbnailWidget(PreviewAssociation, ThumbnailIndex, ThumbnailSize)
-					]
-				];
-			ThumbnailBox->SetMaxDesiredHeight(ThumbnailSize);
-			ThumbnailBox->SetMinDesiredHeight(ThumbnailSize);
-			ThumbnailBox->SetMinDesiredWidth(ThumbnailSize);
-			ThumbnailBox->SetMaxDesiredWidth(ThumbnailSize);
+						SAssignNew(ThumbnailBox, SBox)
+							[
+								Tree->CreateThumbnailWidget(PreviewAssociation, ThumbnailIndex, ThumbnailSize)
+							]
+					];
+				ThumbnailBox->SetMaxDesiredHeight(ThumbnailSize);
+				ThumbnailBox->SetMinDesiredHeight(ThumbnailSize);
+				ThumbnailBox->SetMinDesiredWidth(ThumbnailSize);
+				ThumbnailBox->SetMaxDesiredWidth(ThumbnailSize);
+			}
 		}
 
 		
@@ -391,8 +457,8 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 				.Padding(5.0f)
 				[
 					SNew(SEditableTextBox)
-					.Text(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(this, &SMaterialSubstrateTreeItem::GetLayerName, InArgs._InTree, StackParameterData->ParameterInfo.Index)))
-					.OnTextCommitted(FOnTextCommitted::CreateSP(this, &SMaterialSubstrateTreeItem::OnNameChanged, InArgs._InTree, StackParameterData->ParameterInfo.Index))
+					.Text(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(this, &SMaterialSubstrateTreeItem::GetLayerName)))
+					.OnTextCommitted(FOnTextCommitted::CreateSP(this, &SMaterialSubstrateTreeItem::OnNameChanged))
 				];
 		}
 		else
@@ -414,6 +480,7 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 			[
 				SNullWidget::NullWidget
 			];
+
 		HeaderRowWidget->AddSlot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
@@ -422,28 +489,32 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 				SNew(SButton)
 				.Text(LOCTEXT("Unlink", "Unlink"))
 				.HAlign(HAlign_Center)
-				.OnClicked(Tree, &SMaterialSubstrateTree::UnlinkLayer, StackParameterData->ParameterInfo.Index)
+				.OnClicked(this, &SMaterialSubstrateTreeItem::UnlinkLayer)
 				.ToolTipText(LOCTEXT("UnlinkLayer", "Whether or not to unlink this layer/blend combination from the parent."))
-				.Visibility(Tree, &SMaterialSubstrateTree::GetUnlinkLayerVisibility, StackParameterData->ParameterInfo.Index)
+				.Visibility(this, &SMaterialSubstrateTreeItem::GetUnlinkLayerVisibility)
 			];
 
-		HeaderRowWidget->AddSlot()
+		// Can only add sub layer up to a certain level
+		if (bCanAppendSubLayer)
+		{
+			HeaderRowWidget->AddSlot()
 				.HAlign(HAlign_Left)
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				[
-					PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateSP(this, &SMaterialSubstrateTreeItem::AddSubLayer))
+					PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateSP(InArgs._InTree, &SMaterialSubstrateTree::AddNodeLayer, StackParameterData->ParameterInfo.Index))
 				];
+		}
 
 		// Can only remove layers that aren't the base layer.
-		if (StackParameterData->ParameterInfo.Index != 0)
+		if (bCanRemoveLayer)
 		{
 			HeaderRowWidget->AddSlot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				.Padding(0.0f, 0.0f, 5.0f, 0.0f)
 				[
-					PropertyCustomizationHelpers::MakeClearButton(FSimpleDelegate::CreateSP(InArgs._InTree, &SMaterialSubstrateTree::RemoveLayer, StackParameterData->ParameterInfo.Index))
+					PropertyCustomizationHelpers::MakeClearButton(FSimpleDelegate::CreateSP(InArgs._InTree, &SMaterialSubstrateTree::RemoveNodeLayer, StackParameterData->ParameterInfo.Index))
 				];
 		}
 		LeftSideWidget = HeaderRowWidget;
@@ -458,9 +529,10 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 		WrapperWidget->AddSlot()
 			.Padding(15.0f)/*.AutoHeight()*/
 			[
-						SAssignNew(FinalStack, SHorizontalBox)
+				SAssignNew(FinalStack, SHorizontalBox)
 			];
-		if (StackParameterData->ParameterInfo.Index != 0)
+
+		if (bCanReorderLayer)
 		{
 			FinalStack->AddSlot()
 				.HAlign(HAlign_Center)
@@ -471,13 +543,18 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 					FMaterialPropertyHelpers::MakeStackReorderHandle(SharedThis(this))
 				];
 		}
-		FinalStack->AddSlot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.Padding(FMargin(2.0f))
-			[
-				SNew(SExpanderArrow, SharedThis(this))
-			];
+
+		if (bCanAppendSubLayer)
+		{
+			FinalStack->AddSlot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(FMargin(2.0f))
+				[
+					SNew(SExpanderArrow, SharedThis(this))
+				];
+		}
+
 		FinalStack->AddSlot()
 			.Padding(FMargin(2.0f))
 			.VAlign(VAlign_Center)
@@ -527,14 +604,17 @@ int32 SMaterialSubstrateTreeItem::OnLayerItemPaintDropIndicator(EItemDropZone In
 }
 FString SMaterialSubstrateTreeItem::GetInstancePath(SMaterialSubstrateTree* InTree) const
 {
+	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
+	int32 BlendFuncIndex = Tree->FunctionInstance->GetBlendFuncIndex(StackParameterData->ParameterInfo.Index);
+
 	FString InstancePath;
-	if (StackParameterData->ParameterInfo.Association == EMaterialParameterAssociation::BlendParameter && InTree->FunctionInstance->Blends.IsValidIndex(StackParameterData->ParameterInfo.Index))
+	if (StackParameterData->ParameterInfo.Association == EMaterialParameterAssociation::BlendParameter && InTree->FunctionInstance->Blends.IsValidIndex(BlendFuncIndex))
 	{
-		InstancePath = InTree->FunctionInstance->Blends[StackParameterData->ParameterInfo.Index]->GetPathName();
+		InstancePath = InTree->FunctionInstance->Blends[BlendFuncIndex]->GetPathName();
 	}
-	else if (StackParameterData->ParameterInfo.Association == EMaterialParameterAssociation::LayerParameter && InTree->FunctionInstance->Layers.IsValidIndex(StackParameterData->ParameterInfo.Index))
+	else if (StackParameterData->ParameterInfo.Association == EMaterialParameterAssociation::LayerParameter && InTree->FunctionInstance->Layers.IsValidIndex(LayerFuncIndex))
 	{
-		InstancePath = InTree->FunctionInstance->Layers[StackParameterData->ParameterInfo.Index]->GetPathName();
+		InstancePath = InTree->FunctionInstance->Layers[LayerFuncIndex]->GetPathName();
 	}
 	return InstancePath;
 }
@@ -639,8 +719,15 @@ void SMaterialSubstrateTree::SetParentsExpansionState()
 	}
 }
 
-void SMaterialSubstrateTree::RefreshOnAssetChange(const struct FAssetData& InAssetData, int32 Index, EMaterialParameterAssociation MaterialType)
+void SMaterialSubstrateTree::RefreshOnAssetChange(const struct FAssetData& InAssetData, int32 InNodeId, EMaterialParameterAssociation MaterialType)
 {
+	auto NodePayload = FunctionInstance->GetNodePayload(InNodeId);
+
+	int32 Index = (MaterialType == EMaterialParameterAssociation::BlendParameter ? NodePayload.Blend : NodePayload.Layer);
+	// Early exit no op if the index for the asset modified is not valid
+	if (Index < 0)
+		return;
+
 	FMaterialPropertyHelpers::OnMaterialLayerAssetChanged(InAssetData, Index, MaterialType, FunctionInstanceHandle, FunctionInstance);
 	//set their overrides back to 0
 	MaterialEditorInstance->CleanParameterStack(Index, MaterialType);
@@ -656,42 +743,39 @@ void SMaterialSubstrateTree::ResetAssetToDefault(TSharedPtr<FSortedParamData> In
 	CreateGroupsWidget();
 	RequestTreeRefresh();
 }
-void SMaterialSubstrateTree::InsertLayerFromAsset(const struct FAssetData& InAssetData, int32 Index, EMaterialParameterAssociation MaterialType)
-{
-	const FScopedTransaction Transaction(LOCTEXT("InsertLayerAndBlend", "Insert a new Layer and a Blend into it"));
-	FunctionInstanceHandle->NotifyPreChange();
-	//TODO: Need to implement insert at index position instead of this
-	int32 LayerIndex = FunctionInstance->AppendBlendedLayer();
 
-	if (MaterialType == LayerParameter)
-	{
-		// Blend indices are offset by 1, no blend for base layer, so we only update the index for Layer
-		Index = LayerIndex;
-	}
-	FMaterialPropertyHelpers::OnMaterialLayerAssetChanged(InAssetData, Index, MaterialType, FunctionInstanceHandle, FunctionInstance);
-
-	FunctionInstanceHandle->NotifyFinishedChangingProperties();
-	MaterialEditorInstance->CleanParameterStack(Index, MaterialType);
-	CreateGroupsWidget();
-	MaterialEditorInstance->ResetOverrides(Index, MaterialType);
-	RequestTreeRefresh();
-}
-void SMaterialSubstrateTree::AddLayer()
+void SMaterialSubstrateTree::AddNodeLayer(int32 InParent)
 {
-	const FScopedTransaction Transaction(LOCTEXT("AddLayerAndBlend", "Add a new Layer and a Blend into it"));
+	/// Only if can really add a sub layer!
+	if (!FunctionInstance->CanAppendLayerNode(InParent))
+		return;
+
+	const FScopedTransaction Transaction(LOCTEXT("AddLayer", "Add a new Layer in the tree"));
 	FunctionInstanceHandle->NotifyPreChange();
-	FunctionInstance->AppendBlendedLayer();
+
+	// Create a new node
+	FunctionInstance->AppendLayerNode(InParent);
+	
 	FunctionInstanceHandle->NotifyPostChange(EPropertyChangeType::ArrayAdd);
 	CreateGroupsWidget();
 	RequestTreeRefresh();
 }
 
-void SMaterialSubstrateTree::RemoveLayer(int32 Index)
+void SMaterialSubstrateTree::RemoveNodeLayer(int32 InNodeId)
 {
+	/// Only if can really remove a sub layer!
+	if (!FunctionInstance->CanRemoveLayerNode(InNodeId))
+		return;
+
 	const FScopedTransaction Transaction(LOCTEXT("RemoveLayerAndBlend", "Remove a Layer and the attached Blend"));
 	FunctionInstanceHandle->NotifyPreChange();
-	FunctionInstance->RemoveBlendedLayerAt(Index);
-	MaterialEditorInstance->SourceInstance->RemoveLayerParameterIndex(Index);
+	
+	// Remove the node
+	auto NodePayload = FunctionInstance->GetNodePayload(InNodeId);
+
+	FunctionInstance->RemoveLayerNodeAt(InNodeId);
+	
+	MaterialEditorInstance->SourceInstance->RemoveLayerParameterIndex(NodePayload.Layer);
 	FunctionInstanceHandle->NotifyPostChange(EPropertyChangeType::ArrayRemove);
 	CreateGroupsWidget();
 	RequestTreeRefresh();
@@ -800,6 +884,107 @@ TSharedPtr<IDetailTreeNode> SMaterialSubstrateTree::FindParameterGroupsNode(TSha
 	return nullptr;
 }
 
+struct FRecursiveCreateWidgetsContext
+{
+	UDEditorParameterValue* Parameter;
+	TSharedPtr<IPropertyHandle>	LayerHandle;
+	TSharedPtr<IPropertyHandle>	BlendHandle;
+};
+
+void SMaterialSubstrateTree::RecursiveCreateWidgets(FRecursiveCreateWidgetsContext* InContext, FNodeId InNodeId, TArray<TSharedPtr<FSortedParamData>>& InParentContainer, bool GenerateChildren, bool bIsBackgroundItem)
+{
+	auto Payload = FunctionInstance->Tree.Payloads[InNodeId];
+
+
+	TSharedRef<FSortedParamData> StackProperty = MakeShared<FSortedParamData>();
+	StackProperty->StackDataType = EStackDataType::Stack;
+	StackProperty->Parameter = InContext->Parameter;
+	StackProperty->ParameterInfo.Index = InNodeId;
+	StackProperty->NodeKey = FString::FromInt(StackProperty->ParameterInfo.Index);
+
+	if (bIsBackgroundItem)
+	{
+		StackProperty->NodeKey = CreateNodeKeyForBackgroundParameter(StackProperty->NodeKey);
+	}
+
+
+	if (GenerateChildren)
+	{
+		// Create the default background sub item representing the layer and blend func stored in the layer item
+		RecursiveCreateWidgets(InContext, InNodeId, StackProperty->Children, false, true);
+
+		// Sub layers
+		auto RootChildren = FunctionInstance->GetNodeChildren(InNodeId);
+		for (int i = 0; i < RootChildren.Num(); ++i)
+		{
+			RecursiveCreateWidgets(InContext, RootChildren[i], StackProperty->Children, false, false);
+		}
+	}
+
+	if (Payload.Layer != -1)
+	{
+		TSharedRef<FSortedParamData> ChildProperty = MakeShared<FSortedParamData>();
+		ChildProperty->StackDataType = EStackDataType::Asset;
+		ChildProperty->Parameter = InContext->Parameter;
+		ChildProperty->ParameterHandle = InContext->LayerHandle->AsArray()->GetElement(Payload.Layer);
+		ChildProperty->ParameterNode = Generator->FindTreeNode(ChildProperty->ParameterHandle);
+		ChildProperty->ParameterInfo.Index = Payload.Layer;
+		ChildProperty->ParameterInfo.Association = EMaterialParameterAssociation::LayerParameter;
+		ChildProperty->NodeKey = FString::FromInt(ChildProperty->ParameterInfo.Index) + FString::FromInt(ChildProperty->ParameterInfo.Association);
+
+		{
+			UObject* AssetObject = nullptr;
+			ChildProperty->ParameterHandle->GetValue(AssetObject);
+			if (AssetObject)
+			{
+				if (MaterialEditorInstance->StoredLayerPreviews[Payload.Layer] == nullptr)
+				{
+					MaterialEditorInstance->StoredLayerPreviews[Payload.Layer] = (NewObject<UMaterialInstanceConstant>(MaterialEditorInstance, NAME_None));
+				}
+				UMaterialInterface* EditedMaterial = Cast<UMaterialFunctionInterface>(AssetObject)->GetPreviewMaterial();
+				if (MaterialEditorInstance->StoredLayerPreviews[Payload.Layer] && MaterialEditorInstance->StoredLayerPreviews[Payload.Layer]->Parent != EditedMaterial)
+				{
+					MaterialEditorInstance->StoredLayerPreviews[Payload.Layer]->SetParentEditorOnly(EditedMaterial);
+				}
+			}
+		}
+
+		StackProperty->Children.Add(ChildProperty);
+	}
+
+	if (Payload.Blend != -1)
+	{
+		TSharedRef<FSortedParamData> ChildProperty = MakeShared<FSortedParamData>();
+		ChildProperty->StackDataType = EStackDataType::Asset;
+		ChildProperty->Parameter = InContext->Parameter;
+		ChildProperty->ParameterHandle = InContext->BlendHandle->AsArray()->GetElement(Payload.Blend);
+		ChildProperty->ParameterNode = Generator->FindTreeNode(ChildProperty->ParameterHandle);
+		ChildProperty->ParameterInfo.Index = Payload.Blend;
+		ChildProperty->ParameterInfo.Association = EMaterialParameterAssociation::BlendParameter;
+		ChildProperty->NodeKey = FString::FromInt(ChildProperty->ParameterInfo.Index) + FString::FromInt(ChildProperty->ParameterInfo.Association);
+		{
+			UObject* AssetObject = nullptr;
+			ChildProperty->ParameterHandle->GetValue(AssetObject);
+			if (AssetObject)
+			{
+				if (MaterialEditorInstance->StoredBlendPreviews[Payload.Blend] == nullptr)
+				{
+					MaterialEditorInstance->StoredBlendPreviews[Payload.Blend] = (NewObject<UMaterialInstanceConstant>(MaterialEditorInstance, NAME_None));
+				}
+				UMaterialInterface* EditedMaterial = Cast<UMaterialFunctionInterface>(AssetObject)->GetPreviewMaterial();
+				if (MaterialEditorInstance->StoredBlendPreviews[Payload.Blend] && MaterialEditorInstance->StoredBlendPreviews[Payload.Blend]->Parent != EditedMaterial)
+				{
+					MaterialEditorInstance->StoredBlendPreviews[Payload.Blend]->SetParentEditorOnly(EditedMaterial);
+				}
+			}
+		}
+
+		StackProperty->Children.Add(ChildProperty);
+	}
+
+	InParentContainer.Add(StackProperty);
+}
+
 void SMaterialSubstrateTree::CreateGroupsWidget()
 {
 	check(MaterialEditorInstance);
@@ -866,123 +1051,43 @@ void SMaterialSubstrateTree::CreateGroupsWidget()
 					FunctionInstance = reinterpret_cast<FMaterialLayersFunctions*>(*It);
 					FunctionInstanceHandle = ParameterValueProperty;
 
+
 					TSharedPtr<IPropertyHandle>	LayerHandle = ChildHandle->GetChildHandle("Layers").ToSharedRef();
 					TSharedPtr<IPropertyHandle> BlendHandle = ChildHandle->GetChildHandle("Blends").ToSharedRef();
-					uint32 LayerChildren;
-					LayerHandle->GetNumChildren(LayerChildren);
-					uint32 BlendChildren;
-					BlendHandle->GetNumChildren(BlendChildren);
-					if (MaterialEditorInstance->StoredLayerPreviews.Num() != LayerChildren)
+					uint32 NumLayerChildren;
+					LayerHandle->GetNumChildren(NumLayerChildren);
+					uint32 NumBlendChildren;
+					BlendHandle->GetNumChildren(NumBlendChildren);
+					if (MaterialEditorInstance->StoredLayerPreviews.Num() != NumLayerChildren)
 					{
 						MaterialEditorInstance->StoredLayerPreviews.Empty();
-						MaterialEditorInstance->StoredLayerPreviews.AddDefaulted(LayerChildren);
+						MaterialEditorInstance->StoredLayerPreviews.AddDefaulted(NumLayerChildren);
 					}
-					if (MaterialEditorInstance->StoredBlendPreviews.Num() != BlendChildren)
+					if (MaterialEditorInstance->StoredBlendPreviews.Num() != NumBlendChildren)
 					{
 						MaterialEditorInstance->StoredBlendPreviews.Empty();
-						MaterialEditorInstance->StoredBlendPreviews.AddDefaulted(BlendChildren);
+						MaterialEditorInstance->StoredBlendPreviews.AddDefaulted(NumBlendChildren);
 					}
 
-					TSharedRef<FSortedParamData> StackProperty = MakeShared<FSortedParamData>();
-					StackProperty->StackDataType = EStackDataType::Stack;
-					StackProperty->Parameter = Parameter;
-					StackProperty->ParameterInfo.Index = LayerChildren - 1;
-					StackProperty->NodeKey = FString::FromInt(StackProperty->ParameterInfo.Index);
 
-
-					TSharedRef<FSortedParamData> ChildProperty = MakeShared<FSortedParamData>();
-					ChildProperty->StackDataType = EStackDataType::Asset;
-					ChildProperty->Parameter = Parameter;
-					ChildProperty->ParameterHandle = LayerHandle->AsArray()->GetElement(LayerChildren - 1);
-					ChildProperty->ParameterNode = Generator->FindTreeNode(ChildProperty->ParameterHandle);
-					ChildProperty->ParameterInfo.Index = LayerChildren - 1;
-					ChildProperty->ParameterInfo.Association = EMaterialParameterAssociation::LayerParameter;
-					ChildProperty->NodeKey = FString::FromInt(ChildProperty->ParameterInfo.Index) + FString::FromInt(ChildProperty->ParameterInfo.Association);
-
+#ifdef ENABLE_MATERIAL_LAYER_PROTOTYPE					
 					{
-						UObject* AssetObject = nullptr;
-						ChildProperty->ParameterHandle->GetValue(AssetObject);
-						if (AssetObject)
+						TSharedPtr<IPropertyHandle>	TreeHandle = ChildHandle->GetChildHandle("Tree").ToSharedRef();
+						
+						FRecursiveCreateWidgetsContext Context {
+							.Parameter = Parameter,
+							.LayerHandle = LayerHandle,
+							.BlendHandle = BlendHandle
+						};
+
+						auto RootChildren = FunctionInstance->GetNodeChildren(-1);
+						for (int i = 0; i < RootChildren.Num(); ++i)
 						{
-							if (MaterialEditorInstance->StoredLayerPreviews[LayerChildren - 1] == nullptr)
-							{
-								MaterialEditorInstance->StoredLayerPreviews[LayerChildren - 1] = (NewObject<UMaterialInstanceConstant>(MaterialEditorInstance, NAME_None));
-							}
-							UMaterialInterface* EditedMaterial = Cast<UMaterialFunctionInterface>(AssetObject)->GetPreviewMaterial();
-							if (MaterialEditorInstance->StoredLayerPreviews[LayerChildren - 1] && MaterialEditorInstance->StoredLayerPreviews[LayerChildren - 1]->Parent != EditedMaterial)
-							{
-								MaterialEditorInstance->StoredLayerPreviews[LayerChildren - 1]->SetParentEditorOnly(EditedMaterial);
-							}
-						}
+							RecursiveCreateWidgets(&Context, RootChildren[i], LayerProperties, true, false);
+						}	
 					}
+#endif // ENABLE_MATERIAL_LAYER_PROTOTYPE
 
-					StackProperty->Children.Add(ChildProperty);
-					LayerProperties.Add(StackProperty);
-
-					if (BlendChildren > 0 && LayerChildren > BlendChildren)
-					{
-						for (int32 Counter = BlendChildren - 1; Counter >= 0; Counter--)
-						{
-							ChildProperty = MakeShared<FSortedParamData>();
-							ChildProperty->StackDataType = EStackDataType::Asset;
-							ChildProperty->Parameter = Parameter;
-							ChildProperty->ParameterHandle = BlendHandle->AsArray()->GetElement(Counter);
-							ChildProperty->ParameterNode = Generator->FindTreeNode(ChildProperty->ParameterHandle);
-							ChildProperty->ParameterInfo.Index = Counter;
-							ChildProperty->ParameterInfo.Association = EMaterialParameterAssociation::BlendParameter;
-							ChildProperty->NodeKey = FString::FromInt(ChildProperty->ParameterInfo.Index) + FString::FromInt(ChildProperty->ParameterInfo.Association);
-							{
-								UObject* AssetObject = nullptr;
-								ChildProperty->ParameterHandle->GetValue(AssetObject);
-								if (AssetObject)
-								{
-									if (MaterialEditorInstance->StoredBlendPreviews[Counter] == nullptr)
-									{
-										MaterialEditorInstance->StoredBlendPreviews[Counter] = (NewObject<UMaterialInstanceConstant>(MaterialEditorInstance, NAME_None));
-									}
-									UMaterialInterface* EditedMaterial = Cast<UMaterialFunctionInterface>(AssetObject)->GetPreviewMaterial();
-									if (MaterialEditorInstance->StoredBlendPreviews[Counter] && MaterialEditorInstance->StoredBlendPreviews[Counter]->Parent != EditedMaterial)
-									{
-										MaterialEditorInstance->StoredBlendPreviews[Counter]->SetParentEditorOnly(EditedMaterial);
-									}
-								}
-							}
-							LayerProperties.Last()->Children.Add(ChildProperty);
-
-							StackProperty = MakeShared<FSortedParamData>();
-							StackProperty->StackDataType = EStackDataType::Stack;
-							StackProperty->Parameter = Parameter;
-							StackProperty->ParameterInfo.Index = Counter;
-							StackProperty->NodeKey = FString::FromInt(StackProperty->ParameterInfo.Index);
-							LayerProperties.Add(StackProperty);
-
-							ChildProperty = MakeShared<FSortedParamData>();
-							ChildProperty->StackDataType = EStackDataType::Asset;
-							ChildProperty->Parameter = Parameter;
-							ChildProperty->ParameterHandle = LayerHandle->AsArray()->GetElement(Counter);
-							ChildProperty->ParameterNode = Generator->FindTreeNode(ChildProperty->ParameterHandle);
-							ChildProperty->ParameterInfo.Index = Counter;
-							ChildProperty->ParameterInfo.Association = EMaterialParameterAssociation::LayerParameter;
-							ChildProperty->NodeKey = FString::FromInt(ChildProperty->ParameterInfo.Index) + FString::FromInt(ChildProperty->ParameterInfo.Association);
-							{
-								UObject* AssetObject = nullptr;
-								ChildProperty->ParameterHandle->GetValue(AssetObject);
-								if (AssetObject)
-								{
-									if (MaterialEditorInstance->StoredLayerPreviews[Counter] == nullptr)
-									{
-										MaterialEditorInstance->StoredLayerPreviews[Counter] = (NewObject<UMaterialInstanceConstant>(MaterialEditorInstance, NAME_None));
-									}
-									UMaterialInterface* EditedMaterial = Cast<UMaterialFunctionInterface>(AssetObject)->GetPreviewMaterial();
-									if (MaterialEditorInstance->StoredLayerPreviews[Counter] && MaterialEditorInstance->StoredLayerPreviews[Counter]->Parent != EditedMaterial)
-									{
-										MaterialEditorInstance->StoredLayerPreviews[Counter]->SetParentEditorOnly(EditedMaterial);
-									}
-								}
-							}
-							LayerProperties.Last()->Children.Add(ChildProperty);
-						}
-					}
 				}
 				else
 				{
@@ -1061,8 +1166,6 @@ TSharedRef<SWidget> SMaterialSubstrateTree::CreateThumbnailWidget(EMaterialParam
 
 void SMaterialSubstrateTree::UpdateThumbnailMaterial(TEnumAsByte<EMaterialParameterAssociation> InAssociation, int32 InIndex, bool bAlterBlendIndex)
 {
-	// Need to invert index b/c layer properties is generated in reverse order
-	TArray<TSharedPtr<FSortedParamData>> AssetChildren = LayerProperties[LayerProperties.Num() - 1 - InIndex]->Children;
 	UMaterialInstanceConstant* MaterialToUpdate = nullptr;
 	int32 ParameterIndex = InIndex;
 	if (InAssociation == EMaterialParameterAssociation::LayerParameter)
@@ -1078,34 +1181,39 @@ void SMaterialSubstrateTree::UpdateThumbnailMaterial(TEnumAsByte<EMaterialParame
 		MaterialToUpdate = MaterialEditorInstance->StoredBlendPreviews[ParameterIndex];
 	}
 
-	TArray<FEditorParameterGroup> ParameterGroups;
-	for (TSharedPtr<FSortedParamData> AssetChild : AssetChildren)
+	if (MaterialToUpdate != nullptr)
 	{
-		for (TSharedPtr<FSortedParamData> Group : AssetChild->Children)
+		// Need to invert index b/c layer properties is generated in reverse order
+	/*	TArray<TSharedPtr<FSortedParamData>> AssetChildren = LayerProperties[LayerProperties.Num() - 1 - InIndex]->Children;
+
+		TArray<FEditorParameterGroup> ParameterGroups;
+		for (TSharedPtr<FSortedParamData> AssetChild : AssetChildren)
 		{
-			if (Group->ParameterInfo.Association == InAssociation)
+			for (TSharedPtr<FSortedParamData> Group : AssetChild->Children)
 			{
-				FEditorParameterGroup DuplicatedGroup = FEditorParameterGroup();
-				DuplicatedGroup.GroupAssociation = Group->Group.GroupAssociation;
-				DuplicatedGroup.GroupName = Group->Group.GroupName;
-				DuplicatedGroup.GroupSortPriority = Group->Group.GroupSortPriority;
-				for (UDEditorParameterValue* Parameter : Group->Group.Parameters)
+				if (Group->ParameterInfo.Association == InAssociation)
 				{
-					if (Parameter->ParameterInfo.Index == ParameterIndex)
+					FEditorParameterGroup DuplicatedGroup = FEditorParameterGroup();
+					DuplicatedGroup.GroupAssociation = Group->Group.GroupAssociation;
+					DuplicatedGroup.GroupName = Group->Group.GroupName;
+					DuplicatedGroup.GroupSortPriority = Group->Group.GroupSortPriority;
+					for (UDEditorParameterValue* Parameter : Group->Group.Parameters)
 					{
-						DuplicatedGroup.Parameters.Add(Parameter);
+						if (Parameter->ParameterInfo.Index == ParameterIndex)
+						{
+							DuplicatedGroup.Parameters.Add(Parameter);
+						}
 					}
+					ParameterGroups.Add(DuplicatedGroup);
 				}
-				ParameterGroups.Add(DuplicatedGroup);
 			}
-		}
 
 	
 
-	}
-	if (MaterialToUpdate != nullptr)
-	{
+		}
+
 		FMaterialPropertyHelpers::TransitionAndCopyParameters(MaterialToUpdate, ParameterGroups, true);
+*/
 	}
 }
 

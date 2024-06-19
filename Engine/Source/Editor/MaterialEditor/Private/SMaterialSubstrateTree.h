@@ -23,6 +23,7 @@ class SMaterialSubstrateTree;
 class SMaterialLayersFunctionsInstanceWrapper;
 class UDEditorParameterValue;
 class UMaterialEditorInstanceConstant;
+struct FRecursiveCreateWidgetsContext;
 
 typedef TSharedPtr<FSortedParamData> FSortedParamDataPtr;
 class SMaterialSubstrateTree : public STreeView<FSortedParamDataPtr>
@@ -50,16 +51,20 @@ public:
 	TWeakObjectPtr<class UDEditorParameterValue> FunctionParameter;
 	struct FMaterialLayersFunctions* FunctionInstance;
 	TSharedPtr<IPropertyHandle> FunctionInstanceHandle;
-	void RefreshOnAssetChange(const struct FAssetData& InAssetData, int32 Index, EMaterialParameterAssociation MaterialType);
+	void RefreshOnAssetChange(const struct FAssetData& InAssetData, int32 InNodeId, EMaterialParameterAssociation MaterialType);
 	void ResetAssetToDefault(TSharedPtr<FSortedParamData> InData);
-	void AddLayer();
-	void InsertLayerFromAsset(const struct FAssetData& InAssetData, int32 Index, EMaterialParameterAssociation MaterialType);
-	void RemoveLayer(int32 Index);
+	
+	void AddRootNodeLayer() { AddNodeLayer(); }
+	void AddNodeLayer(int32 InParent = -1);
+	void RemoveNodeLayer(int32 InNodeId);
+
 	FReply UnlinkLayer(int32 Index);
 	FReply RelinkLayersToParent();
 	EVisibility GetUnlinkLayerVisibility(int32 Index) const;
 	EVisibility GetRelinkLayersToParentVisibility() const;
 	FReply ToggleLayerVisibility(int32 Index);
+	bool IsLayerVisible(int32 Index) const;
+
 	TSharedPtr<class FAssetThumbnailPool> GetTreeThumbnailPool();
 
 	/** Object that stores all of the possible parameters we can edit */
@@ -67,8 +72,9 @@ public:
 
 	/** Builds the custom parameter groups category */
 	void CreateGroupsWidget();
+	using FNodeId = int32;
+	void RecursiveCreateWidgets(struct FRecursiveCreateWidgetsContext* Context, FNodeId InNodeId, TArray<TSharedPtr<FSortedParamData>>& InParentContainer, bool GenerateChildren, bool IsBackgroundItem);
 
-	bool IsLayerVisible(int32 Index) const;
 
 	SMaterialLayersFunctionsInstanceWrapper* GetWrapper() { return Wrapper; }
 
@@ -136,14 +142,20 @@ public:
 	bool GetFilterState(SMaterialSubstrateTree* InTree, TSharedPtr<FSortedParamData> InStackData) const;
 	void FilterClicked(const ECheckBoxState NewCheckedState, SMaterialSubstrateTree* InTree, TSharedPtr<FSortedParamData> InStackData);
 	ECheckBoxState GetFilterChecked(SMaterialSubstrateTree* InTree, TSharedPtr<FSortedParamData> InStackData) const;
-	FText GetLayerName(SMaterialSubstrateTree* InTree, int32 Counter) const;
-	void OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo, SMaterialSubstrateTree* InTree, int32 Counter);
+	FText GetLayerName() const;
+	void OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo);
+	
+	FReply ToggleLayerVisibility();
+	bool IsLayerVisible() const;
+
+	FReply UnlinkLayer();
+	EVisibility GetUnlinkLayerVisibility() const;
 
 	TOptional<EItemDropZone> CanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FSortedParamDataPtr Item);
 	FReply OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FSortedParamDataPtr TargetItem);
 	void OnLayerDragEnter(const FDragDropEvent& DragDropEvent) override
 	{
-		if (StackParameterData->ParameterInfo.Index != 0)
+		//if (StackParameterData->ParameterInfo.Index != 0)
 		{
 			bIsHoveredDragTarget = true;
 		}
@@ -162,7 +174,7 @@ public:
 	FReply OnLayerDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FSortedParamDataPtr TargetItem);
 	void OnOverrideParameter(bool NewValue, class UDEditorParameterValue* Parameter);
 	void OnOverrideParameter(bool NewValue, TObjectPtr<UDEditorParameterValue> Parameter);
-	void AddSubLayer();
+
 	/**
 	* Construct the widget
 	*

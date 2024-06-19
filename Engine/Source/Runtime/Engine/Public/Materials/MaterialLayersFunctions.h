@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MaterialTypes.h"
+#include "MaterialExpression.h"
 
 #include "MaterialLayersFunctions.generated.h"
 
@@ -116,6 +117,235 @@ struct FMaterialLayersFunctionsEditorOnlyData
 #endif // WITH_EDITOR
 };
 
+
+
+USTRUCT()
+struct FMaterialLayersFunctionsTree
+{
+	GENERATED_BODY()
+
+public:
+	using FNodeId = int32;
+	using FPayloadId = int32;
+
+	static const FNodeId InvalidId = -1; // Invalid id is always <0
+
+	struct FNode
+	{
+		FNodeId 		Parent = InvalidId;
+		FNodeId 		NextSibling = InvalidId;
+		FNodeId 		ChildrenHead = InvalidId;
+		FNodeId			Spare = InvalidId;
+
+		FORCEINLINE bool operator==(const FNode& Other) const
+		{
+			if (Parent != Other.Parent || NextSibling != Other.NextSibling || ChildrenHead != Other.ChildrenHead)
+			{
+				return false;
+			}
+			return true;
+		}
+
+		FORCEINLINE bool operator!=(const FNode& Other) const
+		{
+			return !operator==(Other);
+		}
+
+		void Clear()
+		{
+			Parent = NextSibling = Spare = InvalidId;
+		}
+	};
+
+	struct FPayload
+	{
+		FPayloadId Layer = InvalidId;
+		FPayloadId Blend = InvalidId;
+
+		FORCEINLINE bool operator==(const FPayload& Other) const
+		{
+			if (Layer != Other.Layer || Blend != Other.Blend)
+			{
+				return false;
+			}
+			return true;
+		}
+
+		FORCEINLINE bool operator!=(const FPayload& Other) const
+		{
+			return !operator==(Other);
+		}
+	};
+
+	TArray<FNode>		Nodes;
+	TArray<FPayload>	Payloads;
+	FNodeId				Root = -2; // the index of the head of the top level siblings
+							   // and temporarly, capture the information if the LayersFunctionsTree is enabled in this asset
+							   // -2 means is is disabled
+
+	// Custom version system until we can rely on the archive custom version system
+	void			EnableMaterialLayersFunctionsTree() { Root = (Root == -2 ? -1 : Root); }
+	bool			IsMaterialLayersFunctionsTreeEnabled() const { return Root != -2; }
+
+	FMaterialLayersFunctionsTree() = default;
+	FMaterialLayersFunctionsTree(const FMaterialLayersFunctionsTree& Rhs)
+		:	Nodes(Rhs.Nodes),
+			Payloads(Rhs.Payloads),
+			Root(Rhs.Root)
+			 
+	{}
+	FMaterialLayersFunctionsTree(const FMaterialLayersFunctions& Rhs) = delete;
+
+	FMaterialLayersFunctionsTree& operator=(const FMaterialLayersFunctionsTree& Rhs)
+	{
+		Nodes = Rhs.Nodes;
+		Payloads = Rhs.Payloads;
+		Root = Rhs.Root;
+
+		return *this;
+	}
+
+	FORCEINLINE bool operator==(const FMaterialLayersFunctionsTree& Other) const
+	{
+		if (Nodes != Other.Nodes || Payloads != Other.Payloads || Root != Other.Root)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	FORCEINLINE bool operator!=(const FMaterialLayersFunctionsTree& Other) const
+	{
+		return !operator==(Other);
+	}
+
+	void Empty()
+	{
+		Nodes.Empty();
+		Payloads.Empty();
+		Root = -1;
+	}
+
+	FORCEINLINE bool IsEmpty() const
+	{
+		return Nodes.IsEmpty();
+	}
+
+	bool Serialize( FArchive& Ar );
+
+	friend FArchive& operator<<(FArchive& Ar, FNode& T)
+	{
+		return Ar << T.Parent << T.NextSibling << T.ChildrenHead << T.Spare;
+	}
+	friend FArchive& operator<<(FArchive& Ar, FPayload& T)
+	{
+		return Ar << T.Layer << T.Blend;
+	}
+
+	/// Authoring the Tree
+
+	FORCEINLINE bool IsValidId(FNodeId Id) const
+	{
+		return (Id >= 0 && Id < Nodes.Num());
+	}
+
+	// Find and return the node at the specified Id or null if invalid 
+	FNode* GetNode(FNodeId InNodeId) const;
+
+	// Find and return the node payload at the specified Id or null if invalid 
+	FPayload* GetPayload(FNodeId InNodeId) const;
+
+	// Find and return the parent node at the specified Id or null if invalid 
+	FNode* GetParent(FNodeId InNodeId) const;
+
+	// Find the node which is the head of the list of siblings where InNodeID belongs
+	FNodeId GetSiblingHeadId(FNodeId InNodeId) const;
+
+	// Gather the list of children for this node
+	TArray<FNodeId> GetChildrenIds(FNodeId InNodeId) const;
+
+	// Return the depth of the node in the tree, the root is depth 0
+	// the first valid node in the tree under the root is depth 1
+	int32 GetDepth(FNodeId InNodeId) const;
+
+	// Add a new node with the specified Payload under the InPArent at the specified child index
+	// the new node id is returned
+	FNodeId AddNode(const FPayload& InPayload, FNodeId InParent, int32 InAtChildIndex = -1);
+
+	// Remove this node
+	// detach the node from the tree hierarchy as well as all the children recursively
+	// the nodes are all cleared in the array of nodes
+	// the payloads are NOT cleared and still hold on their value
+	// return the array of Id of the removed nodes
+	TArray<FNodeId> RemoveNode(FNodeId RemovedNodeId);
+
+	// Traverser Utility
+	using FNodeVisitor = void (*)(FNodeId InNodeId, int32 InDepth, int32 InSiblingNum, const FPayload& InPayload);
+	template <typename V>
+	FNodeId TraverseNode(V InVisitor, FNodeId InNodeId, int32 InDepth, int32 InSiblingNum) const
+	{
+		// First plan for the next child node and sibling we will be visiting
+		// default with the InNodeId is the root case
+		FNodeId NextChildId = Root;	
+		FNodeId NextSiblingId = InvalidId;
+
+		// Traverse this node if not the root tree
+		if (InNodeId != InvalidId)
+		{
+			if (!IsValidId(InNodeId))
+				return InvalidId;
+
+			const FNode& Node = Nodes[InNodeId];
+			const FPayload& Payload = Payloads[InNodeId];
+			InVisitor(InNodeId, InDepth, InSiblingNum, Payload);
+
+			// And since we have visited a valid node, lets visit the children next and the next sibling after
+			NextChildId = Node.ChildrenHead;
+			NextSiblingId = Node.NextSibling;
+		}
+
+		// Traverse children
+		{
+			InDepth++;
+			int32 SiblingNum = 0;
+			while (IsValidId(NextChildId))
+			{
+				NextChildId = TraverseNode(InVisitor, NextChildId, InDepth, SiblingNum);
+				SiblingNum++;
+			}
+			InDepth--;
+		}
+
+		return NextSiblingId;
+	}
+
+	template <typename V>
+	void Traverse(V InVisitor, FNodeId InRootNodeId = InvalidId) const
+	{
+		TraverseNode(InVisitor, InRootNodeId, 0, 0);
+	}
+
+	// Logging the tree data structure, useful for debugging
+	// generate a multiline string representing the tree nodes hierarchy with the payload info per node
+	FString Log(FString InTab) const;
+
+private:
+	FNodeId AllocNode(const FPayload& InPayload);
+
+};
+
+template<>
+struct TStructOpsTypeTraits<FMaterialLayersFunctionsTree>
+: public TStructOpsTypeTraitsBase2<FMaterialLayersFunctionsTree>
+{
+	enum
+	{
+		WithSerializer = true,
+		WithCopy = true,
+		WithIdenticalViaEquality = true
+	};
+};
+
 USTRUCT()
 struct FMaterialLayersFunctionsRuntimeData
 {
@@ -127,10 +357,17 @@ struct FMaterialLayersFunctionsRuntimeData
 	UPROPERTY(EditAnywhere, Category = MaterialLayers)
 	TArray<TObjectPtr<class UMaterialFunctionInterface>> Blends;
 
+	// ENABLE_MATERIAL_LAYER_PROTOTYPE : UProperty describing the tree data structure
+	UPROPERTY(EditAnywhere, Category = MaterialLayers)
+	FMaterialLayersFunctionsTree Tree;
+
 	FMaterialLayersFunctionsRuntimeData() = default;
 	FMaterialLayersFunctionsRuntimeData(const FMaterialLayersFunctionsRuntimeData& Rhs)
 		: Layers(Rhs.Layers)
 		, Blends(Rhs.Blends)
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		, Tree(Rhs.Tree)
+#endif
 	{}
 
 	FMaterialLayersFunctionsRuntimeData(const FMaterialLayersFunctions& Rhs) = delete;
@@ -139,6 +376,9 @@ struct FMaterialLayersFunctionsRuntimeData
 	{
 		Layers = Rhs.Layers;
 		Blends = Rhs.Blends;
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		Tree = Rhs.Tree;
+#endif
 		return *this;
 	}
 
@@ -150,11 +390,18 @@ struct FMaterialLayersFunctionsRuntimeData
 	{
 		Layers.Empty();
 		Blends.Empty();
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		Tree.Empty();
+#endif
 	}
 
 	FORCEINLINE bool operator==(const FMaterialLayersFunctionsRuntimeData& Other) const
 	{
-		if (Layers != Other.Layers || Blends != Other.Blends)
+		if (Layers != Other.Layers || Blends != Other.Blends
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+			|| Tree != Other.Tree
+#endif
+		)
 		{
 			return false;
 		}
@@ -167,6 +414,7 @@ struct FMaterialLayersFunctionsRuntimeData
 	}
 
 	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+	bool Serialize(FArchive& Ar);
 
 #if WITH_EDITOR
 	const FMaterialLayersFunctionsID GetID(const FMaterialLayersFunctionsEditorOnlyData& EditorOnly) const;
@@ -177,6 +425,8 @@ private:
 	/** FMaterialLayersFunctionsRuntimeData can be deserialized from an FMaterialLayersFunctions property, will store the editor-only portion here */
 	TUniquePtr<FMaterialLayersFunctionsEditorOnlyData> LegacySerializedEditorOnlyData;
 
+
+
 	friend struct FStaticParameterSet;
 #endif // WITH_EDITORONLY_DATA
 };
@@ -185,6 +435,7 @@ template<>
 struct TStructOpsTypeTraits<FMaterialLayersFunctionsRuntimeData> : TStructOpsTypeTraitsBase2<FMaterialLayersFunctionsRuntimeData>
 {
 	enum { WithStructuredSerializeFromMismatchedTag = true };
+	enum { WithSerializer = true };
 };
 
 USTRUCT()
@@ -218,19 +469,7 @@ struct FMaterialLayersFunctions : public FMaterialLayersFunctionsRuntimeData
 	inline bool IsEmpty() const { return Layers.Num() == 0; }
 
 #if WITH_EDITOR
-	void AddDefaultBackgroundLayer()
-	{
-		// Default to a non-blended "background" layer
-		Layers.AddDefaulted();
-		EditorOnly.LayerStates.Add(true);
-		FText LayerName = FText(LOCTEXT("Background", "Background"));
-		EditorOnly.LayerNames.Add(LayerName);
-		EditorOnly.RestrictToLayerRelatives.Add(false);
-		// Use a consistent Guid for the background layer
-		// Default constructor assigning different guids will break FStructUtils::AttemptToFindUninitializedScriptStructMembers
-		EditorOnly.LayerGuids.Add(BackgroundGuid);
-		EditorOnly.LayerLinkStates.Add(EMaterialLayerLinkState::NotFromParent);
-	}
+	ENGINE_API void AddDefaultBackgroundLayer();
 
 	ENGINE_API int32 AppendBlendedLayer();
 
@@ -339,7 +578,7 @@ struct FMaterialLayersFunctions : public FMaterialLayersFunctionsRuntimeData
 	}
 
 	ENGINE_API void SerializeLegacy(FArchive& Ar);
-#endif // WITH_EDITOR
+	#endif // WITH_EDITOR
 
 	ENGINE_API void PostSerialize(const FArchive& Ar);
 
@@ -362,6 +601,30 @@ struct FMaterialLayersFunctions : public FMaterialLayersFunctionsRuntimeData
 	{
 		return !operator==(Other);
 	}
+
+	// Define the Tree authoring of the layers
+#if WITH_EDITOR
+	using FLayerNodeId = FMaterialLayersFunctionsTree::FNodeId;
+	using FLayerNodeIdArray = TArray<FLayerNodeId>;
+	using FLayerNodePayload = FMaterialLayersFunctionsTree::FPayload; 
+
+	ENGINE_API FLayerNodeId GetNodeParent(FLayerNodeId InNode) const;
+	ENGINE_API FLayerNodeIdArray GetNodeChildren(FLayerNodeId InNode) const;
+	ENGINE_API FLayerNodePayload GetNodePayload(FLayerNodeId InNodeId) const;
+	ENGINE_API int32 GetNodeDepth(FLayerNodeId InNodeId) const;
+
+	ENGINE_API int32 GetLayerFuncIndex(FLayerNodeId InNodeId) const;
+	ENGINE_API int32 GetBlendFuncIndex(FLayerNodeId InNodeId) const;
+
+	ENGINE_API bool	 CanAppendLayerNode(FLayerNodeId InParent) const;
+	ENGINE_API FLayerNodeId	AppendLayerNode(FLayerNodeId InParent, int32 InSiblingIndex = -1);
+
+	ENGINE_API bool	 CanRemoveLayerNode(FLayerNodeId InNodeId) const;
+	ENGINE_API void	 RemoveLayerNodeAt(FLayerNodeId InNodeId);
+
+	ENGINE_API void MoveLayerNode(FLayerNodeId InNodeId, FLayerNodeId DstParentId, int32 InSiblingIndex = -1);
+
+#endif // WITH_EDITOR
 
 private:
 	UPROPERTY()
