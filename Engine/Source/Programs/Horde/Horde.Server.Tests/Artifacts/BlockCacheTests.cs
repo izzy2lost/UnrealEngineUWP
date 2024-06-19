@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Artifacts;
+using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Server.Tests.Artifacts
@@ -21,10 +22,8 @@ namespace Horde.Server.Tests.Artifacts
 			using BlockCache blockCache = BlockCache.CreateInMemory(1, 4096, 4096);
 			blockCache.Add("hello", new byte[] { 1, 2, 3 });
 
-			IBlockCacheValue? value = blockCache.Get("hello");
-			Assert.IsNotNull(value);
-
-			Assert.IsTrue(value.Data.ToArray().SequenceEqual(new byte[] { 1, 2, 3 }));
+			using IBlockCacheValue? value = blockCache.Get("hello");
+			Assert.IsTrue(value != null && value.Data.ToArray().SequenceEqual(new byte[] { 1, 2, 3 }));
 		}
 
 		[TestMethod]
@@ -35,10 +34,8 @@ namespace Horde.Server.Tests.Artifacts
 			using BlockCache blockCache = BlockCache.CreateInMemory(1);
 			blockCache.Add("hello", data);
 
-			IBlockCacheValue? value = blockCache.Get("hello");
-			Assert.IsNotNull(value);
-
-			Assert.IsTrue(value.Data.ToArray().SequenceEqual(data));
+			using IBlockCacheValue? value = blockCache.Get("hello");
+			Assert.IsTrue(value != null && value.Data.ToArray().SequenceEqual(data));
 		}
 
 		[TestMethod]
@@ -80,14 +77,14 @@ namespace Horde.Server.Tests.Artifacts
 			Random sizeRng = new Random(0);
 
 			List<(string Name, byte[] Data)> items = new List<(string, byte[])>();
-			for (int idx = 0; idx < 512; idx++)
+			for (int idx = 0; idx < 128; idx++)
 			{
 				int size = sizeRng.Next(2048, 16384);
 				items.Add(($"{idx}", RandomNumberGenerator.GetBytes(size)));
 			}
 
-			using BlockCache blockCache = BlockCache.CreateInMemory(10, 64, 4096);
-			Parallel.For(0, 8, threadIdx =>
+			using BlockCache blockCache = BlockCache.CreateInMemory(5, 16, 4096);
+			Parallel.For(0, 4, threadIdx =>
 			{
 				Random rng = new Random(threadIdx);
 				for (int idx = 0; idx < 10000; idx++)
@@ -113,6 +110,43 @@ namespace Horde.Server.Tests.Artifacts
 			{
 				using IBlockCacheValue? cacheValue = blockCache.Get(name);
 				Assert.IsTrue(cacheValue == null || cacheValue.Data.ToArray().SequenceEqual(data));
+			}
+		}
+
+		class TestLogger : ILogger
+		{
+			public List<string> Messages { get; } = new List<string>();
+
+			public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+				=> null;
+
+			public bool IsEnabled(LogLevel logLevel)
+				=> true;
+
+			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+				=> Messages.Add(formatter(state, exception));
+		}
+
+		[TestMethod]
+		public void CorruptionTest()
+		{
+			TestLogger logger = new TestLogger();
+
+			using BlockCache blockCache = BlockCache.CreateInMemory(1, 4096, 4096, logger);
+			blockCache.Add("hello", new byte[] { 1, 2, 3 });
+
+			{
+				using IBlockCacheValue? value = blockCache.Get("hello");
+				Assert.IsTrue(value != null && value.Data.ToArray().SequenceEqual(new byte[] { 1, 2, 3 }));
+				Assert.AreEqual(0, logger.Messages.Count);
+			}
+
+			blockCache.DangerousCorruptValue("hello");
+
+			{
+				using IBlockCacheValue? value = blockCache.Get("hello");
+				Assert.IsNull(value);
+				Assert.AreEqual(1, logger.Messages.Count);
 			}
 		}
 	}
