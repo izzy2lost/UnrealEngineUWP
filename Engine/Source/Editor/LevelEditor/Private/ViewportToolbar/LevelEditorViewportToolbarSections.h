@@ -22,8 +22,18 @@ FToolMenuEntry CreateViewportToolbarTransformsSection();
 FToolMenuEntry CreateViewportToolbarSelectionSection();
 
 TSharedPtr<FExtender> GetViewModesLegacyExtenders();
-void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<SLevelViewport> InViewport);
+void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InViewport);
 FToolMenuEntry CreateViewportToolbarViewModesSubmenu();
+
+FToolMenuEntry CreateShowFoliageSubmenu();
+FToolMenuEntry CreateShowHLODsSubmenu();
+FToolMenuEntry CreateShowLayersSubmenu();
+FToolMenuEntry CreateShowSpritesSubmenu();
+#if STATS
+FToolMenuEntry CreateShowStatsSubmenu();
+#endif
+FToolMenuEntry CreateShowVolumesSubmenu();
+FToolMenuEntry CreateViewportToolbarShowSubmenu();
 
 FToolMenuEntry CreateFeatureLevelPreviewSubmenu();
 FToolMenuEntry CreateMaterialQualityLevelSubmenu();

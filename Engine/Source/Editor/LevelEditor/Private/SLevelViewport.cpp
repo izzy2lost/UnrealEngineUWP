@@ -102,6 +102,7 @@
 #include "LevelViewportLayout.h"
 #include "EditorViewportTabContent.h"
 #include "EditorViewportCommands.h"
+#include "FunctionalUIScreenshotTest.h"
 #include "SkeletalRenderPublic.h"
 #include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 #include "ViewportToolbar/LevelViewportContext.h"
@@ -1927,40 +1928,68 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
 				LevelEditorViewportToolbarName, NAME_None /* parent */, EMultiBoxType::ToolBar);
 
+			// Add the left-aligned part of the viewport toolbar.
 			{
 				FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
 
-				FToolMenuEntry TransformsSubmenu = UE::LevelEditor::CreateViewportToolbarTransformsSection();
-				TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
-				LeftSection.AddEntry(TransformsSubmenu);
+				// Add the "Transforms" sub menu.
+				{
+					FToolMenuEntry TransformsSubmenu = UE::LevelEditor::CreateViewportToolbarTransformsSection();
+					TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					LeftSection.AddEntry(TransformsSubmenu);
+				}
 
-				FToolMenuEntry SelectionSubmenu = UE::LevelEditor::CreateViewportToolbarSelectionSection();
-				SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
-				LeftSection.AddEntry(SelectionSubmenu);
+				// Add the "Selection" sub menu.
+				{
+					FToolMenuEntry SelectionSubmenu = UE::LevelEditor::CreateViewportToolbarSelectionSection();
+					SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					LeftSection.AddEntry(SelectionSubmenu);
+				}
 			}
 
+			// Add the right-aligned part of the viewport toolbar.
 			{
 				// Add the submenus of this section as EToolMenuInsertType::Last to sort them after any
 				// default-positioned submenus external code might add.
 				FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
 				RightSection.Alignment = EToolMenuSectionAlign::Last;
 
+				// Add the "View Modes" sub menu.
 				{
 					// Stay backward-compatible with the old viewport toolbar.
 					UToolMenus::Get()->RegisterMenu(
 						"LevelEditor.ViewportToolbar.ViewModes", "LevelEditor.LevelViewportToolbar.View"
 					);
-					FToolMenuEntry LitSubmenu = UE::LevelEditor::CreateViewportToolbarViewModesSubmenu();
-					LitSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
-					RightSection.AddEntry(LitSubmenu);
+					FToolMenuEntry ViewModesSubmenu = UE::LevelEditor::CreateViewportToolbarViewModesSubmenu();
+					ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(ViewModesSubmenu);
 				}
 
+				// Add the "Show" submenu.
+				{
+					// Stay backward-compatible with the old viewport toolbar.
+					{
+						if (!UToolMenus::Get()->IsMenuRegistered("LevelEditor.LevelViewportToolbar.Show"))
+						{
+							UToolMenus::Get()->RegisterMenu("LevelEditor.LevelViewportToolbar.Show");
+						}
+						UToolMenus::Get()->RegisterMenu(
+							"LevelEditor.ViewportToolbar.Show", "LevelEditor.LevelViewportToolbar.Show"
+						);
+					}
+					FToolMenuEntry ShowSubmenu = UE::LevelEditor::CreateViewportToolbarShowSubmenu();
+					ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(ShowSubmenu);
+				}
+
+				// Add the "Performance & Scalability" submenu.
 				{
 					FToolMenuEntry PerfSubmenu = UE::LevelEditor::CreateViewportToolbarPerformanceAndScalabilitySubmenu();
 					PerfSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
 					RightSection.AddEntry(PerfSubmenu);
 				}
 
+				// Add the "Settings" submenu.
 				{
 					FToolMenuEntry SettingsSubmenu = UE::LevelEditor::CreateLevelEditorViewportToolbarSettingsSubmenu();
 					SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
@@ -1973,9 +2002,22 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 	FToolMenuContext ViewportToolbarContext;
 	{
 		ViewportToolbarContext.AppendCommandList(GetCommandList());
-		// Stay backward-compatible with legacy view menu extenders. Note that these extenders can now leak between
-		// submenus of the viewport toolbar.
-		ViewportToolbarContext.AddExtender(UE::LevelEditor::GetViewModesLegacyExtenders());
+		// Note that these extenders can now leak between submenus of the viewport toolbar.
+		{
+			// Stay backward-compatible with legacy view menu extenders.
+			ViewportToolbarContext.AddExtender(UE::LevelEditor::GetViewModesLegacyExtenders());
+
+			// Stay backward-compatible with legacy show menu extenders.
+			{
+				FLevelEditorModule& LevelEditorModule =
+					FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+				TSharedRef<FUICommandList> CommandListRef = GetCommandList().ToSharedRef();
+				TSharedPtr<FExtender> Extenders = LevelEditorModule.AssembleExtenders(
+					CommandListRef, LevelEditorModule.GetAllLevelViewportShowMenuExtenders()
+				);
+				ViewportToolbarContext.AddExtender(Extenders);
+			}
+		}
 
 		ULevelViewportContext* const ContextObject = NewObject<ULevelViewportContext>();
 		ContextObject->LevelViewport = SharedThis(this);
