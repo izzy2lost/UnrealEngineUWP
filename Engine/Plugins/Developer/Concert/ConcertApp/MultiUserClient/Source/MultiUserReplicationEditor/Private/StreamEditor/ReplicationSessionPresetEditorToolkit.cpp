@@ -2,7 +2,7 @@
 
 #include "ReplicationSessionPresetEditorToolkit.h"
 
-#include "Assets/MultiUserReplicationClientPreset.h"
+#include "Assets/MultiUserReplicationClientContent.h"
 #include "Assets/MultiUserReplicationSessionPreset.h"
 #include "Replication/Editor/Model/PropertySource/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"

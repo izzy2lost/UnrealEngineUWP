@@ -3,7 +3,7 @@
 #include "RemoteReplicationClient.h"
 
 #include "IConcertClient.h"
-#include "Assets/MultiUserReplicationClientPreset.h"
+#include "Assets/MultiUserReplicationClientContent.h"
 #include "Replication/Authority/AuthoritySynchronizer_RemoteClient.h"
 #include "Replication/Stream/StreamSynchronizer_RemoteClient.h"
 #include "Replication/Submission/Remote/SubmissionWorkflow_RemoteClient.h"
@@ -15,7 +15,7 @@ namespace UE::MultiUserClient
 		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
-		UMultiUserReplicationClientPreset& InSessionContent,
+		UMultiUserReplicationClientContent& InSessionContent,
 		FStreamAndAuthorityQueryService& QueryService
 		)
 		: FReplicationClient(

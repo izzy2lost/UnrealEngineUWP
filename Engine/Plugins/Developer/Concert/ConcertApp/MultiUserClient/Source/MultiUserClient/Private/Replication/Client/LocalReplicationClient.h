@@ -24,7 +24,7 @@ namespace UE::MultiUserClient
 		FLocalReplicationClient(
 			FReplicationDiscoveryContainer& InDiscoveryContainer,
 			FGlobalAuthorityCache& InAuthorityCache,
-			UMultiUserReplicationClientPreset& InSessionContent,
+			UMultiUserReplicationClientContent& InSessionContent,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TSharedRef<IConcertSyncClient> InClient
 			);

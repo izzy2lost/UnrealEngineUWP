@@ -18,7 +18,7 @@
 #include "Templates/UnrealTemplate.h"
 
 class IConcertClient;
-class UMultiUserReplicationClientPreset;
+class UMultiUserReplicationClientContent;
 
 namespace UE::ConcertSharedSlate
 {
@@ -53,14 +53,14 @@ namespace UE::MultiUserClient
 			const FGuid& EndpointId,
 			FReplicationDiscoveryContainer& InDiscoveryContainer UE_LIFETIMEBOUND,
 			FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND,
-			UMultiUserReplicationClientPreset& InSessionContent UE_LIFETIMEBOUND,
+			UMultiUserReplicationClientContent& InSessionContent UE_LIFETIMEBOUND,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
 			TUniquePtr<ISubmissionWorkflow> InSubmissionWorkflow
 			);
 		~FReplicationClient();
 
-		UMultiUserReplicationClientPreset* GetClientContent() const { return ClientContentStorage; }
+		UMultiUserReplicationClientContent* GetClientContent() const { return ClientContentStorage; }
 		FMultiUserStreamExtender& GetStreamExtender() { return *StreamExtender; }
 		/**
 		 * This is used so the UI can construct the IReplicationStreamEditor.
@@ -114,7 +114,7 @@ namespace UE::MultiUserClient
 		const FGuid EndpointId;
 		
 		/** The state of the server is synched up with this object and displayed in the UI. */
-		TObjectPtr<UMultiUserReplicationClientPreset> ClientContentStorage;
+		TObjectPtr<UMultiUserReplicationClientContent> ClientContentStorage;
 		
 		/** Keeps the client's stream state on the server in sync. */
 		TUniquePtr<IClientStreamSynchronizer> StreamSynchronizer;

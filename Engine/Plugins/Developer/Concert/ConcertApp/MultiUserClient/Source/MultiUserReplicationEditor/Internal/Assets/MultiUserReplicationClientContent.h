@@ -5,13 +5,11 @@
 #include "UObject/Object.h"
 #include "MultiUserReplicationStream.h"
 #include "Replication/Data/ReplicationStream.h"
-#include "MultiUserReplicationClientPreset.generated.h"
+#include "MultiUserReplicationClientContent.generated.h"
 
-/**
- * 
- */
+/** The transactable content of a FReplicationClient. */
 UCLASS()
-class MULTIUSERREPLICATIONEDITOR_API UMultiUserReplicationClientPreset : public UObject
+class MULTIUSERREPLICATIONEDITOR_API UMultiUserReplicationClientContent : public UObject
 {
 	GENERATED_BODY()
 public:
@@ -23,10 +21,7 @@ public:
 	UPROPERTY(Instanced)
 	TObjectPtr<UMultiUserReplicationStream> Stream;
 
-	UMultiUserReplicationClientPreset();
-
-	/** Resets the contents everything to defaults. Empties the stream */
-	void ClearClient();
+	UMultiUserReplicationClientContent();
 
 	/** Generates a description that can be sent to the MU server. */
 	FConcertReplicationStream GenerateDescription() const;

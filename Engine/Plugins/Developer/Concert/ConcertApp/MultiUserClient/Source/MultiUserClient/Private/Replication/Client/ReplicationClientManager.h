@@ -109,9 +109,6 @@ namespace UE::MultiUserClient
 		//~ End FGCObject Interface
 		
 	private:
-		
-		/** The state of the server is synchronized up with this object and displayed in the UI. */
-		TObjectPtr<UMultiUserReplicationSessionPreset> SessionContent;
 
 		/** The local Concert client */
 		TSharedRef<IConcertSyncClient> ConcertClient;

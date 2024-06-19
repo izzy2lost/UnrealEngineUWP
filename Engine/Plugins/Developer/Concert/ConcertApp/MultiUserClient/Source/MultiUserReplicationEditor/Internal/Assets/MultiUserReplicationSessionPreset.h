@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "MultiUserReplicationClientPreset.h"
+#include "MultiUserReplicationClientContent.h"
 #include "UObject/Object.h"
 #include "MultiUserReplicationSessionPreset.generated.h"
 
@@ -12,23 +12,16 @@
 UCLASS()
 class MULTIUSERREPLICATIONEDITOR_API UMultiUserReplicationSessionPreset : public UObject
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
 public:
 
-	UMultiUserReplicationClientPreset* AddClient();
-	
-	void RemoveClient(UMultiUserReplicationClientPreset& Client);
-	void ClearClients();
+	UMultiUserReplicationClientContent* AddClient();
+	void RemoveClient(UMultiUserReplicationClientContent& Client);
 
-	const TArray<TObjectPtr<UMultiUserReplicationClientPreset>>& GetClientPresets() const { return ClientPresets; }
-	UMultiUserReplicationClientPreset* GetUnassignedClient() const { return UnassignedClient; }
+	const TArray<TObjectPtr<UMultiUserReplicationClientContent>>& GetClientPresets() const { return ClientPresets; }
 
 private:
 	
 	UPROPERTY(Instanced)
-	TArray<TObjectPtr<UMultiUserReplicationClientPreset>> ClientPresets;
-
-	/** Special preset that is assigned to an invalid client - objects without ownership go here. This is not in ClientPresets. */
-	UPROPERTY(Instanced)
-	TObjectPtr<UMultiUserReplicationClientPreset> UnassignedClient;
+	TArray<TObjectPtr<UMultiUserReplicationClientContent>> ClientPresets;
 };

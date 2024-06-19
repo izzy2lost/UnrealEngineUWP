@@ -2,7 +2,7 @@
 
 #include "ReplicationClient.h"
 
-#include "Assets/MultiUserReplicationClientPreset.h"
+#include "Assets/MultiUserReplicationClientContent.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Stream/Discovery/MultiUserStreamExtender.h"
@@ -19,7 +19,7 @@ namespace UE::MultiUserClient
 		const FGuid& EndpointId,
 		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		FGlobalAuthorityCache& InAuthorityCache,
-		UMultiUserReplicationClientPreset& InSessionContent,
+		UMultiUserReplicationClientContent& InSessionContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 		TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
 		TUniquePtr<ISubmissionWorkflow> InSubmissionWorkflow

@@ -23,9 +23,11 @@ public:
 	FConcertObjectReplicationMap ReplicationMap;
 
 	UMultiUserReplicationStream();
-	
+
+	/** Util that generates the description of this stream for network requests. */
 	FConcertReplicationStream GenerateDescription() const;
-	
+
+	/** Util that returns ReplicationMap. */
 	TAttribute<FConcertObjectReplicationMap*> MakeReplicationMapGetterAttribute()
 	{
 		return TAttribute<FConcertObjectReplicationMap*>::CreateLambda([WeakThis = TWeakObjectPtr<UMultiUserReplicationStream>(this)]()

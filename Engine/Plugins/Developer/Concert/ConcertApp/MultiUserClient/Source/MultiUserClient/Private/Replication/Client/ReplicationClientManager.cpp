@@ -14,21 +14,28 @@
 
 namespace UE::MultiUserClient
 {
+	namespace Private
+	{
+		static UMultiUserReplicationClientContent* MakeClientContent()
+		{
+			return NewObject<UMultiUserReplicationClientContent>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
+		}
+	}
+	
 	FReplicationClientManager::FReplicationClientManager(
 		const TSharedRef<IConcertSyncClient>& InClient,
 		const TSharedRef<IConcertClientSession>& InSession,
 		FReplicationDiscoveryContainer& InRegisteredExtenders,
 		FStreamAndAuthorityQueryService& InQueryService
 		)
-		: SessionContent(NewObject<UMultiUserReplicationSessionPreset>(GetTransientPackage(), NAME_None, RF_Transient))
-		, ConcertClient(InClient)
+		: ConcertClient(InClient)
 		, Session(InSession)
 		, RegisteredExtenders(InRegisteredExtenders)
 		, QueryService(InQueryService)
 		, AuthorityCache(*this)
 		, LocalClient([this, InClient]()
 		{
-			UMultiUserReplicationClientPreset* ClientPreset = SessionContent->AddClient();
+			UMultiUserReplicationClientContent* ClientPreset = Private::MakeClientContent();
 			return FLocalReplicationClient(RegisteredExtenders, AuthorityCache, *ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
 		}())
 		, ReassignmentLogic(*this)
@@ -120,7 +127,13 @@ namespace UE::MultiUserClient
 
 	void FReplicationClientManager::AddReferencedObjects(FReferenceCollector& Collector)
 	{
-		Collector.AddReferencedObject(SessionContent);
+		ForEachClient([&Collector](const FReplicationClient& Client)
+		{
+			TObjectPtr<UMultiUserReplicationClientContent> Content = Client.GetClientContent();
+			Collector.AddReferencedObject(Content);
+			ensureMsgf(Content == Client.GetClientContent(), TEXT("Did not expect reference to be obliterated"));
+			return EBreakBehavior::Continue;
+		});
 	}
 
 	void FReplicationClientManager::OnSessionClientChanged(IConcertClientSession&, EConcertClientStatus NewStatus, const FConcertSessionClientInfo& ClientInfo)
@@ -148,7 +161,6 @@ namespace UE::MultiUserClient
 				{
 					const TUniquePtr<FRemoteReplicationClient> Client = MoveTemp(RemoteClients[Index]);
 					OnPreRemoteClientRemovedDelegate.Broadcast(*Client.Get());
-					SessionContent->RemoveClient(*Client->GetClientContent());
 					RemoteClients.RemoveAtSwap(Index);
 				}
 				// We want to broadcast after the client has been fully cleaned up
@@ -169,7 +181,7 @@ namespace UE::MultiUserClient
 			RegisteredExtenders,
 			ConcertClient->GetConcertClient(),
 			AuthorityCache,
-			*SessionContent->AddClient(),
+			*Private::MakeClientContent(),
 			QueryService
 			);
 		FRemoteReplicationClient& RemoteClient = *RemoteClientPtr;

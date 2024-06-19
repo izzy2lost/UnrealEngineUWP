@@ -2,25 +2,14 @@
 
 #include "Assets/MultiUserReplicationSessionPreset.h"
 
-UMultiUserReplicationSessionPreset::UMultiUserReplicationSessionPreset(const FObjectInitializer& ObjectInitializer)
+UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::AddClient()
 {
-	UnassignedClient = ObjectInitializer.CreateDefaultSubobject<UMultiUserReplicationClientPreset>(this, TEXT("UnassignedClient"));
-}
-
-UMultiUserReplicationClientPreset* UMultiUserReplicationSessionPreset::AddClient()
-{
-	UMultiUserReplicationClientPreset* Result = NewObject<UMultiUserReplicationClientPreset>(this);
+	UMultiUserReplicationClientContent* Result = NewObject<UMultiUserReplicationClientContent>(this);
 	ClientPresets.Add(Result);
 	return Result;
 }
 
-void UMultiUserReplicationSessionPreset::RemoveClient(UMultiUserReplicationClientPreset& Client)
+void UMultiUserReplicationSessionPreset::RemoveClient(UMultiUserReplicationClientContent& Client)
 {
 	ClientPresets.RemoveSingle(&Client);
-}
-
-void UMultiUserReplicationSessionPreset::ClearClients()
-{
-	ClientPresets.Empty();
-	UnassignedClient->ClearClient();
 }

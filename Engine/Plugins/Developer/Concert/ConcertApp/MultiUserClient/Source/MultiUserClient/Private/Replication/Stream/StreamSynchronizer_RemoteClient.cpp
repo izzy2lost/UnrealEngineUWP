@@ -2,7 +2,7 @@
 
 #include "StreamSynchronizer_RemoteClient.h"
 
-#include "Assets/MultiUserReplicationClientPreset.h"
+#include "Assets/MultiUserReplicationClientContent.h"
 #include "Replication/Misc/Query/StreamAndAuthorityQueryService.h"
 
 namespace UE::MultiUserClient
@@ -26,7 +26,7 @@ namespace UE::MultiUserClient
 
 	FGuid FStreamSynchronizer_RemoteClient::GetStreamId() const
 	{
-		return UMultiUserReplicationClientPreset::MultiUserStreamID;
+		return UMultiUserReplicationClientContent::MultiUserStreamID;
 	}
 
 	void FStreamSynchronizer_RemoteClient::HandleStreamQuery(const TArray<FConcertBaseStreamInfo>& Streams)
@@ -35,7 +35,7 @@ namespace UE::MultiUserClient
 		// That handles the (unlikely) case in which some external logic had added streams to the same client which we must differentiate
 		const FConcertBaseStreamInfo* MultiUserDescription = Streams.FindByPredicate([](const FConcertBaseStreamInfo& Description)
 		{
-			return Description.Identifier == UMultiUserReplicationClientPreset::MultiUserStreamID;
+			return Description.Identifier == UMultiUserReplicationClientContent::MultiUserStreamID;
 		});
 		if (MultiUserDescription
 			// Avoid unnecessary Broadcast()s

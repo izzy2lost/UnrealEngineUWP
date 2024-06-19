@@ -30,7 +30,7 @@ namespace UE::MultiUserClient
 			FReplicationDiscoveryContainer& InDiscoveryContainer UE_LIFETIMEBOUND,
 			TSharedRef<IConcertClient> InClient,
 			FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND,
-			UMultiUserReplicationClientPreset& InSessionContent UE_LIFETIMEBOUND,
+			UMultiUserReplicationClientContent& InSessionContent UE_LIFETIMEBOUND,
 			FStreamAndAuthorityQueryService& QueryService UE_LIFETIMEBOUND
 			);
 	};
