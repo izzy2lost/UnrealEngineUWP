@@ -21,6 +21,7 @@
 #include "TextureResource.h"
 #include "Editor/TransBuffer.h"
 #include "Editor/UnrealEdEngine.h"
+#include "VT/VirtualTextureAdapter.h"
 #include "UnrealEdGlobals.h"
 
 #include "Editor/EditorEngine.h"
@@ -687,6 +688,14 @@ bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVe
 	return bPaintApplied;
 }
 
+/** Painting texture to use in material override should be the virtual texture adapter if it exists. */
+static UTexture* GetTextureForMaterialOverride(FPaintTexture2DData const& TextureData)
+{
+	UTexture* RenderTarget = TextureData.PaintRenderTargetTexture;
+	UTexture* RenderTargetAdapter = TextureData.PaintRenderTargetTextureAdapter;
+	return RenderTargetAdapter != nullptr ? RenderTargetAdapter : RenderTarget;
+}
+
 void UMeshTexturePaintingTool::AddTextureOverrideToComponent(FPaintTexture2DData& TextureData, UMeshComponent* MeshComponent, const IMeshPaintComponentAdapter* MeshPaintAdapter)
 {
 	if (MeshComponent && MeshPaintAdapter)
@@ -695,7 +704,7 @@ void UMeshTexturePaintingTool::AddTextureOverrideToComponent(FPaintTexture2DData
 		{
 			TextureData.PaintedComponents.AddUnique(MeshComponent);
 
-			MeshPaintAdapter->ApplyOrRemoveTextureOverride(TextureData.PaintingTexture2D, TextureData.PaintRenderTargetTexture);
+			MeshPaintAdapter->ApplyOrRemoveTextureOverride(TextureData.PaintingTexture2D, GetTextureForMaterialOverride(TextureData));
 
 			// For the transactions add to the cache of overridden component.
 			PaintComponentsOverride.FindOrAdd(TextureData.PaintingTexture2D).PaintedComponents.Add(MeshComponent);
@@ -937,6 +946,16 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 				const bool bForceLinearGamma = true;
 				TextureData->PaintRenderTargetTexture->InitCustomFormat(TextureWidth, TextureHeight, PF_A16B16G16R16, bForceLinearGamma);
 				TextureData->PaintRenderTargetTexture->UpdateResourceImmediate();
+
+				TextureData->PaintRenderTargetTextureAdapter = nullptr;
+				if (TextureData->PaintingTexture2D->IsCurrentlyVirtualTextured())
+				{
+					TextureData->PaintRenderTargetTextureAdapter = NewObject<UVirtualTextureAdapter>(GetTransientPackage(), NAME_None, RF_Transient);
+					TextureData->PaintRenderTargetTextureAdapter->Texture = TextureData->PaintRenderTargetTexture;
+					TextureData->PaintRenderTargetTextureAdapter->bUseCompressedFormat = true;
+					TextureData->PaintRenderTargetTextureAdapter->bUseDefaultTileSizes = true;
+					TextureData->PaintRenderTargetTextureAdapter->UpdateResource();
+				}
 			}
 			TextureData->PaintRenderTargetTexture->AddressX = Texture2D->AddressX;
 			TextureData->PaintRenderTargetTexture->AddressY = Texture2D->AddressY;
@@ -1392,6 +1411,12 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 			TransitionAndCopyTexture(RHICmdList, RenderTargetResource->GetRenderTargetTexture(), RenderTargetResource->TextureRHI, {});
 		});
 	}
+
+	if (TextureData->PaintRenderTargetTextureAdapter)
+	{
+		TextureData->PaintRenderTargetTextureAdapter->Flush(FBox2f(FVector2f(0, 0), FVector2f(1, 1)));
+	}
+
 	FlushRenderingCommands();
 }
 
@@ -1484,7 +1509,7 @@ void UMeshTexturePaintingTool::OnTransactionStateChanged(const FTransactionConte
 								{
 									if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterRessource = MeshPaintingSubsystem->GetAdapterForComponent(Component))
 									{
-										PaintAdapterRessource->ApplyOrRemoveTextureOverride(TextureData->PaintingTexture2D, TextureData->PaintRenderTargetTexture);
+										PaintAdapterRessource->ApplyOrRemoveTextureOverride(TextureData->PaintingTexture2D, GetTextureForMaterialOverride(*TextureData));
 										PaintComponentOverride.PaintedComponents.Add(Component);
 									}
 								}
@@ -1530,11 +1555,12 @@ void UMeshTexturePaintingTool::OnTransactionStateChanged(const FTransactionConte
 									MeshComponentsToRemove.Add(MeshComponent);
 								};
 
-								auto ComponentOverrideMissing = [this, MeshPaintingSubsystem, &ComponentOverride, Texture, &MeshComponentsToAdd, RenderTarget = TextureData->PaintRenderTargetTexture](TObjectPtr<UMeshComponent>& MeshComponent)
+								UTexture* OverrideTexture = GetTextureForMaterialOverride(*TextureData);
+								auto ComponentOverrideMissing = [this, MeshPaintingSubsystem, &ComponentOverride, Texture, &MeshComponentsToAdd, OverrideTexture](TObjectPtr<UMeshComponent>& MeshComponent)
 								{
 									if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterRessource = MeshPaintingSubsystem->GetAdapterForComponent(MeshComponent))
 									{
-										PaintAdapterRessource->ApplyOrRemoveTextureOverride(Texture, RenderTarget);
+										PaintAdapterRessource->ApplyOrRemoveTextureOverride(Texture, OverrideTexture);
 									}
 
 									MeshComponentsToAdd.Add(MeshComponent);

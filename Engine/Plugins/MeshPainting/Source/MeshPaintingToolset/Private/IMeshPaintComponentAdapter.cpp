@@ -45,7 +45,6 @@ static bool IsTextureSuitableForTexturePainting(const TWeakObjectPtr<UTexture> T
 {
 	return (TexturePtr.Get() != nullptr &&
 		!TexturePtr->IsNormalMap() &&
-		!TexturePtr->VirtualTextureStreaming &&
 		!TexturePtr->HasHDRSource() && // Currently HDR textures are not supported to paint on.
 		TexturePtr->Source.IsValid() &&
 		TexturePtr->Source.GetBytesPerPixel() > 0 && // Textures' sources must have a known count of bytes per pixel

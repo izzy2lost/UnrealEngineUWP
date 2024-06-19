@@ -153,6 +153,10 @@ struct FPaintTexture2DData
 	UPROPERTY(Transient)
 	TObjectPtr<UTextureRenderTarget2D> PaintBrushRenderTargetTexture = nullptr;
 
+	/** Optional virtual texture adapter that we can use to visualize the render target in materials that use mesh paint virtual textures */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVirtualTextureAdapter> PaintRenderTargetTextureAdapter = nullptr;
+
 	FPaintTexture2DData() = default;
 
 	FPaintTexture2DData(UTexture2D* InPaintingTexture2D, bool InbIsPaintingTexture2DModified = false)
