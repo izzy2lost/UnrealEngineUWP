@@ -123,15 +123,13 @@ class WATERADVANCED_API UShallowWaterSubsystem : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 public:
-	UShallowWaterSubsystem();
-
-	virtual void PostInitialize() override;
+	UShallowWaterSubsystem();	
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 
-	void InitializeShallowWater();
+	virtual void InitializeShallowWater();
 	/*
 	 * Note: A world subsystem is always created and activated even when the plugin (GFP or not) it resides in is completely disabled
 	 * When the subclass of this class is a Game Feature Plugin. This can be used to limit when ShallowWater is actually enabled
@@ -176,7 +174,7 @@ public:
 	/*
 	 * Add PA overrides. Designed to be called by Game Feature Plugins. 
 	 */
-	void RegisterPhysicsAssetProxiesDataAsset(UShallowWaterPhysicsAssetOverridesDataAsset* Proxies);
+	void RegisterPhysicsAssetProxiesDataAsset(const UShallowWaterPhysicsAssetOverridesDataAsset* Proxies);
 
 protected:
 	// Asset can be set in Project Settings - Plugins - Water ShallowWaterSimulation

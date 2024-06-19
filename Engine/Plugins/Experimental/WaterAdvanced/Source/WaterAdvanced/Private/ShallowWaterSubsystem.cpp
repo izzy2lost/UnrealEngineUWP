@@ -102,33 +102,6 @@ UShallowWaterSubsystem::UShallowWaterSubsystem()
 {
 }
 
-void UShallowWaterSubsystem::PostInitialize()
-{
-	Super::PostInitialize();
-
-	// Register default PA Proxies before all other GFP chimes in
-	Settings = GetMutableDefault<UShallowWaterSettings>();
-	if (Settings)
-	{
-		UAssetManager::GetStreamableManager().RequestAsyncLoad(Settings->PhysicsAssetProxiesDataAsset.ToSoftObjectPath(),
-			FStreamableDelegate::CreateWeakLambda(this, [this]()
-				{
-					if (Settings->PhysicsAssetProxiesDataAsset.IsValid())
-					{
-						RegisterPhysicsAssetProxiesDataAsset(Settings->PhysicsAssetProxiesDataAsset.Get());						
-					}
-					else
-					{
-						ensureMsgf(false, TEXT("UShallowWaterSubsystem::PostInitialize() - PhyicsAssetProxiesDataAsset is not valid"));
-					}
-				})
-		);		
-	}
-	else
-	{
-		ensureMsgf(false, TEXT("UShallowWaterSubsystem::PostInitialize() - UShallowWaterSettings is not valid"));
-	}
-}
 
 void UShallowWaterSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
@@ -286,6 +259,7 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 		ObjectsToLoad.Add(Settings->WaterMPC.ToSoftObjectPath());
 		ObjectsToLoad.Add(Settings->DefaultShallowWaterNiagaraSimulation.ToSoftObjectPath());
 		ObjectsToLoad.Add(Settings->DefaultShallowWaterCollisionNDC.ToSoftObjectPath());
+		ObjectsToLoad.Add(Settings->PhysicsAssetProxiesDataAsset.ToSoftObjectPath());
 
 		UAssetManager::GetStreamableManager().RequestAsyncLoad(ObjectsToLoad,
 			FStreamableDelegate::CreateWeakLambda(this, [this]()
@@ -367,6 +341,16 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 
 	PendingImpacts.Reset();
 	
+	// Register default PA Proxies before all other GFP chimes in
+	if (Settings->PhysicsAssetProxiesDataAsset.IsValid())
+	{
+		RegisterPhysicsAssetProxiesDataAsset(Settings->PhysicsAssetProxiesDataAsset.Get());
+	}
+	else
+	{
+		ensureMsgf(false, TEXT("UShallowWaterSubsystem::InitializeShallowWater() - PhyicsAssetProxiesDataAsset is not valid"));
+	}
+
 	UE_LOG(LogShallowWater, Log, TEXT("UShallowWaterSubsystem::InitializeShallowWater() finished successfully"));
 }
 
@@ -670,7 +654,7 @@ void UShallowWaterSubsystem::TryUpdateWaterBodyMIDParameters(UWaterBodyComponent
 	}
 }
 
-void UShallowWaterSubsystem::RegisterPhysicsAssetProxiesDataAsset(UShallowWaterPhysicsAssetOverridesDataAsset* Proxies)
+void UShallowWaterSubsystem::RegisterPhysicsAssetProxiesDataAsset(const UShallowWaterPhysicsAssetOverridesDataAsset* Proxies)
 {
 	if (Proxies == nullptr)
 	{
