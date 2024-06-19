@@ -18,6 +18,7 @@
 #include "Utils/PCGGraphExecutionLogging.h"
 
 #include "Algo/AnyOf.h"
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "UObject/Package.h"
 
@@ -787,6 +788,15 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 				if (ensure(TaggedData.Data))
 				{
 					FPCGTaggedData& DuplicatedTaggedData = Outputs.Add_GetRef(TaggedData);
+
+					// In cases where the owner of the data (component -> owner) isn't in the main world, we MUST duplicate the data, otherwise we'll cause reference leaks in the cache.
+#if WITH_EDITOR
+					if (!SourceOwner || (Component->GetOwner() && Component->GetOwner()->GetLevel() != SourceOwner->GetWorld()->PersistentLevel))
+					{
+						DuplicatedTaggedData.Data = Cast<UPCGData>(StaticDuplicateObject(TaggedData.Data, GetTransientPackage()));
+					}
+#endif
+
 					DuplicatedTaggedData.Tags.Add(PCGDataFromActorConstants::PCGComponentDataGridSizeTagPrefix + FString::FromInt(PCGHiGenGrid::GridToGridSize(Component->GetGenerationGrid())));
 				}
 			}

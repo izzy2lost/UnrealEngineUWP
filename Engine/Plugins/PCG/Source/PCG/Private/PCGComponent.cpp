@@ -567,15 +567,24 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 				{
 					// Visit the generated data; if the outer is the transient package or this component for all data, then
 					// we don't need to duplicate the data and can change the outer & flatten the data without any additional copies.
+					// Caveat: since that data could be in the cache currently, we shouldn't reouter it to a component that's not in the persistent level, otherwise when the
+					// sublevel is unloaded, it could leak references.
+#if WITH_EDITOR
+					bool bDataCanBeStolen = GetOwner() && GetOwner()->GetWorld() && (GetOwner()->GetLevel() == GetOwner()->GetWorld()->PersistentLevel);
+#else
 					bool bDataCanBeStolen = true;
+#endif
 
-					TaggedData.Data->VisitDataNetwork([this, &bDataCanBeStolen](const UPCGData* InData)
+					if (bDataCanBeStolen)
 					{
-						if (InData && InData->GetOuter() != GetTransientPackage() && InData->GetOuter() != this)
+						TaggedData.Data->VisitDataNetwork([this, &bDataCanBeStolen](const UPCGData* InData)
 						{
-							bDataCanBeStolen = false;
-						}
-					});
+							if (InData && InData->GetOuter() != GetTransientPackage() && InData->GetOuter() != this)
+							{
+								bDataCanBeStolen = false;
+							}
+						});
+					}
 
 					FPCGTaggedData OutputTaggedData = TaggedData;
 
