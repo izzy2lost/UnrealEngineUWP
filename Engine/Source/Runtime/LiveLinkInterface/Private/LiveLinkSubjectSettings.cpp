@@ -9,9 +9,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LiveLinkSubjectSettings)
 
-#if WITH_EDITOR
-DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkSubjectSettings, Warning, Warning);
-
 ULiveLinkSubjectSettings::ULiveLinkSubjectSettings()
 {
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
@@ -20,6 +17,11 @@ ULiveLinkSubjectSettings::ULiveLinkSubjectSettings()
 		bAllowModifyingRebroadcast = GetDefault<ULiveLinkDefaultSubjectSettings>()->bAllowEditingRebroadcastProperty;
 	}
 }
+
+
+#if WITH_EDITOR
+DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkSubjectSettings, Warning, Warning);
+
 
 bool ULiveLinkSubjectSettings::ValidateProcessors()
 {
