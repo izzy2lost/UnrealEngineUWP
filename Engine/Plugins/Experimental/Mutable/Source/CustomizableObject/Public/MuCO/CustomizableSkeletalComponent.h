@@ -66,5 +66,6 @@ private:
 
 protected:
 	virtual void PostInitProperties() override;
+	virtual void PostReinitProperties() override;
 };
 

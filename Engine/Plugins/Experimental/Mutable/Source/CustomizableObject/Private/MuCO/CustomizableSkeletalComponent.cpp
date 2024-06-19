@@ -131,6 +131,12 @@ void UCustomizableSkeletalComponent::OnAttachmentChanged()
 void UCustomizableSkeletalComponent::PostInitProperties()
 {
 	Super::PostInitProperties();
-
 	CreateCustomizableObjectInstanceUsage();
 }
+
+void UCustomizableSkeletalComponent::PostReinitProperties()
+{
+	Super::PostReinitProperties();
+	CreateCustomizableObjectInstanceUsage();
+}
+
