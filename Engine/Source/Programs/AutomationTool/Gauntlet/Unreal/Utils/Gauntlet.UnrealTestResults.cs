@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Logging = Microsoft.Extensions.Logging;
 using System.Globalization;
 using AutomationUtils.Matchers;
+using System.Text.RegularExpressions;
 
 namespace Gauntlet
 {
@@ -166,6 +167,12 @@ namespace Gauntlet
 		public const string InvalidDateTime = "0001.01.01-00.00.00";
 		public const string DateTimeFormat = "yyyy.MM.dd-HH.mm.ss";
 
+		/// <summary>
+		/// Regex pattern to match assertion, ensure and other crash report summary from UE
+		/// ie: Assertion failed: !This->CurrentlySerializingObject [File:.\\Runtime/CoreUObject/Private/Misc/GCObjectReferencer.cpp] [Line: 54] 
+		/// </summary>
+		private static Regex SummaryPattern = new Regex(@"\w[\w ]+:(?:\s+.+)?\s+\[[^]]+\.[^]]+\](?:\s*\[[^]]+\])?(?:\s*\n\w+.+)? *", RegexOptions.Multiline | RegexOptions.ExplicitCapture);
+
 		public static DateTime GetTimestampAsDateTime(string StringTime)
 		{
 			DateTime Time = DateTime.UtcNow;
@@ -205,8 +212,20 @@ namespace Gauntlet
 				}
 				else
 				{
-					Properties.Add("Callstack", Message);
-					Format = "{Callstack}";
+					Match MatchSummary = SummaryPattern.Match(Message);
+					if (MatchSummary.Success)
+					{
+						Group MatchedGroup = MatchSummary.Groups[0];
+						int Index = MatchedGroup.Index;
+						Format = $"{Message.Substring(0, Index)}{{Summary}}\n{{Callstack}}";
+						Properties.Add("Summary", MatchedGroup.Value);
+						Properties.Add("Callstack", Message.Substring(Index + MatchedGroup.Length).TrimStart('\n'));
+					}
+					else
+					{
+						Properties.Add("Callstack", Message);
+						Format = "{Callstack}";
+					}
 				}
 			}
 			else
