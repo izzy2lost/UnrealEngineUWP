@@ -52,7 +52,7 @@ public class NNEOnnxruntime : ModuleRules
 		PublicDefinitions.Add("UE_ORT_USE_INLINE_NAMESPACE = 1");
 		PublicDefinitions.Add("UE_ORT_INLINE_NAMESPACE_NAME = Ort011401");
 
-		if (Target.Type == TargetType.Game)
+		if (Target.Type != TargetType.Editor)
 		{
 			PublicDefinitions.Add("ORT_NO_EXCEPTIONS");
 		}
