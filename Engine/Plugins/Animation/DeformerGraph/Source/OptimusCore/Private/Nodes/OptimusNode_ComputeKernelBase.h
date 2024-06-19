@@ -24,7 +24,7 @@ class UOptimusNode_ComputeKernelBase :
 	
 public:
 	/** Implement this to return the HLSL kernel's function name */
-	virtual FString GetKernelHlslName() const PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetKernelHlslName, return FString();)
+	virtual FString GetKernelName() const PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetKernelName, return FString();)
 
 	/** Implement this to return the HLSL kernel's function name */
 	virtual FIntVector GetGroupSize() const PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetGroupSize, return FIntVector();)

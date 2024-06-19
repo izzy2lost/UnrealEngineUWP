@@ -69,7 +69,7 @@ public:
 	FName GetNodeCategory() const override; 
 
 	// UOptimusNode_ComputeKernelBase overrides
-	FString GetKernelHlslName() const override;
+	FString GetKernelName() const override;
 	FIntVector GetGroupSize() const override;
 	FString GetKernelSourceText() const override;
 

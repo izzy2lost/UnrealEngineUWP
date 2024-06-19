@@ -102,7 +102,7 @@ UOptimusNode_CustomComputeKernel::UOptimusNode_CustomComputeKernel()
 
 FString UOptimusNode_CustomComputeKernel::GetKernelSourceText() const
 {
-	return Optimus::GetCookedKernelSource(GetPathName(), ShaderSource.ShaderText, GetKernelHlslName(), GroupSize);
+	return Optimus::GetCookedKernelSource(GetPathName(), ShaderSource.ShaderText, KernelName.ToString(), GroupSize);
 }
 
 FOptimusExecutionDomain UOptimusNode_CustomComputeKernel::GetExecutionDomain() const
@@ -722,16 +722,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	SetDisplayName(FText::FromName(KernelName));	
-}
-
-FString UOptimusNode_CustomComputeKernel::GetKernelHlslName() const
-{
-	// We need to append the node name here because of a weird issue on Mac where
-	// if the last word of the name of a shader parameter matches the kernel name, the value
-	// for the parameter is always zero for unknown reasons. (e.g. AnimAttribute named "XXXBend" & Kernel also named "Bend")
-	// Adding this bit of "random" string after the user provided kernel name should
-	// greatly reduce the chance of things like that happening
-	return KernelName.ToString() + TEXT("_") + GetName();
 }
 
 
