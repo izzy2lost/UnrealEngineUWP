@@ -878,6 +878,7 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::Cook::FCookByTheBookOptions& 
 	Writer << "SkipSoftReferences" << Value.bSkipSoftReferences;
 	Writer << "CookAgainstFixedBase" << Value.bCookAgainstFixedBase;
 	Writer << "DlcLoadMainAssetRegistry" << Value.bDlcLoadMainAssetRegistry;
+	Writer << "CookSoftPackageReferences" << Value.bCookSoftPackageReferences;
 	Writer.EndObject();
 	return Writer;
 }
@@ -907,6 +908,7 @@ bool LoadFromCompactBinary(FCbFieldView Field, UE::Cook::FCookByTheBookOptions& 
 	bOk = LoadFromCompactBinary(Field["SkipSoftReferences"], OutValue.bSkipSoftReferences) & bOk;
 	bOk = LoadFromCompactBinary(Field["CookAgainstFixedBase"], OutValue.bCookAgainstFixedBase) & bOk;
 	bOk = LoadFromCompactBinary(Field["DlcLoadMainAssetRegistry"], OutValue.bDlcLoadMainAssetRegistry) & bOk;
+	bOk = LoadFromCompactBinary(Field["CookSoftPackageReferences"], OutValue.bCookSoftPackageReferences) & bOk;
 
 	return bOk;
 }

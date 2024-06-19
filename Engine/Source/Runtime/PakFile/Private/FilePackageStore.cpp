@@ -651,6 +651,7 @@ void FFilePackageStoreBackend::Update()
 
 				MountedContainer.NumMountedPackages = NumNewPackages;
 				ContainerHeader->PackageIds.Empty();
+				ContainerHeader->SoftPackageReferences.Empty();
 			}
 
 			

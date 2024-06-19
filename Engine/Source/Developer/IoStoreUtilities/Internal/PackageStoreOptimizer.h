@@ -194,6 +194,7 @@ private:
 	TArray<FImportedPackageRef> ImportedPackages;
 	TArray<uint64> ImportedPublicExportHashes;
 	TArray<FBulkDataMapEntry> BulkDataEntries;
+	TArray<FName> SoftPackageReferences;
 
 	FIoBuffer HeaderBuffer;
 
@@ -244,6 +245,7 @@ private:
 		TArray<FObjectExport> ObjectExports;
 		TArray<FPackageIndex> PreloadDependencies;
 		TArray<FObjectDataResource> DataResources;
+		TArray<FName> SoftPackageReferences;
 	};
 
 	using FExportGraphEdges = TMultiMap<FPackageStorePackage::FExportGraphNode*, FPackageStorePackage::FExportGraphNode*>;

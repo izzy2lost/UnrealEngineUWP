@@ -457,6 +457,7 @@ public:
 	bool							bAllowUncookedAssetReferences = false;
 	bool							bSkipHardReferences = false;
 	bool							bSkipSoftReferences = false;
+	bool							bCookSoftPackageReferences = false;
 	bool							bCookAgainstFixedBase = false;
 	bool							bDlcLoadMainAssetRegistry = false;
 

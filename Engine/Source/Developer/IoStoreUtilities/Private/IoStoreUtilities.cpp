@@ -4,6 +4,7 @@
 #include "IoStoreWriter.h"
 
 #include "IoStoreLooseFiles.h"
+#include "Algo/BinarySearch.h"
 #include "Algo/TopologicalSort.h"
 #include "Async/AsyncWork.h"
 #include "CookMetadata.h"
@@ -5281,6 +5282,58 @@ void CreateContainerHeader(FContainerTargetSpec& ContainerTarget, bool bIsOption
 		Writer.StoreTocArchive << OffsetToDataFromThis;
 	};
 
+	struct FSoftPackageReferenceWriter
+	{
+		explicit FSoftPackageReferenceWriter(TSet<FPackageId>&& SoftReferences, int32 NumPackageEntries)
+			: SoftPackageReferences(SoftReferences.Array())
+			, TotalEntrySize(NumPackageEntries * sizeof(FFilePackageStoreEntrySoftReferences))
+		{
+			SoftPackageReferences.Sort();
+		}
+
+		void Append(TConstArrayView<FPackageId> SoftRefs)
+		{
+			const int64 RemainingEntrySize = TotalEntrySize - EntryAr.Tell();
+			const int64 OffsetFromThis = RemainingEntrySize + DataAr.Tell();
+			uint32		ArrayNum = static_cast<uint32>(SoftRefs.Num());
+			uint32		OffsetToDataFromThis = ArrayNum > 0 ? OffsetFromThis : 0;
+
+			EntryAr << ArrayNum;
+			EntryAr << OffsetToDataFromThis;
+
+			for (FPackageId SoftRef : SoftRefs)
+			{
+				int32 Index = Algo::BinarySearch(SoftPackageReferences, SoftRef);
+				check(Index != INDEX_NONE);
+				DataAr << Index;
+			}
+		}
+
+		void Flush(FIoContainerHeaderSoftPackageReferences& OutContainerSoftReferences)
+		{
+			const int64 TotalSize = EntryAr.TotalSize() + DataAr.TotalSize();
+			if (TotalSize == 0)
+			{
+				check(SoftPackageReferences.IsEmpty());
+				OutContainerSoftReferences.Empty();
+				return;
+			}
+
+			OutContainerSoftReferences.bContainsSoftPackageReferences = true;
+			OutContainerSoftReferences.PackageIds = MoveTemp(SoftPackageReferences);
+			OutContainerSoftReferences.PackageIndices.AddUninitialized(TotalSize);
+			FBufferWriter Ar(OutContainerSoftReferences.PackageIndices.GetData(), TotalSize);
+			Ar.Serialize(EntryAr.GetData(), EntryAr.TotalSize());
+			Ar.Serialize(DataAr.GetData(), DataAr.TotalSize());
+		}
+
+	private:
+		TArray<FPackageId>	SoftPackageReferences;
+		const int64			TotalEntrySize;
+		FLargeMemoryWriter	EntryAr;
+		FLargeMemoryWriter	DataAr;
+	};
+
 	TArray<const FCookedPackage*> SortedPackages(ContainerTarget.Packages);
 	Algo::Sort(SortedPackages, [](const FCookedPackage* A, const FCookedPackage* B)
 		{
@@ -5327,6 +5380,17 @@ void CreateContainerHeader(FContainerTargetSpec& ContainerTarget, bool bIsOption
 	}
 	else
 	{
+		TSet<FPackageId> AllSoftPackageReferences;
+		for (const FCookedPackage* Package : SortedPackages)
+		{
+			for (FPackageId SoftRef : Package->PackageStoreEntry.SoftPackageReferences)
+			{
+				AllSoftPackageReferences.Add(SoftRef);
+			}
+		}
+
+		FSoftPackageReferenceWriter SoftRefsWriter(MoveTemp(AllSoftPackageReferences), NonOptionalSegmentStoreEntriesCount);
+
 		for (const FCookedPackage* Package : SortedPackages)
 		{
 			const FPackageStoreEntryResource& Entry = Package->PackageStoreEntry;
@@ -5365,7 +5429,12 @@ void CreateContainerHeader(FContainerTargetSpec& ContainerTarget, bool bIsOption
 			{
 				StoreEntriesWriter.StoreDataArchive << const_cast<FSHAHash&>(ShaderMapHash);
 			}
+
+			// SoftPackageReferences
+			SoftRefsWriter.Append(Entry.SoftPackageReferences);
 		}
+
+		SoftRefsWriter.Flush(Header.SoftPackageReferences);
 	}
 	Header.RedirectsNameMap = RedirectsNameMapBuilder.GetNameMap();
 

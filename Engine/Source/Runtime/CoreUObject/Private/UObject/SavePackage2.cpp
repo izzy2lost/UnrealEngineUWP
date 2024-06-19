@@ -1906,7 +1906,8 @@ ESavePackageResult WritePackageHeader(FStructuredArchive::FRecord& StructuredArc
 	}
 
 	// Write Soft Package references & Searchable Names
-	if (!SaveContext.IsFilterEditorOnly())
+	const bool bCookSoftPackagesReferences = SaveContext.IsCooking() && SaveContext.GetSaveArgs().SaveFlags & SAVE_CookSoftPackageReferences;
+	if (!SaveContext.IsFilterEditorOnly() || bCookSoftPackagesReferences)
 	{
 		SCOPED_SAVETIMER(UPackage_Save_SaveSoftPackagesAndSearchableNames);
 

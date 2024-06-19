@@ -22,6 +22,7 @@ FArchive& operator<<(FArchive& Ar, FPackageStoreEntryResource& PackageStoreEntry
 	Ar << PackageStoreEntry.PackageName;
 	Ar << PackageStoreEntry.ImportedPackageIds;
 	Ar << PackageStoreEntry.OptionalSegmentImportedPackageIds;
+	Ar << PackageStoreEntry.SoftPackageReferences;
 
 	if (Ar.IsLoading())
 	{
@@ -69,6 +70,16 @@ FCbWriter& operator<<(FCbWriter& Writer, const FPackageStoreEntryResource& Packa
 		Writer.EndArray();
 	}
 
+	if (PackageStoreEntry.SoftPackageReferences.Num())
+	{
+		Writer.BeginArray("softpackagereferences");
+		for (const FPackageId& SoftRef : PackageStoreEntry.SoftPackageReferences)
+		{
+			Writer << SoftRef.Value();
+		}
+		Writer.EndArray();
+	}
+
 	Writer.EndObject();
 
 	return Writer;
@@ -104,6 +115,14 @@ FPackageStoreEntryResource FPackageStoreEntryResource::FromCbObject(FCbObjectVie
 		for (FCbFieldView ArrayField : Obj["optionalsegmentimportedpackageids"])
 		{
 			Entry.OptionalSegmentImportedPackageIds.Add(FPackageId::FromValue(ArrayField.AsUInt64()));
+		}
+	}
+
+	if (Obj["softpackagereferences"])
+	{
+		for (FCbFieldView ArrayField : Obj["softpackagereferences"])
+		{
+			Entry.SoftPackageReferences.Add(FPackageId::FromValue(ArrayField.AsUInt64()));
 		}
 	}
 

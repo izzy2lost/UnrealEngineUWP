@@ -74,6 +74,8 @@ struct FPackageStoreEntryResource
 	TArray<FSHAHash> ShaderMapHashes;
 	/** Editor data imported package IDs. */
 	TArray<FPackageId> OptionalSegmentImportedPackageIds;
+	/** Soft package references. */
+	TArray<FPackageId> SoftPackageReferences;
 
 	/** Returns the package ID. */
 	FPackageId GetPackageId() const
