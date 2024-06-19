@@ -12,7 +12,7 @@
 #include "DragAndDrop/DecoratedDragDropOp.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraphSchema_K2.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Docking/TabManager.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"

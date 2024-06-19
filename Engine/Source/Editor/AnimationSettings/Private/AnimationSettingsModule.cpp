@@ -5,7 +5,10 @@
 #include "SSettingsEditorCheckoutNotice.h"
 #include "Animation/AnimationSettings.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "Engine/UserDefinedStruct.h"
+#include "GenericPlatform/GenericPlatformFile.h"
+#include "HAL/PlatformFileManager.h"
+#include "Misc/Paths.h"
+#include "StructUtils/UserDefinedStruct.h"
 
 
 IMPLEMENT_MODULE(FAnimationSettingsModule, AnimationSettings);

@@ -7,7 +7,7 @@
 #include "RigVMCore/RigVMUnknownType.h"
 #include "UObject/Interface.h"
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"

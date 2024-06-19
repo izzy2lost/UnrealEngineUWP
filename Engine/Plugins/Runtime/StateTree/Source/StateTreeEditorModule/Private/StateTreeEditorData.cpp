@@ -17,7 +17,7 @@
 
 #if WITH_EDITOR
 #include "StructUtilsDelegates.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeEditorData)

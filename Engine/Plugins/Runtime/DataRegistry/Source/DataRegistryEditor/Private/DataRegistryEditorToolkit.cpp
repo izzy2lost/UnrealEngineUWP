@@ -23,7 +23,7 @@
 #include "Widgets/Input/SHyperlink.h"
 #include "SourceCodeNavigation.h"
 #include "PropertyEditorModule.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
  
 #define LOCTEXT_NAMESPACE "DataRegistryEditor"
 

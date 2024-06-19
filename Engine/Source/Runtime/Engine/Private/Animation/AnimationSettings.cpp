@@ -4,7 +4,7 @@
 #include "Animation/AttributeTypes.h"
 #include "Animation/CustomAttributes.h"
 #include "Animation/MirrorDataTable.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimationSettings)
 

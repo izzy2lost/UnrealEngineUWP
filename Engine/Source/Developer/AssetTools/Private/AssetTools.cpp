@@ -111,7 +111,7 @@
 #include "DiffUtils.h"
 #include "VirtualTexturingEditorModule.h"
 #include "Algo/AnyOf.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Factories/SceneImportFactory.h"
 #include "Misc/AssetFilterData.h"
 

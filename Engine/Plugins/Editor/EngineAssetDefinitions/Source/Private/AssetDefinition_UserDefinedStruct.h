@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "AssetDefinitionDefault.h"
 
 #include "AssetDefinition_UserDefinedStruct.generated.h"

@@ -21,6 +21,14 @@
 
 //////////////////////////////////////////////////////////////////////////
 // FStructEditorManager
+FStructureEditorUtils::FStructEditorManager::FStructEditorManager()
+{
+	FUserDefinedStructEditorUtils::OnUserDefinedStructChanged.BindLambda([](UUserDefinedStruct* Struct)
+		{
+			OnStructureChanged(Struct);
+		});
+}
+
 FStructureEditorUtils::FStructEditorManager& FStructureEditorUtils::FStructEditorManager::Get()
 {
 	static TSharedRef< FStructEditorManager > EditorManager( new FStructEditorManager() );
@@ -567,7 +575,7 @@ void FStructureEditorUtils::OnStructureChanged(UUserDefinedStruct* Struct, EStru
 
 		Struct->Status = EUserDefinedStructureStatus::UDSS_Dirty;
 		CompileStructure(Struct);
-		Struct->MarkPackageDirty();
+		(void)Struct->MarkPackageDirty();
 		Struct->OnChanged();
 	}
 }

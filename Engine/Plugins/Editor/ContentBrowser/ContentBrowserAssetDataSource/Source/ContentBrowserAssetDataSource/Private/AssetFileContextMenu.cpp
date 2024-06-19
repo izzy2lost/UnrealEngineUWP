@@ -5,7 +5,7 @@
 #include "AssetDefinition.h"
 #include "AssetDefinitionRegistry.h"
 #include "Engine/Blueprint.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "IAssetTypeActions.h"
 #include "Misc/MessageDialog.h"

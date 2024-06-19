@@ -16,7 +16,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "ShaderParameterMetadataBuilder.h"
 #include "ComputeFramework/ComputeMetadataBuilder.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Nodes/OptimusNode_DataInterface.h"
 
 #include "Serialization/MemoryReader.h"

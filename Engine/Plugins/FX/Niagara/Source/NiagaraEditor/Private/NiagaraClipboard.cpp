@@ -12,7 +12,7 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "NiagaraNodeFunctionCall.h"
 #include "Engine/UserDefinedEnum.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "NiagaraEditorModule.h"
 #include "INiagaraEditorTypeUtilities.h"
 #include "Logging/LogScopedVerbosityOverride.h"

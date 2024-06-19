@@ -4,7 +4,7 @@
 #include "BlueprintCompilationManager.h"
 #include "Blueprint/WidgetTree.h"
 #include "Engine/Blueprint.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/StructureEditorUtils.h"
 #include "MVVMBlueprintView.h"

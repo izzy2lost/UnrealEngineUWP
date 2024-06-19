@@ -3,7 +3,7 @@
 #include "ChooserPropertyAccess.h"
 
 #include "IObjectChooser.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "HAL/IConsoleManager.h"
 #include "UObject/UnrealType.h"
 #include "Logging/LogMacros.h"

@@ -8,7 +8,7 @@
 #include "MovieSceneFwd.h"
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Serialization/MemoryArchive.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "MovieSceneFrameMigration.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneEventSection)

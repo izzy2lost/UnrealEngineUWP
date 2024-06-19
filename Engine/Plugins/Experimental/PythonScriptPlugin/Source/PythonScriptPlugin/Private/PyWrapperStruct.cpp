@@ -11,7 +11,7 @@
 #include "UObject/PropertyPortFlags.h"
 #include "Misc/ScopeExit.h"
 #include "Templates/Casts.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PyWrapperStruct)
 

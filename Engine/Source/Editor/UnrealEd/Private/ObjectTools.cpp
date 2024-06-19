@@ -56,7 +56,7 @@
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Engine/Selection.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Animation/MorphTarget.h"
 #include "Editor.h"
 #include "Editor/Transactor.h"

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Package.h"
@@ -12,10 +12,10 @@
 #include "Misc/PackageName.h"
 #include "Blueprint/BlueprintSupport.h"
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 #include "UObject/CookedMetaData.h"
-#include "UserDefinedStructure/UserDefinedStructEditorData.h"
-#endif //WITH_EDITOR
+#include "StructUtils/UserDefinedStructEditorUtils.h"
+#endif //WITH_EDITORONLY_DATA
 
 FUserStructOnScopeIgnoreDefaults::FUserStructOnScopeIgnoreDefaults(const UUserDefinedStruct* InUserStruct)
 {
@@ -116,14 +116,13 @@ void UUserDefinedStruct::Serialize(FStructuredArchive::FRecord Record)
 				UnderlyingArchive.Preload(EditorData);
 				if (!(UnderlyingArchive.GetPortFlags() & PPF_Duplicate))
 				{
-					if(!DefaultStructInstance.IsValid())
+					if (UUserDefinedStructEditorDataBase* UDSEditorData = Cast<UUserDefinedStructEditorDataBase>(EditorData))
 					{
-						FStructureEditorUtils::RecreateDefaultInstanceInEditorData(this);
-					}
-					else
-					{
-						UUserDefinedStructEditorData* UDSEditorData = Cast<UUserDefinedStructEditorData>(EditorData);
-						if (UDSEditorData)
+						if (!DefaultStructInstance.IsValid())
+						{
+							UDSEditorData->RecreateDefaultInstance();
+						}
+						else
 						{
 							UDSEditorData->ReinitializeDefaultInstance();
 						}
@@ -131,8 +130,8 @@ void UUserDefinedStruct::Serialize(FStructuredArchive::FRecord Record)
 				}
 			}
 
-			const FStructureEditorUtils::EStructureError Result = FStructureEditorUtils::IsStructureValid(this, NULL, &ErrorMessage);
-			if (FStructureEditorUtils::EStructureError::Ok != Result)
+			const FUserDefinedStructEditorUtils::EStructureError Result = FUserDefinedStructEditorUtils::IsStructureValid(this, NULL, &ErrorMessage);
+			if (FUserDefinedStructEditorUtils::EStructureError::Ok != Result)
 			{
 				Status = EUserDefinedStructureStatus::UDSS_Error;
 				UE_LOG(LogClass, Log, TEXT("UUserDefinedStruct.Serialize '%s' validation: %s"), *GetName(), *ErrorMessage);
@@ -154,7 +153,7 @@ void UUserDefinedStruct::PostDuplicate(bool bDuplicateForPIE)
 	if (!bDuplicateForPIE && (GetOuter() != GetTransientPackage()))
 	{
 		SetMetaData(TEXT("BlueprintType"), TEXT("true"));
-		FStructureEditorUtils::OnStructureChanged(this);
+		FUserDefinedStructEditorUtils::OnStructureChanged(this);
 	}
 }
 
@@ -203,7 +202,10 @@ void UUserDefinedStruct::GetAssetRegistryTags(FAssetRegistryTagsContext Context)
 {
 	Super::GetAssetRegistryTags(Context);
 
-	Context.AddTag(FAssetRegistryTag(TEXT("Tooltip"), FStructureEditorUtils::GetTooltip(this), FAssetRegistryTag::TT_Hidden));
+	if (const UUserDefinedStructEditorDataBase* StructEditorData = Cast<const UUserDefinedStructEditorDataBase>(EditorData))
+	{
+		Context.AddTag(FAssetRegistryTag(TEXT("Tooltip"), StructEditorData->GetTooltip(), FAssetRegistryTag::TT_Hidden));
+	}
 }
 
 void UUserDefinedStruct::ValidateGuid()
@@ -232,13 +234,10 @@ void UUserDefinedStruct::OnChanged()
 FProperty* UUserDefinedStruct::CustomFindProperty(const FName Name) const
 {
 #if WITH_EDITOR
-	if (EditorData != nullptr)
+	// If we have the editor data, check that first as it's more up to date
+	if (const UUserDefinedStructEditorDataBase* StructEditorData = Cast<const UUserDefinedStructEditorDataBase>(EditorData))
 	{
-		// If we have the editor data, check that first as it's more up to date
-		const FGuid PropertyGuid = FStructureEditorUtils::GetGuidFromPropertyName(Name);
-		FProperty* EditorProperty = PropertyGuid.IsValid() ? FStructureEditorUtils::GetPropertyByGuid(this, PropertyGuid) : FStructureEditorUtils::GetPropertyByFriendlyName(this, Name.ToString());
-		ensure(!EditorProperty || !PropertyGuid.IsValid() || PropertyGuid == FStructureEditorUtils::GetGuidForProperty(EditorProperty));
-		if (EditorProperty)
+		if (FProperty* EditorProperty = StructEditorData->FindProperty(this, Name))
 		{
 			return EditorProperty;
 		}
@@ -266,10 +265,13 @@ FString UUserDefinedStruct::GetAuthoredNameForField(const FField* Field) const
 	}
 
 #if WITH_EDITOR
-	const FString EditorName = FStructureEditorUtils::GetVariableFriendlyNameForProperty(this, Property);
-	if (!EditorName.IsEmpty())
+	if (const UUserDefinedStructEditorDataBase* StructEditorData = Cast<const UUserDefinedStructEditorDataBase>(EditorData))
 	{
-		return EditorName;
+		const FString EditorName = StructEditorData->GetFriendlyNameForProperty(this, Property);
+		if (!EditorName.IsEmpty())
+		{
+			return EditorName;
+		}
 	}
 #endif	// WITH_EDITOR
 
@@ -394,7 +396,7 @@ FGuid UUserDefinedStruct::GetCustomGuid() const
 	return Guid;
 }
 
-ENGINE_API FString GetPathPostfix(const UObject* ForObject)
+FString GetPathPostfix(const UObject* ForObject)
 {
 	FString FullAssetName = ForObject->GetOutermost()->GetPathName();
 	FString AssetName = FPackageName::GetLongPackageAssetName(FullAssetName);

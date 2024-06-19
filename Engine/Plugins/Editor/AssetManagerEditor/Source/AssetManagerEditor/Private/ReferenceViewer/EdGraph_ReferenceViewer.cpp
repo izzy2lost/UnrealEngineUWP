@@ -17,7 +17,7 @@
 #include "Engine/AssetManager.h"
 #include "Engine/SCS_Node.h"
 #include "Engine/SimpleConstructionScript.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Interfaces/IPluginManager.h"
 #include "ReferenceViewer/EdGraphNode_ReferencedProperties.h"
 #include "UObject/ReferenceChainSearch.h"

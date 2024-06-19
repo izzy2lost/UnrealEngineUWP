@@ -6,7 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "MovieScene.h"
 
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "EdGraph/EdGraph.h"
 #include "Blueprint/WidgetTree.h"
 #include "Animation/WidgetAnimation.h"

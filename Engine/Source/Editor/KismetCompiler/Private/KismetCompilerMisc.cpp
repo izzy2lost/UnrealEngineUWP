@@ -17,7 +17,7 @@
 #include "UObject/UObjectHash.h"
 #include "Engine/MemberReference.h"
 #include "Engine/BlueprintGeneratedClass.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "FieldNotification/FieldNotificationLibrary.h"
 #include "INotifyFieldValueChanged.h"
 #include "Kismet2/CompilerResultsLog.h"
