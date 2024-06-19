@@ -14,7 +14,7 @@ class FLiveLinkSubject;
 class ILiveLinkHub;
 struct ILiveLinkProvider;
 
-DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnFrameDataReceived_AnyThread, const FLiveLinkSubjectKey&, FLiveLinkFrameDataStruct&);
+DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnFrameDataReceived_AnyThread, const FLiveLinkSubjectKey&, const FLiveLinkFrameDataStruct&);
 DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FOnStaticDataReceived_AnyThread, const FLiveLinkSubjectKey&, TSubclassOf<ULiveLinkRole>, const FLiveLinkStaticDataStruct&);
 DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnSubjectMarkedPendingKill_AnyThread, const FLiveLinkSubjectKey&);
 
@@ -52,10 +52,7 @@ public:
 public:
 	//~ Begin ILiveLinkClient interface
 	virtual bool CreateSource(const FLiveLinkSourcePreset& InSourcePreset) override;
-	virtual bool CreateSubject(const FLiveLinkSubjectPreset& InSubjectPreset) override;
-	virtual void PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, FLiveLinkFrameDataStruct&& FrameData) override;
 	virtual FText GetSourceStatus(FGuid InEntryGuid) const override;
-	virtual bool IsSubjectValid(const FLiveLinkSubjectKey& InSubjectKey) const override;
 	virtual void RemoveSubject_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) override;
 	virtual bool AddVirtualSubject(const FLiveLinkSubjectKey& VirtualSubjectKey, TSubclassOf<ULiveLinkVirtualSubject> VirtualSubjectClass) override;
     virtual void RemoveVirtualSubject(const FLiveLinkSubjectKey& VirtualSubjectKey) override;
@@ -66,10 +63,6 @@ public:
 	//~ End FLiveLinkClient interface
 
 private:
-	/** Create a LiveLinkPlaybackSource which acts as a dummy source when doing playback. */
-	bool CreatePlaybackSource(const FLiveLinkSourcePreset& InSourcePreset);
-	/** Create a LiveLinkPlaybackSubject which acts as a dummy subject when doing playback. */
-	bool CreatePlaybackSubject(const FLiveLinkSubjectPreset& InSubjectPreset);
 	/** Broadcast a static data update to this client's listeners. */
 	void BroadcastStaticDataUpdate(FLiveLinkSubject* InLiveSubject, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticData) const;
 

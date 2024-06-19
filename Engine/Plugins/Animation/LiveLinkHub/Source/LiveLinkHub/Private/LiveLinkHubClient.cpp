@@ -2,27 +2,18 @@
 
 #include "LiveLinkHubClient.h"
 
-#include "Algo/AnyOf.h"
-#include "Async/TaskGraphInterfaces.h"
 #include "Clients/LiveLinkHubProvider.h"
-#include "Engine/Engine.h"
-#include "LiveLinkClient.h"
 #include "LiveLinkHub.h"
-#include "LiveLinkHubLog.h"
 #include "LiveLinkHubModule.h"
-#include "LiveLinkHubSubjectSettings.h"
 #include "LiveLinkRoleTrait.h"
 #include "LiveLinkSourceCollection.h"
-#include "LiveLinkSettings.h"
 #include "LiveLinkSubject.h"
-#include "LiveLinkSubjectSettings.h"
-#include "LiveLinkTimedDataInput.h"
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
-#include "Recording/LiveLinkPlaybackSource.h"
-#include "Recording/LiveLinkPlaybackSubject.h"
+#include "Recording/LiveLinkHubPlaybackSourceSettings.h"
 #include "Stats/Stats2.h"
 #include "UObject/Package.h"
+#include "UObject/StrongObjectPtr.h"
 #include "UObject/UObjectGlobals.h"
 
 DECLARE_STATS_GROUP(TEXT("Live Link Hub"), STATGROUP_LiveLinkHub, STATCAT_Advanced);
@@ -60,220 +51,22 @@ bool FLiveLinkHubClient::CreateSource(const FLiveLinkSourcePreset& InSourcePrese
 	// Create fake sources if we're in playback mode so we don't process livelink data while we're playing a recording.
 	if (LiveLinkHub.Pin()->IsInPlayback())
 	{
-		return CreatePlaybackSource(InSourcePreset);
+		TStrongObjectPtr<ULiveLinkSourceSettings> PlaybackSourceSettings = TStrongObjectPtr<ULiveLinkSourceSettings>(NewObject<ULiveLinkSourceSettings>(GetTransientPackage(), ULiveLinkHubPlaybackSourceSettings::StaticClass()));
+
+		FLiveLinkSourcePreset ModifiedPreset = InSourcePreset;
+		ModifiedPreset.Settings = PlaybackSourceSettings.Get();
+
+		// Override the incoming source settings to create a playback source instead.
+		if (InSourcePreset.Settings && InSourcePreset.Settings->Factory)
+		{
+			PlaybackSourceSettings->ConnectionString = InSourcePreset.Settings->Factory.GetDefaultObject()->GetSourceDisplayName().ToString();
+		}
+
+		return FLiveLinkClient::CreateSource(ModifiedPreset);
 	}
 	else
 	{
 		return FLiveLinkClient::CreateSource(InSourcePreset);
-	}
-}
-
-bool FLiveLinkHubClient::CreatePlaybackSource(const FLiveLinkSourcePreset& InSourcePreset)
-{
-	check(Collection);
-
-	if (InSourcePreset.Settings == nullptr)
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Source Failure: The settings are not defined."));
-		return false;
-	}
-
-	if (InSourcePreset.Guid == FLiveLinkSourceCollection::DefaultVirtualSubjectGuid)
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Source Failure: Can't create default subject source. It will be created automatically."));
-		return false;
-	}
-
-	if (!InSourcePreset.Guid.IsValid())
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Source Failure: The guid is invalid."));
-		return false;
-	}
-
-	if (Collection->FindSource(InSourcePreset.Guid) != nullptr)
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Source Failure: The guid already exist."));
-		return false;
-	}
-
-	ULiveLinkSourceSettings* Setting = nullptr;
-	TSharedPtr<ILiveLinkSource> Source;
-	FLiveLinkCollectionSourceItem Data;
-	Data.Guid = InSourcePreset.Guid;
-
-	// subject source have a special settings class. We can differentiate them using this
-	if (InSourcePreset.Settings->GetClass()->GetName() == TEXT("LiveLinkVirtualSubjectSourceSettings"))
-	{
-		Source = MakeShared<FLiveLinkPlaybackSource>();
-		Data.bIsVirtualSource = true;
-	}
-	else
-	{
-		Source = MakeShared<FLiveLinkPlaybackSource>();
-		Data.TimedData = MakeShared<FLiveLinkTimedDataInput>(this, InSourcePreset.Guid);
-	}
-
-	Data.Source = Source;
-
-	// In case a source has changed its source settings class, instead of duplicating, create the right one and copy previous properties
-	UClass* SourceSettingsClass = Source->GetSettingsClass().Get();
-	if (SourceSettingsClass && SourceSettingsClass != InSourcePreset.Settings->GetClass())
-	{
-		Setting = NewObject<ULiveLinkSourceSettings>(GetTransientPackage(), SourceSettingsClass);
-		UEngine::CopyPropertiesForUnrelatedObjects(InSourcePreset.Settings, Setting);
-		Data.Setting = TStrongObjectPtr(Setting);
-	}
-	else
-	{
-		Data.Setting = TStrongObjectPtr(DuplicateObject<ULiveLinkSourceSettings>(InSourcePreset.Settings, GetTransientPackage()));
-		Setting = Data.Setting.Get();
-	}
-
-	Collection->AddSource(MoveTemp(Data));
-
-	Source->ReceiveClient(this, InSourcePreset.Guid);
-	Source->InitializeSettings(Setting);
-
-	return true;
-}
-
-bool FLiveLinkHubClient::CreateSubject(const FLiveLinkSubjectPreset& InSubjectPreset)
-{
-	// Create fake subjects if we're in playback mode
-	if (LiveLinkHub.Pin()->IsInPlayback())
-	{
-		return CreatePlaybackSubject(InSubjectPreset);
-	}
-	else
-	{
-		return FLiveLinkClient::CreateSubject(InSubjectPreset);
-	}
-}
-
-bool FLiveLinkHubClient::CreatePlaybackSubject(const FLiveLinkSubjectPreset& InSubjectPreset)
-{
-	check(Collection);
-
-	if (InSubjectPreset.Role.Get() == nullptr || InSubjectPreset.Role.Get() == ULiveLinkRole::StaticClass())
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Subject Failure: The role is not defined."));
-		return false;
-	}
-
-	if (InSubjectPreset.Key.Source == FLiveLinkSourceCollection::DefaultVirtualSubjectGuid && InSubjectPreset.VirtualSubject == nullptr)
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Source Failure: Can't create an empty subject."));
-		return false;
-	}
-
-	if (InSubjectPreset.Key.SubjectName.IsNone())
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Subject Failure: The subject name is invalid."));
-		return false;
-	}
-
-	FLiveLinkCollectionSourceItem* SourceItem = Collection->FindSource(InSubjectPreset.Key.Source);
-	if (SourceItem == nullptr || SourceItem->bPendingKill)
-	{
-		UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Subject Failure: The source doesn't exist."));
-		return false;
-	}
-
-	FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectPreset.Key);
-	if (SubjectItem != nullptr)
-	{
-		if (SubjectItem->bPendingKill)
-		{
-			Collection->RemoveSubject(InSubjectPreset.Key);
-		}
-		else
-		{
-			UE_LOG(LogLiveLinkHub, Warning, TEXT("Create Subject Failure: The subject already exist."));
-			return false;
-		}
-	}
-
-	if (InSubjectPreset.VirtualSubject)
-	{
-		bool bEnabled = false;
-		ULiveLinkVirtualSubject* VSubject = DuplicateObject<ULiveLinkVirtualSubject>(InSubjectPreset.VirtualSubject, GetTransientPackage());
-		FLiveLinkCollectionSubjectItem VSubjectData(InSubjectPreset.Key, VSubject, bEnabled);
-		VSubject->Initialize(VSubjectData.Key, VSubject->GetRole(), this);
-
-		Collection->AddSubject(MoveTemp(VSubjectData));
-		Collection->SetSubjectEnabled(InSubjectPreset.Key, InSubjectPreset.bEnabled);
-	}
-	else
-	{
-		ULiveLinkSubjectSettings* SubjectSettings = nullptr;
-		if (InSubjectPreset.Settings)
-		{
-			SubjectSettings = DuplicateObject<ULiveLinkSubjectSettings>(InSubjectPreset.Settings, GetTransientPackage());
-		}
-		else
-		{
-			SubjectSettings = NewObject<ULiveLinkSubjectSettings>();
-		}
-
-		bool bEnabled = false;
-		FLiveLinkCollectionSubjectItem CollectionSubjectItem(InSubjectPreset.Key, MakeUnique<FLiveLinkPlaybackSubject>(SourceItem->TimedData), SubjectSettings, bEnabled);
-		CollectionSubjectItem.GetLiveSubject()->Initialize(InSubjectPreset.Key, InSubjectPreset.Role.Get(), this);
-
-		Collection->AddSubject(MoveTemp(CollectionSubjectItem));
-		Collection->SetSubjectEnabled(InSubjectPreset.Key, InSubjectPreset.bEnabled);
-	}
-	return true;
-}
-
-void FLiveLinkHubClient::PushSubjectFrameData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, FLiveLinkFrameDataStruct&& FrameData)
-{
-	SCOPE_CYCLE_COUNTER(STAT_LiveLinkHub_PushFrameData);
-
-	TOptional<FLiveLinkSubjectFrameData> TranslatedFrame;
-
-	bool bFrameValid = true;
-	{
-		if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
-		{
-			if (FLiveLinkSubject* LiveSubject = SubjectItem->GetLiveSubject())
-			{
-				LiveSubject->SetLastPushTime(FApp::GetCurrentTime());
-				bFrameValid = LiveSubject->ValidateFrameData(FrameData);
-				if (bFrameValid)
-				{
-					LiveSubject->PreprocessFrame(FrameData);
-
-					// Translator support (Disabled for now since we don't have a way to handle the static data that's given back by the translator)
-					TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> Translators = LiveSubject->GetFrameTranslators();
-					if (Translators.Num() && Translators[0].IsValid())
-					{
-						FLiveLinkSubjectFrameData TranslatedFrameData;
-						if (Translators[0]->Translate(LiveSubject->GetStaticData(), FrameData, TranslatedFrameData))
-						{
-							TranslatedFrame = MoveTemp(TranslatedFrameData);
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// If the data was translated, then we broadcast this data, but we save snapshots of the original data since Evaluate will need it for translation as well.
-	FLiveLinkFrameDataStruct* FrameDataToBroadcast = TranslatedFrame.IsSet() ? &(TranslatedFrame->FrameData) : &FrameData;
-
-	if (bFrameValid)
-	{
-		OnFrameDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, *FrameDataToBroadcast);
-	}
-
-	if (bVirtualSubjectsPresent)
-	{
-		// Cache frames if we have virtual subjects so they can use the data.
-		FLiveLinkClient::PushSubjectFrameData_AnyThread(SubjectKey, MoveTemp(FrameData));
-	}
-	else
-	{
-		BroadcastFrameDataUpdate(SubjectKey, MoveTemp(*FrameDataToBroadcast));
 	}
 }
 
@@ -285,20 +78,6 @@ FText FLiveLinkHubClient::GetSourceStatus(FGuid InEntryGuid) const
 	}
 
 	return FLiveLinkClient::GetSourceStatus(InEntryGuid);
-}
-
-bool FLiveLinkHubClient::IsSubjectValid(const FLiveLinkSubjectKey& InSubjectKey) const
-{
-	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
-	{
-		if (FLiveLinkSubject* LiveSubject = SubjectItem->GetLiveSubject())
-		{
-			// We don't store frame snapshots so we instead rely on the subject's last push time.
-			return FApp::GetCurrentTime() - LiveSubject->GetLastPushTime() < GetDefault<ULiveLinkSettings>()->GetTimeWithoutFrameToBeConsiderAsInvalid();
-		}
-		return true;
-	}
-	return false;
 }
 
 void FLiveLinkHubClient::RemoveSubject_AnyThread(const FLiveLinkSubjectKey& InSubjectKey)
@@ -339,44 +118,18 @@ TSharedPtr<ILiveLinkProvider> FLiveLinkHubClient::GetRebroadcastLiveLinkProvider
 
 void FLiveLinkHubClient::BroadcastStaticDataUpdate(FLiveLinkSubject* InLiveSubject, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticData) const
 {
-	// If we have a translator, we need to broadcast the translated static data to the clients.
-	FLiveLinkStaticDataStruct StaticDataStruct;
-	TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> Translators = InLiveSubject->GetFrameTranslators();
-	if (Translators.Num() && Translators[0].IsValid())
-	{
-
-		ULiveLinkFrameTranslator::FWorkerSharedPtr Translator = Translators[0];
-		TSubclassOf<ULiveLinkRole> FromRole = Translator->GetFromRole();
-		UScriptStruct* FrameDataStruct = FromRole->GetDefaultObject<ULiveLinkRole>()->GetFrameDataStruct();
-		FStructOnScope FrameDataOnScope(FrameDataStruct);
-		FrameDataStruct->InitializeDefaultValue(FrameDataOnScope.GetStructMemory());
-
-		FLiveLinkFrameDataStruct BaseFrameStruct(FrameDataStruct);
-		FrameDataStruct->InitializeDefaultValue(FrameDataOnScope.GetStructMemory());
-
-		FLiveLinkSubjectFrameData OutTranslatedFrame;
-		Translator->Translate(InLiveSubject->GetStaticData(), BaseFrameStruct, OutTranslatedFrame);
-
-		OnStaticDataReceivedDelegate_AnyThread.Broadcast(InLiveSubject->GetSubjectKey(), Translator->GetToRole(), OutTranslatedFrame.StaticData);
-	}
-	else
-	{
-		OnStaticDataReceivedDelegate_AnyThread.Broadcast(InLiveSubject->GetSubjectKey(), InRole, InStaticData);
-	}
+	OnStaticDataReceivedDelegate_AnyThread.Broadcast(InLiveSubject->GetSubjectKey(), InRole, InStaticData);
 }
 
 void FLiveLinkHubClient::OnStaticDataAdded(FLiveLinkSubjectKey SubjectKey,  TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkStaticDataStruct& InStaticData)
 {
-	// Broadcast the subjects to connected clients.
-	if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
-	{
-		BroadcastStaticDataUpdate(SubjectItem->GetLiveSubject(), SubjectRole, InStaticData);
-	}
+	OnStaticDataReceivedDelegate_AnyThread.Broadcast(SubjectKey, SubjectRole, InStaticData);
 }
 
 void FLiveLinkHubClient::OnFrameDataAdded(FLiveLinkSubjectKey InSubjectKey, TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkFrameDataStruct& InFrameData)
 {
-	// No-op, to be used in subsequent CL.
+	OnFrameDataReceivedDelegate_AnyThread.Broadcast(InSubjectKey, InFrameData);
 }
+
 
 #undef LOCTEXT_NAMESPACE

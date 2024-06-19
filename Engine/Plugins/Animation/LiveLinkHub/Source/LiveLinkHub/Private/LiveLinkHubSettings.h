@@ -39,5 +39,5 @@ public:
 
 	/** Target framerate for ticking LiveLinkHub. */
 	UPROPERTY(config, EditAnywhere, Category="LiveLinkHub", meta = (ConfigRestartRequired = true, ClampMin="15.0"))
-	float TargetFrameRate = 120.0f;
+	float TargetFrameRate = 60.0f;
 };
