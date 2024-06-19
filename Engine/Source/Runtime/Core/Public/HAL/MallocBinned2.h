@@ -225,7 +225,7 @@ class FMallocBinned2 : public TMallocBinnedCommon<FMallocBinned2, BINNED2_MINIMU
 	FORCEINLINE bool IsOSAllocation(const void* Ptr)
 	{
 #if UE_USE_VERYLARGEPAGEALLOCATOR && !PLATFORM_UNIX && !PLATFORM_ANDROID
-		return !CachedOSPageAllocator.IsPartOf(Ptr) && IsAligned(Ptr, BINNED2_LARGE_ALLOC);
+		return !CachedOSPageAllocator.IsSmallBlockAllocation(Ptr) && IsAligned(Ptr, BINNED2_LARGE_ALLOC);
 #else
 		return IsAligned(Ptr, BINNED2_LARGE_ALLOC);
 #endif

@@ -9,10 +9,6 @@
 #include "HAL/UnrealMemory.h"
 
 
-#ifndef UE_USE_VERYLARGEPAGEALLOCATOR_FALLBACKPATH
-#define UE_USE_VERYLARGEPAGEALLOCATOR_FALLBACKPATH UE_USE_VERYLARGEPAGEALLOCATOR
-#endif // UE_USE_VERYLARGEPAGEALLOCATOR_FALLBACKPATH
-
 #if UE_USE_VERYLARGEPAGEALLOCATOR
 
 #if PLATFORM_64BITS
@@ -23,29 +19,19 @@
 //#define CACHEDOSVERYLARGEPAGEALLOCATOR_MAX_CACHED_OS_FREES (CACHEDOSVERYLARGEPAGEALLOCATOR_BYTE_LIMIT/(1024*64))
 #define CACHEDOSVERYLARGEPAGEALLOCATOR_MAX_CACHED_OS_FREES (256)
 
-
-#ifndef UE_VERYLARGEPAGEALLOCATOR_TAKEONALL64KBALLOCATIONS
-#define UE_VERYLARGEPAGEALLOCATOR_TAKEONALL64KBALLOCATIONS 1
-#endif
-
 #ifndef UE_VERYLARGEPAGEALLOCATOR_RESERVED_SIZE_IN_GB
-#define UE_VERYLARGEPAGEALLOCATOR_RESERVED_SIZE_IN_GB 2	//default to 2GB
+#define UE_VERYLARGEPAGEALLOCATOR_RESERVED_SIZE_IN_GB 4	//default to 4GB
 #endif
-
 
 #ifndef UE_VERYLARGEPAGEALLOCATOR_PAGESIZE_KB
 #define UE_VERYLARGEPAGEALLOCATOR_PAGESIZE_KB 2048	//default to 2MB
 #endif
+
 class FCachedOSVeryLargePageAllocator
 {
-	// we make the address space twice as big as we need and use the 1st have for small pool allocations, the 2nd half is used for other allocations that are still == SizeOfSubPage
-#if UE_VERYLARGEPAGEALLOCATOR_TAKEONALL64KBALLOCATIONS
-	static constexpr uint64 AddressSpaceToReserve = ((1024LL * 1024LL * 1024LL) * UE_VERYLARGEPAGEALLOCATOR_RESERVED_SIZE_IN_GB * 2LL);
+	static constexpr uint64 AddressSpaceToReserve = ((1024LL * 1024LL * 1024LL) * UE_VERYLARGEPAGEALLOCATOR_RESERVED_SIZE_IN_GB);
 	static constexpr uint64 AddressSpaceToReserveForSmallPool = AddressSpaceToReserve / 2;
-#else
-	static constexpr uint64 AddressSpaceToReserve = ((1024 * 1024 * 1024LL) * UE_VERYLARGEPAGEALLOCATOR_RESERVED_SIZE_IN_GB);
-	static constexpr uint64 AddressSpaceToReserveForSmallPool = AddressSpaceToReserve;
-#endif
+
 	static constexpr uint64 SizeOfLargePage = (UE_VERYLARGEPAGEALLOCATOR_PAGESIZE_KB * 1024);
 	static constexpr uint64 SizeOfSubPage = (1024 * 64);
 	static constexpr uint64 NumberOfLargePages = (AddressSpaceToReserve / SizeOfLargePage);
@@ -80,7 +66,7 @@ public:
 		return CachedFree + CachedOSPageAllocator.GetCachedFreeTotal();
 	}
 
-	FORCEINLINE bool IsPartOf(const void* Ptr)
+	FORCEINLINE bool IsSmallBlockAllocation(const void* Ptr)
 	{
 		if (((uintptr_t)Ptr - AddressSpaceReserved) < AddressSpaceToReserveForSmallPool)
 		{
@@ -90,20 +76,6 @@ public:
 	}
 
 private:
-
-	void Init();
-	void ShrinkEmptyBackStore(int32 NewEmptyBackStoreSize, FMemory::AllocationHints AllocationHint);
-
-	bool bEnabled;
-	uintptr_t	AddressSpaceReserved;
-	uintptr_t	AddressSpaceReservedEndSmallPool;
-	uintptr_t	AddressSpaceReservedEnd;
-	uint64		CachedFree;
-	int32		EmptyBackStoreCount[FMemory::AllocationHints::Max];
-	int32		CommitedLargePagesCount[FMemory::AllocationHints::Max];
-
-	FPlatformMemory::FPlatformVirtualMemoryBlock Block;
-
 	struct FLargePage : public TIntrusiveLinkedList<FLargePage>
 	{
 		uintptr_t	FreeSubPages[NumberOfSubPagesPerLargePage];
@@ -139,6 +111,21 @@ private:
 			return ret;
 		}
 	};
+
+	void Init();
+	void ShrinkEmptyBackStore(int32 NewEmptyBackStoreSize, FMemory::AllocationHints AllocationHint);
+	FLargePage* GetOrAllocLargePage(uint32 AllocationHint, FCriticalSection* Mutex);
+	FLargePage* AllocNewLargePage(uint32 AllocationHint, FCriticalSection* Mutex, bool& bOutCommitFailure);
+
+	bool bEnabled;
+	uintptr_t	AddressSpaceReserved;
+	uintptr_t	AddressSpaceReservedEndSmallPool;
+	uintptr_t	AddressSpaceReservedEnd;
+	uint64		CachedFree;
+	int32		EmptyBackStoreCount[FMemory::AllocationHints::Max];
+	int32		CommittedLargePagesCount[FMemory::AllocationHints::Max];
+
+	FPlatformMemory::FPlatformVirtualMemoryBlock Block;
 
 	FLargePage* FreeLargePagesHead[FMemory::AllocationHints::Max];				// no backing store
 
