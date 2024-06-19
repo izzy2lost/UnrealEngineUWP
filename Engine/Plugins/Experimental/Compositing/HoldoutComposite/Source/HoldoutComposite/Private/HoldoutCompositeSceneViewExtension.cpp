@@ -12,6 +12,7 @@
 #include "FXRenderingUtils.h"
 #include "HDRHelper.h"
 #include "PixelShaderUtils.h"
+#include "PostProcess/LensDistortion.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
 #include "Rendering/CustomRenderPass.h"
 #include "RenderGraphBuilder.h"
@@ -75,6 +76,8 @@ class FCompositeHoldoutCompositePS : public FGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, InputSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, CustomTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, CustomSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, UndistortingDisplacementTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, UndistortingDisplacementSampler)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 		SHADER_PARAMETER(FUint32Vector2, Encodings)
 		SHADER_PARAMETER(FVector2f, DisplayGamma)
@@ -377,6 +380,8 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 		PermutationVector.Set<FCompositeHoldoutCompositePS::FApplyGlobalExposure>(bCompositeFollowsSceneExposure.load());
 
 		FRDGBufferRef EyeAdaptationBuffer = GraphBuilder.RegisterExternalBuffer(InView.GetEyeAdaptationBuffer(), ERDGBufferFlags::MultiFrame);
+		const FLensDistortionLUT& LensDistortionLUT = LensDistortion::GetLUTUnsafe(InView);
+		const bool bLensDistortionInTSR = (LensDistortion::GetPassLocationUnsafe(InView) == LensDistortion::EPassLocation::TSR);
 
 		FCompositeHoldoutCompositePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompositeHoldoutCompositePS::FParameters>();
 		PassParameters->View = InView.ViewUniformBuffer;
@@ -387,6 +392,12 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 		PassParameters->InputSampler = TStaticSamplerState<SF_Point>::GetRHI();
 		PassParameters->CustomTexture = CustomRenderPassTexture;
 		PassParameters->CustomSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+		PassParameters->UndistortingDisplacementTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+		PassParameters->UndistortingDisplacementSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+		if (LensDistortionLUT.IsEnabled() && bLensDistortionInTSR)
+		{
+			PassParameters->UndistortingDisplacementTexture = LensDistortionLUT.UndistortingDisplacementTexture;
+		}
 		PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(EyeAdaptationBuffer);
 		PassParameters->Encodings = Encodings;
 		PassParameters->DisplayGamma = FVector2f(Family->RenderTarget->GetDisplayGamma(), 1.0f / Family->RenderTarget->GetDisplayGamma());

@@ -6,7 +6,10 @@ public class HoldoutComposite : ModuleRules
 {
 	public HoldoutComposite(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		// The HoldoutComposite plugin is distributed with engine hot fixes and thus isn't tied to binary
+		// compatibility between hotfixes by only using Public/ interface of the renderer, but also Internal/ ones.
+		bTreatAsEngineModule = true;
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PrivateIncludePaths.AddRange(
 			new string[] {

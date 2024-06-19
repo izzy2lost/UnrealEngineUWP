@@ -3,6 +3,7 @@
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/GammaCorrectionCommon.ush"
 #include "/Engine/Private/ScreenPass.ush"
+#include "/Engine/Private/LensDistortion.ush"
 
 SCREEN_PASS_TEXTURE_VIEWPORT(Input)
 SCREEN_PASS_TEXTURE_VIEWPORT(Custom)
@@ -14,6 +15,9 @@ SamplerState InputSampler;
 Texture2D CustomTexture;
 SamplerState CustomSampler;
 
+Texture2D<float2> UndistortingDisplacementTexture;
+SamplerState UndistortingDisplacementSampler;
+
 StructuredBuffer<float4> EyeAdaptationBuffer;
 uint2 Encodings;
 float2 DisplayGamma;
@@ -23,12 +27,13 @@ void MainPS(
     out float4 OutColor : SV_Target0
     )
 {
-    float2 ViewportUV = (SvPosition.xy - Output_ViewportMin) * Output_ViewportSizeInverse;
+    float2 DistortedViewportUV = (SvPosition.xy - Output_ViewportMin) * Output_ViewportSizeInverse;
+    const float2 UndistortedViewportUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, DistortedViewportUV);
     
-    const float2 InputUV = (ViewportUV * Input_ViewportSize + Input_ViewportMin) * Input_ExtentInverse;
+    const float2 InputUV = (DistortedViewportUV * Input_ViewportSize + Input_ViewportMin) * Input_ExtentInverse;
     float4 SceneColor = Texture2DSample(InputTexture, InputSampler, InputUV);
 
-    const float2 CustomUV = (ViewportUV * Custom_ViewportSize + Custom_ViewportMin) * Custom_ExtentInverse;
+    const float2 CustomUV = (UndistortedViewportUV * Custom_ViewportSize + Custom_ViewportMin) * Custom_ExtentInverse;
     float4 CustomColor = Texture2DSample(CustomTexture, CustomSampler, CustomUV);
 
 #if PERMUTATION_GLOBAL_EXPOSURE
