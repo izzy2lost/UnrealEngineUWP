@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Party/PartyMember.h"
+#include "Engine/GameInstance.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/EnumRange.h"
+#include "OnlineSubsystemUtils.h"
 #include "Party/SocialParty.h"
 #include "SocialManager.h"
 #include "SocialToolkit.h"
-
-#include "OnlineSubsystemUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PartyMember)
 
@@ -54,6 +56,91 @@ const UPartyMember* FPartyMemberRepData::GetOwningMember() const
 // PartyMember
 //////////////////////////////////////////////////////////////////////////
 
+ENUM_CLASS_FLAGS(UPartyMember::EInitializingFlags);
+
+class UPartyMember::FDebugInitializer
+{
+public:
+	FDebugInitializer(UPartyMember& InParent);
+	~FDebugInitializer();
+
+	void AddPendingAction(FString&& ActionName);
+	void RemovePendingAction(FString&& ActionName);
+private:
+	void SetupWarningTimers();
+	void ClearWarningTimers();
+	FString GetWaitingForString() const;
+
+	UPartyMember& Parent;
+	FString ParentDebugString;
+	FTSTicker::FDelegateHandle TickHandle;
+	double StartTime = FPlatformTime::Seconds();
+	TArray<FString> PendingActions;
+};
+
+namespace
+{
+// Get all local toolkits that are logged in or in the party
+TArray<USocialToolkit*> GetLocalToolkits(const UPartyMember& InPartyMember)
+{
+	// Ideally, this could use UE::OnlineFramework::GetLocalPartyMemberToolkits(InPartyMember.GetParty()), but due to how we initialize party members one by one, in 
+	// multi local player cases, the first local party member initialized is the only local party member and thus the only toolkit returned.
+	// This doesn't quite capture the intent of getting all local players in the party, as this assumes all local players will be in the party, but there hasn't been
+	// a use case for having a party that doesn't have all local players in it.
+	TArray<USocialToolkit*> Toolkits;
+	if (UGameInstance* GameInstance = InPartyMember.GetWorld()->GetGameInstance())
+	{
+		for (ULocalPlayer* LocalPlayer : GameInstance->GetLocalPlayers())
+		{
+			if (LIKELY(LocalPlayer != nullptr))
+			{
+				USocialToolkit& SocialToolkit = InPartyMember.GetParty().GetSocialManager().GetSocialToolkit(*LocalPlayer);
+				// The game can create parties as part of logging in, so also just check if the toolkit is present in the party
+				if (SocialToolkit.IsOwnerLoggedIn() || InPartyMember.GetParty().GetPartyMember(SocialToolkit.GetLocalUserNetId(ESocialSubsystem::Primary)) != nullptr)
+				{
+					Toolkits.Emplace(&SocialToolkit);
+				}
+			}
+		}
+	}
+	return Toolkits;
+}
+
+// Check if all social users for the party member is initialized - ie all local toolkits are done initializing the user
+bool AreAllSocialUsersInitialized(const UPartyMember& InPartyMember)
+{
+	TArray<USocialToolkit*> SocialToolkits = GetLocalToolkits(InPartyMember);
+	if (UNLIKELY(SocialToolkits.Num() == 0))
+	{
+		return false;
+	}
+	for (USocialToolkit* SocialToolkit : SocialToolkits)
+	{
+		if (USocialUser* SocialUser = SocialToolkit->FindUser(InPartyMember.GetPrimaryNetId());
+			!ensure(SocialUser != nullptr) || !SocialUser->IsInitialized())
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+// Get the default social user. Used when it really doesn't matter which social user we get.
+USocialUser& GetDefaultSocialUser(const UPartyMember& InPartyMember)
+{
+	USocialToolkit* OwnerToolkit = InPartyMember.GetParty().GetSocialManager().GetSocialToolkit(InPartyMember.GetPrimaryNetId());
+	// If we are not a local user then we simply get the first local user's toolkit
+	if (OwnerToolkit == nullptr)
+	{
+		OwnerToolkit = InPartyMember.GetParty().GetSocialManager().GetFirstLocalUserToolkit();
+	}
+	check(OwnerToolkit);
+	USocialUser* SocialUser = OwnerToolkit->FindUser(InPartyMember.GetPrimaryNetId());
+	check(SocialUser);
+	return *SocialUser;
+}
+}
+
 UPartyMember::UPartyMember()
 {
 }
@@ -68,39 +155,46 @@ void UPartyMember::BeginDestroy()
 	}
 }
 
-void UPartyMember::InitializePartyMember(const FOnlinePartyMemberConstRef& InOssMember, const FSimpleDelegate& OnInitComplete)
+void UPartyMember::InitializePartyMember(const FOnlinePartyMemberConstRef& InOssMember, FSimpleDelegate&& OnInitComplete)
 {
 	checkf(MemberDataReplicator.IsValid(), TEXT("Child classes of UPartyMember MUST call MemberRepData.EstablishRepDataInstance with a valid FPartyMemberRepData struct instance in their constructor."));
 	MemberDataReplicator->SetOwningMember(*this);
 
-	if (ensure(!OssPartyMember.IsValid()))
+	InitializingFlags = EInitializingFlags::InitialMemberData | EInitializingFlags::SocialUsers;
+	if (ensureAlways(!OssPartyMember.IsValid()))
 	{
 		OssPartyMember = InOssMember;
 		OssPartyMember->OnMemberConnectionStatusChanged().AddUObject(this, &ThisClass::HandleMemberConnectionStatusChanged);
 		OssPartyMember->OnMemberAttributeChanged().AddUObject(this, &ThisClass::HandleMemberAttributeChanged);
-		USocialToolkit* OwnerToolkit = GetParty().GetSocialManager().GetSocialToolkit(OssPartyMember->GetUserId());
-		// If we are not a local user then we simply get the first local user's toolkit
-		if (OwnerToolkit == nullptr)
+
+		if (bEnableDebugInitializer)
 		{
-			OwnerToolkit = GetParty().GetSocialManager().GetFirstLocalUserToolkit();
+			DebugInitializer = MakeUnique<FDebugInitializer>(*this);
 		}
-		check(OwnerToolkit);
-
-		OwnerToolkit->QueueUserDependentAction(InOssMember->GetUserId(),
-			[this] (USocialUser& User)
-			{
-				SocialUser = &User;
-			}, false);
-		check(SocialUser);
-
-		UE_LOG(LogParty, Log, TEXT("%hs - QUDA returned SocialUser %s (%p)"), __FUNCTION__, *GetFullNameSafe(SocialUser), SocialUser.Get());
 
 		// Local player already has all the data they need, everyone else we want to wait for
-		bHasReceivedInitialData = IsLocalPlayer();
+		if (IsLocalPlayer())
+		{
+			EnumRemoveFlags(InitializingFlags, EInitializingFlags::InitialMemberData);
+		}
+		else if (DebugInitializer)
+		{
+			DebugInitializer->AddPendingAction(TEXT("InitialMemberData"));
+		}
+		
+		OnInitializationComplete().Add(MoveTemp(OnInitComplete));
 
-		OnInitializationComplete().Add(OnInitComplete);
-		UE_LOG(LogParty, Log, TEXT("%hs - Registering Init Complete Handler for [%s], SocialUser: %s (%p)"), __FUNCTION__, *ToDebugString(), *GetFullNameSafe(SocialUser), SocialUser.Get());
-		SocialUser->RegisterInitCompleteHandler(FOnNewSocialUserInitialized::CreateUObject(this, &UPartyMember::HandleSocialUserInitialized));
+		TArray<USocialToolkit*> Toolkits = GetLocalToolkits(*this);
+
+		// Initialize social user for all logged in toolkits.
+		for (USocialToolkit* Toolkit : Toolkits)
+		{
+			InitializeSocialUserForToolkit(*Toolkit);
+		}
+
+		// Listen for toolkit creations and destructions to keep our initialization and social user states in tact
+		GetParty().GetSocialManager().OnSocialToolkitCreated().AddUObject(this, &UPartyMember::OnSocialToolkitCreated);
+		GetParty().GetSocialManager().OnSocialToolkitDestroyed().AddUObject(this, &UPartyMember::OnSocialToolkitDestroyed);
 
 		UE_LOG(LogParty, Verbose, TEXT("Created new party member [%s]"), *ToDebugString());
 	}
@@ -111,7 +205,7 @@ void UPartyMember::InitializeLocalMemberRepData()
 	UE_LOG(LogParty, Verbose, TEXT("Initializing rep data for local member [%s]"), *ToDebugString());
 
 	MemberDataReplicator->SetPlatformDataPlatform(IOnlineSubsystem::GetLocalPlatformName());
-	MemberDataReplicator->SetPlatformDataUniqueId(SocialUser->GetUserId(ESocialSubsystem::Platform));
+	MemberDataReplicator->SetPlatformDataUniqueId(GetDefaultSocialUser(*this).GetUserId(ESocialSubsystem::Platform));
 	
 	const USocialParty& CurrentParty = GetParty();
 	
@@ -167,7 +261,7 @@ bool UPartyMember::KickFromParty(const ULocalPlayer& PerformingPlayer)
 
 bool UPartyMember::IsInitialized() const
 {
-	return SocialUser->IsInitialized() && bHasReceivedInitialData;
+	return InitializingFlags == EInitializingFlags::Done;
 }
 
 USocialParty& UPartyMember::GetParty() const
@@ -183,8 +277,16 @@ FUniqueNetIdRepl UPartyMember::GetPrimaryNetId() const
 
 USocialUser& UPartyMember::GetSocialUser() const
 {
-	check(SocialUser);
-	return *SocialUser;
+	return GetDefaultSocialUser(*this);
+}
+
+USocialUser* UPartyMember::GetSocialUser(const FUniqueNetIdRepl& InLocalUserId) const
+{
+	if (USocialToolkit* SocialToolkit = GetParty().GetSocialManager().GetSocialToolkit(InLocalUserId))
+	{
+		return SocialToolkit->FindUser(GetPrimaryNetId());
+	}
+	return nullptr;
 }
 
 FString UPartyMember::GetDisplayName() const
@@ -232,10 +334,14 @@ void UPartyMember::NotifyMemberDataReceived(const FOnlinePartyData& MemberData)
 	check(MemberDataReplicator.IsValid());
 	MemberDataReplicator.ProcessReceivedData(MemberData/*, bHasReceivedInitialData*/);
 
-	if (!bHasReceivedInitialData)
+	if (EnumHasAnyFlags(InitializingFlags, EInitializingFlags::InitialMemberData))
 	{
-		bHasReceivedInitialData = true;
-		if (SocialUser->IsInitialized())
+		if (DebugInitializer)
+		{
+			DebugInitializer->RemovePendingAction(TEXT("InitialMemberData"));
+		}
+		EnumRemoveFlags(InitializingFlags, EInitializingFlags::InitialMemberData);
+		if (InitializingFlags == EInitializingFlags::Done)
 		{
 			FinishInitializing();
 		}
@@ -262,8 +368,10 @@ void UPartyMember::NotifyRemovedFromParty(EMemberExitedReason ExitReason)
 
 void UPartyMember::FinishInitializing()
 {
+	check(InitializingFlags == EInitializingFlags::Done);
+	DebugInitializer.Reset();
 	//@todo DanH Party: The old UFortParty did this. Only used for Switch. Thing is, doesn't this need to be solved for all social users? Not just party members? #suggested
-	SocialUser->SetUserLocalAttribute(ESocialSubsystem::Primary, USER_ATTR_PREFERRED_DISPLAYNAME, OssPartyMember->GetDisplayName());
+	GetDefaultSocialUser(*this).SetUserLocalAttribute(ESocialSubsystem::Primary, USER_ATTR_PREFERRED_DISPLAYNAME, OssPartyMember->GetDisplayName());
 
 	if (IsLocalPlayer())
 	{
@@ -290,12 +398,53 @@ void UPartyMember::OnRemovedFromPartyInternal(EMemberExitedReason ExitReason)
 	OnLeftParty().Broadcast(ExitReason);
 }
 
+void UPartyMember::InitializeSocialUserForToolkit(USocialToolkit& Toolkit)
+{
+	// Ensure we have a social user created for this toolkit, and add it to our initializing status if needed
+	USocialUser* ToolkitUser = nullptr;
+	Toolkit.QueueUserDependentAction(OssPartyMember->GetUserId(),
+		[&ToolkitUser] (USocialUser& User)
+		{
+			ToolkitUser = &User;
+		}, /*bExecutePostInit=*/false);
+	check(ToolkitUser);
+
+	FUniqueNetIdRepl LocalUserId = Toolkit.GetLocalUserNetId(ESocialSubsystem::Primary);
+	UE_LOG(LogParty, Verbose, TEXT("%hs - QUDA returned SocialUser [%s (%p)] for %s"), __FUNCTION__,
+		*GetFullNameSafe(ToolkitUser), ToolkitUser, *LocalUserId.ToDebugString());
+
+	// Only wait for it to complete if we're still initializing
+	if (EnumHasAnyFlags(InitializingFlags, EInitializingFlags::SocialUsers))
+	{
+		UE_LOG(LogParty, Log, TEXT("%hs - Registering Init Complete Handler for [%s (%p)]"), __FUNCTION__,
+			*GetFullNameSafe(ToolkitUser), ToolkitUser);
+		if (DebugInitializer)
+		{
+			DebugInitializer->AddPendingAction(LocalUserId.ToString());
+		}
+		ToolkitUser->RegisterInitCompleteHandler(FOnNewSocialUserInitialized::CreateUObject(this, &UPartyMember::HandleSocialUserInitialized));
+	}
+}
+
 void UPartyMember::HandleSocialUserInitialized(USocialUser& InitializedUser)
 {
-	UE_LOG(LogParty, VeryVerbose, TEXT("PartyMember [%s]'s underlying SocialUser has been initialized"), *ToDebugString());
-	if (bHasReceivedInitialData)
+	FUniqueNetIdRepl LocalUserId = InitializedUser.GetOwningToolkit().GetLocalUserNetId(ESocialSubsystem::Primary);
+	UE_LOG(LogParty, VeryVerbose, TEXT("PartyMember [%s]'s underlying SocialUser has been initialized for local user [%s]"),
+	       *ToDebugString(), *LocalUserId.ToDebugString());
+	if (EnumHasAnyFlags(InitializingFlags, EInitializingFlags::SocialUsers))
 	{
-		FinishInitializing();
+		if (DebugInitializer)
+		{
+			DebugInitializer->RemovePendingAction(LocalUserId.ToString());
+		}
+		if (AreAllSocialUsersInitialized(*this))
+		{
+			EnumRemoveFlags(InitializingFlags, EInitializingFlags::SocialUsers);
+			if (InitializingFlags == EInitializingFlags::Done)
+			{
+				FinishInitializing();
+			}
+		}
 	}
 }
 
@@ -321,3 +470,126 @@ void UPartyMember::HandleMemberAttributeChanged(const FUniqueNetId& ChangedUserI
 	}
 }
 
+void UPartyMember::OnSocialToolkitCreated(USocialToolkit& Toolkit)
+{
+	InitializeSocialUserForToolkit(Toolkit);
+}
+
+void UPartyMember::OnSocialToolkitDestroyed(USocialToolkit& Toolkit)
+{
+	if (EnumHasAnyFlags(InitializingFlags, EInitializingFlags::SocialUsers))
+	{
+		if (DebugInitializer)
+		{
+			FUniqueNetIdRepl LocalUserId = Toolkit.GetLocalUserNetId(ESocialSubsystem::Primary);
+			DebugInitializer->RemovePendingAction(LocalUserId.ToString());
+		}
+		if (AreAllSocialUsersInitialized(*this))
+		{
+			EnumRemoveFlags(InitializingFlags, EInitializingFlags::SocialUsers);
+			if (InitializingFlags == EInitializingFlags::Done)
+			{
+				FinishInitializing();
+			}
+		}
+	}
+}
+
+UPartyMember::FDebugInitializer::FDebugInitializer(UPartyMember& InParent)
+	: Parent(InParent)
+	, ParentDebugString(InParent.ToDebugString())
+{
+	SetupWarningTimers();
+}
+
+UPartyMember::FDebugInitializer::~FDebugInitializer()
+{
+	ClearWarningTimers();
+	if (Parent.InitializingFlags == UPartyMember::EInitializingFlags::Done)
+	{
+		UE_LOG(LogParty, VeryVerbose, TEXT("%s [%0.2f] Complete"), *ParentDebugString, FPlatformTime::Seconds() - StartTime);
+	}
+	else
+	{
+		UE_LOG(LogParty, Verbose, TEXT("%s [%0.2f] destroyed before initializing completed"), *ParentDebugString, FPlatformTime::Seconds() - StartTime);
+	}
+}
+
+void UPartyMember::FDebugInitializer::AddPendingAction(FString&& InAction)
+{
+	UE_LOG(LogParty, VeryVerbose, TEXT("%s Waiting for [%s]"), *ParentDebugString, *InAction);
+	PendingActions.AddUnique(MoveTemp(InAction));
+}
+
+void UPartyMember::FDebugInitializer::RemovePendingAction(FString&& InAction)
+{
+	UE_LOG(LogParty, VeryVerbose, TEXT("%s No longer waiting for [%s]. Time elapsed %0.2f"), *ParentDebugString, *InAction, FPlatformTime::Seconds() - StartTime);
+	PendingActions.Remove(MoveTemp(InAction));
+}
+
+void UPartyMember::FDebugInitializer::SetupWarningTimers()
+{
+	double WarningTimeSeconds = 10.0;
+	GConfig->GetDouble(TEXT("/Script/Party.PartyMember"), TEXT("DebugInitializer.WarnSeconds"), WarningTimeSeconds, GGameIni);
+	if (WarningTimeSeconds > 0.0)
+	{
+		TickHandle = FTSTicker::GetCoreTicker().AddTicker(TEXT("UPartyMember::FDebugInitializer"), WarningTimeSeconds, [this, WarningTimeSeconds](float)->bool
+		{
+			UE_LOG(LogParty, Warning, TEXT("%s [%0.2f] Initialization not complete. Waiting for: %s"), *ParentDebugString, FPlatformTime::Seconds() - StartTime, *GetWaitingForString());
+			double ErrorTimeSeconds = 30.0;
+			GConfig->GetDouble(TEXT("/Script/Party.PartyMember"), TEXT("DebugInitializer.ErrorSeconds"), ErrorTimeSeconds, GGameIni);
+			if ((ErrorTimeSeconds - WarningTimeSeconds) > 0.0)
+			{
+				TickHandle = FTSTicker::GetCoreTicker().AddTicker(TEXT("UPartyMember::FDebugInitializer"), (ErrorTimeSeconds - WarningTimeSeconds), [this](float)->bool
+				{
+					UE_LOG(LogParty, Error, TEXT("%s [%0.2f] Initialization not complete. Waiting for: %s"), *ParentDebugString, FPlatformTime::Seconds() - StartTime, *GetWaitingForString());
+					TickHandle.Reset();
+					return false;
+				});
+			}
+			return false;
+		});
+	}
+}
+
+void UPartyMember::FDebugInitializer::ClearWarningTimers()
+{
+	if (TickHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
+	}
+}
+
+FString UPartyMember::FDebugInitializer::GetWaitingForString() const
+{
+	TArray<FString> WaitingForStrings;
+	WaitingForStrings.Emplace(TEXT("Flags: ") + FString::JoinBy(MakeFlagsRange(Parent.InitializingFlags), TEXT("|"), [](UPartyMember::EInitializingFlags Flag)
+	{
+		switch (Flag)
+		{
+		case UPartyMember::EInitializingFlags::SocialUsers: return TEXT("SocialUsers");
+		case UPartyMember::EInitializingFlags::InitialMemberData: return TEXT("InitialMemberData");
+		default: return TEXT("Unknown");
+		}
+	}));
+	for (const FString& PendingAction : PendingActions)
+	{
+		WaitingForStrings.Emplace(PendingAction);
+	}
+	return FString::Join(WaitingForStrings, TEXT(","));
+}
+
+namespace UE::OnlineFramework
+{
+void OnPartyMemberInitializeComplete(UPartyMember& InPartyMember, FSimpleDelegate&& InDelegate)
+{
+	if (InPartyMember.IsInitialized())
+	{
+		InDelegate.ExecuteIfBound();
+	}
+	else
+	{
+		InPartyMember.OnInitializationComplete().Add(MoveTemp(InDelegate));
+	}
+}
+}

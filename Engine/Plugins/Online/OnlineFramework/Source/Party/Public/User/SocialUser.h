@@ -238,6 +238,14 @@ private:
 	FSubsystemUserInfo& FindOrCreateSubsystemInfo(const FUniqueNetIdRepl& SubsystemId, ESocialSubsystem SubsystemType);
 
 	bool bIsInitialized = false;
+	void FinishInitialization();
+
+#if !UE_BUILD_SHIPPING
+	// Debug info for initializing social user
+	class FDebugInitializer;
+	friend class FDebugInitializer;
+	TUniquePtr<FDebugInitializer> DebugInitializer;
+#endif // !UE_BUILD_SHIPPING
 
 	TMap<ESocialSubsystem, FSubsystemUserInfo> SubsystemInfoByType;
 

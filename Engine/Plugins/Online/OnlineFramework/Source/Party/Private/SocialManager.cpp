@@ -1033,6 +1033,7 @@ void USocialManager::HandleLocalPlayerRemoved(int32 LocalUserNum)
 		if (USocialToolkit* Toolkit = SocialToolkits[LocalUserNum])
 		{
 			SocialToolkits.Remove(Toolkit);
+			OnSocialToolkitDestroyed().Broadcast(*Toolkit);
 			Toolkit->MarkAsGarbage();
 		}
 	}

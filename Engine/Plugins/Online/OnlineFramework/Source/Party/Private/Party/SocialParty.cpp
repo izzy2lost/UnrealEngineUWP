@@ -176,7 +176,8 @@ FPartyJoinApproval USocialParty::EvaluateJoinRequest(const TArray<IOnlinePartyUs
 	{
 		JoinApproval.SetDenialReason(EPartyJoinDenialReason::PartyFull);
 	}
-	else if (GetOwningLocalMember().GetSocialUser().GetOnlineStatus() == EOnlinePresenceState::Away)
+	else if (USocialUser* SocialUser = GetOwningLocalMember().GetSocialUser(GetOwningLocalUserId());
+		SocialUser && SocialUser->GetOnlineStatus() == EOnlinePresenceState::Away)
 	{
 		JoinApproval.SetDenialReason(EPartyJoinDenialReason::TargetUserAway);
 	}
@@ -1374,7 +1375,7 @@ bool USocialParty::ContainsUser(const USocialUser& User) const
 {
 	for(const UPartyMember* PartyMember : GetPartyMembers())
 	{
-		if (PartyMember->GetSocialUser().GetUserId(ESocialSubsystem::Primary) == User.GetUserId(ESocialSubsystem::Primary))
+		if (PartyMember->GetPrimaryNetId() == User.GetUserId(ESocialSubsystem::Primary))
 		{
 			return true;
 		}
@@ -1400,7 +1401,7 @@ ULocalPlayer& USocialParty::GetOwningLocalPlayer() const
 ULocalPlayer* USocialParty::GetOwningLocalPlayerPtr() const
 {
 	//@todo DanH Party: This is a wee bit heavy - should be able to do this in fewer steps
-	return GetOwningLocalMember().GetSocialUser().GetOwningToolkit().GetOwningLocalPlayerPtr();
+	return GetOwningLocalMember().GetSocialUser(GetOwningLocalUserId())->GetOwningToolkit().GetOwningLocalPlayerPtr();
 }
 
 bool USocialParty::IsLocalPlayerPartyLeader() const

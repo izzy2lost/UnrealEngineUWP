@@ -68,6 +68,9 @@ public:
 
 	DECLARE_EVENT_OneParam(USocialManager, FOnSocialToolkitCreated, USocialToolkit&)
 	FOnSocialToolkitCreated& OnSocialToolkitCreated() const { return OnSocialToolkitCreatedEvent; }
+	DECLARE_EVENT_OneParam(USocialManager, FOnSocialToolkitDestroyed, USocialToolkit&)
+	/** Event triggered when a social toolkit is destroyed. Triggered after it is no longer registered with this social manager. */
+	FOnSocialToolkitDestroyed& OnSocialToolkitDestroyed() const { return OnSocialToolkitDestroyedEvent; }
 	
 	DECLARE_EVENT_OneParam(USocialManager, FOnPartyMembershipChanged, USocialParty&);
 	FOnPartyMembershipChanged& OnPartyJoined() const { return OnPartyJoinedEvent; }
@@ -288,6 +291,7 @@ private:
 	FDelegateHandle OnFillJoinRequestInfoHandle;
 
 	mutable FOnSocialToolkitCreated OnSocialToolkitCreatedEvent;
+	mutable FOnSocialToolkitDestroyed OnSocialToolkitDestroyedEvent;
 	mutable FOnPartyMembershipChanged OnPartyJoinedEvent;
 };
 

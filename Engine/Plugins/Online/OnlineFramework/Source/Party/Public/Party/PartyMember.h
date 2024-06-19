@@ -9,6 +9,7 @@
 
 class ULocalPlayer;
 class USocialUser;
+class USocialToolkit;
 class FOnlinePartyMember;
 class FOnlinePartyData;
 enum class EMemberExitedReason : uint8;
@@ -196,7 +197,15 @@ public:
 	USocialParty& GetParty() const;
 	FUniqueNetIdRepl GetPrimaryNetId() const;
 	const FPartyMemberRepData& GetRepData() const { return *MemberDataReplicator; }
+	/** Get the default social user. NOTE: This method will be deprecated in the future. Prefer GetSocialUser(InLocalUserId). */
 	USocialUser& GetSocialUser() const;
+	/**
+	 * Get the social user for a local player
+	 * @param InLocalUserId the primary user id of the local user to get the social user for.
+	 * @return the social user registered for this party member and local user. May be null if InLocalUserId does not map to a social toolkit, otherwise expected to be non-null.
+	 */
+	USocialUser* GetSocialUser(const FUniqueNetIdRepl& InLocalUserId) const;
+
 	EMemberConnectionStatus GetMemberConnectionStatus() const;
 
 	FString GetDisplayName() const;
@@ -215,7 +224,12 @@ public:
 	FString ToDebugString(bool bIncludePartyId = true) const;
 
 protected:
-	void InitializePartyMember(const FOnlinePartyMemberConstRef& OssMember, const FSimpleDelegate& OnInitComplete);
+	UE_DEPRECATED(5.5, "Use InitializePartyMember with an r-value delegate")
+	void InitializePartyMember(const FOnlinePartyMemberConstRef& OssMember, const FSimpleDelegate& OnInitComplete)
+	{
+		InitializePartyMember(OssMember, CopyTemp(OnInitComplete));
+	}
+	void InitializePartyMember(const FOnlinePartyMemberConstRef& OssMember, FSimpleDelegate&& OnInitComplete);
 
 	FPartyMemberRepData& GetMutableRepData() { return *MemberDataReplicator; }
 	void NotifyMemberDataReceived(const FOnlinePartyData& MemberData);
@@ -237,16 +251,33 @@ protected:
 	TSharedPtr<const FOnlinePartyMember> GetOSSPartyMember() const { return OssPartyMember; }
 
 private:
+	void InitializeSocialUserForToolkit(USocialToolkit& Toolkit);
 	void HandleSocialUserInitialized(USocialUser& InitializedUser);
 	void HandleMemberConnectionStatusChanged(const FUniqueNetId& ChangedUserId, const EMemberConnectionStatus NewMemberConnectionStatus, const EMemberConnectionStatus PreviousMemberConnectionStatus);
 	void HandleMemberAttributeChanged(const FUniqueNetId& ChangedUserId, const FString& Attribute, const FString& NewValue, const FString& OldValue);
+	void OnSocialToolkitCreated(USocialToolkit& Toolkit);
+	void OnSocialToolkitDestroyed(USocialToolkit& Toolkit);
 
 	FOnlinePartyMemberConstPtr OssPartyMember;
 
-	UPROPERTY()
-	TObjectPtr<USocialUser> SocialUser = nullptr;
+	// Initializing status
+	enum class EInitializingFlags : uint8
+	{
+		Done = 0, // Done initializing
+		SocialUsers = 1<<0, // Waiting for all social users to initialize
+		InitialMemberData = 1<<1, // Waiting to receive initial member data
+	};
+	FRIEND_ENUM_CLASS_FLAGS(EInitializingFlags);
+	EInitializingFlags InitializingFlags = EInitializingFlags::Done;
 
-	bool bHasReceivedInitialData = false;
+	UPROPERTY(config)
+	bool bEnableDebugInitializer = true;
+
+	// Debug info for initializing party members
+	class FDebugInitializer;
+	friend class FDebugInitializer;
+	TUniquePtr<FDebugInitializer> DebugInitializer;
+
 	mutable FOnPartyMemberStateChanged OnMemberConnectionStatusChangedEvent;
 	mutable FOnPartyMemberStateChanged OnDisplayNameChangedEvent;
 	mutable FOnPartyMemberStateChanged OnMemberInitializedEvent;
@@ -254,3 +285,14 @@ private:
 	mutable FOnPartyMemberStateChanged OnDemotedEvent;
 	mutable FOnPartyMemberLeft OnLeftPartyEvent;
 };
+
+namespace UE::OnlineFramework
+{
+/**
+ * Utility method to trigger a delegate when a party member is initialized, or trigger immediately if already initialized.
+ * Avoids needing to use the pattern 'if (Member->IsInitialized()) { DoWork(); } else { Member->OnInitializationComplete().Add...'
+ * @param InPartyMember the party member
+ * @param InDelegate the delegate to trigger when initialization is complete (or trigger immediately if already initialized)
+ */
+PARTY_API void OnPartyMemberInitializeComplete(UPartyMember& InPartyMember, FSimpleDelegate&& InDelegate);
+}
