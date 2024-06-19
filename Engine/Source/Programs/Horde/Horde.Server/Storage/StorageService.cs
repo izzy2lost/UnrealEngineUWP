@@ -245,7 +245,7 @@ namespace Horde.Server.Storage
 			}
 		}
 
-		const int CurrentGcVersion = 1;
+		const int CurrentGcVersion = 2;
 
 		internal class BlobInfo
 		{
