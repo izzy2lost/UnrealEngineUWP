@@ -1449,12 +1449,15 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 		BitWriter_Attribute.PutBits(ColorDW, 32);
 
 		// UVs
-		const FVector2f* UVs = Cluster.GetUVs(VertexIndex);
-		for (uint32 TexCoordIndex = 0; TexCoordIndex < NumTexCoords; TexCoordIndex++)
+		if (NumTexCoords > 0)
 		{
-			const FVector2f& UV = UVs[TexCoordIndex];
-			BitWriter_Attribute.PutBits(*(uint32*)&UV.X, 32);
-			BitWriter_Attribute.PutBits(*(uint32*)&UV.Y, 32);
+			const FVector2f* UVs = Cluster.GetUVs(VertexIndex);
+			for (uint32 TexCoordIndex = 0; TexCoordIndex < NumTexCoords; TexCoordIndex++)
+			{
+				const FVector2f& UV = UVs[TexCoordIndex];
+				BitWriter_Attribute.PutBits(*(uint32*)&UV.X, 32);
+				BitWriter_Attribute.PutBits(*(uint32*)&UV.Y, 32);
+			}
 		}
 	}
 	BitWriter_Attribute.Flush(sizeof(uint32));

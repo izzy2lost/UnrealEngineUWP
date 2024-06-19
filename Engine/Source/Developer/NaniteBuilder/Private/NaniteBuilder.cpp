@@ -247,10 +247,13 @@ static float BuildCoarseRepresentation(
 		Verts.TangentY.Emplace(FVector3f::ZeroVector);
 		Verts.TangentZ.Emplace(CoarseRepresentation.GetNormal(Iter));
 
-		const FVector2f* UVs = CoarseRepresentation.GetUVs(Iter);
-		for (uint32 UVIndex = 0; UVIndex < NumTexCoords; ++UVIndex)
+		if (NumTexCoords > 0)
 		{
-			Verts.UVs[UVIndex].Emplace(UVs[UVIndex].ContainsNaN() ? FVector2f::ZeroVector : UVs[UVIndex]);
+			const FVector2f* UVs = CoarseRepresentation.GetUVs(Iter);
+			for (uint32 UVIndex = 0; UVIndex < NumTexCoords; ++UVIndex)
+			{
+				Verts.UVs[UVIndex].Emplace(UVs[UVIndex].ContainsNaN() ? FVector2f::ZeroVector : UVs[UVIndex]);
+			}
 		}
 		
 		if (CoarseRepresentation.Settings.bHasColors)
@@ -298,7 +301,10 @@ static float BuildCoarseRepresentation(
 	Swap( Indexes, CoarseRepresentation.Indexes );
 
 	FMeshBuildVertexView VertexView = MakeMeshBuildVertexView(Verts);
-	CalcTangents(VertexView, Indexes);
+	if (NumTexCoords > 0)
+	{
+		CalcTangents(VertexView, Indexes);
+	}
 
 	return OutError;
 }

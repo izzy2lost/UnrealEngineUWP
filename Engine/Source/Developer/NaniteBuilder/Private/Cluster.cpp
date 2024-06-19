@@ -103,10 +103,13 @@ FCluster::FCluster(
 					GetColor( NewIndex ) = InVerts.Color[OldIndex].ReinterpretAsLinear();
 				}
 
-				FVector2f* UVs = GetUVs( NewIndex );
-				for( uint32 UVIndex = 0; UVIndex < Settings.NumTexCoords; UVIndex++ )
+				if( Settings.NumTexCoords > 0 )
 				{
-					UVs[UVIndex] = InVerts.UVs[UVIndex][OldIndex];
+					FVector2f* UVs = GetUVs( NewIndex );
+					for( uint32 UVIndex = 0; UVIndex < Settings.NumTexCoords; UVIndex++ )
+					{
+						UVs[UVIndex] = InVerts.UVs[UVIndex][OldIndex];
+					}
 				}
 
 				if (Settings.NumBoneInfluences > 0)
@@ -307,27 +310,29 @@ float FCluster::Simplify( uint32 TargetNumTris, float TargetError, uint32 LimitN
 	}
 
 	float UVArea[ MAX_STATIC_TEXCOORDS ] = { 0.0f };
-
-	for( uint32 TriIndex = 0; TriIndex < NumTris; TriIndex++ )
+	if( Settings.NumTexCoords > 0 )
 	{
-		uint32 Index0 = Indexes[ TriIndex * 3 + 0 ];
-		uint32 Index1 = Indexes[ TriIndex * 3 + 1 ];
-		uint32 Index2 = Indexes[ TriIndex * 3 + 2 ];
-
-		FVector2f* UV0 = GetUVs( Index0 );
-		FVector2f* UV1 = GetUVs( Index1 );
-		FVector2f* UV2 = GetUVs( Index2 );
-
-		for( uint32 UVIndex = 0; UVIndex < Settings.NumTexCoords; UVIndex++ )
+		for( uint32 TriIndex = 0; TriIndex < NumTris; TriIndex++ )
 		{
-			FVector2f EdgeUV1 = UV1[ UVIndex ] - UV0[ UVIndex ];
-			FVector2f EdgeUV2 = UV2[ UVIndex ] - UV0[ UVIndex ];
-			float SignedArea = 0.5f * ( EdgeUV1 ^ EdgeUV2 );
-			UVArea[ UVIndex ] += FMath::Abs( SignedArea );
+			uint32 Index0 = Indexes[ TriIndex * 3 + 0 ];
+			uint32 Index1 = Indexes[ TriIndex * 3 + 1 ];
+			uint32 Index2 = Indexes[ TriIndex * 3 + 2 ];
 
-			// Force an attribute discontinuity for UV mirroring edges.
-			// Quadric could account for this but requires much larger UV weights which raises error on meshes which have no visible issues otherwise.
-			MaterialIndexes[ TriIndex ] |= ( SignedArea >= 0.0f ? 1 : 0 ) << ( UVIndex + 24 );
+			FVector2f* UV0 = GetUVs( Index0 );
+			FVector2f* UV1 = GetUVs( Index1 );
+			FVector2f* UV2 = GetUVs( Index2 );
+
+			for( uint32 UVIndex = 0; UVIndex < Settings.NumTexCoords; UVIndex++ )
+			{
+				FVector2f EdgeUV1 = UV1[ UVIndex ] - UV0[ UVIndex ];
+				FVector2f EdgeUV2 = UV2[ UVIndex ] - UV0[ UVIndex ];
+				float SignedArea = 0.5f * ( EdgeUV1 ^ EdgeUV2 );
+				UVArea[ UVIndex ] += FMath::Abs( SignedArea );
+
+				// Force an attribute discontinuity for UV mirroring edges.
+				// Quadric could account for this but requires much larger UV weights which raises error on meshes which have no visible issues otherwise.
+				MaterialIndexes[ TriIndex ] |= ( SignedArea >= 0.0f ? 1 : 0 ) << ( UVIndex + 24 );
+			}
 		}
 	}
 
@@ -954,11 +959,14 @@ void FCluster::SanitizeVertexData()
 			SanitizeFloat( Color.A, 0.0f, 1.0f, 1.0f );
 		}
 
-		FVector2f* UVs = GetUVs( VertexIndex );
-		for( uint32 UVIndex = 0; UVIndex < Settings.NumTexCoords; UVIndex++ )
+		if( Settings.NumTexCoords > 0 )
 		{
-			SanitizeFloat( UVs[ UVIndex ].X, -FltThreshold, FltThreshold, 0.0f );
-			SanitizeFloat( UVs[ UVIndex ].Y, -FltThreshold, FltThreshold, 0.0f );
+			FVector2f* UVs = GetUVs( VertexIndex );
+			for( uint32 UVIndex = 0; UVIndex < Settings.NumTexCoords; UVIndex++ )
+			{
+				SanitizeFloat( UVs[ UVIndex ].X, -FltThreshold, FltThreshold, 0.0f );
+				SanitizeFloat( UVs[ UVIndex ].Y, -FltThreshold, FltThreshold, 0.0f );
+			}
 		}
 
 		if (Settings.NumBoneInfluences > 0)
