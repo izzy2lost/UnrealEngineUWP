@@ -4,6 +4,7 @@
 
 #include "AVPacket.h"
 #include "Templates/SharedPointerFwd.h"
+#include "Video/VideoCodecSpecificInfo.h"
 
 /**
  * Video-specific packet container.
@@ -20,6 +21,21 @@ public:
 	 * Whether this frame is a keyframe.
 	 */
 	uint8 bIsKeyframe : 1;
+
+	/**
+	 * Struct holding advanced information on the video packet
+	 */
+	FCodecSpecificInfo CodecSpecificInfo;
+
+	/**
+	 * Spatial index of this packet
+	 */
+	TOptional<int> SpatialIndex;
+
+	/**
+	 * Temporal index of this packet
+	 */
+	TOptional<int> TemporalIndex;
 
 	FVideoPacket() = default;
 	FVideoPacket(TSharedPtr<uint8> const& DataPtr, uint64 DataSize, uint64 Timestamp, uint64 Index, uint32 QP, bool bIsKeyframe)

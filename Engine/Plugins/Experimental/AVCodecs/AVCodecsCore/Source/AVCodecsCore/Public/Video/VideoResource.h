@@ -19,6 +19,7 @@ enum class EVideoFormat : uint8
 	G16 = EPixelFormat::PF_G16,
 
 	// TODO No match to engine formats and should be updated if that changes
+	YUV420 = 253U,
 	YUV444 = 254U,
 	YUV444_16 = 255U,
 };
@@ -63,11 +64,11 @@ public:
 	 * Height in pixels.
 	 */
 	uint32 Height;
-    
-    /**
-     * An implementation of the BulkData interface. Used for creating textures from existing data
-     */
-    FResourceBulkDataInterface* BulkData;
+
+	/**
+	 * An implementation of the BulkData interface. Used for creating textures from existing data
+	 */
+	FResourceBulkDataInterface* BulkData;
 
 	/**
 	 * If this is a descriptor stored in a different format than it really is
@@ -80,10 +81,9 @@ public:
 		: Format(Descriptor.Format)
 		, Width(Descriptor.Width)
 		, Height(Descriptor.Height)
-        , BulkData(Descriptor.BulkData)
+		, BulkData(Descriptor.BulkData)
 		, RawDescriptor(Descriptor.RawDescriptor ? new FVideoDescriptor(*Descriptor.RawDescriptor) : nullptr)
 	{
-
 	}
 
 	FVideoDescriptor(EVideoFormat Format, uint32 Width, uint32 Height, FResourceBulkDataInterface* BulkData = nullptr)
@@ -94,44 +94,43 @@ public:
 	FVideoDescriptor(EVideoFormat Format, uint32 Width, uint32 Height, const FVideoDescriptor& RawDescriptor, FResourceBulkDataInterface* BulkData = nullptr)
 		: Format(Format), Width(Width), Height(Height), BulkData(BulkData), RawDescriptor(new FVideoDescriptor(RawDescriptor))
 	{
-
 	}
 
 	~FVideoDescriptor()
-	{ 
-		if(RawDescriptor)
+	{
+		if (RawDescriptor)
 		{
 			delete RawDescriptor;
 		}
 	};
 
-	bool operator==(FVideoDescriptor const &RHS) const
+	bool operator==(FVideoDescriptor const& RHS) const
 	{
 		return Format == RHS.Format && Width == RHS.Width && Height == RHS.Height;
 	}
 
-	bool operator!=(FVideoDescriptor const &RHS) const
+	bool operator!=(FVideoDescriptor const& RHS) const
 	{
 		return !(*this == RHS);
 	}
 
-	// Planar formats are treated as single channel 
+	// Planar formats are treated as single channel
 	uint8 GetNumChannels() const
 	{
 		switch (Format)
 		{
-		case EVideoFormat::BGRA:
-		case EVideoFormat::ABGR10:
-			return 4;
-		case EVideoFormat::YUV444:
-		case EVideoFormat::YUV444_16:
-		case EVideoFormat::NV12:
-		case EVideoFormat::P010:
-		case EVideoFormat::R8:
-			return 1;
-		default:
-			return 0;
-		}		
+			case EVideoFormat::BGRA:
+			case EVideoFormat::ABGR10:
+				return 4;
+			case EVideoFormat::YUV444:
+			case EVideoFormat::YUV444_16:
+			case EVideoFormat::NV12:
+			case EVideoFormat::P010:
+			case EVideoFormat::R8:
+				return 1;
+			default:
+				return 0;
+		}
 	}
 
 	// TODO(Nick): Try and remove this in favour of external initialisation
@@ -140,19 +139,19 @@ public:
 		const uint32 ChannelSize = Width * Height;
 		switch (Format)
 		{
-		case EVideoFormat::BGRA:
-		case EVideoFormat::ABGR10:
-			return ChannelSize * 4;
-		case EVideoFormat::YUV444:
-			return ChannelSize * 3;
-		case EVideoFormat::YUV444_16:
-			return ChannelSize * 6;
-		case EVideoFormat::NV12:
-			return ChannelSize + (ChannelSize >> 1);
-		case EVideoFormat::P010:
-			return ChannelSize * 3;
-		default:
-			return 0;
+			case EVideoFormat::BGRA:
+			case EVideoFormat::ABGR10:
+				return ChannelSize * 4;
+			case EVideoFormat::YUV444:
+				return ChannelSize * 3;
+			case EVideoFormat::YUV444_16:
+				return ChannelSize * 6;
+			case EVideoFormat::NV12:
+				return ChannelSize + (ChannelSize >> 1);
+			case EVideoFormat::P010:
+				return ChannelSize * 3;
+			default:
+				return 0;
 		}
 	}
 };
@@ -172,12 +171,12 @@ public:
 	/**
 	 * @return Get the descriptor of our video data in device memory.
 	 */
-	FORCEINLINE FVideoDescriptor const &GetRawDescriptor() const { return Descriptor.RawDescriptor ? *Descriptor.RawDescriptor : Descriptor; }
+	FORCEINLINE FVideoDescriptor const& GetRawDescriptor() const { return Descriptor.RawDescriptor ? *Descriptor.RawDescriptor : Descriptor; }
 
 	/**
 	 * @return Get the descriptor of our video data.
 	 */
-	FORCEINLINE FVideoDescriptor const &GetDescriptor() const { return Descriptor; }
+	FORCEINLINE FVideoDescriptor const& GetDescriptor() const { return Descriptor; }
 
 	/**
 	 * @return Get the format of our data.
@@ -199,7 +198,7 @@ public:
 	 */
 	FORCEINLINE uint32 GetSize() const { return Descriptor.GetSizeInBytes(); }
 
-	FVideoResource(TSharedRef<FAVDevice> const &Device, FAVLayout const &Layout, FVideoDescriptor const &Descriptor);
+	FVideoResource(TSharedRef<FAVDevice> const& Device, FAVLayout const& Layout, FVideoDescriptor const& Descriptor);
 	virtual ~FVideoResource() override = default;
 };
 
@@ -212,7 +211,7 @@ class TVideoResource : public FVideoResource
 public:
 	FORCEINLINE TSharedPtr<TContext> GetContext() const { return GetDevice()->template GetContext<TContext>(); }
 
-	TVideoResource(TSharedRef<FAVDevice> const &Device, FAVLayout const &Layout, FVideoDescriptor const &Descriptor)
+	TVideoResource(TSharedRef<FAVDevice> const& Device, FAVLayout const& Layout, FVideoDescriptor const& Descriptor)
 		: FVideoResource(Device, Layout, Descriptor)
 	{
 	}
@@ -239,13 +238,13 @@ class TPooledVideoResource : public TResolvableVideoResource<TResource>
 public:
 	TArray<TSharedPtr<TResource>> Pool;
 
-	virtual bool IsResolved(TSharedPtr<FAVDevice> const &Device, FVideoDescriptor const &Descriptor) const override
+	virtual bool IsResolved(TSharedPtr<FAVDevice> const& Device, FVideoDescriptor const& Descriptor) const override
 	{
 		return TResolvableVideoResource<TResource>::IsResolved(Device, Descriptor) && Pool.Contains(this->Get());
 	}
 
 protected:
-	virtual TSharedPtr<TResource> TryResolve(TSharedPtr<FAVDevice> const &Device, FVideoDescriptor const &Descriptor) override
+	virtual TSharedPtr<TResource> TryResolve(TSharedPtr<FAVDevice> const& Device, FVideoDescriptor const& Descriptor) override
 	{
 		for (int i = 0; i < Pool.Num(); ++i)
 		{

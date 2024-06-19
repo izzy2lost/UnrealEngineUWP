@@ -3,12 +3,100 @@
 #pragma once
 
 #include "AVCoder.h"
+#include "AVConstants.h"
+#include "Video/VideoConfig.h"
 #include "Video/VideoPacket.h"
 #include "Video/VideoResource.h"
 
 /*
  * Implementation of Video Encoding domain, see TAVCoder for inheritance model
  */
+enum class EScalabilityMode : uint8
+{
+	L1T1 = 0,
+	L1T2,
+	L1T3,
+	L2T1,
+	L2T1h,
+	L2T1_KEY,
+	L2T2,
+	L2T2h,
+	L2T2_KEY,
+	L2T2_KEY_SHIFT,
+	L2T3,
+	L2T3h,
+	L2T3_KEY,
+	L3T1,
+	L3T1h,
+	L3T1_KEY,
+	L3T2,
+	L3T2h,
+	L3T2_KEY,
+	L3T3,
+	L3T3h,
+	L3T3_KEY,
+	S2T1,
+	S2T1h,
+	S2T2,
+	S2T2h,
+	S2T3,
+	S2T3h,
+	S3T1,
+	S3T1h,
+	S3T2,
+	S3T2h,
+	S3T3,
+	S3T3h,
+	None
+};
+
+TMap<FString, EScalabilityMode> const ScalabilityModeMap = {
+	{ "L1T1", EScalabilityMode::L1T1 },
+	{ "L1T2", EScalabilityMode::L1T2 },
+	{ "L1T3", EScalabilityMode::L1T3 },
+	{ "L2T1", EScalabilityMode::L2T1 },
+	{ "L2T1h", EScalabilityMode::L2T1h },
+	{ "L2T1_KEY", EScalabilityMode::L2T1_KEY },
+	{ "L2T2", EScalabilityMode::L2T2 },
+	{ "L2T2h", EScalabilityMode::L2T2h },
+	{ "L2T2_KEY", EScalabilityMode::L2T2_KEY },
+	{ "L2T2_KEY_SHIFT", EScalabilityMode::L2T2_KEY_SHIFT },
+	{ "L2T3", EScalabilityMode::L2T3 },
+	{ "L2T3h", EScalabilityMode::L2T3h },
+	{ "L2T3_KEY", EScalabilityMode::L2T3_KEY },
+	{ "L3T1", EScalabilityMode::L3T1 },
+	{ "L3T1h", EScalabilityMode::L3T1h },
+	{ "L3T1_KEY", EScalabilityMode::L3T1_KEY },
+	{ "L3T2", EScalabilityMode::L3T2 },
+	{ "L3T2h", EScalabilityMode::L3T2h },
+	{ "L3T2_KEY", EScalabilityMode::L3T2_KEY },
+	{ "L3T3", EScalabilityMode::L3T3 },
+	{ "L3T3h", EScalabilityMode::L3T3h },
+	{ "L3T3_KEY", EScalabilityMode::L3T3_KEY },
+	{ "S2T1", EScalabilityMode::S2T1 },
+	{ "S2T1h", EScalabilityMode::S2T1h },
+	{ "S2T2", EScalabilityMode::S2T2 },
+	{ "S2T2h", EScalabilityMode::S2T2h },
+	{ "S2T3", EScalabilityMode::S2T3 },
+	{ "S2T3h", EScalabilityMode::S2T3h },
+	{ "S3T1", EScalabilityMode::S3T1 },
+	{ "S3T1h", EScalabilityMode::S3T1h },
+	{ "S3T2", EScalabilityMode::S3T2 },
+	{ "S3T2h", EScalabilityMode::S3T2h },
+	{ "S3T3", EScalabilityMode::S3T3 },
+	{ "S3T3h", EScalabilityMode::S3T3h },
+	{ "None", EScalabilityMode::None }
+};
+
+inline TOptional<EScalabilityMode> ScalabilityModeFromString(const FString& ModeString)
+{
+	if (ScalabilityModeMap.Find(ModeString) != nullptr)
+	{
+		return ScalabilityModeMap[ModeString];
+	}
+
+	return FNullOpt(0);
+}
 
 enum class ERateControlMode : uint8
 {
@@ -26,7 +114,35 @@ enum class EMultipassMode : uint8
 	Full
 };
 
-struct FVideoEncoderConfig : public FAVConfig
+// TODO (william.belcher): Use reasonable defaults set elsewhere
+struct FSpatialLayer
+{
+	uint32 Width = 1920;
+	uint32 Height = 1080;
+	uint32 Framerate = 60;
+	uint8  NumberOfTemporalLayers = 1;
+	int32  MaxBitrate = 20000000;
+	int32  TargetBitrate = 10000000;
+	int32  MinBitrate = 5000000;
+	int32  MaxQP = 0;
+	bool   bActive = false;
+
+	friend bool operator==(const FSpatialLayer& Lhs, const FSpatialLayer& Rhs)
+	{
+		return Lhs.Width == Rhs.Width
+			&& Lhs.Height == Rhs.Height
+			&& Lhs.Framerate == Rhs.Framerate
+			&& Lhs.NumberOfTemporalLayers == Rhs.NumberOfTemporalLayers
+			&& Lhs.MaxBitrate == Rhs.MaxBitrate
+			&& Lhs.TargetBitrate == Rhs.TargetBitrate
+			&& Lhs.MinBitrate == Rhs.MinBitrate
+			&& Lhs.MaxQP == Rhs.MaxQP
+			&& Lhs.bActive == Rhs.bActive;
+	}
+};
+
+// TODO (william.belcher): Use reasonable defaults set elsewhere
+struct FVideoEncoderConfig : public FVideoConfig
 {
 public:
 	uint32 Width = 1920;
@@ -36,73 +152,85 @@ public:
 
 	int32 TargetBitrate = 0;
 	int32 MaxBitrate = 0;
+	int32 MinBitrate = 0;
+	// Advanced bitrate settings. Used for situations such as simulcast / SVC
+	TOptional<int32> Bitrates[Video::MaxSpatialLayers][Video::MaxTemporalStreams];
 
 	int32 MinQP = -1;
 	int32 MaxQP = -1;
 
 	ERateControlMode RateControlMode = ERateControlMode::CBR;
-	uint8 bFillData : 1;
-	
+	uint8			 bFillData : 1;
+
+	EScalabilityMode ScalabilityMode = EScalabilityMode::None;
+
+	uint8				  NumberOfSpatialLayers = 1;
+	uint8				  NumberOfTemporalLayers = 1;
+	TArray<FSpatialLayer> SpatialLayers;
+
+	uint8				  NumberOfSimulcastStreams;
+	TArray<FSpatialLayer> SimulcastStreams;
+
 	// TODO (Remove and derive from latency mode)
-	uint32 KeyframeInterval = 0;
+	uint32		   KeyframeInterval = 0;
 	EMultipassMode MultipassMode = EMultipassMode::Full;
-	
+
 	FVideoEncoderConfig(EAVPreset Preset = EAVPreset::Default)
-		: FAVConfig(Preset)
+		: FVideoConfig(Preset)
 		, bFillData(false)
 	{
 		switch (Preset)
 		{
-		case EAVPreset::UltraLowQuality:
-			TargetBitrate = 500000;
-			MaxBitrate = 1000000;
+			case EAVPreset::UltraLowQuality:
+				TargetBitrate = 500000;
+				MaxBitrate = 1000000;
 
-			MinQP = 10;
-			MaxQP = 20;
+				MinQP = 10;
+				MaxQP = 20;
 
-			RateControlMode = ERateControlMode::CBR;
+				RateControlMode = ERateControlMode::CBR;
 
-			break;
-		case EAVPreset::LowQuality:
-			TargetBitrate = 3000000;
-			MaxBitrate = 4500000;
+				break;
+			case EAVPreset::LowQuality:
+				TargetBitrate = 3000000;
+				MaxBitrate = 4500000;
 
-			MinQP = 20;
-			MaxQP = 30;
+				MinQP = 20;
+				MaxQP = 30;
 
-			RateControlMode = ERateControlMode::CBR;
+				RateControlMode = ERateControlMode::CBR;
 
-			break;
-		case EAVPreset::Default:
-			TargetBitrate = 5000000;
-			MaxBitrate = 12500000;
+				break;
+			case EAVPreset::Default:
+				TargetBitrate = 5000000;
+				MaxBitrate = 12500000;
 
-			MinQP = 25;
-			MaxQP = 40;
+				MinQP = 25;
+				MaxQP = 40;
 
-			RateControlMode = ERateControlMode::CBR;
+				RateControlMode = ERateControlMode::CBR;
 
-			break;
-		case EAVPreset::HighQuality:
-			TargetBitrate = 10000000;
-			MaxBitrate = 20000000;
+				break;
+			case EAVPreset::HighQuality:
+				TargetBitrate = 10000000;
+				MaxBitrate = 20000000;
 
-			MinQP = 35;
-			MaxQP = 50;
+				MinQP = 35;
+				MaxQP = 50;
 
-			RateControlMode = ERateControlMode::VBR;
+				RateControlMode = ERateControlMode::VBR;
 
-			break;
-		case EAVPreset::Lossless:
-			TargetBitrate = 0;
-			MaxBitrate = 0;
+				break;
+			case EAVPreset::Lossless:
+				TargetBitrate = 0;
+				MaxBitrate = 0;
 
-			MinQP = -1;
-			MaxQP = -1;
+				MinQP = -1;
+				MaxQP = -1;
 
-			RateControlMode = ERateControlMode::ConstQP;
+				RateControlMode = ERateControlMode::ConstQP;
 
-			break;
+				break;
 		}
 	}
 };
@@ -189,7 +317,7 @@ public:
 
 		return MinimalConfig;
 	}
-	
+
 	/**
 	 * Set generic configuration values.
 	 *
@@ -222,17 +350,17 @@ public:
 
 	/**
 	 * Flush remaining packets and invalidate the underlying architecture.
-	 * 
+	 *
 	 * @return Result of the operation, @see FAVResult.
 	 */
 	FAVResult FlushPackets()
 	{
 		return SendFrame(nullptr, 0);
 	}
-	
+
 	/**
 	 * Flush remaining packets and invalidate the underlying architecture.
-	 * 
+	 *
 	 * @return Result of the operation, @see FAVResult.
 	 */
 	FAVResult FlushAndReceivePackets(TArray<FVideoPacket>& OutPackets)
@@ -289,7 +417,7 @@ public:
 	 * @return The current minimal configuration.
 	 */
 	virtual FVideoEncoderConfig GetMinimalConfig() = 0;
-	
+
 	/**
 	 * Set generic configuration values.
 	 *

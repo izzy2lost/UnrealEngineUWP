@@ -6,14 +6,102 @@
 #include "Utils/BitstreamReader.h"
 #include "AVResult.h"
 
+enum class EScalabilityMode : uint8;
+
 namespace UE::AVCodecCore::VP9
 {
-	enum class EVP9Profile : uint8
+	constexpr int16	 MaxOneBytePictureId = 0x7F;   // 7 bits
+	constexpr int16	 MaxTwoBytePictureId = 0x7FFF; // 15 bits
+	constexpr uint8	 NoSpatialIdx = 0xFF;
+	constexpr uint8	 NoGofIdx = 0xFF;
+	constexpr uint8	 NumBuffers = 8;
+	constexpr size_t MaxRefPics = 3;
+	constexpr size_t MaxFramesInGof = 0xFF; // 8 bits
+	constexpr size_t MaxNumberOfSpatialLayers = 8;
+
+	constexpr size_t MinSpatialLayerLongSideLength = 240;
+	constexpr size_t MinSpatialLayerShortSideLength = 135;
+
+	enum class EProfile : uint8
 	{
 		Profile0,
 		Profile1,
 		Profile2,
 		Profile3
+	};
+
+	enum class EInterLayerPrediction : uint8
+	{
+		Off,
+		On,
+		OnKeyPicture
+	};
+
+	enum class ETemporalStructureMode : uint8
+	{
+		TemporalStructureMode1, // 1 temporal layer structure - i.e., IPPP...
+		TemporalStructureMode2, // 2 temporal layers 01...
+		TemporalStructureMode3, // 3 temporal layers 0212...
+	};
+
+	struct FGroupOfFramesInfo
+	{
+		void SetGofInfo(ETemporalStructureMode tm)
+		{
+			switch (tm)
+			{
+				case ETemporalStructureMode::TemporalStructureMode1:
+					NumFramesInGof = 1;
+					TemporalIdx[0] = 0;
+					TemporalUpSwitch[0] = true;
+					NumRefPics[0] = 1;
+					PidDiff[0][0] = 1;
+					break;
+				case ETemporalStructureMode::TemporalStructureMode2:
+					NumFramesInGof = 2;
+					TemporalIdx[0] = 0;
+					TemporalUpSwitch[0] = true;
+					NumRefPics[0] = 1;
+					PidDiff[0][0] = 2;
+
+					TemporalIdx[1] = 1;
+					TemporalUpSwitch[1] = true;
+					NumRefPics[1] = 1;
+					PidDiff[1][0] = 1;
+					break;
+				case ETemporalStructureMode::TemporalStructureMode3:
+					NumFramesInGof = 4;
+					TemporalIdx[0] = 0;
+					TemporalUpSwitch[0] = true;
+					NumRefPics[0] = 1;
+					PidDiff[0][0] = 4;
+
+					TemporalIdx[1] = 2;
+					TemporalUpSwitch[1] = true;
+					NumRefPics[1] = 1;
+					PidDiff[1][0] = 1;
+
+					TemporalIdx[2] = 1;
+					TemporalUpSwitch[2] = true;
+					NumRefPics[2] = 1;
+					PidDiff[2][0] = 2;
+
+					TemporalIdx[3] = 2;
+					TemporalUpSwitch[3] = true;
+					NumRefPics[3] = 1;
+					PidDiff[3][0] = 1;
+					break;
+				default:
+					checkNoEntry();
+			}
+		}
+
+		size_t NumFramesInGof;
+		uint8  TemporalIdx[MaxFramesInGof];
+		bool   TemporalUpSwitch[MaxFramesInGof];
+		uint8  NumRefPics[MaxFramesInGof];
+		uint8  PidDiff[MaxFramesInGof][MaxRefPics];
+		uint16 PidStart;
 	};
 
 	enum class EBitDepth : uint8
@@ -106,7 +194,7 @@ namespace UE::AVCodecCore::VP9
 		U<16> frame_height_minus_1;
 
 		// Pre-calculated helpers
-		EVP9Profile Profile = EVP9Profile::Profile0;
+		EProfile Profile = EProfile::Profile0;
 		uint16		FrameWidth = 0;
 		uint16		FrameHeight = 0;
 	};
@@ -116,4 +204,7 @@ namespace UE::AVCodecCore::VP9
 	FAVResult ParseFrameSyncCode(FBitstreamReader& Bitstream, Header_t& OutHeader);
 	FAVResult ParseColorConfig(FBitstreamReader& Bitstream, Header_t& OutHeader);
 	FAVResult ParseFrameSize(FBitstreamReader& Bitstream, Header_t& OutHeader);
+
+	AVCODECSCORE_API EInterLayerPrediction ScalabilityModeToInterLayerPredMode(EScalabilityMode ScalabilityMode);
+
 } // namespace UE::AVCodecCore::VP9

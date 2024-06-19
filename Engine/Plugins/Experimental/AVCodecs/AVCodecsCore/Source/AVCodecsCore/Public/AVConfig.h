@@ -32,14 +32,12 @@ enum class EAVLatencyMode : uint8
 struct FAVConfig
 {
 public:
-	EAVPreset Preset;
+	EAVPreset	   Preset;
 	EAVLatencyMode LatencyMode;
-	
+
 	FAVConfig(EAVPreset Preset = EAVPreset::Default)
 		: Preset(Preset)
 		, LatencyMode(EAVLatencyMode::Default)
 	{
 	}
 };
-
-

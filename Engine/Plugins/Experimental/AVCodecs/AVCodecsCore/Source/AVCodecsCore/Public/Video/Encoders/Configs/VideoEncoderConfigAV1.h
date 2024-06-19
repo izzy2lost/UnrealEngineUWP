@@ -17,6 +17,7 @@ public:
 
 	uint32 IntraRefreshPeriodFrames = 0;
 	uint32 IntraRefreshCountFrames = 0;
+	uint32 BitDepthMinus8 = 0;
 
 	FVideoEncoderConfigAV1(EAVPreset Preset = EAVPreset::Default)
 		: FVideoEncoderConfig(Preset)

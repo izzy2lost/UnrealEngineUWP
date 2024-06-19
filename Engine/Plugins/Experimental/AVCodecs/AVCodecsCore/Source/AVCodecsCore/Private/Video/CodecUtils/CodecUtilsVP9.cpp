@@ -2,6 +2,8 @@
 
 #include "Video/CodecUtils/CodecUtilsVP9.h"
 
+#include "Video/VideoEncoder.h"
+
 namespace UE::AVCodecCore::VP9
 {
 	FAVResult ParseHeader(FBitstreamReader& Bitstream, Header_t& OutHeader)
@@ -14,9 +16,9 @@ namespace UE::AVCodecCore::VP9
 
 		Bitstream.Read(OutHeader.profile_low_bit, // u(1)
 			OutHeader.profile_high_bit);		  // u(1)
-		OutHeader.Profile = static_cast<EVP9Profile>((OutHeader.profile_high_bit << 1) + OutHeader.profile_low_bit);
+		OutHeader.Profile = static_cast<EProfile>((OutHeader.profile_high_bit << 1) + OutHeader.profile_low_bit);
 
-		if (OutHeader.Profile == EVP9Profile::Profile3)
+		if (OutHeader.Profile == EProfile::Profile3)
 		{
 			if (Bitstream.ReadBits(1) != 0)
 			{
@@ -108,7 +110,7 @@ namespace UE::AVCodecCore::VP9
 
 	FAVResult ParseColorConfig(FBitstreamReader& Bitstream, Header_t& OutHeader)
 	{
-		if (OutHeader.Profile == EVP9Profile::Profile2 || OutHeader.Profile == EVP9Profile::Profile3)
+		if (OutHeader.Profile == EProfile::Profile2 || OutHeader.Profile == EProfile::Profile3)
 		{
 			Bitstream.Read(OutHeader.ten_or_twelve_bit);
 			OutHeader.bit_depth = OutHeader.ten_or_twelve_bit ? EBitDepth::k12Bit : EBitDepth::k10Bit;
@@ -122,7 +124,7 @@ namespace UE::AVCodecCore::VP9
 		if (OutHeader.color_space != EColorSpace::RGB)
 		{
 			Bitstream.Read(OutHeader.color_range); // u(1)
-			if (OutHeader.Profile == EVP9Profile::Profile1 || OutHeader.Profile == EVP9Profile::Profile3)
+			if (OutHeader.Profile == EProfile::Profile1 || OutHeader.Profile == EProfile::Profile3)
 			{
 				Bitstream.Read(OutHeader.sub_sampling); // u(2)
 				if (Bitstream.ReadBits(1) != 0)
@@ -139,7 +141,7 @@ namespace UE::AVCodecCore::VP9
 		else
 		{
 			OutHeader.color_range = EColorRange::Full;
-			if (OutHeader.Profile == EVP9Profile::Profile1 || OutHeader.Profile == EVP9Profile::Profile3)
+			if (OutHeader.Profile == EProfile::Profile1 || OutHeader.Profile == EProfile::Profile3)
 			{
 				OutHeader.sub_sampling = ESubSampling::k444;
 				if (Bitstream.ReadBits(1) != 0)
@@ -162,4 +164,64 @@ namespace UE::AVCodecCore::VP9
 
 		return EAVResult::Success;
 	}
+
+	EInterLayerPrediction ScalabilityModeToInterLayerPredMode(EScalabilityMode ScalabilityMode)
+	{
+		switch (ScalabilityMode)
+		{
+			case EScalabilityMode::L1T1:
+			case EScalabilityMode::L1T2:
+			case EScalabilityMode::L1T3:
+			case EScalabilityMode::L2T1:
+			case EScalabilityMode::L2T1h:
+				return EInterLayerPrediction::On;
+			case EScalabilityMode::L2T1_KEY:
+				return EInterLayerPrediction::OnKeyPicture;
+			case EScalabilityMode::L2T2:
+			case EScalabilityMode::L2T2h:
+				return EInterLayerPrediction::On;
+			case EScalabilityMode::L2T2_KEY:
+			case EScalabilityMode::L2T2_KEY_SHIFT:
+				return EInterLayerPrediction::OnKeyPicture;
+			case EScalabilityMode::L2T3:
+			case EScalabilityMode::L2T3h:
+				return EInterLayerPrediction::On;
+			case EScalabilityMode::L2T3_KEY:
+				return EInterLayerPrediction::OnKeyPicture;
+			case EScalabilityMode::L3T1:
+			case EScalabilityMode::L3T1h:
+				return EInterLayerPrediction::On;
+			case EScalabilityMode::L3T1_KEY:
+				return EInterLayerPrediction::OnKeyPicture;
+			case EScalabilityMode::L3T2:
+			case EScalabilityMode::L3T2h:
+				return EInterLayerPrediction::On;
+			case EScalabilityMode::L3T2_KEY:
+				return EInterLayerPrediction::OnKeyPicture;
+			case EScalabilityMode::L3T3:
+			case EScalabilityMode::L3T3h:
+				return EInterLayerPrediction::On;
+			case EScalabilityMode::L3T3_KEY:
+				return EInterLayerPrediction::OnKeyPicture;
+			case EScalabilityMode::S2T1:
+			case EScalabilityMode::S2T1h:
+			case EScalabilityMode::S2T2:
+			case EScalabilityMode::S2T2h:
+			case EScalabilityMode::S2T3:
+			case EScalabilityMode::S2T3h:
+			case EScalabilityMode::S3T1:
+			case EScalabilityMode::S3T1h:
+			case EScalabilityMode::S3T2:
+			case EScalabilityMode::S3T2h:
+			case EScalabilityMode::S3T3:
+			case EScalabilityMode::S3T3h:
+			case EScalabilityMode::None:
+				return EInterLayerPrediction::Off;
+		}
+
+		// All scalability modes should be accounted for in the above switch
+		unimplemented();
+		return EInterLayerPrediction::Off;
+	}
+
 } // namespace UE::AVCodecCore::VP9

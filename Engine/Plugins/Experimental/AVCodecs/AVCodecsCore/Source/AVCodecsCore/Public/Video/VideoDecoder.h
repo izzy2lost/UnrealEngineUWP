@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AVCoder.h"
+#include "Video/VideoConfig.h"
 #include "Video/VideoPacket.h"
 #include "Video/VideoResource.h"
 
@@ -10,11 +11,11 @@
  * Implementation of Video Decoding domain, see TAVCoder for inheritance model
  */
 
-struct FVideoDecoderConfig : public FAVConfig
+struct FVideoDecoderConfig : public FVideoConfig
 {
 public:
 	FVideoDecoderConfig(EAVPreset Preset = EAVPreset::Default)
-		: FAVConfig(Preset) { }
+		: FVideoConfig(Preset) {}
 };
 
 /**
@@ -64,8 +65,7 @@ public:
 				return FAVResult(EAVResult::ErrorInvalidState, TEXT("Decoder not open"));
 			}
 
-			TDelegatedVideoResource<TChildResource> WrappedResource([&InOutResource](TSharedPtr<TChildResource>& InOutResult, TSharedPtr<FAVDevice> const& InDevice, FVideoDescriptor const& Descriptor)
-			{
+			TDelegatedVideoResource<TChildResource> WrappedResource([&InOutResource](TSharedPtr<TChildResource>& InOutResult, TSharedPtr<FAVDevice> const& InDevice, FVideoDescriptor const& Descriptor) {
 				InOutResult = nullptr;
 
 				if (InOutResource.Resolve(InDevice, Descriptor))
@@ -146,7 +146,7 @@ public:
 
 	/**
 	 * Flush remaining frames and invalidate the underlying architecture.
-	 * 
+	 *
 	 * @return Result of the operation, @see FAVResult.
 	 */
 	FAVResult FlushFrames()

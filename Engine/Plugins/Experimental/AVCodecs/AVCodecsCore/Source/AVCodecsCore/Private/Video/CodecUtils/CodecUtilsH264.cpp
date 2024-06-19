@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "AVResult.h"
+#include "Video/VideoPacket.h"
 
 FH264ProfileDefinition GH264ProfileDefinitions[static_cast<uint8>(EH264Profile::MAX)] = {
 	{ EH264Profile::Auto, UE::AVCodecCore::H264::EH264ProfileIDC::Auto, UE::AVCodecCore::H264::EH264ConstraintFlag::None, TEXT("Auto") },
