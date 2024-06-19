@@ -197,7 +197,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 	CookedSource += GetKernelSourceText();
 	
 	KernelSource->SetSource(CookedSource);
-	KernelSource->EntryPoint = GetKernelName();
+	KernelSource->EntryPoint = GetKernelHlslName();
 	KernelSource->GroupSize = GetGroupSize();
 	KernelSource->AdditionalSources = GetAdditionalSources();
 

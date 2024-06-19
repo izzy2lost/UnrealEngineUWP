@@ -37,5 +37,5 @@ void WriteTangentZ_{DataInterfaceName}(uint VertexIndex, float4 TangentZ)
 void WriteColor_{DataInterfaceName}(uint VertexIndex, float4 Color)
 {
 	uint BufferIndex = {DataInterfaceName}_OutputStreamStart + VertexIndex;
-	{DataInterfaceName}_ColorBufferUAV[BufferIndex] = Color;
+	{DataInterfaceName}_ColorBufferUAV[BufferIndex] = Color FMANUALFETCH_COLOR_COMPONENT_SWIZZLE;
 }
