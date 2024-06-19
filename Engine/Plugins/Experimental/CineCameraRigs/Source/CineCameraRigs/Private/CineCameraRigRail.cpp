@@ -297,6 +297,12 @@ void ACineCameraRigRail::SetSplineMeshTexture(UTexture2D* InTexture)
 	SetMIDParameters();
 }
 
+void ACineCameraRigRail::SetAbsolutePositionOnRail(float Value)
+{
+	AbsolutePositionOnRail = Value;
+	UpdateSpeedProgress();
+}
+
 FVector ACineCameraRigRail::GetVelocityAtPosition(const float InPosition, const float delta) const
 {
 	if (CineSplineComponent->Duration == 0.0f)
