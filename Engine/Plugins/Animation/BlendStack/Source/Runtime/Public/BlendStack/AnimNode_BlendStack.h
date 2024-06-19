@@ -156,7 +156,8 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	int32 GetNextPoseLinkIndex();
 
 	int32 GetMaxActiveBlends() const { return MaxActiveBlends; }
-
+	void SetMaxActiveBlends(int32 InMaxActiveBlends) { MaxActiveBlends = InMaxActiveBlends; }
+	
 protected:
 	void InternalBlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, 
 		bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime,
@@ -200,10 +201,7 @@ private:
 	void UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex);
 	void CacheBonesForSample(const FAnimationCacheBonesContext& Context, const int32 PlayerIndex);
 	bool IsSampleGraphAvailableForPlayer(const int32 PlayerIndex);
-
-	friend class UAnimGraphNode_BlendStack_Base;
 };
-
 
 USTRUCT(BlueprintInternalUseOnly)
 struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standalone
@@ -211,7 +209,7 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	GENERATED_BODY()
 
 	// requested animation to play
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinShownByDefault))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
 	TObjectPtr<UAnimationAsset> AnimationAsset;
 
 	// requested animation time
@@ -266,9 +264,6 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bResetOnBecomingRelevant = true;
 
-	// Update Counter for detecting being relevant
-	FGraphTraversalCounter UpdateCounter;
-
 	// FAnimNode_Base interface
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNode_Base interface
@@ -277,8 +272,9 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	void ForceBlendNextUpdate();
 
 private:
+	// Update Counter for detecting being relevant
+	FGraphTraversalCounter UpdateCounter;
 
 	bool bForceBlendNextUpdate = false;
-
 };
 

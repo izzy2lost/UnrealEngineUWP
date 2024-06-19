@@ -43,10 +43,12 @@ void UAnimGraphNode_BlendStack_Base::GetOutputLinkAttributes(FNodeAttributeArray
 	}
 }
 
-void UAnimGraphNode_BlendStack::BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog)
+void UAnimGraphNode_BlendStack_Base::BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog)
 {
+	const FAnimNode_BlendStack_Standalone* BlendStackNode = GetBlendStackNode();
+	check(BlendStackNode);
 	UAnimBlueprint* AnimBlueprint = GetAnimBlueprint();
-	AnimBlueprint->FindOrAddGroup(Node.GetGroupName());
+	AnimBlueprint->FindOrAddGroup(BlendStackNode->GetGroupName());
 }
 
 void UAnimGraphNode_BlendStack_Base::ExpandGraphAndProcessNodes(
@@ -155,7 +157,7 @@ void UAnimGraphNode_BlendStack_Base::OnProcessDuringCompilation(IAnimBlueprintCo
 	const int32 MaxBlendsNum = GetMaxActiveBlends();
 	// Set MaxActiveBlends of the blend stack at compile time.
 	// @todo: Allow reducing the blend stack size (but not decreasing), to enable scalability control under i.e. lower LODs
-	AnimNode->MaxActiveBlends = GetMaxActiveBlends();
+	AnimNode->SetMaxActiveBlends(MaxBlendsNum);
 
 	UAnimationBlendStackGraph* SampleGraph = CastChecked<UAnimationBlendStackGraph>(BoundGraph);
 	if (!SampleGraph->ResultNode->IsNodeRootSet())
@@ -234,7 +236,7 @@ int32 UAnimGraphNode_BlendStack_Base::GetMaxActiveBlends() const
 {
 	FAnimNode_BlendStack_Standalone* AnimNode = GetBlendStackNode();
 	check(AnimNode);
-	return AnimNode->MaxActiveBlends;
+	return AnimNode->GetMaxActiveBlends();
 }
 
 void UAnimGraphNode_BlendStack_Base::CreateGraph()
