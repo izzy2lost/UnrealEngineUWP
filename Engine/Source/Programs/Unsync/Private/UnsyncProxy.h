@@ -247,7 +247,7 @@ struct FHelloResponse
 	bool SupportsAuthentication() const { return Features.bAuthentication && !AuthServerUri.empty() && !AuthClientId.empty(); }
 };
 TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, const FAuthDesc* OptAuthDesc = nullptr);
-TResult<FHelloResponse> Hello(FHttpConnection& Connection, const FAuthDesc* OptAuthDesc = nullptr);
+TResult<FHelloResponse> Hello(EProtocolFlavor Protocol, FHttpConnection& Connection, const FAuthDesc* OptAuthDesc = nullptr);
 
 struct FDirectoryListingEntry
 {
@@ -262,6 +262,7 @@ struct FDirectoryListing
 	std::vector<FDirectoryListingEntry> Entries;
 
 	static TResult<FDirectoryListing> FromJson(const char* JsonString);
+	std::string						  ToJson() const;
 };
 
 TResult<FDirectoryListing> ListDirectory(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path);

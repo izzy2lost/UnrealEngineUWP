@@ -9,6 +9,7 @@
 #include "UnsyncProgress.h"
 #include "UnsyncScheduler.h"
 #include "UnsyncHorde.h"
+#include "UnsyncUtil.h"
 
 #include <atomic>
 #include <json11.hpp>
@@ -56,6 +57,7 @@ struct FUnsyncProtocolImpl : FUnsyncBaseProtocolImpl
 	std::unique_ptr<FSocketBase> SocketHandle;
 
 	static void SendTelemetryEvent(const FRemoteDesc& RemoteDesc, const FTelemetryEventSyncComplete& Event);
+	static TResult<ProxyQuery::FHelloResponse> QueryHello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc=nullptr);
 };
 
 struct FUnsyncHttpProtocolImpl : FUnsyncBaseProtocolImpl
@@ -631,13 +633,19 @@ ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, const FAuthDesc* OptAuthDesc)
 	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
 	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.TlsRequirement, TlsSettings);
 
-	if (RemoteDesc.Protocol == EProtocolFlavor::Horde)
+	return Hello(RemoteDesc.Protocol, Connection, OptAuthDesc);
+}
+
+TResult<ProxyQuery::FHelloResponse>
+ProxyQuery::Hello(EProtocolFlavor Protocol, FHttpConnection& Connection, const FAuthDesc* OptAuthDesc)
+{
+	if (Protocol == EProtocolFlavor::Horde)
 	{
 		return FHordeProtocolImpl::QueryHello(Connection);
 	}
-	else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
+	else if (Protocol == EProtocolFlavor::Unsync)
 	{
-		return Hello(Connection, OptAuthDesc);
+		return FUnsyncProtocolImpl::QueryHello(Connection, OptAuthDesc);
 	}
 	else
 	{
@@ -646,8 +654,10 @@ ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, const FAuthDesc* OptAuthDesc)
 }
 
 TResult<ProxyQuery::FHelloResponse>
-ProxyQuery::Hello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc)
+FUnsyncProtocolImpl::QueryHello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc)
 {
+	using ProxyQuery::FHelloResponse;
+
 	const char* Url = "/api/v1/hello";
 
 	std::string BearerToken;
@@ -761,7 +771,7 @@ ProxyQuery::Hello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc)
 
 	if (auto& Field = JsonObject["primary"]; Field.is_string())
 	{
-		const std::string& PrimaryHostStr = Field.string_value();
+		const std::string&	 PrimaryHostStr	 = Field.string_value();
 		TResult<FRemoteDesc> PrimaryHostDesc = FRemoteDesc::FromUrl(PrimaryHostStr);
 		if (PrimaryHostDesc.IsOk())
 		{
@@ -818,6 +828,36 @@ ProxyQuery::FDirectoryListing::FromJson(const char* JsonString)
 	}
 
 	return ResultOk(std::move(Result));
+}
+
+std::string
+ProxyQuery::FDirectoryListing::ToJson() const
+{
+	std::string Result;
+
+	Result += "{\"entries\": [\n";
+
+	uint64 EntryIndex = 0;
+	for (const FDirectoryListingEntry& Entry : Entries)
+	{
+		if (EntryIndex != 0)
+		{
+			Result += ",\n";
+		}
+
+		Result += "{ ";
+		FormatJsonKeyValueStr(Result, "name", Entry.Name, ", ");
+		FormatJsonKeyValueBool(Result, "is_directory", Entry.bDirectory, ", ");
+		FormatJsonKeyValueUInt(Result, "mtime", Entry.Mtime, ", ");
+		FormatJsonKeyValueUInt(Result, "size", Entry.Size);
+		Result += "}";
+
+		++EntryIndex;
+	}
+
+	Result += "\n]}\n";
+
+	return Result;
 }
 
 TResult<ProxyQuery::FDirectoryListing>
@@ -1236,7 +1276,7 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthD
 
 		std::unique_ptr<FHttpConnection> HttpConnection = HttpPool->Acquire();
 
-		TResult<ProxyQuery::FHelloResponse> Response = ProxyQuery::Hello(*HttpConnection, AuthDesc);
+		TResult<ProxyQuery::FHelloResponse> Response = ProxyQuery::Hello(RemoteDesc.Protocol, *HttpConnection, AuthDesc);
 
 		HttpPool->Release(std::move(HttpConnection));
 

@@ -168,9 +168,9 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 int32
 CmdQueryList(const FCmdQueryOptions& Options)
 {
-	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	FHttpConnection						Connection	  = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(Options.Remote.Protocol, Connection);
 
-	TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(Connection);
 	if (HelloResponse.IsError())
 	{
 		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
@@ -193,33 +193,17 @@ CmdQueryList(const FCmdQueryOptions& Options)
 		return -1;
 	}
 
+	TResult<ProxyQuery::FDirectoryListing> ListingResult = ProxyQuery::ListDirectory(Connection, &AuthDesc, Options.Args[0]);
 
-	std::string Url = fmt::format("/api/v1/list?{}", Options.Args[0]);
-
-	FHttpRequest Request;
-	Request.Url			   = Url;
-	Request.Method		   = EHttpMethod::GET;
-	Request.BearerToken	   = AuthToken->Access;
-	FHttpResponse Response = HttpRequest(Connection, Request);
-
-	if (!Response.Success())
+	if (ListingResult.IsError())
 	{
-		LogError(HttpError(Response.Code));
+		LogError(ListingResult.GetError());
 		return -1;
 	}
 
-	Response.Buffer.PushBack(0);
+	std::string ListingJson = ListingResult->ToJson();
 
-	std::string	 JsonErrorString;
-	json11::Json JsonObject = json11::Json::parse((const char*)Response.Buffer.Data(), JsonErrorString);
-
-	if (!JsonErrorString.empty())
-	{
-		LogError(AppError(fmt::format("JSON error: {}", JsonErrorString.c_str())));
-		return -1;
-	}
-
-	LogPrintf(ELogLevel::MachineReadable, L"%hs\n", Response.Buffer.Data());
+	LogPrintf(ELogLevel::MachineReadable, L"%hs\n", ListingJson.c_str());
 
 	return 0;
 }
@@ -243,30 +227,22 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 
 	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);
 
-	std::string BearerToken;
-
+	TResult<ProxyQuery::FHelloResponse> HelloResponse = [&ConnectionPool, &Options]
 	{
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
-		TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(*Connection);
+		TResult<ProxyQuery::FHelloResponse> Result = ProxyQuery::Hello(Options.Remote.Protocol, *Connection);
 		ConnectionPool.Release(std::move(Connection));
-		if (HelloResponse.IsError())
-		{
-			UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
-			LogError(HelloResponse.GetError());
-			return -1;
-		}
+		return Result;
+	}();
 
-		FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
-
-		TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
-		if (!AuthToken.IsOk())
-		{
-			LogError(AuthToken.GetError());
-			return -1;
-		}
-
-		BearerToken = std::move(AuthToken->Access);
+	if (HelloResponse.IsError())
+	{
+		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
+		LogError(HelloResponse.GetError());
+		return -1;
 	}
+
+	FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
 
 	const std::string& RootPath = Options.Args[0];
 	std::vector<std::regex> SubdirPatterns;
@@ -319,37 +295,21 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	Context.ParentThreadIndent	 = GLogIndent;
 
 	std::function<void(std::string, int32)> ExploreDirectory =
-		[&Context, &BearerToken, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks](std::string Path, int32 CurrentDepth)
+		[&Context, &AuthDesc, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks](std::string Path, int32 CurrentDepth)
 	{
 		FLogVerbosityScope VerboseScope(Context.bParentThreadVerbose);
 		FLogIndentScope	   IndentScope(Context.ParentThreadIndent, true);
 
 		UNSYNC_VERBOSE2(L"Listing '%hs'", Path.c_str());
 
-		std::string Url = fmt::format("/api/v1/list?{}", Path);
-
-		FHttpRequest Request;
-		Request.Url			= Url;
-		Request.Method		= EHttpMethod::GET;
-		Request.BearerToken = BearerToken;
-
 		GScheduler->NetworkSemaphore.Acquire(false);
-
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
-		FHttpResponse					 Response	= HttpRequest(*Connection, Request);
-		ConnectionPool.Release(std::move(Connection));
 
+		TResult<FDirectoryListing> DirectoryListingResult = ProxyQuery::ListDirectory(*Connection, &AuthDesc, Path);
+
+		ConnectionPool.Release(std::move(Connection));
 		GScheduler->NetworkSemaphore.Release();
 
-		if (!Response.Success())
-		{
-			LogError(HttpError(Response.Code));
-			return;
-		}
-
-		Response.Buffer.PushBack(0);
-
-		TResult<FDirectoryListing> DirectoryListingResult = FDirectoryListing::FromJson((const char*)Response.Buffer.Data());
 		if (DirectoryListingResult.IsError())
 		{
 			LogError(DirectoryListingResult.GetError());
@@ -429,8 +389,8 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 	}
 
 	// TODO: use a global connection pool and use it for ProxyQuery::DownloadFile too
-	FHttpConnection HelloConnection = FHttpConnection::CreateDefaultHttps(Options.Remote);
-	TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(HelloConnection);
+	FHttpConnection						HelloConnection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	TResult<ProxyQuery::FHelloResponse> HelloResponse	= ProxyQuery::Hello(Options.Remote.Protocol, HelloConnection);
 	if (HelloResponse.IsError())
 	{
 		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
