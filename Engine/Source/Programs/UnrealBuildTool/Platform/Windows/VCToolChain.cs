@@ -954,9 +954,9 @@ namespace UnrealBuildTool
 				}
 			}
 
-			if (CompileEnvironment.bEnableUndefinedIdentifierWarnings && !CompileEnvironment.bPreprocessOnly)
+			if (CompileEnvironment.UndefinedIdentifierWarningLevel != WarningLevel.Off && !CompileEnvironment.bPreprocessOnly)
 			{
-				if (CompileEnvironment.bUndefinedIdentifierWarningsAsErrors)
+				if (CompileEnvironment.UndefinedIdentifierWarningLevel == WarningLevel.Error)
 				{
 					Arguments.Add("/we4668");
 				}

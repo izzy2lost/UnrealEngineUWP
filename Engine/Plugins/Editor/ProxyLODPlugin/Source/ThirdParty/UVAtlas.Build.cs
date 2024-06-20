@@ -15,7 +15,7 @@ public class UVAtlas : ModuleRules
         Type = ModuleType.External;
 
         // For boost:: and TBB:: code
-        bEnableUndefinedIdentifierWarnings = false;
+        UndefinedIdentifierWarningLevel = WarningLevel.Off;
         bUseRTTI = true;
 
         // For testing during developement 

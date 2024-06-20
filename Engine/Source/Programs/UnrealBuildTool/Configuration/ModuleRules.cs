@@ -951,8 +951,21 @@ namespace UnrealBuildTool
 		private WarningLevel UnsafeTypeCastWarningLevelPrivate;
 
 		/// <summary>
+		/// Indicates what warning/error level to treat undefined identifiers in conditional expressions.
+		/// </summary>
+		public WarningLevel UndefinedIdentifierWarningLevel
+		{
+			get => (_undefinedIdentifierWarningLevelPrivate == WarningLevel.Default) ? Target.UndefinedIdentifierWarningLevel : _undefinedIdentifierWarningLevelPrivate;
+			set => _undefinedIdentifierWarningLevelPrivate = value;
+		}
+
+		/// <inheritdoc cref="UndefinedIdentifierWarningLevel"/>
+		private WarningLevel _undefinedIdentifierWarningLevelPrivate;
+
+		/// <summary>
 		/// Enable warnings for using undefined identifiers in #if expressions
 		/// </summary>
+		[Obsolete("Deprecated in UE5.5 - Replace with ModuleRules.UndefinedIdentifierWarningLevel")]
 		public bool bEnableUndefinedIdentifierWarnings { get; set; } = true;
 
 		/// <summary>

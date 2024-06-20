@@ -357,7 +357,10 @@ namespace UnrealBuildTool
 		public WarningLevel ShadowVariableWarningLevel => Inner.ShadowVariableWarningLevel;
 
 		public WarningLevel UnsafeTypeCastWarningLevel => Inner.UnsafeTypeCastWarningLevel;
+		
+		public WarningLevel UndefinedIdentifierWarningLevel => Inner.UndefinedIdentifierWarningLevel;
 
+		[Obsolete("Deprecated in UE5.5 - Replace with ModuleRules.UndefinedIdentifierWarningLevel")]
 		public bool bUndefinedIdentifierErrors => Inner.bUndefinedIdentifierErrors;
 
 		public WarningLevel PCHPerformanceIssueWarningLevel => Inner.PCHPerformanceIssueWarningLevel;

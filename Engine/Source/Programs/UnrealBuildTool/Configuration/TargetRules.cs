@@ -1800,9 +1800,17 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Forces the use of undefined identifiers in conditional expressions to be treated as errors.
 		/// </summary>
-		[XmlConfigFile(Category = "BuildConfiguration")]
-		[RequiresUniqueBuildEnvironment]
+		[XmlConfigFile(Category = "BuildConfiguration", Deprecated = true)]
+		[Obsolete("Deprecated in UE5.5 - Replace with TargetRules.UndefinedIdentifierWarningLevel")]
 		public bool bUndefinedIdentifierErrors { get; set; } = true;
+
+		/// <summary>
+		/// Indicates what warning/error level to treat undefined identifiers in conditional expressions.
+		/// </summary>
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		[CommandLine("-UndefinedIdentifierWarningLevel=")]
+		[RequiresUniqueBuildEnvironment]
+		public WarningLevel UndefinedIdentifierWarningLevel { get; set; } = WarningLevel.Error;
 
 		/// <summary>
 		/// Indicates what warning/error level to treat potential PCH performance issues.

@@ -351,14 +351,9 @@ namespace UnrealBuildTool
 		public WarningLevel UnsafeTypeCastWarningLevel = WarningLevel.Off;
 
 		/// <summary>
-		/// Whether to warn about the use of undefined identifiers in #if expressions
+		/// Indicates what warning/error level to treat undefined identifiers in conditional expressions.
 		/// </summary>
-		public bool bEnableUndefinedIdentifierWarnings = true;
-
-		/// <summary>
-		/// Whether to treat undefined identifier warnings as errors.
-		/// </summary>
-		public bool bUndefinedIdentifierWarningsAsErrors = false;
+		public WarningLevel UndefinedIdentifierWarningLevel = WarningLevel.Off;
 
 		/// <summary>
 		/// Whether to treat all warnings as errors
@@ -763,8 +758,7 @@ namespace UnrealBuildTool
 			DeprecationWarningLevel = Other.DeprecationWarningLevel;
 			ShadowVariableWarningLevel = Other.ShadowVariableWarningLevel;
 			UnsafeTypeCastWarningLevel = Other.UnsafeTypeCastWarningLevel;
-			bUndefinedIdentifierWarningsAsErrors = Other.bUndefinedIdentifierWarningsAsErrors;
-			bEnableUndefinedIdentifierWarnings = Other.bEnableUndefinedIdentifierWarnings;
+			UndefinedIdentifierWarningLevel = Other.UndefinedIdentifierWarningLevel;
 			bWarningsAsErrors = Other.bWarningsAsErrors;
 			bDisableStaticAnalysis = Other.bDisableStaticAnalysis;
 			StaticAnalyzerCheckers = new HashSet<string>(Other.StaticAnalyzerCheckers);

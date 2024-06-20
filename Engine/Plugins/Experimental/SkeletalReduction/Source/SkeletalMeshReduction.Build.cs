@@ -9,7 +9,7 @@ namespace UnrealBuildTool.Rules
 
 
             // For boost:: and TBB:: code
-            //bEnableUndefinedIdentifierWarnings = false;
+            //UndefinedIdentifierWarningLevel = WarningLevel.Off;
             //bUseRTTI = true;
 			/*
             PublicIncludePaths.AddRange(

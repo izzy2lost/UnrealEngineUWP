@@ -122,9 +122,9 @@ namespace UnrealBuildTool
 			}
 
 			// https://clang.llvm.org/docs/DiagnosticsReference.html#wundef
-			if (CompileEnvironment.bEnableUndefinedIdentifierWarnings)
+			if (CompileEnvironment.UndefinedIdentifierWarningLevel != WarningLevel.Off)
 			{
-				Arguments.Add("-Wundef" + (CompileEnvironment.bUndefinedIdentifierWarningsAsErrors ? "" : " -Wno-error=undef"));
+				Arguments.Add("-Wundef" + (CompileEnvironment.UndefinedIdentifierWarningLevel == WarningLevel.Error ? "" : " -Wno-error=undef"));
 			}
 
 			// Note: This should be kept in sync with PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS in ClangPlatformCompilerPreSetup.h
