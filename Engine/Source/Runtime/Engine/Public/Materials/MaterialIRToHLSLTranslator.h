@@ -6,22 +6,23 @@
 
 #if WITH_EDITOR
 
-class FMaterialIRToHLSLTranslator
+//
+struct FMaterialIRToHLSLTranslation
 {
-public:
-	using FParametersMap = TMap<FString, FString>;
+	//
+	const FMaterialIRModule* Module;
 
-public:
-	FMaterialIRToHLSLTranslator();
-	void SetTarget(EShaderPlatform InShaderPlatform, const ITargetPlatform* InTargetPlatform, ERHIFeatureLevel::Type InFeatureLevel);
-	bool Translate(const FMaterial& InMaterial, const FStaticParameterSet& StaticParameters, const FMaterialIRModule& InModule, FParametersMap& OutParameters, FShaderCompilerEnvironment& OutEnvironment);
-
-private:
-	EShaderPlatform ShaderPlatform{};
-	const ITargetPlatform* TargetPlatform{};
-	ERHIFeatureLevel::Type FeatureLevel{};
-
-	struct FPrivate;
+	//
+	const FMaterial* Material;
+	
+	//
+	const FStaticParameterSet* StaticParameters;
+	
+	//
+	const ITargetPlatform* TargetPlatform;
+	
+	//
+	void Run(TMap<FString, FString>& OutParameters, FShaderCompilerEnvironment& OutEnvironment);
 };
 
 #endif // #if WITH_EDITOR

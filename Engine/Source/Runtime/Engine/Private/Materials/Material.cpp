@@ -2081,24 +2081,14 @@ void UMaterial::UpdateCachedExpressionData()
 
 	FMaterialCachedExpressionData* LocalCachedExpressionData = new FMaterialCachedExpressionData();
 	FMaterialCachedHLSLTree* LocalCachedTree = nullptr;
-	if (IsUsingNewHLSLGenerator())
+	if (IsUsingNewHLSLGenerator() && !IsUsingNewMaterialTranslatorPrototype())
 	{
 		// Relinks function call inputs. Otherwise, we can get invalid inputs and they will cause errors when generating the syntax tree
 		UpdateTransientExpressionData();
 
-		if (IsUsingNewMaterialTranslatorPrototype())
-		{
-			FMaterialIRModuleBuilder Builder;
-			Builder.Build(this, &IRModule);
-
-			LocalCachedExpressionData->AnalyzeMaterial(*this); // Temporary
-		}
-		else
-		{
-			LocalCachedTree = new FMaterialCachedHLSLTree();
-			LocalCachedTree->GenerateTree(this, nullptr, nullptr);
-			LocalCachedExpressionData->UpdateForCachedHLSLTree(*LocalCachedTree, nullptr, this);
-		}
+		LocalCachedTree = new FMaterialCachedHLSLTree();
+		LocalCachedTree->GenerateTree(this, nullptr, nullptr);
+		LocalCachedExpressionData->UpdateForCachedHLSLTree(*LocalCachedTree, nullptr, this);
 	}
 	else
 	{

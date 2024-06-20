@@ -20,6 +20,7 @@ enum EValueKind
 
 	VK_SetMaterialOutput = VK_InstructionBegin,
 	VK_BinaryOperator,
+	VK_Branch,
 
 	VK_InstructionEnd,
 };
@@ -32,13 +33,14 @@ struct FValue
 	FTypePtr  Type{};
 
 	bool IsA(EValueKind InKind) const { return Kind == InKind; }
-	FInstructionPtr AsInstruction() const;
-	bool Equals(FValuePtr Other) const;
+	FInstruction* AsInstruction();
+	const FInstruction* AsInstruction() const;
+	bool Equals(const FValue* Other) const;
 	uint32 GetSizeInBytes() const;
+	TArrayView<FValue*> GetUses();
 
 	template <typename T>
 	const T* As() const { return this && IsA(T::TypeKind) ? static_cast<const T*>(this) : nullptr; }
-
 };
 
 template <EValueKind TTypeKind>
@@ -59,22 +61,41 @@ struct FScalarConstant : TValue<VK_ScalarConstant>
 
 struct FDimensional : TValue<VK_Dimensional>
 {
-	TArrayView<const FValuePtr> GetComponents() const;
-	TArrayView<FValuePtr> GetMutableComponents();
-	uint32 GetSizeInBytes() const;
+	TArrayView<FValue* const> GetComponents() const;
+	TArrayView<FValue*> GetMutableComponents();
 };
 
 template <int TDimension>
 struct TDimensional : FDimensional
 {
-	FValuePtr Components[TDimension];
+	FValue* Components[TDimension];
 };
 
 /* Instructions */
 
+enum EInstructionFlags
+{
+	IF_None = 0,
+	IF_Counted = 1,
+};
+
 struct FInstruction : FValue
 {
+	EInstructionFlags Flags = IF_None;
 	FInstruction* Next{};
+	FBlock* Block{};
+	uint32 NumUsers{};
+	uint32 NumProcessedUsers{};
+
+	void SetFlags(EInstructionFlags InFlags) { Flags = (EInstructionFlags)(Flags | InFlags); }
+	bool GetInnerBlock(int32 Index, FValue*& OutArg, FBlock*& OutBlock); 
+};
+
+struct FBlock
+{
+	FBlock* Parent{};
+	FInstruction* Instructions{};
+	int32 Level{};
 };
 
 template <EValueKind TTypeKind>
@@ -86,7 +107,7 @@ struct TInstruction : FInstruction
 struct FSetMaterialOutput : TInstruction<VK_SetMaterialOutput>
 {
 	EMaterialProperty Property;
-	FValuePtr ArgValue;
+	FValue* Arg;
 };
 
 enum EBinaryOperator
@@ -96,13 +117,25 @@ enum EBinaryOperator
 	BO_Subtract,
 	BO_Multiply,
 	BO_Divide,
+	BO_Greater,
+	BO_Lower,
+	BO_Equals,
 };
 
 struct FBinaryOperator : TInstruction<VK_BinaryOperator>
 {
 	EBinaryOperator Operator = BO_Invalid;
-	FValuePtr Lhs{};
-	FValuePtr Rhs{};
+	FValue* LhsArg{};
+	FValue* RhsArg{};
+};
+
+struct FBranch : TInstruction<VK_Branch>
+{
+	FValue* ConditionArg{};
+	FValue* TrueArg{};
+	FValue* FalseArg{};
+	FBlock TrueBlock{};
+	FBlock FalseBlock{};
 };
 
 } // namespace UE::MIR

@@ -3395,55 +3395,65 @@ bool FMaterial::Translate_Legacy(const FMaterialShaderMapId& ShaderMapId,
 
 bool FMaterial::Translate_New(const FMaterialShaderMapId& InShaderMapId,
 	const FStaticParameterSet& InStaticParameters,
-	EShaderPlatform InPlatform,
+	EShaderPlatform InShaderPlatform,
 	const ITargetPlatform* InTargetPlatform,
 	FMaterialCompilationOutput& OutCompilationOutput,
 	TRefCountPtr<FSharedShaderCompilerEnvironment>& OutMaterialEnvironment)
 {
-	if (IsUsingNewMaterialTranslatorPrototype())
+	if (!IsUsingNewMaterialTranslatorPrototype())
 	{
-		const FMaterialIRModule& Module = this->GetMaterialInterface()->GetIRModule();
-
-		if (!Module.GetErrors().IsEmpty())
-		{
-			// TODO: This could be moved elsewhere, when the Module is built.
-			for (const FMaterialIRModule::FError& Error : Module.GetErrors())
-			{
-				ErrorExpressions.Push(Error.Expression);
-				CompileErrors.Push(Error.Message);
-			}
-			return false;
-		}
-	
-		// Copy over the compilation output
-		OutCompilationOutput = Module.GetCompilationOutput();
-		OutMaterialEnvironment = new FSharedShaderCompilerEnvironment();
-
-		// Translate the material IR module to HLSL template string parameters and material environment
-		FMaterialIRToHLSLTranslator::FParametersMap ShaderStringParameters;
-		FMaterialIRToHLSLTranslator Translator;
-		if (!Translator.Translate(*this, InStaticParameters, Module, ShaderStringParameters, *OutMaterialEnvironment))
-		{
-			return false;
-		}
-
-		// Interpolate HLSL parameters with the material shader template to produce the final shader source
-		int32 LineNumber;
-		FStringTemplateResolver Resolver = FMaterialSourceTemplate::Get().BeginResolve(InPlatform, &LineNumber);
-		ShaderStringParameters.Add({TEXT("line_number"), FString::Printf(TEXT("%u"), LineNumber)});
-		Resolver.SetParameterMap(&ShaderStringParameters);
-
-		// Interpolate the final material shader source string
-		FString MaterialShaderCode = Resolver.Finalize();
-		OutMaterialEnvironment->IncludeVirtualPathToContentsMap.Add(TEXT("/Engine/Generated/Material.ush"), MoveTemp(MaterialShaderCode));
-
-		return true;
-	}
-	else
-	{
-		const FMaterialCompileTargetParameters TargetParams(InPlatform, InShaderMapId.FeatureLevel, InTargetPlatform);
+		const FMaterialCompileTargetParameters TargetParams(InShaderPlatform, InShaderMapId.FeatureLevel, InTargetPlatform);
 		return MaterialEmitHLSL(TargetParams, InStaticParameters, *this, OutCompilationOutput, OutMaterialEnvironment);
 	}
+
+	FMaterialIRModule Module;
+
+	FMaterialIRTargetParams TargetParams{
+		.ShaderPlatform = InShaderPlatform,
+		.TargetPlatform = InTargetPlatform,
+		.StaticParameters = InStaticParameters,
+	};
+
+	// Build the material
+	FMaterialIRModuleBuilder Builder;
+	if (!Builder.Build(GetMaterialInterface()->GetMaterial(), TargetParams, &Module))
+	{
+		for (const FMaterialIRModule::FError& Error : Module.GetErrors())
+		{
+			ErrorExpressions.Push(Error.Expression);
+			CompileErrors.Push(Error.Message);
+		}
+
+		return false;
+	}
+	
+	// Copy over the compilation output
+	OutCompilationOutput = Module.GetCompilationOutput();
+	OutMaterialEnvironment = new FSharedShaderCompilerEnvironment();
+
+	// Translate the material IR module to HLSL template string parameters and material environment
+	TMap<FString, FString> ShaderStringParameters;
+
+	FMaterialIRToHLSLTranslation Translation{
+		.Module = &Module,
+		.Material = this,
+		.StaticParameters = &InStaticParameters,
+		.TargetPlatform = InTargetPlatform,
+	};
+
+	Translation.Run(ShaderStringParameters, *OutMaterialEnvironment);
+
+	// Interpolate HLSL parameters with the material shader template to produce the final shader source
+	int32 LineNumber;
+	FStringTemplateResolver Resolver = FMaterialSourceTemplate::Get().BeginResolve(InShaderPlatform, &LineNumber);
+	ShaderStringParameters.Add({TEXT("line_number"), FString::Printf(TEXT("%u"), LineNumber)});
+	Resolver.SetParameterMap(&ShaderStringParameters);
+
+	// Interpolate the final material shader source string
+	FString MaterialShaderCode = Resolver.Finalize();
+	OutMaterialEnvironment->IncludeVirtualPathToContentsMap.Add(TEXT("/Engine/Generated/Material.ush"), MoveTemp(MaterialShaderCode));
+
+	return true;
 }
 
 bool FMaterial::Translate(const FMaterialShaderMapId& InShaderMapId,

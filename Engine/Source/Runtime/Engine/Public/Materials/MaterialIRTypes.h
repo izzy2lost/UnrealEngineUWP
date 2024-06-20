@@ -15,17 +15,20 @@ enum ETypeKind
 	TK_Arithmetic
 };
 
+const TCHAR* TypeKindToString(ETypeKind Kind);
+
 struct FType
 {
-	ETypeKind Kind;
+	ETypeKind 	Kind;
 
 	static FTypePtr FromShaderType(const UE::Shader::FType& InShaderType);
 	static FTypePtr GetVoid();
 
-	FArithmeticTypePtr ToArithmetic() const;
-	FArithmeticTypePtr ToScalar() const;
-	FArithmeticTypePtr ToVector() const;
-	FArithmeticTypePtr ToMatrix() const;
+	FStringView GetSpelling() const;
+	FArithmeticTypePtr AsArithmetic() const;
+	FArithmeticTypePtr AsScalar() const;
+	FArithmeticTypePtr AsVector() const;
+	FArithmeticTypePtr AsMatrix() const;
 };
 
 enum EScalarKind
@@ -37,13 +40,18 @@ const TCHAR* ScalarKindToString(EScalarKind Kind);
 
 struct FArithmeticType : FType
 {
+	FStringView Spelling;
 	EScalarKind ScalarKind;
 	int NumRows;
 	int NumColumns;
 
-	static const FArithmeticType* GetScalar(EScalarKind InScalarKind);
-	static const FArithmeticType* GetVector(EScalarKind InScalarKind, int NumRows);
-	static const FArithmeticType* GetMatrix(EScalarKind InScalarKind, int NumColumns, int NumRows);
+	static FArithmeticTypePtr GetBool();
+	static FArithmeticTypePtr GetInt();
+	static FArithmeticTypePtr GetFloat();
+	static FArithmeticTypePtr GetScalar(EScalarKind InScalarKind);
+	static FArithmeticTypePtr GetVector(EScalarKind InScalarKind, int NumRows);
+	static FArithmeticTypePtr GetMatrix(EScalarKind InScalarKind, int NumColumns, int NumRows);
+	static FArithmeticTypePtr Get(EScalarKind InScalarKind, int NumRows, int NumColumns);
 
 	bool IsScalar() const { return NumRows == 1 && NumColumns == 1; }
 	bool IsVector() const { return NumRows > 1 && NumColumns == 1; }

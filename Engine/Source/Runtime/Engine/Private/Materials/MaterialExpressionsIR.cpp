@@ -260,25 +260,25 @@ void UMaterialExpression::Build(IR::FEmitter& Emitter)
 
 void UMaterialExpressionConstant::Build(IR::FEmitter& Emitter)
 {
-	IR::FValuePtr Value = Emitter.EmitConstantFloat1(R);
+	IR::FValue* Value = Emitter.EmitConstantFloat1(R);
 	Emitter.Put(GetOutput(0), Value);
 }
 
 void UMaterialExpressionConstant2Vector::Build(IR::FEmitter& Emitter)
 {
-	IR::FValuePtr Value = Emitter.EmitConstantFloat2({ R, G });
+	IR::FValue* Value = Emitter.EmitConstantFloat2({ R, G });
 	Emitter.Put(GetOutput(0), Value);
 }
 
 void UMaterialExpressionConstant3Vector::Build(IR::FEmitter& Emitter)
 {
-	IR::FValuePtr Value = Emitter.EmitConstantFloat3({ Constant.R, Constant.G, Constant.B });
+	IR::FValue* Value = Emitter.EmitConstantFloat3({ Constant.R, Constant.G, Constant.B });
 	Emitter.Put(GetOutput(0), Value);
 }
 
 void UMaterialExpressionConstant4Vector::Build(IR::FEmitter& Emitter)
 {
-	IR::FValuePtr Value = Emitter.EmitConstantFloat4(Constant);
+	IR::FValue* Value = Emitter.EmitConstantFloat4(Constant);
 	Emitter.Put(GetOutput(0), Value);
 }
 
@@ -293,37 +293,33 @@ static void BuildBinaryArithmeticOperator(
 	float RhsConst,
 	FExpressionOutput* Output)
 {
-	// Get values flowing into inputs and check that they're arithmetic.
-	IR::FValuePtr LhsValue = Emitter.GetAndCheckInputTypeKindIs(LhsInput, IR::TK_Arithmetic);
-	IR::FValuePtr RhsValue = Emitter.GetAndCheckInputTypeKindIs(RhsInput, IR::TK_Arithmetic);
-	if (Emitter.IsInvalid()) { return; }
+	// Default inputs to their relative constants if disconnected, then get each input after checking it has arithmetic type.
+	IR::FValue* LhsValue = Emitter.DefaultTo(LhsInput, LhsConst).TryGetArithmetic(LhsInput);
+	IR::FValue* RhsValue = Emitter.DefaultTo(RhsInput, RhsConst).TryGetArithmetic(RhsInput);
+
+	if (Emitter.IsInvalid())
+	{
+		return;
+	}
 
 	// Determine operation input/output type by looking at the first connected input and picking float1 otherwise.
 	IR::FTypePtr ResultType = LhsValue ? LhsValue->Type
 		: RhsValue ? RhsValue->Type
 		: IR::FArithmeticType::GetScalar(IR::SK_Float);
 
-	// If lhs operand is disconnected, create a value for its constant property instead.
-	if (!LhsValue)
-	{
-		LhsValue = Emitter.EmitConstantFloat1(LhsConst);
-	}
-
-	// If rhs operand is disconnected, create a value for its constant property instead.
-	if (!RhsValue)
-	{
-		RhsValue = Emitter.EmitConstantFloat1(RhsConst);
-	}
-
 	// Convert operand values to determined result type. 
 	LhsValue = Emitter.TryEmitConvert(LhsValue, ResultType);
 	RhsValue = Emitter.TryEmitConvert(RhsValue, ResultType);
-	if (Emitter.IsInvalid()) { return; }
+
+	if (Emitter.IsInvalid())
+	{
+		return;
+	}
 
 	// Finally emit the binary operator.
-	IR::FValuePtr Value = Emitter.EmitBinaryOperator(Op, LhsValue, RhsValue);
+	IR::FValue* Value = Emitter.EmitBinaryOperator(Op, LhsValue, RhsValue);
 
-	// And flow it out from our only output.
+	// And flow it out of the expression's only output.
 	Emitter.Put(Output, Value);
 }
 
@@ -345,6 +341,69 @@ void UMaterialExpressionMultiply::Build(IR::FEmitter& Emitter)
 void UMaterialExpressionDivide::Build(IR::FEmitter& Emitter)
 { 
 	BuildBinaryArithmeticOperator(Emitter, IR::BO_Divide, &A, ConstA, &B, ConstB, GetOutput(0));
+}
+
+void UMaterialExpressionIf::Build(IR::FEmitter& Emitter)
+{
+	// Create default values flowing into disconnected inputs
+	Emitter.DefaultToFloatZero(&A);
+	Emitter.DefaultTo(&B, ConstB);
+	Emitter.DefaultToFloatZero(&AGreaterThanB);
+	Emitter.DefaultToFloatZero(&AEqualsB);
+	Emitter.DefaultToFloatZero(&ALessThanB);
+
+	// Get input values and check their types are what we expect.
+	IR::FValue* AValue = Emitter.TryGetScalar(&A);
+	IR::FValue* BValue = Emitter.TryGetScalar(&B);
+	IR::FValue* AGreaterThanBValue = Emitter.TryGetArithmetic(&AGreaterThanB);
+	IR::FValue* AEqualsBValue = Emitter.TryGetArithmetic(&AEqualsB);
+	IR::FValue* ALessThanBValue = Emitter.TryGetArithmetic(&ALessThanB);
+
+	if (Emitter.IsInvalid())
+	{
+		return;
+	}
+
+	// Get the arithmetic common type between the conditional arguments (e.g. if inputs are int and float, it will return float).
+	IR::FArithmeticTypePtr ConditionArgsType = Emitter.TryGetCommonArithmeticType(AValue->Type->AsArithmetic(), BValue->Type->AsArithmetic());
+
+	if (Emitter.IsInvalid())
+	{
+		return;
+	}
+
+	// Convert both conditional argument values to the common type. This is expected to work as the common type could be found.
+	AValue = Emitter.TryEmitConvert(AValue, ConditionArgsType);
+	BValue = Emitter.TryEmitConvert(BValue, ConditionArgsType);
+
+	// Now determine the output type by taking the common arithmetic type between result values.
+	IR::FArithmeticTypePtr OutputType = Emitter.TryGetCommonArithmeticType(AGreaterThanBValue->Type->AsArithmetic(), AEqualsBValue->Type->AsArithmetic());
+	OutputType = Emitter.TryGetCommonArithmeticType(OutputType, ALessThanBValue->Type->AsArithmetic());
+
+	if (Emitter.IsInvalid())
+	{
+		return;
+	}
+
+	// Convert result values to the common result type.
+	AGreaterThanBValue = Emitter.TryEmitConvert(AGreaterThanBValue, OutputType);
+	AEqualsBValue = Emitter.TryEmitConvert(AEqualsBValue, OutputType);
+	ALessThanBValue = Emitter.TryEmitConvert(ALessThanBValue, OutputType);
+
+	if (Emitter.IsInvalid())
+	{
+		return;
+	}
+
+	// Emit the comparison expressions.
+	IR::FValue* ALessThanBConditionValue = Emitter.EmitBinaryOperator(IR::BO_Lower, AValue, BValue);
+	IR::FValue* AEqualsBConditionValue = Emitter.EmitBinaryOperator(IR::BO_Equals, AValue, BValue);
+
+	// And finally emit the full conditional expression.
+	IR::FValue* OutputValue = Emitter.EmitBranch(AEqualsBConditionValue, AEqualsBValue, AGreaterThanBValue);
+	OutputValue = Emitter.EmitBranch(ALessThanBConditionValue, ALessThanBValue, OutputValue);
+
+	Emitter.Put(GetOutput(0), OutputValue);
 }
 
 #endif // WITH_EDITOR

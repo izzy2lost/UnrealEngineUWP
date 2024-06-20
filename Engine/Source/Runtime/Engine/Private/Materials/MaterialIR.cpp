@@ -8,12 +8,17 @@
 namespace UE::MIR
 {
 
-FInstructionPtr FValue::AsInstruction() const
+FInstruction* FValue::AsInstruction()
 {
-	return (Kind >= VK_InstructionBegin && Kind < VK_InstructionEnd) ? static_cast<FInstructionPtr>(this) : nullptr;
+	return (Kind >= VK_InstructionBegin && Kind < VK_InstructionEnd) ? static_cast<FInstruction*>(this) : nullptr;
 }
 
-bool FValue::Equals(FValuePtr Other) const
+const FInstruction* FValue::AsInstruction() const
+{
+	return const_cast<FValue*>(this)->AsInstruction();
+}
+
+bool FValue::Equals(const FValue* Other) const
 {
 	// If kinds are different the two values are surely different.
 	if (Kind != Other->Kind)
@@ -34,26 +39,95 @@ uint32 FValue::GetSizeInBytes() const
 	switch (Kind)
 	{
 		case VK_ScalarConstant: return sizeof(FScalarConstant);
-		case VK_SetMaterialOutput: return sizeof(FScalarConstant);
+		case VK_SetMaterialOutput: return sizeof(FSetMaterialOutput);
 		case VK_BinaryOperator: return sizeof(FBinaryOperator);
-		case VK_Dimensional: return sizeof(FDimensional) + sizeof(FValuePtr) * static_cast<const FDimensional*>(this)->GetComponents().Num();
+		case VK_Dimensional: return sizeof(FDimensional) + sizeof(FValue*) * static_cast<const FDimensional*>(this)->GetComponents().Num();
+		case VK_Branch: return sizeof(FBranch);
 		default: UE_MIR_UNREACHABLE();
 	}
 }
 
-TArrayView<const FValuePtr> FDimensional::GetComponents() const
+TArrayView<FValue*> FValue::GetUses()
 {
-	TArrayView<FValuePtr> Components = const_cast<FDimensional*>(this)->GetMutableComponents();
+	switch (Kind)
+	{
+		case VK_ScalarConstant:
+		case VK_Dimensional:
+			return {};
+
+		case VK_SetMaterialOutput:
+		{
+			auto This = static_cast<FSetMaterialOutput*>(this);
+			return { &This->Arg, 1 };
+		}
+
+		case VK_BinaryOperator:
+		{
+			auto This = static_cast<FBinaryOperator*>(this);
+			return { &This->LhsArg, 2 };
+		}
+
+		case VK_Branch:
+		{
+			auto This = static_cast<FBranch*>(this);
+			return { &This->ConditionArg, 3 };
+		}
+
+		default: UE_MIR_UNREACHABLE();
+	}
+}
+
+TArrayView<FValue* const> FDimensional::GetComponents() const
+{
+	TArrayView<FValue*> Components = const_cast<FDimensional*>(this)->GetMutableComponents();
 	return { Components.GetData(), Components.Num() };
 }
 
-TArrayView<FValuePtr> FDimensional::GetMutableComponents()
+TArrayView<FValue*> FDimensional::GetMutableComponents()
 {
-	FArithmeticTypePtr ArithmeticType = Type->ToArithmetic();
+	FArithmeticTypePtr ArithmeticType = Type->AsArithmetic();
 	check(ArithmeticType);
 
-	FValuePtr* Ptr = (FValuePtr*)static_cast<TDimensional<1>*>(this)->Components;
+	FValue** Ptr = (FValue**)static_cast<TDimensional<1>*>(this)->Components;
 	return { Ptr, ArithmeticType->NumRows };
+}
+
+bool FInstruction::GetInnerBlock(int32 Index, FValue*& OutArg, FBlock*& OutBlock)
+{
+	switch (Kind)
+	{
+		case VK_Branch:
+		{
+			auto This = static_cast<FBranch*>(this);
+			if (Index == 0)
+			{
+				OutArg = This->TrueArg;
+				OutBlock = &This->TrueBlock;
+				return true;
+			}
+			else if (Index == 1)
+			{
+				OutArg = This->FalseArg;
+				OutBlock = &This->FalseBlock;
+				return true;
+			}
+			break;
+		}
+
+		default:
+		{
+			TArrayView<FValue*> Uses = GetUses();
+			if (Uses.IsValidIndex(Index))
+			{
+				OutArg = Uses[Index];
+				OutBlock = Block;
+				return true;
+			}
+			break;
+		}
+	}
+
+	return false;
 }
 
 } // namespace UE::MIR

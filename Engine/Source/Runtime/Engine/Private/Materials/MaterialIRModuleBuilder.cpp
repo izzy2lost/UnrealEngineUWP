@@ -9,22 +9,30 @@
 #include "Materials/MaterialIRTypes.h"
 #include "Materials/MaterialIREmitter.h"
 #include "MaterialIRUtility.h"
-
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Materials/Material.h"
 #include "MaterialExpressionIO.h"
 #include "MaterialShared.h"
 #include "Materials/MaterialExpression.h"
+#include "Async/ParallelFor.h"
 
 namespace IR = UE::MIR;
 
 struct FMaterialIRModuleBuilder::FPrivate
 {
-	static void Build_GenerateOutputInstructions(FMaterialIRModuleBuilder& Builder, UE::MIR::FEmitter& Emitter)
+	FMaterialIRModuleBuilder& Builder;
+	UMaterial& Material;
+	FMaterialIRTargetParams Params;
+	FMaterialIRModule& Module;
+	IR::FEmitter& Emitter;
+	TArray<UMaterialExpression*> ExpressionAnalysisStack;
+	TArray<IR::FInstruction*> InstructionStack;
+
+	void Build_GenerateOutputInstructions()
 	{
 		// Prepare the array of FSetMaterialOutputInstr outputs from the material attributes inputs.
 		FMaterialInputDescription Input;
-		for (int32 Index = 0; UE::Utility::NextMaterialAttributeInput(Builder.BaseMaterial, Index, Input); ++Index)
+		for (int32 Index = 0; UE::Utility::NextMaterialAttributeInput(&Material, Index, Input); ++Index)
 		{
 			EMaterialProperty Property = (EMaterialProperty)Index;
 
@@ -32,31 +40,31 @@ struct FMaterialIRModuleBuilder::FPrivate
 
 			if (Input.bUseConstant)
 			{
-				Output->ArgValue = Emitter.EmitConstantFromShaderValue(Input.ConstantValue);
+				Output->Arg = Emitter.EmitConstantFromShaderValue(Input.ConstantValue);
 			}
 			else if (!Input.Input->IsConnected())
 			{
-				Output->ArgValue = UE::Utility::CreateMaterialAttributeDefaultValue(Emitter, Builder.BaseMaterial, Property);
+				Output->Arg = UE::Utility::CreateMaterialAttributeDefaultValue(Emitter, &Material, Property);
 			}
 			else
 			{
-				Builder.ExpressionAnalysisStack.Add(Input.Input->Expression);
+				ExpressionAnalysisStack.Add(Input.Input->Expression);
 			}
 		}
 	}
 
-	static void Build_AnalyzeExpressionGraph(FMaterialIRModuleBuilder& Builder, UE::MIR::FEmitter & Emitter)
+	void Build_AnalyzeExpressionGraph()
 	{
 		TSet<UMaterialExpression*> BuiltExpressions;
 
-		while (!Builder.ExpressionAnalysisStack.IsEmpty())
+		while (!ExpressionAnalysisStack.IsEmpty())
 		{
-			Emitter.Expression = Builder.ExpressionAnalysisStack.Last();
+			Emitter.Expression = ExpressionAnalysisStack.Last();
 
 			// If expression is clean, nothing to be done.
 			if (BuiltExpressions.Contains(Emitter.Expression))
 			{
-				Builder.ExpressionAnalysisStack.Pop(EAllowShrinking::No);
+				ExpressionAnalysisStack.Pop(EAllowShrinking::No);
 				continue;
 			}
 
@@ -69,16 +77,16 @@ struct FMaterialIRModuleBuilder::FPrivate
 					continue;
 				}
 
-				Builder.ExpressionAnalysisStack.Push(It->Expression);
+				ExpressionAnalysisStack.Push(It->Expression);
 			}
 
 			// If on top of the stack there's a different expression, we have a dependency to analyze first.
-			if (Builder.ExpressionAnalysisStack.Last() != Emitter.Expression) {
+			if (ExpressionAnalysisStack.Last() != Emitter.Expression) {
 				continue;
 			}
 
 			// 
-			Builder.ExpressionAnalysisStack.Pop();
+			ExpressionAnalysisStack.Pop();
 			BuiltExpressions.Add(Emitter.Expression);
 
 			//
@@ -87,7 +95,7 @@ struct FMaterialIRModuleBuilder::FPrivate
 				if (FExpressionOutput* ConnectedOutput = It->GetConnectedOutput())
 				{
 					// Fetch the value flowing through connected output.
-					IR::FValuePtr* ValuePtr = Builder.OutputValues.Find(ConnectedOutput);
+					IR::FValue** ValuePtr = Builder.OutputValues.Find(ConnectedOutput);
 					check(ValuePtr && TEXT("Output value not found."));
 
 					// Set the value flowing into this input.
@@ -104,35 +112,150 @@ struct FMaterialIRModuleBuilder::FPrivate
 		}
 	}
 
-	static void Build_LinkMaterialOutputsToIncomingValues(FMaterialIRModuleBuilder& Builder, UE::MIR::FEmitter& Emitter)
+	void Build_LinkMaterialOutputsToIncomingValues()
 	{
 		FMaterialInputDescription Input;
-		for (IR::FSetMaterialOutput* Output : Builder.Module->Outputs)
+		for (IR::FSetMaterialOutput* Output : Module.Outputs)
 		{
-			if (Output->ArgValue || !ensure(Builder.BaseMaterial->GetExpressionInputDescription(Output->Property, Input))) {
+			if (Output->Arg || !ensure(Material.GetExpressionInputDescription(Output->Property, Input))) {
 				continue;
 			}
 
-			IR::FValuePtr* ValuePtr = Builder.OutputValues.Find(Input.Input->Expression->GetOutput(0));
+			IR::FValue** ValuePtr = Builder.OutputValues.Find(Input.Input->Expression->GetOutput(0));
 			check(ValuePtr);
 
-			Output->ArgValue = *ValuePtr;
+			Output->Arg = *ValuePtr;
 		}
 	}
+
+	void Build_FinalizeValueGraph()
+	{
+		InstructionStack.Reserve(64);
+
+		for (IR::FSetMaterialOutput* Output : Module.Outputs)
+		{
+			InstructionStack.Push(Output);
+		}
+
+		while (!InstructionStack.IsEmpty())
+		{
+			IR::FValue* Instr = InstructionStack.Pop();
+			for (IR::FValue* UseValue : Instr->GetUses())
+			{
+				IR::FInstruction* Use = UseValue->AsInstruction();
+				if (!Use)
+				{
+					continue;
+				}
+
+				Use->NumUsers += 1;
+
+				if (!(Use->Flags & IR::IF_Counted))
+				{
+					Use->SetFlags(IR::IF_Counted);
+					InstructionStack.Push(Use);
+				}
+			}
+		}
+	}
+
+	void Build_PopulateBlock()
+	{
+		// This function walks the instruction graph and puts each instruction into the inner most possible block.
+		InstructionStack.Empty(InstructionStack.Max());
+
+		for (IR::FSetMaterialOutput* Output : Module.Outputs)
+		{
+			Output->Block = Module.RootBlock;
+			InstructionStack.Add(Output);
+		}
+
+		while (!InstructionStack.IsEmpty()) {
+			IR::FInstruction* Instr = InstructionStack.Pop();
+
+			// Push the instruction in its block
+			Instr->Next = Instr->Block->Instructions;
+			Instr->Block->Instructions = Instr;
+
+			IR::FValue* UseValue;
+			IR::FBlock* InnerBlock;
+			for (int32 i = 0; Instr->GetInnerBlock(i, UseValue, InnerBlock); ++i)
+			{
+				IR::FInstruction* Use = UseValue->AsInstruction();
+				if (!Use)
+				{
+					continue;
+				}
+
+				// Update dependency's block to be a child of current instruction's block.
+				if (InnerBlock != Instr->Block)
+				{
+					InnerBlock->Parent = Instr->Block;
+					InnerBlock->Level = Instr->Block->Level + 1;
+				}
+
+				// Set the dependency's block to the common block betwen its current block and this one.
+				Use->Block = Use->Block
+					? FindCommonParentBlock(Use->Block, InnerBlock)
+					: InnerBlock;
+
+				// Increase the number of times this dependency instruction has been considered.
+				// When all of its users have processed, we can carry on visiting this instruction.
+				++Use->NumProcessedUsers;
+				check(Use->NumProcessedUsers <= Use->NumUsers);
+
+				// If all dependants have been processed, we can carry the processing from this dependency.
+				if (Use->NumProcessedUsers == Use->NumUsers)
+				{
+					InstructionStack.Push(Use);
+				}
+			}
+		}
+	}
+	
+    static IR::FBlock* FindCommonParentBlock(IR::FBlock* A, IR::FBlock* B)
+    {
+        if (A == B) {
+            return A;
+        }
+
+        while (A->Level > B->Level) {
+            A = A->Parent;
+        }
+
+        while (B->Level > A->Level) {
+            B = B->Parent;
+        }
+
+        while (A != B) {
+            A = A->Parent;
+            B = B->Parent;
+        }
+
+        return A;
+    }
 };
 
-bool FMaterialIRModuleBuilder::Build(UMaterial* InMaterial, FMaterialIRModule* TargetModule)
+bool FMaterialIRModuleBuilder::Build(UMaterial* InMaterial, const FMaterialIRTargetParams& TargetParams, FMaterialIRModule* TargetModule)
 {
-	BaseMaterial = InMaterial;
+	TargetModule->Empty();
+	TargetModule->ShaderPlatform = TargetParams.ShaderPlatform;
 
-	Module = TargetModule;
-	Module->Empty();
+	IR::FEmitter Emitter{ this, InMaterial, TargetModule };
 
-	IR::FEmitter Emitter{ this, BaseMaterial, Module };
+	FPrivate Private{ *this, *InMaterial, TargetParams, *TargetModule, Emitter };
 
-	FPrivate::Build_GenerateOutputInstructions(*this, Emitter);
-	FPrivate::Build_AnalyzeExpressionGraph(*this, Emitter);
-	FPrivate::Build_LinkMaterialOutputsToIncomingValues(*this, Emitter);
+	Private.Build_GenerateOutputInstructions();
+	Private.Build_AnalyzeExpressionGraph();
+
+	if (Private.Emitter.IsInvalid())
+	{
+		return false;
+	}
+
+	Private.Build_LinkMaterialOutputsToIncomingValues();
+	Private.Build_FinalizeValueGraph();
+	Private.Build_PopulateBlock();
 
 	return true;
 }

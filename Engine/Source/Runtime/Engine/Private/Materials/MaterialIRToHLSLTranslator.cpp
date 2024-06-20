@@ -19,10 +19,18 @@
 
 namespace IR = UE::MIR;
 
+enum ENoOp { NoOp };
+enum ENewLine { NewLine };
+enum EEndOfStatement { EndOfStatement };
+enum EOpenBrace { OpenBrace };
+enum ECloseBrace { CloseBrace };
+enum EIndentation { Indentation };
+
 struct FHLSLPrinter
 {
-	FString& Buffer;
+	FString Buffer;
 	bool bFirstListItem = false;
+	int32 Tabs = 0;
 
 	template <int N, typename... Types>
 	void Printf(const TCHAR (&Format)[N], Types... Args)
@@ -32,27 +40,77 @@ struct FHLSLPrinter
 
 	FHLSLPrinter& operator<<(const TCHAR* Text)
 	{
- 		Buffer.Append(Text);
+		Buffer.Append(Text);
+		return *this;
+	}
+	
+	FHLSLPrinter& operator<<(const FString& Text)
+	{
+		Buffer.Append(Text);
 		return *this;
 	}
 
 	FHLSLPrinter& operator<<(int32 Value)
 	{
- 		Buffer.Appendf(TEXT("%d"), Value);
+		Buffer.Appendf(TEXT("%d"), Value);
 		return *this;
 	}
 
 	FHLSLPrinter& operator<<(uint32 Value)
 	{
- 		Buffer.Appendf(TEXT("%u"), Value);
+		Buffer.Appendf(TEXT("%u"), Value);
 		return *this;
 	}
 
 	FHLSLPrinter& operator<<(float Value)
 	{
- 		Buffer.Appendf(TEXT("%.5ff"), Value);
+		Buffer.Appendf(TEXT("%.5ff"), Value);
 		return *this;
 	}
+
+    FHLSLPrinter& operator<<(ENoOp)
+	{
+		return *this;
+	}
+
+    FHLSLPrinter& operator<<(ENewLine)
+    {
+		Buffer.AppendChar('\n');
+		operator<<(Indentation);
+        return *this;
+    }
+
+	FHLSLPrinter& operator<<(EIndentation)
+	{
+		for (int i = 0; i < Tabs; ++i)
+		{
+			Buffer.AppendChar('\t');
+		}
+		return *this;
+	}
+
+	FHLSLPrinter& operator<<(EEndOfStatement)
+	{
+		Buffer.AppendChar(';');
+        *this << NewLine;
+        return *this;
+	}
+
+    FHLSLPrinter& operator<<(EOpenBrace)
+    {
+        Buffer.Append("{");
+        ++Tabs;
+        *this << NewLine;
+        return *this;
+    }
+
+    FHLSLPrinter& operator<<(ECloseBrace)
+    {
+        --Tabs;
+        Buffer.LeftChopInline(1); // undo tab
+        Buffer.AppendChar('}');
+        return *this;
+    }
 
 	void BeginList()
 	{
@@ -120,25 +178,35 @@ static const TCHAR* GetShadingModelParameterName(EMaterialShadingModel InModel)
 	}
 }
 
-struct FMaterialIRToHLSLTranslator::FPrivate
+static bool IsFoldable(const IR::FInstruction* Instr)
 {
-	FMaterialIRToHLSLTranslator* Translator;
-
-	void GenerateHLSL(const FMaterial& InMaterial,
-					  const FMaterialIRModule& InModule,
-					  FParametersMap& InParams)
+	if (auto Branch = Instr->As<IR::FBranch>())
 	{
-		FString PixelAttributes;
-		FString EvaluateOtherMaterialAttributesHLSL;
-		FHLSLPrinter Printer{ EvaluateOtherMaterialAttributesHLSL };
+		return !Branch->TrueBlock.Instructions && !Branch->FalseBlock.Instructions;
+	}
 
-		for (const IR::FSetMaterialOutput* Output : InModule.GetOutputs())
-		{
-			LowerValue(Printer, Output);
-		}
+	return true;
+}
 
-		EvaluateOtherMaterialAttributesHLSL.Append(TEXT("\tPixelMaterialInputs.FrontMaterial = GetInitialisedSubstrateData();\n"));
-		EvaluateOtherMaterialAttributesHLSL.Append(TEXT("\tPixelMaterialInputs.Subsurface = 0;\n"));
+struct FTranslator : FMaterialIRToHLSLTranslation
+{
+	int32 NumLocals{};
+	TMap<const IR::FInstruction*, FString> LocalToIdentifier;
+	FHLSLPrinter Printer;
+	FString PixelAttributesHLSL;
+	FString EvaluateOtherMaterialAttributesHLSL;
+
+	void GenerateHLSL()
+	{
+		Printer.Tabs = 1;
+		Printer << Indentation;
+
+		LowerBlock(Module->GetRootBlock());
+
+		Printer << TEXT("PixelMaterialInputs.FrontMaterial = GetInitialisedSubstrateData()") << EndOfStatement;
+		Printer << TEXT("PixelMaterialInputs.Subsurface = 0") << EndOfStatement;
+
+		EvaluateOtherMaterialAttributesHLSL = MoveTemp(Printer.Buffer);
 
 		for (int32 PropertyIndex = 0; PropertyIndex < MP_MAX; ++PropertyIndex)
 		{
@@ -155,67 +223,254 @@ struct FMaterialIRToHLSLTranslator::FPrivate
 			EMaterialValueType Type = (Property == MP_SubsurfaceColor) ? MCT_Float4 : FMaterialAttributeDefinitionMap::GetValueType(Property);
 			check(PropertyName.Len() > 0);
 
-			PixelAttributes.Appendf(TEXT("\t%s %s;\n"), GetHLSLTypeString(Type), *PropertyName);
+			PixelAttributesHLSL.Appendf(TEXT("\t%s %s;\n"), GetHLSLTypeString(Type), *PropertyName);
 		}
+	}
 	
-		InParams.Add(TEXT("pixel_material_inputs"), MoveTemp(PixelAttributes));
+	ENoOp LowerBlock(const IR::FBlock& Block)
+	{
+		int OldNumLocals = NumLocals;
+        for (IR::FInstruction* Instr = Block.Instructions; Instr; Instr = Instr->Next)
+		{
+            if (Instr->NumUsers == 1 && IsFoldable(Instr))
+			{
+                continue;
+            }
+            
+			if (Instr->NumUsers >= 1)
+			{
+                FString LocalStr = FString::Printf(TEXT("l%d"), NumLocals);
+                ++NumLocals;
 
-		InParams.Add(TEXT("calc_pixel_material_inputs_normal"), TEXT("\tPixelMaterialInputs.Normal = MaterialFloat3(0.00000000, 0.00000000, 1.00000000);"));
-		InParams.Add(TEXT("calc_pixel_material_inputs_other_inputs"), EvaluateOtherMaterialAttributesHLSL);
+                Printer << InlineType(Instr->Type) << TEXT(" ") << LocalStr;
 
-		InParams.Add(TEXT("calc_pixel_material_inputs_analytic_derivatives_normal"), TEXT("\tPixelMaterialInputs.Normal = MaterialFloat3(0.00000000, 0.00000000, 1.00000000);"));
-		InParams.Add(TEXT("calc_pixel_material_inputs_analytic_derivatives_other_inputs"), MoveTemp(EvaluateOtherMaterialAttributesHLSL));
-	
-		InParams.Add(TEXT("material_declarations"), TEXT("struct FMaterialAttributes {};"));
-	
+                LocalToIdentifier.Add(Instr, MoveTemp(LocalStr));
+                if (IsFoldable(Instr))
+				{
+                    Printer << TEXT(" = ";)
+                }
+            }
+
+			LowerInstruction(Instr);
+
+            if (Printer.Buffer.EndsWith(TEXT("}")))
+			{
+                Printer << NewLine;
+            }
+            else
+			{
+                Printer << EndOfStatement;
+            }
+        }
+
+        NumLocals = OldNumLocals;
+
+		return NoOp;
+	}
+
+	ENoOp LowerInstruction(const IR::FInstruction* Instr)
+	{
+		switch (Instr->Kind)
+		{
+			case IR::VK_SetMaterialOutput:
+			{
+				auto Output = static_cast<const IR::FSetMaterialOutput*>(Instr);
+
+				// Special case MP_SubsurfaceColor as the actual property is a combination of the color and the profile but we don't want to expose the profile
+				const FString& PropertyName = (Output->Property == MP_SubsurfaceColor) ? "Subsurface" : FMaterialAttributeDefinitionMap::GetAttributeName(Output->Property);
+
+				Printer << TEXT("PixelMaterialInputs.") << PropertyName << TEXT(" = ") << InlineValue(Output->Arg);
+
+				break;
+			}
+
+			case IR::VK_BinaryOperator:
+			{
+				auto BinaryOperator = static_cast<const IR::FBinaryOperator*>(Instr);
+
+				InlineValue(BinaryOperator->LhsArg);
+
+				const TCHAR* OpString;
+				switch (BinaryOperator->Operator)
+				{
+					case IR::BO_Add: OpString = TEXT(" + "); break;
+					case IR::BO_Subtract: OpString = TEXT(" - "); break;
+					case IR::BO_Multiply: OpString = TEXT(" * "); break;
+					case IR::BO_Divide: OpString = TEXT(" / "); break;
+					case IR::BO_Greater: OpString = TEXT(" > "); break;
+					case IR::BO_Lower: OpString = TEXT(" < "); break;
+					case IR::BO_Equals: OpString = TEXT(" == "); break;
+					default: UE_MIR_UNREACHABLE();
+				}
+				Printer << OpString;
+
+				InlineValue(BinaryOperator->RhsArg);
+
+				break;
+			}
+
+			case IR::VK_Branch:
+			{
+				auto Branch = static_cast<const IR::FBranch*>(Instr);
+
+				if (IsFoldable(Branch))
+				{
+					Printer << InlineValue(Branch->ConditionArg)
+					<< TEXT(" ? ") << InlineValue(Branch->TrueArg)
+					<< TEXT(" : ") << InlineValue(Branch->FalseArg);
+				}
+				else
+				{
+					Printer << EndOfStatement;
+					Printer << TEXT("if (") << InlineValue(Branch->ConditionArg) << TEXT(")") << NewLine << OpenBrace;
+					Printer << LowerBlock(Branch->TrueBlock);
+					Printer << LocalToIdentifier[Instr] << " = " << InlineValue(Branch->TrueArg) << EndOfStatement;
+					Printer << CloseBrace << NewLine;
+					Printer << TEXT("else") << NewLine << OpenBrace;
+					Printer << LowerBlock(Branch->FalseBlock);
+					Printer << LocalToIdentifier[Instr] << " = " << InlineValue(Branch->FalseArg) << EndOfStatement;
+					Printer << CloseBrace;
+				}
+				break;
+			}
+
+			default:
+				UE_MIR_UNREACHABLE();
+		}
+
+		return NoOp;
+	}
+
+	ENoOp InlineValue(const IR::FValue* InValue)
+	{
+		if (const IR::FInstruction* Instr = InValue->AsInstruction())
+		{
+			if (Instr->NumUsers <= 1 && IsFoldable(Instr))
+			{
+                LowerInstruction(Instr);
+            }
+            else
+			{
+                Printer << LocalToIdentifier[Instr];
+            }
+		}
+		else if (const IR::FScalarConstant* Scalar = InValue->As<IR::FScalarConstant>())
+		{
+			IR::FArithmeticTypePtr ArithType = Scalar->Type->AsArithmetic();
+			check(ArithType && ArithType->IsScalar());
+
+			switch (ArithType->ScalarKind)
+			{
+				case IR::SK_Bool: Printer << Scalar->Boolean; break;
+				case IR::SK_Int: Printer << Scalar->Integer; break;
+				case IR::SK_Float: Printer << Scalar->Float; break;
+			}
+		}
+		else if (const IR::FDimensional* Vector = InValue->As<IR::FDimensional>())
+		{
+			IR::FArithmeticTypePtr ArithType = Vector->Type->AsArithmetic();
+			check(ArithType && ArithType->IsVector());
+
+			Printer << ScalarKindToString(ArithType->ScalarKind) << ArithType->NumRows << TEXT("(");
+
+			Printer.BeginList();
+			for (IR::FValue* Component : Vector->GetComponents())
+			{
+				Printer.PrintListSeparator();
+				InlineValue(Component);
+			}
+
+			Printer << TEXT(")");
+		}
+		else
+		{
+			UE_MIR_UNREACHABLE();
+		}
+
+		return NoOp;
+	}
+
+	ENoOp InlineType(const IR::FType* Type)
+	{
+		if (auto ArithmeticType = Type->AsArithmetic())
+		{
+			switch (ArithmeticType->ScalarKind)
+			{
+				case IR::SK_Bool:	Printer << TEXT("bool"); break;
+				case IR::SK_Int: 	Printer << TEXT("int"); break;
+				case IR::SK_Float:	Printer << TEXT("float"); break;
+			}
+
+			if (ArithmeticType->NumRows > 1)
+			{
+				Printer << ArithmeticType->NumRows;
+			}
+			
+			if (ArithmeticType->NumColumns > 1)
+			{
+				Printer << TEXT("x") << ArithmeticType->NumColumns;
+			}
+		}
+		else
+		{
+			UE_MIR_UNREACHABLE();
+		}
+
+		return NoOp;
+	}
+
+	void SetMaterialParameters(TMap<FString, FString>& Params)
+	{
 		auto SetParamInt = [&] (const TCHAR* InParamName, int InValue)
 		{
-			InParams.Add(InParamName, FString::Printf(TEXT("%d"), InValue));
+			Params.Add(InParamName, FString::Printf(TEXT("%d"), InValue));
+		};
+		
+		auto SetParamReturnFloat = [&] (const TCHAR* InParamName, float InValue)
+		{
+			Params.Add(InParamName, FString::Printf(TEXT("\treturn %.5f"), InValue));
 		};
 
+		Params.Add(TEXT("pixel_material_inputs"), MoveTemp(PixelAttributesHLSL));
+		Params.Add(TEXT("calc_pixel_material_inputs_initial_calculations"), EvaluateOtherMaterialAttributesHLSL);
+		Params.Add(TEXT("calc_pixel_material_inputs_analytic_derivatives_initial"), MoveTemp(EvaluateOtherMaterialAttributesHLSL));
+		Params.Add(TEXT("material_declarations"), TEXT("struct FMaterialAttributes {};"));
 		SetParamInt(TEXT("num_material_texcoords_vertex"), 0);
 		SetParamInt(TEXT("num_material_texcoords"), 0);
 		SetParamInt(TEXT("num_custom_vertex_interpolators"), 0);
 		SetParamInt(TEXT("num_tex_coord_interpolators"), 0);
-	}
-
-	void SetMaterialParameters(const FMaterial& InMaterial, FParametersMap& InParams)
-	{
-		auto SetParamReturnFloat = [&] (const TCHAR* InParamName, float InValue)
-		{
-			InParams.Add(InParamName, FString::Printf(TEXT("\treturn %.5f"), InValue));
-		};
 
 		SetParamReturnFloat(TEXT("get_material_emissive_for_cs"), 0.f);
-		SetParamReturnFloat(TEXT("get_material_translucency_directional_lighting_intensity"), InMaterial.GetTranslucencyDirectionalLightingIntensity());
-		SetParamReturnFloat(TEXT("get_material_translucent_shadow_density_scale"), InMaterial.GetTranslucentShadowDensityScale());
-		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_density_scale"), InMaterial.GetTranslucentSelfShadowDensityScale());
-		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_second_density_scale"), InMaterial.GetTranslucentSelfShadowSecondDensityScale());
-		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_second_opacity"), InMaterial.GetTranslucentSelfShadowSecondOpacity());
-		SetParamReturnFloat(TEXT("get_material_translucent_backscattering_exponent"), InMaterial.GetTranslucentBackscatteringExponent());
+		SetParamReturnFloat(TEXT("get_material_translucency_directional_lighting_intensity"), Material->GetTranslucencyDirectionalLightingIntensity());
+		SetParamReturnFloat(TEXT("get_material_translucent_shadow_density_scale"), Material->GetTranslucentShadowDensityScale());
+		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_density_scale"), Material->GetTranslucentSelfShadowDensityScale());
+		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_second_density_scale"), Material->GetTranslucentSelfShadowSecondDensityScale());
+		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_second_opacity"), Material->GetTranslucentSelfShadowSecondOpacity());
+		SetParamReturnFloat(TEXT("get_material_translucent_backscattering_exponent"), Material->GetTranslucentBackscatteringExponent());
 
-		FLinearColor Extinction = InMaterial.GetTranslucentMultipleScatteringExtinction();
-		InParams.Add(TEXT("get_material_translucent_multiple_scattering_extinction"), FString::Printf(TEXT("\treturn MaterialFloat3(%.5f, %.5f, %.5f)"), Extinction.R, Extinction.G, Extinction.B));
+		FLinearColor Extinction = Material->GetTranslucentMultipleScatteringExtinction();
+		Params.Add(TEXT("get_material_translucent_multiple_scattering_extinction"), FString::Printf(TEXT("\treturn MaterialFloat3(%.5f, %.5f, %.5f)"), Extinction.R, Extinction.G, Extinction.B));
 
-		SetParamReturnFloat(TEXT("get_material_opacity_mask_clip_value"), InMaterial.GetOpacityMaskClipValue());
-		InParams.Add(TEXT("get_material_world_position_offset_raw"), TEXT("\treturn 0; // todo"));
-		InParams.Add(TEXT("get_material_previous_world_position_offset_raw"), TEXT("\treturn 0; // todo"));
+		SetParamReturnFloat(TEXT("get_material_opacity_mask_clip_value"), Material->GetOpacityMaskClipValue());
+		Params.Add(TEXT("get_material_world_position_offset_raw"), TEXT("\treturn 0; // todo"));
+		Params.Add(TEXT("get_material_previous_world_position_offset_raw"), TEXT("\treturn 0; // todo"));
 	
 		// CustomData0/1 are named ClearCoat/ClearCoatRoughness
-		InParams.Add(TEXT("get_material_custom_data0"), TEXT("\treturn 1.0f; // todo"));
-		InParams.Add(TEXT("get_material_custom_data1"), TEXT("\treturn 0.1f; // todo"));
+		Params.Add(TEXT("get_material_custom_data0"), TEXT("\treturn 1.0f; // todo"));
+		Params.Add(TEXT("get_material_custom_data1"), TEXT("\treturn 0.1f; // todo"));
 
 		FString EvaluateMaterialDeclaration;
 		EvaluateMaterialDeclaration.Append(TEXT("void EvaluateVertexMaterialAttributes(in out FMaterialVertexParameters Parameters)\n{\n"));
 		EvaluateMaterialDeclaration.Append(TEXT("\n}\n"));
-		InParams.Add(TEXT("evaluate_material_attributes"), EvaluateMaterialDeclaration);
+		Params.Add(TEXT("evaluate_material_attributes"), EvaluateMaterialDeclaration);
 	}
 
-	void GetShaderCompilerEnvironment(const FMaterial& InMaterial, const FMaterialIRModule& InModule, FShaderCompilerEnvironment& OutEnvironment)
+	void GetShaderCompilerEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 	{
-		const FMaterialCompilationOutput& CompilationOutput = InModule.GetCompilationOutput();
+		const FMaterialCompilationOutput& CompilationOutput = Module->GetCompilationOutput();
+		EShaderPlatform ShaderPlatform = Module->GetShaderPlatform();
 
-		OutEnvironment.TargetPlatform = Translator->TargetPlatform;
+		OutEnvironment.TargetPlatform = TargetPlatform;
 		OutEnvironment.SetDefine(TEXT("ENABLE_NEW_HLSL_GENERATOR"), 1);
 		OutEnvironment.SetDefine(TEXT("MATERIAL_ATMOSPHERIC_FOG"), false);
 		OutEnvironment.SetDefine(TEXT("MATERIAL_SKY_ATMOSPHERE"), false);
@@ -229,26 +484,26 @@ struct FMaterialIRToHLSLTranslator::FPrivate
 		OutEnvironment.SetDefineAndCompileArgument(TEXT("USES_WORLD_POSITION_OFFSET"), (bool)CompilationOutput.bUsesWorldPositionOffset);
 		OutEnvironment.SetDefineAndCompileArgument(TEXT("USES_DISPLACEMENT"), false);
 		OutEnvironment.SetDefine(TEXT("USES_EMISSIVE_COLOR"), false);
-		OutEnvironment.SetDefine(TEXT("USES_DISTORTION"), InMaterial.IsDistorted());
-		OutEnvironment.SetDefine(TEXT("MATERIAL_ENABLE_TRANSLUCENCY_FOGGING"), InMaterial.ShouldApplyFogging());
-		OutEnvironment.SetDefine(TEXT("MATERIAL_ENABLE_TRANSLUCENCY_CLOUD_FOGGING"), InMaterial.ShouldApplyCloudFogging());
-		OutEnvironment.SetDefine(TEXT("MATERIAL_IS_SKY"), InMaterial.IsSky());
-		OutEnvironment.SetDefine(TEXT("MATERIAL_COMPUTE_FOG_PER_PIXEL"), InMaterial.ComputeFogPerPixel());
+		OutEnvironment.SetDefine(TEXT("USES_DISTORTION"), Material->IsDistorted());
+		OutEnvironment.SetDefine(TEXT("MATERIAL_ENABLE_TRANSLUCENCY_FOGGING"), Material->ShouldApplyFogging());
+		OutEnvironment.SetDefine(TEXT("MATERIAL_ENABLE_TRANSLUCENCY_CLOUD_FOGGING"), Material->ShouldApplyCloudFogging());
+		OutEnvironment.SetDefine(TEXT("MATERIAL_IS_SKY"), Material->IsSky());
+		OutEnvironment.SetDefine(TEXT("MATERIAL_COMPUTE_FOG_PER_PIXEL"), Material->ComputeFogPerPixel());
 		OutEnvironment.SetDefine(TEXT("MATERIAL_FULLY_ROUGH"), false);
 		OutEnvironment.SetDefine(TEXT("MATERIAL_USES_ANISOTROPY"), false);
-		OutEnvironment.SetDefine(TEXT("MATERIAL_NEURAL_POST_PROCESS"), (CompilationOutput.bUsedWithNeuralNetworks || InMaterial.IsUsedWithNeuralNetworks()) && InMaterial.IsPostProcessMaterial());
+		OutEnvironment.SetDefine(TEXT("MATERIAL_NEURAL_POST_PROCESS"), (CompilationOutput.bUsedWithNeuralNetworks || Material->IsUsedWithNeuralNetworks()) && Material->IsPostProcessMaterial());
 		OutEnvironment.SetDefine(TEXT("NUM_VIRTUALTEXTURE_SAMPLES"), 0);
 		OutEnvironment.SetDefine(TEXT("MATERIAL_VIRTUALTEXTURE_FEEDBACK"), false);
 		OutEnvironment.SetDefine(TEXT("IS_MATERIAL_SHADER"), true);
 
-		FMaterialShadingModelField ShadingModels = InMaterial.GetShadingModels();
+		FMaterialShadingModelField ShadingModels = Material->GetShadingModels();
 		ensure(ShadingModels.IsValid());
 
 		int32 NumActiveShadingModels = 0;
 		if (ShadingModels.IsLit())
 		{
 			// This is to have platforms use the simple single layer water shading similar to mobile: no dynamic lights, only sun and sky, no distortion, no colored transmittance on background, no custom depth read.
-			const bool bSingleLayerWaterUsesSimpleShading = FDataDrivenShaderPlatformInfo::GetWaterUsesSimpleForwardShading(Translator->ShaderPlatform) && IsForwardShadingEnabled(Translator->ShaderPlatform);
+			const bool bSingleLayerWaterUsesSimpleShading = FDataDrivenShaderPlatformInfo::GetWaterUsesSimpleForwardShading(ShaderPlatform) && IsForwardShadingEnabled(ShaderPlatform);
 
 			for (int i = 0; i < MSM_NUM; ++i)
 			{
@@ -258,7 +513,7 @@ struct FMaterialIRToHLSLTranslator::FPrivate
 					continue;
 				}
 
-				if (Model == MSM_SingleLayerWater && !FDataDrivenShaderPlatformInfo::GetRequiresDisableForwardLocalLights(Translator->ShaderPlatform))
+				if (Model == MSM_SingleLayerWater && !FDataDrivenShaderPlatformInfo::GetRequiresDisableForwardLocalLights(ShaderPlatform))
 				{
 					continue;
 				}
@@ -276,8 +531,8 @@ struct FMaterialIRToHLSLTranslator::FPrivate
 		else
 		{
 			// Unlit shading model can only exist by itself
-			OutEnvironment.SetDefine(TEXT("MATERIAL_SINGLE_SHADINGMODEL"), true);
 			OutEnvironment.SetDefine(GetShadingModelParameterName(MSM_Unlit), true);
+			NumActiveShadingModels += 1;
 		}
 
 		if (NumActiveShadingModels == 1)
@@ -295,10 +550,10 @@ struct FMaterialIRToHLSLTranslator::FPrivate
 		OutEnvironment.SetDefine(TEXT("WSVECTOR_IS_TILEOFFSET"), true);
 		OutEnvironment.SetDefine(TEXT("WSVECTOR_IS_DOUBLEFLOAT"), false);
 
-		if (InMaterial.GetMaterialDomain() == MD_Volume)
+		if (Material->GetMaterialDomain() == MD_Volume)
 		{
 			TArray<const UMaterialExpressionVolumetricAdvancedMaterialOutput*> VolumetricAdvancedExpressions;
-			InMaterial.GetMaterialInterface()->GetMaterial()->GetAllExpressionsOfType(VolumetricAdvancedExpressions);
+			Material->GetMaterialInterface()->GetMaterial()->GetAllExpressionsOfType(VolumetricAdvancedExpressions);
 			if (VolumetricAdvancedExpressions.Num() > 0)
 			{
 				if (VolumetricAdvancedExpressions.Num() > 1)
@@ -316,7 +571,7 @@ struct FMaterialIRToHLSLTranslator::FPrivate
 				OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED_CLAMP_MULTISCATTERING_CONTRIBUTION"), VolumetricAdvancedNode->bClampMultiScatteringContribution);
 				OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED_MULTISCATTERING_OCTAVE_COUNT"), VolumetricAdvancedNode->GetMultiScatteringApproximationOctaveCount());
 				OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED_CONSERVATIVE_DENSITY"), VolumetricAdvancedNode->ConservativeDensity.IsConnected());
-				OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED_OVERRIDE_AMBIENT_OCCLUSION"), InMaterial.HasAmbientOcclusionConnected());
+				OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED_OVERRIDE_AMBIENT_OCCLUSION"), Material->HasAmbientOcclusionConnected());
 				OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED_GROUND_CONTRIBUTION"), VolumetricAdvancedNode->bGroundContribution);
 			}
 		}
@@ -325,98 +580,16 @@ struct FMaterialIRToHLSLTranslator::FPrivate
 		OutEnvironment.SetDefine(TEXT("DUAL_SOURCE_COLOR_BLENDING_ENABLED"), false);
 		OutEnvironment.SetDefine(TEXT("TEXTURE_SAMPLE_DEBUG"), false);
 	}
-
-	void LowerValue( FHLSLPrinter& Printer, const IR::FValue* InValue)
-	{
-		if (const IR::FScalarConstant* Scalar = InValue->As<IR::FScalarConstant>())
-		{
-			IR::FArithmeticTypePtr ArithType = Scalar->Type->ToArithmetic();
-			check(ArithType && ArithType->IsScalar());
-
-			switch (ArithType->ScalarKind)
-			{
-				case IR::SK_Bool: Printer << Scalar->Boolean; break;
-				case IR::SK_Int: Printer << Scalar->Integer; break;
-				case IR::SK_Float: Printer << Scalar->Float; break;
-			}
-		}
-		else if (const IR::FDimensional* Vector = InValue->As<IR::FDimensional>())
-		{
-			IR::FArithmeticTypePtr ArithType = Vector->Type->ToArithmetic();
-			check(ArithType && ArithType->IsVector());
-
-			Printer << ScalarKindToString(ArithType->ScalarKind) << ArithType->NumRows << TEXT("(");
-
-			Printer.BeginList();
-			for (IR::FValuePtr Component : Vector->GetComponents())
-			{
-				Printer.PrintListSeparator();
-				LowerValue(Printer, Component);
-			}
-
-			Printer << TEXT(")");
-		}
-		else if (const IR::FSetMaterialOutput* Output = InValue->As<IR::FSetMaterialOutput>())
-		{
-			// Special case MP_SubsurfaceColor as the actual property is a combination of the color and the profile but we don't want to expose the profile
-			const FString& PropertyName = (Output->Property == MP_SubsurfaceColor) ? "Subsurface" : FMaterialAttributeDefinitionMap::GetAttributeName(Output->Property);
-
-			Printer.Printf(TEXT("\tPixelMaterialInputs.%s = "), *PropertyName);
-		
-			LowerValue(Printer, Output->ArgValue);
-
-			Printer << TEXT(";\n");
-		}
-		else if (const IR::FBinaryOperator* BinOp = InValue->As<IR::FBinaryOperator>())
-		{
-			LowerValue(Printer, BinOp->Lhs);
-
-			const TCHAR* OpString;
-			switch (BinOp->Operator)
-			{
-				case IR::BO_Add: OpString = TEXT(" + "); break;
-				case IR::BO_Subtract: OpString = TEXT(" - "); break;
-				case IR::BO_Multiply: OpString = TEXT(" * "); break;
-				case IR::BO_Divide: OpString = TEXT(" / "); break;
-				default: UE_MIR_UNREACHABLE();
-			}
-			Printer << OpString;
-
-			LowerValue(Printer, BinOp->Rhs);
-		}
-		else
-		{
-			UE_MIR_UNREACHABLE();
-		}
-	}
 };
 
-FMaterialIRToHLSLTranslator::FMaterialIRToHLSLTranslator()
+void FMaterialIRToHLSLTranslation::Run(TMap<FString, FString>& OutParameters, FShaderCompilerEnvironment& OutEnvironment)
 {
-}
+	OutParameters.Empty();
 
-void FMaterialIRToHLSLTranslator::SetTarget(EShaderPlatform InShaderPlatform, const ITargetPlatform* InTargetPlatform, ERHIFeatureLevel::Type InFeatureLevel)
-{
-	ShaderPlatform = InShaderPlatform;
-	TargetPlatform = InTargetPlatform;
-	FeatureLevel = InFeatureLevel;
-}
-
-bool FMaterialIRToHLSLTranslator::Translate(
-	const FMaterial& InMaterial,
-	const FStaticParameterSet& StaticParameters,
-	const FMaterialIRModule& InModule,
-	FParametersMap& OutParametersMap,
-	FShaderCompilerEnvironment& OutEnvironment)
-{
-	OutParametersMap.Empty();
-
-	FPrivate Private{ this };
-	Private.GenerateHLSL(InMaterial, InModule, OutParametersMap);
-	Private.SetMaterialParameters(InMaterial, OutParametersMap);
-	Private.GetShaderCompilerEnvironment(InMaterial, InModule, OutEnvironment);
-
-	return true;
+	FTranslator Translator{ *this };
+	Translator.GenerateHLSL();
+	Translator.SetMaterialParameters(OutParameters);
+	Translator.GetShaderCompilerEnvironment(OutEnvironment);
 }
 
 #endif // #if WITH_EDITOR

@@ -14,7 +14,7 @@ bool IsMaterialPropertyShared(EMaterialProperty InProperty);
 bool NextMaterialAttributeInput(UMaterial* BaseMaterial, int32& PropertyIndex, FMaterialInputDescription& Input);
 
 //
-UE::MIR::FValuePtr CreateMaterialAttributeDefaultValue(UE::MIR::FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property);
+UE::MIR::FValue* CreateMaterialAttributeDefaultValue(UE::MIR::FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property);
 
 } // namespace Utility
 

@@ -15,40 +15,79 @@ class FEmitter
 public:
 	FEmitter(FMaterialIRModuleBuilder* InBuilder, UMaterial* InMaterial, FMaterialIRModule* InModule);
 	
+	/* IO */
+
+	// Gets and returns the value flowing into specified `Input`. If disconnected,
+	// it returns nullptr. 
+	FValue* Get(const FExpressionInput* Input);
+
+	// Flows specified `Value` out of specified expression `Output`.
+	void 	Put(const FExpressionOutput* Output, FValue* Value);
+
+	/* IO Helpers */
+
+	//
+	FEmitter& DefaultToFloatZero(const FExpressionInput* Input);
+
+	//
+	FEmitter& DefaultTo(const FExpressionInput* Input, float Float);
+
+	// It gets the value flowing into it and checks that its type is float scalar.
+	FValue* TryGetFloat(const FExpressionInput* Input);
+
+	//
+	FValue* TryGetScalar(const FExpressionInput* Input);
+
+	//
+	FValue* TryGetArithmetic(const FExpressionInput* Input);
+
+	// Gets the value flowing into `Input` and returns it after checking that its
+	// type matches `Kind`.
+	FValue* TryGetOfType(const FExpressionInput* Input, ETypeKind Kind);
+
 	/* Analysis */
-	FValuePtr GetAndCheckInputTypeKindIs(const FExpressionInput* Input, ETypeKind Kind);
-	bool CheckInputTypeIs(const FExpressionInput* Input, FValuePtr InputValue, ETypeKind Kind);
+
+	//
+	void CheckInputIsScalar(const FExpressionInput* Input, FValue* InputValue);
+
+	//
+	void CheckInputIsScalar(const FExpressionInput* Input, FValue* InputValue, EScalarKind Kind);
+
+	// Checks that the type of the value `InputValue` flowing into `Input` is of
+	// specified type `Kind. If it isn't it reports an error. You may check whether
+	// an error occurred with `IsInvalid()`.
+	void CheckInputTypeIs(const FExpressionInput* Input, FValue* InputValue, ETypeKind Kind);
 
 	/* Constants */
 
-	FValuePtr EmitConstantFromShaderValue(const UE::Shader::FValue& InValue);
-	FValuePtr EmitConstantScalarZero(EScalarKind Kind);
-	FValuePtr EmitConstantFloat1(float InX);
-	FValuePtr EmitConstantFloat2(const FVector2f& InValue);
-	FValuePtr EmitConstantFloat3(const FVector3f& InValue);
-	FValuePtr EmitConstantFloat4(const FVector4f& InValue);
-	FValuePtr EmitConstantInt1(int InX);
-	FValuePtr EmitConstantInt2(const FIntVector2& InValue);
-	FValuePtr EmitConstantInt3(const FIntVector3& InValue);
-	FValuePtr EmitConstantInt4(const FIntVector4& InValue);
-	FValuePtr EmitVector2(FValuePtr InX, FValuePtr InY);
-	FValuePtr EmitVector3(FValuePtr InX, FValuePtr InY, FValuePtr InZ);
-	FValuePtr EmitVector4(FValuePtr InX, FValuePtr InY, FValuePtr InZ, FValuePtr InW);
+	FValue* EmitConstantFromShaderValue(const UE::Shader::FValue& InValue);
+	FValue* EmitConstantScalarZero(EScalarKind Kind);
+	FValue* EmitConstantFloat1(float InX);
+	FValue* EmitConstantFloat2(const FVector2f& InValue);
+	FValue* EmitConstantFloat3(const FVector3f& InValue);
+	FValue* EmitConstantFloat4(const FVector4f& InValue);
+	FValue* EmitConstantInt1(int InX);
+	FValue* EmitConstantInt2(const FIntVector2& InValue);
+	FValue* EmitConstantInt3(const FIntVector3& InValue);
+	FValue* EmitConstantInt4(const FIntVector4& InValue);
+	FValue* EmitVector2(FValue* InX, FValue* InY);
+	FValue* EmitVector3(FValue* InX, FValue* InY, FValue* InZ);
+	FValue* EmitVector4(FValue* InX, FValue* InY, FValue* InZ, FValue* InW);
 
 	/* Other Values */
 
-	FValuePtr EmitArithmetic(FArithmeticTypePtr Type, FValuePtr Scalar);
+	FValue* EmitArithmetic(FArithmeticTypePtr Type, FValue* Scalar);
 
 	/* Instructions */
 
 	FSetMaterialOutput* EmitSetMaterialOutput(EMaterialProperty InProperty, FValue* InArgValue);
-	FValuePtr EmitBinaryOperator(EBinaryOperator Operator, FValuePtr Lhs, FValuePtr Rhs);
-	FValuePtr TryEmitConvert(FValuePtr Value, FTypePtr TargetType);
+	FValue* EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FValue* Rhs);
+	FValue* EmitBranch(FValue* Condition, FValue* True, FValue* False);
+	FValue* TryEmitConvert(FValue* Value, FTypePtr TargetType);
 
-	/* IO */
+	/* Types */
 
-	FValuePtr Get(const FExpressionInput* Input);
-	void Put(const FExpressionOutput* Output, FValuePtr Value);
+	FArithmeticTypePtr TryGetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B);
 
 	/* Error reporting */
 	bool IsInvalid() const { return bHasExprBuildError; }
@@ -66,9 +105,7 @@ private:
 	FMaterialIRModule* Module{};
 	UMaterialExpression* Expression{};
 	FMaterialIRModuleBuilder* Builder{};
-	FValuePtr ZeroIntValue{};
-	FValuePtr ZeroFloatValue{};
-	bool bHasExprBuildError = true;
+	bool bHasExprBuildError = false;
 
 	struct FPrivate;
 	friend FMaterialIRModuleBuilder;

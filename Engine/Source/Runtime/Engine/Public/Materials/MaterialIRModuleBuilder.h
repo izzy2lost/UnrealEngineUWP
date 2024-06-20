@@ -5,18 +5,22 @@
 
 #if WITH_EDITOR
 
+struct FMaterialIRTargetParams
+{
+	EShaderPlatform ShaderPlatform;
+	const ITargetPlatform* TargetPlatform;
+	const FStaticParameterSet& StaticParameters;
+};
+
 //
 class FMaterialIRModuleBuilder
 {
 public:
-	bool Build(UMaterial* InMaterial, FMaterialIRModule* TargetModule);
+	bool Build(UMaterial* InMaterial, const FMaterialIRTargetParams& TargetParams, FMaterialIRModule* TargetModule);
 
 private:
-	UMaterial* BaseMaterial;
-	FMaterialIRModule* Module;
-	TArray<UMaterialExpression*> ExpressionAnalysisStack;
-	TMap<const FExpressionInput*, UE::MIR::FValuePtr> InputValues;
-	TMap<const FExpressionOutput*, UE::MIR::FValuePtr> OutputValues;
+	TMap<const FExpressionInput*, UE::MIR::FValue*> InputValues;
+	TMap<const FExpressionOutput*, UE::MIR::FValue*> OutputValues;
 
 	friend class UE::MIR::FEmitter;
 	struct FPrivate;

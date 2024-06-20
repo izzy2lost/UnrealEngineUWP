@@ -49,6 +49,7 @@ using FInstructionPtr = const FInstruction*;
 
 /* Others */
 class FEmitter;
+struct FBlock;
 
 }
 

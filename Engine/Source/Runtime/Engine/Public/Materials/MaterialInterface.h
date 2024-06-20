@@ -434,7 +434,6 @@ public:
 
 #if WITH_EDITOR
 	ENGINE_API virtual const FMaterialCachedHLSLTree& GetCachedHLSLTree(TMicRecursionGuard RecursionGuard = TMicRecursionGuard()) const;
-	ENGINE_API const FMaterialIRModule& GetIRModule() const { return IRModule; }
 #endif
 
 	ENGINE_API bool IsUsingNewHLSLGenerator() const;
@@ -1198,7 +1197,6 @@ protected:
 
 #if WITH_EDITOR
 	TUniquePtr<FMaterialCachedHLSLTree> CachedHLSLTree;
-	FMaterialIRModule IRModule;
 #endif // WITH_EDITOR
 private:
 	/**

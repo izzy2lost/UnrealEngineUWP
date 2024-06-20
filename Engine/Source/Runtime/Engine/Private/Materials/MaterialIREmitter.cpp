@@ -28,7 +28,7 @@ struct FEmitter::FPrivate : FEmitter {
 	{
 		check(!Type->IsScalar());
 		int Dimensions = Type->NumRows * Type->NumColumns;
-		FDimensional* Value = (FDimensional*)FMemory::Malloc(sizeof(FDimensional) + sizeof(FValuePtr) * Dimensions);
+		FDimensional* Value = (FDimensional*)FMemory::Malloc(sizeof(FDimensional) + sizeof(FValue*) * Dimensions);
 		Value->Kind = VK_Dimensional;
 		Value->Type = Type;
 		return Value;
@@ -38,37 +38,38 @@ struct FEmitter::FPrivate : FEmitter {
 	// If none found, it creates a new value as a copy of the prototype, adds it to
 	// the module then returns it.
 	template <typename TValueType>
-	static FValuePtr EmitPrototype(FEmitter* Emitter, const TValueType& Prototype)
+	static FValue* EmitPrototype(FEmitter* Emitter, const TValueType& Prototype)
 	{
-		if (FValuePtr Existing = FindValue(Emitter, &Prototype))
+		if (FValue* Existing = FindValue(Emitter, &Prototype))
 		{
 			return Existing;
 		}
 
 		TValueType* Value = new TValueType{ Prototype };
-		Emitter->Module->Values.Add(Value);
+		PushNewValue(Emitter, Value);
 		return Value;
 	}
 
 	// Emits specified newly created `Value`. If the exact value already exists,
 	// specified one is *destroyed* and existing one is returned instead.
-	static FValuePtr EmitNew(FEmitter* Emitter, FValuePtr Value)
+	static FValue* EmitNew(FEmitter* Emitter, FValue* Value)
 	{
-		if (FValuePtr Existing = FindValue(Emitter, Value))
+		if (FValue* Existing = FindValue(Emitter, Value))
 		{
 			delete Value;
 			return Existing;
 		}
 
-		Emitter->Module->Values.Add(Value);
+		PushNewValue(Emitter, Value);
 		return Value;
 	}
 
 	// Looks for an existing value in the module that matches `Prototype` and returns it if found.
-	static FValuePtr FindValue(const FEmitter* Emitter, FValuePtr Prototype)
+	static FValue* FindValue(FEmitter* Emitter, const FValue* Prototype)
 	{
 		/* todo: improve this with hashmap */
-		for (FValuePtr CurrValue : Emitter->Module->Values)
+
+		for (FValue* CurrValue : Emitter->Module->Values)
 		{
 			if (CurrValue->Equals(Prototype))
 			{
@@ -78,6 +79,11 @@ struct FEmitter::FPrivate : FEmitter {
 
 		return nullptr;
 	}
+
+	static void PushNewValue(FEmitter* Emitter, FValue* Value)
+	{
+		Emitter->Module->Values.Add(Value);
+	}
 };
 
 FEmitter::FEmitter(FMaterialIRModuleBuilder* InBuilder, UMaterial* InMaterial, FMaterialIRModule* InModule)
@@ -85,29 +91,95 @@ FEmitter::FEmitter(FMaterialIRModuleBuilder* InBuilder, UMaterial* InMaterial, F
 	Builder = InBuilder;
 	Material = InMaterial;
 	Module = InModule;
-
-	ZeroIntValue = EmitConstantScalarZero(SK_Int);
-	ZeroFloatValue = EmitConstantScalarZero(SK_Float);
 }
 
-FValuePtr FEmitter::GetAndCheckInputTypeKindIs(const FExpressionInput* Input, ETypeKind Kind)
+FValue* FEmitter::Get(const FExpressionInput* Input)
 {
-	FValuePtr InputValue = Get(Input);
-	CheckInputTypeIs(Input, InputValue, Kind);
-	return InputValue;
+	FValue** Value = Builder->InputValues.Find(Input);
+	return Value ? *Value : nullptr;
+}
+	
+void FEmitter::Put(const FExpressionOutput* Output, FValue* Value)
+{
+	check(Output);
+	Builder->OutputValues.Add(Output, Value);
 }
 
-bool FEmitter::CheckInputTypeIs(const FExpressionInput* Input, FValuePtr InputValue, ETypeKind Kind)
+FEmitter& FEmitter::DefaultToFloatZero(const FExpressionInput* Input)
+{
+	return DefaultTo(Input, 0.0f);
+}
+
+FEmitter& FEmitter::DefaultTo(const FExpressionInput* Input, float Float)
+{
+	if (!Input->IsConnected())
+	{
+		Builder->InputValues.Add(Input, EmitConstantFloat1(Float));
+	}
+
+	return *this;
+}
+
+FValue* FEmitter::TryGetFloat(const FExpressionInput* Input)
+{
+	FValue* Value = Get(Input);
+	CheckInputIsScalar(Input, Value, SK_Float);
+	return Value;
+}
+
+FValue* FEmitter::TryGetScalar(const FExpressionInput* Input)
+{
+	FValue* Value = Get(Input);
+	CheckInputIsScalar(Input, Value);
+	return Value;
+}
+
+FValue* FEmitter::TryGetArithmetic(const FExpressionInput* Input)
+{
+	FValue* Value = Get(Input);
+	CheckInputTypeIs(Input, Value, TK_Arithmetic);
+	return Value;
+}
+
+FValue* FEmitter::TryGetOfType(const FExpressionInput* Input, ETypeKind Kind)
+{
+	FValue* Value = Get(Input);
+	if (!Value)
+	{
+		return nullptr;
+	}
+
+	CheckInputTypeIs(Input, Value, Kind);
+	return Value;
+}
+
+void FEmitter::CheckInputIsScalar(const FExpressionInput* Input, FValue* InputValue)
+{
+	FArithmeticTypePtr ArithmeticType = InputValue->Type->AsArithmetic();
+	if (!ArithmeticType || !ArithmeticType->IsScalar())
+	{
+		Errorf(TEXT("Input '%s' expected to be a scalar. It is %s instead."), *Input->InputName.ToString(), InputValue->Type->GetSpelling().GetData());
+	}
+}
+
+void FEmitter::CheckInputIsScalar(const FExpressionInput* Input, FValue* InputValue, EScalarKind Kind)
+{
+	FArithmeticTypePtr ArithmeticType = InputValue->Type->AsArithmetic();
+	if (!ArithmeticType || !ArithmeticType->IsScalar() || ArithmeticType->ScalarKind != Kind)
+	{
+		Errorf(TEXT("Input '%s' expected to be a %s scalar. It is %s instead."), *Input->InputName.ToString(), ScalarKindToString(Kind), InputValue->Type->GetSpelling().GetData());
+	}
+}
+
+void FEmitter::CheckInputTypeIs(const FExpressionInput* Input, FValue* InputValue, ETypeKind Kind)
 {
 	if (InputValue->Type->Kind != Kind)
 	{
-		Errorf(TEXT("Unexpected input '%s' value type (%s). Expected %s type."), *Input->InputName.ToString(), TEXT(""), TEXT(""));
-		return false;
+		Errorf(TEXT("Input '%s' expected to be have type %s. It is %s instead."), *Input->InputName.ToString(), TypeKindToString(Kind), InputValue->Type->GetSpelling().GetData());
 	}
-	return true;
 }
 
-FValuePtr FEmitter::EmitConstantFromShaderValue(const UE::Shader::FValue& InValue)
+FValue* FEmitter::EmitConstantFromShaderValue(const UE::Shader::FValue& InValue)
 {
 	using namespace UE::Shader;
 
@@ -125,104 +197,102 @@ FValuePtr FEmitter::EmitConstantFromShaderValue(const UE::Shader::FValue& InValu
 	}
 
 	UE_MIR_UNREACHABLE();
-}
+} 
 
-FValuePtr FEmitter::EmitConstantScalarZero(EScalarKind Kind)
+FValue* FEmitter::EmitConstantScalarZero(EScalarKind Kind)
 {
 	switch (Kind)
 	{
 		case SK_Bool: UE_MIR_TODO();
-		case SK_Int: return ZeroIntValue;
-		case SK_Float: return ZeroFloatValue;
+		case SK_Int: return EmitConstantInt1(0);
+		case SK_Float: return EmitConstantFloat1(0.0f);
 		default: UE_MIR_UNREACHABLE();
 	}
 }
 
-FValuePtr FEmitter::EmitConstantFloat1(float InX)
+FValue* FEmitter::EmitConstantFloat1(float InX)
 {
 	FScalarConstant Scalar = InitValue<FScalarConstant>(FArithmeticType::GetScalar(SK_Float));
 	Scalar.Float = InX;
-
 	return FPrivate::EmitPrototype(this, Scalar);
 }
 
-FValuePtr FEmitter::EmitConstantFloat2(const FVector2f& InValue)
+FValue* FEmitter::EmitConstantFloat2(const FVector2f& InValue)
 {
-	FValuePtr X = EmitConstantFloat1(InValue.X);
-	FValuePtr Y = EmitConstantFloat1(InValue.Y);
+	FValue* X = EmitConstantFloat1(InValue.X);
+	FValue* Y = EmitConstantFloat1(InValue.Y);
 	return EmitVector2(X, Y);
 }
 
-FValuePtr FEmitter::EmitConstantFloat3(const FVector3f& InValue)
+FValue* FEmitter::EmitConstantFloat3(const FVector3f& InValue)
 {
-	FValuePtr X = EmitConstantFloat1(InValue.X);
-	FValuePtr Y = EmitConstantFloat1(InValue.Y);
-	FValuePtr Z = EmitConstantFloat1(InValue.Z);
+	FValue* X = EmitConstantFloat1(InValue.X);
+	FValue* Y = EmitConstantFloat1(InValue.Y);
+	FValue* Z = EmitConstantFloat1(InValue.Z);
 	return EmitVector3(X, Y, Z);
 }
 
-FValuePtr FEmitter::EmitConstantFloat4(const FVector4f& InValue)
+FValue* FEmitter::EmitConstantFloat4(const FVector4f& InValue)
 {
-	FValuePtr X = EmitConstantFloat1(InValue.X);
-	FValuePtr Y = EmitConstantFloat1(InValue.Y);
-	FValuePtr Z = EmitConstantFloat1(InValue.Z);
-	FValuePtr W = EmitConstantFloat1(InValue.W);
+	FValue* X = EmitConstantFloat1(InValue.X);
+	FValue* Y = EmitConstantFloat1(InValue.Y);
+	FValue* Z = EmitConstantFloat1(InValue.Z);
+	FValue* W = EmitConstantFloat1(InValue.W);
 	return EmitVector4(X, Y, Z, W);
 }
 
-FValuePtr FEmitter::EmitConstantInt1(int InX)
+FValue* FEmitter::EmitConstantInt1(int InX)
 {
 	FScalarConstant Scalar = InitValue<FScalarConstant>(FArithmeticType::GetScalar(SK_Int));
 	Scalar.Integer = InX;
-
 	return FPrivate::EmitPrototype(this, Scalar);
 }
 
-FValuePtr FEmitter::EmitConstantInt2(const FIntVector2& InValue)
+FValue* FEmitter::EmitConstantInt2(const FIntVector2& InValue)
 {
-	FValuePtr X = EmitConstantInt1(InValue.X);
-	FValuePtr Y = EmitConstantInt1(InValue.Y);
+	FValue* X = EmitConstantInt1(InValue.X);
+	FValue* Y = EmitConstantInt1(InValue.Y);
 	return EmitVector2(X, Y);
 }
 
-FValuePtr FEmitter::EmitConstantInt3(const FIntVector3& InValue)
+FValue* FEmitter::EmitConstantInt3(const FIntVector3& InValue)
 {
-	FValuePtr X = EmitConstantInt1(InValue.X);
-	FValuePtr Y = EmitConstantInt1(InValue.Y);
-	FValuePtr Z = EmitConstantInt1(InValue.Z);
+	FValue* X = EmitConstantInt1(InValue.X);
+	FValue* Y = EmitConstantInt1(InValue.Y);
+	FValue* Z = EmitConstantInt1(InValue.Z);
 	return EmitVector3(X, Y, Z);
 }
 
-FValuePtr FEmitter::EmitConstantInt4(const FIntVector4& InValue)
+FValue* FEmitter::EmitConstantInt4(const FIntVector4& InValue)
 {
-	FValuePtr X = EmitConstantInt1(InValue.X);
-	FValuePtr Y = EmitConstantInt1(InValue.Y);
-	FValuePtr Z = EmitConstantInt1(InValue.Z);
-	FValuePtr W = EmitConstantInt1(InValue.W);
+	FValue* X = EmitConstantInt1(InValue.X);
+	FValue* Y = EmitConstantInt1(InValue.Y);
+	FValue* Z = EmitConstantInt1(InValue.Z);
+	FValue* W = EmitConstantInt1(InValue.W);
 	return EmitVector4(X, Y, Z, W);
 }
 
-FValuePtr FEmitter::EmitVector2(FValuePtr InX, FValuePtr InY)
+FValue* FEmitter::EmitVector2(FValue* InX, FValue* InY)
 {
-	check(InX->Type->ToScalar());
+	check(InX->Type->AsScalar());
 	check(InX->Type == InY->Type);
 
-	TDimensional<2> Vector = InitValue<TDimensional<2>>(FArithmeticType::GetVector(InX->Type->ToArithmetic()->ScalarKind, 2));
-	TArrayView<FValuePtr> Components = Vector.GetMutableComponents();
+	TDimensional<2> Vector = InitValue<TDimensional<2>>(FArithmeticType::GetVector(InX->Type->AsArithmetic()->ScalarKind, 2));
+	TArrayView<FValue*> Components = Vector.GetMutableComponents();
 	Components[0] = InX;
 	Components[1] = InY;
 
 	return FPrivate::EmitPrototype(this, Vector);
 }
 
-FValuePtr FEmitter::EmitVector3(FValuePtr InX, FValuePtr InY, FValuePtr InZ)
+FValue* FEmitter::EmitVector3(FValue* InX, FValue* InY, FValue* InZ)
 {
-	check(InX->Type->ToScalar());
+	check(InX->Type->AsScalar());
 	check(InX->Type == InY->Type);
 	check(InY->Type == InZ->Type);
 
-	TDimensional<3> Vector = InitValue<TDimensional<3>>(FArithmeticType::GetVector(InX->Type->ToArithmetic()->ScalarKind, 3));
-	TArrayView<FValuePtr> Components = Vector.GetMutableComponents();
+	TDimensional<3> Vector = InitValue<TDimensional<3>>(FArithmeticType::GetVector(InX->Type->AsArithmetic()->ScalarKind, 3));
+	TArrayView<FValue*> Components = Vector.GetMutableComponents();
 	Components[0] = InX;
 	Components[1] = InY;
 	Components[2] = InZ;
@@ -230,15 +300,15 @@ FValuePtr FEmitter::EmitVector3(FValuePtr InX, FValuePtr InY, FValuePtr InZ)
 	return FPrivate::EmitPrototype(this, Vector);
 }
 
-FValuePtr FEmitter::EmitVector4(FValuePtr InX, FValuePtr InY, FValuePtr InZ, FValuePtr InW)
+FValue* FEmitter::EmitVector4(FValue* InX, FValue* InY, FValue* InZ, FValue* InW)
 {
-	check(InX->Type->ToScalar());
+	check(InX->Type->AsScalar());
 	check(InX->Type == InY->Type);
 	check(InY->Type == InZ->Type);
 	check(InZ->Type == InW->Type);
 
-	TDimensional<4> Vector = InitValue<TDimensional<4>>(FArithmeticType::GetVector(InX->Type->ToArithmetic()->ScalarKind, 4));
-	TArrayView<FValuePtr> Components = Vector.GetMutableComponents();
+	TDimensional<4> Vector = InitValue<TDimensional<4>>(FArithmeticType::GetVector(InX->Type->AsArithmetic()->ScalarKind, 4));
+	TArrayView<FValue*> Components = Vector.GetMutableComponents();
 	Components[0] = InX;
 	Components[1] = InY;
 	Components[2] = InZ;
@@ -247,9 +317,9 @@ FValuePtr FEmitter::EmitVector4(FValuePtr InX, FValuePtr InY, FValuePtr InZ, FVa
 	return FPrivate::EmitPrototype(this, Vector);
 }
 
-FValuePtr FEmitter::EmitArithmetic(FArithmeticTypePtr Type, FValuePtr Scalar)
+FValue* FEmitter::EmitArithmetic(FArithmeticTypePtr Type, FValue* Scalar)
 {
-	check(Scalar->Type->ToScalar());
+	check(Scalar->Type->AsScalar());
 	if (Type->IsScalar())
 	{
 		check(Type == Scalar->Type);
@@ -257,7 +327,7 @@ FValuePtr FEmitter::EmitArithmetic(FArithmeticTypePtr Type, FValuePtr Scalar)
 	}
 
 	FDimensional* Value = FPrivate::NewDimensionalValue(this, Type);
-	for (FValuePtr& Component : Value->GetMutableComponents())
+	for (FValue*& Component : Value->GetMutableComponents())
 	{
 		Component = Scalar;
 	}
@@ -269,8 +339,9 @@ FSetMaterialOutput* FEmitter::EmitSetMaterialOutput(EMaterialProperty InProperty
 {
 	FSetMaterialOutput* Instr = new FSetMaterialOutput;
 	Instr->Kind 	= VK_SetMaterialOutput;
+	Instr->Block 	= Module->RootBlock;
 	Instr->Property = InProperty;
-	Instr->ArgValue = InArgValue;
+	Instr->Arg 		= InArgValue;
 
 	Module->Values.Add(Instr);
 	Module->Outputs.Add(Instr);
@@ -288,27 +359,46 @@ static FTypePtr GetBinaryOperatorResultType(EBinaryOperator Operator, FTypePtr L
 			check(LhsType == RhsType);
 			return LhsType;
 		
+		case BO_Greater:
+		case BO_Lower:
+		case BO_Equals:
+			return FArithmeticType::GetBool();
+
 		default:
 			UE_MIR_UNREACHABLE();
 	}
 }
 
-FValuePtr FEmitter::EmitBinaryOperator(EBinaryOperator Operator, FValuePtr Lhs, FValuePtr Rhs)
+FValue* FEmitter::EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FValue* Rhs)
 {
 	check(Lhs->Type == Rhs->Type);
 
 	/* todo: operation folding */
 
 	FTypePtr ResultType = GetBinaryOperatorResultType(Operator, Lhs->Type, Rhs->Type);
-	FBinaryOperator Prototype = InitValue<FBinaryOperator>(ResultType);
-	Prototype.Operator = Operator;
-	Prototype.Lhs= Lhs;
-	Prototype.Rhs = Rhs;
+	FBinaryOperator Proto = InitValue<FBinaryOperator>(ResultType);
+	Proto.Operator = Operator;
+	Proto.LhsArg= Lhs;
+	Proto.RhsArg = Rhs;
 
-	return FPrivate::EmitPrototype(this, Prototype);
+	return FPrivate::EmitPrototype(this, Proto);
 }
 
-static FValuePtr ConvertScalarValue(FEmitter* Emitter, FValuePtr ScalarValue, EScalarKind ScalarKind, EScalarKind TargetKind)
+FValue* FEmitter::EmitBranch(FValue* Condition, FValue* True, FValue* False)
+{
+	/* todo: operation folding */
+
+	check(True->Type == False->Type);
+
+	FBranch Proto = InitValue<FBranch>(True->Type);
+	Proto.ConditionArg = Condition;
+	Proto.TrueArg = True;
+	Proto.FalseArg = False;
+
+	return FPrivate::EmitPrototype(this, Proto);
+}
+
+static FValue* ConvertScalarValue(FEmitter* Emitter, FValue* ScalarValue, EScalarKind ScalarKind, EScalarKind TargetKind)
 {
 	if (ScalarKind == TargetKind)
 	{
@@ -351,12 +441,12 @@ static FValuePtr ConvertScalarValue(FEmitter* Emitter, FValuePtr ScalarValue, ES
 	UE_MIR_UNREACHABLE();
 }
 
-static FValuePtr ConvertArithmeticValue(FEmitter* Emitter, FValuePtr Value, FArithmeticTypePtr TargetArithmeticType)
+static FValue* ConvertArithmeticValue(FEmitter* Emitter, FValue* Value, FArithmeticTypePtr TargetArithmeticType)
 {
 	FArithmeticTypePtr ValueArithmeticType = static_cast<FArithmeticTypePtr>(Value->Type);
 	if (ValueArithmeticType->IsScalar())
 	{
-		FValuePtr ConvertedScalar = ConvertScalarValue(Emitter, Value, ValueArithmeticType->ScalarKind, TargetArithmeticType->ScalarKind);
+		FValue* ConvertedScalar = ConvertScalarValue(Emitter, Value, ValueArithmeticType->ScalarKind, TargetArithmeticType->ScalarKind);
 		return Emitter->EmitArithmetic(TargetArithmeticType, ConvertedScalar);
 	}
 	else
@@ -365,7 +455,7 @@ static FValuePtr ConvertArithmeticValue(FEmitter* Emitter, FValuePtr Value, FAri
 	}
 }
 
-FValuePtr FEmitter::TryEmitConvert(FValuePtr Value, FTypePtr TargetType)
+FValue* FEmitter::TryEmitConvert(FValue* Value, FTypePtr TargetType)
 {
 	// If types already match, nothing else to do, simply return the same value.
 	FTypePtr ValueType = Value->Type;
@@ -374,11 +464,11 @@ FValuePtr FEmitter::TryEmitConvert(FValuePtr Value, FTypePtr TargetType)
 		return Value;
 	}
 
-	FValuePtr ResultValue{};
+	FValue* ResultValue{};
 
 	// Converting from an arithmetic value to another arithmetic type.
-	FArithmeticTypePtr ValueArithmeticType = Value->Type->ToArithmetic();
-	FArithmeticTypePtr TargetArithmeticType = TargetType->ToArithmetic();
+	FArithmeticTypePtr ValueArithmeticType = Value->Type->AsArithmetic();
+	FArithmeticTypePtr TargetArithmeticType = TargetType->AsArithmetic();
 	if (ValueArithmeticType && TargetArithmeticType)
 	{
 		ResultValue = ConvertArithmeticValue(this, Value, TargetArithmeticType);
@@ -395,17 +485,26 @@ FValuePtr FEmitter::TryEmitConvert(FValuePtr Value, FTypePtr TargetType)
 	return ResultValue;
 }
 
-FValuePtr FEmitter::Get(const FExpressionInput* Input)
+FArithmeticTypePtr FEmitter::TryGetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B)
 {
-	check(Input);
-	FValuePtr* Value = Builder->InputValues.Find(Input);
-	return *Value;
-}
+	// Trivial case: types are equal
+	if (A == B)
+	{
+		return A;
+	}
 	
-void FEmitter::Put(const FExpressionOutput* Output, FValuePtr Value)
-{
-	check(Output);
-	Builder->OutputValues.Add(Output, Value);
+	//	
+	if (A->IsMatrix() != B->IsMatrix())
+	{
+		Errorf(TEXT("No common arithmetic type between `%s` and `%s`."), A->Spelling.GetData(), B->Spelling.GetData());
+		return nullptr;
+	}
+
+	EScalarKind ScalarKind = FMath::Max(A->ScalarKind, B->ScalarKind);
+	int NumRows = FMath::Max(A->NumRows, B->NumRows);
+	int NumColumns = FMath::Max(A->NumColumns, B->NumColumns);
+
+	return FArithmeticType::Get(ScalarKind, NumRows, NumColumns);
 }
 
 void FEmitter::Error(FString Message)
