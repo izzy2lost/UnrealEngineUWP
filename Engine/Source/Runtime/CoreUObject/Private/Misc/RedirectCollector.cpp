@@ -11,10 +11,12 @@
 #include "UObject/UnrealType.h"
 #include "UObject/ObjectRedirector.h"
 #include "Misc/PackageName.h"
+#include "Misc/Paths.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/SoftObjectPath.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/FileManager.h"
 
 #if WITH_EDITOR
 
@@ -28,6 +30,35 @@ FAutoConsoleCommand CVarResolveAllSoftObjects(
 		GRedirectCollector.ResolveAllSoftObjectPaths();
 	})
 );
+
+void RedirectCollectorDumpAllAssetRedirects();
+
+FAutoConsoleCommand CVarRedirectCollectorDumpAllAssetRedirects(
+	TEXT("redirectcollector.DumpAllAssetRedirects"),
+	TEXT("Prints all tracked redirectors to the log."),
+	FConsoleCommandDelegate::CreateStatic(&RedirectCollectorDumpAllAssetRedirects)
+);
+
+void RedirectCollectorDumpAllAssetRedirects()
+{
+	UE::TDynamicUniqueLock<FCriticalSection> ScopeLock(GRedirectCollector.AcquireLock());
+	const TMap<FSoftObjectPath, FSoftObjectPath>& Redirects = GRedirectCollector.GetObjectPathRedirectionMapUnderLock(ScopeLock);
+	FString FullyQualifiedFileName = FPaths::ProfilingDir() + FString::Printf(TEXT("AllRedirects (%s).csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")));
+	TUniquePtr<FArchive> OutputFile(IFileManager::Get().CreateFileWriter(*FullyQualifiedFileName));
+	if (OutputFile.IsValid())
+	{
+		TAnsiStringBuilder<4096> StringBuilder;
+
+		for (const TPair<FSoftObjectPath, FSoftObjectPath>& Pair : Redirects)
+		{
+			StringBuilder	<< WriteToAnsiString<256>(Pair.Key.ToString()).ToString() 
+							<< TEXT(",") 
+							<< WriteToAnsiString<256>(Pair.Value.ToString()).ToString()
+							<< LINE_TERMINATOR;
+		}
+		OutputFile->Serialize(StringBuilder.GetData(), StringBuilder.Len());
+	}
+}
 
 void FRedirectCollector::OnSoftObjectPathLoaded(const FSoftObjectPath& ObjectPath, FArchive* InArchive)
 {
@@ -222,6 +253,20 @@ void FRedirectCollector::OnStartupPackageLoadComplete()
 	// When startup packages are done loading, we never track any more regardless whether we were before
 	FScopeLock ScopeLock(&CriticalSection);
 	TrackingReferenceTypesState = ETrackingReferenceTypesState::Disabled;
+}
+
+void FRedirectCollector::GetAllSourcePathsForTargetPath(const FSoftObjectPath& TargetPath, TArray<FSoftObjectPath>& OutSourcePaths) const
+{
+	FScopeLock ScopeLock(&CriticalSection);
+
+	OutSourcePaths.Reset();
+	for (const TPair<FSoftObjectPath, FSoftObjectPath>& Pair : ObjectPathRedirectionMap)
+	{
+		if (Pair.Value == TargetPath)
+		{
+			OutSourcePaths.Add(Pair.Key);
+		}
+	}
 }
 
 bool FRedirectCollector::ShouldTrackPackageReferenceTypes()

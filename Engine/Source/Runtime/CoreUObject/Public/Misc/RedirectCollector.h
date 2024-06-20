@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "Async/UniqueLock.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "Containers/SparseArray.h"
@@ -143,6 +144,25 @@ public:
 	/** Called from the cooker to stop the tracking of exclusions. */
 	COREUOBJECT_API void OnStartupPackageLoadComplete();
 
+	/** Access to the collected list of redirects when already holding the lock. */
+	COREUOBJECT_API const TMap<FSoftObjectPath, FSoftObjectPath>& GetObjectPathRedirectionMapUnderLock(const UE::TDynamicUniqueLock<FCriticalSection>& Lock) const
+	{
+		ensure(Lock.OwnsLock());
+		return ObjectPathRedirectionMap;
+	}
+	
+	/** Returns the set of paths, if any, that are redirected TO the provided path. This performs a relatively slow linear search. */
+	COREUOBJECT_API void GetAllSourcePathsForTargetPath(const FSoftObjectPath& TargetPath, TArray<FSoftObjectPath>& OutSourcePaths) const;
+
+	/** Used with GetObjectPathRedirectionMapUnderLock with code like:
+	 *  UE::TDynamicUniqueLock<FCriticalSection> ScopeLock(GRedirectCollector.AcquireLock());
+	 *  GRedirectCollector.GetObjectPathRedirectionMapUnderLock(ScopeLock);
+	 */
+	COREUOBJECT_API UE::TDynamicUniqueLock<FCriticalSection> AcquireLock() const
+	{
+		return UE::TDynamicUniqueLock<FCriticalSection>(CriticalSection);
+	}
+
 private:
 
 	/** A map of assets referenced by soft object paths, with the key being the package with the reference */
@@ -160,8 +180,8 @@ private:
 	/** When saving, apply this remapping to all soft object paths */
 	TMap<FSoftObjectPath, FSoftObjectPath> ObjectPathRedirectionMap;
 
-	/** For SoftObjectPackageMap map */
-	FCriticalSection CriticalSection;
+	/** For ObjectPathRedirectionMap map */
+	mutable FCriticalSection CriticalSection;
 
 	enum class ETrackingReferenceTypesState : uint8
 	{
