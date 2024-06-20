@@ -941,9 +941,6 @@ FReply FSequencerTimeSliderController::OnMouseButtonUp( SWidget& WidgetOwner, co
 
 			if (HoverMarkIndex == INDEX_NONE)
 			{
-				// Teleport the playhead to the clicked time.
-				TimeSliderArgs.OnEndScrubberMovement.ExecuteIfBound();
-
 				FFrameTime ScrubTime = MouseTime;
 				FVector2D CursorPos  = MouseEvent.GetScreenSpacePosition();
 
@@ -962,6 +959,9 @@ FReply FSequencerTimeSliderController::OnMouseButtonUp( SWidget& WidgetOwner, co
 
 				// If middle mouse button down we don't evaluate on the time change
 				CommitScrubPosition( ScrubTime, /*bIsScrubbing=*/false , /*bEvaluate*/ !bHandleMiddleMouseButton);
+
+				// Teleport the playhead to the clicked time.
+				TimeSliderArgs.OnEndScrubberMovement.ExecuteIfBound();
 			}
 			else if (Sequencer.IsValid())
 			{
