@@ -46,8 +46,8 @@ struct FUnsyncProtocolImpl : FUnsyncBaseProtocolImpl
 						const FAuthDesc*			   InAuthDesc,
 						const FBlockRequestMap*		   InRequestMap);
 	virtual ~FUnsyncProtocolImpl() override;
-	virtual bool			 IsValid() const override;
-	virtual FDownloadResult	 Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
+	virtual bool			IsValid() const override;
+	virtual FDownloadResult Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
 
 	virtual void Invalidate() override;
 
@@ -57,22 +57,26 @@ struct FUnsyncProtocolImpl : FUnsyncBaseProtocolImpl
 	std::unique_ptr<FSocketBase> SocketHandle;
 
 	static void SendTelemetryEvent(const FRemoteDesc& RemoteDesc, const FTelemetryEventSyncComplete& Event);
-	static TResult<ProxyQuery::FHelloResponse> QueryHello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc=nullptr);
+
+	static TResult<ProxyQuery::FHelloResponse>	  QueryHello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc = nullptr);
+	static TResult<ProxyQuery::FDirectoryListing> QueryListDirectory(FHttpConnection&	Connection,
+																	 const FAuthDesc*	AuthDesc,
+																	 const std::string& Path);
 };
 
 struct FUnsyncHttpProtocolImpl : FUnsyncBaseProtocolImpl
 {
-	FUnsyncHttpProtocolImpl(const FRemoteDesc& InRemoteDesc,
+	FUnsyncHttpProtocolImpl(const FRemoteDesc&			   InRemoteDesc,
 							const FRemoteProtocolFeatures& InFeatures,
-							const FBlockRequestMap* InRequestMap,
-							FProxyPool&				   InProxyPool)
+							const FBlockRequestMap*		   InRequestMap,
+							FProxyPool&					   InProxyPool)
 	: FUnsyncBaseProtocolImpl(InRemoteDesc, InRequestMap, InFeatures)
 	, ProxyPool(InProxyPool)
 	{
 	}
 
-	virtual bool			IsValid() const override { return bValid; }
-	virtual void			Invalidate() override { bValid = false; }
+	virtual bool IsValid() const override { return bValid; }
+	virtual void Invalidate() override { bValid = false; }
 
 	virtual FDownloadResult Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback) override;
 
@@ -126,8 +130,8 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 {
 	if (RemoteDesc.TlsRequirement != ETlsRequirement::None)
 	{
-		FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
-		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.Host.Address.c_str(), RemoteDesc.Host.Port);
+		FTlsClientSettings TlsSettings	   = RemoteDesc.GetTlsClientSettings();
+		FSocketHandle	   RawSocketHandle = SocketConnectTcp(RemoteDesc.Host.Address.c_str(), RemoteDesc.Host.Port);
 		SocketSetRecvTimeout(RawSocketHandle, RemoteDesc.RecvTimeoutSeconds);
 
 		if (RawSocketHandle)
@@ -188,7 +192,7 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 		{
 			bool bOk = IsValid();
 
-			TResult<FAuthToken> AuthTokenResult = Authenticate(*InAuthDesc, 15 * 60);
+			TResult<FAuthToken> AuthTokenResult = Authenticate(*InAuthDesc);
 
 			if (AuthTokenResult.IsOk())
 			{
@@ -497,14 +501,14 @@ FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNee
 
 	std::string Output;
 
-	Output += "{ ";  // main object
+	Output += "{ ";	 // main object
 
 	FormatJsonKeyValueStr(Output, "hash_strong", StrongHashAlgorithm, ",\n");
 
 	Output += "\"files\": [\n";
 
-	static const FHash128 InvalidHash = {};
-	FHash128	   FilenameHash = InvalidHash;
+	static const FHash128 InvalidHash  = {};
+	FHash128			  FilenameHash = InvalidHash;
 
 	uint32 BlockIndex = 0;
 	for (const FBlockRequestAndHash& Request : Requests)
@@ -513,7 +517,7 @@ FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNee
 		{
 			if (FilenameHash != InvalidHash)
 			{
-				Output += "]},\n";  // close blocks arary and file object
+				Output += "]},\n";	// close blocks arary and file object
 			}
 
 			const std::string* FilenameUtf8 = RequestMap.FindFile(Request.FilenameMd5);
@@ -526,7 +530,7 @@ FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNee
 			FormatJsonKeyValueStr(Output, "name", EscapedFilenameUtf8, ", ");
 			Output += "\"blocks\": [\n";
 
-			BlockIndex = 0;
+			BlockIndex	 = 0;
 			FilenameHash = Request.FilenameMd5;
 		}
 
@@ -547,7 +551,7 @@ FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNee
 
 	if (FilenameHash != InvalidHash)
 	{
-		Output += "]}\n";	// close blocks arary and file object
+		Output += "]}\n";  // close blocks arary and file object
 	}
 
 	Output += "]\n";  // files array
@@ -663,7 +667,7 @@ FUnsyncProtocolImpl::QueryHello(FHttpConnection& HttpConnection, const FAuthDesc
 	std::string BearerToken;
 	if (OptAuthDesc)
 	{
-		TResult<FAuthToken> AuthTokenResult = Authenticate(*OptAuthDesc, 15 * 60);
+		TResult<FAuthToken> AuthTokenResult = Authenticate(*OptAuthDesc);
 		if (AuthTokenResult.IsOk())
 		{
 			BearerToken = std::move(AuthTokenResult.GetData().Access);
@@ -861,14 +865,33 @@ ProxyQuery::FDirectoryListing::ToJson() const
 }
 
 TResult<ProxyQuery::FDirectoryListing>
-ProxyQuery::ListDirectory(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path)
+ProxyQuery::ListDirectory(EProtocolFlavor Protocol, FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path)
 {
+	if (Protocol == EProtocolFlavor::Horde)
+	{
+		return FHordeProtocolImpl::QueryListDirectory(Connection, AuthDesc, Path);
+	}
+	else if (Protocol == EProtocolFlavor::Unsync)
+	{
+		return FUnsyncProtocolImpl::QueryListDirectory(Connection, AuthDesc, Path);
+	}
+	else
+	{
+		return AppError("Protocol does not support server directory listing");
+	}
+}
+
+TResult<ProxyQuery::FDirectoryListing>
+FUnsyncProtocolImpl::QueryListDirectory(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path)
+{
+	using ProxyQuery::FDirectoryListing;
+
 	std::string Url = fmt::format("/api/v1/list?{}", Path);
 
 	std::string BearerToken;
 	if (AuthDesc)
 	{
-		TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc, 5 * 60);
+		TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc);
 		if (!AuthToken.IsOk())
 		{
 			return MoveError<FDirectoryListing>(AuthToken);
@@ -916,7 +939,7 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 		std::string BearerToken;
 		if (AuthDesc)
 		{
-			TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc, 5 * 60);
+			TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc);
 			if (!AuthToken.IsOk())
 			{
 				return std::move(AuthToken.GetError());
@@ -967,7 +990,7 @@ ProxyQuery::DownloadFile(FHttpConnection&					 InConnection,
 	std::string BearerToken;
 	if (AuthDesc)
 	{
-		TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc, 5 * 60);
+		TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc);
 		if (!AuthToken.IsOk())
 		{
 			Error.Set(std::move(AuthToken.GetError()));
@@ -1373,7 +1396,7 @@ FProxyPool::GetAccessToken()
 
 	if (AuthDesc)
 	{
-		TResult<FAuthToken> AuthTokenResult = Authenticate(*AuthDesc, 120);
+		TResult<FAuthToken> AuthTokenResult = Authenticate(*AuthDesc);
 		if (FAuthToken* AuthToken = AuthTokenResult.TryData())
 		{
 			std::swap(Result, AuthToken->Access);
@@ -1488,7 +1511,7 @@ FRemoteFileSystem::ListDirectory(const std::string_view RelativePath)
 		FullPath.append(RelativePath);
 	}
 	ConvertDirectorySeparatorsToUnix(FullPath);
-	return ProxyQuery::ListDirectory(HttpConnection, ProxyPool.AuthDesc, FullPath);
+	return ProxyQuery::ListDirectory(ProxyPool.RemoteDesc.Protocol, HttpConnection, ProxyPool.AuthDesc, FullPath);
 }
 
 TResult<FBuffer>

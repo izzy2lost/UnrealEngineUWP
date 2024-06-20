@@ -7,6 +7,8 @@
 
 #include <regex>
 #include <json11.hpp>
+#include <optional>
+#include <stdio.h>
 
 namespace unsync {
 
@@ -16,7 +18,8 @@ FHordeProtocolImpl::FHordeProtocolImpl(const FRemoteDesc& InRemoteDesc, const FB
 {
 }
 
-FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
+FDownloadResult
+FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
 {
 	if (NeedBlocks.Size() == 0)
 	{
@@ -57,7 +60,7 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 		return FDownloadError(EDownloadRetryMode::Abort);
 	}
 
-	//std::string_view TransferEncoding = Response.FindHeader("transfer-encoding");
+	// std::string_view TransferEncoding = Response.FindHeader("transfer-encoding");
 	const std::string_view ChunkContentEncoding = Response.FindHeader("x-chunk-content-encoding");
 	const std::string_view ContentType			= Response.FindHeader("content-type");
 
@@ -75,7 +78,7 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 	}
 
 	// TODO: read body stream as it arrives using HTTP chunk callbacks
-	FMemReader BufferReader(Response.Buffer);
+	FMemReader		BufferReader(Response.Buffer);
 	FIOReaderStream Reader(BufferReader);
 
 	while (Reader.RemainingSize())
@@ -93,7 +96,7 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 		}
 
 		FDownloadedBlock DownloadedBlock;
-		DownloadedBlock.bCompressed = false; // we always decompress the block before handing it over to the caller
+		DownloadedBlock.bCompressed = false;  // we always decompress the block before handing it over to the caller
 
 		FBufferView Payload = Response.Buffer.View(Reader.Tell(), BlobHeader.PayloadSize);
 		FBuffer		DecompressedBuffer;
@@ -150,7 +153,7 @@ FDownloadResult FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBl
 			return FDownloadError(EDownloadRetryMode::Abort);
 		}
 
-		FHash128	 BlockHash128 = BlockHash.ToHash128();
+		FHash128 BlockHash128 = BlockHash.ToHash128();
 
 		CompletionCallback(DownloadedBlock, BlockHash128);
 
@@ -195,7 +198,8 @@ FHordeProtocolImpl::DownloadManifest(std::string_view ManifestName)
 	return DecodeHordeManifestJson((const char*)Response.Buffer.Data(), ManifestName);
 }
 
-bool RequestPathLooksLikeHordeArtifact(std::string_view RequestPath)
+bool
+RequestPathLooksLikeHordeArtifact(std::string_view RequestPath)
 {
 	static const std::regex Pattern("^api\\/v\\d+\\/artifacts\\/[a-fA-F0-9]+$");
 	return std::regex_match(RequestPath.begin(), RequestPath.end(), Pattern);
@@ -227,22 +231,240 @@ FHordeProtocolImpl::QueryHello(FHttpConnection& HttpConnection)
 		return AppError(std::string("JSON parse error while connecting to Horde server: ") + JsonErrorString);
 	}
 
-	if (auto& Field = JsonObject["serverUrl"]; Field.is_string())
+	if (const Json& Field = JsonObject["serverUrl"]; Field.is_string())
 	{
 		Result.AuthServerUri = Field.string_value();
 	}
 
-	if (auto& Field = JsonObject["clientId"]; Field.is_string())
+	if (const Json& Field = JsonObject["clientId"]; Field.is_string())
 	{
 		Result.AuthClientId = Field.string_value();
 	}
 
-	if (auto& Field = JsonObject["localRedirectUrls"]; Field.is_array())
+	if (const Json& Field = JsonObject["localRedirectUrls"]; Field.is_array())
 	{
 		if (Field.array_items().size() && Field.array_items()[0].is_string())
 		{
 			// TODO: parse all allowed callback URIs
 			Result.CallbackUri = Field.array_items()[0].string_value();
+		}
+	}
+
+	return ResultOk(Result);
+}
+
+TResult<FHordeVirtualPath>
+FHordeVirtualPath::FromString(std::string_view Str)
+{
+	FHordeVirtualPath Result;
+	size_t			  ChangeSeparatorPos	 = Str.find_first_of('@');
+	size_t			  ArtifactIdSeparatorPos = Str.find_first_of('#');
+
+	std::string_view ArtifactPrefix;
+	std::string_view StreamId;
+	std::string_view Change;
+	std::string_view ArtifactId;
+
+	if (ArtifactIdSeparatorPos != std::string::npos)
+	{
+		ArtifactId = Str.substr(ArtifactIdSeparatorPos + 1);
+	}
+
+	if (ChangeSeparatorPos != std::string::npos)
+	{
+		Change = Str.substr(ChangeSeparatorPos + 1);
+		Str	   = Str.substr(0, ChangeSeparatorPos);
+	}
+
+	if (!ArtifactId.empty())
+	{
+		Result.ArtifactId = ArtifactId;
+	}
+
+	size_t StreamSeparatorPos = Str.find_first_of("/\\");
+
+	if (StreamSeparatorPos != std::string::npos)
+	{
+		ArtifactPrefix = Str.substr(0, StreamSeparatorPos);
+		StreamId	   = Str.substr(StreamSeparatorPos + 1);
+	}
+	else
+	{
+		ArtifactPrefix = Str;
+	}
+
+	Result.ArtifactPrefix = ArtifactPrefix;
+
+	if (!StreamId.empty())
+	{
+		Result.StreamId = StreamId;
+	}
+
+	if (!Change.empty())
+	{
+		std::string ChangeStr = std::string(Change);
+
+		long long unsigned ParsedChange = 0;
+		sscanf(ChangeStr.c_str(), "%llu", &ParsedChange);
+
+		Result.Change = ParsedChange;
+	}
+
+	return ResultOk(Result);
+}
+
+TResult<ProxyQuery::FDirectoryListing>
+FHordeProtocolImpl::QueryListDirectory(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path)
+{
+	using ProxyQuery::FDirectoryListing;
+	using ProxyQuery::FDirectoryListingEntry;
+
+	FDirectoryListing Result;
+
+	TResult<FHordeVirtualPath> VirtualPath = FHordeVirtualPath::FromString(Path);
+	if (VirtualPath.IsError())
+	{
+		return MoveError<ProxyQuery::FDirectoryListing>(VirtualPath);
+	}
+
+	// If we have the artifact ID, simply add a virtual .unsync directory to indicate that a manifest is available.
+	// TODO: It's also possible to list the actual artifact contents from this point, if needed.
+	if (VirtualPath->ArtifactId)
+	{
+		FDirectoryListingEntry DummyManifestEntry;
+		DummyManifestEntry.Name = ".unsync";
+		DummyManifestEntry.bDirectory = true;
+		Result.Entries.push_back(DummyManifestEntry);
+		return ResultOk(Result);
+	}
+
+	uint32 MaxResults = 1000000;
+
+	std::string RequestUrl = fmt::format("/api/v2/artifacts?type=packaged-build&maxResults={}", MaxResults);
+	if (VirtualPath->Change)
+	{
+		uint64 ChangeNumber = VirtualPath->Change.value();
+		RequestUrl += fmt::format("&minChange={0}&maxChange={0}", ChangeNumber);
+	}
+
+	if (VirtualPath->StreamId)
+	{
+		const std::string& StreamId = VirtualPath->StreamId.value();
+		RequestUrl += fmt::format("&streamId={}", StreamId);
+	}
+
+	std::string BearerToken;
+
+	TResult<FAuthToken> AuthTokenResult = Authenticate(*AuthDesc);
+	if (const FAuthToken* AuthToken = AuthTokenResult.TryData())
+	{
+		BearerToken = AuthToken->Access;
+	}
+
+	FHttpRequest Request;
+	Request.Url			= RequestUrl;
+	Request.BearerToken = BearerToken;
+
+	FHttpResponse Response = HttpRequest(Connection, Request);
+
+	if (!Response.Success())
+	{
+		return HttpError(Response.Code);
+	}
+
+	Response.Buffer.PushBack(0);
+
+	using namespace json11;
+	std::string JsonErrorString;
+	Json		JsonObject = Json::parse((const char*)Response.Buffer.Data(), JsonErrorString);
+
+	if (!JsonErrorString.empty())
+	{
+		return AppError(std::string("JSON parse error while listing Horde artifacts: ") + JsonErrorString);
+	}
+
+	Json JsonArtifacts = JsonObject["artifacts"];
+	if (!JsonArtifacts.is_array())
+	{
+		return AppError(L"Horde artifact listing is expected to have 'artifacts' array field");
+	}
+
+	std::vector<FHordeArtifactEntry> HordeArtifacts;
+
+	for (const Json& It : JsonArtifacts.array_items())
+	{
+		FHordeArtifactEntry Entry;
+
+		Entry.Name = It["name"].string_value();
+
+		if (!Entry.Name.starts_with(VirtualPath->ArtifactPrefix))
+		{
+			continue;
+		}
+
+		Entry.Change	  = uint64(It["change"].number_value());
+		Entry.Id		  = It["id"].string_value();
+		Entry.Description = It["description"].string_value();
+		Entry.StreamId	  = It["streamId"].string_value();
+
+		for (const Json& KeyJson : It["keys"].array_items())
+		{
+			const std::string& Key = KeyJson.string_value();
+			if (!Key.empty())
+			{
+				Entry.Keys.push_back(Key);
+			}
+		}
+
+		for (const Json& MetadataJson : It["metadata"].array_items())
+		{
+			const std::string& Metadata = MetadataJson.string_value();
+			if (!Metadata.empty())
+			{
+				Entry.Metadata.push_back(Metadata);
+			}
+		}
+
+		HordeArtifacts.push_back(Entry);
+	}
+
+	std::sort(HordeArtifacts.begin(),
+			  HordeArtifacts.end(),
+			  [](const FHordeArtifactEntry& A, const FHordeArtifactEntry& B) { return A.Change > B.Change; });
+
+	// Present a virtual two-level hierarchy: @change/package
+
+	if (VirtualPath->Change)
+	{
+		for (const FHordeArtifactEntry& HordeArtifactEntry : HordeArtifacts)
+		{
+			FDirectoryListingEntry DirectoryEntry;
+
+			DirectoryEntry.bDirectory = true;
+			DirectoryEntry.Name		  = fmt::format("{}#{}", HordeArtifactEntry.Name, HordeArtifactEntry.Id);
+
+			Result.Entries.push_back(DirectoryEntry);
+		}
+	}
+	else
+	{
+		// Output virtual directories for unique CLs
+		uint64			  LastChangeNumber = 0;
+		for (const FHordeArtifactEntry& HordeArtifactEntry : HordeArtifacts)
+		{
+			if (LastChangeNumber == HordeArtifactEntry.Change)
+			{
+				continue;
+			}
+
+			FDirectoryListingEntry DirectoryEntry;
+
+			DirectoryEntry.bDirectory = true;
+			DirectoryEntry.Name		  = fmt::format("{}@{}", HordeArtifactEntry.StreamId, HordeArtifactEntry.Change);
+
+			Result.Entries.push_back(DirectoryEntry);
+
+			LastChangeNumber = HordeArtifactEntry.Change;
 		}
 	}
 
@@ -270,7 +492,7 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 		return AppError("Manifest JSON is expected to have a 'type' string field with 'unsync_manifest' value");
 	}
 
-	if (auto& Field = JsonObject["hash_strong"]; Field.is_string())
+	if (const Json& Field = JsonObject["hash_strong"]; Field.is_string())
 	{
 		const std::string Value = StringToLower(Field.string_value());
 
@@ -296,7 +518,7 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 		}
 	}
 
-	if (auto& Field = JsonObject["hash_weak"]; Field.is_string())
+	if (const Json& Field = JsonObject["hash_weak"]; Field.is_string())
 	{
 		const std::string Value = StringToLower(Field.string_value());
 
@@ -314,7 +536,7 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 		}
 	}
 
-	if (auto& Field = JsonObject["chunking"]; Field.is_string())
+	if (const Json& Field = JsonObject["chunking"]; Field.is_string())
 	{
 		const std::string Value = StringToLower(Field.string_value());
 
@@ -341,9 +563,9 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 	const uint64 CurrentWindowsFileTime = ToWindowsFileTime(FileTimeNow);
 	uint32		 NumInvalidTimestamps	= 0;
 
-	if (auto& FiledField = JsonObject["files"]; FiledField.is_array())
+	if (const Json& FiledField = JsonObject["files"]; FiledField.is_array())
 	{
-		for (auto& FileObject : FiledField.array_items())
+		for (const Json& FileObject : FiledField.array_items())
 		{
 			std::string FileNameUtf8 = FileObject["name"].string_value();
 			std::wstring FileName	  = ConvertUtf8ToWide(FileNameUtf8);
@@ -360,12 +582,12 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 			FileManifest.BlockSize = DefaultBlockSize;
 			FileManifest.CurrentPath = FileName;
 
-			if (auto& Field = FileObject["size"]; Field.is_number())
+			if (const Json& Field = FileObject["size"]; Field.is_number())
 			{
 				FileManifest.Size = uint64(Field.number_value());
 			}
 
-			if (auto& Field = FileObject["mtime"]; Field.is_number())
+			if (const Json& Field = FileObject["mtime"]; Field.is_number())
 			{
 				FileManifest.Mtime = uint64(Field.number_value());
 			}
@@ -376,14 +598,14 @@ TResult<FDirectoryManifest> DecodeHordeManifestJson(const char* JsonString, std:
 				++NumInvalidTimestamps;
 			}
 
-			if (auto& Field = FileObject["read_only"]; Field.is_bool())
+			if (const Json& Field = FileObject["read_only"]; Field.is_bool())
 			{
 				FileManifest.bReadOnly = Field.bool_value();
 			}
 
-			if (auto& BlocksField = FileObject["blocks"]; BlocksField.is_array())
+			if (const Json& BlocksField = FileObject["blocks"]; BlocksField.is_array())
 			{
-				for (auto& BlockObject : BlocksField.array_items())
+				for (const Json& BlockObject : BlocksField.array_items())
 				{
 					FGenericBlock Block;
 					Block.Offset = uint64(BlockObject["offset"].number_value());

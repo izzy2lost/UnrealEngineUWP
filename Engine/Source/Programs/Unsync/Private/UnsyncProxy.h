@@ -265,7 +265,11 @@ struct FDirectoryListing
 	std::string						  ToJson() const;
 };
 
-TResult<FDirectoryListing> ListDirectory(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path);
+TResult<FDirectoryListing> ListDirectory(EProtocolFlavor	Protocol,
+										 FHttpConnection&	Connection,
+										 const FAuthDesc*	AuthDesc,
+										 const std::string& Path);
+
 TResult<FBuffer>		   DownloadFile(FHttpConnection& Connection, const FAuthDesc* AuthDesc, const std::string& Path);
 
 using FDownloadOutputCallback = std::function<FIOWriter&(uint64 Size)>;

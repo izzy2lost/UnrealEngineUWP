@@ -22,6 +22,7 @@
 #include "UnsyncVersion.h"
 #include "UnsyncSource.h"
 #include "UnsyncFilter.h"
+#include "UnsyncHorde.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #if UNSYNC_PLATFORM_WINDOWS
@@ -662,6 +663,31 @@ InnerMain(int Argc, char** Argv)
 		}
 	}
 
+	// Derive artifact request path when syncing from Horde, if it wasn't specified via URL source syntax
+	if (RemoteDesc.Protocol == EProtocolFlavor::Horde && Cli.got_subcommand(SubSync))
+	{
+		bFilesystemSource = false;
+		if (RemoteDesc.RequestPath.empty())
+		{
+			TResult<FHordeVirtualPath> VirtualPath = FHordeVirtualPath::FromString(SourceFilenameUtf8);
+			if (VirtualPath.IsError())
+			{
+				UNSYNC_ERROR(L"Could not parse sync source path");
+				LogError(VirtualPath.GetError());
+				return 1;
+			}
+
+			if (!VirtualPath->ArtifactId)
+			{
+				UNSYNC_ERROR(L"Could not parse sync source path. Artifact ID is expected, i.e. '#123456abcdef'.");
+				return 1;
+			}
+
+			SourceFilenameUtf8 = "api/v2/artifacts/" + VirtualPath->ArtifactId.value();
+			RemoteDesc.RequestPath = SourceFilenameUtf8;
+		}
+	}
+
 	if (bNoCompression)
 	{
 		UNSYNC_VERBOSE(L"Uncompressed data transfer is preferred");
@@ -985,7 +1011,7 @@ InnerMain(int Argc, char** Argv)
 
 				// Note: since tokens can expire during a long operation,
 				// we can only save the auth descriptor and re-authenticate later if necessary
-				TResult<FAuthToken> AuthTokenResult = Authenticate(AuthDesc, 5 * 60);
+				TResult<FAuthToken> AuthTokenResult = Authenticate(AuthDesc);
 
 				if (AuthTokenResult.IsError())
 				{

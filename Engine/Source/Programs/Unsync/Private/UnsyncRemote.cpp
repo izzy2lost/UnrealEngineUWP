@@ -6,23 +6,6 @@
 
 namespace unsync {
 
-EProtocolFlavor
-protocol_flavor_from_string(const char* Str)
-{
-	if (!strcmp(Str, "jupiter"))
-	{
-		return EProtocolFlavor::Jupiter;
-	}
-	if (!strcmp(Str, "unsync"))
-	{
-		return EProtocolFlavor::Unsync;
-	}
-	else
-	{
-		return EProtocolFlavor::Unknown;
-	}
-}
-
 const char*
 ToString(EProtocolFlavor Protocol)
 {

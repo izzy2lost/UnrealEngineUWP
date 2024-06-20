@@ -179,21 +179,13 @@ CmdQueryList(const FCmdQueryOptions& Options)
 	}
 	FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
 
-	TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
-
-	if (!AuthToken.IsOk())
-	{
-		LogError(AuthToken.GetError());
-		return -1;
-	}
-
 	if (Options.Args.empty())
 	{
 		UNSYNC_ERROR(L"Path argument is required");
 		return -1;
 	}
 
-	TResult<ProxyQuery::FDirectoryListing> ListingResult = ProxyQuery::ListDirectory(Connection, &AuthDesc, Options.Args[0]);
+	TResult<ProxyQuery::FDirectoryListing> ListingResult = ProxyQuery::ListDirectory(Options.Remote.Protocol, Connection, &AuthDesc, Options.Args[0]);
 
 	if (ListingResult.IsError())
 	{
@@ -295,7 +287,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	Context.ParentThreadIndent	 = GLogIndent;
 
 	std::function<void(std::string, int32)> ExploreDirectory =
-		[&Context, &AuthDesc, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks](std::string Path, int32 CurrentDepth)
+		[&Context, &AuthDesc, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks, &Options](std::string Path, int32 CurrentDepth)
 	{
 		FLogVerbosityScope VerboseScope(Context.bParentThreadVerbose);
 		FLogIndentScope	   IndentScope(Context.ParentThreadIndent, true);
@@ -305,7 +297,8 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 		GScheduler->NetworkSemaphore.Acquire(false);
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 
-		TResult<FDirectoryListing> DirectoryListingResult = ProxyQuery::ListDirectory(*Connection, &AuthDesc, Path);
+		TResult<FDirectoryListing> DirectoryListingResult =
+			ProxyQuery::ListDirectory(Options.Remote.Protocol, *Connection, &AuthDesc, Path);
 
 		ConnectionPool.Release(std::move(Connection));
 		GScheduler->NetworkSemaphore.Release();
@@ -400,7 +393,7 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 	FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
 	HelloConnection.Close();
 
-	TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
+	TResult<FAuthToken> AuthToken = Authenticate(AuthDesc);
 
 	if (!AuthToken.IsOk())
 	{
