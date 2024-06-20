@@ -343,85 +343,81 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 
 	DebugSleepTime = CVarLiveLinkHubDebugFrameBufferDelay.GetValueOnAnyThread();
 	
-	// Read file for streaming into memory.
-	if (!RecordingFileReader->AtEnd())
+	// Perform initial load and record entry frame file offsets.
+	const bool bInitialLoad = FrameFileData.Num() == 0;
+	if (bInitialLoad)
 	{
-		// Perform initial load and record entry frame file offsets.
-		const bool bInitialLoad = FrameFileData.Num() == 0;
-		if (bInitialLoad)
+		RecordingFileReader->Seek(0);
+		
+		int32 LoadedRecordingVersion;
+		*RecordingFileReader << LoadedRecordingVersion;
+
+		// If we modify the RecordingVersion we can perform import logic here.
+		ensure(LoadedRecordingVersion == RecordingVersion);
+			
+		// Process static data.
+		
+		int32 NumStaticData = 0;
+		*RecordingFileReader << NumStaticData;
+
+		for (int32 StaticIdx = 0; StaticIdx < NumStaticData; ++StaticIdx)
 		{
-			RecordingFileReader->Seek(0);
-		
-			int32 LoadedRecordingVersion;
-			*RecordingFileReader << LoadedRecordingVersion;
-
-			// If we modify the RecordingVersion we can perform import logic here.
-			ensure(LoadedRecordingVersion == RecordingVersion);
+			FGuid KeySource = FGuid();
+			FString KeyName;
 			
-			// Process static data.
-		
-			int32 NumStaticData = 0;
-			*RecordingFileReader << NumStaticData;
+			*RecordingFileReader << KeySource;
+			*RecordingFileReader << KeyName;
 
-			for (int32 StaticIdx = 0; StaticIdx < NumStaticData; ++StaticIdx)
+			// Create framedata just to load initial static frame data. Static data doesn't require this afterward.
+			FFrameFileData TemporaryFrameData;
+			TemporaryFrameData.FrameDataSubjectKey = MakeShared<FLiveLinkSubjectKey>(KeySource, *KeyName);
+			if (!LoadInitialFrameData(TemporaryFrameData))
 			{
-				FGuid KeySource = FGuid();
-				FString KeyName;
-			
-				*RecordingFileReader << KeySource;
-				*RecordingFileReader << KeyName;
-
-				// Create framedata just to load initial static frame data. Static data doesn't require this afterward.
-				FFrameFileData TemporaryFrameData;
-				TemporaryFrameData.FrameDataSubjectKey = MakeShared<FLiveLinkSubjectKey>(KeySource, *KeyName);
-				if (!LoadInitialFrameData(TemporaryFrameData))
-				{
-					return;
-				}
+				return;
+			}
 				
-				FLiveLinkRecordingStaticDataContainer& DataContainer = RecordingData.StaticData.FindChecked(*TemporaryFrameData.FrameDataSubjectKey.Get());
-				LoadFrameData(TemporaryFrameData, DataContainer, 0, 0, 1);
-			}
-
-			// Process frame data.
-		
-			int32 NumFrameData = 0;
-			*RecordingFileReader << NumFrameData;
-
-			for (int32 FrameIdx = 0; FrameIdx < NumFrameData; ++FrameIdx)
-			{
-				FGuid KeySource = FGuid();
-				FString KeyName;
-			
-				*RecordingFileReader << KeySource;
-				*RecordingFileReader << KeyName;
-
-				FFrameFileData KeyPosition;
-				KeyPosition.FrameDataSubjectKey = MakeShared<FLiveLinkSubjectKey>(KeySource, *KeyName);
-				if (!LoadInitialFrameData(KeyPosition))
-				{
-					return;
-				}
-
-				// Offset to the end of this block if there is multiple NumFrameData.
-				const int64 EndBlockPosition = KeyPosition.GetFrameFilePosition(KeyPosition.MaxFrames);
-				RecordingFileReader->Seek(EndBlockPosition);
-				FrameFileData.Add(MoveTemp(KeyPosition));
-			}
+			FLiveLinkRecordingStaticDataContainer& DataContainer = RecordingData.StaticData.FindChecked(*TemporaryFrameData.FrameDataSubjectKey.Get());
+			LoadFrameData(TemporaryFrameData, DataContainer, 0, 0, 1);
 		}
 
-		// Load the required frames, either on initial load or subsequent loads.
-		for (FFrameFileData& FrameData : FrameFileData)
+		// Process frame data.
+		
+		int32 NumFrameData = 0;
+		*RecordingFileReader << NumFrameData;
+
+		for (int32 FrameIdx = 0; FrameIdx < NumFrameData; ++FrameIdx)
 		{
-			if (ensure(FrameData.FrameDataSubjectKey.IsValid()))
+			FGuid KeySource = FGuid();
+			FString KeyName;
+			
+			*RecordingFileReader << KeySource;
+			*RecordingFileReader << KeyName;
+
+			FFrameFileData KeyPosition;
+			KeyPosition.FrameDataSubjectKey = MakeShared<FLiveLinkSubjectKey>(KeySource, *KeyName);
+			if (!LoadInitialFrameData(KeyPosition))
 			{
-				FLiveLinkRecordingBaseDataContainer& DataContainer = RecordingData.FrameData.FindChecked(*FrameData.FrameDataSubjectKey.Get());
-				LoadFrameData(FrameData, DataContainer, InStartFrame, InCurrentFrame, InNumFramesToLoad);
+				return;
 			}
-			else
-			{
-				UE_LOG(LogLiveLinkHub, Error, TEXT("FrameDataSubjectKey is missing for file %s."), *GetRecordingDataFilePath());
-			}
+
+			// Offset to the end of this block if there is multiple NumFrameData.
+			const int64 EndBlockPosition = KeyPosition.GetFrameFilePosition(KeyPosition.MaxFrames);
+			RecordingFileReader->Seek(EndBlockPosition);
+			FrameFileData.Add(MoveTemp(KeyPosition));
+		}
+	}
+
+	// Load the required frames, either on initial load or subsequent loads.
+	for (FFrameFileData& FrameData : FrameFileData)
+	{
+		if (ensure(FrameData.FrameDataSubjectKey.IsValid()))
+		{
+			FLiveLinkRecordingBaseDataContainer& DataContainer = RecordingData.FrameData.FindChecked(*FrameData.FrameDataSubjectKey.Get());
+			LoadFrameData(FrameData, DataContainer, InStartFrame, InCurrentFrame, InNumFramesToLoad);
+		}
+		else
+		{
+			UE_LOG(LogLiveLinkHub, Error, TEXT("FrameDataSubjectKey is missing for file %s."), *GetRecordingDataFilePath());
 		}
 	}
 }
