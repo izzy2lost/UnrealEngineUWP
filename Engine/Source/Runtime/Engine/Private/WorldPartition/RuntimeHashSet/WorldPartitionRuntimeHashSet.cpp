@@ -670,6 +670,11 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 			continue;
 		}
 
+		if (bIsHLODPass && InParams.WorldAssetHLOD.IsNull())
+		{
+			continue;
+		}
+
 		FRuntimePartitionStreamingData StreamingData;
 		StreamingData.LoadingRange = -1;
 
