@@ -182,7 +182,7 @@
 					<Property Name="TestTags" Value=""/>
 					<Property Name="TestTags" Value="$(Tags)" If="'$(Tags)' != ''"/>
 					<Property Name="TestTags" Value="$(OverrideTags)" If="'$(OverrideTags)' != ''"/>
-					<Property Name="TestArgsExt" Value="$(TestArgsExt) -cleandevice -no-play-protect" If="'$(Platform)' == 'Android'"/>
+					<Property Name="TestArgsExt" Value="$(TestArgsExt) -fullclean -no-play-protect" If="'$(Platform)' == 'Android'"/>
 					<Property Name="TestArgsExt" Value="$(TestArgsExt) -tags=&quot;$(TestTags)&quot;"/>
 					<Property Name="TestArgsExt" Value="$(TestArgsExt) --buildmachine" If="$(IsBuildMachine)"/>
 					<Property Name="TestArgsExt" Value="$(TestArgsExt) -timeout=$(PerTestTimeout)"/>
