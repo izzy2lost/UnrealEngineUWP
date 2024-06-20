@@ -28,22 +28,10 @@ bool CompareNames(const TSharedPtr<FString>& sp1, const TSharedPtr<FString>& sp2
 
 void ConditionalPostLoadReference(UObject& Object)
 {
+	if (Object.HasAnyFlags(RF_NeedLoad))
+	{
+		Object.GetLinker()->Preload(&Object);
+	}
+
 	Object.ConditionalPostLoad();
-}
-
-
-void ConditionalPostLoadReference(FSoftObjectPtr& SoftObject)
-{
-	UObject* Object = SoftObject.LoadSynchronous();
-	if (!Object)
-	{
-		return;
-	}
-	
-	if (Object->HasAnyFlags(RF_NeedLoad))
-	{
-		LoadPackage(nullptr, *SoftObject.GetLongPackageName(), LOAD_None);
-	}
-
-	Object->ConditionalPostLoad();
 }

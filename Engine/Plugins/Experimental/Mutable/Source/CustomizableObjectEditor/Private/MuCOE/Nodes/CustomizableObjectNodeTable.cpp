@@ -236,8 +236,13 @@ void UCustomizableObjectNodeTable::PostLoad()
 						continue;
 					}
 
-					FSoftObjectPtr SoftObject = SoftObjectProperty->GetPropertyValue(CellData);
-					ConditionalPostLoadReference(SoftObject);
+					UObject* Object = SoftObjectProperty->GetPropertyValue(CellData).LoadSynchronous();
+					if (!Object)
+					{
+						continue;
+					}
+
+					ConditionalPostLoadReference(*Object);
 				}
 			}
 		}
