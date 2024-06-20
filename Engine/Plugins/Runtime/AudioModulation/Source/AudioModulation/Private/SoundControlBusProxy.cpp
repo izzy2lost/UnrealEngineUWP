@@ -3,12 +3,22 @@
 
 #include "AudioDevice.h"
 #include "AudioDeviceManager.h"
+#include "AudioMixerTrace.h"
 #include "AudioModulation.h"
 #include "AudioModulationLogging.h"
 #include "AudioModulationSystem.h"
 #include "Engine/World.h"
 #include "SoundModulationGenerator.h"
 
+#if UE_AUDIO_PROFILERTRACE_ENABLED
+UE_TRACE_EVENT_BEGIN(Audio, ControlBusActivate)
+	UE_TRACE_EVENT_FIELD(uint32, DeviceId)
+	UE_TRACE_EVENT_FIELD(uint32, ControlBusId)
+	UE_TRACE_EVENT_FIELD(double, Timestamp)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, ParamName)
+UE_TRACE_EVENT_END()
+#endif // UE_AUDIO_PROFILERTRACE_ENABLED
 
 namespace AudioModulation
 {
@@ -17,6 +27,16 @@ namespace AudioModulation
 	Audio::FModulatorTypeId FControlBusSettings::Register(Audio::FModulatorHandleId HandleId, IAudioModulationManager& InModulation) const
 	{
 		FAudioModulationSystem& ModSystem = static_cast<FAudioModulationManager&>(InModulation).GetSystem();
+
+#if UE_AUDIO_PROFILERTRACE_ENABLED
+		UE_TRACE_LOG(Audio, ControlBusActivate, AudioChannel)
+			<< ControlBusActivate.DeviceId(static_cast<uint32>(ModSystem.GetAudioDeviceId()))
+			<< ControlBusActivate.ControlBusId(static_cast<uint32>(GetId()))
+			<< ControlBusActivate.Timestamp(FPlatformTime::Cycles64())
+			<< ControlBusActivate.Name(*GetName().ToString())
+			<< ControlBusActivate.ParamName(*OutputParameter.ParameterName.ToString());
+#endif
+
 		return ModSystem.RegisterModulator(HandleId, *this);
 	}
 

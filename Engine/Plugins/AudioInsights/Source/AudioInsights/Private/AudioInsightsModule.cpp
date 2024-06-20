@@ -95,11 +95,6 @@ namespace UE::Audio::Insights
 		return DashboardFactory->GetDeviceId();
 	}
 
-	FAudioInsightsModule& FAudioInsightsModule::GetChecked()
-	{
-		return static_cast<FAudioInsightsModule&>(FModuleManager::GetModuleChecked<IAudioInsightsModule>(GetName()));
-	}
-
 	TSharedRef<FDashboardFactory> FAudioInsightsModule::GetDashboardFactory()
 	{
 		return DashboardFactory->AsShared();
@@ -110,7 +105,7 @@ namespace UE::Audio::Insights
 		return DashboardFactory->AsShared();
 	}
 
-	FTraceModule& FAudioInsightsModule::GetTraceModule()
+	IAudioInsightsTraceModule& FAudioInsightsModule::GetTraceModule()
 	{
 		return TraceModule;
 	}

@@ -5,6 +5,7 @@
 #include "AudioDefines.h"
 #include "Containers/Ticker.h"
 #include "IAudioInsightsModule.h"
+#include "IAudioInsightsTraceModule.h"
 #include "Messages/AnalyzerMessageQueue.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"

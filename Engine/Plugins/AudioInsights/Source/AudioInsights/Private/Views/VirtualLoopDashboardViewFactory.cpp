@@ -28,7 +28,7 @@ namespace UE::Audio::Insights
 
 	FVirtualLoopDashboardViewFactory::FVirtualLoopDashboardViewFactory()
 	{
-		const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+		const FTraceModule& TraceModule = static_cast<FTraceModule&>(FAudioInsightsModule::GetChecked().GetTraceModule());
 		Providers = TArray<TSharedPtr<FTraceProviderBase>>
 		{
 			TraceModule.FindAudioTraceProvider<FVirtualLoopTraceProvider>()

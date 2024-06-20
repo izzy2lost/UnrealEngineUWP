@@ -8,26 +8,26 @@
 
 namespace AudioModulationEditor
 {
-	class FAudioModulationDashboardViewFactory : public UE::Audio::Insights::FTraceObjectTableDashboardViewFactory
+	class FControlBusDashboardViewFactory : public UE::Audio::Insights::FTraceObjectTableDashboardViewFactory
 	{
 	public:
-		FAudioModulationDashboardViewFactory();
-		virtual ~FAudioModulationDashboardViewFactory();
+		FControlBusDashboardViewFactory();
+		virtual ~FControlBusDashboardViewFactory();
 
 		virtual FName GetName() const override;
 		virtual FText GetDisplayName() const override;
 		virtual FSlateIcon GetIcon() const override;
 		virtual UE::Audio::Insights::EDefaultDashboardTabStack GetDefaultTabStack() const override;
+		virtual void ProcessEntries(UE::Audio::Insights::FTraceTableDashboardViewFactory::EProcessReason Reason) override;
 		virtual TSharedRef<SWidget> MakeWidget() override;
 
 	protected:
-		virtual TSharedRef<SWidget> GenerateWidgetForColumn(TSharedRef<UE::Audio::Insights::IDashboardDataViewEntry> InRowData, const FName& InColumnName) override;
-		virtual void ProcessEntries(UE::Audio::Insights::FTraceTableDashboardViewFactory::EProcessReason Reason) override;
 		virtual const TMap<FName, UE::Audio::Insights::FTraceTableDashboardViewFactory::FColumnData>& GetColumns() const override;
 
 		virtual void SortTable() override;
 
-		virtual void OnSelectionChanged(TSharedPtr<UE::Audio::Insights::IDashboardDataViewEntry> SelectedItem, ESelectInfo::Type SelectInfo) override;
+		virtual TSharedRef<SWidget> MakeControlBusListWidget();
+		virtual TSharedRef<SWidget> MakeControlBusWatchWidget();
 
 	};
 } // namespace AudioModulationEditor

@@ -26,8 +26,7 @@ namespace UE::Audio::Insights
 		virtual void UnregisterDashboardViewFactory(FName InName) override;
 		virtual ::Audio::FDeviceId GetDeviceId() const override;
 
-		AUDIOINSIGHTS_API static FAudioInsightsModule& GetChecked();
-		AUDIOINSIGHTS_API FTraceModule& GetTraceModule();
+		AUDIOINSIGHTS_API virtual IAudioInsightsTraceModule& GetTraceModule() override;
 
 		TSharedRef<FDashboardFactory> GetDashboardFactory();
 		const TSharedRef<FDashboardFactory> GetDashboardFactory() const;

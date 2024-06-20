@@ -61,7 +61,7 @@ namespace UE::Audio::Insights
 		{
 			if (bStartWithPIE)
 			{
-				const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+				const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
 				TraceModule.StartTraceAnalysis();
 
 				ActiveDeviceId = InDeviceId;
@@ -75,7 +75,7 @@ namespace UE::Audio::Insights
 	{
 		if (bStartWithPIE)
 		{
-			const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+			const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
 			TraceModule.StartTraceAnalysis();
 		}
 	}
@@ -89,7 +89,7 @@ namespace UE::Audio::Insights
 	{
 		if (bStopWithPIE)
 		{
-			const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+			const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
 			TraceModule.StopTraceAnalysis();
 		}
 

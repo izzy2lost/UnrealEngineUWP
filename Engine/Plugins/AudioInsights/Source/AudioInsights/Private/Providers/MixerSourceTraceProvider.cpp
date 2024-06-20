@@ -169,7 +169,7 @@ namespace UE::Audio::Insights
 
 				if (!bIsFirstTimestampSet)
 				{
-					FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+					FTraceModule& TraceModule = static_cast<FTraceModule&>(FAudioInsightsModule::GetChecked().GetTraceModule());
 
 					if (TraceModule.GetFirstTimeStamp() < 0.0)
 					{

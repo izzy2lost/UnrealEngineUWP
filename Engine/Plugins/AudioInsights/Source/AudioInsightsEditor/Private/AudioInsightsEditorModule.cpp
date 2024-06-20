@@ -74,6 +74,13 @@ namespace UE::Audio::Insights
 		return static_cast<FAudioInsightsEditorModule&>(FModuleManager::GetModuleChecked<IAudioInsightsModule>(GetEditorName()));
 	}
 
+	IAudioInsightsTraceModule& FAudioInsightsEditorModule::GetTraceModule()
+	{
+		IAudioInsightsModule& InsightsModule = FModuleManager::LoadModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
+		return InsightsModule.GetTraceModule();
+
+	}
+
 	TSharedRef<FEditorDashboardFactory> FAudioInsightsEditorModule::GetDashboardFactory()
 	{
 		return DashboardFactory->AsShared();

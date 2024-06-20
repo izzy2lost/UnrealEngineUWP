@@ -25,10 +25,12 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"AudioMixer",
+					"AudioMixerCore",
 					"CoreUObject",
 					"DeveloperSettings",
 					"Engine",
-					"SignalProcessing"
+					"SignalProcessing",
+					"TraceLog"
 				}
 			);
 

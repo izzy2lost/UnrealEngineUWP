@@ -70,7 +70,7 @@ namespace UE::Audio::Insights
 
 	FSlateIcon FDashboardAssetCommands::GetStartIcon() const
 	{
-		const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+		const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
 		return FSlateStyle::Get().CreateIcon(TraceModule.IsTraceAnalysisActive()
 			? "AudioInsights.Icon.Start.Inactive"
 			: "AudioInsights.Icon.Start.Active"
@@ -79,7 +79,7 @@ namespace UE::Audio::Insights
 
 	FSlateIcon FDashboardAssetCommands::GetStopIcon() const
 	{
-		const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+		const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
 		return FSlateStyle::Get().CreateIcon(TraceModule.IsTraceAnalysisActive()
 			? "AudioInsights.Icon.Stop.Active"
 			: "AudioInsights.Icon.Stop.Inactive"

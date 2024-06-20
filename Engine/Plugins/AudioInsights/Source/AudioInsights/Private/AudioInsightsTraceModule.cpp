@@ -32,6 +32,11 @@ namespace UE::Audio::Insights
 		OutModuleInfo.DisplayName = TEXT("Audio");
 	}
 
+	void FTraceModule::AddTraceProvider(TSharedPtr<FTraceProviderBase> TraceProvider)
+	{
+		TraceProviders.Add(TraceProvider->GetName(), TraceProvider);
+	}
+
 	TSharedRef<FTraceChannelManager> FTraceModule::GetChannelManager()
 	{
 		return ChannelManager;

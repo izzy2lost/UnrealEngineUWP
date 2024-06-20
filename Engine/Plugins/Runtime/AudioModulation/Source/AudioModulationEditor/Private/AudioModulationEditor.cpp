@@ -16,7 +16,7 @@
 #include "IAudioInsightsModule.h"
 #include "IAudioModulation.h"
 #include "ICurveEditorModule.h"
-#include "Insights/Views/ModulationDashboardViewFactory.h"
+#include "Insights/Views/ControlBusDashboardViewFactory.h"
 #include "Internationalization/Internationalization.h"
 #include "Layouts/SoundControlBusMixStageLayout.h"
 #include "Layouts/SoundControlModulationPatchLayout.h"
@@ -54,15 +54,15 @@ namespace AudioModulationEditor
 
 namespace
 {
-
 	static bool bIsModulationRegisteredInAudioInsights = false;
 
 	void RegisterModulationInAudioInsights()
 	{
 		if (!bIsModulationRegisteredInAudioInsights)
 		{
-			IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			InsightsModule.RegisterDashboardViewFactory(MakeShared<AudioModulationEditor::FAudioModulationDashboardViewFactory>());
+
+			IAudioInsightsModule& InsightsModule = FModuleManager::LoadModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetEditorName());
+			InsightsModule.RegisterDashboardViewFactory(MakeShared<AudioModulationEditor::FControlBusDashboardViewFactory>());
 
 			bIsModulationRegisteredInAudioInsights = true;
 		}
@@ -72,9 +72,8 @@ namespace
 	{
 		if (bIsModulationRegisteredInAudioInsights)
 		{
-			IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			InsightsModule.UnregisterDashboardViewFactory("AudioModulation");
-
+			IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetEditorName());
+			InsightsModule.UnregisterDashboardViewFactory("ControlBuses");
 			bIsModulationRegisteredInAudioInsights = false;
 		}
 	}

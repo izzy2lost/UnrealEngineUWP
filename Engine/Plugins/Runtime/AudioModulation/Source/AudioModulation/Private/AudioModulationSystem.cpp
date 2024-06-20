@@ -10,6 +10,7 @@
 
 #include "Async/Async.h"
 #include "Audio/AudioAddressPattern.h"
+#include "AudioMixerTrace.h"
 #include "AudioModulationLogging.h"
 #include "AudioModulationProfileSerializer.h"
 #include "AudioModulationSettings.h"
@@ -34,6 +35,21 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("Generator Count"),	STAT_AudioModulationGenerato
 DECLARE_DWORD_COUNTER_STAT(TEXT("Mix Count"),	STAT_AudioModulationMixCount, STATGROUP_AudioModulation)
 DECLARE_DWORD_COUNTER_STAT(TEXT("Patch Count"), STAT_AudioModulationPatchCount, STATGROUP_AudioModulation)
 DECLARE_DWORD_COUNTER_STAT(TEXT("Render Queue Commands Processed"), STAT_AudioModulationProcQueueCount, STATGROUP_AudioModulation)
+
+#if UE_AUDIO_PROFILERTRACE_ENABLED
+UE_TRACE_EVENT_BEGIN(Audio, ControlBusUpdate)
+	UE_TRACE_EVENT_FIELD(uint32, DeviceId)
+	UE_TRACE_EVENT_FIELD(uint32, ControlBusId)
+	UE_TRACE_EVENT_FIELD(double, Timestamp)
+	UE_TRACE_EVENT_FIELD(float, Value)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN(Audio, ControlBusDeactivate)
+	UE_TRACE_EVENT_FIELD(uint32, DeviceId)
+	UE_TRACE_EVENT_FIELD(uint32, ControlBusId)
+	UE_TRACE_EVENT_FIELD(double, Timestamp)
+UE_TRACE_EVENT_END()
+#endif // UE_AUDIO_PROFILERTRACE_ENABLED
 
 namespace AudioModulation
 {
@@ -547,6 +563,21 @@ namespace AudioModulation
 		SET_DWORD_STAT(STAT_AudioModulationPatchCount, RefProxies.Patches.Num());
 		SET_DWORD_STAT(STAT_AudioModulationProcQueueCount, CommandsProcessed);
 
+#if UE_AUDIO_PROFILERTRACE_ENABLED
+		const bool bChannelEnabled = UE_TRACE_CHANNELEXPR_IS_ENABLED(AudioChannel);
+		if (bChannelEnabled)
+		{
+			for (TPair<FBusId, FControlBusProxy>& Pair : RefProxies.Buses)
+			{
+				UE_TRACE_LOG(Audio, ControlBusUpdate, AudioChannel)
+					<< ControlBusUpdate.DeviceId(static_cast<uint32>(AudioDeviceId))
+					<< ControlBusUpdate.ControlBusId(static_cast<uint32>(Pair.Key))
+					<< ControlBusUpdate.Timestamp(FPlatformTime::Cycles64())
+					<< ControlBusUpdate.Value(Pair.Value.GetValue());
+			}
+		}
+#endif // UE_AUDIO_PROFILERTRACE_ENABLED
+
 #if !UE_BUILD_SHIPPING
  		Debugger->UpdateDebugData(InElapsed, RefProxies);
 #endif // !UE_BUILD_SHIPPING
@@ -754,6 +785,13 @@ namespace AudioModulation
 			FBusHandle BusHandle = FBusHandle::Get(static_cast<FBusId>(ModId), RefProxies.Buses);
 			if (UnregisterModulator<FBusHandle>(BusHandle, RefModulators.BusMap, HandleId))
 			{
+#if UE_AUDIO_PROFILERTRACE_ENABLED
+				UE_TRACE_LOG(Audio, ControlBusDeactivate, AudioChannel)
+					<< ControlBusDeactivate.DeviceId(static_cast<uint32>(AudioDeviceId))
+					<< ControlBusDeactivate.ControlBusId(static_cast<uint32>(ModId))
+					<< ControlBusDeactivate.Timestamp(FPlatformTime::Cycles64());
+#endif
+
 				return;
 			}
 

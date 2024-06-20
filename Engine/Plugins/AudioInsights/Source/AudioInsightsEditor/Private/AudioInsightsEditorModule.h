@@ -30,6 +30,7 @@ namespace UE::Audio::Insights
 		const TSharedRef<FEditorDashboardFactory> GetDashboardFactory() const;
 
 		static FAudioInsightsEditorModule& GetChecked();
+		IAudioInsightsTraceModule& GetTraceModule() override;
 
 	private:
 		void RegisterMenus();

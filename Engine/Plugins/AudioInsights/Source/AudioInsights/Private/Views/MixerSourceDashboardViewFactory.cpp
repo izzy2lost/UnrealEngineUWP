@@ -51,7 +51,7 @@ namespace UE::Audio::Insights
 
 	FMixerSourceDashboardViewFactory::FMixerSourceDashboardViewFactory()
 	{
-		const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+		const FTraceModule& TraceModule = static_cast<FTraceModule&>(FAudioInsightsModule::GetChecked().GetTraceModule());
 		Providers = TArray<TSharedPtr<FTraceProviderBase>>
 		{
 			TraceModule.FindAudioTraceProvider<FMixerSourceTraceProvider>()
@@ -654,7 +654,7 @@ namespace UE::Audio::Insights
 
 			if (GameState == EGameState::Running)
 			{
-				const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+				const FTraceModule& TraceModule = static_cast<FTraceModule&>(FAudioInsightsModule::GetChecked().GetTraceModule());
 				const double FirstTimestamp = TraceModule.GetFirstTimeStamp();
 
 				const double CurrentTime = FPlatformTime::Seconds();

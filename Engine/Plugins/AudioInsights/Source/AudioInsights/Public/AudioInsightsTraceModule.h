@@ -1,17 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "AudioInsightsTraceChannelHandle.h"
-#include "AudioInsightsTraceProviderBase.h"
 #include "Containers/Map.h"
+#include "IAudioInsightsTraceModule.h"
 #include "Templates/SharedPointer.h"
 #include "TraceServices/Model/AnalysisSession.h"
-#include "TraceServices/ModuleService.h"
 #include "UObject/NameTypes.h"
 
 namespace UE::Audio::Insights
 {
-	class AUDIOINSIGHTS_API FTraceModule : public TraceServices::IModule
+	class AUDIOINSIGHTS_API FTraceModule : public IAudioInsightsTraceModule
 	{
 	public:
 		FTraceModule();
@@ -31,11 +29,13 @@ namespace UE::Audio::Insights
 			return StaticCastSharedPtr<TraceProviderType>(TraceProviders.FindRef(TraceProviderType::GetName_Static()));
 		}
 
-		TSharedRef<FTraceChannelManager> GetChannelManager();
+		virtual void AddTraceProvider(TSharedPtr<FTraceProviderBase> TraceProvider) override;
 
-		void StartTraceAnalysis() const;
-		bool IsTraceAnalysisActive() const;
-		void StopTraceAnalysis() const;
+		virtual TSharedRef<FTraceChannelManager> GetChannelManager() override;
+
+		void StartTraceAnalysis() const override;
+		bool IsTraceAnalysisActive() const override;
+		void StopTraceAnalysis() const override;
 
 		void SetFirstTimeStamp(double InFirstTimeStamp) { FirstTimeStamp = InFirstTimeStamp; }
 		double GetFirstTimeStamp() const { return FirstTimeStamp; }
