@@ -158,11 +158,6 @@ void UModularVehicleBaseComponent::OnCreatePhysicsState()
 {
 	Super::OnCreatePhysicsState();
 
-	if (InputProducerClass)
-	{
-		InputProducer = NewObject<UVehicleInputProducerBase>(this, InputProducerClass);
-	}
-
 	if (ClusterUnionComponent)
 	{
 		// piggyback on the Add/Remove component events from the cluster union to add/remove simulation modules
@@ -384,6 +379,11 @@ void UModularVehicleBaseComponent::BeginPlay()
 	// at that time and AssimilateComponentInputs will not find any controls in the component hierarchy
 	TArray<FModuleInputSetup> CombinedInputConfiguration;
 	AssimilateComponentInputs(CombinedInputConfiguration);
+
+	if (!InputProducer && InputProducerClass)
+	{
+		InputProducer = NewObject<UVehicleInputProducerBase>(this, InputProducerClass);
+	}
 
 	if (InputProducer)
 	{
@@ -1086,6 +1086,10 @@ void UModularVehicleBaseComponent::AddGeometryCollectionsFromOwnedActor()
 void UModularVehicleBaseComponent::SetInputProducerClass(TSubclassOf<UVehicleInputProducerBase> InInputProducerClass)
 {
 	InputProducerClass = InInputProducerClass;
+	if (!InputProducer)
+	{
+		InputProducer = NewObject<UVehicleInputProducerBase>(this, InputProducerClass);
+	}
 }
 
 void UModularVehicleBaseComponent::SetInputBool(const FName Name, const bool Value)

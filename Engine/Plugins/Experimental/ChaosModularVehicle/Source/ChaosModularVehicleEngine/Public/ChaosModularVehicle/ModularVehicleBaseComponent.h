@@ -190,8 +190,11 @@ public:
 	void SetInput(const FName& Name, const FVector2D& Value);
 	void SetInput(const FName& Name, const FVector& Value);
 
+	// Sets the input producer class and creates an input producer if one doesn't exist.
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
 	void SetInputProducerClass(TSubclassOf<UVehicleInputProducerBase> InInputProducerClass);
+
+	TObjectPtr<UVehicleInputProducerBase> GetInputProducer() { return InputProducer; }
 
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
 	void SetInputBool(const FName Name, const bool Value);
