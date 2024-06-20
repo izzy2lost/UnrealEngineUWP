@@ -2,10 +2,9 @@
 
 #pragma once
 
-#include "Dataflow/DataflowObjectInterface.h"
-#include "Components/PrimitiveComponent.h"
-#include "Templates/SharedPointer.h"
+#include "UObject/Interface.h"
 #include "Dataflow/DataflowEdNode.h"
+#include "Templates/SharedPointer.h"
 #include "DataflowContent.generated.h"
 
 class FDataflowEditorToolkit;
@@ -18,7 +17,15 @@ class UDataflowBaseContent;
 class FPreviewScene;
 class UAnimSingleNodeInstance;
 class AActor;
-namespace Dataflow { class IDataflowConstructionViewMode; }
+class UDataflowEdNode;
+struct FManagedArrayCollection;
+
+namespace Dataflow
+{
+	class IDataflowConstructionViewMode;
+	template<class Base> class TEngineContext;
+	typedef TEngineContext<FContextSingle> FEngineContext;
+}
 
 namespace DataflowContextHelpers
 {

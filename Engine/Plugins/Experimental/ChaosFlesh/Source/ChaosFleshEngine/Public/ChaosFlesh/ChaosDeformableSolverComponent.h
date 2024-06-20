@@ -273,6 +273,7 @@ struct FDataflowFleshSolverProxy : public FDataflowPhysicsSolverProxy
 		const Chaos::Softs::FDeformableSolver::FPhysicsThreadAccess PhysicsThreadAccess(Solver.Get(), Chaos::Softs::FPhysicsThreadAccessor());
 		return PhysicsThreadAccess.GetProperties().TimeStepSize;
 	}
+	virtual bool IsValid() const override { return Solver.IsValid();}
 	// End FPhysicsSolverInterface overrides
 
 	/** Chaos deformable solver that will be used in the component */

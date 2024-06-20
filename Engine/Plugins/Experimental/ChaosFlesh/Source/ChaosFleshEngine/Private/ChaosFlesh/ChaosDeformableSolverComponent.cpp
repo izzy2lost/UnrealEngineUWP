@@ -155,6 +155,10 @@ void UDeformableSolverComponent::UpdateDeformableEndTickState(bool bRegister)
 void UDeformableSolverComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	if(!SimulationAsset.DataflowAsset)
+	{
+		BuildSimulationProxy();
+	}
 }
 
 void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -197,6 +201,10 @@ void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick 
 void UDeformableSolverComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
+	if(!SimulationAsset.DataflowAsset)
+	{
+		ResetSimulationProxy();
+	}
 }
 
 void UDeformableSolverComponent::BuildSimulationProxy()

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/Interface.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Templates/SharedPointer.h"
 #include "Dataflow/DataflowSimulationContext.h"
@@ -23,6 +24,19 @@ namespace Dataflow
 
 		/** Simulation context used to evaluate the graph on PT */
 		TSharedPtr<Dataflow::FDataflowSimulationContext> SimulationContext;
+
+		/** Check is there is any datas to process */
+		bool IsEmpty() const
+		{
+			for(const TPair<FString, TSet<IDataflowSimulationInterface*>>& InterfacesPair : SimulationInterfaces)
+			{
+				if(!InterfacesPair.Value.IsEmpty())
+				{
+					return false;
+				}
+			}
+			return true;
+		}
 	};
 }
 
@@ -106,10 +120,31 @@ private :
 	
 	/** Simulation tasks in which the graph will be evaluated */
 	TArray<FGraphEventRef> SimulationTasks;
-
+ 
 	/** Boolean to control if the simulation should be disabled or not */
 	bool bIsSimulationEnabled = true;
 	
 	/** Boolean to check if we are stepping the simulation scene */
 	bool bStepSimulationScene = false;
+};
+
+/** Dataflow simulation actor interface to be able to call BP events before/after the manager ticking in case we need it */
+UINTERFACE(MinimalAPI, Blueprintable)
+class UDataflowSimulationActor : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class IDataflowSimulationActor
+{
+	GENERATED_BODY()
+ 
+public:
+	/** Pre simulation callback function that can be implemented in C++ or Blueprint. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category="Dataflow")
+	void PreDataflowSimulationTick(const float SimulationTime, const float DeltaTime);
+
+	/** Post simulation callback function that can be implemented in C++ or Blueprint. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category="Dataflow")
+	void PostDataflowSimulationTick(const float SimulationTime, const float DeltaTime);
 };

@@ -5,8 +5,10 @@
 #include "Dataflow/DataflowSimulationInterface.h"
 #include "Dataflow/DataflowSimulationProxy.h"
 #include "Components/ActorComponent.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "Containers/Map.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 static FAutoConsoleTaskPriority DataflowSimulationTaskPriority(
 		TEXT("TaskGraph.TaskPriorities.DataflowSimulationTask"),
@@ -88,6 +90,34 @@ FDelegateHandle UDataflowSimulationManager::OnDestroyPhysicsStateHandle;
 UDataflowSimulationManager::UDataflowSimulationManager()
 {}
 
+inline void PreSimulationTick(const TObjectPtr<UObject>& SimulationWorld, const float SimulationTime, const float DeltaTime)
+{
+	if(SimulationWorld)
+	{
+		TArray<AActor*> Actors;
+		UGameplayStatics::GetAllActorsWithInterface(SimulationWorld, UDataflowSimulationActor::StaticClass(), Actors);
+	
+		for (AActor* CurrentActor : Actors)
+		{
+			IDataflowSimulationActor::Execute_PreDataflowSimulationTick(CurrentActor, SimulationTime, DeltaTime);
+		}
+	}
+}
+
+inline void PostSimulationTick(const TObjectPtr<UObject>& SimulationWorld, const float SimulationTime, const float DeltaTime)
+{
+	if(SimulationWorld)
+	{
+		TArray<AActor*> Actors;
+		UGameplayStatics::GetAllActorsWithInterface(SimulationWorld, UDataflowSimulationActor::StaticClass(), Actors);
+	
+		for (AActor* CurrentActor : Actors)
+		{
+			IDataflowSimulationActor::Execute_PostDataflowSimulationTick(CurrentActor, SimulationTime, DeltaTime);
+		}
+	}
+}
+
 void UDataflowSimulationManager::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -154,11 +184,19 @@ void UDataflowSimulationManager::OnStartup()
 	{
 		if(IDataflowSimulationInterface* SimulationInterface = Cast<IDataflowSimulationInterface>(ActorComponent))
 		{
-			// Build the simulation proxy
-			SimulationInterface->BuildSimulationProxy();
+			if(SimulationInterface->GetSimulationAsset().DataflowAsset)
+			{
+				FDataflowSimulationProxy* SimulationProxy = SimulationInterface->GetSimulationProxy();
+				
+				if(!SimulationProxy || (SimulationProxy && !SimulationProxy->IsValid()))
+				{
+					// Build the simulation proxy
+					SimulationInterface->BuildSimulationProxy();
+				}
 
-			// Register the simulation interface to the manager
-			SimulationInterface->RegisterManagerInterface(ActorComponent->GetWorld());
+				// Register the simulation interface to the manager
+				SimulationInterface->RegisterManagerInterface(ActorComponent->GetWorld());
+			}
 		}
 	});
 
@@ -166,11 +204,19 @@ void UDataflowSimulationManager::OnStartup()
 	{
 		if(IDataflowSimulationInterface* SimulationInterface = Cast<IDataflowSimulationInterface>(ActorComponent))
 		{
-			// Reset the simulation proxy
-			SimulationInterface->ResetSimulationProxy();
+			if(SimulationInterface->GetSimulationAsset().DataflowAsset)
+			{
+				FDataflowSimulationProxy* SimulationProxy = SimulationInterface->GetSimulationProxy();
+				
+				if(SimulationProxy && SimulationProxy->IsValid())
+				{
+					// Reset the simulation proxy
+					SimulationInterface->ResetSimulationProxy();
+				}
 
-			// Unregister the simulation interface from the manager
-			SimulationInterface->UnregisterManagerInterface(ActorComponent->GetWorld());
+				// Unregister the simulation interface from the manager
+				SimulationInterface->UnregisterManagerInterface(ActorComponent->GetWorld());
+			}
 		}
 	});
 
@@ -204,8 +250,15 @@ void UDataflowSimulationManager::OnShutdown()
 
 void UDataflowSimulationManager::WriteSimulationData(const float DeltaTime)
 {
+	// Pre-simulation callback that could be used in BP before the simulation
+	PreSimulationTick(GetWorld(), GetWorld()->GetTimeSeconds(), DeltaTime);
+	
 	for(const TPair<TObjectPtr<UDataflow>, Dataflow::FDataflowSimulationData>& DataflowData : SimulationData)
 	{
+		if(DataflowData.Value.SimulationContext.IsValid())
+		{
+			DataflowData.Value.SimulationContext->ResetSimulationProxies();
+		}
 		for(const TPair<FString,TSet<IDataflowSimulationInterface*>>& SimulationInterfaces : DataflowData.Value.SimulationInterfaces)
 		{
 			for(IDataflowSimulationInterface* SimulationInterface : SimulationInterfaces.Value)
@@ -219,14 +272,20 @@ void UDataflowSimulationManager::WriteSimulationData(const float DeltaTime)
 					if(SimulationInterface->GetSimulationProxy())
 					{
 						SimulationInterface->GetSimulationProxy()->SetSimulationGroups(SimulationInterface->GetSimulationAsset().SimulationGroups);
-						DataflowData.Value.SimulationContext->AddSimulationProxy(SimulationInterfaces.Key, SimulationInterface->GetSimulationProxy());
+						if(DataflowData.Value.SimulationContext.IsValid())
+						{
+							DataflowData.Value.SimulationContext->AddSimulationProxy(SimulationInterfaces.Key, SimulationInterface->GetSimulationProxy());
+						}
 					}
 					
 					SimulationInterface->WriteToSimulation(DeltaTime);
 				}
 			}
 		}
-		DataflowData.Value.SimulationContext->RegisterProxyGroups();
+		if(DataflowData.Value.SimulationContext.IsValid())
+		{
+			DataflowData.Value.SimulationContext->RegisterProxyGroups();
+		}
 	}
 }
 
@@ -244,13 +303,18 @@ void UDataflowSimulationManager::ReadSimulationData(const float DeltaTime)
 				}
 			}
 		}
-		DataflowData.Value.SimulationContext->ResetSimulationProxies();
+		if(DataflowData.Value.SimulationContext.IsValid())
+		{
+			DataflowData.Value.SimulationContext->ResetSimulationProxies();
+		}
 	}
 	if(bStepSimulationScene)
 	{
 		bIsSimulationEnabled = false;
 		bStepSimulationScene = false;
 	}
+	// Post-simulation callback that could be used in BP after the simulation
+	PostSimulationTick(GetWorld(), GetWorld()->GetTimeSeconds(), DeltaTime);
 }
 
 void UDataflowSimulationManager::AdvanceSimulationData(const float DeltaTime, const float SimulationTime)
@@ -268,9 +332,12 @@ void UDataflowSimulationManager::StartSimulationTasks(const float DeltaTime, con
 
 	for(TPair<TObjectPtr<UDataflow>, Dataflow::FDataflowSimulationData>& DataflowData : SimulationData)
 	{
-		// Add a simulation task linked to that solver
-		SimulationTasks.Add(TGraphTask<Dataflow::FDataflowSimulationTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(
-				DataflowData.Key, DataflowData.Value.SimulationContext, DeltaTime, SimulationTime));
+		if(!DataflowData.Value.IsEmpty())
+		{
+			// Add a simulation task linked to that solver
+			SimulationTasks.Add(TGraphTask<Dataflow::FDataflowSimulationTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(
+					DataflowData.Key, DataflowData.Value.SimulationContext, DeltaTime, SimulationTime));
+		}
 	}
 }
 
@@ -381,3 +448,5 @@ void UDataflowSimulationManager::Deinitialize()
 
 	CompleteSimulationTasks();
 }
+
+

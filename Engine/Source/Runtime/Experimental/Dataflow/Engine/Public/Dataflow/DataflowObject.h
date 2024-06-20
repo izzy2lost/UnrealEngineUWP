@@ -4,7 +4,7 @@
 
 #include "Containers/Array.h"
 #include "CoreMinimal.h"
-#include "DataflowPreview.h"
+#include "Dataflow/DataflowPreview.h"
 #include "Dataflow/DataflowCore.h"
 #include "EdGraph/EdGraph.h"
 #include "Templates/Function.h"

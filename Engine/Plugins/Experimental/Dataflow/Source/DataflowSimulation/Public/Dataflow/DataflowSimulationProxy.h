@@ -16,6 +16,9 @@ struct DATAFLOWSIMULATION_API FDataflowSimulationProxy
 	FDataflowSimulationProxy() = default;
 	virtual ~FDataflowSimulationProxy() = default;
 	
+	/** Check if the proxy is valid */
+	virtual bool IsValid() const { return true;}
+	
 	/** Get the proxy script struct */
 	virtual const UScriptStruct* GetScriptStruct() const
 	{
