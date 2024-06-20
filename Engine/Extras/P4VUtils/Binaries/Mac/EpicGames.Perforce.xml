@@ -1665,7 +1665,7 @@
         </member>
         <member name="M:EpicGames.Perforce.PerforceConnectionExtensions.HaveAsync(EpicGames.Perforce.IPerforceConnection,EpicGames.Perforce.FileSpecList,System.Threading.CancellationToken)">
             <summary>
-            Dtermine files currently synced to the client
+            Determine files currently synced to the client
             </summary>
             <param name="connection">Connection to the Perforce server</param>
             <param name="fileSpec">Files to query</param>
@@ -1674,7 +1674,7 @@
         </member>
         <member name="M:EpicGames.Perforce.PerforceConnectionExtensions.TryHaveAsync(EpicGames.Perforce.IPerforceConnection,EpicGames.Perforce.FileSpecList,System.Threading.CancellationToken)">
             <summary>
-            Dtermine files currently synced to the client
+            Determine files currently synced to the client
             </summary>
             <param name="connection">Connection to the Perforce server</param>
             <param name="fileSpec">Files to query</param>
@@ -2660,6 +2660,11 @@
             Constructor
             </summary>
             <param name="error">The error from the server</param>
+        </member>
+        <member name="M:EpicGames.Perforce.PerforceException.#ctor(System.String,EpicGames.Perforce.PerforceException)">
+            <summary>
+            Constructor
+            </summary>
         </member>
         <member name="T:EpicGames.Perforce.PerforceInfo">
             <summary>
