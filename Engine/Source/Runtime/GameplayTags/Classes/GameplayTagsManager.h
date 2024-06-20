@@ -379,10 +379,15 @@ public:
 	/** Call to flush the list of native tags, once called it is unsafe to add more */
 	GAMEPLAYTAGS_API void DoneAddingNativeTags();
 
+	/** This is a delegate that is called during initialization/initial loading and signals the last chance to add tags before we are considered to be fully loaded (all tags registered). */
 	static GAMEPLAYTAGS_API FSimpleMulticastDelegate& OnLastChanceToAddNativeTags();
 
-
-	GAMEPLAYTAGS_API void CallOrRegister_OnDoneAddingNativeTagsDelegate(FSimpleMulticastDelegate::FDelegate Delegate);
+	/**
+	 * Register a callback for when native tags are done being added (this is also a safe point to consider that the gameplay tags have fully been initialized).
+	 * Or, if the native tags have already been added (and thus we have registered all valid tags), then execute this Delegate immediately.
+	 * This is useful if your code is potentially executed during load time, and therefore any tags in your block of code could be not-yet-loaded, but possibly valid after being loaded.
+	 */
+	GAMEPLAYTAGS_API FDelegateHandle CallOrRegister_OnDoneAddingNativeTagsDelegate(const FSimpleMulticastDelegate::FDelegate& Delegate) const;
 
 	/**
 	 * Gets a Tag Container containing the supplied tag and all of its parents as explicit tags.
@@ -541,9 +546,10 @@ public:
 	}
 
 	/** Should we clear references to invalid tags loaded/saved in the editor */
+	UE_DEPRECATED(5.5, "We should never clear invalid tags as we're not guaranteed the required plugin has loaded")
 	bool ShouldClearInvalidTags() const
 	{
-		return bShouldClearInvalidTags;
+		return false;
 	}
 
 	/** Should use fast replication */
@@ -878,8 +884,6 @@ private:
 	/** Map of all config directories to load tag inis from */
 	TMap<FString, FGameplayTagSearchPathInfo> RegisteredSearchPaths;
 
-
-
 	/** Roots of gameplay tag nodes */
 	TSharedPtr<FGameplayTagNode> GameplayRootTag;
 
@@ -902,9 +906,6 @@ private:
 
 	/** Cached runtime value for whether we should warn when loading invalid tags */
 	bool bShouldWarnOnInvalidTags;
-
-	/** Cached runtime value for whether we should warn when loading invalid tags */
-	bool bShouldClearInvalidTags;
 
 	/** Cached runtime value for whether we should allow unloading of tags */
 	bool bShouldAllowUnloadingTags;

@@ -179,7 +179,6 @@ UGameplayTagsManager::UGameplayTagsManager(const FObjectInitializer& ObjectIniti
 {
 	bUseFastReplication = false;
 	bShouldWarnOnInvalidTags = true;
-	bShouldClearInvalidTags = false;
 	bDoneAddingNativeTags = false;
 	bShouldAllowUnloadingTags = false;
 	NetIndexFirstBitSegment = 16;
@@ -538,7 +537,6 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 
 			bUseFastReplication = MutableDefault->FastReplication;
 			bShouldWarnOnInvalidTags = MutableDefault->WarnOnInvalidTags;
-			bShouldClearInvalidTags = MutableDefault->ClearInvalidTags;
 			NumBitsForContainerSize = MutableDefault->NumBitsForContainerSize;
 			NetIndexFirstBitSegment = MutableDefault->NetIndexFirstBitSegment;
 
@@ -857,11 +855,6 @@ void UGameplayTagsManager::RedirectTagsForContainer(FGameplayTagContainer& Conta
 					UObject* LoadingObject = LoadContext ? LoadContext->SerializedObject : nullptr;
 					UE_ASSET_LOG(LogGameplayTags, Warning, *GetPathNameSafe(LoadingObject), TEXT("Invalid GameplayTag %s found in property %s."), *TagName.ToString(), *GetPathNameSafe(SerializingProperty));
 				}
-
-				if (ShouldClearInvalidTags())
-				{
-					NamesToRemove.Add(TagName);
-				}
 			}
 		}
 #endif
@@ -902,12 +895,7 @@ void UGameplayTagsManager::RedirectSingleGameplayTag(FGameplayTag& Tag, FPropert
 				FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
 				UObject* LoadingObject = LoadContext ? LoadContext->SerializedObject : nullptr;
 				UE_ASSET_LOG(LogGameplayTags, Warning, *GetPathNameSafe(LoadingObject), TEXT("Invalid GameplayTag %s found in property %s."), *TagName.ToString(), *GetPathNameSafe(SerializingProperty));
-			}
-			
-			if (ShouldClearInvalidTags())
-			{
-				Tag.TagName = NAME_None;
-			}
+			}			
 		}
 	}
 #endif
@@ -939,23 +927,27 @@ bool UGameplayTagsManager::ImportSingleGameplayTag(FGameplayTag& Tag, FName Impo
 #if WITH_EDITOR
 		if (ShouldWarnOnInvalidTags())
 		{
-			FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
-			UObject* LoadingObject = LoadContext ? LoadContext->SerializedObject : nullptr;
+			// These are more elaborate checks to ensure we're actually loading a UObject, and not pasting it, compiling it, or other possible paths into this function.
+			const FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
+			const UObject* LoadingObject = LoadContext ? LoadContext->SerializedObject : nullptr;
 			if (LoadingObject)
 			{
-				// If this is a serialize with a real object and it failed to find the tag, warn about it
-				UE_ASSET_LOG(LogGameplayTags, Warning, *GetPathNameSafe(LoadingObject), TEXT("Invalid GameplayTag %s found in object %s."), *ImportedTagName.ToString(), *LoadingObject->GetName());
+				// We need to defer the check until after native gameplay tags are done loading (in case the tag has not yet been defined)
+				CallOrRegister_OnDoneAddingNativeTagsDelegate(FSimpleMulticastDelegate::FDelegate::CreateWeakLambda(this,
+					[this, ImportedTagName, AssetName = GetPathNameSafe(LoadingObject), FullObjectPath = LoadingObject->GetFullName()]()
+					{
+						// Verify it again -- it could have been a late-loading native tag
+						if (!ValidateTagCreation(ImportedTagName))
+						{
+							UE_ASSET_LOG(LogGameplayTags, Warning, *AssetName, TEXT("Invalid GameplayTag %s found in object %s."), *ImportedTagName.ToString(), *FullObjectPath);
+						}
+					}));
 			}
 		}
-
-		// Always keep invalid tags in cooked game to be consistent with properties
-		if (!ShouldClearInvalidTags())
 #endif
-		{
-			// For imported tags that are part of a serialize, leave invalid ones the same way normal serialization does to avoid data loss
-			Tag.TagName = ImportedTagName;
-			bRetVal = true;
-		}
+		// For imported tags that are part of a serialize, leave invalid ones the same way normal serialization does to avoid data loss
+		Tag.TagName = ImportedTagName;
+		bRetVal = true;
 	}
 
 	if (bRetVal)
@@ -2168,19 +2160,16 @@ void UGameplayTagsManager::RemoveNativeGameplayTag(const FNativeGameplayTag* Tag
 	HandleGameplayTagTreeChanged(true);
 }
 
-void UGameplayTagsManager::CallOrRegister_OnDoneAddingNativeTagsDelegate(FSimpleMulticastDelegate::FDelegate Delegate)
+FDelegateHandle UGameplayTagsManager::CallOrRegister_OnDoneAddingNativeTagsDelegate(const FSimpleMulticastDelegate::FDelegate& Delegate) const
 {
 	if (bDoneAddingNativeTags)
 	{
 		Delegate.Execute();
+		return FDelegateHandle{};
 	}
 	else
 	{
-		bool bAlreadyBound = Delegate.GetUObject() != nullptr ? OnDoneAddingNativeTagsDelegate().IsBoundToObject(Delegate.GetUObject()) : false;
-		if (!bAlreadyBound)
-		{
-			OnDoneAddingNativeTagsDelegate().Add(Delegate);
-		}
+		return OnDoneAddingNativeTagsDelegate().Add(Delegate);
 	}
 }
 
@@ -2273,7 +2262,7 @@ bool UGameplayTagsManager::ExtractParentTags(const FGameplayTag& GameplayTag, TA
 					ensureAlwaysMsgf(ValidationCopy == UniqueParentTags, TEXT("ExtractParentTags results are inconsistent for tag %s"), *GameplayTag.ToString());
 				}
 			}
-			else if (!ShouldClearInvalidTags())
+			else
 			{
 				// If we don't clear invalid tags, we need to extract the parents now in case they get registered later
 				GameplayTag.ParseParentTags(UniqueParentTags);

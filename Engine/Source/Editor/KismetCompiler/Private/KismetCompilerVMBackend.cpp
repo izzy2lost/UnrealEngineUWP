@@ -631,6 +631,7 @@ public:
 
 	void EmitTermExpr(FBPTerminal* Term, const FProperty* CoerceProperty = NULL, bool bAllowStaticArray = false, bool bCallerRequiresBit = false)
 	{
+		constexpr EPropertyPortFlags ImportTextPortFlags = EPropertyPortFlags::PPF_SerializedAsImportText;
 		if (Term->bIsLiteral)
 		{
 			check(!Term->Type.IsContainer() || CoerceProperty);
@@ -878,7 +879,7 @@ public:
 						const bool bParsedUsingCustomFormat = FDefaultValueHelper::ParseVector(Term->Name, /*out*/ V);
 						if (!bParsedUsingCustomFormat)
 						{
-							Struct->ImportText(*Term->Name, &V, nullptr, PPF_None, GWarn, GetPathNameSafe(StructProperty));
+							Struct->ImportText(*Term->Name, &V, nullptr, ImportTextPortFlags, GWarn, GetPathNameSafe(StructProperty));
 						}
 					}
 					Writer << EX_VectorConst;
@@ -892,7 +893,7 @@ public:
 						const bool bParsedUsingCustomFormat = FDefaultValueHelper::ParseVector(Term->Name, /*out*/ V);
 						if (!bParsedUsingCustomFormat)
 						{
-							Struct->ImportText(*Term->Name, &V, nullptr, PPF_None, GWarn, GetPathNameSafe(StructProperty));
+							Struct->ImportText(*Term->Name, &V, nullptr, ImportTextPortFlags, GWarn, GetPathNameSafe(StructProperty));
 						}
 					}
 					Writer << EX_Vector3fConst;
@@ -906,7 +907,7 @@ public:
 						const bool bParsedUsingCustomFormat = FDefaultValueHelper::ParseRotator(Term->Name, /*out*/ R);
 						if (!bParsedUsingCustomFormat)
 						{
-							Struct->ImportText(*Term->Name, &R, nullptr, PPF_None, GWarn, GetPathNameSafe(StructProperty));
+							Struct->ImportText(*Term->Name, &R, nullptr, ImportTextPortFlags, GWarn, GetPathNameSafe(StructProperty));
 						}
 					}
 					Writer << EX_RotationConst;
@@ -920,7 +921,7 @@ public:
 						const bool bParsedUsingCustomFormat = T.InitFromString(Term->Name);
 						if (!bParsedUsingCustomFormat)
 						{
-							Struct->ImportText(*Term->Name, &T, nullptr, PPF_None, GWarn, GetPathNameSafe(StructProperty));
+							Struct->ImportText(*Term->Name, &T, nullptr, ImportTextPortFlags, GWarn, GetPathNameSafe(StructProperty));
 						}
 					}
 					Writer << EX_TransformConst;
@@ -938,7 +939,7 @@ public:
 					}
 
 					// Assume that any errors on the import of the name string have been caught in the function call generation
-					Struct->ImportText(Term->Name.IsEmpty() ? TEXT("()") : *Term->Name, StructData, nullptr, PPF_None, GLog, GetPathNameSafe(StructProperty));
+					Struct->ImportText(Term->Name.IsEmpty() ? TEXT("()") : *Term->Name, StructData, nullptr, ImportTextPortFlags, GLog, GetPathNameSafe(StructProperty));
 
  					Writer << EX_StructConst;
 					Writer << Struct;
@@ -993,7 +994,7 @@ public:
 				FProperty* InnerProp = ArrayPropr->Inner;
 				ensure(InnerProp);
 				FScriptArray ScriptArray;
-				ArrayPropr->ImportText_Direct(*Term->Name, &ScriptArray, NULL, 0, GLog);
+				ArrayPropr->ImportText_Direct(*Term->Name, &ScriptArray, NULL, ImportTextPortFlags, GLog);
 
 				FScriptArrayHelper ScriptArrayHelper(ArrayPropr, &ScriptArray);
 				int32 ElementNum = ScriptArrayHelper.Num();
@@ -1014,7 +1015,7 @@ public:
 				ensure(InnerProp);
 
 				FScriptSet ScriptSet;
-				SetPropr->ImportText_Direct(*Term->Name, &ScriptSet, NULL, 0, GLog);
+				SetPropr->ImportText_Direct(*Term->Name, &ScriptSet, NULL, ImportTextPortFlags, GLog);
 				int32 ElementNum = ScriptSet.Num();
 
 				FScriptSetHelper ScriptSetHelper(SetPropr, &ScriptSet);
@@ -1037,7 +1038,7 @@ public:
 				ensure(KeyProp && ValProp);
 
 				FScriptMap ScriptMap;
-				MapPropr->ImportText_Direct(*Term->Name, &ScriptMap, NULL, 0, GLog);
+				MapPropr->ImportText_Direct(*Term->Name, &ScriptMap, NULL, ImportTextPortFlags, GLog);
 				int32 ElementNum = ScriptMap.Num();
 
 				FScriptMapHelper ScriptMapHelper(MapPropr, &ScriptMap);

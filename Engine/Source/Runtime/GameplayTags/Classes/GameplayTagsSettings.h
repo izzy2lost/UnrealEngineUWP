@@ -108,9 +108,9 @@ class UGameplayTagsSettings : public UGameplayTagsList
 	UPROPERTY(config, EditAnywhere, Category = GameplayTags, meta = (ConfigRestartRequired = true))
 	bool WarnOnInvalidTags;
 
-	/** If true, will clear any invalid tags when reading in saved tag references that are not in the dictionary */
-	UPROPERTY(config, EditAnywhere, Category = GameplayTags, meta = (ConfigRestartRequired = true))
-	bool ClearInvalidTags;
+	UE_DEPRECATED(5.5, "We never clear invalid tags when reading saved tag references as the loading order of native tags is not guaranteed.")
+	UPROPERTY(config)
+	bool ClearInvalidTags = false;
 
 	/** If true, will allow unloading of tags in the editor when plugins are removed */
 	UPROPERTY(config, EditAnywhere, Category = "Advanced Gameplay Tags")
