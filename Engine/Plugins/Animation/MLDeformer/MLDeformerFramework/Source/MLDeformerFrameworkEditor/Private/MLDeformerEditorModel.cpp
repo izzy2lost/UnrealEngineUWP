@@ -125,6 +125,7 @@ namespace UE::MLDeformer
 		);
 
 		UpdateLODMappings();
+		UpdateTrainingDeviceList();
 	}
 
 	void FMLDeformerEditorModel::UpdateVertexAttributeNames()

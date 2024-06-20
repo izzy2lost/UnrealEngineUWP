@@ -6,15 +6,28 @@
 
 void UMLDeformerMorphModelInputInfo::Serialize(FArchive& Archive)
 {
-	Super::Serialize(Archive);
-
 	// Strip editor only data.
 #if WITH_EDITORONLY_DATA
+	TArray<float> InputItemMaskBufferBackup;
+	bool bProcessedDataOnCook = false;
+	ON_SCOPE_EXIT
+	{
+		UMLDeformerModel* Model = Cast<UMLDeformerModel>(GetOuter());
+		if (bProcessedDataOnCook && Model && Model->GetRecoverStrippedDataAfterCook())
+		{
+			InputItemMaskBuffer = MoveTemp(InputItemMaskBufferBackup);
+		}
+	};
+
 	if (Archive.IsSaving() && Archive.IsCooking())
 	{
+		InputItemMaskBufferBackup = MoveTemp(InputItemMaskBuffer);
 		InputItemMaskBuffer.Empty();
+		bProcessedDataOnCook = true;
 	}
 #endif
+
+	Super::Serialize(Archive);
 }
 
 #if WITH_EDITORONLY_DATA

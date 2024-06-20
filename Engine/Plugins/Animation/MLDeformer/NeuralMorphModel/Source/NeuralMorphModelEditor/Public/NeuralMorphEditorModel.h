@@ -43,6 +43,7 @@ namespace UE::NeuralMorphModel
 		virtual void OnPostInputAssetChanged() override;
 		virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
 		virtual bool GetSupportsPerTrainingInputAnimVertexMask() const override	{ return true; }
+		virtual void UpdateTrainingDeviceList() override;
 		// ~END FMLDeformerEditorModel overrides.
 
 		// FMLDeformerMorphModelEditorModel overrides.

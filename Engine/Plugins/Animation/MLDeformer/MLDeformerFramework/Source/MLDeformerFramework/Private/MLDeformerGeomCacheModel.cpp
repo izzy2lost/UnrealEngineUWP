@@ -16,21 +16,61 @@
 
 void UMLDeformerGeomCacheModel::Serialize(FArchive& Archive)
 {
-	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
+	#if WITH_EDITOR
+		bool bModifiedPropertiesForCook = false;
+		TArray<UGeometryCache*> SavedGeomCaches;
+		TArray<UAnimSequence*> SavedAnimSequences;
+		auto ModifyPropertiesForCook = [this, &bModifiedPropertiesForCook, &SavedGeomCaches, &SavedAnimSequences]()
+		{
+			bModifiedPropertiesForCook = true;
+			GeometryCache_DEPRECATED = nullptr;
+			SavedAnimSequences.Reset();
+			SavedAnimSequences.Reserve(TrainingInputAnims.Num());
+			SavedGeomCaches.Reset();
+			SavedGeomCaches.Reserve(TrainingInputAnims.Num());
+			for (FMLDeformerGeomCacheTrainingInputAnim& Anim : TrainingInputAnims)
+			{
+				SavedGeomCaches.Add(Anim.GetGeometryCache());
+				SavedAnimSequences.Add(Anim.GetAnimSequence());
+				Anim.SetGeometryCache(nullptr);
+				Anim.SetAnimSequence(nullptr);
+			}
+		};
+
+		auto RestorePropertiesForCook = [this, &bModifiedPropertiesForCook, &SavedGeomCaches, &SavedAnimSequences]()
+		{
+			if (!bModifiedPropertiesForCook)
+			{
+				return;
+			}
+			check(TrainingInputAnims.Num() == SavedGeomCaches.Num());
+			check(TrainingInputAnims.Num() == SavedAnimSequences.Num());
+			for (int32 Index = 0; Index < TrainingInputAnims.Num(); ++Index)			
+			{
+				FMLDeformerGeomCacheTrainingInputAnim& Anim = TrainingInputAnims[Index];
+				Anim.SetGeometryCache(SavedGeomCaches[Index]);
+				Anim.SetAnimSequence(SavedAnimSequences[Index]);
+			}		
+		};
+
+		ON_SCOPE_EXIT
+		{
+			if (GetRecoverStrippedDataAfterCook())
+			{
+				RestorePropertiesForCook();
+			}
+		};
+	#endif
 
 	#if WITH_EDITOR
 		if (Archive.IsSaving() && Archive.IsCooking())
 		{
-			GeometryCache_DEPRECATED = nullptr;
-			for (FMLDeformerGeomCacheTrainingInputAnim& Anim : TrainingInputAnims)
-			{
-				Anim.SetGeometryCache(nullptr);
-				Anim.SetAnimSequence(nullptr);
-			}
+			ModifyPropertiesForCook();
 		}
 	#endif
 
 	Super::Serialize(Archive);
+	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
 }
 
 void UMLDeformerGeomCacheModel::PostLoad()

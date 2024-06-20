@@ -409,11 +409,35 @@ public:
 	FNeuralNetworkModifyDelegate& GetNeuralNetworkModifyDelegate()				{ return NeuralNetworkModifyDelegate_DEPRECATED; }
 
 	/**
-	 * Get the delegate which will be called when to inform when the model instance needs to be reinitailized.
+	 * Get the delegate which will be called when to inform when the model instance needs to be reinitialized.
 	 * The ML Deformer component will hook into this for example. This is broadcast when something changes in the structure, such as when
 	 * training finished and the neural network changed.
 	 */
 	FMLDeformerReinitModelInstancesDelegate& GetReinitModelInstanceDelegate()	{ return ReinitModelInstanceDelegate; }
+
+	/**
+	 * Specify whether we want to recover stripped data that is removed from this model when cooking. Examples of this data could be the raw uncompressed vertex deltas of all morph targets.
+	 * On default we strip the data, save the cooked asset, and then recover the stripped data again. But using this method you can disable that, by setting it to false.
+	 * Generally we only want to disable this during some automated tests.
+	 */
+	void SetRecoverStrippedDataAfterCook(bool bRecover);
+
+	/**
+	 * Check whether we want to recover stripped data that is removed from this model when cooking. Examples of this data could be the raw uncompressed vertex deltas of all morph targets.
+	 * On default we strip the data, save the cooked asset, and then recover the stripped data again. But some automated cooking tests might want this disabled.
+	 */
+	bool GetRecoverStrippedDataAfterCook() const;
+
+	UFUNCTION()
+	const TArray<FString>& GetTrainingDeviceList() const			{ return TrainingDeviceList; }
+
+	UFUNCTION(BlueprintCallable, Category = "Training")
+	const FString& GetTrainingDevice() const						{ return TrainingDevice; }
+
+	UFUNCTION()
+	void SetTrainingDevice(const FString& DeviceName);
+	void SetTrainingDeviceToCpu()									{ TrainingDevice = "Cpu"; }
+	void SetTrainingDeviceList(const TArray<FString>& Devices)		{ TrainingDeviceList = Devices; }
 
 
 #if WITH_EDITORONLY_DATA
@@ -431,7 +455,7 @@ public:
 
 	/**
 	 * Check whether we should include bone transforms as input to the model during training or not.
-	 * @return Returns true when bone transfomations should be a part of the network inputs, during the training process.
+	 * @return Returns true when bone transformations should be a part of the network inputs, during the training process.
 	 */
 	UE_DEPRECATED(5.3, "This method and property has been removed and shouldn't be used anymore.")
 	bool ShouldIncludeBonesInTraining() const					{ PRAGMA_DISABLE_DEPRECATION_WARNINGS; return bIncludeBones_DEPRECATED; PRAGMA_ENABLE_DEPRECATION_WARNINGS; }
@@ -510,7 +534,7 @@ public:
 	void SetTrainingFrameLimit(int32 MaxNumFrames)				{ MaxTrainingFrames = MaxNumFrames; }
 
 	/**
-	 * Get the target mesh alignment tranformation.
+	 * Get the target mesh alignment transformation.
 	 * This is a transformation that is applied to the vertex positions of the target mesh, before we calculate the deltas
 	 * between the linear skinned mesh and the target mesh.
 	 * This is useful when you imported target mesh that isn't scaled the same, or perhaps it is rotated 90 degrees over the x axis.
@@ -603,6 +627,7 @@ public:
 	static FName GetCurveIncludeListPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, CurveIncludeList); }
 	static FName GetMaxTrainingFramesPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, MaxTrainingFrames); }
 	static FName GetMaxNumLODsPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, MaxNumLODs); }
+	static FName GetTrainingDevicePropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, TrainingDevice); }
 
 	UE_DEPRECATED(5.3, "This property has been removed and shouldn't be used anymore.")
 	static FName GetShouldIncludeBonesPropertyName()	{ PRAGMA_DISABLE_DEPRECATION_WARNINGS; return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, bIncludeBones_DEPRECATED); PRAGMA_ENABLE_DEPRECATION_WARNINGS; }
@@ -704,6 +729,13 @@ private:
 	UPROPERTY()
 	int32 NumTargetMeshVerts = 0;
 
+	/** The device used for training. On default it will init to Cuda's preferred device, or Cpu if no such device present. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Training Settings", meta = (GetOptions = "GetTrainingDeviceList", NoResetToDefault))
+	FString TrainingDevice;
+
+	/** The list of training devices that will show in the combo box in the UI. */
+	TArray<FString> TrainingDeviceList;
+
 	/** 
 	 * How many Skeletal Mesh LOD levels should we generate MLD lods for at most?
 	 * Some examples:
@@ -777,5 +809,11 @@ private:
 	UE_DEPRECATED(5.5, "This property has been removed.")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "This property has been removed and isn't used anymore."))
 	float DeltaCutoffLength_DEPRECATED = 30.0f;
+	
+	/** 
+	 * Do we want to recover stripped data at the end of the Serialize call during cook?
+	 * This is enabled on default, but some automated tests might disable this.
+	 */
+	bool bRecoverStrippedDataAfterCook = true;
 #endif
 };

@@ -191,6 +191,12 @@ namespace UE::MLDeformer
 			}
 		}
 
+		TrainingSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetTrainingDevicePropertyName(), UMLDeformerModel::StaticClass())
+			.Visibility(TAttribute<EVisibility>::CreateLambda(
+				[this]()
+				{
+					return Model->GetTrainingDeviceList().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
+				}));
 		TrainingSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetMaxTrainingFramesPropertyName(), UMLDeformerModel::StaticClass());
 		AddTrainingSettingsErrors();
 

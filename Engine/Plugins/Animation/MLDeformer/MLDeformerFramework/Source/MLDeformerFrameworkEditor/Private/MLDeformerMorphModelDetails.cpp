@@ -42,7 +42,7 @@ namespace UE::MLDeformer
 
 	bool FMLDeformerMorphModelDetails::ShouldShowShadingError() const
 	{
-		if (!Model)
+		if (!Model || !EditorModel)
 		{
 			return false;
 		}
@@ -131,6 +131,11 @@ namespace UE::MLDeformer
 	{
 		// Create all the detail categories and add the properties of the base class.
 		FMLDeformerGeomCacheModelDetails::CustomizeDetails(DetailBuilder);
+
+		if (!EditorModel)
+		{
+			return;
+		}
 
 		if (ShouldShowShadingError())
 		{

@@ -12,6 +12,7 @@
 #include "Misc/MessageDialog.h"
 #include "MLDeformerAsset.h"
 #include "MLDeformerComponent.h"
+#include "MLDeformerTrainingModel.h"
 #include "MLDeformerEditorStyle.h"
 #include "MLDeformerEditorToolkit.h"
 #include "NearestNeighborGeomCacheSampler.h"
@@ -114,6 +115,19 @@ namespace UE::NearestNeighborModel
 		FMLDeformerEditorModel::InitInputInfo(InputInfo);
 		UNearestNeighborModelInputInfo* NearestNeighborInputInfo = static_cast<UNearestNeighborModelInputInfo*>(InputInfo);
 		NearestNeighborInputInfo->InitRefBoneRotations(Model->GetSkeletalMesh());
+	}
+
+	void FNearestNeighborEditorModel::UpdateTrainingDeviceList()
+	{
+		// Update the list of devices we can use to train with.
+		// This is the cpu and list of cuda devices.
+		UNearestNeighborTrainingModel* TrainingModel = UE::MLDeformer::NewDerivedObject<UNearestNeighborTrainingModel>();
+		if (TrainingModel)
+		{
+			TrainingModel->Init(this);
+			TrainingModel->UpdateAvailableDevices();
+			TrainingModel->ConditionalBeginDestroy();
+		}
 	}
 	
 	ETrainingResult FNearestNeighborEditorModel::Train()
@@ -612,7 +626,7 @@ namespace UE::NearestNeighborModel
 			return EOpFlag::Error;
 		}
 		
-		UNearestNeighborTrainingModel *TrainingModel = FHelpers::NewDerivedObject<UNearestNeighborTrainingModel>();
+		UNearestNeighborTrainingModel* TrainingModel = UE::MLDeformer::NewDerivedObject<UNearestNeighborTrainingModel>();
 		if (!TrainingModel)
 		{
 			return EOpFlag::Error;

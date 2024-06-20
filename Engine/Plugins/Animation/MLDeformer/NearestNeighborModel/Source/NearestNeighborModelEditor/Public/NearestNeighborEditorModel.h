@@ -48,6 +48,7 @@ namespace UE::NearestNeighborModel
 		virtual void OnPropertyChanged(FPropertyChangedEvent& PropertyChangedEvent) override;
 		virtual void OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted) override;
 		virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
+		virtual void UpdateTrainingDeviceList() override;
 		// ~END FMLDeformerEditorModel overrides.
 		
 		// UMLDeformerMorphModelEditorModel overrides.

@@ -735,6 +735,40 @@ namespace UE::MLDeformer
 		 */
 		virtual void UpdateActorLODs();
 
+		/**
+		 * This should update the list of available training devices.
+		 * If not implemented, the user won't be able to pick a training device.
+		 * With training device we mean the device used to store the tensors at. Typically you want to make it build a list of GPU's and have the CPU in there as well.
+		 *
+		 * <code>
+		 * UYourTrainingModel* TrainingModel = NewDerivedObject<UYourTrainingModel>();
+		 * if (TrainingModel)
+		 * {
+		 *     TrainingModel->Init(this);
+		 *     TrainingModel->UpdateAvailableDevices();
+		 *     TrainingModel->ConditionalBeginDestroy();
+		 * }
+		 * </code>
+		 * 
+		 * You can implement the following in Python as an example:
+		 * <code>
+		 * @unreal.ufunction(override=True)
+         * def update_available_devices(self):
+         *     reload(mldeformer.training_helpers)
+         *     mldeformer.training_helpers.update_training_device_list(self)
+		 * </code>
+		 * 
+		 * Then inside the python code you can do something like:
+		 * 
+		 * <code>
+		 * training_device = model.get_training_device()
+         * device_index = mldeformer.training_helpers.find_cuda_device_index(device_name=training_device)
+         * if torch.cuda.is_available() and device_index != -1:
+         *      torch.cuda.set_device(device_index)
+		 * </code>
+		 */
+		virtual void UpdateTrainingDeviceList() {}
+
 		/** Apply the transforms of the debug actor to the actors in the asset editor world. This will internally call ApplyDebugActorTransforms(DebugActorComponentSpaceTransforms). */
 		void ApplyDebugActorTransforms();
 

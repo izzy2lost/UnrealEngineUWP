@@ -92,6 +92,19 @@ namespace UE::NeuralMorphModel
 			.EditorModel(this);
 	}
 
+	void FNeuralMorphEditorModel::UpdateTrainingDeviceList()
+	{
+		// Update the list of devices we can use to train with.
+		// This is the cpu and list of cuda devices.
+		UNeuralMorphTrainingModel* TrainingModel = NewDerivedObject<UNeuralMorphTrainingModel>();
+		if (TrainingModel)
+		{
+			TrainingModel->Init(this);
+			TrainingModel->UpdateAvailableDevices();
+			TrainingModel->ConditionalBeginDestroy();
+		}
+	}
+
 	void FNeuralMorphEditorModel::Init(const InitSettings& Settings)
 	{
 		FMLDeformerMorphModelEditorModel::Init(Settings);

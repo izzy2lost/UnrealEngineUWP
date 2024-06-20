@@ -11,7 +11,7 @@
  * This basically integrates the new asset type into the editor, so you can right click and create a new ML Deformer asset.
  */
 UCLASS(hidecategories=Object)
-class UMLDeformerFactory
+class MLDEFORMERFRAMEWORKEDITOR_API UMLDeformerFactory
 	: public UFactory
 {
 	GENERATED_BODY()

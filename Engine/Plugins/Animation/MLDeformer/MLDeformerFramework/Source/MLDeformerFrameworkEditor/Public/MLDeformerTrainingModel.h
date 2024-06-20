@@ -12,6 +12,20 @@ class UMLDeformerModel;
 namespace UE::MLDeformer
 {
 	class FMLDeformerEditorModel;
+
+	// A helper to create the last derived object of a given type.
+	// This is useful when we create a class in Python, derived from a given base class.
+	template<class T>
+	static T* NewDerivedObject()
+	{
+		TArray<UClass*> Classes;
+		GetDerivedClasses(T::StaticClass(), Classes);
+		if (Classes.IsEmpty())
+		{
+			return nullptr;
+		}
+		return NewObject<T>(GetTransientPackage(), Classes.Last());
+	}
 }
 
 /**
@@ -125,6 +139,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Training Data")
 	TArray<int32> GetMaskIndexPerSampleArray() const	{ return MaskIndexPerSample; }
+
+	/** Set the list of possible training devices. */
+	UFUNCTION(BlueprintCallable, Category = "Training Model")
+	void SetDeviceList(const TArray<FString>& DeviceNames, int32 PreferredDeviceIndex);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Training Model")
+	void UpdateAvailableDevices() const;
 
 protected:
 	/** This updates the sample deltas, curves, and bone rotations. */

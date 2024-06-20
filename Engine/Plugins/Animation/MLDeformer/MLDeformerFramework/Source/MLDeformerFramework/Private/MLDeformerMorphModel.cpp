@@ -29,22 +29,27 @@ void UMLDeformerMorphModel::Serialize(FArchive& Archive)
 	bool bModifiedPropertiesForCook = false;
 	TArray<FVector3f> SavedMorphTargetDeltas;
 	auto ModifyPropertiesForCook = [this, &bModifiedPropertiesForCook, &SavedMorphTargetDeltas]()
-		{
-			bModifiedPropertiesForCook = true;
-			SavedMorphTargetDeltas = MoveTemp(MorphTargetDeltas);
-			MorphTargetDeltas.Empty();
-		};
+	{
+		bModifiedPropertiesForCook = true;
+		SavedMorphTargetDeltas = MoveTemp(MorphTargetDeltas);
+		MorphTargetDeltas.Empty();
+	};
+
 	auto RestorePropertiesForCook = [this, &bModifiedPropertiesForCook, &SavedMorphTargetDeltas]()
+	{
+		if (!bModifiedPropertiesForCook)
 		{
-			if (!bModifiedPropertiesForCook)
-			{
-				return;
-			}
-			MorphTargetDeltas = MoveTemp(SavedMorphTargetDeltas);
-		};
+			return;
+		}
+		MorphTargetDeltas = MoveTemp(SavedMorphTargetDeltas);
+	};
+
 	ON_SCOPE_EXIT
 	{
-		RestorePropertiesForCook();
+		if (GetRecoverStrippedDataAfterCook())
+		{
+			RestorePropertiesForCook();
+		}
 	};
 
 	int32 NumSaveLODs = 0;

@@ -156,13 +156,17 @@ namespace
 
 void UNeuralMorphModel::Serialize(FArchive& Archive)
 {
-	Super::Serialize(Archive);
-	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
-
-	if (Archive.IsSaving())
+	TMap<FName, FMLDeformerMaskInfo> BoneMaskInfoMapBackup;
+	TMap<FName, FMLDeformerMaskInfo> BoneGroupMaskInfoMapBackup;
+	bool bProcessedDataOnCook = false;
+	ON_SCOPE_EXIT
 	{
-		UpdateMissingGroupNames();
-	}
+		if (bProcessedDataOnCook && GetRecoverStrippedDataAfterCook())
+		{
+			BoneMaskInfoMap = MoveTemp(BoneMaskInfoMapBackup);
+			BoneGroupMaskInfoMap = MoveTemp(BoneGroupMaskInfoMapBackup);
+		}
+	};
 
 	if (Archive.IsSaving() && Archive.IsCooking())
 	{
@@ -173,8 +177,19 @@ void UNeuralMorphModel::Serialize(FArchive& Archive)
 		}
 
 		// Strip the mask data in the cooked asset.
+		BoneMaskInfoMapBackup = MoveTemp(BoneMaskInfoMap);
+		BoneGroupMaskInfoMapBackup = MoveTemp(BoneGroupMaskInfoMap);
 		BoneMaskInfoMap.Empty();
 		BoneGroupMaskInfoMap.Empty();
+		bProcessedDataOnCook = true;
+	}
+
+	Super::Serialize(Archive);
+	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
+
+	if (Archive.IsSaving())
+	{
+		UpdateMissingGroupNames();
 	}
 
 	// Convert the UMLDeformerInputInfo object into a UNeuralMorphInputInfo object for backward compatiblity.

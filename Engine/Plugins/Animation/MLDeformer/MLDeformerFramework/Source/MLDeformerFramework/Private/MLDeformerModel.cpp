@@ -74,17 +74,37 @@ void UMLDeformerModel::Init(UMLDeformerAsset* InDeformerAsset)
 
 void UMLDeformerModel::Serialize(FArchive& Archive)
 {
+	UMLDeformerVizSettings* VizSettingsBackup = nullptr;
+	bool bProcessedDataOnCook = false;
+	ON_SCOPE_EXIT
+	{
+		if (bProcessedDataOnCook && GetRecoverStrippedDataAfterCook())
+		{
+			#if WITH_EDITORONLY_DATA
+				VizSettings = VizSettingsBackup;
+				VizSettingsBackup = nullptr;
+			#endif
+		}
+	};
+
+	#if WITH_EDITOR
+		if (Archive.IsSaving() && Archive.IsCooking())
+		{
+			bProcessedDataOnCook = true;
+			#if WITH_EDITORONLY_DATA
+				VizSettingsBackup = VizSettings;
+				AnimSequence_DEPRECATED = nullptr;
+				VizSettings = nullptr;
+			#endif
+		}
+	#endif
+
+	Super::Serialize(Archive);
 	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
 
 	#if WITH_EDITOR
 		if (Archive.IsSaving())
 		{
-			if (Archive.IsCooking())
-			{
-				AnimSequence_DEPRECATED = nullptr;
-				VizSettings = nullptr;
-			}
-
 			InitVertexMap();
 		}
 
@@ -94,8 +114,6 @@ void UMLDeformerModel::Serialize(FArchive& Archive)
 			UpdateCachedNumVertices();
 		}
 	#endif
-
-	Super::Serialize(Archive);
 }
 
 UMLDeformerAsset* UMLDeformerModel::GetDeformerAsset() const
@@ -265,6 +283,34 @@ bool UMLDeformerModel::IsCompatibleDebugActor(const AActor* Actor, UMLDeformerCo
 	return false;
 }
 
+
+void UMLDeformerModel::SetRecoverStrippedDataAfterCook(bool bRecover)
+{ 
+#if WITH_EDITORONLY_DATA
+	bRecoverStrippedDataAfterCook = bRecover;
+#endif
+}
+
+bool UMLDeformerModel::GetRecoverStrippedDataAfterCook() const
+{ 
+	#if WITH_EDITORONLY_DATA
+		return bRecoverStrippedDataAfterCook;
+	#else
+		return true;
+	#endif
+}
+
+void UMLDeformerModel::SetTrainingDevice(const FString& DeviceName)
+{
+	if (!TrainingDeviceList.Contains(DeviceName))
+	{
+		UE_LOG(LogMLDeformer, Warning, TEXT("Training device '%s' not found, falling back to CPU."), *DeviceName);
+		TrainingDevice.Empty();
+		return;
+	}
+
+	TrainingDevice = DeviceName;
+}
 
 #if WITH_EDITOR
 	TArray<FName> UMLDeformerModel::GetVertexAttributeNames() const

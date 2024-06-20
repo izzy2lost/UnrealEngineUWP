@@ -188,3 +188,15 @@ bool UMLDeformerTrainingModel::SampleFrame(int32 Index)
 	UE_LOG(LogMLDeformer, Warning, TEXT("Please use UMLDeformerTrainingModel::NextSample() instead."));
 	return false;
 }
+
+void UMLDeformerTrainingModel::SetDeviceList(const TArray<FString>& DeviceNames, int32 PreferredDeviceIndex)
+{
+	UMLDeformerModel* Model = EditorModel->GetModel();
+	Model->SetTrainingDeviceList(DeviceNames);
+
+	if (Model->GetTrainingDevice().IsEmpty() || !DeviceNames.Contains(Model->GetTrainingDevice()))
+	{
+		check(DeviceNames.IsValidIndex(PreferredDeviceIndex));
+		Model->SetTrainingDevice(DeviceNames[PreferredDeviceIndex]);
+	}
+}

@@ -73,7 +73,10 @@ namespace UE::MLDeformer
 			FMLDeformerEditorModel::InitSettings InitSettings;
 			InitSettings.Editor = this;
 			InitSettings.Model = DeformerModel;
-			EditorModel->Init(InitSettings);
+			if (EditorModel)
+			{
+				EditorModel->Init(InitSettings);
+			}
 			ActiveModel = TSharedPtr<FMLDeformerEditorModel>(EditorModel);
 		}
 
