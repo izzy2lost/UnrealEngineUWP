@@ -91,6 +91,7 @@ const FString& FStringTableEntry::GetPlaceholderSourceString()
 FStringTable::FStringTable()
 	: OwnerAsset(nullptr)
 	, bIsLoaded(true)
+	, bIsInternal(false)
 {
 }
 
@@ -118,6 +119,16 @@ bool FStringTable::IsLoaded() const
 void FStringTable::IsLoaded(const bool bInIsLoaded)
 {
 	bIsLoaded = bInIsLoaded;
+}
+
+bool FStringTable::IsInternal() const
+{
+	return bIsInternal;
+}
+
+void FStringTable::IsInternal(const bool bInIsInternal)
+{
+	bIsInternal = bInIsInternal;
 }
 
 FString FStringTable::GetNamespace() const

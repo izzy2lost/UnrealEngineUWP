@@ -345,6 +345,11 @@ void STextPropertyEditableStringTableReference::UpdateStringTableComboOptions()
 			FStringTableConstPtr StringTable = FStringTableRegistry::Get().FindStringTable(StringTableId);
 			if (StringTable.IsValid())
 			{
+				if (StringTable->IsInternal())
+				{
+					continue; // can't pick internal string tables
+				}
+
 				StringTable->EnumerateSourceStrings([&](const FString& InKey, const FString& InSourceString) -> bool
 				{
 					HasEntries = true;
@@ -379,6 +384,11 @@ void STextPropertyEditableStringTableReference::UpdateStringTableComboOptions()
 	// Process the remaining non-asset string tables now
 	FStringTableRegistry::Get().EnumerateStringTables([&](const FName& InTableId, const FStringTableConstRef& InStringTable) -> bool
 	{
+		if (InStringTable->IsInternal())
+		{
+			return true; // can't pick internal string tables
+		}
+
 		const bool bAlreadyAdded = StringTableComboOptions.ContainsByPredicate([InTableId](const TSharedPtr<FAvailableStringTable>& InAvailableStringTable)
 		{
 			return InAvailableStringTable->TableId == InTableId;
@@ -935,14 +945,22 @@ bool STextPropertyEditableTextBox::IsSourceTextReadOnly() const
 		return true;
 	}
 
-	// We can't edit the source string of string table references
+	// We can't edit the source string of external string table references
 	const int32 NumTexts = EditableTextProperty->GetNumTexts();
 	for (int32 TextIndex = 0; TextIndex < NumTexts; ++TextIndex)
 	{
 		const FText TextValue = EditableTextProperty->GetText(TextIndex);
 		if (TextValue.IsFromStringTable())
 		{
-			return true;
+			FName TableId;
+			FString Key;
+			FTextInspector::GetTableIdAndKey(TextValue, TableId, Key);
+
+			if (FStringTableConstPtr StringTable = FStringTableRegistry::Get().FindStringTable(TableId);
+				StringTable && !StringTable->IsInternal())
+			{
+				return true;
+			}
 		}
 	}
 
