@@ -24,7 +24,8 @@
 // Ensure specular profile and glints are supported
 // TODO: the derivatives don't appear to be correct in all cases, causing incorrectly blurry lookups - so disable them for now unless using substrate
 //  We don't have an easy way to detect if the material is using glints or not, so use the complex special path which includes glints for now
-#define USE_ANALYTIC_DERIVATIVES (SUBSTRATE_ENABLED && SUBSTRATE_COMPLEXSPECIALPATH && PLATFORM_ENABLES_SUBSTRATE_GLINTS)
+#define SUBSTRATE_COMPLEXSPECIALPATH 1
+#define USE_ANALYTIC_DERIVATIVES 1
 
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/RayTracing/RayTracingCommon.ush"

@@ -62,7 +62,6 @@ void CalcInterpolants(
 		#endif
 
 		ClipPositions[i] = mul(float4(WorldPositions[i], 1), View.TranslatedWorldToClip);
-		ClipPositions[i]/= ClipPositions[i].w;
 	}
 
 	OutInterpolants = VertexFactoryAssignInterpolants(Interpolated);
@@ -90,7 +89,7 @@ void CalcInterpolants(
 	const float2 PixelClip = (SvPosition.xy - View.ViewRectMin.xy) * View.ViewSizeAndInvSize.zw * float2(2, -2) + float2(-1, 1);
 	FBarycentrics Barycentrics = CalculateTriangleBarycentrics(PixelClip, ClipPositions[0], ClipPositions[1], ClipPositions[2], View.ViewSizeAndInvSize.zw);
 	OutDerivateData.WorldPosition = Lerp( WorldPositions[0], WorldPositions[1], WorldPositions[2], Barycentrics );
-	OutDerivateData.ScreenPosition = Lerp( ClipPositions[0], ClipPositions[1], ClipPositions[2], Barycentrics );
+	OutDerivateData.ScreenPosition = Lerp( ClipPositions[0] * rcp(ClipPositions[0].w), ClipPositions[1] * rcp(ClipPositions[1].w), ClipPositions[2] * rcp(ClipPositions[2].w), Barycentrics );
 
 #if NUM_TEX_COORD_INTERPOLATORS > 0
 	UNROLL
