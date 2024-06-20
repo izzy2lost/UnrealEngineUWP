@@ -135,6 +135,12 @@ bool FSessionManager::SelectSession(const TSharedPtr<ISessionInfo>& Session)
 		return false;
 	}
 
+	// Notify listeners that previously selected sessions have been deselected.
+	for (TSharedPtr<ISessionInstanceInfo> Instance : SelectedInstances)
+	{
+		InstanceSelectionChangedDelegate.Broadcast(Instance, false);
+	}
+
 	// set selection
 	SelectedInstances.Empty();
 	SelectedSession = Session;

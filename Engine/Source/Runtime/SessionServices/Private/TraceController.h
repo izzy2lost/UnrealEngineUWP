@@ -44,6 +44,14 @@ private:
 		return SelectedSessionStatusReceivedEvent;
 	}
 
+	DECLARE_DERIVED_EVENT(FTraceController, ITraceController::FSessionSelectionChanged, FSessionSelectionChanged);
+	virtual FSessionSelectionChanged& OnSessionSelectionChanged() override
+	{
+		return SessionSelectionChangedEvent;
+	}
+
+	virtual uint32 GetNumSelectedInstances() override { return SelectedInstanceIds.Num(); }
+
 	/* Message handlers */
 	void OnNotification(const FMessageBusNotification& MessageBusNotification);
 	void OnDiscoveryResponse(const FTraceControlDiscovery& Message, const TSharedRef<IMessageContext>& Context);
@@ -96,6 +104,9 @@ private:
 
 	/** Event for status updates on a selected session */
 	FStatusRecievedEvent SelectedSessionStatusReceivedEvent;
+
+	/** Event that triggers when the session selection changes */
+	FSessionSelectionChanged SessionSelectionChangedEvent;
 
 	/** Lock to protect access to Instances list */
 	FRWLock InstancesLock;

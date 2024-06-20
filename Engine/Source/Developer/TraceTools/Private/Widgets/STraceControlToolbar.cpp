@@ -35,13 +35,14 @@ void STraceControlToolbar::Construct(const FArguments& InArgs, const TSharedRef<
 	FTraceControlCommands::Register();
 	TraceController = InTraceController;
 
-	OnStatusReceivedDelegate = TraceController->OnStatusReceived().AddSP(this, &STraceControlToolbar::OnTraceStatusUpdated);
+	OnStatusReceivedDelegate = TraceController->OnSelectedSessionStatusReceived().AddSP(this, &STraceControlToolbar::OnTraceStatusUpdated);
 
 	BindCommands(CommandList);
 
 	// create the toolbar
-	FToolBarBuilder Toolbar(CommandList, FMultiBoxCustomization::None);
+	FSlimHorizontalToolBarBuilder Toolbar(CommandList, FMultiBoxCustomization::None);
 	{
+		Toolbar.SetStyle(&FTraceToolsStyle::Get(), "TraceControlToolbar");
 		Toolbar.AddComboButton(
 			FUIAction(),
 			FOnGetContent::CreateSP(this, &STraceControlToolbar::BuildTraceTargetMenu, CommandList),
@@ -51,6 +52,8 @@ void STraceControlToolbar::Construct(const FArguments& InArgs, const TSharedRef<
 			false);
 
 		Toolbar.AddSeparator();
+
+		Toolbar.SetLabelVisibility(EVisibility::Collapsed);
 
 		Toolbar.AddToolBarButton(FTraceControlCommands::Get().StartTrace);
 		Toolbar.AddToolBarButton(FTraceControlCommands::Get().StopTrace);
@@ -309,12 +312,7 @@ FText STraceControlToolbar::GetTraceTargetLabelText() const
 
 FText STraceControlToolbar::GetTraceTargetTooltipText() const
 {
-	if (TraceTarget == ETraceTarget::Server)
-	{
-		return LOCTEXT("TraceTargetServerTooltip", "Set the Unreal Trace Server as the trace target.");
-	}
-
-	return LOCTEXT("TraceTargetFileTooltip", "Set File as the trace target.");
+	return LOCTEXT("TraceTargetTooltip", "Set the trace target. Can only be set when trace is not running.");
 }
 
 FSlateIcon STraceControlToolbar::GetTraceTargetIcon() const

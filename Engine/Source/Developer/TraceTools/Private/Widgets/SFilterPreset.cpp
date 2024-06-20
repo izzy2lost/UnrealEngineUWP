@@ -105,6 +105,11 @@ bool SFilterPreset::IsEnabled() const
 	return bEnabled;
 }
 
+void SFilterPreset::MarkAsEnabled(bool InEnabled)
+{
+	bEnabled = InEnabled;
+}
+
 const TSharedPtr<ITraceFilterPreset>& SFilterPreset::GetFilterPreset() const
 {
 	return FilterPreset;

@@ -25,6 +25,8 @@ public:
 
 	/** Begin ISessionTraceFilterService overrides */
 	virtual void GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const override;
+	virtual const FTraceObjectInfo* GetObject(const FString& Name) const override;
+	
 	virtual const FDateTime& GetTimestamp() const override;
 	virtual void SetObjectFilterState(const FString& InObjectName, const bool bFilterState) override;
 	virtual void UpdateFilterPreset(const TSharedPtr<ITraceFilterPreset> InPreset, bool IsEnabled) override;
@@ -43,16 +45,17 @@ protected:
 	/** Retrieves channels names from provider and marks them all as disabled */
 	void DisableAllChannels();
 
-	void RetrieveAndStoreStartupChannels();
-
 	void OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands);
 
 	void UpdateChannels(const FTraceStatus& InStatus);
 
+	void OnSessionSelectionChanged();
+
 protected:
 	TSharedPtr<ITraceController> TraceController;
 
-	TArray<FTraceObjectInfo> Objects;
+	/** A map with the key formed by hashing the object name and the object as the value.*/
+	TMap<uint64, FTraceObjectInfo> Objects;
 
 	/** Names of channels that were either enabled or disabled during the duration of this frame */
 	TSet<FString> FrameEnabledChannels;

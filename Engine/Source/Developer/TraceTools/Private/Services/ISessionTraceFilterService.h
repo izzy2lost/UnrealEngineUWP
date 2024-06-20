@@ -20,8 +20,7 @@ struct FTraceObjectInfo
 	FString Description;
 	bool bEnabled;
 	bool bReadOnly;
-	uint32 Hash;
-	uint32 OwnerHash;
+	uint32 Id;
 
 	bool operator<(const FTraceObjectInfo& Other) const
 	{
@@ -37,6 +36,9 @@ public:
 
 	/** Returns the root level set of objects */
 	virtual void GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const = 0;
+	
+	/** Returns the object with the specified name */
+	virtual const FTraceObjectInfo* GetObject(const FString& Name ) const = 0;
 
 	/** Set the filtered state for an individual object by its hash */
 	virtual void SetObjectFilterState(const FString& InObjectName, const bool bFilterState) = 0;

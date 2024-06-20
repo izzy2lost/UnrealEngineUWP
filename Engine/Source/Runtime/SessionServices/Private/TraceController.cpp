@@ -255,6 +255,8 @@ void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInsta
 	{
 		SendDiscoveryPing(InstanceInfo);
 	}
+
+	SessionSelectionChangedEvent.Broadcast();
 }
 
 void FTraceController::UpdateStatus(const FTraceControlStatus& Message, FTraceStatus& Status)

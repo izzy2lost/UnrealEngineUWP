@@ -160,6 +160,16 @@ public:
 	virtual FStatusRecievedEvent& OnSelectedSessionStatusReceived() = 0;
 
 	/**
+	* Session selection changed event.
+	*/
+	DECLARE_EVENT(ITraceController, FSessionSelectionChanged);
+
+	/**
+	 * Event triggered when the session selection changes.
+	 */
+	virtual FSessionSelectionChanged& OnSessionSelectionChanged() = 0;
+
+	/**
 	 * Return true if a selected instance exists and has been discovered.
 	 */
 	virtual bool HasAvailableSelectedInstance() = 0;
@@ -178,4 +188,9 @@ public:
 	 * @param Func Functor to execute
 	 */
 	virtual void WithInstance(FGuid InstanceId, FCallback Func) = 0;
+
+	/**
+	 * Returns the number of selected sessions.
+	 */
+	virtual uint32 GetNumSelectedInstances() = 0;
 };

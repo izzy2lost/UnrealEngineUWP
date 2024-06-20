@@ -2,11 +2,24 @@
 
 #include "SessionTraceControllerFilterService.h"
 
-#include "Models/ITraceFilterPreset.h"
+#include "Hash/xxhash.h"
 #include "Misc/CoreDelegates.h"
+
+// TraceTools
+#include "Models/ITraceFilterPreset.h"
 
 namespace UE::TraceTools
 {
+
+uint64 HashName(FStringView Name)
+{
+	// Strip plurals and convert to upper case.
+	TStringBuilder<48> TransformedBuffer;
+	TransformedBuffer << (Name.EndsWith('s') ? Name.LeftChop(1) : Name);
+	FCString::Strupr(TransformedBuffer.GetData(), TransformedBuffer.Len());
+
+	return FXxHash64::HashBuffer(TransformedBuffer.GetData(), TransformedBuffer.Len() * sizeof(TCHAR)).Hash;
+}
 
 FSessionTraceControllerFilterService::FSessionTraceControllerFilterService(TSharedPtr<ITraceController> InTraceController)
 {
@@ -14,6 +27,7 @@ FSessionTraceControllerFilterService::FSessionTraceControllerFilterService(TShar
 
 	TraceController = InTraceController;
 	TraceController->OnSelectedSessionStatusReceived().AddRaw(this, &FSessionTraceControllerFilterService::OnTraceStatusUpdated);
+	TraceController->OnSessionSelectionChanged().AddRaw(this, &FSessionTraceControllerFilterService::OnSessionSelectionChanged);
 }
 
 FSessionTraceControllerFilterService::~FSessionTraceControllerFilterService()
@@ -21,11 +35,20 @@ FSessionTraceControllerFilterService::~FSessionTraceControllerFilterService()
 	FCoreDelegates::OnEndFrame.RemoveAll(this);
 
 	TraceController->OnSelectedSessionStatusReceived().RemoveAll(this);
+	TraceController->OnSessionSelectionChanged().RemoveAll(this);
 }
 
 void FSessionTraceControllerFilterService::GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const
 {
-	OutObjects.Append(Objects);
+	for (auto& Pair : Objects)
+	{
+		OutObjects.Add(Pair.Value);
+	}
+}
+
+const FTraceObjectInfo* FSessionTraceControllerFilterService::GetObject(const FString& Name) const
+{
+	return Objects.Find(HashName(Name));
 }
 
 const FDateTime& FSessionTraceControllerFilterService::GetTimestamp() const
@@ -73,9 +96,9 @@ void FSessionTraceControllerFilterService::UpdateFilterPreset(const TSharedPtr<I
 
 void FSessionTraceControllerFilterService::DisableAllChannels()
 {
-	for (FTraceObjectInfo& ObjectInfo : Objects)
+	for (auto& ObjectInfo : Objects)
 	{
-		ObjectInfo.bEnabled = false;
+		ObjectInfo.Value.bEnabled = false;
 	}
 }
 
@@ -120,13 +143,12 @@ void FSessionTraceControllerFilterService::UpdateChannels(const FTraceStatus& In
 
 	for (auto& Entry : Channels)
 	{
-		FTraceObjectInfo& EventInfo = Objects.AddDefaulted_GetRef();
+		FTraceObjectInfo& EventInfo = Objects.Add(HashName(Entry.Value.Name));
 		EventInfo.Name = Entry.Value.Name;
 		EventInfo.Description = Entry.Value.Description;
 		EventInfo.bEnabled = Entry.Value.bEnabled;
 		EventInfo.bReadOnly = Entry.Value.bReadOnly;
-		EventInfo.Hash = Entry.Value.Id;
-		EventInfo.OwnerHash = 0;
+		EventInfo.Id = Entry.Value.Id;
 	}
 }
 
@@ -167,6 +189,12 @@ bool FSessionTraceControllerFilterService::HasStats() const
 const FTraceStatus::FStats& FSessionTraceControllerFilterService::GetStats() const
 {
 	return Stats;
+}
+
+void FSessionTraceControllerFilterService::OnSessionSelectionChanged()
+{
+	bHasStats = false;
+	bHasSettings = false;
 }
 
 } // namespace UE::TraceTools

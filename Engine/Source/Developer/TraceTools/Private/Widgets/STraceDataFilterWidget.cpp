@@ -34,12 +34,15 @@ STraceDataFilterWidget::STraceDataFilterWidget() : bNeedsListRefresh(false), bHi
 
 STraceDataFilterWidget::~STraceDataFilterWidget()
 {
+	TraceController->OnSessionSelectionChanged().RemoveAll(this);
 }
 
 void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITraceController> InTraceController)
 {
 	TraceController = InTraceController;
 	SessionFilterService = MakeShareable(new FSessionTraceControllerFilterService(InTraceController));
+
+	TraceController->OnSessionSelectionChanged().AddSP(this, &STraceDataFilterWidget::OnSessionSelectionChanged);
 
 	SAssignNew(ExternalScrollbar, SScrollBar)
 	.AlwaysShowScrollbar(true);
@@ -114,7 +117,7 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 				+SHorizontalBox::Slot()
 				.FillWidth(1.0f)
 				[
-					SAssignNew(FilterPresetsListWidget, SFilterPresetList)
+					SAssignNew(FilterPresetsListWidget, SFilterPresetList, SessionFilterService)
 					.OnPresetChanged(this, &STraceDataFilterWidget::OnPresetChanged)
 					.OnSavePreset(this, &STraceDataFilterWidget::OnSavePreset)
 					.OnHighlightPreset(this, &STraceDataFilterWidget::OnHighlightPreset)
@@ -130,7 +133,7 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 					SNew(SHorizontalBox)
 					.Visibility_Lambda([this]() -> EVisibility 
 					{
-						return HasValidFilterSession() ? EVisibility::Collapsed : EVisibility::Visible;
+						return ShouldShowBanner() ? EVisibility::Visible : EVisibility::Collapsed;
 					})
 
 					+ SHorizontalBox::Slot()
@@ -148,7 +151,7 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 					.Padding(4.0f, 0.0f, 0.0f, 0.0f)
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("NoSessionSelectedWarning", "Please select an instance from the Session Browser."))
+						.Text(LOCTEXT("NoSessionSelectedWarning", "Please select an active instance from the Session Browser."))
 						.ColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f))
 					]
 				]
@@ -189,10 +192,6 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 					+ SVerticalBox::Slot()
 					[
 						SNew(STraceStatistics, SessionFilterService)
-						.Visibility_Lambda([this]() -> EVisibility
-						{
-							return HasValidFilterSession() ? EVisibility::Visible : EVisibility::Collapsed;
-						})
 					]
 				]
 			]
@@ -201,7 +200,7 @@ void STraceDataFilterWidget::Construct(const FArguments& InArgs, TSharedPtr<ITra
 
 	/** Setup attribute to enable/disabled all widgets according to whether or not there is a valid session to represent */
 	TAttribute<bool> EnabledAttribute;
-	EnabledAttribute.Bind(this, &STraceDataFilterWidget::HasValidFilterSession);
+	EnabledAttribute.Bind(this, &STraceDataFilterWidget::HasValidData);
 
 	TileView->SetEnabled(EnabledAttribute);
 	OptionsWidget->SetEnabled(EnabledAttribute);
@@ -428,16 +427,21 @@ void STraceDataFilterWidget::RestoreItemSelection()
 
 TSharedRef<ITraceObject> STraceDataFilterWidget::AddFilterableObject(const FTraceObjectInfo& Event, FString ParentName)
 {
-	TSharedRef<FTraceChannel> SharedItem = MakeShareable(new FTraceChannel(Event.Name, Event.Description, ParentName, Event.Hash, Event.bEnabled, Event.bReadOnly, SessionFilterService));
+	TSharedRef<FTraceChannel> SharedItem = MakeShareable(new FTraceChannel(Event.Name, Event.Description, ParentName, Event.Id, Event.bEnabled, Event.bReadOnly, SessionFilterService));
 
 	ListItems.Add(SharedItem);
 
 	return SharedItem;
 }
 
-bool STraceDataFilterWidget::HasValidFilterSession() const
+bool STraceDataFilterWidget::HasValidData() const
 {
-	return TraceController->HasAvailableSelectedInstance() && SessionFilterService.IsValid();
+	return bHasChannelData && TraceController->GetNumSelectedInstances() == 1 && TraceController->HasAvailableSelectedInstance() && SessionFilterService.IsValid();
+}
+
+bool STraceDataFilterWidget::ShouldShowBanner() const
+{
+	return TraceController->GetNumSelectedInstances() != 1 || !TraceController->HasAvailableSelectedInstance() || !SessionFilterService.IsValid();
 }
 
 void STraceDataFilterWidget::EnumerateSelectedItems(TFunction<void(TSharedPtr<ITraceObject> InItem)> InFunction) const
@@ -506,6 +510,8 @@ void STraceDataFilterWidget::RefreshTileViewData()
 		}
 
 		RestoreItemSelection();
+
+		FilterPresetsListWidget->RefreshPresetEnabledState();
 	}
 }
 
@@ -519,6 +525,7 @@ void STraceDataFilterWidget::Tick(const FGeometry& AllottedGeometry, const doubl
 		{
 			RefreshTileViewData();
 			bNeedsListRefresh = true;
+			bHasChannelData = true;
 		}
 
 		if (bNeedsListRefresh)
@@ -553,6 +560,11 @@ void STraceDataFilterWidget::Tick(const FGeometry& AllottedGeometry, const doubl
 
 		AccumulatedTime = 0.0;
 	}
+}
+
+void STraceDataFilterWidget::OnSessionSelectionChanged()
+{
+	bHasChannelData = false;
 }
 
 } // namespace UE::TraceTools

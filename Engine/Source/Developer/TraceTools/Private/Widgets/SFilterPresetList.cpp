@@ -12,6 +12,7 @@
 // TraceTools
 #include "Models/TraceFilterPresets.h"
 #include "TraceToolsModule.h"
+#include "Services/SessionTraceControllerFilterService.h"
 
 #if WITH_EDITOR
 #include "SSettingsEditorCheckoutNotice.h"
@@ -22,11 +23,13 @@
 namespace UE::TraceTools
 {
 
-void SFilterPresetList::Construct( const FArguments& InArgs )
+void SFilterPresetList::Construct( const FArguments& InArgs, TSharedPtr<ISessionTraceFilterService> InSessionFilterService)
 {
 	OnPresetChanged = InArgs._OnPresetChanged;
 	OnSavePreset = InArgs._OnSavePreset;
 	OnHighlightPreset = InArgs._OnHighlightPreset;
+
+	SessionFilterService = InSessionFilterService;
 
 	FilterBox = SNew(SWrapBox)
 				.UseAllottedSize(true);
@@ -50,6 +53,29 @@ SFilterPresetList::~SFilterPresetList()
 	SaveSettings(FTraceToolsModule::TraceFiltersIni);
 }
 
+void SFilterPresetList::RefreshPresetEnabledState()
+{
+	TArray<FString> Names;
+
+	for (TSharedRef<SFilterPreset> PresetWidget : Presets)
+	{
+		Names.Empty();
+		bool bPresetIsEnabled = true;
+		PresetWidget->GetFilterPreset()->GetAllowlistedNames(Names);
+		for (const FString& Name : Names)
+		{
+			const FTraceObjectInfo* Object = SessionFilterService->GetObject(Name);
+			if (Object == nullptr || !Object->bEnabled)
+			{
+				bPresetIsEnabled = false;
+				break;
+			}
+		}
+
+		PresetWidget->MarkAsEnabled(bPresetIsEnabled);
+	}
+}
+
 void SFilterPresetList::RefreshFilterPresets()
 {
 	FSlateApplication::Get().DismissAllMenus();
@@ -60,11 +86,6 @@ void SFilterPresetList::RefreshFilterPresets()
 		{
 			const TSharedRef<SFilterPreset>& FilterToRemove = *FilterIt;
 			ActiveFilterNames.Add(FilterToRemove->GetFilterPreset()->GetName());
-
-			if (FilterToRemove->IsEnabled())
-			{
-				EnabledFilterNames.Add(FilterToRemove->GetFilterPreset()->GetName());
-			}
 		}
 
 		FilterBox->ClearChildren();
@@ -91,15 +112,12 @@ void SFilterPresetList::RefreshFilterPresets()
 		if (ActiveFilterNames.Contains(Preset->GetName()))
 		{
 			TSharedRef<SFilterPreset> Filter = AddFilterPreset(Preset);
-			if (EnabledFilterNames.Contains(Preset->GetName()))
-			{
-				Filter->SetEnabled(true);
-			}
 		}
 	}
 
+	RefreshPresetEnabledState();
+
 	ActiveFilterNames.Empty();
-	EnabledFilterNames.Empty();
 }
 
 FReply SFilterPresetList::OnMouseButtonUp( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
@@ -133,25 +151,16 @@ void SFilterPresetList::SaveSettings(const FString& IniFilename) const
 	FStringView Separator = TEXTVIEW(";");
 	
 	FString ActivePresetsString;
-	FString EnabledPresetsString;
 
 	for (const TSharedRef<SFilterPreset>& Preset : Presets)
 	{
 		ActivePresetsString.Append(Preset->GetFilterPreset()->GetName());
 		ActivePresetsString.Append(Separator);
-
-		if (Preset->IsEnabled())
-		{
-			EnabledPresetsString.Append(Preset->GetFilterPreset()->GetName());
-			EnabledPresetsString.Append(Separator);
-		}
 	}
 
 	ActivePresetsString.RemoveFromEnd(Separator);
-	EnabledPresetsString.RemoveFromEnd(Separator);
 
 	GConfig->SetString(IniSectionName.GetData(), IniActivePresetsKey.GetData(), *ActivePresetsString, IniFilename);
-	GConfig->SetString(IniSectionName.GetData(), IniEnabledPresetsKey.GetData(), *EnabledPresetsString, IniFilename);
 
 	GConfig->Flush(false, IniFilename);
 }
@@ -169,7 +178,6 @@ void SFilterPresetList::LoadSettings(const FString& IniFilename)
 
 	FStringView Separator = TEXT(";");
 	ActivePresetsString.ParseIntoArray(ActiveFilterNames, Separator.GetData());
-	EnabledPresetsString.ParseIntoArray(EnabledFilterNames, Separator.GetData());
 }
 
 bool SFilterPresetList::HasAnyPresets() const

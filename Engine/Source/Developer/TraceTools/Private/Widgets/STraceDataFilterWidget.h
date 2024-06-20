@@ -58,7 +58,8 @@ protected:
 	void ConstructTileView();
 	void ConstructSearchBoxFilter();
 
-	bool HasValidFilterSession() const;
+	bool HasValidData() const;
+	bool ShouldShowBanner() const;
 		
 	void RefreshTileViewData();
 		
@@ -81,6 +82,8 @@ protected:
 	/** (Re) storing item selection state */
 	void SaveItemSelection();
 	void RestoreItemSelection();
+
+	void OnSessionSelectionChanged();
 
 protected:
 	/** Flat list of contained items */
@@ -121,6 +124,8 @@ protected:
 	TSharedPtr<ITraceController> TraceController;
 
 	double AccumulatedTime = 0.0f;
+
+	bool bHasChannelData = false;
 };
 
 } // namespace UE::TraceTools

@@ -137,6 +137,9 @@ public:
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	/** End SCompoundWidget overrides */
 
+	/** Sets the enabled state but doesn't call the callback that changes the channel's state */
+	void MarkAsEnabled(bool InEnabled);
+
 	/** Sets whether or not this preset is applied to the combined filtering state */
 	void SetEnabled(bool InEnabled);
 
