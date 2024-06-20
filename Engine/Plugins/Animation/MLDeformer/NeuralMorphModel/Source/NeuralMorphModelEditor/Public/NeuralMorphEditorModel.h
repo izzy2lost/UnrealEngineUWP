@@ -42,6 +42,7 @@ namespace UE::NeuralMorphModel
 		virtual TSharedPtr<SMLDeformerInputWidget> CreateInputWidget() override;
 		virtual void OnPostInputAssetChanged() override;
 		virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
+		virtual bool GetSupportsPerTrainingInputAnimVertexMask() const override	{ return true; }
 		// ~END FMLDeformerEditorModel overrides.
 
 		// FMLDeformerMorphModelEditorModel overrides.

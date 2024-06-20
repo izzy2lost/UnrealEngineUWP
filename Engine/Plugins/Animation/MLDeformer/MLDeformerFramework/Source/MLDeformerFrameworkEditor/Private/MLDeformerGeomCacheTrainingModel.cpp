@@ -74,6 +74,7 @@ bool UMLDeformerGeomCacheTrainingModel::SampleNextFrame()
 	FMLDeformerSampler* Sampler = EditorModel->GetSamplerForTrainingAnim(SampleAnimIndex);
 	Sampler->SetVertexDeltaSpace(EVertexDeltaSpace::PreSkinning);
 	Sampler->Sample(CurFrameToSample);
+	MaskIndexPerSample.Add(GetMaskIndexForAnimIndex(SampleAnimIndex));
 	UE_LOG(LogMLDeformer, Display, TEXT("Sampling frame %d of anim %d"), CurFrameToSample, SampleAnimIndex);
 
 	// Copy sampled values.

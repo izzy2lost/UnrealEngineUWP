@@ -127,6 +127,22 @@ namespace UE::MLDeformer
 		UpdateLODMappings();
 	}
 
+	void FMLDeformerEditorModel::UpdateVertexAttributeNames()
+	{
+		const TArray<FName> AttributeNames = Model->GetVertexAttributeNames();
+
+		// Now build a list of shared pointers to attribute names.
+		VertexAttributeNames.Reset();
+		VertexAttributeNames.Reserve(AttributeNames.Num() + 1);
+
+		const FName DisabledName = FName(LOCTEXT("DisabledString", "Disabled").ToString());
+		VertexAttributeNames.Emplace(MakeShared<FName>(DisabledName));
+		for (int32 Index = 0; Index < AttributeNames.Num(); ++Index)
+		{
+			VertexAttributeNames.Emplace(MakeShared<FName>(AttributeNames[Index]));
+		}
+	}
+
 	void FMLDeformerEditorModel::CreateSamplers()
 	{
 		// First get rid of the existing samplers.

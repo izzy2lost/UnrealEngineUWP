@@ -112,6 +112,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Training Data")
 	void SetNumFloatsPerCurve(int32 NumFloatsPerCurve);
 
+	/** Get the names of all valid training animation masks. They are valid when they are used, the anim is enabled, and the attribute exists on the skeletal mesh. */
+	UFUNCTION(BlueprintPure, Category = "Training Data")
+    TArray<FName> GetTrainingInputAnimMasks() const;
+
+	/** Get the per vertex data for a given mask name. The mask name must be one that is present in the array returned by GetTrainingInputAnimMasks. */
+	UFUNCTION(BlueprintPure, Category = "Training Data")
+	TArray<float> GetTrainingInputAnimMaskData(FName MaskName) const;
+
+	/** 
+	 * For each sample we took, this contains the index inside the mask as returned by the GetTrainingInputAnimMasks() array.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Training Data")
+	TArray<int32> GetMaskIndexPerSampleArray() const	{ return MaskIndexPerSample; }
+
 protected:
 	/** This updates the sample deltas, curves, and bone rotations. */
 	UE_DEPRECATED(5.4, "Please use UMLDeformerTrainingModel::SampleNextFrame() instead.")
@@ -135,6 +149,12 @@ protected:
 	 */
 	virtual bool FindNextAnimToSample(int32& OutNextAnimIndex) const { return false; }
 
+	/**
+	 * Get the mask index for a given input training animation.
+	 * @see GetTrainingInputAnimMasks.
+	 */
+	int32 GetMaskIndexForAnimIndex(int32 AnimIndex) const;
+
 public:
 	// The delta values per vertex for this sample. This is updated after SetCurrentSampleIndex is called. Contains an xyz (3 floats) for each vertex.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Data")
@@ -147,6 +167,11 @@ public:
 	// The bone rotations in bone (local) space for this sample. This is updated after SetCurrentSampleIndex is called and is 6 floats per bone (2 columns of 3x3 rotation matrix).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Data")
 	TArray<float> SampleBoneRotations;
+
+	// The mask index for each sample.
+	// See GetTrainingInputAnimMasks() and GetTrainingInputAnimMaskData().
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Data")
+	TArray<int32> MaskIndexPerSample;
 
 protected:
 	/** A pointer to the editor model from which we use the sampler. */
@@ -164,4 +189,9 @@ protected:
 
 	/** Did we finish sampling? This is set to true when every possible frame has been sampled. */
 	bool bFinishedSampling = false;
+
+	TArray<FName> MaskNames;
+
+	/** The default mask name. */
+	static FName DefaultMaskName;
 };

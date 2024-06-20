@@ -127,11 +127,10 @@ namespace UE::MLDeformer
 			];
 
 		AddTrainingInputAnims();
-
-		InputOutputCategoryBuilder->AddProperty(UMLDeformerModel::GetAlignmentTransformPropertyName(), UMLDeformerModel::StaticClass());
-
 		AddTrainingInputFlags();
 		AddTrainingInputErrors();
+
+		InputOutputCategoryBuilder->AddProperty(UMLDeformerModel::GetAlignmentTransformPropertyName(), UMLDeformerModel::StaticClass());
 
 		FDetailWidgetRow& ErrorRow = InputOutputCategoryBuilder->AddCustomRow(FText::FromString("InputsError"))
 			.Visibility(TAttribute<EVisibility>::CreateLambda(

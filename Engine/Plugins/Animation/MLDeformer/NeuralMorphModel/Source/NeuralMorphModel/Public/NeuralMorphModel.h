@@ -190,7 +190,7 @@ public:
 	 * A value of 0 disables the regularization, and gives the highest quality, at the cost of higher runtime memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Training Settings", meta = (ClampMin = "0.0", ClampMax = "10.0"))
-	float RegularizationFactor = 1.0f;
+	float RegularizationFactor = 0.0f;
 
 	/** 
 	 * Enable the use of per bone and bone group masks.
@@ -208,7 +208,7 @@ public:
 	 * If you see some noise in the trained results, even with large amount of samples and iterations, try increasing this value.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Training Settings", meta = (ClampMin = "0.0", ClampMax = "10.0"))
-	float SmoothLossBeta = 1.0f;
+	float SmoothLossBeta = 0.0f;
 
 	/**
 	 * The neural morph model network.

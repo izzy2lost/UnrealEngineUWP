@@ -722,6 +722,13 @@ namespace UE::MLDeformer
 		 */
 		virtual void DrawPIEDebugActors();
 
+		/**
+		 * Check whether this model supports a per training input animation vertex mask.
+		 * If this is enabled, each training intput animation should show something where the user can select an optional mask.
+		 * @return Returns true when vertex masking per training input is supported, false otherwise.
+		 */
+		virtual bool GetSupportsPerTrainingInputAnimVertexMask() const	{ return false; }
+
 		/** 
 		 * Update LOD levels of the actors in editor world.
 		 * This can be used to for example sync the LOD levels of the compare actors with the main actor.
@@ -987,7 +994,13 @@ namespace UE::MLDeformer
 		TVertexAttributesConstRef<float> FindVertexAttributes(FName AttributeName) const;
 
 		/** Are we scrubbing on the timeline? */
-		bool IsScrubbingTimeline() const	{ return bIsScrubbingTimeline; }
+		bool IsScrubbingTimeline() const									{ return bIsScrubbingTimeline; }
+
+		/** Get the array of vertex attribute names that can be used for UI widget elements. Refresh this list with UpdateVertexAttributeNames(). */
+		const TArray<TSharedPtr<FName>>& GetVertexAttributeNames() const	{ return VertexAttributeNames; }
+
+		/** Update the vertex attribute names array as returned by GetVertexAttributeNames(). This is some array that can be used for UI elements like combo boxes. */
+		void UpdateVertexAttributeNames();
 
 
 	protected:
@@ -1166,6 +1179,9 @@ namespace UE::MLDeformer
 
 		/** The heatmap deformer graph. */
 		TObjectPtr<UMeshDeformer> HeatMapDeformerGraph = nullptr;
+
+		/** A list of vertex attribute names that can be used inside combobox UI elements. */
+		TArray<TSharedPtr<FName>> VertexAttributeNames;
 
 		/** The delegate handle to the post edit property event. */
 		FDelegateHandle PostEditPropertyDelegateHandle;

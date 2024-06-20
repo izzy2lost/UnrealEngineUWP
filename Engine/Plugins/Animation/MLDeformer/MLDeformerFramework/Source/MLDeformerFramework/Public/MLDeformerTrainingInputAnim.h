@@ -39,21 +39,24 @@ public:
 	void SetUseCustomRange(bool bCustomRange)					{ bUseCustomRange = bCustomRange; }
 	void SetStartFrame(int32 FrameIndex)						{ StartFrame = FrameIndex; }
 	void SetEndFrame(int32 FrameIndex)							{ EndFrame = FrameIndex; }
+	void SetVertexMask(FName MaskName)							{ VertexMask = MaskName; }
 
 	bool IsEnabled() const										{ return bEnabled; }
 	bool GetUseCustomRange() const								{ return bUseCustomRange; }
 	int32 GetStartFrame() const									{ return StartFrame; }
 	int32 GetEndFrame() const									{ return EndFrame; }
+	FName GetVertexMask() const									{ return VertexMask; }
 	const UAnimSequence* GetAnimSequence() const				{ return AnimSequence.LoadSynchronous(); }
 	UAnimSequence* GetAnimSequence()							{ return AnimSequence.LoadSynchronous(); }
 	const TSoftObjectPtr<UAnimSequence>& GetAnimSequenceSoftObjectPtr() const	{ return AnimSequence; } 
-	TSoftObjectPtr<UAnimSequence>& GetAnimSequenceSoftObjectPtr()				{ return AnimSequence; } 
+	TSoftObjectPtr<UAnimSequence>& GetAnimSequenceSoftObjectPtr()				{ return AnimSequence; }
 
 	static FName GetAnimSequencePropertyName()					{ return GET_MEMBER_NAME_CHECKED(FMLDeformerTrainingInputAnim, AnimSequence); }
 	static FName GetEnabledPropertyName()						{ return GET_MEMBER_NAME_CHECKED(FMLDeformerTrainingInputAnim, bEnabled); }
 	static FName GetUseCustomRangePropertyName()				{ return GET_MEMBER_NAME_CHECKED(FMLDeformerTrainingInputAnim, bUseCustomRange); }
 	static FName GetStartFramePropertyName()					{ return GET_MEMBER_NAME_CHECKED(FMLDeformerTrainingInputAnim, StartFrame); }
 	static FName GetEndFramePropertyName()						{ return GET_MEMBER_NAME_CHECKED(FMLDeformerTrainingInputAnim, EndFrame); }
+	static FName GetVertexMaskPropertyName()					{ return GET_MEMBER_NAME_CHECKED(FMLDeformerTrainingInputAnim, VertexMask); }
 
 private:
 	/** The animation sequence. */
@@ -71,6 +74,13 @@ private:
 	/** The end frame number of the range of included frames. Only used when not all frames are included. */
 	UPROPERTY(EditAnywhere, Category = "Frame Settings", meta = (ClampMin="0", EditCondition="bUseCustomRange"))
 	int32 EndFrame = 0;
+
+	/**
+	 * The optional vertex attribute mask to use for this training data. This can be used to focus training on a specific area on the mesh.
+	 * For example if you have training data for a hand, you can specify a mask that contains just the hand and maybe forearm.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	FName VertexMask;
 
 	/** Is this animation enabled? If not, it is excluded from the training process. */
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = MAX_int32))	// Show as last property.
