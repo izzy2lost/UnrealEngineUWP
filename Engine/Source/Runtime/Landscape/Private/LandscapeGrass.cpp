@@ -1732,28 +1732,6 @@ void FLandscapeComponentGrassData::ConditionalDiscardDataOnLoad()
 // ALandscapeProxy grass-related functions
 //
 
-void ALandscapeProxy::TickGrass(const TArray<FVector>& Cameras, int32& InOutNumCompsCreated)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::TickGrass);
-#if WITH_EDITORONLY_DATA
-	if (ALandscape* Landscape = GetLandscapeActor())
-	{
-		ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
-		
-		bool bLandscapeUpdateAllowed = (LandscapeInfo != nullptr) && (GetWorld()->GetFeatureLevel() >= ERHIFeatureLevel::SM5) && LandscapeInfo->SupportsLandscapeEditing();
-
-		// Don't allow grass to tick if landscape is not up to date -- unless landscape update is not possible (preview or level instanced modes)
-		bool bAllowGrassTick = Landscape->IsUpToDate() || !bLandscapeUpdateAllowed;
-		if (!bAllowGrassTick || !Landscape->bGrassUpdateEnabled)
-		{
-			return;
-		}
-	}
-#endif
-
-	UpdateGrass(Cameras, InOutNumCompsCreated);
-}
-
 struct FGrassBuilderBase
 {
 	bool bHaveValidData;

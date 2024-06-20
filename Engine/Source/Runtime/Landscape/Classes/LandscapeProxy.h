@@ -1119,7 +1119,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		return true;
 	}
-	void TickGrass(const TArray<FVector>& Cameras, int32& InOutNumCompsCreated);
 	void ProcessAsyncGrassInstanceTasks(bool bWaitAsyncTasks, bool bForceSync, const TSet<UHierarchicalInstancedStaticMeshComponent*>& StillUsed);
 
 	/** Flush the grass cache, removing grass instances on the given components (or all proxy components if the component set is not specified).
