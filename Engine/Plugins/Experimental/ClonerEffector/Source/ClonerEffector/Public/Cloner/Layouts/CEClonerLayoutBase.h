@@ -67,6 +67,7 @@ public:
 	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
 	UCEClonerComponent* GetClonerComponent() const;
 
+	/** Get the actor using this layout */
 	AActor* GetClonerActor() const;
 
 	/** Updates all parameters handled by this layout */
@@ -141,6 +142,13 @@ private:
 
 	void OnSystemPackageLoaded(const FName& InName, UPackage* InPackage, EAsyncLoadingResult::Type InResult);
 
+	/** Bind delegates to clear resources during level or world cleanup */
+	void BindCleanupDelegates();
+	void UnbindCleanupDelegates() const;
+
+	void OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources);
+	void OnLevelCleanup();
+
 	/** Layout name to display in layout options */
 	UPROPERTY(Transient)
 	FName LayoutName;
@@ -150,11 +158,11 @@ private:
 	FString LayoutAssetPath;
 
 	/** Niagara system representing this layout */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, DuplicateTransient)
 	TObjectPtr<UNiagaraSystem> NiagaraSystem;
 
 	/** Mesh renderer in this niagara system */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, DuplicateTransient)
 	TObjectPtr<UNiagaraMeshRendererProperties> MeshRenderer;
 
 	int32 LoadRequestIdentifier = INDEX_NONE;

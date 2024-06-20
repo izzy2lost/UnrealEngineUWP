@@ -378,10 +378,7 @@ void UCEClonerComponent::BindActorDelegates(AActor* InActor)
 		return;
 	}
 
-	if (!InActor->OnDestroyed.IsAlreadyBound(this, &UCEClonerComponent::OnActorDestroyed))
-	{
-		InActor->OnDestroyed.AddDynamic(this, &UCEClonerComponent::OnActorDestroyed);
-	}
+	InActor->OnDestroyed.AddUniqueDynamic(this, &UCEClonerComponent::OnActorDestroyed);
 
 #if WITH_EDITOR
 	// Detect static mesh change

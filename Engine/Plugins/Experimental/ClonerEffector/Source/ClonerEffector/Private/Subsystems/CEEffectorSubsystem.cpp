@@ -293,12 +293,10 @@ void UCEEffectorSubsystem::SetLevelEffectorsEnabled(const UWorld* InWorld, bool 
 
 void UCEEffectorSubsystem::UpdateEffectorChannel(const UWorld* InWorld)
 {
-	if (!IsValid(InWorld))
-	{
-		return;
-	}
-
-	if (EffectorsWeak.IsEmpty())
+	if (!IsValid(InWorld)
+		|| !InWorld->IsInitialized()
+		|| InWorld->IsBeingCleanedUp()
+		|| EffectorsWeak.IsEmpty())
 	{
 		return;
 	}
@@ -315,17 +313,12 @@ void UCEEffectorSubsystem::UpdateEffectorChannel(const UWorld* InWorld)
 
 	// Remove invalid effectors and push updates to effector assigned channel indexes
 	int32 EffectorIndex = 0;
-	for (TArray<TWeakObjectPtr<UCEEffectorComponent>>::TIterator It(EffectorsWeak); It; ++It)
+	for (const TWeakObjectPtr<UCEEffectorComponent>& EffectorWeak : EffectorsWeak)
 	{
-		UCEEffectorComponent* Effector = It->Get();
+		UCEEffectorComponent* Effector = EffectorWeak.Get();
 
-		if (!IsValid(Effector))
-		{
-			It.RemoveCurrent();
-			continue;
-		}
-
-		if (Effector->GetWorld() != InWorld)
+		if (!IsValid(Effector)
+			|| Effector->GetWorld() != InWorld)
 		{
 			continue;
 		}
@@ -367,19 +360,27 @@ TStatId UCEEffectorSubsystem::GetStatId() const
 
 void UCEEffectorSubsystem::Tick(float InDeltaTime)
 {
-	TSet<UWorld*> Worlds;
+	TSet<const UWorld*> Worlds;
 
-	for (const TWeakObjectPtr<UCEEffectorComponent>& EffectorWeak : EffectorsWeak)
+	for (TArray<TWeakObjectPtr<UCEEffectorComponent>>::TIterator It(EffectorsWeak); It; ++It)
 	{
-		UCEEffectorComponent* Effector = EffectorWeak.Get();
-
-		if (Effector && Effector->GetWorld())
+		const UCEEffectorComponent* Effector = It->Get();
+		if (!IsValid(Effector))
 		{
-			Worlds.Add(Effector->GetWorld());
+			It.RemoveCurrent();
+			continue;
 		}
+
+		const UWorld* EffectorWorld = Effector->GetWorld();
+		if (!IsValid(EffectorWorld) || !EffectorWorld->IsInitialized() || EffectorWorld->IsBeingCleanedUp())
+		{
+			continue;
+		}
+
+		Worlds.Add(EffectorWorld);
 	}
 
-	for (UWorld* World : Worlds)
+	for (const UWorld* World : Worlds)
 	{
 		UpdateEffectorChannel(World);
 	}

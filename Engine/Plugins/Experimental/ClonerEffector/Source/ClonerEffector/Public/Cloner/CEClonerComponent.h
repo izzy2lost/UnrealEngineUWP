@@ -405,10 +405,10 @@ private:
 	TArray<FName> GetClonerLayoutNames() const;
 
 	/** Attachment tree view */
-	UPROPERTY(Transient, NonTransactional)
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
 	FCEClonerAttachmentTree ClonerTree;
 
-	UPROPERTY(Transient, NonTransactional)
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
 	FCEClonerMeshBuilder MeshBuilder;
 
 	/** Asset meshes needs update */

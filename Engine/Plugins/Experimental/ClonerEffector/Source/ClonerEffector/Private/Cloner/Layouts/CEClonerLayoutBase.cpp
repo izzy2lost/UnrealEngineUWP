@@ -5,6 +5,8 @@
 #include "Cloner/CEClonerActor.h"
 #include "Cloner/CEClonerComponent.h"
 #include "Cloner/Extensions/CEClonerExtensionBase.h"
+#include "Engine/Level.h"
+#include "Engine/World.h"
 #include "Misc/PackageName.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraMeshRendererProperties.h"
@@ -94,28 +96,39 @@ void UCEClonerLayoutBase::LoadLayout()
 	}
 
 	// Extract package path
-	FString PackagePath = LayoutAssetPath;
-
-	int32 FirstQuoteIndex;
-	PackagePath.FindChar('\'', FirstQuoteIndex);
-
-	int32 LastQuoteIndex;
-	PackagePath.FindLastChar('\'', LastQuoteIndex);
-
-	if (FirstQuoteIndex != LastQuoteIndex)
+	FString MountedPath = LayoutAssetPath;
 	{
-		PackagePath = PackagePath.Mid(FirstQuoteIndex + 1, LastQuoteIndex - FirstQuoteIndex - 1);
+		int32 FirstQuoteIndex;
+		MountedPath.FindChar('\'', FirstQuoteIndex);
+
+		int32 LastQuoteIndex;
+		MountedPath.FindLastChar('\'', LastQuoteIndex);
+
+		if (FirstQuoteIndex != LastQuoteIndex)
+		{
+			MountedPath = MountedPath.Mid(FirstQuoteIndex + 1, LastQuoteIndex - FirstQuoteIndex - 1);
+		}
+
+		MountedPath = FPackageName::ObjectPathToPackageName(MountedPath);
 	}
 
-	PackagePath = FPackageName::ObjectPathToPackageName(PackagePath);
+	FPackagePath LayoutPackagePath;
+	FPackagePath::TryFromMountedName(MountedPath, LayoutPackagePath);
+
+	FPackagePath CustomPackagePath;
+	FPackagePath::TryFromPackageName(TEXT("/Game/Temp/") + GetLayoutName().ToString() + TEXT("_") + FString::FromInt(ClonerComponent->GetUniqueID()), CustomPackagePath);
+	CustomPackagePath.SetHeaderExtension(EPackageExtension::Asset);
 
 	FLoadPackageAsyncOptionalParams Params;
-	Params.CustomPackageName = FName(TEXT("/") + FString::FromInt(ClonerComponent->GetUniqueID()) + TEXT("_") + GetLayoutName().ToString());
+	Params.PackagePriority = INT32_MAX;
+	Params.CustomPackageName = CustomPackagePath.GetPackageFName();
 	Params.CompletionDelegate = MakeUnique<FLoadPackageAsyncDelegate>(FLoadPackageAsyncDelegate::CreateUObject(this, &UCEClonerLayoutBase::OnSystemPackageLoaded));
 
 	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout load requested %s - Template system %s - Package %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *LayoutAssetPath, *Params.CustomPackageName.ToString())
 
-	LoadRequestIdentifier = LoadPackageAsync(PackagePath, MoveTemp(Params));
+	LoadRequestIdentifier = LoadPackageAsync(LayoutPackagePath, MoveTemp(Params));
+
+	BindCleanupDelegates();
 }
 
 bool UCEClonerLayoutBase::UnloadLayout()
@@ -130,6 +143,15 @@ bool UCEClonerLayoutBase::UnloadLayout()
 	{
 		return false;
 	}
+
+	MeshRenderer->Meshes.Empty();
+	NiagaraSystem->RemoveFromRoot();
+#if WITH_EDITOR
+	NiagaraSystem->KillAllActiveCompilations();
+#endif
+	UPackage* Package = NiagaraSystem->GetPackage();
+	Package->ClearFlags(RF_Standalone);
+	Package->MarkAsGarbage();
 
 	MeshRenderer = nullptr;
 	NiagaraSystem = nullptr;
@@ -196,6 +218,7 @@ bool UCEClonerLayoutBase::DeactivateLayout()
 		return false;
 	}
 
+	ClonerComponent->GetOverrideParameters().Empty(/** ClearBindings */true);
 	ClonerComponent->SetAsset(nullptr);
 
 	UE_LOG(LogCEClonerLayoutBase, Verbose, TEXT("%s : Cloner layout deactivated %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString())
@@ -272,11 +295,8 @@ void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* I
 
 	if (NiagaraSystem)
 	{
-		// Change outer to avoid GC leak
 		InPackage->SetFlags(RF_Transient);
 		NiagaraSystem->RemoveFromRoot();
-		NiagaraSystem->Rename(NULL, this, REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-		InPackage->MarkAsGarbage();
 
 		for (FNiagaraEmitterHandle& SystemEmitterHandle : NiagaraSystem->GetEmitterHandles())
 		{
@@ -308,6 +328,56 @@ void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* I
 
 	OnClonerLayoutLoadedDelegate.Broadcast(this, IsLayoutLoaded());
 	OnClonerLayoutLoadedDelegate.Clear();
+}
+
+void UCEClonerLayoutBase::BindCleanupDelegates()
+{
+	UnbindCleanupDelegates();
+
+	if (const UCEClonerComponent* ClonerComponent = GetClonerComponent())
+	{
+		if (ULevel* ClonerLevel = ClonerComponent->GetComponentLevel())
+		{
+			ClonerLevel->OnCleanupLevel.AddUObject(this, &UCEClonerLayoutBase::OnLevelCleanup);
+		}
+
+		FWorldDelegates::OnWorldCleanup.AddUObject(this, &UCEClonerLayoutBase::OnWorldCleanup);
+	}
+}
+
+void UCEClonerLayoutBase::UnbindCleanupDelegates() const
+{
+	if (const UCEClonerComponent* ClonerComponent = GetClonerComponent())
+	{
+		if (ULevel* ClonerLevel = ClonerComponent->GetComponentLevel())
+		{
+			ClonerLevel->OnCleanupLevel.RemoveAll(this);
+		}
+
+		FWorldDelegates::OnWorldCleanup.RemoveAll(this);
+	}
+}
+
+void UCEClonerLayoutBase::OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources)
+{
+	const AActor* Actor = GetClonerActor();
+	if (bInCleanupResources && Actor && Actor->GetWorld() == InWorld)
+	{
+		OnLevelCleanup();
+	}
+}
+
+void UCEClonerLayoutBase::OnLevelCleanup()
+{
+	if (IsLayoutLoaded())
+	{
+		UE_LOG(LogCEClonerLayoutBase, Log, TEXT("%s : Cloner layout cleanup %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString())
+
+		DeactivateLayout();
+		UnloadLayout();
+	}
+
+	UnbindCleanupDelegates();
 }
 
 UCEClonerComponent* UCEClonerLayoutBase::GetClonerComponent() const
