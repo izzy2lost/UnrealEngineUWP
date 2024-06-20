@@ -5,6 +5,7 @@
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "MovieScene.h"
+#include "LevelSequence.h"
 #include "MovieSceneCommonHelpers.h"
 #include "HAL/IConsoleManager.h"
 #include "Engine/World.h"

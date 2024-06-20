@@ -3,7 +3,6 @@
 
 #include "UObject/Object.h"
 #include "MovieRenderPipelineDataTypes.h"
-#include "LevelSequence.h"
 #include "MovieJobVariableAssignmentContainer.h"
 #include "MoviePipelinePrimaryConfig.h"
 #include "MoviePipelineShotConfig.h"

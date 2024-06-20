@@ -12,6 +12,7 @@
 #include "MoviePipelineBlueprintLibrary.h"
 #include "MoviePipelineUtils.h"
 
+#include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "Internationalization/Regex.h"
 

@@ -3,6 +3,7 @@
 #include "MoviePipelineQueue.h"
 #include "MoviePipelineOutputSetting.h"
 #include "MoviePipelineSetting.h"
+#include "LevelSequence.h"
 #include "MoviePipelineBlueprintLibrary.h"
 #include "MovieRenderPipelineCoreModule.h"
 
