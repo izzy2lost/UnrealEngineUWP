@@ -120,6 +120,8 @@ private:
 	const FName GetNiagaraScriptMessageLogName(FVersionedNiagaraScript InScript) const;
 	FSlateIcon GetCompileStatusImage() const;
 	FText GetCompileStatusTooltip() const;
+	
+	TSharedRef<SWidget> GenerateCompileMenuContent();
 
 	/** Builds the toolbar widget */
 	void ExtendToolbar();

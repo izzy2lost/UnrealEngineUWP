@@ -3378,7 +3378,7 @@ void UNiagaraScript::RequestCompile(const FGuid& ScriptVersion, bool bForceCompi
 		const FString ScriptPathName = GetPathName();
 
 		// check the ddc first
-		if (GetDerivedDataCacheRef().GetSynchronous(*GetNiagaraDDCKeyString(ScriptVersion, ScriptPathName), OutData, ScriptPathName))
+		if (!bForceCompile && GetDerivedDataCacheRef().GetSynchronous(*GetNiagaraDDCKeyString(ScriptVersion, ScriptPathName), OutData, ScriptPathName))
 		{
 			FNiagaraVMExecutableData ExeData;
 			if (BinaryToExecData(this, OutData, ExeData))
