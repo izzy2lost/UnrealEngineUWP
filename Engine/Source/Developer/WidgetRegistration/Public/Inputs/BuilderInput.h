@@ -33,8 +33,7 @@ namespace UE::DisplayBuilders
 			FInputChord InDefaultChords = FInputChord(),
 			FName InUiStyle = NAME_None,
 			FName InBindingContext = NAME_None,
-			FName InBundle = NAME_None,
-			bool bInUseLongDisplayName = false );
+			FName InBundle = NAME_None );
 
 		/**
 		 * The destructor, destroys any command related information
@@ -64,9 +63,6 @@ namespace UE::DisplayBuilders
 
 		/** The bundle to group the UI command into. The bundle must have been added to the BindingContext first. */
 		FName Bundle;
-
-		/** True if should we use long names for when getting text for input chords */
-		bool bUseLongDisplayName;
 
 		/** the index of the BuilderInput in whatever container it is in */
 		int32 Index;

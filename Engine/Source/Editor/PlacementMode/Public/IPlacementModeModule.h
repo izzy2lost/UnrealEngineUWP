@@ -16,7 +16,6 @@
 #include "Textures/SlateIcon.h"
 
 class FNamePermissionList;
-class FBuilderInput;
 struct FPlaceableItem;
 
 /**
@@ -59,6 +58,9 @@ struct FPlacementCategoryInfo
 
 	/** This category's display name */
 	FText DisplayName;
+
+	/** This category's short display name (optional) */
+	FText ShortDisplayName;
 
 	/** This category's representative icon */
 	FSlateIcon DisplayIcon;

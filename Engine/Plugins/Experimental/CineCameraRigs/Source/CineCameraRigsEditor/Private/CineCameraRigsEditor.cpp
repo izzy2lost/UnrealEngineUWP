@@ -76,12 +76,13 @@ private:
 		}
 
 		FPlacementCategoryInfo Info(
-			LOCTEXT("CinematicCategoryName", "Cine"),
+			LOCTEXT("CinematicCategoryName", "Cinematic"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.Cinematics"),
 			"Cinematic",
 			TEXT("PMCinematic"),
 			25
 		);
+		Info.ShortDisplayName = LOCTEXT("CinematicShortCategoryName", "Cine");
 
 		PlacmentModeModule.RegisterPlacementCategory(Info);
 		return PlacmentModeModule.GetRegisteredPlacementCategory("Cinematic");

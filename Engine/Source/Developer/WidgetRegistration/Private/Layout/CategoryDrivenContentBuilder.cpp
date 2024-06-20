@@ -234,8 +234,8 @@ void FCategoryDrivenContentBuilder::UpdateWidget()
 		{
 			ZeroStateBuilder = bIsFavoritesCategory ?
 				                   FZeroStateBuilderTemplates::Get().GetFavorites(
-					                   LOCTEXT("CategoryDrivenContentBuilder_NoFavoritesYetDragActorsToAdd",
-					                           "No favorites yet.\n\n To create favorites, drag actors from other categories and drop them on the Favorites star.")) :
+					                   LOCTEXT("CategoryDrivenContentBuilder_NoFavoritesYet",
+					                           "No favorites yet.\n\n To create favorites, right-click on items from other categories and add them to the Favorites.")) :
 
 				                   FZeroStateBuilderTemplates::Get().GetDefault(
 					                   LOCTEXT("CategoryDrivenContentBuilder_NoActorsMatchSearch",

@@ -37,9 +37,8 @@ UE::DisplayBuilders::FBuilderInput::FBuilderInput(
 	FInputChord InDefaultChords ,
 	FName InUiStyle ,
 	FName InBindingContext  ,
-	FName InBundle  ,
-	bool bInUseLongDisplayName )  :
-	FLabelAndIconArgs( InLabel.IsEmpty() ? FText::FromName( InName ) : InLabel, InIcon )
+	FName InBundle )
+	: FLabelAndIconArgs( InLabel.IsEmpty() ? FText::FromName( InName ) : InLabel, InIcon )
 	, Name( InName )
 	, UserInterfaceType( InUserInterfaceType )
 	, Description( InDescription.IsEmpty() ? Label : InDescription )
@@ -48,7 +47,6 @@ UE::DisplayBuilders::FBuilderInput::FBuilderInput(
 	, UIStyle( InUiStyle )
 	, BindingContext( InBindingContext )
 	, Bundle( InBundle )
-	, bUseLongDisplayName( bInUseLongDisplayName )
 	, Index( INDEX_NONE )
 	, Tooltip( InToolTip.IsEmpty() ? InLabel : InToolTip )
 {

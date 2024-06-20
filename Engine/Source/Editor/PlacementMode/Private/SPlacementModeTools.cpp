@@ -481,7 +481,7 @@ void SPlacementAssetMenuEntry::Construct(const FArguments& InArgs, const TShared
 		.BorderImage( this, &SPlacementAssetMenuEntry::GetBorder )
 		.Cursor( EMouseCursor::GrabHand )
 		.ToolTip( AssetEntryToolTip )
-		.Padding(FMargin(27.f, 3.f, 5.f, 3.f))
+		.Padding(FMargin(10.f, 3.f, 5.f, 3.f))
 		[
 			SNew( SHorizontalBox )
 
@@ -530,13 +530,16 @@ void SPlacementAssetMenuEntry::Construct(const FArguments& InArgs, const TShared
 
 const FSlateBrush* SPlacementAssetMenuEntry::GetIcon() const
 {
-
 	if (AssetImage != nullptr)
 	{
 		return AssetImage;
 	}
 
-	if (Item->ClassIconBrushOverride != NAME_None)
+	if (Item->DragHandler && Item->DragHandler->IconBrush)
+	{
+		AssetImage = Item->DragHandler->IconBrush;
+	}
+	else if (Item->ClassIconBrushOverride != NAME_None)
 	{
 		AssetImage = FSlateIconFinder::FindCustomIconBrushForClass(nullptr, TEXT("ClassIcon"), Item->ClassIconBrushOverride);
 	}
@@ -618,6 +621,11 @@ FReply SPlacementAssetMenuEntry::OnDragDetected(const FGeometry& MyGeometry, con
 
 	if( MouseEvent.IsMouseButtonDown( EKeys::LeftMouseButton ) )
 	{
+		if (Item->DragHandler.IsValid() && Item->DragHandler->GetContentToDrag.IsBound())
+		{
+			return FReply::Handled().BeginDragDrop( Item->DragHandler->GetContentToDrag.Execute() );
+		}
+
 		return FReply::Handled().BeginDragDrop(FAssetDragDropOp::New(Item->AssetData, Item->AssetFactory));
 	}
 	else
@@ -1060,8 +1068,14 @@ void SPlacementModeTools::UpdatePlacementCategories()
 
 	for (const FPlacementCategoryInfo& Category : Categories)
 	{
-		const UE::DisplayBuilders::FBuilderInput& InputInfo = UE::DisplayBuilders::FBuilderInput( Category.UniqueHandle, Category.DisplayName,
-		Category.DisplayIcon, EUserInterfaceActionType::ToggleButton );
+		UE::DisplayBuilders::FBuilderInput InputInfo = UE::DisplayBuilders::FBuilderInput( Category.UniqueHandle, Category.DisplayName,
+			Category.DisplayIcon, EUserInterfaceActionType::ToggleButton );
+
+		if (!Category.ShortDisplayName.IsEmpty())
+		{
+			InputInfo.ButtonArgs.LabelOverride = Category.ShortDisplayName;
+		}
+
 		BuilderInputArray.Add( InputInfo );
 		
 		if ( Category.UniqueHandle == FBuiltInPlacementCategories::Favorites() && !CVarEnableCategoryContentChooserView->GetBool() )

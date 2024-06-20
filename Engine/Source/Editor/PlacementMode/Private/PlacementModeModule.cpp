@@ -239,15 +239,16 @@ void FPlacementModeModule::StartupModule()
 	{
 		int32 SortOrder = 0;
 		FName CategoryName = FBuiltInPlacementCategories::Visual();
-		RegisterPlacementCategory(
-			FPlacementCategoryInfo(
-				NSLOCTEXT("PlacementMode", "VisualEffects", "VFX"),
+
+		FPlacementCategoryInfo VfxCategoryInfo = FPlacementCategoryInfo(
+				NSLOCTEXT("PlacementMode", "VisualEffects", "Visual Effects"),
 				FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.VisualEffects"),
 				CategoryName,
 				TEXT("PMVisual"),
 				30
-			)
-		);
+			);
+		VfxCategoryInfo.ShortDisplayName = NSLOCTEXT("PlacementMode", "VisualEffectsShortCategoryName", "VFX");
+		RegisterPlacementCategory(MoveTemp(VfxCategoryInfo));
 
 		UActorFactory* PPFactory = GEditor->FindActorFactoryByClassForActorClass(UActorFactoryBoxVolume::StaticClass(), APostProcessVolume::StaticClass());
 

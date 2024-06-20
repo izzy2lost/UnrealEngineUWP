@@ -10,7 +10,6 @@
 #include "Builders/SpiralStairBuilder.h"
 #include "Builders/TetrahedronBuilder.h"
 #include "BspModeStyle.h"
-#include "SBspPalette.h"
 #include "IPlacementModeModule.h"
 #include "DragAndDrop/BrushBuilderDragDropOp.h"
 #include "BspDragHandler.h"
@@ -45,7 +44,6 @@ void FBspModeModule::StartupModule()
 */
 
 	FPlacementCategoryInfo CategoryInfo (LOCTEXT("PlacementMode_Geometry", "Geometry"), FSlateIcon(FAppStyle::GetAppStyleSetName(), "PlacementBrowser.Icons.BSP"), CategoryName, TEXT("PMGeometry"), 35);
-	CategoryInfo.CustomGenerator = []() -> TSharedRef<SWidget> { return SNew(SBspPalette); };
 	IPlacementModeModule::Get().RegisterPlacementCategory( CategoryInfo );
 	
 	RegisterBspBuilderType(UCubeBuilder::StaticClass(), LOCTEXT("CubeBuilderName", "Box"), LOCTEXT("CubeBuilderToolTip", "Make a box brush"), FBspModeStyle::Get().GetBrush(TEXT("BspMode.BoxBrush")));
@@ -83,7 +81,7 @@ void FBspModeModule::RegisterBspBuilderType( class UClass* InBuilderClass, const
 	static int32 SortOrder = 0;
 	
 	BuilderType->PlaceableItem =  MakeShared<FPlaceableItem>( Handler, SortOrder++, BuilderType->Text, Name );
-	BuilderType->PlacementModeID = IPlacementModeModule::Get().RegisterPlaceableItem( CategoryName,   BuilderType->PlaceableItem.ToSharedRef() );
+	BuilderType->PlacementModeID = IPlacementModeModule::Get().RegisterPlaceableItem( CategoryName, BuilderType->PlaceableItem.ToSharedRef() );
 }
 
 

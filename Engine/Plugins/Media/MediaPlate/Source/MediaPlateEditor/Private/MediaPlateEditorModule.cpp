@@ -176,6 +176,7 @@ const FPlacementCategoryInfo* FMediaPlateEditorModule::GetMediaCategoryRegistere
 			26 // Determines where the category shows up in the list with respect to the others.
 		);
 
+		Info.ShortDisplayName = LOCTEXT("MediaPlateShortCategoryName", "Media");
 		IPlacementModeModule::Get().RegisterPlacementCategory(Info);
 
 		return PlacementModeModule.GetRegisteredPlacementCategory(PlacementModeCategoryHandle);
