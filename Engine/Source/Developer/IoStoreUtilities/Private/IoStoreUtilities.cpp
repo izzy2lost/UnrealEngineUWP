@@ -5293,6 +5293,13 @@ void CreateContainerHeader(FContainerTargetSpec& ContainerTarget, bool bIsOption
 
 		void Append(TConstArrayView<FPackageId> SoftRefs)
 		{
+			if (SoftPackageReferences.IsEmpty())
+			{
+				// Skip serialization when there's no soft references for any package
+				check(SoftRefs.IsEmpty());
+				return;
+			}
+
 			const int64 RemainingEntrySize = TotalEntrySize - EntryAr.Tell();
 			const int64 OffsetFromThis = RemainingEntrySize + DataAr.Tell();
 			uint32		ArrayNum = static_cast<uint32>(SoftRefs.Num());
