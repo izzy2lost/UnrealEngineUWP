@@ -48,11 +48,13 @@ FSectionModel::FSectionModel(UMovieSceneSection* InSection, TSharedPtr<ISequence
 	RegisterChildList(&ChannelList);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FSectionModel::~FSectionModel()
 {
 	SectionInterface.Reset();
 	WeakSection.Reset();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 TRange<FFrameNumber> FSectionModel::GetRange() const
 {
@@ -129,7 +131,6 @@ void FSectionModel::OffsetLayerBar(FFrameNumber Amount)
 void FSectionModel::OnModifiedDirectly(UMovieSceneSignedObject*)
 {
 	UpdateCachedData();
-	OnUpdated.Broadcast(this);
 }
 
 void FSectionModel::UpdateCachedData()

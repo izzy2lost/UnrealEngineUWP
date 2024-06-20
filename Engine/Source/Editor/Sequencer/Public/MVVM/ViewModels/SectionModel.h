@@ -58,6 +58,7 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModelUpdated, FSectionModel*)
 
+	UE_DEPRECATED(5.5, "This member is no longer supported, please subscribe to UMovieSceneSignedObject::OnModifiedDirectly.")
 	FOnModelUpdated OnUpdated;
 
 	explicit FSectionModel(UMovieSceneSection* InSection, TSharedPtr<ISequencerSection> InSectionInterface);
