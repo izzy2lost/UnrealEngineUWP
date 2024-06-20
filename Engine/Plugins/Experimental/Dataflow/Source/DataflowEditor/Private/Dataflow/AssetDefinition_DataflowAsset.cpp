@@ -16,6 +16,10 @@
 
 #define LOCTEXT_NAMESPACE "AssetActions_DataflowAsset"
 
+
+bool bCanEditDataflow = true;
+FAutoConsoleVariableRef CVarDataflowIsEditable(TEXT("p.Dataflow.IsEditable"), bCanEditDataflow, TEXT("Whether to allow edits of the dataflow [def:true]"));
+
 namespace DataflowAssetDefinitionHelpers
 {
 	// Return true if we should proceed, false if we should re-open the dialog
@@ -168,6 +172,16 @@ UThumbnailInfo* UAssetDefinition_DataflowAsset::LoadThumbnailInfo(const FAssetDa
 {
 	return UE::Editor::FindOrCreateThumbnailInfo(InAsset.GetAsset(), USceneThumbnailInfo::StaticClass());
 }
+
+FAssetOpenSupport UAssetDefinition_DataflowAsset::GetAssetOpenSupport(const FAssetOpenSupportArgs& OpenSupportArgs) const
+{
+	if (bCanEditDataflow)
+	{
+		return Super::GetAssetOpenSupport(OpenSupportArgs);
+	}
+	return FAssetOpenSupport(EAssetOpenMethod::View, false);
+}
+
 
 EAssetCommandResult UAssetDefinition_DataflowAsset::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {

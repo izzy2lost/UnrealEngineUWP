@@ -12,6 +12,8 @@
 
 #define LOCTEXT_NAMESPACE "AssetActions_GeometryCollection"
 
+bool bCanEditGeometryCollection = true;
+FAutoConsoleVariableRef CVarGeometryCollectionIsEditable(TEXT("p.Chaos.GC.IsEditable"), bCanEditGeometryCollection, TEXT("Whether to allow edits of the geometry collection"));
 
 namespace UE::GeometryCollection
 {
@@ -48,6 +50,16 @@ UThumbnailInfo* UAssetDefinition_GeometryCollection::LoadThumbnailInfo(const FAs
 {
 	return UE::Editor::FindOrCreateThumbnailInfo(InAsset.GetAsset(), USceneThumbnailInfo::StaticClass());
 }
+
+FAssetOpenSupport UAssetDefinition_GeometryCollection::GetAssetOpenSupport(const FAssetOpenSupportArgs& OpenSupportArgs) const
+{
+	if (bCanEditGeometryCollection)
+	{
+		return Super::GetAssetOpenSupport(OpenSupportArgs);
+	}
+	return FAssetOpenSupport(EAssetOpenMethod::View, false);
+}
+
 
 EAssetCommandResult UAssetDefinition_GeometryCollection::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
