@@ -367,4 +367,65 @@ namespace UE
 		return FUsdPrim();
 #endif	  // #if USE_USD_SDK
 	}
+
+	template <typename T>
+	bool FUsdAttribute::Get(T& Value, TOptional<double> Time) const 
+	{
+#if USE_USD_SDK
+		FScopedUsdAllocs UsdAllocs;
+
+		pxr::UsdTimeCode TimeCode = Time.IsSet() ? Time.GetValue() : pxr::UsdTimeCode::Default();
+		return Impl->PxrUsdAttribute.Get().Get(&Value, TimeCode);
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
+
+	template UNREALUSDWRAPPER_API bool FUsdAttribute::Get(float& Value, TOptional<double> Time) const;
+	template UNREALUSDWRAPPER_API bool FUsdAttribute::Get(bool& Value, TOptional<double> Time) const;
+
+	template <>
+	UNREALUSDWRAPPER_API bool FUsdAttribute::Get(FLinearColor& Value, TOptional<double> Time) const
+	{
+#if USE_USD_SDK
+		FScopedUsdAllocs UsdAllocs;
+
+		pxr::UsdTimeCode TimeCode = Time.IsSet() ? Time.GetValue() : pxr::UsdTimeCode::Default();
+		pxr::GfVec3f PxrValue;
+		bool bSuccess = Impl->PxrUsdAttribute.Get().Get(&PxrValue, TimeCode);
+		if (bSuccess)
+		{
+			Value = FLinearColor(PxrValue[0], PxrValue[1], PxrValue[2]);
+		}
+		return bSuccess;
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
 }	 // namespace UE
+
+namespace UsdUtils
+{
+	template<typename ValueType>
+	ValueType GetAttributeValue(const UE::FUsdPrim& Prim, FStringView AttributeName, TOptional<double> Time)
+	{
+		if (!Prim)
+		{
+			return {};
+		}
+
+		UE::FUsdAttribute Attribute = Prim.GetAttribute(AttributeName.GetData());
+
+		ValueType Value{};
+		if (Attribute)
+		{
+			Attribute.Get(Value, Time);
+		}
+
+		return Value;
+	}
+
+	template UNREALUSDWRAPPER_API float GetAttributeValue(const UE::FUsdPrim& Prim, FStringView AttributeName, TOptional<double> Time);
+	template UNREALUSDWRAPPER_API bool GetAttributeValue(const UE::FUsdPrim& Prim, FStringView AttributeName, TOptional<double> Time);
+	template UNREALUSDWRAPPER_API FLinearColor GetAttributeValue(const UE::FUsdPrim& Prim, FStringView AttributeName, TOptional<double> Time);
+}

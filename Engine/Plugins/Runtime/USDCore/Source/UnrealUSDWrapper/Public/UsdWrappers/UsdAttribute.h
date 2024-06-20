@@ -4,6 +4,7 @@
 
 #include "Misc/Optional.h"
 #include "Templates/UniquePtr.h"
+#include "Containers/StringView.h"
 
 #if USE_USD_SDK
 #include "USDIncludesStart.h"
@@ -90,6 +91,9 @@ namespace UE
 		bool Get(UE::FVtValue& Value, TOptional<double> Time = {}) const;
 		bool Set(const UE::FVtValue& Value, TOptional<double> Time = {}) const;
 
+		template <typename T>
+		bool Get(T& Value, TOptional<double> Time = {}) const;
+
 		bool Clear() const;
 		bool ClearAtTime(double Time) const;
 
@@ -102,3 +106,10 @@ namespace UE
 		TUniquePtr<Internal::FUsdAttributeImpl> Impl;
 	};
 }	 // namespace UE
+
+namespace UsdUtils
+{
+	// Returns the attribute value for the given prim and attribute name. If the attribute doesn't exist, it returns the default value for the type.
+	template<typename ValueType>
+	UNREALUSDWRAPPER_API ValueType GetAttributeValue(const UE::FUsdPrim& Prim, FStringView AttributeName, TOptional<double> Time = {});
+}

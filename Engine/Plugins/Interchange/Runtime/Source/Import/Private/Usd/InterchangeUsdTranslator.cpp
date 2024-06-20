@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved. 
 
 #include "Usd/InterchangeUsdTranslator.h"
 
@@ -14,6 +14,7 @@
 #include "USDConversionUtils.h"
 #include "USDGeomMeshConversion.h"
 #include "USDLog.h"
+#include "USDLightConversion.h"	
 #include "USDMaterialUtils.h"
 #include "USDPrimConversion.h"
 #include "USDShadeConversion.h"
@@ -39,6 +40,7 @@
 #if USE_USD_SDK
 #include "USDIncludesStart.h"
 #include "pxr/usd/usdGeom/tokens.h"
+#include "pxr/usd/usdLux/tokens.h"
 #include "pxr/usd/usdPhysics/tokens.h"
 #include "pxr/usd/usdShade/tokens.h"
 #include "USDIncludesEnd.h"
@@ -436,50 +438,96 @@ namespace UE::InterchangeUsdTranslator::Private
 
 	void AddLightNode(const UE::FUsdPrim& Prim, UInterchangeBaseNodeContainer& NodeContainer)
 	{
+#if USE_USD_SDK
+
 		FString NodeUid = LightPrefix + Prim.GetPrimPath().GetString();
 		FString NodeName(Prim.GetName().ToString());
 
-		// #ueent_todo: Retrieve light attributes and set them below
+		// Ref. UsdToUnreal::ConvertLight
+		static const FString IntensityToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsIntensity);
+		static const FString ExposureToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsExposure);
+		static const FString ColorToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsColor);
+
+		float Intensity = UsdUtils::GetAttributeValue<float>(Prim, IntensityToken);
+		float Exposure = UsdUtils::GetAttributeValue<float>(Prim, ExposureToken);
+		FLinearColor Color = UsdUtils::GetAttributeValue<FLinearColor>(Prim, ColorToken);
+
+		const bool bSRGB = true;
+		Color.ToFColor(bSRGB);
+
+		static const FString TemperatureToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsColorTemperature);
+		static const FString UseTemperatureToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsEnableColorTemperature);
+
+		float Temperature = UsdUtils::GetAttributeValue<float>(Prim, TemperatureToken);
+		bool UseTemperature = UsdUtils::GetAttributeValue<bool>(Prim, UseTemperatureToken);
+
+		// "Shadow enabled" currently not supported
+
+		auto SetBaseLightProperties = [&NodeUid, &NodeName, Color, Temperature, UseTemperature](UInterchangeBaseLightNode* LightNode)
+		{
+			LightNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
+			LightNode->SetAssetName(NodeName);
+				
+			LightNode->SetCustomLightColor(Color);
+			LightNode->SetCustomTemperature(Temperature);
+			LightNode->SetCustomUseTemperature(UseTemperature);
+		};
+
+		static const FString RadiusToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsRadius);
 
 		if (Prim.IsA(TEXT("DistantLight")))
 		{
 			UInterchangeDirectionalLightNode* LightNode = NewObject<UInterchangeDirectionalLightNode>(&NodeContainer);
-			LightNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
-			LightNode->SetAssetName(NodeName);
+			SetBaseLightProperties(LightNode);
 
-			// LightNode->SetCustomLightColor(Color);
-			// LightNode->SetCustomIntensity(Intensity);
+			Intensity = UsdToUnreal::ConvertLightIntensityAttr(Intensity, Exposure);
+			LightNode->SetCustomIntensity(Intensity);
+
+			// LightSourceAngle currently not supported by UInterchangeDirectionalLightNode
+			//float Angle = UsdUtils::GetAttributeValue<float>(Prim, TEXTVIEW("inputs:angle"));
 
 			NodeContainer.AddNode(LightNode);
 		}
 		else if (Prim.IsA(TEXT("SphereLight")))
 		{
+			const FUsdStageInfo StageInfo(Prim.GetStage());
+
+			const float Radius = UsdUtils::GetAttributeValue<float>(Prim, RadiusToken);
+			const float SourceRadius = UsdToUnreal::ConvertDistance(StageInfo, Radius); // currently not supported
+
 			if (Prim.HasAPI(TEXT("ShapingAPI")))
 			{
 				UInterchangeSpotLightNode* LightNode = NewObject<UInterchangeSpotLightNode>(&NodeContainer);
-				LightNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
-				LightNode->SetAssetName(NodeName);
+				SetBaseLightProperties(LightNode);
 
 				LightNode->SetCustomIntensityUnits(EInterchangeLightUnits::Lumens);
-				// LightNode->SetCustomLightColor(Color));
-				// LightNode->SetCustomIntensity(Intensity);
 
-				// LightNode->SetCustomInnerConeAngle(FMath::RadiansToDegrees(InnerConeAngle));
-				// LightNode->SetCustomOuterConeAngle(FMath::RadiansToDegrees(OuterConeAngle));
+				static const FString ConeAngleToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsShapingConeAngle);
+				static const FString ConeSoftnessToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsShapingConeSoftness);
+
+				float ConeAngle = UsdUtils::GetAttributeValue<float>(Prim, ConeAngleToken);
+				float ConeSoftness = UsdUtils::GetAttributeValue<float>(Prim, ConeSoftnessToken);
+
+				float InnerConeAngle = 0.0f;
+				const float OuterConeAngle = UsdToUnreal::ConvertConeAngleSoftnessAttr(ConeAngle, ConeSoftness, InnerConeAngle);
+
+				Intensity = UsdToUnreal::ConvertLuxShapingAPIIntensityAttr(Intensity, Exposure, Radius, ConeAngle, ConeSoftness, StageInfo);
+				LightNode->SetCustomIntensity(Intensity);
+
+				LightNode->SetCustomInnerConeAngle(InnerConeAngle);
+				LightNode->SetCustomOuterConeAngle(OuterConeAngle);
 
 				NodeContainer.AddNode(LightNode);
 			}
 			else
 			{
 				UInterchangePointLightNode* LightNode = NewObject<UInterchangePointLightNode>(&NodeContainer);
-				LightNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
-				LightNode->SetAssetName(NodeName);
+				SetBaseLightProperties(LightNode);
 
 				LightNode->SetCustomIntensityUnits(EInterchangeLightUnits::Lumens);
-				// LightNode->SetCustomLightColor(FLinearColor(Color));
-				// LightNode->SetCustomIntensity(Intensity);
 
-				// LightNode->SetCustomAttenuationRadius(AttenuationRadius);
+				Intensity = UsdToUnreal::ConvertSphereLightIntensityAttr(Intensity, Exposure, Radius, StageInfo);
+				LightNode->SetCustomIntensity(Intensity);
 
 				NodeContainer.AddNode(LightNode);
 			}
@@ -487,22 +535,46 @@ namespace UE::InterchangeUsdTranslator::Private
 		else if (Prim.IsA(TEXT("RectLight")) || Prim.IsA(TEXT("DiskLight")))
 		{
 			UInterchangeRectLightNode* LightNode = NewObject<UInterchangeRectLightNode>(&NodeContainer);
-			LightNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
-			LightNode->SetAssetName(NodeName);
+			SetBaseLightProperties(LightNode);
+
+			LightNode->SetCustomIntensityUnits(EInterchangeLightUnits::Lumens);
+
+			static const FString WidthToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsWidth);
+			static const FString HeightToken = UsdToUnreal::ConvertToken(pxr::UsdLuxTokens->inputsHeight);
+
+			float Width = UsdUtils::GetAttributeValue<float>(Prim, WidthToken);
+			float Height = UsdUtils::GetAttributeValue<float>(Prim, HeightToken);
+
+			const FUsdStageInfo StageInfo(Prim.GetStage());
+
+			if (Prim.IsA(TEXT("RectLight")))
+			{
+				Width = UsdToUnreal::ConvertDistance(StageInfo, Width);
+				Height = UsdToUnreal::ConvertDistance(StageInfo, Height);
+				Intensity = UsdToUnreal::ConvertRectLightIntensityAttr(Intensity, Exposure, Width, Height, StageInfo);
+			}
+			else
+			{
+				float Radius = UsdUtils::GetAttributeValue<float>(Prim, RadiusToken);
+				Width = UsdToUnreal::ConvertDistance(StageInfo, Radius) * 2.f;
+				Height = Width;
+
+				Intensity = UsdToUnreal::ConvertDiskLightIntensityAttr(Intensity, Exposure, Radius, StageInfo);
+			}
+			LightNode->SetCustomIntensity(Intensity);
+			LightNode->SetCustomSourceWidth(Width);
+			LightNode->SetCustomSourceHeight(Height);
+
 			NodeContainer.AddNode(LightNode);
 		}
 		// #ueent_todo:
 		// DomeLight -> SkyLight
+#endif	  // USE_USD_SDK
 	}
 
 	void AddCameraNode(const UE::FUsdPrim& Prim, UInterchangeBaseNodeContainer& NodeContainer)
 	{
-		// FUsdCamera Camera;
-		// if (!UsdToUnreal::ConvertGeomCamera(Prim, Camera, UsdUtils::GetEarliestTimeCode()))
-		//{
-		//	return;
-		// }
-
+#if USE_USD_SDK
 		FString NodeUid = CameraPrefix + Prim.GetPrimPath().GetString();
 		FString NodeName(Prim.GetName().ToString());
 
@@ -510,9 +582,28 @@ namespace UE::InterchangeUsdTranslator::Private
 		CameraNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
 		NodeContainer.AddNode(CameraNode);
 
-		// CameraNode->SetCustomFocalLength(Camera.FocalLength);
-		// CameraNode->SetCustomSensorHeight(Camera.SensorHeight);
-		// CameraNode->SetCustomSensorWidth(Camera.SensorWidth);
+		// ref. UsdToUnreal::ConvertGeomCamera
+		UE::FUsdStage Stage = Prim.GetStage();
+		FUsdStageInfo StageInfo(Stage);
+
+		static const FString FocalLengthToken = UsdToUnreal::ConvertToken(pxr::UsdGeomTokens->focalLength);
+		static const FString HorizontalApertureToken = UsdToUnreal::ConvertToken(pxr::UsdGeomTokens->horizontalAperture);
+		static const FString VerticalApertureToken = UsdToUnreal::ConvertToken(pxr::UsdGeomTokens->verticalAperture);
+
+		float FocalLength = UsdUtils::GetAttributeValue<float>(Prim, FocalLengthToken);
+		FocalLength = UsdToUnreal::ConvertDistance(StageInfo, FocalLength);
+		CameraNode->SetCustomFocalLength(FocalLength);
+
+		float SensorWidth = UsdUtils::GetAttributeValue<float>(Prim, HorizontalApertureToken);
+		SensorWidth = UsdToUnreal::ConvertDistance(StageInfo, SensorWidth);
+		CameraNode->SetCustomSensorWidth(SensorWidth);
+
+		float SensorHeight = UsdUtils::GetAttributeValue<float>(Prim, VerticalApertureToken);
+		SensorHeight = UsdToUnreal::ConvertDistance(StageInfo, SensorHeight);
+		CameraNode->SetCustomSensorHeight(SensorHeight);
+
+		// Focus distance and FStop not currently supported
+#endif	  // USE_USD_SDK
 	}
 
 	void AddMeshNode(const UE::FUsdPrim& Prim, UInterchangeUSDTranslatorImpl* TranslatorImpl, UInterchangeBaseNodeContainer& NodeContainer)
@@ -663,7 +754,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		FMeshDescription& OutMeshDescription
 	)
 	{
-		UE::FUsdPrim Prim = UsdStage.GetPrimAtPath(UE::FSdfPath{*PrimPath});
+		UE::FUsdPrim Prim = UsdStage.GetPrimAtPath(UE::FSdfPath{ *PrimPath });
 		if (!Prim)
 		{
 			return false;
@@ -920,9 +1011,9 @@ TOptional<UE::Interchange::FImportBlockedImage> UInterchangeUSDTranslator::GetBl
 	TextureGroup TextureGroup;
 	bool bDecoded = DecodeTexturePayloadKey(PayloadKey, FilePath, TextureGroup);
 	if (!bDecoded)
-	{
-		return {};
-	}
+{
+	return {};
+}
 
 	AlternateTexturePath = FilePath;
 
