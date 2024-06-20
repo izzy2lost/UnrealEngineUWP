@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 
 #include "AssetTable.h"
-#include "Insights/Table/ViewModels/TableTreeNode.h"
+#include "InsightsCore/Table/ViewModels/TableTreeNode.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

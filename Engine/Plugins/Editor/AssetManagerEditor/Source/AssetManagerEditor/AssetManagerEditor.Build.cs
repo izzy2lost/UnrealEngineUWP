@@ -49,6 +49,7 @@ public class AssetManagerEditor : ModuleRules
 				"TreeMap",
 				"ToolMenus",
 				"ToolWidgets",
+				"TraceInsightsCore",
 				"SourceControl",
 				"SourceControlWindows",
 				"UncontrolledChangelists",

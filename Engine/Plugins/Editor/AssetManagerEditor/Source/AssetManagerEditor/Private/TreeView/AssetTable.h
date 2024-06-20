@@ -6,7 +6,7 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "Containers/StringView.h"
-#include "Insights/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/Table.h"
 #include "Misc/CString.h"
 #include "Misc/TVariant.h"
 

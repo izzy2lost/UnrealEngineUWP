@@ -25,7 +25,7 @@
 
 #include "AssetManagerEditorModule.h"
 #include "AssetManagerEditorCommands.h"
-#include "Insights/Common/Log.h"
+#include "InsightsCore/Common/Log.h"
 #include "TreeView/AssetTable.h"
 #include "TreeView/AssetTreeNode.h"
 #include "TreeView/SAssetTableTreeView.h"

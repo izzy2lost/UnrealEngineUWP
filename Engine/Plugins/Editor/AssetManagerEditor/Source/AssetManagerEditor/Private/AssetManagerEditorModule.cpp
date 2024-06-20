@@ -66,8 +66,7 @@
 #include "ContentBrowserMenuContexts.h"
 #include "IContentBrowserDataModule.h"
 #include "ContentBrowserDataSubsystem.h"
-#include "Insights/Common/InsightsStyle.h"
-#include "Insights/Filter/ViewModels/Filters.h"
+#include "InsightsCore/Filter/ViewModels/Filters.h"
 #include "TreeView/AssetTable.h"
 #include "TreeView/SAssetTableTreeView.h"
 
@@ -486,7 +485,6 @@ void FAssetManagerEditorModule::StartupModule()
 
 	if (GIsEditor && !IsRunningCommandlet())
 	{
-		UE::Insights::FInsightsStyle::Initialize();
 		UE::Insights::FFilterService::Initialize();
 
 		AuditCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
@@ -697,7 +695,6 @@ void FAssetManagerEditorModule::ShutdownModule()
 		UToolMenus::UnregisterOwner(this);
 
 		UE::Insights::FFilterService::Shutdown();
-		UE::Insights::FInsightsStyle::Shutdown();
 	}
 }
 

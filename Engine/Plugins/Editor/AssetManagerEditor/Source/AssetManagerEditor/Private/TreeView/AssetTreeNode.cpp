@@ -3,9 +3,9 @@
 #include "AssetTreeNode.h"
 
 #include "AssetDependencyGrouping.h"
-#include "Insights/Common/AsyncOperationProgress.h"
-#include "Insights/Common/InsightsStyle.h"
-#include "Insights/Table/Widgets/STableTreeView.h"
+#include "InsightsCore/Common/AsyncOperationProgress.h"
+#include "InsightsCore/Common/InsightsCoreStyle.h"
+#include "InsightsCore/Table/Widgets/STableTreeView.h"
 #include "Internationalization/Internationalization.h"
 #include "Styling/StyleColors.h"
 
@@ -28,27 +28,27 @@ const FSlateBrush* FAssetTreeNode::GetIcon(EStyle Style) const
 		default:
 		case EStyle::EDefault:
 		{
-			return UE::Insights::FInsightsStyle::GetBrush("Icons.Leaf.TreeItem");
+			return UE::Insights::FInsightsCoreStyle::GetBrush("Icons.Leaf.TreeItem");
 		}
 
 		case EStyle::EAsset:
 		{
-			return UE::Insights::FInsightsStyle::GetBrush("Icons.Asset.TreeItem");
+			return UE::Insights::FInsightsCoreStyle::GetBrush("Icons.Asset.TreeItem");
 		}
 				
 		case EStyle::EGroup:
 		{
-			return UE::Insights::FInsightsStyle::GetBrush("Icons.Group.TreeItem");
+			return UE::Insights::FInsightsCoreStyle::GetBrush("Icons.Group.TreeItem");
 		}	
 
 		case EStyle::EDependencies:
 		{
-			return UE::Insights::FInsightsStyle::GetBrush("Icons.Dependencies.TreeItem");
+			return UE::Insights::FInsightsCoreStyle::GetBrush("Icons.Dependencies.TreeItem");
 		}
 
 		case EStyle::EPlugin:
 		{
-			return UE::Insights::FInsightsStyle::GetBrush("Icons.Plugin.TreeItem");
+			return UE::Insights::FInsightsCoreStyle::GetBrush("Icons.Plugin.TreeItem");
 		}
 	}
 }

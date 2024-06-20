@@ -16,13 +16,12 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "IContentBrowserSingleton.h"
-#include "Insights/Common/InsightsStyle.h"
-#include "Insights/Common/Log.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Filter/ViewModels/FilterConfigurator.h"
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+#include "InsightsCore/Common/Log.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
 #include "Interfaces/IPluginManager.h"
 #include "Logging/MessageLog.h"
 #include "Misc/FileHelper.h"
@@ -51,6 +50,7 @@ extern UNREALED_API UEditorEngine* GEditor;
 
 SAssetTableTreeView::SAssetTableTreeView()
 {
+	MaxDepthToAutoExpand = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

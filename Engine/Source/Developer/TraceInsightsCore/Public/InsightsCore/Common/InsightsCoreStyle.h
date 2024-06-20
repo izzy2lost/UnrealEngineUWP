@@ -23,11 +23,7 @@ public:
 	static void Shutdown();
 
 	TRACEINSIGHTSCORE_API static FName GetStyleSetName();
-
-	static const ISlateStyle& Get()
-	{
-		return *StyleInstance;
-	}
+	TRACEINSIGHTSCORE_API static const ISlateStyle& Get();
 
 	static const FLinearColor& GetColor(FName PropertyName, const ANSICHAR* Specifier = NULL)
 	{
@@ -77,7 +73,7 @@ public:
 private:
 	static TSharedRef<FInsightsCoreStyle::FStyle> Create();
 
-	static TSharedPtr<FInsightsCoreStyle::FStyle> StyleInstance;
+	TRACEINSIGHTSCORE_API static TSharedPtr<FInsightsCoreStyle::FStyle> StyleInstance;
 };
 
 } // namespace UE::Insights

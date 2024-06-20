@@ -22,6 +22,13 @@ TSharedPtr<FInsightsCoreStyle::FStyle> FInsightsCoreStyle::StyleInstance = nullp
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+const ISlateStyle& FInsightsCoreStyle::Get()
+{
+	return *StyleInstance;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FInsightsCoreStyle::Initialize()
 {
 	LLM_SCOPE_BYNAME(TEXT("Insights/Style"));
@@ -62,7 +69,7 @@ void FInsightsCoreStyle::Shutdown()
 
 FName FInsightsCoreStyle::GetStyleSetName()
 {
-	static FName StyleSetName(TEXT("AssetManager/InsightsStyle"));
+	static FName StyleSetName(TEXT("TraceInsightsCore/InsightsStyle"));
 	return StyleSetName;
 }
 
