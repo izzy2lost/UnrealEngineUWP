@@ -116,7 +116,7 @@ namespace UnsyncUI
 		private CancellationTokenSource cts;
 		public string Stream => Template.Stream;
 		public string CL => Template.CL;
-		public string Suffix => Template.Suffix;
+		public string Suffix => Template.Suffix == null ? "" : Template.Suffix;
 
 		public Config.Directory RootDir { get; }
 		public string Path { get; }

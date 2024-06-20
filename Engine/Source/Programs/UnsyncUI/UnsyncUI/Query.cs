@@ -157,6 +157,8 @@ namespace UnsyncUI
 		{
 			if (!Initialized)
 			{
+				Entries = new List<Entry>();
+
 				if (ProjectSchema != null)
 				{
 					await InitProject(cancellationToken);
@@ -179,11 +181,6 @@ namespace UnsyncUI
 
 		private void ProcessQueryResult(SearchQueryResult queryResult)
 		{
-			if (Entries == null)
-			{
-				Entries = new List<Entry>();
-			}
-
 			foreach (var queryEntry in queryResult.entries)
 			{
 				Entry entry = new Entry();
