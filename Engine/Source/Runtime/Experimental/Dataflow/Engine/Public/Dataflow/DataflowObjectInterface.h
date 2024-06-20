@@ -2,13 +2,9 @@
 
 #pragma once
 
-#include "Containers/UnrealString.h"
-#include "Dataflow/DataflowGraph.h"
-#include "GameFramework/Actor.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 
-class UDataflow;
 class UObject;
 class FArchive;
 
@@ -20,14 +16,12 @@ namespace Dataflow
 	public:
 		DATAFLOW_CONTEXT_INTERNAL(Base, TEngineContext);
 
-		TEngineContext(const TObjectPtr<UObject>& InOwner,const TObjectPtr<UDataflow>& InGraph, FTimestamp InTimestamp)
-				: Base(InTimestamp)
-				, Owner(InOwner)
-				, Graph(InGraph)
+		TEngineContext(const TObjectPtr<UObject>& InOwner, FTimestamp InTimestamp)
+			: Base(InTimestamp)
+			, Owner(InOwner)
 		{}
-	
+
 		TObjectPtr<UObject> Owner = nullptr;
-		TObjectPtr<UDataflow> Graph = nullptr;
 
 		virtual ~TEngineContext() {}
 

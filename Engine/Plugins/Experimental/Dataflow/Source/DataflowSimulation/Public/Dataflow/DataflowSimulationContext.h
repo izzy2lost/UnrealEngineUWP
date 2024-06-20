@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -17,8 +17,8 @@ namespace Dataflow
 	public:
 		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<Base>, TSimulationContext);
 
-		TSimulationContext(const TObjectPtr<UObject>& InOwner,const TObjectPtr<UDataflow>& InGraph, FTimestamp InTimestamp)
-				: Super(InOwner, InGraph, InTimestamp)
+		TSimulationContext(const TObjectPtr<UObject>& InOwner, FTimestamp InTimestamp)
+				: Super(InOwner, InTimestamp)
 		{}
 		
 		virtual ~TSimulationContext() override {};

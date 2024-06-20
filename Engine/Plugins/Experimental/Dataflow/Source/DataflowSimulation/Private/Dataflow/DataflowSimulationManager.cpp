@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowSimulationManager.h"
 #include "Dataflow/DataflowSimulationUtils.h"
@@ -333,7 +333,7 @@ void UDataflowSimulationManager::AddSimulationInterface(IDataflowSimulationInter
 			if(!DataflowData.SimulationContext.IsValid())
 			{
 				DataflowData.SimulationContext = MakeShared<Dataflow::FDataflowSimulationContext>(
-					DataflowAsset, DataflowAsset, Dataflow::FTimestamp::Invalid);
+					DataflowAsset, Dataflow::FTimestamp::Invalid);
 			}
 			DataflowData.SimulationInterfaces.FindOrAdd(SimulationInterface->GetSimulationType()).Add(SimulationInterface);
 		}

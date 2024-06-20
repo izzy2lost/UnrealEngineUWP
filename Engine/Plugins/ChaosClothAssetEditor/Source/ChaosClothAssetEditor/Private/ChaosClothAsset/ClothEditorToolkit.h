@@ -32,7 +32,7 @@ namespace Dataflow
 		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<FContextSingle>, FClothAssetDataflowContext);
 
 		FClothAssetDataflowContext(UObject* InOwner, UDataflow* InGraph, FTimestamp InTimestamp)
-			: Super(InOwner, InGraph, InTimestamp)
+			: Super(InOwner, InTimestamp)
 		{}
 	};
 }

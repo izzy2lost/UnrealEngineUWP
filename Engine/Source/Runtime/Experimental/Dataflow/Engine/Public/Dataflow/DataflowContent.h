@@ -204,6 +204,10 @@ protected:
 	UPROPERTY(Transient, SkipSerialization)
 	FString DataflowTerminal = "";
 
+	/** Dataflow graph for evaluation */
+	UPROPERTY(Transient, SkipSerialization)
+	TObjectPtr<UDataflow> DataflowGraph;
+	
 	/** Data flow terminal path for evaluation */
 	UPROPERTY(Transient, SkipSerialization)
 	TObjectPtr<UObject> TerminalAsset = nullptr;

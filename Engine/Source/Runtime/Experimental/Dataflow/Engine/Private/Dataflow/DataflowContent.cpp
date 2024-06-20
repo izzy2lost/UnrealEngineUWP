@@ -317,7 +317,7 @@ void UDataflowBaseContent::SetDataflowOwner(const TObjectPtr<UObject>& InOwner)
 {
 	if(!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, nullptr, Dataflow::FTimestamp::Invalid);
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, Dataflow::FTimestamp::Invalid);
 	}
 	DataflowContext->Owner = InOwner;  
 	SetConstructionDirty(true);
@@ -333,16 +333,16 @@ void UDataflowBaseContent::SetDataflowAsset(const TObjectPtr<UDataflow>& Dataflo
 {
 	if(!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, nullptr, Dataflow::FTimestamp::Invalid);
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, Dataflow::FTimestamp::Invalid);
 	}
-	DataflowContext->Graph = DataflowAsset;  
+	DataflowGraph = DataflowAsset;  
 	SetConstructionDirty(true);
 	SetSimulationDirty(true);
 }
 
 TObjectPtr<UDataflow> UDataflowBaseContent::GetDataflowAsset() const 
 {
-	return DataflowContext ? DataflowContext->Graph : nullptr; 
+	return DataflowGraph;
 }
 
 #if WITH_EDITOR
@@ -391,7 +391,7 @@ void UDataflowBaseContent::Serialize(FArchive& Ar)
 
 	if (!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, nullptr, LastModifiedTimestamp);
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, LastModifiedTimestamp);
 	}
 	DataflowContext->Serialize(Ar);
 }
@@ -402,7 +402,7 @@ void UDataflowBaseContent::AddReferencedObjects(UObject* InThis, FReferenceColle
 	if(This->DataflowContext)
 	{
 		Collector.AddReferencedObject(This->DataflowContext->Owner);
-		Collector.AddReferencedObject(This->DataflowContext->Graph);
+		Collector.AddReferencedObject(This->DataflowGraph);
 	}
 	Super::AddReferencedObjects(InThis, Collector);
 }

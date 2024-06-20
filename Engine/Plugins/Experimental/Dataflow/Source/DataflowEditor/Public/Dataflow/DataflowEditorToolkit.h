@@ -31,21 +31,6 @@ class FDataflowSkeletonView;
 class UDataflowEditor;
 
 
-namespace Dataflow
-{
-	class DATAFLOWEDITOR_API FAssetContext : public TEngineContext<FContextSingle>
-	{
-	public:
-		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<FContextSingle>, FAssetContext); 
-
-		FAssetContext(UObject* InOwner, UDataflow* InGraph, FTimestamp InTimestamp)
-			: Super(InOwner, InGraph, InTimestamp)
-		{}
-	};
-}
-
-
-
 class DATAFLOWEDITOR_API FDataflowEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook, public FGCObject
 {
 	using FBaseCharacterFXEditorToolkit::ObjectScene;

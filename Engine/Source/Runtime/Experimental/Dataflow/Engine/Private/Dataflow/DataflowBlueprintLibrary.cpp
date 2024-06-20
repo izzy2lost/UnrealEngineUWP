@@ -14,7 +14,7 @@ void UDataflowBlueprintLibrary::EvaluateTerminalNodeByName(UDataflow* Dataflow, 
 		{
 			if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
 			{
-				Dataflow::FEngineContext Context(ResultAsset, Dataflow, FPlatformTime::Cycles64());
+				Dataflow::FEngineContext Context(ResultAsset, FPlatformTime::Cycles64());
 				TerminalNode->Evaluate(Context);
 				if (ResultAsset)
 				{

@@ -1020,7 +1020,7 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 			Dataflow::FTimestamp TimeStamp = EditorContent->GetLastModifiedTimestamp();
 			if (!EditorContent->GetDataflowContext())
 			{
-				EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), EditorContent->GetDataflowAsset(), Dataflow::FTimestamp::Invalid));
+				EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), Dataflow::FTimestamp::Invalid));
 				TimeStamp = Dataflow::FTimestamp::Invalid;
 			}
 
