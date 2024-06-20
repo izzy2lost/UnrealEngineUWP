@@ -64,7 +64,7 @@ void UBlackboardKeyType::WrappedFree(UBlackboardComponent& OwnerComp, uint8* Mem
 	{
 		UBlackboardKeyType* InstancedKey = GetKeyInstance(OwnerComp, MemoryBlock);
 		uint8* InstanceMemoryBlock = MemoryBlock + sizeof(FBlackboardInstancedKeyMemory);
-		InstancedKey->FreeMemory(OwnerComp, InstanceMemoryBlock);
+		return InstancedKey->FreeMemory(OwnerComp, InstanceMemoryBlock);
 	}
 
 	return FreeMemory(OwnerComp, MemoryBlock);

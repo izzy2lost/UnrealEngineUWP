@@ -7,6 +7,8 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "GameplayTagContainer.h"
 #include "Misc/Guid.h"
+#include "StructUtils/InstancedStruct.h"
+#include "StructUtils/StructView.h"
 
 #include "ValueOrBBKey.generated.h"
 
@@ -14,6 +16,7 @@ class UBlackboardKeyType;
 class FValueOrBBKeyDetails;
 
 struct FPropertyTag;
+struct FConstStructView;
 
 // Drop in replacement for Property in bt nodes that allows easy binding to blackboard key. Replace the old property with the corresponding type and call the GetValue() function to retrieve the value.
 struct FValueOrBBKey_Bool;
@@ -25,6 +28,7 @@ struct FValueOrBBKey_Name;
 struct FValueOrBBKey_String;
 struct FValueOrBBKey_Object;
 struct FValueOrBBKey_Rotator;
+struct FValueOrBBKey_Struct;
 struct FValueOrBBKey_Vector;
 
 namespace FBlackboard
@@ -65,6 +69,12 @@ namespace FBlackboard
 		}
 		return DefaultValue;
 	}
+
+	FConstStructView TryGetBlackboardKeyStruct(const UBlackboardComponent& Blackboard, const FName& Name, FBlackboard::FKey& InOutCachedKey, const UScriptStruct* TargetStruct);
+
+	FConstStructView GetStructValue(const UBlackboardComponent& Blackboard, const FName& Name, FBlackboard::FKey& InOutCachedKey, const FConstStructView& DefaultValue);
+
+	FConstStructView GetStructValue(const UBehaviorTreeComponent& BehaviorComp, const FName& Name, FBlackboard::FKey& InOutCachedKey, const FConstStructView& DefaultValue);
 } // namespace FBlackboard
 
 // Base struct to simplify edition in the editor, shouldn't be used elsewhere
@@ -436,7 +446,53 @@ protected:
 	FVector DefaultValue;
 };
 
-template<>
+USTRUCT(BlueprintType)
+struct FValueOrBBKey_Struct : public FValueOrBlackboardKeyBase
+{
+	GENERATED_BODY()
+
+public:
+	template <typename T>
+	FValueOrBBKey_Struct(const T& Value)
+	{
+		DefaultValue.InitializeAs<T>(Value);
+	}
+	FValueOrBBKey_Struct() = default;
+
+#if WITH_EDITOR
+	AIMODULE_API virtual bool IsCompatibleType(const UBlackboardKeyType* KeyType) const;
+#endif // WITH_EDITOR
+
+	AIMODULE_API FString ToString() const;
+
+	template <typename T>
+	const T& GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+	{
+		check(DefaultValue.GetScriptStruct() == TBaseStructure<T>::Get());
+		return GetValue(BehaviorComp).Get<const T>();
+	}
+
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
+	AIMODULE_API FConstStructView GetValue(const UBehaviorTreeComponent& BehaviorComp) const;
+	AIMODULE_API FConstStructView GetValue(const UBehaviorTreeComponent* BehaviorComp) const;
+	AIMODULE_API FConstStructView GetValue(const UBlackboardComponent& Blackboard) const;
+	AIMODULE_API FConstStructView GetValue(const UBlackboardComponent* Blackboard) const;
+
+protected:
+	friend class FValueOrBBKeyDetails_Struct;
+
+	UPROPERTY(EditAnywhere, Category = Value)
+	FInstancedStruct DefaultValue;
+
+#if WITH_EDITORONLY_DATA
+	/** Exist to give a way for the details to know if the DefaultValue type can be edited. */
+	UPROPERTY(EditDefaultsOnly, Category = Value)
+	bool bCanEditDefaultValueType = false;
+#endif // WITH_EDITORONLY_DATA
+};
+
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Bool> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Bool>
 {
 	enum
@@ -445,7 +501,7 @@ struct TStructOpsTypeTraits<FValueOrBBKey_Bool> : public TStructOpsTypeTraitsBas
 	};
 };
 
-template<>
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Class> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Class>
 {
 	enum
@@ -454,7 +510,7 @@ struct TStructOpsTypeTraits<FValueOrBBKey_Class> : public TStructOpsTypeTraitsBa
 	};
 };
 
-template<>
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Enum> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Enum>
 {
 	enum
@@ -463,7 +519,7 @@ struct TStructOpsTypeTraits<FValueOrBBKey_Enum> : public TStructOpsTypeTraitsBas
 	};
 };
 
-template<>
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Float> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Float>
 {
 	enum
@@ -472,7 +528,7 @@ struct TStructOpsTypeTraits<FValueOrBBKey_Float> : public TStructOpsTypeTraitsBa
 	};
 };
 
-template<>
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Int32> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Int32>
 {
 	enum
@@ -481,7 +537,7 @@ struct TStructOpsTypeTraits<FValueOrBBKey_Int32> : public TStructOpsTypeTraitsBa
 	};
 };
 
-template<>
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Name> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Name>
 {
 	enum
@@ -490,7 +546,7 @@ struct TStructOpsTypeTraits<FValueOrBBKey_Name> : public TStructOpsTypeTraitsBas
 	};
 };
 
-template<>
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_String> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_String>
 {
 	enum
@@ -499,7 +555,7 @@ struct TStructOpsTypeTraits<FValueOrBBKey_String> : public TStructOpsTypeTraitsB
 	};
 };
 
-template<>
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Object> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Object>
 {
 	enum
@@ -508,7 +564,7 @@ struct TStructOpsTypeTraits<FValueOrBBKey_Object> : public TStructOpsTypeTraitsB
 	};
 };
 
-template<>
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Rotator> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Rotator>
 {
 	enum
@@ -517,7 +573,16 @@ struct TStructOpsTypeTraits<FValueOrBBKey_Rotator> : public TStructOpsTypeTraits
 	};
 };
 
-template<>
+template <>
+struct TStructOpsTypeTraits<FValueOrBBKey_Struct> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Struct>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
+template <>
 struct TStructOpsTypeTraits<FValueOrBBKey_Vector> : public TStructOpsTypeTraitsBase2<FValueOrBBKey_Vector>
 {
 	enum

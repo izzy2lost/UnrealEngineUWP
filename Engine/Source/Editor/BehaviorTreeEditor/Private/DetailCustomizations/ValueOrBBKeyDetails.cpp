@@ -59,6 +59,11 @@ TSharedRef<IPropertyTypeCustomization> FValueOrBBKeyDetails_Object::MakeInstance
 	return MakeShareable(new FValueOrBBKeyDetails_Object);
 }
 
+TSharedRef<IPropertyTypeCustomization> FValueOrBBKeyDetails_Struct::MakeInstance()
+{
+	return MakeShareable(new FValueOrBBKeyDetails_Struct);
+}
+
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void FValueOrBBKeyDetails::CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
@@ -239,6 +244,27 @@ TSharedRef<SWidget> FValueOrBBKeyDetails_Object::CreateDefaultValueWidget()
 	}
 	return FValueOrBBKeyDetails::CreateDefaultValueWidget();
 }
+
+void FValueOrBBKeyDetails_Struct::CustomizeHeader(TSharedRef<class IPropertyHandle> StructPropertyHandle, class FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	FValueOrBBKeyDetails::CustomizeHeader(StructPropertyHandle, HeaderRow, StructCustomizationUtils);
+	HeaderRow.ShouldAutoExpand(true);
+
+	EditDefaultsOnlyProperty = StructPropertyHandle->GetChildHandle(TEXT("bCanEditDefaultValueType"));
+	// We dont have access to the EditDefaultsOnly property or it's not editable. Lock the type so node instance can't change the DefaultValue type.
+	if (!EditDefaultsOnlyProperty.IsValid() || !EditDefaultsOnlyProperty->IsEditable())
+	{
+		DefaultValueProperty->SetInstanceMetaData(TEXT("StructTypeConst"), TEXT(""));
+	}
+}
+
+void FValueOrBBKeyDetails_Struct::CustomizeChildren(TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	FValueOrBBKeyDetails::CustomizeChildren(StructPropertyHandle, StructBuilder, StructCustomizationUtils);
+	StructBuilder.AddProperty(DefaultValueProperty.ToSharedRef())
+	.IsEnabled(TAttribute<bool>(this, &FValueOrBBKeyDetails::CanEditDefaultValue));
+}
+
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 bool FValueOrBBKeyDetails::HasAccessToBlackboard() const

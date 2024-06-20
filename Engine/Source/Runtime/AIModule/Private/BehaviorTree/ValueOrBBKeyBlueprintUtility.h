@@ -51,4 +51,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = Blackboard)
 	static FVector GetVector(const FValueOrBBKey_Vector& Value, const UBehaviorTreeComponent* BehaviorTreeComp);
+
+	UFUNCTION(BlueprintPure, Category = Blackboard)
+	static FInstancedStruct GetStruct(const FValueOrBBKey_Struct& Value, const UBehaviorTreeComponent* BehaviorTreeComp);
 };

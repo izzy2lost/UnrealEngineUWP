@@ -3,6 +3,7 @@
 #include "BehaviorTree/ValueOrBBKeyBlueprintUtility.h"
 
 #include "BehaviorTree/ValueOrBBKey.h"
+#include "StructUtils/StructView.h"
 
 bool UValueOrBBKeyBlueprintUtility::GetBool(const FValueOrBBKey_Bool& Value, const UBehaviorTreeComponent* BehaviorTreeComp)
 {
@@ -52,4 +53,9 @@ FRotator UValueOrBBKeyBlueprintUtility::GetRotator(const FValueOrBBKey_Rotator& 
 FVector UValueOrBBKeyBlueprintUtility::GetVector(const FValueOrBBKey_Vector& Value, const UBehaviorTreeComponent* BehaviorTreeComp)
 {
 	return Value.GetValue(BehaviorTreeComp);
+}
+
+FInstancedStruct UValueOrBBKeyBlueprintUtility::GetStruct(const FValueOrBBKey_Struct& Value, const UBehaviorTreeComponent* BehaviorTreeComp)
+{
+	return FInstancedStruct(Value.GetValue(BehaviorTreeComp));
 }

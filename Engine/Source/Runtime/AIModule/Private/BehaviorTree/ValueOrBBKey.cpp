@@ -11,7 +11,57 @@
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Object.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Rotator.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_String.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Struct.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Vector.h"
+
+namespace FBlackboard
+{
+	FConstStructView TryGetBlackboardKeyStruct(const UBlackboardComponent& Blackboard, const FName& Name, FBlackboard::FKey& InOutCachedKey, const UScriptStruct* TargetStruct)
+	{
+		if (InOutCachedKey == FBlackboard::InvalidKey)
+		{
+			InOutCachedKey = Blackboard.GetKeyID(Name);
+		}
+
+		if (const UBlackboardData* BlackBoarData = Blackboard.GetBlackboardAsset())
+		{
+			if (const FBlackboardEntry* BBEntry = BlackBoarData->GetKey(InOutCachedKey))
+			{
+				if (UBlackboardKeyType_Struct* StructKeyType = Cast<UBlackboardKeyType_Struct>(BBEntry->KeyType))
+				{
+					if (StructKeyType->DefaultValue.GetScriptStruct() == TargetStruct)
+					{
+						return Blackboard.GetValue<UBlackboardKeyType_Struct>(InOutCachedKey);
+					}
+				}
+			}
+		}
+
+		return FConstStructView{};
+	}
+
+	FConstStructView GetStructValue(const UBlackboardComponent& Blackboard, const FName& Name, FBlackboard::FKey& InOutCachedKey, const FConstStructView& DefaultValue)
+	{
+		if (!Name.IsNone())
+		{
+			FConstStructView KeyValue = FBlackboard::TryGetBlackboardKeyStruct(Blackboard, Name, InOutCachedKey, DefaultValue.GetScriptStruct());
+			if (KeyValue.IsValid())
+			{
+				return KeyValue;
+			}
+		}
+		return DefaultValue;
+	}
+
+	FConstStructView GetStructValue(const UBehaviorTreeComponent& BehaviorComp, const FName& Name, FBlackboard::FKey& InOutCachedKey, const FConstStructView& DefaultValue)
+	{
+		if (const UBlackboardComponent* Blackboard = BehaviorComp.GetBlackboardComponent())
+		{
+			return GetStructValue(*Blackboard, Name, InOutCachedKey, DefaultValue);
+		}
+		return DefaultValue;
+	}
+} // namespace FBlackboard
 
 FBlackboard::FKey FValueOrBlackboardKeyBase::GetKeyId(const UBehaviorTreeComponent& OwnerComp) const
 {
@@ -104,6 +154,18 @@ FString FValueOrBBKey_Rotator::ToString() const
 	else
 	{
 		return DefaultValue.ToString();
+	}
+}
+
+FString FValueOrBBKey_Struct::ToString() const
+{
+	if (!Key.IsNone())
+	{
+		return ToStringKeyName();
+	}
+	else
+	{
+		return GetNameSafe(DefaultValue.GetScriptStruct());
 	}
 }
 
@@ -299,6 +361,26 @@ FRotator FValueOrBBKey_Rotator::GetValue(const UBehaviorTreeComponent* BehaviorC
 	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
 }
 
+FConstStructView FValueOrBBKey_Struct::GetValue(const UBlackboardComponent& Blackboard) const
+{
+	return FBlackboard::GetStructValue(Blackboard, Key, KeyId, FConstStructView(DefaultValue));
+}
+
+FConstStructView FValueOrBBKey_Struct::GetValue(const UBlackboardComponent* Blackboard) const
+{
+	return Blackboard ? GetValue(*Blackboard) : DefaultValue;
+}
+
+FConstStructView FValueOrBBKey_Struct::GetValue(const UBehaviorTreeComponent& BehaviorComp) const
+{
+	return FBlackboard::GetStructValue(BehaviorComp, Key, KeyId, FConstStructView(DefaultValue));
+}
+
+FConstStructView FValueOrBBKey_Struct::GetValue(const UBehaviorTreeComponent* BehaviorComp) const
+{
+	return BehaviorComp ? GetValue(*BehaviorComp) : DefaultValue;
+}
+
 FVector FValueOrBBKey_Vector::GetValue(const UBlackboardComponent& Blackboard) const
 {
 	return FBlackboard::GetValue<UBlackboardKeyType_Vector>(Blackboard, Key, KeyId, DefaultValue);
@@ -414,6 +496,25 @@ bool FValueOrBBKey_Rotator::SerializeFromMismatchedTag(const FPropertyTag& Tag, 
 	return false;
 }
 
+bool FValueOrBBKey_Struct::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_StructProperty && Tag.GetType().GetParameterCount() > 0)
+	{
+		if (UScriptStruct* Struct = FindFirstObject<UScriptStruct>(*Tag.GetType().GetParameterName(0).ToString(), EFindFirstObjectOptions::NativeFirst))
+		{
+			if (Struct == DefaultValue.GetScriptStruct() || DefaultValue.GetScriptStruct() == nullptr)
+			{
+				TUniquePtr<uint8[]> SerializedStruct = MakeUnique<uint8[]>(Struct->GetStructureSize());
+				Struct->InitializeStruct(SerializedStruct.Get());
+				Struct->SerializeItem(Slot, SerializedStruct.Get(), nullptr);
+				DefaultValue.InitializeAs(Struct, SerializedStruct.Get());
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 bool FValueOrBBKey_Vector::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
 {
 	if (Tag.Type == NAME_VectorProperty)
@@ -489,6 +590,15 @@ bool FValueOrBBKey_Object::IsCompatibleType(const UBlackboardKeyType* KeyType) c
 bool FValueOrBBKey_Rotator::IsCompatibleType(const UBlackboardKeyType* KeyType) const
 {
 	return KeyType && KeyType->GetClass() == UBlackboardKeyType_Rotator::StaticClass();
+}
+
+bool FValueOrBBKey_Struct::IsCompatibleType(const UBlackboardKeyType* KeyType) const
+{
+	if (const UBlackboardKeyType_Struct* StructKey = Cast<UBlackboardKeyType_Struct>(KeyType))
+	{
+		return StructKey->DefaultValue.GetScriptStruct() == DefaultValue.GetScriptStruct();
+	}
+	return false;
 }
 
 bool FValueOrBBKey_Vector::IsCompatibleType(const UBlackboardKeyType* KeyType) const

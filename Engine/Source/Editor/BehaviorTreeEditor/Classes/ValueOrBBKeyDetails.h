@@ -111,3 +111,16 @@ protected:
 	void OnObjectChanged(const FAssetData& AssetData);
 	FString OnGetObjectPath() const;
 };
+
+class FValueOrBBKeyDetails_Struct : public FValueOrBBKeyDetails
+{
+public:
+	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
+	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
+
+	virtual void CustomizeHeader(TSharedRef<class IPropertyHandle> StructPropertyHandle, class FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+	virtual void CustomizeChildren(TSharedRef<class IPropertyHandle> StructPropertyHandle, class IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+
+protected:
+	TSharedPtr<IPropertyHandle> EditDefaultsOnlyProperty;
+};

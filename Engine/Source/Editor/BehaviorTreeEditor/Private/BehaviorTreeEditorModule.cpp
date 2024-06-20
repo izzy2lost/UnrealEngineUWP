@@ -70,6 +70,7 @@ void FBehaviorTreeEditorModule::StartupModule()
 	PropertyModule.RegisterCustomPropertyTypeLayout("ValueOrBBKey_Object", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FValueOrBBKeyDetails_Object::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("ValueOrBBKey_Rotator", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FValueOrBBKeyDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("ValueOrBBKey_Vector", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FValueOrBBKeyDetails::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout("ValueOrBBKey_Struct", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FValueOrBBKeyDetails_Struct::MakeInstance));
 	PropertyModule.NotifyCustomizationModuleChanged();
 }
 
@@ -110,6 +111,7 @@ void FBehaviorTreeEditorModule::ShutdownModule()
 		PropertyModule.UnregisterCustomPropertyTypeLayout("ValueOrBBKey_Object");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("ValueOrBBKey_Rotator");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("ValueOrBBKey_Vector");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("ValueOrBBKey_Struct");
 		PropertyModule.NotifyCustomizationModuleChanged();
 	}
 }
