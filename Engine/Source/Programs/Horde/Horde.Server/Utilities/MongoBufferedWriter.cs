@@ -61,6 +61,7 @@ namespace Horde.Server.Utilities
 		public async ValueTask StopAsync(CancellationToken cancellationToken)
 		{
 			await _backgroundTask.StopAsync(cancellationToken);
+			await FlushAsync(cancellationToken);
 		}
 
 		// Flushes the sink in the background
@@ -80,6 +81,10 @@ namespace Horde.Server.Utilities
 					flushTask = _flushEvent.Task;
 
 					await FlushAsync(cancellationToken);
+				}
+				catch (OperationCanceledException)
+				{
+					break;
 				}
 				catch (Exception ex)
 				{
