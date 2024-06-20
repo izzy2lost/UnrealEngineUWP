@@ -25,6 +25,7 @@
 #include "Misc/Guid.h"
 #include "Misc/Optional.h"
 #include "Misc/Timespan.h"
+#include "Misc/Timecode.h"
 #include "Misc/Variant.h"
 #include "Templates/Atomic.h"
 #include "Templates/SharedPointer.h"
@@ -391,6 +392,19 @@ public:
 	 *       (e.g. during seeks this will return the seek target rather than the last valid frame still displayed)
 	 */
 	MEDIAUTILS_API FMediaTimeStamp GetDisplayTimeStamp() const;
+
+	/**
+	 * Get the timecode from the video track, if one is available.
+	 * If available, the returned value will be the timecode of the sample most recently
+	 * sent into the video sink.
+	 *
+	 * @return Most recently delivered video timecode from the video track.
+	 *
+	 * @note Even if timecode is available, the value returned reflects the timecode
+	 *       that most recently delivered to the video sink. During a seek operation
+	 *       the timecode will be unset.
+	 */
+	MEDIAUTILS_API TOptional<FTimecode> GetVideoTimecode() const;
 
 	/**
 	 * Get the human readable name of the specified track.
@@ -1062,6 +1076,9 @@ private:
 
 	/** Estimation for next frame's video timestamp (used when no audio present or active in stream) */
 	FMediaTimeStampSample NextEstVideoTimeAtFrameStart;
+
+	/** Timecode of the video frame most recently delivered to the video sinks */
+	TOptional<FTimecode> MostRecentlyDeliveredVideoFrameTimecode;
 
 	/** Timestamp of seek target location if seek is pending */
 	FMediaTimeStamp SeekTargetTime;

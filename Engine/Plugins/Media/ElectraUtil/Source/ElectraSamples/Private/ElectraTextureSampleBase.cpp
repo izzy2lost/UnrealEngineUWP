@@ -11,11 +11,36 @@
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------
 
+namespace
+{
+
+static TOptional<FTimecode> CreateTimecodeFromMPEGDefinition(TOptional<FFrameRate>& OutFramerate, const IVideoDecoderTimecode::FMPEGDefinition* InMPEGTimecode)
+{
+	if (InMPEGTimecode->timing_info_present_flag)
+	{
+		const FTimespan ts(Electra::FTimeValue(InMPEGTimecode->clockTimestamp, InMPEGTimecode->time_scale).GetAsTimespan());
+		OutFramerate = FFrameRate(InMPEGTimecode->time_scale, InMPEGTimecode->num_units_in_tick);
+		return FTimecode::FromTimespan(ts, OutFramerate.GetValue(), InMPEGTimecode->ct_type > 1, false);
+	}
+	return TOptional<FTimecode>();
+}
+
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------------------------------
+
 void IElectraTextureSampleBase::Initialize(FVideoDecoderOutput* InVideoDecoderOutput)
 {
 	VideoDecoderOutput = StaticCastSharedPtr<FVideoDecoderOutput, IDecoderOutputPoolable, ESPMode::ThreadSafe>(InVideoDecoderOutput->AsShared());
 	HDRInfo = VideoDecoderOutput->GetHDRInformation();
-	Colorimetry = VideoDecoderOutput->GetColorimetry();
+	TSharedPtr<const IVideoDecoderTimecode, ESPMode::ThreadSafe> TimecodePtr = VideoDecoderOutput->GetTimecode();
+
+	if (TimecodePtr.IsValid())
+	{
+		// Store this in case this is needed again.
+		DecoderTimecode = TimecodePtr;
+		Timecode = CreateTimecodeFromMPEGDefinition(Framerate, TimecodePtr->GetMPEGDefinition());
+	}
 
 	// Get various basic MP4-style colorimetry values (we default to video range Rec709 SDR)
 	bool bFullRange = false;

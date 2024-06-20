@@ -12,6 +12,7 @@
 #include "Misc/Optional.h"
 #include "Misc/Timecode.h"
 #include "Misc/Timespan.h"
+#include "Misc/FrameRate.h"
 #include "Templates/SharedPointer.h"
 
 #include "HDRHelper.h"
@@ -263,8 +264,8 @@ public:
 	 * @return texture sample converter
 	 */
 	virtual IMediaTextureSampleConverter* GetMediaTextureSampleConverter()
-	{ 
-		return nullptr; 
+	{
+		return nullptr;
 	}
 
 	/**
@@ -273,8 +274,8 @@ public:
 	 * @return texture sample color converter
 	 */
 	virtual IMediaTextureSampleColorConverter* GetMediaTextureSampleColorConverter()
-	{ 
-		return nullptr; 
+	{
+		return nullptr;
 	}
 
 #endif //WITH_ENGINE
@@ -296,6 +297,15 @@ public:
 	 * @see GetTime
 	 */
 	virtual TOptional<FTimecode> GetTimecode() const { return TOptional<FTimecode>(); }
+
+	/**
+	 * Get the sample framerate if available. This is the rate in which the timecode
+	 * is measured. It is not necessarily the display frame rate.
+	 *
+	 * @return Sample framerate. May be needed for converting GetTimecode().
+	 * @see GetTime
+	 */
+	virtual TOptional<FFrameRate> GetFramerate() const { return TOptional<FFrameRate>(); }
 
 	/**
 	 * Whether the sample can be held in a cache.
@@ -380,7 +390,7 @@ public:
 	{
 		return false;
 	}
-	
+
 	/**
 	* Get complete 4x4 matrix to apply to the sample's pixels to yield RGB data in the sample's gamut
 	 *
@@ -407,7 +417,7 @@ public:
 
 	/**
 	 * Get Colorspace conversion matrix to convert to CIE1931 XYZ space
-	 * 
+	 *
 	 * @return Conversion Matrix
 	 */
 	virtual FMatrix44d GetGamutToXYZMatrix() const
@@ -417,7 +427,7 @@ public:
 
 	/**
 	 * Get white point of color space of the data contain in the sample
-	 * 
+	 *
 	 * @return White point
 	 */
 	virtual FVector2d GetWhitePoint() const
@@ -476,7 +486,7 @@ public:
 	 * Reset sample to empty state
 	 */
 	virtual void Reset() { }
-	
+
 public:
 
 	/** Virtual destructor. */

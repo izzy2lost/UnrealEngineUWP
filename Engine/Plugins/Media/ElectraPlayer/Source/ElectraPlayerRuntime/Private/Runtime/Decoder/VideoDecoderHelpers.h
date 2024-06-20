@@ -13,6 +13,20 @@ namespace Electra
 namespace MPEG
 {
 
+class FVideoDecoderTimecode : public IVideoDecoderTimecode
+{
+public:
+	virtual ~FVideoDecoderTimecode() = default;
+	virtual FMPEGDefinition const* GetMPEGDefinition() const override
+	{ return &DecoderTimecode; }
+	void Update(const IVideoDecoderTimecode::FMPEGDefinition& InTimecode)
+	{ DecoderTimecode = InTimecode; }
+private:
+	IVideoDecoderTimecode::FMPEGDefinition DecoderTimecode;
+};
+
+
+
 class FColorimetryHelper
 {
 public:

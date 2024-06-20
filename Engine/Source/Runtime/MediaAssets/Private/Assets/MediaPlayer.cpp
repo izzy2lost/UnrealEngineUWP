@@ -396,6 +396,12 @@ UMediaTimeStampInfo* UMediaPlayer::GetDisplayTimeStamp() const
 	return TimeStampInfo;
 }
 
+TOptional<FTimecode> UMediaPlayer::GetVideoTimecode() const
+{
+	return PlayerFacade->GetVideoTimecode();
+}
+
+
 FText UMediaPlayer::GetTrackDisplayName(EMediaPlayerTrack TrackType, int32 TrackIndex) const
 {
 	return PlayerFacade->GetTrackDisplayName((EMediaTrackType)TrackType, TrackIndex);

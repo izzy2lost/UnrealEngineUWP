@@ -5,6 +5,8 @@
 #include "IMediaTextureSampleConverter.h"
 #include "MediaObjectPool.h"
 #include "Misc/Timespan.h"
+#include "Misc/Timecode.h"
+#include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/RefCounting.h"
 
@@ -32,6 +34,15 @@ public:
 
 	virtual FMediaTimeStamp GetTime() const override;
 	virtual FTimespan GetDuration() const override;
+
+	virtual TOptional<FTimecode> GetTimecode() const override
+	{
+		return Timecode;
+	}
+	virtual TOptional<FFrameRate> GetFramerate() const override
+	{
+		return Framerate;
+	}
 
 	virtual double GetAspectRatio() const override
 	{
@@ -68,6 +79,10 @@ protected:
 	/** Quick access for some HDR related info */
 	TWeakPtr<const IVideoDecoderHDRInformation, ESPMode::ThreadSafe> HDRInfo;
 	TWeakPtr<const IVideoDecoderColorimetry, ESPMode::ThreadSafe> Colorimetry;
+	/** Optional timecode */
+	TWeakPtr<const IVideoDecoderTimecode> DecoderTimecode;
+	TOptional<FTimecode> Timecode;
+	TOptional<FFrameRate> Framerate;
 
 	/** YUV matrix, adjusted to compensate for decoder output specific scale */
 	FMatrix44f SampleToRgbMtx;

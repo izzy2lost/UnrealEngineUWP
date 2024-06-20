@@ -16,6 +16,7 @@
 #include "UObject/ScriptMacros.h"
 #include "Misc/Guid.h"
 #include "Misc/Variant.h"
+#include "Misc/Timecode.h"
 #include "Engine/LatentActionManager.h"
 #include "MediaPlayerOptions.h"
 #include "IMediaTimeSource.h"
@@ -412,6 +413,19 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Media|MediaPlayer")
 	MEDIAASSETS_API UMediaTimeStampInfo* GetDisplayTimeStamp() const;
+
+	/**
+	 * Get the timecode from the video track, if one is available.
+	 * If available, the returned value will be the timecode of the sample most recently
+	 * sent into the video sink.
+	 *
+	 * @return Most recently delivered video timecode from the video track.
+	 *
+	 * @note Even if timecode is available, the value returned reflects the timecode
+	 *       that most recently delivered to the video sink. During a seek operation
+	 *       the timecode will be unset.
+	 */
+	MEDIAASSETS_API TOptional<FTimecode> GetVideoTimecode() const;
 
 	/**
 	 * Get the human readable name of the specified track.

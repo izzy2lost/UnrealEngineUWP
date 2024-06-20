@@ -43,6 +43,40 @@ protected:
 
 
 
+class IVideoDecoderTimecode : public TSharedFromThis<IVideoDecoderTimecode, ESPMode::ThreadSafe>
+{
+public:
+	struct FMPEGDefinition
+	{
+		// Calculated value as per:
+		//   clockTimestamp = ( ( hH * 60 + mM ) * 60 + sS ) * time_scale + nFrames * ( num_units_in_tick * ( 1 + nuit_field_based_flag ) ) + tOffset,
+		// can only be valid when there is timing information.
+		int64 clockTimestamp = 0;
+		// Values from a pic_timing() SEI in H.264 or from a time_code() SEI in H.265
+		uint32 num_units_in_tick = 0;			// from the SPS
+		uint32 time_scale = 0;					// from the SPS
+		int32 time_offset = 0;
+		uint16 n_frames = 0;
+		uint8 timing_info_present_flag = 0;		// from the SPS
+		uint8 clock_timestamp_flag = 0;
+		uint8 ct_type = 0;
+		uint8 nuit_field_based_flag = 0;
+		uint8 counting_type = 0;
+		uint8 full_timestamp_flag = 0;
+		uint8 discontinuity_flag = 0;
+		uint8 cnt_dropped_flag = 0;
+		uint8 seconds_value = 0;
+		uint8 minutes_value = 0;
+		uint8 hours_value = 0;
+		uint8 FromH26x = 0;		// last digit of the codec this comes from. 4=H.264, 5=H.265, etc. In case values need different interpretation.
+	};
+
+	virtual ~IVideoDecoderTimecode() = default;
+	virtual FMPEGDefinition const* GetMPEGDefinition() const = 0;
+};
+
+
+
 class IVideoDecoderColorimetry : public TSharedFromThis<IVideoDecoderColorimetry, ESPMode::ThreadSafe>
 {
 public:
@@ -285,6 +319,15 @@ public:
 		if (ParamDict && ParamDict->HaveKey(IDecoderOutputOptionNames::Colorimetry))
 		{
 			return ParamDict->GetValue(IDecoderOutputOptionNames::Colorimetry).GetSharedPointer<const IVideoDecoderColorimetry>();
+		}
+		return nullptr;
+	}
+
+	virtual TSharedPtr<const IVideoDecoderTimecode, ESPMode::ThreadSafe> GetTimecode() const
+	{
+		if (ParamDict && ParamDict->HaveKey(IDecoderOutputOptionNames::Timecode))
+		{
+			return ParamDict->GetValue(IDecoderOutputOptionNames::Timecode).GetSharedPointer<const IVideoDecoderTimecode>();
 		}
 		return nullptr;
 	}

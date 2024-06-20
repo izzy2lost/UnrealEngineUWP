@@ -495,6 +495,13 @@ FMediaTimeStamp FMediaPlayerFacade::GetDisplayTimeStamp() const
 	return GetTimeStampInternal(true);
 }
 
+TOptional<FTimecode> FMediaPlayerFacade::GetVideoTimecode() const
+{
+	FScopeLock Lock(&LastTimeValuesCS);
+	return MostRecentlyDeliveredVideoFrameTimecode;
+}
+
+
 FMediaTimeStamp FMediaPlayerFacade::GetTimeStampInternal(bool bForDisplay) const
 {
 	TSharedPtr<IMediaPlayer, ESPMode::ThreadSafe> CurrentPlayer(Player);
@@ -1683,6 +1690,7 @@ void FMediaPlayerFacade::Flush(bool bExcludePlayer, bool bOnSeek)
 	MetadataSampleSinks.Flush(RawMediaPlayer);
 	SubtitleSampleSinks.Flush(RawMediaPlayer);
 	VideoSampleSinks.Flush(RawMediaPlayer);
+	MostRecentlyDeliveredVideoFrameTimecode.Reset();
 
 	if (Player.IsValid() && !bExcludePlayer)
 	{
@@ -3225,6 +3233,7 @@ bool FMediaPlayerFacade::ProcessVideoSamples(IMediaSamples& Samples, const TRang
 			FScopeLock Lock(&LastTimeValuesCS);
 			CurrentFrameVideoDisplayTimeStamp = CurrentFrameVideoTimeStamp = SampleTimeRange.GetLowerBoundValue();
 			LastVideoSampleProcessedTimeRange = SampleTimeRange;
+			MostRecentlyDeliveredVideoFrameTimecode = Sample->GetTimecode();
 		}
 
 		UpdateSeekStatus(&CurrentFrameVideoTimeStamp);
@@ -3610,6 +3619,7 @@ void FMediaPlayerFacade::ReInit()
 		CurrentFrameVideoTimeStamp.Invalidate();
 		CurrentFrameVideoDisplayTimeStamp.Invalidate();
 		NextEstVideoTimeAtFrameStart.Invalidate();
+		MostRecentlyDeliveredVideoFrameTimecode.Reset();
 		SeekTargetTime.Invalidate();
 		SeekIndex = 0;
 	}
