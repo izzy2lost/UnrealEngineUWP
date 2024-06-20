@@ -21,6 +21,7 @@
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendSearchEngine.h"
+#include "MetasoundSettings.h"
 #include "MetasoundSource.h"
 #include "MetasoundUObjectRegistry.h"
 #include "PropertyCustomizationHelpers.h"
@@ -98,19 +99,19 @@ namespace Metasound::Editor
 	{
 	}
 
-	FName FMetasoundDetailCustomization::GetInterfaceVersionsPath() const
+	FName FMetasoundDetailCustomization::GetInterfaceVersionsPropertyPath() const
 	{
 		return BuildChildPath(DocumentPropertyName, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendDocument, Interfaces));
 	}
 
-	FName FMetasoundDetailCustomization::GetMetadataRootClassPath() const
+	FName FMetasoundDetailCustomization::GetRootClassPropertyPath() const
 	{
 		return BuildChildPath(DocumentPropertyName, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendDocument, RootGraph));
 	}
 
 	FName FMetasoundDetailCustomization::GetMetadataPropertyPath() const
 	{
-		const FName RootClass = FName(GetMetadataRootClassPath());
+		const FName RootClass = FName(GetRootClassPropertyPath());
 		return BuildChildPath(RootClass, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendClass, Metadata));
 	}
 
@@ -151,19 +152,19 @@ namespace Metasound::Editor
 				IDetailCategoryBuilder& GeneralCategoryBuilder = DetailLayout.EditCategory("MetaSound");
 				const FName AuthorPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetAuthorPropertyName());
 				const FName CategoryHierarchyPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetCategoryHierarchyPropertyName());
+				const FName ClassNamePropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetClassNamePropertyName());
 				const FName DescPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetDescriptionPropertyName());
 				const FName DisplayNamePropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetDisplayNamePropertyName());
 				const FName KeywordsPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetKeywordsPropertyName());
 				const FName IsDeprecatedPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetIsDeprecatedPropertyName());
+				const FName VersionPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetVersionPropertyName());
 
-				const FName ClassNamePropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetClassNamePropertyName());
 				const FName ClassNameNamePropertyPath = BuildChildPath(ClassNamePropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendClassName, Name));
 
-				const FName VersionPropertyPath = BuildChildPath(GetMetadataPropertyPath(), FMetasoundFrontendClassMetadata::GetVersionPropertyName());
 				const FName MajorVersionPropertyPath = BuildChildPath(VersionPropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendVersionNumber, Major));
 				const FName MinorVersionPropertyPath = BuildChildPath(VersionPropertyPath, GET_MEMBER_NAME_CHECKED(FMetasoundFrontendVersionNumber, Minor));
 
-				const FName InterfaceVersionsPropertyPath = GetInterfaceVersionsPath();
+				const FName InterfaceVersionsPropertyPath = GetInterfaceVersionsPropertyPath();
 
 				TSharedPtr<IPropertyHandle> AuthorHandle = DetailLayout.GetProperty(AuthorPropertyPath);
 				TSharedPtr<IPropertyHandle> CategoryHierarchyHandle = DetailLayout.GetProperty(CategoryHierarchyPropertyPath);
@@ -338,6 +339,330 @@ namespace Metasound::Editor
 		DetailLayout.HideCategory("Waveform Processing");
 	}
 
+	FMetasoundPagesDetailCustomization::FMetasoundPagesDetailCustomization()
+		: ItemName(TEXT("Page"))
+	{
+	}
+
+	void FMetasoundPagesDetailCustomization::FPageListener::OnBuilderReloaded(Frontend::FDocumentModifyDelegates& OutDelegates)
+	{
+		OutDelegates.PageDelegates.OnPageAdded.AddSP(this, &FPageListener::OnPageAdded);
+		OutDelegates.PageDelegates.OnRemovingPage.AddSP(this, &FPageListener::OnRemovingPage);
+	}
+
+	void FMetasoundPagesDetailCustomization::FPageListener::OnPageAdded(const Frontend::FDocumentMutatePageArgs& Args)
+	{
+		if (TSharedPtr<FMetasoundPagesDetailCustomization> ParentPtr = Parent.Pin())
+		{
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
+			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Args.PageID))
+			{
+				if (PageSettings->Name != ParentPtr->BuildPageName)
+				{
+					ParentPtr->BuildPageName = PageSettings->Name;
+					FGraphBuilder::RegisterGraphWithFrontend(ParentPtr->GetMetaSound());
+				}
+
+				ParentPtr->AddableItems.RemoveAll([&PageSettings](const TSharedPtr<FString>& Item) { return Item->Compare(PageSettings->Name.ToString()) == 0; });
+				ParentPtr->ImplementedNames.Add(PageSettings->Name);
+				ParentPtr->ComboBox->RefreshOptions();
+				ParentPtr->RebuildImplemented();
+			}
+		}
+	}
+
+	void FMetasoundPagesDetailCustomization::FPageListener::OnRemovingPage(const Frontend::FDocumentMutatePageArgs& Args)
+	{
+		if (TSharedPtr<FMetasoundPagesDetailCustomization> ParentPtr = Parent.Pin())
+		{
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
+			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Args.PageID))
+			{
+				if (PageSettings->Name != ParentPtr->BuildPageName)
+				{
+					ParentPtr->BuildPageName = PageSettings->Name;
+					FGraphBuilder::RegisterGraphWithFrontend(ParentPtr->GetMetaSound());
+				}
+
+				ParentPtr->AddableItems.Add(MakeShared<FString>(PageSettings->Name.ToString()));
+				ParentPtr->ImplementedNames.Remove(PageSettings->Name);
+				ParentPtr->ComboBox->RefreshOptions();
+				ParentPtr->RebuildImplemented();
+			}
+		}
+	}
+
+	void FMetasoundPagesDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
+	{
+		using namespace Engine;
+		using namespace Frontend;
+
+		TArray<TWeakObjectPtr<UObject>> Objects;
+		DetailLayout.GetObjectsBeingCustomized(Objects);
+
+		// Only support modifying a single MetaSound at a time (Multiple
+		// MetaSound editing will be covered most likely by separate tool).
+		if (Objects.Num() > 1)
+		{
+			return;
+		}
+		if (UMetasoundEditorViewBase* View = CastChecked<UMetasoundEditorViewBase>(Objects.Last()))
+		{
+			if (UObject* MetaSound = View->GetMetasound())
+			{
+				InitBuilder(*MetaSound);
+				PageListener = MakeShared<FPageListener>(StaticCastSharedRef<FMetasoundPagesDetailCustomization>(AsShared()));
+				Builder->AddTransactionListener(PageListener->AsShared());
+			}
+		}
+
+		if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
+		{
+			Settings->OnPageSettingsUpdated.AddSPLambda(this, [this]()
+			{
+				UpdateItemNames();
+				if (ComboBox.IsValid())
+				{
+					ComboBox->RefreshOptions();
+				}
+			});
+		}
+
+		UpdateItemNames();
+
+		SAssignNew(ComboBox, SSearchableComboBox)
+			.OptionsSource(&AddableItems)
+			.OnGenerateWidget_Lambda([](TSharedPtr<FString> InItem)
+			{
+				return SNew(STextBlock).Text(FText::FromString(*InItem));
+			})
+			.OnSelectionChanged_Lambda([this](TSharedPtr<FString> NameToAdd, ESelectInfo::Type InSelectInfo)
+			{
+				using namespace Engine;
+				using namespace Frontend;
+
+				if (InSelectInfo != ESelectInfo::OnNavigation)
+				{
+					UObject& MetaSound = GetMetaSound();
+
+					const FScopedTransaction Transaction(FText::Format(LOCTEXT("AddPageTransactionFormat", "Add MetaSound Page '{0}'"), FText::FromString(*NameToAdd)));
+					MetaSound.Modify();
+
+					// Underlying DocBuilder's pageID is a property that is tracked by transaction stack, so signal as modifying behavior
+					Builder->Modify();
+
+					constexpr bool bDuplicateLastGraph = true;
+					constexpr bool bSetAsBuildGraph = true;
+
+					EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
+					Builder->AddGraphPage(FName(*NameToAdd.Get()), bDuplicateLastGraph, bSetAsBuildGraph, Result);
+				}
+			})
+			.Content()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("UpdatePageAction", "Add Page..."))
+				.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)))
+			];
+
+		TSharedRef<SWidget> Utilities = SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.Padding(2.0f)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				ComboBox->AsShared()
+			]
+			+ SHorizontalBox::Slot()
+			.Padding(2.0f)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			[
+				PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this]()
+				{
+					using namespace Frontend;
+					UObject& MetaSound = GetMetaSound();
+
+					const FScopedTransaction Transaction(LOCTEXT("RemoveAllPagesTransaction", "Remove All MetaSound Pages"));
+					MetaSound.Modify();
+
+					// Underlying DocBuilder's pageID is a property that is tracked by transaction stack, so signal as modifying behavior
+					Builder->Modify();
+					Builder->RemoveAllGraphPages();
+
+					UpdateItemNames();
+					ComboBox->RefreshOptions();
+					FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
+				}), LOCTEXT("RemoveImplementablePagesTooltip1", "Removes all pages from the given MetaSound."))
+			];
+
+		Utilities->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)));
+
+		const FText HeaderName = LOCTEXT("PagesGroupDisplayName", "Pages");
+		IDetailCategoryBuilder& Category = DetailLayout.EditCategory(FName(ItemName), HeaderName);
+		Category.AddCustomRow(HeaderName) [ Utilities ];
+
+		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+		check(Settings);
+		if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Builder->GetBuilder().GetBuildPageID()))
+		{
+			BuildPageName = PageSettings->Name;
+		}
+		else
+		{
+			BuildPageName = Metasound::Frontend::DefaultGraphPageName;
+		}
+
+		EntryWidgets = SNew(SVerticalBox);
+		RebuildImplemented();
+		Category.AddCustomRow(LOCTEXT("ImplementedPagesLabel", "Implemented Pages"))
+		[
+			EntryWidgets->AsShared()
+		];
+	}
+
+	UObject& FMetasoundPagesDetailCustomization::GetMetaSound() const
+	{
+		return Builder->GetBuilder().CastDocumentObjectChecked<UObject>();
+	}
+
+	void FMetasoundPagesDetailCustomization::RebuildImplemented()
+	{
+		EntryWidgets->ClearChildren();
+
+		auto CreateEntryWidget = [this](bool bIsDefault, FName InName) -> TSharedRef<SWidget>
+		{
+			using namespace Frontend;
+
+			TSharedRef<SWidget> SelectButtonWidget = PropertyCustomizationHelpers::MakeUseSelectedButton(FSimpleDelegate::CreateLambda([this, InName]()
+			{
+				using namespace Frontend;
+				const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+				check(Settings);
+				if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(InName))
+				{
+					if (Builder->GetBuilder().SetBuildPageID(PageSettings->UniqueId))
+					{
+						BuildPageName = InName;
+						FGraphBuilder::RegisterGraphWithFrontend(GetMetaSound());
+					}
+				}
+			}),
+			LOCTEXT("SetPageTooltip", "Sets the actively displayed graph page of the MetaSound."),
+			TAttribute<bool>::Create([this, InName]()
+			{
+				return BuildPageName != InName;
+			}));
+
+			TSharedRef<SHorizontalBox> EntryWidget = SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.Padding(2.0f)
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Text(FText::FromName(InName))
+				];
+
+			if (!bIsDefault)
+			{
+				TSharedRef<SWidget> RemoveButtonWidget = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, InName]()
+				{
+					using namespace Frontend;
+					const FScopedTransaction Transaction(FText::Format(LOCTEXT("RemovePageTransactionFormat", "Remove MetaSound Page '{0}'"), FText::FromName(InName)));
+					UObject& MetaSound = GetMetaSound();
+					MetaSound.Modify();
+
+					// Removal may modify the builder's build page ID if it is the currently set value
+					Builder->Modify();
+
+					EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
+					Builder->RemoveGraphPage(InName, Result);
+					if (Result == EMetaSoundBuilderResult::Succeeded)
+					{
+						UpdateItemNames();
+						ComboBox->RefreshOptions();
+						if (InName == BuildPageName)
+						{
+							FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
+						}
+					}
+				}), LOCTEXT("RemovePageTooltip2", "Removes the associated page from the MetaSound."));
+				EntryWidget->AddSlot()
+					.Padding(2.0f)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.AutoWidth()[RemoveButtonWidget];
+			}
+
+			EntryWidget->AddSlot()
+				.Padding(2.0f)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.AutoWidth() [ SelectButtonWidget ];
+
+			EntryWidget->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)));
+			return EntryWidget;
+		};
+
+		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+		check(Settings);
+		for (const FMetaSoundPageSettings& PageSettings : Settings->GetPageSettings())
+		{
+			if (ImplementedNames.Contains(PageSettings.Name))
+			{
+				EntryWidgets->AddSlot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoHeight()
+				[
+					CreateEntryWidget(!PageSettings.UniqueId.IsValid(), PageSettings.Name)
+				];
+			}
+		}
+	}
+
+	void FMetasoundPagesDetailCustomization::UpdateItemNames()
+	{
+		using namespace Frontend;
+
+		AddableItems.Reset();
+		ImplementedNames.Reset();
+
+		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+		check(Settings);
+
+		TSet<FGuid> ImplementedGuids { FGuid() }; // Default "no guid" is always implemented (base graph for back compat & cook safety to ensure there's always at least one)
+
+		const FMetasoundFrontendDocument& Document = Builder->GetBuilder().GetConstDocumentChecked();
+		Document.RootGraph.IterateGraphPages([&ImplementedGuids](const FMetasoundFrontendGraph& Graph)
+		{
+			ImplementedGuids.Add(Graph.PageID);
+		});
+
+		auto GetStringName = [](const FMetaSoundPageSettings& Page) -> TSharedPtr<FString> { return MakeShared<FString>(Page.Name.ToString()); };
+		auto RemoveImplementedItem = [&ImplementedGuids](const FMetaSoundPageSettings& Page) { return !ImplementedGuids.Contains(Page.UniqueId); };
+		Algo::TransformIf(Settings->GetPageSettings(), AddableItems, RemoveImplementedItem, GetStringName);
+
+		auto GetPageName = [&Settings](const FGuid& PageID)
+		{
+			const FMetaSoundPageSettings* Page = Settings->FindPageSettings(PageID);
+			if (ensure(Page))
+			{
+				return Page->Name;
+			}
+
+			return FName();
+		};
+
+		Algo::Transform(ImplementedGuids, ImplementedNames, GetPageName);
+	}
+
 	void FMetasoundInterfacesDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 	{
 		TArray<TWeakObjectPtr<UObject>> Objects;
@@ -351,7 +676,7 @@ namespace Metasound::Editor
 		}
 		if (UMetasoundInterfacesView* InterfacesView = CastChecked<UMetasoundInterfacesView>(Objects.Last()))
 		{
-			if (UObject* MetaSound = InterfacesView->GetMetasound().Get())
+			if (UObject* MetaSound = InterfacesView->GetMetasound())
 			{
 				InitBuilder(*MetaSound);
 			}

@@ -36,6 +36,11 @@ namespace Metasound
 	namespace Frontend
 	{
 		constexpr FGuid DefaultGraphPageID(0, 0, 0, 0);
+		constexpr TCHAR DefaultGraphPageName[] = TEXT("Default");
+
+#if WITH_EDITORONLY_DATA
+		extern const FText METASOUNDFRONTEND_API DefaultGraphPageDisplayName;
+#endif // WITH_EDITORONLY_DATA
 
 		namespace DisplayStyle
 		{

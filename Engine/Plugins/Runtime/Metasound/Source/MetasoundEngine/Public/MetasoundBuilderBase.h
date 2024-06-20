@@ -21,6 +21,14 @@
 struct FMetasoundFrontendClassName;
 struct FMetasoundFrontendVersion;
 
+namespace Metasound::Engine
+{
+	// Forward Declarations
+	class FDocumentBuilderRegistry;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBuilderReload, Metasound::Frontend::FDocumentModifyDelegates& /* OutDelegates */)
+} // namespace Metasound::Engine
+
 
 USTRUCT(BlueprintType, meta = (DisplayName = "MetaSound Node Input Handle"))
 struct METASOUNDENGINE_API FMetaSoundBuilderNodeInputHandle : public FMetasoundFrontendVertexHandle
@@ -127,6 +135,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult", AdvancedDisplay = "3"))
 	UPARAM(DisplayName = "Input Handle") FMetaSoundBuilderNodeInputHandle AddGraphOutputNode(FName Name, FName DataType, FMetasoundFrontendLiteral DefaultValue, EMetaSoundBuilderResult& OutResult, bool bIsConstructorOutput = false);
 
+	// Adds a graph page to the given builder's document. Fails if the page is not a valid page registered with MetaSoundSettings
+	// or if the document already contains a page with the given name. No check is done here to determine cook eligibility (i.e.
+	// pages can be added even if set to be stripped for the active platform).
+	void AddGraphPage(FName PageName, bool bDuplicateLastGraph, bool bSetAsBuildGraph, EMetaSoundBuilderResult& OutResult);
+
 	// Adds an interface registered with the given name to the graph, adding associated input and output nodes.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void AddInterface(FName InterfaceName, EMetaSoundBuilderResult& OutResult);
@@ -143,6 +156,11 @@ public:
 	
 	UE_DEPRECATED(5.4, "This version of AddNodeByClassName is deprecated. Use the one with a default MajorVersion of 1.")
 	UPARAM(DisplayName = "Node Handle") FMetaSoundNodeHandle AddNodeByClassName(const FMetasoundFrontendClassName& ClassName, int32 MajorVersion, EMetaSoundBuilderResult& OutResult);
+
+	// Adds transaction listener which allows objects to respond to when certain graph operations are applied from anywhere (adding or removing nodes, edges, pages, etc.)
+	// Currently there is no guarantee all transactions will be represented until the Controller API is fully deprecated! (ex. if a node or edge is added or removed via a
+	// controller API call, the transaction will be missed). OnBuilderReloaded is however guaranteed to be called on mutable controller creation.
+	void AddTransactionListener(TSharedRef<Metasound::Frontend::IDocumentBuilderTransactionListener> BuilderListener);
 
 #if WITH_EDITOR
 	bool ClearMemberMetadata(const FGuid& InMemberID);
@@ -318,6 +336,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void ConvertToPreset(const TScriptInterface<IMetaSoundDocumentInterface>& ReferencedNodeClass, EMetaSoundBuilderResult& OutResult);
 
+	// Removes all graph pages, leaving just the default.
+	void RemoveAllGraphPages();
+
 	// Removes graph input if it exists; sets result to succeeded if it was removed and failed if it was not.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void RemoveGraphInput(FName Name, EMetaSoundBuilderResult& OutResult);
@@ -325,6 +346,10 @@ public:
 	// Removes graph output if it exists; sets result to succeeded if it was removed and failed if it was not.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void RemoveGraphOutput(FName Name, EMetaSoundBuilderResult& OutResult);
+
+	// Removes a graph page with the given name, setting result to failed if the name was not found, was invalid,
+	// or was the default (which cannot be removed).
+	void RemoveGraphPage(FName Name, EMetaSoundBuilderResult& OutResult);
 
 	// Removes the interface with the given name from the builder's MetaSound. Removes any graph inputs
 	// and outputs associated with the given interface and their respective connections (if any).
@@ -340,6 +365,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void RemoveNodeInputDefault(const FMetaSoundBuilderNodeInputHandle& InputHandle, EMetaSoundBuilderResult& OutResult);
 
+	// Explicitly remove transaction listener from builder (see corresponding 'AddTransactionListener' function).
+	// (If listener provided with `AddTransactionListener` is destroyed, handled automatically)
+	void RemoveTransactionListener(FDelegateHandle BuilderListenerDelegateHandle);
+
 	// Removes dependencies in document that are no longer referenced by nodes
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	void RemoveUnusedDependencies();
@@ -347,13 +376,9 @@ public:
 	UE_DEPRECATED(5.5, "Use IDocumentBuilderRegistry::GenerateNewClassName instead to maintain registry mappings.")
 	void RenameRootGraphClass(const FMetasoundFrontendClassName& InName);
 
-	UE_DEPRECATED(5.5, "Moved to 'Reload' to discourage priming by defaulting to false. "
-		"In addition, internal delegates and respective bindings are now regenerated when reloading, "
-		"effectively resetting the builder's entire state and not just strictly the underlying cache.")
+	UE_DEPRECATED(5.5, "Moved to internal implementation and only accessible via registry to ensure delegates are properly reloaded, "
+		"path keys kept aligned, and priming managed internally")
 	void ReloadCache(bool bPrimeCache = true);
-
-	// Reloads the builder, freeing the internal cache and rebuilding delegate bindings
-	void Reload(bool bPrimeCache = false);
 
 #if WITH_EDITOR
 	// Sets the author of the MetaSound.
@@ -403,6 +428,8 @@ public:
 	UE_DEPRECATED(5.5, "Renamed to 'GetBaseMetaSoundUClass' for consistency")
 	virtual const UClass& GetBuilderUClass() const { return GetBaseMetaSoundUClass(); }
 
+	Metasound::Frontend::FDocumentModifyDelegates& GetBuilderDelegates();
+
 	UE_DEPRECATED(5.4, "Moved to Initialize and should only be called by internal implementation (i.e. IDocumentBuilderRegistry'")
 	virtual void InitFrontendBuilder();
 
@@ -436,7 +463,7 @@ public:
 	void Initialize();
 
 protected:
-	virtual void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates & OutDocumentDelegates);
+	virtual void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates);
 
 	virtual void OnAssetReferenceAdded(TScriptInterface<IMetaSoundDocumentInterface> DocInterface) PURE_VIRTUAL(UMetaSoundBuilderBase::OnAssetReferenceAdded, );
 	virtual void OnRemovingAssetReference(TScriptInterface<IMetaSoundDocumentInterface> DocInterface) PURE_VIRTUAL(UMetaSoundBuilderBase::OnRemovingAssetReference, );
@@ -531,9 +558,14 @@ private:
 	void OnRemoveSwappingDependency(int32 Index, int32 LastIndex);
 
 private:
+	// Reloads the builder, freeing the internal cache and rebuilding delegate bindings. Optionally,
+	// can be associated with a new MetaSound (ex. during rename. Otherwise it reuses the existing
+	// document object reference) or can have its cache primed.
+	void Reload(TScriptInterface<IMetaSoundDocumentInterface> NewMetaSound = { }, bool bPrimeCache = false);
+
+	Metasound::Engine::FOnBuilderReload BuilderReloadDelegate;
+
 	int32 LastTransactionRegistered = 0;
 
-	// Friending allows for swapping the builder in certain circumstances where desired (eg. attaching a builder to an existing asset)
-	// or performing editor-only manipulations to the builder (ex. adding template nodes) and versioning the document data where necessary.
-	friend class UMetaSoundBuilderSubsystem;
+	friend class Metasound::Engine::FDocumentBuilderRegistry;
 };
