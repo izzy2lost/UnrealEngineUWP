@@ -160,33 +160,44 @@ namespace NiagaraScriptInternal
 			UE_CALL_ONCE(
 				[]()
 				{
-					TArray<UClass*> DataInterfaceClasses;
-					for (TObjectIterator<UClass> ClassIterator; ClassIterator; ++ClassIterator)
-					{
-						UClass* Class = *ClassIterator;
-						if (Class == nullptr ||
-							Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists) ||
-							!ClassIterator->IsChildOf(UNiagaraDataInterface::StaticClass()))
-						{
-							continue;
-						}
-						DataInterfaceClasses.Add(Class);
-					}
-					Algo::Sort(
-						DataInterfaceClasses,
-						[](UClass* Lhs, UClass* Rhs)
-						{
-							return Lhs->GetName() < Rhs->GetName();
-						}
-					);
-
 					FSHA1 HashState;
-					FNiagaraCompileHashVisitor Visitor(HashState);
-					for (UClass* DIClass : DataInterfaceClasses)
+
+					// only try to access the shader source if we are allowed to compile shaders
+					if (AllowShaderCompiling())
 					{
-						UNiagaraDataInterface* CDODataInterface = DIClass->GetDefaultObject<UNiagaraDataInterface>();
-						CDODataInterface->AppendCompileHash(&Visitor);
+						TArray<UClass*> DataInterfaceClasses;
+						for (TObjectIterator<UClass> ClassIterator; ClassIterator; ++ClassIterator)
+						{
+							UClass* Class = *ClassIterator;
+							if (Class == nullptr ||
+								Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists) ||
+								!ClassIterator->IsChildOf(UNiagaraDataInterface::StaticClass()))
+							{
+								continue;
+							}
+							DataInterfaceClasses.Add(Class);
+						}
+						Algo::Sort(
+							DataInterfaceClasses,
+							[](UClass* Lhs, UClass* Rhs)
+							{
+								return Lhs->GetName() < Rhs->GetName();
+							}
+						);
+
+						FNiagaraCompileHashVisitor Visitor(HashState);
+						for (UClass* DIClass : DataInterfaceClasses)
+						{
+							UNiagaraDataInterface* CDODataInterface = DIClass->GetDefaultObject<UNiagaraDataInterface>();
+							CDODataInterface->AppendCompileHash(&Visitor);
+						}
 					}
+					else
+					{
+						const FGuid DISourcePlaceholder = FGuid(0x17B53667, 0x0A08411A, 0xBDD134D5, 0x039F91C2);
+						HashState.Update((const uint8*) &DISourcePlaceholder, sizeof(DISourcePlaceholder));
+					}
+
 					HashState.Final();
 
 					TArray<uint8> DataHash;

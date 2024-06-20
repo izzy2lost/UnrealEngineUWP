@@ -1222,14 +1222,17 @@ void FNiagaraShader::BuildClassSchema(FAppendToClassSchemaContext& Context)
 	Context.Update(&ShaderParamStructHash, sizeof(ShaderParamStructHash));
 
 	// Add in any referenced HLSL files.
-	const FSHAHash InstanceShaderHash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf")), EShaderPlatform::SP_PCD3D_SM5);
-	Context.Update(&InstanceShaderHash, sizeof(InstanceShaderHash));
+	if (AllowShaderCompiling())
+	{
+		const FSHAHash InstanceShaderHash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf")), EShaderPlatform::SP_PCD3D_SM5);
+		Context.Update(&InstanceShaderHash, sizeof(InstanceShaderHash));
 
-	const FSHAHash NiagaraShaderVersionHash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
-	Context.Update(&NiagaraShaderVersionHash, sizeof(NiagaraShaderVersionHash));
+		const FSHAHash NiagaraShaderVersionHash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
+		Context.Update(&NiagaraShaderVersionHash, sizeof(NiagaraShaderVersionHash));
 
-	const FSHAHash ShaderVersionHash = GetShaderFileHash((TEXT("/Engine/Public/ShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
-	Context.Update(&ShaderVersionHash, sizeof(ShaderVersionHash));
+		const FSHAHash ShaderVersionHash = GetShaderFileHash((TEXT("/Engine/Public/ShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
+		Context.Update(&ShaderVersionHash, sizeof(ShaderVersionHash));
+	}
 
 	Context.Update(&GNiagaraSkipVectorVMBackendOptimizations, sizeof(GNiagaraSkipVectorVMBackendOptimizations));
 }
