@@ -14,6 +14,7 @@
 
 #if WITH_EDITOR
 #include "Misc/Guid.h"
+#include "Engine/DataTable.h"
 #endif
 
 #include "CustomizableObjectPrivate.generated.h"
@@ -794,6 +795,9 @@ struct FModelResources
 
 	UPROPERTY()
 	TArray<FCustomizableObjectMeshToMeshVertData> EditorOnlyClothingMeshToMeshVertData;
+
+	// Stores what param names use a certain table as a table can be used from multiple table nodes, useful for partial compilations to restrict params
+	TMap<TObjectPtr<const UDataTable>, TSet<FString>> TableToParamNames;
 #endif
 	
 	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
@@ -1163,6 +1167,8 @@ public:
 		AddSurfaceAndMeshMetadata,
 
 		TablesPropertyNameBug,
+
+		DataTablesParamTrackingForCompileOnlySelected,
 
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion

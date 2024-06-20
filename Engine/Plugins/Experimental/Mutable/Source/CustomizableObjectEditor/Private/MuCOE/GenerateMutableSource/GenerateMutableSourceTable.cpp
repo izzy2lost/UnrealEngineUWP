@@ -769,26 +769,61 @@ TArray<FName> GetEnabledRows(const UDataTable& DataTable, const UCustomizableObj
 
 void RestrictRowNamesToSelectedOption(TArray<FName>& InOutRowNames, const UCustomizableObjectNodeTable& TableNode, FMutableGraphGenerationContext& GenerationContext)
 {
-	// If the param is in the map restrict to only the selected option
-	FString* SelectedOptionString = GenerationContext.ParamNamesToSelectedOptions.Find(TableNode.ParameterName);
-
-	if (SelectedOptionString)
+	if (!GenerationContext.ParamNamesToSelectedOptions.IsEmpty())
 	{
-		FName SelectedOptionName = FName(*SelectedOptionString);
+		TSet<FString>* ParamNames = GenerationContext.TableToParamNames.Find(TableNode.Table);
 
-		if (InOutRowNames.Contains(SelectedOptionName))
+		if (ParamNames && !ParamNames->IsEmpty())
 		{
-			FName AnotherOption = GetAnotherOption(SelectedOptionName, InOutRowNames);
-			InOutRowNames.Empty(2);
-			InOutRowNames.Add(SelectedOptionName);
+			TSet<FName> SelectedOptionNames;
 
-			// To prevent the optimization of the parameter for having just one option, which would prevent the restriction 
-			// of that parameter in the next compile only selected
-			InOutRowNames.Add(AnotherOption);
-		}
-		else
-		{
-			InOutRowNames.Empty(0);
+			for (const FString& ParamName : *ParamNames)
+			{
+				// If the param is in the map restrict to only the selected option
+				FString* SelectedOptionString = GenerationContext.ParamNamesToSelectedOptions.Find(ParamName);
+
+				if (SelectedOptionString)
+				{
+					SelectedOptionNames.Add(FName(*SelectedOptionString));
+				}
+			}
+
+			if (!SelectedOptionNames.IsEmpty())
+			{
+				bool bRowNamesContainsSelectedOptionName = false;
+
+				for (const FName& OptionName : SelectedOptionNames)
+				{
+					if (InOutRowNames.Contains(OptionName))
+					{
+						bRowNamesContainsSelectedOptionName = true;
+						break;
+					}
+				}
+
+				if (bRowNamesContainsSelectedOptionName)
+				{
+					if (SelectedOptionNames.Num() < 2)
+					{
+						FName AnotherOption = GetAnotherOption(SelectedOptionNames.Array()[0], InOutRowNames);
+
+						// To prevent the optimization of the parameter for having just one option, which would prevent the restriction 
+						// of that parameter in the next compile only selected
+						SelectedOptionNames.Add(AnotherOption);
+					}
+
+					InOutRowNames.Empty(SelectedOptionNames.Num());
+
+					for (const FName& OptionName : SelectedOptionNames)
+					{
+						InOutRowNames.Add(OptionName);
+					}
+				}
+				else
+				{
+					InOutRowNames.Empty(0);
+				}
+			}
 		}
 	}
 }
@@ -970,6 +1005,18 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext)
 {
 	check(DataTable && TableNode);
+
+	if (GenerationContext.ParamNamesToSelectedOptions.IsEmpty())
+	{
+		TSet<FString>* ParamNames = GenerationContext.TableToParamNames.Find(DataTable);
+
+		if (!ParamNames)
+		{
+			ParamNames = &GenerationContext.TableToParamNames.Add(DataTable);
+		}
+
+		ParamNames->Add(TableNode->ParameterName);
+	}
 
 	// Checking if the table is in the cache
 	const FString TableName = DataTable->GetName();

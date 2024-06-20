@@ -717,6 +717,11 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
     GenerationContext.RealTimeMorphTargetsOverrides = ActualRoot->RealTimeMorphSelectionOverrides;
     GenerationContext.RealTimeMorphTargetsOverrides.Reset();
 
+	if (!GenerationContext.ParamNamesToSelectedOptions.IsEmpty())
+	{
+		GenerationContext.TableToParamNames = Object->GetPrivate()->GetModelResources().TableToParamNames;
+	}
+
 	// Generate the object expression
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] GenerateMutableSource start."), FPlatformTime::Seconds());
 	mu::NodeObjectPtr MutableRoot = GenerateMutableSource(ActualRoot->OutputPin(), GenerationContext, !bOutIsRootObject);
@@ -1129,6 +1134,12 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 #if WITH_EDITORONLY_DATA
 		CurrentObject->GetPrivate()->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
+
+		if (!CurrentRequest->GetParameterNamesToSelectedOptions().Num())
+		{
+			// Cache the tables that are used by more than one param so that CompileOnlySelected can work properly
+			ModelResources.TableToParamNames = GenerationContext.TableToParamNames;
+		}
 #endif
 
 		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot + GenerationContext.NumExplicitMeshComponents;

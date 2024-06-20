@@ -848,6 +848,9 @@ struct FMutableGraphGenerationContext
 	// Stores the only option of an Int Param that should be compiled in a partial compilation
 	TMap<FString, FString> ParamNamesToSelectedOptions;
 
+	// Stores what param names use a certain table as a table can be used from multiple table nodes, useful for partial compilations to restrict params
+	TMap<TObjectPtr<const UDataTable>, TSet<FString>> TableToParamNames;
+
 	TArray<const UEdGraphNode*> LimitedParameters;
 	int32 ParameterLimitationCount = 0;
 
