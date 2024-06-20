@@ -1536,6 +1536,11 @@ TArray<FMovieSceneObjectBindingID> UMovieSceneSequencePlayer::GetObjectBindings(
 	return Bindings;
 }
 
+void UMovieSceneSequencePlayer::RequestInvalidateBinding(FMovieSceneObjectBindingID ObjectBinding)
+{
+	State.Invalidate(ObjectBinding.GetGuid(), ObjectBinding.GetRelativeSequenceID());
+}
+
 UWorld* UMovieSceneSequencePlayer::GetPlaybackWorld() const
 {
 	UObject* PlaybackContext = GetPlaybackContext();

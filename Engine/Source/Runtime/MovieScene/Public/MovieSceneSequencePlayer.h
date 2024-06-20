@@ -427,6 +427,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
 	MOVIESCENE_API TArray<FMovieSceneObjectBindingID> GetObjectBindings(UObject* InObject);
 
+	/* Invalidates the given binding, forcing it to be refetched. This may be useful for some custom bindings that wish their resolution code to be called again.*/
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Player")
+	MOVIESCENE_API void RequestInvalidateBinding(FMovieSceneObjectBindingID ObjectBinding);
+
 public:
 
 	/** Ensure that this player's tick manager is set up correctly for the specified context */
@@ -452,6 +456,7 @@ public:
 
 	/** Returns whether this player is valid, i.e. it has been initialized and not torn down yet */
 	MOVIESCENE_API bool IsValid() const;
+
 
 public:
 
