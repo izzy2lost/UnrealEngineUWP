@@ -100,6 +100,16 @@ COREUOBJECT_API void ForcePackageNamespace(UObject* InObject, const FString& InN
 COREUOBJECT_API FText CopyTextToPackage(const FText& InText, UPackage* InPackage, const ETextCopyMethod InCopyMethod = ETextCopyMethod::NewKey, const bool bAlwaysApplyPackageNamespace = false);
 COREUOBJECT_API FText CopyTextToPackage(const FText& InText, UObject* InObject, const ETextCopyMethod InCopyMethod = ETextCopyMethod::NewKey, const bool bAlwaysApplyPackageNamespace = false);
 
+#if WITH_EDITORONLY_DATA
+/**
+ * Generate a deterministic package namespace based on the given package info.
+ * @note This key will be formatted like a GUID, but the value will actually be based on deterministic hashes.
+ *
+ * @param InPackage						The package to generate the namespace for.
+ */
+COREUOBJECT_API FString GenerateDeterministicPackageNamespace(const UPackage* InPackage);
+#endif // WITH_EDITORONLY_DATA
+
 /**
  * Generate a random text key.
  * @note This key will be a GUID.

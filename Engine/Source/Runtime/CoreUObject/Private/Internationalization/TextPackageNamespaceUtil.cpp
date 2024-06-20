@@ -45,20 +45,7 @@ FString FindOrAddPackageNamespace(UPackage* InPackage, const bool bCanAdd)
 				FString& PackageLocalizationNamespaceValue = PackageMetaData->RootMetaDataMap.FindOrAdd(PackageLocalizationNamespaceKey);
 				if (PackageLocalizationNamespaceValue.IsEmpty())
 				{
-					// Make a determinstic new guid that will vary based on the package
-					FBlake3 Builder;
-					FString PackagePath = InPackage->GetName();
-					FGuid NonUniqueGuid = InPackage->GetPersistentGuid(); // Can be the same for duplicated packages
-					Builder.Update(&NonUniqueGuid, sizeof(FGuid));
-					Builder.Update(*PackagePath, PackagePath.Len() * sizeof(**PackagePath));
-					FBlake3Hash Hash = Builder.Finalize();
-					// We use the first 16 bytes of the FIoHash to create the guid, there is
-					// no specific reason why these were chosen, we could take any pattern or combination
-					// of bytes.
-					uint32* HashBytes = (uint32*)Hash.GetBytes();
-					FGuid NewGuid(HashBytes[0], HashBytes[1], HashBytes[2], HashBytes[3]);
-
-					PackageLocalizationNamespaceValue = NewGuid.ToString();
+					PackageLocalizationNamespaceValue = TextNamespaceUtil::GenerateDeterministicPackageNamespace(InPackage);
 				}
 				return PackageLocalizationNamespaceValue;
 			}
@@ -171,6 +158,26 @@ FText TextNamespaceUtil::CopyTextToPackage(const FText& InText, UObject* InObjec
 	return CopyTextToPackage(InText, FString(), InCopyMethod, bAlwaysApplyPackageNamespace);
 #endif	// USE_STABLE_LOCALIZATION_KEYS
 }
+
+#if WITH_EDITORONLY_DATA
+FString TextNamespaceUtil::GenerateDeterministicPackageNamespace(const UPackage* InPackage)
+{
+	// Make a deterministic new guid that will vary based on the package
+	FBlake3 Builder;
+	FString PackagePath = InPackage->GetName();
+	FGuid NonUniqueGuid = InPackage->GetPersistentGuid(); // Can be the same for duplicated packages
+	Builder.Update(&NonUniqueGuid, sizeof(FGuid));
+	Builder.Update(*PackagePath, PackagePath.Len() * sizeof(**PackagePath));
+	FBlake3Hash Hash = Builder.Finalize();
+	// We use the first 16 bytes of the FIoHash to create the guid, there is
+	// no specific reason why these were chosen, we could take any pattern or combination
+	// of bytes.
+	uint32* HashBytes = (uint32*)Hash.GetBytes();
+	FGuid NewGuid(HashBytes[0], HashBytes[1], HashBytes[2], HashBytes[3]);
+
+	return NewGuid.ToString();
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString TextNamespaceUtil::GenerateRandomTextKey()
 {
