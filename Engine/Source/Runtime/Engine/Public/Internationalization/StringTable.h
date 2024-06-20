@@ -7,6 +7,22 @@
 #include "UObject/Object.h"
 #include "StringTable.generated.h"
 
+class FPropertyLocalizationDataGatherer;
+enum class EPropertyLocalizationGathererTextFlags : uint8;
+
+namespace UE::StringTable
+{
+
+#if WITH_EDITORONLY_DATA
+/**
+ * Utility to gather the string table data stored within an asset.
+ * @note Primarily used internally by UStringTable, but may be used by any other assets that host a FStringTable and need to handle gathering it for localization via a FPropertyLocalizationDataGatherer.
+ */
+ENGINE_API void GatherForLocalization(const FString& SourceLocation, const FStringTableConstRef& StringTable, FPropertyLocalizationDataGatherer& PropertyLocalizationDataGatherer, const EPropertyLocalizationGathererTextFlags GatherTextFlags);
+#endif	// WITH_EDITORONLY_DATA
+
+}
+
 /** String table wrapper asset */
 UCLASS(MinimalAPI)
 class UStringTable : public UObject

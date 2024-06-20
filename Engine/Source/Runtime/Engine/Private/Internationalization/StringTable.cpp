@@ -14,14 +14,12 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StringTable)
 
-#if WITH_EDITORONLY_DATA
-namespace
+namespace UE::StringTable
 {
-	static void GatherStringTableForLocalization(const UObject* const Object, FPropertyLocalizationDataGatherer& PropertyLocalizationDataGatherer, const EPropertyLocalizationGathererTextFlags GatherTextFlags)
+#if WITH_EDITORONLY_DATA
+	void GatherForLocalization(const FString& SourceLocation, const FStringTableConstRef& StringTable, FPropertyLocalizationDataGatherer& PropertyLocalizationDataGatherer, const EPropertyLocalizationGathererTextFlags GatherTextFlags)
 	{
-		FStringTableConstRef StringTable = CastChecked<UStringTable>(Object)->GetStringTable();
-
-		auto FindOrAddTextData = [&](const FString& InText) -> FGatherableTextData&
+		auto FindOrAddTextData = [&StringTable, &PropertyLocalizationDataGatherer](const FString& InText) -> FGatherableTextData&
 		{
 			check(!InText.IsEmpty());
 
@@ -45,9 +43,7 @@ namespace
 			return *GatherableTextData;
 		};
 
-		const FString SourceLocation = Object->GetPathName();
-
-		StringTable->EnumerateSourceStrings([&](const FString& InKey, const FString& InSourceString) -> bool
+		StringTable->EnumerateSourceStrings([&SourceLocation, &StringTable, &FindOrAddTextData](const FString& InKey, const FString& InSourceString) -> bool
 		{
 			if (!InSourceString.IsEmpty())
 			{
@@ -69,8 +65,18 @@ namespace
 			return true; // continue enumeration
 		});
 	}
+
+	namespace Private
+	{
+		void GatherAssetForLocalization(const UObject* const Object, FPropertyLocalizationDataGatherer& PropertyLocalizationDataGatherer, const EPropertyLocalizationGathererTextFlags GatherTextFlags)
+		{
+			FStringTableConstRef StringTable = CastChecked<UStringTable>(Object)->GetStringTable();
+			const FString SourceLocation = Object->GetPathName();
+			GatherForLocalization(SourceLocation, StringTable, PropertyLocalizationDataGatherer, GatherTextFlags);
+		}
+	}
+#endif	// WITH_EDITORONLY_DATA
 }
-#endif
 
 class FStringTableEngineBridge : public IStringTableEngineBridge, public FGCObject
 {
@@ -354,7 +360,7 @@ UStringTable::UStringTable()
 	}
 
 #if WITH_EDITORONLY_DATA
-	{ static const FAutoRegisterLocalizationDataGatheringCallback AutomaticRegistrationOfLocalizationGatherer(UStringTable::StaticClass(), &GatherStringTableForLocalization); }
+	{ static const FAutoRegisterLocalizationDataGatheringCallback AutomaticRegistrationOfLocalizationGatherer(UStringTable::StaticClass(), &UE::StringTable::Private::GatherAssetForLocalization); }
 #endif
 }
 
@@ -421,4 +427,3 @@ FStringTableRef UStringTable::GetMutableStringTable() const
 {
 	return StringTable.ToSharedRef();
 }
-
