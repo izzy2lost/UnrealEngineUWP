@@ -71,7 +71,7 @@ const ISlateStyle& FInsightsStyle::Get()
 
 FName FInsightsStyle::GetStyleSetName()
 {
-	static FName StyleSetName(TEXT("AssetManager/InsightsStyle"));
+	static FName StyleSetName(TEXT("AssetManagerEditor/InsightsStyle"));
 	return StyleSetName;
 }
 
