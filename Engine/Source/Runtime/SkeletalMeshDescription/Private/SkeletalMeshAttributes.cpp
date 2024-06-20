@@ -121,6 +121,28 @@ bool FSkeletalMeshAttributes::RegisterSkinWeightAttribute(const FName InProfileN
 	return MeshDescription.VertexAttributes().RegisterAttribute<int32[]>(AttributeName, 1, 0, EMeshAttributeFlags::None).IsValid();
 }
 
+bool FSkeletalMeshAttributes::UnregisterSkinWeightAttribute(const FName InProfileName)
+{
+	if (!IsValidSkinWeightProfileName(InProfileName))
+	{
+		return false;
+	}
+
+	const FName AttributeName = CreateSkinWeightAttributeName(InProfileName);
+	if (!ensure(AttributeName.IsValid()))
+	{
+		return false;
+	}
+
+	// Attribute not there?
+	if (!MeshDescription.VertexAttributes().HasAttribute(AttributeName))
+	{
+		return false;
+	}
+
+	MeshDescription.VertexAttributes().UnregisterAttribute(AttributeName);
+	return true;
+}
 
 FSkinWeightsVertexAttributesRef FSkeletalMeshAttributes::GetVertexSkinWeights(const FName InProfileName)
 {

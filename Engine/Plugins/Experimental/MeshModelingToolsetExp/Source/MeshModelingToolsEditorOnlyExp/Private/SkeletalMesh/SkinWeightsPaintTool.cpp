@@ -32,13 +32,17 @@
 #include "DynamicSubmesh3.h"
 #include "MeshDescriptionToDynamicMesh.h"
 #include "SkeletalDebugRendering.h"
+#include "ToolSetupUtil.h"
+#include "ToolTargetManager.h"
 #include "Editor/Persona/Public/IPersonaEditorModeManager.h"
 #include "Editor/Persona/Public/PersonaModule.h"
 #include "Preferences/PersonaOptions.h"
 #include "PreviewProfileController.h"
 #include "Animation/SkinWeightProfile.h"
 #include "AnimationRuntime.h"
+#include "DynamicMesh/DynamicVertexSkinWeightsAttribute.h"
 #include "TargetInterfaces/DynamicMeshCommitter.h"
+#include "Operations/TransferBoneWeights.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkinWeightsPaintTool)
 
@@ -111,6 +115,36 @@ USkeletalMeshComponent* GetSkeletalMeshComponent(const UToolTarget* InTarget)
 	return Component;
 }
 
+const FName& CreateNewName()
+{
+	static const FName CreateNew("Create New...");
+	return CreateNew;
+}
+
+FSkinWeightsVertexAttributesRef GetOrCreateSkinWeightsAttribute(FMeshDescription& InMesh, const FName InProfileName)
+{
+	FSkeletalMeshAttributes MeshAttribs(InMesh);
+	const TArray<FName> Profiles = MeshAttribs.GetSkinWeightProfileNames();
+	if (!Profiles.Contains(InProfileName))
+	{
+		ensure( MeshAttribs.RegisterSkinWeightAttribute(InProfileName) );
+	}
+	return MeshAttribs.GetVertexSkinWeights(InProfileName);
+}
+
+bool RenameSkinWeightsAttribute(FMeshDescription& InMesh, const FName InOldName, const FName InNewName)
+{
+	FSkeletalMeshAttributes MeshAttribs(InMesh);
+	const TArray<FName> Profiles = MeshAttribs.GetSkinWeightProfileNames();
+	if (Profiles.Contains(InOldName))
+	{
+		FSkinWeightsVertexAttributesRef NewWeightsAttr = GetOrCreateSkinWeightsAttribute(InMesh, InNewName);
+		NewWeightsAttr = MeshAttribs.GetVertexSkinWeights(InOldName);
+		return MeshAttribs.UnregisterSkinWeightAttribute(InOldName);
+	}
+	return false;
+}
+	
 }
 
 // thread pool to use for async operations
@@ -221,55 +255,99 @@ USkinWeightsPaintToolProperties::USkinWeightsPaintToolProperties()
 	}
 }
 
+namespace SkinWeightLayer
+{
+
+TArray<FName> GetLODs(UToolTarget* InTarget)
+{
+    static TArray<FName> Dummy;
+
+    if (!ensure(InTarget))
+    {
+    	return Dummy;
+    }
+
+    bool bSupportsLODs = false;
+    const TArray<EMeshLODIdentifier> LODIDSs = UE::ToolTarget::GetMeshDescriptionLODs(InTarget, bSupportsLODs);
+    if (!ensure(bSupportsLODs))
+    {
+    	return Dummy;
+    }
+
+    TArray<FName> LODs;
+    LODs.Reserve(LODIDSs.Num());
+    for (const EMeshLODIdentifier LODId: LODIDSs)
+    {
+    	const FName LODName = GetLODName(LODId);
+    	if (LODName != NAME_None)
+    	{
+    		LODs.Add(LODName);
+    	}
+    }
+    ensure(!LODs.IsEmpty());
+    
+    return LODs;
+}
+
+TArray<FName> GetSkinWeightProfilesFunc(const FMeshDescription& InMeshDescription)
+{
+	const FSkeletalMeshConstAttributes MeshAttribs(InMeshDescription);
+	return MeshAttribs.GetSkinWeightProfileNames();
+}
+
+}
+
 TArray<FName> USkinWeightsPaintToolProperties::GetLODsFunc() const
 {
 	static TArray<FName> Dummy;
-
 	if (!ensure(WeightTool && WeightTool->GetTarget()))
 	{
 		return Dummy;
 	}
-
-	bool bSupportsLODs = false;
-	const TArray<EMeshLODIdentifier> LODIDSs = UE::ToolTarget::GetMeshDescriptionLODs(WeightTool->GetTarget(), bSupportsLODs);
-	if (!ensure(bSupportsLODs))
-	{
-		return Dummy;
-	}
-
-	TArray<FName> LODs;
-	LODs.Reserve(LODIDSs.Num());
-	for (const EMeshLODIdentifier LODId: LODIDSs)
-	{
-		const FName LODName = GetLODName(LODId);
-		if (LODName != NAME_None)
-		{
-			LODs.Add(LODName);
-		}
-	}
-	ensure(!LODs.IsEmpty());
 	
-	return LODs;
+	return SkinWeightLayer::GetLODs(WeightTool->GetTarget());
 }
 
 TArray<FName> USkinWeightsPaintToolProperties::GetSkinWeightProfilesFunc() const
 {
-	TArray Profiles = {FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName};
-
 	if (const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(WeightTool->GetTarget()))
 	{
-		const USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset();
-		const int32 LOD = static_cast<int32>(GetLODId(ActiveLOD));
-		for (const FSkinWeightProfileInfo& Profile : SkeletalMesh->GetSkinWeightProfiles())
-		{
-			if (Profile.PerLODSourceFiles.Contains(LOD)) 
-			{
-				Profiles.Add(Profile.Name);
-			}
-		}		
+		const EMeshLODIdentifier LODId = GetLODId(ActiveLOD);
+		const FGetMeshParameters Params(true, LODId);
+		const FMeshDescription* MeshDescription = UE::ToolTarget::GetMeshDescription(WeightTool->GetTarget(), Params);
+		TArray Profiles = SkinWeightLayer::GetSkinWeightProfilesFunc(*MeshDescription);
+		Profiles.Add(CreateNewName());
+		return Profiles;
 	}
-	
+
+	static const TArray Profiles = {FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName, CreateNewName()};
 	return Profiles;
+}
+
+TArray<FName> USkinWeightsPaintToolProperties::GetSourceLODsFunc() const
+{
+	if (WeightTool->GetSourceTarget())
+	{
+		return SkinWeightLayer::GetLODs(WeightTool->GetSourceTarget());	
+	}
+	return GetLODsFunc();	
+}
+
+TArray<FName> USkinWeightsPaintToolProperties::GetSourceSkinWeightProfilesFunc() const
+{
+	if (USkeletalMesh* SrcSkeletalMesh = SourceSkeletalMesh.Get())
+	{
+		const EMeshLODIdentifier LODId = GetLODId(SourceLOD);
+		const FGetMeshParameters Params(true, LODId);
+		const FMeshDescription* MeshDescription = UE::ToolTarget::GetMeshDescription(WeightTool->GetSourceTarget(), Params);
+		return SkinWeightLayer::GetSkinWeightProfilesFunc(*MeshDescription);
+	}
+	return GetSkinWeightProfilesFunc();
+}
+
+FName USkinWeightsPaintToolProperties::GetActiveSkinWeightProfile() const
+{
+	return bShowNewProfileName ? NewSkinWeightProfile : ActiveSkinWeightProfile;
 }
 
 FSkinWeightBrushConfig& USkinWeightsPaintToolProperties::GetBrushConfig()
@@ -525,6 +603,9 @@ void FSkinToolWeights::InitializeSkinWeights(
 	const USkeletalMeshComponent* SkeletalMeshComponent,
 	const FMeshDescription* Mesh)
 {
+	static constexpr int32 RootBoneIndex = 0;
+	static constexpr float FullWeight = 1.f;
+
 	// initialize deformer data
 	Deformer.Initialize(SkeletalMeshComponent, Mesh);
 
@@ -552,6 +633,15 @@ void FSkinToolWeights::InitializeSkinWeights(
 			const FVector& BoneLocalPositionInRefPose = InvRefPoseTransform.TransformPosition(RefPoseVertexPosition);
 			CurrentWeights[VertexIndex].Emplace(BoneIndex, BoneLocalPositionInRefPose, Weight);
 			++InfluenceIndex;
+		}
+
+		// if there are no bone weights, default to root bone 
+		if (InfluenceIndex == 0)
+		{
+			const FVector& RefPoseVertexPosition = Deformer.RefPoseVertexPositions[VertexIndex];
+			const FTransform& InvRefPoseTransform = Deformer.InvCSRefPoseTransforms[RootBoneIndex];
+			const FVector& BoneLocalPositionInRefPose = InvRefPoseTransform.TransformPosition(RefPoseVertexPosition);
+			CurrentWeights[VertexIndex].Emplace(RootBoneIndex, BoneLocalPositionInRefPose, FullWeight);
 		}
 	}
 	
@@ -926,8 +1016,8 @@ void USkinWeightsPaintTool::Init(const FToolBuilderState& InSceneState)
 {
 	const UContextObjectStore* ContextObjectStore = InSceneState.ToolManager->GetContextObjectStore();
 	EditorContext = ContextObjectStore->FindContext<USkeletalMeshEditorContextObjectBase>();
-
 	PersonaModeManagerContext = ContextObjectStore->FindContext<UPersonaEditorModeManagerContext>();
+	TargetManager = InSceneState.TargetManager;
 }
 
 void USkinWeightsPaintTool::Setup()
@@ -964,7 +1054,11 @@ void USkinWeightsPaintTool::Setup()
 	WeightToolProperties->ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
 	WatcherIndex = WeightToolProperties->WatchProperty(WeightToolProperties->ActiveSkinWeightProfile, [this](FName) { OnActiveSkinWeightProfileChanged(); });
 	WeightToolProperties->SilentUpdateWatcherAtIndex(WatcherIndex);
-	
+	WatcherIndex = WeightToolProperties->WatchProperty(WeightToolProperties->NewSkinWeightProfile, [this](FName) { OnNewSkinWeightProfileChanged(); });
+	WeightToolProperties->SilentUpdateWatcherAtIndex(WatcherIndex);
+	WeightToolProperties->SourceSkeletalMesh = nullptr;
+    WeightToolProperties->SourcePreviewOffset = FTransform::Identity;
+		
 	// replace the base brush properties
 	ReplaceToolPropertySource(BrushProperties, WeightToolProperties);
 	BrushProperties = WeightToolProperties;
@@ -1163,7 +1257,18 @@ FBox USkinWeightsPaintTool::GetWorldSpaceFocusBox()
 	}
 
 	// 3. Finally, fallback on component bounds if nothing else is selected
-	return PreviewMesh->GetActor()->GetComponentsBoundingBox();
+	static constexpr bool bNonColliding = true;
+	FBox PreviewBox = PreviewMesh->GetActor()->GetComponentsBoundingBox(bNonColliding);
+	
+	if (WeightToolProperties->bShowSourcePreview && SourcePreviewMesh)
+	{
+		if (AActor* SourceActor = SourcePreviewMesh->GetActor())
+		{
+			PreviewBox += SourceActor->GetComponentsBoundingBox(bNonColliding);
+		}
+	}
+
+	return PreviewBox;
 }
 
 void USkinWeightsPaintTool::OnUpdateModifierState(int ModifierID, bool bIsOn)
@@ -1273,11 +1378,11 @@ void USkinWeightsPaintTool::PostEditMeshInitialization(
 
 	// update weights
 	Weights = FSkinToolWeights();
-	if (!IsProfileValid(WeightToolProperties->ActiveSkinWeightProfile))
+	if (!IsProfileValid(WeightToolProperties->GetActiveSkinWeightProfile()))
 	{
 		WeightToolProperties->ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
 	}
-	Weights.Profile = WeightToolProperties->ActiveSkinWeightProfile;
+	Weights.Profile = WeightToolProperties->GetActiveSkinWeightProfile();
 	Weights.InitializeSkinWeights(InComponent, &InMeshDescription);
 	bVertexColorsNeedUpdated = true;
 	
@@ -2056,12 +2161,14 @@ void USkinWeightsPaintTool::OnShutdown(EToolShutdownType ShutdownType)
 	{
 		PersonaModeManagerContext->GetPersonaEditorModeManager()->DeactivateMode(FPersonaEditModes::SkeletonSelection);
 	}
+
+	ResetSourceForTransfer();
 }
 
 void USkinWeightsPaintTool::BeginChange()
 {
 	const EMeshLODIdentifier LOD = GetLODId(WeightToolProperties->ActiveLOD);
-	const FName SkinProfile = WeightToolProperties->ActiveSkinWeightProfile;
+	const FName SkinProfile = WeightToolProperties->GetActiveSkinWeightProfile();
 	ActiveChange = MakeUnique<FMeshSkinWeightsChange>(LOD, SkinProfile);
 }
 
@@ -2104,7 +2211,7 @@ void USkinWeightsPaintTool::ExternalUpdateSkinWeightLayer(const EMeshLODIdentifi
 		None
 	} State = ESkinWeightChangeState::None;
 	
-	if (InSkinWeightProfile != WeightToolProperties->ActiveSkinWeightProfile)
+	if (InSkinWeightProfile != WeightToolProperties->GetActiveSkinWeightProfile())
 	{
 		WeightToolProperties->ActiveSkinWeightProfile = InSkinWeightProfile;
 		State = ESkinWeightChangeState::SkinProfile;
@@ -2501,6 +2608,137 @@ void USkinWeightsPaintTool::NormalizeWeights()
 	ApplyWeightEditsAsTransaction(WeightEditsFromNormalization, TransactionLabel);
 }
 
+void USkinWeightsPaintTool::TransferWeights()
+{
+	using namespace UE::Geometry;
+	using namespace UE::AnimationCore;
+
+	if (!SourceTarget)
+	{
+		return;
+	}
+
+	const EMeshLODIdentifier TargetLODId = GetLODId(WeightToolProperties->ActiveLOD);
+    const FGetMeshParameters TargetParams(true, TargetLODId);
+	FDynamicMesh3 TargetMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, TargetParams);
+
+	const EMeshLODIdentifier SourceLODId = GetLODId(WeightToolProperties->SourceLOD);
+	const FGetMeshParameters SourceParams(true, SourceLODId);
+	const FDynamicMesh3 SourceMesh = UE::ToolTarget::GetDynamicMeshCopy(SourceTarget, SourceParams);
+	
+	if (!SourceMesh.HasAttributes() || !SourceMesh.Attributes()->HasBones())
+	{
+		return;
+	}
+	
+	if (SourceMesh.Attributes()->GetNumBones() == 0)
+	{
+		return;
+	}
+	
+	FTransferBoneWeights TransferBoneWeights(&SourceMesh, WeightToolProperties->SourceSkinWeightProfile);
+	TransferBoneWeights.TransferMethod = FTransferBoneWeights::ETransferBoneWeightsMethod::InpaintWeights;
+	
+	if (!TargetMesh.HasAttributes())
+	{
+		TargetMesh.EnableAttributes();
+	}
+
+	FDynamicMeshAttributeSet* TargetAttributes = TargetMesh.Attributes();
+	if (!TargetAttributes->HasBones())
+	{
+		TargetAttributes->CopyBoneAttributes(*SourceMesh.Attributes());
+	}
+
+	// NOTE should we expose all the options?
+	// 	TransferBoneWeights.NormalThreshold;
+	// 	TransferBoneWeights.SearchRadius
+	// 	TransferBoneWeights.NumSmoothingIterations;
+	// 	TransferBoneWeights.SmoothingStrength;
+	// 	TransferBoneWeights.LayeredMeshSupport;
+	// 	TransferBoneWeights.ForceInpaintWeightMapName;
+	
+	if (TransferBoneWeights.Validate() != EOperationValidationResult::Ok)
+	{
+		return;
+	}
+
+	if (WeightToolProperties->EditingMode == EWeightEditMode::Mesh)
+	{
+		TransferBoneWeights.TargetVerticesSubset = GetSelectedVertices();
+	}
+
+	const FName TargetProfile = WeightToolProperties->GetActiveSkinWeightProfile();
+	if (TransferBoneWeights.TransferWeightsToMesh(TargetMesh, TargetProfile))
+	{
+		// store weight edits
+		BeginChange();
+		FMultiBoneWeightEdits WeightEdits;
+		
+		{	
+			FDynamicMeshVertexSkinWeightsAttribute* TransferedSkinWeights = TargetAttributes->GetSkinWeightsAttribute(TargetProfile);
+			check(TransferedSkinWeights);
+			
+			const bool bUseSubset = !TransferBoneWeights.TargetVerticesSubset.IsEmpty();
+
+			static constexpr float ZeroWeight = 0.f;
+			
+			const int32 NumVertices = bUseSubset ? TransferBoneWeights.TargetVerticesSubset.Num() : TargetMesh.VertexCount();
+			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+			{
+				const int32 VertexID = bUseSubset ? TransferBoneWeights.TargetVerticesSubset[VertexIndex] : VertexIndex;
+				
+				// remove all weight on vertex
+				const VertexWeights& VertexBoneWeights = Weights.PreChangeWeights[VertexID];
+				if (!VertexBoneWeights.IsEmpty())
+				{
+					for (const FVertexBoneWeight& BoneWeight : VertexBoneWeights)
+					{
+						const float OldWeight = BoneWeight.Weight;
+						WeightEdits.MergeSingleEdit(BoneWeight.BoneIndex, VertexID, OldWeight, ZeroWeight);
+					}
+				}
+				else
+				{
+					WeightEdits.MergeSingleEdit(0, VertexID, 1.f, ZeroWeight);
+				}
+
+				// update with new weight
+				FBoneWeights TransferedBoneWeights;
+				TransferedSkinWeights->GetValue(VertexID, TransferedBoneWeights);
+				for (FBoneWeight BoneWeight: TransferedBoneWeights)
+				{
+					const int32 BoneIndex = BoneWeight.GetBoneIndex();					
+					const float OldWeight = Weights.GetWeightOfBoneOnVertex(BoneIndex, VertexID, Weights.PreChangeWeights);
+					const float NewWeight = BoneWeight.GetWeight();
+					WeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
+				}
+			}
+		}
+
+		// set new weights (we could probably use TransferedSkinWeights instead of a full convert) 
+		FDynamicMeshToMeshDescription Converter;
+		Converter.Convert(&TargetMesh, *EditedMesh);
+
+		// update weights
+		Weights = FSkinToolWeights();
+		Weights.Profile = TargetProfile;
+		Weights.InitializeSkinWeights(GetSkeletalMeshComponent(Target), EditedMesh);
+		bVertexColorsNeedUpdated = true;
+
+		// store weight edits in the active change & commit
+		{
+			for (const TTuple<int32, FSingleBoneWeightEdits>& BoneWeightEdits : WeightEdits.PerBoneWeightEdits)
+			{
+				ActiveChange->AddBoneWeightEdit(BoneWeightEdits.Value);
+			}
+
+			static const FText TransactionLabel = LOCTEXT("TransferWeightsChange", "Transfer skin weights.");
+			EndChange(TransactionLabel);
+		}
+	}
+}
+
 void USkinWeightsPaintTool::HandleSkeletalMeshModified(const TArray<FName>& InBoneNames, const ESkeletalMeshNotifyType InNotifyType)
 {
 	switch (InNotifyType)
@@ -2565,7 +2803,7 @@ void USkinWeightsPaintTool::OnActiveLODChanged()
 	}
 
 	// reinitialize all mesh data structures
-	const UE::Geometry::FDynamicMesh3 DynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, Params);
+	const FDynamicMesh3 DynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, Params);
 	PostEditMeshInitialization(Component, DynamicMesh, *EditedMesh);
 }
 
@@ -2577,17 +2815,28 @@ void USkinWeightsPaintTool::OnActiveSkinWeightProfileChanged()
 		return;
 	}
 
+	WeightToolProperties->bShowNewProfileName = WeightToolProperties->ActiveSkinWeightProfile == CreateNewName();
+
 	if (IsSelectionIsolated())
 	{
 		FinishIsolatedSelection();
 	}
 
-	if (!IsProfileValid(WeightToolProperties->ActiveSkinWeightProfile))
+	if (WeightToolProperties->bShowNewProfileName)
 	{
-		WeightToolProperties->ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
+		if (!IsProfileValid(WeightToolProperties->NewSkinWeightProfile))
+		{
+			GetOrCreateSkinWeightsAttribute(*EditedMesh, WeightToolProperties->NewSkinWeightProfile);
+		} 
 	}
 	
-	if (WeightToolProperties->ActiveSkinWeightProfile == Weights.Profile)
+	if (!IsProfileValid(WeightToolProperties->GetActiveSkinWeightProfile()))
+	{
+		WeightToolProperties->ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
+		WeightToolProperties->bShowNewProfileName = false;
+	}
+	
+	if (WeightToolProperties->GetActiveSkinWeightProfile() == Weights.Profile)
 	{
 		return;
 	}
@@ -2597,9 +2846,21 @@ void USkinWeightsPaintTool::OnActiveSkinWeightProfileChanged()
 
 	// re-init Weights with new skin profile
 	Weights = FSkinToolWeights();
-	Weights.Profile = WeightToolProperties->ActiveSkinWeightProfile;
+	Weights.Profile = WeightToolProperties->GetActiveSkinWeightProfile();
 	Weights.InitializeSkinWeights(SkeletalMeshComponent, EditedMesh);
 	bVertexColorsNeedUpdated = true;
+}
+
+void USkinWeightsPaintTool::OnNewSkinWeightProfileChanged()
+{
+	if (WeightToolProperties->bShowNewProfileName && WeightToolProperties->NewSkinWeightProfile != Weights.Profile)
+	{
+		const bool bRenamed = RenameSkinWeightsAttribute(*EditedMesh, Weights.Profile, WeightToolProperties->NewSkinWeightProfile);
+		if (ensure(bRenamed))
+		{
+			Weights.Profile = WeightToolProperties->NewSkinWeightProfile;
+		}
+	}
 }
 
 bool USkinWeightsPaintTool::IsProfileValid(const FName InProfileName) const
@@ -2610,21 +2871,10 @@ bool USkinWeightsPaintTool::IsProfileValid(const FName InProfileName) const
 		return false;
 	}
 
-	// check SkeletalMesh
-	const TArray<FSkinWeightProfileInfo>& SkeletalMeshProfiles = SkeletalMeshComponent->GetSkeletalMeshAsset()->GetSkinWeightProfiles();
-	bool bHasProfile = SkeletalMeshProfiles.ContainsByPredicate([InProfileName](const FSkinWeightProfileInfo& Info)
-	{
-		return Info.Name == InProfileName;
-	});
-	if (!bHasProfile)
-	{
-		return false;
-	}
-
 	// check current MeshDescription
 	const FSkeletalMeshConstAttributes MeshAttribs(*EditedMesh);
 	const TArray<FName> MeshDescProfiles = MeshAttribs.GetSkinWeightProfileNames();
-	bHasProfile = MeshDescProfiles.ContainsByPredicate([InProfileName](const FName Name)
+	const bool bHasProfile = MeshDescProfiles.ContainsByPredicate([InProfileName](const FName Name)
 	{
 		return Name == InProfileName;
 	});
@@ -2806,7 +3056,7 @@ void USkinWeightsPaintTool::FinishIsolatedSelection()
 
 	// copy the remapped weights back to the full mesh
 	const FSkeletalMeshConstAttributes MeshAttribs(*PartialMeshDescription.Get());
-	const FSkinWeightsVertexAttributesConstRef AllVertexWeights = MeshAttribs.GetVertexSkinWeights(WeightToolProperties->ActiveSkinWeightProfile);
+	const FSkinWeightsVertexAttributesConstRef AllVertexWeights = MeshAttribs.GetVertexSkinWeights(WeightToolProperties->GetActiveSkinWeightProfile());
 	const int32 NumVerticesInPartialMesh = PartialMeshDescription.Get()->Vertices().Num();
 	for (int32 VertexIndexPartial = 0; VertexIndexPartial < NumVerticesInPartialMesh; VertexIndexPartial++)
 	{
@@ -3075,9 +3325,86 @@ void USkinWeightsPaintTool::OnPropertyModified(UObject* ModifiedObject, FPropert
 			Color.A = 1.f;
 		}
 	}
+
+	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, SourceSkeletalMesh))
+	{
+		ResetSourceForTransfer(WeightToolProperties->SourceSkeletalMesh.Get());
+	}
+
+	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, SourceLOD))
+	{
+		if (SourcePreviewMesh)
+		{
+			const EMeshLODIdentifier SourceLODId = GetLODId(WeightToolProperties->SourceLOD);
+			const FGetMeshParameters SourceParams(true, SourceLODId);
+			SourcePreviewMesh->ReplaceMesh(UE::ToolTarget::GetDynamicMeshCopy(SourceTarget, SourceParams));
+		}
+	}
+
+	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, bShowSourcePreview))
+	{
+		if (SourcePreviewMesh)
+		{
+			SourcePreviewMesh->SetVisible(WeightToolProperties->bShowSourcePreview);
+		}
+	}
+
+	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, SourcePreviewOffset))
+	{
+		if (SourcePreviewMesh)
+		{
+			SourcePreviewMesh->SetTransform(WeightToolProperties->SourcePreviewOffset);
+		}
+	}
 	
 	SetFocusInViewport();
 }
 
+void USkinWeightsPaintTool::ResetSourceForTransfer(USkeletalMesh* InSkeletalMesh)
+{
+	if (SourcePreviewMesh)
+	{
+		SourcePreviewMesh->SetVisible(false);
+		SourcePreviewMesh->Disconnect();
+		SourcePreviewMesh = nullptr;
+	}
+
+	if (SourceTarget)
+	{
+		SourceTarget = nullptr;
+	}
+
+	if (InSkeletalMesh)
+	{
+		SourceTarget = TargetManager->BuildTarget(InSkeletalMesh, FToolTargetTypeRequirements());
+
+		SourcePreviewMesh = NewObject<UPreviewMesh>(this);
+		SourcePreviewMesh->CreateInWorld(TargetWorld.Get(), FTransform::Identity);
+
+		if (USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(Target))
+		{
+			const FBoxSphereBounds TargetBounds = SkeletalMeshComponent->GetSkeletalMeshAsset()->GetBounds();
+			const FBoxSphereBounds SourceBounds = InSkeletalMesh->GetBounds();
+
+			FTransform Transform = UE::ToolTarget::GetLocalToWorldTransform(Target);
+			FVector Location = Transform.GetLocation();
+			Location.X += TargetBounds.GetBoxExtrema(1).X;
+			Location.X += 1.1 * SourceBounds.GetBoxExtrema(1).X;
+			Transform.SetLocation(Location);
+			WeightToolProperties->SourcePreviewOffset = Transform;
+		}
+		
+		SourcePreviewMesh->SetTransform(WeightToolProperties->SourcePreviewOffset);
+
+		ToolSetupUtil::ApplyRenderingConfigurationToPreview(SourcePreviewMesh, SourceTarget);
+		SourcePreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::AutoCalculated);
+		SourcePreviewMesh->ReplaceMesh(UE::ToolTarget::GetDynamicMeshCopy(SourceTarget));
+
+		const FComponentMaterialSet MaterialSet = UE::ToolTarget::GetMaterialSet(SourceTarget);
+		SourcePreviewMesh->SetMaterials(MaterialSet.Materials);
+
+		SourcePreviewMesh->SetVisible(WeightToolProperties->bShowSourcePreview);
+	}
+}
 
 #undef LOCTEXT_NAMESPACE

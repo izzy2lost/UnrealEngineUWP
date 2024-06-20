@@ -58,6 +58,7 @@
 #include "SkeletalMesh/SkeletonEditingTool.h"
 #include "SkeletalMesh/SkinWeightsBindingTool.h"
 #include "SkeletalMesh/SkinWeightsPaintTool.h"
+#include "ToolTargets/SkeletalMeshToolTarget.h"
 
 #define LOCTEXT_NAMESPACE "SkeletalMeshModelingToolsEditorMode"
 
@@ -186,8 +187,12 @@ void USkeletalMeshModelingToolsEditorMode::Enter()
 	UEdMode::Enter();
 
 	UEditorInteractiveToolsContext* InteractiveToolsContext = GetInteractiveToolsContext();
-	
-	InteractiveToolsContext->TargetManager->AddTargetFactory(NewObject<USkeletalMeshComponentToolTargetFactory>(InteractiveToolsContext->TargetManager));
+
+	if (TObjectPtr<UToolTargetManager> ToolTargetManager = InteractiveToolsContext->TargetManager)
+	{
+		ToolTargetManager->AddTargetFactory( NewObject<USkeletalMeshComponentToolTargetFactory>(ToolTargetManager) );
+		ToolTargetManager->AddTargetFactory( NewObject<USkeletalMeshReadOnlyToolTargetFactory>(ToolTargetManager) );
+	}
 
 #if ENABLE_STYLUS_SUPPORT
 	StylusStateTracker = MakeUnique<FStylusStateTracker>();

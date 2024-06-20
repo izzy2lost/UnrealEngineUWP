@@ -33,10 +33,11 @@ public:
 
 private:
 
-	void AddBrushUI(IDetailLayoutBuilder& DetailBuilder);
-	void AddSelectionUI(IDetailLayoutBuilder& DetailBuilder);
+	void AddBrushUI(IDetailLayoutBuilder& DetailBuilder) const;
+	void AddSelectionUI(IDetailLayoutBuilder& DetailBuilder) const;
+	void AddTransferUI(IDetailLayoutBuilder& DetailBuilder) const;
 
-	IDetailLayoutBuilder* CurrentDetailBuilder;
+	IDetailLayoutBuilder* CurrentDetailBuilder = nullptr;
 	TWeakObjectPtr<USkinWeightsPaintToolProperties> ToolSettings;
 	TWeakObjectPtr<USkinWeightsPaintTool> Tool;
 

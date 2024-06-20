@@ -261,6 +261,11 @@ public:
 	/// Returns \c false if the attribute was already registered or if IsValidSkinWeightProfileName() returned false.
 	SKELETALMESHDESCRIPTION_API bool RegisterSkinWeightAttribute(const FName InProfileName);
 
+	/// Unregister an existing skin weight profile with the given name
+	/// Returns \c true if theprofile was successfully unregistered.
+	/// Returns \c false if the attribute wasn't registered or if \c InProfileName is empty.
+	SKELETALMESHDESCRIPTION_API bool UnregisterSkinWeightAttribute(const FName InProfileName);
+
 	/// Returns the skin weight profile given by its name. NAME_None corresponds to the default profile.
 	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesRef GetVertexSkinWeights(const FName InProfileName = NAME_None);
 

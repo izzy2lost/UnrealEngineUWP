@@ -140,6 +140,8 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		]
 	];
 
+	AddTransferUI(DetailBuilder);
+
 	// hide all base brush properties that have been customized
 	const TSharedRef<IPropertyHandle> BrushModeHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(USkinWeightsPaintToolProperties, BrushMode));
 	DetailBuilder.HideProperty(BrushModeHandle);
@@ -159,7 +161,7 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 	DetailBuilder.HideProperty(ColorModePropHandle);
 }
 
-void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuilder)
+void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuilder) const
 {
 	// custom display of falloff mode as segmented toggle buttons
 	IDetailCategoryBuilder& BrushCategory = DetailBuilder.EditCategory("Brush", FText::GetEmpty(), ECategoryPriority::Important);
@@ -321,7 +323,7 @@ void FSkinWeightDetailCustomization::AddBrushUI(IDetailLayoutBuilder& DetailBuil
 	];
 }
 
-void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& DetailBuilder)
+void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& DetailBuilder) const
 {
 	// custom display of weight editing tools
 	IDetailCategoryBuilder& EditSelectionCategory = DetailBuilder.EditCategory("Edit Selection", FText::GetEmpty(), ECategoryPriority::Important);
@@ -961,6 +963,46 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVertexWeightEditor, ToolSettings->WeightTool)
+	];
+}
+
+void FSkinWeightDetailCustomization::AddTransferUI(IDetailLayoutBuilder& DetailBuilder) const
+{
+	if (!ensure(Tool.IsValid()))
+	{
+		return;
+	}
+	
+	IDetailCategoryBuilder& TransferWeightsCategory = DetailBuilder.EditCategory("WeightTransfer", FText::GetEmpty(), ECategoryPriority::Important);
+	TransferWeightsCategory.InitiallyCollapsed(true);
+
+	TransferWeightsCategory.AddCustomRow(LOCTEXT("TransferWeightsRow", "Transfer Weights"), false)
+	.WholeRowContent()
+	[
+		SNew(SVerticalBox)
+
+		+SVerticalBox::Slot()
+		.Padding(0.f, WeightEditVerticalPadding)
+		[
+			SNew(SBox)
+			[
+				SNew(SButton)
+				.HAlign(HAlign_Center)
+				.Text(LOCTEXT("TransferWeightsButtonLabel", "Transfer Weights"))
+				.ToolTipText(LOCTEXT("TransferButtonTooltip",
+					"Weights are transfered from the source skeletal mesh using inpainting.\n"
+					"This command can operate on selected components when in Mesh mode."))
+				.OnClicked_Lambda([this]()
+				{
+					Tool->TransferWeights();
+					return FReply::Handled();
+				})
+				.IsEnabled_Lambda([this]()
+				{
+					return Tool->GetSourceTarget() != nullptr;
+				})
+			]
+		]
 	];
 }
 

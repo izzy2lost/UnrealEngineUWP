@@ -21,6 +21,7 @@
 #include "SkinWeightsPaintTool.generated.h"
 
 
+class USkeletalMeshComponentReadOnlyToolTarget;
 struct FMeshDescription;
 class USkinWeightsPaintTool;
 class UPolygonSelectionMechanic;
@@ -370,6 +371,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = SkinWeightLayer, meta = (DisplayName = "Active Profile", GetOptions = GetSkinWeightProfilesFunc))
 	FName ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
 	
+	// new profile properties
+	UPROPERTY(meta = (TransientToolProperty))
+	bool bShowNewProfileName = false;
+	UPROPERTY(EditAnywhere, Category = SkinWeightLayer, meta = (TransientToolProperty, DisplayName = "New Profile Name",
+		EditCondition = bShowNewProfileName, HideEditConditionToggle, NoResetToDefault))
+	FName NewSkinWeightProfile = "Profile";
+
+	FName GetActiveSkinWeightProfile() const;
+	
 	// pointer back to paint tool
 	TObjectPtr<USkinWeightsPaintTool> WeightTool;
 
@@ -378,12 +388,33 @@ public:
 	void SetColorMode(EWeightColorMode InColorMode);
 	void SetBrushMode(EWeightEditOperation InBrushMode);
 
+	// transfer
+	UPROPERTY(EditAnywhere, Transient, Category = WeightTransfer)
+	TWeakObjectPtr<USkeletalMesh> SourceSkeletalMesh;
+	
+	UPROPERTY(EditAnywhere, Category = "WeightTransfer|SkinWeightLayer", meta = (GetOptions = GetSourceLODsFunc))
+	FName SourceLOD = "LOD0";
+	
+	UPROPERTY(EditAnywhere, Category = "WeightTransfer|SkinWeightLayer", meta = (DisplayName = "Source Profile", GetOptions = GetSourceSkinWeightProfilesFunc))
+	FName SourceSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
+	
+	UPROPERTY(EditAnywhere, Transient, Category = "WeightTransfer|Preview")
+	bool bShowSourcePreview = false;
+	
+	UPROPERTY(EditAnywhere, Transient, Category = "WeightTransfer|Preview")
+	FTransform SourcePreviewOffset = FTransform::Identity;
+	
 private:
 	
 	UFUNCTION()
 	TArray<FName> GetLODsFunc() const;
 	UFUNCTION()
 	TArray<FName> GetSkinWeightProfilesFunc() const;
+
+	UFUNCTION()
+	TArray<FName> GetSourceLODsFunc() const;
+	UFUNCTION()
+	TArray<FName> GetSourceSkinWeightProfilesFunc() const;
 };
 
 // An interactive tool for painting and editing skin weights.
@@ -429,6 +460,7 @@ public:
 	void PruneWeights(const float Threshold);
 	void AverageWeights();
 	void NormalizeWeights();
+	void TransferWeights();
 	
 	// method to set weights directly (numeric input, for example)
 	void EditWeightsOnVertices(
@@ -495,6 +527,9 @@ public:
 	// called whenever the weights are modified
 	DECLARE_MULTICAST_DELEGATE(FOnWeightsChanged);
 	FOnWeightsChanged OnWeightsChanged;
+
+	// gets the current source target
+	UToolTarget* GetSourceTarget() const { return SourceTarget; }
 
 protected:
 
@@ -620,12 +655,24 @@ protected:
 	// skin weight layer
 	void OnActiveLODChanged();
 	void OnActiveSkinWeightProfileChanged();
+	void OnNewSkinWeightProfileChanged();
 	bool IsProfileValid(const FName InProfileName) const;
 
+	// global properties stored on initialization
 	UPROPERTY()
 	TWeakObjectPtr<USkeletalMeshEditorContextObjectBase> EditorContext = nullptr;
 	UPROPERTY()
 	TWeakObjectPtr<UPersonaEditorModeManagerContext> PersonaModeManagerContext = nullptr;
+	UPROPERTY()
+	TWeakObjectPtr<UToolTargetManager> TargetManager = nullptr;
+
+	// skin weights transfer properties
+	UPROPERTY()
+	TObjectPtr<UPreviewMesh> SourcePreviewMesh = nullptr;
+	UPROPERTY()
+	TObjectPtr<UToolTarget> SourceTarget = nullptr;
+
+	void ResetSourceForTransfer(USkeletalMesh* InSkeletalMesh = nullptr);
 	
 	// editor state to restore when exiting the paint tool
 	FString PreviewProfileToRestore;
