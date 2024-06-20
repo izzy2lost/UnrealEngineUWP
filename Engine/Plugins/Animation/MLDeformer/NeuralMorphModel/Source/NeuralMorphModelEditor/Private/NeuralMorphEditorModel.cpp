@@ -677,13 +677,19 @@ namespace UE::NeuralMorphModel
 		FMLDeformerMaskInfo* MaskInfo = nullptr;
 		if (FinalMaskItemIndex < InputInfo->GetBoneNames().Num())	// If we have a bone.
 		{
-			MaskInfo = GetNeuralMorphModel()->BoneMaskInfoMap.Find(InputInfo->GetBoneNames()[FinalMaskItemIndex]);
+			if (InputInfo->GetBoneNames().IsValidIndex(FinalMaskItemIndex))
+			{
+				MaskInfo = GetNeuralMorphModel()->BoneMaskInfoMap.Find(InputInfo->GetBoneNames()[FinalMaskItemIndex]);
+			}
 		}
 		else // It's a bone group.
 		{
 			const int32 GroupIndex = FinalMaskItemIndex - (InputInfo->GetBoneNames().Num() + InputInfo->GetCurveNames().Num());
-			const FName GroupName = InputInfo->GetBoneGroups()[GroupIndex].GroupName;
-			MaskInfo = GetNeuralMorphModel()->BoneGroupMaskInfoMap.Find(GroupName);
+			if (InputInfo->GetBoneGroups().IsValidIndex(GroupIndex))
+			{
+				const FName GroupName = InputInfo->GetBoneGroups()[GroupIndex].GroupName;
+				MaskInfo = GetNeuralMorphModel()->BoneGroupMaskInfoMap.Find(GroupName);
+			}
 		}
 
 		if (!MaskBuffer.IsEmpty())

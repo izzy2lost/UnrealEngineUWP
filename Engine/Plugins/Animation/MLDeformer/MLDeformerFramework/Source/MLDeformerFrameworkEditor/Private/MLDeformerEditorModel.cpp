@@ -2223,6 +2223,7 @@ namespace UE::MLDeformer
 		SampleDeltas();
 		Model->InitGPUData();
 		UpdateMemoryUsage();
+		RefreshMLDeformerComponents();
 	}
 
 	FMLDeformerEditorActor* FMLDeformerEditorModel::GetTimelineEditorActor() const
