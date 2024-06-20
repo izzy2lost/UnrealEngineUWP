@@ -5,6 +5,7 @@
 #include "Animation/Skeleton.h"
 #include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowEdNode.h"
+#include "Dataflow/DataflowObjectInterface.h"
 #include "GeometryCollection/GeometryCollectionEngineConversion.h"
 #include "IEditableSkeleton.h"
 #include "ISkeletonTree.h"

@@ -3,6 +3,7 @@
 #include "Dataflow/DataflowSimulationScene.h"
 #include "Dataflow/DataflowSimulationManager.h"
 #include "Dataflow/DataflowEditor.h"
+#include "Components/PrimitiveComponent.h"
 #include "Chaos/CacheManagerActor.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "EngineUtils.h"

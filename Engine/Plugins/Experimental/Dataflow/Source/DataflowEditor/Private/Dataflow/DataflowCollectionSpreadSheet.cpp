@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowCollectionSpreadSheet.h"
-
+#include "Dataflow/DataflowObjectInterface.h"
 #include "Dataflow/DataflowCollectionSpreadSheetWidget.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowSelection.h"

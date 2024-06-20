@@ -1,10 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
-
-
 #include "AssetEditorModeManager.h"
 #include "Dataflow/DataflowEditor.h"
+#include "Components/PrimitiveComponent.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Selection.h"
 
