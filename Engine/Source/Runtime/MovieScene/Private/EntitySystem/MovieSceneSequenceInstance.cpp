@@ -254,7 +254,7 @@ bool FSequenceInstance::ConditionalRecompile()
 	{
 		if (VolatilityManager->ConditionalRecompile())
 		{
-			InvalidateCachedData();
+			InvalidateCachedData(ESequenceInstanceInvalidationType::DataChanged);
 			return true;
 		}
 	}
