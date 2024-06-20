@@ -10,3 +10,5 @@ class UObject;
 bool CompareNames(const TSharedPtr<FString>& sp1, const TSharedPtr<FString>& sp2);
 
 void ConditionalPostLoadReference(UObject& Object);
+
+void ConditionalPostLoadReference(FSoftObjectPtr& SoftObject);
