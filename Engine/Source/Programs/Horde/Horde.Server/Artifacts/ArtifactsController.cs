@@ -691,7 +691,7 @@ namespace Horde.Server.Artifacts
 			}
 
 			await response.CompleteAsync();
-			return Ok();
+			return Empty;
 		}
 
 		/// <summary>
