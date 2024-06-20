@@ -29,6 +29,7 @@ enum class EIoErrorCode
 	SignatureError,
 	InvalidEncryptionKey,
 	CompressionError,
+	PendingFork,
 };
 
 /** Get I/O error code description. */

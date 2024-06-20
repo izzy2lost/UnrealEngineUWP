@@ -14,6 +14,8 @@
 
 #include <atomic>
 
+enum class EForkProcessRole : uint8;
+
 struct FIoContainerHeader;
 using FSharedContainerHeader		= TSharedPtr<FIoContainerHeader>;
 
@@ -162,6 +164,8 @@ public:
 	TArray<FSharedOnDemandContainer> GetMountedContainers();
 
 private:
+	void					OnPostFork(EForkProcessRole ProcessRole);
+	FIoStatus				InitializeOnDemandInstallCache();
 	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId, EOnDemandContainerFlags ContainerFlags);
 	void					TryEnterTickLoop();
 	void					TickLoop();
