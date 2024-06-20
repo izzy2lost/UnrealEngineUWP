@@ -76,6 +76,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "SceneInterface.h"
+#include "SDeleteReferencedActorDialog.h"
 
 #define LOCTEXT_NAMESPACE "UnrealEd.EditorActor"
 
@@ -928,6 +929,7 @@ bool UUnrealEdEngine::DeleteActors(const TArray<AActor*>& InActorsToDelete, UWor
 	bool bRequestedDeleteAllByLevel = false;
 	bool bRequestedDeleteAllByActor = false;
 	bool bRequestedDeleteAllBySoftReference = false;
+	bool bRequestedDeleteAllByGroup = false;
 	int32 DeleteCount = 0;
 
 	TUniquePtr<FTypedElementList::FLegacySyncScopedBatch> LegacySyncBatch = MakeUnique<FTypedElementList::FLegacySyncScopedBatch>(*InSelectionSet->GetElementList());
@@ -957,6 +959,7 @@ bool UUnrealEdEngine::DeleteActors(const TArray<AActor*>& InActorsToDelete, UWor
 		bool bReferencedByLevelScript = bWarnAboutReferences && (nullptr != LSB && ReferencedToActorsFromLevelScriptArray.Num() > 0);
 		bool bReferencedByActor = false;
 		bool bReferencedByLODActor = false;
+		bool bReferencedByGroupActor = false;
 		bool bReferencedBySoftReference = false;
 		TArray<UObject*>* SoftReferencingObjects = nullptr;
 
@@ -1005,6 +1008,10 @@ bool UUnrealEdEngine::DeleteActors(const TArray<AActor*>& InActorsToDelete, UWor
 				{
 					bReferencedByLODActor = true;
 				}
+				else if (Cast<AGroupActor>(ReferencingActor))
+				{
+					bReferencedByGroupActor = true;
+				}
 				else
 				{
 					// If the referencing actor is a child actor that is referencing us, do not treat it
@@ -1025,98 +1032,108 @@ bool UUnrealEdEngine::DeleteActors(const TArray<AActor*>& InActorsToDelete, UWor
 		}
 
 		// We have references from one or more sources, prompt the user for feedback.
-		if (bReferencedByLevelScript || bReferencedByActor || bReferencedBySoftReference || bReferencedByLODActor)
+		if (bReferencedByLevelScript || bReferencedByActor || bReferencedBySoftReference || bReferencedByLODActor || bReferencedByGroupActor)
 		{
 			if ((bReferencedByLevelScript && !bRequestedDeleteAllByLevel) ||
 				(bReferencedByActor && !bRequestedDeleteAllByActor) ||
-				(bReferencedBySoftReference && !bRequestedDeleteAllBySoftReference))
+				(bReferencedBySoftReference && !bRequestedDeleteAllBySoftReference) ||
+				(bReferencedByGroupActor && !bRequestedDeleteAllByGroup))
 			{
 				FText ConfirmDelete;
 
-				FString LevelScriptReferenceString;
-
-				for (UK2Node* Node : ReferencedToActorsFromLevelScriptArray)
-				{
-					LevelScriptReferenceString += Node->GetFindReferenceSearchString(EGetFindReferenceSearchStringFlags::None);
-
-					if (bReferencedByLevelScript && bReferencedByActor)
-					{
-						LevelScriptReferenceString += TEXT(" (Level Blueprint)");
-					}
-
-					LevelScriptReferenceString += TEXT("\n");
-				}
-
-				LevelScriptReferenceString.TrimEndInline();
-
-				FString ActorReferenceString;
+				// We separate groups and other actors, so we can visually display them separately in the list
+				TArray<TSharedPtr<FText>> GroupActorReferencers;
+				TArray<TSharedPtr<FText>> OtherReferencers;
 
 				if (ReferencingActors != nullptr)
 				{
 					for (AActor* ReferencingActor : *ReferencingActors)
 					{
-						ActorReferenceString += ReferencingActor->GetActorLabel();
-
-						if (bReferencedByLevelScript && bReferencedByActor)
+						if (ReferencingActor->IsA<ALevelScriptActor>())
 						{
-							ActorReferenceString += TEXT(" (Other Actor)");
+							continue;
 						}
 
-						ActorReferenceString += TEXT("\n");
+						const FString ActorLabel = FString::Printf(TEXT("%s"), *ReferencingActor->GetActorLabel());
+
+						if (ReferencingActor->IsA<AGroupActor>())
+						{
+							GroupActorReferencers.Add(MakeShared<FText>(FText::FromString(ActorLabel)));
+						}
+						else if (!ReferencingActor->IsA<ALevelScriptActor>())
+						{
+							OtherReferencers.Add(MakeShared<FText>(FText::FromString(ActorLabel)));
+						}
 					}
 				}
+
+				OtherReferencers.Append(GroupActorReferencers);
 
 				if (bReferencedBySoftReference)
 				{
 					for (UObject* ReferencingObject : *SoftReferencingObjects)
 					{
+						FString ActorLabel;
+
 						if (AActor* ReferencingActor = Cast<AActor>(ReferencingObject))
 						{
-							ActorReferenceString += FString::Printf(TEXT("(Soft) Actor %s in %s\n"), *ReferencingActor->GetActorLabel(), *FPackageName::GetLongPackageAssetName(ReferencingActor->GetOutermost()->GetName()));
+							ActorLabel = FString::Printf(TEXT("%s in %s (soft reference)"), *ReferencingActor->GetActorLabel(), *FPackageName::GetLongPackageAssetName(ReferencingActor->GetOutermost()->GetName()));
 						}
 						else
 						{
-							ActorReferenceString += FString::Printf(TEXT("(Soft) Object %s\n"), *ReferencingObject->GetPathName());
+							ActorLabel = FString::Printf(TEXT("%s (soft reference)"), *ReferencingObject->GetPathName());
 						}
+
+						OtherReferencers.Add(MakeShared<FText>(FText::FromString(ActorLabel)));
 					}
 				}
 
-				ActorReferenceString.TrimEndInline();
+				EDeletedActorReferenceTypes DeletedActorReferenceTypes = EDeletedActorReferenceTypes::None;
 
-				if (bReferencedByLevelScript && (bReferencedByActor || bReferencedBySoftReference))
+				if (bReferencedByGroupActor)
 				{
-					ConfirmDelete = FText::Format(LOCTEXT("ConfirmDeleteActorReferenceByScriptAndActor", "Actor {0} is referenced by the level blueprint and other Actors/Objects.\nDo you really want to delete it? This will break references.\n\nReference List:\n\n{1}\n{2}"),
-						FText::FromString(Actor->GetActorLabel()), FText::FromString(LevelScriptReferenceString), FText::FromString(ActorReferenceString));
+					EnumAddFlags(DeletedActorReferenceTypes, EDeletedActorReferenceTypes::Group);
 				}
-				else if (bReferencedByLevelScript)
+
+				if (bReferencedByActor || bReferencedBySoftReference)
 				{
-					ConfirmDelete = FText::Format(LOCTEXT("ConfirmDeleteActorReferencedByScript", "Actor {0} is referenced by the level blueprint.\nDo you really want to delete it? This will break references.\n\nReference List:\n\n{1}"),
-						FText::FromString(Actor->GetActorLabel()), FText::FromString(LevelScriptReferenceString));
+					EnumAddFlags(DeletedActorReferenceTypes, EDeletedActorReferenceTypes::ActorOrAsset);
 				}
-				else
+
+				if (bReferencedByLevelScript)
 				{
-					ConfirmDelete = FText::Format(LOCTEXT("ConfirmDeleteActorReferencedByActor", "Actor {0} is referenced by other Actors/Objects.\nDo you really want to delete it? This will break references.\n\nReference List:\n\n{1}"),
-						FText::FromString(Actor->GetActorLabel()), FText::FromString(ActorReferenceString));
+					EnumAddFlags(DeletedActorReferenceTypes, EDeletedActorReferenceTypes::LevelBlueprint);
 				}
 
 				const double DialogStartSeconds = FPlatformTime::Seconds();
 
-				const EAppMsgType::Type MessageType = ActorsToDelete.Num() > 1 ? EAppMsgType::YesNoYesAllNoAll : EAppMsgType::YesNo;
-				int32 Result = FMessageDialog::Open(MessageType, ConfirmDelete);
+				const bool bCanShowApplyToAll = ActorsToDelete.Num() > 1;
+
+				TSharedRef<SDeleteReferencedActorDialog> ConfirmDialog = SNew(SDeleteReferencedActorDialog)
+					.Referencers(OtherReferencers)
+					.ShowApplyToAll(bCanShowApplyToAll)
+					.ActorToDeleteLabel(Actor->GetActorLabel())
+					.ReferenceTypes(DeletedActorReferenceTypes);
+
+				uint32 Result = ConfirmDialog->ShowModal();
 
 				DialogWaitingSeconds += FPlatformTime::Seconds() - DialogStartSeconds;
 
-				if (Result == EAppReturnType::YesAll)
+				if (ConfirmDialog->GetApplyToAll())
 				{
-					bRequestedDeleteAllByLevel |= bReferencedByLevelScript;
-					bRequestedDeleteAllByActor |= bReferencedByActor;
-					bRequestedDeleteAllBySoftReference |= bReferencedBySoftReference;
+					if (Result == 0)
+					{
+						bRequestedDeleteAllByLevel |= bReferencedByLevelScript;
+						bRequestedDeleteAllByActor |= bReferencedByActor;
+						bRequestedDeleteAllBySoftReference |= bReferencedBySoftReference;
+						bRequestedDeleteAllByGroup |= bReferencedByGroupActor;
+					}
+					else
+					{
+						break;
+					}
 				}
-				else if (Result == EAppReturnType::NoAll)
-				{
-					break;
-				}
-				else if (Result == EAppReturnType::No || Result == EAppReturnType::Cancel)
+				else if (Result == 1)
 				{
 					continue;
 				}
@@ -1127,7 +1144,7 @@ bool UUnrealEdEngine::DeleteActors(const TArray<AActor*>& InActorsToDelete, UWor
 				FBlueprintEditorUtils::ModifyActorReferencedGraphNodes(LSB, Actor);
 			}
 
-			if (bReferencedByActor || bReferencedByLODActor)
+			if (bReferencedByActor || bReferencedByLODActor || bReferencedByGroupActor)
 			{
 				check(ReferencingActors != nullptr);
 				for (AActor* ReferencingActor : *ReferencingActors)
