@@ -1411,6 +1411,7 @@ void ModifyVulkanCompilerInput(FShaderCompilerInput& Input)
 	else if (InternalState.IsSM6())
 	{
 		Input.Environment.SetDefine(TEXT("VULKAN_PROFILE_SM6"), 1);
+		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_CALLABLE_SHADERS"), 1);
 	}
 	else if (InternalState.IsSM5())
 	{
