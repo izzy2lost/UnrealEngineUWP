@@ -1174,6 +1174,12 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateFloatWidget(const UCus
 
 float FCustomizableInstanceDetails::GetFloatParameterValue(FString ParamName, int32 RangeIndex) const
 {
+	if (CustomInstance->GetCustomizableObject()->GetPrivate()->IsLocked())
+	{
+		// Prevent crashing if polling the float value during CO compilation
+		return -1.f;
+	}
+
 	if (RangeIndex == INDEX_NONE)
 	{
 		return CustomInstance->GetFloatParameterSelectedOption(ParamName, RangeIndex);
