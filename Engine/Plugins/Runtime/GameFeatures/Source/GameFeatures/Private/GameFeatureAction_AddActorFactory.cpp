@@ -82,7 +82,11 @@ void UGameFeatureAction_AddActorFactory::AddActorFactory()
 		}
 		GEditor->ActorFactories.Add(NewFactory);
 		AddedFactory = NewFactory;
-		IPlacementModeModule::Get().RegenerateItemsForCategory(FBuiltInPlacementCategories::AllClasses());
+
+		if (IPlacementModeModule::IsAvailable())
+		{
+			IPlacementModeModule::Get().RegenerateItemsForCategory(FBuiltInPlacementCategories::AllClasses());
+		}
 	}
 #endif // WITH_EDITOR
 }
@@ -96,7 +100,11 @@ void UGameFeatureAction_AddActorFactory::RemoveActorFactory()
 
 		GEditor->ActorFactories.Remove(FactoryToRemove);
 		AddedFactory.Reset();
-		IPlacementModeModule::Get().RegenerateItemsForCategory(FBuiltInPlacementCategories::AllClasses());
+
+		if (IPlacementModeModule::IsAvailable())
+		{
+			IPlacementModeModule::Get().RegenerateItemsForCategory(FBuiltInPlacementCategories::AllClasses());
+		}
 	}
 #endif // WITH_EDITOR
 }
