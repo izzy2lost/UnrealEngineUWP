@@ -596,6 +596,10 @@ public:
 	/** Whether or not the editor is currently compiling */
 	bool bIsCompiling;
 
+protected:
+	/** Used to prevent reentrant calls to RebuildAlteredBSP(). */
+	bool bIsRebuildingAlteredBSP;
+
 private:
 
 	/** Manager that holds all extensions paired with a world */

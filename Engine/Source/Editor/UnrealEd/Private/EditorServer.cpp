@@ -1789,6 +1789,13 @@ void UEditorEngine::RebuildModelFromBrushes(TArray<ABrush*> &BrushesToBuild, UMo
 
 void UEditorEngine::RebuildAlteredBSP()
 {
+	if (bIsRebuildingAlteredBSP)
+	{
+		return;
+	}
+
+	TGuardValue<bool> GuardIsRebuildingAlteredBSP(bIsRebuildingAlteredBSP, true);
+
 	if( !GIsTransacting )
 	{
 		// Early out if BSP auto-updating is disabled

@@ -550,6 +550,7 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 
 	DetailMode = DM_MAX;
 	CurrentPlayWorldDestination = -1;
+	bIsRebuildingAlteredBSP = false;
 	bDisableDeltaModification = false;
 	bAllowMultiplePIEWorlds = true;
 	bIsEndingPlay = false;
