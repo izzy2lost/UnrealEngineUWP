@@ -600,6 +600,29 @@ void FSlateDrawElement::MakeLines(FSlateWindowElementList& ElementList, uint32 I
 	Element.Init(ElementList, EElementType::ET_Line, InLayer, PaintGeometry, DrawEffects);
 }
 
+void FSlateDrawElement::MakeDashedLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TArray<FVector2f>&& Points, ESlateDrawEffect InDrawEffects, const FLinearColor& InTint, float Thickness, float DashLengthPx, float DashScreenOffset)
+{
+	PaintGeometry.CommitTransformsIfUsingLegacyConstructor();
+
+	if (ShouldCull(ElementList) || Points.Num() < 2)
+	{
+		return;
+	}
+
+	FSlateLineElement& Element = ElementList.AddUninitialized<EElementType::ET_Line>();
+
+	Element.SetTint(InTint);
+	Element.SetThickness(Thickness);
+	Element.SetLines(MoveTemp(Points), true);
+
+	Element.DashLength = DashLengthPx;
+	Element.DashOffset = DashScreenOffset;
+
+	ESlateDrawEffect DrawEffects = InDrawEffects | ESlateDrawEffect::NoPixelSnapping;
+
+	Element.Init(ElementList, EElementType::ET_Line, InLayer, PaintGeometry, DrawEffects);
+}
+
 #if UE_ENABLE_SLATE_VECTOR_DEPRECATION_MECHANISMS
 void FSlateDrawElement::MakeLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const TArray<FVector2d>& Points, const TArray<FLinearColor>& PointColors, ESlateDrawEffect InDrawEffects, const FLinearColor& InTint, bool bAntialias, float Thickness)
 {
@@ -634,6 +657,29 @@ void FSlateDrawElement::MakeLines( FSlateWindowElementList& ElementList, uint32 
 	Element.SetLines(MoveTemp(Points), bAntialias, MoveTemp(PointColors));
 
 	Element.Init(ElementList, EElementType::ET_Line, InLayer, PaintGeometry, InDrawEffects);
+}
+
+void FSlateDrawElement::MakeDashedLines(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TArray<FVector2f>&& Points, TArray<FLinearColor>&& PointColors, ESlateDrawEffect InDrawEffects, const FLinearColor& InTint, float Thickness, float DashLengthPx, float DashScreenOffset)
+{
+	PaintGeometry.CommitTransformsIfUsingLegacyConstructor();
+
+	if (ShouldCull(ElementList) || Points.Num() < 2)
+	{
+		return;
+	}
+
+	FSlateLineElement& Element = ElementList.AddUninitialized<EElementType::ET_Line>();
+
+	Element.SetTint(InTint);
+	Element.SetThickness(Thickness);
+	Element.SetLines(MoveTemp(Points), true, MoveTemp(PointColors));
+
+	Element.DashLength = DashLengthPx;
+	Element.DashOffset = DashScreenOffset;
+
+	ESlateDrawEffect DrawEffects = InDrawEffects | ESlateDrawEffect::NoPixelSnapping;
+
+	Element.Init(ElementList, EElementType::ET_Line, InLayer, PaintGeometry, DrawEffects);
 }
 
 void FSlateDrawElement::MakeViewport( FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, TSharedPtr<const ISlateViewport> Viewport, ESlateDrawEffect InDrawEffects, const FLinearColor& InTint )

@@ -2181,14 +2181,20 @@ struct FLineBuilder
 	 * @param FilterRadius		Antialiasing filter radius in screenspace pixels.
 	 * @param AngleCosineLimit	Miter Angle Limit after being passed through AngleCosine.
 	 */
-	FLineBuilder(FSlateRenderBatch& InRenderBatch, const FSlateRenderTransform& InRenderTransform, float ElementScale, float HalfThickness, float FilterRadius, float MiterAngleLimit) :
+	FLineBuilder(FSlateRenderBatch& InRenderBatch, const FSlateRenderTransform& InRenderTransform, float ElementScale, float HalfThickness, float FilterRadius, float MiterAngleLimit, float InDashLength, float InDashOffset) :
 		RenderBatch(InRenderBatch),
 		RenderTransform(InRenderTransform),
 		LocalHalfThickness((HalfThickness + FilterRadius) / ElementScale),
 		LocalFilterRadius(FilterRadius / ElementScale),
 		LocalCapLength((FilterRadius / ElementScale) * 2.0f),
-		AngleCosineLimit(FMath::DegreesToRadians((180.0f - MiterAngleLimit) * 0.5f))
+		AngleCosineLimit(FMath::DegreesToRadians((180.0f - MiterAngleLimit) * 0.5f)),
+		DashLength(InDashLength),
+		DashOffset(InDashOffset)
 	{
+		if (DashLength < 1.f)
+		{
+			DashLength = SolidLineDashLength;
+		}
 	}
 
 	/**
@@ -2196,6 +2202,8 @@ struct FLineBuilder
 	 */
 	void NumElements(const TArray<FVector2f>& Points, uint32& OutNumVertex, uint32& OutNumIndex)
 	{
+		const bool bIsDashed = DashLength != SolidLineDashLength;
+
 		FVector2f Position = Points[0];
 		FVector2f NextPosition = Points[1];
 
@@ -2233,7 +2241,7 @@ struct FLineBuilder
 				DirDotMiterNormal >= AngleCosineLimit &&
 				(MinSegmentLength * 0.5f * DirDotMiterNormal) >= FMath::Abs(DistanceToMiterLine))
 			{
-				OutNumVertex += 2;
+				OutNumVertex += bIsDashed ? 4 : 2;
 				OutNumIndex += 6;
 			}
 			else
@@ -2258,8 +2266,10 @@ struct FLineBuilder
 	 * edge is kept parallel to the opposite side. Not doing so would result in the
 	 * UVs shearing apart at the diagonal where the two triangles meet.
 	 */
-	void BuildLineGeometry(const TArray<FVector2f>& Points, const TArray<FColor>& PackedColors, const FColor& PackedTint, ESlateVertexRounding Rounding) const
+	void BuildLineGeometry(const TArray<FVector2f>& Points, const TArray<FColor>& PackedColors, const FColor& PackedTint, ESlateVertexRounding Rounding)
 	{
+		const bool bIsDashed = DashLength != SolidLineDashLength;
+
 		FColor PointColor = PackedColors.Num() ? PackedColors[0] : PackedTint;
 		FVector2f Position = Points[0];
 		FVector2f NextPosition = Points[1];
@@ -2269,8 +2279,15 @@ struct FLineBuilder
 		(NextPosition - Position).ToDirectionAndLength(Direction, Length);
 		FVector2f Up = GetRotated90(Direction) * LocalHalfThickness;
 
+		// Start the position along the line with the user-provided dash offset.
+		//    This allows users to 'anchor' the dashes in screen space based on some external virtual position
+		PositionAlongLine = DashOffset;
+
 		// Build the start cap at the first point
 		MakeStartCap(Position, Direction, Length, Up, PointColor, Rounding);
+
+		// Increase the position for the next point
+		PositionAlongLine += Length;
 
 		// @TODO: Since the vertex - index relationship is not homogenous whenever 
 		// a miter angle break occurs we cannot pre-allocate indicies here
@@ -2281,6 +2298,7 @@ struct FLineBuilder
 		for (int32 Point = 1; Point < LastPointIndex; ++Point)
 		{
 			const FVector2f LastDirection = Direction;
+			const FVector2f LastPosition = Position;
 			const FVector2f LastUp = Up;
 			const float LastLength = Length;
 
@@ -2310,9 +2328,16 @@ struct FLineBuilder
 				const float ParallelDistance = DistanceToMiterLine / DirDotMiterNormal;
 				const FVector2f MiterUp = Up - (Direction * ParallelDistance);
 
-				RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + MiterUp), FVector2f(1.0f, 0.0f), PointColor, {}, Rounding));
-				RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position - MiterUp), FVector2f(-1.0f, 0.0f), PointColor, {}, Rounding));
+				const float MiterOffset = FVector2f::DotProduct(Direction, MiterUp);
+				RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + MiterUp), FVector2f(1.0f, 0.0f), FVector2f(PositionAlongLine-MiterOffset, DashLength), PointColor, {}, Rounding));
+				RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position - MiterUp), FVector2f(-1.0f, 0.0f), FVector2f(PositionAlongLine+MiterOffset, DashLength), PointColor, {}, Rounding));
 				AddQuadIndices(RenderBatch);
+
+				if (bIsDashed)
+				{
+					RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + MiterUp), FVector2f(1.0f, 0.0f), FVector2f(PositionAlongLine+MiterOffset, DashLength), PointColor, {}, Rounding));
+					RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position - MiterUp), FVector2f(-1.0f, 0.0f), FVector2f(PositionAlongLine-MiterOffset, DashLength), PointColor, {}, Rounding));
+				}
 			}
 			else
 			{
@@ -2320,6 +2345,8 @@ struct FLineBuilder
 				MakeEndCap(Position, LastDirection, LastLength, LastUp, PointColor, Rounding);
 				MakeStartCap(Position, Direction, Length, Up, PointColor, Rounding);
 			}
+
+			PositionAlongLine += Length;
 		}
 
 		// Build the last point's incoming segment and end cap
@@ -2398,13 +2425,14 @@ private:
 			// Center the cap over Position if possible, but never place
 			// vertices on the far side of this segment's midpoint
 			const float InwardDistance = FMath::Min(LocalFilterRadius, SegmentLength * 0.5f);
+			const float OutwardDistance = (InwardDistance - LocalCapLength);
 			const FVector2f CapInward = Direction * InwardDistance;
-			const FVector2f CapOutward = Direction * (InwardDistance - LocalCapLength);
+			const FVector2f CapOutward = Direction * OutwardDistance;
 
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward + Up), FVector2f(1.0f, -1.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward - Up), FVector2f(-1.0f, -1.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward + Up), FVector2f(1.0f, 0.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward - Up), FVector2f(-1.0f, 0.0f), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward + Up), FVector2f(1.0f, -1.0f), FVector2f(PositionAlongLine + OutwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward - Up), FVector2f(-1.0f, -1.0f), FVector2f(PositionAlongLine + OutwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward + Up), FVector2f(1.0f, 0.0f), FVector2f(PositionAlongLine + InwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward - Up), FVector2f(-1.0f, 0.0f), FVector2f(PositionAlongLine + InwardDistance, DashLength), Color, {}, Rounding));
 			AddQuadIndices(RenderBatch);
 		}
 	}
@@ -2428,15 +2456,16 @@ private:
 			// Center the cap over Position if possible, but never place
 			// vertices on the far side of this segment's midpoint
 			const float InwardDistance = FMath::Min(LocalFilterRadius, SegmentLength * 0.5f);
+			const float OutwardDistance = (InwardDistance - LocalCapLength);
 			const FVector2f CapInward = Direction * -InwardDistance;
-			const FVector2f CapOutward = Direction * (LocalCapLength - InwardDistance);
+			const FVector2f CapOutward = Direction * OutwardDistance;
 
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward + Up), FVector2f(1.0f, 0.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward - Up), FVector2f(-1.0f, 0.0f), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward + Up), FVector2f(1.0f, 0.0f), FVector2f(PositionAlongLine - InwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapInward - Up), FVector2f(-1.0f, 0.0f), FVector2f(PositionAlongLine - InwardDistance, DashLength), Color, {}, Rounding));
 			AddQuadIndices(RenderBatch);
 
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward + Up), FVector2f(1.0f, 1.0f), Color, {}, Rounding));
-			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward - Up), FVector2f(-1.0f, 1.0f), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward + Up), FVector2f(1.0f, 1.0f), FVector2f(PositionAlongLine + OutwardDistance, DashLength), Color, {}, Rounding));
+			RenderBatch.EmplaceVertex(FSlateVertex::Make(RenderTransform, FVector2f(Position + CapOutward - Up), FVector2f(-1.0f, 1.0f), FVector2f(PositionAlongLine + OutwardDistance, DashLength), Color, {}, Rounding));
 			AddQuadIndices(RenderBatch);
 		}
 	}
@@ -2462,6 +2491,10 @@ private:
 		return GetRotated90(InboundSegmentDir);
 	}
 
+	// A dashlength of -10 forces results in a computation of 1.f for the entire line in the pixel shader
+	// by feeding it an 'inside-out' trangle wave that modulates between +10 and +30
+	static constexpr float SolidLineDashLength = -10.f;
+
 	FSlateRenderBatch& RenderBatch;
 	const FSlateRenderTransform& RenderTransform;
 
@@ -2469,6 +2502,9 @@ private:
 	const float LocalFilterRadius;
 	const float LocalCapLength;
 	const float AngleCosineLimit;
+	float DashLength = SolidLineDashLength; // Default to no dash
+	float DashOffset = 0.f;
+	float PositionAlongLine = 0.f;
 };
 
 
@@ -2517,7 +2553,9 @@ void FSlateElementBatcher::AddLineElements( const FSlateDrawElementArray<FSlateL
 				DrawElement.GetScale(),
 				HalfThickness,
 				FilterRadius,
-				MiterAngleLimit);
+				MiterAngleLimit,
+				DrawElement.DashLength,
+				DrawElement.DashOffset);
 
 			LineBuilder.BuildLineGeometry(Points, PackedColors, PackedTint, Rounding);
 		}
@@ -2655,7 +2693,9 @@ void FSlateElementBatcher::AddLineElements( const FSlateDrawElementArray<FSlateL
 					DrawElement.GetScale(),
 					HalfThickness,
 					FilterRadius,
-					MiterAngleLimit);
+					MiterAngleLimit,
+					DrawElement.DashLength,
+					DrawElement.DashOffset);
 
 				LineBuilder.NumElements(Points, NumVertexes, NumIndices);
 			}

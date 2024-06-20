@@ -830,10 +830,16 @@ public:
 					.OnPaintHandler( this, &SElementTesting::TestGradientElement ) 
 				]
 				+ SVerticalBox::Slot()
-				.FillHeight(1)
+				.AutoHeight()
 				[
 					SNew( SCustomPaintWidget )
 					.OnPaintHandler( this, &SElementTesting::TestSplineElement ) 
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew( SCustomPaintWidget )
+					.OnPaintHandler( this, &SElementTesting::TestDottedLineElement ) 
 				]
 				+ SVerticalBox::Slot()
 				.FillHeight(3)
@@ -1084,6 +1090,137 @@ private:
 			Color,
 			true,
 			4.f * InParams.Geometry.Scale);
+
+		return InParams.Layer;
+
+	}
+
+	int32 TestDottedLineElement( const FOnPaintHandlerParams& InParams )
+	{
+		const FVector2f Start(10,10);
+		const FVector2f StartDir(InParams.Geometry.GetLocalSize().X * 1000 / 600,0);
+		const FVector2f End(InParams.Geometry.GetLocalSize().X/4, InParams.Geometry.GetLocalSize().Y-10);
+		const FVector2f EndDir(InParams.Geometry.GetLocalSize().X * 1000 / 600,0);
+
+		static float CurTime = 0; 
+		CurTime += FSlateApplication::Get().GetDeltaTime();
+
+		float DashLengths[] = { 5.f, 20.f, 50.f };
+		float DashLength = DashLengths[FMath::FloorToInt(CurTime) % 3];
+
+		FVector2f LineStart =  FVector2f( InParams.Geometry.GetLocalSize().X/4, 10.0f );
+
+		TArray<FVector2f> LinePoints;
+		TArray<FLinearColor> LineColors;
+		LinePoints.Add(LineStart); LineColors.Add(FLinearColor::Red);
+		LinePoints.Add( LineStart + FVector2f( 100.0f, 50.0f ) );
+		LinePoints.Add( LineStart + FVector2f( 200.0f, 10.0f ) );
+		LinePoints.Add( LineStart + FVector2f( 300.0f, 50.0f ) );
+		LinePoints.Add( LineStart + FVector2f( 400.0f, 10.0f ) );
+
+
+		FSlateDrawElement::MakeDashedLines( 
+			InParams.OutDrawElements,
+			InParams.Layer,
+			InParams.Geometry.ToPaintGeometry(),
+			CopyTemp(LinePoints),
+			InParams.bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect,
+			FColor::White,
+			InParams.Geometry.Scale,
+			DashLength,
+			-CurTime * 10.f
+		);
+
+		FSlateDrawElement::MakeDashedLines(
+			InParams.OutDrawElements,
+			InParams.Layer,
+			InParams.Geometry.ToOffsetPaintGeometry(FVector2D(0.f, 10.f)),
+			CopyTemp(LinePoints),
+			InParams.bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect,
+			FColor::White,
+			5.f * InParams.Geometry.Scale,
+			DashLength,
+			-CurTime * 20.f
+		);
+
+		FSlateDrawElement::MakeDashedLines(
+			InParams.OutDrawElements,
+			InParams.Layer,
+			InParams.Geometry.ToOffsetPaintGeometry(FVector2D(0.f, 20.f)),
+			CopyTemp(LinePoints),
+			InParams.bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect,
+			FColor::White,
+			10.f * InParams.Geometry.Scale,
+			DashLength,
+			-CurTime * 30.f
+		);
+
+		FSlateDrawElement::MakeDashedLines(
+			InParams.OutDrawElements,
+			InParams.Layer,
+			InParams.Geometry.ToOffsetPaintGeometry(FVector2D(0.f, 34.f)),
+			CopyTemp(LinePoints),
+			InParams.bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect,
+			FColor::White,
+			20.f * InParams.Geometry.Scale,
+			DashLength,
+			-CurTime * 40.f
+		);
+			
+
+		LineStart =  LinePoints[ LinePoints.Num() - 1 ] + FVector2f(50.f,10.f);
+		LinePoints.Empty();
+
+		float CurTimeModTwoPi = FMath::Fmod(CurTime, 2*PI);
+		for( float I = 0; I < 10*PI; I+=.1f)
+		{
+			LinePoints.Add( LineStart + FVector2f( I*15 , 15*FMath::Sin( I + CurTimeModTwoPi) ) );
+		}
+
+		static FColor Color = FColor::MakeRandomColor();
+		FSlateDrawElement::MakeDashedLines( 
+			InParams.OutDrawElements,
+			InParams.Layer+1,
+			InParams.Geometry.ToPaintGeometry(),
+			CopyTemp(LinePoints),
+			InParams.bEnabled ? ESlateDrawEffect::NoPixelSnapping : ESlateDrawEffect::NoPixelSnapping|ESlateDrawEffect::DisabledEffect,
+			Color,
+			InParams.Geometry.Scale,
+			DashLength,
+			CurTime*15.f);
+
+		FSlateDrawElement::MakeDashedLines(
+			InParams.OutDrawElements,
+			InParams.Layer,
+			InParams.Geometry.ToOffsetPaintGeometry(FVector2D(0.f, 10.f)),
+			CopyTemp(LinePoints),
+			InParams.bEnabled ? ESlateDrawEffect::NoPixelSnapping : ESlateDrawEffect::NoPixelSnapping | ESlateDrawEffect::DisabledEffect,
+			Color,
+			2.f * InParams.Geometry.Scale,
+			DashLength,
+			CurTime*15.f);
+
+		FSlateDrawElement::MakeDashedLines(
+			InParams.OutDrawElements,
+			InParams.Layer,
+			InParams.Geometry.ToOffsetPaintGeometry(FVector2D(0.f, 20.f)),
+			CopyTemp(LinePoints),
+			InParams.bEnabled ? ESlateDrawEffect::NoPixelSnapping : ESlateDrawEffect::NoPixelSnapping | ESlateDrawEffect::DisabledEffect,
+			Color,
+			3.f * InParams.Geometry.Scale,
+			DashLength,
+			CurTime*15.f);
+
+		FSlateDrawElement::MakeDashedLines(
+			InParams.OutDrawElements,
+			InParams.Layer,
+			InParams.Geometry.ToOffsetPaintGeometry(FVector2D(0.f, 34.f)),
+			CopyTemp(LinePoints),
+			InParams.bEnabled ? ESlateDrawEffect::NoPixelSnapping : ESlateDrawEffect::NoPixelSnapping | ESlateDrawEffect::DisabledEffect,
+			Color,
+			4.f * InParams.Geometry.Scale,
+			DashLength,
+			CurTime*15.f);
 
 		return InParams.Layer;
 
