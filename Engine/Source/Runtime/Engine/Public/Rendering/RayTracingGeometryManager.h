@@ -88,7 +88,7 @@ private:
 
 	struct FRayTracingGeometryGroup
 	{
-		TArray<FRayTracingGeometry*> Geometries;
+		TArray<RayTracingGeometryHandle> GeometryHandles;
 
 		TSet<FPrimitiveSceneProxy*> ProxiesWithCachedRayTracingState;
 
@@ -105,6 +105,7 @@ private:
 	struct FRegisteredGeometry
 	{
 		FRayTracingGeometry* Geometry = nullptr;
+		uint64 LastReferencedFrame = 0;
 		uint32 Size = 0;
 
 		FByteBulkData* StreamableData = nullptr;
@@ -134,8 +135,13 @@ private:
 	// Used for keeping track of geometries when ray tracing is dynamic
 	TSparseArray<FRegisteredGeometry> RegisteredGeometries;
 
-	TSet<FRayTracingGeometry*> ResidentGeometries;
+	TSet<RayTracingGeometryHandle> ResidentGeometries;
 	uint64 TotalResidentSize = 0;
+
+	TSet<RayTracingGeometryHandle> AlwaysResidentGeometries;
+	uint64 TotalAlwaysResidentSize = 0;
+
+	TSet<RayTracingGeometryHandle> EvictableGeometries;
 
 	TSet<RayTracingGeometryHandle> ReferencedGeometryHandles;
 	TSet<RayTracing::GeometryGroupHandle> ReferencedGeometryGroups;
