@@ -857,6 +857,11 @@ void FReplicationWriter::UpdateDirtyGlobalLifetimeConditionals(TArrayView<FInter
 {
 	for (FInternalNetRefIndex InternalObjectIndex : ObjectsWithDirtyConditionals)
 	{
+		// Better safe than sorry, we do not want to dirty something going out of scope.
+		if (!ObjectsInScope.GetBit(InternalObjectIndex))
+		{
+			continue;
+		}
 		FReplicationInfo& Info = ReplicatedObjects[InternalObjectIndex];
 		if (Info.GetState() != EReplicatedObjectState::Invalid && Info.GetState() < EReplicatedObjectState::PendingDestroy)
 		{
@@ -865,12 +870,14 @@ void FReplicationWriter::UpdateDirtyGlobalLifetimeConditionals(TArrayView<FInter
 				const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalObjectIndex);
 				if (ObjectData.IsSubObject())
 				{
-					FReplicationInfo& OwnerInfo = ReplicatedObjects[ObjectData.SubObjectRootIndex];
-					if (OwnerInfo.GetState() != EReplicatedObjectState::Invalid && OwnerInfo.GetState() < EReplicatedObjectState::PendingDestroy)
+					const FInternalNetRefIndex RootInternalObjectIndex = ObjectData.SubObjectRootIndex;
+					FReplicationInfo& OwnerInfo = ReplicatedObjects[RootInternalObjectIndex];
+
+					if (ObjectsInScope.GetBit(RootInternalObjectIndex) && (OwnerInfo.GetState() != EReplicatedObjectState::Invalid && OwnerInfo.GetState() < EReplicatedObjectState::PendingDestroy))
 					{
-						UE_LOG_REPLICATIONWRITER_CONN(TEXT("UpdateDirtyGlobalLifetimeConditionals for - %s"), ToCStr(NetRefHandleManager->PrintObjectFromIndex(ObjectData.SubObjectRootIndex)));
+						UE_LOG_REPLICATIONWRITER_CONN(TEXT("UpdateDirtyGlobalLifetimeConditionals for - %s"), ToCStr(NetRefHandleManager->PrintObjectFromIndex(RootInternalObjectIndex)));
 						
-						MarkObjectDirty(ObjectData.SubObjectRootIndex, "UpdateDirtyGlobalLifetimeConditionals");
+						MarkObjectDirty(RootInternalObjectIndex, "UpdateDirtyGlobalLifetimeConditionals");
 						OwnerInfo.HasDirtyConditionals = 1U;
 						OwnerInfo.HasDirtySubObjects = 1U;
 					}
@@ -2113,12 +2120,19 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 	{
 		for (uint32 SubObjectIndex : NetRefHandleManager->GetSubObjects(InternalIndex))
 		{
-			// Need to be a bit careful what we explicitly dirty here, as we might have subobjects waiting for creation confirmation.
-			if (CanSendObject(SubObjectIndex))
+			FReplicationInfo& SubObjectInfo = GetReplicationInfo(SubObjectIndex);
+
+			// Better safe than sorry, we do not want to dirty something going out of scope.
+			if (!ObjectsInScope.GetBit(SubObjectIndex))
 			{
-				MarkObjectDirty(SubObjectIndex, "UpdateGlobalConditional");
-				FReplicationInfo& SubObjectInfo = GetReplicationInfo(SubObjectIndex);
-				SubObjectInfo.HasDirtyChangeMask = 1;
+				continue;
+			}
+
+			// Need to be a bit careful what we explicitly dirty here, as we might have subobjects waiting for creation confirmation.
+			if ((SubObjectInfo.GetState() != EReplicatedObjectState::Invalid && SubObjectInfo.GetState() < EReplicatedObjectState::PendingDestroy) && CanSendObject(SubObjectIndex))
+			{
+				MarkObjectDirty(SubObjectIndex, "UpdateGlobalConditional");				
+				SubObjectInfo.HasDirtyConditionals = 1;
 			}
 
 			// Always process subobjects when we have updated conditionals to ensure that nested conditionals are processed.
