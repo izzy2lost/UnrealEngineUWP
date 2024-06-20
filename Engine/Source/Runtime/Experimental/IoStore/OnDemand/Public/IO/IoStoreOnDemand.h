@@ -242,18 +242,20 @@ enum class EOnDemandInitResult
 enum class EOnDemandMountOptions
 {
 	/** The TOC is loaded but not installed or available for streaming. */
-	None			= 0,
+	None				= 0,
 	/** Make on-demand container(s) within a TOC available for streaming. */
-	StreamOnDemand	= 1 << 0,
+	StreamOnDemand		= 1 << 0,
 	/** Download and install on-demand contianer(s) to local storage. */
-	Install			= 1 << 1
+	Install				= 1 << 1,
+	/** Install only already mounted on-demand contianer(s) to local storage. */
+	InstallSkipMount	= 1 << 2,
 };
 ENUM_CLASS_FLAGS(EOnDemandMountOptions);
 
 struct FOnDemandMountArgs
 {
 	/** Mount an already serialized TOC. */
-	TSharedPtr<FOnDemandToc> Toc;
+	TUniquePtr<FOnDemandToc> Toc;
 	/** Mandatory ID to be used for unmounting all container file(s) included in the TOC. */
 	FString MountId;
 	/** Download the TOC from the specified URL. */

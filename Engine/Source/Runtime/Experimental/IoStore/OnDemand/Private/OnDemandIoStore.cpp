@@ -792,42 +792,45 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 	Private::SplitHostUrl(Args.Url, Host, TocRelUrl);
 	const FStringView TocPath = FPathViews::GetPath(TocRelUrl);
 
-	if (Args.Toc)
+	if (!EnumHasAnyFlags(Args.Options, EOnDemandMountOptions::InstallSkipMount))
 	{
-		CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
-	}
-	else if (Args.FilePath.IsEmpty() == false)
-	{
-		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Loading TOC from file '%s'"), *Args.FilePath);
-
-		// TODO: Enable validation when the sentinal is included in all serialization paths
-		const bool bValidate = false;
-		TIoStatusOr<FOnDemandToc> TocStatus = FOnDemandToc::LoadFromFile(Args.FilePath, bValidate);
-		if (!TocStatus.IsOk())
+		if (Args.Toc)
 		{
-			return TocStatus.Status();
+			CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
 		}
-
-		Args.Toc = MakeShared<FOnDemandToc>(TocStatus.ConsumeValueOrDie());
-
-		CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
-	}
-	else if (Args.Url.IsEmpty() == false)
-	{
-		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Loading TOC from URL '%s'"), *Args.Url);
-
-		const uint32 RetryCount				= 2;
-		const bool bFollowRedirects			= true;
-		TIoStatusOr<FOnDemandToc> TocStatus	= FOnDemandToc::LoadFromUrl(Args.Url, 2, bFollowRedirects);
-
-		if (!TocStatus.IsOk())
+		else if (Args.FilePath.IsEmpty() == false)
 		{
-			return TocStatus.Status();
+			UE_LOG(LogIoStoreOnDemand, Log, TEXT("Loading TOC from file '%s'"), *Args.FilePath);
+
+			// TODO: Enable validation when the sentinal is included in all serialization paths
+			const bool bValidate = false;
+			TIoStatusOr<FOnDemandToc> TocStatus = FOnDemandToc::LoadFromFile(Args.FilePath, bValidate);
+			if (!TocStatus.IsOk())
+			{
+				return TocStatus.Status();
+			}
+
+			Args.Toc = MakeUnique<FOnDemandToc>(TocStatus.ConsumeValueOrDie());
+
+			CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
 		}
+		else if (Args.Url.IsEmpty() == false)
+		{
+			UE_LOG(LogIoStoreOnDemand, Log, TEXT("Loading TOC from URL '%s'"), *Args.Url);
 
-		Args.Toc = MakeShared<FOnDemandToc>(TocStatus.ConsumeValueOrDie());
+			const uint32 RetryCount = 2;
+			const bool bFollowRedirects = true;
+			TIoStatusOr<FOnDemandToc> TocStatus = FOnDemandToc::LoadFromUrl(Args.Url, 2, bFollowRedirects);
 
-		CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
+			if (!TocStatus.IsOk())
+			{
+				return TocStatus.Status();
+			}
+
+			Args.Toc = MakeUnique<FOnDemandToc>(TocStatus.ConsumeValueOrDie());
+
+			CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
+		}
 	}
 
 	// Remove already mounted containers
