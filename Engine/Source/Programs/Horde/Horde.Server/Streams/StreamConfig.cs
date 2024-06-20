@@ -275,9 +275,9 @@ namespace Horde.Server.Streams
 				WorkspaceTypes.TryAdd(wid, wc);
 			}
 
-			ConfigType.MergeDefaults(AgentTypes.Select(x => (x.Key, x.Value.Base, x.Value)));
-			ConfigType.MergeDefaults(WorkspaceTypes.Select(x => (x.Key, x.Value.Base, x.Value)));
-			ConfigType.MergeDefaults(Templates.Select(x => (x.Id, x.Base, x)));
+			ConfigObject.MergeDefaults(AgentTypes.Select(x => (x.Key, x.Value.Base, x.Value)));
+			ConfigObject.MergeDefaults(WorkspaceTypes.Select(x => (x.Key, x.Value.Base, x.Value)));
+			ConfigObject.MergeDefaults(Templates.Select(x => (x.Id, x.Base, x)));
 
 			foreach (TemplateRefConfig template in Templates)
 			{

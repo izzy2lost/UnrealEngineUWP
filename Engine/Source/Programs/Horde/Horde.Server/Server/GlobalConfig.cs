@@ -348,7 +348,7 @@ namespace Horde.Server.Server
 			{
 				_poolLookup.Add(pool.Id, pool);
 			}
-			ConfigType.MergeDefaults<string, PoolConfig>(Pools.Select(x => (x.Id.ToString(), x.Base?.ToString(), x)));
+			ConfigObject.MergeDefaults<string, PoolConfig>(Pools.Select(x => (x.Id.ToString(), x.Base?.ToString(), x)));
 			UpdateWorkspacesForPools();
 
 			_telemetryStoreLookup.Clear();
