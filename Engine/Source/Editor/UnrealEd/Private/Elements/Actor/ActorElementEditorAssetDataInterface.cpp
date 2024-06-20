@@ -40,11 +40,6 @@ TArray<FAssetData> UActorElementEditorAssetDataInterface::GetAllReferencedAssetD
 				}
 			}
 		}
-
-		if (RawActorPtr->IsAsset())
-		{
-			AssetDatas.Emplace(FAssetData(RawActorPtr));
-		}
 	}
 
 	return AssetDatas;
