@@ -855,7 +855,7 @@ bool FElectraPlayerPlugin::CanControl(EMediaControl Control) const
 	EMediaState CurrentState = GetState();
 	if (Control == EMediaControl::BlockOnFetch)
 	{
-		return CurrentState == EMediaState::Paused || CurrentState == EMediaState::Playing;
+		return CurrentState == EMediaState::Playing;
 	}
 	else if (Control == EMediaControl::Pause)
 	{
