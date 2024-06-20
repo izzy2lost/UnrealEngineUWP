@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "LowLevelMemTrackerDefines.h" // LLM_ENABLED_IN_CONFIG
 #include "ProfilingDebugging/TagTrace.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #ifndef PLATFORM_SUPPORTS_LLM
 #define PLATFORM_SUPPORTS_LLM 1
@@ -901,23 +902,32 @@ public:
 	{
 		if (FLowLevelMemTracker::IsEnabled())
 		{
-			Init(TagName, bIsStatTag, InTagSet, InTracker, bOverride);
+			// We run the init in the open, because we want to track LLM even in transactions.
+			UE_AUTORTFM_OPEN({ Init(TagName, bIsStatTag, InTagSet, InTracker, bOverride); });
+			// But remember that if we abort while we hold the scope, we need to destroy the scope.
+			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
 	}
+
 	FLLMScope(ELLMTag TagEnum, bool bIsStatTag, ELLMTagSet InTagSet, ELLMTracker InTracker, bool bOverride = true)
 	{
 		if (FLowLevelMemTracker::IsEnabled())
 		{
-			Init(TagEnum, bIsStatTag, InTagSet, InTracker, bOverride);
+			// We run the init in the open, because we want to track LLM even in transactions.
+			UE_AUTORTFM_OPEN({ Init(TagEnum, bIsStatTag, InTagSet, InTracker, bOverride); });
+			// But remember that if we abort while we hold the scope, we need to destroy the scope.
+			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
-
 	}
 
 	FLLMScope(const UE::LLMPrivate::FTagData* TagData, bool bIsStatTag, ELLMTagSet Set, ELLMTracker Tracker, bool bOverride = true)
 	{
 		if (FLowLevelMemTracker::IsEnabled())
 		{
-			Init(TagData, bIsStatTag, Set, Tracker, bOverride);
+			// We run the init in the open, because we want to track LLM even in transactions.
+			UE_AUTORTFM_OPEN({ Init(TagData, bIsStatTag, Set, Tracker, bOverride); });
+			// But remember that if we abort while we hold the scope, we need to destroy the scope.
+			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
 	}
 
@@ -925,7 +935,10 @@ public:
 	{
 		if (bEnabled)
 		{
-			Destruct();
+			// We run the destroy in the open, because we want to track LLM even in transactions.
+			UE_AUTORTFM_OPEN({ Destruct(); });
+			// But remember to pop our on-abort handler (so that we don't try and double destroy).
+			AutoRTFM::PopOnAbortHandler(this);
 		}
 	}
 

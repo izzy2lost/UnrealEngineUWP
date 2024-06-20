@@ -154,4 +154,6 @@ bool FAutoRTFMTraceFilterTests::RunTest(const FString & Parameters)
 #endif
 }
 
+#undef TEST_CHECK_TRUE
+
 #endif //WITH_DEV_AUTOMATION_TESTS

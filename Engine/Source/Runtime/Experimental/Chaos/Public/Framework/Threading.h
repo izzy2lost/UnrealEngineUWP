@@ -11,6 +11,7 @@
 #include "Async/ParallelFor.h"
 #include <atomic>
 #include "HAL/CriticalSection.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #ifndef PHYSICS_THREAD_CONTEXT
 	#if (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
@@ -930,15 +931,140 @@ FORCEINLINE void EnsureIsInGameThreadContext()
 	};
 
 #if CHAOS_SCENE_LOCK_TYPE == CHAOS_SCENE_LOCK_SCENE_GUARD
-	using FPhysSceneLock = FPhysicsSceneGuard;
+	using FPhysSceneLockNonTransactional = FPhysicsSceneGuard;
 #elif CHAOS_SCENE_LOCK_TYPE == CHAOS_SCENE_LOCK_RWFIFO_SPINLOCK
-	using FPhysSceneLock = TRwFifoLock<FPhysSpinLock>;
+	using FPhysSceneLockNonTransactional = TRwFifoLock<FPhysSpinLock>;
 #elif CHAOS_SCENE_LOCK_TYPE == CHAOS_SCENE_LOCK_RWFIFO_CRITICALSECTION
-	using FPhysSceneLock = TRwFifoLock<FCriticalSection>;
+	using FPhysSceneLockNonTransactional = TRwFifoLock<FCriticalSection>;
 #elif CHAOS_SCENE_LOCK_TYPE == CHAOS_SCENE_LOCK_FRWLOCK
-	using FPhysSceneLock = FPhysicsRwLock;
+	using FPhysSceneLockNonTransactional = FPhysicsRwLock;
 #elif CHAOS_SCENE_LOCK_TYPE == CHAOS_SCENE_LOCK_SIMPLE_MUTEX
-	using FPhysSceneLock = FPhysicsSimpleMutexLock;
+	using FPhysSceneLockNonTransactional = FPhysicsSimpleMutexLock;
+#endif
+
+#if UE_AUTORTFM
+	// A transactionally safe lock that works in the following novel ways:
+	// - In the open (non-transactional):
+	//   - Take the lock like before. Simple!
+	//   - Free the lock like before too.
+	// - In the closed (transactional):
+	//   - During locking we query `TransactionalLockCount`:
+	//	   - 0 means we haven't taken the lock within our transaction nest and need to acquire the lock.
+	//     - Otherwise we already have the lock (and are preventing non-transactional code seeing any
+	//       modifications we've made while holding the lock), so just bump `TransactionalLockCount`.
+	//     - We also register an on-abort handler to release the lock should we abort (but we need to
+	//       query `TransactionalLockCount` even there because we could be aborting an inner transaction
+	//       and the parent transaction still wants to have the lock held!).
+	//   - During unlocking we defer doing the unlock until the transaction commits.
+	//
+	// Thus with this approach we will hold this lock for the *entirety* of the transactional nest should
+	// we take the lock during the transaction, thus preventing non-transactional code from seeing any
+	// modifications we should make.
+	//
+	// If we are within a transaction, we pessimise our read-lock to a write-lock. Note: that it should
+	// potentially be possible to have read-locks work correctly, but serious care will have to be taken to
+	// ensure that we don't have:
+	//   Open Thread     Closed Thread
+	//   -----------     ReadLock
+	//   -----------     ReadUnlock
+	//   WriteLock       -------------
+	//   WriteUnlock     -------------
+	//   -----------     ReadLock      <- Invalid because the transaction can potentially observe side
+	//                                    effects of the open-threads writes!
+	struct FPhysSceneLockTransactionallySafe final
+	{
+		void ReadLock()
+		{
+			if (AutoRTFM::IsTransactional())
+			{
+				// Transactionally pessimise ReadLock -> WriteLock.
+				WriteLock();
+			}
+			else
+			{
+				Lock.ReadLock();
+				check(0 == TransactionalLockCount);
+			}
+		}
+
+		void ReadUnlock()
+		{
+			if (AutoRTFM::IsTransactional())
+			{
+				// Transactionally pessimise ReadUnlock -> WriteUnlock.
+				WriteUnlock();
+			}
+			else
+			{
+				check(0 == TransactionalLockCount);
+				Lock.ReadUnlock();
+			}
+		}
+
+		void WriteLock()
+		{
+			if (AutoRTFM::IsTransactional())
+			{
+				AutoRTFM::Open([&]
+					{
+						// The transactional system which can increment TransactionalLockCount
+						// is always single-threaded, thus this is safe to check without atomicity.
+						if (0 == TransactionalLockCount)
+						{
+							Lock.WriteLock();
+						}
+
+						TransactionalLockCount += 1;
+					});
+
+				AutoRTFM::OnAbort([this]
+					{
+						check(0 != TransactionalLockCount);
+						TransactionalLockCount -= 1;
+
+						if (0 == TransactionalLockCount)
+						{
+							Lock.WriteUnlock();
+						}
+					});
+			}
+			else
+			{
+				Lock.WriteLock();
+				check(0 == TransactionalLockCount);
+			}
+		}
+
+		void WriteUnlock()
+		{
+			if (AutoRTFM::IsTransactional())
+			{
+				AutoRTFM::OnCommit([this]
+					{
+						check(0 != TransactionalLockCount);
+						TransactionalLockCount -= 1;
+
+						if (0 == TransactionalLockCount)
+						{
+							Lock.WriteUnlock();
+						}
+					});
+			}
+			else
+			{
+				check(0 == TransactionalLockCount);
+				Lock.WriteUnlock();
+			}
+		}
+
+	private:
+		FPhysSceneLockNonTransactional Lock;
+		uint32 TransactionalLockCount;
+	};
+
+	using FPhysSceneLock = FPhysSceneLockTransactionallySafe;
+#else
+	using FPhysSceneLock = FPhysSceneLockNonTransactional;
 #endif
 
 	// Stable types to use in calling code configured by the compiler switches above
