@@ -49,7 +49,7 @@ namespace HarmonixMetasoundTests::MidiSongPosVertexAnalyzer
 		SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
 		ClockInput->AttachToSongMapEvaluator(SongMaps);
-		ClockInput->SeekTo(0,0);
+		ClockInput->SeekTo(0,0,0);
 		ClockInput->SetSpeed(0, 1.0f);
 		ClockInput->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 		int32 Bar1Tick = SongMaps->BarBeatTickIncludingCountInToTick(1, 1, 0);

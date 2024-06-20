@@ -132,7 +132,7 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 		{
 			BlockSize = Params.OperatorSettings.GetNumFramesPerBlock();
 			CurrentBlockSpanStart = 0;
-			MidiClockOut->SeekTo(0,0);
+			MidiClockOut->SeekTo(0,0,0);
 			MidiClockOut->SetTransportState(0, EMusicPlayerTransportState::Playing);
 			bClockOutNeedsPrepare = false;
 
@@ -181,6 +181,12 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			{
 				MidiClockOut->PrepareBlock();
 			}
+
+			if (MidiClockIn->GetSongMapsChangedInBlock())
+			{
+				MidiClockOut->SongMapsChanged();
+			}
+
 			// next time we definitely want to prepare the block.
 			bClockOutNeedsPrepare = true;
 
@@ -188,16 +194,16 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 			for (int32 EventIndex = 0; EventIndex < MidiClockEvents.Num(); ++EventIndex)
 			{
 				const FMidiClockEvent& Event = MidiClockEvents[EventIndex];
-				if (Event.Msg.IsType<FSeek>())
+				if (const FSeek* AsSeek = Event.TryGet<FSeek>())
 				{
-					const int32 NewNextTick = GetTickWithOffset(Event.Msg.Get<FSeek>().NewNextTick, OffsetBars, OffsetBeats, OffsetMs);
-					MidiClockOut->SeekTo(Event.BlockFrameIndex, NewNextTick);
+					const int32 NewNextTick = GetTickWithOffset(AsSeek->NewNextTick, OffsetBars, OffsetBeats, OffsetMs);
+					MidiClockOut->SeekTo(Event.BlockFrameIndex, NewNextTick, AsSeek->TempoMapTick);
 				}
 				else if (const FLoop* AsLoop = Event.TryGet<FLoop>())
 				{
 					const int32 FirstTickInLoop = GetTickWithOffset(AsLoop->FirstTickInLoop, OffsetBars, OffsetBeats, OffsetMs);
 					const int32 LastTickAfterLoop = GetTickWithOffset(AsLoop->FirstTickInLoop + AsLoop->LengthInTicks, OffsetBars, OffsetBeats, OffsetMs);
-					MidiClockOut->AdvanceToTick(Event.BlockFrameIndex, LastTickAfterLoop);
+					MidiClockOut->AdvanceToTick(Event.BlockFrameIndex, LastTickAfterLoop, AsLoop->TempoMapTick);
 					MidiClockOut->AddTransientLoop(Event.BlockFrameIndex, FirstTickInLoop, LastTickAfterLoop - FirstTickInLoop);
 				}
 				else if (const FAdvance* AsAdvance = Event.TryGet<FAdvance>())
@@ -215,19 +221,19 @@ namespace HarmonixMetasound::Nodes::MidiClockOffset
 					// just want to advance from where we sit to the appropriate destination.
 					if (!bAdvancedSinceTransportChange && FirstickToProcess != MidiClockOut->GetNextMidiTickToProcess())
 					{
-						MidiClockOut->SeekTo(Event.BlockFrameIndex, FirstickToProcess);
+						MidiClockOut->SeekTo(Event.BlockFrameIndex, FirstickToProcess, AsAdvance->TempoMapTick);
 					}
 					const int32 ProcessUpToTick = GetTickWithOffset(AsAdvance->FirstTickToProcess + AsAdvance->NumberOfTicksToProcess, OffsetBars, OffsetBeats, OffsetMs);
-					MidiClockOut->AdvanceToTick(Event.BlockFrameIndex, ProcessUpToTick);
+					MidiClockOut->AdvanceToTick(Event.BlockFrameIndex, ProcessUpToTick, AsAdvance->TempoMapTick);
 					bAdvancedSinceTransportChange = true;
 				}
 				else if (const MidiClockMessageTypes::FTempoChange* AsTempoChange = Event.TryGet<MidiClockMessageTypes::FTempoChange>())
 				{
-					MidiClockOut->SetTempo(Event.BlockFrameIndex, MidiClockOut->GetNextMidiTickToProcess(), AsTempoChange->Tempo);
+					MidiClockOut->SetTempo(Event.BlockFrameIndex, MidiClockOut->GetNextMidiTickToProcess(), AsTempoChange->Tempo, AsTempoChange->TempoMapTick);
 				}
 				else if (const MidiClockMessageTypes::FTimeSignatureChange* AsTimeSigChange = Event.TryGet<MidiClockMessageTypes::FTimeSignatureChange>())
 				{
-					MidiClockOut->SetTimeSignature(Event.BlockFrameIndex, MidiClockOut->GetNextMidiTickToProcess(), AsTimeSigChange->TimeSignature);
+					MidiClockOut->SetTimeSignature(Event.BlockFrameIndex, MidiClockOut->GetNextMidiTickToProcess(), AsTimeSigChange->TimeSignature, AsTimeSigChange->TempoMapTick);
 				}
 				else if (const MidiClockMessageTypes::FSpeedChange* AsSpeedChange = Event.TryGet<MidiClockMessageTypes::FSpeedChange>())
 				{

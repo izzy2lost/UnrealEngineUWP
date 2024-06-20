@@ -64,68 +64,96 @@ bool FMetasoundMusicClockDriver::CalculateSongPosWithOffset(float MsOffset, ECal
 		return false;
 	}
 
-	// start with the offset...
-	float AbsMs = MsOffset;
-	
-	// now add the current time from the proper time base...
+	const FPerTimebaseSmoothedClockState* ClockState = nullptr;
+
 	switch (Timebase)
 	{
-	case ECalibratedMusicTimebase::AudioRenderTime:
-		AbsMs += ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
-		break;
-	case ECalibratedMusicTimebase::ExperiencedTime:
-		AbsMs += ClockComponent->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f;
-		break;
+	case ECalibratedMusicTimebase::AudioRenderTime:  ClockState = &AudioRenderState; break;
+	case ECalibratedMusicTimebase::ExperiencedTime:  ClockState = &PlayerExperienceState; break;
 	case ECalibratedMusicTimebase::VideoRenderTime:
-	default:
-		AbsMs += ClockComponent->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f;
-		break;
+	default:                                         ClockState = &VideoRenderState; break;
 	}
 
-	// if looping map to range of loop...
+	float AbsMs = ClockState->TempoMapMs + MsOffset;
+	float TempoMapOffsetTick = CurrentMapChain->SongMaps->MsToTick(AbsMs);
+	float RelativeTicks = TempoMapOffsetTick - ClockState->TempoMapTick;
+	float SmoothedOffsetTick = ClockState->LocalTick + RelativeTicks;
+
 	if (CurrentMapChain->LoopLengthTicks > 0)
 	{
-		float LoopStartMs = CurrentMapChain->SongMaps->TickToMs(CurrentMapChain->FirstTickInLoop);
-		float LoopEndMs = CurrentMapChain->SongMaps->TickToMs(CurrentMapChain->FirstTickInLoop + CurrentMapChain->LoopLengthTicks);
-		if (AbsMs > LoopEndMs)
+		while (SmoothedOffsetTick < 0.0f)
 		{
-			float LoopLengthMs = LoopEndMs - LoopStartMs;
-			AbsMs = LoopStartMs + FMath::Fmod(AbsMs - LoopStartMs, LoopLengthMs);
+			SmoothedOffsetTick += CurrentMapChain->LoopLengthTicks;
+		}
+		while (SmoothedOffsetTick >= CurrentMapChain->LoopLengthTicks)
+		{
+			SmoothedOffsetTick -= CurrentMapChain->LoopLengthTicks;
 		}
 	}
 
-	// and finally we can calculate a song position...
-	OutResult.SetByTime(AbsMs, *(CurrentMapChain->SongMaps));
+	// first 99% of the song pos...
+	OutResult.SetByTick(SmoothedOffsetTick, *(CurrentMapChain->SongMaps));
+	// but tempo needs to be set to authoritiesTempo...
+	OutResult.Tempo = CurrentMapChain->SongMaps->GetTempoAtTick(FMath::FloorToInt32(TempoMapOffsetTick));
 
 	return true;
 }
 
-FMidiSongPos FMetasoundMusicClockDriver::CalculateSongPosAtMs(float AbsoluteMs) const
+FMidiSongPos FMetasoundMusicClockDriver::CalculateSongPosAtMsForLoopingOrMonotonicClock(float AbsoluteMs, float& PositionTick) const
 {
 	using namespace HarmonixMetasound::Analysis;
 	FMidiSongPos OutSongPos;
 	if (!ClockHistory)
 	{
+		PositionTick = 0.0f;
 		return OutSongPos;
 	}
 
 	if (!CurrentMapChain || !CurrentMapChain->SongMaps)
 	{
+		PositionTick = 0.0f;
 		return OutSongPos;
 	}
 
 	if (CurrentMapChain->LoopLengthTicks > 0)
 	{
-		float LoopStartMs = CurrentMapChain->SongMaps->TickToMs(CurrentMapChain->FirstTickInLoop);
-		float LoopEndMs = CurrentMapChain->SongMaps->TickToMs(CurrentMapChain->FirstTickInLoop + CurrentMapChain->LoopLengthTicks);
-		if (AbsoluteMs > LoopEndMs)
+		float DrivingTick = CurrentMapChain->SongMaps->MsToTick(AbsoluteMs);
+		if (DrivingTick >= (float)(CurrentMapChain->FirstTickInLoop + CurrentMapChain->LoopLengthTicks))
 		{
-			float LoopLengthMs = LoopEndMs - LoopStartMs;
-			AbsoluteMs = LoopStartMs + FMath::Fmod(AbsoluteMs - LoopStartMs, LoopLengthMs);
+			PositionTick = FMath::Fmod(DrivingTick - CurrentMapChain->FirstTickInLoop, (float)CurrentMapChain->LoopLengthTicks);
+			OutSongPos.SetByTick(PositionTick, *CurrentMapChain->SongMaps);
+			OutSongPos.Tempo = CurrentMapChain->SongMaps->GetTempoAtTick(FMath::FloorToInt32(DrivingTick));
+			return OutSongPos;
 		}
 	}
 
-	OutSongPos.SetByTime(AbsoluteMs, *(CurrentMapChain->SongMaps));
+	PositionTick = CurrentMapChain->SongMaps->MsToTick(AbsoluteMs);
+	OutSongPos.SetByTimeAndTick(AbsoluteMs, PositionTick, *(CurrentMapChain->SongMaps));
+
+	return OutSongPos;
+}
+
+FMidiSongPos FMetasoundMusicClockDriver::CalculateSongPosAtMsForOffsetClock(float PositionMs, float ClockTickOffsetFromDrivingClock, float& PositionTick) const
+{
+	using namespace HarmonixMetasound::Analysis;
+	
+	FMidiSongPos OutSongPos;
+	
+	if (!ClockHistory)
+	{
+		PositionTick = 0.0f;
+		return OutSongPos;
+	}
+
+	if (!CurrentMapChain || !CurrentMapChain->SongMaps)
+	{
+		PositionTick = 0.0f;
+		return OutSongPos;
+	}
+
+	PositionTick = CurrentMapChain->SongMaps->MsToTick(PositionMs);
+	OutSongPos.SetByTick(PositionTick, *CurrentMapChain->SongMaps);
+	OutSongPos.Tempo = CurrentMapChain->SongMaps->GetTempoAtTick(FMath::FloorToInt32(PositionTick - ClockTickOffsetFromDrivingClock));
 
 	return OutSongPos;
 }
@@ -458,8 +486,9 @@ void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromHistory()
 	// it means we are rendering in such large blocks that we need to push up our "look behind" number for smoothing.
 	float SpeedAtSmoothRenderedTime = 1.0f;
 	float SmoothedTick = ClockComponent->GetTicksIncludingCountIn(ECalibratedMusicTimebase::AudioRenderTime);
+	float SmoothedTempoMapTick = AudioRenderState.TempoMapTick;
 	EHistoryFailureType Result = CalculateSmoothedTick(ExpectedRenderPosSampleCount, LastRenderPosSampleCount,
-		SmoothedTick, SpeedAtSmoothRenderedTime, SmoothedAudioRenderClockHistoryCursor, RenderSmoothingLagSeconds);
+		SmoothedTick, SmoothedTempoMapTick, SpeedAtSmoothRenderedTime, SmoothedAudioRenderClockHistoryCursor, RenderSmoothingLagSeconds);
 	if (Result != EHistoryFailureType::None)
 	{
 		if (LastRenderPosSampleCount >  (RenderSmoothingLagSeconds * ClockHistory->SampleRate * 2))
@@ -481,25 +510,17 @@ void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromHistory()
 		return;
 	}
 
-	// Now... We are behind the actual render time because of the lag we introduce to have enough
-	// history... SO... Push forward to get a time that is approx. 30 ms behind the
-	// render time. Why 30ms? Historical reasons. 
-	float SmoothedSongMs = CurrentMapChain->SongMaps->TickToMs(SmoothedTick);
-	SmoothedSongMs += RenderSmoothingLagSeconds * 1000.0f;
-	ClockComponent->CurrentSmoothedAudioRenderSongPos = CalculateSongPosAtMs(SmoothedSongMs);
-
-	// Now the time the user should actually be "experiencing"... ie "hearing" can be calculated as an offset
-	// from the smooth audio rendering time...
-	float LookBehindLagMs = FHarmonixModule::Get().GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs();
-	float Ms = ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
-	Ms -= LookBehindLagMs; // - (RenderSmoothingLagSeconds * 1000.0f);
-	ClockComponent->CurrentPlayerExperiencedSongPos = CalculateSongPosAtMs(Ms);
-
-	// Now the time we should be rendering graphics for...
-	LookBehindLagMs = FHarmonixModule::Get().GetMeasuredVideoToAudioRenderOffsetMs();
-	Ms = ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
-	Ms -= LookBehindLagMs; // - (RenderSmoothingLagSeconds * 1000.0f);
-	ClockComponent->CurrentVideoRenderSongPos = CalculateSongPosAtMs(Ms);
+	if (SmoothedTempoMapTick != SmoothedTick && CurrentMapChain->LoopLengthTicks <= 0)
+	{
+		// The clock is offset from its SongMaps (eg. It is the output of a 
+		// clock offset node.)
+		UpdateCurrentTicksForOffsetClock(SmoothedTick, SmoothedTempoMapTick);
+	}
+	else
+	{
+		// The clock is looping or monotonically increasing... so we deal with it this way...
+		UpdateCurrentTicksForLoopingOrMonotonicClock(SmoothedTick, SmoothedTempoMapTick);
+	}
 
 	ClockComponent->TimeSignatureNum = ClockComponent->CurrentSmoothedAudioRenderSongPos.TimeSigNumerator;
 	ClockComponent->TimeSignatureDenom = ClockComponent->CurrentSmoothedAudioRenderSongPos.TimeSigDenominator;
@@ -513,8 +534,68 @@ void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromHistory()
 	}
 }
 
+void FMetasoundMusicClockDriver::UpdateCurrentTicksForOffsetClock(float SmoothedTick, float SmoothedTempoMapTick)
+{
+	float SmoothedPositionMs = CurrentMapChain->SongMaps->TickToMs(SmoothedTick);
+	// We are behind the actual render time because of the lag we introduce to have enough
+	// history... SO... Push forward to get a time that is approx. where the renderer is.
+	SmoothedPositionMs += RenderSmoothingLagSeconds * 1000.0f;
+
+	// Calculate the song position AND get the "local tick" for the Audio Render timebase
+	ClockComponent->CurrentSmoothedAudioRenderSongPos = CalculateSongPosAtMsForOffsetClock(SmoothedPositionMs, SmoothedTick - SmoothedTempoMapTick, AudioRenderState.LocalTick);
+	float SmoothedTempoMapMs = CurrentMapChain->SongMaps->TickToMs(SmoothedTempoMapTick);
+	AudioRenderState.TempoMapMs = SmoothedTempoMapMs + (RenderSmoothingLagSeconds * 1000.0f);
+	AudioRenderState.TempoMapTick = CurrentMapChain->SongMaps->MsToTick(AudioRenderState.TempoMapMs);
+
+	// Now the time the user should actually be "experiencing" (ie "hearing") can be calculated as an offset
+	// from the smooth audio rendering time...
+	float LookBehindLagMs = FHarmonixModule::Get().GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs();
+	float Ms = SmoothedPositionMs;
+	Ms -= LookBehindLagMs;
+	// Calculate the song position AND get the "local tick" for the Player Experience timebase
+	ClockComponent->CurrentPlayerExperiencedSongPos = CalculateSongPosAtMsForOffsetClock(Ms, SmoothedTick - SmoothedTempoMapTick, PlayerExperienceState.LocalTick);
+	PlayerExperienceState.TempoMapMs = AudioRenderState.TempoMapMs - LookBehindLagMs;
+	PlayerExperienceState.TempoMapTick = CurrentMapChain->SongMaps->MsToTick(PlayerExperienceState.TempoMapMs);
+
+	// Now the time the game should be rendering graphics for can be calculated as an offset
+	// from the smooth audio rendering time...
+	LookBehindLagMs = FHarmonixModule::Get().GetMeasuredVideoToAudioRenderOffsetMs();
+	Ms = SmoothedPositionMs;
+	Ms -= LookBehindLagMs;
+	// Calculate the song position AND get the "local tick" for the Video Render timebase
+	ClockComponent->CurrentVideoRenderSongPos = CalculateSongPosAtMsForOffsetClock(Ms, SmoothedTick - SmoothedTempoMapTick, VideoRenderState.LocalTick);
+	VideoRenderState.TempoMapMs = AudioRenderState.TempoMapMs - LookBehindLagMs;
+	VideoRenderState.TempoMapTick = CurrentMapChain->SongMaps->MsToTick(VideoRenderState.TempoMapMs);
+}
+
+void FMetasoundMusicClockDriver::UpdateCurrentTicksForLoopingOrMonotonicClock(float SmoothedTick, float SmoothedTempoMapTick)
+{
+	AudioRenderState.TempoMapMs = CurrentMapChain->SongMaps->TickToMs(SmoothedTempoMapTick);
+	// We are behind the actual render time because of the lag we introduce to have enough
+	// history... SO... Push forward to get a time that is approx. where the renderer is.
+	AudioRenderState.TempoMapMs += RenderSmoothingLagSeconds * 1000.0f;
+
+	// Calculate the song position AND get the "local tick" for the Audio Render timebase
+	AudioRenderState.TempoMapTick = CurrentMapChain->SongMaps->MsToTick(AudioRenderState.TempoMapMs);
+	ClockComponent->CurrentSmoothedAudioRenderSongPos = CalculateSongPosAtMsForLoopingOrMonotonicClock(AudioRenderState.TempoMapMs, AudioRenderState.LocalTick);
+
+	// Now the time the user should actually be "experiencing" (ie "hearing") can be calculated as an offset
+	// from the smooth audio rendering time...
+	float LookBehindLagMs = FHarmonixModule::Get().GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs();
+	PlayerExperienceState.TempoMapMs = AudioRenderState.TempoMapMs - LookBehindLagMs;
+	PlayerExperienceState.TempoMapTick = CurrentMapChain->SongMaps->MsToTick(PlayerExperienceState.TempoMapMs);
+	ClockComponent->CurrentPlayerExperiencedSongPos = CalculateSongPosAtMsForLoopingOrMonotonicClock(PlayerExperienceState.TempoMapMs, PlayerExperienceState.LocalTick);
+
+	// Now the time the game should be rendering graphics for can be calculated as an offset
+	// from the smooth audio rendering time...
+	LookBehindLagMs = FHarmonixModule::Get().GetMeasuredVideoToAudioRenderOffsetMs();
+	VideoRenderState.TempoMapMs = AudioRenderState.TempoMapMs - LookBehindLagMs;
+	VideoRenderState.TempoMapTick = CurrentMapChain->SongMaps->MsToTick(VideoRenderState.TempoMapMs);
+	ClockComponent->CurrentVideoRenderSongPos = CalculateSongPosAtMsForLoopingOrMonotonicClock(VideoRenderState.TempoMapMs, VideoRenderState.LocalTick);
+}
+
 FMetasoundMusicClockDriver::EHistoryFailureType FMetasoundMusicClockDriver::CalculateSmoothedTick(Metasound::FSampleCount ExpectedRenderPosSampleCount, Metasound::FSampleCount LastRenderPosSampleCount,
-	float& SmoothedTick, float& CurrentSpeed, HarmonixMetasound::Analysis::FMidiClockSongPositionHistory::FReadCursor& ReadCursor, float LookBehindSeconds)
+	float& SmoothedLocalTick, float& SmoothedTempoMapTick, float& CurrentSpeed, HarmonixMetasound::Analysis::FMidiClockSongPositionHistory::FReadCursor& ReadCursor, float LookBehindSeconds)
 {
 	using namespace HarmonixMetasound::Analysis;
 
@@ -545,7 +626,8 @@ FMetasoundMusicClockDriver::EHistoryFailureType FMetasoundMusicClockDriver::Calc
 
 	if (NumHistoryAvailable == 1 || PeekNextRef->SampleCount > LookingForSampleFrame)
 	{
-		SmoothedTick = (float)PeekNextRef->UpToTick;
+		SmoothedLocalTick = (float)PeekNextRef->UpToTick;
+		SmoothedTempoMapTick = (float)PeekNextRef->TempoMapTick;
 		CurrentSpeed = PeekNextRef->CurrentSpeed;
 		return EHistoryFailureType::None;
 	}
@@ -569,8 +651,8 @@ FMetasoundMusicClockDriver::EHistoryFailureType FMetasoundMusicClockDriver::Calc
 
 	// We now have enough to lerp!
 	float LerpAlpha = (float)(LookingForSampleFrame - PeekNextRef->SampleCount) / (float)(PeekOneAheadRef->SampleCount - PeekNextRef->SampleCount);
-	SmoothedTick = FMath::Lerp<float>((float)PeekNextRef->UpToTick, (float)PeekOneAheadRef->UpToTick, LerpAlpha);
-
+	SmoothedLocalTick = FMath::Lerp<float>((float)PeekNextRef->UpToTick, (float)PeekOneAheadRef->UpToTick, LerpAlpha);
+	SmoothedTempoMapTick = FMath::Lerp<float>((float)PeekNextRef->TempoMapTick, (float)PeekOneAheadRef->TempoMapTick, LerpAlpha);
 	CurrentSpeed = PeekNextRef->CurrentSpeed;
 
 	return EHistoryFailureType::None;

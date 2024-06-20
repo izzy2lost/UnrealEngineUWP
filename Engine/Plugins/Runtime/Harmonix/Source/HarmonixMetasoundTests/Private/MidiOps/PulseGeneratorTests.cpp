@@ -32,7 +32,7 @@ namespace Harmonix::Midi::Ops::Tests
 			constexpr int32 NotesUntilWeAreSatisfiedThisWorks = 23;
 			int32 NumNotesReceived = 0;
 
-			Clock->SeekTo(0,0);
+			Clock->SeekTo(0,0,0);
 			Clock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 			FTimeSignature TimeSignature(4, 4);

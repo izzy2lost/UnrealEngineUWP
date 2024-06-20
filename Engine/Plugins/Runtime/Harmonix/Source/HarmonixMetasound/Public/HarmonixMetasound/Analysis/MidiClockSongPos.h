@@ -19,6 +19,7 @@ namespace HarmonixMetasound::Analysis
 		};
 		Metasound::FSampleCount SampleCount {0};
 		int32 UpToTick;
+		int32 TempoMapTick;
 		float CurrentSpeed {1.0f};
 		EMusicPlayerTransportState CurrentTransportState {EMusicPlayerTransportState::Invalid};
 		EMarkerType MarkerType {EMarkerType::None};

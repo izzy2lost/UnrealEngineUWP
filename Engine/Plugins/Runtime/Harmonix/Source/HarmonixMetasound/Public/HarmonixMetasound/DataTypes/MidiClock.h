@@ -59,12 +59,12 @@ namespace HarmonixMetasound
 
 		void SetTransportState(int32 BlockFrameIndex, EMusicPlayerTransportState TransportState);
 		void SetSpeed(int32 BlockFrameIndex, float Speed);
-		void SetTempo(int32 BlockFrameIndex, int32 Tick, float Bpm);
-		void SetTimeSignature(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature);
+		void SetTempo(int32 BlockFrameIndex, int32 Tick, float Bpm, int32 TempoMapTick);
+		void SetTimeSignature(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature, int32 TempoMapTick);
 
 		// directly seek this clock with a musical seek target or a specific tick
 		void SeekTo(int32 BlockFrameIndex, const FMusicSeekTarget& InTarget);
-		void SeekTo(int32 BlockFrameIndex, int32 Tick);
+		void SeekTo(int32 BlockFrameIndex, int32 Tick, int32 TempoMapTick);
 
 		// This will add a loop event to the clock event stream WITHOUT having 
 		// to set this clock to looping. This is used when this clock is being 
@@ -87,7 +87,7 @@ namespace HarmonixMetasound
 		// process and advance the clock normally based on the given sample frames
 		void Advance(int32 StartFrame, int32 NumFrames);
 
-		bool AdvanceToTick(int32 BlockFrameIndex, int32 UpToTick);
+		bool AdvanceToTick(int32 BlockFrameIndex, int32 UpToTick, int32 TempoMapTick);
 		bool AdvanceToMs(int32 BlockFrameIndex, float Ms);
 
 		bool  HasTransportStateChangesInBlock() const    { return NumTransportChangeInBlock > 0; }
@@ -106,9 +106,9 @@ namespace HarmonixMetasound
 		float GetSpeedAtBlockSampleFrame(int32 FrameIndex) const;
 		float GetSpeedAtEndOfBlock() const { return SpeedAtBlockEnd; }
 
-		float GetTempoAtStartOfBlock() const { return TempoAtBlockStart; }
+		float GetTempoAtStartOfBlock() const { return ExternalClockDriver ? ExternalClockDriver->GetTempoAtStartOfBlock() : TempoAtBlockStart; }
 		float GetTempoAtBlockSampleFrame(int32 FrameIndex) const;
-		float GetTempoAtEndOfBlock() const { return TempoAtBlockEnd; }
+		float GetTempoAtEndOfBlock() const { return ExternalClockDriver ? ExternalClockDriver->GetTempoAtEndOfBlock() : TempoAtBlockEnd; }
 
 		int32 GetLastProcessedMidiTick() const { return LastProcessedMidiTick; }
 		int32 GetNextMidiTickToProcess() const { return NextMidiTickToProcess; }
@@ -165,8 +165,9 @@ namespace HarmonixMetasound
 		
 		bool GetSongMapsChangedInBlock() const { return MidiDataChangedInBlock; }
 
-	private:
 		int32 GetNextTickToProcessAtBlockFrame(int32 BlockFrame) const;
+
+	private:
 		void AddEvent(const FMidiClockEvent& InEvent, bool bRequireSequential = true);
 		void HandleClockEvent(const FMidiClock& DrivingClock, const FMidiClockEvent& Event);
 		void PostTempoOrTimeSignatureEventsIfNeeded();
@@ -177,12 +178,12 @@ namespace HarmonixMetasound
 		MSGTYPE* LookForEventOnBlockFrameIndex(int32 BlockFrameIndex);
 
 		void AddTransportStateChangeToBlock(int32 BlockFrameIndex, EMusicPlayerTransportState TransportState);
-		void AddTimeSignatureChangeToBlock(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature);
-		void AddTempoChangeToBlock(int32 BlockFrameIndex, int32 Tick, float Tempo);
+		void AddTimeSignatureChangeToBlock(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature, int32 TempoMapTick);
+		void AddTempoChangeToBlock(int32 BlockFrameIndex, int32 Tick, float Tempo, int32 TempoMapTick);
 		void AddSpeedChangeToBlock(int32 BlockFrameIndex, float Speed, bool bIsNewLocalSpeed);
-		void AddLoopToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 LoopLength);
-		void AddSeekToBlock(int32 BlockFrameIndex, int32 ToTick);
-		void AddAdvanceToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 NumTicks);
+		void AddLoopToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 LoopLength, int32 TempoMapTick);
+		void AddSeekToBlock(int32 BlockFrameIndex, int32 ToTick, int32 TempoMapTick);
+		void AddAdvanceToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 NumTicks, int32 TempoMapTick);
 		void RebuildSongMapEvaluator(const TSharedPtr<const ISongMapEvaluator>& MidiWithTempo, const TSharedPtr<const ISongMapEvaluator>& MidiWithOtherMaps);
 
 		TSharedPtr<FSongMapsWithAlternateTempoSource> SongMapEvaluator;
@@ -197,6 +198,7 @@ namespace HarmonixMetasound
 		int32 FirstTickProcessedThisBlock;
 		int32 LastProcessedMidiTick;
 		int32 NextMidiTickToProcess;
+		int32 NextTempoMapTickToProcess;
 		float SampleRate;
 		Metasound::FSampleCount SampleCount;
 		int32 FramesUntilNextProcess;

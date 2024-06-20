@@ -101,7 +101,7 @@ namespace HarmonixMetasound::Analysis
 			if (TryProcessAsSpeedChange(Event, BlockFrameAdvance, FirstEventAfterSeekOrLoop)) continue;
 			if (TryProcessAsTransportChange(Event, BlockFrameAdvance, FirstEventAfterSeekOrLoop)) continue;
 			if (TryProcessAsLoop(Event, BlockFrameAdvance, FirstEventAfterSeekOrLoop)) continue;
-			// This is the last type re recognize, so if it isn't a seek we're in trouble...
+			// This is the last type we recognize, so if it isn't a seek we're in trouble...
 			ensureMsgf(TryProcessAsSeek(Event, BlockFrameAdvance, FirstEventAfterSeekOrLoop), TEXT("Unrecognized Clock Advance Event Type!"));
 		}
 		SampleCount += BlockSize;
@@ -124,7 +124,9 @@ namespace HarmonixMetasound::Analysis
 				return true;
 			}
 			LastTickProcessed = AsAdvance->FirstTickToProcess;
+			LastTempoMapTickProcessed = AsAdvance->TempoMapTick;
 			LastMidiClockSongPos->UpToTick = LastTickProcessed;
+			LastMidiClockSongPos->TempoMapTick = LastTempoMapTickProcessed;
 			LastMidiClockSongPos->SampleCount = SampleCount + Event.BlockFrameIndex + BlockFrameAdvance;
 			LastMidiClockSongPos->MarkerType = (FirstEventAfterSeekOrLoop) ? FMidiClockSongPosition::EMarkerType::FirstPositionAfterSeekLoop : FMidiClockSongPosition::EMarkerType::None;
 			{
@@ -155,7 +157,9 @@ namespace HarmonixMetasound::Analysis
 				return true;
 			}
 			LastTickProcessed = AsTempo->Tick;
+			LastTempoMapTickProcessed = AsTempo->TempoMapTick;
 			LastMidiClockSongPos->UpToTick = LastTickProcessed;
+			LastMidiClockSongPos->TempoMapTick = LastTempoMapTickProcessed;
 			LastMidiClockSongPos->SampleCount = SampleCount + Event.BlockFrameIndex + BlockFrameAdvance;
 			LastMidiClockSongPos->MarkerType = (FirstEventAfterSeekOrLoop) ? FMidiClockSongPosition::EMarkerType::FirstPositionAfterSeekLoop : FMidiClockSongPosition::EMarkerType::None;
 			{
@@ -182,7 +186,9 @@ namespace HarmonixMetasound::Analysis
 				return true;
 			}
 			LastTickProcessed = AsTimeSig->Tick;
+			LastTempoMapTickProcessed = AsTimeSig->TempoMapTick;
 			LastMidiClockSongPos->UpToTick = LastTickProcessed;
+			LastMidiClockSongPos->TempoMapTick = LastTempoMapTickProcessed;
 			LastMidiClockSongPos->SampleCount = SampleCount + Event.BlockFrameIndex + BlockFrameAdvance;
 			LastMidiClockSongPos->MarkerType = (FirstEventAfterSeekOrLoop) ? FMidiClockSongPosition::EMarkerType::FirstPositionAfterSeekLoop : FMidiClockSongPosition::EMarkerType::None;
 
@@ -207,6 +213,7 @@ namespace HarmonixMetasound::Analysis
 				LastMidiClockSongPos->SampleCount = SampleCount + Event.BlockFrameIndex + BlockFrameAdvance;
 				LastMidiClockSongPos->MarkerType = (FirstEventAfterSeekOrLoop) ? FMidiClockSongPosition::EMarkerType::FirstPositionAfterSeekLoop : FMidiClockSongPosition::EMarkerType::None;
 				LastMidiClockSongPos->UpToTick = LastTickProcessed;
+				LastMidiClockSongPos->TempoMapTick = LastTempoMapTickProcessed;
 				{
 					FMidiClockSongPositionHistory::FScopedItemWriteRef Slot = History->Positions.GetNextAtomicWriteSlot();
 					*Slot = *LastMidiClockSongPos.Get();
@@ -228,6 +235,7 @@ namespace HarmonixMetasound::Analysis
 				LastMidiClockSongPos->SampleCount = SampleCount + Event.BlockFrameIndex + BlockFrameAdvance;
 				LastMidiClockSongPos->MarkerType = (FirstEventAfterSeekOrLoop) ? FMidiClockSongPosition::EMarkerType::FirstPositionAfterSeekLoop : FMidiClockSongPosition::EMarkerType::None;
 				LastMidiClockSongPos->UpToTick = LastTickProcessed;
+				LastMidiClockSongPos->TempoMapTick = LastTempoMapTickProcessed;
 				{
 					FMidiClockSongPositionHistory::FScopedItemWriteRef Slot = History->Positions.GetNextAtomicWriteSlot();
 					*Slot = *LastMidiClockSongPos.Get();
@@ -247,7 +255,9 @@ namespace HarmonixMetasound::Analysis
 			// We need to insert a song position for where we got to BEFORE this loop back...
 			if (LastAdvanceUpToTick != -1)
 			{
+				LastTempoMapTickProcessed = AsLoop->TempoMapTick;
 				LastMidiClockSongPos->UpToTick = LastAdvanceUpToTick;
+				LastMidiClockSongPos->TempoMapTick = LastTempoMapTickProcessed;
 				LastMidiClockSongPos->SampleCount = SampleCount + Event.BlockFrameIndex + BlockFrameAdvance;
 				LastMidiClockSongPos->MarkerType = FMidiClockSongPosition::EMarkerType::LastPositionBeforeSeekLoop;
 				LastAdvanceUpToTick = -1;
@@ -270,7 +280,9 @@ namespace HarmonixMetasound::Analysis
 			// We need to insert a song position for where we got to BEFORE this seek...
 			if (LastAdvanceUpToTick != -1)
 			{
+				LastTempoMapTickProcessed = AsSeek->TempoMapTick;
 				LastMidiClockSongPos->UpToTick = LastAdvanceUpToTick;
+				LastMidiClockSongPos->TempoMapTick = LastTempoMapTickProcessed;
 				LastMidiClockSongPos->SampleCount = SampleCount + Event.BlockFrameIndex + BlockFrameAdvance;
 				LastMidiClockSongPos->MarkerType = FMidiClockSongPosition::EMarkerType::LastPositionBeforeSeekLoop;
 				LastAdvanceUpToTick = -1;

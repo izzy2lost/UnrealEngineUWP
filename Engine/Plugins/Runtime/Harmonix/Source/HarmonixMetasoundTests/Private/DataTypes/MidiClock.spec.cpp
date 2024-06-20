@@ -28,7 +28,7 @@ namespace HarmonixMetasoundTests::MidiClock
 	void ExecuteWriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float Speed)
 	{
 		TestClock->PrepareBlock();
-		TestClock->SeekTo(0, 0);
+		TestClock->SeekTo(0, 0, 0);
 		TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 		TestEqual("Clock.GetCurrentSongPosMs()", TestClock->GetCurrentSongPosMs(), 0.0f);
@@ -313,7 +313,7 @@ namespace HarmonixMetasoundTests::MidiClock
 
 			It("EventType::AdvanceThru.NonLooping", [&, this]()
 			{
-				DrivingClock->SeekTo(0,0);
+				DrivingClock->SeekTo(0,0,0);
 				DrivingClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 				float DrivingClockSpeed = 1.0f;
@@ -322,7 +322,7 @@ namespace HarmonixMetasoundTests::MidiClock
 				float DeltaMs = DeltaFrames * 1000.0f / OperatorSettings.GetSampleRate();
 				int32 Tick = (int32)(TestClock->GetSongMapEvaluator().MsToTick(DeltaMs) + 0.5f);
 
-				DrivingClock->AdvanceToTick(0, Tick);
+				DrivingClock->AdvanceToTick(0, Tick, Tick);
 
 				TestClock->PrepareBlock();
 				int32 OldEventsNum = TestClock->GetMidiClockEventsInBlock().Num();
@@ -356,7 +356,7 @@ namespace HarmonixMetasoundTests::MidiClock
 
 				int32 TestStartTick = LoopEndTick - 1;;
 
-				DrivingClock->SeekTo(0, TestStartTick);
+				DrivingClock->SeekTo(0, TestStartTick, TestStartTick);
 
 				float DeltaMs = FMidiClock::kMidiGranularity * 1000.0f / OperatorSettings.GetSampleRate();
 				int32 DeltaTicks = (int32)(DrivingClock->GetSongMapEvaluator().MsToTick(DeltaMs) + 0.5f);
@@ -389,7 +389,7 @@ namespace HarmonixMetasoundTests::MidiClock
 				TestClock->PrepareBlock();
 				int32 OldEventsNum = TestClock->GetMidiClockEventsInBlock().Num();
 
-				TestClock->SeekTo(StartFrame, 1000);
+				TestClock->SeekTo(StartFrame, 1000, 1000);
 
 				if (!TestTrue("Clock has new clock events", TestClock->GetMidiClockEventsInBlock().Num() > OldEventsNum))
 				{

@@ -67,12 +67,27 @@ private:
 	FLocalMinimumMagnitudeTracker<double, kFramesOfErrorHistory> ErrorTracker;
 	double SyncSpeed = 1.0;
 
+	struct FPerTimebaseSmoothedClockState
+	{
+		float TempoMapMs = 0.0f;
+		float TempoMapTick = 0.0f;
+		float LocalTick = 0.0f;
+	};
+
+	FPerTimebaseSmoothedClockState AudioRenderState;
+	FPerTimebaseSmoothedClockState PlayerExperienceState;
+	FPerTimebaseSmoothedClockState VideoRenderState;
+
 	FDelegateHandle GeneratorAttachedCallbackHandle;
 	FDelegateHandle GeneratorDetachedCallbackHandle;
 	FDelegateHandle GeneratorIOUpdatedCallbackHandle;
 	FDelegateHandle GraphChangedCallbackHandle;
 
-	FMidiSongPos CalculateSongPosAtMs(float AbsoluteMs) const;
+	FMidiSongPos CalculateSongPosAtMsForLoopingOrMonotonicClock(float AbsoluteMs, float& PositionTick) const;
+	FMidiSongPos CalculateSongPosAtMsForOffsetClock(float PositionMs, float ClockTickOffsetFromDrivingClock, float& PositionTick) const;
+
+	void UpdateCurrentTicksForOffsetClock(float SmoothedTick, float SmoothedTempoMapTick);
+	void UpdateCurrentTicksForLoopingOrMonotonicClock(float SmoothedTick, float SmoothedTempoMapTick);
 
 	bool AttemptToConnectToAudioComponentsMetasound();
 	void DetachAllCallbacks();
@@ -89,7 +104,7 @@ private:
 	};
 
 	EHistoryFailureType CalculateSmoothedTick(Metasound::FSampleCount ExpectedRenderPosSampleCount, Metasound::FSampleCount LastRenderPosSampleCount,
-		float& SmoothedTick, float& CurrentSpeed, HarmonixMetasound::Analysis::FMidiClockSongPositionHistory::FReadCursor& ReadCursor,
+		float& SmoothedTick, float& SmoothedTempoMapTick, float& CurrentSpeed, HarmonixMetasound::Analysis::FMidiClockSongPositionHistory::FReadCursor& ReadCursor,
 		float LookBehindSeconds);
 
 	static FString HistoryFailureTypeToString(FMetasoundMusicClockDriver::EHistoryFailureType Error);

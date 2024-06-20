@@ -49,6 +49,7 @@ namespace HarmonixMetasound
 		, FirstTickProcessedThisBlock(-1)
 		, LastProcessedMidiTick(-1)
 		, NextMidiTickToProcess(0)
+		, NextTempoMapTickToProcess(0)
 		, SampleRate(InSettings.GetSampleRate())
 		, SampleCount(0)
 		, FramesUntilNextProcess(0)
@@ -87,6 +88,7 @@ namespace HarmonixMetasound
 		, FirstTickProcessedThisBlock(Other.FirstTickProcessedThisBlock)
 		, LastProcessedMidiTick(Other.LastProcessedMidiTick)
 		, NextMidiTickToProcess(Other.NextMidiTickToProcess)
+		, NextTempoMapTickToProcess(Other.NextTempoMapTickToProcess)
 		, SampleRate(Other.SampleRate)
 		, SampleCount(Other.SampleCount)
 		, FramesUntilNextProcess(Other.FramesUntilNextProcess)
@@ -132,6 +134,7 @@ namespace HarmonixMetasound
 			FirstTickProcessedThisBlock = Other.FirstTickProcessedThisBlock;
 			LastProcessedMidiTick = Other.LastProcessedMidiTick;
 			NextMidiTickToProcess = Other.NextMidiTickToProcess;
+			NextTempoMapTickToProcess = Other.NextTempoMapTickToProcess;
 			SampleRate = Other.SampleRate;
 			SampleCount = Other.SampleCount;
 			FramesUntilNextProcess = Other.FramesUntilNextProcess;
@@ -181,7 +184,7 @@ namespace HarmonixMetasound
 
 		if (ResetToStart)
 		{
-			SeekTo(CurrentBlockFrameIndex, 0);
+			SeekTo(CurrentBlockFrameIndex, 0, 0);
 		}
 		PostTempoOrTimeSignatureEventsIfNeeded();
 	}
@@ -249,14 +252,14 @@ namespace HarmonixMetasound
 		AddSpeedChangeToBlock(BlockFrameIndex, Speed, true);
 	}
 
-	void FMidiClock::SetTempo(int32 BlockFrameIndex, int32 Tick, float Bpm)
+	void FMidiClock::SetTempo(int32 BlockFrameIndex, int32 Tick, float Bpm, int32 TempoMapTick)
 	{
-		AddTempoChangeToBlock(BlockFrameIndex, Tick, Bpm);
+		AddTempoChangeToBlock(BlockFrameIndex, Tick, Bpm, TempoMapTick);
 	}
 
-	void HarmonixMetasound::FMidiClock::SetTimeSignature(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature)
+	void HarmonixMetasound::FMidiClock::SetTimeSignature(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature, int32 TempoMapTick)
 	{
-		AddTimeSignatureChangeToBlock(BlockFrameIndex, Tick, TimeSignature);
+		AddTimeSignatureChangeToBlock(BlockFrameIndex, Tick, TimeSignature, TempoMapTick);
 	}
 
 	void FMidiClock::SeekTo(int32 BlockFrameIndex, const FMusicSeekTarget& InTarget)
@@ -275,21 +278,21 @@ namespace HarmonixMetasound
 			break;
 		}
 
-		SeekTo(BlockFrameIndex, Tick);
+		SeekTo(BlockFrameIndex, Tick, NextTempoMapTickToProcess);
 	}
 
-	void FMidiClock::SeekTo(int32 BlockFrameIndex, int32 Tick)
+	void FMidiClock::SeekTo(int32 BlockFrameIndex, int32 Tick, int32 TempoMapTick)
 	{
 		if (NextMidiTickToProcess != Tick)
 		{
-			AddSeekToBlock(BlockFrameIndex, Tick);
+			AddSeekToBlock(BlockFrameIndex, Tick, TempoMapTick);
 			SampleCount = FMath::Max<FSampleCount>(FSampleCount(SongMapEvaluator->TickToMs(NextMidiTickToProcess) / 1000.0f * SampleRate), 0);
 		}
 	}
 
 	void FMidiClock::AddTransientLoop(int32 BlockFrameIndex, int32 NewFirstTickInLoop, int32 NewLoopLengthTicks)
 	{
-		AddLoopToBlock(BlockFrameIndex, NewFirstTickInLoop, NewLoopLengthTicks);
+		AddLoopToBlock(BlockFrameIndex, NewFirstTickInLoop, NewLoopLengthTicks, NextTempoMapTickToProcess);
 	}
 
 	void FMidiClock::SetupPersistentLoop(int32 NewFirstTickInLoop, int32 NewLoopLengthTicks)
@@ -345,9 +348,10 @@ namespace HarmonixMetasound
 		if (ClockEvents.IsValidIndex(0) && NeedsSeekToDrivingClock)
 		{
 			NeedsSeekToDrivingClock = false;
-			int32 OurStartTick = DrivingClock.GetNextTickToProcessAtBlockFrame(StartFrame);
-			if (OurStartTick >= 0)
+			int32 DrivingClocksTick = DrivingClock.GetNextTickToProcessAtBlockFrame(StartFrame);
+			if (DrivingClocksTick >= 0)
 			{
+				int32 OurStartTick = DrivingClocksTick;
 				if (!FMath::IsNearlyEqual(CurrentLocalSpeed, 1.0f, 0.0001))
 				{
 					float FractionalToTick = (float)OurStartTick * CurrentLocalSpeed;
@@ -355,7 +359,7 @@ namespace HarmonixMetasound
 					TickResidualWhenDriven = FMath::Fractional(FractionalToTick);
 				}
 				OurStartTick = WrapTickIfLooping(OurStartTick);
-				SeekTo(ClockEvents[0].BlockFrameIndex, OurStartTick);
+				SeekTo(CurrentBlockFrameIndex, OurStartTick, DrivingClocksTick);
 			}
 		}
 
@@ -402,7 +406,7 @@ namespace HarmonixMetasound
 		FramesUntilNextProcess -= NumFrames;
 	}
 
-	bool FMidiClock::AdvanceToTick(int32 BlockFrameIndex, int32 UpToTick)
+	bool FMidiClock::AdvanceToTick(int32 BlockFrameIndex, int32 UpToTick, int32 TempoMapTick)
 	{
 		using namespace MidiClockMessageTypes;
 
@@ -414,8 +418,10 @@ namespace HarmonixMetasound
 			// first we might need advance to the loop end...
 			if (NextMidiTickToProcess > FirstTickInLoop)
 			{
-				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TickAfterLoop - NextMidiTickToProcess);
-				AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks);
+				int32 TicksToAdvance = TickAfterLoop - NextMidiTickToProcess;
+				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TicksToAdvance, TempoMapTick);
+				TempoMapTick += TicksToAdvance;
+				AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, TempoMapTick);
 				check(NextMidiTickToProcess == FirstTickInLoop);
 				bDidLoop = true;
 			}
@@ -425,10 +431,11 @@ namespace HarmonixMetasound
 			{
 				int32 TicksThisPass = FMath::Min(LoopLengthTicks, NumTicksLeftToProcess);
 				NumTicksLeftToProcess -= TicksThisPass;
-				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TicksThisPass);
+				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TicksThisPass, TempoMapTick);
+				TempoMapTick += TicksThisPass;
 				if (NumTicksLeftToProcess > 0)
 				{
-					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks);
+					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, TempoMapTick);
 					check(NextMidiTickToProcess == FirstTickInLoop);
 					bDidLoop = true;
 				}
@@ -436,10 +443,12 @@ namespace HarmonixMetasound
 		}
 		else
 		{
-			AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, UpToTick - NextMidiTickToProcess);
+			int32 NumTicks = UpToTick - NextMidiTickToProcess;
+			AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, NumTicks, TempoMapTick);
 			if (HasPersistentLoop() && NextMidiTickToProcess >= (FirstTickInLoop + LoopLengthTicks))
 			{
-				AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks);
+				TempoMapTick += NumTicks;
+				AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, TempoMapTick);
 				check(NextMidiTickToProcess == FirstTickInLoop);
 				bDidLoop = true;
 			}
@@ -450,6 +459,11 @@ namespace HarmonixMetasound
 
 	bool FMidiClock::AdvanceToMs(int32 BlockFrameIndex, float Ms)
 	{
+		if (!ensureMsgf(!ExternalClockDriver, TEXT("Can't Advance an FMidiClock by Ms when it is being driven by another clock!")))
+		{
+			return false;
+		}
+
 		using namespace MidiClockMessageTypes;
 
 		bool bDidLoop = false;
@@ -468,10 +482,10 @@ namespace HarmonixMetasound
 			// first we might need advance to the loop end...
 			if (NextMidiTickToProcess < TickAfterLoop)
 			{
-				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TickAfterLoop - NextMidiTickToProcess);
+				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TickAfterLoop - NextMidiTickToProcess, NextMidiTickToProcess);
 			}
 
-			AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks);
+			AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, FirstTickInLoop);
 			check(NextMidiTickToProcess == FirstTickInLoop);
 			bDidLoop = true;
 
@@ -482,14 +496,14 @@ namespace HarmonixMetasound
 				ToFutureTick = SongMapEvaluator->MsToTick(GetLoopStartMs() + MsRemainingAfterProcessingToLoopEnd);
 				if (ToFutureTick > TickAfterLoop)
 				{
-					AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TickAfterLoop - NextMidiTickToProcess);
-					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks);
+					AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, TickAfterLoop - NextMidiTickToProcess, NextMidiTickToProcess);
+					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, FirstTickInLoop);
 					check(NextMidiTickToProcess == FirstTickInLoop);
 					MsRemainingAfterProcessingToLoopEnd -= GetLoopLengthMs();
 				}
 				else
 				{
-					AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, ToFutureTick - NextMidiTickToProcess);
+					AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, ToFutureTick - NextMidiTickToProcess, NextMidiTickToProcess);
 					MsRemainingAfterProcessingToLoopEnd = 0.0f;
 				}
 			}
@@ -501,10 +515,10 @@ namespace HarmonixMetasound
 		{
 			if (ToFutureTick > NextMidiTickToProcess)
 			{
-				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, ToFutureTick - NextMidiTickToProcess);
+				AddAdvanceToBlock(BlockFrameIndex, NextMidiTickToProcess, ToFutureTick - NextMidiTickToProcess, NextMidiTickToProcess);
 				if (HasPersistentLoop() && LastProcessedMidiTick == TickAfterLoop)
 				{
-					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks);
+					AddLoopToBlock(BlockFrameIndex, FirstTickInLoop, LoopLengthTicks, FirstTickInLoop);
 					check(NextMidiTickToProcess == FirstTickInLoop);
 					bDidLoop = true;
 				}
@@ -538,6 +552,11 @@ namespace HarmonixMetasound
 
 	float FMidiClock::GetTempoAtBlockSampleFrame(int32 FrameIndex) const
 	{
+		if (ExternalClockDriver)
+		{
+			return ExternalClockDriver->GetTempoAtBlockSampleFrame(FrameIndex);
+		}
+
 		if (NumTempoChangeInBlock == 0 || FrameIndex == 0)
 		{
 			return TempoAtBlockStart;
@@ -619,15 +638,15 @@ namespace HarmonixMetasound
 				FoundNextTick = AsSeek->NewNextTick;
 				AtBlockIndex = Event.BlockFrameIndex;
 			}
-			else if (const FAdvance* AsProcess = Event.TryGet<FAdvance>())
+			else if (const FAdvance* AsAdvance = Event.TryGet<FAdvance>())
 			{
 				if (Event.BlockFrameIndex == BlockFrame)
 				{
-					FoundNextTick = AsProcess->FirstTickToProcess;
+					FoundNextTick = AsAdvance->FirstTickToProcess;
 				}
 				else
 				{
-					FoundNextTick = AsProcess->FirstTickToProcess + AsProcess->NumberOfTicksToProcess;
+					FoundNextTick = AsAdvance->FirstTickToProcess + AsAdvance->NumberOfTicksToProcess;
 				}
 				AtBlockIndex = Event.BlockFrameIndex;
 			}
@@ -668,13 +687,13 @@ namespace HarmonixMetasound
 		if (const FLoop* AsLoop = Event.TryGet<FLoop>())
 		{
 			const int32 Tick = WrapTickIfLooping(AsLoop->FirstTickInLoop);
-			SeekTo(Event.BlockFrameIndex, Tick);
+			SeekTo(Event.BlockFrameIndex, Tick, AsLoop->TempoMapTick);
 			TickResidualWhenDriven = 0.0f;
 		}
 		else if (const FSeek* AsSeek = Event.TryGet<FSeek>())
 		{
 			const int32 Tick = WrapTickIfLooping(AsSeek->NewNextTick);
-			SeekTo(Event.BlockFrameIndex, Tick);
+			SeekTo(Event.BlockFrameIndex, Tick, AsSeek->TempoMapTick);
 			TickResidualWhenDriven = 0.0f;
 		}
 		else if (const FAdvance* AsAdvance = Event.TryGet<FAdvance>())
@@ -692,11 +711,11 @@ namespace HarmonixMetasound
 				TickResidualWhenDriven = FMath::Fractional(FractionalToTick);
 			}
 			// No need to wrap the tick here because AdvanceToTick will handle that.
-			AdvanceToTick(Event.BlockFrameIndex, UpToTick);
+			AdvanceToTick(Event.BlockFrameIndex, UpToTick, AsAdvance->TempoMapTick);
 		}
 		else if (const FTempoChange* AsTempoChange = Event.TryGet<FTempoChange>())
 		{
-			AddTempoChangeToBlock(Event.BlockFrameIndex, NextMidiTickToProcess, AsTempoChange->Tempo);
+			AddTempoChangeToBlock(Event.BlockFrameIndex, NextMidiTickToProcess, AsTempoChange->Tempo, AsTempoChange->TempoMapTick);
 		}
 		else if (const FSpeedChange* AsSpeedChange = Event.TryGet<FSpeedChange>())
 		{
@@ -710,20 +729,20 @@ namespace HarmonixMetasound
 
 	void FMidiClock::PostTempoOrTimeSignatureEventsIfNeeded()
 	{
-		if (SongMapEvaluator->GetNumTempoChanges() == 0)
+		if (SongMapEvaluator->GetNumTempoChanges() == 0 || ExternalClockDriver)
 		{
 			CurrentTempoInfoPointIndex = -1;
-			AddTempoChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, 120.0f);
+			if (!ExternalClockDriver)
+			{
+				AddTempoChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, 120.0f, NextMidiTickToProcess);
+			}
 			NextTempoChangeTick = std::numeric_limits<int32>::max();
 		}
 		else
 		{
 			CurrentTempoInfoPointIndex = SongMapEvaluator->GetTempoPointIndexForTick(NextMidiTickToProcess > 0 ? NextMidiTickToProcess : 0);
 			check(CurrentTempoInfoPointIndex >= 0 && CurrentTempoInfoPointIndex < SongMapEvaluator->GetNumTempoChanges());
-			if (!ExternalClockDriver)
-			{
-				AddTempoChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, SongMapEvaluator->GetTempoInfoPoint(CurrentTempoInfoPointIndex)->GetBPM());
-			}
+			AddTempoChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, SongMapEvaluator->GetTempoInfoPoint(CurrentTempoInfoPointIndex)->GetBPM(), NextMidiTickToProcess);
 			if ((CurrentTempoInfoPointIndex + 1) < SongMapEvaluator->GetNumTempoChanges())
 			{
 				NextTempoChangeTick = SongMapEvaluator->GetTempoChangePointTick(CurrentTempoInfoPointIndex + 1);
@@ -737,14 +756,14 @@ namespace HarmonixMetasound
 		if (SongMapEvaluator->GetNumTimeSignatureChanges() == 0)
 		{
 			CurrentTimeSignaturePointIndex = -1;
-			AddTimeSignatureChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, FTimeSignature(4,4));
+			AddTimeSignatureChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, FTimeSignature(4,4), NextTempoMapTickToProcess);
 			NextTimeSigChangeTick = std::numeric_limits<int32>::max();
 		}
 		else
 		{
 			CurrentTimeSignaturePointIndex = SongMapEvaluator->GetTimeSignaturePointIndexForTick(NextMidiTickToProcess > 0 ? NextMidiTickToProcess : 0);
 			check(CurrentTimeSignaturePointIndex >= 0 && CurrentTimeSignaturePointIndex < SongMapEvaluator->GetNumTimeSignatureChanges());
-			AddTimeSignatureChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, SongMapEvaluator->GetTimeSignaturePoint(CurrentTimeSignaturePointIndex)->TimeSignature);
+			AddTimeSignatureChangeToBlock(CurrentBlockFrameIndex, NextMidiTickToProcess, SongMapEvaluator->GetTimeSignaturePoint(CurrentTimeSignaturePointIndex)->TimeSignature, NextTempoMapTickToProcess);
 			if ((CurrentTimeSignaturePointIndex + 1) < SongMapEvaluator->GetNumTimeSignatureChanges())
 			{
 				NextTimeSigChangeTick = SongMapEvaluator->GetTimeSignatureChangePointTick(CurrentTempoInfoPointIndex + 1);
@@ -791,7 +810,7 @@ namespace HarmonixMetasound
 		TransportAtBlockEnd = NewTransportState;
 	}
 
-	void FMidiClock::AddTimeSignatureChangeToBlock(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature)
+	void FMidiClock::AddTimeSignatureChangeToBlock(int32 BlockFrameIndex, int32 Tick, const FTimeSignature& TimeSignature, int32 TempoMapTick)
 	{
 		check(BlockFrameIndex >= CurrentBlockFrameIndex);
 
@@ -804,6 +823,7 @@ namespace HarmonixMetasound
 
 		CurrentBlockFrameIndex = BlockFrameIndex;
 		NextMidiTickToProcess = Tick;
+		NextTempoMapTickToProcess = TempoMapTick;
 
 		if (TimeSignatureAtBlockEnd == TimeSignature)
 		{
@@ -814,10 +834,11 @@ namespace HarmonixMetasound
 		if (MidiClockMessageTypes::FTimeSignatureChange* PreviousTimeSigChangeOnSameTick = LookForEventOnMidiTick<MidiClockMessageTypes::FTimeSignatureChange>(BlockFrameIndex))
 		{
 			PreviousTimeSigChangeOnSameTick->TimeSignature = TimeSignature;
+			PreviousTimeSigChangeOnSameTick->TempoMapTick = TempoMapTick;
 		}
 		else
 		{
-			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FTimeSignatureChange(Tick, FTimeSignature(TimeSignature))));
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FTimeSignatureChange(Tick, FTimeSignature(TimeSignature), TempoMapTick)));
 			NumTimeSignatureChangeInBlock++;
 		}
 
@@ -829,7 +850,7 @@ namespace HarmonixMetasound
 		TimeSignatureAtBlockEnd = TimeSignature;
 	}
 
-	void FMidiClock::AddTempoChangeToBlock(int32 BlockFrameIndex, int32 Tick, float NewTempo)
+	void FMidiClock::AddTempoChangeToBlock(int32 BlockFrameIndex, int32 Tick, float NewTempo, int32 TempoMapTick)
 	{
 		check(BlockFrameIndex >= CurrentBlockFrameIndex);
 
@@ -837,6 +858,7 @@ namespace HarmonixMetasound
 
 		CurrentBlockFrameIndex = BlockFrameIndex;
 		NextMidiTickToProcess = Tick;
+		NextTempoMapTickToProcess = TempoMapTick;
 
 		if (FirstTickProcessedThisBlock == -1)
 		{
@@ -852,10 +874,11 @@ namespace HarmonixMetasound
 		if (MidiClockMessageTypes::FTempoChange* PreviousTempoChangeOnSameTick = LookForEventOnMidiTick<MidiClockMessageTypes::FTempoChange>(BlockFrameIndex))
 		{
 			PreviousTempoChangeOnSameTick->Tempo = NewTempo;
+			PreviousTempoChangeOnSameTick->TempoMapTick = TempoMapTick;
 		}
 		else
 		{
-			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FTempoChange(Tick, NewTempo)));
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FTempoChange(Tick, NewTempo, TempoMapTick)));
 			NumTempoChangeInBlock++;
 		}
 
@@ -910,7 +933,7 @@ namespace HarmonixMetasound
 		SpeedAtBlockEnd = NewSpeed;
 	}
 
-	void FMidiClock::AddLoopToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 LoopLength)
+	void FMidiClock::AddLoopToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 LoopLength, int32 TempoMapTick)
 	{
 		check(BlockFrameIndex >= CurrentBlockFrameIndex);
 		check(LastProcessedMidiTick == FirstTick + LoopLength - 1);
@@ -926,19 +949,21 @@ namespace HarmonixMetasound
 		{
 			PreviousLoopOnSameTick->LengthInTicks = LoopLength;
 			PreviousLoopOnSameTick->FirstTickInLoop = FirstTick;
+			PreviousLoopOnSameTick->TempoMapTick = TempoMapTick;
 		}
 		else
 		{
-			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FLoop(FirstTick, LoopLength)));
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FLoop(FirstTick, LoopLength, TempoMapTick)));
 		}
 
-		NextMidiTickToProcess = FirstTickInLoop;
+		NextMidiTickToProcess = FirstTick;
+		NextTempoMapTickToProcess = TempoMapTick;
 
 		// The tempo and/or time signature may be different in the location where we are going... so... update...
 		PostTempoOrTimeSignatureEventsIfNeeded();
 	}
 
-	void FMidiClock::AddSeekToBlock(int32 BlockFrameIndex, int32 ToTick)
+	void FMidiClock::AddSeekToBlock(int32 BlockFrameIndex, int32 ToTick, int32 TempoMapTick)
 	{
 		check(BlockFrameIndex >= CurrentBlockFrameIndex);
 
@@ -953,19 +978,21 @@ namespace HarmonixMetasound
 		{
 			check(PreviousSeekOnSameTick->LastTickProcessedBeforeSeek == LastProcessedMidiTick);
 			PreviousSeekOnSameTick->NewNextTick = ToTick;
+			PreviousSeekOnSameTick->TempoMapTick = TempoMapTick;
 		}
 		else
 		{
-			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FSeek(LastProcessedMidiTick, ToTick)));
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FSeek(LastProcessedMidiTick, ToTick, TempoMapTick)));
 		}
 
 		NextMidiTickToProcess = ToTick;
+		NextTempoMapTickToProcess = TempoMapTick;
 
 		// The tempo and/or time signature may be different in the location where we are going... so... update...
 		PostTempoOrTimeSignatureEventsIfNeeded();
 	}
 
-	void FMidiClock::AddAdvanceToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 NumTicks)
+	void FMidiClock::AddAdvanceToBlock(int32 BlockFrameIndex, int32 FirstTick, int32 NumTicks, int32 TempoMapTick)
 	{
 		check(BlockFrameIndex >= CurrentBlockFrameIndex);
 		check(FirstTick == NextMidiTickToProcess);
@@ -984,7 +1011,8 @@ namespace HarmonixMetasound
 			int32 SpanNumTicks = NextTempoOrTimeSigChangeTick - FirstTick;
 			if (SpanNumTicks > 0)
 			{
-				AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FAdvance(FirstTick, SpanNumTicks)));
+				AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FAdvance(FirstTick, SpanNumTicks, TempoMapTick)));
+				TempoMapTick += SpanNumTicks;
 				NextMidiTickToProcess = FirstTick + SpanNumTicks;
 				LastProcessedMidiTick = NextMidiTickToProcess - 1;
 				FirstTick = NextMidiTickToProcess;
@@ -1000,7 +1028,7 @@ namespace HarmonixMetasound
 				check(TempoPoint);
 				if (!ExternalClockDriver)
 				{
-					AddTempoChangeToBlock(BlockFrameIndex, TempoPoint->StartTick, TempoPoint->GetBPM());
+					AddTempoChangeToBlock(BlockFrameIndex, TempoPoint->StartTick, TempoPoint->GetBPM(), TempoMapTick);
 				}
 				int32 NextTempoInfoPointIndex = CurrentTempoInfoPointIndex + 1;
 				if (NextTempoInfoPointIndex < SongMapEvaluator->GetNumTempoChanges())
@@ -1020,7 +1048,7 @@ namespace HarmonixMetasound
 				CurrentTimeSignaturePointIndex++;
 				const FTimeSignaturePoint* TimeSignaturePoint = SongMapEvaluator->GetTimeSignaturePoint(CurrentTimeSignaturePointIndex);
 				check(TimeSignaturePoint);
-				AddTimeSignatureChangeToBlock(BlockFrameIndex, TimeSignaturePoint->StartTick, TimeSignaturePoint->TimeSignature);
+				AddTimeSignatureChangeToBlock(BlockFrameIndex, TimeSignaturePoint->StartTick, TimeSignaturePoint->TimeSignature, TempoMapTick);
 				int32 NextTimeSignaturePointIndex = CurrentTimeSignaturePointIndex + 1;
 				if (NextTimeSignaturePointIndex < SongMapEvaluator->GetNumTimeSignatureChanges())
 				{
@@ -1038,10 +1066,13 @@ namespace HarmonixMetasound
 
 		if (NumTicks > 0)
 		{
-			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FAdvance(FirstTick, NumTicks)));
+			AddEvent(FMidiClockEvent(BlockFrameIndex, MidiClockMessageTypes::FAdvance(FirstTick, NumTicks, TempoMapTick)));
 			NextMidiTickToProcess = FirstTick + NumTicks;
+			TempoMapTick += NumTicks;
 			LastProcessedMidiTick = NextMidiTickToProcess - 1;
 		}
+
+		NextTempoMapTickToProcess = TempoMapTick;
 	}
 
 	void FMidiClock::RebuildSongMapEvaluator(const TSharedPtr<const ISongMapEvaluator>& MapWithTempo, const TSharedPtr<const ISongMapEvaluator>& MapWithOtherMaps)

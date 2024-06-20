@@ -86,7 +86,6 @@ public:
 
 	static FMidiSongPos Lerp(const FMidiSongPos& A, const FMidiSongPos& B, float Alpha);
 
-private:
 	void SetByTimeAndTick(float Ms, float Tick, const ISongMapEvaluator& Map);
 };
 

@@ -48,6 +48,7 @@ namespace HarmonixMetasound::Analysis
 		int32 BlockSize {0};
 		Metasound::FSampleCount SampleCount {0};
 		int32 LastTickProcessed {-1};
+		int32 LastTempoMapTickProcessed {-1};
 		int32 LastAdvanceUpToTick {-1};
 		float CurrentFramesPerTick {0.0f};
 		const ISongMapEvaluator* CurrentSongMapEvaluator {nullptr};

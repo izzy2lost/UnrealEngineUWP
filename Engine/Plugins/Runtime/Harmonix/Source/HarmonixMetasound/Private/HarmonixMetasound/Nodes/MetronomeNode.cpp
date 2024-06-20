@@ -243,10 +243,10 @@ namespace HarmonixMetasound
 			switch (CurrentState)
 			{
 			case EMusicPlayerTransportState::Starting:
-				MidiClockOutPin->SeekTo(0, 0);
+				MidiClockOutPin->SeekTo(0, 0, 0);
 				if (LoopInPin)
 				{
-					MonotonicallyIncreasingClock->SeekTo(0, 0);
+					MonotonicallyIncreasingClock->SeekTo(0, 0, 0);
 				}
 				break;
 			}
@@ -304,7 +304,7 @@ namespace HarmonixMetasound
 				}
 				if (!ReceivedSeekWhileStopped())
 				{
-					DrivingMidiClock.SeekTo(StartFrameIndex, 0);
+					DrivingMidiClock.SeekTo(StartFrameIndex, 0, 0);
 				}
 				return EMusicPlayerTransportState::Playing;
 				

@@ -47,7 +47,7 @@ namespace HarmonixMetasoundTests::MidiClockVertexAnalyzer
 		SongMaps->SetSongLengthTicks(std::numeric_limits<int32>::max());
 
 		ClockInput->AttachToSongMapEvaluator(SongMaps);
-		ClockInput->SeekTo(0,0);
+		ClockInput->SeekTo(0,0,0);
 		ClockInput->SetSpeed(0, Speed);
 		ClockInput->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 	}

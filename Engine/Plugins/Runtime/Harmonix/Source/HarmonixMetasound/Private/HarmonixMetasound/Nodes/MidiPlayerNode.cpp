@@ -335,7 +335,7 @@ namespace HarmonixMetasound
 				MidiClockOut->SetTransportState(0, EMusicPlayerTransportState::Playing);
 				if (!ReceivedSeekWhileStopped())
 				{
-					MidiClockOut->SeekTo(0, 0);
+					MidiClockOut->SeekTo(0, 0, 0);
 				}
 				return EMusicPlayerTransportState::Playing;
 
@@ -382,6 +382,11 @@ namespace HarmonixMetasound
 	{
 		FMidiPlayerOperator::Execute();
 
+		if (MidiClockIn->GetSongMapsChangedInBlock())
+		{
+			MidiClockOut->SongMapsChanged();
+		}
+
 		TransportSpanPostProcessor HandleMidiClockEventsInBlock = [this](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
 			// clock should always process in post processor
@@ -401,7 +406,7 @@ namespace HarmonixMetasound
 			case EMusicPlayerTransportState::Starting:
 				if (!ReceivedSeekWhileStopped())
 				{
-					MidiClockOut->SeekTo(StartFrameIndex, 0);
+					MidiClockOut->SeekTo(StartFrameIndex, 0, MidiClockIn->GetNextTickToProcessAtBlockFrame(StartFrameIndex));
 				}
 				break;
 			case EMusicPlayerTransportState::Stopping:
@@ -464,7 +469,7 @@ namespace HarmonixMetasound
 			case EMusicPlayerTransportState::Starting:
 				if (!ReceivedSeekWhileStopped())
 				{
-					MidiClockOut->SeekTo(StartFrameIndex, 0);
+					MidiClockOut->SeekTo(StartFrameIndex, 0, 0);
 				}
 				break;
 			case EMusicPlayerTransportState::Seeking:
@@ -506,7 +511,7 @@ namespace HarmonixMetasound
 		CurrentBlockSpanStart = 0;
 
 		MidiOutPin->SetClock(*MidiClockOut);
-		MidiClockOut->SeekTo(0, 0);
+		MidiClockOut->SeekTo(0, 0, 0);
 		MidiClockOut->SetTransportState(0, EMusicPlayerTransportState::Prepared);
 
 		NeedsTransportInit = true;
@@ -605,7 +610,11 @@ namespace HarmonixMetasound
 				// remap our current tick based on the looping behavior
 				// maybe this should happen automatically when resetting a loop or changing midi files?
 				int32 NewTick = MidiClockOut->WrapTickIfLooping(MidiClockOut->GetNextMidiTickToProcess());
-				MidiClockOut->SeekTo(0, NewTick);
+				
+				// Hmmmm. Sending in 0 for the DrivingClock's tick because in this base clase we don't know
+				// if we have a driving clock. This may need to be changed (eg moved in to a subclass 'OnNewMidi' 
+				// callback function.
+				MidiClockOut->SeekTo(0, NewTick, 0);
 			}
 			else
 			{
