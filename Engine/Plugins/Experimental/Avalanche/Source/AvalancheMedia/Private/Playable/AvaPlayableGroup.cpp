@@ -2,16 +2,20 @@
 
 #include "Playable/AvaPlayableGroup.h"
 
+#include "AvaPlayableGroupSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Engine/ViewportStatsSubsystem.h"
 #include "Engine/World.h"
+#include "IAvaMediaModule.h"
 #include "Playable/AvaPlayable.h"
 #include "Playable/AvaPlayableGroupManager.h"
 #include "Playable/PlayableGroups/AvaGameInstancePlayableGroup.h"
 #include "Playable/PlayableGroups/AvaGameViewportPlayableGroup.h"
 #include "Playable/PlayableGroups/AvaRemoteProxyPlayableGroup.h"
 #include "Playable/Transition/AvaPlayableTransition.h"
+#include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackUtils.h"
+#include "Playback/IAvaPlaybackServer.h"
 #include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlayableGroup"
@@ -369,6 +373,68 @@ bool UAvaPlayableGroup::IsVisibilityConstrained(const UAvaPlayable* InPlayable) 
 		}
 	}
 	return false;
+}
+
+void UAvaPlayableGroup::ForEachPlayable(TFunctionRef<bool(UAvaPlayable*)> InFunction)
+{
+	for (const TObjectKey<UAvaPlayable>& PlayableKey : Playables)
+	{
+		if (UAvaPlayable* Playable = PlayableKey.ResolveObjectPtr())
+		{
+			if (!InFunction(Playable))
+			{
+				return;
+			}
+		}
+	}
+}
+	
+void UAvaPlayableGroup::ForEachPlayableTransition(TFunctionRef<bool(UAvaPlayableTransition*)> InFunction)
+{
+	for (const TObjectKey<UAvaPlayableTransition>& TransitionKey : PlayableTransitions)
+	{
+		if (UAvaPlayableTransition* Transition = TransitionKey.ResolveObjectPtr())
+		{
+			if (!InFunction(Transition))
+			{
+				return;
+			}
+		}
+	}
+}
+
+UAvaPlayableGroup* UAvaPlayableGroup::FindPlayableGroupForWorld(const UWorld* InWorld)
+{
+	// Ideally, we would like a direct link from GameInstance (or World) to it's owning PlayableGroup and PlayableGroupManager.
+	// Todo: Refactor the AvaGameInstance path to have a link to PlayableGroup.
+	const UAvaPlayableGroupManager* PlayableGroupManager = nullptr;
+
+	// For Game Viewport output, the sub system will give us the playable group manager directly.
+	if (const UGameInstance* GameInstance = InWorld->GetGameInstance())
+	{
+		if (const UAvaPlayableGroupSubsystem* PlayableGroupSubsystem = GameInstance->GetSubsystem<UAvaPlayableGroupSubsystem>())
+		{
+			PlayableGroupManager = PlayableGroupSubsystem->PlayableGroupManager;
+		}
+	}
+
+	if (!PlayableGroupManager)
+	{
+		const FAvaPlaybackManager& PlaybackManager = IAvaMediaModule::Get().GetLocalPlaybackManager();
+		PlayableGroupManager = PlaybackManager.GetPlayableGroupManager();
+	}
+
+	// Search in the local playable group manager for that world.
+	UAvaPlayableGroup* PlayableGroup = PlayableGroupManager->FindPlayableGroupForWorld(InWorld);
+	
+	// If not found, search in the playback server's playback manager.
+	if (!PlayableGroup && IAvaMediaModule::Get().IsPlaybackServerStarted())
+	{
+		PlayableGroupManager = IAvaMediaModule::Get().GetPlaybackServer()->GetPlaybackManager().GetPlayableGroupManager();
+		PlayableGroup = PlayableGroupManager->FindPlayableGroupForWorld(InWorld);
+	}
+
+	return PlayableGroup;
 }
 
 void UAvaPlayableGroup::OnPlayableStatusChanged(UAvaPlayable* InPlayable)

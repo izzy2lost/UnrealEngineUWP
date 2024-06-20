@@ -40,11 +40,13 @@ public:
 	void SetPlayingPlayables(TArray<TWeakObjectPtr<UAvaPlayable>>&& InPlayablesWeak);
 	void SetExitPlayables(TArray<TWeakObjectPtr<UAvaPlayable>>&& InPlayablesWeak);
 	
-	bool IsEnterPlayable(UAvaPlayable* InPlayable) const;
-	bool IsPlayingPlayable(UAvaPlayable* InPlayable) const;
-	bool IsExitPlayable(UAvaPlayable* InPlayable) const;
+	bool IsEnterPlayable(const UAvaPlayable* InPlayable) const;
+	bool IsPlayingPlayable(const UAvaPlayable* InPlayable) const;
+	bool IsExitPlayable(const UAvaPlayable* InPlayable) const;
 
 	void SetEnterPlayableValues(TArray<TSharedPtr<FAvaPlayableRemoteControlValues>>&& InPlayableValues);
+
+	TSharedPtr<FAvaPlayableRemoteControlValues> GetValuesForPlayable(const UAvaPlayable* InPlayable);
 	
 	/** This is called during the transition evaluation to indicate discarded playables. */
 	void MarkPlayableAsDiscard(UAvaPlayable* InPlayable);

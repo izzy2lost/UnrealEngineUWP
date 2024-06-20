@@ -173,6 +173,15 @@ public:
 
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView);
 
+	void ForEachPlayable(TFunctionRef<bool(UAvaPlayable*)> InFunction);
+	
+	void ForEachPlayableTransition(TFunctionRef<bool(UAvaPlayableTransition*)> InFunction);
+
+	/**
+	 * Globally search for the playable group corresponding to the given world.
+	 */
+	static UAvaPlayableGroup* FindPlayableGroupForWorld(const UWorld* InWorld);
+	
 protected:
 	bool IsVisibilityConstrained(const UAvaPlayable* InPlayable) const;
 

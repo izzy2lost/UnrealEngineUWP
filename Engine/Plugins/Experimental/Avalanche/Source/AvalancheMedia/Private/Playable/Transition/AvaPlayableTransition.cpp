@@ -74,17 +74,17 @@ void UAvaPlayableTransition::SetExitPlayables(TArray<TWeakObjectPtr<UAvaPlayable
 	ExitPlayablesWeak = MoveTemp(InPlayablesWeak);
 }
 
-bool UAvaPlayableTransition::IsEnterPlayable(UAvaPlayable* InPlayable) const
+bool UAvaPlayableTransition::IsEnterPlayable(const UAvaPlayable* InPlayable) const
 {
 	return EnterPlayablesWeak.Contains(InPlayable);
 }
 
-bool UAvaPlayableTransition::IsPlayingPlayable(UAvaPlayable* InPlayable) const
+bool UAvaPlayableTransition::IsPlayingPlayable(const UAvaPlayable* InPlayable) const
 {
 	return PlayingPlayablesWeak.Contains(InPlayable);
 }
 
-bool UAvaPlayableTransition::IsExitPlayable(UAvaPlayable* InPlayable) const
+bool UAvaPlayableTransition::IsExitPlayable(const UAvaPlayable* InPlayable) const
 {
 	return ExitPlayablesWeak.Contains(InPlayable);
 }
@@ -92,6 +92,21 @@ bool UAvaPlayableTransition::IsExitPlayable(UAvaPlayable* InPlayable) const
 void UAvaPlayableTransition::SetEnterPlayableValues(TArray<TSharedPtr<FAvaPlayableRemoteControlValues>>&& InPlayableValues)
 {
 	EnterPlayableValues = MoveTemp(InPlayableValues);
+}
+
+TSharedPtr<FAvaPlayableRemoteControlValues> UAvaPlayableTransition::GetValuesForPlayable(const UAvaPlayable* InPlayable)
+{
+	int32 ArrayIndex = 0;
+	for (const TWeakObjectPtr<UAvaPlayable> PlayableWeak : EnterPlayablesWeak)
+	{
+		const UAvaPlayable* Playable = PlayableWeak.Get();
+		if (Playable == InPlayable && EnterPlayableValues.IsValidIndex(ArrayIndex))
+		{
+			return EnterPlayableValues[ArrayIndex];
+		}
+		++ArrayIndex;
+	}
+	return nullptr;
 }
 
 void UAvaPlayableTransition::MarkPlayableAsDiscard(UAvaPlayable* InPlayable)
