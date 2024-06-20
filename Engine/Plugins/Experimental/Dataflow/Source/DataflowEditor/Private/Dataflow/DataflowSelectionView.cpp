@@ -5,6 +5,7 @@
 #include "Templates/EnableIf.h"
 #include "Dataflow/DataflowContent.h"
 //#include "Dataflow/DataflowEdNode.h"
+#include "Dataflow/DataflowObjectInterface.h"
 #include "Dataflow/DataflowSelection.h"
 #include "Dataflow/SelectionViewWidget.h"
 
