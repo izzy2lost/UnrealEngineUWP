@@ -50,9 +50,9 @@ private:
 	TSet<uint32> TimerIds;
 };
 
-class FTimerNameFilter : public UE::Insights::FCustomFilter
+class FTimerNameFilter : public UE::Insights::FFilterWithSuggestions
 {
-	INSIGHTS_DECLARE_RTTI(FTimerNameFilter, UE::Insights::FCustomFilter)
+	INSIGHTS_DECLARE_RTTI(FTimerNameFilter, UE::Insights::FFilterWithSuggestions)
 
 public:
 	FTimerNameFilter();

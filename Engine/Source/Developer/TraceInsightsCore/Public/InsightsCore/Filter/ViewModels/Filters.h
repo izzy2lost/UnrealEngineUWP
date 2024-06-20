@@ -23,7 +23,7 @@ namespace UE::Insights
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTSCORE_API EFilterDataType : uint32
+enum class EFilterDataType : uint32
 {
 	Int64,
 	Double,
@@ -35,7 +35,7 @@ enum class TRACEINSIGHTSCORE_API EFilterDataType : uint32
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTSCORE_API EFilterOperator : uint8
+enum class EFilterOperator : uint8
 {
 	Eq = 0, // Equals
 	NotEq = 1, // Not Equals
@@ -49,7 +49,7 @@ enum class TRACEINSIGHTSCORE_API EFilterOperator : uint8
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTSCORE_API EFilterField : int32
+enum class EFilterField : int32
 {
 	StartTime = 0,
 	EndTime = 1,
@@ -64,7 +64,7 @@ enum class TRACEINSIGHTSCORE_API EFilterField : int32
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTSCORE_API IFilterOperator
+class IFilterOperator
 {
 public:
 	virtual EFilterOperator GetKey() const = 0;
@@ -104,7 +104,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class TRACEINSIGHTSCORE_API EFilterGroupOperator
+enum class EFilterGroupOperator
 {
 	And = 0,
 	Or = 1,
@@ -112,7 +112,7 @@ enum class TRACEINSIGHTSCORE_API EFilterGroupOperator
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTSCORE_API FFilterGroupOperator
+class FFilterGroupOperator
 {
 public:
 	FFilterGroupOperator(EFilterGroupOperator InType, FText InName, FText InDesc)
@@ -134,7 +134,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTSCORE_API IFilterValueConverter
+class IFilterValueConverter
 {
 public:
 	virtual bool Convert(const FString& Input, int64& Output, FText& OutError) const { unimplemented(); return false; }
@@ -145,7 +145,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TRACEINSIGHTSCORE_API FFilterContext
+class FFilterContext
 {
 public:
 	typedef TVariant<double, int64, FString> ContextData;
@@ -200,6 +200,7 @@ class FFilter;
 class TRACEINSIGHTSCORE_API FFilterState
 {
 	INSIGHTS_DECLARE_RTTI_BASE(FFilterState)
+
 public:
 	FFilterState(TSharedRef<FFilter> InFilter)
 		: Filter(InFilter)
@@ -358,27 +359,9 @@ public:
 
 private:
 	static const FName FilterConfiguratorTabId;
-
 	static TSharedPtr<FFilterService> Instance;
 	FFilterStorage FilterStorage;
-
 	TSharedPtr<class SAdvancedFilter> PendingWidget;
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-class TRACEINSIGHTSCORE_API FCustomFilter : public FFilterWithSuggestions
-{
-	INSIGHTS_DECLARE_RTTI(FCustomFilter, FFilterWithSuggestions)
-public:
-	FCustomFilter(int32 InKey, FText InName, FText InDesc, EFilterDataType InDataType, TSharedPtr<IFilterValueConverter> InConverter, SupportedOperatorsArrayPtr InSupportedOperators)
-		: FFilterWithSuggestions(InKey, InName, InDesc, InDataType, InConverter, InSupportedOperators)
-	{
-	}
-
-	virtual ~FCustomFilter()
-	{
-	}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

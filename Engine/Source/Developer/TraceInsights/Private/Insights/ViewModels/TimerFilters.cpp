@@ -106,7 +106,8 @@ TSharedRef<UE::Insights::FFilterState> FTimerNameFilterState::DeepCopy() const
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FTimerNameFilter::FTimerNameFilter()
-	: FCustomFilter(static_cast<int32>(UE::Insights::EFilterField::TimerName),
+	: FFilterWithSuggestions(
+		static_cast<int32>(UE::Insights::EFilterField::TimerName),
 		LOCTEXT("TimerName", "Timer Name"),
 		LOCTEXT("TimerName", "Timer Name"),
 		UE::Insights::EFilterDataType::Custom,

@@ -66,7 +66,6 @@
 #include "ContentBrowserMenuContexts.h"
 #include "IContentBrowserDataModule.h"
 #include "ContentBrowserDataSubsystem.h"
-#include "InsightsCore/Filter/ViewModels/Filters.h"
 #include "TreeView/AssetTable.h"
 #include "TreeView/SAssetTableTreeView.h"
 
@@ -485,8 +484,6 @@ void FAssetManagerEditorModule::StartupModule()
 
 	if (GIsEditor && !IsRunningCommandlet())
 	{
-		UE::Insights::FFilterService::Initialize();
-
 		AuditCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
 			TEXT("AssetManager.AssetAudit"),
 			TEXT("Dumps statistics about assets to the log."),
@@ -693,8 +690,6 @@ void FAssetManagerEditorModule::ShutdownModule()
 		// Cleanup tool menus
 		UToolMenus::UnRegisterStartupCallback(this);
 		UToolMenus::UnregisterOwner(this);
-
-		UE::Insights::FFilterService::Shutdown();
 	}
 }
 

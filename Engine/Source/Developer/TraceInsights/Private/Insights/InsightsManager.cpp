@@ -28,7 +28,6 @@
 
 // TraceInsightsCore
 #include "InsightsCore/Common/TimeUtils.h"
-#include "InsightsCore/Filter/ViewModels/Filters.h"
 
 // TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
@@ -130,8 +129,6 @@ void FInsightsManager::Initialize(IUnrealInsightsModule& InsightsModule)
 
 	InsightsMenuBuilder = MakeShared<FInsightsMenuBuilder>();
 
-	UE::Insights::FFilterService::Initialize();
-
 	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 	MessageLogModule.RegisterLogListing(GetLogListingName(), LOCTEXT("UnrealInsights", "Unreal Insights"));
 	MessageLogModule.RegisterLogListing(AnalysisLogListingName, LOCTEXT("TraceAnalysis", "Trace Analysis"));
@@ -171,8 +168,6 @@ void FInsightsManager::Shutdown()
 			MessageLogModule.UnregisterLogListing(GetLogListingName());
 		}
 	}
-
-	UE::Insights::FFilterService::Shutdown();
 
 	FInsightsManager::Instance.Reset();
 }
@@ -267,9 +262,11 @@ void FInsightsManager::UnregisterMajorTabs()
 {
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::SessionInfoTabId);
 
-	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::TraceStoreTabId);
-	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::ConnectionTabId);
+#if !WITH_EDITOR
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::LauncherTabId);
+	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::ConnectionTabId);
+	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FInsightsManagerTabs::TraceStoreTabId);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

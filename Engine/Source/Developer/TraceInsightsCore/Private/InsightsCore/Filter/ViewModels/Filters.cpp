@@ -17,7 +17,6 @@ namespace UE::Insights
 INSIGHTS_IMPLEMENT_RTTI(FFilterState)
 INSIGHTS_IMPLEMENT_RTTI(FFilter)
 INSIGHTS_IMPLEMENT_RTTI(FFilterWithSuggestions)
-INSIGHTS_IMPLEMENT_RTTI(FCustomFilter)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FFilterStorage
@@ -70,6 +69,7 @@ FName const FFilterService::FilterConfiguratorTabId(TEXT("FilterConfigurator"));
 
 void FFilterService::Initialize()
 {
+	check(!Instance.IsValid());
 	Instance = MakeShared<FFilterService>();
 }
 
