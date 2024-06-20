@@ -31,6 +31,7 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "IAudioExtensionPlugin.h"
 #include "IDetailsView.h"
+#include "IMetasoundEngineModule.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Logging/TokenizedMessage.h"
@@ -1041,15 +1042,16 @@ namespace Metasound
 		void FEditor::InitMetasoundEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* ObjectToEdit)
 		{
 			using namespace Metasound::Frontend;
+			using namespace Metasound::Engine;
 
 			check(ObjectToEdit);
 			checkf(IMetasoundUObjectRegistry::Get().IsRegisteredClass(ObjectToEdit), TEXT("Object passed in was not registered as a valid metasound interface!"));
 
-			IMetasoundEditorModule& MetaSoundEditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
-			bPrimingRegistry = MetaSoundEditorModule.GetAssetRegistryPrimeStatus() <= EAssetPrimeStatus::InProgress;
-			if (MetaSoundEditorModule.GetAssetRegistryPrimeStatus() < EAssetPrimeStatus::InProgress)
+			IMetasoundEngineModule& MetaSoundEngineModule = FModuleManager::GetModuleChecked<IMetasoundEngineModule>("MetaSoundEngine");
+			bPrimingRegistry = MetaSoundEngineModule.GetNodeClassRegistryPrimeStatus() <= ENodeClassRegistryPrimeStatus::InProgress;
+			if (MetaSoundEngineModule.GetNodeClassRegistryPrimeStatus() < ENodeClassRegistryPrimeStatus::InProgress)
 			{
-				MetaSoundEditorModule.PrimeAssetRegistryAsync();
+				MetaSoundEngineModule.PrimeAssetRegistryAsync();
 			}
 
 			// Support undo/redo
@@ -3809,6 +3811,7 @@ namespace Metasound
 
 		void FEditor::Tick(float DeltaTime)
 		{
+			using namespace Metasound::Engine;
 			UObject* MetaSound = GetMetasoundObject();
 			if (!MetaSound)
 			{
@@ -3817,10 +3820,10 @@ namespace Metasound
 
 			if (bPrimingRegistry)
 			{
-				IMetasoundEditorModule& MetaSoundEditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
-				EAssetPrimeStatus PrimeStatus = MetaSoundEditorModule.GetAssetRegistryPrimeStatus();
-				EAssetScanStatus ScanStatus = MetaSoundEditorModule.GetAssetRegistryScanStatus();
-				if (PrimeStatus == EAssetPrimeStatus::Complete || (PrimeStatus == EAssetPrimeStatus::InProgress && ScanStatus == EAssetScanStatus::Complete))
+				IMetasoundEngineModule& MetaSoundEngineModule = FModuleManager::GetModuleChecked<Metasound::Engine::IMetasoundEngineModule>("MetaSoundEngine");
+				ENodeClassRegistryPrimeStatus PrimeStatus = MetaSoundEngineModule.GetNodeClassRegistryPrimeStatus();
+				EAssetScanStatus ScanStatus = MetaSoundEngineModule.GetAssetRegistryScanStatus();
+				if (PrimeStatus == Metasound::Engine::ENodeClassRegistryPrimeStatus::Complete)
 				{
 					bPrimingRegistry = false;
 					NotifyAssetPrimeComplete();

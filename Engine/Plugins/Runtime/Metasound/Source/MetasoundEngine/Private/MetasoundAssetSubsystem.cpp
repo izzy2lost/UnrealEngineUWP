@@ -160,6 +160,7 @@ namespace Metasound::Engine
 		virtual FMetasoundAssetBase* FindAsset(const FAssetKey& InKey) const override;
 		virtual TScriptInterface<IMetaSoundDocumentInterface> FindAssetAsDocumentInterface(const Frontend::FAssetKey& InKey) const override;
 		virtual const FTopLevelAssetPath* FindAssetPath(const FAssetKey& InKey) const override;
+		virtual const TArray<FTopLevelAssetPath>* FindAssetPaths(const FAssetKey& InKey) const override;
 		virtual FMetasoundAssetBase* GetAsAsset(UObject& InObject) const override;
 		virtual const FMetasoundAssetBase* GetAsAsset(const UObject& InObject) const override;
 #if WITH_EDITOR
@@ -436,6 +437,17 @@ namespace Metasound::Engine
 		}
 
 		return nullptr;
+	}
+
+	const TArray<FTopLevelAssetPath>* FMetaSoundAssetManager::FindAssetPaths(const Metasound::Frontend::FAssetKey& InKey) const
+	{
+		check(IsInGameThread());
+		if (const TArray<FTopLevelAssetPath>* Paths = PathMap.Find(InKey))
+		{
+			return Paths;
+		}
+
+		return { };
 	}
 
 	FMetasoundAssetBase* FMetaSoundAssetManager::GetAsAsset(UObject& InObject) const

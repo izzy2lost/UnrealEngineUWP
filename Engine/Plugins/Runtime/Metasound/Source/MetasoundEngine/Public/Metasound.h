@@ -153,6 +153,8 @@ public:
 	virtual void PreDuplicate(FObjectDuplicationParameters& DupParams) override;
 	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	virtual void PostEditUndo() override;
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+
 #endif // WITH_EDITOR
 
 	virtual void BeginDestroy() override;

@@ -494,6 +494,12 @@ bool UMetaSoundSource::CanEditChange(const FProperty* InProperty) const
 	return true;
 }
 
+EDataValidationResult UMetaSoundSource::IsDataValid(FDataValidationContext& Context) const
+{
+	const EDataValidationResult Result = Metasound::Engine::FAssetHelper::IsDataValid(*this, Context);
+	return CombineDataValidationResults(Result, Super::IsDataValid(Context));
+}
+
 void UMetaSoundSource::PostEditChangeOutputFormat()
 {
 	using namespace Metasound::Engine;

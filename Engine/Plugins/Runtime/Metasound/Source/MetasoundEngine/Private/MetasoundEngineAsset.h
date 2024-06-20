@@ -5,21 +5,25 @@
 #include "Metasound.h"
 #include "MetasoundAssetManager.h"
 #include "MetasoundDocumentBuilderRegistry.h"
+#include "MetasoundEngineModule.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundGlobals.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Misc/App.h"
+#include "Modules/ModuleManager.h"
 #include "Serialization/Archive.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Algo/Transform.h"
 #include "MetasoundFrontendRegistryContainer.h"
+#include "Misc/DataValidation.h"
 #include "UObject/GarbageCollection.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/StrongObjectPtrTemplates.h"
 #endif // WITH_EDITORONLY_DATA
 
+#define LOCTEXT_NAMESPACE "MetasoundEngine"
 
 namespace Metasound::Engine
 {
@@ -99,6 +103,57 @@ namespace Metasound::Engine
 				}
 			}
 		}
+
+		template <typename TMetaSoundObject>
+		static EDataValidationResult IsClassNameUnique(const TMetaSoundObject& InMetaSound, FDataValidationContext& InOutContext)
+		{
+			using namespace Metasound::Frontend;
+			using namespace Metasound::Engine;
+
+			EDataValidationResult Result = EDataValidationResult::Valid;
+
+			// Need to prime asset registry to look for duplicate class names
+			IMetasoundEngineModule& MetaSoundEngineModule = FModuleManager::GetModuleChecked<IMetasoundEngineModule>("MetaSoundEngine");
+			// Checking for duplicate class names only requires the asset manager to be primed, but not for assets to be loaded. 
+			if (!MetaSoundEngineModule.IsAssetManagerPrimed())
+			{
+				MetaSoundEngineModule.PrimeAssetManager();
+				// Check again, as priming relies on the asset registry being loaded so may not be complete
+				if (!MetaSoundEngineModule.IsAssetManagerPrimed())
+				{
+					Result = EDataValidationResult::Invalid;
+					InOutContext.AddError(LOCTEXT("UniqueClassNameAssetManagerNotReady",
+						"MetaSound Asset Manager was unable to be primed to check for unique class names. This may be because the asset registry has not finished loading assets. Please try again later."));
+					return Result;
+				}
+			}
+
+			// Add error for multiple assets with the same class name
+			const IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
+			const FAssetKey Key(InMetaSound.GetConstDocument().RootGraph.Metadata);
+			const TArray<FTopLevelAssetPath>* AssetPaths = AssetManager.FindAssetPaths(Key);
+			if (AssetPaths && AssetPaths->Num() > 1)
+			{
+				Result = EDataValidationResult::Invalid;
+
+				TArray<FText> PathStrings;
+				Algo::Transform(*AssetPaths, PathStrings, [](const FTopLevelAssetPath& Path) { return FText::FromString(Path.ToString()); });
+				InOutContext.AddError(FText::Format(LOCTEXT("UniqueClassNameValidation",
+					"Multiple assets use the same class name which may result in unintended behavior. This may happen when an asset is moved, then the move is reverted in revision control without removing the newly created asset. Please remove the offending asset or duplicate it to automatically generate a new class name." \
+					"\nConflicting Asset Paths:\n{0}"), FText::Join(FText::FromString(TEXT("\n")), PathStrings)));
+			}
+
+			// Success
+			return Result;
+		}
+
+		template <typename TMetaSoundObject>
+		static EDataValidationResult IsDataValid(const TMetaSoundObject& InMetaSound, FDataValidationContext& InOutContext)
+		{
+			const EDataValidationResult Result = IsClassNameUnique(InMetaSound, InOutContext);
+			return Result;
+		}
+
 #endif // WITH_EDITOR
 
 		template <typename TMetaSoundObject>
@@ -277,3 +332,4 @@ namespace Metasound::Engine
 #endif // WITH_EDITORONLY_DATA
 	};
 } // namespace Metasound::Engine
+#undef LOCTEXT_NAMESPACE // MetasoundEngine

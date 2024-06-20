@@ -164,13 +164,18 @@ namespace Metasound::Frontend
 		virtual bool ContainsKey(const Metasound::Frontend::FAssetKey& InAssetKey) const = 0;
 
 		// Returns object (if loaded) associated with the given key (null if key is not registered with the AssetManager)
+		// If multiple assets are associated with the given key, the last one is returned. 
 		virtual FMetasoundAssetBase* FindAsset(const Metasound::Frontend::FAssetKey& InAssetKey) const = 0;
 
 		// Returns object (if loaded) associated with the given key as a Document Interface (null if key is not registered with the AssetManager)
 		virtual TScriptInterface<IMetaSoundDocumentInterface> FindAssetAsDocumentInterface(const Frontend::FAssetKey& InKey) const = 0;
 
 		// Returns path associated with the given key (null if key is not registered with the AssetManager or was not loaded from asset)
+		// If multiple assets are associated with the given key, the last one is returned. 
 		virtual const FTopLevelAssetPath* FindAssetPath(const Metasound::Frontend::FAssetKey& InAssetKey) const = 0;
+		
+		// Returns all paths associated with the given key (null if key is not registered with the AssetManager or was not loaded from asset)
+		virtual const TArray<FTopLevelAssetPath>* FindAssetPaths(const Metasound::Frontend::FAssetKey& InAssetKey) const = 0;
 
 		// Converts an object to an AssetBase if its a registered asset
 		virtual FMetasoundAssetBase* GetAsAsset(UObject& InObject) const = 0;

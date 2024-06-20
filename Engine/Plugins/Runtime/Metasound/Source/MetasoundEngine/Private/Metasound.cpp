@@ -118,6 +118,13 @@ void UMetaSoundPatch::PostEditUndo()
 	Super::PostEditUndo();
 	Metasound::Engine::FAssetHelper::PostEditUndo(*this);
 }
+
+EDataValidationResult UMetaSoundPatch::IsDataValid(FDataValidationContext& Context) const
+{
+	const EDataValidationResult Result = Metasound::Engine::FAssetHelper::IsDataValid(*this, Context);
+	return CombineDataValidationResults(Result, Super::IsDataValid(Context));
+}
+
 #endif // WITHEDITOR
 
 void UMetaSoundPatch::BeginDestroy()

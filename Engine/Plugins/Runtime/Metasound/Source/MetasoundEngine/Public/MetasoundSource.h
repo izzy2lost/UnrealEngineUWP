@@ -219,6 +219,8 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InEvent) override;
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+
 private:
 	void PostEditChangeOutputFormat();
 	void PostEditChangeQualitySettings();

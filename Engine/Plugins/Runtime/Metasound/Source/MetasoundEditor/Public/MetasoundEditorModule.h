@@ -18,6 +18,11 @@ class IDetailPropertyRow;
 class UEdGraphPin;
 class UMetasoundEditorGraph;
 class UMetasoundEditorGraphMemberDefaultLiteral;
+namespace Metasound::Engine 
+{
+	enum class EAssetScanStatus : uint8;
+	enum class ENodeClassRegistryPrimeStatus : uint8;
+}
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMetasoundEditor, Log, All);
 
@@ -32,25 +37,8 @@ namespace Metasound
 			METASOUNDEDITOR_API const FSlateBrush& GetSlateBrushSafe(FName InName);
 		} // namespace Style
 
-		// Status of initial asset scan when editor loads up.
-		enum class EAssetScanStatus : uint8
-		{
-			NotRequested = 0,
-			InProgress = 2,
-			Complete = 3
-		};
-
-		// Primes status of MetaSound assets.  Priming an asset
-		// effectively loading the asset asynchronously (if not already loaded)
-		// & registers it with the MetaSound Class Registry.
-		enum class EAssetPrimeStatus : uint8
-		{
-			NotRequested = 0,
-			Requested = 1,
-			InProgress = 2,
-			Complete = 3,
-			Canceled = 4
-		};
+		using EAssetScanStatus = Metasound::Engine::EAssetScanStatus;
+		using EAssetPrimeStatus = Metasound::Engine::ENodeClassRegistryPrimeStatus;
 
 		struct FGraphPinParams
 		{
@@ -99,10 +87,13 @@ namespace Metasound
 			UE_DEPRECATED(5.3, "IsMetaSoundAssetClass is deprecated, use IMetasoundUObjectRegistry::IsRegisteredClass")
 			virtual bool IsMetaSoundAssetClass(const FTopLevelAssetPath& InClassName) const = 0;
 
-			// Primes MetaSound assets, effectively loading the asset asynchronously (if not already
-			// loaded) & registers them if not already registered with the MetaSound Class Registry.
+			UE_DEPRECATED(5.5, "Use PrimeAssetRegistryAsync in MetaSoundEngineModule.")
 			virtual void PrimeAssetRegistryAsync() = 0;
+
+			UE_DEPRECATED(5.5, "Use GetNodeClassRegistryPrimeStatus in MetaSoundEngineModule.")
 			virtual EAssetPrimeStatus GetAssetRegistryPrimeStatus() const = 0;
+
+			UE_DEPRECATED(5.5, "Use the same function in MetaSoundEngineModule.")
 			virtual EAssetScanStatus GetAssetRegistryScanStatus() const = 0;
 
 			virtual TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> CreateMemberDefaultLiteralCustomization(UClass& InClass, IDetailCategoryBuilder& DefaultCategoryBuilder) const = 0;
