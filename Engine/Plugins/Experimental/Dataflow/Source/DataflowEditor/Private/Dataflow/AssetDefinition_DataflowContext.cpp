@@ -36,7 +36,7 @@ FText UAssetDefinition_DataflowContext::GetAssetDisplayName() const
 
 TSoftClassPtr<UObject> UAssetDefinition_DataflowContext::GetAssetClass() const
 {
-	return UDataflow::StaticClass();
+	return UDataflowBaseContent::StaticClass();
 }
 
 FLinearColor UAssetDefinition_DataflowContext::GetAssetColor() const
@@ -55,5 +55,10 @@ UThumbnailInfo* UAssetDefinition_DataflowContext::LoadThumbnailInfo(const FAsset
 	return UE::Editor::FindOrCreateThumbnailInfo(InAsset.GetAsset(), USceneThumbnailInfo::StaticClass());
 }
 
+FAssetOpenSupport UAssetDefinition_DataflowContext::GetAssetOpenSupport(const FAssetOpenSupportArgs& OpenSupportArgs) const
+{
+	// this asset shoul dnot be editable at any time
+	return FAssetOpenSupport(EAssetOpenMethod::View, false);
+}
 
 #undef LOCTEXT_NAMESPACE
