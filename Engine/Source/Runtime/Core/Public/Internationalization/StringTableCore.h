@@ -108,7 +108,7 @@ public:
 	CORE_API FString GetNamespace() const;
 
 	/** Set the namespace used by all entries in this string table */
-	CORE_API void SetNamespace(const FString& InNamespace);
+	CORE_API void SetNamespace(const FTextKey& InNamespace);
 
 	/** Get the source string used by the given entry (if any) */
 	CORE_API bool GetSourceString(const FTextKey& InKey, FString& OutSourceString) const;

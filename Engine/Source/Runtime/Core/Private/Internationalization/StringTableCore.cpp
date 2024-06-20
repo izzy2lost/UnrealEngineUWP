@@ -125,11 +125,11 @@ FString FStringTable::GetNamespace() const
 	return TableNamespace.GetChars();
 }
 
-void FStringTable::SetNamespace(const FString& InNamespace)
+void FStringTable::SetNamespace(const FTextKey& InNamespace)
 {
 	FScopeLock KeyMappingLock(&KeyMappingCS);
 
-	if (FCString::Strcmp(TableNamespace.GetChars(), *InNamespace) != 0)
+	if (TableNamespace != InNamespace)
 	{
 		TableNamespace = InNamespace;
 

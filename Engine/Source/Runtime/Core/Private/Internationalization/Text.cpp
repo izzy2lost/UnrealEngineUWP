@@ -256,8 +256,8 @@ FText::FText( FString&& InSourceString )
 {
 }
 
-FText::FText( FName InTableId, FString InKey, const EStringTableLoadingPolicy InLoadingPolicy )
-	: TextData(MakeRefCount<FTextHistory_StringTableEntry>(InTableId, MoveTemp(InKey), InLoadingPolicy))
+FText::FText( FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy )
+	: TextData(MakeRefCount<FTextHistory_StringTableEntry>(InTableId, InKey, InLoadingPolicy))
 	, Flags(0)
 {
 }
@@ -1047,7 +1047,7 @@ FText FText::ChangeKey( const FTextKey& Namespace, const FTextKey& Key, const FT
 }
 #endif
 
-FText FText::FromStringTable(const FName InTableId, const FString& InKey, const EStringTableLoadingPolicy InLoadingPolicy)
+FText FText::FromStringTable(const FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy)
 {
 	return FStringTableRegistry::Get().Internal_FindLocTableEntry(InTableId, InKey, InLoadingPolicy);
 }

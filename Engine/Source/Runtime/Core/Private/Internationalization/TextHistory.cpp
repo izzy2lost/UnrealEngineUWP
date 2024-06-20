@@ -2330,10 +2330,10 @@ bool FTextHistory_Transform::GetHistoricNumericData(const FText& InText, FHistor
 ///////////////////////////////////////
 // FTextHistory_StringTableEntry
 
-FTextHistory_StringTableEntry::FTextHistory_StringTableEntry(FName InTableId, FString&& InKey, const EStringTableLoadingPolicy InLoadingPolicy)
+FTextHistory_StringTableEntry::FTextHistory_StringTableEntry(FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy)
 	: StringTableReferenceData(MakeShared<FStringTableReferenceData, ESPMode::ThreadSafe>())
 {
-	StringTableReferenceData->Initialize(InTableId, MoveTemp(InKey), InLoadingPolicy);
+	StringTableReferenceData->Initialize(InTableId, InKey, InLoadingPolicy);
 	MarkDisplayStringUpToDate();
 }
 
@@ -2508,10 +2508,10 @@ bool FTextHistory_StringTableEntry::WriteToBuffer(FString& Buffer, const bool bS
 	return false;
 }
 
-void FTextHistory_StringTableEntry::FStringTableReferenceData::Initialize(FName InTableId, FTextKey InKey, const EStringTableLoadingPolicy InLoadingPolicy)
+void FTextHistory_StringTableEntry::FStringTableReferenceData::Initialize(FName InTableId, const FTextKey& InKey, const EStringTableLoadingPolicy InLoadingPolicy)
 {
 	TableId = InTableId;
-	Key = MoveTemp(InKey);
+	Key = InKey;
 	FStringTableRedirects::RedirectTableIdAndKey(TableId, Key);
 
 	if (InLoadingPolicy == EStringTableLoadingPolicy::Find)
