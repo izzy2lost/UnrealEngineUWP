@@ -7605,6 +7605,12 @@ UScriptStruct* TBaseStructure<FFrameTime>::Get()
 	return ScriptStruct;
 }
 
+UScriptStruct* TBaseStructure<FFrameRate>::Get()
+{
+	static UScriptStruct* ScriptStruct = StaticGetBaseStructureInternal(TEXT("FrameRate"));
+	return ScriptStruct;
+}
+
 UScriptStruct* TBaseStructure<FAssetBundleData>::Get()
 {
 	static UScriptStruct* ScriptStruct = StaticGetBaseStructureInternal(TEXT("AssetBundleData"));

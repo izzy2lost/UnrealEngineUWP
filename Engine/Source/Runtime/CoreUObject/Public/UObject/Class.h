@@ -4338,6 +4338,13 @@ template<> struct TBaseStructure<FFrameTime>
 	static COREUOBJECT_API UScriptStruct* Get();
 };
 
+struct FFrameRate;
+
+template<> struct TBaseStructure<FFrameRate>
+{
+	static COREUOBJECT_API UScriptStruct* Get();
+};
+
 struct FSoftObjectPath;
 
 template<> struct TBaseStructure<FSoftObjectPath>
