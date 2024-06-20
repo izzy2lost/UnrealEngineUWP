@@ -240,13 +240,11 @@ struct FSequencerSectionPainterImpl : FSequencerSectionPainter
 		}
 		else
 		{
-			TSharedPtr<IGeometryExtension> Geometry = Outliner.ImplicitCast();
-			const float HeaderHeight = Geometry ? Geometry->GetVirtualGeometry().GetHeight() : 10.f;
-
-			FGeometry HeaderGeometry = ExpandedSectionGeometry.MakeChild(
-				FVector2D(ExpandedSectionGeometry.GetLocalSize().X, HeaderHeight),
+			FGeometry LocalHeaderGeometry = ExpandedSectionGeometry.MakeChild(
+				FVector2D(ExpandedSectionGeometry.GetLocalSize().X, HeaderGeometry.GetLocalSize().Y),
 				FSlateLayoutTransform()
 			);
+			const float HeaderHeight = LocalHeaderGeometry.GetLocalSize().Y;
 			FGeometry ContentsGeometry = ExpandedSectionGeometry.MakeChild(
 				FVector2D(ExpandedSectionGeometry.GetLocalSize().X, ExpandedSectionGeometry.GetLocalSize().Y - HeaderHeight),
 				FSlateLayoutTransform(FVector2D(0.f, HeaderHeight)) 
@@ -255,7 +253,7 @@ struct FSequencerSectionPainterImpl : FSequencerSectionPainter
 			FSlateDrawElement::MakeBox(
 				DrawElements,
 				LayerId,
-				HeaderGeometry.ToPaintGeometry(),
+				LocalHeaderGeometry.ToPaintGeometry(),
 				SectionHeaderBackgroundBrush,
 				DrawEffects,
 				BlendedTint
@@ -279,7 +277,7 @@ struct FSequencerSectionPainterImpl : FSequencerSectionPainter
 				FSlateDrawElement::MakeBox(
 					DrawElements,
 					++LayerId,
-					HeaderGeometry.ToPaintGeometry(HeaderGeometry.GetLocalSize() - FVector2f(2.f, 2.f), FSlateLayoutTransform(FVector2f(1.f, 1.f))),
+					LocalHeaderGeometry.ToPaintGeometry(LocalHeaderGeometry.GetLocalSize() - FVector2f(2.f, 2.f), FSlateLayoutTransform(FVector2f(1.f, 1.f))),
 					SectionHeaderSelectedSectionOverlay,
 					DrawEffects,
 					SelectionColor.GetValue().CopyWithNewOpacity(0.8f)

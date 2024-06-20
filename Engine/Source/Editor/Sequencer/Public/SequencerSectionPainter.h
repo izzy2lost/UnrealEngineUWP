@@ -57,6 +57,8 @@ public:
 	/** Get the track that this painter is painting sections for */
 	UMovieSceneTrack* GetTrack() const;
 
+	FLinearColor GetSectionColor() const;
+
 	/** Blend the specified color with the default track color */
 	static FLinearColor BlendColor(FLinearColor InColor);
 
@@ -75,6 +77,9 @@ public:
 
 	/** The full geometry of the section. This is the width of the track area in the case of infinite sections */
 	FGeometry SectionGeometry;
+
+	/** The header geometry of the section. This is the same as SectionGeometry for collapsed sections, but just the height of the top row for expanded sections. */
+	FGeometry HeaderGeometry;
 
 	/** The full clipping rectangle for the section */
 	FSlateRect SectionClippingRect;
