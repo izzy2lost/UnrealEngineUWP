@@ -642,8 +642,9 @@ namespace Interchange
 			{
 				const FName FrontMaterial = TEXT("Front Material");
 				const FName OpacityMask = TEXT("Opacity Mask");
-			}
-			
+				const FName Displacement = TEXT("Displacement");
+				const FName Occlusion = TEXT("Occlusion");
+			}			
 		}
 	}
 }

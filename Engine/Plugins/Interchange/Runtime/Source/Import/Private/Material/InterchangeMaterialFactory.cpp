@@ -1259,6 +1259,51 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 			}
 		}
 
+		// Displacement
+		if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, SubstrateMaterial::Parameters::Displacement))
+		{
+			FString ExpressionNodeUid;
+			FString OutputName;
+
+			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, SubstrateMaterial::Parameters::Displacement.ToString(), ExpressionNodeUid, OutputName);
+
+			const UInterchangeMaterialExpressionFactoryNode* Displacement = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ExpressionNodeUid));
+
+			if(Displacement)
+			{
+				if(UMaterialExpression* DisplacementExpression = Builder.CreateExpressionsForNode(*Displacement))
+				{
+					if(FExpressionInput* DisplacementInput = Material->GetExpressionInputForProperty(MP_Displacement))
+					{
+						DisplacementExpression->ConnectExpression(DisplacementInput, GetOutputIndex(*DisplacementExpression, OutputName));
+						Material->bEnableTessellation = true;
+					}
+				}
+			}
+		}
+
+		// Occlusion
+		if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, SubstrateMaterial::Parameters::Occlusion))
+		{
+			FString ExpressionNodeUid;
+			FString OutputName;
+
+			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, SubstrateMaterial::Parameters::Occlusion.ToString(), ExpressionNodeUid, OutputName);
+
+			const UInterchangeMaterialExpressionFactoryNode* Occlusion = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ExpressionNodeUid));
+
+			if(Occlusion)
+			{
+				if(UMaterialExpression* OcclusionExpression = Builder.CreateExpressionsForNode(*Occlusion))
+				{
+					if(FExpressionInput* OcclusionInput = Material->GetExpressionInputForProperty(MP_AmbientOcclusion))
+					{
+						OcclusionExpression->ConnectExpression(OcclusionInput, GetOutputIndex(*OcclusionExpression, OutputName));
+					}
+				}
+			}
+		}
+
 		UMaterialEditingLibrary::LayoutMaterialExpressions(Material);
 
 		return;
