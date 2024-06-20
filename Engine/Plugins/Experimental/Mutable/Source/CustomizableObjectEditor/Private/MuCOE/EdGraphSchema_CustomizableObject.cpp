@@ -32,6 +32,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatParameter.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatSwitch.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeFloatArithmeticOp.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeGroupProjectorParameter.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeLayoutBlocks.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialVariation.h"
@@ -489,6 +490,7 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 		{
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeFloatConstant>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeFloatParameter>(),
+			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeFloatArithmeticOp>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeFloatSwitch>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeFloatVariation>(),
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeCurve>(),
@@ -496,6 +498,22 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 
 
 		AddNewNodeCategoryActionsFiltered(FloatTemplateNodes, ContextMenuBuilder, TEXT("Float"), GeneralGrouping, Filter);
+
+		UCustomizableObjectNodeFloatArithmeticOp* Node = NewObject<UCustomizableObjectNodeFloatArithmeticOp>();
+		Node->Operation = EFloatArithmeticOperation::E_Add;
+		AddNewNodeActionFiltered(Node, ContextMenuBuilder, TEXT("Float"), LOCTEXT("Float_Addition", "Float Addition +"), GeneralGrouping, Filter);
+
+		Node = NewObject<UCustomizableObjectNodeFloatArithmeticOp>();
+		Node->Operation = EFloatArithmeticOperation::E_Sub;
+		AddNewNodeActionFiltered(Node, ContextMenuBuilder, TEXT("Float"), LOCTEXT("Float_Subtraction", "Float Subtraction -"), GeneralGrouping, Filter);
+
+		Node = NewObject<UCustomizableObjectNodeFloatArithmeticOp>();
+		Node->Operation = EFloatArithmeticOperation::E_Mul;
+		AddNewNodeActionFiltered(Node, ContextMenuBuilder, TEXT("Float"), LOCTEXT("Float_Multiplication", "Float Multiplication x"), GeneralGrouping, Filter);
+
+		Node = NewObject<UCustomizableObjectNodeFloatArithmeticOp>();
+		Node->Operation = EFloatArithmeticOperation::E_Div;
+		AddNewNodeActionFiltered(Node, ContextMenuBuilder, TEXT("Float"), LOCTEXT("Float_Division", "Float Division /"), GeneralGrouping, Filter);
 	}
 
 	{

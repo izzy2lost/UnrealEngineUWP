@@ -16,12 +16,14 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatParameter.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatSwitch.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeFloatVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeFloatArithmeticOp.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
 #include "MuT/NodeScalarConstant.h"
 #include "MuT/NodeScalarCurve.h"
 #include "MuT/NodeScalarSwitch.h"
 #include "MuT/NodeScalarTable.h"
 #include "MuT/NodeScalarVariation.h"
+#include "MuT/NodeScalarArithmeticOperation.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -259,6 +261,46 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 				mu::NodeScalarPtr ChildNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
 				FloatNode->SetVariationScalar(VariationIndex, ChildNode.get());
 			}
+		}
+	}
+
+	else if (const UCustomizableObjectNodeFloatArithmeticOp* TypedNodeFloatArith = Cast<UCustomizableObjectNodeFloatArithmeticOp>(Node))
+	{
+		mu::NodeScalarArithmeticOperationPtr OpNode = new mu::NodeScalarArithmeticOperation();
+		Result = OpNode;
+
+		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeFloatArith->XPin()))
+		{
+			mu::NodeScalarPtr XNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
+			OpNode->SetA(XNode);
+		}
+
+		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeFloatArith->YPin()))
+		{
+			mu::NodeScalarPtr YNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
+			OpNode->SetB(YNode);
+		}
+
+		switch (TypedNodeFloatArith->Operation)
+		{
+		case EFloatArithmeticOperation::E_Add:
+			OpNode->SetOperation(mu::NodeScalarArithmeticOperation::OPERATION::AO_ADD);
+			break;
+
+		case EFloatArithmeticOperation::E_Sub:
+			OpNode->SetOperation(mu::NodeScalarArithmeticOperation::OPERATION::AO_SUBTRACT);
+			break;
+
+		case EFloatArithmeticOperation::E_Mul:
+			OpNode->SetOperation(mu::NodeScalarArithmeticOperation::OPERATION::AO_MULTIPLY);
+			break;
+
+		case EFloatArithmeticOperation::E_Div:
+			OpNode->SetOperation(mu::NodeScalarArithmeticOperation::OPERATION::AO_DIVIDE);
+			break;
+
+		default:
+			unimplemented();
 		}
 	}
 
