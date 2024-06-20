@@ -6,7 +6,7 @@
 #include "SimModule/SimulationModuleBase.h"
 #include "SimModule/ModuleInput.h"
 
-#include "SimModuleTree.Generated.h"
+#include "SimModuleTree.generated.h"
 
 DECLARE_STATS_GROUP(TEXT("ModularVehicle.SimTree"), STATGROUP_ModularVehicleSimTree, STATGROUP_Advanced);
 
