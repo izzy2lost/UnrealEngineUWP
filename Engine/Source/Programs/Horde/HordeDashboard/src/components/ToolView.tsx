@@ -238,7 +238,7 @@ const ToolPanel: React.FC<{ selectedKey: string }> = observer(({ selectedKey }) 
             <Text style={{ color: modeColors.text }}>{tool.version}</Text>
          </Stack>
          <Stack >
-            <PrimaryButton split menuProps={downloadProps} style={{ width: 140, color: "#FFFFFF" }} text="Download" onClick={() => window.location.assign(`/api/v1/tools/${tool.id}?action=download`)} />
+            <PrimaryButton split menuProps={downloadProps} style={{ width: 130, color: "#FFFFFF" }} text="Download" onClick={() => window.location.assign(`/api/v1/tools/${tool.id}?action=download`)} />
          </Stack>
       </Stack>
    }

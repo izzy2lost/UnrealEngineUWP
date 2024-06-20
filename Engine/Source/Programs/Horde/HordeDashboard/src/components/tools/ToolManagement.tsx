@@ -17,7 +17,7 @@ class ToolHandler extends PollBase {
       super(pollTime);
       this.toolId = toolId;
 
-      this.poll();
+      this.start();
    }
 
    async poll(): Promise<void> {
@@ -82,7 +82,7 @@ const ActionConfirmation: React.FC<{ handler: ToolHandler, request: UpdateDeploy
 
          await backend.updateDeployment(handler.data!.id, deployment.id, request);
 
-         handler.poll();
+         handler.poll();         
 
       } catch (reason) {
 
@@ -97,9 +97,12 @@ const ActionConfirmation: React.FC<{ handler: ToolHandler, request: UpdateDeploy
                title: `Error Updating Deployment`,
                message: `There was an issue updating the tool deployment.\n\nReason: ${errorReason}\n\nTime: ${moment.utc().format("MMM Do, HH:mm z")}`
 
-            }, true);
+            }, true);            
 
          }
+
+         setSubmitting(false);
+         onClose();
 
       }
    }
