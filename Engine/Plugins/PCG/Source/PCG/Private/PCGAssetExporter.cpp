@@ -71,6 +71,7 @@ bool UPCGAssetExporter::Export(const FString& PackageName, UPCGDataAsset* Asset)
 		Asset->ExporterClass = GetClass();
 		if (ExportAsset(PackageName, Asset))
 		{
+			DuplicateAndReOuterData(Asset);
 			SerializeMetadataToAsset(Asset);
 			Asset->MarkPackageDirty();
 			return true;
@@ -142,4 +143,25 @@ void UPCGAssetExporter::SerializeMetadataToAsset(const FAssetData& PCGAsset)
 
 	Asset->ExporterMetadata = FBase64::Encode(SerializedMetadata);
 #endif // WITH_EDITOR
+}
+
+void UPCGAssetExporter::DuplicateAndReOuterData(UPCGDataAsset* Asset)
+{
+	if (!Asset)
+	{
+		return;
+	}
+
+	// Implementation note: we can't easily update the contents of data even through visit data
+	// because it doesn't allow changing its parts.
+	for (FPCGTaggedData& TaggedData : Asset->Data.TaggedData)
+	{
+		if (TaggedData.Data && TaggedData.Data->GetOuter() == GetTransientPackage())
+		{
+			UPCGData* DuplicatedData = TaggedData.Data->DuplicateData(nullptr);
+			DuplicatedData->Rename(nullptr, Asset);
+
+			TaggedData.Data = DuplicatedData;
+		}
+	}
 }

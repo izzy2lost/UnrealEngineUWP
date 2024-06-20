@@ -2,18 +2,21 @@
 
 #include "PCGAssetExporterUtils.h"
 
-#include "PCGEditorModule.h"
+#include "PCGModule.h"
 
+#if WITH_EDITOR
 #include "ContentBrowserModule.h"
 #include "FileHelpers.h"
 #include "IContentBrowserSingleton.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#endif // WITH_EDITOR
 
 UPackage* UPCGAssetExporterUtils::CreateAsset(UPCGAssetExporter* Exporter, FPCGAssetExporterParameters Parameters)
 {
+#if WITH_EDITOR
 	if (!Exporter || !Exporter->GetAssetType())
 	{
-		UE_LOG(LogPCGEditor, Error, TEXT("Unable to create asset without an exporter, or exporter is not setup properly."));
+		UE_LOG(LogPCG, Error, TEXT("Unable to create asset without an exporter, or exporter is not setup properly."));
 		return nullptr;
 	}
 
@@ -118,10 +121,15 @@ UPackage* UPCGAssetExporterUtils::CreateAsset(UPCGAssetExporter* Exporter, FPCGA
 	}
 
 	return Package;
+#else
+	UE_LOG(LogPCG, Error, TEXT("PCG Asset Exporter Utils cannot be used in non-editor builds."));
+	return nullptr;
+#endif
 }
 
 void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, FPCGAssetExporterParameters InParameters)
 {
+#if WITH_EDITOR
 	TArray<UPackage*> PackagesToSave;
 	FPCGAssetExporterParameters Parameters = InParameters;
 
@@ -140,7 +148,7 @@ void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, F
 		}
 		else
 		{
-			UE_LOG(LogPCGEditor, Error, TEXT("Unable to update asset '%s' because exporter isn't valid."), *PCGAsset.AssetName.ToString());
+			UE_LOG(LogPCG, Error, TEXT("Unable to update asset '%s' because exporter isn't valid."), *PCGAsset.AssetName.ToString());
 			continue;
 		}
 
@@ -148,7 +156,7 @@ void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, F
 
 		if (!Exporter)
 		{
-			UE_LOG(LogPCGEditor, Error, TEXT("Unable to create exporter for asset '%s' during update process."), *PCGAsset.AssetName.ToString());
+			UE_LOG(LogPCG, Error, TEXT("Unable to create exporter for asset '%s' during update process."), *PCGAsset.AssetName.ToString());
 			continue;
 		}
 
@@ -168,4 +176,7 @@ void UPCGAssetExporterUtils::UpdateAssets(const TArray<FAssetData>& PCGAssets, F
 	{
 		FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, /*bCheckDirty=*/false, /*bPromptToSave=*/false);
 	}
+#else
+	UE_LOG(LogPCG, Error, TEXT("PCG Asset Exporter Utils cannot be used in non-editor builds."));
+#endif // WITH_EDITOR
 }

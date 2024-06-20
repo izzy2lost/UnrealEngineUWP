@@ -68,4 +68,7 @@ protected:
 
 	/** Sets up the exporter prior to performing update */
 	virtual void SerializeMetadata(FArchive& Ar) {}
+
+	/** Duplicates data that is outered to the transient package so it is properly saved */
+	void DuplicateAndReOuterData(UPCGDataAsset* Asset);
 };

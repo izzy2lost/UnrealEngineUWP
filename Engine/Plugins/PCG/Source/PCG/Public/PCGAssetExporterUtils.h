@@ -8,8 +8,11 @@
 
 #include "PCGAssetExporterUtils.generated.h"
 
+/**
+* Asset export utils - will work only in editor builds. 
+*/
 UCLASS()
-class PCGEDITOR_API UPCGAssetExporterUtils : public UBlueprintFunctionLibrary
+class PCG_API UPCGAssetExporterUtils : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
