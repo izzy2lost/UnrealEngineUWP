@@ -479,6 +479,12 @@ public:
 	virtual bool CopyFileToTarget(const FString& DeviceId, const FString& HostFilename, const FString& TargetFilename, const TMap<FString, FString>& CustomPlatformData) = 0;
 
 	/**
+	 * Hook called when a TargetPlatform is selected for cooking. Load any required assets or data.
+	 * May be called multiple times per process; it is called each time a cook starts for the platform.
+	 */
+	virtual void InitializeForCook() = 0;
+
+	/**
 	 * Gets a list of package names to cook when cooking this platform
 	 */
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const = 0;

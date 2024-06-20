@@ -278,6 +278,11 @@ public:
 		return false; 
 	}
 
+	virtual void InitializeForCook() override
+	{
+
+	}
+
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const override
 	{
 
@@ -981,6 +986,10 @@ public:
 	virtual bool CopyFileToTarget(const FString& DeviceId, const FString& HostFilename, const FString& TargetFilename, const TMap<FString, FString>& CustomPlatformData) override 
 	{
 		return TargetPlatformControls->CopyFileToTarget(DeviceId, HostFilename, TargetFilename, CustomPlatformData);
+	}
+	virtual void InitializeForCook() override
+	{
+		TargetPlatformControls->InitializeForCook();
 	}
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const override
 	{

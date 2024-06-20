@@ -195,6 +195,11 @@ public:
 		return false;
 	}
 
+	virtual void InitializeForCook() override
+	{
+
+	}
+
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const override
 	{
 

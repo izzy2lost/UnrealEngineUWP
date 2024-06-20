@@ -67,6 +67,11 @@ public:
 		return PackageManager->AllowObjectToBeCooked(Obj);
 	}
 
+	virtual void InitializeForCook() override
+	{
+		PackageManager->InitializeForCook();
+	}
+
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const override
 	{
 		if (AllowsEditorObjects())
@@ -158,6 +163,11 @@ public:
 		return PackageManager->AllowObjectToBeCooked(Obj);
 	}
 	
+	virtual void InitializeForCook() override
+	{
+		PackageManager->InitializeForCook();
+	}
+
 	virtual void GetExtraPackagesToCook(TArray<FName>& PackageNames) const override
 	{
 		if (AllowsEditorObjects())

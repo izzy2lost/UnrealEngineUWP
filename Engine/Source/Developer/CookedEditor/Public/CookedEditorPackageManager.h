@@ -77,6 +77,12 @@ public:
 	}
 
 	/**
+	 * Hook called when the manager's TargetPlatform is selected for cooking. Load any required assets or data.
+	 * May be called multiple times per process; it is called each time a cook starts for the platform.
+	 */
+	virtual void InitializeForCook() = 0;
+
+	/**
 	 * Override to control engine packages to cook
 	 */
 	virtual void GetEnginePackagesToCook(TArray<FName>& PackagesToCook) const = 0;
@@ -154,15 +160,21 @@ class COOKEDEDITOR_API FIniCookedEditorPackageManager : public ICookedEditorPack
 	TArray<FString> EngineAssetPaths;
 	TArray<FString> ProjectAssetPaths;
 	TArray<FString> DisabledPlugins;
-	TArray<UClass*> DisallowedObjectClassesToLoad;
+	TSet<FTopLevelAssetPath> DisallowedObjectClassesToLoad;
 	TArray<UClass*> DisallowedAssetClassesToGather;
 	TArray<FString> DisallowedPathsToGather;
 
 	// true if this is a cooked cooker (false for cooker editor)
 	bool bIsCookedCooker;
 
+	// Guard to prevent multiple InitializeClasses calls
+	bool bClassesInitialized = false;
+
 	// gets an array from two sections, depending on bIsCookedCooker setting
 	TArray<FString> GetConfigArray(const TCHAR* Key) const;
+
+	// Load the classes specified from config settings that we need to reference
+	void InitializeClasses();
 public:
 
 	FIniCookedEditorPackageManager(bool bIsCookedCooker);
@@ -171,6 +183,7 @@ public:
 	static TArray<FString> GetConfigArray(const TCHAR* Key, bool bIsCookedCooker);
 
 	virtual void FilterGatheredPackages(TArray<FName>& PackageNames) const override;
+	virtual void InitializeForCook() override;
 	virtual void GetEnginePackagesToCook(TArray<FName>& PackagesToCook) const override;
 	virtual void GetProjectPackagesToCook(TArray<FName>& PackagesToCook) const override;
 	virtual bool AllowObjectToBeCooked(const class UObject* Obj) const override;
