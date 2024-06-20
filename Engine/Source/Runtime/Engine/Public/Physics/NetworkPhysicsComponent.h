@@ -823,7 +823,7 @@ private:
 	void NetworkMarshaledData();
 
 	/** Update the async component with GT properties */
-	void UpdateAsyncComponent(const bool bFullUpdate = true);
+	void UpdateAsyncComponent(const bool bFullUpdate);
 
 	/** Setup data type and history in async input and trigger the creation of data history in the async component */
 	ENGINE_API void CreateAsyncDataHistory();
