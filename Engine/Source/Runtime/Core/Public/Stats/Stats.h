@@ -74,7 +74,6 @@ public:
 	FORCEINLINE_STATS FScopeCycleCounter(TStatId StatId, bool bAlways = false)
 		: FScopeCycleCounter(StatId, EStatFlags::None, bAlways)
 	{
-		AutoRTFM::PushOnAbortHandler(this, [this](){ this->Stop(); });
 	}
 
 	/**
