@@ -409,9 +409,7 @@ bool UNiagaraDataInterfaceGeometryCollection::InitPerInstanceData(void* PerInsta
 	FNDIGeometryCollectionData* InstanceData = new (PerInstanceData) FNDIGeometryCollectionData();
 
 	check(InstanceData);
-	FNiagaraParameterDirectBinding<UObject*> CollectionParameterBinding;
-	CollectionParameterBinding.Init(SystemInstance->GetInstanceParameters(), GeometryCollectionUserParameter.Parameter);
-	ResolveGeometryCollection(SystemInstance, CollectionParameterBinding.GetValue());
+	ResolveGeometryCollection(SystemInstance);
 	InstanceData->Init(this, SystemInstance);
 	
 	return true;
@@ -437,8 +435,7 @@ void UNiagaraDataInterfaceGeometryCollection::DestroyPerInstanceData(void* PerIn
 	ENQUEUE_RENDER_COMMAND(FNiagaraDIDestroyInstanceData) (
 		[ThisProxy, InstanceID = SystemInstance->GetId()](FRHICommandListImmediate& CmdList)
 		{
-			FNDIGeometryCollectionData* ProxyData =
-				ThisProxy->SystemInstancesToProxyData.Find(InstanceID);
+			FNDIGeometryCollectionData* ProxyData = ThisProxy->SystemInstancesToProxyData.Find(InstanceID);
 
 			if (ProxyData != nullptr && ProxyData->AssetArrays)
 			{			
@@ -452,6 +449,7 @@ void UNiagaraDataInterfaceGeometryCollection::DestroyPerInstanceData(void* PerIn
 bool UNiagaraDataInterfaceGeometryCollection::PerInstanceTick(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float InDeltaSeconds)
 {
 	FNDIGeometryCollectionData* InstanceData = static_cast<FNDIGeometryCollectionData*>(PerInstanceData);
+	ResolveGeometryCollection(SystemInstance);
 	if (InstanceData && InstanceData->AssetBuffer && SystemInstance)
 	{
 		InstanceData->Update(this, SystemInstance);
@@ -482,8 +480,12 @@ bool UNiagaraDataInterfaceGeometryCollection::CopyToInternal(UNiagaraDataInterfa
 	return true;
 }
 
-void UNiagaraDataInterfaceGeometryCollection::ResolveGeometryCollection(FNiagaraSystemInstance* SystemInstance, UObject* UserParameter)
+void UNiagaraDataInterfaceGeometryCollection::ResolveGeometryCollection(FNiagaraSystemInstance* SystemInstance)
 {
+	FNiagaraParameterDirectBinding<UObject*> CollectionParameterBinding;
+	CollectionParameterBinding.Init(SystemInstance->GetInstanceParameters(), GeometryCollectionUserParameter.Parameter);
+	UObject* UserParameter = CollectionParameterBinding.GetValue();
+	
 	ResolvedSource = FResolvedNiagaraGeometryCollection();
 
 	switch (SourceMode)

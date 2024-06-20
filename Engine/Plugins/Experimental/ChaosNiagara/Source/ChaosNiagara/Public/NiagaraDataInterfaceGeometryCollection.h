@@ -212,7 +212,7 @@ class UNiagaraDataInterfaceGeometryCollection : public UNiagaraDataInterface
 #endif
 
 	/** GeometryCollection used to sample from when not overridden by a source actor from the scene. This reference is NOT removed from cooked builds. */
-	UPROPERTY(EditAnywhere, Category = "Geometry Collection", meta = (EditConditionHides, EditCondition = "SourceMode == ENDIGeometryCollection_SourceMode::Default || SourceMode == ENDISocketReaderSourceMode::DefaultCollectionOnly"))
+	UPROPERTY(EditAnywhere, Category = "Geometry Collection", meta = (EditConditionHides, EditCondition = "SourceMode == ENDIGeometryCollection_SourceMode::Default || SourceMode == ENDIGeometryCollection_SourceMode::DefaultCollectionOnly"))
 	TObjectPtr<UGeometryCollection> DefaultGeometryCollection;
 
 	/** The source actor from which to sample. Takes precedence over the direct geometry collection. Note that this can only be set when used as a user variable on a niagara component in the world.*/
@@ -224,7 +224,7 @@ class UNiagaraDataInterfaceGeometryCollection : public UNiagaraDataInterface
 	TObjectPtr<UGeometryCollectionComponent> SourceComponent;
 
 	/** Reference to a user parameter if we're reading one. */
-	UPROPERTY(EditAnywhere, Category = "Geometry Collection", meta = (EditConditionHides, EditCondition = "SourceMode == ENDIGeometryCollection_SourceMode::Default || SourceMode == ENDISocketReaderSourceMode::ParameterBinding"))
+	UPROPERTY(EditAnywhere, Category = "Geometry Collection", meta = (EditConditionHides, EditCondition = "SourceMode == ENDIGeometryCollection_SourceMode::Default || SourceMode == ENDIGeometryCollection_SourceMode::ParameterBinding"))
 	FNiagaraUserParameterBinding GeometryCollectionUserParameter;
 	
 	// If true then this data interface will also read and write intermediate bones or geometry, otherwise only leaf nodes are considered
@@ -283,7 +283,7 @@ protected:
 	virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
 
 private:
-	void ResolveGeometryCollection(FNiagaraSystemInstance* SystemInstance, UObject* UserParameter);
+	void ResolveGeometryCollection(FNiagaraSystemInstance* SystemInstance);
 	bool ResolveGeometryCollectionFromDirectSource();
 	bool ResolveGeometryCollectionFromAttachParent(FNiagaraSystemInstance* SystemInstance);
 	bool ResolveGeometryCollectionFromActor(AActor* Actor);
