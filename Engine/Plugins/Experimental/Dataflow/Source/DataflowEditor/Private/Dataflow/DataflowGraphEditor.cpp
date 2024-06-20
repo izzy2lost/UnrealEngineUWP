@@ -202,9 +202,21 @@ void SDataflowGraphEditor::DeleteNode()
 		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
 		if (SelectedNodes.Num() > 0)
 		{
-			FDataflowEditorCommands::DeleteNodes(DataflowAsset.Get(), SelectedNodes);
+			if (UDataflow* const Graph = DataflowAsset.Get())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("DeleteSelectedNodes", "Delete selected nodes"));
 
-			OnNodeDeletedMulticast.Broadcast(SelectedNodes);
+				Graph->Modify();
+
+				for (FGraphPanelSelectionSet::TConstIterator It(SelectedNodes); It; ++It)
+				{
+					(*It)->Modify();
+				}
+
+				FDataflowEditorCommands::DeleteNodes(Graph, SelectedNodes);
+
+				OnNodeDeletedMulticast.Broadcast(SelectedNodes);
+			}
 		}
 	}
 }
