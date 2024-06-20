@@ -34,14 +34,6 @@ namespace Horde.Server.Configuration
 	}
 
 	/// <summary>
-	/// Captures the current scope of outer objects in the current variable
-	/// </summary>
-	[AttributeUsage(AttributeTargets.Class)]
-	public sealed class ConfigIncludeContextAttribute : Attribute
-	{
-	}
-
-	/// <summary>
 	/// Attribute used to mark <see cref="Uri"/> properties that are relative to their containing file
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Property)]
@@ -738,7 +730,6 @@ namespace Horde.Server.Configuration
 
 		readonly Type _type;
 		readonly bool _isIncludeRoot;
-		readonly bool _isIncludeContext;
 		readonly bool _isMacroScope;
 		readonly Dictionary<string, Property> _nameToProperty = new Dictionary<string, Property>(StringComparer.OrdinalIgnoreCase);
 		readonly Dictionary<string, Property> _nameToMacroProperty = new Dictionary<string, Property>(StringComparer.OrdinalIgnoreCase);
@@ -753,7 +744,6 @@ namespace Horde.Server.Configuration
 
 			_type = type;
 			_isIncludeRoot = type.GetCustomAttribute<ConfigIncludeRootAttribute>() != null;
-			_isIncludeContext = type.GetCustomAttribute<ConfigIncludeContextAttribute>() != null;
 			_isMacroScope = type.GetCustomAttribute<ConfigMacroScopeAttribute>() != null;
 
 			// Find all the direct include properties
@@ -984,22 +974,12 @@ namespace Horde.Server.Configuration
 
 		async Task ParseIncludesAsync(JsonObject jsonObject, object targetObject, ClassConfigType targetType, ConfigContext context, CancellationToken cancellationToken)
 		{
-			if (_isIncludeContext)
-			{
-				context.IncludeContextStack.Push(JsonSerializer.Deserialize(jsonObject, _type, context.JsonOptions)!);
-			}
-
 			foreach ((string name, JsonNode? node) in jsonObject)
 			{
 				if (_nameToIncludeProperty.TryGetValue(name, out Property? property) && node != null)
 				{
 					await property.ParseIncludesAsync(node, targetObject, targetType, context, cancellationToken);
 				}
-			}
-
-			if (_isIncludeContext)
-			{
-				context.IncludeContextStack.Pop();
 			}
 		}
 	}
