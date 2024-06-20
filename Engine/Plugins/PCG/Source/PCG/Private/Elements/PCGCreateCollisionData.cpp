@@ -10,6 +10,19 @@
 
 #define LOCTEXT_NAMESPACE "PCGCreateCollisionDataElement"
 
+void UPCGCreateCollisionDataSettings::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	if (bUseComplexCollision_DEPRECATED)
+	{
+		CollisionQueryFlag = EPCGCollisionQueryFlag::Complex;
+		bUseComplexCollision_DEPRECATED = false;
+	}
+#endif
+}
+
 #if WITH_EDITOR
 FText UPCGCreateCollisionDataSettings::GetNodeTooltipText() const
 {
@@ -72,7 +85,7 @@ bool FPCGCreateCollisionDataElement::PrepareDataInternal(FPCGContext* InContext)
 				InputMeshData.InputIndex = InputIndex;
 				InputMeshData.Data = FPCGContext::NewObject_AnyThread<UPCGCollisionWrapperData>(Context);
 
-				if (!InputMeshData.Data->PreInitializeAndGatherMeshesEx(PointData, Settings->CollisionAttribute, Settings->bUseComplexCollision, InputMeshData.MeshPaths))
+				if (!InputMeshData.Data->PreInitializeAndGatherMeshesEx(PointData, Settings->CollisionAttribute, Settings->CollisionQueryFlag, InputMeshData.MeshPaths))
 				{
 					if (Settings->bWarnIfAttributeCouldNotBeUsed)
 					{
@@ -125,7 +138,7 @@ bool FPCGCreateCollisionDataElement::ExecuteInternal(FPCGContext* InContext) con
 		if (FPCGCreateCollisionContext::InputMeshData* MatchingData = Context->PerInputData.FindByPredicate([InputIndex](const FPCGCreateCollisionContext::InputMeshData& Data) { return Data.InputIndex == InputIndex; }))
 		{
 			check(MatchingData->Data);
-			MatchingData->Data->FinalizeInitializationEx(CastChecked<UPCGPointData>(Input.Data), MatchingData->MeshPaths, Settings->bRecomputeOctreeAccordingToMeshes);
+			MatchingData->Data->FinalizeInitializationEx(MatchingData->MeshPaths);
 
 			// Unroot collision wrapper data object since it'll be tracked through the collection
 			MatchingData->Data->RemoveFromRoot();

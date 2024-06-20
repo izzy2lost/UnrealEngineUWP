@@ -7,9 +7,20 @@
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
+#include "Chaos/ChaosEngineInterface.h"
+
 #include "PCGCollisionWrapperData.generated.h"
 
 struct FBodyInstance;
+
+UENUM(BlueprintType)
+enum class EPCGCollisionQueryFlag : uint8
+{
+	Simple,
+	Complex,
+	SimpleFirst,
+	ComplexFirst
+};
 
 struct PCG_API FPCGCollisionWrapper
 {
@@ -27,10 +38,15 @@ struct PCG_API FPCGCollisionWrapper
 	// Advanced API - allows to do async loading as we separate the mesh finding part from the body creation part
 	bool Prepare(const IPCGAttributeAccessor* Accessor, const IPCGAttributeAccessorKeys* Keys, TArray<FSoftObjectPath>& MeshPathsToLoad);
 	void CreateBodyInstances(const TArray<FSoftObjectPath>& MeshPaths);
-	bool InitializeOctree(const UPCGPointData* InPointData, const TArray<FSoftObjectPath>& InMeshPaths, UPCGPointData::PointOctree& OutOctree, TArray<FPCGPointRef>* OutOctreePointRefs = nullptr) const;
 	
 	// Retrieves the body instance associated to the entry given by its index
 	FBodyInstance* GetBodyInstance(int32 EntryIndex) const;
+
+	// Retrieves the shape list for a given entry matching the query flag
+	void GetShapeArray(int32 EntryIndex, EPCGCollisionQueryFlag QueryFlag, PhysicsInterfaceTypes::FInlineShapeArray& OutShapeArray) const;
+
+	// Retrieves the shape list for a given body, matching the query flag. Returns false if we selected the other type for the 'SimpleFirst' or 'ComplexFirst' cases.
+	static bool GetShapeArray(FBodyInstance* BodyInstance, EPCGCollisionQueryFlag QueryFlag, PhysicsInterfaceTypes::FInlineShapeArray& OutShapeArray);
 
 	TArray<FBodyInstance*> BodyInstances;
 	TArray<int32> IndexToBodyInstance;
@@ -44,11 +60,11 @@ class UPCGCollisionWrapperData : public UPCGSpatialData
 
 public:
 	/** Inititializes the collision wrapper on a point data based on the provided attribute selector */
-	PCG_API bool Initialize(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision, bool bUseAccurateOctree);
+	PCG_API bool Initialize(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, EPCGCollisionQueryFlag InCollisionQueryFlag);
 
 	/** Advanced API for async loading */
-	bool PreInitializeAndGatherMeshesEx(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision, TArray<FSoftObjectPath>& OutMeshesToLoad);
-	void FinalizeInitializationEx(const UPCGPointData* InPointData, const TArray<FSoftObjectPath>& InMeshPaths, bool bUseAccurateOctree);
+	bool PreInitializeAndGatherMeshesEx(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, EPCGCollisionQueryFlag InCollisionQueryFlag, TArray<FSoftObjectPath>& OutMeshesToLoad);
+	void FinalizeInitializationEx(const TArray<FSoftObjectPath>& InMeshPaths);
 
 	// ~Begin UPCGData Interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Primitive; }
@@ -74,6 +90,8 @@ protected:
 #endif
 
 private:
+	const PhysicsInterfaceTypes::FInlineShapeArray& GetCachedShapes(int32 EntryIndex) const;
+
 	UPROPERTY()
 	TObjectPtr<const UPCGPointData> PointData;
 
@@ -81,15 +99,12 @@ private:
 	UPROPERTY()
 	FPCGAttributePropertyInputSelector CollisionSelector;
 
-	/** Uses a new octree based on the mesh bounds, performance warning (does similar work to the BoundsFromMesh node, but will not change the point data). */
 	UPROPERTY()
-	bool bUseCollisionAccurateOctree = false;
-
-	UPROPERTY()
-	bool bUseComplexCollision = false;
+	EPCGCollisionQueryFlag CollisionQueryFlag = EPCGCollisionQueryFlag::Simple;
 
 	FPCGCollisionWrapper CollisionWrapper;
-	UPCGPointData::PointOctree CollisionAccurateOctree;
+
+	TArray<PhysicsInterfaceTypes::FInlineShapeArray> CachedShapes;
 
 #if WITH_EDITOR
 	const UPCGPointData* RawPointData = nullptr;

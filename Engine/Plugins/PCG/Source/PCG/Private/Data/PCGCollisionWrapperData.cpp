@@ -7,7 +7,9 @@
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Chaos/GeometryQueries.h"
 #include "Engine/StaticMesh.h"
+#include "Physics/PhysicsFiltering.h"
 #include "PhysicsEngine/BodyInstance.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Serialization/ArchiveCrc32.h"
@@ -135,76 +137,57 @@ FBodyInstance* FPCGCollisionWrapper::GetBodyInstance(int32 EntryIndex) const
 	return ((bInitialized && IndexToBodyInstance[EntryIndex] != INDEX_NONE) ? BodyInstances[IndexToBodyInstance[EntryIndex]] : nullptr);
 }
 
-bool FPCGCollisionWrapper::InitializeOctree(const UPCGPointData* InPointData, const TArray<FSoftObjectPath>& InMeshPaths, UPCGPointData::PointOctree& OutOctree, TArray<FPCGPointRef>* OutOctreePointRefs) const
+void FPCGCollisionWrapper::GetShapeArray(int32 EntryIndex, EPCGCollisionQueryFlag QueryFlag, PhysicsInterfaceTypes::FInlineShapeArray& OutShapeArray) const
 {
-	TArray<FBox> MeshBoundsList;
-	MeshBoundsList.Reserve(InMeshPaths.Num());
-	bool bHasValidBounds = false;
-
-	for (int32 MeshIndex = 0; MeshIndex < InMeshPaths.Num(); ++MeshIndex)
-	{
-		TSoftObjectPtr<UStaticMesh> Mesh(InMeshPaths[MeshIndex]);
-		if (Mesh.Get()) // should already be loaded by now.
-		{
-			MeshBoundsList.Add(Mesh->GetBoundingBox());
-			bHasValidBounds = true;
-		}
-		else
-		{
-			MeshBoundsList.Emplace(EForceInit::ForceInit);
-		}
-	}
-
-	if (bHasValidBounds)
-	{
-		const TArray<FPCGPoint>& Points = InPointData->GetPoints();
-		TArray<FPCGPointRef> PointRefs;
-		PointRefs.Reserve(Points.Num());
-
-		for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
-		{
-			const FPCGPoint& Point = Points[PointIndex];
-			const FBox& MeshBounds = MeshBoundsList[IndexToBodyInstance[PointIndex]];
-
-			if (MeshBounds.IsValid)
-			{
-				PointRefs.Emplace(Point, MeshBounds);
-			}
-			else
-			{
-				PointRefs.Emplace(Point);
-			}
-		}
-
-		FBox PointsBounds = InPointData->GetBounds();
-		TOctree2<FPCGPointRef, FPCGPointRefSemantics> NewOctree(PointsBounds.GetCenter(), PointsBounds.GetExtent().Length());
-
-		for (const FPCGPointRef& PointRef : PointRefs)
-		{
-			NewOctree.AddElement(PointRef);
-		}
-
-		OutOctree = MoveTemp(NewOctree);
-
-		if (OutOctreePointRefs)
-		{
-			*OutOctreePointRefs = MoveTemp(PointRefs);
-		}
-
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	GetShapeArray(GetBodyInstance(EntryIndex), QueryFlag, OutShapeArray);
 }
 
-bool UPCGCollisionWrapperData::Initialize(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision, bool bInUseAccurateOctree)
+bool FPCGCollisionWrapper::GetShapeArray(FBodyInstance* Body, EPCGCollisionQueryFlag QueryFlag, PhysicsInterfaceTypes::FInlineShapeArray& OutShapeArray)
+{
+	OutShapeArray.Reset();
+
+	if (!Body)
+	{
+		return true;
+	}
+
+	PhysicsInterfaceTypes::FInlineShapeArray AllShapes;
+	FillInlineShapeArray_AssumesLocked(AllShapes, Body->GetPhysicsActorHandle());
+
+	for (auto& Shape : AllShapes)
+	{
+		if (!Shape.Shape)
+		{
+			continue;
+		}
+
+		FCollisionFilterData ShapeFilter = Shape.Shape->GetQueryData();
+		const bool bShapeIsComplex = (ShapeFilter.Word3 & EPDF_ComplexCollision) != 0;
+		const bool bShapeIsSimple = (ShapeFilter.Word3 & EPDF_SimpleCollision) != 0;
+
+		if ((bShapeIsSimple && (QueryFlag == EPCGCollisionQueryFlag::Simple || QueryFlag == EPCGCollisionQueryFlag::SimpleFirst)) ||
+			(bShapeIsComplex && (QueryFlag == EPCGCollisionQueryFlag::Complex || QueryFlag == EPCGCollisionQueryFlag::ComplexFirst)))
+		{
+			OutShapeArray.Add(Shape);
+		}
+	}
+
+	if (!OutShapeArray.IsEmpty() || QueryFlag == EPCGCollisionQueryFlag::Simple || QueryFlag == EPCGCollisionQueryFlag::Complex)
+	{
+		return true;
+	}
+
+	// Otherwise, we can take the remainder of the shapes, which means we can take everything
+	OutShapeArray = AllShapes;
+	return false;
+}
+
+bool UPCGCollisionWrapperData::Initialize(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, EPCGCollisionQueryFlag InCollisionQueryFlag)
 {
 	TArray<FSoftObjectPath> MeshesToLoad;
-	if (PreInitializeAndGatherMeshesEx(InPointData, InCollisionSelector, bInUseComplexCollision, MeshesToLoad))
+	if (PreInitializeAndGatherMeshesEx(InPointData, InCollisionSelector, InCollisionQueryFlag, MeshesToLoad))
 	{
-		FinalizeInitializationEx(InPointData, MeshesToLoad, bInUseAccurateOctree);
+		FinalizeInitializationEx(MeshesToLoad);
 		return true;
 	}
 	else
@@ -213,7 +196,7 @@ bool UPCGCollisionWrapperData::Initialize(const UPCGPointData* InPointData, cons
 	}
 }
 
-bool UPCGCollisionWrapperData::PreInitializeAndGatherMeshesEx(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, bool bInUseComplexCollision, TArray<FSoftObjectPath>& OutMeshesToLoad)
+bool UPCGCollisionWrapperData::PreInitializeAndGatherMeshesEx(const UPCGPointData* InPointData, const FPCGAttributePropertyInputSelector& InCollisionSelector, EPCGCollisionQueryFlag InCollisionQueryFlag, TArray<FSoftObjectPath>& OutMeshesToLoad)
 {
 	CollisionWrapper.Uninitialize();
 
@@ -224,7 +207,7 @@ bool UPCGCollisionWrapperData::PreInitializeAndGatherMeshesEx(const UPCGPointDat
 #endif
 
 	CollisionSelector = InCollisionSelector;
-	bUseComplexCollision = bInUseComplexCollision;
+	CollisionQueryFlag = InCollisionQueryFlag;
 
 	// Go through the point data on the attribute we'll use for the shapes
 	// StaticMesh -> see what we're doing in UInstanceStaticMeshComponent::InitInstanceBody, or UStaticMeshComponent::UpdateCollisionFromStaticMesh
@@ -242,13 +225,37 @@ bool UPCGCollisionWrapperData::PreInitializeAndGatherMeshesEx(const UPCGPointDat
 	return CollisionWrapper.Prepare(InputAccessor.Get(), InputKeys.Get(), OutMeshesToLoad);
 }
 
-void UPCGCollisionWrapperData::FinalizeInitializationEx(const UPCGPointData* InPointData, const TArray<FSoftObjectPath>& InMeshPaths, bool bInUseAccurateOctree)
+void UPCGCollisionWrapperData::FinalizeInitializationEx(const TArray<FSoftObjectPath>& InMeshPaths)
 {
+	const bool bWasInitialized = CollisionWrapper.bInitialized;
+
 	CollisionWrapper.CreateBodyInstances(InMeshPaths);
 
-	if (InPointData && bInUseAccurateOctree)
+	// Finally, cache the shapes we'll be interested in according to the collision query flag
+	if (!bWasInitialized && CollisionWrapper.bInitialized)
 	{
-		bUseCollisionAccurateOctree = CollisionWrapper.InitializeOctree(InPointData, InMeshPaths, CollisionAccurateOctree);
+		CachedShapes.Reset();
+		CachedShapes.Reserve(CollisionWrapper.BodyInstances.Num());
+
+		for (FBodyInstance* BodyInstance : CollisionWrapper.BodyInstances)
+		{
+			check(BodyInstance);
+			PhysicsInterfaceTypes::FInlineShapeArray& Shapes = CachedShapes.Emplace_GetRef();
+			CollisionWrapper.GetShapeArray(BodyInstance, CollisionQueryFlag, Shapes);
+		}
+	}
+}
+
+const PhysicsInterfaceTypes::FInlineShapeArray& UPCGCollisionWrapperData::GetCachedShapes(int32 EntryIndex) const
+{
+	static PhysicsInterfaceTypes::FInlineShapeArray EmptyArray;
+	if (!CollisionWrapper.bInitialized || CollisionWrapper.IndexToBodyInstance[EntryIndex] == INDEX_NONE)
+	{
+		return EmptyArray;
+	}
+	else
+	{
+		return CachedShapes[CollisionWrapper.IndexToBodyInstance[EntryIndex]];
 	}
 }
 
@@ -258,11 +265,9 @@ void UPCGCollisionWrapperData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) co
 	GetPointData()->AddToCrc(Ar, bFullDataCrc);
 
 	CollisionSelector.AddToCrc(Ar);
-	uint32 UseCollisionAccurateOctree = bUseCollisionAccurateOctree ? 1 : 0;
-	Ar << UseCollisionAccurateOctree;
 
-	uint32 UseComplexCollision = bUseComplexCollision ? 1 : 0;
-	Ar << UseComplexCollision;
+	uint32 CollisionFlag = static_cast<int32>(CollisionQueryFlag);
+	Ar << CollisionFlag;
 }
 
 void UPCGCollisionWrapperData::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
@@ -296,7 +301,7 @@ bool UPCGCollisionWrapperData::SamplePoint(const FTransform& InTransform, const 
 	// For all touching points, check against the actual physics shape we have for that point
 	// E.g. get the point collision attribute value, match to our internal list, get the shape (might require loading), then test against the matching shapes
 	// note that we need to place the stuff in the right referential too, since our shapes will all be at the origin
-	const UPCGPointData::PointOctree& Octree = (bUseCollisionAccurateOctree ? CollisionAccurateOctree : GetPointData()->GetOctree());
+	const UPCGPointData::PointOctree& Octree = GetPointData()->GetOctree();
 
 	float Density = 0;
 	FBox TransformedBounds = InBounds.TransformBy(InTransform);
@@ -308,21 +313,36 @@ bool UPCGCollisionWrapperData::SamplePoint(const FTransform& InTransform, const 
 			return;
 		}
 
-		bool bHasOverlap = true;
+		bool bHasOverlap = false;
 
-		// Compute point index & find body instance
-		// Test against body instance when present
-		if (FBodyInstance* BodyInstance = CollisionWrapper.GetBodyInstance(InPointRef.Point - GetPointData()->GetPoints().GetData()))
+		FTransform RelativeTransform = InTransform.GetRelativeTransform(InPointRef.Point->Transform);
+		FCollisionShape CollisionShape;
+		CollisionShape.SetBox(FVector3f(InBounds.GetExtent() * RelativeTransform.GetScale3D()));
+		FPhysicsShapeAdapter CollAdapter(RelativeTransform.GetRotation(), CollisionShape);
+		const FPhysicsGeometry& Geom = CollAdapter.GetGeometry();
+		FTransform GeomTransform = CollAdapter.GetGeomPose(RelativeTransform.GetLocation());
+
+		const int32 EntryIndex = InPointRef.Point - GetPointData()->GetPoints().GetData();
+		const PhysicsInterfaceTypes::FInlineShapeArray& Shapes = GetCachedShapes(EntryIndex);
+
+		if (!Shapes.IsEmpty())
 		{
-			// Compute collision shape rotation and transform, knowing that the body instance is at the origin.
-			// e.g. we need to take the InTransform and apply the inverse point transform to it.
-			FTransform RelativeTransform = InTransform.GetRelativeTransform(InPointRef.Point->Transform);
-			FTransform GeomTransform(RelativeTransform.GetRotation(), RelativeTransform.GetLocation());
+			for (const FPhysicsShapeHandle& Shape : Shapes)
+			{
+				if (Chaos::Utilities::CastHelper(Geom, GeomTransform, [&Shape](const auto& Downcast, const auto& FullGeomTransform) { return Chaos::OverlapQuery(*Shape.Shape->GetGeometry(), FTransform::Identity, Downcast, FullGeomTransform); }))
+				{
+					bHasOverlap = true;
+					break;
+				}
+			}
+		}
+		else
+		{
+			FCollisionShape ThisSimpleShape;
+			ThisSimpleShape.SetBox(FVector3f(InPointRef.Bounds.BoxExtent));
+			FPhysicsShapeAdapter ThisAdapter(FQuat::Identity, ThisSimpleShape);
 
-			FCollisionShape CollisionShape;
-			CollisionShape.SetBox(FVector3f(InBounds.GetExtent() * RelativeTransform.GetScale3D()));
-
-			bHasOverlap = FPhysicsInterface::Overlap_Geom(BodyInstance, CollisionShape, GeomTransform.GetRotation(), GeomTransform, nullptr, bUseComplexCollision);
+			bHasOverlap = Chaos::Utilities::CastHelper(Geom, GeomTransform, [&ThisAdapter](const auto& Downcast, const auto& FullGeomTransform) { return Chaos::OverlapQuery(ThisAdapter.GetGeometry(), FTransform::Identity, Downcast, FullGeomTransform, /*Thickness=*/0); });
 		}
 
 		if (bHasOverlap)
@@ -349,7 +369,7 @@ bool UPCGCollisionWrapperData::SamplePoint(const FTransform& InTransform, const 
 UPCGSpatialData* UPCGCollisionWrapperData::CopyInternal(FPCGContext* Context) const
 {
 	UPCGCollisionWrapperData* NewCollisionWrapperData = FPCGContext::NewObject_AnyThread<UPCGCollisionWrapperData>(Context);
-	NewCollisionWrapperData->Initialize(PointData, CollisionSelector, bUseComplexCollision, bUseCollisionAccurateOctree);
+	NewCollisionWrapperData->Initialize(PointData, CollisionSelector, CollisionQueryFlag);
 
 	return NewCollisionWrapperData;
 }

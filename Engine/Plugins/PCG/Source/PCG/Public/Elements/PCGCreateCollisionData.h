@@ -15,6 +15,10 @@ class UPCGCreateCollisionDataSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
+	//~Begin UObject interface
+	virtual void PostLoad() override;
+	//~End UObject interface
+
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CreateCollisionData")); }
@@ -33,19 +37,22 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_DiscardPropertySelection, PCG_DiscardExtraSelection))
 	FPCGAttributePropertyInputSelector CollisionAttribute;
 
-	/** Uses a new octree based on the mesh bounds, performance warning (does similar work to the BoundsFromMesh node, but will not change the point data). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	bool bRecomputeOctreeAccordingToMeshes = false;
-
-	/** Queries against complex collision if enabled, performance warning */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	bool bUseComplexCollision = false;
+	/** Controls how shapes are selected from collision. Performance warning on using complex shapes. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_OverrideAliases="bUseComplexCollision"))
+	EPCGCollisionQueryFlag CollisionQueryFlag = EPCGCollisionQueryFlag::Simple;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
 	bool bWarnIfAttributeCouldNotBeUsed = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
 	bool bSynchronousLoad = false;
+
+private:
+#if WITH_EDITORONLY_DATA
+	// Implementation note: was introduced during UE 5.5 development and replaced, does not require a full public API deprecation mechanism
+	UPROPERTY()
+	bool bUseComplexCollision_DEPRECATED = false;
+#endif
 };
 
 struct FPCGCreateCollisionContext : public FPCGContext, public IPCGAsyncLoadingContext

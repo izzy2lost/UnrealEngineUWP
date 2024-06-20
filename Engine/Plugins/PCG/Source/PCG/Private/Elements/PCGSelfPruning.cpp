@@ -12,6 +12,7 @@
 #include "Metadata/Accessors/PCGAttributeExtractor.h"
 
 #include "CollisionShape.h"
+#include "Chaos/GeometryQueries.h"
 #include "Chaos/ImplicitObject.h"
 #include "PhysicsEngine/BodyInstance.h"
 
@@ -158,16 +159,66 @@ namespace PCGSelfPruningElement
 	}
 
 	/** Self-pruning driven by use of collision shapes. Implementation is in practice just a secondary step after the octree query to filter out points if their collisions don`t intersect. */
-	bool CollisionExclusion(FIterationState& IterationState, FPCGContext* InOptionalContext, bool bUseComplexCollision)
+	bool CollisionExclusion(FIterationState& IterationState, FPCGContext* InOptionalContext, EPCGCollisionQueryFlag InCollisionQueryFlag)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSelfPruningElement::Execute::CollisionExclusion);
 
 		check(IterationState.InputPointData);
-		const UPCGPointData::PointOctree& Octree = IterationState.bUseCollisionAccurateOctree ? IterationState.CollisionAccurateOctree : IterationState.InputPointData->GetOctree();
+		const UPCGPointData::PointOctree& Octree = IterationState.InputPointData->GetOctree();
 
 		int32 CheckTimeSlicingCount = 0;
 
 		TArray<const FPCGPointRef*, TInlineAllocator<256>> ElementsToTest;
+
+		auto SetupQueryInfo = [&IterationState](const FPCGPointRef& PointRef, FBodyInstance* OtherBodyInstance, EPCGCollisionQueryFlag CollisionQueryFlag, FBodyInstance*& OutInstance, PhysicsInterfaceTypes::FInlineShapeArray& OutShapes, FCollisionShape& OutSimpleShape)
+		{
+			const int32 EntryIndex = PointRef.Point - IterationState.InputPointData->GetPoints().GetData();
+			OutInstance = IterationState.CollisionWrapper.GetBodyInstance(EntryIndex);
+			bool bHasComplexShapes = false;
+
+			if (OutInstance)
+			{
+				if (OutInstance == OtherBodyInstance)
+				{
+					if (FBodyInstance** TemporaryInstance = IterationState.TemporaryBodyInstances.Find(OtherBodyInstance))
+					{
+						OutInstance = *TemporaryInstance;
+					}
+					else
+					{
+						check(OtherBodyInstance->GetBodySetup());
+						OutInstance = new FBodyInstance();
+						OutInstance->bAutoWeld = false;
+						OutInstance->bSimulatePhysics = false;
+						OutInstance->InitBody(OtherBodyInstance->GetBodySetup(), FTransform::Identity, nullptr, nullptr);
+
+						IterationState.TemporaryBodyInstances.Add(OtherBodyInstance, OutInstance);
+					}
+				}
+
+				OutInstance->UpdateBodyScale(PointRef.Point->Transform.GetScale3D());
+				const bool bFirstChoice = FPCGCollisionWrapper::GetShapeArray(OutInstance, CollisionQueryFlag, OutShapes);
+
+				if (OutShapes.IsEmpty())
+				{
+					OutInstance = nullptr;
+				}
+				else
+				{
+					bHasComplexShapes = (CollisionQueryFlag == EPCGCollisionQueryFlag::Complex) ||
+						(CollisionQueryFlag == EPCGCollisionQueryFlag::ComplexFirst && bFirstChoice) ||
+						(CollisionQueryFlag == EPCGCollisionQueryFlag::SimpleFirst && !bFirstChoice);
+				}
+			}
+
+			if (!OutInstance)
+			{
+				OutShapes.Reset();
+				OutSimpleShape.SetBox(FVector3f(PointRef.Bounds.BoxExtent));
+			}
+
+			return bHasComplexShapes;
+		};
 
 		while (IterationState.CurrentPointIndex < IterationState.SortedPoints.Num())
 		{
@@ -208,98 +259,102 @@ namespace PCGSelfPruningElement
 			}
 
 			// Implementation note: this is a deconstruction of FBodyInstance::OverlapTestForBodiesImpl
-			// Get this point's body instance, if any.
-			FBodyInstance* ThisInstance = IterationState.CollisionWrapper.GetBodyInstance(PointRef.Point - IterationState.InputPointData->GetPoints().GetData());
-			FCollisionShape ThisCollisionShape;
+			FBodyInstance* ThisInstance = nullptr;
+			PhysicsInterfaceTypes::FInlineShapeArray ThisShapes;
+			FCollisionShape ThisSimpleShape;
+
+			FBodyInstance* OtherInstance = nullptr;
+			PhysicsInterfaceTypes::FInlineShapeArray OtherShapes;
+			FCollisionShape OtherSimpleShape;
+
+			const bool bThisHasComplexShapes = SetupQueryInfo(PointRef, nullptr, InCollisionQueryFlag, ThisInstance, ThisShapes, ThisSimpleShape);
 			FTransform TransformNoScale = FTransform(PointRef.Point->Transform.GetRotation(), PointRef.Point->Transform.GetLocation());
 
-			PhysicsInterfaceTypes::FInlineShapeArray TargetShapes;
-
-			if (ThisInstance)
-			{
-				// Since scale can change on a per-point basis and we can't fold it in the relative transform, we must apply scale here.
-				ThisInstance->UpdateBodyScale(PointRef.Point->Transform.GetScale3D());
-				// Implementation note: all of these bodies don't exist in the physics scene, so there's no need to lock
-				FillInlineShapeArray_AssumesLocked(TargetShapes, ThisInstance->GetPhysicsActorHandle());
-			}
-			else
-			{
-				ThisCollisionShape.SetBox(FVector3f(PointRef.Bounds.BoxExtent * PointRef.Point->Transform.GetScale3D()));
-			}
+			// We must force the other collision flag to simple if we have complex shapes in the leading shape here, because complex-complex overlaps aren't supported.
+			EPCGCollisionQueryFlag OtherCollisionQueryFlag = (bThisHasComplexShapes ? EPCGCollisionQueryFlag::Simple : InCollisionQueryFlag);
 
 			for (const FPCGPointRef* OtherPointRef : ElementsToTest)
 			{
-				FBodyInstance* OtherInstance = IterationState.CollisionWrapper.GetBodyInstance(OtherPointRef->Point - IterationState.InputPointData->GetPoints().GetData());
+				bool bOverlaps = false;
 
-				bool bOverlaps = true;
-				if (ThisInstance && OtherInstance)
+				bool bOtherHasComplexShapes = SetupQueryInfo(*OtherPointRef, ThisInstance, OtherCollisionQueryFlag, OtherInstance, OtherShapes, OtherSimpleShape);
+
+				FTransform OtherTransformNoScale = FTransform(OtherPointRef->Point->Transform.GetRotation(), OtherPointRef->Point->Transform.GetLocation());
+
+				// Four cases here:
+				// 1 - shapes vs shapes
+				if (!ThisShapes.IsEmpty() && !OtherShapes.IsEmpty())
 				{
-					// If both bodies are the same, then we can't really have them having different scales; we need to do a (temporary) copy when that happens
-					if (ThisInstance == OtherInstance && !OtherPointRef->Point->Transform.GetScale3D().Equals(PointRef.Point->Transform.GetScale3D()))
+					auto CheckForOverlap = [](const PhysicsInterfaceTypes::FInlineShapeArray& ComplexShapes, const FTransform& ComplexShapesTransform, const PhysicsInterfaceTypes::FInlineShapeArray& SimpleShapes, const FTransform& SimpleShapesTransform)
 					{
-						if (FBodyInstance** TemporaryInstance = IterationState.TemporaryBodyInstances.Find(OtherInstance))
+						FTransform RelativeTransform = SimpleShapesTransform.GetRelativeTransform(ComplexShapesTransform);
+
+						for (const FPhysicsShapeHandle& ComplexShape : ComplexShapes)
 						{
-							OtherInstance = *TemporaryInstance;
-						}
-						else
-						{
-							check(ThisInstance->GetBodySetup());
-							OtherInstance = new FBodyInstance();
-							OtherInstance->bAutoWeld = false;
-							OtherInstance->bSimulatePhysics = false;
-							OtherInstance->InitBody(ThisInstance->GetBodySetup(), FTransform::Identity, nullptr, nullptr);
-
-							IterationState.TemporaryBodyInstances.Add(ThisInstance, OtherInstance);
-						}
-					}
-
-					if (ThisInstance != OtherInstance)
-					{
-						OtherInstance->UpdateBodyScale(OtherPointRef->Point->Transform.GetScale3D());
-					}
-
-					FTransform OtherTransformNoScale = FTransform(OtherPointRef->Point->Transform.GetRotation(), OtherPointRef->Point->Transform.GetLocation());
-					FTransform RelativeTransform = TransformNoScale.GetRelativeTransform(OtherTransformNoScale);
-
-					{
-						// Copied more or less verbatim from FBodyInstance::OverlapTestForBodiesImpl
-						//TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSelfPruningElement::Execute::CollisionExclusion::OverlapTest);
-						bOverlaps = false;
-						for (const FPhysicsShapeHandle& Shape : TargetShapes)
-						{
-							if (!Shape.GetGeometry().IsConvex())
+							for (const FPhysicsShapeHandle& SimpleShape : SimpleShapes)
 							{
-								continue; //we skip complex shapes - should this respect ComplexAsSimple?
-							}
+								FPhysicsGeometryCollection SimpleShapeCollection = FPhysicsInterface::GetGeometryCollection(SimpleShape);
+								const Chaos::FImplicitObject& SimpleShapeGeom = SimpleShapeCollection.GetGeometry();
 
-							bOverlaps = FPhysicsInterface::Overlap_Geom(OtherInstance, FPhysicsInterface::GetGeometryCollection(Shape), RelativeTransform, /*bOutMTD=*/nullptr, bUseComplexCollision);
-							if (bOverlaps)
-							{
-								break;
+								if (Chaos::Utilities::CastHelper(SimpleShapeGeom, RelativeTransform, [&ComplexShape](const auto& Downcast, const auto& FullGeomTransform) { return Chaos::OverlapQuery(*ComplexShape.Shape->GetGeometry(), FTransform::Identity, Downcast, FullGeomTransform); }))
+								{
+									return true;
+								}
 							}
 						}
+
+						return false;
+					};
+
+					if (!bOtherHasComplexShapes)
+					{
+						bOverlaps = CheckForOverlap(ThisShapes, TransformNoScale, OtherShapes, OtherTransformNoScale);
+					}
+					else
+					{
+						bOverlaps = CheckForOverlap(OtherShapes, OtherTransformNoScale, ThisShapes, TransformNoScale);
 					}
 				}
-				else if (ThisInstance)
+				// 2 - shapes vs simple shape
+				// 3 - simple shape vs shapes
+				else if (!ThisShapes.IsEmpty() || !OtherShapes.IsEmpty())
 				{
-					FTransform RelativeTransform = TransformNoScale.GetRelativeTransform(OtherPointRef->Point->Transform);
-					FTransform GeomTransform(RelativeTransform.GetRotation(), RelativeTransform.GetLocation());
+					auto CheckForOverlap = [](const PhysicsInterfaceTypes::FInlineShapeArray& Shapes, const FTransform& ShapesTransform, const FCollisionShape& CollShape, const FTransform& CollTransform)
+					{
+						FTransform RelativeTransform = CollTransform.GetRelativeTransform(ShapesTransform);
+						FPhysicsShapeAdapter CollAdapter(RelativeTransform.GetRotation(), CollShape);
+						const FPhysicsGeometry& Geom = CollAdapter.GetGeometry();
+						FTransform GeomTransform = CollAdapter.GetGeomPose(RelativeTransform.GetLocation());
 
-					// Create collision shape for other instance
-					FCollisionShape OtherCollisionShape;
-					OtherCollisionShape.SetBox(FVector3f(OtherPointRef->Bounds.BoxExtent * RelativeTransform.GetScale3D()));
+						for (const FPhysicsShapeHandle& Shape : Shapes)
+						{
+							if (Chaos::Utilities::CastHelper(Geom, GeomTransform, [&Shape](const auto& Downcast, const auto& FullGeomTransform) { return Chaos::OverlapQuery(*Shape.Shape->GetGeometry(), FTransform::Identity, Downcast, FullGeomTransform); }))
+							{
+								return true;
+							}
+						}
 
-					bOverlaps = FPhysicsInterface::Overlap_Geom(ThisInstance, OtherCollisionShape, GeomTransform.GetRotation(), GeomTransform, nullptr, bUseComplexCollision);
+						return false;
+					};
+
+					if(!ThisShapes.IsEmpty())
+					{
+						bOverlaps = CheckForOverlap(ThisShapes, TransformNoScale, OtherSimpleShape, OtherTransformNoScale);
+					}
+					else
+					{
+						check(!OtherShapes.IsEmpty());
+						bOverlaps = CheckForOverlap(OtherShapes, OtherTransformNoScale, ThisSimpleShape, TransformNoScale);
+					}
 				}
-				else if (OtherInstance)
+				// 4 - simple shape vs simple shape <- default case.
+				else
 				{
-					OtherInstance->UpdateBodyScale(OtherPointRef->Point->Transform.GetScale3D());
-
-					FTransform OtherTransformNoScale = FTransform(OtherPointRef->Point->Transform.GetRotation(), OtherPointRef->Point->Transform.GetLocation());
 					FTransform RelativeTransform = OtherTransformNoScale.GetRelativeTransform(TransformNoScale);
-					FTransform GeomTransform(RelativeTransform.GetRotation(), RelativeTransform.GetLocation());
+					FPhysicsShapeAdapter ThisAdapter(FQuat::Identity, ThisSimpleShape);
+					FPhysicsShapeAdapter OtherAdapter(RelativeTransform.GetRotation(), OtherSimpleShape);
 
-					bOverlaps = FPhysicsInterface::Overlap_Geom(OtherInstance, ThisCollisionShape, GeomTransform.GetRotation(), GeomTransform, nullptr, bUseComplexCollision);
+					bOverlaps = Chaos::Utilities::CastHelper(OtherAdapter.GetGeometry(), OtherAdapter.GetGeomPose(RelativeTransform.GetTranslation()), [&ThisAdapter](const auto& Downcast, const auto& FullGeomTransform) { return Chaos::OverlapQuery(ThisAdapter.GetGeometry(), ThisAdapter.GetGeomPose(FVector::ZeroVector), Downcast, FullGeomTransform, /*Thickness=*/0); });
 				}
 
 				if (bOverlaps)
@@ -446,16 +501,11 @@ namespace PCGSelfPruningElement
 		if (!InState.bSortDone)
 		{
 			// In the case of the collision-driven self-pruning, we have to populate the sorted points array earlier since we're playing with the bounds.
-			if (!InState.bSortedPointsArrayPopulateDone)
+			InState.SortedPoints.Empty();
+			InState.SortedPoints.Reserve(Points.Num());
+			for (const FPCGPoint& Point : Points)
 			{
-				InState.SortedPoints.Empty();
-				InState.SortedPoints.Reserve(Points.Num());
-				for (const FPCGPoint& Point : Points)
-				{
-					InState.SortedPoints.Emplace(Point);
-				}
-
-				InState.bSortedPointsArrayPopulateDone = true;
+				InState.SortedPoints.Emplace(Point);
 			}
 
 			FPCGAttributePropertySelector ComparisonSource = InParameters.ComparisonSource.CopyAndFixLast(InState.InputPointData);
@@ -588,7 +638,7 @@ namespace PCGSelfPruningElement
 		}
 		else if (InParameters.bUseCollisionAttribute)
 		{
-			bIsDone = PCGSelfPruningElement::CollisionExclusion(InState, InOptionalContext, InParameters.bUseComplexCollision);
+			bIsDone = PCGSelfPruningElement::CollisionExclusion(InState, InOptionalContext, InParameters.CollisionQueryFlag);
 		}
 		else
 		{
@@ -629,6 +679,17 @@ namespace PCGSelfPruningElement
 	}
 }
 
+void FPCGSelfPruningParameters::PostLoad()
+{
+#if WITH_EDITOR
+	if (bUseComplexCollision_DEPRECATED)
+	{
+		CollisionQueryFlag = EPCGCollisionQueryFlag::Complex;
+		bUseComplexCollision_DEPRECATED = false;
+	}
+#endif
+}
+
 UPCGSelfPruningSettings::UPCGSelfPruningSettings()
 {
 	// Previous Default behavior was Extents
@@ -638,6 +699,8 @@ UPCGSelfPruningSettings::UPCGSelfPruningSettings()
 void UPCGSelfPruningSettings::PostLoad()
 {
 	Super::PostLoad();
+
+	Parameters.PostLoad();
 
 #if WITH_EDITOR
 	if (PruningType_DEPRECATED != EPCGSelfPruningType::LargeToSmall)
@@ -709,12 +772,6 @@ bool FPCGSelfPruningElement::PrepareDataInternal(FPCGContext* InContext) const
 			if (OutState.CollisionWrapper.Prepare(InputAccessor.Get(), InputKeys.Get(), Meshes))
 			{
 				OutState.CollisionWrapper.CreateBodyInstances(Meshes);
-
-				if (Settings->Parameters.bRecomputeOctreeAccordingToMeshes)
-				{
-					OutState.bUseCollisionAccurateOctree = OutState.CollisionWrapper.InitializeOctree(OutState.InputPointData, Meshes, OutState.CollisionAccurateOctree, &OutState.SortedPoints);
-					OutState.bSortedPointsArrayPopulateDone = OutState.bUseCollisionAccurateOctree;
-				}
 			}
 		}
 

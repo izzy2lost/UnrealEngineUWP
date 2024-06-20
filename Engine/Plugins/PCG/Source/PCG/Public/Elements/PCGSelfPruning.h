@@ -28,6 +28,8 @@ struct FPCGSelfPruningParameters
 	GENERATED_BODY()
 
 public:
+	void PostLoad();
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	EPCGSelfPruningType PruningType = EPCGSelfPruningType::LargeToSmall;
 
@@ -49,13 +51,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_DiscardPropertySelection, PCG_DiscardExtraSelection, EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
 	FPCGAttributePropertyInputSelector CollisionAttribute;
 
-	/** Uses a new octree based on the mesh bounds, performance warning (does similar work to the BoundsFromMesh node, but will not change the point data). */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
-	bool bRecomputeOctreeAccordingToMeshes = false;
+	/** Controls whether queries will be done against complex collisions or not. If enabled, performance warning. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_OverrideAliases="bUseComplexCollision", EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
+	EPCGCollisionQueryFlag CollisionQueryFlag = EPCGCollisionQueryFlag::Simple;
 
-	/** Queries against complex collision (vs. collection of convex elements in the collision) if enabled, performance warning */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bUseCollisionAttribute && PruningType != EPCGSelfPruningType::RemoveDuplicates", EditConditionHides))
-	bool bUseComplexCollision = false;
+#if WITH_EDITORONLY_DATA
+	// Implementation note: was introduced during UE 5.5 development and replaced, does not require a full public API deprecation mechanism
+	UPROPERTY()
+	bool bUseComplexCollision_DEPRECATED = false;
+#endif
 };
 
 namespace PCGSelfPruningElement
@@ -81,13 +85,10 @@ namespace PCGSelfPruningElement
 		FPointBitSet ExclusionPoints;
 		int32 CurrentPointIndex = 0;
 		bool bSortDone = false;
-		bool bSortedPointsArrayPopulateDone = false;
-		bool bUseCollisionAccurateOctree = false;
 
 		// In the case of the self-pruning using the collision, we'll need instances of the unique bodies that are used in the point data.
 		// Additionally, in the cases where two points to compare use the same instance, we'll have to do a temporary copy.
 		FPCGCollisionWrapper CollisionWrapper;
-		UPCGPointData::PointOctree CollisionAccurateOctree;
 		TMap<FBodyInstance*, FBodyInstance*> TemporaryBodyInstances;
 	};
 
