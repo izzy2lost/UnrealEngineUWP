@@ -64,10 +64,7 @@ RWBuffer<uint> RWCompactedTraceTexelAllocator;
 groupshared uint SharedGlobalTraceTexelStartOffset;
 
 #if WAVE_OPS
-	#define MIN_SUPPORTED_WAVE_SIZE 32
-	#define NUM_WAVE_SUMS ((THREADGROUP_SIZE * THREADGROUP_SIZE + MIN_SUPPORTED_WAVE_SIZE - 1) / MIN_SUPPORTED_WAVE_SIZE)
-	groupshared uint SharedWaveSums[NUM_WAVE_SUMS];
-	groupshared uint SharedTexelValid[THREADGROUP_SIZE * THREADGROUP_SIZE];
+	groupshared uint SharedGroupSum;
 #else
 	//@todo - ordered compaction for non-wave ops path
 	groupshared uint SharedTraceTexelAllocator;
@@ -85,18 +82,18 @@ void CompactLightSampleTracesCS(
 {
 	const uint LinearThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
 
-	#if WAVE_OPS
-	{
-		SharedTexelValid[LinearThreadIndex] = 0;
-	}
-	#else
 	if (LinearThreadIndex == 0)
+#if WAVE_OPS
+	{
+		SharedGroupSum = 0;
+	}
+#else
 	{
 		SharedTraceTexelAllocator = 0;
 	}
-	#endif
 
 	GroupMemoryBarrierWithGroupSync();
+#endif
 
 	uint2 SampleCoord = DispatchThreadId.xy + SampleViewMin;
 	bool bTraceValid = false;
@@ -113,7 +110,6 @@ void CompactLightSampleTracesCS(
 			#if WAVE_OPS
 			{
 				bTraceValid = true;
-				SharedTexelValid[LinearThreadIndex] = 1;
 				TraceTexelForThisThread = PackTraceTexel(SampleCoord);
 			}
 			#else
@@ -130,43 +126,31 @@ void CompactLightSampleTracesCS(
 
 	#if WAVE_OPS
 	{
-		const uint WaveIndex = LinearThreadIndex / WaveGetLaneCount();
+		const uint LastLaneIndex = WaveGetLaneCount() - 1;
 		const uint LaneIndex = WaveGetLaneIndex();
+		const uint OffsetInWave = WavePrefixCountBits(bTraceValid);
+		uint OffsetInGroup;
 
-		uint Value = SharedTexelValid[LinearThreadIndex];
-		uint ThisWaveSum = WaveActiveSum(Value);
-
-		if (LaneIndex == 0)
+		if (LaneIndex == LastLaneIndex)
 		{
-			SharedWaveSums[WaveIndex] = ThisWaveSum;
+			const uint ThisWaveSum = OffsetInWave + (bTraceValid ? 1 : 0);
+			InterlockedAdd(SharedGroupSum, ThisWaveSum, OffsetInGroup);
 		}
+		OffsetInGroup = WaveReadLaneAt(OffsetInGroup, LastLaneIndex) + OffsetInWave;
 
 		GroupMemoryBarrierWithGroupSync();
 
-		if (WaveIndex == 0 && LaneIndex < NUM_WAVE_SUMS)
-		{
-			SharedWaveSums[LaneIndex] = WavePrefixSum(SharedWaveSums[LaneIndex]);
-		}
-
-		GroupMemoryBarrierWithGroupSync();
-
-		uint PayloadGroupSize = SharedWaveSums[WaveIndex] + WavePrefixSum(Value) + Value;
-
-		uint WaveLaneCount = WaveGetLaneCount();
-		uint LastWaveIndex = (THREADGROUP_SIZE * THREADGROUP_SIZE - 1) / WaveLaneCount;
-
-		// Last lane of last wave has the max index used by the group
 		// Allocate this group's compacted traces from the global allocator
-		if (WaveIndex == LastWaveIndex && LaneIndex == WaveLaneCount - 1 && PayloadGroupSize > 0)
+		if (LinearThreadIndex == 0)
 		{
-			InterlockedAdd(RWCompactedTraceTexelAllocator[0], PayloadGroupSize, SharedGlobalTraceTexelStartOffset);
+			InterlockedAdd(RWCompactedTraceTexelAllocator[0], SharedGroupSum, SharedGlobalTraceTexelStartOffset);
 		}
 
 		GroupMemoryBarrierWithGroupSync();
 
 		if (bTraceValid)
 		{
-			RWCompactedTraceTexelData[SharedGlobalTraceTexelStartOffset + PayloadGroupSize - 1] = TraceTexelForThisThread;
+			RWCompactedTraceTexelData[SharedGlobalTraceTexelStartOffset + OffsetInGroup] = TraceTexelForThisThread;
 		}
 	}
 	#else
