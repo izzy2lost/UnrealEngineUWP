@@ -307,7 +307,8 @@ float UnpackLightDiffuseScale(FLocalLightData In)
 
 float UnpackLigthIESAtlasIndex(FLocalLightData In)
 {
-	return asuint(In.LightTangentAndIESDataAndSpecularScale.w) >> 20;
+	// Offset IESAtlasIndex here in order to preserve INDEX_NONE = -1 after encoding
+	return int(asuint(In.LightTangentAndIESDataAndSpecularScale.w) >> 20) - 1;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
