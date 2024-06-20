@@ -298,6 +298,17 @@ public:
 		return MakeHandle(ChannelTypeName, Index).template Cast<ChannelType>();
 	}
 
+	/**
+	 * Make a new channel handle for the same channel type name and index for this channel proxy
+	 *
+	 * @return A handle to the supplied channel that will become nullptr when the proxy is reallocated, or nullptr if the index or channel type name are invalid.
+	 */
+	template<typename ChannelType>
+	TMovieSceneChannelHandle<ChannelType> CopyHandle(TMovieSceneChannelHandle<ChannelType> InOtherHandle)
+	{
+		return MakeHandle(InOtherHandle.GetChannelTypeName(), InOtherHandle.GetChannelIndex()).template Cast<ChannelType>();
+	}
+
 #if !WITH_EDITOR
 
 	/**
@@ -387,6 +398,8 @@ private:
 template<typename ChannelType>
 int32 FMovieSceneChannelProxyData::AddInternal(ChannelType& InChannel)
 {
+	FMovieSceneChannelHandle::TrackChannelTypeName<ChannelType>();
+
 	// Find the entry for this channel's type
 	FName ChannelTypeName = ChannelType::StaticStruct()->GetFName();
 

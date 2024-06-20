@@ -3,6 +3,16 @@
 #include "Channels/MovieSceneChannelHandle.h"
 #include "Channels/MovieSceneChannelProxy.h"
 
+namespace UE::MovieScene
+{
+
+
+#if DO_CHECK
+	TMap<FName, TWeakObjectPtr<UStruct>> GChannelTypeNamesToClassTypes;
+#endif // DO_CHECK
+
+} // namespace UE::MovieScene
+
 FMovieSceneChannelHandle::FMovieSceneChannelHandle()
 	: ChannelTypeName(NAME_None)
 	, ChannelIndex(INDEX_NONE)
@@ -80,3 +90,35 @@ const void* FMovieSceneChannelHandle::GetExtendedEditorData() const
 }
 
 #endif // WITH_EDITOR
+
+
+
+#if DO_CHECK
+
+void FMovieSceneChannelHandle::TrackChannelTypeNameInternal(UStruct* ChannelType)
+{
+	FName ChannelName = ChannelType->GetFName();
+	if (!UE::MovieScene::GChannelTypeNamesToClassTypes.Contains(ChannelName))
+	{
+		UE::MovieScene::GChannelTypeNamesToClassTypes.Add(ChannelName, ChannelType);
+	}
+}
+UStruct* FMovieSceneChannelHandle::GetChannelTypeByName(FName ChannelName)
+{
+	return UE::MovieScene::GChannelTypeNamesToClassTypes.FindRef(ChannelName).Get();
+}
+
+bool FMovieSceneChannelHandle::IsCastValidInternal(UStruct* OtherType) const
+{
+	if (OtherType->GetFName() != ChannelTypeName)
+	{
+		UStruct* ThisType = GetChannelTypeByName(ChannelTypeName);
+		if (!ThisType || !(ThisType->IsChildOf(OtherType) || OtherType->IsChildOf(ThisType)))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+#endif // DO_CHECK
