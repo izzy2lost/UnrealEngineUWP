@@ -169,6 +169,7 @@ namespace UE::AVCodecCore::VP9
 	{
 		switch (ScalabilityMode)
 		{
+			case EScalabilityMode::None:
 			case EScalabilityMode::L1T1:
 			case EScalabilityMode::L1T2:
 			case EScalabilityMode::L1T3:
@@ -215,7 +216,6 @@ namespace UE::AVCodecCore::VP9
 			case EScalabilityMode::S3T2h:
 			case EScalabilityMode::S3T3:
 			case EScalabilityMode::S3T3h:
-			case EScalabilityMode::None:
 				return EInterLayerPrediction::Off;
 		}
 
