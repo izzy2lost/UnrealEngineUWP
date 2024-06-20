@@ -1800,10 +1800,21 @@ bool FAutomationTestBase::TestEqual(const TCHAR* What, FStringView Actual, FStri
 
 bool FAutomationTestBase::TestNotEqual(const TCHAR* What, const TCHAR* Actual, const TCHAR* Expected)
 {
-	if (FCString::Strcmp(Actual, Expected) == 0)
+	if (Actual && Expected)
 	{
-		AddError(FString::Printf(TEXT("Expected '%s' not to be \"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
-		return false;
+		if (FCString::Strcmp(Actual, Expected) == 0)
+		{
+			AddError(FString::Printf(TEXT("Expected '%s' not to be\"%s\", but it was \"%s\"."), What, Expected, Actual), 1);
+			return false;
+		}
+	}
+	else // null exists
+	{
+		if (Actual == Expected)
+		{
+			AddError(FString::Printf(TEXT("Expected '%s' to differ but both values were unexpectedly null"), What), 1);
+			return false;
+		}
 	}
 	return true;
 }
