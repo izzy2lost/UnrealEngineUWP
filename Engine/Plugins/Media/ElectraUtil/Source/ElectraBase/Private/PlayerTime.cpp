@@ -90,7 +90,7 @@ namespace Electra
 			{
 				HNS 		= Numerator;
 				bIsValid	= true;
-				bIsInfinity = false;
+				bIsInfinity = HNS == 0x7fffffffffffffffLL || HNS == -0x7fffffffffffffffLL;
 			}
 			else if (Numerator >= -922337203685LL && Numerator <= 922337203685LL)
 			{

@@ -127,6 +127,7 @@ namespace ElectraDecodersUtil
 					general_tier_flag = 0;
 					general_profile_idc = 0;
 					FMemory::Memzero(general_profile_compatibility_flag);
+					general_profile_compatibility_flags = 0;
 					general_progressive_source_flag = 0;
 					general_interlaced_source_flag = 0;
 					general_non_packed_constraint_flag = 0;
@@ -206,6 +207,7 @@ namespace ElectraDecodersUtil
 				uint8 general_tier_flag;								// u(1)
 				uint8 general_profile_idc;								// u(5)
 				uint8 general_profile_compatibility_flag[32];			// u(1)
+				uint32 general_profile_compatibility_flags;				// u(32), same as general_profile_compatibility_flag[32] but in a single word
 				uint8 general_progressive_source_flag;					// u(1)
 				uint8 general_interlaced_source_flag;					// u(1)
 				uint8 general_non_packed_constraint_flag;				// u(1)
@@ -621,6 +623,8 @@ namespace ElectraDecodersUtil
 				void GetCrop(int32& OutLeft, int32& OutRight, int32& OutTop, int32& OutBottom) const;
 				void GetAspect(int32& OutSarW, int32& OutSarH) const;
 				FFractionalValue GetTiming() const;
+				uint64 GetConstraintFlags() const;
+				FString GetRFC6381(const TCHAR* SampleTypePrefix) const;
 
 				uint8 sps_video_parameter_set_id;							// u(4)
 				uint8 sps_max_sub_layers_minus1;							// u(3), 0-6

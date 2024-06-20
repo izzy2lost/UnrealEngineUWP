@@ -10,6 +10,7 @@
 namespace Electra
 {
 class IPlayerSessionServices;
+class FHTTPResourceRequest;
 
 
 class IAdaptiveStreamingPlayerResourceRequest : public TSharedFromThis<IAdaptiveStreamingPlayerResourceRequest, ESPMode::ThreadSafe>
@@ -65,8 +66,38 @@ public:
 	virtual ~IHTTPResourceRequestObject() = default;
 };
 
+
+
+class FHTTPResourceRequestCompletionSignal : public TSharedFromThis<FHTTPResourceRequestCompletionSignal, ESPMode::ThreadSafe>
+{
+public:
+	static TSharedPtr<FHTTPResourceRequestCompletionSignal, ESPMode::ThreadSafe> Create()
+	{ return MakeShared<FHTTPResourceRequestCompletionSignal, ESPMode::ThreadSafe>(); }
+	virtual ~FHTTPResourceRequestCompletionSignal()
+	{ Sig.Signal(); }
+	virtual void CompletionCallback(TSharedPtrTS<FHTTPResourceRequest> InRequest)
+	{ Sig.Signal();	}
+
+	void Wait()
+	{ Sig.Wait(); }
+	void WaitAndReset()
+	{ Sig.WaitAndReset(); }
+	void Signal()
+	{ Sig.Signal(); }
+	void Reset()
+	{ Sig.Reset(); }
+	bool IsSignaled() const
+	{ return Sig.IsSignaled(); }
+	bool WaitTimeout(int64 MicroSeconds)
+	{ return Sig.WaitTimeout(MicroSeconds); }
+	bool WaitTimeoutAndReset(int64 MicroSeconds)
+	{ return Sig.WaitTimeoutAndReset(MicroSeconds); }
+private:
+	FMediaEvent Sig;
+};
+
 /**
- * 
+ *
  */
 class FHTTPResourceRequest : public TSharedFromThis<FHTTPResourceRequest, ESPMode::ThreadSafe>
 {
@@ -89,33 +120,36 @@ public:
 
 	virtual FHTTPResourceRequest& PostData(TArray<uint8> InPostData)
 	{ Request->Parameters.PostData = MoveTemp(InPostData); return *this; }
-	
+
 	virtual FHTTPResourceRequest& Range(const FString& InRange)
 	{ Request->Parameters.Range.Set(InRange); return *this; }
-	
+
 	virtual FHTTPResourceRequest& Headers(const TArray<HTTP::FHTTPHeader>& InHeaders)
 	{ Request->Parameters.RequestHeaders = InHeaders; return *this; }
 
 	virtual FHTTPResourceRequest& Headers(const TArray<FString>& InHeaders)
 	{ Request->Parameters.AddFromHeaderList(InHeaders); return *this; }
-	
+
 	virtual FHTTPResourceRequest& AcceptEncoding(const FString& InAcceptEncoding)
 	{ Request->Parameters.AcceptEncoding.Set(InAcceptEncoding); return *this; }
-	
+
 	virtual FHTTPResourceRequest& ConnectionTimeout(const FTimeValue& InTimeoutAfter)
 	{ Request->Parameters.ConnectTimeout = InTimeoutAfter; return *this; }
-	
+
 	virtual FHTTPResourceRequest& NoDataTimeout(const FTimeValue& InTimeoutAfter)
 	{ Request->Parameters.NoDataTimeout = InTimeoutAfter; return *this; }
-	
+
 	virtual FHTTPResourceRequest& AllowStaticQuery(IAdaptiveStreamingPlayerResourceRequest::EPlaybackResourceType InStaticQueryType)
 	{ StaticQueryType.Set(InStaticQueryType); return *this; }
-	
+
 	virtual FHTTPResourceRequest& Object(TSharedPtrTS<IHTTPResourceRequestObject> InUserObject)
 	{ UserObject = InUserObject; return *this; }
 
 	virtual FHTTPResourceRequest& StreamTypeAndQuality(EStreamType InStreamType, int32 InQualityIndex, int32 InMaxQualityIndex)
 	{ Request->Parameters.StreamType = InStreamType; Request->Parameters.QualityIndex = InQualityIndex; Request->Parameters.MaxQualityIndex = InMaxQualityIndex; return *this; }
+
+	virtual FHTTPResourceRequest& CompletionSignal(const TSharedPtr<FHTTPResourceRequestCompletionSignal, ESPMode::ThreadSafe>& InSig)
+	{ CompletedCallback.BindThreadSafeSP(InSig.ToSharedRef(), &FHTTPResourceRequestCompletionSignal::CompletionCallback); return *this; }
 
 	virtual FOnRequestCompletedCallback& Callback()
 	{ return CompletedCallback; }
@@ -137,7 +171,7 @@ public:
 		else if (Error >= 100 && Error < 600)	return FString::Printf(TEXT("HTTP status code %d"), Error);
 		else									return FString::Printf(TEXT("Unknown <code %d>"), Error);
 	}
-	
+
 	virtual bool GetWasCanceled() const
 	{ return bWasCanceled; }
 
@@ -154,8 +188,8 @@ public:
 	{ return ReceiveBuffer; }
 
 	virtual const HTTP::FConnectionInfo* GetConnectionInfo() const
-	{ return Request.IsValid() ? &Request->ConnectionInfo : nullptr; }
-
+	{ return &ConnectionInfo; }
+	
 	virtual TSharedPtrTS<IElectraHttpManager::FRequest> GetRequest() const
 	{ return Request; }
 
@@ -223,6 +257,7 @@ private:
 	void SetStaticDataReady()
 	{ bStaticDataReady = true; }
 	void StaticDataReady();
+	HTTP::FConnectionInfo ConnectionInfo;
 	TSharedPtrTS<IElectraHttpManager::FRequest> Request;
 	TSharedPtrTS<FWaitableBuffer> ReceiveBuffer;
 	TSharedPtrTS<IElectraHttpManager::FProgressListener> ProgressListener;
@@ -238,8 +273,6 @@ private:
 	bool bInCallback = false;
 	int32 Error = 0;
 };
-
-
 
 } // namespace Electra
 

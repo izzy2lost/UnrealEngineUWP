@@ -887,6 +887,10 @@ namespace Electra
 			TSharedPtrTS<FWaitableBuffer>	ReceiveBuffer = Request->ReceiveBuffer.Pin();
 			if (ReceiveBuffer.IsValid())
 			{
+				if (Request->ConnectionInfo.StatusInfo.ErrorCode)
+				{
+					ReceiveBuffer->SetHasErrored();
+				}
 				ReceiveBuffer->SetEOD();
 			}
 

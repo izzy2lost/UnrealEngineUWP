@@ -7,6 +7,39 @@ namespace Electra
 	namespace StringHelpers
 	{
 
+		FString ISO_8859_1_ToFString(const uint8* InStringToConvert, int32 InNumCharsToConvert)
+		{
+			if (InNumCharsToConvert == 0)
+			{
+				return FString();
+			}
+			else if (InNumCharsToConvert < 0)
+			{
+				for(InNumCharsToConvert=0; InStringToConvert[InNumCharsToConvert] && InNumCharsToConvert < 16384; ++InNumCharsToConvert)
+				{}
+			}
+			TArray<uint8> ConvBuf;
+			ConvBuf.Reserve(InNumCharsToConvert*2);
+			for(int32 i=0; i<InNumCharsToConvert; ++i, ++InStringToConvert)
+			{
+				if (*InStringToConvert == 0x00)
+				{
+					break;
+				}
+				if (*InStringToConvert >= 0x20 && *InStringToConvert < 0x7f)
+				{
+					ConvBuf.Add(*InStringToConvert);
+				}
+				else  if (*InStringToConvert >= 0xa0)
+				{
+					// We can convert straight from ISO 8859-1 to UTF8 by doing this:
+					ConvBuf.Add(0xc0 | (*InStringToConvert >> 6));
+					ConvBuf.Add(0x80 | (*InStringToConvert & 0x3f));
+				}
+			}
+			auto Cnv = StringCast<TCHAR>(reinterpret_cast<const UTF8CHAR*>(ConvBuf.GetData()), ConvBuf.Num());
+			return FString(Cnv.Length(), Cnv.Get());
+		}
 
 		int32 FindFirstOf(const FString& InString, const FString& SplitAt, int32 FirstPos)
 		{
@@ -112,13 +145,13 @@ namespace Electra
 
 
 		bool StringEquals(const TCHAR * const s1, const TCHAR * const s2)
-		{ 
-			return FPlatformString::Strcmp(s1, s2) == 0; 
+		{
+			return FPlatformString::Strcmp(s1, s2) == 0;
 		}
 
 		bool StringStartsWith(const TCHAR * const s1, const TCHAR * const s2, SIZE_T n)
-		{ 
-			return FPlatformString::Strncmp(s1, s2, n) == 0; 
+		{
+			return FPlatformString::Strncmp(s1, s2, n) == 0;
 		}
 
 		void StringToArray(TArray<uint8>& OutArray, const FString& InString)

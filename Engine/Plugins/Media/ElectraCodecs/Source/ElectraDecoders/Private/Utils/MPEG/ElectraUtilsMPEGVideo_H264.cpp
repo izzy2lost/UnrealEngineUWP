@@ -617,9 +617,11 @@ namespace ElectraDecodersUtil
 						sps.max_bits_per_mb_denom = br.ue_v();
 						RANGE_CHECK_FAILURE(sps.max_bits_per_mb_denom <= 16, TEXT("max_bits_per_mb_denom"));
 						sps.log2_max_mv_length_horizontal = br.ue_v();
-						RANGE_CHECK_FAILURE(sps.log2_max_mv_length_horizontal <= 15, TEXT("log2_max_mv_length_horizontal"));
+						// The mv lengths should not be larger than 15 according to the standard, but we have
+						// encountered streams where this is not the case, so we remove the checks for better compatibility.
+						//RANGE_CHECK_FAILURE(sps.log2_max_mv_length_horizontal <= 15, TEXT("log2_max_mv_length_horizontal"));
 						sps.log2_max_mv_length_vertical = br.ue_v();
-						RANGE_CHECK_FAILURE(sps.log2_max_mv_length_vertical <= 15, TEXT("log2_max_mv_length_vertical"));
+						//RANGE_CHECK_FAILURE(sps.log2_max_mv_length_vertical <= 15, TEXT("log2_max_mv_length_vertical"));
 						sps.max_num_reorder_frames = br.ue_v();
 						sps.max_dec_frame_buffering = br.ue_v();
 						RANGE_CHECK_FAILURE(sps.max_dec_frame_buffering <= sps.max_num_ref_frames, TEXT("max_dec_frame_buffering"));

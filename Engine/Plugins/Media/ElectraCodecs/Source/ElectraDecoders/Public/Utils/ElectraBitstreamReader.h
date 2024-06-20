@@ -21,6 +21,23 @@ public:
 		SetData(InData, InDataSize, StartBytePosition, StartBitPosition);
 	}
 
+	FElectraBitstreamReader(const FElectraBitstreamReader& rhs)
+	{
+		Data = rhs.Data;
+		DataSize = rhs.DataSize;
+		BytePosition = rhs.BytePosition;
+		BitPosition = rhs.BitPosition;
+	}
+
+	FElectraBitstreamReader& operator = (const FElectraBitstreamReader& rhs)
+	{
+		Data = rhs.Data;
+		DataSize = rhs.DataSize;
+		BytePosition = rhs.BytePosition;
+		BitPosition = rhs.BitPosition;
+		return *this;
+	}
+
 	void SetData(const void* InData, uint64 InDataSize, uint64 StartBytePosition = 0, uint32 StartBitPosition = 0)
 	{
 		check(InData && InDataSize);
@@ -43,6 +60,11 @@ public:
 	uint64 GetRemainingByteLength() const
 	{
 		return DataSize - BytePosition;
+	}
+
+	uint32 GetBytePosition() const
+	{
+		return BytePosition;
 	}
 
 	uint32 GetBitPosition() const
@@ -251,6 +273,74 @@ struct FElectraByteReader
 private:
 	const uint8* Data = nullptr;
 	int64 NumBytesToGo = 0;
+};
+
+
+class ELECTRADECODERS_API FElectraBitstreamWriter
+{
+public:
+	FElectraBitstreamWriter()
+	{
+		Buffer.SetNumZeroed(256);
+	}
+	void PutBits(uint32 InValue, uint32 InNumBits)
+	{
+		check(InNumBits != 0);
+		check(InNumBits <= 32);
+		uint32 Mask = 1U << (InNumBits-1);
+		while(Mask)
+		{
+			PutBit((InValue & Mask) != 0 ? 1 : 0);
+			Mask >>= 1;
+		}
+	}
+	void AlignToBytes(uint32 InFillBitsWith)
+	{
+		if (BitPosition)
+		{
+			do
+			{
+				PutBit(InFillBitsWith);
+			} while(BitPosition);
+		}
+	}
+	uint32 GetNumBits() const
+	{
+		return BytePosition * 8 + BitPosition;
+	}
+	uint32 GetNumBytesUsed() const
+	{
+		return (GetNumBits() + 7) / 8;
+	}
+	bool IsByteAligned() const
+	{
+		return BitPosition == 0;
+	}
+	void GetArray(TArray<uint8>& OutArray)
+	{
+		Buffer.SetNum(GetNumBytesUsed());
+		OutArray = MoveTemp(Buffer);
+		BytePosition = 0;
+		BitPosition = 0;
+	}
+private:
+	void PutBit(uint32 InBit)
+	{
+		InBit <<= (7 - BitPosition);
+		check(Buffer.Num());
+		Buffer[BytePosition] |= (uint8)InBit;
+		if (++BitPosition == 8)
+		{
+			BitPosition = 0;
+			if (++BytePosition > (uint32)Buffer.Num())
+			{
+				Buffer.SetNumZeroed(Buffer.Num() + 256);
+			}
+		}
+	}
+	TArray<uint8> Buffer;
+	uint32 BytePosition = 0;
+	uint32 BitPosition = 0;
 };
 
 } // namespace ElectraDecodersUtil

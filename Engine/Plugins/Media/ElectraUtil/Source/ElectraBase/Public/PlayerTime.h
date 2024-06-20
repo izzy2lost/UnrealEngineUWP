@@ -359,7 +359,10 @@ public:
 			{
 				if (!bIsInfinity && !rhs.bIsInfinity)
 				{
-					HNS += rhs.HNS;
+					if (WillOverflow(HNS, HNS, rhs.HNS))
+					{
+						SetToPositiveInfinity();
+					}
 				}
 				else
 				{
@@ -430,8 +433,11 @@ public:
 		{
 			if (!bIsInfinity && !rhs.bIsInfinity)
 			{
-				Result.HNS = HNS + rhs.HNS;
 				Result.bIsValid = true;
+				if (WillOverflow(Result.HNS, HNS, rhs.HNS))
+				{
+					Result.SetToPositiveInfinity();
+				}
 			}
 			else
 			{
@@ -518,6 +524,12 @@ public:
 	}
 
 private:
+	static inline bool WillOverflow(int64& OutTemp, const int64 InA, const int64 InB)
+	{
+		int64 Temp = InA + InB;
+		OutTemp = Temp;
+		return (InA >= 0 && InB >= 0 && Temp < 0) || (InA < 0 && InB < 0 && Temp >= 0);
+	}
 	int64	HNS;
 	int64	SequenceIndex;
 	bool	bIsValid;

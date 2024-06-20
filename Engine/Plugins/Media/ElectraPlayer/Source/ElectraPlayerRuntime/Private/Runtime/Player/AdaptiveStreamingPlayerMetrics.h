@@ -17,6 +17,7 @@ namespace Metrics
 {
 	enum class ESegmentType
 	{
+		Undefined,
 		Init,
 		Media
 	};
@@ -24,6 +25,8 @@ namespace Metrics
 	{
 		switch(SegmentType)
 		{
+			case ESegmentType::Undefined:
+				return TEXT("Undefined");
 			case ESegmentType::Init:
 				return TEXT("Init");
 			case ESegmentType::Media:
@@ -113,42 +116,6 @@ namespace Metrics
 
 	struct FSegmentDownloadStats
 	{
-		// Inputs from stream request
-		EStreamType		StreamType = EStreamType::Video;	//!< Type of stream
-		ESegmentType	SegmentType = ESegmentType::Media;	//!< Type of segment (init or media)
-		FString			URL;								//!< Effective URL used to download from
-		FString			Range;								//!< Range used to download
-		FString			CDN;								//!< CDN
-		FString			MediaAssetID;
-		FString			AdaptationSetID;
-		FString			RepresentationID;
-		double			PresentationTime = 0.0;				//!< Presentation time on media timeline
-		double			Duration = 0.0;						//!< Duration of segment as specified in manifest
-		int32			Bitrate = 0;						//!< Stream bitrate as specified in manifest
-		int32			QualityIndex = 0;					//!< Quality index of this segment
-		int32			HighestQualityIndex = 0;			//!< The highest quality index that could be had.
-		int32			RetryNumber = 0;
-		bool			bIsMissingSegment = false;			//!< true if the segment was not actually downloaded because it is missing on the timeline.
-
-		// Outputs from stream reader
-		uint32			StatsID = 0;						//!< ID uniquely identifying this download
-		FString			FailureReason;						//!< Human readable failure reason. Only for display purposes.
-		double			AvailibilityDelay = 0.0;			//!< Time the download had to wait for the segment to enter its availability window.
-		double			DurationDownloaded = 0.0;			//!< Duration of content successfully downloaded. May be less than Duration in case of errors.
-		double			DurationDelivered = 0.0;			//!< Duration of content delivered to buffer. If larger than DurationDownloaded indicates dummy data was inserted into buffer.
-		double			TimeToFirstByte = 0.0;				//!< Time in seconds until first data byte was received
-		double			TimeToDownload = 0.0;				//!< Total time in seconds for entire download
-		int64			ByteSize = 0;						//!< Content-Length, may be -1 if unknown (either on error or chunked transfer)
-		int64			NumBytesDownloaded = 0;				//!< Number of bytes successfully downloaded.
-		int32			HTTPStatusCode = 0 ;				//!< HTTP status code (0 if not connected to server yet)
-		bool			bWasSuccessful = false;				//!< true if download was successful, false if not
-		bool			bWasAborted = false;				//!< true if download was aborted by ABR (not by playback!)
-		bool			bDidTimeout = false;				//!< true if a timeout occurred. Only set if timeouts are enabled. Usually the ABR will monitor and abort.
-		bool			bParseFailure = false;				//!< true if the segment could not be parsed
-		bool			bInsertedFillerData = false;
-		bool			bIsCachedResponse = false;
-		bool			bWaitingForRemoteRetryElement = false;
-
 		// Chunk timing
 		struct FMovieChunkInfo
 		{
@@ -159,8 +126,88 @@ namespace Metrics
 			FTimeValue ContentDuration;
 			FMovieChunkInfo() { ContentDuration = FTimeValue::GetZero(); }
 		};
+
+		// Inputs from stream request
+		EStreamType StreamType;					//!< Type of stream
+		ESegmentType SegmentType;				//!< Type of segment (init or media)
+		FString URL;							//!< Effective URL used to download from
+		FString Range;							//!< Range used to download
+		FString CDN;							//!< CDN
+		FString MediaAssetID;
+		FString AdaptationSetID;
+		FString RepresentationID;
+		double PresentationTime;				//!< Presentation time on media timeline
+		double Duration;						//!< Duration of segment as specified in manifest
+		int32 Bitrate;							//!< Stream bitrate as specified in manifest
+		int32 QualityIndex;						//!< Quality index of this segment
+		int32 HighestQualityIndex;				//!< The highest quality index that could be had.
+		int32 RetryNumber;
+		bool bWaitingForRemoteRetryElement;
+
+		// Outputs from stream reader
+		uint32 StatsID;							//!< ID uniquely identifying this download
+		FString FailureReason;					//!< Human readable failure reason. Only for display purposes.
+		double AvailibilityDelay;				//!< Time the download had to wait for the segment to enter its availability window.
+		double DurationDownloaded;				//!< Duration of content successfully downloaded. May be less than Duration in case of errors.
+		double DurationDelivered;				//!< Duration of content delivered to buffer. If larger than DurationDownloaded indicates dummy data was inserted into buffer.
+		double TimeToFirstByte;					//!< Time in seconds until first data byte was received
+		double TimeToDownload;					//!< Total time in seconds for entire download
+		int64 ByteSize;							//!< Content-Length, may be -1 if unknown (either on error or chunked transfer)
+		int64 NumBytesDownloaded;				//!< Number of bytes successfully downloaded.
+		int32 HTTPStatusCode;					//!< HTTP status code (0 if not connected to server yet)
+		bool bWasSuccessful;					//!< true if download was successful, false if not
+		bool bWasAborted;						//!< true if download was aborted by ABR (not by playback!)
+		bool bDidTimeout;						//!< true if a timeout occurred. Only set if timeouts are enabled. Usually the ABR will monitor and abort.
+		bool bParseFailure;						//!< true if the segment could not be parsed
+		bool bIsMissingSegment;					//!< true if the segment was not actually downloaded because it is missing on the timeline.
+		bool bInsertedFillerData;
+		bool bIsCachedResponse;
 		TArray<IElectraHTTPStreamResponse::FTimingTrace> TimingTraces;
 		TArray<FMovieChunkInfo> MovieChunkInfos;
+
+		FSegmentDownloadStats()
+		{ Reset(); }
+		void Reset()
+		{
+			StreamType = EStreamType::Unsupported;
+			SegmentType = ESegmentType::Undefined;
+			URL.Empty();
+			Range.Empty();
+			CDN.Empty();
+			MediaAssetID.Empty();
+			AdaptationSetID.Empty();
+			RepresentationID.Empty();
+			PresentationTime = 0.0;
+			Duration = 0.0;
+			Bitrate = 0;
+			QualityIndex = 0;
+			HighestQualityIndex = 0;
+			RetryNumber = 0;
+			bWaitingForRemoteRetryElement = false;
+			ResetOutput();
+		}
+		void ResetOutput()
+		{
+			StatsID = 0;
+			FailureReason.Empty();
+			AvailibilityDelay = 0.0;
+			DurationDownloaded = 0.0;
+			DurationDelivered = 0.0;
+			TimeToFirstByte = 0.0;
+			TimeToDownload = 0.0;
+			ByteSize = 0;
+			NumBytesDownloaded = 0;
+			HTTPStatusCode = 0 ;
+			bWasSuccessful = false;
+			bWasAborted = false;
+			bDidTimeout = false;
+			bParseFailure = false;
+			bIsMissingSegment = false;
+			bInsertedFillerData = false;
+			bIsCachedResponse = false;
+			TimingTraces.Empty();
+			MovieChunkInfos.Empty();
+		}
 	};
 
 	struct FLicenseKeyStats

@@ -14,6 +14,7 @@ namespace Electra
 
 	namespace StringHelpers
 	{
+		FString ELECTRABASE_API ISO_8859_1_ToFString(const uint8* InStringToConvert, int32 InNumCharsToConvert=-1);
 
 		int32 ELECTRABASE_API FindFirstOf(const FString& InString, const FString& SplitAt, int32 FirstPos = 0);
 
