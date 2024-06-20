@@ -2,19 +2,23 @@
 
 #pragma once
 
-#include "Containers/Ticker.h"
 #include "CoreMinimal.h"
+
+#include "Containers/Ticker.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Logging/LogMacros.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/NetworkingProfiler/NetworkingProfilerCommands.h"
 
+namespace UE::Insights::NetworkingProfiler
+{
+
 class SNetworkingProfilerWindow;
 
-DECLARE_LOG_CATEGORY_EXTERN(NetworkingProfiler, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogNetworkingProfiler, Log, All);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -113,7 +117,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	Insights::FAvailabilityCheck AvailabilityCheck;
+	FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;
@@ -136,3 +140,5 @@ private:
 	/** The name of the Networking Profiler log listing. */
 	FName LogListingName;
 };
+
+} // namespace UE::Insights::NetworkingProfiler

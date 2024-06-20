@@ -2,20 +2,23 @@
 
 #include "SPackageTableTreeView.h"
 
-#include "Common/ProviderLock.h" // TraceServices
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SlateOptMacros.h"
 #include "Widgets/Input/STextComboBox.h"
 
-// Insights
+// TraceServices
+#include "Common/ProviderLock.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/CookProfiler/CookProfilerManager.h"
 #include "Insights/CookProfiler/ViewModels/PackageEntry.h"
 #include "Insights/CookProfiler/ViewModels/PackageNode.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
 #include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
 #include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
@@ -140,7 +143,7 @@ void SPackageTableTreeView::RebuildTree(bool bResync)
 		Packages.Reserve(NumPackages);
 		TableRowNodes.Reserve(NumPackages);
 
-		TArray<FTableTreeNodePtr>* Nodes = &TableRowNodes;
+		TArray<UE::Insights::FTableTreeNodePtr>* Nodes = &TableRowNodes;
 		for(const TraceServices::FPackageData& Package : PackageAggreagation)
 		{
 			Packages.Emplace(Package);
@@ -201,7 +204,7 @@ TSharedPtr<SWidget> SPackageTableTreeView::ConstructToolbar()
 			SNew(SBox)
 			.MinDesiredWidth(150.0f)
 			[
-				SAssignNew(PresetComboBox, SComboBox<TSharedRef<ITableTreeViewPreset>>)
+				SAssignNew(PresetComboBox, SComboBox<TSharedRef<UE::Insights::ITableTreeViewPreset>>)
 				.ToolTipText(this, &SPackageTableTreeView::ViewPreset_GetSelectedToolTipText)
 				.OptionsSource(GetAvailableViewPresets())
 				.OnSelectionChanged(this, &SPackageTableTreeView::ViewPreset_OnSelectionChanged)
@@ -232,11 +235,11 @@ void SPackageTableTreeView::InternalCreateGroupings()
 	STableTreeView::InternalCreateGroupings();
 
 	AvailableGroupings.RemoveAll(
-		[](TSharedPtr<FTreeNodeGrouping>& Grouping)
+		[](TSharedPtr<UE::Insights::FTreeNodeGrouping>& Grouping)
 		{
-			if (Grouping->Is<FTreeNodeGroupingByUniqueValue>())
+			if (Grouping->Is<UE::Insights::FTreeNodeGroupingByUniqueValue>())
 			{
-				const FName ColumnId = Grouping->As<FTreeNodeGroupingByUniqueValue>().GetColumnId();
+				const FName ColumnId = Grouping->As<UE::Insights::FTreeNodeGroupingByUniqueValue>().GetColumnId();
 				if (ColumnId == FPackageTableColumns::BeginCacheForCookedPlatformDataTimeInclColumnId ||
 					ColumnId == FPackageTableColumns::BeginCacheForCookedPlatformDataTimeExclColumnId ||
 					ColumnId == FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedInclColumnId ||
@@ -251,9 +254,9 @@ void SPackageTableTreeView::InternalCreateGroupings()
 					return true;
 				}
 			}
-			else if (Grouping->Is<FTreeNodeGroupingByPathBreakdown>())
+			else if (Grouping->Is<UE::Insights::FTreeNodeGroupingByPathBreakdown>())
 			{
-				const FName ColumnId = Grouping->As<FTreeNodeGroupingByPathBreakdown>().GetColumnId();
+				const FName ColumnId = Grouping->As<UE::Insights::FTreeNodeGroupingByPathBreakdown>().GetColumnId();
 				if (ColumnId == FPackageTableColumns::PackageAssetClassColumnId)
 				{
 					return true;
@@ -265,7 +268,7 @@ void SPackageTableTreeView::InternalCreateGroupings()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SPackageTableTreeView::TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr TreeNode)
+void SPackageTableTreeView::TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableTreeNodePtr TreeNode)
 {
 	STableTreeView::TreeView_OnMouseButtonDoubleClick(TreeNode);
 }
@@ -274,6 +277,8 @@ void SPackageTableTreeView::TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr 
 
 void SPackageTableTreeView::InitAvailableViewPresets()
 {
+	using namespace UE::Insights;
+
 	//////////////////////////////////////////////////
 	// Default View
 

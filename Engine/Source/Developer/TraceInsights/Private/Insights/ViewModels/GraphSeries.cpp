@@ -2,7 +2,7 @@
 
 #include "Insights/ViewModels/GraphSeries.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/GraphTrackEvent.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
 

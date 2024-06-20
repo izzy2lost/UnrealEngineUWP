@@ -2,13 +2,15 @@
 
 #include "MemAllocGroupingBySize.h"
 
-// Insights
-#include "Insights/Common/AsyncOperationProgress.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/AsyncOperationProgress.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemAllocNode.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FMemAllocGroupingBySize"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemAllocNode"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +75,11 @@ void FMemAllocGroupingBySize::ResetThresholdsPow2()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemAllocGroupingBySize::GroupNodes(const TArray<FTableTreeNodePtr>& Nodes, FTableTreeNode& ParentGroup, TWeakPtr<FTable> InParentTable, IAsyncOperationProgress& InAsyncOperationProgress) const
+void FMemAllocGroupingBySize::GroupNodes(
+	const TArray<FTableTreeNodePtr>& Nodes,
+	FTableTreeNode& ParentGroup,
+	TWeakPtr<FTable> InParentTable,
+	IAsyncOperationProgress& InAsyncOperationProgress) const
 {
 	TArray<FTableTreeNodePtr> GroupMap; // Node for each ThresholdIndex
 	GroupMap.AddDefaulted(Thresholds.Num());
@@ -144,6 +150,6 @@ void FMemAllocGroupingBySize::GroupNodes(const TArray<FTableTreeNodePtr>& Nodes,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

@@ -4,9 +4,12 @@
 
 #include "CoreMinimal.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/AxisViewportInt32.h"
 #include "Insights/ViewModels/AxisViewportDouble.h"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -63,3 +66,5 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

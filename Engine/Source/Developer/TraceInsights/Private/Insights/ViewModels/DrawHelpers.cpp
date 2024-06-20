@@ -5,15 +5,17 @@
 #include "Fonts/FontMeasure.h"
 #include "Fonts/SlateFontInfo.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/ViewModels/TimingTrackViewport.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FDrawHelpers::DrawBackground(
-	const FDrawContext& DrawContext,
+	const UE::Insights::FDrawContext& DrawContext,
 	const FSlateBrush* BackgroundAreaBrush,
 	const FLinearColor& ValidAreaColor,
 	const FLinearColor& InvalidAreaColor,
@@ -86,7 +88,7 @@ void FDrawHelpers::DrawBackground(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FDrawHelpers::DrawBackground(const FDrawContext& DrawContext,
+void FDrawHelpers::DrawBackground(const UE::Insights::FDrawContext& DrawContext,
 								  const FSlateBrush* BackgroundAreaBrush,
 								  const float X0,
 								  const float X1,
@@ -105,7 +107,7 @@ void FDrawHelpers::DrawBackground(const FDrawContext& DrawContext,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FDrawHelpers::DrawBackground(const FDrawContext& DrawContext,
+void FDrawHelpers::DrawBackground(const UE::Insights::FDrawContext& DrawContext,
 								  const FSlateBrush* BackgroundAreaBrush,
 								  const FTimingTrackViewport& Viewport,
 								  const float Y,
@@ -126,7 +128,7 @@ void FDrawHelpers::DrawBackground(const FDrawContext& DrawContext,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FDrawHelpers::DrawBackground(const FDrawContext& DrawContext,
+void FDrawHelpers::DrawBackground(const UE::Insights::FDrawContext& DrawContext,
 								  const FSlateBrush* BackgroundAreaBrush,
 								  const FTimingTrackViewport& Viewport,
 								  const float Y,
@@ -149,7 +151,7 @@ void FDrawHelpers::DrawBackground(const FDrawContext& DrawContext,
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FDrawHelpers::DrawTimeRangeSelection(
-	const FDrawContext& DrawContext,
+	const UE::Insights::FDrawContext& DrawContext,
 	const FTimingTrackViewport& Viewport,
 	const double StartTime,
 	const double EndTime,
@@ -170,7 +172,7 @@ void FDrawHelpers::DrawTimeRangeSelection(
 			const float H = Viewport.GetHeight();
 
 			const double Duration = EndTime - StartTime;
-			const FString Text = TimeUtils::FormatTimeAuto(Duration);
+			const FString Text = UE::Insights::FormatTimeAuto(Duration);
 
 			DrawSelection(DrawContext, MinX, MaxX, SelectionX1, SelectionX2, Y, H, 6.0f, Text, Brush, Font);
 		}
@@ -180,7 +182,7 @@ void FDrawHelpers::DrawTimeRangeSelection(
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FDrawHelpers::DrawSelection(
-	const FDrawContext& DrawContext,
+	const UE::Insights::FDrawContext& DrawContext,
 	const float MinX,
 	const float MaxX,
 	float SelectionX1,

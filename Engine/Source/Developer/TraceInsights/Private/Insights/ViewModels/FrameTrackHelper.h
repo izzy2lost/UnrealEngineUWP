@@ -3,13 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Styling/WidgetStyle.h"
 
 enum class ESlateDrawEffect : uint8;
-
-struct FDrawContext;
 struct FGeometry;
 struct FSlateBrush;
+
+namespace UE::Insights { class FDrawContext; }
 
 class FFrameTrackViewport;
 class FSlateWindowElementList;
@@ -148,7 +149,7 @@ private:
 class FFrameTrackDrawHelper
 {
 public:
-	explicit FFrameTrackDrawHelper(const FDrawContext& InDrawContext, const FFrameTrackViewport& InViewport);
+	explicit FFrameTrackDrawHelper(const UE::Insights::FDrawContext& InDrawContext, const FFrameTrackViewport& InViewport);
 
 	/**
 	 * Non-copyable
@@ -176,7 +177,7 @@ public:
 	int32 GetNumDrawSamples() const { return NumDrawSamples; }
 
 private:
-	const FDrawContext& DrawContext;
+	const UE::Insights::FDrawContext& DrawContext;
 	const FFrameTrackViewport& Viewport;
 
 	const FSlateBrush* WhiteBrush;

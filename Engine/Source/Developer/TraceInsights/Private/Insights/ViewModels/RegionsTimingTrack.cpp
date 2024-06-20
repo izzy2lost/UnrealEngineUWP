@@ -9,16 +9,18 @@
 #include "Common/ProviderLock.h"
 #include "TraceServices/Model/Regions.h"
 
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Filter/ViewModels/Filters.h"
+
 // TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
-#include "Insights/Common/TimeUtils.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/ITimingViewSession.h"
 #include "Insights/Log.h"
 #include "Insights/TimingProfilerCommon.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
-#include "Insights/ViewModels/Filters.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
 #include "Insights/Widgets/STimingView.h"
@@ -62,8 +64,10 @@ void FTimingRegionsViewCommands::RegisterCommands()
 UE_ENABLE_OPTIMIZATION_SHIP
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// FTimingRegionsSharedState
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimingRegionsSharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FTimingRegionsSharedState::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -75,7 +79,7 @@ void FTimingRegionsSharedState::OnBeginSession(Insights::ITimingViewSession& InS
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimingRegionsSharedState::OnEndSession(Insights::ITimingViewSession& InSession)
+void FTimingRegionsSharedState::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -87,7 +91,7 @@ void FTimingRegionsSharedState::OnEndSession(Insights::ITimingViewSession& InSes
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimingRegionsSharedState::Tick(Insights::ITimingViewSession& InSession,
+void FTimingRegionsSharedState::Tick(UE::Insights::Timing::ITimingViewSession& InSession,
 	const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	if (&InSession != TimingView)
@@ -128,7 +132,7 @@ void FTimingRegionsSharedState::ShowHideRegionsTrack()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimingRegionsSharedState::ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession,
+void FTimingRegionsSharedState::ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession,
                                                             FMenuBuilder& InOutMenuBuilder)
 {
 	InOutMenuBuilder.BeginSection("Timing Regions", LOCTEXT("ContextMenu_Section_Regions", "Timing Regions"));
@@ -165,7 +169,9 @@ void FTimingRegionsSharedState::BindCommands()
 		FIsActionChecked::CreateSP(this, &FTimingRegionsSharedState::IsRegionsTrackVisible));
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// FTimingRegionsTrack
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 INSIGHTS_IMPLEMENT_RTTI(FTimingRegionsTrack)
 
@@ -178,7 +184,7 @@ void FTimingRegionsTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	FTimingEventsTrack::BuildContextMenu(MenuBuilder);
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FTimingRegionsTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITimingEvent& InTooltipEvent) const
 {
@@ -198,12 +204,14 @@ void FTimingRegionsTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITi
 		{
 			InOutTooltip.Reset();
 			InOutTooltip.AddTitle(InRegion.Text, FLinearColor::White);
-			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"),  TimeUtils::FormatTimeAuto(InRegion.EndTime-InRegion.BeginTime));
+			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"),  UE::Insights::FormatTimeAuto(InRegion.EndTime - InRegion.BeginTime));
 			InOutTooltip.AddNameValueTextLine(TEXT("Depth:"),  FString::FromInt(InRegion.Depth));
 			InOutTooltip.UpdateLayout();
 		});
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FTimingRegionsTrack::BuildDrawState(ITimingEventsTrackDrawStateBuilder& Builder,
 	const ITimingTrackUpdateContext& Context)
@@ -214,10 +222,10 @@ void FTimingRegionsTrack::BuildDrawState(ITimingEventsTrackDrawStateBuilder& Bui
 	const TraceServices::IRegionProvider& RegionProvider = TraceServices::ReadRegionProvider(*Session);
 	TraceServices::FProviderReadScopeLock RegionProviderScopedLock(RegionProvider);
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
-	// whe're counting only non-empty lanes, so we can collapse empty ones in the visualization.
+	// We are counting only non-empty lanes, so we can collapse empty ones in the visualization.
 	int32 CurDepth = 0;
 	RegionProvider.EnumerateLanes([this, Viewport, &CurDepth, &Builder](const TraceServices::FRegionLane& Lane, const int32 Depth)
 	{
@@ -234,10 +242,10 @@ void FTimingRegionsTrack::BuildDrawState(ITimingEventsTrackDrawStateBuilder& Bui
 
 	Stopwatch.Stop();
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
-	UE_CLOG(TotalTime > 1.0,TimingProfiler, Verbose, TEXT("[Regions] Updated draw state in %s."), *TimeUtils::FormatTimeAuto(TotalTime));
+	UE_CLOG(TotalTime > 1.0, LogTimingProfiler, Verbose, TEXT("[Regions] Updated draw state in %s."), *UE::Insights::FormatTimeAuto(TotalTime));
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FTimingRegionsTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuilder& Builder, const ITimingTrackUpdateContext& Context)
 {
@@ -294,7 +302,8 @@ void FTimingRegionsTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuil
 			return;
 		}
 
-		FFilterContext FilterContext;
+		using EFilterField = UE::Insights::EFilterField;
+		UE::Insights::FFilterContext FilterContext;
 		FilterContext.SetReturnValueForUnsetFilters(false);
 
 		FilterContext.AddFilterData<double>(static_cast<int32>(EFilterField::StartTime), 0.0f);
@@ -335,7 +344,7 @@ void FTimingRegionsTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuil
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const TSharedPtr<const ITimingEvent> FTimingRegionsTrack::SearchEvent(
 	const FTimingEventSearchParameters& InSearchParameters) const
@@ -350,7 +359,7 @@ const TSharedPtr<const ITimingEvent> FTimingRegionsTrack::SearchEvent(
 	return FoundEvent;
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTimingRegionsTrack::FindRegionEvent(const FTimingEventSearchParameters& InParameters,
 	TFunctionRef<void(double, double, uint32, const TraceServices::FTimeRegion&)> InFoundPredicate) const
@@ -365,7 +374,8 @@ bool FTimingRegionsTrack::FindRegionEvent(const FTimingEventSearchParameters& In
 		}
 	}
 
-	FFilterContext FilterConfiguratorContext;
+	using EFilterField = UE::Insights::EFilterField;
+	UE::Insights::FFilterContext FilterConfiguratorContext;
 	FilterConfiguratorContext.SetReturnValueForUnsetFilters(false);
 	FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::StartTime), 0.0f);
 	FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::EndTime), 0.0f);
@@ -422,9 +432,9 @@ bool FTimingRegionsTrack::FindRegionEvent(const FTimingEventSearchParameters& In
 	TTimingEventSearch<TraceServices::FTimeRegion>::NoMatch);
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimingRegionsTrack::SetFilterConfigurator(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator)
+void FTimingRegionsTrack::SetFilterConfigurator(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfigurator)
 {
 	if (FilterConfigurator != InFilterConfigurator)
 	{
@@ -433,14 +443,14 @@ void FTimingRegionsTrack::SetFilterConfigurator(TSharedPtr<Insights::FFilterConf
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool FTimingRegionsTrack::HasCustomFilter() const
 {
 	return FilterConfigurator.IsValid() && !FilterConfigurator->IsEmpty();
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FTimingRegionsTrack::OnClipboardCopyEvent(const ITimingEvent& InSelectedEvent) const
 {
@@ -456,7 +466,7 @@ void FTimingRegionsTrack::OnClipboardCopyEvent(const ITimingEvent& InSelectedEve
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 } // namespace Insights
 

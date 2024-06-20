@@ -7,7 +7,7 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Logging/LogMacros.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/LoadingProfiler/LoadingProfilerCommands.h"
@@ -139,7 +139,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	Insights::FAvailabilityCheck AvailabilityCheck;
+	UE::Insights::FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;

@@ -2,14 +2,16 @@
 
 #include "CookProfilerManager.h"
 
-#include "Common/ProviderLock.h" // TraceServices
 #include "Features/IModularFeatures.h"
 #include "Framework/Docking/TabManager.h"
 #include "Modules/ModuleManager.h"
-#include "TraceServices/Model/CookProfilerProvider.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
+// TraceServices
+#include "Common/ProviderLock.h"
+#include "TraceServices/Model/CookProfilerProvider.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/CookProfiler/ViewModels/PackageTable.h"
 #include "Insights/CookProfiler/Widgets/SPackageTableTreeView.h"

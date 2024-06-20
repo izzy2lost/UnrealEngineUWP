@@ -7,16 +7,20 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Styling/SlateBrush.h"
+
+// TraceServices
 #include "TraceServices/Model/Threads.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Filter/ViewModels/Filters.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/ITimingViewSession.h"
-#include "Insights/ViewModels/Filters.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
 #include "Insights/ViewModels/TimingEvent.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
 #include "Insights/ViewModels/TooltipDrawState.h"
@@ -62,7 +66,7 @@ UE_ENABLE_OPTIMIZATION_SHIP
 // FLoadingSharedState
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FLoadingSharedState::FLoadingSharedState(STimingView* InTimingView)
+FLoadingSharedState::FLoadingSharedState(UE::Insights::TimingProfiler::STimingView* InTimingView)
 	: TimingView(InTimingView)
 	, bShowHideAllLoadingTracks(false)
 	//, LoadingTracks
@@ -74,7 +78,7 @@ FLoadingSharedState::FLoadingSharedState(STimingView* InTimingView)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FLoadingSharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FLoadingSharedState::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -99,7 +103,7 @@ void FLoadingSharedState::OnBeginSession(Insights::ITimingViewSession& InSession
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FLoadingSharedState::OnEndSession(Insights::ITimingViewSession& InSession)
+void FLoadingSharedState::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -117,7 +121,7 @@ void FLoadingSharedState::OnEndSession(Insights::ITimingViewSession& InSession)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FLoadingSharedState::Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FLoadingSharedState::Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -161,7 +165,7 @@ void FLoadingSharedState::Tick(Insights::ITimingViewSession& InSession, const Tr
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FLoadingSharedState::ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
+void FLoadingSharedState::ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
 {
 	if (&InSession != TimingView)
 	{
@@ -340,9 +344,8 @@ void FLoadingTimingTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuil
 {
 	if (HasCustomFilter())
 	{
-		using namespace Insights;
-
-		FFilterContext FilterConfiguratorContext;
+		using EFilterField = UE::Insights::EFilterField;
+		UE::Insights::FFilterContext FilterConfiguratorContext;
 		FilterConfiguratorContext.SetReturnValueForUnsetFilters(false);
 		FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::StartTime), 0.0f);
 		FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::EndTime), 0.0f);
@@ -409,7 +412,7 @@ void FLoadingTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITi
 			const TraceServices::FPackageExportInfo* Export = InFoundEvent.Export;
 			const TraceServices::FPackageInfo* Package = InFoundEvent.Export ? InFoundEvent.Export->Package : InFoundEvent.Package;
 
-			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(TooltipEvent.GetDuration()));
+			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), UE::Insights::FormatTimeAuto(TooltipEvent.GetDuration()));
 			InOutTooltip.AddNameValueTextLine(TEXT("Depth:"), FString::Printf(TEXT("%d"), TooltipEvent.GetDepth()));
 
 			if (Package)
@@ -454,9 +457,8 @@ const TSharedPtr<const ITimingEvent> FLoadingTimingTrack::SearchEvent(const FTim
 
 bool FLoadingTimingTrack::FindLoadTimeProfilerCpuEvent(const FTimingEventSearchParameters& InParameters, TFunctionRef<void(double, double, uint32, const TraceServices::FLoadTimeProfilerCpuEvent&)> InFoundPredicate) const
 {
-	using namespace Insights;
-
-	FFilterContext FilterConfiguratorContext;
+	using EFilterField = UE::Insights::EFilterField;
+	UE::Insights::FFilterContext FilterConfiguratorContext;
 	FilterConfiguratorContext.SetReturnValueForUnsetFilters(false);
 	FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::StartTime), 0.0f);
 	FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::EndTime), 0.0f);
@@ -547,7 +549,7 @@ bool FLoadingTimingTrack::HasCustomFilter() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FLoadingTimingTrack::SetFilterConfigurator(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator)
+void FLoadingTimingTrack::SetFilterConfigurator(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfigurator)
 {
 	if (FilterConfigurator != InFilterConfigurator)
 	{

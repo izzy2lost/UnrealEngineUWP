@@ -13,8 +13,11 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SWidget.h"
 
-// Insights
-#include "Insights/Common/FixedCircularBuffer.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/FixedCircularBuffer.h"
+
+// TraceInsights
+#include "Insights/Config.h"
 #include "Insights/ITimingViewSession.h"
 #include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ViewModels/TimerNode.h"
@@ -24,30 +27,48 @@
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
 #include "Insights/ViewModels/TooltipDrawState.h"
 
-class FFileActivitySharedState;
-class FFrameSharedState;
-class FLoadingSharedState;
-class FMarkersTimingTrack;
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+#include "Insights/ITimingViewExtender.h"
+#endif
+
 class FMenuBuilder;
-class FSpawnTabArgs;
-class FThreadTimingSharedState;
-class FTimeRulerTrack;
-class FTimingGraphTrack;
-class FTimingViewDrawHelper;
 class FUICommandList;
 class SDockTab;
 class SOverlay;
 class SScrollBar;
+class FSpawnTabArgs;
+
+class FFileActivitySharedState;
+class FFrameSharedState;
+class FLoadingSharedState;
+class FMarkersTimingTrack;
+class FThreadTimingSharedState;
+class FTimingGraphTrack;
+class FTimingViewDrawHelper;
 
 namespace Insights
 {
-	class ITimingViewExtender;
-	class FTimeMarker;
 	class FTimingRegionsSharedState;
 	class FQuickFind;
 	class SQuickFind;
+}
+
+namespace UE::Insights
+{
+	class FFilterConfigurator;
 	enum class ETimingEventsColoringMode : uint32;
 }
+
+namespace UE::Insights::Timing
+{
+	class ITimingViewExtender;
+}
+
+namespace UE::Insights::TimingProfiler
+{
+
+class FTimeMarker;
+class FTimeRulerTrack;
 
 enum class ESelectEventType : uint32
 {
@@ -56,7 +77,7 @@ enum class ESelectEventType : uint32
 };
 
 /** A custom widget used to display timing events. */
-class STimingView : public SCompoundWidget, public Insights::ITimingViewSession
+class STimingView : public SCompoundWidget, public UE::Insights::Timing::ITimingViewSession
 {
 public:
 	/** Default constructor. */
@@ -108,8 +129,8 @@ public:
 	const TSharedRef<const FTimeRulerTrack> GetTimeRulerTrack() const { return TimeRulerTrack; }
 
 	/** Gets the default (custom) time marker (for backward compatibility). */
-	TSharedRef<Insights::FTimeMarker> GetDefaultTimeMarker() { return DefaultTimeMarker; }
-	const TSharedRef<const Insights::FTimeMarker> GetDefaultTimeMarker() const { return DefaultTimeMarker; }
+	TSharedRef<FTimeMarker> GetDefaultTimeMarker() { return DefaultTimeMarker; }
+	const TSharedRef<const FTimeMarker> GetDefaultTimeMarker() const { return DefaultTimeMarker; }
 
 	/** Resets internal widget's data to the default one. */
 	void Reset(bool bIsFirstReset = false);
@@ -226,7 +247,7 @@ public:
 	virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
 
 	/**
-	 * Called during drag and drop when the the mouse is being dragged over a widget.
+	 * Called during drag and drop when the mouse is being dragged over a widget.
 	 *
 	 * @param MyGeometry      The geometry of the widget receiving the event.
 	 * @param DragDropEvent   The drag and drop event.
@@ -271,16 +292,16 @@ public:
 	virtual void SetTimeMarker(double InTimeMarker) override;
 	virtual void SetAndCenterOnTimeMarker(double InTimeMarker) override;
 
-	virtual Insights::FSelectionChangedDelegate& OnSelectionChanged() override { return OnSelectionChangedDelegate; }
-	virtual Insights::FTimeMarkerChangedDelegate& OnTimeMarkerChanged() override { return OnTimeMarkerChangedDelegate; }
-	virtual Insights::FCustomTimeMarkerChangedDelegate& OnCustomTimeMarkerChanged() override { return OnCustomTimeMarkerChangedDelegate; }
-	virtual Insights::FHoveredTrackChangedDelegate& OnHoveredTrackChanged() override { return OnHoveredTrackChangedDelegate; }
-	virtual Insights::FHoveredEventChangedDelegate& OnHoveredEventChanged() override { return OnHoveredEventChangedDelegate; }
-	virtual Insights::FSelectedTrackChangedDelegate& OnSelectedTrackChanged() override { return OnSelectedTrackChangedDelegate; }
-	virtual Insights::FSelectedEventChangedDelegate& OnSelectedEventChanged() override { return OnSelectedEventChangedDelegate; }
-	virtual Insights::FTrackVisibilityChangedDelegate& OnTrackVisibilityChanged() override { return OnTrackVisibilityChangedDelegate; }
-	virtual Insights::FTrackAddedDelegate& OnTrackAdded() override { return OnTrackAddedDelegate; }
-	virtual Insights::FTrackRemovedDelegate& OnTrackRemoved() override { return OnTrackRemovedDelegate; }
+	virtual Timing::FSelectionChangedDelegate& OnSelectionChanged() override { return OnSelectionChangedDelegate; }
+	virtual Timing::FTimeMarkerChangedDelegate& OnTimeMarkerChanged() override { return OnTimeMarkerChangedDelegate; }
+	virtual Timing::FCustomTimeMarkerChangedDelegate& OnCustomTimeMarkerChanged() override { return OnCustomTimeMarkerChangedDelegate; }
+	virtual Timing::FHoveredTrackChangedDelegate& OnHoveredTrackChanged() override { return OnHoveredTrackChangedDelegate; }
+	virtual Timing::FHoveredEventChangedDelegate& OnHoveredEventChanged() override { return OnHoveredEventChangedDelegate; }
+	virtual Timing::FSelectedTrackChangedDelegate& OnSelectedTrackChanged() override { return OnSelectedTrackChangedDelegate; }
+	virtual Timing::FSelectedEventChangedDelegate& OnSelectedEventChanged() override { return OnSelectedEventChangedDelegate; }
+	virtual Timing::FTrackVisibilityChangedDelegate& OnTrackVisibilityChanged() override { return OnTrackVisibilityChangedDelegate; }
+	virtual Timing::FTrackAddedDelegate& OnTrackAdded() override { return OnTrackAddedDelegate; }
+	virtual Timing::FTrackRemovedDelegate& OnTrackRemoved() override { return OnTrackRemovedDelegate; }
 
 	virtual void ResetSelectedEvent() override
 	{
@@ -395,7 +416,7 @@ public:
 
 	void CloseQuickFindTab();
 
-	TSharedPtr<Insights::FFilterConfigurator> GetFilterConfigurator() { return FilterConfigurator; }
+	TSharedPtr<UE::Insights::FFilterConfigurator> GetFilterConfigurator() { return FilterConfigurator; }
 
 	TMap<uint64, TSharedPtr<FBaseTimingTrack>>& GetAllTracks() { return AllTracks; }
 
@@ -436,8 +457,8 @@ protected:
 
 	void CreateCpuThreadTrackColoringModeMenu(FMenuBuilder& MenuBuilder);
 	void ChooseNextCpuThreadTrackColoringMode();
-	void SetCpuThreadTrackColoringMode(Insights::ETimingEventsColoringMode Mode);
-	bool CheckCpuThreadTrackColoringMode(Insights::ETimingEventsColoringMode Mode);
+	void SetCpuThreadTrackColoringMode(UE::Insights::ETimingEventsColoringMode Mode);
+	bool CheckCpuThreadTrackColoringMode(UE::Insights::ETimingEventsColoringMode Mode);
 
 	void ShowContextMenu(const FPointerEvent& MouseEvent);
 	void CreateTrackLocationMenu(FMenuBuilder& MenuBuilder, TSharedRef<FBaseTimingTrack> Track);
@@ -485,10 +506,8 @@ protected:
 	void RaiseSelectionChanging();
 	void RaiseSelectionChanged();
 
-	void RaiseTimeMarkerChanging(TSharedRef<Insights::FTimeMarker> InTimeMarker);
-	void RaiseTimeMarkerChanged(TSharedRef<Insights::FTimeMarker> InTimeMarker);
-
-	void UpdateAggregatedStats();
+	void RaiseTimeMarkerChanging(TSharedRef<FTimeMarker> InTimeMarker);
+	void RaiseTimeMarkerChanged(TSharedRef<FTimeMarker> InTimeMarker);
 
 	void UpdateHoveredTimingEvent(float InMousePosX, float InMousePosY);
 
@@ -505,7 +524,12 @@ protected:
 	void FrameSelection();
 
 	// Get all the plugin extenders we care about
-	TArray<Insights::ITimingViewExtender*> GetExtenders() const;
+	TArray<UE::Insights::Timing::ITimingViewExtender*> GetExtenders() const;
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	TArray<::Insights::ITimingViewExtender*> GetOldExtenders() const;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
 
 	FReply AllowTracksToProcessOnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 	FReply AllowTracksToProcessOnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
@@ -525,7 +549,7 @@ protected:
 	void PopulateTimerNameSuggestionList(const FString& Text, TArray<FString>& OutSuggestions);
 
 	typedef TFunctionRef<void(TSharedPtr<const FBaseTimingTrack> Track)> EnumerateFilteredTracksCallback;
-	void EnumerateFilteredTracks(TSharedPtr<Insights::FFilterConfigurator> FilterConfigurator, TSharedPtr<const FBaseTimingTrack> PriorityTrack, EnumerateFilteredTracksCallback Callback);
+	void EnumerateFilteredTracks(TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator, TSharedPtr<const FBaseTimingTrack> PriorityTrack, EnumerateFilteredTracksCallback Callback);
 
 	ETraceFrameType GetFrameTypeToSnapTo();
 	
@@ -563,7 +587,7 @@ protected:
 	// Shared state for Frame Thread tracks
 	TSharedPtr<FFrameSharedState> FrameSharedState;
 
-	// Shared state for Cpu/Gpu Thread tracks
+	// Shared state for CPU/GPU Thread tracks
 	TSharedPtr<FThreadTimingSharedState> ThreadTimingSharedState;
 
 	// Shared state for Asset Loading tracks
@@ -573,7 +597,7 @@ protected:
 	TSharedPtr<FFileActivitySharedState> FileActivitySharedState;
 
 	// Shared state for Regions tracks
-	TSharedPtr<Insights::FTimingRegionsSharedState> TimingRegionsSharedState;
+	TSharedPtr<::Insights::FTimingRegionsSharedState> TimingRegionsSharedState;
 	
 	////////////////////////////////////////////////////////////
 
@@ -581,12 +605,12 @@ protected:
 	TSharedRef<FTimeRulerTrack> TimeRulerTrack;
 
 	/** The default time marker (for backward compatibility). */
-	TSharedRef<Insights::FTimeMarker> DefaultTimeMarker;
+	TSharedRef<FTimeMarker> DefaultTimeMarker;
 
-	/** The time markers track. It displayes fixed time markers based on bookmarks and log messages. */
+	/** The time markers track. It displays fixed time markers based on bookmarks and log messages. */
 	TSharedRef<FMarkersTimingTrack> MarkersTrack;
 
-	/** A graph track for frame times and cpu/gpu timing graphs. */
+	/** A graph track for frame times and CPU/GPU timing graphs. */
 	TSharedPtr<FTimingGraphTrack> GraphTrack;
 
 	////////////////////////////////////////////////////////////
@@ -734,28 +758,30 @@ protected:
 	////////////////////////////////////////////////////////////
 	// Delegates
 
-	Insights::FSelectionChangedDelegate OnSelectionChangedDelegate;
-	Insights::FTimeMarkerChangedDelegate OnTimeMarkerChangedDelegate;
-	Insights::FCustomTimeMarkerChangedDelegate OnCustomTimeMarkerChangedDelegate;
-	Insights::FHoveredTrackChangedDelegate OnHoveredTrackChangedDelegate;
-	Insights::FHoveredEventChangedDelegate OnHoveredEventChangedDelegate;
-	Insights::FSelectedTrackChangedDelegate OnSelectedTrackChangedDelegate;
-	Insights::FSelectedEventChangedDelegate OnSelectedEventChangedDelegate;
-	Insights::FTrackVisibilityChangedDelegate OnTrackVisibilityChangedDelegate;
-	Insights::FTrackAddedDelegate OnTrackAddedDelegate;
-	Insights::FTrackRemovedDelegate OnTrackRemovedDelegate;
+	Timing::FSelectionChangedDelegate OnSelectionChangedDelegate;
+	Timing::FTimeMarkerChangedDelegate OnTimeMarkerChangedDelegate;
+	Timing::FCustomTimeMarkerChangedDelegate OnCustomTimeMarkerChangedDelegate;
+	Timing::FHoveredTrackChangedDelegate OnHoveredTrackChangedDelegate;
+	Timing::FHoveredEventChangedDelegate OnHoveredEventChangedDelegate;
+	Timing::FSelectedTrackChangedDelegate OnSelectedTrackChangedDelegate;
+	Timing::FSelectedEventChangedDelegate OnSelectedEventChangedDelegate;
+	Timing::FTrackVisibilityChangedDelegate OnTrackVisibilityChangedDelegate;
+	Timing::FTrackAddedDelegate OnTrackAddedDelegate;
+	Timing::FTrackRemovedDelegate OnTrackRemovedDelegate;
 
 	TSharedPtr<FUICommandList> CommandList;
 
 	TArray<TUniquePtr<ITimingEventRelation>> CurrentRelations;
 
-	TSharedPtr<Insights::FQuickFind> QuickFindVm;
-	TSharedPtr<Insights::FFilterConfigurator> FilterConfigurator;
+	TSharedPtr<::Insights::FQuickFind> QuickFindVm;
+	TSharedPtr<FFilterConfigurator> FilterConfigurator;
 	static uint32 TimingViewId;
 	const FName QuickFindTabId;
 	bool bUpdateFilters = true;
 	
 	// Used only between the creation of the widget and the spawning of the owning tab. When the tab is spawned, we relinquish ownership.
-	TSharedPtr<Insights::SQuickFind> QuickFindWidgetSharedPtr;
-	TWeakPtr<Insights::SQuickFind> QuickFindWidgetWeakPtr;
+	TSharedPtr<::Insights::SQuickFind> QuickFindWidgetSharedPtr;
+	TWeakPtr<::Insights::SQuickFind> QuickFindWidgetWeakPtr;
 };
+
+} // namespace UE::Insights::TimingProfiler

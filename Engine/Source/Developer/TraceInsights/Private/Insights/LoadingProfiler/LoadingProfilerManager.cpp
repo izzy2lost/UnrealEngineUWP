@@ -4,17 +4,21 @@
 
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
-#include "TraceServices/Model/LoadTimeProfiler.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/LoadTimeProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/Widgets/STableTreeView.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/LoadingProfiler/Widgets/SLoadingProfilerWindow.h"
-#include "Insights/Table/Widgets/STableTreeView.h"
 #include "Insights/Widgets/STimingView.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -384,7 +388,7 @@ void FLoadingProfilerManager::OnWindowClosedEvent()
 	TSharedPtr<SLoadingProfilerWindow> Wnd = GetProfilerWindow();
 	if (Wnd)
 	{
-		TSharedPtr<STimingView> TimingView = Wnd->GetTimingView();
+		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = Wnd->GetTimingView();
 		if (TimingView.IsValid())
 		{
 			TimingView->CloseQuickFindTab();

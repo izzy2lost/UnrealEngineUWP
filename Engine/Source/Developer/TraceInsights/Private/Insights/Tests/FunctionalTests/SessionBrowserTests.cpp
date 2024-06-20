@@ -4,14 +4,18 @@
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
+#include "Logging/LogMacros.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
+
+// TraceServices
+#include "TraceServices/Model/AllocationsProvider.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/Tests/InsightsTestUtils.h"
 #include "Insights/Widgets/SStartPageWindow.h"
-#include "Logging/LogMacros.h"
-#include "TraceServices/Model/AllocationsProvider.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(UnrealInsightsHubTests, Log, All);
 
@@ -47,7 +51,7 @@ void FAutomationDriverUnrealInsightsSessionBrowserTest::Define()
 				{
 					IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 					TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
-					TestTrue("Insigts manager should not be null", InsightsManager.IsValid());
+					TestTrue("Insights manager should not be null", InsightsManager.IsValid());
 					InsightsManager->GetTraceStoreWindow()->SetDeleteTraceConfirmationWindowVisibility(false);
 
 					const FString StoreDir = InsightsManager->GetStoreDir();

@@ -2,11 +2,13 @@
 
 #include "StatsViewColumnFactory.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+
+// TraceInsights
 #include "Insights/ViewModels/StatsGroupingAndSorting.h"
 #include "Insights/ViewModels/StatsNodeHelper.h"
 
@@ -31,7 +33,7 @@ const FName FStatsViewColumns::DiffColumnID(TEXT("Diff"));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FStatsViewColumnFactory::CreateStatsViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns)
+void FStatsViewColumnFactory::CreateStatsViewColumns(TArray<TSharedRef<UE::Insights::FTableColumn>>& Columns)
 {
 	Columns.Reset();
 
@@ -52,9 +54,9 @@ void FStatsViewColumnFactory::CreateStatsViewColumns(TArray<TSharedRef<Insights:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateNameColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateNameColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::NameColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -87,9 +89,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateNameColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateMetaGroupNameColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateMetaGroupNameColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::MetaGroupNameColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -131,9 +133,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateMetaGroupNameC
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateTypeColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateTypeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::TypeColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -176,9 +178,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateTypeColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateDataTypeColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateDataTypeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::DataTypeColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -221,9 +223,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateDataTypeColumn
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateCountColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateCountColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::CountColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -268,9 +270,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateCountColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateSumColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateSumColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::SumColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -326,9 +328,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateSumColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateMaxColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateMaxColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::MaxColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -384,9 +386,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateMaxColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateUpperQuartileColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateUpperQuartileColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::UpperQuartileColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -442,9 +444,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateUpperQuartileC
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateAverageColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateAverageColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::AverageColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -499,9 +501,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateAverageColumn(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateMedianColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateMedianColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::MedianColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -556,9 +558,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateMedianColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateLowerQuartileColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateLowerQuartileColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::LowerQuartileColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -614,9 +616,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateLowerQuartileC
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateMinColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateMinColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::MinColumnID);
 	FTableColumn& Column = *ColumnRef;
@@ -672,9 +674,9 @@ TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateMinColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FStatsViewColumnFactory::CreateDiffColumn()
+TSharedRef<UE::Insights::FTableColumn> FStatsViewColumnFactory::CreateDiffColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FStatsViewColumns::DiffColumnID);
 	FTableColumn& Column = *ColumnRef;

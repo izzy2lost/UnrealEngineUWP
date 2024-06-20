@@ -4,9 +4,11 @@
 
 #include "CoreMinimal.h"
 
+// TraceServices
 #include "TraceServices/Model/TableImport.h"
 #include "TraceServices/Containers/Tables.h"
 
+// TraceInsights
 #include "Insights/IUnrealInsightsModule.h"
 
 class SDockTab;

@@ -9,9 +9,11 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "Styling/SlateBrush.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/ITimingViewSession.h"
@@ -78,7 +80,7 @@ bool FFrameSharedState::IsFrameTrackVisible(uint32 InFrameType) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FFrameSharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FFrameSharedState::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -91,7 +93,7 @@ void FFrameSharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FFrameSharedState::OnEndSession(Insights::ITimingViewSession& InSession)
+void FFrameSharedState::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -104,7 +106,7 @@ void FFrameSharedState::OnEndSession(Insights::ITimingViewSession& InSession)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FFrameSharedState::Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FFrameSharedState::Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -152,7 +154,7 @@ void FFrameSharedState::Tick(Insights::ITimingViewSession& InSession, const Trac
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FFrameSharedState::ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
+void FFrameSharedState::ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
 {
 	if (&InSession != TimingView)
 	{
@@ -344,7 +346,7 @@ void FFrameTimingTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FFrameTimingTrack::DrawSelectedEventInfo(const FTimingEvent& SelectedEvent, const FTimingTrackViewport& Viewport, const FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const
+void FFrameTimingTrack::DrawSelectedEventInfo(const FTimingEvent& SelectedEvent, const FTimingTrackViewport& Viewport, const UE::Insights::FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const
 {
 	FindFrame(SelectedEvent, [this, &SelectedEvent, &Font, &Viewport, &DrawContext, &WhiteBrush](double InFoundStartTime, double InFoundEndTime, uint32 InFoundDepth, const TraceServices::FFrame& InFoundFrame)
 	{
@@ -413,7 +415,7 @@ void FFrameTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITimi
 
 			//const double Duration = TooltipEvent.GetDuration();
 			const double Duration = InFoundFrame.EndTime - InFoundFrame.StartTime;
-			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(Duration));
+			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), UE::Insights::FormatTimeAuto(Duration));
 
 			InOutTooltip.UpdateLayout();
 		});
@@ -559,7 +561,7 @@ const FString FFrameTimingTrack::GetFrameName(const uint64 InFrameIndex) const
 
 const FString FFrameTimingTrack::GetCompleteFrameName(const uint64 InFrameIndex, const double InFrameDuration) const
 {
-	return FString::Printf(TEXT("%s Frame %" UINT64_FMT " (%s)"), FFrameTrackDrawHelper::FrameTypeToString(FrameType), InFrameIndex, *TimeUtils::FormatTimeAuto(InFrameDuration));
+	return FString::Printf(TEXT("%s Frame %" UINT64_FMT " (%s)"), FFrameTrackDrawHelper::FrameTypeToString(FrameType), InFrameIndex, *UE::Insights::FormatTimeAuto(InFrameDuration));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

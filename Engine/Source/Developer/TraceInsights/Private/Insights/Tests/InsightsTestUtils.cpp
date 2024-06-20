@@ -2,20 +2,27 @@
 
 #include "Insights/Tests/InsightsTestUtils.h"
 
-#include "Modules/ModuleManager.h"
-#include "Misc/FileHelper.h"
 #include "HAL/FileManagerGeneric.h"
-
-#include "TraceServices/AnalysisService.h"
-#include "TraceServices/Model/AnalysisSession.h"
-#include "TraceServices/ITraceServicesModule.h"
-#include "TraceServices/ModuleService.h"
-#include "Trace/StoreClient.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/IUnrealInsightsModule.h"
-#include "Insights/InsightsManager.h"
-
 #include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Modules/ModuleManager.h"
+
+// TraceAnalysis
+#include "Trace/StoreClient.h"
+
+// TraceServices
+#include "TraceServices/AnalysisService.h"
+#include "TraceServices/ITraceServicesModule.h"
+#include "TraceServices/Model/AnalysisSession.h"
+#include "TraceServices/ModuleService.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
+#include "Insights/InsightsManager.h"
+#include "Insights/IUnrealInsightsModule.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +56,7 @@ bool FInsightsTestUtils::AnalyzeTrace(const TCHAR* Path) const
 		return false;
 	}
 
-	FStopwatch StopWatch;
+	UE::Insights::FStopwatch StopWatch;
 	StopWatch.Start();
 
 	double Duration = 0.0f;

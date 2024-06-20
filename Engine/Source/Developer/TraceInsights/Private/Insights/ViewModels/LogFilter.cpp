@@ -4,7 +4,7 @@
 
 #include "Async/AsyncWork.h"
 
-// Insights
+// TraceInsights
 #include "Insights/Log.h"
 #include "Insights/Widgets/SLogView.h"
 

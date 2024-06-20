@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 
-// Insights
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -129,9 +129,9 @@ typedef TWeakPtr<class FStatsNode> FStatsNodeWeak;
 /**
  * Class used to store information about a stats counter node (used in SStatsView).
  */
-class FStatsNode : public Insights::FBaseTreeNode
+class FStatsNode : public UE::Insights::FBaseTreeNode
 {
-	INSIGHTS_DECLARE_RTTI(FStatsNode, FBaseTreeNode)
+	INSIGHTS_DECLARE_RTTI(FStatsNode, UE::Insights::FBaseTreeNode)
 
 public:
 	static constexpr uint32 InvalidCounterId = uint32(-1);
@@ -139,7 +139,7 @@ public:
 public:
 	/** Initialization constructor for the stats node. */
 	FStatsNode(uint32 InCounterId, const FName InName, const FName InMetaGroupName, EStatsNodeType InType, EStatsNodeDataType InDataType)
-		: FBaseTreeNode(InName, InType == EStatsNodeType::Group)
+		: UE::Insights::FBaseTreeNode(InName, InType == EStatsNodeType::Group)
 		, CounterId(InCounterId)
 		, MetaGroupName(InMetaGroupName)
 		, Type(InType)
@@ -157,7 +157,7 @@ public:
 
 	/** Initialization constructor for the group node. */
 	explicit FStatsNode(const FName InGroupName)
-		: FBaseTreeNode(InGroupName, true)
+		: UE::Insights::FBaseTreeNode(InGroupName, true)
 		, CounterId(InvalidCounterId)
 		, Type(EStatsNodeType::Group)
 		, DataType(EStatsNodeDataType::InvalidOrMax)

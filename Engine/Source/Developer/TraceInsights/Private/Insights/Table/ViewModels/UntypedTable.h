@@ -2,27 +2,26 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-#include "Insights/Table/ViewModels/Table.h"
+#include "Templates/SharedPointer.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
 
 namespace TraceServices
 {
-
-class ITableLayout;
-class IUntypedTable;
-class IUntypedTableReader;
-
+	class ITableLayout;
+	class IUntypedTable;
+	class IUntypedTableReader;
 }
 
 namespace Insights
 {
 
-class FTableColumn;
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FUntypedTable : public FTable
+class FUntypedTable : public UE::Insights::FTable
 {
 public:
 	FUntypedTable();

@@ -3,14 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Framework/Commands/Commands.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ITimingViewExtender.h"
 #include "Insights/ViewModels/TimingEventsTrack.h"
 
 class FTimingEventSearchParameters;
-class STimingView;
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
 class FOverviewFileActivityTimingTrack;
 class FDetailedFileActivityTimingTrack;
@@ -34,7 +35,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FFileActivitySharedState : public Insights::ITimingViewExtender, public TSharedFromThis<FFileActivitySharedState>
+class FFileActivitySharedState : public UE::Insights::Timing::ITimingViewExtender, public TSharedFromThis<FFileActivitySharedState>
 {
 	friend class FOverviewFileActivityTimingTrack;
 	friend class FDetailedFileActivityTimingTrack;
@@ -70,16 +71,16 @@ public:
 	};
 
 public:
-	explicit FFileActivitySharedState(STimingView* InTimingView) : TimingView(InTimingView) {}
+	explicit FFileActivitySharedState(UE::Insights::TimingProfiler::STimingView* InTimingView) : TimingView(InTimingView) {}
 	virtual ~FFileActivitySharedState() = default;
 
 	//////////////////////////////////////////////////
 	// ITimingViewExtender interface
 
-	virtual void OnBeginSession(Insights::ITimingViewSession& InSession) override;
-	virtual void OnEndSession(Insights::ITimingViewSession& InSession) override;
-	virtual void Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
-	virtual void ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder) override;
+	virtual void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
+	virtual void ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder) override;
 
 	//////////////////////////////////////////////////
 
@@ -113,7 +114,7 @@ private:
 	void BuildSubMenu(FMenuBuilder& InOutMenuBuilder);
 
 private:
-	STimingView* TimingView;
+	UE::Insights::TimingProfiler::STimingView* TimingView;
 
 	TSharedPtr<FOverviewFileActivityTimingTrack> IoOverviewTrack;
 	TSharedPtr<FDetailedFileActivityTimingTrack> IoActivityTrack;

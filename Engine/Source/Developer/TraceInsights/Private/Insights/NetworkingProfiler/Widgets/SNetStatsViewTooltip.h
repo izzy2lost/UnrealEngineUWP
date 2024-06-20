@@ -8,11 +8,14 @@
 
 class SGridPanel;
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
 }
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 class FNetEventNode;
 
@@ -24,8 +27,8 @@ class SNetStatsViewTooltip
 public:
 	SNetStatsViewTooltip() = delete;
 
-	static TSharedPtr<SToolTip> GetTableTooltip(const Insights::FTable& Table);
-	static TSharedPtr<SToolTip> GetColumnTooltip(const Insights::FTableColumn& Column);
+	static TSharedPtr<SToolTip> GetTableTooltip(const FTable& Table);
+	static TSharedPtr<SToolTip> GetColumnTooltip(const FTableColumn& Column);
 	static TSharedPtr<SToolTip> GetRowTooltip(const TSharedPtr<FNetEventNode> TreeNodePtr);
 
 private:
@@ -83,3 +86,5 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

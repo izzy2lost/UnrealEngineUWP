@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Async/TaskTrace.h"
 
-// Insights
+// TraceInsights
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
 #include "Insights/ViewModels/TimingEvent.h"
 

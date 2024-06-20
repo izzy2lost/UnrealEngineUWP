@@ -3,14 +3,18 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+// TraceServices
 #include "TraceServices/Model/AllocationsProvider.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemAllocTable.h"
 #include "Insights/Table/Widgets/SSessionTableTreeView.h"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 class FCallstackFrameGroupNode;
@@ -131,7 +135,7 @@ private:
 	FText GetFooterLeftText() const;
 	FText GetFooterCenterText() const;
 
-	virtual void TreeView_OnSelectionChanged(Insights::FTableTreeNodePtr SelectedItem, ESelectInfo::Type SelectInfo) override;
+	virtual void TreeView_OnSelectionChanged(FTableTreeNodePtr SelectedItem, ESelectInfo::Type SelectInfo) override;
 
 	virtual void UpdateFilterContext(const FFilterConfigurator& InFilterConfigurator, const FTableTreeNode& InNode) const override;
 	virtual void InitFilterConfigurator(FFilterConfigurator& InOutFilterConfigurator) override;
@@ -162,4 +166,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

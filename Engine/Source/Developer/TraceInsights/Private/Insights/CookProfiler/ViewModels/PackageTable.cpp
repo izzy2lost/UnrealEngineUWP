@@ -2,13 +2,15 @@
 
 #include "PackageTable.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/CookProfiler/ViewModels/PackageNode.h"
 #include "Insights/CookProfiler/ViewModels/PackageTable.h"
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 
 #define LOCTEXT_NAMESPACE "Insights::FPackageTable"
 
@@ -36,17 +38,18 @@ const FName FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedExclColumnI
 const FName FPackageTableColumns::PackageAssetClassColumnId(TEXT("AssetClass"));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-typedef FTableCellValue(*PackageFieldGetter)(const FTableColumn&, const FPackageEntry&);
+
+typedef UE::Insights::FTableCellValue (*PackageFieldGetter) (const UE::Insights::FTableColumn&, const FPackageEntry&);
 
 template<PackageFieldGetter Getter>
-class FPackageColumnValueGetter : public FTableCellValueGetter
+class FPackageColumnValueGetter : public UE::Insights::FTableCellValueGetter
 {
 public:
-	virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+	virtual const TOptional<UE::Insights::FTableCellValue> GetValue(const UE::Insights::FTableColumn& Column, const UE::Insights::FBaseTreeNode& Node) const override
 	{
 		if (Node.IsGroup())
 		{
-			const FTableTreeNode& NodePtr = static_cast<const FTableTreeNode&>(Node);
+			const UE::Insights::FTableTreeNode& NodePtr = static_cast<const UE::Insights::FTableTreeNode&>(Node);
 			if (NodePtr.HasAggregatedValue(Column.GetId()))
 			{
 				return NodePtr.GetAggregatedValue(Column.GetId());
@@ -62,7 +65,7 @@ public:
 			}
 		}
 
-		return TOptional<FTableCellValue>();
+		return TOptional<UE::Insights::FTableCellValue>();
 	}
 };
 
@@ -70,6 +73,9 @@ public:
 
 struct DefaultPackageFieldGetterFuncts
 {
+	using FTableCellValue = UE::Insights::FTableCellValue;
+	using FTableColumn = UE::Insights::FTableColumn;
+
 	static FTableCellValue GetId(const FTableColumn& Column, const FPackageEntry& Package) { return FTableCellValue((int64)Package.GetId());	}
 	static FTableCellValue GetName(const FTableColumn& Column, const FPackageEntry& Package) { return FTableCellValue((const TCHAR*)Package.GetName());	}
 
@@ -115,6 +121,8 @@ void FPackageTable::Reset()
 
 void FPackageTable::AddDefaultColumns()
 {
+	using namespace UE::Insights;
+
 	//////////////////////////////////////////////////
 	// Hierarchy Column
 	{

@@ -2,9 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Insights/ViewModels/Filters.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
+#include "CoreTypes.h"
+
+#include "Delegates/Delegate.h"
+#include "Delegates/DelegateCombinations.h"
+#include "Templates/SharedPointer.h"
+
+namespace UE::Insights { class FFilterConfigurator; }
 
 namespace Insights
 {
@@ -14,11 +18,11 @@ namespace Insights
 class FQuickFind
 {
 public:
-	FQuickFind(TSharedPtr<FFilterConfigurator> InFilterConfiguratorViewModel);
+	FQuickFind(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfiguratorViewModel);
 
 	~FQuickFind();
 
-	TSharedPtr<FFilterConfigurator> GetFilterConfigurator() { return FilterConfigurator; }
+	TSharedPtr<UE::Insights::FFilterConfigurator> GetFilterConfigurator() { return FilterConfigurator; }
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// OnDestroyedEvent
@@ -93,7 +97,7 @@ private:
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 private:
-	TSharedPtr<FFilterConfigurator> FilterConfigurator;
+	TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

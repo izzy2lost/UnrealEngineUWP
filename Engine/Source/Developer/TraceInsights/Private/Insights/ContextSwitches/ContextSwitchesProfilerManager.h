@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "Containers/Ticker.h"
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Containers/Ticker.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 
@@ -51,7 +52,7 @@ public:
 
 	void OnSessionChanged();
 
-	TSharedPtr<Insights::FContextSwitchesSharedState> GetContextSwitchesSharedState() { return ContextSwitchesSharedState;	}
+	TSharedPtr<FContextSwitchesSharedState> GetContextSwitchesSharedState() { return ContextSwitchesSharedState; }
 
 private:
 	/** Updates this manager, done through FCoreTicker. */
@@ -62,7 +63,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	FAvailabilityCheck AvailabilityCheck;
+	UE::Insights::FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Misc/FilterCollection.h"
 #include "Misc/TextFilter.h"
 #include "SlateFwd.h"
@@ -15,7 +16,7 @@
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STreeView.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/StatsGroupingAndSorting.h"
 #include "Insights/ViewModels/StatsNode.h"
 
@@ -30,14 +31,17 @@ namespace TraceServices
 	class IAnalysisSession;
 }
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
 	class ITableCellValueSorter;
-
-	class FCounterAggregator;
 	class SAsyncOperationStatus;
+}
+
+namespace Insights
+{
+	class FCounterAggregator;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +74,7 @@ public:
 	 */
 	void Construct(const FArguments& InArgs);
 
-	TSharedPtr<Insights::FTable> GetTable() const { return Table; }
+	TSharedPtr<UE::Insights::FTable> GetTable() const { return Table; }
 
 	void Reset();
 
@@ -144,7 +148,7 @@ private:
 
 	FText GetColumnHeaderText(const FName ColumnId) const;
 
-	TSharedRef<SWidget> TreeViewHeaderRow_GenerateColumnMenu(const Insights::FTableColumn& Column);
+	TSharedRef<SWidget> TreeViewHeaderRow_GenerateColumnMenu(const UE::Insights::FTableColumn& Column);
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Tree View - Misc
@@ -172,7 +176,7 @@ private:
 
 	bool TableRow_ShouldBeEnabled(FStatsNodePtr NodePtr) const;
 
-	void TableRow_SetHoveredCell(TSharedPtr<Insights::FTable> TablePtr, TSharedPtr<Insights::FTableColumn> ColumnPtr, FStatsNodePtr NodePtr);
+	void TableRow_SetHoveredCell(TSharedPtr<UE::Insights::FTable> TablePtr, TSharedPtr<UE::Insights::FTableColumn> ColumnPtr, FStatsNodePtr NodePtr);
 	EHorizontalAlignment TableRow_GetColumnOutlineHAlignment(const FName ColumnId) const;
 
 	FText TableRow_GetHighlightText() const;
@@ -222,7 +226,7 @@ private:
 
 	void UpdateCurrentSortingByColumn();
 	void SortTreeNodes();
-	void SortTreeNodesRec(FStatsNode& Node, const Insights::ITableCellValueSorter& Sorter);
+	void SortTreeNodesRec(FStatsNode& Node, const UE::Insights::ITableCellValueSorter& Sorter);
 
 	EColumnSortMode::Type GetSortModeForColumn(const FName ColumnId) const;
 	void SetSortModeForColumn(const FName& ColumnId, EColumnSortMode::Type SortMode);
@@ -294,7 +298,7 @@ private:
 
 private:
 	/** Table view model. */
-	TSharedPtr<Insights::FTable> Table;
+	TSharedPtr<UE::Insights::FTable> Table;
 
 	/** The analysis session used to populate this widget. */
 	TSharedPtr<const TraceServices::IAnalysisSession> Session;
@@ -381,10 +385,10 @@ private:
 	// Sorting
 
 	/** All available sorters. */
-	TArray<TSharedPtr<Insights::ITableCellValueSorter>> AvailableSorters;
+	TArray<TSharedPtr<UE::Insights::ITableCellValueSorter>> AvailableSorters;
 
 	/** Current sorter. It is nullptr if sorting is disabled. */
-	TSharedPtr<Insights::ITableCellValueSorter> CurrentSorter;
+	TSharedPtr<UE::Insights::ITableCellValueSorter> CurrentSorter;
 
 	/** Name of the column currently being sorted. Can be NAME_None if sorting is disabled (CurrentSorting == nullptr) or if a complex sorting is used (CurrentSorting != nullptr). */
 	FName ColumnBeingSorted;
@@ -395,7 +399,7 @@ private:
 	//////////////////////////////////////////////////
 
 	TSharedRef<Insights::FCounterAggregator> Aggregator;
-	TSharedPtr<Insights::SAsyncOperationStatus> AsyncOperationStatus;
+	TSharedPtr<UE::Insights::SAsyncOperationStatus> AsyncOperationStatus;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

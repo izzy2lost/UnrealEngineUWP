@@ -4,7 +4,12 @@
 
 #include "SlateOptMacros.h"
 #include "Logging/MessageLog.h"
+
+// TraceServices
 #include "TraceServices/Model/TableMerge.h"
+
+// TraceInsights
+#include "Insights/InsightsManager.h"
 
 #define LOCTEXT_NAMESPACE "SUntypedDiffTableTreeView"
 

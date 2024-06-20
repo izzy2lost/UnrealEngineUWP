@@ -2,19 +2,20 @@
 
 #include "TimerButterflyAggregation.h"
 
+// TraceInsights
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/ThreadTimingTrack.h"
 #include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
-namespace Insights
+namespace UE::Insights::TimingProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FTimerButterflyAggregationWorker
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTimerButterflyAggregationWorker : public IStatsAggregationWorker
+class FTimerButterflyAggregationWorker : public ::Insights::IStatsAggregationWorker
 {
 public:
 	FTimerButterflyAggregationWorker(TSharedPtr<const TraceServices::IAnalysisSession> InSession, double InStartTime, double InEndTime, const TSet<uint32>& InCpuThreads, bool bInIncludeGpuThread)
@@ -82,7 +83,7 @@ void FTimerButterflyAggregationWorker::DoWork(TSharedPtr<TraceServices::FCancell
 // FTimerButterflyAggregator
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-IStatsAggregationWorker* FTimerButterflyAggregator::CreateWorker(TSharedPtr<const TraceServices::IAnalysisSession> InSession)
+::Insights::IStatsAggregationWorker* FTimerButterflyAggregator::CreateWorker(TSharedPtr<const TraceServices::IAnalysisSession> InSession)
 {
 	bool bIsGpuTrackVisible = false;
 	TSet<uint32> CpuThreads;

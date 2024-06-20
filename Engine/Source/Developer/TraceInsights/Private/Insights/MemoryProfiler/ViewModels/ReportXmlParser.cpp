@@ -7,14 +7,14 @@
 #include "XmlNode.h"
 #include "XmlFile.h"
 
-// Insights
+// TraceInsights
 #include "Insights/Log.h"
 #include "Insights/MemoryProfiler/ViewModels/Report.h"
 
-namespace Insights
-{
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FReportXmlParser"
 
-#define LOCTEXT_NAMESPACE "Insights.ReportXmlParser"
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -524,6 +524,6 @@ void FReportXmlParser::LogWarning(const FText& Text)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::MemoryProfiler
 
-} // namespace Insights
+#undef LOCTEXT_NAMESPACE

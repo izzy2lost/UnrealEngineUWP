@@ -2,17 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-#include "Insights/Table/ViewModels/TableColumn.h"
+#include "Containers/Array.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/NameTypes.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Column identifiers
 struct FTimersViewColumns
 {
-	//////////////////////////////////////////////////
-	// Column identifiers
-
 	static const FName NameColumnID;
 	static const FName MetaGroupNameColumnID;
 	static const FName TypeColumnID;
@@ -40,16 +43,16 @@ struct FTimersViewColumns
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTimersTableColumn : public Insights::FTableColumn
+class FTimersTableColumn : public UE::Insights::FTableColumn
 {
 public:
 	FTimersTableColumn(const FName InId)
-		: Insights::FTableColumn(InId)
+		: UE::Insights::FTableColumn(InId)
 	{}
 
-	FText GetDescription(ETraceFrameType InAggreagationMode) const
+	FText GetDescription(ETraceFrameType InAggregationMode) const
 	{
-		switch (InAggreagationMode)
+		switch (InAggregationMode)
 		{
 		case TraceFrameType_Game:
 			return GameFrame_Description;
@@ -62,9 +65,9 @@ public:
 		}
 	}
 
-	void SetDescription(ETraceFrameType InAggreagationMode, FText InDescription)
+	void SetDescription(ETraceFrameType InAggregationMode, FText InDescription)
 	{
-		switch (InAggreagationMode)
+		switch (InAggregationMode)
 		{
 		case TraceFrameType_Game:
 			GameFrame_Description = InDescription;
@@ -73,7 +76,7 @@ public:
 			RenderingFrame_Description = InDescription;
 			break;
 		case TraceFrameType_Count:
-			Insights::FTableColumn::SetDescription(InDescription);
+			UE::Insights::FTableColumn::SetDescription(InDescription);
 			break;
 		default:
 			ensure(0);
@@ -81,7 +84,6 @@ public:
 	}
 
 private:
-
 	FText GameFrame_Description;
 	FText RenderingFrame_Description;
 };
@@ -91,26 +93,26 @@ private:
 struct FTimersViewColumnFactory
 {
 public:
-	static void CreateTimersViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns);
-	static void CreateTimerTreeViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns);
+	static void CreateTimersViewColumns(TArray<TSharedRef<UE::Insights::FTableColumn>>& Columns);
+	static void CreateTimerTreeViewColumns(TArray<TSharedRef<UE::Insights::FTableColumn>>& Columns);
 
-	static TSharedRef<Insights::FTableColumn> CreateNameColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMetaGroupNameColumn();
-	static TSharedRef<Insights::FTableColumn> CreateTypeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateInstanceCountColumn();
-	static TSharedRef<Insights::FTableColumn> CreateChildInstanceCountColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateNameColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMetaGroupNameColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateTypeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateInstanceCountColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateChildInstanceCountColumn();
 
-	static TSharedRef<Insights::FTableColumn> CreateTotalInclusiveTimeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMaxInclusiveTimeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateAverageInclusiveTimeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMedianInclusiveTimeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMinInclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateTotalInclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMaxInclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateAverageInclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMedianInclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMinInclusiveTimeColumn();
 
-	static TSharedRef<Insights::FTableColumn> CreateTotalExclusiveTimeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMaxExclusiveTimeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateAverageExclusiveTimeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMedianExclusiveTimeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMinExclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateTotalExclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMaxExclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateAverageExclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMedianExclusiveTimeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMinExclusiveTimeColumn();
 
 private:
 	static constexpr float TotalTimeColumnInitialWidth = 60.0f;

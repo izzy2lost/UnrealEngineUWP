@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "Insights/ViewModels/Filters.h"
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/Filters.h"
 
 namespace Insights
 {
 
-class FEventNameFilterValueConverter : public IFilterValueConverter
+class FEventNameFilterValueConverter : public UE::Insights::IFilterValueConverter
 {
 public:
 	virtual bool Convert(const FString& Input, int64& Output, FText& OutError) const override;

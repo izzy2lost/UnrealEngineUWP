@@ -7,7 +7,7 @@
 #include "Stats/Stats.h"
 #include "Stats/StatsMisc.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(TimingProfiler, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogTimingProfiler, Log, All);
 
 DECLARE_STATS_GROUP(TEXT("TimingProfiler"), STATGROUP_TimingProfiler, STATCAT_Advanced);
 

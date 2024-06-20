@@ -4,32 +4,37 @@
 
 #include "CoreMinimal.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
+
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterNode.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sorters
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FNetStatsCounterNodeSortingByEventType: public Insights::FTableCellValueSorter
+class FNetStatsCounterNodeSortingByEventType: public FTableCellValueSorter
 {
 public:
-	FNetStatsCounterNodeSortingByEventType(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FNetStatsCounterNodeSortingByEventType(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FNetStatsCounterNodeSortingBySum : public Insights::FTableCellValueSorter
+class FNetStatsCounterNodeSortingBySum : public FTableCellValueSorter
 {
 public:
-	FNetStatsCounterNodeSortingBySum(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FNetStatsCounterNodeSortingBySum(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -56,3 +61,5 @@ enum class ENetStatsCounterGroupingMode
 typedef TSharedPtr<ENetStatsCounterGroupingMode> ENetStatsCounterGroupingModePtr;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

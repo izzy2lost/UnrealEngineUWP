@@ -1,16 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MemorySharedState.h"
+
 #include "Framework/Commands/Commands.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Logging/MessageLog.h"
+
+// TraceServices
 #include "TraceServices/Model/Memory.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
@@ -19,20 +24,23 @@
 #include "Insights/MemoryProfiler/ViewModels/Report.h"
 #include "Insights/MemoryProfiler/ViewModels/ReportXmlParser.h"
 #include "Insights/ViewModels/TimingEvent.h"
-#include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/ViewModels/TimingGraphTrack.h"
-#include "Insights/ViewModels/TooltipDrawState.h"
 #include "Insights/ViewModels/TimingEventSearch.h"
+#include "Insights/ViewModels/TimingGraphTrack.h"
+#include "Insights/ViewModels/TimingTrackViewport.h"
+#include "Insights/ViewModels/TooltipDrawState.h"
 #include "Insights/Widgets/STimingView.h"
 
 #include <limits>
 
-static_assert(Insights::FMemoryTracker::InvalidTrackerId == TraceServices::FMemoryTrackerInfo::InvalidTrackerId, "InvalidTrackerId");
-static_assert(Insights::FMemoryTag::InvalidTagId == TraceServices::FMemoryTagInfo::InvalidTagId, "InvalidTagId");
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemorySharedState"
 
-#define LOCTEXT_NAMESPACE "MemorySharedState"
+namespace UE::Insights::MemoryProfiler
+{
 
-const FName Insights::FQueryTargetWindowSpec::NewWindow = TEXT("New Window");
+static_assert(FMemoryTracker::InvalidTrackerId == TraceServices::FMemoryTrackerInfo::InvalidTrackerId, "InvalidTrackerId");
+static_assert(FMemoryTag::InvalidTagId == TraceServices::FMemoryTagInfo::InvalidTagId, "InvalidTagId");
+
+const FName FQueryTargetWindowSpec::NewWindow = TEXT("New Window");
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FMemoryTimingViewCommands
@@ -87,7 +95,7 @@ FMemorySharedState::FMemorySharedState()
 {
 	InitMemoryRules();
 
-	CurrentQueryTarget = MakeShared<Insights::FQueryTargetWindowSpec>(Insights::FQueryTargetWindowSpec::NewWindow, LOCTEXT("NewWindow", "New Window"));
+	CurrentQueryTarget = MakeShared<FQueryTargetWindowSpec>(FQueryTargetWindowSpec::NewWindow, LOCTEXT("NewWindow", "New Window"));
 	QueryTargetSpecs.Add(CurrentQueryTarget);
 }
 
@@ -99,7 +107,7 @@ FMemorySharedState::~FMemorySharedState()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemorySharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FMemorySharedState::OnBeginSession(Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView.Get())
 	{
@@ -126,7 +134,7 @@ void FMemorySharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemorySharedState::OnEndSession(Insights::ITimingViewSession& InSession)
+void FMemorySharedState::OnEndSession(Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView.Get())
 	{
@@ -153,7 +161,7 @@ void FMemorySharedState::OnEndSession(Insights::ITimingViewSession& InSession)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemorySharedState::Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FMemorySharedState::Tick(Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	if (&InSession != TimingView.Get())
 	{
@@ -298,7 +306,7 @@ void FMemorySharedState::CreateDefaultTracks()
 		return;
 	}
 
-	Insights::FMemoryTrackerId DefaultTrackerId = DefaultTracker->GetId();
+	FMemoryTrackerId DefaultTrackerId = DefaultTracker->GetId();
 
 	static const TCHAR* DefaultTags[] =
 	{
@@ -329,7 +337,7 @@ void FMemorySharedState::CreateDefaultTracks()
 	{
 		if (!CreatedDefaultTracks[DefaultTagIndex])
 		{
-			for (const Insights::FMemoryTag* Tag : Tags)
+			for (const FMemoryTag* Tag : Tags)
 			{
 				if (Tag->GetTrackerId() == DefaultTrackerId && // is it used by the default tracker?
 					Tag->GetGraphTracks().Num() == 0 && // a graph isn't already added for this llm tag?
@@ -350,9 +358,9 @@ FString FMemorySharedState::TrackersToString(uint64 Flags, const TCHAR* Conjunct
 	FString Str;
 	if (Flags != 0)
 	{
-		for (const TSharedPtr<Insights::FMemoryTracker>& Tracker : Trackers)
+		for (const TSharedPtr<FMemoryTracker>& Tracker : Trackers)
 		{
-			const uint64 TrackerFlag = Insights::FMemoryTracker::AsFlag(Tracker->GetId());
+			const uint64 TrackerFlag = FMemoryTracker::AsFlag(Tracker->GetId());
 			if ((Flags & TrackerFlag) != 0)
 			{
 				if (!Str.IsEmpty())
@@ -373,9 +381,9 @@ FString FMemorySharedState::TrackersToString(uint64 Flags, const TCHAR* Conjunct
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const Insights::FMemoryTracker* FMemorySharedState::GetTrackerById(Insights::FMemoryTrackerId InMemTrackerId) const
+const FMemoryTracker* FMemorySharedState::GetTrackerById(FMemoryTrackerId InMemTrackerId) const
 {
-	const TSharedPtr<Insights::FMemoryTracker>* TrackerPtr = Trackers.FindByPredicate([InMemTrackerId](TSharedPtr<Insights::FMemoryTracker>& Tracker) { return Tracker->GetId() == InMemTrackerId; });
+	const TSharedPtr<FMemoryTracker>* TrackerPtr = Trackers.FindByPredicate([InMemTrackerId](TSharedPtr<FMemoryTracker>& Tracker) { return Tracker->GetId() == InMemTrackerId; });
 	return TrackerPtr ? TrackerPtr->Get() : nullptr;
 }
 
@@ -396,16 +404,16 @@ void FMemorySharedState::SyncTrackers()
 		{
 			MemoryProvider->EnumerateTrackers([this](const TraceServices::FMemoryTrackerInfo& Tracker)
 			{
-				Trackers.Add(MakeShared<Insights::FMemoryTracker>(Tracker.Id, Tracker.Name));
+				Trackers.Add(MakeShared<FMemoryTracker>(Tracker.Id, Tracker.Name));
 			});
 
-			Trackers.Sort([](const TSharedPtr<Insights::FMemoryTracker>& A, const TSharedPtr<Insights::FMemoryTracker>& B) { return A->GetId() < B->GetId(); });
+			Trackers.Sort([](const TSharedPtr<FMemoryTracker>& A, const TSharedPtr<FMemoryTracker>& B) { return A->GetId() < B->GetId(); });
 		}
 	}
 
 	if (Trackers.Num() > 0)
 	{
-		for (const TSharedPtr<Insights::FMemoryTracker>& Tracker : Trackers)
+		for (const TSharedPtr<FMemoryTracker>& Tracker : Trackers)
 		{
 			if (FCString::Stricmp(*Tracker->GetName(), TEXT("Default")) == 0)
 			{
@@ -433,7 +441,7 @@ void FMemorySharedState::SetTrackHeightMode(EMemoryTrackHeightMode InTrackHeight
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemorySharedState::ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
+void FMemorySharedState::ExtendOtherTracksFilterMenu(Timing::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
 {
 	if (&InSession != TimingView.Get())
 	{
@@ -562,7 +570,7 @@ void FMemorySharedState::RemoveTrackFromMemTags(TSharedPtr<FMemoryGraphTrack>& G
 	{
 		//TODO: if (Series->Is<FMemoryGraphSeries>())
 		TSharedPtr<FMemoryGraphSeries> MemorySeries = StaticCastSharedPtr<FMemoryGraphSeries>(Series);
-		Insights::FMemoryTag* TagPtr = TagList.GetTagById(MemorySeries->GetTrackerId(), MemorySeries->GetTagId());
+		FMemoryTag* TagPtr = TagList.GetTagById(MemorySeries->GetTrackerId(), MemorySeries->GetTagId());
 		if (TagPtr)
 		{
 			TagPtr->RemoveTrack(GraphTrack);
@@ -572,14 +580,14 @@ void FMemorySharedState::RemoveTrackFromMemTags(TSharedPtr<FMemoryGraphTrack>& G
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<FMemoryGraphTrack> FMemorySharedState::GetMemTagGraphTrack(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId)
+TSharedPtr<FMemoryGraphTrack> FMemorySharedState::GetMemTagGraphTrack(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId)
 {
 	if (!TimingView.IsValid())
 	{
 		return nullptr;
 	}
 
-	Insights::FMemoryTag* TagPtr = TagList.GetTagById(InMemTrackerId, InMemTagId);
+	FMemoryTag* TagPtr = TagList.GetTagById(InMemTrackerId, InMemTagId);
 	if (TagPtr)
 	{
 		for (TSharedPtr<FMemoryGraphTrack> MemoryGraph : TagPtr->GetGraphTracks())
@@ -596,19 +604,19 @@ TSharedPtr<FMemoryGraphTrack> FMemorySharedState::GetMemTagGraphTrack(Insights::
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateMemTagGraphTrack(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId)
+TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateMemTagGraphTrack(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId)
 {
 	if (!TimingView.IsValid())
 	{
 		return nullptr;
 	}
 
-	Insights::FMemoryTag* TagPtr = TagList.GetTagById(InMemTrackerId, InMemTagId);
+	FMemoryTag* TagPtr = TagList.GetTagById(InMemTrackerId, InMemTagId);
 
 	FString SeriesName;
 	if (TagPtr)
 	{
-		const Insights::FMemoryTracker* Tracker = GetTrackerById(InMemTrackerId);
+		const FMemoryTracker* Tracker = GetTrackerById(InMemTrackerId);
 		if (Tracker && Tracker != DefaultTracker.Get())
 		{
 			SeriesName = FString::Printf(TEXT("LLM %s (%s)"), *TagPtr->GetStatFullName(), *Tracker->GetName());
@@ -691,7 +699,7 @@ TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateMemTagGraphTrack(Insight
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int32 FMemorySharedState::RemoveMemTagGraphTrack(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId)
+int32 FMemorySharedState::RemoveMemTagGraphTrack(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId)
 {
 	if (!TimingView.IsValid())
 	{
@@ -700,7 +708,7 @@ int32 FMemorySharedState::RemoveMemTagGraphTrack(Insights::FMemoryTrackerId InMe
 
 	int32 TrackCount = 0;
 
-	Insights::FMemoryTag* TagPtr = TagList.GetTagById(InMemTrackerId, InMemTagId);
+	FMemoryTag* TagPtr = TagList.GetTagById(InMemTrackerId, InMemTagId);
 	if (TagPtr)
 	{
 		for (TSharedPtr<FMemoryGraphTrack> GraphTrack : TagPtr->GetGraphTracks())
@@ -762,7 +770,7 @@ int32 FMemorySharedState::RemoveAllMemTagGraphTracks()
 		AllTracks.Remove(GraphTrack);
 	}
 
-	for (Insights::FMemoryTag* TagPtr : TagList.GetTags())
+	for (FMemoryTag* TagPtr : TagList.GetTags())
 	{
 		TagPtr->RemoveAllTracks();
 	}
@@ -772,14 +780,14 @@ int32 FMemorySharedState::RemoveAllMemTagGraphTracks()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<FMemoryGraphSeries> FMemorySharedState::ToggleMemTagGraphSeries(TSharedPtr<FMemoryGraphTrack> InGraphTrack, Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId)
+TSharedPtr<FMemoryGraphSeries> FMemorySharedState::ToggleMemTagGraphSeries(TSharedPtr<FMemoryGraphTrack> InGraphTrack, FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId)
 {
 	if (!InGraphTrack.IsValid())
 	{
 		return nullptr;
 	}
 
-	Insights::FMemoryTag* TagPtr = TagList.GetTagById(InMemTrackerId, InMemTagId);
+	FMemoryTag* TagPtr = TagList.GetTagById(InMemTrackerId, InMemTagId);
 
 	TSharedPtr<FMemoryGraphSeries> Series = InGraphTrack->GetMemTagSeries(InMemTrackerId, InMemTagId);
 	if (Series.IsValid())
@@ -820,12 +828,12 @@ TSharedPtr<FMemoryGraphSeries> FMemorySharedState::ToggleMemTagGraphSeries(TShar
 // Create graphs from LLMReportTypes.xml file
 void FMemorySharedState::CreateTracksFromReport(const FString& Filename)
 {
-	Insights::FReportConfig ReportConfig;
+	FReportConfig ReportConfig;
 
-	Insights::FReportXmlParser ReportXmlParser;
+	FReportXmlParser ReportXmlParser;
 
 	ReportXmlParser.LoadReportTypesXML(ReportConfig, Filename);
-	if (ReportXmlParser.GetStatus() != Insights::FReportXmlParser::EStatus::Completed)
+	if (ReportXmlParser.GetStatus() != FReportXmlParser::EStatus::Completed)
 	{
 		FMessageLog ReportMessageLog(FMemoryProfilerManager::Get()->GetLogListingName());
 		ReportMessageLog.AddMessages(ReportXmlParser.GetErrorMessages());
@@ -837,9 +845,9 @@ void FMemorySharedState::CreateTracksFromReport(const FString& Filename)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemorySharedState::CreateTracksFromReport(const Insights::FReportConfig& ReportConfig)
+void FMemorySharedState::CreateTracksFromReport(const FReportConfig& ReportConfig)
 {
-	for (const Insights::FReportTypeConfig& ReportTypeConfig : ReportConfig.ReportTypes)
+	for (const FReportTypeConfig& ReportTypeConfig : ReportConfig.ReportTypes)
 	{
 		CreateTracksFromReport(ReportTypeConfig);
 	}
@@ -847,14 +855,14 @@ void FMemorySharedState::CreateTracksFromReport(const Insights::FReportConfig& R
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemorySharedState::CreateTracksFromReport(const Insights::FReportTypeConfig& ReportTypeConfig)
+void FMemorySharedState::CreateTracksFromReport(const FReportTypeConfig& ReportTypeConfig)
 {
 	int32 Order = GetNextMemoryGraphTrackOrder();
 	int32 NumAddedTracks = 0;
 
 	const bool bIsPlatformTracker = ReportTypeConfig.Name.StartsWith(TEXT("LLMPlatform"));
 
-	for (const Insights::FReportTypeGraphConfig& ReportTypeGraphConfig : ReportTypeConfig.Graphs)
+	for (const FReportTypeGraphConfig& ReportTypeGraphConfig : ReportTypeConfig.Graphs)
 	{
 		TSharedPtr<FMemoryGraphTrack> GraphTrack = CreateGraphTrack(ReportTypeGraphConfig, bIsPlatformTracker);
 		if (GraphTrack)
@@ -875,7 +883,7 @@ void FMemorySharedState::CreateTracksFromReport(const Insights::FReportTypeConfi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateGraphTrack(const Insights::FReportTypeGraphConfig& ReportTypeGraphConfig, bool bIsPlatformTracker)
+TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateGraphTrack(const FReportTypeGraphConfig& ReportTypeGraphConfig, bool bIsPlatformTracker)
 {
 	if (ReportTypeGraphConfig.GraphConfig == nullptr)
 	{
@@ -888,7 +896,7 @@ TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateGraphTrack(const Insight
 		return nullptr;
 	}
 
-	const Insights::FGraphConfig& GraphConfig = *ReportTypeGraphConfig.GraphConfig;
+	const FGraphConfig& GraphConfig = *ReportTypeGraphConfig.GraphConfig;
 
 	int32 CharIndex;
 	const TCHAR* DelimStr;
@@ -929,12 +937,12 @@ TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateGraphTrack(const Insight
 	TArray<FString> IgnoreStats;
 	GraphConfig.IgnoreStats.ParseIntoArray(IgnoreStats, DelimStr);
 
-	TArray<Insights::FMemoryTag*> Tags;
+	TArray<FMemoryTag*> Tags;
 	TagList.FilterTags(IncludeStats, IgnoreStats, Tags);
 
-	Insights::FMemoryTrackerId MemTrackerId = bIsPlatformTracker ?
-		(PlatformTracker ? PlatformTracker->GetId() : Insights::FMemoryTracker::InvalidTrackerId) :
-		(DefaultTracker ? DefaultTracker->GetId() : Insights::FMemoryTracker::InvalidTrackerId);
+	FMemoryTrackerId MemTrackerId = bIsPlatformTracker ?
+		(PlatformTracker ? PlatformTracker->GetId() : FMemoryTracker::InvalidTrackerId) :
+		(DefaultTracker ? DefaultTracker->GetId() : FMemoryTracker::InvalidTrackerId);
 
 	TSharedPtr<FMemoryGraphTrack> GraphTrack = CreateMemoryGraphTrack();
 	if (GraphTrack)
@@ -952,7 +960,7 @@ TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateGraphTrack(const Insight
 		const double MaxValue = GraphConfig.MaxY * 1024.0 * 1024.0;
 		GraphTrack->SetDefaultValueRange(MinValue, MaxValue);
 
-		UE_LOG(MemoryProfiler, Log, TEXT("[LLM Tags] Created graph \"%s\" (H=%.1f%s, MainStat=%s, Stats=%s)"),
+		UE_LOG(LogMemoryProfiler, Log, TEXT("[LLM Tags] Created graph \"%s\" (H=%.1f%s, MainStat=%s, Stats=%s)"),
 			*ReportTypeGraphConfig.Title,
 			GraphTrack->GetHeight(),
 			GraphConfig.bStacked ? TEXT(", stacked") : TEXT(""),
@@ -961,9 +969,9 @@ TSharedPtr<FMemoryGraphTrack> FMemorySharedState::CreateGraphTrack(const Insight
 
 		TSharedPtr<FMemoryGraphSeries> MainSeries;
 
-		for (Insights::FMemoryTag* TagPtr : Tags)
+		for (FMemoryTag* TagPtr : Tags)
 		{
-			Insights::FMemoryTag& Tag = *TagPtr;
+			FMemoryTag& Tag = *TagPtr;
 
 			TSharedPtr<FMemoryGraphSeries> Series = GraphTrack->AddMemTagSeries(MemTrackerId, Tag.GetId());
 			Series->SetName(FText::FromString(FString::Printf(TEXT("LLM %s"), *Tag.GetStatFullName())));
@@ -997,118 +1005,118 @@ void FMemorySharedState::InitMemoryRules()
 
 	MemoryRules.Reset();
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::aAf, 1,
 		LOCTEXT("MemRule_aAf_Short", "*A*"),
 		LOCTEXT("MemRule_aAf_Verbose", "Active Allocs"),
 		LOCTEXT("MemRule_aAf_Desc", "Identifies active allocations at time A.\n(a ≤ A ≤ f)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::afA, 1,
 		LOCTEXT("MemRule_afA_Short", "**A"),
 		LOCTEXT("MemRule_afA_Verbose", "Before"),
 		LOCTEXT("MemRule_afA_Desc", "Identifies allocations allocated and freed before time A.\n(a ≤ f ≤ A)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::Aaf, 1,
 		LOCTEXT("MemRule_Aaf_Short", "A**"),
 		LOCTEXT("MemRule_Aaf_Verbose", "After"),
 		LOCTEXT("MemRule_Aaf_Desc", "Identifies allocations allocated after time A.\n(A ≤ a ≤ f)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::aAfB, 2,
 		LOCTEXT("MemRule_aAfB_Short", "*A*B"),
 		LOCTEXT("MemRule_aAfB_Verbose", "Decline"),
 		LOCTEXT("MemRule_aAfB_Desc", "Identifies allocations allocated before time A and freed between time A and time B.\n(a ≤ A ≤ f ≤ B)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AaBf, 2,
 		LOCTEXT("MemRule_AaBf_Short", "A*B*"),
 		LOCTEXT("MemRule_AaBf_Verbose", "Growth"),
 		LOCTEXT("MemRule_AaBf_Desc", "Identifies allocations allocated between time A and time B and not freed until at least time B.\n(A ≤ a ≤ B ≤ f)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::aAfaBf, 2,
 		LOCTEXT("MemRule_aAfaBf_Short", "A*B*/*A*B"),
 		LOCTEXT("MemRule_aAfaBf_Verbose", "Growth vs. Decline"),
 		LOCTEXT("MemRule_aAfaBf_Desc", "Identifies \"growth\" allocations, allocated between time A and time B and not freed until at least time B (A ≤ a ≤ B ≤ f)\nand \"decline\" allocations, allocated before time A and freed between time A and time B (a ≤ A ≤ f ≤ B).\nThe \"decline\" allocations are changed to have negative size, so the size aggregation shows variation between A and B.")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AfB, 2,
 		LOCTEXT("MemRule_AfB_Short", "*A**B"),
 		LOCTEXT("MemRule_AfB_Verbose", "Free Events"),
 		LOCTEXT("MemRule_AfB_Desc", "Identifies allocations freed between time A and time B.\n(A ≤ f ≤ B)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AaB, 2,
 		LOCTEXT("MemRule_AaB_Short", "A**B*"),
 		LOCTEXT("MemRule_AaB_Verbose", "Alloc Events"),
 		LOCTEXT("MemRule_AaB_Desc", "Identifies allocations allocated between time A and time B.\n(A ≤ a ≤ B)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AafB, 2,
 		LOCTEXT("MemRule_AafB_Short", "A**B"),
 		LOCTEXT("MemRule_AafB_Verbose", "Short Living Allocs"),
 		LOCTEXT("MemRule_AafB_Desc", "Identifies allocations allocated and freed between time A and time B.\n(A ≤ a ≤ f ≤ B)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::aABf, 2,
 		LOCTEXT("MemRule_aABf_Short", "*A B*"),
 		LOCTEXT("MemRule_aABf_Verbose", "Long Living Allocs"),
 		LOCTEXT("MemRule_aABf_Desc", "Identifies allocations allocated before time A and not freed until at least time B.\n(a ≤ A ≤ B ≤ f)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AaBCf, 3,
 		LOCTEXT("MemRule_AaBCf_Short", "A*B C*"),
 		LOCTEXT("MemRule_AaBCf_Verbose", "Memory Leaks"),
 		LOCTEXT("MemRule_AaBCf_Desc", "Identifies allocations allocated between time A and time B and not freed until at least time C.\n(A ≤ a ≤ B ≤ C ≤ f)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AaBfC, 3,
 		LOCTEXT("MemRule_AaBfC_Short", "A*B*C"),
 		LOCTEXT("MemRule_AaBfC_Verbose", "Limited Lifetime"),
 		LOCTEXT("MemRule_AaBfC_Desc", "Identifies allocations allocated between time A and time B and freed between time B and time C.\n(A ≤ a ≤ B ≤ f ≤ C)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::aABfC, 3,
 		LOCTEXT("MemRule_aABfC_Short", "*A B*C"),
 		LOCTEXT("MemRule_aABfC_Verbose", "Decline of Long Living Allocs"),
 		LOCTEXT("MemRule_aABfC_Desc", "Identifies allocations allocated before time A and freed between time B and time C.\n(a ≤ A ≤ B ≤ f ≤ C)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AaBCfD, 4,
 		LOCTEXT("MemRule_AaBCfD_Short", "A*B C*D"),
 		LOCTEXT("MemRule_AaBCfD_Verbose", "Specific Lifetime"),
 		LOCTEXT("MemRule_AaBCfD_Desc", "Identifies allocations allocated between time A and time B and freed between time C and time D.\n(A ≤ a ≤ B ≤ C ≤ f ≤ D)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AoB, 2,
 		LOCTEXT("MemRule_AoB_Short", "A ↓ B"),
 		LOCTEXT("MemRule_AoB_Verbose", "Paged-Out Allocs"),
 		LOCTEXT("MemRule_AoB_Desc", "Identifies allocations paged-out (swapped-out) between time A and time B.\n(A ≤ page-out ≤ B)")));
 
-	MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 		ERule::AiB, 2,
 		LOCTEXT("MemRule_AiB_Short", "A ↑ B"),
 		LOCTEXT("MemRule_AiB_Verbose", "Paged-In Allocs"),
 		LOCTEXT("MemRule_AiB_Desc", "Identifies allocations paged-in (swapped-in) between time A and time B.\n(A ≤ page-in ≤ B)")));
 
 	//TODO
-	//MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	//MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 	//	ERule::A_vs_B, 2,
 	//	LOCTEXT("MemRule_A_vs_B_Short", "*A* + *B*"),
 	//	LOCTEXT("MemRule_A_vs_B_Verbose", "Compare A vs. B"),
 	//	LOCTEXT("MemRule_A_vs_B_Desc", "Compares live allocations at time A with live allocations at time B.\n(*A* vs. *B*)")));
 
 	//TODO
-	//MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	//MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 	//	ERule::A_or_B, 2,
 	//	LOCTEXT("MemRule_A_or_B_Short", "*A* | *B*"),
 	//	LOCTEXT("MemRule_A_or_B_Verbose", "A or B"),
 	//	LOCTEXT("MemRule_A_or_B_Desc", "Identifies allocations live at time A or at time B.\n(a ≤ A ≤ f OR a ≤ B ≤ f)\n{*A*} U {*B*}")));
 
 	//TODO
-	//MemoryRules.Add(MakeShared<Insights::FMemoryRuleSpec>(
+	//MemoryRules.Add(MakeShared<FMemoryRuleSpec>(
 	//	ERule::A_xor_B, 2,
 	//	LOCTEXT("MemRule_A_xor_B_Short", "*A* ^ *B*"),
 	//	LOCTEXT("MemRule_A_xor_B_Verbose", "A xor B"),
@@ -1125,7 +1133,7 @@ void FMemorySharedState::OnMemoryRuleChanged()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMemorySharedState::AddQueryTarget(TSharedPtr<Insights::FQueryTargetWindowSpec> InPtr)
+void FMemorySharedState::AddQueryTarget(TSharedPtr<FQueryTargetWindowSpec> InPtr)
 {
 	QueryTargetSpecs.Add(InPtr);
 }
@@ -1133,11 +1141,13 @@ void FMemorySharedState::AddQueryTarget(TSharedPtr<Insights::FQueryTargetWindowS
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-void FMemorySharedState::RemoveQueryTarget(TSharedPtr<Insights::FQueryTargetWindowSpec> InPtr)
+void FMemorySharedState::RemoveQueryTarget(TSharedPtr<FQueryTargetWindowSpec> InPtr)
 {
 	QueryTargetSpecs.Remove(InPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

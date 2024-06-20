@@ -2,12 +2,15 @@
 
 #include "MemAllocNode.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/Callstack.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/CallstackFormatting.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FMemAllocNode"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemAllocNode"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 INSIGHTS_IMPLEMENT_RTTI(FMemAllocNode)
@@ -77,7 +80,7 @@ FText FMemAllocNode::GetFullCallstackOrSourceFiles(ECallstackType InCallstackTyp
 		return FText();
 	}
 
-	const Insights::FMemoryAlloc& Alloc = GetMemAllocChecked();
+	const FMemoryAlloc& Alloc = GetMemAllocChecked();
 	const TraceServices::FCallstack* Callstack =
 		InCallstackType == ECallstackType::AllocCallstack
 			? Alloc.GetAllocCallstack()
@@ -125,7 +128,7 @@ FText FMemAllocNode::GetTopFunctionOrSourceFile(ECallstackType InCallstackType, 
 		return FText();
 	}
 
-	const Insights::FMemoryAlloc& Alloc = GetMemAllocChecked();
+	const FMemoryAlloc& Alloc = GetMemAllocChecked();
 	const TraceServices::FCallstack* Callstack =
 		InCallstackType == ECallstackType::AllocCallstack
 			? Alloc.GetAllocCallstack()
@@ -172,6 +175,6 @@ FText FMemAllocNode::GetTopFunctionOrSourceFile(ECallstackType InCallstackType, 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

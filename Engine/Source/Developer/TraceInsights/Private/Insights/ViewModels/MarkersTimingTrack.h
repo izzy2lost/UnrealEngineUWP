@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Fonts/SlateFontInfo.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ViewModels/TrackHeader.h"
 
@@ -16,8 +17,10 @@ namespace TraceServices
 	class ILogProvider;
 }
 
-struct FDrawContext;
 struct FSlateBrush;
+
+namespace UE::Insights { class FDrawContext; }
+
 class FTimingTrackViewport;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -2,9 +2,11 @@
 
 #include "ContextSwitchesFilterConverters.h"
 
+// TraceServices
 #include "TraceServices/Model/ContextSwitches.h"
 #include "TraceServices/Model/Threads.h"
 
+// TraceInsights
 #include "Insights/InsightsManager.h"
 
 #define LOCTEXT_NAMESPACE "Insights::ContextSwitchesFilterValueConverter"

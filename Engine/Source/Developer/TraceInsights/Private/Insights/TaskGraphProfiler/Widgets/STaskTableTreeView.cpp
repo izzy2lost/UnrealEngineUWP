@@ -9,19 +9,23 @@
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "SlateOptMacros.h"
-#include "TraceServices/Model/TasksProfiler.h"
 #include "Widgets/Input/SComboBox.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/TasksProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskEntry.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskGraphRelation.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskNode.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
 #include "Insights/ViewModels/ThreadTimingTrack.h"
 #include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
@@ -203,6 +207,8 @@ void STaskTableTreeView::Tick(const FGeometry& AllottedGeometry, const double In
 
 void STaskTableTreeView::RebuildTree(bool bResync)
 {
+	using namespace UE::Insights::TimingProfiler;
+
 	double NewQueryStartTime = FTimingProfilerManager::Get()->GetSelectionStartTime();
 	double NewQueryEndTime = FTimingProfilerManager::Get()->GetSelectionEndTime();
 
@@ -232,7 +238,7 @@ void STaskTableTreeView::RebuildTree(bool bResync)
 			{
 				FName BaseNodeName(TEXT("task"));
 
-				TArray<FTableTreeNodePtr>* Nodes = &TableRowNodes;
+				TArray<UE::Insights::FTableTreeNodePtr>* Nodes = &TableRowNodes;
 
 				TasksProvider->EnumerateTasks(QueryStartTime, QueryEndTime, SelectedTasksSelectionOption, [&Tasks, &TaskTable, &BaseNodeName, Nodes](const TraceServices::FTaskInfo& TaskInfo)
 				{
@@ -682,7 +688,7 @@ bool STaskTableTreeView::TasksSelectionOptions_IsEnabled() const
 
 bool STaskTableTreeView::ContextMenu_GoToTask_CanExecute() const
 {
-	TArray<FTableTreeNodePtr> SelectedItems;
+	TArray<UE::Insights::FTableTreeNodePtr> SelectedItems;
 	TreeView->GetSelectedItems(SelectedItems);
 
 	if (SelectedItems.Num() != 1)
@@ -704,7 +710,7 @@ bool STaskTableTreeView::ContextMenu_GoToTask_CanExecute() const
 
 void STaskTableTreeView::ContextMenu_GoToTask_Execute()
 {
-	TArray<FTableTreeNodePtr> SelectedItems;
+	TArray<UE::Insights::FTableTreeNodePtr> SelectedItems;
 	TreeView->GetSelectedItems(SelectedItems);
 
 	if (SelectedItems.Num() != 1)
@@ -719,6 +725,8 @@ void STaskTableTreeView::ContextMenu_GoToTask_Execute()
 	{
 		return;
 	}
+
+	using namespace UE::Insights::TimingProfiler;
 
 	TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 	if (!TimingWindow.IsValid())
@@ -800,7 +808,7 @@ bool STaskTableTreeView::ContextMenu_OpenInIDE_CanExecute() const
 
 bool STaskTableTreeView::GetSourceFileAndLineForSelectedTask(FString& OutFile, uint32& OutLine) const
 {
-	TArray<FTableTreeNodePtr> SelectedItems;
+	TArray<UE::Insights::FTableTreeNodePtr> SelectedItems;
 	TreeView->GetSelectedItems(SelectedItems);
 
 	if (SelectedItems.Num() != 1)
@@ -808,7 +816,7 @@ bool STaskTableTreeView::GetSourceFileAndLineForSelectedTask(FString& OutFile, u
 		return false;
 	}
 
-	FTableTreeNodePtr SelectedTreeNode = SelectedItems[0];
+	UE::Insights::FTableTreeNodePtr SelectedTreeNode = SelectedItems[0];
 	if (!SelectedTreeNode.IsValid() || !SelectedTreeNode->Is<FTaskNode>())
 	{
 		return false;
@@ -869,7 +877,7 @@ void STaskTableTreeView::ContextMenu_OpenInIDE_Execute()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STaskTableTreeView::TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr TreeNode)
+void STaskTableTreeView::TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableTreeNodePtr TreeNode)
 {
 	if (!TreeNode->IsGroup())
 	{
@@ -884,12 +892,12 @@ void STaskTableTreeView::TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr Tre
 void STaskTableTreeView::SelectTaskEntry(TaskTrace::FId InId)
 {
 	TaskIdToSelect = InId;
-	StartTableDataTask<FSearchForItemToSelectTask>(SharedThis(this));
+	StartTableDataTask<UE::Insights::FSearchForItemToSelectTask>(SharedThis(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STaskTableTreeView::SearchForItem(TSharedPtr<FTableTaskCancellationToken> CancellationToken)
+void STaskTableTreeView::SearchForItem(TSharedPtr<UE::Insights::FTableTaskCancellationToken> CancellationToken)
 {
 	TSharedPtr<FTaskTable> TaskTable = GetTaskTable();
 	TArray<FTaskEntry>& Tasks = TaskTable->GetTaskEntries();
@@ -904,7 +912,7 @@ void STaskTableTreeView::SearchForItem(TSharedPtr<FTableTaskCancellationToken> C
 
 		if (Tasks[Index].Id == TaskIdToSelect)
 		{
-			TGraphTask<FSelectNodeByTableRowIndexTask>::CreateTask().ConstructAndDispatchWhenReady(CancellationToken, SharedThis(this), Index);
+			TGraphTask<UE::Insights::FSelectNodeByTableRowIndexTask>::CreateTask().ConstructAndDispatchWhenReady(CancellationToken, SharedThis(this), Index);
 			break;
 		}
 	}

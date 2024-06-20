@@ -7,7 +7,7 @@
 #include "HAL/FileManagerGeneric.h"
 #include "Misc/Paths.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 

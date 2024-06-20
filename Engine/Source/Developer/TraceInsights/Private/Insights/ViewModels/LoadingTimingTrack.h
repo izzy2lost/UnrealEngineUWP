@@ -4,16 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "Framework/Commands/Commands.h"
+
+// TraceServices
 #include "TraceServices/Model/LoadTimeProfiler.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ITimingViewExtender.h"
 #include "Insights/ViewModels/TimingEventsTrack.h"
 
-class FTimingEventSearchParameters;
-class STimingView;
+namespace UE::Insights { class FFilterConfigurator; }
 
 class FLoadingTimingTrack;
+class FTimingEventSearchParameters;
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -35,19 +38,19 @@ DECLARE_DELEGATE_RetVal_TwoParams(const TCHAR*, FLoadingTrackGetEventNameDelegat
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FLoadingSharedState : public Insights::ITimingViewExtender, public TSharedFromThis<FLoadingSharedState>
+class FLoadingSharedState : public UE::Insights::Timing::ITimingViewExtender, public TSharedFromThis<FLoadingSharedState>
 {
 public:
-	explicit FLoadingSharedState(STimingView* InTimingView);
+	explicit FLoadingSharedState(UE::Insights::TimingProfiler::STimingView* InTimingView);
 	virtual ~FLoadingSharedState() = default;
 
 	//////////////////////////////////////////////////
 	// ITimingViewExtender interface
 
-	virtual void OnBeginSession(Insights::ITimingViewSession& InSession) override;
-	virtual void OnEndSession(Insights::ITimingViewSession& InSession) override;
-	virtual void Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
-	virtual void ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
+	virtual void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
+	virtual void ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
 
 	//////////////////////////////////////////////////
 
@@ -75,7 +78,7 @@ private:
 	const TCHAR* GetEventNameByPackageAndExportClassName(uint32 Depth, const TraceServices::FLoadTimeProfilerCpuEvent& Event) const;
 
 private:
-	STimingView* TimingView;
+	UE::Insights::TimingProfiler::STimingView* TimingView;
 
 	bool bShowHideAllLoadingTracks;
 
@@ -110,7 +113,7 @@ public:
 
 	virtual const TSharedPtr<const ITimingEvent> SearchEvent(const FTimingEventSearchParameters& InSearchParameters) const override;
 
-	virtual void SetFilterConfigurator(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator) override;
+	virtual void SetFilterConfigurator(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfigurator) override;
 
 protected:
 	// Helper function to find an event given search parameters
@@ -122,7 +125,7 @@ protected:
 	FLoadingSharedState& SharedState;
 	uint32 TimelineIndex;
 
-	TSharedPtr<Insights::FFilterConfigurator> FilterConfigurator;
+	TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

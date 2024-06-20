@@ -1,7 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EventNameFilterValueConverter.h"
+
+// TraceServices
 #include "TraceServices/Model/TimingProfiler.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 
 #define LOCTEXT_NAMESPACE "Insights::FEventNameFilterValueConverter"

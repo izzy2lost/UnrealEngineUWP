@@ -4,9 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Framework/Commands/Commands.h"
+
+// TraceServices
 #include "TraceServices/Model/TimingProfiler.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ITimingViewExtender.h"
 #include "Insights/ViewModels/TimingEventSearch.h" // for TTimingEventSearchCache
 #include "Insights/ViewModels/TimingEventsTrack.h"
@@ -15,12 +17,9 @@ class FThreadTrackEvent;
 class FTimingEventSearchParameters;
 class FGpuTimingTrack;
 class FCpuTimingTrack;
-class STimingView;
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
-namespace Insights
-{
-	class FFilterConfigurator;
-}
+namespace UE::Insights { class FFilterConfigurator; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FThreadTimingSharedState : public Insights::ITimingViewExtender, public TSharedFromThis<FThreadTimingSharedState>
+class FThreadTimingSharedState : public UE::Insights::Timing::ITimingViewExtender, public TSharedFromThis<FThreadTimingSharedState>
 {
 private:
 	struct FThreadGroup
@@ -55,7 +54,7 @@ private:
 	};
 
 public:
-	explicit FThreadTimingSharedState(STimingView* InTimingView);
+	explicit FThreadTimingSharedState(UE::Insights::TimingProfiler::STimingView* InTimingView);
 	virtual ~FThreadTimingSharedState() = default;
 
 	TSharedPtr<FGpuTimingTrack> GetGpuTrack() { return GpuTrack; }
@@ -72,11 +71,11 @@ public:
 	//////////////////////////////////////////////////
 	// ITimingViewExtender interface
 
-	virtual void OnBeginSession(Insights::ITimingViewSession& InSession) override;
-	virtual void OnEndSession(Insights::ITimingViewSession& InSession) override;
-	virtual void Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
-	virtual void ExtendGpuTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
-	virtual void ExtendCpuTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
+	virtual void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
+	virtual void ExtendGpuTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
+	virtual void ExtendCpuTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
 
 	//////////////////////////////////////////////////
 
@@ -104,7 +103,7 @@ private:
 	void ToggleTrackVisibilityByGroup_Execute(const TCHAR* InGroupName);
 
 private:
-	STimingView* TimingView;
+	UE::Insights::TimingProfiler::STimingView* TimingView;
 
 	bool bShowHideAllGpuTracks;
 	bool bShowHideAllCpuTracks;
@@ -175,7 +174,7 @@ public:
 
 	int32 GetDepthAt(double Time) const;
 
-	virtual void SetFilterConfigurator(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator) override;
+	virtual void SetFilterConfigurator(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfigurator) override;
 
 	TSharedPtr<const ITimingEvent> FindMaxEventInstance(uint32 TimerId, double StartTime, double EndTime) const;
 	TSharedPtr<const ITimingEvent> FindMinEventInstance(uint32 TimerId, double StartTime, double EndTime) const;
@@ -201,7 +200,7 @@ private:
 
 	FThreadTimingSharedState& SharedState;
 
-	TSharedPtr<Insights::FFilterConfigurator> FilterConfigurator;
+	TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator;
 
 	// Search cache
 	mutable TTimingEventSearchCache<TraceServices::FTimingProfilerEvent> SearchCache;

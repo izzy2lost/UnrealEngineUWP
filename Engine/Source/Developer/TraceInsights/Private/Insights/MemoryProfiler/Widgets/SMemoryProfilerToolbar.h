@@ -7,6 +7,9 @@
 
 class FExtender;
 
+namespace UE::Insights::MemoryProfiler
+{
+
 /** Ribbon based toolbar used as a main menu in the Profiler window. */
 class SMemoryProfilerToolbar : public SCompoundWidget
 {
@@ -28,3 +31,5 @@ public:
 	 */
 	void Construct(const FArguments& InArgs);
 };
+
+} // namespace UE::Insights::MemoryProfiler

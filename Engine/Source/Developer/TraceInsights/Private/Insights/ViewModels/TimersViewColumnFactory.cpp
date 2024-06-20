@@ -2,11 +2,13 @@
 
 #include "TimersViewColumnFactory.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+
+// TraceInsights
 #include "Insights/ViewModels/TimerGroupingAndSorting.h"
 #include "Insights/ViewModels/TimerNodeHelper.h"
 
@@ -41,7 +43,7 @@ const FName FTimersViewColumns::MinExclusiveTimeColumnID(TEXT("MinExclTime"));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimersViewColumnFactory::CreateTimersViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns)
+void FTimersViewColumnFactory::CreateTimersViewColumns(TArray<TSharedRef<UE::Insights::FTableColumn>>& Columns)
 {
 	Columns.Reset();
 
@@ -65,7 +67,7 @@ void FTimersViewColumnFactory::CreateTimersViewColumns(TArray<TSharedRef<Insight
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimersViewColumnFactory::CreateTimerTreeViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns)
+void FTimersViewColumnFactory::CreateTimerTreeViewColumns(TArray<TSharedRef<UE::Insights::FTableColumn>>& Columns)
 {
 	Columns.Reset();
 
@@ -81,9 +83,9 @@ void FTimersViewColumnFactory::CreateTimerTreeViewColumns(TArray<TSharedRef<Insi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateNameColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateNameColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::NameColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -120,9 +122,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateNameColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMetaGroupNameColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateMetaGroupNameColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::MetaGroupNameColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -169,9 +171,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMetaGroupName
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateTypeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateTypeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::TypeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -219,9 +221,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateTypeColumn()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateInstanceCountColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateInstanceCountColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::InstanceCountColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -270,9 +272,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateInstanceCount
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateChildInstanceCountColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateChildInstanceCountColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::ChildInstanceCountColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -326,9 +328,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateChildInstance
 // Inclusive Time Columns
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateTotalInclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateTotalInclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::TotalInclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -378,9 +380,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateTotalInclusiv
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMaxInclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateMaxInclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::MaxInclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -427,9 +429,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMaxInclusiveT
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateAverageInclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateAverageInclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::AverageInclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -476,9 +478,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateAverageInclus
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMedianInclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateMedianInclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::MedianInclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -525,9 +527,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMedianInclusi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMinInclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateMinInclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::MinInclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -576,9 +578,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMinInclusiveT
 // Exclusive Time Columns
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateTotalExclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateTotalExclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::TotalExclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -628,9 +630,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateTotalExclusiv
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMaxExclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateMaxExclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::MaxExclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -677,9 +679,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMaxExclusiveT
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateAverageExclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateAverageExclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::AverageExclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -726,9 +728,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateAverageExclus
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMedianExclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateMedianExclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::MedianExclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;
@@ -775,9 +777,9 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMedianExclusi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMinExclusiveTimeColumn()
+TSharedRef<UE::Insights::FTableColumn> FTimersViewColumnFactory::CreateMinExclusiveTimeColumn()
 {
-	using namespace Insights;
+	using namespace UE::Insights;
 
 	TSharedRef<FTimersTableColumn> ColumnRef = MakeShared<FTimersTableColumn>(FTimersViewColumns::MinExclusiveTimeColumnID);
 	FTimersTableColumn& Column = *ColumnRef;

@@ -3,16 +3,20 @@
 #include "CpuCoreTimingTrack.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+
+// TraceServices
 #include "TraceServices/Model/ContextSwitches.h"
 #include "TraceServices/Model/Threads.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Filter/ViewModels/Filters.h"
+
+// TraceInsights
 #include "Insights/ContextSwitches/ViewModels/ContextSwitchesSharedState.h"
 #include "Insights/ContextSwitches/ViewModels/ContextSwitchTimingEvent.h"
 #include "Insights/InsightsManager.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
-#include "Insights/ViewModels/Filters.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
 #include "Insights/ViewModels/TooltipDrawState.h"
@@ -143,19 +147,20 @@ void FCpuCoreTimingTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuil
 
 	if (HasCustomFilter())
 	{
-		TSharedPtr<STimingView> TimingView = SharedState.GetTimingView();
+		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = SharedState.GetTimingView();
 		if (!TimingView)
 		{
 			return;
 		}
 
-		TSharedPtr<FFilterConfigurator> FilterConfigurator = TimingView->GetFilterConfigurator();
+		TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator = TimingView->GetFilterConfigurator();
 		if (!FilterConfigurator.IsValid())
 		{
 			return;
 		}
 
-		FFilterContext FilterContext;
+		using EFilterField = UE::Insights::EFilterField;
+		UE::Insights::FFilterContext FilterContext;
 		FilterContext.SetReturnValueForUnsetFilters(false);
 
 		FilterContext.AddFilterData<double>(static_cast<int32>(EFilterField::StartTime), 0.0f);
@@ -251,7 +256,7 @@ void FCpuCoreTimingTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 
 		FString Str = FString::Printf(TEXT("%s (Duration.: %s)"),
 			*GetThreadName(static_cast<uint32>(SelectedEvent.GetType())),
-			*TimeUtils::FormatTimeAuto(SelectedEvent.GetDuration()));
+			*UE::Insights::FormatTimeAuto(SelectedEvent.GetDuration()));
 
 		DrawSelectedEventInfo(Str, Context.GetViewport(), Context.GetDrawContext(), Helper.GetWhiteBrush(), Helper.GetEventFont());
 	}
@@ -333,7 +338,8 @@ const TSharedPtr<const ITimingEvent> FCpuCoreTimingTrack::SearchEvent(const FTim
 {
 	TSharedPtr<const ITimingEvent> FoundEvent;
 
-	FFilterContext FilterConfiguratorContext;
+	using EFilterField = UE::Insights::EFilterField;
+	UE::Insights::FFilterContext FilterConfiguratorContext;
 	FilterConfiguratorContext.SetReturnValueForUnsetFilters(false);
 	FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::StartTime), 0.0f);
 	FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::EndTime), 0.0f);
@@ -437,9 +443,10 @@ void FCpuCoreTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITi
 		InOutTooltip.AddNameValueTextLine(TEXT("Thread Id:"), FString::Printf(TEXT("%d"), ThreadId));
 	}
 
-	InOutTooltip.AddNameValueTextLine(TEXT("Start Time:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetStartTime(), 6));
-	InOutTooltip.AddNameValueTextLine(TEXT("End Time:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetEndTime(), 6));
-	InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(InTooltipEvent.GetDuration()));
+	using namespace UE::Insights;
+	InOutTooltip.AddNameValueTextLine(TEXT("Start Time:"), FormatTimeAuto(InTooltipEvent.GetStartTime(), 6));
+	InOutTooltip.AddNameValueTextLine(TEXT("End Time:"), FormatTimeAuto(InTooltipEvent.GetEndTime(), 6));
+	InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), FormatTimeAuto(InTooltipEvent.GetDuration()));
 
 	InOutTooltip.UpdateLayout();
 }
@@ -482,13 +489,13 @@ void FCpuCoreTimingTrack::BuildContextMenu(FMenuBuilder& InOutMenuBuilder)
 
 bool FCpuCoreTimingTrack::HasCustomFilter() const
 {
-	TSharedPtr<STimingView> TimingView = SharedState.GetTimingView();
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = SharedState.GetTimingView();
 	if (!TimingView)
 	{
 		return false;
 	}
 
-	TSharedPtr<FFilterConfigurator> FilterConfigurator = TimingView->GetFilterConfigurator();
+	TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator = TimingView->GetFilterConfigurator();
 	return FilterConfigurator.IsValid() && !FilterConfigurator->IsEmpty();
 }
 

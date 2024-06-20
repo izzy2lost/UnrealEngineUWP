@@ -3,11 +3,9 @@
 #include "SSessionInfoWindow.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Misc/Paths.h"
 #include "SlateOptMacros.h"
 #include "Styling/AppStyle.h"
-#include "TraceServices/Model/Diagnostics.h"
-#include "TraceServices/ModuleService.h"
-#include "Misc/Paths.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -20,9 +18,15 @@
 	#include "Interfaces/IAnalyticsProvider.h"
 #endif // WITH_EDITOR
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/Diagnostics.h"
+#include "TraceServices/ModuleService.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
-#include "Insights/Common/TimeUtils.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/Version.h"
@@ -565,10 +569,12 @@ FText SSessionInfoWindow::GetStatusText() const
 	FormattingOptions.MaximumFractionalDigits = 1;
 
 	const int32 NumDigits = InsightsManager->IsAnalysisComplete() ? 2 : 0;
+
+	using namespace UE::Insights;
 	FText Status = FText::Format(LOCTEXT("StatusFmt", "{0}\nSession Duration: {1}\nAnalyzed in {2} at {3}X speed."),
 		InsightsManager->IsAnalysisComplete() ? FText::FromString(FString(TEXT("ANALYSIS COMPLETED."))) : FText::FromString(FString(TEXT("ANALYZING..."))),
-		FText::FromString(TimeUtils::FormatTimeAuto(InsightsManager->GetSessionDuration(), NumDigits)),
-		FText::FromString(TimeUtils::FormatTimeAuto(InsightsManager->GetAnalysisDuration(), NumDigits)),
+		FText::FromString(FormatTimeAuto(InsightsManager->GetSessionDuration(), NumDigits)),
+		FText::FromString(FormatTimeAuto(InsightsManager->GetAnalysisDuration(), NumDigits)),
 		FText::AsNumber(InsightsManager->GetAnalysisSpeedFactor(), &FormattingOptions));
 
 	return Status;

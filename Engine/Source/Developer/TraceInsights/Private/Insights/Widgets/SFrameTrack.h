@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Input/CursorReply.h"
 #include "Input/Reply.h"
 #include "Layout/Geometry.h"
@@ -10,14 +11,17 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-// Insights
-#include "Insights/Common/FixedCircularBuffer.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/FixedCircularBuffer.h"
+
+// TraceInsights
 #include "Insights/ViewModels/FrameTrackHelper.h"
 #include "Insights/ViewModels/FrameTrackViewport.h"
 
 class FMenuBuilder;
 class SScrollBar;
-class STimingView;
+
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -142,8 +146,8 @@ protected:
 	TSharedPtr<FFrameTrackSeries> FindFrameStatsSeries(ETraceFrameType FrameType, uint32 TimerId) const;
 	void UpdateState();
 
-	void DrawHorizontalAxisGrid(FDrawContext& DrawContext, const FSlateBrush* Brush, const FSlateFontInfo& Font, bool bDrawBackgroundLayer) const;
-	void DrawVerticalAxisGrid(FDrawContext& DrawContext, const FSlateBrush* Brush, const FSlateFontInfo& Font) const;
+	void DrawHorizontalAxisGrid(UE::Insights::FDrawContext& DrawContext, const FSlateBrush* Brush, const FSlateFontInfo& Font, bool bDrawBackgroundLayer) const;
+	void DrawVerticalAxisGrid(UE::Insights::FDrawContext& DrawContext, const FSlateBrush* Brush, const FSlateFontInfo& Font) const;
 
 	FFrameTrackSampleRef GetSampleAtMousePosition(double X, double Y);
 	void SelectFrameAtMousePosition(double X, double Y, bool JoinCurrentSelection);
@@ -270,15 +274,15 @@ protected:
 	/** Cursor type. */
 	ECursorType CursorType = ECursorType::Default;
 
-	STimingView* RegisteredTimingView = nullptr; // for pointer comparison only; do not dereferentiate!
+	UE::Insights::TimingProfiler::STimingView* RegisteredTimingView = nullptr; // for pointer comparison only; do not dereferentiate!
 	FDelegateHandle OnTrackVisibilityChangedHandle;
 	FDelegateHandle OnTrackAddedHandle;
 	FDelegateHandle OnTrackRemovedHandle;
 
 	// Debug stats
 	int32 NumUpdatedFrames = 0;
-	TFixedCircularBuffer<uint64, 32> UpdateDurationHistory;
-	mutable TFixedCircularBuffer<uint64, 32> DrawDurationHistory;
-	mutable TFixedCircularBuffer<uint64, 32> OnPaintDurationHistory;
+	UE::Insights::TFixedCircularBuffer<uint64, 32> UpdateDurationHistory;
+	mutable UE::Insights::TFixedCircularBuffer<uint64, 32> DrawDurationHistory;
+	mutable UE::Insights::TFixedCircularBuffer<uint64, 32> OnPaintDurationHistory;
 	mutable uint64 LastOnPaintTime = 0;
 };

@@ -4,17 +4,19 @@
 
 #include "CoreMinimal.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Table/Widgets/STableTreeView.h"
+
+// TraceInsights
 #include "Insights/Table/ViewModels/UntypedTable.h"
-#include "Insights/Table/Widgets/STableTreeView.h"
 
 namespace Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class SUntypedTableTreeView : public STableTreeView
+class SUntypedTableTreeView : public UE::Insights::STableTreeView
 {
 public:
 	/** Default constructor. */
@@ -61,7 +63,7 @@ public:
 	virtual void RebuildTree(bool bResync);
 
 private:
-	FStopwatch CurrentOperationStopwatch;
+	UE::Insights::FStopwatch CurrentOperationStopwatch;
 	FText CurrentOperationNameOverride;
 };
 

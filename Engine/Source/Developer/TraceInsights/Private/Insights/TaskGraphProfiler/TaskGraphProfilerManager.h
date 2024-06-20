@@ -2,12 +2,13 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+
 #include "Async/TaskTrace.h"
 #include "Containers/Ticker.h"
-#include "CoreMinimal.h"
 #include "Framework/Commands/UICommandList.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 
@@ -20,12 +21,16 @@ namespace TraceServices
 class FThreadTimingTrack;
 class FThreadTrackEvent;
 
+namespace UE::Insights::TimingProfiler { class STimingView; }
+
 namespace Insights
 {
 
 class FTaskGraphRelation;
 class FTaskTimingSharedState;
 class STaskTableTreeView;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct FTaskGraphProfilerTabs
 {
@@ -106,7 +111,7 @@ public:
 	FLinearColor GetColorForTaskEvent(ETaskEventType InEvent);
 	uint32 GetColorForTaskEventAsPackedARGB(ETaskEventType InEvent);
 
-	TSharedPtr<Insights::FTaskTimingSharedState> GetTaskTimingSharedState() { return TaskTimingSharedState;	}
+	TSharedPtr<::Insights::FTaskTimingSharedState> GetTaskTimingSharedState() { return TaskTimingSharedState;	}
 
 	bool GetShowCriticalPath() const { return bShowCriticalPath; }
 	void SetShowCriticalPath(bool bInValue) { bShowCriticalPath = bInValue; }
@@ -156,10 +161,12 @@ private:
 
 	void OutputWarnings();
 
+	static TSharedPtr<UE::Insights::TimingProfiler::STimingView> GetTimingView();
+
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	FAvailabilityCheck AvailabilityCheck;
+	UE::Insights::FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;
@@ -175,7 +182,7 @@ private:
 
 	TWeakPtr<FTabManager> TimingTabManager;
 
-	TSharedPtr<Insights::STaskTableTreeView> TaskTableTreeView;
+	TSharedPtr<::Insights::STaskTableTreeView> TaskTableTreeView;
 	FLinearColor ColorCode[static_cast<uint32>(ETaskEventType::NumTaskEventTypes)];
 	bool bShowCriticalPath = false;
 	bool bShowTransitions = true;

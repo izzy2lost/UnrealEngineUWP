@@ -2,14 +2,17 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Containers/Ticker.h"
-#include "CoreMinimal.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Input/DragAndDrop.h"
 
-// Insights
-#include "Insights/Common/AvailabilityCheck.h"
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/AvailabilityCheck.h"
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/IInsightsManager.h"
 #include "Insights/InsightsCommands.h"
 #include "Insights/InsightsSettings.h"
@@ -18,12 +21,9 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-namespace UE
-{
-namespace Trace
+namespace UE::Trace
 {
 	class FStoreClient;
-}
 }
 
 namespace TraceServices
@@ -60,7 +60,7 @@ struct FAsyncTaskData
  *     Connecting/disconnecting to source trace
  *     Global Unreal Insights application state and settings
  */
-class FInsightsManager : public TSharedFromThis<FInsightsManager>, public Insights::IInsightsManager
+class FInsightsManager : public TSharedFromThis<FInsightsManager>, public ::Insights::IInsightsManager
 {
 	friend class FInsightsActionManager;
 
@@ -322,20 +322,20 @@ public:
 
 public:
 	/** The event to execute when the session has changed. */
-	virtual Insights::IInsightsManager::FSessionChangedEvent& GetSessionChangedEvent() override { return SessionChangedEvent; }
+	virtual ::Insights::IInsightsManager::FSessionChangedEvent& GetSessionChangedEvent() override { return SessionChangedEvent; }
 private:
 	/** The event to execute when the session has changed. */
-	Insights::IInsightsManager::FSessionChangedEvent SessionChangedEvent;
+	::Insights::IInsightsManager::FSessionChangedEvent SessionChangedEvent;
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// SessionAnalysisCompletedEvent
 
 public:
 	/** The event to execute when session analysis is complete. */
-	virtual Insights::IInsightsManager::FSessionAnalysisCompletedEvent& GetSessionAnalysisCompletedEvent() override { return SessionAnalysisCompletedEvent; }
+	virtual ::Insights::IInsightsManager::FSessionAnalysisCompletedEvent& GetSessionAnalysisCompletedEvent() override { return SessionAnalysisCompletedEvent; }
 private:
 	/** The event to execute when session analysis is completed. */
-	Insights::IInsightsManager::FSessionAnalysisCompletedEvent SessionAnalysisCompletedEvent;
+	::Insights::IInsightsManager::FSessionAnalysisCompletedEvent SessionAnalysisCompletedEvent;
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -460,7 +460,7 @@ private:
 	bool bIsAutoLoadLiveSessionEnabled = false;
 	TSet<uint32> AutoLoadedTraceIds; // list of trace ids for the auto loaded live sessions
 
-	FStopwatch AnalysisStopwatch;
+	UE::Insights::FStopwatch AnalysisStopwatch;
 	double SessionDuration = 0.0;
 	double AnalysisDuration = 0.0;
 	double AnalysisSpeedFactor = 0.0;

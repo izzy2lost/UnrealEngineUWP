@@ -4,9 +4,12 @@
 
 #include "CoreMinimal.h"
 
-#include "Insights/ViewModels/StatsAggregator.h"
+// TraceServices
 #include "TraceServices/Containers/Tables.h"
 #include "TraceServices/Model/TimingProfiler.h"
+
+// TraceInsights
+#include "Insights/ViewModels/StatsAggregator.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

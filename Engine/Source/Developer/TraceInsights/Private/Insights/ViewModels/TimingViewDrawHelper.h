@@ -3,10 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Fonts/SlateFontInfo.h"
 #include "Math/Color.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/ITimingEvent.h"
 #include "Insights/ViewModels/ITimingViewDrawHelper.h"
 #include "Insights/ViewModels/TimingEventsTrack.h" // for ITimingEventsTrackDrawStateBuilder
@@ -14,7 +15,9 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct FSlateBrush;
-struct FDrawContext;
+
+struct FDrawContext; // for backward compatibility
+namespace UE::Insights { class FDrawContext; }
 
 class ITimingTrackDrawContext;
 class FTimingEventsTrack;
@@ -159,7 +162,10 @@ private:
 	static int32 ToInt32(EDrawLayer Layer) { return static_cast<int32>(Layer); }
 
 public:
-	explicit FTimingViewDrawHelper(const FDrawContext& InDrawContext, const FTimingTrackViewport& InViewport);
+	explicit FTimingViewDrawHelper(const UE::Insights::FDrawContext& InDrawContext, const FTimingTrackViewport& InViewport);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	explicit FTimingViewDrawHelper(const ::FDrawContext& InDrawContext, const FTimingTrackViewport& InViewport);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	~FTimingViewDrawHelper();
 
 	/**
@@ -184,7 +190,7 @@ public:
 	virtual int32 GetFirstLayerId() const override { return ReservedLayerId; }
 	virtual int32 GetNumLayerIds() const override { return ToInt32(EDrawLayer::Count); }
 
-	const FDrawContext& GetDrawContext() const { return DrawContext; }
+	const UE::Insights::FDrawContext& GetDrawContext() const { return DrawContext; }
 	const FTimingTrackViewport& GetViewport() const { return Viewport; }
 
 	void DrawBackground() const;
@@ -221,7 +227,7 @@ public:
 	int32 GetNumDrawTexts() const { return NumDrawTexts; }
 
 private:
-	const FDrawContext& DrawContext;
+	const UE::Insights::FDrawContext& DrawContext;
 	const FTimingTrackViewport& Viewport;
 
 	const FSlateBrush* WhiteBrush;

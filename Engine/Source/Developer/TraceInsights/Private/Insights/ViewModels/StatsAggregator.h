@@ -2,12 +2,16 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+
+#include "Async/AsyncWork.h"
+
+// TraceServices
 #include "TraceServices/Common/CancellationToken.h"
 
-#include "CoreMinimal.h"
-#include "Async/AsyncWork.h"
-#include "Insights/Common/InsightsAsyncWorkUtils.h"
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/IAsyncOperationStatusProvider.h"
+#include "InsightsCore/Common/Stopwatch.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +25,7 @@ namespace Insights
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class IStatsAggregator : public IAsyncOperationStatusProvider
+class IStatsAggregator : public UE::Insights::IAsyncOperationStatusProvider
 {
 public:
 	virtual void Start() = 0;
@@ -105,8 +109,8 @@ private:
 	bool bIsStartRequested;
 	bool bIsFinished;
 
-	mutable FStopwatch AllOpsStopwatch;
-	mutable FStopwatch CurrentOpStopwatch;
+	mutable UE::Insights::FStopwatch AllOpsStopwatch;
+	mutable UE::Insights::FStopwatch CurrentOpStopwatch;
 	uint32 OperationCount;
 };
 

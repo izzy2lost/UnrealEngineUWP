@@ -8,7 +8,7 @@
 #include "SlateOptMacros.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/Widgets/SFrameTrack.h"
@@ -21,10 +21,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "STimingProfilerWindow"
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 const FName FTimingProfilerTabs::ToolbarID(TEXT("Toolbar")); // DEPRECATED
 const FName FTimingProfilerTabs::FramesTrackID(TEXT("Frames"));
 const FName FTimingProfilerTabs::TimingViewID(TEXT("TimingView"));
@@ -33,6 +29,13 @@ const FName FTimingProfilerTabs::CallersID(TEXT("Callers"));
 const FName FTimingProfilerTabs::CalleesID(TEXT("Callees"));
 const FName FTimingProfilerTabs::StatsCountersID(TEXT("StasCounters"));
 const FName FTimingProfilerTabs::LogViewID(TEXT("LogView"));
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#define LOCTEXT_NAMESPACE "UE::Insights::TimingProfiler"
+
+namespace UE::Insights::TimingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // STimingProfilerWindow
@@ -475,14 +478,16 @@ TSharedRef<SWidget> STimingProfilerWindow::CreateToolbar(TSharedPtr<FExtender> E
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimingProfilerWindow::OnTimeSelectionChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
+void STimingProfilerWindow::OnTimeSelectionChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
 {
-	if (InFlags != Insights::ETimeChangedFlags::Interactive)
+	if (InFlags != UE::Insights::Timing::ETimeChangedFlags::Interactive)
 	{
 		FTimingProfilerManager::Get()->SetSelectedTimeRange(InStartTime, InEndTime);
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::TimingProfiler
 
 #undef LOCTEXT_NAMESPACE

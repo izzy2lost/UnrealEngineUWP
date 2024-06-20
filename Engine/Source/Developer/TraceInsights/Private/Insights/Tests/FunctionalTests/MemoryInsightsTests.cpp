@@ -1,10 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AutomationDriverCommon.h"
 #include "Algo/Find.h"
+#include "AutomationDriverCommon.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
+#include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
+
+// TraceServices
+#include "TraceServices/Model/AllocationsProvider.h"
+#include "TraceServices/Model/Callstack.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableTreeNode.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
+#include "InsightsCore/Table/Widgets/STableTreeView.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
@@ -14,14 +26,10 @@
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/MemoryProfiler/Widgets/SMemAllocTableTreeView.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerWindow.h"
-#include "Insights/Table/ViewModels/TableTreeNode.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
-#include "Insights/Table/Widgets/STableTreeView.h"
 #include "Insights/Tests/InsightsTestUtils.h"
 #include "Insights/Widgets/SStartPageWindow.h"
 #include "Insights/Widgets/STimingView.h"
-#include "Misc/AutomationTest.h"
-#include "TraceServices/Model/AllocationsProvider.h"
+
 
 DECLARE_LOG_CATEGORY_EXTERN(MemoryInsightsTests, Log, All);
 
@@ -143,6 +151,8 @@ void FAutomationDriverUnrealInsightsHubMemoryInsightsTest::Define()
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMemoryInsightsUploadLLMXMLReportsTraceTest, "System.Insights.Trace.Analysis.MemoryInsights.UploadMemoryInsightsLLMXMLReportsTrace", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FMemoryInsightsUploadLLMXMLReportsTraceTest::RunTest(const FString& Parameters)
 {
+	using namespace UE::Insights::MemoryProfiler;
+
 	const FString ReportGraphsXMLPath = FPaths::RootDir() / TEXT("EngineTest/SourceAssets/Utrace/ReportGraphs.xml");
 	const FString LLMReportTypesXMLPath = FPaths::RootDir() / TEXT("EngineTest/SourceAssets/Utrace/LLMReportTypes.xml");
 
@@ -171,7 +181,7 @@ bool FMemoryInsightsUploadLLMXMLReportsTraceTest::RunTest(const FString& Paramet
 	return true;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FWaitForRunningQuieryFinishedCommand, TSharedPtr<Insights::SMemAllocTableTreeView>, MemAllocTableTreeView, double, Timeout, FAutomationTestBase*, Test);
+DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FWaitForRunningQuieryFinishedCommand, TSharedPtr<UE::Insights::MemoryProfiler::SMemAllocTableTreeView>, MemAllocTableTreeView, double, Timeout, FAutomationTestBase*, Test);
 bool FWaitForRunningQuieryFinishedCommand::Update()
 {
 	if (!MemAllocTableTreeView->IsRunning())
@@ -188,10 +198,10 @@ bool FWaitForRunningQuieryFinishedCommand::Update()
 	return false;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FChangeGroupingCommand, TSharedPtr<Insights::SMemAllocTableTreeView>, MemAllocTableTreeView, FAutomationTestBase*, Test);
+DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FChangeGroupingCommand, TSharedPtr<UE::Insights::MemoryProfiler::SMemAllocTableTreeView>, MemAllocTableTreeView, FAutomationTestBase*, Test);
 bool FChangeGroupingCommand::Update()
 {
-	TArray<TSharedPtr<Insights::FTreeNodeGrouping>> CurrentGroupings;
+	TArray<TSharedPtr<UE::Insights::FTreeNodeGrouping>> CurrentGroupings;
 	for (const auto& Grouping : MemAllocTableTreeView->GetAvailableGroupings())
 	{
 		if (Grouping->GetTitleName().ToString().Contains(TEXT("By Callstack")))
@@ -206,15 +216,17 @@ bool FChangeGroupingCommand::Update()
 	return true;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_FOUR_PARAMETER(FVerifyHierarchyCallStackCommand, TSharedPtr<Insights::SMemAllocTableTreeView>, MemAllocTableTreeView, FInsightsTestUtils, InsightsTestUtils, double, Timeout, FAutomationTestBase*, Test);
+DEFINE_LATENT_AUTOMATION_COMMAND_FOUR_PARAMETER(FVerifyHierarchyCallStackCommand, TSharedPtr<UE::Insights::MemoryProfiler::SMemAllocTableTreeView>, MemAllocTableTreeView, FInsightsTestUtils, InsightsTestUtils, double, Timeout, FAutomationTestBase*, Test);
 bool FVerifyHierarchyCallStackCommand::Update()
 {
+	using namespace UE::Insights::MemoryProfiler;
+
 	if (!MemAllocTableTreeView->IsRunningAsyncUpdate())
 	{
-		for (const TSharedPtr<Insights::FTableTreeNode>& Node : MemAllocTableTreeView->GetTableRowNodes())
+		for (const TSharedPtr<UE::Insights::FTableTreeNode>& Node : MemAllocTableTreeView->GetTableRowNodes())
 		{
-			const Insights::FMemAllocNode& MemAllocNode = static_cast<const Insights::FMemAllocNode&>(*Node);
-			const Insights::FMemoryAlloc Alloc = MemAllocNode.GetMemAllocChecked();
+			const FMemAllocNode& MemAllocNode = static_cast<const FMemAllocNode&>(*Node);
+			const FMemoryAlloc Alloc = MemAllocNode.GetMemAllocChecked();
 			if (!(!Alloc.GetAllocCallstack() || Alloc.GetAllocCallstack()->Num() == 0 || (Alloc.GetAllocCallstack()->Num() != 0 && Alloc.GetAllocCallstack()->Num() < 256)))
 			{
 				Test->AddError(TEXT("Resolved alloc callstack should be valid"));
@@ -236,7 +248,7 @@ bool FVerifyHierarchyCallStackCommand::Update()
 	return false;
 }
 
-const TMap<TraceServices::IAllocationsProvider::EQueryRule, Insights::SMemAllocTableTreeView::FQueryParams> AllocsTimeMarkerStandaloneGameGetterMap
+const TMap<TraceServices::IAllocationsProvider::EQueryRule, UE::Insights::MemoryProfiler::SMemAllocTableTreeView::FQueryParams> AllocsTimeMarkerStandaloneGameGetterMap
 {
 	{TraceServices::IAllocationsProvider::EQueryRule::aAf, {nullptr, {5.0, 0.0, 0.0, 0.0}}},
 	{TraceServices::IAllocationsProvider::EQueryRule::afA, {nullptr, {10.0, 0.0, 0.0, 0.0}}},
@@ -254,7 +266,7 @@ const TMap<TraceServices::IAllocationsProvider::EQueryRule, Insights::SMemAllocT
 	{TraceServices::IAllocationsProvider::EQueryRule::AaB, {nullptr, {50.0, 51.0, 0.0, 0.0}}},
 };
 
-const TMap<TraceServices::IAllocationsProvider::EQueryRule, Insights::SMemAllocTableTreeView::FQueryParams> AllocsTimeMarkerEditorPackageGetterMap
+const TMap<TraceServices::IAllocationsProvider::EQueryRule, UE::Insights::MemoryProfiler::SMemAllocTableTreeView::FQueryParams> AllocsTimeMarkerEditorPackageGetterMap
 {
 	{TraceServices::IAllocationsProvider::EQueryRule::aAf, {nullptr, {5.0, 0.0, 0.0, 0.0}}},
 	{TraceServices::IAllocationsProvider::EQueryRule::afA, {nullptr, {10.0, 0.0, 0.0, 0.0}}},
@@ -272,16 +284,18 @@ const TMap<TraceServices::IAllocationsProvider::EQueryRule, Insights::SMemAllocT
 	{TraceServices::IAllocationsProvider::EQueryRule::aABf, {nullptr, {2.0, 3.0, 0.0, 0.0}}},
 };
 
-bool MemoryInsightsAllocationsQueryTableTest(const FString& Parameters, const TMap <TraceServices::IAllocationsProvider::EQueryRule, Insights::SMemAllocTableTreeView::FQueryParams> AllocsTimeMarkerGetterMap, FAutomationTestBase* Test)
+bool MemoryInsightsAllocationsQueryTableTest(const FString& Parameters, const TMap <TraceServices::IAllocationsProvider::EQueryRule, UE::Insights::MemoryProfiler::SMemAllocTableTreeView::FQueryParams> AllocsTimeMarkerGetterMap, FAutomationTestBase* Test)
 {
+	using namespace UE::Insights::MemoryProfiler;
+
 	double Timeout = 30.0;
 	FInsightsTestUtils InsightsTestUtils(Test);
 	TSharedPtr<SMemoryProfilerWindow> ProfilerWindow = FMemoryProfilerManager::Get()->GetProfilerWindow();
 	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
 	FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
 
-	TSharedPtr<Insights::FMemoryRuleSpec> MemoryRule = *Algo::FindByPredicate(SharedState.GetMemoryRules(),
-		[&Parameters](const TSharedPtr<Insights::FMemoryRuleSpec>& Rule)
+	TSharedPtr<FMemoryRuleSpec> MemoryRule = *Algo::FindByPredicate(SharedState.GetMemoryRules(),
+		[&Parameters](const TSharedPtr<FMemoryRuleSpec>& Rule)
 		{
 			return Rule->GetShortName().ToString().Contains(Parameters);
 		});
@@ -292,9 +306,9 @@ bool MemoryInsightsAllocationsQueryTableTest(const FString& Parameters, const TM
 		return false;
 	}
 
-	TSharedPtr<Insights::SMemAllocTableTreeView> MemAllocTableTreeView = ProfilerWindow->ShowMemAllocTableTreeViewTab();
+	TSharedPtr<SMemAllocTableTreeView> MemAllocTableTreeView = ProfilerWindow->ShowMemAllocTableTreeViewTab();
 
-	Insights::SMemAllocTableTreeView::FQueryParams QueryParams = AllocsTimeMarkerGetterMap.FindChecked(MemoryRule->GetValue());
+	SMemAllocTableTreeView::FQueryParams QueryParams = AllocsTimeMarkerGetterMap.FindChecked(MemoryRule->GetValue());
 	if (MemoryRule->GetValue() == TraceServices::IAllocationsProvider::EQueryRule::Aaf)
 	{
 		QueryParams.TimeMarkers[0] = InsightsManager->GetSessionDuration() - 10.0;
@@ -319,6 +333,8 @@ bool FMemoryInsightsAllocationsQueryTableEditorPackageTest::RunTest(const FStrin
 
 void FMemoryInsightsAllocationsQueryTableEditorPackageTest::GetTests(TArray<FString>& OutBeautifiedNames, TArray <FString>& OutTestCommands) const
 {
+	using namespace UE::Insights::MemoryProfiler;
+
 	if (!FMemoryProfilerManager::Get().IsValid())
 	{
 		return;
@@ -349,6 +365,8 @@ bool FMemoryInsightsAllocationsQueryTableStandaloneTest::RunTest(const FString& 
 
 void FMemoryInsightsAllocationsQueryTableStandaloneTest::GetTests(TArray<FString>& OutBeautifiedNames, TArray <FString>& OutTestCommands) const
 {
+	using namespace UE::Insights::MemoryProfiler;
+
 	if (!FMemoryProfilerManager::Get().IsValid())
 	{
 		return;
@@ -360,7 +378,7 @@ void FMemoryInsightsAllocationsQueryTableStandaloneTest::GetTests(TArray<FString
 	}
 
 	FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
-	TSharedPtr<Insights::FMemoryRuleSpec> MemoryRule = SharedState.GetMemoryRules()[0];
+	TSharedPtr<FMemoryRuleSpec> MemoryRule = SharedState.GetMemoryRules()[0];
 
 	for (const auto& MemoryRules : SharedState.GetMemoryRules())
 	{

@@ -45,14 +45,14 @@ void FTimerNameFilterState::Update()
 			const TraceServices::FTimingProfilerTimer* Timer = TimerReader->GetTimer(TimerIndex);
 			if (Timer && Timer->Name)
 			{
-				if (SelectedOperator->GetKey() == EFilterOperator::Eq)
+				if (SelectedOperator->GetKey() == UE::Insights::EFilterOperator::Eq)
 				{
 					if (FCString::Stricmp(Timer->Name, *FilterValue) == 0)
 					{
 						TimerIds.Add(Timer->Id);
 					}
 				}
-				else if (SelectedOperator->GetKey() == EFilterOperator::Contains)
+				else if (SelectedOperator->GetKey() == UE::Insights::EFilterOperator::Contains)
 				{
 					if (FCString::Stristr(Timer->Name, *FilterValue))
 					{
@@ -66,7 +66,7 @@ void FTimerNameFilterState::Update()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FTimerNameFilterState::ApplyFilter(const FFilterContext& Context) const
+bool FTimerNameFilterState::ApplyFilter(const UE::Insights::FFilterContext& Context) const
 {
 	if (!Context.HasFilterData(static_cast<int32>(Filter->GetKey())))
 	{
@@ -94,7 +94,7 @@ bool FTimerNameFilterState::Equals(const FFilterState& Other) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<FFilterState> FTimerNameFilterState::DeepCopy() const
+TSharedRef<UE::Insights::FFilterState> FTimerNameFilterState::DeepCopy() const
 {
 	TSharedRef<FTimerNameFilterState> Copy = MakeShared<FTimerNameFilterState>(*this);
 
@@ -106,16 +106,18 @@ TSharedRef<FFilterState> FTimerNameFilterState::DeepCopy() const
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FTimerNameFilter::FTimerNameFilter()
-	: FCustomFilter(static_cast<int32>(EFilterField::TimerName),
+	: FCustomFilter(static_cast<int32>(UE::Insights::EFilterField::TimerName),
 		LOCTEXT("TimerName", "Timer Name"),
 		LOCTEXT("TimerName", "Timer Name"),
-		EFilterDataType::Custom,
+		UE::Insights::EFilterDataType::Custom,
 		nullptr,
 		nullptr)
 {
-	SupportedOperators = MakeShared<TArray<TSharedPtr<IFilterOperator>>>();
-	SupportedOperators->Add(StaticCastSharedRef<IFilterOperator>(MakeShared<FFilterOperator<int64>>(EFilterOperator::Eq, TEXT("Is"), [](int64 lhs, int64 rhs) { return lhs == rhs; })));
-	SupportedOperators->Add(StaticCastSharedRef<IFilterOperator>(MakeShared<FFilterOperator<int64>>(EFilterOperator::Contains, TEXT("Contains"), [](int64 lhs, int64 rhs) { return lhs == rhs; })));
+	SupportedOperators = MakeShared<TArray<TSharedPtr<UE::Insights::IFilterOperator>>>();
+	SupportedOperators->Add(StaticCastSharedRef<UE::Insights::IFilterOperator>(MakeShared<UE::Insights::FFilterOperator<int64>>(
+		UE::Insights::EFilterOperator::Eq, TEXT("Is"), [](int64 lhs, int64 rhs) { return lhs == rhs; })));
+	SupportedOperators->Add(StaticCastSharedRef<UE::Insights::IFilterOperator>(MakeShared<UE::Insights::FFilterOperator<int64>>(
+		UE::Insights::EFilterOperator::Contains, TEXT("Contains"), [](int64 lhs, int64 rhs) { return lhs == rhs; })));
 
 	SetCallback([this](const FString& Text, TArray<FString>& OutSuggestions)
 		{
@@ -164,7 +166,7 @@ void FTimerNameFilter::PopulateTimerNameSuggestionList(const FString& Text, TArr
 
 INSIGHTS_IMPLEMENT_RTTI(FMetadataFilterState)
 
-FMetadataFilterState::FMetadataFilterState(TSharedRef<FFilter> InFilter)
+FMetadataFilterState::FMetadataFilterState(TSharedRef<UE::Insights::FFilter> InFilter)
 	: FFilterState(InFilter)
 {
 	AvailableDataTypes.Add(MakeShared<FMetadataFilterDataTypeEntry>(EMetadataFilterDataType::Int, LOCTEXT("IntDataType", "Int")));
@@ -175,7 +177,7 @@ FMetadataFilterState::FMetadataFilterState(TSharedRef<FFilter> InFilter)
 	SelectedDataType = AvailableDataTypes[0];
 	DataType_OnSelectionChanged(SelectedDataType, ESelectInfo::Type::Direct);
 
-	BoolOperators.Add((MakeShared<FFilterOperator<bool>>(EFilterOperator::Eq, TEXT("IS"), [](bool lhs, bool rhs) { return lhs == rhs; })));
+	BoolOperators.Add((MakeShared<UE::Insights::FFilterOperator<bool>>(UE::Insights::EFilterOperator::Eq, TEXT("IS"), [](bool lhs, bool rhs) { return lhs == rhs; })));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -219,7 +221,7 @@ void FMetadataFilterState::AddCustomUI(TSharedRef<SHorizontalBox> Box)
 			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
 			.AutoWidth()
 			[
-				SAssignNew(OperatorComboBox, SComboBox<TSharedPtr<IFilterOperator>>)
+				SAssignNew(OperatorComboBox, SComboBox<TSharedPtr<UE::Insights::IFilterOperator>>)
 				.OptionsSource(&AvailableOperators)
 				.OnSelectionChanged(this, &FMetadataFilterState::AvailableOperators_OnSelectionChanged)
 				.OnGenerateWidget(this, &FMetadataFilterState::AvailableOperators_OnGenerateWidget)
@@ -292,7 +294,7 @@ void FMetadataFilterState::Update()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FMetadataFilterState::ApplyFilter(const FFilterContext& Context) const
+bool FMetadataFilterState::ApplyFilter(const UE::Insights::FFilterContext& Context) const
 {
 	if (!Context.HasFilterData(static_cast<int32>(Filter->GetKey())))
 	{
@@ -370,7 +372,8 @@ bool FMetadataFilterState::ApplyFilterToMetadata(TArrayView<const uint8>& Metada
 			int64 MetadataValue = static_cast<int64>(Context.AsUInt());
 			int64 InputValue = ConvertedData.Get<int64>();
 
-			FFilterOperator<int64>* Operator = (FFilterOperator<int64>*) SelectedOperator.Get();
+			using FFilterOperatorInt64 = UE::Insights::FFilterOperator<int64>;
+			FFilterOperatorInt64* Operator = (FFilterOperatorInt64*)SelectedOperator.Get();
 			if (Operator->Apply(MetadataValue, InputValue))
 			{
 				return true;
@@ -387,7 +390,9 @@ bool FMetadataFilterState::ApplyFilterToMetadata(TArrayView<const uint8>& Metada
 			}
 
 			FString Value = Context.AsString();
-			FFilterOperator<FString>* Operator = (FFilterOperator<FString>*) SelectedOperator.Get();
+
+			using FFilterOperatorString = UE::Insights::FFilterOperator<FString>;
+			FFilterOperatorString* Operator = (FFilterOperatorString*)SelectedOperator.Get();
 			if (Operator->Apply(Value, Term))
 			{
 				return true;
@@ -406,7 +411,8 @@ bool FMetadataFilterState::ApplyFilterToMetadata(TArrayView<const uint8>& Metada
 			FAnsiStringView Value(Context.AsCString(), static_cast<int32>(Context.AsLength()));
 			FString ValueStr(Value);
 
-			FFilterOperator<FString>* Operator = (FFilterOperator<FString>*) SelectedOperator.Get();
+			using FFilterOperatorString = UE::Insights::FFilterOperator<FString>;
+			FFilterOperatorString* Operator = (FFilterOperatorString*)SelectedOperator.Get();
 			if (Operator->Apply(ValueStr, Term))
 			{
 				return true;
@@ -427,7 +433,8 @@ bool FMetadataFilterState::ApplyFilterToMetadata(TArrayView<const uint8>& Metada
 			double Value = static_cast<double>(Context.AsFloat());
 			double InputValue = ConvertedData.Get<double>();
 
-			FFilterOperator<double>* Operator = (FFilterOperator<double>*) SelectedOperator.Get();
+			using FFilterOperatorDouble = UE::Insights::FFilterOperator<double>;
+			FFilterOperatorDouble* Operator = (FFilterOperatorDouble*)SelectedOperator.Get();
 			if (Operator->Apply(Value, InputValue))
 			{
 				return true;
@@ -447,7 +454,8 @@ bool FMetadataFilterState::ApplyFilterToMetadata(TArrayView<const uint8>& Metada
 			double Value = Context.AsDouble();
 			double InputValue = ConvertedData.Get<double>();
 
-			FFilterOperator<double>* Operator = (FFilterOperator<double>*) SelectedOperator.Get();
+			using FFilterOperatorDouble = UE::Insights::FFilterOperator<double>;
+			FFilterOperatorDouble* Operator = (FFilterOperatorDouble*) SelectedOperator.Get();
 			if (Operator->Apply(Value, InputValue))
 			{
 				return true;
@@ -464,7 +472,8 @@ bool FMetadataFilterState::ApplyFilterToMetadata(TArrayView<const uint8>& Metada
 			}
 			ensure(ConvertedData.IsType<bool>());
 
-			FFilterOperator<bool>* Operator = (FFilterOperator<bool>*) SelectedOperator.Get();
+			using FFilterOperatorBool = UE::Insights::FFilterOperator<bool>;
+			FFilterOperatorBool* Operator = (FFilterOperatorBool*)SelectedOperator.Get();
 			if (Operator->Apply(ConvertedData.Get<bool>(), false))
 			{
 				return true;
@@ -481,7 +490,8 @@ bool FMetadataFilterState::ApplyFilterToMetadata(TArrayView<const uint8>& Metada
 			}
 			ensure(ConvertedData.IsType<bool>());
 
-			FFilterOperator<bool>* Operator = (FFilterOperator<bool>*) SelectedOperator.Get();
+			using FFilterOperatorBool = UE::Insights::FFilterOperator<bool>;
+			FFilterOperatorBool* Operator = (FFilterOperatorBool*)SelectedOperator.Get();
 			if (Operator->Apply(ConvertedData.Get<bool>(), true))
 			{
 				return true;
@@ -542,17 +552,17 @@ void FMetadataFilterState::DataType_OnSelectionChanged(TSharedPtr<FMetadataFilte
 	}
 	case EMetadataFilterDataType::Int:
 	{
-		AvailableOperators.Insert(*FFilterService::Get()->GetIntegerOperators(), 0);
+		AvailableOperators.Insert(*UE::Insights::FFilterService::Get()->GetIntegerOperators(), 0);
 		break;
 	}
 	case EMetadataFilterDataType::Double:
 	{
-		AvailableOperators.Insert(*FFilterService::Get()->GetDoubleOperators(), 0);
+		AvailableOperators.Insert(*UE::Insights::FFilterService::Get()->GetDoubleOperators(), 0);
 		break;
 	}
 	case EMetadataFilterDataType::String:
 	{
-		AvailableOperators.Insert(*FFilterService::Get()->GetStringOperators(), 0);
+		AvailableOperators.Insert(*UE::Insights::FFilterService::Get()->GetStringOperators(), 0);
 		break;
 	}
 	}
@@ -578,7 +588,7 @@ FText FMetadataFilterState::DataType_GetSelectionText() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<SWidget> FMetadataFilterState::AvailableOperators_OnGenerateWidget(TSharedPtr<IFilterOperator> InOperator)
+TSharedRef<SWidget> FMetadataFilterState::AvailableOperators_OnGenerateWidget(TSharedPtr<UE::Insights::IFilterOperator> InOperator)
 {
 	TSharedRef<SHorizontalBox> Widget = SNew(SHorizontalBox);
 	Widget->AddSlot()
@@ -594,7 +604,7 @@ TSharedRef<SWidget> FMetadataFilterState::AvailableOperators_OnGenerateWidget(TS
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FMetadataFilterState::AvailableOperators_OnSelectionChanged(TSharedPtr<IFilterOperator> InOperator, ESelectInfo::Type SelectInfo)
+void FMetadataFilterState::AvailableOperators_OnSelectionChanged(TSharedPtr<UE::Insights::IFilterOperator> InOperator, ESelectInfo::Type SelectInfo)
 {
 	if (InOperator)
 	{
@@ -645,7 +655,7 @@ bool FMetadataFilterState::Equals(const FFilterState& Other) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<FFilterState> FMetadataFilterState::DeepCopy() const
+TSharedRef<UE::Insights::FFilterState> FMetadataFilterState::DeepCopy() const
 {
 	TSharedRef<FMetadataFilterState> Copy = MakeShared<FMetadataFilterState>(*this);
 	
@@ -659,14 +669,14 @@ TSharedRef<FFilterState> FMetadataFilterState::DeepCopy() const
 INSIGHTS_IMPLEMENT_RTTI(FMetadataFilter)
 
 FMetadataFilter::FMetadataFilter()
-	: FFilter(static_cast<int32>(EFilterField::Metadata),
+	: FFilter(static_cast<int32>(UE::Insights::EFilterField::Metadata),
 		LOCTEXT("MetadataFilterName", "Metadata"),
 		LOCTEXT("MetadataFilterDesc", "A filter for timing event metadata."),
-		EFilterDataType::Custom,
+		UE::Insights::EFilterDataType::Custom,
 		nullptr,
 		nullptr)
 {
-	SupportedOperators = MakeShared<TArray<TSharedPtr<IFilterOperator>>>();
+	SupportedOperators = MakeShared<TArray<TSharedPtr<UE::Insights::IFilterOperator>>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -2,10 +2,10 @@
 
 #pragma once
 
-// Insights
-#include "Insights/ViewModels/Filters.h"
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/Filters.h"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -20,4 +20,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

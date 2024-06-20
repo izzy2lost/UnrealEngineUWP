@@ -8,15 +8,19 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HAL/PlatformTime.h"
 #include "Rendering/DrawElements.h"
-#include "TraceServices/Model/Frames.h"
-#include "TraceServices/Model/NetProfiler.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SScrollBar.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceServices
+#include "TraceServices/Model/Frames.h"
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/NetworkingProfiler/NetworkingProfilerManager.h"
@@ -27,7 +31,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "SPacketView"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::SPacketView"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -837,8 +844,8 @@ int32 SPacketView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 						FText::AsNumber(HoveredSample.Sample->LargestPacket.ContentSizeInBits).ToString(),
 						FText::AsNumber(HoveredSample.Sample->LargestPacket.TotalSizeInBytes).ToString(),
 						FText::AsNumber(UnusedBits).ToString(),
-						TimeUtils::FormatTimeHMS(HoveredSample.Sample->LargestPacket.TimeStamp, Precision),
-						::StatusToString(HoveredSample.Sample->LargestPacket.Status),
+						FormatTimeHMS(HoveredSample.Sample->LargestPacket.TimeStamp, Precision),
+						StatusToString(HoveredSample.Sample->LargestPacket.Status),
 						LexToString(HoveredSample.Sample->LargestPacket.ConnectionState),
 						EngineFrameNumber > 0 ?
 						FText::AsNumber(EngineFrameNumber).ToString() :
@@ -851,7 +858,7 @@ int32 SPacketView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 				Text = FString::Format(TEXT("{0} network packets\n"
 											"({1})\n"
 											"Largest Packet\n"
-											"    Sequance Number: {2}\n"
+											"    Sequence Number: {2}\n"
 											"    Content Size: {3} bits\n"
 											"    Total Size: {4} bytes ({5} unused bits)\n"
 											"    Timestamp: {6}\n"
@@ -860,13 +867,13 @@ int32 SPacketView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 											"    Engine Frame Number: {9}"),
 					{
 						HoveredSample.Sample->NumPackets,
-						::AggregatedStatusToString(HoveredSample.Sample->AggregatedStatus),
+						AggregatedStatusToString(HoveredSample.Sample->AggregatedStatus),
 						FText::AsNumber(HoveredSample.Sample->LargestPacket.SequenceNumber).ToString(),
 						FText::AsNumber(HoveredSample.Sample->LargestPacket.ContentSizeInBits).ToString(),
 						FText::AsNumber(HoveredSample.Sample->LargestPacket.TotalSizeInBytes).ToString(),
 						FText::AsNumber(UnusedBits).ToString(),
-						TimeUtils::FormatTimeHMS(HoveredSample.Sample->LargestPacket.TimeStamp, Precision),
-						::StatusToString(HoveredSample.Sample->LargestPacket.Status),
+						FormatTimeHMS(HoveredSample.Sample->LargestPacket.TimeStamp, Precision),
+						StatusToString(HoveredSample.Sample->LargestPacket.Status),
 						LexToString(HoveredSample.Sample->LargestPacket.ConnectionState),
 						EngineFrameNumber > 0 ?
 						FText::AsNumber(EngineFrameNumber).ToString() :
@@ -1858,5 +1865,7 @@ void SPacketView::ZoomHorizontally(const float Delta, const float X)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

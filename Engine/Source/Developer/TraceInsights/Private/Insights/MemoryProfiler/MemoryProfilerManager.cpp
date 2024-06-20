@@ -13,20 +13,23 @@
 #include "TraceServices/Model/AllocationsProvider.h"
 #include "TraceServices/Model/Memory.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/Widgets/STableTreeView.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerWindow.h"
-#include "Insights/Table/Widgets/STableTreeView.h"
 #include "Insights/Widgets/STimingView.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler"
 
-#define LOCTEXT_NAMESPACE "MemoryProfilerManager"
+namespace UE::Insights::MemoryProfiler
+{
 
-DEFINE_LOG_CATEGORY(MemoryProfiler);
+DEFINE_LOG_CATEGORY(LogMemoryProfiler);
 
 TSharedPtr<FMemoryProfilerManager> FMemoryProfilerManager::Instance = nullptr;
 
@@ -79,7 +82,7 @@ void FMemoryProfilerManager::Initialize(IUnrealInsightsModule& InsightsModule)
 	}
 	bIsInitialized = true;
 
-	UE_LOG(MemoryProfiler, Log, TEXT("Initialize"));
+	UE_LOG(LogMemoryProfiler, Log, TEXT("Initialize"));
 
 	// Register tick functions.
 	OnTick = FTickerDelegate::CreateSP(this, &FMemoryProfilerManager::Tick);
@@ -121,7 +124,7 @@ void FMemoryProfilerManager::Shutdown()
 
 	FMemoryProfilerManager::Instance.Reset();
 
-	UE_LOG(MemoryProfiler, Log, TEXT("Shutdown"));
+	UE_LOG(LogMemoryProfiler, Log, TEXT("Shutdown"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -301,7 +304,7 @@ bool FMemoryProfilerManager::Tick(float DeltaTime)
 			const FName& TabId = FInsightsManagerTabs::MemoryProfilerTabId;
 			if (FGlobalTabmanager::Get()->HasTabSpawner(TabId))
 			{
-				UE_LOG(MemoryProfiler, Log, TEXT("Opening the \"Memory Insights\" tab..."));
+				UE_LOG(LogMemoryProfiler, Log, TEXT("Opening the \"Memory Insights\" tab..."));
 				FGlobalTabmanager::Get()->TryInvokeTab(TabId);
 			}
 #endif
@@ -315,7 +318,7 @@ bool FMemoryProfilerManager::Tick(float DeltaTime)
 
 void FMemoryProfilerManager::OnSessionChanged()
 {
-	UE_LOG(MemoryProfiler, Log, TEXT("OnSessionChanged"));
+	UE_LOG(LogMemoryProfiler, Log, TEXT("OnSessionChanged"));
 
 	bIsAvailable = false;
 	if (FInsightsManager::Get()->GetSession().IsValid())
@@ -396,7 +399,7 @@ void FMemoryProfilerManager::OnWindowClosedEvent()
 	{
 		Wnd->CloseMemAllocTableTreeTabs();
 
-		TSharedPtr<STimingView> TimingView = Wnd->GetTimingView();
+		TSharedPtr<TimingProfiler::STimingView> TimingView = Wnd->GetTimingView();
 		if (TimingView.IsValid())
 		{
 			TimingView->CloseQuickFindTab();
@@ -405,5 +408,7 @@ void FMemoryProfilerManager::OnWindowClosedEvent()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

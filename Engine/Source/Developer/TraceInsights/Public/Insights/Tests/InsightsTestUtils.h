@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "ProfilingDebugging/TraceAuxiliary.h"
+#include "CoreTypes.h"
+
+#include "Containers/UnrealString.h"
+#include "ProfilingDebugging/TraceAuxiliary.h" // for FTraceAuxiliary::EConnectionType
 
 class FAutomationTestBase;
 

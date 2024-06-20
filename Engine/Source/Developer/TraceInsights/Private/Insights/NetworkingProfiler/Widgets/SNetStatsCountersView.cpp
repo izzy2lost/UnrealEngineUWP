@@ -5,35 +5,42 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SlateOptMacros.h"
 #include "Templates/UniquePtr.h"
-#include "TraceServices/Model/NetProfiler.h"
-#include "Widgets/Input/SCheckBox.h"
-#include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SGridPanel.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Views/STableViewBase.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/NetworkingProfiler/NetworkingProfilerManager.h"
-#include "Insights/NetworkingProfiler/ViewModels/NetStatsCountersViewColumnFactory.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterNodeHelper.h"
-#include "Insights/NetworkingProfiler/Widgets/SNetStatsCountersViewTooltip.h"
+#include "Insights/NetworkingProfiler/ViewModels/NetStatsCountersViewColumnFactory.h"
 #include "Insights/NetworkingProfiler/Widgets/SNetStatsCountersTableRow.h"
+#include "Insights/NetworkingProfiler/Widgets/SNetStatsCountersViewTooltip.h"
 #include "Insights/NetworkingProfiler/Widgets/SNetworkingProfilerWindow.h"
 #include "Insights/NetworkingProfiler/Widgets/SPacketContentView.h"
 
-#define LOCTEXT_NAMESPACE "SNetStatsCountersView"
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler::SNetStatsCountersView"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 SNetStatsCountersView::SNetStatsCountersView()
 	: ProfilerWindow()
-	, Table(MakeShared<Insights::FTable>())
+	, Table(MakeShared<FTable>())
 	, bExpansionSaved(false)
 	, bFilterOutZeroCountStatsCounters(true)
 	, GroupingMode(ENetStatsCounterGroupingMode::ByType)
@@ -356,9 +363,9 @@ void SNetStatsCountersView::TreeView_BuildSortByMenu(FMenuBuilder& MenuBuilder)
 
 	MenuBuilder.BeginSection("ColumnName", LOCTEXT("ContextMenu_Header_Misc_ColumnName", "Column Name"));
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		if (Column.IsVisible() && Column.CanBeSorted())
 		{
@@ -427,9 +434,9 @@ void SNetStatsCountersView::TreeView_BuildViewColumnMenu(FMenuBuilder& MenuBuild
 {
 	MenuBuilder.BeginSection("ViewColumn", LOCTEXT("ContextMenu_Header_Columns_View", "View Column"));
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		FUIAction Action_ToggleColumn
 		(
@@ -456,12 +463,12 @@ void SNetStatsCountersView::TreeView_BuildViewColumnMenu(FMenuBuilder& MenuBuild
 void SNetStatsCountersView::InitializeAndShowHeaderColumns()
 {
 	// Create columns.
-	TArray<TSharedRef<Insights::FTableColumn>> Columns;
+	TArray<TSharedRef<FTableColumn>> Columns;
 	FNetStatsCountersViewColumnFactory::CreateNetStatsCountersViewColumns(Columns);
 	Table->SetColumns(Columns);
 
 	// Show columns.
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
 		if (ColumnRef->ShouldBeVisible())
 		{
@@ -474,13 +481,13 @@ void SNetStatsCountersView::InitializeAndShowHeaderColumns()
 
 FText SNetStatsCountersView::GetColumnHeaderText(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.GetShortName();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<SWidget> SNetStatsCountersView::TreeViewHeaderRow_GenerateColumnMenu(const Insights::FTableColumn& Column)
+TSharedRef<SWidget> SNetStatsCountersView::TreeViewHeaderRow_GenerateColumnMenu(const FTableColumn& Column)
 {
 	bool bIsMenuVisible = false;
 
@@ -610,7 +617,7 @@ void SNetStatsCountersView::UpdateTree()
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
 	if (TotalTime > 0.1)
 	{
-		UE_LOG(NetworkingProfiler, Log, TEXT("[NetStats] Tree view updated in %.3fs (%d events) --> G:%.3fs + S:%.3fs + F:%.3fs"),
+		UE_LOG(LogNetworkingProfiler, Log, TEXT("[NetStats] Tree view updated in %.3fs (%d events) --> G:%.3fs + S:%.3fs + F:%.3fs"),
 			TotalTime, NetStatsCounterNodes.Num(), Time1, Time2 - Time1, TotalTime - Time2);
 	}
 }
@@ -629,11 +636,11 @@ void SNetStatsCountersView::ApplyFiltering()
 		GroupPtr->ClearFilteredChildren();
 		const bool bIsGroupVisible = Filters->PassesAllFilters(GroupPtr);
 
-		const TArray<Insights::FBaseTreeNodePtr>& GroupChildren = GroupPtr->GetChildren();
+		const TArray<FBaseTreeNodePtr>& GroupChildren = GroupPtr->GetChildren();
 		int32 NumVisibleChildren = 0;
-		for (const Insights::FBaseTreeNodePtr& ChildPtr : GroupChildren)
+		for (const FBaseTreeNodePtr& ChildPtr : GroupChildren)
 		{
-			const FNetStatsCounterNodePtr& NodePtr = StaticCastSharedPtr<FNetStatsCounterNode, Insights::FBaseTreeNode>(ChildPtr);
+			const FNetStatsCounterNodePtr& NodePtr = StaticCastSharedPtr<FNetStatsCounterNode, FBaseTreeNode>(ChildPtr);
 
 			const bool bIsChildVisible = (!bFilterOutZeroCountStatsCounters || NodePtr->GetAggregatedStats().Count > 0)
 									  && bStatsCounterTypeIsVisible[static_cast<int>(NodePtr->GetType())]
@@ -781,11 +788,11 @@ void SNetStatsCountersView::TreeView_OnSelectionChanged(FNetStatsCounterNodePtr 
 
 void SNetStatsCountersView::TreeView_OnGetChildren(FNetStatsCounterNodePtr InParent, TArray<FNetStatsCounterNodePtr>& OutChildren)
 {
-	const TArray<Insights::FBaseTreeNodePtr>& Children = InParent->GetFilteredChildren();
+	const TArray<FBaseTreeNodePtr>& Children = InParent->GetFilteredChildren();
 	OutChildren.Reset(Children.Num());
-	for (const Insights::FBaseTreeNodePtr& Child : Children)
+	for (const FBaseTreeNodePtr& Child : Children)
 	{
-		OutChildren.Add(StaticCastSharedPtr<FNetStatsCounterNode, Insights::FBaseTreeNode>(Child));
+		OutChildren.Add(StaticCastSharedPtr<FNetStatsCounterNode, FBaseTreeNode>(Child));
 	}
 }
 
@@ -829,7 +836,7 @@ bool SNetStatsCountersView::TableRow_ShouldBeEnabled(FNetStatsCounterNodePtr Nod
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SNetStatsCountersView::TableRow_SetHoveredCell(TSharedPtr<Insights::FTable> InTablePtr, TSharedPtr<Insights::FTableColumn> InColumnPtr, FNetStatsCounterNodePtr InNodePtr)
+void SNetStatsCountersView::TableRow_SetHoveredCell(TSharedPtr<FTable> InTablePtr, TSharedPtr<FTableColumn> InColumnPtr, FNetStatsCounterNodePtr InNodePtr)
 {
 	HoveredColumnId = InColumnPtr ? InColumnPtr->GetId() : FName();
 
@@ -1035,11 +1042,11 @@ void SNetStatsCountersView::CreateSortings()
 	AvailableSorters.Reset();
 	CurrentSorter = nullptr;
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
 		if (ColumnRef->CanBeSorted())
 		{
-			TSharedPtr<Insights::ITableCellValueSorter> SorterPtr = ColumnRef->GetValueSorter();
+			TSharedPtr<ITableCellValueSorter> SorterPtr = ColumnRef->GetValueSorter();
 			if (ensure(SorterPtr.IsValid()))
 			{
 				AvailableSorters.Add(SorterPtr);
@@ -1054,7 +1061,7 @@ void SNetStatsCountersView::CreateSortings()
 
 void SNetStatsCountersView::UpdateCurrentSortingByColumn()
 {
-	TSharedPtr<Insights::FTableColumn> ColumnPtr = Table->FindColumn(ColumnBeingSorted);
+	TSharedPtr<FTableColumn> ColumnPtr = Table->FindColumn(ColumnBeingSorted);
 	CurrentSorter = ColumnPtr.IsValid() ? ColumnPtr->GetValueSorter() : nullptr;
 }
 
@@ -1073,12 +1080,12 @@ void SNetStatsCountersView::SortTreeNodes()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SNetStatsCountersView::SortTreeNodesRec(FNetStatsCounterNode& Node, const Insights::ITableCellValueSorter& Sorter)
+void SNetStatsCountersView::SortTreeNodesRec(FNetStatsCounterNode& Node, const ITableCellValueSorter& Sorter)
 {
-	Insights::ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? Insights::ESortMode::Descending : Insights::ESortMode::Ascending;
+	ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? ESortMode::Descending : ESortMode::Ascending;
 	Node.SortChildren(Sorter, SortMode);
 
-	for (Insights::FBaseTreeNodePtr ChildPtr : Node.GetChildren())
+	for (FBaseTreeNodePtr ChildPtr : Node.GetChildren())
 	{
 		if (ChildPtr->GetChildrenCount() > 0)
 		{
@@ -1132,7 +1139,7 @@ bool SNetStatsCountersView::HeaderMenu_SortMode_IsChecked(const FName ColumnId, 
 
 bool SNetStatsCountersView::HeaderMenu_SortMode_CanExecute(const FName ColumnId, const EColumnSortMode::Type InSortMode) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.CanBeSorted();
 }
 
@@ -1205,7 +1212,7 @@ bool SNetStatsCountersView::CanShowColumn(const FName ColumnId) const
 
 void SNetStatsCountersView::ShowColumn(const FName ColumnId)
 {
-	Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	Column.Show();
 
 	SHeaderRow::FColumn::FArguments ColumnArgs;
@@ -1260,7 +1267,7 @@ void SNetStatsCountersView::ShowColumn(const FName ColumnId)
 
 bool SNetStatsCountersView::CanHideColumn(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.CanBeHidden();
 }
 
@@ -1268,7 +1275,7 @@ bool SNetStatsCountersView::CanHideColumn(const FName ColumnId) const
 
 void SNetStatsCountersView::HideColumn(const FName ColumnId)
 {
-	Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	Column.Hide();
 
 	TreeViewHeaderRow->RemoveColumn(ColumnId);
@@ -1280,7 +1287,7 @@ void SNetStatsCountersView::HideColumn(const FName ColumnId)
 
 bool SNetStatsCountersView::IsColumnVisible(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.IsVisible();
 }
 
@@ -1288,7 +1295,7 @@ bool SNetStatsCountersView::IsColumnVisible(const FName ColumnId) const
 
 bool SNetStatsCountersView::CanToggleColumnVisibility(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return !Column.IsVisible() || Column.CanBeHidden();
 }
 
@@ -1296,7 +1303,7 @@ bool SNetStatsCountersView::CanToggleColumnVisibility(const FName ColumnId) cons
 
 void SNetStatsCountersView::ToggleColumnVisibility(const FName ColumnId)
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	if (Column.IsVisible())
 	{
 		HideColumn(ColumnId);
@@ -1324,9 +1331,9 @@ void SNetStatsCountersView::ContextMenu_ShowAllColumns_Execute()
 	ColumnSortMode = GetDefaultColumnSortMode();
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		if (!Column.IsVisible())
 		{
@@ -1352,9 +1359,9 @@ void SNetStatsCountersView::ContextMenu_ResetColumns_Execute()
 	ColumnSortMode = GetDefaultColumnSortMode();
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		if (Column.ShouldBeVisible() && !Column.IsVisible())
 		{
@@ -1476,7 +1483,7 @@ void SNetStatsCountersView::RebuildTree(bool bResync)
 	if (TotalTime > 0.01)
 	{
 		const double SyncTime = SyncStopwatch.GetAccumulatedTime();
-		UE_LOG(NetworkingProfiler, Log, TEXT("[NetStatsCounters] Tree view rebuilt in %.4fs (%.4fs + %.4fs) --> %d net stats counters (%d added)"),
+		UE_LOG(LogNetworkingProfiler, Log, TEXT("[NetStatsCounters] Tree view rebuilt in %.4fs (%.4fs + %.4fs) --> %d net stats counters (%d added)"),
 			TotalTime, SyncTime, TotalTime - SyncTime, NetStatsCounterNodes.Num(), NetStatsCounterNodes.Num() - PreviousNodeCount);
 	}
 }
@@ -1578,7 +1585,7 @@ void SNetStatsCountersView::UpdateStatsInternal()
 	Stopwatch.Stop();
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
 	const double AggregationTime = AggregationStopwatch.GetAccumulatedTime();
-	UE_LOG(NetworkingProfiler, Log, TEXT("[NetStats] Aggregated stats updated in %.4fs (%.4fs + %.4fs)"),
+	UE_LOG(LogNetworkingProfiler, Log, TEXT("[NetStats] Aggregated stats updated in %.4fs (%.4fs + %.4fs)"),
 		TotalTime, AggregationTime, TotalTime - AggregationTime);
 }
 
@@ -1602,5 +1609,7 @@ void SNetStatsCountersView::SelectNetStatsCounterNode(uint32 EventTypeIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

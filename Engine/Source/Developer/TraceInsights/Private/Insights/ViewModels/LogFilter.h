@@ -2,13 +2,14 @@
 
 #pragma once
 
-#include "Async/AsyncWork.h"
 #include "CoreMinimal.h"
+
+#include "Async/AsyncWork.h"
 #include "Logging/LogVerbosity.h"
 #include "Misc/TextFilterExpressionEvaluator.h"
 #include "Stats/Stats.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/LogMessage.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

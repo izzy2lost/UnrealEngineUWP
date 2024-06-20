@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TraceInsightsModule.h"
+
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -12,17 +13,23 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
+
+// TraceAnalysis
 #include "Trace/StoreClient.h"
 #include "Trace/StoreService.h"
+
+// TraceServices
 #include "TraceServices/ITraceServicesModule.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/ITraceInsightsCoreModule.h"
+
+// TraceInsights
 #include "Insights/ContextSwitches/ContextSwitchesProfilerManager.h"
 #include "Insights/CookProfiler/CookProfilerManager.h"
 #include "Insights/ImportTool/TableImportTool.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
-#include "Insights/IUnrealInsightsModule.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
 #include "Insights/Log.h"
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
@@ -36,8 +43,6 @@
 
 DEFINE_LOG_CATEGORY(TraceInsights);
 
-LLM_DEFINE_TAG(Insights);
-
 IMPLEMENT_MODULE(FTraceInsightsModule, TraceInsights);
 
 FString FTraceInsightsModule::UnrealInsightsLayoutIni;
@@ -49,6 +54,8 @@ FString FTraceInsightsModule::UnrealInsightsLayoutIni;
 void FTraceInsightsModule::StartupModule()
 {
 	LLM_SCOPE_BYTAG(Insights);
+
+	ITraceInsightsCoreModule& TraceInsightsCoreModule = FModuleManager::LoadModuleChecked<ITraceInsightsCoreModule>("TraceInsightsCore");
 
 	ITraceServicesModule& TraceServicesModule = FModuleManager::LoadModuleChecked<ITraceServicesModule>("TraceServices");
 	TraceAnalysisService = TraceServicesModule.GetAnalysisService();
@@ -63,10 +70,10 @@ void FTraceInsightsModule::StartupModule()
 	RegisterComponent(FInsightsManager::CreateInstance(TraceAnalysisService.ToSharedRef(), TraceModuleService.ToSharedRef()));
 
 	// Register other default components.
-	RegisterComponent(FTimingProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::TimingProfiler::FTimingProfilerManager::CreateInstance());
 	RegisterComponent(FLoadingProfilerManager::CreateInstance());
-	RegisterComponent(FNetworkingProfilerManager::CreateInstance());
-	RegisterComponent(FMemoryProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::NetworkingProfiler::FNetworkingProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::MemoryProfiler::FMemoryProfilerManager::CreateInstance());
 	RegisterComponent(Insights::FTaskGraphProfilerManager::CreateInstance());
 	RegisterComponent(Insights::FContextSwitchesProfilerManager::CreateInstance());
 	RegisterComponent(Insights::FCookProfilerManager::CreateInstance());
@@ -106,10 +113,10 @@ void FTraceInsightsModule::ShutdownModule()
 #define INSIGHTS_CHECK_SHARED_REFERENCES 1
 #if INSIGHTS_CHECK_SHARED_REFERENCES
 	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
-	auto TimingInsightsWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+	auto TimingInsightsWindow = UE::Insights::TimingProfiler::FTimingProfilerManager::Get()->GetProfilerWindow();
 	auto AssetLoadingInsightsWindow = FLoadingProfilerManager::Get()->GetProfilerWindow();
-	auto NetworkingInsightsWindow0 = FNetworkingProfilerManager::Get()->GetProfilerWindow(0);
-	auto MemoryInsightsWindow = FMemoryProfilerManager::Get()->GetProfilerWindow();
+	auto NetworkingInsightsWindow0 = UE::Insights::NetworkingProfiler::FNetworkingProfilerManager::Get()->GetProfilerWindow(0);
+	auto MemoryInsightsWindow = UE::Insights::MemoryProfiler::FMemoryProfilerManager::Get()->GetProfilerWindow();
 #endif
 
 	// Unregister components. Shutdown in the reverse order they were registered.
@@ -328,7 +335,7 @@ void FTraceInsightsModule::CreateSessionBrowser(const FCreateSessionBrowserParam
 	//////////////////////////////////////////////////
 	// Set up command line parameter forwarding.
 
-	TSharedPtr<class STraceStoreWindow> TraceStoreWnd = FInsightsManager::Get()->GetTraceStoreWindow();
+	TSharedPtr<STraceStoreWindow> TraceStoreWnd = FInsightsManager::Get()->GetTraceStoreWindow();
 	if (TraceStoreWnd.IsValid())
 	{
 		TraceStoreWnd->SetEnableAutomaticTesting(Params.bInitializeTesting);

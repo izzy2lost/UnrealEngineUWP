@@ -2,9 +2,11 @@
 
 #pragma once
 
-#include "Async/TaskTrace.h"
 #include "CoreMinimal.h"
 
+#include "Async/TaskTrace.h"
+
+// TraceServices
 #include "TraceServices/Model/TasksProfiler.h"
 
 namespace Insights

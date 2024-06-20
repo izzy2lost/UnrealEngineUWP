@@ -13,8 +13,10 @@
 #include "TraceServices/Model/Threads.h"
 #include "TraceServices/Model/TimingProfiler.h"
 
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
 // TraceInsights
-#include "Insights/Common/Stopwatch.h"
 #include "Insights/Log.h"
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/ThreadTimingTrack.h"
@@ -66,6 +68,7 @@ IFileHandle* FTimingExporter::OpenExportFile(const TCHAR* InFilename) const
 
 void FTimingExporter::Error(const FText& InMessage) const
 {
+	using namespace UE::Insights::TimingProfiler;
 	FName LogListingName = FTimingProfilerManager::Get()->GetLogListingName();
 	FMessageLog ReportMessageLog((LogListingName != NAME_None) ? LogListingName : TEXT("Other"));
 	ReportMessageLog.Error(InMessage);
@@ -122,7 +125,7 @@ int32 FTimingExporter::ExportThreadsAsText(const FString& Filename, FExportThrea
 		return -1;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	IFileHandle* ExportFileHandle = OpenExportFile(*Filename);
@@ -206,7 +209,7 @@ int32 FTimingExporter::ExportTimersAsText(const FString& Filename, FExportTimers
 		return -1;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	IFileHandle* ExportFileHandle = OpenExportFile(*Filename);
@@ -516,7 +519,7 @@ int32 FTimingExporter::ExportTimingEventsAsTextByRegions(const FString& Filename
 		return -1;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	// Export timing statistics for each region.
@@ -549,7 +552,7 @@ int32 FTimingExporter::ExportTimingEventsAsText(const FString& Filename, FExport
 	ExportTimingEvents_InitColumns();
 	const TArray<FName>& Columns = Params.Columns ? *Params.Columns : ExportTimingEventsDefaultColumns;
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	IFileHandle* ExportFileHandle = OpenExportFile(*Filename);
@@ -612,7 +615,7 @@ void FTimingExporter::GetRegions(const FString& InRegionNamePattern, TMap<FStrin
 
 	// Detect regions
 	int32 RegionCount = 0;
-	FStopwatch DetectRegionsStopwatch;
+	UE::Insights::FStopwatch DetectRegionsStopwatch;
 	DetectRegionsStopwatch.Start();
 	{
 		const TraceServices::IRegionProvider& RegionProvider = TraceServices::ReadRegionProvider(Session);
@@ -722,7 +725,7 @@ int32 FTimingExporter::ExportTimerStatisticsAsTextByRegions(const FString& Filen
 		return -1;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	// Export timing statistics for each region.
@@ -773,7 +776,7 @@ int32 FTimingExporter::ExportTimerStatisticsAsText(const FString& Filename, FExp
 		StatsTable = TimingProfilerProvider->CreateAggregation(CreateAggreagationParams);
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	bool bSuccess = TraceServices::Table2Csv(*StatsTable, *Filename);
@@ -1016,7 +1019,7 @@ int32 FTimingExporter::ExportCountersAsText(const FString& Filename, FExportCoun
 		return -1;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	IFileHandle* ExportFileHandle = OpenExportFile(*Filename);
@@ -1096,7 +1099,7 @@ int32 FTimingExporter::ExportCounterAsTextByRegions(const FString& FilenamePatte
 		return -1;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	// Export counter for each region.
@@ -1132,7 +1135,7 @@ int32 FTimingExporter::ExportCounterAsText(const FString& FilenamePattern, uint3
 		return ExportCounterAsTextByRegions(FilenamePattern, CounterId, Params);
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	FString CounterName;

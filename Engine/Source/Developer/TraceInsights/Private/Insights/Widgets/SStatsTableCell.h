@@ -3,21 +3,22 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/StatsNode.h"
 
 class ITableRow;
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
 }
 
-DECLARE_DELEGATE_ThreeParams(FSetHoveredStatsTableCell, TSharedPtr<Insights::FTable> /*TablePtr*/, TSharedPtr<Insights::FTableColumn> /*ColumnPtr*/, FStatsNodePtr /*StatsNodePtr*/);
+DECLARE_DELEGATE_ThreeParams(FSetHoveredStatsTableCell, TSharedPtr<UE::Insights::FTable> /*TablePtr*/, TSharedPtr<UE::Insights::FTableColumn> /*ColumnPtr*/, FStatsNodePtr /*StatsNodePtr*/);
 
 class SStatsTableCell : public SCompoundWidget
 {
@@ -25,8 +26,8 @@ public:
 	SLATE_BEGIN_ARGS(SStatsTableCell) {}
 		SLATE_EVENT(FSetHoveredStatsTableCell, OnSetHoveredCell)
 		SLATE_ATTRIBUTE(FText, HighlightText)
-		SLATE_ARGUMENT(TSharedPtr<Insights::FTable>, TablePtr)
-		SLATE_ARGUMENT(TSharedPtr<Insights::FTableColumn>, ColumnPtr)
+		SLATE_ARGUMENT(TSharedPtr<UE::Insights::FTable>, TablePtr)
+		SLATE_ARGUMENT(TSharedPtr<UE::Insights::FTableColumn>, ColumnPtr)
 		SLATE_ARGUMENT(FStatsNodePtr, StatsNodePtr)
 		SLATE_ARGUMENT(bool, IsNameColumn)
 	SLATE_END_ARGS()
@@ -169,10 +170,10 @@ protected:
 
 protected:
 	/** A shared pointer to the table view model. */
-	TSharedPtr<Insights::FTable> TablePtr;
+	TSharedPtr<UE::Insights::FTable> TablePtr;
 
 	/** A shared pointer to the table column view model. */
-	TSharedPtr<Insights::FTableColumn> ColumnPtr;
+	TSharedPtr<UE::Insights::FTableColumn> ColumnPtr;
 
 	/** A shared pointer to the stats node. */
 	FStatsNodePtr StatsNodePtr;

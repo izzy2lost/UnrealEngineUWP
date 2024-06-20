@@ -4,23 +4,23 @@
 
 #include "CoreMinimal.h"
 
-// Insights
-#include "Insights/ITimingViewSession.h" // for Insights::ETimeChangedFlags
+// TraceInsights
+#include "Insights/ITimingViewSession.h" // for ETimeChangedFlags
 #include "Insights/Widgets/SMajorTabWindow.h"
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class SFrameTrack;
 class SLogView;
 class SStatsView;
 class STimersView;
 class STimerTreeView;
+
+namespace UE::Insights::TimingProfiler
+{
+
 class STimingView;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /** Implements the Timing Insights major tab window. */
-class STimingProfilerWindow : public Insights::SMajorTabWindow
+class STimingProfilerWindow : public ::Insights::SMajorTabWindow
 {
 public:
 	/** Default constructor. */
@@ -37,7 +37,7 @@ public:
 	/** Constructs this widget. */
 	void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow);
 
-	TSharedPtr<STimingView> GetTimingView() const { return TimingView; }
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> GetTimingView() const { return TimingView; }
 	TSharedPtr<STimersView> GetTimersView() const { return TimersView; }
 	TSharedPtr<STimerTreeView> GetCallersTreeView() const { return CallersTreeView; }
 	TSharedPtr<STimerTreeView> GetCalleesTreeView() const { return CalleesTreeView; }
@@ -74,14 +74,14 @@ private:
 	TSharedRef<SDockTab> SpawnTab_LogView(const FSpawnTabArgs& Args);
 	void OnLogViewTabClosed(TSharedRef<SDockTab> TabBeingClosed);
 
-	void OnTimeSelectionChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime);
+	void OnTimeSelectionChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime);
 
 private:
 	/** The Frame track widget */
 	TSharedPtr<SFrameTrack> FrameTrack;
 
 	/** The Timing view (multi-track) widget */
-	TSharedPtr<STimingView> TimingView;
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView;
 
 	/** The Timers view widget */
 	TSharedPtr<STimersView> TimersView;
@@ -98,3 +98,5 @@ private:
 	/** The Log view widget */
 	TSharedPtr<SLogView> LogView;
 };
+
+} // namespace UE::Insights::TimingProfiler

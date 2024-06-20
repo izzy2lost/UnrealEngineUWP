@@ -4,10 +4,14 @@
 
 #include "Misc/OutputDeviceHelper.h"
 #include "Misc/ScopeLock.h"
+
+// TraceServices
 #include "TraceServices/Model/Log.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/Log.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +52,7 @@ FText FLogMessageRecord::GetIndexAsText() const
 
 FText FLogMessageRecord::GetTimeAsText() const
 {
-	return FText::FromString(TimeUtils::FormatTimeHMS(Time, TimeUtils::Microsecond));
+	return FText::FromString(UE::Insights::FormatTimeHMS(Time, UE::Insights::FTimeValue::Microsecond));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

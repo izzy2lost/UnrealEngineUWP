@@ -24,6 +24,7 @@ public class TraceInsights : ModuleRules
 				"Sockets",
 				"SourceCodeAccess",
 				"TraceAnalysis",
+				"TraceInsightsCore",
 				"TraceLog",
 				"TraceServices",
 				"WorkspaceMenuStructure",

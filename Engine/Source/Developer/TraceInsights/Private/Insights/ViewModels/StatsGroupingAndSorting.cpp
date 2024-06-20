@@ -2,7 +2,10 @@
 
 #include "StatsGroupingAndSorting.h"
 
-#include "Insights/Table/ViewModels/TableColumn.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/ViewModels/StatsNodeHelper.h"
 
 #define LOCTEXT_NAMESPACE "StatsNode"
@@ -18,8 +21,8 @@
 // Sorting by Node Type
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FStatsNodeSortingByStatsType::FStatsNodeSortingByStatsType(TSharedRef<Insights::FTableColumn> InColumnRef)
-	: Insights::FTableCellValueSorter(
+FStatsNodeSortingByStatsType::FStatsNodeSortingByStatsType(TSharedRef<UE::Insights::FTableColumn> InColumnRef)
+	: UE::Insights::FTableCellValueSorter(
 		FName(TEXT("ByStatsType")),
 		LOCTEXT("Sorting_ByStatsType_Name", "By Type"),
 		LOCTEXT("Sorting_ByStatsType_Title", "Sort By Type"),
@@ -30,11 +33,11 @@ FStatsNodeSortingByStatsType::FStatsNodeSortingByStatsType(TSharedRef<Insights::
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FStatsNodeSortingByStatsType::Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const
+void FStatsNodeSortingByStatsType::Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const
 {
-	if (SortMode == Insights::ESortMode::Ascending)
+	if (SortMode == UE::Insights::ESortMode::Ascending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const UE::Insights::FBaseTreeNodePtr& A, const UE::Insights::FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->GetTypeName() == FStatsNode::TypeName);
 			const EStatsNodeType ValueA = reinterpret_cast<FStatsNode*>(A.Get())->GetType();
@@ -55,7 +58,7 @@ void FStatsNodeSortingByStatsType::Sort(TArray<Insights::FBaseTreeNodePtr>& Node
 	}
 	else // if (SortMode == ESortMode::Descending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const UE::Insights::FBaseTreeNodePtr& A, const UE::Insights::FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->GetTypeName() == FStatsNode::TypeName);
 			const EStatsNodeType ValueA = reinterpret_cast<FStatsNode*>(A.Get())->GetType();
@@ -80,8 +83,8 @@ void FStatsNodeSortingByStatsType::Sort(TArray<Insights::FBaseTreeNodePtr>& Node
 // Sorting by Data Type
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FStatsNodeSortingByDataType::FStatsNodeSortingByDataType(TSharedRef<Insights::FTableColumn> InColumnRef)
-	: Insights::FTableCellValueSorter(
+FStatsNodeSortingByDataType::FStatsNodeSortingByDataType(TSharedRef<UE::Insights::FTableColumn> InColumnRef)
+	: UE::Insights::FTableCellValueSorter(
 		FName(TEXT("ByDataType")),
 		LOCTEXT("Sorting_ByDataType_Name", "By Data Type"),
 		LOCTEXT("Sorting_ByDataType_Title", "Sort By Data Type"),
@@ -92,11 +95,11 @@ FStatsNodeSortingByDataType::FStatsNodeSortingByDataType(TSharedRef<Insights::FT
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FStatsNodeSortingByDataType::Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const
+void FStatsNodeSortingByDataType::Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const
 {
-	if (SortMode == Insights::ESortMode::Ascending)
+	if (SortMode == UE::Insights::ESortMode::Ascending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const UE::Insights::FBaseTreeNodePtr& A, const UE::Insights::FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->GetTypeName() == FStatsNode::TypeName);
 			const EStatsNodeDataType ValueA = reinterpret_cast<FStatsNode*>(A.Get())->GetDataType();
@@ -117,7 +120,7 @@ void FStatsNodeSortingByDataType::Sort(TArray<Insights::FBaseTreeNodePtr>& Nodes
 	}
 	else // if (SortMode == ESortMode::Descending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const UE::Insights::FBaseTreeNodePtr& A, const UE::Insights::FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->GetTypeName() == FStatsNode::TypeName);
 			const EStatsNodeDataType ValueA = reinterpret_cast<FStatsNode*>(A.Get())->GetDataType();
@@ -142,8 +145,8 @@ void FStatsNodeSortingByDataType::Sort(TArray<Insights::FBaseTreeNodePtr>& Nodes
 // Sort by Count (Aggregated Statistic)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FStatsNodeSortingByCount::FStatsNodeSortingByCount(TSharedRef<Insights::FTableColumn> InColumnRef)
-	: Insights::FTableCellValueSorter(
+FStatsNodeSortingByCount::FStatsNodeSortingByCount(TSharedRef<UE::Insights::FTableColumn> InColumnRef)
+	: UE::Insights::FTableCellValueSorter(
 		FName(TEXT("ByCount")),
 		LOCTEXT("Sorting_ByCount_Name", "By Count"),
 		LOCTEXT("Sorting_ByCount_Title", "Sort By Count"),
@@ -154,11 +157,11 @@ FStatsNodeSortingByCount::FStatsNodeSortingByCount(TSharedRef<Insights::FTableCo
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FStatsNodeSortingByCount::Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const
+void FStatsNodeSortingByCount::Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const
 {
-	if (SortMode == Insights::ESortMode::Ascending)
+	if (SortMode == UE::Insights::ESortMode::Ascending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const UE::Insights::FBaseTreeNodePtr& A, const UE::Insights::FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->GetTypeName() == FStatsNode::TypeName);
 			const uint64 ValueA = reinterpret_cast<FStatsNode*>(A.Get())->GetAggregatedStats().Count;
@@ -179,7 +182,7 @@ void FStatsNodeSortingByCount::Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToS
 	}
 	else // if (SortMode == ESortMode::Descending)
 	{
-		NodesToSort.Sort([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+		NodesToSort.Sort([](const UE::Insights::FBaseTreeNodePtr& A, const UE::Insights::FBaseTreeNodePtr& B) -> bool
 		{
 			INSIGHTS_ENSURE(A.IsValid() && A->GetTypeName() == FStatsNode::TypeName);
 			const uint64 ValueA = reinterpret_cast<FStatsNode*>(A.Get())->GetAggregatedStats().Count;

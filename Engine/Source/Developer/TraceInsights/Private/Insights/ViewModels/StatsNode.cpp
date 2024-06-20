@@ -2,8 +2,8 @@
 
 #include "StatsNode.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
 
 #define LOCTEXT_NAMESPACE "FStatsNode"
 
@@ -99,13 +99,14 @@ const FText FStatsNode::FormatAggregatedStatsValue(double ValueDbl, int64 ValueI
 			//TODO: if (GetDisplayHint() == FStatsNodeDisplayHint::Seconds)
 			if (GetMetaGroupName() == FStatsNodeMetaGroupName::Time)
 			{
+				using namespace UE::Insights;
 				if (bForTooltip)
 				{
-					return FText::FromString(TimeUtils::FormatTimeAuto(ValueDbl, 2));
+					return FText::FromString(FormatTimeAuto(ValueDbl, 2));
 				}
 				else
 				{
-					return FText::FromString(TimeUtils::FormatTimeAuto(ValueDbl, 1));
+					return FText::FromString(FormatTimeAuto(ValueDbl, 1));
 				}
 			}
 			else

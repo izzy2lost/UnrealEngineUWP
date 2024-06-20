@@ -1,17 +1,20 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Insights/Common/SimpleRtti.h"
-#include "Insights/Table/ViewModels/TableTreeNode.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
-#include "TraceServices/Model/AllocationsProvider.h"
+#include "CoreTypes.h"
+
+// TraceServices
 #include "TraceServices/Model/Memory.h"
 
-namespace Insights
-{
+// TraceInsightsCore
+#include "InsightsCore/Common/SimpleRtti.h"
+#include "InsightsCore/Table/ViewModels/TableTreeNode.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
 
-class InAsyncOperationProgress;
+namespace TraceServices { class IAllocationsProvider; }
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -79,4 +82,5 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-}
+
+} // namespace UE::Insights::MemoryProfiler

@@ -5,8 +5,10 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/DrawElements.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/NetworkingProfiler/ViewModels/PacketViewport.h"
 #include "Insights/NetworkingProfiler/ViewModels/PacketContentViewDrawHelper.h"
@@ -15,6 +17,9 @@
 #include <limits>
 
 #define INSIGHTS_USE_LEGACY_BORDER 0
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FNetworkPacketAggregatedSample
@@ -348,5 +353,7 @@ void FPacketViewDrawHelper::DrawSelection(int32 StartPacketIndex, int32 EndPacke
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef INSIGHTS_USE_LEGACY_BORDER

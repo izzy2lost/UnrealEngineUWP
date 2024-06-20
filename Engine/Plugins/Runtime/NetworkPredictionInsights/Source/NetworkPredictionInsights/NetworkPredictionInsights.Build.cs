@@ -18,12 +18,12 @@ namespace UnrealBuildTool.Rules
 				"TraceAnalysis",
 				"TraceServices",
 				"TraceInsights",
+				"TraceInsightsCore",
 				"AssetRegistry",
 				"ApplicationCore",
-				
 			});
 
-            if (Target.bCompileAgainstEngine)
+			if (Target.bCompileAgainstEngine)
 			{
 				PrivateDependencyModuleNames.AddRange(
 				new string[]

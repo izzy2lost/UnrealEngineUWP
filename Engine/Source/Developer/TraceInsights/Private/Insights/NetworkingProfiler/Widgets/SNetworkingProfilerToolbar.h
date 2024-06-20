@@ -6,6 +6,10 @@
 #include "Widgets/SCompoundWidget.h"
 
 class FExtender;
+
+namespace UE::Insights::NetworkingProfiler
+{
+
 class SNetworkingProfilerWindow;
 
 class SNetworkingProfilerToolbar : public SCompoundWidget
@@ -28,3 +32,5 @@ public:
 	 */
 	void Construct(const FArguments& InArgs, TSharedRef<SNetworkingProfilerWindow> InProfilerWindow);
 };
+
+} // namespace UE::Insights::NetworkingProfiler

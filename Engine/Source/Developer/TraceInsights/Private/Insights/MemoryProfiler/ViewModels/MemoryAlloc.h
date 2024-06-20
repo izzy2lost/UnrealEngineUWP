@@ -2,12 +2,14 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-#include "TraceServices/Model/AllocationsProvider.h"
-#include "TraceServices/Model/Callstack.h"
+// TraceServices
+#include "TraceServices/Model/AllocationsProvider.h" // for TagIdType
 
-namespace Insights
+namespace TraceServices { struct FCallstack; }
+
+namespace UE::Insights::MemoryProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -79,4 +81,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

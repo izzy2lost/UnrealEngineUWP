@@ -2,10 +2,12 @@
 
 #include "Insights/Widgets/STraceServerControl.h"
 
-#include "SlateOptMacros.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Insights/Log.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
+#include "SlateOptMacros.h"
+
+// TraceAnalysis
 #include "Trace/StoreClient.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////

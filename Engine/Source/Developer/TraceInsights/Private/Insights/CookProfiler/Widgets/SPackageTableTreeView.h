@@ -3,9 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+// TraceServices
 #include "TraceServices/Model/CookProfilerProvider.h"
 
-// Insights
+// TraceInsights
 #include "Insights/CookProfiler/ViewModels/PackageTable.h"
 #include "Insights/Table/Widgets/SSessionTableTreeView.h"
 
@@ -16,7 +18,7 @@ namespace Insights
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class SPackageTableTreeView : public SSessionTableTreeView
+class SPackageTableTreeView : public UE::Insights::SSessionTableTreeView
 {
 public:
 	/** Default constructor. */
@@ -66,7 +68,7 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	virtual void TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr TreeNode) override;
+	virtual void TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableTreeNodePtr TreeNode) override;
 
 protected:
 	virtual void InternalCreateGroupings() override;

@@ -3,18 +3,22 @@
 #include "SStatsViewTooltip.h"
 
 #include "SlateOptMacros.h"
-#include "TraceServices/Model/AnalysisSession.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceServices
+#include "TraceServices/Model/AnalysisSession.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/ViewModels/StatsNode.h"
 #include "Insights/ViewModels/StatsNodeHelper.h"
 
@@ -26,7 +30,7 @@
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-TSharedPtr<SToolTip> SStatsViewTooltip::GetTableTooltip(const Insights::FTable& Table)
+TSharedPtr<SToolTip> SStatsViewTooltip::GetTableTooltip(const UE::Insights::FTable& Table)
 {
 	TSharedPtr<SToolTip> ColumnTooltip =
 		SNew(SToolTip)
@@ -57,7 +61,7 @@ TSharedPtr<SToolTip> SStatsViewTooltip::GetTableTooltip(const Insights::FTable& 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<SToolTip> SStatsViewTooltip::GetColumnTooltip(const Insights::FTableColumn& Column)
+TSharedPtr<SToolTip> SStatsViewTooltip::GetColumnTooltip(const UE::Insights::FTableColumn& Column)
 {
 	TSharedPtr<SToolTip> ColumnTooltip =
 		SNew(SToolTip)

@@ -8,7 +8,7 @@
 
 class SGridPanel;
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
@@ -24,9 +24,9 @@ class STimersViewTooltip
 public:
 	STimersViewTooltip() = delete;
 
-	static TSharedPtr<SToolTip> GetTableTooltip(const Insights::FTable& Table);
-	static TSharedPtr<SToolTip> GetColumnTooltip(const Insights::FTableColumn& Column);
-	static TSharedPtr<SToolTip> GetColumnTooltipForMode(const Insights::FTableColumn& Column, ETraceFrameType InAggregationMode);
+	static TSharedPtr<SToolTip> GetTableTooltip(const UE::Insights::FTable& Table);
+	static TSharedPtr<SToolTip> GetColumnTooltip(const UE::Insights::FTableColumn& Column);
+	static TSharedPtr<SToolTip> GetColumnTooltipForMode(const UE::Insights::FTableColumn& Column, ETraceFrameType InAggregationMode);
 	static TSharedPtr<SToolTip> GetRowTooltip(const TSharedPtr<FTimerNode> TreeNodePtr);
 
 	static bool GetSource(const TSharedPtr<FTimerNode> TreeNodePtr, FText& OutSourcePrefix, FText& OutSourceSuffix);

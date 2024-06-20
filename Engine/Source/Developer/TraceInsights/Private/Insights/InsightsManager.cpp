@@ -15,16 +15,23 @@
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/UniquePtr.h"
-#include "Trace/StoreClient.h"
-#include "TraceServices/AnalysisService.h"
-#include "TraceServices/Model/Diagnostics.h"
-#include "TraceServices/Model/NetProfiler.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
-// Insights
+// TraceAnalysis
+#include "Trace/StoreClient.h"
+
+// TraceServices
+#include "TraceServices/AnalysisService.h"
+#include "TraceServices/Model/Diagnostics.h"
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Filter/ViewModels/Filters.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
-#include "Insights/Common/TimeUtils.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
@@ -32,9 +39,8 @@
 #include "Insights/NetworkingProfiler/NetworkingProfilerManager.h"
 #include "Insights/Tests/InsightsTestRunner.h"
 #include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/Filters.h"
-#include "Insights/Widgets/SStartPageWindow.h"
 #include "Insights/Widgets/SSessionInfoWindow.h"
+#include "Insights/Widgets/SStartPageWindow.h"
 #include "Insights/Widgets/STimingProfilerWindow.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -124,7 +130,7 @@ void FInsightsManager::Initialize(IUnrealInsightsModule& InsightsModule)
 
 	InsightsMenuBuilder = MakeShared<FInsightsMenuBuilder>();
 
-	Insights::FFilterService::Initialize();
+	UE::Insights::FFilterService::Initialize();
 
 	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 	MessageLogModule.RegisterLogListing(GetLogListingName(), LOCTEXT("UnrealInsights", "Unreal Insights"));
@@ -166,7 +172,7 @@ void FInsightsManager::Shutdown()
 		}
 	}
 
-	Insights::FFilterService::Shutdown();
+	UE::Insights::FFilterService::Shutdown();
 
 	FInsightsManager::Instance.Reset();
 }
@@ -541,6 +547,8 @@ bool FInsightsManager::Tick(float DeltaTime)
 
 void FInsightsManager::UpdateSessionDuration()
 {
+	using namespace UE::Insights;
+
 	if (Session.IsValid())
 	{
 		bool bLocalIsAnalysisComplete = false;
@@ -552,7 +560,6 @@ void FInsightsManager::UpdateSessionDuration()
 
 		}
 
-
 		if (LocalSessionDuration != SessionDuration)
 		{
 			SessionDuration = LocalSessionDuration;
@@ -562,7 +569,7 @@ void FInsightsManager::UpdateSessionDuration()
 			if (bIsAnalysisComplete)
 			{
 				UE_LOG(TraceInsights, Warning, TEXT("The session duration was updated (%s) after the analysis has been completed."),
-					*TimeUtils::FormatTimeAuto(GetSessionDuration(), 2));
+					*FormatTimeAuto(GetSessionDuration(), 2));
 			}
 		}
 
@@ -572,9 +579,9 @@ void FInsightsManager::UpdateSessionDuration()
 			SessionAnalysisCompletedEvent.Broadcast();
 
 			UE_LOG(TraceInsights, Log, TEXT("Analysis has completed in %s (%.1fX speed; session duration: %s)."),
-				*TimeUtils::FormatTimeAuto(AnalysisDuration, 2),
+				*FormatTimeAuto(AnalysisDuration, 2),
 				AnalysisSpeedFactor,
-				*TimeUtils::FormatTimeAuto(SessionDuration, 2));
+				*FormatTimeAuto(SessionDuration, 2));
 
 			OnSessionAnalysisCompleted();
 		}
@@ -744,6 +751,8 @@ void FInsightsManager::ActivateTimingInsightsTab()
 	if (TSharedPtr<SDockTab> TimingInsightsTab = FGlobalTabmanager::Get()->FindExistingLiveTab(FInsightsManagerTabs::TimingProfilerTabId))
 	{
 		TimingInsightsTab->ActivateInParent(ETabActivationCause::SetDirectly);
+
+		using namespace UE::Insights::TimingProfiler;
 
 		//TODO: FTimingProfilerManager::Get()->ActivateWindow();
 		TSharedPtr<class STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
@@ -1151,7 +1160,7 @@ void FInsightsManager::OnSessionAnalysisCompleted()
 	{
 		FOutputDevice& Ar = *GLog;
 		Ar.Logf(TEXT("Executing commands on analysis completed..."));
-		FStopwatch Stopwatch;
+		UE::Insights::FStopwatch Stopwatch;
 		Stopwatch.Start();
 		IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 		TraceInsightsModule.Exec(*SessionAnalysisCompletedCmd, Ar);

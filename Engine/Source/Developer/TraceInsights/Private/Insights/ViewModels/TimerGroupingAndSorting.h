@@ -4,52 +4,54 @@
 
 #include "CoreMinimal.h"
 
-// Insights
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
+
+// TraceInsights
 #include "Insights/ViewModels/TimerNode.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sorters
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTimerNodeSortingByTimerType: public Insights::FTableCellValueSorter
+class FTimerNodeSortingByTimerType: public UE::Insights::FTableCellValueSorter
 {
 public:
-	FTimerNodeSortingByTimerType(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FTimerNodeSortingByTimerType(TSharedRef<UE::Insights::FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTimerNodeSortingByInstanceCount : public Insights::FTableCellValueSorter
+class FTimerNodeSortingByInstanceCount : public UE::Insights::FTableCellValueSorter
 {
 public:
-	FTimerNodeSortingByInstanceCount(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FTimerNodeSortingByInstanceCount(TSharedRef<UE::Insights::FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTimerNodeSortingByTotalInclusiveTime : public Insights::FTableCellValueSorter
+class FTimerNodeSortingByTotalInclusiveTime : public UE::Insights::FTableCellValueSorter
 {
 public:
-	FTimerNodeSortingByTotalInclusiveTime(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FTimerNodeSortingByTotalInclusiveTime(TSharedRef<UE::Insights::FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTimerNodeSortingByTotalExclusiveTime : public Insights::FTableCellValueSorter
+class FTimerNodeSortingByTotalExclusiveTime : public UE::Insights::FTableCellValueSorter
 {
 public:
-	FTimerNodeSortingByTotalExclusiveTime(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FTimerNodeSortingByTotalExclusiveTime(TSharedRef<UE::Insights::FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

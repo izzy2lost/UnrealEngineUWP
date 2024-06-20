@@ -2,12 +2,16 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Async/TaskTrace.h"
+
+// TraceServices
 #include "TraceServices/Model/TasksProfiler.h"
 
-// Insights
-#include "Insights/TaskGraphProfiler/ViewModels/TaskTable.h"
+// TraceInsights
 #include "Insights/Table/Widgets/SSessionTableTreeView.h"
+#include "Insights/TaskGraphProfiler/ViewModels/TaskTable.h"
 
 class FMenuBuilder;
 
@@ -16,7 +20,7 @@ namespace Insights
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class STaskTableTreeView : public SSessionTableTreeView
+class STaskTableTreeView : public UE::Insights::SSessionTableTreeView
 {
 private:
 	struct FColumnConfig
@@ -84,7 +88,7 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	virtual void TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr TreeNode) override;
+	virtual void TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableTreeNodePtr TreeNode) override;
 
 	void SelectTaskEntry(TaskTrace::FId InId);
 
@@ -93,7 +97,7 @@ protected:
 
 	virtual void ExtendMenu(FMenuBuilder& MenuBuilder) override;
 
-	virtual void SearchForItem(TSharedPtr<FTableTaskCancellationToken> CancellationToken) override;
+	virtual void SearchForItem(TSharedPtr<UE::Insights::FTableTaskCancellationToken> CancellationToken) override;
 
 private:
 	void AddCommmands();

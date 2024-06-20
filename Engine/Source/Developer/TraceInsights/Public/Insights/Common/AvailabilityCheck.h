@@ -2,33 +2,12 @@
 
 #pragma once
 
-#include "HAL/Platform.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/AvailabilityCheck.h"
 
-namespace Insights
-{
+// TraceInsights
+#include "Insights/Config.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Utility class used by profiler managers to limit how often they check for availability conditions.
- */
-class TRACEINSIGHTS_API FAvailabilityCheck
-{
-public:
-	/** Returns true if managers are allowed to do (slow) availability check during this tick. */
-	bool Tick();
-
-	/** Disables the "availability check" (i.e. Tick() calls will return false when disabled). */
-	void Disable();
-
-	/** Enables the "availability check" with a specified initial delay. */
-	void Enable(double InWaitTime);
-
-private:
-	double WaitTime = 0.0;
-	uint64 NextTimestamp = (uint64)-1;
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-} // namespace Insights
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+namespace Insights { using FAvailabilityCheck = UE::Insights::FAvailabilityCheck; }
+#endif

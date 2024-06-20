@@ -4,12 +4,14 @@
 
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
-#include "TraceServices/Model/Counters.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/Counters.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
@@ -26,9 +28,12 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "TimingProfilerManager"
+DEFINE_LOG_CATEGORY(LogTimingProfiler);
 
-DEFINE_LOG_CATEGORY(TimingProfiler);
+#define LOCTEXT_NAMESPACE "UE::Insights::TimingProfiler"
+
+namespace UE::Insights::TimingProfiler
+{
 
 TSharedPtr<FTimingProfilerManager> FTimingProfilerManager::Instance = nullptr;
 
@@ -72,7 +77,7 @@ FTimingProfilerManager::FTimingProfilerManager(TSharedRef<FUICommandList> InComm
 	, SelectionStartTime(0.0)
 	, SelectionEndTime(0.0)
 	, SelectedTimerId(InvalidTimerId)
-	, TimerButterflyAggregator(MakeShared<Insights::FTimerButterflyAggregator>())
+	, TimerButterflyAggregator(MakeShared<FTimerButterflyAggregator>())
 	, LogListingName(TEXT("TimingInsights"))
 {
 }
@@ -88,7 +93,7 @@ void FTimingProfilerManager::Initialize(IUnrealInsightsModule& InsightsModule)
 	}
 	bIsInitialized = true;
 
-	UE_LOG(TimingProfiler, Log, TEXT("Initialize"));
+	UE_LOG(LogTimingProfiler, Log, TEXT("Initialize"));
 
 	// Register tick functions.
 	OnTick = FTickerDelegate::CreateSP(this, &FTimingProfilerManager::Tick);
@@ -132,7 +137,7 @@ void FTimingProfilerManager::Shutdown()
 
 	FTimingProfilerManager::Instance.Reset();
 
-	UE_LOG(TimingProfiler, Log, TEXT("Shutdown"));
+	UE_LOG(LogTimingProfiler, Log, TEXT("Shutdown"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -266,7 +271,7 @@ bool FTimingProfilerManager::Tick(float DeltaTime)
 			const FName& TabId = FInsightsManagerTabs::TimingProfilerTabId;
 			if (FGlobalTabmanager::Get()->HasTabSpawner(TabId))
 			{
-				UE_LOG(TimingProfiler, Log, TEXT("Opening the \"Timing Insights\" tab..."));
+				UE_LOG(LogTimingProfiler, Log, TEXT("Opening the \"Timing Insights\" tab..."));
 				FGlobalTabmanager::Get()->TryInvokeTab(TabId);
 			}
 #endif
@@ -314,7 +319,7 @@ void FTimingProfilerManager::FinishTimerButterflyAggregation()
 
 void FTimingProfilerManager::OnSessionChanged()
 {
-	UE_LOG(TimingProfiler, Log, TEXT("OnSessionChanged"));
+	UE_LOG(LogTimingProfiler, Log, TEXT("OnSessionChanged"));
 
 	bIsAvailable = false;
 	if (FInsightsManager::Get()->GetSession().IsValid())
@@ -656,12 +661,14 @@ void FTimingProfilerManager::OnWindowClosedEvent()
 
 bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 {
+	using FTimingExporter = ::Insights::FTimingExporter;
+
 	if (FParse::Command(&Cmd, TEXT("TimingInsights.ExportThreads")))
 	{
 		Ar.Logf(TEXT("TimingInsights.ExportThreads %s"), Cmd);
 		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
-		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
-		Insights::FTimingExporter::FExportThreadsParams Params; // default
+		FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		FTimingExporter::FExportThreadsParams Params; // default
 
 		const bool bUseEscape = true;
 		FString Filename = FParse::Token(Cmd, bUseEscape);
@@ -676,8 +683,8 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 	{
 		Ar.Logf(TEXT("TimingInsights.ExportTimers %s"), Cmd);
 		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
-		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
-		Insights::FTimingExporter::FExportTimersParams Params; // default
+		FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		FTimingExporter::FExportTimersParams Params; // default
 
 		const bool bUseEscape = true;
 		FString Filename = FParse::Token(Cmd, bUseEscape);
@@ -693,8 +700,8 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 		Ar.Logf(TEXT("TimingInsights.ExportTimingEvents %s"), Cmd);
 
 		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
-		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
-		Insights::FTimingExporter::FExportTimingEventsParams Params; // default (all timing events)
+		FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		FTimingExporter::FExportTimingEventsParams Params; // default (all timing events)
 
 		// These variables needs to be in the same scope with the call to Exporter.ExportTimingEventsAsText().
 		TArray<FName> Columns; // referenced by Params.Columns
@@ -794,8 +801,8 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 		Ar.Logf(TEXT("TimingInsights.ExportTimerStatistics %s"), Cmd);
 
 		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
-		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
-		Insights::FTimingExporter::FExportTimerStatisticsParams Params; // default (all timing events)
+		FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		FTimingExporter::FExportTimerStatisticsParams Params; // default (all timing events)
 
 		// These variables needs to be in the same scope with the call to Exporter.ExportTimerStatisticsAsText().
 		TArray<FName> Columns; // referenced by Params.Columns
@@ -899,8 +906,8 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 	{
 		Ar.Logf(TEXT("TimingInsights.ExportCounters %s"), Cmd);
 		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
-		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
-		Insights::FTimingExporter::FExportCountersParams Params; // default
+		FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		FTimingExporter::FExportCountersParams Params; // default
 		Exporter.ExportCountersAsText(Cmd, Params);
 		return true;
 	}
@@ -909,8 +916,8 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 	{
 		Ar.Logf(TEXT("TimingInsights.ExportCounterValues %s"), Cmd);
 		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
-		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
-		Insights::FTimingExporter::FExportCounterParams Params; // default
+		FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
+		FTimingExporter::FExportCounterParams Params; // default
 
 		TArray<FString> Counters; // list of counters to export
 
@@ -1032,5 +1039,7 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::TimingProfiler
 
 #undef LOCTEXT_NAMESPACE

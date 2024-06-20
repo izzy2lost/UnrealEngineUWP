@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/ITimingEvent.h"
 
 class FGraphTrack;

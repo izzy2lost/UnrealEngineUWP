@@ -2,9 +2,11 @@
 
 #include "TimerNode.h"
 
+// TraceServices
 #include "TraceServices/Model/AnalysisSession.h"
 #include "TraceServices/Model/TimingProfiler.h"
 
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/ViewModels/TimingEvent.h"
 

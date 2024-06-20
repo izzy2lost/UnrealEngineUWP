@@ -18,14 +18,18 @@
 #include "SlateOptMacros.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
-#include "TraceServices/Model/Log.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Text/STextBlock.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceServices
+#include "TraceServices/Model/Log.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/Log.h"
@@ -258,17 +262,10 @@ public:
 				FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
 				const double Time = CacheEntry.GetTime();
 
-				TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-				if (Window)
+				TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = ParentWidgetPin->GetTimingView();
+				if (TimingView && TimingView->IsTimeSelectedInclusive(Time))
 				{
-					TSharedPtr<STimingView> TimingView = Window->GetTimingView();
-					if (TimingView)
-					{
-						if (TimingView->IsTimeSelectedInclusive(Time))
-						{
-							return FSlateColor(FLinearColor(0.25f, 0.5f, 1.0f, 0.25f));
-						}
-					}
+					return FSlateColor(FLinearColor(0.25f, 0.5f, 1.0f, 0.25f));
 				}
 			}
 		}
@@ -303,23 +300,16 @@ public:
 				}
 			}
 
-			TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-			if (Window)
+			TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = ParentWidgetPin->GetTimingView();
+			if (TimingView && TimingView->IsTimeSelectedInclusive(Time))
 			{
-				TSharedPtr<STimingView> TimingView = Window->GetTimingView();
-				if (TimingView)
+				if (IsSelected)
 				{
-					if (TimingView->IsTimeSelectedInclusive(Time))
-					{
-						if (IsSelected)
-						{
-							return FSlateColor(FLinearColor(0.0f, 0.05f, 0.2f, 1.0f));
-						}
-						else
-						{
-							return FSlateColor(FLinearColor(0.4f, 0.8f, 1.6f, 1.0f));
-						}
-					}
+					return FSlateColor(FLinearColor(0.0f, 0.05f, 0.2f, 1.0f));
+				}
+				else
+				{
+					return FSlateColor(FLinearColor(0.4f, 0.8f, 1.6f, 1.0f));
 				}
 			}
 		}
@@ -529,6 +519,7 @@ SLogView::SLogView()
 SLogView::~SLogView()
 {
 	// Remove ourselves from the profiler manager.
+	//using namespace UE::Insights::TimingProfiler;
 	//if (FTimingProfilerManager::Get().IsValid())
 	//{
 	//	//TODO: FTimimgProfilerManager::Get()->OnRequestLogViewUpdate().RemoveAll(this);
@@ -1074,23 +1065,19 @@ void SLogView::OnSelectedLogMessageChanged(TSharedPtr<FLogMessage> LogMessage)
 {
 	if (LogMessage.IsValid())
 	{
-		TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-		if (Window)
+		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
+		if (TimingView)
 		{
-			TSharedPtr<STimingView> TimingView = Window->GetTimingView();
-			if (TimingView)
-			{
-				const double Time = Cache.Get(LogMessage->GetIndex()).GetTime();
+			const double Time = Cache.Get(LogMessage->GetIndex()).GetTime();
 
-				if (FSlateApplication::Get().GetModifierKeys().IsShiftDown())
-				{
-					TimingView->SelectToTimeMarker(Time);
-				}
-				else
-				{
-					TimingView->SetAutoScroll(false);
-					TimingView->SetAndCenterOnTimeMarker(Time);
-				}
+			if (FSlateApplication::Get().GetModifierKeys().IsShiftDown())
+			{
+				TimingView->SelectToTimeMarker(Time);
+			}
+			else
+			{
+				TimingView->SetAutoScroll(false);
+				TimingView->SetAndCenterOnTimeMarker(Time);
 			}
 		}
 	}
@@ -1670,9 +1657,10 @@ FReply SLogView::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEv
 
 void SLogView::AppendFormatMessageDetailed(const FLogMessageRecord& Log, TStringBuilderBase<TCHAR>& InOutStringBuilder) const
 {
+	using namespace UE::Insights;
 	InOutStringBuilder.Appendf(TEXT("Index=%d"), Log.GetIndex());
 	InOutStringBuilder.Append(TEXT("\nTime="));
-	InOutStringBuilder.Append(TimeUtils::FormatTimeHMS(Log.GetTime(), TimeUtils::Microsecond));
+	InOutStringBuilder.Append(FormatTimeHMS(Log.GetTime(), FTimeValue::Microsecond));
 	InOutStringBuilder.Append(TEXT("\nVerbosity="));
 	InOutStringBuilder.Append(::ToString(Log.GetVerbosity()));
 	InOutStringBuilder.Append(TEXT("\nCategory="));
@@ -1709,7 +1697,7 @@ void SLogView::AppendFormatMessageDelimited(const FLogMessageRecord& Log, TStrin
 {
 	InOutStringBuilder.Appendf(TEXT("%d"), Log.GetIndex());
 	InOutStringBuilder.AppendChar(Separator);
-	InOutStringBuilder.Append(TimeUtils::FormatTimeHMS(Log.GetTime(), TimeUtils::Microsecond));
+	InOutStringBuilder.Append(UE::Insights::FormatTimeHMS(Log.GetTime(), UE::Insights::FTimeValue::Microsecond));
 	InOutStringBuilder.AppendChar(Separator);
 	InOutStringBuilder.Append(::ToString(Log.GetVerbosity()));
 	InOutStringBuilder.AppendChar(Separator);
@@ -1787,8 +1775,7 @@ bool SLogView::CanCopyRange() const
 		return false;
 	}
 
-	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-	TSharedPtr<STimingView> TimingView = Window ? Window->GetTimingView() : nullptr;
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView)
 	{
 		return false;
@@ -1808,8 +1795,7 @@ void SLogView::CopyRange() const
 		return;
 	}
 
-	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-	TSharedPtr<STimingView> TimingView = Window ? Window->GetTimingView() : nullptr;
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView)
 	{
 		return;
@@ -1940,8 +1926,7 @@ void SLogView::SaveLogsToFile(bool bSaveLogsInSelectedRangeOnly) const
 	double SelectionEndTime = 0.0;
 	if (bSaveLogsInSelectedRangeOnly)
 	{
-		TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-		TSharedPtr<STimingView> TimingView = Window ? Window->GetTimingView() : nullptr;
+		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 		if (!TimingView)
 		{
 			return;
@@ -1993,7 +1978,7 @@ void SLogView::SaveLogsToFile(bool bSaveLogsInSelectedRangeOnly) const
 		return;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	UTF16CHAR BOM = UNICODE_BOM;
@@ -2072,6 +2057,15 @@ void SLogView::OpenSource() const
 			SourceCodeAccessModule.OnOpenFileFailed().Broadcast(File);
 		}
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<UE::Insights::TimingProfiler::STimingView> SLogView::GetTimingView() const
+{
+	using namespace UE::Insights::TimingProfiler;
+	TSharedPtr<STimingProfilerWindow> ProfilerWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+	return ProfilerWindow.IsValid() ? ProfilerWindow->GetTimingView() : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

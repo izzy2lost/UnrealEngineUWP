@@ -3,10 +3,13 @@
 #include "SMemAllocTableTreeView.h"
 
 #include "Containers/Set.h"
+#include "DesktopPlatformModule.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
+#include "HAL/PlatformFileManager.h"
 #include "ISourceCodeAccessModule.h"
 #include "ISourceCodeAccessor.h"
+#include "Logging/MessageLog.h"
 #include "Modules/ModuleManager.h"
 #include "SlateOptMacros.h"
 #include "Styling/AppStyle.h"
@@ -14,9 +17,6 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/SToolTip.h"
-#include "DesktopPlatformModule.h"
-#include "HAL/PlatformFileManager.h"
-#include "Logging/MessageLog.h"
 
 // TraceServices
 #include "Common/ProviderLock.h"
@@ -27,32 +27,34 @@
 #include "TraceServices/Model/Modules.h"
 #include "TraceServices/Model/Strings.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Filter/ViewModels/FilterConfigurator.h"
+#include "InsightsCore/Filter/ViewModels/Filters.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/MemoryProfiler/Common/SymbolSearchPathsHelper.h"
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
 #include "Insights/MemoryProfiler/ViewModels/CallstackFormatting.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByCallstack.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByHeap.h"
-#include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingBySwapPage.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingBySize.h"
+#include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingBySwapPage.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocGroupingByTag.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocNode.h"
 #include "Insights/MemoryProfiler/ViewModels/MemAllocTable.h"
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerWindow.h"
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/TimingProfilerCommon.h"
-#include "Insights/ViewModels/FilterConfigurator.h"
-#include "Insights/ViewModels/Filters.h"
 
 #include <limits>
 #include <memory>
 
-#define LOCTEXT_NAMESPACE "SMemAllocTableTreeView"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::SMemAllocTableTreeView"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 const int32 SMemAllocTableTreeView::FullCallStackIndex = 0x0000FFFFF;
@@ -73,7 +75,7 @@ SMemAllocTableTreeView::~SMemAllocTableTreeView()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemAllocTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<Insights::FMemAllocTable> InTablePtr)
+void SMemAllocTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<FMemAllocTable> InTablePtr)
 {
 	ConstructWidget(InTablePtr);
 }
@@ -121,7 +123,7 @@ void SMemAllocTableTreeView::RebuildTree(bool bResync)
 
 	const int32 PreviousNodeCount = TableRowNodes.Num();
 
-	TSharedPtr<Insights::FMemAllocTable> MemAllocTable = GetMemAllocTable();
+	TSharedPtr<FMemAllocTable> MemAllocTable = GetMemAllocTable();
 
 	if (Session.IsValid() && MemAllocTable.IsValid())
 	{
@@ -130,13 +132,13 @@ void SMemAllocTableTreeView::RebuildTree(bool bResync)
 
 		if (QueryStatus == TraceServices::IAllocationsProvider::EQueryStatus::Done)
 		{
-			UE_LOG(MemoryProfiler, Log, TEXT("[MemAlloc] Rebuilding tree..."));
+			UE_LOG(LogMemoryProfiler, Log, TEXT("[MemAlloc] Rebuilding tree..."));
 			TArray<FMemoryAlloc>& Allocs = MemAllocTable->GetAllocs();
 
 			const int32 TotalAllocCount = Allocs.Num();
 			if (TotalAllocCount != TableRowNodes.Num())
 			{
-				UE_LOG(MemoryProfiler, Log, TEXT("[MemAlloc] Creating nodes (%d nodes --> %d allocs)..."), TableRowNodes.Num(), TotalAllocCount);
+				UE_LOG(LogMemoryProfiler, Log, TEXT("[MemAlloc] Creating nodes (%d nodes --> %d allocs)..."), TableRowNodes.Num(), TotalAllocCount);
 
 				if (TableRowNodes.Num() > TotalAllocCount)
 				{
@@ -214,7 +216,7 @@ void SMemAllocTableTreeView::RebuildTree(bool bResync)
 	if (TotalTime > 0.01)
 	{
 		const double SyncTime = SyncStopwatch.GetAccumulatedTime();
-		UE_LOG(MemoryProfiler, Log, TEXT("[MemAlloc] Tree view rebuilt in %.4fs (sync: %.4fs + update: %.4fs) --> %d nodes (%d added)"),
+		UE_LOG(LogMemoryProfiler, Log, TEXT("[MemAlloc] Tree view rebuilt in %.4fs (sync: %.4fs + update: %.4fs) --> %d nodes (%d added)"),
 			TotalTime, SyncTime, TotalTime - SyncTime, TableRowNodes.Num(), TableRowNodes.Num() - PreviousNodeCount);
 	}
 }
@@ -243,7 +245,7 @@ void SMemAllocTableTreeView::ResetAndStartQuery()
 {
 	TableRowNodes.Reset();
 
-	TSharedPtr<Insights::FMemAllocTable> MemAllocTable = GetMemAllocTable();
+	TSharedPtr<FMemAllocTable> MemAllocTable = GetMemAllocTable();
 	if (MemAllocTable)
 	{
 		MemAllocTable->SetTimeMarkerA(TimeMarkers[0]); // to be used by LLM Size and LLM Delta Size columns
@@ -265,20 +267,20 @@ void SMemAllocTableTreeView::StartQuery()
 
 	if (!Rule)
 	{
-		UE_LOG(MemoryProfiler, Warning, TEXT("[MemAlloc] Invalid query rule!"));
+		UE_LOG(LogMemoryProfiler, Warning, TEXT("[MemAlloc] Invalid query rule!"));
 		return;
 	}
 
 	if (!Session.IsValid())
 	{
-		UE_LOG(MemoryProfiler, Warning, TEXT("[MemAlloc] Invalid analysis session!"));
+		UE_LOG(LogMemoryProfiler, Warning, TEXT("[MemAlloc] Invalid analysis session!"));
 		return;
 	}
 
 	const TraceServices::IAllocationsProvider* AllocationsProvider = TraceServices::ReadAllocationsProvider(*Session.Get());
 	if (!AllocationsProvider)
 	{
-		UE_LOG(MemoryProfiler, Warning, TEXT("[MemAlloc] Invalid allocations provider!"));
+		UE_LOG(LogMemoryProfiler, Warning, TEXT("[MemAlloc] Invalid allocations provider!"));
 		return;
 	}
 
@@ -286,7 +288,7 @@ void SMemAllocTableTreeView::StartQuery()
 		const TraceServices::IAllocationsProvider& Provider = *AllocationsProvider;
 		TraceServices::FProviderReadScopeLock _(Provider);
 
-		TSharedPtr<Insights::FMemAllocTable> MemAllocTable = GetMemAllocTable();
+		TSharedPtr<FMemAllocTable> MemAllocTable = GetMemAllocTable();
 		if (MemAllocTable)
 		{
 			MemAllocTable->SetPlatformPageSize(Provider.GetPlatformPageSize());
@@ -298,7 +300,7 @@ void SMemAllocTableTreeView::StartQuery()
 
 	if (Query == 0)
 	{
-		UE_LOG(MemoryProfiler, Error, TEXT("[MemAlloc] Unsupported query rule (%s)!"), *Rule->GetShortName().ToString());
+		UE_LOG(LogMemoryProfiler, Error, TEXT("[MemAlloc] Unsupported query rule (%s)!"), *Rule->GetShortName().ToString());
 	}
 	else
 	{
@@ -321,14 +323,14 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 
 	if (!Session.IsValid())
 	{
-		UE_LOG(MemoryProfiler, Warning, TEXT("[MemAlloc] Invalid analysis session!"));
+		UE_LOG(LogMemoryProfiler, Warning, TEXT("[MemAlloc] Invalid analysis session!"));
 		return;
 	}
 
 	const TraceServices::IAllocationsProvider* AllocationsProvider = TraceServices::ReadAllocationsProvider(*Session.Get());
 	if (!AllocationsProvider)
 	{
-		UE_LOG(MemoryProfiler, Warning, TEXT("[MemAlloc] Invalid allocations provider!"));
+		UE_LOG(LogMemoryProfiler, Warning, TEXT("[MemAlloc] Invalid allocations provider!"));
 		return;
 	}
 	const TraceServices::IAllocationsProvider& Provider = *AllocationsProvider;
@@ -367,7 +369,7 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 
 		if (Status.Status <= TraceServices::IAllocationsProvider::EQueryStatus::Done)
 		{
-			UE_LOG(MemoryProfiler, Log, TEXT("[MemAlloc] Query completed."));
+			UE_LOG(LogMemoryProfiler, Log, TEXT("[MemAlloc] Query completed."));
 			Query = 0;
 			QueryStopwatch.Stop();
 			return;
@@ -380,7 +382,7 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 
 		check(Status.Status == TraceServices::IAllocationsProvider::EQueryStatus::Available);
 
-		TSharedPtr<Insights::FMemAllocTable> MemAllocTable = GetMemAllocTable();
+		TSharedPtr<FMemAllocTable> MemAllocTable = GetMemAllocTable();
 		if (MemAllocTable)
 		{
 			TraceServices::FProviderReadScopeLock _(Provider);
@@ -398,7 +400,7 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 			TraceServices::IAllocationsProvider::FQueryResult Result = Status.NextResult();
 			while (Result.IsValid())
 			{
-				UE_LOG(MemoryProfiler, Log, TEXT("[MemAlloc] Page with %u allocs..."), Result->Num());
+				UE_LOG(LogMemoryProfiler, Log, TEXT("[MemAlloc] Page with %u allocs..."), Result->Num());
 
 				++PageCount;
 				PageStopwatch.Restart();
@@ -505,7 +507,7 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 				if (PageTime > 0.01)
 				{
 					const double Speed = (PageTime * 1000000.0) / AllocCount;
-					UE_LOG(MemoryProfiler, Log, TEXT("[MemAlloc] Query result for page %u (%u allocs, slack=%u) retrieved in %.3fs (speed: %.3f seconds per 1M allocs)."), PageCount, AllocCount, Allocs.GetSlack(), PageTime, Speed);
+					UE_LOG(LogMemoryProfiler, Log, TEXT("[MemAlloc] Query result for page %u (%u allocs, slack=%u) retrieved in %.3fs (speed: %.3f seconds per 1M allocs)."), PageCount, AllocCount, Allocs.GetSlack(), PageTime, Speed);
 				}
 
 				Result = Status.NextResult();
@@ -516,7 +518,7 @@ void SMemAllocTableTreeView::UpdateQuery(TraceServices::IAllocationsProvider::EQ
 			if (TotalTime > 0.01)
 			{
 				const double Speed = (TotalTime * 1000000.0) / TotalAllocCount;
-				UE_LOG(MemoryProfiler, Log, TEXT("[MemAlloc] Query results (%u pages, %u allocs, slack=%u) retrieved in %.3fs (speed: %.3f seconds per 1M allocs)."), PageCount, TotalAllocCount, Allocs.GetSlack(), TotalTime, Speed);
+				UE_LOG(LogMemoryProfiler, Log, TEXT("[MemAlloc] Query results (%u pages, %u allocs, slack=%u) retrieved in %.3fs (speed: %.3f seconds per 1M allocs)."), PageCount, TotalAllocCount, Allocs.GetSlack(), TotalTime, Speed);
 			}
 		}
 
@@ -539,7 +541,7 @@ void SMemAllocTableTreeView::CancelQuery()
 			if (AllocationsProvider)
 			{
 				AllocationsProvider->CancelQuery(Query);
-				UE_LOG(MemoryProfiler, Log, TEXT("[MemAlloc] Query canceled."));
+				UE_LOG(LogMemoryProfiler, Log, TEXT("[MemAlloc] Query canceled."));
 			}
 		}
 
@@ -1364,7 +1366,7 @@ void SMemAllocTableTreeView::TreeView_OnSelectionChanged(FTableTreeNodePtr Selec
 		TSharedRef<FTableColumn> CountColumn = Table->FindColumnChecked(FMemAllocTableColumns::CountColumnId);
 		TSharedRef<FTableColumn> SizeColumn = Table->FindColumnChecked(FMemAllocTableColumns::SizeColumnId);
 
-		for (const Insights::FTableTreeNodePtr& Node : SelectedNodes)
+		for (const FTableTreeNodePtr& Node : SelectedNodes)
 		{
 			TOptional<FTableCellValue> CountValue = CountColumn->GetValue(*Node.Get());
 			if (CountValue.IsSet())
@@ -1395,7 +1397,7 @@ void SMemAllocTableTreeView::TreeView_OnSelectionChanged(FTableTreeNodePtr Selec
 
 void SMemAllocTableTreeView::InternalCreateGroupings()
 {
-	Insights::STableTreeView::InternalCreateGroupings();
+	STableTreeView::InternalCreateGroupings();
 
 	AvailableGroupings.RemoveAll(
 		[](TSharedPtr<FTreeNodeGrouping>& Grouping)
@@ -2313,6 +2315,6 @@ FText SMemAllocTableTreeView::GetSelectedCallstackFrameFileName() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

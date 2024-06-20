@@ -1,10 +1,8 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MemAllocInSwapNode.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FMemAllocSwapNode"
-
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 INSIGHTS_IMPLEMENT_RTTI(FMemAllocInSwapNode)
@@ -18,6 +16,4 @@ uint64 FMemAllocInSwapNode::GetBytesInSwapPage() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
-
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::MemoryProfiler

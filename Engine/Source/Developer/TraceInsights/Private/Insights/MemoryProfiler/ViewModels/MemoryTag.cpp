@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MemoryTag.h"
+
+// TraceServices
 #include "TraceServices/Model/Memory.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -161,7 +163,7 @@ void FMemoryTagList::UpdateInternal()
 					{
 						if (TrackerFlags & 1)
 						{
-							TMap<FMemoryTagId, FMemoryTag*>& TagsMap = TrackersAndTagsMap.FindOrAdd(Insights::FMemoryTrackerId(TrackerId));
+							TMap<FMemoryTagId, FMemoryTag*>& TagsMap = TrackersAndTagsMap.FindOrAdd(FMemoryTrackerId(TrackerId));
 							FMemoryTag* TagPtr = TagsMap.FindRef(TagId);
 							if (!TagPtr)
 							{
@@ -173,7 +175,7 @@ void FMemoryTagList::UpdateInternal()
 								Tag.ParentId = static_cast<FMemoryTagId>(TraceTag.ParentId);
 								Tag.StatName = TraceTag.Name;
 								Tag.StatFullName = TraceTag.Name;
-								Tag.TrackerId = Insights::FMemoryTrackerId(TrackerId);
+								Tag.TrackerId = FMemoryTrackerId(TrackerId);
 								Tag.SetColorAuto();
 
 								// Skip the parent prefix if it is already included in the name.
@@ -270,4 +272,4 @@ int32 FMemoryTagList::FilterTags(const TArray<FString>& InIncludeStats, const TA
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

@@ -2,13 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#include "Containers/Array.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/NameTypes.h"
 
+namespace UE::Insights { class FTableColumn; }
+
+// Column identifiers
 struct FStatsViewColumns
 {
-	// Column identifiers
 	static const FName NameColumnID;
 	static const FName MetaGroupNameColumnID;
 	static const FName TypeColumnID;
@@ -24,36 +28,25 @@ struct FStatsViewColumns
 	static const FName DiffColumnID;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-namespace Insights
-{
-	class FTableColumn;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 struct FStatsViewColumnFactory
 {
 public:
-	static void CreateStatsViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns);
+	static void CreateStatsViewColumns(TArray<TSharedRef<UE::Insights::FTableColumn>>& Columns);
 
-	static TSharedRef<Insights::FTableColumn> CreateNameColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMetaGroupNameColumn();
-	static TSharedRef<Insights::FTableColumn> CreateTypeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateDataTypeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateCountColumn();
-	static TSharedRef<Insights::FTableColumn> CreateSumColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMaxColumn();
-	static TSharedRef<Insights::FTableColumn> CreateUpperQuartileColumn();
-	static TSharedRef<Insights::FTableColumn> CreateAverageColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMedianColumn();
-	static TSharedRef<Insights::FTableColumn> CreateLowerQuartileColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMinColumn();
-	static TSharedRef<Insights::FTableColumn> CreateDiffColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateNameColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMetaGroupNameColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateTypeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateDataTypeColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateCountColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateSumColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMaxColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateUpperQuartileColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateAverageColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMedianColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateLowerQuartileColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateMinColumn();
+	static TSharedRef<UE::Insights::FTableColumn> CreateDiffColumn();
 
 private:
 	static constexpr float AggregatedStatsColumnInitialWidth = 80.0f;
 };
-
-////////////////////////////////////////////////////////////////////////////////////////////////////

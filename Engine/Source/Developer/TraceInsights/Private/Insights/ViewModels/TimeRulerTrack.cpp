@@ -9,9 +9,11 @@
 #include "Rendering/DrawElements.h"
 #include "Styling/AppStyle.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/DrawHelpers.h"
@@ -21,7 +23,10 @@
 
 #include <limits>
 
-#define LOCTEXT_NAMESPACE "TimeRulerTrack"
+#define LOCTEXT_NAMESPACE "UE::Insights::TimingProfiler::FTimeRulerTrack"
+
+namespace UE::Insights::TimingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -74,14 +79,14 @@ void FTimeRulerTrack::SetSelection(const bool bInIsSelecting, const double InSel
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimeRulerTrack::AddTimeMarker(TSharedRef<Insights::FTimeMarker> InTimeMarker)
+void FTimeRulerTrack::AddTimeMarker(TSharedRef<FTimeMarker> InTimeMarker)
 {
 	TimeMarkers.Add(InTimeMarker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimeRulerTrack::RemoveTimeMarker(TSharedRef<Insights::FTimeMarker> InTimeMarker)
+void FTimeRulerTrack::RemoveTimeMarker(TSharedRef<FTimeMarker> InTimeMarker)
 {
 	TimeMarkers.Remove(InTimeMarker);
 }
@@ -95,9 +100,9 @@ void FTimeRulerTrack::RemoveAllTimeMarkers()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<Insights::FTimeMarker> FTimeRulerTrack::GetTimeMarkerByName(const FString& InTimeMarkerName)
+TSharedPtr<FTimeMarker> FTimeRulerTrack::GetTimeMarkerByName(const FString& InTimeMarkerName)
 {
-	for (TSharedRef<Insights::FTimeMarker>& TimeMarker : TimeMarkers)
+	for (TSharedRef<FTimeMarker>& TimeMarker : TimeMarkers)
 	{
 		if (TimeMarker->GetName().Equals(InTimeMarkerName))
 		{
@@ -109,9 +114,9 @@ TSharedPtr<Insights::FTimeMarker> FTimeRulerTrack::GetTimeMarkerByName(const FSt
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<Insights::FTimeMarker> FTimeRulerTrack::GetTimeMarkerAtPos(const FVector2D& InPosition, const FTimingTrackViewport& InViewport)
+TSharedPtr<FTimeMarker> FTimeRulerTrack::GetTimeMarkerAtPos(const FVector2D& InPosition, const FTimingTrackViewport& InViewport)
 {
-	TSharedPtr<Insights::FTimeMarker> ClosestTimeMarker = nullptr;
+	TSharedPtr<FTimeMarker> ClosestTimeMarker = nullptr;
 
 	constexpr float TimeMarkerBoxHeight = 12.0f;
 	const float InPositionY = static_cast<float>(InPosition.Y);
@@ -119,7 +124,7 @@ TSharedPtr<Insights::FTimeMarker> FTimeRulerTrack::GetTimeMarkerAtPos(const FVec
 	{
 		const float InPositionX = static_cast<float>(InPosition.X);
 		float MinDX = 42.0f;
-		for (TSharedRef<Insights::FTimeMarker>& TimeMarker : TimeMarkers)
+		for (TSharedRef<FTimeMarker>& TimeMarker : TimeMarkers)
 		{
 			if (TimeMarker->IsVisible())
 			{
@@ -139,7 +144,7 @@ TSharedPtr<Insights::FTimeMarker> FTimeRulerTrack::GetTimeMarkerAtPos(const FVec
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimeRulerTrack::StartScrubbing(TSharedRef<Insights::FTimeMarker> InTimeMarker)
+void FTimeRulerTrack::StartScrubbing(TSharedRef<FTimeMarker> InTimeMarker)
 {
 	// Move the scrubbing time marker at the end of sorting list to be draw on top of other markers.
 	TimeMarkers.Remove(InTimeMarker);
@@ -220,8 +225,9 @@ void FTimeRulerTrack::Draw(const ITimingTrackDrawContext& Context) const
 	}
 	DrawContext.LayerId++;
 
+	using namespace UE::Insights;
 	const double DT = static_cast<double>(MajorTickMark) / Viewport.GetScaleX();
-	const double Precision = FMath::Max(DT / 10.0, TimeUtils::Nanosecond);
+	const double Precision = FMath::Max(DT / 10.0, FTimeValue::Nanosecond);
 
 	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 	const float FontScale = DrawContext.Geometry.Scale;
@@ -230,7 +236,7 @@ void FTimeRulerTrack::Draw(const ITimingTrackDrawContext& Context) const
 	for (float X = MajorOX; X < Viewport.GetWidth() + MajorTickMark; X += MajorTickMark)
 	{
 		const double T = Viewport.SlateUnitsToTime(X);
-		FString Text = TimeUtils::FormatTime(T, Precision);
+		FString Text = FormatTime(T, Precision);
 		const float TextWidth = static_cast<float>(FontMeasureService->Measure(Text, Font, FontScale).X / FontScale);
 		DrawContext.DrawText(X - TextWidth / 2, TextY, Text, Font,
 			(T < Viewport.GetMinValidTime() || T >= Viewport.GetMaxValidTime()) ? FLinearColor(0.7f, 0.5f, 0.5f, 1.0f) : FLinearColor(0.8f, 0.8f, 0.8f, 1.0f));
@@ -260,17 +266,18 @@ void FTimeRulerTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 		const double MousePosTime = Viewport.SlateUnitsToTime(static_cast<float>(MousePosition.X));
 		CrtMousePosTime = MousePosTime;
 
+		using namespace UE::Insights;
 		const double DT = 100.0 / Viewport.GetScaleX();
-		const double MousePosPrecision = FMath::Max(DT / 100.0, TimeUtils::Nanosecond);
+		const double MousePosPrecision = FMath::Max(DT / 100.0, FTimeValue::Nanosecond);
 		if (bIsMouseOver)
 		{
 			// If mouse is hovering the time ruler, format time with a better precision (split seconds in ms, us, ns and ps).
-			MousePosText = TimeUtils::FormatTimeSplit(MousePosTime, MousePosPrecision);
+			MousePosText = FormatTimeSplit(MousePosTime, MousePosPrecision);
 		}
 		else
 		{
 			// Format current time with one more digit than the time at major tick marks.
-			MousePosText = TimeUtils::FormatTime(MousePosTime, MousePosPrecision);
+			MousePosText = FormatTime(MousePosTime, MousePosPrecision);
 		}
 
 		const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
@@ -325,7 +332,7 @@ void FTimeRulerTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 	}
 
 	// Draw the time markers.
-	for (const TSharedRef<Insights::FTimeMarker>& TimeMarker : TimeMarkers)
+	for (const TSharedRef<FTimeMarker>& TimeMarker : TimeMarkers)
 	{
 		DrawTimeMarker(Context, *TimeMarker);
 	}
@@ -333,7 +340,7 @@ void FTimeRulerTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimeRulerTrack::DrawTimeMarker(const ITimingTrackDrawContext& Context, const Insights::FTimeMarker& TimeMarker) const
+void FTimeRulerTrack::DrawTimeMarker(const ITimingTrackDrawContext& Context, const FTimeMarker& TimeMarker) const
 {
 	if (!TimeMarker.IsVisible())
 	{
@@ -382,17 +389,18 @@ void FTimeRulerTrack::DrawTimeMarker(const ITimingTrackDrawContext& Context, con
 		}
 
 		// Format time value with one more digit than the time at major tick marks.
+		using namespace UE::Insights;
 		const double DT = 100.0 / Viewport.GetScaleX();
-		const double Precision = FMath::Max(DT / 100.0, TimeUtils::Nanosecond);
+		const double Precision = FMath::Max(DT / 100.0, FTimeValue::Nanosecond);
 
 		if (bIsMouseOverMarker)
 		{
 			// If mouse is hovering the time marker, format time with a better precision (split seconds in ms, us, ns and ps).
-			TimeMarkerText += TimeUtils::FormatTimeSplit(TimeMarker.GetTime(), Precision);
+			TimeMarkerText += FormatTimeSplit(TimeMarker.GetTime(), Precision);
 		}
 		else
 		{
-			TimeMarkerText += TimeUtils::FormatTime(TimeMarker.GetTime(), Precision);
+			TimeMarkerText += FormatTime(TimeMarker.GetTime(), Precision);
 		}
 	}
 	else
@@ -435,8 +443,8 @@ void FTimeRulerTrack::DrawTimeMarker(const ITimingTrackDrawContext& Context, con
 
 void FTimeRulerTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 {
-	TArray<TSharedRef<Insights::FTimeMarker>> VisibleTimeMarkers;
-	for (TSharedRef<Insights::FTimeMarker>& TimeMarker : TimeMarkers)
+	TArray<TSharedRef<FTimeMarker>> VisibleTimeMarkers;
+	for (TSharedRef<FTimeMarker>& TimeMarker : TimeMarkers)
 	{
 		if (TimeMarker->IsVisible())
 		{
@@ -444,16 +452,16 @@ void FTimeRulerTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 		}
 	}
 
-	FText CrtMousePosTimeText = FText::FromString(TimeUtils::FormatTimeAuto(CrtMousePosTime, 2));
+	FText CrtMousePosTimeText = FText::FromString(FormatTimeAuto(CrtMousePosTime, 2));
 
 	if (VisibleTimeMarkers.Num() > 0)
 	{
 		// Sort TimeMarkers by name.
-		VisibleTimeMarkers.Sort([](const TSharedRef<Insights::FTimeMarker>& A, const TSharedRef<Insights::FTimeMarker>& B) -> bool { return A->GetName().Compare(B->GetName()) <= 0; });
+		VisibleTimeMarkers.Sort([](const TSharedRef<FTimeMarker>& A, const TSharedRef<FTimeMarker>& B) -> bool { return A->GetName().Compare(B->GetName()) <= 0; });
 
 		MenuBuilder.BeginSection("TimeMarkers", LOCTEXT("ContextMenu_Section_TimeMarkers", "Time Markers"));
 
-		for (TSharedRef<Insights::FTimeMarker>& TimeMarker : VisibleTimeMarkers)
+		for (TSharedRef<FTimeMarker>& TimeMarker : VisibleTimeMarkers)
 		{
 			FUIAction Action_MoveTimeMarker
 			(
@@ -499,7 +507,7 @@ void FTimeRulerTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTimeRulerTrack::ContextMenu_MoveTimeMarker_Execute(TSharedRef<Insights::FTimeMarker> InTimeMarker)
+void FTimeRulerTrack::ContextMenu_MoveTimeMarker_Execute(TSharedRef<FTimeMarker> InTimeMarker)
 {
 	InTimeMarker->SetTime(CrtMousePosTime);
 }
@@ -539,5 +547,7 @@ void FTimeRulerTrack::ContextMenu_ScrollLogView_Execute()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::TimingProfiler
 
 #undef LOCTEXT_NAMESPACE

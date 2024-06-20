@@ -2,19 +2,29 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 #include "Features/IModularFeature.h"
+#include "Templates/SharedPointer.h"
 
-namespace TraceServices { class IAnalysisSession; }
+#include "Insights/Config.h"
+
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+#include "Insights/ITimingViewSession.h"
+#endif
+
 class FMenuBuilder;
 
-namespace Insights
+namespace TraceServices { class IAnalysisSession; }
+namespace UE::Insights { class FFilterConfigurator; }
+
+namespace UE::Insights::Timing
 {
 
 class ITimingViewSession;
+
 extern TRACEINSIGHTS_API const FName TimingViewExtenderFeatureName;
 
-class TRACEINSIGHTS_API ITimingViewExtender : public IModularFeature
+class ITimingViewExtender : public IModularFeature
 {
 public:
 	virtual ~ITimingViewExtender() = default;
@@ -38,11 +48,65 @@ public:
 	virtual void ExtendFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
 
 	/** Extension hook for the context menu for all tracks
-	@return True if any menu option was added and False if no option was added */ 
+	@return True if any menu option was added and False if no option was added */
 	virtual bool ExtendGlobalContextMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) { return false; }
 
 	/** Allows extender to add filters to the Quick Find widget. */
-	virtual void AddQuickFindFilters(TSharedPtr<class FFilterConfigurator> FilterConfigurator) {}
+	virtual void AddQuickFindFilters(TSharedPtr<FFilterConfigurator> FilterConfigurator) {}
+};
+
+} // namespace UE::Insights::Timing
+
+#if UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54
+
+namespace Insights
+{
+
+extern TRACEINSIGHTS_API const FName TimingViewExtenderFeatureName;
+
+//class UE_DEPRECATED(5.5, "ITimingViewExtender class was moved inside UE::Insights::Timing namespace") ITimingViewExtender;
+class ITimingViewExtender : public IModularFeature
+{
+public:
+	virtual ~ITimingViewExtender() = default;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual void OnBeginSession(ITimingViewSession& InSession) = 0;
+	virtual void OnEndSession(ITimingViewSession& InSession) = 0;
+	virtual void Tick(ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) = 0;
+	virtual void ExtendCpuTracksFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
+	virtual void ExtendGpuTracksFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
+	virtual void ExtendOtherTracksFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
+	virtual void ExtendFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
+	virtual bool ExtendGlobalContextMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) { return false; }
+	virtual void AddQuickFindFilters(TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator) {}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 } // namespace Insights
+
+namespace UE::Insights
+{
+
+extern TRACEINSIGHTS_API const FName TimingViewExtenderFeatureName;
+
+//class UE_DEPRECATED(5.5, "ITimingViewExtender class was moved inside UE::Insights::Timing namespace") ITimingViewExtender;
+class ITimingViewExtender : public IModularFeature
+{
+public:
+	virtual ~ITimingViewExtender() = default;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual void OnBeginSession(ITimingViewSession& InSession) = 0;
+	virtual void OnEndSession(ITimingViewSession& InSession) = 0;
+	virtual void Tick(ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) = 0;
+	virtual void ExtendCpuTracksFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
+	virtual void ExtendGpuTracksFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
+	virtual void ExtendOtherTracksFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
+	virtual void ExtendFilterMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) {}
+	virtual bool ExtendGlobalContextMenu(ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) { return false; }
+	virtual void AddQuickFindFilters(TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator) {}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+};
+
+} // namespace UE::Insights
+
+#endif // UE_INSIGHTS_BACKWARD_COMPATIBILITY_UE54

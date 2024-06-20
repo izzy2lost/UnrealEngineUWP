@@ -23,6 +23,7 @@ public class UnrealInsights : ModuleRules
 				"StandaloneRenderer",
 				"TargetPlatform",
 				"TraceInsights",
+				"TraceInsightsCore",
 			}
 		);
 

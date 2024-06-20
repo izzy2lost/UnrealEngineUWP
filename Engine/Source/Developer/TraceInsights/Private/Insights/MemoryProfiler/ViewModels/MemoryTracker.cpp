@@ -2,11 +2,11 @@
 
 #include "MemoryTracker.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/MemoryProfiler/ViewModels/MemoryTag.h"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -28,4 +28,4 @@ FMemoryTracker::~FMemoryTracker()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

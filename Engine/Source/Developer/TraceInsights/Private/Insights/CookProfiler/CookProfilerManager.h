@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "Containers/Ticker.h"
 #include "CoreMinimal.h"
+
+#include "Containers/Ticker.h"
 #include "Framework/Commands/UICommandList.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 
@@ -76,7 +77,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	FAvailabilityCheck AvailabilityCheck;
+	UE::Insights::FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;

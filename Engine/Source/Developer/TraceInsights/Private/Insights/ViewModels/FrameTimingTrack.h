@@ -5,19 +5,22 @@
 #include "CoreMinimal.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Commands/Commands.h"
+
+// TraceServices
 #include "TraceServices/Model/Frames.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ITimingViewExtender.h"
 #include "Insights/ViewModels/TimingEventSearch.h" // for TTimingEventSearchCache
 #include "Insights/ViewModels/TimingEventsTrack.h"
 #include "Insights/ViewModels/TrackHeader.h"
 
+struct FSlateBrush;
+
 class FTimingEvent;
 class FTimingEventSearchParameters;
 class FFrameTimingTrack;
-class STimingView;
-struct FSlateBrush;
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -34,10 +37,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FFrameSharedState : public Insights::ITimingViewExtender, public TSharedFromThis<FFrameSharedState>
+class FFrameSharedState : public UE::Insights::Timing::ITimingViewExtender, public TSharedFromThis<FFrameSharedState>
 {
 public:
-	explicit FFrameSharedState(STimingView* InTimingView) : TimingView(InTimingView) {}
+	explicit FFrameSharedState(UE::Insights::TimingProfiler::STimingView* InTimingView) : TimingView(InTimingView) {}
 	virtual ~FFrameSharedState() = default;
 
 	TSharedPtr<FFrameTimingTrack> GetFrameTrack(uint32 InFrameType);
@@ -47,10 +50,10 @@ public:
 	//////////////////////////////////////////////////
 	// ITimingViewExtender interface
 
-	virtual void OnBeginSession(Insights::ITimingViewSession& InSession) override;
-	virtual void OnEndSession(Insights::ITimingViewSession& InSession) override;
-	virtual void Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
-	virtual void ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
+	virtual void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
+	virtual void ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
 
 	//////////////////////////////////////////////////
 
@@ -63,7 +66,7 @@ public:
 	void ShowHideAllFrameTracks() { SetAllFrameTracksToggle(!IsAllFrameTracksToggleOn()); }
 
 private:
-	STimingView* TimingView;
+	UE::Insights::TimingProfiler::STimingView* TimingView;
 
 	bool bShowHideAllFrameTracks;
 
@@ -130,7 +133,7 @@ public:
 	//////////////////////////////////////////////////
 
 private:
-	void DrawSelectedEventInfo(const FTimingEvent& SelectedEvent, const FTimingTrackViewport& Viewport, const FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const;
+	void DrawSelectedEventInfo(const FTimingEvent& SelectedEvent, const FTimingTrackViewport& Viewport, const UE::Insights::FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const;
 
 	bool FindFrame(const FTimingEvent& InTimingEvent, TFunctionRef<void(double, double, uint32, const TraceServices::FFrame&)> InFoundPredicate) const;
 	bool FindFrame(const FTimingEventSearchParameters& InParameters, TFunctionRef<void(double, double, uint32, const TraceServices::FFrame&)> InFoundPredicate) const;

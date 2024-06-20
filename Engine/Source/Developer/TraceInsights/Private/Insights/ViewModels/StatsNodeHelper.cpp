@@ -2,7 +2,7 @@
 
 #include "StatsNodeHelper.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 
 #define LOCTEXT_NAMESPACE "StatsNode"

@@ -12,12 +12,16 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/ViewModels/LogFilter.h"
 #include "Insights/ViewModels/LogMessage.h"
 
 class FMenuBuilder;
+
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -78,6 +82,8 @@ public:
 	FText GetFilterText() const { return FilterTextBox->GetText(); }
 
 	bool IsFilteringAsyncTaskCancelRequested() const { return bIsFilteringAsyncTaskCancelRequested; }
+
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> GetTimingView() const;
 
 protected:
 	/** Generate a new list view row. */
@@ -171,7 +177,7 @@ protected:
 	mutable volatile bool bIsFilteringAsyncTaskCancelRequested; // true if we want the async task to finish asap
 
 	/** Stopwatch used to measure how long it takes to filter the message list. */
-	mutable FStopwatch FilteringStopwatch;
+	mutable UE::Insights::FStopwatch FilteringStopwatch;
 
 	/**
 	 * Total number of log categories (including duplicates; last value read from LogProvider).
@@ -195,7 +201,7 @@ protected:
 	bool bIsDirty;
 
 	/** Stopwatch used to measure the time since the list of messages has become dirty. */
-	mutable FStopwatch DirtyStopwatch;
+	mutable UE::Insights::FStopwatch DirtyStopwatch;
 
 	/** Stats */
 	FText StatsText;

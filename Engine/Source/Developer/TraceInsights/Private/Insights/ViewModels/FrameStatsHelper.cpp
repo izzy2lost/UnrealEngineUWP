@@ -2,8 +2,10 @@
 
 #include "FrameStatsHelper.h"
 
+// TraceServices
 #include "TraceServices/Model/TimingProfiler.h"
 
+// TraceInsights
 #include "Insights/InsightsManager.h"
 
 namespace Insights

@@ -3,11 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+// TraceServices
 #include "TraceServices/Containers/Timelines.h"
 #include "TraceServices/Model/TimingProfiler.h"
 
-// Insights
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +51,7 @@ typedef TWeakPtr<class FTimerNode> FTimerNodeWeak;
 /**
  * Class used to store information about a timer node (used in the STimersView).
  */
-class FTimerNode : public Insights::FBaseTreeNode
+class FTimerNode : public UE::Insights::FBaseTreeNode
 {
 	INSIGHTS_DECLARE_RTTI(FTimerNode, FBaseTreeNode)
 

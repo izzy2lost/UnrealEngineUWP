@@ -2,13 +2,16 @@
 
 #pragma once
 
-#include <atomic>
 #include "CoreFwd.h"
 #include "HAL/CriticalSection.h"
 #include "Templates/UniquePtr.h"
-#include "Trace/StoreClient.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
+
+// TraceAnalysis
+#include "Trace/StoreClient.h"
+
+#include <atomic>
 
 class FMenuBuilder;
 

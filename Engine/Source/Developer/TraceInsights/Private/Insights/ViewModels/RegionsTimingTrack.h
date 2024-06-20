@@ -3,11 +3,15 @@
 #pragma once
 
 #include "Framework/Commands/Commands.h"
-#include "Insights/ITimingViewExtender.h"
-#include "Insights/ViewModels/TimingEventsTrack.h"
+
+// TraceServices
 #include "TraceServices/Model/Regions.h"
 
-class STimingView;
+// TraceInsights
+#include "Insights/ITimingViewExtender.h"
+#include "Insights/ViewModels/TimingEventsTrack.h"
+
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
 namespace Insights
 {
@@ -29,27 +33,27 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTimingRegionsSharedState : public Insights::ITimingViewExtender, public TSharedFromThis<FTimingRegionsSharedState>
+class FTimingRegionsSharedState : public UE::Insights::Timing::ITimingViewExtender, public TSharedFromThis<FTimingRegionsSharedState>
 {
 	friend class FTimingRegionsTrack;
 	
 public:
-	explicit FTimingRegionsSharedState(STimingView* InTimingView) : TimingView(InTimingView) {}
+	explicit FTimingRegionsSharedState(UE::Insights::TimingProfiler::STimingView* InTimingView) : TimingView(InTimingView) {}
 	virtual ~FTimingRegionsSharedState() override = default;
 
 	//////////////////////////////////////////////////
 	// ITimingViewExtender interface
 
-	virtual void OnBeginSession(Insights::ITimingViewSession& InSession) override;
-	virtual void OnEndSession(Insights::ITimingViewSession& InSession) override;
-	virtual void Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
+	virtual void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
+	virtual void Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
 	void ShowHideRegionsTrack();
 	bool IsRegionsTrackVisible() const {return bShowHideRegionsTrack;};
-	virtual void ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder) override;
+	virtual void ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder) override;
 	void BindCommands();
 
 private:
-	STimingView* TimingView;
+	UE::Insights::TimingProfiler::STimingView* TimingView;
 	TSharedPtr<FTimingRegionsTrack> TimingRegionsTrack;
 
 	bool bShowHideRegionsTrack = true;
@@ -70,7 +74,7 @@ public:
 	virtual const TSharedPtr<const ITimingEvent> SearchEvent(const FTimingEventSearchParameters& InSearchParameters) const override;
 	virtual void BuildDrawState(ITimingEventsTrackDrawStateBuilder& Builder, const ITimingTrackUpdateContext& Context) override;
 	virtual void BuildFilteredDrawState(ITimingEventsTrackDrawStateBuilder& Builder, const ITimingTrackUpdateContext& Context) override;
-	virtual void SetFilterConfigurator(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator) override;
+	virtual void SetFilterConfigurator(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfigurator) override;
 	virtual bool HasCustomFilter() const override;
 	virtual void OnClipboardCopyEvent(const ITimingEvent& InSelectedEvent) const override;
 
@@ -78,7 +82,7 @@ protected:
 	bool FindRegionEvent(const FTimingEventSearchParameters& InParameters, TFunctionRef<void(double, double, uint32, const TraceServices::FTimeRegion&)> InFoundPredicate) const;
 
 private:
-	TSharedPtr<Insights::FFilterConfigurator> FilterConfigurator;
+	TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator;
 	FTimingRegionsSharedState& SharedState;
 };
 

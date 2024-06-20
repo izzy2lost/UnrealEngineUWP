@@ -2,14 +2,17 @@
 
 #include "TaskTable.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Table/ViewModels/TableCellValue.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/TaskGraphProfiler/ViewModels/TaskNode.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTable.h"
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 
 #define LOCTEXT_NAMESPACE "Insights::FTaskTable"
 
@@ -41,17 +44,17 @@ const FName FTaskTableColumns::NumPrerequisitesColumnId(TEXT("NumPrerequisites")
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef FTableCellValue(*TaskFieldGetter)(const FTableColumn&, const FTaskEntry&);
+typedef UE::Insights::FTableCellValue (*TaskFieldGetter) (const UE::Insights::FTableColumn&, const FTaskEntry&);
 
 template<TaskFieldGetter Getter>
-class FTaskColumnValueGetter : public FTableCellValueGetter
+class FTaskColumnValueGetter : public UE::Insights::FTableCellValueGetter
 {
 public:
-	virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
+	virtual const TOptional<UE::Insights::FTableCellValue> GetValue(const UE::Insights::FTableColumn& Column, const UE::Insights::FBaseTreeNode& Node) const override
 	{
 		if (Node.IsGroup())
 		{
-			const FTableTreeNode& NodePtr = static_cast<const FTableTreeNode&>(Node);
+			const UE::Insights::FTableTreeNode& NodePtr = static_cast<const UE::Insights::FTableTreeNode&>(Node);
 			if (NodePtr.HasAggregatedValue(Column.GetId()))
 			{
 				return NodePtr.GetAggregatedValue(Column.GetId());
@@ -67,7 +70,7 @@ public:
 			}
 		}
 
-		return TOptional<FTableCellValue>();
+		return TOptional<UE::Insights::FTableCellValue>();
 	}
 };
 
@@ -87,6 +90,9 @@ double GetRelativeValue(double ValueA, double ValueB)
 
 struct DefaultTaskFieldGetterFuncts
 {
+	using FTableCellValue = UE::Insights::FTableCellValue;
+	using FTableColumn = UE::Insights::FTableColumn;
+
 	static FTableCellValue GetDebugName(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue(Task.GetDebugName()); }
 	static FTableCellValue GetCreatedTimestamp(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue(Task.GetCreatedTimestamp());	}
 	static FTableCellValue GetCreatedThreadId(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue((int64)Task.GetCreatedThreadId());	}
@@ -120,6 +126,9 @@ struct DefaultTaskFieldGetterFuncts
 
 struct RelativeToPreviousTaskFieldGetterFuncts
 {
+	using FTableCellValue = UE::Insights::FTableCellValue;
+	using FTableColumn = UE::Insights::FTableColumn;
+
 	static FTableCellValue GetCreatedTimestamp(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue(Task.GetCreatedTimestamp()); }
 	static FTableCellValue GetLaunchedTimestamp(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue(GetRelativeValue(Task.GetLaunchedTimestamp(), Task.GetCreatedTimestamp())); }
 	static FTableCellValue GetScheduledTimestamp(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue(GetRelativeValue(Task.GetScheduledTimestamp(), Task.GetLaunchedTimestamp())); }
@@ -133,6 +142,9 @@ struct RelativeToPreviousTaskFieldGetterFuncts
 
 struct RelativeToCreatedTaskFieldGetterFuncts
 {
+	using FTableCellValue = UE::Insights::FTableCellValue;
+	using FTableColumn = UE::Insights::FTableColumn;
+
 	static FTableCellValue GetCreatedTimestamp(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue(Task.GetCreatedTimestamp()); }
 	static FTableCellValue GetLaunchedTimestamp(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue(GetRelativeValue(Task.GetLaunchedTimestamp(), Task.GetCreatedTimestamp())); }
 	static FTableCellValue GetScheduledTimestamp(const FTableColumn& Column, const FTaskEntry& Task) { return FTableCellValue(GetRelativeValue(Task.GetScheduledTimestamp(), Task.GetCreatedTimestamp())); }
@@ -144,24 +156,24 @@ struct RelativeToCreatedTaskFieldGetterFuncts
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTaskDoubleValueFormatterAsTimeAuto : public FTableCellValueFormatter
+class FTaskDoubleValueFormatterAsTimeAuto : public UE::Insights::FTableCellValueFormatter
 {
 public:
-	virtual FText FormatValue(const TOptional<FTableCellValue>& InValue) const override
+	virtual FText FormatValue(const TOptional<UE::Insights::FTableCellValue>& InValue) const override
 	{
 		if (InValue.IsSet())
 		{
 			const double Value = InValue.GetValue().Double;
 			if (Value != TraceServices::FTaskInfo::InvalidTimestamp)
 			{
-				return FText::FromString(TimeUtils::FormatTimeAuto(Value));
+				return FText::FromString(UE::Insights::FormatTimeAuto(Value));
 			}
 		}
 
 		return FText::FromString(TEXT("N/A"));
 	}
 
-	virtual FText FormatValueForTooltip(const TOptional<FTableCellValue>& InValue) const override
+	virtual FText FormatValueForTooltip(const TOptional<UE::Insights::FTableCellValue>& InValue) const override
 	{
 		if (InValue.IsSet())
 		{
@@ -172,7 +184,7 @@ public:
 			}
 			else if (Value != TraceServices::FTaskInfo::InvalidTimestamp)
 			{
-				return FText::FromString(FString::Printf(TEXT("%f (%s)"), Value, *TimeUtils::FormatTimeAuto(Value)));
+				return FText::FromString(FString::Printf(TEXT("%f (%s)"), Value, *UE::Insights::FormatTimeAuto(Value)));
 			}
 		}
 
@@ -207,6 +219,8 @@ void FTaskTable::Reset()
 
 void FTaskTable::AddDefaultColumns()
 {
+	using namespace UE::Insights;
+
 	//////////////////////////////////////////////////
 	// Hierarchy Column
 	{

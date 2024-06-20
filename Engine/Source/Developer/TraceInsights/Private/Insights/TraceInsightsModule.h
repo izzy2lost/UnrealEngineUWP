@@ -2,9 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
 #include "Insights/IUnrealInsightsModule.h"
 #include "Framework/Docking/TabManager.h"
+
+// TraceAnalysis
 #include "Trace/StoreService.h"
 
 namespace Insights
@@ -28,6 +31,10 @@ class SWindow;
 class FTraceInsightsModule : public IUnrealInsightsModule
 {
 public:
+	virtual ~FTraceInsightsModule()
+	{
+	}
+
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 

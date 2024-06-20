@@ -16,9 +16,13 @@
 #include "Widgets/SToolTip.h"
 #include "Widgets/Views/STableViewBase.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/MemoryProfiler/MemoryProfilerManager.h"
 #include "Insights/MemoryProfiler/ViewModels/MemoryTag.h"
@@ -28,16 +32,17 @@
 #include "Insights/MemoryProfiler/Widgets/SMemTagTreeViewTooltip.h"
 #include "Insights/MemoryProfiler/Widgets/SMemTagTreeViewTableRow.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerWindow.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 
-#define LOCTEXT_NAMESPACE "SMemTagTreeView"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::SMemTagTreeView"
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 SMemTagTreeView::SMemTagTreeView()
 	: ProfilerWindowWeakPtr()
-	, Table(MakeShared<Insights::FTable>())
+	, Table(MakeShared<FTable>())
 	, bExpansionSaved(false)
 	, bFilterOutZeroCountMemTags(false)
 	, TrackersFilter(uint64(-1))
@@ -192,10 +197,10 @@ void SMemTagTreeView::CreateTrackersMenuSection(FMenuBuilder& MenuBuilder)
 	if (ProfilerWindow.IsValid())
 	{
 		FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
-		const TArray<TSharedPtr<Insights::FMemoryTracker>>& Trackers = SharedState.GetTrackers();
-		for (const TSharedPtr<Insights::FMemoryTracker>& Tracker : Trackers)
+		const TArray<TSharedPtr<FMemoryTracker>>& Trackers = SharedState.GetTrackers();
+		for (const TSharedPtr<FMemoryTracker>& Tracker : Trackers)
 		{
-			const Insights::FMemoryTrackerId TrackerId = Tracker->GetId();
+			const FMemoryTrackerId TrackerId = Tracker->GetId();
 			MenuBuilder.AddMenuEntry(
 				FText::FromString(Tracker->GetName()),
 				TAttribute<FText>(),
@@ -213,17 +218,17 @@ void SMemTagTreeView::CreateTrackersMenuSection(FMenuBuilder& MenuBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemTagTreeView::ToggleTracker(Insights::FMemoryTrackerId InTrackerId)
+void SMemTagTreeView::ToggleTracker(FMemoryTrackerId InTrackerId)
 {
-	TrackersFilter ^= Insights::FMemoryTracker::AsFlag(InTrackerId);
+	TrackersFilter ^= FMemoryTracker::AsFlag(InTrackerId);
 	ApplyFiltering();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool SMemTagTreeView::IsTrackerChecked(Insights::FMemoryTrackerId InTrackerId) const
+bool SMemTagTreeView::IsTrackerChecked(FMemoryTrackerId InTrackerId) const
 {
-	return (TrackersFilter & Insights::FMemoryTracker::AsFlag(InTrackerId)) != 0;
+	return (TrackersFilter & FMemoryTracker::AsFlag(InTrackerId)) != 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -682,9 +687,9 @@ void SMemTagTreeView::TreeView_BuildSortByMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("SortColumn", LOCTEXT("ContextMenu_Section_SortColumn", "Sort Column"));
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		if (Column.IsVisible() && Column.CanBeSorted())
 		{
@@ -751,9 +756,9 @@ void SMemTagTreeView::TreeView_BuildViewColumnMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("Columns", LOCTEXT("ContextMenu_Section_Columns", "Columns"));
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		FUIAction Action_ToggleColumn
 		(
@@ -780,12 +785,12 @@ void SMemTagTreeView::TreeView_BuildViewColumnMenu(FMenuBuilder& MenuBuilder)
 void SMemTagTreeView::InitializeAndShowHeaderColumns()
 {
 	// Create columns.
-	TArray<TSharedRef<Insights::FTableColumn>> Columns;
+	TArray<TSharedRef<FTableColumn>> Columns;
 	FMemTagTreeViewColumnFactory::CreateMemTagTreeViewColumns(Columns);
 	Table->SetColumns(Columns);
 
 	// Show columns.
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
 		if (ColumnRef->ShouldBeVisible())
 		{
@@ -798,13 +803,13 @@ void SMemTagTreeView::InitializeAndShowHeaderColumns()
 
 FText SMemTagTreeView::GetColumnHeaderText(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.GetShortName();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<SWidget> SMemTagTreeView::TreeViewHeaderRow_GenerateColumnMenu(const Insights::FTableColumn& Column)
+TSharedRef<SWidget> SMemTagTreeView::TreeViewHeaderRow_GenerateColumnMenu(const FTableColumn& Column)
 {
 	const bool bShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, NULL);
@@ -975,7 +980,7 @@ void SMemTagTreeView::UpdateTree()
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
 	if (TotalTime > 0.1)
 	{
-		UE_LOG(MemoryProfiler, Log, TEXT("[LLM Tags] Tree view updated in %.3fs (%d counters) --> G:%.3fs + S:%.3fs + F:%.3fs"),
+		UE_LOG(LogMemoryProfiler, Log, TEXT("[LLM Tags] Tree view updated in %.3fs (%d counters) --> G:%.3fs + S:%.3fs + F:%.3fs"),
 			TotalTime, MemTagNodes.Num(), Time1, Time2 - Time1, TotalTime - Time2);
 	}
 }
@@ -996,12 +1001,12 @@ void SMemTagTreeView::ApplyFiltering()
 		const bool bIsGroupVisible = Filters->PassesAllFilters(GroupPtr);
 		int32 NumVisibleChildren = 0;
 
-		const TArray<Insights::FBaseTreeNodePtr>& GroupChildren = GroupPtr->GetChildren();
-		for (const Insights::FBaseTreeNodePtr& Child : GroupChildren)
+		const TArray<FBaseTreeNodePtr>& GroupChildren = GroupPtr->GetChildren();
+		for (const FBaseTreeNodePtr& Child : GroupChildren)
 		{
-			const FMemTagNodePtr& NodePtr = StaticCastSharedPtr<FMemTagNode, Insights::FBaseTreeNode>(Child);
+			const FMemTagNodePtr& NodePtr = StaticCastSharedPtr<FMemTagNode, FBaseTreeNode>(Child);
 			const bool bIsChildVisible = (!bFilterOutZeroCountMemTags || NodePtr->GetAggregatedStats().InstanceCount > 0)
-									  && (!Insights::FMemoryTracker::IsValidTrackerId(NodePtr->GetMemTrackerId()) || ((Insights::FMemoryTracker::AsFlag(NodePtr->GetMemTrackerId()) & TrackersFilter) != 0))
+									  && (!FMemoryTracker::IsValidTrackerId(NodePtr->GetMemTrackerId()) || ((FMemoryTracker::AsFlag(NodePtr->GetMemTrackerId()) & TrackersFilter) != 0))
 									  && Filters->PassesAllFilters(NodePtr);
 			if (bIsChildVisible)
 			{
@@ -1110,11 +1115,11 @@ void SMemTagTreeView::TreeView_OnSelectionChanged(FMemTagNodePtr SelectedItem, E
 
 void SMemTagTreeView::TreeView_OnGetChildren(FMemTagNodePtr InParent, TArray<FMemTagNodePtr>& OutChildren)
 {
-	const TArray<Insights::FBaseTreeNodePtr>& Children = InParent->GetFilteredChildren();
+	const TArray<FBaseTreeNodePtr>& Children = InParent->GetFilteredChildren();
 	OutChildren.Reset(Children.Num());
-	for (const Insights::FBaseTreeNodePtr& Child : Children)
+	for (const FBaseTreeNodePtr& Child : Children)
 	{
-		OutChildren.Add(StaticCastSharedPtr<FMemTagNode, Insights::FBaseTreeNode>(Child));
+		OutChildren.Add(StaticCastSharedPtr<FMemTagNode, FBaseTreeNode>(Child));
 	}
 }
 
@@ -1133,8 +1138,8 @@ void SMemTagTreeView::TreeView_OnMouseButtonDoubleClick(FMemTagNodePtr MemTagNod
 		if (ProfilerWindow.IsValid())
 		{
 			FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
-			const Insights::FMemoryTrackerId MemTrackerId = MemTagNodePtr->GetMemTrackerId();
-			const Insights::FMemoryTagId MemTagId = MemTagNodePtr->GetMemTagId();
+			const FMemoryTrackerId MemTrackerId = MemTagNodePtr->GetMemTrackerId();
+			const FMemoryTagId MemTagId = MemTagNodePtr->GetMemTagId();
 
 			TSharedPtr<FMemoryGraphTrack> GraphTrack = SharedState.GetMemTagGraphTrack(MemTrackerId, MemTagId);
 			if (!GraphTrack.IsValid())
@@ -1178,7 +1183,7 @@ bool SMemTagTreeView::TableRow_ShouldBeEnabled(FMemTagNodePtr NodePtr) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemTagTreeView::TableRow_SetHoveredCell(TSharedPtr<Insights::FTable> InTablePtr, TSharedPtr<Insights::FTableColumn> InColumnPtr, FMemTagNodePtr InNodePtr)
+void SMemTagTreeView::TableRow_SetHoveredCell(TSharedPtr<FTable> InTablePtr, TSharedPtr<FTableColumn> InColumnPtr, FMemTagNodePtr InNodePtr)
 {
 	HoveredColumnId = InColumnPtr ? InColumnPtr->GetId() : FName();
 
@@ -1305,10 +1310,10 @@ void SMemTagTreeView::CreateGroups()
 	// Groups LLM tags by tracker.
 	else if (GroupingMode == EMemTagNodeGroupingMode::ByTracker)
 	{
-		TMap<Insights::FMemoryTrackerId, FMemTagNodePtr> GroupNodeSet;
+		TMap<FMemoryTrackerId, FMemTagNodePtr> GroupNodeSet;
 		for (const FMemTagNodePtr& NodePtr : MemTagNodes)
 		{
-			Insights::FMemoryTrackerId TrackerId = NodePtr->GetMemTrackerId();
+			FMemoryTrackerId TrackerId = NodePtr->GetMemTrackerId();
 			FMemTagNodePtr GroupPtr = GroupNodeSet.FindRef(TrackerId);
 			if (!GroupPtr)
 			{
@@ -1421,11 +1426,11 @@ void SMemTagTreeView::CreateSortings()
 	AvailableSorters.Reset();
 	CurrentSorter = nullptr;
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
 		if (ColumnRef->CanBeSorted())
 		{
-			TSharedPtr<Insights::ITableCellValueSorter> SorterPtr = ColumnRef->GetValueSorter();
+			TSharedPtr<ITableCellValueSorter> SorterPtr = ColumnRef->GetValueSorter();
 			if (ensure(SorterPtr.IsValid()))
 			{
 				AvailableSorters.Add(SorterPtr);
@@ -1440,7 +1445,7 @@ void SMemTagTreeView::CreateSortings()
 
 void SMemTagTreeView::UpdateCurrentSortingByColumn()
 {
-	TSharedPtr<Insights::FTableColumn> ColumnPtr = Table->FindColumn(ColumnBeingSorted);
+	TSharedPtr<FTableColumn> ColumnPtr = Table->FindColumn(ColumnBeingSorted);
 	CurrentSorter = ColumnPtr.IsValid() ? ColumnPtr->GetValueSorter() : nullptr;
 }
 
@@ -1451,21 +1456,21 @@ void SMemTagTreeView::SortTreeNodes()
 	if (CurrentSorter.IsValid())
 	{
 		// Sort groups (always by name).
-		TArray<Insights::FBaseTreeNodePtr> SortedGroupNodes;
+		TArray<FBaseTreeNodePtr> SortedGroupNodes;
 		for (const FMemTagNodePtr& NodePtr : GroupNodes)
 		{
 			SortedGroupNodes.Add(NodePtr);
 		}
-		TSharedPtr<Insights::ITableCellValueSorter> Sorter = CurrentSorter;
-		Insights::ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? Insights::ESortMode::Descending : Insights::ESortMode::Ascending;
+		TSharedPtr<ITableCellValueSorter> Sorter = CurrentSorter;
+		ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? ESortMode::Descending : ESortMode::Ascending;
 		if (CurrentSorter->GetName() != FName(TEXT("ByName")))
 		{
-			Sorter = MakeShared<Insights::FSorterByName>(Table->GetColumns()[0]);
-			SortMode = Insights::ESortMode::Ascending;
+			Sorter = MakeShared<FSorterByName>(Table->GetColumns()[0]);
+			SortMode = ESortMode::Ascending;
 		}
 		Sorter->Sort(SortedGroupNodes, SortMode);
 		GroupNodes.Reset();
-		for (const Insights::FBaseTreeNodePtr& NodePtr : SortedGroupNodes)
+		for (const FBaseTreeNodePtr& NodePtr : SortedGroupNodes)
 		{
 			GroupNodes.Add(StaticCastSharedPtr<FMemTagNode>(NodePtr));
 		}
@@ -1480,12 +1485,12 @@ void SMemTagTreeView::SortTreeNodes()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemTagTreeView::SortTreeNodesRec(FMemTagNode& Node, const Insights::ITableCellValueSorter& Sorter)
+void SMemTagTreeView::SortTreeNodesRec(FMemTagNode& Node, const ITableCellValueSorter& Sorter)
 {
-	Insights::ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? Insights::ESortMode::Descending : Insights::ESortMode::Ascending;
+	ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? ESortMode::Descending : ESortMode::Ascending;
 	Node.SortChildren(Sorter, SortMode);
 
-	for (Insights::FBaseTreeNodePtr ChildPtr : Node.GetChildren())
+	for (FBaseTreeNodePtr ChildPtr : Node.GetChildren())
 	{
 		//if (ChildPtr->IsGroup())
 		if (ChildPtr->GetChildrenCount() > 0)
@@ -1540,7 +1545,7 @@ bool SMemTagTreeView::HeaderMenu_SortMode_IsChecked(const FName ColumnId, const 
 
 bool SMemTagTreeView::HeaderMenu_SortMode_CanExecute(const FName ColumnId, const EColumnSortMode::Type InSortMode) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.CanBeSorted();
 }
 
@@ -1613,7 +1618,7 @@ bool SMemTagTreeView::CanShowColumn(const FName ColumnId) const
 
 void SMemTagTreeView::ShowColumn(const FName ColumnId)
 {
-	Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	Column.Show();
 
 	SHeaderRow::FColumn::FArguments ColumnArgs;
@@ -1668,7 +1673,7 @@ void SMemTagTreeView::ShowColumn(const FName ColumnId)
 
 bool SMemTagTreeView::CanHideColumn(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.CanBeHidden();
 }
 
@@ -1676,7 +1681,7 @@ bool SMemTagTreeView::CanHideColumn(const FName ColumnId) const
 
 void SMemTagTreeView::HideColumn(const FName ColumnId)
 {
-	Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	Column.Hide();
 
 	TreeViewHeaderRow->RemoveColumn(ColumnId);
@@ -1688,7 +1693,7 @@ void SMemTagTreeView::HideColumn(const FName ColumnId)
 
 bool SMemTagTreeView::IsColumnVisible(const FName ColumnId)
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.IsVisible();
 }
 
@@ -1696,7 +1701,7 @@ bool SMemTagTreeView::IsColumnVisible(const FName ColumnId)
 
 bool SMemTagTreeView::CanToggleColumnVisibility(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return !Column.IsVisible() || Column.CanBeHidden();
 }
 
@@ -1704,7 +1709,7 @@ bool SMemTagTreeView::CanToggleColumnVisibility(const FName ColumnId) const
 
 void SMemTagTreeView::ToggleColumnVisibility(const FName ColumnId)
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	if (Column.IsVisible())
 	{
 		HideColumn(ColumnId);
@@ -1732,9 +1737,9 @@ void SMemTagTreeView::ContextMenu_ShowAllColumns_Execute()
 	ColumnSortMode = GetDefaultColumnSortMode();
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		if (!Column.IsVisible())
 		{
@@ -1774,9 +1779,9 @@ void SMemTagTreeView::ContextMenu_ShowMinMaxMedColumns_Execute()
 	ColumnSortMode = EColumnSortMode::Descending;
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		const bool bShouldBeVisible = Preset.Contains(Column.GetId());
 
@@ -1808,9 +1813,9 @@ void SMemTagTreeView::ContextMenu_ResetColumns_Execute()
 	ColumnSortMode = GetDefaultColumnSortMode();
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const FTableColumn& Column = *ColumnRef;
 
 		if (Column.ShouldBeVisible() && !Column.IsVisible())
 		{
@@ -1880,20 +1885,20 @@ void SMemTagTreeView::RebuildTree(bool bResync)
 	if (ProfilerWindow.IsValid())
 	{
 		FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
-		const Insights::FMemoryTagList& TagList = SharedState.GetTagList();
+		const FMemoryTagList& TagList = SharedState.GetTagList();
 
 		if (LastMemoryTagListSerialNumber != TagList.GetSerialNumber())
 		{
 			LastMemoryTagListSerialNumber = TagList.GetSerialNumber();
 
-			const TArray<Insights::FMemoryTag*>& MemTags = TagList.GetTags();
+			const TArray<FMemoryTag*>& MemTags = TagList.GetTags();
 			const int32 MemTagCount = MemTags.Num();
 
 			MemTagNodes.Empty(MemTagCount);
 			MemTagNodesIdMap.Empty(MemTagCount);
 			bListHasChanged = true;
 
-			for (Insights::FMemoryTag* MemTagPtr : MemTags)
+			for (FMemoryTag* MemTagPtr : MemTags)
 			{
 				FMemTagNodePtr MemTagNodePtr = MakeShared<FMemTagNode>(MemTagPtr);
 				MemTagNodes.Add(MemTagNodePtr);
@@ -1904,7 +1909,7 @@ void SMemTagTreeView::RebuildTree(bool bResync)
 			for (FMemTagNodePtr& NodePtr : MemTagNodes)
 			{
 				check(NodePtr->GetMemTag() != nullptr);
-				Insights::FMemoryTag& MemTag = *NodePtr->GetMemTag();
+				FMemoryTag& MemTag = *NodePtr->GetMemTag();
 
 				FMemTagNodePtr ParentNodePtr = MemTagNodesIdMap.FindRef(MemTag.GetParentId());
 				if (ParentNodePtr)
@@ -1951,7 +1956,7 @@ void SMemTagTreeView::RebuildTree(bool bResync)
 	if (TotalTime > 0.01)
 	{
 		const double SyncTime = SyncStopwatch.GetAccumulatedTime();
-		UE_LOG(MemoryProfiler, Log, TEXT("[LLM Tags] Tree view rebuilt in %.4fs (sync: %.4fs + update: %.4fs) --> %d LLM tags (%d added)"),
+		UE_LOG(LogMemoryProfiler, Log, TEXT("[LLM Tags] Tree view rebuilt in %.4fs (sync: %.4fs + update: %.4fs) --> %d LLM tags (%d added)"),
 			TotalTime, SyncTime, TotalTime - SyncTime, MemTagNodes.Num(), MemTagNodes.Num() - PreviousNodeCount);
 	}
 }
@@ -2044,13 +2049,13 @@ void SMemTagTreeView::UpdateStatsInternal()
 	Stopwatch.Stop();
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
 	const double AggregationTime = AggregationStopwatch.GetAccumulatedTime();
-	UE_LOG(MemoryProfiler, Log, TEXT("[LLM Tags] Aggregated stats updated in %.4fs (%.4fs + %.4fs)"),
+	UE_LOG(LogMemoryProfiler, Log, TEXT("[LLM Tags] Aggregated stats updated in %.4fs (%.4fs + %.4fs)"),
 		TotalTime, AggregationTime, TotalTime - AggregationTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SMemTagTreeView::SelectMemTagNode(Insights::FMemoryTagId MemTagId)
+void SMemTagTreeView::SelectMemTagNode(FMemoryTagId MemTagId)
 {
 	FMemTagNodePtr NodePtr = GetMemTagNode(MemTagId);
 	if (NodePtr)
@@ -2144,19 +2149,19 @@ void SMemTagTreeView::CreateGraphTracksForSelectedMemTags()
 		{
 			if (SelectedMemTagNode->IsGroup())
 			{
-				const TArray<Insights::FBaseTreeNodePtr>& Children = SelectedMemTagNode->GetFilteredChildren();
-				for (const Insights::FBaseTreeNodePtr& Child : Children)
+				const TArray<FBaseTreeNodePtr>& Children = SelectedMemTagNode->GetFilteredChildren();
+				for (const FBaseTreeNodePtr& Child : Children)
 				{
-					FMemTagNodePtr MemTagNode = StaticCastSharedPtr<FMemTagNode, Insights::FBaseTreeNode>(Child);
-					const Insights::FMemoryTrackerId MemTrackerId = MemTagNode->GetMemTrackerId();
-					const Insights::FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
+					FMemTagNodePtr MemTagNode = StaticCastSharedPtr<FMemTagNode, FBaseTreeNode>(Child);
+					const FMemoryTrackerId MemTrackerId = MemTagNode->GetMemTrackerId();
+					const FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
 					SharedState.CreateMemTagGraphTrack(MemTrackerId, MemTagId);
 				}
 			}
 			else
 			{
-				const Insights::FMemoryTrackerId MemTrackerId = SelectedMemTagNode->GetMemTrackerId();
-				const Insights::FMemoryTagId MemTagId = SelectedMemTagNode->GetMemTagId();
+				const FMemoryTrackerId MemTrackerId = SelectedMemTagNode->GetMemTrackerId();
+				const FMemoryTagId MemTagId = SelectedMemTagNode->GetMemTagId();
 				SharedState.CreateMemTagGraphTrack(MemTrackerId, MemTagId);
 			}
 		}
@@ -2192,12 +2197,12 @@ void SMemTagTreeView::CreateGraphTracksForFilteredMemTags()
 		FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
 		for (const FMemTagNodePtr& GroupNode : FilteredGroupNodes)
 		{
-			const TArray<Insights::FBaseTreeNodePtr>& Children = GroupNode->GetFilteredChildren();
-			for (const Insights::FBaseTreeNodePtr& Child : Children)
+			const TArray<FBaseTreeNodePtr>& Children = GroupNode->GetFilteredChildren();
+			for (const FBaseTreeNodePtr& Child : Children)
 			{
-				FMemTagNodePtr MemTagNode = StaticCastSharedPtr<FMemTagNode, Insights::FBaseTreeNode>(Child);
-				const Insights::FMemoryTrackerId MemTrackerId = MemTagNode->GetMemTrackerId();
-				const Insights::FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
+				FMemTagNodePtr MemTagNode = StaticCastSharedPtr<FMemTagNode, FBaseTreeNode>(Child);
+				const FMemoryTrackerId MemTrackerId = MemTagNode->GetMemTrackerId();
+				const FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
 				SharedState.CreateMemTagGraphTrack(MemTrackerId, MemTagId);
 			}
 		}
@@ -2205,7 +2210,7 @@ void SMemTagTreeView::CreateGraphTracksForFilteredMemTags()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// Create all mem memory graph tracks for selected LLM tag(s)
+// Create all memory graph tracks for selected LLM tag(s)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool SMemTagTreeView::CanCreateAllGraphTracks() const
@@ -2224,8 +2229,8 @@ void SMemTagTreeView::CreateAllGraphTracks()
 		FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
 		for (const FMemTagNodePtr& MemTagNode : MemTagNodes)
 		{
-			const Insights::FMemoryTrackerId MemTrackerId = MemTagNode->GetMemTrackerId();
-			const Insights::FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
+			const FMemoryTrackerId MemTrackerId = MemTagNode->GetMemTrackerId();
+			const FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
 			SharedState.CreateMemTagGraphTrack(MemTrackerId, MemTagId);
 		}
 	}
@@ -2254,19 +2259,19 @@ void SMemTagTreeView::RemoveGraphTracksForSelectedMemTags()
 		{
 			if (SelectedMemTagNode->IsGroup())
 			{
-				const TArray<Insights::FBaseTreeNodePtr>& Children = SelectedMemTagNode->GetFilteredChildren();
-				for (const Insights::FBaseTreeNodePtr& Child : Children)
+				const TArray<FBaseTreeNodePtr>& Children = SelectedMemTagNode->GetFilteredChildren();
+				for (const FBaseTreeNodePtr& Child : Children)
 				{
-					FMemTagNodePtr MemTagNode = StaticCastSharedPtr<FMemTagNode, Insights::FBaseTreeNode>(Child);
-					const Insights::FMemoryTrackerId MemTrackerId = MemTagNode->GetMemTrackerId();
-					const Insights::FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
+					FMemTagNodePtr MemTagNode = StaticCastSharedPtr<FMemTagNode, FBaseTreeNode>(Child);
+					const FMemoryTrackerId MemTrackerId = MemTagNode->GetMemTrackerId();
+					const FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
 					SharedState.RemoveMemTagGraphTrack(MemTrackerId, MemTagId);
 				}
 			}
 			else
 			{
-				const Insights::FMemoryTrackerId MemTrackerId = SelectedMemTagNode->GetMemTrackerId();
-				const Insights::FMemoryTagId MemTagId = SelectedMemTagNode->GetMemTagId();
+				const FMemoryTrackerId MemTrackerId = SelectedMemTagNode->GetMemTrackerId();
+				const FMemoryTagId MemTagId = SelectedMemTagNode->GetMemTagId();
 				SharedState.RemoveMemTagGraphTrack(MemTrackerId, MemTagId);
 			}
 		}
@@ -2327,16 +2332,16 @@ void SMemTagTreeView::SetColorToNode(const FMemTagNodePtr& MemTagNode, FLinearCo
 {
 	if (MemTagNode->IsGroup())
 	{
-		const TArray<Insights::FBaseTreeNodePtr>& Children = MemTagNode->GetFilteredChildren();
-		for (const Insights::FBaseTreeNodePtr& Child : Children)
+		const TArray<FBaseTreeNodePtr>& Children = MemTagNode->GetFilteredChildren();
+		for (const FBaseTreeNodePtr& Child : Children)
 		{
-			const FMemTagNodePtr ChildMemTagNode = StaticCastSharedPtr<FMemTagNode, Insights::FBaseTreeNode>(Child);
+			const FMemTagNodePtr ChildMemTagNode = StaticCastSharedPtr<FMemTagNode, FBaseTreeNode>(Child);
 			SetColorToNode(ChildMemTagNode, Color, bSetRandomColor);
 		}
 		return;
 	}
 
-	Insights::FMemoryTag* MemTag = MemTagNode->GetMemTag();
+	FMemoryTag* MemTag = MemTagNode->GetMemTag();
 	if (!MemTag)
 	{
 		return;
@@ -2354,7 +2359,7 @@ void SMemTagTreeView::SetColorToNode(const FMemTagNodePtr& MemTagNode, FLinearCo
 
 	const FLinearColor BorderColor(FMath::Min(Color.R + 0.4f, 1.0f), FMath::Min(Color.G + 0.4f, 1.0f), FMath::Min(Color.B + 0.4f, 1.0f), 1.0f);
 
-	const Insights::FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
+	const FMemoryTagId MemTagId = MemTagNode->GetMemTagId();
 
 	TSharedPtr<FMemoryGraphTrack> MainGraphTrack;
 	TSharedPtr<SMemoryProfilerWindow> ProfilerWindow = GetProfilerWindow();
@@ -2458,5 +2463,7 @@ void SMemTagTreeView::ColorPickerCancelled(FLinearColor OriginalColor)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

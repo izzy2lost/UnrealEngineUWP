@@ -3,23 +3,26 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Fonts/SlateFontInfo.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ITimingViewSession.h"
 
-struct FDrawContext;
 class FMenuBuilder;
 struct FSlateBrush;
+
 class FTimingTrackViewport;
 
-namespace Insights
+namespace Insights { class ITimingViewExtender; }
+
+namespace UE::Insights { class FDrawContext; }
+
+namespace UE::Insights::TimingProfiler
 {
 
-class ITimingViewExtender;
-
-class FTimeMarker : public  ITimeMarker
+class FTimeMarker : public UE::Insights::Timing::ITimeMarker
 {
 public:
 	FTimeMarker()
@@ -62,8 +65,6 @@ private:
 	mutable float CrtTextWidth;
 };
 
-} // namespace Insights
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FTimeRulerTrack : public FBaseTimingTrack
@@ -78,18 +79,18 @@ public:
 
 	void SetSelection(const bool bInIsSelecting, const double InSelectionStartTime, const double InSelectionEndTime);
 
-	TArray<TSharedRef<Insights::FTimeMarker>>& GetTimeMarkers() { return TimeMarkers; }
-	const TArray<TSharedRef<Insights::FTimeMarker>>& GetTimeMarkers() const { return TimeMarkers; }
-	void AddTimeMarker(TSharedRef<Insights::FTimeMarker> InTimeMarker);
-	void RemoveTimeMarker(TSharedRef<Insights::FTimeMarker> InTimeMarker);
+	TArray<TSharedRef<FTimeMarker>>& GetTimeMarkers() { return TimeMarkers; }
+	const TArray<TSharedRef<FTimeMarker>>& GetTimeMarkers() const { return TimeMarkers; }
+	void AddTimeMarker(TSharedRef<FTimeMarker> InTimeMarker);
+	void RemoveTimeMarker(TSharedRef<FTimeMarker> InTimeMarker);
 	void RemoveAllTimeMarkers();
 
-	TSharedPtr<Insights::FTimeMarker> GetTimeMarkerByName(const FString& InTimeMarkerName);
-	TSharedPtr<Insights::FTimeMarker> GetTimeMarkerAtPos(const FVector2D& InPosition, const FTimingTrackViewport& InViewport);
+	TSharedPtr<FTimeMarker> GetTimeMarkerByName(const FString& InTimeMarkerName);
+	TSharedPtr<FTimeMarker> GetTimeMarkerAtPos(const FVector2D& InPosition, const FTimingTrackViewport& InViewport);
 
 	bool IsScrubbing() const { return bIsScrubbing; }
-	TSharedRef<Insights::FTimeMarker> GetScrubbingTimeMarker() { return TimeMarkers.Last(); }
-	void StartScrubbing(TSharedRef<Insights::FTimeMarker> InTimeMarker);
+	TSharedRef<FTimeMarker> GetScrubbingTimeMarker() { return TimeMarkers.Last(); }
+	void StartScrubbing(TSharedRef<FTimeMarker> InTimeMarker);
 	void StopScrubbing();
 
 	virtual void PostUpdate(const ITimingTrackUpdateContext& Context) override;
@@ -99,8 +100,8 @@ public:
 	virtual void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
 
 private:
-	void DrawTimeMarker(const ITimingTrackDrawContext& Context, const Insights::FTimeMarker& TimeMarker) const;
-	void ContextMenu_MoveTimeMarker_Execute(TSharedRef<Insights::FTimeMarker> InTimeMarker);
+	void DrawTimeMarker(const ITimingTrackDrawContext& Context, const FTimeMarker& TimeMarker) const;
+	void ContextMenu_MoveTimeMarker_Execute(TSharedRef<FTimeMarker> InTimeMarker);
 	bool ContextMenu_ScrollLogView_CanExecute();
 	void ContextMenu_ScrollLogView_Execute();
 
@@ -113,7 +114,7 @@ private:
 	double SelectionStartTime;
 	double SelectionEndTime;
 
-	// The last time value at mouse postion. Updated in PostDraw.
+	// The last time value at mouse position. Updated in PostDraw.
 	mutable double CrtMousePosTime;
 
 	// The smoothed width of "the text at mouse position" to avoid flickering. Updated in PostDraw.
@@ -123,10 +124,12 @@ private:
 	 * The sorted list of all registered time markers. It defines the draw order of time markers.
 	 * The time marker currently scrubbing will be moved at the end of the list in order to be displayed on top of other markers.
 	 */
-	TArray<TSharedRef<Insights::FTimeMarker>> TimeMarkers;
+	TArray<TSharedRef<FTimeMarker>> TimeMarkers;
 
 	/** True if the user is currently dragging a time marker. */
 	bool bIsScrubbing;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::TimingProfiler

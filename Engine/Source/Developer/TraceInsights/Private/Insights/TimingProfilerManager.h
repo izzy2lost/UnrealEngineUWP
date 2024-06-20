@@ -2,20 +2,19 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Containers/Ticker.h"
-#include "CoreMinimal.h"
 #include "Framework/Commands/UICommandList.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/TimingProfilerCommands.h"
 #include "Insights/ViewModels/TimerNode.h"
 
-namespace Insights
+namespace UE::Insights
 {
-	class FTimerButterflyAggregator;
-
 	enum class ETimingEventsColoringMode : uint32
 	{
 		ByTimerName,
@@ -27,6 +26,10 @@ namespace Insights
 	};
 }
 
+namespace UE::Insights::TimingProfiler
+{
+
+class FTimerButterflyAggregator;
 class STimingProfilerWindow;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -144,15 +147,15 @@ public:
 
 	void ResetCallersAndCallees();
 	void UpdateCallersAndCallees();
-	TSharedRef<Insights::FTimerButterflyAggregator> GetTimerButterflyAggregator() const { return TimerButterflyAggregator; }
+	TSharedRef<FTimerButterflyAggregator> GetTimerButterflyAggregator() const { return TimerButterflyAggregator; }
 
 	void UpdateAggregatedTimerStats();
 	void UpdateAggregatedCounterStats();
 
 	const FName& GetLogListingName() const { return LogListingName; }
 
-	Insights::ETimingEventsColoringMode GetColoringMode() const { return ColoringMode; }
-	void SetColoringMode(Insights::ETimingEventsColoringMode InColoringMode) { ColoringMode = InColoringMode; }
+	ETimingEventsColoringMode GetColoringMode() const { return ColoringMode; }
+	void SetColoringMode(ETimingEventsColoringMode InColoringMode) { ColoringMode = InColoringMode; }
 
 	uint32 GetEventDepthLimit() const { return EventDepthLimit; }
 	void SetEventDepthLimit(uint32 InEventDepthLimit) { EventDepthLimit = InEventDepthLimit; }
@@ -187,7 +190,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	Insights::FAvailabilityCheck AvailabilityCheck;
+	FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;
@@ -233,14 +236,16 @@ private:
 	static constexpr uint32 InvalidTimerId = uint32(-1);
 	uint32 SelectedTimerId;
 
-	TSharedRef<Insights::FTimerButterflyAggregator> TimerButterflyAggregator;
+	TSharedRef<FTimerButterflyAggregator> TimerButterflyAggregator;
 
 	/** The name of the Timing Insights log listing. */
 	FName LogListingName;
 
-	Insights::ETimingEventsColoringMode ColoringMode = Insights::ETimingEventsColoringMode::ByTimerName;
+	ETimingEventsColoringMode ColoringMode = ETimingEventsColoringMode::ByTimerName;
 	uint32 EventDepthLimit = UnlimitedEventDepth;
 
 	/** A shared pointer to the global instance of the Timing Profiler manager. */
 	static TSharedPtr<FTimingProfilerManager> Instance;
 };
+
+} // namespace UE::Insights::TimingProfiler

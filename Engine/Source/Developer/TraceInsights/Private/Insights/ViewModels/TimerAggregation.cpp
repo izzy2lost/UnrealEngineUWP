@@ -83,6 +83,8 @@ IStatsAggregationWorker* FTimerAggregator::CreateWorker(TSharedPtr<const TraceSe
 	bool bIsGpuTrackVisible = false;
 	TSet<uint32> CpuThreads;
 
+	using namespace UE::Insights::TimingProfiler;
+
 	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 	if (Wnd.IsValid())
 	{

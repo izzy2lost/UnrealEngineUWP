@@ -16,14 +16,13 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-
 #if WITH_EDITOR
 	#include "EngineAnalytics.h"
 	#include "AnalyticsEventAttribute.h"
 	#include "Interfaces/IAnalyticsProvider.h"
 #endif // WITH_EDITOR
 
-// Insights
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"

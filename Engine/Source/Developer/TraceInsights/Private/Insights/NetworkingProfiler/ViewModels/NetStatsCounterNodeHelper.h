@@ -3,11 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Styling/SlateBrush.h"
 
-// Insights
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterNode.h"
 #include "Insights/NetworkingProfiler/ViewModels/NetStatsCounterGroupingAndSorting.h"
+
+namespace UE::Insights::NetworkingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -66,3 +70,4 @@ struct NetStatsCounterNodeGroupingHelper
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+} // namespace UE::Insights::NetworkingProfiler

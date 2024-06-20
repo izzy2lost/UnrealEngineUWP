@@ -3,18 +3,22 @@
 #include "STimersViewTooltip.h"
 
 #include "SlateOptMacros.h"
-#include "TraceServices/Model/AnalysisSession.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
 
-// Insights
-#include "Insights/Common/TimeUtils.h"
+// TraceServices
+#include "TraceServices/Model/AnalysisSession.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/TimerNode.h"
 #include "Insights/ViewModels/TimerNodeHelper.h"
@@ -32,7 +36,7 @@
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-TSharedPtr<SToolTip> STimersViewTooltip::GetTableTooltip(const Insights::FTable& Table)
+TSharedPtr<SToolTip> STimersViewTooltip::GetTableTooltip(const UE::Insights::FTable& Table)
 {
 	TSharedPtr<SToolTip> ColumnTooltip =
 		SNew(SToolTip)
@@ -63,7 +67,7 @@ TSharedPtr<SToolTip> STimersViewTooltip::GetTableTooltip(const Insights::FTable&
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<SToolTip> STimersViewTooltip::GetColumnTooltip(const Insights::FTableColumn& Column)
+TSharedPtr<SToolTip> STimersViewTooltip::GetColumnTooltip(const UE::Insights::FTableColumn& Column)
 {
 	const FTimersTableColumn& TimersColumn = static_cast<const FTimersTableColumn&>(Column);
 	FText InstanceDescription = TimersColumn.GetDescription(ETraceFrameType::TraceFrameType_Count);
@@ -73,6 +77,9 @@ TSharedPtr<SToolTip> STimersViewTooltip::GetColumnTooltip(const Insights::FTable
 	auto GetDescriptionLamda = [InstanceDescription, GameFrameDescription, RenderingDescription]()
 	{
 		ETraceFrameType FrameType = ETraceFrameType::TraceFrameType_Count;
+
+		using namespace UE::Insights::TimingProfiler;
+
 		TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
 		if (Window.IsValid())
 		{
@@ -129,7 +136,7 @@ TSharedPtr<SToolTip> STimersViewTooltip::GetColumnTooltip(const Insights::FTable
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<SToolTip> STimersViewTooltip::GetColumnTooltipForMode(const Insights::FTableColumn& Column, ETraceFrameType InAggregationMode)
+TSharedPtr<SToolTip> STimersViewTooltip::GetColumnTooltipForMode(const UE::Insights::FTableColumn& Column, ETraceFrameType InAggregationMode)
 {
 	const FTimersTableColumn& TimersColumn = static_cast<const FTimersTableColumn&>(Column);
 	FText Description = TimersColumn.GetDescription(InAggregationMode);
@@ -366,36 +373,38 @@ TSharedPtr<SToolTip> STimersViewTooltip::GetRowTooltip(const TSharedPtr<FTimerNo
 	const int32 NumDigits = 5;
 	int32 Row = 1;
 
+	using namespace UE::Insights;
+
 	if (true)
 	{
 		TCHAR FormatString[32];
 		FCString::Snprintf(FormatString, sizeof(FormatString), TEXT("%%.%dfs (%%s)"), NumDigits);
-		const FText TotalInclusiveTimeText = FText::FromString(FString::Printf(FormatString, Stats.TotalInclusiveTime, *TimeUtils::FormatTimeAuto(Stats.TotalInclusiveTime, 2)));
-		const FText TotalExclusiveTimeText = FText::FromString(FString::Printf(FormatString, Stats.TotalExclusiveTime, *TimeUtils::FormatTimeAuto(Stats.TotalExclusiveTime, 2)));
+		const FText TotalInclusiveTimeText = FText::FromString(FString::Printf(FormatString, Stats.TotalInclusiveTime, *FormatTimeAuto(Stats.TotalInclusiveTime, 2)));
+		const FText TotalExclusiveTimeText = FText::FromString(FString::Printf(FormatString, Stats.TotalExclusiveTime, *FormatTimeAuto(Stats.TotalExclusiveTime, 2)));
 		AddStatsRow(GridPanel, Row, LOCTEXT("TT_TotalTime", "Total Time:"), TotalInclusiveTimeText, TotalExclusiveTimeText);
 	}
 	if (!std::isnan(Stats.MaxInclusiveTime) || !std::isnan(Stats.MaxExclusiveTime))
 	{
-		const FText MaxInclusiveTimeText = FText::FromString(TimeUtils::FormatTimeMs(Stats.MaxInclusiveTime, NumDigits, true));
-		const FText MaxExclusiveTimeText = FText::FromString(TimeUtils::FormatTimeMs(Stats.MaxExclusiveTime, NumDigits, true));
+		const FText MaxInclusiveTimeText = FText::FromString(FormatTimeMs(Stats.MaxInclusiveTime, NumDigits, true));
+		const FText MaxExclusiveTimeText = FText::FromString(FormatTimeMs(Stats.MaxExclusiveTime, NumDigits, true));
 		AddStatsRow(GridPanel, Row, LOCTEXT("TT_MaxTime", "Max Time:"), MaxInclusiveTimeText, MaxExclusiveTimeText);
 	}
 	if (true)
 	{
-		const FText AvgInclusiveTimeText = FText::FromString(TimeUtils::FormatTimeMs(Stats.AverageInclusiveTime, NumDigits, true));
-		const FText AvgExclusiveTimeText = FText::FromString(TimeUtils::FormatTimeMs(Stats.AverageExclusiveTime, NumDigits, true));
-		AddStatsRow(GridPanel, Row, LOCTEXT("TT_AverageTime", "Average Time:"), AvgInclusiveTimeText,   AvgExclusiveTimeText);
+		const FText AvgInclusiveTimeText = FText::FromString(FormatTimeMs(Stats.AverageInclusiveTime, NumDigits, true));
+		const FText AvgExclusiveTimeText = FText::FromString(FormatTimeMs(Stats.AverageExclusiveTime, NumDigits, true));
+		AddStatsRow(GridPanel, Row, LOCTEXT("TT_AverageTime", "Average Time:"), AvgInclusiveTimeText, AvgExclusiveTimeText);
 	}
 	if (!std::isnan(Stats.MedianInclusiveTime) || !std::isnan(Stats.MedianExclusiveTime))
 	{
-		const FText MedInclusiveTimeText = FText::FromString(TimeUtils::FormatTimeMs(Stats.MedianInclusiveTime, NumDigits, true));
-		const FText MedExclusiveTimeText = FText::FromString(TimeUtils::FormatTimeMs(Stats.MedianExclusiveTime, NumDigits, true));
-		AddStatsRow(GridPanel, Row, LOCTEXT("TT_MedianTime",  "Median Time:"),  MedInclusiveTimeText,   MedExclusiveTimeText);
+		const FText MedInclusiveTimeText = FText::FromString(FormatTimeMs(Stats.MedianInclusiveTime, NumDigits, true));
+		const FText MedExclusiveTimeText = FText::FromString(FormatTimeMs(Stats.MedianExclusiveTime, NumDigits, true));
+		AddStatsRow(GridPanel, Row, LOCTEXT("TT_MedianTime", "Median Time:"), MedInclusiveTimeText, MedExclusiveTimeText);
 	}
 	if (!std::isnan(Stats.MinInclusiveTime) || !std::isnan(Stats.MinExclusiveTime))
 	{
-		const FText MinInclusiveTimeText = FText::FromString(TimeUtils::FormatTimeMs(Stats.MinInclusiveTime, NumDigits, true));
-		const FText MinExclusiveTimeText = FText::FromString(TimeUtils::FormatTimeMs(Stats.MinExclusiveTime, NumDigits, true));
+		const FText MinInclusiveTimeText = FText::FromString(FormatTimeMs(Stats.MinInclusiveTime, NumDigits, true));
+		const FText MinExclusiveTimeText = FText::FromString(FormatTimeMs(Stats.MinExclusiveTime, NumDigits, true));
 		AddStatsRow(GridPanel, Row, LOCTEXT("TT_MinTime", "Min Time:"), MinInclusiveTimeText, MinExclusiveTimeText);
 	}
 

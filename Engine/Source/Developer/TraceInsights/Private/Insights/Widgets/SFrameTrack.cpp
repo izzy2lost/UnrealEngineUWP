@@ -10,16 +10,20 @@
 #include "Misc/StringBuilder.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/AppStyle.h"
-#include "TraceServices/Model/Frames.h"
-#include "TraceServices/Model/TimingProfiler.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SScrollBar.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceServices
+#include "TraceServices/Model/Frames.h"
+#include "TraceServices/Model/TimingProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/Log.h"
@@ -50,12 +54,14 @@ SFrameTrack::SFrameTrack()
 
 SFrameTrack::~SFrameTrack()
 {
+	using namespace UE::Insights::TimingProfiler;
+	TSharedPtr<STimingProfilerWindow> ProfilerWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+
 	if (OnTrackVisibilityChangedHandle.IsValid())
 	{
-		TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-		if (TimingWindow.IsValid())
+		if (ProfilerWindow.IsValid())
 		{
-			TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+			TSharedPtr<STimingView> TimingView = ProfilerWindow->GetTimingView();
 			if (TimingView.IsValid())
 			{
 				if (TimingView.Get() == RegisteredTimingView)
@@ -69,12 +75,10 @@ SFrameTrack::~SFrameTrack()
 	}
 
 	TSharedPtr<STimersView> TimersView;
-	TSharedPtr<STimingProfilerWindow> ProfilerWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 	if (ProfilerWindow.IsValid())
 	{
 		TimersView = ProfilerWindow->GetTimersView();
 	}
-
 	if (TimersView)
 	{
 		for (const TSharedPtr<FFrameTrackSeries>& Series : AllSeries)
@@ -191,6 +195,7 @@ void SFrameTrack::Construct(const FArguments& InArgs)
 
 void SFrameTrack::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
+	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 	if (TimingWindow.IsValid())
 	{
@@ -370,7 +375,7 @@ TSharedPtr<FFrameTrackSeries> SFrameTrack::FindFrameStatsSeries(ETraceFrameType 
 
 void SFrameTrack::UpdateState()
 {
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	// Reset stats.
@@ -430,6 +435,8 @@ void SFrameTrack::UpdateState()
 
 			bool bTimingViewExists = false;
 			TSet<uint32> Timelines;
+
+			using namespace UE::Insights::TimingProfiler;
 			TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 
 			// Attempt to compute only from visible timelines.
@@ -552,6 +559,7 @@ void SFrameTrack::SelectFrameAtMousePosition(double X, double Y, bool JoinCurren
 
 	if (SampleRef.IsValid())
 	{
+		using namespace UE::Insights::TimingProfiler;
 		TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
 		if (Window.IsValid())
 		{
@@ -595,7 +603,7 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 {
 	const bool bEnabled = ShouldBeEnabled(bParentEnabled);
 	const ESlateDrawEffect DrawEffects = bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
-	FDrawContext DrawContext(AllottedGeometry, MyCullingRect, InWidgetStyle, DrawEffects, OutDrawElements, LayerId);
+	UE::Insights::FDrawContext DrawContext(AllottedGeometry, MyCullingRect, InWidgetStyle, DrawEffects, OutDrawElements, LayerId);
 
 	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 	FSlateFontInfo SummaryFont = FAppStyle::Get().GetFontStyle("SmallFont");
@@ -609,7 +617,7 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 
 	//////////////////////////////////////////////////
 	{
-		FStopwatch Stopwatch;
+		UE::Insights::FStopwatch Stopwatch;
 		Stopwatch.Start();
 
 		FFrameTrackDrawHelper Helper(DrawContext, Viewport);
@@ -640,6 +648,7 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		TSharedPtr<FFrameTrackSeries> GameFrameSeries = FindSeries(ETraceFrameType::TraceFrameType_Game);
 		if (GameFrameSeries.IsValid())
 		{
+			using namespace UE::Insights::TimingProfiler;
 			TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
 			if (Window)
 			{
@@ -709,10 +718,11 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 			const FString Text1(StringBuilder);
 
 			// Second line: "1m 2.34s + 16.67ms (60 fps)"
+			using namespace UE::Insights;
 			StringBuilder.Reset();
-			StringBuilder.Append(TimeUtils::FormatTimeAuto(HoveredSample.Sample->LargestFrameStartTime, HoveredSample.Sample->LargestFrameStartTime > 60.0 ? 3 : 2));
+			StringBuilder.Append(FormatTimeAuto(HoveredSample.Sample->LargestFrameStartTime, HoveredSample.Sample->LargestFrameStartTime > 60.0 ? 3 : 2));
 			StringBuilder.Append(TEXT(" + "));
-			StringBuilder.Append(TimeUtils::FormatTimeAuto(HoveredSample.Sample->LargestFrameDuration, 2));
+			StringBuilder.Append(FormatTimeAuto(HoveredSample.Sample->LargestFrameDuration, 2));
 			StringBuilder.Appendf(TEXT(" (%.1f fps)"), 1.0 / HoveredSample.Sample->LargestFrameDuration);
 			const FString Text2(StringBuilder);
 
@@ -810,11 +820,11 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 		LastOnPaintTime = CurrentTime;
 		OnPaintDurationHistory.AddValue(OnPaintDuration); // saved for last 32 OnPaint calls
 		const uint64 AvgOnPaintDuration = OnPaintDurationHistory.ComputeAverage();
-		const uint64 AvgOnPaintDurationMs = FStopwatch::Cycles64ToMilliseconds(AvgOnPaintDuration);
-		const double AvgOnPaintFps = AvgOnPaintDurationMs != 0 ? 1.0 / FStopwatch::Cycles64ToSeconds(AvgOnPaintDuration) : 0.0;
+		const uint64 AvgOnPaintDurationMs = UE::Insights::FStopwatch::Cycles64ToMilliseconds(AvgOnPaintDuration);
+		const double AvgOnPaintFps = AvgOnPaintDurationMs != 0 ? 1.0 / UE::Insights::FStopwatch::Cycles64ToSeconds(AvgOnPaintDuration) : 0.0;
 
-		const uint64 AvgUpdateDurationMs = FStopwatch::Cycles64ToMilliseconds(UpdateDurationHistory.ComputeAverage());
-		const uint64 AvgDrawDurationMs = FStopwatch::Cycles64ToMilliseconds(DrawDurationHistory.ComputeAverage());
+		const uint64 AvgUpdateDurationMs = UE::Insights::FStopwatch::Cycles64ToMilliseconds(UpdateDurationHistory.ComputeAverage());
+		const uint64 AvgDrawDurationMs = UE::Insights::FStopwatch::Cycles64ToMilliseconds(DrawDurationHistory.ComputeAverage());
 
 		// Draw performance info.
 		DrawContext.DrawText
@@ -865,7 +875,7 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SFrameTrack::DrawVerticalAxisGrid(FDrawContext& DrawContext, const FSlateBrush* Brush, const FSlateFontInfo& Font) const
+void SFrameTrack::DrawVerticalAxisGrid(UE::Insights::FDrawContext& DrawContext, const FSlateBrush* Brush, const FSlateFontInfo& Font) const
 {
 	const float ViewWidth = Viewport.GetWidth();
 
@@ -987,9 +997,10 @@ void SFrameTrack::DrawVerticalAxisGrid(FDrawContext& DrawContext, const FSlateBr
 		// Draw horizontal grid line.
 		DrawContext.DrawBox(0, Axis.Y, ViewWidth, 1.0f, Brush, GridColor);
 
+		using namespace UE::Insights;
 		const FString LabelText = (Axis.Value == 0.0) ? TEXT("0") :
-								  (Axis.Value <= 1.0) ? FString::Printf(TEXT("%s (%.0f fps)"), *TimeUtils::FormatTimeAuto(Axis.Value), 1.0 / Axis.Value) :
-														TimeUtils::FormatTimeAuto(Axis.Value);
+								  (Axis.Value <= 1.0) ? FString::Printf(TEXT("%s (%.0f fps)"), *FormatTimeAuto(Axis.Value), 1.0 / Axis.Value) :
+														FormatTimeAuto(Axis.Value);
 
 		const float LabelTextWidth = static_cast<float>(FontMeasureService->Measure(LabelText, Font, FontScale).X / FontScale);
 		const float LabelX = bDrawVerticalAxisLabelsOnLeftSide ? 0.0f : ViewWidth - LabelTextWidth - 4.0f;
@@ -1005,7 +1016,7 @@ void SFrameTrack::DrawVerticalAxisGrid(FDrawContext& DrawContext, const FSlateBr
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SFrameTrack::DrawHorizontalAxisGrid(FDrawContext& DrawContext, const FSlateBrush* Brush, const FSlateFontInfo& Font, bool bDrawBackgroundLayer) const
+void SFrameTrack::DrawHorizontalAxisGrid(UE::Insights::FDrawContext& DrawContext, const FSlateBrush* Brush, const FSlateFontInfo& Font, bool bDrawBackgroundLayer) const
 {
 	const FAxisViewportInt32& ViewportX = Viewport.GetHorizontalAxisViewport();
 
@@ -1654,7 +1665,7 @@ TSharedRef<SWidget> SFrameTrack::CreateUpperThresholdWidget()
 		SNew(STextBlock)
 		.Text_Lambda([this]
 		{
-			FString ThresholdTimeStr = TimeUtils::FormatTimeAuto(UpperThresholdTime, 2);
+			FString ThresholdTimeStr = UE::Insights::FormatTimeAuto(UpperThresholdTime, 2);
 			if (bShowUpperThresholdAsFps)
 			{
 				return FText::FromString(FString::Printf(TEXT("%s"), *ThresholdTimeStr));
@@ -1737,7 +1748,7 @@ TSharedRef<SWidget> SFrameTrack::CreateLowerThresholdWidget()
 		SNew(STextBlock)
 		.Text_Lambda([this]
 		{
-			FString ThresholdTimeStr = TimeUtils::FormatTimeAuto(LowerThresholdTime, 2);
+			FString ThresholdTimeStr = UE::Insights::FormatTimeAuto(LowerThresholdTime, 2);
 			if (bShowLowerThresholdAsFps)
 			{
 				return FText::FromString(FString::Printf(TEXT("%s"), *ThresholdTimeStr));
@@ -1862,7 +1873,7 @@ void SFrameTrack::CreateSelectedFrameMenu(FMenuBuilder& MenuBuilder)
 	FText Label;
 	if (SelectedSample.IsValid())
 	{
-		FText StartTimeText = FText::FromString(TimeUtils::FormatTimeAuto(SelectedSample.Sample->LargestFrameStartTime, 2));
+		FText StartTimeText = FText::FromString(UE::Insights::FormatTimeAuto(SelectedSample.Sample->LargestFrameStartTime, 2));
 		Label = FText::Format(LOCTEXT("ContextMenu_ScrollLogView_Fmt", "Scroll Log View (\u2192 {0})"), StartTimeText);
 	}
 	else
@@ -2068,16 +2079,20 @@ void SFrameTrack::ContextMenu_ScrollLogView_Execute()
 	{
 		return;
 	}
+
+	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 	if (!TimingWindow.IsValid())
 	{
 		return;
 	}
+
 	TSharedPtr<SLogView> LogView = TimingWindow->GetLogView();
 	if (!LogView.IsValid())
 	{
 		return;
 	}
+
 	LogView->SelectLogMessageByClosestTime(SelectedSample.Sample->LargestFrameStartTime);
 }
 
@@ -2089,16 +2104,20 @@ bool SFrameTrack::ContextMenu_ScrollLogView_CanExecute()
 	{
 		return false;
 	}
+
+	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 	if (!TimingWindow.IsValid())
 	{
 		return false;
 	}
+
 	TSharedPtr<SLogView> LogView = TimingWindow->GetLogView();
 	if (!LogView.IsValid())
 	{
 		return false;
 	}
+
 	return true;
 }
 

@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+// TraceAnalysis
 #include "Trace/Analyzer.h"
 
 namespace Insights

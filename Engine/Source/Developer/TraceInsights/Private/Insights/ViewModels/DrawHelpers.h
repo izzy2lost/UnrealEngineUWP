@@ -3,17 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Fonts/SlateFontInfo.h"
 #include "Math/Color.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-struct FDrawContext;
 struct FSlateBrush;
 
-class FTimingTrackViewport;
+namespace UE::Insights { class FDrawContext; }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+class FTimingTrackViewport;
 
 class FDrawHelpers
 {
@@ -27,7 +25,7 @@ public:
 	 *  ++++++|*****|++++++
 	 *  ++++++|*****|++++++
 	 */
-	static void DrawBackground(const FDrawContext& DrawContext,
+	static void DrawBackground(const UE::Insights::FDrawContext& DrawContext,
 							   const FSlateBrush* BackgroundAreaBrush,
 							   const FLinearColor& ValidAreaColor,
 							   const FLinearColor& InvalidAreaColor,
@@ -41,7 +39,7 @@ public:
 							   float& OutValidAreaX,
 							   float& OutValidAreaW);
 
-	static void DrawBackground(const FDrawContext& DrawContext,
+	static void DrawBackground(const UE::Insights::FDrawContext& DrawContext,
 							   const FSlateBrush* BackgroundAreaBrush,
 							   const float X0,
 							   const float X1,
@@ -50,13 +48,13 @@ public:
 							   const float Y,
 							   const float H);
 
-	static void DrawBackground(const FDrawContext& DrawContext,
+	static void DrawBackground(const UE::Insights::FDrawContext& DrawContext,
 							   const FSlateBrush* BackgroundAreaBrush,
 							   const FTimingTrackViewport& Viewport,
 							   const float Y,
 							   const float H);
 
-	static void DrawBackground(const FDrawContext& DrawContext,
+	static void DrawBackground(const UE::Insights::FDrawContext& DrawContext,
 							   const FSlateBrush* BackgroundAreaBrush,
 							   const FTimingTrackViewport& Viewport,
 							   const float Y,
@@ -67,14 +65,14 @@ public:
 	/**
 	 * Draw time range selection.
 	 */
-	static void DrawTimeRangeSelection(const FDrawContext& DrawContext,
+	static void DrawTimeRangeSelection(const UE::Insights::FDrawContext& DrawContext,
 									   const FTimingTrackViewport& Viewport,
 									   const double StartTime,
 									   const double EndTime,
 									   const FSlateBrush* Brush,
 									   const FSlateFontInfo& Font);
 
-	static void DrawSelection(const FDrawContext& DrawContext,
+	static void DrawSelection(const UE::Insights::FDrawContext& DrawContext,
 							  const float MinX,
 							  const float MaxX,
 							  float SelectionX1,
@@ -86,5 +84,3 @@ public:
 							  const FSlateBrush* Brush,
 							  const FSlateFontInfo& Font);
 };
-
-////////////////////////////////////////////////////////////////////////////////////////////////////

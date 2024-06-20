@@ -8,21 +8,25 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Styling/SlateBrush.h"
+
+// TraceServices
 #include "TraceServices/Model/LoadTimeProfiler.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Common/TimeUtils.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/ITimingViewSession.h"
 #include "Insights/TimingProfilerCommon.h"
 #include "Insights/ViewModels/TimingEvent.h"
+#include "Insights/ViewModels/TimingEventSearch.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
 #include "Insights/ViewModels/TooltipDrawState.h"
-#include "Insights/ViewModels/TimingEventSearch.h"
 #include "Insights/Widgets/STimingView.h"
 
 #include <limits>
@@ -134,7 +138,7 @@ uint32 GetFileActivityTypeColor(TraceServices::EFileActivityType Type)
 
 const uint32 FFileActivitySharedState::MaxLanes = 10000;
 
-void FFileActivitySharedState::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FFileActivitySharedState::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -154,7 +158,7 @@ void FFileActivitySharedState::OnBeginSession(Insights::ITimingViewSession& InSe
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FFileActivitySharedState::OnEndSession(Insights::ITimingViewSession& InSession)
+void FFileActivitySharedState::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -174,7 +178,7 @@ void FFileActivitySharedState::OnEndSession(Insights::ITimingViewSession& InSess
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FFileActivitySharedState::Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FFileActivitySharedState::Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	if (&InSession != TimingView)
 	{
@@ -210,7 +214,7 @@ void FFileActivitySharedState::Tick(Insights::ITimingViewSession& InSession, con
 		FileActivityMap.Reset();
 		AllIoEvents.Reset();
 
-		FStopwatch Stopwatch;
+		UE::Insights::FStopwatch Stopwatch;
 		Stopwatch.Start();
 
 		// Enumerate all IO events and cache them.
@@ -292,10 +296,10 @@ void FFileActivitySharedState::Tick(Insights::ITimingViewSession& InSession, con
 		}
 
 		Stopwatch.Stop();
-		UE_LOG(TimingProfiler, Log, TEXT("[IO] Enumerated %s events (%s file activities) in %s."),
+		UE_LOG(LogTimingProfiler, Log, TEXT("[IO] Enumerated %s events (%s file activities) in %s."),
 			*FText::AsNumber(AllIoEvents.Num()).ToString(),
 			*FText::AsNumber(FileActivities.Num()).ToString(),
-			*TimeUtils::FormatTimeAuto(Stopwatch.GetAccumulatedTime()));
+			*UE::Insights::FormatTimeAuto(Stopwatch.GetAccumulatedTime()));
 		Stopwatch.Restart();
 
 		// Sort cached IO file activities by Start Time.
@@ -305,7 +309,7 @@ void FFileActivitySharedState::Tick(Insights::ITimingViewSession& InSession, con
 		AllIoEvents.Sort([](const FIoTimingEvent& A, const FIoTimingEvent& B) { return A.StartTime < B.StartTime; });
 
 		Stopwatch.Stop();
-		UE_LOG(TimingProfiler, Log, TEXT("[IO] Sorted file activities and events in %s."), *TimeUtils::FormatTimeAuto(Stopwatch.GetAccumulatedTime()));
+		UE_LOG(LogTimingProfiler, Log, TEXT("[IO] Sorted file activities and events in %s."), *UE::Insights::FormatTimeAuto(Stopwatch.GetAccumulatedTime()));
 
 		if (FileActivities.Num() > 0)
 		{
@@ -382,7 +386,7 @@ void FFileActivitySharedState::Tick(Insights::ITimingViewSession& InSession, con
 			}
 
 			Stopwatch.Stop();
-			UE_LOG(TimingProfiler, Log, TEXT("[IO] Computed layout for file activities in %s."), *TimeUtils::FormatTimeAuto(Stopwatch.GetAccumulatedTime()));
+			UE_LOG(LogTimingProfiler, Log, TEXT("[IO] Computed layout for file activities in %s."), *UE::Insights::FormatTimeAuto(Stopwatch.GetAccumulatedTime()));
 
 			//////////////////////////////////////////////////
 
@@ -395,14 +399,14 @@ void FFileActivitySharedState::Tick(Insights::ITimingViewSession& InSession, con
 			}
 
 			Stopwatch.Stop();
-			UE_LOG(TimingProfiler, Log, TEXT("[IO] Updated depth for events in %s."), *TimeUtils::FormatTimeAuto(Stopwatch.GetAccumulatedTime()));
+			UE_LOG(LogTimingProfiler, Log, TEXT("[IO] Updated depth for events in %s."), *UE::Insights::FormatTimeAuto(Stopwatch.GetAccumulatedTime()));
 		}
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FFileActivitySharedState::ExtendOtherTracksFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
+void FFileActivitySharedState::ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InOutMenuBuilder)
 {
 	if (&InSession != TimingView)
 	{
@@ -706,7 +710,7 @@ void FFileActivityTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, cons
 			}
 
 			const double Duration = InEvent.EndTime - InEvent.StartTime;
-			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(Duration));
+			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), UE::Insights::FormatTimeAuto(Duration));
 
 			if (ActivityType == TraceServices::FileActivityType_Read || ActivityType == TraceServices::FileActivityType_Write)
 			{

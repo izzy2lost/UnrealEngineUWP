@@ -6,10 +6,14 @@
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/DrawElements.h"
+
+// TraceServices
 #include "TraceServices/Model/Frames.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/ViewModels/DrawHelpers.h"
 #include "Insights/ViewModels/FrameTrackViewport.h"
@@ -76,7 +80,7 @@ void FFrameTrackSeriesBuilder::AddFrame(const TraceServices::FFrame& Frame)
 // FFrameTrackDrawHelper
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FFrameTrackDrawHelper::FFrameTrackDrawHelper(const FDrawContext& InDrawContext, const FFrameTrackViewport& InViewport)
+FFrameTrackDrawHelper::FFrameTrackDrawHelper(const UE::Insights::FDrawContext& InDrawContext, const FFrameTrackViewport& InViewport)
 	: DrawContext(InDrawContext)
 	, Viewport(InViewport)
 	, WhiteBrush(FInsightsStyle::Get().GetBrush("WhiteBrush"))

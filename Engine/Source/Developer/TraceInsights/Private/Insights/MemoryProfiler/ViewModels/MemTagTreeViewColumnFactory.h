@@ -2,15 +2,19 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+#include "Containers/Array.h"
+#include "Templates/SharedPointer.h"
+#include "UObject/NameTypes.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace UE::Insights { class FTableColumn; }
 
+namespace UE::Insights::MemoryProfiler
+{
+
+// Column identifiers
 struct FMemTagTreeViewColumns
 {
-	//////////////////////////////////////////////////
-	// Column identifiers
-
 	static const FName NameColumnID;
 	static const FName TypeColumnID;
 	static const FName TrackerColumnID;
@@ -20,30 +24,21 @@ struct FMemTagTreeViewColumns
 	static const FName AverageValueColumnID;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-namespace Insights
-{
-	class FTableColumn;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 struct FMemTagTreeViewColumnFactory
 {
 public:
-	static void CreateMemTagTreeViewColumns(TArray<TSharedRef<Insights::FTableColumn>>& Columns);
+	static void CreateMemTagTreeViewColumns(TArray<TSharedRef<FTableColumn>>& Columns);
 
-	static TSharedRef<Insights::FTableColumn> CreateNameColumn();
-	static TSharedRef<Insights::FTableColumn> CreateTypeColumn();
-	static TSharedRef<Insights::FTableColumn> CreateTrackerColumn();
-	static TSharedRef<Insights::FTableColumn> CreateInstanceCountColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMinValueColumn();
-	static TSharedRef<Insights::FTableColumn> CreateMaxValueColumn();
-	static TSharedRef<Insights::FTableColumn> CreateAverageValueColumn();
+	static TSharedRef<FTableColumn> CreateNameColumn();
+	static TSharedRef<FTableColumn> CreateTypeColumn();
+	static TSharedRef<FTableColumn> CreateTrackerColumn();
+	static TSharedRef<FTableColumn> CreateInstanceCountColumn();
+	static TSharedRef<FTableColumn> CreateMinValueColumn();
+	static TSharedRef<FTableColumn> CreateMaxValueColumn();
+	static TSharedRef<FTableColumn> CreateAverageValueColumn();
 
 private:
 	static constexpr float ValueColumnInitialWidth = 50.0f;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+} // namespace UE::Insights::MemoryProfiler

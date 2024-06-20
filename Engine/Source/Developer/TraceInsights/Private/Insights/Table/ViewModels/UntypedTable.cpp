@@ -1,14 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UntypedTable.h"
+
+// TraceServices
 #include "TraceServices/Containers/Tables.h"
 
-// Insights
-#include "Insights/Table/ViewModels/TableCellValueFormatter.h"
-#include "Insights/Table/ViewModels/TableCellValueGetter.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TableTreeNode.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableCellValueFormatter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueGetter.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TableTreeNode.h"
 
 #define LOCTEXT_NAMESPACE "Insights::FUntypedTable"
 
@@ -19,13 +21,15 @@ namespace Insights
 // FUntypedTableTreeNodeValueGetter
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FUntypedTableTreeNodeValueGetter : public FTableCellValueGetter
+class FUntypedTableTreeNodeValueGetter : public UE::Insights::FTableCellValueGetter
 {
 public:
-	FUntypedTableTreeNodeValueGetter(ETableCellDataType InDataType) : FTableCellValueGetter(), DataType(InDataType) {}
+	FUntypedTableTreeNodeValueGetter(UE::Insights::ETableCellDataType InDataType) : UE::Insights::FTableCellValueGetter(), DataType(InDataType) {}
 
-	virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const
+	virtual const TOptional<UE::Insights::FTableCellValue> GetValue(const UE::Insights::FTableColumn& Column, const UE::Insights::FBaseTreeNode& Node) const
 	{
+		using namespace UE::Insights;
+
 		ensure(Node.Is<FTableTreeNode>());
 		const FTableTreeNode& TableTreeNode = static_cast<const FTableTreeNode&>(Node);
 
@@ -68,7 +72,7 @@ public:
 	}
 
 private:
-	ETableCellDataType DataType;
+	UE::Insights::ETableCellDataType DataType;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -158,6 +162,8 @@ bool FUntypedTable::UpdateSourceTable(TSharedPtr<TraceServices::IUntypedTable> I
 
 void FUntypedTable::CreateColumns(const TraceServices::ITableLayout& TableLayout)
 {
+	using namespace UE::Insights;
+
 	ensure(GetColumnCount() == 0);
 	const int32 ColumnCount = static_cast<int32>(TableLayout.GetColumnCount());
 

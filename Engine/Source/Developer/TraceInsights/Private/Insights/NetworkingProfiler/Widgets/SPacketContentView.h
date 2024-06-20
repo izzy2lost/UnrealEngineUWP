@@ -3,23 +3,32 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Input/CursorReply.h"
 #include "Input/Reply.h"
 #include "Layout/Geometry.h"
 #include "Rendering/RenderingCommon.h"
 #include "Styling/SlateTypes.h"
-#include "TraceServices/Model/NetProfiler.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Widgets/SCompoundWidget.h"
 
-// Insights
-#include "Insights/Common/FixedCircularBuffer.h"
+// TraceServices
+#include "TraceServices/Model/NetProfiler.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/FixedCircularBuffer.h"
+
+// TraceInsights
 #include "Insights/NetworkingProfiler/ViewModels/PacketContentViewDrawHelper.h"
 #include "Insights/NetworkingProfiler/ViewModels/PacketContentViewport.h"
 #include "Insights/ViewModels/TooltipDrawState.h"
 
 class SScrollBar;
+
+namespace UE::Insights::NetworkingProfiler
+{
+
 class SNetworkingProfilerWindow;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -310,3 +319,7 @@ private:
 	mutable TFixedCircularBuffer<uint64, 32> OnPaintDurationHistory;
 	mutable uint64 LastOnPaintTime;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler

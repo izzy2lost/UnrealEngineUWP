@@ -13,9 +13,11 @@
 #include "TraceServices/Model/Counters.h"
 #include "TraceServices/Model/Memory.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/ViewModels/AxisViewportDouble.h"
@@ -26,7 +28,10 @@
 
 #include <limits>
 
-#define LOCTEXT_NAMESPACE "MemoryGraphTrack"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemoryGraphTrack"
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FMemoryGraphSeries
@@ -236,7 +241,7 @@ void FMemoryGraphTrack::Update(const ITimingTrackUpdateContext& Context)
 // LLM Tag Series
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<FMemoryGraphSeries> FMemoryGraphTrack::GetMemTagSeries(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId)
+TSharedPtr<FMemoryGraphSeries> FMemoryGraphTrack::GetMemTagSeries(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId)
 {
 	TSharedPtr<FGraphSeries>* Ptr = AllSeries.FindByPredicate([InMemTrackerId, InMemTagId](const TSharedPtr<FGraphSeries>& Series)
 	{
@@ -251,7 +256,7 @@ TSharedPtr<FMemoryGraphSeries> FMemoryGraphTrack::GetMemTagSeries(Insights::FMem
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<FMemoryGraphSeries> FMemoryGraphTrack::AddMemTagSeries(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId)
+TSharedPtr<FMemoryGraphSeries> FMemoryGraphTrack::AddMemTagSeries(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId)
 {
 	TSharedPtr<FMemoryGraphSeries> Series = GetMemTagSeries(InMemTrackerId, InMemTagId);
 
@@ -278,7 +283,7 @@ TSharedPtr<FMemoryGraphSeries> FMemoryGraphTrack::AddMemTagSeries(Insights::FMem
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int32 FMemoryGraphTrack::RemoveMemTagSeries(Insights::FMemoryTrackerId InMemTrackerId, Insights::FMemoryTagId InMemTagId)
+int32 FMemoryGraphTrack::RemoveMemTagSeries(FMemoryTrackerId InMemTrackerId, FMemoryTagId InMemTagId)
 {
 	SetDirtyFlag();
 	return AllSeries.RemoveAll([InMemTrackerId, InMemTagId](const TSharedPtr<FGraphSeries>& GraphSeries)
@@ -949,7 +954,7 @@ void FMemoryGraphTrack::DrawVerticalAxisGrid(const ITimingTrackDrawContext& Cont
 			const float MY = static_cast<float>(Context.GetMousePosition().Y);
 
 			//constexpr float MX1 = 80.0f; // start fading out
-			constexpr float MX2 = 120.0f; // completly faded out
+			constexpr float MX2 = 120.0f; // completely faded out
 
 			if (MX > ViewWidth - MX2 && MY >= MaxValueY && MY < MinValueY + TextH)
 			{
@@ -1242,11 +1247,11 @@ void FMemoryGraphTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITimi
 			InOutTooltip.AddTitle(SubTitle, Series->GetColor());
 		}
 
-		const double Precision = FMath::Max(1.0 / TimeScaleX, TimeUtils::Nanosecond);
-		InOutTooltip.AddNameValueTextLine(TEXT("Time:"), TimeUtils::FormatTime(TooltipEvent.GetStartTime(), Precision));
+		const double Precision = FMath::Max(1.0 / TimeScaleX, FTimeValue::Nanosecond);
+		InOutTooltip.AddNameValueTextLine(TEXT("Time:"), FormatTime(TooltipEvent.GetStartTime(), Precision));
 		if (Series->HasEventDuration())
 		{
-			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), TimeUtils::FormatTimeAuto(TooltipEvent.GetDuration()));
+			InOutTooltip.AddNameValueTextLine(TEXT("Duration:"), FormatTimeAuto(TooltipEvent.GetDuration()));
 		}
 		InOutTooltip.AddNameValueTextLine(TEXT("Value:"), Series->FormatValue(TooltipEvent.GetValue()));
 		InOutTooltip.UpdateLayout();
@@ -1254,5 +1259,7 @@ void FMemoryGraphTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITimi
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

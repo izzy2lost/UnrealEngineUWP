@@ -8,7 +8,7 @@ class FXmlNode;
 class FXmlAttribute;
 class FTokenizedMessage;
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 struct FGraphConfig;
@@ -49,4 +49,4 @@ private:
 	EStatus Status = EStatus::Completed;
 };
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Misc/FilterCollection.h"
 #include "Misc/TextFilter.h"
 #include "SlateFwd.h"
@@ -15,27 +16,29 @@
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STreeView.h"
 
-// Insights
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemTagNodeGroupingAndSorting.h"
 #include "Insights/MemoryProfiler/ViewModels/MemTagNode.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 class FMenuBuilder;
-class FMemoryGraphTrack;
-class SMemoryProfilerWindow;
 
 namespace TraceServices
 {
 	class IAnalysisSession;
 }
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
 	class ITableCellValueSorter;
 }
+
+namespace UE::Insights::MemoryProfiler
+{
+
+class FMemoryGraphTrack;
+class SMemoryProfilerWindow;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +50,7 @@ typedef TTextFilter<const FMemTagNodePtr&> FMemTagNodeTextFilter;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
- * A custom widget used to display the list of LLM tags and thier aggregated stats.
+ * A custom widget used to display the list of LLM tags and their aggregated stats.
  */
 class SMemTagTreeView : public SCompoundWidget
 {
@@ -76,7 +79,7 @@ public:
 	 */
 	void Construct(const FArguments& InArgs, TSharedPtr<SMemoryProfilerWindow> InProfilerWindow);
 
-	TSharedPtr<Insights::FTable> GetTable() const { return Table; }
+	TSharedPtr<FTable> GetTable() const { return Table; }
 
 	void Reset();
 
@@ -89,8 +92,8 @@ public:
 	void ResetStats();
 	void UpdateStats(double StartTime, double EndTime);
 
-	FMemTagNodePtr GetMemTagNode(Insights::FMemoryTagId MemTagId) const { return MemTagNodesIdMap.FindRef(MemTagId); }
-	void SelectMemTagNode(Insights::FMemoryTagId MemTagId);
+	FMemTagNodePtr GetMemTagNode(FMemoryTagId MemTagId) const { return MemTagNodesIdMap.FindRef(MemTagId); }
+	void SelectMemTagNode(FMemoryTagId MemTagId);
 
 private:
 	TSharedRef<SWidget> MakeTrackersMenu();
@@ -131,7 +134,7 @@ private:
 
 	FText GetColumnHeaderText(const FName ColumnId) const;
 
-	TSharedRef<SWidget> TreeViewHeaderRow_GenerateColumnMenu(const Insights::FTableColumn& Column);
+	TSharedRef<SWidget> TreeViewHeaderRow_GenerateColumnMenu(const FTableColumn& Column);
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Tree View - Misc
@@ -159,7 +162,7 @@ private:
 
 	bool TableRow_ShouldBeEnabled(FMemTagNodePtr NodePtr) const;
 
-	void TableRow_SetHoveredCell(TSharedPtr<Insights::FTable> TablePtr, TSharedPtr<Insights::FTableColumn> ColumnPtr, FMemTagNodePtr NodePtr);
+	void TableRow_SetHoveredCell(TSharedPtr<FTable> TablePtr, TSharedPtr<FTableColumn> ColumnPtr, FMemTagNodePtr NodePtr);
 	EHorizontalAlignment TableRow_GetColumnOutlineHAlignment(const FName ColumnId) const;
 
 	FText TableRow_GetHighlightText() const;
@@ -177,8 +180,8 @@ private:
 	bool SearchBox_IsEnabled() const;
 	void SearchBox_OnTextChanged(const FText& InFilterText);
 
-	void ToggleTracker(Insights::FMemoryTrackerId InTrackerId);
-	bool IsTrackerChecked(Insights::FMemoryTrackerId InTrackerId) const;
+	void ToggleTracker(FMemoryTrackerId InTrackerId);
+	bool IsTrackerChecked(FMemoryTrackerId InTrackerId) const;
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Grouping
@@ -204,7 +207,7 @@ private:
 
 	void UpdateCurrentSortingByColumn();
 	void SortTreeNodes();
-	void SortTreeNodesRec(FMemTagNode& Node, const Insights::ITableCellValueSorter& Sorter);
+	void SortTreeNodesRec(FMemTagNode& Node, const ITableCellValueSorter& Sorter);
 
 	EColumnSortMode::Type GetSortModeForColumn(const FName ColumnId) const;
 	void SetSortModeForColumn(const FName& ColumnId, EColumnSortMode::Type SortMode);
@@ -313,7 +316,7 @@ private:
 	TWeakPtr<SMemoryProfilerWindow> ProfilerWindowWeakPtr;
 
 	/** Table view model. */
-	TSharedPtr<Insights::FTable> Table;
+	TSharedPtr<FTable> Table;
 
 	/** The analysis session used to populate this widget. */
 	TSharedPtr<const TraceServices::IAnalysisSession> Session;
@@ -358,7 +361,7 @@ private:
 	TSet<FMemTagNodePtr> MemTagNodes;
 
 	/** All LLM tag nodes, stored as NodeId -> FMemTagNodePtr. */
-	TMap<Insights::FMemoryTagId, FMemTagNodePtr> MemTagNodesIdMap;
+	TMap<FMemoryTagId, FMemTagNodePtr> MemTagNodesIdMap;
 
 	/** Currently expanded group nodes. */
 	TSet<FMemTagNodePtr> ExpandedNodes;
@@ -404,10 +407,10 @@ private:
 	//bool bUseSorting;
 
 	/** All available sorters. */
-	TArray<TSharedPtr<Insights::ITableCellValueSorter>> AvailableSorters;
+	TArray<TSharedPtr<ITableCellValueSorter>> AvailableSorters;
 
 	/** Current sorter. It is nullptr if sorting is disabled. */
-	TSharedPtr<Insights::ITableCellValueSorter> CurrentSorter;
+	TSharedPtr<ITableCellValueSorter> CurrentSorter;
 
 	/** Name of the column currently being sorted. Can be NAME_None if sorting is disabled (CurrentSorting == nullptr) or if a complex sorting is used (CurrentSorting != nullptr). */
 	FName ColumnBeingSorted;
@@ -417,7 +420,7 @@ private:
 
 	//////////////////////////////////////////////////
 
-	TSharedPtr<SComboBox<TSharedPtr<Insights::FMemoryTracker>>> TrackerComboBox;
+	TSharedPtr<SComboBox<TSharedPtr<FMemoryTracker>>> TrackerComboBox;
 
 	FLinearColor EditableColorValue;
 
@@ -428,3 +431,5 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler

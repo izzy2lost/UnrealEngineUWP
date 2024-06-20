@@ -7,10 +7,12 @@
 #include "Framework/Docking/TabManager.h"
 #include "Logging/MessageLog.h"
 #include "Modules/ModuleManager.h"
-#include "TraceServices/Model/TasksProfiler.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/TasksProfiler.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskGraphRelation.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTable.h"
@@ -118,7 +120,7 @@ FTaskGraphProfilerManager::~FTaskGraphProfilerManager()
 
 	if (TaskTimingSharedState.IsValid())
 	{
-		IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
+		IModularFeatures::Get().UnregisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
 	}
 }
 
@@ -152,13 +154,7 @@ bool FTaskGraphProfilerManager::Tick(float DeltaTime)
 			TSharedPtr<FTabManager> TabManagerShared = TimingTabManager.Pin();
 			if (TasksProvider && TasksProvider->GetNumTasks() > 0 && TabManagerShared.IsValid())
 			{
-				TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-				if (!Window.IsValid())
-				{
-					return true;
-				}
-
-				TSharedPtr<STimingView> TimingView = Window->GetTimingView();
+				TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 				if (!TimingView.IsValid())
 				{
 					return true;
@@ -169,7 +165,7 @@ bool FTaskGraphProfilerManager::Tick(float DeltaTime)
 				if (!TaskTimingSharedState.IsValid())
 				{
 					TaskTimingSharedState = MakeShared<FTaskTimingSharedState>(TimingView.Get());
-					IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
+					IModularFeatures::Get().RegisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
 				}
 				TabManagerShared->TryInvokeTab(FTaskGraphProfilerTabs::TaskTableTreeViewTabID);
 			}
@@ -417,13 +413,7 @@ void FTaskGraphProfilerManager::GetRelationsOnCriticalPath(const TraceServices::
 			return;
 		}
 
-		TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-		if (!TimingWindow.IsValid())
-		{
-			return;
-		}
-
-		TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 		if (!TimingView.IsValid())
 		{
 			return;
@@ -575,13 +565,7 @@ void FTaskGraphProfilerManager::AddRelation(const FThreadTrackEvent* InSelectedE
 		return;
 	}
 
-	TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
-	{
-		return;
-	}
-
-	TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return;
@@ -648,13 +632,7 @@ int32 FTaskGraphProfilerManager::GetRelationDisplayDepth(TSharedPtr<const FThrea
 
 void FTaskGraphProfilerManager::ClearTaskRelations()
 {
-	TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
-	{
-		return;
-	}
-
-	TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return;
@@ -674,13 +652,8 @@ void FTaskGraphProfilerManager::ClearTaskRelations()
 int32 FTaskGraphProfilerManager::GetDepthOfTaskExecution(double TaskStartedTime, double TaskFinishedTime, uint32 ThreadId)
 {
 	int32 Depth = -1;
-	TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
-	{
-		return Depth;
-	}
 
-	TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
+	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return Depth;
@@ -845,6 +818,8 @@ void FTaskGraphProfilerManager::RegisterOnWindowClosedEventHandle()
 {
 	if (!OnWindowClosedEventHandle.IsValid())
 	{
+		using namespace UE::Insights::TimingProfiler;
+
 		TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
 		if (!Window.IsValid())
 		{
@@ -896,10 +871,20 @@ void FTaskGraphProfilerManager::OutputWarnings()
 									   FText::FromString(TrackList.ToString()));
 	}
 
+	using namespace UE::Insights::TimingProfiler;
 	FName LogListingName = FTimingProfilerManager::Get()->GetLogListingName();
 	FMessageLog ReportMessageLog(LogListingName);
 	ReportMessageLog.Warning(WarningMessage);
 	ReportMessageLog.Notify();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<UE::Insights::TimingProfiler::STimingView> FTaskGraphProfilerManager::GetTimingView()
+{
+	using namespace UE::Insights::TimingProfiler;
+	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
+	return Window.IsValid() ? Window->GetTimingView() : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

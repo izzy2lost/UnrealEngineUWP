@@ -2,21 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
-#include "Insights/Table/ViewModels/BaseTreeNode.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/BaseTreeNode.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
 
-namespace TraceServices
+namespace TraceServices { struct FStackFrame; }
+namespace UE::Insights { class IAsyncOperationProgress; }
+
+namespace UE::Insights::MemoryProfiler
 {
-	struct FStackFrame;
-}
-
-namespace Insights
-{
-
-class IAsyncOperationProgress;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -102,4 +98,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

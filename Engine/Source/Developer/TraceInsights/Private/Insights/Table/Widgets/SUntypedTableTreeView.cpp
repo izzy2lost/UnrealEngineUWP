@@ -2,11 +2,14 @@
 
 #include "SUntypedTableTreeView.h"
 
+// TraceServices
 #include "TraceServices/Containers/Tables.h"
 #include "TraceServices/Model/Threads.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/Log.h"
 #include "Insights/Table/ViewModels/UntypedTable.h"
 
@@ -62,10 +65,10 @@ void SUntypedTableTreeView::UpdateSourceTable(TSharedPtr<TraceServices::IUntyped
 
 void SUntypedTableTreeView::RebuildTree(bool bResync)
 {
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
-	FStopwatch SyncStopwatch;
+	UE::Insights::FStopwatch SyncStopwatch;
 	SyncStopwatch.Start();
 
 	if (bResync)
@@ -92,7 +95,7 @@ void SUntypedTableTreeView::RebuildTree(bool bResync)
 			{
 				TableReader->SetRowIndex(RowIndex);
 				FName NodeName(BaseNodeName, RowIndex + 1);
-				FTableTreeNodePtr NodePtr = MakeShared<FTableTreeNode>(NodeName, Table, RowIndex);
+				UE::Insights::FTableTreeNodePtr NodePtr = MakeShared<UE::Insights::FTableTreeNode>(NodeName, Table, RowIndex);
 				NodePtr->SetDefaultSortOrder(RowIndex + 1);
 				TableRowNodes.Add(NodePtr);
 			}
@@ -105,7 +108,7 @@ void SUntypedTableTreeView::RebuildTree(bool bResync)
 	if (bResync || TableRowNodes.Num() != PreviousNodeCount)
 	{
 		// Save selection.
-		TArray<FTableTreeNodePtr> SelectedItems;
+		TArray<UE::Insights::FTableTreeNodePtr> SelectedItems;
 		TreeView->GetSelectedItems(SelectedItems);
 
 		UpdateTree();
@@ -116,11 +119,11 @@ void SUntypedTableTreeView::RebuildTree(bool bResync)
 		if (SelectedItems.Num() > 0)
 		{
 			TreeView->ClearSelection();
-			for (FTableTreeNodePtr& NodePtr : SelectedItems)
+			for (UE::Insights::FTableTreeNodePtr& NodePtr : SelectedItems)
 			{
 				NodePtr = GetNodeByTableRowIndex(NodePtr->GetRowIndex());
 			}
-			SelectedItems.RemoveAll([](const FTableTreeNodePtr& NodePtr) { return !NodePtr.IsValid(); });
+			SelectedItems.RemoveAll([](const UE::Insights::FTableTreeNodePtr& NodePtr) { return !NodePtr.IsValid(); });
 			if (SelectedItems.Num() > 0)
 			{
 				TreeView->SetItemSelection(SelectedItems, true);

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/GraphSeries.h"
 #include "Insights/ViewModels/GraphTrack.h"
 
@@ -13,7 +13,7 @@ namespace Insights
 	struct FFrameStatsCachedEvent;
 }
 
-class STimingView;
+namespace UE::Insights::TimingProfiler { class STimingView; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +78,7 @@ class FTimingGraphTrack : public FGraphTrack
 	INSIGHTS_DECLARE_RTTI(FTimingGraphTrack, FGraphTrack)
 
 public:
-	FTimingGraphTrack(TSharedPtr<STimingView> InTimingView);
+	FTimingGraphTrack(TSharedPtr<UE::Insights::TimingProfiler::STimingView> InTimingView);
 	virtual ~FTimingGraphTrack();
 
 	virtual void Update(const ITimingTrackUpdateContext& Context) override;
@@ -124,7 +124,7 @@ private:
 	FDelegateHandle GameFrameSeriesVisibilityHandle;
 	FDelegateHandle RenderingFrameSeriesVisibilityHandle;
 
-	TWeakPtr<STimingView> TimingView;
+	TWeakPtr<UE::Insights::TimingProfiler::STimingView> TimingView;
 	bool bNotifyTimersOnDestruction;
 };
 

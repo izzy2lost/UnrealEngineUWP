@@ -4,11 +4,15 @@
 
 #include "Async/ParallelFor.h"
 #include "Containers/ContainerAllocationPolicies.h"
+
+// TraceAnalysis
 #include "Trace/Analysis.h"
 #include "Trace/StoreClient.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/Log.h"
 #include "Insights/StoreService/DiagnosticsSessionAnalyzer.h"
@@ -129,7 +133,7 @@ void FStoreBrowser::UpdateTraces()
 		return;
 	}
 
-	FStopwatch StopwatchTotal;
+	UE::Insights::FStopwatch StopwatchTotal;
 	StopwatchTotal.Start();
 
 	// Update store host.
@@ -469,7 +473,7 @@ void FStoreBrowser::UpdateTraces()
 
 	// Check to see if we need to update metadata.
 	{
-		FStopwatch Stopwatch;
+		UE::Insights::FStopwatch Stopwatch;
 		Stopwatch.Start();
 
 		TArray<TSharedPtr<FStoreBrowserTraceInfo>> TracesToUpdate;
@@ -612,7 +616,7 @@ void FStoreBrowser::UpdateMetadata(TSharedPtr<FStoreBrowserTraceInfo> TraceInfoP
 		UE::Trace::IInDataStream* Inner;
 		FStoreBrowserTraceInfo* Trace;
 		double TimeLimit = 1.0;
-		FStopwatch Stopwatch;
+		UE::Insights::FStopwatch Stopwatch;
 		int32 BytesRead = 0;
 		EReadStatus Status = EReadStatus::Ready;
 	};

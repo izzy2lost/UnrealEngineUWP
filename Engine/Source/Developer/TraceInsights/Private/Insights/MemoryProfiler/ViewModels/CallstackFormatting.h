@@ -2,12 +2,14 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Internationalization/Text.h"
 #include "Misc/EnumClassFlags.h"
-#include "TraceServices/Model/Callstack.h"
-#include "TraceServices/Model/Modules.h"
 
-namespace Insights
+namespace TraceServices { struct FStackFrame; }
+
+namespace UE::Insights
 {
 
 enum class EStackFrameFormatFlags : uint8
@@ -30,4 +32,4 @@ FText GetEmptyCallstackString();
 
 void FormatStackFrame(const TraceServices::FStackFrame& Frame, FStringBuilderBase& OutString, EStackFrameFormatFlags FormatFlags);
 
-} // namespace Insights
+} // namespace UE::Insights

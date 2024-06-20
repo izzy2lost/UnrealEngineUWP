@@ -2,20 +2,24 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Containers/Ticker.h"
-#include "CoreMinimal.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Logging/LogMacros.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/MemoryProfiler/MemoryProfilerCommands.h"
 
+namespace UE::Insights::MemoryProfiler
+{
+
 class FMemorySharedState;
 class SMemoryProfilerWindow;
 
-DECLARE_LOG_CATEGORY_EXTERN(MemoryProfiler, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogMemoryProfiler, Log, All);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -128,7 +132,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	Insights::FAvailabilityCheck AvailabilityCheck;
+	FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;
@@ -163,3 +167,5 @@ private:
 	/** A shared pointer to the global instance of the Memory Profiler manager. */
 	static TSharedPtr<FMemoryProfilerManager> Instance;
 };
+
+} // namespace UE::Insights::MemoryProfiler

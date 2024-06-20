@@ -11,23 +11,28 @@
 #include "Logging/MessageLog.h"
 #include "SlateOptMacros.h"
 #include "Styling/AppStyle.h"
-#include "TraceServices/Model/Counters.h"
-#include "Widgets/Input/SCheckBox.h"
-#include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SGridPanel.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Views/STableViewBase.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceServices
+#include "TraceServices/Model/Counters.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+#include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/Widgets/SAsyncOperationStatus.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/Log.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
 #include "Insights/TimingProfilerCommon.h"
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/CounterAggregation.h"
@@ -35,9 +40,8 @@
 #include "Insights/ViewModels/StatsViewColumnFactory.h"
 #include "Insights/ViewModels/TimingExporter.h"
 #include "Insights/ViewModels/TimingGraphTrack.h"
-#include "Insights/Widgets/SAsyncOperationStatus.h"
-#include "Insights/Widgets/SStatsViewTooltip.h"
 #include "Insights/Widgets/SStatsTableRow.h"
+#include "Insights/Widgets/SStatsViewTooltip.h"
 #include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
@@ -113,7 +117,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 SStatsView::SStatsView()
-	: Table(MakeShared<Insights::FTable>())
+	: Table(MakeShared<UE::Insights::FTable>())
 	, bExpansionSaved(false)
 	, bFilterOutZeroCountStats(false)
 	, GroupingMode(EStatsGroupingMode::Flat)
@@ -309,7 +313,7 @@ void SStatsView::Construct(const FArguments& InArgs)
 				.VAlign(VAlign_Bottom)
 				.Padding(16.0f)
 				[
-					SAssignNew(AsyncOperationStatus, Insights::SAsyncOperationStatus, Aggregator)
+					SAssignNew(AsyncOperationStatus, UE::Insights::SAsyncOperationStatus, Aggregator)
 				]
 			]
 
@@ -427,6 +431,7 @@ TSharedPtr<SWidget> SStatsView::TreeView_GetMenuContent()
 	{
 		auto CanExecute = [NumSelectedNodes, SelectedNode]()
 		{
+			using namespace UE::Insights::TimingProfiler;
 			TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 			TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
 			return TimingView.IsValid() && NumSelectedNodes == 1 && SelectedNode.IsValid() && SelectedNode->GetType() != EStatsNodeType::Group;
@@ -526,9 +531,9 @@ void SStatsView::TreeView_BuildSortByMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("SortColumn", LOCTEXT("ContextMenu_Section_SortColumn", "Sort Column"));
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		if (Column.IsVisible() && Column.CanBeSorted())
 		{
@@ -595,9 +600,9 @@ void SStatsView::TreeView_BuildViewColumnMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("Columns", LOCTEXT("ContextMenu_Section_Columns", "Columns"));
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		FUIAction Action_ToggleColumn
 		(
@@ -624,12 +629,12 @@ void SStatsView::TreeView_BuildViewColumnMenu(FMenuBuilder& MenuBuilder)
 void SStatsView::InitializeAndShowHeaderColumns()
 {
 	// Create columns.
-	TArray<TSharedRef<Insights::FTableColumn>> Columns;
+	TArray<TSharedRef<UE::Insights::FTableColumn>> Columns;
 	FStatsViewColumnFactory::CreateStatsViewColumns(Columns);
 	Table->SetColumns(Columns);
 
 	// Show columns.
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
 		if (ColumnRef->ShouldBeVisible())
 		{
@@ -642,13 +647,13 @@ void SStatsView::InitializeAndShowHeaderColumns()
 
 FText SStatsView::GetColumnHeaderText(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.GetShortName();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<SWidget> SStatsView::TreeViewHeaderRow_GenerateColumnMenu(const Insights::FTableColumn& Column)
+TSharedRef<SWidget> SStatsView::TreeViewHeaderRow_GenerateColumnMenu(const UE::Insights::FTableColumn& Column)
 {
 	const bool bShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, NULL);
@@ -838,7 +843,7 @@ void SStatsView::UpdateTree()
 
 void SStatsView::ApplyFiltering()
 {
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	FilteredGroupNodes.Reset();
@@ -851,11 +856,11 @@ void SStatsView::ApplyFiltering()
 		GroupPtr->ClearFilteredChildren();
 		const bool bIsGroupVisible = Filters->PassesAllFilters(GroupPtr);
 
-		const TArray<Insights::FBaseTreeNodePtr>& GroupChildren = GroupPtr->GetChildren();
+		const TArray<UE::Insights::FBaseTreeNodePtr>& GroupChildren = GroupPtr->GetChildren();
 		int32 NumVisibleChildren = 0;
-		for (const Insights::FBaseTreeNodePtr& ChildPtr : GroupChildren)
+		for (const UE::Insights::FBaseTreeNodePtr& ChildPtr : GroupChildren)
 		{
-			const FStatsNodePtr& NodePtr = StaticCastSharedPtr<FStatsNode, Insights::FBaseTreeNode>(ChildPtr);
+			const FStatsNodePtr& NodePtr = StaticCastSharedPtr<FStatsNode, UE::Insights::FBaseTreeNode>(ChildPtr);
 
 			const bool bIsChildVisible = (!bFilterOutZeroCountStats || NodePtr->GetAggregatedStats().Count > 0)
 									  && FilterByNodeType[static_cast<int>(NodePtr->GetType())]
@@ -936,10 +941,10 @@ void SStatsView::ApplyFiltering()
 
 		EStatsNodeDataType GroupDataType = EStatsNodeDataType::InvalidOrMax;
 
-		const TArray<Insights::FBaseTreeNodePtr>& GroupChildren = GroupPtr->GetFilteredChildren();
-		for (const Insights::FBaseTreeNodePtr& ChildPtr : GroupChildren)
+		const TArray<UE::Insights::FBaseTreeNodePtr>& GroupChildren = GroupPtr->GetFilteredChildren();
+		for (const UE::Insights::FBaseTreeNodePtr& ChildPtr : GroupChildren)
 		{
-			const FStatsNodePtr& NodePtr = StaticCastSharedPtr<FStatsNode, Insights::FBaseTreeNode>(ChildPtr);
+			const FStatsNodePtr& NodePtr = StaticCastSharedPtr<FStatsNode, UE::Insights::FBaseTreeNode>(ChildPtr);
 			const FAggregatedStats& NodeAggregatedStats = NodePtr->GetAggregatedStats();
 
 			if (NodeAggregatedStats.Count > 0)
@@ -989,7 +994,7 @@ void SStatsView::ApplyFiltering()
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
 	if (TotalTime > 0.1)
 	{
-		UE_LOG(TimingProfiler, Log, TEXT("[Counters] Tree view filtered in %.3fs (%d counters)"),
+		UE_LOG(LogTimingProfiler, Log, TEXT("[Counters] Tree view filtered in %.3fs (%d counters)"),
 			TotalTime, StatsNodes.Num());
 	}
 }
@@ -1140,11 +1145,11 @@ void SStatsView::TreeView_OnSelectionChanged(FStatsNodePtr SelectedItem, ESelect
 
 void SStatsView::TreeView_OnGetChildren(FStatsNodePtr InParent, TArray<FStatsNodePtr>& OutChildren)
 {
-	const TArray<Insights::FBaseTreeNodePtr>& Children = InParent->GetFilteredChildren();
+	const TArray<UE::Insights::FBaseTreeNodePtr>& Children = InParent->GetFilteredChildren();
 	OutChildren.Reset(Children.Num());
-	for (const Insights::FBaseTreeNodePtr& Child : Children)
+	for (const UE::Insights::FBaseTreeNodePtr& Child : Children)
 	{
-		OutChildren.Add(StaticCastSharedPtr<FStatsNode, Insights::FBaseTreeNode>(Child));
+		OutChildren.Add(StaticCastSharedPtr<FStatsNode, UE::Insights::FBaseTreeNode>(Child));
 	}
 }
 
@@ -1192,7 +1197,7 @@ bool SStatsView::TableRow_ShouldBeEnabled(FStatsNodePtr NodePtr) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SStatsView::TableRow_SetHoveredCell(TSharedPtr<Insights::FTable> InTablePtr, TSharedPtr<Insights::FTableColumn> InColumnPtr, FStatsNodePtr InNodePtr)
+void SStatsView::TableRow_SetHoveredCell(TSharedPtr<UE::Insights::FTable> InTablePtr, TSharedPtr<UE::Insights::FTableColumn> InColumnPtr, FStatsNodePtr InNodePtr)
 {
 	HoveredColumnId = InColumnPtr ? InColumnPtr->GetId() : FName();
 
@@ -1264,7 +1269,7 @@ bool SStatsView::SearchBox_IsEnabled() const
 
 void SStatsView::CreateGroups()
 {
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	if (GroupingMode == EStatsGroupingMode::Flat)
@@ -1397,7 +1402,7 @@ void SStatsView::CreateGroups()
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
 	if (TotalTime > 0.1)
 	{
-		UE_LOG(TimingProfiler, Log, TEXT("[Counters] Tree view grouping updated in %.3fs (%d counters)"),
+		UE_LOG(LogTimingProfiler, Log, TEXT("[Counters] Tree view grouping updated in %.3fs (%d counters)"),
 			TotalTime, StatsNodes.Num());
 	}
 }
@@ -1485,11 +1490,11 @@ void SStatsView::CreateSortings()
 	AvailableSorters.Reset();
 	CurrentSorter = nullptr;
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
 		if (ColumnRef->CanBeSorted())
 		{
-			TSharedPtr<Insights::ITableCellValueSorter> SorterPtr = ColumnRef->GetValueSorter();
+			TSharedPtr<UE::Insights::ITableCellValueSorter> SorterPtr = ColumnRef->GetValueSorter();
 			if (ensure(SorterPtr.IsValid()))
 			{
 				AvailableSorters.Add(SorterPtr);
@@ -1504,7 +1509,7 @@ void SStatsView::CreateSortings()
 
 void SStatsView::UpdateCurrentSortingByColumn()
 {
-	TSharedPtr<Insights::FTableColumn> ColumnPtr = Table->FindColumn(ColumnBeingSorted);
+	TSharedPtr<UE::Insights::FTableColumn> ColumnPtr = Table->FindColumn(ColumnBeingSorted);
 	CurrentSorter = ColumnPtr.IsValid() ? ColumnPtr->GetValueSorter() : nullptr;
 }
 
@@ -1512,7 +1517,7 @@ void SStatsView::UpdateCurrentSortingByColumn()
 
 void SStatsView::SortTreeNodes()
 {
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	if (CurrentSorter.IsValid())
@@ -1527,7 +1532,7 @@ void SStatsView::SortTreeNodes()
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
 	if (TotalTime > 0.1)
 	{
-		UE_LOG(TimingProfiler, Log, TEXT("[Counters] Tree view sorted (%s, %c) in %.3fs (%d counters)"),
+		UE_LOG(LogTimingProfiler, Log, TEXT("[Counters] Tree view sorted (%s, %c) in %.3fs (%d counters)"),
 			CurrentSorter.IsValid() ? *CurrentSorter->GetShortName().ToString() : TEXT("N/A"),
 			(ColumnSortMode == EColumnSortMode::Type::Descending) ? TEXT('D') : TEXT('A'),
 			TotalTime, StatsNodes.Num());
@@ -1536,13 +1541,13 @@ void SStatsView::SortTreeNodes()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SStatsView::SortTreeNodesRec(FStatsNode& Node, const Insights::ITableCellValueSorter& Sorter)
+void SStatsView::SortTreeNodesRec(FStatsNode& Node, const UE::Insights::ITableCellValueSorter& Sorter)
 {
-	Insights::ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? Insights::ESortMode::Descending : Insights::ESortMode::Ascending;
+	UE::Insights::ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? UE::Insights::ESortMode::Descending : UE::Insights::ESortMode::Ascending;
 	Node.SortChildren(Sorter, SortMode);
 
 #if 0 // Current groupings creates only one level.
-	for (Insights::FBaseTreeNodePtr ChildPtr : Node.GetChildren())
+	for (UE::Insights::FBaseTreeNodePtr ChildPtr : Node.GetChildren())
 	{
 		if (ChildPtr->GetChildrenCount() > 0)
 		{
@@ -1597,7 +1602,7 @@ bool SStatsView::HeaderMenu_SortMode_IsChecked(const FName ColumnId, const EColu
 
 bool SStatsView::HeaderMenu_SortMode_CanExecute(const FName ColumnId, const EColumnSortMode::Type InSortMode) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.CanBeSorted();
 }
 
@@ -1670,7 +1675,7 @@ bool SStatsView::CanShowColumn(const FName ColumnId) const
 
 void SStatsView::ShowColumn(const FName ColumnId)
 {
-	Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	Column.Show();
 
 	SHeaderRow::FColumn::FArguments ColumnArgs;
@@ -1725,7 +1730,7 @@ void SStatsView::ShowColumn(const FName ColumnId)
 
 bool SStatsView::CanHideColumn(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.CanBeHidden();
 }
 
@@ -1733,7 +1738,7 @@ bool SStatsView::CanHideColumn(const FName ColumnId) const
 
 void SStatsView::HideColumn(const FName ColumnId)
 {
-	Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	Column.Hide();
 
 	TreeViewHeaderRow->RemoveColumn(ColumnId);
@@ -1745,7 +1750,7 @@ void SStatsView::HideColumn(const FName ColumnId)
 
 bool SStatsView::IsColumnVisible(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.IsVisible();
 }
 
@@ -1753,7 +1758,7 @@ bool SStatsView::IsColumnVisible(const FName ColumnId) const
 
 bool SStatsView::CanToggleColumnVisibility(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return !Column.IsVisible() || Column.CanBeHidden();
 }
 
@@ -1761,7 +1766,7 @@ bool SStatsView::CanToggleColumnVisibility(const FName ColumnId) const
 
 void SStatsView::ToggleColumnVisibility(const FName ColumnId)
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	if (Column.IsVisible())
 	{
 		HideColumn(ColumnId);
@@ -1789,9 +1794,9 @@ void SStatsView::ContextMenu_ShowAllColumns_Execute()
 	ColumnSortMode = GetDefaultColumnSortMode();
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		if (!Column.IsVisible())
 		{
@@ -1833,9 +1838,9 @@ void SStatsView::ContextMenu_ShowMinMaxMedColumns_Execute()
 	ColumnSortMode = EColumnSortMode::Descending;
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		const bool bShouldBeVisible = Preset.Contains(Column.GetId());
 
@@ -1867,9 +1872,9 @@ void SStatsView::ContextMenu_ResetColumns_Execute()
 	ColumnSortMode = GetDefaultColumnSortMode();
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		if (Column.ShouldBeVisible() && !Column.IsVisible())
 		{
@@ -1918,10 +1923,10 @@ void SStatsView::Tick(const FGeometry& AllottedGeometry, const double InCurrentT
 
 void SStatsView::RebuildTree(bool bResync)
 {
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
-	FStopwatch SyncStopwatch;
+	UE::Insights::FStopwatch SyncStopwatch;
 	SyncStopwatch.Start();
 
 	if (bResync)
@@ -2018,7 +2023,7 @@ void SStatsView::RebuildTree(bool bResync)
 	if (TotalTime > 0.01)
 	{
 		const double SyncTime = SyncStopwatch.GetAccumulatedTime();
-		UE_LOG(TimingProfiler, Log, TEXT("[Counters] Tree view rebuilt in %.4fs (sync: %.4fs + update: %.4fs) --> %d counters (%d added)"),
+		UE_LOG(LogTimingProfiler, Log, TEXT("[Counters] Tree view rebuilt in %.4fs (sync: %.4fs + update: %.4fs) --> %d counters (%d added)"),
 			TotalTime, SyncTime, TotalTime - SyncTime, StatsNodes.Num(), StatsNodes.Num() - PreviousNodeCount);
 	}
 }
@@ -2031,6 +2036,7 @@ void SStatsView::UpdateNode(FStatsNodePtr NodePtr)
 
 	if (!NodePtr->IsGroup())
 	{
+		using namespace UE::Insights::TimingProfiler;
 		TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 		if (Wnd.IsValid())
 		{
@@ -2123,6 +2129,7 @@ void SStatsView::SelectCounterNode(uint32 CounterId)
 
 TSharedPtr<FTimingGraphTrack> SStatsView::GetTimingViewMainGraphTrack() const
 {
+	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
 
@@ -2196,7 +2203,7 @@ void SStatsView::ContextMenu_CopySelectedToClipboard_Execute()
 		return;
 	}
 
-	TArray<Insights::FBaseTreeNodePtr> SelectedNodes;
+	TArray<UE::Insights::FBaseTreeNodePtr> SelectedNodes;
 	for (FStatsNodePtr CounterPtr : TreeView->GetSelectedItems())
 	{
 		SelectedNodes.Add(CounterPtr);
@@ -2211,9 +2218,10 @@ void SStatsView::ContextMenu_CopySelectedToClipboard_Execute()
 
 	if (CurrentSorter.IsValid())
 	{
-		CurrentSorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? Insights::ESortMode::Ascending : Insights::ESortMode::Descending);
+		CurrentSorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? UE::Insights::ESortMode::Ascending : UE::Insights::ESortMode::Descending);
 	}
 
+	using namespace UE::Insights::TimingProfiler;
 	Table->GetVisibleColumnsData(SelectedNodes, FTimingProfilerManager::Get()->GetLogListingName(), TEXT('\t'), true, ClipboardText);
 
 	if (ClipboardText.Len() > 0)
@@ -2239,7 +2247,7 @@ void SStatsView::ContextMenu_Export_Execute()
 		return;
 	}
 
-	TArray<Insights::FBaseTreeNodePtr> SelectedNodes;
+	TArray<UE::Insights::FBaseTreeNodePtr> SelectedNodes;
 	for (FStatsNodePtr Item : TreeView->GetSelectedItems())
 	{
 		SelectedNodes.Add(Item);
@@ -2264,7 +2272,7 @@ void SStatsView::ContextMenu_Export_Execute()
 		return;
 	}
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	UTF16CHAR BOM = UNICODE_BOM;
@@ -2281,13 +2289,13 @@ void SStatsView::ContextMenu_Export_Execute()
 
 	TStringBuilder<1024> StringBuilder;
 
-	TArray<TSharedRef<Insights::FTableColumn>> VisibleColumns;
+	TArray<TSharedRef<UE::Insights::FTableColumn>> VisibleColumns;
 	Table->GetVisibleColumns(VisibleColumns);
 
 	// Write header.
 	{
 		bool bIsFirstColumn = true;
-		for (const TSharedRef<Insights::FTableColumn>& ColumnRef : VisibleColumns)
+		for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : VisibleColumns)
 		{
 			if (bIsFirstColumn)
 			{
@@ -2316,18 +2324,18 @@ void SStatsView::ContextMenu_Export_Execute()
 
 	if (CurrentSorter.IsValid())
 	{
-		CurrentSorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? Insights::ESortMode::Ascending : Insights::ESortMode::Descending);
+		CurrentSorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? UE::Insights::ESortMode::Ascending : UE::Insights::ESortMode::Descending);
 	}
 
 	const int32 NodeCount = SelectedNodes.Num();
 	for (int32 Index = 0; Index < NodeCount; Index++)
 	{
-		const Insights::FBaseTreeNodePtr& Node = SelectedNodes[Index];
+		const UE::Insights::FBaseTreeNodePtr& Node = SelectedNodes[Index];
 
 		StringBuilder.Reset();
 
 		bool bIsFirstColumn = true;
-		for (const TSharedRef<Insights::FTableColumn>& ColumnRef : VisibleColumns)
+		for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : VisibleColumns)
 		{
 			if (bIsFirstColumn)
 			{
@@ -2416,6 +2424,7 @@ void SStatsView::ContextMenu_ExportValues_Execute() const
 	Params.IntervalStartTime = -std::numeric_limits<double>::infinity();
 	Params.IntervalEndTime = +std::numeric_limits<double>::infinity();
 
+	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
 	if (TimingView.IsValid())
@@ -2488,6 +2497,7 @@ void SStatsView::ContextMenu_ExportOps_Execute() const
 	Params.IntervalStartTime = -std::numeric_limits<double>::infinity();
 	Params.IntervalEndTime = +std::numeric_limits<double>::infinity();
 
+	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
 	if (TimingView.IsValid())
@@ -2576,6 +2586,7 @@ IFileHandle* SStatsView::OpenExportFile(const TCHAR* InFilename) const
 
 	if (ExportFileHandle == nullptr)
 	{
+		using namespace UE::Insights::TimingProfiler;
 		FName LogListingName = FTimingProfilerManager::Get()->GetLogListingName();
 		FMessageLog ReportMessageLog((LogListingName != NAME_None) ? LogListingName : TEXT("Other"));
 		ReportMessageLog.Error(LOCTEXT("FailedToOpenFile", "Export failed. Failed to open file for write."));

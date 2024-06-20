@@ -2,11 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/Commands.h"
 
 class FMenuBuilder;
+
+namespace UE::Insights::TimingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -149,3 +153,5 @@ protected:
 	/** Reference to the global instance of the profiler manager. */
 	class FTimingProfilerManager* This;
 };
+
+} // namespace UE::Insights::TimingProfiler

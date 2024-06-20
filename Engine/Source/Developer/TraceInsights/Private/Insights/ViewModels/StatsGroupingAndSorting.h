@@ -4,42 +4,44 @@
 
 #include "CoreMinimal.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
+
+// TraceInsights
 #include "Insights/ViewModels/StatsNode.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sorters
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FStatsNodeSortingByStatsType : public Insights::FTableCellValueSorter
+class FStatsNodeSortingByStatsType : public UE::Insights::FTableCellValueSorter
 {
 public:
-	FStatsNodeSortingByStatsType(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FStatsNodeSortingByStatsType(TSharedRef<UE::Insights::FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FStatsNodeSortingByDataType : public Insights::FTableCellValueSorter
+class FStatsNodeSortingByDataType : public UE::Insights::FTableCellValueSorter
 {
 public:
-	FStatsNodeSortingByDataType(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FStatsNodeSortingByDataType(TSharedRef<UE::Insights::FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FStatsNodeSortingByCount : public Insights::FTableCellValueSorter
+class FStatsNodeSortingByCount : public UE::Insights::FTableCellValueSorter
 {
 public:
-	FStatsNodeSortingByCount(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FStatsNodeSortingByCount(TSharedRef<UE::Insights::FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<UE::Insights::FBaseTreeNodePtr>& NodesToSort, UE::Insights::ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

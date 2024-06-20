@@ -2,11 +2,16 @@
 
 #include "Insights/Tests/TimingProfilerTests.h"
 
-#include "TraceServices/Model/Threads.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 
-#include "Insights/Common/Stopwatch.h"
+// TraceServices
+#include "TraceServices/Model/Threads.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/Tests/InsightsTestUtils.h"
 
@@ -339,7 +344,7 @@ void FTimingProfilerTests::RunEnumerateBenchmark(const FEnumerateTestParams& InP
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING BENCHMARK..."));
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	double SessionTime = 0.0;
@@ -393,7 +398,7 @@ void FTimingProfilerTests::RunEnumerateAsyncBenchmark(const FEnumerateTestParams
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING ASYNC ENUMERATE BENCHMARK..."));
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	double SessionTime = 0.0;
@@ -467,7 +472,7 @@ void FTimingProfilerTests::RunEnumerateAllTracksBenchmark(const FEnumerateTestPa
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING ENUMERATE ALL TRACKS BENCHMARK..."));
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	double SessionTime = 0.0;
@@ -526,7 +531,7 @@ void FTimingProfilerTests::RunEnumerateAsyncAllTracksBenchmark(const FEnumerateT
 {
 	UE_LOG(TimingProfilerTests, Log, TEXT("RUNNING ASYNC ENUMERATE ALL TRACKS BENCHMARK..."));
 
-	FStopwatch Stopwatch;
+	UE::Insights::FStopwatch Stopwatch;
 	Stopwatch.Start();
 
 	double SessionTime = 0.0;

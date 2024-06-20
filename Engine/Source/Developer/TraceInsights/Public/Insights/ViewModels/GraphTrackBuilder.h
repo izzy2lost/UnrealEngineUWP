@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 
-// Insights
 class FGraphTrack;
 class FGraphSeries;
 class FTimingTrackViewport;

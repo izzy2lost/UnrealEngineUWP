@@ -2,64 +2,71 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+#include "Containers/Array.h"
+#include "Templates/SharedPointer.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
+#include "InsightsCore/Table/ViewModels/TreeNodeGrouping.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemTagNode.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TableCellValueSorter.h"
-#include "Insights/Table/ViewModels/TreeNodeGrouping.h"
+
+namespace UE::Insights::MemoryProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sorters
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FMemTagNodeSortingByType: public Insights::FTableCellValueSorter
+class FMemTagNodeSortingByType: public FTableCellValueSorter
 {
 public:
-	FMemTagNodeSortingByType(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FMemTagNodeSortingByType(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FMemTagNodeSortingByTracker : public Insights::FTableCellValueSorter
+class FMemTagNodeSortingByTracker : public FTableCellValueSorter
 {
 public:
-	FMemTagNodeSortingByTracker(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FMemTagNodeSortingByTracker(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FMemTagNodeSortingByInstanceCount : public Insights::FTableCellValueSorter
+class FMemTagNodeSortingByInstanceCount : public FTableCellValueSorter
 {
 public:
-	FMemTagNodeSortingByInstanceCount(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FMemTagNodeSortingByInstanceCount(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FMemTagNodeSortingByTotalInclusiveSize : public Insights::FTableCellValueSorter
+class FMemTagNodeSortingByTotalInclusiveSize : public FTableCellValueSorter
 {
 public:
-	FMemTagNodeSortingByTotalInclusiveSize(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FMemTagNodeSortingByTotalInclusiveSize(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FMemTagNodeSortingByTotalExclusiveSize : public Insights::FTableCellValueSorter
+class FMemTagNodeSortingByTotalExclusiveSize : public FTableCellValueSorter
 {
 public:
-	FMemTagNodeSortingByTotalExclusiveSize(TSharedRef<Insights::FTableColumn> InColumnRef);
+	FMemTagNodeSortingByTotalExclusiveSize(TSharedRef<FTableColumn> InColumnRef);
 
-	virtual void Sort(TArray<Insights::FBaseTreeNodePtr>& NodesToSort, Insights::ESortMode SortMode) const override;
+	virtual void Sort(TArray<FBaseTreeNodePtr>& NodesToSort, ESortMode SortMode) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -92,3 +99,5 @@ enum class EMemTagNodeGroupingMode
 typedef TSharedPtr<EMemTagNodeGroupingMode> EMemTagNodeGroupingModePtr;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler

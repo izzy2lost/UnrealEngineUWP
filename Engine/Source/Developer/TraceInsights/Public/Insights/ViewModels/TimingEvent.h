@@ -2,9 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Containers/Array.h"
+#include "Templates/SharedPointer.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/SimpleRtti.h"
+
+// TraceInsights
 #include "Insights/ViewModels/ITimingEvent.h"
 #include "Insights/ViewModels/TimingEventSearch.h"
 

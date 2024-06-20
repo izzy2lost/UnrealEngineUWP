@@ -18,8 +18,6 @@
 #include "SocketSubsystem.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
-#include "Trace/ControlClient.h"
-#include "Trace/StoreClient.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -45,9 +43,15 @@
 	#include "Interfaces/IAnalyticsProvider.h"
 #endif // WITH_EDITOR
 
-// Insights
+// TraceAnalysis
+#include "Trace/ControlClient.h"
+#include "Trace/StoreClient.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/Common/MessageDialogUtils.h"
-#include "Insights/Common/Stopwatch.h"
 #include "Insights/ImportTool/TableImportTool.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
@@ -2520,7 +2524,7 @@ FSlateColor STraceStoreWindow::GetColorByPath(const FString& Uri)
 
 void STraceStoreWindow::RefreshTraceList()
 {
-	FStopwatch StopwatchTotal;
+	UE::Insights::FStopwatch StopwatchTotal;
 	StopwatchTotal.Start();
 
 	int32 AddedTraces = 0;

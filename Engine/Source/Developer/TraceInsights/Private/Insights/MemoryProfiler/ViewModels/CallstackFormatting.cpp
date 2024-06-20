@@ -2,9 +2,13 @@
 
 #include "CallstackFormatting.h"
 
-#define LOCTEXT_NAMESPACE "Insights::CallstackFormatting"
+// TraceServices
+#include "TraceServices/Model/Callstack.h"
+#include "TraceServices/Model/Modules.h"
 
-namespace Insights
+#define LOCTEXT_NAMESPACE "UE::Insights::CallstackFormatting"
+
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -104,6 +108,6 @@ void FormatStackFrame(const TraceServices::FStackFrame& Frame, FStringBuilderBas
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

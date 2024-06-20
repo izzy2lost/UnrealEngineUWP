@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-// Insights
+// TraceInsights
 #include "SUntypedTableTreeView.h"
 #include "Insights/Table/ViewModels/UntypedTable.h"
 

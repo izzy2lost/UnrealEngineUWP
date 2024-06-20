@@ -2,9 +2,9 @@
 
 #include "STimerTreeView.h"
 
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/Commands.h"
 #include "Framework/Commands/UICommandList.h"
-#include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "SlateOptMacros.h"
@@ -12,15 +12,16 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SToolTip.h"
 
-// Insights
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableColumn.h"
+#include "InsightsCore/Table/Widgets/SAsyncOperationStatus.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
-#include "Insights/Table/ViewModels/Table.h"
-#include "Insights/Table/ViewModels/TableColumn.h"
-#include "Insights/Table/ViewModels/TreeNodeSorting.h"
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/TimerButterflyAggregation.h"
 #include "Insights/ViewModels/TimersViewColumnFactory.h"
-#include "Insights/Widgets/SAsyncOperationStatus.h"
 #include "Insights/Widgets/STimersViewTooltip.h"
 #include "Insights/Widgets/STimerTableRow.h"
 
@@ -66,7 +67,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 STimerTreeView::STimerTreeView()
-	: Table(MakeShared<Insights::FTable>())
+	: Table(MakeShared<UE::Insights::FTable>())
 	, ViewName()
 	, TreeView(nullptr)
 	, TreeViewHeaderRow(nullptr)
@@ -104,7 +105,8 @@ void STimerTreeView::Construct(const FArguments& InArgs, const FText& InViewName
 {
 	ViewName = InViewName;
 
-	TSharedRef<Insights::FTimerButterflyAggregator> TimerButterflyAggregator = FTimingProfilerManager::Get()->GetTimerButterflyAggregator();
+	using namespace UE::Insights::TimingProfiler;
+	TSharedRef<FTimerButterflyAggregator> TimerButterflyAggregator = FTimingProfilerManager::Get()->GetTimerButterflyAggregator();
 
 	SAssignNew(ExternalScrollbar, SScrollBar)
 	.AlwaysShowScrollbar(true);
@@ -144,7 +146,7 @@ void STimerTreeView::Construct(const FArguments& InArgs, const FText& InViewName
 			.VAlign(VAlign_Bottom)
 			.Padding(16.0f)
 			[
-				SAssignNew(AsyncOperationStatus, Insights::SAsyncOperationStatus, TimerButterflyAggregator)
+				SAssignNew(AsyncOperationStatus, UE::Insights::SAsyncOperationStatus, TimerButterflyAggregator)
 			]
 		]
 
@@ -246,9 +248,9 @@ void STimerTreeView::TreeView_BuildSortByMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("SortColumn", LOCTEXT("ContextMenu_Section_SortColumn", "Sort Column"));
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		if (Column.IsVisible() && Column.CanBeSorted())
 		{
@@ -315,9 +317,9 @@ void STimerTreeView::TreeView_BuildViewColumnMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("Columns", LOCTEXT("ContextMenu_Section_Columns", "Columns"));
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		FUIAction Action_ToggleColumn
 		(
@@ -344,7 +346,7 @@ void STimerTreeView::TreeView_BuildViewColumnMenu(FMenuBuilder& MenuBuilder)
 void STimerTreeView::InitializeAndShowHeaderColumns()
 {
 	// Create columns.
-	TArray<TSharedRef<Insights::FTableColumn>> Columns;
+	TArray<TSharedRef<UE::Insights::FTableColumn>> Columns;
 	FTimersViewColumnFactory::CreateTimerTreeViewColumns(Columns);
 	if (ensure(Columns.Num() > 0 && Columns[0]->IsHierarchy()))
 	{
@@ -354,7 +356,7 @@ void STimerTreeView::InitializeAndShowHeaderColumns()
 	Table->SetColumns(Columns);
 
 	// Show columns.
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
 		if (ColumnRef->ShouldBeVisible())
 		{
@@ -367,13 +369,13 @@ void STimerTreeView::InitializeAndShowHeaderColumns()
 
 FText STimerTreeView::GetColumnHeaderText(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.GetShortName();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef<SWidget> STimerTreeView::TreeViewHeaderRow_GenerateColumnMenu(const Insights::FTableColumn& Column)
+TSharedRef<SWidget> STimerTreeView::TreeViewHeaderRow_GenerateColumnMenu(const UE::Insights::FTableColumn& Column)
 {
 	const bool bShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, NULL);
@@ -515,20 +517,20 @@ void STimerTreeView::TreeView_OnGetChildren(FTimerNodePtr InParent, TArray<FTime
 	constexpr bool bUseFiltering = false;
 	if (bUseFiltering)
 	{
-		const TArray<Insights::FBaseTreeNodePtr>& Children = InParent->GetFilteredChildren();
+		const TArray<UE::Insights::FBaseTreeNodePtr>& Children = InParent->GetFilteredChildren();
 		OutChildren.Reset(Children.Num());
-		for (const Insights::FBaseTreeNodePtr& Child : Children)
+		for (const UE::Insights::FBaseTreeNodePtr& Child : Children)
 		{
-			OutChildren.Add(StaticCastSharedPtr<FTimerNode, Insights::FBaseTreeNode>(Child));
+			OutChildren.Add(StaticCastSharedPtr<FTimerNode, UE::Insights::FBaseTreeNode>(Child));
 		}
 	}
 	else
 	{
-		const TArray<Insights::FBaseTreeNodePtr>& Children = InParent->GetChildren();
+		const TArray<UE::Insights::FBaseTreeNodePtr>& Children = InParent->GetChildren();
 		OutChildren.Reset(Children.Num());
-		for (const Insights::FBaseTreeNodePtr& Child : Children)
+		for (const UE::Insights::FBaseTreeNodePtr& Child : Children)
 		{
-			OutChildren.Add(StaticCastSharedPtr<FTimerNode, Insights::FBaseTreeNode>(Child));
+			OutChildren.Add(StaticCastSharedPtr<FTimerNode, UE::Insights::FBaseTreeNode>(Child));
 		}
 	}
 }
@@ -574,7 +576,7 @@ bool STimerTreeView::TableRow_ShouldBeEnabled(FTimerNodePtr NodePtr) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimerTreeView::TableRow_SetHoveredCell(TSharedPtr<Insights::FTable> InTablePtr, TSharedPtr<Insights::FTableColumn> InColumnPtr, FTimerNodePtr InNodePtr)
+void STimerTreeView::TableRow_SetHoveredCell(TSharedPtr<UE::Insights::FTable> InTablePtr, TSharedPtr<UE::Insights::FTableColumn> InColumnPtr, FTimerNodePtr InNodePtr)
 {
 	HoveredColumnId = InColumnPtr ? InColumnPtr->GetId() : FName();
 
@@ -645,11 +647,11 @@ void STimerTreeView::CreateSortings()
 	AvailableSorters.Reset();
 	CurrentSorter = nullptr;
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
 		if (ColumnRef->CanBeSorted())
 		{
-			TSharedPtr<Insights::ITableCellValueSorter> SorterPtr = ColumnRef->GetValueSorter();
+			TSharedPtr<UE::Insights::ITableCellValueSorter> SorterPtr = ColumnRef->GetValueSorter();
 			if (ensure(SorterPtr.IsValid()))
 			{
 				AvailableSorters.Add(SorterPtr);
@@ -664,7 +666,7 @@ void STimerTreeView::CreateSortings()
 
 void STimerTreeView::UpdateCurrentSortingByColumn()
 {
-	TSharedPtr<Insights::FTableColumn> ColumnPtr = Table->FindColumn(ColumnBeingSorted);
+	TSharedPtr<UE::Insights::FTableColumn> ColumnPtr = Table->FindColumn(ColumnBeingSorted);
 	CurrentSorter = ColumnPtr.IsValid() ? ColumnPtr->GetValueSorter() : nullptr;
 }
 
@@ -683,12 +685,12 @@ void STimerTreeView::SortTreeNodes()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimerTreeView::SortTreeNodesRec(FTimerNode& Node, const Insights::ITableCellValueSorter& Sorter)
+void STimerTreeView::SortTreeNodesRec(FTimerNode& Node, const UE::Insights::ITableCellValueSorter& Sorter)
 {
-	Insights::ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? Insights::ESortMode::Descending : Insights::ESortMode::Ascending;
+	UE::Insights::ESortMode SortMode = (ColumnSortMode == EColumnSortMode::Type::Descending) ? UE::Insights::ESortMode::Descending : UE::Insights::ESortMode::Ascending;
 	Node.SortChildren(Sorter, SortMode);
 
-	for (Insights::FBaseTreeNodePtr ChildPtr : Node.GetChildren())
+	for (UE::Insights::FBaseTreeNodePtr ChildPtr : Node.GetChildren())
 	{
 		//if (ChildPtr->IsGroup())
 		if (ChildPtr->GetChildrenCount() > 0)
@@ -743,7 +745,7 @@ bool STimerTreeView::HeaderMenu_SortMode_IsChecked(const FName ColumnId, const E
 
 bool STimerTreeView::HeaderMenu_SortMode_CanExecute(const FName ColumnId, const EColumnSortMode::Type InSortMode) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.CanBeSorted();
 }
 
@@ -816,7 +818,7 @@ bool STimerTreeView::CanShowColumn(const FName ColumnId) const
 
 void STimerTreeView::ShowColumn(const FName ColumnId)
 {
-	Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	Column.Show();
 
 	SHeaderRow::FColumn::FArguments ColumnArgs;
@@ -871,7 +873,7 @@ void STimerTreeView::ShowColumn(const FName ColumnId)
 
 bool STimerTreeView::CanHideColumn(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.CanBeHidden();
 }
 
@@ -879,7 +881,7 @@ bool STimerTreeView::CanHideColumn(const FName ColumnId) const
 
 void STimerTreeView::HideColumn(const FName ColumnId)
 {
-	Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	Column.Hide();
 
 	TreeViewHeaderRow->RemoveColumn(ColumnId);
@@ -891,7 +893,7 @@ void STimerTreeView::HideColumn(const FName ColumnId)
 
 bool STimerTreeView::IsColumnVisible(const FName ColumnId)
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return Column.IsVisible();
 }
 
@@ -899,7 +901,7 @@ bool STimerTreeView::IsColumnVisible(const FName ColumnId)
 
 bool STimerTreeView::CanToggleColumnVisibility(const FName ColumnId) const
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	return !Column.IsVisible() || Column.CanBeHidden();
 }
 
@@ -907,7 +909,7 @@ bool STimerTreeView::CanToggleColumnVisibility(const FName ColumnId) const
 
 void STimerTreeView::ToggleColumnVisibility(const FName ColumnId)
 {
-	const Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
+	const UE::Insights::FTableColumn& Column = *Table->FindColumnChecked(ColumnId);
 	if (Column.IsVisible())
 	{
 		HideColumn(ColumnId);
@@ -935,9 +937,9 @@ void STimerTreeView::ContextMenu_ShowAllColumns_Execute()
 	ColumnSortMode = GetDefaultColumnSortMode();
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		if (!Column.IsVisible())
 		{
@@ -963,9 +965,9 @@ void STimerTreeView::ContextMenu_ResetColumns_Execute()
 	ColumnSortMode = GetDefaultColumnSortMode();
 	UpdateCurrentSortingByColumn();
 
-	for (const TSharedRef<Insights::FTableColumn>& ColumnRef : Table->GetColumns())
+	for (const TSharedRef<UE::Insights::FTableColumn>& ColumnRef : Table->GetColumns())
 	{
-		const Insights::FTableColumn& Column = *ColumnRef;
+		const UE::Insights::FTableColumn& Column = *ColumnRef;
 
 		if (Column.ShouldBeVisible() && !Column.IsVisible())
 		{
@@ -1000,8 +1002,8 @@ void STimerTreeView::SetTree(const TraceServices::FTimingProfilerButterflyNode& 
 		while (TimerNodePtr.IsValid())
 		{
 			TimerNodePtr->SetIsHotPath(true);
-			const TArray<Insights::FBaseTreeNodePtr>& Children = TimerNodePtr->GetChildren();
-			TimerNodePtr = Children.Num() > 0 ? StaticCastSharedPtr<FTimerNode, Insights::FBaseTreeNode>(Children[0]) : nullptr;
+			const TArray<UE::Insights::FBaseTreeNodePtr>& Children = TimerNodePtr->GetChildren();
+			TimerNodePtr = Children.Num() > 0 ? StaticCastSharedPtr<FTimerNode, UE::Insights::FBaseTreeNode>(Children[0]) : nullptr;
 		}
 
 		TreeNodes.Add(RootTimerNodePtr);
@@ -1058,7 +1060,7 @@ FTimerNodePtr STimerTreeView::CreateTimerNodeRec(const TraceServices::FTimingPro
 	}
 
 	// Sort children by InclTime (descending).
-	TimerNodePtr->SortChildren([](const Insights::FBaseTreeNodePtr& A, const Insights::FBaseTreeNodePtr& B) -> bool
+	TimerNodePtr->SortChildren([](const UE::Insights::FBaseTreeNodePtr& A, const UE::Insights::FBaseTreeNodePtr& B) -> bool
 	{
 		const double InclTimeA = StaticCastSharedPtr<FTimerNode>(A)->GetAggregatedStats().TotalInclusiveTime;
 		const double InclTimeB = StaticCastSharedPtr<FTimerNode>(B)->GetAggregatedStats().TotalInclusiveTime;
@@ -1078,7 +1080,7 @@ void STimerTreeView::ExpandNodesRec(FTimerNodePtr NodePtr, int32 Depth)
 
 	//if (Depth < MaxDepth)
 	{
-		for (const Insights::FBaseTreeNodePtr& ChildPtr : NodePtr->GetChildren())
+		for (const UE::Insights::FBaseTreeNodePtr& ChildPtr : NodePtr->GetChildren())
 		{
 			ExpandNodesRec(StaticCastSharedPtr<FTimerNode>(ChildPtr), Depth + 1);
 		}
@@ -1103,7 +1105,7 @@ void STimerTreeView::ContextMenu_CopySelectedToClipboard_Execute()
 		return;
 	}
 
-	TArray<Insights::FBaseTreeNodePtr> SelectedNodes;
+	TArray<UE::Insights::FBaseTreeNodePtr> SelectedNodes;
 	for (FTimerNodePtr TimerPtr : TreeView->GetSelectedItems())
 	{
 		SelectedNodes.Add(TimerPtr);
@@ -1118,9 +1120,10 @@ void STimerTreeView::ContextMenu_CopySelectedToClipboard_Execute()
 
 	if (CurrentSorter.IsValid())
 	{
-		CurrentSorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? Insights::ESortMode::Ascending : Insights::ESortMode::Descending);
+		CurrentSorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? UE::Insights::ESortMode::Ascending : UE::Insights::ESortMode::Descending);
 	}
 
+	using namespace UE::Insights::TimingProfiler;
 	Table->GetVisibleColumnsData(SelectedNodes, FTimingProfilerManager::Get()->GetLogListingName(), TEXT('\t'), true, ClipboardText);
 
 	if (ClipboardText.Len() > 0)

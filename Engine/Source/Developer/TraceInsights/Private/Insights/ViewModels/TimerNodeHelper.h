@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Styling/SlateBrush.h"
 
-// Insights
+// TraceInsights
 #include "Insights/ViewModels/TimerNode.h"
 #include "Insights/ViewModels/TimerGroupingAndSorting.h"
 

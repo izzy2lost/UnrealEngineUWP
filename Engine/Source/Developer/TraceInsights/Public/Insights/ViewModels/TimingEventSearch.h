@@ -2,10 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Containers/Map.h"
+#include "CoreTypes.h"
 
-namespace Insights
+#include "Containers/Map.h"
+#include "Misc/EnumClassFlags.h"
+#include "Templates/SharedPointer.h"
+
+namespace UE::Insights
 {
 	class IFilterExecutor;
 }
@@ -100,7 +103,7 @@ public:
 	// Search behavior flags
 	ETimingEventSearchFlags Flags;
 
-	TSharedPtr<Insights::IFilterExecutor> FilterExecutor;
+	TSharedPtr<UE::Insights::IFilterExecutor> FilterExecutor;
 
 	ESearchDirection SearchDirection = ESearchDirection::Forward;
 };
@@ -194,21 +197,21 @@ private:
 //
 //		TTimingEventSearch<FMyStruct>::Search(
 //		Parameters,
-// 		[](const TTimingEventSearch<FMyStruct>::FContext& InContext)
-// 		{
-// 			for (FMyStruct& Payload : Payloads)
+//		[](const TTimingEventSearch<FMyStruct>::FContext& InContext)
+//		{
+//			for (FMyStruct& Payload : Payloads)
 //			{
-// 				InContext.Check(InEventStartTime, InEventEndTime, 0, Payload);
-// 			}
-// 		},
-// 		[&MatchedPayload](double InStartTime, double InEndTime, uint32 InDepth, const FMyStruct& InEvent)
-// 		{
-// 			MatchedPayload = InEvent;
-// 		},
-// 		[&MatchedPayload](double InStartTime, double InEndTime, uint32 InDepth)
-// 		{
-// 			// Do something with MatchedPayload, e.g. call a captured lambda.
-// 		});
+//				InContext.Check(InEventStartTime, InEventEndTime, 0, Payload);
+//			}
+//		},
+//		[&MatchedPayload](double InStartTime, double InEndTime, uint32 InDepth, const FMyStruct& InEvent)
+//		{
+//			MatchedPayload = InEvent;
+//		},
+//		[&MatchedPayload](double InStartTime, double InEndTime, uint32 InDepth)
+//		{
+//			// Do something with MatchedPayload, e.g. call a captured lambda.
+//		});
 //
 template <typename PayloadType>
 struct TTimingEventSearch

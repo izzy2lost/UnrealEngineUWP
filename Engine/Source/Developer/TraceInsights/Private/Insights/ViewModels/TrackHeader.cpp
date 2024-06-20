@@ -6,8 +6,10 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Styling/AppStyle.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
@@ -116,7 +118,7 @@ void FTrackHeader::Draw(const ITimingTrackDrawContext& Context) const
 	}
 	else
 	{
-		FDrawContext& DrawContext = Context.GetDrawContext();
+		UE::Insights::FDrawContext& DrawContext = Context.GetDrawContext();
 
 		// Draw a horizontal line between tracks (top line of a track).
 		DrawContext.DrawBox(0.0f, ParentTrack.GetPosY(), Context.GetViewport().GetWidth(), 1.0f, WhiteBrush, FLinearColor(0.05f, 0.05f, 0.05f, 1.0f));
@@ -143,7 +145,7 @@ void FTrackHeader::PostDraw(const ITimingTrackDrawContext& Context) const
 
 void FTrackHeader::DrawInternal(const ITimingTrackDrawContext& Context, bool bDrawBackgroundLayer) const
 {
-	FDrawContext& DrawContext = Context.GetDrawContext();
+	UE::Insights::FDrawContext& DrawContext = Context.GetDrawContext();
 
 	const float Opacity = bIsInBackground ? CurrentHoveredAnimPercent : 1.0f;
 

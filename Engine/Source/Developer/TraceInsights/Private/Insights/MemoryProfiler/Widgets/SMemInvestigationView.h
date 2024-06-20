@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "SlateFwd.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SComboBox.h"
@@ -12,18 +13,18 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FMenuBuilder;
-class SMemoryProfilerWindow;
 
 namespace TraceServices
 {
 	class IAnalysisSession;
 }
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
-	class FMemoryRuleSpec;
-	class FQueryTargetWindowSpec;
-}
+
+class FMemoryRuleSpec;
+class FQueryTargetWindowSpec;
+class SMemoryProfilerWindow;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -58,7 +59,7 @@ public:
 
 	void Reset();
 
-	void QueryTarget_OnSelectionChanged(TSharedPtr<Insights::FQueryTargetWindowSpec> InRule, ESelectInfo::Type SelectInfo);
+	void QueryTarget_OnSelectionChanged(TSharedPtr<FQueryTargetWindowSpec> InRule, ESelectInfo::Type SelectInfo);
 
 private:
 	void UpdateSymbolPathsText() const;
@@ -68,12 +69,12 @@ private:
 	/** Called when the analysis session has changed. */
 	void InsightsManager_OnSessionChanged();
 
-	const TArray<TSharedPtr<Insights::FQueryTargetWindowSpec>>* GetAvailableQueryTargets();
-	TSharedRef<SWidget> QueryTarget_OnGenerateWidget(TSharedPtr<Insights::FQueryTargetWindowSpec> InRule);
+	const TArray<TSharedPtr<FQueryTargetWindowSpec>>* GetAvailableQueryTargets();
+	TSharedRef<SWidget> QueryTarget_OnGenerateWidget(TSharedPtr<FQueryTargetWindowSpec> InRule);
 	FText QueryTarget_GetSelectedText() const;
-	const TArray<TSharedPtr<Insights::FMemoryRuleSpec>>* GetAvailableQueryRules();
-	void QueryRule_OnSelectionChanged(TSharedPtr<Insights::FMemoryRuleSpec> InRule, ESelectInfo::Type SelectInfo);
-	TSharedRef<SWidget> QueryRule_OnGenerateWidget(TSharedPtr<Insights::FMemoryRuleSpec> InRule);
+	const TArray<TSharedPtr<FMemoryRuleSpec>>* GetAvailableQueryRules();
+	void QueryRule_OnSelectionChanged(TSharedPtr<FMemoryRuleSpec> InRule, ESelectInfo::Type SelectInfo);
+	TSharedRef<SWidget> QueryRule_OnGenerateWidget(TSharedPtr<FMemoryRuleSpec> InRule);
 	FText QueryRule_GetSelectedText() const;
 	FText QueryRule_GetTooltipText() const;
 	FReply RunQuery();
@@ -96,14 +97,16 @@ private:
 	/** The analysis session used to populate this widget. */
 	TSharedPtr<const TraceServices::IAnalysisSession> Session;
 
-	TSharedPtr<SComboBox<TSharedPtr<Insights::FMemoryRuleSpec>>> QueryRuleComboBox;
+	TSharedPtr<SComboBox<TSharedPtr<FMemoryRuleSpec>>> QueryRuleComboBox;
 
 	bool bIncludeHeapAllocs;
 	bool bIncludeSwapAllocs;
 
-	TSharedPtr<SComboBox<TSharedPtr<Insights::FQueryTargetWindowSpec>>> QueryTargetComboBox;
+	TSharedPtr<SComboBox<TSharedPtr<FQueryTargetWindowSpec>>> QueryTargetComboBox;
 	
 	TSharedPtr<STextBlock> SymbolPathsTextBlock;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler

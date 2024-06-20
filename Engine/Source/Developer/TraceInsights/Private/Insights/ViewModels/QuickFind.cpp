@@ -7,7 +7,7 @@ namespace Insights
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FQuickFind::FQuickFind(TSharedPtr<FFilterConfigurator> InFilterConfiguratorViewModel)
+FQuickFind::FQuickFind(TSharedPtr<UE::Insights::FFilterConfigurator> InFilterConfiguratorViewModel)
 {
 	FilterConfigurator = InFilterConfiguratorViewModel;
 }

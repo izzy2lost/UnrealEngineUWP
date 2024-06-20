@@ -4,24 +4,31 @@
 
 #include "CoreMinimal.h"
 
-// Insights
-#include "Insights/ITimingViewSession.h" // for Insights::ETimeChangedFlags
-#include "Insights/Widgets/SMajorTabWindow.h"
-#include "Insights/Widgets/SModulesView.h"
+#include "UObject/NameTypes.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+// TraceInsights
+#include "Insights/ITimingViewSession.h" // for ETimeChangedFlags and ITimeMarker
+#include "Insights/Widgets/SMajorTabWindow.h"
+
+namespace UE::Insights
+{
+	class STableTreeView;
+	class SModulesView;
+}
+
+namespace UE::Insights::TimingProfiler
+{
+	class FTimeMarker;
+	class STimingView;
+}
+
+namespace UE::Insights::MemoryProfiler
+{
 
 class FMemorySharedState;
 class SMemInvestigationView;
 class SMemTagTreeView;
-class STimingView;
-
-namespace Insights
-{
-	class FTimeMarker;
-	class STableTreeView;
-	class SMemAllocTableTreeView;
-}
+class SMemAllocTableTreeView;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +45,7 @@ struct FMemoryProfilerTabs
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /** Implements the Memory Insights window. */
-class SMemoryProfilerWindow : public Insights::SMajorTabWindow
+class SMemoryProfilerWindow : public ::Insights::SMajorTabWindow
 {
 public:
 	/** Default constructor. */
@@ -55,22 +62,22 @@ public:
 	/** Constructs this widget. */
 	void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow);
 
-	TSharedPtr<STimingView> GetTimingView() const { return TimingView; }
+	TSharedPtr<TimingProfiler::STimingView> GetTimingView() const { return TimingView; }
 	TSharedPtr<SMemInvestigationView> GetMemInvestigationView() const { return MemInvestigationView; }
 	TSharedPtr<SMemTagTreeView> GetMemTagTreeView() const { return MemTagTreeView; }
 
 	void CloseMemAllocTableTreeTabs();
-	TSharedPtr<Insights::SMemAllocTableTreeView> ShowMemAllocTableTreeViewTab();
+	TSharedPtr<SMemAllocTableTreeView> ShowMemAllocTableTreeViewTab();
 
 	uint32 GetNumCustomTimeMarkers() const { return (uint32)CustomTimeMarkers.Num(); }
-	const TSharedRef<Insights::FTimeMarker>& GetCustomTimeMarker(uint32 Index) const { return CustomTimeMarkers[Index]; }
-	const TArray<TSharedRef<Insights::FTimeMarker>>& GetCustomTimeMarkers() const { return CustomTimeMarkers; }
+	const TSharedRef<TimingProfiler::FTimeMarker>& GetCustomTimeMarker(uint32 Index) const { return CustomTimeMarkers[Index]; }
+	const TArray<TSharedRef<TimingProfiler::FTimeMarker>>& GetCustomTimeMarkers() const { return CustomTimeMarkers; }
 
 	FMemorySharedState& GetSharedState() { return *SharedState; }
 	const FMemorySharedState& GetSharedState() const { return *SharedState; }
 
 	void OnMemoryRuleChanged();
-	void OnTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, TSharedRef<Insights::ITimeMarker> InTimeMarker);
+	void OnTimeMarkerChanged(Timing::ETimeChangedFlags InFlags, TSharedRef<Timing::ITimeMarker> InTimeMarker);
 
 protected:
 	virtual const TCHAR* GetAnalyticsEventName() const override;
@@ -95,7 +102,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_ModulesView(const FSpawnTabArgs& Args);
 	void OnModulesViewClosed(TSharedRef<SDockTab> TabBeingClosed);
 
-	void OnTimeSelectionChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime);
+	void OnTimeSelectionChanged(Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime);
 
 	void CreateTimingViewMarkers();
 	void ResetTimingViewMarkers();
@@ -105,9 +112,9 @@ private:
 	TSharedRef<FMemorySharedState> SharedState;
 
 	/** The Timing view (multi-track) widget */
-	TSharedPtr<STimingView> TimingView;
+	TSharedPtr<TimingProfiler::STimingView> TimingView;
 
-	TArray<TSharedRef<Insights::FTimeMarker>> CustomTimeMarkers;
+	TArray<TSharedRef<TimingProfiler::FTimeMarker>> CustomTimeMarkers;
 
 	/** The Memory Investigation (Allocation Queries) view widget */
 	TSharedPtr<SMemInvestigationView> MemInvestigationView;
@@ -116,11 +123,15 @@ private:
 	TSharedPtr<SMemTagTreeView> MemTagTreeView;
 
 	/** The list of Allocations table tree view widgets */
-	TArray<TSharedPtr<Insights::SMemAllocTableTreeView>> MemAllocTableTreeViews;
+	TArray<TSharedPtr<SMemAllocTableTreeView>> MemAllocTableTreeViews;
 
 	/** The Modules view widget. */
-	TSharedPtr<Insights::SModulesView> ModulesView;
+	TSharedPtr<SModulesView> ModulesView;
 
 	const int32 MaxMemAllocTableTreeViews = 4;
 	int32 LastMemAllocTableTreeViewIndex = -1;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::MemoryProfiler

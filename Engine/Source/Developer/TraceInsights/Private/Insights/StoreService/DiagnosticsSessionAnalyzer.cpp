@@ -3,6 +3,8 @@
 #include "DiagnosticsSessionAnalyzer.h"
 
 #include "HAL/LowLevelMemTracker.h"
+
+// TraceServices
 #include "TraceServices/Model/Diagnostics.h"
 
 namespace Insights

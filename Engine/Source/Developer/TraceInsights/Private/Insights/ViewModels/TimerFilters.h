@@ -2,11 +2,14 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Types/SlateEnums.h"
 #include "Widgets/Input/SComboBox.h"
 
-#include "Insights/Common/SimpleRtti.h"
-#include "Insights/ViewModels/Filters.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/SimpleRtti.h"
+#include "InsightsCore/Filter/ViewModels/Filters.h"
 
 namespace TraceServices
 {
@@ -16,12 +19,12 @@ namespace TraceServices
 namespace Insights
 {
 
-class FTimerNameFilterState : public FFilterState
+class FTimerNameFilterState : public UE::Insights::FFilterState
 {
-	INSIGHTS_DECLARE_RTTI(FTimerNameFilterState, FFilterState)
+	INSIGHTS_DECLARE_RTTI(FTimerNameFilterState, UE::Insights::FFilterState)
 
 public:
-	FTimerNameFilterState(TSharedRef<FFilter> InFilter)
+	FTimerNameFilterState(TSharedRef<UE::Insights::FFilter> InFilter)
 		: FFilterState(InFilter)
 	{}
 
@@ -35,7 +38,7 @@ public:
 
 	virtual void Update() override;
 
-	virtual bool ApplyFilter(const FFilterContext& Context) const override;
+	virtual bool ApplyFilter(const UE::Insights::FFilterContext& Context) const override;
 
 	virtual void SetFilterValue(FString InFilterValue) override { FilterValue = InFilterValue; }
 
@@ -47,21 +50,21 @@ private:
 	TSet<uint32> TimerIds;
 };
 
-class FTimerNameFilter : public FCustomFilter
+class FTimerNameFilter : public UE::Insights::FCustomFilter
 {
-	INSIGHTS_DECLARE_RTTI(FTimerNameFilter, FCustomFilter)
+	INSIGHTS_DECLARE_RTTI(FTimerNameFilter, UE::Insights::FCustomFilter)
 
 public:
 	FTimerNameFilter();
 
 	virtual ~FTimerNameFilter() {}
 
-	virtual TSharedRef<FFilterState> BuildFilterState() 
+	virtual TSharedRef<UE::Insights::FFilterState> BuildFilterState()
 	{ 
 		return MakeShared<FTimerNameFilterState>(SharedThis(this)); 
 	}
 
-	virtual TSharedRef<FFilterState> BuildFilterState(const FFilterState& Other)
+	virtual TSharedRef<UE::Insights::FFilterState> BuildFilterState(const UE::Insights::FFilterState& Other)
 	{
 		return MakeShared<FTimerNameFilterState>(static_cast<const FTimerNameFilterState&>(Other));
 	}
@@ -89,18 +92,18 @@ struct FMetadataFilterDataTypeEntry
 	FText Name;
 };
 
-class FMetadataFilterState : public FFilterState, public TSharedFromThis<FMetadataFilterState>
+class FMetadataFilterState : public UE::Insights::FFilterState, public TSharedFromThis<FMetadataFilterState>
 {
-	INSIGHTS_DECLARE_RTTI(FMetadataFilterState, FFilterState)
+	INSIGHTS_DECLARE_RTTI(FMetadataFilterState, UE::Insights::FFilterState)
 
 public:
-	FMetadataFilterState(TSharedRef<FFilter> InFilter);
+	FMetadataFilterState(TSharedRef<UE::Insights::FFilter> InFilter);
 
 	virtual ~FMetadataFilterState() {}
 
 	virtual void Update() override;
 
-	virtual bool ApplyFilter(const FFilterContext& Context) const override;
+	virtual bool ApplyFilter(const UE::Insights::FFilterContext& Context) const override;
 
 	virtual void SetFilterValue(FString InFilterValue) override {}
 
@@ -118,8 +121,8 @@ private:
 	void DataType_OnSelectionChanged(TSharedPtr<FMetadataFilterDataTypeEntry> InDataType, ESelectInfo::Type SelectInfo);
 	FText DataType_GetSelectionText() const;
 
-	TSharedRef<SWidget> AvailableOperators_OnGenerateWidget(TSharedPtr<IFilterOperator> InOperator);
-	void AvailableOperators_OnSelectionChanged(TSharedPtr<IFilterOperator> InOperator, ESelectInfo::Type SelectInfo);
+	TSharedRef<SWidget> AvailableOperators_OnGenerateWidget(TSharedPtr<UE::Insights::IFilterOperator> InOperator);
+	void AvailableOperators_OnSelectionChanged(TSharedPtr<UE::Insights::IFilterOperator> InOperator, ESelectInfo::Type SelectInfo);
 	FText AvailableOperators_GetSelectionText() const;
 
 	FText GetTermTextBoxValue() const;
@@ -139,29 +142,29 @@ private:
 	TArray<TSharedPtr<FMetadataFilterDataTypeEntry>> AvailableDataTypes;
 	TSharedPtr<FMetadataFilterDataTypeEntry> SelectedDataType;
 	
-	TArray<TSharedPtr<IFilterOperator>> AvailableOperators;
-	TArray<TSharedPtr<IFilterOperator>> BoolOperators;
+	TArray<TSharedPtr<UE::Insights::IFilterOperator>> AvailableOperators;
+	TArray<TSharedPtr<UE::Insights::IFilterOperator>> BoolOperators;
 
-	TSharedPtr<SComboBox<TSharedPtr<IFilterOperator>>> OperatorComboBox;
+	TSharedPtr<SComboBox<TSharedPtr<UE::Insights::IFilterOperator>>> OperatorComboBox;
 
 	const TraceServices::ITimingProfilerTimerReader* TimerReader;
 };
 
-class FMetadataFilter : public FFilter
+class FMetadataFilter : public UE::Insights::FFilter
 {
-	INSIGHTS_DECLARE_RTTI(FMetadataFilter, FFilter)
+	INSIGHTS_DECLARE_RTTI(FMetadataFilter, UE::Insights::FFilter)
 
 public:
 	FMetadataFilter();
 
 	virtual ~FMetadataFilter() {}
 
-	virtual TSharedRef<FFilterState> BuildFilterState()
+	virtual TSharedRef<UE::Insights::FFilterState> BuildFilterState()
 	{
 		return MakeShared<FMetadataFilterState>(SharedThis(this));
 	}
 
-	virtual TSharedRef<FFilterState> BuildFilterState(const FFilterState& Other)
+	virtual TSharedRef<UE::Insights::FFilterState> BuildFilterState(const UE::Insights::FFilterState& Other)
 	{
 		return MakeShared<FMetadataFilterState>(static_cast<const FMetadataFilterState&>(Other));
 	}

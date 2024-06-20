@@ -1,15 +1,12 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Insights/MemoryProfiler/ViewModels/MemAllocNode.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
 * Class used to store information about an allocation node in a particular swap page.
 */
@@ -31,6 +28,4 @@ private:
 	const uint64 BytesInSwapPage;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

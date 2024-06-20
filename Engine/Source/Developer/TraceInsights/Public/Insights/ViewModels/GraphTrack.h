@@ -2,10 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Fonts/SlateFontInfo.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Fonts/SlateFontInfo.h"
+#include "Templates/SharedPointer.h"
+
+// TraceInsights
 #include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ViewModels/GraphSeries.h"
 
@@ -115,7 +117,7 @@ public:
 protected:
 	void UpdateStats();
 
-	void DrawSeries(const FGraphSeries& Series, FDrawContext& DrawContext, const FTimingTrackViewport& Viewport) const;
+	void DrawSeries(const FGraphSeries& Series, UE::Insights::FDrawContext& DrawContext, const FTimingTrackViewport& Viewport) const;
 
 	virtual void DrawVerticalAxisGrid(const ITimingTrackDrawContext& Context) const;
 	virtual void DrawHeader(const ITimingTrackDrawContext& Context) const;

@@ -4,20 +4,20 @@
 
 #include "CoreMinimal.h"
 
-// Insights
-#include "Insights/Table/Widgets/STableTreeView.h"
+// TraceInsightsCore
+#include "InsightsCore/Table/Widgets/STableTreeView.h"
 
 namespace TraceServices
 {
 	class IAnalysisSession;
 }
 
+namespace UE
+{
 namespace Insights
 {
 
 class FTable;
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class SSessionTableTreeView : public STableTreeView
 {
@@ -34,6 +34,5 @@ protected:
 	TSharedPtr<const TraceServices::IAnalysisSession> Session;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 } // namespace Insights
+} // namespace UE

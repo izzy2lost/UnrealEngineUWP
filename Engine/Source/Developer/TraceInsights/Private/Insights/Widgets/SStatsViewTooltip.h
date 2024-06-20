@@ -3,12 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Widgets/IToolTip.h"
 #include "Widgets/SToolTip.h"
 
 class SGridPanel;
 
-namespace Insights
+namespace UE::Insights
 {
 	class FTable;
 	class FTableColumn;
@@ -24,8 +25,8 @@ class SStatsViewTooltip
 public:
 	SStatsViewTooltip() = delete;
 
-	static TSharedPtr<SToolTip> GetTableTooltip(const Insights::FTable& Table);
-	static TSharedPtr<SToolTip> GetColumnTooltip(const Insights::FTableColumn& Column);
+	static TSharedPtr<SToolTip> GetTableTooltip(const UE::Insights::FTable& Table);
+	static TSharedPtr<SToolTip> GetColumnTooltip(const UE::Insights::FTableColumn& Column);
 	static TSharedPtr<SToolTip> GetRowTooltip(const TSharedPtr<FStatsNode> TreeNodePtr);
 
 private:

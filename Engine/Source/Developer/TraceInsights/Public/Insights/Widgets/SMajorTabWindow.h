@@ -3,12 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "Framework/Docking/TabManager.h"
 #include "Input/Reply.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-// Insights
+// TraceInsights
 #include "Insights/IUnrealInsightsModule.h" // for FInsightsMajorTabExtender
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -4,29 +4,26 @@
 
 #include "CoreMinimal.h"
 
-#include "Insights/ViewModels/StatsAggregator.h"
+// TraceServices
 #include "TraceServices/Model/TimingProfiler.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+// TraceInsights
+#include "Insights/ViewModels/StatsAggregator.h"
 
-namespace Insights
+namespace UE::Insights::TimingProfiler
 {
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-class FTimerButterflyAggregator : public FStatsAggregator
+class FTimerButterflyAggregator : public ::Insights::FStatsAggregator
 {
 public:
-	FTimerButterflyAggregator() : FStatsAggregator(TEXT("Butterfly")) {}
+	FTimerButterflyAggregator() : ::Insights::FStatsAggregator(TEXT("Butterfly")) {}
 	virtual ~FTimerButterflyAggregator() {}
 
 	TraceServices::ITimingProfilerButterfly* GetResultButterfly() const;
 	void ResetResults();
 
 protected:
-	virtual IStatsAggregationWorker* CreateWorker(TSharedPtr<const TraceServices::IAnalysisSession> InSession) override;
+	virtual ::Insights::IStatsAggregationWorker* CreateWorker(TSharedPtr<const TraceServices::IAnalysisSession> InSession) override;
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-} // namespace Insights
+} // namespace UE::Insights::TimingProfiler

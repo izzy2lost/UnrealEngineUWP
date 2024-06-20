@@ -2,16 +2,21 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Containers/Array.h"
+#include "UObject/NameTypes.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+
+// TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemoryAlloc.h"
-#include "Insights/Table/ViewModels/Table.h"
 
-namespace Insights
+namespace UE::Insights { class FTableColumn; }
+
+namespace UE::Insights::MemoryProfiler
 {
-
-class FTableColumn;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -84,4 +89,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler

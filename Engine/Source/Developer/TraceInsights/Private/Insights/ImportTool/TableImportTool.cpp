@@ -10,11 +10,15 @@
 #include "MessageLogModule.h"
 #include "Misc/FileHelper.h"
 #include "SlateOptMacros.h"
-#include "TraceServices/Model/Threads.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
-#include "Insights/Common/Stopwatch.h"
+// TraceServices
+#include "TraceServices/Model/Threads.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/Stopwatch.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/Log.h"

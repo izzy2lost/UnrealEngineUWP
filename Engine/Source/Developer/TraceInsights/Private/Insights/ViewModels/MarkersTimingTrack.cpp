@@ -12,11 +12,15 @@
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "Styling/AppStyle.h"
+
+// TraceServices
 #include "TraceServices/Model/Log.h"
 #include "TraceServices/Model/Screenshot.h"
 
-// Insights
-#include "Insights/Common/PaintUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/TimingProfilerManager.h"
@@ -171,7 +175,7 @@ void FMarkersTimingTrack::UpdateDrawState(const ITimingTrackUpdateContext& Conte
 
 void FMarkersTimingTrack::Draw(const ITimingTrackDrawContext& Context) const
 {
-	FDrawContext& DrawContext = Context.GetDrawContext();
+	UE::Insights::FDrawContext& DrawContext = Context.GetDrawContext();
 	const FTimingTrackViewport& Viewport = Context.GetViewport();
 
 	// Draw background.
@@ -186,7 +190,7 @@ void FMarkersTimingTrack::Draw(const ITimingTrackDrawContext& Context) const
 
 void FMarkersTimingTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 {
-	FDrawContext& DrawContext = Context.GetDrawContext();
+	UE::Insights::FDrawContext& DrawContext = Context.GetDrawContext();
 	const FTimingTrackViewport& Viewport = Context.GetViewport();
 
 	//////////////////////////////////////////////////
@@ -608,6 +612,8 @@ void FMarkersTimingTrack::SaveScreenshot_Execute()
 bool FMarkersTimingTrack::TryGetHoveredEventScreenshotId(uint32& OutScreenshotId)
 {
 	OutScreenshotId = TraceServices::FScreenshot::InvalidScreenshotId;
+
+	using namespace UE::Insights::TimingProfiler;
 
 	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
 	if (!Window.IsValid())

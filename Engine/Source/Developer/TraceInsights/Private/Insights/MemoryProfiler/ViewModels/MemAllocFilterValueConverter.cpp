@@ -2,11 +2,12 @@
 
 #include "MemAllocFilterValueConverter.h"
 
+#include "Internationalization/Internationalization.h"
 #include "Misc/Char.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FMemoryFilterValueConverter"
+#define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::FMemAllocNode"
 
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -84,6 +85,6 @@ FText FMemoryFilterValueConverter::GetHintText() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler
 
 #undef LOCTEXT_NAMESPACE

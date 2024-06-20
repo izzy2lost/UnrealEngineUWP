@@ -2,7 +2,7 @@
 
 #include "TimerNodeHelper.h"
 
-// Insights
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 
 #define LOCTEXT_NAMESPACE "TimerNode"

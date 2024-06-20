@@ -8,17 +8,18 @@
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
-// Insights
+// TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/NetworkingProfiler/Widgets/SNetworkingProfilerWindow.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::NetworkingProfiler"
 
-#define LOCTEXT_NAMESPACE "NetworkingProfilerManager"
+namespace UE::Insights::NetworkingProfiler
+{
 
-DEFINE_LOG_CATEGORY(NetworkingProfiler);
+DEFINE_LOG_CATEGORY(LogNetworkingProfiler);
 
 TSharedPtr<FNetworkingProfilerManager> FNetworkingProfilerManager::Instance = nullptr;
 
@@ -67,7 +68,7 @@ void FNetworkingProfilerManager::Initialize(IUnrealInsightsModule& InsightsModul
 	}
 	bIsInitialized = true;
 
-	UE_LOG(NetworkingProfiler, Log, TEXT("Initialize"));
+	UE_LOG(LogNetworkingProfiler, Log, TEXT("Initialize"));
 
 	// Register tick functions.
 	OnTick = FTickerDelegate::CreateSP(this, &FNetworkingProfilerManager::Tick);
@@ -109,7 +110,7 @@ void FNetworkingProfilerManager::Shutdown()
 
 	FNetworkingProfilerManager::Instance.Reset();
 
-	UE_LOG(NetworkingProfiler, Log, TEXT("Shutdown"));
+	UE_LOG(LogNetworkingProfiler, Log, TEXT("Shutdown"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -267,7 +268,7 @@ bool FNetworkingProfilerManager::Tick(float DeltaTime)
 			if (FGlobalTabmanager::Get()->HasTabSpawner(TabId))
 			{
 				// Spawn 2 tabs.
-				UE_LOG(NetworkingProfiler, Log, TEXT("Opening the \"Networking Insights\" tabs..."));
+				UE_LOG(LogNetworkingProfiler, Log, TEXT("Opening the \"Networking Insights\" tabs..."));
 				FGlobalTabmanager::Get()->TryInvokeTab(TabId);
 				FGlobalTabmanager::Get()->TryInvokeTab(TabId);
 			}
@@ -285,7 +286,7 @@ bool FNetworkingProfilerManager::Tick(float DeltaTime)
 			//	if (FGlobalTabmanager::Get()->HasTabSpawner(TabId) && 
 			//		!FGlobalTabmanager::Get()->FindExistingLiveTab(TabId).IsValid())
 			//	{
-			//		UE_LOG(NetworkingProfiler, Log, TEXT("Opening the \"Networking Insights\" tab..."));
+			//		UE_LOG(LogNetworkingProfiler, Log, TEXT("Opening the \"Networking Insights\" tab..."));
 			//		FGlobalTabmanager::Get()->TryInvokeTab(TabId);
 			//		--SpawnTabCount;
 			//	}
@@ -302,7 +303,7 @@ bool FNetworkingProfilerManager::Tick(float DeltaTime)
 
 void FNetworkingProfilerManager::OnSessionChanged()
 {
-	UE_LOG(NetworkingProfiler, Log, TEXT("OnSessionChanged"));
+	UE_LOG(LogNetworkingProfiler, Log, TEXT("OnSessionChanged"));
 
 	bIsAvailable = false;
 	if (FInsightsManager::Get()->GetSession().IsValid())
@@ -325,5 +326,7 @@ void FNetworkingProfilerManager::OnSessionChanged()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::NetworkingProfiler
 
 #undef LOCTEXT_NAMESPACE

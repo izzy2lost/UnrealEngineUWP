@@ -6,10 +6,12 @@
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Docking/WorkspaceItem.h"
 #include "SlateOptMacros.h"
-#include "TraceServices/Model/LoadTimeProfiler.h"
 #include "Widgets/Docking/SDockTab.h"
 
-// Insights
+// TraceServices
+#include "TraceServices/Model/LoadTimeProfiler.h"
+
+// TraceInsights
 #include "Insights/InsightsStyle.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
 #include "Insights/LoadingProfiler/Widgets/SLoadingProfilerToolbar.h"
@@ -228,7 +230,7 @@ TSharedRef<SDockTab> SLoadingProfilerWindow::SpawnTab_TimingView(const FSpawnTab
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(TimingView, STimingView, FInsightsManagerTabs::LoadingProfilerTabId)
+			SAssignNew(TimingView, UE::Insights::TimingProfiler::STimingView, FInsightsManagerTabs::LoadingProfilerTabId)
 		];
 
 	TimingView->Reset(true);
@@ -542,9 +544,9 @@ TSharedRef<SWidget> SLoadingProfilerWindow::CreateToolbar(TSharedPtr<FExtender> 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SLoadingProfilerWindow::OnTimeSelectionChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
+void SLoadingProfilerWindow::OnTimeSelectionChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
 {
-	if (InFlags != Insights::ETimeChangedFlags::Interactive)
+	if (InFlags != UE::Insights::Timing::ETimeChangedFlags::Interactive)
 	{
 		if (InStartTime < InEndTime)
 		{

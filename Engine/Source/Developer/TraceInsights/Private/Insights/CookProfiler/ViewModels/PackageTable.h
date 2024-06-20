@@ -2,16 +2,21 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// Insights
+#include "Containers/Array.h"
+#include "UObject/NameTypes.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Table/ViewModels/Table.h"
+
+// TraceInsights
 #include "Insights/CookProfiler/ViewModels/PackageEntry.h"
-#include "Insights/Table/ViewModels/Table.h"
+
+namespace UE::Insights { class FTableColumn; }
 
 namespace Insights
 {
-
-class FTableColumn;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +43,7 @@ struct FPackageTableColumns
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FPackageTable : public FTable
+class FPackageTable : public UE::Insights::FTable
 {
 public:
 	FPackageTable();

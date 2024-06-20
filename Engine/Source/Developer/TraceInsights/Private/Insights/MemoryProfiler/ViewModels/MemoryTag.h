@@ -2,14 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/Set.h"
+#include "Math/Color.h"
+#include "Templates/SharedPointer.h"
 
 #include "Insights/MemoryProfiler/ViewModels/MemoryTracker.h"
 
-class FMemoryGraphTrack;
-
-namespace Insights
+namespace UE::Insights::MemoryProfiler
 {
+
+class FMemoryGraphTrack;
 
 typedef int64 FMemoryTagId;
 
@@ -58,7 +64,7 @@ private:
 	FMemoryTagId ParentId = InvalidTagId;
 	FString StatName;
 	FString StatFullName; // includes the parent prefix
-	Insights::FMemoryTrackerId TrackerId = Insights::FMemoryTracker::InvalidTrackerId;
+	FMemoryTrackerId TrackerId = FMemoryTracker::InvalidTrackerId;
 	FLinearColor Color;
 	FMemoryTag* Parent = nullptr;
 	TSet<FMemoryTag*> Children;
@@ -101,4 +107,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::MemoryProfiler
