@@ -2,7 +2,6 @@
 #pragma once
 
 #include "IDetailCustomization.h"
-#include "MetasoundFrontendDocumentModifyDelegates.h"
 #include "SGraphActionMenu.h"
 #include "SSearchableComboBox.h"
 #include "Templates/SharedPointer.h"
@@ -45,54 +44,11 @@ namespace Metasound
 			// End of IDetailCustomization interface
 
 		private:
-			FName GetInterfaceVersionsPropertyPath() const;
-			FName GetRootClassPropertyPath() const;
+			FName GetInterfaceVersionsPath() const;
+			FName GetMetadataRootClassPath() const;
 			FName GetMetadataPropertyPath() const;
 
 			FName DocumentPropertyName;
-		};
-
-		class FMetasoundPagesDetailCustomization : public FMetaSoundDetailCustomizationBase
-		{
-		public:
-			FMetasoundPagesDetailCustomization();
-
-			// IDetailCustomization interface
-			virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
-			// End of IDetailCustomization interface
-
-		private:
-			UObject& GetMetaSound() const;
-			void RebuildImplemented();
-			void UpdateItemNames();
-
-			TArray<TSharedPtr<FString>> AddableItems;
-
-			TSet<FName> ImplementedNames;
-			TSharedPtr<SSearchableComboBox> ComboBox;
-			TSharedPtr<SVerticalBox> EntryWidgets;
-			FString ItemName;
-			FName BuildPageName;
-
-			class FPageListener : public Frontend::IDocumentBuilderTransactionListener
-			{
-				TWeakPtr<FMetasoundPagesDetailCustomization> Parent;
-
-			public:
-				FPageListener() = default;
-				FPageListener(TSharedRef<FMetasoundPagesDetailCustomization> InParent)
-					: Parent(InParent)
-				{
-				}
-
-				virtual ~FPageListener() = default;
-
-			private:
-				virtual void OnBuilderReloaded(Frontend::FDocumentModifyDelegates& OutDelegates) override;
-				void OnPageAdded(const Frontend::FDocumentMutatePageArgs& Args);
-				void OnRemovingPage(const Frontend::FDocumentMutatePageArgs& Args);
-			};
-			TSharedPtr<FPageListener> PageListener;
 		};
 
 		class FMetasoundInterfacesDetailCustomization : public FMetaSoundDetailCustomizationBase

@@ -23,7 +23,6 @@
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundFrontendTransform.h"
 #include "MetasoundLog.h"
-#include "MetasoundSettings.h"
 #include "MetasoundSource.h"
 #include "MetasoundTrace.h"
 #include "MetasoundUObjectRegistry.h"
@@ -152,31 +151,10 @@ FMetaSoundBuilderNodeInputHandle UMetaSoundBuilderBase::AddGraphOutputNode(FName
 	return NewHandle;
 }
 
-void UMetaSoundBuilderBase::AddGraphPage(FName PageName, bool bDuplicateLastGraph, bool bSetAsBuildGraph, EMetaSoundBuilderResult& OutResult)
-{
-	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
-	{
-		if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageName))
-		{
-			Builder.AddGraphPage(PageSettings->UniqueId, bDuplicateLastGraph, bSetAsBuildGraph);
-			OutResult = EMetaSoundBuilderResult::Succeeded;
-			return;
-		}
-	}
-
-	OutResult = EMetaSoundBuilderResult::Failed;
-}
-
 void UMetaSoundBuilderBase::AddInterface(FName InterfaceName, EMetaSoundBuilderResult& OutResult)
 {
 	const bool bInterfaceAdded = Builder.AddInterface(InterfaceName);
 	OutResult = bInterfaceAdded ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
-}
-
-void UMetaSoundBuilderBase::AddTransactionListener(TSharedRef<Metasound::Frontend::IDocumentBuilderTransactionListener> BuilderListener)
-{
-	BuilderListener->OnBuilderReloaded(GetBuilderDelegates());
-	BuilderReloadDelegate.AddSP(BuilderListener, &Metasound::Frontend::IDocumentBuilderTransactionListener::OnBuilderReloaded);
 }
 
 FMetaSoundNodeHandle UMetaSoundBuilderBase::AddNode(const TScriptInterface<IMetaSoundDocumentInterface>& NodeClass, EMetaSoundBuilderResult& OutResult)
@@ -737,11 +715,6 @@ FMetaSoundFrontendDocumentBuilder& UMetaSoundBuilderBase::GetBuilder()
 	return Builder;
 }
 
-Metasound::Frontend::FDocumentModifyDelegates& UMetaSoundBuilderBase::GetBuilderDelegates()
-{
-	return Builder.GetDocumentDelegates();
-}
-
 const FMetaSoundFrontendDocumentBuilder& UMetaSoundBuilderBase::GetConstBuilder() const
 {
 	return Builder;
@@ -826,7 +799,7 @@ bool UMetaSoundBuilderBase::InterfaceIsDeclared(FName InterfaceName) const
 
 void UMetaSoundBuilderBase::InvalidateCache(bool bPrimeCache)
 {
-	Reload({ }, bPrimeCache);
+	Reload(bPrimeCache);
 }
 
 bool UMetaSoundBuilderBase::IsPreset() const
@@ -852,7 +825,6 @@ bool UMetaSoundBuilderBase::NodeOutputIsConnected(const FMetaSoundBuilderNodeOut
 
 void UMetaSoundBuilderBase::InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates)
 {
-	BuilderReloadDelegate.Broadcast(OutDocumentDelegates);
 	OutDocumentDelegates.OnDependencyAdded.AddUObject(this, &UMetaSoundBuilderBase::OnDependencyAdded);
 	OutDocumentDelegates.OnRemoveSwappingDependency.AddUObject(this, &UMetaSoundBuilderBase::OnRemoveSwappingDependency);
 }
@@ -924,7 +896,7 @@ void UMetaSoundBuilderBase::RegisterGraphIfOutstandingTransactions(UObject& InMe
 	MetaSoundAsset->UpdateAndRegisterForExecution(Options);
 }
 
-void UMetaSoundBuilderBase::Reload(TScriptInterface<IMetaSoundDocumentInterface> NewMetaSound, bool bPrimeCache)
+void UMetaSoundBuilderBase::Reload(bool bPrimeCache)
 {
 	using namespace Metasound::Frontend;
 
@@ -935,12 +907,7 @@ void UMetaSoundBuilderBase::Reload(TScriptInterface<IMetaSoundDocumentInterface>
 
 void UMetaSoundBuilderBase::ReloadCache(bool bPrimeCache)
 {
-	Reload({ }, bPrimeCache);
-}
-
-void UMetaSoundBuilderBase::RemoveAllGraphPages()
-{
-	Builder.RemoveAllGraphPages();
+	Reload(bPrimeCache);
 }
 
 #if WITH_EDITOR
@@ -960,20 +927,6 @@ void UMetaSoundBuilderBase::RemoveGraphOutput(FName Name, EMetaSoundBuilderResul
 {
 	const bool bRemoved = Builder.RemoveGraphOutput(Name);
 	OutResult = bRemoved ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
-}
-
-void UMetaSoundBuilderBase::RemoveGraphPage(FName Name, EMetaSoundBuilderResult& OutResult)
-{
-	const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-	check(Settings);
-	if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Name))
-	{
-		Builder.RemoveGraphPage(PageSettings->UniqueId);
-		OutResult = EMetaSoundBuilderResult::Succeeded;
-		return;
-	}
-
-	OutResult = EMetaSoundBuilderResult::Failed;
 }
 
 void UMetaSoundBuilderBase::RemoveInterface(FName InterfaceName, EMetaSoundBuilderResult& OutResult)
@@ -996,11 +949,6 @@ void UMetaSoundBuilderBase::RemoveNodeInputDefault(const FMetaSoundBuilderNodeIn
 {
 	const bool bInputDefaultRemoved = Builder.RemoveNodeInputDefault(InputHandle.NodeID, InputHandle.VertexID);
 	OutResult = bInputDefaultRemoved ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
-}
-
-void UMetaSoundBuilderBase::RemoveTransactionListener(FDelegateHandle BuilderListenerDelegateHandle)
-{
-	BuilderReloadDelegate.Remove(BuilderListenerDelegateHandle);
 }
 
 void UMetaSoundBuilderBase::RemoveUnusedDependencies()

@@ -945,9 +945,12 @@ Metasound::Frontend::FDocumentAccessPtr UMetaSoundSource::GetDocumentAccessPtr()
 
 	// Mutation of a document via the soft deprecated access ptr/controller system is not tracked by
 	// the builder registry, so the document cache is invalidated here.
-	if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+	if (UMetaSoundBuilderSubsystem* BuilderSubsystem = UMetaSoundBuilderSubsystem::Get())
 	{
-		BuilderRegistry->ReloadBuilder(RootMetasoundDocument.RootGraph.Metadata.GetClassName());
+		if (UMetaSoundBuilderBase* Builder = BuilderSubsystem->FindBuilderOfDocument(this))
+		{
+			Builder->Reload();
+		}
 	}
 
 	// Return document using FAccessPoint to inform the TAccessPtr when the 

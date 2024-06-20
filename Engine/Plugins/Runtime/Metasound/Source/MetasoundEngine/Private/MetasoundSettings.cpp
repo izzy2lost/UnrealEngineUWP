@@ -1,206 +1,107 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetasoundSettings.h"
-
 #include "Algo/Count.h"
-#include "MetasoundFrontendDocument.h"
-
-#define LOCTEXT_NAMESPACE "MetaSound"
-
 
 #if WITH_EDITORONLY_DATA
-namespace Metasound::SettingsPrivate
-{
-	template<typename SettingsStructType>
-	TSet<FName> GetStructNames(const TArray<SettingsStructType>& InSettings, int32 IgnoreIndex = INDEX_NONE)
-	{
-		TSet<FName> Names;
-		for (int32 Index = 0; Index < InSettings.Num(); ++Index)
-		{
-			if (Index != IgnoreIndex)
-			{
-				Names.Add(InSettings[Index].Name);
-			}
-		}
-		return Names;
-	}
 
+namespace MetaSoundSettingsPrivate
+{
 	/** Generate new name for the item. **/
-	static FName GenerateUniqueName(const TSet<FName>& Names, const TCHAR* InBaseName)
+	static FName GenerateNextName(const TCHAR* InBaseName)
 	{
+		const TArray<FName> Names = UMetaSoundQualityHelper::GetQualityList();	
 		FString NewName = InBaseName;
-		for (int32 Postfix = 1; Names.Contains(*NewName); ++Postfix)
+		
+		// Start adding a postfix starting at 1.
+		for (int32 Postfix=1; Names.Contains(*NewName); ++Postfix)
 		{
-			NewName = FString::Format(TEXT("{0}_{1}"), { InBaseName, Postfix });
+			NewName = FString::Format(TEXT("{0} {1}"), { InBaseName, Postfix });
 		}
 		return FName(*NewName);
 	}
-
-	template<typename SettingsStructType>
-	void OnCreateNewSettingsStruct(const TArray<SettingsStructType>& InSettings, const FString& InBaseName, SettingsStructType& OutNewItem)
+	
+	/** When adding a quality new entry in the editor call this **/	
+	static void OnCreateNewQualitySettings(FMetaSoundQualitySettings& InNewItem)
 	{
-		const TSet<FName> Names = GetStructNames(InSettings);
-		OutNewItem.Name = GenerateUniqueName(Names, *InBaseName);
-		OutNewItem.UniqueId = FGuid::NewGuid();
+		InNewItem.Name = GenerateNextName(TEXT("New Quality"));
+		InNewItem.UniqueId = FGuid::NewGuid();
 	}
 
-	template<typename SettingsStructType>
-	void OnRenameSettingsStruct(const TArray<SettingsStructType>& InSettings, int32 Index, const FString& InBaseName, SettingsStructType& OutRenamed)
+	static void OnDuplicateQualitySettings(FMetaSoundQualitySettings& InNewlyDuplicatedItem)
 	{
-		if (OutRenamed.Name.IsNone())
+		InNewlyDuplicatedItem.Name = GenerateNextName(*FString::Printf(TEXT("%s (Duplicate)"), *InNewlyDuplicatedItem.Name.ToString()));
+		InNewlyDuplicatedItem.UniqueId = FGuid::NewGuid();
+	}
+
+	static void OnPasteQualitySettings(FMetaSoundQualitySettings& InNewlyPastedItem)
+	{
+		InNewlyPastedItem.Name = GenerateNextName(*FString::Printf(TEXT("%s (Copied)"), *InNewlyPastedItem.Name.ToString()));
+		InNewlyPastedItem.UniqueId = FGuid::NewGuid();
+	}
+	static void OnRenameQualitySettings(FMetaSoundQualitySettings& InRenamed)
+	{
+		// Prevent 'None' as an option.
+		if (InRenamed.Name.IsNone())
 		{
-			const TSet<FName> Names = GetStructNames(InSettings);
-			OutRenamed.Name = GenerateUniqueName(Names, *InBaseName);
+			InRenamed.Name = GenerateNextName(TEXT("New Quality"));
 		}
-		else
+		
+		// More than one?
+		else if (Algo::Count(UMetaSoundQualityHelper::GetQualityList(), InRenamed.Name) > 1)
 		{
-			const TSet<FName> Names = GetStructNames(InSettings, Index);
-			if (Names.Contains(OutRenamed.Name))
-			{
-				OutRenamed.Name = GenerateUniqueName(Names, *OutRenamed.Name.ToString());
-			}
-		}
+			// add something unique to the name.
+			InRenamed.Name = GenerateNextName(*InRenamed.Name.ToString());
+		}	
 	}
-
-	template<typename SettingsStructType>
-	const SettingsStructType* FindSettingsStruct(const TArray<SettingsStructType>& Settings, const FGuid& InUniqueID)
-	{
-		auto MatchesIDPredicate = [&InUniqueID](const SettingsStructType& Struct) { return Struct.UniqueId == InUniqueID; };
-		return Settings.FindByPredicate(MatchesIDPredicate);
-	}
-
-	template<typename SettingsStructType>
-	const SettingsStructType* FindSettingsStruct(const TArray<SettingsStructType>& Settings, FName Name)
-	{
-		auto MatchesNamePredicate = [Name](const SettingsStructType& Struct) { return Struct.Name == Name; };
-		return Settings.FindByPredicate(MatchesNamePredicate);
-	}
-
-	template<typename SettingsStructType>
-	void PostEditChainChangedStructMember(FPropertyChangedChainEvent& PostEditChangeChainProperty, TArray<SettingsStructType>& StructSettings, FName PropertyName, const FString& NewItemName)
-	{
-		const int32 ItemIndex = PostEditChangeChainProperty.GetArrayIndex(PropertyName.ToString());
-
-		if (TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* HeadNode = PostEditChangeChainProperty.PropertyChain.GetHead())
-		{
-			const FProperty* Prop = HeadNode->GetValue();
-			if (Prop->GetName() != PropertyName)
-			{
-				return;
-			}
-		}
-
-		// Item changed..
-		if (ItemIndex != INDEX_NONE && StructSettings.IsValidIndex(ItemIndex))
-		{
-			SettingsStructType& Item = StructSettings[ItemIndex];
-			if (PostEditChangeChainProperty.GetPropertyName() == "Name")
-			{
-				OnRenameSettingsStruct<SettingsStructType>(StructSettings, ItemIndex, NewItemName, Item);
-			}
-			else if (PostEditChangeChainProperty.GetPropertyName() == PropertyName)
-			{
-				// Array change add or duplicate
-				if (PostEditChangeChainProperty.ChangeType == EPropertyChangeType::ArrayAdd
-					|| PostEditChangeChainProperty.ChangeType == EPropertyChangeType::Duplicate)
-				{
-					OnCreateNewSettingsStruct<SettingsStructType>(StructSettings, NewItemName, Item);
-				}
-			}
-		}
-
-		// Handle pasting separately as we might not have a valid index in the case of pasting when array is empty.
-		if (PostEditChangeChainProperty.GetPropertyName() == PropertyName)
-		{
-			// Paste...
-			if (PostEditChangeChainProperty.ChangeType == EPropertyChangeType::ValueSet)
-			{
-				const int32 IndexOfPastedItem = ItemIndex != INDEX_NONE ? ItemIndex : 0;
-				if (StructSettings.IsValidIndex(IndexOfPastedItem))
-				{
-					SettingsStructType& Item = StructSettings[IndexOfPastedItem];
-					OnCreateNewSettingsStruct<SettingsStructType>(StructSettings, NewItemName, Item);
-				}
-			}
-		}
-	}
-} // namespace Metasound::SettingsPrivate
-
-#if WITH_EDITORONLY_DATA
-void UMetaSoundSettings::ConformPageSettingsDefault(bool bNotifyDefaultConformed)
-{
-	using namespace Metasound;
-
-	bool bContainsPageDefault = false;
-	bool bDefaultConformed = false;
-	for (int32 Index = PageSettings.Num() - 1; Index >= 0; --Index)
-	{
-		FMetaSoundPageSettings& Page = PageSettings[Index];
-		const bool bIsDefaultName = Page.Name == Frontend::DefaultGraphPageName;
-		if (bIsDefaultName)
-		{
-			if (Page.UniqueId != Frontend::DefaultGraphPageID)
-			{
-				Page.UniqueId = { };
-				bDefaultConformed = true;
-			}
-
-			bContainsPageDefault = true;
-		}
-		else
-		{
-			if (Page.UniqueId == Frontend::DefaultGraphPageID)
-			{
-				Page.UniqueId = FGuid::NewGuid();
-				bDefaultConformed = true;
-			}
-		}
-	}
-
-	if (!bContainsPageDefault)
-	{
-		FMetaSoundPageSettings DefaultSettings;
-		DefaultSettings.Name = Frontend::DefaultGraphPageName;
-		PageSettings.Insert(MoveTemp(DefaultSettings), 0);
-		bDefaultConformed = true;
-	}
-
-	if (bNotifyDefaultConformed && bDefaultConformed)
-	{
-		OnDefaultConformed.Broadcast();
-	}
-}
-
-const FMetaSoundPageSettings* UMetaSoundSettings::FindPageSettings(FName Name) const
-{
-	return Metasound::SettingsPrivate::FindSettingsStruct(PageSettings, Name);
-}
-
-const FMetaSoundPageSettings* UMetaSoundSettings::FindPageSettings(const FGuid& InPageID) const
-{
-	return Metasound::SettingsPrivate::FindSettingsStruct(PageSettings, InPageID);
-}
-
-const FMetaSoundQualitySettings* UMetaSoundSettings::FindQualitySettings(FName Name) const
-{
-	return Metasound::SettingsPrivate::FindSettingsStruct(QualitySettings, Name);
-}
-
-const FMetaSoundQualitySettings* UMetaSoundSettings::FindQualitySettings(const FGuid& InQualityID) const
-{
-	return Metasound::SettingsPrivate::FindSettingsStruct(QualitySettings, InQualityID);
-}
-#endif // WITH_EDITORONLY_DATA
+	
+}//MetaSoundSettingsPrivate
 
 void UMetaSoundSettings::PostEditChangeChainProperty(FPropertyChangedChainEvent& PostEditChangeChainProperty)
 {
-	using namespace Metasound::SettingsPrivate;
+	const int32 QualityItemIndex = PostEditChangeChainProperty.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(UMetaSoundSettings, QualitySettings));
 
-	PostEditChainChangedStructMember(PostEditChangeChainProperty, PageSettings, GetPageSettingPropertyName(), TEXT("New Page"));
-	PostEditChainChangedStructMember(PostEditChangeChainProperty, QualitySettings, GetQualitySettingPropertyName(), TEXT("New Quality"));
+	// Quality item changed..
+	if (QualityItemIndex != INDEX_NONE && QualitySettings.IsValidIndex(QualityItemIndex))
+	{
+		FMetaSoundQualitySettings& Item = QualitySettings[QualityItemIndex];
 
-	constexpr bool bNotifyDefaultConformed = true;
-	ConformPageSettingsDefault(bNotifyDefaultConformed);
+		// Name has changed.
+		if (PostEditChangeChainProperty.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FMetaSoundQualitySettings, Name))
+		{
+			MetaSoundSettingsPrivate::OnRenameQualitySettings(Item);
+		}
+		
+		// Array change.
+		else if (PostEditChangeChainProperty.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSettings, QualitySettings))
+		{
+			// Add
+			if (PostEditChangeChainProperty.ChangeType == EPropertyChangeType::ArrayAdd)
+			{
+				MetaSoundSettingsPrivate::OnCreateNewQualitySettings(Item);
+			}
+			// Duplicate.
+			else if (PostEditChangeChainProperty.ChangeType == EPropertyChangeType::Duplicate)
+			{
+				MetaSoundSettingsPrivate::OnDuplicateQualitySettings(Item);
+			}
+		}	
+	}
+	
+	// Handle pasting separately as we might not have a valid index in the case of pasting when quality array is empty.
+	if (PostEditChangeChainProperty.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMetaSoundSettings, QualitySettings))
+	{
+		// Paste...
+		if (PostEditChangeChainProperty.ChangeType == EPropertyChangeType::ValueSet)
+		{
+			const int32 IndexOfPastedItem = QualityItemIndex != INDEX_NONE ? QualityItemIndex : 0;
+			if (QualitySettings.IsValidIndex(IndexOfPastedItem))
+			{
+				FMetaSoundQualitySettings& PastedItem = QualitySettings[IndexOfPastedItem];
+				MetaSoundSettingsPrivate::OnPasteQualitySettings(PastedItem);
+			}
+		}
+	}
 
 	Super::PostEditChangeChainProperty(PostEditChangeChainProperty);
 }
@@ -209,25 +110,7 @@ void UMetaSoundSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 {	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	
-	if (PropertyChangedEvent.MemberProperty->GetName() == GetPageSettingPropertyName())
-	{
-		OnPageSettingsUpdated.Broadcast();
-	}
-
 	DenyListCacheChangeID++;
-}
-
-void UMetaSoundSettings::PostInitProperties()
-{
-	constexpr bool bNotifyDefaultConformed = false;
-	ConformPageSettingsDefault(bNotifyDefaultConformed);
-
-	Super::PostInitProperties();
-}
-
-FName UMetaSoundSettings::GetPageSettingPropertyName()
-{
-	return GET_MEMBER_NAME_CHECKED(UMetaSoundSettings, PageSettings);
 }
 
 FName UMetaSoundSettings::GetQualitySettingPropertyName()
@@ -253,4 +136,3 @@ TArray<FName> UMetaSoundQualityHelper::GetQualityList()
 
 	return Names;
 }
-#undef LOCTEXT_NAMESPACE // MetaSound

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "Delegates/DelegateCombinations.h"
+#include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "MetasoundFrontendDocument.h"
 #include "UObject/NoExportTypes.h"
@@ -15,14 +15,6 @@
 // Forward Declarations
 struct FMetasoundFrontendClassName;
 struct FPropertyChangedChainEvent;
-
-#if WITH_EDITORONLY_DATA
-namespace Metasound::Engine
-{
-	DECLARE_MULTICAST_DELEGATE(FOnSettingsDefaultConformed);
-	DECLARE_MULTICAST_DELEGATE(FOnPageSettingsUpdated);
-} // namespace Metasound::Engine
-#endif // WITH_EDITORONLY_DATA
 
 UENUM()
 enum class EMetaSoundMessageLevel : uint8
@@ -56,40 +48,22 @@ public:
 };
 
 USTRUCT()
-struct METASOUNDENGINE_API FMetaSoundPageSettings
-{
-	GENERATED_BODY()
-	
-	UPROPERTY()
-	FGuid UniqueId;
-
-	/** Name of this page's setting. This will appear in the MetaSound Asset Editor's 'Page Selector'.
-		The names should be unique and adequately describe the Entry. "High", "Low" etc. **/
-	UPROPERTY(EditAnywhere, Category = "Pages")
-	FName Name;
-
-#if WITH_EDITORONLY_DATA
-	// When true, page data defined on serialized MetaSounds are included in cook for the assigned platform(s).
-	UPROPERTY(EditAnywhere, config, Category = "Pages")
-	FPerPlatformBool CookForPlatform = true;
-#endif //WITH_EDITORONLY_DATA
-};
-
-USTRUCT()
 struct METASOUNDENGINE_API FMetaSoundQualitySettings
 {
 	GENERATED_BODY()
 	
 #if WITH_EDITORONLY_DATA
+
 	/** A hidden GUID that will be generated once when adding a new entry. This prevents orphaning of renamed entries. **/
 	UPROPERTY()
-	FGuid UniqueId;
+	FGuid UniqueId = {};
 
 	/** Name of this quality setting. This will appear in the quality dropdown list.
 		The names should be unique and adequately describe the Entry. "High", "Low" etc. **/
 	UPROPERTY(EditAnywhere, Category = "Quality")
-	FName Name;
-#endif // WITH_EDITORONLY_DATA
+	FName Name = {};
+	
+#endif //WITH_EDITORONLY_DATA	
 
 	/** Sample Rate (in Hz). NOTE: A Zero value will have no effect and use the Device Rate. **/
 	UPROPERTY(EditAnywhere, config, Category = "Quality", meta = (ClampMin = "0", ClampMax="96000"))
@@ -136,41 +110,24 @@ public:
 	int32 DenyListCacheChangeID = 0;	
 
 #if WITH_EDITORONLY_DATA
-	Metasound::Engine::FOnSettingsDefaultConformed OnDefaultConformed;
-	Metasound::Engine::FOnPageSettingsUpdated OnPageSettingsUpdated;
+	const TArray<FMetaSoundQualitySettings>& GetQualitySettings() const { return QualitySettings; }
+	static FName GetQualitySettingPropertyName(); 
 #endif //WITH_EDITORONLY_DATA
 
 private:
-	/** Array of possible page settings that can be added to a MetaSound object. */
-	UPROPERTY(EditAnywhere, config, Category = Pages)
-	TArray<FMetaSoundPageSettings> PageSettings;
 
 	/** Array of possible quality settings for Metasounds to chose from */
+	// NOTE: Ideally this would be wrapped with WITH_EDITORONLY_DATA, but standalone "-game" requires
+	// it to exist. Access is limited to the accessor above, which enforces it correctly.
 	UPROPERTY(EditAnywhere, config, Category = Quality)
 	TArray<FMetaSoundQualitySettings> QualitySettings;
 
-public:
-	const FMetaSoundPageSettings* FindPageSettings(FName Name) const;
-	const FMetaSoundPageSettings* FindPageSettings(const FGuid& InPageID) const;
-
-	const FMetaSoundQualitySettings* FindQualitySettings(FName Name) const;
-	const FMetaSoundQualitySettings* FindQualitySettings(const FGuid& InQualityID) const;
-
-	const TArray<FMetaSoundPageSettings>& GetPageSettings() const { return PageSettings; }
-	const TArray<FMetaSoundQualitySettings>& GetQualitySettings() const { return QualitySettings; }
-
-#if WITH_EDITORONLY_DATA
-	static FName GetPageSettingPropertyName();
-	static FName GetQualitySettingPropertyName();
-#endif // WITH_EDITORONLY_DATA
-
 #if WITH_EDITOR
 private:
-	void ConformPageSettingsDefault(bool bNotifyDefaultConformed);
 
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
+
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual void PostInitProperties() override;
 #endif // WITH_EDITOR
 };
 

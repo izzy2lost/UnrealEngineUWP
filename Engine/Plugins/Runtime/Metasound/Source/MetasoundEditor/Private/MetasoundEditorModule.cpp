@@ -9,7 +9,7 @@
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphUtilities.h"
-#include "Framework/Notifications/NotificationManager.h"
+#include "Styling/AppStyle.h"
 #include "HAL/IConsoleManager.h"
 #include "IDetailCustomization.h"
 #include "ISettingsModule.h"
@@ -18,7 +18,6 @@
 #include "MetasoundAudioBuffer.h"
 #include "MetasoundBuilderSubsystem.h"
 #include "MetasoundDetailCustomization.h"
-#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundDocumentInterface.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
@@ -43,17 +42,15 @@
 #include "PackageMigrationContext.h"
 #include "PropertyEditorDelegates.h"
 #include "PropertyEditorModule.h"
-#include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
+#include "Styling/StyleColors.h"
 #include "Styling/SlateStyle.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateTypes.h"
-#include "Styling/StyleColors.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UObjectIterator.h"
-#include "Widgets/Notifications/SNotificationList.h"
 
 
 DEFINE_LOG_CATEGORY(LogMetasoundEditor);
@@ -67,7 +64,8 @@ FAutoConsoleVariableRef CVarMetaSoundEditorAsyncRegistrationEnabled(
 	TEXT("0: Disabled, !0: Enabled (default)"),
 	ECVF_Default);
 
-#define LOCTEXT_NAMESPACE "MetaSounds"
+// Forward declarations 
+class UMetasoundInterfacesView;
 
 namespace Metasound
 {
@@ -834,10 +832,6 @@ namespace Metasound
 					FOnGetDetailCustomizationInstance::CreateLambda([]() { return MakeShared<FMetasoundInterfacesDetailCustomization>(); }));
 
 				PropertyModule.RegisterCustomClassLayout(
-					UMetasoundPagesView::StaticClass()->GetFName(),
-					FOnGetDetailCustomizationInstance::CreateLambda([]() { return MakeShared<FMetasoundPagesDetailCustomization>(); }));
-
-				PropertyModule.RegisterCustomClassLayout(
 					UMetasoundEditorGraphInput::StaticClass()->GetFName(),
 					FOnGetDetailCustomizationInstance::CreateLambda([]() { return MakeShared<FMetasoundInputDetailCustomization>(); }));
 
@@ -883,8 +877,8 @@ namespace Metasound
 				ISettingsModule& SettingsModule = FModuleManager::LoadModuleChecked<ISettingsModule>("Settings");
 
 				SettingsModule.RegisterSettings("Editor", "ContentEditors", "MetaSound Editor",
-					LOCTEXT("MetaSoundEditorSettingsName", "MetaSound Editor"),
-					LOCTEXT("MetaSoundEditorSettingsDescription", "Customize MetaSound Editor."),
+					NSLOCTEXT("MetaSoundsEditor", "MetaSoundEditorSettingsName", "MetaSound Editor"),
+					NSLOCTEXT("MetaSoundsEditor", "MetaSoundEditorSettingsDescription", "Customize MetaSound Editor."),
 					GetMutableDefault<UMetasoundEditorSettings>()
 				);
 
@@ -913,18 +907,6 @@ namespace Metasound
 				});
 
 				AssetTools.GetOnPackageMigration().AddRaw(this, &FModule::OnPackageMigration);
-
-				if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
-				{
-					Settings->OnDefaultConformed.AddLambda([]()
-					{
-						FNotificationInfo Info(LOCTEXT("MetaSoundSettings_CannotDeleteDefaultPage", "Cannot change name of nor delete 'Default' MetaSound Page"));
-						Info.bFireAndForget = true;
-						Info.ExpireDuration = 2.0f;
-						Info.bUseThrobber = true;
-						FSlateNotificationManager::Get().AddNotification(Info);
-					});
-				}
 			}
 
 			virtual void ShutdownModule() override
@@ -1042,5 +1024,3 @@ namespace Metasound
 } // namespace Metasound
 
 IMPLEMENT_MODULE(Metasound::Editor::FModule, MetasoundEditor);
-
-#undef LOCTEXT_NAMESPACE

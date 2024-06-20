@@ -15,10 +15,6 @@
 #include "MetasoundParameterTransmitter.h"
 #include "MetasoundVertex.h"
 
-#if WITH_EDITORONLY_DATA
-#include "Internationalization/Internationalization.h"
-#endif // WITH_EDITORONLY_DATA
-
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundFrontendDocument)
 
 namespace Metasound
@@ -27,10 +23,6 @@ namespace Metasound
 
 	namespace Frontend
 	{
-#if WITH_EDITORONLY_DATA
-		const FText DefaultGraphPageDisplayName = NSLOCTEXT("MetasoundFrontend", "DefaultGraphPageDisplayName", "Default");
-#endif // WITH_EDITORONLY_DATA
-
 		namespace DisplayStyle
 		{
 			namespace EdgeAnimation
