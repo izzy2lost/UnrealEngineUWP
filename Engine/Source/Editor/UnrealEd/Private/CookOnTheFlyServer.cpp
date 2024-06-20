@@ -2359,7 +2359,7 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 	UE::Cook::FPackageDataMonitor& Monitor = PackageDatas->GetMonitor();
 	if (Monitor.GetNumUrgent() > 0)
 	{
-		if (!bSaveBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::Save) > 0)
+		if (!bSaveBusy && Monitor.GetNumUrgent(UE::Cook::EPackageState::SaveActive) > 0)
 		{
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Save;
@@ -2379,7 +2379,7 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Request;
 		}
-		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::Save) > 0)
+		else if (Monitor.GetNumUrgent(UE::Cook::EPackageState::SaveActive) > 0)
 		{
 			SetIdleStatus(StackData, EIdleStatus::Active);
 			return ECookAction::Save;
@@ -2401,6 +2401,8 @@ UCookOnTheFlyServer::ECookAction UCookOnTheFlyServer::DecideNextCookAction(UE::C
 		}
 		else
 		{
+			// UE::Cook::EPackageState::SaveStalledAssignedToWorker should not be possible for urgent packages
+			// UE::Cook::EPackageState::SaveStalledRetracted should not be possible for urgent packages
 			checkf(false, TEXT("Urgent request is in state not yet handled by DecideNextCookAction"));
 		}
 	}
@@ -2727,7 +2729,10 @@ void UCookOnTheFlyServer::AssignRequests(TArrayView<UE::Cook::FPackageData*> Req
 			}
 			else
 			{
-				PackageData->SendToState(EPackageState::AssignedToWorker, ESendFlags::QueueAdd, EStateChangeReason::Requested);
+				EPackageState NewState = PackageData->IsInStateProperty(EPackageStateProperty::Saving)
+					? EPackageState::SaveStalledAssignedToWorker
+					: EPackageState::AssignedToWorker;
+				PackageData->SendToState(NewState, ESendFlags::QueueAdd, EStateChangeReason::Requested);
 				PackageData->SetWorkerAssignment(Assignment);
 			}
 		}
@@ -3014,7 +3019,7 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 
 	PostLoadPackageFixup(PackageData, LoadedPackage);
 	PackageData.SetPackage(LoadedPackage);
-	PackageData.SendToState(EPackageState::Save, ESendFlags::QueueAdd, EStateChangeReason::Loaded);
+	PackageData.SendToState(EPackageState::SaveActive, ESendFlags::QueueAdd, EStateChangeReason::Loaded);
 	++OutNumPushed;
 }
 
@@ -3826,7 +3831,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSaveInternal(UE::Cook::FPackag
 #endif
 	UPackage* Package = PackageData.GetPackage();
 	check(Package && Package->IsFullyLoaded());
-	check(PackageData.GetState() == EPackageState::Save);
+	check(PackageData.GetState() == EPackageState::SaveActive);
 	TRefCountPtr<FGenerationHelper> GenerationHelper;
 
 	if (!PackageData.GetCookedPlatformDataCalled())
@@ -4705,7 +4710,11 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 		{
 			// Timeouts can occur because of new objects created during the save, so we need to update our object cache,
 			// so we call ReleaseCookedPlatformData and ClearObjectCache to clear it and recache on next attempt.
-			ReleaseCookedPlatformData(PackageData, EStateChangeReason::RecreateObjectCache, EPackageState::Save);
+			check(PackageData.GetState() == EPackageState::SaveActive);
+			// TODO: ReleaseCookedPlatformData is not valid for resetting the objectcache for a generator or generated
+			// package; we need to add a function to handle it on the GenerationHelper
+			check(!PackageData.GetGenerationHelper() && !PackageData.GetParentGenerationHelper());
+			ReleaseCookedPlatformData(PackageData, EStateChangeReason::RecreateObjectCache, EPackageState::SaveActive);
 			PackageData.ClearObjectCache();
 			if (PackageData.GetIsUrgent())
 			{
@@ -5249,11 +5258,11 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 	TArray<UE::Cook::FPackageData*> GCKeepPackageDatas;
 
 #if COOK_CHECKSLOW_PACKAGEDATA
-	// Verify that only packages in the save state have pointers to objects
-	for (const FPackageData* PackageData : *PackageDatas.Get())
-	{
-		check(PackageData->GetState() == EPackageState::Save || !PackageData->HasReferencedObjects());
-	}
+	// Verify that only packages in the saving states have pointers to objects
+	PackageDatas->LockAndEnumeratePackageDatas([](const FPackageData* PackageData)
+		{
+			check(PackageData->IsInStateProperty(EPackageStateProperty::Saving) || !PackageData->HasReferencedObjects());
+		});
 #endif
 	if (SavingPackageData)
 	{
@@ -5275,7 +5284,7 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 				bool bShouldDemote;
 				GenerationHelper->PreGarbageCollect(GenerationHelper, *PackageData, GCKeepObjects, GCKeepPackages,
 					GCKeepPackageDatas, bShouldDemote);
-				if (bShouldDemote && PackageData->GetState() >= EPackageState::Save)
+				if (bShouldDemote && PackageData->IsInStateProperty(EPackageStateProperty::Saving))
 				{
 					// Demote any Generated/Generator packages we called PreSave on so they call their PostSave before the GC
 					// or prevent them from being garbage collected if the splitter wants to keep them referenced
@@ -5283,7 +5292,7 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 						EPackageState::Request);
 				}
 			}
-			if (PackageData->GetIsCookLast() && PackageData->GetState() >= EPackageState::Save)
+			if (PackageData->GetIsCookLast() && PackageData->IsInStateProperty(EPackageStateProperty::Saving))
 			{
 				GCKeepPackages.Add(PackageData->GetPackage());
 				GCKeepPackageDatas.Add(PackageData);
@@ -5363,6 +5372,10 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 			AddPackageName(PackageData->GetPackageName());
 		}
 		for (FPackageData* PackageData : PackageDatas->GetSaveQueue())
+		{
+			AddPackageName(PackageData->GetPackageName());
+		}
+		for (FPackageData* PackageData : PackageDatas->GetSaveStalledSet())
 		{
 			AddPackageName(PackageData->GetPackageName());
 		}
@@ -5463,7 +5476,8 @@ void UCookOnTheFlyServer::PostGarbageCollect()
 	// force delete them despite our reference, and the package is then in an unknown state. If that happens we
 	// demote the package back to request and start its load and save over.
 	TArray<FPackageData*> Demotes;
-	for (FPackageData* PackageData : PackageDatas->GetSaveQueue())
+	auto UpdateSavingPackageAfterGarbageCollect =
+		[&Demotes, &SaveQueueObjectsThatStillExist](FPackageData* PackageData)
 	{
 		bool bOutDemote;
 		PackageData->UpdateSaveAfterGarbageCollect(bOutDemote);
@@ -5483,16 +5497,38 @@ void UCookOnTheFlyServer::PostGarbageCollect()
 				}
 			}
 		}
+	};
+	for (FPackageData* PackageData : PackageDatas->GetSaveQueue())
+	{
+		UpdateSavingPackageAfterGarbageCollect(PackageData);
+	}
+	for (FPackageData* PackageData : PackageDatas->GetSaveStalledSet())
+	{
+		UpdateSavingPackageAfterGarbageCollect(PackageData);
 	}
 	for (FPackageData* PackageData : Demotes)
 	{
-		PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::GarbageCollected);
-		if (PackageData->GetIsCookLast())
+		switch (PackageData->GetState())
 		{
-			// CookLast packages in SaveState have had their urgency removed. Add it back if we need to demote them.
-			PackageData->AddUrgency(true /* bValue */, false /* bAllowUpdateState */);
+		case EPackageState::SaveActive:
+			PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::GarbageCollected);
+			if (PackageData->GetIsCookLast())
+			{
+				// CookLast packages in SaveState have had their urgency removed. Add it back if we need to demote them.
+				PackageData->AddUrgency(true /* bValue */, false /* bAllowUpdateState */);
+			}
+			PackageDatas->GetRequestQueue().AddRequest(PackageData, /* bForceUrgent */ true);
+			break;
+		case EPackageState::SaveStalledAssignedToWorker:
+			PackageData->SendToState(EPackageState::AssignedToWorker, ESendFlags::QueueAddAndRemove, EStateChangeReason::GarbageCollected);
+			break;
+		case EPackageState::SaveStalledRetracted:
+			DemoteToIdle(*PackageData, ESendFlags::QueueAddAndRemove, ESuppressCookReason::RetractedByCookDirector);
+			break;
+		default:
+			checkf(false, TEXT("State %s not handled in a demoted package."), LexToString(PackageData->GetState()));
+			break;
 		}
-		PackageDatas->GetRequestQueue().AddRequest(PackageData, /* bForceUrgent */ true);
 	}
 
 	// Mark that any objects in PendingCookedPlatformDatas should be kept in CachedCookedPlatformData records
@@ -10282,6 +10318,7 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 	check(PackageDatas->GetLoadPrepareQueue().IsEmpty());
 	check(PackageDatas->GetLoadReadyQueue().IsEmpty());
 	check(PackageDatas->GetSaveQueue().IsEmpty());
+	check(PackageDatas->GetSaveStalledSet().IsEmpty());
 
 	TArray<FPackageData*> DanglingGenerationHelpers;
 	PackageDatas->LockAndEnumeratePackageDatas([&DanglingGenerationHelpers](FPackageData* PackageData)
@@ -10862,6 +10899,11 @@ void UCookOnTheFlyServer::CancelAllQueues()
 		DemoteToIdle(*PackageData, ESendFlags::QueueAdd, ESuppressCookReason::CookCanceled);
 	}
 	PackageDatas->GetAssignedToWorkerSet().Empty();
+	for (FPackageData* PackageData : PackageDatas->GetSaveStalledSet())
+	{
+		DemoteToIdle(*PackageData, ESendFlags::QueueAdd, ESuppressCookReason::CookCanceled);
+	}
+	PackageDatas->GetSaveStalledSet().Empty();
 	FRequestQueue& RequestQueue = PackageDatas->GetRequestQueue();
 	RequestQueue.GetDiscoveryQueue().Empty();
 	FPackageDataSet& RestartedRequests = RequestQueue.GetRestartedRequests();

@@ -77,7 +77,7 @@ const TCHAR* LexToString(ESuppressCookReason Reason)
 
 const TCHAR* LexToString(UE::Cook::EPackageState Reason)
 {
-	static_assert(static_cast<int>(EPackageState::Count) == 6);
+	static_assert(static_cast<int>(EPackageState::Count) == 8);
 	switch (Reason)
 	{
 	case EPackageState::Idle: return TEXT("Idle");
@@ -85,7 +85,9 @@ const TCHAR* LexToString(UE::Cook::EPackageState Reason)
 	case EPackageState::AssignedToWorker: return TEXT("AssignedToWorker");
 	case EPackageState::LoadPrepare: return TEXT("LoadPrepare");
 	case EPackageState::LoadReady: return TEXT("LoadReady");
-	case EPackageState::Save: return TEXT("Save");
+	case EPackageState::SaveActive: return TEXT("SaveActive");
+	case EPackageState::SaveStalledRetracted: return TEXT("SaveStalledRetracted");
+	case EPackageState::SaveStalledAssignedToWorker: return TEXT("SaveStalledAssignedToWorker");
 	default: return TEXT("Invalid");
 	}
 }

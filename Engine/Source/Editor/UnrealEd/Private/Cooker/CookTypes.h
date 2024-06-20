@@ -197,14 +197,27 @@ namespace UE::Cook
 		 */
 		LoadReady,
 		/** The Package is in the SaveQueue; it has been fully loaded and some target data may have been calculated. */
-		Save,
+		SaveActive,
+		/**
+		 * The Package is in the SaveStalled Set. It might have Saving data, but it has been retracted by the CookDirector
+		 * and has not yet completed save elsewhere. It will stay in this stalled state until the CookDirector reassigns
+		 * it back to this worker or reports that its save was completed elsewhere.
+		 */
+		SaveStalledRetracted,
+		/**
+		 * The Package is in the SaveStalled Set. We are on the CookDirector and the package was previously assigned
+		 * locally for saving on the Director, but we retracted it from saving locally and assigned it to a remote
+		 * CookWorker. It will stay in this stalled state until COTFS.Director reassigns it back for local saving or a
+		 * worker reports that it finished saving.
+		 */
+		SaveStalledAssignedToWorker,
 
 		Min = Idle,
-		Max = Save,
+		Max = SaveStalledAssignedToWorker,
 		/** Number of values in this enum, not a valid value for any EPackageState variable. */
 		Count = Max + 1,
 		/** Number of bits required to store a valid EPackageState */
-		BitCount = 3,
+		BitCount = FPlatformMath::ConstExprCeilLogTwo(Count),
 	};
 	const TCHAR* LexToString(UE::Cook::EPackageState State);
 
@@ -216,13 +229,15 @@ namespace UE::Cook
 		/** The package is in one of the loading states and has preload data. */
 		Loading		= 0x2,
 		/**
-		 * The package has progressed past the loading state, and the UPackage pointer is available on the
-		 * FPackageData.
+		 * The package is in one of the saving states and has access to saving-only data. The UPackage pointer on
+		 * the FPackageData is non-null.
 		 */
-		HasPackage	= 0x4,
+		Saving		= 0x4,
+		/** The package is assigned to a remote worker, and here on the director it is in a stalled state. */
+		AssignedToWorkerProperty = 0x8,
 
 		Min = InProgress,
-		Max = HasPackage
+		Max = AssignedToWorkerProperty,
 	};
 	ENUM_CLASS_FLAGS(EPackageStateProperty);
 

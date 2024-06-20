@@ -1542,7 +1542,7 @@ void FGenerationHelper::PostGarbageCollect(const TRefCountPtr<FGenerationHelper>
 	bCurrentGCHasKeptGeneratorKeepPackages = false;
 
 	FPackageData& Owner = GetOwner();
-	if (Owner.GetState() == EPackageState::Save)
+	if (Owner.IsInStateProperty(EPackageStateProperty::Saving))
 	{
 		// UCookOnTheFlyServer::PreGarbageCollect adds references for the Generator package and all its public
 		// objects, so it should still be loaded

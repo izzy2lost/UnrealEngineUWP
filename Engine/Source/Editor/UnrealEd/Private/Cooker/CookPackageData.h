@@ -763,15 +763,21 @@ private:
 	void OnExitLoadPrepare();
 	void OnEnterLoadReady();
 	void OnExitLoadReady();
-	void OnEnterSave();
-	void OnExitSave(EStateChangeReason ReleaseSaveReason, EPackageState NewState);
+	void OnEnterSaveActive();
+	void OnExitSaveActive();
+	void OnEnterSaveStalledRetracted();
+	void OnExitSaveStalledRetracted();
+	void OnEnterSaveStalledAssignedToWorker();
+	void OnExitSaveStalledAssignedToWorker();
 	/* Entry/Exit gates for Properties shared between multiple states */
 	void OnExitInProgress();
 	void OnEnterInProgress();
 	void OnExitLoading();
 	void OnEnterLoading();
-	void OnExitHasPackage();
-	void OnEnterHasPackage();
+	void OnExitSaving(EStateChangeReason ReleaseSaveReason, EPackageState NewState);
+	void OnEnterSaving();
+	void OnExitAssignedToWorkerProperty();
+	void OnEnterAssignedToWorkerProperty();
 
 	void OnPackageDataFirstMarkedReachable(FInstigator&& InInstigator);
 
@@ -1118,23 +1124,26 @@ public:
 	FRequestQueue& GetRequestQueue();
 
 	/** Return the Set that holds unordered all PackageDatas that are in the AssignedToWorker state. */
-	TFastPointerSet<FPackageData*>& GetAssignedToWorkerSet() { return AssignedToWorkerSet; }
+	TFastPointerSet<FPackageData*>& GetAssignedToWorkerSet();
 
 	/**
 	 * Return the LoadPrepareQueue used by the CookOnTheFlyServer. The LoadPrepareQueue is the dependency-ordered
 	 * list of FPackageData that need to be preloaded before they can be loaded.
 	 */
-	FLoadPrepareQueue& GetLoadPrepareQueue() { return LoadPrepareQueue; }
+	FLoadPrepareQueue& GetLoadPrepareQueue();
 	/**
 	 * Return the LoadReadyQueue used by the CookOnTheFlyServer. The LoadReadyQueue is the dependency-ordered list
 	 * of PackageData that need to be loaded.
 	 */
-	FPackageDataQueue& GetLoadReadyQueue() { return LoadReadyQueue; }
+	FPackageDataQueue& GetLoadReadyQueue();
 	/**
 	 * Return the SaveQueue used by the CookOnTheFlyServer. The SaveQueue is the performance-sorted list of
 	 * PackageData that have been loaded and need to start or are only part way through saving.
 	 */
 	FPackageDataQueue& GetSaveQueue();
+
+	/** Return the Set that holds unordered all PackageDatas that are in one of the SaveStalled states. */
+	TFastPointerSet<FPackageData*>& GetSaveStalledSet();
 
 	/**
 	Return the PackageData for the given PackageName and FileName; no validation is done on the names.
@@ -1352,6 +1361,7 @@ private:
 	int32 PendingCookedPlatformDataNum = 0;
 	FRequestQueue RequestQueue;
 	TFastPointerSet<FPackageData*> AssignedToWorkerSet;
+	TFastPointerSet<FPackageData*> SaveStalledSet;
 	FLoadPrepareQueue LoadPrepareQueue;
 	FPackageDataQueue LoadReadyQueue;
 	FPackageDataQueue SaveQueue;
@@ -1391,6 +1401,12 @@ struct FPoppedPackageDataScope
 #endif
 };
 
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+
 template<typename CallbackType>
 inline void FPackageDatas::UpdateThreadsafePackageData(FName PackageName, CallbackType&& Callback)
 {
@@ -1410,6 +1426,46 @@ inline TOptional<FThreadsafePackageData> FPackageDatas::FindThreadsafePackageDat
 	FReadScopeLock ExistenceReadLock(ExistenceLock);
 	FThreadsafePackageData* Value = ThreadsafePackageDatas.Find(PackageName);
 	return Value ? TOptional<FThreadsafePackageData>(*Value) : TOptional<FThreadsafePackageData>();
+}
+
+inline FPackageDataMonitor& FPackageDatas::GetMonitor()
+{
+	return Monitor;
+}
+
+inline UCookOnTheFlyServer& FPackageDatas::GetCookOnTheFlyServer()
+{
+	return CookOnTheFlyServer;
+}
+
+inline FRequestQueue& FPackageDatas::GetRequestQueue()
+{
+	return RequestQueue;
+}
+
+inline TFastPointerSet<FPackageData*>& FPackageDatas::GetAssignedToWorkerSet()
+{
+	return AssignedToWorkerSet;
+}
+
+inline FLoadPrepareQueue& FPackageDatas::GetLoadPrepareQueue()
+{
+	return LoadPrepareQueue;
+}
+
+inline FPackageDataQueue& FPackageDatas::GetLoadReadyQueue()
+{
+	return LoadReadyQueue;
+}
+
+inline TFastPointerSet<FPackageData*>& FPackageDatas::GetSaveStalledSet()
+{
+	return SaveStalledSet;
+}
+
+inline FPackageDataQueue& FPackageDatas::GetSaveQueue()
+{
+	return SaveQueue;
 }
 
 template <typename ArrayType>

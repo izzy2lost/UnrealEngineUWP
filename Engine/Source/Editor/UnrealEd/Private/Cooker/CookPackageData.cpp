@@ -591,7 +591,7 @@ struct FStateProperties
 			Properties = EPackageStateProperty::InProgress;
 			break;
 		case EPackageState::AssignedToWorker:
-			Properties = EPackageStateProperty::InProgress;
+			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::AssignedToWorkerProperty;
 			break;
 		case EPackageState::LoadPrepare:
 			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::Loading;
@@ -599,9 +599,15 @@ struct FStateProperties
 		case EPackageState::LoadReady:
 			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::Loading;
 			break;
-		// TODO_SaveQueue: When we add state PrepareForSave, it will also have bHasPackage = true, 
-		case EPackageState::Save:
-			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::HasPackage;
+		case EPackageState::SaveActive:
+			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::Saving;
+			break;
+		case EPackageState::SaveStalledRetracted:
+			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::Saving;
+			break;
+		case EPackageState::SaveStalledAssignedToWorker:
+			Properties = EPackageStateProperty::InProgress | EPackageStateProperty::Saving
+				| EPackageStateProperty::AssignedToWorkerProperty;
 			break;
 		default:
 			check(false);
@@ -647,12 +653,26 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 		}
 		OnExitLoadReady();
 		break;
-	case EPackageState::Save:
+	case EPackageState::SaveActive:
 		if (!!(SendFlags & ESendFlags::QueueRemove))
 		{
 			ensure(PackageDatas.GetSaveQueue().Remove(this) == 1);
 		}
-		OnExitSave(ReleaseSaveReason, NextState);
+		OnExitSaveActive();
+		break;
+	case EPackageState::SaveStalledRetracted:
+		if (!!(SendFlags & ESendFlags::QueueRemove))
+		{
+			ensure(PackageDatas.GetSaveStalledSet().Remove(this) == 1);
+		}
+		OnExitSaveStalledRetracted();
+		break;
+	case EPackageState::SaveStalledAssignedToWorker:
+		if (!!(SendFlags & ESendFlags::QueueRemove))
+		{
+			ensure(PackageDatas.GetSaveStalledSet().Remove(this) == 1);
+		}
+		OnExitSaveStalledAssignedToWorker();
 		break;
 	default:
 		check(false);
@@ -679,8 +699,11 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 			case EPackageStateProperty::Loading:
 				OnExitLoading();
 				break;
-			case EPackageStateProperty::HasPackage:
-				OnExitHasPackage();
+			case EPackageStateProperty::Saving:
+				OnExitSaving(ReleaseSaveReason, NextState);
+				break;
+			case EPackageStateProperty::AssignedToWorkerProperty:
+				OnExitAssignedToWorkerProperty();
 				break;
 			default:
 				check(false);
@@ -703,8 +726,11 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 			case EPackageStateProperty::Loading:
 				OnEnterLoading();
 				break;
-			case EPackageStateProperty::HasPackage:
-				OnEnterHasPackage();
+			case EPackageStateProperty::Saving:
+				OnEnterSaving();
+				break;
+			case EPackageStateProperty::AssignedToWorkerProperty:
+				OnEnterAssignedToWorkerProperty();
 				break;
 			default:
 				check(false);
@@ -762,8 +788,8 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 			}
 		}
 		break;
-	case EPackageState::Save:
-		OnEnterSave();
+	case EPackageState::SaveActive:
+		OnEnterSaveActive();
 		if (((SendFlags & ESendFlags::QueueAdd) != ESendFlags::QueueNone))
 		{
 			if (GetIsUrgent())
@@ -774,6 +800,20 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 			{
 				PackageDatas.GetSaveQueue().Add(this);
 			}
+		}
+		break;
+	case EPackageState::SaveStalledRetracted:
+		OnEnterSaveStalledRetracted();
+		if (((SendFlags & ESendFlags::QueueAdd) != ESendFlags::QueueNone))
+		{
+			PackageDatas.GetSaveStalledSet().Add(this);
+		}
+		break;
+	case EPackageState::SaveStalledAssignedToWorker:
+		OnEnterSaveStalledAssignedToWorker();
+		if (((SendFlags & ESendFlags::QueueAdd) != ESendFlags::QueueNone))
+		{
+			PackageDatas.GetSaveStalledSet().Add(this);
 		}
 		break;
 	default:
@@ -802,10 +842,16 @@ void FPackageData::CheckInContainer() const
 	case EPackageState::LoadReady:
 		check(Algo::Find(PackageDatas.GetLoadReadyQueue(), this) != nullptr);
 		break;
-	case EPackageState::Save:
+	case EPackageState::SaveActive:
 		// The save queue is huge and often pushed at end. Check last element first and then scan.
 		check(PackageDatas.GetSaveQueue().Num() && (PackageDatas.GetSaveQueue().Last() == this
 			|| Algo::Find(PackageDatas.GetSaveQueue(), this)));
+		break;
+	case EPackageState::SaveStalledRetracted:
+		check(PackageDatas.GetSaveStalledSet().Contains(this));
+		break;
+	case EPackageState::SaveStalledAssignedToWorker:
+		check(PackageDatas.GetSaveStalledSet().Contains(this));
 		break;
 	default:
 		check(false);
@@ -869,9 +915,9 @@ void FPackageData::SetWorkerAssignment(FWorkerId InWorkerAssignment, ESendFlags 
 	{
 		if (InWorkerAssignment.IsValid())
 		{
-			checkf(GetState() == EPackageState::AssignedToWorker,
-				TEXT("Package %s is being assigned to worker %d while in a state other than AssignedToWorker. This is invalid."),
-				*GetPackageName().ToString(), GetWorkerAssignment().GetRemoteIndex());
+			checkf(IsInStateProperty(EPackageStateProperty::AssignedToWorkerProperty),
+				TEXT("Package %s is being assigned to worker %d while in state %s, which is not an AssignedToWorker state. This is invalid."),
+				*GetPackageName().ToString(), GetWorkerAssignment().GetRemoteIndex(), LexToString(GetState()));
 		}
 		WorkerAssignment = InWorkerAssignment;
 	}
@@ -879,7 +925,6 @@ void FPackageData::SetWorkerAssignment(FWorkerId InWorkerAssignment, ESendFlags 
 
 void FPackageData::OnExitAssignedToWorker()
 {
-	SetWorkerAssignment(FWorkerId::Invalid());
 }
 
 void FPackageData::OnEnterLoadPrepare()
@@ -898,21 +943,28 @@ void FPackageData::OnExitLoadReady()
 {
 }
 
-void FPackageData::OnEnterSave()
+void FPackageData::OnEnterSaveActive()
 {
-	check(GetPackage() != nullptr && GetPackage()->IsFullyLoaded());
-
-	check(!HasPrepareSaveFailed());
-	CheckObjectCacheEmpty();
-	CheckCookedPlatformDataEmpty();
 }
 
-void FPackageData::OnExitSave(EStateChangeReason ReleaseSaveReason, EPackageState NewState)
+void FPackageData::OnExitSaveActive()
 {
-	PackageDatas.GetCookOnTheFlyServer().ReleaseCookedPlatformData(*this, ReleaseSaveReason, NewState);
-	ClearObjectCache();
-	SetHasPrepareSaveFailed(false);
-	SetIsPrepareSaveRequiresGC(false);
+}
+
+void FPackageData::OnEnterSaveStalledRetracted()
+{
+}
+
+void FPackageData::OnExitSaveStalledRetracted()
+{
+}
+
+void FPackageData::OnEnterSaveStalledAssignedToWorker()
+{
+}
+
+void FPackageData::OnExitSaveStalledAssignedToWorker()
+{
 }
 
 void FPackageData::OnEnterInProgress()
@@ -947,12 +999,21 @@ void FPackageData::OnExitLoading()
 	ClearPreload();
 }
 
-void FPackageData::OnEnterHasPackage()
+void FPackageData::OnEnterSaving()
 {
+	check(GetPackage() != nullptr && GetPackage()->IsFullyLoaded());
+
+	check(!HasPrepareSaveFailed());
+	CheckObjectCacheEmpty();
+	CheckCookedPlatformDataEmpty();
 }
 
-void FPackageData::OnExitHasPackage()
+void FPackageData::OnExitSaving(EStateChangeReason ReleaseSaveReason, EPackageState NewState)
 {
+	PackageDatas.GetCookOnTheFlyServer().ReleaseCookedPlatformData(*this, ReleaseSaveReason, NewState);
+	ClearObjectCache();
+	SetHasPrepareSaveFailed(false);
+	SetIsPrepareSaveRequiresGC(false);
 	SetPackage(nullptr);
 }
 
@@ -962,6 +1023,15 @@ void FPackageData::OnPackageDataFirstMarkedReachable(FInstigator&& InInstigator)
 	Instigator = MoveTemp(InInstigator);
 	PackageDatas.DebugInstigator(*this);
 	PackageDatas.UpdateThreadsafePackageData(*this);
+}
+
+void FPackageData::OnEnterAssignedToWorkerProperty()
+{
+}
+
+void FPackageData::OnExitAssignedToWorkerProperty()
+{
+	SetWorkerAssignment(FWorkerId::Invalid());
 }
 
 void FPackageData::SetState(EPackageState NextState)
@@ -1457,7 +1527,7 @@ void FPackageData::RemapTargetPlatforms(const TMap<ITargetPlatform*, ITargetPlat
 void FPackageData::UpdateSaveAfterGarbageCollect(bool& bOutDemote)
 {
 	bOutDemote = false;
-	if (GetState() != EPackageState::Save)
+	if (!IsInStateProperty(EPackageStateProperty::Saving))
 	{
 		return;
 	}
@@ -1989,8 +2059,10 @@ void FPackageDataMonitor::OnStateChanged(FPackageData& PackageData, EPackageStat
 		TrackCookLastRequests(OldState, -1);
 		TrackCookLastRequests(NewState, 1);
 	}
-	bool bOldStateAssignedToLocal = OldState != EPackageState::Idle && OldState != EPackageState::AssignedToWorker;
-	bool bNewStateAssignedToLocal = NewState != EPackageState::Idle && NewState != EPackageState::AssignedToWorker;
+	bool bOldStateAssignedToLocal = OldState != EPackageState::Idle &&
+		!EnumHasAnyFlags(FStateProperties(OldState).Properties, EPackageStateProperty::AssignedToWorkerProperty);
+	bool bNewStateAssignedToLocal = NewState != EPackageState::Idle &&
+		!EnumHasAnyFlags(FStateProperties(NewState).Properties, EPackageStateProperty::AssignedToWorkerProperty);
 	if (bOldStateAssignedToLocal != bNewStateAssignedToLocal)
 	{
 		++(bNewStateAssignedToLocal ? MPCookAssignedFenceMarker : MPCookRetiredFenceMarker);
@@ -2081,26 +2153,6 @@ FString FPackageDatas::GetReferencerName() const
 void FPackageDatas::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	return CookOnTheFlyServer.CookerAddReferencedObjects(Collector);
-}
-
-FPackageDataMonitor& FPackageDatas::GetMonitor()
-{
-	return Monitor;
-}
-
-UCookOnTheFlyServer& FPackageDatas::GetCookOnTheFlyServer()
-{
-	return CookOnTheFlyServer;
-}
-
-FRequestQueue& FPackageDatas::GetRequestQueue()
-{
-	return RequestQueue;
-}
-
-FPackageDataQueue& FPackageDatas::GetSaveQueue()
-{
-	return SaveQueue;
 }
 
 FPackageData& FPackageDatas::FindOrAddPackageData(const FName& PackageName, const FName& NormalizedFileName)
@@ -2547,6 +2599,8 @@ void FPackageDatas::Clear()
 	PendingCookedPlatformDataLists.Empty(); // These destructors will read/write PackageDatas
 	RequestQueue.Empty();
 	SaveQueue.Empty();
+	AssignedToWorkerSet.Empty();
+	SaveStalledSet.Empty();
 	PackageNameToPackageData.Empty();
 	FileNameToPackageData.Empty();
 	CachedCookedPlatformDataObjects.Empty();

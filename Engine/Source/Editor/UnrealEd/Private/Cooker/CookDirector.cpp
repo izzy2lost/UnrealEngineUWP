@@ -248,11 +248,14 @@ FCookDirector::~FCookDirector()
 	}
 	for (FPackageData* PackageData : AbortedAssignments)
 	{
-		// Packages that were assigned to workers should be in the AssignedToWorker state
+		// Packages that were assigned to workers should be in an AssignedToWorker state and
+		// therefore should be InProgress.
 		check(PackageData->IsInProgress());
 		PackageData->SetWorkerAssignment(FWorkerId::Invalid(), ESendFlags::QueueNone);
-		PackageData->SendToState(UE::Cook::EPackageState::Request, ESendFlags::QueueAddAndRemove,
-			EStateChangeReason::CookerShutdown);
+		EPackageState NewState = PackageData->IsInStateProperty(EPackageStateProperty::Saving)
+			? EPackageState::SaveActive
+			: EPackageState::Request;
+		PackageData->SendToState(NewState, ESendFlags::QueueAddAndRemove, EStateChangeReason::CookerShutdown);
 	}
 	RemoteWorkers.Empty();
 	RemoteWorkerProfileDatas.Empty();
@@ -720,8 +723,28 @@ void FCookDirector::TickFromSchedulerThread()
 		RetractionHandler->TickFromSchedulerThread(bAllWorkersConnected, bAnyIdle, BusiestNumAssignments);
 	}
 
-	bool bIsStalled = bLocalWorkerIdle && !COTFS.PackageDatas->GetAssignedToWorkerSet().IsEmpty()
-		&& WorkersWithMessage.IsEmpty();
+	bool bIsStalled = bLocalWorkerIdle && WorkersWithMessage.IsEmpty();
+	if (bIsStalled)
+	{
+		// We are only stalled if we have no local work to do and there is a remote worker with assigned work. If no
+		// worker has assigned work then we are done with the cook rather than stalled.
+		bool bRemoteWorkerHasWork = !COTFS.PackageDatas->GetAssignedToWorkerSet().IsEmpty();
+		if (!bRemoteWorkerHasWork)
+		{
+			// Do the slow check to see whether we have a package in the SaveStalledAssignedToWorker state only if
+			// we have to
+			for (FPackageData* PackageData : COTFS.PackageDatas->GetSaveStalledSet())
+			{
+				if (PackageData->GetState() == EPackageState::SaveStalledAssignedToWorker)
+				{
+					bRemoteWorkerHasWork = true;
+					break;
+				}
+			}
+		}
+		bIsStalled = bIsStalled && bRemoteWorkerHasWork;
+	}
+
 	{
 		bReceivingMessages = true;
 		for (TRefCountPtr<FCookWorkerServer>& Worker : WorkersWithMessage)
@@ -1635,11 +1658,13 @@ void FCookDirector::ReassignAbortedPackages(TArray<FPackageData*>& PackagesToRea
 {
 	for (FPackageData* PackageData : PackagesToReassign)
 	{
-		// Packages that were assigned to a worker should be in the AssignedToWorker state
+		// Packages that were assigned to a worker should be in the AssignedToWorker state and therefore in progress.
 		check(PackageData->IsInProgress());
 		PackageData->SetWorkerAssignment(FWorkerId::Invalid());
-		PackageData->SendToState(UE::Cook::EPackageState::Request, ESendFlags::QueueAddAndRemove,
-			EStateChangeReason::ReassignAbortedPackages);
+		EPackageState NewState = PackageData->IsInStateProperty(EPackageStateProperty::Saving)
+			? EPackageState::SaveActive
+			: EPackageState::Request;
+		PackageData->SendToState(NewState, ESendFlags::QueueAddAndRemove, EStateChangeReason::ReassignAbortedPackages);
 	}
 	PackagesToReassign.Empty();
 }
@@ -2127,8 +2152,10 @@ FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker,
 		}
 		else
 		{
-			PackageData->SendToState(EPackageState::AssignedToWorker, ESendFlags::QueueAdd,
-				EStateChangeReason::Retraction);
+			EPackageState NewState = PackageData->IsInStateProperty(EPackageStateProperty::Saving)
+				? EPackageState::SaveStalledAssignedToWorker
+				: EPackageState::AssignedToWorker;
+			PackageData->SendToState(NewState, ESendFlags::QueueAdd, EStateChangeReason::Retraction);
 			PackageData->SetWorkerAssignment(Assignment);
 		}
 	}
