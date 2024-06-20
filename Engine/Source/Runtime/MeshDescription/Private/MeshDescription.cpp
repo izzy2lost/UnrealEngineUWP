@@ -13,7 +13,6 @@
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/NameAsStringProxyArchive.h"
 #include "UObject/EnterpriseObjectVersion.h"
-#include "UObject/UE5CookerObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshDescription)

@@ -10,7 +10,7 @@
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "Internationalization/LocKeyFuncs.h"
-#include "UObject/UE5LWCRenderingStreamObjectVersion.h"
+#include "UObject/NaniteResearchStreamObjectVersion.h"
 #include "Materials/MaterialExpressionChannelMaskParameterColor.h"
 #include "UObject/UObjectAnnotation.h"
 #include "RenderUtils.h"
@@ -14739,7 +14739,7 @@ void UMaterialExpressionCustom::Serialize(FStructuredArchive::FRecord Record)
 
 	UnderlyingArchive.UsingCustomVersion(FRenderingObjectVersion::GUID);
 	UnderlyingArchive.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
-	UnderlyingArchive.UsingCustomVersion(FUE5LWCRenderingStreamObjectVersion::GUID);
+	UnderlyingArchive.UsingCustomVersion(FNaniteResearchStreamObjectVersion::GUID);
 
 	// Make a copy of the current code before we change it
 	const FString PreFixUp = Code;
@@ -14854,7 +14854,7 @@ void UMaterialExpressionCustom::Serialize(FStructuredArchive::FRecord Record)
 		}
 	}
 
-	if (UnderlyingArchive.CustomVer(FUE5LWCRenderingStreamObjectVersion::GUID) < FUE5LWCRenderingStreamObjectVersion::LWCTypesInShaders)
+	if (UnderlyingArchive.CustomVer(FNaniteResearchStreamObjectVersion::GUID) < FNaniteResearchStreamObjectVersion::LWCTypesInShaders)
 	{
 		static const TCHAR* UniformMembers[] =
 		{
@@ -15125,7 +15125,7 @@ void UMaterialExpressionSwitch::Serialize(FStructuredArchive::FRecord Record)
 
 	UnderlyingArchive.UsingCustomVersion(FRenderingObjectVersion::GUID);
 	UnderlyingArchive.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
-	UnderlyingArchive.UsingCustomVersion(FUE5LWCRenderingStreamObjectVersion::GUID);
+	UnderlyingArchive.UsingCustomVersion(FNaniteResearchStreamObjectVersion::GUID);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

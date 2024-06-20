@@ -1,27 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreTypes.h"
-#include "Misc/Guid.h"
+#include "Misc/CoreMiscDefines.h"
 
-// Custom serialization version for changes made in //UE5/Main stream
-struct FUE5LWCRenderingStreamObjectVersion
-{
-	enum Type
-	{
-		// Before any version changes were made
-		BeforeCustomVersionWasAdded = 0,
+UE_DEPRECATED_HEADER(5.5, "Use NaniteResearchStreamObjectVersion.h instead of UE5LWCRenderingStreamObjectVersion.h.")
 
-		// Various global shader values converted to LWC types
-		LWCTypesInShaders,
+#include "UObject/NaniteResearchStreamObjectVersion.h"
 
-		// -----<new versions can be added above this line>-------------------------------------------------
-		VersionPlusOne,
-		LatestVersion = VersionPlusOne - 1
-	};
-
-	// The GUID for this custom version number
-	CORE_API const static FGuid GUID;
-
-	FUE5LWCRenderingStreamObjectVersion() = delete;
-};
+UE_DEPRECATED(5.5, "FUE5LWCRenderingStreamObjectVersion has been repurposed, use FNaniteResearchStreamObjectVersion instead")
+typedef FNaniteResearchStreamObjectVersion FUE5LWCRenderingStreamObjectVersion;

@@ -4,16 +4,17 @@
 #include "CoreTypes.h"
 #include "Misc/Guid.h"
 
-// Custom serialization version for changes made in the UE5 Dev-Cooker stream
-struct FUE5CookerObjectVersion
+struct FNaniteResearchStreamObjectVersion
 {
 	enum Type
 	{
 		// Before any version changes were made
 		BeforeCustomVersionWasAdded = 0,
-		
-		// -----<new versions can be added above this line>-------------------------------------------------
 
+		// Various global shader values converted to LWC types
+		LWCTypesInShaders,
+
+		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
 	};
@@ -21,6 +22,7 @@ struct FUE5CookerObjectVersion
 	// The GUID for this custom version number
 	CORE_API const static FGuid GUID;
 
-private:
-	FUE5CookerObjectVersion() {}
+	static CORE_API TMap<FGuid, FGuid> GetSystemGuids();
+
+	FNaniteResearchStreamObjectVersion() = delete;
 };
