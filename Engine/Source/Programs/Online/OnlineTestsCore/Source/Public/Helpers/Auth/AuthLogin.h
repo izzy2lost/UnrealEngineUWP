@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
+
 #include "CoreMinimal.h"
 #include "TestDriver.h"
 #include "TestHarness.h"
+#include "AsyncTestStep.h"
 
 #include "Online/AuthCommon.h"
 #include "Online/OnlineAsyncOp.h"
@@ -10,51 +12,33 @@
 #include "Online/OnlineServicesCommon.h"
 #include "OnlineCatchHelper.h"
 
-using namespace UE::Online;
-
-struct FAuthLoginStep : public FTestPipeline::FStep
+struct FAuthLoginStep : public FAsyncTestStep
 {
 	FAuthLoginStep(UE::Online::FAuthLogin::Params&& InLocalAccount)
 		: LocalAccount(MoveTemp(InLocalAccount))
 	{
 	}
 
-	virtual ~FAuthLoginStep()
+	virtual ~FAuthLoginStep() = default;
+
+	virtual void Run(FAsyncStepResult Promise, SubsystemType Services) override
 	{
-		if (OnlineAuthPtr != nullptr)
+		OnlineAuthPtr = Services->GetAuthInterface();
+		REQUIRE(OnlineAuthPtr);
+
+		FPlatformUserId PlatformUserId = LocalAccount.PlatformUserId;
+
+		TOnlineResult<FAuthGetLocalOnlineUserByPlatformUserId> LocalOnlineUserResult = OnlineAuthPtr->GetLocalOnlineUserByPlatformUserId({PlatformUserId});
+		if (LocalOnlineUserResult.IsOk() && LocalOnlineUserResult.GetOkValue().AccountInfo->LoginStatus == UE::Online::ELoginStatus::LoggedIn)
 		{
-			OnlineAuthPtr = nullptr;
+			Promise->SetValue(true);
 		}
-	};
-
-	enum class EState { Init, LoginCalled, Done } State = EState::Init;
-
-
-	virtual EContinuance Tick(SubsystemType OnlineSubsystem) override
-	{
-		OnlineAuthPtr = OnlineSubsystem->GetAuthInterface();
-
-		switch (State)
+		else
 		{
-		case EState::Init:
-		{
-			State = EState::LoginCalled;
-
-			FPlatformUserId PlatformUserId = LocalAccount.PlatformUserId;
-
-			TOnlineResult<FAuthGetLocalOnlineUserByPlatformUserId> LocalOnlineUserResult = OnlineAuthPtr->GetLocalOnlineUserByPlatformUserId({PlatformUserId});
-			if (LocalOnlineUserResult.IsOk() && LocalOnlineUserResult.GetOkValue().AccountInfo->LoginStatus == UE::Online::ELoginStatus::LoggedIn)
-			{
-				State = EState::Done;
-			}
-			else
-			{
-				OnlineAuthPtr->Login(MoveTemp(LocalAccount))
-				 .OnComplete([this, PlatformUserId](const TOnlineResult<FAuthLogin> Op) mutable
+			OnlineAuthPtr->Login(MoveTemp(LocalAccount))
+				.OnComplete([this, PlatformUserId, Promise = MoveTemp(Promise)](const TOnlineResult<FAuthLogin> Op) mutable
 				{
-					CHECK(State == EState::LoginCalled);
 					CHECK_OP_EQ(Op, Errors::NotImplemented());
-
 					if(Op.IsOk())
 					{
 						CHECK_OP(OnlineAuthPtr->GetLocalOnlineUserByOnlineAccountId({Op.GetOkValue().AccountInfo->AccountId}));
@@ -66,28 +50,13 @@ struct FAuthLoginStep : public FTestPipeline::FStep
 						CHECK_OP(OnlineUserResult);
 					}
 
-					State = EState::Done;
+					Promise->SetValue(true);
 				});
-			}
-
-			break;
 		}
-		case EState::LoginCalled:
-		{
-			break;
-		}
-		case EState::Done:
-		{
-			return EContinuance::Done;
-		}
-		}
-
-		return EContinuance::ContinueStepping;
 	}
 
 protected:
 	int32 LocalUserNum = 0;
 	UE::Online::FAuthLogin::Params LocalAccount;
 	UE::Online::IAuthPtr OnlineAuthPtr = nullptr;
-	FDelegateHandle	OnLoginCompleteDelegateHandle;
 };

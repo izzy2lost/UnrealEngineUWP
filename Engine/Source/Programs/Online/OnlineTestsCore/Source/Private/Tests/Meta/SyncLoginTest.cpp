@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include <catch2/catch_test_macros.hpp>
 #include "OnlineCatchHelper.h"
 
 #define SYNCLOGIN_ERROR_TAG "[NULL][Meta][SyncLogin]"
@@ -11,7 +9,7 @@ SYNCLOGIN_ERROR_TEST_CASE("Confirm sync login is logging in before RunToCompleti
 {
 	FAccountId AccountId, AccountId2;
 
-	auto& PipeSave = GetLoginPipeline(AccountId, AccountId2);
+	auto& PipeSave = GetLoginPipeline({ AccountId, AccountId2 });
 	// Check is valid right after Pipeline call.
 	CHECK(AccountId.IsValid());
 	CHECK(AccountId2.IsValid());
@@ -39,7 +37,7 @@ SYNCLOGIN_ERROR_TEST_CASE("Confirm sync login is logging in before RunToCompleti
 	FAccountId AccountId, AccountId2, AccountId3, AccountId4, AccountId5;
 	bool bHasRun = false;
 
-	GetLoginPipeline(AccountId, AccountId2, AccountId3, AccountId4, AccountId5)
+	GetLoginPipeline({ AccountId, AccountId2, AccountId3, AccountId4, AccountId5 })
 		.EmplaceLambda([&](SubsystemType Type)
 		{
 				// Check valid during pipeline

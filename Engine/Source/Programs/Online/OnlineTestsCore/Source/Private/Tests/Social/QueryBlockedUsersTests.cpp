@@ -3,17 +3,13 @@
 #include "Helpers/Social/QueryBlockedUsersHelper.h"
 #include "Helpers/Auth/AuthLogout.h"
 
-#include "OnlineCatchHelper.h"
-
 #define SOCIAL_TAG "[suite_social]"
 #define EG_SOCIAL_QUERYBLOCKEDUSERSGDK_TAG SOCIAL_TAG "[queryblockedusers][.GDK]"
-#define EG_SOCIAL_DISABLED_TAG SOCIAL_TAG "[socialdisabled]"
+
 #define SOCIAL_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, SOCIAL_TAG __VA_ARGS__)
 
 SOCIAL_TEST_CASE("Verify that QueryBlockedUsers returns a error if call with an invalid local user account id", EG_SOCIAL_QUERYBLOCKEDUSERSGDK_TAG)
 {
-	const int32 NumUsersToLogin = 0;
-	
 	FQueryBlockedUsers::Params OpQueryParams;
 	FQueryBlockedUsersHelper::FHelperParams QueryBlockedUsersParams;
 	QueryBlockedUsersParams.OpParams = &OpQueryParams;
@@ -32,7 +28,7 @@ SOCIAL_TEST_CASE("Verify that QueryBlockedUsers returns a error if call with an 
 		QueryBlockedUsersParams.ExpectedError = TOnlineResult<FQueryBlockedUsers>(Errors::InvalidUser());
 	}
 	
-	GetLoginPipeline(NumUsersToLogin)
+	GetPipeline()
 		.EmplaceStep<FQueryBlockedUsersHelper>(MoveTemp(QueryBlockedUsersParams));
 	
 	RunToCompletion();

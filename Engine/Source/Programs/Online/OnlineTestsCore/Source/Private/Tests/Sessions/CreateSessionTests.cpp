@@ -2,7 +2,8 @@
 
 #include "Helpers/Sessions/CreateSessionHelper.h"
 #include "Helpers/Sessions/LeaveSessionHelper.h"
-#include "OnlineCatchHelper.h"
+#include "Logging/LogScopedVerbosityOverride.h"
+#include "Online/OnlineServicesLog.h"
 
 #define SESSIONS_TAG "[suite_sessions]"
 #define EG_SESSIONS_CREATESESSION_TAG SESSIONS_TAG "[createsession]"
@@ -12,16 +13,14 @@
 
 SESSIONS_TEST_CASE("If I call CreateSession with an invalid account id, I get an error", EG_SESSIONS_CREATESESSION_TAG)
 {
-	const int32 NumUsersToLogin = 0;
-
 	FCreateSession::Params OpCreateParams; 
 	FCreateSessionHelper::FHelperParams CreateSessionHelperParams;
 	CreateSessionHelperParams.OpParams = &OpCreateParams;
 	CreateSessionHelperParams.OpParams->LocalAccountId = FAccountId();
 	CreateSessionHelperParams.ExpectedError = TOnlineResult<FCreateSession>(Errors::InvalidParams());
 
-	GetLoginPipeline(NumUsersToLogin)
-	.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams));
+	GetPipeline()
+		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -36,7 +35,7 @@ SESSIONS_TEST_CASE("If I call CreateSession with an empty session name, I get an
 	CreateSessionHelperParams.OpParams->SessionName = TEXT("");
 	CreateSessionHelperParams.ExpectedError = TOnlineResult<FCreateSession>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -56,7 +55,7 @@ SESSIONS_TEST_CASE("If I call CreateSession with an empty schema name in setting
 	CreateSessionHelperParams.OpParams->SessionSettings.SchemaName = TEXT("");
 	CreateSessionHelperParams.ExpectedError = TOnlineResult<FCreateSession>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -77,7 +76,7 @@ SESSIONS_TEST_CASE("If I call CreateSession with an invalid max connections numb
 	CreateSessionHelperParams.OpParams->SessionSettings.NumMaxConnections = 0;
 	CreateSessionHelperParams.ExpectedError = TOnlineResult<FCreateSession>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -99,7 +98,7 @@ SESSIONS_TEST_CASE("If I call CreateSession with an empty custom setting name in
 	CreateSessionHelperParams.OpParams->SessionSettings.CustomSettings.Emplace(FName(), FCustomSessionSetting{ FSchemaVariant(false), ESchemaAttributeVisibility::Public });
 	CreateSessionHelperParams.ExpectedError = TOnlineResult<FCreateSession>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -110,8 +109,9 @@ SESSIONS_TEST_CASE("If I call CreateSession with an empty custom setting name in
 
 SESSIONS_TEST_CASE("If I call CreateSession with session override id less than 16 chars or more than 64, I get an error", EG_SESSIONS_CREATESESSIONEOS_TAG)
 {
-	ResetAccountStatus();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
 
+	int32 UserNumToLogin = 7;
 	FAccountId AccountId;
 
 	FCreateSession::Params OpFirstCreateParams;
@@ -134,7 +134,7 @@ SESSIONS_TEST_CASE("If I call CreateSession with session override id less than 1
 	SecondCreateSessionHelperParams.OpParams->SessionSettings.NumMaxConnections = 2;
 	SecondCreateSessionHelperParams.ExpectedError = TOnlineResult<FCreateSession>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
@@ -149,8 +149,8 @@ SESSIONS_TEST_CASE("If I call CreateSession with session override id less than 1
 SESSIONS_TEST_CASE("If I call CreateSession with an name already in use, I get an error", EG_SESSIONS_CREATESESSION_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
-
+	
+	int32 UserNumToLogin = 7;
 	FAccountId AccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -166,22 +166,34 @@ SESSIONS_TEST_CASE("If I call CreateSession with an name already in use, I get a
 	SecondCreateSessionHelperParams.OpParams = &OpCreateParams;
 	SecondCreateSessionHelperParams.ExpectedError = TOnlineResult<FCreateSession>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionNameInUse");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(FirstCreateSessionHelperParams))
-		.EmplaceStep<FCreateSessionHelper>(MoveTemp(SecondCreateSessionHelperParams));
+		.EmplaceStep<FCreateSessionHelper>(MoveTemp(SecondCreateSessionHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+
 
 	RunToCompletion();
 }
 
 SESSIONS_TEST_CASE("If I call CreateSession with the presence flag set after there is already a presence session, I get an error", EG_SESSIONS_CREATESESSION_TAG)
 {
-	DestroyCurrentServiceModule();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
 
+	DestroyCurrentServiceModule();
+	
+	int32 UserNumToLogin = 7;
 	FAccountId AccountId;
 
 	FCreateSession::Params OpFirstCreateParams;
@@ -207,7 +219,7 @@ SESSIONS_TEST_CASE("If I call CreateSession with the presence flag set after the
 	LeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionNamePresenceEnabled1");
 	LeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
@@ -235,12 +247,20 @@ SESSIONS_TEST_CASE("If I call CreateSession with valid data, the operation compl
 	CreateSessionHelperParams.OpParams->SessionSettings.NumMaxConnections = 2;
 	CreateSessionHelperParams.OpParams->bPresenceEnabled = true;
 	
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionNameValid");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
 	LoginPipeline
-		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams));
+		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -268,14 +288,22 @@ SESSIONS_TEST_CASE("If I call CreateSession twice for NULL, I get an error", EG_
 	SecondCreateSessionHelperParams.OpParams->SessionSettings.NumMaxConnections = 4;
 	SecondCreateSessionHelperParams.ExpectedError = TOnlineResult<FCreateSession>(Errors::AlreadyPending());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("CreateSessionTwiceName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(FirstCreateSessionHelperParams))
-		.EmplaceStep<FCreateSessionHelper>(MoveTemp(SecondCreateSessionHelperParams));
+		.EmplaceStep<FCreateSessionHelper>(MoveTemp(SecondCreateSessionHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }

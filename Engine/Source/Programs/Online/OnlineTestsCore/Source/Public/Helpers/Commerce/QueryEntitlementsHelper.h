@@ -6,10 +6,10 @@
 #include "AsyncTestStep.h"
 #include "OnlineCatchHelper.h"
 
-struct FCommerceQueryOffersHelper : public FAsyncTestStep
+struct FQueryEntitlementsHelper : public FAsyncTestStep
 {
-	using ParamsType = UE::Online::FCommerceQueryOffers::Params;
-	using ResultType = UE::Online::TOnlineResult<UE::Online::FCommerceQueryOffers>;
+	using ParamsType = UE::Online::FCommerceQueryEntitlements::Params;
+	using ResultType = UE::Online::TOnlineResult<UE::Online::FCommerceQueryEntitlements>;
 
 	struct FHelperParams
 	{
@@ -17,21 +17,21 @@ struct FCommerceQueryOffersHelper : public FAsyncTestStep
 		TOptional<ResultType> ExpectedError;
 	};
 
-	FCommerceQueryOffersHelper(FHelperParams&& InHelperParams)
+	FQueryEntitlementsHelper(FHelperParams&& InHelperParams)
 		: HelperParams(MoveTemp(InHelperParams))
 	{
 		REQUIRE(HelperParams.OpParams);
 		REQUIRE((!HelperParams.ExpectedError.IsSet() || HelperParams.ExpectedError->IsError()));
 	}
 
-	virtual ~FCommerceQueryOffersHelper() = default;
+	virtual ~FQueryEntitlementsHelper() = default;
 
 	virtual void Run(FAsyncStepResult Promise, SubsystemType Services) override
 	{
 		CommerceInterface = Services->GetCommerceInterface();
 		REQUIRE(CommerceInterface);
 
-		CommerceInterface->QueryOffers(MoveTemp(*HelperParams.OpParams))
+		CommerceInterface->QueryEntitlements(MoveTemp(*HelperParams.OpParams))
 			.OnComplete([this, Promise = MoveTemp(Promise)](const ResultType& Result)
 				{
 					if (!HelperParams.ExpectedError.IsSet())

@@ -5,26 +5,23 @@
 #include "Helpers/LambdaStep.h"
 #include "OnlineCatchHelper.h"
 
-
 #define ACHIEVEMENTS_TAG "[suite_achievements]"
 #define EG_ACHIEVEMENTS_GETACHIEVEMENTIDS_TAG ACHIEVEMENTS_TAG "[getachievementids]"
 
 #define ACHIEVEMENTS_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, ACHIEVEMENTS_TAG __VA_ARGS__)
 
-
 ACHIEVEMENTS_TEST_CASE("Get Achievement Ids (Invalid User)", EG_ACHIEVEMENTS_GETACHIEVEMENTIDS_TAG)
 {
-	int32 NumUsersToImplicitLogin = 0;
+	GetPipeline()
+		.EmplaceLambda([](SubsystemType OnlineSubsystem)
+			{
+				UE::Online::FGetAchievementIds::Params OpParams;
 
-	GetLoginPipeline(NumUsersToImplicitLogin).EmplaceLambda([](SubsystemType OnlineSubsystem)
-		{
-			UE::Online::FGetAchievementIds::Params OpParams;
-
-			UE::Online::IAchievementsPtr AchievementsInterface = OnlineSubsystem->GetAchievementsInterface();
-			UE::Online::TOnlineResult<UE::Online::FGetAchievementIds> Result = AchievementsInterface->GetAchievementIds(MoveTemp(OpParams));
-			REQUIRE(Result.IsError());
-			CHECK(Result.GetErrorValue() == UE::Online::Errors::InvalidUser());
-		});
+				UE::Online::IAchievementsPtr AchievementsInterface = OnlineSubsystem->GetAchievementsInterface();
+				UE::Online::TOnlineResult<UE::Online::FGetAchievementIds> Result = AchievementsInterface->GetAchievementIds(MoveTemp(OpParams));
+				REQUIRE(Result.IsError());
+				CHECK(Result.GetErrorValue() == UE::Online::Errors::InvalidUser());
+			});
 
 	RunToCompletion();
 }
@@ -35,7 +32,7 @@ ACHIEVEMENTS_TEST_CASE("Get Achievement Ids (Invalid State)", EG_ACHIEVEMENTS_GE
 
 	FAccountId AccountId;
 
-	auto& LoginPipeline = GetLoginPipeline(AccountId);
+	auto& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	UE::Online::FGetAchievementIds::Params OpParams;
 	OpParams.LocalAccountId = AccountId;
@@ -55,7 +52,7 @@ ACHIEVEMENTS_TEST_CASE("Get Achievement Ids (Success)", EG_ACHIEVEMENTS_GETACHIE
 {
 	FAccountId AccountId;
 
-	auto& LoginPipeline = GetLoginPipeline(AccountId);
+	auto& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;

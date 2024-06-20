@@ -3,16 +3,13 @@
 #include "Helpers/Social/GetBlockedUsersHelper.h"
 #include "Helpers/Auth/AuthLogout.h"
 
-#include "OnlineCatchHelper.h"
-
 #define SOCIAL_TAG "[suite_social]"
 #define EG_SOCIAL_GETBLOCKEDUSERSGDK_TAG SOCIAL_TAG "[getblockedusers][.GDK]"
-#define EG_SOCIAL_DISABLED_TAG SOCIAL_TAG "[socialdisabled]"
+
 #define SOCIAL_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, SOCIAL_TAG __VA_ARGS__)
 
 SOCIAL_TEST_CASE("Verify that GetBlockedUsers returns a error if call with an invalid local user account id", EG_SOCIAL_GETBLOCKEDUSERSGDK_TAG)
 {
-	const int32 NumUsersToLogin = 0;
 	FGetBlockedUsers::Params OpGetBlockedUsersParams;
 	FGetBlockedUsersHelper::FHelperParams GetBlockedUsersHelperParams;
 	GetBlockedUsersHelperParams.OpParams = &OpGetBlockedUsersParams;
@@ -31,7 +28,7 @@ SOCIAL_TEST_CASE("Verify that GetBlockedUsers returns a error if call with an in
 		GetBlockedUsersHelperParams.ExpectedError = TOnlineResult<FGetBlockedUsers>(Errors::InvalidUser());
 	}
 
-	GetLoginPipeline(NumUsersToLogin)
+	GetPipeline()
 		.EmplaceStep<FGetBlockedUsersHelper>(MoveTemp(GetBlockedUsersHelperParams));
 
 	RunToCompletion();
@@ -58,7 +55,7 @@ SOCIAL_TEST_CASE("Verify that GetBlockedUsers returns a fail message if there ar
 		GetBlockedUsersHelperParams.ExpectedError = TOnlineResult<FGetBlockedUsers>(Errors::InvalidUser());
 	}
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	GetBlockedUsersHelperParams.OpParams->LocalAccountId = AccountId;
 

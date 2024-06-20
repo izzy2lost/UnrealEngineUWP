@@ -6,9 +6,11 @@
 #include "Helpers/Sessions/AddRemoveSessionMemberHelper.h"
 #include "Helpers/Sessions/JoinSessionHelper.h"
 #include "Helpers/Sessions/UpdateSessionSettingsHelper.h"
+#include "Logging/LogScopedVerbosityOverride.h"
+#include "Online/OnlineServicesLog.h"
+#include "EOSShared.h"
 #include "Helpers/LambdaStep.h"
 #include "Helpers/TickForTime.h"
-#include "OnlineCatchHelper.h"
 
 #define SESSIONS_TAG "[suite_sessions]"
 #define EG_SESSIONS_JOINSESSIONS_TAG SESSIONS_TAG "[joinsession]"
@@ -23,7 +25,7 @@ SESSIONS_TEST_CASE("If I call JoinSession with an invalid account id, I get an e
 	JoinSessionHelperParams.OpParams->LocalAccountId = FAccountId();
 	JoinSessionHelperParams.ExpectedError = TOnlineResult<FJoinSession>(Errors::InvalidParams());
 
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceStep<FJoinSessionHelper>(MoveTemp(JoinSessionHelperParams));
 
 	RunToCompletion();
@@ -39,7 +41,7 @@ SESSIONS_TEST_CASE("If I call JoinSession with an invalid session id, I get an e
 	JoinSessionHelperParams.OpParams->SessionId = FOnlineSessionId();
 	JoinSessionHelperParams.ExpectedError = TOnlineResult<FJoinSession>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	JoinSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -51,9 +53,11 @@ SESSIONS_TEST_CASE("If I call JoinSession with an invalid session id, I get an e
 
 SESSIONS_TEST_CASE("If I call JoinSession with an empty session name, I get an error", EG_SESSIONS_JOINSESSIONS_TAG)
 {
-	DestroyCurrentServiceModule();
-	ResetAccountStatus();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
 
+	DestroyCurrentServiceModule();
+
+	int32 UserNumToLogin = 7;
 	FAccountId AccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -76,7 +80,7 @@ SESSIONS_TEST_CASE("If I call JoinSession with an empty session name, I get an e
 	JoinSessionHelperParams.OpParams = &OpJoinParams;
 	JoinSessionHelperParams.ExpectedError = TOnlineResult<FJoinSession>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	JoinSessionHelperParams.OpParams->LocalAccountId = AccountId;
@@ -100,9 +104,11 @@ SESSIONS_TEST_CASE("If I call JoinSession with an empty session name, I get an e
 
 SESSIONS_TEST_CASE("If I call JoinSession with an name already in use, I get an error", EG_SESSIONS_JOINSESSIONSEOS_TAG)
 {
-	DestroyCurrentServiceModule();
-	ResetAccountStatus();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
 
+	DestroyCurrentServiceModule();
+
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpFirstCreateParams;
@@ -159,7 +165,7 @@ SESSIONS_TEST_CASE("If I call JoinSession with an name already in use, I get an 
 	SecondLeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionNameInUseJoin1");
 	SecondLeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
@@ -215,8 +221,12 @@ SESSIONS_TEST_CASE("If I call JoinSession with an name already in use, I get an 
 
 SESSIONS_TEST_CASE("If I call JoinSession with a valid but unregistered session id, I get an error", EG_SESSIONS_JOINSESSIONSEOS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
+
 	DestroyCurrentServiceModule();
 
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -262,7 +272,7 @@ SESSIONS_TEST_CASE("If I call JoinSession with a valid but unregistered session 
 	SecondLeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionIdNotFoundJoinName");
 	SecondLeaveSessionHelperParams.ExpectedError = TOnlineResult<FLeaveSession>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
@@ -338,13 +348,20 @@ SESSIONS_TEST_CASE("If I call JoinSession for a session I'm already registered i
 	SecondJoinSessionHelperParams.OpParams->SessionName = TEXT("AlreadyInSessionJoinName3");
 	SecondJoinSessionHelperParams.ExpectedError = TOnlineResult<FJoinSession>(Errors::AccessDenied());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("AlreadyInSessionJoinName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	AddSessionMemberHelperParams.OpParams->LocalAccountId = SecondAccountId;
 
 	FirstJoinSessionHelperParams.OpParams->LocalAccountId = SecondAccountId;
 	SecondJoinSessionHelperParams.OpParams->LocalAccountId = SecondAccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	FindSessionsHelperParams.OpParams->LocalAccountId = SecondAccountId;
 
@@ -367,7 +384,8 @@ SESSIONS_TEST_CASE("If I call JoinSession for a session I'm already registered i
 		.EmplaceStep<FFindSessionsHelper>(MoveTemp(FindSessionsHelperParams), ExpectedSessionsFound)
 		.EmplaceStep<FJoinSessionHelper>(MoveTemp(FirstJoinSessionHelperParams))
 		.EmplaceStep<FAddSessionMemberHelper>(MoveTemp(AddSessionMemberHelperParams))
-		.EmplaceStep<FJoinSessionHelper>(MoveTemp(SecondJoinSessionHelperParams));
+		.EmplaceStep<FJoinSessionHelper>(MoveTemp(SecondJoinSessionHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -375,8 +393,8 @@ SESSIONS_TEST_CASE("If I call JoinSession for a session I'm already registered i
 SESSIONS_TEST_CASE("If I call JoinSession for a session that is not joinable, I get an error", EG_SESSIONS_JOINSESSIONSEOS_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -412,7 +430,7 @@ SESSIONS_TEST_CASE("If I call JoinSession for a session that is not joinable, I 
 	JoinSessionHelperParams.OpParams->SessionName = TEXT("SessionNotJoinableName1");
 	JoinSessionHelperParams.ExpectedError = TOnlineResult<FJoinSession>(Errors::AccessDenied());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	UpdateSessionSettingsHelperParams.OpParams->LocalAccountId = FirstAccountId;
@@ -471,7 +489,7 @@ SESSIONS_TEST_CASE("If I call JoinSession with presence enabled when there is al
 	JoinSessionHelperParams.OpParams->bPresenceEnabled = true;
 	JoinSessionHelperParams.ExpectedError = TOnlineResult<FJoinSession>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
@@ -523,7 +541,7 @@ SESSIONS_TEST_CASE("If I call JoinSession with valid information, the operation 
 	LeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionValidJoinName");
 	LeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	FindSessionsHelperParams.OpParams->LocalAccountId = SecondAccountId;

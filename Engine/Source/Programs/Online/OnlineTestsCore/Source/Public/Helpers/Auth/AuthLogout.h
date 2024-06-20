@@ -4,72 +4,56 @@
 #include "CoreMinimal.h"
 #include "TestDriver.h"
 #include "TestHarness.h"
+#include "AsyncTestStep.h"
 
 #include "Online/AuthCommon.h"
 #include "Online/OnlineAsyncOp.h"
 #include "Online/OnlineErrorDefinitions.h"
 #include "Online/OnlineServicesCommon.h"
 
-struct FAuthLogoutStep : public FTestPipeline::FStep
+struct FAuthLogoutStep : public FAsyncTestStep
 {
 	FAuthLogoutStep(FPlatformUserId InPlatformUserId)
 		: PlatformUserId(InPlatformUserId)
 	{}
 
-	virtual ~FAuthLogoutStep()
+	FAuthLogoutStep(TSharedPtr<FPlatformUserId>&& InPlatformUserIdPtr)
+		: PlatformUserIdPtr(MoveTemp(InPlatformUserIdPtr))
 	{
-		OnlineAuthPtr = nullptr;
-	};
+	}
 
+	virtual ~FAuthLogoutStep() = default;
 
-	enum class EState { Init, LogoutCalled, Done } State = EState::Init;
-
-
-	virtual EContinuance Tick(SubsystemType OnlineSubsystem) override
+	virtual void Run(FAsyncStepResult Promise, SubsystemType Services) override
 	{
-		OnlineAuthPtr = OnlineSubsystem->GetAuthInterface();
+		OnlineAuthPtr = Services->GetAuthInterface();
+		REQUIRE(OnlineAuthPtr);
 
-		switch (State)
+		if (PlatformUserIdPtr)
 		{
-		case EState::Init:
-		{
-			State = EState::LogoutCalled;
-			TOnlineResult<FAuthGetLocalOnlineUserByPlatformUserId> AccountId = OnlineAuthPtr->GetLocalOnlineUserByPlatformUserId({PlatformUserId});
-			CAPTURE(ToLogString(AccountId), PlatformUserId);
-			CHECK_OP(AccountId);
-			if(AccountId.IsOk())
-			{
-				OnlineAuthPtr->Logout({ AccountId.GetOkValue().AccountInfo->AccountId})
-					.OnComplete([this](const TOnlineResult<FAuthLogout> Op) mutable
-					{
-						CHECK(State == EState::LogoutCalled);
-						// Some implementations do not implement an explicit login / logout.
-						CHECK_OP_EQ(Op, Errors::NotImplemented());
+			PlatformUserId = *PlatformUserIdPtr;
+		}
+		
+		TOnlineResult<FAuthGetLocalOnlineUserByPlatformUserId> AccountId = OnlineAuthPtr->GetLocalOnlineUserByPlatformUserId({ PlatformUserId });
 
-						State = EState::Done;
-					});
-			}
-			else
-			{
-				State = EState::Done;
-			}
-
-			break;
-		}
-		case EState::LogoutCalled:
+		CAPTURE(ToLogString(AccountId), PlatformUserId);
+		CHECK_OP(AccountId);
+		if(AccountId.IsOk())
 		{
-			break;
+			OnlineAuthPtr->Logout({ AccountId.GetOkValue().AccountInfo->AccountId})
+				.OnComplete([this, Promise = MoveTemp(Promise)](const TOnlineResult<FAuthLogout> Op) mutable
+				{
+					CHECK_OP_EQ(Op, Errors::NotImplemented());
+					Promise->SetValue(true);
+				});
 		}
-		case EState::Done:
+		else
 		{
-			return EContinuance::Done;
+			Promise->SetValue(true);
 		}
-		}
-
-		return EContinuance::ContinueStepping;
 	}
 protected:
+	TSharedPtr<FPlatformUserId> PlatformUserIdPtr = nullptr;
 	FPlatformUserId PlatformUserId;
 	UE::Online::IAuthPtr OnlineAuthPtr = nullptr;
-	FDelegateHandle	OnLogoutCompleteDelegateHandle;
 };

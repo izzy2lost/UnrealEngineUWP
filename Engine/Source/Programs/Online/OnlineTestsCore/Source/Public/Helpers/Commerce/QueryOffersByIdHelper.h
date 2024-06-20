@@ -6,10 +6,10 @@
 #include "AsyncTestStep.h"
 #include "OnlineCatchHelper.h"
 
-struct FCommerceCheckoutHelper : public FAsyncTestStep
+struct FQueryOffersByIdHelper : public FAsyncTestStep
 {
-	using ParamsType = UE::Online::FCommerceCheckout::Params;
-	using ResultType = UE::Online::TOnlineResult<FCommerceCheckout>;
+	using ParamsType = UE::Online::FCommerceQueryOffersById::Params;
+	using ResultType = UE::Online::TOnlineResult<UE::Online::FCommerceQueryOffersById>;
 
 	struct FHelperParams
 	{
@@ -17,30 +17,30 @@ struct FCommerceCheckoutHelper : public FAsyncTestStep
 		TOptional<ResultType> ExpectedError;
 	};
 
-	FCommerceCheckoutHelper(FHelperParams&& InHelperParams)
+	FQueryOffersByIdHelper(FHelperParams&& InHelperParams)
 		: HelperParams(MoveTemp(InHelperParams))
 	{
 		REQUIRE(HelperParams.OpParams);
 		REQUIRE((!HelperParams.ExpectedError.IsSet() || HelperParams.ExpectedError->IsError()));
 	}
 
-	virtual ~FCommerceCheckoutHelper() = default;
+	virtual ~FQueryOffersByIdHelper() = default;
 
 	virtual void Run(FAsyncStepResult Promise, SubsystemType Services) override
 	{
 		CommerceInterface = Services->GetCommerceInterface();
 		REQUIRE(CommerceInterface);
 
-		UE::Online::TOnlineAsyncOpHandle<UE::Online::FCommerceCheckout> CheckoutResult = CommerceInterface->Checkout(MoveTemp(*HelperParams.OpParams))
+		CommerceInterface->QueryOffersById(MoveTemp(*HelperParams.OpParams))
 			.OnComplete([this, Promise = MoveTemp(Promise)](const ResultType& Result)
 				{
-					if (HelperParams.ExpectedError.IsSet())
+					if (!HelperParams.ExpectedError.IsSet())
 					{
-						REQUIRE_OP_EQ(Result, HelperParams.ExpectedError->GetErrorValue());
+						REQUIRE(Result.IsOk());
 					}
 					else
 					{
-						CHECK(Result.GetOkValue().TransactionId.IsSet());
+						REQUIRE_OP_EQ(Result, HelperParams.ExpectedError->GetErrorValue());
 					}
 					Promise->SetValue(true);
 				});
@@ -49,5 +49,4 @@ struct FCommerceCheckoutHelper : public FAsyncTestStep
 protected:
 	FHelperParams HelperParams;
 	UE::Online::ICommercePtr CommerceInterface = nullptr;
-	TOptional<FString> TransactionId;
 };

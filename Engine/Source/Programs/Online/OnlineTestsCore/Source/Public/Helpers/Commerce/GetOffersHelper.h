@@ -6,10 +6,10 @@
 #include "AsyncTestStep.h"
 #include "OnlineCatchHelper.h"
 
-struct FCommerceGetEntitlementsHelper : public FAsyncTestStep
+struct FGetOffersHelper : public FAsyncTestStep
 {
-	using ParamsType = UE::Online::FCommerceGetEntitlements::Params;
-	using ResultType = UE::Online::TOnlineResult<UE::Online::FCommerceGetEntitlements>;
+	using ParamsType = UE::Online::FCommerceGetOffers::Params;
+	using ResultType = UE::Online::TOnlineResult<UE::Online::FCommerceGetOffers>;
 
 	struct FHelperParams
 	{
@@ -17,41 +17,41 @@ struct FCommerceGetEntitlementsHelper : public FAsyncTestStep
 		TOptional<ResultType> ExpectedError;
 	};
 
-	FCommerceGetEntitlementsHelper(FHelperParams&& InHelperParams, const TOptional<uint32_t> InExpectedEntitlementsNum = TOptional<uint32_t>())
+	FGetOffersHelper(FHelperParams&& InHelperParams, const TOptional<uint32_t> InExpectedOffersNum = TOptional<uint32_t>())
 		: HelperParams(MoveTemp(InHelperParams))
-		, ExpectedEntitlementsNum(InExpectedEntitlementsNum)
+		, ExpectedOffersNum(InExpectedOffersNum)
 	{
 		REQUIRE(HelperParams.OpParams);
 		REQUIRE((!HelperParams.ExpectedError.IsSet() || HelperParams.ExpectedError->IsError()));
 	}
 
-	virtual ~FCommerceGetEntitlementsHelper() = default;
+	virtual ~FGetOffersHelper() = default;
 
 	virtual void Run(FAsyncStepResult Promise, SubsystemType Services) override
 	{
 		CommerceInterface = Services->GetCommerceInterface();
 		REQUIRE(CommerceInterface);
 
-		ResultType Result = CommerceInterface->GetEntitlements(MoveTemp(*HelperParams.OpParams));
+		ResultType Result = CommerceInterface->GetOffers(MoveTemp(*HelperParams.OpParams));
 
 		if (HelperParams.ExpectedError.IsSet())
 		{
 			REQUIRE_OP_EQ(Result, HelperParams.ExpectedError->GetErrorValue());
 		}
-		else if (ExpectedEntitlementsNum.IsSet())
+		else if (ExpectedOffersNum.IsSet())
 		{
-			CHECK(Result.GetOkValue().Entitlements.Num() == ExpectedEntitlementsNum.GetValue());
+			CHECK(Result.GetOkValue().Offers.Num() == ExpectedOffersNum.GetValue());
 		}
 		else
 		{
-			CHECK(Result.GetOkValue().Entitlements.IsEmpty());
+			CHECK(Result.GetOkValue().Offers.IsEmpty());
 		}
 		Promise->SetValue(true);
 	}
 
 protected:
 	FHelperParams HelperParams;
-	TOptional<uint32_t> ExpectedEntitlementsNum = TOptional<uint32_t>();
+	TOptional<uint32_t> ExpectedOffersNum = TOptional<uint32_t>();
 	UE::Online::ICommercePtr CommerceInterface = nullptr;
-	TArray<FEntitlement> Entitlements;
+	TArray<FOffer> Offers;
 };

@@ -2,7 +2,7 @@
 
 #include "Helpers/Sessions/CreateSessionHelper.h"
 #include "Helpers/Sessions/UpdateSessionSettingsHelper.h"
-#include "OnlineCatchHelper.h"
+#include "Helpers/Sessions/LeaveSessionHelper.h"
 #include "Algo/Count.h"
 
 #define SESSIONS_TAGS "[suite_sessions]"
@@ -17,7 +17,7 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an invalid accoun
 	UpdateSessionSettingsHelperParams.OpParams->LocalAccountId = FAccountId();
 	UpdateSessionSettingsHelperParams.ExpectedError = TOnlineResult<FUpdateSessionSettings>(Errors::InvalidParams());
 
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceStep<FUpdateSessionSettingsHelper>(MoveTemp(UpdateSessionSettingsHelperParams));
 
 	RunToCompletion();
@@ -33,7 +33,7 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty session 
 	UpdateSessionSettingsHelperParams.OpParams->SessionName = TEXT("");
 	UpdateSessionSettingsHelperParams.ExpectedError = TOnlineResult<FUpdateSessionSettings>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	UpdateSessionSettingsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -54,7 +54,7 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty schema n
 	UpdateSessionSettingsHelperParams.OpParams->Mutations.SchemaName = TEXT("");
 	UpdateSessionSettingsHelperParams.ExpectedError = TOnlineResult<FUpdateSessionSettings>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	UpdateSessionSettingsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -75,7 +75,7 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an invalid max co
 	UpdateSessionSettingsHelperParams.OpParams->Mutations.NumMaxConnections = 0;
 	UpdateSessionSettingsHelperParams.ExpectedError = TOnlineResult<FUpdateSessionSettings>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	UpdateSessionSettingsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -96,7 +96,7 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an empty custom s
 	UpdateSessionSettingsHelperParams.OpParams->Mutations.UpdatedCustomSettings.Emplace(TEXT(""), FCustomSessionSetting{FSchemaVariant(false), ESchemaAttributeVisibility::Public});
 	UpdateSessionSettingsHelperParams.ExpectedError = TOnlineResult<FUpdateSessionSettings>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	UpdateSessionSettingsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -116,7 +116,7 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an unregistered s
 	UpdateSessionSettingsHelperParams.OpParams->SessionName = TEXT("UnregisteredUpdateSessionName");
 	UpdateSessionSettingsHelperParams.ExpectedError = TOnlineResult<FUpdateSessionSettings>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	UpdateSessionSettingsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -129,8 +129,8 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with an unregistered s
 UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with valid data, the operation completes successfully", SESSIONS_UPDATESESSIONSETTINGS_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
+	int32 UserNumToLogin = 7;
 	FAccountId AccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -158,10 +158,17 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with valid data, the o
 	FGetSessionByName::Params OpGetByNameParams;
 	OpGetByNameParams.LocalName = TEXT("ValidUpdateSessionName");
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("ValidUpdateSessionName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = AccountId;
 	UpdateSessionSettingsHelperParams.OpParams->LocalAccountId = AccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = AccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
@@ -185,7 +192,8 @@ UPDATESESSIONS_TEST_CASE("If I call UpdateSessionSettings with valid data, the o
 				CHECK(SessionSettings.JoinPolicy == UpdateSessionSettingsHelperParams.OpParams->Mutations.JoinPolicy);
 				CHECK(SessionSettings.bAllowNewMembers == UpdateSessionSettingsHelperParams.OpParams->Mutations.bAllowNewMembers);
 				CHECK(SessionSettings.NumMaxConnections == UpdateSessionSettingsHelperParams.OpParams->Mutations.NumMaxConnections);
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }

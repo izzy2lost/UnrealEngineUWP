@@ -2,8 +2,10 @@
 
 #include "Helpers/Sessions/CreateSessionHelper.h"
 #include "Helpers/Sessions/SendRejectSessionInviteHelper.h"
+#include "Helpers/Sessions/LeaveSessionHelper.h"
+#include "Logging/LogScopedVerbosityOverride.h"
+#include "EOSShared.h"
 #include "Helpers/TickForTime.h"
-#include "OnlineCatchHelper.h"
 
 #define SESSIONS_TAG "[suite_sessions]"
 #define EG_SESSIONS_SENDREJECTSESSIONINVITE_TAG SESSIONS_TAG "[sendrejectsesssioninvite]"
@@ -21,7 +23,7 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with an invalid account id, I ge
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FAccountId();
 	SendSessionInviteHelperParams.ExpectedError = TOnlineResult<FSendSessionInvite>(Errors::InvalidParams());
 
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceStep<FSendSessionInviteHelper>(MoveTemp(SendSessionInviteHelperParams));
 
 	RunToCompletion();
@@ -37,7 +39,7 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with an empty session name, I ge
 	SendSessionInviteHelperParams.OpParams->SessionName = TEXT("");
 	SendSessionInviteHelperParams.ExpectedError = TOnlineResult<FSendSessionInvite>(Errors::InvalidParams());
 	
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -57,7 +59,7 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with a valid session name but un
 	SendSessionInviteHelperParams.OpParams->SessionName = TEXT("SessionSendInviteUnregisteredName");
 	SendSessionInviteHelperParams.ExpectedError = TOnlineResult<FSendSessionInvite>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->TargetUsers.Add(SecondAccountId);
@@ -71,8 +73,8 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with a valid session name but un
 SESSIONS_TEST_CASE("If I call SendSessionInvite with an empty target users, I get an error", EG_SESSIONS_SENDREJECTSESSIONINVITE_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -89,14 +91,22 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with an empty target users, I ge
 	SendSessionInviteHelperParams.OpParams->SessionName = TEXT("SessionSendInviteEmptyName");
 	SendSessionInviteHelperParams.ExpectedError = TOnlineResult<FSendSessionInvite>(Errors::InvalidParams());
 	
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionSendInviteEmptyName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
-		.EmplaceStep<FSendSessionInviteHelper>(MoveTemp(SendSessionInviteHelperParams));
+		.EmplaceStep<FSendSessionInviteHelper>(MoveTemp(SendSessionInviteHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -104,10 +114,10 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with an empty target users, I ge
 SESSIONS_TEST_CASE("If I call SendSessionInvite with an invalid target users, I get an error", EG_SESSIONS_SENDREJECTSESSIONINVITE_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
-
+		
 	FCreateSession::Params OpCreateParams;
 	FCreateSessionHelper::FHelperParams CreateSessionHelperParams;
 	CreateSessionHelperParams.OpParams = &OpCreateParams;
@@ -123,14 +133,22 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with an invalid target users, I 
 	SendSessionInviteHelperParams.ExpectedError = TOnlineResult<FSendSessionInvite>(Errors::InvalidParams());
 	SendSessionInviteHelperParams.OpParams->TargetUsers.Add(FAccountId());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionSendInviteInvalidUsersName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
-		.EmplaceStep<FSendSessionInviteHelper>(MoveTemp(SendSessionInviteHelperParams));
+		.EmplaceStep<FSendSessionInviteHelper>(MoveTemp(SendSessionInviteHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -138,8 +156,8 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with an invalid target users, I 
 SESSIONS_TEST_CASE("If I call SendSessionInvite with valid data, the operation completes successfully", EG_SESSIONS_SENDREJECTSESSIONINVITEEOS_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -157,12 +175,19 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with valid data, the operation c
 
 	FGetAllSessionInvites::Params OpGetAllSessionInvitesParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionSendInviteValidName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	OpGetAllSessionInvitesParams.LocalAccountId = SecondAccountId;
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->TargetUsers.Add(SecondAccountId);
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	const uint32_t ExpectedSessionInvitesNum = 1;
 
@@ -182,7 +207,8 @@ SESSIONS_TEST_CASE("If I call SendSessionInvite with valid data, the operation c
 				ISessionsPtr SessionsInterface = OnlineSubsystem->GetSessionsInterface();
 				TOnlineResult<FGetAllSessionInvites> Result = SessionsInterface->GetAllSessionInvites(MoveTemp(OpGetAllSessionInvitesParams));
 				CHECK(Result.GetOkValue().SessionInvites.Num() == ExpectedSessionInvitesNum);
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 
 	RunToCompletion();
 }
@@ -195,7 +221,7 @@ SESSIONS_TEST_CASE("If I call RejectSessionInvite with an invalid account id, I 
 	RejectSessionInviteHelperParams.OpParams->LocalAccountId = FAccountId();
 	RejectSessionInviteHelperParams.ExpectedError = TOnlineResult<FRejectSessionInvite>(Errors::InvalidParams());
 
-	GetLoginPipeline()
+	GetPipeline()
 		.EmplaceStep<FRejectSessionInviteHelper>(MoveTemp(RejectSessionInviteHelperParams));
 
 	RunToCompletion();
@@ -211,7 +237,7 @@ SESSIONS_TEST_CASE("If I call RejectSessionInvite with an invalid session invite
 	RejectSessionInviteHelperParams.OpParams->SessionInviteId = FSessionInviteId();
 	RejectSessionInviteHelperParams.ExpectedError = TOnlineResult<FRejectSessionInvite>(Errors::InvalidParams());
 	
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 	
 	RejectSessionInviteHelperParams.OpParams->LocalAccountId = AccountId;
 	
@@ -223,9 +249,11 @@ SESSIONS_TEST_CASE("If I call RejectSessionInvite with an invalid session invite
 
 SESSIONS_TEST_CASE("If I call RejectSessionInvite with valid data, the operation completes successfully", EG_SESSIONS_SENDREJECTSESSIONINVITEEOS_TAG)
 {
-	DestroyCurrentServiceModule();
-	ResetAccountStatus();
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
 
+	DestroyCurrentServiceModule();
+
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -247,7 +275,13 @@ SESSIONS_TEST_CASE("If I call RejectSessionInvite with valid data, the operation
 
 	FGetAllSessionInvites::Params OpGetAllSessionInvitesParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpLeaveParams;
+	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
+	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
+	LeaveSessionHelperParams.OpParams->SessionName = TEXT("SessionRejectInviteValidName");
+	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	OpGetAllSessionInvitesParams.LocalAccountId = SecondAccountId;
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
@@ -255,6 +289,8 @@ SESSIONS_TEST_CASE("If I call RejectSessionInvite with valid data, the operation
 
 	SendSessionInviteHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SendSessionInviteHelperParams.OpParams->TargetUsers.Add(SecondAccountId);
+
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	const uint32_t ExpectedSessionInvitesNum = 1;
 
@@ -279,7 +315,8 @@ SESSIONS_TEST_CASE("If I call RejectSessionInvite with valid data, the operation
 				ISessionsPtr SessionsInterface = OnlineSubsystem->GetSessionsInterface();
 				TOnlineResult<FGetAllSessionInvites> Result = SessionsInterface->GetAllSessionInvites(MoveTemp(OpGetAllSessionInvitesParams));
 				CHECK(Result.GetOkValue().SessionInvites.IsEmpty());
-			});
+			})
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
 			
 	RunToCompletion();
 }

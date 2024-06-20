@@ -1,10 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include <catch2/catch_test_macros.hpp>
-
 #include "Helpers/Identity/IdentityGetLoginByUserId.h"
 #include "Helpers/Stats/UpdateStatsHelper.h"
-#include "OnlineCatchHelper.h"
 #include "Online/Stats.h"
 #include "Online/StatsCommon.h"
 
@@ -13,7 +10,7 @@
 
 FTestPipeline&& StatsFixture_1User_With_InitialRandomStats(const OnlineTestBase& InOnlineTestBase, FAccountId& AccountId)
 {
-	return InOnlineTestBase.GetLoginPipeline(AccountId)
+	return InOnlineTestBase.GetLoginPipeline({ AccountId })
 		.EmplaceAsyncLambda([&AccountId](FAsyncLambdaResult Promise, SubsystemType Services) {
 			int64 InitValue = (int64)FMath::RandRange(1, 100);
 			TArray<FUserStats> UpdateUsersStats{
@@ -89,7 +86,7 @@ STATS_TEST_CASE("UpdateStats modify different types work as expected", "[tmpExcl
 	TMap<FString, FStatValue> InitialStats;
 	TMap<FString, FStatValue> UpdatedStats;
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceAsyncLambda([&AccountId](FAsyncLambdaResult Promise, SubsystemType Services) {
 			UpdateStats_Fixture(MoveTemp(Promise), Services, AccountId, { { AccountId, { { "Stat_Type_Bool", FStatValue(true)}, {"Stat_Type_Double", FStatValue(9999.999)}}}, });
 		})
@@ -201,7 +198,7 @@ STATS_TEST_CASE("BatchUpdateAndQuery with 2 users", "[MultiAccount]")
 	int64 Expected_Stat_Use_Set_A = (int64)FMath::RandRange(1, 100);
 	int64 Expected_Stat_Use_Set_B = (int64)FMath::RandRange(1, 100);
 
-	GetLoginPipeline(AccountIdA, AccountIdB)
+	GetLoginPipeline({ AccountIdA, AccountIdB })
 		.EmplaceAsyncLambda([&AccountIdA, &Expected_Stat_Use_Set_A](FAsyncLambdaResult Promise, SubsystemType Services) {
 			TArray<FUserStats> UpdateUsersStats{
 				{ AccountIdA, { { "Stat_Use_Set", FStatValue(Expected_Stat_Use_Set_A) } } },

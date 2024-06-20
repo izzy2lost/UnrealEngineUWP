@@ -12,13 +12,11 @@
 #include "Online/Stats.h"
 #include "OnlineCatchHelper.h"
 
-
 #define ACHIEVEMENTS_TAG "[suite_achievements]"
 #define EG_ACHIEVEMENTS_UNLOCKACHIEVEMENTS_TAG ACHIEVEMENTS_TAG "[unlockachievements]"
 #define EG_ACHIEVEMENTS_UNLOCKACHIEVEMENTS_TITLEMANAGED_TAG EG_ACHIEVEMENTS_UNLOCKACHIEVEMENTS_TAG "[.NULL]"
 
 #define ACHIEVEMENTS_TEST_CASE(x, ...) ONLINE_TEST_CASE(x, ACHIEVEMENTS_TAG __VA_ARGS__)
-
 
 ACHIEVEMENTS_TEST_CASE("Unlock Achievements (Invalid User)", EG_ACHIEVEMENTS_UNLOCKACHIEVEMENTS_TAG)
 {
@@ -28,7 +26,7 @@ ACHIEVEMENTS_TEST_CASE("Unlock Achievements (Invalid User)", EG_ACHIEVEMENTS_UNL
 	UnlockAchievementsHelperParams.OpParams.AchievementIds = { TEXT("test_unlockachievements") };
 	UnlockAchievementsHelperParams.ExpectedError = FUnlockAchievementsHelper::ResultType(UE::Online::Errors::InvalidUser());
 
-	GetLoginPipeline(AccountId)
+	GetLoginPipeline({ AccountId })
 		.EmplaceStep<FUnlockAchievementsHelper>(MoveTemp(UnlockAchievementsHelperParams));
 
 	RunToCompletion();
@@ -40,7 +38,7 @@ ACHIEVEMENTS_TEST_CASE("Unlock Achievements (Invalid State)", EG_ACHIEVEMENTS_UN
 
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;
@@ -61,7 +59,7 @@ ACHIEVEMENTS_TEST_CASE("Unlock Achievements (Invalid Params)", EG_ACHIEVEMENTS_U
 {
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;
@@ -84,7 +82,7 @@ ACHIEVEMENTS_TEST_CASE("Unlock Achievements (Not Found)", EG_ACHIEVEMENTS_UNLOCK
 {
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;
@@ -108,12 +106,9 @@ ACHIEVEMENTS_TEST_CASE("Unlock Achievements (Already Unlocked)", EG_ACHIEVEMENTS
 {
 	DestroyCurrentServiceModule();
 
-	//Delete all accounts as a form of reset, this way future tests are always performed on fresh accounts
-	DeleteAccountsForCurrentTemplate();
-
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;
@@ -144,7 +139,7 @@ ACHIEVEMENTS_TEST_CASE("Unlock Achievements (Success)", EG_ACHIEVEMENTS_UNLOCKAC
 
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FQueryAchievementDefinitionsHelper::FHelperParams QueryDefinitionsHelperParams;
 	QueryDefinitionsHelperParams.OpParams.LocalAccountId = AccountId;
@@ -169,7 +164,7 @@ ACHIEVEMENTS_TEST_CASE("Unlock Title-Managed Achievements By Stats", EG_ACHIEVEM
 
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FString AchievementId("FAKE_ACHIEVEMENT");
 
@@ -209,7 +204,7 @@ ACHIEVEMENTS_TEST_CASE("Unlock Title-Managed Achievements By Stats With Multiple
 
 	FAccountId AccountId;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FString AchievementId("test_unlockachievements");
 

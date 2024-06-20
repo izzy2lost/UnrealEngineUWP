@@ -3,6 +3,7 @@
 
 #include "AsyncTestStep.h"
 #include "Online/Presence.h"
+#include "OnlineCatchHelper.h"
 
 using namespace UE::Online;
 class FBatchQueryPresenceHelper : public FAsyncTestStep

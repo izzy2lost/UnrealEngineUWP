@@ -19,24 +19,26 @@
 
 // Make sure there are registered input devices for N users and fire
 // OnInputDeviceConnectionChange delegate for interested online service code.
-void EnsureLocalUserCount(uint32 NumUsers)
+void EnsureLocalUserCount(uint32 UserNumToLogin, uint32 NumUsers)
 {
 	TArray<FPlatformUserId> Users;
 	IPlatformInputDeviceMapper::Get().GetAllActiveUsers(Users);
 
-	const uint32 PreviousUserCount = Users.Num();
-	const uint32 NewUserCount = NumUsers > PreviousUserCount ? NumUsers - PreviousUserCount : 0;
+	int32 Index = UserNumToLogin * 10;
+	const int32 EndIndex = NumUsers + Index;
 
-	for (uint32 Index = 0; Index < NewUserCount; ++Index)
+	for (; Index < EndIndex; ++Index)
 	{
-		const uint32 NewUserIndex = PreviousUserCount + Index;
-		IPlatformInputDeviceMapper::Get().Internal_MapInputDeviceToUser(
-			FInputDeviceId::CreateFromInternalId(NewUserIndex),
-			FPlatformMisc::GetPlatformUserForUserIndex(NewUserIndex),
-			EInputDeviceConnectionState::Connected);
+		int32 Result = Users.Find(FPlatformMisc::GetPlatformUserForUserIndex(Index));
+		if (Result < 0)
+		{
+			IPlatformInputDeviceMapper::Get().Internal_MapInputDeviceToUser(
+				FInputDeviceId::CreateFromInternalId(Index),
+				FPlatformMisc::GetPlatformUserForUserIndex(Index),
+				EInputDeviceConnectionState::Connected);
+		}
 	}
 }
-
 
 TArray<TFunction<void()>>* GetGlobalInitalizers()
 {
@@ -77,10 +79,10 @@ SubsystemType OnlineTestBase::GetSubsystem() const
 	return UE::Online::FOnlineServicesRegistry::Get().GetNamedServicesInstance(ServiceType, NAME_None);
 }
 
-bool OnlineTestBase::DeleteAccountsForCurrentTemplate() const
+bool OnlineTestBase::DeleteAccounts(int32 TemplateRequestedNum) const
 {
 #if ONLINETESTS_USEEXTERNAUTH
-	return CustomDeleteAccounts();
+	return CustomDeleteAccounts(TemplateRequestedNum);
 #else // ONLINETESTS_USEEXTERNAUTH
 	return false;
 #endif // ONLINETESTS_USEEXTERNAUTH
@@ -91,10 +93,10 @@ void OnlineTestBase::DestroyCurrentServiceModule() const
 	UE::Online::FOnlineServicesRegistry::Get().DestroyNamedServicesInstance(ServiceType, NAME_None);
 }
 
-bool OnlineTestBase::ResetAccountStatus() const
+bool OnlineTestBase::ResetAccountStatus(int32 TemplateRequestedNum) const
 {
 #if ONLINETESTS_USEEXTERNAUTH
-	return CustomResetAccounts();
+	return CustomResetAccounts(TemplateRequestedNum);
 #else // ONLINETESTS_USEEXTERNAUTH
 	return false;
 #endif // ONLINETESTS_USEEXTERNAUTH
@@ -136,7 +138,7 @@ void OnlineTestBase::UnloadServiceModules()
 	}
 }
 
-FAuthLogin::Params OnlineTestBase::GetIniCredentials(int LocalUserNum) const
+TArray<UE::Online::FAuthLogin::Params> OnlineTestBase::GetIniCredentials(int32 LocalUserNum) const
 {
 	FString LoginCredentialCategory = GetLoginCredentialCategory();
 	TArray<FString> LoginCredentialsRaw;
@@ -146,8 +148,10 @@ FAuthLogin::Params OnlineTestBase::GetIniCredentials(int LocalUserNum) const
 	{
 		UE_LOG_ONLINETESTS(Error, TEXT("Attempted to GetCredentials for more than we have stored! Add more credentials to the DefaultEngine.ini for OnlineTests"));
 		REQUIRE(LocalUserNum >= LoginCredentialsRaw.Num());
-		return FAuthLogin::Params();
+		return TArray<UE::Online::FAuthLogin::Params>();
 	}
+
+	TArray<UE::Online::FAuthLogin::Params> AuthLoginParams;
 
 	TArray<FString> LoginCredentialSplit;
 	LoginCredentialsRaw[LocalUserNum].ParseIntoArray(LoginCredentialSplit, TEXT(","), true);
@@ -165,13 +169,15 @@ FAuthLogin::Params OnlineTestBase::GetIniCredentials(int LocalUserNum) const
 	}
 	Params.PlatformUserId = FPlatformMisc::GetPlatformUserForUserIndex(LocalUserNum);
 
-	return Params;
+	AuthLoginParams.Add(Params);
+
+	return AuthLoginParams;
 }
 
-FAuthLogin::Params OnlineTestBase::GetCredentials(int LocalUserNum) const
+TArray<UE::Online::FAuthLogin::Params> OnlineTestBase::GetCredentials(int32 LocalUserNum, int32 NumUsers) const
 {
 #if ONLINETESTS_USEEXTERNAUTH
-	return CustomCredentials(LocalUserNum);
+	return CustomCredentials(LocalUserNum, NumUsers);
 #else // ONLINETESTS_USEEXTERNAUTH
 	return GetIniCredentials(LocalUserNum);
 #endif // ONLINETESTS_USEEXTERNAUTH
@@ -180,50 +186,6 @@ FAuthLogin::Params OnlineTestBase::GetCredentials(int LocalUserNum) const
 FString OnlineTestBase::GetLoginCredentialCategory() const
 {
 	return FString::Printf(TEXT("LoginCredentials %s"), *Service);
-}
-
-FTestPipeline& OnlineTestBase::GetLoginPipelineArray(std::initializer_list<std::reference_wrapper<FAccountId>> AccountIdsArr) const
-{
-	const int NumUsersToLogin = AccountIdsArr.size();
-	GetLoginPipeline(NumUsersToLogin);
-
-	// Perform login so we can bulk assign users in the next step.
-	RunToCompletion(false);
-
-	int32 LocalUserNum = 0;
-	for (FAccountId& AccountId : AccountIdsArr)
-	{
-		AssignLoginUsers(LocalUserNum++, AccountId);
-	}
-
-	// Return a fresh pipeline so the logins added by GetLoginPipeline don't execute again.
-	Pipeline = MakeShared<FTestPipeline>(Driver.MakePipeline());
-	return *Pipeline;
-}
-
-FTestPipeline& OnlineTestBase::GetLoginPipeline(FAccountId& AccountId) const
-{
-	return GetLoginPipelineArray({ AccountId });
-}
-
-FTestPipeline& OnlineTestBase::GetLoginPipeline(FAccountId& AccountId, FAccountId& AccountId2) const
-{
-	return GetLoginPipelineArray({ AccountId, AccountId2 });
-}
-
-FTestPipeline& OnlineTestBase::GetLoginPipeline(FAccountId& AccountId, FAccountId& AccountId2, FAccountId& AccountId3) const
-{
-	return GetLoginPipelineArray({ AccountId, AccountId2, AccountId3 });
-}
-
-FTestPipeline& OnlineTestBase::GetLoginPipeline(FAccountId& AccountId, FAccountId& AccountId2, FAccountId& AccountId3, FAccountId& AccountId4) const
-{
-	return GetLoginPipelineArray({ AccountId, AccountId2, AccountId3, AccountId4 });
-}
-
-FTestPipeline& OnlineTestBase::GetLoginPipeline(FAccountId& AccountId, FAccountId& AccountId2, FAccountId& AccountId3, FAccountId& AccountId4, FAccountId& AccountId5) const
-{
-	return GetLoginPipelineArray({ AccountId, AccountId2, AccountId3, AccountId4, AccountId5 });
 }
 
 void OnlineTestBase::AssignLoginUsers(int32 LocalUserId, FAccountId& OutAccountId) const
@@ -235,23 +197,35 @@ void OnlineTestBase::AssignLoginUsers(int32 LocalUserId, FAccountId& OutAccountI
 	OutAccountId = UserId.TryGetOkValue()->AccountInfo->AccountId;
 }
 
-FTestPipeline& OnlineTestBase::GetLoginPipeline(uint32 NumUsersToLogin) const
+FTestPipeline& OnlineTestBase::GetLoginPipeline(std::initializer_list<std::reference_wrapper<FAccountId>> AccountIds) const
 {
-	REQUIRE(NumLocalUsers == -1); // Don't call GetLoginPipeline more than once per test
-	NumLocalUsers = NumUsersToLogin;
+	return GetLoginPipeline(0, AccountIds);
+}
+
+FTestPipeline& OnlineTestBase::GetLoginPipeline(uint32 UserNumToLogin, std::initializer_list<std::reference_wrapper<FAccountId>> AccountIds) const
+{
+	// Don't call GetLoginPipeline more than once per test
+	REQUIRE(NumLocalUsers == -1);
+	NumLocalUsers = AccountIds.size();
 
 	bool bUseAutoLogin = false;
 	bool bUseImplicitLogin = false;
 	FString LoginCredentialCategory = GetLoginCredentialCategory();
 	GConfig->GetBool(*LoginCredentialCategory, TEXT("UseAutoLogin"), bUseAutoLogin, GEngineIni);
 	GConfig->GetBool(*LoginCredentialCategory, TEXT("UseImplicitLogin"), bUseImplicitLogin, GEngineIni);
-
+	
 	// Make sure input delegates are fired for adding the required user count.
-	EnsureLocalUserCount(NumUsersToLogin);
+	EnsureLocalUserCount(UserNumToLogin, NumLocalUsers);
 
 	if (bUseImplicitLogin)
 	{
 		// Users are expected to already be valid.
+		int32 Index = 0;
+		for (FAccountId& AccountId : AccountIds)
+		{
+			AssignLoginUsers(Index, AccountId);
+			++Index;
+		}
 	}
 	else if (bUseAutoLogin)
 	{
@@ -259,26 +233,28 @@ FTestPipeline& OnlineTestBase::GetLoginPipeline(uint32 NumUsersToLogin) const
 		// NumLocalUsers = 1;
 		// Pipeline.EmplaceStep<FAuthAutoLoginStep>(0);
 	}
-	else
+	else if (NumLocalUsers > 0)
 	{
-		for (uint32 i = 0; i < NumUsersToLogin; i++)
+		UserNumToLogout = UserNumToLogin;
+
+		TArray<UE::Online::FAuthLogin::Params> AuthLoginParams = GetCredentials(UserNumToLogin, NumLocalUsers);
+		for (UE::Online::FAuthLogin::Params AuthLoginParam : AuthLoginParams)
 		{
-			Pipeline->EmplaceStep<FAuthLoginStep>(GetCredentials(i));
+			Pipeline->EmplaceStep<FAuthLoginStep>(MoveTemp(AuthLoginParam));
+		}
+
+		// Perform login so we can bulk assign users in the next step.
+		RunToCompletion(false);
+
+		int32 Index = 0;
+		for (FAccountId& AccountId : AccountIds)
+		{
+			UE_LOG_ONLINETESTS(Verbose, TEXT("Account: %s, used InrernalId: %d"), *AuthLoginParams[Index].CredentialsId, AuthLoginParams[Index].PlatformUserId.GetInternalId());
+			AssignLoginUsers(AuthLoginParams[Index].PlatformUserId.GetInternalId(), AccountId);
+			++Index;
 		}
 	}
 
-	return *Pipeline;
-}
-
-FTestPipeline& OnlineTestBase::GetLoginPipeline(uint32 UserNumToLogin, FAccountId& OutAccountId) const
-{
-	REQUIRE(NumLocalUsers == -1); // Don't call GetLoginPipeline more than once per test
-	// Make sure input delegates are fired for adding the required user count.
-	//EnsureLocalUserCount(UserNumToLogin);
-	Pipeline->EmplaceStep<FAuthLoginStep>(GetCredentials(UserNumToLogin));
-	// Perform login so we can bulk assign users in the next step.
-	RunToCompletion(false);
-	AssignLoginUsers(UserNumToLogin, OutAccountId);
 	// Return a fresh pipeline so the logins added by GetLoginPipeline don't execute again.
 	Pipeline = MakeShared<FTestPipeline>(Driver.MakePipeline());
 	return *Pipeline;
@@ -286,10 +262,10 @@ FTestPipeline& OnlineTestBase::GetLoginPipeline(uint32 UserNumToLogin, FAccountI
 
 FTestPipeline& OnlineTestBase::GetPipeline() const
 {
-	return GetLoginPipeline(0);
+	return GetLoginPipeline(0, {});
 }
 
-void OnlineTestBase::RunToCompletion(bool bLogout, const TOptional<int32> UserNumToLogout) const
+void OnlineTestBase::RunToCompletion(bool bLogout) const
 {
 	bool bUseAutoLogin = false;
 	bool bUseImplicitLogin = false;
@@ -308,15 +284,11 @@ void OnlineTestBase::RunToCompletion(bool bLogout, const TOptional<int32> UserNu
 			// NumLocalUsers = 1;
 			// Pipeline.EmplaceStep<FAuthAutoLoginStep>(0);
 		}
-		else if (UserNumToLogout.IsSet())
+		else if(NumLocalUsers > 0)
 		{
-			Pipeline->EmplaceStep<FAuthLogoutStep>(FPlatformMisc::GetPlatformUserForUserIndex(UserNumToLogout.GetValue()));
-		}
-		else 
-		{
-			for (uint32 i = 0; i < NumLocalUsers; i++)
+			for(UE::Online::FAuthLogin::Params AuthLoginParam : GetCredentials(UserNumToLogout, NumLocalUsers))
 			{
-				Pipeline->EmplaceStep<FAuthLogoutStep>(FPlatformMisc::GetPlatformUserForUserIndex(i));
+				Pipeline->EmplaceStep<FAuthLogoutStep>(AuthLoginParam.PlatformUserId);
 			}
 		}
 	}
@@ -370,7 +342,6 @@ TArray<OnlineAutoReg::FApplicableServicesConfig> OnlineAutoReg::GetApplicableSer
 
 	return ServicesConfig;
 }
-
 
 bool OnlineAutoReg::CheckAllTagsIsIn(const TArray<FString>& TestTags, const TArray<FString>& InputTags)
 {

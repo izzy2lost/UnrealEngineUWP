@@ -19,7 +19,7 @@ LEADERBOARDS_TEST_CASE("Verify that ReadEntriesAroundUser succeeds and returns e
 	int32 Offset = 0;
 	uint32 Limit = 2;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountIdA, AccountIdB)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountIdA, AccountIdB })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundUser_2UsersFixture(Promise, Services, "Stat_Use_Set", AccountIdB, AccountIdA, Offset, Limit, LeaderboardEntries); })
 		.EmplaceLambda([&](SubsystemType Services) { CheckEntries_2Users_Stat_Use_Set(LeaderboardEntries, AccountIdA, AccountIdB); })
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundUser_2UsersFixture(Promise, Services, "Stat_Use_Smallest", AccountIdA, AccountIdB, -1, 2, LeaderboardEntries); })
@@ -37,7 +37,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundUser returns a fail message if t
 	int32 offset = 0;
 	uint32 limit = 2;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountId)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountId })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) {ReadEntriesAroundUserFixture(Promise, Services, "Stat_Use_Set", LocalUserInvalid, AccountId, offset, limit, UE::Online::Errors::InvalidUser(), LeaderboardEntries); });
 
 	RunToCompletion();
@@ -52,7 +52,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundUser returns a fail message if t
 	int32 offset = 0;
 	uint32 limit = 2;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) {ReadEntriesAroundUserFixture(Promise, Services, "Stat_Use_Set", LocalUser, AccountIdInvalid, offset, limit, UE::Online::Errors::InvalidUser(), LeaderboardEntries); });
 
 	RunToCompletion();
@@ -66,7 +66,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAround User returns entries centered a
 	int32 offset = 1;
 	uint32 limit = 2;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser, OtherPlayerB, UserPlayer, OtherPlayerC, OtherPlayerD)), AccountIds, 5)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser, OtherPlayerB, UserPlayer, OtherPlayerC, OtherPlayerD })), AccountIds, 5)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundUser_5UsersFixture(Promise, Services, "Stat_Use_Set", { LocalUser, OtherPlayerB, UserPlayer, OtherPlayerC, OtherPlayerD }, offset, limit, LeaderboardEntries); })
 		.EmplaceLambda([&](SubsystemType Services) { CheckEntries_2UsersRanks_Stat_Use_Set(LeaderboardEntries, OtherPlayerC, OtherPlayerD); });
 
@@ -81,7 +81,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundUser returns a number of entries
 	int32 offset = 0;
 	uint32 limit = 2;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser, AccountId)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser, AccountId })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) {
 		Services->GetLeaderboardsInterface()->ReadEntriesAroundUser({ LocalUser, AccountId, offset, limit, "Stat_Use_Set" })
 			.OnComplete([Promise, limit](const TOnlineResult<UE::Online::FReadEntriesAroundUser>& Result) mutable
@@ -104,7 +104,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundUser returns expected valid entr
 	uint32 limit = 4;
 	TArray<UE::Online::FLeaderboardEntry> LeaderboardEntries;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountId, LocalUser)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountId, LocalUser })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundUser_2UsersFixture(Promise, Services, "Stat_Use_Set", LocalUser, AccountId, offset, limit, LeaderboardEntries); })
 		.EmplaceLambda([&](SubsystemType Services) { CheckEntries_2Users_Stat_Use_Set(LeaderboardEntries, AccountId, LocalUser); });
 
@@ -121,7 +121,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundUser returns expected valid entr
 	uint32 limit = 8;
 	TArray<UE::Online::FLeaderboardEntry> LeaderboardEntries;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser, AccountId)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser, AccountId })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundUser_2UsersFixture(Promise, Services, "Stat_Use_Smallest", LocalUser, AccountId, offset, limit, LeaderboardEntries); })
 		.EmplaceLambda([&](SubsystemType Services) { CheckEntries_1User_Stat_Use_Smallest(LeaderboardEntries, AccountId); });
 
@@ -136,7 +136,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundUser returns error message if gi
 	uint32 limit = 0;
 	TArray<UE::Online::FLeaderboardEntry> LeaderboardEntries;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser, AccountId)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser, AccountId })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) {ReadEntriesAroundUserFixture(Promise, Services, "Stat_Use_Set", LocalUser, AccountId, offset, limit, UE::Online::Errors::InvalidParams(), LeaderboardEntries); });
 
 	RunToCompletion();
@@ -149,7 +149,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundUser returns only one entry if g
 	int32 offset = 0;
 	uint32 limit = 1;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser, AccountId)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser, AccountId })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) {
 		Services->GetLeaderboardsInterface()->ReadEntriesAroundUser({ LocalUser, AccountId, offset, limit, "Stat_Use_Set" })
 			.OnComplete([Promise, limit](const TOnlineResult<UE::Online::FReadEntriesAroundUser>& Result) mutable
@@ -170,7 +170,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesAroundUser returns expected valid entr
 	int32 offset = 0;
 	uint32 limit = 2;
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(OtherPlayerA, OtherPlayerB, UserPlayer, OtherPlayerC, OtherPlayerD)), AccountIds, 5)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ OtherPlayerA, OtherPlayerB, UserPlayer, OtherPlayerC, OtherPlayerD })), AccountIds, 5)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesAroundUser_5UsersFixture(Promise, Services, "Stat_Use_Set", { OtherPlayerA, OtherPlayerB, UserPlayer, OtherPlayerC, OtherPlayerD }, offset, limit, LeaderboardEntries); })
 		.EmplaceLambda([&](SubsystemType Services) { CheckEntries_2UsersRanks_Stat_Use_Set_Index_Moved_Up(LeaderboardEntries, UserPlayer, OtherPlayerC); });
 

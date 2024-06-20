@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-
-#include <catch2/catch_test_macros.hpp>
-
 #include "OnlineCatchHelper.h"
 #include "Online/Schema.h"
 

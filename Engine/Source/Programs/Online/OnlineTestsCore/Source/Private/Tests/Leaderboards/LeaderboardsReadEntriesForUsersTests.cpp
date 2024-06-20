@@ -17,7 +17,7 @@ LEADERBOARDS_TEST_CASE("ReadEntriesForUsers succeed", "[MultiAccount]")
 	FAccountId AccountIdA, AccountIdB;
 	TArray< FAccountId*> AccountIds = { &AccountIdA, &AccountIdB };
 
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountIdA, AccountIdB)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountIdA, AccountIdB })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesForUsers_2UsersFixture(Promise, Services, "Stat_Use_Set", AccountIdA, AccountIdB, LeaderboardEntries); })
 		.EmplaceLambda([&](SubsystemType Services) { CheckEntries_2Users_Stat_Use_Set(LeaderboardEntries, AccountIdA, AccountIdB); })
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesForUsers_2UsersFixture(Promise, Services, "Stat_Use_Smallest", AccountIdA, AccountIdB, LeaderboardEntries); })
@@ -32,7 +32,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesForUsers returns a fail message if the
 	FAccountId AccountId;	
 	FAccountId LocalUserInvalid;
 	TArray< FAccountId*> AccountIds = { &AccountId, &LocalUserInvalid };
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(AccountId)), AccountIds, 2)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ AccountId })), AccountIds, 2)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesForUsersFixture(Promise, Services, "Stat_Use_Set", { LocalUserInvalid, AccountId }, UE::Online::Errors::InvalidUser(), LeaderboardEntries); });
 
 	RunToCompletion();
@@ -43,7 +43,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesForUsers returns an empty array of ent
 	TArray<UE::Online::FLeaderboardEntry> LeaderboardEntries;
 	FAccountId LocalUser;
 	TArray< FAccountId*> AccountIds = { &LocalUser };
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) {
 		Services->GetLeaderboardsInterface()->ReadEntriesForUsers({ LocalUser, {}, "Stat_Use_Set" })
 		.OnComplete([Promise, &LeaderboardEntries](const TOnlineResult<UE::Online::FReadEntriesForUsers>& Result) mutable
@@ -61,7 +61,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntiresForUsers returns a fail message if giv
 	FAccountId AccountIdInvalid;
 	FAccountId LocalUser;
 	TArray< FAccountId*> AccountIds = { &LocalUser, &AccountIdInvalid };
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) {
 		Services->GetLeaderboardsInterface()->ReadEntriesForUsers({ LocalUser, {AccountIdInvalid}, "Stat_Use_Set" })
 		.OnComplete([Promise, &LeaderboardEntries](const TOnlineResult<UE::Online::FReadEntriesForUsers>& Result) mutable
@@ -87,7 +87,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesForUsers returns a fail message if giv
 	FAccountId AccountIdInvalid;
 	FAccountId LocalUser;
 	TArray< FAccountId*> AccountIds = { &LocalUser, &AccountIdInvalid };
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) { ReadEntriesForUsersFixture(Promise, Services, "Stat_Use_Set", { LocalUser, AccountIdInvalid }, UE::Online::Errors::InvalidUser(), LeaderboardEntries); });
 	RunToCompletion();
 }
@@ -97,7 +97,7 @@ LEADERBOARDS_TEST_CASE("Verify ReadEntriesForUsers returns an Entries array with
 	TArray<UE::Online::FLeaderboardEntry> LeaderboardEntries;
 	FAccountId LocalUser;
 	TArray< FAccountId*> AccountIds = { &LocalUser };
-	LeaderboardsFixture_NUsers(std::move(GetLoginPipeline(LocalUser)), AccountIds, 1)
+	LeaderboardsFixture_NUsers(MoveTemp(GetLoginPipeline({ LocalUser })), AccountIds, 1)
 		.EmplaceAsyncLambda([&](FAsyncLambdaResult Promise, SubsystemType Services) {
 		Services->GetLeaderboardsInterface()->ReadEntriesForUsers({ LocalUser, {LocalUser}, "Stat_Use_Set" })
 		.OnComplete([Promise, &LeaderboardEntries, &LocalUser](const TOnlineResult<UE::Online::FReadEntriesForUsers>& Result) mutable

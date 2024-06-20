@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include <catch2/catch_test_macros.hpp>
-
-#include "OnlineCatchHelper.h"
 #include "Helpers/Presence/BatchQueryPresenceHelper.h"
 #include "Helpers/Presence/GetCachedPresenceHelper.h"
 #include "Helpers/Presence/PartialUpdatePresenceHelper.h"
@@ -19,7 +15,7 @@ PRESENCE_TEST_CASE("Ensure UpdatePresence works as expected and can then be quer
 	FAccountId AccountIdA;
 	TSharedPtr<const FUserPresence> OutPresence;
 
-	GetLoginPipeline(AccountIdA)
+	GetLoginPipeline({ AccountIdA })
 		.EmplaceStep<FUpdatePresenceHelper>(AccountIdA, GetGenericPresenceA(AccountIdA))
 		.EmplaceStep<FQueryPresenceHelper>(AccountIdA, AccountIdA, OutPresence)
 		.EmplaceStep<FComparePresencesHelper>(OutPresence, GetGenericPresenceA(AccountIdA));
@@ -33,7 +29,7 @@ PRESENCE_TEST_CASE("Ensure UpdatePresence works as expected and can then be quer
 	FAccountId AccountIdA, AccountIdB;
 	TSharedPtr<const FUserPresence> OutPresence;
 
-	GetLoginPipeline(AccountIdA, AccountIdB)
+	GetLoginPipeline({ AccountIdA, AccountIdB })
 		// <todo: ensure friendship helper>
 		.EmplaceStep<FUpdatePresenceHelper>(AccountIdB, GetGenericPresenceA(AccountIdB))
 		.EmplaceStep<FQueryPresenceHelper>(AccountIdA, AccountIdB, OutPresence)
@@ -48,7 +44,7 @@ PRESENCE_TEST_CASE("Ensure UpdatePresence works on multiple users and can then b
 	TArray<FAccountId> AccountIds;
 	TArray<TSharedRef<const FUserPresence>> OutPresences;
 
-	GetLoginPipeline(AccountIdA, AccountIdB)
+	GetLoginPipeline({ AccountIdA, AccountIdB })
 		.EmplaceLambda([&](SubsystemType Type)
 		{
 			AccountIds.Add(AccountIdA);
@@ -73,7 +69,7 @@ PRESENCE_TEST_CASE("Ensure PartialUpdatePresence works as expected and can then 
 	FAccountId AccountIdA, AccountIdB;
 	TSharedPtr<const FUserPresence> OutPresence;
 
-	GetLoginPipeline(AccountIdA, AccountIdB)
+	GetLoginPipeline({ AccountIdA, AccountIdB })
 		// <todo: ensure friendship helper>
 		.EmplaceStep<FUpdatePresenceHelper>(AccountIdA, GetGenericPresenceA(AccountIdA))
 		.EmplaceStep<FPartialUpdatePresenceHelper>(GetGenericPresenceMutationAtoB(AccountIdB))
@@ -88,7 +84,7 @@ PRESENCE_TEST_CASE("Ensure UpdatePresence works as expected and can then be quer
 	FAccountId AccountIdA;
 	TSharedPtr<const FUserPresence> OutPresenceA, OutPresenceB;
 
-	GetLoginPipeline(AccountIdA)
+	GetLoginPipeline({ AccountIdA })
 		.EmplaceStep<FUpdatePresenceHelper>(AccountIdA, GetGenericPresenceA(AccountIdA))
 		.EmplaceStep<FQueryPresenceHelper>(AccountIdA, AccountIdA, OutPresenceA)
 		.EmplaceStep<FGetCachedPresenceHelper>(AccountIdA, AccountIdA, OutPresenceB)
@@ -116,7 +112,7 @@ PRESENCE_TEST_CASE("Ensure QueryPresence's bListenToChanges mod fires the event 
 		}
 	});
 
-	GetLoginPipeline(AccountIdA, AccountIdB)
+	GetLoginPipeline({ AccountIdA, AccountIdB })
 		// <todo: ensure friendship helper>
 		.EmplaceStep<FUpdatePresenceHelper>(AccountIdB, GetGenericPresenceA(AccountIdB))
 		.EmplaceStep<FQueryPresenceHelper>(AccountIdA, AccountIdB, OutPresence, true)
@@ -149,7 +145,7 @@ PRESENCE_TEST_CASE("Ensure BatchQueryPresence's bListenToChanges mod fires the e
 		}
 	});
 
-	GetLoginPipeline(AccountIdA, AccountIdB)
+	GetLoginPipeline({ AccountIdA, AccountIdB })
 		.EmplaceLambda([&](SubsystemType Type)
 		{
 			AccountIds.Add(AccountIdA);

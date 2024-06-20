@@ -4,8 +4,6 @@
 #include "Helpers/Social/GetFriendsHelper.h"
 #include "Helpers/Auth/AuthLogout.h"
 
-#include "OnlineCatchHelper.h"
-
 #define SOCIAL_TAG "[suite_social]"
 #define EG_SOCIAL_GETFRIENDSEOS_TAG SOCIAL_TAG "[getfriends][.EOS]"
 #define EG_SOCIAL_GETFRIENDS_TAG SOCIAL_TAG "[getfriends]"
@@ -15,32 +13,29 @@
 SOCIAL_TEST_CASE("Verify that GetFriends returns an empty list if there are no cached Friends", EG_SOCIAL_GETFRIENDSEOS_TAG)
 {
 	FAccountId AccountId;	
+
 	int32 UserNumToLogin = 5;
-	int32 UserNumToLogout = 5;
 
 	FGetFriends::Params OpGetParams;
 	FGetFriendsHelper::FHelperParams GetFriendsHelperParams;
 	GetFriendsHelperParams.OpParams = &OpGetParams;
 	GetFriendsHelperParams.ExpectedError = TOnlineResult<FGetFriends>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	GetFriendsHelperParams.OpParams->LocalAccountId = AccountId;
-
-	bool bLogout = true;
 
 	LoginPipeline
 		.EmplaceStep<FGetFriendsHelper>(MoveTemp(GetFriendsHelperParams));
 
-	RunToCompletion(bLogout, UserNumToLogout);
+	RunToCompletion();
 }
 
 SOCIAL_TEST_CASE("Verify that GetFriends returns a list of 1 Friend if there is 1 cached Friend", EG_SOCIAL_GETFRIENDSEOS_TAG)
 {
 	FAccountId AccountId;
+	
 	int32 UserNumToLogin = 6;
-	int32 UserNumToLogout = 6;
-	bool bLogout = true;
 
 	FQueryFriends::Params OpQueryParams;
 	FQueryFriendsHelper::FHelperParams QueryFriendsHelperParams;
@@ -50,7 +45,7 @@ SOCIAL_TEST_CASE("Verify that GetFriends returns a list of 1 Friend if there is 
 	FGetFriendsHelper::FHelperParams GetFriendsHelperParams;
 	GetFriendsHelperParams.OpParams = &OpGetParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	QueryFriendsHelperParams.OpParams->LocalAccountId = AccountId;
 	GetFriendsHelperParams.OpParams->LocalAccountId = AccountId;
@@ -61,7 +56,7 @@ SOCIAL_TEST_CASE("Verify that GetFriends returns a list of 1 Friend if there is 
 		.EmplaceStep<FQueryFriendsHelper>(MoveTemp(QueryFriendsHelperParams))
 		.EmplaceStep<FGetFriendsHelper>(MoveTemp(GetFriendsHelperParams), ExpectedFriendsNum);
 
-	RunToCompletion(bLogout, UserNumToLogout);
+	RunToCompletion();
 }
 
 SOCIAL_TEST_CASE("Verify that GetFriends returns a list of all cached Friends if there are multiple cached Friends", EG_SOCIAL_GETFRIENDSEOS_TAG)
@@ -76,7 +71,7 @@ SOCIAL_TEST_CASE("Verify that GetFriends returns a list of all cached Friends if
 	FGetFriendsHelper::FHelperParams GetFriendsHelperParams;
 	GetFriendsHelperParams.OpParams = &OpGetParams;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	QueryFriendsHelperParams.OpParams->LocalAccountId = AccountId;
 	GetFriendsHelperParams.OpParams->LocalAccountId = AccountId;
@@ -92,23 +87,21 @@ SOCIAL_TEST_CASE("Verify that GetFriends returns a list of all cached Friends if
 
 SOCIAL_TEST_CASE("Verify that GetFriend returns a fail message if there are no cached Friends", EG_SOCIAL_GETFRIENDSEOS_TAG)
 {
-	FAccountId AccountId;	
+	FAccountId AccountId;
+	
 	int32 UserNumToLogin = 5;
-	int32 UserNumToLogout = 5;
 
 	FGetFriends::Params OpGetParams;
 	FGetFriendsHelper::FHelperParams GetFriendsHelperParams;
 	GetFriendsHelperParams.OpParams = &OpGetParams;
 	GetFriendsHelperParams.ExpectedError = TOnlineResult<FGetFriends>(Errors::InvalidState());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { AccountId });
 
 	GetFriendsHelperParams.OpParams->LocalAccountId = AccountId;
-
-	bool bLogout = true;
 
 	LoginPipeline
 		.EmplaceStep<FGetFriendsHelper>(MoveTemp(GetFriendsHelperParams));
 
-	RunToCompletion(bLogout, UserNumToLogout);
+	RunToCompletion();
 }

@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-
-#include <catch2/catch_test_macros.hpp>
-
 #include "Helpers/UserFile/AsyncUserFileEnumerateFiles.h"
 #include "Helpers/UserFile/AsyncUserFileGetEnumeratedFiles.h"
 #include "Helpers/UserFile/AsyncUserFileCopyFile.h"
@@ -53,7 +49,7 @@ void ClearUserFiles(FAccountId AccountId, FTestPipeline& Pipe)
 USER_FILE_TEST_CASE("EnumerateFiles Tests", USER_FILE_ENUMERATE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	ClearUserFiles(AccountId, Pipe);
 
@@ -71,7 +67,7 @@ USER_FILE_TEST_CASE("EnumerateFiles Tests - Invalid user", USER_FILE_ENUMERATE_T
 	FScopeDisableWarningsInLog ScopeLogOnlineSDK{ &LogOnlineServices };
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileEnumerateFiles::Params EnumerateParams;
 
@@ -84,7 +80,7 @@ USER_FILE_TEST_CASE("EnumerateFiles Tests - Invalid user", USER_FILE_ENUMERATE_T
 USER_FILE_TEST_CASE("GetEnumeratedFiles Tests", USER_FILE_GETENUMERATED_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	ClearUserFiles(AccountId, Pipe);
 
@@ -106,7 +102,7 @@ USER_FILE_TEST_CASE("GetEnumeratedFiles Tests - Invalid user", USER_FILE_GETENUM
 	FScopeDisableWarningsInLog ScopeLogOnlineSDK{ &LogOnlineServices };
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileEnumerateFiles::Params EnumerateParams;
 	EnumerateParams.LocalAccountId = AccountId;
@@ -127,7 +123,7 @@ USER_FILE_TEST_CASE("GetEnumeratedFiles Tests - Invalid State", USER_FILE_GETENU
 	DestroyCurrentServiceModule();
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileGetEnumeratedFiles::Params GetParams;
 	GetParams.LocalAccountId = AccountId;
@@ -140,7 +136,7 @@ USER_FILE_TEST_CASE("GetEnumeratedFiles Tests - Invalid State", USER_FILE_GETENU
 USER_FILE_TEST_CASE("WriteFile Tests", USER_FILE_WRITE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	ClearUserFiles(AccountId, Pipe);
 
@@ -157,7 +153,7 @@ USER_FILE_TEST_CASE("WriteFile Tests", USER_FILE_WRITE_TAG)
 USER_FILE_TEST_CASE("WriteFile Tests - Empty filename", USER_FILE_WRITE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileWriteFile::Params Params;
 	Params.LocalAccountId = AccountId;
@@ -171,7 +167,7 @@ USER_FILE_TEST_CASE("WriteFile Tests - Empty filename", USER_FILE_WRITE_TAG)
 USER_FILE_TEST_CASE("WriteFile Tests - Invalid User", USER_FILE_WRITE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileWriteFile::Params Params;
 	Params.Filename = TEXT("TestFileA");
@@ -185,7 +181,7 @@ USER_FILE_TEST_CASE("WriteFile Tests - Invalid User", USER_FILE_WRITE_TAG)
 USER_FILE_TEST_CASE("ReadFile Tests", USER_FILE_READ_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileWriteFile::Params WriteParams;
 	WriteParams.LocalAccountId = AccountId;
@@ -207,7 +203,7 @@ USER_FILE_TEST_CASE("ReadFile Tests", USER_FILE_READ_TAG)
 USER_FILE_TEST_CASE("ReadFile Tests - Empty filename", USER_FILE_READ_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileReadFile::Params Params;
 	Params.LocalAccountId = AccountId;
@@ -220,7 +216,7 @@ USER_FILE_TEST_CASE("ReadFile Tests - Empty filename", USER_FILE_READ_TAG)
 USER_FILE_TEST_CASE("ReadFile Tests - Invalid User", USER_FILE_READ_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileReadFile::Params Params;
 	Params.Filename = TEXT("TestFileA");
@@ -236,7 +232,7 @@ USER_FILE_TEST_CASE("ReadFile Tests - Not Found", USER_FILE_READ_TAG)
 	FScopeDisableWarningsInLog ScopeLogOnlineSDK{ &LogOnlineServices };
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileReadFile::Params Params;
 	Params.LocalAccountId = AccountId;
@@ -250,7 +246,7 @@ USER_FILE_TEST_CASE("ReadFile Tests - Not Found", USER_FILE_READ_TAG)
 USER_FILE_TEST_CASE("CopyFile Tests", USER_FILE_COPY_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileWriteFile::Params WriteParams;
 	WriteParams.LocalAccountId = AccountId;
@@ -281,7 +277,7 @@ USER_FILE_TEST_CASE("CopyFile Tests - Invalid User", USER_FILE_COPY_TAG)
 	FScopeDisableWarningsInLog ScopeLogOnlineSDK{ &LogOnlineServices };
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileCopyFile::Params Params;
 	Params.SourceFilename = TEXT("TestFileA");
@@ -298,7 +294,7 @@ USER_FILE_TEST_CASE("CopyFile Tests - Empty target", USER_FILE_COPY_TAG)
 	FScopeDisableWarningsInLog ScopeLogOnlineSDK{ &LogOnlineServices };
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileCopyFile::Params Params;
 	Params.LocalAccountId = AccountId;
@@ -315,7 +311,7 @@ USER_FILE_TEST_CASE("CopyFile Tests - Empty source", USER_FILE_COPY_TAG)
 	FScopeDisableWarningsInLog ScopeLogOnlineSDK{ &LogOnlineServices };
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileCopyFile::Params Params;
 	Params.LocalAccountId = AccountId;
@@ -332,7 +328,7 @@ USER_FILE_TEST_CASE("CopyFile Tests - Not Found", USER_FILE_COPY_TAG)
 	FScopeDisableWarningsInLog ScopeLogOnlineSDK{ &LogOnlineServices };
 
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileCopyFile::Params Params;
 	Params.LocalAccountId = AccountId;
@@ -347,7 +343,7 @@ USER_FILE_TEST_CASE("CopyFile Tests - Not Found", USER_FILE_COPY_TAG)
 USER_FILE_TEST_CASE("DeleteFile Tests", USER_FILE_DELETE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileDeleteFile::Params Params;
 	Params.LocalAccountId = AccountId;
@@ -361,7 +357,7 @@ USER_FILE_TEST_CASE("DeleteFile Tests", USER_FILE_DELETE_TAG)
 USER_FILE_TEST_CASE("DeleteFile Tests - Invalid User", USER_FILE_DELETE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileDeleteFile::Params Params;
 	Params.Filename = TEXT("TestFileA");
@@ -374,7 +370,7 @@ USER_FILE_TEST_CASE("DeleteFile Tests - Invalid User", USER_FILE_DELETE_TAG)
 USER_FILE_TEST_CASE("DeleteFile Tests - Empty filename", USER_FILE_DELETE_TAG)
 {
 	FAccountId AccountId;
-	FTestPipeline& Pipe = GetLoginPipeline(AccountId);
+	FTestPipeline& Pipe = GetLoginPipeline({ AccountId });
 
 	FUserFileDeleteFile::Params Params;
 	Params.LocalAccountId = AccountId;

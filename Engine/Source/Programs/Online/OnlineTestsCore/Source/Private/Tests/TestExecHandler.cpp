@@ -339,7 +339,7 @@ EH_ERROR_TEST_CASE("Test conplex object parsing")
 ONLINE_TEST_CASE("Test new account ID support working", EH_ERROR_TAG)
 {
 	FAccountId Id;
-	GetLoginPipeline(Id);
+	GetLoginPipeline({ Id });
 
 
 	const TCHAR* Cmd = TEXT("0");

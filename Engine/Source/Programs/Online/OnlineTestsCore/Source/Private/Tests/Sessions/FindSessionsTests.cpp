@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+
 #include "Helpers/Sessions/CreateSessionHelper.h"
 #include "Helpers/Sessions/AddRemoveSessionMemberHelper.h"
 #include "Helpers/Sessions/FindSessionsHelper.h"
 #include "Helpers/Sessions/LeaveSessionHelper.h"
 #include "Helpers/TickForTime.h"
-#include "OnlineCatchHelper.h"
+#include "Logging/LogScopedVerbosityOverride.h"
+#include "Online/OnlineServicesLog.h"
+#include "EOSShared.h"
 
 #define SESSIONS_TAG "[suite_sessions]"
 #define EG_SESSIONS_FINDSESSIONS_TAG SESSIONS_TAG "[findsessions]"
@@ -14,15 +17,13 @@
 
 SESSIONS_TEST_CASE("If I call FindSessions with an invalid account id, I get an error", EG_SESSIONS_FINDSESSIONS_TAG)
 {
-	const int32 NumUsersToLogin = 0;
-
 	FFindSessions::Params OpFindParams;
 	FFindSessionsHelper::FHelperParams FindSessionsHelperParams;
 	FindSessionsHelperParams.OpParams = &OpFindParams;
 	FindSessionsHelperParams.OpParams->LocalAccountId = FAccountId();
 	FindSessionsHelperParams.ExpectedError = TOnlineResult<FFindSessions>(Errors::InvalidParams());
 
-	GetLoginPipeline(NumUsersToLogin)
+	GetPipeline()
 		.EmplaceStep<FFindSessionsHelper>(MoveTemp(FindSessionsHelperParams));
 
 	RunToCompletion();
@@ -38,7 +39,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with an invalid max results number, I
 	FindSessionsHelperParams.OpParams->MaxResults = 0;
 	FindSessionsHelperParams.ExpectedError = TOnlineResult<FFindSessions>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FindSessionsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -59,7 +60,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with an empty custom setting name in 
 	FindSessionsHelperParams.OpParams->Filters.Add(FFindSessionsSearchFilter{ FName(), ESchemaAttributeComparisonOp::Equals, FSchemaVariant(false) });
 	FindSessionsHelperParams.ExpectedError = TOnlineResult<FFindSessions>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FindSessionsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -80,7 +81,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with an invalid session id as filter,
 	FindSessionsHelperParams.OpParams->SessionId = FOnlineSessionId();
 	FindSessionsHelperParams.ExpectedError = TOnlineResult<FFindSessions>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 	
 	FindSessionsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -101,7 +102,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with an invalid account id as filter,
 	FindSessionsHelperParams.OpParams->TargetUser = FAccountId();
 	FindSessionsHelperParams.ExpectedError = TOnlineResult<FFindSessions>(Errors::InvalidParams());
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 	
 	FindSessionsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -122,8 +123,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with an empty search filter key, I ge
 	FindSessionsHelperParams.OpParams->Filters.Emplace(FFindSessionsSearchFilter{ FName(""), ESchemaAttributeComparisonOp::Equals, FSchemaVariant(int64(64)) });
 	FindSessionsHelperParams.ExpectedError = TOnlineResult<FFindSessions>(Errors::InvalidParams());
 
-
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FindSessionsHelperParams.OpParams->LocalAccountId = AccountId;
 
@@ -136,8 +136,9 @@ SESSIONS_TEST_CASE("If I call FindSessions with an empty search filter key, I ge
 SESSIONS_TEST_CASE("If I call FindSessions while a search is already running for that user, I get an error", EG_SESSIONS_FINDSESSIONS_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
+	ReturnAccounts();
 
+	int32 UserNumToLogin = 7;
 	FAccountId FirstAccountId, SecondAccountId;
 
 	FCreateSession::Params OpCreateParams;
@@ -170,13 +171,11 @@ SESSIONS_TEST_CASE("If I call FindSessions while a search is already running for
 	LeaveSessionHelperParams.OpParams->SessionName = TEXT("AlreadyPendingName");
 	LeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline(UserNumToLogin, { FirstAccountId, SecondAccountId });
 
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	AddSessionMemberHelperParams.OpParams->LocalAccountId = FirstAccountId;
-
-	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	FindFirstSessionsHelperParams.OpParams->LocalAccountId = SecondAccountId;
 	FindFirstSessionsHelperParams.OpParams->TargetUser = FirstAccountId;
@@ -184,16 +183,17 @@ SESSIONS_TEST_CASE("If I call FindSessions while a search is already running for
 	FindSecondSessionsHelperParams.OpParams->LocalAccountId = SecondAccountId;
 	FindSecondSessionsHelperParams.OpParams->TargetUser = FirstAccountId;
 
+	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+
 	LoginPipeline
 		.EmplaceStep<FCreateSessionHelper>(MoveTemp(CreateSessionHelperParams))
 		.EmplaceStep<FAddSessionMemberHelper>(MoveTemp(AddSessionMemberHelperParams))
 		.EmplaceAsyncLambda([&FindFirstSessionsHelperParams, &FindSecondSessionsHelperParams](FAsyncLambdaResult Promise, SubsystemType OnlineSubsystem)
 			{
 				ISessionsPtr SessionsInterface = OnlineSubsystem->GetSessionsInterface();
-				EOnlineServices CurrentService = OnlineSubsystem->GetServicesProvider();
 
 				SessionsInterface->FindSessions(MoveTemp(*FindFirstSessionsHelperParams.OpParams))
-					.OnComplete([Promise = MoveTemp(Promise), CurrentService](const TOnlineResult<FFindSessions>& Result)
+					.OnComplete([Promise = MoveTemp(Promise)](const TOnlineResult<FFindSessions>& Result)
 						{
 							CHECK_OP(Result);
 							Promise->SetValue(true);
@@ -222,7 +222,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with valid information, I can get an 
 	FindSessionsHelperParams.OpParams = &OpFirstParams;
 	FindSessionsHelperParams.OpParams->MaxResults = 3;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(AccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ AccountId });
 
 	FindSessionsHelperParams.OpParams->LocalAccountId = AccountId;
 	FindSessionsHelperParams.OpParams->Filters.Emplace(FFindSessionsSearchFilter{ FName("NonExistentSettingName"), ESchemaAttributeComparisonOp::Equals, FSchemaVariant(int64(64)) });
@@ -236,7 +236,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with valid information, I can get an 
 SESSIONS_TEST_CASE("If I call FindSessions with valid information, I will still not find sessions which JoinPolicy is not public", EG_SESSIONS_FINDSESSIONS_TAG)
 {
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
+	ReturnAccounts();
 	
 	FAccountId FirstAccountId, SecondAccountId;
 	
@@ -265,7 +265,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with valid information, I will still 
 	LeaveSessionHelperParams.OpParams->SessionName = TEXT("FriendsOnlyName");
 	LeaveSessionHelperParams.OpParams->bDestroySession = true;
 	
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 	
 	CreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	
@@ -287,8 +287,9 @@ SESSIONS_TEST_CASE("If I call FindSessions with valid information, I will still 
 
 SESSIONS_TEST_CASE("If I call FindSessions with valid information, I will get a list of ids for all the valid sessions", EG_SESSIONS_FINDSESSIONSEOS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
+
 	DestroyCurrentServiceModule();
-	ResetAccountStatus();
 
 	FAccountId FirstAccountId, SecondAccountId;
 
@@ -335,7 +336,7 @@ SESSIONS_TEST_CASE("If I call FindSessions with valid information, I will get a 
 	SecondLeaveSessionHelperParams.OpParams->SessionName = TEXT("ValidName1");
 	SecondLeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
@@ -366,6 +367,8 @@ SESSIONS_TEST_CASE("If I call FindSessions with valid information, I will get a 
 
 SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Bool", EG_SESSIONS_FINDSESSIONSEOS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
+
 	DestroyCurrentServiceModule();
 
 	FAccountId FirstAccountId, SecondAccountId;
@@ -399,13 +402,19 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Bool", EG
 	SecondFindSessionsHelperParams.OpParams->MaxResults = 1;
 	SecondFindSessionsHelperParams.OpParams->Filters.Emplace(FFindSessionsSearchFilter{ FName("BoolSettingName"), ESchemaAttributeComparisonOp::NotEquals, FSchemaVariant(true) });
 
-	FLeaveSession::Params OpLeaveParams;
-	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
-	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
-	LeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameBoolFilter");
-	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+	FLeaveSession::Params OpFirstLeaveParams;
+	FLeaveSessionHelper::FHelperParams FirstLeaveSessionHelperParams;
+	FirstLeaveSessionHelperParams.OpParams = &OpFirstLeaveParams;
+	FirstLeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameBoolFilter");
+	FirstLeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpSecondLeaveParams;
+	FLeaveSessionHelper::FHelperParams SecondLeaveSessionHelperParams;
+	SecondLeaveSessionHelperParams.OpParams = &OpSecondLeaveParams;
+	SecondLeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameBoolFilter1");
+	SecondLeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
@@ -413,7 +422,8 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Bool", EG
 	FirstFindSessionsHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondFindSessionsHelperParams.OpParams->LocalAccountId = SecondAccountId;
 
-	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	FirstLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	SecondLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	uint32_t ExpectedSessionsFound = 1;
 
@@ -423,13 +433,16 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Bool", EG
 	.EmplaceStep<FTickForTime>(FTimespan::FromMilliseconds(6000))
 	.EmplaceStep<FFindSessionsHelper>(MoveTemp(FirstFindSessionsHelperParams), ExpectedSessionsFound)
 	.EmplaceStep<FFindSessionsHelper>(MoveTemp(SecondFindSessionsHelperParams))
-	.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+	.EmplaceStep<FLeaveSessionHelper>(MoveTemp(FirstLeaveSessionHelperParams))
+	.EmplaceStep<FLeaveSessionHelper>(MoveTemp(SecondLeaveSessionHelperParams));
 
 	RunToCompletion();
 }
 
 SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Int", EG_SESSIONS_FINDSESSIONSEOS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
+
 	DestroyCurrentServiceModule();
 
 	FAccountId FirstAccountId, SecondAccountId;
@@ -487,17 +500,25 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Int", EG_
 	EighthFindSessionsHelperParams.OpParams->MaxResults = 1;
 	EighthFindSessionsHelperParams.OpParams->Filters.Emplace(FFindSessionsSearchFilter{ FName("Int64SettingName"), ESchemaAttributeComparisonOp::LessThanEquals, FSchemaVariant(int64(66)) });
 
-	FLeaveSession::Params OpLeaveParams;
-	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
-	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
-	LeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameIntFilter");
-	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+	FLeaveSession::Params OpFirstLeaveParams;
+	FLeaveSessionHelper::FHelperParams FirstLeaveSessionHelperParams;
+	FirstLeaveSessionHelperParams.OpParams = &OpFirstLeaveParams;
+	FirstLeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameIntFilter");
+	FirstLeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpSecondLeaveParams;
+	FLeaveSessionHelper::FHelperParams SecondLeaveSessionHelperParams;
+	SecondLeaveSessionHelperParams.OpParams = &OpSecondLeaveParams;
+	SecondLeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameIntFilter1");
+	SecondLeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
-	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+
+	FirstLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	SecondLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	ThirdFindSessionsHelperParams.OpParams->LocalAccountId = SecondAccountId;
 	FourthFindSessionsHelperParams.OpParams->LocalAccountId = FirstAccountId;
@@ -518,13 +539,16 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Int", EG_
 		.EmplaceStep<FFindSessionsHelper>(MoveTemp(SixthFindSessionsHelperParams), ExpectedSessionsFound)
 		.EmplaceStep<FFindSessionsHelper>(MoveTemp(SeventhFindSessionsHelperParams), ExpectedSessionsFound)
 		.EmplaceStep<FFindSessionsHelper>(MoveTemp(EighthFindSessionsHelperParams), ExpectedSessionsFound)
-		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(FirstLeaveSessionHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(SecondLeaveSessionHelperParams));
 
 	RunToCompletion();
 }
 
 SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Double", EG_SESSIONS_FINDSESSIONSEOS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
+
 	DestroyCurrentServiceModule();
 
 	FAccountId FirstAccountId, SecondAccountId;
@@ -590,17 +614,25 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Double", 
 	FifteenthFindSessionsHelperParams.OpParams->MaxResults = 1;
 	FifteenthFindSessionsHelperParams.OpParams->Filters.Emplace(FFindSessionsSearchFilter{ FName("DoubleSettingName"), ESchemaAttributeComparisonOp::Near, FSchemaVariant(90.0) });
 
-	FLeaveSession::Params OpLeaveParams;
-	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
-	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
-	LeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameDoubleFilter");
-	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+	FLeaveSession::Params OpFirstLeaveParams;
+	FLeaveSessionHelper::FHelperParams FirstLeaveSessionHelperParams;
+	FirstLeaveSessionHelperParams.OpParams = &OpFirstLeaveParams;
+	FirstLeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameDoubleFilter");
+	FirstLeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpSecondLeaveParams;
+	FLeaveSessionHelper::FHelperParams SecondLeaveSessionHelperParams;
+	SecondLeaveSessionHelperParams.OpParams = &OpSecondLeaveParams;
+	SecondLeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameDoubleFilter1");
+	SecondLeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
-	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+
+	FirstLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	SecondLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	NinthFindSessionsHelperParams.OpParams->LocalAccountId = SecondAccountId;
 	TenthFindSessionsHelperParams.OpParams->LocalAccountId = FirstAccountId;
@@ -644,13 +676,17 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter Double", 
 						});
 
 			})
-		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(FirstLeaveSessionHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(SecondLeaveSessionHelperParams));
 
 	RunToCompletion();
 }
 
 SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter String", EG_SESSIONS_FINDSESSIONSEOS_TAG)
 {
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogOnlineServices, ELogVerbosity::NoLogging);
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEOSSDK, ELogVerbosity::NoLogging);
+
 	DestroyCurrentServiceModule();
 
 	FAccountId FirstAccountId, SecondAccountId;
@@ -697,17 +733,25 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter String", 
 	NineteenthFindSessionsHelperParams.OpParams->Filters.Emplace(FFindSessionsSearchFilter{ FName("StringSettingName"), ESchemaAttributeComparisonOp::In, FSchemaVariant(TEXT("TestStringData;OtherStringData;AnotherStringData")) });
 	NineteenthFindSessionsHelperParams.ExpectedError = TOnlineResult<FFindSessions>(Errors::InvalidParams());
 	
-	FLeaveSession::Params OpLeaveParams;
-	FLeaveSessionHelper::FHelperParams LeaveSessionHelperParams;
-	LeaveSessionHelperParams.OpParams = &OpLeaveParams;
-	LeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameStringFilter");
-	LeaveSessionHelperParams.OpParams->bDestroySession = true;
+	FLeaveSession::Params OpFirstLeaveParams;
+	FLeaveSessionHelper::FHelperParams FirstLeaveSessionHelperParams;
+	FirstLeaveSessionHelperParams.OpParams = &OpFirstLeaveParams;
+	FirstLeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameStringFilter");
+	FirstLeaveSessionHelperParams.OpParams->bDestroySession = true;
 
-	FTestPipeline& LoginPipeline = GetLoginPipeline(FirstAccountId, SecondAccountId);
+	FLeaveSession::Params OpSecondLeaveParams;
+	FLeaveSessionHelper::FHelperParams SecondLeaveSessionHelperParams;
+	SecondLeaveSessionHelperParams.OpParams = &OpSecondLeaveParams;
+	SecondLeaveSessionHelperParams.OpParams->SessionName = TEXT("FindSessionNameStringFilter1");
+	SecondLeaveSessionHelperParams.OpParams->bDestroySession = true;
+
+	FTestPipeline& LoginPipeline = GetLoginPipeline({ FirstAccountId, SecondAccountId });
 
 	FirstCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 	SecondCreateSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
-	LeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	
+	FirstLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
+	SecondLeaveSessionHelperParams.OpParams->LocalAccountId = FirstAccountId;
 
 	SixteenthFindSessionsHelperParams.OpParams->LocalAccountId = SecondAccountId;
 	SeventeenthFindSessionsHelperParams.OpParams->LocalAccountId = FirstAccountId;
@@ -726,9 +770,10 @@ SESSIONS_TEST_CASE("Call FindSessions using custom setting as a filter String", 
 		.EmplaceStep<FFindSessionsHelper>(MoveTemp(EighteenthFindSessionsHelperParams), ExpectedSessionsFound)
 		.EmplaceStep<FFindSessionsHelper>(MoveTemp(NineteenthFindSessionsHelperParams), NoSessionsFound, []()
 			{
-				UE_LOG_ONLINETESTS(Warning, TEXT("Functionality being tested is still unsupported as of EOSSDK Version: 1.15.3-21924193"));
+				UE_LOG_ONLINETESTS(Verbose, TEXT("Functionality being tested is still unsupported as of EOSSDK Version: 1.15.3-21924193"));
 			})
-		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(LeaveSessionHelperParams));
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(FirstLeaveSessionHelperParams))
+		.EmplaceStep<FLeaveSessionHelper>(MoveTemp(SecondLeaveSessionHelperParams));
 
 	RunToCompletion();
 }
