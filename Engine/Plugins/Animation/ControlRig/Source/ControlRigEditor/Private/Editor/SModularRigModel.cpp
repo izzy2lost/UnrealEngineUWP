@@ -529,7 +529,11 @@ void SModularRigModel::HandleNewItem()
 	FString ParentPath;
 	if (IsSingleSelected())
 	{
-		ParentPath = GetSelectedKeys()[0];
+		const TSharedPtr<FModularRigTreeElement> ParentElement = TreeView->FindElement(GetSelectedKeys()[0]);
+		if (ParentElement.IsValid())
+		{
+			ParentPath = ParentElement->ModulePath;
+		}
 	}
 	
 	FClassViewerInitializationOptions Options;
