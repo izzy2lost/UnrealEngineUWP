@@ -15,6 +15,7 @@
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendController.h"
+#include "MetasoundFrontendDocumentModifyDelegates.h"
 #include "Meter.h"
 #include "Misc/NotifyHook.h"
 #include "SAudioMeter.h"
@@ -69,18 +70,33 @@ struct FMeterResults;
 struct FPropertyChangedEvent;
 
 
-// Simple class for the interfaces details tab to keep track of its corresponding Metasound 
+// Base implementation for editor wrappers that provide edit customizations
 UCLASS(MinimalAPI)
-class UMetasoundInterfacesView : public UObject
+class UMetasoundEditorViewBase : public UObject
 {
 	GENERATED_BODY()
 public:
-	UMetasoundInterfacesView() = default;
 
 	void SetMetasound(UObject* InMetasound) { Metasound = InMetasound; }
-	const TWeakObjectPtr<UObject> GetMetasound() { return Metasound; }
+	const UObject* GetMetasound() const { return Metasound.Get(); }
+	UObject* GetMetasound() { return Metasound.Get(); }
+
 private:
 	TWeakObjectPtr<UObject> Metasound;
+};
+
+
+// Simple class for the interfaces details tab to keep track of its corresponding Metasound 
+UCLASS(MinimalAPI)
+class UMetasoundInterfacesView : public UMetasoundEditorViewBase
+{
+	GENERATED_BODY()
+};
+
+UCLASS(MinimalAPI)
+class UMetasoundPagesView : public UMetasoundEditorViewBase
+{
+	GENERATED_BODY()
 };
 
 namespace Metasound
@@ -100,6 +116,7 @@ namespace Metasound
 
 			COUNT
 		};
+
 
 		class FEditor : public IMetasoundEditor, public FNotifyHook, public FEditorUndoClient, public FTickableEditorObject
 		{
@@ -174,9 +191,6 @@ namespace Metasound
 
 			/** Forces all UX pertaining to the root graph's interface to be refreshed, returning the first selected member. */
 			UMetasoundEditorGraphMember* RefreshGraphMemberMenu();
-
-			/** Forces refresh of interfaces list. */
-			void RefreshInterfaces();
 
 			/** Updates selected node classes to highest class found in the MetaSound Class Registry. */
 			void UpdateSelectedNodeClasses();
@@ -356,6 +370,12 @@ namespace Metasound
 			void ShowUnconnectedPins();
 
 		private:
+			/** Forces refresh of pages view. */
+			void RefreshPagesView();
+
+			/** Forces refresh of interfaces view. */
+			void RefreshInterfaceView();
+
 			void RemoveInvalidSelection();
 
 			void SetPreviewID(uint32 InPreviewID);
@@ -438,6 +458,10 @@ namespace Metasound
 
 			/** Details tab */
 			TSharedPtr<IDetailsView> MetasoundDetails;
+
+			/** Pages tab */
+			TSharedPtr<IDetailsView> PagesDetails;
+			TStrongObjectPtr<UMetasoundPagesView> PagesView;
 
 			/** Interfaces tab */
 			TSharedPtr<IDetailsView> InterfacesDetails;

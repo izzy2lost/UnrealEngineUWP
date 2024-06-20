@@ -99,6 +99,30 @@ namespace Metasound
 {
 	namespace Editor
 	{
+		namespace AssetEditorPrivate
+		{
+			int32 EnablePageEditor = 0;
+
+			FAutoConsoleVariableRef CVarMetaSoundEnablePageEditor(
+				TEXT("au.MetaSound.Experimental.EnablePagesEditor"),
+				EnablePageEditor,
+				TEXT("Enables Page Editor in MetaSound Asset Editor.\n")
+				TEXT("Default: 0"),
+				ECVF_Default);
+		} // namespace AssetEditorPrivate
+
+		namespace TabNamesPrivate
+		{
+			const FName Analyzers = "MetasoundEditor_Analyzers";
+			const FName Details = "MetasoundEditor_Details";
+			const FName GraphCanvas = "MetasoundEditor_GraphCanvas";
+			const FName Members = "MetasoundEditor_Members";
+			const FName Palette = "MetasoundEditor_Palette";
+			const FName Interfaces = "MetasoundEditor_Interfaces";
+			const FName Pages = "MetasoundEditor_Pages";
+			const FName Find = "MetasoundEditor_Find";
+		} // namespace TabNamesPrivate
+
 		static const TArray<FText> NodeSectionNames
 		{
 			LOCTEXT("NodeSectionName_Invalid", "INVALID"),
@@ -819,9 +843,15 @@ namespace Metasound
 
 			FAssetEditorToolkit::RegisterTabSpawners(InTabManager);
 
-			InTabManager->RegisterTabSpawner(TabFactory::Names::GraphCanvas, FOnSpawnTab::CreateLambda([InPlayTimeWidget = PlayTimeWidget, InRenderStatsWidget = RenderStatsWidget, InMetasoundGraphEditor = MetasoundGraphEditor](const FSpawnTabArgs& Args)
+			InTabManager->RegisterTabSpawner(TabNamesPrivate::GraphCanvas, FOnSpawnTab::CreateLambda(
+				[
+					InPlayTimeWidget = PlayTimeWidget,
+					InMetasoundGraphEditor = MetasoundGraphEditor,
+					InRenderStatsWidget = RenderStatsWidget
+				](const FSpawnTabArgs& Args)
 			{
-				return TabFactory::CreateGraphCanvasTab(SNew(SOverlay)
+				TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab).Label(LOCTEXT("MetasoundGraphCanvasTitle", "MetaSound Graph"));
+				SpawnedTab->SetContent(SNew(SOverlay)
 					+ SOverlay::Slot()
 					[
 						InMetasoundGraphEditor.ToSharedRef()
@@ -836,47 +866,70 @@ namespace Metasound
 						InRenderStatsWidget.ToSharedRef()
 					]
 					.Padding(5.0f, 5.0f)
-				, Args);
+				);
+				return SpawnedTab;
 			}))
 			.SetDisplayName(LOCTEXT("GraphCanvasTab", "Viewport"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.EventGraph_16x"));
 
-			InTabManager->RegisterTabSpawner(TabFactory::Names::Details, FOnSpawnTab::CreateLambda([InMetasoundDetails = MetasoundDetails](const FSpawnTabArgs& Args)
+			InTabManager->RegisterTabSpawner(TabNamesPrivate::Details, FOnSpawnTab::CreateLambda([InMetasoundDetails = MetasoundDetails](const FSpawnTabArgs& Args)
 			{
-				return TabFactory::CreateDetailsTab(InMetasoundDetails, Args);
+				return SNew(SDockTab).Label(LOCTEXT("MetaSoundDetailsTitle", "Details"))[ InMetasoundDetails.ToSharedRef() ];
 			}))
 			.SetDisplayName(LOCTEXT("DetailsTab", "Details"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
-			InTabManager->RegisterTabSpawner(TabFactory::Names::Members, FOnSpawnTab::CreateLambda([InGraphMembersMenu = GraphMembersMenu](const FSpawnTabArgs& Args)
+			InTabManager->RegisterTabSpawner(TabNamesPrivate::Members, FOnSpawnTab::CreateLambda([InGraphMembersMenu = GraphMembersMenu](const FSpawnTabArgs& Args)
 			{
-				return TabFactory::CreateMembersTab(InGraphMembersMenu, Args);
+				TSharedRef<SDockTab> NewTab = SNew(SDockTab)
+				.Label(LOCTEXT("GraphMembersMenulTitle", "Members"))
+				[
+					InGraphMembersMenu.ToSharedRef()
+				];
+
+				if (const ISlateStyle* MetasoundStyle = FSlateStyleRegistry::FindSlateStyle("MetaSoundStyle"))
+				{
+					NewTab->SetTabIcon(MetasoundStyle->GetBrush("MetasoundEditor.Metasound.Icon"));
+				}
+
+				return NewTab;
 			}))
 			.SetDisplayName(LOCTEXT("MembersTab", "Members"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon("MetaSoundStyle", "MetasoundEditor.Metasound.Icon"));
 
-			InTabManager->RegisterTabSpawner(TabFactory::Names::Analyzers, FOnSpawnTab::CreateLambda([InAnalyzerWidget = BuildAnalyzerWidget()](const FSpawnTabArgs& Args)
+			InTabManager->RegisterTabSpawner(TabNamesPrivate::Analyzers, FOnSpawnTab::CreateLambda([InAnalyzerWidget = BuildAnalyzerWidget()](const FSpawnTabArgs&)
 			{
-				return TabFactory::CreateAnalyzersTab(InAnalyzerWidget, Args);
+				return SNew(SDockTab).Label(LOCTEXT("MetasoundAnalyzersTitle", "Analyzers")) [ InAnalyzerWidget.ToSharedRef() ];
 			}))
 			.SetDisplayName(LOCTEXT("AnalyzersTab", "Analyzers"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.Palette"));
 
-			InTabManager->RegisterTabSpawner(TabFactory::Names::Interfaces, FOnSpawnTab::CreateLambda([InInterfacesDetails = InterfacesDetails](const FSpawnTabArgs& Args)
+			if (AssetEditorPrivate::EnablePageEditor)
 			{
-				return TabFactory::CreateInterfacesTab(InInterfacesDetails, Args);
+				InTabManager->RegisterTabSpawner(TabNamesPrivate::Pages, FOnSpawnTab::CreateLambda([InPagesDetails = PagesDetails](const FSpawnTabArgs&)
+				{
+					return SNew(SDockTab).Label(LOCTEXT("MetasoundPagesDetailsTitle", "Pages"))[InPagesDetails.ToSharedRef()];
+				}))
+				.SetDisplayName(LOCTEXT("PagesTab", "Pages"))
+					.SetGroup(WorkspaceMenuCategoryRef)
+					.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.Palette"));
+			}
+
+			InTabManager->RegisterTabSpawner(TabNamesPrivate::Interfaces, FOnSpawnTab::CreateLambda([InInterfacesDetails = InterfacesDetails](const FSpawnTabArgs&)
+			{
+				return SNew(SDockTab).Label(LOCTEXT("MetasoundInterfacesDetailsTitle", "Interfaces")) [ InInterfacesDetails.ToSharedRef() ];
 			}))
 			.SetDisplayName(LOCTEXT("InterfacesTab", "Interfaces"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Interface"));
 
-			InTabManager->RegisterTabSpawner(TabFactory::Names::Find, FOnSpawnTab::CreateLambda([InFindWidget = FindWidget](const FSpawnTabArgs& Args)
+			InTabManager->RegisterTabSpawner(TabNamesPrivate::Find, FOnSpawnTab::CreateLambda([InFindWidget = FindWidget](const FSpawnTabArgs&)
 			{
-				return TabFactory::CreateFindTab(InFindWidget, Args);
+				return SNew(SDockTab).Label(LOCTEXT("MetasoundFindTitle", "Find Results")) [ InFindWidget.ToSharedRef() ];
 			}))
 			.SetDisplayName(LOCTEXT("FindTab", "Find in MetaSound"))
 			.SetGroup(WorkspaceMenuCategoryRef)
@@ -889,12 +942,13 @@ namespace Metasound
 
 			FAssetEditorToolkit::UnregisterTabSpawners(InTabManager);
 
-			InTabManager->UnregisterTabSpawner(TabFactory::Names::Analyzers);
-			InTabManager->UnregisterTabSpawner(TabFactory::Names::GraphCanvas);
-			InTabManager->UnregisterTabSpawner(TabFactory::Names::Details);
-			InTabManager->UnregisterTabSpawner(TabFactory::Names::Members);
-			InTabManager->UnregisterTabSpawner(TabFactory::Names::Interfaces);
-			InTabManager->UnregisterTabSpawner(TabFactory::Names::Find);
+			InTabManager->UnregisterTabSpawner(TabNamesPrivate::Analyzers);
+			InTabManager->UnregisterTabSpawner(TabNamesPrivate::GraphCanvas);
+			InTabManager->UnregisterTabSpawner(TabNamesPrivate::Details);
+			InTabManager->UnregisterTabSpawner(TabNamesPrivate::Members);
+			InTabManager->UnregisterTabSpawner(TabNamesPrivate::Pages);
+			InTabManager->UnregisterTabSpawner(TabNamesPrivate::Interfaces);
+			InTabManager->UnregisterTabSpawner(TabNamesPrivate::Find);
 		}
 
 		TSharedPtr<SWidget> FEditor::BuildAnalyzerWidget() const
@@ -977,6 +1031,7 @@ namespace Metasound
 			}
 
 			GraphConnectionManager.Reset();
+			PagesView.Reset();
 			InterfacesView.Reset();
 			DestroyAnalyzers();
 			check(GEditor);
@@ -1058,21 +1113,21 @@ namespace Metasound
 							FTabManager::NewStack()
 							->SetSizeCoefficient(0.25f)
 							->SetHideTabWell(false)
-							->AddTab(TabFactory::Names::Members, ETabState::OpenedTab)
+							->AddTab(TabNamesPrivate::Members, ETabState::OpenedTab)
 						)
 						->Split
 						(
 							FTabManager::NewStack()
 							->SetSizeCoefficient(0.1f)
 							->SetHideTabWell(true)
-							->AddTab(TabFactory::Names::Interfaces, ETabState::OpenedTab)
+							->AddTab(TabNamesPrivate::Interfaces, ETabState::OpenedTab)
 						)
 						->Split
 						(
 							FTabManager::NewStack()
 							->SetSizeCoefficient(0.50f)
 							->SetHideTabWell(false)
-							->AddTab(TabFactory::Names::Details, ETabState::OpenedTab)
+							->AddTab(TabNamesPrivate::Details, ETabState::OpenedTab)
 						)
 					)
 					->Split
@@ -1085,14 +1140,14 @@ namespace Metasound
 							FTabManager::NewStack()
 							->SetSizeCoefficient(0.8f)
 							->SetHideTabWell(true)
-							->AddTab(TabFactory::Names::GraphCanvas, ETabState::OpenedTab)
+							->AddTab(TabNamesPrivate::GraphCanvas, ETabState::OpenedTab)
 						)
 						->Split
 						(
 							FTabManager::NewStack()
 							->SetSizeCoefficient(0.2f)
 							->SetHideTabWell(true)
-							->AddTab(TabFactory::Names::Find, ETabState::OpenedTab)
+							->AddTab(TabNamesPrivate::Find, ETabState::OpenedTab)
 						)
 					)
 
@@ -1101,7 +1156,7 @@ namespace Metasound
 						FTabManager::NewStack()
 						->SetSizeCoefficient(0.08f)
 						->SetHideTabWell(true)
-						->AddTab(TabFactory::Names::Analyzers, ETabState::OpenedTab)
+						->AddTab(TabNamesPrivate::Analyzers, ETabState::OpenedTab)
 					)
 				)
 			);
@@ -1447,6 +1502,20 @@ namespace Metasound
 
 				InterfacesDetails->SetObjects(InterfacesViewObj);
 				InterfacesDetails->HideFilterArea(true);
+			}
+
+			if (AssetEditorPrivate::EnablePageEditor)
+			{
+				PagesDetails = PropertyModule.CreateDetailView(Args);
+				if (PagesDetails.IsValid())
+				{
+					PagesView = TStrongObjectPtr(NewObject<UMetasoundPagesView>());
+					PagesView->SetMetasound(&MetaSound);
+					const TArray<UObject*> PagesViewObj{ PagesView.Get() };
+
+					PagesDetails->SetObjects(PagesViewObj);
+					PagesDetails->HideFilterArea(true);
+				}
 			}
 
 			Palette = SNew(SMetasoundPalette);
@@ -3149,7 +3218,17 @@ namespace Metasound
 			}
 		}
 
-		void FEditor::RefreshInterfaces()
+		void FEditor::RefreshPagesView()
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FEditor::RefreshPages);
+
+			if (PagesDetails.IsValid())
+			{
+				PagesDetails->ForceRefresh();
+			}
+		}
+
+		void FEditor::RefreshInterfaceView()
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FEditor::RefreshInterfaces);
 
@@ -3860,7 +3939,7 @@ namespace Metasound
 
 				if (!InterfacesModified.IsEmpty() || bForceRefreshViews)
 				{
-					RefreshInterfaces();
+					RefreshInterfaceView();
 				}
 
 				HighestMessageSeverity = Graph->GetHighestMessageSeverity();
