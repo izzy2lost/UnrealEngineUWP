@@ -236,10 +236,18 @@ void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnion
 		TArray<int> RootNodes;
 		GetRootNodes(RootNodes);
 
-		for (int RootIndex : RootNodes)
+		if (SimTreeProcessingOrder == ESimTreeProcessingOrder::LeafFirstBFS)
 		{
-			SimulateNode(DeltaTime, Inputs, RootIndex, PhysicsProxy);
+			SimulateNodeBFS(DeltaTime, Inputs, RootNodes, PhysicsProxy);
 		}
+		else
+		{
+			for (int RootIndex : RootNodes)
+			{
+				SimulateNode(DeltaTime, Inputs, RootIndex, PhysicsProxy);
+			}
+		}
+
 	}
 
 }
@@ -284,6 +292,55 @@ void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeI
 
 	}
 }
+
+void FSimModuleTree::SimulateNodeBFS(float DeltaTime, FAllInputs& Inputs, const TArray<int>& RootNodes, FClusterUnionPhysicsProxy* PhysicsProxy)
+{
+	TQueue<int> Queue;
+	TArray<int> Stack;
+
+	for (int Idx : RootNodes)
+	{
+		if (AccessSimModule(Idx))
+		{
+			Queue.Enqueue(Idx);
+		}
+	}
+
+	while (!Queue.IsEmpty())
+	{
+		int OutNode = -1;
+		Queue.Dequeue(OutNode);
+		if (OutNode >= 0)
+		{
+			Stack.Push(OutNode);
+			for (int Idx : GetChildren(OutNode))
+			{
+				if (AccessSimModule(Idx))
+				{
+					Queue.Enqueue(Idx);
+				}
+			}
+		}
+	}
+
+	while (!Stack.IsEmpty())
+	{
+		int Node = Stack.Pop();
+		if (ISimulationModuleBase* Module = AccessSimModule(Node))
+		{
+			if (Module->IsEnabled())
+			{
+				Module->Simulate(PhysicsProxy, DeltaTime, Inputs, *this);
+
+				if (IsAnimationEnabled() && Module->IsAnimationEnabled())
+				{
+					Module->Animate(PhysicsProxy);
+				}
+			}
+		}
+	}
+}
+
 
 void FSimModuleTree::DeleteNodesBelow(int AtIndex)
 {

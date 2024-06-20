@@ -6,9 +6,18 @@
 #include "SimModule/SimulationModuleBase.h"
 #include "SimModule/ModuleInput.h"
 
+#include "SimModuleTree.Generated.h"
 
 DECLARE_STATS_GROUP(TEXT("ModularVehicle.SimTree"), STATGROUP_ModularVehicleSimTree, STATGROUP_Advanced);
 
+UENUM(BlueprintType)
+enum ESimTreeProcessingOrder : int8
+{
+	ManualOverride = 0,	// User calls simulate on the child modules
+	LeafFirst = 1,		// modules simulation from the leaf first
+	RootFirst = 2,		// modules simulate from the root first
+	LeafFirstBFS = 3
+};
 
 class FGeometryCollectionPhysicsProxy;
 namespace Chaos
@@ -16,14 +25,6 @@ namespace Chaos
 	class ISimulationModuleBase;
 	class FClusterUnionPhysicsProxy;
 	struct FAllInputs;
-
-
-	enum ESimTreeProcessingOrder : int8
-	{
-		ManualOverride = 0,	// User calls simulate on the child modules
-		LeafFirst = 1,		// modules simulation from the leaf first
-		RootFirst = 2		// modules simulate from the root first
-	};
 
 	struct FPendingModuleAdds
 	{
@@ -202,6 +203,8 @@ namespace Chaos
 
 	protected:
 		void SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIdx, FClusterUnionPhysicsProxy* PhysicsProxy);
+
+		void SimulateNodeBFS(float DeltaTime, FAllInputs& Inputs, const TArray<int>& RootNodes, FClusterUnionPhysicsProxy* PhysicsProxy);
 
 		void DeleteNodesBelow(int NodeIdx);
 

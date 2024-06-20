@@ -110,8 +110,8 @@ public:
 
 	APlayerController* GetPlayerController() const;
 	bool IsLocallyControlled() const;
-	void SetTreeProcessingOrder(Chaos::ESimTreeProcessingOrder TreeProcessingOrderIn) { TreeProcessingOrder = TreeProcessingOrderIn; }
-	Chaos::ESimTreeProcessingOrder GetTreeProcessingOrder() { return TreeProcessingOrder; }
+	void SetTreeProcessingOrder(ESimTreeProcessingOrder TreeProcessingOrderIn) { TreeProcessingOrder = TreeProcessingOrderIn; }
+	ESimTreeProcessingOrder GetTreeProcessingOrder() { return TreeProcessingOrder; }
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -318,6 +318,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = VehicleInput)
 	TArray<FModuleInputSetup> InputConfig;
+		
+	UPROPERTY(EditAnywhere, Category = "Game|Components|ModularVehicle")
+	TEnumAsByte<ESimTreeProcessingOrder> TreeProcessingOrder = ESimTreeProcessingOrder::LeafFirst;
 
 	UPROPERTY(Transient, Replicated)
 	TArray<FConstructionData> ConstructionDatas;
@@ -370,7 +373,6 @@ private:
 	int32 ClusteringCount = 0;
 
 	bool bIsLocallyControlled;
-	Chaos::ESimTreeProcessingOrder TreeProcessingOrder = Chaos::ESimTreeProcessingOrder::LeafFirst;
 
 	TArray<FModuleAnimationSetup> ModuleAnimationSetups;
 
@@ -380,6 +382,4 @@ private:
 	TObjectPtr<UVehicleInputProducerBase> InputProducer = nullptr;
 
 	FModuleInputContainer InputsContainer;
-
 };
-
