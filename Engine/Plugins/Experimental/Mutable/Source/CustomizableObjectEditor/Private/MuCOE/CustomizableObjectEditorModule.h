@@ -40,6 +40,7 @@ public:
 	virtual FCustomizableObjectEditorLogger& GetLogger() override;
 	virtual bool IsCompilationOutOfDate(const UCustomizableObject& Object, TArray<FName>* OutOfDatePackages) const override;
 	virtual bool IsRootObject(const UCustomizableObject& Object) const override;
+	virtual FString GetCurrentContentVersionForObject(const UCustomizableObject& Object) const override;
 	virtual void BakeCustomizableObjectInstance(UCustomizableObjectInstance* InTargetInstance, const FBakingConfiguration& InBakingConfig) override;
 
 	/** Request for a given customizable object to be compiled. Async compile requests will be queued and processed sequentially. 

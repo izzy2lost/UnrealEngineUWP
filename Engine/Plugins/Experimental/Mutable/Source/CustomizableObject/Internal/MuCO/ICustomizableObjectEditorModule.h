@@ -54,7 +54,11 @@ public:
 
 	/** See GraphTraversal::IsRootObject(...) */
 	virtual bool IsRootObject(const UCustomizableObject& Object) const = 0;
-	
+
+	/** Get the current VersionBridge's version for Object. 
+	  * @return Current version as string. */
+	virtual FString GetCurrentContentVersionForObject(const UCustomizableObject& Object) const = 0;
+
 	/**
 	 * Execute this method in order to bake the provided instance. It will schedule a special type of instance update before proceeding with the bake itself.
 	 * @param InTargetInstance The instance we want to bake

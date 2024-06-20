@@ -41,4 +41,9 @@ public:
 	  * @return True if the table row is included in the current release
 	*/
 	virtual bool IsVersionPropertyIncludedInCurrentRelease(const FProperty& VersionProperty, const uint8* CellData) const { return false; };
+
+	/** Get the version as string to include it when building the derived data cache key.
+	  * @return current version as string.
+	  */
+	virtual FString GetCurrentVersionAsString() const { return {}; };
 };

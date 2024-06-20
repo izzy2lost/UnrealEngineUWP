@@ -27,6 +27,7 @@
 #include "MuCOE/CustomizableObjectIdentifierCustomization.h"
 #include "MuCOE/CustomizableObjectInstanceEditor.h"
 #include "MuCOE/CustomizableObjectInstanceFactory.h"
+#include "MuCOE/CustomizableObjectVersionBridge.h"
 #include "MuCOE/CustomizableObjectNodeObjectGroupDetails.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeEditMaterial.h"
@@ -648,6 +649,21 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 bool FCustomizableObjectEditorModule::IsRootObject(const UCustomizableObject& Object) const
 {
 	return GraphTraversal::IsRootObject(Object);
+}
+
+FString FCustomizableObjectEditorModule::GetCurrentContentVersionForObject(const UCustomizableObject& Object) const
+{
+	if (Object.VersionBridge && Object.VersionBridge->GetClass()->ImplementsInterface(UCustomizableObjectVersionBridgeInterface::StaticClass()))
+	{
+		ICustomizableObjectVersionBridgeInterface* CustomizableObjectVersionBridgeInterface = Cast<ICustomizableObjectVersionBridgeInterface>(Object.VersionBridge);
+
+		if (CustomizableObjectVersionBridgeInterface)
+		{
+			return CustomizableObjectVersionBridgeInterface->GetCurrentVersionAsString();
+		}
+	}
+
+	return FString();
 }
 
 
