@@ -1406,6 +1406,21 @@ FGeometryScriptSimpleCollision UGeometryScriptLibrary_CollisionFunctions::Comput
 		NegativeSpaceSettings.MinRadius = NegativeSpaceOptions.MinRadius;
 		NegativeSpaceSettings.MinSpacing = 0;
 
+		if (!NegativeSpaceOptions.UnreachablePlanes.IsEmpty())
+		{
+			NegativeSpaceSettings.OptionalObstacleSDF = [&NegativeSpaceOptions](FVector Pos)
+			{
+				double SDF = FMathd::MaxReal;
+				for (const FPlane& Plane : NegativeSpaceOptions.UnreachablePlanes)
+				{
+					double PlaneSDF = Plane.PlaneDot(Pos);
+					SDF = FMath::Min(PlaneSDF, SDF);
+				}
+				return SDF;
+			};
+		}
+		
+
 		ConvexDecomposition.InitializeNegativeSpace(NegativeSpaceSettings, NegativeSpaceOptions.CustomNavigablePositions);
 
 		ConvexDecomposition.MaxConvexEdgePlanes = 4;

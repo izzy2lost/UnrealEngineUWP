@@ -194,6 +194,11 @@ public:
 	/// Optional list of locations that we expect to be navigable
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	TArray<FVector> CustomNavigablePositions;
+
+	/// Optional list of planes defining unreachable space (on their negative side)
+	/// Use this for example to specify a ground plane, if a mesh will always be placed on ground and need not be navigable from below.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	TArray<FPlane> UnreachablePlanes;
 };
 
 
