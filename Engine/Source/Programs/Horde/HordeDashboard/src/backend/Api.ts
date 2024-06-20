@@ -1334,7 +1334,7 @@ export type UpdateStepRequest = {
 	/**If the step has been requested to abort */
 	abortRequested?: boolean;
 
-	/** The reason the step was canceled */	
+	/** The reason the step was canceled */
 	cancellationReason?: string;
 
 	/**Specifies the log file id for this step */
@@ -5046,7 +5046,21 @@ export type GetTestDataRefResponse = {
 	/// The number of suite tests swith errors
 	suiteSuccessCount?: number;
 }
-	
+
+/** Current state of a tool's deployment */
+export enum ToolDeploymentState {
+	/** The deployment is ongoing */
+	Active = "Active",
+
+	/** The deployment should be paused at its current state */
+	Paused = "Paused",
+
+	/** Deployment of this version is complete */
+	Complete = "Complete",
+
+	/** The deployment has been cancelled. */
+	Cancelled = "Canceled"
+}
 
 /** Summary for a particular tool */
 export type GetToolSummaryResponse = {
@@ -5075,12 +5089,50 @@ export type GetToolSummaryResponse = {
 	/** Identifier for the current deployment */
 	deploymentId?: string;
 
+	/** State of the current deployment */
+	deploymentState?: ToolDeploymentState;
+
+	/** Progress of the current deployment */
+	deploymentProgress?: number;
+
 	/** Whether to show this tool for download inside UGS */
 	showInUGS: boolean;
 
 	/**Whether to show this tool for download on the dashboard */
 	showInDashboard: boolean;
 }
+
+export type GetToolDeploymentResponse = {
+	id: string;
+	version: string;
+	state: ToolDeploymentState;
+	progress: number;
+	startedAt: Date | string;
+	duration: any;
+	refName: string;
+	locator: any;
+}
+
+export type GetToolResponse = {
+	id: string;
+	name: string;
+	description: string;
+	category?: string;
+	group?: string;
+	platforms?: string[];
+	deployments: GetToolDeploymentResponse[];
+	public: boolean;
+	showInUgs: boolean;
+	showInDashboard: boolean;
+};
+
+/**  Update an existing deployment */
+export type UpdateDeploymentRequest = {
+
+	/** New state for the deployment */
+	state?: ToolDeploymentState;
+}
+
 
 /** Job Bisect */
 

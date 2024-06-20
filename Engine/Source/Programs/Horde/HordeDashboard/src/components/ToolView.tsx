@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { DetailsList, DetailsListLayoutMode, IColumn, IDetailsGroupDividerProps, IDetailsGroupRenderProps, IDetailsListProps, IGroup, IconButton, Pivot, PivotItem, PrimaryButton, SelectionMode, Stack, Text } from "@fluentui/react";
+import { DetailsList, DetailsListLayoutMode, DirectionalHint, IColumn, IContextualMenuProps, IDetailsGroupDividerProps, IDetailsGroupRenderProps, IDetailsListProps, IGroup, IconButton, Pivot, PivotItem, PrimaryButton, SelectionMode, Stack, Text } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import React, { useEffect, useState } from "react";
 import backend from "../backend";
@@ -10,6 +10,7 @@ import { useWindowSize } from "../base/utilities/hooks";
 import { getHordeStyling } from "../styles/Styles";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { TopNav } from "./TopNav";
+import { ToolManagementModal } from "./tools/ToolManagement";
 
 const defaultCategory = "General";
 
@@ -135,6 +136,8 @@ const handler = new ToolHandler();
 
 const ToolPanel: React.FC<{ selectedKey: string }> = observer(({ selectedKey }) => {
 
+   const [manageTool, setManageTool] = useState("");
+
    useEffect(() => {
 
       handler.start();
@@ -204,6 +207,20 @@ const ToolPanel: React.FC<{ selectedKey: string }> = observer(({ selectedKey }) 
          width = 366;
       }
 
+      const downloadProps: IContextualMenuProps = {
+         items: [
+            {
+               key: 'managetool',
+               text: 'Manage',
+               onClick: () => {
+                  setManageTool(tool.id);
+               }
+            },
+         ],
+         directionalHint: DirectionalHint.bottomRightEdge
+      };
+
+
       return <Stack horizontal verticalAlign="center" verticalFill={true} style={{ padding: 12 }}>
          {!!groupProps && groupProps.group!.count > 1 && <IconButton style={{ color: modeColors.text, fontSize: 18, marginRight: 4 }} iconProps={{ iconName: groupProps.group?.isCollapsed ? 'ChevronRight' : 'ChevronDown' }} onClick={(event: any) => {
             event?.stopPropagation();
@@ -211,17 +228,17 @@ const ToolPanel: React.FC<{ selectedKey: string }> = observer(({ selectedKey }) 
          }}
          />}
 
-         <Stack style={{ width: width, paddingLeft: pad}}>
+         <Stack style={{ width: width, paddingLeft: pad }}>
             <Text style={{ fontFamily: (groupProps || !tool.group) ? "Horde Open Sans SemiBold" : undefined, color: modeColors.text }}>{tool.name}</Text>
          </Stack>
          <Stack style={{ width: 580 }}>
             <Text style={{ color: modeColors.text }}>{tool.description ?? ""}</Text>
          </Stack>
-         <Stack style={{ width: 260 }}>
+         <Stack style={{ width: 220 }}>
             <Text style={{ color: modeColors.text }}>{tool.version}</Text>
          </Stack>
          <Stack >
-            <PrimaryButton style={{ width: 120, color: "#FFFFFF" }} text="Download" href={`/api/v1/tools/${tool.id}?action=download`} />
+            <PrimaryButton split menuProps={downloadProps} style={{ width: 140, color: "#FFFFFF" }} text="Download" href={`/api/v1/tools/${tool.id}?action=download`} />
          </Stack>
       </Stack>
    }
@@ -256,6 +273,7 @@ const ToolPanel: React.FC<{ selectedKey: string }> = observer(({ selectedKey }) 
 
 
    return <Stack>
+      {!!manageTool && <ToolManagementModal toolId={manageTool} toolName={handler.tools.find(t => t.id === manageTool)?.name} onClose={() => setManageTool("")} />}
       {!tools.length && handler.loaded && <Stack style={{ paddingBottom: 12 }}>
          <Stack verticalAlign="center">
             <Stack horizontalAlign="center">
