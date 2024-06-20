@@ -14,5 +14,5 @@ namespace UE::NNEHlslShaders::Internal
 		FPermutationDomain PermutationVector(InParameters.PermutationId);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TSoftmaxCS, "/NNE/NNEHlslShadersSoftmax.usf", "Softmax", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TSoftmaxCS, "/NNEHlslShaders/NNEHlslShadersSoftmax.usf", "Softmax", SF_Compute);
 } // UE::NNEHlslShaders::Internal

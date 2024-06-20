@@ -94,5 +94,5 @@ namespace UE::NNEHlslShaders::Internal
 		return OpFunc;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TElementWiseUnaryCS, "/NNE/NNEHlslShadersElementWiseUnary.usf", "ElementWiseUnary", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TElementWiseUnaryCS, "/NNEHlslShaders/NNEHlslShadersElementWiseUnary.usf", "ElementWiseUnary", SF_Compute);
 } // UE::NNEHlslShaders::Internal

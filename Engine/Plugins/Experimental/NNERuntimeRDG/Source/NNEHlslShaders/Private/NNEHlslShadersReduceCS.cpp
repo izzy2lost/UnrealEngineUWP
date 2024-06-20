@@ -85,5 +85,5 @@ namespace UE::NNEHlslShaders::Internal
 		
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TReduceCS, "/NNE/NNEHlslShadersReduce.usf", "Reduce", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TReduceCS, "/NNEHlslShaders/NNEHlslShadersReduce.usf", "Reduce", SF_Compute);
 } // UE::NNEHlslShaders::Internal

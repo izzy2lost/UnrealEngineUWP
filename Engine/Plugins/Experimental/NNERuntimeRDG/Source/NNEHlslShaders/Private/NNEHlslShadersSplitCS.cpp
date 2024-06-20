@@ -23,5 +23,5 @@ namespace UE::NNEHlslShaders::Internal
 		FPermutationDomain PermutationVector(InParameters.PermutationId);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FSplitCS, "/NNE/NNEHlslShadersSplit.usf", "Split", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FSplitCS, "/NNEHlslShaders/NNEHlslShadersSplit.usf", "Split", SF_Compute);
 } // UE::NNEHlslShaders::Internal

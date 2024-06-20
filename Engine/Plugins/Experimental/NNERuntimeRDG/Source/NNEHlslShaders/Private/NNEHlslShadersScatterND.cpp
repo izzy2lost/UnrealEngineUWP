@@ -25,5 +25,5 @@ namespace UE::NNEHlslShaders::Internal
         return OutValue;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FScatterNDCS, "/NNE/NNEHlslShadersScatterND.usf", "ScatterND", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FScatterNDCS, "/NNEHlslShaders/NNEHlslShadersScatterND.usf", "ScatterND", SF_Compute);
 } // UE::NNEHlslShaders::Internal

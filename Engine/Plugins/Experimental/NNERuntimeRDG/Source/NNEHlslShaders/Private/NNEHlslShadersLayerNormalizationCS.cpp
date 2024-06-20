@@ -30,5 +30,5 @@ namespace UE::NNEHlslShaders::Internal
 		Parameters->Epsilon = Epsilon;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TLayerNormalizationCS, "/NNE/NNEHlslShadersLayerNormalization.usf", "LayerNormalization", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TLayerNormalizationCS, "/NNEHlslShaders/NNEHlslShadersLayerNormalization.usf", "LayerNormalization", SF_Compute);
 } // UE::NNEHlslShaders::Internal

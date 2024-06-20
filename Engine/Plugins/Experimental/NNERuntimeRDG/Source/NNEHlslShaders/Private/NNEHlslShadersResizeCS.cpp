@@ -69,5 +69,5 @@ namespace UE::NNEHlslShaders::Internal
         return OutValue;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FResizeCS, "/NNE/NNEHlslShadersResize.usf", "Resize", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FResizeCS, "/NNEHlslShaders/NNEHlslShadersResize.usf", "Resize", SF_Compute);
 } // UE::NNEHlslShaders::Internal

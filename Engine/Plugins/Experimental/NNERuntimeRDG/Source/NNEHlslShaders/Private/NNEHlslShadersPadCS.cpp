@@ -22,5 +22,5 @@ namespace UE::NNEHlslShaders::Internal
 		else if (FCString::Stricmp(StringVal, TEXT("EDGE")) == 0) OutValue = EPadMode::EDGE;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FPadCS, "/NNE/NNEHlslShadersPad.usf", "Pad", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FPadCS, "/NNEHlslShaders/NNEHlslShadersPad.usf", "Pad", SF_Compute);
 } // UE::NNEHlslShaders::Internal

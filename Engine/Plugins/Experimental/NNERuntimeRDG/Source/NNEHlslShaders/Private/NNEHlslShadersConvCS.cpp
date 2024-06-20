@@ -298,5 +298,5 @@ namespace UE::NNEHlslShaders::Internal
 		else if (FCString::Stricmp(StringVal, TEXT("VALID")) == 0) OutValue = EConvAutoPad::VALID;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FConvCS, "/NNE/NNEHlslShadersConv.usf", "Conv", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FConvCS, "/NNEHlslShaders/NNEHlslShadersConv.usf", "Conv", SF_Compute);
 } // UE::NNEHlslShaders::Internal

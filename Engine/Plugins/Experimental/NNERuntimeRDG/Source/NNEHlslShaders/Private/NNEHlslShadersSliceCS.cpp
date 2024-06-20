@@ -14,5 +14,5 @@ namespace UE::NNEHlslShaders::Internal
 		FPermutationDomain PermutationVector(InParameters.PermutationId);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FSliceCS, "/NNE/NNEHlslShadersSlice.usf", "Slice", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FSliceCS, "/NNEHlslShaders/NNEHlslShadersSlice.usf", "Slice", SF_Compute);
 } // UE::NNEHlslShaders::Internal

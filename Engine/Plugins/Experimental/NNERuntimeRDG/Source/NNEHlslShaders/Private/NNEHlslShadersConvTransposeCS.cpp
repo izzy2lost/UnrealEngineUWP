@@ -290,5 +290,5 @@ namespace UE::NNEHlslShaders::Internal
 		else if (FCString::Stricmp(StringVal, TEXT("VALID")) == 0) OutValue = EConvTransposeAutoPad::VALID;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FConvTransposeCS, "/NNE/NNEHlslShadersConvTranspose.usf", "ConvTranspose", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FConvTransposeCS, "/NNEHlslShaders/NNEHlslShadersConvTranspose.usf", "ConvTranspose", SF_Compute);
 } // UE::NNEHlslShaders::Internal

@@ -31,5 +31,5 @@ namespace UE::NNEHlslShaders::Internal
 		FPermutationDomain PermutationVector(InParameters.PermutationId);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FUpsampleCS, "/NNE/NNEHlslShadersUpsample.usf", "Upsample", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FUpsampleCS, "/NNEHlslShaders/NNEHlslShadersUpsample.usf", "Upsample", SF_Compute);
 } // UE::NNEHlslShaders::Internal

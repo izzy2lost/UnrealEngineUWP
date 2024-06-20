@@ -55,5 +55,5 @@ namespace UE::NNEHlslShaders::Internal
 		return OpFunc;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TElementWiseBinaryCS, "/NNE/NNEHlslShadersElementWiseBinary.usf", "ElementWiseBinary", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TElementWiseBinaryCS, "/NNEHlslShaders/NNEHlslShadersElementWiseBinary.usf", "ElementWiseBinary", SF_Compute);
 } // UE::NNEHlslShaders::Internal

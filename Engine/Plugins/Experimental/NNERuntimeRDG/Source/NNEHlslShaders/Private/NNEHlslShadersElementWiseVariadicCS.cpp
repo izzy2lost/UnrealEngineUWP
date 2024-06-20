@@ -44,5 +44,5 @@ namespace UE::NNEHlslShaders::Internal
 		return OpFunc;
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(TElementWiseVariadicCS, "/NNE/NNEHlslShadersElementWiseVariadic.usf", "ElementWiseVariadic", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(TElementWiseVariadicCS, "/NNEHlslShaders/NNEHlslShadersElementWiseVariadic.usf", "ElementWiseVariadic", SF_Compute);
 } // UE::NNEHlslShaders::Internal
