@@ -34,6 +34,7 @@ void STraceControl::Construct(const FArguments& InArgs, TSharedPtr<ITraceControl
 		SNew(SVerticalBox)
 
 		+ SVerticalBox::Slot()
+		.Padding(0.0f, 4.0f, 0.0f, 0.0f)
 		.AutoHeight()
 		[
 			SNew(STraceControlToolbar, UICommandList.ToSharedRef(), InTraceController)
