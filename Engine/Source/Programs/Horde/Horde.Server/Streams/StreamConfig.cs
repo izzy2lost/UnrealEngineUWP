@@ -81,6 +81,7 @@ namespace Horde.Server.Streams
 	[JsonSchemaCatalog("Horde Stream", "Horde stream configuration file", new[] { "*.stream.json", "Streams/*.json" })]
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
+	[DebuggerDisplay("{Id}")]
 	public class StreamConfig
 	{
 		/// <summary>
