@@ -491,9 +491,13 @@ namespace UE::DMX
 			}
 
 			UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription->WriteFixturePatch(*FixturePatch);
-			UsedMVRUUIDs.Add(FixtureNode->UUID);
+			if (!FixtureNode)
+			{
+				continue;
+			}
 
-			if (FixtureNode && ExportOptions->bUseTransformsFromLevel)
+			UsedMVRUUIDs.Add(FixtureNode->UUID);
+			if (ExportOptions->bUseTransformsFromLevel)
 			{
 				FixtureNode->SetTransformAbsolute(Actor->GetTransform());
 			}
