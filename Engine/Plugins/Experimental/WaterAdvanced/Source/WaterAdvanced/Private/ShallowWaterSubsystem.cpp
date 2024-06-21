@@ -102,6 +102,17 @@ UShallowWaterSubsystem::UShallowWaterSubsystem()
 {
 }
 
+void UShallowWaterSubsystem::PostInitialize()
+{
+	Super::PostInitialize();
+
+	// Register default PA Proxies before all other GFP chimes in
+	Settings = GetMutableDefault<UShallowWaterSettings>();
+	if (!Settings)
+	{
+		ensureMsgf(false, TEXT("UShallowWaterSubsystem::PostInitialize() - UShallowWaterSettings is not valid"));
+	}
+}
 
 void UShallowWaterSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
@@ -348,7 +359,7 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 	}
 	else
 	{
-		ensureMsgf(false, TEXT("UShallowWaterSubsystem::InitializeShallowWater() - PhyicsAssetProxiesDataAsset is not valid"));
+		UE_LOG(LogShallowWater, Log, TEXT("UShallowWaterSubsystem::InitializeShallowWater() - UShallowWaterSettings::PhyicsAssetProxiesDataAsset is not valid"));	
 	}
 
 	UE_LOG(LogShallowWater, Log, TEXT("UShallowWaterSubsystem::InitializeShallowWater() finished successfully"));
@@ -983,6 +994,7 @@ void UShallowWaterSubsystem::EnableCollisionForContext(const FShallowWaterCollis
 		const FString BaseName = TEXT("FluidsimCollisionProxy");
 		const FName CompName = MakeUniqueObjectName(this, USkeletalMeshComponent::StaticClass(), FName(*BaseName));
 		USkeletalMeshComponent* ProxyComp = NewObject<USkeletalMeshComponent>(Context.Component->GetOwner(), USkeletalMeshComponent::StaticClass(), CompName);
+		ProxyComp->SetSkeletalMeshAsset(Context.Component->GetSkeletalMeshAsset());
 
 		// Spawn an empty dummy SKM component to be used as Collision 
 		// Apply PhysicsAsset override if defined in the data asset

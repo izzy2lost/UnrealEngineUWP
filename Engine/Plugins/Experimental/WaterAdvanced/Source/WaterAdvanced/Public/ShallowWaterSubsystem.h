@@ -117,13 +117,14 @@ struct WATERADVANCED_API FShallowWaterCollisionTracker_Direct
 
 
 
-UCLASS(BlueprintType, Transient)
+UCLASS(Abstract)
 class WATERADVANCED_API UShallowWaterSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
 	UShallowWaterSubsystem();	
+	virtual void PostInitialize() override;
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Tick(float DeltaTime) override;
