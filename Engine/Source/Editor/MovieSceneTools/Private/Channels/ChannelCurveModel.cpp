@@ -223,11 +223,24 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::SetKeyPositions(TAr
 
 	if (Channel && Section && !IsReadOnly())
 	{
+		TMovieSceneChannelData<ChannelValue> ChannelData = Channel->GetData();
+		const TArrayView<const FFrameNumber> Times = ChannelData.GetTimes();
+		if (Times.IsEmpty())
+		{
+			return;
+		}
+		
 		Section->MarkAsChanged();
 
 		FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
 
-		TMovieSceneChannelData<ChannelValue> ChannelData = Channel->GetData();
+		const int32 LastIndex = Times.Num()-1;
+		const FFrameNumber FirstTime = Times[0];
+		const FFrameNumber LastTime = Times[LastIndex];
+		
+		FFrameNumber Min = TNumericLimits<FFrameNumber>::Max();
+		FFrameNumber Max = TNumericLimits<FFrameNumber>::Lowest();
+		
 		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
 		{
 			int32 KeyIndex = ChannelData.GetIndex(InKeys[Index]);
@@ -238,9 +251,24 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::SetKeyPositions(TAr
 				KeyIndex = ChannelData.MoveKey(KeyIndex, NewTime);
 				SetKeyValue(KeyIndex, InKeyPositions[Index].OutputValue);
 
-				Section->ExpandToFrame(NewTime);
+				if ((KeyIndex == 0 && NewTime != FirstTime) || (KeyIndex == LastIndex && NewTime != LastTime))
+				{
+					Min = FMath::Min(Min, NewTime);
+					Max = FMath::Max(Max, NewTime);
+				}
 			}
 		}
+
+		// update range if needed
+		if (Min != TNumericLimits<FFrameNumber>::Max())
+		{
+			Section->ExpandToFrame(Min);
+			if (Max != Min)
+			{
+				Section->ExpandToFrame(Max);
+			}
+		}
+		
 		Channel->PostEditChange();
 		if(WeakSequencer.IsValid())
 		{ 

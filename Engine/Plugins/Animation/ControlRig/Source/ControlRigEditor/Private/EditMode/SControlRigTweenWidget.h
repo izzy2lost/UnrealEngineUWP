@@ -37,6 +37,10 @@ class SControlRigTweenSlider : public SCompoundWidget
 	bool Setup();
 
 	void ResetAnimSlider();
+
+	// SWidget interface
+	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	
 private:
 
 
@@ -58,6 +62,8 @@ private:
 	TSharedPtr<FBaseAnimSlider> AnimSlider;
 	TSharedPtr<SSpinBox<double>> SpinBox;
 
+	// Pending blend function called on tick to avoid blending values for each mouse move
+	TFunction<void()> PendingBlendFunction;
 };
 
 

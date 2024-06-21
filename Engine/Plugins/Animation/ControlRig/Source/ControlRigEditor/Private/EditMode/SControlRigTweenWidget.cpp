@@ -83,7 +83,13 @@ void SControlRigTweenSlider::OnPoseBlendChanged(double ChangedVal)
 	if (WeakSequencer.IsValid() && bIsBlending)
 	{
 		PoseBlendValue = ChangedVal;
-		AnimSlider->Blend(WeakSequencer, ChangedVal);
+
+		// defer blend function on next tick
+		PendingBlendFunction = [this, ChangedVal]()
+		{
+			AnimSlider->Blend(WeakSequencer, ChangedVal);
+		};
+
 		WeakSequencer.Pin()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
 	}
 
@@ -95,6 +101,17 @@ void SControlRigTweenSlider::ResetAnimSlider()
 	{
 		PoseBlendValue = 0.0;
 	}
+}
+
+void SControlRigTweenSlider::Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	if (PendingBlendFunction)
+	{
+		PendingBlendFunction();
+		PendingBlendFunction.Reset();
+	}
+	
+	SCompoundWidget::Tick(InAllottedGeometry, InCurrentTime, InDeltaTime);
 }
 
 void SControlRigTweenSlider::DragAnimSliderTool(double Val)
@@ -124,6 +141,7 @@ void SControlRigTweenSlider::DragAnimSliderTool(double Val)
 
 void SControlRigTweenSlider::OnBeginSliderMovement()
 {
+	PendingBlendFunction.Reset();
 	if (bSliderStartedTransaction == false)
 	{
 		bIsBlending = bSliderStartedTransaction = Setup();
@@ -143,6 +161,12 @@ bool SControlRigTweenSlider::Setup()
 
 void SControlRigTweenSlider::OnEndSliderMovement(double NewValue)
 {
+	if (PendingBlendFunction)
+	{
+		PendingBlendFunction();
+		PendingBlendFunction.Reset();
+	}
+	
 	if (bSliderStartedTransaction)
 	{
 		GEditor->EndTransaction();
