@@ -196,7 +196,7 @@ namespace Horde.Server.Configuration
 			IncludeStack.Push(file);
 
 			ObjectConfigNode type = new ObjectConfigNode(typeof(T));
-			obj = (JsonObject)(await type.PreprocessAsync(obj, null, this, cancellationToken))!;
+			obj = await type.PreprocessAsync(obj, this, cancellationToken);
 
 			IncludeStack.Pop();
 

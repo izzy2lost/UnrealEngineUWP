@@ -72,9 +72,9 @@ namespace Horde.Server.Tests.Configuration
 			Dictionary<string, IConfigSource> sources = new Dictionary<string, IConfigSource>();
 			sources["memory"] = source;
 
-			ConfigContext options = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
+			ConfigContext context = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
 
-			ConfigObject result = await ConfigType.ReadAsync<ConfigObject>(fooUri, options, cancellationToken);
+			ConfigObject result = await context.ReadAsync<ConfigObject>(fooUri, cancellationToken);
 			Assert.AreEqual(result.TestString, "hello");
 			Assert.IsTrue(result.TestList.SequenceEqual(new[] { "secondobj", "there", "world" }));
 			Assert.AreEqual(result.TestObject!.ValueA, "hi");
@@ -108,7 +108,7 @@ namespace Horde.Server.Tests.Configuration
 
 			ConfigContext context = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
 
-			ConfigObject result = await ConfigType.ReadAsync<ConfigObject>(fooUri, context, cancellationToken);
+			ConfigObject result = await context.ReadAsync<ConfigObject>(fooUri, cancellationToken);
 			Assert.AreEqual(result.TestString, "hello");
 
 			// Check it returns the same object if the timestamp hasn't changed
@@ -266,9 +266,9 @@ namespace Horde.Server.Tests.Configuration
 			Dictionary<string, IConfigSource> sources = new Dictionary<string, IConfigSource>();
 			sources["memory"] = source;
 
-			ConfigContext options = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
+			ConfigContext context = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
 
-			BaseMacroScope result = await ConfigType.ReadAsync<BaseMacroScope>(fooUri, options, cancellationToken);
+			BaseMacroScope result = await context.ReadAsync<BaseMacroScope>(fooUri, cancellationToken);
 			Assert.AreEqual("This is a macro MacroValue", result.Value);
 			Assert.AreEqual("List element macro MacroValue", result.ListValue[0]);
 			Assert.AreEqual("Object macro MacroValue", result.ObjectValue.Value);
@@ -299,9 +299,9 @@ namespace Horde.Server.Tests.Configuration
 			Dictionary<string, IConfigSource> sources = new Dictionary<string, IConfigSource>();
 			sources["memory"] = source;
 
-			ConfigContext options = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
+			ConfigContext context = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
 
-			BaseMacroScope result = await ConfigType.ReadAsync<BaseMacroScope>(fooUri, options, cancellationToken);
+			BaseMacroScope result = await context.ReadAsync<BaseMacroScope>(fooUri, cancellationToken);
 			Assert.AreEqual("This is a macro MacroValue $(MacroName2)", result.Value);
 			Assert.AreEqual("This is a macro MacroValue MacroValue2", result.ChildScope!.Value);
 		}

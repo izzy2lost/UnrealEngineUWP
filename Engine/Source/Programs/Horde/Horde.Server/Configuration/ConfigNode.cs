@@ -406,7 +406,13 @@ namespace Horde.Server.Configuration
 		/// </summary>
 		/// <param name="type">Type to construct from</param>
 		public ObjectConfigNode(Type type)
+			: this(type, new Dictionary<Type, ConfigNode>())
+		{ }
+
+		ObjectConfigNode(Type type, Dictionary<Type, ConfigNode> recursiveTypes)
 		{
+			recursiveTypes.Add(type, this);
+
 			IncludeRoot = type.GetCustomAttribute<ConfigIncludeRootAttribute>() != null;
 			MacroScope = type.GetCustomAttribute<ConfigMacroScopeAttribute>() != null;
 			Properties = new Dictionary<string, ConfigNode>(StringComparer.OrdinalIgnoreCase);
@@ -417,7 +423,7 @@ namespace Horde.Server.Configuration
 			{
 				if (propertyInfo.GetCustomAttribute<JsonIgnoreAttribute>() == null)
 				{
-					ConfigNode? propertyType = CreateTypeForProperty(propertyInfo);
+					ConfigNode? propertyType = CreateTypeForProperty(propertyInfo, recursiveTypes);
 					if (propertyType != null)
 					{
 						string name = propertyInfo.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? propertyInfo.Name;
@@ -430,7 +436,7 @@ namespace Horde.Server.Configuration
 		bool IsDefault()
 			=> !IncludeRoot && !MacroScope && Properties.Count == 0;
 
-		static ConfigNode? CreateTypeForProperty(PropertyInfo propertyInfo)
+		static ConfigNode? CreateTypeForProperty(PropertyInfo propertyInfo, Dictionary<Type, ConfigNode> recursiveTypes)
 		{
 			Type propertyType = propertyInfo.PropertyType;
 			if (!propertyType.IsClass || propertyType == typeof(string))
@@ -446,10 +452,10 @@ namespace Horde.Server.Configuration
 					return null;
 				}
 			}
-			return CreateType(propertyType);
+			return CreateType(propertyType, recursiveTypes);
 		}
 
-		static ConfigNode? CreateType(Type type)
+		static ConfigNode? CreateType(Type type, Dictionary<Type, ConfigNode> recursiveTypes)
 		{
 			ConfigNode? value;
 			if (!type.IsClass || type == typeof(string) || type == typeof(JsonNode))
@@ -466,15 +472,15 @@ namespace Horde.Server.Configuration
 			}
 			else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
 			{
-				ConfigNode? elementType = CreateType(type.GetGenericArguments()[0]);
+				ConfigNode? elementType = CreateType(type.GetGenericArguments()[0], recursiveTypes);
 				value = (elementType == null) ? null : new ArrayConfigNode(elementType);
 			}
 			else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
 			{
-				ConfigNode? elementType = CreateType(type.GetGenericArguments()[1]);
+				ConfigNode? elementType = CreateType(type.GetGenericArguments()[1], recursiveTypes);
 				value = (elementType == null) ? null : new DictionaryConfigNode(elementType);
 			}
-			else
+			else if (!recursiveTypes.TryGetValue(type, out value))
 			{
 				ObjectConfigNode objValue = new ObjectConfigNode(type);
 				value = objValue.IsDefault() ? null : objValue;
@@ -500,7 +506,10 @@ namespace Horde.Server.Configuration
 				{
 					if (node != null && Properties.TryGetValue(name, out ConfigNode? property))
 					{
-						property.ParseMacros(node, context, macros);
+						if (property is not ObjectConfigNode propertyObj || !propertyObj.MacroScope)
+						{
+							property.ParseMacros(node, context, macros);
+						}
 					}
 				}
 			}
