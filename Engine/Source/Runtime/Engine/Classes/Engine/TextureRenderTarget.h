@@ -32,6 +32,9 @@ class UTextureRenderTarget : public UTexture
 	/** If true, it will be possible to create a FUnorderedAccessViewRHIRef using RHICreateUnorderedAccessView and the internal FTextureRHIRef. */
 	uint32 bCanCreateUAV : 1;
 
+	/** If true, RTVs will be created for each slice (texture array and/or cube). */
+	uint32 bTargetArraySlicesIndependently : 1;
+
 	/**
 	 * Render thread: Access the render target resource for this texture target object
 	 * @return pointer to resource or NULL if not initialized

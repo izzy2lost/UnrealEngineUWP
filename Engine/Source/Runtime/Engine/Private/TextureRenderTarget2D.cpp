@@ -610,7 +610,7 @@ void FTextureRenderTarget2DResource::ReleaseRHI()
 
 /**
  * Updates (resolves) the render target texture.
- * Optionally clears the contents of the render target to green.
+ * Optionally clears the contents of the render target to the clear color.
  * This is only called by the rendering thread.
  */
 void FTextureRenderTarget2DResource::UpdateDeferredResource( FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget/*=true*/ )
@@ -633,7 +633,7 @@ void FTextureRenderTarget2DResource::UpdateDeferredResource( FRHICommandListImme
 	FRDGTextureRef RenderTargetTextureRDG = GraphBuilder.RegisterExternalTexture(MipGenerationCache);
 	FRDGTextureRef TextureRDG = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(TextureRHI, TEXT("TextureRenderTarget2DResource")));
 
- 	// clear the target surface to green
+ 	// clear the target surface to the clear color
 	if (bClearRenderTarget)
 	{
 		ensure(RenderTargetTextureRHI.IsValid() && (RenderTargetTextureRHI->GetClearColor() == ClearColor));

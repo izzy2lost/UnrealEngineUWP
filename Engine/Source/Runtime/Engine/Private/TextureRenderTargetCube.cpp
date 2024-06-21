@@ -288,6 +288,11 @@ void FTextureRenderTargetCubeResource::InitRHI(FRHICommandListBase& RHICmdList)
 			}
 		}
 
+		if (Owner->bTargetArraySlicesIndependently)
+		{
+			TexCreateFlags |= ETextureCreateFlags::TargetArraySlicesIndependently;
+		}
+
 		{
 			const FRHITextureCreateDesc Desc =
 				FRHITextureCreateDesc::CreateCube(TEXT("FTextureRenderTargetCubeResource"))
@@ -357,7 +362,7 @@ void FTextureRenderTargetCubeResource::ReleaseRHI()
 
 /**
  * Updates (resolves) the render target texture.
- * Optionally clears each face of the render target to green.
+ * Optionally clears each face of the render target to the clear color.
  * This is only called by the rendering thread.
  */
 void FTextureRenderTargetCubeResource::UpdateDeferredResource(FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget/*=true*/)

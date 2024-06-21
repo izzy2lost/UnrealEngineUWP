@@ -30,6 +30,7 @@ UTextureRenderTarget::UTextureRenderTarget(const FObjectInitializer& ObjectIniti
 	LODGroup = TEXTUREGROUP_RenderTarget;	
 	bNeedsTwoCopies = false;
 	bCanCreateUAV = false;
+	bTargetArraySlicesIndependently = false;
 #if WITH_EDITORONLY_DATA
 	CompressionNone = true;
 #endif // #if WITH_EDITORONLY_DATA

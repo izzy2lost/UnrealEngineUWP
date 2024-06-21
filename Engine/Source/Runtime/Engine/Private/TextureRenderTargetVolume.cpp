@@ -296,7 +296,7 @@ void FTextureRenderTargetVolumeResource::ReleaseRHI()
 
 /**
  * Updates (resolves) the render target texture.
- * Optionally clears each face of the render target to green.
+ * Optionally clears each face of the render target to the clear color.
  * This is only called by the rendering thread.
  */
 void FTextureRenderTargetVolumeResource::UpdateDeferredResource(FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget/*=true*/)
