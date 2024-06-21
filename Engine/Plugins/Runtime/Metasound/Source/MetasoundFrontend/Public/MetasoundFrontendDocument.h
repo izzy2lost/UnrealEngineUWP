@@ -1725,7 +1725,8 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendDocumentMetadata
 	FMetasoundFrontendVersion Version;
 
 #if WITH_EDITORONLY_DATA
-	FMetasoundFrontendDocumentModifyContext ModifyContext;
+	// Actively being deprecated in favor of Document Builder Transaction Listener API.
+	mutable FMetasoundFrontendDocumentModifyContext ModifyContext;
 
 	// Map of MemberID to metadata used to constrain how literals can be manipulated
 	// with the editor context. This can be used to implement things like numeric ranges,

@@ -680,7 +680,9 @@ void FMetasoundAssetBase::CacheRegistryMetadata()
 
 FMetasoundFrontendDocumentModifyContext& FMetasoundAssetBase::GetModifyContext()
 {
-	return GetDocumentChecked().Metadata.ModifyContext;
+	// ModifyContext is now mutable to avoid mutations to it requiring access through
+	// the deprecated Document controller causing the builder cache to get wiped unnecessarily.
+	return GetConstDocumentChecked().Metadata.ModifyContext;
 }
 
 const FMetasoundFrontendDocumentModifyContext& FMetasoundAssetBase::GetConstModifyContext() const
