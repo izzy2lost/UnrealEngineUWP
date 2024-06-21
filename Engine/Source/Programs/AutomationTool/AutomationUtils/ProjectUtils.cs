@@ -380,6 +380,7 @@ namespace AutomationTool
 
 			List<DirectoryReference> GameFolders = new List<DirectoryReference>();
 			DirectoryReference RulesFolder = new DirectoryReference(GetRulesAssemblyFolder());
+			List<DirectoryReference> ExtraSearchDirectories = (ExtraSearchPaths == null) ? null : ExtraSearchPaths.Select(x => new DirectoryReference(x)).ToList();
 			if (Properties.RawProjectPath != null)
 			{
 				Logger.LogDebug("Looking for targets for project {Arg0}", Properties.RawProjectPath);
@@ -387,6 +388,12 @@ namespace AutomationTool
 				TargetsDllFilename = FileReference.Combine(RulesFolder, String.Format("UATRules-{0}.dll", ContentHash.MD5(Properties.RawProjectPath.FullName.ToUpperInvariant()).ToString()));
 
 				FullProjectPath = CommandUtils.GetDirectoryName(Properties.RawProjectPath.FullName).Replace("\\", "/");
+
+				// Extra search root uproject folder if we have /tests/
+				if (FullProjectPath.Contains("/Tests/"))
+				{
+					ExtraSearchDirectories.Add(new DirectoryReference(FullProjectPath));
+				}
 
 				// there is a special case of Programs, where the uproject doesn't align with the Source directory, so we redirect to where
 				// the program's target.cs file(s) are
@@ -411,7 +418,7 @@ namespace AutomationTool
 				CommandUtils.PushDir(SourceDir);
 				DirPushed = true;
 			}
-			List<DirectoryReference> ExtraSearchDirectories = (ExtraSearchPaths == null)? null : ExtraSearchPaths.Select(x => new DirectoryReference(x)).ToList();
+
 			List<FileReference> TargetScripts = Rules.FindAllRulesSourceFiles(Rules.RulesFileType.Target, GameFolders: GameFolders, ForeignPlugins: null, AdditionalSearchPaths: ExtraSearchDirectories);
 			if (DirPushed)
 			{

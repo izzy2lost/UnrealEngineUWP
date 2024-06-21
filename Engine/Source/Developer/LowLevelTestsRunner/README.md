@@ -252,6 +252,25 @@ To add implicit tests to this module, create a directory titled **Tests** at the
 ```
 With this structure, the file `SampleCodeTests.cpp` contains tests for the `SampleCode.cpp` file, and `MoreSampleCodeTests.cpp` contains tests for the `MoreSampleCode.cpp` file.
 
+Should your tests depend on Game-like configuration loading creating a SampleCodeTests.uproject in the root of the will allow the Test program to find the configuration folder with an additional `--projectdir=` paramter. 
+
+```
+.
+└── SampleModule/
+    ├── Public/
+    ├── Private/
+    └── Tests/
+        ├── SampleCodeTests.cpp
+        └── SampleModuleSubDirectory/
+            └── MoreSampleCodeTests.cpp
+        └── Config/
+            └── DefaultEngine.ini
+        └── SampleCodeTests.uproject
+```
+
+Note the `.Build.cs` should be updated to include `StagesWithProjectFile=True` to indicate to BuildGraph that we should use a Game-like folder structure when deploying these tests to run.
+
+
 ## Write Low-Level Tests
 
 This section primarily discusses structure, guidelines, and best practices for writing **Low-Level Tests (LLTs)** with Catch2 in the context of **Unreal Engine (UE)**. See the [Catch2 GitHub Repository](https://github.com/catchorg/Catch2) for information specific to Catch2. For a complete guide on writing tests, see the [Catch2 Reference](https://github.com/catchorg/Catch2/tree/devel/docs).
@@ -533,6 +552,7 @@ You can build and run low-level tests with:
 * [Visual Studio](#visual-studio)
 * [Unreal Build Tool (UBT)](#unreal-build-tool)
 * [BuildGraph](#buildgraph)
+* [BuildCookRun](#buildcookrun)
 
 You can build and run explicit tests using any of these tools. We recommend you build and run explicit tests with BuildGraph whenever possible. Currently, you can only build and run implicit tests with Unreal Build Tool.
 
@@ -671,6 +691,27 @@ Here are some common ways to use the BuildGraph script:
 ```
 .\RunUAT.bat BuildGraph -Script="Engine/Build/LowLevelTests.xml" -Target="Catch2 Build Library Win64"
 ```
+
+### BuildCookRun
+
+Engine provided script BuildCookRun provides a wrapping script to Unreal Build Tool allows you to build, cook, and run your application in one script. For workflows specific to only deploying low level tests and running them we recommend the following command. BuildCookRun can be used on Low Level Test programs that have `StagesWithProjectFile=true` specified in its metadata and .uproject files appropriately configured. 
+
+It is important to pass `--projectprogramoverride` if your tests exist inside a Game's project folder for dependencies to correctly be passed to Unreal Build Tool.
+
+```
+.\RunUAT.bat BuildCookRun  -Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -SkipBuildEditor=True -SkipClient -Archive -ArchiveDirectory=D:\build\SampleTestName -project=MyGame\Path\To\SampleTestName.uproject -configuration=Development -platform=Win64 --projectprogramoverride=MyGame\MyGame.uproject
+```
+
+If your Binaries folder within the Archive directory appears  subfolder inside your Game/Binaries/ folder, you will want to include a directory remapping so the correct Project folder will be found as well, otherwise the default UE5 system will not find content and configs.
+
+```
+[Staging]
+;Remap platform folders for loading configs from these specific folders
++RemapDirectories=(From="SampleGame/Binaries/Win64/SampleTests",To="SampleTests/Binaries/Win64")
+```
+
+If we want to deploy to a device the addional `-Device=<Device.json>` paramter can be passed in for BuildCookRun to deploy your program to a device. For additional help on BuildCookRun see `-Help` or specific documenation pages on Automation Tool.
+
 
 ## Example: Foundation Tests
 

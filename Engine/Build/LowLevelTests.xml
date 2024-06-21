@@ -136,11 +136,14 @@
 	
 	<Macro Name="BuildAndStageTest" Arguments="Platform;TestName;StagesWithProjectFile;TargetName;ExtraCompilationArgs">
 		<Property Name="LocalAchiveDirectory" Value="$(RootDir)/$(TargetName)"/>
+		<Property Name="ExtraCompilationArgsFinal" Value="$(ExtraCompilationArgs)"/>
 		<Do If="'$(StagesWithProjectFile)' == 'True'">
-			<Command Name="BuildCookRun" Arguments="-Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -Archive -ArchiveDirectory=$(LocalAchiveDirectory) -project=$(TargetName) -configuration=$(Configuration) -platform=$(Platform) $(ExtraCompilationArgs)" If="!$(DryRun)"/>
+			<Do If="'$(BuildProject)' != ''">
+				<Property Name="ExtraCompilationArgsFinal" Value="$(ExtraCompilationArgs) -projectprogramoverride=$(RootDir)/$(BuildProject)"/>
+			</Do>
+			<Command Name="BuildCookRun" Arguments="-Build -NoBootstrapExe -NoCodeSign -SkipCook -SkipBuildEditor=True -Stage -NoSubmit -Archive -ArchiveDirectory=$(LocalAchiveDirectory) -project=$(TargetName) -configuration=$(Configuration) -platform=$(Platform) $(ExtraCompilationArgsFinal)" If="!$(DryRun)"/>
 		</Do>
 		<Do If="'$(StagesWithProjectFile)' != 'True'">
-			<Property Name="ExtraCompilationArgsFinal" Value="$(ExtraCompilationArgs)"/>
 			<Do If="'$(BuildProject)' != ''">
 				<Property Name="ExtraCompilationArgsFinal" Value="$(ExtraCompilationArgs) -Project=$(RootDir)/$(BuildProject)"/>
 			</Do>

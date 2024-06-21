@@ -57,6 +57,13 @@ void UseDefaultPlatformFile()
 
 void SetProjectNameAndDirectory()
 {
+	// Use target name instead of project file being passed in as this will be more accruate to finding the program's config
+	// and project files. Resolves issues with UE_PROJECT_NAME being set to the parent project instead of the program's project.
+	// This will likely break if we ever have one LLT project file have mutliple targets eg: LyraGameEOS vs LyraGame
+#ifdef UE_TARGET_NAME
+	FCString::Strncpy(GInternalProjectName, TEXT(PREPROCESSOR_TO_STRING(UE_TARGET_NAME)), UE_ARRAY_COUNT(GInternalProjectName));
+#endif
+
 	// There may be cases on some platforms that you need to verify files are in the filesystem, 
 	// and this call was needed to correctly initalize the system.
 	FPaths::ProjectDir();
