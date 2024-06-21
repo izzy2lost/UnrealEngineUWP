@@ -892,20 +892,6 @@
 	#define PLATFORM_CODE_SECTION(Name)
 #endif
 
-// Mark a function or type as unlikely to be used so the compiler can store it away from the warm code paths & optimize it for size rather than speed.
-// Examples:
-//	void UE_COLD HandleError();
-//	auto ErrorHandler = []() UE_COLD { abort(); };
-#if !defined(UE_COLD)
-	#if defined(_MSC_VER)
-		#define UE_COLD __declspec(noinline)
-	#elif defined(__GNUC__) || defined(__clang__) || defined(__llvm__)
-		#define UE_COLD __attribute__((cold))
-	#else
-		#define UE_COLD
-	#endif
-#endif
-
 // These have to be forced inline on some OSes so the dynamic loader will not
 // resolve to our allocators for the system libraries.
 #ifndef OPERATOR_NEW_INLINE

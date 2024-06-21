@@ -409,7 +409,7 @@ struct TFieldArgType<TLogFieldName<NameType>>
 
 /** Log with fields created from the arguments, which may be values or pairs of name/value. */
 template <typename... FieldArgTypes, typename LogType>
-UE_COLD UE_DEBUG_SECTION void LogWithFields(const FLogCategoryBase& Category, const LogType& Log, typename TFieldArgType<FieldArgTypes>::Type... FieldArgs)
+FORCENOINLINE UE_DEBUG_SECTION void LogWithFields(const FLogCategoryBase& Category, const LogType& Log, typename TFieldArgType<FieldArgTypes>::Type... FieldArgs)
 {
 	constexpr int32 FieldCount = FLogFieldCreator::template GetCount<FieldArgTypes...>();
 	static_assert(FieldCount > 0);
@@ -420,7 +420,7 @@ UE_COLD UE_DEBUG_SECTION void LogWithFields(const FLogCategoryBase& Category, co
 
 /** Fatal log with fields created from the arguments, which may be values or pairs of name/value. */
 template <typename... FieldArgTypes, typename LogType>
-inline void UE_COLD FatalLogWithFields(const FLogCategoryBase& Category, const LogType& Log, typename TFieldArgType<FieldArgTypes>::Type... FieldArgs)
+inline void FatalLogWithFields(const FLogCategoryBase& Category, const LogType& Log, typename TFieldArgType<FieldArgTypes>::Type... FieldArgs)
 {
 	constexpr int32 FieldCount = FLogFieldCreator::template GetCount<FieldArgTypes...>();
 	static_assert(FieldCount > 0);
