@@ -770,6 +770,7 @@ void FHeap::EnableExternalControl(FIOContext Context)
 	using namespace UE;
 	TUniqueLock Lock(Mutex);
 	V_DIE_IF(bIsExternallyControlled);
+	V_DIE_UNLESS(!Context.UsesManualStackScanning() || Context.IsInManuallyEmptyStack());
 	NormalizeWithoutThreadingAtCollectionStart();
 	while (bIsMarking)
 	{

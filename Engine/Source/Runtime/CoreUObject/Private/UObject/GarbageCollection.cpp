@@ -3764,7 +3764,11 @@ static bool UpdateFrankenGCMode()
 		{
 			Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
 			Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
+			Context.SetIsInManuallyEmptyStack(true);
+
 			Verse::FHeap::EnableExternalControl(Context);
+
+			Context.SetIsInManuallyEmptyStack(false);
 			Context.AcquireAccessForManualStackScanning();
 		}
 		else
@@ -3786,6 +3790,21 @@ bool ShouldFrankenGCRun()
 	return UpdateFrankenGCMode() && Verse::FHeap::IsGCStartPendingExternalSignal();
 }
 
+static FORCEINLINE void RelinquishVerseHeapAccess()
+{
+	Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
+	Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
+	Context.SetIsInManuallyEmptyStack(true);
+}
+
+static FORCEINLINE void AcquireVerseHeapAccess()
+{
+	Verse::FIOContext Context = Verse::FIOContextPromise{};
+	Context.SetIsInManuallyEmptyStack(false);
+	Context.AcquireAccessForManualStackScanning();
+}
+
+// Called at the start of a full mark cycle, which may span multiple ticks.
 static FORCEINLINE void StartVerseGC()
 {
 	ensure(!bInFrankenGCStartStop && !GIsFrankenGCCollecting);
@@ -3793,15 +3812,13 @@ static FORCEINLINE void StartVerseGC()
 	GIsFrankenGCCollecting = UpdateFrankenGCMode();
 	if (GIsFrankenGCCollecting)
 	{
-		Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
-		Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
-
-		Context.SetIsInManuallyEmptyStack(true);
+		Verse::FIOContext Context = Verse::FIOContextPromise{};
 		Verse::FHeap::ExternallySynchronouslyStartGC(Context);
 		VerseCycleRequest = Verse::FHeap::StartCollectingIfNotCollecting();
 	}
 }
 
+// Called at the end of a full mark cycle, which may span multiple ticks.
 static FORCEINLINE void StopVerseGC()
 {
 	ensure(bInFrankenGCStartStop);
@@ -3811,15 +3828,19 @@ static FORCEINLINE void StopVerseGC()
 		GIsFrankenGCCollecting = false;
 
 		Verse::FIOContext Context = Verse::FIOContextPromise{};
-
 		Verse::FHeap::ExternallySynchronouslyTerminateGC(Context);
 		VerseCycleRequest.Wait(Context);
-		Context.SetIsInManuallyEmptyStack(false);
-
-		Context.AcquireAccessForManualStackScanning();
 	}
 }
 #else
+static FORCEINLINE void RelinquishVerseHeapAccess()
+{
+}
+
+static FORCEINLINE void AcquireVerseHeapAccess()
+{
+}
+
 static FORCEINLINE void StartVerseGC()
 {
 }
@@ -3884,7 +3905,18 @@ class FRealtimeGC : public FGarbageCollectionTracer
 		}
 		else
 		{
+			if (!GReachabilityState.IsSuspended())
+			{
+				GReachabilityState.SetupWorkers(1);
+				GReachabilityState.GetContextArray()[0] = &Context;
+			}
+
 			FastReferenceCollector(Processor).ProcessObjectArray(Context);
+
+			Context.ResetInitialObjects();
+			Context.InitialNativeReferences = TConstArrayView<UObject**>();
+
+			GReachabilityState.CheckIfAnyContextIsSuspended();
 		}
 	}
 
@@ -4207,22 +4239,16 @@ private:
 	{
 		FContextPoolScope Pool;
 		FWorkerContext* Context = nullptr;
-		const bool bIsSingleThreaded = !(Options & EGCOptions::Parallel);
 
-		if (GReachabilityState.IsSuspended())
+		if (!GReachabilityState.IsSuspended())
+		{
+			Context = Pool.AllocateFromPool();
+		}
+		else
 		{
 			Context = GReachabilityState.GetContextArray()[0];
 			Context->bDidWork = false;
 			InitialObjects.Reset();
-		}
-		else
-		{
-			Context = Pool.AllocateFromPool();
-			if (bIsSingleThreaded)
-			{
-				GReachabilityState.SetupWorkers(1);
-				GReachabilityState.GetContextArray()[0] = Context;
-			}
 		}
 
 		if (!Private::GReachableObjects.IsEmpty())
@@ -4254,17 +4280,12 @@ private:
 
 		PerformReachabilityAnalysisOnObjects(Context, Options);
 
-		if (!GReachabilityState.CheckIfAnyContextIsSuspended())
+		if (!GReachabilityState.IsSuspended())
 		{
 			GReachabilityState.ResetWorkers();
 			Stats.AddStats(Context->Stats);
 			GReachabilityState.UpdateStats(Context->Stats);
 			Pool.ReturnToPool(Context);
-		}
-		else if (bIsSingleThreaded)
-		{
-			Context->ResetInitialObjects();
-			Context->InitialNativeReferences = TConstArrayView<UObject**>();
 		}
 	}
 
@@ -4291,14 +4312,27 @@ public:
 		{
 			const double StartTime = FPlatformTime::Seconds();
 
-			do
+			while (true)
 			{
 				PerformReachabilityAnalysisPass(Options);
-			// NOTE: It is critical that VerseGCActive is called prior to checking GReachableObjects.  While VerseGCActive is true,
-			// items can still be added to GReachableObjects.  So if reversed, during the point where GReachableObjects is checked
-			// and VerseGCActive returns false, something might have been marked.  Reversing insures that Verse will not add anything 
-			// if Verse is no longer active.
-			} while ((VerseGCActive() || !Private::GReachableObjects.IsEmpty() || !Private::GReachableClusters.IsEmpty()) && !GReachabilityState.IsSuspended());
+
+				if (GReachabilityState.IsSuspended())
+				{
+					// We may have suspended either via incremental timeout, or because verse GC is still marking.
+					// If we are not incremental, keep going while verse GC adds to GReachableObjects.
+					if (EnumHasAnyFlags(Options, EGCOptions::IncrementalReachability))
+					{
+						break;
+					}
+				}
+				else if (Private::GReachableObjects.IsEmpty() && Private::GReachableClusters.IsEmpty())
+				{
+					// We terminate verse GC here now that both sides have nothing left to mark.
+					// This check must happen only when !IsSuspended, so verse GC can no longer add to GReachableObjects.
+					StopVerseGC();
+					break;
+				}
+			}
 
 			const double ElapsedTime = FPlatformTime::Seconds() - StartTime;
 			if (!bIsGarbageTracking)
@@ -4318,21 +4352,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			GGCStats.TraceExternalRootsTime += FPlatformTime::Seconds() - StartTime;
 		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
-	bool VerseGCActive()
-	{
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-		if (!GIsFrankenGCCollecting)
-		{
-			return false;
-		}
-
-		Verse::FIOContext Context = Verse::FIOContextPromise{};
-		return !Verse::FHeap::IsGCTerminationPendingExternalSignal(Context);
-#else
-		return false;
-#endif
 	}
 
 	virtual void PerformReachabilityAnalysisOnObjects(FWorkerContext* Context, EGCOptions Options) override
@@ -5437,8 +5456,6 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 			ClearWeakReferences<false>(AllContexts);
 		}
 
-		StopVerseGC();
-
 		if (bPerformFullPurge)
 		{
 			ContextPool.Cleanup();
@@ -5563,6 +5580,8 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 	}
 	GGCStats.bFinishedAsFullPurge = bPerformFullPurge;
 
+	RelinquishVerseHeapAccess();
+	
 	if (bPerformFullPurge)
 	{
 		UE::GC::PreCollectGarbageImpl<true>(ObjectKeepFlags);
@@ -5570,8 +5589,8 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 	else
 	{
 		UE::GC::PreCollectGarbageImpl<false>(ObjectKeepFlags);
-	}	
-	
+	}
+
 	const bool bForceNonIncrementalReachability =
 		!GIsIncrementalReachabilityPending &&
 		(bPerformFullPurge || !GAllowIncrementalReachability);
@@ -5656,8 +5675,6 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FRealtimeGC::PerformReachabilityAnalysisRerun"), STAT_FArchiveRealtimeGC_PerformReachabilityAnalysisRerun, STATGROUP_GC);		
 		const double StartTime = FPlatformTime::Seconds();
 		{
-			// If we are going to scan again, we need to cycle verse GC so the cells are unmarked.
-			StopVerseGC();
 			TGuardValue<bool> GuardReachabilityUsingTimeLimit(bReachabilityUsingTimeLimit, false);
 			FRealtimeGC GC;
 			GC.Stats = Stats; // This is to pass Stats.bFoundGarbageRef to CG
@@ -5678,6 +5695,8 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 	{
 		UE::GC::PostCollectGarbageImpl<false>(ObjectKeepFlags);
 	}
+
+	AcquireVerseHeapAccess();
 }
 
 void FReachabilityAnalysisState::PerformReachabilityAnalysis()

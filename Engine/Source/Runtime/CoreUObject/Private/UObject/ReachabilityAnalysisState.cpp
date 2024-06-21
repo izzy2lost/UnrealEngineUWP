@@ -6,6 +6,10 @@
 
 #include "UObject/ReachabilityAnalysisState.h"
 #include "UObject/ReachabilityAnalysis.h"
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "VerseVM/VVMContext.h"
+#include "VerseVM/VVMHeap.h"
+#endif
 
 namespace UE::GC
 {
@@ -37,12 +41,29 @@ void FReachabilityAnalysisState::FinishIteration()
 	NumIterations++;
 }
 
+static bool VerseGCIsMarking()
+{
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	if (GIsFrankenGCCollecting)
+	{
+		Verse::FIOContext Context = Verse::FIOContextPromise{};
+		return !Verse::FHeap::IsGCTerminationPendingExternalSignal(Context);
+	}
+#endif
+
+	return false;
+}
+
 bool FReachabilityAnalysisState::CheckIfAnyContextIsSuspended()
 {
 	bIsSuspended = false;
 	for (int32 WorkerIndex = 0; WorkerIndex < NumWorkers && !bIsSuspended; ++WorkerIndex)
 	{
 		bIsSuspended = Contexts[WorkerIndex]->bIsSuspended;
+	}
+	if (!bIsSuspended)
+	{
+		bIsSuspended = VerseGCIsMarking();
 	}
 	return bIsSuspended;
 }

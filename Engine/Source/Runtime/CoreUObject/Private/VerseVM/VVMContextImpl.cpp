@@ -692,9 +692,9 @@ void FContextImpl::RelinquishAccessSlow()
 
 void FContextImpl::CheckForHandshakeSlow()
 {
-	using namespace UE;
 	V_DIE_UNLESS(State & HasAccessBit);
-	ExitConservativeStack([this]() {
+
+	auto Check = [this]() {
 		if (State & HandshakeRequestedBit)
 		{
 			AcknowledgeHandshakeRequest();
@@ -704,7 +704,16 @@ void FContextImpl::CheckForHandshakeSlow()
 			RelinquishAccess();
 			AcquireAccess();
 		}
-	});
+	};
+
+	if (InConservativeStack())
+	{
+		ExitConservativeStack(Check);
+	}
+	else
+	{
+		Check();
+	}
 }
 
 VCell* FContextImpl::RunWeakReadBarrierNonNullSlow(VCell* Cell)
