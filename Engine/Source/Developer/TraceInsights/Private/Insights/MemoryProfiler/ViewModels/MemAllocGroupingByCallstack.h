@@ -34,6 +34,7 @@ public:
 
 	virtual const FText GetTooltipText() const override;
 	virtual const FSlateBrush* GetIcon() const override;
+	virtual FLinearColor GetIconColor() const override;
 	virtual FLinearColor GetColor() const override;
 
 	/**

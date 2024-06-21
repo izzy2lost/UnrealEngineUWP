@@ -56,9 +56,11 @@ public:
 	{
 	}
 
-	/**
-	 * @return the color tint for icon and name text.
-	 */
+	virtual FLinearColor GetIconColor() const override
+	{
+		return FLinearColor(0.75f, 0.5f, 1.0f, 1.0f);
+	}
+
 	virtual FLinearColor GetColor() const override
 	{
 		return FLinearColor(0.75f, 0.5f, 1.0f, 1.0f);

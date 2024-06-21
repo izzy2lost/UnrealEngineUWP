@@ -46,6 +46,13 @@ const FSlateBrush* FCallstackFrameGroupNode::GetIcon() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FLinearColor FCallstackFrameGroupNode::GetIconColor() const
+{
+	return FLinearColor(0.5f, 0.75f, 1.0f, 1.0f);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FLinearColor FCallstackFrameGroupNode::GetColor() const
 {
 	return FLinearColor(0.5f, 0.75f, 1.0f, 1.0f);
@@ -63,14 +70,14 @@ FMemAllocGroupingByCallstack::FMemAllocGroupingByCallstack(bool bInIsAllocCallst
 	: FTreeNodeGrouping(
 		bInIsAllocCallstack
 		? (bInIsInverted ? LOCTEXT("Grouping_ByCallstack2_ShortName", "Inverted Alloc Callstack")
-						: LOCTEXT("Grouping_ByCallstack1_ShortName", "Alloc Callstack"))
+						 : LOCTEXT("Grouping_ByCallstack1_ShortName", "Alloc Callstack"))
 		: (bInIsInverted ? LOCTEXT("Grouping_ByCallstack4_ShortName", "Inverted Free Callstack")
-						: LOCTEXT("Grouping_ByCallstack3_ShortName", "Free Callstack")),
+						 : LOCTEXT("Grouping_ByCallstack3_ShortName", "Free Callstack")),
 		bInIsAllocCallstack
 		? (bInIsInverted ? LOCTEXT("Grouping_ByCallstack2_TitleName", "By Inverted Alloc Callstack")
-					  : LOCTEXT("Grouping_ByCallstack1_TitleName", "By Alloc Callstack"))
+						 : LOCTEXT("Grouping_ByCallstack1_TitleName", "By Alloc Callstack"))
 		: (bInIsInverted ? LOCTEXT("Grouping_ByCallstack4_TitleName", "By Inverted Free Callstack")
-					  : LOCTEXT("Grouping_ByCallstack3_TitleName", "By Free Callstack")),
+						 : LOCTEXT("Grouping_ByCallstack3_TitleName", "By Free Callstack")),
 		LOCTEXT("Grouping_Callstack_Desc", "Creates a tree based on callstack of each allocation."),
 		TEXT("Icons.Group.TreeItem"),
 		nullptr)

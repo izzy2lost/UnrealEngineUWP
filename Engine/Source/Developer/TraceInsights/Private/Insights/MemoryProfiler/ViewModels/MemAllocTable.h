@@ -34,8 +34,8 @@ struct FMemAllocTableColumns
 	static const FName AddressColumnId;
 	static const FName MemoryPageColumnId;
 	static const FName CountColumnId;
-	static const FName SwapCompressedSizeColumnId;
-	static const FName SizeInSwapColumnId;
+	static const FName CompressedSwapSizeColumnId;
+	static const FName SwapSizeColumnId;
 	static const FName SizeColumnId;
 	static const FName LLMSizeColumnId;
 	static const FName LLMDeltaSizeColumnId;

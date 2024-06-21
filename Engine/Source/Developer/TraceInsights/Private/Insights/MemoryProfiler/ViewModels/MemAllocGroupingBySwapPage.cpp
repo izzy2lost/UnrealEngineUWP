@@ -61,6 +61,36 @@ struct TMemoryPageMapKeyFuncs : BaseKeyFuncs<TPair<uint64, FTableTreeNode*>, uin
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+class FMemSwapPageTreeNode : public FTableTreeNode
+{
+	INSIGHTS_DECLARE_RTTI(FMemSwapPageTreeNode, FTableTreeNode)
+
+public:
+	/** Initialization constructor for the group node. */
+	explicit FMemSwapPageTreeNode(const FName InName, TWeakPtr<FTable> InParentTable)
+		: FTableTreeNode(InName, InParentTable)
+	{
+	}
+
+	virtual ~FMemSwapPageTreeNode()
+	{
+	}
+
+	virtual FLinearColor GetIconColor() const override final
+	{
+		return FLinearColor(0.3f, 0.8f, 0.4f, 1.0f);
+	}
+
+	virtual FLinearColor GetColor() const override final
+	{
+		return FLinearColor(0.2f, 0.8f, 0.4f, 1.0f);
+	}
+};
+
+INSIGHTS_IMPLEMENT_RTTI(FMemSwapPageTreeNode)
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FMemAllocGroupingBySwapPage::GroupNodes(
 	const TArray<FTableTreeNodePtr>& Nodes,
 	FTableTreeNode& ParentGroup,
@@ -69,11 +99,8 @@ void FMemAllocGroupingBySwapPage::GroupNodes(
 {
 	ParentGroup.ClearChildren();
 
-	const FSlateBrush* IconBrush = FBaseTreeNode::GetDefaultIcon(true);
-	const FLinearColor Color(1.0f, 0.7f, 0.3f, 1.0f);
-
-	auto InSwapGroup = MakeShared<FCustomTableTreeNode>(FName(TEXT("In Swap")), InParentTable, IconBrush, Color);
-	auto InRamGroup = MakeShared<FCustomTableTreeNode>(FName(TEXT("In RAM")), InParentTable, IconBrush, Color);
+	auto InSwapGroup = MakeShared<FTableTreeNode>(FName(TEXT("In Swap")), InParentTable);
+	auto InRamGroup = MakeShared<FTableTreeNode>(FName(TEXT("In RAM")), InParentTable);
 	ParentGroup.AddChildAndSetParent(InSwapGroup);
 	ParentGroup.AddChildAndSetParent(InRamGroup);
 
@@ -91,7 +118,7 @@ void FMemAllocGroupingBySwapPage::GroupNodes(
 
 		if (Alloc && Alloc->IsSwap())
 		{
-			auto SwapEntry = MakeShared<FCustomTableTreeNode>(FName(FString::Printf(TEXT("0x%016llx"), Alloc->GetAddress())), InParentTable, IconBrush, Color);
+			auto SwapEntry = MakeShared<FMemSwapPageTreeNode>(FName(FString::Printf(TEXT("0x%016llx"), Alloc->GetAddress())), InParentTable);
 			InSwapGroup->AddChildAndSetParent(SwapEntry);
 			SwapEntry->AddChildAndSetParent(NodePtr);
 

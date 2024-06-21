@@ -42,12 +42,39 @@ FMemAllocGroupingByHeap::~FMemAllocGroupingByHeap()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+class FMemHeapTreeNode : public FTableTreeNode
+{
+	INSIGHTS_DECLARE_RTTI(FMemHeapTreeNode, FTableTreeNode)
+
+public:
+	/** Initialization constructor for the group node. */
+	explicit FMemHeapTreeNode(const FName InName, TWeakPtr<FTable> InParentTable)
+		: FTableTreeNode(InName, InParentTable)
+	{
+	}
+
+	virtual ~FMemHeapTreeNode()
+	{
+	}
+
+	virtual FLinearColor GetIconColor() const override final
+	{
+		return FLinearColor(1.0f, 0.45f, 0.6f, 1.0f);
+	}
+
+	virtual FLinearColor GetColor() const override final
+	{
+		return FLinearColor(1.0f, 0.45f, 0.6f, 1.0f);
+	}
+};
+
+INSIGHTS_IMPLEMENT_RTTI(FMemHeapTreeNode)
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FTableTreeNodePtr MakeGroupNodeHierarchy(const TraceServices::IAllocationsProvider::FHeapSpec& Spec, TWeakPtr<FTable>& InParentTable, TArray<FTableTreeNodePtr>& NodeTable)
 {
-	const FSlateBrush* IconBrush = FBaseTreeNode::GetDefaultIcon(true);
-	const FLinearColor Color(1.0f, 0.7f, 0.3f, 1.0f);
-
-	auto HeapGroup = MakeShared<FCustomTableTreeNode>(FName(Spec.Name), InParentTable, IconBrush, Color);
+	auto HeapGroup = MakeShared<FMemHeapTreeNode>(FName(Spec.Name), InParentTable);
 	if (int32(Spec.Id) >= NodeTable.Num())
 	{
 		NodeTable.AddDefaulted(int32(Spec.Id) - NodeTable.Num() + 1);

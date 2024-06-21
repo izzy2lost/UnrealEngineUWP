@@ -176,6 +176,16 @@ public:
 	explicit FCustomTableTreeNode(const FName InName, TWeakPtr<FTable> InParentTable, int32 InRowIndex, const FSlateBrush* InIconBrush, FLinearColor InColor, bool IsGroup)
 		: FTableTreeNode(InName, InParentTable, InRowIndex, IsGroup)
 		, IconBrush(InIconBrush)
+		, IconColor(InColor)
+		, Color(InColor)
+	{
+	}
+
+	/** Initialization constructor for a table record node. */
+	explicit FCustomTableTreeNode(const FName InName, TWeakPtr<FTable> InParentTable, int32 InRowIndex, const FSlateBrush* InIconBrush, FLinearColor InIconColor, FLinearColor InColor, bool IsGroup)
+		: FTableTreeNode(InName, InParentTable, InRowIndex, IsGroup)
+		, IconBrush(InIconBrush)
+		, IconColor(InIconColor)
 		, Color(InColor)
 	{
 	}
@@ -184,6 +194,16 @@ public:
 	explicit FCustomTableTreeNode(const FName InName, TWeakPtr<FTable> InParentTable, const FSlateBrush* InIconBrush, FLinearColor InColor)
 		: FTableTreeNode(InName, InParentTable)
 		, IconBrush(InIconBrush)
+		, IconColor(InColor)
+		, Color(InColor)
+	{
+	}
+
+	/** Initialization constructor for the group node. */
+	explicit FCustomTableTreeNode(const FName InName, TWeakPtr<FTable> InParentTable, const FSlateBrush* InIconBrush, FLinearColor InIconColor, FLinearColor InColor)
+		: FTableTreeNode(InName, InParentTable)
+		, IconBrush(InIconBrush)
+		, IconColor(InIconColor)
 		, Color(InColor)
 	{
 	}
@@ -192,9 +212,6 @@ public:
 	{
 	}
 
-	/**
-	 * @return a brush icon for this node.
-	 */
 	virtual const FSlateBrush* GetIcon() const override
 	{
 		return IconBrush;
@@ -208,9 +225,11 @@ public:
 		IconBrush = InIconBrush;
 	}
 
-	/**
-	 * @return the color tint for icon and name text.
-	 */
+	virtual FLinearColor GetIconColor() const override
+	{
+		return IconColor;
+	}
+
 	virtual FLinearColor GetColor() const override
 	{
 		return Color;
@@ -220,7 +239,10 @@ private:
 	/** The icon of this node. */
 	const FSlateBrush* IconBrush;
 
-	/** The color tint of this node. */
+	/** The color tint for the icon of this node. */
+	FLinearColor IconColor;
+
+	/** The color tint for the name text of this node. */
 	FLinearColor Color;
 };
 

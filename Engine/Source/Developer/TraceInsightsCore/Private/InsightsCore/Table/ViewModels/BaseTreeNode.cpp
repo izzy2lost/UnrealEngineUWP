@@ -69,15 +69,33 @@ const FSlateBrush* FBaseTreeNode::GetDefaultIcon(bool bIsGroupNode)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FLinearColor FBaseTreeNode::GetDefaultIconColor(bool bIsGroupNode)
+{
+	if (bIsGroupNode)
+	{
+		// USlateThemeManager::Get().GetColor(EStyleColor::AccentFolder), but lighter
+		return FLinearColor(1.0f, 0.7f, 0.3f, 1.0f);
+	}
+	else
+	{
+		// USlateThemeManager::Get().GetColor(EStyleColor::AccentWhite)
+		return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FLinearColor FBaseTreeNode::GetDefaultColor(bool bIsGroupNode)
 {
 	if (bIsGroupNode)
 	{
-		return USlateThemeManager::Get().GetColor(EStyleColor::AccentYellow);
+		// USlateThemeManager::Get().GetColor(EStyleColor::AccentFolder), but lighter
+		return FLinearColor(1.0f, 0.7f, 0.3f, 1.0f);
 	}
 	else
 	{
-		return USlateThemeManager::Get().GetColor(EStyleColor::AccentWhite);
+		// USlateThemeManager::Get().GetColor(EStyleColor::AccentWhite)
+		return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 }
 

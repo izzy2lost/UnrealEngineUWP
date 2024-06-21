@@ -44,8 +44,8 @@ const FName FMemAllocTableColumns::FreeThreadColumnId(TEXT("FreeThread"));
 const FName FMemAllocTableColumns::AddressColumnId(TEXT("Address"));
 const FName FMemAllocTableColumns::MemoryPageColumnId(TEXT("MemoryPage"));
 const FName FMemAllocTableColumns::CountColumnId(TEXT("Count"));
-const FName FMemAllocTableColumns::SwapCompressedSizeColumnId(TEXT("SwapCompressedSize"));
-const FName FMemAllocTableColumns::SizeInSwapColumnId(TEXT("SizeInSwap"));
+const FName FMemAllocTableColumns::CompressedSwapSizeColumnId(TEXT("CompressedSwapSize"));
+const FName FMemAllocTableColumns::SwapSizeColumnId(TEXT("SwapSize"));
 const FName FMemAllocTableColumns::SizeColumnId(TEXT("Size"));
 const FName FMemAllocTableColumns::LLMSizeColumnId(TEXT("LLMSize"));
 const FName FMemAllocTableColumns::LLMDeltaSizeColumnId(TEXT("LLMDeltaSize"));
@@ -747,20 +747,20 @@ void FMemAllocTable::AddDefaultColumns()
 		AddColumn(ColumnRef);
 	}
 	//////////////////////////////////////////////////
-	// Swap Compressed Size
+	// Compressed Swap Size
 	{
-		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::SwapCompressedSizeColumnId);
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::CompressedSwapSizeColumnId);
 		FTableColumn& Column = *ColumnRef;
 
 		Column.SetIndex(ColumnIndex++);
 
-		Column.SetShortName(LOCTEXT("SwapCompressedSizeColumnName", "Compressed Size In Swap"));
-		Column.SetTitleName(LOCTEXT("SwapCompressedSizeColumnTitle", "Compressed Size In Swap"));
-		Column.SetDescription(LOCTEXT("SwapCompressedSizeColumnDesc", "Shows compressed size of swap page."));
+		Column.SetShortName(LOCTEXT("CompressedSwapSizeColumnName", "Compressed Swap Size"));
+		Column.SetTitleName(LOCTEXT("CompressedSwapSizeColumnTitle", "Compressed Swap Size"));
+		Column.SetDescription(LOCTEXT("CompressedSwapSizeColumnDesc", "Shows compressed size of swap page."));
 
 		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
 
-		Column.SetHorizontalAlignment(HAlign_Left);
+		Column.SetHorizontalAlignment(HAlign_Right);
 		Column.SetInitialWidth(100.0f);
 
 		Column.SetDataType(ETableCellDataType::Int64);
@@ -810,20 +810,20 @@ void FMemAllocTable::AddDefaultColumns()
 		AddColumn(ColumnRef);
 	}
 	//////////////////////////////////////////////////
-	// Page Size in Swap Column
+	// Swap Size Column
 	{
-		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::SizeInSwapColumnId);
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FMemAllocTableColumns::SwapSizeColumnId);
 		FTableColumn& Column = *ColumnRef;
 
 		Column.SetIndex(ColumnIndex++);
 
-		Column.SetShortName(LOCTEXT("SizeInSwapColumnName", "Size in Swap"));
-		Column.SetTitleName(LOCTEXT("SizeInSwapColumnTitle", "Size in Swap"));
-		Column.SetDescription(LOCTEXT("SizeInSwapColumnDesc", "Shows (partial) size of allocation which is stored in the correponding swap page."));
+		Column.SetShortName(LOCTEXT("SwapSizeColumnName", "Swap Size"));
+		Column.SetTitleName(LOCTEXT("SwapSizeColumnTitle", "Swap Size"));
+		Column.SetDescription(LOCTEXT("SwapSizeColumnDesc", "Shows (partial) size of allocation which is stored in the corresponding swap page."));
 
 		Column.SetFlags(ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered);
 
-		Column.SetHorizontalAlignment(HAlign_Left);
+		Column.SetHorizontalAlignment(HAlign_Right);
 		Column.SetInitialWidth(100.0f);
 
 		Column.SetDataType(ETableCellDataType::Int64);

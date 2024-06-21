@@ -116,7 +116,7 @@ public:
 	static const FSlateBrush* GetDefaultIcon(bool bIsGroupNode);
 
 	/**
-	 * @returns a brush icon for this node.
+	 * @returns the brush icon for this node.
 	 */
 	virtual const FSlateBrush* GetIcon() const
 	{
@@ -124,15 +124,20 @@ public:
 	}
 
 	/**
-	 * @returns the color tint to be used for the icon used for this node.
+	 * @returns the default color tint for a group or leaf node.
+	 */
+	static FLinearColor GetDefaultIconColor(bool bIsGroupNode);
+
+	/**
+	 * @returns the color tint to be used for the icon of this node.
 	 */
 	virtual FLinearColor GetIconColor() const
 	{
-		return GetDefaultColor(IsGroup());
+		return GetDefaultIconColor(IsGroup());
 	}
 
 	/**
-	 * @returns the default color tint for a group/leaf node.
+	 * @returns the default color tint for a group or leaf node.
 	 */
 	static FLinearColor GetDefaultColor(bool bIsGroupNode);
 
@@ -141,7 +146,7 @@ public:
 	 */
 	virtual FLinearColor GetColor() const
 	{
-		return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		return GetDefaultColor(IsGroup());
 	}
 
 	//////////////////////////////////////////////////

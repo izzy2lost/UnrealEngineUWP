@@ -1192,8 +1192,8 @@ void SMemAllocTableTreeView::InitAvailableViewPresets()
 			InOutConfigSet.Add({ FMemAllocTableColumns::EndTimeColumnId,            true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::AddressColumnId,            true, 120.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::CountColumnId,              true, 100.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::SwapCompressedSizeColumnId, true, 100.0f });
-			InOutConfigSet.Add({ FMemAllocTableColumns::SizeInSwapColumnId,         true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::CompressedSwapSizeColumnId, true, 100.0f });
+			InOutConfigSet.Add({ FMemAllocTableColumns::SwapSizeColumnId,           true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::SizeColumnId,               true, 100.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::TagColumnId,                true, 120.0f });
 			InOutConfigSet.Add({ FMemAllocTableColumns::AllocFunctionColumnId,      true, 400.0f });
