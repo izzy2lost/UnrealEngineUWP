@@ -60,6 +60,7 @@ struct FOptionalVulkanDeviceExtensions
 			uint64 HasAMDBufferMarker : 1;
 			uint64 HasNVDiagnosticCheckpoints : 1;
 			uint64 HasNVDeviceDiagnosticConfig : 1;
+			uint64 HasANDROIDExternalMemoryHardwareBuffer : 1;
 
 			// Promoted to 1.1
 			uint64 HasKHRMultiview : 1;

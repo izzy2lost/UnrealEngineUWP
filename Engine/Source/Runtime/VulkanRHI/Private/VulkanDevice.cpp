@@ -663,6 +663,12 @@ void FVulkanDevice::SetupFormats()
 		MapFormatSupport(PF_ASTC_12x12_HDR, { VK_FORMAT_ASTC_12x12_SFLOAT_BLOCK_EXT }, ComponentMappingRGBA);
 	}
 
+	// When this extension is available, PF_Unknown texture can have an external buffer attached which has an
+	// internal format, that can be sampled. If it really can be sampled depends on the VK_IMAGE_USAGE_SAMPLED_BIT
+	if (GetOptionalExtensions().HasANDROIDExternalMemoryHardwareBuffer)
+	{
+		GPixelFormats[PF_Unknown].Capabilities |= EPixelFormatCapabilities::TextureSample;
+	}
 
 	// Verify available Vertex Formats
 	{

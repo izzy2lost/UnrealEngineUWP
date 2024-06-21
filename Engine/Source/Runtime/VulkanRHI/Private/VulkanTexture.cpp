@@ -1826,6 +1826,9 @@ FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateD
 
 	const VkImageViewType ViewType = GetViewType();
 	const VkDescriptorType DescriptorType = SupportsSampling() ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	const bool bUseIdentitySwizzle = (DescriptorType != VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) ||
+									(ViewFormat == VK_FORMAT_UNDEFINED); // External buffer textures also require identity swizzle
+
 	if (Image != VK_NULL_HANDLE)
 	{
 		DefaultView = (new FVulkanView(InDevice, DescriptorType))->InitAsTextureView(
@@ -1838,7 +1841,7 @@ FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateD
 			, FMath::Max(InCreateDesc.NumMips, (uint8)1u)
 			, 0
 			, GetNumberOfArrayLevels()
-			, !SupportsSampling()
+			, bUseIdentitySwizzle
 		);
 	}
 
