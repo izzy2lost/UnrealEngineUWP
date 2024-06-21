@@ -64,7 +64,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 
 	private const string RedisKey = "aws-asg-lifecycle";
 	private readonly AgentService _agentService;
-	private readonly RedisService _redisService;
+	private readonly IRedisService _redisService;
 	private readonly IAgentCollection _agents;
 	private readonly IClock _clock;
 	private readonly Tracer _tracer;
@@ -83,7 +83,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 	/// </summary>
 	public AwsAutoScalingLifecycleService(
 		AgentService agentService,
-		RedisService redisService,
+		IRedisService redisService,
 		IAgentCollection agents,
 		IClock clock,
 		IOptionsMonitor<ServerSettings> settings,

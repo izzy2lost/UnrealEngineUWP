@@ -176,7 +176,7 @@ namespace HordeServer.Compute
 		readonly ILogCollection _logCollection;
 		readonly AgentService _agentService;
 		readonly AgentRelayService _agentRelayService;
-		readonly RedisService _redisService;
+		readonly IRedisService _redisService;
 		readonly IOptionsMonitor<ServerSettings> _settings;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly IClock _clock;

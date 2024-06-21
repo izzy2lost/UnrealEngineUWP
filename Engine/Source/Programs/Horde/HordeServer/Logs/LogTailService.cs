@@ -46,7 +46,7 @@ namespace HordeServer.Logs
 		/// </summary>
 		public static TimeSpan ExpireAfter { get; } = TimeSpan.FromMinutes(2.0);
 
-		readonly RedisService _redisService;
+		readonly IRedisService _redisService;
 
 		readonly ConcurrentDictionary<LogId, AsyncEvent> _notifyLogEvents = new ConcurrentDictionary<LogId, AsyncEvent>();
 		readonly RedisChannel<LogId> _tailStartChannel;
@@ -72,7 +72,7 @@ namespace HordeServer.Logs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogTailService(RedisService redisService, IClock clock, IOptions<ServerSettings> settings, ILogger<LogTailService> logger)
+		public LogTailService(IRedisService redisService, IClock clock, IOptions<ServerSettings> settings, ILogger<LogTailService> logger)
 			: this(redisService, clock, 32, settings, logger)
 		{
 		}
@@ -80,7 +80,7 @@ namespace HordeServer.Logs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogTailService(RedisService redisService, IClock clock, int chunkLineCount, IOptions<ServerSettings> settings, ILogger<LogTailService> logger)
+		public LogTailService(IRedisService redisService, IClock clock, int chunkLineCount, IOptions<ServerSettings> settings, ILogger<LogTailService> logger)
 		{
 			if ((chunkLineCount & (chunkLineCount - 1)) != 0)
 			{

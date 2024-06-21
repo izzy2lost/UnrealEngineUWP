@@ -81,7 +81,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService, I
 	private static string KeyUsedPorts(ClusterId clusterId) => $"relay/used-ports/{clusterId}";
 	private static string KeyAgents(ClusterId clusterId) => $"relay/agents/{clusterId}";
 
-	private readonly RedisService _redis;
+	private readonly IRedisService _redis;
 	private readonly IClock _clock;
 	private readonly ILogger<AgentRelayService> _logger;
 	private readonly object _lock = new();
@@ -100,7 +100,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService, I
 	/// <param name="redis"></param>
 	/// <param name="clock"></param>
 	/// <param name="logger"></param>
-	public AgentRelayService(RedisService redis, IClock clock, ILogger<AgentRelayService> logger)
+	public AgentRelayService(IRedisService redis, IClock clock, ILogger<AgentRelayService> logger)
 	{
 		_redis = redis;
 		_clock = clock;

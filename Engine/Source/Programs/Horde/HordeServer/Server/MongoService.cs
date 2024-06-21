@@ -257,7 +257,7 @@ namespace HordeServer.Server
 		static readonly RedisKey s_schemaLockKey = new RedisKey("server/schema-upgrade/lock");
 
 		readonly MongoClient _client;
-		readonly RedisService _redisService;
+		readonly IRedisService _redisService;
 #pragma warning disable CA2213 // Disposable fields should be disposed
 		readonly SemaphoreSlim _upgradeSema = new SemaphoreSlim(1);
 #pragma warning restore CA2213 // Disposable fields should be disposed
@@ -270,7 +270,7 @@ namespace HordeServer.Server
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public MongoService(IOptions<ServerSettings> settingsSnapshot, RedisService redisService, MongoCommandTracer mongoTracer, Tracer tracer, ILogger<MongoService> logger, ILoggerFactory loggerFactory)
+		public MongoService(IOptions<ServerSettings> settingsSnapshot, IRedisService redisService, MongoCommandTracer mongoTracer, Tracer tracer, ILogger<MongoService> logger, ILoggerFactory loggerFactory)
 		{
 			if (s_existingInstance != null)
 			{

@@ -76,7 +76,7 @@ namespace HordeServer.Agents
 		readonly AclService _aclService;
 		readonly IDowntimeService _downtimeService;
 		readonly ITaskSource[] _taskSources;
-		readonly RedisService _redisService;
+		readonly IRedisService _redisService;
 		readonly IHostApplicationLifetime _applicationLifetime;
 		readonly IClock _clock;
 		readonly Tracer _tracer;
@@ -115,7 +115,7 @@ namespace HordeServer.Agents
 			IDowntimeService downtimeService,
 			IPoolCollection poolCollection,
 			IEnumerable<ITaskSource> taskSources,
-			RedisService redisService,
+			IRedisService redisService,
 			IHostApplicationLifetime applicationLifetime,
 			IClock clock,
 			Tracer tracer,

@@ -128,7 +128,7 @@ namespace HordeCommon
 			public override string ToString() => _name;
 		}
 
-		readonly RedisService _redis;
+		readonly IRedisService _redis;
 		readonly TimeZoneInfo _timeZone;
 		readonly List<TickerImpl> _tickers = new List<TickerImpl>();
 
@@ -141,7 +141,7 @@ namespace HordeCommon
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public Clock(RedisService redis, IOptions<ServerSettings> settings)
+		public Clock(IRedisService redis, IOptions<ServerSettings> settings)
 		{
 			_redis = redis;
 

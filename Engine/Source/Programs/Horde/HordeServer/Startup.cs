@@ -464,6 +464,7 @@ namespace HordeServer
 			}
 #pragma warning restore CA2000 // Dispose objects before losing scope
 			services.AddSingleton<RedisService>(sp => redisService);
+			services.AddSingleton<IRedisService>(sp => sp.GetRequiredService<RedisService>());
 			services.AddDataProtection().PersistKeysToStackExchangeRedis(() => redisService.GetDatabase(), "aspnet-data-protection");
 			
 			services.AddResponseCompression(options =>

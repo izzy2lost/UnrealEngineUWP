@@ -112,7 +112,7 @@ namespace HordeServer.Configuration
 		// The current config
 		record class ConfigState(IoHash Hash, GlobalConfig GlobalConfig);
 
-		readonly RedisService _redisService;
+		readonly IRedisService _redisService;
 		readonly ServerSettings _serverSettings;
 		readonly Dictionary<string, IConfigSource> _sources;
 		readonly JsonSerializerOptions _jsonOptions;
@@ -140,7 +140,7 @@ namespace HordeServer.Configuration
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConfigService(RedisService redisService, IOptions<ServerSettings> serverSettings, IEnumerable<IConfigSource> sources, IClock clock, IHealthMonitor<ConfigService> health, ILogger<ConfigService> logger)
+		public ConfigService(IRedisService redisService, IOptions<ServerSettings> serverSettings, IEnumerable<IConfigSource> sources, IClock clock, IHealthMonitor<ConfigService> health, ILogger<ConfigService> logger)
 		{
 			_redisService = redisService;
 			_serverSettings = serverSettings.Value;

@@ -25,7 +25,7 @@ namespace HordeServer.Agents.Enrollment
 	/// </summary>
 	public sealed class EnrollmentService : IHostedService, IAsyncDisposable
 	{
-		readonly RedisService _redisService;
+		readonly IRedisService _redisService;
 		readonly IClock _clock;
 		readonly RedisChannel _updateChannel;
 		readonly RedisSortedSetKey<string> _keys = new("agents:registration:expire");
@@ -39,7 +39,7 @@ namespace HordeServer.Agents.Enrollment
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public EnrollmentService(RedisService redisService, IClock clock, IOptionsMonitor<ServerSettings> settings)
+		public EnrollmentService(IRedisService redisService, IClock clock, IOptionsMonitor<ServerSettings> settings)
 		{
 			_redisService = redisService;
 			_clock = clock;
