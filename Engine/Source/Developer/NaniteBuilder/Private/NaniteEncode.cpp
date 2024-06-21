@@ -1149,61 +1149,54 @@ static void CalculateInfluences(FBoneInfluenceInfo& InfluenceInfo, const Nanite:
 			const uint32 BoneWeight	= (uint32)BoneInfluences[j].Y;
 			const float fBoneWeight = float(BoneWeight) * (1.0f / 65535.0f);	// TODO: Nanite-Skinning: Figure out what is the appropriate normalization weight.
 
-			if (BoneWeight > 0)
-			{
-				// Have we reached the end of weights?
-				if (BoneWeight == 0)
-				{
-					break;
-				}
-
-				if (!bClusterBoneOverflow)
-				{
-					// Have we seen this bone index already?
-					bool bFound = false;
-					for (FClusterBoneInfluence& ClusterBoneInfluence : InfluenceInfo.ClusterBoneInfluences)
-					{
-						if (ClusterBoneInfluence.BoneIndex == BoneIndex)
-						{
-							ClusterBoneInfluence.BoundMin	= FVector3f::Min(ClusterBoneInfluence.BoundMin, LocalPosition);
-							ClusterBoneInfluence.BoundMax	= FVector3f::Max(ClusterBoneInfluence.BoundMax, LocalPosition);
-							ClusterBoneInfluence.MinWeight	= FMath::Min(ClusterBoneInfluence.MinWeight, fBoneWeight);
-							ClusterBoneInfluence.MaxWeight	= FMath::Min(ClusterBoneInfluence.MaxWeight, fBoneWeight);
-
-							bFound = true;
-							break;
-						}
-					}
-
-					if (!bFound)
-					{
-						if (InfluenceInfo.ClusterBoneInfluences.Num() < NANITE_MAX_CLUSTER_BONE_INFLUENCES)
-						{
-							FClusterBoneInfluence ClusterBoneInfluence;
-							ClusterBoneInfluence.BoneIndex = BoneIndex;
-							ClusterBoneInfluence.MinWeight = fBoneWeight;
-							ClusterBoneInfluence.MaxWeight = fBoneWeight;
-							ClusterBoneInfluence.BoundMin = LocalPosition;
-							ClusterBoneInfluence.BoundMax = LocalPosition;
-							InfluenceInfo.ClusterBoneInfluences.Add(ClusterBoneInfluence);
-						}
-						else
-						{
-							// Bones don't fit. Don't bother storing any of them and just revert back to instance bounds
-							bClusterBoneOverflow = true;
-							InfluenceInfo.ClusterBoneInfluences.Empty();
-						}
-					}
-				}
-				
-				MaxBoneIndex	= FMath::Max(MaxBoneIndex, BoneIndex);
-				MaxBoneWeight	= FMath::Max(MaxBoneWeight, BoneWeight);
-				NumVertexInfluences++;
-			}
-			else
+			// Have we reached the end of weights?
+			if (BoneWeight == 0)
 			{
 				break;
 			}
+
+			if (!bClusterBoneOverflow)
+			{
+				// Have we seen this bone index already?
+				bool bFound = false;
+				for (FClusterBoneInfluence& ClusterBoneInfluence : InfluenceInfo.ClusterBoneInfluences)
+				{
+					if (ClusterBoneInfluence.BoneIndex == BoneIndex)
+					{
+						ClusterBoneInfluence.BoundMin	= FVector3f::Min(ClusterBoneInfluence.BoundMin, LocalPosition);
+						ClusterBoneInfluence.BoundMax	= FVector3f::Max(ClusterBoneInfluence.BoundMax, LocalPosition);
+						ClusterBoneInfluence.MinWeight	= FMath::Min(ClusterBoneInfluence.MinWeight, fBoneWeight);
+						ClusterBoneInfluence.MaxWeight	= FMath::Min(ClusterBoneInfluence.MaxWeight, fBoneWeight);
+
+						bFound = true;
+						break;
+					}
+				}
+
+				if (!bFound)
+				{
+					if (InfluenceInfo.ClusterBoneInfluences.Num() < NANITE_MAX_CLUSTER_BONE_INFLUENCES)
+					{
+						FClusterBoneInfluence ClusterBoneInfluence;
+						ClusterBoneInfluence.BoneIndex = BoneIndex;
+						ClusterBoneInfluence.MinWeight = fBoneWeight;
+						ClusterBoneInfluence.MaxWeight = fBoneWeight;
+						ClusterBoneInfluence.BoundMin = LocalPosition;
+						ClusterBoneInfluence.BoundMax = LocalPosition;
+						InfluenceInfo.ClusterBoneInfluences.Add(ClusterBoneInfluence);
+					}
+					else
+					{
+						// Bones don't fit. Don't bother storing any of them and just revert back to instance bounds
+						bClusterBoneOverflow = true;
+						InfluenceInfo.ClusterBoneInfluences.Empty();
+					}
+				}
+			}
+				
+			MaxBoneIndex	= FMath::Max(MaxBoneIndex, BoneIndex);
+			MaxBoneWeight	= FMath::Max(MaxBoneWeight, BoneWeight);
+			NumVertexInfluences++;
 		}
 		MaxVertexInfluences = FMath::Max(MaxVertexInfluences, NumVertexInfluences);
 	}
