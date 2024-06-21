@@ -5612,7 +5612,7 @@ bool UObject::IsNameStableForNetworking() const
 /** IsFullNameStableForNetworking means an object can be referred to its full path name over the network */
 bool UObject::IsFullNameStableForNetworking() const
 {
-	if ( GetOuter() != NULL && !GetOuter()->IsNameStableForNetworking() )
+	if ( GetOuter() != NULL && !GetOuter()->IsFullNameStableForNetworking() )
 	{
 		return false;	// If any outer isn't stable, we can't consider the full name stable
 	}
