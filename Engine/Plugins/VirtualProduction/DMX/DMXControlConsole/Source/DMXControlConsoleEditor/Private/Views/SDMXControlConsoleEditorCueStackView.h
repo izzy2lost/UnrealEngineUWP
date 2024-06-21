@@ -8,11 +8,11 @@
 class FReply;
 struct FSlateBrush;
 struct FSlateColor;
-class UDMXControlConsoleEditorModel;
 
 
 namespace UE::DMX::Private
 {
+	class FDMXControlConsoleCueStackModel;
 	class SDMXControlConsoleEditorCueList;
 
 	/** View for displaying the cue stack of the edited Control Console */
@@ -27,7 +27,7 @@ namespace UE::DMX::Private
 		SLATE_END_ARGS()
 
 		/** Constructs the widget */
-		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel);
+		void Construct(const FArguments& InArgs, TSharedPtr<FDMXControlConsoleCueStackModel> InCueStackModel);
 
 	protected:
 		//~ Begin FSelfRegisteringEditorUndoClient interface
@@ -64,8 +64,8 @@ namespace UE::DMX::Private
 		/** Called when the recall cue button is clicked */
 		FReply OnRecallCueClicked();
 
-		/** Called when the clear stack button is clicked */
-		FReply OnClearStackClicked();
+		/** Called when the clear cue stack button is clicked */
+		FReply OnClearCueStackClicked();
 
 		/** Called when the DMX Library has been changed */
 		void OnDMXLibraryChanged();
@@ -73,7 +73,7 @@ namespace UE::DMX::Private
 		/** Reference to the Cue List this view displays */
 		TSharedPtr<SDMXControlConsoleEditorCueList> CueList;
 
-		/** Weak reference to the Control Console editor model */
-		TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
+		/** Weak reference to the Control Console Cue Stack Model */
+		TWeakPtr<FDMXControlConsoleCueStackModel> WeakCueStackModel;
 	};
 }

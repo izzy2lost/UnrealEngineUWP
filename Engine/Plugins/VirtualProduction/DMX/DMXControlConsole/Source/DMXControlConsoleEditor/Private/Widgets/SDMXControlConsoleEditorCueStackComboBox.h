@@ -2,20 +2,22 @@
 
 #pragma once
 
+#include "EditorUndoClient.h"
 #include "Widgets/SCompoundWidget.h"
 
 struct FSlateColor;
 template <typename OptionType> class SComboBox;
-class UDMXControlConsoleEditorModel;
 
 
 namespace UE::DMX::Private
 {
+	class FDMXControlConsoleCueStackModel;
 	class FDMXControlConsoleEditorCueListItem;
 
 	/** A combo box widget for selecting cues in the Control Console cue stack */
 	class SDMXControlConsoleEditorCueStackComboBox
 		: public SCompoundWidget
+		, public FSelfRegisteringEditorUndoClient
 	{
 	public:
 		SLATE_BEGIN_ARGS(SDMXControlConsoleEditorCueStackComboBox)
@@ -24,7 +26,14 @@ namespace UE::DMX::Private
 		SLATE_END_ARGS()
 
 		/** Constructs the widget */
-		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel);
+		void Construct(const FArguments& InArgs, TSharedPtr<FDMXControlConsoleCueStackModel> InCueStackModel);
+
+	protected:
+		//~ Begin FSelfRegisteringEditorUndoClient interface
+		virtual bool MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;
+		virtual void PostUndo(bool bSuccess) override;
+		virtual void PostRedo(bool bSuccess) override;
+		//~ End FSelfRegisteringEditorUndoClient interface
 
 	private:
 		/** Generates the content widget for the cue stack combo box */
@@ -63,7 +72,7 @@ namespace UE::DMX::Private
 		/** A ComboBox for showing all the cues in the Control Console cue stack */
 		TSharedPtr<SComboBox<TSharedPtr<FDMXControlConsoleEditorCueListItem>>> CueStackComboBox;
 
-		/** Weak reference to the Control Console editor model */
-		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
+		/** Weak reference to the Control Console Cue Stack Model */
+		TWeakPtr<FDMXControlConsoleCueStackModel> WeakCueStackModel;
 	};
 }

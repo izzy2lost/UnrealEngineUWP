@@ -13,11 +13,12 @@ class ITableRow;
 class SHeaderRow;
 template <typename ItemType> class SListView;
 class STableViewBase;
-class UDMXControlConsoleEditorModel;
 
 
 namespace UE::DMX::Private
 {
+	class FDMXControlConsoleCueStackModel;
+
 	/** Collumn ids in the cue list */
 	struct FDMXControlConsoleEditorCueListColumnIDs
 	{
@@ -83,7 +84,7 @@ namespace UE::DMX::Private
 		SLATE_END_ARGS()
 
 		/** Constructs this widget */
-		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel);
+		void Construct(const FArguments& InArgs, TSharedPtr<FDMXControlConsoleCueStackModel> InCueStackModel);
 
 		/** Gets the array of current selected cue items */
 		TArray<TSharedPtr<FDMXControlConsoleEditorCueListItem>> GetSelectedCueItems() const;
@@ -137,7 +138,7 @@ namespace UE::DMX::Private
 		/** The last selected control console cue */
 		FDMXControlConsoleCue LastSelectedCue;
 
-		/** Weak reference to the Control Console editor model */
-		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
+		/** Weak reference to the Control Console Cue Stack Model */
+		TWeakPtr<FDMXControlConsoleCueStackModel> WeakCueStackModel;
 	};
 }

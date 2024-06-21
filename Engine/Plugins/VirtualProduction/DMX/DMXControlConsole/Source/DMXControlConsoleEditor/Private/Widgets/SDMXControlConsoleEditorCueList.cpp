@@ -2,12 +2,9 @@
 
 #include "SDMXControlConsoleEditorCueList.h"
 
-#include "Algo/AllOf.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleEditorData.h"
-#include "DMXControlConsoleFaderBase.h"
-#include "Layouts/Controllers/DMXControlConsoleElementController.h"
-#include "Models/DMXControlConsoleEditorModel.h"
+#include "Models/DMXControlConsoleCueStackModel.h"
 #include "ScopedTransaction.h"
 #include "Widgets/SDMXControlConsoleEditorCueListRow.h"
 #include "Widgets/Views/SListView.h"
@@ -70,22 +67,22 @@ namespace UE::DMX::Private
 			];
 	}
 
-	void SDMXControlConsoleEditorCueList::Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel)
+	void SDMXControlConsoleEditorCueList::Construct(const FArguments& InArgs, TSharedPtr<FDMXControlConsoleCueStackModel> InCueStackModel)
 	{
-		if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct cue list correctly.")))
+		if (!ensureMsgf(InCueStackModel.IsValid(), TEXT("Invalid control console cue stack model, can't constuct cue list correctly.")))
 		{
 			return;
 		}
 
-		WeakEditorModel = InEditorModel;
+		WeakCueStackModel = InCueStackModel;
 
-		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel->GetControlConsoleEditorData();
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakCueStackModel.Pin()->GetControlConsoleEditorData();
 		if (ControlConsoleEditorData)
 		{
 			LastSelectedCue = ControlConsoleEditorData->LoadedCue;
 		}
 
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel->GetControlConsoleData();
+		const UDMXControlConsoleData* ControlConsoleData = WeakCueStackModel.Pin()->GetControlConsoleData();
 		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
 		if (ControlConsoleCueStack)
 		{
@@ -124,8 +121,8 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorCueList::UpdateCueListItems()
 	{
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		const UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		const UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
 		if (!ControlConsoleCueStack || !CueListView.IsValid())
 		{
 			return;
@@ -201,7 +198,7 @@ namespace UE::DMX::Private
 
 	TSharedRef<ITableRow> SDMXControlConsoleEditorCueList::OnGenerateRow(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 	{
-		return SNew(SDMXControlConsoleEditorCueListRow, OwnerTable, InItem.ToSharedRef(), WeakEditorModel.Get())
+		return SNew(SDMXControlConsoleEditorCueListRow, OwnerTable, InItem.ToSharedRef(), WeakCueStackModel.Pin())
 			.OnEditCueItemColor(this, &SDMXControlConsoleEditorCueList::OnEditCueItemColor)
 			.OnRenameCueItem(this, &SDMXControlConsoleEditorCueList::OnRenameCueItem)
 			.OnMoveCueItem(this, &SDMXControlConsoleEditorCueList::OnMoveCueItem)
@@ -223,70 +220,15 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleEditorData || !ControlConsoleCueStack)
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		if (!CueStackModel.IsValid())
 		{
 			return;
 		}
 
-		const FScopedTransaction RecallCueTransaction(LOCTEXT("RecallCueTransaction", "Recall Cue"));
+		
 		const FDMXControlConsoleCue& SelectedCue = NewSelection->GetCue();
-
-		// Update the loaded cue
-		ControlConsoleEditorData->PreEditChange(nullptr);
-		ControlConsoleEditorData->LoadedCue = SelectedCue;
-		ControlConsoleEditorData->PostEditChange();
-
-		// Synch controllers to the new fader values
-		const TMap<TWeakObjectPtr<UDMXControlConsoleFaderBase>, uint32>& FaderToValueMap = SelectedCue.FaderToValueMap;
-		for (const TTuple<TWeakObjectPtr<UDMXControlConsoleFaderBase>, uint32>& FaderToValue : FaderToValueMap)
-		{
-			const UDMXControlConsoleFaderBase* Fader = FaderToValue.Key.Get();
-			if (!Fader)
-			{
-				continue;
-			}
-
-			UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
-			if (!ElementController)
-			{
-				continue;
-			}
-
-			const TArray<UDMXControlConsoleFaderBase*> Faders = ElementController->GetFaders();
-			if (Faders.IsEmpty())
-			{
-				continue;
-			}
-
-			const UDMXControlConsoleFaderBase* FirstFader = Faders[0];
-			const bool bHasUniformDataType = Algo::AllOf(Faders,
-				[FirstFader](const UDMXControlConsoleFaderBase* Fader)
-				{
-					return Fader && Fader->GetDataType() == FirstFader->GetDataType();
-				});
-
-			// Synch only if all faders in the controller have the same data type
-			if (bHasUniformDataType)
-			{
-				const uint32 Value = FaderToValue.Value;
-				const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-				const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
-				const float NormalizedValue = static_cast<float>(Value) / ValueRange;
-
-				ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetValuePropertyName()));
-				constexpr bool bSynchElements = false;
-				ElementController->SetValue(NormalizedValue, bSynchElements);
-				ElementController->PostEditChange();
-			}
-		}
-
-		// Recall the selected cue
-		ControlConsoleCueStack->PreEditChange(nullptr);
-		ControlConsoleCueStack->Recall(SelectedCue);
-		ControlConsoleCueStack->PostEditChange();
+		CueStackModel->RecallCue(SelectedCue);
 	}
 
 	void SDMXControlConsoleEditorCueList::OnRowDoubleClicked(const TSharedPtr<FDMXControlConsoleEditorCueListItem> ItemClicked)
@@ -335,8 +277,8 @@ namespace UE::DMX::Private
 
 	FReply SDMXControlConsoleEditorCueList::OnRowAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FDMXControlConsoleEditorCueListItem> TargetItem)
 	{
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
 		if (!ControlConsoleCueStack || !TargetItem.IsValid() || DropZone == EItemDropZone::OntoItem)
 		{
 			return FReply::Unhandled();
@@ -379,14 +321,9 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorCueList::OnEditCueItemColor(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem)
 	{
-		if (!InItem.IsValid() || !WeakEditorModel.IsValid())
-		{
-			return;
-		}
-
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel->GetControlConsoleData();
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack)
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
+		if (!InItem.IsValid() || !ControlConsoleCueStack)
 		{
 			return;
 		}
@@ -404,14 +341,9 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorCueList::OnRenameCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem)
 	{
-		if (!InItem.IsValid() || !WeakEditorModel.IsValid())
-		{
-			return;
-		}
-
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel->GetControlConsoleData();
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack)
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
+		if (!InItem.IsValid() || !ControlConsoleCueStack)
 		{
 			return;
 		}
@@ -429,14 +361,9 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorCueList::OnMoveCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem, EItemDropZone DropZone)
 	{
-		if (!InItem.IsValid() || !WeakEditorModel.IsValid())
-		{
-			return;
-		}
-
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel->GetControlConsoleData();
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack)
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
+		if (!InItem.IsValid() || !ControlConsoleCueStack)
 		{
 			return;
 		}
@@ -465,14 +392,9 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorCueList::OnDeleteCueItem(TSharedPtr<FDMXControlConsoleEditorCueListItem> InItem)
 	{
-		if (!InItem.IsValid() || !WeakEditorModel.IsValid())
-		{
-			return;
-		}
-
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel->GetControlConsoleData();
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack)
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
+		if (!InItem.IsValid() || !ControlConsoleCueStack)
 		{
 			return;
 		}

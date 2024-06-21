@@ -22,6 +22,7 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleCompactEditorModel.h"
+#include "Models/DMXControlConsoleCueStackModel.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleEditorPlayMenuModel.h"
 #include "ScopedTransaction.h"
@@ -33,6 +34,7 @@
 #include "Views/SDMXControlConsoleEditorLayoutView.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "ToolMenus.h"
+
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorToolkit"
 
@@ -60,6 +62,8 @@ namespace UE::DMX::Private
 
 		PlayMenuModel = NewObject<UDMXControlConsoleEditorPlayMenuModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
 		PlayMenuModel->Initialize(ControlConsole, GetToolkitCommands());
+
+		CueStackModel = MakeShared<FDMXControlConsoleCueStackModel>(ControlConsole);
 
 		UDMXEditorSettings* DMXEditorSettings = GetMutableDefault<UDMXEditorSettings>();
 		if (DMXEditorSettings)
@@ -560,9 +564,9 @@ namespace UE::DMX::Private
 
 	TSharedRef<SDMXControlConsoleEditorCueStackView> FDMXControlConsoleEditorToolkit::GenerateCueStackView()
 	{
-		if (!CueStackView.IsValid())
+		if (!CueStackView.IsValid() && CueStackModel.IsValid())
 		{
-			CueStackView = SNew(SDMXControlConsoleEditorCueStackView, EditorModel);
+			CueStackView = SNew(SDMXControlConsoleEditorCueStackView, CueStackModel);
 		}
 
 		return CueStackView.ToSharedRef();

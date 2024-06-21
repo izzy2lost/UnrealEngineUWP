@@ -7,6 +7,7 @@
 #include "UObject/GCObject.h"
 
 enum class EDMXControlConsoleStopDMXMode : uint8;
+struct FDMXControlConsoleCue;
 class FSpawnTabArgs;
 class FTabManager;
 class SDockableTab;
@@ -20,6 +21,7 @@ class UDMXControlConsoleEditorPlayMenuModel;
 
 namespace UE::DMX::Private
 {
+	class FDMXControlConsoleCueStackModel;
 	class FDMXControlConsoleEditorToolbar;
 	class SDMXControlConsoleEditorCueStackView;
 	class SDMXControlConsoleEditorDetailsView;
@@ -57,6 +59,9 @@ namespace UE::DMX::Private
 
 		/** Returns the edited Control Console Layouts */
 		UDMXControlConsoleEditorLayouts* GetControlConsoleLayouts() const;
+
+		/** Returns the Control Console Cue Stack Model, if valid */
+		TSharedPtr<FDMXControlConsoleCueStackModel> GetControlConsoleCueStackModel() const { return CueStackModel; }
 
 		/** Returns the Control Console Editor Model, if valid */
 		UDMXControlConsoleEditorModel* GetControlConsoleEditorModel() const { return EditorModel; }
@@ -176,6 +181,9 @@ namespace UE::DMX::Private
 
 		/** The Play Menu Model for the Control Console this toolkit is based on */
 		TObjectPtr<UDMXControlConsoleEditorPlayMenuModel> PlayMenuModel;
+
+		/** The Cue Stack Model for the Control Console this toolkit is based on */
+		TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel;
 
 		/** The Editor Model for the Control Console this toolkit is based on */
 		TObjectPtr<UDMXControlConsoleEditorModel> EditorModel;

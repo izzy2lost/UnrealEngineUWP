@@ -275,7 +275,7 @@ namespace UE::DMX::Private
 		ToolbarBuilder.BeginSection("CueStack");
 		{
 			const TSharedRef<SWidget> CueStackComboBoxWidget =
-				SNew(SDMXControlConsoleEditorCueStackComboBox, Toolkit->GetControlConsoleEditorModel());
+				SNew(SDMXControlConsoleEditorCueStackComboBox, Toolkit->GetControlConsoleCueStackModel());
 
 			ToolbarBuilder.AddWidget(CueStackComboBoxWidget, NAME_None, true, HAlign_Right);
 		}

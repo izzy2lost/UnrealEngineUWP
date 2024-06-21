@@ -17,6 +17,8 @@ class UToolMenu;
 
 namespace UE::DMX::Private
 {
+	class FDMXControlConsoleCueStackModel;
+
 	/** Compact view of a control console */
 	class SDMXControlConsoleCompactEditorView
 		: public SCompoundWidget
@@ -74,6 +76,9 @@ namespace UE::DMX::Private
 
 		/** The control console editor model this widget uses */
 		TObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
+
+		/** The Cue Stack Model for the Control Console this toolkit is based on */
+		TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel;
 
 		/** The play menu model this widget uses */
 		TObjectPtr<UDMXControlConsoleEditorPlayMenuModel> PlayMenuModel;

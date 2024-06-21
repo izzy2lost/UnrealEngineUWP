@@ -2,16 +2,14 @@
 
 #include "SDMXControlConsoleEditorCueStackComboBox.h"
 
-#include "Algo/AllOf.h"
+#include "Algo/AnyOf.h"
 #include "Algo/Find.h"
 #include "DMXControlConsoleCueStack.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleEditorData.h"
-#include "DMXControlConsoleFaderBase.h"
 #include "DMXEditorStyle.h"
-#include "Layouts/Controllers/DMXControlConsoleElementController.h"
-#include "Models/DMXControlConsoleEditorModel.h"
-#include "ScopedTransaction.h"
+#include "Misc/TransactionObjectEvent.h"
+#include "Models/DMXControlConsoleCueStackModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Input/SButton.h"
@@ -27,16 +25,16 @@
 
 namespace UE::DMX::Private
 {
-	void SDMXControlConsoleEditorCueStackComboBox::Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel)
+	void SDMXControlConsoleEditorCueStackComboBox::Construct(const FArguments& InArgs, TSharedPtr<FDMXControlConsoleCueStackModel> InCueStackModel)
 	{
-		if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, cannot create layout toolbar correctly.")))
+		if (!ensureMsgf(InCueStackModel.IsValid(), TEXT("Invalid control console cue stack model, cannot create layout toolbar correctly.")))
 		{
 			return;
 		}
 
-		WeakEditorModel = InEditorModel;
+		WeakCueStackModel = InCueStackModel;
 
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel->GetControlConsoleData();
+		const UDMXControlConsoleData* ControlConsoleData = InCueStackModel->GetControlConsoleData();
 		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
 		if (ControlConsoleCueStack)
 		{
@@ -120,6 +118,44 @@ namespace UE::DMX::Private
 				]
 			];
 
+		UpdateCueStackComboBoxSource();
+	}
+
+	bool SDMXControlConsoleEditorCueStackComboBox::MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const
+	{
+		const TArray<UClass*> MatchingContextClasses =
+		{
+			UDMXControlConsoleData::StaticClass(),
+			UDMXControlConsoleCueStack::StaticClass()
+		};
+
+		const bool bMatchesContext = Algo::AnyOf(TransactionObjectContexts,
+			[this, MatchingContextClasses](const TPair<UObject*, FTransactionObjectEvent>& Pair)
+			{
+				bool bMatchesClasses = false;
+				const UObject* Object = Pair.Key;
+				if (IsValid(Object))
+				{
+					const UClass* ObjectClass = Object->GetClass();
+					bMatchesClasses = Algo::AnyOf(MatchingContextClasses, [ObjectClass](UClass* InClass)
+						{
+							return IsValid(ObjectClass) && ObjectClass->IsChildOf(InClass);
+						});
+				}
+
+				return bMatchesClasses;
+			});
+
+		return bMatchesContext;
+	}
+
+	void SDMXControlConsoleEditorCueStackComboBox::PostUndo(bool bSuccess)
+	{
+		UpdateCueStackComboBoxSource();
+	}
+
+	void SDMXControlConsoleEditorCueStackComboBox::PostRedo(bool bSuccess)
+	{
 		UpdateCueStackComboBoxSource();
 	}
 
@@ -210,9 +246,9 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorCueStackComboBox::UpdateCueStackComboBoxSource()
 	{
-		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		const UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleEditorData() : nullptr;
+		const UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
 		if (!ControlConsoleEditorData || !ControlConsoleCueStack || !CueStackComboBox.IsValid())
 		{
 			return;
@@ -247,151 +283,49 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleEditorData || !ControlConsoleCueStack)
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		if (CueStackModel.IsValid())
 		{
-			return;
+			const FDMXControlConsoleCue& SelectedCue = NewSelection->GetCue();
+			CueStackModel->RecallCue(SelectedCue);
 		}
-
-		const FScopedTransaction RecallCueTransaction(LOCTEXT("RecallCueTransaction", "Recall Cue"));
-		const FDMXControlConsoleCue& SelectedCue = NewSelection->GetCue();
-
-		// Update the loaded cue
-		ControlConsoleEditorData->PreEditChange(nullptr);
-		ControlConsoleEditorData->LoadedCue = SelectedCue;
-		ControlConsoleEditorData->PostEditChange();
-
-		// Synch controllers to the new fader values
-		const TMap<TWeakObjectPtr<UDMXControlConsoleFaderBase>, uint32>& FaderToValueMap = SelectedCue.FaderToValueMap;
-		for (const TTuple<TWeakObjectPtr<UDMXControlConsoleFaderBase>, uint32>& FaderToValue : FaderToValueMap)
-		{
-			const UDMXControlConsoleFaderBase* Fader = FaderToValue.Key.Get();
-			if (!Fader)
-			{
-				continue;
-			}
-
-			UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
-			if (!ElementController)
-			{
-				continue;
-			}
-
-			const TArray<UDMXControlConsoleFaderBase*> Faders = ElementController->GetFaders();
-			if (Faders.IsEmpty())
-			{
-				continue;
-			}
-
-			const UDMXControlConsoleFaderBase* FirstFader = Faders[0];
-			const bool bHasUniformDataType = Algo::AllOf(Faders,
-				[FirstFader](const UDMXControlConsoleFaderBase* Fader)
-				{
-					return Fader && Fader->GetDataType() == FirstFader->GetDataType();
-				});
-
-			// Synch only if all faders in the controller have the same data type
-			if (bHasUniformDataType)
-			{
-				const uint32 Value = FaderToValue.Value;
-				const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-				const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
-				const float NormalizedValue = static_cast<float>(Value) / ValueRange;
-
-				ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetValuePropertyName()));
-				constexpr bool bSynchElements = false;
-				ElementController->SetValue(NormalizedValue, bSynchElements);
-				ElementController->PostEditChange();
-			}
-		}
-
-		// Recall the selected cue
-		ControlConsoleCueStack->PreEditChange(nullptr);
-		ControlConsoleCueStack->Recall(SelectedCue);
-		ControlConsoleCueStack->PostEditChange();
 	}
 
 	bool SDMXControlConsoleEditorCueStackComboBox::IsAddNewCueButtonEnabled() const
 	{
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		return ControlConsoleData && !ControlConsoleData->GetAllFaderGroups().IsEmpty();
+		return WeakCueStackModel.IsValid() && WeakCueStackModel.Pin()->IsAddNewCueButtonEnabled();
 	}
 
 	bool SDMXControlConsoleEditorCueStackComboBox::IsStoreCueButtonEnabled() const
 	{
-		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		const UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleEditorData || !ControlConsoleCueStack || !CueStackComboBox.IsValid())
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		const TSharedPtr<FDMXControlConsoleEditorCueListItem> SelectedCueItem = CueStackComboBox.IsValid() ? CueStackComboBox->GetSelectedItem() : nullptr;
+		if (!CueStackModel.IsValid() || !SelectedCueItem.IsValid())
 		{
 			return false;
 		}
-
-		const TSharedPtr<FDMXControlConsoleEditorCueListItem> SelectedCueItem = CueStackComboBox->GetSelectedItem();
-		if (!SelectedCueItem.IsValid())
-		{
-			return false;
-		}
-
-		if (SelectedCueItem->GetCue() == ControlConsoleEditorData->LoadedCue)
-		{
-			return ControlConsoleCueStack->CanStore();
-		}
-
-		return true;
+		
+		const FDMXControlConsoleCue& SelectedCue = SelectedCueItem->GetCue();
+		return CueStackModel->IsStoreCueButtonEnabled(SelectedCue);
 	}
 
 	FReply SDMXControlConsoleEditorCueStackComboBox::OnAddNewCueClicked()
 	{
-		UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleEditorData || !ControlConsoleCueStack || !CueStackComboBox.IsValid())
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		if (CueStackModel.IsValid())
 		{
-			return FReply::Unhandled();
+			CueStackModel->AddNewCue();
+
+			return FReply::Handled();
 		}
 
-		TArray<UDMXControlConsoleFaderBase*> FadersToCue;
-		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = ControlConsoleData->GetAllFaderGroups();
-		for (const UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
-		{
-			if (FaderGroup)
-			{
-				FadersToCue.Append(FaderGroup->GetAllFaders());
-			}
-		}
-
-		if (FadersToCue.IsEmpty())
-		{
-			return FReply::Unhandled();
-		}
-
-		const FScopedTransaction AddNewCueTransaction(LOCTEXT("AddNewCueTransaction", "Add Cue"));
-
-		// Add a new cue with faders data
-		ControlConsoleCueStack->PreEditChange(nullptr);
-		const FDMXControlConsoleCue* NewCue = ControlConsoleCueStack->AddNewCue(FadersToCue);
-		ControlConsoleCueStack->PostEditChange();
-		if (NewCue)
-		{
-			// Update the last recalled cue
-			ControlConsoleEditorData->PreEditChange(nullptr);
-			ControlConsoleEditorData->LoadedCue = *NewCue;
-			ControlConsoleEditorData->PostEditChange();
-
-			UpdateCueStackComboBoxSource();
-		}
-
-		return FReply::Handled();
+		return FReply::Unhandled();
 	}
 
 	FReply SDMXControlConsoleEditorCueStackComboBox::OnStoreCueClicked()
 	{
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
-		if (!ControlConsoleCueStack || !CueStackComboBox.IsValid())
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		if (!CueStackModel.IsValid() || !CueStackComboBox.IsValid())
 		{
 			return FReply::Unhandled();
 		}
@@ -402,27 +336,17 @@ namespace UE::DMX::Private
 			return FReply::Unhandled();
 		}
 
-		TArray<UDMXControlConsoleFaderBase*> FadersToCue;
 		const FDMXControlConsoleCue& SelectedCue = SelectedItem->GetCue();
-		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = ControlConsoleData->GetAllFaderGroups();
-		for (const UDMXControlConsoleFaderGroup* FaderGroup : AllFaderGroups)
-		{
-			if (FaderGroup)
-			{
-				FadersToCue.Append(FaderGroup->GetAllFaders());
-			}
-		}
-
-		ControlConsoleCueStack->UpdateCueData(SelectedCue.CueID, FadersToCue);
+		CueStackModel->StoreCue(SelectedCue);
 
 		return FReply::Handled();
 	}
 
 	FSlateColor SDMXControlConsoleEditorCueStackComboBox::GetLoadedCueColor() const
 	{
-		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleEditorData() : nullptr;
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
 		const bool bHasValidCueData =
 			ControlConsoleEditorData &&
 			ControlConsoleCueStack &&
@@ -433,9 +357,9 @@ namespace UE::DMX::Private
 
 	FText SDMXControlConsoleEditorCueStackComboBox::GetLoadedCueNameAsText() const
 	{
-		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleEditorData() : nullptr;
+		UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
 		const bool bHasValidCueData =
 			ControlConsoleEditorData &&
 			ControlConsoleCueStack &&

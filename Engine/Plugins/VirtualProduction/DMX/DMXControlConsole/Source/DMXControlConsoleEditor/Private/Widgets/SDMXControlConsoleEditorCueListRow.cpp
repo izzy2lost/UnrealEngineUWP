@@ -8,7 +8,7 @@
 #include "Engine/Engine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Layout/WidgetPath.h"
-#include "Models/DMXControlConsoleEditorModel.h"
+#include "Models/DMXControlConsoleCueStackModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Colors/SColorPicker.h"
@@ -23,14 +23,14 @@
 
 namespace UE::DMX::Private
 { 
-	void SDMXControlConsoleEditorCueListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXControlConsoleEditorCueListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
+	void SDMXControlConsoleEditorCueListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXControlConsoleEditorCueListItem>& InItem, TSharedPtr<FDMXControlConsoleCueStackModel> InCueStackModel)
 	{
-		if (!InWeakEditorModel.IsValid())
+		if (!InCueStackModel.IsValid())
 		{
 			return;
 		}
 
-		WeakEditorModel = InWeakEditorModel;
+		WeakCueStackModel = InCueStackModel;
 		Item = InItem;
 
 		OnEditCueItemColorDelegate = InArgs._OnEditCueItemColor;
@@ -236,9 +236,9 @@ namespace UE::DMX::Private
 
 	FText SDMXControlConsoleEditorCueListRow::GetCueNameAsText() const
 	{
-		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
-		const UDMXControlConsoleData* ControlConsoleData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleData() : nullptr;
-		const UDMXControlConsoleCueStack* ControlConsoleCueStack = ControlConsoleData ? ControlConsoleData->GetCueStack() : nullptr;
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleEditorData() : nullptr;
+		const UDMXControlConsoleCueStack* ControlConsoleCueStack = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleCueStack() : nullptr;
 		if (!ControlConsoleEditorData || !ControlConsoleCueStack || !Item.IsValid())
 		{
 			return FText::GetEmpty();
@@ -308,7 +308,9 @@ namespace UE::DMX::Private
 	EVisibility SDMXControlConsoleEditorCueListRow::GetRecalledCueTagVisibility() const
 	{
 		bool bIsVisible = false;
-		const UDMXControlConsoleEditorData* ControlConsoleEditorData = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleEditorData() : nullptr;
+
+		const TSharedPtr<FDMXControlConsoleCueStackModel> CueStackModel = WeakCueStackModel.Pin();
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = CueStackModel.IsValid() ? CueStackModel->GetControlConsoleEditorData() : nullptr;
 		if (ControlConsoleEditorData && Item.IsValid())
 		{
 			bIsVisible = ControlConsoleEditorData->LoadedCue == Item->GetCue();

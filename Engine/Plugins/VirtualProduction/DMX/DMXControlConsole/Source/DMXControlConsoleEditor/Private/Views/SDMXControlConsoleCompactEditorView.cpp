@@ -9,6 +9,7 @@
 #include "DMXControlConsoleEditorSelection.h"
 #include "Editor.h"
 #include "FileHelpers.h"
+#include "Models/DMXControlConsoleCueStackModel.h"
 #include "Models/DMXControlConsoleCompactEditorModel.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleEditorPlayMenuModel.h"
@@ -47,6 +48,8 @@ namespace UE::DMX::Private
 
 			PlayMenuModel = NewObject<UDMXControlConsoleEditorPlayMenuModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
 			PlayMenuModel->Initialize(ControlConsole, CommandList.ToSharedRef());
+
+			CueStackModel = MakeShared<FDMXControlConsoleCueStackModel>(ControlConsole);
 
 			ChildSlot
 			[
@@ -114,7 +117,7 @@ namespace UE::DMX::Private
 					+ SSplitter::Slot()
 					.Value(.2f)
 					[
-						SNew(SDMXControlConsoleEditorCueStackView, EditorModel)
+						SNew(SDMXControlConsoleEditorCueStackView, CueStackModel)
 						.Visibility(this, &SDMXControlConsoleCompactEditorView::GetCueStackViewVisibility)
 					]
 				]
@@ -184,6 +187,12 @@ namespace UE::DMX::Private
 
 	TSharedRef<SWidget> SDMXControlConsoleCompactEditorView::GenerateCueStackToolbarWidget()
 	{
+		const bool bInvalidCueStack = !CueStackModel.IsValid();
+		if (bInvalidCueStack)
+		{
+			return SNullWidget::NullWidget;
+		}
+
 		const TSharedRef<SWidget> CueStackToolbarWidget =
 			SNew(SHorizontalBox)
 
@@ -192,7 +201,7 @@ namespace UE::DMX::Private
 			.AutoWidth()
 			.Padding(2.f, 0.f)
 			[
-				SNew(SDMXControlConsoleEditorCueStackComboBox, EditorModel)
+				SNew(SDMXControlConsoleEditorCueStackComboBox, CueStackModel)
 			]
 
 			// 'Show cue stack' Check Box section

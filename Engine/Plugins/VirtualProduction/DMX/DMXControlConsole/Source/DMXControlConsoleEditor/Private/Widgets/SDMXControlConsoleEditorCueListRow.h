@@ -14,6 +14,8 @@ class SInlineEditableTextBlock;
 
 namespace UE::DMX::Private
 {
+	class FDMXControlConsoleCueStackModel;
+
 	DECLARE_DELEGATE_OneParam(FDMXControleConsolEditorCueListItemDelegate, TSharedPtr<FDMXControlConsoleEditorCueListItem>)
 	DECLARE_DELEGATE_TwoParams(FDMXControleConsolEditorMoveCueListItemDelegate, TSharedPtr<FDMXControlConsoleEditorCueListItem>, EItemDropZone)
 
@@ -49,7 +51,7 @@ namespace UE::DMX::Private
 		SLATE_END_ARGS()
 
 		/** Constructs this widget */
-		void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXControlConsoleEditorCueListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
+		void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXControlConsoleEditorCueListItem>& InItem, TSharedPtr<FDMXControlConsoleCueStackModel> InCueStackModel);
 
 	protected:
 		//~ Begin SMultiColumnTableRow interface
@@ -108,8 +110,8 @@ namespace UE::DMX::Private
 		/** The item this widget draws */
 		TSharedPtr<FDMXControlConsoleEditorCueListItem> Item;
 
-		/** Weak reference to the Control Console editor model */
-		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
+		/** Weak reference to the Control Console Cue Stack Model */
+		TWeakPtr<FDMXControlConsoleCueStackModel> WeakCueStackModel;
 
 		// Slate Arguments
 		FDMXControleConsolEditorCueListItemDelegate OnEditCueItemColorDelegate;
