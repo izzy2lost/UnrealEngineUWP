@@ -9,7 +9,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Mime;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -607,6 +606,20 @@ namespace Horde.Server.Artifacts
 			return new FileStreamResult(new MemoryStream(data), "application/x-horde-artifact") { FileDownloadName = $"{artifact.Name}.uartifact" };
 		}
 
+		class ManifestStreamResult : FileStreamResult
+		{
+			public ManifestStreamResult(System.IO.Stream stream, string mimeType)
+				: base(stream, mimeType)
+			{
+			}
+
+			/// <inheritdoc/>
+			public override Task ExecuteResultAsync(ActionContext context)
+			{
+				context.HttpContext.Response.Headers["Content-Disposition"] = new ContentDisposition { Inline = true }.ToString();
+				return base.ExecuteResultAsync(context);
+			}
+		}
 		/// <summary>
 		/// Creates an Unsync manifest for an artifact
 		/// </summary>
@@ -627,28 +640,15 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			const string ZstdManifestContentType = "application/x-unsync-manifest-zstd";
-			bool compressed = Request.Headers.Accept.Contains(ZstdManifestContentType);
-
-			ReadOnlyMemory<byte> manifestData = await _unsyncCache.GetManifestDataAsync(artifact, compressed, cancellationToken);
+			ReadOnlyMemory<byte> manifestData = await _unsyncCache.GetManifestDataAsync(artifact, cancellationToken);
 			if (manifestData.IsEmpty)
 			{
 				return NotFound(id);
 			}
 
-			// Disable buffering for the response
-			IHttpResponseBodyFeature? responseBodyFeature = HttpContext.Features.Get<IHttpResponseBodyFeature>();
-			responseBodyFeature?.DisableBuffering();
-
-			// Write the response directly to the writer
-			HttpResponse response = HttpContext.Response;
-			response.ContentType = compressed? ZstdManifestContentType : "application/json";
-			response.StatusCode = (int)HttpStatusCode.OK;
-			await response.StartAsync(cancellationToken);
-			await response.BodyWriter.WriteAsync(manifestData, cancellationToken);
-			await response.CompleteAsync();
-
-			return Empty;
+#pragma warning disable CA2000
+			return new ManifestStreamResult(new ReadOnlyMemoryStream(manifestData), "application/json");
+#pragma warning restore CA2000
 		}
 
 		/// <summary>

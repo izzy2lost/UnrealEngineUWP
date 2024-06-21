@@ -10,7 +10,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Storage;
 using Microsoft.Extensions.Caching.Memory;
@@ -54,15 +53,13 @@ namespace Horde.Server.Artifacts
 			public IStorageClient StorageClient { get; }
 			public UnsyncManifest Manifest { get; }
 			public ReadOnlyMemory<byte> ManifestData { get; }
-			public ReadOnlyMemory<byte> ZstdManifestData { get; }
 			public FrozenDictionary<IoHash, IBlobRef<LeafChunkedDataNode>> Blobs { get; }
 
-			public ArtifactInfo(IStorageClient storageClient, UnsyncManifest manifest, ReadOnlyMemory<byte> manifestData, ReadOnlyMemory<byte> zstdManifestData, FrozenDictionary<IoHash, IBlobRef<LeafChunkedDataNode>> blobs)
+			public ArtifactInfo(IStorageClient storageClient, UnsyncManifest manifest, ReadOnlyMemory<byte> manifestData, FrozenDictionary<IoHash, IBlobRef<LeafChunkedDataNode>> blobs)
 			{
 				StorageClient = storageClient;
 				Manifest = manifest;
 				ManifestData = manifestData;
-				ZstdManifestData = zstdManifestData;
 				Blobs = blobs;
 			}
 
@@ -101,7 +98,7 @@ namespace Horde.Server.Artifacts
 		/// <summary>
 		/// Gets the json manifest data for an artifact
 		/// </summary>
-		public async ValueTask<ReadOnlyMemory<byte>> GetManifestDataAsync(IArtifact artifact, bool compressed, CancellationToken cancellationToken = default)
+		public async ValueTask<ReadOnlyMemory<byte>> GetManifestDataAsync(IArtifact artifact, CancellationToken cancellationToken = default)
 		{
 			ArtifactInfo? artifactInfo = await GetArtifactInfoAsync(artifact, cancellationToken);
 			if (artifactInfo == null)
@@ -109,7 +106,7 @@ namespace Horde.Server.Artifacts
 				return default;
 			}
 
-			return compressed ? artifactInfo.ZstdManifestData : artifactInfo.ManifestData;
+			return artifactInfo.ManifestData;
 		}
 
 		async Task<ArtifactInfo?> GetArtifactInfoAsync(IArtifact artifact, CancellationToken cancellationToken = default)
@@ -243,9 +240,8 @@ namespace Horde.Server.Artifacts
 
 				UnsyncManifest manifest = new UnsyncManifest(files);
 				ReadOnlyMemory<byte> manifestData = SerializeManifest(manifest);
-				ReadOnlyMemory<byte> zstdManifestData = BundleData.Compress(BundleCompressionFormat.Zstd, manifestData);
 
-				ArtifactInfo artifactInfo = new ArtifactInfo(storageClient, manifest, manifestData, zstdManifestData, blocks.ToFrozenDictionary());
+				ArtifactInfo artifactInfo = new ArtifactInfo(storageClient, manifest, manifestData, blocks.ToFrozenDictionary());
 				storageClient = null;
 				return artifactInfo;
 			}

@@ -108,6 +108,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -468,6 +469,9 @@ namespace Horde.Server
 			services.AddResponseCompression(options =>
 			{
 				options.EnableForHttps = true;
+				options.Providers.Add<GzipCompressionProvider>();
+				options.Providers.Add<BrotliCompressionProvider>();
+				options.Providers.Add<ZstdCompressionProvider>();
 			});
 			
 			if (settings.CorsEnabled)
