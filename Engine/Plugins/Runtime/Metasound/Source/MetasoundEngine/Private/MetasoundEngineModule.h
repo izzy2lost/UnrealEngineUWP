@@ -6,8 +6,20 @@
 #include "MetasoundFrontendRegistryContainer.h"
 #include "UObject/GCObject.h"
 
+#if WITH_EDITOR
+#include "HAL/IConsoleManager.h"
+#endif // WITH_EDITOR
+
 namespace Metasound::Engine
 {
+#if WITH_EDITOR
+	namespace MetasoundEngineModulePrivate
+	{
+		extern int32 EnableMetaSoundEditorAssetValidation;
+		extern FAutoConsoleVariableRef CVarEnableMetaSoundEditorAssetValidation;
+	} // namespace MetasoundEngineModulePrivate
+#endif // WITH_EDITOR
+
 	class FModule : public IMetasoundEngineModule
 	{
 		// Supplies GC referencing in the MetaSound Frontend node registry for doing

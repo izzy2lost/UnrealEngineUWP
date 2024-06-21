@@ -150,7 +150,11 @@ namespace Metasound::Engine
 		template <typename TMetaSoundObject>
 		static EDataValidationResult IsDataValid(const TMetaSoundObject& InMetaSound, FDataValidationContext& InOutContext)
 		{
-			const EDataValidationResult Result = IsClassNameUnique(InMetaSound, InOutContext);
+			EDataValidationResult Result = EDataValidationResult::Valid;
+			if (MetasoundEngineModulePrivate::EnableMetaSoundEditorAssetValidation)
+			{
+				Result = IsClassNameUnique(InMetaSound, InOutContext);
+			}
 			return Result;
 		}
 

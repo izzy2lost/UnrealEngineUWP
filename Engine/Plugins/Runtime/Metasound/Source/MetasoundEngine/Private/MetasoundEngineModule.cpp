@@ -53,6 +53,21 @@ REGISTER_METASOUND_DATATYPE(Metasound::FWaveTableBankAsset, "WaveTableBankAsset"
 
 namespace Metasound::Engine
 {
+#if WITH_EDITOR
+	namespace MetasoundEngineModulePrivate
+	{
+		// Temporarily disabled while fixing up assets
+		int32 EnableMetaSoundEditorAssetValidation = 0;
+
+		FAutoConsoleVariableRef CVarEnableMetaSoundEditorAssetValidation(
+			TEXT("au.MetaSound.Editor.EnableAssetValidation"),
+			EnableMetaSoundEditorAssetValidation,
+			TEXT("Enables MetaSound specific asset validation.\n")
+			TEXT("Default: 1 (Enabled)"),
+			ECVF_Default);
+	} // namespace MetasoundEngineModulePrivate
+#endif // WITH_EDITOR
+
 	void FModule::FModule::StartupModule() 
 	{
 		using namespace Frontend;
