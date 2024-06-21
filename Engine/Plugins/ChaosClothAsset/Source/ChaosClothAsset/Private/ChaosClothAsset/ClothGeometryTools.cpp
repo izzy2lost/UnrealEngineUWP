@@ -1491,4 +1491,41 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
+	TSet<int32> FClothGeometryTools::GenerateKinematicVertices3D(const TSharedRef<FManagedArrayCollection>& ClothCollection, const FName& MaxDistanceMapName, const FVector2f& MaxDistanceValue, const FName& InputKinematicVertices, float KinematicDistanceThreshold)
+	{
+		TSet<int32> KinematicVertices;
+
+		// Add InputKinematicVertices
+		FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
+		if (InputKinematicVertices != NAME_None && SelectionFacade.IsValid() && SelectionFacade.HasSelection(InputKinematicVertices) && SelectionFacade.GetSelectionGroup(InputKinematicVertices) == UE::Chaos::ClothAsset::ClothCollectionGroup::SimVertices3D)
+		{
+			KinematicVertices = SelectionFacade.GetSelectionSet(InputKinematicVertices);
+		}
+
+		FCollectionClothFacade ClothFacade(ClothCollection);
+		if (ClothFacade.IsValid())
+		{
+			if (ClothFacade.HasWeightMap(MaxDistanceMapName))
+			{
+				TConstArrayView<float> MaxDistanceMap = ClothFacade.GetWeightMap(MaxDistanceMapName);
+				const FVector2f MaxDistanceOffsetRange(MaxDistanceValue[0], MaxDistanceValue[1] - MaxDistanceValue[0]);
+				for (int32 Index = 0; Index < MaxDistanceMap.Num(); ++Index)
+				{
+					if (MaxDistanceOffsetRange[0] + MaxDistanceMap[Index] * MaxDistanceOffsetRange[1] < KinematicDistanceThreshold)
+					{
+						KinematicVertices.Add(Index);
+					}
+				}
+			}
+			else if (MaxDistanceValue[0] < KinematicDistanceThreshold)
+			{
+				KinematicVertices.Reserve(ClothFacade.GetNumSimVertices3D());
+				for (int32 Index = 0; Index < ClothFacade.GetNumSimVertices3D(); ++Index)
+				{
+					KinematicVertices.Add(Index);
+				}
+			}
+		}
+		return KinematicVertices;
+	}
 }  // End namespace UE::Chaos::ClothAsset

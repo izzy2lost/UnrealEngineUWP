@@ -15,7 +15,7 @@ public:
 	FClothTetherDataPrivate(
 		const TConstArrayView<FVector3f>& Points,
 		const TConstArrayView<uint32>& Indices,
-		const TConstArrayView<float>& MaxDistances,
+		TFunctionRef<bool(int32 Index)> IsKinematic,
 		bool bUseGeodesicDistance);
 
 	FClothTetherDataPrivate(
@@ -34,7 +34,7 @@ private:
 
 	// Generate a map of tethers by following the triangle mesh network
 	// The choice of the tether is determined by the shortest geodesic (curvature) distance.
-	void GenerateGeodesicTethers(const TConstArrayView<FVector3f>& Points, const TConstArrayView<float>& MaxDistances);
+	void GenerateGeodesicTethers(const TConstArrayView<FVector3f>& Points, TFunctionRef<bool(int32 Index)> IsKinematic);
 
 	// Update TetherNums after computing tethers.
 	void UpdateCounts();
@@ -62,7 +62,31 @@ void FClothTetherData::GenerateTethers(
 	}
 
 	// Calculate the tethers
-	const FClothTetherDataPrivate ClothTetherData(Points, Indices, MaxDistances, bUseGeodesicDistance);
+	const FClothTetherDataPrivate ClothTetherData(Points, Indices, [&MaxDistances](int32 Node)
+	{
+		return MaxDistances[Node] < FClothTetherDataPrivate::KinematicDistanceThreshold;
+	}, bUseGeodesicDistance);
+	ClothTetherData.GetBatchedTetherData(Tethers);
+}
+
+void FClothTetherData::GenerateTethers(
+	const TConstArrayView<FVector3f>& Points,
+	const TConstArrayView<uint32>& Indices,
+	const TSet<int32>& KinematicNodes,
+	bool bUseGeodesicDistance)
+{
+	// Early exit if there is no KinematicNodes set
+	if (KinematicNodes.IsEmpty())
+	{
+		Tethers.Empty();
+		return;
+	}
+
+	// Calculate the tethers
+	const FClothTetherDataPrivate ClothTetherData(Points, Indices, [&KinematicNodes](int32 Node)
+	{
+		return KinematicNodes.Contains(Node);
+	}, bUseGeodesicDistance);
 	ClothTetherData.GetBatchedTetherData(Tethers);
 }
 
@@ -91,7 +115,7 @@ bool FClothTetherData::Serialize(FArchive& Ar)
 FClothTetherDataPrivate::FClothTetherDataPrivate(
 	const TConstArrayView<FVector3f>& Points,
 	const TConstArrayView<uint32>& Indices,
-	const TConstArrayView<float>& MaxDistances,
+	TFunctionRef<bool(int32 Index)> IsKinematic,
 	bool bUseGeodesicDistance)
 {
 	// Calculate the points' neighbors map
@@ -113,17 +137,17 @@ FClothTetherDataPrivate::FClothTetherDataPrivate(
 	NodeToNeighbors.GenerateKeyArray(Nodes);
 
 	// Find all kinematic points to use as anchor points for the tethers and seed the path finding
-	DynamicNodes.Reserve(2 * (Nodes.Num() / 3));  // Start at 66% of the number of nodes to minimize this array's reallocations
-	KinematicNodes.Reserve(Nodes.Num() / 3);  // Start at 33% of the number of nodes to minimize this array's reallocations
+	DynamicNodes.Reserve(Points.Num());
+	KinematicNodes.Reserve(Points.Num());
 	for (const int32 Node : Nodes)
 	{
-		if (MaxDistances[Node] >= KinematicDistanceThreshold)
+		if (IsKinematic(Node))
 		{
-			DynamicNodes.Add(Node);
+			KinematicNodes.Add(Node);
 		}
 		else
 		{
-			KinematicNodes.Add(Node);
+			DynamicNodes.Add(Node);
 		}
 	}
 
@@ -147,7 +171,7 @@ FClothTetherDataPrivate::FClothTetherDataPrivate(
 		}
 		else
 		{
-			GenerateGeodesicTethers(Points, MaxDistances);
+			GenerateGeodesicTethers(Points, IsKinematic);
 		}
 
 		UpdateCounts();
@@ -350,7 +374,7 @@ void FClothTetherDataPrivate::GenerateEuclideanTethers(const TConstArrayView<FVe
 	});
 }
 
-void FClothTetherDataPrivate::GenerateGeodesicTethers(const TConstArrayView<FVector3f>& Points, const TConstArrayView<float>& MaxDistances)
+void FClothTetherDataPrivate::GenerateGeodesicTethers(const TConstArrayView<FVector3f>& Points, TFunctionRef<bool(int32 Index)> IsKinematic)
 {
 	check(KinematicNodeIslands.Num());
 
@@ -369,7 +393,7 @@ void FClothTetherDataPrivate::GenerateGeodesicTethers(const TConstArrayView<FVec
 			const TSet<int32>& Neighbors = NodeToNeighbors[KinematicNode];
 			for (const int32 Neighbor : Neighbors)
 			{
-				if (MaxDistances[Neighbor] >= KinematicDistanceThreshold)
+				if (!IsKinematic(Neighbor))
 				{
 					SeedIslands[IslandIndex].Add(KinematicNode);
 					++NumSeeds;
@@ -405,7 +429,7 @@ void FClothTetherDataPrivate::GenerateGeodesicTethers(const TConstArrayView<FVec
 		}
 	}
 
-	ParallelFor(Seeds.Num(), [this, &Seeds, &GeodesicDistances, &Points, &MaxDistances](int32 Index)
+	ParallelFor(Seeds.Num(), [this, &Seeds, &GeodesicDistances, &Points, &IsKinematic](int32 Index)
 	{
 		const int32 Seed = Seeds[Index];
 		TMap<int32, float>& SeedGeodesicDistances = GeodesicDistances[Seed];
@@ -448,7 +472,7 @@ void FClothTetherDataPrivate::GenerateGeodesicTethers(const TConstArrayView<FVec
 				check(NeighborNode != ParentNode);
 
 				// Do not progress onto kinematic nodes
-				if (MaxDistances[NeighborNode] < KinematicDistanceThreshold)
+				if (IsKinematic(NeighborNode))
 				{
 					continue;
 				}

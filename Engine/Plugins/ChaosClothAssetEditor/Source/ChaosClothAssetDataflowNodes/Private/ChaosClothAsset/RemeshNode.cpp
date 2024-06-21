@@ -12,6 +12,7 @@
 #include "ChaosClothAsset/ClothDataflowTools.h"
 #include "ChaosClothAsset/SimulationSelfCollisionSpheresConfigNode.h"
 #include "ChaosClothAsset/SimulationLongRangeAttachmentConfigNode.h"
+#include "ChaosClothAsset/SimulationMaxDistanceConfigNode.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "DynamicMesh/MeshTangents.h"
 #include "DynamicMesh/MeshNormals.h"
@@ -1204,6 +1205,8 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 
 	FCollectionClothConstFacade InClothFacade(InClothCollection);
 	FCollectionClothFacade OutClothFacade(OutClothCollection);
+	FCollectionClothSelectionFacade OutSelectionFacade(OutClothCollection);
+	OutSelectionFacade.DefineSchema();
 
 	// Check that weight maps and skinning info have been interpolated over
 	for (const FName& InWeightMapName : InClothFacade.GetWeightMapNames())
@@ -1221,6 +1224,16 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 	}
 
 	Chaos::Softs::FCollectionPropertyConstFacade InProperties(InClothCollection);
+
+	// Reconstruct KinematicVertexSet
+	const FString MaxDistanceString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationMaxDistanceConfigNode, MaxDistance);
+	const FName KinematicVertices3DName = GET_MEMBER_NAME_CHECKED(FChaosClothAssetSimulationMaxDistanceConfigNode, KinematicVertices3D);
+	if (InProperties.GetKeyIndex(MaxDistanceString) != INDEX_NONE)
+	{
+		const FName MaxDistanceMapName(InProperties.GetStringValue(MaxDistanceString, MaxDistanceString));
+		OutSelectionFacade.FindOrAddSelectionSet(KinematicVertices3DName, ClothCollectionGroup::SimVertices3D) =
+			FClothGeometryTools::GenerateKinematicVertices3D(OutClothCollection, MaxDistanceMapName, InProperties.GetWeightedFloatValue(MaxDistanceString, FVector2f(0.f, 1.f)), NAME_None);
+	}
 
 	// Reconstruct collision spheres
 	const FString SelfCollisionSphereStiffnessString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationSelfCollisionSpheresConfigNode, SelfCollisionSphereStiffness);
@@ -1240,26 +1253,34 @@ void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRe
 			TSet<int32> VertexSet;
 			FClothGeometryTools::SampleVertices(SimPositions, CullDiameterSq, VertexSet);
 
-			FCollectionClothSelectionFacade Selection(OutClothCollection);
-			Selection.DefineSchema();
-
 			const FName SelectionSetName(*InProperties.GetStringValue(SelfCollisionSphereSetNameString, SelfCollisionSphereSetNameString));
-			Selection.FindOrAddSelectionSet(SelectionSetName, ClothCollectionGroup::SimVertices3D) = VertexSet;
+			OutSelectionFacade.FindOrAddSelectionSet(SelectionSetName, ClothCollectionGroup::SimVertices3D) = VertexSet;
 		}
 	}
 
 	// Reconstruct long-range attachments
-	const FString TetherStiffnessString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, TetherStiffness);
-	const FString FixedEndWeightMapString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, FixedEndWeightMap);
-	FString UseGeodesicTethersString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, bUseGeodesicTethers);
-	UseGeodesicTethersString.RemoveFromStart(TEXT("b"), ESearchCase::CaseSensitive);  // Property collection names doesn't use the b prefix for booleans
 
-	if (InProperties.GetKeyIndex(TetherStiffnessString) != INDEX_NONE)
+	// v1 (weight map)
+	const FString FixedEndWeightMapString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, FixedEndWeightMap);
+	if (InProperties.GetKeyIndex(FixedEndWeightMapString) != INDEX_NONE)
 	{
+		FString UseGeodesicTethersString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode, bUseGeodesicTethers);
+		UseGeodesicTethersString.RemoveFromStart(TEXT("b"), ESearchCase::CaseSensitive);  // Property collection names doesn't use the b prefix for booleans
 		const bool bUseGeodesicTethers = InProperties.GetValue<bool>(UseGeodesicTethersString);
 		const FName FixedEndWeightMap(InProperties.GetStringValue(FixedEndWeightMapString));
 
 		UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethers(OutClothCollection, FixedEndWeightMap, bUseGeodesicTethers);
+	}
+
+	// v2 (vertex set)
+	const FString FixedEndSetString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode_v2, FixedEndSet);
+	if (InProperties.GetKeyIndex(FixedEndSetString) != INDEX_NONE)
+	{
+		// Regenerate using the Kinematic vertices.
+		FString UseGeodesicTethersString = GET_MEMBER_NAME_STRING_CHECKED(FChaosClothAssetSimulationLongRangeAttachmentConfigNode_v2, bUseGeodesicTethers);
+		UseGeodesicTethersString.RemoveFromStart(TEXT("b"), ESearchCase::CaseSensitive);  // Property collection names doesn't use the b prefix for booleans
+		const bool bUseGeodesicTethers = InProperties.GetValue<bool>(UseGeodesicTethersString);
+		UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethersFromSelectionSet(OutClothCollection, KinematicVertices3DName, bUseGeodesicTethers);
 	}
 }
 

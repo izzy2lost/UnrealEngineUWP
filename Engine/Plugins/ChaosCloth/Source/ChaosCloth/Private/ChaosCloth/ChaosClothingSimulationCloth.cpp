@@ -114,6 +114,7 @@ struct FClothingSimulationCloth::FLODData
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(MassValue, float);
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(MultiResCoarseLODIndex, int32);
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(IsCoarseMultiResLOD, bool);
+	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(KinematicVertices3D, bool); // Selection set name string property; bool value is not actually used.
 
 };
 
@@ -216,12 +217,14 @@ void FClothingSimulationCloth::FLODData::AddParticles(FClothingSimulationSolver*
 		WeightMaps.FindRef(GetMaxDistanceString(ConfigProperties, MaxDistanceName.ToString())),
 		NumParticles);
 
+	const TSet<int32>* const KinematicVertices3DSet = VertexSets.FindRef(GetKinematicVertices3DString(ConfigProperties, KinematicVertices3DName.ToString()), nullptr);
+
 	// Set the particle masses
 	static const FRealSingle KinematicDistanceThreshold = 0.1f;  // TODO: This is not the same value as set in the painting UI but we might want to expose this value as parameter
 	auto KinematicPredicate =
-		[&MaxDistances](int32 Index)
+		[&MaxDistances, KinematicVertices3DSet](int32 Index)
 	{
-		return MaxDistances.GetValue(Index) < KinematicDistanceThreshold;
+		return MaxDistances.GetValue(Index) < KinematicDistanceThreshold || (KinematicVertices3DSet && KinematicVertices3DSet->Contains(Index));
 	};
 
 	const int32 MassMode = ConfigProperties.GetValue<int32>(TEXT("MassMode"), ClothingSimulationClothDefault::MassMode);

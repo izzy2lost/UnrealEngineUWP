@@ -141,5 +141,10 @@ namespace UE::Chaos::ClothAsset
 			const TConstArrayView<FVector3f>& TargetNormals,
 			const TConstArrayView<FIntVector3>& InTargetIndices,
 			const TArrayView<float>& TargetWeights);
+
+		/**
+		 * Generate KinematicVertices3D set from the given MaxDistance weight map, MaxDistance values, and any additional kinematic vertices.
+		 */
+		static TSet<int32> GenerateKinematicVertices3D(const TSharedRef<FManagedArrayCollection>& ClothCollection, const FName& MaxDistanceMap, const FVector2f& MaxDistanceValues, const FName& InputKinematicVertices, float KinematicDistanceThreshold = 0.1f);
 	};
 }  // End namespace UE::Chaos::ClothAsset
