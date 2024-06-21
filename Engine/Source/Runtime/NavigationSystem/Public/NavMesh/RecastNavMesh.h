@@ -200,6 +200,7 @@ struct FRecastDebugGeometry
 		uint8	AreaID;
 		uint8	Direction;
 		uint8	ValidEnds;
+		bool	bIsGenerated;
 		float	Radius;
 		float	Height;
 		FColor	Color;

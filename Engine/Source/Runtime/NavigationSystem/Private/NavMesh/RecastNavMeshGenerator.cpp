@@ -1354,7 +1354,8 @@ struct FOffMeshData
 
 			NewInfo.type = DT_OFFMESH_CON_POINT | 
 				(Link.Direction == ENavLinkDirection::BothWays ? DT_OFFMESH_CON_BIDIR : 0) |
-				(Link.bSnapToCheapestArea ? DT_OFFMESH_CON_CHEAPAREA : 0);
+				(Link.bSnapToCheapestArea ? DT_OFFMESH_CON_CHEAPAREA : 0) |
+				(Link.bIsGenerated ? DT_OFFMESH_CON_GENERATED : 0);
 
 			NewInfo.snapRadius = Link.SnapRadius;
 			NewInfo.snapHeight = Link.bUseSnapHeight ? Link.SnapHeight : DefaultSnapHeight;
@@ -3856,7 +3857,11 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 		// Since trajectory validation starts at agentClimb height to ignore small bumps, remove the offset for the actual link height.
 		midA[1] -= linkBuilderConfig.agentClimb;
 		midB[1] -= linkBuilderConfig.agentClimb;
-		OutGeneratedLinks.Add(FNavigationLink(Recast2UnrealPoint(midA), Recast2UnrealPoint(midB)));
+
+		FNavigationLink& NewLink = OutGeneratedLinks.Emplace_GetRef();
+		NewLink.bIsGenerated = true;
+		NewLink.Left = Recast2UnrealPoint(midA);
+		NewLink.Right = Recast2UnrealPoint(midB);
 	}
 	
 	LogOnExit();

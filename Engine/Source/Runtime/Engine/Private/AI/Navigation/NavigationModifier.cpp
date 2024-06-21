@@ -32,7 +32,8 @@ FNavigationLinkBase::FNavigationLinkBase()
 	: LeftProjectHeight(0.0f), MaxFallDownLength(1000.0f), SnapRadius(30.f), SnapHeight(50.0f),
 	  Direction(ENavLinkDirection::BothWays), bUseSnapHeight(false), bSnapToCheapestArea(true),
 	  bCustomFlag0(false), bCustomFlag1(false), bCustomFlag2(false), bCustomFlag3(false), bCustomFlag4(false),
-	  bCustomFlag5(false), bCustomFlag6(false), bCustomFlag7(false)
+	  bCustomFlag5(false), bCustomFlag6(false), bCustomFlag7(false),
+	  bIsGenerated(false)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UserId = InvalidUserId;

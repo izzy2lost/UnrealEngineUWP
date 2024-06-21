@@ -3026,6 +3026,7 @@ int32 FPImplRecastNavMesh::GetTilesDebugGeometry(const FRecastNavMeshGenerator* 
 				, LinkPoly->getArea()
 				, (uint8)OffMeshConnection->getBiDirectional()
 				, GetValidEnds(*DetourNavMesh, Tile, *LinkPoly)
+				, OffMeshConnection->getIsGenerated()
 				, UE_REAL_TO_FLOAT_CLAMPED_MAX(OffMeshConnection->rad)
 			};
 
