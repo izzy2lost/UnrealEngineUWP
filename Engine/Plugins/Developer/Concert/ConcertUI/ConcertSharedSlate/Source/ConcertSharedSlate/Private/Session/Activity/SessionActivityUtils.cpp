@@ -3,11 +3,13 @@
 #include "SessionActivityUtils.h"
 
 #include "ConcertSyncSessionTypes.h"
+#include "Replication/Messages/ReplicationActivity.h"
 
 #define LOCTEXT_NAMESPACE "SConcertSessionActivities"
 
 FText UE::ConcertSharedSlate::Private::GetOperationName(const FConcertSessionActivity& Activity)
 {
+	static_assert(static_cast<uint8>(EConcertSyncActivityEventType::Count) == 6, "If you added an EConcertSyncActivityEventType entry, you may want to update this location");
 	if (const FConcertSyncTransactionActivitySummary* TransactionSummary = Activity.ActivitySummary.Cast<FConcertSyncTransactionActivitySummary>())
 	{
 		return TransactionSummary->TransactionTitle;
@@ -53,6 +55,11 @@ FText UE::ConcertSharedSlate::Private::GetOperationName(const FConcertSessionAct
 		case EConcertSyncLockEventType::Unlocked: return LOCTEXT("UnlockOperation", "Unlock");
 		default: break;
 		}
+	}
+
+	if (const FConcertSyncReplicationActivitySummary* ActivitySummary = Activity.ActivitySummary.Cast<FConcertSyncReplicationActivitySummary>())
+	{
+		return LOCTEXT("LeftReplication", "Left Replication");
 	}
 
 	return FText::GetEmpty();

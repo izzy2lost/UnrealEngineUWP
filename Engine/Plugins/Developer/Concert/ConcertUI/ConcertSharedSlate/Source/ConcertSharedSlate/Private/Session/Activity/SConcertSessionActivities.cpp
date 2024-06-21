@@ -14,6 +14,7 @@
 #include "Misc/AsyncTaskNotification.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Replication/Messages/ReplicationActivity.h"
 #include "Session/Activity/ActivityColumn.h"
 #include "Widgets/SUndoHistoryDetails.h"
 #include "Widgets/Images/SThrobber.h"
@@ -31,6 +32,7 @@ const FName ShowConnectionActivitiesCheckBoxId  = TEXT("ShowConnectionActivities
 const FName ShowLockActivitiesCheckBoxId        = TEXT("ShowLockActivities");
 const FName ShowPackageActivitiesCheckBoxId     = TEXT("ShowPackageActivities");
 const FName ShowTransactionActivitiesCheckBoxId = TEXT("ShowTransactionActivities");
+const FName ShowReplicationActivitiesCheckBoxId = TEXT("ShowReplicationActivities");
 const FName ShowIgnoredActivitiesCheckBoxId     = TEXT("ShowIgnoredActivities");
 	
 FText GetSummary(const FConcertSessionActivity& Activity, const FText& ClientName, bool bAsRichText)
@@ -219,6 +221,7 @@ void SConcertSessionActivities::Construct(const FArguments& InArgs)
 	LockActivitiesVisibility = InArgs._LockActivitiesVisibility;
 	PackageActivitiesVisibility = InArgs._PackageActivitiesVisibility;
 	TransactionActivitiesVisibility = InArgs._TransactionActivitiesVisibility;
+	ReplicationActivitiesVisibility = InArgs._ReplicationActivitiesVisibility;
 	IgnoredActivitiesVisibility = InArgs._IgnoredActivitiesVisibility;
 	DetailsAreaVisibility = InArgs._DetailsAreaVisibility;
 	bAutoScrollDesired = InArgs._IsAutoScrollEnabled;
@@ -442,7 +445,7 @@ void SConcertSessionActivities::Tick(const FGeometry& AllottedGeometry, const do
 		OnActivityFilterUpdated();
 	}
 
-	FetchActivities(); // Check if we should fetch more activities in case we filtered out to many of them.
+	FetchActivities(); // Check if we should fetch more activities in case we filtered out too many of them.
 }
 
 FText SConcertSessionActivities::GetNoDetailsText() const
@@ -506,32 +509,46 @@ void SConcertSessionActivities::UpdateDetailArea(TSharedPtr<FConcertSessionActiv
 	}
 	else if (InSelectedActivity->EventPayload) // The event payload is already bundled in the activity stream?
 	{
-		if (InSelectedActivity->Activity.EventType == EConcertSyncActivityEventType::Transaction)
+		UpdateDetailsByEventPayload(InSelectedActivity);
+	}
+	else
+	{
+		UpdateDetailsByRequest(InSelectedActivity);
+	}
+}
+
+void SConcertSessionActivities::UpdateDetailsByEventPayload(TSharedPtr<FConcertSessionActivity> InSelectedActivity)
+{
+	static_assert(static_cast<uint8>(EConcertSyncActivityEventType::Count) == 6, "If you added an EConcertSyncActivityEventType entry, you may want to update this function");
+	if (InSelectedActivity->Activity.EventType == EConcertSyncActivityEventType::Transaction)
+	{
+		FConcertSyncTransactionEvent TransactionEvent;
+		InSelectedActivity->EventPayload->GetTypedPayload(TransactionEvent);
+		if (TransactionEvent.Transaction.ExportedObjects.Num())
 		{
-			FConcertSyncTransactionEvent TransactionEvent;
-			InSelectedActivity->EventPayload->GetTypedPayload(TransactionEvent);
-			if (TransactionEvent.Transaction.ExportedObjects.Num())
-			{
-				DisplayTransactionDetails(*InSelectedActivity, TransactionEvent.Transaction);
-			}
-			else
-			{
-				SetDetailsPanelVisibility(NoDetailsPanel.Get());
-			}
+			DisplayTransactionDetails(*InSelectedActivity, TransactionEvent.Transaction);
 		}
-		else if (InSelectedActivity->Activity.EventType == EConcertSyncActivityEventType::Package)
-		{
-			FConcertSyncPackageEvent PackageEvent;
-			InSelectedActivity->EventPayload->GetTypedPayload(PackageEvent);
-			checkf(!PackageEvent.Package.HasPackageData(), TEXT("UI should only request the package meta data because the package data is not useful and can be very large"));
-			DisplayPackageDetails(*InSelectedActivity, PackageEvent.PackageRevision, PackageEvent.Package.Info);
-		}
-		else // Other activity types (lock/connection) don't have details panel.
+		else
 		{
 			SetDetailsPanelVisibility(NoDetailsPanel.Get());
 		}
 	}
-	else if (InSelectedActivity->Activity.EventType == EConcertSyncActivityEventType::Transaction && GetTransactionEventFn.IsBound()) // A function is bound to get the transaction event?
+	else if (InSelectedActivity->Activity.EventType == EConcertSyncActivityEventType::Package)
+	{
+		FConcertSyncPackageEvent PackageEvent;
+		InSelectedActivity->EventPayload->GetTypedPayload(PackageEvent);
+		checkf(!PackageEvent.Package.HasPackageData(), TEXT("UI should only request the package meta data because the package data is not useful and can be very large"));
+		DisplayPackageDetails(*InSelectedActivity, PackageEvent.PackageRevision, PackageEvent.Package.Info);
+	}
+	else // Other activity types (lock/connection) don't have details panel.
+	{
+		SetDetailsPanelVisibility(NoDetailsPanel.Get());
+	}
+}
+
+void SConcertSessionActivities::UpdateDetailsByRequest(TSharedPtr<FConcertSessionActivity> InSelectedActivity)
+{
+	if (InSelectedActivity->Activity.EventType == EConcertSyncActivityEventType::Transaction && GetTransactionEventFn.IsBound()) // A function is bound to get the transaction event?
 	{
 		SetDetailsPanelVisibility(LoadingDetailsPanel.Get());
 		TWeakPtr<SConcertSessionActivities> WeakSelf = SharedThis(this);
@@ -568,6 +585,11 @@ void SConcertSessionActivities::UpdateDetailArea(TSharedPtr<FConcertSessionActiv
 			SetDetailsPanelVisibility(NoDetailsPanel.Get());
 		}
 	}
+	else if (InSelectedActivity->Activity.EventType == EConcertSyncActivityEventType::Replication)
+	{
+		// TODO UE-218508:
+		SetDetailsPanelVisibility(NoDetailsPanel.Get());
+	}
 	else
 	{
 		SetDetailsPanelVisibility(NoDetailsPanel.Get());
@@ -594,6 +616,10 @@ EConcertActivityFilterFlags SConcertSessionActivities::QueryActiveActivityFilter
 	if (TransactionActivitiesVisibility.Get() != EVisibility::Visible)
 	{
 		ActiveFlags |= EConcertActivityFilterFlags::HideTransactionActivities;
+	}
+	if (ReplicationActivitiesVisibility.Get() != EVisibility::Visible)
+	{
+		ActiveFlags |= EConcertActivityFilterFlags::HideReplicationActivities;
 	}
 	if (IgnoredActivitiesVisibility.Get() != EVisibility::Visible)
 	{
@@ -750,6 +776,10 @@ bool SConcertSessionActivities::PassesFilters(const FConcertSessionActivity& Act
 		return false;
 	}
 	else if (Activity.Activity.EventType == EConcertSyncActivityEventType::Transaction && TransactionActivitiesVisibility.Get() != EVisibility::Visible) // Filter out 'transaction' activities?
+	{
+		return false;
+	}
+	else if (Activity.Activity.EventType == EConcertSyncActivityEventType::Replication && ReplicationActivitiesVisibility.Get() != EVisibility::Visible) // Filter out 'replication' activities?
 	{
 		return false;
 	}
@@ -959,6 +989,21 @@ TSharedRef<SWidget> FConcertSessionActivitiesOptions::MakeMenuWidget(TOptional<F
 			EUserInterfaceActionType::ToggleButton
 		);
 	}
+	
+	if (bEnableReplicationActivityFiltering)
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ShowReplicationActivities", "Show Replication Activities"),
+			LOCTEXT("ShowReplicationActivities_Tooltip", "Displays replication events"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &FConcertSessionActivitiesOptions::OnOptionToggled, ConcertSessionActivityUtils::ShowReplicationActivitiesCheckBoxId),
+				FCanExecuteAction::CreateLambda([] { return true; }),
+				FIsActionChecked::CreateLambda([this] { return bDisplayReplicationActivities; })),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+	}
 
 	if (bEnableIgnoredActivityFiltering)
 	{
@@ -1004,6 +1049,10 @@ void FConcertSessionActivitiesOptions::OnOptionToggled(const FName CheckBoxId)
 	else if (CheckBoxId == ConcertSessionActivityUtils::ShowTransactionActivitiesCheckBoxId)
 	{
 		bDisplayTransactionActivities = !bDisplayTransactionActivities;
+	}
+	else if (CheckBoxId == ConcertSessionActivityUtils::ShowReplicationActivitiesCheckBoxId)
+	{
+		bDisplayReplicationActivities = !bDisplayReplicationActivities;
 	}
 	else if (CheckBoxId == ConcertSessionActivityUtils::ShowIgnoredActivitiesCheckBoxId)
 	{

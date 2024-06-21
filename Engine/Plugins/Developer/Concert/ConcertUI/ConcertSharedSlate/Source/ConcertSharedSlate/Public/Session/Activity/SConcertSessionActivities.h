@@ -10,6 +10,7 @@
 #include "ConcertHeaderRowUtils.h"
 #include "ConcertSyncSessionTypes.h"
 #include "Misc/TextFilter.h"
+#include "Replication/Messages/ReplicationActivity.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
@@ -39,6 +40,7 @@ enum class EConcertActivityFilterFlags
 	HidePackageActivities    = 1<<2,
 	HideTransactionActivities= 1<<3,
 	HideIgnoredActivities    = 1<<4,
+	HideReplicationActivities= 1<<5
 };
 ENUM_CLASS_FLAGS(EConcertActivityFilterFlags);
 
@@ -87,6 +89,7 @@ public:
 		, _LockActivitiesVisibility(EVisibility::Hidden)
 		, _PackageActivitiesVisibility(EVisibility::Visible)
 		, _TransactionActivitiesVisibility(EVisibility::Visible)
+		, _ReplicationActivitiesVisibility(EVisibility::Hidden)
 		, _IgnoredActivitiesVisibility(EVisibility::Hidden)
 		, _DetailsAreaVisibility(EVisibility::Hidden)
 		, _IsAutoScrollEnabled(false)
@@ -131,6 +134,9 @@ public:
 
 		/** Show/hide transaction activities. */
 		SLATE_ATTRIBUTE(EVisibility, TransactionActivitiesVisibility)
+		
+		/** Show/hide replication activities. */
+		SLATE_ATTRIBUTE(EVisibility, ReplicationActivitiesVisibility)
 
 		/** Show/hide ignored activities. */
 		SLATE_ATTRIBUTE(EVisibility, IgnoredActivitiesVisibility)
@@ -237,9 +243,13 @@ private:
 	// Details
 	void OnDetailsAreaExpansionChanged(bool bExpanded);
 	void UpdateDetailArea(TSharedPtr<FConcertSessionActivity> InSelectedActivity);
+	void UpdateDetailsByEventPayload(TSharedPtr<FConcertSessionActivity> InSelectedActivity);
+	void UpdateDetailsByRequest(TSharedPtr<FConcertSessionActivity> InSelectedActivity);
+	
 	void SetDetailsPanelVisibility(const SWidget* VisiblePanel);
 	void DisplayTransactionDetails(const FConcertSessionActivity& Activity, const FConcertTransactionEventBase& InTransaction);
 	void DisplayPackageDetails(const FConcertSessionActivity& Activity, int64 PackageRevision, const FConcertPackageInfo& PackageInfo);
+	
 	FText GetNoDetailsText() const;
 	EVisibility GetDetailAreaVisibility() const { return DetailsAreaVisibility; }
 	SSplitter::ESizeRule GetDetailsAreaSizeRule() const { return bDetailsAreaExpanded ? SSplitter::ESizeRule::FractionOfParent : SSplitter::ESizeRule::SizeToContent; }
@@ -287,7 +297,10 @@ private:
 
 	/** Whether the transaction activities are displayed.*/
 	TAttribute<EVisibility> TransactionActivitiesVisibility;
-
+	
+	/** Whether the replication activities are displayed.*/
+	TAttribute<EVisibility> ReplicationActivitiesVisibility;
+	
 	/** Whether the ignored activities are displayed.*/
 	TAttribute<EVisibility> IgnoredActivitiesVisibility;
 
@@ -305,13 +318,10 @@ private:
 
 	/** Used to fetch more activities from an abstract source. Usually mutually exclusive with Append() function. May not be bound. */
 	FFetchActivitiesFunc FetchActivitiesFn;
-
 	/** Used to map an activity endpoint ID to a client. May not be bound. */
 	FGetActivityClientInfoFunc GetActivityUserFn;
-
 	/** Used to get the transaction event to display the selected transaction activity details. May not be bound. */
 	FGetTransactionEvent GetTransactionEventFn;
-
 	/** Used to get the package event to display the selected package activity details. May not be bound. */
 	FGetPackageEvent GetPackageEventFn;
 
@@ -386,6 +396,8 @@ public:
 	/** Returns whether the transaction activities are listed in SConcertSessionActivities. */
 	EVisibility GetTransactionActivitiesVisibility() const { return bDisplayTransactionActivities ? EVisibility::Visible : EVisibility::Hidden; }
 	/** Returns whether the ignored activities are listed in SConcertSessionActivities. */
+	EVisibility GetReplicationActivitiesVisibility() const { return bDisplayReplicationActivities ? EVisibility::Visible : EVisibility::Hidden; }
+	/** Returns whether the ignored activities are listed in SConcertSessionActivities. */
 	EVisibility GetIgnoredActivitiesVisibility() const { return bDisplayIgnoredActivities ? EVisibility::Visible : EVisibility::Hidden; }
 
 	/** Invoked when an options is togged from the displayed menu widget. */
@@ -399,6 +411,8 @@ public:
 	bool bEnablePackageActivityFiltering = true;
 	/** Enables the 'transaction activity' filter check box (Show Transaction Activities). */
 	bool bEnableTransactionActivityFiltering = true;
+	/** Enables the 'replication activity' filter check box (Show Replication Activities). */
+	bool bEnableReplicationActivityFiltering = true;
 	/** Enables the 'ignored activity' filter check box (Show Unrecoverable Activities). */
 	bool bEnableIgnoredActivityFiltering = false;
 	/** Controls whether the time is displayed as absolute or relative. (Display Relative Time). */
@@ -411,6 +425,8 @@ public:
 	bool bDisplayPackageActivities = true;
 	/** If transaction filtering is enabled, controls whether transaction activities are filtered out.*/
 	bool bDisplayTransactionActivities = true;
+	/** If replication filtering is enabled, controls whether replication activities are filtered out. */
+	bool bDisplayReplicationActivities = false;
 	/** If ignored activity filtering is enabled, controls whether ignored activities are filtered out.*/
 	bool bDisplayIgnoredActivities = false;
 };
