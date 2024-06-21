@@ -2138,7 +2138,7 @@ namespace UnrealBuildTool
 			Result.DeterministicWarningLevel = Rules.DeterministicWarningLevel;
 			Result.bValidateFormatStrings = Rules.bValidateFormatStrings;
 			Result.bValidateInternalApi = Rules.bValidateInternalApi;
-			Result.bUseAutoRTFMCompiler = Target.bUseAutoRTFMCompiler && !Target.bForceNoAutoRTFMCompiler;
+			Result.bUseAutoRTFMCompiler = Target.bUseAutoRTFMCompiler;
 
 			CompileEnvironmentDebugInfoSettings(Target, Result);
 

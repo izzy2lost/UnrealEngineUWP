@@ -868,7 +868,12 @@ namespace UnrealBuildTool
 		/// Whether to use the AutoRTFM Clang compiler.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
-		public bool bUseAutoRTFMCompiler { get; set; }
+		public bool bUseAutoRTFMCompiler
+		{
+			get => bForceNoAutoRTFMCompiler ? false : _bUseAutoRTFMCompilerPrivate;
+			set => _bUseAutoRTFMCompilerPrivate = value;
+		}
+		private bool _bUseAutoRTFMCompilerPrivate = false;
 
 		/// <summary>
 		/// Whether to use force AutoRTFM Clang compiler off.
