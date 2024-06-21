@@ -3943,6 +3943,12 @@ namespace Metasound
 				if (!InterfacesModified.IsEmpty() || bForceRefreshViews)
 				{
 					RefreshInterfaceView();
+
+					// Output Format may have changed, ensure analyzers are created with the correct channel count:
+					if (UMetaSoundSource* MetaSoundSource = Cast<UMetaSoundSource>(&MetaSound))
+					{
+						CreateAnalyzers(*MetaSoundSource);
+					}
 				}
 
 				HighestMessageSeverity = Graph->GetHighestMessageSeverity();
