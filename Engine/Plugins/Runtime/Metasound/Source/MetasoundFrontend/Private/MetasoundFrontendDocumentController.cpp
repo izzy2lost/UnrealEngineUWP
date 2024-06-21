@@ -436,23 +436,25 @@ namespace Metasound
 				do
 				{
 					TSet<FGuid> ReferencedDependencyIDs;
-					auto AddNodeClassIDToSet = [&](const FMetasoundFrontendNode& Node)
+					auto AddGraphNodeClassIDsToSet = [&ReferencedDependencyIDs](const FMetasoundFrontendGraphClass& GraphClass)
 					{
-						ReferencedDependencyIDs.Add(Node.ClassID);
+						GraphClass.IterateGraphPages([&ReferencedDependencyIDs](const FMetasoundFrontendGraph& Graph)
+						{
+							auto AddNodeClassIDToSet = [&ReferencedDependencyIDs](const FMetasoundFrontendNode& Node)
+							{
+								ReferencedDependencyIDs.Add(Node.ClassID);
+							};
+							Algo::ForEach(Graph.Nodes, AddNodeClassIDToSet);
+						});
 					};
 
-					auto AddGraphNodeClassIDsToSet = [&](const FMetasoundFrontendGraphClass& GraphClass)
-					{
-						Algo::ForEach(FindConstBuildGraphChecked(GraphClass).Nodes, AddNodeClassIDToSet);
-					};
+					// Referenced dependencies in RootGraph
+					AddGraphNodeClassIDsToSet(Document->RootGraph);
 
-					// Referenced dependencies in root class
-					Algo::ForEach(FindConstBuildGraphChecked(Document->RootGraph).Nodes, AddNodeClassIDToSet);
-
-					// Referenced dependencies in subgraphs
+					// Referenced dependencies in Subgraphs
 					Algo::ForEach(Document->Subgraphs, AddGraphNodeClassIDsToSet);
 
-					auto IsDependencyUnreferenced = [&](const FMetasoundFrontendClass& ClassDependency)
+					auto IsDependencyUnreferenced = [&ReferencedDependencyIDs](const FMetasoundFrontendClass& ClassDependency)
 					{
 						return !ReferencedDependencyIDs.Contains(ClassDependency.ID);
 					};
