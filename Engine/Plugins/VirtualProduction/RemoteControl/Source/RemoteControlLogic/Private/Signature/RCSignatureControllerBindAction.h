@@ -10,6 +10,10 @@ struct FRCSignatureControllerBindAction : public FRCSignatureControllerAction
 {
 	GENERATED_BODY()
 
+	//~ Begin FRCSignatureAction
+	virtual bool IsSupported(const FRCSignatureField& InField) const override;
+	//~ End FRCSignatureAction
+
 	//~ Begin FRCSignatureControllerAction
 	virtual bool IsControllerCompatible(const FRCSignatureActionContext& InContext, URCController* InController) const override;
 	virtual bool MakeControllerDesc(const FRCSignatureActionContext& InContext, FPropertyBagPropertyDesc& OutDesc) const override;

@@ -4,6 +4,7 @@
 
 #include "UI/Signature/IRCSignatureColumn.h"
 
+class FRCSignatureTreeFieldItem;
 struct FRCSignatureActionType;
 
 class FRCSignatureActionColumn : public IRCSignatureColumn
@@ -19,7 +20,7 @@ private:
 	virtual TSharedRef<SWidget> ConstructRowWidget(TSharedPtr<FRCSignatureTreeItemBase> InItem, const TSharedRef<SRCSignatureTree>& InList, const TSharedRef<SRCSignatureRow>& InRow) override;
 	//~ End IRCSignatureColumn
 
-	void RefreshActionTypes();
+	void RefreshActionTypes(const TSharedRef<FRCSignatureTreeFieldItem>& InFieldItem);
 
 	TArray<TSharedPtr<FRCSignatureActionType>> ActionTypes; 
 

@@ -5,6 +5,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/IItemsSource.h"
 
+class FRCSignatureTreeFieldItem;
 class FRCSignatureTreeItemBase;
 class SRCSignatureRow;
 class SScrollBox;
@@ -14,16 +15,20 @@ template<typename OptionType> class SComboBox;
 class SRCSignatureActionBox : public SCompoundWidget
 {
 public:
+	using FOnRefreshActionTypes = TDelegate<void(const TSharedRef<FRCSignatureTreeFieldItem>&)>;
+
 	SLATE_BEGIN_ARGS(SRCSignatureActionBox) {}
 		SLATE_ATTRIBUTE(bool, LiveMode)
 		SLATE_ITEMS_SOURCE_ARGUMENT(TSharedPtr<FRCSignatureActionType>, ActionTypesSource)
-		SLATE_EVENT(TDelegate<void()>, OnActionTypesComboBoxOpening)
+		SLATE_EVENT(FOnRefreshActionTypes, OnRefreshActionTypes)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TSharedRef<FRCSignatureTreeItemBase>& InItem, const TSharedRef<SRCSignatureRow>& InRow);
 
 private:
 	void Refresh();
+
+	void OnComboBoxOpening();
 
 	bool CanAddAction() const;
 
@@ -38,6 +43,8 @@ private:
 	TWeakPtr<FRCSignatureTreeItemBase> ItemWeak;
 
 	TSharedPtr<SScrollBox> ActionListBox;
+
+	FOnRefreshActionTypes OnRefreshActionTypes;
 
 	TAttribute<bool> IsHovered;
 	TAttribute<bool> IsSelected;

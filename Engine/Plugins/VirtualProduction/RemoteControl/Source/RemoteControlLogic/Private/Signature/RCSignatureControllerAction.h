@@ -14,7 +14,7 @@ struct FRCSignatureControllerAction : public FRCSignatureAction
 	GENERATED_BODY()
 
 	//~ Begin FRCSignatureAction
-	virtual void Initialize(const FRCSignatureField& InFieldOwner) override;
+	virtual void Initialize(const FRCSignatureField& InField) override;
 	virtual bool Execute(const FRCSignatureActionContext& InContext) const override;
 #if WITH_EDITOR
 	virtual FRCSignatureActionIcon GetIcon() const override;

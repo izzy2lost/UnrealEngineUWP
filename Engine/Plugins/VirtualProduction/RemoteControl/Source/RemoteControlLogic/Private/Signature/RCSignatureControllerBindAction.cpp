@@ -5,12 +5,19 @@
 #include "Behaviour/Builtin/Bind/RCBehaviourBind.h"
 #include "Behaviour/Builtin/Bind/RCBehaviourBindNode.h"
 #include "Controller/RCController.h"
+#include "Controller/RCControllerUtilities.h"
 #include "Controller/RCCustomControllerUtilities.h"
+#include "RCSignature.h"
 #include "RemoteControlField.h"
 
 #if WITH_EDITOR
 #include "Engine/Texture2D.h"
 #endif
+
+bool FRCSignatureControllerBindAction::IsSupported(const FRCSignatureField& InField) const
+{
+	return UE::RCControllers::CanCreateControllerFromPropertyDesc(InField.PropertyDesc);
+}
 
 bool FRCSignatureControllerBindAction::IsControllerCompatible(const FRCSignatureActionContext& InContext, URCController* InController) const
 {

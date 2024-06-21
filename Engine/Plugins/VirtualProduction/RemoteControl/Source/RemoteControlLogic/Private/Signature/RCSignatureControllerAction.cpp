@@ -7,9 +7,9 @@
 #include "RCSignature.h"
 #include "RemoteControlPreset.h"
 
-void FRCSignatureControllerAction::Initialize(const FRCSignatureField& InFieldOwner)
+void FRCSignatureControllerAction::Initialize(const FRCSignatureField& InField)
 {
-	ControllerName = InFieldOwner.FieldPath.GetFieldName();
+	ControllerName = InField.FieldPath.GetFieldName();
 }
 
 bool FRCSignatureControllerAction::Execute(const FRCSignatureActionContext& InContext) const

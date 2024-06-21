@@ -75,6 +75,11 @@ FRCSignatureField FRCSignatureField::CreateField(const FRCFieldPathInfo& InField
 	Field.FieldPath = InFieldPathInfo;
 	Field.SupportedClass = SupportedClass;
 
+	if (InProperty)
+	{
+		Field.PropertyDesc = FPropertyBagPropertyDesc(InProperty->GetFName(), InProperty);
+	}
+
 	if (InOwnerObject)
 	{
 		if (AActor* ActorOwner = InOwnerObject->GetTypedOuter<AActor>())

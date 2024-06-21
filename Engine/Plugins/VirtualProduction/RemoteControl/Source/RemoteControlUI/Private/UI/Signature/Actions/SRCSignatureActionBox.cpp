@@ -19,6 +19,8 @@ void SRCSignatureActionBox::Construct(const FArguments& InArgs, const TSharedRef
 {
 	ItemWeak = InItem;
 	LiveMode = InArgs._LiveMode;
+	OnRefreshActionTypes = InArgs._OnRefreshActionTypes;
+
 	IsHovered = TAttribute<bool>(InRow, &SRCSignatureRow::IsHovered);
 	IsSelected = TAttribute<bool>(InRow, &SRCSignatureRow::IsSelected);
 
@@ -27,7 +29,7 @@ void SRCSignatureActionBox::Construct(const FArguments& InArgs, const TSharedRef
 		.Visibility(this, &SRCSignatureActionBox::GetAddActionVisibility)
 		.ComboBoxStyle(&FAppStyle::Get().GetWidgetStyle<FComboBoxStyle>("SimpleComboBox"))
 		.OptionsSource(InArgs.GetActionTypesSource())
-		.OnComboBoxOpening(InArgs._OnActionTypesComboBoxOpening)
+		.OnComboBoxOpening(this, &SRCSignatureActionBox::OnComboBoxOpening)
 		.OnGenerateWidget(this, &SRCSignatureActionBox::GenerateActionTypeWidget)
 		.OnSelectionChanged(this, &SRCSignatureActionBox::OnActionTypeSelected)
 		.ContentPadding(0)
@@ -90,6 +92,28 @@ void SRCSignatureActionBox::Refresh()
 		[
 			ActionTypesComboBox.ToSharedRef()
 		];
+}
+
+void SRCSignatureActionBox::OnComboBoxOpening()
+{
+	if (!OnRefreshActionTypes.IsBound())
+	{
+		return;
+	}
+
+	TSharedPtr<FRCSignatureTreeItemBase> Item = ItemWeak.Pin();
+	if (!Item.IsValid())
+	{
+		return;	
+	}
+
+	TSharedPtr<FRCSignatureTreeFieldItem> FieldItem = Item->MutableCast<FRCSignatureTreeFieldItem>();
+	if (!FieldItem.IsValid())
+	{
+		return;
+	}
+
+	OnRefreshActionTypes.Execute(FieldItem.ToSharedRef());
 }
 
 bool SRCSignatureActionBox::CanAddAction() const

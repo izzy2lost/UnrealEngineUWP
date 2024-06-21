@@ -7,6 +7,7 @@
 #include "RCSignatureAction.generated.h"
 
 class URemoteControlPreset;
+struct FRCSignature;
 struct FRCSignatureField;
 struct FRemoteControlProperty;
 
@@ -57,10 +58,20 @@ struct FRCSignatureAction
 
 	/**
 	 * Called only once when the Signature Action is first added to the action list
-	 * @param InFieldOwner the owner of the action list
+	 * @param InField the owner of the action list
 	 */
-	virtual void Initialize(const FRCSignatureField& InFieldOwner)
+	virtual void Initialize(const FRCSignatureField& InField)
 	{
+	}
+
+	/**
+	 * Determines whether this Action can execute under a given field
+	 * @param InField the field that will contain this action if supported
+	 * @return true if the action is supported
+	 */
+	virtual bool IsSupported(const FRCSignatureField& InField) const
+	{
+		return true;
 	}
 
 	/**

@@ -10,6 +10,7 @@ FRCSignatureActionInstance::FRCSignatureActionInstance(const UScriptStruct* InSc
 
 	if (FRCSignatureAction* Action = ActionInstance.GetMutablePtr())
 	{
+		checkSlow(Action->IsSupported(InFieldOwner));
 		Action->Initialize(InFieldOwner);
 	}
 }

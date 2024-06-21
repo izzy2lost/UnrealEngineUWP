@@ -4,6 +4,7 @@
 
 #include "RCSignatureActionInstance.h"
 #include "RemoteControlFieldPath.h"
+#include "StructUtils/PropertyBag.h"
 #include "RCSignature.generated.h"
 
 enum class EPropertyBagPropertyType : uint8;
@@ -37,6 +38,10 @@ struct FRCSignatureField
 	/** Object class holding the property */
 	UPROPERTY()
 	FSoftClassPath SupportedClass;
+
+	/** Optional: Property Description of the field (if property) */
+	UPROPERTY()
+	FPropertyBagPropertyDesc PropertyDesc;
 
 	/** Container holding the action instances for the field */
 	UPROPERTY()

@@ -5,6 +5,7 @@
 #include "RCSignatureActionType.h"
 #include "SRCSignatureActionBox.h"
 #include "StructUtils/InstancedStruct.h"
+#include "UI/Signature/Items/RCSignatureTreeFieldItem.h"
 #include "UObject/Class.h"
 #include "UObject/UObjectIterator.h"
 
@@ -13,7 +14,6 @@
 FRCSignatureActionColumn::FRCSignatureActionColumn(const TAttribute<bool>& InLiveMode)
 	: LiveMode(InLiveMode)
 {
-	RefreshActionTypes();
 }
 
 FName FRCSignatureActionColumn::GetColumnId() const
@@ -38,14 +38,20 @@ TSharedRef<SWidget> FRCSignatureActionColumn::ConstructRowWidget(TSharedPtr<FRCS
 	return SNew(SRCSignatureActionBox, InItem.ToSharedRef(), InRow)
 		.LiveMode(LiveMode)
 		.ActionTypesSource(&ActionTypes)
-		.OnActionTypesComboBoxOpening(this, &FRCSignatureActionColumn::RefreshActionTypes);
+		.OnRefreshActionTypes(this, &FRCSignatureActionColumn::RefreshActionTypes);
 }
 
-void FRCSignatureActionColumn::RefreshActionTypes()
+void FRCSignatureActionColumn::RefreshActionTypes(const TSharedRef<FRCSignatureTreeFieldItem>& InFieldItem)
 {
 	ActionTypes.Reset();
 
 	if (!UObjectInitialized())
+	{
+		return;
+	}
+
+	const FRCSignatureField* Field = InFieldItem->FindField();
+	if (!Field)
 	{
 		return;
 	}
@@ -61,16 +67,21 @@ void FRCSignatureActionColumn::RefreshActionTypes()
 
 		if (ScriptStruct->IsChildOf(TBaseStructure<FRCSignatureAction>::Get()))
 		{
+			// Initialize a Temp Instance to determine if it's supported by the Tree Item
+			TInstancedStruct<FRCSignatureAction> Instance;
+			Instance.InitializeAsScriptStruct(ScriptStruct, /*StructMemory*/nullptr);
+
+			const FRCSignatureAction& Action = Instance.Get();
+
+			if (!Action.IsSupported(*Field))
+			{
+				continue;
+			}
+
 			TSharedRef<FRCSignatureActionType> ActionType = MakeShared<FRCSignatureActionType>();
 			ActionType->Type = ScriptStruct;
 			ActionType->Title = ScriptStruct->GetDisplayNameText();
-
-			// Initialize a Temp Instance to get the Icon to use
-			{
-				TInstancedStruct<FRCSignatureAction> Instance;
-				Instance.InitializeAsScriptStruct(ScriptStruct, /*StructMemory*/nullptr);
-				ActionType->Icon = Instance.Get().GetIcon();
-			}
+			ActionType->Icon = Action.GetIcon();
 
 			ActionTypes.Add(MoveTemp(ActionType));
 		}
