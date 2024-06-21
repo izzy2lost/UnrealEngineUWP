@@ -11,6 +11,7 @@
 #include "GameplayTagContainer.h"
 #include "Engine/DataTable.h"
 #include "Templates/UniquePtr.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 
 #include "GameplayTagsManager.generated.h"
 
@@ -439,7 +440,7 @@ public:
 	 */
 	FORCEINLINE_DEBUGGABLE TSharedPtr<FGameplayTagNode> FindTagNode(const FGameplayTag& GameplayTag) const
 	{
-		FScopeLock Lock(&GameplayTagMapCritical);
+		FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 		const TSharedPtr<FGameplayTagNode>* Node = GameplayTagNodeMap.Find(GameplayTag);
 
@@ -927,7 +928,7 @@ private:
 
 	// This critical section is to handle an issue where tag requests come from another thread when async loading from a background thread in FGameplayTagContainer::Serialize.
 	// This class is not generically threadsafe.
-	mutable FCriticalSection GameplayTagMapCritical;
+	mutable FTransactionallySafeCriticalSection GameplayTagMapCritical;
 
 #if WITH_EDITOR
 	// Transient editor-only tags to support quick-iteration PIE workflows

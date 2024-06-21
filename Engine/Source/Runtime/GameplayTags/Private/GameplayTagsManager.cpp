@@ -570,7 +570,7 @@ int32 PrintNetIndiceAssignment = 0;
 static FAutoConsoleVariableRef CVarPrintNetIndiceAssignment(TEXT("GameplayTags.PrintNetIndiceAssignment"), PrintNetIndiceAssignment, TEXT("Logs GameplayTag NetIndice assignment"), ECVF_Default );
 void UGameplayTagsManager::ConstructNetIndex()
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	bNetworkIndexInvalidated = false;
 
@@ -963,7 +963,7 @@ bool UGameplayTagsManager::ImportSingleGameplayTag(FGameplayTag& Tag, FName Impo
 	return bRetVal;
 }
 
-void UGameplayTagsManager::InitializeManager()
+UE_AUTORTFM_ALWAYS_OPEN void UGameplayTagsManager::InitializeManager()
 {
 	check(!SingletonManager);
 	SCOPED_BOOT_TIMING("UGameplayTagsManager::InitializeManager");
@@ -1205,7 +1205,7 @@ UGameplayTagsManager::~UGameplayTagsManager()
 
 void UGameplayTagsManager::DestroyGameplayTagTree()
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	if (GameplayRootTag.IsValid())
 	{
@@ -1291,7 +1291,7 @@ int32 UGameplayTagsManager::InsertTagIntoNodeArray(FName Tag, FName FullTag, TSh
 		{
 			// This critical section is to handle an issue where tag requests come from another thread when async loading from a background thread in FGameplayTagContainer::Serialize.
 			// This function is not generically threadsafe.
-			FScopeLock Lock(&GameplayTagMapCritical);
+			FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 			GameplayTagNodeMap.Add(GameplayTag, TagNode);
 		}
 	}
@@ -1315,7 +1315,7 @@ void UGameplayTagsManager::PrintReplicationIndices()
 
 	UE_LOG(LogGameplayTags, Display, TEXT("::PrintReplicationIndices (TOTAL %d)"), GameplayTagNodeMap.Num());
 
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	for (auto It : GameplayTagNodeMap)
 	{
@@ -1636,7 +1636,7 @@ FString UGameplayTagsManager::GetCategoriesMetaFromFunction(const UFunction* Thi
 
 void UGameplayTagsManager::GetAllTagsFromSource(FName TagSource, TArray< TSharedPtr<FGameplayTagNode> >& OutTagArray) const
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	for (const TPair<FGameplayTag, TSharedPtr<FGameplayTagNode>>& NodePair : GameplayTagNodeMap)
 	{
@@ -1958,7 +1958,7 @@ FGameplayTag UGameplayTagsManager::RequestGameplayTag(FName TagName, bool ErrorI
 
 	// This critical section is to handle an issue where tag requests come from another thread when async loading from a background thread in FGameplayTagContainer::Serialize.
 	// This function is not generically threadsafe.
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	// Check if there are redirects for this tag. If so and the redirected tag is in the node map, return it.
 	// Redirects take priority, even if the tag itself may exist.
@@ -2081,7 +2081,7 @@ FGameplayTag UGameplayTagsManager::FindGameplayTagFromPartialString_Slow(FString
 {
 	// This critical section is to handle an issue where tag requests come from another thread when async loading from a background thread in FGameplayTagContainer::Serialize.
 	// This function is not generically threadsafe.
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	// Exact match first
 	FGameplayTag PossibleTag(*PartialString);
@@ -2205,10 +2205,9 @@ void UGameplayTagsManager::DoneAddingNativeTags()
 	}
 }
 
-UE_AUTORTFM_ALWAYS_OPEN
 FGameplayTagContainer UGameplayTagsManager::RequestGameplayTagParents(const FGameplayTag& GameplayTag) const
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	const FGameplayTagContainer* ParentTags = GetSingleTagContainerPtr(GameplayTag);
 
@@ -2240,41 +2239,37 @@ bool UGameplayTagsManager::ExtractParentTags(const FGameplayTag& GameplayTag, TA
 	int32 OldSize = UniqueParentTags.Num();
 	FName RawTag = GameplayTag.GetTagName();
 
-	// Need to run in the open as it takes a lock. 
-	UE_AUTORTFM_OPEN2
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
+
+	// This code does not check redirectors because that was already handled by GameplayTagContainerLoaded
+	const TSharedPtr<FGameplayTagNode>*Node = GameplayTagNodeMap.Find(GameplayTag);
+	if (Node)
+	{
+		// Use the registered tag container if it exists
+		const FGameplayTagContainer& SingleContainer = (*Node)->GetSingleTagContainer();
+		for (const FGameplayTag& ParentTag : SingleContainer.ParentTags)
 		{
-			FScopeLock Lock(&GameplayTagMapCritical);
+			UniqueParentTags.AddUnique(ParentTag);
+		}
 
-			// This code does not check redirectors because that was already handled by GameplayTagContainerLoaded
-			const TSharedPtr<FGameplayTagNode>*Node = GameplayTagNodeMap.Find(GameplayTag);
-			if (Node)
-			{
-				// Use the registered tag container if it exists
-				const FGameplayTagContainer& SingleContainer = (*Node)->GetSingleTagContainer();
-				for (const FGameplayTag& ParentTag : SingleContainer.ParentTags)
-				{
-					UniqueParentTags.AddUnique(ParentTag);
-				}
-
-				if constexpr (0 != VALIDATE_EXTRACT_PARENT_TAGS)
-				{
-					GameplayTag.ParseParentTags(ValidationCopy);
-					ensureAlwaysMsgf(ValidationCopy == UniqueParentTags, TEXT("ExtractParentTags results are inconsistent for tag %s"), *GameplayTag.ToString());
-				}
-			}
-			else
-			{
-				// If we don't clear invalid tags, we need to extract the parents now in case they get registered later
-				GameplayTag.ParseParentTags(UniqueParentTags);
-			}
-		};
+		if constexpr (0 != VALIDATE_EXTRACT_PARENT_TAGS)
+		{
+			GameplayTag.ParseParentTags(ValidationCopy);
+			ensureAlwaysMsgf(ValidationCopy == UniqueParentTags, TEXT("ExtractParentTags results are inconsistent for tag %s"), *GameplayTag.ToString());
+		}
+	}
+	else
+	{
+		// If we don't clear invalid tags, we need to extract the parents now in case they get registered later
+		GameplayTag.ParseParentTags(UniqueParentTags);
+	}
 
 	return UniqueParentTags.Num() != OldSize;
 }
 
 void UGameplayTagsManager::RequestAllGameplayTags(FGameplayTagContainer& TagContainer, bool OnlyIncludeDictionaryTags) const
 {
-	FScopeLock Lock(&GameplayTagMapCritical);
+	FTransactionallySafeScopeLock Lock(&GameplayTagMapCritical);
 
 	for (const TPair<FGameplayTag, TSharedPtr<FGameplayTagNode>>& NodePair : GameplayTagNodeMap)
 	{
