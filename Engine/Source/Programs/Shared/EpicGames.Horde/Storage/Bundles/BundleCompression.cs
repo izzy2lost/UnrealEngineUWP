@@ -62,7 +62,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		public static byte[] Compress(BundleCompressionFormat format, ReadOnlyMemory<byte> input)
 		{
 			ArrayMemoryWriter writer = new ArrayMemoryWriter(0);
-			int length = Compress(format, input, writer);
+			Compress(format, input, writer);
 			return writer.WrittenMemory.ToArray();
 		}
 
