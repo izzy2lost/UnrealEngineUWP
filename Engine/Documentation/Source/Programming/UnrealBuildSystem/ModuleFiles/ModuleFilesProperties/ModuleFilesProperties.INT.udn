@@ -160,6 +160,8 @@ $ bWarningsAsErrors (Boolean): Whether to enable all warnings as errors. UE enab
 
 $ UnsafeTypeCastWarningLevel (WarningLevel): How to treat unsafe implicit type cast warnings (e.g., double->float or int64->int32)
 
+$ UndefinedIdentifierWarningLevel (WarningLevel): Indicates what warning/error level to treat undefined identifiers in conditional expressions.
+
 $ bEnableUndefinedIdentifierWarnings (Boolean): Enable warnings for using undefined identifiers in #if expressions
 
 $ ModuleIncludePathWarningLevel (WarningLevel): How to treat general module include path validation messages
