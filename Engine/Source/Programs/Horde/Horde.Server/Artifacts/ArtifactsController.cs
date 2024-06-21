@@ -627,8 +627,11 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			UnsyncManifest? manifest = await _unsyncCache.GetManifestAsync(artifact, cancellationToken);
-			if (manifest == null)
+			const string ZstdManifestContentType = "application/x-unsync-manifest-zstd";
+			bool compressed = Request.Headers.Accept.Contains(ZstdManifestContentType);
+
+			ReadOnlyMemory<byte> manifestData = await _unsyncCache.GetManifestDataAsync(artifact, compressed, cancellationToken);
+			if (manifestData.IsEmpty)
 			{
 				return NotFound(id);
 			}
@@ -639,58 +642,12 @@ namespace Horde.Server.Artifacts
 
 			// Write the response directly to the writer
 			HttpResponse response = HttpContext.Response;
-			response.ContentType = "application/json";
+			response.ContentType = compressed? ZstdManifestContentType : "application/json";
 			response.StatusCode = (int)HttpStatusCode.OK;
 			await response.StartAsync(cancellationToken);
-
-			using (Utf8JsonWriter writer = new Utf8JsonWriter(HttpContext.Response.BodyWriter, new JsonWriterOptions { Indented = true }))
-			{
-				writer.WriteStartObject();
-				writer.WriteString("type", "unsync_manifest");
-				writer.WriteString("hash_strong", "Blake3.160");
-				writer.WriteString("chunking", "RollingBuzHash");
-				writer.WriteNumber("chunking_block_size_min", LeafChunkedDataNodeOptions.Default.MinSize);
-				writer.WriteNumber("chunking_block_size_max", LeafChunkedDataNodeOptions.Default.MaxSize);
-				writer.WriteNumber("chunking_block_size_target", LeafChunkedDataNodeOptions.Default.TargetSize);
-
-				writer.WriteStartArray("files");
-				foreach (UnsyncFile file in manifest.Files)
-				{
-					writer.WriteStartObject();
-					writer.WriteString("name", file.Name);
-					if (file.Executable)
-					{
-						writer.WriteBoolean("exec", file.Executable);
-					}
-					if (file.ReadOnly)
-					{
-						writer.WriteBoolean("read_only", file.ReadOnly);
-					}
-					if (file.ModTime != default)
-					{
-						writer.WriteNumber("mtime", file.ModTime.ToFileTimeUtc());
-					}
-					writer.WriteNumber("size", file.Length);
-					writer.WriteNumber("block_size", LeafChunkedDataNodeOptions.Default.TargetSize);
-					writer.WriteStartArray("blocks");
-					foreach (UnsyncBlock block in file.Blocks)
-					{
-						writer.WriteStartObject();
-						writer.WriteNumber("offset", block.Offset);
-						writer.WriteNumber("size", block.Length);
-						writer.WriteNumber("hash_weak", block.RollingHash);
-						writer.WriteString("hash_strong", block.Blob.Hash.ToString());
-						writer.WriteEndObject();
-					}
-					writer.WriteEndArray();
-					writer.WriteEndObject();
-				}
-				writer.WriteEndArray();
-
-				writer.WriteEndObject();
-			}
-
+			await response.BodyWriter.WriteAsync(manifestData, cancellationToken);
 			await response.CompleteAsync();
+
 			return Empty;
 		}
 

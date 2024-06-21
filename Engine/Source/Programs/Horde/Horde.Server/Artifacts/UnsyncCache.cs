@@ -5,10 +5,12 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Storage;
 using Microsoft.Extensions.Caching.Memory;
@@ -51,12 +53,16 @@ namespace Horde.Server.Artifacts
 		{
 			public IStorageClient StorageClient { get; }
 			public UnsyncManifest Manifest { get; }
+			public ReadOnlyMemory<byte> ManifestData { get; }
+			public ReadOnlyMemory<byte> ZstdManifestData { get; }
 			public FrozenDictionary<IoHash, IBlobRef<LeafChunkedDataNode>> Blobs { get; }
 
-			public ArtifactInfo(IStorageClient storageClient, UnsyncManifest manifest, FrozenDictionary<IoHash, IBlobRef<LeafChunkedDataNode>> blobs)
+			public ArtifactInfo(IStorageClient storageClient, UnsyncManifest manifest, ReadOnlyMemory<byte> manifestData, ReadOnlyMemory<byte> zstdManifestData, FrozenDictionary<IoHash, IBlobRef<LeafChunkedDataNode>> blobs)
 			{
 				StorageClient = storageClient;
 				Manifest = manifest;
+				ManifestData = manifestData;
+				ZstdManifestData = zstdManifestData;
 				Blobs = blobs;
 			}
 
@@ -84,15 +90,26 @@ namespace Horde.Server.Artifacts
 			=> _cache.Dispose();
 
 		/// <summary>
-		/// 
+		/// Gets the manifest for an artifact
 		/// </summary>
-		/// <param name="artifact"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
 		public async ValueTask<UnsyncManifest?> GetManifestAsync(IArtifact artifact, CancellationToken cancellationToken = default)
 		{
 			ArtifactInfo? artifactInfo = await GetArtifactInfoAsync(artifact, cancellationToken);
 			return artifactInfo?.Manifest;
+		}
+
+		/// <summary>
+		/// Gets the json manifest data for an artifact
+		/// </summary>
+		public async ValueTask<ReadOnlyMemory<byte>> GetManifestDataAsync(IArtifact artifact, bool compressed, CancellationToken cancellationToken = default)
+		{
+			ArtifactInfo? artifactInfo = await GetArtifactInfoAsync(artifact, cancellationToken);
+			if (artifactInfo == null)
+			{
+				return default;
+			}
+
+			return compressed ? artifactInfo.ZstdManifestData : artifactInfo.ManifestData;
 		}
 
 		async Task<ArtifactInfo?> GetArtifactInfoAsync(IArtifact artifact, CancellationToken cancellationToken = default)
@@ -119,6 +136,60 @@ namespace Horde.Server.Artifacts
 			// Wait for the read to finish
 			Task<ArtifactInfo?> task = artifactInfoTask.Task ?? Task.FromResult<ArtifactInfo?>(null);
 			return await task.WaitAsync(cancellationToken);
+		}
+
+		static byte[] SerializeManifest(UnsyncManifest manifest)
+		{
+			using (ChunkedMemoryWriter chunkedMemoryWriter = new ChunkedMemoryWriter(4096))
+			{
+				using (Utf8JsonWriter writer = new Utf8JsonWriter(chunkedMemoryWriter))
+				{
+					writer.WriteStartObject();
+					writer.WriteString("type", "unsync_manifest");
+					writer.WriteString("hash_strong", "Blake3.160");
+					writer.WriteString("chunking", "RollingBuzHash");
+					writer.WriteNumber("chunking_block_size_min", LeafChunkedDataNodeOptions.Default.MinSize);
+					writer.WriteNumber("chunking_block_size_max", LeafChunkedDataNodeOptions.Default.MaxSize);
+					writer.WriteNumber("chunking_block_size_target", LeafChunkedDataNodeOptions.Default.TargetSize);
+
+					writer.WriteStartArray("files");
+					foreach (UnsyncFile file in manifest.Files)
+					{
+						writer.WriteStartObject();
+						writer.WriteString("name", file.Name);
+						if (file.Executable)
+						{
+							writer.WriteBoolean("exec", file.Executable);
+						}
+						if (file.ReadOnly)
+						{
+							writer.WriteBoolean("read_only", file.ReadOnly);
+						}
+						if (file.ModTime != default)
+						{
+							writer.WriteNumber("mtime", file.ModTime.ToFileTimeUtc());
+						}
+						writer.WriteNumber("size", file.Length);
+						writer.WriteNumber("block_size", LeafChunkedDataNodeOptions.Default.TargetSize);
+						writer.WriteStartArray("blocks");
+						foreach (UnsyncBlock block in file.Blocks)
+						{
+							writer.WriteStartObject();
+							writer.WriteNumber("offset", block.Offset);
+							writer.WriteNumber("size", block.Length);
+							writer.WriteNumber("hash_weak", block.RollingHash);
+							writer.WriteString("hash_strong", block.Blob.Hash.ToString());
+							writer.WriteEndObject();
+						}
+						writer.WriteEndArray();
+						writer.WriteEndObject();
+					}
+					writer.WriteEndArray();
+
+					writer.WriteEndObject();
+				}
+				return chunkedMemoryWriter.ToByteArray();
+			}
 		}
 
 		/// <summary>
@@ -170,7 +241,11 @@ namespace Horde.Server.Artifacts
 
 				_logger.LogDebug("Generated Unsync manifest for artifact {ArtifactId} in {Time:n1}ms", artifact.Id, timer.ElapsedMilliseconds);
 
-				ArtifactInfo artifactInfo = new ArtifactInfo(storageClient, new UnsyncManifest(files), blocks.ToFrozenDictionary());
+				UnsyncManifest manifest = new UnsyncManifest(files);
+				ReadOnlyMemory<byte> manifestData = SerializeManifest(manifest);
+				ReadOnlyMemory<byte> zstdManifestData = BundleData.Compress(BundleCompressionFormat.Zstd, manifestData);
+
+				ArtifactInfo artifactInfo = new ArtifactInfo(storageClient, manifest, manifestData, zstdManifestData, blocks.ToFrozenDictionary());
 				storageClient = null;
 				return artifactInfo;
 			}

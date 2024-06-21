@@ -54,12 +54,25 @@ namespace EpicGames.Horde.Storage.Bundles
 	public static class BundleData
 	{
 		/// <summary>
+		/// Compress a block of data into a newly allocated block of memory
+		/// </summary>
+		/// <param name="format">Format for the compressed data</param>
+		/// <param name="input">The data to compress</param>
+		/// <returns>The compressed data</returns>
+		public static byte[] Compress(BundleCompressionFormat format, ReadOnlyMemory<byte> input)
+		{
+			ArrayMemoryWriter writer = new ArrayMemoryWriter(0);
+			int length = Compress(format, input, writer);
+			return writer.WrittenMemory.ToArray();
+		}
+
+		/// <summary>
 		/// Compress a data packet
 		/// </summary>
 		/// <param name="format">Format for the compressed data</param>
 		/// <param name="input">The data to compress</param>
 		/// <param name="writer">Writer for output data</param>
-		/// <returns>The compressed data</returns>
+		/// <returns>Length of the compressed data</returns>
 		public static int Compress(BundleCompressionFormat format, ReadOnlyMemory<byte> input, IMemoryWriter writer)
 		{
 			switch (format)
