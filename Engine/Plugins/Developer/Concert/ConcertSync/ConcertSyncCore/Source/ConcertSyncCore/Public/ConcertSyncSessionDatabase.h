@@ -9,6 +9,7 @@
 class FStructOnScope;
 enum class EConcertSyncActivityEventType : uint8;
 enum class EConcertSyncActivityFlags : uint8;
+enum class EConcertSyncReplicationActivityType : uint8;
 struct FConcertPackageDataStream;
 struct FConcertPackageInfo;
 struct FConcertSessionFilter;
@@ -20,6 +21,8 @@ struct FConcertSyncEndpointIdAndData;
 struct FConcertSyncLockActivity;
 struct FConcertSyncLockEvent;
 struct FConcertSyncPackageEventData;
+struct FConcertSyncReplicationActivity;
+struct FConcertSyncReplicationEvent;
 struct FConcertSyncTransactionActivity;
 struct FConcertSyncTransactionEvent;
 struct FConcertTransactionFinalizedEvent;
@@ -153,6 +156,19 @@ public:
 	bool AddPackageActivity(const FConcertSyncActivity& InPackageActivity, const FConcertPackageInfo& InPackageInfo, FConcertPackageDataStream& InPackageDataStream, int64& OutActivityId, int64& OutPackageEventId);
 
 	/**
+	 * Add a new replication activity to this database, assigning it both an activity and lock event ID.
+	 * @note The endpoint ID referenced by the activity must exist in the database (@see SetEndpoint).
+	 * @note This function is expected to be called on the server to populate its version of the session database.
+	 *
+	 * @param InReplicationActivity		The lock activity to add (the ActivityId, EventTime, EventType, and EventId members are ignored).
+	 * @param OutActivityId				Populated with the ID of this activity in the database.
+	 * @param OutReplicationEventId			Populated with the ID of the lock event in the database (@see GetLockEvent).
+	 *
+	 * @return True if the lock activity was added, false otherwise.
+	 */
+	bool AddReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity, int64& OutActivityId, int64& OutReplicationEventId);
+	
+	/**
 	 * Iterates the given range, calls UpdateCallback on each element, and commits the update.
 	 */
 	bool SetActivities(const TSet<int64>& ActivityIds, TFunctionRef<void(FConcertSyncActivity&)> UpdateCallback);
@@ -205,6 +221,17 @@ public:
 	bool SetPackageActivity(const FConcertSyncActivity& InPackageActivity, FConcertSyncPackageEventData& InPackageActivityEvent, const bool bMetaDataOnly = false);
 
 	/**
+	 * Set a replication activity in this database, creating or replacing it.
+	 * @note The endpoint ID referenced by the activity must exist in the database (@see SetEndpoint).
+	 * @note This function is expected to be called on the client to populate its version of the session database from data synced from the server.
+	 *
+	 * @param InReplicationActivity		The replication activity to set.
+	 *
+	 * @return True if the transaction activity was set, false otherwise.
+	 */
+	bool SetReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity);
+	
+	/**
 	 * Get the generic part of an activity from this database.
 	 *
 	 * @param InActivityId				The ID of the activity to find.
@@ -255,6 +282,16 @@ public:
 	 */
 	bool GetPackageActivity(const int64 InActivityId, FConsumePackageActivityFunc PackageActivityFn) const;
 
+	/**
+	 * Get a replication activity from this database.
+	 *
+	 * @param InActivityId				The ID of the activity to find.
+	 * @param OutReplicationActivity	The replication activity to populate with the result.
+	 *
+	 * @return True if the replication activity was found, false otherwise.
+	 */
+	bool GetReplicationActivity(const int64 InActivityId, FConcertSyncReplicationActivity& OutReplicationActivity) const;
+	
 	/**
 	 * Get the type of an activity in this database.
 	 *
@@ -361,6 +398,15 @@ public:
 	 * @return True if the package activities were enumerated without error, false otherwise.
 	 */
 	bool EnumeratePackageActivities(FIteratePackageActivityFunc InCallback) const;
+
+	/**
+	 * Enumerate all the replication activities in this database.
+	 *
+	 * @param InCallback				Callback invoked for each activity; return true to continue enumeration, or false to stop.
+	 *
+	 * @return True if the replication activities were enumerated without error, false otherwise.
+	 */
+	bool EnumerateReplicationActivities(TFunctionRef<bool(FConcertSyncReplicationActivity&&)> InCallback) const;
 
 	/**
 	 * Enumerate all the activities in this database of the given type.
@@ -491,6 +537,16 @@ public:
 	 * @return True if the transaction event was found, false otherwise.
 	 */
 	bool GetTransactionEvent(const int64 InTransactionEventId, FConcertSyncTransactionEvent& OutTransactionEvent, const bool InMetaDataOnly = false) const;
+
+	/**
+	 * Get a replication event from this database.
+	 *
+	 * @param InReplicationEventId		The ID of the replication event to find.
+	 * @param OutReplicationEvent		The replication event to populate with the result.
+	 *
+	 * @return True if the replication event was found, false otherwise.
+	 */
+	bool GetReplicationEvent(const int64 InReplicationEventId, FConcertSyncReplicationEvent& OutReplicationEvent) const;
 
 	/**
 	 * Get the maximum ID of the transaction events in this database.
@@ -673,6 +729,17 @@ public:
 	bool IsHeadRevisionPackageEvent(const int64 InPackageEventId, bool& OutIsHeadRevision) const;
 
 	/**
+	 * Get the maximum ID of the replication events in this database that was triggered by EndpointId and had ActivityType.
+	 *
+	 * @param EndpointId				The ID of the client that created the activity
+	 * @param ActivityType				The activity type the replication activity should have 
+	 * @param OutReplicationEventId		The replication event ID to populate with the result.
+	 *
+	 * @return True if the replication event ID was resolved, false otherwise.
+	 */
+	bool GetReplicationMaxEventIdByClientAndType(const FGuid& EndpointId, EConcertSyncReplicationActivityType ActivityType, int64& OutReplicationEventId) const;
+
+	/**
 	 * Add a package event ID for the head revision to the persist events in this database, if not already existing.
 	 *
 	 * @param PackageName				The package name to add an event for.
@@ -840,6 +907,26 @@ private:
 	 */
 	bool SetPackageEvent(const int64 InPackageEventId, int64 PackageRevision, const FConcertPackageInfo& PackageInfo, FConcertPackageDataStream* InPackageDataStream);
 
+	/**
+	 * Add a new replication event to this database, assigning it a replication event ID.
+	 *
+	 * @param InReplicationEvent		The transaction event to add.
+	 * @param OutReplicationEventId		Populated with the ID of the transaction event in the database.
+	 *
+	 * @return True if the replication event was added, false otherwise.
+	 */
+	bool AddReplicationEvent(const FConcertSyncReplicationEvent& InReplicationEvent, int64& OutReplicationEventId);
+
+	/**
+	 * Set a replication event in this database, creating or replacing it.
+	 *
+	 * @param InReplicationEventId		The ID of the replication event to set.
+	 * @param InReplicationEvent		The replication event to set.
+	 *
+	 * @return True if the replication event was set, false otherwise.
+	 */
+	bool SetReplicationEvent(const int64 InReplicationEventId, const FConcertSyncReplicationEvent& InReplicationEvent);
+	
 	/**
 	 * Get the maximum ID of the package events in this database.
 	 *

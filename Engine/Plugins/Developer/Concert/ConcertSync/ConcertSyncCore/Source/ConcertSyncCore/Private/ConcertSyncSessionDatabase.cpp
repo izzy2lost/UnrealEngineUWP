@@ -10,6 +10,7 @@
 #include "SQLiteDatabase.h"
 #include "HAL/FileManager.h"
 #include "SQLitePreparedStatement.h"
+#include "Replication/Messages/ReplicationActivity.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "Tasks/Task.h"
@@ -548,7 +549,11 @@ enum class FConcertSyncSessionDatabaseVersion
 	V2 = 2,
 	/** Added FConcertSyncActivity::Flags to the activities table */
 	AddActivityFlags = 3,
-	Current = AddActivityFlags,
+	/** Added FConcertSyncReplicationActivity, which added the replication_events table. */
+	AddReplicationActivities = 4,
+
+	LatestPlusOne,
+	Current = LatestPlusOne - 1,
 };
 
 class FConcertSyncSessionDatabaseStatements
@@ -611,6 +616,11 @@ public:
 		PREPARE_STATEMENT(Statement_GetMaxPackageEventIdAndTransactionEventIdAtSavePerPackageNameId);
 		PREPARE_STATEMENT(Statement_GetPackageHeadRevison);
 		PREPARE_STATEMENT(Statement_GetPackageTransactionEventIdAtLastSave);
+		
+		PREPARE_STATEMENT(Statement_AddReplicationData);
+		PREPARE_STATEMENT(Statement_SetReplicationData);
+		PREPARE_STATEMENT(Statement_GetReplicationEventForId);
+		PREPARE_STATEMENT(Statement_GetReplicationMaxEventIdByClientAndType);
 
 		PREPARE_STATEMENT(Statement_AddActivityData);
 		PREPARE_STATEMENT(Statement_SetActivityData);
@@ -1064,6 +1074,87 @@ public:
 	bool GetUnmutedPackageTransactionEventIdAtLastSave(const int64 InPackageNameId, int64& OutTransactionEventId)
 	{
 		return Statement_GetPackageTransactionEventIdAtLastSave.BindAndExecuteSingle(InPackageNameId, OutTransactionEventId);
+	}
+
+	/**
+	 * Statements working on replication_events
+	 */
+
+	/** Set the endpoint data in endpoints for the given endpoint_id */
+	SQLITE_PREPARED_STATEMENT_BINDINGS_ONLY(FAddReplicationData, "INSERT INTO replication_events(activity_type, event_data_flags, event_data_size_bytes, event_data) VALUES(?1, ?2, ?3, ?4);", SQLITE_PREPARED_STATEMENT_BINDINGS(EConcertSyncReplicationActivityType, int32, int32, TArray<uint8>));
+	FAddReplicationData Statement_AddReplicationData;
+	bool AddReplicationData(const FConcertSyncReplicationEvent& InEventData, int64& OutActivityEventId)
+	{
+		const FConcertSessionSerializedPayload& Payload = InEventData.Payload;
+		const bool bIsCbor = Payload.SerializationMethod == EConcertPayloadSerializationMethod::Cbor;
+		// We don't save SerializationMethod in the database; instead we always assume that it's saved in Cbor format.
+		// If we allow the saving here, then GetReplicationEventForId will not deserialize correctly.
+		// If you want to change this, add a new field to the database.
+		if (!ensure(bIsCbor))
+		{
+			return false;
+		}
+		
+		const bool bSuccess = Statement_AddReplicationData.BindAndExecute(
+			InEventData.ActivityType,
+			PackageDataUtil::ConvertSerializedPayloadFlagsToInt32(Payload),
+			Payload.PayloadSize,
+			Payload.PayloadBytes.Bytes
+			);
+		if (bSuccess)
+		{
+			OutActivityEventId = Database.GetLastInsertRowId();
+		}
+		return bSuccess;
+	}
+
+	/** Set the endpoint data in endpoints for the given endpoint_id */
+	SQLITE_PREPARED_STATEMENT_BINDINGS_ONLY(FSetReplicationData, "INSERT OR REPLACE INTO replication_events(replication_event_id, activity_type, event_data_flags, event_data_size_bytes, event_data) VALUES(?1, ?2, ?3, ?4, ?5);", SQLITE_PREPARED_STATEMENT_BINDINGS(int64, EConcertSyncReplicationActivityType, int32, int32, TArray<uint8>));
+	FSetReplicationData Statement_SetReplicationData;
+	bool SetReplicationData(const int64 InActivityEventId, const FConcertSyncReplicationEvent& InEventData)
+	{
+		const FConcertSessionSerializedPayload& Payload = InEventData.Payload;
+		const bool bIsCbor = Payload.SerializationMethod == EConcertPayloadSerializationMethod::Cbor;
+		// We don't save SerializationMethod in the database; instead we always assume that it's saved in Cbor format.
+		// If we allow the saving here, then GetReplicationEventForId will not deserialize correctly.
+		// If you want to change this, add a new field to the database.
+		if (!ensure(bIsCbor))
+		{
+			return false;
+		}
+		
+		return Statement_SetReplicationData.BindAndExecute(
+			InActivityEventId,
+			InEventData.ActivityType,
+			PackageDataUtil::ConvertSerializedPayloadFlagsToInt32(Payload),
+			Payload.PayloadSize,
+			Payload.PayloadBytes.Bytes
+			);
+	}
+	
+	/** Set the endpoint data from endpoints for the given endpoint_id */
+	SQLITE_PREPARED_STATEMENT(FGetReplicationEventForId, "SELECT activity_type, event_data_flags, event_data_size_bytes, event_data FROM replication_events WHERE replication_event_id = ?1;", SQLITE_PREPARED_STATEMENT_COLUMNS(EConcertSyncReplicationActivityType, int32, int32, TArray<uint8>), SQLITE_PREPARED_STATEMENT_BINDINGS(int64));
+	FGetReplicationEventForId Statement_GetReplicationEventForId;
+	bool GetReplicationEventForId(const int64 InReplicationEventId, FConcertSyncReplicationEvent& OutReplicationEvent)
+	{
+		FConcertSessionSerializedPayload& Payload = OutReplicationEvent.Payload;
+		int32 SerializationFlags;
+		if (Statement_GetReplicationEventForId.BindAndExecuteSingle(InReplicationEventId, OutReplicationEvent.ActivityType, SerializationFlags, Payload.PayloadSize, Payload.PayloadBytes.Bytes))
+		{
+			PackageDataUtil::SetSerializedPayloadFlags(Payload, SerializationFlags);
+			Payload.PayloadTypeName = *UE::ConcertSyncCore::GetReplicationActivityPayloadTypePathName(OutReplicationEvent.ActivityType);
+			Payload.SerializationMethod = EConcertPayloadSerializationMethod::Cbor;
+			return true;
+		}
+		return false;
+	}
+	
+	/** Get the largest replication_event_id currently in replication_events that was triggered by EndpointId and has ActivityType */
+	SQLITE_PREPARED_STATEMENT(FGetReplicationMaxEventIdByClientAndType, "SELECT MAX(replication_event_id) FROM replication_events JOIN activities ON replication_events.replication_event_id = activities.event_id WHERE endpoint_id = ?1 AND activity_type = ?2;", SQLITE_PREPARED_STATEMENT_COLUMNS(int64), SQLITE_PREPARED_STATEMENT_BINDINGS(FGuid, EConcertSyncReplicationActivityType));
+	FGetReplicationMaxEventIdByClientAndType Statement_GetReplicationMaxEventIdByClientAndType;
+	bool GetReplicationMaxEventIdByClientAndType(const FGuid& EndpointId, EConcertSyncReplicationActivityType ActivityType, int64& OutReplicationEventId)
+	{
+		return Statement_GetReplicationMaxEventIdByClientAndType.BindAndExecuteSingle(EndpointId, ActivityType, OutReplicationEventId);
 	}
 
 	/**
@@ -1599,6 +1690,7 @@ bool FConcertSyncSessionDatabase::Open(const FString& InSessionPath, const ESQLi
 	CREATE_TABLE("transaction_events", "transaction_event_id INTEGER PRIMARY KEY, data_filename TEXT NOT NULL");
 	CREATE_TABLE("package_events", "package_event_id INTEGER PRIMARY KEY, package_name_id INTEGER NOT NULL, package_revision INTEGER NOT NULL, package_info_flags INTEGER NOT NULL, package_info_size_bytes INTEGER NOT NULL, package_info_data BLOB, transaction_event_id_at_save INTEGER NOT NULL, data_filename TEXT NOT NULL, FOREIGN KEY(package_name_id) REFERENCES package_names(package_name_id)");
 	CREATE_TABLE("persist_events", "persist_event_id INTEGER PRIMARY KEY, package_event_id INTEGER NOT NULL, transaction_event_id_at_persist INTEGER NOT NULL, FOREIGN KEY(package_event_id) REFERENCES package_events(package_event_id)");
+	CREATE_TABLE("replication_events", "replication_event_id INTEGER PRIMARY KEY, activity_type INTEGER NOT NULL, event_data_flags INTEGER NOT NULL, event_data_size_bytes INTEGER NOT NULL, event_data BLOB");
 	CREATE_TABLE("activities", "activity_id INTEGER PRIMARY KEY, endpoint_id BLOB NOT NULL, event_time INTEGER NOT NULL, event_type INTEGER NOT NULL, event_id INTEGER NOT NULL, event_summary_type TEXT NOT NULL, event_summary_flags INTEGER NOT NULL, event_summary_size_bytes INTEGER NOT NULL, event_summary_data BLOB, activity_flags TINYINT UNSIGNED NOT NULL ,FOREIGN KEY(endpoint_id) REFERENCES endpoints(endpoint_id)");
 	CREATE_TABLE("ignored_activities", "activity_id INTEGER NOT NULL, FOREIGN KEY(activity_id) REFERENCES activities(activity_id)");
 	CREATE_TABLE("resource_locks", "object_name_id INTEGER NOT NULL, lock_event_id INTEGER NOT NULL, FOREIGN KEY(object_name_id) REFERENCES object_names(object_name_id), FOREIGN KEY(lock_event_id) REFERENCES lock_events(lock_event_id)");
@@ -1744,6 +1836,16 @@ bool FConcertSyncSessionDatabase::AddPackageActivity(const FConcertSyncActivity&
 		);
 }
 
+bool FConcertSyncSessionDatabase::AddReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity, int64& OutActivityId, int64& OutReplicationEventId)
+{
+	FConcertSyncSessionDatabaseScopedTransaction ScopedTransaction(*Statements);
+	return ScopedTransaction.CommitOrRollback(
+		AddReplicationEvent(InReplicationActivity.EventData, OutReplicationEventId) &&
+		Statements->AddActivityData(InReplicationActivity.Flags, InReplicationActivity.EndpointId, EConcertSyncActivityEventType::Replication, OutReplicationEventId, InReplicationActivity.EventSummary, OutActivityId) &&
+		SetActivityIgnoredState(OutActivityId, InReplicationActivity.bIgnored)
+		);
+}
+
 bool FConcertSyncSessionDatabase::SetActivities(const TSet<int64>& ActivityIds, TFunctionRef<void(FConcertSyncActivity&)> UpdateCallback)
 {
 	FConcertSyncSessionDatabaseScopedTransaction ScopedTransaction(*Statements);
@@ -1813,6 +1915,16 @@ bool FConcertSyncSessionDatabase::SetPackageActivity(const FConcertSyncActivity&
 		);
 }
 
+bool FConcertSyncSessionDatabase::SetReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity)
+{
+	FConcertSyncSessionDatabaseScopedTransaction ScopedTransaction(*Statements);
+	return ScopedTransaction.CommitOrRollback(
+		SetReplicationEvent(InReplicationActivity.EventId, InReplicationActivity.EventData) &&
+		Statements->SetActivityData(InReplicationActivity.ActivityId, InReplicationActivity.Flags, InReplicationActivity.EndpointId, InReplicationActivity.EventTime, InReplicationActivity.EventType, InReplicationActivity.EventId, InReplicationActivity.EventSummary) &&
+		SetActivityIgnoredState(InReplicationActivity.ActivityId, InReplicationActivity.bIgnored)
+		);
+}
+
 bool FConcertSyncSessionDatabase::GetActivity(const int64 InActivityId, FConcertSyncActivity& OutActivity) const
 {
 	OutActivity.ActivityId = InActivityId;
@@ -1849,6 +1961,12 @@ bool FConcertSyncSessionDatabase::GetPackageActivity(const int64 InActivityId, F
 
 	return GetActivity(InActivityId, PackageActivityBasePart) // Pull the base part of the package activity.
 		&& GetPackageEvent(PackageActivityBasePart.EventId, GetPackageActivityEventFn); // Pull the event part of the activity and call back (to let the caller stream the package data).
+}
+
+bool FConcertSyncSessionDatabase::GetReplicationActivity(const int64 InActivityId, FConcertSyncReplicationActivity& OutReplicationActivity) const
+{
+	return GetActivity(InActivityId, OutReplicationActivity)
+		&& GetReplicationEvent(OutReplicationActivity.EventId, OutReplicationActivity.EventData);
 }
 
 bool FConcertSyncSessionDatabase::GetActivityEventType(const int64 InActivityId, EConcertSyncActivityEventType& OutEventType) const
@@ -2009,6 +2127,29 @@ bool FConcertSyncSessionDatabase::EnumeratePackageActivities(FIteratePackageActi
 				: ESQLitePreparedStatementExecuteRowResult::Stop;
 		});
 		return Result;
+	});
+}
+
+bool FConcertSyncSessionDatabase::EnumerateReplicationActivities(TFunctionRef<bool(FConcertSyncReplicationActivity&&)> InCallback) const
+{
+	return Statements->GetAllActivityDataForEventType(EConcertSyncActivityEventType::Transaction, [this, &InCallback](const int64 InActivityId, const EConcertSyncActivityFlags InFlags, const FGuid& InEndpointId, const FDateTime InEventTime, const int64 InEventId, FConcertSessionSerializedPayload&& InEventSummary)
+	{
+		FConcertSyncReplicationActivity ReplicationActivity;
+		ReplicationActivity.ActivityId = InActivityId;
+		ReplicationActivity.bIgnored = Statements->IsActivityIgnored(InActivityId);
+		ReplicationActivity.Flags = InFlags;
+		ReplicationActivity.EndpointId = InEndpointId;
+		ReplicationActivity.EventTime = InEventTime;
+		ReplicationActivity.EventType = EConcertSyncActivityEventType::Transaction;
+		ReplicationActivity.EventId = InEventId;
+		ReplicationActivity.EventSummary = MoveTemp(InEventSummary);
+		if (GetReplicationEvent(ReplicationActivity.EventId, ReplicationActivity.EventData))
+		{
+			return InCallback(MoveTemp(ReplicationActivity))
+				? ESQLitePreparedStatementExecuteRowResult::Continue
+				: ESQLitePreparedStatementExecuteRowResult::Stop;
+		}
+		return ESQLitePreparedStatementExecuteRowResult::Error;
 	});
 }
 
@@ -2247,6 +2388,11 @@ bool FConcertSyncSessionDatabase::GetTransactionEvent(const int64 InTransactionE
 	return false;
 }
 
+bool FConcertSyncSessionDatabase::GetReplicationEvent(const int64 InReplicationEventId, FConcertSyncReplicationEvent& OutReplicationEvent) const
+{
+	return Statements->GetReplicationEventForId(InReplicationEventId, OutReplicationEvent);
+}
+
 bool FConcertSyncSessionDatabase::GetTransactionMaxEventId(int64& OutTransactionEventId) const
 {
 	return Statements->GetTransactionMaxEventId(OutTransactionEventId);
@@ -2480,6 +2626,16 @@ bool FConcertSyncSessionDatabase::SetPackageEvent(const int64 InPackageEventId, 
 	return Statements->SetPackageEvent(InPackageEventId, PackageNameId, InPackageRevision, InPackageInfo.TransactionEventIdAtSave, InPackageInfo, PackageDataFilename);
 }
 
+bool FConcertSyncSessionDatabase::AddReplicationEvent(const FConcertSyncReplicationEvent& InReplicationEvent, int64& OutReplicationEventId)
+{
+	return Statements->AddReplicationData(InReplicationEvent, OutReplicationEventId);
+}
+
+bool FConcertSyncSessionDatabase::SetReplicationEvent(const int64 InReplicationEventId, const FConcertSyncReplicationEvent& InReplicationEvent)
+{
+	return Statements->SetReplicationData(InReplicationEventId, InReplicationEvent);
+}
+
 bool FConcertSyncSessionDatabase::GetPackageEventMetaData(const int64 InPackageEventId, int64& OuptPackageRevision, FConcertPackageInfo& OutPackageInfo) const
 {
 	FString UnusedDataFilename;
@@ -2664,6 +2820,11 @@ bool FConcertSyncSessionDatabase::IsHeadRevisionPackageEvent(const int64 InPacka
 		return true;
 	}
 	return false;
+}
+
+bool FConcertSyncSessionDatabase::GetReplicationMaxEventIdByClientAndType(const FGuid& EndpointId, EConcertSyncReplicationActivityType ActivityType, int64& OutReplicationEventId) const
+{
+	return Statements->GetReplicationMaxEventIdByClientAndType(EndpointId, ActivityType, OutReplicationEventId);
 }
 
 bool FConcertSyncSessionDatabase::GetObjectPathName(const int64 InObjectNameId, FName& OutObjectPathName) const

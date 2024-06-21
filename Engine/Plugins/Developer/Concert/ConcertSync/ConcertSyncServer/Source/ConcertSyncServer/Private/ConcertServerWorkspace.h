@@ -16,6 +16,7 @@ class FConcertServerDataStore;
 
 struct FConcertMessageContext;
 struct FConcertEndpointContext;
+struct FConcertSyncReplicationActivity;
 struct FConcertTransactionSnapshotEvent;
 struct FConcertTransactionFinalizedEvent;
 
@@ -249,6 +250,24 @@ private:
 	 * @param InSyncActivityId		The ID of the activity to send the sync event for.
 	 */
 	void SendSyncPackageActivityEvent(const FConcertWorkspaceSyncActivityEvent& SyncEvent, const FGuid& InTargetEndpointId) const;
+
+	/**
+	 * Add a new replication activity to the session database, and sync the result back to all clients.
+	 * @note The endpoint ID referenced by the activity must exist in the database (@see SetEndpoint).
+	 *
+	 * @param InReplicationActivity		The replication activity to add (the ActivityId, EventTime, EventType, and EventId members are ignored).
+	 */
+	void AddReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity);
+	
+	/**
+	 * Send a sync event for a replication activity in the session database.
+	 *
+	 * @param InTargetEndpointId		The ID of the endpoint to send the sync event to.
+	 * @param InSyncActivityId			The ID of the activity to send the sync event for.
+	 * @param InNumRemainingSyncEvents	The number of items left in the sync queue.
+	 */
+	void SendSyncReplicationActivityEvent(const FGuid& InTargetEndpointId, const int64 InSyncActivityId, const int32 InNumRemainingSyncEvents);
+	
 	/**
 	 * Called after any activity is added to the session database.
 	 *

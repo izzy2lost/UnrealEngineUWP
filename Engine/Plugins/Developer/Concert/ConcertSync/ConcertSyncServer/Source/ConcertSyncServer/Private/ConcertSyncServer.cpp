@@ -11,6 +11,7 @@
 #include "ConcertSyncSessionDatabase.h"
 #include "ConcertLogGlobal.h"
 #include "Replication/ConcertServerReplicationManager.h"
+#include "Replication/Messages/ReplicationActivity.h"
 
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -108,6 +109,7 @@ bool MigrateSessionData(const FConcertSyncSessionDatabase& InSourceDatabase, con
 				return true;
 			}
 
+			static_assert(static_cast<int32>(EConcertSyncActivityEventType::Count) == 6, "If you added an EConcertSyncActivityEventType entry, update this switch");
 			switch (InEventType)
 			{
 			case EConcertSyncActivityEventType::Connection:
@@ -204,6 +206,23 @@ bool MigrateSessionData(const FConcertSyncSessionDatabase& InSourceDatabase, con
 						{
 							MIGRATE_SET_ERROR_RESULT_AND_RETURN("Failed to get package event '%s' from database at '%s': %s", *LexToString(PackageActivityBasePart.EventId), *InSourceDatabase.GetFilename(), *InSourceDatabase.GetLastError());
 						}
+					}
+				}
+			}
+			break;
+
+			case EConcertSyncActivityEventType::Replication:
+			{
+				FConcertSyncReplicationActivity ReplicationActivity;
+				if (!InSourceDatabase.GetReplicationActivity(InActivityId, ReplicationActivity))
+				{
+					MIGRATE_SET_ERROR_RESULT_AND_RETURN("Failed to get replication activity '%s' from database at '%s': %s", *LexToString(InActivityId), *InSourceDatabase.GetFilename(), *InSourceDatabase.GetLastError());
+				}
+				if (InDestSessionFilter.bIncludeIgnoredActivities || !ReplicationActivity.bIgnored)
+				{
+					if (!DestDatabase.SetReplicationActivity(ReplicationActivity))
+					{
+						MIGRATE_SET_ERROR_RESULT_AND_RETURN("Failed to set replication activity '%s' on database at '%s': %s", *LexToString(InActivityId), *DestDatabase.GetFilename(), *DestDatabase.GetLastError());
 					}
 				}
 			}

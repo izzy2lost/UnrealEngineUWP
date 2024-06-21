@@ -2,12 +2,17 @@
 
 #include "ConcertSyncSessionDatabase.h"
 #include "ConcertSyncSessionTypes.h"
-#include "Misc/AutomationTest.h"
+#include "Replication/Data/ConcertPropertySelection.h"
+#include "Replication/Data/ObjectIds.h"
+#include "Replication/Data/ReplicationStream.h"
+#include "Replication/Messages/ReplicationActivity.h"
 
+#include "Components/StaticMeshComponent.h"
+#include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertSessionDatabaseTest, "Editor.Concert.SessionDatabase", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertSessionDatabaseTest, "Editor.Concert.Database.SessionDatabase", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FConcertSessionDatabaseTest::RunTest(const FString& Parameters)
 {
@@ -85,6 +90,27 @@ bool FConcertSessionDatabaseTest::RunTest(const FString& Parameters)
 			if (!SessionDatabase_Server.AddPackageActivity(PackageActivityBasePart, PackageInfo, PackageDataStream, ActivityId, EventId))
 			{
 				AddError(FString::Printf(TEXT("Failed to add package activity to server database: %s"), *SessionDatabase_Server.GetLastError()));
+			}
+
+			const FGuid StreamId = FGuid::NewGuid();
+			const FSoftObjectPath StaticMeshComponent(TEXT("/Game/Maps.Map:PersistentLevel.Cube.StaticMeshComponent0"));
+			FConcertReplicationStream Stream;
+			Stream.BaseDescription.Identifier = StreamId;
+			FConcertReplicatedObjectInfo& ObjectInfo = Stream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(StaticMeshComponent);
+			ObjectInfo.ClassPath = UStaticMeshComponent::StaticClass();
+			const TOptional<FConcertPropertyChain> Property_RelativeX = FConcertPropertyChain::CreateFromPath(*UStaticMeshComponent::StaticClass(), { TEXT("RelativeLocation"), TEXT("X") });
+			if (ensure(Property_RelativeX))
+			{
+				ObjectInfo.PropertySelection.ReplicatedProperties.Add(*Property_RelativeX);
+			}
+			FConcertSyncReplicationPayload_LeaveReplication LeaveReplication;
+			LeaveReplication.Streams.Add(Stream);
+			LeaveReplication.OwnedObjects.Add({ StreamId, StaticMeshComponent });
+			FConcertSyncReplicationActivity StreamActivity;
+			StreamActivity.EventData.SetPayload(LeaveReplication);
+			if (!SessionDatabase_Server.AddReplicationActivity(StreamActivity, ActivityId, EventId))
+			{
+				AddError(FString::Printf(TEXT("Failed to add replication stream activity to server database: %s"), *SessionDatabase_Server.GetLastError()));
 			}
 		}
 
@@ -186,6 +212,22 @@ bool FConcertSessionDatabaseTest::RunTest(const FString& Parameters)
 				if (!bSetPackageActivitySucceeded)
 				{
 					AddError(FString::Printf(TEXT("Failed to set package activity '%s' on client database: %s"), *LexToString(InActivityId), *SessionDatabase_Client.GetLastError()));
+					return false;
+				}
+			}
+			break;
+
+			case EConcertSyncActivityEventType::Replication:
+			{
+				FConcertSyncReplicationActivity ReplicationActivity;
+				if (!SessionDatabase_Server.GetReplicationActivity(InActivityId, ReplicationActivity))
+				{
+					AddError(FString::Printf(TEXT("Failed to get replication activity '%s' from server database: %s"), *LexToString(InActivityId), *SessionDatabase_Server.GetLastError()));
+					return false;
+				}
+				if (!SessionDatabase_Client.SetReplicationActivity(ReplicationActivity))
+				{
+					AddError(FString::Printf(TEXT("Failed to set replication activity '%s' on client database: %s"), *LexToString(InActivityId), *SessionDatabase_Client.GetLastError()));
 					return false;
 				}
 			}

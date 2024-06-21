@@ -13,9 +13,11 @@
 #include "ConcertLogGlobal.h"
 #include "ConcertPackageEvents.h"
 #include "ConcertUtil.h"
-#include "Serialization/MemoryReader.h"
-#include "Algo/Transform.h"
 #include "HistoryEdition/ActivityDependencyGraph.h"
+#include "Replication/Messages/ReplicationActivity.h"
+#include "Serialization/MemoryReader.h"
+
+#include "Algo/Transform.h"
 
 FConcertServerWorkspace::FConcertServerWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession, TSharedPtr<IConcertFileSharingService> InFileSharingService)
 	: FileSharingService(MoveTemp(InFileSharingService))
@@ -1148,6 +1150,41 @@ void FConcertServerWorkspace::SendSyncPackageActivityEvent(const FConcertWorkspa
 	}
 	
 	LiveSession->GetSession().SendCustomEvent(SyncEvent, InTargetEndpointId, EConcertMessageFlags::ReliableOrdered);
+}
+
+void FConcertServerWorkspace::AddReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity)
+{
+	// Add the activity and sync it
+	int64 ActivityId = 0;
+	int64 EventId = 0;
+	if (LiveSession->GetSessionDatabase().AddReplicationActivity(InReplicationActivity, ActivityId, EventId))
+	{
+		PostActivityAdded(ActivityId);
+		SyncCommandQueue->QueueCommand(LiveSyncEndpoints, [this, SyncActivityId = ActivityId](const FConcertServerSyncCommandQueue::FSyncCommandContext& InSyncCommandContext, const FGuid& InEndpointId)
+		{
+			SendSyncReplicationActivityEvent(InEndpointId, SyncActivityId, InSyncCommandContext.GetNumRemainingCommands());
+		});
+	}
+	else
+	{
+		UE_LOG(LogConcert, Error, TEXT("Failed to set replication activity '%s' on live session '%s': %s"), *LexToString(ActivityId), *LiveSession->GetSession().GetName(), *LiveSession->GetSessionDatabase().GetLastError());
+	}	
+}
+
+void FConcertServerWorkspace::SendSyncReplicationActivityEvent(const FGuid& InTargetEndpointId, const int64 InSyncActivityId, const int32 InNumRemainingSyncEvents)
+{
+	FConcertSyncReplicationActivity SyncActivity;
+	if (LiveSession->GetSessionDatabase().GetReplicationActivity(InSyncActivityId, SyncActivity))
+	{
+		FConcertWorkspaceSyncActivityEvent SyncEvent;
+		SyncEvent.NumRemainingSyncEvents = InNumRemainingSyncEvents;
+		SyncEvent.Activity.SetTypedPayload(SyncActivity);
+		LiveSession->GetSession().SendCustomEvent(SyncEvent, InTargetEndpointId, EConcertMessageFlags::ReliableOrdered);
+	}
+	else
+	{
+		UE_LOG(LogConcert, Error, TEXT("Failed to get replication activity '%s' from live session '%s': %s"), *LexToString(InSyncActivityId), *LiveSession->GetSession().GetName(), *LiveSession->GetSessionDatabase().GetLastError());
+	}
 }
 
 void FConcertServerWorkspace::PostActivityAdded(const int64 InActivityId)

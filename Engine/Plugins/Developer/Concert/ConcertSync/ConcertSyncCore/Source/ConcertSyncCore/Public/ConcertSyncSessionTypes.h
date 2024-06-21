@@ -32,6 +32,10 @@ enum class EConcertSyncActivityEventType : uint8
 	Lock,
 	Transaction,
 	Package,
+	Replication,
+
+	// ADD NEW ENTRIES ABOVE 
+	Count
 };
 
 /** Type of transaction summaries */
