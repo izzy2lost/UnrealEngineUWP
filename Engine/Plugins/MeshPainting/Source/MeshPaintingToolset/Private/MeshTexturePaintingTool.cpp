@@ -22,6 +22,7 @@
 #include "Editor/TransBuffer.h"
 #include "Editor/UnrealEdEngine.h"
 #include "VT/VirtualTextureAdapter.h"
+#include "VT/VirtualTextureBuildSettings.h"
 #include "UnrealEdGlobals.h"
 
 #include "Editor/EditorEngine.h"
@@ -950,10 +951,15 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 				TextureData->PaintRenderTargetTextureAdapter = nullptr;
 				if (TextureData->PaintingTexture2D->IsCurrentlyVirtualTextured())
 				{
+					FVirtualTextureBuildSettings VirtualTextureBuildSettings;
+					TextureData->PaintingTexture2D->GetVirtualTextureBuildSettings(VirtualTextureBuildSettings);
+
 					TextureData->PaintRenderTargetTextureAdapter = NewObject<UVirtualTextureAdapter>(GetTransientPackage(), NAME_None, RF_Transient);
 					TextureData->PaintRenderTargetTextureAdapter->Texture = TextureData->PaintRenderTargetTexture;
 					TextureData->PaintRenderTargetTextureAdapter->bUseCompressedFormat = true;
-					TextureData->PaintRenderTargetTextureAdapter->bUseDefaultTileSizes = true;
+					TextureData->PaintRenderTargetTextureAdapter->bUseDefaultTileSizes = false;
+					TextureData->PaintRenderTargetTextureAdapter->TileSize = VirtualTextureBuildSettings.TileSize;
+					TextureData->PaintRenderTargetTextureAdapter->TileBorderSize = VirtualTextureBuildSettings.TileBorderSize;
 					TextureData->PaintRenderTargetTextureAdapter->UpdateResource();
 				}
 			}

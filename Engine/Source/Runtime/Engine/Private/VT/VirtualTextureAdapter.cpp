@@ -565,8 +565,8 @@ FTextureResource* UVirtualTextureAdapter::CreateResource()
 	FVirtualTextureBuildSettings DefaultSettings;
 	DefaultSettings.Init();
 
-	const uint32 FinalTileSize = bUseDefaultTileSizes ? DefaultSettings.TileSize : FMath::Min(FMath::RoundUpToPowerOfTwo(TileSize), 512u);
-	const uint32 FinalTileBorderSize = bUseDefaultTileSizes ? DefaultSettings.TileBorderSize : FMath::Min((((uint32)TileBorderSize + 1) & ~1u), 8u);
+	const uint32 FinalTileSize = bUseDefaultTileSizes ? DefaultSettings.TileSize : FVirtualTextureBuildSettings::ClampAndAlignTileSize(TileSize);
+	const uint32 FinalTileBorderSize = bUseDefaultTileSizes ? DefaultSettings.TileBorderSize : FVirtualTextureBuildSettings::ClampAndAlignTileBorderSize(TileBorderSize);
 	
 	return new FVirtualTextureAdapterRenderResource(this, Texture, FinalTileSize, FinalTileBorderSize, bUseCompressedFormat);
 }
