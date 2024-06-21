@@ -296,6 +296,8 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 				PermutationVector.Set<FLumenCardCopyPS::FCompress>(true);
 				auto PixelShader = View.ShaderMap->GetShader<FLumenCardCopyPS>(PermutationVector);
 
+				const ERDGPassFlags AdditionalRenderPassFlags = (PassParameters->RenderTargets.GetActiveCount() == 0) ? ERDGPassFlags::SkipRenderPass : ERDGPassFlags::None;
+
 				FPixelShaderUtils::AddRasterizeToRectsPass<FLumenCardCopyPS>(GraphBuilder,
 					View.ShaderMap,
 					RDG_EVENT_NAME("CompressToSurfaceCache %s", LayerConfig.Name),
@@ -311,7 +313,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 					/*TextureSize*/ CompressedCardCaptureAtlasSize,
 					/*RectUVBufferSRV*/ CardCaptureRectBufferSRV,
 					/*DownsampleFactor*/ 4,
-					/*SkipRenderPass*/ (PassParameters->RenderTargets.GetActiveCount()==0));
+					AdditionalRenderPassFlags);
 			}
 		}
 		else if (PhysicalAtlasCompression == ESurfaceCacheCompression::CopyTextureRegion && LayerConfig.CompressedFormat != PF_Unknown)
@@ -346,6 +348,8 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 				PermutationVector.Set<FLumenCardCopyPS::FCompress>(true);
 				auto PixelShader = View.ShaderMap->GetShader<FLumenCardCopyPS>(PermutationVector);
 
+				const ERDGPassFlags AdditionalRenderPassFlags = (PassParameters->RenderTargets.GetActiveCount() == 0) ? ERDGPassFlags::SkipRenderPass : ERDGPassFlags::None;
+
 				FPixelShaderUtils::AddRasterizeToRectsPass<FLumenCardCopyPS>(GraphBuilder,
 					View.ShaderMap,
 					RDG_EVENT_NAME("CompressToTemp %s", LayerConfig.Name),
@@ -361,7 +365,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 					/*TextureSize*/ TempAtlasSize,
 					/*RectUVBufferSRV*/ nullptr,
 					/*DownsampleFactor*/ 4,
-					/*SkipRenderPass*/ (PassParameters->RenderTargets.GetActiveCount() == 0));
+					AdditionalRenderPassFlags);
 			}
 
 			// Copy from temporary atlas to surface cache

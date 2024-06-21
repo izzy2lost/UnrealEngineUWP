@@ -162,19 +162,23 @@ struct FPixelShaderUtils
 		FRHIBlendState* BlendState = nullptr,
 		FRHIRasterizerState* RasterizerState = nullptr,
 		FRHIDepthStencilState* DepthStencilState = nullptr,
-		uint32 StencilRef = 0)
+		uint32 StencilRef = 0,
+		ERDGPassFlags AdditionalPassFlags = ERDGPassFlags::None)
 	{
 		check(PixelShader.IsValid());
 		ClearUnusedGraphResources(PixelShader, Parameters);
 
+		ERDGPassFlags PassFlags = ERDGPassFlags::Raster;
+		PassFlags |= AdditionalPassFlags;
+
 		GraphBuilder.AddPass(
 			Forward<FRDGEventName>(PassName),
 			Parameters,
-			ERDGPassFlags::Raster,
+			PassFlags,
 			[Parameters, GlobalShaderMap, PixelShader, Viewport, BlendState, RasterizerState, DepthStencilState, StencilRef](FRHICommandList& RHICmdList)
 		{
-			FPixelShaderUtils::DrawFullscreenPixelShader(RHICmdList, GlobalShaderMap, PixelShader, *Parameters, Viewport, 
-				BlendState, RasterizerState, DepthStencilState, StencilRef);
+			FPixelShaderUtils::DrawFullscreenPixelShader(RHICmdList, GlobalShaderMap, PixelShader, *Parameters, Viewport,
+			BlendState, RasterizerState, DepthStencilState, StencilRef);
 		});
 	}
 
@@ -190,20 +194,50 @@ struct FPixelShaderUtils
 		FRHIBlendState* BlendState = nullptr,
 		FRHIRasterizerState* RasterizerState = nullptr,
 		FRHIDepthStencilState* DepthStencilState = nullptr,
-		uint32 StencilRef = 0)
+		uint32 StencilRef = 0,
+		ERDGPassFlags AdditionalPassFlags = ERDGPassFlags::None)
 	{
 		check(PixelShader.IsValid());
 		ClearUnusedGraphResources(PixelShader, Parameters);
 
+		ERDGPassFlags PassFlags = ERDGPassFlags::Raster;
+		PassFlags |= AdditionalPassFlags;
+
 		GraphBuilder.AddPass(
 			Forward<FRDGEventName>(PassName),
 			Parameters,
-			ERDGPassFlags::Raster,
+			PassFlags,
 			[Parameters, GlobalShaderMap, PixelShader, Viewports, BlendState, RasterizerState, DepthStencilState, StencilRef](FRHICommandList& RHICmdList)
 		{
 			FPixelShaderUtils::DrawFullscreenInstancedMultiViewportPixelShader(RHICmdList, GlobalShaderMap, PixelShader, *Parameters, Viewports,
 				BlendState, RasterizerState, DepthStencilState, StencilRef);
 		});
+	}
+
+	/** Rect based pixel shader pass. */
+	
+	template<typename TPixelShaderClass, typename TPassParameters>
+	UE_DEPRECATED(5.5, "Use the other prototype of AddRasterizeToRectsPass that takes a ERDGPassFlags in parameter and use ERDGPassFlags::SkipRenderPass in lieu of bSkipRenderPass == true")
+	static inline void AddRasterizeToRectsPass(
+		FRDGBuilder& GraphBuilder,
+		const FGlobalShaderMap* GlobalShaderMap,
+		FRDGEventName&& PassName,
+		const TShaderRef<TPixelShaderClass>& PixelShader,
+		TPassParameters* Parameters,
+		FIntPoint ViewportSize,
+		FRDGBufferSRVRef RectCoordBufferSRV,
+		uint32 NumRects,
+		FRHIBlendState* BlendState,
+		FRHIRasterizerState* RasterizerState,
+		FRHIDepthStencilState* DepthStencilState,
+		uint32 StencilRef,
+		FIntPoint TextureSize,
+		FRDGBufferSRVRef RectUVBufferSRV,
+		uint32 DownsampleFactor,
+		const bool bSkipRenderPass)
+	{
+		AddRasterizeToRectsPass(GraphBuilder, GlobalShaderMap, PassName, PixelShader, Parameters, ViewportSize, RectCoordBufferSRV, NumRects, BlendState, RasterizerState, DepthStencilState, 
+			StencilRef, TextureSize, RectUVBufferSRV, DownsampleFactor, bSkipRenderPass ? ERDGPassFlags::SkipRenderPass : ERDGPassFlags::None);
 	}
 
 	/** Rect based pixel shader pass. */
@@ -224,7 +258,7 @@ struct FPixelShaderUtils
 		FIntPoint TextureSize = FIntPoint(1, 1),
 		FRDGBufferSRVRef RectUVBufferSRV = nullptr,
 		uint32 DownsampleFactor = 1,
-		const bool bSkipRenderPass = false)
+		ERDGPassFlags AdditionalPassFlags = ERDGPassFlags::None)
 	{
 		FRasterizeToRectsVS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FRasterizeToRectsVS::FRectUV>(RectUVBufferSRV != nullptr);
@@ -239,10 +273,14 @@ struct FPixelShaderUtils
 
 		ClearUnusedGraphResources(PixelShader, &Parameters->PS);
 
+		ERDGPassFlags PassFlags = ERDGPassFlags::Raster;
+		PassFlags |= AdditionalPassFlags;
+		const bool bSkipRenderPass = EnumHasAnyFlags(PassFlags, ERDGPassFlags::SkipRenderPass);
+
 		GraphBuilder.AddPass(
 			Forward<FRDGEventName>(PassName),
 			Parameters,
-			bSkipRenderPass ? (ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass) : ERDGPassFlags::Raster,
+			PassFlags,
 			[Parameters, GlobalShaderMap, VertexShader, PixelShader, ViewportSize, BlendState, RasterizerState, DepthStencilState, StencilRef, bSkipRenderPass](FRHICommandList& RHICmdList)
 		{
 			if (bSkipRenderPass)

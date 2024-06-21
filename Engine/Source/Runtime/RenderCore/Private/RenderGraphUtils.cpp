@@ -601,6 +601,8 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLe
 	auto* ShaderMap = GetGlobalShaderMap(FeatureLevel);
 	auto PixelShader = ShaderMap->GetShader<FClearUAVRectsPS>();
 
+	const ERDGPassFlags AdditionalRenderPassFlags = (PassParameters->RenderTargets.GetActiveCount() == 0) ? ERDGPassFlags::SkipRenderPass : ERDGPassFlags::None;
+
 	FPixelShaderUtils::AddRasterizeToRectsPass<FClearUAVRectsPS>(GraphBuilder,
 		ShaderMap,
 		RDG_EVENT_NAME("ClearTextureRects(%s %s %dx%d Mip=%d)",
@@ -620,8 +622,7 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLe
 		/*TextureSize*/ TextureSize,
 		/*RectUVBufferSRV*/ nullptr,
 		/*DownsampleFactor*/ 1,
-		/*bSkipRenderPass*/ (PassParameters->RenderTargets.GetActiveCount()==0)
-		);
+		AdditionalRenderPassFlags);
 }
 
 void AddClearRenderTargetPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture)
