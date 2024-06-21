@@ -244,6 +244,11 @@ public:
 	// The graph ID used when requests are made to mutate specific paged graph topology (ex. adding or removing nodes or edges)
 	const FGuid& GetBuildPageID() const;
 
+#if WITH_EDITOR
+	// Gets the editor-only style of a node with the given ID.
+	const FMetasoundFrontendNodeStyle* GetNodeStyle(const FGuid& InNodeID, const FGuid* InPageID = nullptr);
+#endif // WITH_EDITOR
+
 	template<typename TObjectType>
 	TObjectType& CastDocumentObjectChecked() const
 	{
@@ -394,10 +399,7 @@ public:
 	bool SetNodeLocation(const FGuid& InNodeID, const FVector2D& InLocation, const FGuid* InLocationGuid = nullptr, const FGuid* InPageID = nullptr);
 
 	// Sets the editor-only Unconnected Pins Hidden for a node with the given ID.
-	bool SetNodeUnconnectedPinsHidden(const FGuid& InNodeID, const bool bUnconnectedPinsHidden);
-
-	// Gets the editor-only style of a node with the given ID.
-	const FMetasoundFrontendNodeStyle* GetNodeStyle(const FGuid& InNodeID);
+	bool SetNodeUnconnectedPinsHidden(const FGuid& InNodeID, const bool bUnconnectedPinsHidden, const FGuid* InPageID = nullptr);
 #endif // WITH_EDITOR
 
 	bool SetNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FMetasoundFrontendLiteral& InLiteral, const FGuid* InPageID = nullptr);
@@ -445,6 +447,8 @@ private:
 	FMetasoundFrontendDocument& GetDocumentChecked() const;
 	IMetaSoundDocumentInterface& GetDocumentInterfaceChecked() const;
 
+	void RemoveSwapDependencyInternal(int32 Index);
+
 	bool SetGraphInputInheritsDefault(FName InName, bool bInputInheritsDefault);
 
 	bool SpliceVariableNodeFromStack(const FGuid& InNodeID, const FGuid& InPageID);
@@ -453,7 +457,8 @@ private:
 	UPROPERTY(Transient)
 	TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface;
 
-	// Default page ID to apply build transactions to if no page ID is optionally set directly.
+	// Page ID to apply build transaction to if no optional PageID is provided in explicit function call.
+	// (Also used to support back compat for Controller API until mutable controllers are adequately deprecated).
 	UPROPERTY(Transient)
 	FGuid BuildPageID;
 

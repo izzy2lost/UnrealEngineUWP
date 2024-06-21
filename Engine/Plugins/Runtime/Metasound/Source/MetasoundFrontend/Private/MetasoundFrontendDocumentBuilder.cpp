@@ -1350,7 +1350,7 @@ void FMetaSoundFrontendDocumentBuilder::ClearDocument(TSharedRef<Metasound::Fron
 	GraphClass.PresetOptions.InputsInheritingDefault.Reset();
 	GraphClass.PresetOptions.bIsPreset = false;
 
-	GraphClass.RemoveAllGraphPages();
+	RemoveAllGraphPages();
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FMetasoundFrontendGraph& Graph = GraphClass.GetDefaultGraph();
@@ -2406,7 +2406,14 @@ void FMetaSoundFrontendDocumentBuilder::InitNodeLocations()
 
 bool FMetaSoundFrontendDocumentBuilder::IsDependencyReferenced(const FGuid& InClassID) const
 {
-	return DocumentCache->GetNodeCache().ContainsNodesOfClassID(InClassID);
+	bool bIsReferenced = false;
+	GetConstDocumentChecked().RootGraph.IterateGraphPages([this, &InClassID, &bIsReferenced](const FMetasoundFrontendGraph& Graph)
+	{
+		using namespace Metasound::Frontend;
+		const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache(Graph.PageID);
+		bIsReferenced |= NodeCache.ContainsNodesOfClassID(InClassID);
+	});
+	return bIsReferenced;
 }
 
 bool FMetaSoundFrontendDocumentBuilder::IsNodeInputConnected(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID) const
@@ -2637,21 +2644,19 @@ void FMetaSoundFrontendDocumentBuilder::FinishBuilding()
 
 void FMetaSoundFrontendDocumentBuilder::RemoveAllGraphPages()
 {
+	using namespace Metasound;
+
 	FMetasoundFrontendGraphClass& RootGraph = GetDocumentChecked().RootGraph;
 	RootGraph.IterateGraphPages([this](FMetasoundFrontendGraph& Graph)
 	{
-		using namespace Metasound::Frontend;
-
-		if (Graph.PageID != Metasound::Frontend::DefaultGraphPageID)
+		using namespace Metasound;
+		if (Graph.PageID != Frontend::DefaultGraphPageID)
 		{
-			DocumentDelegates->PageDelegates.OnRemovingPage.Broadcast(Metasound::Frontend::FDocumentMutatePageArgs { Graph.PageID });
+			DocumentDelegates->PageDelegates.OnRemovingPage.Broadcast(Frontend::FDocumentMutatePageArgs { Graph.PageID });
 		}
 	});
 	RootGraph.RemoveAllGraphPages();
-	if (BuildPageID == Metasound::Frontend::DefaultGraphPageID)
-	{
-		SetBuildPageID(FGuid());
-	}
+	SetBuildPageID(Frontend::DefaultGraphPageID);
 }
 
 bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(const FGuid& InClassID)
@@ -2675,9 +2680,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(const FGuid& InClassID)
 			}
 		}
 
-		const int32 LastIndex = Dependencies.Num() - 1;
-		DocumentDelegates->OnRemoveSwappingDependency.Broadcast(Index, LastIndex);
-		Dependencies.RemoveAtSwap(Index, EAllowShrinking::No);
+		RemoveSwapDependencyInternal(Index);
 	}
 
 	return true;
@@ -2705,12 +2708,19 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(EMetasoundFrontendClass
 			}
 		}
 
-		const int32 LastIndex = Dependencies.Num() - 1;
-		DocumentDelegates->OnRemoveSwappingDependency.Broadcast(Index, LastIndex);
-		Dependencies.RemoveAtSwap(Index, EAllowShrinking::No);
+		RemoveSwapDependencyInternal(Index);
 	}
 
 	return true;
+}
+
+void FMetaSoundFrontendDocumentBuilder::RemoveSwapDependencyInternal(int32 Index)
+{
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	TArray<FMetasoundFrontendClass>& Dependencies = Document.Dependencies;
+	const int32 LastIndex = Dependencies.Num() - 1;
+	DocumentDelegates->OnRemoveSwappingDependency.Broadcast(Index, LastIndex);
+	Dependencies.RemoveAtSwap(Index, EAllowShrinking::No);
 }
 
 bool FMetaSoundFrontendDocumentBuilder::RemoveEdge(const FMetasoundFrontendEdge& EdgeToRemove, const FGuid* InPageID)
@@ -3252,14 +3262,18 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveUnusedDependencies()
 {
 	bool bDidEdit = false;
 
-	TArray<FMetasoundFrontendClass>& Dependencies = GetDocumentChecked().Dependencies;
-	for (int32 i = Dependencies.Num() - 1; i >= 0; --i)
+	const FMetasoundFrontendDocument& Document = GetConstDocumentChecked();
+	const FMetasoundFrontendGraphClass& RootGraph = Document.RootGraph;
+	const TArray<FMetasoundFrontendClass>& Dependencies = Document.Dependencies;
+
+	for (int32 Index = Dependencies.Num() - 1; Index >= 0; --Index)
 	{
-		const FGuid& ClassID = Dependencies[i].ID;
-		if (!DocumentCache->GetNodeCache().ContainsNodesOfClassID(ClassID))
+		const FGuid& ClassID = Dependencies[Index].ID;
+		const bool bIsReferenced = IsDependencyReferenced(ClassID);
+		if (!bIsReferenced)
 		{
-			const bool bRemoved = RemoveDependency(ClassID);
-			bDidEdit |= ensureAlwaysMsgf(bRemoved, TEXT("Failed to remove dependency that was found on document and was not referenced by nodes"));
+			RemoveSwapDependencyInternal(Index);
+			bDidEdit = true;
 		}
 	}
 
@@ -3299,6 +3313,7 @@ bool FMetaSoundFrontendDocumentBuilder::SetBuildPageID(const FGuid& InBuildPageI
 
 			constexpr bool bPrimeCache = false;
 			DocumentCache->SetBuildPageID(BuildPageID);
+			DocumentDelegates->PageDelegates.OnPageSet.Broadcast({ BuildPageID });
 		}
 		return true;
 	}
@@ -3730,9 +3745,9 @@ bool FMetaSoundFrontendDocumentBuilder::SetNodeLocation(const FGuid& InNodeID, c
 	return false;
 }
 
-bool FMetaSoundFrontendDocumentBuilder::SetNodeUnconnectedPinsHidden(const FGuid& InNodeID, const bool bUnconnectedPinsHidden)
+bool FMetaSoundFrontendDocumentBuilder::SetNodeUnconnectedPinsHidden(const FGuid& InNodeID, const bool bUnconnectedPinsHidden, const FGuid* InPageID)
 {
-	if (FMetasoundFrontendNode* Node = FindNodeInternal(InNodeID))
+	if (FMetasoundFrontendNode* Node = FindNodeInternal(InNodeID, InPageID))
 	{
 		Node->Style.bUnconnectedPinsHidden = bUnconnectedPinsHidden;
 		return true;
@@ -3741,9 +3756,9 @@ bool FMetaSoundFrontendDocumentBuilder::SetNodeUnconnectedPinsHidden(const FGuid
 	return false;
 }
 
-const FMetasoundFrontendNodeStyle* FMetaSoundFrontendDocumentBuilder::GetNodeStyle(const FGuid& InNodeID)
+const FMetasoundFrontendNodeStyle* FMetaSoundFrontendDocumentBuilder::GetNodeStyle(const FGuid& InNodeID, const FGuid* InPageID)
 {
-	if (const FMetasoundFrontendNode* Node = FindNodeInternal(InNodeID))
+	if (const FMetasoundFrontendNode* Node = FindNodeInternal(InNodeID, InPageID))
 	{
 		return &Node->Style;
 	}
