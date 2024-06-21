@@ -34,7 +34,7 @@ static TAutoConsoleVariable<bool> CVarPCGValidatePointMetadata(
 
 bool IPCGElement::Execute(FPCGContext* Context) const
 {
-	check(Context && Context->AsyncState.NumAvailableTasks > 0 && Context->CurrentPhase < EPCGExecutionPhase::Done);
+	check(Context && Context->AsyncState.NumAvailableTasks != 0 && Context->CurrentPhase < EPCGExecutionPhase::Done);
 	check(Context->AsyncState.bIsRunningOnMainThread || !CanExecuteOnlyOnMainThread(Context));
 
 	while (Context->CurrentPhase != EPCGExecutionPhase::Done)

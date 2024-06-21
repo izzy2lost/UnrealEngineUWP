@@ -52,6 +52,8 @@ struct PCG_API FPCGContext
 	GENERATED_BODY()
 
 	friend class FPCGGraphExecutor;
+	friend struct FPCGGraphActiveTask;
+	friend struct FPCGGraphTask;
 
 	virtual ~FPCGContext() = default;
 

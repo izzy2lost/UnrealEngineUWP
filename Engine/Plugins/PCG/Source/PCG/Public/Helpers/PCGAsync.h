@@ -20,6 +20,8 @@ namespace FPCGAsync
 	namespace ConsoleVar
 	{
 		extern PCG_API TAutoConsoleVariable<bool> CVarDisableAsyncTimeSlicing;
+		extern PCG_API TAutoConsoleVariable<bool> CVarDisableAsyncTimeSlicingOnGameThread;
+		extern PCG_API TAutoConsoleVariable<float> CVarAsyncOutOfTickBudgetInMilliseconds;
 		extern PCG_API TAutoConsoleVariable<int32> CVarAsyncOverrideChunkSize;
 	};
 
@@ -41,16 +43,6 @@ namespace FPCGAsync
 	*/
 	PCG_API void AsyncPointProcessing(FPCGContext* Context, const TArray<FPCGPoint>& InPoints, TArray<FPCGPoint>& OutPoints, const TFunction<bool(const FPCGPoint&, FPCGPoint&)>& PointFunc);
 
-	/** 
-	* Helper to do more general 1:1 point processing loops
-	* @param NumAvailableTasks - The upper bound on the number of async tasks we'll start
-	* @param MinIterationsPerTask - The lower bound on the number of iterations per task we'll dispatch
-	* @param NumIterations - The number of calls that will be done to the provided function, also an upper bound on the number of points generated
-	* @param OutPoints - The array in which the results will be written to. Note that the array will be cleared before execution
-	* @param PointFunc - A function that has the index [0; NumIterations] and has to write to the point & return true when the current call generates a point
-	*/
-	void AsyncPointProcessing(int32 NumAvailableTasks, int32 MinIterationsPerTask, int32 NumIterations, TArray<FPCGPoint>& OutPoints, const TFunction<bool(int32, FPCGPoint&)>& PointFunc);
-
 	/**
 	* Helper to do simple point filtering loops
 	* @param Context - The context containing the information about how many tasks to launch
@@ -62,17 +54,6 @@ namespace FPCGAsync
 	PCG_API void AsyncPointFilterProcessing(FPCGContext* Context, int32 NumIterations, TArray<FPCGPoint>& InFilterPoints, TArray<FPCGPoint>& OutFilterPoints, const TFunction<bool(int32, FPCGPoint&, FPCGPoint&)>& PointFunc);
 
 	/**
-	* Helper to do more general 1:1 point filtering loops
-	* @param NumAvailableTasks - The upper bound on the number of async tasks we'll start
-	* @param MinIterationsPerTask - The lower bound on the number of iterations per task we'll dispatch
-	* @param NumIterations - The number of calls that will be done to the provided function, also an upper bound on the number of points generated
-	* @param InFilterPoints - The array in which the in-filter results will be written to. Note that the array will be cleared before execution
-	* @param OutFilterPoints - The array in which the out-filter results will be written to. Note that the array will be cleared before execution
-	* @param PointFunc - A function that has the index [0; NumIterations] and has to write to the point & return true when the current call generates a point
-	*/
-	void AsyncPointFilterProcessing(int32 NumAvailableTasks, int32 MinIterationsPerTask, int32 NumIterations, TArray<FPCGPoint>& InFilterPoints, TArray<FPCGPoint>& OutFilterPoints, const TFunction<bool(int32, FPCGPoint&, FPCGPoint&)>& PointFunc);
-
-	/**
 	* Helper to do simple 1:N point processing loops
 	* @param Context - The context containing the information about how many tasks to launch
 	* @param NumIterations - The number of calls that will be done to the provided function, also an upper bound on the number of points generated
@@ -81,29 +62,22 @@ namespace FPCGAsync
 	*/
 	PCG_API void AsyncMultiPointProcessing(FPCGContext* Context, int32 NumIterations, TArray<FPCGPoint>& OutPoints, const TFunction<TArray<FPCGPoint>(int32)>& PointFunc);
 
-	/** 
-	* Helper to do more general 1:N point processing loops
-	* @param NumAvailableTasks - The upper bound on the number of async tasks we'll start
-	* @param MinIterationsPerTask - The lower bound on the number of iterations per task we'll dispatch
-	* @param NumIterations - The number of calls that will be done to the provided function, also an upper bound on the number of points generated
- 	* @param OutPoints - The array in which the results will be written to. Note that the array will be cleared before execution
-	* @param PointFunc - A function that has the index [0; NumIterations] and has to write to the point & return true when the current call generates a point
-	*/
-	void AsyncMultiPointProcessing(int32 NumAvailableTasks, int32 MinIterationsPerTask, int32 NumIterations, TArray<FPCGPoint>& OutPoints, const TFunction<TArray<FPCGPoint>(int32)>& PointFunc);
-
 	namespace Private
 	{
 	template <typename InitializeFunc, typename InnerLoopFunc, typename MoveDataRangeFunc, typename FinishedFunc>
-	bool AsyncProcessing(FPCGAsyncState& AsyncState, int32 NumIterations, InitializeFunc&& Initialize, InnerLoopFunc&& IterationInnerLoop, MoveDataRangeFunc&& MoveDataRange, FinishedFunc&& Finished, const bool bInEnableTimeSlicing, const int32 InChunkSize)
+	bool AsyncProcessing(FPCGAsyncState& AsyncState, int32 NumIterations, InitializeFunc&& Initialize, InnerLoopFunc&& IterationInnerLoop, MoveDataRangeFunc&& MoveDataRange, FinishedFunc&& Finished, const bool bInEnableTimeSlicing, const int32 InChunkSize, const bool bAllowChunkSizeOverride)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAsync::AsyncProcessing);
 
 		const int32 OverrideChunkSize = ConsoleVar::CVarAsyncOverrideChunkSize.GetValueOnAnyThread();
-		const int32 ChunkSize = OverrideChunkSize > 0 ? OverrideChunkSize : InChunkSize;
+		const int32 ChunkSize = bAllowChunkSizeOverride && OverrideChunkSize > 0 ? OverrideChunkSize : InChunkSize;
 
-		const bool bEnableTimeSlicing = bInEnableTimeSlicing && !ConsoleVar::CVarDisableAsyncTimeSlicing.GetValueOnAnyThread();
+		const bool bIsInGameThread = IsInGameThread();
+		const bool bEnableTimeSlicing = bInEnableTimeSlicing && ((bIsInGameThread && !ConsoleVar::CVarDisableAsyncTimeSlicingOnGameThread.GetValueOnAnyThread()) || (!bIsInGameThread && !ConsoleVar::CVarDisableAsyncTimeSlicing.GetValueOnAnyThread()));
+				
+		const float OutOfTickBudgetInSeconds = ConsoleVar::CVarAsyncOutOfTickBudgetInMilliseconds.GetValueOnAnyThread() / 1000.f;
 
-		if (AsyncState.NumAvailableTasks <= 0 || ChunkSize <= 0 || NumIterations <= 0)
+		if (AsyncState.NumAvailableTasks == 0 || ChunkSize <= 0 || NumIterations <= 0)
 		{
 			// Invalid request
 			return true;
@@ -123,14 +97,26 @@ namespace FPCGAsync
 
 			Initialize();
 
-			AsyncState.bStarted = true;
+			double EndTime = AsyncState.EndTime;
+			
+			if (AsyncState.bIsRunningOutOfTick && bEnableTimeSlicing && OutOfTickBudgetInSeconds > 0.f)
+			{
+				EndTime = FPlatformTime::Seconds() + OutOfTickBudgetInSeconds;
+			}
+
+			AsyncState.SetStarted(EndTime);
 
 			// At the beginning, dispatch the chunks that each task needs to process.
 			// It will be stored on the AsyncState so that it can be reused.
 			// Each task will update its current counter directly in the AsyncState.
 			// It's OK to not protect it since they all will read/write from different place in memory.
 
-			int32 NumTasks = FMath::Min(AsyncState.NumAvailableTasks, ChunksNumber);
+			int32 NumTasks = ChunksNumber;
+			if (AsyncState.NumAvailableTasks > 0)
+			{
+				NumTasks = FMath::Min(AsyncState.NumAvailableTasks, NumTasks);
+			}
+
 			const int32 IterationsPerTask = ChunksNumber / NumTasks;
 			
 			// Some tasks will have an extra chunk of work if NumTasks doesn't divide ChunksNumber.
@@ -270,8 +256,11 @@ namespace FPCGAsync
 				{
 					SynchroStruct.bQuit = true;
 
-					// Wait for all futures to finish their job
-					UE::Tasks::Wait(AsyncTasks);
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAsync::AsyncProcessing::Wait);
+						// Wait for all futures to finish their job
+						UE::Tasks::Wait(AsyncTasks);
+					}
 
 					// Make sure to dequeue everything
 					FlushQueue();
@@ -377,15 +366,16 @@ namespace FPCGAsync
 	* @param Finished - Signature: void(int32 Count). Called once on finished, and tells you the total count of points written.
 	* @param bEnableTimeSlicing - If false, we will not stop until all the processing is done.
 	* @param ChunkSize - Size of the chunks to cut the input data with
+	* @param bAllowChunkSizeOverride - If true, ChunkSize can be overridden by 'pcg.AsyncOverrideChunkSize' CVar
 	* @returns true if the processing is done, false otherwise. Use this to know if you need to reschedule the task.
 	*/
 	template <typename InitializeFunc, typename ProcessRangeFunc, typename MoveDataRangeFunc, typename FinishedFunc>
-	bool AsyncProcessingRangeEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessRangeFunc&& ProcessRange, MoveDataRangeFunc&& MoveDataRange, FinishedFunc&& Finished, const bool bEnableTimeSlicing, const int32 ChunkSize = 64)
+	bool AsyncProcessingRangeEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessRangeFunc&& ProcessRange, MoveDataRangeFunc&& MoveDataRange, FinishedFunc&& Finished, const bool bEnableTimeSlicing, const int32 ChunkSize = 64, const bool bAllowChunkSizeOverride = true)
 	{
 		if (AsyncState && !AsyncState->bIsRunningAsyncCall)
 		{
 			AsyncState->bIsRunningAsyncCall = true;
-			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize);
+			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize, bAllowChunkSizeOverride);
 			AsyncState->bIsRunningAsyncCall = false;
 			return bIsDone;
 		}
@@ -396,7 +386,7 @@ namespace FPCGAsync
 			FPCGAsyncState DummyState;
 			DummyState.NumAvailableTasks = 1;
 			DummyState.bIsRunningAsyncCall = true;
-			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize);
+			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize, bAllowChunkSizeOverride);
 		}
 	}
 
@@ -420,10 +410,11 @@ namespace FPCGAsync
 	* @param Finished - Signature: void(int32 Count). Called once on finished, and tells you the total count of points written.
 	* @param bEnableTimeSlicing - If false, we will not stop until all the processing is done.
 	* @param ChunkSize - Size of the chunks to cut the input data with
+	* @param bAllowChunkSizeOverride - If true, ChunkSize can be overridden by 'pcg.AsyncOverrideChunkSize' CVar
 	* @returns true if the processing is done, false otherwise. Use this to know if you need to reschedule the task.
 	*/
 	template <typename InitializeFunc, typename ProcessRangeFunc>
-	bool AsyncProcessingOneToOneRangeEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessRangeFunc&& ProcessRange, const bool bEnableTimeSlicing, const int32 ChunkSize = 64)
+	bool AsyncProcessingOneToOneRangeEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessRangeFunc&& ProcessRange, const bool bEnableTimeSlicing, const int32 ChunkSize = 64, const bool bAllowChunkSizeOverride = true)
 	{
 		auto MoveDataRange = [](int32, int32, int32) { ensure(false); };
 		auto Finished = [NumIterations](int32 Count) { ensure(NumIterations == Count); };
@@ -431,7 +422,7 @@ namespace FPCGAsync
 		if (AsyncState && !AsyncState->bIsRunningAsyncCall)
 		{
 			AsyncState->bIsRunningAsyncCall = true;
-			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize);
+			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize, bAllowChunkSizeOverride);
 			AsyncState->bIsRunningAsyncCall = false;
 			return bIsDone;
 		}
@@ -442,7 +433,7 @@ namespace FPCGAsync
 			FPCGAsyncState DummyState;
 			DummyState.NumAvailableTasks = 1;
 			DummyState.bIsRunningAsyncCall = true;
-			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize);
+			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize, bAllowChunkSizeOverride);
 		}
 	}
 
@@ -464,11 +455,12 @@ namespace FPCGAsync
 	* @param MoveData - Signature: void(int32 ReadIndex, int32 WriteIndex). If the processing filters points, this will be used to move elements from one index to another 
 	* @param Finished - Signature: void(int32 Count). Called once on finished, and tells you the total count of points written.
 	* @param bEnableTimeSlicing - If false, we will not stop until all the processing is done.
-	* @param ChunkSize - Size of the chunks to cut the input data with
+	* @param ChunkSize - Size of the chunks to cut the input data with 
+	* @param bAllowChunkSizeOverride - If true, ChunkSize can be overridden by 'pcg.AsyncOverrideChunkSize' CVar
 	* @returns true if the processing is done, false otherwise. Use this to know if you need to reschedule the task.
 	*/
 	template <typename InitializeFunc, typename ProcessElementFunc, typename MoveFunc, typename FinishedFunc>
-	bool AsyncProcessingEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessElementFunc&& ProcessElement, MoveFunc&& MoveData, FinishedFunc&& Finished, const bool bEnableTimeSlicing, const int32 ChunkSize = 64)
+	bool AsyncProcessingEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessElementFunc&& ProcessElement, MoveFunc&& MoveData, FinishedFunc&& Finished, const bool bEnableTimeSlicing, const int32 ChunkSize = 64, const bool bAllowChunkSizeOverride = true)
 	{
 		auto IterationInnerLoop = [Func = MoveTemp(ProcessElement)](int32 StartReadIndex, int32 StartWriteIndex, int32 Count) -> int32
 		{
@@ -493,7 +485,7 @@ namespace FPCGAsync
 			}
 		};
 
-		return AsyncProcessingRangeEx(AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize);
+		return AsyncProcessingRangeEx(AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize, bAllowChunkSizeOverride);
 	}
  
  	/**
@@ -516,10 +508,11 @@ namespace FPCGAsync
 	* @param ProcessElement - Signature: bool(int32 ReadIndex, int32 WriteIndex). A function that processes  
 	* @param bEnableTimeSlicing - If false, we will not stop until all the processing is done.
 	* @param ChunkSize - Size of the chunks to cut the input data with
+	* @param bAllowChunkSizeOverride - If true, ChunkSize can be overridden by 'pcg.AsyncOverrideChunkSize' CVar
 	* @returns true if the processing is done, false otherwise. Use this to know if you need to reschedule the task.
 	*/
  	template <typename InitializeFunc, typename ProcessElementFunc>
-	bool AsyncProcessingOneToOneEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessElementFunc&& ProcessElement, const bool bEnableTimeSlicing, const int32 ChunkSize = 64)
+	bool AsyncProcessingOneToOneEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessElementFunc&& ProcessElement, const bool bEnableTimeSlicing, const int32 ChunkSize = 64, const bool bAllowChunkSizeOverride = true)
 	{
 		auto IterationInnerLoop = [Func = MoveTemp(ProcessElement)](int32 StartReadIndex, int32 StartWriteIndex, int32 Count) -> int32
 		{
@@ -537,7 +530,7 @@ namespace FPCGAsync
 		if (AsyncState && !AsyncState->bIsRunningAsyncCall)
 		{
 			AsyncState->bIsRunningAsyncCall = true;
-			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize);
+			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize, bAllowChunkSizeOverride);
 			AsyncState->bIsRunningAsyncCall = false;
 			return bIsDone;
 		}
@@ -548,7 +541,7 @@ namespace FPCGAsync
 			FPCGAsyncState DummyState;
 			DummyState.NumAvailableTasks = 1;
 			DummyState.bIsRunningAsyncCall = true;
-			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize);
+			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize, bAllowChunkSizeOverride);
 		}
 	}
 
@@ -569,10 +562,11 @@ namespace FPCGAsync
 	* @param Func - Signature: bool(int32, OutputType&). A function that has the index [0; NumIterations] and has to write to some data & return false if the result should be discarded. 
 	* @param bEnableTimeSlicing - If false, we will not stop until all the processing is done.
 	* @param ChunkSize - Size of the chunks to cut the input data with
+	* @param bAllowChunkSizeOverride - If true, ChunkSize can be overridden by 'pcg.AsyncOverrideChunkSize' CVar
 	* @returns true if the processing is done, false otherwise. Use this to know if you need to reschedule the task.
 	*/
 	template <typename OutputType, typename Func>
-	bool AsyncProcessing(FPCGAsyncState* AsyncState, int32 NumIterations, TArray<OutputType>& OutData, Func&& InFunc, const bool bEnableTimeSlicing, const int32 ChunkSize = 64)
+	bool AsyncProcessing(FPCGAsyncState* AsyncState, int32 NumIterations, TArray<OutputType>& OutData, Func&& InFunc, const bool bEnableTimeSlicing, const int32 ChunkSize = 64, bool bAllowChunkSizeOverride = true)
 	{
 		auto Initialize = [&OutData, NumIterations]()
 		{
@@ -596,7 +590,7 @@ namespace FPCGAsync
 			OutData.SetNum(Count);
 		};
 
-		return AsyncProcessingEx(AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveData, Finished, bEnableTimeSlicing, ChunkSize);
+		return AsyncProcessingEx(AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveData, Finished, bEnableTimeSlicing, ChunkSize, bAllowChunkSizeOverride);
 	}
 }
 

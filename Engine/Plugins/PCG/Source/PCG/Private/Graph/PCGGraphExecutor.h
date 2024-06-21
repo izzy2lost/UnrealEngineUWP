@@ -11,7 +11,10 @@
 #include "Graph/PCGPinDependencyExpression.h"
 #include "Graph/PCGStackContext.h"
 
+#include "Misc/SpinLock.h"
 #include "UObject/GCObject.h"
+#include "Tasks/Task.h"
+#include "Templates/UniquePtr.h"
 
 #if WITH_EDITOR
 #include "Editor/IPCGEditorProgressNotification.h"
@@ -93,8 +96,15 @@ struct FPCGGraphTask
 	int32 StackIndex = INDEX_NONE;
 	TSharedPtr<const FPCGStackContext> StackContext;
 
-	// Contains info around whether the element, context, cache check and more was already done.
+	// Whether SetupTask has been called on this task
 	bool bHasDoneSetup = false;
+	// BuildTaskInput will initialize this Collection which will later be used by PrepareForExecute
+	FPCGDataCollection TaskInput;
+	// CombineParams call might have created AsyncObjects
+	TSet<TObjectPtr<UObject>> CombineParamsAsyncObjects;
+
+	// Whether PrepareForExecute as been called on this task
+	bool bHasDonePrepareForExecute = false;
 
 #if WITH_EDITOR
 	// Can be true when we want to have debug display on a task but have taken the results from the cache
@@ -111,27 +121,38 @@ struct FPCGGraphScheduleTask
 	bool bHasAbortCallbacks = false;
 };
 
-struct FPCGGraphActiveTask
+struct FPCGGraphActiveTask : TSharedFromThis<FPCGGraphActiveTask>
 {
 	FPCGGraphActiveTask() = default;
-	~FPCGGraphActiveTask();
-	
+	virtual ~FPCGGraphActiveTask();
+
 	FPCGGraphActiveTask(const FPCGGraphActiveTask&) = delete;
 	FPCGGraphActiveTask& operator=(const FPCGGraphActiveTask&) = delete;
 
-	FPCGGraphActiveTask(FPCGGraphActiveTask&&) = default;
-	FPCGGraphActiveTask& operator=(FPCGGraphActiveTask&&) = default;
+	FPCGGraphActiveTask(FPCGGraphActiveTask&&) = delete;
+	FPCGGraphActiveTask& operator=(FPCGGraphActiveTask&&) = delete;
+
+	void StartExecuting();
+	void StopExecuting();
 
 	TArray<FPCGGraphTaskInput> Inputs;
 	FPCGElementPtr Element;
 	TUniquePtr<FPCGContext> Context;
 	FPCGTaskId NodeId = InvalidPCGTaskId;
-	bool bWasCancelled = false;
+	std::atomic<bool> bWasCancelled = false;
 #if WITH_EDITOR
 	bool bIsBypassed = false;
 #endif
 	int32 StackIndex = INDEX_NONE;
 	TSharedPtr<const FPCGStackContext> StackContext;
+		
+	// Those members need to be modified under the FPCGGraphExecutor::LiveTasksLock (unless we are running the old executor path)
+	UE::Tasks::TTask<bool> ExecutingTask;
+	bool bIsExecutingTask = false;
+	static int32 NumExecuting;
+	TArray<TObjectPtr<const UObject>> ExecutingReferences;
+
+	TSharedPtr<UE::Tasks::FCancellationToken> CancelToken;
 };
 
 class FPCGGraphExecutor : public FGCObject
@@ -195,7 +216,10 @@ public:
 	FPCGTaskId ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, TFunction<void(FPCGContext*)> InAbortOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies);
 
 	/** Gets data in the output results. Returns false if data is not ready. */
-	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData, bool bClearDataOnGet);
+	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData);
+
+	/** Clear output data */
+	void ClearOutputData(FPCGTaskId InTaskId);
 
 	/** Accessor so PCG tools (e.g. profiler) can easily decode graph task ids **/
 	FPCGGraphCompiler& GetCompiler() { return GraphCompiler; }
@@ -228,14 +252,47 @@ public:
 	//~End FGCObject interface
 
 private:
+	void ExecuteV1();
+	void ExecuteV2();
+	double GetTickBudgetInSeconds() const;
+		
+	struct FCachedResult
+	{
+		FPCGTaskId TaskId = InvalidPCGTaskId;
+		FPCGDataCollection Output;
+		const FPCGStack* Stack = nullptr;
+		const UPCGNode* Node = nullptr;
+		bool bDoDynamicTaskCulling = false;
+		bool bIsPostGraphTask = false;		
+		bool bIsBypassed = false;
+	};
+		
+	void PostTaskExecute(TSharedPtr<FPCGGraphActiveTask> ActiveTask);
+	bool ProcessScheduledTasks();
+	void ExecuteTasksEnded();
+	bool ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphActiveTask>* OutMainThreadTask = nullptr);
+
 	TSet<UPCGComponent*> Cancel(TFunctionRef<bool(TWeakObjectPtr<UPCGComponent>)> CancelFilter);
 	void ClearAllTasks();
-	void QueueNextTasks(FPCGTaskId FinishedTask, bool bIgnoreMissingTasks = false);
+	void QueueNextTasks(FPCGTaskId FinishedTask);
 	bool CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGComponent*>& OutCancelledComponents);
 	void RemoveTaskFromInputSuccessors(FPCGTaskId CancelledTask, const TArray<FPCGGraphTaskInput>& CancelledTaskInputs);
-	void BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollection& TaskInput);
+	void RemoveTaskFromInputSuccessorsNoLock(FPCGTaskId CancelledTask, const TArray<FPCGGraphTaskInput>& CancelledTaskInputs);
+	
+	/** Called from QueueNextTasks/ProcessScheduledTasks will try and setup/prepare task for execution */
+	void OnTaskInputsReady(FPCGGraphTask& Task, TArray<FCachedResult*>& OutCachedResults, bool bIsInGameThread);
+
+	/** SetupTask will call BuildTaskInput and assign a IPCGElement to the FPCGGraphTask */
+	bool SetupTask(FPCGGraphTask& Task, TArray<FPCGTaskId>& ResultsToMarkAsRead);
+	void BuildTaskInput(FPCGGraphTask& Task, TArray<FPCGTaskId>& ResultsToMarkAsRead);
+	/** Will check the cache for existing result or create and initialize the FPCGContext to the task */
+	void PrepareForExecute(FPCGGraphTask& Task, FCachedResult*& OutCachedResult, bool bLiveTasksLockAlreadyLocked);
+
+	/** Store cache results and Queue next tasks */
+	void ProcessCachedResults(const TArray<FCachedResult*>& CachedResults);
+
 	/** Combine all param data into one on the Params pin, if any.*/
-	void CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& InTaskInput);
+	void CombineParams(FPCGGraphTask& Task);
 	void StoreResults(FPCGTaskId InTaskId, const FPCGDataCollection& InTaskOutput, bool bNeedsManualClear);
 	void ClearResults();
 	void MarkInputResults(TArrayView<const FPCGTaskId> InInputResults);
@@ -244,7 +301,7 @@ private:
 	void CullInactiveDownstreamNodes(FPCGTaskId CompletedTaskId, uint64 InInactiveOutputPinBitmask);
 
 	/** Builds an array of all deactivated unique pin IDs. */
-	void GetPinIdsToDeactivate(FPCGTaskId TaskId, uint64 InactiveOutputPinBitmask, TArray<FPCGPinId>& InOutPinIds);
+	static void GetPinIdsToDeactivate(FPCGTaskId TaskId, uint64 InactiveOutputPinBitmask, TArray<FPCGPinId>& InOutPinIds);
 
 	FPCGElementPtr GetFetchInputElement();
 
@@ -271,14 +328,35 @@ private:
 	/** Input fetch element, stored here so we have only one */
 	FPCGElementPtr FetchInputElement;
 
-	FCriticalSection ScheduleLock;
+	/** 
+	 * Define a Lock level for future reference. Rule is when we have a lock, we can't lock a lower or equal level lock to prevent deadlocks.
+	 * Example: When locking LiveTasksLock we can't lock ScheduleLock or CollectGCReferenceTasksLock 
+	 */
+
+	/** Lock level - 1 (top most lock) */
+	UE::FSpinLock ScheduleLock;
 	TArray<FPCGGraphScheduleTask> ScheduledTasks;
 
+	/** Lock level 2 */
+	mutable UE::FSpinLock TasksLock;
 	TMap<FPCGTaskId, FPCGGraphTask> Tasks;
-	TArray<FPCGGraphTask> ReadyTasks;
-	TArray<FPCGGraphActiveTask> ActiveTasks;
-	TArray<FPCGGraphActiveTask> SleepingTasks;
 	TMap<FPCGTaskId, TSet<FPCGTaskId>> TaskSuccessors;
+
+	/** Lock level 3 */
+	UE::FSpinLock LiveTasksLock;
+	TArray<FPCGGraphTask> ReadyTasks;
+	TArray<TSharedPtr<FPCGGraphActiveTask>> ActiveTasks;
+	// Used to keep GC references to in flight caching results (not yet stored to output and might not be in cache anymore)
+	TMap<FPCGTaskId, TUniquePtr<FCachedResult>> CachingResults;
+	int32 NumWorkerTasks = 0;
+
+	// @todo_pcg: to remove when we remove ExecuteV1
+	TArray<TSharedPtr<FPCGGraphActiveTask>> SleepingTasks;
+	
+	/** Lock level 3 */
+	UE::FSpinLock CollectGCReferenceTasksLock;
+	TSet<TSharedPtr<FPCGGraphActiveTask>> CollectGCReferenceTasks;
+			
 	/** Map of node instances to their output, could be cleared once execution is done */
 	/** Note: this should at some point unload based on loaded/unloaded proxies, otherwise memory cost will be unbounded */
 	struct FOutputDataInfo
@@ -288,13 +366,18 @@ private:
 		bool bNeedsManualClear = false;
 		// Successor count, updated after a successor is done executing (MarkInputResults).
 		int32 RemainingSuccessorCount = 0;
+		// Culled
+		bool bCulled = false;
 	};
 
-	FRWLock TaskOutputsRWLock;
+	/** Lock level 4 */
+	UE::FSpinLock TaskOutputsLock;
 	TMap<FPCGTaskId, FOutputDataInfo> TaskOutputs;
-
+	
 	/** Monotonically increasing id. Should be reset once all tasks are executed, should be protected by the ScheduleLock */
 	FPCGTaskId NextTaskId = 0;
+	
+	std::atomic<bool> bNeedToExecuteTasksEnded = false;
 
 	/** Runtime information */
 	int32 CurrentlyUsedThreads = 0;
@@ -306,6 +389,17 @@ private:
 #endif
 
 	TObjectPtr<UWorld> World = nullptr;
+
+	// Temporary while the 2 schedulers exist
+	enum class EExecuteVersion : uint8
+	{
+		None,
+		V1,
+		V2
+	};
+	EExecuteVersion ExecuteVersion = EExecuteVersion::None;
+
+	EExecuteVersion GetExecuteVersion() const;
 };
 
 class FPCGFetchInputElement : public IPCGElement

@@ -2,6 +2,7 @@
 
 #include "PCGContext.h"
 #include "PCGComponent.h"
+#include "PCGGraph.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
@@ -125,10 +126,42 @@ void FPCGContext::InitializeSettings()
 			}
 
 			if (bHasParamConnected)
-			{
-				SettingsWithOverride = Cast<UPCGSettings>(StaticDuplicateObject(NodeSettings, GetTransientPackage()));
-				SettingsWithOverride->SetFlags(RF_Transient);
+			{				
+				FObjectDuplicationParameters DuplicateParams(const_cast<UPCGSettings*>(NodeSettings), GetTransientPackage());
+				const bool bIsInGameThread = IsInGameThread();
+				DuplicateParams.bSkipPostLoad = !bIsInGameThread;
+				DuplicateParams.ApplyFlags = RF_Transient;
+			
+				TMap<UObject*, UObject*> CreatedObjects;
+				DuplicateParams.CreatedObjects = &CreatedObjects;
+				
+				{
+					FGCScopeGuard Scope;
+					SettingsWithOverride = Cast<UPCGSettings>(StaticDuplicateObjectEx(DuplicateParams));
+				}
+			
+				// StaticDuplicateObjectEx will not allow PostLoad to be called outside of GameThread (except AsyncLoadingThread) so we take care of the PostLoad and clear Async flags
+				for (auto& KeyValuePair : CreatedObjects)
+				{
+					if (KeyValuePair.Value)
+					{
+						if (!bIsInGameThread)
+						{
+							ensure(KeyValuePair.Value->IsPostLoadThreadSafe());
+							KeyValuePair.Value->ConditionalPostLoad();
+							KeyValuePair.Value->ClearInternalFlags(EInternalObjectFlags::Async);
+						}
 
+#if WITH_EDITOR
+						// @todo_pcg: find a way to avoid the call to SetupCallbacks() all together but for now unregister the callbacks after duplication
+						if (UPCGGraphInstance* GraphInstance = Cast<UPCGGraphInstance>(KeyValuePair.Value))
+						{
+							GraphInstance->TeardownCallbacks();
+						}
+#endif
+					}
+				}
+				
 				// Force seed copy to prevent issue due to delta serialization vs. Seed being initialized in the constructor only for new nodes
 				SettingsWithOverride->Seed = NodeSettings->Seed;
 				SettingsWithOverride->OriginalSettings = NodeSettings;
@@ -249,6 +282,8 @@ void FPCGContext::OverrideSettings()
 				return false;
 			}
 
+			// Setting properties (ex: FSoftObjectPath) can end up doing StaticFindObject which needs to be protected from running at same time as GC
+			FGCScopeGuard GCScope;
 			FPCGAttributeAccessorKeysSingleObjectPtr PropertyObjectKey(Container);
 			PropertyAccessor->Set<PropertyType>(Value, PropertyObjectKey);
 

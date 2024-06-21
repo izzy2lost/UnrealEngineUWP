@@ -464,6 +464,7 @@ public:
 	/** ~End UPCGGraphInterface interface */
 
 	// ~Begin UObject interface
+	virtual bool IsPostLoadThreadSafe() const override { return true; }
 	virtual void PostLoad() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual void PostEditImport() override;

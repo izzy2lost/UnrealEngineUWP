@@ -10,6 +10,7 @@
 #include "PCGWorldActor.h"
 #include "Grid/PCGPartitionActor.h"
 
+#include "Components/BillboardComponent.h"
 #include "Landscape.h"
 #include "Algo/AnyOf.h"
 #include "UObject/UObjectIterator.h"
@@ -164,11 +165,15 @@ namespace PCGHelpers
 
 				InActor->ForEachComponent<UPrimitiveComponent>(/*bIncludeFromChildActors=*/true, [bNonColliding, bIgnorePCGCreatedComponents, &WorldToActor, &Box](const UPrimitiveComponent* InPrimComp)
 				{
-					if ((bNonColliding || InPrimComp->IsCollisionEnabled()) &&
-						(!bIgnorePCGCreatedComponents || !InPrimComp->ComponentTags.Contains(DefaultPCGTag)))
+					// Billboard requires access to its texture prevent this from running outside of game thread
+					if(!InPrimComp->IsA<UBillboardComponent>())
 					{
-						const FTransform ComponentToActor = InPrimComp->GetComponentTransform() * WorldToActor;
-						Box += InPrimComp->CalcBounds(ComponentToActor).GetBox();
+						if ((bNonColliding || InPrimComp->IsCollisionEnabled()) &&
+							(!bIgnorePCGCreatedComponents || !InPrimComp->ComponentTags.Contains(DefaultPCGTag)))
+						{
+							const FTransform ComponentToActor = InPrimComp->GetComponentTransform() * WorldToActor;
+							Box += InPrimComp->CalcBounds(ComponentToActor).GetBox();
+						}
 					}
 				});
 			}

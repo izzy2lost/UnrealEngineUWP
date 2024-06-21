@@ -53,9 +53,15 @@ struct FPCGAsyncState
 	/** True if currently inside a PCGAsync scope - will prevent further async processing. */
 	bool bIsRunningAsyncCall = false;
 
+	/** True if we can run out of tick */
+	bool bIsRunningOutOfTick = false;
+
 	/** Returns true if we reached end time. */
 	PCG_API bool ShouldStop() const;
 
 	/** To be called at the end of an async processing. */
 	PCG_API void Reset();
+
+	/** To be called to change the state to started and provide an EndTime for timeslicing */
+	PCG_API void SetStarted(double InEndTime);
 };

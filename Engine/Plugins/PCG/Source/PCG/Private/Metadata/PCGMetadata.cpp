@@ -1360,7 +1360,12 @@ void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& In
 
 	AttributeLock.ReadLock();
 	int32 AttributeOffset = 0;
-	const int32 AttributesPerDispatch = OptionalContext ? FMath::Max(1, OptionalContext->AsyncState.NumAvailableTasks) : 1;
+	const int32 DefaultAttributesPerDispatch = 64;
+	int32 AttributesPerDispatch = OptionalContext ? DefaultAttributesPerDispatch : 1;
+	if (OptionalContext && OptionalContext->AsyncState.NumAvailableTasks > 0)
+	{
+		AttributesPerDispatch = FMath::Min(OptionalContext->AsyncState.NumAvailableTasks, AttributesPerDispatch);
+	}
 
 	while (AttributeOffset < Attributes.Num())
 	{

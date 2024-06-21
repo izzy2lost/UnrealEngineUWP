@@ -18,3 +18,9 @@ void FPCGAsyncState::Reset()
 
 	bStarted = false;
 }
+
+void FPCGAsyncState::SetStarted(double InEndTime)
+{
+	bStarted = true;
+	EndTime = InEndTime;
+}

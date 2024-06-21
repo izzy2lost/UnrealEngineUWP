@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Elements/PCGExecuteBlueprint.h"
+
+#include "Algo/Transform.h"
 #include "Engine/Blueprint.h"
 #include "Math/RandomStream.h"
 #include "PCGComponent.h"
@@ -830,9 +832,22 @@ void FPCGExecuteBlueprintElement::PostExecuteInternal(FPCGContext* InContext) co
 	check(InContext);
 	FPCGBlueprintExecutionContext* Context = static_cast<FPCGBlueprintExecutionContext*>(InContext);
 
-	check(IsInGameThread());
 	if (Context->BlueprintElementInstance)
 	{
+		check(IsInGameThread());
+
+		// Build a list of InputObjects so that we don't remove Async flags from Outputs that come from the Input as it isn't our responsability
+		TSet<TObjectPtr<const UObject>> InputObjects;
+		Algo::TransformIf(Context->InputData.TaggedData, InputObjects, 
+		[](const FPCGTaggedData& TaggedData)
+		{
+			return TaggedData.Data != nullptr;
+		},
+		[](const FPCGTaggedData& TaggedData)
+		{
+			return TaggedData.Data;
+		});
+
 		// Log info on outputs
 		for (int32 OutputIndex = 0; OutputIndex < Context->OutputData.TaggedData.Num(); ++OutputIndex)
 		{
@@ -849,7 +864,7 @@ void FPCGExecuteBlueprintElement::PostExecuteInternal(FPCGContext* InContext) co
 			if (Output.Data)
 			{
 				// Clear Async flags on objects created outside of the main thread and not part of the Context known async objects
-				if (Output.Data->HasAnyInternalFlags(EInternalObjectFlags::Async) && !Context->ContainsAsyncObject(Output.Data))
+				if (Output.Data->HasAnyInternalFlags(EInternalObjectFlags::Async) && !Context->ContainsAsyncObject(Output.Data) && !InputObjects.Contains(Output.Data))
 				{
 					Output.Data->ClearInternalFlags(EInternalObjectFlags::Async);
 					ForEachObjectWithOuter(Output.Data, [](UObject* SubObject) { SubObject->ClearInternalFlags(EInternalObjectFlags::Async); }, true);
@@ -1080,7 +1095,11 @@ bool FPCGExecuteBlueprintElement::ShouldComputeFullOutputDataCrc(FPCGContext* Co
 
 bool FPCGExecuteBlueprintElement::CanExecuteOnlyOnMainThread(FPCGContext* Context) const
 {
-	check(Context);
+	if (!Context)
+	{
+		return true;
+	}
+
 	FPCGBlueprintExecutionContext* BPContext = static_cast<FPCGBlueprintExecutionContext*>(Context);
 
 	// Always execute PostExecute on main thread

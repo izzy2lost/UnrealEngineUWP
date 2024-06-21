@@ -61,6 +61,6 @@ namespace FPCGSpatialDataProcessing
 			OutPoints.SetNum(Count);
 		};
 
-		ensure(FPCGAsync::AsyncProcessingRangeEx(AsyncState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize));
+		ensure(FPCGAsync::AsyncProcessingRangeEx(AsyncState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize, /*bAllowChunkSizeOverride=*/false));
 	}
 }

@@ -1206,9 +1206,12 @@ namespace PCGSplineSamplerHelpers
 		const FVector::FReal MaxY = FMath::FloorToDouble(MaxPoint.Y / Params.InteriorSampleSpacing) * Params.InteriorSampleSpacing;
 
 		constexpr int32 MinIterationPerDispatch = 4;
-		const int32 NumAvailableTasks = Context ? Context->AsyncState.NumAvailableTasks : 1;
 		const int32 NumIterations = (MaxY + UE_KINDA_SMALL_NUMBER - MinY) / Params.InteriorSampleSpacing;
-		const int32 NumDispatch = FMath::Max(1, FMath::Min(NumAvailableTasks, NumIterations / MinIterationPerDispatch));
+		int32 NumDispatch = Context ? (NumIterations / MinIterationPerDispatch) : 1;
+		if (Context && Context->AsyncState.NumAvailableTasks > 0)
+		{
+			NumDispatch = FMath::Min(Context->AsyncState.NumAvailableTasks, NumDispatch);
+		}
 		const int32 NumIterationsPerDispatch = NumIterations / NumDispatch;
 
 		TArray<TArray<TTuple<FTransform, FVector, float>>> InteriorSplinePointData;

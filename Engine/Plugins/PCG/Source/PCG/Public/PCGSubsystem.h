@@ -180,7 +180,10 @@ public:
 	void CancelAllGeneration();
 
 	/** Gets the output data for a given task */
-	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData, bool bClearDataOnGet = false);
+	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData);
+
+	/** Clears the output data for a given task. Should only be called on tasks with bNeedsManualClear set to true */
+	void ClearOutputData(FPCGTaskId InTaskId);
 
 	/** Register a new PCG Component or update it, will be added to the octree if it doesn't exists yet. Returns true if it was added/updated. Thread safe */
 	bool RegisterOrUpdatePCGComponent(UPCGComponent* InComponent, bool bDoActorMapping = true) { return ActorAndComponentMapping.RegisterOrUpdatePCGComponent(InComponent, bDoActorMapping); }

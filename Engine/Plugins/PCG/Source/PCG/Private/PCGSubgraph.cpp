@@ -747,7 +747,10 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 					// as we just can call the GetOutputData on a fresh data collection and merge it afterwards in the output data,
 					// but this is not needed here so we will keep the full assignment & benefit from the crc as well.
 					ensure(Context->SubgraphTaskIds.Num() == 1);
-					Subsystem->GetOutputData(Context->SubgraphTaskIds[0], Context->OutputData, /*bClearDataOnGet=*/true);
+					if (Subsystem->GetOutputData(Context->SubgraphTaskIds[0], Context->OutputData))
+					{
+						Subsystem->ClearOutputData(Context->SubgraphTaskIds[0]);
+					}
 				}
 			}
 			else
