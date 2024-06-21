@@ -122,10 +122,6 @@ private:
 	// End SWidget
 
 private:
-
-	/** Generates a widget for the specified item */
-	TSharedRef<ITableRow> OnGenerateWidgetForItem(TSharedPtr<FPlaceableItem> InItem, const TSharedRef<STableViewBase>& OwnerTable);
-
 	/** Get the identifier of the currently active tab */
 	FName GetActiveTab() const;
 
@@ -166,15 +162,6 @@ private:
 
 	/** Gets the tab 'active' state, so that we can show the active style */
 	ECheckBoxState GetPlacementTabCheckedState( FName CategoryName ) const;
-
-	/** Gets the visibility for the failed search text */
-	EVisibility GetFailedSearchVisibility() const;
-
-	/** Gets the visibility for the list view */
-	EVisibility GetListViewVisibility() const;
-
-	/** Gets the visibility for tabs */
-	EVisibility GetTabsVisibility() const;
 
 private:
 
