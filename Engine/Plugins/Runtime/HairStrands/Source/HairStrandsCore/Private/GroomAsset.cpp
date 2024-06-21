@@ -1482,6 +1482,8 @@ void UGroomAsset::PostLoad()
 			}
 		}
 	}
+	// Update the physics system based on the enum for picking the right asset while packaging 
+	UpdatePhysicsSystems();
 }
 
 void UGroomAsset::BeginDestroy()
@@ -1609,6 +1611,10 @@ void UGroomAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 			CachedHairGroupsMeshes.Init(Dirty, GroupCount);
 		}
 	}
+	if(PropertyName == GET_MEMBER_NAME_CHECKED(FHairSolverSettings, NiagaraSolver))
+	{
+		UpdatePhysicsSystems();
+	}
 
 	// Rebuild the groom cached data if interpolation or LODs have changed
 	const bool bNeedRebuildDerivedData = 
@@ -1727,6 +1733,21 @@ void UGroomAsset::PostInitProperties()
 	Super::PostInitProperties();
 }
 #endif
+
+void UGroomAsset::UpdatePhysicsSystems()
+{
+	for (auto& Group : GetHairGroupsPhysics())
+	{
+		if (Group.SolverSettings.NiagaraSolver == EGroomNiagaraSolvers::AngularSprings)
+		{
+			Group.SolverSettings.CustomSystem = LoadObject<UNiagaraSystem>(nullptr, TEXT("/HairStrands/Emitters/StableSpringsSystem.StableSpringsSystem"));
+		}
+		else if (Group.SolverSettings.NiagaraSolver == EGroomNiagaraSolvers::CosseratRods)
+		{
+			Group.SolverSettings.CustomSystem = LoadObject<UNiagaraSystem>(nullptr, TEXT("/HairStrands/Emitters/StableRodsSystem.StableRodsSystem"));
+		}
+	}
+}
 
 int32 UGroomAsset::GetNumHairGroups() const
 {

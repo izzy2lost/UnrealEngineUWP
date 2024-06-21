@@ -770,6 +770,9 @@ public:
 private:
 	void ApplyStripFlags(uint8 StripFlags, const class ITargetPlatform* CookTarget);
 
+	/** Update the physics system based on the solver settings enum */
+	void UpdatePhysicsSystems();
+
 	// Functions allocating lazily/on-demand resources (guides, interpolation, RT geometry, ...)
 	FHairStrandsRestResource*			AllocateGuidesResources(uint32 GroupIndex);
 	FHairStrandsInterpolationResource*	AllocateInterpolationResources(uint32 GroupIndex);

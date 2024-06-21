@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GroomAssetPhysics.h"
+#include "NiagaraSystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GroomAssetPhysics)
 
@@ -12,6 +13,7 @@ FHairSolverSettings::FHairSolverSettings()
 	IterationCount = 5;
 	GravityPreloading = 0.0f;
 	bForceVisible = false;
+	CustomSystem =  LoadObject<UNiagaraSystem>(nullptr, TEXT("/HairStrands/Emitters/StableSpringsSystem.StableSpringsSystem"));
 }
 
 FHairExternalForces::FHairExternalForces()
