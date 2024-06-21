@@ -289,10 +289,9 @@ namespace Horde.Server.Configuration
 		{
 			if (node is JsonArray arrayNode)
 			{
-				ObjectConfigNode classElementType = (ObjectConfigNode)ElementType;
 				foreach (JsonObject? element in arrayNode)
 				{
-					await classElementType.ParseIncludesAsync(element, includes, context, cancellationToken);
+					await ElementType.ParseIncludesAsync(element, includes, context, cancellationToken);
 				}
 			}
 		}
