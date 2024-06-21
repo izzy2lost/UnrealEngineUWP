@@ -54,6 +54,16 @@ bool UAnyButtonInputBehavior::IsReleased(const FInputDeviceState& input)
 	return false;
 }
 
+bool UAnyButtonInputBehavior::IsDoubleClicked(const FInputDeviceState& Input)
+{
+	if (Input.IsFromDevice(EInputDevices::Mouse))
+	{
+		ActiveDevice = EInputDevices::Mouse;
+		return GetButtonStateFunc(Input).bDoubleClicked;
+	}
+	return false;
+}
+
 FVector2D UAnyButtonInputBehavior::GetClickPoint(const FInputDeviceState& input)
 {
 	if (input.IsFromDevice(EInputDevices::Mouse))

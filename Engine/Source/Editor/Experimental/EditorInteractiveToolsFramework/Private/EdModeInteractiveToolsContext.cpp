@@ -933,7 +933,7 @@ bool UModeManagerInteractiveToolsContext::InputKey(FEditorViewportClient* Viewpo
 	// Update the current state, then route result
 	UpdateStateWithoutRoutingInputKey(ViewportClient, Viewport, Key, Event);
 
-	if (Event == IE_Pressed || Event == IE_Released)
+	if (Event == IE_Pressed || Event == IE_Released || Event == IE_DoubleClick)
 	{
 		if (Key.IsMouseButton())
 		{
@@ -960,20 +960,23 @@ bool UModeManagerInteractiveToolsContext::InputKey(FEditorViewportClient* Viewpo
 					ModifierKeys.IsShiftDown(), ModifierKeys.IsAltDown(),
 					ModifierKeys.IsControlDown(), ModifierKeys.IsCommandDown());
 
+				// DoubleClick replaces a Press event. Include DoubleClick in Pressed/Down events so
+				// that it can still be processed by single click behaviors. For explicit double click
+				// handling, clients can listen for the DoubleClick event with a higher capture priority.
+				const bool bIsPressed = (Event == IE_Pressed || Event == IE_DoubleClick);
+				const bool bIsReleased = (Event == IE_Released);
+				const bool bIsDoubleClick = (Event == IE_DoubleClick);
 				if (bIsLeftMouse)
 				{
-					InputState.Mouse.Left.SetStates(
-						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
+					InputState.Mouse.Left.SetStates(bIsPressed, bIsPressed, bIsReleased, bIsDoubleClick);
 				}
 				else if (bIsMiddleMouse)
 				{
-					InputState.Mouse.Middle.SetStates(
-						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
+					InputState.Mouse.Middle.SetStates(bIsPressed, bIsPressed, bIsReleased, bIsDoubleClick);
 				}
 				else
 				{
-					InputState.Mouse.Right.SetStates(
-						(Event == IE_Pressed), (Event == IE_Pressed), (Event == IE_Released));
+					InputState.Mouse.Right.SetStates(bIsPressed, bIsPressed, bIsReleased, bIsDoubleClick);
 				}
 				if (InputRouter->PostInputEvent(InputState))
 				{
