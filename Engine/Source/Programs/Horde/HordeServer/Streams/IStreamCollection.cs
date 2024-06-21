@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 
-namespace Horde.Server.Streams
+namespace HordeServer.Streams
 {
 	/// <summary>
 	/// Collection of stream documents

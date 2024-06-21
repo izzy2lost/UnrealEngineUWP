@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Dashboard;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Dashboard
+namespace HordeServer.Tests.Dashboard
 {
 	/// <summary>
 	/// Tests for the dashboard

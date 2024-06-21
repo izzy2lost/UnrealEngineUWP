@@ -5,10 +5,10 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using EpicGames.Core;
-using Horde.Server.Commands;
+using HordeServer.Commands;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests
+namespace HordeServer.Tests
 {
 	[TestClass]
 	public class ProgramTests

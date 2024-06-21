@@ -3,7 +3,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Horde.Server.Users
+namespace HordeServer.Users
 {
 	/// <summary>
 	/// Provides avatar images

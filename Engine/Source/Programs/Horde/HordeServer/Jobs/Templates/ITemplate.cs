@@ -7,7 +7,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Jobs.Templates
+namespace HordeServer.Jobs.Templates
 {
 	/// <summary>
 	/// Base class for parameters used to configure templates via the new build dialog

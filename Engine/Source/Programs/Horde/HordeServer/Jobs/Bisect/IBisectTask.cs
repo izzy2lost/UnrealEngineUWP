@@ -8,7 +8,7 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 
-namespace Horde.Server.Jobs.Bisect
+namespace HordeServer.Jobs.Bisect
 {
 	/// <summary>
 	/// State of a bisect task

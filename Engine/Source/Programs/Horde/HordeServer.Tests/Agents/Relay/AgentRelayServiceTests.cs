@@ -10,13 +10,13 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using Grpc.Core;
 using Horde.Common.Rpc;
-using Horde.Server.Agents.Relay;
-using Horde.Server.Tests.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Relay;
+using HordeServer.Tests.Server;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents.Relay;
+namespace HordeServer.Tests.Agents.Relay;
 
 [TestClass]
 public class AgentRelayServiceTests : TestSetup

@@ -10,8 +10,8 @@ using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
@@ -20,7 +20,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 
-namespace Horde.Server.Users
+namespace HordeServer.Users
 {
 	/// <summary>
 	/// Manages user documents

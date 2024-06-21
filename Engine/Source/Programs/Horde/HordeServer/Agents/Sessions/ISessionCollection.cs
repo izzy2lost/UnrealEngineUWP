@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
 
-namespace Horde.Server.Agents.Sessions
+namespace HordeServer.Agents.Sessions
 {
 	/// <summary>
 	/// Interface for a collection of session documents

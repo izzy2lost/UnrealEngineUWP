@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Periodically send metrics for the CLR and other services that cannot be collected on a per-request basis

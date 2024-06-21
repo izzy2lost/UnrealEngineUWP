@@ -2,9 +2,9 @@
 
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
-using Horde.Server.Acls;
+using HordeServer.Acls;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Predetermined claim values

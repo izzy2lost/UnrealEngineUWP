@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Only requests to attached controller to pass if debug endpoint is enabled in settings

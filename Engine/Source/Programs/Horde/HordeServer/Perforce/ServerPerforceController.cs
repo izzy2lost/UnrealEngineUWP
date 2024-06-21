@@ -8,12 +8,12 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Server;
 using EpicGames.Perforce;
-using Horde.Server.Configuration;
-using Horde.Server.Utilities;
+using HordeServer.Configuration;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Horde.Server.Perforce
+namespace HordeServer.Perforce
 {
 	/// <summary>
 	/// Implements preflight of config changes with Perforce

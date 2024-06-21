@@ -12,20 +12,20 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs;
-using Horde.Server.Logs;
-using Horde.Server.Perforce;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Jobs;
+using HordeServer.Logs;
+using HordeServer.Perforce;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Tasks
+namespace HordeServer.Tasks
 {
 	/// <summary>
 	/// Generates tasks telling agents to sync their workspaces

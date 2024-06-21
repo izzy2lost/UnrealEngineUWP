@@ -10,16 +10,16 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Agents;
-using Horde.Server.Auditing;
-using Horde.Server.Jobs;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Auditing;
+using HordeServer.Jobs;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using HordeCommon.Rpc.Messages;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents;
+namespace HordeServer.Tests.Agents;
 
 /// <summary>
 ///     Testing the agent service

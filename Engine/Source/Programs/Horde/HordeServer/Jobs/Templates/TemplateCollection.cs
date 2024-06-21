@@ -6,13 +6,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Server;
+using HordeServer.Server;
 using Microsoft.Extensions.Caching.Memory;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Jobs.Templates
+namespace HordeServer.Jobs.Templates
 {
 	/// <summary>
 	/// Collection of template documents

@@ -21,13 +21,13 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Acls;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Telemetry;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Logs;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Telemetry;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -38,7 +38,7 @@ using MongoDB.Bson.Serialization.Options;
 using MongoDB.Driver;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Wrapper around the jobs collection in a mongo DB

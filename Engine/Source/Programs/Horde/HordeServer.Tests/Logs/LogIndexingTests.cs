@@ -10,13 +10,13 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
-using Horde.Server.Jobs;
-using Horde.Server.Logs;
-using Horde.Server.Storage;
+using HordeServer.Jobs;
+using HordeServer.Logs;
+using HordeServer.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Logs
+namespace HordeServer.Tests.Logs
 {
 	class TestLogWriter : IAsyncDisposable
 	{
@@ -60,7 +60,7 @@ namespace Horde.Server.Tests.Logs
 	[TestClass]
 	public class LogIndexingTests : TestSetup
 	{
-		private readonly byte[] _data = Horde.Server.Compute.Tests.Properties.Resources.TextFile;
+		private readonly byte[] _data = HordeServer.Compute.Tests.Properties.Resources.TextFile;
 
 		[TestMethod]
 		public async Task IndexTestsAsync()

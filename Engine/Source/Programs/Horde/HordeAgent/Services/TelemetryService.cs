@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Management.Infrastructure;
 
-namespace Horde.Agent.Services;
+namespace HordeAgent.Services;
 
 /// <summary>
 /// Metrics for CPU usage

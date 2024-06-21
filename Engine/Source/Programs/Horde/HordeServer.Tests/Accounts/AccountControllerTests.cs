@@ -6,8 +6,8 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using Horde.Server.Accounts;
-using Horde.Server.Users;
+using HordeServer.Accounts;
+using HordeServer.Users;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -15,7 +15,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 #pragma warning disable CA2234 // Pass system uri objects instead of strings
 #pragma warning disable CA1307 // Specify StringComparison for clarity
 
-namespace Horde.Server.Tests.Accounts;
+namespace HordeServer.Tests.Accounts;
 
 [TestClass]
 public class AccountControllerTest : IAsyncDisposable

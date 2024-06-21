@@ -11,7 +11,7 @@ using EpicGames.Horde.Jobs;
 using HordeCommon;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Jobs.Graphs
+namespace HordeServer.Jobs.Graphs
 {
 	/// <summary>
 	/// A unique dependency graph instance

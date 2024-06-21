@@ -9,7 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Interface for a service which keeps track of whether we're during downtime

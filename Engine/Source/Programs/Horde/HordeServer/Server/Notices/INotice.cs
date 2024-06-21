@@ -5,7 +5,7 @@ using EpicGames.Horde.Users;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Server.Notices
+namespace HordeServer.Server.Notices
 {
 	/// <summary>
 	/// User notice

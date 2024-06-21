@@ -10,7 +10,7 @@ using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Management.Infrastructure;
 
-namespace Horde.Agent.Commands.Service
+namespace HordeAgent.Commands.Service
 {
 	/// <summary>
 	/// Upgrades a running service to the current application

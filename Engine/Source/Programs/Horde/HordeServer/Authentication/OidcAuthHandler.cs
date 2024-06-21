@@ -6,8 +6,8 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OAuth.Claims;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
-namespace Horde.Server.Authentication
+namespace HordeServer.Authentication
 {
 	class OidcAuthHandler : OpenIdConnectHandler
 	{

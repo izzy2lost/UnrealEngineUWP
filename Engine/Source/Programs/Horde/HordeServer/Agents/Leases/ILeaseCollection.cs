@@ -11,7 +11,7 @@ using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 
-namespace Horde.Server.Agents.Leases
+namespace HordeServer.Agents.Leases
 {
 	/// <summary>
 	/// Interface for a collection of lease documents

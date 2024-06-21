@@ -8,7 +8,7 @@ using EpicGames.Core;
 
 #pragma warning disable CS1591
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	[TypeConverter(typeof(ContentIdTypeConverter))]
 	public class ContentId : ContentHash, IEquatable<ContentId>

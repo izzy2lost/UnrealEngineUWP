@@ -9,7 +9,7 @@ using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Dashboard
+namespace HordeServer.Dashboard
 {
 	/// <summary>
 	/// The units used to present the telemetry

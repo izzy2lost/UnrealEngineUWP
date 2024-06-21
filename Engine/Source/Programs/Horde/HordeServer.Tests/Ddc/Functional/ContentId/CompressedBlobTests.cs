@@ -15,16 +15,16 @@ using Blake3;
 using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using Horde.Server.Configuration;
-using Horde.Server.Ddc;
-using Horde.Server.Server;
-using Horde.Server.Storage;
+using HordeServer.Configuration;
+using HordeServer.Ddc;
+using HordeServer.Server;
+using HordeServer.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 
-namespace Horde.Server.Tests.Ddc.FunctionalTests.CompressedBlobs
+namespace HordeServer.Tests.Ddc.FunctionalTests.CompressedBlobs
 {
 	[TestClass]
 	public class CompressedBlobTests : ControllerIntegrationTest

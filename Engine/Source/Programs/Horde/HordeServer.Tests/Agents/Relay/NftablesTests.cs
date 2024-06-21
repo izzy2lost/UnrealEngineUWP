@@ -2,10 +2,10 @@
 
 using System.Collections.Generic;
 using Horde.Common.Rpc;
-using Horde.Server.Agents.Relay;
+using HordeServer.Agents.Relay;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents.Relay;
+namespace HordeServer.Tests.Agents.Relay;
 
 [TestClass]
 public class NftablesTests

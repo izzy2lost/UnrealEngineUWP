@@ -12,7 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
-namespace Horde.Server.Server;
+namespace HordeServer.Server;
 
 /// <summary>
 /// Allows reporting the health of a subsystem

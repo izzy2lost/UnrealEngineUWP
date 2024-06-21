@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Agents.Leases
+namespace HordeServer.Agents.Leases
 {
 	/// <summary>
 	/// ACL actions which apply to leases

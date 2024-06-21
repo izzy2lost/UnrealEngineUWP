@@ -7,13 +7,13 @@ using System.Text.Json;
 using Amazon.AutoScaling;
 using Amazon.EC2;
 using EpicGames.Core;
-using Horde.Server.Agents.Fleet.Providers;
+using HordeServer.Agents.Fleet.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Fleet;
+namespace HordeServer.Agents.Fleet;
 
 /// <summary>
 /// Interface for fleet manager factory

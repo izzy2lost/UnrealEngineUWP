@@ -6,13 +6,13 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
-using Horde.Server.ServiceAccounts;
+using HordeServer.ServiceAccounts;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
-namespace Horde.Server.Authentication
+namespace HordeServer.Authentication
 {
 	class ServiceAccountAuthOptions : AuthenticationSchemeOptions
 	{

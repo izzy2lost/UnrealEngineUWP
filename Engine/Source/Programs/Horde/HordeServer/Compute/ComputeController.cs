@@ -9,14 +9,14 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
-using Horde.Server.Acls;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Compute
+namespace HordeServer.Compute
 {
 	/// <summary>
 	/// Controller for the /api/v2/compute endpoint

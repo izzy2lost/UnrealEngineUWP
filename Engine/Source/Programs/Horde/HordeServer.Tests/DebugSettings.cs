@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace Horde.Server.Tests
+namespace HordeServer.Tests
 {
 	/// <summary>
 	/// Settings used for debug tests

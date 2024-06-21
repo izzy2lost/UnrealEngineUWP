@@ -4,7 +4,7 @@ using System;
 using EpicGames.Core;
 using MongoDB.Bson.Serialization;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Serializer for ContentHash objects

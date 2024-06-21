@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Telemetry
+namespace HordeServer.Telemetry
 {
 	static class TelemetryAclAction
 	{

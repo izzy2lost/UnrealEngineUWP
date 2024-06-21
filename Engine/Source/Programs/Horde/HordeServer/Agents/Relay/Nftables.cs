@@ -12,7 +12,7 @@ using Horde.Common.Rpc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Horde.Server.Agents.Relay;
+namespace HordeServer.Agents.Relay;
 
 /// <summary>
 /// nftables specific exception

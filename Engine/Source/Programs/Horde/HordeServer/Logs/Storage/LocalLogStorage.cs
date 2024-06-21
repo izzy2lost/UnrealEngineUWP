@@ -3,10 +3,10 @@
 using System;
 using System.Threading.Tasks;
 using EpicGames.Horde.Logs;
-using Horde.Server.Logs.Data;
+using HordeServer.Logs.Data;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace Horde.Server.Logs.Storage
+namespace HordeServer.Logs.Storage
 {
 	/// <summary>
 	/// In-memory cache for chunk and index data

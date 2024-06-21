@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// General server ACL actions

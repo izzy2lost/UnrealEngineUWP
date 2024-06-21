@@ -11,18 +11,18 @@ using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Jobs.Bisect
+namespace HordeServer.Jobs.Bisect
 {
 	/// <summary>
 	/// Request to create a new bisect task

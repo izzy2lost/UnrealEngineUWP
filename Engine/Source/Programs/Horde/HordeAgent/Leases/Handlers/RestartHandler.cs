@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Agents.Leases;
-using Horde.Agent.Services;
-using Horde.Agent.Utility;
+using HordeAgent.Services;
+using HordeAgent.Utility;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Leases.Handlers
+namespace HordeAgent.Leases.Handlers
 {
 	class RestartHandler : LeaseHandler<RestartTask>
 	{

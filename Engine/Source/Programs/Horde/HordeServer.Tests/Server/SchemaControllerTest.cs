@@ -9,7 +9,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #pragma warning disable CA2234 // Pass system uri objects instead of strings
 
-namespace Horde.Server.Tests.Server
+namespace HordeServer.Tests.Server
 {
 	[TestClass]
 	public class SchemaControllerTest : ControllerIntegrationTest

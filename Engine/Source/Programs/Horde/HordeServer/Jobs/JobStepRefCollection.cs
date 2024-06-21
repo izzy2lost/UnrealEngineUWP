@@ -11,15 +11,15 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Telemetry;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Telemetry;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Collection of JobStepRef documents

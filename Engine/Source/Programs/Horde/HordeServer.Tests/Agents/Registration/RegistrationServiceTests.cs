@@ -6,11 +6,11 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
-using Horde.Server.Agents.Enrollment;
+using HordeServer.Agents.Enrollment;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents.Registration
+namespace HordeServer.Tests.Agents.Registration
 {
 	[TestClass]
 	public class RegistrationServiceTests : TestSetup

@@ -13,26 +13,26 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Acls;
-using Horde.Server.Agents;
-using Horde.Server.Artifacts;
-using Horde.Server.Commits;
-using Horde.Server.Jobs.Artifacts;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Jobs.Timing;
-using Horde.Server.Notifications;
-using Horde.Server.Perforce;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Agents;
+using HordeServer.Artifacts;
+using HordeServer.Commits;
+using HordeServer.Jobs.Artifacts;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Jobs.Templates;
+using HordeServer.Jobs.Timing;
+using HordeServer.Notifications;
+using HordeServer.Perforce;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Controller for the /api/v1/jobs endpoing

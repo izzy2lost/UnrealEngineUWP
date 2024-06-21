@@ -3,7 +3,7 @@
 using EpicGames.Horde;
 using MongoDB.Bson;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Utility methods for <see cref="BinaryId"/>

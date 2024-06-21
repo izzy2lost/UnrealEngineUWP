@@ -23,17 +23,17 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Perforce;
 using Horde.Common.Rpc;
-using Horde.Server.Acls;
-using Horde.Server.Configuration;
-using Horde.Server.Issues;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Projects;
-using Horde.Server.Replicators;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Configuration;
+using HordeServer.Issues;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Jobs.Templates;
+using HordeServer.Projects;
+using HordeServer.Replicators;
+using HordeServer.Server;
+using HordeServer.Utilities;
 
-namespace Horde.Server.Streams
+namespace HordeServer.Streams
 {
 	/// <summary>
 	/// Flags identifying content of a changelist

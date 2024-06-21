@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Server;
+using HordeServer.Jobs.Templates;
+using HordeServer.Server;
 using HordeCommon;
 using Microsoft.Extensions.Caching.Memory;
 using MongoDB.Bson;
@@ -18,7 +18,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
 using MongoDB.Driver;
 
-namespace Horde.Server.Jobs.Graphs
+namespace HordeServer.Jobs.Graphs
 {
 	/// <summary>
 	/// Collection of graph documents

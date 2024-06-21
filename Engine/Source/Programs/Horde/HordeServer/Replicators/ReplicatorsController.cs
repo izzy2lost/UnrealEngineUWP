@@ -6,15 +6,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Streams;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Utilities;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Replicators
+namespace HordeServer.Replicators
 {
 	/// <summary>
 	/// Controller for the /api/v1/projects endpoint

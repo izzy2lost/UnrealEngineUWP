@@ -2,7 +2,7 @@
 
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Services
+namespace HordeAgent.Services
 {
 	/// <summary>
 	/// Outcome from a session

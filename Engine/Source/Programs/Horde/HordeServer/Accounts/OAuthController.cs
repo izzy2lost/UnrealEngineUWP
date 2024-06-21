@@ -11,9 +11,9 @@ using System.Threading.Tasks;
 using System.Web;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Server;
-using Horde.Server.Server;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using IdentityModel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,7 +22,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Horde.Server.Accounts
+namespace HordeServer.Accounts
 {
 	/// <summary>
 	/// Controller for /api/v1/oauth2 endpoints

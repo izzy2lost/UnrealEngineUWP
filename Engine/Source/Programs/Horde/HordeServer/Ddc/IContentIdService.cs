@@ -7,7 +7,7 @@ using EpicGames.Horde.Storage;
 
 #pragma warning disable CS1591
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	public interface IContentIdStore
 	{

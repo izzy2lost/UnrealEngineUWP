@@ -5,9 +5,9 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
-using Horde.Server.Telemetry.Metrics;
+using HordeServer.Telemetry.Metrics;
 
-namespace Horde.Server.Telemetry.Sinks
+namespace HordeServer.Telemetry.Sinks
 {
 	/// <summary>
 	/// Consumes telemetry events and generates metrics

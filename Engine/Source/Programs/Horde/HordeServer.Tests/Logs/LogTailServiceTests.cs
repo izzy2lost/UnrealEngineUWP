@@ -8,14 +8,14 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Logs;
 using EpicGames.Redis;
-using Horde.Server.Logs;
-using Horde.Server.Server;
+using HordeServer.Logs;
+using HordeServer.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Logs
+namespace HordeServer.Tests.Logs
 {
 	[TestClass]
 	public class LogTailServiceTests : TestSetup

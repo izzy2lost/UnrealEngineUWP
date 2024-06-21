@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace Horde.Server.Telemetry
+namespace HordeServer.Telemetry
 {
 	/// <summary>
 	/// Wrapper around native telemetry objects

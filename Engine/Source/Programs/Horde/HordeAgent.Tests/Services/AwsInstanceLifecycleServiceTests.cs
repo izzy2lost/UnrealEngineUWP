@@ -7,14 +7,14 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Moq.Protected;
 
-namespace Horde.Agent.Tests.Services;
+namespace HordeAgent.Tests.Services;
 
 /// <summary>
 /// Fake implementation of the AWS EC2 metadata server (IMDS)

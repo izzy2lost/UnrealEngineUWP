@@ -7,17 +7,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Commits;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Commits;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Jobs.Templates;
+using HordeServer.Server;
+using HordeServer.Streams;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
-namespace Horde.Server.Jobs.Bisect
+namespace HordeServer.Jobs.Bisect
 {
 	class BisectService : IHostedService
 	{

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	class ContentIdStore : IContentIdStore
 	{

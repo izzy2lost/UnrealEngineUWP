@@ -9,7 +9,7 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	/// <summary>
 	/// Identifier for a storage bucket

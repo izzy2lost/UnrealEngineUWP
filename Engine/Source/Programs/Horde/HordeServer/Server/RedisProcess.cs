@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Runs a local instance of redis

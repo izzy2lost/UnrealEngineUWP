@@ -8,7 +8,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using MongoDB.Bson;
 
-namespace Horde.Server.Issues
+namespace HordeServer.Issues
 {
 	/// <summary>
 	/// Stores information about a build health issue

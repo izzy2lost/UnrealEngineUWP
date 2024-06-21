@@ -4,7 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
-namespace Horde.Agent.Utility
+namespace HordeAgent.Utility
 {
 	/// <summary>
 	/// Utility functions for mapping network shares

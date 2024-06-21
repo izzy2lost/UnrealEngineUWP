@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Redis;
-using Horde.Server.Server;
+using HordeServer.Server;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
-namespace Horde.Server.Agents.Enrollment
+namespace HordeServer.Agents.Enrollment
 {
 	/// <summary>
 	/// Information about a machine requesting to be registered

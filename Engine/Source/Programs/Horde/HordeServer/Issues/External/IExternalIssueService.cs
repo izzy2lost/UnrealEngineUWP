@@ -4,11 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Streams;
-using Horde.Server.Users;
+using HordeServer.Streams;
+using HordeServer.Users;
 using Microsoft.Extensions.Hosting;
 
-namespace Horde.Server.Issues.External
+namespace HordeServer.Issues.External
 {
 	/// <summary>
 	/// External issue tracking project

@@ -8,14 +8,14 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Server.Configuration;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Configuration;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Streams;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Configuration
+namespace HordeServer.Tests.Configuration
 {
 	[TestClass]
 	public class ConfigTests

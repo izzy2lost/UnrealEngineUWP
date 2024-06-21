@@ -8,15 +8,15 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
-using Horde.Server.Perforce;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Perforce;
+using HordeServer.Server;
+using HordeServer.Streams;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Pools
+namespace HordeServer.Agents.Pools
 {
 	/// <summary>
 	/// Periodically updates pool documents to contain the correct workspaces

@@ -11,7 +11,7 @@ using Amazon.Runtime.Endpoints;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
-namespace Horde.Server.Tests.Fleet;
+namespace HordeServer.Tests.Fleet;
 
 #pragma warning disable CA1054
 

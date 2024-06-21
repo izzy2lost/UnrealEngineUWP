@@ -2,12 +2,12 @@
 
 using System.Net;
 using EpicGames.Core;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Controller managing account status

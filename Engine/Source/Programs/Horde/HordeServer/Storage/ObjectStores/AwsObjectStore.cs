@@ -15,12 +15,12 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Storage.ObjectStores
+namespace HordeServer.Storage.ObjectStores
 {
 	/// <summary>
 	/// Exception wrapper for S3 requests

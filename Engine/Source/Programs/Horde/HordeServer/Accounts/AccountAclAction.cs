@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Accounts
+namespace HordeServer.Accounts
 {
 	/// <summary>
 	/// ACL actions valid for manipulating jobs

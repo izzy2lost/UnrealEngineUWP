@@ -13,10 +13,10 @@ using EpicGames.Horde.Agents.Leases;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Agents;
+using HordeServer.Agents;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Tasks
+namespace HordeServer.Tasks
 {
 	/// <summary>
 	/// Flags indicating when a task source is valid

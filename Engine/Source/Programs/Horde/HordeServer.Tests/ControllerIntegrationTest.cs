@@ -5,15 +5,15 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Amazon.CloudWatch;
-using Horde.Server.Agents;
-using Horde.Server.Configuration;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Artifacts;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Perforce;
-using Horde.Server.Server;
-using Horde.Server.Tests.Stubs.Services;
+using HordeServer.Agents;
+using HordeServer.Configuration;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Artifacts;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Jobs.Templates;
+using HordeServer.Perforce;
+using HordeServer.Server;
+using HordeServer.Tests.Stubs.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -23,7 +23,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Serilog;
 
-namespace Horde.Server.Tests;
+namespace HordeServer.Tests;
 
 static class SerilogExtensions
 {

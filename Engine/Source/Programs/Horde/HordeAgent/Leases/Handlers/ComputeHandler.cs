@@ -6,13 +6,13 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Transports;
 using EpicGames.Horde.Logs;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Leases.Handlers
+namespace HordeAgent.Leases.Handlers
 {
 	/// <summary>
 	/// Handler for compute tasks

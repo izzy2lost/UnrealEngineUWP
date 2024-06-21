@@ -9,14 +9,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
-using Horde.Server.Server;
-using Horde.Server.Telemetry.Metrics;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Telemetry.Metrics;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Telemetry
+namespace HordeServer.Telemetry
 {
 	/// <summary>
 	/// Controller for the /api/v1/telemetry endpoint

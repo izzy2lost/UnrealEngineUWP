@@ -21,13 +21,13 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Acls;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Jobs;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Streams;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Agents.Leases;
+using HordeServer.Jobs;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Streams;
+using HordeServer.Utilities;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -37,7 +37,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Artifacts
+namespace HordeServer.Artifacts
 {
 	/// <summary>
 	/// Public interface for artifacts

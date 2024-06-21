@@ -9,16 +9,16 @@ using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.TestData;
 using EpicGames.Horde.Streams;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 
-namespace Horde.Server.Jobs.TestData
+namespace HordeServer.Jobs.TestData
 {
 	/// <summary>
 	/// Controller for the /api/v1/testdata endpoint

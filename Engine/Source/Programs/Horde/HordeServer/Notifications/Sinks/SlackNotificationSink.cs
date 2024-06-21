@@ -29,17 +29,17 @@ using EpicGames.Redis.Utility;
 using EpicGames.Slack;
 using EpicGames.Slack.Blocks;
 using EpicGames.Slack.Elements;
-using Horde.Server.Agents;
-using Horde.Server.Configuration;
-using Horde.Server.Devices;
-using Horde.Server.Issues;
-using Horde.Server.Issues.External;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Users;
+using HordeServer.Agents;
+using HordeServer.Configuration;
+using HordeServer.Devices;
+using HordeServer.Issues;
+using HordeServer.Issues.External;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Logs;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Users;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Caching.Memory;
@@ -51,7 +51,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using StackExchange.Redis;
 
-namespace Horde.Server.Notifications.Sinks
+namespace HordeServer.Notifications.Sinks
 {
 	/// <summary>
 	/// Maintains a connection to Slack, in order to receive socket-mode notifications of user interactions

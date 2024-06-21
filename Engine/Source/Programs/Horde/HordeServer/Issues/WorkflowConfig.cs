@@ -4,9 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Horde.Issues;
-using Horde.Server.Jobs.Graphs;
+using HordeServer.Jobs.Graphs;
 
-namespace Horde.Server.Issues
+namespace HordeServer.Issues
 {
 	/// <summary>
 	/// Configuration for an issue workflow

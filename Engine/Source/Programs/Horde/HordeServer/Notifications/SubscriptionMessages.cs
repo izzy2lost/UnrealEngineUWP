@@ -7,7 +7,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 
-namespace Horde.Server.Notifications
+namespace HordeServer.Notifications
 {
 	/// <summary>
 	/// Request object for creating a new subscription

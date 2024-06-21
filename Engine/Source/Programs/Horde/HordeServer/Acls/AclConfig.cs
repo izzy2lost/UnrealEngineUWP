@@ -7,23 +7,23 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Horde.Acls;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Agents.Software;
-using Horde.Server.Artifacts;
-using Horde.Server.Devices;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Bisect;
-using Horde.Server.Logs;
-using Horde.Server.Notifications;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Tools;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Agents.Sessions;
+using HordeServer.Agents.Software;
+using HordeServer.Artifacts;
+using HordeServer.Devices;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Bisect;
+using HordeServer.Logs;
+using HordeServer.Notifications;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Tools;
+using HordeServer.Utilities;
 
-namespace Horde.Server.Acls
+namespace HordeServer.Acls
 {
 	/// <summary>
 	/// Parameters to update an ACL

@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Replicators;
 
-namespace Horde.Server.Replicators
+namespace HordeServer.Replicators
 {
 	/// <summary>
 	/// Configuration for a stream replicator

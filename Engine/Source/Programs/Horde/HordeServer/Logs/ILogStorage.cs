@@ -3,9 +3,9 @@
 using System;
 using System.Threading.Tasks;
 using EpicGames.Horde.Logs;
-using Horde.Server.Logs.Data;
+using HordeServer.Logs.Data;
 
-namespace Horde.Server.Logs
+namespace HordeServer.Logs
 {
 	/// <summary>
 	/// Legacy interface for accessing log data. This is not used for new log files; the agent writes log chunks directly to the storage client.

@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using Grpc.Core;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Exception class designed to allow logging structured log messages

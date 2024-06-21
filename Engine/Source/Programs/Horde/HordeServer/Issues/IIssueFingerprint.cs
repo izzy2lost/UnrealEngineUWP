@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using EpicGames.Horde.Issues;
 
-namespace Horde.Server.Issues
+namespace HordeServer.Issues
 {
 	/// <summary>
 	/// Fingerprint for an issue

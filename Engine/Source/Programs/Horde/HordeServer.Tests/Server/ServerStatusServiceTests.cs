@@ -5,12 +5,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Configuration;
-using Horde.Server.Server;
+using HordeServer.Configuration;
+using HordeServer.Server;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Server
+namespace HordeServer.Tests.Server
 {
 	[TestClass]
 	public class ServerStatusServiceTest : TestSetup

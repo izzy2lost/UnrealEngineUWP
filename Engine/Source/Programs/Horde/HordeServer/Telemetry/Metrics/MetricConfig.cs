@@ -8,13 +8,13 @@ using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
-using Horde.Server.Acls;
-using Horde.Server.Configuration;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Configuration;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Json.Path;
 
-namespace Horde.Server.Telemetry.Metrics
+namespace HordeServer.Telemetry.Metrics
 {
 	/// <summary>
 	/// Method for aggregating samples into a metric

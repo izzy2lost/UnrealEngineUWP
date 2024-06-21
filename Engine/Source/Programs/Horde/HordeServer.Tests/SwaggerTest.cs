@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #pragma warning disable CA2234 // Pass system uri objects instead of strings
 
-namespace Horde.Server.Tests
+namespace HordeServer.Tests
 {
 	[TestClass]
 	public class SwaggerTest : ControllerIntegrationTest

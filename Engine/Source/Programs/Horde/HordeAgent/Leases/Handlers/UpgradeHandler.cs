@@ -8,13 +8,13 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Logs;
 using Grpc.Core;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Leases.Handlers
+namespace HordeAgent.Leases.Handlers
 {
 	class UpgradeHandler : LeaseHandler<UpgradeTask>
 	{

@@ -7,15 +7,15 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Streams;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Leases;
+using HordeServer.Agents.Pools;
+using HordeServer.Utilities;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Fleet
+namespace HordeServer.Tests.Fleet
 {
 	[TestClass]
 	public class LeaseUtilizationStrategyTest : TestSetup

@@ -5,13 +5,13 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Server;
+using HordeServer.Streams;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Expires jobs a certain amount of time after they have run

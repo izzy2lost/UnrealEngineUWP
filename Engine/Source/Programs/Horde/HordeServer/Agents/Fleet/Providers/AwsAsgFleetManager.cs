@@ -9,11 +9,11 @@ using System.Threading.Tasks;
 using Amazon.AutoScaling;
 using Amazon.AutoScaling.Model;
 using EpicGames.Horde.Agents.Pools;
-using Horde.Server.Agents.Pools;
+using HordeServer.Agents.Pools;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Fleet.Providers
+namespace HordeServer.Agents.Fleet.Providers
 {
 	/// <summary>
 	/// Settings for controlling an EC2 auto-scaling group (ASG)

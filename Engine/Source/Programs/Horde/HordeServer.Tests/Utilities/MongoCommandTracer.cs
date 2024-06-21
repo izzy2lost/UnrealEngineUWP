@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Bson;
@@ -14,7 +14,7 @@ using MongoDB.Driver.Core.Events;
 using MongoDB.Driver.Core.Servers;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Tests.Utilities;
+namespace HordeServer.Tests.Utilities;
 
 [TestClass]
 public class MongoCommandTracerTests

@@ -10,14 +10,14 @@ using EpicGames.Core;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Commits;
-using Horde.Server.Perforce;
-using Horde.Server.Streams;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Commits;
+using HordeServer.Perforce;
+using HordeServer.Streams;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Stubs.Services
+namespace HordeServer.Tests.Stubs.Services
 {
 	class PerforceServiceStub : IPerforceService
 	{

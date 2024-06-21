@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
-using Horde.Server.Streams;
-using Horde.Server.Utilities;
+using HordeServer.Streams;
+using HordeServer.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Server
+namespace HordeServer.Tests.Server
 {
 	[TestClass]
 	public class SchemaTests

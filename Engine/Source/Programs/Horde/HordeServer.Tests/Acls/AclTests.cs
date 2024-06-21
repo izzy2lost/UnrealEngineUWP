@@ -5,15 +5,15 @@ using System.Security.Claims;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
-using Horde.Server.Acls;
-using Horde.Server.Jobs;
-using Horde.Server.Logs;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Acls;
+using HordeServer.Jobs;
+using HordeServer.Logs;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Streams;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Acls
+namespace HordeServer.Tests.Acls
 {
 	[TestClass]
 	public class AclTests : TestSetup

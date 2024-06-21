@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Horde.Server.Configuration
+namespace HordeServer.Configuration
 {
 	/// <summary>
 	/// Attribute used to mark <see cref="Uri"/> properties that include other config files

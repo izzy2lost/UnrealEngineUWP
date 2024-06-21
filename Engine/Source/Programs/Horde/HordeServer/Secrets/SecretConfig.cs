@@ -5,10 +5,10 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Secrets;
-using Horde.Server.Acls;
-using Horde.Server.Server;
+using HordeServer.Acls;
+using HordeServer.Server;
 
-namespace Horde.Server.Secrets
+namespace HordeServer.Secrets
 {
 	/// <summary>
 	/// Configuration for a secret value

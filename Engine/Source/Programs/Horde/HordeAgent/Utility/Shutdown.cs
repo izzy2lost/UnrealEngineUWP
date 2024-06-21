@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Utility
+namespace HordeAgent.Utility
 {
 	static class Shutdown
 	{

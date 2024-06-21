@@ -12,9 +12,9 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using Grpc.Core;
-using Horde.Server.Agents;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.AspNetCore.Http;
@@ -23,7 +23,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Server
+namespace HordeServer.Tests.Server
 {
 	using ISession = Microsoft.AspNetCore.Http.ISession;
 

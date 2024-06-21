@@ -16,11 +16,11 @@ using EpicGames.Horde.Compute;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Horde.Common.Rpc;
-using Horde.Server.Agents.Relay;
-using Horde.Server.Configuration;
-using Horde.Server.Logs;
-using Horde.Server.Projects;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Relay;
+using HordeServer.Configuration;
+using HordeServer.Logs;
+using HordeServer.Projects;
+using HordeServer.Utilities;
 using JetBrains.Profiler.SelfApi;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -31,7 +31,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Controller managing account status

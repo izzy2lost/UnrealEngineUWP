@@ -11,13 +11,13 @@ using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Leases
+namespace HordeServer.Agents.Leases
 {
 	/// <summary>
 	/// Collection of lease documents

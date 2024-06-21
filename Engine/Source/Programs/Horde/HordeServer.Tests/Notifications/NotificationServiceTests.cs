@@ -6,23 +6,23 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Configuration;
-using Horde.Server.Devices;
-using Horde.Server.Issues;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Notifications;
-using Horde.Server.Streams;
-using Horde.Server.Users;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Configuration;
+using HordeServer.Devices;
+using HordeServer.Issues;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Logs;
+using HordeServer.Notifications;
+using HordeServer.Streams;
+using HordeServer.Users;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
-namespace Horde.Server.Tests.Notifications
+namespace HordeServer.Tests.Notifications
 {
 	public class FakeNotificationSink : INotificationSink
 	{

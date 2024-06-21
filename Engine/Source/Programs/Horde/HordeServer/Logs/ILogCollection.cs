@@ -9,7 +9,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using MongoDB.Bson;
 
-namespace Horde.Server.Logs
+namespace HordeServer.Logs
 {
 	/// <summary>
 	/// Wrapper around the jobs collection in a mongo DB

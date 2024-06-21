@@ -11,10 +11,10 @@ using Datadog.Trace.Configuration;
 using Datadog.Trace.OpenTracing;
 using EpicGames.Core;
 using EpicGames.Horde;
-using Horde.Agent.Leases;
-using Horde.Agent.Leases.Handlers;
-using Horde.Agent.Services;
-using Horde.Agent.Utility;
+using HordeAgent.Leases;
+using HordeAgent.Leases.Handlers;
+using HordeAgent.Services;
+using HordeAgent.Utility;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -22,7 +22,7 @@ using Microsoft.Win32;
 using OpenTracing.Util;
 using Polly;
 
-namespace Horde.Agent
+namespace HordeAgent
 {
 	using ITracer = OpenTracing.ITracer;
 

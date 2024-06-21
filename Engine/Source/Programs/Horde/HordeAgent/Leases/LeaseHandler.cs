@@ -6,7 +6,7 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Perforce.Managed;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
@@ -14,7 +14,7 @@ using OpenTracing;
 using OpenTracing.Util;
 using ByteString = Google.Protobuf.ByteString;
 
-namespace Horde.Agent.Leases
+namespace HordeAgent.Leases
 {
 	/// <summary>
 	/// Handles execution of a specific lease type

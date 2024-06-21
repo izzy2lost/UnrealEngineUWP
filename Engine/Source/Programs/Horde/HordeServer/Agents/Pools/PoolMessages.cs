@@ -7,9 +7,9 @@ using System.Linq;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
-using Horde.Server.Agents.Fleet;
+using HordeServer.Agents.Fleet;
 
-namespace Horde.Server.Agents.Pools
+namespace HordeServer.Agents.Pools
 {
 	/// <see cref="PoolSizeStrategyInfo" />
 	public class PoolSizeStrategyMessage

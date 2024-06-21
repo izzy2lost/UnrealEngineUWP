@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Users;
-using Horde.Server.Users;
+using HordeServer.Users;
 
-namespace Horde.Server.Issues
+namespace HordeServer.Issues
 {
 	/// <summary>
 	/// Cached issue information

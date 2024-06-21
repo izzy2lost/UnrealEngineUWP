@@ -11,17 +11,17 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Pools;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Fleet
+namespace HordeServer.Agents.Fleet
 {
 	/// <summary>
 	/// Job queue sizing settings for a pool

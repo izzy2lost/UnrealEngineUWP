@@ -3,9 +3,9 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Horde.Logs;
-using Horde.Server.Logs.Data;
+using HordeServer.Logs.Data;
 
-namespace Horde.Server.Logs.Storage
+namespace HordeServer.Logs.Storage
 {
 	/// <summary>
 	/// Storage layer which caches pending read tasks, to avoid fetching the same item more than once

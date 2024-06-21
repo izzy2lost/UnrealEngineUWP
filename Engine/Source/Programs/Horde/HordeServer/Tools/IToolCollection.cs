@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Tools;
 
-namespace Horde.Server.Tools
+namespace HordeServer.Tools
 {
 	/// <summary>
 	/// Collection of tools

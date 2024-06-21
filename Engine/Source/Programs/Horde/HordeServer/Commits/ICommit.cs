@@ -9,7 +9,7 @@ using EpicGames.Horde.Commits;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 
-namespace Horde.Server.Commits
+namespace HordeServer.Commits
 {
 	/// <summary>
 	/// Stores metadata about a commit

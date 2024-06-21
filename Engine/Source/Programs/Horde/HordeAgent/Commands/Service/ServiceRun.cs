@@ -8,7 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog.Events;
 
-namespace Horde.Agent.Commands.Service
+namespace HordeAgent.Commands.Service
 {
 	/// <summary>
 	/// Runs the agent
@@ -130,7 +130,7 @@ namespace Horde.Agent.Commands.Service
 
 			void WaitForMutex()
 			{
-				using Mutex mutex = new Mutex(false, "Horde.Agent.{C1F30772-CDD3-41E9-A6CE-42356DE7DEE3}");
+				using Mutex mutex = new Mutex(false, "HordeAgent.{C1F30772-CDD3-41E9-A6CE-42356DE7DEE3}");
 				try
 				{
 					if (!mutex.WaitOne(0))

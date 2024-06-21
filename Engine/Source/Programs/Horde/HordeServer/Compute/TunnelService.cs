@@ -13,7 +13,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Compute
+namespace HordeServer.Compute
 {
 	/// <summary>
 	/// Tunnels connections between Horde agents and compute initiators

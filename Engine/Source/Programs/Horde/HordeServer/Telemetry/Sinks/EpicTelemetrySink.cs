@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Extensions.Http;
 
-namespace Horde.Server.Telemetry.Sinks
+namespace HordeServer.Telemetry.Sinks
 {
 	/// <summary>
 	/// Options for the Epic telemetry sink

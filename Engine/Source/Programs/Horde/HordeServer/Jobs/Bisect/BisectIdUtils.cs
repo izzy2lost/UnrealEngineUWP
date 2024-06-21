@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Jobs.Bisect;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 
-namespace Horde.Server.Jobs.Bisect
+namespace HordeServer.Jobs.Bisect
 {
 	/// <summary>
 	/// Server helper methods for <see cref="BisectTaskId"/>

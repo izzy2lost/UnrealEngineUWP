@@ -7,10 +7,10 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Secrets;
-using Horde.Server.Server;
+using HordeServer.Server;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Secrets
+namespace HordeServer.Secrets
 {
 	/// <summary>
 	/// Implementation of <see cref="ISecretCollection"/>

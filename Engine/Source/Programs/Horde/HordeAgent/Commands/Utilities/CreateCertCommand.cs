@@ -6,7 +6,7 @@ using EpicGames.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Commands.Certs
+namespace HordeAgent.Commands.Certs
 {
 	/// <summary>
 	/// Creates a certificate that can be used for server/agent SSL connections

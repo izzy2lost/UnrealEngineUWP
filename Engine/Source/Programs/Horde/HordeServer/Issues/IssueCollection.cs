@@ -17,14 +17,14 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Users;
 using EpicGames.Redis.Utility;
-using Horde.Server.Auditing;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Telemetry;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Auditing;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Telemetry;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -34,7 +34,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Issues
+namespace HordeServer.Issues
 {
 	class IssueCollection : IIssueCollection
 	{

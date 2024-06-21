@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
 
-namespace Horde.Server.Commands
+namespace HordeServer.Commands
 {
 	using ILogger = Microsoft.Extensions.Logging.ILogger;
 

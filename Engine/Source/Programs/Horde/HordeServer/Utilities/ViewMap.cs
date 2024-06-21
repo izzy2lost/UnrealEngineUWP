@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Stores a mapping from one set of paths to another

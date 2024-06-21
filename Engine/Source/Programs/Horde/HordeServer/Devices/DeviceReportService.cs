@@ -7,15 +7,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Devices;
-using Horde.Server.Jobs;
-using Horde.Server.Notifications;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Jobs;
+using HordeServer.Notifications;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Devices
+namespace HordeServer.Devices
 {
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 	public class DeviceReport

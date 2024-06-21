@@ -7,16 +7,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Users;
-using Horde.Server.Issues;
-using Horde.Server.Logs;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Issues;
+using HordeServer.Logs;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 
-namespace Horde.Server.Ugs
+namespace HordeServer.Ugs
 {
 	/// <summary>
 	/// Controller for the /api/v1/issues endpoint

@@ -4,11 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using EpicGames.Horde.Logs;
-using Horde.Server.Logs.Data;
+using HordeServer.Logs.Data;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Logs
+namespace HordeServer.Tests.Logs
 {
 	[TestClass]
 	public class LogChunkTests

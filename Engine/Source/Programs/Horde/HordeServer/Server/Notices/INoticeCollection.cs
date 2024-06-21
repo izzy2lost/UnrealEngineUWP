@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Users;
 using MongoDB.Bson;
 
-namespace Horde.Server.Server.Notices
+namespace HordeServer.Server.Notices
 {
 	/// <summary>
 	/// A collection of user specified notices

@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Horde.Server.Streams;
+using HordeServer.Streams;
 
-namespace Horde.Server.Commits
+namespace HordeServer.Commits
 {
 	/// <summary>
 	/// Provides information about commits to a stream

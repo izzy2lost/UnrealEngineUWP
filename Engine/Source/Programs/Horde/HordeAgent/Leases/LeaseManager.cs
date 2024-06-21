@@ -4,13 +4,13 @@ using System.Diagnostics;
 using EpicGames.Core;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Leases
+namespace HordeAgent.Leases
 {
 	/// <summary>
 	/// Implements the message handling loop for an agent. Runs asynchronously until disposed.

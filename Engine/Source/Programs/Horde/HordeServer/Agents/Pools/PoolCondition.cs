@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using EpicGames.Horde.Common;
 
-namespace Horde.Server.Agents.Pools
+namespace HordeServer.Agents.Pools
 {
 	/// <summary>
 	/// Defined pool property names, for use in dashboard filter expressions

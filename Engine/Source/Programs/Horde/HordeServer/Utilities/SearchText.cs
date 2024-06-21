@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Horde.Server.Logs
+namespace HordeServer.Logs
 {
 	/// <summary>
 	/// Stores cached information about a utf8 search term 

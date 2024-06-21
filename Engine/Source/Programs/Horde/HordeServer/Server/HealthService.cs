@@ -5,7 +5,7 @@ using Grpc.Core;
 using Grpc.Health.V1;
 using static Grpc.Health.V1.HealthCheckResponse.Types;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Implements the gRPC health checking protocol

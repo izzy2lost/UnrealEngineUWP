@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using EpicGames.Horde.Users;
 using MongoDB.Bson;
 
-namespace Horde.Server.Notifications
+namespace HordeServer.Notifications
 {
 	/// <summary>
 	/// An individual subscription

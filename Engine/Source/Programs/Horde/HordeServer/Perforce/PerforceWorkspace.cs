@@ -7,13 +7,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Pools;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Server;
+using HordeServer.Streams;
 using HordeCommon.Rpc.Messages;
 
-namespace Horde.Server.Perforce
+namespace HordeServer.Perforce
 {
 	/// <summary>
 	/// Helper methods for dealing with Perforce workspaces

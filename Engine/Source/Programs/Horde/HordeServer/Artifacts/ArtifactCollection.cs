@@ -10,15 +10,15 @@ using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
-using Horde.Server.Acls;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Artifacts
+namespace HordeServer.Artifacts
 {
 	/// <summary>
 	/// Implementation of <see cref="IArtifactCollection"/>

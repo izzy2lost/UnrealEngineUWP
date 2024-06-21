@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Agents.Pools;
+using HordeServer.Agents.Pools;
 
-namespace Horde.Server.Agents.Fleet
+namespace HordeServer.Agents.Fleet
 {
 	/// <summary>
 	/// Available pool sizing strategies

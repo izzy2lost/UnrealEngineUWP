@@ -10,7 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Services
+namespace HordeAgent.Services
 {
 	/// <summary>
 	/// Tracks the current status of the agent

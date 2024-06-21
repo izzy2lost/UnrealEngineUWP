@@ -10,7 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Jobs.TestData
+namespace HordeServer.Jobs.TestData
 {
 	/// <summary>
 	/// Device management service

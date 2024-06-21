@@ -5,14 +5,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.ServiceAccounts;
-using Horde.Server.Server;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.ServiceAccounts
+namespace HordeServer.ServiceAccounts
 {
 	/// <summary>
 	/// Controller for the /api/v1/serviceaccounts endpoint

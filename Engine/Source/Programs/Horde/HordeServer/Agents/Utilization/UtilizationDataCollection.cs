@@ -8,11 +8,11 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Streams;
-using Horde.Server.Server;
+using HordeServer.Server;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Agents.Utilization
+namespace HordeServer.Agents.Utilization
 {
 	/// <summary>
 	/// Collection of utilization data

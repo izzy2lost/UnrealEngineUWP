@@ -3,7 +3,7 @@
 using System;
 using System.IO;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Helper functions for interacting with Amazon Web Services (AWS) 

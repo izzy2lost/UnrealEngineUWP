@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Horde.Users;
 
-namespace Horde.Server.Notifications
+namespace HordeServer.Notifications
 {
 	/// <summary>
 	/// Information for creating a new subscription

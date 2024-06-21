@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Projects;
 
-namespace Horde.Server.Devices
+namespace HordeServer.Devices
 {
 	/// <summary>
 	/// Configuration for devices

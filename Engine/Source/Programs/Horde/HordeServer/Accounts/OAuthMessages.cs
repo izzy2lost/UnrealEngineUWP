@@ -4,7 +4,7 @@ using System;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Horde.Server.Accounts
+namespace HordeServer.Accounts
 {
 	/// <summary>
 	/// Request to authorize a user using OAuth2

@@ -5,12 +5,12 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Jobs.Timing
+namespace HordeServer.Jobs.Timing
 {
 	/// <summary>
 	/// Concrete implementation of IJobTimingCollection

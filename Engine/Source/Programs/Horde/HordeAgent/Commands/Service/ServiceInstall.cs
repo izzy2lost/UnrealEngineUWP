@@ -4,10 +4,10 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Text;
 using EpicGames.Core;
-using Horde.Agent.Utility;
+using HordeAgent.Utility;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Commands.Service
+namespace HordeAgent.Commands.Service
 {
 	/// <summary>
 	/// Installs the agent as a Windows service

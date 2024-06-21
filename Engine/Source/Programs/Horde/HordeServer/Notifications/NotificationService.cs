@@ -12,18 +12,18 @@ using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Users;
 using EpicGames.Redis;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Configuration;
-using Horde.Server.Devices;
-using Horde.Server.Issues;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Configuration;
+using HordeServer.Devices;
+using HordeServer.Issues;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Logs;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -32,7 +32,7 @@ using MongoDB.Bson;
 using StackExchange.Redis;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
-namespace Horde.Server.Notifications
+namespace HordeServer.Notifications
 {
 	/// <summary>
 	/// Wraps functionality for delivering notifications.

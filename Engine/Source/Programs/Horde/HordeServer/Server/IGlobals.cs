@@ -3,7 +3,7 @@
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Bson;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Global server settings

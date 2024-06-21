@@ -6,7 +6,7 @@ using System.Net;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Server;
+using HordeServer.Server;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Perforce
+namespace HordeServer.Perforce
 {
 	/// <summary>
 	/// Controller for Perforce triggers and callbacks

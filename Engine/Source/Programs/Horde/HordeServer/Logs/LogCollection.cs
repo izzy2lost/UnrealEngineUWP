@@ -16,10 +16,10 @@ using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
-using Horde.Server.Logs.Data;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Utilities;
+using HordeServer.Logs.Data;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
@@ -27,7 +27,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Logs
+namespace HordeServer.Logs
 {
 	/// <summary>
 	/// Wrapper around the jobs collection in a mongo DB

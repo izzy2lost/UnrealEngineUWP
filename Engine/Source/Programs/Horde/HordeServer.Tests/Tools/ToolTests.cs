@@ -8,14 +8,14 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Tools;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Tools;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Tools;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Tools
+namespace HordeServer.Tests.Tools
 {
 	[TestClass]
 	public class ToolTests : TestSetup

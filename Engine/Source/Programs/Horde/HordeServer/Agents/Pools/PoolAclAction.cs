@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Agents.Pools
+namespace HordeServer.Agents.Pools
 {
 	/// <summary>
 	/// ACL actions for pools

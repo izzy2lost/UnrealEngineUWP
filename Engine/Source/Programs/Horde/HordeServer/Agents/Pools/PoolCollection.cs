@@ -7,15 +7,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Fleet;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Agents.Pools
+namespace HordeServer.Agents.Pools
 {
 	/// <summary>
 	/// Collection of pool documents

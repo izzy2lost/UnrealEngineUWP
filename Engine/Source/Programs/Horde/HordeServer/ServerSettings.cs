@@ -14,14 +14,14 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Tools;
 using EpicGames.Perforce;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Storage.ObjectStores;
-using Horde.Server.Telemetry.Sinks;
-using Horde.Server.Tools;
+using HordeServer.Agents.Fleet;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Storage.ObjectStores;
+using HordeServer.Telemetry.Sinks;
+using HordeServer.Tools;
 
-namespace Horde.Server
+namespace HordeServer
 {
 	/// <summary>
 	/// Types of storage backend to use

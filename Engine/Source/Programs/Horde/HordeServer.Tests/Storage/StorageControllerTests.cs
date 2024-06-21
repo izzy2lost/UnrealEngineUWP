@@ -7,13 +7,13 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
-using Horde.Server.Storage;
+using HordeServer.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Driver;
 
-namespace Horde.Server.Tests.Storage
+namespace HordeServer.Tests.Storage
 {
 	[TestClass]
 	public class StorageControllerTests : ControllerIntegrationTest

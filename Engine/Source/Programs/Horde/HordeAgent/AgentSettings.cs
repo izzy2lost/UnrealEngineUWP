@@ -5,7 +5,7 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using Microsoft.Extensions.Configuration;
 
-namespace Horde.Agent
+namespace HordeAgent
 {
 	/// <summary>
 	/// Describes a network share to mount

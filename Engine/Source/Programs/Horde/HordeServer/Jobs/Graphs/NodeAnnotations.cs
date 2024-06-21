@@ -3,9 +3,9 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Issues;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 
-namespace Horde.Server.Jobs.Graphs
+namespace HordeServer.Jobs.Graphs
 {
 	/// <summary>
 	/// Interface which wraps a generic key/value dictionary to provide specific node annotations

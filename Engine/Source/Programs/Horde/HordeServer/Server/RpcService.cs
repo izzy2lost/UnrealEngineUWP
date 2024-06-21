@@ -17,13 +17,13 @@ using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Horde.Server.Acls;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Agents.Telemetry;
-using Horde.Server.Telemetry;
-using Horde.Server.Tools;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Agents;
+using HordeServer.Agents.Sessions;
+using HordeServer.Agents.Telemetry;
+using HordeServer.Telemetry;
+using HordeServer.Tools;
+using HordeServer.Utilities;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Messages.Telemetry;
@@ -31,7 +31,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Implements the Horde gRPC service for bots updating their status and dequeing work

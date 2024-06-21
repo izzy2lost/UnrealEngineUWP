@@ -10,16 +10,16 @@ using EpicGames.Horde.Devices;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Jobs;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Jobs;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
 using MongoDB.Driver;
 
-namespace Horde.Server.Devices
+namespace HordeServer.Devices
 {
 	/// <summary>
 	/// Collection of device documents

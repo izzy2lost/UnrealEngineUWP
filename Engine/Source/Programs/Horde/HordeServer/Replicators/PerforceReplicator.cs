@@ -16,14 +16,14 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 using EpicGames.Perforce;
-using Horde.Server.Commits;
-using Horde.Server.Perforce;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Streams;
+using HordeServer.Commits;
+using HordeServer.Perforce;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Streams;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Replicators
+namespace HordeServer.Replicators
 {
 	/// <summary>
 	/// Options for replicating commits

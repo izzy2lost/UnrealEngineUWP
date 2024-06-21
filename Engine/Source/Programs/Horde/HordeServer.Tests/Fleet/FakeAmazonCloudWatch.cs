@@ -8,7 +8,7 @@ using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
 using Moq;
 
-namespace Horde.Server.Tests.Fleet;
+namespace HordeServer.Tests.Fleet;
 
 /// <summary>
 /// Fake implementation of the IAmazonCloudWatch interface

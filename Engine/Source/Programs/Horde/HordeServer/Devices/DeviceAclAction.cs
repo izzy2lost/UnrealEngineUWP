@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Devices
+namespace HordeServer.Devices
 {
 	/// <summary>
 	/// ACL actions which apply to devices

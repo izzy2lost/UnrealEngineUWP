@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Users;
-using Horde.Server.Jobs;
+using HordeServer.Jobs;
 using MongoDB.Bson;
 
-namespace Horde.Server.Devices
+namespace HordeServer.Devices
 {
 	/// <summary>
 	/// Device reservation request data

@@ -13,22 +13,22 @@ using EpicGames.Horde.Jobs.TestData;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Jobs.TestData;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Logs;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Jobs.TestData;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Bson;
 using Moq;
 
-namespace Horde.Server.Tests.Jobs.TestData
+namespace HordeServer.Tests.Jobs.TestData
 {
 	/// <summary>
 	/// Tests for the device service

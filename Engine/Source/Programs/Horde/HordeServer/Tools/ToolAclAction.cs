@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Tools
+namespace HordeServer.Tools
 {
 	/// <summary>
 	/// ACL actions which apply to tools

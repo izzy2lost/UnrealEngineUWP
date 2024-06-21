@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Exception class designed to allow logging structured log messages

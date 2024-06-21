@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Horde.Server.Ugs
+namespace HordeServer.Ugs
 {
 	/// <summary>
 	/// Collection of stream documents

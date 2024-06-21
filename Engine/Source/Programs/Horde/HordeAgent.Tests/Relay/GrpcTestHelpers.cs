@@ -25,7 +25,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Grpc.Core;
 
-namespace Horde.Agent.Tests.Relay
+namespace HordeAgent.Tests.Relay
 {
 	public class TestServerStreamWriter<T> : IServerStreamWriter<T> where T : class
 	{

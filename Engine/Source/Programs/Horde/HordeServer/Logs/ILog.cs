@@ -13,11 +13,11 @@ using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
-using Horde.Server.Acls;
+using HordeServer.Acls;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 
-namespace Horde.Server.Logs
+namespace HordeServer.Logs
 {
 	/// <summary>
 	/// Information about a log file

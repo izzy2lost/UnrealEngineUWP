@@ -5,15 +5,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Amazon.EC2;
 using Amazon.EC2.Model;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Fleet.Providers;
-using Horde.Server.Agents.Pools;
+using HordeServer.Agents;
+using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Fleet.Providers;
+using HordeServer.Agents.Pools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Fleet
+namespace HordeServer.Tests.Fleet
 {
 	[TestClass]
 	public class AwsReuseFleetManagerTest : TestSetup

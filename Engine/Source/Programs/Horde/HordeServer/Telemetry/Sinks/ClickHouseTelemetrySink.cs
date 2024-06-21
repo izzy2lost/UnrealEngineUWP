@@ -12,7 +12,7 @@ using EpicGames.Horde.Telemetry;
 using HordeCommon.Rpc.Messages.Telemetry;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Telemetry.Sinks
+namespace HordeServer.Telemetry.Sinks
 {
 	/// <summary>
 	/// ClickHouse telemetry sink

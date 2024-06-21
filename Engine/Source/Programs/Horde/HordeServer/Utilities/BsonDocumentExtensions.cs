@@ -4,7 +4,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using MongoDB.Bson;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Extension methods for BsonDocument

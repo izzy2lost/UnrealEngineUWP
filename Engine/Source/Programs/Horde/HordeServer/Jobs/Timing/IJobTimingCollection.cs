@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Jobs.Timing
+namespace HordeServer.Jobs.Timing
 {
 	/// <summary>
 	/// Average timing information for a node

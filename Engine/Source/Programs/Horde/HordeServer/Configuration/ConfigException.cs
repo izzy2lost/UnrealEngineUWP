@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Horde.Server.Configuration
+namespace HordeServer.Configuration
 {
 	/// <summary>
 	/// Exception thrown when reading config files

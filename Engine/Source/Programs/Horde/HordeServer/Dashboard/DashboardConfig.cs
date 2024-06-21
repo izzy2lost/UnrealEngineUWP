@@ -3,10 +3,10 @@
 using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Common;
-using Horde.Server.Configuration;
-using Horde.Server.Server;
+using HordeServer.Configuration;
+using HordeServer.Server;
 
-namespace Horde.Server.Dashboard
+namespace HordeServer.Dashboard
 {
 
 	/// <summary>

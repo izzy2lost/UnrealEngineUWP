@@ -3,13 +3,13 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Compute;
-using Horde.Server.Server;
+using HordeServer.Compute;
+using HordeServer.Server;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using StackExchange.Redis;
 
-namespace Horde.Server.Tests.Compute
+namespace HordeServer.Tests.Compute
 {
 	[TestClass]
 	public class RedisTaskSchedulerTest : TestSetup

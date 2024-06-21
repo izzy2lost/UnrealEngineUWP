@@ -10,11 +10,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Compute.Clients;
-using Horde.Server.Compute;
+using HordeServer.Compute;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Compute
+namespace HordeServer.Tests.Compute
 {
 	[TestClass]
 	public sealed class TunnelServiceTests

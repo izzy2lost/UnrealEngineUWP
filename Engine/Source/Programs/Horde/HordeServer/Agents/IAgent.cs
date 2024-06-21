@@ -18,14 +18,14 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Server;
+using HordeServer.Server;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Agents
+namespace HordeServer.Agents
 {
 	/// <summary>
 	/// Mirrors an Agent document in the database

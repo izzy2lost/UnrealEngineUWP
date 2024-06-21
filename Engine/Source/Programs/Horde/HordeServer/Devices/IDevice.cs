@@ -10,7 +10,7 @@ using EpicGames.Horde.Users;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Devices
+namespace HordeServer.Devices
 {
 	/// <summary>
 	/// A reservation containing one or more devices

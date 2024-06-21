@@ -8,12 +8,12 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Storage;
-using Horde.Server.Server;
+using HordeServer.Server;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Jobs.Artifacts
+namespace HordeServer.Jobs.Artifacts
 {
 	/// <summary>
 	/// Wraps functionality for manipulating artifacts

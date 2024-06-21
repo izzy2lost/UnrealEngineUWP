@@ -8,7 +8,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
 using MongoDB.Bson;
 
-namespace Horde.Server.Jobs.TestData
+namespace HordeServer.Jobs.TestData
 {
 	/// <summary>
 	/// Collection of test data documents

@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Agents.Leases;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 
-namespace Horde.Agent.Leases
+namespace HordeAgent.Leases
 {
 	/// <summary>
 	/// Result from executing a lease

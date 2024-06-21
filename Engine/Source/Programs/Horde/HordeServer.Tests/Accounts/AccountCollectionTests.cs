@@ -2,11 +2,11 @@
 
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Accounts;
+using HordeServer.Accounts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Accounts
+namespace HordeServer.Tests.Accounts
 {
 	[TestClass]
 	public class AccountCollectionTests : TestSetup

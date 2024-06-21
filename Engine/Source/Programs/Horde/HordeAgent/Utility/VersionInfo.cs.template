@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace Horde.Agent.Utility;
+namespace HordeAgent.Utility;
 
 /// <summary>
 /// Encodes version by replacing the version pattern below

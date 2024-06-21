@@ -4,7 +4,7 @@ using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using HordeCommon.Rpc.Messages;
 
-namespace Horde.Agent.Leases
+namespace HordeAgent.Leases
 {
 	abstract class LeaseHandlerFactory
 	{

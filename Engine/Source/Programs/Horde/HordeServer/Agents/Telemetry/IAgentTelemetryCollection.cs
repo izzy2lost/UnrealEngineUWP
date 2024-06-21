@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 
-namespace Horde.Server.Agents.Telemetry
+namespace HordeServer.Agents.Telemetry
 {
 	/// <summary>
 	/// Interface for a collection of agent telemetry documents

@@ -7,11 +7,11 @@ using Grpc.Core;
 using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Configuration;
-using Horde.Agent.Utility;
+using HordeAgent.Utility;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Services
+namespace HordeAgent.Services
 {
 	/// <summary>
 	/// Service which creates a configured Grpc channel

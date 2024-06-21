@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-namespace Horde.Agent.Utility
+namespace HordeAgent.Utility
 {
 	/// <summary>
 	/// Native methods for manipulating services on Windows

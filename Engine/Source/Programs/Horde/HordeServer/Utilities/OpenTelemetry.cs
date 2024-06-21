@@ -23,7 +23,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog.Core;
 
-namespace Horde.Server.Utilities;
+namespace HordeServer.Utilities;
 
 /// <summary>
 /// Serilog event enricher attaching trace and span ID for Datadog using current System.Diagnostics.Activity

@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Telemetry;
 
-namespace Horde.Server.Telemetry.Sinks
+namespace HordeServer.Telemetry.Sinks
 {
 	/// <summary>
 	/// Telemetry sink that discards all events

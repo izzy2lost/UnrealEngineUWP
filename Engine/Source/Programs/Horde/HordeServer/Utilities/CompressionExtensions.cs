@@ -7,7 +7,7 @@ using EpicGames.Core;
 using ICSharpCode.SharpZipLib.BZip2;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Extension methods for compression

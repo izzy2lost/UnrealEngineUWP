@@ -12,8 +12,8 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Users;
 using EpicGames.Redis;
-using Horde.Server.Server;
-using Horde.Server.Users;
+using HordeServer.Server;
+using HordeServer.Users;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,7 +23,7 @@ using Microsoft.Extensions.Primitives;
 using ProtoBuf;
 using StackExchange.Redis;
 
-namespace Horde.Server.Configuration
+namespace HordeServer.Configuration
 {
 	/// <summary>
 	/// Information about the updated config

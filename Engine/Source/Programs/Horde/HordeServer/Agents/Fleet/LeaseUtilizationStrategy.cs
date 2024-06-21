@@ -10,14 +10,14 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Leases;
+using HordeServer.Agents.Pools;
+using HordeServer.Utilities;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Fleet
+namespace HordeServer.Agents.Fleet
 {
 	/// <summary>
 	/// Lease utilization sizing settings for a pool

@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Streams;
 
-namespace Horde.Server.Agents.Utilization
+namespace HordeServer.Agents.Utilization
 {
 	/// <summary>
 	/// Information about the utilization of a pool

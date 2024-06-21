@@ -10,11 +10,11 @@ using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Acls;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Streams;
+using HordeServer.Acls;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Streams;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Options for creating a new job

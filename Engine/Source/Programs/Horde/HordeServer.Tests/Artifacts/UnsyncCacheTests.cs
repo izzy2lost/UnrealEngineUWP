@@ -9,13 +9,13 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
-using Horde.Server.Artifacts;
-using Horde.Server.Storage;
+using HordeServer.Artifacts;
+using HordeServer.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
-namespace Horde.Server.Tests.Artifacts
+namespace HordeServer.Tests.Artifacts
 {
 	[TestClass]
 	public class UnsyncCacheTests

@@ -21,7 +21,7 @@ using OpenTracing;
 using OpenTracing.Util;
 using AddressFamily = System.Net.Sockets.AddressFamily;
 
-namespace Horde.Agent.Services
+namespace HordeAgent.Services
 {
 	/// <summary>
 	/// Implements the message handling loop for an agent. Runs asynchronously until disposed.

@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Auditing
+namespace HordeServer.Auditing
 {
 	/// <summary>
 	/// Message from an audit log

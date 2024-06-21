@@ -9,17 +9,17 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Agents;
+using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Pools;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Streams;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Fleet
+namespace HordeServer.Tests.Fleet
 {
 	[TestClass]
 	public class JobQueueStrategyTest : TestSetup

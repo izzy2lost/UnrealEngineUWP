@@ -11,13 +11,13 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Auditing;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
+using HordeServer.Auditing;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
-namespace Horde.Server.Issues
+namespace HordeServer.Issues
 {
 	/// <summary>
 	/// Fingerprint for an issue

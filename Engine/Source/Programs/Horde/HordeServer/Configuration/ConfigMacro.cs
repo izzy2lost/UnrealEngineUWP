@@ -2,7 +2,7 @@
 
 using System;
 
-namespace Horde.Server.Configuration
+namespace HordeServer.Configuration
 {
 	/// <summary>
 	/// Declares a config macro

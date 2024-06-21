@@ -2,7 +2,7 @@
 
 using System.Collections.Generic;
 
-namespace Horde.Server.Logs
+namespace HordeServer.Logs
 {
 	/// <summary>
 	/// Structure used for generating prefix trees

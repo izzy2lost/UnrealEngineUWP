@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Secrets
+namespace HordeServer.Secrets
 {
 	/// <summary>
 	/// ACL actions for secrets

@@ -10,12 +10,12 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 
-namespace Horde.Server.Acls
+namespace HordeServer.Acls
 {
 	/// <summary>
 	/// Wraps functionality for manipulating permissions

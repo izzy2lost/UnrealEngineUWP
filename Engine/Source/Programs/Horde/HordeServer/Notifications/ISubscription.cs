@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Users;
 
-namespace Horde.Server.Notifications
+namespace HordeServer.Notifications
 {
 	/// <summary>
 	/// The type of notification to send

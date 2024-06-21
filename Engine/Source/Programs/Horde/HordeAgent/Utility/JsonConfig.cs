@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using EpicGames.Core;
 
-namespace Horde.Agent.Utility
+namespace HordeAgent.Utility
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 

@@ -6,10 +6,10 @@ using System.IO;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Controller for the /api/v1/schema endpoint

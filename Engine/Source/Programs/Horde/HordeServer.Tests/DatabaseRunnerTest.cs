@@ -3,11 +3,11 @@
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Server;
+using HordeServer.Server;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests
+namespace HordeServer.Tests
 {
 	[TestClass]
 	public class DatabaseRunnerTest

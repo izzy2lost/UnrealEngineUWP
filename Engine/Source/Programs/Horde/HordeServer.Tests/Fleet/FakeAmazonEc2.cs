@@ -10,7 +10,7 @@ using Amazon.EC2;
 using Amazon.EC2.Model;
 using Moq;
 
-namespace Horde.Server.Tests.Fleet;
+namespace HordeServer.Tests.Fleet;
 
 /// <summary>
 /// Fake implementation of the IAmazonEC2 interface

@@ -6,13 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Replicators;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Replicators
+namespace HordeServer.Replicators
 {
 	/// <summary>
 	/// Default implementation of <see cref="IReplicatorCollection"/>.

@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using EpicGames.Core;
 
-namespace Horde.Server.Tests;
+namespace HordeServer.Tests;
 
 public abstract class DatabaseRunner : IDisposable
 {

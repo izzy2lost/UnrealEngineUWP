@@ -7,12 +7,12 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Agents;
-using Horde.Server.Logs;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Logs;
+using HordeServer.Utilities;
 using HordeCommon.Rpc.Tasks;
 
-namespace Horde.Server.Tasks
+namespace HordeServer.Tasks
 {
 	class RestartTaskSource : TaskSourceBase<RestartTask>
 	{

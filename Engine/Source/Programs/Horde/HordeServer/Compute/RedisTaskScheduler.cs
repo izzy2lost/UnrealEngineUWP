@@ -11,7 +11,7 @@ using EpicGames.Redis;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
-namespace Horde.Server.Compute
+namespace HordeServer.Compute
 {
 	using Condition = StackExchange.Redis.Condition;
 

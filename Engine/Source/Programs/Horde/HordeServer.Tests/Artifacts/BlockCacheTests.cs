@@ -6,11 +6,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using Horde.Server.Artifacts;
+using HordeServer.Artifacts;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Artifacts
+namespace HordeServer.Tests.Artifacts
 {
 	[TestClass]
 	public class BlockCacheTests

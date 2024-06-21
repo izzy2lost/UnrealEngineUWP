@@ -3,7 +3,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Horde.Server.Secrets
+namespace HordeServer.Secrets
 {
 	/// <summary>
 	/// Interface for a service that can provide secret data

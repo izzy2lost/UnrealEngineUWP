@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using EpicGames.Horde.Secrets;
 
-namespace Horde.Server.Secrets
+namespace HordeServer.Secrets
 {
 	/// <summary>
 	/// Information about a secret

@@ -18,16 +18,16 @@ using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Horde.Server.Configuration;
-using Horde.Server.Ddc;
-using Horde.Server.Server;
-using Horde.Server.Storage;
+using HordeServer.Configuration;
+using HordeServer.Ddc;
+using HordeServer.Server;
+using HordeServer.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Ddc.FunctionalTests.References
+namespace HordeServer.Tests.Ddc.FunctionalTests.References
 {
 	public class InsertResponse
 	{

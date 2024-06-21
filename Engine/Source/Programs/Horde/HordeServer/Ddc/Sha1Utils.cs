@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 #pragma warning disable CS1591
 #pragma warning disable CA5350 // Do not use weak crypto algorithms
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	public static class Sha1Utils
 	{

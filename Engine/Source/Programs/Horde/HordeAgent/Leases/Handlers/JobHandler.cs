@@ -5,13 +5,13 @@ using EpicGames.Horde;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
 
-namespace Horde.Agent.Leases.Handlers
+namespace HordeAgent.Leases.Handlers
 {
 	class JobHandler : LeaseHandler<ExecuteJobTask>
 	{

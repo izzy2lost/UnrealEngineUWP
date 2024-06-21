@@ -4,16 +4,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using EpicGames.Horde.Projects;
-using Horde.Server.Configuration;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Utilities;
+using HordeServer.Configuration;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Projects
+namespace HordeServer.Projects
 {
 	/// <summary>
 	/// Controller for the /api/v1/projects endpoint

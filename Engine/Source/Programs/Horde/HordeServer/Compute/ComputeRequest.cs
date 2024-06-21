@@ -3,7 +3,7 @@
 using EpicGames.Horde.Compute;
 using HordeCommon.Rpc.Tasks;
 
-namespace Horde.Server.Compute
+namespace HordeServer.Compute
 {
 	/// <summary>
 	/// Request for a compute resource

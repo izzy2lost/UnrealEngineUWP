@@ -11,7 +11,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using MongoDB.Bson;
 
-namespace Horde.Server.Users
+namespace HordeServer.Users
 {
 	/// <summary>
 	/// Known user ids

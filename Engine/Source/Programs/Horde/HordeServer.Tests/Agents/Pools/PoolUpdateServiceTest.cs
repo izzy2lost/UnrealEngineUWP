@@ -6,12 +6,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents.Pools;
+namespace HordeServer.Tests.Agents.Pools;
 
 [TestClass]
 public class PoolUpdateServiceTest : TestSetup

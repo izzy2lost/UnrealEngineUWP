@@ -6,12 +6,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Horde.Server.Server;
-using Horde.Server.Storage;
+using HordeServer.Server;
+using HordeServer.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Storage
+namespace HordeServer.Tests.Storage
 {
 	[TestClass]
 	public sealed class GcServiceTests : TestSetup

@@ -13,10 +13,10 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Agents.Leases;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
@@ -28,7 +28,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
 
-namespace Horde.Server.Perforce
+namespace HordeServer.Perforce
 {
 	using Condition = EpicGames.Horde.Common.Condition;
 

@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Projects
+namespace HordeServer.Projects
 {
 	/// <summary>
 	/// ACL actions that can be performed on projects

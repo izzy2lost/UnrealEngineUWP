@@ -20,19 +20,19 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Acls;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Jobs.Bisect;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Perforce;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Streams;
-using Horde.Server.Tasks;
-using Horde.Server.Ugs;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Jobs.Bisect;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Logs;
+using HordeServer.Perforce;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Streams;
+using HordeServer.Tasks;
+using HordeServer.Ugs;
+using HordeServer.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
@@ -41,7 +41,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Background service to dispatch pending work to agents in priority order.

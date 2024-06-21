@@ -10,7 +10,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Base class for converting to and from types containing an object id. Useful pattern for reducing boilerplate with strongly typed records.

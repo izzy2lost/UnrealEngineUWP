@@ -11,13 +11,13 @@ using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Compute;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Compute;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Pools;
+using HordeServer.Compute;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Fleet
+namespace HordeServer.Agents.Fleet
 {
 	/// <summary>
 	/// Settings for <see cref="ComputeQueueAwsMetricStrategy" />

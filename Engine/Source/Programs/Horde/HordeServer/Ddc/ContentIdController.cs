@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 
 #pragma warning disable CS1591
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	[ApiController]
 	[FormatFilter]

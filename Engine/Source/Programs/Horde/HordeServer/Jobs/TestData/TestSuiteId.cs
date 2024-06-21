@@ -2,10 +2,10 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using MongoDB.Bson;
 
-namespace Horde.Server.Jobs.TestData
+namespace HordeServer.Jobs.TestData
 {
 	/// <summary>
 	/// Identifier for a session

@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Commands.Utilities
+namespace HordeAgent.Commands.Utilities
 {
 	/// <summary>
 	/// Shows capabilities of this agent

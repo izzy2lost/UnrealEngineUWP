@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using EpicGames.Core;
 
-namespace Horde.Server.Logs
+namespace HordeServer.Logs
 {
 	/// <summary>
 	/// A read-only trie of long values

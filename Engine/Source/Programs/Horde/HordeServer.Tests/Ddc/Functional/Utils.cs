@@ -2,7 +2,7 @@
 
 using System.Text.Json;
 
-namespace Horde.Server.Tests.Ddc.FunctionalTests
+namespace HordeServer.Tests.Ddc.FunctionalTests
 {
 	public static class JsonTestUtils
 	{

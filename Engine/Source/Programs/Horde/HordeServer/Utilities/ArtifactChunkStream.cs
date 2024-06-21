@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Horde.Common.Rpc;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Stream that takes in rpc chunks from an upload and copies them?

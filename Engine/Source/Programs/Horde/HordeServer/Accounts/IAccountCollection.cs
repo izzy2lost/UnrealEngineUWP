@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
-using Horde.Server.Users;
+using HordeServer.Users;
 
-namespace Horde.Server.Accounts
+namespace HordeServer.Accounts
 {
 	/// <summary>
 	/// Interface for a collection of accounts

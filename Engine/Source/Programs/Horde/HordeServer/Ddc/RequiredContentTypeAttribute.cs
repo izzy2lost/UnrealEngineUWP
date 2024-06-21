@@ -7,7 +7,7 @@ using Microsoft.Extensions.Primitives;
 
 #pragma warning disable CS1591
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	[AttributeUsage(AttributeTargets.Method)]
 	public sealed class RequiredContentTypeAttribute : Attribute, IActionConstraint

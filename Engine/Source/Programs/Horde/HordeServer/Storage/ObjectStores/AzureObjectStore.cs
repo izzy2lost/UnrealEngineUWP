@@ -15,7 +15,7 @@ using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Storage.ObjectStores
+namespace HordeServer.Storage.ObjectStores
 {
 	/// <summary>
 	/// Exception wrapper for S3 requests

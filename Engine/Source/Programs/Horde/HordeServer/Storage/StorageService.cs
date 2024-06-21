@@ -15,8 +15,8 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.ObjectStores;
 using EpicGames.Redis;
 using EpicGames.Redis.Utility;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +29,7 @@ using MongoDB.Driver;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
 
-namespace Horde.Server.Storage
+namespace HordeServer.Storage
 {
 	/// <summary>
 	/// Interface for the storage service

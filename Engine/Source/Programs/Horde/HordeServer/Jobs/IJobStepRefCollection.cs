@@ -10,10 +10,10 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
-using Horde.Server.Jobs.Graphs;
+using HordeServer.Jobs.Graphs;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Interface for a collection of JobStepRef documents

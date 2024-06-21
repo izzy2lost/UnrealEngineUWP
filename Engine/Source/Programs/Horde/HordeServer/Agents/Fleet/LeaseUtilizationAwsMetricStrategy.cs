@@ -10,13 +10,13 @@ using System.Threading.Tasks;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
 using EpicGames.Core;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Leases;
+using HordeServer.Agents.Pools;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Fleet;
+namespace HordeServer.Agents.Fleet;
 
 /// <summary>
 /// Settings for <see cref="LeaseUtilizationAwsMetricStrategy" />

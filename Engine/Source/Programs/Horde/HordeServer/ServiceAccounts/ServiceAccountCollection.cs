@@ -8,14 +8,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.ServiceAccounts;
-using Horde.Server.Acls;
-using Horde.Server.Server;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Server;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.ServiceAccounts
+namespace HordeServer.ServiceAccounts
 {
 	/// <summary>
 	/// Collection of service account documents

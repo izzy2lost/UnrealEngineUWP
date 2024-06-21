@@ -8,16 +8,16 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Server.Notices;
 using EpicGames.Horde.Users;
-using Horde.Server.Acls;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 
-namespace Horde.Server.Server.Notices
+namespace HordeServer.Server.Notices
 {
 	/// <summary>
 	/// Controller for the /api/v1/notices endpoint

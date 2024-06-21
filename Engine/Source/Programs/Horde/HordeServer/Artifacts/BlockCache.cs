@@ -16,7 +16,7 @@ using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Horde.Server.Artifacts
+namespace HordeServer.Artifacts
 {
 	/// <summary>
 	/// Stats for the cache

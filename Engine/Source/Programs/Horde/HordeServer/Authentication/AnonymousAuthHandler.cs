@@ -6,12 +6,12 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using EpicGames.Horde.Users;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Authentication
+namespace HordeServer.Authentication
 {
 	class AnonymousAuthenticationOptions : AuthenticationSchemeOptions
 	{

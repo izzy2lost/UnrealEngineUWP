@@ -9,14 +9,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
-using Horde.Server.Agents;
-using Horde.Server.Compute;
-using Horde.Server.Server;
+using HordeServer.Agents;
+using HordeServer.Compute;
+using HordeServer.Server;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Tests.Compute
+namespace HordeServer.Tests.Compute
 {
 	[TestClass]
 	public class ComputeServiceTest : TestSetup

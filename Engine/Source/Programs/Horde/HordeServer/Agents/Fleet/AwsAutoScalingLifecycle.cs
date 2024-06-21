@@ -16,8 +16,8 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -28,7 +28,7 @@ using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
 
-namespace Horde.Server.Agents.Fleet;
+namespace HordeServer.Agents.Fleet;
 
 /// <summary>
 /// Service handling callbacks and lifecycle events triggered by EC2 auto-scaling in AWS

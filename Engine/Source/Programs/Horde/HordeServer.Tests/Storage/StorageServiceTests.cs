@@ -4,11 +4,11 @@ using System;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using Horde.Server.Storage;
+using HordeServer.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Storage
+namespace HordeServer.Tests.Storage
 {
 	[TestClass]
 	public class StorageServiceTests : TestSetup

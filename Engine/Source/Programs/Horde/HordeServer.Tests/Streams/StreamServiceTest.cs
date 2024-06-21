@@ -3,10 +3,10 @@
 using System;
 using System.Globalization;
 using System.Threading.Tasks;
-using Horde.Server.Streams;
+using HordeServer.Streams;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Streams
+namespace HordeServer.Tests.Streams
 {
 	[TestClass]
 	public class StreamServiceTests : TestSetup

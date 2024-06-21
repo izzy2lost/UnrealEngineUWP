@@ -12,14 +12,14 @@ using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
-using Horde.Server.Dashboard;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Telemetry.Metrics;
+using HordeServer.Dashboard;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Telemetry.Metrics;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Commands.Generate
+namespace HordeServer.Commands.Generate
 {
 	[Command("generate", "configdocs", "Writes Markdown docs for server settings")]
 	class DocsCommand : Command
@@ -66,7 +66,7 @@ namespace Horde.Server.Commands.Generate
 			else
 			{
 				Assembly agentAssembly = Assembly.LoadFile(Agent.FullName);
-				Type agentSettingsType = agentAssembly.GetType("Horde.Agent.AgentSettings")!;
+				Type agentSettingsType = agentAssembly.GetType("HordeAgent.AgentSettings")!;
 
 				JsonSchema agentSchema = JsonSchema.FromType(agentSettingsType, xmlDocReader);
 				await WriteDocAsync(agentSchema.RootType, "Agent.json (Agent)", "Deployment/AgentSettings.md", "[Horde](../../README.md) > [Deployment](../Deployment.md) > [Agent](Agent.md)", AppSettingsIntro, new Dictionary<string, string>(), logger);

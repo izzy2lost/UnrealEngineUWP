@@ -7,10 +7,10 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Fleet.Providers;
-using Horde.Server.Agents.Pools;
+using HordeServer.Agents;
+using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Fleet.Providers;
+using HordeServer.Agents.Pools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -18,7 +18,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #pragma warning disable CS0618 // Type or member is obsolete
 
-namespace Horde.Server.Tests.Fleet
+namespace HordeServer.Tests.Fleet
 {
 	public class FleetManagerSpy : IFleetManager
 	{

@@ -8,7 +8,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json.Nodes;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Utility class to filter a response to include a subset of fields

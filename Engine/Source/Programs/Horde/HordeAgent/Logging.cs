@@ -12,7 +12,7 @@ using Serilog.Extensions.Logging;
 using Serilog.Formatting.Json;
 using Serilog.Sinks.SystemConsole.Themes;
 
-namespace Horde.Agent
+namespace HordeAgent
 {
 	static class Logging
 	{

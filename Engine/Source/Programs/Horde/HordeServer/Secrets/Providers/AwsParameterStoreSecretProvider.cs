@@ -7,7 +7,7 @@ using Amazon.Extensions.NETCore.Setup;
 using Amazon.SimpleSystemsManagement;
 using Amazon.SimpleSystemsManagement.Model;
 
-namespace Horde.Server.Secrets.Providers
+namespace HordeServer.Secrets.Providers
 {
 	/// <summary>
 	/// Fetches secrets from the AWS parameter store

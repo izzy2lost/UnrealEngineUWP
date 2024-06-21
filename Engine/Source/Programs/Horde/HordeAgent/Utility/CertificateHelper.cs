@@ -6,7 +6,7 @@ using System.Text;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Utility
+namespace HordeAgent.Utility
 {
 	/// <summary>
 	/// Helper functions for dealing with certificates

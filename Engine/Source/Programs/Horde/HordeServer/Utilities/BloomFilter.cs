@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	struct LogIndex
 	{

@@ -2,10 +2,10 @@
 
 using System;
 using System.Linq;
-using Horde.Server.Issues;
+using HordeServer.Issues;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Issues
+namespace HordeServer.Tests.Issues
 {
 	[TestClass]
 	public class IssueTagTests

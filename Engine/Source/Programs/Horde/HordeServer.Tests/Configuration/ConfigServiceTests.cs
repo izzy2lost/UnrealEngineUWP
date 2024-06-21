@@ -2,10 +2,10 @@
 
 using System;
 using System.Runtime.InteropServices;
-using Horde.Server.Configuration;
+using HordeServer.Configuration;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Configuration;
+namespace HordeServer.Tests.Configuration;
 
 [TestClass]
 public class ConfigServiceTests

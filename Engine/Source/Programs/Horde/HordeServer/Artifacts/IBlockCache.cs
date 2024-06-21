@@ -3,7 +3,7 @@
 using System;
 using System.Buffers;
 
-namespace Horde.Server.Artifacts
+namespace HordeServer.Artifacts
 {
 	/// <summary>
 	/// Implements a key/value cache store.

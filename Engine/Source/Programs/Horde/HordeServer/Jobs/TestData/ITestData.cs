@@ -8,7 +8,7 @@ using EpicGames.Horde.Jobs.TestData;
 using EpicGames.Horde.Streams;
 using MongoDB.Bson;
 
-namespace Horde.Server.Jobs.TestData
+namespace HordeServer.Jobs.TestData
 {
 	/// <summary>
 	/// Defines a testing environment based on platforms, configurations, targets, etc.

@@ -5,14 +5,14 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Server.Server;
-using Horde.Server.Tools;
+using HordeServer.Server;
+using HordeServer.Tools;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
-namespace Horde.Server.Agents.Software
+namespace HordeServer.Agents.Software
 {
 	/// <summary>
 	/// Information about an agent software channel

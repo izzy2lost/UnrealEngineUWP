@@ -4,11 +4,11 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Jobs;
+using HordeServer.Jobs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Jobs
+namespace HordeServer.Tests.Jobs
 {
 	/// <summary>
 	/// Database-only test for testing the Job controller. Different from the JobsController test that set up

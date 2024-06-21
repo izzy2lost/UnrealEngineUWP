@@ -3,7 +3,7 @@
 using System.IO;
 using Microsoft.AspNetCore.ResponseCompression;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Compression provider for zstd responses

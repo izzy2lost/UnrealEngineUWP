@@ -9,15 +9,15 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Utilization;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Utilization;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Agents.Pools
+namespace HordeServer.Agents.Pools
 {
 	/// <summary>
 	/// Controller for the /api/v1/pools endpoint

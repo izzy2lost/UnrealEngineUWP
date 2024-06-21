@@ -11,11 +11,11 @@ using Amazon.EC2;
 using Amazon.EC2.Model;
 using Amazon.Runtime;
 using EpicGames.Core;
-using Horde.Server.Agents.Pools;
+using HordeServer.Agents.Pools;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Fleet.Providers;
+namespace HordeServer.Agents.Fleet.Providers;
 
 /// <summary>
 /// Settings for AWS fleet manager that reuses instances

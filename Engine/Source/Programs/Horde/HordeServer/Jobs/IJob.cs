@@ -20,16 +20,16 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Common.Rpc;
-using Horde.Server.Acls;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Timing;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Ugs;
+using HordeServer.Acls;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Jobs.Timing;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Ugs;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Document describing a job

@@ -9,17 +9,17 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Dashboard;
 using EpicGames.Horde.Server;
-using Horde.Server.Accounts;
-using Horde.Server.Server;
-using Horde.Server.Telemetry;
-using Horde.Server.Utilities;
+using HordeServer.Accounts;
+using HordeServer.Server;
+using HordeServer.Telemetry;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Dashboard
+namespace HordeServer.Dashboard
 {
 	/// <summary>	
 	/// Dashboard authorization challenge controller	

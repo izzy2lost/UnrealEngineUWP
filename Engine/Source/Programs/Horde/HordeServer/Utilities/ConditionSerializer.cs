@@ -5,7 +5,7 @@ using EpicGames.Horde.Common;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Serializer for Condition objects

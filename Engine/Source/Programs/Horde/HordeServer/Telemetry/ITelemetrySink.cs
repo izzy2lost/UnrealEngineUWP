@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 
-namespace Horde.Server.Telemetry
+namespace HordeServer.Telemetry
 {
 	/// <summary>
 	/// Interface for a telemetry sink

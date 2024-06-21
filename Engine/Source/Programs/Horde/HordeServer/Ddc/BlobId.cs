@@ -15,7 +15,7 @@ using EpicGames.Serialization;
 
 #pragma warning disable CS1591
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	[TypeConverter(typeof(BlobIdentifierTypeConverter))]
 	[JsonConverter(typeof(BlobIdentifierJsonConverter))]

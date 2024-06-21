@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Horde.Server.Ugs
+namespace HordeServer.Ugs
 {
 	/// <summary>
 	/// Metadata for a particular user

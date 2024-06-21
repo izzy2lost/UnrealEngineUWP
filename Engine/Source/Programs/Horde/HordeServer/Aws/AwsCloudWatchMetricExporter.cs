@@ -8,12 +8,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
-using Horde.Server.Compute;
-using Horde.Server.Utilities;
+using HordeServer.Compute;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Aws;
+namespace HordeServer.Aws;
 
 /// <summary>
 /// Exports metric inside Horde server to AWS CloudWatch

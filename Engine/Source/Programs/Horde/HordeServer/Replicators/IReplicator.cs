@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Replicators;
 
-namespace Horde.Server.Replicators
+namespace HordeServer.Replicators
 {
 	/// <summary>
 	/// Snapshot of the state for a replicator; a process which transfers data from an external source control provider into Horde.

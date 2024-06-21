@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Horde.Server.Agents.Utilization
+namespace HordeServer.Agents.Utilization
 {
 	/// <summary>
 	/// Collection of utilization collection

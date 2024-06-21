@@ -19,16 +19,16 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using EpicGames.Perforce;
-using Horde.Server.Issues;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Streams;
-using Horde.Server.Tests.Stubs.Services;
-using Horde.Server.Users;
+using HordeServer.Issues;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Logs;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Streams;
+using HordeServer.Tests.Stubs.Services;
+using HordeServer.Users;
 using JobDriver.JobDriver.Parser;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,7 +37,7 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using Moq;
 
-namespace Horde.Server.Tests.Issues
+namespace HordeServer.Tests.Issues
 {
 	[TestClass]
 	public class IssueServiceTests : TestSetup
@@ -2887,7 +2887,7 @@ namespace Horde.Server.Tests.Issues
 				spans.Add(MockSpan(new StreamId("ue5-release-staging"), MockSuspect(101, 1), MockSuspect(102, 2)));
 				spans.Add(MockSpan(new StreamId("ue5-release"), MockSuspect(1, null), MockSuspect(2, null)));
 
-				List<IIssueSpan> results = Horde.Server.Issues.IssueService.FindMergeOriginSpans(spans);
+				List<IIssueSpan> results = HordeServer.Issues.IssueService.FindMergeOriginSpans(spans);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(new StreamId("ue5-release"), results[0].StreamId);
 			}
@@ -2898,7 +2898,7 @@ namespace Horde.Server.Tests.Issues
 				spans.Add(MockSpan(new StreamId("ue5-release-staging"), MockSuspect(101, 1), MockSuspect(102, null)));
 				spans.Add(MockSpan(new StreamId("ue5-release"), MockSuspect(1, null), MockSuspect(2, null)));
 
-				List<IIssueSpan> results = Horde.Server.Issues.IssueService.FindMergeOriginSpans(spans);
+				List<IIssueSpan> results = HordeServer.Issues.IssueService.FindMergeOriginSpans(spans);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(new StreamId("ue5-release"), results[0].StreamId);
 			}
@@ -2909,7 +2909,7 @@ namespace Horde.Server.Tests.Issues
 				spans.Add(MockSpan(new StreamId("ue5-release-staging"), MockSuspect(101, 1), MockSuspect(102, null)));
 				spans.Add(MockSpan(new StreamId("ue5-main"), MockSuspect(201, null), MockSuspect(202, 2)));
 
-				List<IIssueSpan> results = Horde.Server.Issues.IssueService.FindMergeOriginSpans(spans);
+				List<IIssueSpan> results = HordeServer.Issues.IssueService.FindMergeOriginSpans(spans);
 				Assert.AreEqual(1, results.Count);
 				Assert.AreEqual(new StreamId("ue5-release"), results[0].StreamId);
 			}

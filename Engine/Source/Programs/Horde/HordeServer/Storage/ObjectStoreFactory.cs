@@ -5,11 +5,11 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.ObjectStores;
-using Horde.Server.Storage.ObjectStores;
+using HordeServer.Storage.ObjectStores;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Storage
+namespace HordeServer.Storage
 {
 	/// <summary>
 	/// Default implementation of <see cref="IObjectStoreFactory"/>

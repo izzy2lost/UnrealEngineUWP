@@ -12,14 +12,14 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Jobs;
-using Horde.Server.Logs;
-using Horde.Server.Logs.Data;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Sessions;
+using HordeServer.Jobs;
+using HordeServer.Logs;
+using HordeServer.Logs.Data;
+using HordeServer.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Logs
+namespace HordeServer.Tests.Logs
 {
 	[TestClass]
 	public sealed class LogServiceTest : TestSetup

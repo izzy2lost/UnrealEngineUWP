@@ -6,11 +6,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Users;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Horde.Server.Users
+namespace HordeServer.Users
 {
 	/// <summary>
 	/// Controller for the /api/v1/users endpoint

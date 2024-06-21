@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using EpicGames.Core;
+using HordeAgent;
 using Horde.Agent.TrayApp.Forms;
 using Horde.Agent.TrayApp.Properties;
 using Microsoft.Win32;

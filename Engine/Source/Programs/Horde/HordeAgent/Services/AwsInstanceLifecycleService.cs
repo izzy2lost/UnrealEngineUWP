@@ -3,12 +3,12 @@
 using System.Net;
 using System.Text;
 using EpicGames.Core;
-using Horde.Agent.Utility;
+using HordeAgent.Utility;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Services;
+namespace HordeAgent.Services;
 
 /// <summary>
 /// Describes state of local EC2 instance the agent is running on

@@ -4,7 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using EpicGames.Core;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Utility functions for generating schemas

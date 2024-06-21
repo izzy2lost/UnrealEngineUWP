@@ -4,11 +4,11 @@ using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Agents
+namespace HordeServer.Agents
 {
 	/// <summary>
 	/// Entry to the conform list

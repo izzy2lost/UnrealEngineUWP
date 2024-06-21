@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
-using Horde.Agent.Utility;
+using HordeAgent.Utility;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Commands.Service
+namespace HordeAgent.Commands.Service
 {
 	/// <summary>
 	/// Uninstalls the Windows service

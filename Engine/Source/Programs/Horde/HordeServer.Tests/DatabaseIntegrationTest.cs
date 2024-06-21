@@ -6,8 +6,8 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,7 +17,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Driver;
 using StackExchange.Redis;
 
-namespace Horde.Server.Tests
+namespace HordeServer.Tests
 {
 	// Stub for fulfilling IOptions interface during testing
 	public sealed class TestOptions<T> : IOptions<T> where T : class

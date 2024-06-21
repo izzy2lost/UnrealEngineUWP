@@ -21,26 +21,26 @@ using EpicGames.Horde.Logs;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Common.Rpc;
-using Horde.Server.Acls;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Artifacts;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Jobs.TestData;
-using Horde.Server.Logs;
-using Horde.Server.Perforce;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Tasks;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Artifacts;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Jobs.Templates;
+using HordeServer.Jobs.TestData;
+using HordeServer.Logs;
+using HordeServer.Perforce;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Tasks;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 
-namespace Horde.Server.Jobs
+namespace HordeServer.Jobs
 {
 	/// <summary>
 	/// Implements the Horde gRPC service for bots updating their status and dequeing work

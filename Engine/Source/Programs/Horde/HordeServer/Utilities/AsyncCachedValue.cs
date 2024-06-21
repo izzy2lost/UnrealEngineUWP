@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Caches a value and asynchronously updates it after a period of time

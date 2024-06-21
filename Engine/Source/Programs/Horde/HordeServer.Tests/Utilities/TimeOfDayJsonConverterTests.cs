@@ -1,10 +1,10 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Utilities
+namespace HordeServer.Tests.Utilities
 {
 	[TestClass]
 	public class TimeOfDayJsonConverterTests

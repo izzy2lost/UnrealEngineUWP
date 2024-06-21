@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace Horde.Server.Server;
+namespace HordeServer.Server;
 
 /// <summary>
 /// ASP.NET view model for server status updates

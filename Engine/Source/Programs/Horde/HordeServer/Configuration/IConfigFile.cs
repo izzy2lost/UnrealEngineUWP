@@ -3,9 +3,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Users;
+using HordeServer.Users;
 
-namespace Horde.Server.Configuration
+namespace HordeServer.Configuration
 {
 	/// <summary>
 	/// Accessor for a specific revision of a config file. Provides metadata about the current revision, and allows reading its data.

@@ -10,7 +10,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Server.Notices
+namespace HordeServer.Server.Notices
 {
 	/// <summary>
 	/// Collection of notice documents

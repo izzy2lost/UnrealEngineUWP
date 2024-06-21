@@ -2,11 +2,11 @@
 
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
-using Horde.Server.Agents;
+using HordeServer.Agents;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents;
+namespace HordeServer.Tests.Agents;
 
 [TestClass]
 public class AgentControllerDbTest : TestSetup

@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Json.Path;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -20,7 +20,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using TDigestNet;
 
-namespace Horde.Server.Telemetry.Metrics
+namespace HordeServer.Telemetry.Metrics
 {
 	class MetricCollection : IMetricCollection, IHostedService, IAsyncDisposable
 	{

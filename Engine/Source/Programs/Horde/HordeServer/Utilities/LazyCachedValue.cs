@@ -3,7 +3,7 @@
 using System;
 using System.Diagnostics;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Stores a value that expires after a given time

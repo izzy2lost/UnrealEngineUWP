@@ -2,12 +2,12 @@
 
 using System.Collections.Generic;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
-namespace Horde.Server.Tests.Jobs
+namespace HordeServer.Tests.Jobs
 {
 	[TestClass]
 	public class GetLabelStatesTests

@@ -4,11 +4,11 @@ using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Commands.Generate
+namespace HordeServer.Commands.Generate
 {
 	[Command("generate", "configschemas", "Writes JSON schemas for server settings")]
 	class SchemasCommand : Command

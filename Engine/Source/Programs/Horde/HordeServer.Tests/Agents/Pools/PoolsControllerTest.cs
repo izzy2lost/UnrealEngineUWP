@@ -3,12 +3,12 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Pools;
+using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Pools;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents.Pools
+namespace HordeServer.Tests.Agents.Pools
 {
 	[TestClass]
 	public class PoolsControllerTest : TestSetup

@@ -3,10 +3,10 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Utilities
+namespace HordeServer.Tests.Utilities
 {
 	[TestClass]
 	public class IntervalJsonConverterTests

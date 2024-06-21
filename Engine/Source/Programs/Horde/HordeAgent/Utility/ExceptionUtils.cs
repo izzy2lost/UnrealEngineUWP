@@ -2,7 +2,7 @@
 
 using Grpc.Core;
 
-namespace Horde.Agent.Utility
+namespace HordeAgent.Utility
 {
 	/// <summary>
 	/// Utility methods for exceptions

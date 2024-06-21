@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Agents
+namespace HordeServer.Agents
 {
 	/// <summary>
 	/// ACL actions which apply to agents

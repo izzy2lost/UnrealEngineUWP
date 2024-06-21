@@ -11,7 +11,7 @@ using OpenTelemetry.Trace;
 
 #pragma warning disable VSTHRD002 // Synchronous waits 
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Wrap a IMongoCollection with trace scopes

@@ -10,17 +10,17 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
-using Horde.Server.Agents;
-using Horde.Server.Configuration;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Artifacts;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Projects;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Agents;
+using HordeServer.Configuration;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Artifacts;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Jobs.Templates;
+using HordeServer.Projects;
+using HordeServer.Server;
+using HordeServer.Streams;
 
-namespace Horde.Server.Tests
+namespace HordeServer.Tests
 {
 	public class Fixture
 	{

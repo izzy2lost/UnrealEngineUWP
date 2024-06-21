@@ -8,10 +8,10 @@ using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Users;
-using Horde.Server.Jobs.Graphs;
+using HordeServer.Jobs.Graphs;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Jobs.Bisect
+namespace HordeServer.Jobs.Bisect
 {
 	/// <summary>
 	/// Manages a collection of bisect tasks

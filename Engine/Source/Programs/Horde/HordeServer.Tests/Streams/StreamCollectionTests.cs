@@ -3,10 +3,10 @@
 using System.Collections.Generic;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
-using Horde.Server.Streams;
+using HordeServer.Streams;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Streams
+namespace HordeServer.Tests.Streams
 {
 	[TestClass]
 	public class StreamCollectionTests : TestSetup
@@ -26,10 +26,10 @@ namespace Horde.Server.Tests.Streams
 				Templates = new() { new TemplateRefConfig { Id = new TemplateId("foo") } }
 			};
 
-			Assert.ThrowsException<InvalidStreamException>(() => Horde.Server.Streams.StreamCollection.Validate(_streamId, config));
+			Assert.ThrowsException<InvalidStreamException>(() => HordeServer.Streams.StreamCollection.Validate(_streamId, config));
 
 			config.Templates.Add(new TemplateRefConfig { Id = new TemplateId("bar") });
-			Horde.Server.Streams.StreamCollection.Validate(_streamId, config);
+			HordeServer.Streams.StreamCollection.Validate(_streamId, config);
 		}
 	}
 }

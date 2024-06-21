@@ -9,7 +9,7 @@ using System.Text.Json;
 
 #nullable disable
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	static class AgentUtilities
 	{

@@ -16,12 +16,12 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Tools;
-using Horde.Server.Acls;
+using HordeServer.Acls;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Base class for Horde controllers

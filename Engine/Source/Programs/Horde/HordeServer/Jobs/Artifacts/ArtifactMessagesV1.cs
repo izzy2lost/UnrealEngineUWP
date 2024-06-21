@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using EpicGames.Horde.Jobs;
 
-namespace Horde.Server.Jobs.Artifacts
+namespace HordeServer.Jobs.Artifacts
 {
 	/// <summary>
 	/// Response from creating an artifact

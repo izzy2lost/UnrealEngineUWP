@@ -3,7 +3,7 @@
 using System.Threading.Tasks;
 using EpicGames.Core;
 
-namespace Horde.Server.Jobs.Templates
+namespace HordeServer.Jobs.Templates
 {
 	/// <summary>
 	/// Interface for a collection of template documents

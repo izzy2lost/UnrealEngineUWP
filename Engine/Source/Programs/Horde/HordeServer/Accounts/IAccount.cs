@@ -5,10 +5,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
-using Horde.Server.Acls;
-using Horde.Server.Users;
+using HordeServer.Acls;
+using HordeServer.Users;
 
-namespace Horde.Server.Accounts
+namespace HordeServer.Accounts
 {
 	/// <summary>
 	/// An internal Horde account representing a user or service

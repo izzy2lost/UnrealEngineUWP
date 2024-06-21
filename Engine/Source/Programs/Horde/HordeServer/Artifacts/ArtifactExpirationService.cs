@@ -9,13 +9,13 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
-using Horde.Server.Server;
-using Horde.Server.Storage;
+using HordeServer.Server;
+using HordeServer.Storage;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Artifacts
+namespace HordeServer.Artifacts
 {
 	/// <summary>
 	/// Expires artifacts according to their 

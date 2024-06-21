@@ -3,10 +3,10 @@
 using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Commits;
-using Horde.Server.Streams;
+using HordeServer.Streams;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Commits
+namespace HordeServer.Tests.Commits
 {
 	[TestClass]
 	public class CommitTagTests

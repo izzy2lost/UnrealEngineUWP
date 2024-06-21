@@ -16,14 +16,14 @@ using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Redis;
 using EpicGames.Serialization;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Acls;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Auditing;
-using Horde.Server.Server;
-using Horde.Server.Tasks;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Agents.Leases;
+using HordeServer.Agents.Pools;
+using HordeServer.Agents.Sessions;
+using HordeServer.Auditing;
+using HordeServer.Server;
+using HordeServer.Tasks;
+using HordeServer.Utilities;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Hosting;
@@ -31,7 +31,7 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
 
-namespace Horde.Server.Agents
+namespace HordeServer.Agents
 {
 	/// <summary>
 	/// Singleton used to store agent costs

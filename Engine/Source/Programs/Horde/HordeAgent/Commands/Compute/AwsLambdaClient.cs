@@ -4,7 +4,7 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Commands.Compute
+namespace HordeAgent.Commands.Compute
 {
 	/// <summary>
 	/// Class representing the HTTP response from next invocation request

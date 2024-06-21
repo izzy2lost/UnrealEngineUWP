@@ -7,7 +7,7 @@ using System.Linq;
 using System.Reflection;
 using EpicGames.Core;
 
-namespace Horde.Server.Configuration
+namespace HordeServer.Configuration
 {
 	/// <summary>
 	/// Possible methods for merging config values

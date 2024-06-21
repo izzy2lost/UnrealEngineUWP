@@ -7,14 +7,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Streams;
-using Horde.Server.Acls;
-using Horde.Server.Artifacts;
-using Horde.Server.Server;
+using HordeServer.Acls;
+using HordeServer.Artifacts;
+using HordeServer.Server;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Artifacts
+namespace HordeServer.Tests.Artifacts
 {
 	[TestClass]
 	public class ArtifactTests : TestSetup

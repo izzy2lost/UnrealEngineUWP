@@ -5,13 +5,13 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
-using Horde.Server.Server;
-using Horde.Server.Storage;
+using HordeServer.Server;
+using HordeServer.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	class RequestHelper : IRequestHelper
 	{

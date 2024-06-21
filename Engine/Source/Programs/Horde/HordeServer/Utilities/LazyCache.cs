@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 #pragma warning disable VSTHRD110 // Observe the awaitable result of this method call by awaiting it, assigning to a variable, or passing it to another method
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Options for <see cref="LazyCache{TKey, TValue}"/>

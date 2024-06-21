@@ -2,7 +2,7 @@
 
 using System.Collections.Generic;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Extension methods for collections

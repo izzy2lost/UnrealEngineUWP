@@ -9,9 +9,9 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
-using Horde.Server.Configuration;
+using HordeServer.Configuration;
 
-namespace Horde.Server.Jobs.Templates
+namespace HordeServer.Jobs.Templates
 {
 	/// <summary>
 	/// Parameters to create a new template

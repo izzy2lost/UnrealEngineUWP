@@ -9,12 +9,12 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Issues;
-using Horde.Server.Jobs.Schedules;
-using Horde.Server.Jobs.Templates;
-using Horde.Server.Projects;
+using HordeServer.Issues;
+using HordeServer.Jobs.Schedules;
+using HordeServer.Jobs.Templates;
+using HordeServer.Projects;
 
-namespace Horde.Server.Streams
+namespace HordeServer.Streams
 {
 	/// <summary>
 	/// Step state update request

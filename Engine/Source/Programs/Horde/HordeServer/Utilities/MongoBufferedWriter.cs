@@ -9,7 +9,7 @@ using EpicGames.Core;
 using MongoDB.Driver;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Utility class for buffering document  writes to a Mongo collection

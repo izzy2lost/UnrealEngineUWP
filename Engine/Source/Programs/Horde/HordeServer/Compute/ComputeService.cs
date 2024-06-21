@@ -23,12 +23,12 @@ using EpicGames.Horde.Users;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Common.Rpc;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Relay;
-using Horde.Server.Logs;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Agents.Leases;
+using HordeServer.Agents.Relay;
+using HordeServer.Logs;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -37,7 +37,7 @@ using OpenTelemetry.Trace;
 using StackExchange.Redis;
 using Condition = EpicGames.Horde.Common.Condition;
 
-namespace Horde.Server.Compute
+namespace HordeServer.Compute
 {
 	/// <summary>
 	/// Exceptions related to compute service

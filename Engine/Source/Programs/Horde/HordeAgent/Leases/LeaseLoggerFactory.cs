@@ -5,7 +5,7 @@ using EpicGames.Horde.Agents.Leases;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Leases
+namespace HordeAgent.Leases
 {
 	/// <summary>
 	/// Creates local log files for leases executed on this agent

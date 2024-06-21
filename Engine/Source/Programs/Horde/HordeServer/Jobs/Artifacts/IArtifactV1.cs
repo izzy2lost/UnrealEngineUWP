@@ -3,7 +3,7 @@
 using EpicGames.Horde.Jobs;
 using MongoDB.Bson;
 
-namespace Horde.Server.Jobs.Artifacts
+namespace HordeServer.Jobs.Artifacts
 {
 	/// <summary>
 	/// Information about an artifact

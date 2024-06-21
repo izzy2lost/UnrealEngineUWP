@@ -6,7 +6,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Tests.Server
+namespace HordeServer.Tests.Server
 {
 	[TestClass]
 	public class MongoTests

@@ -4,7 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Secrets;
 
-namespace Horde.Server.Secrets
+namespace HordeServer.Secrets
 {
 	/// <summary>
 	/// Collection of secrets

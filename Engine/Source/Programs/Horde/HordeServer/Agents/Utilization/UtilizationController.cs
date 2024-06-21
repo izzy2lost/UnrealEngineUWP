@@ -9,7 +9,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents.Telemetry;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Horde.Server.Agents.Utilization
+namespace HordeServer.Agents.Utilization
 {
 	/// <summary>
 	/// Controller for the /api/v1/utilization endpoint.

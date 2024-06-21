@@ -8,7 +8,7 @@ using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Transports;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Commands.Compute
+namespace HordeAgent.Commands.Compute
 {
 	/// <summary>
 	/// Helper command for hosting a local compute worker in a separate process

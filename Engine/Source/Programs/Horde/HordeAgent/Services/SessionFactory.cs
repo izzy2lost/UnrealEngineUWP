@@ -9,14 +9,14 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
 using Grpc.Core;
 using Grpc.Net.Client;
-using Horde.Agent.Utility;
+using HordeAgent.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Services
+namespace HordeAgent.Services
 {
 	/// <summary>
 	/// Interface for about the current session. 

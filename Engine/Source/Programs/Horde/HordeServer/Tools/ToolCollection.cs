@@ -18,15 +18,15 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Storage.ObjectStores;
 using EpicGames.Horde.Tools;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
-namespace Horde.Server.Tools
+namespace HordeServer.Tools
 {
 	/// <summary>
 	/// Collection of tool documents

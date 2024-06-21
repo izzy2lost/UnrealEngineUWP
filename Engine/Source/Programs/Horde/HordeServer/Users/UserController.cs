@@ -7,17 +7,17 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Users;
-using Horde.Server.Accounts;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Server;
-using Horde.Server.Server.Notices;
-using Horde.Server.Utilities;
+using HordeServer.Accounts;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Server;
+using HordeServer.Server.Notices;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Users
+namespace HordeServer.Users
 {
 	/// <summary>
 	/// Controller for the /api/v1/user endpoint

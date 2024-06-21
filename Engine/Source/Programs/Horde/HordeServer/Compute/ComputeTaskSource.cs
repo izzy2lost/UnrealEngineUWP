@@ -10,16 +10,16 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Relay;
-using Horde.Server.Server;
-using Horde.Server.Tasks;
+using HordeServer.Agents;
+using HordeServer.Agents.Leases;
+using HordeServer.Agents.Relay;
+using HordeServer.Server;
+using HordeServer.Tasks;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Compute
+namespace HordeServer.Compute
 {
 	/// <summary>
 	/// A TCP/IP port used by a compute resource, and how it is mapped externally -> internally
@@ -48,7 +48,7 @@ namespace Horde.Server.Compute
 			AgentPort = agentPort;
 		}
 
-		/// <inheritdoc cref="Equals(Horde.Server.Compute.ComputeResourcePort)" />
+		/// <inheritdoc cref="Equals(HordeServer.Compute.ComputeResourcePort)" />
 		protected bool Equals(ComputeResourcePort other)
 		{
 			return Port == other.Port && AgentPort == other.AgentPort;

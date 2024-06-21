@@ -6,9 +6,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	class RefService : IRefService
 	{

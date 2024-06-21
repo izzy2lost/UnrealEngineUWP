@@ -7,7 +7,7 @@ using EpicGames.Core;
 using EpicGames.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Ddc.UnitTests
+namespace HordeServer.Tests.Ddc.UnitTests
 {
 	[TestClass]
 	public class CompactBinaryTests

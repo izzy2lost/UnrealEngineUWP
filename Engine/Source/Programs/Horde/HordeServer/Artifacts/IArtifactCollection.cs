@@ -6,9 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Streams;
-using Horde.Server.Acls;
+using HordeServer.Acls;
 
-namespace Horde.Server.Artifacts
+namespace HordeServer.Artifacts
 {
 	/// <summary>
 	/// Interface for a collection of artifacts

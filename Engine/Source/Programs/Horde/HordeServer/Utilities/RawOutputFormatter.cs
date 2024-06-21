@@ -12,7 +12,7 @@ using Microsoft.Net.Http.Headers;
 
 #pragma warning disable CS1591
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	public class RawOutputFormatter : OutputFormatter
 	{

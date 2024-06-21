@@ -4,7 +4,7 @@ using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Horde;
 
-namespace Horde.Server.Acls
+namespace HordeServer.Acls
 {
 	/// <summary>
 	/// Identifier for a profile; a group of actions which can be assigned to a user as a whole.

@@ -2,7 +2,7 @@
 
 using System;
 
-namespace Horde.Server.Agents.Telemetry
+namespace HordeServer.Agents.Telemetry
 {
 	/// <summary>
 	/// Telemetry for an agent

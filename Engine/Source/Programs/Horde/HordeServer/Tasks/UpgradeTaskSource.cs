@@ -11,15 +11,15 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Tools;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Agents;
-using Horde.Server.Logs;
-using Horde.Server.Server;
-using Horde.Server.Tools;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Logs;
+using HordeServer.Server;
+using HordeServer.Tools;
+using HordeServer.Utilities;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Tasks
+namespace HordeServer.Tasks
 {
 	class UpgradeTaskSource : TaskSourceBase<UpgradeTask>
 	{

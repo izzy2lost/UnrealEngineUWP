@@ -3,9 +3,9 @@
 using System.Security.Claims;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Users;
-using Horde.Server.Users;
+using HordeServer.Users;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Claim types that are specific to horde

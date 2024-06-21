@@ -6,13 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Horde.Common.Rpc;
-using Horde.Server.Agents.Relay;
-using Horde.Server.Tests.Server;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Relay;
+using HordeServer.Tests.Server;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents.Relay;
+namespace HordeServer.Tests.Agents.Relay;
 
 public class TestRelayRpcClient : RelayRpc.RelayRpcClient
 {

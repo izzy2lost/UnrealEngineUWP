@@ -4,10 +4,10 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde;
-using Horde.Server.Server;
+using HordeServer.Server;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Identifier for a pool

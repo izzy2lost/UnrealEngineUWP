@@ -13,11 +13,11 @@ using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
-using Horde.Server.Acls;
-using Horde.Server.Server;
-using Horde.Server.Storage.ObjectStores;
+using HordeServer.Acls;
+using HordeServer.Server;
+using HordeServer.Storage.ObjectStores;
 
-namespace Horde.Server.Storage
+namespace HordeServer.Storage
 {
 	/// <summary>
 	/// Well-known namespace identifiers

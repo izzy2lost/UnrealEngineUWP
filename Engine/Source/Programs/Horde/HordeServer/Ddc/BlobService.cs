@@ -10,7 +10,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	class BlobService : IBlobService
 	{

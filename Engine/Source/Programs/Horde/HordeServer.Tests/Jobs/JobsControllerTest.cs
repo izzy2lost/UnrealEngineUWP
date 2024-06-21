@@ -2,12 +2,12 @@
 
 using System.Net;
 using System.Threading.Tasks;
-using Horde.Server.Jobs.Artifacts;
+using HordeServer.Jobs.Artifacts;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 #pragma warning disable CA2234 // Pass system uri objects instead of strings
 
-namespace Horde.Server.Tests.Jobs
+namespace HordeServer.Tests.Jobs
 {
 	[TestClass]
 	public class JobsControllerTest : ControllerIntegrationTest

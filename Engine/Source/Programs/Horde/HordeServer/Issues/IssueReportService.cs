@@ -10,12 +10,12 @@ using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
-using Horde.Server.Jobs;
-using Horde.Server.Jobs.Graphs;
-using Horde.Server.Notifications;
-using Horde.Server.Server;
-using Horde.Server.Streams;
-using Horde.Server.Utilities;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Graphs;
+using HordeServer.Notifications;
+using HordeServer.Server;
+using HordeServer.Streams;
+using HordeServer.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,7 +23,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Bson.Serialization.Options;
 
-namespace Horde.Server.Issues
+namespace HordeServer.Issues
 {
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 	public class WorkflowStats

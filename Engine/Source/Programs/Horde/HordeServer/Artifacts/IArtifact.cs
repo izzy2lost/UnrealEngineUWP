@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
-using Horde.Server.Acls;
+using HordeServer.Acls;
 
-namespace Horde.Server.Artifacts
+namespace HordeServer.Artifacts
 {
 	/// <summary>
 	/// Information about an artifact

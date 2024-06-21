@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Sessions;
+using HordeServer.Agents;
+using HordeServer.Agents.Sessions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents;
+namespace HordeServer.Tests.Agents;
 
 [TestClass]
 public class AgentCollectionTests : TestSetup

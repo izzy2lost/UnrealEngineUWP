@@ -8,13 +8,13 @@ using System.Threading.Tasks;
 using Amazon.EC2;
 using Amazon.EC2.Model;
 using EpicGames.Horde.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Auditing;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Pools;
+using HordeServer.Auditing;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Fleet.Providers
+namespace HordeServer.Agents.Fleet.Providers
 {
 	/// <summary>
 	/// Settings for the AWS fleet manager

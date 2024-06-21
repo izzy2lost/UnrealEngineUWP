@@ -9,7 +9,7 @@ using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	public static class RequestUtil
 	{

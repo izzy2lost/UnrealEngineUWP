@@ -3,7 +3,7 @@
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
-namespace Horde.Server.Utilities;
+namespace HordeServer.Utilities;
 
 /// <summary>
 /// Extensions for Redis classes

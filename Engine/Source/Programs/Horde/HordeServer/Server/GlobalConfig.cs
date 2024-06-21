@@ -24,22 +24,22 @@ using EpicGames.Horde.Tools;
 using EpicGames.Horde.Users;
 using EpicGames.Perforce;
 using EpicGames.Serialization;
-using Horde.Server.Acls;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Configuration;
-using Horde.Server.Dashboard;
-using Horde.Server.Devices;
-using Horde.Server.Perforce;
-using Horde.Server.Projects;
-using Horde.Server.Secrets;
-using Horde.Server.Storage;
-using Horde.Server.Streams;
-using Horde.Server.Telemetry.Metrics;
-using Horde.Server.Tools;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Agents;
+using HordeServer.Agents.Pools;
+using HordeServer.Configuration;
+using HordeServer.Dashboard;
+using HordeServer.Devices;
+using HordeServer.Perforce;
+using HordeServer.Projects;
+using HordeServer.Secrets;
+using HordeServer.Storage;
+using HordeServer.Streams;
+using HordeServer.Telemetry.Metrics;
+using HordeServer.Tools;
+using HordeServer.Utilities;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 

@@ -2,13 +2,13 @@
 
 using System;
 using System.Text.Json.Nodes;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Parameters
+namespace HordeServer.Parameters
 {
 	/// <summary>
 	/// Controller for the /api/v1/parameters endpoint. Provides configuration data to other tools.

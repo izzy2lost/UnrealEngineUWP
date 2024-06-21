@@ -3,7 +3,7 @@
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 
-namespace Horde.Server.Notifications
+namespace HordeServer.Notifications
 {
 	/// <summary>
 	/// Base interface for events that users can subscribe for notifications to

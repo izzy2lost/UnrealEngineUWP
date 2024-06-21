@@ -7,13 +7,13 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Perforce;
-using Horde.Server.Server;
+using HordeServer.Perforce;
+using HordeServer.Server;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Perforce;
+namespace HordeServer.Tests.Perforce;
 
 /// <summary>
 /// Fake implementation of IHealthMonitor for tests

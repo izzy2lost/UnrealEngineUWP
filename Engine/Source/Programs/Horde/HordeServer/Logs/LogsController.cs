@@ -14,19 +14,19 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
-using Horde.Server.Acls;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Issues;
-using Horde.Server.Jobs;
-using Horde.Server.Server;
-using Horde.Server.Storage;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Agents.Sessions;
+using HordeServer.Issues;
+using HordeServer.Jobs;
+using HordeServer.Server;
+using HordeServer.Storage;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 
-namespace Horde.Server.Logs
+namespace HordeServer.Logs
 {
 	/// <summary>
 	/// Format for the returned data

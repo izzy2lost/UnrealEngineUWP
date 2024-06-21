@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Agents.Sessions
+namespace HordeServer.Agents.Sessions
 {
 	/// <summary>
 	/// Actions valid for agent sessions

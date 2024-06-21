@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 
-namespace Horde.Server.Jobs.Templates
+namespace HordeServer.Jobs.Templates
 {
 	/// <summary>
 	/// Response describing a template

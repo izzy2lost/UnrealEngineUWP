@@ -5,15 +5,15 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Streams;
-using Horde.Server.Configuration;
-using Horde.Server.Replicators;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Configuration;
+using HordeServer.Replicators;
+using HordeServer.Server;
+using HordeServer.Streams;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Commands.Test
+namespace HordeServer.Commands.Test
 {
 	[Command("test", "replication", "Replicates commits for a particular change of changes from Perforce")]
 	class TestReplicationCommand : Command

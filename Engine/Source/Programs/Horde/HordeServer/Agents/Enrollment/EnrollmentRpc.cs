@@ -8,18 +8,18 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using Grpc.Core;
 using Horde.Common.Rpc;
-using Horde.Server.Acls;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Agents.Enrollment
+namespace HordeServer.Agents.Enrollment
 {
 	/// <summary>
 	/// Allow agents to register with the server
 	/// </summary>
 	[AllowAnonymous]
-	public class EnrollmentRpc : Common.Rpc.EnrollmentRpc.EnrollmentRpcBase
+	public class EnrollmentRpc : Horde.Common.Rpc.EnrollmentRpc.EnrollmentRpcBase
 	{
 		readonly EnrollmentService _registrationService;
 		readonly AgentService _agentService;

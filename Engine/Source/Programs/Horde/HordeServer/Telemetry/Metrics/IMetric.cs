@@ -3,7 +3,7 @@
 using System;
 using EpicGames.Horde.Telemetry.Metrics;
 
-namespace Horde.Server.Telemetry.Metrics
+namespace HordeServer.Telemetry.Metrics
 {
 	/// <summary>
 	/// Interface for a metric event

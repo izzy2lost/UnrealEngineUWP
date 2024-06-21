@@ -10,12 +10,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
-using Horde.Server.Projects;
-using Horde.Server.Server;
+using HordeServer.Projects;
+using HordeServer.Server;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Commands.Generate
+namespace HordeServer.Commands.Generate
 {
 	[Command("generate", "cppapi", "Outputs C++ source files describing the Horde API")]
 	class CppApiCommand : Command

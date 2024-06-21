@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Configuration
+namespace HordeServer.Configuration
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 

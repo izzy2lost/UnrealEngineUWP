@@ -2,13 +2,13 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Horde.Server.Accounts;
-using Horde.Server.Server;
-using Horde.Server.ServiceAccounts;
-using Horde.Server.Users;
+using HordeServer.Accounts;
+using HordeServer.Server;
+using HordeServer.ServiceAccounts;
+using HordeServer.Users;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Accounts
+namespace HordeServer.Tests.Accounts
 {
 	[TestClass]
 	public class HordeAccountCollectionTests : DatabaseIntegrationTest

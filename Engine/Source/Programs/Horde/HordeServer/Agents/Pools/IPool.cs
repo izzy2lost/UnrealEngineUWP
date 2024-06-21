@@ -6,9 +6,9 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Common;
-using Horde.Server.Agents.Fleet;
+using HordeServer.Agents.Fleet;
 
-namespace Horde.Server.Agents.Pools
+namespace HordeServer.Agents.Pools
 {
 	/// <summary>
 	/// Metadata for configuring and picking a pool sizing strategy

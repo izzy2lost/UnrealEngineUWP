@@ -8,15 +8,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
-using Horde.Server.Server;
-using Horde.Server.Telemetry;
-using Horde.Server.Telemetry.Metrics;
-using Horde.Server.Telemetry.Sinks;
+using HordeServer.Server;
+using HordeServer.Telemetry;
+using HordeServer.Telemetry.Metrics;
+using HordeServer.Telemetry.Sinks;
 using Json.Path;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Telemetry
+namespace HordeServer.Tests.Telemetry
 {
 	[TestClass]
 	public class TelemetryTests : TestSetup

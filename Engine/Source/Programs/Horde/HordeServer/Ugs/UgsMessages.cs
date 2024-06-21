@@ -6,10 +6,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using EpicGames.Core;
 using EpicGames.Horde.Issues;
-using Horde.Server.Issues;
-using Horde.Server.Users;
+using HordeServer.Issues;
+using HordeServer.Users;
 
-namespace Horde.Server.Ugs
+namespace HordeServer.Ugs
 {
 	/// <summary>
 	/// Review by a user of a particular change

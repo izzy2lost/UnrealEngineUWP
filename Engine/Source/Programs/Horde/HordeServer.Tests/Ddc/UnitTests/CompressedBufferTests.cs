@@ -5,13 +5,13 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Server.Ddc;
+using HordeServer.Ddc;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Tests.Ddc.UnitTests
+namespace HordeServer.Tests.Ddc.UnitTests
 {
 	[TestClass]
 	public class CompressedBufferTests

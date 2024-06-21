@@ -6,13 +6,13 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
-using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Sessions;
-using Horde.Server.Utilities;
+using HordeServer.Agents.Leases;
+using HordeServer.Agents.Sessions;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Agents.Leases
+namespace HordeServer.Tests.Agents.Leases
 {
 	/// <summary>
 	/// Database-only integration test for LeasesController

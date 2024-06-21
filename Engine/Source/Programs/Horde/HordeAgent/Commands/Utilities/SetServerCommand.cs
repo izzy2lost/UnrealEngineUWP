@@ -3,10 +3,10 @@
 using System.ComponentModel;
 using System.Text.Json.Nodes;
 using EpicGames.Core;
-using Horde.Agent.Utility;
+using HordeAgent.Utility;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Commands.Utilities
+namespace HordeAgent.Commands.Utilities
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 

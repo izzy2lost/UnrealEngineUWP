@@ -11,11 +11,11 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Server;
-using Horde.Server.Accounts;
-using Horde.Server.Acls;
-using Horde.Server.Authentication;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Accounts;
+using HordeServer.Acls;
+using HordeServer.Authentication;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -24,7 +24,7 @@ using Microsoft.Extensions.Options;
 
 #pragma warning disable CA1054 // URI-like parameters should not be strings
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Model for Horde account login view

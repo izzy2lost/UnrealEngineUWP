@@ -9,7 +9,7 @@ using Grpc.Core;
 using Horde.Common.Rpc;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Agents.Relay;
+namespace HordeServer.Agents.Relay;
 
 /// <summary>
 /// Relay service mirroring port mappings sent from server

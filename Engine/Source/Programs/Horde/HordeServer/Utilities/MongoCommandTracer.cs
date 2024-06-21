@@ -10,7 +10,7 @@ using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Core.Events;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Utilities;
+namespace HordeServer.Utilities;
 
 /// <summary>
 /// OpenTelemetry-based tracer listening for MongoDB command events

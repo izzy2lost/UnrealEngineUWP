@@ -2,7 +2,7 @@
 
 using System.Security.Claims;
 
-namespace Horde.Server.Users
+namespace HordeServer.Users
 {
 	/// <summary>
 	/// Claim for a user

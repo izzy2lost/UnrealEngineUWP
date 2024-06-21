@@ -3,10 +3,10 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Agents.Pools;
+using HordeServer.Agents.Pools;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Agents.Fleet.Providers
+namespace HordeServer.Agents.Fleet.Providers
 {
 	/// <summary>
 	/// No-op implementation of <see cref="IFleetManager"/>

@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Storage
+namespace HordeServer.Storage
 {
 	/// <summary>
 	/// ACL actions which apply to storage

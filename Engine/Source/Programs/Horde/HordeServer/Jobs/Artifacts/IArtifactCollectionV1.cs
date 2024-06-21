@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using MongoDB.Bson;
 
-namespace Horde.Server.Jobs.Artifacts
+namespace HordeServer.Jobs.Artifacts
 {
 	/// <summary>
 	/// Interface for a collection of artifacts

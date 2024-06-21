@@ -11,13 +11,13 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Telemetry;
-using Horde.Server.Acls;
-using Horde.Server.Agents.Pools;
-using Horde.Server.Configuration;
-using Horde.Server.Server;
-using Horde.Server.Streams;
+using HordeServer.Acls;
+using HordeServer.Agents.Pools;
+using HordeServer.Configuration;
+using HordeServer.Server;
+using HordeServer.Streams;
 
-namespace Horde.Server.Projects
+namespace HordeServer.Projects
 {
 	/// <summary>
 	/// Stores configuration for a project

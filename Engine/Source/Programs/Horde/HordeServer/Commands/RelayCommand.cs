@@ -8,11 +8,11 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using Grpc.Net.Client;
 using Horde.Common.Rpc;
-using Horde.Server.Agents.Relay;
+using HordeServer.Agents.Relay;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Horde.Server.Commands;
+namespace HordeServer.Commands;
 
 /// <summary>
 /// Run server in relay mode

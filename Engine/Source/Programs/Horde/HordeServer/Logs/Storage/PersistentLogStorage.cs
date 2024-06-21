@@ -5,10 +5,10 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
-using Horde.Server.Logs.Data;
+using HordeServer.Logs.Data;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Logs.Storage
+namespace HordeServer.Logs.Storage
 {
 	/// <summary>
 	/// Bulk storage for log file data

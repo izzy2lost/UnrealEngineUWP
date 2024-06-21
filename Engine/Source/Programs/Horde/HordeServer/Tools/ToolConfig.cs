@@ -9,11 +9,11 @@ using System.Text.Json.Serialization;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
-using Horde.Server.Acls;
-using Horde.Server.Server;
-using Horde.Server.Storage;
+using HordeServer.Acls;
+using HordeServer.Server;
+using HordeServer.Storage;
 
-namespace Horde.Server.Tools
+namespace HordeServer.Tools
 {
 	/// <summary>
 	/// Options for configuring a tool

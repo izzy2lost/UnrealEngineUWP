@@ -5,7 +5,7 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Storage
+namespace HordeServer.Storage
 {
 	/// <summary>
 	/// Identifier for a pool

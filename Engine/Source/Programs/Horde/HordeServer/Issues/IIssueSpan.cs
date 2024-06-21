@@ -6,7 +6,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using MongoDB.Bson;
 
-namespace Horde.Server.Issues
+namespace HordeServer.Issues
 {
 	/// <summary>
 	/// Trace of a set of errors in a single step across multiple jobs

@@ -8,18 +8,18 @@ using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Tools;
-using Horde.Server.Acls;
-using Horde.Server.Configuration;
-using Horde.Server.Server;
-using Horde.Server.ServiceAccounts;
-using Horde.Server.Storage;
-using Horde.Server.Tools;
-using Horde.Server.Users;
-using Horde.Server.Utilities;
+using HordeServer.Acls;
+using HordeServer.Configuration;
+using HordeServer.Server;
+using HordeServer.ServiceAccounts;
+using HordeServer.Storage;
+using HordeServer.Tools;
+using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Server.Tests.Tools;
+namespace HordeServer.Tests.Tools;
 
 [TestClass]
 public class ToolsControllerTests

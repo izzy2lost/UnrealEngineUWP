@@ -2,7 +2,7 @@
 
 using OpenTracing;
 
-namespace Horde.Agent
+namespace HordeAgent
 {
 	static class Tracing
 	{

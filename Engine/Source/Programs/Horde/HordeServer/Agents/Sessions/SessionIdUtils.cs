@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Agents.Sessions;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 
-namespace Horde.Server.Agents.Sessions
+namespace HordeServer.Agents.Sessions
 {
 	/// <summary>
 	/// Server helper methods for <see cref="SessionId"/>

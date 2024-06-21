@@ -10,7 +10,7 @@ using EpicGames.Horde.Streams;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 
-namespace Horde.Server.Agents.Leases
+namespace HordeServer.Agents.Leases
 {
 	/// <summary>
 	/// Document describing a lease. This exists to permanently record a lease; the agent object tracks internal state of any active leases through AgentLease objects.

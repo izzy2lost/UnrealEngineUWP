@@ -9,8 +9,8 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Server.Commands;
-using Horde.Server.Utilities;
+using HordeServer.Commands;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,7 +23,7 @@ using Serilog.Exceptions.Grpc.Destructurers;
 using Serilog.Formatting.Json;
 using Serilog.Sinks.SystemConsole.Themes;
 
-namespace Horde.Server
+namespace HordeServer
 {
 	static class LoggerExtensions
 	{

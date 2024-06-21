@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
 
-namespace Horde.Server.Telemetry.Metrics
+namespace HordeServer.Telemetry.Metrics
 {
 	/// <summary>
 	/// Collection of aggregated metrics

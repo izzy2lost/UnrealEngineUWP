@@ -5,7 +5,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization.Conventions;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Implements a discriminator convention, which defaults to a specific concrete type if no discriminator is specified.

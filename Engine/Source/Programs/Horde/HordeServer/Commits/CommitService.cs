@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Horde.Server.Perforce;
-using Horde.Server.Streams;
+using HordeServer.Perforce;
+using HordeServer.Streams;
 
-namespace Horde.Server.Commits
+namespace HordeServer.Commits
 {
 	/// <summary>
 	/// Provides commit information for streams

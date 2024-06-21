@@ -17,7 +17,7 @@ using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591 // Missing XML comment for public type
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	public class CompressedBufferHeader
 	{

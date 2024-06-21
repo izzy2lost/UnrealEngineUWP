@@ -7,11 +7,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Commits;
 using EpicGames.Perforce;
-using Horde.Server.Commits;
-using Horde.Server.Streams;
-using Horde.Server.Users;
+using HordeServer.Commits;
+using HordeServer.Streams;
+using HordeServer.Users;
 
-namespace Horde.Server.Perforce
+namespace HordeServer.Perforce
 {
 	/// <summary>
 	/// Result from checking a shelved change status

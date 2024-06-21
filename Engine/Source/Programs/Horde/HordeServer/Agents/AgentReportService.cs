@@ -6,15 +6,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
-using Horde.Server.Jobs;
-using Horde.Server.Notifications;
-using Horde.Server.Server;
-using Horde.Server.Utilities;
+using HordeServer.Jobs;
+using HordeServer.Notifications;
+using HordeServer.Server;
+using HordeServer.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Agents
+namespace HordeServer.Agents
 {
 	/// <summary>
 	/// Report for the state of agents in the farm

@@ -3,7 +3,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Horde.Server.Server
+namespace HordeServer.Server
 {
 	/// <summary>
 	/// Controller for app lifetime related routes

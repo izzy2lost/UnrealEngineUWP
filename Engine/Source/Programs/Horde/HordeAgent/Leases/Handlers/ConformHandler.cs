@@ -5,12 +5,12 @@ using EpicGames.Horde;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Leases.Handlers
+namespace HordeAgent.Leases.Handlers
 {
 	class ConformHandler : LeaseHandler<ConformTask>
 	{

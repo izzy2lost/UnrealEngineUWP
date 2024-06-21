@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 

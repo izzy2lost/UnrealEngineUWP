@@ -9,15 +9,15 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
 using Google.Protobuf.WellKnownTypes;
-using Horde.Server.Server;
-using Horde.Server.Tasks;
-using Horde.Server.Utilities;
+using HordeServer.Server;
+using HordeServer.Tasks;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Agents.Leases
+namespace HordeServer.Agents.Leases
 {
 	/// <summary>
 	/// Controller for the /api/v1/leases endpoint

@@ -6,10 +6,10 @@ using System.IO;
 using System.Linq;
 using EpicGames.Core;
 using EpicGames.Horde.Logs;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Logs.Data
+namespace HordeServer.Logs.Data
 {
 	/// <summary>
 	/// Contains a source block of text to be indexed

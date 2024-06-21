@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Acls;
 
-namespace Horde.Server.Ddc
+namespace HordeServer.Ddc
 {
 	/// <summary>
 	/// ACL actions for DDC

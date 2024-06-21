@@ -10,7 +10,7 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
 
-namespace Horde.Server.Tools
+namespace HordeServer.Tools
 {
 	/// <summary>
 	/// Describes a standalone, external tool hosted and deployed by Horde. Provides basic functionality for performing

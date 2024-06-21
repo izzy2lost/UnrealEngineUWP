@@ -4,9 +4,9 @@ using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
-using Horde.Server.Streams;
+using HordeServer.Streams;
 
-namespace Horde.Server.Jobs.Schedules
+namespace HordeServer.Jobs.Schedules
 {
 	/// <summary>
 	/// Response describing a schedule

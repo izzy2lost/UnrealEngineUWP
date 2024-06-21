@@ -12,15 +12,15 @@ using Amazon.AutoScaling.Model;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
-using Horde.Server.Agents;
-using Horde.Server.Agents.Fleet;
-using Horde.Server.Utilities;
+using HordeServer.Agents;
+using HordeServer.Agents.Fleet;
+using HordeServer.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
-namespace Horde.Server.Tests.Fleet;
+namespace HordeServer.Tests.Fleet;
 
 [TestClass]
 public class AwsAutoScalingLifecycleServiceTest : TestSetup

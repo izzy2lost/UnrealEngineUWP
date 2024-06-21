@@ -7,7 +7,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Logs;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Logs.Data
+namespace HordeServer.Logs.Data
 {
 	/// <summary>
 	/// Data for a log chunk

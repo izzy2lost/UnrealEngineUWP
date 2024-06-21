@@ -2,9 +2,9 @@
 
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 
-namespace Horde.Server.Tests.Stubs.Collections
+namespace HordeServer.Tests.Stubs.Collections
 {
 	class SingletonDocumentStub<T> : ISingletonDocument<T> where T : SingletonBase, new()
 	{

@@ -10,10 +10,10 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
-using Horde.Server.Utilities;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Commands.Generate
+namespace HordeServer.Commands.Generate
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 

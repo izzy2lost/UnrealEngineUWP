@@ -4,12 +4,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Agent.Services;
+using HordeAgent.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Agent.Tests.Services;
+namespace HordeAgent.Tests.Services;
 
 [TestClass]
 public sealed class TelemetryServiceTest : IDisposable

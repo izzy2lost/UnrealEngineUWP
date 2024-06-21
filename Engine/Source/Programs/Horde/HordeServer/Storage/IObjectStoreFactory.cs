@@ -2,7 +2,7 @@
 
 using EpicGames.Horde.Storage;
 
-namespace Horde.Server.Storage
+namespace HordeServer.Storage
 {
 	/// <summary>
 	/// Service which resolves storage backend instances

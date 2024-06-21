@@ -6,7 +6,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 
-namespace Horde.Server.Utilities
+namespace HordeServer.Utilities
 {
 	/// <summary>
 	/// Helper functions for dealing with JWTs

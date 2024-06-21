@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Users;
 using MongoDB.Bson;
 
-namespace Horde.Server.Notifications
+namespace HordeServer.Notifications
 {
 	/// <summary>
 	/// Collection of notification triggers

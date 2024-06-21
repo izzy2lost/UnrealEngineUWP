@@ -3,7 +3,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace Horde.Server.Tests
+namespace HordeServer.Tests
 {
 	class ServerTestsApp
 	{
