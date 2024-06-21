@@ -99,6 +99,15 @@ struct FTestChunkFragment_Int : public FMassChunkFragment
 };
 
 USTRUCT()
+struct FTestChunkFragment_Float : public FMassChunkFragment
+{
+	GENERATED_BODY()
+	float Value = 0.f;
+
+	FTestChunkFragment_Float(const float InValue = 0.f) : Value(InValue) {}
+};
+
+USTRUCT()
 struct FTestSharedFragment_Int : public FMassSharedFragment
 {
 	using FValueType = int32;
