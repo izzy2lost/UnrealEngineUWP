@@ -204,8 +204,9 @@ bool FLevelInstanceActorDesc::IsChildContainerInstanceInternal() const
 	{
 		return false;
 	}
-	
-	if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(GetChildContainerPackage()))
+
+	if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(GetChildContainerPackage()) && 
+		!ULevel::GetIsLevelUsingActorsDescsFromPackage(GetChildContainerPackage()))
 	{
 		return false;
 	}
@@ -246,16 +247,23 @@ void FLevelInstanceActorDesc::CheckForErrors(const IWorldPartitionActorDescInsta
 	{
 		ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetNotFound);
 	}
-	else if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(ChildContainerPackage))
+	else
 	{
-		if (DesiredRuntimeBehavior != ELevelInstanceRuntimeBehavior::LevelStreaming)
+		if (!ULevel::GetIsLevelUsingExternalActorsFromPackage(ChildContainerPackage))
 		{
-			ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors);
+			if (DesiredRuntimeBehavior != ELevelInstanceRuntimeBehavior::LevelStreaming)
+			{
+				if (!ULevel::GetIsLevelUsingActorsDescsFromPackage(ChildContainerPackage))
+				{
+					ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::WorldAssetDontContainActorsMetadata);
+				}
+			}
 		}
-	}
-	else if (!ValidateCircularReference(InActorDescView->GetContainerInstance(), ChildContainerPackage))
-	{
-		ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
+	
+		if (!ValidateCircularReference(InActorDescView->GetContainerInstance(), ChildContainerPackage))
+		{
+			ErrorHandler->OnLevelInstanceInvalidWorldAsset(*InActorDescView, ChildContainerPackage, IStreamingGenerationErrorHandler::ELevelInstanceInvalidReason::CirculalReference);
+		}
 	}
 }
 

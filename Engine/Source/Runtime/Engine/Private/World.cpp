@@ -54,6 +54,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
+#include "WorldPartition/WorldPartitionActorDescUtils.h"
 #include "GameFramework/GameNetworkManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/NetworkProfiler.h"
@@ -9327,6 +9328,31 @@ void UWorld::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	FWorldDelegates::GetAssetTagsWithContext.Broadcast(this, Context);
+}
+
+void UWorld::GetExtendedAssetRegistryTagsForSave(const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetExtendedAssetRegistryTagsForSave(TargetPlatform, OutTags);
+
+	if (!PersistentLevel->IsUsingExternalActors())
+	{
+		TArray<FString> ActorsMetaData;
+		for (AActor* Actor : PersistentLevel->Actors)
+		{
+			if (IsValid(Actor) && Actor->SupportsExternalPackaging())
+			{
+				FWorldPartitionActorDescUtils::FActorDescInitParams ActorDescInitParams(Actor);
+				ActorsMetaData.Add(ActorDescInitParams.ToString());
+			}
+		}
+
+		if (ActorsMetaData.Num())
+		{
+			static FName NAME_ActorsMetaData(TEXT("ActorsMetaData"));
+			const FString ActorsMetaDataStr = FString::Join(ActorsMetaData, TEXT(";"));
+			OutTags.Add(UObject::FAssetRegistryTag(NAME_ActorsMetaData, ActorsMetaDataStr, UObject::FAssetRegistryTag::TT_Hidden));
+		}
+	}
 }
 
 void UWorld::ThreadedPostLoadAssetRegistryTagsOverride(FPostLoadAssetRegistryTagsContext& Context) const

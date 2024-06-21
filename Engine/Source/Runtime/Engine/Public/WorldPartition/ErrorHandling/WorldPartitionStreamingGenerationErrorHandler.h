@@ -111,8 +111,8 @@ public:
 	enum class ELevelInstanceInvalidReason
 	{
 		WorldAssetNotFound,
-		WorldAssetNotUsingExternalActors,
-		WorldAssetImcompatiblePartitioned,
+		WorldAssetDontContainActorsMetadata,
+		WorldAssetIncompatiblePartitioned,
 		WorldAssetHasInvalidContainer,
 		CirculalReference
 	};

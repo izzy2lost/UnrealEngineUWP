@@ -519,10 +519,10 @@ void UWorldPartitionChangelistValidator::OnLevelInstanceInvalidWorldAsset(const 
 				FText::FromName(WorldAsset));
 			AssetFails(CurrentAsset, CurrentError);
 			break;
-		case ELevelInstanceInvalidReason::WorldAssetNotUsingExternalActors:
+		case ELevelInstanceInvalidReason::WorldAssetDontContainActorsMetadata:
 			// Not a validation error
 			break;
-		case ELevelInstanceInvalidReason::WorldAssetImcompatiblePartitioned:
+		case ELevelInstanceInvalidReason::WorldAssetIncompatiblePartitioned:
 			// Not a validation error
 			break;
 		case ELevelInstanceInvalidReason::WorldAssetHasInvalidContainer:

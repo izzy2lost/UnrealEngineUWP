@@ -69,33 +69,68 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 		ContentBundleGuid = InitParams.ContentBundleGuid;
 	}
 
-	TArray<FAssetData> Assets;
+	TArray<FAssetData> ExternalAssets;
+	TArray<FString> InternalAssets;
 	if (!ContainerPackageName.IsNone())
 	{
 		const FString ContainerExternalActorsPath = GetExternalActorPath();
 
-		// Do a synchronous scan of the level external actors path.					
 		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+
+		// Do a synchronous scan of the level external actors path.
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ScanSynchronous);
 			AssetRegistry.ScanSynchronous({ ContainerExternalActorsPath }, TArray<FString>());
 		}
 
-		FARFilter Filter;
-		Filter.bRecursivePaths = true;
-		Filter.bIncludeOnlyOnDiskAssets = true;
-		Filter.PackagePaths.Add(*ContainerExternalActorsPath);
+		// Gather external actors
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GetExternalAssets);
 
-		TRACE_CPUPROFILER_EVENT_SCOPE(GetAssets);
-		FExternalPackageHelper::GetSortedAssets(Filter, Assets);
+			FARFilter Filter;
+			Filter.bRecursivePaths = true;
+			Filter.bIncludeOnlyOnDiskAssets = true;
+			Filter.PackagePaths.Add(*ContainerExternalActorsPath);
+
+			FExternalPackageHelper::GetSortedAssets(Filter, ExternalAssets);
+		}
+
+		// Gather non-external actors
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GetInternalAssets);
+
+			FARFilter Filter;
+			Filter.bIncludeOnlyOnDiskAssets = true;
+			Filter.PackageNames.Add(ContainerPackageName);
+
+			TArray<FAssetData> WorldAssetData;
+			AssetRegistry.GetAssets(Filter, WorldAssetData);
+
+			// Transform world assets
+			static FName NAME_ActorsMetaData(TEXT("ActorsMetaData"));
+			for (const FAssetData& AssetData : WorldAssetData)
+			{
+				FString ActorsMetaDataStr;
+				if (AssetData.GetTagValue(NAME_ActorsMetaData, ActorsMetaDataStr))
+				{
+					TArray<FString> ActorsMetaData;
+					if (ActorsMetaDataStr.ParseIntoArray(ActorsMetaData, TEXT(";")))
+					{
+						InternalAssets.Append(ActorsMetaData);
+					}
+				}
+			}
+		}
 	}
+
+	UE_LOG(LogWorldPartition, Verbose, TEXT("Parsed actor descriptor container package '%s': %d external actors, %d internal actors"), *InitParams.PackageName.ToString(), ExternalAssets.Num(), InternalAssets.Num());
 
 	FWorldPartitionClassDescRegistry& ClassDescRegistry = FWorldPartitionClassDescRegistry::Get();
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(GatherDescriptorsClass);
 		
 		TSet<FTopLevelAssetPath> ClassPaths;
-		for (const FAssetData& Asset : Assets)
+		for (const FAssetData& Asset : ExternalAssets)
 		{
 			ClassPaths.Add(Asset.AssetClassPath);
 		}
@@ -108,7 +143,7 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 		TRACE_CPUPROFILER_EVENT_SCOPE(CreateDescriptors);
 
 		TMap<FName, FWorldPartitionActorDesc*> ActorDescsByPackage;
-		for (const FAssetData& Asset : Assets)
+		for (const FAssetData& Asset : ExternalAssets)
 		{
 			TUniquePtr<FWorldPartitionActorDesc> ActorDesc = FWorldPartitionActorDescUtils::GetActorDescriptorFromAssetData(Asset);
 								
@@ -171,6 +206,16 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 				ActorDescsByPackage.Add(ActorDesc->GetActorPackage(), ActorDesc.Get());
 				ValidActorDescs.Add(ActorDesc->GetGuid(), MoveTemp(ActorDesc));
 			}
+		}
+
+		for (const FString& InternalAsset : InternalAssets)
+		{
+			FWorldPartitionActorDescUtils::FActorDescInitParams ActorDescInitParams(InternalAsset);
+
+			TUniquePtr<FWorldPartitionActorDesc> ActorDesc = FWorldPartitionActorDescUtils::GetActorDescriptorFromInitParams(ActorDescInitParams, ContainerPackageName);
+
+			ActorDescsByPackage.Add(ActorDesc->GetActorPackage(), ActorDesc.Get());
+			ValidActorDescs.Add(ActorDesc->GetGuid(), MoveTemp(ActorDesc));
 		}
 	}
 
@@ -338,8 +383,10 @@ void UActorDescContainer::OnDeletedObjectPlaceholderCreated(const UDeletedObject
 	{
 		if (ShouldHandleDeletedObjectPlaceholderEvent(InDeletedObjectPlaceholder))
 		{
-			check(GetActorDescriptor(Actor->GetActorGuid()));
-			DeletedObjectPlaceholdersAnnotation.AddAnnotation(Actor, FDeletedObjectPlaceholderAnnotation(InDeletedObjectPlaceholder, GetContainerName()));
+			if (GetActorDescriptor(Actor->GetActorGuid()))
+			{
+				DeletedObjectPlaceholdersAnnotation.AddAnnotation(Actor, FDeletedObjectPlaceholderAnnotation(InDeletedObjectPlaceholder, GetContainerName()));
+			}
 		}
 	}
 }
