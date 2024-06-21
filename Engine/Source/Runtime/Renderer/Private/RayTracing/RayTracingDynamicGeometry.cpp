@@ -6,16 +6,10 @@
 #include "RayTracingDynamicGeometryCollection.h"
 #include "RayTracingInstance.h"
 #include "RayTracingGeometry.h"
-#include "RenderGraphBuilder.h"
 
 #if RHI_RAYTRACING
 
 #include "Materials/MaterialRenderProxy.h"
-
-DECLARE_GPU_STAT(RayTracingDynamicGeometry);
-
-DECLARE_DWORD_COUNTER_STAT(TEXT("Ray tracing dynamic build primitives"), STAT_RayTracingDynamicBuildPrimitives, STATGROUP_SceneRendering);
-DECLARE_DWORD_COUNTER_STAT(TEXT("Ray tracing dynamic update primitives"), STAT_RayTracingDynamicUpdatePrimitives, STATGROUP_SceneRendering);
 
 static int32 GRTDynGeomSharedVertexBufferSizeInMB = 4;
 static FAutoConsoleVariableRef CVarRTDynGeomSharedVertexBufferSizeInMB(
@@ -30,13 +24,6 @@ static FAutoConsoleVariableRef CVarRTDynGeomSharedVertexBufferGarbageCollectLate
 	TEXT("r.RayTracing.DynamicGeometry.SharedVertexBufferGarbageCollectLatency"),
 	GRTDynGeomSharedVertexBufferGarbageCollectLatency,
 	TEXT("Amount of update cycles before a heap is deleted when not used (default 30)."),
-	ECVF_RenderThreadSafe
-);
-
-static TAutoConsoleVariable<int32> CVarRTDynGeomMaxUpdatePrimitivesPerFrame(
-	TEXT("r.RayTracing.DynamicGeometry.MaxUpdatePrimitivesPerFrame"),
-	-1,
-	TEXT("Sets the dynamic ray tracing acceleration structure build budget in terms of maximum number of updated triangles per frame (<= 0 then disabled and all acceleration structures are updated - default)"),
 	ECVF_RenderThreadSafe
 );
 
@@ -133,18 +120,15 @@ void FRayTracingDynamicGeometryCollection::Clear()
 	// Clear working arrays - keep max size allocated
 	DispatchCommands.Empty(DispatchCommands.Max());
 	BuildParams.Empty(BuildParams.Max());
-
-	DynamicGeometryBuilds.Empty(DynamicGeometryBuilds.Max());
-	DynamicGeometryUpdates.Empty(DynamicGeometryUpdates.Max());
+	Segments.Empty(Segments.Max());
 }
 
 int64 FRayTracingDynamicGeometryCollection::BeginUpdate()
 {
 	check(DispatchCommands.IsEmpty());
 	check(BuildParams.IsEmpty());
+	check(Segments.IsEmpty());
 	check(ReferencedUniformBuffers.IsEmpty());
-	check(DynamicGeometryBuilds.IsEmpty());
-	check(DynamicGeometryUpdates.IsEmpty());
 
 	// Vertex buffer data can be immediatly reused the next frame, because it's already 'consumed' for building the AccelerationStructure data
 	// Garbage collect unused buffers for n generations
@@ -238,9 +222,6 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 		RWBuffer = &VertexPositionBuffer->RWBuffer;
 	}
 
-	FRayTracingDynamicGeometryBuildParams GeometryBuildParams;
-	GeometryBuildParams.DispatchCommands.Reserve(UpdateParams.MeshBatches.Num());
-
 	for (const FMeshBatch& MeshBatch : UpdateParams.MeshBatches)
 	{
 		if (!ensureMsgf(MeshBatch.VertexFactory->GetType()->SupportsRayTracingDynamicGeometry(),
@@ -321,7 +302,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 					ShaderBindings.Finalize(&MeshProcessorShaders);
 #endif
 
-					GeometryBuildParams.DispatchCommands.Add(DispatchCmd);
+					DispatchCommands.Add(DispatchCmd);
 
 					break;
 				}
@@ -376,22 +357,23 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 		Geometry.CreateRayTracingGeometry(RHICmdList, ERTAccelerationStructureBuildPriority::Skip);
 	}
 
-	EAccelerationStructureBuildMode BuildMode = Geometry.GetRequiresBuild()
+	FRayTracingGeometryBuildParams Params;
+	Params.Geometry = Geometry.GetRHI();
+	Params.BuildMode = Geometry.GetRequiresBuild()
 		? EAccelerationStructureBuildMode::Build
 		: EAccelerationStructureBuildMode::Update;
 
-	GeometryBuildParams.Geometry = UpdateParams.Geometry;
-
 	Geometry.SetRequiresBuild(false);
 
-	if (BuildMode == EAccelerationStructureBuildMode::Build)
+	if (bUseSharedVertexBuffer)
 	{
-		DynamicGeometryBuilds.Add(GeometryBuildParams);
+		Segments.Append(Geometry.Initializer.Segments);
+
+		// Cache the count of segments so final views can be made when all segments are collected (Segments array could still be reallocated)
+		Params.Segments = MakeArrayView((FRayTracingGeometrySegment*)nullptr, Geometry.Initializer.Segments.Num());
 	}
-	else
-	{
-		DynamicGeometryUpdates.Add(GeometryBuildParams);
-	}
+
+	BuildParams.Add(Params);
 	
 	if (bUseSharedVertexBuffer)
 	{
@@ -401,149 +383,6 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 	{
 		Geometry.DynamicGeometrySharedBufferGenerationID = FRayTracingGeometry::NonSharedVertexBuffers;
 	}
-}
-
-BEGIN_SHADER_PARAMETER_STRUCT(FRayTracingDynamicGeometryUpdatePassParams, )
-	RDG_BUFFER_ACCESS(DynamicGeometryScratchBuffer, ERHIAccess::UAVCompute)
-
-	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-END_SHADER_PARAMETER_STRUCT()
-
-uint32 FRayTracingDynamicGeometryCollection::Update()
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingDynamicGeometryCollection::Update);
-
-	const int32 TotalNumGeometryBuilds = DynamicGeometryBuilds.Num() + DynamicGeometryUpdates.Num();
-	if (TotalNumGeometryBuilds == 0)
-	{
-		return 0;
-	}
-
-	checkf(DispatchCommands.IsEmpty(), TEXT("DispatchCommands is not empty. Previous frame updates were not dispatched."));
-	checkf(BuildParams.IsEmpty(), TEXT("BuildParams is not empty. Previous frame updates were not dispatched."));
-
-	DispatchCommands.Reserve(TotalNumGeometryBuilds);
-	BuildParams.Reserve(TotalNumGeometryBuilds);
-
-	const uint32 ScratchAlignment = GRHIRayTracingScratchBufferAlignment;
-
-	uint32 BLASScratchSize = 0;
-	int32 NumBuildPrimitives = 0;
-
-	for (const FRayTracingDynamicGeometryBuildParams& Build : DynamicGeometryBuilds)
-	{
-		FRHIRayTracingGeometry* RayTracingGeometry = Build.Geometry->GetRHI();
-
-		NumBuildPrimitives += Build.Geometry->Initializer.TotalPrimitiveCount;
-
-		const uint32 ScratchSize = RayTracingGeometry->GetSizeInfo().BuildScratchSize;
-		BLASScratchSize = Align(BLASScratchSize + ScratchSize, ScratchAlignment);
-
-		FRayTracingGeometryBuildParams BuildParam;
-		BuildParam.Geometry = RayTracingGeometry;
-		BuildParam.BuildMode = EAccelerationStructureBuildMode::Build;
-		BuildParams.Add(MoveTemp(BuildParam));
-
-		DispatchCommands.Append(Build.DispatchCommands);
-	}
-
-	const int32 MaxUpdatePrimitivesPerFrame = CVarRTDynGeomMaxUpdatePrimitivesPerFrame.GetValueOnRenderThread();
-
-	int32 NumUpdatedPrimitives = 0;
-
-	if (MaxUpdatePrimitivesPerFrame <= 0)
-	{
-		for (const FRayTracingDynamicGeometryBuildParams& Update : DynamicGeometryUpdates)
-		{
-			FRHIRayTracingGeometry* RayTracingGeometry = Update.Geometry->GetRHI();
-
-			Update.Geometry->LastUpdatedFrame = GFrameCounterRenderThread;
-
-			NumUpdatedPrimitives += Update.Geometry->Initializer.TotalPrimitiveCount;
-
-			const uint32 ScratchSize = RayTracingGeometry->GetSizeInfo().UpdateScratchSize;
-			BLASScratchSize = Align(BLASScratchSize + ScratchSize, ScratchAlignment);
-
-			FRayTracingGeometryBuildParams BuildParam;
-			BuildParam.Geometry = RayTracingGeometry;
-			BuildParam.BuildMode = EAccelerationStructureBuildMode::Update;
-			BuildParams.Add(MoveTemp(BuildParam));
-
-			DispatchCommands.Append(Update.DispatchCommands);
-		}
-	}
-	else
-	{
-		DynamicGeometryUpdates.Sort([](const FRayTracingDynamicGeometryBuildParams& InLHS, const FRayTracingDynamicGeometryBuildParams& InRHS)
-			{
-				return InLHS.Geometry->LastUpdatedFrame < InRHS.Geometry->LastUpdatedFrame;
-			});
-
-		for (const FRayTracingDynamicGeometryBuildParams& Update : DynamicGeometryUpdates)
-		{
-			FRHIRayTracingGeometry* RayTracingGeometry = Update.Geometry->GetRHI();
-
-			Update.Geometry->LastUpdatedFrame = GFrameCounterRenderThread;
-
-			NumUpdatedPrimitives += Update.Geometry->Initializer.TotalPrimitiveCount;
-
-			const uint32 ScratchSize = RayTracingGeometry->GetSizeInfo().UpdateScratchSize;
-			BLASScratchSize = Align(BLASScratchSize + ScratchSize, ScratchAlignment);
-
-			FRayTracingGeometryBuildParams BuildParam;
-			BuildParam.Geometry = RayTracingGeometry;
-			BuildParam.BuildMode = EAccelerationStructureBuildMode::Update;
-			BuildParams.Add(MoveTemp(BuildParam));
-
-			DispatchCommands.Append(Update.DispatchCommands);
-
-			if (NumUpdatedPrimitives > MaxUpdatePrimitivesPerFrame)
-			{
-				break;
-			}
-		}
-	}
-
-	INC_DWORD_STAT_BY(STAT_RayTracingDynamicUpdatePrimitives, NumUpdatedPrimitives);
-	INC_DWORD_STAT_BY(STAT_RayTracingDynamicBuildPrimitives, NumBuildPrimitives);
-
-	return BLASScratchSize;
-}
-
-void FRayTracingDynamicGeometryCollection::AddDynamicGeometryUpdatePass(const FViewInfo& View, FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags, FRDGBufferRef& OutDynamicGeometryScratchBuffer)
-{
-	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
-	
-	const uint32 ScratchAlignment = GRHIRayTracingScratchBufferAlignment;
-	const uint32 BLASScratchSize = Update();
-
-	if (BLASScratchSize > 0)
-	{
-		FRDGBufferDesc ScratchBufferDesc;
-		ScratchBufferDesc.Usage = EBufferUsageFlags::RayTracingScratch | EBufferUsageFlags::StructuredBuffer;
-		ScratchBufferDesc.BytesPerElement = ScratchAlignment;
-		ScratchBufferDesc.NumElements = FMath::DivideAndRoundUp(BLASScratchSize, ScratchAlignment);
-
-		OutDynamicGeometryScratchBuffer = GraphBuilder.CreateBuffer(ScratchBufferDesc, TEXT("DynamicGeometry.BLASSharedScratchBuffer"));
-	}
-
-	FRayTracingDynamicGeometryUpdatePassParams* PassParams = GraphBuilder.AllocParameters<FRayTracingDynamicGeometryUpdatePassParams>();
-	PassParams->View = View.ViewUniformBuffer;
-	PassParams->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-	PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;	
-
-	GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingDynamicUpdate"), PassParams, ComputePassFlags | ERDGPassFlags::NeverCull,
-		[this, PassParams](FRHICommandList& RHICmdList)
-		{
-			SCOPED_GPU_STAT(RHICmdList, RayTracingDynamicGeometry);
-			FRHIBuffer* DynamicGeometryScratchBuffer = PassParams->DynamicGeometryScratchBuffer ? PassParams->DynamicGeometryScratchBuffer->GetRHI() : nullptr;
-
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			DispatchUpdates(RHICmdList, DynamicGeometryScratchBuffer);
-			EndUpdate();
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		});
 }
 
 void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandList& RHICmdList, FRHIBuffer* ScratchBuffer)
@@ -565,6 +404,22 @@ void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandList& RHIC
 
 					return InLHS.TargetBuffer < InRHS.TargetBuffer;
 				});
+		}
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(SetupSegmentData);
+
+			// Setup the array views on final allocated segments array
+			FRayTracingGeometrySegment* SegmentData = Segments.GetData();
+			for (FRayTracingGeometryBuildParams& Param : BuildParams)
+			{
+				uint32 SegmentCount = Param.Segments.Num();
+				if (SegmentCount > 0)
+				{
+					Param.Segments = MakeArrayView(SegmentData, SegmentCount);
+					SegmentData += SegmentCount;
+				}
+			}
 		}
 
 		FMemMark Mark(FMemStack::Get());
@@ -679,8 +534,21 @@ void FRayTracingDynamicGeometryCollection::EndUpdate()
 }
 
 uint32 FRayTracingDynamicGeometryCollection::ComputeScratchBufferSize()
-{	
-	return Update();
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingDynamicGeometryCollection::ComputeScratchBufferSize);
+
+	const uint64 ScratchAlignment = GRHIRayTracingScratchBufferAlignment;
+
+	uint32 BLASScratchSize = 0;
+
+	for (FRayTracingGeometryBuildParams& Params : BuildParams)
+	{
+		const FRayTracingAccelerationStructureSize BLASSizeInfo = Params.Geometry->GetSizeInfo();
+		const uint64 ScratchSize = Params.BuildMode == EAccelerationStructureBuildMode::Build ? BLASSizeInfo.BuildScratchSize : BLASSizeInfo.UpdateScratchSize;
+		BLASScratchSize = Align(BLASScratchSize + ScratchSize, ScratchAlignment);
+	}
+
+	return BLASScratchSize;
 }
 
 #undef USE_RAY_TRACING_DYNAMIC_GEOMETRY_PARALLEL_COMMAND_LISTS

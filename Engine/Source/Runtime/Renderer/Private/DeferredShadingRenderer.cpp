@@ -285,6 +285,7 @@ DECLARE_CYCLE_STAT(TEXT("DeferredShadingSceneRenderer RenderFinish"), STAT_FDefe
 
 DECLARE_GPU_STAT(RayTracingScene);
 DECLARE_GPU_STAT(RayTracingGeometry);
+DECLARE_GPU_STAT(RayTracingDynamicGeometry);
 
 DEFINE_GPU_STAT(Postprocessing);
 DECLARE_GPU_STAT(VisibilityCommands);
@@ -860,7 +861,41 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	// Keep mask the same as what's already set (which will be the view mask) if TLAS updates should be masked to the view
 	RDG_GPU_MASK_SCOPE(GraphBuilder, GRayTracingMultiGpuTLASMask ? GraphBuilder.RHICmdList.GetGPUMask() : FRHIGPUMask::All());
 
-	Scene->GetRayTracingDynamicGeometryCollection()->AddDynamicGeometryUpdatePass(ReferenceView, GraphBuilder, ComputePassFlags, OutDynamicGeometryScratchBuffer);
+	const uint32 BLASScratchSize = Scene->GetRayTracingDynamicGeometryCollection()->ComputeScratchBufferSize();
+	if (BLASScratchSize > 0)
+	{
+		const uint32 ScratchAlignment = GRHIRayTracingScratchBufferAlignment;
+		FRDGBufferDesc ScratchBufferDesc;
+		ScratchBufferDesc.Usage = EBufferUsageFlags::RayTracingScratch | EBufferUsageFlags::StructuredBuffer;
+		ScratchBufferDesc.BytesPerElement = ScratchAlignment;
+		ScratchBufferDesc.NumElements = FMath::DivideAndRoundUp(BLASScratchSize, ScratchAlignment);
+
+		OutDynamicGeometryScratchBuffer = GraphBuilder.CreateBuffer(ScratchBufferDesc, TEXT("DynamicGeometry.BLASSharedScratchBuffer"));
+	}
+
+	{
+		// Dynamic geometry (BLAS) updates must always run on all GPUs.  Other passes may either run on all GPUs or be scoped to the view's GPUs.
+		// See GRayTracingMultiGpuTLASMask.
+		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
+
+		FBuildAccelerationStructurePassParams* PassParams = GraphBuilder.AllocParameters<FBuildAccelerationStructurePassParams>();
+		PassParams->View = ReferenceView.ViewUniformBuffer;
+		PassParams->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
+		PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;
+		PassParams->LightGridPacked = nullptr;
+		PassParams->ClusterPageData = nullptr;
+		PassParams->HierarchyBuffer = nullptr;
+		PassParams->RayTracingDataBuffer = nullptr;
+
+		GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingDynamicUpdate"), PassParams, ComputePassFlags | ERDGPassFlags::NeverCull,
+			[this, PassParams, bRayTracingAsyncBuild](FRHICommandList& RHICmdList)
+			{
+				SCOPED_GPU_STAT(RHICmdList, RayTracingDynamicGeometry);
+				FRHIBuffer* DynamicGeometryScratchBuffer = PassParams->DynamicGeometryScratchBuffer ? PassParams->DynamicGeometryScratchBuffer->GetRHI() : nullptr;
+				Scene->GetRayTracingDynamicGeometryCollection()->DispatchUpdates(RHICmdList, DynamicGeometryScratchBuffer);
+				Scene->GetRayTracingDynamicGeometryCollection()->EndUpdate();
+			});
+	}
 
 
 	{

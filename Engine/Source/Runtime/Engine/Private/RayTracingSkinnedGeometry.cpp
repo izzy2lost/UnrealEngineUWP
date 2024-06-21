@@ -275,7 +275,12 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder, ER
 
 		for (FRayTracingGeometry* RayTracingGeometry : GeometriesToUpdate)
 		{
-			const int32 NumPrimitives = RayTracingGeometry->Initializer.TotalPrimitiveCount;			
+			const int32 NumPrimitives = RayTracingGeometry->Initializer.TotalPrimitiveCount;
+
+			if (NumUpdatedPrimitives + NumPrimitives > MaxUpdatePrimitivesPerFrame)
+			{
+				break;
+			}
 						
 			FRayTracingGeometryBuildParams BuildParams;
 			BuildParams.Geometry = RayTracingGeometry->GetRHI();
@@ -289,11 +294,6 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder, ER
 			BLASScratchSize += RayTracingGeometry->GetRHI()->GetSizeInfo().UpdateScratchSize;
 
 			NumUpdatedPrimitives += NumPrimitives;
-
-			if (NumUpdatedPrimitives > MaxUpdatePrimitivesPerFrame)
-			{
-				break;
-			}
 		}
 	}
 
