@@ -168,7 +168,8 @@ void FVulkanGenericPlatform::ClearVulkanInstanceFunctions()
 bool FVulkanGenericPlatform::SupportsProfileChecks()
 {
 	return (CVarVulkanUseProfileCheck.GetValueOnAnyThread() != 0) && 
-		!FParse::Param(FCommandLine::Get(), TEXT("SkipVulkanProfileCheck"));
+		!FParse::Param(FCommandLine::Get(), TEXT("SkipVulkanProfileCheck")) &&
+		!FParse::Param(FCommandLine::Get(), TEXT("BUILDMACHINE"));
 }
 
 FString FVulkanGenericPlatform::GetVulkanProfileNameForFeatureLevel(ERHIFeatureLevel::Type FeatureLevel, bool bRaytracing)
