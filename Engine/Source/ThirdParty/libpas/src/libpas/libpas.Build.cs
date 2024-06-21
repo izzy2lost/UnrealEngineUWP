@@ -21,7 +21,7 @@ public class libpas : ModuleRules
 		// Relative to the Engine/Source directory.
 		string libpasDirectory = "ThirdParty/libpas";
 
-		if (Target.Platform == UnrealTargetPlatform.Win64 && !Target.bUseAutoRTFMCompiler)
+		if (Target.Platform == UnrealTargetPlatform.Win64 && !Target.WindowsPlatform.Compiler.IsClang())
 		{
 			// Instead of compiling libpas on Windows, just use binaries that were prebuilt with clang-cl.
 			Type = ModuleType.External;
