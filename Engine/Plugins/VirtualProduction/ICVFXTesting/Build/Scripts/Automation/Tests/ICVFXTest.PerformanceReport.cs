@@ -117,7 +117,8 @@ namespace ICVFXTest
 				"gauntletTestType=AutoTest",
 				"gauntletSubTest=Performance",
 				"testBuildIsPreflight=" + (ReportGenUtils.IsTestingPreflightBuild(OriginalBuildName) ? "1" : "0"),
-				"testBuildVersion=" + OriginalBuildName
+				"testBuildVersion=" + OriginalBuildName,
+				"config=" + (Config.IsDevelopment ? "development" : "test")
 			};
 
 			if (!string.IsNullOrEmpty(Context.BuildInfo.Branch) && Context.BuildInfo.Changelist != 0)
@@ -474,7 +475,14 @@ namespace ICVFXTest
 					Logger.LogInformation("Creating perf server importer with build name {BuildName}", OriginalBuildName);
 
 					string DataSourceName = "Automation.Saloon.ICVFXTesting";
-					string ImportDirOverride = Config.PerfReportServerImportDir;
+
+					string ImportDirOverride;
+					if(Config.PerfReportServerImportDir == "") {
+						ImportDirOverride = null;
+					} else {
+						ImportDirOverride = Config.PerfReportServerImportDir;
+					}
+					
 					Dictionary<string, dynamic> CommonDataSourceFields = new Dictionary<string, dynamic>
 					{
 						{ "HordeJobUrl", Globals.Params.ParseValue("JobDetails", null) }

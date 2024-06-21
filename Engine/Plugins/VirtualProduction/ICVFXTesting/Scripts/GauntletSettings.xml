@@ -50,7 +50,7 @@
 	<Option Name="NoLocalReports" Restrict="true|false" DefaultValue="false" Description="Whether to generate the local test reports."/>
 	<Option Name="SkipPerfReportServer" Restrict="true|false" DefaultValue="false" Description="Whether to skip uploading gauntlet perf data to the PRS."/>
 	<Option Name="PerfReportServerImportDir" DefaultValue="" Description="Override the server import directory for PRS."/>
-	
+	<Option Name="IsDevelopment" Restrict="true|false" DefaultValue="false" Description="Whether running in development or not."/>
 	
 	<Property Name="Platform" Value="Win64"/>
 
@@ -95,6 +95,7 @@
 	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.PerfCacheFolder=$(ReportCacheDirRoot)"/>
 	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.NoLocalReports" If="$(NoLocalReports)"/>
 	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.SkipPerfReportServer" If="$(SkipPerfReportServer)"/>
+	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.IsDevelopment" If="$(IsDevelopment)"/>
 	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.PerfReportServerImportDir=$(PerfReportServerImportDir)"/>
 	<Property Name="ExtraGauntletEditorTestArgs" Value="$(ExtraGauntletEditorTestArgs) -ICVFXTest.BuildName=$(EscapedBranch)-CL-$(Change)" />
 

@@ -164,6 +164,13 @@ namespace ICVFXTest
 		///
 		[AutoParamWithNames("", "ICVFXTest.PerfReportServerImportDir")]
 		public string PerfReportServerImportDir;
+
+		/// <summary>
+		/// Whether the server is running in development or not
+		/// </summary>
+		///
+		[AutoParamWithNames(false, "ICFVXTest.IsDevelopment")]
+		public bool IsDevelopment;
 	}
 
 	public abstract class ICVFXTestNode : UnrealTestNode<ICVFXTestConfig>
