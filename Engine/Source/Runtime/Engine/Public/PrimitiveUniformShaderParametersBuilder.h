@@ -93,6 +93,8 @@ public:
 		Parameters.InstancePayloadDataStride		= 0;
 		Parameters.InstancePayloadExtensionSize		= 0;
 
+		Parameters.MeshPaintTextureDescriptor		= FUintVector2(0, 0);
+
 		LightingChannels = GetDefaultLightingChannelMask();
 
 		return CustomPrimitiveData(nullptr);
@@ -151,6 +153,7 @@ public:
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			LightmapUVIndex);
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			LightmapDataIndex);
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(float,				MaterialDisplacementFadeOutSize);
+	PRIMITIVE_UNIFORM_BUILDER_METHOD(FUintVector2,		MeshPaintTextureDescriptor);
 
 #undef PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD
 #undef PRIMITIVE_UNIFORM_BUILDER_METHOD

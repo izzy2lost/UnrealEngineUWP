@@ -38,6 +38,8 @@
 #include "RenderCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "EngineModule.h"
+#include "VT/MeshPaintVirtualTexture.h"
+#include "TextureResource.h"
 
 #include "StaticMeshSceneProxyDesc.h"
 
@@ -414,6 +416,8 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	{
 		UpdateVisibleInLumenScene();
 	}
+
+	MeshPaintTextureResource = InProxyDesc.GetMeshPaintTextureResource();
 }
 
 void FStaticMeshSceneProxy::SetEvaluateWorldPositionOffsetInRayTracing(FRHICommandListBase& RHICmdList, bool NewValue)
@@ -767,6 +771,8 @@ void FStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHI
 		checkf(DynamicRayTracingGeometries.IsEmpty(), TEXT("Proxy shouldn't have entries in DynamicRayTracingGeometries."));
 	}
 #endif
+
+	MeshPaintTextureDescriptor = MeshPaintVirtualTexture::GetTextureDescriptor(MeshPaintTextureResource);
 }
 
 void FStaticMeshSceneProxy::DestroyRenderThreadResources()
@@ -2623,6 +2629,15 @@ bool FStaticMeshSceneProxyDesc::ShouldCreateNaniteProxy(Nanite::FMaterialAudit* 
 	return Nanite::ShouldCreateNaniteProxy(*this, OutNaniteMaterials);
 }
 
+FTextureResource* FStaticMeshSceneProxyDesc::GetMeshPaintTextureResource() const
+{
+	if (MeshPaintTexture && MeshPaintTexture->IsCurrentlyVirtualTextured())
+	{
+		return MeshPaintTexture->GetResource();
+	}
+	return nullptr;
+}
+
 
 FStaticMeshSceneProxyDesc::FStaticMeshSceneProxyDesc(const UStaticMeshComponent* InComponent)
 	: FStaticMeshSceneProxyDesc()
@@ -2686,6 +2701,8 @@ void FStaticMeshSceneProxyDesc::InitializeFrom(const UStaticMeshComponent* InCom
 
 	SetMaterialRelevance(InComponent->GetMaterialRelevance(World->GetFeatureLevel()));
 	SetCollisionResponseToChannels(InComponent->GetCollisionResponseToChannels());
+
+	MeshPaintTexture = InComponent->MeshPaintTextureOverride ? InComponent->MeshPaintTextureOverride : InComponent->MeshPaintTexture;
 }
 
 FPrimitiveSceneProxy* UStaticMeshComponent::CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite)

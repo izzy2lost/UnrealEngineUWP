@@ -64,6 +64,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FPrimitiveUniformShaderParameters,ENGINE_AP
 	SHADER_PARAMETER(float,			InstanceWPODisableDistanceSquared)
 	SHADER_PARAMETER(float,			PixelProgrammableDistanceSquared)
 	SHADER_PARAMETER(float,			MaterialDisplacementFadeOutSize)
+	SHADER_PARAMETER(FUintVector2,	MeshPaintTextureDescriptor)
 	SHADER_PARAMETER(uint32,		NaniteRayTracingDataOffset)
 	SHADER_PARAMETER(float,			MaxWPOExtent)
 	SHADER_PARAMETER(uint32,		CustomStencilValueAndMask)

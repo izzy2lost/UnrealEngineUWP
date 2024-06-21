@@ -98,6 +98,8 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	TArrayView<struct FStaticMeshComponentLODInfo> LODData;
 	FMaterialRelevance MaterialRelevance;
 		
+	UTexture* MeshPaintTexture = nullptr;
+
 	UStaticMesh* GetStaticMesh() const { return StaticMesh; }
 
 	UBodySetup* BodySetup = nullptr;
@@ -166,6 +168,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	ENGINE_API FMaterialRelevance GetMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const ;
 	int32 GetStaticLightMapResolution() const { return StaticLightMapResolution; }
 	
+	FTextureResource* GetMeshPaintTextureResource() const;
 
 	void SetCollisionResponseToChannels(const FCollisionResponseContainer& InContainer) 
 	{ 

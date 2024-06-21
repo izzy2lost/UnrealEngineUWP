@@ -842,7 +842,8 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.SkinnedMesh(IsSkinnedMesh())
 			.HasPixelAnimation(AnyMaterialHasPixelAnimation())
 			.RayTracingFarField(IsRayTracingFarField())
-			.RayTracingHasGroupId(GetRayTracingGroupId() != FPrimitiveSceneProxy::InvalidRayTracingGroupId);
+			.RayTracingHasGroupId(GetRayTracingGroupId() != FPrimitiveSceneProxy::InvalidRayTracingGroupId)
+			.MeshPaintTextureDescriptor(GetMeshPaintTextureDescriptor());
 
 	if (PrimitiveSceneInfo != nullptr)
 	{

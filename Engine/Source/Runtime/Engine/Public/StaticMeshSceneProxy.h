@@ -17,7 +17,7 @@ class FRawStaticIndexBuffer;
 struct FStaticMeshVertexFactories;
 using FStaticMeshVertexFactoriesArray = TArray<FStaticMeshVertexFactories>;
 struct FStaticMeshSceneProxyDesc;
-
+class FTextureResource;
 
 /**
  * A static mesh component scene proxy.
@@ -140,6 +140,8 @@ public:
 	ENGINE_API virtual const FCardRepresentationData* GetMeshCardRepresentation() const override;
 
 	ENGINE_API virtual bool IsCullingReversedByComponent() const override { return bReverseCulling; }
+
+	ENGINE_API virtual FUintVector2 GetMeshPaintTextureDescriptor() const override { return MeshPaintTextureDescriptor; }
 
 #if RHI_RAYTRACING
 	ENGINE_API virtual TArray<FRayTracingGeometry*> GetStaticRayTracingGeometries() const override;
@@ -296,6 +298,9 @@ protected:
 private:
 
 	const UStaticMesh* StaticMesh;
+
+	FTextureResource* MeshPaintTextureResource = nullptr;
+	FUintVector2 MeshPaintTextureDescriptor = FUintVector2(0, 0);
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 	UObject* Owner;

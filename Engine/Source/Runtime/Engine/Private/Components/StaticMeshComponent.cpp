@@ -49,6 +49,7 @@
 #include "NaniteVertexFactory.h"
 #include "StaticMeshSceneProxyDesc.h"
 #include "WorldPartition/ActorInstanceGuids.h"
+#include "VT/MeshPaintVirtualTexture.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StaticMeshComponent)
 
@@ -2005,6 +2006,23 @@ void UStaticMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Propert
 			// If the materials changed, then the component needs a texture streaming rebuild.
 			StreamingTextureData.Empty();
 		}
+
+		if (PropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(UStaticMeshComponent, MeshPaintTexture))
+		{
+			//todo: Move creation and management of MeshPaintTexture to the mesh paint tools.
+			if (!bMeshPaintTexture)
+			{
+				MeshPaintTexture = nullptr;
+			}
+			else if (!MeshPaintTexture)
+			{
+				UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(GetOutermost());
+				NewTexture->Source.Init(128, 128, 1, 8, TSF_BGRA8);
+				NewTexture->OwningComponent = MakeWeakObjectPtr(this);
+				NewTexture->UpdateResource();
+				MeshPaintTexture = NewTexture;
+			}
+		}
 	}
 
 	FBodyInstanceEditorHelpers::EnsureConsistentMobilitySimulationSettingsOnPostEditChange(this, PropertyChangedEvent);
@@ -3104,6 +3122,20 @@ bool UStaticMeshComponent::PrestreamMeshLODs(float Seconds)
 		return IStreamingManager::Get().GetRenderAssetStreamingManager().FastForceFullyResident(Mesh);
 	}
 	return false;
+}
+
+UTexture* UStaticMeshComponent::GetMeshPaintTexture() const 
+{
+	return MeshPaintTexture; 
+}
+
+void UStaticMeshComponent::SetMeshPaintTextureOverride(UTexture* OverrideTexture)
+{
+	if (MeshPaintTextureOverride != OverrideTexture)
+	{
+		MeshPaintTextureOverride = OverrideTexture;
+		MarkRenderStateDirty();
+	}
 }
 
 bool UStaticMeshComponent::IsNavigationRelevant() const

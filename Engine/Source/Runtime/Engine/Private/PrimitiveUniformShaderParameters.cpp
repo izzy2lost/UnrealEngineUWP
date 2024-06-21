@@ -245,8 +245,13 @@ void FPrimitiveSceneShaderData::Setup(const FPrimitiveUniformShaderParameters& P
 		PrimitiveUniformShaderParameters.PixelProgrammableDistanceSquared,
 		PrimitiveUniformShaderParameters.MaterialDisplacementFadeOutSize);
 
+	Store4(OutData, 33,
+		PrimitiveUniformShaderParameters.MeshPaintTextureDescriptor.X,
+		PrimitiveUniformShaderParameters.MeshPaintTextureDescriptor.Y,
+		0u, 0u);
+
 	// Set all the custom primitive data float4. This matches the loop in SceneData.ush
-	const int32 CustomPrimitiveDataStartIndex = 33;
+	const int32 CustomPrimitiveDataStartIndex = 34;
 	for (int32 DataIndex = 0; DataIndex < FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s; ++DataIndex)
 	{
 		OutData[CustomPrimitiveDataStartIndex + DataIndex] = PrimitiveUniformShaderParameters.CustomPrimitiveData[DataIndex];

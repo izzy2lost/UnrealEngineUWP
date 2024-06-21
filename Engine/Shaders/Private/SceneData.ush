@@ -146,6 +146,7 @@ struct FPrimitiveSceneData
 	uint		CustomStencilValueAndMask;
 	float		PixelProgrammableDistanceSquared;
 	float		MaterialDisplacementFadeOutSize;
+	uint2		MeshPaintTextureDescriptor;
 	float4		CustomPrimitiveData[NUM_CUSTOM_PRIMITIVE_DATA]; // TODO: Move to associated array to shrink primitive data and pack cachelines more effectively
 };
 
@@ -221,6 +222,7 @@ FPrimitiveSceneData GetPrimitiveDataFromUniformBuffer()
 	PrimitiveData.CustomStencilValueAndMask			= Primitive.CustomStencilValueAndMask;
 	PrimitiveData.PixelProgrammableDistanceSquared	= Primitive.PixelProgrammableDistanceSquared;
 	PrimitiveData.MaterialDisplacementFadeOutSize	= Primitive.MaterialDisplacementFadeOutSize;
+	PrimitiveData.MeshPaintTextureDescriptor		= Primitive.MeshPaintTextureDescriptor;
 	
 	UNROLL
 	for (uint DataIndex = 0; DataIndex < NUM_CUSTOM_PRIMITIVE_DATA; ++DataIndex)
@@ -469,6 +471,7 @@ FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 	PrimitiveData.CustomStencilValueAndMask				= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).y);
 	PrimitiveData.PixelProgrammableDistanceSquared		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).z;
 	PrimitiveData.MaterialDisplacementFadeOutSize		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 32).w;
+	PrimitiveData.MeshPaintTextureDescriptor			= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 33).xy);
 
 	// NOTE: Please make sure GetPrimitiveDataFromUniformBuffer() gets updated as well when adding new members here
 
@@ -476,7 +479,7 @@ FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 	UNROLL
 	for (uint DataIndex = 0; DataIndex < NUM_CUSTOM_PRIMITIVE_DATA; ++DataIndex)
 	{
-		PrimitiveData.CustomPrimitiveData[DataIndex] = LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex,  33 + DataIndex);
+		PrimitiveData.CustomPrimitiveData[DataIndex] = LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex,  34 + DataIndex);
 	}
 	return PrimitiveData;
 #endif

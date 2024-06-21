@@ -633,6 +633,11 @@ void FDetailCustomizationsModule::RegisterSectionMappings()
 			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection("StaticMeshComponent", "Misc", LOCTEXT("Misc", "Misc"));
 			Section->AddCategory("Navigation");
 		}
+
+		{
+			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection("MeshComponent", "Rendering", LOCTEXT("Rendering", "Rendering"));
+			Section->AddCategory("Mesh Painting");
+		}
 	}
 
 	// LightComponentBase

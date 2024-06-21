@@ -1119,6 +1119,9 @@ public:
 	/** Returns the instance radius to use for per instance GPU LOD calculation. Returns 0.f if GPU LOD isn't enabled on the primitive. */
 	virtual float GetGpuLodInstanceRadius() const { return 0.f; }
 
+	/** */
+	virtual FUintVector2 GetMeshPaintTextureDescriptor() const { return FUintVector2(0, 0); }
+
 	/** 
 	 * Get the custom primitive data for this scene proxy.
 	 * @return The payload of custom data that will be set on the primitive and accessible in the material through a material expression.

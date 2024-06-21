@@ -18,6 +18,7 @@ class USkinnedAsset;
 class FSkeletalMeshObject;
 class FSkeletalMeshRenderData;
 class FSkeletalMeshLODRenderData;
+class FTextureResource;
 class UWorld;
 enum ECollisionTraceFlag : int;
 enum EMaterialDomain : int;
@@ -485,6 +486,8 @@ public:
 
 	ENGINE_API virtual FInstanceDataUpdateTaskInfo *GetInstanceDataUpdateTaskInfo() const override;
 
+	ENGINE_API virtual FUintVector2 GetMeshPaintTextureDescriptor() const override { return MeshPaintTextureDescriptor; }
+
 	const UStaticMesh* GetStaticMesh() const
 	{
 		return StaticMesh;
@@ -540,6 +543,9 @@ protected:
 	uint32 bHasMaterialErrors : 1;
 
 	const UStaticMesh* StaticMesh = nullptr;
+
+	FTextureResource* MeshPaintTextureResource = nullptr;
+	FUintVector2 MeshPaintTextureDescriptor = FUintVector2(0, 0);
 
 	uint32 EndCullDistance = 0;
 

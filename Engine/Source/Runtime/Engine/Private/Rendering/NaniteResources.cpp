@@ -35,6 +35,7 @@
 #include "StaticMeshSceneProxyDesc.h"
 #include "InstancedStaticMeshSceneProxyDesc.h"
 #include "GPUSkinCacheVisualizationData.h"
+#include "VT/MeshPaintVirtualTexture.h"
 
 #include "AnimationRuntime.h"
 
@@ -827,6 +828,8 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 
 	bOpaqueOrMasked = true; // Nanite only supports opaque
 	UpdateVisibleInLumenScene();
+
+	MeshPaintTextureResource = ProxyDesc.GetMeshPaintTextureResource();
 }
 
 FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedStaticMeshSceneProxyDesc& InProxyDesc)
@@ -917,6 +920,8 @@ void FSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 		CreateDynamicRayTracingGeometries(RHICmdList);
 	}
 #endif
+
+	MeshPaintTextureDescriptor = MeshPaintVirtualTexture::GetTextureDescriptor(MeshPaintTextureResource);
 }
 
 void FSceneProxy::OnEvaluateWorldPositionOffsetChanged_RenderThread()

@@ -152,6 +152,11 @@ public:
 	ENGINE_API virtual void LogMaterialsAndTextures(FOutputDevice& Ar, int32 Indent) const;
 #endif
 
+	/** Get the mesh paint texture set on this component. This does not take into account any transient override. */
+	ENGINE_API virtual UTexture* GetMeshPaintTexture() const { return nullptr; }
+	/** Set a transient override mesh paint texture on this component. */
+	ENGINE_API virtual void SetMeshPaintTextureOverride(UTexture* OverrideTexture) {}
+
 public:
 	/** Material parameter setting and caching */
 
