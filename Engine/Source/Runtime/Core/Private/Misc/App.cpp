@@ -442,7 +442,7 @@ void FApp::PrintStartupLogMessages()
 	FDevVersionRegistration::DumpVersionsToLog();
 }
 
-FString FApp::GetZenStoreProjectId()
+FString FApp::GetZenStoreProjectId(FStringView SubProject)
 {
 	FString ProjectId;
 	if (FParse::Value(FCommandLine::Get(), TEXT("-ZenStoreProject="), ProjectId))
@@ -459,7 +459,15 @@ FString FApp::GetZenStoreProjectId()
 		FTCHARToUTF8 AbsProjectFilePathUTF8(*AbsProjectFilePath);
 
 		FString HashString = FMD5::HashBytes((unsigned char*)AbsProjectFilePathUTF8.Get(), AbsProjectFilePathUTF8.Length()).Left(8);
-		return FString::Printf(TEXT("%s.%.8s"), FApp::GetProjectName(), *HashString);
+
+		if (SubProject.IsEmpty())
+		{
+			return FString::Printf(TEXT("%s.%.8s"), FApp::GetProjectName(), *HashString);
+		}
+		else
+		{
+			return FString::Printf(TEXT("%s.%.*s.%.8s"), FApp::GetProjectName(), SubProject.Len(), SubProject.GetData(), *HashString);
+		}
 	}
 	UE_LOG(LogInit, Fatal, TEXT("GetZenStoreProjectId() called before having a valid project file path"));
 #else

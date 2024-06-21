@@ -175,7 +175,15 @@ FZenStoreWriter::FZenStoreWriter(
 {
 	StaticInit();
 
-	ProjectId = FApp::GetZenStoreProjectId();
+	FString DLCName;
+	FParse::Value(FCommandLine::Get(), TEXT("DLCNAME="), DLCName);
+	DLCName.ToLowerInline();
+	ProjectId = FApp::GetZenStoreProjectId(DLCName);
+	FString ParentProjectId;
+	if (!DLCName.IsEmpty())
+	{
+		ParentProjectId = FApp::GetZenStoreProjectId();
+	}
 	
 	if (FParse::Value(FCommandLine::Get(), TEXT("-ZenStorePlatform="), OplogId) == false)
 	{
@@ -202,7 +210,7 @@ FZenStoreWriter::FZenStoreWriter(
 	FString AbsProjectDir = PlatformFile.ConvertToAbsolutePathForExternalAppForRead(*ProjectDir);
 	FString ProjectFilePath = PlatformFile.ConvertToAbsolutePathForExternalAppForRead(*ProjectPath);
 
-	HttpClient->TryCreateProject(ProjectId, OplogId, AbsServerRoot, AbsEngineDir, AbsProjectDir, IsLocalConnection ? ProjectFilePath : FStringView());
+	HttpClient->TryCreateProject(ProjectId, ParentProjectId, OplogId, AbsServerRoot, AbsEngineDir, AbsProjectDir, IsLocalConnection ? ProjectFilePath : FStringView());
 
 	PackageStoreOptimizer->Initialize();
 

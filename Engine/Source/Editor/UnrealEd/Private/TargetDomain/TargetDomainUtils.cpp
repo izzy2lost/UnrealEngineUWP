@@ -1019,7 +1019,7 @@ FEditorDomainOplog::FEditorDomainOplog()
 	if (UE::Zen::IsDefaultServicePresent())
 	{
 		bool IsLocalConnection = HttpClient.GetZenServiceInstance().IsServiceRunningLocally();
-		HttpClient.TryCreateProject(ProjectId, OplogId, AbsServerRoot, AbsEngineDir, AbsProjectDir, IsLocalConnection ? ProjectFilePath : FStringView());
+		HttpClient.TryCreateProject(ProjectId, FStringView(), OplogId, AbsServerRoot, AbsEngineDir, AbsProjectDir, IsLocalConnection ? ProjectFilePath : FStringView());
 		HttpClient.TryCreateOplog(ProjectId, OplogId, TEXT("") /*InOplogMarkerFile*/, false /* bFullBuild */);
 	}
 #endif

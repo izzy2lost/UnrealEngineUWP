@@ -34,7 +34,7 @@ public:
 	FZenStoreHttpClient(UE::Zen::FServiceSettings&& InSettings);
 	~FZenStoreHttpClient();
 
-	bool TryCreateProject(FStringView InProjectId, FStringView InOplogId, FStringView ServerRoot, 
+	bool TryCreateProject(FStringView InProjectId, FStringView InParentProjectId, FStringView InOplogId, FStringView ServerRoot, 
 					FStringView EngineRoot, FStringView ProjectRoot,
 					FStringView ProjectFilePath);
 	bool TryCreateOplog(FStringView InProjectId, FStringView InOplogId, FStringView InOplogLifetimeMarkerPath, bool bFullBuild);

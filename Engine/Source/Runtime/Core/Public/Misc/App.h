@@ -240,7 +240,7 @@ public:
 	 *
 	 * @return Zen store project id.
 	 */
-	static CORE_API FString GetZenStoreProjectId();
+	static CORE_API FString GetZenStoreProjectId(FStringView SubProject = FStringView());
 
 	/**
 	 * Gets the globally unique identifier of this application instance.

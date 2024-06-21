@@ -61,8 +61,9 @@ FZenStoreHttpClient::~FZenStoreHttpClient()
 }
 
 bool
-FZenStoreHttpClient::TryCreateProject(FStringView InProjectId, 
-	FStringView InOplogId, 
+FZenStoreHttpClient::TryCreateProject(FStringView InProjectId,
+	FStringView InParentProjectId,
+	FStringView InOplogId,
 	FStringView ServerRoot,
 	FStringView EngineRoot,
 	FStringView ProjectRoot,
@@ -97,6 +98,10 @@ FZenStoreHttpClient::TryCreateProject(FStringView InProjectId,
 			FCbWriter ProjInfo;
 			ProjInfo.BeginObject();
 			ProjInfo << "id" << InProjectId;
+			if (!InParentProjectId.IsEmpty())
+			{
+				ProjInfo << "parentid" << InParentProjectId;
+			}
 			ProjInfo << "root" << ServerRoot;
 			ProjInfo << "engine" << EngineRoot;
 			ProjInfo << "project" << ProjectRoot;
