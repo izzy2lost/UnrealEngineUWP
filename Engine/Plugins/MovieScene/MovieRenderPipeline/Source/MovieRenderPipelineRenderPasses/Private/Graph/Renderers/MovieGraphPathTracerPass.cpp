@@ -64,6 +64,16 @@ void FMovieGraphPathTracerPass::ApplyMovieGraphOverridesToSceneView(TSharedRef<F
 	FSceneView* View = const_cast<FSceneView*>(InOutFamily->Views[0]);
 	View->FinalPostProcessSettings.bOverride_PathTracingSamplesPerPixel = true;
 	View->FinalPostProcessSettings.PathTracingSamplesPerPixel = SampleCount;
+
+	// If we are using reference motion blur, also force the use of reference DOF (as the post-processed DOF cannot behave well with motion blurred input)
+	// TODO: Is there a way to directly access bEnableReferenceMotionBlur from here?
+	const bool bHasTiles = InCameraInfo.TilingParams.TileCount.X * InCameraInfo.TilingParams.TileCount.Y > 1;
+	const bool bAccumulateSpatialSamplesOnly = InOutFamily->EngineShowFlags.MotionBlur || bHasTiles;
+	if (!bAccumulateSpatialSamplesOnly)
+	{
+		View->FinalPostProcessSettings.bOverride_PathTracingEnableReferenceDOF = true;
+		View->FinalPostProcessSettings.PathTracingEnableReferenceDOF = true;
+	}
 		
 	// reset path tracer's accumulation at the start of each sample
 	View->bForcePathTracerReset = SampleIndex == 0;
