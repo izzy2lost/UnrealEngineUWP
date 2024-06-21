@@ -81,20 +81,21 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 
 #if USE_SKINNING
 	BRANCH
-	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0)
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0 && Cluster.bSkinning)
 	{
 		FNaniteSkinningHeader SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+		FBoneInfluenceHeader BoneInfluenceHeader = GetBoneInfluenceHeader(Cluster);
 
 		float3 SkinnedPosition = float3(0.0f, 0.0f, 0.0f);
 		float3 SkinnedNormal = float3(0.0f, 0.0f, 0.0f);
 		float3 SkinnedTangent = float3(0.0f, 0.0f, 0.0f);
 
 		LOOP
-		for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
+		for (uint InfluenceIndex = 0; InfluenceIndex < BoneInfluenceHeader.NumVertexBoneInfluences; ++InfluenceIndex)
 		{
 			uint BoneIndex = 0;
 			float BoneWeight = 0.0f;
-			DecodeBoneInfluence(Cluster, Input.VertIndex, InfluenceIndex, BoneIndex, BoneWeight);
+			DecodeVertexBoneInfluence(BoneInfluenceHeader, Input.VertIndex, InfluenceIndex, BoneIndex, BoneWeight);
 
 			const float3x4 BoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex);
 			SkinnedPosition	+= mul(BoneTransform, float4(Input.Position, 1.0f)) * BoneWeight;

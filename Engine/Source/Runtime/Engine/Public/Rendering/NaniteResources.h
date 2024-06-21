@@ -105,18 +105,16 @@ struct FPackedCluster
 	uint32		Flags;
 
 	// Members needed by materials
-	uint32		AttributeOffset_BitsPerAttribute;				// AttributeOffset: 22, BitsPerAttribute: 10
-	uint32		DecodeInfoOffset_HasTangents_NumUVs_ColorMode;	// DecodeInfoOffset: 22, bHasTangents: 1, NumUVs: 3, ColorMode: 2
-	uint32		UVBitOffsets;									// Bit offsets of UV sets relative to beginning of UV data.
-																// UV0 Offset: 8, UV1 Offset: 8, UV2 Offset: 8, UV3 Offset: 8
+	uint32		AttributeOffset_BitsPerAttribute;						// AttributeOffset: 22, BitsPerAttribute: 10
+	uint32		DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode;	// DecodeInfoOffset: 22, bTangents: 1, bSkinning: 1, NumUVs: 3, ColorMode: 2
+	uint32		UVBitOffsets;											// Bit offsets of UV sets relative to beginning of UV data.
+																		// UV0 Offset: 8, UV1 Offset: 8, UV2 Offset: 8, UV3 Offset: 8
 	uint32		PackedMaterialInfo;
 
-	// TODO: Nanite-Skinning: Bloating even non-skinning clusters by 16 bytes is not ideal - optimize this. Put Bone header in optional decode info section instead?
-	// Extended data is not necessary. It is convenient for developement while we have padding anyways.
-	uint32		BoneDataOffset_NumBones;						// BoneDataOffset: 22, NumBones: 10
-	uint32		BoneIndexBits_BoneWeightBits;					// BoneIndexBits: 6, BoneIndexBits: 6
-	uint32		ExtendedDataOffset_Num;							// ExtendedDataOffset: 22, Num: 10
+	uint32		ExtendedDataOffset_Num;									// ExtendedDataOffset: 22, Num: 10
 	uint32		Dummy0;
+	uint32		Dummy1;
+	uint32		Dummy2;
 
 	uint32		VertReuseBatchInfo[4];
 
@@ -154,20 +152,16 @@ struct FPackedCluster
 	void		SetAttributeOffset(uint32 Offset)		{ SetBits(AttributeOffset_BitsPerAttribute, Offset, 22, 0); }
 	void		SetBitsPerAttribute(uint32 Bits)		{ SetBits(AttributeOffset_BitsPerAttribute, Bits, 10, 22); }
 
-	void		SetDecodeInfoOffset(uint32 Offset)		{ SetBits(DecodeInfoOffset_HasTangents_NumUVs_ColorMode, Offset, 22, 0); }
-	void		SetHasTangents(bool bHasTangents)		{ SetBits(DecodeInfoOffset_HasTangents_NumUVs_ColorMode, bHasTangents, 1, 22); }
-	void		SetNumUVs(uint32 Num)					{ SetBits(DecodeInfoOffset_HasTangents_NumUVs_ColorMode, Num, 3, 23); }
-	void		SetColorMode(uint32 Mode)				{ SetBits(DecodeInfoOffset_HasTangents_NumUVs_ColorMode, Mode, 1, 26); }
+	void		SetDecodeInfoOffset(uint32 Offset)		{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, Offset, 22, 0); }
+	void		SetHasTangents(bool bHasTangents)		{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, bHasTangents, 1, 22); }
+	void		SetHasSkinning(bool bSkinning)			{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, bSkinning, 1, 23); }
+	void		SetNumUVs(uint32 Num)					{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, Num, 3, 24); }
+	void		SetColorMode(uint32 Mode)				{ SetBits(DecodeInfoOffset_HasTangents_Skinning_NumUVs_ColorMode, Mode, 1, 27); }
 
 	void		SetColorBitsR(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 0); }
 	void		SetColorBitsG(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 4); }
 	void		SetColorBitsB(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 8); }
 	void		SetColorBitsA(uint32 NumBits)			{ SetBits(ColorBits_GroupIndex, NumBits, 4, 12); }
-
-	void		SetBoneDataOffset(uint32 Offset)		{ SetBits(BoneDataOffset_NumBones, Offset, 22, 0); }
-	void		SetNumBones(uint32 Num)					{ SetBits(BoneDataOffset_NumBones, Num, 10, 22); }
-	void		SetBoneIndexBits(uint32 NumBits)		{ SetBits(BoneIndexBits_BoneWeightBits, NumBits, 6, 0); }
-	void		SetBoneWeightBits(uint32 NumBits)		{ SetBits(BoneIndexBits_BoneWeightBits, NumBits, 6, 6); }
 
 	void		SetGroupIndex(uint32 GroupIndex)		{ SetBits(ColorBits_GroupIndex, GroupIndex & 0xFFFFu, 16, 16); }
 

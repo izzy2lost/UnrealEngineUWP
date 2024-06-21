@@ -134,9 +134,9 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 
 				const FInstanceSceneData InstanceData = GetInstanceSceneData(VisibleCluster, false);
 				const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
-				const FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
+				const FCluster Cluster = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
-				const uint ShadingBin = GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
+				const uint ShadingBin = GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 
 				const bool bIsDecalReceiver = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_DECAL_RECEIVER) != 0 && View.ShowDecalsMask > 0;
 				const bool bHasDistanceField = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_DISTANCE_FIELD_REPRESENTATION) != 0;
@@ -168,7 +168,7 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 				if (bWPOEnabled)
 				{
 					// The cluster may have WPO enabled, but we want to know if WPO is enabled by the material to decide to output velocity
-					const uint RasterBinIndex = GetMaterialRasterBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bFallbackRasterBin);
+					const uint RasterBinIndex = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bFallbackRasterBin);
 					const FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(RasterBinMeta[RasterBinIndex].MaterialFlags);
 					bWPOEnabled &= MaterialFlags.bWorldPositionOffset;
 				}
@@ -187,13 +187,14 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 					if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0)
 					{
 						FNaniteSkinningHeader SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+						FBoneInfluenceHeader BoneInfluenceHeader = GetBoneInfluenceHeader(Cluster);
 
-						const uint3 TriIndices = DecodeTriangleIndices(ClusterData, TriIndex);
+						const uint3 TriIndices = DecodeTriangleIndices(Cluster, TriIndex);
 
 						float3 PointLocal[3];
-						PointLocal[0] = DecodePosition(TriIndices[0], ClusterData);
-						PointLocal[1] = DecodePosition(TriIndices[1], ClusterData);
-						PointLocal[2] = DecodePosition(TriIndices[2], ClusterData);
+						PointLocal[0] = DecodePosition(TriIndices[0], Cluster);
+						PointLocal[1] = DecodePosition(TriIndices[1], Cluster);
+						PointLocal[2] = DecodePosition(TriIndices[2], Cluster);
 
 						float3 CurrentPosition[3];
 						CurrentPosition[0] = float3(0.0f, 0.0f, 0.0f);
@@ -206,19 +207,19 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 						PreviousPosition[2] = float3(0.0f, 0.0f, 0.0f);
 
 						LOOP
-						for (uint InfluenceIndex = 0; InfluenceIndex < ClusterData.NumBones; ++InfluenceIndex)
+						for (uint InfluenceIndex = 0; InfluenceIndex < BoneInfluenceHeader.NumVertexBoneInfluences; ++InfluenceIndex)
 						{
 							uint BoneIndex0 = 0;
 							float BoneWeight0 = 0.0f;
-							DecodeBoneInfluence(ClusterData, TriIndices.x, InfluenceIndex, BoneIndex0, BoneWeight0);
+							DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.x, InfluenceIndex, BoneIndex0, BoneWeight0);
 
 							uint BoneIndex1 = 0;
 							float BoneWeight1 = 0.0f;
-							DecodeBoneInfluence(ClusterData, TriIndices.y, InfluenceIndex, BoneIndex1, BoneWeight1);
+							DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.y, InfluenceIndex, BoneIndex1, BoneWeight1);
 
 							uint BoneIndex2 = 0;
 							float BoneWeight2 = 0.0f;
-							DecodeBoneInfluence(ClusterData, TriIndices.z, InfluenceIndex, BoneIndex2, BoneWeight2);
+							DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.z, InfluenceIndex, BoneIndex2, BoneWeight2);
 
 							float3x4 CurrentBoneTransform[3];
 							CurrentBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex0);

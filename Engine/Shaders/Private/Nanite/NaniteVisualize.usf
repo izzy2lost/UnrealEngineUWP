@@ -198,9 +198,10 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FPrimitiveSceneData PrimitiveData			= GetPrimitiveData(InstanceData.PrimitiveId);
 		FCluster Cluster							= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
-		const bool bIsSkinned = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0;
+		const bool bIsSkinned = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0 && Cluster.bSkinning;
 
 		FNaniteSkinningHeader SkinningHeader = (FNaniteSkinningHeader)0;
+		FBoneInfluenceHeader BoneInfluenceHeader = GetBoneInfluenceHeader(Cluster);
 		BRANCH
 		if (bIsSkinned)
 		{
@@ -239,19 +240,19 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			SkinnedTangent[2] = float3(0.0f, 0.0f, 0.0f);
 
 			LOOP
-			for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
+			for (uint InfluenceIndex = 0; InfluenceIndex < BoneInfluenceHeader.NumVertexBoneInfluences; ++InfluenceIndex)
 			{
 				uint BoneIndex0 = 0;
 				float BoneWeight0 = 0.0f;
-				DecodeBoneInfluence(Cluster, TriIndices.x, InfluenceIndex, BoneIndex0, BoneWeight0);
+				DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.x, InfluenceIndex, BoneIndex0, BoneWeight0);
 
 				uint BoneIndex1 = 0;
 				float BoneWeight1 = 0.0f;
-				DecodeBoneInfluence(Cluster, TriIndices.y, InfluenceIndex, BoneIndex1, BoneWeight1);
+				DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.y, InfluenceIndex, BoneIndex1, BoneWeight1);
 
 				uint BoneIndex2 = 0;
 				float BoneWeight2 = 0.0f;
-				DecodeBoneInfluence(Cluster, TriIndices.z, InfluenceIndex, BoneIndex2, BoneWeight2);
+				DecodeVertexBoneInfluence(BoneInfluenceHeader, TriIndices.z, InfluenceIndex, BoneIndex2, BoneWeight2);
 
 				float3x4 CurrentBoneTransform[3];
 				CurrentBoneTransform[0] = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex0);
@@ -780,13 +781,14 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			LocalToTranslatedWorld
 		);
 
-		const bool bIsSkinned = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0;
+		const bool bIsSkinned = (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0 && Cluster.bSkinning;
 
 		FNaniteSkinningHeader SkinningHeader = (FNaniteSkinningHeader)0;
 		BRANCH
 		if (bIsSkinned)
 		{
 			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+			FBoneInfluenceHeader BoneInfluenceHeader = GetBoneInfluenceHeader(Cluster);
 
 			float3 MinBounds = float( 999999999.0f).xxx;
 			float3 MaxBounds = float(-999999999.0f).xxx;
@@ -797,11 +799,11 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				float3 PointSkinned = float3(0.0f, 0.0f, 0.0f);
 
 				LOOP
-				for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
+				for (uint InfluenceIndex = 0; InfluenceIndex < BoneInfluenceHeader.NumVertexBoneInfluences; ++InfluenceIndex)
 				{
 					uint BoneIndex = 0;
 					float BoneWeight = 0.0f;
-					DecodeBoneInfluence(Cluster, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
+					DecodeVertexBoneInfluence(BoneInfluenceHeader, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
 
 					float3x4 CurrentBoneTransform = LoadNaniteBoneTransform(SkinningHeader.TransformBufferOffset + InstanceData.SkinningData + BoneIndex);
 					PointSkinned += mul(CurrentBoneTransform, float4(PointLocal, 1.0f)) * BoneWeight;
@@ -853,12 +855,13 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		if (bIsSkinned)
 		{
 			SkinningHeader = LoadNaniteSkinningHeader(InstanceData.PrimitiveId);
+			FBoneInfluenceHeader BoneInfluenceHeader = GetBoneInfluenceHeader(Cluster);
 
 			float3 MinBounds = float( 999999999.0f).xxx;
 			float3 MaxBounds = float(-999999999.0f).xxx;
 			
-			// Operate on max of 16 bones for now. This computation will be moved to the cluster generation/encoding on the CPU side.
-			const uint MaxClusterBoneCount = 16;
+			// Operate on max of NANITE_MAX_CLUSTER_BONE_INFLUENCES bones for now. This computation will be moved to the cluster generation/encoding on the CPU side.
+			const uint MaxClusterBoneCount = NANITE_MAX_CLUSTER_BONE_INFLUENCES;
 
 			const uint IBI = 0xFFFFFFFFu;
 			uint ClusterBoneIndexes[MaxClusterBoneCount] = {IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI, IBI};
@@ -866,7 +869,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			float ClusterBoneWeightMax[MaxClusterBoneCount];
 			float3 ClusterBoneBoundsMin[MaxClusterBoneCount];
 			float3 ClusterBoneBoundsMax[MaxClusterBoneCount];
-			
+
 			UNROLL
 			for (uint BoneIndex = 0; BoneIndex < MaxClusterBoneCount; ++BoneIndex)
 			{
@@ -876,16 +879,28 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				ClusterBoneBoundsMax[BoneIndex] = MaxBounds;
 			}
 
+		#if 1
+			// Load cooked data
+			for (uint i = 0; i < BoneInfluenceHeader.NumClusterBoneInfluences; ++i)
+			{
+				FClusterBoneInfluence BoneInfluence = DecodeClusterBoneInfluence(Cluster, BoneInfluenceHeader, i);
+				ClusterBoneIndexes[i]	= BoneInfluence.BoneIndex;
+				ClusterBoneWeightMin[i] = BoneInfluence.MinWeight;
+				ClusterBoneWeightMax[i] = BoneInfluence.MaxWeight;
+				ClusterBoneBoundsMin[i] = BoneInfluence.BoundMin;
+				ClusterBoneBoundsMax[i] = BoneInfluence.BoundMax;
+			}
+		#else
 			for (uint VertexID = 0; VertexID < Cluster.NumVerts; ++VertexID)
 			{
 				float3 PointLocal = DecodePosition(VertexID, Cluster);
 				
 				LOOP
-				for (uint InfluenceIndex = 0; InfluenceIndex < Cluster.NumBones; ++InfluenceIndex)
+				for (uint InfluenceIndex = 0; InfluenceIndex < BoneInfluenceHeader.NumVertexBoneInfluences; ++InfluenceIndex)
 				{
 					uint BoneIndex = 0;
 					float BoneWeight = 0.0f;
-					DecodeBoneInfluence(Cluster, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
+					DecodeVertexBoneInfluence(BoneInfluenceHeader, VertexID, InfluenceIndex, BoneIndex, BoneWeight);
 
 					// Have we reached the end of weights?
 					if (BoneWeight == 0.0f)
@@ -893,7 +908,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 						break;
 					}
 					// Have we seen this bone index already?
-					for (uint ClusterBoneIndex = 0; ClusterBoneIndex < 16; ++ClusterBoneIndex)
+					for (uint ClusterBoneIndex = 0; ClusterBoneIndex < NANITE_MAX_CLUSTER_BONE_INFLUENCES; ++ClusterBoneIndex)
 					{
 						if (ClusterBoneIndexes[ClusterBoneIndex] == BoneIndex)
 						{
@@ -916,10 +931,11 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 					}
 				}
 			}
+		#endif
 
 			// Deform each of the cluster bone bboxes by their associated bone transform.
 			uint ClusterBoneCount = 0;
-			for (uint ClusterBoneIndex = 0; ClusterBoneIndex < 16; ++ClusterBoneIndex)
+			for (uint ClusterBoneIndex = 0; ClusterBoneIndex < NANITE_MAX_CLUSTER_BONE_INFLUENCES; ++ClusterBoneIndex)
 			{
 				if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
 				{
@@ -995,7 +1011,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				Newline(ShaderPrint);
 #endif
 				
-				for (uint ClusterBoneIndex = 0; ClusterBoneIndex < 16; ++ClusterBoneIndex)
+				for (uint ClusterBoneIndex = 0; ClusterBoneIndex < NANITE_MAX_CLUSTER_BONE_INFLUENCES; ++ClusterBoneIndex)
 				{
 					if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
 					{
@@ -1049,7 +1065,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 				if (ExtremaIndex2 != IBI)
 				{
 					float Weight2 = 1.0f - ClusterBoneWeightMax[ExtremaIndex];
-					for (uint ClusterBoneIndex = 0; ClusterBoneIndex < 16; ++ClusterBoneIndex)
+					for (uint ClusterBoneIndex = 0; ClusterBoneIndex < NANITE_MAX_CLUSTER_BONE_INFLUENCES; ++ClusterBoneIndex)
 					{
 						if (ClusterBoneIndexes[ClusterBoneIndex] == IBI)
 						{

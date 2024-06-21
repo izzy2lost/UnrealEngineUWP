@@ -27,6 +27,8 @@
 
 #define NANITE_MAX_CLUSTER_MATERIALS						64
 
+#define NANITE_MAX_CLUSTER_BONE_INFLUENCES					16
+
 #define NANITE_USE_STRIP_INDICES							1
 
 // Adds frame counter dependent magic values to streaming requests to help verify their integrity.

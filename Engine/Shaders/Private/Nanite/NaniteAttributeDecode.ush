@@ -83,18 +83,36 @@ FNaniteRawAttributeData WaveReadLaneAt(FNaniteRawAttributeData In, uint SrcIndex
 	return Out;
 }
 
-#define SIZEOF_PACKED_UV_RANGE	8
-struct FUVRange
+#define SIZEOF_PACKED_UV_HEADER	8
+struct FUVHeader
 {
 	uint2	Min;
 	uint2	NumBits;
 	uint	NumMantissaBits;
 };
 
-
-FUVRange UnpackUVRange(uint2 Data)
+#define SIZEOF_PACKED_BONE_INFLUENCE_HEADER	8
+struct FBoneInfluenceHeader
 {
-	FUVRange Range;
+	uint	DataAddress;
+	uint	NumVertexBoneInfluences;
+	uint	NumVertexBoneIndexBits;
+	uint	NumVertexBoneWeightBits;
+	uint	NumClusterBoneInfluences;
+};
+
+struct FClusterBoneInfluence
+{
+	uint	BoneIndex;
+	float	MinWeight;
+	float	MaxWeight;
+	float3	BoundMin;
+	float3	BoundMax;
+};
+
+FUVHeader UnpackUVHeader(uint2 Data)
+{
+	FUVHeader Range;
 
 	Range.NumBits.x			= BitFieldExtractU32(Data.x, 5, 0);
 	Range.Min.x				= Data.x >> 5;
@@ -107,16 +125,30 @@ FUVRange UnpackUVRange(uint2 Data)
 	return Range;
 }
 
-FUVRange GetUVRange(ByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
+FUVHeader GetUVHeader(ByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
 {
-	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_RANGE);
-	return UnpackUVRange(Data);
+	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_HEADER);
+	return UnpackUVHeader(Data);
 }
 
-FUVRange GetUVRange(RWByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
+FUVHeader GetUVHeader(RWByteAddressBuffer InputBuffer, uint StartOffset, uint Index)
 {
-	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_RANGE);
-	return UnpackUVRange(Data);
+	uint2 Data = InputBuffer.Load2(StartOffset + Index * SIZEOF_PACKED_UV_HEADER);
+	return UnpackUVHeader(Data);
+}
+
+FBoneInfluenceHeader GetBoneInfluenceHeader(FCluster Cluster)
+{
+	const uint2 Data = ClusterPageData.Load2(Cluster.PageBaseAddress + Cluster.DecodeInfoOffset + Cluster.NumUVs * SIZEOF_PACKED_BONE_INFLUENCE_HEADER);
+	
+	FBoneInfluenceHeader Header;
+	Header.DataAddress					= Cluster.PageBaseAddress + BitFieldExtractU32(Data.x, 22, 0);
+	Header.NumVertexBoneInfluences		= BitFieldExtractU32(Data.x, 10, 22);
+	Header.NumVertexBoneIndexBits		= BitFieldExtractU32(Data.y,  6,  0);
+	Header.NumVertexBoneWeightBits		= BitFieldExtractU32(Data.y,  6,  6);
+	Header.NumClusterBoneInfluences		= BitFieldExtractU32(Data.y,  5, 12);
+	
+	return Header;
 }
 
 float DecodeUVFloat(uint EncodedValue, uint NumMantissaBits)
@@ -131,12 +163,12 @@ float DecodeUVFloat(uint EncodedValue, uint NumMantissaBits)
 	return bNeg ? -Result : Result;
 }
 
-float2 UnpackTexCoord(uint2 Packed, FUVRange UVRange)
+float2 UnpackTexCoord(uint2 Packed, FUVHeader UVHeader)
 {
-	const uint2 GlobalUV = UVRange.Min + Packed;
+	const uint2 GlobalUV = UVHeader.Min + Packed;
 
-	return float2(	DecodeUVFloat(GlobalUV.x, UVRange.NumMantissaBits),
-					DecodeUVFloat(GlobalUV.y, UVRange.NumMantissaBits));
+	return float2(	DecodeUVFloat(GlobalUV.x, UVHeader.NumMantissaBits),
+					DecodeUVFloat(GlobalUV.y, UVHeader.NumMantissaBits));
 }
 
 float3 UnpackNormal(uint Packed, uint Bits)
@@ -505,22 +537,39 @@ float3 UnpackTangentX(float3 TangentZ, uint TangentAngleBits, uint NumTangentBit
 	return TangentX;
 }
 
-void DecodeBoneInfluence(FCluster Cluster, uint VertIndex, uint InfluenceIndex, inout uint OutBoneIndex, inout float OutBoneWeight)
+void DecodeVertexBoneInfluence(FBoneInfluenceHeader BoneInfluenceHeader, uint VertIndex, uint InfluenceIndex, inout uint OutBoneIndex, inout float OutBoneWeight)
 {
-	if (InfluenceIndex >= Cluster.NumBones)
+	if (InfluenceIndex >= BoneInfluenceHeader.NumVertexBoneInfluences)
 	{
 		OutBoneIndex = 0;
 		OutBoneWeight = 0.0f;
+		return;
 	}
 
-	const uint BitsPerInfluence = (Cluster.NumBoneIndexBits + Cluster.NumBoneWeightBits);
+	const uint BitsPerInfluence = (BoneInfluenceHeader.NumVertexBoneIndexBits + BoneInfluenceHeader.NumVertexBoneWeightBits);
 	
-	const uint BitOffset = (VertIndex * Cluster.NumBones + InfluenceIndex) * BitsPerInfluence;
-	FBitStreamReaderState BoneDataStream = BitStreamReader_Create_Aligned(Cluster.PageBaseAddress + Cluster.BoneDataOffset, BitOffset, 32);
+	const uint BitOffset = (VertIndex * BoneInfluenceHeader.NumVertexBoneInfluences + InfluenceIndex) * BitsPerInfluence;
+	FBitStreamReaderState BoneDataStream = BitStreamReader_Create_Aligned(BoneInfluenceHeader.DataAddress, BitOffset, 32);
 
-	OutBoneIndex = BitStreamReader_Read_RO(ClusterPageData, BoneDataStream, Cluster.NumBoneIndexBits, 16);
-	OutBoneWeight = (float)BitStreamReader_Read_RO(ClusterPageData, BoneDataStream, Cluster.NumBoneWeightBits, 16) / 65535.0f;
+	OutBoneIndex = BitStreamReader_Read_RO(ClusterPageData, BoneDataStream, BoneInfluenceHeader.NumVertexBoneIndexBits, 16);
+	OutBoneWeight = (float)BitStreamReader_Read_RO(ClusterPageData, BoneDataStream, BoneInfluenceHeader.NumVertexBoneWeightBits, 16) / 65535.0f;
 }
+
+#if COMPILER_SUPPORTS_HLSL2021
+FClusterBoneInfluence DecodeClusterBoneInfluence(FCluster Cluster, FBoneInfluenceHeader BoneInfluenceHeader, uint InfluenceIndex)
+{
+	// TODO: Nanite-Skinning: Just store cluster influences right after vertex influences for now. We probably want to make this easier to access.
+	const uint BitsPerInfluence = (BoneInfluenceHeader.NumVertexBoneIndexBits + BoneInfluenceHeader.NumVertexBoneWeightBits);
+	const uint BitOffset		= Cluster.NumVerts * BoneInfluenceHeader.NumVertexBoneInfluences * BitsPerInfluence;
+	const uint DwordOffset		= (BitOffset + 31) >> 5;
+
+	const uint BaseAddress		= BoneInfluenceHeader.DataAddress + DwordOffset * 4;
+
+	FClusterBoneInfluence Result = ClusterPageData.Load<FClusterBoneInfluence>(BaseAddress + InfluenceIndex * (uint)sizeof(FClusterBoneInfluence));
+	return Result;
+}
+#endif
+
 
 // Decodes vertex attributes for N vertices. N must be compile-time constant and <= 3.
 // Decoding multiple vertices from the same cluster simultaneously tends to generate better code than decoding them individually.
@@ -621,19 +670,19 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 	UNROLL
 	for (uint TexCoordIndex = 0; TexCoordIndex < CompileTimeMaxTexCoords; ++TexCoordIndex)
 	{
-		uint2 UVRangeData = 0u;
+		uint2 UVHeaderData = 0u;
 		if (TexCoordIndex < Cluster.NumUVs)
 		{
-			UVRangeData = ClusterPageData.Load2(DecodeInfoOffset + TexCoordIndex * SIZEOF_PACKED_UV_RANGE);
+			UVHeaderData = ClusterPageData.Load2(DecodeInfoOffset + TexCoordIndex * SIZEOF_PACKED_UV_HEADER);
 		}
 
-		const FUVRange UVRange = UnpackUVRange(UVRangeData);
+		const FUVHeader UVHeader = UnpackUVHeader(UVHeaderData);
 		
 		uint2 UVBits[3];
 		UNROLL
 		for (uint i = 0; i < CompileTimeN; i++)
 		{
-			UVBits[i] = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream[i], UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+			UVBits[i] = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream[i], UVHeader.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 		}
 
 		BRANCH
@@ -642,7 +691,7 @@ void GetRawAttributeDataN(inout FNaniteRawAttributeData RawAttributeData[3],
 			UNROLL
 			for (uint i = 0; i < CompileTimeN; i++)
 			{
-				TexCoords[i] = UnpackTexCoord(UVBits[i], UVRange);
+				TexCoords[i] = UnpackTexCoord(UVBits[i], UVHeader);
 			}
 		}
 
@@ -846,14 +895,14 @@ TDual< float2 > GetTexCoord(
 	float2 TexCoord1 = asfloat(ClusterPageData.Load2(ReadOffset.y));
 	float2 TexCoord2 = asfloat(ClusterPageData.Load2(ReadOffset.z));
 #else
-	const FUVRange UVRange = GetUVRange(ClusterPageData, DecodeInfoOffset, TexCoordIndex);
-	uint2 UVBits0 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream0, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
-	uint2 UVBits1 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream1, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
-	uint2 UVBits2 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream2, UVRange.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	const FUVHeader UVHeader = GetUVHeader(ClusterPageData, DecodeInfoOffset, TexCoordIndex);
+	uint2 UVBits0 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream0, UVHeader.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	uint2 UVBits1 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream1, UVHeader.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
+	uint2 UVBits2 = BitStreamReader_Read2_RO(ClusterPageData, AttributeStream2, UVHeader.NumBits, NANITE_MAX_TEXCOORD_COMPONENT_BITS);
 
-	float2 TexCoord0 = UnpackTexCoord(UVBits0, UVRange);
-	float2 TexCoord1 = UnpackTexCoord(UVBits1, UVRange);
-	float2 TexCoord2 = UnpackTexCoord(UVBits2, UVRange);
+	float2 TexCoord0 = UnpackTexCoord(UVBits0, UVHeader);
+	float2 TexCoord1 = UnpackTexCoord(UVBits1, UVHeader);
+	float2 TexCoord2 = UnpackTexCoord(UVBits2, UVHeader);
 #endif
 
 	return Lerp( TexCoord0, TexCoord1, TexCoord2, Barycentrics );	

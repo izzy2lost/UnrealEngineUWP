@@ -752,7 +752,7 @@ bool FBuilderModule::Build(
 	uint32 EncodeTime0 = FPlatformTime::Cycles();
 
 	uint32 TotalGPUSize;
-	Encode(Resources, Settings, Clusters, Groups, MeshBounds, Resources.NumInputMeshes, InputMeshData.NumTexCoords, Settings.bExplicitTangents, bHasVertexColor, &TotalGPUSize);
+	Encode(Resources, Settings, Clusters, Groups, MeshBounds, Resources.NumInputMeshes, InputMeshData.NumTexCoords, Settings.bExplicitTangents, bHasVertexColor, BuilderSettings.NumBoneInfluences > 0, &TotalGPUSize);
 
 	uint32 EncodeTime1 = FPlatformTime::Cycles();
 	UE_LOG( LogStaticMesh, Log, TEXT("Encode [%.2fs]"), FPlatformTime::ToMilliseconds( EncodeTime1 - EncodeTime0 ) / 1000.0f );

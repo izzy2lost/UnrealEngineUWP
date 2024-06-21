@@ -25,6 +25,7 @@ namespace Nanite
 		uint32 NumTexCoords,
 		bool bHasTangents,
 		bool bHasColors,
+		bool bHasSkinning,
 		uint32* OutTotalGPUSize
 	);
 }

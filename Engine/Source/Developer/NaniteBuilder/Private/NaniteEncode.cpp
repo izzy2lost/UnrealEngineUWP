@@ -38,7 +38,7 @@ struct FPageSections
 	uint32 Cluster				= 0;
 	uint32 MaterialTable		= 0;
 	uint32 VertReuseBatchInfo	= 0;
-	uint32 BoneData				= 0;
+	uint32 BoneInfluence		= 0;
 	uint32 ExtendedData			= 0;
 	uint32 DecodeInfo			= 0;
 	uint32 Index				= 0;
@@ -47,15 +47,15 @@ struct FPageSections
 
 	uint32 GetMaterialTableSize() const			{ return Align(MaterialTable, 16); }
 	uint32 GetVertReuseBatchInfoSize() const	{ return Align(VertReuseBatchInfo, 16); }
-	uint32 GetBoneDataSize() const				{ return Align(BoneData, 16); }		//TODO: Nanite-Skinning: Just put in copy block for now
+	uint32 GetBoneInfluenceSize() const			{ return Align(BoneInfluence, 16); }
 	uint32 GetExtendedDataSize() const			{ return Align(ExtendedData, 16); }
 	uint32 GetDecodeInfoSize() const			{ return Align(DecodeInfo, 16); }
 
 	uint32 GetClusterOffset() const				{ return NANITE_GPU_PAGE_HEADER_SIZE; }
 	uint32 GetMaterialTableOffset() const		{ return GetClusterOffset() + Cluster; }
 	uint32 GetVertReuseBatchInfoOffset() const	{ return GetMaterialTableOffset() + GetMaterialTableSize(); }
-	uint32 GetBoneDataOffset() const			{ return GetVertReuseBatchInfoOffset() + GetVertReuseBatchInfoSize(); }
-	uint32 GetExtendedDataOffset() const		{ return GetBoneDataOffset() + GetBoneDataSize(); }
+	uint32 GetBoneInfluenceOffset() const		{ return GetVertReuseBatchInfoOffset() + GetVertReuseBatchInfoSize(); }
+	uint32 GetExtendedDataOffset() const		{ return GetBoneInfluenceOffset() + GetBoneInfluenceSize(); }
 	uint32 GetDecodeInfoOffset() const			{ return GetExtendedDataOffset() + GetExtendedDataSize(); } 
 	uint32 GetIndexOffset() const				{ return GetDecodeInfoOffset() + GetDecodeInfoSize(); }
 	uint32 GetPositionOffset() const			{ return GetIndexOffset() + Index; }
@@ -69,7 +69,7 @@ struct FPageSections
 			GetClusterOffset(),
 			GetMaterialTableOffset(),
 			GetVertReuseBatchInfoOffset(),
-			GetBoneDataOffset(),
+			GetBoneInfluenceOffset(),
 			GetExtendedDataOffset(),
 			GetDecodeInfoOffset(),
 			GetIndexOffset(),
@@ -83,7 +83,7 @@ struct FPageSections
 		Cluster				+=	Other.Cluster;
 		MaterialTable		+=	Other.MaterialTable;
 		VertReuseBatchInfo	+=	Other.VertReuseBatchInfo;
-		BoneData			+=	Other.BoneData;
+		BoneInfluence		+=	Other.BoneInfluence;
 		ExtendedData		+=	Other.ExtendedData;
 		DecodeInfo			+=	Other.DecodeInfo;
 		Index				+=	Other.Index;
@@ -132,45 +132,84 @@ struct FPage
 	FPageSections	GpuSizes;
 };
 
-struct FUVRange
+struct FUVInfo
 {
 	FUintVector2 Min				= FUintVector2::ZeroValue;
 	FUintVector2 NumBits			= FUintVector2::ZeroValue;
 };
 
-struct FPackedUVRange
+struct FPackedUVHeader
 {
 	FUintVector2 Data;
 };
 
-static void PackUVRange(FPackedUVRange& PackedUVRange, const FUVRange& UVRange)
+struct FClusterBoneInfluence
 {
-	check(UVRange.NumBits.X <= NANITE_UV_FLOAT_MAX_BITS			&& UVRange.NumBits.Y <= NANITE_UV_FLOAT_MAX_BITS);
-	check(UVRange.Min.X     <  (1u << NANITE_UV_FLOAT_MAX_BITS) && UVRange.Min.Y     <  (1u << NANITE_UV_FLOAT_MAX_BITS));
+	// TODO: Nanite-Skinning: Pack this once we know what data we need. We probably don't actually want full per bone bounds.
+	uint32		BoneIndex;
+	float		MinWeight;
+	float		MaxWeight;
+	FVector3f	BoundMin;
+	FVector3f	BoundMax;
+};
+
+struct FBoneInfluenceInfo
+{
+	uint32	DataOffset = 0;
+	uint32	NumVertexBoneInfluences = 0;
+	uint32	NumVertexBoneIndexBits = 0;
+	uint32	NumVertexBoneWeightBits = 0;
+
+	TArray<FClusterBoneInfluence> ClusterBoneInfluences;
+};
+
+struct FPackedBoneInfluenceHeader
+{
+	uint32	DataOffset_VertexInfluences = 0u;											// DataOffset: 22, NumVertexInfluences: 8
+	uint32	NumVertexBoneIndexBits_NumVertexBoneWeightBits_NumClusterInfluences = 0u;	// NumVertexBoneIndexBits: 6, NumVertexBoneIndexBits: 6, NumClusterInfluences: 5
+
+	void	SetDataOffset(uint32 Offset)				{ SetBits(DataOffset_VertexInfluences, Offset, 22,  0); }
+	void	SetNumVertexInfluences(uint32 Num)			{ SetBits(DataOffset_VertexInfluences,    Num, 10, 22); }
+	void	SetNumVertexBoneIndexBits(uint32 NumBits)	{ SetBits(NumVertexBoneIndexBits_NumVertexBoneWeightBits_NumClusterInfluences, NumBits, 6,  0); }
+	void	SetNumVertexBoneWeightBits(uint32 NumBits)	{ SetBits(NumVertexBoneIndexBits_NumVertexBoneWeightBits_NumClusterInfluences, NumBits, 6,  6); }
+	void	SetNumClusterInfluences(uint32 Num)			{ SetBits(NumVertexBoneIndexBits_NumVertexBoneWeightBits_NumClusterInfluences,     Num, 5, 12); }
+};
+
+static void PackUVHeader(FPackedUVHeader& PackedUVHeader, const FUVInfo& UVInfo)
+{
+	check(UVInfo.NumBits.X <= NANITE_UV_FLOAT_MAX_BITS			&& UVInfo.NumBits.Y <= NANITE_UV_FLOAT_MAX_BITS);
+	check(UVInfo.Min.X     <  (1u << NANITE_UV_FLOAT_MAX_BITS)	&& UVInfo.Min.Y     <  (1u << NANITE_UV_FLOAT_MAX_BITS));
 	
-	PackedUVRange.Data.X = (UVRange.Min.X << 5) | UVRange.NumBits.X;
-	PackedUVRange.Data.Y = (UVRange.Min.Y << 5) | UVRange.NumBits.Y;
+	PackedUVHeader.Data.X = (UVInfo.Min.X << 5) | UVInfo.NumBits.X;
+	PackedUVHeader.Data.Y = (UVInfo.Min.Y << 5) | UVInfo.NumBits.Y;
+}
+
+static void PackBoneInfluenceHeader(FPackedBoneInfluenceHeader& PackedBoneInfluenceHeader, const FBoneInfluenceInfo& BoneInfluenceInfo)
+{
+	PackedBoneInfluenceHeader = FPackedBoneInfluenceHeader();
+	PackedBoneInfluenceHeader.SetDataOffset(BoneInfluenceInfo.DataOffset);
+	PackedBoneInfluenceHeader.SetNumVertexInfluences(BoneInfluenceInfo.NumVertexBoneInfluences);
+	PackedBoneInfluenceHeader.SetNumVertexBoneIndexBits(BoneInfluenceInfo.NumVertexBoneIndexBits);
+	PackedBoneInfluenceHeader.SetNumVertexBoneWeightBits(BoneInfluenceInfo.NumVertexBoneWeightBits);
+	PackedBoneInfluenceHeader.SetNumClusterInfluences((uint32)BoneInfluenceInfo.ClusterBoneInfluences.Num());
 }
 
 struct FEncodingInfo
 {
-	uint32		BitsPerIndex = 0;
-	uint32		BitsPerAttribute = 0;
+	uint32				BitsPerIndex = 0;
+	uint32				BitsPerAttribute = 0;
 
-	uint32		NormalPrecision = 0;
-	uint32		TangentPrecision = 0;
+	uint32				NormalPrecision = 0;
+	uint32				TangentPrecision = 0;
 	
-	uint32		ColorMode = 0;
-	FIntVector4 ColorMin = FIntVector4(0, 0, 0, 0);
-	FIntVector4 ColorBits = FIntVector4(0, 0, 0, 0);
+	uint32				ColorMode = 0;
+	FIntVector4			ColorMin = FIntVector4(0, 0, 0, 0);
+	FIntVector4			ColorBits = FIntVector4(0, 0, 0, 0);
 
-	uint32		NumBones = 0;
-	uint32		BitsPerBoneIndex = 0;
-	uint32		BitsPerBoneWeight = 0;
-	
-	FPageSections GpuSizes;
+	FUVInfo				UVs[NANITE_MAX_UVS];
+	FBoneInfluenceInfo	BoneInfluence;
 
-	FUVRange	UVRanges[NANITE_MAX_UVS];
+	FPageSections		GpuSizes;
 };
 
 // Wasteful to store size for every vert but easier this way.
@@ -787,16 +826,11 @@ static void PackCluster(Nanite::FPackedCluster& OutCluster, const Nanite::FClust
 	{
 		check(BitOffset < 256);
 		UVBitOffsets |= BitOffset << (i * 8);
-		const FUVRange& UVRange = EncodingInfo.UVRanges[i];
-		BitOffset += UVRange.NumBits.X + UVRange.NumBits.Y;
+		const FUVInfo& UVInfo = EncodingInfo.UVs[i];
+		BitOffset += UVInfo.NumBits.X + UVInfo.NumBits.Y;
 	}
 
 	// 6
-	OutCluster.SetBoneDataOffset(0);
-	OutCluster.SetNumBones(EncodingInfo.NumBones);
-	OutCluster.SetBoneIndexBits(EncodingInfo.BitsPerBoneIndex);
-	OutCluster.SetBoneWeightBits(EncodingInfo.BitsPerBoneWeight);
-
 	OutCluster.SetBitsPerAttribute(EncodingInfo.BitsPerAttribute);
 	OutCluster.SetNormalPrecision(EncodingInfo.NormalPrecision);
 	OutCluster.SetTangentPrecision(EncodingInfo.TangentPrecision);
@@ -1088,10 +1122,102 @@ static uint32 EncodeUVFloat(float Value, uint32 NumMantissaBits)
 	return Result;
 }
 
+static void CalculateInfluences(FBoneInfluenceInfo& InfluenceInfo, const Nanite::FCluster& Cluster)
+{
+	const uint32 NumClusterVerts	= Cluster.NumVerts;
+	const uint32 MaxBones			= Cluster.Settings.NumBoneInfluences;
+
+	if (MaxBones == 0)
+		return;
+
+	uint32	MaxVertexInfluences		= 0;
+	uint32	MaxBoneIndex			= 0;
+	uint32	MaxBoneWeight			= 0;
+	bool	bClusterBoneOverflow	= false;
+
+	InfluenceInfo.ClusterBoneInfluences.Reserve(NANITE_MAX_CLUSTER_BONE_INFLUENCES);
+
+	for (uint32 i = 0; i < NumClusterVerts; i++)
+	{
+		const FVector3f  LocalPosition	= Cluster.GetPosition(i);
+		const FVector2f* BoneInfluences = Cluster.GetBoneInfluences(i);
+		
+		uint32 NumVertexInfluences = 0;
+		for (uint32 j = 0; j < MaxBones; j++)
+		{
+			const uint32 BoneIndex	= (uint32)BoneInfluences[j].X;
+			const uint32 BoneWeight	= (uint32)BoneInfluences[j].Y;
+			const float fBoneWeight = float(BoneWeight) * (1.0f / 65535.0f);	// TODO: Nanite-Skinning: Figure out what is the appropriate normalization weight.
+
+			if (BoneWeight > 0)
+			{
+				// Have we reached the end of weights?
+				if (BoneWeight == 0)
+				{
+					break;
+				}
+
+				if (!bClusterBoneOverflow)
+				{
+					// Have we seen this bone index already?
+					bool bFound = false;
+					for (FClusterBoneInfluence& ClusterBoneInfluence : InfluenceInfo.ClusterBoneInfluences)
+					{
+						if (ClusterBoneInfluence.BoneIndex == BoneIndex)
+						{
+							ClusterBoneInfluence.BoundMin	= FVector3f::Min(ClusterBoneInfluence.BoundMin, LocalPosition);
+							ClusterBoneInfluence.BoundMax	= FVector3f::Max(ClusterBoneInfluence.BoundMax, LocalPosition);
+							ClusterBoneInfluence.MinWeight	= FMath::Min(ClusterBoneInfluence.MinWeight, fBoneWeight);
+							ClusterBoneInfluence.MaxWeight	= FMath::Min(ClusterBoneInfluence.MaxWeight, fBoneWeight);
+
+							bFound = true;
+							break;
+						}
+					}
+
+					if (!bFound)
+					{
+						if (InfluenceInfo.ClusterBoneInfluences.Num() < NANITE_MAX_CLUSTER_BONE_INFLUENCES)
+						{
+							FClusterBoneInfluence ClusterBoneInfluence;
+							ClusterBoneInfluence.BoneIndex = BoneIndex;
+							ClusterBoneInfluence.MinWeight = fBoneWeight;
+							ClusterBoneInfluence.MaxWeight = fBoneWeight;
+							ClusterBoneInfluence.BoundMin = LocalPosition;
+							ClusterBoneInfluence.BoundMax = LocalPosition;
+							InfluenceInfo.ClusterBoneInfluences.Add(ClusterBoneInfluence);
+						}
+						else
+						{
+							// Bones don't fit. Don't bother storing any of them and just revert back to instance bounds
+							bClusterBoneOverflow = true;
+							InfluenceInfo.ClusterBoneInfluences.Empty();
+						}
+					}
+				}
+				
+				MaxBoneIndex	= FMath::Max(MaxBoneIndex, BoneIndex);
+				MaxBoneWeight	= FMath::Max(MaxBoneWeight, BoneWeight);
+				NumVertexInfluences++;
+			}
+			else
+			{
+				break;
+			}
+		}
+		MaxVertexInfluences = FMath::Max(MaxVertexInfluences, NumVertexInfluences);
+	}
+
+	InfluenceInfo.NumVertexBoneInfluences	= MaxVertexInfluences;
+	InfluenceInfo.NumVertexBoneIndexBits	= FMath::CeilLogTwo(MaxBoneIndex + 1u);
+	InfluenceInfo.NumVertexBoneWeightBits	= FMath::CeilLogTwo(MaxBoneWeight + 1u);
+}
+
 static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& Cluster, int32 NormalPrecision, int32 TangentPrecision, bool bHasTangents, bool bHasColors, uint32 NumTexCoords)
 {
 	const uint32 NumClusterVerts = Cluster.NumVerts;
 	const uint32 NumClusterTris = Cluster.NumTris;
+	const uint32 MaxBones = Cluster.Settings.NumBoneInfluences;
 
 	FMemory::Memzero(Info);
 
@@ -1104,7 +1230,7 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 	GpuSizes.Cluster = sizeof(FPackedCluster);
 	GpuSizes.MaterialTable = CalcMaterialTableSize(Cluster) * sizeof(uint32);
 	GpuSizes.VertReuseBatchInfo = Cluster.MaterialRanges.Num() > 3 ? CalcVertReuseBatchInfoSize(Cluster.MaterialRanges) * sizeof(uint32) : 0;
-	GpuSizes.DecodeInfo = NumTexCoords * sizeof(FPackedUVRange);
+	GpuSizes.DecodeInfo = NumTexCoords * sizeof(FPackedUVHeader) + (MaxBones > 0 ? sizeof(FPackedBoneInfluenceHeader) : 0);
 	GpuSizes.Index = (NumClusterTris * BitsPerTriangle + 31) / 32 * 4;
 
 #if NANITE_USE_UNCOMPRESSED_VERTEX_DATA
@@ -1175,8 +1301,6 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 	const int NumMantissaBits = NANITE_UV_FLOAT_NUM_MANTISSA_BITS;	//TODO: make this a build setting
 	for( uint32 UVIndex = 0; UVIndex < NumTexCoords; UVIndex++ )
 	{
-		FUVRange& UVRange = Info.UVRanges[UVIndex];
-
 		FUintVector2 UVMin = FUintVector2(0xFFFFFFFFu, 0xFFFFFFFFu);
 		FUintVector2 UVMax = FUintVector2(0u, 0u);
 		
@@ -1195,44 +1319,24 @@ static void CalculateEncodingInfo(FEncodingInfo& Info, const Nanite::FCluster& C
 
 		const FUintVector2 UVDelta = UVMax - UVMin;
 
-		UVRange.Min				= UVMin;
-		UVRange.NumBits.X		= FMath::CeilLogTwo(UVDelta.X + 1u);
-		UVRange.NumBits.Y		= FMath::CeilLogTwo(UVDelta.Y + 1u);
+		FUVInfo& UVInfo = Info.UVs[UVIndex];
+		UVInfo.Min				= UVMin;
+		UVInfo.NumBits.X		= FMath::CeilLogTwo(UVDelta.X + 1u);
+		UVInfo.NumBits.Y		= FMath::CeilLogTwo(UVDelta.Y + 1u);
 
-		Info.BitsPerAttribute	+= UVRange.NumBits.X + UVRange.NumBits.Y;
+		Info.BitsPerAttribute	+= UVInfo.NumBits.X + UVInfo.NumBits.Y;
 	}
 
-	const uint32 MaxBones = Cluster.Settings.NumBoneInfluences;
 	if (MaxBones > 0)
 	{
-		uint32 NumBones = 0;
-		
-		uint32 MaxBoneIndex = 0;
-		uint32 MaxBoneWeight = 0;
-		for (uint32 i = 0; i < NumClusterVerts; i++)
-		{
-			const FVector2f* BoneInfluences = Cluster.GetBoneInfluences(i);
-			uint32 NumVertexBones = 0;
-			for (uint32 j = 0; j < MaxBones; j++)
-			{
-				const uint32 BoneIndex	= (uint32)BoneInfluences[j].X;
-				const uint32 BoneWeight = (uint32)BoneInfluences[j].Y;
-				
-				if (BoneWeight > 0)
-				{
-					MaxBoneIndex = FMath::Max(MaxBoneIndex, BoneIndex);
-					MaxBoneWeight = FMath::Max(MaxBoneWeight, BoneWeight);
-					NumVertexBones++;
-				}
-			}
-			NumBones = FMath::Max(NumBones, NumVertexBones);
-		}
-		Info.NumBones = NumBones;
-		Info.BitsPerBoneIndex	= FMath::CeilLogTwo(MaxBoneIndex + 1u);
-		Info.BitsPerBoneWeight	= FMath::CeilLogTwo(MaxBoneWeight + 1u);
+		CalculateInfluences(Info.BoneInfluence, Cluster);
 
 		// TODO: Nanite-Skinning: Make this more compact. Range of indices? Palette of indices? Omit the last weight?
-		GpuSizes.BoneData		= (NumClusterVerts * NumBones * (Info.BitsPerBoneIndex + Info.BitsPerBoneWeight) + 31) / 32 * 4;
+		const uint32 VertexInfluenceSize	= ( NumClusterVerts * Info.BoneInfluence.NumVertexBoneInfluences * ( Info.BoneInfluence.NumVertexBoneIndexBits + Info.BoneInfluence.NumVertexBoneWeightBits ) + 31) / 32 * 4;
+		const uint32 ClusterInfluenceSize	= Info.BoneInfluence.ClusterBoneInfluences.Num() * sizeof(FClusterBoneInfluence);
+		GpuSizes.BoneInfluence				= VertexInfluenceSize + ClusterInfluenceSize;
+
+		check(GpuSizes.BoneInfluence % 4 == 0);
 	}
 	
 	GpuSizes.ExtendedData = Cluster.ExtendedData.Num() * sizeof(uint32);
@@ -1256,10 +1360,11 @@ static void CalculateEncodingInfos(
 	uint32 NumClusters = Clusters.Num();
 	EncodingInfos.SetNumUninitialized(NumClusters);
 
-	for (uint32 i = 0; i < NumClusters; i++)
-	{
-		CalculateEncodingInfo(EncodingInfos[i], Clusters[i], NormalPrecision, TangentPrecision, bHasTangents, bHasColors, NumTexCoords);
-	}
+	ParallelFor(TEXT("NaniteEncode.CalculateEncodingInfos.PF"), Clusters.Num(), 128, 
+		[&](uint32 ClusterIndex)
+		{
+			CalculateEncodingInfo(EncodingInfos[ClusterIndex], Clusters[ClusterIndex], NormalPrecision, TangentPrecision, bHasTangents, bHasColors, NumTexCoords);
+		});	
 }
 
 struct FVertexMapEntry
@@ -1289,7 +1394,7 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 								TArray<uint32>& PageClusterMapData,
 								TArray<uint32>& VertexRefBitmask, TArray<uint16>& VertexRefData,
 								TArray<uint8>& LowByteStream, TArray<uint8>& MidByteStream, TArray<uint8>& HighByteStream,
-								TArray<uint8>& BoneDataStream,
+								TArray<uint8>& BoneInfluenceStream,
 								const TArrayView<uint32> PageDependencies, const TArray<TMap<FVariableVertex, FVertexMapEntry>>& PageVertexMaps,
 								TMap<FVariableVertex, uint32>& UniqueVertices, uint32& NumCodedVertices, bool bHasTangents)
 {
@@ -1470,9 +1575,9 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 	const uint32 NumMantissaBits = NANITE_UV_FLOAT_NUM_MANTISSA_BITS;
 	for( uint32 UVIndex = 0; UVIndex < NumTexCoords; UVIndex++ )
 	{
-		const FUVRange& UVRange = EncodingInfo.UVRanges[UVIndex];
-		const uint32 NumTexCoordValuesU = 1u << UVRange.NumBits.X;
-		const uint32 NumTexCoordValuesV = 1u << UVRange.NumBits.Y;
+		const FUVInfo& UVInfo = EncodingInfo.UVs[UVIndex];
+		const uint32 NumTexCoordValuesU = 1u << UVInfo.NumBits.X;
+		const uint32 NumTexCoordValuesV = 1u << UVInfo.NumBits.Y;
 
 		for(uint32 Index : UniqueToVertexIndex)
 		{
@@ -1481,10 +1586,10 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 			uint32 EncodedU = EncodeUVFloat(UV.X, NumMantissaBits);
 			uint32 EncodedV = EncodeUVFloat(UV.Y, NumMantissaBits);
 
-			check(EncodedU >= UVRange.Min.X);
-			check(EncodedV >= UVRange.Min.Y);
-			EncodedU -= UVRange.Min.X;
-			EncodedV -= UVRange.Min.Y;
+			check(EncodedU >= UVInfo.Min.X);
+			check(EncodedV >= UVInfo.Min.Y);
+			EncodedU -= UVInfo.Min.X;
+			EncodedV -= UVInfo.Min.Y;
 			
 			check(EncodedU >= 0 && EncodedU < NumTexCoordValuesU);
 			check(EncodedV >= 0 && EncodedV < NumTexCoordValuesV);
@@ -1626,8 +1731,8 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 	// UV
 	for (uint32 TexCoordIndex = 0; TexCoordIndex < NumTexCoords; TexCoordIndex++)
 	{
-		const int32 NumTexCoordBitsU = EncodingInfo.UVRanges[TexCoordIndex].NumBits.X;
-		const int32 NumTexCoordBitsV = EncodingInfo.UVRanges[TexCoordIndex].NumBits.Y;
+		const int32 NumTexCoordBitsU = EncodingInfo.UVs[TexCoordIndex].NumBits.X;
+		const int32 NumTexCoordBitsV = EncodingInfo.UVs[TexCoordIndex].NumBits.Y;
 		const uint32 BytesPerTexCoordComponent = (FMath::Max(NumTexCoordBitsU, NumTexCoordBitsV) + 7) / 8;
 			
 		FIntVector2 PrevUV = FIntVector2::ZeroValue;
@@ -1645,33 +1750,27 @@ static void EncodeGeometryData(	const uint32 LocalClusterIndex, const FCluster& 
 		}
 	}
 
-	if (EncodingInfo.NumBones > 0)
+	const uint32 NumVertexBones = EncodingInfo.BoneInfluence.NumVertexBoneInfluences;
+	if (NumVertexBones > 0)
 	{
 		// TODO: Nanite-Skinning: support parent references
-		FBitWriter BitWriter(BoneDataStream);
+		FBitWriter BitWriter(BoneInfluenceStream);
 		
-		const uint32 NumBones = EncodingInfo.NumBones;
 		for (uint32 i = 0; i < NumClusterVerts; i++)
 		{
 			const FVector2f* BoneInfluences = Cluster.GetBoneInfluences(i);
-			for (uint32 j = 0; j < NumBones; j++)
+			for (uint32 j = 0; j < NumVertexBones; j++)
 			{
 				const uint32 BoneIndex = (uint32)BoneInfluences[j].X;
 				const uint32 BoneWeight = (uint32)BoneInfluences[j].Y;
-				if (BoneWeight == 0)
-				{
-					BitWriter.PutBits(0, EncodingInfo.BitsPerBoneIndex);
-					BitWriter.PutBits(0, EncodingInfo.BitsPerBoneWeight);
-				}
-				else
-				{
-					BitWriter.PutBits(BoneIndex, EncodingInfo.BitsPerBoneIndex);
-					BitWriter.PutBits(BoneWeight, EncodingInfo.BitsPerBoneWeight);
-				}
+				BitWriter.PutBits(BoneWeight ? BoneIndex : 0u,	EncodingInfo.BoneInfluence.NumVertexBoneIndexBits);
+				BitWriter.PutBits(BoneWeight,					EncodingInfo.BoneInfluence.NumVertexBoneWeightBits);
 			}
 		}
-		
 		BitWriter.Flush(sizeof(uint32));
+
+		BoneInfluenceStream.Append((uint8*)EncodingInfo.BoneInfluence.ClusterBoneInfluences.GetData(),
+									EncodingInfo.BoneInfluence.ClusterBoneInfluences.Num() * sizeof(FClusterBoneInfluence));
 	}
 
 
@@ -2039,6 +2138,7 @@ static void WritePages(	FResources& Resources,
 						const TArray<FClusterGroupPart>& Parts,
 						TArray<FCluster>& Clusters,
 						const TArray<FEncodingInfo>& EncodingInfos,
+						const bool bHasSkinning,
 						const bool bHasTangents,
 						const uint32 NumTexCoords,
 						uint32* OutTotalGPUSize)
@@ -2153,7 +2253,7 @@ static void WritePages(	FResources& Resources,
 	TArray< TArray<uint8> > PageResults;
 	PageResults.SetNum(NumPages);
 
-	ParallelFor(TEXT("NaniteEncode.BuildPages.PF"), NumPages, 1, [&Resources, &Pages, &Groups, &Parts, &Clusters, &EncodingInfos, &FixupChunks, &PageVertexMaps, &PageResults, bHasTangents, NumTexCoords](int32 PageIndex)
+	ParallelFor(TEXT("NaniteEncode.BuildPages.PF"), NumPages, 1, [&Resources, &Pages, &Groups, &Parts, &Clusters, &EncodingInfos, &FixupChunks, &PageVertexMaps, &PageResults, bHasSkinning, bHasTangents, NumTexCoords](int32 PageIndex)
 	{
 		const FPage& Page = Pages[PageIndex];
 		FFixupChunk& FixupChunk = FixupChunks[PageIndex];
@@ -2200,13 +2300,14 @@ static void WritePages(	FResources& Resources,
 		TArray<uint16>				CombinedVertexRefData;
 		TArray<uint8>				CombinedIndexData;
 		TArray<uint8>				CombinedAttributeData;
-		TArray<uint8>				BoneData;
+		TArray<uint8>				BoneInfluenceData;
 		TArray<uint32>				ExtendedData;
 		TArray<uint32>				MaterialRangeData;
 		TArray<uint32>				VertReuseBatchInfo;
 		TArray<uint16>				CodedVerticesPerCluster;
 		TArray<uint32>				NumPageClusterPairsPerCluster;
 		TArray<FPackedCluster>		PackedClusters;
+		TArray<FPackedBoneInfluenceHeader>	PackedBoneInfluenceHeaders;
 
 		TArray<uint8>				LowByteStream;
 		TArray<uint8>				MidByteStream;
@@ -2225,6 +2326,11 @@ static void WritePages(	FResources& Resources,
 		PackedClusters.SetNumUninitialized(Page.NumClusters);
 		CodedVerticesPerCluster.SetNumUninitialized(Page.NumClusters);
 		NumPageClusterPairsPerCluster.SetNumUninitialized(Page.NumClusters);
+
+		if(bHasSkinning)
+		{
+			PackedBoneInfluenceHeaders.SetNumUninitialized(Page.NumClusters);
+		}
 		
 		const uint32 NumPackedClusterDwords = Page.NumClusters * sizeof(FPackedCluster) / sizeof(uint32);
 		const uint32 MaterialTableStartOffsetInDwords = (NANITE_GPU_PAGE_HEADER_SIZE / 4) + NumPackedClusterDwords;
@@ -2248,12 +2354,19 @@ static void WritePages(	FResources& Resources,
 				check((GpuSectionOffsets.Index & 3) == 0);
 				check((GpuSectionOffsets.Position & 3) == 0);
 				check((GpuSectionOffsets.Attribute & 3) == 0);
-				check((GpuSectionOffsets.BoneData & 3) == 0);
 				PackedCluster.SetIndexOffset(GpuSectionOffsets.Index);
 				PackedCluster.SetPositionOffset(GpuSectionOffsets.Position);
 				PackedCluster.SetAttributeOffset(GpuSectionOffsets.Attribute);
 				PackedCluster.SetDecodeInfoOffset(GpuSectionOffsets.DecodeInfo);
-				PackedCluster.SetBoneDataOffset(GpuSectionOffsets.BoneData);
+				PackedCluster.SetHasSkinning(bHasSkinning);
+
+				if(bHasSkinning)
+				{
+					FPackedBoneInfluenceHeader& PackedBoneInfluenceHeader = PackedBoneInfluenceHeaders[LocalClusterIndex];
+					PackBoneInfluenceHeader(PackedBoneInfluenceHeader, EncodingInfo.BoneInfluence);
+					check((GpuSectionOffsets.BoneInfluence & 3) == 0);
+					PackedBoneInfluenceHeader.SetDataOffset(GpuSectionOffsets.BoneInfluence);
+				}
 
 				if( Cluster.ExtendedData.Num() )
 				{
@@ -2291,7 +2404,7 @@ static void WritePages(	FResources& Resources,
 									CombinedStripBitmaskData, CombinedIndexData,
 									CombinedPageClusterPairData, CombinedVertexRefBitmaskData, CombinedVertexRefData,
 									LowByteStream, MidByteStream, HighByteStream,
-									BoneData,
+									BoneInfluenceData,
 									PageDependencies, PageVertexMaps,
 									UniqueVertices, NumCodedVertices, bHasTangents);
 
@@ -2305,8 +2418,8 @@ static void WritePages(	FResources& Resources,
 		}
 		check(GpuSectionOffsets.Cluster							== Page.GpuSizes.GetMaterialTableOffset());
 		check(Align(GpuSectionOffsets.MaterialTable, 16)		== Page.GpuSizes.GetVertReuseBatchInfoOffset());
-		check(Align(GpuSectionOffsets.VertReuseBatchInfo, 16)	== Page.GpuSizes.GetBoneDataOffset());
-		check(Align(GpuSectionOffsets.BoneData, 16)				== Page.GpuSizes.GetExtendedDataOffset());
+		check(Align(GpuSectionOffsets.VertReuseBatchInfo, 16)	== Page.GpuSizes.GetBoneInfluenceOffset());
+		check(Align(GpuSectionOffsets.BoneInfluence, 16)		== Page.GpuSizes.GetExtendedDataOffset());
 		check(Align(GpuSectionOffsets.ExtendedData, 16)			== Page.GpuSizes.GetDecodeInfoOffset());
 		check(Align(GpuSectionOffsets.DecodeInfo, 16)			== Page.GpuSizes.GetIndexOffset());
 		check(GpuSectionOffsets.Index							== Page.GpuSizes.GetPositionOffset());
@@ -2379,7 +2492,7 @@ static void WritePages(	FResources& Resources,
 		// 16-byte align material range data to make it easy to copy during GPU transcoding
 		MaterialRangeData.SetNum(Align(MaterialRangeData.Num(), 4));
 		VertReuseBatchInfo.SetNum(Align(VertReuseBatchInfo.Num(), 4));
-		BoneData.SetNum(Align(BoneData.Num(), 16));
+		BoneInfluenceData.SetNum(Align(BoneInfluenceData.Num(), 16));
 		ExtendedData.SetNum(Align(ExtendedData.Num(), 4));
 
 		static_assert(sizeof(FPageGPUHeader) % 16 == 0, "sizeof(FGPUPageHeader) must be a multiple of 16");
@@ -2430,10 +2543,10 @@ static void WritePages(	FResources& Resources,
 
 		{
 			// Bone data
-			const uint32 BoneDataSize = BoneData.Num() * BoneData.GetTypeSize();
-			uint8* BoneDataPtr = PageWriter.Append_Ptr<uint8>(BoneDataSize);
-			FMemory::Memcpy(BoneDataPtr, BoneData.GetData(), BoneDataSize);
-			check(BoneDataSize == Page.GpuSizes.GetBoneDataSize());
+			const uint32 DataSize = BoneInfluenceData.Num() * BoneInfluenceData.GetTypeSize();
+			uint8* Ptr = PageWriter.Append_Ptr<uint8>(DataSize);
+			FMemory::Memcpy(Ptr, BoneInfluenceData.GetData(), DataSize);
+			check(DataSize == Page.GpuSizes.GetBoneInfluenceSize());
 		}
 
 		{
@@ -2446,21 +2559,33 @@ static void WritePages(	FResources& Resources,
 
 		// Decode information
 		const uint32 DecodeInfoOffset = PageWriter.Offset();
-		for (uint32 i = 0; i < Page.PartsNum; i++)
 		{
-			const FClusterGroupPart& Part = Parts[Page.PartsStartIndex + i];
-			FPackedUVRange* DecodeInfo = PageWriter.Append_Ptr<FPackedUVRange>(Part.Clusters.Num() * NumTexCoords);
-			for (uint32 j = 0; j < (uint32)Part.Clusters.Num(); j++)
+			uint32 LocalClusterIndex = 0;
+			for (uint32 i = 0; i < Page.PartsNum; i++)
 			{
-				const uint32 ClusterIndex = Part.Clusters[j];
-				for (uint32 k = 0; k < NumTexCoords; k++)
+				const FClusterGroupPart& Part = Parts[Page.PartsStartIndex + i];
+			
+				for (uint32 j = 0; j < (uint32)Part.Clusters.Num(); j++)
 				{
-					PackUVRange(DecodeInfo[k], EncodingInfos[ClusterIndex].UVRanges[k]);
+					FPackedUVHeader* UVHeaders = PageWriter.Append_Ptr<FPackedUVHeader>(NumTexCoords);
+				
+					const uint32 ClusterIndex = Part.Clusters[j];
+					for (uint32 k = 0; k < NumTexCoords; k++)
+					{
+						PackUVHeader(UVHeaders[k], EncodingInfos[ClusterIndex].UVs[k]);
+					}
+				
+					if (bHasSkinning)
+					{
+						FPackedBoneInfluenceHeader* BoneInfluenceHeader = PageWriter.Append_Ptr<FPackedBoneInfluenceHeader>(1);
+						*BoneInfluenceHeader = PackedBoneInfluenceHeaders[LocalClusterIndex];
+					}
+					LocalClusterIndex++;
 				}
-				DecodeInfo += NumTexCoords;
 			}
 		}
 		PageWriter.AlignRelativeToOffset(DecodeInfoOffset, 16u);
+		check(PageWriter.Offset() - DecodeInfoOffset == Page.GpuSizes.GetDecodeInfoSize());
 
 		const uint32 RawFloat4EndOffset = PageWriter.Offset();
 		
@@ -4444,6 +4569,7 @@ void Encode(
 	uint32 NumTexCoords,
 	bool bHasTangents,
 	bool bHasColors,
+	bool bHasSkinning,
 	uint32* OutTotalGPUSize
 )
 {
@@ -4533,7 +4659,7 @@ void Encode(
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::Build::WritePages);
-		WritePages(Resources, Pages, Groups, GroupParts, Clusters, EncodingInfos, bHasTangents, NumTexCoords, OutTotalGPUSize);
+		WritePages(Resources, Pages, Groups, GroupParts, Clusters, EncodingInfos, bHasSkinning, bHasTangents, NumTexCoords, OutTotalGPUSize);
 	}
 }
 

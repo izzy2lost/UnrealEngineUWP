@@ -72,6 +72,7 @@ struct FCluster
 	uint	BitsPerAttribute;
 	uint	DecodeInfoOffset;
 	bool	bHasTangents;
+	bool	bSkinning;
 	uint	NumUVs;
 	uint	ColorMode;
 	uint	UVBitOffsets;
@@ -79,11 +80,6 @@ struct FCluster
 	uint	ColorMin;
 	uint	ColorBits;
 	uint	GroupIndex;		// Debug only
-
-	uint	BoneDataOffset;
-	uint	NumBones;
-	uint	NumBoneIndexBits;
-	uint	NumBoneWeightBits;
 
 	// Material Slow path
 	uint	MaterialTableOffset;
@@ -417,15 +413,11 @@ FCluster UnpackCluster(uint4 ClusterData[NANITE_NUM_PACKED_CLUSTER_FLOAT4S])
 	Cluster.BitsPerAttribute	= BitFieldExtractU32(ClusterData[5].x, 10, 22);
 	Cluster.DecodeInfoOffset	= BitFieldExtractU32(ClusterData[5].y, 22,  0);
 	Cluster.bHasTangents		= BitFieldExtractU32(ClusterData[5].y,  1, 22);
-	Cluster.NumUVs				= BitFieldExtractU32(ClusterData[5].y,  3, 23);
-	Cluster.ColorMode			= BitFieldExtractU32(ClusterData[5].y,  1, 26);
+	Cluster.bSkinning			= BitFieldExtractU32(ClusterData[5].y,  1, 23);
+	Cluster.NumUVs				= BitFieldExtractU32(ClusterData[5].y,  3, 24);
+	Cluster.ColorMode			= BitFieldExtractU32(ClusterData[5].y,  1, 27);
 	Cluster.UVBitOffsets		= ClusterData[5].z;
 	const uint MaterialEncoding = ClusterData[5].w;
-
-	Cluster.BoneDataOffset		= BitFieldExtractU32(ClusterData[6].x, 22,  0);
-	Cluster.NumBones			= BitFieldExtractU32(ClusterData[6].x, 10, 22);
-	Cluster.NumBoneIndexBits	= BitFieldExtractU32(ClusterData[6].y,  6,  0);
-	Cluster.NumBoneWeightBits	= BitFieldExtractU32(ClusterData[6].y,  6,  6);
 
 	// Material Table Range Encoding (32 bits)
 	// uint TriStart        :  8;  // max 128 triangles
