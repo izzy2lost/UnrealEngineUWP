@@ -584,7 +584,7 @@ UDMXMVRGeneralSceneDescription* UDMXLibrary::UpdateGeneralSceneDescription()
 
 	return nullptr;
 }
-#endif // WITH_EDTIOR
+#endif // WITH_EDITOR
 
 #if WITH_EDITOR
 void UDMXLibrary::UpgradeFromControllersToPorts()

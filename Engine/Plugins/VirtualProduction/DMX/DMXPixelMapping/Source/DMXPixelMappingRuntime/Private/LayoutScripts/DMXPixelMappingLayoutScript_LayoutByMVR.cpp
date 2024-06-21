@@ -77,8 +77,11 @@ TMap<const UDMXMVRFixtureNode*, FDMXPixelMappingLayoutToken> UDMXPixelMappingLay
 	{
 		return Result;
 	}
-
+	
+#if WITH_EDITOR
 	DMXLibrary->UpdateGeneralSceneDescription();
+#endif
+
 	UDMXMVRGeneralSceneDescription* GeneralSceneDescription = DMXLibrary->GetLazyGeneralSceneDescription();
 	if (!GeneralSceneDescription)
 	{
