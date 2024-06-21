@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCSignatureTreeItemBase.h"
+#include "RCSignatureTreeRootItem.h"
+#include "UI/Signature/RCSignatureTreeItemSelection.h"
 #include "UI/Signature/SRCSignatureTree.h"
 
 FRCSignatureTreeItemBase::FRCSignatureTreeItemBase(const TSharedPtr<SRCSignatureTree>& InSignatureTree)
@@ -9,19 +11,36 @@ FRCSignatureTreeItemBase::FRCSignatureTreeItemBase(const TSharedPtr<SRCSignature
 {
 }
 
-void FRCSignatureTreeItemBase::AddFlags(ERCSignatureTreeItemFlags InFlags)
+void FRCSignatureTreeItemBase::AddTreeViewFlags(ERCSignatureTreeItemViewFlags InFlags)
 {
-	EnumAddFlags(Flags, InFlags);
+	EnumAddFlags(TreeViewFlags, InFlags);
 }
 
-void FRCSignatureTreeItemBase::RemoveFlags(ERCSignatureTreeItemFlags InFlags)
+void FRCSignatureTreeItemBase::RemoveTreeViewFlags(ERCSignatureTreeItemViewFlags InFlags)
 {
-	EnumRemoveFlags(Flags, InFlags);
+	EnumRemoveFlags(TreeViewFlags, InFlags);
 }
 
-bool FRCSignatureTreeItemBase::HasAnyFlags(ERCSignatureTreeItemFlags InFlags) const
+bool FRCSignatureTreeItemBase::HasAnyTreeViewFlags(ERCSignatureTreeItemViewFlags InFlags) const
 {
-	return EnumHasAnyFlags(Flags, InFlags);
+	return EnumHasAnyFlags(TreeViewFlags, InFlags);
+}
+
+void FRCSignatureTreeItemBase::SetSelected(bool bInSelected, bool bInIsMultiSelection)
+{
+	if (TSharedPtr<FRCSignatureTreeItemSelection> Selection = GetRootSelection())
+	{
+		Selection->SetSelected(SharedThis(this), bInSelected, bInIsMultiSelection);
+	}
+}
+
+bool FRCSignatureTreeItemBase::IsSelected() const
+{
+	if (TSharedPtr<FRCSignatureTreeItemSelection> Selection = GetRootSelection())
+	{
+		return Selection->IsSelected(SharedThis(this));
+	}
+	return false;
 }
 
 void FRCSignatureTreeItemBase::RebuildChildren()
@@ -31,7 +50,7 @@ void FRCSignatureTreeItemBase::RebuildChildren()
 	OldChildren.Reserve(Children.Num());
 	for (const TSharedPtr<FRCSignatureTreeItemBase>& Child : Children)
 	{
-		OldChildren.Add(Child->Path, Child);
+		OldChildren.Add(Child->GetPathId(), Child);
 	}
 
 	Children.Reset();
@@ -41,12 +60,14 @@ void FRCSignatureTreeItemBase::RebuildChildren()
 	for (const TSharedPtr<FRCSignatureTreeItemBase>& Child : Children)
 	{
 		Child->Initialize(This);
-		if (TSharedPtr<FRCSignatureTreeItemBase>* OldChild = OldChildren.Find(Child->Path))
+		if (TSharedPtr<FRCSignatureTreeItemBase>* OldChild = OldChildren.Find(Child->GetPathId()))
 		{
 			Child->RestoreFrom(*OldChild);
 		}
 		Child->RebuildChildren();
 	}
+
+	PostChildrenRebuild();
 }
 
 void FRCSignatureTreeItemBase::VisitChildren(TFunctionRef<bool(const TSharedPtr<FRCSignatureTreeItemBase>&)> InCallable, bool bInRecursive)
@@ -68,6 +89,7 @@ void FRCSignatureTreeItemBase::VisitChildren(TFunctionRef<bool(const TSharedPtr<
 void FRCSignatureTreeItemBase::Initialize(const TSharedPtr<FRCSignatureTreeItemBase>& InParent)
 {
 	ParentWeak = InParent;
+	SelectionWeak = GetRootSelection();
 	Path = BuildPath();
 }
 
@@ -77,9 +99,39 @@ void FRCSignatureTreeItemBase::RestoreFrom(const TSharedPtr<FRCSignatureTreeItem
 	{
 		// The only important things in restoration are flags & children.
 		// Children are only restored so they can restore their flags
-		Flags = InOldItem->GetFlags();
+		TreeViewFlags = InOldItem->GetTreeViewFlags();
 		Children = InOldItem->GetChildren();
 	}
+}
+
+TSharedPtr<FRCSignatureTreeItemSelection> FRCSignatureTreeItemBase::GetRootSelection() const
+{
+	TSharedPtr<FRCSignatureTreeItemSelection> Selection = SelectionWeak.Pin();
+	if (Selection.IsValid())
+	{
+		return Selection;
+	}
+
+	TSharedPtr<const FRCSignatureTreeItemBase> Parent = GetParent();
+	if (!Parent.IsValid())
+	{
+		return nullptr;
+	}
+
+	while (Parent->GetParent().IsValid())
+	{
+		Parent = Parent->GetParent();
+	}
+
+	TSharedPtr<const FRCSignatureTreeRootItem> RootItem = Parent->Cast<FRCSignatureTreeRootItem>();
+	if (!RootItem.IsValid())
+	{
+		return nullptr;
+	}
+
+	Selection = RootItem->GetSelection();
+	SelectionWeak = Selection;
+	return Selection;
 }
 
 FName FRCSignatureTreeItemBase::BuildPath() const
@@ -98,8 +150,9 @@ FName FRCSignatureTreeItemBase::BuildPath() const
 	}
 
 	// Expectation is that signature items will generate a path from Guid (32 characters)
-	// with a dot delimiter to the field path which is an index (1-2 characters for the numbers in most use cases)
-	// the expected size of the string is 34 characters... rounded up to a multiple of 8 => 40
+	// with a first dot to the field path (index : 1-2 characters for the numbers in most use cases)
+	// and a second dot with the action path (index : 1-2 characters)
+	// the expected size of the string is 36 characters... rounded up to a multiple of 8 => 40
 	TStringBuilder<40> PathBuilder;
 
 	// Build Path starting from the farthest Ancestor.

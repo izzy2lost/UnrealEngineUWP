@@ -4,11 +4,14 @@
 #include "RCSignatureTreeSignatureItem.h"
 #include "RemoteControlSignature.h"
 #include "RemoteControlSignatureRegistry.h"
+#include "UI/Signature/RCSignatureTreeItemSelection.h"
 #include "UI/Signature/SRCSignatureTree.h"
 
 FRCSignatureTreeRootItem::FRCSignatureTreeRootItem(const TSharedPtr<SRCSignatureTree>& InSignatureTree)
 	: FRCSignatureTreeItemBase(InSignatureTree)
+	, Selection(MakeShared<FRCSignatureTreeItemSelection>())
 {
+	SelectionWeak = Selection;
 }
 
 void FRCSignatureTreeRootItem::GenerateChildren(TArray<TSharedPtr<FRCSignatureTreeItemBase>>& OutChildren) const
@@ -34,20 +37,7 @@ void FRCSignatureTreeRootItem::GenerateChildren(TArray<TSharedPtr<FRCSignatureTr
 	}
 }
 
-FText FRCSignatureTreeRootItem::GetDisplayNameText() const
+void FRCSignatureTreeRootItem::PostChildrenRebuild()
 {
-	checkNoEntry();
-	return FText::GetEmpty();
-}
-
-FText FRCSignatureTreeRootItem::GetDescription() const
-{
-	checkNoEntry();
-	return FText::GetEmpty();
-}
-
-int32 FRCSignatureTreeRootItem::RemoveFromRegistry()
-{
-	checkNoEntry();
-	return 0;
+	Selection->RecacheSelectedItems(SharedThis(this));
 }

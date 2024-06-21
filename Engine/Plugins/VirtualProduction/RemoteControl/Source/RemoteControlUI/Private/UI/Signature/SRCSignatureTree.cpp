@@ -5,6 +5,7 @@
 #include "Items/RCSignatureTreeItemBase.h"
 #include "Items/RCSignatureTreeRootItem.h"
 #include "Items/RCSignatureTreeSignatureItem.h"
+#include "RCSignatureTreeItemSelection.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSignatureRegistry.h"
 #include "SRCSignaturePanel.h"
@@ -23,6 +24,7 @@ void SRCSignatureTree::Construct(const FArguments& InArgs, const TSharedRef<SRCS
 	SignaturePanelWeak = InSignaturePanel;
 
 	RootItem = MakeShared<FRCSignatureTreeRootItem>(SharedThis(this));
+	RootItem->GetSelection()->OnSelectionChanged().AddSP(this, &SRCSignatureTree::UpdateTreeViewSelection);
 
 	const FRCPanelStyle* RCPanelStyle = &FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.LogicControllersPanel");
 
@@ -48,6 +50,11 @@ void SRCSignatureTree::Construct(const FArguments& InArgs, const TSharedRef<SRCS
 	];
 
 	Refresh();
+}
+
+TSharedRef<FRCSignatureTreeRootItem> SRCSignatureTree::GetRootItem() const
+{
+	return RootItem.ToSharedRef();
 }
 
 URemoteControlSignatureRegistry* SRCSignatureTree::GetSignatureRegistry() const
@@ -76,18 +83,13 @@ TSharedPtr<IRCSignatureColumn> SRCSignatureTree::FindColumn(FName InColumnName) 
 
 void SRCSignatureTree::Refresh()
 {
-	if (bRefreshing)
-	{
-		return;
-	}
-
-	TGuardValue<bool> RefreshGuard(bRefreshing, true);
+	TSharedRef<FRCSignatureTreeItemSelection> Selection = RootItem->GetSelection();
 
 	RootItem->RebuildChildren();
-	RootItem->VisitChildren([&TreeView = SignatureTreeView](const TSharedPtr<FRCSignatureTreeItemBase>& InItem)->bool
+	RootItem->VisitChildren([&TreeView = SignatureTreeView, &Selection](const TSharedPtr<FRCSignatureTreeItemBase>& InItem)->bool
 		{
-			TreeView->SetItemExpansion(InItem, InItem->HasAnyFlags(ERCSignatureTreeItemFlags::Expanded));
-			TreeView->SetItemSelection(InItem, InItem->HasAnyFlags(ERCSignatureTreeItemFlags::Selected));
+			TreeView->SetItemExpansion(InItem, InItem->HasAnyTreeViewFlags(ERCSignatureTreeItemViewFlags::Expanded));
+			TreeView->SetItemSelection(InItem, Selection->IsSelected(InItem));
 			return true;
 		}
 		, /*bRecursive*/true);
@@ -97,7 +99,7 @@ void SRCSignatureTree::Refresh()
 
 TArray<TSharedPtr<FRCSignatureTreeItemBase>> SRCSignatureTree::GetSelectedItems() const
 {
-	return SignatureTreeView->GetSelectedItems();
+	return RootItem->GetSelection()->GetSelectedItems();
 }
 
 URemoteControlPreset* SRCSignatureTree::GetPreset()
@@ -145,14 +147,14 @@ int32 SRCSignatureTree::RemoveModel(const TSharedPtr<FRCLogicModeBase> InItem)
 
 void SRCSignatureTree::DeleteSelectedPanelItems()
 {
-	const TArray<TSharedPtr<FRCSignatureTreeItemBase>> SelectedSignatures = SignatureTreeView->GetSelectedItems();
-	if (SelectedSignatures.IsEmpty())
+	const TArray<TSharedPtr<FRCSignatureTreeItemBase>> SelectedItems = RootItem->GetSelection()->GetSelectedItems();
+	if (SelectedItems.IsEmpty())
 	{
 		return;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("RemoveSelectedSignatures", "Remove Selected Signatures"));
-	DeleteItemsFromLogicPanel<FRCSignatureTreeItemBase>(RootItem->GetChildrenMutable(), SelectedSignatures);
+	FScopedTransaction Transaction(LOCTEXT("RemoveSelectedItems", "Remove Selected Items"));
+	DeleteItemsFromLogicPanel<FRCSignatureTreeItemBase>(RootItem->GetChildrenMutable(), SelectedItems);
 }
 
 void SRCSignatureTree::Reset()
@@ -184,46 +186,62 @@ void SRCSignatureTree::OnGetChildren(TSharedPtr<FRCSignatureTreeItemBase> InItem
 	if (InItem.IsValid())
 	{
 		OutChildren.Append(InItem->GetChildren());
+
+		// Remove all children that are not meant to be shown in the Tree View
+		OutChildren.RemoveAll([](const TSharedPtr<FRCSignatureTreeItemBase>& InItem)
+			{
+				return InItem->HasAnyTreeViewFlags(ERCSignatureTreeItemViewFlags::Hidden);
+			});
 	}
 }
 
 void SRCSignatureTree::OnItemExpansionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, bool bInIsExpanded)
 {
-	if (bRefreshing)
-	{
-		return;
-	}
-
 	if (InItem.IsValid())
 	{
 		if (bInIsExpanded)
 		{
-			InItem->AddFlags(ERCSignatureTreeItemFlags::Expanded);
+			InItem->AddTreeViewFlags(ERCSignatureTreeItemViewFlags::Expanded);
 		}
 		else
 		{
-			InItem->RemoveFlags(ERCSignatureTreeItemFlags::Expanded);
+			InItem->RemoveTreeViewFlags(ERCSignatureTreeItemViewFlags::Expanded);
 		}
 	}
 }
 
-void SRCSignatureTree::OnItemSelectionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, ESelectInfo::Type InSelectionType)
+void SRCSignatureTree::UpdateTreeViewSelection()
 {
-	if (bRefreshing)
+	// Skip if already Syncing Selection to the Selection object
+	if (bSyncingSelection)
 	{
 		return;
 	}
 
-	RootItem->VisitChildren([](const TSharedPtr<FRCSignatureTreeItemBase>& InItem)->bool
-		{
-			InItem->RemoveFlags(ERCSignatureTreeItemFlags::Selected);
-			return true;
-		}
-		, /*bRecursive*/true);
+	TArray<TSharedPtr<FRCSignatureTreeItemBase>> Items = RootItem->GetSelection()->GetSelectedItems();
+	SignatureTreeView->ClearSelection();
+	SignatureTreeView->SetItemSelection(Items, true);
+}
+
+void SRCSignatureTree::OnItemSelectionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, ESelectInfo::Type InSelectionType)
+{
+	// Skip if already syncing Selection or if the selection wasn't done by the user, as these direct selections go through the Selection object already
+	if (bSyncingSelection || InSelectionType == ESelectInfo::Direct)
+	{
+		return;
+	}
+
+	TGuardValue<bool> SyncSelectionGuard(bSyncingSelection, true);
+
+	TSharedRef<FRCSignatureTreeItemSelection> Selection = RootItem->GetSelection();
+
+	FRCSignatureTreeItemSelection::FSelectionScope SelectionScope = Selection->CreateSelectionScope();
+
+	Selection->ClearSelection();
 
 	for (const TSharedPtr<FRCSignatureTreeItemBase>& SelectedItem : SignatureTreeView->GetSelectedItems())
 	{
-		SelectedItem->AddFlags(ERCSignatureTreeItemFlags::Selected);
+		Selection->SetSelected(SelectedItem.ToSharedRef(), /*bSelected*/true, /*bMultiSelection*/true);
 	}
 }
 

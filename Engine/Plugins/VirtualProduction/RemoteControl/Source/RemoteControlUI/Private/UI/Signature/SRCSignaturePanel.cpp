@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCSignaturePanel.h"
+#include "Actions/RCSignatureActionColumn.h"
 #include "Description/RCSignatureDescriptionColumn.h"
+#include "Details/SRCSignatureDetails.h"
+#include "Items/RCSignatureTreeRootItem.h"
 #include "Items/RCSignatureTreeSignatureItem.h"
 #include "Label/RCSignatureLabelColumn.h"
 #include "Misc/MessageDialog.h"
@@ -20,10 +23,10 @@ void SRCSignaturePanel::Construct(const FArguments& InArgs, const TSharedRef<SRe
 {
 	SRCLogicPanelBase::Construct(SRCLogicPanelBase::FArguments(), InPanel);
 
-	const FRCPanelStyle* RCPanelStyle = &FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.MinorPanel");
+	const FRCPanelStyle& RCPanelStyle = FRemoteControlPanelStyle::Get()->GetWidgetStyle<FRCPanelStyle>("RemoteControlPanel.MinorPanel");
 
-	// Signature Dock Panel
-	TSharedRef<SRCMinorPanel> SignatureDockPanel = SNew(SRCMinorPanel)
+	// Signature Tree Panel
+	TSharedRef<SRCMinorPanel> SignaturesTreePanel = SNew(SRCMinorPanel)
 		.HeaderLabel(LOCTEXT("SignaturesLabel", "Signatures"))
 		.EnableFooter(false)
 		[
@@ -32,8 +35,21 @@ void SRCSignaturePanel::Construct(const FArguments& InArgs, const TSharedRef<SRe
 				{
 					MakeShared<FRCSignatureLabelColumn>(),
 					MakeShared<FRCSignatureDescriptionColumn>(),
+					MakeShared<FRCSignatureActionColumn>(InArgs._LiveMode),
 				})
 		];
+
+	// Details Panel
+	TSharedRef<SRCMinorPanel> SignaturesDetailsPanel = SNew(SRCMinorPanel)
+		.HeaderLabel(LOCTEXT("DetailsLabel", "Details"))
+		.EnableFooter(false)
+		[
+			SAssignNew(SignatureDetails, SRCSignatureDetails
+				, GetSignatureRegistry()
+				, SignatureTreeView->GetRootItem()->GetSelection())
+		];
+
+	constexpr float ContentPaddingY = 2.f;
 
 	// Add New Signature Button
 	TSharedRef<SButton> AddSignatureButton = SNew(SButton)
@@ -41,15 +57,15 @@ void SRCSignaturePanel::Construct(const FArguments& InArgs, const TSharedRef<SRe
 		.IsEnabled_Lambda([LiveMode = InArgs._LiveMode]() { return !LiveMode.Get(); })
 		.OnClicked(this, &SRCSignaturePanel::OnAddButtonClicked)
 		.ForegroundColor(FSlateColor::UseForeground())
-		.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
-		.ContentPadding(FMargin(4.f, 2.f))
+		.ButtonStyle(&RCPanelStyle.FlatButtonStyle)
+		.ContentPadding(FMargin(4.f, ContentPaddingY))
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
 		.Content()
 		[
 			SNew(SBox)
-			.WidthOverride(RCPanelStyle->IconSize.X)
-			.HeightOverride(RCPanelStyle->IconSize.Y)
+			.WidthOverride(RCPanelStyle.IconSize.X)
+			.HeightOverride(RCPanelStyle.IconSize.Y)
 			[
 				SNew(SImage)
 				.ColorAndOpacity(FSlateColor::UseForeground())
@@ -57,13 +73,36 @@ void SRCSignaturePanel::Construct(const FArguments& InArgs, const TSharedRef<SRe
 			]
 		];
 
-	SignatureDockPanel->AddHeaderToolbarItem(EToolbar::Left, AddSignatureButton);
+	SignaturesTreePanel->AddHeaderToolbarItem(EToolbar::Left, AddSignatureButton);
+
+	// Header Toolbar Heights are not fixed and vary depending on what is inside it
+	// Since the Details Panel header has nothing but text in it (for now),
+	// a box of a calculated height is added to compensate and match the height of the Signatures Panel
+	{
+		const float PanelStyleIconSize = RCPanelStyle.IconSize.Y;
+		const float ButtonStylePadding = RCPanelStyle.FlatButtonStyle.NormalPadding.Bottom + RCPanelStyle.FlatButtonStyle.NormalPadding.Top;
+		constexpr float ContentPadding = 2.f * ContentPaddingY;
+
+		SignaturesDetailsPanel->AddHeaderToolbarItem(EToolbar::Left, SNew(SBox)
+			.HeightOverride(PanelStyleIconSize + ButtonStylePadding + ContentPaddingY));
+	}
 
 	ChildSlot
-	.Padding(RCPanelStyle->PanelPadding)
-	[
-		SignatureDockPanel
-	];
+		.Padding(RCPanelStyle.PanelPadding)
+		[
+			SNew(SSplitter)
+			.Orientation(Orient_Horizontal)
+			+ SSplitter::Slot()
+			.Value(0.6f)
+			[
+				SignaturesTreePanel
+			]
+			+ SSplitter::Slot()
+			.Value(0.4f)
+			[
+				SignaturesDetailsPanel
+			]
+		];
 }
 
 URemoteControlSignatureRegistry* SRCSignaturePanel::GetSignatureRegistry() const
@@ -88,6 +127,13 @@ void SRCSignaturePanel::AddToSignature(const FRCExposesPropertyArgs& InPropertyA
 		return;
 	}
 
+	if (!InPropertyArgs.PropertyHandle.IsValid())
+	{
+		return;
+	}
+
+	TSharedRef<IPropertyHandle> PropertyHandle = InPropertyArgs.PropertyHandle.ToSharedRef();
+
 	FScopedTransaction Transaction(LOCTEXT("AddToSignatureTransaction", "Add to Signature"));
 	Registry->Modify();
 
@@ -96,10 +142,16 @@ void SRCSignaturePanel::AddToSignature(const FRCExposesPropertyArgs& InPropertyA
 	TArray<TSharedPtr<FRCSignatureTreeItemBase>> SelectedItems = SignatureTreeView->GetSelectedItems();
 	if (SelectedItems.IsEmpty())
 	{
+		TSharedRef<FRCSignatureTreeRootItem> RootItem = SignatureTreeView->GetRootItem();
+
+		FRCSignature& Signature = Registry->AddSignature();
+
 		// Make a new signature with temp view model item to add the field
-		TSharedRef<FRCSignatureTreeSignatureItem> SignatureItem = MakeShared<FRCSignatureTreeSignatureItem>(Registry->AddSignature(), SignatureTreeView);
-		if (SignatureItem->AddField(Registry, InPropertyArgs))
+		TSharedRef<FRCSignatureTreeSignatureItem> SignatureItem = FRCSignatureTreeItemBase::Create<FRCSignatureTreeSignatureItem>(RootItem, Signature, SignatureTreeView);
+		if (SignatureItem->AddField(Registry, PropertyHandle))
 		{
+			// Select the Signature Item
+			SignatureItem->SetSelected(/*bSelected*/true, /*bMultiSelection*/false);
 			bFieldsAdded = true;
 		}
 	}
@@ -107,9 +159,9 @@ void SRCSignaturePanel::AddToSignature(const FRCExposesPropertyArgs& InPropertyA
 	{
 		for (const TSharedPtr<FRCSignatureTreeItemBase>& Item : SelectedItems)
 		{
-			if (FRCSignatureTreeSignatureItem* SignatureItem = Item->AsSignatureItem())
+			if (TSharedPtr<FRCSignatureTreeSignatureItem> SignatureItem = Item->MutableCast<FRCSignatureTreeSignatureItem>())
 			{
-				if (SignatureItem->AddField(Registry, InPropertyArgs))
+				if (SignatureItem->AddField(Registry, PropertyHandle))
 				{
 					bFieldsAdded = true;
 				}
@@ -119,7 +171,7 @@ void SRCSignaturePanel::AddToSignature(const FRCExposesPropertyArgs& InPropertyA
 
 	if (bFieldsAdded)
 	{
-		SignatureTreeView->Refresh();
+		Refresh();
 	}
 	else
 	{
@@ -143,19 +195,7 @@ TArray<TSharedPtr<FRCLogicModeBase>> SRCSignaturePanel::GetSelectedLogicItems() 
 
 FReply SRCSignaturePanel::RequestDeleteSelectedItem()
 {
-	if (!SignatureTreeView.IsValid())
-	{
-		return FReply::Unhandled();
-	}
-
-	const EAppReturnType::Type UserResponse = FMessageDialog::Open(EAppMsgType::YesNo
-		, LOCTEXT("DeleteSelectedWarning", "Delete the Selected Signatures?"));
-
-	if (UserResponse == EAppReturnType::Yes)
-	{
-		DeleteSelectedPanelItems();
-	}
-
+	DeleteSelectedPanelItems();
 	return FReply::Handled();
 }
 
@@ -194,6 +234,30 @@ void SRCSignaturePanel::DeleteSelectedPanelItems()
 	if (SignatureTreeView.IsValid())
 	{
 		SignatureTreeView->DeleteSelectedPanelItems();
+		Refresh();
+	}
+}
+
+void SRCSignaturePanel::PostUndo(bool bInSuccess)
+{
+	Refresh();
+}
+
+void SRCSignaturePanel::PostRedo(bool bInSuccess)
+{
+	Refresh();
+}
+
+void SRCSignaturePanel::Refresh()
+{
+	if (SignatureTreeView.IsValid())
+	{
+		SignatureTreeView->Refresh();
+	}
+
+	if (SignatureDetails.IsValid())
+	{
+		SignatureDetails->Refresh();
 	}
 }
 
@@ -212,11 +276,7 @@ FReply SRCSignaturePanel::OnAddButtonClicked()
 		SignatureRegistry->AddSignature();
 	}
 
-	if (SignatureTreeView.IsValid())
-	{
-		SignatureTreeView->Refresh();
-	}
-
+	Refresh();
 	return FReply::Handled();
 }
 
@@ -238,11 +298,7 @@ FReply SRCSignaturePanel::DeleteAllItems()
 	SignatureRegistry->Modify();
 	SignatureRegistry->EmptySignatures();
 
-	if (SignatureTreeView.IsValid())
-	{
-		SignatureTreeView->Refresh();
-	}
-
+	Refresh();
 	return FReply::Handled();
 }
 

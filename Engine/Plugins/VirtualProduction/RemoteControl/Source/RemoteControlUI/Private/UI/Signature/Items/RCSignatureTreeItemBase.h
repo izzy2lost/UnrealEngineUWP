@@ -4,15 +4,26 @@
 
 #include "UI/BaseLogicUI/RCLogicModeBase.h"
 
+class FRCSignatureTreeItemSelection;
+class FStructOnScope;
 class SRCSignatureTree;
 
-enum ERCSignatureTreeItemFlags : uint8
+enum class ERCSignatureTreeItemViewFlags : uint8
 {
 	None = 0,
 	Expanded = 1 << 0,
-	Selected = 1 << 1,
+	Hidden   = 1 << 1,
 };
-ENUM_CLASS_FLAGS(ERCSignatureTreeItemFlags)
+ENUM_CLASS_FLAGS(ERCSignatureTreeItemViewFlags)
+
+enum class ERCSignatureTreeItemType : uint8
+{
+	Undefined,
+	Root,
+	Signature,
+	Field,
+	Action,
+};
 
 /** Base class for any Item represented in the Signature Tree */
 class FRCSignatureTreeItemBase : public FRCLogicModeBase
@@ -20,6 +31,18 @@ class FRCSignatureTreeItemBase : public FRCLogicModeBase
 	friend class FRCSignatureTreeRootItem;
 
 public:
+	/**
+	 * Creates an Item and Initializes it with the given Parent
+	 * NOTE: this does not build/make child items. RebuildChildren would need to be called separately if necessary.
+	 */
+	template<typename T, typename... ArgTypes UE_REQUIRES(std::is_base_of_v<FRCSignatureTreeItemBase, T>)>
+	static TSharedRef<T> Create(const TSharedPtr<FRCSignatureTreeItemBase>& InParent, ArgTypes&&... InArgs)
+	{
+		TSharedRef<T> Item = MakeShared<T>(Forward<ArgTypes>(InArgs)...);
+		Item->Initialize(InParent);
+		return Item;
+	}
+
 	explicit FRCSignatureTreeItemBase(const TSharedPtr<SRCSignatureTree>& InSignatureTree);
 
 	virtual TOptional<bool> IsEnabled() const
@@ -31,18 +54,26 @@ public:
 	{
 	}
 
-	ERCSignatureTreeItemFlags GetFlags() const
+	FName GetPathId() const
 	{
-		return Flags;
+		return Path;
 	}
 
-	void AddFlags(ERCSignatureTreeItemFlags InFlags);
+	ERCSignatureTreeItemViewFlags GetTreeViewFlags() const
+	{
+		return TreeViewFlags;
+	}
 
-	void RemoveFlags(ERCSignatureTreeItemFlags InFlags);
+	void AddTreeViewFlags(ERCSignatureTreeItemViewFlags InFlags);
 
-	bool HasAnyFlags(ERCSignatureTreeItemFlags InFlags) const;
+	void RemoveTreeViewFlags(ERCSignatureTreeItemViewFlags InFlags);
 
-	virtual FText GetDisplayNameText() const = 0;
+	bool HasAnyTreeViewFlags(ERCSignatureTreeItemViewFlags InFlags) const;
+
+	virtual FText GetDisplayNameText() const
+	{
+		return FText::GetEmpty();
+	}
 
 	virtual bool CanEditDisplayNameText() const
 	{
@@ -53,12 +84,48 @@ public:
 	{
 	}
 
-	virtual FText GetDescription() const = 0;
-
-	virtual int32 RemoveFromRegistry() = 0;
-
-	virtual class FRCSignatureTreeSignatureItem* AsSignatureItem()
+	virtual FText GetDescription() const
 	{
+		return FText::GetEmpty();
+	}
+
+	virtual int32 RemoveFromRegistry()
+	{
+		return 0;
+	}
+
+	void SetSelected(bool bInSelected, bool bInIsMultiSelection);
+
+	bool IsSelected() const;
+
+	/** Optional: makes a struct on scope for selection visualization in Details Panel */
+	virtual TSharedPtr<FStructOnScope> MakeSelectionStruct()
+	{
+		return nullptr;
+	}
+
+	virtual ERCSignatureTreeItemType GetItemType() const
+	{
+		return ERCSignatureTreeItemType::Undefined;
+	}
+
+	template<typename InItemType>
+	TSharedPtr<InItemType> MutableCast()
+	{
+		if (GetItemType() == InItemType::StaticItemType)
+		{
+			return StaticCastSharedRef<InItemType>(SharedThis(this));
+		}
+		return nullptr;
+	}
+
+	template<typename InItemType>
+	TSharedPtr<const InItemType> Cast() const
+	{
+		if (GetItemType() == InItemType::StaticItemType)
+		{
+			return StaticCastSharedRef<const InItemType>(SharedThis(this));
+		}
 		return nullptr;
 	}
 
@@ -82,9 +149,15 @@ public:
 	void VisitChildren(TFunctionRef<bool(const TSharedPtr<FRCSignatureTreeItemBase>&)> InCallable, bool bInRecursive);
 
 protected:
-	virtual void BuildPathSegment(FStringBuilderBase& InBuilder) const = 0;
+	virtual void BuildPathSegment(FStringBuilderBase& InBuilder) const
+	{
+	}
 
 	virtual void GenerateChildren(TArray<TSharedPtr<FRCSignatureTreeItemBase>>& OutChildren) const
+	{
+	}
+
+	virtual void PostChildrenRebuild()
 	{
 	}
 
@@ -92,6 +165,8 @@ private:
 	void Initialize(const TSharedPtr<FRCSignatureTreeItemBase>& InParent);
 
 	void RestoreFrom(const TSharedPtr<FRCSignatureTreeItemBase>& InOldItem);
+
+	TSharedPtr<FRCSignatureTreeItemSelection> GetRootSelection() const;
 
 	/** Builds the path from the root to the item. Each item will be its own segment delimited by a dot */
 	FName BuildPath() const;
@@ -105,5 +180,8 @@ private:
 
 	TWeakPtr<SRCSignatureTree> SignatureTreeWeak;
 
-	ERCSignatureTreeItemFlags Flags = ERCSignatureTreeItemFlags::Expanded;
+	ERCSignatureTreeItemViewFlags TreeViewFlags = ERCSignatureTreeItemViewFlags::Expanded;
+
+	/** Cached weak pointer to the selection object to avoid having to go up the hierarchy to find it */
+	mutable TWeakPtr<FRCSignatureTreeItemSelection> SelectionWeak;
 };

@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include "RCSignatureActionDefinition.h"
 #include "RemoteControlFieldPath.h"
 #include "RemoteControlSignature.generated.h"
 
+enum class EPropertyBagPropertyType : uint8;
 class URemoteControlPreset;
 
 /** Representation class of a Field (e.g. Property) in an Object */
@@ -15,8 +17,7 @@ struct FRCSignatureField
 
 	FRCSignatureField() = default;
 
-	REMOTECONTROL_API static FRCSignatureField CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, FProperty* InProperty);
-	REMOTECONTROL_API static FRCSignatureField CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, UClass* InSupportedClass);
+	REMOTECONTROL_API static FRCSignatureField CreateField(const FRCFieldPathInfo& InFieldPathInfo, const UObject* InOwnerObject, const FProperty* InProperty);
 
 	bool operator==(const FRCSignatureField& InOtherField) const
 	{
@@ -36,6 +37,10 @@ struct FRCSignatureField
 	/** Object class holding the property */
 	UPROPERTY()
 	FSoftClassPath SupportedClass;
+
+	/** Container holding the action definitions for the field */
+	UPROPERTY()
+	TArray<FRCSignatureActionDefinition> ActionDefinitions;
 
 	/** Whether to consider this field when applying a Signature */
 	UPROPERTY()
@@ -59,7 +64,7 @@ struct FRCSignature
 	REMOTECONTROL_API int32 AddFields(TConstArrayView<FRCSignatureField> InFields);
 
 	/**
-	 * Applies this Signature to the given Actors by exposing all this Signature's fields to the given preset
+	 * Applies this Signature to the given Objects by exposing all this Signature's fields to the given preset
 	 * @param InPreset the preset where these properties will be exposed to
 	 * @param InObjects the objects whose properties or properties of its subojects to expose
 	 * @return the number of properties affected in total

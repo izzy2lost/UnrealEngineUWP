@@ -6,6 +6,7 @@
 #include "RemoteControlPreset.h"
 #include "RemoteControlSignatureRegistry.h"
 #include "ScopedTransaction.h"
+#include "UI/SRemoteControlPanel.h"
 #include "UI/Signature/SRCSignatureTree.h"
 
 #define LOCTEXT_NAMESPACE "RCSignatureTreeSignatureItem"
@@ -48,7 +49,7 @@ FRCSignature* FRCSignatureTreeSignatureItem::FindSignatureMutable(URemoteControl
 	return nullptr;
 }
 
-bool FRCSignatureTreeSignatureItem::AddField(URemoteControlSignatureRegistry* InRegistry, const FRCExposesPropertyArgs& InPropertyArgs)
+bool FRCSignatureTreeSignatureItem::AddField(URemoteControlSignatureRegistry* InRegistry, const TSharedRef<IPropertyHandle>& InPropertyHandle)
 {
 	FRCSignature* Signature = FindSignatureMutable(InRegistry);
 	if (!Signature)
@@ -58,8 +59,17 @@ bool FRCSignatureTreeSignatureItem::AddField(URemoteControlSignatureRegistry* In
 
 	TArray<FRCSignatureField, TInlineAllocator<1>> Fields;
 	{
-		FRCFieldPathInfo PathInfo(InPropertyArgs.PropertyHandle->GeneratePathToProperty(), /*bSkipDuplicates*/true);
-		Fields.Emplace(FRCSignatureField:: CreateField(MoveTemp(PathInfo), InPropertyArgs.OwnerObject.Get(), InPropertyArgs.GetProperty()));
+		TArray<UObject*> OuterObjects;
+		InPropertyHandle->GetOuterObjects(OuterObjects);
+		Fields.Reserve(OuterObjects.Num());
+
+		const FRCFieldPathInfo PathInfo(InPropertyHandle->GeneratePathToProperty(), /*bSkipDuplicates*/true);
+		const FProperty* Property = InPropertyHandle->GetProperty();
+
+		for (UObject* OuterObject : OuterObjects)
+		{
+			Fields.Emplace(FRCSignatureField::CreateField(PathInfo, OuterObject, Property));
+		}
 	}
 
 	return Signature->AddFields(Fields) > 0;
@@ -173,11 +183,6 @@ int32 FRCSignatureTreeSignatureItem::RemoveFromRegistry()
 	FScopedTransaction Transaction(LOCTEXT("RemoveSignature", "Remove Signature"));
 	SignatureRegistry->Modify();
 	return SignatureRegistry->RemoveSignature(SignatureId);
-}
-
-FRCSignatureTreeSignatureItem* FRCSignatureTreeSignatureItem::AsSignatureItem()
-{
-	return this;
 }
 
 void FRCSignatureTreeSignatureItem::GenerateChildren(TArray<TSharedPtr<FRCSignatureTreeItemBase>>& OutChildren) const

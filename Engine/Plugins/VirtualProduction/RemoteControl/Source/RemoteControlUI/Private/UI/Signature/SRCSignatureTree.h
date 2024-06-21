@@ -21,6 +21,8 @@ public:
 
 	void Construct(const FArguments& InArgs, const TSharedRef<SRCSignaturePanel>& InSignaturePanel, const TSharedRef<SRemoteControlPanel>& InRCPanel);
 
+	TSharedRef<FRCSignatureTreeRootItem> GetRootItem() const;
+
 	URemoteControlSignatureRegistry* GetSignatureRegistry() const;
 
 	TSharedPtr<IRCSignatureColumn> FindColumn(FName InColumnName) const;
@@ -51,6 +53,8 @@ private:
 
 	void OnItemExpansionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, bool bInIsExpanded);
 
+	void UpdateTreeViewSelection();
+
 	void OnItemSelectionChanged(TSharedPtr<FRCSignatureTreeItemBase> InItem, ESelectInfo::Type InSelectionType);
 
 	TSharedPtr<FRCSignatureTreeRootItem> RootItem;
@@ -63,5 +67,5 @@ private:
 
 	TWeakPtr<SRCSignaturePanel> SignaturePanelWeak;
 
-	bool bRefreshing = false;
+	bool bSyncingSelection = false;
 };

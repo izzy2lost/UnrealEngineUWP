@@ -2,6 +2,8 @@
 
 #include "RemoteControlSignature.h"
 #include "GameFramework/Actor.h"
+#include "RCSignatureAction.h"
+#include "RCSignatureActionDefinition.h"
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 
@@ -34,7 +36,7 @@ namespace UE::RemoteControl::Private
 			UClass* FindClass = InSupportedClass ? InSupportedClass : UObject::StaticClass();
 			Context = StaticFindObject(FindClass, InOuterObject, *InField.ObjectRelativePath);
 
-			// Slow Path: if Subobject Path did not find the object, try to find the first sub-object of the actor matching the class.
+			// Slow Path: if Subobject Path did not find the object, try to find the first sub-object of the object matching the class.
 			if (!Context && InSupportedClass)
 			{
 				ForEachObjectWithOuterBreakable(InOuterObject, [&Context, InSupportedClass](UObject* InSubobject)->bool
@@ -55,38 +57,29 @@ namespace UE::RemoteControl::Private
 	}
 }
 
-FRCSignatureField FRCSignatureField::CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, FProperty* InProperty)
+FRCSignatureField FRCSignatureField::CreateField(const FRCFieldPathInfo& InFieldPathInfo, const UObject* InOwnerObject, const FProperty* InProperty)
 {
-	UClass* SupportedBindingClass = nullptr;
-
+	const UClass* SupportedClass = nullptr;
 	if (InProperty)
 	{
-		if (UClass* PropertyOwnerClass = InProperty->GetOwnerClass())
-		{
-			SupportedBindingClass = PropertyOwnerClass;
-		}
+		SupportedClass = InProperty->GetOwnerClass();
 	}
 
-	return CreateField(InFieldPathInfo, InOwnerObject, SupportedBindingClass);
-}
-
-FRCSignatureField FRCSignatureField::CreateField(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject, UClass* InSupportedClass)
-{
-	if (!InSupportedClass && InFieldPathInfo.GetSegmentCount() > 0 && InFieldPathInfo.GetFieldSegment(0).IsResolved())
+	if (!SupportedClass && InFieldPathInfo.GetSegmentCount() > 0 && InFieldPathInfo.GetFieldSegment(0).IsResolved())
 	{
-		InSupportedClass = InFieldPathInfo.GetFieldSegment(0).ResolvedData.Field->GetOwnerClass();
+		SupportedClass = InFieldPathInfo.GetFieldSegment(0).ResolvedData.Field->GetOwnerClass();
 	}
 
 	FRCSignatureField Field;
 	Field.bEnabled = true;
 	Field.FieldPath = InFieldPathInfo;
-	Field.SupportedClass = InSupportedClass;
+	Field.SupportedClass = SupportedClass;
 
-	if (UObject* BoundObject = InOwnerObject)
+	if (InOwnerObject)
 	{
-		if (AActor* ActorOwner = BoundObject->GetTypedOuter<AActor>())
+		if (AActor* ActorOwner = InOwnerObject->GetTypedOuter<AActor>())
 		{
-			Field.ObjectRelativePath = BoundObject->GetPathName(ActorOwner);
+			Field.ObjectRelativePath = InOwnerObject->GetPathName(ActorOwner);
 		}
 	}
 
@@ -147,14 +140,23 @@ int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayVi
 			}
 
 			// If path resolved, expose the property
-			TSharedPtr<FRemoteControlProperty> Property = InPreset->ExposeProperty(Context, Field.FieldPath, ExposeArgs).Pin();
-			if (!Property.IsValid())
+			FRCSignatureActionContext ActionContext;
+			ActionContext.Preset = InPreset;
+			ActionContext.Object = Object;
+			ActionContext.Property = InPreset->ExposeProperty(Context, Field.FieldPath, ExposeArgs).Pin();
+			if (!ActionContext.Property.IsValid())
 			{
 				continue;
 			}
 
 			// Property was exposed successfully, increase expose count
 			++ExposeCount;
+
+			// Execute the actions for the newly exposed property
+			for (const FRCSignatureActionDefinition& Action : Field.ActionDefinitions)
+			{
+				Action.Execute(ActionContext);
+			}
 		}
 	}
 

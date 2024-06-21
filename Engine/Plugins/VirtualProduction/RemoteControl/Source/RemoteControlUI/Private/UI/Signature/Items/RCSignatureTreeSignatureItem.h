@@ -8,14 +8,16 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+class IPropertyHandle;
 class URemoteControlSignatureRegistry;
-struct FRCExposesPropertyArgs;
 struct FRCSignature;
 
 /** Item class representing an RC Signature */
 class FRCSignatureTreeSignatureItem : public FRCSignatureTreeItemBase, public IRCSignatureItem
 {
 public:
+	static constexpr ERCSignatureTreeItemType StaticItemType = ERCSignatureTreeItemType::Signature;
+
 	explicit FRCSignatureTreeSignatureItem(const FRCSignature& InSignature, const TSharedPtr<SRCSignatureTree>& InSignatureTree);
 
 	const FGuid& GetSignatureId() const;
@@ -26,7 +28,7 @@ public:
 
 	FRCSignature* FindSignatureMutable(URemoteControlSignatureRegistry* InRegistry);
 
-	bool AddField(URemoteControlSignatureRegistry* InRegistry, const FRCExposesPropertyArgs& InPropertyArgs);
+	bool AddField(URemoteControlSignatureRegistry* InRegistry, const TSharedRef<IPropertyHandle>& InPropertyHandle);
 
 	//~ Begin IRCSignatureItem
 	virtual void ApplySignature(TConstArrayView<TWeakObjectPtr<UObject>> InObjects) override;
@@ -42,7 +44,7 @@ protected:
 	virtual void SetDisplayNameText(const FText& InText) override;
 	virtual FText GetDescription() const override;
 	virtual int32 RemoveFromRegistry() override;
-	virtual FRCSignatureTreeSignatureItem* AsSignatureItem() override;
+	virtual ERCSignatureTreeItemType GetItemType() const override { return StaticItemType; }
 	virtual void GenerateChildren(TArray<TSharedPtr<FRCSignatureTreeItemBase>>& OutChildren) const override;
 	//~ End FRCSignatureTreeItem
 

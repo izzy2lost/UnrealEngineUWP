@@ -58,7 +58,7 @@ TOptional<EItemDropZone> SRCSignatureRow::OnRowCanAcceptDrop(const FDragDropEven
 		return TOptional<EItemDropZone>();
 	}
 
-	if (FRCSignatureTreeSignatureItem* SignatureItem = InItem->AsSignatureItem())
+	if (FRCSignatureTreeSignatureItem* SignatureItem = InItem->MutableCast<FRCSignatureTreeSignatureItem>().Get())
 	{
 		// External Customizations to handle drag drops first
 		for (TSharedRef<IRCSignatureCustomization> Customization : FRemoteControlUIModule::Get().GetSignatureCustomizations())
@@ -114,7 +114,7 @@ FReply SRCSignatureRow::OnRowAcceptDrop(const FDragDropEvent& InDragDropEvent
 		return FReply::Unhandled();
 	}
 
-	if (FRCSignatureTreeSignatureItem* SignatureItem = InItem->AsSignatureItem())
+	if (FRCSignatureTreeSignatureItem* SignatureItem = InItem->MutableCast<FRCSignatureTreeSignatureItem>().Get())
 	{
 		// External Customizations to handle drops first
 		for (TSharedRef<IRCSignatureCustomization> Customization : FRemoteControlUIModule::Get().GetSignatureCustomizations())

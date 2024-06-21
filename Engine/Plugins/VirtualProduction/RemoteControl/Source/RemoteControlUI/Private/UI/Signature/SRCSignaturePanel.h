@@ -4,13 +4,12 @@
 
 #include "UI/BaseLogicUI/SRCLogicPanelBase.h"
 
-class FRCSignatureTreeItemBase;
-class IRCSignatureColumn;
+class SRCSignatureDetails;
 class SRCSignatureTree;
 class URemoteControlSignatureRegistry;
 struct FRCExposesPropertyArgs;
 
-class SRCSignaturePanel : public SRCLogicPanelBase
+class SRCSignaturePanel : public SRCLogicPanelBase, public FSelfRegisteringEditorUndoClient
 {
 public:
 	SLATE_BEGIN_ARGS(SRCSignaturePanel) {}
@@ -36,10 +35,20 @@ public:
 	virtual void DeleteSelectedPanelItems() override;
 	//~ End SRCLogicPanelBase
 
+protected:
+	//~ Begin FEditorUndoClient
+	virtual void PostUndo(bool bInSuccess) override;
+	virtual void PostRedo(bool bInSuccess) override;
+	//~ End FEditorUndoClient
+
 private:
+	void Refresh();
+
 	FReply OnAddButtonClicked();
 
 	FReply DeleteAllItems();
 
 	TSharedPtr<SRCSignatureTree> SignatureTreeView;
+
+	TSharedPtr<SRCSignatureDetails> SignatureDetails;
 };

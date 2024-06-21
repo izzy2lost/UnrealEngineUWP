@@ -4,6 +4,7 @@
 
 #include "RCSignatureTreeItemBase.h"
 
+class FRCSignatureTreeSignatureItem;
 class URemoteControlSignatureRegistry;
 struct FRCSignature;
 struct FRCSignatureField;
@@ -12,7 +13,15 @@ struct FRCSignatureField;
 class FRCSignatureTreeFieldItem : public FRCSignatureTreeItemBase
 {
 public:
+	static constexpr ERCSignatureTreeItemType StaticItemType = ERCSignatureTreeItemType::Field;
+
 	explicit FRCSignatureTreeFieldItem(int32 InFieldIndex, const TSharedPtr<SRCSignatureTree>& InSignatureTree);
+
+	const FRCSignatureField* FindField() const;
+
+	FRCSignatureField* FindFieldMutable(URemoteControlSignatureRegistry** OutRegistry);
+
+	void AddAction(const UScriptStruct* InActionType);
 
 protected:
 	//~ Begin FRCSignatureTreeItemBase
@@ -22,14 +31,12 @@ protected:
 	virtual FText GetDisplayNameText() const override;
 	virtual FText GetDescription() const override;
 	virtual int32 RemoveFromRegistry() override;
+	virtual ERCSignatureTreeItemType GetItemType() const override { return StaticItemType; }
+	virtual void GenerateChildren(TArray<TSharedPtr<FRCSignatureTreeItemBase>>& OutChildren) const override;
 	//~ End FRCSignatureTreeItemBase
 
 private:
-	FRCSignatureTreeSignatureItem* GetParentSignatureItem() const;
-
-	const FRCSignatureField* FindField() const;
-
-	FRCSignatureField* FindFieldMutable(URemoteControlSignatureRegistry** OutRegistry);
+	TSharedPtr<FRCSignatureTreeSignatureItem> GetParentSignatureItem() const;
 
 	FRCSignature* FindParentSignature(URemoteControlSignatureRegistry** OutRegistry);
 
