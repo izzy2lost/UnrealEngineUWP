@@ -1265,6 +1265,9 @@ private:
 
 	TOptional<FAutoScrubTarget> AutoScrubTarget;
 
+	/** The latest scrub position request, to be applied in the next tick */
+	TOptional<FFrameTime> PendingScrubPosition;
+
 	/** Zoom smoothing curves */
 	FCurveSequence ZoomAnimation;
 	FCurveHandle ZoomCurve;

@@ -1001,6 +1001,15 @@ void FSequencer::Tick(float InDeltaTime)
 		}
 	}
 
+	if (PendingScrubPosition.IsSet())
+	{
+		const bool bEvaluate = false;
+		SetLocalTimeDirectly(PendingScrubPosition.GetValue(), bEvaluate);
+		PendingScrubPosition.Reset();
+
+		bNeedsEvaluate = true;
+	}
+
 	UpdateSubSequenceData();
 
 	// Tick all the tools we own as well
@@ -5407,6 +5416,12 @@ void FSequencer::OnScrubPositionChanged( FFrameTime NewScrubPosition, bool bScru
 	if (!bScrubbing && CVarAutoScrub->GetBool() && FSlateApplication::Get().GetModifierKeys().IsShiftDown())
 	{
 		AutoScrubToTime(NewScrubPosition);
+	}
+	else if (bEvaluate)
+	{
+		// Evaluation can be expensive and we may receive multiple OnScrubPositionChanged events in
+		// a frame, so defer the evaluation until the next tick
+		PendingScrubPosition = NewScrubPosition;
 	}
 	else
 	{
