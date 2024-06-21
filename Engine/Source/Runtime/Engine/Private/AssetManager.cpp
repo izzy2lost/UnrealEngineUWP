@@ -321,6 +321,7 @@ struct FCompiledAssetManagerSearchRules : FAssetManagerSearchRules
 const FPrimaryAssetType UAssetManager::MapType = FName(TEXT("Map"));
 const FPrimaryAssetType UAssetManager::PrimaryAssetLabelType = FName(TEXT("PrimaryAssetLabel"));
 const FPrimaryAssetType UAssetManager::PackageChunkType = FName(TEXT("PackageChunk"));
+const FPrimaryAssetType UAssetManager::SuppressionType = FName(TEXT("__Suppressed__"));
 const FString UAssetManager::AssetSearchRootsVirtualPath = TEXT("$AssetSearchRoots");
 const FString UAssetManager::DynamicSearchRootsVirtualPath = TEXT("$DynamicSearchRoots");
 FSimpleMulticastDelegate UAssetManager::OnCompletedInitialScanDelegate;
@@ -980,11 +981,17 @@ int32 UAssetManager::ScanPathsForPrimaryAssets(FPrimaryAssetType PrimaryAssetTyp
 		FPrimaryAssetId PrimaryAssetId = ExtractPrimaryAssetIdFromData(Data, PrimaryAssetType);
 
 		// Remove invalid or wrong type assets
-		if (!PrimaryAssetId.IsValid() || PrimaryAssetId.PrimaryAssetType != PrimaryAssetType)
+		if (!PrimaryAssetId.IsValid() || PrimaryAssetId.PrimaryAssetType == UAssetManager::SuppressionType ||
+			PrimaryAssetId.PrimaryAssetType != PrimaryAssetType)
 		{
-			if (!PrimaryAssetId.IsValid())
+			if (PrimaryAssetId.PrimaryAssetType == UAssetManager::SuppressionType)
 			{
-				UE_LOG(LogAssetManager, Warning, TEXT("Ignoring primary asset %s - PrimaryAssetType %s - invalid primary asset ID"), *Data.AssetName.ToString(), *PrimaryAssetType.ToString());
+				// ExtractPrimaryAssetIdFromData decided to suppress this Asset from being a PrimaryAsset;
+				// silently accept the suppression
+			}
+			else if (!PrimaryAssetId.IsValid())
+			{
+				UE_LOG(LogAssetManager, Warning, TEXT("Ignoring primary asset %s - PrimaryAssetType %s - invalid primary asset ID"), *Data.GetObjectPathString(), *PrimaryAssetType.ToString());
 			}
 			else
 			{
@@ -1628,21 +1635,40 @@ FPrimaryAssetId UAssetManager::ExtractPrimaryAssetIdFromData(const FAssetData& A
 {
 	FPrimaryAssetId FoundId = AssetData.GetPrimaryAssetId();
 
-	if (!FoundId.IsValid() && bShouldGuessTypeAndName && SuggestedType.IsValid())
+	if (!FoundId.IsValid() && SuggestedType.IsValid())
 	{
-		const TSharedRef<FPrimaryAssetTypeData>* FoundType = AssetTypeMap.Find(SuggestedType);
-
-		if (ensure(FoundType))
+		FName SuggestedAssetName = AssetData.AssetName;
+		if (SuggestedType == MapType)
 		{
-			// If asset at this path is already known about return that
-			FPrimaryAssetId OldID = GetPrimaryAssetIdForPath(GetAssetPathForData(AssetData));
-
-			if (OldID.IsValid())
+			// UE-216073: Temporary solution to turn off WorldPartition _Generated_ streaming cells packages
+			// from being PrimaryAssets, since doing so causes duplicate PrimaryAssetId with their owning map.
+			// TODO: Fix this properly by adding a class-specific hook on the PrimaryAssetType's baseclass to make
+			// the decision for what the InAssetName should be for the asset's PrimaryAssetId.
+			if (FPackageName::IsUnderGeneratedPackageSubPath(WriteToString<256>(AssetData.PackageName)))
 			{
-				return OldID;
+				return FPrimaryAssetId(UAssetManager::SuppressionType, AssetData.PackageName);
 			}
 
-			return FPrimaryAssetId(SuggestedType, SuggestedType == MapType ? AssetData.PackageName : AssetData.AssetName);
+			// Maps use the full package name
+			SuggestedAssetName = AssetData.PackageName;
+		}
+
+		if (bShouldGuessTypeAndName)
+		{
+			const TSharedRef<FPrimaryAssetTypeData>* FoundType = AssetTypeMap.Find(SuggestedType);
+
+			if (ensure(FoundType))
+			{
+				// If asset at this path is already known about return that
+				FPrimaryAssetId OldID = GetPrimaryAssetIdForPath(GetAssetPathForData(AssetData));
+
+				if (OldID.IsValid())
+				{
+					return OldID;
+				}
+
+				return FPrimaryAssetId(SuggestedType, SuggestedAssetName);
+			}
 		}
 	}
 

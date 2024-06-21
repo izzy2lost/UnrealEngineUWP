@@ -584,6 +584,15 @@ public:
 		return Filename.EndsWith(AssetPackageExtension) || Filename.EndsWith(MapPackageExtension);
 	}
 
+	/** Return the text string used to mark the _Generated_ directory of packages created by CookPackageSplitters. */
+	static COREUOBJECT_API const TCHAR* GetGeneratedPackageSubPath();
+
+	/**
+	 * Return whether a given packagename or file path is generated based on its name (we evaluate whether it
+	 * is in a GetGeneratedPackageSubPath directory).
+	 */
+	static COREUOBJECT_API bool IsUnderGeneratedPackageSubPath(FStringView FileOrLongPackagePath);
+
 	/**
 	 * This will recurse over a directory structure looking for packages.
 	 * 

@@ -70,6 +70,12 @@ public:
 	/** Type representing a packaging chunk, this is a virtual type that is never loaded off disk */
 	static ENGINE_API const FPrimaryAssetType PackageChunkType;
 
+	/**
+	 * Asset Type used in return values to indicate that a specific asset of a given PrimaryAssetType should be suppressed
+	 * and not considered a PrimaryAsset.
+	 */
+	static ENGINE_API const FPrimaryAssetType SuppressionType;
+
 	/** Virtual path $AssetSearchRoots, replaced with all roots including defaults like /Game */
 	static ENGINE_API const FString AssetSearchRootsVirtualPath;
 
