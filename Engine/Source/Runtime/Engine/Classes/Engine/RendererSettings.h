@@ -433,7 +433,7 @@ class URendererSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
 		EditCondition = "bVirtualTextures",
 		ConsoleVariable = "r.VT.TileBorderSize", DisplayName = "Tile border size",
-		ToolTip = "Size in pixels for virtual texture tile borders, will be rounded to next power-of-2. Larger borders allow higher degree of anisotropic filtering, but uses more disk/cache memory. Changing this setting requires restarting the editor.",
+		ToolTip = "Size in pixels for virtual texture tile borders, will be rounded to next multiple-of-2. Larger borders allow higher degree of anisotropic filtering, but uses more disk/cache memory. Changing this setting requires restarting the editor.",
 		ConfigRestartRequired = true))
 	uint32 VirtualTextureTileBorderSize;
 
@@ -442,6 +442,20 @@ class URendererSettings : public UDeveloperSettings
 		ConsoleVariable = "r.vt.FeedbackFactor", DisplayName = "Feedback resolution factor",
 		ToolTip = "Lower factor will increase virtual texture feedback resolution which increases CPU/GPU overhead, but may decrease streaming latency, especially if materials use many virtual textures."))
 	uint32 VirtualTextureFeedbackFactor;
+
+	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.MeshPaintVirtualTexture.TileSize", DisplayName = "Mesh paint tile size",
+		ToolTip = "Size in pixels for mesh paint virtual texture tiles. Will be rounded to next power-of-2. Changing this setting requires restarting the editor.",
+		ConfigRestartRequired = true))
+	uint32 MeshPaintVirtualTextureTileSize;
+
+	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.MeshPaintVirtualTexture.TileBorderSize", DisplayName = "Mesh paint tile border size",
+		ToolTip = "Size in pixels for virtual texture tile borders. Will be rounded next to multiple-of-2. Changing this setting requires restarting the editor.",
+		ConfigRestartRequired = true))
+	uint32 MeshPaintVirtualTextureTileBorderSize;
 
 	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
 		EditCondition = "bVirtualTextures",
