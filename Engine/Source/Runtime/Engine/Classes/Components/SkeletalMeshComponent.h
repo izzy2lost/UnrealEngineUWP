@@ -2270,6 +2270,7 @@ public:
 	ENGINE_API void ApplyDeltaToAllPhysicsTransforms(const FVector& DeltaLocation, const FQuat& DeltaRotation);
 
 	/** Destroys and recreates the clothing actors in the current simulation */
+	UFUNCTION(BlueprintCallable, Category = "Clothing")
 	ENGINE_API void RecreateClothingActors();
 
 	/** Given bounds InOutBounds, expand them to also enclose the clothing simulation mesh */
