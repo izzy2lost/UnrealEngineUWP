@@ -3,6 +3,7 @@
 //------------------------------------------------------- INCLUDES
 
 #include "TSRShadingAnalysis.ush"
+#include "TSRReprojectionField.ush"
 
 
 //------------------------------------------------------- CONFIG
@@ -31,6 +32,10 @@
 
 FScreenTransform InputPixelPosToTranslucencyTextureUV;
 float4x4 ClipToResurrectionClip;
+float2 ResurrectionJacobianXMul;
+float2 ResurrectionJacobianXAdd;
+float2 ResurrectionJacobianYMul;
+float2 ResurrectionJacobianYAdd;
 float2 TranslucencyTextureUVMin;
 float2 TranslucencyTextureUVMax;
 float3 HistoryGuideQuantizationError;
@@ -50,6 +55,7 @@ Texture2D<tsr_half4> ReprojectedHistoryMoireTexture;
 	Texture2D<tsr_half4> ResurrectedHistoryGuideTexture;
 	Texture2D<tsr_half>  ResurrectedHistoryGuideMetadataTexture;
 #endif
+Texture2D<uint> DilateMaskTexture;
 Texture2D<tsr_half2> DecimateMaskTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
 Texture2D<float2> ClosestDepthTexture;
@@ -57,7 +63,7 @@ Texture2D<float2> ClosestDepthTexture;
 RWTexture2DArray<tsr_half4> HistoryGuideOutput;
 RWTexture2DArray<tsr_half4> HistoryMoireOutput;
 RWTexture2D<tsr_half4>  HistoryRejectionOutput;
-RWTexture2D<float2>     DilatedVelocityOutput;
+RWTexture2DArray<uint>  ReprojectionFieldOutput;
 RWTexture2D<tsr_halfC>  InputSceneColorOutput;
 RWTexture2D<tsr_half>   InputSceneColorLdrLumaOutput;
 RWTexture2D<tsr_ushort> AntiAliasMaskOutput;
@@ -122,11 +128,12 @@ void FetchDecimateMask(
 	{
 		tsr_short2 ClampedFetchPixelPos = PixelPos.GetElement(ElementIndex);
 		
+		uint DilateMask = DilateMaskTexture[ClampedFetchPixelPos];
 		tsr_half2 DecimateMask = DecimateMaskTexture[ClampedFetchPixelPos];
 
 		tsr_ushort BitMask = tsr_ushort(DecimateMask.r * tsr_half(255.0));
 
-		VelocityEdge.SetElement(ElementIndex, DecimateMask.g);
+		VelocityEdge.SetElement(ElementIndex, saturate(tsr_half(tsr_ushort(DilateMask)) * tsr_half(rcp(255.0))));
 		bIsDisoccluded.SetElement(ElementIndex,     (BitMask & tsr_ushort(0x1)) != tsr_ushort(0));
 		bHasPixelAnimation.SetElement(ElementIndex, (BitMask & tsr_ushort(0x2)) != tsr_ushort(0));
 	}
@@ -299,26 +306,52 @@ void FetchDeviceZ(
 	}
 } // FetchMoireInput()
 
-// Compute the velocity used by the reprojection of the resurrection.
+// Overwrite the reprojection field for pixels that needs resurrection.
 CALL_SITE_DEBUGLOC
-tsr_tensor_float2 ComputeResurrectionMotionVector(tsr_tensor_float DeviceZ)
+void OverwriteReprojectionFieldWithResurrection(tsr_tensor_bool bResurrectHistory, tsr_tensor_float DeviceZ)
 {
-	tsr_tensor_float2 ResurrectedEncodedScreenVelocity;
-	
-	UNROLL_N(SIMD_SIZE)
-	for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
-	{
-		float2 ScreenPos = ApplyScreenTransform(float2(ComputeElementPixelPos(ElementIndex)), InputPixelPosToScreenPos);
+	uint EncodedReprojectionVector[SIMD_SIZE];
+	uint EncodedReprojectionJacobian[SIMD_SIZE];
 
-		float4 ThisClip = float4(ScreenPos, DeviceZ.GetElement(ElementIndex), 1);
-		float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip); 
-		float2 ResurrectionScreen = ResurrectionClip.xy / ResurrectionClip.w;
+	PLATFORM_SPECIFIC_ISOLATE
+	{
+		UNROLL_N(SIMD_SIZE)
+		for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
+		ISOLATE
+		{
+			float LocalDeviceZ = DeviceZ.GetElement(ElementIndex);
+		
+			tsr_short2 InputPixelPos = ComputeElementPixelPos(ElementIndex);
+			float2 ScreenPos = ApplyScreenTransform(float2(InputPixelPos), InputPixelPosToScreenPos);
 			
-		ResurrectedEncodedScreenVelocity.SetElement(ElementIndex, EncodeVelocityToTexture(float3(ScreenPos - ResurrectionScreen, 0.0)).xy);
+			float4 ThisClip = float4(ScreenPos, DeviceZ.GetElement(ElementIndex), 1);
+			float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip);
+			float  ResurrectionProjection = rcp(ResurrectionClip.w);
+			float2 ResurrectionReprojectionVector = ScreenPos - ResurrectionClip.xy * ResurrectionProjection;
+			EncodedReprojectionVector[ElementIndex] = EncodeReprojectionVector(ResurrectionReprojectionVector);
+
+			// Compute the Jacobian from the PrevClip. Should technically take into account the depth delta along X and Y, but it's costly to compute, and it's using the dilated DeviceZ anyway, and not even using a 2x3 jacobian.
+			tsr_half2x2 ResurrectionJacobian;
+			ResurrectionJacobian[0] = tsr_half2(ResurrectionJacobianXMul) * tsr_half(ResurrectionProjection) + tsr_half2(ResurrectionJacobianXAdd);
+			ResurrectionJacobian[1] = tsr_half2(ResurrectionJacobianYMul) * tsr_half(ResurrectionProjection) + tsr_half2(ResurrectionJacobianYAdd);
+
+			EncodedReprojectionJacobian[ElementIndex] = EncodeReprojectionJacobian(ResurrectionJacobian);
+		}
 	}
 
-	return ResurrectedEncodedScreenVelocity;
-}
+	PLATFORM_SPECIFIC_ISOLATE
+	{
+		UNROLL_N(SIMD_SIZE)
+		for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
+		{
+			tsr_short2 OutputPixelPos = ComputeElementOutputPixelPos(ElementIndex);
+			OutputPixelPos.x = select(bResurrectHistory.GetElement(ElementIndex), OutputPixelPos.x, tsr_short(-1));
+
+			ReprojectionFieldOutput[tsr_short3(OutputPixelPos, 0)] = EncodedReprojectionVector[ElementIndex];
+			ReprojectionFieldOutput[tsr_short3(OutputPixelPos, 2)] = EncodedReprojectionJacobian[ElementIndex];
+		}
+	}
+} // OverwriteReprojectionFieldWithResurrection()
 
 #endif // CONFIG_HISTORY_RESURRECTION
 
@@ -718,21 +751,8 @@ void MainCS(
 			History = select(tsr_tensor_boolC::Vectorize(bResurrectHistory), ResurrectedHistory, History);
 			HistoryUncertainty = select(bResurrectHistory, ResurrectedHistoryUncertainty, HistoryUncertainty);
 			
-			PLATFORM_SPECIFIC_ISOLATE
-			{
-				// Compute the motion vector for the resurrection
-				tsr_tensor_float2 ResurrectionMotionVector = ComputeResurrectionMotionVector(DeviceZ);
-			
-				// Amends the motion vector for resurrection areas.
-				UNROLL_N(SIMD_SIZE)
-				for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
-				{
-					tsr_short2 OutputPixelPos = ComputeElementOutputPixelPos(ElementIndex);
-					OutputPixelPos.x = select(bResurrectHistory.GetElement(ElementIndex), OutputPixelPos.x, tsr_short(-1));
-
-					DilatedVelocityOutput[OutputPixelPos] = ResurrectionMotionVector.GetElement(ElementIndex);
-				}
-			}
+			// Apply the resurrection the reprojection field.
+			OverwriteReprojectionFieldWithResurrection(bResurrectHistory, DeviceZ);
 		}
 		#endif // CONFIG_HISTORY_RESURRECTION
 

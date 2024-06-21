@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TSRCommon.ush"
+#include "TSRReprojectionField.ush"
 #if TSR_SUPPORT_LENS_DISTORTION
 	#include "../LensDistortion.ush"
 #endif
@@ -19,6 +20,7 @@ static tsr_half3 kRed    = tsr_half3(1.00, 0.10, 0.10);
 static tsr_half3 kOrange = tsr_half3(1.00, 0.75, 0.10);
 static tsr_half3 kGreen  = tsr_half3(0.10, 1.00, 0.10);
 static tsr_half3 kBlue   = tsr_half3(0.10, 0.10, 1.00);
+static tsr_half3 kCyan   = tsr_half3(0.10, 1.00, 1.00);
 static tsr_half3 kPink   = tsr_half3(1.00, 0.10, 0.50);
 
 
@@ -37,6 +39,7 @@ uint2 OutputViewRectMax;
 uint VisualizeId;
 uint bCanResurrectHistory;
 uint bCanSpatialAntiAlias;
+uint bReprojectionField;
 float MaxHistorySampleCount;
 float OutputToHistoryResolutionFractionSquare;
 float FlickeringFramePeriod;
@@ -50,7 +53,9 @@ Texture2D<tsr_half>  InputMoireLumaTexture;
 Texture2D<tsr_half4> InputSceneTranslucencyTexture;
 Texture2D<tsr_half3> SceneColorTexture;
 Texture2D<float2>    ClosestDepthTexture;
-Texture2D<float2>    DilatedVelocityTexture;
+Texture2D<uint>      ReprojectionBoundaryTexture;
+Texture2D<uint>      ReprojectionJacobianTexture;
+Texture2D<uint>      ReprojectionVectorTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
 Texture2D<tsr_half4> HistoryRejectionTexture;
 Texture2D<tsr_half4> MoireHistoryTexture;
@@ -60,6 +65,11 @@ Texture2D<tsr_half3> ResurrectedHistoryColorTexture;
 
 RWTexture2D<tsr_half4> Output;
 
+
+//------------------------------------------------------- DEBUG
+
+static float4 Debug;
+	
 
 //------------------------------------------------------- FUNCTION
 
@@ -94,6 +104,52 @@ tsr_half3 SampleTSROutputGray(FContext Ctx)
 {
 	return GrayScaleColor(SceneColorTexture[Ctx.OutputPixelPos]);
 }
+
+struct FReprojectionFieldSample
+{
+	bool bIsOffScreen;
+	bool bIsFullDilate;
+	bool bAntiAliasReprojectionField;
+	tsr_short2 Offset;
+	tsr_half2 Boundary;
+	float2 Vector;
+	float2 PrevScreenPos;
+	tsr_half2x2 Jacobian;
+};
+
+FReprojectionFieldSample SampleReprojectionField(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection;
+
+	uint EncodedReprojectionBoundary = ReprojectionBoundaryTexture[Ctx.InputPixelPos];
+	Reprojection.Offset = DecodeReprojectionOffset(EncodedReprojectionBoundary);
+	Reprojection.Boundary = DecodeReprojectionBoundary(EncodedReprojectionBoundary);
+	Reprojection.bIsFullDilate = all(Reprojection.Boundary == kFullDilateBoundary);
+	Reprojection.bAntiAliasReprojectionField = any(Reprojection.Offset != tsr_short(0)) && !Reprojection.bIsFullDilate;
+
+	uint EncodedReprojectionVector   = ReprojectionVectorTexture[Ctx.InputPixelPos + Reprojection.Offset];
+	uint EncodedReprojectionJacobian = ReprojectionJacobianTexture[Ctx.InputPixelPos + Reprojection.Offset];
+
+	Reprojection.Vector   = DecodeReprojectionVector(EncodedReprojectionVector);
+	Reprojection.Jacobian = DecodeReprojectionJacobian(EncodedReprojectionJacobian);
+	
+	Reprojection.PrevScreenPos = Ctx.ScreenPos - Reprojection.Vector;
+
+	// Detect whether the history reprojection is successful
+	bool2 bIsOffScreenLocal;
+	bool2 bIsDisoccluded;
+	IsOffScreenOrDisoccluded(
+		bCameraCut,
+		dpv_interleave_mono_registers(Reprojection.PrevScreenPos),
+		/* bIsParallaxRejected = */ false,
+		/* out */ bIsOffScreenLocal,
+		/* out */ bIsDisoccluded);
+
+	Reprojection.bIsOffScreen = bIsOffScreenLocal[0];
+
+	return Reprojection;
+}
+
 
 //------------------------------------------------------- ENTRY POINT
 
@@ -283,6 +339,112 @@ tsr_half3 DisplayAntiFlickering(FContext Ctx)
 }
 
 
+//------------------------------------------------------- REPROJECTION FIELD
+
+tsr_half3 DisplayReprojectionFieldSummary(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half JacobianVisibilityMultiplier = tsr_half(64.0);
+	//tsr_half JacobianVisibilityMultiplier = tsr_half(select(Reprojection.bAntiAliasReprojectionField, 2, 1)) * tsr_half(64.0);
+
+	tsr_half MaxJacobianX = max(abs(Reprojection.Jacobian[0][0]), abs(Reprojection.Jacobian[0][1]));
+	tsr_half MaxJacobianY = max(abs(Reprojection.Jacobian[1][0]), abs(Reprojection.Jacobian[1][1]));
+
+	tsr_half3 Color;
+	Color = kWhite;
+	Color.g = lerp(Color.g, tsr_half(1.0), saturate(MaxJacobianX * JacobianVisibilityMultiplier));
+	Color.b = lerp(Color.b, tsr_half(1.0), saturate(MaxJacobianY * JacobianVisibilityMultiplier));
+	Color = select(Reprojection.bIsOffScreen, kPink, Color);
+	//Color = select(Reprojection.bAntiAliasReprojectionField, kGreen, Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionFieldOffset(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half3 Color = kWhite;
+	Color.gb = tsr_half2((float2(Reprojection.Offset) * 0.5 + 0.5) * 0.67 + 0.33);
+	Color = select(all(Reprojection.Offset == tsr_short(0)), select(Reprojection.bIsOffScreen, kPink, kWhite), Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionOffsetCoverage(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half ReprojectionBoundaryCoverage = ComputeReprojectionBoundaryCoverage(Reprojection.Boundary);
+
+	tsr_half3 Color;
+	Color = lerp(kRed, kGreen, ReprojectionBoundaryCoverage);
+	Color = select(Reprojection.bIsFullDilate, kCyan, Color);
+	Color = select(all(Reprojection.Offset == tsr_short(0)), select(Reprojection.bIsOffScreen, kPink, kWhite), Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionNullJacobian(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half MaxJacobianX = max(abs(Reprojection.Jacobian[0][0]), abs(Reprojection.Jacobian[0][1]));
+	tsr_half MaxJacobianY = max(abs(Reprojection.Jacobian[1][0]), abs(Reprojection.Jacobian[1][1]));
+	tsr_half MaxJacobian = max(MaxJacobianX, MaxJacobianY);
+	
+	bool bIsNullVector = all(abs(Reprojection.Vector) < (0.5 / 65535.0));
+	bool bIsNullJacobian = MaxJacobian < pow(tsr_half(1u << kVelocityJacobianBits), tsr_half(-2.0));
+
+	tsr_half3 Color = select(bIsNullJacobian && !bIsNullVector, kOrange, kWhite);
+	Color = select(Reprojection.bIsOffScreen || !bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionClampedJacobian(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half MaxJacobianX = max(abs(Reprojection.Jacobian[0][0]), abs(Reprojection.Jacobian[0][1]));
+	tsr_half MaxJacobianY = max(abs(Reprojection.Jacobian[1][0]), abs(Reprojection.Jacobian[1][1]));
+	tsr_half MaxJacobian = max(MaxJacobianX, MaxJacobianY);
+
+	tsr_half3 Color;
+	Color = select(Reprojection.bIsOffScreen, kPink, kWhite);
+	Color = select(MaxJacobian > kVelocityJacobianRange - rcp(tsr_half(1u << kVelocityJacobianBits)), kRed, Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionFieldDilatedJacobian(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half ReprojectionUpscaleFactor = ComputeReprojectionUpscaleFactorFromJacobian(Reprojection.Jacobian);
+
+	tsr_half3 Color;
+	Color = kWhite;
+	Color = lerp(Color,   kRed, saturate( log2(ReprojectionUpscaleFactor)));
+	Color = lerp(Color, kGreen, saturate(-log2(ReprojectionUpscaleFactor)));
+	Color = select(Reprojection.bIsOffScreen || !bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+tsr_half3 DisplayReprojectionFieldAA(FContext Ctx)
+{
+	FReprojectionFieldSample Reprojection = SampleReprojectionField(Ctx);
+	
+	tsr_half ReprojectionUpscaleFactor = ComputeReprojectionUpscaleFactorFromJacobian(Reprojection.Jacobian);
+
+	tsr_half3 Color;
+	Color = select(Reprojection.bIsOffScreen, kPink, kWhite);
+	Color = select(Reprojection.bAntiAliasReprojectionField, kGreen, Color);
+	Color = select(!bReprojectionField, kPink, Color);
+	return SampleTSROutputGray(Ctx) * Color;
+}
+
+
 //------------------------------------------------------- ENTRY POINT
 
 [numthreads(TILE_SIZE * TILE_SIZE, 1, 1)]
@@ -292,7 +454,7 @@ void MainCS(
 {
 	uint GroupWaveIndex = GetGroupWaveIndex(GroupThreadIndex, /* GroupSize = */ TILE_SIZE * TILE_SIZE);
 
-	float4 Debug = 0.0;
+	Debug = 0.0;
 	
 	FContext Ctx;
 	Ctx.OutputPixelPos = (
@@ -339,6 +501,34 @@ void MainCS(
 	else if (VisualizeId == 7)
 	{
 		OutputColor = DisplayAntiFlickering(Ctx);
+	}
+	else if (VisualizeId == 8)
+	{
+		OutputColor = DisplayReprojectionFieldSummary(Ctx);
+	}
+	else if (VisualizeId == 9)
+	{
+		OutputColor = DisplayReprojectionFieldOffset(Ctx);
+	}
+	else if (VisualizeId == 10)
+	{
+		OutputColor = DisplayReprojectionOffsetCoverage(Ctx);
+	}
+	else if (VisualizeId == 11)
+	{
+		OutputColor = DisplayReprojectionFieldAA(Ctx);
+	}
+	else if (VisualizeId == 12)
+	{
+		OutputColor = DisplayReprojectionNullJacobian(Ctx);
+	}
+	else if (VisualizeId == 13)
+	{
+		OutputColor = DisplayReprojectionClampedJacobian(Ctx);
+	}
+	else if (VisualizeId == 14)
+	{
+		OutputColor = DisplayReprojectionFieldDilatedJacobian(Ctx);
 	}
 
 	{

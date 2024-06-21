@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TSRCommon.ush"
+#include "TSRReprojectionField.ush"
 
 
 //------------------------------------------------------- DEBUG
@@ -24,7 +25,6 @@
 
 #elif DIM_UPDATE_QUALITY == 3 // Epic
 	#define CONFIG_SAMPLES 6
-	#define CONFIG_INTERPOLATE_VELOCITY 1
 	#define CONFIG_REJECTION_ANTI_ALIASING 1
 
 #else
@@ -34,6 +34,7 @@
 #define CONFIG_COMPOSE_TRANSLUCENCY 0
 #define CONFIG_REJECT_TRANSLUCENCY_ON_RESPONSIVE_AA_ONLY 0
 #define CONFIG_HISTORY_RESURRECTION 1
+#define CONFIG_REPROJECTION_FIELD 1
 
 /** Whether lens distortion is supported. */
 #define CONFIG_LENS_DISTORTION TSR_SUPPORT_LENS_DISTORTION
@@ -62,10 +63,6 @@
 	#define PLATFORM_SPECIFIC_ISOLATE ISOLATE
 #endif
 
-#ifndef CONFIG_INTERPOLATE_VELOCITY
-	#define CONFIG_INTERPOLATE_VELOCITY 0
-#endif
-
 
 //------------------------------------------------------- CONSTANTS
 
@@ -91,7 +88,11 @@ Texture2D<tsr_half4> InputSceneTranslucencyTexture;
 
 Texture2D<tsr_half4> HistoryRejectionTexture;
 
-Texture2D<float2> DilatedVelocityTexture;
+#if CONFIG_REPROJECTION_FIELD
+	Texture2D<uint> ReprojectionBoundaryTexture;
+	Texture2D<uint> ReprojectionJacobianTexture;
+#endif
+Texture2D<uint> ReprojectionVectorTexture;
 Texture2D<tsr_ushort2> AntiAliasingTexture;
 
 #if CONFIG_LENS_DISTORTION
@@ -119,6 +120,9 @@ float ResurrectionFrameIndex;
 float PrevFrameIndex;
 #if CONFIG_LENS_DISTORTION
 	uint bLensDistortion;
+#endif
+#if CONFIG_REPROJECTION_FIELD
+	uint bReprojectionField;
 #endif
 uint bGenerateOutputMip1;
 uint bGenerateOutputMip2;
@@ -297,14 +301,14 @@ void ComputeInputKernelSamplePosition(
 }
 
 template<typename T>
-T BilinearSampleColorHistory(Texture2D<T> Texture, float2 SampleUV)
+T BilinearSampleColorHistory(Texture2DArray<T> Texture, float3 SampleUV)
 #if 1
 {
 	return Texture.SampleLevel(GlobalBilinearClampedSampler, SampleUV, 0);
 }
 #else
 {
-	FBilinearSampleInfos BilinearInter = GetBilinearSampleLevelInfos(SampleUV, PrevHistoryInfo_Extent, PrevHistoryInfo_ExtentInverse);
+	FBilinearSampleInfos BilinearInter = GetBilinearSampleLevelInfos(SampleUV.xy, PrevHistoryInfo_Extent, PrevHistoryInfo_ExtentInverse);
 
 	T Return = 0.0;
 
@@ -315,16 +319,16 @@ T BilinearSampleColorHistory(Texture2D<T> Texture, float2 SampleUV)
 		uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
 		PixelPos = fastClamp(PixelPos, PrevHistoryInfo_ViewportMin, PrevHistoryInfo_ViewportMax - 1);
 
-		T RawSample = Texture[PixelPos];
+		T RawSample = Texture[uint3(PixelPos, SampleUV.z)];
 		
 		if (View.GeneralPurposeTweak == 1.0)
-			RawSample.rgb *= HdrWeight4(RawSample.rgb);
+			RawSample.rgb *= tsr_half(HdrWeight4(RawSample.rgb));
 
-		Return += RawSample * BilinearWeight;
+		Return += RawSample * tsr_half(BilinearWeight);
 	}
 	
 	if (View.GeneralPurposeTweak == 1.0)
-		Return.rgb *= HdrWeightInvY(Luma4(Return.rgb));
+		Return.rgb *= tsr_half(HdrWeightInvY(Luma4(Return.rgb)));
 
 	return Return;
 }
@@ -472,6 +476,46 @@ float2 ApplyDisplacementTextureOnScreenPos(Texture2D<float2> DisplacementTexture
 }
 #endif
 
+#if CONFIG_REPROJECTION_FIELD
+
+void FetchVelocityDilateBoundary(
+	tsr_short2x2 InputPixelPos,
+	out uint EncodedReprojectionBoundary[DPV_PIXEL_PER_LANE],
+	out bool bApplyReprojectionBoundary)
+{
+	BRANCH
+	if (bReprojectionField)
+	PLATFORM_SPECIFIC_ISOLATE
+	{
+		UNROLL_N(DPV_PIXEL_PER_LANE)
+		for (uint PixelId = 0; PixelId < DPV_PIXEL_PER_LANE; PixelId++)
+		{
+			tsr_ushort2 LocalInputPixelPos = dpv_access_pixel(InputPixelPos, PixelId);
+			
+			EncodedReprojectionBoundary[PixelId] = ReprojectionBoundaryTexture[LocalInputPixelPos];
+		}
+		
+		const uint EncodedReprojectionNoBoundary = EncodeReprojectionBoundary(/* ReprojectionOffset = */ tsr_short2(0, 0), /* ReprojectionBoundary = */ kFullDilateBoundary);
+		bApplyReprojectionBoundary = false;
+		UNROLL_N(DPV_PIXEL_PER_LANE)
+		for (uint PixelId = 0; PixelId < DPV_PIXEL_PER_LANE; PixelId++)
+		{
+			bApplyReprojectionBoundary |= EncodedReprojectionBoundary[PixelId] != EncodedReprojectionNoBoundary;
+		}
+	}
+	else
+	{
+		UNROLL_N(DPV_PIXEL_PER_LANE)
+		for (uint PixelId = 0; PixelId < DPV_PIXEL_PER_LANE; PixelId++)
+		{
+			EncodedReprojectionBoundary[PixelId] = 0;
+		}
+		bApplyReprojectionBoundary = false;
+	}
+} // FetchVelocityDilateBoundary
+
+#endif // CONFIG_REPROJECTION_FIELD
+
 
 //------------------------------------------------------- ENTRY POINT
 
@@ -532,7 +576,7 @@ void MainCS(
 	{
 		ScreenPos = ApplyScreenTransform(float2x2(HistoryPixelPos), HistoryPixelPosToScreenPos);
 	
-		// Pixel coordinate of the center of output pixel O in the input viewport.
+	// Pixel coordinate of the center of output pixel O in the input viewport.
 		InputPPCo = ApplyScreenTransform(float2x2(HistoryPixelPos), HistoryPixelPosToInputPPCo);
 	}
 
@@ -542,6 +586,13 @@ void MainCS(
 	tsr_short2x2 InputPixelPos = ClampPixelOffset(
 		tsr_short2x2(InputPPCo),
 		InputPixelPosMin, InputPixelPosMax);
+		
+	// Fetch the reprojection anti-aliasing.
+	#if CONFIG_REPROJECTION_FIELD
+	uint EncodedReprojectionBoundary[DPV_PIXEL_PER_LANE];
+	bool bApplyReprojectionBoundary;
+	FetchVelocityDilateBoundary(InputPixelPos, /* out */ EncodedReprojectionBoundary, /* out */ bApplyReprojectionBoundary);
+	#endif // CONFIG_REPROJECTION_FIELD
 
 	// Fetch reprojection-related information.
 	float2x2 PrevScreenPos = ScreenPos;
@@ -563,31 +614,62 @@ void MainCS(
 
 	PLATFORM_SPECIFIC_ISOLATE
 	{
-		#if CONFIG_INTERPOLATE_VELOCITY
-			float2 RawEncodedVelocityNeighborhood[4][DPV_PIXEL_PER_LANE];
-		#else
-			float2 RawEncodedVelocity[DPV_PIXEL_PER_LANE];
-		#endif
-
+		uint RawEncodedReprojectionVector[DPV_PIXEL_PER_LANE];
 		tsr_half4 RawHistoryRejection[DPV_PIXEL_PER_LANE];
 		
 		#if CONFIG_REJECTION_ANTI_ALIASING
 			tsr_ushort2 RawEncodedInputTexelOffset[DPV_PIXEL_PER_LANE];
 		#endif
 
+		#if CONFIG_REPROJECTION_FIELD
+			uint RawEncodedReprojectionJacobian[DPV_PIXEL_PER_LANE];
+			tsr_half2 JacobianCoordinate[DPV_PIXEL_PER_LANE];
+		#endif
+
 		// Issue overlapped texture fetches
 		PLATFORM_SPECIFIC_ISOLATE
 		{
+			tsr_half2x2 dInputKO = tsr_half2x2(InputPPCo - InputPPCk);
+
 			UNROLL_N(DPV_PIXEL_PER_LANE)
 			for (uint PixelId = 0; PixelId < DPV_PIXEL_PER_LANE; PixelId++)
 			{
 				tsr_ushort2 LocalInputPixelPos = dpv_access_pixel(InputPixelPos, PixelId);
+
+				#if CONFIG_REPROJECTION_FIELD
+				tsr_short2 BoundaryDilateOffset;
+				BRANCH
+				if (bApplyReprojectionBoundary)
+				{
+					tsr_short2 ReprojectionOffset  = DecodeReprojectionOffset(EncodedReprojectionBoundary[PixelId]);
+					tsr_half2 ReprojectionBoundary = DecodeReprojectionBoundary(EncodedReprojectionBoundary[PixelId]);
+
+					bool bHistoryPixelWithinOffsetBoundary = IsHistoryPixelWithinOffsetBoundary(
+						dpv_access_pixel(dInputKO, PixelId),
+						ReprojectionBoundary,
+						1.0 / InputToHistoryFactor);
+					BoundaryDilateOffset = select(bHistoryPixelWithinOffsetBoundary, ReprojectionOffset, -ReprojectionOffset);
+					
+					//Debug[0][0][PixelId] = bHistoryPixelWithinOffsetBoundary && any(ReprojectionOffset != tsr_short(0));
+					//Debug[0][1][PixelId] = ((LocalInputPixelPos.x ^ LocalInputPixelPos.y) & 0x1) == 0;
+				}
+				else
+				{
+					BoundaryDilateOffset = tsr_short2(0, 0);
+				}
 				
-				#if !CONFIG_INTERPOLATE_VELOCITY
-					RawEncodedVelocity[PixelId]   = DilatedVelocityTexture[LocalInputPixelPos];
+				JacobianCoordinate[PixelId] = dpv_access_pixel(dInputKO, PixelId) - tsr_half2(BoundaryDilateOffset);
+				tsr_ushort2 LocalInputPixelPosWithReprojectionAA = LocalInputPixelPos + BoundaryDilateOffset;
+				#else
+				tsr_ushort2 LocalInputPixelPosWithReprojectionAA = LocalInputPixelPos;
+				#endif
+				
+				RawEncodedReprojectionVector[PixelId]   = ReprojectionVectorTexture[LocalInputPixelPosWithReprojectionAA];
+				#if CONFIG_REPROJECTION_FIELD
+					RawEncodedReprojectionJacobian[PixelId] = ReprojectionJacobianTexture[LocalInputPixelPosWithReprojectionAA];
 				#endif
 
-				RawHistoryRejection[PixelId] = HistoryRejectionTexture[LocalInputPixelPos];
+				RawHistoryRejection[PixelId] = HistoryRejectionTexture[LocalInputPixelPosWithReprojectionAA];
 				
 				#if CONFIG_REJECTION_ANTI_ALIASING
 				{
@@ -595,74 +677,46 @@ void MainCS(
 				}
 				#endif
 			}
-
-			// Vector in pixel between pixel K -> O.
-			tsr_half2x2 dInputKO = tsr_half2x2(InputPPCo - InputPPCk);
-		
-			// Fetch the 2x2 neighborhood of the velocity
-			#if CONFIG_INTERPOLATE_VELOCITY
-			UNROLL_N(DPV_PIXEL_PER_LANE)
-			for (uint PixelId2 = 0; PixelId2 < DPV_PIXEL_PER_LANE; PixelId2++)
-			{
-				tsr_short2 LocalInputPixelPos0 = dpv_access_pixel(InputPixelPos, PixelId2);
-				tsr_short2 LocalInputPixelPos1 = LocalInputPixelPos0 + tsr_short2(sign(dpv_access_pixel(dInputKO, PixelId2)));
-				LocalInputPixelPos1 = ClampPixelOffset(LocalInputPixelPos1, InputPixelPosMin, InputPixelPosMax);
-
-				RawEncodedVelocityNeighborhood[0][PixelId2] = DilatedVelocityTexture[tsr_short2(LocalInputPixelPos0.x, LocalInputPixelPos0.y)];
-				RawEncodedVelocityNeighborhood[1][PixelId2] = DilatedVelocityTexture[tsr_short2(LocalInputPixelPos1.x, LocalInputPixelPos0.y)];
-				RawEncodedVelocityNeighborhood[2][PixelId2] = DilatedVelocityTexture[tsr_short2(LocalInputPixelPos0.x, LocalInputPixelPos1.y)];
-				RawEncodedVelocityNeighborhood[3][PixelId2] = DilatedVelocityTexture[tsr_short2(LocalInputPixelPos1.x, LocalInputPixelPos1.y)];
-			}
-			#endif
 		}
 		
 		// Process texture fetches.
 		PLATFORM_SPECIFIC_ISOLATE
 		{
-			// Vector in pixel between pixel K -> O.
-			tsr_half2x2 dInputKO = tsr_half2x2(InputPPCo - InputPPCk);
-		
 			// Process velocity
 			{
-				float2x2 ScreenVelocity;
-				#if CONFIG_INTERPOLATE_VELOCITY
-				UNROLL_N(DPV_PIXEL_PER_LANE)
+				float2x2 ReprojectionVector;
+
 				for (uint PixelId = 0; PixelId < DPV_PIXEL_PER_LANE; PixelId++)
 				{
-					float2 V00 = DecodeVelocityFromTexture(float4(RawEncodedVelocityNeighborhood[0][PixelId], 0.0, 0.0)).xy;
-					float2 V10 = DecodeVelocityFromTexture(float4(RawEncodedVelocityNeighborhood[1][PixelId], 0.0, 0.0)).xy;
-					float2 V01 = DecodeVelocityFromTexture(float4(RawEncodedVelocityNeighborhood[2][PixelId], 0.0, 0.0)).xy;
-					float2 V11 = DecodeVelocityFromTexture(float4(RawEncodedVelocityNeighborhood[3][PixelId], 0.0, 0.0)).xy;
-
-					tsr_half2 BilinearInterp = abs(dpv_access_pixel(dInputKO, PixelId));
+					#if CONFIG_REPROJECTION_FIELD
+					float2 ReprojectionScreenPosCorrection;
+					BRANCH
+					if (bReprojectionField)
+					{
+						uint EncodedReprojectionJacobian = RawEncodedReprojectionJacobian[PixelId];
+						tsr_half2x2 ReprojectionJacobian = DecodeReprojectionJacobian(EncodedReprojectionJacobian);
+						
+						float2 ReprojectionPixelPosCorrection = float2(mul(JacobianCoordinate[PixelId], ReprojectionJacobian));
+						//ReprojectionScreenPosCorrection = ReprojectionPixelPosCorrection * (float2(2, -2) * InputInfo_ViewportSizeInverse);
+						ReprojectionScreenPosCorrection = ReprojectionPixelPosCorrection * InputPixelPosToScreenPos.xy;
+					}
+					else
+					{
+						ReprojectionScreenPosCorrection = float(0.0);
+					}
+					#else // !CONFIG_REPROJECTION_FIELD
+					const float2 ReprojectionScreenPosCorrection = 0.0;
+					#endif
 					
-					float Bilinear00 = saturate(1.0 - BilinearInterp.x) * saturate(1.0 - BilinearInterp.y);
-					float Bilinear10 = saturate(0.0 + BilinearInterp.x) * saturate(1.0 - BilinearInterp.y);
-					float Bilinear01 = saturate(1.0 - BilinearInterp.x) * saturate(0.0 + BilinearInterp.y);
-					float Bilinear11 = saturate(0.0 + BilinearInterp.x) * saturate(0.0 + BilinearInterp.y);
-					
-					float Bilateral00 = Bilinear00;
-					float Bilateral10 = Bilinear10 * ComputeScreenVelocityBilateralWeight(V10 - V00);
-					float Bilateral01 = Bilinear01 * ComputeScreenVelocityBilateralWeight(V01 - V00);
-					float Bilateral11 = Bilinear11 * ComputeScreenVelocityBilateralWeight(V11 - V00);
+					uint EncodedReprojectionVector = RawEncodedReprojectionVector[PixelId];
+					float2 LocalReprojectionVector = DecodeReprojectionVector(EncodedReprojectionVector) + float2(ReprojectionScreenPosCorrection);
 
-					float NormalizeBilateral = rcp(Bilateral00 + Bilateral10 + Bilateral01 + Bilateral11);
-
-					float2 LocalScreenVelocity = (V00 * Bilateral00 + V10 * Bilateral10 + V01 * Bilateral01 + V11 * Bilateral11) * NormalizeBilateral;
-					
-					ScreenVelocity[0][PixelId] = LocalScreenVelocity.x;
-					ScreenVelocity[1][PixelId] = LocalScreenVelocity.y;
+					ReprojectionVector[0][PixelId] = LocalReprojectionVector[0];
+					ReprojectionVector[1][PixelId] = LocalReprojectionVector[1];
 				}
-				#else // !CONFIG_INTERPOLATE_VELOCITY
-				{
-					ScreenVelocity = dpv_interleave_registers(
-						DecodeVelocityFromTexture(float4(RawEncodedVelocity[0], 0.0, 0.0)).xy,
-						DecodeVelocityFromTexture(float4(RawEncodedVelocity[1], 0.0, 0.0)).xy);
-				}
-				#endif
 
-				PrevScreenPos = ScreenPos - ScreenVelocity;
-				OutputPixelVelocity = tsr_half2(dpv_length(dpv_mul(ScreenVelocity, HistoryInfo_ViewportSize)));
+				PrevScreenPos = ScreenPos - ReprojectionVector;
+				OutputPixelVelocity = tsr_half2(dpv_length(dpv_mul(ReprojectionVector, HistoryInfo_ViewportSize)));
 			}
 			
 			// Unpacks bits masks
@@ -727,7 +781,7 @@ void MainCS(
 		bIsParallaxRejected,
 		/* out */ bIsOffScreen,
 		/* out */ bIsDisoccluded);
-				
+		
 	// Final post processing.
 	#if !CONFIG_CLAMP
 	{
@@ -793,7 +847,7 @@ void MainCS(
 						float FrameIndex = PrevFrameIndex;
 					#endif
 
-					RawHighFrequency[i][PixelId] = PrevHistoryColorTexture.SampleLevel(GlobalBilinearClampedSampler, float3(SampleUV, FrameIndex), 0);
+					RawHighFrequency[i][PixelId] = BilinearSampleColorHistory(PrevHistoryColorTexture, float3(SampleUV, FrameIndex));
 					RawMetadata[i][PixelId]      = PrevHistoryMetadataTexture.SampleLevel(GlobalBilinearClampedSampler, float3(SampleUV, FrameIndex), 0);
 				}
 

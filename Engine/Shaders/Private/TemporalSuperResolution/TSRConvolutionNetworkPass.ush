@@ -110,14 +110,35 @@
 
 #define tsr_tensor_float  TLaneVector2D<float, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_float2 TLaneVector2D<float, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_float3 TLaneVector2D<float, 3, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_float4 TLaneVector2D<float, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_floatC TLaneVector2D<float, CONFIG_CHANNEL_COUNT, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_half  TLaneVector2D<tsr_half, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_half2 TLaneVector2D<tsr_half, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_half3 TLaneVector2D<tsr_half, 3, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_half4 TLaneVector2D<tsr_half, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_halfC TLaneVector2D<tsr_half, CONFIG_CHANNEL_COUNT, LANE_STRIDE_X, LANE_STRIDE_Y>
+
+#define tsr_tensor_uint    TLaneVector2D<uint, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_uint2   TLaneVector2D<uint, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_uint3   TLaneVector2D<uint, 3, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_uint4   TLaneVector2D<uint, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_int     TLaneVector2D<int, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_int2    TLaneVector2D<int, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_int3    TLaneVector2D<int, 3, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_int4    TLaneVector2D<int, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_ushort  TLaneVector2D<tsr_ushort, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
-#define tsr_tensor_short2  TLaneVector2D<tsr_ushort, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_ushort2 TLaneVector2D<tsr_ushort, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_ushort3 TLaneVector2D<tsr_ushort, 3, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_ushort4 TLaneVector2D<tsr_ushort, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_short   TLaneVector2D<tsr_short, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_short2  TLaneVector2D<tsr_short, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_short3  TLaneVector2D<tsr_short, 3, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_short4  TLaneVector2D<tsr_short, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
+
 #define tsr_tensor_bool    TLaneVector2D<bool, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_bool2   TLaneVector2D<bool, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_tensor_bool3   TLaneVector2D<bool, 3, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_bool4   TLaneVector2D<bool, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_tensor_boolC   TLaneVector2D<bool, CONFIG_CHANNEL_COUNT, LANE_STRIDE_X, LANE_STRIDE_Y>
 

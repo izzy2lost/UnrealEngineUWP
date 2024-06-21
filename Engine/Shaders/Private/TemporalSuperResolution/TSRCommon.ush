@@ -14,7 +14,7 @@
 
 //------------------------------------------------------- RECOMPILE HASH
 
-#pragma message("UESHADERMETADATA_VERSION F3C5FF82-E809-4903-98CD-5CC7E2254C77")
+#pragma message("UESHADERMETADATA_VERSION F3C5FF82-E809-4903-98CD-5DC7E2254C87")
 
 
 //------------------------------------------------------- COMPILER CONFIG
@@ -36,9 +36,11 @@
 #endif
 
 #if PLATFORM_SUPPORTS_WAVE_BROADCAST && 1
-	#define CONFIG_BUTTERFLY_KERNEL 1
+	#define CONFIG_BUTTERFLY_KERNEL  1
+	#define CONFIG_BUTTERFLY_SAMPLES 4
 #else
-	#define CONFIG_BUTTERFLY_KERNEL 0
+	#define CONFIG_BUTTERFLY_KERNEL  0
+	#define CONFIG_BUTTERFLY_SAMPLES 9
 #endif
 
 #define CONFIG_SCENE_COLOR_OVERFLOW 1
@@ -148,6 +150,17 @@ static const uint kSquareIndexes3x3[9] = { 4, 0, 1, 2, 3, 8, 7, 6, 5 };
 
 // Indexes of the offsets to have plus + shape.
 static const uint kPlusIndexes3x3[5] = { 4, 1, 3, 7, 5 };
+
+// Cardinal pixel directions;
+static const int2 kOffsetC = int2( 0,  0);
+static const int2 kOffsetN = int2( 0, -1);
+static const int2 kOffsetS = int2( 0, +1);
+static const int2 kOffsetE = int2(+1,  0);
+static const int2 kOffsetW = int2(-1,  0);
+static const int2 kOffsetNE = int2(+1, -1);
+static const int2 kOffsetNW = int2(-1, -1);
+static const int2 kOffsetSE = int2(+1, +1);
+static const int2 kOffsetSW = int2(-1, +1);
 
 
 #if CONFIG_COMPILE_FP16
@@ -299,6 +312,33 @@ uint bCameraCut;
 
 #if DEBUG_OUTPUT
 	RWTexture2DArray<float4> DebugOutput;
+#endif
+
+
+//------------------------------------------------------- UTILITY
+	
+uint sign_bit(float x)
+{
+    return asuint(x) >> 31u;
+}
+
+uint2 sign_bit(float2 x)
+{
+    return uint2(sign_bit(x.x), sign_bit(x.y));
+}
+
+#if PLATFORM_SUPPORTS_REAL_TYPES
+
+uint16_t sign_bit(half x)
+{
+    return asuint16(x) >> uint16_t(15);
+}
+
+uint16_t2 sign_bit(half2 x)
+{
+    return asuint16(x) >> uint16_t(15);
+}
+
 #endif
 
 
@@ -1087,17 +1127,94 @@ tsr_short2 GetLaneOffsetSign()
 }
 #endif
 
-CALL_SITE_DEBUGLOC
-float ComputePixelVelocityBilateralWeight(float2 PixelVelocityDelta)
+tsr_short2 GetNeighborhoodPixelPos(const uint ArrayIndex, tsr_short2 InputPixelPos)
 {
-	return saturate(1.0 - length2(PixelVelocityDelta));
+	tsr_short2 LaneOffsetSign = GetLaneOffsetSign();
+
+	tsr_short2 SampleInputPixelPos;
+	#if CONFIG_BUTTERFLY_KERNEL
+	{
+		tsr_short2 Offset = tsr_short2(Offsets2x2[ArrayIndex]) * LaneOffsetSign;
+		SampleInputPixelPos = ClampPixelOffset(InputPixelPos + Offset, InputPixelPosMin, InputPixelPosMax);
+	}
+	#else
+	{
+		tsr_short2 Offset = kOffsets3x3[ArrayIndex];
+					
+		SampleInputPixelPos = InputPixelPos + ClampPixelOffset(
+			InputPixelPos,
+			Offset, Offset,
+			InputPixelPosMin, InputPixelPosMax);
+	}
+	#endif
+
+	return SampleInputPixelPos;
 }
 
-CALL_SITE_DEBUGLOC
-float ComputeScreenVelocityBilateralWeight(float2 ScreenVelocityDelta)
+template<typename Type>
+Type AccessNeighborhoodStaticOffset(Type Array[CONFIG_BUTTERFLY_SAMPLES], const int2 Offset)
 {
-	return ComputePixelVelocityBilateralWeight(ScreenVelocityDelta * ScreenVelocityToInputPixelVelocity);
+	const uint OffsetIndex = uint(dot(Offset + 1, int2(1, 3)));
+
+	#if CONFIG_BUTTERFLY_KERNEL
+		const uint ButterflyArray[] = {
+			0x3, 0x2, 0x2,
+			0x1, 0x0, 0x0,
+			0x1, 0x0, 0x0,
+		};
+		const uint IndexArray[] = {
+			0, 0, 1,
+			0, 0, 1,
+			2, 2, 3,
+		};
+
+		const FWaveBroadcastSettings BroadcastSetting = InitWaveXorButterfly(ButterflyArray[OffsetIndex]);
+		
+		return WaveBroadcast(BroadcastSetting, Array[IndexArray[OffsetIndex]]);
+	#else
+		return Array[OffsetIndex];
+	#endif
 }
+
+template<typename Type>
+Type AccessNeighborhoodDynamicOffset(Type Array[CONFIG_BUTTERFLY_SAMPLES], const tsr_short2 Offset)
+{
+	const uint OffsetIndex = uint(dot(Offset + 1, tsr_short2(1, 3)));
+
+	#if CONFIG_BUTTERFLY_KERNEL
+		const FWaveBroadcastSettings BroadcastVertical   = InitWaveXorButterfly(0x2);
+		const FWaveBroadcastSettings BroadcastHorizontal = InitWaveXorButterfly(0x1);
+		const FWaveBroadcastSettings BroadcastDiagonal   = InitWaveXorButterfly(0x3);
+
+		Type Return = Array[0];
+		Return = select(all(Offset == tsr_short2(-1, -1)), WaveBroadcast(BroadcastDiagonal,   Array[0]), Return);
+		Return = select(all(Offset == tsr_short2( 0, -1)), WaveBroadcast(BroadcastVertical,   Array[0]), Return);
+		Return = select(all(Offset == tsr_short2(+1, -1)), WaveBroadcast(BroadcastVertical,   Array[1]), Return);
+		
+		Return = select(all(Offset == tsr_short2(-1,  0)), WaveBroadcast(BroadcastHorizontal, Array[0]), Return);
+		Return = select(all(Offset == tsr_short2(+1,  0)), Array[1], Return);
+		
+		Return = select(all(Offset == tsr_short2(-1, +1)), WaveBroadcast(BroadcastHorizontal, Array[2]), Return);
+		Return = select(all(Offset == tsr_short2( 0, +1)), Array[2], Return);
+		Return = select(all(Offset == tsr_short2(+1, +1)), Array[3], Return);
+		
+		return Return;
+	#else
+		return Array[OffsetIndex];
+	#endif
+}
+
+template<typename Type>
+Type AccessNeighborhoodCenter(Type Array[CONFIG_BUTTERFLY_SAMPLES])
+#if CONFIG_BUTTERFLY_KERNEL
+{
+	return Array[0];
+}
+#else
+{
+	return Array[4];
+}
+#endif
 
 tsr_half2 ComputePrevWeightMultiplier(tsr_half2 BlendFactor)
 {

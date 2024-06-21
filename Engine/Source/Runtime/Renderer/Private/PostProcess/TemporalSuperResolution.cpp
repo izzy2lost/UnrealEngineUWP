@@ -276,6 +276,27 @@ TAutoConsoleVariable<int32> CVarTSRAsyncCompute(
 	TEXT(" 3: Run all passes on async compute;"),
 	ECVF_RenderThreadSafe);
 
+TAutoConsoleVariable<int32> CVarTSRReprojectionField(
+	TEXT("r.TSR.ReprojectionField"), 0,
+	TEXT("Enables TSR's reprojection field for higher reprojection vector upscale and dilate quality (Experimental, disabled by default).\n")
+	TEXT("\n")
+	TEXT("When the reprojection fields is enabled, it dilates the reprojection vector by half spatially ")
+	TEXT("anti-aliased rendering pixel from the depth buffer, instead by a full rendering pixel ")
+	TEXT("in dilate velocity pass. This allows hide the rendering resolution due whenever velocity buffer ends up extruding some ")
+	TEXT("object to edges, for instance when rotating. This come at the cost of spatial anti-aliasing in the DilateVelocity pass ")
+	TEXT("as well as an extra dependent texture fetches right at the begining of the HistoryUpdate pass.\n")
+	TEXT("\n")
+	TEXT("The reprojection field also embeds a jacobian 2x2 matrix for each pixel to have more precise reprojection of the history")
+	TEXT("for the display pixels in the rendering pixels. This for instance allows to maintains sharp geometric edges on movements."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<float> CVarTSRReprojectionFieldAntiAliasPixelSpeed(
+	TEXT("r.TSR.ReprojectionField.AntiAliasPixelSpeed"), 0.75f,
+	TEXT("Defines the output pixel velocity at which point the dilation should be spatial anti-aliased based of the depth buffer ")
+	TEXT("to avoid reprojection aliasing by extrusion on fast geometric edges (Default to 0.75 to make sure there is parralax ")
+	TEXT("disocclusion mask behind moving objects, best tuned with r.TSR.Visualize=11)."),
+	ECVF_RenderThreadSafe);
+
 TAutoConsoleVariable<float> CVarTSRWeightClampingSampleCount(
 	TEXT("r.TSR.Velocity.WeightClampingSampleCount"), 4.0f,
 	TEXT("Number of sample to count to in history pixel to clamp history to when output pixel velocity reach r.TSR.Velocity.WeightClampingPixelSpeed. ")
@@ -298,19 +319,14 @@ TAutoConsoleVariable<float> CVarTSRWeightClampingPixelSpeed(
 	TEXT("(Default = 1.0f)."),
 	ECVF_RenderThreadSafe);
 
-// TODO: improve CONFIG_VELOCITY_EXTRAPOLATION in TSRDilateVelcity.usf that is disabled at the moment.
-//TAutoConsoleVariable<float> CVarTSRVelocityExtrapolation(
-//	TEXT("r.TSR.Velocity.Extrapolation"), 1.0f,
-//	TEXT("Defines how much the velocity should be extrapolated on geometric discontinuities (Default = 1.0f)."),
-//	ECVF_Scalability | ECVF_RenderThreadSafe);
-
 #if !UE_BUILD_OPTIMIZED_SHOWFLAGS
 
 TAutoConsoleVariable<int32> CVarTSRVisualize(
 	TEXT("r.TSR.Visualize"), -1,
 	TEXT("Selects the TSR internal visualization mode.\n")
-	TEXT(" -2: Display an overview grid based regardless of VisualizeTSR show flag;\n")
-	TEXT(" -1: Display an overview grid based on the VisualizeTSR show flag (default, opened with the `show VisualizeTSR` command at runtime or Show > Visualize > TSR in editor viewports);\n")
+	TEXT(" -3: Display the reprojection field's grid based overview;\n")
+	TEXT(" -2: Display an grid based overview regardless of VisualizeTSR show flag;\n")
+	TEXT(" -1: Display an grid based overview on the VisualizeTSR show flag (default, opened with the `show VisualizeTSR` command at runtime or Show > Visualize > TSR in editor viewports);\n")
 	TEXT("  0: Number of accumulated samples in the history, particularily interesting to tune r.TSR.ShadingRejection.SampleCount and r.TSR.Velocity.WeightClampingSampleCount;\n")
 	TEXT("  1: Parallax disocclusion based of depth and velocity buffers;\n")
 	TEXT("  2: Mask where the history is rejected;\n")
@@ -318,7 +334,14 @@ TAutoConsoleVariable<int32> CVarTSRVisualize(
 	TEXT("  4: Mask where the history is resurrected (with r.TSR.Resurrection=1);\n")
 	TEXT("  5: Mask where the history is resurrected in the resurrected frame (with r.TSR.Resurrection=1), particularily interesting to tune r.TSR.Resurrection.PersistentFrameInterval;\n")
 	TEXT("  6: Mask where spatial anti-aliasing is being computed;\n")
-	TEXT("  7: Mask where the flickering temporal analysis heuristic is taking effects (with r.TSR.ShadingRejection.Flickering=1);\n"),
+	TEXT("  7: Mask where the flickering temporal analysis heuristic is taking effects (with r.TSR.ShadingRejection.Flickering=1);\n")
+	TEXT("  8: Summary of the reprojection field, show the the jacobian on X in green and Y in blue;\n")
+	TEXT("  9: Reprojection field's dilating offset to apply in the HistoryUpdate;\n")
+	TEXT(" 10: Coverage of the dilating offset to apply in the HistoryUpdate (red the coverage is close to 0, green is close to 1, blue has been fully dilated to 1 without computing any spatial anti-aliasing from the depth buffer);\n")
+	TEXT(" 11: Mask where the reprojection field is anti-aliased from the depth buffer in green (handy to tune r.TSR.ReprojectionField.AntiAliasPixelSpeed);\n")
+	TEXT(" 12: Mask where the pixel's jacobian is null in the reprojection field in orange;\n")
+	TEXT(" 13: Mask where the pixel's jacobian has reached its encoding limit in the reprojection field in red;\n")
+	TEXT(" 14: Mask where the reprojected history is upscaled (in red) or downscaled (in green) by the reprojection field's jacobian (for instance due to getting closer or further away from camera respectively, or an object is getting scaled dynamicaly);\n"),
 	ECVF_RenderThreadSafe);
 
 #endif
@@ -657,16 +680,17 @@ class FTSRDilateVelocityCS : public FTSRShader
 		SHADER_PARAMETER(FMatrix44f, RotationalClipToPrevClip)
 		SHADER_PARAMETER(FVector2f, PrevOutputBufferUVMin)
 		SHADER_PARAMETER(FVector2f, PrevOutputBufferUVMax)
-		SHADER_PARAMETER(float, VelocityExtrapolationMultiplier)
 		SHADER_PARAMETER(float, InvFlickeringMaxParralaxVelocity)
+		SHADER_PARAMETER(float, ReprojectionFieldAntiAliasVelocityThreshold)
+		SHADER_PARAMETER(int32, bReprojectionField)
 		SHADER_PARAMETER(int32, bOutputIsMovingTexture)
 
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneDepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneVelocityTexture)
 
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, DilatedVelocityOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, ClosestDepthOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, PrevAtomicOutput)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, ReprojectionFieldOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, R8Output)
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, VelocityFlattenOutput)
@@ -710,7 +734,7 @@ class FTSRDecimateHistoryCS : public FTSRShader
 		SHADER_PARAMETER(FMatrix44f, RotationalClipToPrevClip)
 
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputSceneColorTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DilatedVelocityTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectionVectorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ClosestDepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, PrevAtomicTextureArray)
 
@@ -731,7 +755,7 @@ class FTSRDecimateHistoryCS : public FTSRShader
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, ReprojectedHistoryGuideOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, ReprojectedHistoryMoireOutput)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, HoleFilledVelocityOutput)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, ReprojectionFieldOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, DecimateMaskOutput)
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, DebugOutput)
@@ -785,6 +809,10 @@ class FTSRRejectShadingCS : public FTSRConvolutionNetworkShader
 		SHADER_PARAMETER(FVector2f, TranslucencyTextureUVMin)
 		SHADER_PARAMETER(FVector2f, TranslucencyTextureUVMax)
 		SHADER_PARAMETER(FMatrix44f, ClipToResurrectionClip)
+		SHADER_PARAMETER(FVector2f, ResurrectionJacobianXMul)
+		SHADER_PARAMETER(FVector2f, ResurrectionJacobianXAdd)
+		SHADER_PARAMETER(FVector2f, ResurrectionJacobianYMul)
+		SHADER_PARAMETER(FVector2f, ResurrectionJacobianYAdd)
 		SHADER_PARAMETER(FVector3f, HistoryGuideQuantizationError)
 		SHADER_PARAMETER(float, FlickeringFramePeriod)
 		SHADER_PARAMETER(float, TheoricBlendFactor)
@@ -801,6 +829,7 @@ class FTSRRejectShadingCS : public FTSRConvolutionNetworkShader
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectedHistoryMoireTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ResurrectedHistoryGuideTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ResurrectedHistoryGuideMetadataTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, DilateMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DecimateMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, IsMovingMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ClosestDepthTexture)
@@ -808,7 +837,7 @@ class FTSRRejectShadingCS : public FTSRConvolutionNetworkShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, HistoryGuideOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, HistoryMoireOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, HistoryRejectionOutput)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, DilatedVelocityOutput)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, ReprojectionFieldOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, InputSceneColorOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, InputSceneColorLdrLumaOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, AntiAliasMaskOutput)
@@ -931,7 +960,9 @@ class FTSRUpdateHistoryCS : public FTSRShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputSceneTranslucencyTexture)
 
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistoryRejectionTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DilatedVelocityTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectionBoundaryTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectionJacobianTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectionVectorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, AntiAliasingTexture)
 
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, TranslucencyInfo)
@@ -955,6 +986,7 @@ class FTSRUpdateHistoryCS : public FTSRShader
 		SHADER_PARAMETER(float, ResurrectionFrameIndex)
 		SHADER_PARAMETER(float, PrevFrameIndex)
 		SHADER_PARAMETER(int32, bLensDistortion)
+		SHADER_PARAMETER(int32, bReprojectionField)
 		SHADER_PARAMETER(int32, bGenerateOutputMip1)
 		SHADER_PARAMETER(int32, bGenerateOutputMip2)
 		SHADER_PARAMETER(int32, bGenerateOutputMip3)
@@ -1115,6 +1147,7 @@ class FTSRVisualizeCS : public FTSRShader
 		SHADER_PARAMETER(int32, VisualizeId)
 		SHADER_PARAMETER(int32, bCanResurrectHistory)
 		SHADER_PARAMETER(int32, bCanSpatialAntiAlias)
+		SHADER_PARAMETER(int32, bReprojectionField)
 		SHADER_PARAMETER(float, MaxHistorySampleCount)
 		SHADER_PARAMETER(float, OutputToHistoryResolutionFractionSquare)
 		SHADER_PARAMETER(float, FlickeringFramePeriod)
@@ -1128,7 +1161,9 @@ class FTSRVisualizeCS : public FTSRShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputSceneTranslucencyTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, SceneColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ClosestDepthTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DilatedVelocityTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectionBoundaryTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectionJacobianTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectionVectorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, IsMovingMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistoryRejectionTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, MoireHistoryTexture)
@@ -1424,6 +1459,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	// period at which history changes is considered too distracting.
 	const float FlickeringFramePeriod = CVarTSRFlickeringEnable.GetValueOnRenderThread() ? (CVarTSRFlickeringPeriod.GetValueOnRenderThread() / FMath::Max(RefreshRateToFrameRateCap, 1.0f)) : 0.0f;
 
+	// Whether the reprojection field is enabled.
+	const bool bReprojectionField = CVarTSRReprojectionField.GetValueOnRenderThread() != 0;
+
 	ETSRHistoryFormatBits HistoryFormatBits = ETSRHistoryFormatBits::None;
 	{
 		if (FlickeringFramePeriod > 0)
@@ -1624,7 +1662,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		CommonParameters.InputPixelPosToScreenPos = (FScreenTransform::Identity + 0.5f) * FScreenTransform::ChangeTextureBasisFromTo(FScreenPassTextureViewport(
 			InputExtent, InputRect), FScreenTransform::ETextureBasis::TexelPosition, FScreenTransform::ETextureBasis::ScreenPosition);
 		CommonParameters.ScreenVelocityToInputPixelVelocity = (FScreenTransform::Identity / CommonParameters.InputPixelPosToScreenPos).Scale;
-		CommonParameters.InputPixelVelocityToScreenVelocity = CommonParameters.InputPixelPosToScreenPos.Scale.GetAbs();
+		CommonParameters.InputPixelVelocityToScreenVelocity = CommonParameters.InputPixelPosToScreenPos.Scale;
 
 		CommonParameters.HistoryInfo = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(
 			HistoryExtent, FIntRect(FIntPoint(0, 0), HistorySize)));
@@ -1868,24 +1906,16 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	}
 
 	// Dilate the velocity texture & scatter reprojection into previous frame
-	FRDGTextureRef DilatedVelocityTexture;
+	FRDGTextureRef ReprojectionFieldTexture;
+	FRDGTextureSRVRef ReprojectionVectorTexture;
+	FRDGTextureSRVRef ReprojectionBoundaryTexture = nullptr;
+	FRDGTextureSRVRef ReprojectionJacobianTexture = nullptr;
 	FRDGTextureRef ClosestDepthTexture;
+	FRDGTextureSRVRef DilateMaskTexture = nullptr;
 	FRDGTextureSRVRef IsMovingMaskTexture = nullptr;
 	FVelocityFlattenTextures VelocityFlattenTextures;
 	{
 		const bool bOutputIsMovingTexture = FlickeringFramePeriod > 0.0f;
-
-		FRDGTextureRef R8OutputTexture;
-
-		{
-			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
-				InputExtent,
-				PF_G16R16,
-				FClearValueBinding::None,
-				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
-
-			DilatedVelocityTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.Velocity.Dilated"));
-		}
 
 		{
 			EPixelFormat ClosestDepthFormat;
@@ -1906,18 +1936,38 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			ClosestDepthTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.ClosestDepthTexture"));
 		}
 
+		FRDGTextureRef R8OutputTexture;
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2DArray(
 				InputExtent,
 				PF_R8_UINT,
 				FClearValueBinding::None,
 				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV,
-				1);
+				/* ArraySize = */ bOutputIsMovingTexture ? 2 : 1);
 
-			R8OutputTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.ParallaxFactor"));
+			R8OutputTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.DilateR8"));
+			DilateMaskTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(R8OutputTexture, 0));
 			if (bOutputIsMovingTexture)
 			{
-				IsMovingMaskTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(R8OutputTexture, 0));
+				IsMovingMaskTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(R8OutputTexture, 1));
+			}
+		}
+
+		{
+			FRDGTextureDesc Desc = FRDGTextureDesc::Create2DArray(
+				InputExtent,
+				PF_R32_UINT,
+				FClearValueBinding::None,
+				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV,
+				/* ArraySize = */ bReprojectionField ? 3 : 1);
+
+			ReprojectionFieldTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.Reprojection.Vector"));
+			ReprojectionVectorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 0));
+
+			if (bReprojectionField)
+			{
+				ReprojectionBoundaryTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 1));
+				ReprojectionJacobianTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 2));
 			}
 		}
 
@@ -1929,20 +1979,21 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->RotationalClipToPrevClip = RotationalClipToPrevClip;
 		PassParameters->PrevOutputBufferUVMin = CommonParameters.InputInfo.UVViewportBilinearMin - CommonParameters.InputInfo.ExtentInverse;
 		PassParameters->PrevOutputBufferUVMax = CommonParameters.InputInfo.UVViewportBilinearMax + CommonParameters.InputInfo.ExtentInverse;
-		PassParameters->VelocityExtrapolationMultiplier = 0.0; //FMath::Clamp(CVarTSRVelocityExtrapolation.GetValueOnRenderThread(), 0.0f, 1.0f);
 		{
 			float FlickeringMaxParralaxVelocity = RefreshRateToFrameRateCap * CVarTSRFlickeringMaxParralaxVelocity.GetValueOnRenderThread() * float(View.ViewRect.Width()) / 1920.0f;
 			PassParameters->InvFlickeringMaxParralaxVelocity = 1.0f / FlickeringMaxParralaxVelocity;
 		}
+		PassParameters->ReprojectionFieldAntiAliasVelocityThreshold = FMath::Square(FMath::Max(CVarTSRReprojectionFieldAntiAliasPixelSpeed.GetValueOnRenderThread() / OutputToInputResolutionFraction, 1.0f / 64.0f));
+		PassParameters->bReprojectionField = bReprojectionField;
 		PassParameters->bOutputIsMovingTexture = bOutputIsMovingTexture;
 		
 		PassParameters->SceneDepthTexture = PassInputs.SceneDepth.Texture;
 		PassParameters->SceneVelocityTexture = PassInputs.SceneVelocity.Texture;
 
-		PassParameters->DilatedVelocityOutput = GraphBuilder.CreateUAV(DilatedVelocityTexture);
 		PassParameters->ClosestDepthOutput = GraphBuilder.CreateUAV(ClosestDepthTexture);
 		PassParameters->PrevAtomicOutput = GraphBuilder.CreateUAV(PrevAtomicTextureArray);
 		PassParameters->R8Output = GraphBuilder.CreateUAV(R8OutputTexture);
+		PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldTexture);
 
 		// Setup up the motion blur's velocity flatten pass.
 		if (PassInputs.bGenerateVelocityFlattenTextures)
@@ -1985,9 +2036,10 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		TShaderMapRef<FTSRDilateVelocityCS> ComputeShader(View.ShaderMap, PermutationVector);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("TSR DilateVelocity(#%d MotionBlurDirections=%d%s) %dx%d",
+			RDG_EVENT_NAME("TSR DilateVelocity(#%d MotionBlurDirections=%d%s%s) %dx%d",
 				PermutationVector.ToDimensionValueId(),
 				int32(PermutationVector.Get<FTSRDilateVelocityCS::FMotionBlurDirectionsDim>()),
+				bReprojectionField ? TEXT(" ReprojectionField") : TEXT(""),
 				bOutputIsMovingTexture ? TEXT(" OutputIsMoving") : TEXT(""),
 				InputRect.Width(), InputRect.Height()),
 			AsyncComputePasses >= 2 ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
@@ -2001,7 +2053,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	FRDGTextureRef ReprojectedHistoryMoireTexture = nullptr;
 	FRDGTextureRef DecimateMaskTexture = nullptr;
 	{
-		FRDGTextureRef HoleFilledVelocityTexture;
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 				InputExtent,
@@ -2009,11 +2060,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 				FClearValueBinding::None,
 				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
 
-			Desc.Format = PF_R8G8;
 			DecimateMaskTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.DecimateMask"));
-
-			Desc.Format = PF_G16R16;
-			HoleFilledVelocityTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.Velocity.HoleFilled"));
 		}
 
 		{
@@ -2042,7 +2089,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->RotationalClipToPrevClip = RotationalClipToPrevClip;
 
 		PassParameters->InputSceneColorTexture = PassInputs.SceneColor.Texture;
-		PassParameters->DilatedVelocityTexture = DilatedVelocityTexture;
+		PassParameters->ReprojectionVectorTexture = ReprojectionVectorTexture;
 		PassParameters->ClosestDepthTexture = ClosestDepthTexture;
 		PassParameters->PrevAtomicTextureArray = PrevAtomicTextureArray;
 
@@ -2077,7 +2124,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		{
 			PassParameters->ReprojectedHistoryMoireOutput = GraphBuilder.CreateUAV(ReprojectedHistoryMoireTexture);
 		}
-		PassParameters->HoleFilledVelocityOutput = GraphBuilder.CreateUAV(HoleFilledVelocityTexture);
+		PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldTexture);
 		PassParameters->DecimateMaskOutput = GraphBuilder.CreateUAV(DecimateMaskTexture);
 		PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.DecimateHistory"));
 
@@ -2090,9 +2137,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		TShaderMapRef<FTSRDecimateHistoryCS> ComputeShader(View.ShaderMap, PermutationVector);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("TSR DecimateHistory(#%d %s%s%s%s) %dx%d",
+			RDG_EVENT_NAME("TSR DecimateHistory(#%d%s%s%s%s) %dx%d",
 				PermutationVector.ToDimensionValueId(),
-				PermutationVector.Get<FTSRDecimateHistoryCS::FMoireReprojectionDim>() ? TEXT("ReprojectMoire") : TEXT(""),
+				PermutationVector.Get<FTSRDecimateHistoryCS::FMoireReprojectionDim>() ? TEXT(" ReprojectMoire") : TEXT(""),
 				PermutationVector.Get<FTSRDecimateHistoryCS::FResurrectionReprojectionDim>() ? TEXT(" ReprojectResurrection") : TEXT(""),
 				PermutationVector.Get<FTSRShader::F16BitVALUDim>() ? TEXT(" 16bit") : TEXT(""),
 				PermutationVector.Get<FTSRShader::FAlphaChannelDim>() ? TEXT(" AlphaChannel") : TEXT(""),
@@ -2101,8 +2148,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			ComputeShader,
 			PassParameters,
 			FComputeShaderUtils::GetGroupCount(InputRect.Size(), 8));
-
-		DilatedVelocityTexture = HoleFilledVelocityTexture;
 	}
 
 	// Merge PostDOF translucency within same scene color.
@@ -2188,7 +2233,17 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			FScreenTransform::ChangeTextureBasisFromTo(TranslucencyViewport, FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV);
 		PassParameters->TranslucencyTextureUVMin = GetScreenPassTextureViewportParameters(TranslucencyViewport).UVViewportBilinearMin;
 		PassParameters->TranslucencyTextureUVMax = GetScreenPassTextureViewportParameters(TranslucencyViewport).UVViewportBilinearMax;
-		PassParameters->ClipToResurrectionClip = ClipToResurrectionClip;
+		{
+			PassParameters->ClipToResurrectionClip = ClipToResurrectionClip;
+
+			FVector2f InputPixelVelocityToScreenVelocity = CommonParameters.InputPixelVelocityToScreenVelocity;
+			FVector2f ScreenVelocityToInputPixelVelocity = CommonParameters.ScreenVelocityToInputPixelVelocity;
+
+			PassParameters->ResurrectionJacobianXMul = - ScreenVelocityToInputPixelVelocity * FVector2f(ClipToResurrectionClip.M[0][0], ClipToResurrectionClip.M[0][1]) * InputPixelVelocityToScreenVelocity.X;
+			PassParameters->ResurrectionJacobianXAdd = ScreenVelocityToInputPixelVelocity * FVector2f(InputPixelVelocityToScreenVelocity.X, 0.0f);
+			PassParameters->ResurrectionJacobianYMul = - ScreenVelocityToInputPixelVelocity * FVector2f(ClipToResurrectionClip.M[1][0], ClipToResurrectionClip.M[1][1]) * InputPixelVelocityToScreenVelocity.Y;
+			PassParameters->ResurrectionJacobianYAdd = ScreenVelocityToInputPixelVelocity * FVector2f(0.0f, InputPixelVelocityToScreenVelocity.Y);
+		}
 		PassParameters->HistoryGuideQuantizationError = ComputePixelFormatQuantizationError(History.GuideArray->Desc.Format);
 		PassParameters->FlickeringFramePeriod = FlickeringFramePeriod;
 		PassParameters->TheoricBlendFactor = 1.0f / (1.0f + MaxHistorySampleCount / OutputToInputResolutionFractionSquare);
@@ -2233,6 +2288,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->ResurrectedHistoryGuideTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackDummy));
 			PassParameters->ResurrectedHistoryGuideMetadataTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackDummy));
 		}
+		PassParameters->DilateMaskTexture = DilateMaskTexture;
 		PassParameters->DecimateMaskTexture = DecimateMaskTexture;
 		PassParameters->IsMovingMaskTexture = IsMovingMaskTexture ? IsMovingMaskTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackUintDummy));
 		PassParameters->ClosestDepthTexture = ClosestDepthTexture;
@@ -2284,7 +2340,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->HistoryRejectionOutput = GraphBuilder.CreateUAV(HistoryRejectionTexture);
 
 			// Amends how the history should be reprojected
-			PassParameters->DilatedVelocityOutput = GraphBuilder.CreateUAV(DilatedVelocityTexture);
+			PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldTexture);
 
 			// Output the composed translucency and opaque scene color to speed up HistoryUpdate
 			PassParameters->InputSceneColorOutput = bComputeInputSceneColorTexture
@@ -2378,7 +2434,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->InputSceneTranslucencyTexture = SeparateTranslucencyTexture;
 		PassParameters->HistoryRejectionTexture = HistoryRejectionTexture;
 
-		PassParameters->DilatedVelocityTexture = DilatedVelocityTexture;
+		PassParameters->ReprojectionBoundaryTexture = ReprojectionBoundaryTexture ? ReprojectionBoundaryTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackUintDummy));
+		PassParameters->ReprojectionJacobianTexture = ReprojectionJacobianTexture ? ReprojectionJacobianTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackUintDummy));
+		PassParameters->ReprojectionVectorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(ReprojectionFieldTexture));
 		PassParameters->AntiAliasingTexture = AntiAliasingTexture;
 
 		PassParameters->TranslucencyPixelPosMin = SeparateTranslucencyRect.Min;
@@ -2402,6 +2460,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->InputToHistoryFactor = float(HistorySize.X) / float(InputRect.Width());
 		PassParameters->InputContributionMultiplier = OutputToHistoryResolutionFractionSquare; 
 		PassParameters->bLensDistortion = bLensDistortion;
+		PassParameters->bReprojectionField = bReprojectionField;
 		PassParameters->bGenerateOutputMip1 = false;
 		PassParameters->bGenerateOutputMip2 = false;
 		PassParameters->bGenerateOutputMip3 = false;
@@ -2541,12 +2600,13 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		TShaderMapRef<FTSRUpdateHistoryCS> ComputeShader(View.ShaderMap, PermutationVector);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("TSR UpdateHistory(#%d Quality=%s%s%s%s%s%s) %dx%d",
+			RDG_EVENT_NAME("TSR UpdateHistory(#%d Quality=%s%s%s%s%s%s%s) %dx%d",
 				PermutationVector.ToDimensionValueId(),
 				kUpdateQualityNames[int32(PermutationVector.Get<FTSRUpdateHistoryCS::FQualityDim>())],
 				PermutationVector.Get<FTSRShader::F16BitVALUDim>() ? TEXT(" 16bit") : TEXT(""),
 				PermutationVector.Get<FTSRShader::FAlphaChannelDim>() ? TEXT(" AlphaChannel") : TEXT(""),
 				HistoryColorFormat == PF_FloatR11G11B10 ? TEXT(" R11G11B10") : TEXT(""),
+				bReprojectionField ? TEXT(" ReprojectionField") : TEXT(""),
 				bSupportsLensDistortion ? (bLensDistortion ? TEXT(" ApplyLensDistortion") : TEXT(" SupportLensDistortion")) : TEXT(""),
 				PassParameters->bGenerateOutputMip3 ? TEXT(" OutputMip3") : (PassParameters->bGenerateOutputMip2 ? TEXT(" OutputMip2") : (PassParameters->bGenerateOutputMip1 ? TEXT(" OutputMip1") : TEXT(""))),
 				HistorySize.X, HistorySize.Y),
@@ -2707,7 +2767,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 		enum class EVisualizeId : int32
 		{
-			Overview = -1,
+			ReprojectionFieldOverview = -3,
+			Overview = -2,
+			ShowFlag = -1,
 			HistorySampleCount = 0,
 			ParallaxDisocclusionMask = 1,
 			HistoryRejection = 2,
@@ -2716,6 +2778,13 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			ResurrectedColor = 5,
 			SpatialAntiAliasingMask = 6,
 			AntiFlickering = 7,
+			ReprojectionFieldSummary = 8,
+			ReprojectionFieldOffset = 9,
+			ReprojectionFieldOffsetCoverage = 10,
+			ReprojectionFieldAA = 11,
+			ReprojectionFieldNullJacobian = 12,
+			ReprojectionFieldClampedJacobian = 13,
+			ReprojectionFieldDilatedJacobian = 14,
 			MAX,
 		};
 
@@ -2728,15 +2797,27 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			TEXT("ResurrectedColor"),
 			TEXT("SpatialAntiAliasingMask"),
 			TEXT("AntiFlickering"),
+			TEXT("ReprojectionFieldSummary"),
+			TEXT("ReprojectionFieldOffset"),
+			TEXT("ReprojectionFieldOffsetCoverage"),
+			TEXT("ReprojectionFieldAA"),
+			TEXT("ReprojectionFieldNullJacobian"),
+			TEXT("ReprojectionFieldClampedJacobian"),
+			TEXT("ReprojectionFieldDilatedJacobian"),
 		};
 		static_assert(UE_ARRAY_COUNT(kVisualizationName) == int32(EVisualizeId::MAX), "kVisualizationName doesn't match EVisualizeId");
 
-		const EVisualizeId Visualization = EVisualizeId(FMath::Clamp(CVarTSRVisualize.GetValueOnRenderThread(), int32(EVisualizeId::Overview), int32(EVisualizeId::MAX) - 1));
-		FIntRect VisualizeRect = Visualization == EVisualizeId::Overview ? FIntRect(OutputRect.Min + OutputRect.Size() / 4, OutputRect.Min + (OutputRect.Size() * 3) / 4) : OutputRect;
+		const EVisualizeId Visualization = EVisualizeId(FMath::Clamp(CVarTSRVisualize.GetValueOnRenderThread(), int32(EVisualizeId::ReprojectionFieldOverview), int32(EVisualizeId::MAX) - 1));
+		const bool bIsOverviewVisualize =
+			Visualization == EVisualizeId::ShowFlag ||
+			Visualization == EVisualizeId::Overview ||
+			Visualization == EVisualizeId::ReprojectionFieldOverview;
+		
+		FIntRect VisualizeRect = bIsOverviewVisualize ? FIntRect(OutputRect.Min + OutputRect.Size() / 4, OutputRect.Min + (OutputRect.Size() * 3) / 4) : OutputRect;
 
 		auto Visualize = [&](EVisualizeId VisualizeId, FString Label)
 		{
-			check(VisualizeId != EVisualizeId::Overview);
+			check(int32(VisualizeId) >= 0);
 
 			FRDGTextureDesc OutputDesc = FRDGTextureDesc::Create2D(
 				OutputExtent,
@@ -2766,6 +2847,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->VisualizeId = int32(VisualizeId);
 			PassParameters->bCanResurrectHistory = bCanResurrectHistory;
 			PassParameters->bCanSpatialAntiAlias = RejectionAntiAliasingQuality > 0;
+			PassParameters->bReprojectionField = bReprojectionField;
 			PassParameters->MaxHistorySampleCount = MaxHistorySampleCount;
 			PassParameters->OutputToHistoryResolutionFractionSquare = OutputToHistoryResolutionFractionSquare;
 			PassParameters->FlickeringFramePeriod = FlickeringFramePeriod;
@@ -2792,8 +2874,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->InputSceneTranslucencyTexture = SeparateTranslucencyTexture;
 			PassParameters->SceneColorTexture = SceneColorOutputTextureSRV;
 			PassParameters->ClosestDepthTexture = ClosestDepthTexture;
-			PassParameters->DilatedVelocityTexture = DilatedVelocityTexture;
-			PassParameters->IsMovingMaskTexture = IsMovingMaskTexture ? IsMovingMaskTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackUintDummy));
+			PassParameters->ReprojectionBoundaryTexture = ReprojectionBoundaryTexture ? ReprojectionBoundaryTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackUintDummy));
+			PassParameters->ReprojectionJacobianTexture = ReprojectionJacobianTexture ? ReprojectionJacobianTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackUintDummy));
+			PassParameters->ReprojectionVectorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(ReprojectionFieldTexture));			PassParameters->IsMovingMaskTexture = IsMovingMaskTexture ? IsMovingMaskTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackUintDummy));
 			PassParameters->HistoryRejectionTexture = HistoryRejectionTexture;
 			PassParameters->MoireHistoryTexture = MoireHistoryTexture ? MoireHistoryTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackDummy));
 			PassParameters->AntiAliasMaskTexture = AntiAliasMaskTexture ? AntiAliasMaskTexture : BlackUintDummy;
@@ -2826,10 +2909,11 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		};
 
 		FRDGTextureRef OutputTexture;
-		if (Visualization == EVisualizeId::Overview)
+		if (bIsOverviewVisualize)
 		{
 			TArray<FVisualizeBufferTile> Tiles;
 			Tiles.SetNum(16);
+			if (Visualization == EVisualizeId::Overview || Visualization == EVisualizeId::ShowFlag)
 			{
 				Tiles[4 * 0 + 0] = Visualize(EVisualizeId::HistorySampleCount, TEXT("Accumulated Sample Count"));
 				Tiles[4 * 0 + 1] = Visualize(EVisualizeId::ParallaxDisocclusionMask, TEXT("Parallax Disocclusion"));
@@ -2841,7 +2925,23 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 					Tiles[4 * 2 + 0] = Visualize(EVisualizeId::ResurrectedColor, TEXT("Resurrected Frame"));
 				}
 				Tiles[4 * 3 + 0] = Visualize(EVisualizeId::SpatialAntiAliasingMask, TEXT("Spatial Anti-Aliasing"));
+				Tiles[4 * 3 + 1] = Visualize(EVisualizeId::ReprojectionFieldSummary, TEXT("Reprojection Field"));
+				Tiles[4 * 3 + 1].Label = FString::Printf(TEXT("Reprojection Field (r.TSR.Visualize=%d)"), int32(EVisualizeId::ReprojectionFieldOverview));
 				Tiles[4 * 1 + 3] = Visualize(EVisualizeId::AntiFlickering, TEXT("Flickering Temporal Analysis"));
+			}
+			else if (Visualization == EVisualizeId::ReprojectionFieldOverview)
+			{
+				Tiles[4 * 0 + 0] = Visualize(EVisualizeId::ReprojectionFieldSummary, TEXT("Reprojection Field Summary"));
+				Tiles[4 * 0 + 1] = Visualize(EVisualizeId::ReprojectionFieldNullJacobian, TEXT("Reprojection Field's Null Jacobian"));
+				Tiles[4 * 0 + 2] = Visualize(EVisualizeId::ReprojectionFieldClampedJacobian, TEXT("Reprojection Field's Clamped Jacobian"));
+				Tiles[4 * 0 + 3] = Visualize(EVisualizeId::ReprojectionFieldDilatedJacobian, TEXT("Reprojection Field's Dilated Jacobian"));
+				Tiles[4 * 1 + 0] = Visualize(EVisualizeId::ReprojectionFieldOffset, TEXT("Reprojection Field's Offset"));
+				Tiles[4 * 2 + 0] = Visualize(EVisualizeId::ReprojectionFieldOffsetCoverage, TEXT("Reprojection Field's Offset Coverage"));
+				Tiles[4 * 3 + 0] = Visualize(EVisualizeId::ReprojectionFieldAA, TEXT("Reprojection Field's Anti-Aliasing"));
+			}
+			else
+			{
+				unimplemented();
 			}
 
 			{

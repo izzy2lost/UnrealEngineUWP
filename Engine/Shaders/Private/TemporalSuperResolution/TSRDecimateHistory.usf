@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "TSRCommon.ush"
+#include "TSRReprojectionField.ush"
 
 
 //------------------------------------------------------- CONFIG
@@ -12,19 +13,17 @@
 #define CONFIG_MANUAL_LDS_SPILL 1
 
 #define CONFIG_VELOCITY_SAMPLES 9
-#if CONFIG_VELOCITY_SAMPLES != 1
-	#define CONFIG_VELOCITY_SAMPLE_PAIRS ((CONFIG_VELOCITY_SAMPLES - 1) / 2)
+#define CONFIG_VELOCITY_SAMPLE_PAIRS ((CONFIG_VELOCITY_SAMPLES - 1) / 2)
 
-	#if CONFIG_BUTTERFLY_KERNEL
-		#if CONFIG_VELOCITY_SAMPLES == 9
-			#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES 4
-		#else
-			#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES 3
-		#endif
-	#else // !CONFIG_BUTTERFLY_KERNEL
-		#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES (CONFIG_VELOCITY_SAMPLES)
+#if CONFIG_BUTTERFLY_KERNEL
+	#if CONFIG_VELOCITY_SAMPLES == 9
+		#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES 4
+	#else
+		#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES 3
 	#endif
-#endif // CONFIG_VELOCITY_SAMPLES != 1
+#else // !CONFIG_BUTTERFLY_KERNEL
+	#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES (CONFIG_VELOCITY_SAMPLES)
+#endif
 
 /** Whether to compile the moire reprojection. */
 #define CONFIG_MOIRE_REPROJECTION (DIM_MOIRE_REPROJECTION)
@@ -37,7 +36,7 @@
 
 float4x4 RotationalClipToPrevClip;
 
-Texture2D<float2> DilatedVelocityTexture;
+Texture2D<uint> ReprojectionVectorTexture;
 #if CONFIG_RESURRECTION_REPROJECTION
 	Texture2D<float2> ClosestDepthTexture;
 #else
@@ -47,7 +46,6 @@ Texture2DArray<uint> PrevAtomicTextureArray;
 
 Texture2DArray<tsr_half4> PrevHistoryGuide;
 Texture2DArray<tsr_half4> PrevHistoryMoire;
-Texture2D<float2> PrevVelocityTexture;
 float2 PrevGuideInfo_Extent;
 float2 PrevGuideInfo_ExtentInverse;
 uint2  PrevGuideInfo_ViewportMin;
@@ -70,13 +68,13 @@ float4x4 ClipToResurrectionClip;
 RWTexture2DArray<tsr_half4> ReprojectedHistoryGuideOutput;
 RWTexture2DArray<tsr_half4> ReprojectedHistoryMoireOutput;
 
-RWTexture2D<float2> HoleFilledVelocityOutput;
+RWTexture2DArray<uint> ReprojectionFieldOutput;
 RWTexture2D<tsr_half2> DecimateMaskOutput;
 
 
 //------------------------------------------------------- DEBUG
 
-#define DEBUG_ARRAY_SIZE 2
+#define DEBUG_ARRAY_SIZE 8
 
 static float4 Debug[DEBUG_ARRAY_SIZE];
 
@@ -84,17 +82,16 @@ static float4 Debug[DEBUG_ARRAY_SIZE];
 //------------------------------------------------------- LDS
 
 #if CONFIG_MANUAL_LDS_SPILL
-	groupshared float2 SharedArray0[TILE_SIZE * TILE_SIZE];
+	groupshared uint   SharedArray0[TILE_SIZE * TILE_SIZE];
 	groupshared float  SharedArray1[TILE_SIZE * TILE_SIZE];
 #endif
 
 
 //------------------------------------------------------- FUNCTIONS
 
-#if CONFIG_VELOCITY_SAMPLES != 1
-void LoadVelocityNeighborhood(
+void LoadReprojectionNeighborhood(
 	tsr_short2 InputPixelPos,
-	out float2 EncodedVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES])
+	out uint EncodedReprojectionVectorNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES])
 {
 	tsr_short2 LaneOffsetSign = GetLaneOffsetSign();
 
@@ -105,7 +102,7 @@ void LoadVelocityNeighborhood(
 		#if CONFIG_BUTTERFLY_KERNEL
 		{
 			tsr_short2 Offset = tsr_short2(Offsets2x2[i]) * LaneOffsetSign;
-				
+
 			SampleInputPixelPos = InputPixelPos + Offset;
 			SampleInputPixelPos = ClampPixelOffset(SampleInputPixelPos, InputPixelPosMin, InputPixelPosMax);
 		}
@@ -117,7 +114,7 @@ void LoadVelocityNeighborhood(
 			#elif CONFIG_VELOCITY_SAMPLES == 5
 				Offset = tsr_short2(kOffsets3x3[kPlusIndexes3x3[i]]);
 			#endif
-					
+
 			SampleInputPixelPos = InputPixelPos + ClampPixelOffset(
 				InputPixelPos,
 				Offset, Offset,
@@ -125,26 +122,27 @@ void LoadVelocityNeighborhood(
 		}
 		#endif
 
-		EncodedVelocityNeighborhood[i] = DilatedVelocityTexture[SampleInputPixelPos];
+		EncodedReprojectionVectorNeighborhood[i] = ReprojectionVectorTexture[SampleInputPixelPos];
 	}
-} // LoadVelocityNeighborhood()
+} // LoadReprojectionNeighborhood()
 
-void ProcessVelocityNeighborhood(
-	float2 EncodedVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES],
-	out float2 EncodedScreenVelocity,
-	out tsr_half VelocityEdge)
+void ComputePixelVelocityNeighborhood(
+	uint EncodedReprojectionVectorNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES],
+	out float2 PixelVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES])
 {
-	// Preprocessed the prefetched samples
-	float2 PixelVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES];
+	UNROLL_N(CONFIG_VELOCITY_PRE_FETCH_SAMPLES)
+	for (uint i = 0; i < CONFIG_VELOCITY_PRE_FETCH_SAMPLES; i++)
 	{
-		UNROLL_N(CONFIG_VELOCITY_PRE_FETCH_SAMPLES)
-		for (uint i = 0; i < CONFIG_VELOCITY_PRE_FETCH_SAMPLES; i++)
-		{
-			PixelVelocityNeighborhood[i] = DecodeVelocityFromTexture(float4(EncodedVelocityNeighborhood[i], 0.0, 0.0)).xy * ScreenVelocityToInputPixelVelocity;
-		}
+		PixelVelocityNeighborhood[i] = DecodeReprojectionVector(EncodedReprojectionVectorNeighborhood[i]) * ScreenVelocityToInputPixelVelocity;
 	}
-	
-	tsr_half RejectHighFrequency = tsr_half(0.0);
+} // ComputePixelVelocityNeighborhood()
+
+/** Compute the reprojection edge from the pixel velocities. */
+void ComputeReprojectionEdge(
+	float2 PixelVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES],
+	out tsr_half ReprojectionEdge)
+{
+	ReprojectionEdge = tsr_half(0.0);
 
 	// Sample
 	float2 ScreenPixelVelocity = PixelVelocityNeighborhood[0];
@@ -212,7 +210,7 @@ void ProcessVelocityNeighborhood(
 		tsr_half2 NeighborDeltaPixelVelocity0 = tsr_half2(ScreenPixelVelocity - NeighborPixelVelocity0);
 		tsr_half2 NeighborDeltaPixelVelocity1 = tsr_half2(ScreenPixelVelocity - NeighborPixelVelocity1);
 			
-		// Reject high frequency on velocity edge discontinuity.
+		// Reject high frequency on reprojection edge discontinuity.
 		{
 			tsr_half IsOverlapingEdge0 = tsr_half(1.0) - dot(saturate(abs(NeighborDeltaPixelVelocity0 * Offset0)), tsr_half(1.0).xx); // * saturate(ScreenPixelVelocityLength - NeighborPixelVelocityLength0);
 			tsr_half IsOverlapingEdge1 = tsr_half(1.0) - dot(saturate(abs(NeighborDeltaPixelVelocity1 * Offset1)), tsr_half(1.0).xx); // * saturate(ScreenPixelVelocityLength - NeighborPixelVelocityLength1);
@@ -220,19 +218,15 @@ void ProcessVelocityNeighborhood(
 			tsr_half IsOverlapingEdge = min(IsOverlapingEdge0, IsOverlapingEdge1);
 
 			if (i == 0)
-				RejectHighFrequency = IsOverlapingEdge;
+				ReprojectionEdge = IsOverlapingEdge;
 			else
-				RejectHighFrequency = min(RejectHighFrequency, IsOverlapingEdge);
+				ReprojectionEdge = min(ReprojectionEdge, IsOverlapingEdge);
 		}
-	}
+	} // for (uint i = 0; i < CONFIG_VELOCITY_SAMPLE_PAIRS; i++)
 
 	// Remove noise from high frequency rejections.
-	VelocityEdge = saturate(RejectHighFrequency * tsr_half(1.1));
-
-	EncodedScreenVelocity = EncodedVelocityNeighborhood[0];
-} // ProcessVelocityNeighborhood()
-
-#endif // CONFIG_VELOCITY_SAMPLES != 1
+	ReprojectionEdge = saturate(ReprojectionEdge * tsr_half(1.1));
+} // ComputeReprojectionEdge()
 
 void LoadPrevAtomicTexturesSamples(
 	float2 PrevScreenPos,
@@ -482,7 +476,7 @@ tsr_half4 CorrectMoireExposure(tsr_half4 ReprojectedHistoryMoireColor, const flo
 void ReprojectAllPrevTextures(
 	uint2 GroupId,
 	uint GroupThreadIndex,
-	float2 EncodedScreenVelocity,
+	uint EncodedReprojectionVector,
 	float DeviceZ,
 	out uint HistoryUseCountSamples[4],
 	out uint HistoryClosestDeviceZSamples0[4],
@@ -506,7 +500,7 @@ void ReprojectAllPrevTextures(
 			
 	{
 		float2 ScreenPos = ApplyScreenTransform(float2(InputPixelPos), InputPixelPosToScreenPos);
-		float2 PrevScreenPos = ScreenPos - DecodeVelocityFromTexture(float4(EncodedScreenVelocity, 0.0, 0.0)).xy;
+		float2 PrevScreenPos = ScreenPos - DecodeReprojectionVector(EncodedReprojectionVector);
 		LoadPrevAtomicTexturesSamples(PrevScreenPos,
 			/* out */ HistoryUseCountSamples,
 			/* out */ HistoryClosestDeviceZSamples0,
@@ -516,7 +510,7 @@ void ReprojectAllPrevTextures(
 	{
 		float2 OutputScreenPos = ApplyScreenTransform(float2(InputPixelPos), InputPixelPosToReprojectScreenPos);
 	
-		float2 PrevOutputScreenPos = OutputScreenPos - DecodeVelocityFromTexture(float4(EncodedScreenVelocity, 0.0, 0.0)).xy;
+		float2 PrevOutputScreenPos = OutputScreenPos - DecodeReprojectionVector(EncodedReprojectionVector);
 		bIsOffScreen = (
 			(PrevOutputScreenPos.x < -1.0) ||
 			(PrevOutputScreenPos.y < -1.0) ||
@@ -597,24 +591,21 @@ void MainCS(
 	}
 
 	// Sample current frame informations.
-	float2 EncodedScreenVelocity;
+	uint DilatedEncodedReprojectionVector;
 	float DeviceZ;
 	float PrevDeviceZ;
-	tsr_half VelocityEdge = tsr_half(1.0);
 	bool bHasPixelAnimation;
 	ISOLATE
 	{
-		tsr_ushort2 InputPixelPos = (
-			Map8x8Tile2x2Lane(GroupThreadIndex) +
-			(tsr_ushort2(InputInfo_ViewportMin) + tsr_ushort2(GroupId) * tsr_ushort2(TILE_SIZE, TILE_SIZE)));
-			
-		#if CONFIG_VELOCITY_SAMPLES != 1
-		float2 EncodedVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES];
-		#endif
+		//uint EncodedReprojectionVectorNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES];
 
 		// Issue texture fetechs
 		ISOLATE
 		{
+			tsr_ushort2 InputPixelPos = (
+				Map8x8Tile2x2Lane(GroupThreadIndex) +
+				(tsr_ushort2(InputInfo_ViewportMin) + tsr_ushort2(GroupId) * tsr_ushort2(TILE_SIZE, TILE_SIZE)));
+			
 			#if CONFIG_RESURRECTION_REPROJECTION
 				float2 DeviceZAndPrevDeviceZ = ClosestDepthTexture[InputPixelPos];
 				DeviceZ = DeviceZAndPrevDeviceZ.g;
@@ -626,37 +617,30 @@ void MainCS(
 			PrevDeviceZ = abs(DeviceZAndPrevDeviceZ.r);
 			bHasPixelAnimation = DeviceZAndPrevDeviceZ.r < 0.0;
 
-			#if CONFIG_VELOCITY_SAMPLES == 1
-				EncodedScreenVelocity = DilatedVelocityTexture[InputPixelPos];
-			#else // CONFIG_VELOCITY_SAMPLES != 1
-				LoadVelocityNeighborhood(InputPixelPos, /* out */ EncodedVelocityNeighborhood);
-				EncodedScreenVelocity = EncodedVelocityNeighborhood[0];
-			#endif // CONFIG_VELOCITY_SAMPLES != 1
+			//LoadReprojectionNeighborhood(InputPixelPos, /* out */ EncodedReprojectionVectorNeighborhood);
+			//DilatedEncodedReprojectionVector = EncodedReprojectionVectorNeighborhood[0];
+			DilatedEncodedReprojectionVector = ReprojectionFieldOutput[tsr_ushort3(InputPixelPos, 0)];
 		}
 
 		// LDS spill to save VGPR on the history texture fetches.
 		#if CONFIG_MANUAL_LDS_SPILL
 		ISOLATE
 		{
-			#if CONFIG_VELOCITY_SAMPLES == 1
-				SharedArray0[GroupThreadIndex] = EncodedScreenVelocity;
-			#else
-				SharedArray0[GroupThreadIndex] = EncodedVelocityNeighborhood[0];
-			#endif
+			SharedArray0[GroupThreadIndex] = DilatedEncodedReprojectionVector;
 			SharedArray1[GroupThreadIndex] = PrevDeviceZ;
 		}
 		#endif
 		
 		// Detect whether is on velocity edge to clamp the high frequencies
-		#if CONFIG_VELOCITY_SAMPLES != 1
+		#if 0
 		ISOLATE
 		{
-			ProcessVelocityNeighborhood(
-				EncodedVelocityNeighborhood,
-				/* out */ EncodedScreenVelocity,
-				/* out */ VelocityEdge);
+			float2 PixelVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES];
+			ComputePixelVelocityNeighborhood(EncodedReprojectionVectorNeighborhood, /* out */ PixelVelocityNeighborhood);
+
+			ComputeReprojectionEdge(PixelVelocityNeighborhood, /* out */ VelocityEdge);
 		}
-		#endif // CONFIG_VELOCITY_SAMPLES != 1
+		#endif
 	}
 	
 	// Sample the previous frame information
@@ -682,7 +666,7 @@ void MainCS(
 	{
 		ReprojectAllPrevTextures(
 			GroupId, GroupThreadIndex,
-			EncodedScreenVelocity, DeviceZ,
+			DilatedEncodedReprojectionVector, DeviceZ,
 			/* out */ HistoryUseCountSamples,
 			/* out */ HistoryClosestDeviceZSamples0,
 			/* out */ HistoryClosestDeviceZSamples1,
@@ -704,6 +688,7 @@ void MainCS(
 	tsr_halfC ReprojectedHistoryGuideColor;
 	tsr_half  ReprojectedHistoryGuideUncertainty;
 	tsr_half ParallaxRejectionMask;
+	bool bOverwriteReprojectionField = false;
 	//ISOLATE
 	{
 		#if CONFIG_SCENE_COLOR_ALPHA
@@ -736,7 +721,7 @@ void MainCS(
 		// LDS despill
 		#if CONFIG_MANUAL_LDS_SPILL
 		{
-			EncodedScreenVelocity = SharedArray0[GroupThreadIndex];
+			DilatedEncodedReprojectionVector = SharedArray0[GroupThreadIndex];
 			PrevDeviceZ = SharedArray1[GroupThreadIndex];
 		}
 		#endif
@@ -746,7 +731,7 @@ void MainCS(
 			(tsr_ushort2(InputInfo_ViewportMin) + tsr_ushort2(GroupId) * tsr_ushort2(TILE_SIZE, TILE_SIZE)));
 
 		float2 ScreenPos = ApplyScreenTransform(float2(InputPixelPos), InputPixelPosToScreenPos);
-		float2 ScreenVelocity = DecodeVelocityFromTexture(float4(EncodedScreenVelocity, 0.0, 0.0)).xy;
+		float2 ScreenVelocity = DecodeReprojectionVector(DilatedEncodedReprojectionVector);
 		float2 PrevScreenPos = ScreenPos - ScreenVelocity;
 		
 		// Compute the parralax rejection mask
@@ -766,6 +751,13 @@ void MainCS(
 		ParallaxRejectionMask = select(bIsOffScreen, tsr_half(0.0), ParallaxRejectionMask);
 
 		bool bIsOffscreenOrParallaxRejected = ParallaxRejectionMask < tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD);
+
+		// LDS despill
+		#if CONFIG_MANUAL_LDS_SPILL
+		{
+			DilatedEncodedReprojectionVector = SharedArray0[GroupThreadIndex];
+		}
+		#endif
 	
 		// Hole fill the velocity.
 		{
@@ -781,13 +773,11 @@ void MainCS(
 			FLATTEN
 			if (tsr_half(HoleFillingOutOfRange) > 0.0 && bIsOffscreenOrParallaxRejected)
 			{
-				float2 ScreenPixelVelocity = ScreenVelocity * ScreenVelocityToInputPixelVelocity;
-				float VelocityDelta = length(ScreenPixelVelocity - HoleFillingPixelVelocity);
+				// Disable the reprojection's jacobian since this is to extrude disoccluded area we don't know how they look anyway.
+				float2 HoleFillingReprojectionVector = HoleFillingPixelVelocity * abs(InputPixelVelocityToScreenVelocity);
 
-				float2 HoleFillingVelocity = HoleFillingPixelVelocity * InputPixelVelocityToScreenVelocity;
-
-				EncodedScreenVelocity = EncodeVelocityToTexture(float3(HoleFillingVelocity, 0.0)).xy;
-				//HoleFilledVelocityMask = tsr_half(HoleFillingOutOfRange) * tsr_half(saturate(MaxHollFillPixelVelocity - VelocityDelta));
+				DilatedEncodedReprojectionVector = EncodeReprojectionVector(HoleFillingReprojectionVector);
+				bOverwriteReprojectionField = true;
 			}
 		}
 	}
@@ -840,9 +830,18 @@ void MainCS(
 			#endif
 		}
 		#endif
+		
+		DecimateMaskOutput[OutputPixelPos] = tsr_half2(tsr_half(DecimateBitMask) * rcp(tsr_half(255.0)), 0.0);
 
-		HoleFilledVelocityOutput[OutputPixelPos] = EncodedScreenVelocity;
-		DecimateMaskOutput[InputPixelPos] = tsr_half2(tsr_half(DecimateBitMask) * rcp(tsr_half(255.0)), VelocityEdge);
+		// Selectively overwrite the reprojection field
+		{
+			const uint EncodedReprojectionJacobian = EncodeReprojectionJacobian(tsr_half2x2(tsr_half(0.0).xxxx));
+
+			tsr_short2 ReprojectionFieldOutputPixelPos = OutputPixelPos;
+			ReprojectionFieldOutputPixelPos.x = select(bOverwriteReprojectionField, ReprojectionFieldOutputPixelPos.x, -tsr_short(1));
+			ReprojectionFieldOutput[tsr_short3(ReprojectionFieldOutputPixelPos, 0)] = DilatedEncodedReprojectionVector;
+			ReprojectionFieldOutput[tsr_short3(ReprojectionFieldOutputPixelPos, 2)] = EncodedReprojectionJacobian;
+		}
 
 		#if DEBUG_OUTPUT
 		for (uint DebugId = 0; DebugId < DEBUG_ARRAY_SIZE; DebugId++)

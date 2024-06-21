@@ -18,6 +18,18 @@ tsr_half2 SampleAAInput(Texture2D<tsr_half> Texture, tsr_short2x2 KernelCenter, 
 	return InputLuma;
 }
 
+float BilinearSampleAAInput(Texture2D<float> Texture, float2 KernelCenterUV, float2 UVOffset, const bool bIsNegativeDirection)
+{
+	float2 SampleUV = KernelCenterUV + UVOffset;
+
+	if (bIsNegativeDirection)
+		SampleUV = max(SampleUV, InputInfo_UVViewportBilinearMin);
+	else
+		SampleUV = min(SampleUV, InputInfo_UVViewportBilinearMax);
+
+	return Texture.SampleLevel(GlobalBilinearClampedSampler, SampleUV, 0);
+}
+
 tsr_half2 BilinearSampleAAInput(Texture2D<tsr_half> Texture, float2x2 KernelCenterUV, float2x2 UVOffset, const bool bIsNegativeDirection)
 {
 	float2x2 SampleUV = KernelCenterUV + UVOffset;
@@ -36,6 +48,59 @@ tsr_half2 BilinearSampleAAInput(Texture2D<tsr_half> Texture, float2x2 KernelCent
 
 
 //------------------------------------------------------- FUNCTIONS
+
+/** Finds the browsing direction of the spatial anti-aliaser out from the neighborhood. */
+void FindBrowsingDirection(
+	float InputC,
+	float InputN,
+	float InputS,
+	float InputE,
+	float InputW,
+	float InputNE,
+	float InputNW,
+	float InputSE,
+	float InputSW,
+	out float NoiseFiltering,
+	out tsr_short2 BrowseDirection,
+	out tsr_short2 EdgeSide,
+	out float EdgeInput)
+{
+	float TotalVarHN = abs(0.5 * (InputNE + InputNW) - InputN);
+	float TotalVarH  = abs(0.5 * (InputE  + InputW ) - InputC);
+	float TotalVarHS = abs(0.5 * (InputSE + InputSW) - InputS);
+			
+	float TotalVarVE = abs(0.5 * (InputNE + InputSE) - InputE);
+	float TotalVarV  = abs(0.5 * (InputN  + InputS ) - InputC);
+	float TotalVarVW = abs(0.5 * (InputNW + InputSW) - InputW);
+		
+	float DiffN = abs(InputN - InputC);
+	float DiffS = abs(InputS - InputC);
+	float DiffE = abs(InputE - InputC);
+	float DiffW = abs(InputW - InputC);
+
+	bool bBrowseVerticaly = (TotalVarHN + TotalVarH + TotalVarHS) > (TotalVarVE + TotalVarV + TotalVarVW);
+	BrowseDirection[0] = select(bBrowseVerticaly, tsr_short(0), tsr_short(1));
+	BrowseDirection[1] = select(bBrowseVerticaly, tsr_short(1), tsr_short(0));
+	
+	{
+		NoiseFiltering = saturate(float(2.0) * TotalVarH - max(DiffE, DiffW));
+		NoiseFiltering = max(NoiseFiltering, saturate(float(2.0) * TotalVarV - max(DiffN, DiffS)));
+	}
+
+	EdgeSide = tsr_short(0);
+
+	FLATTEN
+	if (bBrowseVerticaly)
+	{
+		EdgeSide[0] = DiffW > DiffE ? -1 : 1;
+		EdgeInput = DiffW > DiffE ? InputW : InputE;
+	}
+	else
+	{
+		EdgeSide[1] = DiffN > DiffS ? -1 : 1;
+		EdgeInput = DiffN > DiffS ? InputN : InputS;
+	}
+} // FindBrowsingDirection()
 
 /** Finds the browsing direction of the spatial anti-aliaser out from the neighborhood. */
 void FindBrowsingDirection(
@@ -101,6 +166,9 @@ void FindBrowsingDirection(
 		EdgeLuma[1] = DiffN[1] > DiffS[1] ? InputN[1] : InputS[1];
 	}
 } // FindBrowsingDirection()
+
+
+//------------------------------------------------------- ACCUMULATE
 
 /** Accumulate an edge length */
 void AccumulateEdgeLength(
@@ -230,10 +298,11 @@ void BrowseNeighborhoodBilinearOptimized(
 	bool bStop = false;
 		
 	#if CONFIG_COMPILE_FP16
-		#define asuint(x) asuint16(x)
+		#define asuintX(x) asuint16(x)
 		const tsr_ushort SignShift = 15;
 		const tsr_ushort SignMask = 0x8000;
 	#else
+		#define asuintX(x) asuint(x)
 		const tsr_ushort SignShift = 31;
 		const tsr_ushort SignMask = 0x80000000;
 	#endif
@@ -251,10 +320,10 @@ void BrowseNeighborhoodBilinearOptimized(
 				
 		//bEdgeStopedByMinLuma = bEdgeStopedByMinLuma || bool2(SampleLuma < MinLuma) && !bEdgeStopedByMaxLuma;
 		//bEdgeStopedByMaxLuma = bEdgeStopedByMaxLuma || bool2(SampleLuma > MaxLuma) && !bEdgeStopedByMinLuma;
-		tsr_ushort2 StopByMinLumaP = asuint(SampleLumaP - MinLuma) & ~EdgeStopedByMaxLumaP;
-		tsr_ushort2 StopByMaxLumaP = asuint(MaxLuma - SampleLumaP) & ~EdgeStopedByMinLumaP;
-		tsr_ushort2 StopByMinLumaN = asuint(SampleLumaN - MinLuma) & ~EdgeStopedByMaxLumaN;
-		tsr_ushort2 StopByMaxLumaN = asuint(MaxLuma - SampleLumaN) & ~EdgeStopedByMinLumaN;
+		tsr_ushort2 StopByMinLumaP = asuintX(SampleLumaP - MinLuma) & ~EdgeStopedByMaxLumaP;
+		tsr_ushort2 StopByMaxLumaP = asuintX(MaxLuma - SampleLumaP) & ~EdgeStopedByMinLumaP;
+		tsr_ushort2 StopByMinLumaN = asuintX(SampleLumaN - MinLuma) & ~EdgeStopedByMaxLumaN;
+		tsr_ushort2 StopByMaxLumaN = asuintX(MaxLuma - SampleLumaN) & ~EdgeStopedByMinLumaN;
 
 		EdgeStopedByMinLumaP |= StopByMinLumaP;
 		EdgeStopedByMaxLumaP |= StopByMaxLumaP;
@@ -271,6 +340,94 @@ void BrowseNeighborhoodBilinearOptimized(
 		
 	bool2 bEdgeStopedByMaxLumaP = (EdgeStopedByMaxLumaP & SignMask) != 0;
 	bool2 bEdgeStopedByMaxLumaN = (EdgeStopedByMaxLumaN & SignMask) != 0;
+		
+	bEdgeStopedByIncrementP = or(and(bEdgeMoreLuminous, bEdgeStopedByMaxLumaP), and(!bEdgeMoreLuminous, bEdgeStopedByMinLumaP));
+	bEdgeStopedByIncrementN = or(and(bEdgeMoreLuminous, bEdgeStopedByMaxLumaN), and(!bEdgeMoreLuminous, bEdgeStopedByMinLumaN));
+		
+	bEdgeStopedByDecrementP = or(and(bEdgeMoreLuminous, bEdgeStopedByMinLumaP), and(!bEdgeMoreLuminous, bEdgeStopedByMaxLumaP));
+	bEdgeStopedByDecrementN = or(and(bEdgeMoreLuminous, bEdgeStopedByMinLumaN), and(!bEdgeMoreLuminous, bEdgeStopedByMaxLumaN));
+
+
+} // BrowseNeighborhoodBilinearRDNAOptimized
+
+void BrowseNeighborhoodBilinearOptimized(
+	const uint Iterations,
+	Texture2D<float> Texture,
+	float InputC,
+	float EdgeLuma,
+	tsr_short2 InputPixelPos,
+	tsr_short2 BrowseDirection,
+	tsr_short2 EdgeSide,
+	out tsr_ushort EdgeLengthP,
+	out tsr_ushort EdgeLengthN,
+	out bool bEdgeStopedByIncrementP,
+	out bool bEdgeStopedByIncrementN,
+	out bool bEdgeStopedByDecrementP,
+	out bool bEdgeStopedByDecrementN)
+{
+	EdgeLengthP = 0;
+	EdgeLengthN = 0;
+	bEdgeStopedByIncrementP = false;
+	bEdgeStopedByIncrementN = false;
+	bEdgeStopedByDecrementP = false;
+	bEdgeStopedByDecrementN = false;
+
+	const float BilinearInterp = 0.5;
+
+	float2 fBrowseDirection = float2(BrowseDirection) * InputInfo_ExtentInverse;
+	float2 KernelUV = (float2(InputPixelPos) + 0.5 + float2(EdgeSide) * BilinearInterp) * InputInfo_ExtentInverse;
+
+	float MergedEdgeLuma = BilinearInterp * (EdgeLuma + InputC);
+		
+	float MinLuma = MergedEdgeLuma - float(BilinearInterp * 0.5) * abs(EdgeLuma - InputC);
+	float MaxLuma = MergedEdgeLuma + float(BilinearInterp * 0.5) * abs(EdgeLuma - InputC);
+
+	bool bEdgeMoreLuminous = EdgeLuma > InputC;
+		
+	uint EdgeStopedByMinLumaP = 0;
+	uint EdgeStopedByMinLumaN = 0;
+		
+	uint EdgeStopedByMaxLumaP = 0;
+	uint EdgeStopedByMaxLumaN = 0;
+		
+	bool bStop = false;
+		
+	const uint SignShift = 31;
+	const uint SignMask = 0x80000000;
+			
+	EdgeLengthP = tsr_ushort(Iterations);
+	EdgeLengthN = tsr_ushort(Iterations);
+		
+	UNROLL
+	for (uint i = 0; i < Iterations; i++)
+	{
+		float2 NeighborOffset = fBrowseDirection * float(i + 1);
+
+		float SampleLumaP = BilinearSampleAAInput(Texture, KernelUV,  NeighborOffset, /* bIsNegativeDirection = */ false);
+		float SampleLumaN = BilinearSampleAAInput(Texture, KernelUV, -NeighborOffset, /* bIsNegativeDirection = */ true);
+				
+		//bEdgeStopedByMinLuma = bEdgeStopedByMinLuma || bool2(SampleLuma < MinLuma) && !bEdgeStopedByMaxLuma;
+		//bEdgeStopedByMaxLuma = bEdgeStopedByMaxLuma || bool2(SampleLuma > MaxLuma) && !bEdgeStopedByMinLuma;
+		uint StopByMinLumaP = asuint(SampleLumaP - MinLuma) & ~EdgeStopedByMaxLumaP;
+		uint StopByMaxLumaP = asuint(MaxLuma - SampleLumaP) & ~EdgeStopedByMinLumaP;
+		uint StopByMinLumaN = asuint(SampleLumaN - MinLuma) & ~EdgeStopedByMaxLumaN;
+		uint StopByMaxLumaN = asuint(MaxLuma - SampleLumaN) & ~EdgeStopedByMinLumaN;
+
+		EdgeStopedByMinLumaP |= StopByMinLumaP;
+		EdgeStopedByMaxLumaP |= StopByMaxLumaP;
+		EdgeStopedByMinLumaN |= StopByMinLumaN;
+		EdgeStopedByMaxLumaN |= StopByMaxLumaN;
+				
+		//EdgeLength += (bEdgeStopedByMaxLuma || bEdgeStopedByMinLuma) ? 0 : 1;
+		EdgeLengthP -= tsr_ushort((EdgeStopedByMaxLumaP | EdgeStopedByMinLumaP) >> SignShift);
+		EdgeLengthN -= tsr_ushort((EdgeStopedByMaxLumaN | EdgeStopedByMinLumaN) >> SignShift);
+	}
+		
+	bool bEdgeStopedByMinLumaP = (EdgeStopedByMinLumaP & SignMask) != 0;
+	bool bEdgeStopedByMinLumaN = (EdgeStopedByMinLumaN & SignMask) != 0;
+		
+	bool bEdgeStopedByMaxLumaP = (EdgeStopedByMaxLumaP & SignMask) != 0;
+	bool bEdgeStopedByMaxLumaN = (EdgeStopedByMaxLumaN & SignMask) != 0;
 		
 	bEdgeStopedByIncrementP = or(and(bEdgeMoreLuminous, bEdgeStopedByMaxLumaP), and(!bEdgeMoreLuminous, bEdgeStopedByMinLumaP));
 	bEdgeStopedByIncrementN = or(and(bEdgeMoreLuminous, bEdgeStopedByMaxLumaN), and(!bEdgeMoreLuminous, bEdgeStopedByMinLumaN));
@@ -328,3 +485,140 @@ tsr_half ComputeDistanceToEdge(
 
 	return TexelCenterOffsetToEdge;
 } // ComputeDistanceToEdge()
+
+tsr_half2 ComputeReprojectionBoundary(
+	const uint BrowsingIterations,
+	tsr_short2 EdgeSide,
+	tsr_ushort EdgeLengthP,
+	tsr_ushort EdgeLengthN,
+	bool bEdgeStopedByIncrementP,
+	bool bEdgeStopedByIncrementN,
+	bool bEdgeStopedByDecrementP,
+	bool bEdgeStopedByDecrementN)
+{
+	const tsr_half fMaxEdgeLength = tsr_half(BrowsingIterations + 1);
+	const tsr_half fMaxEdgeInvLength = rcp(fMaxEdgeLength);
+
+	tsr_half fEdgeLengthN = tsr_half(EdgeLengthN);
+	tsr_half fEdgeLengthP = tsr_half(EdgeLengthP);
+	tsr_half fEdgeLength = tsr_half(1.0) + fEdgeLengthN + fEdgeLengthP;
+	tsr_half fEdgeInvLength = rcp(fEdgeLength);
+
+	tsr_half MaxDistanceToEdge = tsr_half(0.0);
+	tsr_half MaxEdgeInclination = tsr_half(0.0);
+	{
+		FLATTEN
+		if (bEdgeStopedByDecrementP && bEdgeStopedByDecrementN)
+		{
+			MaxDistanceToEdge = (min(fEdgeLengthP, fEdgeLengthN) + tsr_half(0.5)) * fMaxEdgeInvLength;
+			MaxEdgeInclination = select(fEdgeLengthP < fEdgeLengthN, -fMaxEdgeInvLength, tsr_half(0.0));
+			MaxEdgeInclination = select(fEdgeLengthN < fEdgeLengthP, +fMaxEdgeInvLength, MaxEdgeInclination);
+		}
+		else if (bEdgeStopedByDecrementP)
+		{
+			MaxDistanceToEdge = (fEdgeLengthP + tsr_half(0.5)) * max(fEdgeInvLength, fMaxEdgeInvLength);
+			MaxEdgeInclination = -max(fEdgeInvLength, fMaxEdgeInvLength);
+		}
+		else if (bEdgeStopedByDecrementN)
+		{
+			MaxDistanceToEdge = (fEdgeLengthN + tsr_half(0.5)) * max(fEdgeInvLength, fMaxEdgeInvLength);
+			MaxEdgeInclination = +max(fEdgeInvLength, fMaxEdgeInvLength);
+		}
+		else
+		{
+			MaxDistanceToEdge = tsr_half(1.0);
+			MaxEdgeInclination = tsr_half(0.0);
+		}
+	}
+
+	tsr_half MinDistanceToEdge = tsr_half(0.0);
+	tsr_half MinEdgeInclination = tsr_half(0.0);
+	{
+		FLATTEN
+		if (bEdgeStopedByIncrementP && bEdgeStopedByIncrementN)
+		{
+			MinDistanceToEdge = 1.0 - (min(fEdgeLengthP, fEdgeLengthN) + tsr_half(0.5)) * fMaxEdgeInvLength;
+			MinEdgeInclination = select(fEdgeLengthP < fEdgeLengthN, +fMaxEdgeInvLength, tsr_half(0.0));
+			MinEdgeInclination = select(fEdgeLengthN < fEdgeLengthP, -fMaxEdgeInvLength, MinEdgeInclination);
+		}
+		else if (bEdgeStopedByIncrementP)
+		{
+			MinDistanceToEdge = 1.0 - (fEdgeLengthP + tsr_half(0.5)) * max(fMaxEdgeInvLength, fEdgeInvLength);
+			MinEdgeInclination = +max(fEdgeInvLength, fMaxEdgeInvLength);
+		}
+		else if (bEdgeStopedByIncrementN)
+		{
+			MinDistanceToEdge = 1.0 - (fEdgeLengthN + tsr_half(0.5)) * max(fMaxEdgeInvLength, fEdgeInvLength);
+			MinEdgeInclination = -max(fEdgeInvLength, fMaxEdgeInvLength);
+		}
+		else
+		{
+			MinDistanceToEdge = tsr_half(0.0);
+			MinEdgeInclination = tsr_half(0.0);
+		}
+		
+		MinDistanceToEdge = max(MinDistanceToEdge, rcp(tsr_half(1023.0)));
+		//MinDistanceToEdge = max(MinDistanceToEdge, rcp(tsr_half(8.0)));
+	}
+
+	// Merge the distance to edge computation.
+	tsr_half DistanceToEdge;
+	tsr_half EdgeInclination;
+	#if 1
+	{
+		//tsr_half DilateAmount = dot(tsr_half2(EdgeSide), tsr_half2(InputJitter));
+		tsr_half DilateAmount = tsr_half(0.5);
+		//DilateAmount = max(DilateAmount, rcp(tsr_half(8.0)));
+		//DilateAmount += tsr_half(0.5);
+
+		// Absolute mid dilate with spatial anti-aliasing.
+		DistanceToEdge = max(MinDistanceToEdge, min(MaxDistanceToEdge, DilateAmount));
+		EdgeInclination = tsr_half(0.0);
+		EdgeInclination = select(MaxDistanceToEdge <= tsr_half(DilateAmount), MaxEdgeInclination, EdgeInclination);
+		EdgeInclination = select(MinDistanceToEdge >  tsr_half(DilateAmount), MinEdgeInclination, EdgeInclination);
+	}
+	#elif 0
+	{
+		// Absolute minimum dilate with spatial anti-aliasing.
+		DistanceToEdge = MinDistanceToEdge;
+		EdgeInclination = MinEdgeInclination;
+	}
+	#elif 0
+	{
+		// Full dilate at rendering pixel granularity, but chamfer the extremity.
+		DistanceToEdge = MaxDistanceToEdge;
+		EdgeInclination = MaxEdgeInclination;
+	}
+	#else
+	{
+		// Full dilate at rendering pixel granularity.
+		DistanceToEdge = tsr_half(1.0);
+		EdgeInclination = tsr_half(0.0);
+	}
+	#endif
+
+	#if 1
+	{
+		tsr_half2 fEdgeSide = tsr_half2(EdgeSide);
+		tsr_half2 fDirectionP = tsr_half2(abs(fEdgeSide.y), abs(fEdgeSide.x));
+
+		tsr_half2 EdgeDirection = fEdgeSide + fDirectionP * EdgeInclination;
+		EdgeDirection *= rsqrt(dot(EdgeDirection, EdgeDirection));
+
+		tsr_half2 K = saturate(tsr_half2(sign(EdgeDirection)));
+		tsr_half2 E = tsr_half2(0.5, 0.5) + fEdgeSide * (0.5 - DistanceToEdge);
+
+		tsr_half2 EK = K - E;
+		tsr_half KFromEdge = dot(EK, EdgeDirection);
+		tsr_half2 L = K - KFromEdge * EdgeDirection;
+
+		tsr_half2 ReprojectionBoundary = K - L;
+		return ReprojectionBoundary;
+	}
+	#else
+	{
+		tsr_half2 ReprojectionBoundary = tsr_half2(EdgeSide) * DistanceToEdge;
+		return ReprojectionBoundary;
+	}
+	#endif
+} // ComputeReprojectionBoundary()
