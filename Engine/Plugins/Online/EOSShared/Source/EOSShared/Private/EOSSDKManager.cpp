@@ -663,6 +663,7 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& Platf
 			EOS_Platform_SetNetworkStatus(PlatformHandle, ConvertNetworkStatus(FPlatformMisc::GetNetworkConnectionStatus()));
 			
 			SetInvokeOverlayButton(PlatformHandle);
+			RegisterDisplaySettingsUpdatedCallback(PlatformHandle);
 
 			// Tick the platform once to work around EOSSDK error logging that occurs if you create then immediately destroy a platform.
 			SharedPlatform->Tick();
@@ -749,7 +750,7 @@ void FEOSSDKManager::LoadConfig()
 	SetupTicker();
 }
 
-void FEOSSDKManager::SetupTicker()
+void FEOSSDKManager::SetupTicker(bool bIgnoreConfigTickInterval)
 {
 	check(IsInGameThread());
 
@@ -762,7 +763,7 @@ void FEOSSDKManager::SetupTicker()
 	int NumActivePlatforms = ActivePlatforms.Num();
 	if (NumActivePlatforms > 0)
 	{
-		const double TickIntervalSeconds = ConfigTickIntervalSeconds > SMALL_NUMBER ? ConfigTickIntervalSeconds / NumActivePlatforms : 0.f;
+		const double TickIntervalSeconds = ConfigTickIntervalSeconds > SMALL_NUMBER && !bIgnoreConfigTickInterval ? ConfigTickIntervalSeconds / NumActivePlatforms : 0.f;
 		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FEOSSDKManager::Tick), TickIntervalSeconds);
 	}
 }
@@ -849,6 +850,26 @@ void FEOSSDKManager::SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle)
 			{
 				UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] EOS_UI_SetToggleFriendsButton failed with error: %s"), __FUNCTION__, *LexToString(Result));
 			}
+		}
+	}
+}
+
+void FEOSSDKManager::OnDisplaySettingsUpdated(const EOS_UI_OnDisplaySettingsUpdatedCallbackInfo* Data)
+{
+	reinterpret_cast<FEOSSDKManager*>(Data->ClientData)->SetupTicker((bool)Data->bIsVisible);
+}
+
+void FEOSSDKManager::RegisterDisplaySettingsUpdatedCallback(const EOS_HPlatform PlatformHandle)
+{
+	if (bEnablePlatformIntegration)
+	{
+		if (EOS_HUI UIHandle = EOS_Platform_GetUIInterface(PlatformHandle))
+		{
+			EOS_UI_AddNotifyDisplaySettingsUpdatedOptions Options = {};
+			Options.ApiVersion = 1;
+			UE_EOS_CHECK_API_MISMATCH(EOS_UI_ADDNOTIFYDISPLAYSETTINGSUPDATED_API_LATEST, 1);
+
+			EOS_NotificationId DisplaySettingsUpdatedId = EOS_UI_AddNotifyDisplaySettingsUpdated(UIHandle, &Options, this, &FEOSSDKManager::OnDisplaySettingsUpdated);
 		}
 	}
 }

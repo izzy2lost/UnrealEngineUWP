@@ -91,6 +91,9 @@ protected:
 	virtual bool IsRenderReady();
 #endif
 
+	static void OnDisplaySettingsUpdated(const EOS_UI_OnDisplaySettingsUpdatedCallbackInfo* Data);
+	void RegisterDisplaySettingsUpdatedCallback(const EOS_HPlatform PlatformHandle);
+
 	void SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle);
 	void ApplyOverlayPlatformOptions(EOS_Platform_Options& PlatformOptions);
 	EOS_HIntegratedPlatformOptionsContainer CreateIntegratedPlatformOptionsContainer();
@@ -109,7 +112,7 @@ protected:
 	void LoadConfig();
 	void ReleasePlatform(EOS_HPlatform PlatformHandle);
 	void ReleaseReleasedPlatforms();
-	void SetupTicker();
+	void SetupTicker(bool bIgnoreConfigTickInterval = false);
 	void OnLogVerbosityChanged(const FLogCategoryName& CategoryName, ELogVerbosity::Type OldVerbosity, ELogVerbosity::Type NewVerbosity);
 
 #if EOSSDK_RUNTIME_LOAD_REQUIRED
