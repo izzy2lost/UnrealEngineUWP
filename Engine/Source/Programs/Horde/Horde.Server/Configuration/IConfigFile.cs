@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Users;
@@ -60,26 +58,6 @@ namespace Horde.Server.Configuration
 				path = $"{path}@{file.Revision}";
 			}
 			return path;
-		}
-
-		/// <summary>
-		/// Parses a config file as a json object
-		/// </summary>
-		/// <param name="file">File to parse</param>
-		/// <param name="context">Context for serialization</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>The parsed file</returns>
-		internal static async ValueTask<JsonObject> ParseFileAsync(this IConfigFile file, ConfigContext context, CancellationToken cancellationToken = default)
-		{
-			ReadOnlyMemory<byte> data = await file.ReadAsync(cancellationToken);
-
-			JsonObject? obj = JsonSerializer.Deserialize<JsonObject>(data.Span, context.JsonOptions);
-			if (obj == null)
-			{
-				throw new ConfigException(context, $"Config file {file.Uri} contains a null object.");
-			}
-
-			return obj;
 		}
 	}
 }

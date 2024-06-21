@@ -260,7 +260,7 @@ namespace Horde.Server.Configuration
 			try
 			{
 				Uri globalConfigUri = GetGlobalConfigUri();
-				GlobalConfig globalConfig = await ConfigType.ReadAsync<GlobalConfig>(globalConfigUri, context, cancellationToken);
+				GlobalConfig globalConfig = await context.ReadAsync<GlobalConfig>(globalConfigUri, cancellationToken);
 				globalConfig.PostLoad(_serverSettings);
 
 				foreach (OverrideConfigFile file in overrideFiles.Values)
@@ -500,7 +500,7 @@ namespace Horde.Server.Configuration
 
 			if (isPerforcePath)
 			{
-				return ConfigType.CombinePaths(new Uri(FileReference.Combine(new DirectoryReference(defaultConfigDir), "_").FullName), configPath);
+				return ConfigNode.CombinePaths(new Uri(FileReference.Combine(new DirectoryReference(defaultConfigDir), "_").FullName), configPath);
 			}
 
 			if (isAbsPath)
@@ -565,7 +565,10 @@ namespace Horde.Server.Configuration
 				// Read the new config in
 				Uri globalConfigUri = GetGlobalConfigUri();
 
-				GlobalConfig globalConfig = await ConfigType.ReadAsync<GlobalConfig>(globalConfigUri, context, cancellationToken);
+				GlobalConfig globalConfig = await context.ReadAsync<GlobalConfig>(globalConfigUri, cancellationToken);
+
+				File.WriteAllBytes("D:\\fixed.json", JsonSerializer.SerializeToUtf8Bytes(globalConfig, new JsonSerializerOptions { WriteIndented = true }));
+
 				if (globalConfig.VersionEnum < GlobalVersion.Latest)
 				{
 					List<string> message = new List<string>();

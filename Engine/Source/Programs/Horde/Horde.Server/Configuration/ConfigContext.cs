@@ -12,11 +12,13 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Configuration
 {
+	using JsonObject = System.Text.Json.Nodes.JsonObject;
+
 	/// <summary>
 	/// Context for reading a tree of config files
 	/// </summary>
 	[DebuggerDisplay("{CurrentFile}")]
-	class ConfigContext
+	public class ConfigContext
 	{
 		/// <summary>
 		/// Options for serializing config files
@@ -32,11 +34,6 @@ namespace Horde.Server.Configuration
 		/// Stack of properties
 		/// </summary>
 		public Stack<string> ScopeStack { get; } = new Stack<string>();
-
-		/// <summary>
-		/// Stack of objects
-		/// </summary>
-		public Stack<object> IncludeContextStack { get; } = new Stack<object>();
 
 		/// <summary>
 		/// Map of property path to the file declaring a value for it
@@ -182,6 +179,47 @@ namespace Horde.Server.Configuration
 			}
 
 			return file;
+		}
+
+		/// <summary>
+		/// Reads an object from a particular URL
+		/// </summary>
+		/// <typeparam name="T">Type of object to read</typeparam>
+		/// <param name="uri">Location of the file to read</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public async Task<T> ReadAsync<T>(Uri uri, CancellationToken cancellationToken) where T : class, new()
+		{
+			IConfigFile file = await ReadFileAsync(uri, cancellationToken);
+			JsonObject obj = await ParseFileAsync(file, cancellationToken);
+
+			IncludeStack.Push(file);
+
+			ObjectConfigNode type = new ObjectConfigNode(typeof(T));
+			obj = (JsonObject)(await type.PreprocessAsync(obj, null, this, cancellationToken))!;
+
+			IncludeStack.Pop();
+
+			return JsonSerializer.Deserialize<T>(obj, JsonOptions) ?? new T();
+		}
+
+		/// <summary>
+		/// Parses a config file as a json object
+		/// </summary>
+		/// <param name="file">File to parse</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>The parsed file</returns>
+		public async ValueTask<JsonObject> ParseFileAsync(IConfigFile file, CancellationToken cancellationToken = default)
+		{
+			ReadOnlyMemory<byte> data = await file.ReadAsync(cancellationToken);
+
+			JsonObject? obj = JsonSerializer.Deserialize<JsonObject>(data.Span, JsonOptions);
+			if (obj == null)
+			{
+				throw new ConfigException(this, $"Config file {file.Uri} contains a null object.");
+			}
+
+			return obj;
 		}
 	}
 }

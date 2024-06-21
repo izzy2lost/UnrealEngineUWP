@@ -1,21 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 
 namespace Horde.Server.Configuration
 {
-	using JsonObject = System.Text.Json.Nodes.JsonObject;
-
 	/// <summary>
 	/// Attribute used to mark <see cref="Uri"/> properties that include other config files
 	/// </summary>
@@ -49,96 +44,47 @@ namespace Horde.Server.Configuration
 	}
 
 	/// <summary>
-	/// Declares a config macro
+	/// Node in the preprocessor parse tree
 	/// </summary>
-	public class ConfigMacro
+	public abstract class ConfigNode
 	{
 		/// <summary>
-		/// Name of the macro property
+		/// Parses macro definitions from this object
 		/// </summary>
-		public string Name { get; set; } = String.Empty;
+		/// <param name="node">Node to parse macros from</param>
+		/// <param name="context">Context for the preprocessor</param>
+		/// <param name="macros">Macros parsed from the boject</param>
+		public abstract void ParseMacros(JsonNode? node, ConfigContext context, Dictionary<string, string> macros);
 
 		/// <summary>
-		/// Value for the macro property
+		/// Preprocesses a json document
 		/// </summary>
-		public string Value { get; set; } = String.Empty;
-	}
-
-	/// <summary>
-	/// Exception thrown when reading config files
-	/// </summary>
-	public sealed class ConfigException : Exception
-	{
-		readonly ConfigContext _context;
-
-		/// <summary>
-		/// Stack of properties
-		/// </summary>
-		public IEnumerable<string> ScopeStack => _context.ScopeStack;
-
-		/// <summary>
-		/// Stack of objects
-		/// </summary>
-		public IEnumerable<object> IncludeContextStack => _context.IncludeContextStack;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="context">Current parse context for the error</param>
-		/// <param name="message">Description of the error</param>
-		/// <param name="innerException">Inner exception details</param>
-		internal ConfigException(ConfigContext context, string message, Exception? innerException = null)
-			: base(message, innerException)
-		{
-			_context = context;
-		}
-
-		/// <summary>
-		/// Gets the parser context when this exception was thrown. This is not exposed as a public property to avoid serializing the whole thing to Serilog.
-		/// </summary>
-		internal ConfigContext GetContext() => _context;
-	}
-
-	/// <summary>
-	/// Base class for types that can be read from config files
-	/// </summary>
-	static class ConfigType
-	{
-		/// <summary>
-		/// Preprocess a JSON node
-		/// </summary>
-		/// <param name="configType"></param>
 		/// <param name="node">Node to preprocess</param>
 		/// <param name="context">Context for the preprocessor</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Preprocessed node</returns>
-		public static async ValueTask<JsonNode?> PreprocessAsync(this ConfigNode configType, JsonNode? node, ConfigContext context, CancellationToken cancellationToken)
-		{
-			return await configType.PreprocessAsync(node, null, context, cancellationToken);
-		}
+		public Task<JsonNode?> PreprocessAsync(JsonNode? node, ConfigContext context, CancellationToken cancellationToken)
+			=> PreprocessAsync(node, null, context, cancellationToken);
 
 		/// <summary>
-		/// Reads an object from a particular URL
+		/// Preprocesses a json document (possibly merging with an existing property)
 		/// </summary>
-		/// <typeparam name="T">Type of object to read</typeparam>
-		/// <param name="uri">Location of the file to read</param>
-		/// <param name="context">Context for reading</param>
+		/// <param name="node">Node to preprocess</param>
+		/// <param name="existingNode">Optional existing node to merge with. Can be modified.</param>
+		/// <param name="context">Context for the preprocessor</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>The preprocessed node. May be existingNode if changes are merged with it.</returns>
+		public abstract Task<JsonNode?> PreprocessAsync(JsonNode? node, JsonNode? existingNode, ConfigContext context, CancellationToken cancellationToken);
+
+		/// <summary>
+		/// Traverse the property tree starting with 'node' and process any include directives, merging the results into the given target object.
+		/// </summary>
+		/// <param name="node"></param>
+		/// <param name="includes">Receives the included files</param>
+		/// <param name="context"></param>
+		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task<T> ReadAsync<T>(Uri uri, ConfigContext context, CancellationToken cancellationToken) where T : class, new()
-		{
-			IConfigFile file = await context.ReadFileAsync(uri, cancellationToken);
-			JsonObject obj = await file.ParseFileAsync(context, cancellationToken);
-
-			context.IncludeStack.Push(file);
-
-			ObjectConfigNode type = new ObjectConfigNode(typeof(T));
-			obj = (JsonObject)(await type.PreprocessAsync(obj, null, context, cancellationToken))!;
-
-			context.IncludeStack.Pop();
-
-			return JsonSerializer.Deserialize<T>(obj, context.JsonOptions) ?? new T();
-		}
+		public abstract Task ParseIncludesAsync(JsonNode? node, List<IConfigFile> includes, ConfigContext context, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Combine a relative path with a base URI to produce a new URI
@@ -165,7 +111,7 @@ namespace Horde.Server.Configuration
 		/// <summary>
 		/// Helper method to expand all macros within a node without performing any other processing on it
 		/// </summary>
-		internal static JsonNode? ExpandMacros(JsonNode? node, ConfigContext context)
+		protected static JsonNode? ExpandMacros(JsonNode? node, ConfigContext context)
 		{
 			if (node == null)
 			{
@@ -203,47 +149,23 @@ namespace Horde.Server.Configuration
 	}
 
 	/// <summary>
-	/// Node in the preprocessor parse tree
+	/// Implementation of <see cref="ConfigNode"/> for scalar types
 	/// </summary>
-	abstract class ConfigNode
+	public class ScalarConfigNode : ConfigNode
 	{
 		/// <summary>
-		/// Parses macro definitions from this object
+		/// Whether this node represents an include directive
 		/// </summary>
-		/// <param name="node">Node to parse macros from</param>
-		/// <param name="context">Context for the preprocessor</param>
-		/// <param name="macros">Macros parsed from the boject</param>
-		public abstract void ParseMacros(JsonNode? node, ConfigContext context, Dictionary<string, string> macros);
-
-		/// <summary>
-		/// Reads a node into a target object (possibly merging with an existing property)
-		/// </summary>
-		/// <param name="node">Node to preprocess</param>
-		/// <param name="existingNode">Optional existing node to merge with. Can be modified.</param>
-		/// <param name="context">Context for the preprocessor</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>The preprocessed node. May be existingNode if changes are merged with it.</returns>
-		public abstract Task<JsonNode?> PreprocessAsync(JsonNode? node, JsonNode? existingNode, ConfigContext context, CancellationToken cancellationToken);
-
-		/// <summary>
-		/// Traverse the property tree starting with 'node' and process any include directives, merging the results into the given target object.
-		/// </summary>
-		/// <param name="node"></param>
-		/// <param name="includes">Receives the included files</param>
-		/// <param name="context"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public abstract Task ParseIncludesAsync(JsonNode? node, List<IConfigFile> includes, ConfigContext context, CancellationToken cancellationToken);
-	}
-
-	/// <summary>
-	/// Implementation of <see cref="ConfigType"/> for scalar types
-	/// </summary>
-	class ScalarConfigNode : ConfigNode
-	{
 		public bool Include { get; set; }
+
+		/// <summary>
+		/// Specifies that this node is a string which should be made into an absolute path using the path of the current file.
+		/// </summary>
 		public bool RelativeToContainingFile { get; set; }
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public ScalarConfigNode(bool include = false, bool relativePath = false)
 		{
 			Include = include;
@@ -264,11 +186,11 @@ namespace Horde.Server.Configuration
 			}
 			else if (RelativeToContainingFile && node is JsonValue value && value.GetValueKind() == JsonValueKind.String)
 			{
-				result = JsonValue.Create(ConfigType.CombinePaths(context.CurrentFile, value.ToString()).AbsoluteUri);
+				result = JsonValue.Create(CombinePaths(context.CurrentFile, value.ToString()).AbsoluteUri);
 			}
 			else
 			{
-				result = ConfigType.ExpandMacros(node, context);
+				result = ExpandMacros(node, context);
 			}
 
 			return Task.FromResult(result);
@@ -281,7 +203,7 @@ namespace Horde.Server.Configuration
 			{
 				string? path = (string?)node;
 
-				Uri uri = ConfigType.CombinePaths(context.CurrentFile, context.ExpandMacros(path!));
+				Uri uri = CombinePaths(context.CurrentFile, context.ExpandMacros(path!));
 
 				IConfigFile file = await context.ReadFileAsync(uri, cancellationToken);
 				includes.Add(file);
@@ -292,7 +214,7 @@ namespace Horde.Server.Configuration
 	/// <summary>
 	/// Property containing a binary resource
 	/// </summary>
-	class ResourceConfigNode : ConfigNode
+	public class ResourceConfigNode : ConfigNode
 	{
 		/// <inheritdoc/>
 		public override Task ParseIncludesAsync(JsonNode? node, List<IConfigFile> includes, ConfigContext context, CancellationToken cancellationToken)
@@ -305,7 +227,7 @@ namespace Horde.Server.Configuration
 		/// <inheritdoc/>
 		public override async Task<JsonNode?> PreprocessAsync(JsonNode? node, JsonNode? existingNode, ConfigContext context, CancellationToken cancellationToken)
 		{
-			Uri uri = ConfigType.CombinePaths(context.CurrentFile, JsonSerializer.Deserialize<string>(node, context.JsonOptions) ?? String.Empty);
+			Uri uri = CombinePaths(context.CurrentFile, JsonSerializer.Deserialize<string>(node, context.JsonOptions) ?? String.Empty);
 			IConfigFile file = await context.ReadFileAsync(uri, cancellationToken);
 
 			ConfigResource resource = new ConfigResource();
@@ -319,8 +241,11 @@ namespace Horde.Server.Configuration
 	/// <summary>
 	/// Array of Json values
 	/// </summary>
-	class ArrayConfigNode : ConfigNode
+	public class ArrayConfigNode : ConfigNode
 	{
+		/// <summary>
+		/// Type of each element of the array
+		/// </summary>
 		public ConfigNode ElementType { get; }
 
 		/// <summary>
@@ -376,17 +301,21 @@ namespace Horde.Server.Configuration
 	/// <summary>
 	/// Arbitary mapping of string values to keys
 	/// </summary>
-	class DictionaryConfigNode : ConfigNode
+	public class DictionaryConfigNode : ConfigNode
 	{
-		public ConfigNode ElementType { get; }
+		/// <summary>
+		/// Type of values in the dictionary
+		/// </summary>
+		public ConfigNode ValueType { get; }
 
-		public DictionaryConfigNode(ConfigNode elementType)
-		{
-			ElementType = elementType;
-		}
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public DictionaryConfigNode(ConfigNode valueType)
+			=> ValueType = valueType;
 
 		/// <inheritdoc/>
-		public override void ParseMacros(JsonNode? jsonNode, ConfigContext context, Dictionary<string, string> macros) 
+		public override void ParseMacros(JsonNode? jsonNode, ConfigContext context, Dictionary<string, string> macros)
 		{ }
 
 		/// <inheritdoc/>
@@ -397,7 +326,7 @@ namespace Horde.Server.Configuration
 			{
 				context.EnterScope($"[{key}]");
 
-				JsonNode? elementValue = await ElementType.PreprocessAsync(element, context, cancellationToken);
+				JsonNode? elementValue = await ValueType.PreprocessAsync(element, context, cancellationToken);
 				targetObject[key] = elementValue;
 
 				context.LeaveScope();
@@ -408,7 +337,7 @@ namespace Horde.Server.Configuration
 		/// <inheritdoc/>
 		public override async Task ParseIncludesAsync(JsonNode? node, List<IConfigFile> includes, ConfigContext context, CancellationToken cancellationToken)
 		{
-			if (node is JsonObject obj && ElementType is ObjectConfigNode classElementType)
+			if (node is JsonObject obj && ValueType is ObjectConfigNode classElementType)
 			{
 				foreach ((_, JsonNode? value) in obj)
 				{
@@ -421,11 +350,13 @@ namespace Horde.Server.Configuration
 	/// <summary>
 	/// Handles macro objects
 	/// </summary>
-	class MacroConfigNode : ConfigNode
+	public class MacroConfigNode : ConfigNode
 	{
+		/// <inheritdoc/>
 		public override Task ParseIncludesAsync(JsonNode? node, List<IConfigFile> includes, ConfigContext context, CancellationToken cancellationToken)
 			=> Task.CompletedTask;
 
+		/// <inheritdoc/>
 		public override void ParseMacros(JsonNode? node, ConfigContext context, Dictionary<string, string> macros)
 		{
 			ConfigMacro? macro = JsonSerializer.Deserialize<ConfigMacro>(node, context.JsonOptions);
@@ -435,17 +366,29 @@ namespace Horde.Server.Configuration
 			}
 		}
 
+		/// <inheritdoc/>
 		public override Task<JsonNode?> PreprocessAsync(JsonNode? node, JsonNode? existingNode, ConfigContext context, CancellationToken cancellationToken)
 			=> Task.FromResult<JsonNode?>(node?.DeepClone());
 	}
 
 	/// <summary>
-	/// Implementation of <see cref="ConfigType"/> to handle class types
+	/// Implementation of <see cref="ConfigNode"/> to handle class types
 	/// </summary>
-	class ObjectConfigNode : ConfigNode
+	public class ObjectConfigNode : ConfigNode
 	{
+		/// <summary>
+		/// Whether this object should be treated as a root for nested include directies
+		/// </summary>
 		public bool IncludeRoot { get; set; }
+
+		/// <summary>
+		/// Declares a new macro scope
+		/// </summary>
 		public bool MacroScope { get; set; }
+
+		/// <summary>
+		/// Properties within this object
+		/// </summary>
 		public Dictionary<string, ConfigNode> Properties { get; }
 
 		/// <summary>
@@ -506,7 +449,7 @@ namespace Horde.Server.Configuration
 			return CreateType(propertyType);
 		}
 
-		public static ConfigNode? CreateType(Type type)
+		static ConfigNode? CreateType(Type type)
 		{
 			ConfigNode? value;
 			if (!type.IsClass || type == typeof(string) || type == typeof(JsonNode))
@@ -539,10 +482,14 @@ namespace Horde.Server.Configuration
 			return value;
 		}
 
-		public async ValueTask<JsonObject> ReadAsync(JsonObject obj, ConfigContext context, CancellationToken cancellationToken)
-		{
-			return (JsonObject)(await PreprocessAsync(obj, null, context, cancellationToken))!;
-		}
+		/// <summary>
+		/// Preprocesses an object
+		/// </summary>
+		/// <param name="obj">Object to process</param>
+		/// <param name="context">Preprocessor context</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task<JsonObject> PreprocessAsync(JsonObject obj, ConfigContext context, CancellationToken cancellationToken)
+			=> (JsonObject)(await PreprocessAsync(obj, null, context, cancellationToken))!;
 
 		/// <inheritdoc/>
 		public override void ParseMacros(JsonNode? jsonNode, ConfigContext context, Dictionary<string, string> macros)
@@ -581,7 +528,7 @@ namespace Horde.Server.Configuration
 				{
 					context.IncludeStack.Push(include);
 
-					JsonObject includedJsonObject = await include.ParseFileAsync(context, cancellationToken);
+					JsonObject includedJsonObject = await context.ParseFileAsync(include, cancellationToken);
 					target = (JsonObject?)await PreprocessAsync(includedJsonObject, target, context, cancellationToken);
 
 					context.IncludeStack.Pop();
@@ -615,7 +562,7 @@ namespace Horde.Server.Configuration
 				}
 				else
 				{
-					target[name] = Merge(ConfigType.ExpandMacros(newNode, context), target[name]);
+					target[name] = Merge(ExpandMacros(newNode, context), target[name]);
 				}
 			}
 
