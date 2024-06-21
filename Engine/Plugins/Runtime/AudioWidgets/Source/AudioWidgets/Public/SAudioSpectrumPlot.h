@@ -131,6 +131,7 @@ public:
 		, _ViewMaxSoundLevel(12.0f)
 		, _TiltExponent(0.0f)
 		, _TiltPivotFrequency(24000.0f)
+		, _DisplayCrosshair(false)
 		, _DisplayFrequencyAxisLabels(true)
 		, _DisplaySoundLevelAxisLabels(true)
 		, _DisplayFrequencyGridLines(true)
@@ -140,6 +141,7 @@ public:
 		, _BackgroundColor(FSlateColor::UseStyle())
 		, _GridColor(FSlateColor::UseStyle())
 		, _AxisLabelColor(FSlateColor::UseStyle())
+		, _CrosshairColor(FSlateColor::UseStyle())
 		, _SpectrumColor(FSlateColor::UseStyle())
 		, _AllowContextMenu(true)
 	{}
@@ -150,6 +152,8 @@ public:
 		SLATE_ATTRIBUTE(float, ViewMaxSoundLevel)
 		SLATE_ATTRIBUTE(float, TiltExponent)
 		SLATE_ATTRIBUTE(float, TiltPivotFrequency)
+		SLATE_ATTRIBUTE(TOptional<float>, SelectedFrequency)
+		SLATE_ATTRIBUTE(bool, DisplayCrosshair)
 		SLATE_ATTRIBUTE(bool, DisplayFrequencyAxisLabels)
 		SLATE_ATTRIBUTE(bool, DisplaySoundLevelAxisLabels)
 		SLATE_ATTRIBUTE(bool, DisplayFrequencyGridLines)
@@ -159,6 +163,7 @@ public:
 		SLATE_ATTRIBUTE(FSlateColor, BackgroundColor)
 		SLATE_ATTRIBUTE(FSlateColor, GridColor)
 		SLATE_ATTRIBUTE(FSlateColor, AxisLabelColor)
+		SLATE_ATTRIBUTE(FSlateColor, CrosshairColor)
 		SLATE_ATTRIBUTE(FSlateColor, SpectrumColor)
 		SLATE_ATTRIBUTE(bool, AllowContextMenu)
 		SLATE_EVENT(FOnContextMenuOpening, OnContextMenuOpening)
@@ -174,6 +179,8 @@ public:
 	void SetViewMaxSoundLevel(float InViewMaxSoundLevel) { ViewMaxSoundLevel = InViewMaxSoundLevel; }
 	void SetTiltExponent(float InTiltExponent) { TiltExponent = InTiltExponent; }
 	void SetTiltPivotFrequency(float InTiltPivotFrequency) { TiltPivotFrequency = InTiltPivotFrequency; }
+	void SetSelectedFrequency(TOptional<float> InSelectedFrequency) { SelectedFrequency = InSelectedFrequency; }
+	void SetDisplayCrosshair(bool bInDisplayCrosshair) { bDisplayCrosshair = bInDisplayCrosshair; }
 	void SetDisplayFrequencyAxisLabels(bool bInDisplayFrequencyAxisLabels) { bDisplayFrequencyAxisLabels = bInDisplayFrequencyAxisLabels; }
 	void SetDisplaySoundLevelAxisLabels(bool bInDisplaySoundLevelAxisLabels) { bDisplaySoundLevelAxisLabels = bInDisplaySoundLevelAxisLabels; }
 	void SetDisplayFrequencyGridLines(bool bInDisplayFrequencyGridLines) { bDisplayFrequencyGridLines = bInDisplayFrequencyGridLines; }
@@ -188,6 +195,8 @@ public:
 	// Begin SWidget overrides.
 	virtual FReply OnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 	virtual FReply OnMouseButtonUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
 	// End SWidget overrides.
 
 	void UnbindOnGetAudioSpectrumData() { OnGetAudioSpectrumData.Unbind(); }
@@ -201,12 +210,14 @@ private:
 
 	int32 DrawSolidBackgroundRectangle(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle) const;
 
-	int32 DrawGridAndLabels(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const FAudioSpectrumPlotScaleInfo& ScaleInfo) const;
+	int32 DrawGrid(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const FAudioSpectrumPlotScaleInfo& ScaleInfo) const;
 	void GetGridLineSoundLevels(TArray<float>& GridLineSoundLevels) const;
 	void GetGridLineFrequencies(TArray<float>& AllGridLineFrequencies, TArray<float>& MajorGridLineFrequencies) const;
 
 	int32 DrawPowerSpectrum(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const FAudioSpectrumPlotScaleInfo& ScaleInfo) const;
 	FAudioPowerSpectrumData GetPowerSpectrum() const;
+
+	int32 DrawCrosshairAndAxisLabels(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, const FAudioSpectrumPlotScaleInfo& ScaleInfo, TConstArrayView<FVector2f> LinePoints) const;
 
 	// This is a function to reduce the given array of data points to a possibly shorter array of points that will form the line to be plotted.
 	// Where multiple data points map to the same frequency axis pixel bucket, the given 'cost function' will be used to select the best data point (the data point with the lowest 'cost').
@@ -215,6 +226,7 @@ private:
 	FLinearColor GetBackgroundColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetGridColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetAxisLabelColor(const FWidgetStyle& InWidgetStyle) const;
+	FLinearColor GetCrosshairColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetSpectrumColor(const FWidgetStyle& InWidgetStyle) const;	
 
 	static float GetTiltExponentValue(const EAudioSpectrumPlotTilt InTilt);
@@ -223,6 +235,8 @@ private:
 	void BuildTiltSpectrumSubMenu(FMenuBuilder& SubMenu);
 	void BuildFrequencyAxisScaleSubMenu(FMenuBuilder& SubMenu);
 	void BuildFrequencyAxisPixelBucketModeSubMenu(FMenuBuilder& SubMenu);
+
+	static const float ClampMinSoundLevel;
 
 	static FName ContextMenuExtensionHook;
 	TSharedPtr<FExtender> ContextMenuExtender;
@@ -234,6 +248,8 @@ private:
 	TAttribute<float> ViewMaxSoundLevel;
 	TAttribute<float> TiltExponent;
 	TAttribute<float> TiltPivotFrequency;
+	TAttribute<TOptional<float>> SelectedFrequency;
+	TAttribute<bool> bDisplayCrosshair;
 	TAttribute<bool> bDisplayFrequencyAxisLabels;
 	TAttribute<bool> bDisplaySoundLevelAxisLabels;
 	TAttribute<bool> bDisplayFrequencyGridLines;
@@ -243,6 +259,7 @@ private:
 	TAttribute<FSlateColor> BackgroundColor;
 	TAttribute<FSlateColor> GridColor;
 	TAttribute<FSlateColor> AxisLabelColor;
+	TAttribute<FSlateColor> CrosshairColor;
 	TAttribute<FSlateColor> SpectrumColor;
 	TAttribute<bool> bAllowContextMenu;
 	FOnContextMenuOpening OnContextMenuOpening;
