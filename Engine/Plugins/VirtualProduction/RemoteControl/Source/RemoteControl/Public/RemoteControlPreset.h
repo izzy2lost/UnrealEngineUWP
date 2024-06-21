@@ -709,7 +709,7 @@ public:
 	/** Returns the preset's signature registry */
 	URCSignatureRegistry* GetSignatureRegistry() const
 	{
-		return SignatureRegistry;
+		return Signatures;
 	}
 
 public:
@@ -945,7 +945,7 @@ private:
 
 	/** Holds all signatures on the preset. */
 	UPROPERTY(Instanced)
-	TObjectPtr<URCSignatureRegistry> SignatureRegistry = nullptr;
+	TObjectPtr<URCSignatureRegistry> Signatures = nullptr;
 
 	/** Holds identities of exposed entities on the preset. */
 	UPROPERTY(Transient)

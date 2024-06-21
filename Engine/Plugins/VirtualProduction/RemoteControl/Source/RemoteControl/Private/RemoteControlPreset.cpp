@@ -673,8 +673,7 @@ URemoteControlPreset::URemoteControlPreset()
 	, RebindingManager(MakePimpl<FRemoteControlPresetRebindingManager>())
 {
 	Registry = CreateDefaultSubobject<URemoteControlExposeRegistry>(FName("ExposeRegistry"));
-
-	SignatureRegistry = CreateDefaultSubobject<URCSignatureRegistry>(TEXT("SignatureRegistry"));
+	Signatures = CreateDefaultSubobject<URCSignatureRegistry>(TEXT("Signatures"));
 
 	PropertyIdRegistry = CreateDefaultSubobject<URemoteControlPropertyIdRegistry>(FName("PropertyIdRegistry"));
 	PropertyIdRegistry->Initialize();
