@@ -35,7 +35,7 @@ struct FGlobalTrivialEmergentTypePtr
 	FGlobalTrivialEmergentTypePtr() = default;
 
 protected:
-	VEmergentType& Get(FAllocationContext Context, VCppClassInfo* ClassInfo, bool bWithShape)
+	VEmergentType& Get(FAllocationContext Context, VCppClassInfo* ClassInfo, FGlobalTrivialEmergentTypePtrRoot*& Root, bool bWithShape)
 	{
 		VEmergentType* Result = EmergentType.load(std::memory_order_relaxed);
 		std::atomic_signal_fence(std::memory_order_seq_cst);
@@ -45,11 +45,11 @@ protected:
 		}
 		else
 		{
-			return Create(Context, ClassInfo, bWithShape);
+			return Create(Context, ClassInfo, Root, bWithShape);
 		}
 	}
 
-	COREUOBJECT_API VEmergentType& Create(FAllocationContext Context, VCppClassInfo* ClassInfo, bool bWithShape);
+	COREUOBJECT_API VEmergentType& Create(FAllocationContext Context, VCppClassInfo* ClassInfo, FGlobalTrivialEmergentTypePtrRoot*& Root, bool bWithShape);
 
 	std::atomic<VEmergentType*> EmergentType = nullptr;
 };
@@ -61,7 +61,8 @@ struct TGlobalTrivialEmergentTypePtr : public FGlobalTrivialEmergentTypePtr
 
 	VEmergentType& Get(FAllocationContext Context)
 	{
-		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo, false);
+		FGlobalTrivialEmergentTypePtrRoot* Root = nullptr;
+		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo, Root, false);
 	}
 };
 
@@ -72,13 +73,22 @@ struct TGlobalDefaultedObjectEmergentTypePtr : public FGlobalTrivialEmergentType
 
 	VEmergentType& Get(FAllocationContext Context)
 	{
-		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo, true);
+		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo, Root, true);
 	}
 
+	// The caller is responsible for keeping NewEmergentType alive.
 	void Set(FAllocationContext Context, VEmergentType& NewEmergentType)
 	{
 		EmergentType.store(&NewEmergentType, std::memory_order_seq_cst);
 	}
+
+	void Reset()
+	{
+		VEmergentType* OldEmergentType = Root ? Root->EmergentType.Get() : nullptr;
+		EmergentType.store(OldEmergentType, std::memory_order_seq_cst);
+	}
+
+	FGlobalTrivialEmergentTypePtrRoot* Root = nullptr;
 };
 
 } // namespace Verse

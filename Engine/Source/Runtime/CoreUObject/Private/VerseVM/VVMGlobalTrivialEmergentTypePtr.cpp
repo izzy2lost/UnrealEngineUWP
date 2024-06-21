@@ -26,7 +26,7 @@ void FGlobalTrivialEmergentTypePtrRoot::VisitImpl(TVisitor& Visitor)
 	Visitor.Visit(EmergentType, TEXT("EmergentType"));
 }
 
-VEmergentType& FGlobalTrivialEmergentTypePtr::Create(FAllocationContext Context, VCppClassInfo* ClassInfo, bool bWithShape)
+VEmergentType& FGlobalTrivialEmergentTypePtr::Create(FAllocationContext Context, VCppClassInfo* ClassInfo, FGlobalTrivialEmergentTypePtrRoot*& Root, bool bWithShape)
 {
 	VEmergentType* Object = VEmergentType::New(Context, VTrivialType::Singleton.Get(), ClassInfo);
 	VEmergentType* Expected = nullptr;
@@ -43,7 +43,7 @@ VEmergentType& FGlobalTrivialEmergentTypePtr::Create(FAllocationContext Context,
 		{
 			Result->Shape.Set(Context, VShape::New(Context, {}));
 		}
-		new FGlobalTrivialEmergentTypePtrRoot(Context, Object);
+		Root = new FGlobalTrivialEmergentTypePtrRoot(Context, Object);
 	}
 	V_DIE_UNLESS(EmergentType.load() == Result);
 	return *Result;
