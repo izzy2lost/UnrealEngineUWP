@@ -8,7 +8,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace HordeServer.Acls
+namespace EpicGames.Horde.Acls
 {
 	/// <summary>
 	/// Name of an ACL scope

@@ -2,10 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
-using HordeServer.Acls;
 
 namespace HordeServer.Artifacts
 {

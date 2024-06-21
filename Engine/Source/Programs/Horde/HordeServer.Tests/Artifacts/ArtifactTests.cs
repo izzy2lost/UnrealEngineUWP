@@ -13,6 +13,7 @@ using HordeServer.Server;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using EpicGames.Horde.Acls;
 
 namespace HordeServer.Tests.Artifacts
 {
