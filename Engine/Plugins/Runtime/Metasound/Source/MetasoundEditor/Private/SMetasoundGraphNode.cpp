@@ -538,7 +538,7 @@ namespace Metasound
 		{
 			SGraphNode::SetDefaultTitleAreaWidget(DefaultTitleAreaWidget);
 
-			Metasound::Frontend::FNodeHandle NodeHandle = GetMetaSoundNode().GetNodeHandle();
+			Metasound::Frontend::FConstNodeHandle NodeHandle = GetMetaSoundNode().GetConstNodeHandle();
 			if (NodeHandle->GetClassStyle().Display.bShowName)
 			{
 				DefaultTitleAreaWidget->ClearChildren();
@@ -670,7 +670,7 @@ namespace Metasound
 
 			// Just take last type.  If more than one, all types are the same.
 			const UMetasoundEditorGraphNode& Node = GetMetaSoundNode();
-			Node.GetNodeHandle()->IterateConstOutputs([InTypeName = &TypeName](FConstOutputHandle OutputHandle)
+			Node.GetConstNodeHandle()->IterateConstOutputs([InTypeName = &TypeName](FConstOutputHandle OutputHandle)
 			{
 				*InTypeName = OutputHandle->GetDataType();
 			});

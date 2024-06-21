@@ -76,7 +76,7 @@ namespace Metasound::Engine
 			TObjectPtr<UMetaSoundBuilderBase> NewBuilder;
 			{
 				FScopeLock Lock(&BuildersCriticalSection);
-				NewBuilder = CastChecked<UMetaSoundBuilderBase>(NewObject<UObject>(&InMetaSoundObject, &BuilderUClass, NewName));
+				NewBuilder = CastChecked<UMetaSoundBuilderBase>(NewObject<UObject>(&InMetaSoundObject, &BuilderUClass, NewName, RF_Transactional));
 				FMetaSoundFrontendDocumentBuilder& BuilderRef = NewBuilder->GetBuilder();
 				BuilderRef = FMetaSoundFrontendDocumentBuilder(DocInterface);
 				const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();

@@ -34,25 +34,25 @@ namespace Metasound
 				.OnGetTooltip(this, &SMetasoundGraphEnumPin::OnGetTooltip);
 		}
 
-		TSharedPtr<const Metasound::Frontend::IEnumDataTypeInterface>
-		SMetasoundGraphEnumPin::FindEnumInterfaceFromPin(UEdGraphPin* InPin) 
+		TSharedPtr<const Frontend::IEnumDataTypeInterface>
+		SMetasoundGraphEnumPin::FindEnumInterfaceFromPin(UEdGraphPin* InPin)
 		{
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 
 			auto MetasoundEditorNode = Cast<UMetasoundEditorGraphNode>(InPin->GetOwningNode());
-			FNodeHandle NodeHandle = MetasoundEditorNode->GetNodeHandle();
+			FConstNodeHandle NodeHandle = MetasoundEditorNode->GetConstNodeHandle();
 			FConstInputHandle Input = NodeHandle->GetConstInputWithVertexName(InPin->GetFName());
 			if (Input->IsValid())
 			{
 				FName DataType = Input->GetDataType();
-				return Metasound::Frontend::IDataTypeRegistry::Get().GetEnumInterfaceForDataType(DataType);
+				return Frontend::IDataTypeRegistry::Get().GetEnumInterfaceForDataType(DataType);
 			}
 			return nullptr;
 		}
 
 		FString SMetasoundGraphEnumPin::OnGetText() const
 		{
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 
 			TSharedPtr<const IEnumDataTypeInterface> EnumInterface = FindEnumInterfaceFromPin(GraphPinObj);
 			check(EnumInterface.IsValid());
@@ -71,7 +71,7 @@ namespace Metasound
 
 		void SMetasoundGraphEnumPin::GenerateComboBoxIndexes(TArray<TSharedPtr<int32>>& OutComboBoxIndexes)
 		{
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 			TSharedPtr<const IEnumDataTypeInterface> EnumInterface = FindEnumInterfaceFromPin(GraphPinObj);
 			check(EnumInterface.IsValid());
 
@@ -84,7 +84,7 @@ namespace Metasound
 
 		void SMetasoundGraphEnumPin::ComboBoxSelectionChanged(TSharedPtr<int32> NewSelection, ESelectInfo::Type SelectInfo)
 		{
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 			TSharedPtr<const IEnumDataTypeInterface> EnumInterface = FindEnumInterfaceFromPin(SGraphPin::GetPinObj());
 			check(EnumInterface.IsValid());
 
@@ -116,7 +116,7 @@ namespace Metasound
 
 		FText SMetasoundGraphEnumPin::OnGetFriendlyName(int32 EnumIndex)
 		{
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 
 			TSharedPtr<const IEnumDataTypeInterface> Interface = FindEnumInterfaceFromPin(SGraphPin::GetPinObj());
 			check(Interface.IsValid());
@@ -129,7 +129,7 @@ namespace Metasound
 
 		FText SMetasoundGraphEnumPin::OnGetTooltip(int32 EnumIndex)
 		{
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 
 			TSharedPtr<const IEnumDataTypeInterface> Interface = FindEnumInterfaceFromPin(GraphPinObj);
 			check(Interface.IsValid());

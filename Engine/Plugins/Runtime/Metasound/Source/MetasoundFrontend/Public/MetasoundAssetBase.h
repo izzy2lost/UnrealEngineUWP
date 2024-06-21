@@ -141,11 +141,11 @@ public:
 	// Imports the asset from a JSON file at provided path
 	bool ImportFromJSONAsset(const FString& InAbsolutePath);
 
-	// Returns handle for the root metasound graph of this asset.
+	// Soft Deprecated in favor of DocumentBuilder API. Returns handle for the root metasound graph of this asset.
 	Metasound::Frontend::FDocumentHandle GetDocumentHandle();
 	Metasound::Frontend::FConstDocumentHandle GetDocumentHandle() const;
 
-	// Returns handle for the root metasound graph of this asset.
+	// Soft Deprecated in favor of DocumentBuilder API. Returns handle for the root metasound graph of this asset.
 	Metasound::Frontend::FGraphHandle GetRootGraphHandle();
 	Metasound::Frontend::FConstGraphHandle GetRootGraphHandle() const;
 
@@ -155,7 +155,7 @@ public:
 	const FMetasoundFrontendDocument& GetConstDocumentChecked() const;
 
 	// Soft deprecated.  Document layer should not be directly mutated via asset base in anticipation
-	// of moving to all mutation via the Frontend Document & Builder Subsystem API.
+	// of moving all mutable document calls to the Frontend/Subsystem Document Builder API.
 	FMetasoundFrontendDocument& GetDocumentChecked();
 
 	UE_DEPRECATED(5.5, "Use GetConstDocumentChecked instead.")
