@@ -1,12 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if SHADING_PATH_MOBILE
-	#include "../Common.ush"
-	#define MobileSceneTextures MobileBasePass.SceneTextures
-	#include "../DeferredShadingCommon.ush"
-	#undef MobileSceneTextures
-#endif // SHADING_PATH_MOBILE
-
 #include "SSRTRayCast.ush"
 #include "../Random.ush"
 #include "../BRDF.ush"
@@ -36,23 +29,6 @@ Texture2D HZB;
 SamplerState HZBSampler;
 
 uint ShouldReflectOnlyWater;
-
-#if SHADING_PATH_MOBILE
-	#define SceneColor MobileBasePass.SSRParams.SceneColor
-	#define SceneColorSampler MobileBasePass.SSRParams.SceneColorSampler
-	#define HZB MobileBasePass.SSRParams.HZB
-	#define HZBSampler MobileBasePass.SSRParams.HZBSampler
-	#define PrevScreenPositionScaleBias MobileBasePass.SSRParams.PrevScreenPositionScaleBias
-	#define HZBUvFactorAndInvFactor MobileBasePass.SSRParams.HZBUvFactorAndInvFactor
-	#define ShouldReflectOnlyWater 0
-	#define PrevSceneColorPreExposureCorrection MobileBasePass.SSRParams.QualityAndExposureCorrection.z
-	#define GBufferVelocityTexture MobileBasePass.SceneTextures.SceneVelocityTexture
-	#define GBufferVelocityTextureSampler MobileBasePass.SceneTextures.SceneVelocityTextureSampler
-#endif
-
-#ifndef SSR_USE_VELOCITY
-	#define SSR_USE_VELOCITY 1
-#endif
 
 float GetRoughness(const in FGBufferData GBuffer)
 {
@@ -176,11 +152,7 @@ void ScreenSpaceReflections(
 
 #else // SUBSTRATE_ENABLED
 
-	#if SHADING_PATH_MOBILE
-		FGBufferData GBuffer = MobileFetchAndDecodeGBuffer(UV, SvPosition.xy);
-	#else
-		FGBufferData GBuffer = GetGBufferDataFromSceneTextures(UV);
-	#endif
+	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(UV);
 
 	float3 N = GBuffer.WorldNormal;
 	const float SceneDepth = GBuffer.Depth;
@@ -345,11 +317,7 @@ void ScreenSpaceReflections(
 
 				float2 SampleUV;
 				float Vignette;
-				#if SSR_USE_VELOCITY
-					ReprojectHit(PrevScreenPositionScaleBias, GBufferVelocityTexture, GBufferVelocityTextureSampler, HitUVz, SampleUV, Vignette);
-				#else
-					ReprojectHit(PrevScreenPositionScaleBias, HitUVz, SampleUV, Vignette);
-				#endif
+				ReprojectHit(PrevScreenPositionScaleBias, GBufferVelocityTexture, GBufferVelocityTextureSampler, HitUVz, SampleUV, Vignette);
 
 				float4 SampleColor = SampleScreenColor( SceneColor, SceneColorSampler, SampleUV ) * Vignette;
 
@@ -428,12 +396,7 @@ void ScreenSpaceReflections(
 
 			float2 SampleUV;
 			float Vignette;
-
-			#if SSR_USE_VELOCITY
-				ReprojectHit(PrevScreenPositionScaleBias, GBufferVelocityTexture, GBufferVelocityTextureSampler, HitUVz, SampleUV, Vignette);
-			#else
-				ReprojectHit(PrevScreenPositionScaleBias, HitUVz, SampleUV, Vignette);
-			#endif
+			ReprojectHit(PrevScreenPositionScaleBias, GBufferVelocityTexture, GBufferVelocityTextureSampler, HitUVz, SampleUV, Vignette);
 
 			OutColor = SampleScreenColor(SceneColor, SceneColorSampler, SampleUV) * Vignette;
 		}
@@ -469,32 +432,6 @@ void ScreenSpaceReflectionsPS(
 		,OutClosestHitDistance
 #endif
 	);
-}
-
-void MobileScreenSpaceReflectionsPS(float4 SvPosition : SV_POSITION
-#if USE_GLES_FBF_DEFERRED
-, out float4 OutProxyAdditive : SV_Target0 // "OutProxyAdditive" has special handling in the shader compiler and does additive blending
-, out float4 OutGBufferA : SV_Target1
-, out float4 OutGBufferB : SV_Target2
-, out float4 OutGBufferC : SV_Target3
-#else
-, out float4 OutColor : SV_Target0
-#endif
-)
-{
-	float4 Color = 0;
-	float OutClosestHitDistance = 0;
-	ScreenSpaceReflections(SvPosition, Color
-#if SSR_OUTPUT_FOR_DENOISER
-		,OutClosestHitDistance
-#endif
-	);
-
-#if USE_GLES_FBF_DEFERRED
-	OutProxyAdditive = Color;
-#else
-	OutColor = Color;
-#endif
 }
 
 #if COMPUTE_SHADER

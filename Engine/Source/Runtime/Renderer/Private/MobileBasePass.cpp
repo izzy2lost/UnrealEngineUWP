@@ -62,7 +62,7 @@ EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform Shade
 	return EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
 }
 
-extern const uint8 MobileShadingMobelSupportStencilValue = 0b01u;
+extern const uint8 MobileShadingModelSupportStencilValue = 0b01u;
 uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel, bool bFullyRough)
 {
 	// Bit 0 is set for materials that are receive SSR
@@ -78,7 +78,7 @@ uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel,
 	}
 
 	// mark everyhing as MSM_DefaultLit if GBuffer CustomData is not supported
-	return MobileUsesGBufferCustomData(GMaxRHIShaderPlatform) ? MobileShadingMobelSupportStencilValue : DefaultLitMask;
+	return MobileUsesGBufferCustomData(GMaxRHIShaderPlatform) ? MobileShadingModelSupportStencilValue : DefaultLitMask;
 }
 
 void SetMobileBasePassDepthState(FMeshPassProcessorRenderState& DrawRenderState, const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial& Material, FMaterialShadingModelField ShadingModels, bool bUsesDeferredShading)

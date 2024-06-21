@@ -1987,6 +1987,12 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 			KeyGen.AppendSeparator();
 			KeyGen.Append(TEXT("MobFDP"));
 		}
+
+		if (AreMobileScreenSpaceReflectionsEnabled(Platform))
+		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("MobSSR"));
+		}
 	}
 	else
 	{

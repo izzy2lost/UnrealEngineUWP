@@ -15,10 +15,18 @@ SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
 SHADER_PARAMETER(FVector4f, HZBUvFactorAndInvFactor)
 SHADER_PARAMETER(FVector4f, PrevScreenPositionScaleBias)
 SHADER_PARAMETER(FVector4f, PrevSceneColorBilinearUVMinMax)
-SHADER_PARAMETER(FVector4f, QualityAndExposureCorrection) // .x = SSRQuality, .y = PrevSceneColorPreExposureInv, .z = PrevSceneColorPreExposureCorrection, .w = View.FinalPostProcessSettings.ScreenSpaceReflectionMaxRoughness
+SHADER_PARAMETER(FVector4f, IntensityAndExposureCorrection) // .x = Intensity, .y = PrevSceneColorPreExposureInv, .z = View.FinalPostProcessSettings.ScreenSpaceReflectionMaxRoughness, .w = 2DivMaxRoughness
+SHADER_PARAMETER(uint32, NoiseIndex)
 END_SHADER_PARAMETER_STRUCT()
 
-bool IsMobileSSREnabled(const FViewInfo& View);
-bool ShouldRenderMobileSSR(const FViewInfo& View);
+enum class EMobileSSRQuality
+{
+	Disabled,
+	Low,
+	Medium,
+	MAX
+};
 
+bool IsMobileSSREnabled(const FViewInfo& View);
+EMobileSSRQuality ActiveMobileSSRQuality(const FViewInfo& View, bool bHasVelocityTexture);
 void SetupMobileSSRParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View, FMobileScreenSpaceReflectionParams& Params);

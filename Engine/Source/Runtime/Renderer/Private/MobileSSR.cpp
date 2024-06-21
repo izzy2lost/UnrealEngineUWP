@@ -17,65 +17,47 @@ static FAutoConsoleVariableRef CVarMobileScreenSpaceReflections(
 		 "1: Mobile Renderer Screen Space Reflections enabled\n"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
-bool ShouldRenderMobileSSR(const FViewInfo& View)
-{
-	return GMobileScreenSpaceReflectionsSupported && ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflections(View) && View.PrevViewInfo.TemporalAAHistory.RT[0] && View.HZB;
-}
+float GMobileMobileSSRIntensity = -1.0f;
+static FAutoConsoleVariableRef CVarMobileMobileSSRIntensity(
+	TEXT("r.Mobile.ScreenSpaceReflections.Intensity"),
+	GMobileMobileSSRIntensity,
+	TEXT("Scale factor to adjust the intensity of mobile screen space reflections in the range [0.0, 1.0] or -1. (default: -1, ignores this setting)\n"),
+	ECVF_RenderThreadSafe);
 
 bool IsMobileSSREnabled(const FViewInfo& View)
 {
-	return GMobileScreenSpaceReflectionsSupported && ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflections(View);
+	return GMobileScreenSpaceReflectionsSupported && ScreenSpaceRayTracing::ShouldRenderScreenSpaceReflections(View) && (GMobileMobileSSRIntensity < 0.0f || GMobileMobileSSRIntensity > 0.0f);
 }
 
-class FMobileSSRQualityDim : SHADER_PERMUTATION_ENUM_CLASS("SSR_QUALITY", ESSRQuality);
-class FMobileSSRUseVelocity : SHADER_PERMUTATION_BOOL("SSR_USE_VELOCITY");
-
-class FMobileScreenSpaceReflectionsPS : public FGlobalShader
+EMobileSSRQuality ActiveMobileSSRQuality(const FViewInfo& View, bool bHasVelocityTexture)
 {
-	DECLARE_GLOBAL_SHADER(FMobileScreenSpaceReflectionsPS);
-	SHADER_USE_PARAMETER_STRUCT(FMobileScreenSpaceReflectionsPS, FGlobalShader);
-
-	using FPermutationDomain = TShaderPermutationDomain<FMobileSSRQualityDim, FMobileSSRUseVelocity>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	if (!IsMobileSSREnabled(View))
 	{
-		return IsMobilePlatform(Parameters.Platform) && IsMobileDeferredShadingEnabled(Parameters.Platform);
+		return EMobileSSRQuality::Disabled;
+	}
+	ESSRQuality SSRQuality;
+	IScreenSpaceDenoiser::FReflectionsRayTracingConfig DenoiserConfig;
+	ScreenSpaceRayTracing::GetSSRQualityForView(View, &SSRQuality, &DenoiserConfig);
+	if (SSRQuality < ESSRQuality::Low)
+	{
+		return EMobileSSRQuality::Disabled;
+	}
+	if (!View.PrevViewInfo.TemporalAAHistory.RT[0])
+	{
+		return EMobileSSRQuality::Disabled;
 	}
 
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	if (SSRQuality >= ESSRQuality::Medium && bHasVelocityTexture)
 	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("SUPPORTS_ANISOTROPIC_MATERIALS"), FDataDrivenShaderPlatformInfo::GetSupportsAnisotropicMaterials(Parameters.Platform));
-
-		check(IsMobileDeferredShadingEnabled(Parameters.Platform));
-		OutEnvironment.SetDefine(TEXT("ENABLE_SHADINGMODEL_SUPPORT_MOBILE_DEFERRED"), MobileUsesGBufferCustomData(Parameters.Platform));
-		OutEnvironment.SetDefine(TEXT("IS_MOBILE_DEFERREDSHADING_SUBPASS"), 1u);
-		OutEnvironment.SetDefine(TEXT("FORCE_DEPTH_TEXTURE_READS"), 1u);
-		
-		OutEnvironment.SetDefine(TEXT("SSR_OUTPUT_FOR_DENOISER"), 0u);
-		OutEnvironment.SetDefine(TEXT("DIM_LIGHTING_TERM"), 0u);
+		return EMobileSSRQuality::Medium;
 	}
 
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(FLinearColor, SSRParams)
-		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
-	END_SHADER_PARAMETER_STRUCT()
-};
-
-IMPLEMENT_GLOBAL_SHADER(FMobileScreenSpaceReflectionsPS, "/Engine/Private/SSRT/SSRTReflections.usf", "MobileScreenSpaceReflectionsPS", SF_Pixel);
-
-
-using DepthStencilStateMobileSSR = TStaticDepthStencilState<
-	false, CF_Always,
-	true, CF_Equal, SO_Keep, SO_Keep, SO_Keep,
-	false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
-	STENCIL_MOBILE_REFLECTIVE_MASK | STENCIL_MOBILE_SKY_MASK, 0x00>;
-
-const uint8 StencilRefMobileSSR = STENCIL_MOBILE_REFLECTIVE_MASK; // Process SSR where there are potentially reflective materials (and not sky)
+	return  EMobileSSRQuality::Low;
+}
 
 void SetupMobileSSRParameters(FRDGBuilder& GraphBuilder,const FViewInfo& View, FMobileScreenSpaceReflectionParams& Params)
 {
-	if (!ShouldRenderMobileSSR(View))
+	if (!IsMobileSSREnabled(View) || !View.PrevViewInfo.TemporalAAHistory.RT[0] || !(View.HZB || View.PrevViewInfo.HZB))
 	{
 		const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 		Params.HZB = SystemTextures.Black;
@@ -83,7 +65,7 @@ void SetupMobileSSRParameters(FRDGBuilder& GraphBuilder,const FViewInfo& View, F
 		Params.SceneColor = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(SystemTextures.Black));
 		Params.SceneColorSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		Params.PrevSceneColorBilinearUVMinMax = FVector4f(0.0f, 0.0f, 1.0f, 1.0f);
-		Params.QualityAndExposureCorrection = FVector4f(ForceInitToZero);
+		Params.IntensityAndExposureCorrection = FVector4f(ForceInitToZero);
 		return;
 	}
 	FRDGTextureRef SceneColor = GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.TemporalAAHistory.RT[0]);
@@ -91,13 +73,16 @@ void SetupMobileSSRParameters(FRDGBuilder& GraphBuilder,const FViewInfo& View, F
 		? FRDGTextureSRVDesc::CreateForSlice(SceneColor, View.PrevViewInfo.TemporalAAHistory.OutputSliceIndex)
 		: FRDGTextureSRVDesc(SceneColor));
 	Params.SceneColorSampler = TStaticSamplerState<SF_Point>::GetRHI();
-	Params.HZB = View.HZB;
+	FRDGTextureRef HZB = View.HZB ? View.HZB : GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.HZB);
+	Params.HZB = HZB;
 	Params.HZBSampler = TStaticSamplerState<SF_Point>::GetRHI();
 
 	{
+		const FIntPoint HZBMipmap0Size = HZB->Desc.Extent;
+		const FIntRect ViewRect = View.HZB ? View.ViewRect : View.PrevViewInfo.ViewRect;
 		const FVector2D HZBUvFactor(
-			float(View.ViewRect.Width()) / float(2 * View.HZBMipmap0Size.X),
-			float(View.ViewRect.Height()) / float(2 * View.HZBMipmap0Size.Y));
+			float(ViewRect.Width()) / float(2 * HZBMipmap0Size.X),
+			float(ViewRect.Height()) / float(2 * HZBMipmap0Size.Y));
 		Params.HZBUvFactorAndInvFactor = FVector4f(
 			HZBUvFactor.X,
 			HZBUvFactor.Y,
@@ -126,10 +111,13 @@ void SetupMobileSSRParameters(FRDGBuilder& GraphBuilder,const FViewInfo& View, F
 		IScreenSpaceDenoiser::FReflectionsRayTracingConfig DenoiserConfig;
 		ScreenSpaceRayTracing::GetSSRQualityForView(View, &SSRQuality, &DenoiserConfig);
 
-		Params.QualityAndExposureCorrection.X = (float)SSRQuality;
-		Params.QualityAndExposureCorrection.Y = 1.0f / View.PrevViewInfo.SceneColorPreExposure;
-		Params.QualityAndExposureCorrection.Z = View.PreExposure / View.PrevViewInfo.SceneColorPreExposure;
-		Params.QualityAndExposureCorrection.W = FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionMaxRoughness, 0.0f, 1.0f);
+		const float MobileMobileSSRIntensity = GMobileMobileSSRIntensity >= 0.0f ? GMobileMobileSSRIntensity : 1.0f;
+		Params.IntensityAndExposureCorrection.X = SSRQuality > ESSRQuality::VisualizeSSR ? FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionIntensity * 0.01f * MobileMobileSSRIntensity, 0.0f, 1.0f) : 0.0f;
+		Params.IntensityAndExposureCorrection.Y = 1.f / View.PrevViewInfo.SceneColorPreExposure;
+		float MaxRoughness = FMath::Clamp(View.FinalPostProcessSettings.ScreenSpaceReflectionMaxRoughness, 0.01f, 0.6f);
+		MaxRoughness *= 0.5;
+		Params.IntensityAndExposureCorrection.Z = MaxRoughness;
+		Params.IntensityAndExposureCorrection.W = 2.0 / MaxRoughness;
 	}
 
 	{
@@ -139,42 +127,21 @@ void SetupMobileSSRParameters(FRDGBuilder& GraphBuilder,const FViewInfo& View, F
 		Params.PrevSceneColorBilinearUVMinMax.Z = PrevSceneColorParameters.UVViewportBilinearMax.X;
 		Params.PrevSceneColorBilinearUVMinMax.W = PrevSceneColorParameters.UVViewportBilinearMax.Y;
 	}
+
+	switch (View.AntiAliasingMethod)
+	{
+	default:
+		// Without TAA disable temporal noise and reduce intensity of SSR to hide the noise.
+		Params.NoiseIndex = 0;
+		if (GMobileMobileSSRIntensity < 0.0f)
+		{
+			Params.IntensityAndExposureCorrection.X = FMath::Min(Params.IntensityAndExposureCorrection.X, 0.4f);
+		}
+		break;
+	case AAM_TemporalAA:
+	case AAM_TSR:
+		Params.NoiseIndex = View.ViewState ? View.ViewState->GetFrameIndex() % 8 : 0;
+		break;
+	}
 }
 
-void FMobileSceneRenderer::RenderSSR(FRHICommandList& RHICmdList, const FViewInfo& View)
-{
-	if (!ShouldRenderMobileSSR(View))
-	{
-		return;
-	}
-
-	FMobileScreenSpaceReflectionsPS::FParameters Parameters;
-
-	ESSRQuality SSRQuality;
-	IScreenSpaceDenoiser::FReflectionsRayTracingConfig DenoiserConfig;
-	ScreenSpaceRayTracing::GetSSRQualityForView(View, &SSRQuality, &DenoiserConfig);
-	if (SSRQuality < ESSRQuality::Low)
-	{
-		return;
-	}
-
-	Parameters.SSRParams = ScreenSpaceRayTracing::ComputeSSRParams(View, SSRQuality, false);
-
-	Parameters.ViewUniformBuffer = View.ViewUniformBuffer;
-
-	FMobileScreenSpaceReflectionsPS::FPermutationDomain PermutationVectorPS;
-	PermutationVectorPS.Set<FMobileSSRQualityDim>(SSRQuality);
-	PermutationVectorPS.Set<FMobileSSRUseVelocity>(bShouldRenderVelocities);
-
-	TShaderMapRef<FMobileScreenSpaceReflectionsPS> PixelShader(View.ShaderMap, PermutationVectorPS);
-	FGraphicsPipelineStateInitializer GraphicsPSOInit;
-	FPixelShaderUtils::InitFullscreenPipelineState(RHICmdList, View.ShaderMap, PixelShader, /* out */ GraphicsPSOInit);
-
-	GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One>::GetRHI();
-	GraphicsPSOInit.DepthStencilState = DepthStencilStateMobileSSR::GetRHI();
-
-	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, StencilRefMobileSSR);
-	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), Parameters);
-
-	FPixelShaderUtils::DrawFullscreenTriangle(RHICmdList);
-}

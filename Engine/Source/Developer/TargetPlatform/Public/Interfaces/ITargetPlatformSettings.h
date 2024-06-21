@@ -227,11 +227,6 @@ public:
 	virtual bool UsesMobileDBuffer() const = 0;
 
 	/**
-	 * Gets whether the platform should use Screen Space Reflections when using the mobile renderer.
-	 */
-	virtual bool UsesMobileScreenSpaceReflections() const = 0;
-
-	/**
 	 * Gets whether the platform uses ASTC HDR
 	 */
 	virtual bool UsesASTCHDR() const = 0;

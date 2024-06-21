@@ -2666,9 +2666,6 @@ protected:
 	/** Renders the base pass for translucency. */
 	void RenderTranslucency(FRHICommandList& RHICmdList, const FViewInfo& View);
 
-	/** Renders screen space reflections. */
-	void RenderSSR(FRHICommandList& RHICmdList, const FViewInfo& View);
-
 	/** On chip pre-tonemap before scene color MSAA resolve (iOS only) */
 	void PreTonemapMSAA(FRHICommandList& RHICmdList, const FMinimalSceneTextures& SceneTextures);
 
@@ -2714,6 +2711,7 @@ private:
 	bool bRequiresAmbientOcclusionPass;
 	bool bShouldRenderVelocities;
 	bool bShouldRenderHZB;
+	bool bRequiresScreenSpaceReflections;
 	bool bIsFullDepthPrepassEnabled;
 	bool bIsMaskedOnlyDepthPrepassEnabled;
 	bool bRequiresSceneDepthAux;

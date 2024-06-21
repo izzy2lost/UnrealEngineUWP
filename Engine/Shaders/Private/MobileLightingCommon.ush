@@ -15,16 +15,21 @@
 
 #if MOBILE_SSR_ENABLED && !(MOBILE_QL_FORCE_FULLY_ROUGH || MATERIAL_FULLY_ROUGH)
 	#if MOBILE_DEFERRED_SHADING
-		#define MOBILE_USE_SSR (MATERIAL_SSR)
+		#if IS_MOBILE_BASE_PASS
+			#define MOBILE_USE_SSR (MATERIAL_SSR)
+		#else
+			#define MOBILE_USE_SSR 1
+		#endif
 	#else
 		#define MOBILE_USE_SSR (MATERIAL_SSR || !MATERIALBLENDING_ANY_TRANSLUCENT)
 	#endif
+	#define SSRData	MobileBasePass.SSRParams
 #else 
 	#define MOBILE_USE_SSR 0
 #endif
 
 #if MOBILE_USE_SSR
-#include "SSRT/SSRTRayCast.ush"
+#include "MobileSSR.ush"
 #endif
 
 #ifndef TRANSLUCENCY_NON_DIRECTIONAL
@@ -497,28 +502,10 @@ void AccumulateReflection(
 
 
 #if MOBILE_USE_SSR
-	BRANCH if(View.CameraCut == 0 && MobileBasePass.SSRParams.QualityAndExposureCorrection.x > 0.0 && GBuffer.Roughness <= MobileBasePass.SSRParams.QualityAndExposureCorrection.w)
+	half4 SSR = 0;
+	if (MobileSSR(GBuffer, SvPosition, TranslatedWorldPosition, ReflectionVector, SSR))
 	{
-		float StepOffset = InterleavedGradientNoise(SvPosition.xy, View.StateFrameIndexMod8);
-		StepOffset -= 0.5;
-		float3 HitUVz;
-		float Level = 0;
-		bool bHit = RayCast(MobileBasePass.SSRParams.HZB, MobileBasePass.SSRParams.HZBSampler, TranslatedWorldPosition, ReflectionVector, GBuffer.Roughness, GBuffer.Depth,
-			12, StepOffset, MobileBasePass.SSRParams.HZBUvFactorAndInvFactor, /*bDebugPrint=*/false, HitUVz, Level);
-
-		BRANCH if(bHit)
-		{
-			float2 SampleUV;
-			float Vignette;
-			ReprojectHit(MobileBasePass.SSRParams.PrevScreenPositionScaleBias, HitUVz, SampleUV, Vignette);
-
-			SampleUV = clamp(SampleUV, MobileBasePass.SSRParams.PrevSceneColorBilinearUVMinMax.xy,  MobileBasePass.SSRParams.PrevSceneColorBilinearUVMinMax.zw);
-			half4 SSR = SampleScreenColor(MobileBasePass.SSRParams.SceneColor, MobileBasePass.SSRParams.SceneColorSampler, SampleUV);
-			SSR *= Vignette * saturate( 2 - 6.6 * GBuffer.Roughness );
-
-			SSR.rgb *= MobileBasePass.SSRParams.QualityAndExposureCorrection.y;
-			SpecularIBL.rgb = SpecularIBL.rgb * (1 - SSR.a) + SSR.rgb;
-		}
+		SpecularIBL.rgb = SpecularIBL.rgb * (1 - SSR.a) + SSR.rgb;
 	}
 #endif // MOBILE_USE_SSR
 
