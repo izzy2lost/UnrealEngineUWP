@@ -14,7 +14,7 @@ testProjects=(
 	"Source/Programs/Shared/EpicGames.IoHash.Tests/EpicGames.IoHash.Tests.csproj"
 	"Source/Programs/Shared/EpicGames.Redis.Tests/EpicGames.Redis.Tests.csproj"
 	"Source/Programs/Shared/EpicGames.Serialization.Tests/EpicGames.Serialization.Tests.csproj"
-	"Source/Programs/Horde/Horde.Server.Tests/Horde.Server.Tests.csproj"
+	"Source/Programs/Horde/HordeServer.Tests/HordeServer.Tests.csproj"
 )
 
 for csProj in "${testProjects[@]}"; do

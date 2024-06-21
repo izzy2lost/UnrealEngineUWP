@@ -19,7 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\Horde.Agent\IpcMessages.cs" Link="IpcMessages.cs" />
+    <Compile Include="..\HordeAgent\IpcMessages.cs" Link="IpcMessages.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,6 +3,5 @@
 using System.Resources;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Horde.Agent.Tests")]
-[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
+[assembly: InternalsVisibleTo("HordeServer.Tests")]
 [assembly: NeutralResourcesLanguage("en-US")]

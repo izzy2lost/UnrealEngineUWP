@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31808.319
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Server", "Horde.Server\Horde.Server.csproj", "{199841BA-0C0D-4019-9795-08618F7CD0D3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeServer", "HordeServer\HordeServer.csproj", "{199841BA-0C0D-4019-9795-08618F7CD0D3}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Agent", "Horde.Agent\Horde.Agent.csproj", "{5F24A781-351B-4A69-9155-1D716ACE234B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeAgent", "HordeAgent\HordeAgent.csproj", "{5F24A781-351B-4A69-9155-1D716ACE234B}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Core", "..\Shared\EpicGames.Core\EpicGames.Core.csproj", "{6402563D-5294-49DA-ADBA-EFEA85BAB94D}"
 EndProject
@@ -13,9 +13,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{84144B
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Perforce", "..\Shared\EpicGames.Perforce\EpicGames.Perforce.csproj", "{02FD0749-54D1-4881-98E1-14D6C917C491}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Server.Tests", "Horde.Server.Tests\Horde.Server.Tests.csproj", "{EB3085C5-8768-45EF-AE22-A2B15B7AF926}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeServer.Tests", "HordeServer.Tests\HordeServer.Tests.csproj", "{EB3085C5-8768-45EF-AE22-A2B15B7AF926}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Agent.Tests", "Horde.Agent.Tests\Horde.Agent.Tests.csproj", "{0D4F13CA-AE5D-4DAC-8376-E5C43CDF66B7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeAgent.Tests", "HordeAgent.Tests\HordeAgent.Tests.csproj", "{0D4F13CA-AE5D-4DAC-8376-E5C43CDF66B7}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Perforce.Managed", "..\Shared\EpicGames.Perforce.Managed\EpicGames.Perforce.Managed.csproj", "{D140C598-152C-4955-8517-5B3EAF3DAA7D}"
 EndProject
@@ -63,7 +63,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemoteWorker", "Samples\Rem
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.OIDC", "..\Shared\EpicGames.OIDC\EpicGames.OIDC.csproj", "{06AD34BE-74CF-4139-B537-99616D12273F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde", "Horde\Horde.csproj", "{1995E4FA-DFFF-44BD-A4C8-C2E59D07E468}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeCmd", "HordeCmd\HordeCmd.csproj", "{1995E4FA-DFFF-44BD-A4C8-C2E59D07E468}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Agent.TrayApp", "Horde.Agent.TrayApp\Horde.Agent.TrayApp.csproj", "{AAA04F58-16A1-4F9E-983D-0C526485D9F5}"
 EndProject

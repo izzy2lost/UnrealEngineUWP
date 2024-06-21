@@ -7,9 +7,9 @@
 !Source/Programs/AutomationTool/AutomationUtils/Matchers/**
 !Source/Programs/UnrealBuildTool/Matchers/**
 !Source/Programs/Horde/*
-!Source/Programs/Horde/Horde.Agent/**
-!Source/Programs/Horde/Horde.Server/**
-!Source/Programs/Horde/Horde.Server.Tests/**
+!Source/Programs/Horde/HordeAgent/**
+!Source/Programs/Horde/HordeServer/**
+!Source/Programs/Horde/HordeServer.Tests/**
 !Source/Programs/Horde/Scripts/**
 !Binaries/DotNET/EpicGames.Perforce.Native/**
 !Source/Programs/Horde/nuget.config

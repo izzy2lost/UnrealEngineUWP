@@ -33,13 +33,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\EpicGames.Serialization\EpicGames.Serialization.csproj" />
-    <ProjectReference Include="..\Horde.Agent\Horde.Agent.csproj">
+    <ProjectReference Include="..\HordeAgent\HordeAgent.csproj">
       <Aliases>HordeAgent</Aliases>
     </ProjectReference>
     <ProjectReference Include="..\Drivers\JobDriver\JobDriver.csproj">
       <Aliases>JobDriver</Aliases>
     </ProjectReference>
-    <ProjectReference Include="..\Horde.Server\Horde.Server.csproj" />
+    <ProjectReference Include="..\HordeServer\HordeServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

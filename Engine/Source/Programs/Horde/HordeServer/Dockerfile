@@ -2,7 +2,7 @@
 # NOTE: This Dockerfile must be built with the Engine directory as CWD.
 #       In the Horde build script we stage the required files before running:
 #
-#         docker build -f Source/Programs/Horde/Horde.Server/Dockerfile . 
+#         docker build -f Source/Programs/Horde/HordeServer/Dockerfile . 
 #
 #       Running directly from the source tree will cause a lot of unnecessary
 #       files to be uploaded to Docker before building.
@@ -38,25 +38,25 @@ COPY Source/Programs/Shared/EpicGames.Redis/*.csproj ./Source/Programs/Shared/Ep
 COPY Source/Programs/Shared/EpicGames.Serialization/*.csproj ./Source/Programs/Shared/EpicGames.Serialization/
 COPY Source/Programs/Shared/EpicGames.Serialization.Tests/*.csproj ./Source/Programs/Shared/EpicGames.Serialization.Tests/
 COPY Source/Programs/Horde/Drivers/JobDriver/*.csproj ./Source/Programs/Horde/Drivers/JobDriver/
-COPY Source/Programs/Horde/Horde.Agent/*.csproj ./Source/Programs/Horde/Horde.Agent/
-COPY Source/Programs/Horde/Horde.Server/*.csproj ./Source/Programs/Horde/Horde.Server/
-COPY Source/Programs/Horde/Horde.Server.Tests/*.csproj ./Source/Programs/Horde/Horde.Server.Tests/
-RUN dotnet restore Source/Programs/Horde/Horde.Server/Horde.Server.csproj -p:WithHordeStorage=false
+COPY Source/Programs/Horde/HordeAgent/*.csproj ./Source/Programs/Horde/HordeAgent/
+COPY Source/Programs/Horde/HordeServer/*.csproj ./Source/Programs/Horde/HordeServer/
+COPY Source/Programs/Horde/HordeServer.Tests/*.csproj ./Source/Programs/Horde/HordeServer.Tests/
+RUN dotnet restore Source/Programs/Horde/HordeServer/HordeServer.csproj -p:WithHordeStorage=false
 
 # Build the server
 COPY Binaries/DotNET/EpicGames.Perforce.Native/ Binaries/DotNET/EpicGames.Perforce.Native/
 COPY Source/Programs/Shared/ Source/Programs/Shared/
 COPY Source/Programs/Horde/.editorconfig Source/Programs/Horde/.editorconfig
-COPY Source/Programs/Horde/Horde.Server/ Source/Programs/Horde/Horde.Server/
+COPY Source/Programs/Horde/HordeServer/ Source/Programs/Horde/HordeServer/
 COPY Source/Programs/AutomationTool/AutomationUtils/Matchers/ Source/Programs/AutomationTool/AutomationUtils/Matchers/
 COPY Source/Programs/UnrealBuildTool/Matchers/ Source/Programs/UnrealBuildTool/Matchers/
 ARG msbuild_args
-RUN dotnet publish Source/Programs/Horde/Horde.Server/Horde.Server.csproj -c Release -o out -p:WithHordeStorage=false $msbuild_args -p:RunAnalyzersDuringBuild=True
+RUN dotnet publish Source/Programs/Horde/HordeServer/HordeServer.csproj -c Release -o out -p:WithHordeStorage=false $msbuild_args -p:RunAnalyzersDuringBuild=True
 
 # Run tests
 COPY Source/Programs/Horde/Drivers/JobDriver/ Source/Programs/Horde/Drivers/JobDriver/
-COPY Source/Programs/Horde/Horde.Agent/ Source/Programs/Horde/Horde.Agent/
-COPY Source/Programs/Horde/Horde.Server.Tests/ Source/Programs/Horde/Horde.Server.Tests/
+COPY Source/Programs/Horde/HordeAgent/ Source/Programs/Horde/HordeAgent/
+COPY Source/Programs/Horde/HordeServer.Tests/ Source/Programs/Horde/HordeServer.Tests/
 COPY Source/Programs/Shared/EpicGames.Serialization.Tests/ Source/Programs/Shared/EpicGames.Serialization.Tests/
 
 ARG code_coverage

@@ -37,16 +37,16 @@
     <Compile Include="..\..\..\UnrealBuildTool\Matchers\*.cs">
       <Link>Parser\Matchers\%(FileName)%(Extension)</Link>
     </Compile>
-    <Content Include="..\..\Horde.Server\Protos\horde\*.proto">
+    <Content Include="..\..\HordeServer\Protos\horde\*.proto">
       <Link>Protos\%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\..\Horde.Server\Protos\horde\common\**\*.proto">
+    <Content Include="..\..\HordeServer\Protos\horde\common\**\*.proto">
       <Link>Protos\horde\common\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\..\Horde.Server\Protos\horde\messages\**\*.proto">
+    <Content Include="..\..\HordeServer\Protos\horde\messages\**\*.proto">
       <Link>Protos\horde\messages\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\..\Horde.Server\Protos\horde\tasks\**\*.proto">
+    <Content Include="..\..\HordeServer\Protos\horde\tasks\**\*.proto">
       <Link>Protos\horde\tasks\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
   </ItemGroup>
@@ -91,12 +91,12 @@
   </ItemGroup>
   
   <ItemGroup>
-    <Protobuf Include="..\..\Horde.Server\Protos\horde\job_rpc.proto" ProtoRoot="..\..\Horde.Server\Protos" GrpcServices="Client" Access="Public" AdditionalImportDirs="..\..\..\Shared\EpicGames.Horde\Protos"/>
-    <Protobuf Include="..\..\Horde.Server\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
-    <Protobuf Include="..\..\Horde.Server\Protos\horde\common\label_change.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
-    <Protobuf Include="..\..\Horde.Server\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
-    <Protobuf Include="..\..\Horde.Server\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
-    <Protobuf Include="..\..\Horde.Server\Protos\horde\tasks\job_task.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\..\HordeServer\Protos\horde\job_rpc.proto" ProtoRoot="..\..\HordeServer\Protos" GrpcServices="Client" Access="Public" AdditionalImportDirs="..\..\..\Shared\EpicGames.Horde\Protos"/>
+    <Protobuf Include="..\..\HordeServer\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\..\HordeServer\Protos\horde\common\label_change.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\..\HordeServer\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\..\HordeServer\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\..\HordeServer\Protos\horde\tasks\job_task.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
   </ItemGroup>
 
   <ItemGroup>
