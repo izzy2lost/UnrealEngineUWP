@@ -15,9 +15,16 @@
 #include "Misc/WarnIfAssetsLoadedInScope.h"
 #include "Dialog/SMessageDialog.h"
 #include "ChaosClothAsset/TerminalNode.h"
+#include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowSNode.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_ClothAsset"
+
+namespace UE::Chaos::ClothAsset::Private
+{
+static int32 bEnableClothDataflowEditor = false;
+static FAutoConsoleVariableRef CVarEnableClothDataflowEditor(TEXT("p.ChaosCloth.EnableDataflowEditor"), bEnableClothDataflowEditor, TEXT("Enable the use of the core dataflow editor for cloth asset (WIP)"));
+}
 
 namespace ClothAssetDefinitionHelpers
 {
@@ -174,9 +181,6 @@ EAssetCommandResult UAssetDefinition_ClothAsset::OpenAssets(const FAssetOpenArgs
 
 	if (ClothObjects.Num() > 0)
 	{
-		UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-		UChaosClothAssetEditor* const AssetEditor = NewObject<UChaosClothAssetEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
-
 		// Validate the asset
 		UChaosClothAsset* const ClothAsset = CastChecked<UChaosClothAsset>(ClothObjects[0]);
 		if (!ClothAsset->GetDataflow())
@@ -186,13 +190,20 @@ EAssetCommandResult UAssetDefinition_ClothAsset::OpenAssets(const FAssetOpenArgs
 				ClothAsset->SetDataflow(NewDataflowAsset);
 			}
 		}
-
-		TArray<TObjectPtr<UObject>> Objects;
-		for (UChaosClothAsset* const ClothObject : ClothObjects)
+		
+		UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+		if(!UE::Chaos::ClothAsset::Private::bEnableClothDataflowEditor)
 		{
-			Objects.Add(ClothObject);
+			UChaosClothAssetEditor* const AssetEditor = NewObject<UChaosClothAssetEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
+			AssetEditor->Initialize({ClothObjects[0] });
 		}
-		AssetEditor->Initialize(Objects);
+		else
+		{
+			UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
+            const TSubclassOf<AActor> ActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
+            	TEXT("/ChaosClothAsset/BP_ClothPreview.BP_ClothPreview_C"), nullptr, LOAD_None, nullptr);
+			AssetEditor->Initialize({ ClothObjects[0] }, ActorClass);
+		}
 
 		return EAssetCommandResult::Handled;
 	}

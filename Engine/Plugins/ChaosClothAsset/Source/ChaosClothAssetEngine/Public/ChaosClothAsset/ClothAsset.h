@@ -6,6 +6,7 @@
 #include "ReferenceSkeleton.h"
 #include "RenderCommandFence.h"
 #include "PerQualityLevelProperties.h"
+#include "Dataflow/DataflowContent.h"
 #include "ClothAsset.generated.h"
 
 class FSkeletalMeshRenderData;
@@ -36,7 +37,7 @@ ENUM_CLASS_FLAGS(EClothAssetAsyncProperties);
  * Cloth asset for pattern based simulation.
  */
 UCLASS(hidecategories = Object, BlueprintType)
-class CHAOSCLOTHASSETENGINE_API UChaosClothAsset : public USkinnedAsset
+class CHAOSCLOTHASSETENGINE_API UChaosClothAsset : public USkinnedAsset, public IDataflowContentOwner
 {
 	GENERATED_BODY()
 public:
@@ -54,6 +55,12 @@ public:
 #endif
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	//~ End UObject interface
+
+	//~ Begin IDataflowContentOwner interface 
+	virtual TObjectPtr<UDataflowBaseContent> CreateDataflowContent() override;
+	virtual void WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const override;
+	virtual void ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) override;
+	//~ End IDataflowContentOwner interface 
 
 	//~ Begin USkinnedAsset interface
 	virtual FReferenceSkeleton& GetRefSkeleton()								

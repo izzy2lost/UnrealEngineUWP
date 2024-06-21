@@ -46,7 +46,7 @@ void FClothingCacheSchema::RecordPostSolve(const FClothingSimulationSolver& Clot
 				const Softs::FSolverVec3& ParticleX = ParticleXs[ParticleIndex];
 
 				// Adding the vertices relative position to the particle write datas
-				PendingID.Add(ParticleIndex + GlobalOffset);
+				PendingID.Add(ParticleIndex);
 				PendingVX.Add(ParticleV.X);
 				PendingVY.Add(ParticleV.Y);
 				PendingVZ.Add(ParticleV.Z);

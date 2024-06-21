@@ -19,20 +19,20 @@ static FAutoConsoleTaskPriority DataflowSimulationTaskPriority(
 
 namespace Dataflow
 {
-	enum class ESimulationThreadingMode : uint8
-	{
-		GameThread,
-		BlockingThread,
-		AsyncThread,
-	};
-	
-	namespace CVars
-	{
-		/** Simulation threading mode */
-		int32  DataflowSimulationThreadingMode = (uint8)ESimulationThreadingMode::AsyncThread;
-		FAutoConsoleVariableRef CVarDataflowSimulationThreadingMode(TEXT("p.Dataflow.Simulation.ThreadingMode"), DataflowSimulationThreadingMode,
-			TEXT("0 : run simulation on GT | 1 : run simulation on PT (GT is blocked in manager Tick) | 2 : run simulation on PT (GT will be blocked at the end of the world tick)"));
-	}
+enum class ESimulationThreadingMode : uint8
+{
+	GameThread,
+	BlockingThread,
+	AsyncThread,
+};
+
+namespace CVars
+{
+	/** Simulation threading mode */
+	int32  DataflowSimulationThreadingMode = (uint8)ESimulationThreadingMode::AsyncThread;
+	FAutoConsoleVariableRef CVarDataflowSimulationThreadingMode(TEXT("p.Dataflow.Simulation.ThreadingMode"), DataflowSimulationThreadingMode,
+		TEXT("0 : run simulation on GT | 1 : run simulation on PT (GT is blocked in manager Tick) | 2 : run simulation on PT (GT will be blocked at the end of the world tick)"));
+}
 	
 class FDataflowSimulationTask
 {
@@ -80,15 +80,6 @@ private:
 	/** World simulation time  */
 	float SimulationTime;
 };
-}
-
-FDelegateHandle UDataflowSimulationManager::OnObjectPropertyChangedHandle;
-FDelegateHandle UDataflowSimulationManager::OnWorldTickEndHandle;
-FDelegateHandle UDataflowSimulationManager::OnCreatePhysicsStateHandle;
-FDelegateHandle UDataflowSimulationManager::OnDestroyPhysicsStateHandle;
-
-UDataflowSimulationManager::UDataflowSimulationManager()
-{}
 
 inline void PreSimulationTick(const TObjectPtr<UObject>& SimulationWorld, const float SimulationTime, const float DeltaTime)
 {
@@ -96,7 +87,7 @@ inline void PreSimulationTick(const TObjectPtr<UObject>& SimulationWorld, const 
 	{
 		TArray<AActor*> Actors;
 		UGameplayStatics::GetAllActorsWithInterface(SimulationWorld, UDataflowSimulationActor::StaticClass(), Actors);
-	
+
 		for (AActor* CurrentActor : Actors)
 		{
 			IDataflowSimulationActor::Execute_PreDataflowSimulationTick(CurrentActor, SimulationTime, DeltaTime);
@@ -110,13 +101,62 @@ inline void PostSimulationTick(const TObjectPtr<UObject>& SimulationWorld, const
 	{
 		TArray<AActor*> Actors;
 		UGameplayStatics::GetAllActorsWithInterface(SimulationWorld, UDataflowSimulationActor::StaticClass(), Actors);
-	
+
 		for (AActor* CurrentActor : Actors)
 		{
 			IDataflowSimulationActor::Execute_PostDataflowSimulationTick(CurrentActor, SimulationTime, DeltaTime);
 		}
 	}
 }
+
+void RegisterSimulationInterface(const TObjectPtr<UObject>& SimulationObject)
+{
+	if(IDataflowSimulationInterface* SimulationInterface = Cast<IDataflowSimulationInterface>(SimulationObject))
+	{
+		if(SimulationInterface->GetSimulationAsset().DataflowAsset)
+		{
+			FDataflowSimulationProxy* SimulationProxy = SimulationInterface->GetSimulationProxy();
+			
+			if(!SimulationProxy || (SimulationProxy && !SimulationProxy->IsValid()))
+			{
+				// Build the simulation proxy
+				SimulationInterface->BuildSimulationProxy();
+			}
+
+			// Register the simulation interface to the manager
+			SimulationInterface->RegisterManagerInterface(SimulationObject->GetWorld());
+		}
+	}
+}
+
+void UnregisterSimulationInterface(const TObjectPtr<UObject>& SimulationObject)
+{
+	if(IDataflowSimulationInterface* SimulationInterface = Cast<IDataflowSimulationInterface>(SimulationObject))
+	{
+		if(SimulationInterface->GetSimulationAsset().DataflowAsset)
+		{
+			FDataflowSimulationProxy* SimulationProxy = SimulationInterface->GetSimulationProxy();
+			
+			if(SimulationProxy && SimulationProxy->IsValid())
+			{
+				// Reset the simulation proxy
+				SimulationInterface->ResetSimulationProxy();
+			}
+
+			// Unregister the simulation interface from the manager
+			SimulationInterface->UnregisterManagerInterface(SimulationObject->GetWorld());
+		}
+	}
+}
+}
+
+FDelegateHandle UDataflowSimulationManager::OnObjectPropertyChangedHandle;
+FDelegateHandle UDataflowSimulationManager::OnWorldTickEndHandle;
+FDelegateHandle UDataflowSimulationManager::OnCreatePhysicsStateHandle;
+FDelegateHandle UDataflowSimulationManager::OnDestroyPhysicsStateHandle;
+
+UDataflowSimulationManager::UDataflowSimulationManager()
+{}
 
 void UDataflowSimulationManager::Tick(float DeltaTime)
 {
@@ -182,42 +222,12 @@ void UDataflowSimulationManager::OnStartup()
 
 	OnCreatePhysicsStateHandle = UActorComponent::GlobalCreatePhysicsDelegate.AddLambda([](UActorComponent* ActorComponent)
 	{
-		if(IDataflowSimulationInterface* SimulationInterface = Cast<IDataflowSimulationInterface>(ActorComponent))
-		{
-			if(SimulationInterface->GetSimulationAsset().DataflowAsset)
-			{
-				FDataflowSimulationProxy* SimulationProxy = SimulationInterface->GetSimulationProxy();
-				
-				if(!SimulationProxy || (SimulationProxy && !SimulationProxy->IsValid()))
-				{
-					// Build the simulation proxy
-					SimulationInterface->BuildSimulationProxy();
-				}
-
-				// Register the simulation interface to the manager
-				SimulationInterface->RegisterManagerInterface(ActorComponent->GetWorld());
-			}
-		}
+		Dataflow::RegisterSimulationInterface(ActorComponent);
 	});
 
 	OnDestroyPhysicsStateHandle = UActorComponent::GlobalDestroyPhysicsDelegate.AddLambda([](UActorComponent* ActorComponent)
 	{
-		if(IDataflowSimulationInterface* SimulationInterface = Cast<IDataflowSimulationInterface>(ActorComponent))
-		{
-			if(SimulationInterface->GetSimulationAsset().DataflowAsset)
-			{
-				FDataflowSimulationProxy* SimulationProxy = SimulationInterface->GetSimulationProxy();
-				
-				if(SimulationProxy && SimulationProxy->IsValid())
-				{
-					// Reset the simulation proxy
-					SimulationInterface->ResetSimulationProxy();
-				}
-
-				// Unregister the simulation interface from the manager
-				SimulationInterface->UnregisterManagerInterface(ActorComponent->GetWorld());
-			}
-		}
+		Dataflow::UnregisterSimulationInterface(ActorComponent);
 	});
 
 #if WITH_EDITOR
@@ -248,10 +258,50 @@ void UDataflowSimulationManager::OnShutdown()
 	UActorComponent::GlobalDestroyPhysicsDelegate.Remove(OnDestroyPhysicsStateHandle);
 }
 
+void RegisterSimulationInterface(const TObjectPtr<UObject>& SimulationObject)
+{
+	if(IDataflowSimulationInterface* SimulationInterface = Cast<IDataflowSimulationInterface>(SimulationObject))
+	{
+		if(SimulationInterface->GetSimulationAsset().DataflowAsset)
+		{
+			FDataflowSimulationProxy* SimulationProxy = SimulationInterface->GetSimulationProxy();
+				
+			if(!SimulationProxy || (SimulationProxy && !SimulationProxy->IsValid()))
+			{
+				// Build the simulation proxy
+				SimulationInterface->BuildSimulationProxy();
+			}
+
+			// Register the simulation interface to the manager
+			SimulationInterface->RegisterManagerInterface(SimulationObject->GetWorld());
+		}
+	}
+}
+
+void UnregisterSimulationInterface(const TObjectPtr<UObject>& SimulationObject)
+{
+	if(IDataflowSimulationInterface* SimulationInterface = Cast<IDataflowSimulationInterface>(SimulationObject))
+	{
+		if(SimulationInterface->GetSimulationAsset().DataflowAsset)
+		{
+			FDataflowSimulationProxy* SimulationProxy = SimulationInterface->GetSimulationProxy();
+				
+			if(SimulationProxy && SimulationProxy->IsValid())
+			{
+				// Reset the simulation proxy
+				SimulationInterface->ResetSimulationProxy();
+			}
+
+			// Unregister the simulation interface from the manager
+			SimulationInterface->UnregisterManagerInterface(SimulationObject->GetWorld());
+		}
+	}
+}
+
 void UDataflowSimulationManager::WriteSimulationData(const float DeltaTime)
 {
 	// Pre-simulation callback that could be used in BP before the simulation
-	PreSimulationTick(GetWorld(), GetWorld()->GetTimeSeconds(), DeltaTime);
+	Dataflow::PreSimulationTick(GetWorld(), GetWorld()->GetTimeSeconds(), DeltaTime);
 	
 	for(const TPair<TObjectPtr<UDataflow>, Dataflow::FDataflowSimulationData>& DataflowData : SimulationData)
 	{
@@ -314,7 +364,7 @@ void UDataflowSimulationManager::ReadSimulationData(const float DeltaTime)
 		bStepSimulationScene = false;
 	}
 	// Post-simulation callback that could be used in BP after the simulation
-	PostSimulationTick(GetWorld(), GetWorld()->GetTimeSeconds(), DeltaTime);
+	Dataflow::PostSimulationTick(GetWorld(), GetWorld()->GetTimeSeconds(), DeltaTime);
 }
 
 void UDataflowSimulationManager::AdvanceSimulationData(const float DeltaTime, const float SimulationTime)

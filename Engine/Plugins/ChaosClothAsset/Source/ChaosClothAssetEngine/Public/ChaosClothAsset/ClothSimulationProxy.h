@@ -7,6 +7,7 @@
 #include "Math/Transform.h"
 #include "Templates/UniquePtr.h"
 #include "ClothingSystemRuntimeTypes.h"
+#include "Interfaces/DataflowPhysicsSolver.h"
 
 namespace Chaos
 {
@@ -33,7 +34,7 @@ namespace UE::Chaos::ClothAsset
 	 * Cloth simulation proxy.
 	 * Class used to share data between the cloth simulation and the cloth component.
 	 */
-	class CHAOSCLOTHASSETENGINE_API FClothSimulationProxy
+	class CHAOSCLOTHASSETENGINE_API FClothSimulationProxy : public FDataflowPhysicsSolverProxy
 	{
 	public:
 		explicit FClothSimulationProxy(const UChaosClothComponent& InClothComponent);
@@ -50,6 +51,12 @@ namespace UE::Chaos::ClothAsset
 
 		/** Wait for the parallel task to complete if one was running, and update the simulation data. */
 		void CompleteParallelSimulation_GameThread();
+
+		/** write simulation data back onto GT after the simulation is done */
+		void PostSimulate_GameThread() {WriteSimulationData();}
+		
+		/** setup simulation data from GT before the simulation starts */
+        bool PreSimulate_GameThread(float DeltaTime);
 
 		/**
 		 * Return a map of all simulation data as used by the skeletal rendering code.
@@ -75,12 +82,17 @@ namespace UE::Chaos::ClothAsset
 	protected:
 		void Tick();
 		void WriteSimulationData();
+		bool SetupSimulationData(float DeltaTime);
 		void InitializeConfigs();
 		void FillSimulationContext(float DeltaTime, bool bIsInitialization = false);
 
 	private:
 		bool ShouldEnableSolver(bool bSolverCurrentlyEnabled) const;
 		void UpdateClothLODs();
+
+		// Begin FDataflowPhysicsSolverProxy overrides
+		virtual void AdvanceSolverDatas(const float DeltaTime) override {Tick();}
+		// End FDataflowPhysicsSolverProxy overrides
 
 		// Internal physics thread object
 		friend class FClothSimulationProxyParallelTask;

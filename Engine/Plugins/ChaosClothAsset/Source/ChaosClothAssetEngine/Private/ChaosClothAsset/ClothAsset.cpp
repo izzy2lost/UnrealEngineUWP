@@ -261,6 +261,7 @@ void UChaosClothAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyCha
 		ReregisterComponents();
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+	InvalidateDataflowContents();
 }
 #endif // #if WITH_EDITOR
 
@@ -1044,3 +1045,43 @@ UAnimationAsset* UChaosClothAsset::GetPreviewSceneAnimation() const
 }
 
 #endif
+
+TObjectPtr<UDataflowBaseContent> UChaosClothAsset::CreateDataflowContent()
+{
+	TObjectPtr<UDataflowSkeletalContent> SkeletalContent = DataflowContextHelpers::CreateNewDataflowContent<UDataflowSkeletalContent>(this);
+
+	SkeletalContent->SetDataflowOwner(this);
+	SkeletalContent->SetTerminalAsset(this);
+
+	WriteDataflowContent(SkeletalContent);
+	
+	return SkeletalContent;
+}
+
+void UChaosClothAsset::WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
+{
+	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	{
+		SkeletalContent->SetDataflowAsset(DataflowAsset);
+		SkeletalContent->SetDataflowTerminal(DataflowTerminal);
+		SkeletalContent->SetSkeleton(nullptr);
+
+#if WITH_EDITORONLY_DATA
+		SkeletalContent->SetAnimationAsset(GetPreviewSceneAnimation());
+		SkeletalContent->SetSkeletalMesh(GetPreviewSceneSkeletalMesh());
+#endif
+	}
+}
+
+void UChaosClothAsset::ReadDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent)
+{
+	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	{
+#if WITH_EDITORONLY_DATA
+		PreviewSceneAnimation = SkeletalContent->GetAnimationAsset();
+		PreviewSceneSkeletalMesh = SkeletalContent->GetSkeletalMesh();
+#endif
+	}
+}
+
+

@@ -13,6 +13,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "SkeletalRenderPublic.h"
+#include "Dataflow/DataflowSimulationManager.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Stats/Stats.h"
 
@@ -207,6 +208,9 @@ void UChaosClothComponent::OnRegister()
 
 	// Update render visibility, so that an empty LODs doesn't unnecessarily go to render
 	UpdateVisibility();
+
+	// Register the dataflow simulation interface
+	Dataflow::RegisterSimulationInterface(this);
 }
 
 void UChaosClothComponent::OnUnregister()
@@ -220,6 +224,9 @@ void UChaosClothComponent::OnUnregister()
 	ClothOutfitInteractor->ResetProperties();
 	CollectionPropertyFacades.Empty();
 	PropertyCollections.Empty();
+
+	// Unregister the dataflow simulation interface
+	Dataflow::UnregisterSimulationInterface(this);
 }
 
 bool UChaosClothComponent::IsComponentTickEnabled() const
@@ -234,19 +241,22 @@ void UChaosClothComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 	
 	// Tick USkinnedMeshComponent first so it will update the predicted lod
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
+	
 	// Make sure that the previous frame simulation has completed
 	HandleExistingParallelSimulation();
-
-	// < This would be the right place to update the preset/use an interactor, ...etc.
-
-	// Update the proxy and start the simulation parallel task
-	StartNewParallelSimulation(DeltaTime);
-
-	// Wait in tick function for the simulation results if required
-	if (ShouldWaitForParallelSimulationInTickComponent())
+	
+	if(!SimulationAsset.DataflowAsset)
 	{
-		HandleExistingParallelSimulation();
+		// < This would be the right place to update the preset/use an interactor, ...etc.
+
+		// Update the proxy and start the simulation parallel task
+		StartNewParallelSimulation(DeltaTime);
+
+		// Wait in tick function for the simulation results if required
+		if (ShouldWaitForParallelSimulationInTickComponent())
+		{
+			HandleExistingParallelSimulation();
+		}
 	}
 
 #if WITH_EDITOR
@@ -604,5 +614,47 @@ UChaosClothAssetInteractor* UChaosClothComponent::GetClothOutfitInteractor()
 {
 	check(IsInGameThread());
 	return ClothOutfitInteractor;
+}
+
+void UChaosClothComponent::BuildSimulationProxy()
+{
+	RecreateClothSimulationProxy();
+}
+
+void UChaosClothComponent::ResetSimulationProxy()
+{
+	ClothSimulationProxy.Reset();
+}
+
+void UChaosClothComponent::WriteToSimulation(const float DeltaTime)
+{
+	if (ClothSimulationProxy.IsValid())
+	{
+		const bool bIsSimulating = ClothSimulationProxy->PreSimulate_GameThread(DeltaTime);
+		const int32 CurrentLOD = GetPredictedLODLevel();
+
+		if (bIsSimulating && CollectionPropertyFacades.IsValidIndex(CurrentLOD) && CollectionPropertyFacades[CurrentLOD].IsValid())
+		{
+			CollectionPropertyFacades[CurrentLOD]->ClearDirtyFlags();
+		}
+	}
+}
+
+void UChaosClothComponent::ReadFromSimulation(const float DeltaTime)
+{
+	if (ClothSimulationProxy.IsValid())
+	{
+		ClothSimulationProxy->PostSimulate_GameThread();
+	}
+}
+
+FDataflowSimulationProxy* UChaosClothComponent::GetSimulationProxy()
+{
+	return ClothSimulationProxy.Get();
+}
+
+const FDataflowSimulationProxy* UChaosClothComponent::GetSimulationProxy() const
+{
+	return ClothSimulationProxy.Get();
 }
 

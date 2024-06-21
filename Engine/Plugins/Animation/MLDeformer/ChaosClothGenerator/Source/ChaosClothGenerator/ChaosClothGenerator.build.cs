@@ -46,7 +46,8 @@ public class ChaosClothGenerator : ModuleRules
 				"SkeletalMeshDescription",
 				"Slate",
 				"SlateCore",
-				"UnrealEd"
+				"UnrealEd",
+				"DataflowSimulation"
 			}
 			);
 		

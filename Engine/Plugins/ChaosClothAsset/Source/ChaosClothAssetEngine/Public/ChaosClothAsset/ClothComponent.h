@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Components/SkinnedMeshComponent.h"
+#include "Interfaces/DataflowPhysicsSolver.h"
 #include "ClothComponent.generated.h"
 
 class UChaosClothAsset;
@@ -30,7 +31,7 @@ UCLASS(
 	Meta = (BlueprintSpawnableComponent, ToolTip = "Chaos cloth component."),
 	DisplayName = "Chaos cloth component",
 	HideCategories = (Object, "Mesh|SkeletalAsset", Constraints, Advanced, Cooking, Collision, Navigation))
-class CHAOSCLOTHASSETENGINE_API UChaosClothComponent : public USkinnedMeshComponent
+class CHAOSCLOTHASSETENGINE_API UChaosClothComponent : public USkinnedMeshComponent, public IDataflowPhysicsSolverInterface
 {
 	GENERATED_BODY()	
 public:
@@ -179,6 +180,18 @@ protected:
 	virtual void UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& DelegateHandle) override;
 	//~ End USkinnedMeshComponent Interface
 
+	// Begin IDataflowPhysicsSolverInterface overrides
+	virtual FString GetSimulationName() const override {return GetName();};
+	virtual FDataflowSimulationAsset& GetSimulationAsset() override {return SimulationAsset;};
+	virtual const FDataflowSimulationAsset& GetSimulationAsset() const override {return SimulationAsset;};
+	virtual FDataflowSimulationProxy* GetSimulationProxy() override;
+	virtual const FDataflowSimulationProxy* GetSimulationProxy() const  override;
+	virtual void BuildSimulationProxy() override;
+	virtual void ResetSimulationProxy() override;
+	virtual void WriteToSimulation(const float DeltaTime) override;
+	virtual void ReadFromSimulation(const float DeltaTime) override;
+	// End IDataflowPhysicsSolverInterface overrides
+
 	/** Override this function for setting up custom simulation proxies when the component is registered. */
 	virtual TSharedPtr<UE::Chaos::ClothAsset::FClothSimulationProxy> CreateClothSimulationProxy();
 
@@ -202,6 +215,10 @@ private:
 	uint8 bSimulateInEditor : 1;
 #endif
 
+	/* Solver dataflow asset used to advance in time */
+	UPROPERTY(EditAnywhere, Category = ClothComponent)
+	FDataflowSimulationAsset SimulationAsset;
+	
 	/** If enabled, and the parent is another Skinned Mesh Component (e.g. another Cloth Component, Poseable Mesh Component, Skeletal Mesh Component, ...etc.), use its pose. */
 	UPROPERTY(EditAnywhere, Category = ClothComponent)
 	uint8 bUseAttachedParentAsPoseComponent : 1;

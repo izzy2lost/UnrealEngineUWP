@@ -175,7 +175,7 @@ namespace UE::Chaos::ClothAsset
 		CompleteParallelSimulation_GameThread();
 	}
 
-	bool FClothSimulationProxy::Tick_GameThread(float DeltaTime)
+	bool FClothSimulationProxy::SetupSimulationData(float DeltaTime)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_TickGame);
 
@@ -224,9 +224,6 @@ namespace UE::Chaos::ClothAsset
 				CollisionSourcesProxy->ExtractCollisionData();
 			}
 
-			// Start the the cloth simulation thread
-			ParallelTask = TGraphTask<FClothSimulationProxyParallelTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(*this);
-
 			return true;  // Simulating
 		}
 
@@ -242,6 +239,32 @@ namespace UE::Chaos::ClothAsset
 		}
 
 		return false;  // Not simulating
+	}
+
+	bool FClothSimulationProxy::PreSimulate_GameThread(float DeltaTime)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_TickGame);
+
+		const bool bIsSimulating = SetupSimulationData(DeltaTime);
+		if(bIsSimulating && ClothSimulationContext->CacheData.HasData())
+		{
+			// Start the the cloth simulation thread only when reading cache
+			ParallelTask = TGraphTask<FClothSimulationProxyParallelTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(*this);
+		}
+		return bIsSimulating;
+	}
+
+	bool FClothSimulationProxy::Tick_GameThread(float DeltaTime)
+	{
+		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_TickGame);
+
+		const bool bIsSimulating = SetupSimulationData(DeltaTime);
+		if(bIsSimulating)
+		{
+			// Start the the cloth simulation thread
+			ParallelTask = TGraphTask<FClothSimulationProxyParallelTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(*this);
+		}
+		return bIsSimulating;
 	}
 
 	void FClothSimulationProxy::Tick()

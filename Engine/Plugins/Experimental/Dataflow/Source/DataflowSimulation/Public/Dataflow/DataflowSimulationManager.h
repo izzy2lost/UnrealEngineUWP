@@ -38,6 +38,8 @@ namespace Dataflow
 			return true;
 		}
 	};
+	DATAFLOWSIMULATION_API void RegisterSimulationInterface(const TObjectPtr<UObject>& SimulationObject);
+	DATAFLOWSIMULATION_API void UnregisterSimulationInterface(const TObjectPtr<UObject>& SimulationObject);
 }
 
 UCLASS()
