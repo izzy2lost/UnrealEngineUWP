@@ -756,3 +756,15 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 
 	return true;
 }
+
+bool FDisplayClusterViewport::GetOCIOConversionSettings(FOpenColorIOColorConversionSettings& OutOCIOConversionSettings) const
+{
+	// Return OCIO conversion settings if available
+	if (OpenColorIO)
+	{
+		OutOCIOConversionSettings = OpenColorIO->GetConversionSettings();
+		return true;
+	}
+
+	return false;
+}

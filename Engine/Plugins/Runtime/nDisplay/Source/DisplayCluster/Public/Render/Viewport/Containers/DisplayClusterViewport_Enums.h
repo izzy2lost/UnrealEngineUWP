@@ -189,15 +189,10 @@ enum class EDisplayClusterViewportMediaState : uint8
 	// This viewport does not use media.
 	None = 0,
 
-	// This viewport will be captured by the media device.
+	// This viewport will be captured by a media device.
 	Capture = 1 << 0,
-	Capture_ForceLateOCIOPass = 1 << 1,
 
-	// This viewport is overridden by the media device.
-	Input = 1 << 4,
-	Input_ForceLateOCIOPass = 1 << 5,
-
-	ForceLateOCIOPass = Capture_ForceLateOCIOPass | Input_ForceLateOCIOPass,
+	// This viewport is overridden by a media device.
+	Input = 1 << 1,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportMediaState);
-

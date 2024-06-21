@@ -3,8 +3,15 @@
 #include "Capture/DisplayClusterMediaCaptureTile.h"
 
 
-FDisplayClusterMediaCaptureTile::FDisplayClusterMediaCaptureTile(const FString& InMediaId, const FString& InClusterNodeId, const FString& InViewportId, UMediaOutput* InMediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy)
-	: FDisplayClusterMediaCaptureViewport(InMediaId, InClusterNodeId, InViewportId, InMediaOutput, SyncPolicy)
+FDisplayClusterMediaCaptureTile::FDisplayClusterMediaCaptureTile(
+	const FString& InMediaId,
+	const FString& InClusterNodeId,
+	const FString& InViewportId,
+	UMediaOutput* InMediaOutput,
+	UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy,
+	bool bInLateOCIO
+)
+	: FDisplayClusterMediaCaptureViewport(InMediaId, InClusterNodeId, InViewportId, InMediaOutput, SyncPolicy, bInLateOCIO)
 {
 }
 

@@ -11,6 +11,14 @@
 #include "TextureResource.h"
 #include "RHIUtilities.h"
 
+#include "OpenColorIOColorSpace.h"
+#include "OpenColorIORendering.h"
+
+#include "RenderGraphBuilder.h"
+#include "ScreenPass.h"
+
+#include "Engine/Engine.h"
+
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
 
@@ -40,8 +48,13 @@ TAutoConsoleVariable<int32> CVarTempRivermaxExtraPixelsRemove(
 	ECVF_RenderThreadSafe
 );
 
-FDisplayClusterMediaInputBase::FDisplayClusterMediaInputBase(const FString& InMediaId, const FString& InClusterNodeId, UMediaSource* InMediaSource)
-	: FDisplayClusterMediaBase(InMediaId, InClusterNodeId)
+FDisplayClusterMediaInputBase::FDisplayClusterMediaInputBase(
+	const FString& InMediaId,
+	const FString& InClusterNodeId,
+	UMediaSource* InMediaSource,
+	bool bInLateOCIO
+)
+	: FDisplayClusterMediaBase(InMediaId, InClusterNodeId, bInLateOCIO)
 {
 	checkSlow(InMediaSource);
 	MediaSource = DuplicateObject(InMediaSource, GetTransientPackage());
@@ -101,10 +114,13 @@ void FDisplayClusterMediaInputBase::Stop()
 		MediaPlayer->OnMediaEvent().RemoveAll(this);
 	}
 
+	// Release internals
+	ReleaseInternals();
+
 	bRunningRivermaxMedia = false;
 }
 
-void FDisplayClusterMediaInputBase::OverrideTextureRegions_RenderThread(FRHITexture* const SrcTexture, FRHITexture* const DstTexture, FIntRect& InOutSrcRect, FIntRect& InOutDstRect) const
+void FDisplayClusterMediaInputBase::OverrideTextureRegions_RenderThread(FIntRect& InOutSrcRect, FIntRect& InOutDstRect) const
 {
 	const FIntPoint SrcSize = InOutSrcRect.Size();
 	const FIntPoint DstSize = InOutDstRect.Size();
@@ -139,20 +155,41 @@ void FDisplayClusterMediaInputBase::OverrideTextureRegions_RenderThread(FRHIText
 	}
 }
 
-void FDisplayClusterMediaInputBase::ImportMediaData(FRHICommandListImmediate& RHICmdList, const FMediaTextureInfo& TextureInfo)
+void FDisplayClusterMediaInputBase::ReleaseInternals()
 {
-	UE_LOG(LogDisplayClusterMedia, Verbose, TEXT("MediaInput '%s': importing texture on RT frame '%lu'..."), *GetMediaId(), GFrameCounterRenderThread);
+	OCIOAppliedTexture.SafeRelease();
+}
+
+void FDisplayClusterMediaInputBase::ImportMediaData_RenderThread(FRDGBuilder& GraphBuilder, const FMediaInputTextureInfo& TextureInfo)
+{
+	UE_LOG(LogDisplayClusterMedia, Verbose, TEXT("MediaInput '%s': importing texture on RT frame '%llu'..."), *GetMediaId(), GFrameCounterRenderThread);
 
 	MediaTexture->JustInTimeRender();
 
-	FRHITexture* const SrcTexture = MediaTexture->GetResource() ? MediaTexture->GetResource()->GetTextureRHI() : nullptr;
+	FRHITexture* SrcTexture = MediaTexture->GetResource() ? MediaTexture->GetResource()->GetTextureRHI() : nullptr;
 	FRHITexture* const DstTexture = TextureInfo.Texture;
+
+	if (!SrcTexture || !DstTexture)
+	{
+		return;
+	}
+
+	// Apply OCIO if needed
+	if (IsLateOCIO())
+	{
+		const bool bApplied = ProcessLateOCIO(GraphBuilder, SrcTexture, TextureInfo.OCIOPassResources);
+		if (bApplied)
+		{
+			// Redirect SrcTexture to the intermediate OCIO texture so we'll be importing this new one
+			SrcTexture = OCIOAppliedTexture;
+		}
+	}
 
 	if (SrcTexture && DstTexture)
 	{
 		FIntRect SrcRect(FIntPoint(0, 0), SrcTexture->GetDesc().Extent);
 		FIntRect DstRect(TextureInfo.Region);
-		OverrideTextureRegions_RenderThread(SrcTexture, DstTexture, SrcRect, DstRect);
+		OverrideTextureRegions_RenderThread(SrcRect, DstRect);
 
 		const bool bSrcSrgb = EnumHasAnyFlags(SrcTexture->GetFlags(), TexCreate_SRGB);
 		const bool bDstSrgb = EnumHasAnyFlags(DstTexture->GetFlags(), TexCreate_SRGB);
@@ -166,13 +203,104 @@ void FDisplayClusterMediaInputBase::ImportMediaData(FRHICommandListImmediate& RH
 			CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
 			CopyInfo.DestPosition = FIntVector(DstRect.Min.X, DstRect.Min.Y, 0);
 			CopyInfo.Size = FIntVector(DstRect.Size().X, DstRect.Size().Y, 0);
-			TransitionAndCopyTexture(RHICmdList, SrcTexture, DstTexture, CopyInfo);
+
+			TransitionAndCopyTexture(GraphBuilder.RHICmdList, SrcTexture, DstTexture, CopyInfo);
 		}
 		else
 		{
-			DisplayClusterMediaHelpers::ResampleTexture_RenderThread(RHICmdList, SrcTexture, DstTexture, SrcRect, DstRect);
+			DisplayClusterMediaHelpers::ResampleTexture_RenderThread(GraphBuilder.RHICmdList, SrcTexture, DstTexture, SrcRect, DstRect);
 		}
 	}
+}
+
+bool FDisplayClusterMediaInputBase::ProcessLateOCIO(FRDGBuilder& GraphBuilder, FRHITexture* SrcTexture, const FOpenColorIORenderPassResources& OCIORenderPassResources)
+{
+	checkSlow(SrcTexture);
+
+	if (!SrcTexture)
+	{
+		return false;
+	}
+
+	if (!OCIORenderPassResources.IsValid())
+	{
+		return false;
+	}
+
+	// Create an intermediate texture if not exists
+	if (!OCIOAppliedTexture)
+	{
+		OCIOAppliedTexture = CreateTexture(SrcTexture);
+	}
+	// Re-create it if parameters don't match
+	else
+	{
+		const bool bSameFormat = (OCIOAppliedTexture->GetDesc().Format == SrcTexture->GetDesc().Format);
+		const bool bSameSize   = (OCIOAppliedTexture->GetDesc().Extent == SrcTexture->GetDesc().Extent);
+
+		if (!bSameFormat || !bSameSize)
+		{
+			OCIOAppliedTexture = CreateTexture(SrcTexture);
+		}
+	}
+
+	if (!OCIOAppliedTexture)
+	{
+		return false;
+	}
+
+	FRDGTextureRef InputTexture = RegisterExternalTexture(GraphBuilder, SrcTexture, TEXT("DCMediaLateOCIOTexIn"));
+	FRDGTextureRef OutputTexture = RegisterExternalTexture(GraphBuilder, OCIOAppliedTexture, TEXT("DCMediaLateOCIOTexOut"));
+
+	const FIntPoint OutputResolution = OCIOAppliedTexture->GetDesc().Extent;
+	const FIntRect  OutputRect = FIntRect(FIntPoint::ZeroValue, OutputResolution);
+
+	FScreenPassTexture Input = FScreenPassTexture(InputTexture);
+	FScreenPassRenderTarget Output = FScreenPassRenderTarget(OutputTexture, OutputRect, ERenderTargetLoadAction::EClear);
+
+	FOpenColorIORendering::AddPass_RenderThread(
+		GraphBuilder,
+		FScreenPassViewInfo(),
+		GEngine->GetDefaultWorldFeatureLevel(),
+		Input,
+		Output,
+		OCIORenderPassResources,
+		1.0f,
+		EOpenColorIOTransformAlpha::None
+	);
+
+	return true;
+}
+
+FTextureRHIRef FDisplayClusterMediaInputBase::CreateTexture(const FRHITexture* ReferenceTexture)
+{
+	if (!ReferenceTexture)
+	{
+		return nullptr;
+	}
+
+	// Use original format and size
+	const int32 SizeX = ReferenceTexture->GetDesc().Extent.X;
+	const int32 SizeY = ReferenceTexture->GetDesc().Extent.Y;
+	const EPixelFormat Format = ReferenceTexture->GetFormat();
+
+	// Prepare description
+	FRHITextureCreateDesc Desc =
+		FRHITextureCreateDesc::Create2D(TEXT("DisplayClusterFrameQueueCacheTexture"), SizeX, SizeY, Format)
+		.SetClearValue(FClearValueBinding::Black)
+		.SetNumMips(1)
+		.SetFlags(ETextureCreateFlags::Dynamic)
+		.AddFlags(ETextureCreateFlags::MultiGPUGraphIgnore)
+		.SetInitialState(ERHIAccess::SRVMask);
+
+	// Leave original flags, but make sure it's ResolveTargetable but not RenderTargetable
+	ETextureCreateFlags Flags = ReferenceTexture->GetFlags();
+	Flags &= ~ETextureCreateFlags::RenderTargetable;
+	Flags |= ETextureCreateFlags::ResolveTargetable;
+	Desc.SetFlags(Flags);
+
+	// Create texture
+	return RHICreateTexture(Desc);
 }
 
 void FDisplayClusterMediaInputBase::OnMediaEvent(EMediaEvent MediaEvent)

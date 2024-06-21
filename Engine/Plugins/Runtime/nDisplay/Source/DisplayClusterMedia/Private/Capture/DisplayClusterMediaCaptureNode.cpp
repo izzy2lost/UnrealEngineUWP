@@ -10,6 +10,7 @@
 #include "IDisplayClusterCallbacks.h"
 
 #include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
 #include "Render/Viewport/IDisplayClusterViewportManagerProxy.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
@@ -19,7 +20,12 @@
 #include "UnrealClient.h"
 
 
-FDisplayClusterMediaCaptureNode::FDisplayClusterMediaCaptureNode(const FString& InMediaId, const FString& InClusterNodeId, UMediaOutput* InMediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy)
+FDisplayClusterMediaCaptureNode::FDisplayClusterMediaCaptureNode(
+	const FString& InMediaId,
+	const FString& InClusterNodeId,
+	UMediaOutput* InMediaOutput,
+	UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy
+)
 	: FDisplayClusterMediaCaptureBase(InMediaId, InClusterNodeId, InMediaOutput, SyncPolicy)
 {
 }
@@ -68,11 +74,16 @@ void FDisplayClusterMediaCaptureNode::OnPostBackbufferUpdated_RenderThread(FRHIC
 	{
 		if (FRHITexture* const BackbufferTexture = Viewport->GetRenderTargetTexture())
 		{
+			FRDGBuilder GraphBuilder(RHICmdList);
+
+			FRDGTextureRef BackbufferTextureRef = RegisterExternalTexture(GraphBuilder, BackbufferTexture, TEXT("DCMediaOutBackbufferTex"));
+			const FIntRect TextureRegion = { FIntPoint::ZeroValue, BackbufferTextureRef->Desc.Extent };
+			FMediaOutputTextureInfo TextureInfo{ BackbufferTextureRef, TextureRegion };
+
 			// Capture backbuffer
-			FMediaTextureInfo TextureInfo{ BackbufferTexture, FIntRect(FIntPoint::ZeroValue, BackbufferTexture->GetDesc().Extent) };
-			FRDGBuilder Builder(RHICmdList);
-			ExportMediaData(Builder, TextureInfo);
-			Builder.Execute();
+			ExportMediaData_RenderThread(GraphBuilder, TextureInfo);
+
+			GraphBuilder.Execute();
 		}
 	}
 }

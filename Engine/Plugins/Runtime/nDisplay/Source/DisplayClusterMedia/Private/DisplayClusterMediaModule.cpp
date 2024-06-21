@@ -456,9 +456,8 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameInput(const UDisp
 				TSharedPtr<FDisplayClusterMediaInputViewport> NewICVFXInput = MakeShared<FDisplayClusterMediaInputViewport>(
 					MediaInputId, ClusterNodeId,
 					ICVFXViewportId,
-					MediaSource);
-
-				NewICVFXInput->bForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+					MediaSource,
+					MediaSettings.bLateOCIOPass);
 
 				InputViewports.Emplace(MediaInputId, MoveTemp(NewICVFXInput));
 			}
@@ -497,9 +496,8 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraFullFrameOutput(const UDis
 						MediaCaptureId, ClusterNodeId,
 						ICVFXCameraName, ICVFXViewportId,
 						MediaOutputItem.MediaOutput,
-						MediaOutputItem.OutputSyncPolicy);
-
-					NewICVFXCapture->bForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+						MediaOutputItem.OutputSyncPolicy,
+						MediaSettings.bLateOCIOPass);
 
 					CaptureViewports.Emplace(MediaCaptureId, MoveTemp(NewICVFXCapture));
 				}
@@ -548,9 +546,8 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesInput(const UD
 						TSharedPtr<FDisplayClusterMediaInputViewport> NewICVFXTileInput = MakeShared<FDisplayClusterMediaInputViewport>(
 							MediaInputId, ClusterNodeId,
 							ICVFXViewportTileId,
-							MediaInputTile.MediaSource);
-
-						NewICVFXTileInput->bForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+							MediaInputTile.MediaSource,
+							MediaSettings.bLateOCIOPass);
 
 						InputViewports.Emplace(MediaInputId, MoveTemp(NewICVFXTileInput));
 					}
@@ -600,9 +597,9 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const U
 						TSharedPtr<FDisplayClusterMediaCaptureTile> NewICVFXTileOutput = MakeShared<FDisplayClusterMediaCaptureTile>(
 							MediaOutputId, ClusterNodeId,
 							ICVFXViewportTileId,
-							MediaOutputTile.MediaOutput);
-
-						NewICVFXTileOutput->bForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+							MediaOutputTile.MediaOutput,
+							nullptr, // no sync for tiles as it's basically for in-cluster use
+							MediaSettings.bLateOCIOPass);
 
 						CaptureViewports.Emplace(MediaOutputId, MoveTemp(NewICVFXTileOutput));
 					}
@@ -613,6 +610,5 @@ void FDisplayClusterMediaModule::InitializeICVFXCameraUniformTilesOutput(const U
 		}
 	}
 }
-
 
 IMPLEMENT_MODULE(FDisplayClusterMediaModule, DisplayClusterMedia);

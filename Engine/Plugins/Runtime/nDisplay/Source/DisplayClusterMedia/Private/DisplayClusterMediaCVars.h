@@ -4,6 +4,9 @@
 
 #include "HAL/IConsoleManager.h"
 
-// Enable/disable media.
-// May be useful if media needs to be disabled without doing any changes to the nDisplay configuration asset.
+/**
+ * Enable/disable media.
+ * 
+ * May be useful if media needs to be disabled without doing any changes to the nDisplay configuration asset.
+ */
 extern TAutoConsoleVariable<bool> CVarMediaEnabled;

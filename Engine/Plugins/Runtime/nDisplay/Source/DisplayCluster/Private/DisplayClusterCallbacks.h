@@ -84,12 +84,17 @@ public:
 
 	virtual FDisplayClusterFailoverNodeDown& OnDisplayClusterFailoverNodeDown() override
 	{
-		return DisplayClusterFailoverNodeDown;
+		return DisplayClusterFailoverNodeDownEvent;
+	}
+
+	virtual FDisplayClusterPostTonemapPass_RenderThread& OnDisplayClusterPostTonemapPass_RenderThread() override
+	{
+		return DisplayClusterPostTonemapPassEvent;
 	}
 
 	virtual FDisplayClusterPostRenderViewFamily_RenderThread& OnDisplayClusterPostRenderViewFamily_RenderThread() override
 	{
-		return DisplayClusterPostRenderViewFamily;
+		return DisplayClusterPostRenderViewFamilyEvent;
 	}
 
 	virtual FDisplayClusterPreWarp_RenderThread& OnDisplayClusterPreWarp_RenderThread() override
@@ -159,13 +164,15 @@ private:
 	FDisplayClusterEndSceneEvent             DisplayClusterEndSceneEvent;
 	FDisplayClusterPreSubmitViewFamilies     DisplayClusterPreSubmitViewFamiliesEvent;
 	FDisplayClusterCustomPresentSetEvent     DisplayClusterCustomPresentSetEvent;
-	FDisplayClusterFailoverNodeDown          DisplayClusterFailoverNodeDown;
+	FDisplayClusterUpdateViewportMediaState  DisplayClusterUpdateViewportMediaStateEvent;
+	FDisplayClusterFailoverNodeDown          DisplayClusterFailoverNodeDownEvent;
 
 	FDisplayClusterPresentationPreSynchronization_RHIThread  DisplayClusterPresentationPreSynchronizationEvent;
 	FDisplayClusterPresentationPostSynchronization_RHIThread DisplayClusterPresentationPostSynchronizationEvent;
 	FDisplayClusterFramePresentated_RHIThread                DisplayClusterFramePresentedEvent;
 
-	FDisplayClusterPostRenderViewFamily_RenderThread DisplayClusterPostRenderViewFamily;
+	FDisplayClusterPostTonemapPass_RenderThread      DisplayClusterPostTonemapPassEvent;
+	FDisplayClusterPostRenderViewFamily_RenderThread DisplayClusterPostRenderViewFamilyEvent;
 	FDisplayClusterPreWarp_RenderThread              DisplayClusterPreWarpEvent;
 	FDisplayClusterPreWarpViewport_RenderThread      DisplayClusterPreWarpViewportEvent;
 	FDisplayClusterPostWarp_RenderThread             DisplayClusterPostWarpEvent;
@@ -176,6 +183,4 @@ private:
 	FDisplayClusterPostBackbufferUpdate_RenderThread DisplayClusterPostBackbufferUpdateEvent;
 	FDisplayClusterPostBackbufferUpdated_RenderThread DisplayClusterPostBackbufferUpdatedEvent;
 	FDisplayClusterPreProcessIcvfx_RenderThread      FDisplayClusterPreProcessIcvfxEvent;
-
-	FDisplayClusterUpdateViewportMediaState DisplayClusterUpdateViewportMediaStateEvent;
 };

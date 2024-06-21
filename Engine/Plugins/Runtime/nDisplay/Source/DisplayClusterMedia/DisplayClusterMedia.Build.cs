@@ -6,18 +6,12 @@ public class DisplayClusterMedia : ModuleRules
 {
 	public DisplayClusterMedia(ReadOnlyTargetRules ROTargetRules) : base(ROTargetRules)
 	{
-		PublicIncludePathModuleNames.AddRange(
-			new string[] {
-				"DisplayClusterShaders",
-			});
-
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"DisplayClusterConfiguration",
 				"Media",
 				"MediaAssets",
 				"MediaIOCore",
-				"SharedMemoryMedia",
 			});
 
 		PrivateDependencyModuleNames.AddRange(
@@ -26,6 +20,7 @@ public class DisplayClusterMedia : ModuleRules
 				"CoreUObject",
 				"DisplayCluster",
 				"Engine",
+				"OpenColorIO",
 				"Renderer",
 				"RenderCore",
 				"RHI",

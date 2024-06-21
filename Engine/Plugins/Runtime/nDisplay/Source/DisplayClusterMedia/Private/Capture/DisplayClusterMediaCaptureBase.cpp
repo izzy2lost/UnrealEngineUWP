@@ -13,13 +13,22 @@
 #include "MediaOutput.h"
 
 #include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
+#include "RHICommandList.h"
+#include "RHIUtilities.h"
 
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
 
 
-FDisplayClusterMediaCaptureBase::FDisplayClusterMediaCaptureBase(const FString& InMediaId, const FString& InClusterNodeId, UMediaOutput* InMediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* InSyncPolicy)
-	: FDisplayClusterMediaBase(InMediaId, InClusterNodeId)
+FDisplayClusterMediaCaptureBase::FDisplayClusterMediaCaptureBase(
+	const FString& InMediaId,
+	const FString& InClusterNodeId,
+	UMediaOutput* InMediaOutput,
+	UDisplayClusterMediaOutputSynchronizationPolicy* InSyncPolicy,
+	bool bInLateOCIO
+)
+	: FDisplayClusterMediaBase(InMediaId, InClusterNodeId, bInLateOCIO)
 	, SyncPolicy(InSyncPolicy)
 {
 	checkSlow(InMediaOutput);
@@ -115,19 +124,27 @@ void FDisplayClusterMediaCaptureBase::StopCapture()
 	}
 }
 
-void FDisplayClusterMediaCaptureBase::ExportMediaData(FRDGBuilder& GraphBuilder, const FMediaTextureInfo& TextureInfo)
+void FDisplayClusterMediaCaptureBase::ExportMediaData_RenderThread(FRDGBuilder& GraphBuilder, const FMediaOutputTextureInfo& TextureInfo)
 {
-	FRHITexture* const SrcTexture = TextureInfo.Texture;
-
-	if (SrcTexture)
+	// Check if source texture is valid
+	if (!TextureInfo.Texture)
 	{
-		UE_LOG(LogDisplayClusterMedia, Verbose, TEXT("MediaCapture '%s': exporting texture on RT frame '%lu'..."), *GetMediaId(), GFrameCounterRenderThread);
-
-		MediaCapture->SetValidSourceGPUMask(GraphBuilder.RHICmdList.GetGPUMask());
-
-		LastSrcRegionSize = FIntSize(TextureInfo.Region.Size());
-		MediaCapture->CaptureImmediate_RenderThread(GraphBuilder, SrcTexture);
+		UE_LOG(LogDisplayClusterMedia, Warning, TEXT("MediaCapture '%s': invalid source texture on RT frame %lu"), *GetMediaId(), GFrameCounterRenderThread);
+		return;
 	}
+
+	MediaCapture->SetValidSourceGPUMask(GraphBuilder.RHICmdList.GetGPUMask());
+
+	const FIntPoint SrcTextureSize = TextureInfo.Texture->Desc.Extent;
+	const FIntPoint SrcRegionSize  = TextureInfo.Region.Size();
+
+	LastSrcRegionSize = FIntSize(SrcRegionSize);
+
+	UE_LOG(LogDisplayClusterMedia, VeryVerbose, TEXT("MediaCapture '%s': exporting texture [size=%dx%d, rect=%dx%d] on RT frame '%lu'..."),
+		*GetMediaId(), SrcTextureSize.X, SrcTextureSize.Y, SrcRegionSize.X, SrcRegionSize.Y, GFrameCounterRenderThread);
+
+	// Capture
+	MediaCapture->CaptureImmediate_RenderThread(GraphBuilder, TextureInfo.Texture, TextureInfo.Region);
 }
 
 void FDisplayClusterMediaCaptureBase::OnPostClusterTick()

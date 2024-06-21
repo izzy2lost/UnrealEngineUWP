@@ -19,6 +19,8 @@
 class UCameraComponent;
 class UWorld;
 struct FMinimalViewInfo;
+struct FOpenColorIOColorConversionSettings;
+
 
 /**
  * nDisplay: Viewport (interface for GameThread)
@@ -134,6 +136,13 @@ public:
 	 * @return Clipping planes as FVector2D(ZNear, ZFar)
 	 */
 	virtual FVector2D GetClippingPlanes() const = 0;
+
+	/**
+	 * Returns OCIO configuration if any set
+	 * 
+	 * @return true if OCIO is configured
+	 */
+	virtual bool GetOCIOConversionSettings(FOpenColorIOColorConversionSettings& OutOCIOConversionSettings) const = 0;
 
 	/**
 	* [const] Get custom postprocess settings for this viewport.

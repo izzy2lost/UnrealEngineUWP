@@ -300,8 +300,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Output Groups"))
 	TArray<FDisplayClusterConfigurationMediaTiledOutputGroup> TiledMediaOutputGroups;
 
-	/** Force late OCIO pass */
-	UPROPERTY()
+	/** Allows the receviers to apply their own OCIO transformations (per node OCIO override). Requires the media to support FloatRGBA.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Receivers apply OCIO"))
 	bool bLateOCIOPass = false;
 
 public:
