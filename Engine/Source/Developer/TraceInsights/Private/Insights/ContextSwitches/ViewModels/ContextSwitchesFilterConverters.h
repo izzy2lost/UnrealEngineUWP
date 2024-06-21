@@ -2,15 +2,19 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
+#include "Internationalization/Text.h"
+
 // TraceInsightsCore
 #include "InsightsCore/Filter/ViewModels/Filters.h"
 
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FCoreEventNameFilterValueConverter : public UE::Insights::IFilterValueConverter
+class FCoreEventNameFilterValueConverter : public IFilterValueConverter
 {
 public:
 	virtual bool Convert(const FString& Input, int64& Output, FText& OutError) const override;
@@ -20,4 +24,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::ContextSwitches

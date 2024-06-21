@@ -12,9 +12,9 @@
 #include "Insights/CookProfiler/ViewModels/PackageNode.h"
 #include "Insights/CookProfiler/ViewModels/PackageTable.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FPackageTable"
+#define LOCTEXT_NAMESPACE "UE::Insights::CookProfiler::FPackageTable"
 
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -39,17 +39,17 @@ const FName FPackageTableColumns::PackageAssetClassColumnId(TEXT("AssetClass"));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef UE::Insights::FTableCellValue (*PackageFieldGetter) (const UE::Insights::FTableColumn&, const FPackageEntry&);
+typedef FTableCellValue (*PackageFieldGetter) (const FTableColumn&, const FPackageEntry&);
 
 template<PackageFieldGetter Getter>
-class FPackageColumnValueGetter : public UE::Insights::FTableCellValueGetter
+class FPackageColumnValueGetter : public FTableCellValueGetter
 {
 public:
-	virtual const TOptional<UE::Insights::FTableCellValue> GetValue(const UE::Insights::FTableColumn& Column, const UE::Insights::FBaseTreeNode& Node) const override
+	virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
 	{
 		if (Node.IsGroup())
 		{
-			const UE::Insights::FTableTreeNode& NodePtr = static_cast<const UE::Insights::FTableTreeNode&>(Node);
+			const FTableTreeNode& NodePtr = static_cast<const FTableTreeNode&>(Node);
 			if (NodePtr.HasAggregatedValue(Column.GetId()))
 			{
 				return NodePtr.GetAggregatedValue(Column.GetId());
@@ -65,7 +65,7 @@ public:
 			}
 		}
 
-		return TOptional<UE::Insights::FTableCellValue>();
+		return TOptional<FTableCellValue>();
 	}
 };
 
@@ -73,9 +73,6 @@ public:
 
 struct DefaultPackageFieldGetterFuncts
 {
-	using FTableCellValue = UE::Insights::FTableCellValue;
-	using FTableColumn = UE::Insights::FTableColumn;
-
 	static FTableCellValue GetId(const FTableColumn& Column, const FPackageEntry& Package) { return FTableCellValue((int64)Package.GetId());	}
 	static FTableCellValue GetName(const FTableColumn& Column, const FPackageEntry& Package) { return FTableCellValue((const TCHAR*)Package.GetName());	}
 
@@ -495,6 +492,6 @@ void FPackageTable::AddDefaultColumns()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler
 
 #undef LOCTEXT_NAMESPACE

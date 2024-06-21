@@ -2,7 +2,10 @@
 
 #include "PackageEntry.h"
 
-namespace Insights
+// TraceServices
+#include "TraceServices/Model/CookProfilerProvider.h"
+
+namespace UE::Insights::CookProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -24,4 +27,4 @@ FPackageEntry::FPackageEntry(const TraceServices::FPackageData& PackageData)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler

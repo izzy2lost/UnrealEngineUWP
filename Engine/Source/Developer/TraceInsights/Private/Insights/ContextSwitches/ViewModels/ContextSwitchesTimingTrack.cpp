@@ -19,9 +19,7 @@
 #include "Insights/ViewModels/TooltipDrawState.h"
 #include "Insights/Widgets/STimingView.h"
 
-#define LOCTEXT_NAMESPACE "FContextSwitchesTimingTrack"
-
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -331,6 +329,4 @@ const TSharedPtr<const ITimingEvent> FContextSwitchesTimingTrack::SearchEvent(co
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
-
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::ContextSwitches

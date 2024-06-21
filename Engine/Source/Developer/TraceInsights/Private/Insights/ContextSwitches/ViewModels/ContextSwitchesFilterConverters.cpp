@@ -9,9 +9,9 @@
 // TraceInsights
 #include "Insights/InsightsManager.h"
 
-#define LOCTEXT_NAMESPACE "Insights::ContextSwitchesFilterValueConverter"
+#define LOCTEXT_NAMESPACE "UE::Insights::ContextSwitches"
 
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -68,6 +68,6 @@ FText FCoreEventNameFilterValueConverter::GetHintText() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::ContextSwitches
 
 #undef LOCTEXT_NAMESPACE

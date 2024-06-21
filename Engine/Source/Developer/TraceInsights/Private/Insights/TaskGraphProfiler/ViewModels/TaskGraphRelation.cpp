@@ -11,10 +11,10 @@
 #include "Insights/ViewModels/TimingTrackViewport.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 INSIGHTS_IMPLEMENT_RTTI(FTaskGraphRelation)
 
@@ -31,7 +31,7 @@ FTaskGraphRelation::FTaskGraphRelation(double InSourceTime, int32 InSourceThread
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTaskGraphRelation::Draw(const UE::Insights::FDrawContext& DrawContext, const FTimingTrackViewport& Viewport, const ITimingViewDrawHelper& Helper, const ITimingEventRelation::EDrawFilter Filter)
+void FTaskGraphRelation::Draw(const FDrawContext& DrawContext, const FTimingTrackViewport& Viewport, const ITimingViewDrawHelper& Helper, const ITimingEventRelation::EDrawFilter Filter)
 {
 	int32 LayerId = Helper.GetRelationLayerId();
 
@@ -77,12 +77,13 @@ void FTaskGraphRelation::Draw(const UE::Insights::FDrawContext& DrawContext, con
 		return;
 	}
 
+	const int32 MaxEventDepth = (int32)TimingProfiler::FTimingProfilerManager::Get()->GetEventDepthLimit() - 1;
+
 	float Y1 = 0.0f;
 	float Y2 = 0.0f;
 	if (SourceTrackShared->IsVisible())
 	{
-		using namespace UE::Insights::TimingProfiler;
-		int32 ActualSourceDepth = FMath::Min(SourceDepth, (int32)FTimingProfilerManager::Get()->GetEventDepthLimit() - 1);
+		int32 ActualSourceDepth = FMath::Min(SourceDepth, MaxEventDepth);
 		Y1 = SourceTrackShared->GetPosY();
 		Y1 += Viewport.GetLayout().GetLaneY(ActualSourceDepth) + Viewport.GetLayout().EventH / 2.0f;
 		if (SourceTrackShared->GetChildTrack() && SourceTrackShared->GetChildTrack()->GetHeight() > 0.0f)
@@ -97,8 +98,7 @@ void FTaskGraphRelation::Draw(const UE::Insights::FDrawContext& DrawContext, con
 
 	if (TargetTrackShared->IsVisible())
 	{
-		using namespace UE::Insights::TimingProfiler;
-		int32 ActualTargetDepth = FMath::Min(TargetDepth, (int32)FTimingProfilerManager::Get()->GetEventDepthLimit() - 1);
+		int32 ActualTargetDepth = FMath::Min(TargetDepth, MaxEventDepth);
 		Y2 = TargetTrackShared->GetPosY();
 		Y2 += Viewport.GetLayout().GetLaneY(ActualTargetDepth) + Viewport.GetLayout().EventH / 2.0f;
 		if (TargetTrackShared->GetChildTrack() && TargetTrackShared->GetChildTrack()->GetHeight() > 0.0f)
@@ -188,4 +188,4 @@ void FTaskGraphRelation::Draw(const UE::Insights::FDrawContext& DrawContext, con
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

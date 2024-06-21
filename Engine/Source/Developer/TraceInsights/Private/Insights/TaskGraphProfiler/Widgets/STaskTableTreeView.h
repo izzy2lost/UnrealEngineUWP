@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreTypes.h"
+#include "CoreMinimal.h"
 
 #include "Async/TaskTrace.h"
 
@@ -15,12 +15,12 @@
 
 class FMenuBuilder;
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class STaskTableTreeView : public UE::Insights::SSessionTableTreeView
+class STaskTableTreeView : public SSessionTableTreeView
 {
 private:
 	struct FColumnConfig
@@ -88,7 +88,7 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	virtual void TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableTreeNodePtr TreeNode) override;
+	virtual void TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr TreeNode) override;
 
 	void SelectTaskEntry(TaskTrace::FId InId);
 
@@ -97,7 +97,7 @@ protected:
 
 	virtual void ExtendMenu(FMenuBuilder& MenuBuilder) override;
 
-	virtual void SearchForItem(TSharedPtr<UE::Insights::FTableTaskCancellationToken> CancellationToken) override;
+	virtual void SearchForItem(TSharedPtr<FTableTaskCancellationToken> CancellationToken) override;
 
 private:
 	void AddCommmands();
@@ -141,4 +141,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

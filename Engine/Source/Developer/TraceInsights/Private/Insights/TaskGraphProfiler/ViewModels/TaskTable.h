@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+
 #include "Containers/Array.h"
 #include "UObject/NameTypes.h"
 
@@ -14,7 +15,7 @@
 
 namespace UE::Insights { class FTableColumn; }
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +46,7 @@ struct FTaskTableColumns
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FTaskTable : public UE::Insights::FTable
+class FTaskTable : public FTable
 {
 public:
 	FTaskTable();
@@ -73,4 +74,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

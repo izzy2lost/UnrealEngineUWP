@@ -2,10 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
+#include "Templates/SharedPointer.h"
 
 // TraceInsights
 #include "Insights/ViewModels/TimingEvent.h"
+
+namespace UE::Insights::ContextSwitches
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -36,3 +41,5 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::ContextSwitches

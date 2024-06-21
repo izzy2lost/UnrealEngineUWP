@@ -12,15 +12,17 @@
 #include "TraceServices/Model/LoadTimeProfiler.h"
 
 // TraceInsights
+#include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
 #include "Insights/LoadingProfiler/Widgets/SLoadingProfilerToolbar.h"
 #include "Insights/Table/Widgets/SUntypedTableTreeView.h"
 #include "Insights/Widgets/STimingView.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::LoadingProfiler"
 
-#define LOCTEXT_NAMESPACE "SLoadingProfilerWindow"
+namespace UE::Insights::LoadingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -230,7 +232,7 @@ TSharedRef<SDockTab> SLoadingProfilerWindow::SpawnTab_TimingView(const FSpawnTab
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(TimingView, UE::Insights::TimingProfiler::STimingView, FInsightsManagerTabs::LoadingProfilerTabId)
+			SAssignNew(TimingView, TimingProfiler::STimingView, FInsightsManagerTabs::LoadingProfilerTabId)
 		];
 
 	TimingView->Reset(true);
@@ -265,14 +267,14 @@ TSharedRef<SDockTab> SLoadingProfilerWindow::SpawnTab_EventAggregationTreeView(c
 {
 	FLoadingProfilerManager::Get()->SetEventAggregationTreeViewVisible(true);
 
-	TSharedRef<Insights::FUntypedTable> Table = MakeShared<Insights::FUntypedTable>();
+	TSharedRef<::Insights::FUntypedTable> Table = MakeShared<::Insights::FUntypedTable>();
 	Table->SetDisplayName(LOCTEXT("EventAggregation_TableName", "Event Aggregation"));
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(EventAggregationTreeView, Insights::SUntypedTableTreeView, Table)
+			SAssignNew(EventAggregationTreeView, ::Insights::SUntypedTableTreeView, Table)
 		];
 
 	EventAggregationTreeView->SetLogListingName(FLoadingProfilerManager::Get()->GetLogListingName());
@@ -302,14 +304,14 @@ TSharedRef<SDockTab> SLoadingProfilerWindow::SpawnTab_ObjectTypeAggregationTreeV
 {
 	FLoadingProfilerManager::Get()->SetObjectTypeAggregationTreeViewVisible(true);
 
-	TSharedRef<Insights::FUntypedTable> Table = MakeShared<Insights::FUntypedTable>();
+	TSharedRef<::Insights::FUntypedTable> Table = MakeShared<::Insights::FUntypedTable>();
 	Table->SetDisplayName(LOCTEXT("ObjectTypeAggregation_TableName", "Object Type Aggregation"));
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(ObjectTypeAggregationTreeView, Insights::SUntypedTableTreeView, Table)
+			SAssignNew(ObjectTypeAggregationTreeView, ::Insights::SUntypedTableTreeView, Table)
 		];
 
 	ObjectTypeAggregationTreeView->SetLogListingName(FLoadingProfilerManager::Get()->GetLogListingName());
@@ -339,14 +341,14 @@ TSharedRef<SDockTab> SLoadingProfilerWindow::SpawnTab_PackageDetailsTreeView(con
 {
 	FLoadingProfilerManager::Get()->SetPackageDetailsTreeViewVisible(true);
 
-	TSharedRef<Insights::FUntypedTable> Table = MakeShared<Insights::FUntypedTable>();
+	TSharedRef<::Insights::FUntypedTable> Table = MakeShared<::Insights::FUntypedTable>();
 	Table->SetDisplayName(LOCTEXT("PackageDetails_TableName", "Package Details"));
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(PackageDetailsTreeView, Insights::SUntypedTableTreeView, Table)
+			SAssignNew(PackageDetailsTreeView, ::Insights::SUntypedTableTreeView, Table)
 		];
 
 	PackageDetailsTreeView->SetLogListingName(FLoadingProfilerManager::Get()->GetLogListingName());
@@ -376,14 +378,14 @@ TSharedRef<SDockTab> SLoadingProfilerWindow::SpawnTab_ExportDetailsTreeView(cons
 {
 	FLoadingProfilerManager::Get()->SetExportDetailsTreeViewVisible(true);
 
-	TSharedRef<Insights::FUntypedTable> Table = MakeShared<Insights::FUntypedTable>();
+	TSharedRef<::Insights::FUntypedTable> Table = MakeShared<::Insights::FUntypedTable>();
 	Table->SetDisplayName(LOCTEXT("ExportDetails_TableName", "Export Details"));
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(ExportDetailsTreeView, Insights::SUntypedTableTreeView, Table)
+			SAssignNew(ExportDetailsTreeView, ::Insights::SUntypedTableTreeView, Table)
 		];
 
 	ExportDetailsTreeView->SetLogListingName(FLoadingProfilerManager::Get()->GetLogListingName());
@@ -413,14 +415,14 @@ TSharedRef<SDockTab> SLoadingProfilerWindow::SpawnTab_RequestsTreeView(const FSp
 {
 	FLoadingProfilerManager::Get()->SetRequestsTreeViewVisible(true);
 
-	TSharedRef<Insights::FUntypedTable> Table = MakeShared<Insights::FUntypedTable>();
+	TSharedRef<::Insights::FUntypedTable> Table = MakeShared<::Insights::FUntypedTable>();
 	Table->SetDisplayName(LOCTEXT("Requests_TableName", "Requests"));
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
 		.TabRole(ETabRole::PanelTab)
 		[
-			SAssignNew(RequestsTreeView, Insights::SUntypedTableTreeView, Table)
+			SAssignNew(RequestsTreeView, ::Insights::SUntypedTableTreeView, Table)
 		];
 
 	RequestsTreeView->SetLogListingName(FLoadingProfilerManager::Get()->GetLogListingName());
@@ -544,9 +546,9 @@ TSharedRef<SWidget> SLoadingProfilerWindow::CreateToolbar(TSharedPtr<FExtender> 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SLoadingProfilerWindow::OnTimeSelectionChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
+void SLoadingProfilerWindow::OnTimeSelectionChanged(Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
 {
-	if (InFlags != UE::Insights::Timing::ETimeChangedFlags::Interactive)
+	if (InFlags != Timing::ETimeChangedFlags::Interactive)
 	{
 		if (InStartTime < InEndTime)
 		{
@@ -558,5 +560,7 @@ void SLoadingProfilerWindow::OnTimeSelectionChanged(UE::Insights::Timing::ETimeC
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::LoadingProfiler
 
 #undef LOCTEXT_NAMESPACE

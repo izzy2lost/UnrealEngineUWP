@@ -2,10 +2,15 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FExtender;
+
+namespace UE::Insights::LoadingProfiler
+{
 
 /** Ribbon based toolbar used as a main menu in the Profiler window. */
 class SLoadingProfilerToolbar : public SCompoundWidget
@@ -28,3 +33,5 @@ public:
 	 */
 	void Construct(const FArguments& InArgs);
 };
+
+} // namespace UE::Insights::LoadingProfiler

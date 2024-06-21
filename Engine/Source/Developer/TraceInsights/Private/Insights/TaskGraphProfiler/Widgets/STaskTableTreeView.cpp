@@ -36,7 +36,7 @@
 
 using namespace TraceServices;
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -96,7 +96,7 @@ STaskTableTreeView::~STaskTableTreeView()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STaskTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<Insights::FTaskTable> InTablePtr)
+void STaskTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<FTaskTable> InTablePtr)
 {
 	ConstructWidget(InTablePtr);
 
@@ -238,7 +238,7 @@ void STaskTableTreeView::RebuildTree(bool bResync)
 			{
 				FName BaseNodeName(TEXT("task"));
 
-				TArray<UE::Insights::FTableTreeNodePtr>* Nodes = &TableRowNodes;
+				TArray<FTableTreeNodePtr>* Nodes = &TableRowNodes;
 
 				TasksProvider->EnumerateTasks(QueryStartTime, QueryEndTime, SelectedTasksSelectionOption, [&Tasks, &TaskTable, &BaseNodeName, Nodes](const TraceServices::FTaskInfo& TaskInfo)
 				{
@@ -688,7 +688,7 @@ bool STaskTableTreeView::TasksSelectionOptions_IsEnabled() const
 
 bool STaskTableTreeView::ContextMenu_GoToTask_CanExecute() const
 {
-	TArray<UE::Insights::FTableTreeNodePtr> SelectedItems;
+	TArray<FTableTreeNodePtr> SelectedItems;
 	TreeView->GetSelectedItems(SelectedItems);
 
 	if (SelectedItems.Num() != 1)
@@ -710,7 +710,7 @@ bool STaskTableTreeView::ContextMenu_GoToTask_CanExecute() const
 
 void STaskTableTreeView::ContextMenu_GoToTask_Execute()
 {
-	TArray<UE::Insights::FTableTreeNodePtr> SelectedItems;
+	TArray<FTableTreeNodePtr> SelectedItems;
 	TreeView->GetSelectedItems(SelectedItems);
 
 	if (SelectedItems.Num() != 1)
@@ -808,7 +808,7 @@ bool STaskTableTreeView::ContextMenu_OpenInIDE_CanExecute() const
 
 bool STaskTableTreeView::GetSourceFileAndLineForSelectedTask(FString& OutFile, uint32& OutLine) const
 {
-	TArray<UE::Insights::FTableTreeNodePtr> SelectedItems;
+	TArray<FTableTreeNodePtr> SelectedItems;
 	TreeView->GetSelectedItems(SelectedItems);
 
 	if (SelectedItems.Num() != 1)
@@ -816,7 +816,7 @@ bool STaskTableTreeView::GetSourceFileAndLineForSelectedTask(FString& OutFile, u
 		return false;
 	}
 
-	UE::Insights::FTableTreeNodePtr SelectedTreeNode = SelectedItems[0];
+	FTableTreeNodePtr SelectedTreeNode = SelectedItems[0];
 	if (!SelectedTreeNode.IsValid() || !SelectedTreeNode->Is<FTaskNode>())
 	{
 		return false;
@@ -877,7 +877,7 @@ void STaskTableTreeView::ContextMenu_OpenInIDE_Execute()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STaskTableTreeView::TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableTreeNodePtr TreeNode)
+void STaskTableTreeView::TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr TreeNode)
 {
 	if (!TreeNode->IsGroup())
 	{
@@ -892,12 +892,12 @@ void STaskTableTreeView::TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableT
 void STaskTableTreeView::SelectTaskEntry(TaskTrace::FId InId)
 {
 	TaskIdToSelect = InId;
-	StartTableDataTask<UE::Insights::FSearchForItemToSelectTask>(SharedThis(this));
+	StartTableDataTask<FSearchForItemToSelectTask>(SharedThis(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STaskTableTreeView::SearchForItem(TSharedPtr<UE::Insights::FTableTaskCancellationToken> CancellationToken)
+void STaskTableTreeView::SearchForItem(TSharedPtr<FTableTaskCancellationToken> CancellationToken)
 {
 	TSharedPtr<FTaskTable> TaskTable = GetTaskTable();
 	TArray<FTaskEntry>& Tasks = TaskTable->GetTaskEntries();
@@ -912,7 +912,7 @@ void STaskTableTreeView::SearchForItem(TSharedPtr<UE::Insights::FTableTaskCancel
 
 		if (Tasks[Index].Id == TaskIdToSelect)
 		{
-			TGraphTask<UE::Insights::FSelectNodeByTableRowIndexTask>::CreateTask().ConstructAndDispatchWhenReady(CancellationToken, SharedThis(this), Index);
+			TGraphTask<FSelectNodeByTableRowIndexTask>::CreateTask().ConstructAndDispatchWhenReady(CancellationToken, SharedThis(this), Index);
 			break;
 		}
 	}
@@ -920,6 +920,6 @@ void STaskTableTreeView::SearchForItem(TSharedPtr<UE::Insights::FTableTaskCancel
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler
 
 #undef LOCTEXT_NAMESPACE

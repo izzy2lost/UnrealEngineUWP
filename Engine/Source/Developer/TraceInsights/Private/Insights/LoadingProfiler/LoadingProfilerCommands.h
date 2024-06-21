@@ -2,11 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Framework/Commands/UIAction.h"
+#include "CoreTypes.h"
+
 #include "Framework/Commands/Commands.h"
+#include "Framework/Commands/UIAction.h"
+#include "Styling/SlateTypes.h" // for ECheckBoxState
+#include "Templates/SharedPointer.h"
 
 class FMenuBuilder;
+
+namespace UE::Insights::LoadingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -111,3 +117,7 @@ protected:
 	/** Reference to the global instance of the profiler manager. */
 	class FLoadingProfilerManager* This;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::LoadingProfiler

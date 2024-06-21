@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
 #include "Insights/ViewModels/ITimingEvent.h"
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 enum class ETaskEventType : uint32;
@@ -18,7 +18,7 @@ class FTaskGraphRelation : public ITimingEventRelation
 public:
 	FTaskGraphRelation(double InSourceTime, int32 InSourceThreadId, double InTargetTime, int32 InTargetThreadId, ETaskEventType InType);
 
-	virtual void Draw(const UE::Insights::FDrawContext& DrawContext, const FTimingTrackViewport& Viewport, const ITimingViewDrawHelper& Helper, const ITimingEventRelation::EDrawFilter Filter) override;
+	virtual void Draw(const FDrawContext& DrawContext, const FTimingTrackViewport& Viewport, const ITimingViewDrawHelper& Helper, const ITimingEventRelation::EDrawFilter Filter) override;
 
 	void SetSourceTrack(TSharedPtr<const FBaseTimingTrack> InSourceTrack) { SourceTrack = InSourceTrack; }
 	TSharedPtr<const FBaseTimingTrack> GetSourceTrack() { return SourceTrack.Pin(); }
@@ -51,4 +51,4 @@ private:
 	TWeakPtr<const FBaseTimingTrack> TargetTrack;
 };
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

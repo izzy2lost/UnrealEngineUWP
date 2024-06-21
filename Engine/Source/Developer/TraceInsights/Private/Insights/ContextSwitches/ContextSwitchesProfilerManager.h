@@ -15,7 +15,7 @@
 class FThreadTrackEvent;
 class FUICommandList;
 
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 class FContextSwitchesSharedState;
@@ -63,7 +63,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	UE::Insights::FAvailabilityCheck AvailabilityCheck;
+	FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;
@@ -80,4 +80,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::ContextSwitches

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
 #include "Async/TaskTrace.h"
 
@@ -15,18 +15,18 @@ class FUICommandList;
 class FThreadTrackEvent;
 namespace UE::Insights::TimingProfiler { class STimingView; }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FTaskTimingTrack;
 
-class FTaskTimingSharedState : public UE::Insights::Timing::ITimingViewExtender, public TSharedFromThis<FTaskTimingSharedState>
+class FTaskTimingSharedState : public Timing::ITimingViewExtender, public TSharedFromThis<FTaskTimingSharedState>
 {
 
 public:
-	FTaskTimingSharedState(UE::Insights::TimingProfiler::STimingView* InTimingView);
+	FTaskTimingSharedState(TimingProfiler::STimingView* InTimingView);
 	virtual ~FTaskTimingSharedState() = default;
 
 	TSharedPtr<FTaskTimingTrack> GetTaskTrack() { return TaskTrack; }
@@ -36,11 +36,11 @@ public:
 	//////////////////////////////////////////////////
 	// ITimingViewExtender interface
 
-	virtual void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
-	virtual void OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
-	virtual void Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
-	virtual void ExtendFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
-	virtual void ExtendOtherTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
+	virtual void OnBeginSession(Timing::ITimingViewSession& InSession) override;
+	virtual void OnEndSession(Timing::ITimingViewSession& InSession) override;
+	virtual void Tick(Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
+	virtual void ExtendFilterMenu(Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
+	virtual void ExtendOtherTracksFilterMenu(Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
 
 	//////////////////////////////////////////////////
 
@@ -53,10 +53,10 @@ public:
 
 	void SetResetOnNextTick(bool bInValue) { bResetOnNextTick = bInValue; }
 
-	static TSharedPtr<UE::Insights::TimingProfiler::STimingView> GetTimingView();
+	static TSharedPtr<TimingProfiler::STimingView> GetTimingView();
 
 private:
-	void InitCommandList(TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView);
+	void InitCommandList(TSharedPtr<TimingProfiler::STimingView> TimingView);
 
 	void BuildTasksSubMenu(FMenuBuilder& MenuBuilder);
 
@@ -99,7 +99,7 @@ private:
 	void OnTaskSettingsChanged();
 
 private:
-	UE::Insights::Timing::ITimingViewSession* TimingViewSession;
+	Timing::ITimingViewSession* TimingViewSession;
 
 	bool bShowHideTaskTrack;
 	bool bResetOnNextTick = false;
@@ -159,4 +159,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} //namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

@@ -21,9 +21,12 @@
 #include "Insights/LoadingProfiler/Widgets/SLoadingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::LoadingProfiler"
 
-#define LOCTEXT_NAMESPACE "LoadingProfilerManager"
+namespace UE::Insights::LoadingProfiler
+{
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_LOG_CATEGORY(LoadingProfiler);
 
@@ -388,7 +391,7 @@ void FLoadingProfilerManager::OnWindowClosedEvent()
 	TSharedPtr<SLoadingProfilerWindow> Wnd = GetProfilerWindow();
 	if (Wnd)
 	{
-		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = Wnd->GetTimingView();
+		TSharedPtr<TimingProfiler::STimingView> TimingView = Wnd->GetTimingView();
 		if (TimingView.IsValid())
 		{
 			TimingView->CloseQuickFindTab();
@@ -397,5 +400,7 @@ void FLoadingProfilerManager::OnWindowClosedEvent()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::LoadingProfiler
 
 #undef LOCTEXT_NAMESPACE

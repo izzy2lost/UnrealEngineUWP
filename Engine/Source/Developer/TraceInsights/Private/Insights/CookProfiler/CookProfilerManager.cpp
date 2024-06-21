@@ -18,12 +18,12 @@
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/Widgets/STimingProfilerWindow.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::CookProfiler"
 
-#define LOCTEXT_NAMESPACE "CookProfilerManager"
-
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const FName FCookProfilerTabs::PackageTableTreeViewTabID(TEXT("PackageTableTreeView"));
 
@@ -263,6 +263,6 @@ void FCookProfilerManager::OnWindowClosedEvent()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler
 
 #undef LOCTEXT_NAMESPACE

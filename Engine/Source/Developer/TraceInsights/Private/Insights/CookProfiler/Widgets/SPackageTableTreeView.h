@@ -13,12 +13,12 @@
 
 class FMenuBuilder;
 
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class SPackageTableTreeView : public UE::Insights::SSessionTableTreeView
+class SPackageTableTreeView : public SSessionTableTreeView
 {
 public:
 	/** Default constructor. */
@@ -68,7 +68,7 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	virtual void TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableTreeNodePtr TreeNode) override;
+	virtual void TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr TreeNode) override;
 
 protected:
 	virtual void InternalCreateGroupings() override;
@@ -88,4 +88,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler

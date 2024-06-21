@@ -24,11 +24,9 @@
 
 #include <limits>
 
-#define LOCTEXT_NAMESPACE "SPackageTableTreeView"
+#define LOCTEXT_NAMESPACE "UE::Insights::CookProfiler::SPackageTableTreeView"
 
-using namespace TraceServices;
-
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +54,8 @@ public:
 	}
 };
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// SPackageTableTreeView
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 SPackageTableTreeView::SPackageTableTreeView()
@@ -137,13 +137,13 @@ void SPackageTableTreeView::RebuildTree(bool bResync)
 	{
 		TraceServices::FProviderReadScopeLock ProviderReadScope(*CookProvider);
 
-		TArray64<FPackageData> PackageAggreagation;
+		TArray64<TraceServices::FPackageData> PackageAggreagation;
 		CookProvider->CreateAggregation(PackageAggreagation);
 		const uint32 NumPackages = CookProvider->GetNumPackages();
 		Packages.Reserve(NumPackages);
 		TableRowNodes.Reserve(NumPackages);
 
-		TArray<UE::Insights::FTableTreeNodePtr>* Nodes = &TableRowNodes;
+		TArray<FTableTreeNodePtr>* Nodes = &TableRowNodes;
 		for(const TraceServices::FPackageData& Package : PackageAggreagation)
 		{
 			Packages.Emplace(Package);
@@ -204,7 +204,7 @@ TSharedPtr<SWidget> SPackageTableTreeView::ConstructToolbar()
 			SNew(SBox)
 			.MinDesiredWidth(150.0f)
 			[
-				SAssignNew(PresetComboBox, SComboBox<TSharedRef<UE::Insights::ITableTreeViewPreset>>)
+				SAssignNew(PresetComboBox, SComboBox<TSharedRef<ITableTreeViewPreset>>)
 				.ToolTipText(this, &SPackageTableTreeView::ViewPreset_GetSelectedToolTipText)
 				.OptionsSource(GetAvailableViewPresets())
 				.OnSelectionChanged(this, &SPackageTableTreeView::ViewPreset_OnSelectionChanged)
@@ -235,11 +235,11 @@ void SPackageTableTreeView::InternalCreateGroupings()
 	STableTreeView::InternalCreateGroupings();
 
 	AvailableGroupings.RemoveAll(
-		[](TSharedPtr<UE::Insights::FTreeNodeGrouping>& Grouping)
+		[](TSharedPtr<FTreeNodeGrouping>& Grouping)
 		{
-			if (Grouping->Is<UE::Insights::FTreeNodeGroupingByUniqueValue>())
+			if (Grouping->Is<FTreeNodeGroupingByUniqueValue>())
 			{
-				const FName ColumnId = Grouping->As<UE::Insights::FTreeNodeGroupingByUniqueValue>().GetColumnId();
+				const FName ColumnId = Grouping->As<FTreeNodeGroupingByUniqueValue>().GetColumnId();
 				if (ColumnId == FPackageTableColumns::BeginCacheForCookedPlatformDataTimeInclColumnId ||
 					ColumnId == FPackageTableColumns::BeginCacheForCookedPlatformDataTimeExclColumnId ||
 					ColumnId == FPackageTableColumns::GetIsCachedCookedPlatformDataLoadedInclColumnId ||
@@ -254,9 +254,9 @@ void SPackageTableTreeView::InternalCreateGroupings()
 					return true;
 				}
 			}
-			else if (Grouping->Is<UE::Insights::FTreeNodeGroupingByPathBreakdown>())
+			else if (Grouping->Is<FTreeNodeGroupingByPathBreakdown>())
 			{
-				const FName ColumnId = Grouping->As<UE::Insights::FTreeNodeGroupingByPathBreakdown>().GetColumnId();
+				const FName ColumnId = Grouping->As<FTreeNodeGroupingByPathBreakdown>().GetColumnId();
 				if (ColumnId == FPackageTableColumns::PackageAssetClassColumnId)
 				{
 					return true;
@@ -268,7 +268,7 @@ void SPackageTableTreeView::InternalCreateGroupings()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SPackageTableTreeView::TreeView_OnMouseButtonDoubleClick(UE::Insights::FTableTreeNodePtr TreeNode)
+void SPackageTableTreeView::TreeView_OnMouseButtonDoubleClick(FTableTreeNodePtr TreeNode)
 {
 	STableTreeView::TreeView_OnMouseButtonDoubleClick(TreeNode);
 }
@@ -277,8 +277,6 @@ void SPackageTableTreeView::TreeView_OnMouseButtonDoubleClick(UE::Insights::FTab
 
 void SPackageTableTreeView::InitAvailableViewPresets()
 {
-	using namespace UE::Insights;
-
 	//////////////////////////////////////////////////
 	// Default View
 
@@ -464,6 +462,6 @@ void SPackageTableTreeView::UpdateBannerText()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler
 
 #undef LOCTEXT_NAMESPACE

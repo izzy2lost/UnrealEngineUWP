@@ -18,9 +18,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "ContextSwitchesProfilerManager"
-
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +106,7 @@ FContextSwitchesProfilerManager::~FContextSwitchesProfilerManager()
 
 	if (ContextSwitchesSharedState.IsValid())
 	{
-		IModularFeatures::Get().UnregisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, ContextSwitchesSharedState.Get());
+		IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, ContextSwitchesSharedState.Get());
 	}
 }
 
@@ -161,7 +159,7 @@ bool FContextSwitchesProfilerManager::Tick(float DeltaTime)
 				{
 					ContextSwitchesSharedState = MakeShared<FContextSwitchesSharedState>(TimingView.Get());
 					ContextSwitchesSharedState->AddCommands();
-					IModularFeatures::Get().RegisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, ContextSwitchesSharedState.Get());
+					IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, ContextSwitchesSharedState.Get());
 				}
 			}
 
@@ -204,6 +202,4 @@ void FContextSwitchesProfilerManager::RegisterTimingProfilerLayoutExtensions(FIn
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
-
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::ContextSwitches

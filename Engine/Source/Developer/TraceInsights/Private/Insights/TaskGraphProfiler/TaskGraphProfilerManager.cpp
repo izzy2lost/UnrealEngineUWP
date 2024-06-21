@@ -24,12 +24,12 @@
 #include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::TaskGraphProfiler"
 
-#define LOCTEXT_NAMESPACE "TaskGraphProfilerManager"
-
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 const FName FTaskGraphProfilerTabs::TaskTableTreeViewTabID(TEXT("TaskTableTreeView"));
 
@@ -120,7 +120,7 @@ FTaskGraphProfilerManager::~FTaskGraphProfilerManager()
 
 	if (TaskTimingSharedState.IsValid())
 	{
-		IModularFeatures::Get().UnregisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
+		IModularFeatures::Get().UnregisterModularFeature(Timing::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
 	}
 }
 
@@ -154,7 +154,7 @@ bool FTaskGraphProfilerManager::Tick(float DeltaTime)
 			TSharedPtr<FTabManager> TabManagerShared = TimingTabManager.Pin();
 			if (TasksProvider && TasksProvider->GetNumTasks() > 0 && TabManagerShared.IsValid())
 			{
-				TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
+				TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 				if (!TimingView.IsValid())
 				{
 					return true;
@@ -165,7 +165,7 @@ bool FTaskGraphProfilerManager::Tick(float DeltaTime)
 				if (!TaskTimingSharedState.IsValid())
 				{
 					TaskTimingSharedState = MakeShared<FTaskTimingSharedState>(TimingView.Get());
-					IModularFeatures::Get().RegisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
+					IModularFeatures::Get().RegisterModularFeature(Timing::TimingViewExtenderFeatureName, TaskTimingSharedState.Get());
 				}
 				TabManagerShared->TryInvokeTab(FTaskGraphProfilerTabs::TaskTableTreeViewTabID);
 			}
@@ -413,7 +413,7 @@ void FTaskGraphProfilerManager::GetRelationsOnCriticalPath(const TraceServices::
 			return;
 		}
 
-		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
+		TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 		if (!TimingView.IsValid())
 		{
 			return;
@@ -565,7 +565,7 @@ void FTaskGraphProfilerManager::AddRelation(const FThreadTrackEvent* InSelectedE
 		return;
 	}
 
-	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
+	TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return;
@@ -632,7 +632,7 @@ int32 FTaskGraphProfilerManager::GetRelationDisplayDepth(TSharedPtr<const FThrea
 
 void FTaskGraphProfilerManager::ClearTaskRelations()
 {
-	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
+	TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return;
@@ -653,7 +653,7 @@ int32 FTaskGraphProfilerManager::GetDepthOfTaskExecution(double TaskStartedTime,
 {
 	int32 Depth = -1;
 
-	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = GetTimingView();
+	TSharedPtr<TimingProfiler::STimingView> TimingView = GetTimingView();
 	if (!TimingView.IsValid())
 	{
 		return Depth;
@@ -880,7 +880,7 @@ void FTaskGraphProfilerManager::OutputWarnings()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<UE::Insights::TimingProfiler::STimingView> FTaskGraphProfilerManager::GetTimingView()
+TSharedPtr<TimingProfiler::STimingView> FTaskGraphProfilerManager::GetTimingView()
 {
 	using namespace UE::Insights::TimingProfiler;
 	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
@@ -889,6 +889,6 @@ TSharedPtr<UE::Insights::TimingProfiler::STimingView> FTaskGraphProfilerManager:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler
 
 #undef LOCTEXT_NAMESPACE

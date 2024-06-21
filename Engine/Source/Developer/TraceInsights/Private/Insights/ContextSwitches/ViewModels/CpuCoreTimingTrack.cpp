@@ -22,9 +22,7 @@
 #include "Insights/ViewModels/TooltipDrawState.h"
 #include "Insights/Widgets/STimingView.h"
 
-#define LOCTEXT_NAMESPACE "FCpuCoreTimingTrack"
-
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -147,20 +145,19 @@ void FCpuCoreTimingTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuil
 
 	if (HasCustomFilter())
 	{
-		TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = SharedState.GetTimingView();
+		TSharedPtr<TimingProfiler::STimingView> TimingView = SharedState.GetTimingView();
 		if (!TimingView)
 		{
 			return;
 		}
 
-		TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator = TimingView->GetFilterConfigurator();
+		TSharedPtr<FFilterConfigurator> FilterConfigurator = TimingView->GetFilterConfigurator();
 		if (!FilterConfigurator.IsValid())
 		{
 			return;
 		}
 
-		using EFilterField = UE::Insights::EFilterField;
-		UE::Insights::FFilterContext FilterContext;
+		FFilterContext FilterContext;
 		FilterContext.SetReturnValueForUnsetFilters(false);
 
 		FilterContext.AddFilterData<double>(static_cast<int32>(EFilterField::StartTime), 0.0f);
@@ -256,7 +253,7 @@ void FCpuCoreTimingTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 
 		FString Str = FString::Printf(TEXT("%s (Duration.: %s)"),
 			*GetThreadName(static_cast<uint32>(SelectedEvent.GetType())),
-			*UE::Insights::FormatTimeAuto(SelectedEvent.GetDuration()));
+			*FormatTimeAuto(SelectedEvent.GetDuration()));
 
 		DrawSelectedEventInfo(Str, Context.GetViewport(), Context.GetDrawContext(), Helper.GetWhiteBrush(), Helper.GetEventFont());
 	}
@@ -338,8 +335,7 @@ const TSharedPtr<const ITimingEvent> FCpuCoreTimingTrack::SearchEvent(const FTim
 {
 	TSharedPtr<const ITimingEvent> FoundEvent;
 
-	using EFilterField = UE::Insights::EFilterField;
-	UE::Insights::FFilterContext FilterConfiguratorContext;
+	FFilterContext FilterConfiguratorContext;
 	FilterConfiguratorContext.SetReturnValueForUnsetFilters(false);
 	FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::StartTime), 0.0f);
 	FilterConfiguratorContext.AddFilterData<double>(static_cast<int32>(EFilterField::EndTime), 0.0f);
@@ -489,13 +485,13 @@ void FCpuCoreTimingTrack::BuildContextMenu(FMenuBuilder& InOutMenuBuilder)
 
 bool FCpuCoreTimingTrack::HasCustomFilter() const
 {
-	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = SharedState.GetTimingView();
+	TSharedPtr<TimingProfiler::STimingView> TimingView = SharedState.GetTimingView();
 	if (!TimingView)
 	{
 		return false;
 	}
 
-	TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator = TimingView->GetFilterConfigurator();
+	TSharedPtr<FFilterConfigurator> FilterConfigurator = TimingView->GetFilterConfigurator();
 	return FilterConfigurator.IsValid() && !FilterConfigurator->IsEmpty();
 }
 
@@ -533,6 +529,4 @@ FString FCpuCoreTimingTrack::GetThreadName(uint32 InSystemThreadId) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
-
-#undef LOCTEXT_NAMESPACE
+} // namespace UE::Insights::ContextSwitches

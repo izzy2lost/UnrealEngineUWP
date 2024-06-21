@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
 #include "Async/TaskTrace.h"
 
@@ -10,7 +10,7 @@
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
 #include "Insights/ViewModels/TimingEvent.h"
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -40,4 +40,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::TaskGraphProfiler

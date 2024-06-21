@@ -11,9 +11,10 @@
 #include "Insights/InsightsStyle.h"
 #include "Insights/LoadingProfiler/LoadingProfilerManager.h"
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LOCTEXT_NAMESPACE "UE::Insights::LoadingProfiler"
 
-#define LOCTEXT_NAMESPACE "FLoadingProfilerCommands"
+namespace UE::Insights::LoadingProfiler
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FLoadingProfilerMenuBuilder
@@ -136,5 +137,7 @@ IMPLEMENT_TOGGLE_COMMAND(ToggleRequestsTreeViewVisibility, IsRequestsTreeViewVis
 #undef IMPLEMENT_TOGGLE_COMMAND
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights::LoadingProfiler
 
 #undef LOCTEXT_NAMESPACE

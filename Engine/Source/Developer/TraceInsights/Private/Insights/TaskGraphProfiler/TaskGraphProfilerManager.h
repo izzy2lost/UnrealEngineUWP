@@ -23,7 +23,7 @@ class FThreadTrackEvent;
 
 namespace UE::Insights::TimingProfiler { class STimingView; }
 
-namespace Insights
+namespace UE::Insights::TaskGraphProfiler
 {
 
 class FTaskGraphRelation;
@@ -111,7 +111,7 @@ public:
 	FLinearColor GetColorForTaskEvent(ETaskEventType InEvent);
 	uint32 GetColorForTaskEventAsPackedARGB(ETaskEventType InEvent);
 
-	TSharedPtr<::Insights::FTaskTimingSharedState> GetTaskTimingSharedState() { return TaskTimingSharedState;	}
+	TSharedPtr<FTaskTimingSharedState> GetTaskTimingSharedState() { return TaskTimingSharedState;	}
 
 	bool GetShowCriticalPath() const { return bShowCriticalPath; }
 	void SetShowCriticalPath(bool bInValue) { bShowCriticalPath = bInValue; }
@@ -166,7 +166,7 @@ private:
 private:
 	bool bIsInitialized;
 	bool bIsAvailable;
-	UE::Insights::FAvailabilityCheck AvailabilityCheck;
+	FAvailabilityCheck AvailabilityCheck;
 
 	/** The delegate to be invoked when this manager ticks. */
 	FTickerDelegate OnTick;
@@ -182,7 +182,7 @@ private:
 
 	TWeakPtr<FTabManager> TimingTabManager;
 
-	TSharedPtr<::Insights::STaskTableTreeView> TaskTableTreeView;
+	TSharedPtr<STaskTableTreeView> TaskTableTreeView;
 	FLinearColor ColorCode[static_cast<uint32>(ETaskEventType::NumTaskEventTypes)];
 	bool bShowCriticalPath = false;
 	bool bShowTransitions = true;
@@ -197,5 +197,4 @@ private:
 	TSet<FString> HiddenTrackNames;
 };
 
-} // namespace Insights
-
+} // namespace UE::Insights::TaskGraphProfiler

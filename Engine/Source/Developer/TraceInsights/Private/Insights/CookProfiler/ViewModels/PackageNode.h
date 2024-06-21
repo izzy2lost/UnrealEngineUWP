@@ -2,7 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
+#include "Templates/SharedPointer.h"
 
 // TraceInsightsCore
 #include "InsightsCore/Table/ViewModels/TableTreeNode.h"
@@ -13,7 +15,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -36,26 +38,26 @@ typedef TWeakPtr<class FTaskNode> FPackageNodeWeak;
 /**
  * Class used to store information about a package node (used in the SPackageTableTreeView).
  */
-class FPackageNode : public UE::Insights::FTableTreeNode
+class FPackageNode : public FTableTreeNode
 {
-	INSIGHTS_DECLARE_RTTI(FPackageNode, UE::Insights::FTableTreeNode)
+	INSIGHTS_DECLARE_RTTI(FPackageNode, FTableTreeNode)
 
 public:
 	/** Initialization constructor for the Task node. */
 	explicit FPackageNode(const FName InName, TWeakPtr<FPackageTable> InParentTable, int32 InRowIndex)
-		: UE::Insights::FTableTreeNode(InName, InParentTable, InRowIndex)
+		: FTableTreeNode(InName, InParentTable, InRowIndex)
 	{
 	}
 
 	/** Initialization constructor for the group node. */
 	explicit FPackageNode(const FName InGroupName, TWeakPtr<FPackageTable> InParentTable)
-		: UE::Insights::FTableTreeNode(InGroupName, InParentTable)
+		: FTableTreeNode(InGroupName, InParentTable)
 	{
 	}
 
 	FPackageTable& GetPackageTableChecked() const
 	{
-		const TSharedPtr<UE::Insights::FTable>& TablePin = GetParentTable().Pin();
+		const TSharedPtr<FTable>& TablePin = GetParentTable().Pin();
 		check(TablePin.IsValid());
 		return *StaticCastSharedPtr<FPackageTable>(TablePin);
 	}
@@ -67,4 +69,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler

@@ -11,8 +11,9 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FBaseTimingTrack;
 class FMenuBuilder;
+
+class FBaseTimingTrack;
 class FThreadTimingTrack;
 class ITimingEvent;
 
@@ -20,7 +21,7 @@ namespace TraceServices { class IAnalysisSession; }
 namespace UE::Insights::Timing { class ITimingViewSession; }
 namespace UE::Insights::TimingProfiler { class STimingView; }
 
-namespace Insights
+namespace UE::Insights::ContextSwitches
 {
 
 class FCpuCoreTimingTrack;
@@ -42,35 +43,35 @@ public:
 	TSharedPtr<FUICommandInfo> Command_ShowExtendedLines;
 	TSharedPtr<FUICommandInfo> Command_ShowNonTargetProcessEvents;
 
-	// Commands for a Cpu Core track (context menu).
+	// Commands for a CPU Core track (context menu).
 	TSharedPtr<FUICommandInfo> Command_NavigateToCpuThreadEvent;
 	TSharedPtr<FUICommandInfo> Command_DockCpuThreadTrackToBottom;
 
-	// Commands for a Cpu Thread track (context menu).
+	// Commands for a CPU Thread track (context menu).
 	TSharedPtr<FUICommandInfo> Command_NavigateToCpuCoreEvent;
 	TSharedPtr<FUICommandInfo> Command_DockCpuCoreTrackToTop;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FContextSwitchesSharedState : public UE::Insights::Timing::ITimingViewExtender, public TSharedFromThis<FContextSwitchesSharedState>
+class FContextSwitchesSharedState : public Timing::ITimingViewExtender, public TSharedFromThis<FContextSwitchesSharedState>
 {
 public:
-	FContextSwitchesSharedState(UE::Insights::TimingProfiler::STimingView* InTimingView);
+	FContextSwitchesSharedState(TimingProfiler::STimingView* InTimingView);
 	virtual ~FContextSwitchesSharedState() = default;
 
 	//////////////////////////////////////////////////
 	// ITimingViewExtender interface
 
-	virtual void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
-	virtual void OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession) override;
-	virtual void Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
-	virtual void ExtendCpuTracksFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
-	virtual void AddQuickFindFilters(TSharedPtr<UE::Insights::FFilterConfigurator> FilterConfigurator) override;
+	virtual void OnBeginSession(Timing::ITimingViewSession& InSession) override;
+	virtual void OnEndSession(Timing::ITimingViewSession& InSession) override;
+	virtual void Tick(Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession) override;
+	virtual void ExtendCpuTracksFilterMenu(Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder) override;
+	virtual void AddQuickFindFilters(TSharedPtr<FFilterConfigurator> FilterConfigurator) override;
 
 	//////////////////////////////////////////////////
 
-	static TSharedPtr<UE::Insights::TimingProfiler::STimingView> GetTimingView();
+	static TSharedPtr<TimingProfiler::STimingView> GetTimingView();
 
 	bool AreContextSwitchesAvailable() const;
 
@@ -165,7 +166,7 @@ private:
 	TMap<uint32, TSharedPtr<FCpuCoreTimingTrack>> CpuCoreTimingTracks;
 	TMap<uint32, TSharedPtr<FContextSwitchesTimingTrack>> ContextSwitchesTimingTracks;
 
-	UE::Insights::Timing::ITimingViewSession* TimingViewSession;
+	Timing::ITimingViewSession* TimingViewSession;
 
 	uint64 ThreadsSerial;
 	uint64 CpuCoresSerial;
@@ -183,4 +184,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::ContextSwitches

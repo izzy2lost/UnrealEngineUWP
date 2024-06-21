@@ -71,12 +71,12 @@ void FTraceInsightsModule::StartupModule()
 
 	// Register other default components.
 	RegisterComponent(UE::Insights::TimingProfiler::FTimingProfilerManager::CreateInstance());
-	RegisterComponent(FLoadingProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::LoadingProfiler::FLoadingProfilerManager::CreateInstance());
 	RegisterComponent(UE::Insights::NetworkingProfiler::FNetworkingProfilerManager::CreateInstance());
 	RegisterComponent(UE::Insights::MemoryProfiler::FMemoryProfilerManager::CreateInstance());
-	RegisterComponent(Insights::FTaskGraphProfilerManager::CreateInstance());
-	RegisterComponent(Insights::FContextSwitchesProfilerManager::CreateInstance());
-	RegisterComponent(Insights::FCookProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::TaskGraphProfiler::FTaskGraphProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::ContextSwitches::FContextSwitchesProfilerManager::CreateInstance());
+	RegisterComponent(UE::Insights::CookProfiler::FCookProfilerManager::CreateInstance());
 	RegisterComponent(Insights::FTableImportTool::CreateInstance());
 
 #if !WITH_EDITOR
@@ -114,7 +114,7 @@ void FTraceInsightsModule::ShutdownModule()
 #if INSIGHTS_CHECK_SHARED_REFERENCES
 	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
 	auto TimingInsightsWindow = UE::Insights::TimingProfiler::FTimingProfilerManager::Get()->GetProfilerWindow();
-	auto AssetLoadingInsightsWindow = FLoadingProfilerManager::Get()->GetProfilerWindow();
+	auto AssetLoadingInsightsWindow = UE::Insights::LoadingProfiler::FLoadingProfilerManager::Get()->GetProfilerWindow();
 	auto NetworkingInsightsWindow0 = UE::Insights::NetworkingProfiler::FNetworkingProfilerManager::Get()->GetProfilerWindow(0);
 	auto MemoryInsightsWindow = UE::Insights::MemoryProfiler::FMemoryProfilerManager::Get()->GetProfilerWindow();
 #endif

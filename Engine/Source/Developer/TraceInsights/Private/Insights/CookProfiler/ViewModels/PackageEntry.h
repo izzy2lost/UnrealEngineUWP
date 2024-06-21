@@ -2,12 +2,11 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
-// TraceServices
-#include "TraceServices/Model/CookProfilerProvider.h"
+namespace TraceServices { struct FPackageData; }
 
-namespace Insights
+namespace UE::Insights::CookProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +16,7 @@ class FPackageEntry
 	friend class SPackageTableTreeView;
 
 public:
-	FPackageEntry(const TraceServices::FPackageData &PackageData);
+	FPackageEntry(const TraceServices::FPackageData& PackageData);
 	~FPackageEntry() {}
 
 	uint64 GetId() const { return Id; }
@@ -39,7 +38,7 @@ public:
 
 private:
 	uint64 Id;
-	const TCHAR* Name; 
+	const TCHAR* Name;
 	double LoadTimeIncl;
 	double LoadTimeExcl;
 
@@ -57,4 +56,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights::CookProfiler
