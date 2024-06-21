@@ -191,7 +191,7 @@ namespace Metasound::Engine
 					FTopLevelAssetPath ObjectPath;
 					if (ObjectPath.TrySetPath(&DocObject))
 					{
-						if (AssetPath == ObjectPath)
+						if (AssetPath.IsNull() || AssetPath == ObjectPath)
 						{
 							FoundEntry = Builder;
 							break;

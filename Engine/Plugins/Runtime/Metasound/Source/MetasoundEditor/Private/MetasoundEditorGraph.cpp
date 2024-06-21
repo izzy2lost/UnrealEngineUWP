@@ -805,7 +805,7 @@ void UMetasoundEditorGraphInput::UpdateFrontendDefaultLiteral(bool bPostTransact
 	check(MetasoundAsset);
 
 	FGraphHandle GraphHandle = MetasoundAsset->GetRootGraphHandle();
-	FNodeHandle NodeHandle = GraphHandle->GetNodeWithID(NodeID);
+	FConstNodeHandle NodeHandle = GraphHandle->GetNodeWithID(NodeID);
 
 	const Metasound::FVertexName& NodeName = NodeHandle->GetNodeName();
 	const FGuid VertexID = GraphHandle->GetVertexIDForInputVertex(NodeName);

@@ -133,12 +133,12 @@ public:
 	UPROPERTY(Transient)
 	int32 DenyListCacheChangeID = 0;	
 
+private:
 #if WITH_EDITORONLY_DATA
 	Metasound::Engine::FOnSettingsDefaultConformed OnDefaultConformed;
 	Metasound::Engine::FOnPageSettingsUpdated OnPageSettingsUpdated;
 #endif //WITH_EDITORONLY_DATA
 
-private:
 	/** Array of possible page settings that can be added to a MetaSound object. */
 	UPROPERTY(EditAnywhere, config, Category = Pages)
 	TArray<FMetaSoundPageSettings> PageSettings;
@@ -158,6 +158,9 @@ public:
 	const TArray<FMetaSoundQualitySettings>& GetQualitySettings() const { return QualitySettings; }
 
 #if WITH_EDITORONLY_DATA
+	Metasound::Engine::FOnSettingsDefaultConformed& GetOnDefaultConformedDelegate();
+	Metasound::Engine::FOnPageSettingsUpdated& GetOnPageSettingsUpdatedDelegate();
+
 	static FName GetPageSettingPropertyName();
 	static FName GetQualitySettingPropertyName();
 #endif // WITH_EDITORONLY_DATA

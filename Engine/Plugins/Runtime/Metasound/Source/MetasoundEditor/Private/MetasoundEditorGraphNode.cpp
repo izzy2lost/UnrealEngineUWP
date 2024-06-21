@@ -1078,7 +1078,7 @@ void UMetasoundEditorGraphExternalNode::CacheTitle()
 	using namespace Metasound::Frontend;
 
 	constexpr bool bIncludeNamespace = false;
-	FConstNodeHandle NodeHandle = GetNodeHandle();
+	FConstNodeHandle NodeHandle = GetConstNodeHandle();
 	CachedTitle = FGraphBuilder::GetDisplayName(*NodeHandle, bIncludeNamespace);
 }
 
@@ -1106,7 +1106,7 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 #if WITH_EDITOR
 	Super::Validate(OutResult);
 
-	FConstNodeHandle NodeHandle = GetNodeHandle();
+	FConstNodeHandle NodeHandle = GetConstNodeHandle();
 	const FMetasoundFrontendClassMetadata& Metadata = NodeHandle->GetClassMetadata();
 
 	// 1. Validate external referenced graph or template node

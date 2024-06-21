@@ -1277,7 +1277,7 @@ void UMetasoundEditorGraphSchema::GetGraphContextActions(FGraphContextMenuBuilde
 		GetCommentAction(ContextMenuBuilder, ContextMenuBuilder.CurrentGraph);
 		if (UObject* Metasound = MetasoundEditor->GetMetasoundObject())
 		{
-			FMetasoundAssetBase* MetasoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Metasound);
+			const FMetasoundAssetBase* MetasoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Metasound);
 			check(MetasoundAsset);
 			GraphHandle = MetasoundAsset->GetRootGraphHandle();
 

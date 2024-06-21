@@ -229,6 +229,18 @@ void UMetaSoundSettings::PostInitProperties()
 
 	Super::PostInitProperties();
 }
+#endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+Metasound::Engine::FOnSettingsDefaultConformed& UMetaSoundSettings::GetOnDefaultConformedDelegate()
+{
+	return OnDefaultConformed;
+}
+
+Metasound::Engine::FOnPageSettingsUpdated& UMetaSoundSettings::GetOnPageSettingsUpdatedDelegate()
+{
+	return OnPageSettingsUpdated;
+}
 
 FName UMetaSoundSettings::GetPageSettingPropertyName()
 {
@@ -239,7 +251,7 @@ FName UMetaSoundSettings::GetQualitySettingPropertyName()
 {
 	return GET_MEMBER_NAME_CHECKED(UMetaSoundSettings, QualitySettings);
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 TArray<FName> UMetaSoundQualityHelper::GetQualityList()
 {

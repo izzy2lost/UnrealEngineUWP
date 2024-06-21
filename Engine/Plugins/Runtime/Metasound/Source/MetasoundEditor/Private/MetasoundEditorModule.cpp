@@ -604,7 +604,7 @@ namespace Metasound
 
 				if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
 				{
-					Settings->OnDefaultConformed.AddLambda([]()
+					Settings->GetOnDefaultConformedDelegate().AddLambda([]()
 					{
 						FNotificationInfo Info(LOCTEXT("MetaSoundSettings_CannotDeleteDefaultPage", "Cannot change name of nor delete 'Default' MetaSound Page"));
 						Info.bFireAndForget = true;

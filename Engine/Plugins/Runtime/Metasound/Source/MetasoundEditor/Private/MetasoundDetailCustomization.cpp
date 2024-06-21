@@ -420,7 +420,7 @@ namespace Metasound::Editor
 
 		if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
 		{
-			Settings->OnPageSettingsUpdated.AddSPLambda(this, [this]()
+			Settings->GetOnPageSettingsUpdatedDelegate().AddSPLambda(this, [this]()
 			{
 				UpdateItemNames();
 				if (ComboBox.IsValid())
