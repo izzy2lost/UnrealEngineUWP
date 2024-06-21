@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
+#include "Containers/SharedString.h"
 #include "GenericPlatform/GenericPlatformStackWalk.h"
 #include "Misc/DefinePrivateMemberPtr.h"
 #include "Misc/Paths.h"
@@ -13,7 +13,6 @@
 #include "HAL/PlatformProcess.h"
 #include "TextureBuildFunction.h"
 #include "DerivedDataBuildFunctionFactory.h"
-#include "DerivedDataSharedString.h"
 
 #ifndef __APPLE__
 #define __APPLE__ 0
@@ -37,9 +36,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogTextureFormatETC2, Log, All);
 
 class FETC2TextureBuildFunction final : public FTextureBuildFunction
 {
-	const UE::DerivedData::FUtf8SharedString& GetName() const final
+	const UE::FUtf8SharedString& GetName() const final
 	{
-		static const UE::DerivedData::FUtf8SharedString Name(UTF8TEXTVIEW("ETC2Texture"));
+		static const UE::FUtf8SharedString Name(UTF8TEXTVIEW("ETC2Texture"));
 		return Name;
 	}
 

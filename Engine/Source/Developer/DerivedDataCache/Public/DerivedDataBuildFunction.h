@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "Containers/StringFwd.h"
 #include "Containers/StringView.h"
-#include "DerivedDataSharedStringFwd.h"
 #include "Memory/MemoryFwd.h"
 
 class FCbField;

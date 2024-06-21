@@ -13,11 +13,11 @@
 
 #if WITH_EDITORONLY_DATA
 #include "Compression/CompressedBuffer.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataCacheKey.h"
 #include "DerivedDataRequestOwner.h"
 #include "DerivedDataRequestTypes.h"
-#include "DerivedDataSharedString.h"
 #include "DerivedDataValue.h"
 #include "DerivedDataValueId.h"
 #include "IO/IoHash.h"

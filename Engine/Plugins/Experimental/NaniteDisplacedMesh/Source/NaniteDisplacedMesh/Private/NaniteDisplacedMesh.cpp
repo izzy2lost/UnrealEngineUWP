@@ -145,7 +145,7 @@ private:
 
 	void BeginCache(const FIoHash& KeyHash);
 	void EndCache(UE::DerivedData::FCacheGetValueResponse&& Response);
-	bool BuildData(const UE::DerivedData::FSharedString& Name, const UE::DerivedData::FCacheKey& Key);
+	bool BuildData(const UE::FSharedString& Name, const UE::DerivedData::FCacheKey& Key);
 
 private:
 	friend class FNaniteDisplacedMeshAsyncBuildWorker;
@@ -354,7 +354,7 @@ static FStaticMeshSourceModel& GetBaseMeshSourceModel(UStaticMesh& BaseMesh)
 	return bHasHiResSourceModel ? BaseMesh.GetHiResSourceModel() : BaseMesh.GetSourceModel(0);
 }
 
-bool FNaniteBuildAsyncCacheTask::BuildData(const UE::DerivedData::FSharedString& Name, const UE::DerivedData::FCacheKey& Key)
+bool FNaniteBuildAsyncCacheTask::BuildData(const UE::FSharedString& Name, const UE::DerivedData::FCacheKey& Key)
 {
 	using namespace UE::DerivedData;
 

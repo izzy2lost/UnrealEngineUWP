@@ -3470,6 +3470,7 @@ void FStaticMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, UStatic
 #endif
 		DerivedDataKey = BuildStaticMeshDerivedDataKey(KeySuffix);
 
+		using namespace UE;
 		using namespace UE::DerivedData;
 
 		static const FValueId MeshDataId = FValueId::FromName("MeshData");

@@ -467,6 +467,7 @@ static bool GetBuildSettingsDisablesStreaming(const FTextureBuildSettings& InBui
 // Dumps the output messages that were created during the given build.
 static void PrintIBuildOutputMessages(const UE::DerivedData::FBuildOutput& InBuildOutput)
 {
+	using namespace UE;
 	using namespace UE::DerivedData;
 
 	const FSharedString& Name = InBuildOutput.GetName();
@@ -1369,6 +1370,7 @@ FTextureCacheDerivedDataWorker::FTextureCacheDerivedDataWorker(
 // Currently only used for prefetching (pulling data down from shared ddc to local ddc).
 static bool TryCacheStreamingMips(const FString& TexturePathName, int32 FirstMipToLoad, int32 FirstMipToPrefetch, FTexturePlatformData* DerivedData)
 {
+	using namespace UE;
 	using namespace UE::DerivedData;
 	check(DerivedData->DerivedDataKey.IsType<FString>());
 
@@ -2190,6 +2192,7 @@ struct FBuildResultOptions
 
 static bool UnpackPlatformDataFromBuild(FTexturePlatformData& OutPlatformData, UE::DerivedData::FBuildCompleteParams&& InBuildCompleteParams, FBuildResultOptions InBuildResultOptions)
 {
+	using namespace UE;
 	using namespace UE::DerivedData;
 	UE::DerivedData::FBuildOutput& BuildOutput = InBuildCompleteParams.Output;
 
@@ -2509,11 +2512,11 @@ public:
 
 	FBuildInfo CreateBuildForSettings(
 		UE::DerivedData::IBuild& InBuild,
-		UE::DerivedData::FSharedString& TexturePath,
+		UE::FSharedString& TexturePath,
 		UTexture* InTexture,
 		bool bUseCompositeTexture,
-		const UE::DerivedData::FUtf8SharedString& FunctionName,
-		const UE::DerivedData::FUtf8SharedString& TilingFunctionName,
+		const UE::FUtf8SharedString& FunctionName,
+		const UE::FUtf8SharedString& TilingFunctionName,
 		const FTextureBuildSettings& InBuildSettings,
 		const FTexturePlatformData::FTextureEncodeResultMetadata* InResultMetadata,
 		UE::DerivedData::FBuildPolicy FinalBuildPolicy,
@@ -2596,8 +2599,8 @@ public:
 	FTextureBuildTask(
 		UTexture& Texture,
 		FTexturePlatformData& InDerivedData,
-		const UE::DerivedData::FUtf8SharedString& FunctionName,
-		const UE::DerivedData::FUtf8SharedString& TilingFunctionName,
+		const UE::FUtf8SharedString& FunctionName,
+		const UE::FUtf8SharedString& TilingFunctionName,
 		const FTextureBuildSettings* InSettingsFetchFirst, // can be nullptr
 		const FTextureBuildSettings& InSettingsFetchOrBuild,
 		const FTexturePlatformData::FTextureEncodeResultMetadata* InFetchFirstMetadata, // can be nullptr
@@ -2622,6 +2625,7 @@ public:
 		// Dump any existing data.
 		InDerivedData.Reset();
 
+		using namespace UE;
 		using namespace UE::DerivedData;
 
 		EPriority OwnerPriority = EnumHasAnyFlags(Flags, ETextureCacheFlags::Async) ? ConvertFromQueuedWorkPriority(Priority) : EPriority::Blocking;
@@ -2744,8 +2748,8 @@ public:
 	static UE::DerivedData::FBuildDefinition CreateDefinition(
 		UE::DerivedData::IBuild& Build,
 		UTexture& Texture,
-		const UE::DerivedData::FSharedString& TexturePath,
-		const UE::DerivedData::FUtf8SharedString& FunctionName,
+		const UE::FSharedString& TexturePath,
+		const UE::FUtf8SharedString& FunctionName,
 		const FTextureBuildSettings& Settings,
 		const bool bUseCompositeTexture)
 	{
@@ -3052,8 +3056,8 @@ public:
 		FEncodedTextureDescription* InTextureDescription, // only valid if our textures can generate this pre build
 		FEncodedTextureExtendedData* InTextureExtendedData, // only valid if our textures can generate this pre build
 		const UE::DerivedData::FBuildDefinition& InParentBuildDefinition,
-		const UE::DerivedData::FSharedString& InDefinitionDebugName,
-		const UE::DerivedData::FUtf8SharedString& InBuildFunctionName
+		const UE::FSharedString& InDefinitionDebugName,
+		const UE::FUtf8SharedString& InBuildFunctionName
 	)
 	{			
 		const FTextureEngineParameters EngineParameters = GenerateTextureEngineParameters();
@@ -3093,7 +3097,7 @@ public:
 		UTexture* InTexture,
 		const FTextureBuildSettings& InBuildSettings,
 		const UE::DerivedData::FBuildDefinition& InParentBuildDefinition,
-		const UE::DerivedData::FSharedString& InDefinitionDebugName
+		const UE::FSharedString& InDefinitionDebugName
 	)
 	{
 		//
@@ -3122,7 +3126,7 @@ public:
 		UTexture* InTexture,
 		const FTextureBuildSettings& InBuildSettings,
 		const UE::DerivedData::FBuildDefinition& InParentBuildDefinition,
-		const UE::DerivedData::FSharedString& InDefinitionDebugName
+		const UE::FSharedString& InDefinitionDebugName
 	)
 	{
 		//
@@ -3191,6 +3195,7 @@ FTextureAsyncCacheDerivedDataTask* CreateTextureBuildTask(
 	EQueuedWorkPriority Priority,
 	ETextureCacheFlags Flags)
 {
+	using namespace UE;
 	using namespace UE::DerivedData;
 
 	// If we are tiling, we need to alter the build settings to act as though it's 
@@ -3233,6 +3238,7 @@ FTexturePlatformData::FStructuredDerivedDataKey CreateTextureDerivedDataKey(
 	ETextureCacheFlags CacheFlags,
 	const FTextureBuildSettings& Settings)
 {
+	using namespace UE;
 	using namespace UE::DerivedData;
 
 	TOptional<FTextureBuildSettings> BaseSettings;

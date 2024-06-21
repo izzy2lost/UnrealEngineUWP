@@ -4,11 +4,11 @@
 
 #include "Algo/BinarySearch.h"
 #include "Algo/Find.h"
+#include "Containers/SharedString.h"
 #include "Containers/StringView.h"
 #include "DerivedDataBuildKey.h"
 #include "DerivedDataBuildPrivate.h"
 #include "DerivedDataCacheRecord.h"
-#include "DerivedDataSharedString.h"
 #include "DerivedDataValue.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/CompactBinary.h"

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
+#include "Containers/SharedString.h"
 #include "ImageCore.h"
 #include "DDSFile.h"
 #include "Modules/ModuleManager.h"
@@ -21,7 +21,6 @@
 #include "Serialization/CompactBinary.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "DerivedDataBuildFunctionFactory.h"
-#include "DerivedDataSharedString.h"
 #include "Tasks/Task.h"
 #include "TextureBuildFunction.h"
 #include "HAL/FileManager.h"
@@ -395,9 +394,9 @@ struct FOodleTextureVTable
 
 class FOodleTextureBuildFunction final : public FTextureBuildFunction
 {
-	const UE::DerivedData::FUtf8SharedString& GetName() const final
+	const UE::FUtf8SharedString& GetName() const final
 	{
-		static const UE::DerivedData::FUtf8SharedString Name(UTF8TEXTVIEW("OodleTexture"));
+		static const UE::FUtf8SharedString Name(UTF8TEXTVIEW("OodleTexture"));
 		return Name;
 	}
 

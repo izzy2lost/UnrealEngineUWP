@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include "Containers/SharedString.h"
 #include "DerivedDataBuildJob.h"
 #include "DerivedDataBuildKey.h"
 #include "DerivedDataRequest.h"
-#include "DerivedDataSharedString.h"
 #include "HAL/Platform.h"
 #include "Templates/RefCounting.h"
 #include "Templates/UniquePtr.h"

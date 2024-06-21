@@ -5,7 +5,7 @@
 #if WITH_EDITOR
 
 #include "CoreTypes.h"
-#include "DerivedDataSharedStringFwd.h"
+#include "Containers/StringFwd.h"
 
 class FCbObject;
 class FCbWriter;
@@ -14,7 +14,7 @@ class ITargetPlatform;
 class UTexture;
 struct FTextureBuildSettings;
 
-UE::DerivedData::FUtf8SharedString FindTextureBuildFunction(FName TextureFormatName);
+UE::FUtf8SharedString FindTextureBuildFunction(FName TextureFormatName);
 FCbObject SaveTextureBuildSettings(const UTexture& Texture, const FTextureBuildSettings& BuildSettings, int32 LayerIndex, bool bUseCompositeTexture);
 
 #if WITH_EDITOR

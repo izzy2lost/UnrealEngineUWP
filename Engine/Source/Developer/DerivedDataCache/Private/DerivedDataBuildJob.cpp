@@ -4,6 +4,7 @@
 
 #include "Algo/Find.h"
 #include "Compression/CompressedBuffer.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataBuild.h"
 #include "DerivedDataBuildAction.h"
 #include "DerivedDataBuildDefinition.h"
@@ -22,7 +23,6 @@
 #include "DerivedDataCache.h"
 #include "DerivedDataCacheRecord.h"
 #include "DerivedDataRequestOwner.h"
-#include "DerivedDataSharedString.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/Event.h"
 #include "HAL/FileManager.h"

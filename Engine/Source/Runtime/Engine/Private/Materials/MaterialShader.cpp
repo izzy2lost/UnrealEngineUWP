@@ -318,11 +318,11 @@ static UE::DerivedData::FCacheKey GetMaterialShaderMapKey(const FStringView Mate
 	return {Bucket, FIoHash::HashBuffer(MakeMemoryView(FTCHARToUTF8(MaterialShaderMapKey)))};
 }
 
-static UE::DerivedData::FSharedString GetMaterialShaderMapName(const FStringView MaterialPath, const FMaterialShaderMapId& ShaderMapId, const EShaderPlatform Platform)
+static UE::FSharedString GetMaterialShaderMapName(const FStringView MaterialPath, const FMaterialShaderMapId& ShaderMapId, const EShaderPlatform Platform)
 {
 	FName FeatureLevelName;
 	GetFeatureLevelName(ShaderMapId.FeatureLevel, FeatureLevelName);
-	return UE::DerivedData::FSharedString(WriteToString<256>(MaterialPath,
+	return UE::FSharedString(WriteToString<256>(MaterialPath,
 		TEXTVIEW(" ["), FDataDrivenShaderPlatformInfo::GetName(Platform),
 		TEXTVIEW(", "), FeatureLevelName,
 		TEXTVIEW(", "), LexToString(ShaderMapId.QualityLevel),

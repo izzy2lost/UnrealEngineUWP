@@ -803,7 +803,7 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 	}
 }
 
-void GenericTextureTilingBuildFunction(UE::DerivedData::FBuildContext& Context, const ITextureTiler* Tiler, const UE::DerivedData::FUtf8SharedString& BuildFunctionName)
+void GenericTextureTilingBuildFunction(UE::DerivedData::FBuildContext& Context, const ITextureTiler* Tiler, const UE::FUtf8SharedString& BuildFunctionName)
 {
 	FChildBuildData ChildBuildData;
 	if (!ReadChildBuildInputs(ChildBuildData, Context))
@@ -859,7 +859,7 @@ void GenericTextureTilingBuildFunction(UE::DerivedData::FBuildContext& Context, 
 	WriteChildBuildOutputs(Context, MoveTemp(ChildBuildData));
 }
 
-void GenericTextureDecodeBuildFunction(UE::DerivedData::FBuildContext& Context, const UE::DerivedData::FUtf8SharedString& BuildFunctionName)
+void GenericTextureDecodeBuildFunction(UE::DerivedData::FBuildContext& Context, const UE::FUtf8SharedString& BuildFunctionName)
 {
 	FChildBuildData ChildBuildInputs;
 	if (!ReadChildBuildInputs(ChildBuildInputs, Context))
@@ -952,7 +952,7 @@ void GenericTextureDecodeBuildFunction(UE::DerivedData::FBuildContext& Context, 
 	WriteChildBuildOutputs(Context, MoveTemp(ChildBuildInputs));
 }
 
-void GenericTextureDetileBuildFunction(UE::DerivedData::FBuildContext& Context, const ITextureTiler* Tiler, const UE::DerivedData::FUtf8SharedString& BuildFunctionName)
+void GenericTextureDetileBuildFunction(UE::DerivedData::FBuildContext& Context, const ITextureTiler* Tiler, const UE::FUtf8SharedString& BuildFunctionName)
 {
 	FChildBuildData ChildBuildInputs;
 	if (!ReadChildBuildInputs(ChildBuildInputs, Context))

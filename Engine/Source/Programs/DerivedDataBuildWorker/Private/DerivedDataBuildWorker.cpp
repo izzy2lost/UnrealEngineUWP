@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Compression/CompressedBuffer.h"
+#include "Containers/SharedString.h"
 #include "Containers/UnrealString.h"
 #include "DerivedDataBuild.h"
 #include "DerivedDataBuildAction.h"
@@ -11,7 +12,6 @@
 #include "DerivedDataBuildOutput.h"
 #include "DerivedDataBuildSession.h"
 #include "DerivedDataRequestOwner.h"
-#include "DerivedDataSharedString.h"
 #include "DerivedDataValue.h"
 #include "HAL/FileManager.h"
 #include "Memory/SharedBuffer.h"

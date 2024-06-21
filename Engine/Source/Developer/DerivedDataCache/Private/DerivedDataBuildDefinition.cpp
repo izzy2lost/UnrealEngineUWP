@@ -4,11 +4,11 @@
 
 #include "Algo/AllOf.h"
 #include "Containers/Map.h"
+#include "Containers/SharedString.h"
 #include "Containers/StringConv.h"
 #include "Containers/StringView.h"
 #include "DerivedDataBuildKey.h"
 #include "DerivedDataBuildPrivate.h"
-#include "DerivedDataSharedString.h"
 #include "Misc/Guid.h"
 #include "Misc/StringBuilder.h"
 #include "Misc/TVariant.h"

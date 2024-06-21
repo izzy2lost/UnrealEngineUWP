@@ -7,7 +7,6 @@
 #include "Containers/StringFwd.h"
 #include "Containers/StringView.h"
 #include "CoreTypes.h"
-#include "DerivedDataSharedStringFwd.h"
 #include "Misc/ScopeExit.h"
 #include "Templates/RefCounting.h"
 #include "Templates/UniquePtr.h"

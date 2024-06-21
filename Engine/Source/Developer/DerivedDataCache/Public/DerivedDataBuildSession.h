@@ -2,9 +2,9 @@
 
 #pragma once
 
+#include "Containers/StringFwd.h"
 #include "CoreTypes.h"
 #include "DerivedDataBuildTypes.h"
-#include "DerivedDataSharedStringFwd.h"
 #include "Templates/Function.h"
 #include "Templates/UniquePtr.h"
 #include "Templates/UnrealTemplate.h"

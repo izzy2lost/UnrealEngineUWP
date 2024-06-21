@@ -2502,6 +2502,7 @@ bool UGroomAsset::CacheStrandsData(uint32 GroupIndex, FString& OutDerivedDataKey
 		return false;
 	}
 
+	using namespace UE;
 	using namespace UE::DerivedData;
 
 	const FString DerivedDataKey= UGroomAsset::GetDerivedDataKeyForStrands(GroupIndex);
@@ -2687,6 +2688,7 @@ bool UGroomAsset::CacheCardsData(uint32 GroupIndex, const FString& StrandsKey)
 	const FString DerivedDataKey = StrandsKey + KeySuffix;
 
 	// Query DDC
+	using namespace UE;
 	using namespace UE::DerivedData;
 	const FCacheKey Key = ConvertLegacyCacheKey(DerivedDataKey);
 	const FSharedString Name = MakeStringView(GetPathName());
@@ -2767,6 +2769,7 @@ bool UGroomAsset::CacheMeshesData(uint32 GroupIndex)
 	const FString DerivedDataKey = GroomDerivedDataCacheUtils::BuildGroomDerivedDataKey(KeySuffix);
 
 	// Query DDC
+	using namespace UE;
 	using namespace UE::DerivedData;
 	const FCacheKey Key = ConvertLegacyCacheKey(DerivedDataKey);
 	const FSharedString Name = MakeStringView(GetPathName());

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "DerivedDataSharedStringFwd.h"
+#include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 
 #define UE_API DERIVEDDATACACHE_API

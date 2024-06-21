@@ -4,6 +4,7 @@
 
 #include "Algo/Accumulate.h"
 #include "Algo/BinarySearch.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataBuildAction.h"
 #include "DerivedDataBuildDefinition.h"
 #include "DerivedDataBuildFunctionRegistry.h"
@@ -16,7 +17,6 @@
 #include "DerivedDataBuildWorkerRegistry.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataPrivate.h"
-#include "DerivedDataSharedString.h"
 #include "Misc/Guid.h"
 
 namespace UE::DerivedData::Private

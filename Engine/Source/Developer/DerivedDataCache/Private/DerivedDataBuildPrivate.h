@@ -4,7 +4,6 @@
 
 #include "Containers/StringFwd.h"
 #include "DerivedDataBuildTypes.h"
-#include "DerivedDataSharedStringFwd.h"
 #include "Logging/LogMacros.h"
 
 struct FGuid;

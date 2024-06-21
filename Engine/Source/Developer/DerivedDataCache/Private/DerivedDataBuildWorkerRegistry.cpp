@@ -3,12 +3,12 @@
 #include "DerivedDataBuildWorkerRegistry.h"
 
 #include "Algo/Find.h"
+#include "Containers/SharedString.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 #include "DerivedDataBuildKey.h"
 #include "DerivedDataBuildPrivate.h"
 #include "DerivedDataBuildWorker.h"
-#include "DerivedDataSharedString.h"
 #include "Features/IModularFeatures.h"
 #include "HAL/CriticalSection.h"
 #include "IO/IoHash.h"

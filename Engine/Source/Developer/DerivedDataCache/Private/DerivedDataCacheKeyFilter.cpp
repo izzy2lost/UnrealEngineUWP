@@ -3,8 +3,8 @@
 #include "DerivedDataCacheKeyFilter.h"
 
 #include "Algo/Find.h"
+#include "Containers/SharedString.h"
 #include "DerivedDataCacheKey.h"
-#include "DerivedDataSharedString.h"
 #include "Hash/xxhash.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/Guid.h"

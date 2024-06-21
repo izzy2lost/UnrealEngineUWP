@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "Containers/StringFwd.h"
 #include "CoreTypes.h"
-#include "DerivedDataSharedStringFwd.h"
 
 struct FGuid;
 

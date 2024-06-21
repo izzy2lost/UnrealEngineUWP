@@ -241,7 +241,7 @@ bool FAnimationSequenceAsyncCacheTask::BuildData() const
 	return false;
 }
 
-void FAnimationSequenceAsyncCacheTask::LaunchCompressionTask(const UE::DerivedData::FSharedString& Name, const UE::DerivedData::FCacheKey& Key)
+void FAnimationSequenceAsyncCacheTask::LaunchCompressionTask(const UE::FSharedString& Name, const UE::DerivedData::FCacheKey& Key)
 {
 	Owner.LaunchTask(TEXT("AnimationSequenceCompression"), [this, Name, Key]
 		{

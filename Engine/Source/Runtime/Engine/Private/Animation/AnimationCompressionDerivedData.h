@@ -6,7 +6,7 @@
 
 #if WITH_EDITORONLY_DATA
 #include "DerivedDataRequestOwner.h"
-#include "DerivedDataSharedStringFwd.h"
+#include "Containers/StringFwd.h"
 #include "Experimental/Misc/ExecutionResource.h"
 #include "Async/AsyncWork.h"
 #include "Animation/AnimCompressionTypes.h"
@@ -85,21 +85,21 @@ namespace UE::Anim
 		bool WasCancelled() const { return CompressibleAnimPtr->IsCancelled() || Owner.IsCanceled(); }
 	private:
 		void BeginCache(const FIoHash& KeyHash);
-		void EndCache(UE::DerivedData::FCacheGetValueResponse&& Response);
+		void EndCache(DerivedData::FCacheGetValueResponse&& Response);
 		bool BuildData() const;
-		void LaunchCompressionTask(const UE::DerivedData::FSharedString& Name, const UE::DerivedData::FCacheKey& Key);
+		void LaunchCompressionTask(const FSharedString& Name, const DerivedData::FCacheKey& Key);
 		int64 GetRequiredMemoryEstimate() const;
 
 	private:
 		friend class FAnimationSequenceAsyncBuildWorker;
-		UE::DerivedData::FRequestOwner Owner;
+		DerivedData::FRequestOwner Owner;
 
 		TRefCountPtr<IExecutionResource> ExecutionResource;
 		TUniquePtr<FAnimationSequenceAsyncBuildTask> BuildTask;
 		FCompressedAnimSequence* CompressedData;
-		TWeakObjectPtr<UAnimSequence> WeakAnimSequence;	
+		TWeakObjectPtr<UAnimSequence> WeakAnimSequence;
 		FCompressibleAnimPtr CompressibleAnimPtr;
-		const ITargetPlatform* TargetPlatform;		
+		const ITargetPlatform* TargetPlatform;
 		double CompressionStartTime;
 		
 	};

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
+#include "Containers/SharedString.h"
 #include "HAL/FileManager.h"
 #include "Misc/CommandLine.h"
 #include "Containers/IndirectArray.h"
@@ -18,7 +18,6 @@
 #include "Serialization/CompactBinaryWriter.h"
 #include "TextureBuildFunction.h"
 #include "DerivedDataBuildFunctionFactory.h"
-#include "DerivedDataSharedString.h"
 #include "Misc/WildcardString.h"
 
 #include "ispc_texcomp.h"
@@ -27,9 +26,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogTextureFormatIntelISPCTexComp, Log, All);
 
 class FIntelISPCTexCompTextureBuildFunction final : public FTextureBuildFunction
 {
-	const UE::DerivedData::FUtf8SharedString& GetName() const final
+	const UE::FUtf8SharedString& GetName() const final
 	{
-		static const UE::DerivedData::FUtf8SharedString Name(UTF8TEXTVIEW("IntelISPCTexCompTexture"));
+		static const UE::FUtf8SharedString Name(UTF8TEXTVIEW("IntelISPCTexCompTexture"));
 		return Name;
 	}
 

@@ -1,27 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
-#include "HAL/PlatformProcess.h"
+#include "Containers/SharedString.h"
+#include "DerivedDataBuildFunctionFactory.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformProcess.h"
 #include "Misc/CommandLine.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
-#include "Misc/Guid.h"
 #include "Misc/ConfigCacheIni.h"
-#include "ImageCore.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Guid.h"
+#include "Misc/Paths.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
-#include "Modules/ModuleManager.h"
+#include "ImageCore.h"
 #include "Interfaces/ITextureFormat.h"
 #include "Interfaces/ITextureFormatModule.h"
-#include "TextureCompressorModule.h"
+#include "Modules/ModuleManager.h"
 #include "PixelFormat.h"
 #include "Serialization/CompactBinary.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "TextureBuildFunction.h"
-#include "DerivedDataBuildFunctionFactory.h"
-#include "DerivedDataSharedString.h"
-#include "HAL/IConsoleManager.h"
+#include "TextureCompressorModule.h"
 
 #include "astcenc.h"
 
@@ -80,9 +79,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogTextureFormatASTC, Log, All);
 
 class FASTCTextureBuildFunction final : public FTextureBuildFunction
 {
-	const UE::DerivedData::FUtf8SharedString& GetName() const final
+	const UE::FUtf8SharedString& GetName() const final
 	{
-		static const UE::DerivedData::FUtf8SharedString Name(UTF8TEXTVIEW("ASTCTexture"));
+		static const UE::FUtf8SharedString Name(UTF8TEXTVIEW("ASTCTexture"));
 		return Name;
 	}
 

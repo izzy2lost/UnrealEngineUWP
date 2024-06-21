@@ -1983,6 +1983,7 @@ static bool LoadDerivedStreamingMips(FTexturePlatformData& PlatformData, int32 F
 
 static bool LoadDerivedStreamingVTChunks(const TArray<FVirtualTextureDataChunk>& Chunks, FStringView DebugContext, TFunctionRef<void (int32 ChunkIndex, FSharedBuffer ChunkData)> Callback)
 {
+	using namespace UE;
 	using namespace UE::DerivedData;
 	TArray<FCacheGetValueRequest> Requests;
 
@@ -2715,6 +2716,7 @@ bool FTexturePlatformData::AreDerivedMipsAvailable(FStringView Context) const
 {
 	if (DerivedDataKey.IsType<FString>())
 	{
+		using namespace UE;
 		using namespace UE::DerivedData;
 		TArray<FCacheGetValueRequest, TInlineAllocator<16>> MipRequests;
 
@@ -2764,6 +2766,7 @@ bool FTexturePlatformData::AreDerivedVTChunksAvailable(FStringView Context) cons
 {
 	check(VTData);
 
+	using namespace UE;
 	using namespace UE::DerivedData;
 	TArray<FCacheGetValueRequest, TInlineAllocator<16>> ChunkRequests;
 
