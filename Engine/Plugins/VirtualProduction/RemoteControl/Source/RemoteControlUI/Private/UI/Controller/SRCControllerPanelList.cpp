@@ -7,6 +7,7 @@
 #include "Commands/RemoteControlCommands.h"
 #include "Controller/RCController.h"
 #include "Controller/RCControllerContainer.h"
+#include "Controller/RCControllerUtilities.h"
 #include "Controller/RCCustomControllerUtilities.h"
 #include "Engine/Texture.h"
 #include "Engine/Texture2D.h"
@@ -58,49 +59,6 @@ namespace UE::RCControllerPanelList
 		const FName DragHandle = TEXT("Drag Handle");
 		const FName FieldId = TEXT("Controller Field Id");
 		const FName ValueTypeSelection = TEXT("Value Type Selection");
-	}
-
-	const TSet<UScriptStruct*>& GetSupportedStructs()
-	{
-		static const TSet<UScriptStruct*> SupportedStructs = {
-			TBaseStructure<FVector>::Get(),
-			TBaseStructure<FVector2D>::Get(),
-			TBaseStructure<FRotator>::Get(),
-			TBaseStructure<FColor>::Get()
-		};
-		
-		return SupportedStructs;
-	}
-
-	const TSet<UClass*>& GetSupportedObjects()
-	{
-		static const TSet<UClass*> SupportedObjects = {
-			UTexture::StaticClass(),
-			UStaticMesh::StaticClass(),
-			UMaterialInterface::StaticClass(),
-		};
-		
-		return SupportedObjects;
-	}
-	
-	bool IsStructPropertyTypeSupported(const FStructProperty* InStructProperty)
-	{
-		if (InStructProperty)
-		{
-			return GetSupportedStructs().Contains(InStructProperty->Struct);
-		}
-
-		return false;
-	}
-
-	bool IsObjectPropertyTypeSupported(const FObjectProperty* InObjectProperty)
-	{
-		if (InObjectProperty)
-		{
-			return GetSupportedObjects().Contains(InObjectProperty->PropertyClass);
-		}
-
-		return false;
 	}
 
 	class SControllerItemListRow : public SMultiColumnTableRow<TSharedRef<FRCControllerModel>>
@@ -868,29 +826,7 @@ bool SRCControllerPanelList::IsEntitySupported(const FGuid ExposedEntityId)
 
 			if (RemoteControlProperty->FieldType == EExposedFieldType::Property)
 			{
-				const FProperty* Property = RemoteControlProperty->GetProperty();
-				
-				if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
-				{
-					if (const UEnum* Enum = EnumProperty->GetEnum())
-					{
-						const int64 MaxEnumValue = Enum->GetMaxEnumValue();
-						const uint32 NeededBits = FMath::RoundUpToPowerOfTwo(MaxEnumValue);
-
-						// 8 bits enums only
-						return NeededBits <= 256;
-					}
-				}
-				else if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-				{
-					return UE::RCControllerPanelList::IsStructPropertyTypeSupported(StructProperty);
-				}
-				else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
-				{
-					return UE::RCControllerPanelList::IsObjectPropertyTypeSupported(ObjectProperty);
-				}
-
-				return true;
+				return UE::RCControllers::CanCreateControllerFromProperty(RemoteControlProperty->GetProperty());
 			}
 		}
 	}
