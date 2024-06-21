@@ -161,9 +161,9 @@ void UAvaVisibilityModifier::OnRenderStateUpdated(AActor* InActor, UActorCompone
 	MarkModifierDirty();
 }
 
-void UAvaVisibilityModifier::SetInvertVisibility(const bool bNewInvertVisibility)
+void UAvaVisibilityModifier::SetInvertVisibility(const bool bInInvertVisibility)
 {
-	bInvertVisibility = bNewInvertVisibility;
+	bInvertVisibility = bInInvertVisibility;
 
 	MarkModifierDirty();
 }

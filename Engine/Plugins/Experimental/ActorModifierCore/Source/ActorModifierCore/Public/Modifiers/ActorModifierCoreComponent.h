@@ -21,6 +21,7 @@ public:
 
 	UActorModifierCoreComponent();
 
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers")
 	UActorModifierCoreStack* GetModifierStack() const
 	{
 		return ModifierStack;
@@ -42,6 +43,6 @@ protected:
 	virtual void TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction) override;
 
 	/** This is the root stack that will contain all modifiers for this actor */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, NoClear, Export, Instanced, Category="Modifiers")
+	UPROPERTY(VisibleInstanceOnly, NoClear, Export, Instanced, Category="Modifiers")
 	TObjectPtr<UActorModifierCoreStack> ModifierStack = nullptr;
 };

@@ -265,44 +265,44 @@ void UAvaAutoFollowModifier::OnFollowedAxisChanged()
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetDefaultDistance(const FVector& NewDefaultDistance)
+void UAvaAutoFollowModifier::SetDefaultDistance(const FVector& InDefaultDistance)
 {
-	DefaultDistance = NewDefaultDistance;
+	DefaultDistance = InDefaultDistance;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetMaxDistance(const FVector& NewMaxDistance)
+void UAvaAutoFollowModifier::SetMaxDistance(const FVector& InMaxDistance)
 {
-	MaxDistance = NewMaxDistance;
+	MaxDistance = InMaxDistance;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetProgress(const FVector& NewProgress)
+void UAvaAutoFollowModifier::SetProgress(const FVector& InProgress)
 {
-	Progress = NewProgress;
+	Progress = InProgress;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetFollowedAlignment(const FAvaAnchorAlignment& NewFollowedAlignment)
+void UAvaAutoFollowModifier::SetFollowedAlignment(const FAvaAnchorAlignment& InFollowedAlignment)
 {
-	FollowedAlignment = NewFollowedAlignment;
+	FollowedAlignment = InFollowedAlignment;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetLocalAlignment(const FAvaAnchorAlignment& NewLocalAlignment)
+void UAvaAutoFollowModifier::SetLocalAlignment(const FAvaAnchorAlignment& InLocalAlignment)
 {
-	LocalAlignment = NewLocalAlignment;
+	LocalAlignment = InLocalAlignment;
 
 	MarkModifierDirty();
 }
 
-void UAvaAutoFollowModifier::SetOffsetAxis(const FVector& NewOffsetAxis)
+void UAvaAutoFollowModifier::SetOffsetAxis(const FVector& InOffsetAxis)
 {
-	OffsetAxis = NewOffsetAxis;
+	OffsetAxis = InOffsetAxis;
 
 	MarkModifierDirty();
 }

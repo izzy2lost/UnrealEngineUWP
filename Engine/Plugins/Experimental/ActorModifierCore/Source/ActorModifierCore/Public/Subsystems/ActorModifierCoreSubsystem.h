@@ -54,8 +54,11 @@ public:
 	/** Return the modifier name or none from the modifier class provided */
 	ACTORMODIFIERCORE_API FName GetRegisteredModifierName(const UClass* InModifierClass) const;
 
+	/** Return the modifier class from the modifier name provided */
+	ACTORMODIFIERCORE_API TSubclassOf<UActorModifierCoreBase> GetRegisteredModifierClass(FName InModifierName) const;
+
 	/** Return a set of class for all modifiers registered */
-	TSet<const UClass*> GetRegisteredModifierClasses() const;
+	TSet<TSubclassOf<UActorModifierCoreBase>> GetRegisteredModifierClasses() const;
 
 	/** Returns the name of modifiers that are currently registered */
 	ACTORMODIFIERCORE_API TSet<FName> GetRegisteredModifiers() const;

@@ -44,15 +44,15 @@ struct FAvaAlignBetweenWeightedActor
 	}
 
 	/** An actor that will effect the placement location. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Motion Design")
 	TWeakObjectPtr<AActor> ActorWeak;
 
 	/** How much effect this actor has on the placement location. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design", Meta = (ClampMin = "0.0", UIMin = "0.0"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Motion Design", Meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float Weight = 0.0f;
 
 	/** If true, will consider this weighted actor when calculating the placement location. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Motion Design")
 	bool bEnabled = false;
 };
 
@@ -66,35 +66,28 @@ class UAvaAlignBetweenModifier : public UAvaBaseModifier
 	GENERATED_BODY()
 
 public:
-	/** Gets all actors from their reference actor structs. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AlignBetween")
-	TSet<AActor*> GetActors(const bool bEnabledOnly = false) const;
-
-	/** Returns all valid reference actors that enabled and have a weight greater than 0. */
-	TSet<FAvaAlignBetweenWeightedActor> GetEnabledReferenceActors() const;
-
 	/** Gets all reference actors and their weights. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|AlignBetween")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|AlignBetween")
 	TSet<FAvaAlignBetweenWeightedActor> GetReferenceActors() const
 	{
 		return ReferenceActors;
 	}
 
 	/** Sets all reference actors and their weights. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AlignBetween")
-	AVALANCHEMODIFIERS_API void SetReferenceActors(const TSet<FAvaAlignBetweenWeightedActor>& NewReferenceActors);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AlignBetween")
+	AVALANCHEMODIFIERS_API void SetReferenceActors(const TSet<FAvaAlignBetweenWeightedActor>& InReferenceActors);
 
 	/** Adds an actor to the reference list. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AlignBetween")
-	void AddReferenceActor(const FAvaAlignBetweenWeightedActor& ReferenceActor);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AlignBetween")
+	AVALANCHEMODIFIERS_API bool AddReferenceActor(const FAvaAlignBetweenWeightedActor& InReferenceActor);
 
 	/** Removes an actor from the reference list. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AlignBetween")
-	bool RemoveReferenceActor(AActor* const Actor);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AlignBetween")
+	AVALANCHEMODIFIERS_API bool RemoveReferenceActor(AActor* const InActor);
 
 	/** Finds an actor in the reference list. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|AlignBetween")
-	bool FindReferenceActor(AActor* InActor, FAvaAlignBetweenWeightedActor& OutReferenceActor) const;
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|AlignBetween")
+	AVALANCHEMODIFIERS_API bool FindReferenceActor(AActor* InActor, FAvaAlignBetweenWeightedActor& OutReferenceActor) const;
 
 protected:
 	//~ Begin UObject
@@ -113,7 +106,6 @@ protected:
 	virtual void OnModifiedActorTransformed() override;
 	//~ End UActorModifierCoreBase
 
-
 	//~ Begin IAvaTransformUpdatedExtension
 	virtual void OnTransformUpdated(AActor* InActor, bool bInParentMoved) override;
 	//~ End IAvaTransformUpdatedExtension
@@ -121,7 +113,13 @@ protected:
 	void OnReferenceActorsChanged();
 	void SetTransformExtensionReferenceActors();
 
+	/** Gets all actors from their reference actor structs. */
+	TSet<AActor*> GetActors(const bool bEnabledOnly = false) const;
+
+	/** Returns all valid reference actors that enabled and have a weight greater than 0. */
+	TSet<FAvaAlignBetweenWeightedActor> GetEnabledReferenceActors() const;
+
 	/** Editable set of reference actors and weights used to calculate the average location for this actor */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetReferenceActors", Getter="GetReferenceActors", Category="AlignBetween", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetReferenceActors", Getter="GetReferenceActors", Category="AlignBetween", meta=(AllowPrivateAccess="true"))
 	TSet<FAvaAlignBetweenWeightedActor> ReferenceActors;
 };

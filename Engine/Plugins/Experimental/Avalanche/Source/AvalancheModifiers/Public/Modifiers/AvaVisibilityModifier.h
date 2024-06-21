@@ -17,29 +17,29 @@ class UAvaVisibilityModifier : public UAvaArrangeBaseModifier
 
 public:
 	/** Sets the child index range to hide instead of showing. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|Visibility")
-	AVALANCHEMODIFIERS_API void SetInvertVisibility(const bool bNewInvertVisibility);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Visibility")
+	AVALANCHEMODIFIERS_API void SetInvertVisibility(const bool bInInvertVisibility);
 
 	/** Returns true if hiding the child index range instead of showing. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|Visibility")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Visibility")
 	bool GetInvertVisibility() const
 	{
 		return bInvertVisibility;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|Visibility")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Visibility")
 	AVALANCHEMODIFIERS_API void SetIndex(int32 InIndex);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|Visibility")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Visibility")
 	int32 GetIndex() const
 	{
 		return Index;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|Visibility")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Visibility")
 	AVALANCHEMODIFIERS_API void SetTreatAsRange(const bool bInTreatAsRange);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|Visibility")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Visibility")
 	bool GetTreatAsRange() const
 	{
 		return bTreatAsRange;
@@ -72,15 +72,15 @@ protected:
 	AActor* GetDirectChildren(AActor* InParentActor, AActor* InChildActor);
 
 	/** Child index to set visibility, visible if bInvertVisibility is false else hidden */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetIndex", Getter="GetIndex", Category="Visibility", meta=(ClampMin="0", UIMin="0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetIndex", Getter="GetIndex", Category="Visibility", meta=(ClampMin="0", UIMin="0", AllowPrivateAccess="true"))
 	int32 Index = 0;
 
 	/** Treat index as a range from 0 to index */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetTreatAsRange", Getter="GetTreatAsRange", Category="Visibility", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetTreatAsRange", Getter="GetTreatAsRange", Category="Visibility", meta=(AllowPrivateAccess="true"))
 	bool bTreatAsRange = false;
 
 	/** If true, will hide the child index range instead of showing. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetInvertVisibility", Getter="GetInvertVisibility", Category="Visibility", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetInvertVisibility", Getter="GetInvertVisibility", Category="Visibility", meta=(AllowPrivateAccess="true"))
 	bool bInvertVisibility = false;
 
 	/** Visibility defined for direct children of this actor, used by other modifiers of this type to check */

@@ -204,16 +204,13 @@ void UAvaExtrudeModifier::Apply()
 
 void UAvaExtrudeModifier::SetDepth(float InDepth)
 {
-	if (Depth == InDepth)
+	InDepth = FMath::Max(0, InDepth);
+
+	if (FMath::IsNearlyEqual(Depth, InDepth))
 	{
 		return;
 	}
 
-	if (InDepth < 0)
-	{
-		return;
-	}
-	
 	Depth = InDepth;
 	OnDepthChanged();
 }

@@ -19,32 +19,32 @@ class UAvaLookAtModifier : public UAvaAttachmentBaseModifier
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|LookAt")
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|LookAt")
 	AVALANCHEMODIFIERS_API void SetReferenceActor(const FAvaSceneTreeActor& InReferenceActor);
 
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|LookAt")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|LookAt")
 	const FAvaSceneTreeActor& GetReferenceActor() const
 	{
 		return ReferenceActor;
 	}
 
 	/** Sets the axis that will point towards the reference actor. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|LookAt")
-	AVALANCHEMODIFIERS_API void SetAxis(const EAvaAxis NewAxis);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|LookAt")
+	AVALANCHEMODIFIERS_API void SetAxis(const EAvaAxis InAxis);
 
 	/** Returns the axis that will point towards t he reference actor. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|LookAt")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|LookAt")
 	EAvaAxis GetAxis() const
 	{
 		return Axis;
 	}
 
 	/** Sets the look-at direction to be flipped. */
-	UFUNCTION(BlueprintCallable, Category = "Motion Design|Modifiers|LookAt")
-	AVALANCHEMODIFIERS_API void SetFlipAxis(const bool bNewFlipAxis);
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|LookAt")
+	AVALANCHEMODIFIERS_API void SetFlipAxis(const bool bInFlipAxis);
 
 	/** Returns true if flipping the look-at rotation axis. */
-	UFUNCTION(BlueprintPure, Category = "Motion Design|Modifiers|LookAt")
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|LookAt")
 	bool GetFlipAxis() const
 	{
 		return bFlipAxis;
@@ -78,7 +78,7 @@ protected:
 
 	void OnReferenceActorChanged();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetReferenceActor", Getter="GetReferenceActor", Category="LookAt", meta=(ShowOnlyInnerProperties, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetReferenceActor", Getter="GetReferenceActor", Category="LookAt", meta=(ShowOnlyInnerProperties, AllowPrivateAccess="true"))
 	FAvaSceneTreeActor ReferenceActor;
 
 	/** The actor to look at. */
@@ -86,11 +86,11 @@ protected:
 	TWeakObjectPtr<AActor> ReferenceActorWeak;
 
 	/** The axis that will point towards the reference actor. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetAxis", Getter="GetAxis", Category="LookAt", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetAxis", Getter="GetAxis", Category="LookAt", meta=(AllowPrivateAccess="true"))
 	EAvaAxis Axis;
 
 	/** If true, will flip the look-at direction. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetFlipAxis", Getter="GetFlipAxis", Category="LookAt", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetFlipAxis", Getter="GetFlipAxis", Category="LookAt", meta=(AllowPrivateAccess="true"))
 	bool bFlipAxis = false;
 
 	UPROPERTY()

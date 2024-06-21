@@ -48,6 +48,7 @@ enum class EActorModifierCoreDisableReason : uint8
 };
 
 /** Enumerates valid positions for modifier operations */
+UENUM(BlueprintType)
 enum class EActorModifierCoreStackPosition : uint8
 {
 	Before,

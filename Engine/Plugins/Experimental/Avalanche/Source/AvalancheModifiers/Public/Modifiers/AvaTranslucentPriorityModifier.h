@@ -5,6 +5,7 @@
 #include "AvaArrangeBaseModifier.h"
 #include "AvaBaseModifier.h"
 #include "Shared/AvaTranslucentPriorityModifierShared.h"
+#include "UObject/WeakObjectPtrTemplatesFwd.h"
 #include "AvaTranslucentPriorityModifier.generated.h"
 
 class ACameraActor;
@@ -29,37 +30,62 @@ class UAvaTranslucentPriorityModifier : public UAvaArrangeBaseModifier
 	friend class UAvaTranslucentPriorityModifierShared;
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|TranslucentPriority")
     AVALANCHEMODIFIERS_API void SetMode(EAvaTranslucentPriorityModifierMode InMode);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|TranslucentPriority")
     EAvaTranslucentPriorityModifierMode GetMode() const
     {
 	    return Mode;
     }
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|TranslucentPriority")
+	AVALANCHEMODIFIERS_API void SetCameraActor(ACameraActor* InCameraActor);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|TranslucentPriority")
+	ACameraActor* GetCameraActor() const
+	{
+		return CameraActorWeak.Get();
+	}
+
     AVALANCHEMODIFIERS_API void SetCameraActorWeak(const TWeakObjectPtr<ACameraActor>& InCameraActor);
+
 	TWeakObjectPtr<ACameraActor> GetCameraActorWeak() const
 	{
 		return CameraActorWeak;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|TranslucentPriority")
     AVALANCHEMODIFIERS_API void SetSortPriority(int32 InSortPriority);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|TranslucentPriority")
     int32 GetSortPriority() const
     {
 	    return SortPriority;
     }
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|TranslucentPriority")
 	AVALANCHEMODIFIERS_API void SetSortPriorityOffset(int32 InOffset);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|TranslucentPriority")
 	int32 GetSortPriorityOffset() const
 	{
 		return SortPriorityOffset;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|TranslucentPriority")
 	AVALANCHEMODIFIERS_API void SetSortPriorityStep(int32 InStep);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|TranslucentPriority")
 	int32 GetSortPriorityStep() const
 	{
 		return SortPriorityStep;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|TranslucentPriority")
 	AVALANCHEMODIFIERS_API void SetIncludeChildren(bool bInIncludeChildren);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|TranslucentPriority")
 	bool GetIncludeChildren() const
 	{
 		return bIncludeChildren;
@@ -109,27 +135,27 @@ protected:
 	ACameraActor* GetDefaultCameraActor() const;
 
 	/** The sort mode we are currently in */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
 	EAvaTranslucentPriorityModifierMode Mode = EAvaTranslucentPriorityModifierMode::Manual;
 
 	/** The camera actor to compute the distance from */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="TranslucentPriority", meta=(DisplayName="CameraActor", EditCondition="Mode == EAvaTranslucentPriorityModifierMode::AutoCameraDistance", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="TranslucentPriority", meta=(DisplayName="CameraActor", EditCondition="Mode == EAvaTranslucentPriorityModifierMode::AutoCameraDistance", AllowPrivateAccess="true"))
 	TWeakObjectPtr<ACameraActor> CameraActorWeak = nullptr;
 
 	/** The sort priority that will be set on the primitive component for manual mode */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="TranslucentPriority", meta=(EditCondition="Mode == EAvaTranslucentPriorityModifierMode::Manual", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="TranslucentPriority", meta=(EditCondition="Mode == EAvaTranslucentPriorityModifierMode::Manual", EditConditionHides, AllowPrivateAccess="true"))
 	int32 SortPriority = 0;
 
 	/** Sort priority offset shared across all modifiers in this same level */
-	UPROPERTY(Transient, EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(Transient, EditInstanceOnly, Setter, Getter, Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
 	int32 SortPriorityOffset = 0;
 
 	/** Sort priority incremental step shared across all modifiers in this same level */
-	UPROPERTY(Transient, EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(Transient, EditInstanceOnly, Setter, Getter, Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
 	int32 SortPriorityStep = 1;
 
 	/** If true, will include children too and update their sort priority */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetIncludeChildren", Getter="GetIncludeChildren", Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetIncludeChildren", Getter="GetIncludeChildren", Category="TranslucentPriority", meta=(AllowPrivateAccess="true"))
 	bool bIncludeChildren = true;
 
 	/** The components this modifier is managing */

@@ -17,7 +17,10 @@ class UAvaGlobalOpacityModifier : public UAvaMaterialParameterModifier
 public:
 	UAvaGlobalOpacityModifier();
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|GlobalOpacity")
 	AVALANCHEMODIFIERS_API void SetGlobalOpacity(float InOpacity);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|GlobalOpacity")
 	float GetGlobalOpacity() const
 	{
 		return GlobalOpacity;
@@ -41,6 +44,6 @@ protected:
 	void OnDynamicMaterialValueChanged(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
 	/** Global opacity to set on all Material Designer Instances */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetGlobalOpacity", Getter="GetGlobalOpacity", Category="Material Parameter", meta=(ClampMin="0", ClampMax="1", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetGlobalOpacity", Getter="GetGlobalOpacity", Category="Material Parameter", meta=(ClampMin="0", ClampMax="1", AllowPrivateAccess="true"))
 	float GlobalOpacity = 1.f;
 };

@@ -39,79 +39,79 @@ void UAvaRadialArrangeModifier::PostEditChangeProperty(FPropertyChangedEvent& Pr
 }
 #endif // WITH_EDITOR
 
-void UAvaRadialArrangeModifier::SetCount(const int32 NewCount)
+void UAvaRadialArrangeModifier::SetCount(const int32 InCount)
 {
-	Count = NewCount;
+	Count = InCount;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetRings(const int32 NewRings)
+void UAvaRadialArrangeModifier::SetRings(const int32 InRings)
 {
-	Rings = NewRings;
+	Rings = InRings;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetInnerRadius(const float NewInnerRadius)
+void UAvaRadialArrangeModifier::SetInnerRadius(const float InInnerRadius)
 {
-	InnerRadius = NewInnerRadius;
+	InnerRadius = InInnerRadius;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetOuterRadius(const float NewOuterRadius)
+void UAvaRadialArrangeModifier::SetOuterRadius(const float InOuterRadius)
 {
-	OuterRadius = NewOuterRadius;
+	OuterRadius = InOuterRadius;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetStartAngle(const float NewStartAngle)
+void UAvaRadialArrangeModifier::SetStartAngle(const float InStartAngle)
 {
-	StartAngle = NewStartAngle;
+	StartAngle = InStartAngle;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetEndAngle(const float NewEndAngle)
+void UAvaRadialArrangeModifier::SetEndAngle(const float InEndAngle)
 {
-	EndAngle = NewEndAngle;
+	EndAngle = InEndAngle;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetArrangement(const EAvaRadialArrangement NewArrangement)
+void UAvaRadialArrangeModifier::SetArrangement(const EAvaRadialArrangement InArrangement)
 {
-	Arrangement = NewArrangement;
+	Arrangement = InArrangement;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetStartFromOuterRadius(const bool bMewStartFromOuterRadius)
+void UAvaRadialArrangeModifier::SetStartFromOuterRadius(const bool bInStartFromOuterRadius)
 {
-	bStartFromOuterRadius = bMewStartFromOuterRadius;
+	bStartFromOuterRadius = bInStartFromOuterRadius;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetOrient(const bool bNewOrient)
+void UAvaRadialArrangeModifier::SetOrient(const bool bInOrient)
 {
-	bOrient = bNewOrient;
+	bOrient = bInOrient;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetOrientAxis(const EAvaAxis NewOrientAxis)
+void UAvaRadialArrangeModifier::SetOrientAxis(const EAvaAxis InOrientAxis)
 {
-	OrientAxis = NewOrientAxis;
+	OrientAxis = InOrientAxis;
 
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetFlipOrient(const bool bNewFlipOrient)
+void UAvaRadialArrangeModifier::SetFlipOrient(const bool bInFlipOrient)
 {
-	bFlipOrient = bNewFlipOrient;
+	bFlipOrient = bInFlipOrient;
 
 	MarkModifierDirty();
 }

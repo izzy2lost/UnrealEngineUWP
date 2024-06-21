@@ -237,20 +237,20 @@ int32 UAvaNormalModifier::GetPolyGroupLayerIdx() const
 	return Layers.Find(PolyGroupLayer);
 }
 
-void UAvaNormalModifier::SetPolyGroupLayer(FString& InString)
+void UAvaNormalModifier::SetPolyGroupLayer(const FString& InPolyGroupLayer)
 {
-	if (PolyGroupLayer == InString)
+	if (PolyGroupLayer == InPolyGroupLayer)
 	{
 		return;
 	}
 	
 	const TArray<FString> Layers = GetPolyGroupLayers();
-	if (!Layers.Contains(InString))
+	if (!Layers.Contains(InPolyGroupLayer))
 	{
 		return;
 	}
 
-	PolyGroupLayer = InString;
+	PolyGroupLayer = InPolyGroupLayer;
 	OnPolyGroupLayerChanged();
 }
 

@@ -62,6 +62,7 @@ struct FAvaDynamicMeshConverterModifierComponentState
 	/** The default visibility of the converted component in editor */
 	UPROPERTY()
 	bool bComponentVisible = true;
+
 	/** The component converted dynamic mesh*/
 	UE::Geometry::FDynamicMesh3 Mesh;
 };
@@ -72,37 +73,68 @@ class UAvaDynamicMeshConverterModifier : public UAvaGeometryBaseModifier
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|DynamicMeshConverter")
+	void SetSourceActor(AActor* InActor)
+	{
+		SetSourceActorWeak(InActor);
+	}
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|DynamicMeshConverter")
+	AActor* GetSourceActor() const
+	{
+		return SourceActorWeak.Get();
+	}
+
 	AVALANCHEMODIFIERS_API void SetSourceActorWeak(const TWeakObjectPtr<AActor>& InActor);
 	TWeakObjectPtr<AActor> GetSourceActorWeak() const
 	{
 		return SourceActorWeak;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|DynamicMeshConverter")
+	AVALANCHEMODIFIERS_API void SetComponentTypes(const TSet<EAvaDynamicMeshConverterModifierType>& InTypes);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|DynamicMeshConverter")
+	AVALANCHEMODIFIERS_API TSet<EAvaDynamicMeshConverterModifierType> GetComponentTypes() const;
+
 	AVALANCHEMODIFIERS_API void SetComponentType(int32 InComponentType);
+
 	int32 GetComponentType() const
 	{
 		return ComponentType;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|DynamicMeshConverter")
 	AVALANCHEMODIFIERS_API void SetFilterActorMode(EAvaDynamicMeshConverterModifierFilter InFilter);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|DynamicMeshConverter")
 	EAvaDynamicMeshConverterModifierFilter GetFilterActorMode() const
 	{
 		return FilterActorMode;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|DynamicMeshConverter")
 	AVALANCHEMODIFIERS_API void SetFilterActorClasses(const TSet<TSubclassOf<AActor>>& InClasses);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|DynamicMeshConverter")
 	const TSet<TSubclassOf<AActor>>& GetFilterActorClasses() const
 	{
 		return FilterActorClasses;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|DynamicMeshConverter")
 	AVALANCHEMODIFIERS_API void SetIncludeAttachedActors(bool bInInclude);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|DynamicMeshConverter")
 	bool GetIncludeAttachedActors() const
 	{
 		return bIncludeAttachedActors;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|DynamicMeshConverter")
 	AVALANCHEMODIFIERS_API void SetHideConvertedMesh(bool bInHide);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|DynamicMeshConverter")
 	bool GetHideConvertedMesh() const
 	{
 		return bHideConvertedMesh;
@@ -148,11 +180,11 @@ protected:
 	void ConvertMesh();
 
 	/** What actor should we copy from, by default is self */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSourceActorWeak", Getter="GetSourceActorWeak", Category="DynamicMeshConverter", meta=(DisplayName="SourceActor", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetSourceActorWeak", Getter="GetSourceActorWeak", Category="DynamicMeshConverter", meta=(DisplayName="SourceActor", AllowPrivateAccess="true"))
 	TWeakObjectPtr<AActor> SourceActorWeak = GetModifiedActor();
 
 	/** Which components should we take into account for the conversion */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetComponentType", Getter="GetComponentType", Category="DynamicMeshConverter", meta=(Bitmask, BitmaskEnum="/Script/AvalancheModifiers.EAvaDynamicMeshConverterModifierType", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetComponentType", Getter="GetComponentType", Category="DynamicMeshConverter", meta=(Bitmask, BitmaskEnum="/Script/AvalancheModifiers.EAvaDynamicMeshConverterModifierType", AllowPrivateAccess="true"))
 	int32 ComponentType = static_cast<int32>(
 		EAvaDynamicMeshConverterModifierType::StaticMeshComponent |
 		EAvaDynamicMeshConverterModifierType::DynamicMeshComponent |
@@ -161,19 +193,19 @@ protected:
 		EAvaDynamicMeshConverterModifierType::ProceduralMeshComponent);
 
 	/** Actor filter mode : none, include or exclude specific actor class */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetFilterActorMode", Getter="GetFilterActorMode", Category="DynamicMeshConverter", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetFilterActorMode", Getter="GetFilterActorMode", Category="DynamicMeshConverter", meta=(AllowPrivateAccess="true"))
 	EAvaDynamicMeshConverterModifierFilter FilterActorMode = EAvaDynamicMeshConverterModifierFilter::None;
 
 	/** Actor class to use as filter when gathering actors to convert */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetFilterActorClasses", Getter="GetFilterActorClasses", Category="DynamicMeshConverter", meta=(EditCondition="FilterActorMode != EAvaDynamicMeshConverterModifierFilter::None", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetFilterActorClasses", Getter="GetFilterActorClasses", Category="DynamicMeshConverter", meta=(EditCondition="FilterActorMode != EAvaDynamicMeshConverterModifierFilter::None", AllowPrivateAccess="true"))
 	TSet<TSubclassOf<AActor>> FilterActorClasses;
 
 	/** Checks and convert all attached actors below this actor */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetIncludeAttachedActors", Getter="GetIncludeAttachedActors", Category="DynamicMeshConverter", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetIncludeAttachedActors", Getter="GetIncludeAttachedActors", Category="DynamicMeshConverter", meta=(AllowPrivateAccess="true"))
 	bool bIncludeAttachedActors = true;
 
 	/** Change visibility of source mesh once they are converted to dynamic mesh, by default will convert itself so hide converted mesh is true */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHideConvertedMesh", Getter="GetHideConvertedMesh", Category="DynamicMeshConverter", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetHideConvertedMesh", Getter="GetHideConvertedMesh", Category="DynamicMeshConverter", meta=(AllowPrivateAccess="true"))
 	bool bHideConvertedMesh = true;
 
 	/** Did we create the dynamic mesh component from this modifier or retrieved it */

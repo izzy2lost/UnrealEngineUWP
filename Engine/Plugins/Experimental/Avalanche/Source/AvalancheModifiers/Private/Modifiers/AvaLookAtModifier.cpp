@@ -177,16 +177,16 @@ void UAvaLookAtModifier::OnReferenceActorChanged()
 	}
 }
 
-void UAvaLookAtModifier::SetAxis(const EAvaAxis NewAxis)
+void UAvaLookAtModifier::SetAxis(const EAvaAxis InAxis)
 {
-	Axis = NewAxis;
+	Axis = InAxis;
 
 	MarkModifierDirty();
 }
 
-void UAvaLookAtModifier::SetFlipAxis(const bool bNewFlipAxis)
+void UAvaLookAtModifier::SetFlipAxis(const bool bInFlipAxis)
 {
-	bFlipAxis = bNewFlipAxis;
+	bFlipAxis = bInFlipAxis;
 
 	MarkModifierDirty();
 }

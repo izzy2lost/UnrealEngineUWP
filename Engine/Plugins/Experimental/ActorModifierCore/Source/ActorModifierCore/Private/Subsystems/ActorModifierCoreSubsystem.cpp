@@ -170,9 +170,27 @@ FName UActorModifierCoreSubsystem::GetRegisteredModifierName(const UClass* InMod
 	return NAME_None;
 }
 
-TSet<const UClass*> UActorModifierCoreSubsystem::GetRegisteredModifierClasses() const
+TSubclassOf<UActorModifierCoreBase> UActorModifierCoreSubsystem::GetRegisteredModifierClass(FName InModifierName) const
 {
-	TSet<const UClass*> ModifiersClass;
+	TSubclassOf<UActorModifierCoreBase> ModifierClass;
+
+	if (InModifierName.IsNone())
+	{
+		return ModifierClass;
+	}
+
+	if (TSharedRef<FActorModifierCoreMetadata> const* ModifierMetadata = ModifiersMetadata.Find(InModifierName))
+	{
+		ModifierClass = (*ModifierMetadata)->GetClass();
+	}
+
+	return ModifierClass;
+}
+
+TSet<TSubclassOf<UActorModifierCoreBase>> UActorModifierCoreSubsystem::GetRegisteredModifierClasses() const
+{
+	TSet<TSubclassOf<UActorModifierCoreBase>> ModifiersClass;
+	ModifiersClass.Reserve(ModifiersMetadata.Num());
 
 	for (const TPair<FName, TSharedRef<FActorModifierCoreMetadata>>& ModifierMetadataPair : ModifiersMetadata)
 	{

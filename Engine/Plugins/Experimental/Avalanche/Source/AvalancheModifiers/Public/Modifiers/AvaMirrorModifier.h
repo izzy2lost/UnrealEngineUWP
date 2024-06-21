@@ -14,31 +14,46 @@ class UAvaMirrorModifier : public UAvaGeometryBaseModifier
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Mirror")
 	AVALANCHEMODIFIERS_API void SetMirrorFramePosition(const FVector& InMirrorFramePosition);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Mirror")
 	const FVector& GetMirrorFramePosition() const
 	{
 		return MirrorFramePosition;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Mirror")
 	AVALANCHEMODIFIERS_API void SetMirrorFrameRotation(const FRotator& InMirrorFrameRotation);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Mirror")
 	const FRotator& GetMirrorFrameRotation() const
 	{
 		return MirrorFrameRotation;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Mirror")
 	AVALANCHEMODIFIERS_API void SetApplyPlaneCut(bool bInApplyPlaneCut);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Mirror")
 	bool GetApplyPlaneCut() const
 	{
 		return bApplyPlaneCut;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Mirror")
 	AVALANCHEMODIFIERS_API void SetFlipCutSide(bool bInFlipCutSide);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Mirror")
 	bool GetFlipCutSide() const
 	{
 		return bFlipCutSide;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Mirror")
 	AVALANCHEMODIFIERS_API void SetWeldAlongPlane(bool bInWeldAlongPlane);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Mirror")
 	bool GetWeldAlongPlane() const
 	{
 		return bWeldAlongPlane;
@@ -70,23 +85,23 @@ protected:
 	void OnShowMirrorFrameChanged();
 #endif
 
-    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetMirrorFramePosition", Getter="GetMirrorFramePosition", Category="Mirror", meta=(AllowPrivateAccess="true"))
+    UPROPERTY(EditInstanceOnly, Setter="SetMirrorFramePosition", Getter="GetMirrorFramePosition", Category="Mirror", meta=(AllowPrivateAccess="true"))
 	FVector MirrorFramePosition = FVector::ZeroVector;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetMirrorFrameRotation", Getter="GetMirrorFrameRotation", Category="Mirror", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetMirrorFrameRotation", Getter="GetMirrorFrameRotation", Category="Mirror", meta=(AllowPrivateAccess="true"))
 	FRotator MirrorFrameRotation = FRotator(0, 0, 90);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetApplyPlaneCut", Getter="GetApplyPlaneCut", Category="Mirror", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetApplyPlaneCut", Getter="GetApplyPlaneCut", Category="Mirror", meta=(AllowPrivateAccess="true"))
 	bool bApplyPlaneCut = true;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetFlipCutSide", Getter="GetFlipCutSide", Category="Mirror", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetFlipCutSide", Getter="GetFlipCutSide", Category="Mirror", meta=(AllowPrivateAccess="true"))
 	bool bFlipCutSide = false;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetWeldAlongPlane", Getter="GetWeldAlongPlane", Category="Mirror", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetWeldAlongPlane", Getter="GetWeldAlongPlane", Category="Mirror", meta=(AllowPrivateAccess="true"))
 	bool bWeldAlongPlane = true;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Mirror", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Category="Mirror", meta=(AllowPrivateAccess="true"))
 	bool bShowMirrorFrame = false;
 
 private:

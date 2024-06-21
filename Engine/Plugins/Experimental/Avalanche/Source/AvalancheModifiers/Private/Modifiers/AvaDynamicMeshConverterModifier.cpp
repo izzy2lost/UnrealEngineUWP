@@ -327,6 +327,40 @@ void UAvaDynamicMeshConverterModifier::SetSourceActorWeak(const TWeakObjectPtr<A
 	OnSourceActorChanged();
 }
 
+void UAvaDynamicMeshConverterModifier::SetComponentTypes(const TSet<EAvaDynamicMeshConverterModifierType>& InTypes)
+{
+	EAvaDynamicMeshConverterModifierType NewComponentType = EAvaDynamicMeshConverterModifierType::None;
+
+	for (const EAvaDynamicMeshConverterModifierType Type : InTypes)
+	{
+		EnumAddFlags(NewComponentType, Type);
+	}
+
+	SetComponentType(static_cast<int32>(NewComponentType));
+}
+
+TSet<EAvaDynamicMeshConverterModifierType> UAvaDynamicMeshConverterModifier::GetComponentTypes() const
+{
+	TSet<EAvaDynamicMeshConverterModifierType> ComponentTypes
+	{
+		EAvaDynamicMeshConverterModifierType::StaticMeshComponent,
+		EAvaDynamicMeshConverterModifierType::DynamicMeshComponent,
+		EAvaDynamicMeshConverterModifierType::SkeletalMeshComponent,
+		EAvaDynamicMeshConverterModifierType::BrushComponent,
+		EAvaDynamicMeshConverterModifierType::ProceduralMeshComponent
+	};
+
+	for (TSet<EAvaDynamicMeshConverterModifierType>::TIterator It(ComponentTypes); It; ++It)
+	{
+		if (!HasFlag(*It))
+		{
+			It.RemoveCurrent();
+		}
+	}
+
+	return ComponentTypes;
+}
+
 void UAvaDynamicMeshConverterModifier::SetComponentType(int32 InComponentType)
 {
 	if (InComponentType == ComponentType)

@@ -19,19 +19,28 @@ class UAvaOutlineModifier : public UAvaGeometryBaseModifier
 	GENERATED_BODY()
 
 public:
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Outline")
 	AVALANCHEMODIFIERS_API void SetMode(EAvaOutlineMode InMode);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Outline")
 	EAvaOutlineMode GetMode() const
 	{
 		return Mode;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Outline")
 	AVALANCHEMODIFIERS_API void SetDistance(float InDistance);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Outline")
 	float GetDistance() const
 	{
 		return Distance;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Outline")
 	AVALANCHEMODIFIERS_API void SetRemoveInside(bool bInRemoveInside);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Outline")
 	bool GetRemoveInside() const
 	{
 		return bRemoveInside;
@@ -56,14 +65,14 @@ protected:
 	float GetMaxInsetDistance() const;
 
 	/** Set the mode like inset or outset */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetMode", Getter="GetMode", Category="Outline", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetMode", Getter="GetMode", Category="Outline", meta=(AllowPrivateAccess="true"))
 	EAvaOutlineMode Mode = EAvaOutlineMode::Outset;
 
 	/** Set the distance for the outline */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDistance", Getter="GetDistance", Category="Outline", meta=(ClampMin="0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetDistance", Getter="GetDistance", Category="Outline", meta=(ClampMin="0", AllowPrivateAccess="true"))
 	float Distance = 10.f;
 
 	/** Remove the inside part and create a hole in the shape */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetRemoveInside", Getter="GetRemoveInside", Category="Outline", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter="SetRemoveInside", Getter="GetRemoveInside", Category="Outline", meta=(AllowPrivateAccess="true"))
 	bool bRemoveInside = true;
 };

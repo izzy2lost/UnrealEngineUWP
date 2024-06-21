@@ -1,0 +1,92 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Modifiers/ActorModifierCoreDefs.h"
+#include "ActorModifierCoreLibraryDefs.generated.h"
+
+class UActorModifierCoreBase;
+
+UENUM(BlueprintType)
+enum class EActorModifierCoreSearchMode : uint8
+{
+	/** True when one condition is met */
+	Or,
+	/** True when all condition are met */
+	And
+};
+
+USTRUCT(BlueprintType)
+struct FActorModifierCoreInsertOperation
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	TSubclassOf<UActorModifierCoreBase> ModifierClass;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	EActorModifierCoreStackPosition InsertPosition = EActorModifierCoreStackPosition::Before;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	UActorModifierCoreBase* InsertPositionContext = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FActorModifierCoreCloneOperation
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	UActorModifierCoreBase* CloneModifier;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	EActorModifierCoreStackPosition ClonePosition = EActorModifierCoreStackPosition::Before;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	UActorModifierCoreBase* ClonePositionContext = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FActorModifierCoreMoveOperation
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	UActorModifierCoreBase* MoveModifier;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	EActorModifierCoreStackPosition MovePosition = EActorModifierCoreStackPosition::Before;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	UActorModifierCoreBase* MovePositionContext = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FActorModifierCoreRemoveOperation
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	UActorModifierCoreBase* RemoveModifier;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	bool bRemoveDependencies = false;
+};
+
+USTRUCT(BlueprintType)
+struct FActorModifierCoreSearchOperation
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	EActorModifierCoreSearchMode SearchMode = EActorModifierCoreSearchMode::Or;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	TSet<TSubclassOf<UActorModifierCoreBase>> ModifierClasses;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	TSet<FName> ModifierNames;
+
+	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
+	TSet<UActorModifierCoreBase*> Modifiers;
+};

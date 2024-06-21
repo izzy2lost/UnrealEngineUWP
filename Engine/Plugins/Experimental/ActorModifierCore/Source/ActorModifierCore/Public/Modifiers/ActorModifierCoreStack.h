@@ -63,6 +63,12 @@ public:
 	/** Gets the last modifier in this stack, does not recurse */
 	ACTORMODIFIERCORE_API UActorModifierCoreBase* GetLastModifier() const;
 
+	/** Gets all modifiers found after this one in the stack that depends on this modifier */
+	bool GetDependentModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
+
+	/** Gets all modifiers found before this one in the stack that are required by this modifier */
+	bool GetRequiredModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
+
 	/** Check that we have a modifier inside this stack, checks also nested stacks */
 	ACTORMODIFIERCORE_API bool ContainsModifier(const FName& InSearchName, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
 	ACTORMODIFIERCORE_API bool ContainsModifier(const UClass* InSearchClass, const FActorModifierCoreStackSearchOp& InSearchOptions = FActorModifierCoreStackSearchOp::GetDefault()) const;
@@ -116,12 +122,6 @@ protected:
 	/** Checks whether all modifier in this stack are initialized */
 	bool IsModifierStackInitialized() const;
 
-	/** Gets all modifiers found after this one in the stack that depends on this modifier */
-	bool GetDependentModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
-
-	/** Gets all modifiers found before this one in the stack that are required by this modifier */
-	bool GetRequiredModifiers(UActorModifierCoreBase* InModifier, TSet<UActorModifierCoreBase*>& OutDependentModifiers) const;
-
 	/** Clone a modifier with options from another stack/actor, returns the newly inserted modifier, supports BATCH operation */
 	UActorModifierCoreBase* CloneModifier(FActorModifierCoreStackCloneOp& InCloneOp);
 
@@ -164,10 +164,6 @@ protected:
 	/** Called when a modifier in the stack is dirty */
 	virtual void OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute) override;
 
-	/** Contains actual modifiers in the stack */
-	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, NoClear, Export, Instanced, Category = "Modifiers")
-	TArray<TObjectPtr<UActorModifierCoreBase>> Modifiers;
-
 private:
 	/** Sets the stack to receive tick events */
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
@@ -193,6 +189,10 @@ private:
 
 	/** Checks for any possible modifier optimization within the stack */
 	void CheckModifierOptimization(bool bInInvalidateAll);
+
+	/** Contains actual modifiers in the stack */
+	UPROPERTY(VisibleInstanceOnly, NoClear, Export, Instanced, Category = "Modifiers")
+	TArray<TObjectPtr<UActorModifierCoreBase>> Modifiers;
 
 	/** Contains a copy of modifiers in the stack for this round of execution, useful for restore and for query, can be different from modifiers array */
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional)

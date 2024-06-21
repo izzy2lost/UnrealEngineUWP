@@ -332,6 +332,11 @@ void UAvaTranslucentPriorityModifier::SetMode(EAvaTranslucentPriorityModifierMod
 	OnModeChanged();
 }
 
+void UAvaTranslucentPriorityModifier::SetCameraActor(ACameraActor* InCameraActor)
+{
+	SetCameraActorWeak(InCameraActor);
+}
+
 void UAvaTranslucentPriorityModifier::SetCameraActorWeak(const TWeakObjectPtr<ACameraActor>& InCameraActor)
 {
 	if (CameraActorWeak == InCameraActor)
