@@ -14,6 +14,7 @@ This section targets operating and managing Horde installations and shares some 
 
 * [Agents](Config/Agents.md): Configure worker machines to connect to the Horde server for CI and remote execution workspaces.
 * [Devices](Config/Devices.md): Adding mobile devices and console development kits as shared resources.
+* [Secrets](Config/Secrets.md): Allowing Horde to manage access to confidential values.
 * [Storage](Config/Storage.md): Setting up different storage backends for Horde.
 
 ## Features
