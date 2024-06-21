@@ -177,19 +177,6 @@ void ULevelSequencePlayer::OnStartedPlaying()
 void ULevelSequencePlayer::OnStopped()
 {
 	EnableCinematicMode(false);
-
-	if (World != nullptr && World->GetGameInstance() != nullptr)
-	{
-		APlayerController* PC = World->GetGameInstance()->GetFirstLocalPlayerController();
-
-		if (PC != nullptr)
-		{
-			if (PC->PlayerCameraManager)
-			{
-				PC->PlayerCameraManager->bClientSimulatingViewTarget = false;
-			}
-		}
-	}
 }
 
 void ULevelSequencePlayer::UpdateMovieSceneInstance(FMovieSceneEvaluationRange InRange, EMovieScenePlayerStatus::Type PlayerStatus, const FMovieSceneUpdateArgs& Args)

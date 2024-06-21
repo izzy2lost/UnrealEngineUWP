@@ -77,6 +77,7 @@ void FPreAnimatedCameraCutTraits::RestorePreAnimatedValue(
 		return;
 	}
 
+	// TODO james.fleming really we should be getting the CameraManager from the sequence player or some other more reliable way that supports split screen.
 	APlayerController* PC = World->GetGameInstance()->GetFirstLocalPlayerController();
 	APlayerCameraManager* CameraManager = (PC != nullptr) ? PC->PlayerCameraManager : nullptr;
 
@@ -87,6 +88,8 @@ void FPreAnimatedCameraCutTraits::RestorePreAnimatedValue(
 	{
 		AActor* PreviousViewTarget = Cast<AActor>(CachedValue.LastViewTarget.ResolveObjectPtr());
 		CameraManager->SetViewTarget(PreviousViewTarget);
+		// TODO james.fleming ideally we would cache this before, just in case it had been set true (which is not usual, but could be possible) 
+		CameraManager->bClientSimulatingViewTarget = false;
 	}
 
 	// Restore previous aspect ratio axis constraint. Use the cached local player if there's no local player
