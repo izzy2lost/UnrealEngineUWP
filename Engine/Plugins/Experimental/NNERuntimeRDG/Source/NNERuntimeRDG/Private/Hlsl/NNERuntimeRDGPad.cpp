@@ -47,7 +47,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					return -1;
 				}
 
-				if (InputTensors.Num() >= 3 && InputTensors[2]->GetDataType() != ENNETensorDataType::None)
+				if (InputTensors.Num() >= 3 && !InputTensors[2]->IsEmpty())
 				{
 					const NNE::Internal::FTensor& ValueTensor = *InputTensors[2];
 
@@ -66,7 +66,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					Value = ValueTensor.GetPreparedData<float>()[0];
 				}
 
-				if (InputTensors.Num() >= 4 && InputTensors[3]->GetDataType() != ENNETensorDataType::None)
+				if (InputTensors.Num() >= 4 && !InputTensors[3]->IsEmpty())
 				{
 					const NNE::Internal::FTensorRef AxesTensor = InputTensors[3];
 
