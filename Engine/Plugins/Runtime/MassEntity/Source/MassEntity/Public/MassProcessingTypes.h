@@ -25,8 +25,10 @@ enum class EProcessorExecutionFlags : uint8
 	Server = 1 << 1,
 	Client = 1 << 2,
 	Editor = 1 << 3,
+	EditorWorld = 1 << 4,
 	AllNetModes = Standalone | Server | Client UMETA(Hidden),
-	All = Standalone | Server | Client | Editor UMETA(Hidden)
+	AllWorldModes = Standalone | Server | Client | EditorWorld UMETA(Hidden),
+	All = Standalone | Server | Client | Editor | EditorWorld UMETA(Hidden)
 };
 ENUM_CLASS_FLAGS(EProcessorExecutionFlags);
 

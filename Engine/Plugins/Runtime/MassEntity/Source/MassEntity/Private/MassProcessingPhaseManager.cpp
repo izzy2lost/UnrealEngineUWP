@@ -206,16 +206,19 @@ void FMassProcessingPhaseManager::Initialize(UObject& InOwner, TConstArrayView<F
 	ProcessingPhasesConfig = InProcessingPhasesConfig;
 
 	ProcessorExecutionFlags = UE::Mass::Utils::DetermineProcessorExecutionFlags(World, ProcessorExecutionFlags);
+	const uint8 SupportedTickTypes = UE::Mass::Utils::DetermineProcessorSupportedTickTypes(World);
 
 	for (int PhaseAsInt = 0; PhaseAsInt < int(EMassProcessingPhase::MAX); ++PhaseAsInt)
 	{		
 		const EMassProcessingPhase Phase = EMassProcessingPhase(PhaseAsInt);
+		FMassProcessingPhase& ProcessingPhase = ProcessingPhases[PhaseAsInt];
 
 		UMassCompositeProcessor* PhaseProcessor = NewObject<UMassCompositeProcessor>(&InOwner, UMassCompositeProcessor::StaticClass()
 			, *FString::Printf(TEXT("ProcessingPhase_%s"), *UEnum::GetDisplayValueAsText(Phase).ToString()));
 	
 		check(PhaseProcessor);
-		ProcessingPhases[PhaseAsInt].Initialize(*this, Phase, UE::Mass::Private::PhaseToTickingGroup[PhaseAsInt], *PhaseProcessor);
+		ProcessingPhase.Initialize(*this, Phase, UE::Mass::Private::PhaseToTickingGroup[PhaseAsInt], *PhaseProcessor);
+		ProcessingPhase.SupportedTickTypes = SupportedTickTypes;
 
 		REDIRECT_OBJECT_TO_VLOG(PhaseProcessor, &InOwner);
 		PhaseProcessor->SetProcessingPhase(Phase);

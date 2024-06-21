@@ -15,8 +15,11 @@ namespace UE::Mass::Utils
 /** returns the current execution mode for the processors calculated from the world network mode */
 MASSENTITY_API extern EProcessorExecutionFlags GetProcessorExecutionFlagsForWorld(const UWorld& World);
 
-/** based on given World (which can be null) and ExecutionFlagsOverride the function determines the execution flags to use */
+/** based on the given World (which can be null) and 'ExecutionFlagsOverride', the function determines the execution flags to use */
 MASSENTITY_API extern EProcessorExecutionFlags DetermineProcessorExecutionFlags(const UWorld* World, EProcessorExecutionFlags ExecutionFlagsOverride = EProcessorExecutionFlags::None);
+
+/** based on the given World (which can be null), the function determines additional level tick types for the processing phases */
+uint8 DetermineProcessorSupportedTickTypes(const UWorld* World);
 
 UE_DEPRECATED(5.3, "This function is deprecated. Please use the properly spelled GetProcessorExecutionFlagsForWorld instead.")
 FORCEINLINE EProcessorExecutionFlags GetProcessorExecutionFlagsForWold(const UWorld& World)
