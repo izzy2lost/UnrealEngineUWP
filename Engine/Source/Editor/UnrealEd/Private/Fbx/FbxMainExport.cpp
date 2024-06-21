@@ -1422,7 +1422,7 @@ FbxSurfaceMaterial* FFbxExporter::ExportMaterial(UMaterialInterface* MaterialInt
 	bool bInterchangeOriginated = FFbxMaterialExportUtilities::GetInterchangeShadingModel(MaterialInterface, bUseLambert);
 
 	FString FbxMaterialName = MaterialInterface->GetName();
-	if (MaterialIndexToFbxMaterials != nullptr)
+	if (MaterialIndexToFbxMaterials && MaterialIndexToFbxMaterials->Num() > 0)
 	{
 		FbxMaterialName += FString(TEXT("_")) + FString::FromInt(MaterialIndex);
 	}
