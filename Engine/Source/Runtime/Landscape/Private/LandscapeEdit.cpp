@@ -4137,6 +4137,8 @@ bool ALandscapeProxy::ExportToRawMesh(const FRawMeshExportParams& InExportParams
 
 bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExportParams, FMeshDescription& OutRawMesh, const UE::Landscape::Nanite::FAsyncBuildData& AsyncData) const
 {
+	using EUVMappingType = FRawMeshExportParams::EUVMappingType;
+
 	const double StartTime = FPlatformTime::Seconds();
 	const FMeshDescription& Mesh = OutRawMesh;
 	ON_SCOPE_EXIT
@@ -4235,14 +4237,13 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 			return bExportSkirt && (!Neighbor || !ComponentsToExport.Contains(Neighbor)) ? 1 : 0;
 		};
 		
+		// compute skirt padding
 		const int32 MinXPadding = ExportEdgePadding(3); // left
 		const int32 MaxXPadding = ExportEdgePadding(5); // right
-
 		const int32 XPadding = MinXPadding + MaxXPadding;
 		
 		const int32 MinYPadding = ExportEdgePadding(1); // bottom
 		const int32 MaxYPadding = ExportEdgePadding(7); // top
-
 		const int32 YPadding = MinYPadding + MaxYPadding;
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(ExportComponent);
@@ -4274,6 +4275,25 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 		// For this component, what unique UV mapping types should we compute?
 		const FRawMeshExportParams::FUVConfiguration& ComponentUVConfiguration = InExportParams.GetUVConfiguration(ComponentIndex);
 
+		// determine if we need to split each subsection - so they don't share vertices, and can have a UV seam between them.
+		int32 NumSplits = 1;
+		int32 SplitSizeQuads = ComponentSizeQuadsLOD;
+		if (NumSubsections > 1)
+		{
+			// and only if a Heightmap or Weightmap UV is requested
+			for (int32 UVChannel = 0; UVChannel < NumUVChannels; ++UVChannel)
+			{
+				EUVMappingType UVMappingType = ComponentUVConfiguration.ExportUVMappingTypes.IsValidIndex(UVChannel) ? ComponentUVConfiguration.ExportUVMappingTypes[UVChannel] : FRawMeshExportParams::EUVMappingType::None;
+				if (UVMappingType == EUVMappingType::HeightmapUV || UVMappingType == EUVMappingType::WeightmapUV)
+				{
+					const int32 SubsectionSizeQuadsLOD = ((SubsectionSizeQuads + 1) >> InExportParams.ExportLOD) - 1;
+					NumSplits = NumSubsections;
+					SplitSizeQuads = SubsectionSizeQuadsLOD;
+					break;
+				}
+			}
+		}
+
 		const FLandscapeComponentDataInterfaceBase& CDI = *AsyncData.ComponentData.Find(Component)->ComponentDataInterface;
 
 		const FIntPoint ComponentOffsetRelativeToProxyBoundsQuads = Component->GetSectionBase() - LandscapeSectionOffset - LandscapeProxyBoundsRect.Min;
@@ -4294,13 +4314,14 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 		const int32 PaddedComponentSizeXQuadsLOD = ComponentSizeQuadsLOD + XPadding;
 		const int32 PaddedComponentSizeYQuadsLOD = ComponentSizeQuadsLOD + YPadding;
 
-		const int32 NumFaces = PaddedComponentSizeXQuadsLOD * PaddedComponentSizeYQuadsLOD * 2;
-		const int32 NumVertices = NumFaces * 3;
+		const int32 NumQuads = PaddedComponentSizeXQuadsLOD * PaddedComponentSizeYQuadsLOD;
+		const int32 NumFaces = NumQuads * 2;
+		const int32 MaxNumVertices = NumFaces * 3;	// this is an upper bound, it doesn't take into account shared vertices
 
-		OutRawMesh.ReserveNewVertices(NumVertices);
+		OutRawMesh.ReserveNewVertices(MaxNumVertices);
 		OutRawMesh.ReserveNewPolygons(NumFaces);
-		OutRawMesh.ReserveNewVertexInstances(NumVertices);
-		OutRawMesh.ReserveNewEdges(NumVertices);
+		OutRawMesh.ReserveNewVertexInstances(MaxNumVertices);
+		OutRawMesh.ReserveNewEdges(MaxNumVertices);
 
 		if (bGenerateOnePolygroupPerComponent || (OutRawMesh.PolygonGroups().Num() == 0))
 		{
@@ -4393,8 +4414,17 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 		FBox TransformedBox = Box.TransformBy(ComponentToExportCoordinatesTransform.ToMatrixWithScale());
 		const float CellSize = TransformedBox.GetSize().GetAbsMax();
 		check(CellSize > 0.0f);
-		UE::Geometry::TPointHashGrid3<FVertexID, float> DeduplicatedVertexIDs(CellSize, INDEX_NONE);
-		DeduplicatedVertexIDs.Reserve(( PaddedComponentSizeXQuadsLOD + 1) * (PaddedComponentSizeYQuadsLOD + 1));
+
+		// We don't want to deduplicate vertices across splits (as there are sometimes UV seams between subsections)
+		// So we build a separate deduplication structure per split.
+		check(NumSplits >= 1 && NumSplits <= 2);	// the inline allocator only supports up to 2x2 total
+		TArray<UE::Geometry::TPointHashGrid3<FVertexID, float>, TInlineAllocator<4>> SplitDeduplicatedVertexIDs;
+		const int32 TotalSplits = NumSplits * NumSplits;
+		for (int32 SplitIndex = 0; SplitIndex < TotalSplits; SplitIndex++)
+		{
+			new(SplitDeduplicatedVertexIDs) UE::Geometry::TPointHashGrid3<FVertexID, float>(CellSize, INDEX_NONE);
+			SplitDeduplicatedVertexIDs.Last().Reserve((PaddedComponentSizeXQuadsLOD + 1) * (PaddedComponentSizeYQuadsLOD + 1) / TotalSplits);
+		}
 		
 		// Export to MeshDescription
 		for (int32 PaddedY = 0; PaddedY < PaddedComponentSizeYQuadsLOD; PaddedY++)
@@ -4451,10 +4481,18 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 				if (bProcess)
 				{
 					//Fill the vertexID we need
-					TArray<FVertexID> VertexIDs;
+					TArray<FVertexID, TInlineAllocator<6>> VertexIDs;
 					VertexIDs.Reserve(NewPositions.Num());
-					TArray<FVertexInstanceID> VertexInstanceIDs;
+
+					TArray<FVertexInstanceID, TInlineAllocator<12>> VertexInstanceIDs;
 					VertexInstanceIDs.Reserve(NewIndices.Num());
+
+					// determine which deduplication structure to use (don't share vertices across splits)
+					int32 SplitX = FMath::Clamp(x / SplitSizeQuads, 0, NumSplits - 1);
+					int32 SplitY = FMath::Clamp(y / SplitSizeQuads, 0, NumSplits - 1);
+					int32 SplitIndex = SplitX + NumSplits * SplitY;
+					UE::Geometry::TPointHashGrid3<FVertexID, float>& DeduplicatedVertexIDs = SplitDeduplicatedVertexIDs[SplitIndex];
+
 					// Fill positions
 					for (int32 i = 0; i < NewPositions.Num(); i++)
 					{
@@ -4507,8 +4545,8 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 					// Fill other vertex data
 					for (int32 i = 0; i < NewPositions.Num(); i++)
 					{
-						float VertexX = NewLocalPositions[i].X;
-						float VertexY = NewLocalPositions[i].Y;
+						const float VertexX = NewLocalPositions[i].X;
+						const float VertexY = NewLocalPositions[i].Y;
 
 						FVector LocalTangentX, LocalTangentY, LocalTangentZ;
 						
@@ -4519,51 +4557,55 @@ bool ALandscapeProxy::ExportToRawMeshDataCopy(const FRawMeshExportParams& InExpo
 						Normals.Add(FVector3f(LocalTangentZ));
 
 						// Compute all UV values that we need :
-						float InvScaleFactor = 1.0f / CDI.GetScaleFactor();
+						// quad coordinates (local position is just quad coords, scaled)
+						const FVector2f QuadCoords = FVector2f(VertexX, VertexY) * (1.0f / CDI.GetScaleFactor());
 						for (int32 UVChannel = 0; UVChannel < NumUVChannels; ++UVChannel)
 						{
-							// quad coordinates (local position is just quad coords, scaled)
-							FVector2f QuadCoords = FVector2f(NewLocalPositions[i].X, NewLocalPositions[i].Y) * InvScaleFactor;
-
-							FRawMeshExportParams::EUVMappingType UVMappingType = ComponentUVConfiguration.ExportUVMappingTypes.IsValidIndex(UVChannel) ? ComponentUVConfiguration.ExportUVMappingTypes[UVChannel] : FRawMeshExportParams::EUVMappingType::None;
+							EUVMappingType UVMappingType = ComponentUVConfiguration.ExportUVMappingTypes.IsValidIndex(UVChannel) ? ComponentUVConfiguration.ExportUVMappingTypes[UVChannel] : FRawMeshExportParams::EUVMappingType::None;
 							switch (UVMappingType)
 							{
-							case FRawMeshExportParams::EUVMappingType::RelativeToProxyBoundsUV:
+							case EUVMappingType::RelativeToProxyBoundsUV:
 							{
 								FVector2f UV = (ComponentOffsetRelativeToProxyBoundsQuadsLOD + QuadCoords) * ComponentUVScaleRelativeToProxyBoundsLOD;
 								UVs.Add(UV);
 								break;
 							}
-							case FRawMeshExportParams::EUVMappingType::HeightmapUV:
+							case EUVMappingType::HeightmapUV:
 							{
-								FVector2f UV = QuadCoords * ComponentHeightmapUVScaleLOD + ComponentHeightmapUVPixelOffset + ComponentHeightmapUVBias;
+								// multiple subsections have a UV seam between them -- we offset the UV by one pixel per subsection
+								// (technically this should use subsection X/Y instead of split X/Y, but they are the same when it matters)
+								FVector2f SplitOffsetQuadCoords = QuadCoords + FVector2f(SplitX, SplitY) * LODScale;
+								FVector2f UV = SplitOffsetQuadCoords * ComponentHeightmapUVScaleLOD + ComponentHeightmapUVPixelOffset + ComponentHeightmapUVBias;
 								UVs.Add(UV);
 								break;
 							}
-							case FRawMeshExportParams::EUVMappingType::WeightmapUV:
+							case EUVMappingType::WeightmapUV:
 							{
-								FVector2f UV = QuadCoords * ComponentWeightmapUVScaleLOD + ComponentWeightmapUVPixelOffset;
+								// multiple subsections have a UV seam between them -- we offset the UV by one pixel per subsection
+								// (technically this should use subsection X/Y instead of split X/Y, but they are the same when it matters)
+								FVector2f SplitOffsetQuadCoords = QuadCoords + FVector2f(SplitX, SplitY) * LODScale;
+								FVector2f UV = SplitOffsetQuadCoords * ComponentWeightmapUVScaleLOD + ComponentWeightmapUVPixelOffset;
 								UVs.Add(UV);
 								break;
 							}
-							case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY:
-							case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ:
-							case FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_YZ:
+							case EUVMappingType::TerrainCoordMapping_XY:
+							case EUVMappingType::TerrainCoordMapping_XZ:
+							case EUVMappingType::TerrainCoordMapping_YZ:
 							{
 								FVector2f UV = (GlobalQuadCoordsOffset + QuadCoords * InvLODScale);
-								if (UVMappingType == FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XY)
+								if (UVMappingType == EUVMappingType::TerrainCoordMapping_XY)
 								{
 									// Already in XY mapping
 								}
 								else
 								{
-									UV[0] = (UVMappingType == FRawMeshExportParams::EUVMappingType::TerrainCoordMapping_XZ) ? UV[0] : UV[1];
+									UV[0] = (UVMappingType == EUVMappingType::TerrainCoordMapping_XZ) ? UV[0] : UV[1];
 									UV[1] = static_cast<float>(NewLocalPositions[i].Z);
 								}
 								UVs.Add(UV);
 								break;
 							}
-							case FRawMeshExportParams::EUVMappingType::LightmapUV:
+							case EUVMappingType::LightmapUV:
 							{
 								// convert LOD quad coord to quad coord
 								FVector2f UV = (ComponentOffsetRelativeToProxyBoundsQuadsLOD + QuadCoords * InvLODScale);
