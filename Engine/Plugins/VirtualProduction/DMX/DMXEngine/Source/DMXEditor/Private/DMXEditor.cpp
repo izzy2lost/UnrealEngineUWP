@@ -13,7 +13,6 @@
 #include "DMXRuntimeLog.h"
 #include "Exporters/DMXMVRExporter.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Framework/Notifications/NotificationManager.h"
 #include "IDesktopPlatform.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
@@ -21,15 +20,12 @@
 #include "Library/DMXLibrary.h"
 #include "Misc/MessageDialog.h"
 #include "Modes/DMXEditorApplicationMode.h"
-#include "ScopedTransaction.h"
-#include "Styling/AppStyle.h"
 #include "Toolbars/DMXEditorToolbar.h"
 #include "Utils.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/FixturePatch/SDMXFixturePatchEditor.h"
 #include "Widgets/FixtureType/SDMXFixtureTypeEditor.h"
 #include "Widgets/LibrarySettings/SDMXLibraryEditorTab.h"
-#include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/SDMXEntityEditor.h"
 
 #define LOCTEXT_NAMESPACE "FDMXEditor"
@@ -176,51 +172,7 @@ void FDMXEditor::ExportDMXLibrary() const
 		return;
 	}
 
-	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-	if (DesktopPlatform)
-	{
-		UDMXEditorSettings* DMXEditorSettings = GetMutableDefault<UDMXEditorSettings>();
-		check(DMXEditorSettings);
-
-		const FString LastMVRExportPath = DMXEditorSettings->LastMVRExportPath;
-		const FString DefaultPath = FPaths::DirectoryExists(LastMVRExportPath) ? LastMVRExportPath : FPaths::ProjectSavedDir();
-
-		TArray<FString> SaveFilenames;
-		const bool bSaveFile = DesktopPlatform->SaveFileDialog(
-			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
-			LOCTEXT("ExportMVR", "Export MVR").ToString(),
-			DefaultPath,
-			DMXLibrary->GetName() + TEXT(".mvr"),
-			TEXT("My Virtual Rig (*.mvr)|*.mvr"),
-			EFileDialogFlags::None,
-			SaveFilenames);
-
-		if (!bSaveFile || SaveFilenames.IsEmpty())
-		{
-			return;
-		}
-
-		FText ErrorReason;
-		UE::DMX::FDMXMVRExporter::Export(DMXLibrary, SaveFilenames[0], ErrorReason);
-		if (ErrorReason.IsEmpty())
-		{
-			DMXEditorSettings->LastMVRExportPath = FPaths::GetPath(SaveFilenames[0]);
-			DMXEditorSettings->SaveConfig();
-
-			FNotificationInfo NotificationInfo(FText::Format(LOCTEXT("ExportDMXLibraryAsMVRSuccessNotification", "Successfully exported MVR to {0}."), FText::FromString(SaveFilenames[0])));
-			NotificationInfo.ExpireDuration = 5.f;
-
-			FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-		}
-		else
-		{
-			FNotificationInfo NotificationInfo(ErrorReason);
-			NotificationInfo.ExpireDuration = 10.f;
-			NotificationInfo.Image = FAppStyle::GetBrush("Icons.Warning");
-
-			FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-		}
-	}
+	UE::DMX::FDMXMVRExporter::Export(DMXLibrary);
 }
 
 void FDMXEditor::RegisterToolbarTab(const TSharedRef<class FTabManager>& InTabManager)

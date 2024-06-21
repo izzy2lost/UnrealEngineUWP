@@ -2,14 +2,13 @@
 
 #include "Customizations/DMXEntityFixtureTypeDetails.h"
 
+#include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
-#include "DMXEditorLog.h"
 #include "Factories/DMXGDTFToFixtureTypeConverter.h"
 #include "IPropertyUtilities.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXImportGDTF.h"
 #include "PropertyHandle.h"
-
 
 #define LOCTEXT_NAMESPACE "DMXEntityFixtureTypeDetails"
 
@@ -26,34 +25,73 @@ void FDMXEntityFixtureTypeDetails::CustomizeDetails(IDetailLayoutBuilder& Detail
 
 	GDTFSourceHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UDMXEntityFixtureType, GDTFSource));
 	GDTFSourceHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXEntityFixtureTypeDetails::OnGDTFSourceChanged));
+
+	// Customize the bExportGeneratedGDTF property
+	const TSharedRef<IPropertyHandle> ExportGeneratedGDTFHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UDMXEntityFixtureType, bExportGeneratedGDTF));
+	const FName GDTFCategory = ExportGeneratedGDTFHandle->GetDefaultCategoryName();
+	DetailBuilder.EditCategory(GDTFCategory)
+		.AddProperty(ExportGeneratedGDTFHandle, EPropertyLocation::Advanced)
+		.Visibility(TAttribute<EVisibility>::CreateSP(this, &FDMXEntityFixtureTypeDetails::GetExportGeneratedGDTFPropertyVisibility));
 }
 
 void FDMXEntityFixtureTypeDetails::OnGDTFSourceChanged()
 {
 	using namespace UE::DMX::GDTF;
 
-	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = PropertyUtilities->GetSelectedObjects();
+	TArray<void*> RawDataArray;
+	GDTFSourceHandle->AccessRawData(RawDataArray);
 
-	for (TWeakObjectPtr<UObject> WeakFixtureTypeObject : SelectedObjects)
+	TSoftObjectPtr<UDMXImportGDTF>* GDTFAssetPtr = nullptr;
+	if (!RawDataArray.IsEmpty())
 	{
-		if (UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(WeakFixtureTypeObject.Get()))
+		GDTFAssetPtr = reinterpret_cast<TSoftObjectPtr<UDMXImportGDTF>*>(RawDataArray[0]);
+	}
+
+	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = PropertyUtilities->GetSelectedObjects();
+	if (GDTFAssetPtr)
+	{
+		if (UDMXImportGDTF* GDTF = GDTFAssetPtr->LoadSynchronous())
 		{
-			FixtureType->PreEditChange(nullptr);
-			FixtureType->Modes.Reset();
-			FixtureType->PostEditChange();
-
-			if (FixtureType->GDTFSource.IsNull())
+			for (const TWeakObjectPtr<UObject>& WeakFixtureTypeObject : SelectedObjects)
 			{
-				continue;
+				if (UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(WeakFixtureTypeObject.Get()))
+				{
+					FixtureType->PreEditChange(nullptr);
+					constexpr bool bUpdateFixtureTypeName = true;
+					FDMXGDTFToFixtureTypeConverter::ConvertGDTF(*FixtureType, *GDTF, bUpdateFixtureTypeName);
+					FixtureType->PostEditChange();
+				}
 			}
-			UDMXImportGDTF* GDTF = FixtureType->GDTFSource.LoadSynchronous();
-
-			FixtureType->PreEditChange(nullptr);
-			constexpr bool bUpdateFixtureTypeName = true;
-			FDMXGDTFToFixtureTypeConverter::ConvertGDTF(*FixtureType, *GDTF, bUpdateFixtureTypeName);
-			FixtureType->PostEditChange();
+		}
+		else
+		{
+			for (const TWeakObjectPtr<UObject>& WeakFixtureTypeObject : SelectedObjects)
+			{
+				if (UDMXEntityFixtureType* FixtureType = Cast<UDMXEntityFixtureType>(WeakFixtureTypeObject.Get()))
+				{
+					FixtureType->PreEditChange(nullptr);
+					FixtureType->Modes.Reset();
+					FixtureType->PostEditChange();
+				}
+			}
 		}
 	}
+}
+
+EVisibility FDMXEntityFixtureTypeDetails::GetExportGeneratedGDTFPropertyVisibility() const
+{
+	TArray<const void*> RawDataArray;
+	GDTFSourceHandle->AccessRawData(RawDataArray);
+
+	if (!RawDataArray.IsEmpty())
+	{
+		const TSoftObjectPtr<UDMXImportGDTF>* GDTFAssetPtr = reinterpret_cast<const TSoftObjectPtr<UDMXImportGDTF>*>(RawDataArray[0]);
+
+		const bool bHasGDTF = GDTFAssetPtr && GDTFAssetPtr->IsValid();
+		return bHasGDTF ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
+	return EVisibility::Collapsed;
 }
 
 #undef LOCTEXT_NAMESPACE

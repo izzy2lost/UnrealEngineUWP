@@ -4,6 +4,7 @@
 
 #include "Algo/Find.h"
 #include "Algo/Sort.h"
+#include "DMXFixtureTypeToGDTFGeometryFactory.h"
 #include "DMXGDTF.h"
 #include "DMXUnrealToGDTFAttributeConversion.h"
 #include "GDTF/AttributeDefinitions/DMXGDTFAttribute.h"
@@ -16,24 +17,26 @@
 #include "GDTF/DMXModes/DMXGDTFDMXChannel.h"
 #include "GDTF/DMXModes/DMXGDTFDMXMode.h"
 #include "GDTF/DMXModes/DMXGDTFLogicalChannel.h"
-#include "GDTF/Geometries/DMXGDTFBeamGeometry.h"
-#include "GDTF/Geometries/DMXGDTFGeometryBreak.h"
+#include "GDTF/Geometries/DMXGDTFGeometry.h"
 #include "GDTF/Geometries/DMXGDTFGeometryCollect.h"
-#include "GDTF/Geometries/DMXGDTFGeometryReference.h"
 #include "GDTF/Models/DMXGDTFModel.h"
-#include "Interfaces/IPluginManager.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
 #include "XmlFile.h"
 
 namespace UE::DMX::GDTF
 {
-	const FName FDMXFixtureTypeToGTDFConverter::MatrixCellGeometryReferenceName = TEXT("Instance");
-
-	TSharedPtr<FXmlFile> FDMXFixtureTypeToGTDFConverter::Convert(const UDMXEntityFixtureType* UnrealFixtureType)
+	TSharedPtr<FXmlFile> FDMXFixtureTypeToGDTFConverter::Convert(const UDMXEntityFixtureType* UnrealFixtureType)
 	{
-		FDMXFixtureTypeToGTDFConverter Converter;
-		const TSharedRef<FDMXGDTFFixtureType> GDTFFixtureType = Converter.CreateFixtureType(UnrealFixtureType);
+		if (!UnrealFixtureType)
+		{
+			return nullptr;
+		}
+
+		FDMXFixtureTypeToGDTFConverter Converter;
+
+		// Convert to GDTF
+		const TSharedRef<FDMXGDTFFixtureType> GDTFFixtureType = Converter.CreateFixtureType(*UnrealFixtureType);
 
 		// Create the XML file
 		UDMXGDTF* GDTF = NewObject<UDMXGDTF>();
@@ -43,15 +46,15 @@ namespace UE::DMX::GDTF
 		return DescriptionXml;
 	}
 
-	TSharedRef<FDMXGDTFFixtureType> FDMXFixtureTypeToGTDFConverter::CreateFixtureType(const UDMXEntityFixtureType* UnrealFixtureType)
+	TSharedRef<FDMXGDTFFixtureType> FDMXFixtureTypeToGDTFConverter::CreateFixtureType(const UDMXEntityFixtureType& UnrealFixtureType)
 	{
 		const TSharedRef<FDMXGDTFFixtureType> GDTFFixtureType = MakeShared<FDMXGDTFFixtureType>();
 
-		GDTFFixtureType->Name = *UnrealFixtureType->Name;
-		GDTFFixtureType->ShortName = *UnrealFixtureType->Name;
-		GDTFFixtureType->LongName = UnrealFixtureType->GetParentLibrary()->GetName() + TEXT(" ") + UnrealFixtureType->Name;
+		GDTFFixtureType->Name = *UnrealFixtureType.Name;
+		GDTFFixtureType->ShortName = *UnrealFixtureType.Name;
+		GDTFFixtureType->LongName = UnrealFixtureType.GetParentLibrary()->GetName() + TEXT(" ") + UnrealFixtureType.Name;
 		GDTFFixtureType->Manufacturer = TEXT("Epic Games");
-		GDTFFixtureType->Description = FString::Printf(TEXT("Unreal Engine generated fixture type"));
+		GDTFFixtureType->Description = FString::Printf(TEXT("Unreal Engine generated Fixture Type"));
 		GDTFFixtureType->FixtureTypeID = FGuid::NewGuid(); // Avoid any ambiguity with previously exported GDTFs, even if they're identical.
 		GDTFFixtureType->bCanHaveChildren = false;
 
@@ -63,10 +66,10 @@ namespace UE::DMX::GDTF
 		return GDTFFixtureType;
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CreateAttributeDefinitions(const UDMXEntityFixtureType* UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
+	void FDMXFixtureTypeToGDTFConverter::CreateAttributeDefinitions(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
 	{
 		TArray<FName> AttributeNames;
-		for (const FDMXFixtureMode& Mode : UnrealFixtureType->Modes)
+		for (const FDMXFixtureMode& Mode : UnrealFixtureType.Modes)
 		{
 			for (const FDMXFixtureFunction& Function : Mode.Functions)
 			{
@@ -141,10 +144,10 @@ namespace UE::DMX::GDTF
 		}
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CreateModels(const UDMXEntityFixtureType* UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
+	void FDMXFixtureTypeToGDTFConverter::CreateModels(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
 	{
 		// Create a model for the matrix if this is a matrix
-		const bool bIsMatrix = Algo::FindBy(UnrealFixtureType->Modes, true, &FDMXFixtureMode::bFixtureMatrixEnabled) != nullptr;
+		const bool bIsMatrix = Algo::FindBy(UnrealFixtureType.Modes, true, &FDMXFixtureMode::bFixtureMatrixEnabled) != nullptr;
 		if (bIsMatrix)
 		{
 			const TSharedRef<FDMXGDTFModel> InstanceModel = MakeShared<FDMXGDTFModel>(GDTFFixtureType);
@@ -158,92 +161,21 @@ namespace UE::DMX::GDTF
 		}
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CreateGeometryCollect(const UDMXEntityFixtureType* UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
+	void FDMXFixtureTypeToGDTFConverter::CreateGeometryCollect(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
 	{
 		GDTFFixtureType->GeometryCollect = MakeShared<FDMXGDTFGeometryCollect>(GDTFFixtureType);
 
-		// Always add a base geometry
-		const TSharedRef<FDMXGDTFGeometry> BaseGeometry = MakeShared<FDMXGDTFGeometry>(GDTFFixtureType->GeometryCollect.ToSharedRef());
-		GDTFFixtureType->GeometryCollect->GeometryArray.Add(BaseGeometry);
+		FDMXFixtureTypeToGDTFGeometryFactory GeometryFactory(UnrealFixtureType, GDTFFixtureType->GeometryCollect.ToSharedRef());
 
-		BaseGeometry->Name = TEXT("Base");
-
-		const TSharedRef<FDMXGDTFBeamGeometry> BeamGeometry = MakeShared<FDMXGDTFBeamGeometry>(GDTFFixtureType->GeometryCollect.ToSharedRef());
-		BaseGeometry->BeamArray.Add(BeamGeometry);
-
-		BeamGeometry->Name = TEXT("Beam");
-
-		for (const FDMXFixtureMode& UnrealMode : UnrealFixtureType->Modes)
-		{				
-			// Remember the geometry for this mode so it later can be referenced when building DMX Modes
-			UnrealModeToRootGeometryMap.Add(&UnrealMode, BaseGeometry);
-
-			CreateChildGeometries(UnrealMode, BeamGeometry);
-		}
+		FunctionsWithControlledGeometry = GeometryFactory.GetFunctionsWithControlledGeometry();
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CreateChildGeometries(const FDMXFixtureMode& UnrealMode, const TSharedRef<FDMXGDTFGeometry>& RootGeometry)
+	void FDMXFixtureTypeToGDTFConverter::CreateDMXModes(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
 	{
-		if (UnrealMode.bFixtureMatrixEnabled && UnrealMode.FixtureMatrixConfig.GetNumChannels() > 0)
+		for (const FDMXFixtureMode& UnrealMode : UnrealFixtureType.Modes)
 		{
-			// Get the byte size of an Unreal Matrix Cell
-			const int32 CellSize = [UnrealMode]()
-				{
-					int32 OutCellSize = 0;
-					for (const FDMXFixtureCellAttribute& CellAttribute : UnrealMode.FixtureMatrixConfig.CellAttributes)
-					{
-						OutCellSize += CellAttribute.GetNumChannels();
-					}
-
-					return OutCellSize;
-				}();
-
-			// Create Geometry References for each Unreal Matrix Cell
-			const int32 NumCells = UnrealMode.FixtureMatrixConfig.XCells * UnrealMode.FixtureMatrixConfig.YCells;
-			int32 Offset = 1;
-			for (int32 CellID = 0; CellID < NumCells; CellID++)
-			{
-				const int32 DMXOffset = CellID * CellSize + 1;
-				const FName GeometryName = *FString::Printf(TEXT("Layer_%i"), CellID + 1);
-
-				const TSharedRef<FDMXGDTFGeometryReference> GeometryReference = MakeShared<FDMXGDTFGeometryReference>(RootGeometry);
-				RootGeometry->GeometryReferenceArray.Add(GeometryReference);
-
-				GeometryReference->Name = GeometryName;
-				GeometryReference->Geometry = MatrixCellGeometryReferenceName;
-				GeometryReference->Model = TEXT("Layers");
-
-				const TSharedRef<FDMXGDTFGeometryBreak> Break = MakeShared<FDMXGDTFGeometryBreak>(GeometryReference);
-				Break->DMXBreak = 1;
-				Break->DMXOffset = Offset;
-				GeometryReference->BreakArray.Add(Break);
-
-				Break->DMXBreak = 1; // Unreal does not support multi universe patches, DMXBreak is always 1
-				Break->DMXOffset = DMXOffset;
-
-				for (const FDMXFixtureCellAttribute& UnrealMatrixAttribute : UnrealMode.FixtureMatrixConfig.CellAttributes)
-				{
-					UnrealCellAttributeToGeometryReferenceMap.Add(&UnrealMatrixAttribute, GeometryReference);
-				}
-
-				Offset += CellSize;
-			}
-		}
-
-		// Always add common functions
-		for (const FDMXFixtureFunction& UnrealFunction : UnrealMode.Functions)
-		{
-			// Common Unreal Functions are assigned to the root geometry for now so they do not need specific handling
-			UnrealFunctionToGeometryMap.Add(&UnrealFunction, RootGeometry);
-		}
-	}
-
-	void FDMXFixtureTypeToGTDFConverter::CreateDMXModes(const UDMXEntityFixtureType* UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
-	{
-		for (const FDMXFixtureMode& UnrealMode : UnrealFixtureType->Modes)
-		{
-			const TSharedRef<FDMXGDTFGeometry>* RootGeometryPtr = UnrealModeToRootGeometryMap.Find(&UnrealMode);
-			if (!ensureMsgf(RootGeometryPtr, TEXT("%hs: Unexpected cannot find root geometry for DMX Mode '%s'. Failed to convert mode to GDTF."), __FUNCTION__, *UnrealMode.ModeName))
+			const FDMXFixtureFunctionWithControlledGeometry* ControlledGeometryPtr = Algo::FindBy(FunctionsWithControlledGeometry, &UnrealMode, &FDMXFixtureFunctionWithControlledGeometry::ModePtr);
+			if (!ensureMsgf(ControlledGeometryPtr, TEXT("%hs: Unexpected cannot controlled root geometry for DMX Mode '%s'. Failed to convert mode to GDTF."), __FUNCTION__, *UnrealMode.ModeName))
 			{
 				continue;
 			}
@@ -254,19 +186,19 @@ namespace UE::DMX::GDTF
 
 			DMXMode->Name = *UnrealMode.ModeName;
 			DMXMode->Description = TEXT("Unreal Engine generated DMX Mode");
-			DMXMode->Geometry = (*RootGeometryPtr)->Name;
+			DMXMode->Geometry = ControlledGeometryPtr->ControlledGeometry->Name;
 
 			CreateDMXChannels(UnrealMode, DMXMode);
 		}
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CreateDMXChannels(const FDMXFixtureMode& UnrealMode, const TSharedRef<FDMXGDTFDMXMode>& GDTFDMXMode)
+	void FDMXFixtureTypeToGDTFConverter::CreateDMXChannels(const FDMXFixtureMode& UnrealMode, const TSharedRef<FDMXGDTFDMXMode>& GDTFDMXMode)
 	{			
 		// Create DMX Channels for non-matrix Unreal Functions
 		for (const FDMXFixtureFunction& UnrealFunction : UnrealMode.Functions)
 		{
-			const TSharedRef<FDMXGDTFGeometry>* DMXChannelGeometryPtr = UnrealFunctionToGeometryMap.Find(&UnrealFunction);
-			if (!ensureMsgf(DMXChannelGeometryPtr, TEXT("%hs: Unexpected cannot find geometry for DMX Function '%s'. Failed to convert mode to GDTF."), __FUNCTION__, *UnrealFunction.FunctionName))
+			const FDMXFixtureFunctionWithControlledGeometry* ControlledGeometryPtr = Algo::FindBy(FunctionsWithControlledGeometry, &UnrealFunction, &FDMXFixtureFunctionWithControlledGeometry::FunctionPtr);
+			if (!ensureMsgf(ControlledGeometryPtr, TEXT("%hs: Unexpected cannot find geometry for DMX Function '%s'. Failed to convert mode to GDTF."), __FUNCTION__, *UnrealFunction.FunctionName))
 			{
 				continue;
 			}
@@ -274,12 +206,13 @@ namespace UE::DMX::GDTF
 			const TSharedRef<FDMXGDTFDMXChannel> DMXChannel = MakeShared<FDMXGDTFDMXChannel>(GDTFDMXMode);
 			GDTFDMXMode->DMXChannels.Add(DMXChannel);
 
+			const FString ControlledGeometryName = ControlledGeometryPtr->ControlledGeometry->Name.ToString();
 			const FString GDTFAttribute = FDMXUnrealToGDTFAttributeConversion::ConvertUnrealToGDTFAttribute(UnrealFunction.Attribute.Name).ToString();
 			const FString ChannelFunctionName = UnrealFunction.FunctionName;
 
 			// The initial function has to be written in following format "GeometryName_LogicalChannelAttribute.ChannelFunctionAttribute.ChannelFunctionName"
-			DMXChannel->InitialFunction = FString::Printf(TEXT("%s_%s.%s.%s"), *(*DMXChannelGeometryPtr)->Name.ToString(), *GDTFAttribute, *GDTFAttribute, *ChannelFunctionName);
-			DMXChannel->Geometry = (*DMXChannelGeometryPtr)->Name;
+			DMXChannel->InitialFunction = FString::Printf(TEXT("%s_%s.%s.%s"), *ControlledGeometryName, *GDTFAttribute, *GDTFAttribute, *ChannelFunctionName);
+			DMXChannel->Geometry = *ControlledGeometryName;
 			DMXChannel->Offset = [UnrealFunction]()
 				{			
 					const int32 Offset = UnrealFunction.Channel;
@@ -313,11 +246,12 @@ namespace UE::DMX::GDTF
 				const TSharedRef<FDMXGDTFDMXChannel> DMXChannel = MakeShared<FDMXGDTFDMXChannel>(GDTFDMXMode);
 				GDTFDMXMode->DMXChannels.Add(DMXChannel);
 
+				const FString MatrixBeamGeometryName = *FDMXFixtureTypeToGDTFGeometryFactory::MatrixBeamGeometryName.ToString();
 				const FString GDTFAttribute = FDMXUnrealToGDTFAttributeConversion::ConvertUnrealToGDTFAttribute(UnrealCellAttribute.Attribute.Name).ToString();
 
 				// For a matrix with geometry references, the initial function has to be written in following format "GeometryName_LogicalChannelAttribute.ChannelFunctionAttribute.ChannelFunctionName"
-				DMXChannel->InitialFunction = FString::Printf(TEXT("%s_%s.%s.%s"), *MatrixCellGeometryReferenceName.ToString(), *GDTFAttribute, *GDTFAttribute, *UnrealCellAttribute.Attribute.Name.ToString());
-				DMXChannel->Geometry = MatrixCellGeometryReferenceName;
+				DMXChannel->InitialFunction = FString::Printf(TEXT("%s_%s.%s.%s"), *MatrixBeamGeometryName, *GDTFAttribute, *GDTFAttribute, *UnrealCellAttribute.Attribute.Name.ToString());
+				DMXChannel->Geometry = *MatrixBeamGeometryName;
 				DMXChannel->Offset = [&Offset, UnrealCellAttribute]()
 					{					
 						const uint8 Size = UnrealCellAttribute.GetNumChannels();
@@ -357,7 +291,7 @@ namespace UE::DMX::GDTF
 			});
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CreateLogicalChannel(const FDMXFixtureFunction& UnrealFunction, const TSharedRef<FDMXGDTFDMXChannel>& GDTFDMXChannel, const FString& GDTFAttribute)
+	void FDMXFixtureTypeToGDTFConverter::CreateLogicalChannel(const FDMXFixtureFunction& UnrealFunction, const TSharedRef<FDMXGDTFDMXChannel>& GDTFDMXChannel, const FString& GDTFAttribute)
 	{
 		const TSharedRef<FDMXGDTFLogicalChannel> LogicalChannel = MakeShared<FDMXGDTFLogicalChannel>(GDTFDMXChannel);
 		GDTFDMXChannel->LogicalChannelArray.Add(LogicalChannel);
@@ -367,7 +301,7 @@ namespace UE::DMX::GDTF
 		CrateChannelFunction(UnrealFunction, LogicalChannel, GDTFAttribute);
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CreateLogicalChannel(const FDMXFixtureCellAttribute& UnrealCellAttribute, const TSharedRef<FDMXGDTFDMXChannel>& GDTFDMXChannel, const FString& GDTFAttribute)
+	void FDMXFixtureTypeToGDTFConverter::CreateLogicalChannel(const FDMXFixtureCellAttribute& UnrealCellAttribute, const TSharedRef<FDMXGDTFDMXChannel>& GDTFDMXChannel, const FString& GDTFAttribute)
 	{
 		const TSharedRef<FDMXGDTFLogicalChannel> LogicalChannel = MakeShared<FDMXGDTFLogicalChannel>(GDTFDMXChannel);
 		GDTFDMXChannel->LogicalChannelArray.Add(LogicalChannel);
@@ -377,7 +311,7 @@ namespace UE::DMX::GDTF
 		CrateChannelFunction(UnrealCellAttribute, LogicalChannel, GDTFAttribute);
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CrateChannelFunction(const FDMXFixtureFunction& UnrealFunction, const TSharedRef<FDMXGDTFLogicalChannel>& GDTFLogicalChannel, const FString& GDTFAttribute)
+	void FDMXFixtureTypeToGDTFConverter::CrateChannelFunction(const FDMXFixtureFunction& UnrealFunction, const TSharedRef<FDMXGDTFLogicalChannel>& GDTFLogicalChannel, const FString& GDTFAttribute)
 	{
 		const TSharedRef<FDMXGDTFChannelFunction> ChannelFunction = MakeShared<FDMXGDTFChannelFunction>(GDTFLogicalChannel);
 		GDTFLogicalChannel->ChannelFunctionArray.Add(ChannelFunction);
@@ -385,12 +319,12 @@ namespace UE::DMX::GDTF
 		ChannelFunction->Name = *UnrealFunction.FunctionName;
 		ChannelFunction->Attribute = GDTFAttribute;
 
-		const FDMXGDTFDMXValue Default = UnrealFunction.DefaultValue;
+		const FDMXGDTFDMXValue Default = FDMXGDTFDMXValue(UnrealFunction.DefaultValue, UnrealFunction.GetNumChannels());
 		ChannelFunction->Default = Default;
 		ChannelFunction->DMXFrom = 0;
 	}
 
-	void FDMXFixtureTypeToGTDFConverter::CrateChannelFunction(const FDMXFixtureCellAttribute& UnrealCellAttribute, const TSharedRef<FDMXGDTFLogicalChannel>& GDTFLogicalChannel, const FString& GDTFAttribute)
+	void FDMXFixtureTypeToGDTFConverter::CrateChannelFunction(const FDMXFixtureCellAttribute& UnrealCellAttribute, const TSharedRef<FDMXGDTFLogicalChannel>& GDTFLogicalChannel, const FString& GDTFAttribute)
 	{
 		const TSharedRef<FDMXGDTFChannelFunction> ChannelFunction = MakeShared<FDMXGDTFChannelFunction>(GDTFLogicalChannel);
 		GDTFLogicalChannel->ChannelFunctionArray.Add(ChannelFunction);

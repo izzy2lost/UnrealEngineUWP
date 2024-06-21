@@ -74,6 +74,9 @@ public:
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 
 private:
+	/** Before 5.4, GDTF assets could be stored containing invalid characters such as @ common to most GDTFs. This function mends all asset names.*/
+	static void FixGDTFAssetNames();
+
 	/** Binds commands for the DMX editor */
 	void BindDMXEditorCommands();
 

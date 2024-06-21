@@ -73,7 +73,7 @@ protected:
 
 private:
 	/** Creates a General Scene Description from the MVR zip. Returns the General Scene Description or nullptr if not a valid MVR zip. */
-	UDMXMVRGeneralSceneDescription* CreateGeneralSsceneDescription(UObject* Outer) const;
+	UDMXMVRGeneralSceneDescription* CreateGeneralSceneDescription(UObject* Outer) const;
 
 	/** Creates GDTF assets from the MVR */
 	TArray<UDMXImportGDTF*> CreateGDTFs(UObject* InParent, EObjectFlags InFlags, bool bReimportExisting);

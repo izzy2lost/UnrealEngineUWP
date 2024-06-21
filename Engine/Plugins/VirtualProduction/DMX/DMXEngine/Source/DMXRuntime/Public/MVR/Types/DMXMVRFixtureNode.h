@@ -163,6 +163,10 @@ public:
 	UPROPERTY()
 	FString Name;
 
+	/** The Class the object belongs to. */
+	UPROPERTY()
+	FDMXOptionalGuid Classing;
+
 	/** The name of the file containing the GDTF information for this light fixture. */
 	UPROPERTY()
 	FString GDTFSpec;

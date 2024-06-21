@@ -57,9 +57,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		ChildBuilder
 			.SetAttribute(TEXT("Offset"), Offset)
 			.SetAttribute(TEXT("InitialFunction"), InitialFunction, DefaultInitialFunction)
-			.SetAttribute(TEXT("Highlight"), Highlight)
 			.SetAttribute(TEXT("Geometry"), Geometry)
 			.AppendChildren(TEXT("LogicalChannel"), LogicalChannelArray);
+
+		// Set special value "None" for highlight if Highlight is not set
+		if (Highlight.IsSet())
+		{
+			ChildBuilder
+				.SetAttribute(TEXT("Highlight"), Highlight);
+		}
+		else
+		{
+			ChildBuilder
+				.SetAttribute(TEXT("Highlight"), TEXT("None"));
+		}
 
 		return ChildBuilder.GetIntermediateXmlNode();
 	}

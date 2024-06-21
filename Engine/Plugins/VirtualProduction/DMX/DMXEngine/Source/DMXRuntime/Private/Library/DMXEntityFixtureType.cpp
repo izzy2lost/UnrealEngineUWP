@@ -315,23 +315,26 @@ void UDMXEntityFixtureType::PostEditUndo()
 #if WITH_EDITOR
 FString UDMXEntityFixtureType::GetCleanGDTFFileNameSynchronous(bool bWithExtension) const
 {
-	if (!GDTFSource.IsNull())
-	{
-		if (UDMXImportGDTF* GDTF = GDTFSource.LoadSynchronous())
-		{
-			const FString GDTFFilename = FPaths::GetBaseFilename(GDTF->GetGDTFAssetImportData()->GetFilePathAndName());
-			const FString Extension = bWithExtension ? TEXT(".gdtf") : TEXT("");
+	if (GDTFSource.IsValid())
+	{				
+		// Return the GDTF source filename if a GDTF is set
+		UDMXImportGDTF* GDTF = GDTFSource.LoadSynchronous();
 
-			return GDTFFilename + Extension;
-		}
+		const FString GDTFFilename = FPaths::GetBaseFilename(GDTF->GetGDTFAssetImportData()->GetFilePathAndName());
+		const FString Extension = bWithExtension ? TEXT(".gdtf") : TEXT("");
+
+		return GDTFFilename + Extension;
 	}
+	else
+	{		
+		// Generate a filename if no GDTF is set
+		const FString EngineVersion = FString::Printf(TEXT("%u_%u"), FEngineVersion::Current().GetMajor(), FEngineVersion::Current().GetMinor());
+		const FString DateTime = FDateTime::Now().ToString(TEXT("%d_%m_%y"));
+		const FString GeneratedGDTFFilename = FString::Printf(TEXT("EpicGames@UE%s_Generated_%s@%s"), *EngineVersion, *Name, *DateTime);
+		const FString Extension = bWithExtension ? TEXT(".gdtf") : TEXT("");
 
-	const FString EngineVersion = FString::Printf(TEXT("%u_%u"), FEngineVersion::Current().GetMajor(), FEngineVersion::Current().GetMinor());
-	const FString DateTime = FDateTime::Now().ToString(TEXT("%d_%m_%y"));
-	const FString GDTFFilename = FString::Printf(TEXT("EpicGames@UE%s_Generated_%s@%s"), *EngineVersion, *Name, *DateTime);
-	const FString Extension = bWithExtension ? TEXT(".gdtf") : TEXT("");
-
-	return GDTFFilename + Extension;
+		return GeneratedGDTFFilename + Extension;
+	}
 }
 #endif // WITH_EDITOR
 

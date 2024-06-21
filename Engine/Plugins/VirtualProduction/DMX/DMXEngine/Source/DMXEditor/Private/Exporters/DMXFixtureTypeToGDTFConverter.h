@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Templates/SharedPointer.h"
-#include "UObject/NameTypes.h"
 
 struct FDMXFixtureFunction;
 struct FDMXFixtureCellAttribute;
@@ -13,6 +12,7 @@ class UDMXEntityFixtureType;
 
 namespace UE::DMX::GDTF
 {
+	struct FDMXFixtureFunctionWithControlledGeometry;
 	class FDMXGDTFAttributeDefinitions;
 	class FDMXGDTFDMXChannel;
 	class FDMXGDTFDMXMode;
@@ -23,30 +23,27 @@ namespace UE::DMX::GDTF
 	class FDMXGDTFLogicalChannel;
 
 	/** Converts a Fixture Type to a GDTF. Internally caches of each collect, and finally assembles the GDTF. */
-	class FDMXFixtureTypeToGTDFConverter
+	class FDMXFixtureTypeToGDTFConverter
 	{
 	public:
 		/** Converts the Fixture Type to a GDTF description */
 		static TSharedPtr<FXmlFile> Convert(const UDMXEntityFixtureType* UnrealFixtureType);
 
 	private:
-		/** Creates the Fixture Type */
-		TSharedRef<FDMXGDTFFixtureType> CreateFixtureType(const UDMXEntityFixtureType* UnrealFixtureType);
+		/** Creates the GDTF Fixture Type */
+		TSharedRef<FDMXGDTFFixtureType> CreateFixtureType(const UDMXEntityFixtureType& UnrealFixtureType);
 
-		/** Creates attribute definitions */
-		void CreateAttributeDefinitions(const UDMXEntityFixtureType* UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType);
+		/** Creates Attribute Aefinitions */
+		void CreateAttributeDefinitions(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType);
 
-		/** Creates model */
-		void CreateModels(const UDMXEntityFixtureType* UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType);
+		/** Creates Models */
+		void CreateModels(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType);
 
-		/** Creates the geometry collect */
-		void CreateGeometryCollect(const UDMXEntityFixtureType* UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType);
-
-		/** Creates Child geometries inside a root geometry */
-		void CreateChildGeometries(const FDMXFixtureMode& UnrealMode, const TSharedRef<FDMXGDTFGeometry>& RootGeometry);
+		/** Creates the Geometry Collect */
+		void CreateGeometryCollect(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType);
 
 		/** Creates DMX Modes */
-		void CreateDMXModes(const UDMXEntityFixtureType* UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType);
+		void CreateDMXModes(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType);
 
 		/** Creates DMX Channels for specified mode */
 		void CreateDMXChannels(const FDMXFixtureMode& UnrealMode, const TSharedRef<FDMXGDTFDMXMode>& GDTFDMXMode);
@@ -63,16 +60,7 @@ namespace UE::DMX::GDTF
 		/** Creates a Channel Function for the Logical Channel, using an Unreal Cell Attribute as the input */
 		void CrateChannelFunction(const FDMXFixtureCellAttribute& UnrealCellAttribute, const TSharedRef<FDMXGDTFLogicalChannel>& GDTFLogicalChannel, const FString& GDTFAttribute);
 
-		/** Map of Unreal Modes to the root geometry they control */
-		TMap<const FDMXFixtureMode*, TSharedRef<FDMXGDTFGeometry>> UnrealModeToRootGeometryMap;
-
-		/** Map of Unreal Fixture Functions to the geometry they control */
-		TMap<const FDMXFixtureFunction*, TSharedRef<FDMXGDTFGeometry>> UnrealFunctionToGeometryMap;
-
-		/** Map of Unreal Matrix Attribute to the geometry they control */
-		TMap<const FDMXFixtureCellAttribute*, TSharedRef<FDMXGDTFGeometryReference>> UnrealCellAttributeToGeometryReferenceMap;
-
-		/** The name of a matrix cell geometry reference */
-		static const FName MatrixCellGeometryReferenceName;
+		/** Map of Functions with the geometry they control */
+		TArray<FDMXFixtureFunctionWithControlledGeometry> FunctionsWithControlledGeometry;
 	};
 }

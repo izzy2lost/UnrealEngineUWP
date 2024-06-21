@@ -80,7 +80,7 @@ namespace UE::DMX::GDTF
 			.SetAttribute(TEXT("Attribute"), Attribute)
 			.SetAttribute(TEXT("OriginalAttribute"), OriginalAttribute)
 			.SetAttribute(TEXT("DMXFrom"), DMXFrom)
-			.SetAttribute(TEXT("Default"), Default, FDMXGDTFDMXValue())
+			.SetAttribute(TEXT("Default"), Default)
 			.SetAttribute(TEXT("PhysicalFrom"), PhysicalFrom)
 			.SetAttribute(TEXT("PhysicalTo"), PhysicalTo)
 			.SetAttribute(TEXT("RealFade"), RealFade)

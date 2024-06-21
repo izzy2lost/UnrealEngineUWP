@@ -2,15 +2,12 @@
 
 #include "Factories/DMXGDTFImporter.h"
 
-#include "DMXEditorLog.h"
 #include "DMXZipper.h"
-#include "EditorFramework/AssetImportData.h"
+#include "Editor.h"
 #include "Factories/DMXGDTFFactory.h"
-#include "GDTF/DMXGDTFDescription.h"
 #include "Library/DMXGDTFAssetImportData.h"
 #include "Library/DMXImportGDTF.h"
 #include "Misc/Paths.h"
-#include "XmlFile.h"
 
 #define LOCTEXT_NAMESPACE "DMXGDTFImporter"
 
@@ -61,7 +58,10 @@ namespace UE::DMX
 		}
 
 		// Create GDTF
-		const FName UniqueName = MakeUniqueObjectName(ImportArgs.Parent.Get(), UDMXImportGDTF::StaticClass(), ImportArgs.Name);
+		const FName UniqueName = IsUniqueObjectName(ImportArgs.Name, ImportArgs.Parent.Get()) ?
+			ImportArgs.Name :
+			MakeUniqueObjectName(ImportArgs.Parent.Get(), UDMXImportGDTF::StaticClass(), ImportArgs.Name);
+
 		UDMXImportGDTF* NewGDTF = NewObject<UDMXImportGDTF>(ImportArgs.Parent.Get(), UniqueName, ImportArgs.Flags | RF_Public);
 
 		// Set Asset Import Data

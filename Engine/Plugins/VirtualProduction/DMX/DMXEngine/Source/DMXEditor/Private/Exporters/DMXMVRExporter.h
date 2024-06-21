@@ -2,19 +2,19 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif
-#include "Containers/Array.h"
 #include "Templates/SharedPointer.h"
 
+class AActor;
 class FDMXZipper;
 class FXmlFile;
 class UDMXEntityFixtureType;
 class UDMXGDTFAssetImportData;
+class UDMXComponent;
 class UDMXLibrary;
 class UDMXMVRAssetImportData;
+class UDMXMVRFixtureNode;
 class UDMXMVRGeneralSceneDescription;
+class UWorld;
 
 namespace UE::DMX
 {
@@ -23,11 +23,17 @@ namespace UE::DMX
 	{
 	public:
 		/** Exports the DMX Library as MVR File */
-		static void Export(UDMXLibrary* DMXLibrary, const FString& FilePathAndName, FText& OutErrorReason);
+		static void Export(UDMXLibrary* DMXLibrary);
 
 	private:
 		/** Exports the DMX Library as MVR File. If OutErrorReason is not empty there were issues with the export. */
-		void ExportInternal(UDMXLibrary* DMXLibrary, const FString& FilePathAndName, FText& OutErrorReason);
+		void ExportInternal(UDMXLibrary* DMXLibrary, FText& OutErrorReason, FString& OutFilePathAndName);
+
+		/** Updates the MVR export options. Returns false if the import was canceled */
+		void UpdateExportOptions(const UDMXLibrary& DMXLibrary) const;
+		
+		/** Builds the DMX component to actor map */
+		TMap<const UDMXComponent*, const AActor*> GetDMXComponentToActorMap() const;
 
 		/** Zips the GeneralSceneDescription.xml */
 		[[nodiscard]] bool ZipGeneralSceneDescription(const TSharedRef<FDMXZipper>& Zip, const UDMXMVRGeneralSceneDescription* GeneralSceneDescription, FText& OutErrorReason);
@@ -41,8 +47,11 @@ namespace UE::DMX
 		/** Creates an General Scene Description Xml File from the MVR Source, as it was imported */
 		const TSharedPtr<FXmlFile> CreateSourceGeneralSceneDescriptionXmlFile(const UDMXMVRGeneralSceneDescription* GeneralSceneDescription) const;
 
-		/** Writes transforms from level to the MVR Fixture Actors where applicable */
-		void WriteMVRFixtureTransformsFromLevel(UDMXMVRGeneralSceneDescription* GeneralSceneDescription);
+		/** Tries to remove MVR fixtures that are not present in the level, depending on export options. */
+		void TryRemoveMVRFixturesNotPresentInLevel(UDMXMVRGeneralSceneDescription* GeneralSceneDescription, UDMXLibrary* DMXLibrary, const TMap<const UDMXComponent*, const AActor*>& DMXComponentToActorMap);
+
+		/** Tries to create MVR fixtures from patches used more than once in the level and apply transforms depending on export options. */
+		void TryUpdateFixtureNodesFromLevel(UDMXMVRGeneralSceneDescription* GeneralSceneDescription, const TMap<const UDMXComponent*, const AActor*>& DMXComponentToActorMap, bool bUseTransformsFromLevel);
 
 		/**
 		 * Gets raw source data or creates (possibly empty) source data where the source data is not present.

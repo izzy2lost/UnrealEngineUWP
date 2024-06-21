@@ -36,6 +36,9 @@ struct FDMXRuntimeMainStreamObjectVersion
 		// Update Fixture Patch to hold the MVR Fixture ID (since UE 5.5)
 		DMXFixturePatchHasFixtureID,
 
+		// Rename GDTF import assets with invalid names
+		DMXFixGDTFImportAssetsWithInvalidNames,
+
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
 	};

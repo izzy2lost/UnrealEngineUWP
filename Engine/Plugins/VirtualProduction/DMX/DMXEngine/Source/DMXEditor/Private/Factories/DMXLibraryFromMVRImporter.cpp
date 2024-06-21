@@ -123,7 +123,7 @@ bool FDMXLibraryFromMVRImporter::LoadMVRFile(const FString& InFilename)
 	}
 
 	// Create the General Scene Description
-	GeneralSceneDescription = CreateGeneralSsceneDescription(GetTransientPackage());
+	GeneralSceneDescription = CreateGeneralSceneDescription(GetTransientPackage());
 	if (!GeneralSceneDescription)
 	{
 		UE_LOG(LogDMXEditor, Error, TEXT("Cannot read General Scene Description from MVR '%s'. File is not a valid MVR."), *Filename);
@@ -352,7 +352,7 @@ void FDMXLibraryFromMVRImporter::AddReferencedObjects(FReferenceCollector& Colle
 	Collector.AddReferencedObject(GeneralSceneDescription);
 }
 
-UDMXMVRGeneralSceneDescription* FDMXLibraryFromMVRImporter::CreateGeneralSsceneDescription(UObject* Outer) const
+UDMXMVRGeneralSceneDescription* FDMXLibraryFromMVRImporter::CreateGeneralSceneDescription(UObject* Outer) const
 {
 	if (!Zip.IsValid())
 	{

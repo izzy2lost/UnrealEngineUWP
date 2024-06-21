@@ -183,7 +183,7 @@ namespace UE::DMX::GDTF
 			if (ChannelFunction.IsValid() &&
 				ChannelFunction->Default.IsSet())
 			{
-				return static_cast<int64>(ChannelFunction->Default.AsIntChecked());
+				return static_cast<int64>(ChannelFunction->Default.GetChecked(DMXChannelNode));
 			}
 
 			return 0;
@@ -333,6 +333,7 @@ namespace UE::DMX::GDTF
 			InOutFixtureType.Name = GDTFFixtureType->Name.ToString();
 		}
 
+		InOutFixtureType.Modes.Reset();
 		for (const TSharedPtr<FDMXGDTFDMXMode>& GDTFDMXMode : GDTFFixtureType->DMXModes)
 		{
 			FDMXFixtureMode Mode;
@@ -364,6 +365,7 @@ namespace UE::DMX::GDTF
 		FDMXFixtureMode Mode;
 		Mode.ModeName = InDMXModeNode->Name.ToString();
 
+		TMap<FName, int32> AttributeNameToCountMap;
 		for (const TSharedPtr<FDMXGDTFDMXChannel>& DMXChannelNode : InDMXModeNode->DMXChannels)
 		{
 			FDMXGDTFChannelInterpreter::FChannelProperties ChannelProperties;
@@ -395,15 +397,22 @@ namespace UE::DMX::GDTF
 			}
 			else
 			{
+				const int32* AttributeCountPtr = AttributeNameToCountMap.Find(*ChannelProperties.AttributeName);
+				const FString Attribute = AttributeCountPtr ? 
+					ChannelProperties.AttributeName + TEXT("_") + FString::FromInt(*AttributeCountPtr) :
+					ChannelProperties.AttributeName;
+
 				FDMXFixtureFunction Function;
 				Function.FunctionName = ChannelProperties.AttributeName;
-				Function.Attribute = FDMXAttributeName(*ChannelProperties.AttributeName);
+				Function.Attribute = FDMXAttributeName(*Attribute);
 				Function.Channel = ChannelProperties.FirstChannel;
 				Function.bUseLSBMode = ChannelProperties.bLSBMode;
 				Function.DataType = ChannelProperties.SignalFormat;
 				Function.DefaultValue = ChannelProperties.DefaultValue;
 
 				Mode.Functions.Add(Function);
+
+				AttributeNameToCountMap.FindOrAdd(*ChannelProperties.AttributeName, 0)++;
 			}
 		}
 

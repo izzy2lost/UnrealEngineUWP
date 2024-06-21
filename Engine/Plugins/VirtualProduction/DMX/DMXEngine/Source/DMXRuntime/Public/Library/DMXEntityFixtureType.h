@@ -524,6 +524,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Settings", Meta = (DisplayName = "GDTF Source"))
 	TSoftObjectPtr<UDMXImportGDTF> GDTFSource;
 
+#if WITH_EDITORONLY_DATA
+	/** If checked, generates a new GDTF instead of exporting the imported GDTF. This adopts changes in editor but in most cases will result in data loss and is not recommended. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Fixture Settings", Meta = (DisplayName = "Generate GDTF (not recommended)"))
+	bool bExportGeneratedGDTF = false;
+#endif
 
 	//////////////////////////////////////////////////
 	// Deprecated Members

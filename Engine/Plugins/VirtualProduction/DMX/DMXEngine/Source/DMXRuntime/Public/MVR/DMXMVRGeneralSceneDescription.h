@@ -13,6 +13,7 @@ class FXmlFile;
 class UDMXEntityFixturePatch;
 class UDMXLibrary;
 class UDMXMVRAssetImportData;
+class UDMXMVRClassNode;
 class UDMXMVRRootNode;
 class UDMXMVRFixtureNode;
 
@@ -36,16 +37,30 @@ public:
 
 #if WITH_EDITOR
 	/** Creates an MVR General Scene Description from an Xml File */
-	static UDMXMVRGeneralSceneDescription* CreateFromXmlFile(TSharedRef<FXmlFile> GeneralSceneDescriptionXml, UObject* Outer, FName Name, EObjectFlags Flags = RF_NoFlags);
+	static UDMXMVRGeneralSceneDescription* CreateFromXmlFile(TSharedRef<FXmlFile> GeneralSceneDescriptionXml, UObject* Outer, FName Name = NAME_None, EObjectFlags Flags = RF_NoFlags);
 
 	/** Creates an MVR General Scene Description from a DMX Library */
-	static UDMXMVRGeneralSceneDescription* CreateFromDMXLibrary(const UDMXLibrary& DMXLibrary, UObject* Outer, FName Name, EObjectFlags Flags = RF_NoFlags);
+	static UDMXMVRGeneralSceneDescription* CreateFromDMXLibrary(const UDMXLibrary& DMXLibrary, UObject* Outer, FName Name = NAME_None, EObjectFlags Flags = RF_NoFlags);
 
+	/** DEPRECATED 5.5 */
+	UE_DEPRECATED(5.5, "Changed to WriteDMXLibrary for better readability and consitency with new members.")
+	void WriteDMXLibraryToGeneralSceneDescription(const UDMXLibrary& DMXLibrary);
+	
 	/**
 	 * Writes the Library to the General Scene Description, effectively removing inexisting and adding
 	 * new MVR Fixtures, according to what MVR Fixture UUIDs the Fixture Patches of the Library contain.
 	 */
-	void WriteDMXLibraryToGeneralSceneDescription(const UDMXLibrary& DMXLibrary);
+	void WriteDMXLibrary(const UDMXLibrary& DMXLibrary);
+
+	/**
+	 * Writes the Fixture Patch to the General Scene Description.
+	 *
+	 * Returns the fixture node or nullptr if the node could not be created.
+	 */
+	UDMXMVRFixtureNode* WriteFixturePatch(const UDMXEntityFixturePatch& FixturePatch);
+
+	/** Removes a fixture node from the General Scene Description. */
+	void RemoveFixtureNode(const FGuid& FixtureUUID);
 
 	/** Returns true if an Xml File can be created. Gives a reason if no MVR can be exported */
 	bool CanCreateXmlFile(FText& OutReason) const;
@@ -55,12 +70,10 @@ public:
 
 	/** Returns MVR Asset Import Data for this asset */
 	FORCEINLINE UDMXMVRAssetImportData* GetMVRAssetImportData() const { return MVRAssetImportData; }
-#endif
 
 private:
-#if WITH_EDITOR
-	/** Writes the Fixture Patch to the General Scene Description, adding a new MVR Fixture if required */
-	void WriteFixturePatchToGeneralSceneDescription(const UDMXEntityFixturePatch& FixturePatch);
+	/** Makes sure the node has a unique MVR UUID and Fixture ID */
+	void  SanetizeFixtureNode(UDMXMVRFixtureNode& FixtureNode);
 
 	/** Parses a General Scene Description Xml File. Only ment to be used for initialization (ensured) */
 	[[nodiscard]] bool ParseGeneralSceneDescriptionXml(const TSharedRef<FXmlFile>& GeneralSceneDescriptionXml);

@@ -578,7 +578,7 @@ UDMXMVRGeneralSceneDescription* UDMXLibrary::UpdateGeneralSceneDescription()
 {
 	if (ensureAlwaysMsgf(GeneralSceneDescription, TEXT("Trying to update General Scene Description of %s, but the General Scene Description is not valid."), *GetName()))
 	{
-		GeneralSceneDescription->WriteDMXLibraryToGeneralSceneDescription(*this);
+		GeneralSceneDescription->WriteDMXLibrary(*this);
 		return GeneralSceneDescription;
 	}
 

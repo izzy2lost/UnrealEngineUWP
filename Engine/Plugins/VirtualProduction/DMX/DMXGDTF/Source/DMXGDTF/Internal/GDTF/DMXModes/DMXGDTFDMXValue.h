@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "Containers/UnrealString.h"
 #include "GenericPlatform/GenericPlatform.h"
-#include "Misc/Optional.h"
+#include "Templates/SharedPointer.h"
 
 namespace UE::DMX::GDTF
 {
+	class FDMXGDTFDMXChannel;
+
 	/**
 	 * Special type to define DMX value where n is the byte count. The byte count can be individually specified without depending on the resolution of the DMX Channel.
 	 * By default byte mirroring is used for the conversion. So 255/1 in a 16 bit channel will result in 65535.
@@ -16,36 +17,39 @@ namespace UE::DMX::GDTF
 	struct DMXGDTF_API FDMXGDTFDMXValue
 	{
 		FDMXGDTFDMXValue() = default;
-		FDMXGDTFDMXValue(const FString& InValue);
-		FDMXGDTFDMXValue(const uint32 InValue);
-		FDMXGDTFDMXValue(const TOptional<uint32>& InValue);
+		FDMXGDTFDMXValue(const TCHAR* InValue);
+		FDMXGDTFDMXValue(const uint32 InValue, const int32 InNumBytes, const bool bInByteMirroring = true);
 
-		bool operator==(const FDMXGDTFDMXValue& Other) const { return IntegerValue == Other.IntegerValue; }
-		bool operator!=(const FDMXGDTFDMXValue& Other) const { return IntegerValue != Other.IntegerValue; }
+		/** Gets the DMX value in the resolution of the specified DMX channel. Returns false if the DMX Value has special value "None" */
+		bool Get(const TSharedRef<FDMXGDTFDMXChannel>& InDMXChannel, uint32& OutValue) const;
+	
+		/** Gets the DMX value in the resolution of the specified DMX channel, only valid when not IsSet (checked). */
+		uint32 GetChecked(const TSharedRef<FDMXGDTFDMXChannel>& InDMXChannel) const;
 
-		/** Returns the value as an optional integer. If the optional is not set, it equals to "None". */
-		TOptional<uint32> AsInt() const { return IntegerValue; }
+		/** Returns the DMX value as string. If the DMX value is not set, returns 0/1. */
+		FString AsString() const;
 
-		/** Returns the value as an integer. Assumes the int is set (checked). */
-		uint32 AsIntChecked() const;
-
-		/** Returns the value as string. */
-		FString AsString() const { return StringValue; }
-
-		/** Returns true if the value is set. Otherwise it uses special value "None". */
-		bool IsSet() const;
-
-		/** Sets the DMX Value by int. */
-		void Set(uint32 InValue);
-
-		/** Sets the value by string. Special value "None" resets the optional int. */
-		void Set(const FString& InValue);
-
-		/** Resets to None. */
+		/** Resets the DMX value */
 		void Reset();
 
+		/** Returns true if the DMX Value is set. */
+		bool IsSet() const; 
+
+		bool operator==(const FDMXGDTFDMXValue& Other) const { return Value == Other.Value; }
+		bool operator!=(const FDMXGDTFDMXValue& Other) const { return Value != Other.Value; }
+
+
 	private:
-		FString StringValue = TEXT("None");
-		TOptional<uint32> IntegerValue;
+		/** Returns the Max value of WordSize */
+		uint32 GetMax(uint8 WordSize) const;
+
+		/** The DMX Value */
+		uint32 Value = 0;
+
+		/** The number of bytes of this DMX value */
+		uint8 NumBytes = 0;
+
+		/** Whether to use byte mirroring or byte shifting when accessing the DMX value */
+		bool bByteMirroring = true;
 	};
 }

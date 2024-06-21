@@ -3,6 +3,7 @@
 #include "Factories/DMXGDTFFactory.h"
 
 #include "Application/SlateApplicationBase.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "DMXEditorLog.h"
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
