@@ -66,7 +66,7 @@ inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InN
 		TArray<VConstructor::VEntry> Entries;
 		Entries.Reserve(InConstructor.NumEntries);
 		Extend(Fields, Entries, InConstructor);
-		for (uint32 Index = InInherited.Num(); Index-- > 0;)
+		for (uint32 Index = 0; Index < InInherited.Num(); ++Index)
 		{
 			V_DIE_IF(Index != 0 && InInherited[Index]->Kind == EKind::Class);
 			Extend(Fields, Entries, *InInherited[Index]->Constructor.Get());
