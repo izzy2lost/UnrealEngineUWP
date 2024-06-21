@@ -5,6 +5,9 @@ set -e
 LIBRARY_NAME="MaterialX"
 REPOSITORY_NAME="MaterialX"
 
+# Informational, for the usage message.
+CURRENT_LIBRARY_VERSION=1.38.10
+
 BUILD_SCRIPT_NAME="$(basename $BASH_SOURCE)"
 BUILD_SCRIPT_DIR=`cd $(dirname "$BASH_SOURCE"); pwd`
 
@@ -18,11 +21,11 @@ UsageAndExit()
     echo
     echo "Usage examples:"
     echo
-    echo "    $BUILD_SCRIPT_NAME 1.38.5 x86_64-unknown-linux-gnu"
-    echo "      -- Installs $LIBRARY_NAME version 1.38.5 for x86_64 architecture."
+    echo "    $BUILD_SCRIPT_NAME $CURRENT_LIBRARY_VERSION x86_64-unknown-linux-gnu"
+    echo "      -- Installs $LIBRARY_NAME version $CURRENT_LIBRARY_VERSION for x86_64 architecture."
     echo
-    echo "    $BUILD_SCRIPT_NAME 1.38.5 aarch64-unknown-linux-gnueabi"
-    echo "      -- Installs $LIBRARY_NAME version 1.38.5 for arm64 architecture."
+    echo "    $BUILD_SCRIPT_NAME $CURRENT_LIBRARY_VERSION aarch64-unknown-linux-gnueabi"
+    echo "      -- Installs $LIBRARY_NAME version $CURRENT_LIBRARY_VERSION for arm64 architecture."
     echo
     exit 1
 }
@@ -64,7 +67,7 @@ pushd $BUILD_LOCATION > /dev/null
 
 # Run Engine/Build/BatchFiles/Linux/SetupToolchain.sh first to ensure
 # that the toolchain is setup and verify that this name matches.
-TOOLCHAIN_NAME=v20_clang-13.0.1-centos7
+TOOLCHAIN_NAME=v22_clang-16.0.6-centos7
 
 UE_TOOLCHAIN_LOCATION="$UE_ENGINE_LOCATION/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/$TOOLCHAIN_NAME"
 
@@ -109,7 +112,7 @@ fi
     set(CMAKE_MODULE_LINKER_FLAGS "${LINKER_FLAGS}")
     set(CMAKE_SHARED_LINKER_FLAGS "${LINKER_FLAGS}")
 
-    set(CMAKE_FIND_ROOT_PATH ${UE_TOOLCHAIN_LOCATION})
+    set(CMAKE_FIND_ROOT_PATH "${UE_TOOLCHAIN_LOCATION}")
     set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
     set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
     set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
