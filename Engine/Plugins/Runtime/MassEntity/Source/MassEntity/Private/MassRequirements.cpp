@@ -98,27 +98,57 @@ void FMassFragmentRequirements::SortRequirements()
 	SharedFragmentRequirements.Sort(FScriptStructSortOperator());
 }
 
+FORCEINLINE void FMassFragmentRequirements::CachePropreties() const
+{
+	if (bPropertiesCached == false)
+	{
+		bHasPositiveRequirements = !(RequiredAllTags.IsEmpty()
+			&& RequiredAnyTags.IsEmpty()
+			&& RequiredAllFragments.IsEmpty()
+			&& RequiredAnyFragments.IsEmpty()
+			&& RequiredAllChunkFragments.IsEmpty()
+			&& RequiredAllSharedFragments.IsEmpty()
+			&& RequiredAllConstSharedFragments.IsEmpty());
+
+		bHasNegativeRequirements = !(RequiredNoneTags.IsEmpty()
+			&& RequiredNoneFragments.IsEmpty()
+			&& RequiredNoneChunkFragments.IsEmpty()
+			&& RequiredNoneSharedFragments.IsEmpty()
+			&& RequiredNoneConstSharedFragments.IsEmpty());
+
+		bHasOptionalRequirements = !(RequiredOptionalFragments.IsEmpty()
+				&& RequiredOptionalTags.IsEmpty()
+				&& RequiredOptionalChunkFragments.IsEmpty()
+				&& RequiredOptionalSharedFragments.IsEmpty()
+				&& RequiredOptionalConstSharedFragments.IsEmpty());
+
+		bPropertiesCached = true;
+	}
+}
+
 bool FMassFragmentRequirements::CheckValidity() const
 {
-	if (bValidityIsCached == false)
-	{
-		bAreRequirementsValid = RequiredAllFragments.IsEmpty() == false || RequiredAnyFragments.IsEmpty() == false
-			|| RequiredOptionalFragments.IsEmpty() == false	|| RequiredAllTags.IsEmpty() == false || RequiredAnyTags.IsEmpty() == false;
-		bValidityIsCached = true;
-	}
-	return bAreRequirementsValid;
+	CachePropreties();
+	// @todo we need to add more sophisticated testing somewhere to detect contradicting requirements - like having and not having a given tag.
+	return bHasPositiveRequirements || bHasNegativeRequirements || bHasOptionalRequirements;
 }
 
 bool FMassFragmentRequirements::IsEmpty() const
 {
-	if (bEmptynessIsCached == false)
-	{
-		bAreRequirementsEmpty = FragmentRequirements.IsEmpty() && ChunkFragmentRequirements.IsEmpty() && ConstSharedFragmentRequirements.IsEmpty()
-			&& SharedFragmentRequirements.IsEmpty() && RequiredAllTags.IsEmpty() && RequiredAnyTags.IsEmpty() && RequiredNoneTags.IsEmpty();
-		bEmptynessIsCached = true;
-	}
+	CachePropreties();
+	// note that even though at the moment the following condition is the same as negation of current CheckValidity value
+	// that will change in the future (with additional validity checks).
+	return !bHasPositiveRequirements && !bHasNegativeRequirements && !bHasOptionalRequirements;
+}
 
-	return bAreRequirementsEmpty;
+bool FMassFragmentRequirements::DoesMatchAnyOptionals(const FMassArchetypeCompositionDescriptor& ArchetypeComposition) const
+{
+	return bHasOptionalRequirements
+		&& (ArchetypeComposition.Fragments.HasAny(RequiredOptionalFragments)
+			|| ArchetypeComposition.Tags.HasAny(RequiredOptionalTags)
+			|| ArchetypeComposition.ChunkFragments.HasAny(RequiredOptionalChunkFragments)
+			|| ArchetypeComposition.SharedFragments.HasAny(RequiredOptionalSharedFragments)
+			|| ArchetypeComposition.ConstSharedFragments.HasAny(RequiredOptionalConstSharedFragments));
 }
 
 bool FMassFragmentRequirements::DoesArchetypeMatchRequirements(const FMassArchetypeHandle& ArchetypeHandle) const
@@ -132,18 +162,35 @@ bool FMassFragmentRequirements::DoesArchetypeMatchRequirements(const FMassArchet
 	
 bool FMassFragmentRequirements::DoesArchetypeMatchRequirements(const FMassArchetypeCompositionDescriptor& ArchetypeComposition) const
 {
-	return ArchetypeComposition.Fragments.HasAll(RequiredAllFragments)
-		&& (RequiredAnyFragments.IsEmpty() || ArchetypeComposition.Fragments.HasAny(RequiredAnyFragments))
-		&& ArchetypeComposition.Fragments.HasNone(RequiredNoneFragments)
-		&& ArchetypeComposition.Tags.HasAll(RequiredAllTags)
-		&& (RequiredAnyTags.IsEmpty() || ArchetypeComposition.Tags.HasAny(RequiredAnyTags))
-		&& ArchetypeComposition.Tags.HasNone(RequiredNoneTags)
-		&& ArchetypeComposition.ChunkFragments.HasAll(RequiredAllChunkFragments)
-		&& ArchetypeComposition.ChunkFragments.HasNone(RequiredNoneChunkFragments)
-		&& ArchetypeComposition.SharedFragments.HasAll(RequiredAllSharedFragments)
-		&& ArchetypeComposition.SharedFragments.HasNone(RequiredNoneSharedFragments)
-		&& ArchetypeComposition.ConstSharedFragments.HasAll(RequiredAllConstSharedFragments)
-		&& ArchetypeComposition.ConstSharedFragments.HasNone(RequiredNoneConstSharedFragments);
+	CachePropreties();
+
+	const bool bPassNegativeFilter = bHasNegativeRequirements == false
+		|| (ArchetypeComposition.Fragments.HasNone(RequiredNoneFragments)
+			&& ArchetypeComposition.Tags.HasNone(RequiredNoneTags)
+			&& ArchetypeComposition.ChunkFragments.HasNone(RequiredNoneChunkFragments)
+			&& ArchetypeComposition.SharedFragments.HasNone(RequiredNoneSharedFragments)
+			&& ArchetypeComposition.ConstSharedFragments.HasNone(RequiredNoneConstSharedFragments));
+	
+	if (bPassNegativeFilter)
+	{
+		if (bHasPositiveRequirements)
+		{
+			return ArchetypeComposition.Fragments.HasAll(RequiredAllFragments)
+				&& (RequiredAnyFragments.IsEmpty() || ArchetypeComposition.Fragments.HasAny(RequiredAnyFragments))
+				&& ArchetypeComposition.Tags.HasAll(RequiredAllTags)
+				&& (RequiredAnyTags.IsEmpty() || ArchetypeComposition.Tags.HasAny(RequiredAnyTags))
+				&& ArchetypeComposition.ChunkFragments.HasAll(RequiredAllChunkFragments)
+				&& ArchetypeComposition.SharedFragments.HasAll(RequiredAllSharedFragments)
+				&& ArchetypeComposition.ConstSharedFragments.HasAll(RequiredAllConstSharedFragments);
+		}
+		else if (bHasOptionalRequirements)
+		{
+			return DoesMatchAnyOptionals(ArchetypeComposition);
+		}
+		// else - it's fine, we passed all the filters that have been set up
+		return true;
+	}
+	return false;
 }
 
 void FMassFragmentRequirements::ExportRequirements(FMassExecutionRequirements& OutRequirements) const
@@ -157,6 +204,7 @@ void FMassFragmentRequirements::ExportRequirements(FMassExecutionRequirements& O
 	OutRequirements.RequiredAllTags = RequiredAllTags;
 	OutRequirements.RequiredAnyTags = RequiredAnyTags;
 	OutRequirements.RequiredNoneTags = RequiredNoneTags;
+	// not exporting optional tags by design
 }
 
 void FMassFragmentRequirements::Reset()

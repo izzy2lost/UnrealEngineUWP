@@ -232,7 +232,7 @@ public:
 
 	void AddTagRequirement(const UScriptStruct& TagType, const EMassFragmentPresence Presence)
 	{
-		checkf(int(Presence) < int(EMassFragmentPresence::Optional), TEXT("Optional and MAX presence are not valid calues for AddTagRequirement"));
+		checkf(int(Presence) != int(EMassFragmentPresence::MAX), TEXT("MAX presence is not a valid value for AddTagRequirement"));
 		switch (Presence)
 		{
 		case EMassFragmentPresence::All:
@@ -244,6 +244,9 @@ public:
 		case EMassFragmentPresence::None:
 			RequiredNoneTags.Add(TagType);
 			break;
+		case EMassFragmentPresence::Optional:
+			RequiredOptionalTags.Add(TagType);
+			break;
 		}
 		IncrementChangeCounter();
 	}
@@ -251,7 +254,7 @@ public:
 	template<typename T>
 	FMassFragmentRequirements& AddTagRequirement(const EMassFragmentPresence Presence)
 	{
-		checkf(int(Presence) < int(EMassFragmentPresence::Optional), TEXT("Optional and MAX presence are not valid calues for AddTagRequirement"));
+		checkf(int(Presence) != int(EMassFragmentPresence::MAX), TEXT("MAX presence is not a valid value for AddTagRequirement"));
 		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived, "Given struct doesn't represent a valid tag type. Make sure to inherit from FMassFragment or one of its child-types.");
 		switch (Presence)
 		{
@@ -263,6 +266,9 @@ public:
 				break;
 			case EMassFragmentPresence::None:
 				RequiredNoneTags.Add<T>();
+				break;
+			case EMassFragmentPresence::Optional:
+				RequiredOptionalTags.Add<T>();
 				break;
 		}
 		IncrementChangeCounter();
@@ -307,7 +313,7 @@ public:
 	template<typename T>
 	FMassFragmentRequirements& AddConstSharedRequirement(const EMassFragmentPresence Presence = EMassFragmentPresence::All)
 	{
-		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived, "Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
+		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived, "Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
 		checkf(ConstSharedFragmentRequirements.FindByPredicate([](const FMassFragmentRequirementDescription& Item) { return Item.StructType == T::StaticStruct(); }) == nullptr
 			, TEXT("Duplicated requirements are not supported. %s already present"), *T::StaticStruct()->GetName());
 		checkf(Presence != EMassFragmentPresence::Any, TEXT("\'Any\' is not a valid Presence value for AddConstSharedRequirement."));
@@ -333,7 +339,7 @@ public:
 	FMassFragmentRequirements& AddConstSharedRequirement(const UScriptStruct* FragmentType, const EMassFragmentPresence Presence = EMassFragmentPresence::All)
 	{
 		if (!ensureMsgf(FragmentType->IsChildOf(FMassConstSharedFragment::StaticStruct())
-			, TEXT("Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.")))
+			, TEXT("Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.")))
 		{
 			return *this;
 		}
@@ -415,6 +421,7 @@ public:
 	const FMassTagBitSet& GetRequiredAllTags() const { return RequiredAllTags; }
 	const FMassTagBitSet& GetRequiredAnyTags() const { return RequiredAnyTags; }
 	const FMassTagBitSet& GetRequiredNoneTags() const { return RequiredNoneTags; }
+	const FMassTagBitSet& GetRequiredOptionalTags() const { return RequiredOptionalTags; }
 	const FMassChunkFragmentBitSet& GetRequiredAllChunkFragments() const { return RequiredAllChunkFragments; }
 	const FMassChunkFragmentBitSet& GetRequiredOptionalChunkFragments() const { return RequiredOptionalChunkFragments; }
 	const FMassChunkFragmentBitSet& GetRequiredNoneChunkFragments() const { return RequiredNoneChunkFragments; }
@@ -426,16 +433,25 @@ public:
 	const FMassConstSharedFragmentBitSet& GetRequiredNoneConstSharedFragments() const { return RequiredNoneConstSharedFragments; }
 
 	bool IsEmpty() const;
+	bool HasPositiveRequirements() const { return bHasPositiveRequirements; }
+	bool HasNegativeRequirements() const { return bHasNegativeRequirements; }
+	bool HasOptionalRequirements() const { return bHasOptionalRequirements; }
 
 	bool DoesArchetypeMatchRequirements(const FMassArchetypeHandle& ArchetypeHandle) const;
 	bool DoesArchetypeMatchRequirements(const FMassArchetypeCompositionDescriptor& ArchetypeComposition) const;
+	bool DoesMatchAnyOptionals(const FMassArchetypeCompositionDescriptor& ArchetypeComposition) const;
+
 	bool DoesRequireGameThreadExecution() const { return bRequiresGameThreadExecution; }
 	void ExportRequirements(FMassExecutionRequirements& OutRequirements) const;
 
 protected:
 	void SortRequirements();
 
-	FORCEINLINE void IncrementChangeCounter() { ++IncrementalChangesCount; }
+	FORCEINLINE void IncrementChangeCounter() 
+	{ 
+		++IncrementalChangesCount; 
+		bPropertiesCached = false;
+	}
 	void ConsumeIncrementalChangesCount() { IncrementalChangesCount = 0; }
 	bool HasIncrementalChanges() const{ return IncrementalChangesCount > 0; }
 
@@ -449,6 +465,11 @@ protected:
 	FMassTagBitSet RequiredAllTags;
 	FMassTagBitSet RequiredAnyTags;
 	FMassTagBitSet RequiredNoneTags;
+	/**
+	 * note that optional tags have meaning only if there are no other strict requirements, i.e. everything is optional,
+	 * so we're looking for anything matching any of the optionals (both tags as well as fragments).
+	 */
+	FMassTagBitSet RequiredOptionalTags;
 	FMassFragmentBitSet RequiredAllFragments;
 	FMassFragmentBitSet RequiredAnyFragments;
 	FMassFragmentBitSet RequiredOptionalFragments;
@@ -464,10 +485,17 @@ protected:
 	FMassConstSharedFragmentBitSet RequiredNoneConstSharedFragments;
 
 private:
-	mutable uint16 bValidityIsCached : 1 = false;
-	mutable uint16 bAreRequirementsValid : 1 = false;
-	mutable uint16 bEmptynessIsCached : 1 = false;
-	mutable uint16 bAreRequirementsEmpty: 1 = false;
+	FORCEINLINE void CachePropreties() const;
+	mutable uint16 bPropertiesCached : 1 = false;
+	mutable uint16 bHasPositiveRequirements : 1 = false;
+	mutable uint16 bHasNegativeRequirements : 1 = false;
+	/** 
+	 * Indicates that the requirements specify only optional elements, which means any composition having any one of 
+	 * the optional elements will be accepted. Note that RequiredNone* requirements are handled separately and if specified 
+	 * still need to be satisfied.
+	 */
+	//mutable uint16 bOptionalsOnly : 1 = false;
+	mutable uint16 bHasOptionalRequirements : 1 = false;
 
 	uint16 IncrementalChangesCount = 0;
 
@@ -496,6 +524,15 @@ template<>
 FORCEINLINE FMassFragmentRequirements& FMassFragmentRequirements::AddTagRequirements<EMassFragmentPresence::None>(const FMassTagBitSet& TagBitSet)
 {
 	RequiredNoneTags += TagBitSet;
+	// force recaching the next time this query is used or the following CacheArchetypes call.
+	IncrementChangeCounter();
+	return *this;
+}
+
+template<>
+FORCEINLINE FMassFragmentRequirements& FMassFragmentRequirements::AddTagRequirements<EMassFragmentPresence::Optional>(const FMassTagBitSet& TagBitSet)
+{
+	RequiredOptionalTags += TagBitSet;
 	// force recaching the next time this query is used or the following CacheArchetypes call.
 	IncrementChangeCounter();
 	return *this;

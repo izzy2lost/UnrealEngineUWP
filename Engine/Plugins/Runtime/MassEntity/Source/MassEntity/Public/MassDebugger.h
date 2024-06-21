@@ -65,6 +65,7 @@ namespace UE::Mass::Debug
 		const FMassTagBitSet& RequiredAllTags;
 		const FMassTagBitSet& RequiredAnyTags;
 		const FMassTagBitSet& RequiredNoneTags;
+		const FMassTagBitSet& RequiredOptionalTags;
 		const FMassExternalSubsystemBitSet& RequiredConstSubsystems;
 		const FMassExternalSubsystemBitSet& RequiredMutableSubsystems;
 	};

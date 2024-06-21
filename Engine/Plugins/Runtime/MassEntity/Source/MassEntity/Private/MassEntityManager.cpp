@@ -1735,75 +1735,19 @@ void FMassEntityManager::CheckIfEntityIsActive(FMassEntityHandle Entity) const
 
 void FMassEntityManager::GetMatchingArchetypes(const FMassFragmentRequirements& Requirements, TArray<FMassArchetypeHandle>& OutValidArchetypes, const uint32 FromArchetypeDataVersion) const
 {
-	//@TODO: Not optimized yet, but we call this rarely now, so not a big deal.
-
-	// First get set of all archetypes that contain *any* fragment
-	TSet<TSharedPtr<FMassArchetypeData>> AnyArchetypes;
-	TConstArrayView<FMassFragmentRequirementDescription> FragmentRequirements = Requirements.GetFragmentRequirements();
-
-	// We need to find out if the query does indeed strictly require any fragments to be there - it's for example 
-	// possible to build a query consisting of only optional fragment requirements. In that case we need to test for 
-	// tags as well, independently of fragments, because none of the fragments might be there and we still need to 
-	// respect the tags.
-	// A practical example would be a query asking for all entities that have a given fragment OR a given tag.
-	bool bHasHardFragmentdRequirements = false;
-
-	if (!FragmentRequirements.IsEmpty())
+	for (int32 ArchetypeIndex = FromArchetypeDataVersion; ArchetypeIndex < AllArchetypes.Num(); ++ArchetypeIndex)
 	{
-		for (const FMassFragmentRequirementDescription& Requirement : FragmentRequirements)
-		{
-			check(Requirement.StructType);
-			if (Requirement.Presence != EMassFragmentPresence::None)
-			{
-				if (const TArray<TSharedPtr<FMassArchetypeData>>* pData = FragmentTypeToArchetypeMap.Find(Requirement.StructType))
-				{
-					AnyArchetypes.Append(*pData);
-					// only Any and All count as a "hard requirement" since other modes don't strictly require a fragment to be there
-					bHasHardFragmentdRequirements = bHasHardFragmentdRequirements
-						|| Requirement.Presence == EMassFragmentPresence::All
-						|| Requirement.Presence == EMassFragmentPresence::Any;
-				}
-			}
-		}
-	}
-	
-	// If the query does not have any hard requirements for fragments, but has tag requirements.
-	// We need to search all archetypes, because we don't have a Tag->Archetype Map (and we don't want to create one 
-	// just for this one edge case) so we need to go through all archetypes and match tags. On the bright side,
-	// we can ignore all archetypes with data version < FromArchetypeDataVersion
-	// Note that we collect all archetypes even remotely matching to let the regular process below to filter out
-	// the failing archetypes while justifying the reasons. 
-	if (bHasHardFragmentdRequirements == false
-		&& (Requirements.GetRequiredAllTags().IsEmpty() == false || Requirements.GetRequiredAnyTags().IsEmpty() == false))
-	{
-		const FMassTagBitSet RoughTagFilter = Requirements.GetRequiredAllTags() | Requirements.GetRequiredAnyTags();
-		for (int32 ArchetypeIndex = FromArchetypeDataVersion; ArchetypeIndex < AllArchetypes.Num(); ++ArchetypeIndex)
-		{
-			const TSharedPtr<FMassArchetypeData>& ArchetypeData = AllArchetypes[ArchetypeIndex];
-			if (ArchetypeData.IsValid())
-			{
-				if (ArchetypeData->GetTagBitSet().HasAny(RoughTagFilter))
-				{
-					AnyArchetypes.Add(ArchetypeData);
-				}
-			}
-		}
-	}
+		checkf(AllArchetypes[ArchetypeIndex].IsValid(), TEXT("We never expect to get any invalid shared ptrs in AllArchetypes"));
 
-	// Then verify that they contain *all* required fragments
-	for (TSharedPtr<FMassArchetypeData>& ArchetypePtr : AnyArchetypes)
-	{
-		FMassArchetypeData& Archetype = *(ArchetypePtr.Get());
+		FMassArchetypeData& Archetype = *(AllArchetypes[ArchetypeIndex].Get());
 
 		// Only return archetypes with a newer created version than the specified version, this is for incremental query updates
-		if (Archetype.GetCreatedArchetypeDataVersion() <= FromArchetypeDataVersion)
-		{
-			continue;
-		}
+		ensureMsgf(Archetype.GetCreatedArchetypeDataVersion() > FromArchetypeDataVersion
+			, TEXT("There's a stron assumption that archetype's data version corresponds to its index in AllArchetypes"));
 
 		if (Requirements.DoesArchetypeMatchRequirements(Archetype.GetCompositionDescriptor()))
 		{
-			OutValidArchetypes.Add(ArchetypePtr);
+			OutValidArchetypes.Add(AllArchetypes[ArchetypeIndex]);
 		}
 #if WITH_MASSENTITY_DEBUG
 		else

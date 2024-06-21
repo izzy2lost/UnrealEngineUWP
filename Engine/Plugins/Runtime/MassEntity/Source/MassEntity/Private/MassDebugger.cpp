@@ -401,7 +401,7 @@ TConstArrayView<FMassEntityQuery*> FMassDebugger::GetUpToDateProcessorQueries(co
 UE::Mass::Debug::FQueryRequirementsView FMassDebugger::GetQueryRequirements(const FMassEntityQuery& Query)
 {
 	UE::Mass::Debug::FQueryRequirementsView View = { Query.FragmentRequirements, Query.ChunkFragmentRequirements, Query.ConstSharedFragmentRequirements, Query.SharedFragmentRequirements
-		, Query.RequiredAllTags, Query.RequiredAnyTags, Query.RequiredNoneTags
+		, Query.RequiredAllTags, Query.RequiredAnyTags, Query.RequiredNoneTags, Query.RequiredOptionalTags
 		, Query.RequiredConstSubsystems, Query.RequiredMutableSubsystems };
 
 	return View;
@@ -499,60 +499,107 @@ FString FMassDebugger::GetArchetypeRequirementCompatibilityDescription(const FMa
 {
 	FStringOutputDevice OutDescription;
 
-	if (ArchetypeComposition.Fragments.HasAll(Requirements.RequiredAllFragments) == false)
+	if (Requirements.HasNegativeRequirements())
 	{
-		// missing one of the strictly required fragments
-		OutDescription += TEXT("\nMissing required fragments: ");
-		(Requirements.RequiredAllFragments - ArchetypeComposition.Fragments).DebugGetStringDesc(OutDescription);
+		if (ArchetypeComposition.Fragments.HasNone(Requirements.RequiredNoneFragments) == false)
+		{
+			// has some of the fragments required absent
+			OutDescription += TEXT("\nHas fragments required absent: ");
+			(Requirements.RequiredNoneFragments & ArchetypeComposition.Fragments).DebugGetStringDesc(OutDescription);
+		}
+
+		if (ArchetypeComposition.Tags.HasNone(Requirements.RequiredNoneTags) == false)
+		{
+			// has some of the tags required absent
+			OutDescription += TEXT("\nHas tags required absent: ");
+			(Requirements.RequiredNoneTags & ArchetypeComposition.Tags).DebugGetStringDesc(OutDescription);
+		}
+
+		if (ArchetypeComposition.ChunkFragments.HasNone(Requirements.RequiredNoneChunkFragments) == false)
+		{
+			// has some of the chunk fragments required absent
+			OutDescription += TEXT("\nHas chunk fragments required absent: ");
+			(Requirements.RequiredNoneChunkFragments & ArchetypeComposition.ChunkFragments).DebugGetStringDesc(OutDescription);
+		}
+
+		if (ArchetypeComposition.SharedFragments.HasNone(Requirements.RequiredNoneSharedFragments) == false)
+		{
+			// has some of the chunk fragments required absent
+			OutDescription += TEXT("\nHas shared fragments required absent: ");
+			(Requirements.RequiredNoneSharedFragments & ArchetypeComposition.SharedFragments).DebugGetStringDesc(OutDescription);
+		}
+
+		if (ArchetypeComposition.ConstSharedFragments.HasNone(Requirements.RequiredNoneConstSharedFragments) == false)
+		{
+			// has some of the chunk fragments required absent
+			OutDescription += TEXT("\nHas shared fragments required absent: ");
+			(Requirements.RequiredNoneConstSharedFragments & ArchetypeComposition.ConstSharedFragments).DebugGetStringDesc(OutDescription);
+		}
 	}
 
-	if (Requirements.RequiredAnyFragments.IsEmpty() == false && ArchetypeComposition.Fragments.HasAny(Requirements.RequiredAnyFragments) == false)
+	// if we have regular (i.e. non-optional) positive requirements then these are the determining factor, we don't check optionals
+	if (Requirements.HasPositiveRequirements())
 	{
-		// missing all of the "any" fragments
-		OutDescription += TEXT("\nMissing all \'any\' fragments: ");
-		Requirements.RequiredAnyFragments.DebugGetStringDesc(OutDescription);
-	}
+		if (ArchetypeComposition.Fragments.HasAll(Requirements.RequiredAllFragments) == false)
+		{
+			// missing one of the strictly required fragments
+			OutDescription += TEXT("\nMissing required fragments: ");
+			(Requirements.RequiredAllFragments - ArchetypeComposition.Fragments).DebugGetStringDesc(OutDescription);
+		}
 
-	if (ArchetypeComposition.Fragments.HasNone(Requirements.RequiredNoneFragments) == false)
-	{
-		// has some of the fragments required absent
-		OutDescription += TEXT("\nHas fragments required absent: ");
-		Requirements.RequiredNoneFragments.DebugGetStringDesc(OutDescription);
-	}
+		if (Requirements.RequiredAnyFragments.IsEmpty() == false && ArchetypeComposition.Fragments.HasAny(Requirements.RequiredAnyFragments) == false)
+		{
+			// missing all of the "any" fragments
+			OutDescription += TEXT("\nMissing all \'any\' fragments: ");
+			Requirements.RequiredAnyFragments.DebugGetStringDesc(OutDescription);
+		}
 
-	if (ArchetypeComposition.Tags.HasAll(Requirements.RequiredAllTags) == false)
-	{
-		// missing one of the strictly required tags
-		OutDescription += TEXT("\nMissing required tags: ");
-		(Requirements.RequiredAllTags - ArchetypeComposition.Tags).DebugGetStringDesc(OutDescription);
-	}
+		if (ArchetypeComposition.Tags.HasAll(Requirements.RequiredAllTags) == false)
+		{
+			// missing one of the strictly required tags
+			OutDescription += TEXT("\nMissing required tags: ");
+			(Requirements.RequiredAllTags - ArchetypeComposition.Tags).DebugGetStringDesc(OutDescription);
+		}
 
-	if (Requirements.RequiredAnyTags.IsEmpty() == false && ArchetypeComposition.Tags.HasAny(Requirements.RequiredAnyTags) == false)
-	{
-		// missing all of the "any" tags
-		OutDescription += TEXT("\nMissing all \'any\' tags: ");
-		Requirements.RequiredAnyTags.DebugGetStringDesc(OutDescription);
-	}
+		if (Requirements.RequiredAnyTags.IsEmpty() == false && ArchetypeComposition.Tags.HasAny(Requirements.RequiredAnyTags) == false)
+		{
+			// missing all of the "any" tags
+			OutDescription += TEXT("\nMissing all \'any\' tags: ");
+			Requirements.RequiredAnyTags.DebugGetStringDesc(OutDescription);
+		}
 
-	if (ArchetypeComposition.Tags.HasNone(Requirements.RequiredNoneTags) == false)
-	{
-		// has some of the tags required absent
-		OutDescription += TEXT("\nHas tags required absent: ");
-		Requirements.RequiredNoneTags.DebugGetStringDesc(OutDescription);
-	}
+		if (ArchetypeComposition.ChunkFragments.HasAll(Requirements.RequiredAllChunkFragments) == false)
+		{
+			// missing one of the strictly required chunk fragments
+			OutDescription += TEXT("\nMissing required chunk fragments: ");
+			(Requirements.RequiredAllChunkFragments - ArchetypeComposition.ChunkFragments).DebugGetStringDesc(OutDescription);
+		}
 
-	if (ArchetypeComposition.ChunkFragments.HasAll(Requirements.RequiredAllChunkFragments) == false)
-	{
-		// missing one of the strictly required chunk fragments
-		OutDescription += TEXT("\nMissing required chunk fragments: ");
-		(Requirements.RequiredAllChunkFragments - ArchetypeComposition.ChunkFragments).DebugGetStringDesc(OutDescription);
-	}
+		if (ArchetypeComposition.SharedFragments.HasAll(Requirements.RequiredAllSharedFragments) == false)
+		{
+			// missing one of the strictly required Shared fragments
+			OutDescription += TEXT("\nMissing required Shared fragments: ");
+			(Requirements.RequiredAllSharedFragments - ArchetypeComposition.SharedFragments).DebugGetStringDesc(OutDescription);
+		}
 
-	if (ArchetypeComposition.ChunkFragments.HasNone(Requirements.RequiredNoneChunkFragments) == false)
+		if (ArchetypeComposition.ConstSharedFragments.HasAll(Requirements.RequiredAllConstSharedFragments) == false)
+		{
+			// missing one of the strictly required Shared fragments
+			OutDescription += TEXT("\nMissing required Shared fragments: ");
+			(Requirements.RequiredAllConstSharedFragments - ArchetypeComposition.ConstSharedFragments).DebugGetStringDesc(OutDescription);
+		}
+	}
+	// else we check if there are any optionals and if so test them
+	else if (Requirements.HasOptionalRequirements() && (Requirements.DoesMatchAnyOptionals(ArchetypeComposition) == false))
 	{
-		// has some of the chunk fragments required absent
-		OutDescription += TEXT("\nHas chunk fragments required absent: ");
-		Requirements.RequiredNoneChunkFragments.DebugGetStringDesc(OutDescription);
+		// we report that none of the optionals has been met
+		OutDescription += TEXT("\nNone of the optionals were safisfied while not having other positive hard requirements: ");
+
+		Requirements.RequiredOptionalTags.DebugGetStringDesc(OutDescription);
+		Requirements.RequiredOptionalFragments.DebugGetStringDesc(OutDescription);
+		Requirements.RequiredOptionalChunkFragments.DebugGetStringDesc(OutDescription);
+		Requirements.RequiredOptionalSharedFragments.DebugGetStringDesc(OutDescription);
+		Requirements.RequiredOptionalConstSharedFragments.DebugGetStringDesc(OutDescription);
 	}
 
 	return OutDescription.Len() > 0 ? static_cast<FString>(OutDescription) : TEXT("Match");

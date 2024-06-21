@@ -4,6 +4,7 @@
 #include "MassEntityTypes.h"
 #include "MassExecutionContext.h"
 #include "MassEntitySettings.h"
+#include "MassDebugger.h"
 #include "Misc/StringBuilder.h"
 
 
@@ -1335,192 +1336,226 @@ bool FMassArchetypeHelper::DoesArchetypeMatchRequirements(const FMassArchetypeCo
 bool FMassArchetypeHelper::DoesArchetypeMatchRequirements(const FMassArchetypeData& Archetype, const FMassFragmentRequirements& Requirements
 	, const bool bBailOutOnFirstFail, FOutputDevice* OutputDevice)
 {
-	if (OutputDevice == nullptr)
+	if (DoesArchetypeMatchRequirements(Archetype.GetCompositionDescriptor(), Requirements))
 	{
-		return DoesArchetypeMatchRequirements(Archetype.GetCompositionDescriptor(), Requirements);
+		// nothing to log
+		return true;
+	}
+	
+	if (OutputDevice)
+	{
+		// do logging
+		OutputDevice->Logf(TEXT("% s")
+			, *FMassDebugger::GetArchetypeRequirementCompatibilityDescription(Requirements, Archetype.GetCompositionDescriptor()));
 	}
 
-	bool bResult = true;
-	if (Archetype.GetTagBitSet().HasAll(Requirements.GetRequiredAllTags()) == false)
-	{
-		// missing some required tags, skip.
-		const FMassTagBitSet UnsatisfiedTags = Requirements.GetRequiredAllTags() - Archetype.GetTagBitSet();
-		FStringOutputDevice Description;
-		UnsatisfiedTags.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype did not match due to missing tags: %s"), *Description);
-		
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	return false;
 
-	if (Archetype.GetTagBitSet().HasNone(Requirements.GetRequiredNoneTags()) == false)
-	{
-		// has some tags required to be absent
-		const FMassTagBitSet UnwantedTags = Requirements.GetRequiredNoneTags().GetOverlap(Archetype.GetTagBitSet());
-		FStringOutputDevice Description;
-		UnwantedTags.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype has tags required absent: %s"), *Description);
+	//bool bResult = true;
+	//if (Requirements.IsOptionalsOnly() == false)
+	//{
+	//	if (Archetype.GetTagBitSet().HasAll(Requirements.GetRequiredAllTags()) == false)
+	//	{
+	//		// missing some required tags, skip.
+	//		const FMassTagBitSet UnsatisfiedTags = Requirements.GetRequiredAllTags() - Archetype.GetTagBitSet();
+	//		FStringOutputDevice Description;
+	//		UnsatisfiedTags.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype did not match due to missing tags: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Requirements.GetRequiredAnyTags().IsEmpty() == false
-		&& Archetype.GetTagBitSet().HasAny(Requirements.GetRequiredAnyTags()) == false)
-	{
-		FStringOutputDevice Description;
-		Requirements.GetRequiredAnyTags().DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype did not match due to missing \'any\' tags: %s"), *Description);
+	//	if (Archetype.GetTagBitSet().HasNone(Requirements.GetRequiredNoneTags()) == false)
+	//	{
+	//		// has some tags required to be absent
+	//		const FMassTagBitSet UnwantedTags = Requirements.GetRequiredNoneTags().GetOverlap(Archetype.GetTagBitSet());
+	//		FStringOutputDevice Description;
+	//		UnwantedTags.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype has tags required absent: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Archetype.GetFragmentBitSet().HasAll(Requirements.GetRequiredAllFragments()) == false)
-	{
-		// missing some required fragments, skip.
-		const FMassFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllFragments() - Archetype.GetFragmentBitSet();
-		FStringOutputDevice Description;
-		UnsatisfiedFragments.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype did not match due to missing Fragments: %s"), *Description);
+	//	if (Requirements.GetRequiredAnyTags().IsEmpty() == false
+	//		&& Archetype.GetTagBitSet().HasAny(Requirements.GetRequiredAnyTags()) == false)
+	//	{
+	//		FStringOutputDevice Description;
+	//		Requirements.GetRequiredAnyTags().DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype did not match due to missing \'any\' tags: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Archetype.GetFragmentBitSet().HasNone(Requirements.GetRequiredNoneFragments()) == false)
-	{
-		// has some Fragments required to be absent
-		const FMassFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneFragments().GetOverlap(Archetype.GetFragmentBitSet());
-		FStringOutputDevice Description;
-		UnwantedFragments.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype has Fragments required absent: %s"), *Description);
+	//	if (Archetype.GetFragmentBitSet().HasAll(Requirements.GetRequiredAllFragments()) == false)
+	//	{
+	//		// missing some required fragments, skip.
+	//		const FMassFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllFragments() - Archetype.GetFragmentBitSet();
+	//		FStringOutputDevice Description;
+	//		UnsatisfiedFragments.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype did not match due to missing Fragments: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Requirements.GetRequiredAnyFragments().IsEmpty() == false
-		&& Archetype.GetFragmentBitSet().HasAny(Requirements.GetRequiredAnyFragments()) == false)
-	{
-		FStringOutputDevice Description;
-		Requirements.GetRequiredAnyFragments().DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype did not match due to missing \'any\' fragments: %s"), *Description);
+	//	if (Archetype.GetFragmentBitSet().HasNone(Requirements.GetRequiredNoneFragments()) == false)
+	//	{
+	//		// has some Fragments required to be absent
+	//		const FMassFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneFragments().GetOverlap(Archetype.GetFragmentBitSet());
+	//		FStringOutputDevice Description;
+	//		UnwantedFragments.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype has Fragments required absent: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Archetype.GetChunkFragmentBitSet().HasAll(Requirements.GetRequiredAllChunkFragments()) == false)
-	{
-		// missing some required fragments, skip.
-		const FMassChunkFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllChunkFragments() - Archetype.GetChunkFragmentBitSet();
-		FStringOutputDevice Description;
-		UnsatisfiedFragments.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype did not match due to missing Chunk Fragments: %s"), *Description);
+	//	if (Requirements.GetRequiredAnyFragments().IsEmpty() == false
+	//		&& Archetype.GetFragmentBitSet().HasAny(Requirements.GetRequiredAnyFragments()) == false)
+	//	{
+	//		FStringOutputDevice Description;
+	//		Requirements.GetRequiredAnyFragments().DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype did not match due to missing \'any\' fragments: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Archetype.GetChunkFragmentBitSet().HasNone(Requirements.GetRequiredNoneChunkFragments()) == false)
-	{
-		// has some Fragments required to be absent
-		const FMassChunkFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneChunkFragments().GetOverlap(Archetype.GetChunkFragmentBitSet());
-		FStringOutputDevice Description;
-		UnwantedFragments.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype has Chunk Fragments required absent: %s"), *Description);
+	//	if (Archetype.GetChunkFragmentBitSet().HasAll(Requirements.GetRequiredAllChunkFragments()) == false)
+	//	{
+	//		// missing some required fragments, skip.
+	//		const FMassChunkFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllChunkFragments() - Archetype.GetChunkFragmentBitSet();
+	//		FStringOutputDevice Description;
+	//		UnsatisfiedFragments.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype did not match due to missing Chunk Fragments: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Archetype.GetSharedFragmentBitSet().HasAll(Requirements.GetRequiredAllSharedFragments()) == false)
-	{
-		// missing some required fragments, skip.
-		const FMassSharedFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllSharedFragments() - Archetype.GetSharedFragmentBitSet();
-		FStringOutputDevice Description;
-		UnsatisfiedFragments.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype did not match due to missing Shared Fragments: %s"), *Description);
+	//	if (Archetype.GetChunkFragmentBitSet().HasNone(Requirements.GetRequiredNoneChunkFragments()) == false)
+	//	{
+	//		// has some Fragments required to be absent
+	//		const FMassChunkFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneChunkFragments().GetOverlap(Archetype.GetChunkFragmentBitSet());
+	//		FStringOutputDevice Description;
+	//		UnwantedFragments.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype has Chunk Fragments required absent: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Archetype.GetSharedFragmentBitSet().HasNone(Requirements.GetRequiredNoneSharedFragments()) == false)
-	{
-		// has some Fragments required to be absent
-		const FMassSharedFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneSharedFragments().GetOverlap(Archetype.GetSharedFragmentBitSet());
-		FStringOutputDevice Description;
-		UnwantedFragments.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype has Shared Fragments required absent: %s"), *Description);
+	//	if (Archetype.GetSharedFragmentBitSet().HasAll(Requirements.GetRequiredAllSharedFragments()) == false)
+	//	{
+	//		// missing some required fragments, skip.
+	//		const FMassSharedFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllSharedFragments() - Archetype.GetSharedFragmentBitSet();
+	//		FStringOutputDevice Description;
+	//		UnsatisfiedFragments.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype did not match due to missing Shared Fragments: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Archetype.GetConstSharedFragmentBitSet().HasAll(Requirements.GetRequiredAllConstSharedFragments()) == false)
-	{
-		// missing some required fragments, skip.
-		const FMassConstSharedFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllConstSharedFragments() - Archetype.GetConstSharedFragmentBitSet();
-		FStringOutputDevice Description;
-		UnsatisfiedFragments.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype did not match due to missing Const Shared Fragments: %s"), *Description);
+	//	if (Archetype.GetSharedFragmentBitSet().HasNone(Requirements.GetRequiredNoneSharedFragments()) == false)
+	//	{
+	//		// has some Fragments required to be absent
+	//		const FMassSharedFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneSharedFragments().GetOverlap(Archetype.GetSharedFragmentBitSet());
+	//		FStringOutputDevice Description;
+	//		UnwantedFragments.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype has Shared Fragments required absent: %s"), *Description);
 
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	if (Archetype.GetConstSharedFragmentBitSet().HasNone(Requirements.GetRequiredNoneConstSharedFragments()) == false)
-	{
-		// has some Fragments required to be absent
-		const FMassConstSharedFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneConstSharedFragments().GetOverlap(Archetype.GetConstSharedFragmentBitSet());
-		FStringOutputDevice Description;
-		UnwantedFragments.DebugGetStringDesc(Description);
-		OutputDevice->Logf(TEXT("Archetype has Const Shared Fragments required absent: %s"), *Description);
+	//	if (Archetype.GetConstSharedFragmentBitSet().HasAll(Requirements.GetRequiredAllConstSharedFragments()) == false)
+	//	{
+	//		// missing some required fragments, skip.
+	//		const FMassConstSharedFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllConstSharedFragments() - Archetype.GetConstSharedFragmentBitSet();
+	//		FStringOutputDevice Description;
+	//		UnsatisfiedFragments.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype did not match due to missing Const Shared Fragments: %s"), *Description);
 
-		// could skip the test as it's the final check we're performing, but leaving it in in case more cases are added
-		// later without checking the existing code
-		bResult = false;
-		if (bBailOutOnFirstFail)
-		{
-			return false;
-		}
-	}
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
 
-	return bResult;
+	//	if (Archetype.GetConstSharedFragmentBitSet().HasNone(Requirements.GetRequiredNoneConstSharedFragments()) == false)
+	//	{
+	//		// has some Fragments required to be absent
+	//		const FMassConstSharedFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneConstSharedFragments().GetOverlap(Archetype.GetConstSharedFragmentBitSet());
+	//		FStringOutputDevice Description;
+	//		UnwantedFragments.DebugGetStringDesc(Description);
+	//		OutputDevice->Logf(TEXT("Archetype has Const Shared Fragments required absent: %s"), *Description);
+
+	//		// could skip the test as it's the final check we're performing, but leaving it in in case more cases are added
+	//		// later without checking the existing code
+	//		bResult = false;
+	//		if (bBailOutOnFirstFail)
+	//		{
+	//			return false;
+	//		}
+	//	}
+	//}
+	//else
+	//{
+	//	// test if contains any of the optional elements
+	//	if (Archetype.GetFragmentBitSet().HasNone(Requirements.GetRequiredOptionalFragments())
+	//		&& Archetype.GetTagBitSet().HasNone(Requirements.GetRequiredOptionalTags())
+	//		&& Archetype.GetChunkFragmentBitSet().HasNone(Requirements.GetRequiredOptionalChunkFragments())
+	//		&& Archetype.GetSharedFragmentBitSet().HasNone(Requirements.GetRequiredOptionalSharedFragments())
+	//		&& Archetype.GetConstSharedFragmentBitSet().HasNone(Requirements.GetRequiredOptionalConstSharedFragments()))
+	//	{
+	//		FStringOutputDevice Description;
+	//		Requirements.GetRequiredOptionalFragments().DebugGetStringDesc(Description);
+	//		Requirements.GetRequiredOptionalTags().DebugGetStringDesc(Description);
+	//		Requirements.GetRequiredOptionalChunkFragments().DebugGetStringDesc(Description);
+	//		Requirements.GetRequiredOptionalSharedFragments().DebugGetStringDesc(Description);
+	//		Requirements.GetRequiredOptionalConstSharedFragments().DebugGetStringDesc(Description);
+	//		
+	//		OutputDevice->Logf(TEXT("Archetype has none of the optional elements: %s"), *Description);
+
+	//		bResult = false;
+	//	}
+	//}
+
+	//return bResult;
 }
 #endif // WITH_MASSENTITY_DEBUG

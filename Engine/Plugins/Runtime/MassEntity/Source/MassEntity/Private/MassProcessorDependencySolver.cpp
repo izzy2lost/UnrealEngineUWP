@@ -56,6 +56,7 @@ void FMassExecutionRequirements::Append(const FMassExecutionRequirements& Other)
 	RequiredAllTags += Other.RequiredAllTags;
 	RequiredAnyTags += Other.RequiredAnyTags;
 	RequiredNoneTags += Other.RequiredNoneTags;
+	// note that we're deliberately ignoring optional tags, they play no role here.
 
 	// signal that it requires recalculation;
 	ResourcesUsedCount = INDEX_NONE;
