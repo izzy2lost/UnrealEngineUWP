@@ -52,7 +52,25 @@ struct FRegisterIndex
 
 	// Unsigned, but must be less than INT32_MAX
 	uint32 Index;
+
+	friend bool operator==(FRegisterIndex Left, FRegisterIndex Right)
+	{
+		return Left.Index == Right.Index;
+	}
+
+	friend bool operator!=(FRegisterIndex Left, FRegisterIndex Right)
+	{
+		return Left.Index != Right.Index;
+	}
 };
+
+template <>
+void Visit(FAbstractVisitor&, FRegisterIndex&, const TCHAR* ElementName);
+
+template <>
+inline void Visit(FMarkStackVisitor& Visitor, const FRegisterIndex& Value, FMarkStackVisitor::ConsumeElementName ElementName)
+{
+}
 
 struct FConstantIndex
 {
@@ -136,6 +154,29 @@ void Visit(FAbstractVisitor&, FOpLocation&, const TCHAR* ElementName);
 template <>
 inline void Visit(FMarkStackVisitor&, const FOpLocation&, FMarkStackVisitor::ConsumeElementName)
 {
+}
+
+// Mapping from register index to name.  VProcedures holds an array of such mappings.
+struct FRegisterName
+{
+	FRegisterName(FRegisterIndex InIndex, FAccessContext InContext, VUniqueString& InName)
+		: Index(InIndex)
+		, Name(InContext, InName)
+	{
+	}
+
+	FRegisterIndex Index;
+	TWriteBarrier<VUniqueString> Name;
+};
+
+template <>
+void Visit(FAbstractVisitor&, FRegisterName&, const TCHAR* ElementName);
+
+template <>
+inline void Visit(FMarkStackVisitor& Visitor, const FRegisterName& Value, FMarkStackVisitor::ConsumeElementName)
+{
+	Visit(Visitor, Value.Index, TEXT(""));
+	Visit(Visitor, Value.Name, TEXT(""));
 }
 } // namespace Verse
 #endif // WITH_VERSE_VM

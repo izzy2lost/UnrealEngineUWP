@@ -25,11 +25,26 @@ const char* Verse::ToString(Verse::EOpcode Opcode)
 }
 
 template <>
+void Verse::Visit(FAbstractVisitor& Visitor, FRegisterIndex& Value, const TCHAR* ElementName)
+{
+	Visitor.Visit(Value.Index, ElementName);
+}
+
+template <>
 void Verse::Visit(FAbstractVisitor& Visitor, FOpLocation& Value, const TCHAR* ElementName)
 {
 	Visitor.BeginObject(ElementName);
 	Visitor.Visit(Value.Begin, TEXT("Begin"));
 	Visit(Visitor, Value.Location, TEXT("Location"));
+	Visitor.EndObject();
+}
+
+template <>
+void Verse::Visit(FAbstractVisitor& Visitor, FRegisterName& Value, const TCHAR* ElementName)
+{
+	Visitor.BeginObject(ElementName);
+	Visit(Visitor, Value.Index, TEXT("Index"));
+	Visit(Visitor, Value.Name, TEXT("Name"));
 	Visitor.EndObject();
 }
 

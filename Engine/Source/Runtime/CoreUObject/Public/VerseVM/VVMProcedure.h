@@ -42,6 +42,10 @@ FOpLocation                    OpLocation[0]
 FOpLocation                    OpLocation[1]
 ...
 FOpLocation                    OpLocation[NumOpLocations - 1]
+FRegisterName                  RegisterName[0]
+FRegisterName                  RegisterName[1]
+...
+FRegisterName                  RegisterName[NumRegisterNames - 1]
 */
 struct VProcedure : VCell
 {
@@ -61,6 +65,7 @@ struct VProcedure : VCell
 	uint32 NumLabels;
 	uint32 NumUnwindEdges;
 	uint32 NumOpLocations;
+	uint32 NumRegisterNames;
 
 	TWriteBarrier<VCell> Trailing[];
 
@@ -86,6 +91,9 @@ struct VProcedure : VCell
 
 	FOpLocation* GetOpLocationsBegin() { return BitCast<FOpLocation*>(GetUnwindEdgesEnd()); }
 	FOpLocation* GetOpLocationsEnd() { return GetOpLocationsBegin() + NumOpLocations; }
+
+	FRegisterName* GetRegisterNamesBegin() { return BitCast<FRegisterName*>(GetOpLocationsEnd()); }
+	FRegisterName* GetRegisterNamesEnd() { return GetRegisterNamesBegin() + NumRegisterNames; }
 
 	// In bytes.
 	uint32 BytecodeOffset(const FOp& Bytecode)
@@ -154,7 +162,8 @@ struct VProcedure : VCell
 		uint32 NumOperands,
 		uint32 NumLabels,
 		uint32 NumUnwindEdges,
-		uint32 NumOpLocations)
+		uint32 NumOpLocations,
+		uint32 NumRegisterNames)
 	{
 		const size_t NumBytes = offsetof(VProcedure, Trailing)
 							  + sizeof(TWriteBarrier<VUniqueString>) * NumNamedParameters
@@ -163,7 +172,8 @@ struct VProcedure : VCell
 							  + sizeof(FValueOperand) * NumOperands
 							  + sizeof(FLabelOffset) * NumLabels
 							  + sizeof(FUnwindEdge) * NumUnwindEdges
-							  + sizeof(FOpLocation) * NumOpLocations;
+							  + sizeof(FOpLocation) * NumOpLocations
+							  + sizeof(FRegisterName) * NumRegisterNames;
 		return *new (Context.AllocateFastCell(NumBytes)) VProcedure(
 			Context,
 			Path,
@@ -175,7 +185,8 @@ struct VProcedure : VCell
 			NumOperands,
 			NumLabels,
 			NumUnwindEdges,
-			NumOpLocations);
+			NumOpLocations,
+			NumRegisterNames);
 	}
 
 	static void SerializeImpl(VProcedure*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
@@ -192,7 +203,8 @@ private:
 		uint32 InNumOperands,
 		uint32 InNumLabels,
 		uint32 InNumUnwindEdges,
-		uint32 InNumOpLocations)
+		uint32 InNumOpLocations,
+		uint32 InNumRegisterNames)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, Path(Context, Path)
 		, NumRegisters(InNumRegisters)
@@ -204,6 +216,7 @@ private:
 		, NumLabels(InNumLabels)
 		, NumUnwindEdges(InNumUnwindEdges)
 		, NumOpLocations(InNumOpLocations)
+		, NumRegisterNames(InNumRegisterNames)
 	{
 		for (TWriteBarrier<VUniqueString>* NamedParam = GetNamedParamsBegin(); NamedParam != GetNamedParamsEnd(); ++NamedParam)
 		{
