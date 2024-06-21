@@ -39,25 +39,31 @@ UAvaPlayableGroup* UAvaPlayableGroup::MakePlayableGroup(UObject* InOuter, const 
 {
 	UObject* Outer = InOuter ? InOuter : GetTransientPackage();
 	
-	UAvaPlayableGroup* GameInstanceGroup = nullptr;
+	UAvaPlayableGroup* NewPlayableGroup = nullptr;
 	if (InPlayableGroupInfo.bIsRemoteProxy)
 	{
 		// Remote Proxy group doesn't have a game instance.
-		GameInstanceGroup = NewObject<UAvaRemoteProxyPlayableGroup>(Outer);
-		GameInstanceGroup->ParentPlayableGroupManagerWeak = InPlayableGroupInfo.PlayableGroupManager;
+		NewPlayableGroup = NewObject<UAvaRemoteProxyPlayableGroup>(Outer);
+		NewPlayableGroup->ParentPlayableGroupManagerWeak = InPlayableGroupInfo.PlayableGroupManager;
 	}
 	else
 	{
 		if (InPlayableGroupInfo.GameInstance)
 		{
-			GameInstanceGroup = UAvaGameViewportPlayableGroup::Create(InOuter, InPlayableGroupInfo.GameInstance, InPlayableGroupInfo.PlayableGroupManager);
+			NewPlayableGroup = UAvaGameViewportPlayableGroup::Create(InOuter, InPlayableGroupInfo.GameInstance, InPlayableGroupInfo.PlayableGroupManager);
 		}
 		else
 		{
-			GameInstanceGroup = UAvaGameInstancePlayableGroup::Create(InOuter, InPlayableGroupInfo);
+			NewPlayableGroup = UAvaGameInstancePlayableGroup::Create(InOuter, InPlayableGroupInfo);
 		}
 	}
-	return GameInstanceGroup;
+
+	if (NewPlayableGroup)
+	{
+		NewPlayableGroup->ChannelName = InPlayableGroupInfo.ChannelName;
+	}
+	
+	return NewPlayableGroup;
 }
 
 void UAvaPlayableGroup::RegisterPlayable(UAvaPlayable* InPlayable)
@@ -285,6 +291,11 @@ void UAvaPlayableGroup::SetManagedRenderTarget(UTextureRenderTarget2D* InManageR
 UWorld* UAvaPlayableGroup::GetPlayWorld() const
 {
 	return GameInstance ? GameInstance->GetWorld() : nullptr;
+}
+
+FName UAvaPlayableGroup::GetChannelName() const
+{
+	return ChannelName;
 }
 
 void UAvaPlayableGroup::NotifyLevelStreaming(UAvaPlayable* InPlayable)

@@ -146,6 +146,11 @@ public:
 	* Returns this group's play world, if it has one.
 	*/
 	virtual UWorld* GetPlayWorld() const;
+
+	/**
+	 * Returns the broadcast channel name this playable group is part of.
+	 */
+	FName GetChannelName() const;
 	
 	/**
 	 * Unloads the game instance's world if no more playables are loaded.
@@ -203,6 +208,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UGameInstance> GameInstance;
+
+	/** Broadcast channel name this playable group is part of. */
+	FName ChannelName;
 
 	/** PlayableGroup Manager handling this playable group. */
 	TWeakObjectPtr<UAvaPlayableGroupManager> ParentPlayableGroupManagerWeak;
