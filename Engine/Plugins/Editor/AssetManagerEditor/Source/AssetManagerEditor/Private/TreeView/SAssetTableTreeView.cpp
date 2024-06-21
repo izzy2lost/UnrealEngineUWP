@@ -51,6 +51,7 @@ extern UNREALED_API UEditorEngine* GEditor;
 SAssetTableTreeView::SAssetTableTreeView()
 {
 	MaxDepthToAutoExpand = 1;
+	bRunInAsyncMode = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
