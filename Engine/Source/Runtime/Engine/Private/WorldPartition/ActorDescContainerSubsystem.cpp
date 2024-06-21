@@ -37,6 +37,7 @@ void UActorDescContainerSubsystem::FContainerManager::FRegisteredContainer::AddR
 
 void UActorDescContainerSubsystem::FContainerManager::FRegisteredContainer::UpdateBounds()
 {
+	EditorBounds.Init();
 	Bounds.Init();
 	for (FActorDescList::TIterator<> ActorDescIt(Container); ActorDescIt; ++ActorDescIt)
 	{
@@ -50,6 +51,11 @@ void UActorDescContainerSubsystem::FContainerManager::FRegisteredContainer::Upda
 		if (RuntimeBounds.IsValid)
 		{
 			Bounds += RuntimeBounds;
+		}
+		const FBox ActorDescEditorBounds = ActorDesc->GetEditorBounds();
+		if (ActorDescEditorBounds.IsValid)
+		{
+			EditorBounds += ActorDescEditorBounds;
 		}
 	}
 }
@@ -74,11 +80,11 @@ void UActorDescContainerSubsystem::FContainerManager::UnregisterContainer(UActor
 	}
 }
 
-FBox UActorDescContainerSubsystem::FContainerManager::GetContainerBounds(const FString& ContainerName) const
+FBox UActorDescContainerSubsystem::FContainerManager::GetContainerBounds(const FString& ContainerName, bool bIsEditorBounds) const
 {
 	if (const FRegisteredContainer* RegisteredContainer = RegisteredContainers.Find(ContainerName))
 	{
-		return RegisteredContainer->Bounds;
+		return bIsEditorBounds ? RegisteredContainer->EditorBounds : RegisteredContainer->Bounds;
 	}
 	return FBox(ForceInit);
 }

@@ -103,6 +103,7 @@ public:
 	ENGINE_API virtual void PushLevelInstanceEditingStateToProxies(bool bInEditingState) override;
 	ENGINE_API virtual FBox GetComponentsBoundingBox(bool bNonColliding = false, bool bIncludeFromChildActors = false) const override;
 	ENGINE_API virtual FBox GetStreamingBounds() const override;
+	ENGINE_API virtual FBox GetStreamingBoundsEditor() const override;
 	ENGINE_API virtual bool IsLockLocation() const override;
 	ENGINE_API virtual bool IsActorLabelEditable() const override;
 	ENGINE_API virtual bool GetReferencedContentObjects(TArray<UObject*>& Objects) const override;

@@ -45,7 +45,7 @@ public:
 	const UActorDescContainer* GetActorDescContainer(const FString& InContainerName) const { return ContainerManager.GetActorDescContainer(InContainerName); }
 	void RegisterContainer(UActorDescContainer* Container) { ContainerManager.RegisterContainer(Container); }
 	void UnregisterContainer(UActorDescContainer* Container) { ContainerManager.UnregisterContainer(Container); }
-	FBox GetContainerBounds(const FString& ContainerName) const { return ContainerManager.GetContainerBounds(ContainerName); }
+	FBox GetContainerBounds(const FString& ContainerName, bool bIsEditorBounds = false) const { return ContainerManager.GetContainerBounds(ContainerName, bIsEditorBounds); }
 	void UpdateContainerBounds(const FString& ContainerName) { ContainerManager.UpdateContainerBounds(ContainerName); }
 	void SetContainerPackage(UActorDescContainer* Container, FName ContainerPackageName) { ContainerManager.SetContainerPackage(Container, ContainerPackageName); }
 	void NotifyContainerUpdated(FName ContainerPackage)
@@ -89,6 +89,7 @@ private:
 				: Container(nullptr)
 				, RefCount(0)
 				, Bounds(ForceInit)
+				, EditorBounds(ForceInit)
 			{}
 
 			void AddReferencedObjects(FReferenceCollector& Collector);
@@ -97,6 +98,7 @@ private:
 			TObjectPtr<UActorDescContainer> Container;
 			uint32 RefCount;
 			FBox Bounds;
+			FBox EditorBounds;
 		};
 
 		void AddReferencedObjects(FReferenceCollector& Collector);
@@ -145,7 +147,7 @@ private:
 				
 		void UnregisterContainer(UActorDescContainer* Container);
 
-		FBox GetContainerBounds(const FString& ContainerName) const;
+		FBox GetContainerBounds(const FString& ContainerName, bool bIsEditorBounds = false) const;
 		void UpdateContainerBounds(const FString& ContainerName);
 		void UpdateContainerBoundsFromPackage(FName ContainerPackage);
 

@@ -385,6 +385,22 @@ bool FLevelInstanceActorImpl::GetBounds(FBox& OutBounds) const
 	return false;
 }
 
+bool FLevelInstanceActorImpl::GetEditorBounds(FBox& OutBounds) const
+{
+	if (LevelInstance->IsLoadingEnabled())
+	{
+		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem())
+		{
+			if (LevelInstanceSubsystem->GetLevelInstanceEditorBounds(LevelInstance, OutBounds))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 void FLevelInstanceActorImpl::PushSelectionToProxies()
 {
 	// Actors of the LevelInstance need to reflect the LevelInstance actor's selected state

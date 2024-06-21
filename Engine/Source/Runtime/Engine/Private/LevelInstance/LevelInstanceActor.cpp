@@ -293,6 +293,17 @@ FBox ALevelInstance::GetStreamingBounds() const
 	return Super::GetStreamingBounds();
 }
 
+FBox ALevelInstance::GetStreamingBoundsEditor() const
+{
+	FBox LevelInstanceEditorBounds;
+	if (LevelInstanceActorImpl.GetEditorBounds(LevelInstanceEditorBounds))
+	{
+		return LevelInstanceEditorBounds;
+	}
+
+	return Super::GetStreamingBoundsEditor();
+}
+
 bool ALevelInstance::IsUserManaged() const
 {
 	return Super::IsUserManaged() || LevelInstanceActorImpl.IsUserManaged();

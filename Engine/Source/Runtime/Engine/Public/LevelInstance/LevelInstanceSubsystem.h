@@ -117,6 +117,7 @@ public:
 	ENGINE_API bool IsEditingLevelInstanceDirty(const ILevelInstanceInterface* LevelInstance) const;
 	bool IsEditingLevelInstance(const ILevelInstanceInterface* LevelInstance) const { return GetLevelInstanceEdit(LevelInstance) != nullptr; }
 	
+	ENGINE_API bool GetLevelInstanceEditorBounds(const ILevelInstanceInterface* LevelInstance, FBox& OutBounds) const;
 	ENGINE_API bool GetLevelInstanceBounds(const ILevelInstanceInterface* LevelInstance, FBox& OutBounds) const;
 	static ENGINE_API bool GetLevelInstanceBoundsFromPackage(const FTransform& InstanceTransform, FName LevelPackage, FBox& OutBounds);
 	
@@ -201,6 +202,8 @@ private:
 
 	ENGINE_API static void RegisterPrimitiveColorHandler();
 	ENGINE_API static void UnregisterPrimitiveColorHandler();
+
+	ENGINE_API bool GetLevelInstanceBoundsInternal(const ILevelInstanceInterface* LevelInstance, bool bIsEditorBounds, FBox& OutBounds) const;
 #endif
 	friend class ULevelStreamingLevelInstance;
 

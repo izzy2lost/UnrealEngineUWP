@@ -999,6 +999,16 @@ void ULevelInstanceSubsystem::OnExitEditorModeInternal(bool bForceExit)
 
 bool ULevelInstanceSubsystem::GetLevelInstanceBounds(const ILevelInstanceInterface* LevelInstance, FBox& OutBounds) const
 {
+	return GetLevelInstanceBoundsInternal(LevelInstance, false, OutBounds);
+}
+
+bool ULevelInstanceSubsystem::GetLevelInstanceEditorBounds(const ILevelInstanceInterface* LevelInstance, FBox& OutBounds) const
+{
+	return GetLevelInstanceBoundsInternal(LevelInstance, true, OutBounds);
+}
+
+bool ULevelInstanceSubsystem::GetLevelInstanceBoundsInternal(const ILevelInstanceInterface* LevelInstance, bool bIsEditorBounds, FBox& OutBounds) const
+{
 	if (IsLoaded(LevelInstance))
 	{
 		const FLevelInstance& LevelInstanceEntry = LoadedLevelInstances.FindChecked(LevelInstance->GetLevelInstanceID());
@@ -1027,7 +1037,7 @@ bool ULevelInstanceSubsystem::GetLevelInstanceBounds(const ILevelInstanceInterfa
 
 		FString LevelPackage = LevelInstance->GetWorldAssetPackage();
 
-		if (FBox ContainerBounds = UActorDescContainerSubsystem::GetChecked().GetContainerBounds(*LevelPackage); ContainerBounds.IsValid)
+		if (FBox ContainerBounds = UActorDescContainerSubsystem::GetChecked().GetContainerBounds(*LevelPackage, bIsEditorBounds); ContainerBounds.IsValid)
 		{
 			FTransform LevelInstancePivotOffsetTransform = FTransform(ULevel::GetLevelInstancePivotOffsetFromPackage(*LevelPackage));
 			FTransform LevelTransform = LevelInstancePivotOffsetTransform * CastChecked<AActor>(LevelInstance)->GetActorTransform();

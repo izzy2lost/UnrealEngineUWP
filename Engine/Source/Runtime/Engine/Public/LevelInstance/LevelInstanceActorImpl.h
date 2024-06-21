@@ -94,6 +94,7 @@ public:
 	ENGINE_API virtual bool IsUserManaged() const;
 	ENGINE_API virtual bool ShouldExport() const;
 	ENGINE_API virtual bool GetBounds(FBox& OutBounds) const;
+	ENGINE_API virtual bool GetEditorBounds(FBox& OutBounds) const;
 	ENGINE_API virtual void PushSelectionToProxies();
 	ENGINE_API virtual void PushLevelInstanceEditingStateToProxies(bool bInEditingState);
 	ENGINE_API virtual void CheckForErrors();
