@@ -442,6 +442,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = DebugSettings)
 	bool bDebugDraw = true;
 
+	// Draw lines on each bone chain. 
+	UPROPERTY(EditAnywhere, Category = DebugSettings)
+	bool bDrawChainLines = true;
+
+	// Draw spheres on single bone chains. 
+	UPROPERTY(EditAnywhere, Category = DebugSettings)
+	bool bDrawSingleBoneChains = false;
+	
 	// Draw final IK goal locations. 
 	UPROPERTY(EditAnywhere, Category = DebugSettings)
 	bool bDrawFinalGoals = true;
@@ -449,6 +457,14 @@ public:
 	// Draw goal locations from source skeleton. 
 	UPROPERTY(EditAnywhere, Category = DebugSettings)
 	bool bDrawSourceLocations = true;
+
+	// Draw circle on the floor below the retarget root. 
+	UPROPERTY(EditAnywhere, Category = DebugSettings)
+	bool bDrawRootCircle = true;
+
+	// Draw coordinate frame used to define stride warping directions.  
+	UPROPERTY(EditAnywhere, Category = DebugSettings)
+	bool bDrawWarpingFrame = false;
 	
 	// The visual size of the IK goals in the viewport. 
 	UPROPERTY(EditAnywhere, Category = DebugSettings)
