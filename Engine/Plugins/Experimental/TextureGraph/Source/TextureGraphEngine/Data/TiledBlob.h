@@ -17,6 +17,7 @@ typedef T_Tiles<BlobPtr>			BlobPtrTiles;
 class TEXTUREGRAPHENGINE_API TiledBlob : public Blob
 {
 	friend class Blobber;
+	friend class TiledBlob_Promise;
 
 protected:
 	mutable BlobPtrTiles			Tiles;					/// The Tiles that make up the larger BlobObj

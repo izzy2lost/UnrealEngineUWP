@@ -873,6 +873,30 @@ void Blobber::AddBlobEntry(HashType Hash, BlobPtr BlobObj, BlobCacheOptions Opti
 	InvalidateTimestamp = Util::Time();
 }
 
+void Blobber::RemoveHashMapping(HashType Hash)
+{
+	UE_LOG(LogBlob, Warning, TEXT("Removing incorrect hash mapping: %#016lx"), Hash);
+
+	FScopeLock HashLock(&HashMutex);
+
+	auto HashIter = HashMappings.find(Hash);
+
+	/// if no mapping was found 
+	/// then just ignore it ...
+	if (HashIter == HashMappings.end())
+		return;
+
+	/// there's a cyclical Hash link, then ignore it as well
+	if (HashIter->second->Value() == Hash)
+		return;
+
+	/// Otherwise, we need to use the RHS of the mapping
+	CHashPtr MappedHash = HashIter->second;
+
+	HashMappings.erase(HashIter);
+	Hash = MappedHash->Value();
+}
+
 BlobRef Blobber::AddInternal(BlobPtr BlobObj, BlobCacheOptions Options)
 {
 	CHashPtr Hash = BlobObj->Hash();
@@ -908,8 +932,10 @@ BlobRef Blobber::AddInternal(BlobPtr BlobObj, BlobCacheOptions Options)
 					return BlobRef(std::static_pointer_cast<Blob>(TiledBlobObj), true, false);
 				}
 
-				/// 2. TODO: This is a tricky one
-				check(false);
+				/// We need to remove this hash mapping
+				RemoveHashMapping(Hash->Value());
+
+				return BlobRef(nullptr);
 			}
 
 			/// 2. If the incoming BlobObj is un-tiled but the Existing one IS tiled
@@ -920,10 +946,17 @@ BlobRef Blobber::AddInternal(BlobPtr BlobObj, BlobCacheOptions Options)
 				TiledBlobPtr ExistingTiled = std::static_pointer_cast<TiledBlob>(Existing.lock());
 
 				/// The hashes can only match up if the Existing (tiled) BlobObj is 1x1
-				check(ExistingTiled->Rows() == 1 && ExistingTiled->Cols() == 1);
-				check(*ExistingTiled->GetTile(0, 0)->Hash() == *Hash);
+				if (ExistingTiled->Rows() == 1 && ExistingTiled->Cols() == 1)
+				{
+					//check(ExistingTiled->Rows() == 1 && ExistingTiled->Cols() == 1);
+					//check(*ExistingTiled->GetTile(0, 0)->Hash() == *Hash);
+					return ExistingTiled->GetTile(0, 0).lock();
+				}
 
-				return ExistingTiled->GetTile(0, 0).lock();
+				/// We need to remove this hash mapping
+				RemoveHashMapping(Hash->Value());
+
+				return BlobRef(nullptr);
 			}
 		}
 

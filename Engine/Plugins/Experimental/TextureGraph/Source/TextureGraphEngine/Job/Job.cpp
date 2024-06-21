@@ -801,7 +801,7 @@ AsyncPrepareResult Job::PrepareTargets(JobBatch* Batch)
 			}
 			else
 			{
-				UE_LOG(LogJob, Log, TEXT("Transform: %s (Tile: %d, %d) => %s"), *Transform->GetName(), (int32)TileX, (int32)TileY, *TileBlob->Name());
+				UE_LOG(LogJob, VeryVerbose, TEXT("Transform: %s (Tile: %d, %d) => %s"), *Transform->GetName(), (int32)TileX, (int32)TileY, *TileBlob->Name());
 				TileInvalidationMatrix[TileX][TileY] = false;
 			}
 

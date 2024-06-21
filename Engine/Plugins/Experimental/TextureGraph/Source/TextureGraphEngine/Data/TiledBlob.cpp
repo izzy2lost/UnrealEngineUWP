@@ -1059,9 +1059,10 @@ void TiledBlob_Promise::AddLinkedBlob(BlobPtr LinkedBlob)
 	check(LinkedBlob->IsTiled());
 
 	TiledBlobPtr TiledLinkedBlob = std::static_pointer_cast<TiledBlob>(LinkedBlob);
-	check(TiledLinkedBlob->IsPromise());
 
-	TiledBlob_PromisePtr TiledPromiseLinkedBlob = std::static_pointer_cast<TiledBlob_Promise>(LinkedBlob);
+	/// If the number of rows and columns don't match up then we don't do anything
+	if (TiledLinkedBlob->Rows() != Rows() || TiledLinkedBlob->Cols() != Cols())
+		return;
 
 	/// If we got a different pointer back from the blobber then that means that this result was already cached into 
 	/// the system. We need to copy it over to the original pointer if it's a finalised blob
@@ -1069,11 +1070,14 @@ void TiledBlob_Promise::AddLinkedBlob(BlobPtr LinkedBlob)
 	/// and we don't have do any awkward pointer adjustment shenanigans to make things work
 	if (IsFinalised())
 	{
-		/// Copy the contents over
-		TiledPromiseLinkedBlob->FinaliseFrom(this);
+		TiledLinkedBlob->FinaliseFrom(this);
 	}
 
-	TiledPromiseLinkedBlob->CachedBlob = std::static_pointer_cast<TiledBlob_Promise>(shared_from_this());
+	if (TiledLinkedBlob->IsPromise())
+	{
+		TiledBlob_PromisePtr TiledPromiseLinkedBlob = std::static_pointer_cast<TiledBlob_Promise>(LinkedBlob);
+		TiledPromiseLinkedBlob->CachedBlob = std::static_pointer_cast<TiledBlob_Promise>(shared_from_this());
+	}
 
 	TiledBlob::AddLinkedBlob(LinkedBlob);
 }
