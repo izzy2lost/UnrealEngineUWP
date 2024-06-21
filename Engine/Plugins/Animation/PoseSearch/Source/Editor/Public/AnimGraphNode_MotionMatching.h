@@ -23,6 +23,7 @@ class UAnimGraphNode_MotionMatching : public UAnimGraphNode_BlendStack_Base
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FText GetMenuCategory() const override;
 	virtual UScriptStruct* GetTimePropertyStruct() const override;
+	virtual void BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog) override;
 
 	virtual FAnimNode_BlendStack_Standalone* GetBlendStackNode() const override { return (FAnimNode_BlendStack_Standalone*)(&Node); }
 

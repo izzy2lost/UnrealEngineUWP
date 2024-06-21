@@ -407,14 +407,11 @@ void UPoseSearchLibrary::TraceMotionMatching(
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
 	TraceState.Cycle = FPlatformTime::Cycles64();
+	TraceState.AnimInstanceId = FObjectTrace::GetObjectId(SearchContext.GetAnimInstances()[0]);
 
-	// @todo: avoid publishing duplicated TraceState in ALL the AnimInstances! -currently necessary for multi character-
-	for (const UAnimInstance* AnimInstance : SearchContext.GetAnimInstances())
-	{
-		TraceState.AnimInstanceId = FObjectTrace::GetObjectId(AnimInstance);
-		TraceState.NodeId = SearchId;
-		TraceState.Output();
-	}
+	TraceState.NodeId = SearchId;
+
+	TraceState.Output();
 }
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 

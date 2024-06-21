@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include "Animation/AnimNodeMessages.h"
 #include "BonePose.h"
 #include "Containers/RingBuffer.h"
 #include "DrawDebugHelpers.h"
-#include "PoseSearch/PoseHistoryProvider.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchTrajectoryLibrary.h"
 #include "UObject/ObjectKey.h"
@@ -204,6 +204,18 @@ struct FMemStackPoseHistory : public IPoseHistory
 private:
 	const IPoseHistory* PoseHistory = nullptr;
 	TArray<FPoseHistoryEntry, TInlineAllocator<4, TMemStackAllocator<>>> FutureEntries;
+};
+
+class POSESEARCH_API FPoseHistoryProvider : public UE::Anim::IGraphMessage
+{
+	DECLARE_ANIMGRAPH_MESSAGE(FPoseHistoryProvider);
+
+public:
+	FPoseHistoryProvider(const IPoseHistory& InPoseHistory) : PoseHistory(InPoseHistory) { }
+	const IPoseHistory& GetPoseHistory() const { return PoseHistory; }
+
+private:
+	const IPoseHistory& PoseHistory;
 };
 
 struct FHistoricalPoseIndex
