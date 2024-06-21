@@ -2,31 +2,39 @@
 
 #include "SDMXConflictMonitor.h"
 
+#include "Algo/AnyOf.h"
+#include "Algo/Find.h"
 #include "Algo/Transform.h"
 #include "Analytics/DMXEditorToolAnalyticsProvider.h"
+#include "Commands/DMXConflictMonitorCommands.h"
+#include "DMXConflictMonitorActiveObjectItem.h"
 #include "DMXConflictMonitorConflictModel.h"
 #include "DMXEditorLog.h"
-#include "Commands/DMXConflictMonitorCommands.h"
 #include "DMXEditorSettings.h"
 #include "DMXEditorStyle.h"
-#include "Framework/Commands/UICommandList.h"
+#include "DMXStats.h"
+#include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Commands/UICommandList.h"
+#include "Internationalization/Regex.h"
 #include "IO/DMXConflictMonitor.h"
 #include "IO/DMXPortManager.h"
+#include "SDMXConflictMonitorActiveObjectRow.h"
 #include "SDMXConflictMonitorToolbar.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Text/SRichTextBlock.h"
 
-
 #define LOCTEXT_NAMESPACE "SDMXConflictMonitor"
+
+DECLARE_CYCLE_STAT(TEXT("DMX Conflict Monitor User Interface"), STAT_DMXConflictMonitorUI, STATGROUP_DMX);
 
 namespace UE::DMX
 {
-	const FName SDMXConflictMonitor::FColumnIds::Ports = "Ports";
-	const FName SDMXConflictMonitor::FColumnIds::Universe = "Universe";
-	const FName SDMXConflictMonitor::FColumnIds::Conflicts = "Conflicts";
-	const FName SDMXConflictMonitor::FColumnIds::Channels = "Channels";
+	const FName SDMXConflictMonitor::FActiveObjectCollumnID::ObjectName = TEXT("ObjectName");
+	const FName SDMXConflictMonitor::FActiveObjectCollumnID::OpenAsset = TEXT("OpenAsset");
+	const FName SDMXConflictMonitor::FActiveObjectCollumnID::ShowInContentBrowser = TEXT("ShowInContentBrowser");
 
 	SDMXConflictMonitor::SDMXConflictMonitor()
 		: StatusInfo(EDMXConflictMonitorStatusInfo::Idle)
@@ -52,33 +60,69 @@ namespace UE::DMX
 					{
 						return StatusInfo;
 					})
+				.TimeGameThread_Lambda([this]()
+					{
+						return TimeGameThread;
+					})
 				.OnDepthChanged_Lambda([this]()
 					{
 						Refresh();
 					})
 			]
 
-			// Log
-			+SVerticalBox::Slot()
+			+ SVerticalBox::Slot()
 			.FillHeight(1.f)
 			.Padding(16.f)
 			[
-				SNew(SScrollBox)
-				.Orientation(EOrientation::Orient_Vertical)
-					
-				+ SScrollBox::Slot()
-				.AutoSize()
+				SNew(SSplitter)
+				.Orientation(EOrientation::Orient_Horizontal)
+
+				// Log
+				+ SSplitter::Slot()
+				.Value(0.62f)
+				.MinSize(10.f)
 				[
-					SNew(SBorder)
-					.HAlign(HAlign_Fill)
-					.VAlign(VAlign_Fill)
-					.BorderImage(FAppStyle::GetBrush("NoBorder"))
+					SNew(SScrollBox)
+					.Orientation(EOrientation::Orient_Vertical)
+					
+					+ SScrollBox::Slot()
+					.AutoSize()
 					[
-						SAssignNew(TextBlock, SRichTextBlock)
-						.Visibility(EVisibility::HitTestInvisible)
-						.AutoWrapText(true)
-						.TextStyle(FAppStyle::Get(), "MessageLog")
-						.DecoratorStyleSet(&FDMXEditorStyle::Get())
+						SNew(SBorder)
+						.HAlign(HAlign_Fill)
+						.VAlign(VAlign_Fill)
+						.BorderImage(FAppStyle::GetBrush("NoBorder"))
+						[
+							SAssignNew(LogTextBlock, SRichTextBlock)
+							.Visibility(EVisibility::HitTestInvisible)
+							.AutoWrapText(true)
+							.TextStyle(FAppStyle::Get(), "MessageLog")
+							.DecoratorStyleSet(&FDMXEditorStyle::Get())
+						]
+					]
+				]
+
+				// Active objects
+				+ SSplitter::Slot()
+				.Value(0.38f)
+				.MinSize(10.f)
+				[
+					SNew(SScrollBox)
+					.Orientation(EOrientation::Orient_Vertical)
+					
+					+ SScrollBox::Slot()
+					.FillSize(1.f)
+					[
+						SNew(SBorder)
+						.HAlign(HAlign_Fill)
+						.VAlign(VAlign_Fill)
+						.BorderImage(FAppStyle::GetBrush("NoBorder"))
+						[
+							SAssignNew(ActiveObjectList, SListView<TSharedPtr<FDMXConflictMonitorActiveObjectItem>>)
+							.HeaderRow(GenerateActiveObjectHeaderRow())
+							.ListItemsSource(&ActiveObjectListSource)
+							.OnGenerateRow(this, &SDMXConflictMonitor::OnGenerateActiveObjectRow)
+						]
 					]
 				]
 			]
@@ -95,6 +139,10 @@ namespace UE::DMX
 
 	void SDMXConflictMonitor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 	{
+		SCOPE_CYCLE_COUNTER(STAT_DMXConflictMonitorUI);
+
+		const double StartTime = FPlatformTime::Seconds();
+
 		if (FSlateApplication::Get().AnyMenusVisible())
 		{
 			return;
@@ -106,50 +154,150 @@ namespace UE::DMX
 			return;
 		}
 
-		const TMap<FName, TArray<TSharedRef<FDMXMonitoredOutboundDMXData>>> NewOutboundConflicts = ConflictMonitor->GetOutboundConflictsSynchronous();
+		// Only refresh when data or conflicts changed. This is more performant and leaves the widgets interactable.
+		const  TArray<TSharedRef<FDMXMonitoredOutboundDMXData>> NewOutboundData = ConflictMonitor->GetMonitoredOutboundData();
+		const bool bDataChanged =
+			NewOutboundData.Num() != CachedOutboundData.Num() ||
+			Algo::AnyOf(NewOutboundData, [this](const TSharedRef<FDMXMonitoredOutboundDMXData>& Data)
+				{
+					return Algo::NoneOf(CachedOutboundData, [&Data](const TSharedRef<FDMXMonitoredOutboundDMXData>& Other)
+						{
+							return Other->Trace == Data->Trace;
+						});
+				});
 
-		if (!CachedOutboundConflicts.OrderIndependentCompareEqual(NewOutboundConflicts) &&
-			!FSlateApplication::Get().GetPressedMouseButtons().Contains(EKeys::LeftMouseButton))
+		const TMap<FName, TArray<TSharedRef<FDMXMonitoredOutboundDMXData>>> NewOutboundConflicts = ConflictMonitor->GetOutboundConflictsSynchronous();
+		const bool bConflictsChanged = !CachedOutboundConflicts.OrderIndependentCompareEqual(NewOutboundConflicts);
+
+		const bool bLeftMouseButtonDown = FSlateApplication::Get().GetPressedMouseButtons().Contains(EKeys::LeftMouseButton);
+
+		if ((bDataChanged || bConflictsChanged) && !bLeftMouseButtonDown)
 		{
+			CachedOutboundData = NewOutboundData;
 			CachedOutboundConflicts = NewOutboundConflicts;
 			Refresh();
 		}
 
 		UpdateStatusInfo();
+
+		const double ConflictMonitorTimeGameThread = ConflictMonitor->GetTimeGameThread();
+
+		const double EndTime = FPlatformTime::Seconds();
+		TimeGameThread = (EndTime - StartTime) * 1000.0 + ConflictMonitorTimeGameThread;
+	}
+
+	FReply SDMXConflictMonitor::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+	{
+		return FReply::Handled();
+	}
+
+	TSharedRef<SHeaderRow> SDMXConflictMonitor::GenerateActiveObjectHeaderRow()
+	{
+		const TSharedRef<SHeaderRow> HeaderRow =
+			SNew(SHeaderRow)
+			.Visibility_Lambda([this]()
+				{
+					const bool bIsActive =
+						StatusInfo == EDMXConflictMonitorStatusInfo::OK ||
+						StatusInfo == EDMXConflictMonitorStatusInfo::Conflict;
+
+					return bIsActive ? EVisibility::Visible : EVisibility::Collapsed;
+				});
+
+		HeaderRow->AddColumn(
+			SHeaderRow::FColumn::FArguments()
+			.ColumnId(FActiveObjectCollumnID::ObjectName)
+			.DefaultLabel(LOCTEXT("ActiveObjectLabel", "Objects sending DMX"))
+			.FillWidth(1.f)
+		);
+
+		const FText AssetActionText = LOCTEXT("AssetActionLabel", "Asset Action");
+		const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		const float AssetActionLabelSize = FontMeasureService->Measure(AssetActionText, FAppStyle::GetFontStyle("NormalText")).X + 8.f;
+
+		HeaderRow->AddColumn(
+			SHeaderRow::FColumn::FArguments()
+			.ColumnId(FActiveObjectCollumnID::OpenAsset)
+			.DefaultLabel(AssetActionText)
+			.ManualWidth(AssetActionLabelSize)
+		);
+
+		const FText BrowseToText = LOCTEXT("BrowseToAssetLabel", "Browse To");
+		const float BrowseToTextLabelSize = FontMeasureService->Measure(BrowseToText, FAppStyle::GetFontStyle("NormalText")).X + 16.f;
+
+		HeaderRow->AddColumn(
+			SHeaderRow::FColumn::FArguments()
+			.ColumnId(FActiveObjectCollumnID::ShowInContentBrowser)
+			.DefaultLabel(BrowseToText)
+			.ManualWidth(BrowseToTextLabelSize)
+		);
+
+		return HeaderRow;
+	}
+
+	TSharedRef<ITableRow> SDMXConflictMonitor::OnGenerateActiveObjectRow(TSharedPtr<FDMXConflictMonitorActiveObjectItem> InItem, const TSharedRef<STableViewBase>& OwnerTable)
+	{
+		return 
+			SNew(SDMXConflictMonitorActiveObjectRow, OwnerTable, InItem.ToSharedRef())
+			.Visibility(EVisibility::SelfHitTestInvisible);
 	}
 
 	void SDMXConflictMonitor::Refresh()
 	{
-		// Test new items for changes
+		const bool bStopped = !UserSession.IsValid();
+		if (bStopped)
+		{
+			return;
+		}
+
+		// Fetch conflicts text
 		TArray<TSharedPtr<FDMXConflictMonitorConflictModel>> NewModels;
 		Algo::Transform(CachedOutboundConflicts, NewModels, [](const TPair<FName, TArray<TSharedRef<FDMXMonitoredOutboundDMXData>>>& Conflicts)
 			{
 				return MakeShared<FDMXConflictMonitorConflictModel>(Conflicts.Value);
 			});
 
-		FString NewText;
+		FString NewLogText;
 		for (const TSharedPtr<FDMXConflictMonitorConflictModel>& Model : NewModels)
 		{
 			constexpr bool bWithMarkup = true;
-			NewText.Append(Model->GetConflictAsString(bWithMarkup));
-			NewText.Append(TEXT("\n"));
+			NewLogText.Append(Model->GetConflictAsString(bWithMarkup));
+			NewLogText.Append(TEXT("\n"));
 		}
 
-		// Auto-pause even if the data hasn't changed
+		// Update active DMX Objects
+		TMap<FName, TSharedPtr<FDMXConflictMonitorActiveObjectItem>> ObjectNameToItemMap;
+		for (const TSharedRef<FDMXMonitoredOutboundDMXData>& Data : CachedOutboundData)
+		{
+			const FString Trace = Data->Trace.ToString();
+			
+			const FRegexPattern ObjectPattern(TEXT("\\/([^\\/,]+)(?=(?:,|$))"));
+			FRegexMatcher ObjectMatcher(ObjectPattern, Trace);
+
+			const FRegexPattern ObjectPathPattern(TEXT("^([^,]+)"));
+			FRegexMatcher ObjectPathMatcher(ObjectPathPattern, Trace);
+
+			const FName ObjectName = ObjectMatcher.FindNext() ? *ObjectMatcher.GetCaptureGroup(1) : *Trace;
+			const FName ObjectPath = ObjectPathMatcher.FindNext() ? *ObjectPathMatcher.GetCaptureGroup(1) : FName();
+			const FSoftObjectPath SoftObjectPath(ObjectPath.ToString());
+
+			ObjectNameToItemMap.FindOrAdd(ObjectName, MakeShared<FDMXConflictMonitorActiveObjectItem>(ObjectName, SoftObjectPath));
+		}
+
+		// Update texts
+		Models = NewModels;
+		LogTextBlock->SetText(FText::FromString(NewLogText));
+
+		ActiveObjectListSource.Reset();
+		ObjectNameToItemMap.GenerateValueArray(ActiveObjectListSource);
+		ActiveObjectList->RequestListRefresh();
+
+		// Auto-pause even if when data hasn't changed
 		const UDMXEditorSettings* EditorSettings = GetDefault<UDMXEditorSettings>();
 		if (!NewModels.IsEmpty() && IsScanning() && EditorSettings->ConflictMonitorSettings.bAutoPause)
 		{
 			Pause();
 		}
-
-		// Skip if text did not change
-		if (TextBlock->GetText().ToString() == NewText)
-		{
-			return;
-		}
-
-		Models = NewModels;
-		TextBlock->SetText(FText::FromString(NewText));
 
 		// Log conflicts (without markup)
 		if (IsPrintingToLog())
@@ -261,11 +409,16 @@ namespace UE::DMX
 		bIsPaused = false;
 		SetCanTick(false);
 
+		CachedOutboundData.Reset();
 		CachedOutboundConflicts.Reset();
 		Models.Reset();
 		Refresh();
 
 		UpdateStatusInfo();
+
+		// Empty the active object list when stopped, so it's clear that it is no longer updated
+		ActiveObjectListSource.Reset();
+		ActiveObjectList->RequestListRefresh();
 	}
 
 	void SDMXConflictMonitor::SetAutoPause(bool bEnabled)

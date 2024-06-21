@@ -7,11 +7,11 @@
 #include "DMXEditorStyle.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Widgets/Layout/SWrapBox.h"
-#include "Widgets/SBoxPanel.h"
+#include "Internationalization/Text.h"
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Input/SNumericEntryBox.h"
-
+#include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/SBoxPanel.h"
 
 #define LOCTEXT_NAMESPACE "SDMXConflictMonitorToolbar"
 
@@ -48,6 +48,7 @@ namespace UE::DMX
 
 					// Throbber 
 					+ SHorizontalBox::Slot()
+					.HAlign(HAlign_Left)
 					.VAlign(VAlign_Center)
 					.AutoWidth()
 					.Padding(2.f, 0.f, 6.f, 0.f)
@@ -58,12 +59,13 @@ namespace UE::DMX
 
 					// Scanning Info 
 					+ SHorizontalBox::Slot()
+					.HAlign(HAlign_Left)
 					.VAlign(VAlign_Center)
-					.AutoWidth()
+					.FillWidth(1.f)
 					.Padding(2.f, 0.f)
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("ScanningText", "Scanning for Conflicts.."))
+						.Text(LOCTEXT("ScanningText", "Scanning.."))
 					]
 				];
 			}
@@ -85,6 +87,8 @@ namespace UE::DMX
 	{
 		CommandList = InCommandList;
 		OnDepthChanged = InArgs._OnDepthChanged;
+
+		CachedTimeGameThread = InArgs._TimeGameThread.Get();
 
 		ChildSlot
 		[
@@ -202,6 +206,47 @@ namespace UE::DMX
 					.ColorAndOpacity(this, &SDMXConflictMonitorToolbar::GetStatusTextColor)
 				]
 			);
+		}
+		ToolbarBuilder.EndSection();
+
+		ToolbarBuilder.BeginSection("Stats");
+		{
+			const FName TutorialHighlight = NAME_None;
+			constexpr bool bSearchable = true;
+
+			ToolbarBuilder.AddWidget(
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.f)
+				[
+					SNew(SBorder)
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					.BorderImage(FAppStyle::GetBrush("NoBorder"))
+					[
+						SNew(STextBlock)
+						.MinDesiredWidth(100.f)
+						.Text_Lambda([TimeGameThreadAttribute = InArgs._TimeGameThread, this]()
+							{			
+								const double DeltaTime = FSlateApplication::Get().GetDeltaTime();
+
+								const double TimeGameThread = TimeGameThreadAttribute.Get();
+
+								CachedTimeGameThread = 	CachedTimeGameThread + (TimeGameThread - CachedTimeGameThread) * (DeltaTime / 1.0);
+
+								FNumberFormattingOptions Options;
+								Options.SetMaximumFractionalDigits(2);
+								Options.SetMinimumFractionalDigits(2);
+
+								const FText ValueText = FText::AsNumber(CachedTimeGameThread, &Options);
+								return FText::Format(LOCTEXT("PerformanceText", "CPU Usage (GameThread): {0}ms"), ValueText);
+							})
+					]
+				],
+				TutorialHighlight,
+				bSearchable,
+				HAlign_Right);
 		}
 		ToolbarBuilder.EndSection();
 
