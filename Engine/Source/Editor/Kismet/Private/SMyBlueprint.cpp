@@ -2991,6 +2991,7 @@ void SMyBlueprint::OnFindReference(bool bSearchAllBlueprints, const EGetFindRefe
 		if (!bSearchTermGenerated)
 		{
 			SearchTerm = EventAction->NodeTemplate->GetFindReferenceSearchString(EGetFindReferenceSearchStringFlags::None);
+			bUseQuotes = false;
 		}
 	}
 	else if (FEdGraphSchemaAction_K2InputAction* InputAction = SelectionAsInputAction())
