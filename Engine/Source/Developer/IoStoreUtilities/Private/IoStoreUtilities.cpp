@@ -1045,14 +1045,14 @@ public:
 		TArray<FFileRegion> FileRegions;
 	};
 
-	FCookedPackageStore(const FString& InCookedDir)
+	FCookedPackageStore(FStringView InCookedDir)
 		: CookedDir(InCookedDir)
 	{
 	}
 
-	FIoStatus Load(const TCHAR* ManifestFilename)
+	FIoStatus LoadManifest(const TCHAR* ManifestFilename)
 	{
-		IOSTORE_CPU_SCOPE(LoadCookedPackageStore);
+		IOSTORE_CPU_SCOPE(LoadCookedPackageStoreManifest);
 		double StartTime = FPlatformTime::Seconds();
 
 		TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileReader(ManifestFilename));
@@ -1096,6 +1096,57 @@ public:
 		return FIoStatus::Ok;
 	}
 
+	FIoStatus LoadProjectStore(const TCHAR* ProjectStoreFilename)
+	{
+		IOSTORE_CPU_SCOPE(LoadCookedProjectStore);
+		double StartTime = FPlatformTime::Seconds();
+
+		TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileReader(ProjectStoreFilename));
+		if (!Ar)
+		{
+			return FIoStatus(EIoErrorCode::NotFound);
+		}
+
+		TSharedPtr<FJsonObject> ProjectStoreObject;
+		TSharedRef<TJsonReader<UTF8CHAR>> Reader = TJsonReaderFactory<UTF8CHAR>::Create(Ar.Get());
+		if (FJsonSerializer::Deserialize(Reader, ProjectStoreObject) && ProjectStoreObject.IsValid())
+		{
+			const TSharedPtr<FJsonObject>* ZenServerObjectPtr = nullptr;
+			if (ProjectStoreObject->TryGetObjectField(TEXT("zenserver"), ZenServerObjectPtr) && (ZenServerObjectPtr != nullptr))
+			{
+				FString ProjectId;
+				FString OplogId;
+
+				const TSharedPtr<FJsonObject>& ZenServerObject = *ZenServerObjectPtr;
+				if (ZenServerObject->TryGetStringField(TEXT("projectid"), ProjectId) && !ProjectId.IsEmpty() &&
+					ZenServerObject->TryGetStringField(TEXT("oplogid"), OplogId) && !OplogId.IsEmpty())
+				{
+					ZenStoreClient = MakeUnique<UE::FZenStoreHttpClient>();
+					ZenStoreClient->InitializeReadOnly(ProjectId, OplogId);
+
+					IOSTORE_CPU_SCOPE(FetchOplog);
+					TIoStatusOr<FCbObject> OplogStatus = ZenStoreClient->GetOplog().Get();
+					if (!OplogStatus.IsOk())
+					{
+						return OplogStatus.Status();
+					}
+					FCbObject OplogObject = OplogStatus.ConsumeValueOrDie();
+
+					UE_LOG(LogIoStore, Display, TEXT("Fetched %d oplog items from Zen in %.2lf seconds"),
+						OplogObject["entries"].AsArrayView().Num(),
+						FPlatformTime::Seconds() - StartTime);
+
+					ParseOplog(OplogObject);
+					LoadChunkHashes();
+
+					return FIoStatus::Ok;
+				}
+			}
+		}
+
+		return FIoStatus(EIoErrorCode::NotFound);
+	}
+
 	void ParseOplog(FCbObject& OplogObject)
 	{
 		IOSTORE_CPU_SCOPE(ParseOplog);
@@ -1118,32 +1169,71 @@ public:
 					FCbObjectView ChunkObj = ChunkEntry.AsObjectView();
 					FIoChunkId ChunkId;
 					ChunkId.Set(ChunkObj["id"].AsObjectId().GetView());
-					FChunkInfo& ChunkInfo = ChunkInfoMap.Add(ChunkId);
-					ChunkInfo.ChunkId = ChunkId;
-					ChunkInfo.PackageName = PackageStoreEntry.PackageName;
-					if (ChunkObj["filename"])
+					if (ChunkId.IsValid())
 					{
-						TStringBuilder<1024> RelativeFilename;
-						RelativeFilename.Append(ChunkObj["filename"].AsString());
-						ChunkInfo.RelativeFileName = RelativeFilename;
-						TStringBuilder<1024> PathBuilder;
-						FPathViews::AppendPath(PathBuilder, CookedDir);
-						FPathViews::AppendPath(PathBuilder, RelativeFilename);
-						FPathViews::NormalizeFilename(PathBuilder);
-						FilenameToChunkIdMap.Add(*PathBuilder, ChunkId);
-					}
-					const FCbArrayView RegionsArray = ChunkObj["fileregions"].AsArrayView();
-					ChunkInfo.FileRegions.Reserve(RegionsArray.Num());
-					for (FCbFieldView RegionObj : RegionsArray)
-					{
-						FFileRegion& Region = ChunkInfo.FileRegions.AddDefaulted_GetRef();
-						FFileRegion::LoadFromCompactBinary(RegionObj, Region);
+						FChunkInfo& ChunkInfo = ChunkInfoMap.Add(ChunkId);
+						ChunkInfo.ChunkId = ChunkId;
+						ChunkInfo.PackageName = PackageStoreEntry.PackageName;
+						if (ChunkObj["filename"])
+						{
+							TStringBuilder<1024> RelativeFilename;
+							RelativeFilename.Append(ChunkObj["filename"].AsString());
+							ChunkInfo.RelativeFileName = RelativeFilename;
+							TStringBuilder<1024> PathBuilder;
+							FPathViews::AppendPath(PathBuilder, CookedDir);
+							FPathViews::AppendPath(PathBuilder, RelativeFilename);
+							FPathViews::NormalizeFilename(PathBuilder);
+							FilenameToChunkIdMap.Add(*PathBuilder, ChunkId);
+						}
+						else if (ChunkObj["clientpath"])
+						{
+							TStringBuilder<1024> RelativeFilename;
+							FUtf8StringView ClientPathView = ChunkObj["clientpath"].AsString();
+							if (ClientPathView.StartsWith("/{project}/"))
+							{
+								if (!FPaths::IsProjectFilePathSet())
+								{
+									RelativeFilename.Append(ClientPathView);
+									UE_LOG(LogIoStore, Warning, TEXT("Project relative path could not be remapped because project file path is unset (possibly due to not specifying uproject path as first argument). %s"), RelativeFilename.ToString());
+								}
+								else
+								{
+									RelativeFilename.Append(FPathViews::GetBaseFilename(FPaths::GetProjectFilePath()));
+									RelativeFilename.AppendChar('/');
+									RelativeFilename.Append(ClientPathView.RightChop(11));
+								}
+							}
+							else if (ClientPathView.StartsWith("/{engine}/"))
+							{
+								RelativeFilename.Append(TEXT("Engine/"));
+								RelativeFilename.Append(ClientPathView.RightChop(9));
+							}
+							else
+							{
+								RelativeFilename.Append(ClientPathView);
+							}
+							ChunkInfo.RelativeFileName = RelativeFilename;
+							TStringBuilder<1024> PathBuilder;
+							FPathViews::AppendPath(PathBuilder, CookedDir);
+							FPathViews::AppendPath(PathBuilder, RelativeFilename);
+							FPathViews::NormalizeFilename(PathBuilder);
+							FilenameToChunkIdMap.Add(*PathBuilder, ChunkId);
+						}
+
+						const FCbArrayView RegionsArray = ChunkObj["fileregions"].AsArrayView();
+						ChunkInfo.FileRegions.Reserve(RegionsArray.Num());
+						for (FCbFieldView RegionObj : RegionsArray)
+						{
+							FFileRegion& Region = ChunkInfo.FileRegions.AddDefaulted_GetRef();
+							FFileRegion::LoadFromCompactBinary(RegionObj, Region);
+						}
 					}
 				}
 			};
 
 			AddChunksFromOplog("packagedata");
 			AddChunksFromOplog("bulkdata");
+			AddChunksFromOplog("files");
 
 			PackageIdToEntry.Add(PackageStoreEntry.GetPackageId(), MoveTemp(PackageStoreEntry));
 		}
@@ -2248,12 +2338,29 @@ TArray<TUniquePtr<FIoStoreReader>> CreatePatchSourceReaders(const TArray<FString
 	return Readers;
 }
 
-bool LoadShaderAssetInfo(const FString& Filename, TMap<FSHAHash, TSet<FName>>& OutShaderCodeToAssets)
+static bool LoadShaderAssetInfo(const FString& Filename, FCookedPackageStore* PackageStore, TMap<FSHAHash, TSet<FName>>& OutShaderCodeToAssets)
 {
 	FString JsonText; 
-	if (!FFileHelper::LoadFileToString(JsonText, *Filename))
+	if (PackageStore && PackageStore->HasZenStoreClient())
 	{
-		return false;
+		FIoChunkId ChunkId = PackageStore->GetChunkIdFromFileName(Filename);
+		if (!ChunkId.IsValid())
+		{
+			return false;
+		}
+		TIoStatusOr<FIoBuffer> Buffer = PackageStore->ReadChunk(ChunkId);
+		if (!Buffer.IsOk())
+		{
+			return false;
+		}
+		FFileHelper::BufferToString(JsonText, Buffer.ValueOrDie().GetData(), (int32)Buffer.ValueOrDie().GetSize());
+	}
+	else
+	{
+		if (!FFileHelper::LoadFileToString(JsonText, *Filename))
+		{
+			return false;
+		}
 	}
 
 	TSharedPtr<FJsonObject> JsonObject;
@@ -2303,6 +2410,8 @@ bool LoadShaderAssetInfo(const FString& Filename, TMap<FSHAHash, TSet<FName>>& O
 
 static bool ConvertToIoStoreShaderLibrary(
 	const TCHAR* FileName,
+	FIoChunkId InChunkId,
+	FCookedPackageStore* PackageStore,
 	FOodleDataCompression::ECompressor InShaderOodleCompressor,
 	FOodleDataCompression::ECompressionLevel InShaderOodleLevel,
 	TTuple<FIoChunkId, FIoBuffer>& OutLibraryIoChunk,
@@ -2328,23 +2437,35 @@ static bool ConvertToIoStoreShaderLibrary(
 	FString LibraryName(BaseFileNameView.Mid(LibraryNameStartIndex + 1, FormatStartIndex - LibraryNameStartIndex - 1));
 	FName FormatName(BaseFileNameView.RightChop(FormatStartIndex + 1));
 	
-	TUniquePtr<FArchive> LibraryAr(IFileManager::Get().CreateFileReader(FileName));
-	if (!LibraryAr)
+	FIoBuffer LibraryBuffer;
+	if (PackageStore && PackageStore->HasZenStoreClient() && InChunkId.IsValid())
 	{
-		UE_LOG(LogIoStore, Error, TEXT("Missing shader code library file '%s'."), FileName);
-		return false;
+		LibraryBuffer = PackageStore->ReadChunk(InChunkId).ConsumeValueOrDie();
+	}
+	else
+	{
+		TUniquePtr<FArchive> LibraryAr(IFileManager::Get().CreateFileReader(FileName));
+		if (!LibraryAr)
+		{
+			UE_LOG(LogIoStore, Error, TEXT("Missing shader code library file '%s'."), FileName);
+			return false;
+		}
+
+		LibraryBuffer = FIoBuffer(LibraryAr->TotalSize());
+		LibraryAr->Serialize(LibraryBuffer.GetData(), LibraryBuffer.GetSize());
 	}
 
+	FLargeMemoryReader LibraryAr(LibraryBuffer.GetData(), LibraryBuffer.GetSize());
 	uint32 Version;
-	(*LibraryAr) << Version;
+	LibraryAr << Version;
 
 	FSerializedShaderArchive SerializedShaders;
-	(*LibraryAr) << SerializedShaders;
-	int64 OffsetToShaderCode = LibraryAr->Tell();
+	LibraryAr << SerializedShaders;
+	int64 OffsetToShaderCode = LibraryAr.Tell();
 
 	FString AssetInfoFileName = FPaths::GetPath(FileName) / FString::Printf(TEXT("ShaderAssetInfo-%s-%s.assetinfo.json"), *LibraryName, *FormatName.ToString());
 	TMap<FSHAHash, FShaderMapAssetPaths> ShaderCodeToAssets;
-	if (!LoadShaderAssetInfo(AssetInfoFileName, ShaderCodeToAssets))
+	if (!LoadShaderAssetInfo(AssetInfoFileName, PackageStore && InChunkId.IsValid() ? PackageStore : nullptr, ShaderCodeToAssets))
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed loading asset asset info file '%s'"), *AssetInfoFileName);
 		return false;
@@ -2363,7 +2484,7 @@ static bool ConvertToIoStoreShaderLibrary(
 	OutCodeIoChunks.SetNum(GroupCount);
 	FCriticalSection DiskArchiveAccess;
 	ParallelFor(OutCodeIoChunks.Num(),
-		[&OutCodeIoChunks, &IoStoreLibraryHeader, &DiskArchiveAccess, &LibraryAr, &SerializedShaders, &OffsetToShaderCode, InShaderOodleCompressor, InShaderOodleLevel](int32 GroupIndex)
+		[&OutCodeIoChunks, &IoStoreLibraryHeader, &DiskArchiveAccess, &LibraryBuffer, &SerializedShaders, &OffsetToShaderCode, InShaderOodleCompressor, InShaderOodleLevel](int32 GroupIndex)
 		{
 			FIoStoreShaderGroupEntry& Group = IoStoreLibraryHeader.ShaderGroupEntries[GroupIndex];
 			uint8* UncompressedGroupMemory = reinterpret_cast<uint8*>(FMemory::Malloc(Group.UncompressedSize));
@@ -2389,26 +2510,12 @@ static bool ConvertToIoStoreShaderLibrary(
 					// small shaders might be stored without compression, handle them here
 					if (IndividuallyCompressedShader.Size == IndividuallyCompressedShader.UncompressedSize)
 					{
-						// disk access has to be serialized between the for loops
-						FScopeLock Lock(&DiskArchiveAccess);
-						LibraryAr->Seek(OffsetToShaderCode + IndividuallyCompressedShader.Offset);
-						LibraryAr->Serialize(ShaderStart, IndividuallyCompressedShader.Size);
+						FMemory::Memcpy(ShaderStart, LibraryBuffer.GetData() + OffsetToShaderCode + IndividuallyCompressedShader.Offset, IndividuallyCompressedShader.Size);
 					}
 					else
 					{
-						uint8* CompressedShaderMemory = reinterpret_cast<uint8*>(FMemory::Malloc(IndividuallyCompressedShader.Size));
-
-						// disk access has to be serialized between the for loops
-						{
-							FScopeLock Lock(&DiskArchiveAccess);
-							LibraryAr->Seek(OffsetToShaderCode + IndividuallyCompressedShader.Offset);
-							LibraryAr->Serialize(CompressedShaderMemory, IndividuallyCompressedShader.Size);
-						}
-
 						// This function will crash if decompression fails.
-						ShaderCodeArchive::DecompressShaderWithOodle(ShaderStart, IndividuallyCompressedShader.UncompressedSize, CompressedShaderMemory, IndividuallyCompressedShader.Size);
-
-						FMemory::Free(CompressedShaderMemory);
+						ShaderCodeArchive::DecompressShaderWithOodle(ShaderStart, IndividuallyCompressedShader.UncompressedSize, LibraryBuffer.GetData() + OffsetToShaderCode + IndividuallyCompressedShader.Offset, IndividuallyCompressedShader.Size);
 					}
 				}
 
@@ -2593,7 +2700,7 @@ static void ProcessShaderLibraries(const FIoStoreArguments& Arguments, TArray<FC
 					TTuple<FIoChunkId, FIoBuffer> LibraryChunk;
 					TArray<TTuple<FIoChunkId, FIoBuffer, uint32>> CodeChunks;
 					TArray<TTuple<FSHAHash, TSet<FName>>> ShaderMapAssetAssociations;
-				    if (!ConvertToIoStoreShaderLibrary(*TargetFile.NormalizedSourcePath, Arguments.ShaderOodleCompressor, Arguments.ShaderOodleLevel, LibraryChunk, CodeChunks, ShaderMaps, ShaderMapAssetAssociations))
+				    if (!ConvertToIoStoreShaderLibrary(*TargetFile.NormalizedSourcePath, TargetFile.ChunkId, Arguments.PackageStore.Get(), Arguments.ShaderOodleCompressor, Arguments.ShaderOodleLevel, LibraryChunk, CodeChunks, ShaderMaps, ShaderMapAssetAssociations))
 					{
 						UE_LOG(LogIoStore, Warning, TEXT("Failed converting shader library '%s'"), *TargetFile.NormalizedSourcePath);
 						continue;
@@ -2971,15 +3078,22 @@ void InitializeContainerTargetsAndPackages(
 		FStringView Extension = GetFullExtension(SourceFile.NormalizedPath);
 		if (Extension == TEXT(".ushaderbytecode"))
 		{
-			const FCookedFileStatData* CookedFileStatData = Arguments.CookedFileStatMap.Find(SourceFile.NormalizedPath);
-			if (!CookedFileStatData)
+			if (const FCookedFileStatData* CookedFileStatData = Arguments.CookedFileStatMap.Find(SourceFile.NormalizedPath))
 			{
-				UE_LOG(LogIoStore, Warning, TEXT("File not found: '%s'"), *SourceFile.NormalizedPath);
-				return false;
+				OutTargetFile.ChunkType = EContainerChunkType::ShaderCodeLibrary;
+				OutTargetFile.SourceSize = uint64(CookedFileStatData->FileSize);
+				OutTargetFile.ChunkId = FIoChunkId::InvalidChunkId;
+				return true;
 			}
-			OutTargetFile.ChunkType = EContainerChunkType::ShaderCodeLibrary;
-			OutTargetFile.SourceSize = uint64(CookedFileStatData->FileSize);
-			return true;
+			else if (const FCookedPackageStore::FChunkInfo* ChunkInfo = PackageStore.GetChunkInfoFromFileName(SourceFile.NormalizedPath))
+			{
+				OutTargetFile.ChunkType = EContainerChunkType::ShaderCodeLibrary;
+				OutTargetFile.SourceSize = ChunkInfo->ChunkSize;
+				OutTargetFile.ChunkId = ChunkInfo->ChunkId;
+				return true;
+			}
+			UE_LOG(LogIoStore, Warning, TEXT("File not found: '%s'"), *SourceFile.NormalizedPath);
+			return false;
 		}
 
 		const FCookedPackageStore::FChunkInfo* ChunkInfo = PackageStore.GetChunkInfoFromFileName(SourceFile.NormalizedPath);
@@ -9906,36 +10020,72 @@ int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine)
 	}
 	else if (FParse::Param(FCommandLine::Get(), TEXT("StartZenServerForStage")))
 	{
+		TArray<uint32> SponsorProcessIds;
+		uint32 SponsorProcessId = 0;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SponsorProcessID="), SponsorProcessId) && (SponsorProcessId > 0))
+		{
+			SponsorProcessIds.Add(SponsorProcessId);
+		}
+
 		FString ManifestFilename;
-		if (!FParse::Value(FCommandLine::Get(), TEXT("PackageStoreManifest="), ManifestFilename))
+		if (FParse::Value(FCommandLine::Get(), TEXT("PackageStoreManifest="), ManifestFilename))
 		{
-			UE_LOG(LogIoStore, Error, TEXT("Expected -PackageStoreManifest=<path to package store manifest>"));
-			return -1;
+			TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileReader(*ManifestFilename));
+			if (Ar)
+			{
+				FCbObject ManifestObject = LoadCompactBinary(*Ar).AsObject();
+				FCbObject OplogObject;
+				FCbField ZenServerField = ManifestObject["zenserver"];
+				if (ZenServerField)
+				{
+					UE::Zen::FServiceSettings ZenServiceSettings;
+					ZenServiceSettings.ReadFromCompactBinary(ZenServerField["settings"]);
+					FString ProjectId = FString(ZenServerField["projectid"].AsString());
+					FString OplogId = FString(ZenServerField["oplogid"].AsString());
+
+					// We just want the auto launch functionality
+					UE::FZenStoreHttpClient ZenStoreClient(MoveTemp(ZenServiceSettings));
+					ZenStoreClient.InitializeReadOnly(ProjectId, OplogId);
+
+					if (!SponsorProcessIds.IsEmpty() && ZenServiceSettings.IsAutoLaunch() &&
+						ZenServiceSettings.SettingsVariant.Get<UE::Zen::FServiceAutoLaunchSettings>().bLimitProcessLifetime)
+					{
+						ZenStoreClient.GetZenServiceInstance().AddSponsorProcessIDs(SponsorProcessIds);
+					}
+
+					return 0;
+				}
+			}
+			else
+			{
+				UE_LOG(LogIoStore, Error, TEXT("Failed reading package store manifest"));
+			}
 		}
 
-		TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileReader(*ManifestFilename));
-		if (!Ar)
+		FString MarkerFilename;
+		if (FParse::Value(FCommandLine::Get(), TEXT("ProjectStore="), MarkerFilename))
 		{
-			UE_LOG(LogIoStore, Error, TEXT("Failed reading package store manifest"));
-			return -1;
+			TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileReader(*MarkerFilename));
+			if (Ar)
+			{
+				UE::Zen::FZenServiceInstance& ZenServiceInstance = UE::Zen::GetDefaultServiceInstance();
+				const UE::Zen::FServiceSettings& ZenServiceSettings = ZenServiceInstance.GetServiceSettings();
+
+				if (!SponsorProcessIds.IsEmpty() && ZenServiceSettings.IsAutoLaunch() &&
+					ZenServiceInstance.GetServiceSettings().SettingsVariant.Get<UE::Zen::FServiceAutoLaunchSettings>().bLimitProcessLifetime)
+				{
+					ZenServiceInstance.AddSponsorProcessIDs(SponsorProcessIds);
+				}
+				return 0;
+			}
+			else
+			{
+				UE_LOG(LogIoStore, Error, TEXT("Failed reading project store marker"));
+			}
 		}
 
-		FCbObject ManifestObject = LoadCompactBinary(*Ar).AsObject();
-		FCbObject OplogObject;
-		FCbField ZenServerField = ManifestObject["zenserver"];
-		if (ZenServerField)
-		{
-			UE::Zen::FServiceSettings ZenServiceSettings;
-			ZenServiceSettings.ReadFromCompactBinary(ZenServerField["settings"]);
-			FString ProjectId = FString(ZenServerField["projectid"].AsString());
-			FString OplogId = FString(ZenServerField["oplogid"].AsString());
-
-			// We just want the auto launch functionality
-			UE::FZenStoreHttpClient ZenStoreClient(MoveTemp(ZenServiceSettings));
-			ZenStoreClient.InitializeReadOnly(ProjectId, OplogId);
-		}
-
-		return 0;
+		UE_LOG(LogIoStore, Error, TEXT("Expected -PackageStoreManifest=<path to package store manifest> or -ProjectStore=<path to project store marker>"));
+		return -1;
 	}
 	else if (FParse::Value(FCommandLine::Get(), TEXT("CreateDLCContainer="), Arguments.DLCPluginPath))
 	{
@@ -10062,7 +10212,7 @@ int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine)
 	if (FParse::Value(FCommandLine::Get(), TEXT("PackageStoreManifest="), PackageStoreManifestFilename))
 	{
 		TUniquePtr<FCookedPackageStore> PackageStore = MakeUnique<FCookedPackageStore>(Arguments.CookedDir);
-		FIoStatus Status = PackageStore->Load(*PackageStoreManifestFilename);
+		FIoStatus Status = PackageStore->LoadManifest(*PackageStoreManifestFilename);
 		if (Status.IsOk())
 		{
 			Arguments.PackageStore = MoveTemp(PackageStore);
@@ -10074,8 +10224,25 @@ int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine)
 	}
 	else
 	{
-		UE_LOG(LogIoStore, Error, TEXT("Expected -PackageStoreManifest=<path to package store manifest>"));
-		return -1;
+		FString ProjectStoreFilename;
+		if (FParse::Value(FCommandLine::Get(), TEXT("ProjectStore="), ProjectStoreFilename))
+		{
+			TUniquePtr<FCookedPackageStore> PackageStore = MakeUnique<FCookedPackageStore>(Arguments.CookedDir);
+			FIoStatus Status = PackageStore->LoadProjectStore(*ProjectStoreFilename);
+			if (Status.IsOk())
+			{
+				Arguments.PackageStore = MoveTemp(PackageStore);
+			}
+			else
+			{
+				UE_LOG(LogIoStore, Fatal, TEXT("Failed loading project store '%s'"), *ProjectStoreFilename);
+			}
+		}
+		else
+		{
+			UE_LOG(LogIoStore, Error, TEXT("Expected -PackageStoreManifest=<path to package store manifest> or -ProjectStore=<path to project store marker>"));
+			return -1;
+		}
 	}
 
 	if (!ParseOrderFileArguments(Arguments))

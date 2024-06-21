@@ -94,9 +94,10 @@ public class FilesToStage
 	}
 }
 
-public class PackageStoreManifest
+public class PackageStoreData
 {
-	public string FullPath { get; set; }
+	public string ManifestFullPath { get; set; }
+	public string MarkerFullPath { get; set; }
 	public IList<string> ZenCookedFiles { get; set; }
 }
 
@@ -259,9 +260,9 @@ public class DeploymentContext //: ProjectParams
 	public string PakFileInternalRoot = "../../../";
 
 	/// <summary>
-	/// Cooked package store manifest if available
+	/// Cooked package store data if available
 	/// </summary>
-	public PackageStoreManifest PackageStoreManifest;
+	public PackageStoreData PackageStoreData;
 
 	/// <summary>
 	/// List of files to be staged
