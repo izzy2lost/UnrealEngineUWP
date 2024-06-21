@@ -11,7 +11,7 @@
 UMassSceneComponentLocationToMassTranslator::UMassSceneComponentLocationToMassTranslator()
 	: EntityQuery(*this)
 {
-	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
+	ExecutionFlags = (int32)EProcessorExecutionFlags::AllNetModes;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::SyncWorldToMass;
 	RequiredTags.Add<FMassSceneComponentLocationCopyToMassTag>();
 }
@@ -47,7 +47,7 @@ void UMassSceneComponentLocationToMassTranslator::Execute(FMassEntityManager& En
 UMassSceneComponentLocationToActorTranslator::UMassSceneComponentLocationToActorTranslator()
 	: EntityQuery(*this)
 {
-	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
+	ExecutionFlags = (int32)EProcessorExecutionFlags::AllNetModes;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::UpdateWorldFromMass;
 	ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::Movement);
 	RequiredTags.Add<FMassSceneComponentLocationCopyToActorTag>();
