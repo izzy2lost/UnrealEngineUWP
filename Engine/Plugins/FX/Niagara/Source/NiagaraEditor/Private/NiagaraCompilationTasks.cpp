@@ -1511,15 +1511,12 @@ void FNiagaraSystemCompilationTask::AddScript(int32 SourceEmitterIndex, UNiagara
 					TaskInfo.ComputeShaderTaskIndices.Reserve(ShaderRequests.Num());
 					for (const FShaderCompileRequest& ShaderRequest : ShaderRequests)
 					{
-						if (Script->ShouldCompile(ShaderRequest.ShaderPlatform))
-						{
-							TaskInfo.ComputeShaderTaskIndices.Add(CompileComputeShaderTasks.Num());
-							FCompileComputeShaderTaskInfo& ShaderTaskInfo = CompileComputeShaderTasks.AddDefaulted_GetRef();
+						TaskInfo.ComputeShaderTaskIndices.Add(CompileComputeShaderTasks.Num());
+						FCompileComputeShaderTaskInfo& ShaderTaskInfo = CompileComputeShaderTasks.AddDefaulted_GetRef();
 
-							ShaderTaskInfo.ParentCompileTaskIndex = CompileTaskIndex;
-							ShaderTaskInfo.ShaderMapId = ShaderRequest.ShaderMapId;
-							ShaderTaskInfo.ShaderPlatform = ShaderRequest.ShaderPlatform;
-						}
+						ShaderTaskInfo.ParentCompileTaskIndex = CompileTaskIndex;
+						ShaderTaskInfo.ShaderMapId = ShaderRequest.ShaderMapId;
+						ShaderTaskInfo.ShaderPlatform = ShaderRequest.ShaderPlatform;
 					}
 				}
 			}
