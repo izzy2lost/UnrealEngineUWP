@@ -20,10 +20,7 @@ namespace VirtualTexture
 		{
 			if (It->IsCurrentlyVirtualTextured())
 			{
-				if (FVirtualTexture2DResource* Resource = static_cast<FVirtualTexture2DResource*>(It->GetResource()))
-				{
-					BeginUpdateResourceRHI(Resource);
-				}
+				It->UpdateResource();
 			}
 		}
 
@@ -55,7 +52,7 @@ namespace VirtualTexture
 
 					if (bIsMatchingFormat)
 					{
-						BeginUpdateResourceRHI(Resource);
+						It->UpdateResource();
 					}
 				}
 			}
