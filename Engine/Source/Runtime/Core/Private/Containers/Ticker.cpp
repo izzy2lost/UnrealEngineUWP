@@ -17,9 +17,9 @@ FTSTicker::FDelegateHandle FTSTicker::AddTicker(const FTickerDelegate& InDelegat
 	return NewElement;
 }
 
-FTSTicker::FDelegateHandle FTSTicker::AddTicker(const TCHAR* InName, float InDelay, TFunction<bool(float)> Function)
+FTSTicker::FDelegateHandle FTSTicker::AddTicker(const TCHAR* InName, float InDelay, TUniqueFunction<bool(float)>&& InFunction)
 {
-	FElementPtr NewElement{ new FElement{ CurrentTime.load(std::memory_order_relaxed) + InDelay, InDelay, FTickerDelegate::CreateLambda(Function) } };
+	FElementPtr NewElement{ new FElement{ CurrentTime.load(std::memory_order_relaxed) + InDelay, InDelay, MoveTemp(InFunction) } };
 	AddedElements.Enqueue(NewElement);
 	return NewElement;
 }
@@ -150,12 +150,23 @@ FTSTicker::FElement::FElement()
 FTSTicker::FElement::FElement(double InFireTime, float InDelayTime, const FTickerDelegate& InDelegate)
 	: FireTime(InFireTime)
 	, DelayTime(InDelayTime)
-	, Delegate(InDelegate)
+	, Function(
+		[InDelegate](float DeltaTime)
+		{ 
+			return InDelegate.IsBound() && InDelegate.Execute(DeltaTime);
+		}
+	)
+{}
+
+FTSTicker::FElement::FElement(double InFireTime, float InDelayTime, TUniqueFunction<bool(float)>&& InFunction)
+	: FireTime(InFireTime)
+	, DelayTime(InDelayTime)
+	, Function(MoveTemp(InFunction))
 {}
 
 bool FTSTicker::FElement::Fire(float DeltaTime)
 {
-	return Delegate.IsBound() && Delegate.Execute(DeltaTime);
+	return Function(DeltaTime);
 }
 
 FTSTickerObjectBase::FTSTickerObjectBase(float InDelay, FTSTicker& InTicker)
