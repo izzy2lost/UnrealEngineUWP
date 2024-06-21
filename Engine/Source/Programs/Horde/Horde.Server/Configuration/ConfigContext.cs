@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
@@ -156,6 +158,30 @@ namespace Horde.Server.Configuration
 				}
 			}
 			return null;
+		}
+
+		/// <summary>
+		/// Reads the contents of a file using the appropriate source
+		/// </summary>
+		/// <param name="uri">Uri of the file to read. The scheme indicates the source to read from.</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Information about the file</returns>
+		public async ValueTask<IConfigFile> ReadFileAsync(Uri uri, CancellationToken cancellationToken)
+		{
+			IConfigSource? source = Sources[uri.Scheme];
+			if (source == null)
+			{
+				throw new ConfigException(this, $"Invalid/unknown scheme for config file {uri}");
+			}
+
+			IConfigFile? file;
+			if (!Files.TryGetValue(uri, out file))
+			{
+				file = await source.GetAsync(uri, cancellationToken);
+				Files.Add(uri, file);
+			}
+
+			return file;
 		}
 	}
 }
