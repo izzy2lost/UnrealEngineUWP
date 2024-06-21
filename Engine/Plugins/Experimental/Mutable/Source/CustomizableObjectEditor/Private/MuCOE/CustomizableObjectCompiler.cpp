@@ -1135,11 +1135,8 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 #if WITH_EDITORONLY_DATA
 		CurrentObject->GetPrivate()->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
 
-		if (!CurrentRequest->GetParameterNamesToSelectedOptions().Num())
-		{
-			// Cache the tables that are used by more than one param so that CompileOnlySelected can work properly
-			ModelResources.TableToParamNames = GenerationContext.TableToParamNames;
-		}
+		// Cache the tables that are used by more than one param so that CompileOnlySelected can work properly
+		ModelResources.TableToParamNames = GenerationContext.TableToParamNames;
 #endif
 
 		ModelResources.NumComponents = GenerationContext.NumMeshComponentsInRoot + GenerationContext.NumExplicitMeshComponents;

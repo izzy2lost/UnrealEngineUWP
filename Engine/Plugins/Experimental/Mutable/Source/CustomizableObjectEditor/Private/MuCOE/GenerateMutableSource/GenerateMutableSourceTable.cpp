@@ -803,15 +803,6 @@ void RestrictRowNamesToSelectedOption(TArray<FName>& InOutRowNames, const UCusto
 
 				if (bRowNamesContainsSelectedOptionName)
 				{
-					if (SelectedOptionNames.Num() < 2)
-					{
-						FName AnotherOption = GetAnotherOption(SelectedOptionNames.Array()[0], InOutRowNames);
-
-						// To prevent the optimization of the parameter for having just one option, which would prevent the restriction 
-						// of that parameter in the next compile only selected
-						SelectedOptionNames.Add(AnotherOption);
-					}
-
 					InOutRowNames.Empty(SelectedOptionNames.Num());
 
 					for (const FName& OptionName : SelectedOptionNames)
