@@ -19,7 +19,8 @@ enum class EPCGGetDataFromActorMode : uint8
 	GetDataFromProperty UMETA(DisplayName = "Get PCG Data From Property", Tooltip = "Gets a data collection from an actor property."),
 	GetDataFromPCGComponent UMETA(Tooltip = "Copy generated output from other PCG components on the found actor(s)."),
 	GetDataFromPCGComponentOrParseComponents UMETA(Tooltip = "Attempts to copy generated output from other PCG components on the found actor(s), otherwise, falls back to parsing actor components."),
-	GetActorReference UMETA(Tooltip = "Produces one entry per actor with only the actor reference.")
+	GetActorReference UMETA(Tooltip = "Produces one entry per actor with only the actor reference."),
+	GetComponentsReference UMETA(Tooltip = "Produces one entry per component within the actor selection.")
 };
 
 /** Builds a collection of PCG-compatible data from the selected actors. */
@@ -101,7 +102,7 @@ public:
 	int32 AllowedGrids = int32(EPCGHiGenGrid::Uninitialized);
 
 	/** Merges all the single point data outputs into a single point data. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings", meta = (DisplayName = "Merge Simple Data", EditCondition = "Mode == EPCGGetDataFromActorMode::GetSinglePoint || Mode == EPCGGetDataFromActorMode::GetActorReference", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings", meta = (DisplayName = "Merge Simple Data", EditCondition = "Mode == EPCGGetDataFromActorMode::GetSinglePoint || Mode == EPCGGetDataFromActorMode::GetActorReference || Mode == EPCGGetDataFromActorMode::GetComponentsReference", EditConditionHides))
 	bool bMergeSinglePointData = false;
 
 	/** Provide pin names to match against the found component output pins. Data will automatically be wired to the expected pin if the name comparison succeeds. All unmatched pins will go into the standard out pin. */
@@ -153,4 +154,5 @@ protected:
 	virtual void ProcessActor(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, AActor* FoundActor) const;
 
 	void MergeActorsIntoData(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, const TArray<AActor*>& FoundActors) const;
+	void CreateReferenceData(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, const TArray<AActor*>& Actors) const;
 };

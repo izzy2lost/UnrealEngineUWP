@@ -10,6 +10,7 @@
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Data/PCGVolumeData.h"
+#include "Elements/PCGAddComponent.h"
 #include "Elements/PCGMergeElement.h"
 #include "Elements/PCGMergeAttributes.h"
 #include "Grid/PCGPartitionActor.h"
@@ -226,7 +227,7 @@ EPCGDataType UPCGDataFromActorSettings::GetCurrentPinTypes(const UPCGPin* InPin)
 		{
 			return EPCGDataType::Point;
 		}
-		else if (Mode == EPCGGetDataFromActorMode::GetActorReference)
+		else if (Mode == EPCGGetDataFromActorMode::GetActorReference || Mode == EPCGGetDataFromActorMode::GetComponentsReference)
 		{
 			return EPCGDataType::Param;
 		}
@@ -584,9 +585,23 @@ void FPCGDataFromActorElement::ProcessActors(FPCGContext* Context, const UPCGDat
 {
 	// Special case:
 	// If we're asking for single point with the merge single point data, we can do a more efficient process
-	if ((Settings->Mode == EPCGGetDataFromActorMode::GetSinglePoint || Settings->Mode == EPCGGetDataFromActorMode::GetActorReference) && Settings->bMergeSinglePointData && FoundActors.Num() > 1)
+	if (Settings->Mode == EPCGGetDataFromActorMode::GetSinglePoint && Settings->bMergeSinglePointData && FoundActors.Num() > 1)
 	{
 		MergeActorsIntoData(Context, Settings, FoundActors);
+	}
+	else if((Settings->Mode == EPCGGetDataFromActorMode::GetActorReference || Settings->Mode == EPCGGetDataFromActorMode::GetComponentsReference))
+	{
+		if(Settings->bMergeSinglePointData)
+		{
+			CreateReferenceData(Context, Settings, FoundActors);
+		}
+		else
+		{
+			for(AActor* Actor : FoundActors)
+			{
+				CreateReferenceData(Context, Settings, {Actor});
+			}
+		}
 	}
 	else
 	{
@@ -597,115 +612,95 @@ void FPCGDataFromActorElement::ProcessActors(FPCGContext* Context, const UPCGDat
 	}
 }
 
+void FPCGDataFromActorElement::CreateReferenceData(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, const TArray<AActor*>& Actors) const
+{
+	check(Context);
+	check(Settings && (Settings->Mode == EPCGGetDataFromActorMode::GetActorReference || Settings->Mode == EPCGGetDataFromActorMode::GetComponentsReference));
+
+	const bool bCreateActorReferences = (Settings->Mode == EPCGGetDataFromActorMode::GetActorReference || Settings->Mode == EPCGGetDataFromActorMode::GetComponentsReference);
+	const bool bCreateComponentReferences = (Settings->Mode == EPCGGetDataFromActorMode::GetComponentsReference);
+
+	UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
+	FPCGMetadataAttribute<FSoftObjectPath>* ActorReference = nullptr;
+	FPCGMetadataAttribute<FSoftObjectPath>* ComponentReference = nullptr;
+
+	if (bCreateActorReferences)
+	{
+		ActorReference = ParamData->MutableMetadata()->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true);
+	}
+
+	if (bCreateComponentReferences)
+	{
+		ComponentReference = ParamData->MutableMetadata()->FindOrCreateAttribute(PCGAddComponentConstants::ComponentReferenceAttribute, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true);
+	}
+
+	for (AActor* Actor : Actors)
+	{
+		if (Actor)
+		{
+			if (ComponentReference)
+			{
+				TInlineComponentArray<UActorComponent*, 16> Components;
+				Actor->GetComponents(Components);
+
+				FSoftObjectPath ActorPath(Actor);
+
+				for (UActorComponent* Component : Components)
+				{
+					PCGMetadataEntryKey Entry = ParamData->MutableMetadata()->AddEntry();
+					ActorReference->SetValue(Entry, ActorPath);
+					ComponentReference->SetValue(Entry, FSoftObjectPath(Component));
+
+				}
+			}
+			else if (ActorReference)
+			{
+				ActorReference->SetValue(ParamData->MutableMetadata()->AddEntry(), FSoftObjectPath(Actor));
+			}
+		}
+	}
+
+	if (ParamData->MutableMetadata()->GetItemCountForChild() > 0)
+	{
+		FPCGTaggedData& TaggedData = Context->OutputData.TaggedData.Emplace_GetRef();
+		TaggedData.Data = ParamData;
+	}
+}
+
 void FPCGDataFromActorElement::MergeActorsIntoData(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, const TArray<AActor*>& FoundActors) const
 {
 	check(Context);
-	check(Settings && (Settings->Mode == EPCGGetDataFromActorMode::GetSinglePoint || Settings->Mode == EPCGGetDataFromActorMode::GetActorReference));
+	check(Settings && Settings->Mode == EPCGGetDataFromActorMode::GetSinglePoint);
 
 	// At this point in time, the partition actors behave slightly differently, so if we are in the case where
 	// we have one or more partition actors, we'll go through the normal process and do post-processing to merge the point data instead.
-	const bool bContainsPartitionActors = Algo::AnyOf(FoundActors, [](const AActor* Actor) { return Cast<APCGPartitionActor>(Actor) != nullptr; });
-	const bool bCreatePointData = (Settings->Mode == EPCGGetDataFromActorMode::GetSinglePoint);
+	UPCGPointData* PointData = PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
+	UPCGData* Data = PointData;
 
-	if (!bContainsPartitionActors)
+	bool bHasData = false;
+	bool bAnyAttributeNameWasSanitized = false;
+
+	for (AActor* Actor : FoundActors)
 	{
-		UPCGData* Data = nullptr;
-		UPCGPointData* PointData = nullptr;
-		UPCGParamData* ParamData = nullptr;
-		FPCGMetadataAttribute<FSoftObjectPath>* ActorReference = nullptr;
-
-		if (bCreatePointData)
+		if (Actor)
 		{
-			PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
-			Data = PointData;
-		}
-		else
-		{
-			ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
-			ActorReference = ParamData->MutableMetadata()->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true);
-			Data = ParamData;
-		}
+			bool bAttributeNameWasSanitized = false;
+			PointData->AddSinglePointFromActor(Actor, &bAttributeNameWasSanitized);
+			bAnyAttributeNameWasSanitized |= bAttributeNameWasSanitized;
 
-		bool bHasData = false;
-		bool bAnyAttributeNameWasSanitized = false;
-
-		for (AActor* Actor : FoundActors)
-		{
-			if (Actor)
-			{
-				bool bAttributeNameWasSanitized = false;
-				if (PointData)
-				{
-					PointData->AddSinglePointFromActor(Actor, &bAttributeNameWasSanitized);
-				}
-				else
-				{
-					ActorReference->SetValue(ParamData->MutableMetadata()->AddEntry(), FSoftObjectPath(Actor));
-				}
-
-				bAnyAttributeNameWasSanitized |= bAttributeNameWasSanitized;
-
-				bHasData = true;
-			}
-		}
-
-		if (bAnyAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
-		{
-			PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
-		}
-
-		if (bHasData)
-		{
-			FPCGTaggedData& TaggedData = Context->OutputData.TaggedData.Emplace_GetRef();
-			TaggedData.Data = Data;
+			bHasData = true;
 		}
 	}
-	else // Stripped-down version of the normal code path with bParseActor = false
+
+	if (bAnyAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
 	{
-		FPCGDataCollection DataToMerge;
-		const bool bParseActor = false;
-		bool bAnyAttributeNameWasSanitized = false;
+		PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
+	}
 
-		for (AActor* Actor : FoundActors)
-		{
-			if (Actor)
-			{
-				bool bAttributeNameWasSanitized = false;
-				const EPCGDataType TargetDataType = (bCreatePointData ? EPCGDataType::Point : EPCGDataType::Param);
-				FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(Actor, Context->SourceComponent.Get(), TargetDataType, bParseActor, &bAttributeNameWasSanitized);
-
-				bAnyAttributeNameWasSanitized |= bAttributeNameWasSanitized;
-
-				DataToMerge.TaggedData += Collection.TaggedData;
-			}
-		}
-
-		if (bAnyAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
-		{
-			PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
-		}
-
-		// Perform point data-to-point data merge
-		if (DataToMerge.TaggedData.Num() > 1)
-		{
-			FPCGMergeElement MergeElement;
-			FPCGMergeAttributesElement MergeAttributesElement;
-			IPCGElement* Element = (bCreatePointData ? static_cast<IPCGElement*>(&MergeElement) : static_cast<IPCGElement*>(&MergeAttributesElement));
-
-			FPCGContext* MergeContext = Element->Initialize(DataToMerge, Context->SourceComponent, nullptr);
-			MergeContext->AsyncState.NumAvailableTasks = Context->AsyncState.NumAvailableTasks;
-
-			while (!Element->Execute(MergeContext))
-			{
-			}
-
-			Context->OutputData = MergeContext->OutputData;
-			delete MergeContext;
-		}
-		else if (DataToMerge.TaggedData.Num() == 1)
-		{
-			Context->OutputData.TaggedData = DataToMerge.TaggedData;
-		}
+	if (bHasData)
+	{
+		FPCGTaggedData& TaggedData = Context->OutputData.TaggedData.Emplace_GetRef();
+		TaggedData.Data = Data;
 	}
 }
 
@@ -830,8 +825,8 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	}
 	else
 	{
-		const bool bParseActor = (Settings->Mode != EPCGGetDataFromActorMode::GetSinglePoint && Settings->Mode != EPCGGetDataFromActorMode::GetActorReference);
-		EPCGDataType DataFilter = (Settings->Mode == EPCGGetDataFromActorMode::GetActorReference ? EPCGDataType::Param : Settings->GetDataFilter());
+		const bool bParseActor = (Settings->Mode != EPCGGetDataFromActorMode::GetSinglePoint);
+		EPCGDataType DataFilter = Settings->GetDataFilter();
 		bool bAttributeNameWasSanitized = false;
 		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, DataFilter, bParseActor, &bAttributeNameWasSanitized);
 
