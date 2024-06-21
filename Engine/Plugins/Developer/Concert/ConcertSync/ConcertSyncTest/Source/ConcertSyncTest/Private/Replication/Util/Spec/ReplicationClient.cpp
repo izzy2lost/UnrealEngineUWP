@@ -67,5 +67,10 @@ namespace UE::ConcertSyncTests::Replication
 				return Result;
 			});
 	}
+
+	void FReplicationClient::LeaveReplication() const
+	{
+		ClientReplicationManager->LeaveReplicationSession();
+	}
 }
 

@@ -15,10 +15,12 @@
 #include "Replication/Processing/ServerObjectReplicationReceiver.h"
 #include "SyncControlManager.h"
 
+#include "HAL/Platform.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
 #include "Templates/UnrealTemplate.h"
 
+class FConcertServerWorkspace;
 class IConcertClientReplicationBridge;
 class IConcertServerSession;
 
@@ -39,6 +41,7 @@ namespace UE::ConcertSyncCore
 namespace UE::ConcertSyncServer::Replication
 {
 	class FAuthorityManager;
+	class IReplicationWorkspace;
 
 	/**
 	 * Manages all server-side systems relevant to the Replication features.
@@ -53,7 +56,7 @@ namespace UE::ConcertSyncServer::Replication
 	{
 	public:
 
-		explicit FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession, EConcertSyncSessionFlags SessionFlags);
+		explicit FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession, IReplicationWorkspace& InServerWorkspace UE_LIFETIMEBOUND, EConcertSyncSessionFlags InSessionFlags);
 		virtual ~FConcertServerReplicationManager() override;
 
 		const FAuthorityManager& GetAuthorityManager() const { return AuthorityManager; }
@@ -69,7 +72,11 @@ namespace UE::ConcertSyncServer::Replication
 	private:
 		
 		/** Session instance this manager was created for. */
-		TSharedRef<IConcertServerSession> Session;
+		const TSharedRef<IConcertServerSession> Session;
+		/** Used to produce replication activities. */
+		IReplicationWorkspace& ServerWorkspace;
+		/** Used to determine which dynamic features are enabled. */
+		const EConcertSyncSessionFlags SessionFlags;
 		
 		/** Responsible for analysing received replication data. */
 		TUniquePtr<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
@@ -118,7 +125,10 @@ namespace UE::ConcertSyncServer::Replication
 		void HandleLeaveReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_LeaveEvent& EventData);
 		void OnConnectionChanged(IConcertServerSession& ConcertServerSession, EConcertClientStatus ConcertClientStatus, const FConcertSessionClientInfo& ConcertSessionClientInfo);
 
+		/** Cleans up the client's replication state after leaving. */
 		void OnClientLeftReplication(const FGuid& EndpointId);
+		/** Calls FConcertServerWorkspace::AddReplicationActivity with the current client state so it can be restored upon re-joining. */
+		void ProduceClientLeftActivity(const FConcertReplicationClient& Client) const;
 		
 		/**
 		 * Ticks all clients which causes clients to process pending data and send it to the corresponding endpoints.

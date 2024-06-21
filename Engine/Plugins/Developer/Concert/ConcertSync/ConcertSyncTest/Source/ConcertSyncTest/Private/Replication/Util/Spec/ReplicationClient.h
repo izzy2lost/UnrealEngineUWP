@@ -35,7 +35,8 @@ namespace UE::ConcertSyncTests::Replication
 	public:
 		
 		FReplicationClient(const FGuid& ClientEndPointId, EConcertSyncSessionFlags SessionFlags, FConcertServerSessionMock& Server, FAutomationTestBase& TestContext)
-			: SessionFlags(SessionFlags)
+			: ClientEndPointId(ClientEndPointId)
+			, SessionFlags(SessionFlags)
 			, TestContext(TestContext)
 			, ClientSessionMock(MakeShared<FConcertClientSessionMock>(ClientEndPointId, Server))
 		{}
@@ -53,13 +54,18 @@ namespace UE::ConcertSyncTests::Replication
 			TArray<UObject*> ObjectsToReceive
 			);
 
-		TSharedRef<FConcertClientSessionBaseMock> GetClientSessionMock() const { return ClientSessionMock; }
+		/** Leaves the session's replication. */
+		void LeaveReplication() const;
 
+		const FGuid& GetEndpointId() const { return ClientEndPointId; }
+		TSharedRef<FConcertClientSessionBaseMock> GetClientSessionMock() const { return ClientSessionMock; }
 		FConcertClientReplicationBridgeMock& GetBridgeMock() const { checkf(BridgeMock, TEXT("You forgot to call JoinReplication")); return *BridgeMock; }
 		IConcertClientReplicationManager& GetClientReplicationManager() const { checkf(ClientReplicationManager, TEXT("You forgot to call JoinReplication")); return *ClientReplicationManager; }
 
 	private:
 
+		/** The client's endpoint. */
+		const FGuid ClientEndPointId;
 		/** Relevant for certain requests. Passed to ClientReplicationManager upon creation. */
 		const EConcertSyncSessionFlags SessionFlags;
 

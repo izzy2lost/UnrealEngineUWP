@@ -43,6 +43,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Replication/Messages/ReplicationActivity.h"
 
 #if WITH_EDITOR
 	#include "Editor.h"
@@ -970,6 +971,7 @@ void FConcertClientWorkspace::HandleWorkspaceSyncActivityEvent(const FConcertSes
 	}
 
 	// Handle the activity correctly
+	static_assert(static_cast<uint8>(EConcertSyncActivityEventType::Count) == 6, "If you added an EConcertSyncActivityEventType entry, update this switch");
 	switch (Activity->EventType)
 	{
 	case EConcertSyncActivityEventType::Connection:
@@ -990,6 +992,11 @@ void FConcertClientWorkspace::HandleWorkspaceSyncActivityEvent(const FConcertSes
 	case EConcertSyncActivityEventType::Package:
 		check(ActivityPayload.GetStruct()->IsChildOf(FConcertSyncPackageActivity::StaticStruct()));
 		SetPackageActivity(*(FConcertSyncPackageActivity*)Activity);
+		break;
+
+	case EConcertSyncActivityEventType::Replication:
+		check(ActivityPayload.GetStruct()->IsChildOf(FConcertSyncReplicationActivity::StaticStruct()));
+		SetReplicationActivity(*(FConcertSyncReplicationActivity*)Activity);
 		break;
 
 	default:
@@ -1118,6 +1125,19 @@ void FConcertClientWorkspace::SetPackageActivity(const FConcertSyncPackageActivi
 		PackageActivityEventPart.PackageDataStream.DataSize = Ar.TotalSize();
 		PackageActivityEventPart.PackageDataStream.DataBlob = &InPackageActivity.EventData.Package.PackageData.Bytes;
 		SetPackageActivityFn(PackageActivityBasePart, PackageActivityEventPart);
+	}
+}
+
+void FConcertClientWorkspace::SetReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity)
+{
+	// Update this activity
+	if (LiveSession->GetSessionDatabase().SetReplicationActivity(InReplicationActivity))
+	{
+		PostActivityUpdated(InReplicationActivity);
+	}
+	else
+	{
+		UE_LOG(LogConcert, Error, TEXT("Failed to set replication activity '%s' on live session '%s': %s"), *LexToString(InReplicationActivity.ActivityId), *LiveSession->GetSession().GetName(), *LiveSession->GetSessionDatabase().GetLastError());
 	}
 }
 

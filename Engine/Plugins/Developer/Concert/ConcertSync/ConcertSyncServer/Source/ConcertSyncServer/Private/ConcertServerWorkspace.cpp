@@ -30,6 +30,19 @@ FConcertServerWorkspace::~FConcertServerWorkspace()
 	UnbindSession();
 }
 
+void FConcertServerWorkspace::ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData)
+{
+	if (EnumHasAnyFlags(LiveSession->GetSessionFlags(), EConcertSyncSessionFlags::ShouldEnableReplicationActivities))
+	{
+		FConcertSyncReplicationActivity Activity;
+		Activity.EndpointId = EndpointId;
+		Activity.EventData.SetPayload(EventData);
+		Activity.EventSummary.SetTypedPayload(FConcertSyncReplicationActivitySummary::CreateSummaryForEvent(Activity.EventData));
+		Activity.bIgnored = ShouldIgnoreClientActivityOnRestore(EndpointId);
+		AddReplicationActivity(Activity);
+	}
+}
+
 void FConcertServerWorkspace::BindSession(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession)
 {
 	check(InLiveSession->IsValidSession());
@@ -282,6 +295,7 @@ void FConcertServerWorkspace::HandleSyncRequestedEvent(const FConcertSessionCont
 		
 		SyncCommandQueue->QueueCommand(Context.SourceEndpointId, [this, SyncActivityId = InActivityId, SyncEventType = InEventType](const FConcertServerSyncCommandQueue::FSyncCommandContext& InSyncCommandContext, const FGuid& InEndpointId)
 		{
+			static_assert(static_cast<uint8>(EConcertSyncActivityEventType::Count) == 6, "If you added an EConcertSyncActivityEventType entry, update this switch");
 			switch (SyncEventType)
 			{
 			case EConcertSyncActivityEventType::Connection:
@@ -306,6 +320,9 @@ void FConcertServerWorkspace::HandleSyncRequestedEvent(const FConcertSessionCont
 				}
 				break;
 			}
+			case EConcertSyncActivityEventType::Replication:
+				SendSyncReplicationActivityEvent(InEndpointId, SyncActivityId, InSyncCommandContext.GetNumRemainingCommands());
+				break;
 			default:
 				checkf(false, TEXT("Unhandled EConcertSyncActivityEventType when syncing session activity"));
 				break;

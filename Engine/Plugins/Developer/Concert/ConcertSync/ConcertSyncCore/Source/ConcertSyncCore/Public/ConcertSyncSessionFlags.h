@@ -46,18 +46,21 @@ enum class EConcertSyncSessionFlags : uint32
 	ShouldSendPackageAutoSaves = 1<<12,
 	/** Use a sandbox to hold package writes during a session (requires EnablePackages) */
 	ShouldUsePackageSandbox = 1<<13,
+	
 	/**
 	 * For Concert Replication, clients are allowed to globally mute objects.
 	 * More formally, allows the use of FConcertReplication_ChangeMuteState_Requests.
 	 */
 	ShouldAllowGlobalMuting = 1<<14,
+	/** Whether EConcertSyncActivityEventType::Replication activities should be generated. */
+	ShouldEnableReplicationActivities = 1<<15,
 
 	/**
 	 * Defaults for different scenarios
 	 */
 	
 	/** Default settings for a multi-user session */
-	Default_MultiUserSession = EnableLiveSync | EnableConnectionHistory | EnableLocking | EnableTransactions | EnablePackages | EnableSequencer | EnablePresence | ShouldSendTransactionSnapshots | ShouldUsePackageSandbox | EnableReplication | ShouldAllowGlobalMuting,
+	Default_MultiUserSession = EnableLiveSync | EnableConnectionHistory | EnableLocking | EnableTransactions | EnablePackages | EnableSequencer | EnablePresence | ShouldSendTransactionSnapshots | ShouldUsePackageSandbox | EnableReplication | ShouldAllowGlobalMuting | ShouldEnableReplicationActivities,
 	/** Default settings for a disaster recovery session */
 	Default_DisasterRecoverySession = EnableTransactions | EnablePackages | EnableFileSharing | ShouldDiscardTransactionsOnPackageUnload | ShouldSendPackagePristineState | ShouldSendPackageAutoSaves,
 };

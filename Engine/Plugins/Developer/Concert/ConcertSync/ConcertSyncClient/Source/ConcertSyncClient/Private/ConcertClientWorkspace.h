@@ -36,6 +36,7 @@ namespace UE::ConcertSyncClient
 	};
 }
 
+struct FConcertSyncReplicationActivity;
 struct FScopedSlowTask;
 
 DECLARE_MULTICAST_DELEGATE(FOnWorkspaceEndFrameCompleted);
@@ -191,6 +192,14 @@ private:
 	 * @param InPackageActivity		The package activity to set.
 	 */
 	void SetPackageActivity(const FConcertSyncPackageActivity& InPackageActivity);
+
+	/**
+	 * Set a replication activity in the session database, creating or replacing it.
+	 * @note The endpoint ID referenced by the activity must exist in the database (@see SetEndpoint).
+	 *
+	 * @param InReplicationActivity		The replication activity to set.
+	 */
+	void SetReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity);
 
 	/**
 	 * Called after any updated in the session database.

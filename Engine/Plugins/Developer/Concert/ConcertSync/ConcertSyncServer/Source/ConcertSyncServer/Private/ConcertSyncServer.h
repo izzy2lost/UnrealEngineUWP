@@ -17,6 +17,7 @@ class FConcertSyncSessionDatabase;
 namespace UE::ConcertSyncServer::Replication
 {
 	class FConcertServerReplicationManager;
+	class IReplicationWorkspace;
 }
 
 struct FConcertSessionFilter;
@@ -55,13 +56,14 @@ public:
 	void OnArchivedSessionRenamedImpl(const IConcertServer& InServer, const FString& InArchivedSessionRoot, const FConcertSessionInfo& InArchivedSessionInfo);
 
 private:
-	void CreateWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
+	
+	TSharedRef<FConcertServerWorkspace> CreateWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	void DestroyWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 
 	void CreateSequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	void DestroySequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	
-	void CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, EConcertSyncSessionFlags InSessionFlags);
+	void CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, UE::ConcertSyncServer::Replication::IReplicationWorkspace& InWorkspace, EConcertSyncSessionFlags InSessionFlags);
 	void DestroyReplicationManager(const FGuid& SessionId); 
 
 	bool CreateLiveSession(const TSharedRef<IConcertServerSession>& InSession, const FInternalLiveSessionCreationParams& AdditionalParams);

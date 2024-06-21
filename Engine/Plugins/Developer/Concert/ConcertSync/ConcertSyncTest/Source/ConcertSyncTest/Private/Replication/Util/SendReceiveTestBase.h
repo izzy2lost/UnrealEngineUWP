@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Mocks/ReplicationWorkspaceEmptyMock.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/Messages/ObjectReplication.h"
 #include "Util/ClientServerCommunicationTest.h"
@@ -60,6 +61,7 @@ namespace UE::ConcertSyncTests::Replication
 		float FakeDeltaTime = 1.f / 60.f;
 		
 		TSharedPtr<FConcertServerSessionMock> ServerSession;
+		FReplicationWorkspaceEmptyMock WorkspaceMock;
 		TSharedPtr<ConcertSyncServer::Replication::IConcertServerReplicationManager> ServerReplicationManager;
 		
 		FClientInfo* Client_Receiver = nullptr;

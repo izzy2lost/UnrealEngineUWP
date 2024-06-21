@@ -7,11 +7,16 @@
 
 namespace UE::ConcertSyncTests::Replication
 {
-	FReplicationServer::FReplicationServer(FAutomationTestBase& TestContext, EConcertSyncSessionFlags InSessionFlags)
+	FReplicationServer::FReplicationServer(
+		FAutomationTestBase& TestContext,
+		EConcertSyncSessionFlags InSessionFlags,
+		TSharedRef<ConcertSyncServer::Replication::IReplicationWorkspace> InWorkspace
+		)
 		: SessionFlags(InSessionFlags)
 		, TestContext(TestContext)
 		, ServerSessionMock(MakeShared<FConcertServerSessionMock>())
-		, ServerReplicationManager(ConcertSyncServer::TestInterface::CreateServerReplicationManager(ServerSessionMock, InSessionFlags))
+		, ReplicationWorkspace(MoveTemp(InWorkspace))
+		, ServerReplicationManager(ConcertSyncServer::TestInterface::CreateServerReplicationManager(ServerSessionMock, *ReplicationWorkspace, InSessionFlags))
 	{}
 
 	FReplicationClient& FReplicationServer::ConnectClient()

@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "IConcertSessionHandler.h"
 #include "ConcertWorkspaceMessages.h"
+#include "IConcertSessionHandler.h"
 #include "Misc/Optional.h"
+#include "Replication/IReplicationWorkspace.h"
 
 class IConcertFileSharingService;
 class IConcertMessage;
@@ -17,6 +18,7 @@ class FConcertServerDataStore;
 struct FConcertMessageContext;
 struct FConcertEndpointContext;
 struct FConcertSyncReplicationActivity;
+struct FConcertSyncReplicationPayload_LeaveReplication;
 struct FConcertTransactionSnapshotEvent;
 struct FConcertTransactionFinalizedEvent;
 
@@ -29,11 +31,16 @@ enum class EConcertLockFlags : uint8
 };
 ENUM_CLASS_FLAGS(EConcertLockFlags);
 
-class FConcertServerWorkspace
+class FConcertServerWorkspace : public UE::ConcertSyncServer::Replication::IReplicationWorkspace
 {
 public:
+	
 	explicit FConcertServerWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession, TSharedPtr<IConcertFileSharingService> InFileSharingService);
-	~FConcertServerWorkspace();
+	virtual ~FConcertServerWorkspace() override;
+
+	//~ Begin IReplicationWorkspace Interface
+	virtual void ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData) override;
+	//~ End IReplicationWorkspace Interface
 
 private:
 	

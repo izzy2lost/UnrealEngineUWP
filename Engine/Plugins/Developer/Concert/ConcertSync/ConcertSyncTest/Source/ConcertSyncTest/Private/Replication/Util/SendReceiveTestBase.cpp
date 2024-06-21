@@ -51,7 +51,7 @@ namespace UE::ConcertSyncTests::Replication
 		// Server
 		InitServer();
 		ServerSession = GetServerSessionMock();
-		ServerReplicationManager = ConcertSyncServer::TestInterface::CreateServerReplicationManager(ServerSession.ToSharedRef());
+		ServerReplicationManager = ConcertSyncServer::TestInterface::CreateServerReplicationManager(ServerSession.ToSharedRef(), WorkspaceMock);
 		// Client Receiver
 		Client_Receiver = &ConnectClient();
 		if (EnumHasAnyFlags(Flags, ESendReceiveTestFlags::UseRealReplicationBridge))

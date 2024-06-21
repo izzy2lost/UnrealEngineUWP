@@ -33,7 +33,6 @@ namespace UE::ConcertSyncServer::Replication
 		using FClientId = FGuid;
 		using FProcessAuthorityConflict = TFunctionRef<EBreakBehavior(const FClientId& ClientId, const FStreamId& StreamId, const FConcertPropertyChain& WrittenProperties)>;
 		
-
 		/**
 		 * @param InGetters Gets information about clients' registered streams 
 		 * @param InSession The session to handle authority requests on
@@ -50,6 +49,8 @@ namespace UE::ConcertSyncServer::Replication
 
 		/** Utility for iterating authority a client has for a given stream. */
 		void EnumerateAuthority(const FClientId& ClientId, const FStreamId& StreamId, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const;
+		/** Util for getting all client owned objects as array. */
+		TArray<FConcertObjectInStreamID> GetOwnedObjects(const FClientId& ClientId) const;
 
 		enum class EAuthorityResult : uint8
 		{

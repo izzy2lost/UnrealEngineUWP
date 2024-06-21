@@ -13,6 +13,7 @@ class IConcertClientReplicationManager;
 namespace UE::ConcertSyncServer::Replication
 {
 	class IConcertServerReplicationManager;
+	class IReplicationWorkspace;
 }
 
 namespace UE::ConcertSyncClient::TestInterface
@@ -30,6 +31,7 @@ namespace UE::ConcertSyncServer::TestInterface
 {
 	extern CONCERTSYNCSERVER_API TSharedRef<Replication::IConcertServerReplicationManager> CreateServerReplicationManager(
 		TSharedRef<IConcertServerSession> InLiveSession,
+		Replication::IReplicationWorkspace& InWorkspace UE_LIFETIMEBOUND,
 		EConcertSyncSessionFlags InSessionFlags = EConcertSyncSessionFlags::Default_MultiUserSession
 		);
 }

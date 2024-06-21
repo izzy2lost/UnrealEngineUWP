@@ -4,13 +4,16 @@
 
 #include "AuthorityManager.h"
 #include "ConcertLogGlobal.h"
+#include "ConcertServerWorkspace.h"
 #include "IConcertSession.h"
 #include "Replication/ConcertReplicationClient.h"
 #include "Replication/Data/ClientQueriedInfo.h"
 #include "Replication/Formats/FullObjectFormat.h"
+#include "Replication/IReplicationWorkspace.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ClientQuery.h"
 #include "Replication/Messages/Handshake.h"
+#include "Replication/Messages/ReplicationActivity.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Util/JoinRequestValidation.h"
 #include "Util/LogUtils.h"
@@ -25,9 +28,12 @@ namespace UE::ConcertSyncServer::Replication
 	
 	FConcertServerReplicationManager::FConcertServerReplicationManager(
 		TSharedRef<IConcertServerSession> InLiveSession,
-		EConcertSyncSessionFlags SessionFlags
+		IReplicationWorkspace& InServerWorkspace,
+		EConcertSyncSessionFlags InSessionFlags
 		)
-		: Session(MoveTemp(InLiveSession))
+		: Session(InLiveSession)
+		, ServerWorkspace(InServerWorkspace)
+		, SessionFlags(InSessionFlags)
 		, ReplicationFormat(MakeUnique<ConcertSyncCore::FFullObjectFormat>())
 		, AuthorityManager(*this, Session)
 		, MuteManager(*Session, ServerObjectCache, SessionFlags)
@@ -262,6 +268,8 @@ namespace UE::ConcertSyncServer::Replication
 		const bool bRemoved = Clients.RemoveAndCopyValue(EndpointId, RemovedClient);
 		check(bRemoved);
 
+		ProduceClientLeftActivity(*RemovedClient);
+
 		// ServerObjectCache should be updated before anyone else that may rely on its state.
 		ServerObjectCache.OnPostClientLeft(EndpointId, RemovedClient->GetStreamDescriptions());
 		
@@ -271,6 +279,19 @@ namespace UE::ConcertSyncServer::Replication
 		
 		// ... and then the sync control manager rebuilds again.
 		SyncControlManager.OnPostClientLeft(EndpointId);
+	}
+
+	void FConcertServerReplicationManager::ProduceClientLeftActivity(const FConcertReplicationClient& Client) const
+	{
+		if (EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldEnableReplicationActivities))
+		{
+			const FGuid& EndpointId = Client.GetClientEndpointId();
+			
+			FConcertSyncReplicationPayload_LeaveReplication LeaveReplication;
+			LeaveReplication.Streams = Client.GetStreamDescriptions();
+			LeaveReplication.OwnedObjects = AuthorityManager.GetOwnedObjects(EndpointId);
+			ServerWorkspace.ProduceClientLeaveReplicationActivity(EndpointId, LeaveReplication);
+		}
 	}
 
 	void FConcertServerReplicationManager::Tick(IConcertServerSession& InSession, float InDeltaTime)

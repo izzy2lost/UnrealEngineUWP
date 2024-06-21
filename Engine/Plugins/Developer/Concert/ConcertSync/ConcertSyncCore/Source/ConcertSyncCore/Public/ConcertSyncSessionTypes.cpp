@@ -4,6 +4,7 @@
 #include "ConcertLogGlobal.h"
 
 #include "Misc/PackageName.h"
+#include "Replication/Messages/ReplicationActivity.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ConcertSyncSessionTypes)
 
@@ -210,7 +211,6 @@ FText FConcertSyncConnectionActivitySummary::CreateDisplayTextForUser(const FTex
 	Arguments.Add(TEXT("UserName"), ActivitySummaryUtil::ToRichTextBold(InUserDisplayName, InUseRichText));
 	return FText::Format(FormatPattern, Arguments);
 }
-
 
 FConcertSyncLockActivitySummary FConcertSyncLockActivitySummary::CreateSummaryForEvent(const FConcertSyncLockEvent& InEvent)
 {
@@ -828,6 +828,54 @@ FText FConcertSyncPackageActivitySummary::CreateDisplayTextForUser(const FText I
 	Arguments.Add(TEXT("PackageName"), ActivitySummaryUtil::ToRichTextBold(PackageName, InUseRichText));
 	Arguments.Add(TEXT("NewPackageName"), ActivitySummaryUtil::ToRichTextBold(NewPackageName, InUseRichText));
 	return FText::Format(FormatPattern, Arguments);
+}
+
+FText FConcertSyncReplicationActivitySummary::CreateDisplayText(const bool InUseRichText) const
+{
+	static_assert(static_cast<uint8>(EConcertSyncReplicationActivityType::Count) == 2, "If you added an EConcertSyncReplicationActivityType entry, update this switch");
+	switch (ActivityType)
+	{
+	case EConcertSyncReplicationActivityType::LeaveReplication:
+		{
+			FConcertSyncReplicationSummary_LeaveReplication Content;
+			const bool bRead = GetSummaryData(Content);
+			if (!bRead)
+			{
+				return LOCTEXT("CreateDisplayTextForUser_LeftActivity", "No data.");
+			}
+			
+			FFormatNamedArguments Arguments;
+			Arguments.Add(TEXT("NumObjects"), ActivitySummaryUtil::ToRichTextBold(FText::AsNumber(Content.OwnedObjects.Num()), InUseRichText));
+			return FText::Format(LOCTEXT("CreateDisplayTextForUser.LeftActivityFmt", "Stopped replicating {NumObjects} objects."), Arguments);
+			
+		}
+	case EConcertSyncReplicationActivityType::None: [[fallthrough]];
+		default: checkNoEntry(); return FConcertSyncActivitySummary::CreateDisplayText(InUseRichText);
+	}
+}
+
+FText FConcertSyncReplicationActivitySummary::CreateDisplayTextForUser(const FText InUserDisplayName, const bool InUseRichText) const
+{
+	static_assert(static_cast<uint8>(EConcertSyncReplicationActivityType::Count) == 2, "If you added an EConcertSyncReplicationActivityType entry, update this switch");
+	switch (ActivityType)
+	{
+	case EConcertSyncReplicationActivityType::LeaveReplication:
+		{
+			FConcertSyncReplicationSummary_LeaveReplication Content;
+			const bool bRead = GetSummaryData(Content);
+			if (!bRead)
+			{
+				return LOCTEXT("CreateDisplayTextForUser_LeftActivity", "No data.");
+			}
+			
+			FFormatNamedArguments Arguments;
+			Arguments.Add(TEXT("UserName"), ActivitySummaryUtil::ToRichTextBold(InUserDisplayName, InUseRichText));
+			Arguments.Add(TEXT("NumObjects"), ActivitySummaryUtil::ToRichTextBold(FText::AsNumber(Content.OwnedObjects.Num()), InUseRichText));
+			return FText::Format(LOCTEXT("CreateDisplayTextForUser.LeftActivityFmt", "{UserName} stopped replicating {NumObjects} objects."), Arguments);
+		}
+	case EConcertSyncReplicationActivityType::None: [[fallthrough]];
+	default: checkNoEntry(); return FConcertSyncActivitySummary::CreateDisplayText(InUseRichText);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

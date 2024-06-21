@@ -521,11 +521,14 @@ void FConcertSyncServer::OnArchivedSessionRenamedImpl(const IConcertServer& InSe
 	ConcertSyncServerUtils::WriteSessionInfoToDirectory(InArchivedSessionRoot, InArchivedSessionInfo);
 }
 
-void FConcertSyncServer::CreateWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession)
+TSharedRef<FConcertServerWorkspace> FConcertSyncServer::CreateWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession)
 {
 	check(InLiveSession->IsValidSession());
 	DestroyWorkspace(InLiveSession);
-	LiveSessionWorkspaces.Add(InLiveSession->GetSession().GetId(), MakeShared<FConcertServerWorkspace>(InLiveSession, FileSharingService));
+	
+	const TSharedRef<FConcertServerWorkspace> Workspace = MakeShared<FConcertServerWorkspace>(InLiveSession, FileSharingService);
+	LiveSessionWorkspaces.Add(InLiveSession->GetSession().GetId(), Workspace);
+	return Workspace;
 }
 
 void FConcertSyncServer::DestroyWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession)
@@ -545,13 +548,13 @@ void FConcertSyncServer::DestroySequencerManager(const TSharedRef<FConcertSyncSe
 	LiveSessionSequencerManagers.Remove(InLiveSession->GetSession().GetId());
 }
 
-void FConcertSyncServer::CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, EConcertSyncSessionFlags InSessionFlags)
+void FConcertSyncServer::CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, UE::ConcertSyncServer::Replication::IReplicationWorkspace& InWorkspace, EConcertSyncSessionFlags InSessionFlags)
 {
 	const FGuid& SessionId = InSession->GetId(); 
 	DestroyReplicationManager(SessionId);
 	LiveSessionReplicationManagers.Add(
 		SessionId,
-		MakeShared<UE::ConcertSyncServer::Replication::FConcertServerReplicationManager>(InSession, InSessionFlags)
+		MakeShared<UE::ConcertSyncServer::Replication::FConcertServerReplicationManager>(InSession, InWorkspace, InSessionFlags)
 		);
 }
 
@@ -568,7 +571,7 @@ bool FConcertSyncServer::CreateLiveSession(const TSharedRef<IConcertServerSessio
 	if (LiveSession->IsValidSession())
 	{
 		LiveSessions.Add(InSession->GetId(), LiveSession);
-		CreateWorkspace(LiveSession.ToSharedRef());
+		const TSharedRef<FConcertServerWorkspace> Workspace = CreateWorkspace(LiveSession.ToSharedRef());
 		if (EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::EnableSequencer))
 		{
 			CreateSequencerManager(LiveSession.ToSharedRef());
@@ -577,7 +580,7 @@ bool FConcertSyncServer::CreateLiveSession(const TSharedRef<IConcertServerSessio
 		// Create Replication Manager
 		if (EnumHasAnyFlags(LiveSession->GetSessionFlags(), EConcertSyncSessionFlags::EnableReplication))
 		{
-			CreateReplicationManager(InSession, LiveSession->GetSessionFlags());
+			CreateReplicationManager(InSession, *Workspace, LiveSession->GetSessionFlags());
 		}
 
 		// We needn't call OnActivityProduced().Remove(...) because the subscription needs to stay for the lifetime of FConcertSyncServerLiveSession::SessionDatabase

@@ -98,6 +98,26 @@ namespace UE::ConcertSyncServer::Replication
 		}
 	}
 
+	TArray<FConcertObjectInStreamID> FAuthorityManager::GetOwnedObjects(const FClientId& ClientId) const
+	{
+		TArray<FConcertObjectInStreamID> Result;
+		const FClientAuthorityData* AuthorityData = ClientAuthorityData.Find(ClientId);
+		if (!AuthorityData)
+		{
+			return Result;
+		}
+
+		for (const TPair<FStreamId, TSet<FSoftObjectPath>>& Pair : AuthorityData->OwnedObjects)
+		{
+			for (const FSoftObjectPath& ObjectPath : Pair.Value)
+			{
+				Result.Add({ Pair.Key, ObjectPath });
+			}
+		}
+		
+		return Result;
+	}
+
 	FAuthorityManager::EAuthorityResult FAuthorityManager::EnumerateAuthorityConflicts(
 		const FConcertReplicatedObjectId& Object, 
 		const FConcertPropertySelection* OverwriteProperties,

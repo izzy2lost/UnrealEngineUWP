@@ -14,6 +14,7 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "Util/Mocks/ReplicationWorkspaceEmptyMock.h"
 
 namespace UE::ConcertSyncTests::Replication::Handshake
 {
@@ -36,7 +37,8 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 		// Server
 		InitServer();
 		const TSharedPtr<IConcertServerSession>& ServerSession = GetServerSessionMock();
-		const TSharedRef<IConcertServerReplicationManager> ServerReplicationManager = CreateServerReplicationManager(ServerSession.ToSharedRef());
+		FReplicationWorkspaceEmptyMock WorkspaceEmptyMock;
+		const TSharedRef<IConcertServerReplicationManager> ServerReplicationManager = CreateServerReplicationManager(ServerSession.ToSharedRef(), WorkspaceEmptyMock);
 		
 		// Client
 		FClientInfo& Client = ConnectClient();

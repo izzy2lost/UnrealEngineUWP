@@ -9,6 +9,8 @@
 #include "Replication/Data/ReplicationStream.h"
 #include "ReplicationActivity.generated.h"
 
+class FText;
+
 /** Identifies the FConcertSyncReplicationEvent::Payload struct type */
 UENUM()
 enum class EConcertSyncReplicationActivityType : uint8
@@ -41,6 +43,16 @@ struct FConcertSyncReplicationPayload_LeaveReplication
 
 	friend bool operator==(const FConcertSyncReplicationPayload_LeaveReplication&, const FConcertSyncReplicationPayload_LeaveReplication&) = default;
 	friend bool operator!=(const FConcertSyncReplicationPayload_LeaveReplication&, const FConcertSyncReplicationPayload_LeaveReplication&) = default;
+};
+
+USTRUCT()
+struct FConcertSyncReplicationSummary_LeaveReplication
+{
+	GENERATED_BODY()
+
+	/** The objects the client had authority over when they left. */
+	UPROPERTY()
+	TArray<FConcertObjectInStreamID> OwnedObjects;
 };
 
 namespace UE::ConcertSyncCore
@@ -94,28 +106,7 @@ struct FConcertSyncReplicationEvent
 		return Payload.GetTypedPayload(Result);
 	}
 
-	friend bool operator==(const FConcertSyncReplicationEvent& Left, const FConcertSyncReplicationEvent& Right)
-	{
-		if (Left.ActivityType != Right.ActivityType)
-		{
-			return false;
-		}
-
-		static_assert(static_cast<int32>(EConcertSyncReplicationActivityType::Count) == 2, "If you added an EConcertSyncReplicationActivityType entry, update this switch");
-		switch (Left.ActivityType)
-		{
-		case EConcertSyncReplicationActivityType::None: return true;
-		case EConcertSyncReplicationActivityType::LeaveReplication:
-		{
-			FConcertSyncReplicationPayload_LeaveReplication LeftContent;
-			FConcertSyncReplicationPayload_LeaveReplication RightContent;
-			const bool bLeftSucceeded = Left.GetPayload(LeftContent);
-			const bool bRightSucceeded = Right.GetPayload(RightContent);
-			return bLeftSucceeded && bRightSucceeded && LeftContent == RightContent;
-		}
-		default: checkNoEntry(); return false;
-		}
-	}
+	CONCERTSYNCCORE_API friend bool operator==(const FConcertSyncReplicationEvent& Left, const FConcertSyncReplicationEvent& Right);
 	friend bool operator!=(const FConcertSyncReplicationEvent&, const FConcertSyncReplicationEvent&) = default;
 };
 
@@ -139,4 +130,35 @@ struct FConcertSyncReplicationActivity : public FConcertSyncActivity
 	/** The transaction event data associated with this activity */
 	UPROPERTY()
 	FConcertSyncReplicationEvent EventData;
+};
+
+/** Summary for a lock activity entry in a Concert Sync Session */
+USTRUCT()
+struct CONCERTSYNCCORE_API FConcertSyncReplicationActivitySummary : public FConcertSyncActivitySummary
+{
+	GENERATED_BODY()
+
+	/** The type of replication event we summarize */
+	UPROPERTY()
+	EConcertSyncReplicationActivityType ActivityType;
+
+	/** The summary data. The underlying type depends on ActivityType. */
+	UPROPERTY()
+	FConcertSessionSerializedPayload Payload{ EConcertPayloadSerializationMethod::Cbor };
+
+	bool GetSummaryData(FConcertSyncReplicationSummary_LeaveReplication& Data) const
+	{
+		check(ActivityType == EConcertSyncReplicationActivityType::LeaveReplication);
+		return Payload.GetTypedPayload(Data);
+	}
+
+	/** Create this summary from a replication event */
+	static FConcertSyncReplicationActivitySummary CreateSummaryForEvent(const FConcertSyncReplicationEvent& InEvent);
+
+protected:
+	
+	//~ Begin FConcertSyncActivitySummary Interface
+	virtual FText CreateDisplayText(const bool InUseRichText) const override;
+	virtual FText CreateDisplayTextForUser(const FText InUserDisplayName, const bool InUseRichText) const override;
+	//~ End FConcertSyncActivitySummary Interface
 };
