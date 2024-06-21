@@ -9,7 +9,7 @@ class FRCSignatureTreeRootItem;
 class IRCSignatureColumn;
 class SHeaderRow;
 class SRCSignaturePanel;
-class URemoteControlSignatureRegistry;
+class URCSignatureRegistry;
 template<typename ItemType> class STreeView;
 
 class SRCSignatureTree : public SRCLogicPanelListBase
@@ -23,7 +23,7 @@ public:
 
 	TSharedRef<FRCSignatureTreeRootItem> GetRootItem() const;
 
-	URemoteControlSignatureRegistry* GetSignatureRegistry() const;
+	URCSignatureRegistry* GetSignatureRegistry() const;
 
 	TSharedPtr<IRCSignatureColumn> FindColumn(FName InColumnName) const;
 

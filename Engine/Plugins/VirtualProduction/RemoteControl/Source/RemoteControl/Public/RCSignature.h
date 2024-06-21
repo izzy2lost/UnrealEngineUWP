@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "RCSignatureActionDefinition.h"
+#include "RCSignatureActionInstance.h"
 #include "RemoteControlFieldPath.h"
-#include "RemoteControlSignature.generated.h"
+#include "RCSignature.generated.h"
 
 enum class EPropertyBagPropertyType : uint8;
 class URemoteControlPreset;
@@ -38,9 +38,9 @@ struct FRCSignatureField
 	UPROPERTY()
 	FSoftClassPath SupportedClass;
 
-	/** Container holding the action definitions for the field */
+	/** Container holding the action instances for the field */
 	UPROPERTY()
-	TArray<FRCSignatureActionDefinition> ActionDefinitions;
+	TArray<FRCSignatureActionInstance> Actions;
 
 	/** Whether to consider this field when applying a Signature */
 	UPROPERTY()

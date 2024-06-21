@@ -5,8 +5,8 @@
 #include "RCSignatureTreeItemBase.h"
 
 class FRCSignatureTreeFieldItem;
-class URemoteControlSignatureRegistry;
-struct FRCSignatureActionDefinition;
+class URCSignatureRegistry;
+struct FRCSignatureActionInstance;
 struct FRCSignatureActionIcon;
 struct FRCSignatureField;
 
@@ -18,9 +18,9 @@ public:
 
 	explicit FRCSignatureTreeActionItem(int32 InActionIndex, const TSharedPtr<SRCSignatureTree>& InSignatureTree);
 
-	const FRCSignatureActionDefinition* FindActionDefinition() const;
+	const FRCSignatureActionInstance* FindActionInstance() const;
 
-	FRCSignatureActionDefinition* FindActionDefinitionMutable();
+	FRCSignatureActionInstance* FindActionInstanceMutable();
 
 	FRCSignatureActionIcon GetIcon() const;
 
@@ -38,7 +38,7 @@ protected:
 private:
 	TSharedPtr<FRCSignatureTreeFieldItem> GetParentFieldItem() const;
 
-	FRCSignatureField* FindParentFieldMutable(URemoteControlSignatureRegistry** OutRegistry = nullptr);
+	FRCSignatureField* FindParentFieldMutable(URCSignatureRegistry** OutRegistry = nullptr);
 
 	int32 ActionIndex;
 };

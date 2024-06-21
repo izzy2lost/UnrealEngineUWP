@@ -6,7 +6,7 @@
 
 class SRCSignatureDetails;
 class SRCSignatureTree;
-class URemoteControlSignatureRegistry;
+class URCSignatureRegistry;
 struct FRCExposesPropertyArgs;
 
 class SRCSignaturePanel : public SRCLogicPanelBase, public FSelfRegisteringEditorUndoClient
@@ -19,7 +19,7 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedRef<SRemoteControlPanel>& InPanel);
 
 	/** Gets the Signature Registry from the RC Preset */
-	URemoteControlSignatureRegistry* GetSignatureRegistry() const;
+	URCSignatureRegistry* GetSignatureRegistry() const;
 
 	void AddToSignature(const FRCExposesPropertyArgs& InPropertyArgs);
 

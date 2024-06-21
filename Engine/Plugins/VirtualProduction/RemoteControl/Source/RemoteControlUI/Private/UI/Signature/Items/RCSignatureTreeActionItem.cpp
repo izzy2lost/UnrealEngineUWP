@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCSignatureTreeActionItem.h"
+#include "RCSignature.h"
 #include "RCSignatureAction.h"
+#include "RCSignatureRegistry.h"
 #include "RCSignatureTreeFieldItem.h"
 #include "RCSignatureTreeRootItem.h"
-#include "RemoteControlSignature.h"
-#include "RemoteControlSignatureRegistry.h"
 #include "ScopedTransaction.h"
 #include "UI/Signature/RCSignatureTreeItemSelection.h"
 
@@ -19,7 +19,7 @@ FRCSignatureTreeActionItem::FRCSignatureTreeActionItem(int32 InActionIndex, cons
 	AddTreeViewFlags(ERCSignatureTreeItemViewFlags::Hidden);
 }
 
-const FRCSignatureActionDefinition* FRCSignatureTreeActionItem::FindActionDefinition() const
+const FRCSignatureActionInstance* FRCSignatureTreeActionItem::FindActionInstance() const
 {
 	TSharedPtr<FRCSignatureTreeFieldItem> FieldItem = GetParentFieldItem();
 	if (!FieldItem.IsValid())
@@ -28,30 +28,30 @@ const FRCSignatureActionDefinition* FRCSignatureTreeActionItem::FindActionDefini
 	}
 
 	const FRCSignatureField* Field = FieldItem->FindField();
-	if (!Field || !Field->ActionDefinitions.IsValidIndex(ActionIndex))
+	if (!Field || !Field->Actions.IsValidIndex(ActionIndex))
 	{
 		return nullptr;
 	}
 
-	return &Field->ActionDefinitions[ActionIndex];
+	return &Field->Actions[ActionIndex];
 }
 
-FRCSignatureActionDefinition* FRCSignatureTreeActionItem::FindActionDefinitionMutable()
+FRCSignatureActionInstance* FRCSignatureTreeActionItem::FindActionInstanceMutable()
 {
 	FRCSignatureField* Field = FindParentFieldMutable();
-	if (!Field || !Field->ActionDefinitions.IsValidIndex(ActionIndex))
+	if (!Field || !Field->Actions.IsValidIndex(ActionIndex))
 	{
 		return nullptr;
 	}
 
-	return &Field->ActionDefinitions[ActionIndex];
+	return &Field->Actions[ActionIndex];
 }
 
 FRCSignatureActionIcon FRCSignatureTreeActionItem::GetIcon() const
 {
-	if (const FRCSignatureActionDefinition* ActionDefinition = FindActionDefinition())
+	if (const FRCSignatureActionInstance* ActionInstance = FindActionInstance())
 	{
-		if (const FRCSignatureAction* Action = ActionDefinition->GetAction())
+		if (const FRCSignatureAction* Action = ActionInstance->GetAction())
 		{
 			return Action->GetIcon();
 		}
@@ -71,10 +71,10 @@ TOptional<bool> FRCSignatureTreeActionItem::IsEnabled() const
 
 int32 FRCSignatureTreeActionItem::RemoveFromRegistry()
 {
-	URemoteControlSignatureRegistry* Registry;
+	URCSignatureRegistry* Registry;
 
 	FRCSignatureField* Field = FindParentFieldMutable(&Registry);
-	if (!Field || !Field->ActionDefinitions.IsValidIndex(ActionIndex))
+	if (!Field || !Field->Actions.IsValidIndex(ActionIndex))
 	{
 		return 0;
 	}
@@ -83,7 +83,7 @@ int32 FRCSignatureTreeActionItem::RemoveFromRegistry()
 
 	FScopedTransaction Transaction(LOCTEXT("RemoveAction", "Remove Action"));
 	Registry->Modify();
-	Field->ActionDefinitions.RemoveAt(ActionIndex);
+	Field->Actions.RemoveAt(ActionIndex);
 	return 1;
 }
 
@@ -101,9 +101,9 @@ FText FRCSignatureTreeActionItem::GetDescription() const
 
 TSharedPtr<FStructOnScope> FRCSignatureTreeActionItem::MakeSelectionStruct()
 {
-	if (FRCSignatureActionDefinition* ActionDefinition = FindActionDefinitionMutable())
+	if (FRCSignatureActionInstance* ActionInstance = FindActionInstanceMutable())
 	{
-		return ActionDefinition->MakeStructOnScope();
+		return ActionInstance->MakeStructOnScope();
 	}
 	return nullptr;
 }
@@ -117,7 +117,7 @@ TSharedPtr<FRCSignatureTreeFieldItem> FRCSignatureTreeActionItem::GetParentField
 	return nullptr;
 }
 
-FRCSignatureField* FRCSignatureTreeActionItem::FindParentFieldMutable(URemoteControlSignatureRegistry** OutRegistry)
+FRCSignatureField* FRCSignatureTreeActionItem::FindParentFieldMutable(URCSignatureRegistry** OutRegistry)
 {
 	if (TSharedPtr<FRCSignatureTreeFieldItem> ParentFieldItem = GetParentFieldItem())
 	{

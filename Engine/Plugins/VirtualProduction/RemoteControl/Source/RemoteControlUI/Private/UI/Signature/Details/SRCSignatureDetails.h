@@ -11,7 +11,7 @@ class FRCSignatureTreeItemSelection;
 class FScopedTransaction;
 class FStructOnScope;
 class IStructureDetailsView;
-class URemoteControlSignatureRegistry;
+class URCSignatureRegistry;
 struct FPropertyChangedEvent;
 
 class SRCSignatureDetails : public SCompoundWidget, public FNotifyHook
@@ -20,7 +20,7 @@ public:
 	SLATE_BEGIN_ARGS(SRCSignatureDetails) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, URemoteControlSignatureRegistry* InSignatureRegistry, const TSharedRef<FRCSignatureTreeItemSelection>& InSelection);
+	void Construct(const FArguments& InArgs, URCSignatureRegistry* InSignatureRegistry, const TSharedRef<FRCSignatureTreeItemSelection>& InSelection);
 
 	virtual ~SRCSignatureDetails() override;
 
@@ -39,7 +39,7 @@ private:
 
 	TSharedPtr<FScopedTransaction> CurrentTransaction;
 
-	TWeakObjectPtr<URemoteControlSignatureRegistry> SignatureRegistryWeak;
+	TWeakObjectPtr<URCSignatureRegistry> SignatureRegistryWeak;
 
 	TWeakPtr<FRCSignatureTreeItemSelection> SelectionWeak;
 };

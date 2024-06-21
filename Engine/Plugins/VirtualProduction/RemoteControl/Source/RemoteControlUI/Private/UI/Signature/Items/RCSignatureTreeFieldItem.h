@@ -5,7 +5,7 @@
 #include "RCSignatureTreeItemBase.h"
 
 class FRCSignatureTreeSignatureItem;
-class URemoteControlSignatureRegistry;
+class URCSignatureRegistry;
 struct FRCSignature;
 struct FRCSignatureField;
 
@@ -19,7 +19,7 @@ public:
 
 	const FRCSignatureField* FindField() const;
 
-	FRCSignatureField* FindFieldMutable(URemoteControlSignatureRegistry** OutRegistry);
+	FRCSignatureField* FindFieldMutable(URCSignatureRegistry** OutRegistry);
 
 	void AddAction(const UScriptStruct* InActionType);
 
@@ -38,7 +38,7 @@ protected:
 private:
 	TSharedPtr<FRCSignatureTreeSignatureItem> GetParentSignatureItem() const;
 
-	FRCSignature* FindParentSignature(URemoteControlSignatureRegistry** OutRegistry);
+	FRCSignature* FindParentSignature(URCSignatureRegistry** OutRegistry);
 
 	int32 FieldIndex;
 };

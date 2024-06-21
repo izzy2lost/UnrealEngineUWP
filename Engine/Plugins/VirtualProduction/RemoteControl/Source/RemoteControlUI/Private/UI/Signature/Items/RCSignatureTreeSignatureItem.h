@@ -9,7 +9,7 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class IPropertyHandle;
-class URemoteControlSignatureRegistry;
+class URCSignatureRegistry;
 struct FRCSignature;
 
 /** Item class representing an RC Signature */
@@ -22,13 +22,13 @@ public:
 
 	const FGuid& GetSignatureId() const;
 
-	URemoteControlSignatureRegistry* GetRegistry() const;
+	URCSignatureRegistry* GetRegistry() const;
 
 	const FRCSignature* FindSignature() const;
 
-	FRCSignature* FindSignatureMutable(URemoteControlSignatureRegistry* InRegistry);
+	FRCSignature* FindSignatureMutable(URCSignatureRegistry* InRegistry);
 
-	bool AddField(URemoteControlSignatureRegistry* InRegistry, const TSharedRef<IPropertyHandle>& InPropertyHandle);
+	bool AddField(URCSignatureRegistry* InRegistry, const TSharedRef<IPropertyHandle>& InPropertyHandle);
 
 	//~ Begin IRCSignatureItem
 	virtual void ApplySignature(TConstArrayView<TWeakObjectPtr<UObject>> InObjects) override;
@@ -49,7 +49,7 @@ protected:
 	//~ End FRCSignatureTreeItem
 
 private:
-	TWeakObjectPtr<URemoteControlSignatureRegistry> RegistryWeak;
+	TWeakObjectPtr<URCSignatureRegistry> RegistryWeak;
 
 	FGuid SignatureId;
 };

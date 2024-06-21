@@ -1,20 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RemoteControlSignatureRegistry.h"
+#include "RCSignatureRegistry.h"
 
-#define LOCTEXT_NAMESPACE "RemoteControlSignatureRegistry"
+#define LOCTEXT_NAMESPACE "RCSignatureRegistry"
 
-const FRCSignature* URemoteControlSignatureRegistry::FindSignature(const FGuid& InSignatureId) const
+const FRCSignature* URCSignatureRegistry::FindSignature(const FGuid& InSignatureId) const
 {
 	return Signatures.FindByKey(InSignatureId);
 }
 
-FRCSignature* URemoteControlSignatureRegistry::FindSignatureMutable(const FGuid& InSignatureId)
+FRCSignature* URCSignatureRegistry::FindSignatureMutable(const FGuid& InSignatureId)
 {
 	return Signatures.FindByKey(InSignatureId);
 }
 
-FRCSignature& URemoteControlSignatureRegistry::AddSignature()
+FRCSignature& URCSignatureRegistry::AddSignature()
 {
 	FRCSignature& Signature = Signatures.AddDefaulted_GetRef();
 	Signature.DisplayName = LOCTEXT("NewSignatureDisplayName", "New Signature");
@@ -22,7 +22,7 @@ FRCSignature& URemoteControlSignatureRegistry::AddSignature()
 	return Signature;
 }
 
-int32 URemoteControlSignatureRegistry::RemoveSignature(const FGuid& InSignatureId)
+int32 URCSignatureRegistry::RemoveSignature(const FGuid& InSignatureId)
 {
 	return Signatures.RemoveAll([&InSignatureId](const FRCSignature& InSignature)
 		{
@@ -30,7 +30,7 @@ int32 URemoteControlSignatureRegistry::RemoveSignature(const FGuid& InSignatureI
 		});
 }
 
-void URemoteControlSignatureRegistry::EmptySignatures()
+void URCSignatureRegistry::EmptySignatures()
 {
 	Signatures.Empty();
 }

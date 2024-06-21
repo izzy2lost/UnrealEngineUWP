@@ -14,21 +14,21 @@
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
 #include "IRemoteControlModule.h"
-#include "RCVirtualPropertyContainer.h"
-#include "RCVirtualProperty.h"
 #include "Misc/CoreDelegates.h"
-#include "Misc/TransactionObjectEvent.h"
 #include "Misc/Optional.h"
+#include "Misc/TransactionObjectEvent.h"
+#include "RCSignatureRegistry.h"
+#include "RCVirtualProperty.h"
+#include "RCVirtualPropertyContainer.h"
 #include "RemoteControlActor.h"
 #include "RemoteControlBinding.h"
 #include "RemoteControlEntityFactory.h"
 #include "RemoteControlExposeRegistry.h"
 #include "RemoteControlFieldPath.h"
-#include "RemoteControlPropertyIdRegistry.h"
 #include "RemoteControlLogger.h"
 #include "RemoteControlObjectVersion.h"
 #include "RemoteControlPresetRebindingManager.h"
-#include "RemoteControlSignatureRegistry.h"
+#include "RemoteControlPropertyIdRegistry.h"
 #include "RemoteControlTransactionListenerHelper.h"
 
 #include "UObject/Object.h"
@@ -674,7 +674,7 @@ URemoteControlPreset::URemoteControlPreset()
 {
 	Registry = CreateDefaultSubobject<URemoteControlExposeRegistry>(FName("ExposeRegistry"));
 
-	SignatureRegistry = CreateDefaultSubobject<URemoteControlSignatureRegistry>(TEXT("SignatureRegistry"));
+	SignatureRegistry = CreateDefaultSubobject<URCSignatureRegistry>(TEXT("SignatureRegistry"));
 
 	PropertyIdRegistry = CreateDefaultSubobject<URemoteControlPropertyIdRegistry>(FName("PropertyIdRegistry"));
 	PropertyIdRegistry->Initialize();

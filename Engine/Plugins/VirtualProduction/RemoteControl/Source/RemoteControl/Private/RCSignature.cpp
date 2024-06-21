@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RemoteControlSignature.h"
+#include "RCSignature.h"
 #include "GameFramework/Actor.h"
 #include "RCSignatureAction.h"
-#include "RCSignatureActionDefinition.h"
+#include "RCSignatureActionInstance.h"
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 
@@ -153,7 +153,7 @@ int32 FRCSignature::ApplySignature(URemoteControlPreset* InPreset, TConstArrayVi
 			++ExposeCount;
 
 			// Execute the actions for the newly exposed property
-			for (const FRCSignatureActionDefinition& Action : Field.ActionDefinitions)
+			for (const FRCSignatureActionInstance& Action : Field.Actions)
 			{
 				Action.Execute(ActionContext);
 			}

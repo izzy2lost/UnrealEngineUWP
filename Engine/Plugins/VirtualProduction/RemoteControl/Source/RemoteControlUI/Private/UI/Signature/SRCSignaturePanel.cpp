@@ -8,8 +8,8 @@
 #include "Items/RCSignatureTreeSignatureItem.h"
 #include "Label/RCSignatureLabelColumn.h"
 #include "Misc/MessageDialog.h"
+#include "RCSignatureRegistry.h"
 #include "RemoteControlPreset.h"
-#include "RemoteControlSignatureRegistry.h"
 #include "SRCSignatureTree.h"
 #include "ScopedTransaction.h"
 #include "Styling/RemoteControlStyles.h"
@@ -105,7 +105,7 @@ void SRCSignaturePanel::Construct(const FArguments& InArgs, const TSharedRef<SRe
 		];
 }
 
-URemoteControlSignatureRegistry* SRCSignaturePanel::GetSignatureRegistry() const
+URCSignatureRegistry* SRCSignaturePanel::GetSignatureRegistry() const
 {
 	if (URemoteControlPreset* Preset = GetPreset())
 	{
@@ -121,7 +121,7 @@ void SRCSignaturePanel::AddToSignature(const FRCExposesPropertyArgs& InPropertyA
 		return;
 	}
 
-	URemoteControlSignatureRegistry* Registry = GetSignatureRegistry();
+	URCSignatureRegistry* Registry = GetSignatureRegistry();
 	if (!Registry)
 	{
 		return;
@@ -263,7 +263,7 @@ void SRCSignaturePanel::Refresh()
 
 FReply SRCSignaturePanel::OnAddButtonClicked()
 {
-	URemoteControlSignatureRegistry* SignatureRegistry = GetSignatureRegistry();
+	URCSignatureRegistry* SignatureRegistry = GetSignatureRegistry();
 	if (!SignatureRegistry)
 	{
 		return FReply::Unhandled();
@@ -282,7 +282,7 @@ FReply SRCSignaturePanel::OnAddButtonClicked()
 
 FReply SRCSignaturePanel::DeleteAllItems()
 {
-	URemoteControlSignatureRegistry* SignatureRegistry = GetSignatureRegistry();
+	URCSignatureRegistry* SignatureRegistry = GetSignatureRegistry();
 	if (!SignatureRegistry)
 	{
 		return FReply::Unhandled();

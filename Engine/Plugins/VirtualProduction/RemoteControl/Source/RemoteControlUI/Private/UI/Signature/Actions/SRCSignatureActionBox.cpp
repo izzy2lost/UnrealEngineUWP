@@ -2,8 +2,8 @@
 
 #include "SRCSignatureActionBox.h"
 #include "DetailLayoutBuilder.h"
+#include "RCSignature.h"
 #include "RCSignatureActionType.h"
-#include "RemoteControlSignature.h"
 #include "SRCSignatureAction.h"
 #include "SRCSignatureActionIcon.h"
 #include "Styling/RemoteControlStyles.h"

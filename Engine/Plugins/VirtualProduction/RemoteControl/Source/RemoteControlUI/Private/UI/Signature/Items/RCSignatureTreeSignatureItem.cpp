@@ -2,9 +2,9 @@
 
 #include "RCSignatureTreeSignatureItem.h"
 #include "IRemoteControlUIModule.h"
+#include "RCSignatureRegistry.h"
 #include "RCSignatureTreeFieldItem.h"
 #include "RemoteControlPreset.h"
-#include "RemoteControlSignatureRegistry.h"
 #include "ScopedTransaction.h"
 #include "UI/SRemoteControlPanel.h"
 #include "UI/Signature/SRCSignatureTree.h"
@@ -26,21 +26,21 @@ const FGuid& FRCSignatureTreeSignatureItem::GetSignatureId() const
 	return SignatureId;
 }
 
-URemoteControlSignatureRegistry* FRCSignatureTreeSignatureItem::GetRegistry() const
+URCSignatureRegistry* FRCSignatureTreeSignatureItem::GetRegistry() const
 {
 	return RegistryWeak.Get();
 }
 
 const FRCSignature* FRCSignatureTreeSignatureItem::FindSignature() const
 {
-	if (URemoteControlSignatureRegistry* SignatureRegistry = GetRegistry())
+	if (URCSignatureRegistry* SignatureRegistry = GetRegistry())
 	{
 		return SignatureRegistry->FindSignature(SignatureId);
 	}
 	return nullptr;
 }
 
-FRCSignature* FRCSignatureTreeSignatureItem::FindSignatureMutable(URemoteControlSignatureRegistry* InRegistry)
+FRCSignature* FRCSignatureTreeSignatureItem::FindSignatureMutable(URCSignatureRegistry* InRegistry)
 {
 	if (InRegistry)
 	{
@@ -49,7 +49,7 @@ FRCSignature* FRCSignatureTreeSignatureItem::FindSignatureMutable(URemoteControl
 	return nullptr;
 }
 
-bool FRCSignatureTreeSignatureItem::AddField(URemoteControlSignatureRegistry* InRegistry, const TSharedRef<IPropertyHandle>& InPropertyHandle)
+bool FRCSignatureTreeSignatureItem::AddField(URCSignatureRegistry* InRegistry, const TSharedRef<IPropertyHandle>& InPropertyHandle)
 {
 	FRCSignature* Signature = FindSignatureMutable(InRegistry);
 	if (!Signature)
@@ -121,7 +121,7 @@ TOptional<bool> FRCSignatureTreeSignatureItem::IsEnabled() const
 
 void FRCSignatureTreeSignatureItem::SetEnabled(bool bInEnabled)
 {
-	URemoteControlSignatureRegistry* SignatureRegistry = GetRegistry();
+	URCSignatureRegistry* SignatureRegistry = GetRegistry();
 
 	FRCSignature* Signature = FindSignatureMutable(SignatureRegistry);
 	if (!Signature || Signature->bEnabled == bInEnabled)
@@ -153,7 +153,7 @@ bool FRCSignatureTreeSignatureItem::CanEditDisplayNameText() const
 
 void FRCSignatureTreeSignatureItem::SetDisplayNameText(const FText& InText)
 {
-	URemoteControlSignatureRegistry* SignatureRegistry = GetRegistry();
+	URCSignatureRegistry* SignatureRegistry = GetRegistry();
 
 	FRCSignature* Signature = FindSignatureMutable(SignatureRegistry);
 	if (!Signature || Signature->DisplayName.EqualTo(InText))
@@ -173,7 +173,7 @@ FText FRCSignatureTreeSignatureItem::GetDescription() const
 
 int32 FRCSignatureTreeSignatureItem::RemoveFromRegistry()
 {
-	URemoteControlSignatureRegistry* SignatureRegistry = GetRegistry();
+	URCSignatureRegistry* SignatureRegistry = GetRegistry();
 	if (!SignatureRegistry)
 	{
 		return 0;

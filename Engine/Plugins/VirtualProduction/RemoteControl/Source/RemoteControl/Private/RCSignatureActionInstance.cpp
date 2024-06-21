@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RCSignatureActionDefinition.h"
+#include "RCSignatureActionInstance.h"
 #include "RCSignatureAction.h"
 #include "UObject/StructOnScope.h"
 
-FRCSignatureActionDefinition::FRCSignatureActionDefinition(const UScriptStruct* InScriptStruct, const FRCSignatureField& InFieldOwner)
+FRCSignatureActionInstance::FRCSignatureActionInstance(const UScriptStruct* InScriptStruct, const FRCSignatureField& InFieldOwner)
 {
 	ActionInstance.InitializeAsScriptStruct(InScriptStruct, /*StructMemory*/nullptr);
 
@@ -14,17 +14,17 @@ FRCSignatureActionDefinition::FRCSignatureActionDefinition(const UScriptStruct* 
 	}
 }
 
-const FRCSignatureAction* FRCSignatureActionDefinition::GetAction() const
+const FRCSignatureAction* FRCSignatureActionInstance::GetAction() const
 {
 	return ActionInstance.GetPtr();
 }
 
-TSharedRef<FStructOnScope> FRCSignatureActionDefinition::MakeStructOnScope()
+TSharedRef<FStructOnScope> FRCSignatureActionInstance::MakeStructOnScope()
 {
 	return MakeShared<FStructOnScope>(ActionInstance.GetScriptStruct(), ActionInstance.GetMutableMemory());
 }
 
-bool FRCSignatureActionDefinition::Execute(const FRCSignatureActionContext& InContext) const
+bool FRCSignatureActionInstance::Execute(const FRCSignatureActionContext& InContext) const
 {
 	if (const FRCSignatureAction* Action = ActionInstance.GetPtr())
 	{

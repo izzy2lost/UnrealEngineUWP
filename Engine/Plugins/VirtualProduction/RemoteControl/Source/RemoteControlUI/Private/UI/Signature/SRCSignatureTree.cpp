@@ -5,9 +5,9 @@
 #include "Items/RCSignatureTreeItemBase.h"
 #include "Items/RCSignatureTreeRootItem.h"
 #include "Items/RCSignatureTreeSignatureItem.h"
+#include "RCSignatureRegistry.h"
 #include "RCSignatureTreeItemSelection.h"
 #include "RemoteControlPreset.h"
-#include "RemoteControlSignatureRegistry.h"
 #include "SRCSignaturePanel.h"
 #include "SRCSignatureRow.h"
 #include "ScopedTransaction.h"
@@ -57,7 +57,7 @@ TSharedRef<FRCSignatureTreeRootItem> SRCSignatureTree::GetRootItem() const
 	return RootItem.ToSharedRef();
 }
 
-URemoteControlSignatureRegistry* SRCSignatureTree::GetSignatureRegistry() const
+URCSignatureRegistry* SRCSignatureTree::GetSignatureRegistry() const
 {
 	TSharedPtr<SRCSignaturePanel> SignaturePanel = SignaturePanelWeak.Pin();
 	if (!SignaturePanel.IsValid())

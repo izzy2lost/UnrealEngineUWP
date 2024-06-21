@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCSignatureTreeFieldItem.h"
+#include "RCSignature.h"
+#include "RCSignatureRegistry.h"
 #include "RCSignatureTreeActionItem.h"
 #include "RCSignatureTreeSignatureItem.h"
-#include "RemoteControlSignature.h"
-#include "RemoteControlSignatureRegistry.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "RCSignatureTreeFieldItem"
@@ -32,7 +32,7 @@ const FRCSignatureField* FRCSignatureTreeFieldItem::FindField() const
 	return &Signature->Fields[FieldIndex];
 }
 
-FRCSignatureField* FRCSignatureTreeFieldItem::FindFieldMutable(URemoteControlSignatureRegistry** OutRegistry)
+FRCSignatureField* FRCSignatureTreeFieldItem::FindFieldMutable(URCSignatureRegistry** OutRegistry)
 {
 	FRCSignature* Signature = FindParentSignature(OutRegistry);
 	if (!Signature || !Signature->Fields.IsValidIndex(FieldIndex))
@@ -44,7 +44,7 @@ FRCSignatureField* FRCSignatureTreeFieldItem::FindFieldMutable(URemoteControlSig
 
 void FRCSignatureTreeFieldItem::AddAction(const UScriptStruct* InActionType)
 {
-	URemoteControlSignatureRegistry* Registry;
+	URCSignatureRegistry* Registry;
 
 	FRCSignatureField* Field = FindFieldMutable(&Registry);
 	if (!Field)
@@ -55,7 +55,7 @@ void FRCSignatureTreeFieldItem::AddAction(const UScriptStruct* InActionType)
 	FScopedTransaction Transaction(LOCTEXT("AddSignatureAction", "Add Signature Action"));
 	check(Registry);
 	Registry->Modify();
-	Field->ActionDefinitions.Emplace(InActionType, *Field);
+	Field->Actions.Emplace(InActionType, *Field);
 }
 
 void FRCSignatureTreeFieldItem::BuildPathSegment(FStringBuilderBase& InBuilder) const
@@ -74,7 +74,7 @@ TOptional<bool> FRCSignatureTreeFieldItem::IsEnabled() const
 
 void FRCSignatureTreeFieldItem::SetEnabled(bool bInEnabled)
 {
-	URemoteControlSignatureRegistry* Registry;
+	URCSignatureRegistry* Registry;
 
 	FRCSignatureField* Field = FindFieldMutable(&Registry);
 	if (!Field || Field->bEnabled == bInEnabled)
@@ -118,7 +118,7 @@ FText FRCSignatureTreeFieldItem::GetDescription() const
 
 int32 FRCSignatureTreeFieldItem::RemoveFromRegistry()
 {
-	URemoteControlSignatureRegistry* Registry;
+	URCSignatureRegistry* Registry;
 
 	FRCSignature* Signature = FindParentSignature(&Registry);
 	if (!Signature || !Signature->Fields.IsValidIndex(FieldIndex))
@@ -144,8 +144,8 @@ void FRCSignatureTreeFieldItem::GenerateChildren(TArray<TSharedPtr<FRCSignatureT
 
 	const TSharedPtr<SRCSignatureTree> SignatureTree = GetSignatureTree();
 
-	OutChildren.Reserve(OutChildren.Num() + Field->ActionDefinitions.Num());
-	for (int32 ActionIndex = 0; ActionIndex < Field->ActionDefinitions.Num(); ++ActionIndex)
+	OutChildren.Reserve(OutChildren.Num() + Field->Actions.Num());
+	for (int32 ActionIndex = 0; ActionIndex < Field->Actions.Num(); ++ActionIndex)
 	{
 		OutChildren.Add(MakeShared<FRCSignatureTreeActionItem>(ActionIndex, SignatureTree));
 	}
@@ -160,7 +160,7 @@ TSharedPtr<FRCSignatureTreeSignatureItem> FRCSignatureTreeFieldItem::GetParentSi
 	return nullptr;
 }
 
-FRCSignature* FRCSignatureTreeFieldItem::FindParentSignature(URemoteControlSignatureRegistry** OutRegistry)
+FRCSignature* FRCSignatureTreeFieldItem::FindParentSignature(URCSignatureRegistry** OutRegistry)
 {
 	TSharedPtr<FRCSignatureTreeSignatureItem> ParentSignatureItem = GetParentSignatureItem();
 	if (!ParentSignatureItem.IsValid())
@@ -168,7 +168,7 @@ FRCSignature* FRCSignatureTreeFieldItem::FindParentSignature(URemoteControlSigna
 		return nullptr;
 	}
 
-	URemoteControlSignatureRegistry* Registry = ParentSignatureItem->GetRegistry();
+	URCSignatureRegistry* Registry = ParentSignatureItem->GetRegistry();
 
 	FRCSignature* Signature = ParentSignatureItem->FindSignatureMutable(Registry);
 	if (!Signature)

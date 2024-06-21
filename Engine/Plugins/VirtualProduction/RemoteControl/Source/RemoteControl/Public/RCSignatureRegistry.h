@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "RemoteControlSignature.h"
+#include "RCSignature.h"
 #include "UObject/Object.h"
-#include "RemoteControlSignatureRegistry.generated.h"
+#include "RCSignatureRegistry.generated.h"
 
 UCLASS(MinimalAPI)
-class URemoteControlSignatureRegistry : public UObject
+class URCSignatureRegistry : public UObject
 {
 	GENERATED_BODY()
 

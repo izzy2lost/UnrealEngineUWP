@@ -4,8 +4,8 @@
 #include "Behaviour/Builtin/Bind/RCBehaviourBind.h"
 #include "Controller/RCController.h"
 #include "Controller/RCCustomControllerUtilities.h"
+#include "RCSignature.h"
 #include "RemoteControlPreset.h"
-#include "RemoteControlSignature.h"
 
 void FRCSignatureControllerAction::Initialize(const FRCSignatureField& InFieldOwner)
 {

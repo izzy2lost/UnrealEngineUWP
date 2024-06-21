@@ -3,7 +3,7 @@
 #pragma once
 
 #include "StructUtils/InstancedStruct.h"
-#include "RCSignatureActionDefinition.generated.h"
+#include "RCSignatureActionInstance.generated.h"
 
 class FStructOnScope;
 struct FRCSignatureAction;
@@ -12,13 +12,13 @@ struct FRCSignatureField;
 
 /** Struct containing an Action Instance and handling its Execution */
 USTRUCT()
-struct FRCSignatureActionDefinition
+struct FRCSignatureActionInstance
 {
 	GENERATED_BODY()
 
-	FRCSignatureActionDefinition() = default;
+	FRCSignatureActionInstance() = default;
 
-	REMOTECONTROL_API explicit FRCSignatureActionDefinition(const UScriptStruct* InScriptStruct, const FRCSignatureField& InFieldOwner);
+	REMOTECONTROL_API explicit FRCSignatureActionInstance(const UScriptStruct* InScriptStruct, const FRCSignatureField& InFieldOwner);
 
 	REMOTECONTROL_API const FRCSignatureAction* GetAction() const;
 

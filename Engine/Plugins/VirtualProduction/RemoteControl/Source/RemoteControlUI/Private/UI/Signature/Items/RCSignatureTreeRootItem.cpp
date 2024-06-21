@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RCSignatureTreeRootItem.h"
+#include "RCSignature.h"
+#include "RCSignatureRegistry.h"
 #include "RCSignatureTreeSignatureItem.h"
-#include "RemoteControlSignature.h"
-#include "RemoteControlSignatureRegistry.h"
 #include "UI/Signature/RCSignatureTreeItemSelection.h"
 #include "UI/Signature/SRCSignatureTree.h"
 
@@ -22,7 +22,7 @@ void FRCSignatureTreeRootItem::GenerateChildren(TArray<TSharedPtr<FRCSignatureTr
 		return;
 	}
 
-	URemoteControlSignatureRegistry* SignatureRegistry = SignatureTree->GetSignatureRegistry();
+	URCSignatureRegistry* SignatureRegistry = SignatureTree->GetSignatureRegistry();
 	if (!SignatureRegistry)
 	{
 		return;

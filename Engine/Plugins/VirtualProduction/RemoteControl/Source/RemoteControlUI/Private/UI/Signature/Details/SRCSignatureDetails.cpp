@@ -6,14 +6,14 @@
 #include "IStructureDetailsView.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
-#include "RemoteControlSignatureRegistry.h"
+#include "RCSignatureRegistry.h"
 #include "ScopedTransaction.h"
 #include "UI/Signature/Items/RCSignatureTreeRootItem.h"
 #include "UI/Signature/RCSignatureTreeItemSelection.h"
 
 #define LOCTEXT_NAMESPACE "SRCSignatureDetails"
 
-void SRCSignatureDetails::Construct(const FArguments& InArgs, URemoteControlSignatureRegistry* InSignatureRegistry, const TSharedRef<FRCSignatureTreeItemSelection>& InSelection)
+void SRCSignatureDetails::Construct(const FArguments& InArgs, URCSignatureRegistry* InSignatureRegistry, const TSharedRef<FRCSignatureTreeItemSelection>& InSelection)
 {
 	SignatureRegistryWeak = InSignatureRegistry;
 	SelectionWeak = InSelection;
@@ -92,7 +92,7 @@ void SRCSignatureDetails::OnFinishedChangingProperties(const FPropertyChangedEve
 
 void SRCSignatureDetails::NotifyPreChange(FEditPropertyChain* InPropertyAboutToChange)
 {
-	if (URemoteControlSignatureRegistry* SignatureRegistry = SignatureRegistryWeak.Get())
+	if (URCSignatureRegistry* SignatureRegistry = SignatureRegistryWeak.Get())
 	{
 		// Begin Transaction
 		ensureAlways(!CurrentTransaction.IsValid());
