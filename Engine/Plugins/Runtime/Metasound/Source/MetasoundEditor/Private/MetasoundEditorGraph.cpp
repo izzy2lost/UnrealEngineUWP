@@ -411,6 +411,11 @@ const FMetasoundFrontendVersion& UMetasoundEditorGraphVertex::GetInterfaceVersio
 
 bool UMetasoundEditorGraphVertex::IsInterfaceMember(FMetasoundFrontendInterface* OutInterface) const
 {
+	return false;
+}
+
+bool UMetasoundEditorGraphVertex::NameContainsInterfaceNamespace(FMetasoundFrontendInterface* OutInterface) const
+{
 	using namespace Metasound::Frontend;
 
 	const FName MemberName = GetMemberName();
@@ -418,14 +423,13 @@ bool UMetasoundEditorGraphVertex::IsInterfaceMember(FMetasoundFrontendInterface*
 	FName ParamName;
 	Audio::FParameterPath::SplitName(MemberName, InterfaceNamespace, ParamName);
 
-	FMetasoundFrontendInterface InterfaceToValidate;
-	if (!InterfaceNamespace.IsNone() && ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceNamespace, InterfaceToValidate))
+	FMetasoundFrontendInterface FoundInterface;
+	if (!InterfaceNamespace.IsNone() && ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceNamespace, FoundInterface))
 	{
 		if (OutInterface)
 		{
-			*OutInterface = MoveTemp(InterfaceToValidate);
+			*OutInterface = MoveTemp(FoundInterface);
 		}
-
 		return true;
 	}
 
@@ -663,6 +667,38 @@ TArray<UMetasoundEditorGraphMemberNode*> UMetasoundEditorGraphInput::GetNodes() 
 	return Nodes;
 }
 
+bool UMetasoundEditorGraphInput::IsInterfaceMember(FMetasoundFrontendInterface* OutInterface) const
+{
+	FMetasoundFrontendInterface Interface;
+	if (NameContainsInterfaceNamespace(&Interface))
+	{
+		// Check if Input is a member of the found interface
+		if (const FMetasoundFrontendNode* InputNode = GetFrontendNode())
+		{
+			const FMetasoundFrontendVertex& Input = InputNode->Interface.Inputs.Last();
+			auto IsInput = [&Input](const FMetasoundFrontendClassInput& InterfaceInput)
+			{
+				return FMetasoundFrontendVertex::IsFunctionalEquivalent(Input, InterfaceInput);
+			};
+
+			if (Interface.Inputs.ContainsByPredicate(IsInput))
+			{
+				if (OutInterface)
+				{
+					*OutInterface = MoveTemp(Interface);
+				}
+				return true;
+			}
+		}
+	}
+
+	if (OutInterface)
+	{
+		*OutInterface = { };
+	}
+	return false;
+}
+
 void UMetasoundEditorGraphInput::SetSortOrderIndex(int32 InSortOrderIndex)
 {
 	using namespace Metasound::Editor;
@@ -888,6 +924,40 @@ int32 UMetasoundEditorGraphOutput::GetSortOrderIndex() const
 	FConstNodeHandle NodeHandle = GetConstNodeHandle();
 	const Metasound::FVertexName& NodeName = NodeHandle->GetNodeName();
 	return GraphHandle->GetSortOrderIndexForOutput(NodeName);
+}
+
+bool UMetasoundEditorGraphOutput::IsInterfaceMember(FMetasoundFrontendInterface* OutInterface) const
+{
+	using namespace Metasound::Frontend;
+	
+	FMetasoundFrontendInterface Interface;
+	if (NameContainsInterfaceNamespace(&Interface))
+	{
+		// Check if Output is a member of the found interface
+		if (const FMetasoundFrontendNode* OutputNode = GetFrontendNode())
+		{
+			const FMetasoundFrontendVertex& Output = OutputNode->Interface.Outputs.Last();
+			auto IsOutput = [&Output](const FMetasoundFrontendClassOutput& InterfaceOutput)
+			{
+				return FMetasoundFrontendVertex::IsFunctionalEquivalent(Output, InterfaceOutput);
+			};
+
+			if (Interface.Outputs.ContainsByPredicate(IsOutput))
+			{
+				if (OutInterface)
+				{
+					*OutInterface = MoveTemp(Interface);
+				}
+				return true;
+			}
+		}
+	}
+	
+	if (OutInterface)
+	{
+		*OutInterface = { };
+	}
+	return false;
 }
 
 void UMetasoundEditorGraphOutput::SetSortOrderIndex(int32 InSortOrderIndex)

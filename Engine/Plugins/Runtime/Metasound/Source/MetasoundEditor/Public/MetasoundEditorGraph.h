@@ -192,6 +192,9 @@ protected:
 
 	const FMetasoundFrontendNode* GetFrontendNode() const;
 
+	/** If the vertex's name contains an interface namespace, return true and set OutInterface to that interface if provided. */
+	bool NameContainsInterfaceNamespace(FMetasoundFrontendInterface* OutInterface) const;
+
 public:
 	/** Initializes all properties with the given parameters required to identify the frontend member from this editor graph member. */
 	void InitMember(FName InDataType, const FMetasoundFrontendLiteral& InDefaultLiteral, FGuid InNodeID, FMetasoundFrontendClassName&& InClassName);
@@ -262,6 +265,7 @@ public:
 	virtual TArray<UMetasoundEditorGraphMemberNode*> GetNodes() const override;
 
 	virtual const FText& GetGraphMemberLabel() const override;
+	virtual bool IsInterfaceMember(FMetasoundFrontendInterface* OutInterface = nullptr) const override;
 	virtual void ResetToClassDefault() override;
 	virtual void SetDataType(FName InNewType, bool bPostTransaction) override;
 	virtual void SetVertexAccessType(EMetasoundFrontendVertexAccessType InNewAccessType, bool bPostTransaction) override;
@@ -286,6 +290,7 @@ class METASOUNDEDITOR_API UMetasoundEditorGraphOutput : public UMetasoundEditorG
 public:
 	virtual FText GetDescription() const override;
 	virtual int32 GetSortOrderIndex() const override;
+	virtual bool IsInterfaceMember(FMetasoundFrontendInterface* OutInterface = nullptr) const override;
 	virtual void SetSortOrderIndex(int32 InSortOrderIndex) override;
 	virtual const FText& GetGraphMemberLabel() const override;
 	virtual void ResetToClassDefault() override;
