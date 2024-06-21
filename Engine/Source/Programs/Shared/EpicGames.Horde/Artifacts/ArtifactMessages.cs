@@ -1,5 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
@@ -93,9 +94,14 @@ namespace EpicGames.Horde.Artifacts
 		public IReadOnlyList<string> Metadata { get; }
 
 		/// <summary>
+		/// Time that the artifact was created
+		/// </summary>
+		public DateTime CreatedAtUtc { get; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IReadOnlyList<string> keys, IReadOnlyList<string> metadata)
+		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IReadOnlyList<string> keys, IReadOnlyList<string> metadata, DateTime createdAtUtc)
 		{
 			Id = id;
 			Name = name;
@@ -105,6 +111,7 @@ namespace EpicGames.Horde.Artifacts
 			Change = change;
 			Keys = keys;
 			Metadata = metadata;
+			CreatedAtUtc = createdAtUtc;
 		}
 	}
 
