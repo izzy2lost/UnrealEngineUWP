@@ -406,14 +406,14 @@ private:
 	void LinkEASLegacy(int32 LocalUserNum, EOS_ContinuanceToken Token, const FOnlineAccountCredentials& AccountCredentials);
 	bool ConnectLoginNoEASLegacy(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
 	void FullLoginCallbackLegacy(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ProductUserId UserId, const FOnlineAccountCredentials& AccountCredentials);
-	void OnEOSAuthLoginCompleteLegacy(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, bool bIsPersistentLogin, bool bRetryLogin, const EOS_Auth_LoginCallbackInfo* Data);
+	void OnEOSAuthLoginCompleteLegacy(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, const EOS_ELoginCredentialType LoginCredentialType, const bool bIsAutoLogin, const EOS_Auth_LoginCallbackInfo* Data);
 
 	bool IsLocalUserValid(int32 LocalUserNum) const ;
 	FLocalUserEOS& GetLocalUserChecked(int32 LocalUserNum);
 
-	void CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, bool bRetryLogin);
+	void CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, bool bIsAutoLogin);
 	void CopyAndSaveEpicAuthToken(int32 LocalUserNum, const EOS_EpicAccountId& EpicAccountId);
-	void OnEOSAuthLoginComplete(int32 LocalUserNum, bool bIsPersistentLogin, bool bRetryLogin, const EOS_Auth_LoginCallbackInfo* Data);
+	void OnEOSAuthLoginComplete(int32 LocalUserNum, const EOS_ELoginCredentialType LoginCredentialType, const bool bIsAutoLogin, const EOS_Auth_LoginCallbackInfo* Data);
 
 	void RemoveLocalUser(int32 LocalUserNum);
 	FLocalUserEOS& AddLocalUser(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, EOS_ProductUserId UserId);
