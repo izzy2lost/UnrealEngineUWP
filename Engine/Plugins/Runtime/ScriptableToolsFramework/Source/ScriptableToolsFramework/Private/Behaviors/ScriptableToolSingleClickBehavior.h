@@ -26,6 +26,7 @@ public:
 		EScriptableToolMouseButton MouseButtonIn,
 		bool bHitTestOnReleaseIn);
 
+	virtual USingleClickInputBehavior* CreateNewBehavior() const;
 	virtual UInputBehavior* GetWrappedBehavior() override;
 
 	virtual FInputRayHit IsHitByClick(const FInputDeviceRay& ClickPos) override;

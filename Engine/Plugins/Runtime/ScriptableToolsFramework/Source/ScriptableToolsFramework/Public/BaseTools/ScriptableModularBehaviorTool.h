@@ -9,6 +9,7 @@
 #include "ScriptableModularBehaviorTool.generated.h"
 
 class UScriptableToolSingleClickBehavior;
+class UScriptableToolDoubleClickBehavior;
 class UScriptableToolClickDragBehavior;
 class UScriptableToolSingleClickOrDragBehavior;
 class UScriptableToolMouseWheelBehavior;
@@ -46,6 +47,32 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, CapturePriority, MouseButton, bHitTestOnRelease"))
 	void AddSingleClickBehavior(
+		const FTestIfHitByClickDelegate IfHitByClick,
+		const FOnHitByClickDelegate OnHitByClick,
+		const FMouseBehaviorModiferCheckDelegate CaptureCheck,
+		int CapturePriority = 100,
+		EScriptableToolMouseButton MouseButton = EScriptableToolMouseButton::LeftButton,
+		bool bHitTestOnRelease = true
+	);
+
+	/**
+	*   Implements a standard "button-click"-style input behavior
+	*   The state machine works as follows:
+	*    1) on input-device-button-press, hit-test the target. If hit, begin capture
+	*    2) on input-device-button-release, hit-test the target. If hit, call OnClicked(). If not hit, ignore click.
+	*    
+	*   The second hit-test is required to allow the click to be "cancelled" by moving away
+	*   from the target. This is standard GUI behavior. You can disable this second hit test
+	*   using the HitTestOnRelease property. This is strongly discouraged.
+	* 
+	*	@param IfHitByClick Test if hit by a click
+	*	@param OnHitByClick Notify that double click occurred
+	*	@param CaptureCheck Only enable capture if returns true
+	*	@param CapturePriority The priority is used to resolve situations where multiple behaviors want the same capture
+	*	@param MouseButton Determines which mouse button the behavior captures on
+	*/
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Input", meta = (AdvancedDisplay = "CaptureCheck, CapturePriority, MouseButton, bHitTestOnRelease"))
+	void AddDoubleClickBehavior(
 		const FTestIfHitByClickDelegate IfHitByClick,
 		const FOnHitByClickDelegate OnHitByClick,
 		const FMouseBehaviorModiferCheckDelegate CaptureCheck,
@@ -203,6 +230,9 @@ private:
 
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TArray< TObjectPtr<UScriptableToolSingleClickBehavior> > SingleClickBehaviors;
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TArray< TObjectPtr<UScriptableToolDoubleClickBehavior> > DoubleClickBehaviors;
 
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TArray< TObjectPtr<UScriptableToolClickDragBehavior> > ClickDragBehaviors;

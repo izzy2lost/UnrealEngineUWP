@@ -15,7 +15,7 @@ void UScriptableToolSingleClickBehavior::Init(
 	)
 {
 	BehaviorHost = BehaviorHostIn;
-	Behavior = NewObject<USingleClickInputBehavior>();
+	Behavior = CreateNewBehavior();
 	ModifierCheckFunc = ModifierCheckFuncIn;
 	TestIfHitByClickFunc = TestIfHitByClickFuncIn;
 	OnHitByClickFunc = OnHitByClickFuncIn;
@@ -59,6 +59,11 @@ void UScriptableToolSingleClickBehavior::Init(
 	default:
 		ensure(false);
 	}
+}
+
+USingleClickInputBehavior* UScriptableToolSingleClickBehavior::CreateNewBehavior() const
+{
+	return NewObject<USingleClickInputBehavior>();
 }
 
 UInputBehavior* UScriptableToolSingleClickBehavior::GetWrappedBehavior()

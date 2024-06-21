@@ -4,6 +4,7 @@
 
 #include "Behaviors/ScriptableToolSingleClickBehavior.h"
 #include "Behaviors/ScriptableToolClickDragBehavior.h"
+#include "Behaviors/ScriptableToolDoubleClickBehavior.h"
 #include "Behaviors/ScriptableToolMouseHoverBehavior.h"
 #include "Behaviors/ScriptableToolMouseWheelBehavior.h"
 #include "Behaviors/ScriptableToolMultiClickSequenceBehavior.h"
@@ -23,6 +24,22 @@ void UScriptableModularBehaviorTool::AddSingleClickBehavior(
 	BehaviorContainer->SetDefaultPriority(FInputCapturePriority(CapturePriority));
 
 	SingleClickBehaviors.Add(BehaviorContainer);
+}
+
+
+void UScriptableModularBehaviorTool::AddDoubleClickBehavior(
+	const FTestIfHitByClickDelegate IfHitByClick,
+	const FOnHitByClickDelegate OnHitByClick,
+	const FMouseBehaviorModiferCheckDelegate ModifierCheckFunction,
+	int CapturePriority,
+	EScriptableToolMouseButton MouseButton,
+	bool bHitTestOnRelease)
+{
+	TObjectPtr<UScriptableToolDoubleClickBehavior> BehaviorContainer = NewObject<UScriptableToolDoubleClickBehavior>();
+	BehaviorContainer->Init(this, ModifierCheckFunction, IfHitByClick, OnHitByClick, MouseButton, bHitTestOnRelease);
+	BehaviorContainer->SetDefaultPriority(FInputCapturePriority(CapturePriority));
+
+	DoubleClickBehaviors.Add(BehaviorContainer);
 }
 
 
