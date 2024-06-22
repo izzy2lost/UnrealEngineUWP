@@ -24,7 +24,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
-using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using MongoDB.Driver.Core.Events;
 using MongoDB.Driver.Linq;
@@ -192,7 +191,7 @@ namespace HordeServer.Server
 				mongoSettings.LinqProvider = LinqProvider.V2;
 				mongoSettings.SslSettings = new SslSettings();
 				mongoSettings.SslSettings.ServerCertificateValidationCallback = CertificateValidationCallBack;
-				
+
 				// Increase defaults to handle larger deployments of Horde interfacing with MongoDB
 				// Making room for slower running commands potentially hogging the queue 
 				mongoSettings.MinConnectionPoolSize = 50; // Default is 0
@@ -540,7 +539,7 @@ namespace HordeServer.Server
 			_logger.LogError("TLS certificate validation failed ({Errors}).{AdditionalInfo}", sslPolicyErrors, StringUtils.Indent(builder.ToString(), "    "));
 			return false;
 		}
-		
+
 		/// <summary>
 		/// Get the MongoDB client
 		/// </summary>
@@ -549,7 +548,7 @@ namespace HordeServer.Server
 		{
 			return _client;
 		}
-		
+
 		/// <summary>
 		/// Get a MongoDB collection from database
 		/// </summary>

@@ -5,15 +5,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Streams;
-using HordeServer.Acls;
+using HordeCommon;
 using HordeServer.Artifacts;
 using HordeServer.Server;
-using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EpicGames.Horde.Acls;
 
 namespace HordeServer.Tests.Artifacts
 {

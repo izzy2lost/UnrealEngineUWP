@@ -13,7 +13,6 @@ using EpicGames.Redis;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using StackExchange.Redis;
 
 namespace HordeServer.Server
 {
