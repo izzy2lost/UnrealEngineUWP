@@ -149,7 +149,7 @@ namespace HordeServer.Server
 	/// <summary>
 	/// Extension methods for <see cref="MongoIndex{T}"/>
 	/// </summary>
-	static class MongoIndexExtensions
+	public static class MongoIndexExtensions
 	{
 		public static void Add<T>(this List<MongoIndex<T>> list, Func<IndexKeysDefinitionBuilder<T>, IndexKeysDefinition<T>> keyFunc, bool unique = false, bool sparse = false)
 		{

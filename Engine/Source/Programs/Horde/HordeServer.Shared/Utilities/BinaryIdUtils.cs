@@ -8,7 +8,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Utility methods for <see cref="BinaryId"/>
 	/// </summary>
-	static class BinaryIdUtils
+	public static class BinaryIdUtils
 	{
 		/// <summary>
 		/// Creates a new BinaryId

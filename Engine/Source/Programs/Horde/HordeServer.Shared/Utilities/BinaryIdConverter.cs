@@ -11,7 +11,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Class which serializes object id types to BSON
 	/// </summary>
-	sealed class BinaryIdBsonSerializer<TValue, TConverter> : SerializerBase<TValue> where TValue : struct where TConverter : BinaryIdConverter<TValue>, new()
+	public sealed class BinaryIdBsonSerializer<TValue, TConverter> : SerializerBase<TValue> where TValue : struct where TConverter : BinaryIdConverter<TValue>, new()
 	{
 		readonly TConverter _converter = new TConverter();
 
@@ -25,7 +25,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Class which serializes object id types to BSON
 	/// </summary>
-	sealed class BinaryIdBsonSerializationProvider : BsonSerializationProviderBase
+	public sealed class BinaryIdBsonSerializationProvider : BsonSerializationProviderBase
 	{
 		/// <inheritdoc/>
 		public override IBsonSerializer? GetSerializer(Type type, IBsonSerializerRegistry serializerRegistry)

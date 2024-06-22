@@ -13,7 +13,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Class which serializes object id types to BSON
 	/// </summary>
-	sealed class StringIdBsonSerializer<TValue, TConverter> : SerializerBase<TValue> where TValue : struct where TConverter : StringIdConverter<TValue>, new()
+	public sealed class StringIdBsonSerializer<TValue, TConverter> : SerializerBase<TValue> where TValue : struct where TConverter : StringIdConverter<TValue>, new()
 	{
 		readonly TConverter _converter = new TConverter();
 
@@ -27,7 +27,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Class which serializes object id types to BSON
 	/// </summary>
-	sealed class StringIdBsonSerializationProvider : BsonSerializationProviderBase
+	public sealed class StringIdBsonSerializationProvider : BsonSerializationProviderBase
 	{
 		/// <inheritdoc/>
 		public override IBsonSerializer? GetSerializer(Type type, IBsonSerializerRegistry serializerRegistry)
@@ -45,7 +45,7 @@ namespace HordeServer.Utilities
 	/// Surrogate type for serializing StringId types to ProtoBuf
 	/// </summary>
 	[ProtoContract]
-	struct StringIdProto<TValue, TConverter> where TValue : struct where TConverter : StringIdConverter<TValue>, new()
+	public struct StringIdProto<TValue, TConverter> where TValue : struct where TConverter : StringIdConverter<TValue>, new()
 	{
 		static readonly TConverter s_converter = new TConverter();
 

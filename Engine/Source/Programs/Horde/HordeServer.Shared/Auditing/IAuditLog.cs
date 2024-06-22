@@ -117,7 +117,7 @@ namespace HordeServer.Auditing
 	/// <summary>
 	/// Extension methods for audit log channels
 	/// </summary>
-	static class AuditLogExtensions
+	public static class AuditLogExtensions
 	{
 		/// <summary>
 		/// Retrieve historical information about a specific agent

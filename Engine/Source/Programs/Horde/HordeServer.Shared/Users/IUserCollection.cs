@@ -115,7 +115,7 @@ namespace HordeServer.Users
 	/// <summary>
 	/// Extension methods for the user collect
 	/// </summary>
-	static class UserCollectionExtensions
+	public static class UserCollectionExtensions
 	{
 		/// <summary>
 		/// Gets a particular user info from the collection
