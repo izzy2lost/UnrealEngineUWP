@@ -153,5 +153,14 @@ namespace HordeServer.Utilities
 			}
 			return claim.Value;
 		}
+
+		/// <summary>
+		/// Determine if a user has the administrator claim
+		/// </summary>
+		/// <param name="user">The principal to get the external issue user for</param>
+		public static bool HasAdminClaim(this ClaimsPrincipal user)
+		{
+			return user.HasClaim(HordeClaims.AdminClaim.Type, HordeClaims.AdminClaim.Value);
+		}
 	}
 }

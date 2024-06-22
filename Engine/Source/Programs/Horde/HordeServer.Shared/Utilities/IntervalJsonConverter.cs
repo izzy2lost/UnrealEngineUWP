@@ -10,7 +10,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Converts TimeSpan intervals from formats like "30m", "1h30m", etc...
 	/// </summary>
-	class IntervalJsonConverter : JsonConverter<TimeSpan>
+	public class IntervalJsonConverter : JsonConverter<TimeSpan>
 	{
 		record struct TimeSuffix(string Text, long Ticks);
 

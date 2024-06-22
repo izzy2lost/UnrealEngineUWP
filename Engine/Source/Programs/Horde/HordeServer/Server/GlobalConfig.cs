@@ -27,9 +27,16 @@ using EpicGames.Serialization;
 using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Pools;
+using HordeServer.Agents.Sessions;
+using HordeServer.Agents.Software;
+using HordeServer.Artifacts;
 using HordeServer.Configuration;
 using HordeServer.Dashboard;
 using HordeServer.Devices;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Bisect;
+using HordeServer.Logs;
+using HordeServer.Notifications;
 using HordeServer.Perforce;
 using HordeServer.Projects;
 using HordeServer.Secrets;
@@ -78,18 +85,6 @@ namespace HordeServer.Server
 	}
 #pragma warning restore CA1069
 #pragma warning restore CA1027
-
-	/// <summary>
-	/// Directive to merge config data from another source
-	/// </summary>
-	public class ConfigInclude
-	{
-		/// <summary>
-		/// Path to the config data to be included. May be relative to the including file's location.
-		/// </summary>
-		[Required, ConfigInclude, ConfigRelativePath]
-		public string Path { get; set; } = null!;
-	}
 
 	/// <summary>
 	/// Configuration for an artifact
@@ -298,7 +293,7 @@ namespace HordeServer.Server
 		{
 			ServerSettings = serverSettings;
 
-			AclConfig defaultAcl = AclConfig.CreateRoot();
+			AclConfig defaultAcl = CreateRootAcl();
 			Acl.PostLoad(defaultAcl, defaultAcl.ScopeName);
 
 			Streams = Projects.SelectMany(x => x.Streams).ToList();
@@ -380,6 +375,69 @@ namespace HordeServer.Server
 					}
 				}
 			}
+		}
+
+		/// <summary>
+		/// Creates the default root ACL
+		/// </summary>
+		static AclConfig CreateRootAcl()
+		{
+			AclConfig defaultAcl = new AclConfig();
+
+			defaultAcl.Entries = new List<AclEntryConfig>();
+			defaultAcl.Entries.Add(new AclEntryConfig(new AclClaimConfig(ClaimTypes.Role, "internal:AgentRegistration"), new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRegistrationClaim, new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession, AgentAclAction.UpdateAgent, AgentSoftwareAclAction.DownloadSoftware, PoolAclAction.CreatePool, PoolAclAction.UpdatePool, PoolAclAction.ViewPool, PoolAclAction.DeletePool, PoolAclAction.ListPools, StreamAclAction.ViewStream, ProjectAclAction.ViewProject, JobAclAction.ViewJob, ServerAclAction.ViewCosts }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRoleClaim, new[] { ProjectAclAction.ViewProject, StreamAclAction.ViewStream, LogAclAction.CreateEvent, AgentSoftwareAclAction.DownloadSoftware }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.DownloadSoftwareClaim, new[] { AgentSoftwareAclAction.DownloadSoftware }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.UploadToolsClaim, new[] { AgentSoftwareAclAction.UploadSoftware, ToolAclAction.UploadTool }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.ConfigureProjectsClaim, new[] { ProjectAclAction.CreateProject, ProjectAclAction.UpdateProject, ProjectAclAction.ViewProject, StreamAclAction.CreateStream, StreamAclAction.UpdateStream, StreamAclAction.ViewStream }));
+			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.StartChainedJobClaim, new[] { JobAclAction.CreateJob, JobAclAction.ExecuteJob, JobAclAction.UpdateJob, JobAclAction.ViewJob, StreamAclAction.ViewTemplate, StreamAclAction.ViewStream }));
+
+			defaultAcl.Profiles = new List<AclProfileConfig>();
+			defaultAcl.Profiles.Add(new AclProfileConfig
+			{
+				Id = new AclProfileId("default-read"),
+				Actions = new List<AclAction>
+				{
+					AgentAclAction.ListAgents,
+					AgentAclAction.ViewAgent,
+					ArtifactAclAction.DownloadArtifact,
+					ArtifactAclAction.ReadArtifact,
+					BisectTaskAclAction.ViewBisectTask,
+					DeviceAclAction.DeviceRead,
+					JobAclAction.ViewJob,
+					LogAclAction.ViewEvent,
+					LogAclAction.ViewLog,
+					NotificationAclAction.CreateSubscription,
+					PoolAclAction.ListPools,
+					PoolAclAction.ViewPool,
+					ProjectAclAction.ViewProject,
+					ServerAclAction.IssueBearerToken,
+					StreamAclAction.ViewChanges,
+					StreamAclAction.ViewStream,
+					StreamAclAction.ViewTemplate,
+				}
+			});
+			defaultAcl.Profiles.Add(new AclProfileConfig
+			{
+				Id = new AclProfileId("default-run"),
+				Extends = new List<AclProfileId>
+				{
+					new AclProfileId("default-read")
+				},
+				Actions = new List<AclAction>
+				{
+					JobAclAction.CreateJob,
+					JobAclAction.UpdateJob,
+					JobAclAction.RetryJobStep,
+					DeviceAclAction.DeviceWrite,
+					BisectTaskAclAction.CreateBisectTask,
+					BisectTaskAclAction.UpdateBisectTask,
+				}
+			});
+
+			defaultAcl.PostLoad(null, AclScopeName.Root);
+			return defaultAcl;
 		}
 
 		static void BuildAclScopeLookup(AclConfig acl, Dictionary<AclScopeName, AclConfig> aclLookup)

@@ -81,11 +81,6 @@ namespace HordeServer.Acls
 
 	internal static class ClaimExtensions
 	{
-		public static bool HasAdminClaim(this ClaimsPrincipal user)
-		{
-			return user.HasClaim(HordeClaims.AdminClaim.Type, HordeClaims.AdminClaim.Value);
-		}
-
 		public static bool HasAgentClaim(this ClaimsPrincipal user, AgentId agentId)
 		{
 			return user.HasClaim(HordeClaimTypes.Agent, agentId.ToString());

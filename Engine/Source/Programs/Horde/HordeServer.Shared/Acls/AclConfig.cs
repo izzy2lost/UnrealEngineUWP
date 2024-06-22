@@ -7,21 +7,10 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Horde.Acls;
-using HordeServer.Agents;
-using HordeServer.Agents.Pools;
-using HordeServer.Agents.Sessions;
-using HordeServer.Agents.Software;
-using HordeServer.Artifacts;
-using HordeServer.Devices;
-using HordeServer.Jobs;
-using HordeServer.Jobs.Bisect;
-using HordeServer.Logs;
-using HordeServer.Notifications;
-using HordeServer.Projects;
 using HordeServer.Server;
-using HordeServer.Streams;
-using HordeServer.Tools;
 using HordeServer.Utilities;
+
+#pragma warning disable CA2227 // Change 'X' to be read-only by removing the property setter
 
 namespace HordeServer.Acls
 {
@@ -127,69 +116,6 @@ namespace HordeServer.Acls
 
 			// Otherwise allow to propagate up the hierarchy
 			return null;
-		}
-
-		/// <summary>
-		/// Creates the default root ACL
-		/// </summary>
-		public static AclConfig CreateRoot()
-		{
-			AclConfig defaultAcl = new AclConfig();
-
-			defaultAcl.Entries = new List<AclEntryConfig>();
-			defaultAcl.Entries.Add(new AclEntryConfig(new AclClaimConfig(ClaimTypes.Role, "internal:AgentRegistration"), new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRegistrationClaim, new[] { AgentAclAction.CreateAgent, SessionAclAction.CreateSession, AgentAclAction.UpdateAgent, AgentSoftwareAclAction.DownloadSoftware, PoolAclAction.CreatePool, PoolAclAction.UpdatePool, PoolAclAction.ViewPool, PoolAclAction.DeletePool, PoolAclAction.ListPools, StreamAclAction.ViewStream, ProjectAclAction.ViewProject, JobAclAction.ViewJob, ServerAclAction.ViewCosts }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.AgentRoleClaim, new[] { ProjectAclAction.ViewProject, StreamAclAction.ViewStream, LogAclAction.CreateEvent, AgentSoftwareAclAction.DownloadSoftware }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.DownloadSoftwareClaim, new[] { AgentSoftwareAclAction.DownloadSoftware }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.UploadToolsClaim, new[] { AgentSoftwareAclAction.UploadSoftware, ToolAclAction.UploadTool }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.ConfigureProjectsClaim, new[] { ProjectAclAction.CreateProject, ProjectAclAction.UpdateProject, ProjectAclAction.ViewProject, StreamAclAction.CreateStream, StreamAclAction.UpdateStream, StreamAclAction.ViewStream }));
-			defaultAcl.Entries.Add(new AclEntryConfig(HordeClaims.StartChainedJobClaim, new[] { JobAclAction.CreateJob, JobAclAction.ExecuteJob, JobAclAction.UpdateJob, JobAclAction.ViewJob, StreamAclAction.ViewTemplate, StreamAclAction.ViewStream }));
-
-			defaultAcl.Profiles = new List<AclProfileConfig>();
-			defaultAcl.Profiles.Add(new AclProfileConfig
-			{
-				Id = new AclProfileId("default-read"),
-				Actions = new List<AclAction>
-				{
-					AgentAclAction.ListAgents,
-					AgentAclAction.ViewAgent,
-					ArtifactAclAction.DownloadArtifact,
-					ArtifactAclAction.ReadArtifact,
-					BisectTaskAclAction.ViewBisectTask,
-					DeviceAclAction.DeviceRead,
-					JobAclAction.ViewJob,
-					LogAclAction.ViewEvent,
-					LogAclAction.ViewLog,
-					NotificationAclAction.CreateSubscription,
-					PoolAclAction.ListPools,
-					PoolAclAction.ViewPool,
-					ProjectAclAction.ViewProject,
-					ServerAclAction.IssueBearerToken,
-					StreamAclAction.ViewChanges,
-					StreamAclAction.ViewStream,
-					StreamAclAction.ViewTemplate,
-				}
-			});
-			defaultAcl.Profiles.Add(new AclProfileConfig
-			{
-				Id = new AclProfileId("default-run"),
-				Extends = new List<AclProfileId>
-				{
-					new AclProfileId("default-read")
-				},
-				Actions = new List<AclAction>
-				{
-					JobAclAction.CreateJob,
-					JobAclAction.UpdateJob,
-					JobAclAction.RetryJobStep,
-					DeviceAclAction.DeviceWrite,
-					BisectTaskAclAction.CreateBisectTask,
-					BisectTaskAclAction.UpdateBisectTask,
-				}
-			});
-
-			defaultAcl.PostLoad(null, AclScopeName.Root);
-			return defaultAcl;
 		}
 
 		/// <summary>

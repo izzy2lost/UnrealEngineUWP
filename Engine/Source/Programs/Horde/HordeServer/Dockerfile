@@ -40,6 +40,7 @@ COPY Source/Programs/Shared/EpicGames.Serialization.Tests/*.csproj ./Source/Prog
 COPY Source/Programs/Horde/Drivers/JobDriver/*.csproj ./Source/Programs/Horde/Drivers/JobDriver/
 COPY Source/Programs/Horde/HordeAgent/*.csproj ./Source/Programs/Horde/HordeAgent/
 COPY Source/Programs/Horde/HordeServer/*.csproj ./Source/Programs/Horde/HordeServer/
+COPY Source/Programs/Horde/HordeServer.Shared/*.csproj ./Source/Programs/Horde/HordeServer.Shared/
 COPY Source/Programs/Horde/HordeServer.Tests/*.csproj ./Source/Programs/Horde/HordeServer.Tests/
 RUN dotnet restore Source/Programs/Horde/HordeServer/HordeServer.csproj -p:WithHordeStorage=false
 
@@ -48,6 +49,7 @@ COPY Binaries/DotNET/EpicGames.Perforce.Native/ Binaries/DotNET/EpicGames.Perfor
 COPY Source/Programs/Shared/ Source/Programs/Shared/
 COPY Source/Programs/Horde/.editorconfig Source/Programs/Horde/.editorconfig
 COPY Source/Programs/Horde/HordeServer/ Source/Programs/Horde/HordeServer/
+COPY Source/Programs/Horde/HordeServer.Shared/ Source/Programs/Horde/HordeServer.Shared/
 COPY Source/Programs/AutomationTool/AutomationUtils/Matchers/ Source/Programs/AutomationTool/AutomationUtils/Matchers/
 COPY Source/Programs/UnrealBuildTool/Matchers/ Source/Programs/UnrealBuildTool/Matchers/
 ARG msbuild_args
