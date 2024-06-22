@@ -198,7 +198,7 @@ namespace HordeServer.Compute
 			ILogCollection logCollection,
 			AgentService agentService,
 			AgentRelayService agentRelayService,
-			RedisService redisService,
+			IRedisService redisService,
 			IOptionsMonitor<ServerSettings> settings,
 			IOptionsMonitor<GlobalConfig> globalConfig,
 			IClock clock,

@@ -116,7 +116,7 @@ namespace HordeServer.Replicators
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ReplicatorCollection(MongoService mongoService, IClock clock)
+		public ReplicatorCollection(IMongoService mongoService, IClock clock)
 		{
 			_documents = mongoService.GetCollection<ReplicatorDoc>("Replicators");
 			_clock = clock;

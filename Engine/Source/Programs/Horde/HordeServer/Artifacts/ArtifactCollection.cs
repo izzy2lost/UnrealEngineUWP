@@ -100,7 +100,7 @@ namespace HordeServer.Artifacts
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactCollection(MongoService mongoService, IClock clock)
+		public ArtifactCollection(IMongoService mongoService, IClock clock)
 		{
 			List<MongoIndex<Artifact>> indexes = new List<MongoIndex<Artifact>>();
 			indexes.Add(keys => keys.Ascending(x => x.Keys));

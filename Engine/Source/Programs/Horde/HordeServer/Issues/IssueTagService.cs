@@ -41,7 +41,7 @@ namespace HordeServer.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueTagService(MongoService mongoService, ICommitService commitService, IIssueCollection issueCollection, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<IssueTagService> logger)
+		public IssueTagService(IMongoService mongoService, ICommitService commitService, IIssueCollection issueCollection, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<IssueTagService> logger)
 		{
 			_state = new SingletonDocument<State>(mongoService);
 			_commitService = commitService;

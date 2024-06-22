@@ -147,7 +147,7 @@ namespace HordeServer.Notifications
 			ILogCollection logCollection,
 			Meter meter,
 			IMemoryCache cache,
-			RedisService redisService,
+			IRedisService redisService,
 			ConfigService configService,
 			IClock clock)
 		{

@@ -94,7 +94,7 @@ namespace HordeServer.Users
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService"></param>
-		public UserCollectionV1(MongoService mongoService)
+		public UserCollectionV1(IMongoService mongoService)
 		{
 			_users = mongoService.GetCollection<UserDocument>("Users", keys => keys.Ascending(x => x.PrimaryClaim), unique: true);
 		}

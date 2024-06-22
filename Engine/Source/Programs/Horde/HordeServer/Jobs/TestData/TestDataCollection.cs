@@ -403,7 +403,7 @@ namespace HordeServer.Jobs.TestData
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TestDataCollection(MongoService mongoService, Tracer tracer, ILogger<TestDataCollection> logger)
+		public TestDataCollection(IMongoService mongoService, Tracer tracer, ILogger<TestDataCollection> logger)
 		{
 			_tracer = tracer;
 			_logger = logger;

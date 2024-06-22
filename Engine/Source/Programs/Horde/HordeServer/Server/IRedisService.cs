@@ -3,6 +3,7 @@
 using System;
 using System.Threading.Tasks;
 using EpicGames.Redis;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using StackExchange.Redis;
 
 namespace HordeServer.Server
@@ -10,7 +11,7 @@ namespace HordeServer.Server
 	/// <summary>
 	/// Provides access to a Redis database
 	/// </summary>
-	public interface IRedisService
+	public interface IRedisService : IHealthCheck
 	{
 		/// <summary>
 		/// Flag for whether the connection is read-only

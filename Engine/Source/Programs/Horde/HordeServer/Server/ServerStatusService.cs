@@ -100,8 +100,8 @@ public class ServerStatusService : IHostedService
 	public const int MaxHistoryLength = 10;
 
 	private readonly IClock _clock;
-	private readonly MongoService _mongoService;
-	private readonly RedisService _redis;
+	private readonly IMongoService _mongoService;
+	private readonly IRedisService _redisService;
 
 	private readonly IHealthMonitor<MongoService> _mongoDbHealth;
 	private readonly ITicker _mongoDbHealthTicker;
@@ -118,10 +118,10 @@ public class ServerStatusService : IHostedService
 	/// <param name="clock"></param>
 	/// <param name="mongoService"></param>
 	/// <param name="logger"></param>
-	public ServerStatusService(MongoService mongoService, RedisService redisService, IClock clock, ILogger<ServerStatusService> logger)
+	public ServerStatusService(IMongoService mongoService, IRedisService redisService, IClock clock, ILogger<ServerStatusService> logger)
 	{
 		_mongoService = mongoService;
-		_redis = redisService;
+		_redisService = redisService;
 		_clock = clock;
 
 		_mongoDbHealth = new HealthMonitor<MongoService>(this, "MongoDB");
@@ -159,7 +159,7 @@ public class ServerStatusService : IHostedService
 	/// </summary>
 	internal async ValueTask UpdateRedisHealthAsync(CancellationToken cancellationToken)
 	{
-		HealthCheckResult result = await _redis.CheckHealthAsync(new HealthCheckContext(), cancellationToken);
+		HealthCheckResult result = await _redisService.CheckHealthAsync(new HealthCheckContext(), cancellationToken);
 		await _redisHealth.UpdateAsync(result.Status, result.Description);
 	}
 
@@ -174,7 +174,7 @@ public class ServerStatusService : IHostedService
 	public async Task ReportAsync(Type type, string name, HealthStatus result, string? message = null, DateTimeOffset? timestamp = null)
 	{
 		string id = type.Name;
-		IDatabase redis = _redis.GetDatabase();
+		IDatabase redis = _redisService.GetDatabase();
 		SubsystemStatus status = await GetSubsystemStatusFromRedisAsync(redis, id, name);
 		SubsystemStatusUpdate update = new(result, message, timestamp ?? _clock.UtcNow);
 		status.Updates.Add(update);
@@ -186,7 +186,7 @@ public class ServerStatusService : IHostedService
 		}
 
 		string data = JsonSerializer.Serialize(status);
-		if (!_redis.ReadOnlyMode)
+		if (!_redisService.ReadOnlyMode)
 		{
 			await redis.HashSetAsync(RedisHashKey(), id, data);
 		}
@@ -216,7 +216,7 @@ public class ServerStatusService : IHostedService
 	/// <returns>A list of statuses</returns>
 	public async Task<IReadOnlyList<SubsystemStatus>> GetSubsystemStatusesAsync()
 	{
-		HashEntry[] entries = await _redis.GetDatabase().HashGetAllAsync(RedisHashKey());
+		HashEntry[] entries = await _redisService.GetDatabase().HashGetAllAsync(RedisHashKey());
 		List<SubsystemStatus> subsystems = [];
 		foreach (HashEntry entry in entries)
 		{

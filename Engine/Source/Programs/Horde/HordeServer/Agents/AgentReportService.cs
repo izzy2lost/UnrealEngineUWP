@@ -52,7 +52,7 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentReportService(MongoService mongoService, IAgentCollection agentCollection, INotificationService notificationService, IClock clock, ILogger<AgentReportService> logger)
+		public AgentReportService(IMongoService mongoService, IAgentCollection agentCollection, INotificationService notificationService, IClock clock, ILogger<AgentReportService> logger)
 		{
 			_state = new SingletonDocument<AgentReportState>(mongoService);
 			_agentCollection = agentCollection;

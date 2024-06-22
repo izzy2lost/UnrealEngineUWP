@@ -37,7 +37,7 @@ namespace HordeServer.Server
 		readonly CancellationTokenRegistration _registration;
 
 		readonly IHostApplicationLifetime _lifetime;
-		readonly MongoService _mongoService;
+		readonly IMongoService _mongoService;
 		readonly IRedisService _redisService;
 		readonly ITicker _ticker;
 
@@ -67,7 +67,7 @@ namespace HordeServer.Server
 		/// <param name="redisService">Redis singleton service</param>
 		/// <param name="clock"></param>
 		/// <param name="logger">Logging interface</param>
-		public LifetimeService(IOptionsMonitor<ServerSettings> settings, IHostApplicationLifetime lifetime, IHostEnvironment env, MongoService mongoService, IRedisService redisService, IClock clock, ILogger<LifetimeService> logger)
+		public LifetimeService(IOptionsMonitor<ServerSettings> settings, IHostApplicationLifetime lifetime, IHostEnvironment env, IMongoService mongoService, IRedisService redisService, IClock clock, ILogger<LifetimeService> logger)
 		{
 			_shutdownMemoryThreshold = settings.CurrentValue.ShutdownMemoryThreshold;
 			_lifetime = lifetime;

@@ -20,7 +20,7 @@ namespace HordeServer.Server
 	/// <summary>
 	/// Manages the lifetime of a bundled Redis instance
 	/// </summary>
-	public sealed class RedisService : IRedisService, IHealthCheck, IAsyncDisposable
+	public sealed class RedisService : IRedisService, IAsyncDisposable
 	{
 		/// <summary>
 		/// Default Redis port

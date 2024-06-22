@@ -80,7 +80,7 @@ namespace HordeServer.Agents.Leases
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LeaseCollection(MongoService mongoService, Tracer tracer)
+		public LeaseCollection(IMongoService mongoService, Tracer tracer)
 		{
 			List<MongoIndex<LeaseDocument>> indexes = new List<MongoIndex<LeaseDocument>>();
 			//			indexes.Add(keys => keys.Ascending(x => x.ParentId), sparse: true);

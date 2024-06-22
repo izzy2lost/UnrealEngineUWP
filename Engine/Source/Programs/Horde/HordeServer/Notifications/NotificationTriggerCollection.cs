@@ -67,7 +67,7 @@ namespace HordeServer.Notifications
 		/// </summary>
 		/// <param name="mongoService">The database singleton</param>
 		/// <param name="userCollection"></param>
-		public NotificationTriggerCollection(MongoService mongoService, IUserCollection userCollection)
+		public NotificationTriggerCollection(IMongoService mongoService, IUserCollection userCollection)
 		{
 			_triggers = mongoService.GetCollection<TriggerDocument>("NotificationTriggers");
 			_userCollection = userCollection;

@@ -93,7 +93,7 @@ namespace HordeServer.Jobs.Bisect
 		readonly IMongoCollection<BisectTaskDoc> _bisectTasks;
 		readonly MongoIndex<BisectTaskDoc> _runningIndex;
 
-		public BisectTaskCollection(Tracer tracer, MongoService mongoService)
+		public BisectTaskCollection(Tracer tracer, IMongoService mongoService)
 		{
 			List<MongoIndex<BisectTaskDoc>> indexes = new List<MongoIndex<BisectTaskDoc>>();
 			indexes.Add(keys => keys.Ascending(x => x.Id).Ascending(x => x.InitialJobId));

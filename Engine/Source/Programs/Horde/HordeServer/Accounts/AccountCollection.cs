@@ -199,7 +199,7 @@ namespace HordeServer.Accounts
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service</param>
-		public AccountCollection(MongoService mongoService)
+		public AccountCollection(IMongoService mongoService)
 		{
 			_accounts = mongoService.GetCollection<AccountDocument>("Accounts", keys => keys.Ascending(x => x.NormalizedLogin), unique: true);
 		}

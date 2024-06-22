@@ -213,7 +213,7 @@ namespace HordeServer.Users
 		/// </summary>
 		/// <param name="mongoService"></param>
 		/// <param name="logger"></param>
-		public UserCollectionV2(MongoService mongoService, ILogger<UserCollectionV2> logger)
+		public UserCollectionV2(IMongoService mongoService, ILogger<UserCollectionV2> logger)
 		{
 			_logger = logger;
 

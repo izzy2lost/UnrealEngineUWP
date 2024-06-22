@@ -173,7 +173,7 @@ namespace HordeServer.Auditing
 
 		public IAuditLogChannel<TSubject> this[TSubject subject] => new AuditLogChannel(this, subject);
 
-		public AuditLog(MongoService mongoService, string collectionName, string subjectProperty, ILogger logger)
+		public AuditLog(IMongoService mongoService, string collectionName, string subjectProperty, ILogger logger)
 		{
 			List<MongoIndex<AuditLogMessage>> indexes = new List<MongoIndex<AuditLogMessage>>();
 			indexes.Add(builder => builder.Ascending(x => x.Subject).Descending(x => x.TimeUtc));
@@ -294,10 +294,10 @@ namespace HordeServer.Auditing
 
 	class AuditLogFactory<TSubject> : IAuditLogFactory<TSubject>
 	{
-		readonly MongoService _mongoService;
+		readonly IMongoService _mongoService;
 		readonly ILogger<AuditLog<TSubject>> _logger;
 
-		public AuditLogFactory(MongoService mongoService, ILogger<AuditLog<TSubject>> logger)
+		public AuditLogFactory(IMongoService mongoService, ILogger<AuditLog<TSubject>> logger)
 		{
 			_mongoService = mongoService;
 			_logger = logger;

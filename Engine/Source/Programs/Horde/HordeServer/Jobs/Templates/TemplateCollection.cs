@@ -91,7 +91,7 @@ namespace HordeServer.Jobs.Templates
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service singleton</param>
-		public TemplateCollection(MongoService mongoService)
+		public TemplateCollection(IMongoService mongoService)
 		{
 			_templates = mongoService.GetCollection<TemplateDocument>("Templates");
 

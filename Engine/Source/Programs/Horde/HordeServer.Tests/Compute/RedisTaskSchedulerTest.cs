@@ -19,7 +19,7 @@ namespace HordeServer.Tests.Compute
 		public RedisTaskSchedulerTest()
 		{
 			using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => { builder.AddConsole(); });
-			RedisService redisService = GetRedisServiceSingleton();
+			IRedisService redisService = GetRedisServiceSingleton();
 			_scheduler = new RedisTaskScheduler<string, string>(redisService.ConnectionPool, new RedisKey("myBaseKey"), loggerFactory.CreateLogger<RedisTaskScheduler<string, string>>());
 		}
 

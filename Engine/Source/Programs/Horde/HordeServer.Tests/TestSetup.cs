@@ -110,7 +110,7 @@ namespace HordeServer.Tests
 		public AgentRelayService AgentRelayService => ServiceProvider.GetRequiredService<AgentRelayService>();
 		public ICommitService CommitService => ServiceProvider.GetRequiredService<ICommitService>();
 		public GlobalsService GlobalsService => ServiceProvider.GetRequiredService<GlobalsService>();
-		public MongoService MongoService => ServiceProvider.GetRequiredService<MongoService>();
+		public IMongoService MongoService => ServiceProvider.GetRequiredService<IMongoService>();
 		public ITemplateCollection TemplateCollection => ServiceProvider.GetRequiredService<ITemplateCollection>();
 		internal PerforceServiceStub PerforceService => (PerforceServiceStub)ServiceProvider.GetRequiredService<IPerforceService>();
 		public ISubscriptionCollection SubscriptionCollection => ServiceProvider.GetRequiredService<ISubscriptionCollection>();

@@ -94,7 +94,7 @@ namespace HordeServer.Ugs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public UgsMetadataCollection(MongoService mongoService, ILogger<UgsMetadataCollection> logger)
+		public UgsMetadataCollection(IMongoService mongoService, ILogger<UgsMetadataCollection> logger)
 		{
 			List<MongoIndex<UgsMetadataDocument>> indexes = new List<MongoIndex<UgsMetadataDocument>>();
 			indexes.Add(keys => keys.Ascending(x => x.Stream).Descending(x => x.Change).Ascending(x => x.Project), unique: true);

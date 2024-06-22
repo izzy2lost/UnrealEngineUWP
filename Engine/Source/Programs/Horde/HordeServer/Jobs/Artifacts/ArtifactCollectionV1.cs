@@ -65,7 +65,7 @@ namespace HordeServer.Jobs.Artifacts
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactCollectionV1(MongoService mongoService, IObjectStore<ArtifactCollectionV1> objectStore)
+		public ArtifactCollectionV1(IMongoService mongoService, IObjectStore<ArtifactCollectionV1> objectStore)
 		{
 			_objectStore = objectStore;
 

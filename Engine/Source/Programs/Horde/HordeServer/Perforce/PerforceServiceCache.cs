@@ -222,8 +222,8 @@ namespace HordeServer.Perforce
 			}
 		}
 
-		readonly MongoService _mongoService;
-		readonly RedisService _redisService;
+		readonly IMongoService _mongoService;
+		readonly IRedisService _redisService;
 		readonly IDowntimeService _downtimeService;
 		readonly IMongoCollection<CachedCommitDoc> _commits;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
@@ -237,7 +237,7 @@ namespace HordeServer.Perforce
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PerforceServiceCache(PerforceLoadBalancer loadBalancer, MongoService mongoService, RedisService redisService, IDowntimeService downtimeService, IUserCollection userCollection, IClock clock, IOptions<ServerSettings> settings, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<PerforceService> logger)
+		public PerforceServiceCache(PerforceLoadBalancer loadBalancer, IMongoService mongoService, IRedisService redisService, IDowntimeService downtimeService, IUserCollection userCollection, IClock clock, IOptions<ServerSettings> settings, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<PerforceService> logger)
 			: base(loadBalancer, userCollection, settings, globalConfig, tracer, logger)
 		{
 			_mongoService = mongoService;

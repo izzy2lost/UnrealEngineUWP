@@ -182,7 +182,7 @@ namespace HordeServer.Notifications
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service</param>
-		public SubscriptionCollection(MongoService mongoService)
+		public SubscriptionCollection(IMongoService mongoService)
 		{
 			List<MongoIndex<Subscription>> indexes = new List<MongoIndex<Subscription>>();
 			indexes.Add(keys => keys.Ascending(x => x.Event));

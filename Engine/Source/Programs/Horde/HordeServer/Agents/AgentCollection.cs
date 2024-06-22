@@ -221,14 +221,14 @@ namespace HordeServer.Agents
 
 		readonly IMongoCollection<AgentDocument> _agents;
 		readonly IAuditLog<AgentId> _auditLog;
-		readonly RedisService _redisService;
+		readonly IRedisService _redisService;
 		readonly IClock _clock;
 		readonly RedisChannel<AgentId> _updateEventChannel;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentCollection(MongoService mongoService, RedisService redisService, IClock clock, IAuditLog<AgentId> auditLog)
+		public AgentCollection(IMongoService mongoService, IRedisService redisService, IClock clock, IAuditLog<AgentId> auditLog)
 		{
 			List<MongoIndex<AgentDocument>> indexes = new List<MongoIndex<AgentDocument>>();
 			indexes.Add(keys => keys.Ascending(x => x.Deleted).Ascending(x => x.Id).Ascending(x => x.Pools));

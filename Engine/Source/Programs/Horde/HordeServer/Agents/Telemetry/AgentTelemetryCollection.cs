@@ -70,7 +70,7 @@ namespace HordeServer.Agents.Telemetry
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentTelemetryCollection(MongoService mongoService, IClock clock, ILogger<AgentTelemetryCollection> logger)
+		public AgentTelemetryCollection(IMongoService mongoService, IClock clock, ILogger<AgentTelemetryCollection> logger)
 		{
 			_clock = clock;
 

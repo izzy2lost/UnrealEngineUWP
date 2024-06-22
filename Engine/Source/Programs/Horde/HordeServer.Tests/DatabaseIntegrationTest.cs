@@ -228,8 +228,8 @@ namespace HordeServer.Tests
 		{
 			base.ConfigureServices(services);
 
-			services.AddSingleton(GetMongoServiceSingleton());
-			services.AddSingleton(GetRedisServiceSingleton());
+			services.AddSingleton<IMongoService>(GetMongoServiceSingleton());
+			services.AddSingleton<IRedisService>(GetRedisServiceSingleton());
 		}
 
 		public override async ValueTask DisposeAsync()
@@ -253,13 +253,13 @@ namespace HordeServer.Tests
 			_loggerFactory.Dispose();
 		}
 
-		public MongoService GetMongoServiceSingleton()
+		public IMongoService GetMongoServiceSingleton()
 		{
 			lock (s_lockObject)
 			{
 				if (_mongoService == null)
 				{
-					RedisService redisService = GetRedisServiceSingleton();
+					IRedisService redisService = GetRedisServiceSingleton();
 					_mongoInstance = new MongoInstance();
 
 					ServerSettings ss = new ServerSettings();
@@ -273,7 +273,7 @@ namespace HordeServer.Tests
 			return _mongoService;
 		}
 
-		public RedisService GetRedisServiceSingleton()
+		public IRedisService GetRedisServiceSingleton()
 		{
 			if (_redisService == null)
 			{

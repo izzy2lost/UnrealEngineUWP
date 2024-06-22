@@ -431,7 +431,7 @@ namespace HordeServer.Jobs.Graphs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GraphCollection(MongoService mongoService)
+		public GraphCollection(IMongoService mongoService)
 		{
 			_graphs = mongoService.GetCollection<GraphDocument>("Graphs");
 		}

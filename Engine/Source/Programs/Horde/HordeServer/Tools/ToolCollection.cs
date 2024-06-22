@@ -206,7 +206,7 @@ namespace HordeServer.Tools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ToolCollection(MongoService mongoService, StorageService storageService, BundleCache cache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ToolCollection> logger)
+		public ToolCollection(IMongoService mongoService, StorageService storageService, BundleCache cache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ToolCollection> logger)
 		{
 			_tools = mongoService.GetCollection<ToolDocument>("Tools");
 			_storageService = storageService;

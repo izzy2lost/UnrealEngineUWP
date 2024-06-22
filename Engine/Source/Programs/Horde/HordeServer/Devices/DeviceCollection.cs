@@ -446,7 +446,7 @@ namespace HordeServer.Devices
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DeviceCollection(MongoService mongoService, ILogger<DeviceCollection> logger)
+		public DeviceCollection(IMongoService mongoService, ILogger<DeviceCollection> logger)
 		{
 			_logger = logger;
 

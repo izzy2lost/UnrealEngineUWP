@@ -65,7 +65,7 @@ namespace HordeServer.Server
 			}
 		}
 
-		readonly MongoService _mongoService;
+		readonly IMongoService _mongoService;
 		readonly string _jwtIssuer;
 
 		/// <summary>
@@ -73,7 +73,7 @@ namespace HordeServer.Server
 		/// </summary>
 		/// <param name="mongoService"></param>
 		/// <param name="settings">Global settings instance</param>
-		public GlobalsService(MongoService mongoService, IOptions<ServerSettings> settings)
+		public GlobalsService(IMongoService mongoService, IOptions<ServerSettings> settings)
 		{
 			_mongoService = mongoService;
 

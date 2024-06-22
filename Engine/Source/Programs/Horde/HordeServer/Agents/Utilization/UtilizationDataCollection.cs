@@ -101,7 +101,7 @@ namespace HordeServer.Agents.Utilization
 		/// Constructor
 		/// </summary>
 		/// <param name="database"></param>
-		public UtilizationDataCollection(MongoService database)
+		public UtilizationDataCollection(IMongoService database)
 		{
 			_utilization = database.GetCollection<UtilizationDocument>("Utilization", keys => keys.Ascending(x => x.FinishTime).Ascending(x => x.StartTime));
 		}

@@ -144,7 +144,7 @@ namespace HordeServer.Devices
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DeviceReportService(MongoService mongoService, DeviceService deviceService, INotificationService notificationService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<DeviceReportService> logger)
+		public DeviceReportService(IMongoService mongoService, DeviceService deviceService, INotificationService notificationService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<DeviceReportService> logger)
 		{
 			_state = new SingletonDocument<DeviceReportState>(mongoService);
 			_deviceService = deviceService;

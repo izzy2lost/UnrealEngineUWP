@@ -57,7 +57,7 @@ namespace HordeServer.Server.Notices
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NoticeCollection(MongoService mongoService)
+		public NoticeCollection(IMongoService mongoService)
 		{
 			_notices = mongoService.GetCollection<NoticeDocument>("Notices");
 		}

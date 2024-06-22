@@ -89,7 +89,7 @@ namespace HordeServer.ServiceAccounts
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service</param>
-		public ServiceAccountCollection(MongoService mongoService)
+		public ServiceAccountCollection(IMongoService mongoService)
 		{
 			_accounts = mongoService.GetCollection<ServiceAccountDocument>("ServiceAccounts", keys => keys.Ascending(x => x.SecretToken));
 		}

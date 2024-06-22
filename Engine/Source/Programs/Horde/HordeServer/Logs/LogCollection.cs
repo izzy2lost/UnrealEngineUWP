@@ -270,7 +270,7 @@ namespace HordeServer.Logs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogCollection(MongoService mongoService, ILogStorage storage, LogTailService logTailService, StorageService storageService, Tracer tracer, ILogger<LogCollection> logger)
+		public LogCollection(IMongoService mongoService, ILogStorage storage, LogTailService logTailService, StorageService storageService, Tracer tracer, ILogger<LogCollection> logger)
 		{
 			_logCollection = mongoService.GetCollection<LogDocument>("LogFiles");
 			_storage = storage;

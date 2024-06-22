@@ -216,7 +216,7 @@ namespace HordeServer.Streams
 		/// </summary>
 		/// <param name="mongoService">The database service instance</param>
 		/// <param name="clock"></param>
-		public StreamCollection(MongoService mongoService, IClock clock)
+		public StreamCollection(IMongoService mongoService, IClock clock)
 		{
 			_streams = mongoService.GetCollection<StreamDoc>("Streams");
 			_clock = clock;

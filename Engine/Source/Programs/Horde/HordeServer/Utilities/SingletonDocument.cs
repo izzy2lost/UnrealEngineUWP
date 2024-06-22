@@ -120,13 +120,13 @@ namespace HordeServer.Utilities
 		/// <summary>
 		/// The database service instance
 		/// </summary>
-		readonly MongoService _mongoService;
+		readonly IMongoService _mongoService;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service instance</param>
-		public SingletonDocument(MongoService mongoService)
+		public SingletonDocument(IMongoService mongoService)
 		{
 			_mongoService = mongoService;
 		}

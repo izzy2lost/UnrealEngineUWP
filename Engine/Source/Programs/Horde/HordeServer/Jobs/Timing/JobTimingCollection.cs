@@ -81,7 +81,7 @@ namespace HordeServer.Jobs.Timing
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service singleton</param>
-		public JobTimingCollection(MongoService mongoService)
+		public JobTimingCollection(IMongoService mongoService)
 		{
 			_collection = mongoService.GetCollection<JobTimingDocument>("JobTiming");
 		}

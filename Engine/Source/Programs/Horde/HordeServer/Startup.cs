@@ -571,6 +571,7 @@ namespace HordeServer
 			services.AddSingleton<ComputeService>();
 			services.AddSingleton<MongoCommandTracer>();
 			services.AddSingleton<MongoService>();
+			services.AddSingleton<IMongoService>(sp => sp.GetRequiredService<MongoService>());
 			services.AddSingleton<GlobalsService>();
 			services.AddSingleton<ICommitService, CommitService>();
 			services.AddSingleton<IClock, Clock>();

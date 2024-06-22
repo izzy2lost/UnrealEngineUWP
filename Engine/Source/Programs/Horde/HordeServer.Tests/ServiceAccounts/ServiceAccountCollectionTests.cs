@@ -19,7 +19,7 @@ namespace HordeServer.Tests.Accounts
 
 		public HordeAccountCollectionTests()
 		{
-			MongoService mongoService = GetMongoServiceSingleton();
+			IMongoService mongoService = GetMongoServiceSingleton();
 			_serviceAccountCollection = new ServiceAccountCollection(mongoService);
 			(_serviceAccount, _token) = _serviceAccountCollection.CreateAsync(new CreateServiceAccountOptions(Description: "myDesc",
 				Claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue") })

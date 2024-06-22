@@ -71,7 +71,7 @@ namespace HordeServer.Tests.Logs
 		[TestMethod]
 		public async Task SplittingAsync()
 		{
-			RedisService redisService = ServiceProvider.GetRequiredService<RedisService>();
+			IRedisService redisService = ServiceProvider.GetRequiredService<IRedisService>();
 
 			LogTailService tailService = new LogTailService(redisService, ServiceProvider.GetRequiredService<IClock>(), 4, ServiceProvider.GetRequiredService<IOptions<ServerSettings>>(), ServiceProvider.GetRequiredService<ILogger<LogTailService>>());
 			await tailService.StartAsync(CancellationToken.None);
@@ -114,7 +114,7 @@ namespace HordeServer.Tests.Logs
 		[TestMethod]
 		public async Task ExpiryAsync()
 		{
-			RedisService redisService = GetRedisServiceSingleton();
+			IRedisService redisService = GetRedisServiceSingleton();
 
 			LogTailService tailService = ServiceProvider.GetRequiredService<LogTailService>();
 
@@ -173,7 +173,7 @@ namespace HordeServer.Tests.Logs
 			LogTailService tailService = ServiceProvider.GetRequiredService<LogTailService>();
 			await tailService.StartAsync(CancellationToken.None);
 
-			LogTailService tailService2 = new LogTailService(ServiceProvider.GetRequiredService<RedisService>(), ServiceProvider.GetRequiredService<IClock>(), 4, ServiceProvider.GetRequiredService<IOptions<ServerSettings>>(), ServiceProvider.GetRequiredService<ILogger<LogTailService>>());
+			LogTailService tailService2 = new LogTailService(ServiceProvider.GetRequiredService<IRedisService>(), ServiceProvider.GetRequiredService<IClock>(), 4, ServiceProvider.GetRequiredService<IOptions<ServerSettings>>(), ServiceProvider.GetRequiredService<ILogger<LogTailService>>());
 
 			Task<int> task = tailService.WaitForTailNextAsync(_logId, CancellationToken.None);
 			Assert.IsTrue(!task.IsCompleted);

@@ -233,7 +233,7 @@ namespace HordeServer.Agents.Pools
 		/// </summary>
 		/// <param name="mongoService">The database service instance</param>
 		/// <param name="globalConfig"></param>
-		public PoolCollection(MongoService mongoService, IOptionsMonitor<GlobalConfig> globalConfig)
+		public PoolCollection(IMongoService mongoService, IOptionsMonitor<GlobalConfig> globalConfig)
 		{
 			_poolsV1 = mongoService.GetCollection<PoolDocumentV1>("Pools");
 			_poolsV2 = mongoService.GetCollection<PoolDocumentV2>("PoolsV2");

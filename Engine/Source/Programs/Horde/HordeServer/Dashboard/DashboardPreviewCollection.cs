@@ -145,7 +145,7 @@ namespace HordeServer.Dashboard
 		readonly IMongoCollection<PreviewDocument> _previews;
 		readonly ISingletonDocument<PreviewLedger> _ledgerSingleton;
 
-		public DashboardPreviewCollection(MongoService mongoService)
+		public DashboardPreviewCollection(IMongoService mongoService)
 		{
 			_ledgerSingleton = new SingletonDocument<PreviewLedger>(mongoService);
 			_previews = mongoService.GetCollection<PreviewDocument>("DashboardPreviews");

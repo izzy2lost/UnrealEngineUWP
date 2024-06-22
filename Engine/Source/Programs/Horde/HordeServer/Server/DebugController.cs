@@ -44,7 +44,7 @@ namespace HordeServer.Server
 	{
 		private static readonly Random s_random = new();
 
-		private readonly MongoService _mongoService;
+		private readonly IMongoService _mongoService;
 		private readonly ConfigService _configService;
 		private readonly AgentRelayService _agentRelayService;
 		private readonly ILogCollection _logCollection;
@@ -55,7 +55,7 @@ namespace HordeServer.Server
 		/// Constructor
 		/// </summary>
 		public DebugController(
-			MongoService mongoService,
+			IMongoService mongoService,
 			ConfigService configService,
 			AgentRelayService agentRelayService,
 			ILogCollection logCollection,

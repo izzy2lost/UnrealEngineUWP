@@ -73,7 +73,7 @@ namespace HordeServer.Agents.Sessions
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service</param>
-		public SessionCollection(MongoService mongoService)
+		public SessionCollection(IMongoService mongoService)
 		{
 			List<MongoIndex<SessionDocument>> indexes = new List<MongoIndex<SessionDocument>>();
 			indexes.Add(keys => keys.Ascending(x => x.AgentId).Ascending(x => x.StartTime).Ascending(x => x.FinishTime));
