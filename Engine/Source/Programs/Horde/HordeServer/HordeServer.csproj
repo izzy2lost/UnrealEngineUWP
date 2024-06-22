@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -92,7 +92,6 @@
 
   <ItemGroup>
     <None Remove="HordeServer.xml" />
-    <None Remove="HordeServer.xml" />
   </ItemGroup>
 
   <ItemGroup>
@@ -135,6 +134,7 @@
     <ProjectReference Include="..\..\Shared\EpicGames.Redis\EpicGames.Redis.csproj" />
     <ProjectReference Include="..\..\Shared\EpicGames.Serialization\EpicGames.Serialization.csproj" />
     <ProjectReference Include="..\..\Shared\EpicGames.Slack\EpicGames.Slack.csproj" />
+    <ProjectReference Include="..\HordeServer.Shared\HordeServer.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

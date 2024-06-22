@@ -12,9 +12,9 @@ using Microsoft.Extensions.Logging;
 namespace HordeServer.Utilities
 {
 	/// <summary>
-	/// Utility class for buffering document  writes to a Mongo collection
+	/// Utility class for buffering document writes to a Mongo collection
 	/// </summary>
-	sealed class MongoBufferedWriter<TDocument> : IAsyncDisposable
+	public sealed class MongoBufferedWriter<TDocument> : IAsyncDisposable
 		where TDocument : class
 	{
 		readonly IMongoCollection<TDocument> _collection;
@@ -31,6 +31,9 @@ namespace HordeServer.Utilities
 		{
 		}
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public MongoBufferedWriter(IMongoCollection<TDocument> collection, int flushCount, TimeSpan flushTime, ILogger logger)
 		{
 			_collection = collection;
