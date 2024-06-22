@@ -69,25 +69,33 @@ FBarycentrics CalculateTriangleBarycentrics(float2 PixelClip, float4 PointClip0,
 	return Barycentrics;
 }
 
-float3 ClosestPointBarycentrics( float3 p, float3 v0, float3 v1, float3 v2 )
+float3 RayTriangleIntersectBarycentrics( float3 o, float3 rd, float3 v0, float3 v1, float3 v2 )
 {
 	// Muller-Trumbore ray triangle intersect
 	float3 Edge01 = v1 - v0;
 	float3 Edge02 = v2 - v0;
-	float3 Origin0 = p - v0;
+	float3 Origin0 = o - v0;
 
-	float3 TriNormal = cross( Edge02, Edge01 );
-	float3 Dirx02 = cross( TriNormal, Edge02 );
+	float3 Dirx02 = cross( rd, Edge02 );
 	float InvDet = 1.0 / dot( Edge01, Dirx02 );
- 
+
 	float3 UVW;
 	UVW.y = InvDet * dot( Origin0, Dirx02 );
-	UVW.z = InvDet * dot( TriNormal, cross( Origin0, Edge01 ) );
+	UVW.z = InvDet * dot( rd, cross( Origin0, Edge01) );
 	UVW.x = 1.0 - UVW.y - UVW.z;
 	return UVW;
 }
 
+float3 ClosestPointBarycentrics( float3 p, float3 v0, float3 v1, float3 v2 )
+{
+	// Project on to triangle along normal
+	float3 TriNormal = cross( v2 - v0, v1 - v0 );
+	
+	return RayTriangleIntersectBarycentrics(p, TriNormal, v0, v1, v2);
+}
+
 FBarycentrics CalculateTriangleBarycentrics(
+	float3 CameraLocal,
 	float3 PositionPixel,
 	float3 PositionPixelX,
 	float3 PositionPixelY,
@@ -136,7 +144,11 @@ FBarycentrics CalculateTriangleBarycentrics(
 
 	FBarycentrics Barycentrics;
 	Barycentrics.Value		= ClosestPointBarycentrics( PositionPixel,  Position0, Position1, Position2 );
-	Barycentrics.Value_dx	= ClosestPointBarycentrics( PositionPixelX, Position0, Position1, Position2 ) - Barycentrics.Value;
-	Barycentrics.Value_dy	= ClosestPointBarycentrics( PositionPixelY, Position0, Position1, Position2 ) - Barycentrics.Value;
+
+	// Take estimate for position at dx and dy and project onto the displaced triangle along the view ray
+	// We do this to correct for not including any the depth delta in our original estimation
+	Barycentrics.Value_dx	= RayTriangleIntersectBarycentrics( CameraLocal, PositionPixelX - CameraLocal, Position0, Position1, Position2 ) - Barycentrics.Value;
+	Barycentrics.Value_dy	= RayTriangleIntersectBarycentrics( CameraLocal, PositionPixelY - CameraLocal, Position0, Position1, Position2 ) - Barycentrics.Value;
+
 	return Barycentrics;
 }

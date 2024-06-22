@@ -776,7 +776,8 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FNaniteView NaniteVi
 
 		#if USES_DISPLACEMENT
 			float4x4 TranslatedWorldToLocal = DFFastToTranslatedWorld( InstanceData.WorldToLocal, NaniteView.PreViewTranslation );
-			
+			float3 CameraLocal	= TranslatedWorldToLocal[3].xyz;
+
 			float4 PixelTranslatedWorld		= mul( SvPosition,		NaniteView.SVPositionToTranslatedWorld );
 			float4 PixelTranslatedWorld_dx	= mul( float4(1,0,0,0),	NaniteView.SVPositionToTranslatedWorld );
 			float4 PixelTranslatedWorld_dy	= mul( float4(0,1,0,0),	NaniteView.SVPositionToTranslatedWorld );
@@ -786,6 +787,7 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FNaniteView NaniteVi
 			float4 PixelLocal_dy	= mul( PixelTranslatedWorld_dy,	TranslatedWorldToLocal );
 
 			Barycentrics = CalculateTriangleBarycentrics(
+				CameraLocal,
 				PixelLocal.xyz / PixelLocal.w,
 				( PixelLocal.xyz + PixelLocal_dx.xyz ) / PixelLocal.w,
 				( PixelLocal.xyz + PixelLocal_dy.xyz ) / PixelLocal.w,
