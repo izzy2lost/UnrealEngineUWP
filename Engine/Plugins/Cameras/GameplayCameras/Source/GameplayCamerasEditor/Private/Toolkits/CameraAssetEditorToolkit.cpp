@@ -6,6 +6,7 @@
 #include "Commands/CameraAssetEditorCommands.h"
 #include "Core/CameraAsset.h"
 #include "Core/CameraBuildLog.h"
+#include "Core/CameraDirector.h"
 #include "Editors/ObjectTreeGraphConfig.h"
 #include "Editors/SFindInObjectTreeGraph.h"
 #include "Framework/Docking/LayoutExtender.h"
@@ -295,11 +296,17 @@ void FCameraAssetEditorToolkit::OnJumpToObject(UObject* Object)
 
 void FCameraAssetEditorToolkit::OnJumpToObject(UObject* Object, FName PropertyName)
 {
+	bool bFindInCameraDirector = false;
 	bool bFindInCameraRig = false;
 	bool bFindInSharedTranstions = false;
 	UObject* CurOuter = Object;
 	while (CurOuter != nullptr)
 	{
+		if (CurOuter->IsA<UCameraDirector>())
+		{
+			bFindInCameraDirector = true;
+			break;
+		}
 		if (CurOuter->IsA<UCameraRigAsset>())
 		{
 			bFindInCameraRig = true;
@@ -312,6 +319,15 @@ void FCameraAssetEditorToolkit::OnJumpToObject(UObject* Object, FName PropertyNa
 		}
 
 		CurOuter = CurOuter->GetOuter();
+	}
+
+	if (bFindInCameraDirector)
+	{
+		TSharedPtr<FCameraDirectorAssetEditorMode> DirectorMode = GetTypedEditorMode<FCameraDirectorAssetEditorMode>(
+				FCameraDirectorAssetEditorMode::ModeName);
+		SetEditorMode(FCameraDirectorAssetEditorMode::ModeName);
+		DirectorMode->JumpToObject(Object, PropertyName);
+		return;
 	}
 	
 	if (bFindInCameraRig)
