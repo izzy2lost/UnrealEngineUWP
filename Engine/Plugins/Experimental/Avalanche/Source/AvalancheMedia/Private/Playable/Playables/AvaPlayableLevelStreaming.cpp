@@ -15,6 +15,7 @@
 #include "Framework/AvaSoftAssetPtr.h"
 #include "IAvaMediaModule.h"
 #include "IAvaRemoteControlInterface.h"
+#include "Playable/AvaPlayableAssetUserData.h"
 #include "Playable/AvaPlayableGroup.h"
 #include "Playable/AvaPlayableGroupManager.h"
 #include "Playback/AvaPlaybackUtils.h"
@@ -27,6 +28,22 @@
 
 namespace UE::AvaMedia::LevelStreamingPlayable::Private
 {
+	UAvaPlayableAssetUserData* FindOrAddPlayableAssetUserData(ULevel* InLevel)
+	{
+		if (!InLevel)
+		{
+			return nullptr;
+		}
+
+		UAvaPlayableAssetUserData* PlayableUserData = InLevel->GetAssetUserData<UAvaPlayableAssetUserData>();
+		if (!PlayableUserData)
+		{
+			PlayableUserData = NewObject<UAvaPlayableAssetUserData>();
+			InLevel->AddAssetUserData(PlayableUserData);
+		}
+		return PlayableUserData;
+	}
+
 	AAvaScene* FindAvaScene(const ULevel* InLevel)
 	{
 		AAvaScene* AvaScene = nullptr;
@@ -498,6 +515,14 @@ void UAvaPlayableLevelStreaming::OnLevelStreamingStateChanged(UWorld* InWorld
 	if (InLevelStreaming != LevelStreaming)
 	{
 		return;
+	}
+
+	using namespace UE::AvaMedia::LevelStreamingPlayable::Private;
+	
+	// Inject Playable user data in streamed level.
+	if (UAvaPlayableAssetUserData* PlayableUserData = FindOrAddPlayableAssetUserData(InLevelIfLoaded))
+	{
+		PlayableUserData->PlayableWeak = this;
 	}
 
 	// Package the event handler for queueing.

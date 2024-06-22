@@ -183,9 +183,11 @@ public:
 	void ForEachPlayableTransition(TFunctionRef<bool(UAvaPlayableTransition*)> InFunction);
 
 	/**
-	 * Globally search for the playable group corresponding to the given world.
+	 * Search for the first playable group associated to the given world.
+	 * @param InWorld	Play world to search the playable group of.
+	 * @param bInFallbackToGlobalSearch If the direct link from world to the playable group is not found, fallback to a global search of the whole system.
 	 */
-	static UAvaPlayableGroup* FindPlayableGroupForWorld(const UWorld* InWorld);
+	static UAvaPlayableGroup* FindPlayableGroupForWorld(const UWorld* InWorld, bool bInFallbackToGlobalSearch = true);
 	
 protected:
 	bool IsVisibilityConstrained(const UAvaPlayable* InPlayable) const;

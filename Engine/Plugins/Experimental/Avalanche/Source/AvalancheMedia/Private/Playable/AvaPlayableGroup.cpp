@@ -4,10 +4,12 @@
 
 #include "AvaPlayableGroupSubsystem.h"
 #include "Engine/GameInstance.h"
+#include "Engine/Level.h"
 #include "Engine/ViewportStatsSubsystem.h"
 #include "Engine/World.h"
 #include "IAvaMediaModule.h"
 #include "Playable/AvaPlayable.h"
+#include "Playable/AvaPlayableGroupAssetUserData.h"
 #include "Playable/AvaPlayableGroupManager.h"
 #include "Playable/PlayableGroups/AvaGameInstancePlayableGroup.h"
 #include "Playable/PlayableGroups/AvaGameViewportPlayableGroup.h"
@@ -32,6 +34,32 @@ namespace UE::AvaMedia::PlayableGroup::Private
 				It.RemoveCurrent();
 			}
 		}
+	}
+
+	UAvaPlayableGroupAssetUserData* FindPlayableGroupAssetUserData(IInterface_AssetUserData* InAssetInstance)
+	{
+		return InAssetInstance->GetAssetUserData<UAvaPlayableGroupAssetUserData>();
+	}
+
+	UAvaPlayableGroupAssetUserData* FindPlayableGroupAssetUserDataSafe(IInterface_AssetUserData* InAssetInstance)
+	{
+		return InAssetInstance ? InAssetInstance->GetAssetUserData<UAvaPlayableGroupAssetUserData>() : nullptr;
+	}
+
+	UAvaPlayableGroupAssetUserData* FindOrAddPlayableGroupAssetUserData(IInterface_AssetUserData* InAssetInstance)
+	{
+		if (!InAssetInstance)
+		{
+			return nullptr;
+		}
+		
+		UAvaPlayableGroupAssetUserData* PlayableGroupUserData = FindPlayableGroupAssetUserData(InAssetInstance);
+		if (!PlayableGroupUserData)
+		{
+			PlayableGroupUserData = NewObject<UAvaPlayableGroupAssetUserData>();
+			InAssetInstance->AddAssetUserData(PlayableGroupUserData);
+		}
+		return PlayableGroupUserData;
 	}
 }
 
@@ -61,6 +89,15 @@ UAvaPlayableGroup* UAvaPlayableGroup::MakePlayableGroup(UObject* InOuter, const 
 	if (NewPlayableGroup)
 	{
 		NewPlayableGroup->ChannelName = InPlayableGroupInfo.ChannelName;
+
+		if (const UWorld* PlayWorld = NewPlayableGroup->GetPlayWorld())
+		{
+			using namespace UE::AvaMedia::PlayableGroup::Private;
+			if(UAvaPlayableGroupAssetUserData* PlayableGroupUserData = FindOrAddPlayableGroupAssetUserData(PlayWorld->PersistentLevel))
+			{
+				PlayableGroupUserData->PlayableGroupsWeak.AddUnique(NewPlayableGroup);
+			}
+		}
 	}
 	
 	return NewPlayableGroup;
@@ -414,10 +451,33 @@ void UAvaPlayableGroup::ForEachPlayableTransition(TFunctionRef<bool(UAvaPlayable
 	}
 }
 
-UAvaPlayableGroup* UAvaPlayableGroup::FindPlayableGroupForWorld(const UWorld* InWorld)
+UAvaPlayableGroup* UAvaPlayableGroup::FindPlayableGroupForWorld(const UWorld* InWorld, bool bInFallbackToGlobalSearch)
 {
-	// Ideally, we would like a direct link from GameInstance (or World) to it's owning PlayableGroup and PlayableGroupManager.
-	// Todo: Refactor the AvaGameInstance path to have a link to PlayableGroup.
+	if (!InWorld)
+	{
+		return nullptr;
+	}
+
+	// Fast path: if a world is managed by a playable group, it should have an asset user data that
+	// we can retrieve the corresponding playable group from.
+	using namespace UE::AvaMedia::PlayableGroup::Private;
+	if (UAvaPlayableGroupAssetUserData* PlayableGroupUserData = FindPlayableGroupAssetUserData(InWorld->PersistentLevel))
+	{
+		for (const TWeakObjectPtr<UAvaPlayableGroup>& PlayableGroupWeak : PlayableGroupUserData->PlayableGroupsWeak)
+		{
+			if (UAvaPlayableGroup* PlayableGroup = PlayableGroupWeak.Get())
+			{
+				return PlayableGroup;
+			}
+		}
+	}
+
+	if (!bInFallbackToGlobalSearch)
+	{
+		return nullptr;
+	}
+	
+	// Global Search starting from the system's root playable group managers.
 	const UAvaPlayableGroupManager* PlayableGroupManager = nullptr;
 
 	// For Game Viewport output, the sub system will give us the playable group manager directly.

@@ -4,10 +4,10 @@
 
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
-#include "Engine/LevelStreamingDynamic.h"
 #include "Engine/World.h"
+#include "Playable/AvaPlayable.h"
+#include "Playable/AvaPlayableAssetUserData.h"
 #include "Playable/AvaPlayableGroup.h"
-#include "Playable/Playables/AvaPlayableLevelStreaming.h"
 #include "Playable/Transition/AvaPlayableTransition.h"
 
 namespace UE::AvaPlayableLibrary::Private
@@ -35,36 +35,21 @@ namespace UE::AvaPlayableLibrary::Private
 UAvaPlayable* UAvaPlayableLibrary::GetPlayable(const UObject* InWorldContextObject)
 {
 	using namespace UE::AvaPlayableLibrary::Private;
-	const ULevel* Level = GetLevel(InWorldContextObject);
+	ULevel* Level = GetLevel(InWorldContextObject);
 	if (!Level)
 	{
 		return nullptr;
 	}
 
-	UAvaPlayableGroup* PlayableGroup = UAvaPlayableGroup::FindPlayableGroupForWorld(Level->OwningWorld);
-	if (!PlayableGroup)
+	if (const UAvaPlayableAssetUserData* PlayableUserData = Level->GetAssetUserData<UAvaPlayableAssetUserData>())
 	{
-		return nullptr;
+		if (UAvaPlayable* Playable = PlayableUserData->PlayableWeak.Get())
+		{
+			return Playable;
+		}
 	}
 
-	UAvaPlayable* FoundPlayable = nullptr;
-	PlayableGroup->ForEachPlayable([&FoundPlayable, Level](UAvaPlayable* InPlayable)
-	{
-		if (const UAvaPlayableLevelStreaming* PlayableLevelStreaming = Cast<UAvaPlayableLevelStreaming>(InPlayable))
-		{
-			if (const ULevelStreaming* LevelStreaming = PlayableLevelStreaming->GetLevelStreaming())
-			{
-				if (LevelStreaming->GetLoadedLevel() == Level)
-				{
-					FoundPlayable = InPlayable;
-					return false;
-				}
-			}
-		}
-		return true;
-	});
-
-	return FoundPlayable;
+	return nullptr;
 }
 
 UAvaPlayableTransition* UAvaPlayableLibrary::GetPlayableTransition(const UAvaPlayable* InPlayable)
@@ -96,7 +81,7 @@ UAvaPlayableTransition* UAvaPlayableLibrary::GetPlayableTransition(const UAvaPla
 	return FoundTransition;
 }
 
-void UAvaPlayableLibrary::UpdateRemoteControlValues(const UObject* InWorldContextObject)
+bool UAvaPlayableLibrary::UpdateRemoteControlValues(const UObject* InWorldContextObject)
 {
 	if (UAvaPlayable* Playable = GetPlayable(InWorldContextObject))
 	{
@@ -104,8 +89,12 @@ void UAvaPlayableLibrary::UpdateRemoteControlValues(const UObject* InWorldContex
 		{
 			if (const TSharedPtr<FAvaPlayableRemoteControlValues> RemoteControlValues = Transition->GetValuesForPlayable(Playable))
 			{
-				Playable->UpdateRemoteControlCommand(RemoteControlValues.ToSharedRef());
+				if (Playable->UpdateRemoteControlCommand(RemoteControlValues.ToSharedRef()) == EAvaPlayableCommandResult::Executed)
+				{
+					return true;
+				}
 			}
 		}
 	}
+	return false;
 }

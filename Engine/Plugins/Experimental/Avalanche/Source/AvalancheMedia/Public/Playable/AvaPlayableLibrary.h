@@ -20,7 +20,12 @@ public:
 	/** Returns the transition this playable is part of. */
 	static UAvaPlayableTransition* GetPlayableTransition(const UAvaPlayable* InPlayable);
 
-	/** Injects the remote control values from current transition for the current playable. */
+	/**
+	 * Injects the remote control values from current transition for the current playable.
+	 * @remark This does nothing if there is no current transition the current playable is part of or if
+	 *		the current level is not managed by a playable.
+	 * @return true if the values have been injected, false otherwise.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Playable", meta=(WorldContext = "InWorldContextObject"))
-	static AVALANCHEMEDIA_API void UpdateRemoteControlValues(const UObject* InWorldContextObject);
+	static AVALANCHEMEDIA_API bool UpdateRemoteControlValues(const UObject* InWorldContextObject);
 };
