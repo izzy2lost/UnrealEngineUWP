@@ -81,7 +81,6 @@ namespace HordeServer.Configuration
 			Sources = sources;
 			ScopeStack.Push("$");
 			Logger = logger;
-			MacroScopes.Add(new Dictionary<string, string> { ["HordeDir"] = ServerApp.AppDir.FullName });
 
 			_getMacroValue = GetMacroValue;
 		}

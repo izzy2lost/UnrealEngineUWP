@@ -234,6 +234,13 @@ namespace HordeServer.Configuration
 				=> Task.CompletedTask;
 		}
 
+		ConfigContext CreateConfigContext(IReadOnlyDictionary<string, IConfigSource> sources, ILogger logger)
+		{
+			ConfigContext context = new ConfigContext(_jsonOptions, sources, logger);
+			context.MacroScopes.Add(new Dictionary<string, string> { ["HordeDir"] = ServerApp.AppDir.FullName });
+			return context;
+		}
+
 		/// <summary>
 		/// Validate a new set of config files. Parses and runs PostLoad methods on them.
 		/// </summary>
@@ -251,7 +258,7 @@ namespace HordeServer.Configuration
 				overrideSources.Add(schema, new OverrideConfigSource(source, overrideFiles));
 			}
 
-			ConfigContext context = new ConfigContext(_jsonOptions, overrideSources, NullLogger.Instance);
+			ConfigContext context = CreateConfigContext(overrideSources, NullLogger.Instance);
 			try
 			{
 				Uri globalConfigUri = GetGlobalConfigUri();
@@ -551,7 +558,7 @@ namespace HordeServer.Configuration
 		async Task<ConfigSnapshot> CreateSnapshotAsync(CancellationToken cancellationToken)
 		{
 			// Read the config files
-			ConfigContext context = new ConfigContext(_jsonOptions, _sources, _logger);
+			ConfigContext context = CreateConfigContext(_sources, _logger);
 			try
 			{
 				ConfigSnapshot snapshot = new ConfigSnapshot();

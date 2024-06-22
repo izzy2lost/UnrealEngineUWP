@@ -23,7 +23,7 @@ namespace HordeServer.Configuration
 		/// <param name="context">Current parse context for the error</param>
 		/// <param name="message">Description of the error</param>
 		/// <param name="innerException">Inner exception details</param>
-		internal ConfigException(ConfigContext context, string message, Exception? innerException = null)
+		public ConfigException(ConfigContext context, string message, Exception? innerException = null)
 			: base(message, innerException)
 		{
 			_context = context;
@@ -32,6 +32,6 @@ namespace HordeServer.Configuration
 		/// <summary>
 		/// Gets the parser context when this exception was thrown. This is not exposed as a public property to avoid serializing the whole thing to Serilog.
 		/// </summary>
-		internal ConfigContext GetContext() => _context;
+		public ConfigContext GetContext() => _context;
 	}
 }

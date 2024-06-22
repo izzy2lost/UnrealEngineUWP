@@ -103,7 +103,7 @@ namespace HordeServer.Configuration
 				}
 				else
 				{
-					return new Uri($"{PerforceScheme}://{PerforceConnectionSettings.Default}{path}");
+					return new Uri($"{PerforceScheme}://default{path}");
 				}
 			}
 			return new Uri(baseUri, path);
