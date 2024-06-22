@@ -797,7 +797,8 @@ void UConsole::AppendInputText(const FString& Text)
 		int32 Character = **TextMod.Left(1);
 		TextMod.MidInline(1, MAX_int32, EAllowShrinking::No);
 
-		if (Character >= 0x20 && Character < 0x100)
+		// Discard control characters, and allow more than extended ASCII (0xff) for Arabic etc
+		if (Character >= 0x20)
 		{
 			TCHAR Temp[2];
 			Temp[0] = Character;

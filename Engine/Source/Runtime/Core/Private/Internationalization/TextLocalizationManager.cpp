@@ -112,6 +112,54 @@ static FAutoConsoleCommand CmdDumpLiveTable(
 #endif
 		}
 	}));
+
+static FAutoConsoleCommand CmdModifyString(
+	TEXT("Localization.CmdModifyString"),
+	TEXT("Replaces DisplayString in the live table given required arguments: 'Namespace', 'Key', and 'DisplayString'"),
+	FConsoleCommandWithArgsDelegate::CreateStatic([](const TArray<FString>& Args)
+		{
+			// Rebuild the full string of arguments, since values within quotes may have been split on space(s)
+			FString Arguments;
+			for (const FString& Arg : Args)
+			{
+				Arguments.Append(Arg);
+				Arguments.Append(" ");
+			}
+
+			TOptional<FString> Namespace;
+			TOptional<FString> Key;
+			TOptional<FString> DisplayString;
+
+			FString Tmp;
+			if (FParse::Value(*Arguments, TEXT("Namespace="), Tmp))
+			{
+				Namespace = MoveTemp(Tmp);
+			}
+
+			if (FParse::Value(*Arguments, TEXT("Key="), Tmp))
+			{
+				Key = MoveTemp(Tmp);
+			}
+
+			if (FParse::Value(*Arguments, TEXT("DisplayString="), Tmp))
+			{
+				DisplayString = MoveTemp(Tmp);
+			}
+
+			if (!Namespace.IsSet() || !Key.IsSet() || !DisplayString.IsSet())
+			{
+				UE_LOG(LogLocalization, Warning, TEXT("Missing argument(s): Namespace, Key, and/or DisplayString"));
+				return;
+			}
+			// An empty DisplayString is allowed, but the argument for it must be provided: -DisplayString=""
+			if (Namespace.GetValue().IsEmpty() || Key.GetValue().IsEmpty())
+			{
+				UE_LOG(LogLocalization, Warning, TEXT("Empty argument(s): Namespace, Key, and/or DisplayString"));
+				return;
+			}
+
+			FTextLocalizationManager::Get().ReplaceStringInLiveTable(Namespace.GetPtrOrNull(), Key.GetPtrOrNull(), DisplayString.GetPtrOrNull());
+		}));
 #endif
 
 FString KeyifyTextId(const FTextId& TextId)
@@ -742,6 +790,44 @@ void FTextLocalizationManager::DumpLiveTable(const FString& OutputFilename, cons
 
 	FFileHelper::SaveStringToFile(DumpString, *OutputFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 }
+
+void FTextLocalizationManager::ReplaceStringInLiveTable(const FString* Namespace, const FString* Key, const FString* DisplayString)
+{
+	FSlowHeartBeatScope SuspendHeartBeat;
+
+	// Lock while updating the table
+	FScopeLock ScopeLock(&DisplayStringTableCS);
+
+	const FTextId TextId(*Namespace, *Key);
+
+	FDisplayStringEntry* LiveEntry = DisplayStringLookupTable.Find(TextId);
+
+	if (LiveEntry)
+	{
+		auto GetSourceStringRef = [DisplayString]() -> const FString&
+			{
+				if (DisplayString)
+				{
+					return *DisplayString;
+				}
+
+				static const FString EmptyString;
+				return EmptyString;
+			};
+
+		const FString& SourceString = GetSourceStringRef();
+
+		LiveEntry->DisplayString = MakeTextDisplayString(CopyTemp(SourceString));
+		DirtyLocalRevisionForTextId(TextId);
+
+		UE_LOG(LogConsoleResponse, Display, TEXT("Updated string for Namespace='%s', Key='%s' to DisplayString='%s'"), **Namespace, **Key, **DisplayString);
+	}
+	else
+	{
+		UE_LOG(LogConsoleResponse, Warning, TEXT("String not found for Namespace='%s', Key='%s'"), **Namespace, **Key);
+	}
+}
+
 #endif
 
 FString FTextLocalizationManager::GetRequestedLanguageName() const
