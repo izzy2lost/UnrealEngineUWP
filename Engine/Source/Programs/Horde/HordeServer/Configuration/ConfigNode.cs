@@ -96,13 +96,14 @@ namespace HordeServer.Configuration
 		{
 			if (path.StartsWith("//", StringComparison.Ordinal))
 			{
-				if (baseUri.Scheme == PerforceConfigSource.Scheme)
+				const string PerforceScheme = "perforce";
+				if (baseUri.Scheme == PerforceScheme)
 				{
-					return new Uri($"{PerforceConfigSource.Scheme}://{baseUri.Host}{path}");
+					return new Uri($"{PerforceScheme}://{baseUri.Host}{path}");
 				}
 				else
 				{
-					return new Uri($"{PerforceConfigSource.Scheme}://{PerforceConnectionSettings.Default}{path}");
+					return new Uri($"{PerforceScheme}://{PerforceConnectionSettings.Default}{path}");
 				}
 			}
 			return new Uri(baseUri, path);

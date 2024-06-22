@@ -26,11 +26,6 @@ using StackExchange.Redis;
 namespace HordeServer.Configuration
 {
 	/// <summary>
-	/// Information about the updated config
-	/// </summary>
-	public record class ConfigUpdateInfo(List<string> Status, HashSet<UserId> Authors, Exception? Exception);
-
-	/// <summary>
 	/// Service which processes runtime configuration data.
 	/// </summary>
 	public sealed class ConfigService : IOptionsFactory<GlobalConfig>, IOptionsChangeTokenSource<GlobalConfig>, IHostedService, IAsyncDisposable

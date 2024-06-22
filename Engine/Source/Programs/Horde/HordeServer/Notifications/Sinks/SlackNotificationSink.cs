@@ -37,6 +37,7 @@ using HordeServer.Issues.External;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
+using HordeServer.Perforce;
 using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Users;
