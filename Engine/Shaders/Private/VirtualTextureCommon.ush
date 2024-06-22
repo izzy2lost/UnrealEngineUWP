@@ -192,6 +192,22 @@ VTPageTableUniform VTPageTableUniform_Unpack(uint4 PackedPageTableUniform0, uint
 	return result;
 }
 
+VTPageTableUniform VTPageTableUniform_Unpack(uint2 PackedPageTableUniform)
+{
+	VTPageTableUniform Result;
+	Result.UVScale = 1.f;
+	Result.SizeInPages.x = PackedPageTableUniform.y & 0xfff;
+	Result.SizeInPages.y = (PackedPageTableUniform.y >> 12) & 0xfff;
+	Result.MaxAnisoLog2 = 0;
+	Result.XOffsetInPages = PackedPageTableUniform.x & 0xfff;
+	Result.YOffsetInPages = (PackedPageTableUniform.x >> 12) & 0xfff;
+	Result.vPageTableMipBias = (PackedPageTableUniform.x >> 24) & 0xf;
+	Result.MaxLevel = (PackedPageTableUniform.y >> 24) & 0xf;
+	Result.AdaptiveLevelBias = 0;
+	Result.ShiftedPageTableID = PackedPageTableUniform.x & 0xf0000000;
+	return Result;
+}
+
 /** Structure carrying page table read result. Is passed as inout parameter and partially filled by several functions. */
 struct VTPageTableResult
 {

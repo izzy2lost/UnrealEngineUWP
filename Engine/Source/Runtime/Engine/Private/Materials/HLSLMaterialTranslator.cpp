@@ -235,9 +235,10 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 {
 	enum EVirtualPageType
 	{
-		TABLE0 = 0,
-		TABLE1 = 1,
-		TABLE_INDIRECTION = 2
+		TABLE_GLOBAL = 1,
+		TABLE0 = 2,
+		TABLE1 = 4,
+		TABLE_INDIRECTION = 8,
 	};
 
 	bool bNeedsParticlePosition;
@@ -2640,20 +2641,37 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 	OutEnvironment.SetDefine(TEXT("NUM_VIRTUALTEXTURE_SAMPLES"), EnvironmentDefines->NumVirtualTextureSamples);
 	OutEnvironment.SetDefine(TEXT("MATERIAL_VIRTUALTEXTURE_FEEDBACK"), EnvironmentDefines->bMaterialVirtualTextureFeedback);
 
-	// Setup defines to map each VT stack to either 1 or 2 page table textures, depending on how many layers it uses
 	for (int i = 0; i < EnvironmentDefines->VirtualPageTypes.Num(); ++i)
 	{
-		const FMaterialVirtualTextureStack& Stack = MaterialCompilationOutput.UniformExpressionSet.VTStacks[i];
-		FString PageTableValue = FString::Printf(TEXT("Material.VirtualTexturePageTable0_%d"), i);
-		if (EnvironmentDefines->VirtualPageTypes[i] & FEnvironmentDefines::TABLE1)
+		if (EnvironmentDefines->VirtualPageTypes[i] & FEnvironmentDefines::TABLE_GLOBAL)
 		{
-			PageTableValue += FString::Printf(TEXT(", Material.VirtualTexturePageTable1_%d"), i);
+			OutEnvironment.SetDefine(
+				*FString::Printf(TEXT("VIRTUALTEXTURE_PAGETABLE_%d"), i), 
+				TEXT("Scene.MeshPaint.PageTableTexture"));
+
+			OutEnvironment.SetDefine(
+				*FString::Printf(TEXT("VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d"), i), 
+				TEXT("GetPrimitiveData(Parameters).MeshPaintTextureDescriptor"));
 		}
-		if (EnvironmentDefines->VirtualPageTypes[i] & FEnvironmentDefines::TABLE_INDIRECTION)
+		else
 		{
-			PageTableValue += FString::Printf(TEXT(", Material.VirtualTexturePageTableIndirection_%d"), i);
+			// Setup page table defines to map each VT stack to either 1 or 2 page table textures, depending on how many layers it uses
+			const FMaterialVirtualTextureStack& Stack = MaterialCompilationOutput.UniformExpressionSet.VTStacks[i];
+			FString PageTableValue = FString::Printf(TEXT("Material.VirtualTexturePageTable0_%d"), i);
+			if (EnvironmentDefines->VirtualPageTypes[i] & FEnvironmentDefines::TABLE1)
+			{
+				PageTableValue += FString::Printf(TEXT(", Material.VirtualTexturePageTable1_%d"), i);
+			}
+			if (EnvironmentDefines->VirtualPageTypes[i] & FEnvironmentDefines::TABLE_INDIRECTION)
+			{
+				PageTableValue += FString::Printf(TEXT(", Material.VirtualTexturePageTableIndirection_%d"), i);
+			}
+			OutEnvironment.SetDefine(*FString::Printf(TEXT("VIRTUALTEXTURE_PAGETABLE_%d"), i), *PageTableValue);
+
+			// Setup page table uniform defines.
+			FString PageTableUniformValue = FString::Printf(TEXT("Material.VTPackedPageTableUniform[%d*2], Material.VTPackedPageTableUniform[%d*2+1]"), i, i);
+			OutEnvironment.SetDefine(*FString::Printf(TEXT("VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d"), i), *PageTableUniformValue);
 		}
-		OutEnvironment.SetDefine(*FString::Printf(TEXT("VIRTUALTEXTURE_PAGETABLE_%d"), i), *PageTableValue);
 	}
 
 	for (int32 CollectionIndex = 0; CollectionIndex < EnvironmentDefines->ParameterCollections.Num(); CollectionIndex++)
@@ -6720,13 +6738,18 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 	const FString& UV_Value,
 	const FString& UV_Ddx,
 	const FString& UV_Ddy,
-	bool bAdaptive, bool bGenerateFeedback)
+	bool bAdaptive, bool bGenerateFeedback, bool bMeshPaint)
 {
-	const uint64 CoordinatHash = GetParameterHash(CoordinateIndex);
+	const uint64 CoordinateHash = GetParameterHash(CoordinateIndex);
 	const uint64 MipValue0Hash = GetParameterHash(MipValue0Index);
 	const uint64 MipValue1Hash = GetParameterHash(MipValue1Index);
 
-	uint64 Hash = CityHash128to64({ CurrentScopeID, CoordinatHash });
+	uint32 Flags = 0;
+	Flags |= bAdaptive ? (1 << 0) : 0;
+	Flags |= bGenerateFeedback ? (1 << 1) : 0;
+	Flags |= bMeshPaint ? (1 << 2) : 0;
+
+	uint64 Hash = CityHash128to64({ CurrentScopeID, CoordinateHash });
 	Hash = CityHash128to64({ Hash, MipValue0Hash });
 	Hash = CityHash128to64({ Hash, MipValue1Hash });
 	Hash = CityHash128to64({ Hash, (uint64)MipValueMode });
@@ -6734,8 +6757,7 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 	Hash = CityHash128to64({ Hash, (uint64)AddressV });
 	Hash = CityHash128to64({ Hash, (uint64)(AspectRatio * 1000.0f) });
 	Hash = CityHash128to64({ Hash, (uint64)PreallocatedStackTextureIndex });
-	Hash = CityHash128to64({ Hash, (uint64)(bAdaptive ? 1 : 0) });
-	Hash = CityHash128to64({ Hash, (uint64)(bGenerateFeedback ? 1 : 0) });
+	Hash = CityHash128to64({ Hash, (uint64)Flags });
 
 	// First check to see if we have an existing VTStack that matches this key, that can still fit another layer
 	for (int32 Index = VTStackHash.First(Hash); VTStackHash.IsValid(Index); Index = VTStackHash.Next(Index))
@@ -6744,7 +6766,7 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 		const FMaterialVTStackEntry& Entry = VTStacks[Index];
 		if (!Stack.AreLayersFull() &&
 			Entry.ScopeID == CurrentScopeID &&
-			Entry.CoordinateHash == CoordinatHash &&
+			Entry.CoordinateHash == CoordinateHash &&
 			Entry.MipValue0Hash == MipValue0Hash &&
 			Entry.MipValue1Hash == MipValue1Hash &&
 			Entry.MipValueMode == MipValueMode &&
@@ -6753,7 +6775,8 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 			Entry.AspectRatio == AspectRatio &&
 			Entry.PreallocatedStackTextureIndex == PreallocatedStackTextureIndex &&
 			Entry.bAdaptive == bAdaptive &&
-			Entry.bGenerateFeedback == bGenerateFeedback)
+			Entry.bGenerateFeedback == bGenerateFeedback &&
+			Entry.bMeshPaint == bMeshPaint)
 		{
 			return Index;
 		}
@@ -6764,7 +6787,7 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 	VTStackHash.Add(Hash, StackIndex);
 	FMaterialVTStackEntry& Entry = VTStacks[StackIndex];
 	Entry.ScopeID = CurrentScopeID;
-	Entry.CoordinateHash = CoordinatHash;
+	Entry.CoordinateHash = CoordinateHash;
 	Entry.MipValue0Hash = MipValue0Hash;
 	Entry.MipValue1Hash = MipValue1Hash;
 	Entry.MipValueMode = MipValueMode;
@@ -6777,6 +6800,7 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 	Entry.PreallocatedStackTextureIndex = PreallocatedStackTextureIndex;
 	Entry.bAdaptive = bAdaptive;
 	Entry.bGenerateFeedback = bGenerateFeedback;
+	Entry.bMeshPaint = bMeshPaint;
 
 	MaterialCompilationOutput.UniformExpressionSet.VTStacks.Add(FMaterialVirtualTextureStack(PreallocatedStackTextureIndex));
 
@@ -6802,12 +6826,12 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 		FString SampleCodeFinite = FString::Printf(TEXT(
 			"%s("
 			"VIRTUALTEXTURE_PAGETABLE_%d, "
-			"VTPageTableUniform_Unpack(Material.VTPackedPageTableUniform[%d*2], Material.VTPackedPageTableUniform[%d*2+1]), "
+			"VTPageTableUniform_Unpack(VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d), "
 			"%s, %s, %s, "
 			"0, Parameters.SvPosition.xy, "
 			"%dU + LIGHTMAP_VT_ENABLED, Parameters.VirtualTextureFeedback)"),
 			*BaseFunctionName,
-			StackIndex, StackIndex, StackIndex,
+			StackIndex, StackIndex,
 			*CoerceParameter(CoordinateIndex, MCT_Float2), GetVTAddressMode(AddressU), GetVTAddressMode(AddressV),
 			StackIndex);
 
@@ -6816,12 +6840,12 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 			FString SampleCodeAnalytic = FString::Printf(TEXT(
 				"%sGrad("
 				"VIRTUALTEXTURE_PAGETABLE_%d, "
-				"VTPageTableUniform_Unpack(Material.VTPackedPageTableUniform[%d*2], Material.VTPackedPageTableUniform[%d*2+1]), "
+				"VTPageTableUniform_Unpack(VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d), "
 				"%s, %s, %s, "
 				"%s, %s, Parameters.SvPosition.xy, "
 				"%dU + LIGHTMAP_VT_ENABLED, Parameters.VirtualTextureFeedback)"),
 				*BaseFunctionName,
-				StackIndex, StackIndex, StackIndex,
+				StackIndex, StackIndex,
 				*UV_Value, GetVTAddressMode(AddressU), GetVTAddressMode(AddressV), 
 				*UV_Ddx, *UV_Ddy,
 				StackIndex);
@@ -6839,12 +6863,12 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 		FString SampleCodeFinite = FString::Printf(TEXT(
 			"%s("
 			"VIRTUALTEXTURE_PAGETABLE_%d, "
-			"VTPageTableUniform_Unpack(Material.VTPackedPageTableUniform[%d*2], Material.VTPackedPageTableUniform[%d*2+1]), "
+			"VTPageTableUniform_Unpack(VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d), "
 			"%s, %s, %s, "
 			"%s, Parameters.SvPosition.xy, "
 			"%dU + LIGHTMAP_VT_ENABLED, Parameters.VirtualTextureFeedback)"),
 			*BaseFunctionName,
-			StackIndex, StackIndex, StackIndex, 
+			StackIndex, StackIndex,
 			*CoerceParameter(CoordinateIndex, MCT_Float2), GetVTAddressMode(AddressU), GetVTAddressMode(AddressV), 
 			*CoerceParameter(MipValue0Index, MCT_Float1),
 			StackIndex);
@@ -6853,12 +6877,12 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 			FString SampleCodeAnalytic = FString::Printf(TEXT(
 				"%sGrad("
 				"VIRTUALTEXTURE_PAGETABLE_%d, "
-				"VTPageTableUniform_Unpack(Material.VTPackedPageTableUniform[%d*2], Material.VTPackedPageTableUniform[%d*2+1]), "
+				"VTPageTableUniform_Unpack(VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d), "
 				"%s, %s, %s, "
 				"%s, %s, Parameters.SvPosition.xy, "
 				"%dU + LIGHTMAP_VT_ENABLED, Parameters.VirtualTextureFeedback)"),
 				*BaseFunctionName,
-				StackIndex, StackIndex, StackIndex,
+				StackIndex, StackIndex, 
 				*UV_Value, GetVTAddressMode(AddressU), GetVTAddressMode(AddressV),
 				*UV_Ddx, *UV_Ddy,
 				StackIndex);
@@ -6874,12 +6898,12 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 		Entry.CodeIndex = AddCodeChunk(MCT_VTPageTableResult, TEXT(
 			"%sLevel("
 			"VIRTUALTEXTURE_PAGETABLE_%d, " 
-			"VTPageTableUniform_Unpack(Material.VTPackedPageTableUniform[%d*2], Material.VTPackedPageTableUniform[%d*2+1]), "
+			"VTPageTableUniform_Unpack(VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d), "
 			"%s, %s, %s, "
 			"%s"
 			"%s)"),
 			*BaseFunctionName,
-			StackIndex, StackIndex, StackIndex,
+			StackIndex, StackIndex, 
 			*CoerceParameter(CoordinateIndex, MCT_Float2), GetVTAddressMode(AddressU), GetVTAddressMode(AddressV), 
 			*CoerceParameter(MipValue0Index, MCT_Float1),
 			*FeedbackParameter);
@@ -6888,12 +6912,12 @@ uint32 FHLSLMaterialTranslator::AcquireVTStackIndex(
 		Entry.CodeIndex = AddCodeChunk(MCT_VTPageTableResult, TEXT(
 			"%sGrad("
 			"VIRTUALTEXTURE_PAGETABLE_%d, "
-			"VTPageTableUniform_Unpack(Material.VTPackedPageTableUniform[%d*2], Material.VTPackedPageTableUniform[%d*2+1]), "
+			"VTPageTableUniform_Unpack(VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d), "
 			"%s, %s, %s, "
 			"%s, %s, Parameters.SvPosition.xy, "
 			"%dU + LIGHTMAP_VT_ENABLED, Parameters.VirtualTextureFeedback)"),
 			*BaseFunctionName,
-			StackIndex, StackIndex, StackIndex, 
+			StackIndex, StackIndex, 
 			*CoerceParameter(CoordinateIndex, MCT_Float2), GetVTAddressMode(AddressU), GetVTAddressMode(AddressV),
 			*CoerceParameter(MipValue0Index, MCT_Float2), *CoerceParameter(MipValue1Index, MCT_Float2),
 			StackIndex);
@@ -7004,6 +7028,9 @@ int32 FHLSLMaterialTranslator::TextureSample(
 	const bool bFromCollection = (TextureType & MCT_TextureCollection) != 0;
 	TextureType = EMaterialValueType(TextureType & ~MCT_TextureCollection);
 
+	const bool bMeshPaint = (TextureType & MCT_TextureMeshPaint) != 0;
+	TextureType = EMaterialValueType(TextureType & ~MCT_TextureMeshPaint);
+
 	if (ShaderFrequency != SF_Pixel && MipValueMode == TMVM_MipBias)
 	{
 		Errorf(TEXT("MipBias is only supported in the pixel shader"));
@@ -7095,6 +7122,14 @@ int32 FHLSLMaterialTranslator::TextureSample(
 	{
 		TextureName = CoerceParameter(TextureIndex, MCT_TextureExternal);
 	}
+	else if (bMeshPaint)
+	{
+		check(bVirtualTexture);
+
+		TextureName = TEXT("Scene.MeshPaint.PhysicalTexture, View.SharedBilinearClampedSampler");
+
+		NumVtSamples++;
+	}
 	else if (bVirtualTexture)
 	{
 		// Note, this does not really do anything (by design) other than adding it to the UniformExpressionSet
@@ -7138,7 +7173,7 @@ int32 FHLSLMaterialTranslator::TextureSample(
 
 	// Won't be able to get the texture, if this is an external texture sample
 	const UTexture* Texture = nullptr;
-	if (TextureType != MCT_TextureExternal && !bFromCollection)
+	if (TextureType != MCT_TextureExternal && !bFromCollection && !bMeshPaint)
 	{
 		FMaterialUniformExpression* Expression = (*CurrentScopeChunks)[TextureIndex].UniformExpression;
 		const FMaterialUniformExpressionTexture* TextureExpression = Expression ? Expression->GetTextureUniformExpression() : nullptr;
@@ -7426,41 +7461,53 @@ int32 FHLSLMaterialTranslator::TextureSample(
 		int32 VTStackIndex = INDEX_NONE;
 		int32 VTLayerIndex = INDEX_NONE;
 		int32 VTPageTableIndex = INDEX_NONE;
-
-		check(VirtualTextureIndex >= 0);
+		FString VTPackedUniformName;
 
 		// Only support GPU feedback from pixel shader
 		//todo[vt]: Support feedback from other shader types
 		const bool bGenerateFeedback = EnableFeedback && ShaderFrequency == SF_Pixel;
 
-		VTLayerIndex = UniformTextureExpressions[(uint32)EMaterialTextureParameterType::Virtual][VirtualTextureIndex]->GetTextureLayerIndex();
-		if (VTLayerIndex != INDEX_NONE)
+		if (bMeshPaint)
 		{
-			// The layer index in the virtual texture stack is already known
-			// Create a page table sample for each new combination of virtual texture and sample parameters
-			VTStackIndex = AcquireVTStackIndex(MipValueMode, StaticAddressX, StaticAddressY, 1.0f, NonLWCCoordinateIndex, MipValue0Index, MipValue1Index, TextureReferenceIndex, UV_Value, UV_Ddx, UV_Ddy, AdaptiveVirtualTexture, bGenerateFeedback);
-			VTPageTableIndex = UniformTextureExpressions[(uint32)EMaterialTextureParameterType::Virtual][VirtualTextureIndex]->GetPageTableLayerIndex();
+			VTStackIndex = AcquireVTStackIndex(MipValueMode, StaticAddressX, StaticAddressY, 1.0f, CoordinateIndex, MipValue0Index, MipValue1Index, INDEX_NONE, UV_Value, UV_Ddx, UV_Ddy, AdaptiveVirtualTexture, bGenerateFeedback, bMeshPaint);
+			VTPageTableIndex = 0;
+			VTPackedUniformName = TEXT("Scene.MeshPaint.PackedUniform");
 		}
-		else
+		else 
 		{
-			// Textures can only be combined in a VT stack if they have the same aspect ratio
-			// This also means that any texture parameters set in material instances for VTs must match the aspect ratio of the texture in the parent material
-			// (Otherwise could potentially break stacks)
-			check(Texture);
+			check(VirtualTextureIndex >= 0);
+			VTPackedUniformName = FString::Printf(TEXT("Material.VTPackedUniform[%d]"), VirtualTextureIndex);
 
-			// Using Source size because we care about the aspect ratio of each block (each block of multi-block texture must have same aspect ratio)
-			// We can still combine multi-block textures of different block aspect ratios, as long as each block has the same ratio
-			// This is because we only need to overlay VT pages from within a given block
-			const float TextureAspectRatio = (float)Texture->Source.GetSizeX() / (float)Texture->Source.GetSizeY();
+			VTLayerIndex = UniformTextureExpressions[(uint32)EMaterialTextureParameterType::Virtual][VirtualTextureIndex]->GetTextureLayerIndex();
 
-			// Create a page table sample for each new set of sample parameters
-			VTStackIndex = AcquireVTStackIndex(MipValueMode, StaticAddressX, StaticAddressY, TextureAspectRatio, NonLWCCoordinateIndex, MipValue0Index, MipValue1Index, INDEX_NONE, UV_Value, UV_Ddx, UV_Ddy, AdaptiveVirtualTexture, bGenerateFeedback);
-			// Allocate a layer in the virtual texture stack for this physical sample
-			VTLayerIndex = MaterialCompilationOutput.UniformExpressionSet.VTStacks[VTStackIndex].AddLayer();
-			VTPageTableIndex = VTLayerIndex;
+			if (VTLayerIndex != INDEX_NONE)
+			{
+				// The layer index in the virtual texture stack is already known
+				// Create a page table sample for each new combination of virtual texture and sample parameters
+				VTStackIndex = AcquireVTStackIndex(MipValueMode, StaticAddressX, StaticAddressY, 1.0f, NonLWCCoordinateIndex, MipValue0Index, MipValue1Index, TextureReferenceIndex, UV_Value, UV_Ddx, UV_Ddy, AdaptiveVirtualTexture, bGenerateFeedback, bMeshPaint);
+				VTPageTableIndex = UniformTextureExpressions[(uint32)EMaterialTextureParameterType::Virtual][VirtualTextureIndex]->GetPageTableLayerIndex();
+			}
+			else
+			{
+				// Textures can only be combined in a VT stack if they have the same aspect ratio
+				// This also means that any texture parameters set in material instances for VTs must match the aspect ratio of the texture in the parent material
+				// (Otherwise could potentially break stacks)
+				check(Texture);
+
+				// Using Source size because we care about the aspect ratio of each block (each block of multi-block texture must have same aspect ratio)
+				// We can still combine multi-block textures of different block aspect ratios, as long as each block has the same ratio
+				// This is because we only need to overlay VT pages from within a given block
+				const float TextureAspectRatio = (float)Texture->Source.GetSizeX() / (float)Texture->Source.GetSizeY();
+
+				// Create a page table sample for each new set of sample parameters
+				VTStackIndex = AcquireVTStackIndex(MipValueMode, StaticAddressX, StaticAddressY, TextureAspectRatio, NonLWCCoordinateIndex, MipValue0Index, MipValue1Index, INDEX_NONE, UV_Value, UV_Ddx, UV_Ddy, AdaptiveVirtualTexture, bGenerateFeedback, bMeshPaint);
+				// Allocate a layer in the virtual texture stack for this physical sample
+				VTLayerIndex = MaterialCompilationOutput.UniformExpressionSet.VTStacks[VTStackIndex].AddLayer();
+				VTPageTableIndex = VTLayerIndex;
+			}
+		
+			MaterialCompilationOutput.UniformExpressionSet.VTStacks[VTStackIndex].SetLayer(VTLayerIndex, VirtualTextureIndex);
 		}
-
-		MaterialCompilationOutput.UniformExpressionSet.VTStacks[VTStackIndex].SetLayer(VTLayerIndex, VirtualTextureIndex);
 
 		// VT MipValueMode logic (most of work for VT case is in page table lookup)
 		if (MipValueMode == TMVM_MipLevel)
@@ -7472,7 +7519,7 @@ int32 FHLSLMaterialTranslator::TextureSample(
 		const FString VTPageTableResult_Finite = GetParameterCode(VTStackEntry.CodeIndex);
 
 		// 'Texture name/sampler', 'PageTableResult', 'LayerIndex', 'PackedUniform'
-		FString SampleCodeFinite = FString::Printf(TEXT("%s(%s, %s, %d, VTUniform_Unpack(Material.VTPackedUniform[%d]))"), *TextureTypeName, *TextureName, *VTPageTableResult_Finite, VTPageTableIndex, VirtualTextureIndex);
+		FString SampleCodeFinite = FString::Printf(TEXT("%s(%s, %s, %d, VTUniform_Unpack(%s))"), *TextureTypeName, *TextureName, *VTPageTableResult_Finite, VTPageTableIndex, *VTPackedUniformName);
 		SampleCodeFinite = ApplySamplerType(SampleCodeFinite, SamplerType);
 
 		if (IsAnalyticDerivEnabled() && IsDerivativeValid(UvDerivativeStatus))
@@ -7483,11 +7530,11 @@ int32 FHLSLMaterialTranslator::TextureSample(
 
 			if (SamplerDebugSupported(TextureType, bVirtualTexture, bDecal))
 			{
-				SampleCodeAnalytic = FString::Printf(TEXT("Debug%s(%s, %s, %d, VTUniform_Unpack(Material.VTPackedUniform[%d]), %s)"), *TextureTypeName, *TextureName, *VTPageTableResult_Analytic, VTPageTableIndex, VirtualTextureIndex, *UV_Scale);
+				SampleCodeAnalytic = FString::Printf(TEXT("Debug%s(%s, %s, %d, VTUniform_Unpack(%s), %s)"), *TextureTypeName, *TextureName, *VTPageTableResult_Analytic, VTPageTableIndex, *VTPackedUniformName, *UV_Scale);
 			}
 			else
 			{
-				SampleCodeAnalytic = FString::Printf(TEXT("%s(%s, %s, %d, VTUniform_Unpack(Material.VTPackedUniform[%d]))"), *TextureTypeName, *TextureName, *VTPageTableResult_Analytic, VTPageTableIndex, VirtualTextureIndex);
+				SampleCodeAnalytic = FString::Printf(TEXT("%s(%s, %s, %d, VTUniform_Unpack(%s))"), *TextureTypeName, *TextureName, *VTPageTableResult_Analytic, VTPageTableIndex, *VTPackedUniformName);
 			}
 
 			SampleCodeAnalytic = ApplySamplerType(SampleCodeAnalytic, SamplerType);
@@ -8714,6 +8761,11 @@ int32 FHLSLMaterialTranslator::VertexColor()
 	{
 		return AddInlinedCodeChunk(MCT_Float4, *FiniteCode);
 	}
+}
+
+int32 FHLSLMaterialTranslator::MeshPaintTextureDescriptor()
+{
+	return GetPrimitiveProperty(EMaterialValueType(MCT_TextureVirtual | MCT_TextureMeshPaint), TEXT("MeshPaintTextureDescriptor"), TEXT("MeshPaintTextureDescriptor"));
 }
 
 int32 FHLSLMaterialTranslator::PreSkinnedPosition()
@@ -14960,6 +15012,10 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 		if (VTStacks[i].bAdaptive)
 		{
 			EnvironmentDefines->VirtualPageTypes[i] |= FEnvironmentDefines::TABLE_INDIRECTION;
+		}
+		if (VTStacks[i].bMeshPaint)
+		{
+			EnvironmentDefines->VirtualPageTypes[i] |= FEnvironmentDefines::TABLE_GLOBAL;
 		}
 	}
 

@@ -124,6 +124,7 @@
 #include "Materials/MaterialExpressionIf.h"
 #include "Materials/MaterialExpressionInverseLinearInterpolate.h"
 #include "Materials/MaterialExpressionLightmapUVs.h"
+#include "Materials/MaterialExpressionMeshPaintTextureObject.h"
 #include "Materials/MaterialExpressionPrecomputedAOMask.h"
 #include "Materials/MaterialExpressionLightmassReplace.h"
 #include "Materials/MaterialExpressionLightVector.h"
@@ -2854,7 +2855,7 @@ int32 UMaterialExpressionTextureSample::Compile(class FMaterialCompiler* Compile
 			return CoordinateIndex;
 		};
 
-		if (TextureType & MCT_TextureCollection)
+		if (TextureType & (MCT_TextureCollection | MCT_TextureMeshPaint))
 		{
 			// There's no UTexture object to get here
 
@@ -3925,6 +3926,47 @@ void UMaterialExpressionVirtualTextureFeatureSwitch::GetCaption(TArray<FString>&
 }
 
 #endif // WITH_EDITOR
+
+UMaterialExpressionMeshPaintTextureObject::UMaterialExpressionMeshPaintTextureObject(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_MeshPaintTexture;
+		FConstructorStatics()
+			: NAME_MeshPaintTexture(LOCTEXT("MeshPaintTexture", "MeshPaintTexture"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_MeshPaintTexture);
+#endif
+
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("")));
+}
+
+#if WITH_EDITOR
+
+uint32 UMaterialExpressionMeshPaintTextureObject::GetOutputType(int32 OutputIndex)
+{
+	return MCT_TextureVirtual | MCT_TextureMeshPaint;
+}
+
+int32 UMaterialExpressionMeshPaintTextureObject::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	return Compiler->MeshPaintTextureDescriptor();
+}
+
+#endif // WITH_EDITOR
+
+void UMaterialExpressionMeshPaintTextureObject::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("MeshPaintTextureObject"));
+}
 
 UMaterialExpressionAdd::UMaterialExpressionAdd(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

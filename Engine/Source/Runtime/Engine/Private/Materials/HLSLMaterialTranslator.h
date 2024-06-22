@@ -190,6 +190,7 @@ struct FMaterialVTStackEntry
 	int32 PreallocatedStackTextureIndex;
 	bool bAdaptive;
 	bool bGenerateFeedback;
+	bool bMeshPaint;
 	float AspectRatio;
 
 	int32 CodeIndex;
@@ -1024,7 +1025,7 @@ protected:
 		const FString& UV_Value,
 		const FString& UV_Ddx,
 		const FString& UV_Ddy,
-		bool bAdaptive, bool bGenerateFeedback);
+		bool bAdaptive, bool bGenerateFeedback, bool bMeshPaint);
 
 	virtual int32 TextureSample(
 		int32 TextureIndex,
@@ -1117,6 +1118,7 @@ protected:
 	virtual int32 StaticTerrainLayerWeight(FName ParameterName, int32 Default, bool bTextureArray = false) override;
 
 	virtual int32 VertexColor() override;
+	virtual int32 MeshPaintTextureDescriptor() override;
 
 	virtual int32 PreSkinnedPosition() override;
 	virtual int32 PreSkinnedNormal() override;

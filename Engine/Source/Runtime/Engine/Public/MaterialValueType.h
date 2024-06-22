@@ -63,6 +63,7 @@ enum EMaterialValueType : int
 	MCT_UInt4                 = 1 << 28,
 
 	MCT_TextureCollection     = 1 << 29,
+	MCT_TextureMeshPaint      = 1 << 30,
 
 	/** MCT_SparseVolumeTexture is intentionally not (yet) included here because it differs a lot from the other texture types and may not be supported/appropriate for all MCT_Texture use cases. */
 	MCT_Texture = MCT_Texture2D | MCT_TextureCube | MCT_Texture2DArray | MCT_TextureCubeArray | MCT_VolumeTexture | MCT_TextureExternal | MCT_TextureVirtual,
