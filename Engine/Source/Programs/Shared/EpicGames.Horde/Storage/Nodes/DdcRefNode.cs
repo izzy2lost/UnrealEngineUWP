@@ -3,9 +3,8 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Core;
-using EpicGames.Horde.Storage;
 
-namespace Horde.Server.Ddc
+namespace EpicGames.Horde.Storage.Nodes
 {
 	/// <summary>
 	/// A node containing ref data
