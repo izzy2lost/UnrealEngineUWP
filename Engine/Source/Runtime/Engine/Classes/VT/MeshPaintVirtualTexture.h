@@ -48,8 +48,8 @@ namespace MeshPaintVirtualTexture
 	/** Scene view parameters that describe the virtual texture space shared by all UMeshPaintVirtualTexture objects. */
 	struct FUniformParams
 	{
-		FTextureRHIRef PageTableTexture = nullptr;
-		FTextureRHIRef PhysicalTexture = nullptr;
+		FTextureRHIRef PageTableTexture;
+		FTextureRHIRef PhysicalTexture;
 		FUintVector4 PackedUniform = FUintVector4(0, 0, 0, 0);
 	};
 	
