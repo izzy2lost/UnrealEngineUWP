@@ -4,11 +4,9 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Common;
 using HordeServer.Configuration;
-using HordeServer.Server;
 
 namespace HordeServer.Dashboard
 {
-
 	/// <summary>
 	/// Configuration for dashboard features
 	/// </summary>
