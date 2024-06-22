@@ -184,6 +184,14 @@ bool SRCSignaturePanel::IsListFocused() const
 	return SignatureTreeView.IsValid() && SignatureTreeView->IsListFocused();
 }
 
+void SRCSignaturePanel::EnterRenameMode()
+{
+	if (SignatureTreeView.IsValid())
+	{
+		return SignatureTreeView->EnterRenameMode();
+	}
+}
+
 TArray<TSharedPtr<FRCLogicModeBase>> SRCSignaturePanel::GetSelectedLogicItems() const
 {
 	if (SignatureTreeView.IsValid())

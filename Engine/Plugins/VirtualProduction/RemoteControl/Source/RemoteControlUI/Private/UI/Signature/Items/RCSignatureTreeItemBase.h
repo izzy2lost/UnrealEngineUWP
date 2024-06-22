@@ -75,9 +75,17 @@ public:
 		return FText::GetEmpty();
 	}
 
-	virtual bool CanEditDisplayNameText() const
+	virtual void SetRenaming(bool bInRenaming)
 	{
-		return false;
+	}
+
+	/**
+	 * Gets the Rename Delegate
+	 * @return the delegate to when renaming state changes, or nullptr if item does not support renaming
+	 */
+	virtual TMulticastDelegateRegistration<void(bool)>* GetOnRenameStateChanged() const
+	{
+		return nullptr;
 	}
 
 	virtual void SetDisplayNameText(const FText& InText)

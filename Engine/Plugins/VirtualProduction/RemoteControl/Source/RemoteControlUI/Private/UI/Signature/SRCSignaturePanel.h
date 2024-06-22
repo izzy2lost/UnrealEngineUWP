@@ -26,6 +26,8 @@ public:
 	/** Whether this widget currently has focus */
 	bool IsListFocused() const;
 
+	void EnterRenameMode();
+
 	//~ Begin SRCLogicPanelBase
 	virtual TArray<TSharedPtr<FRCLogicModeBase>> GetSelectedLogicItems() const override;
 	virtual FReply RequestDeleteSelectedItem() override;

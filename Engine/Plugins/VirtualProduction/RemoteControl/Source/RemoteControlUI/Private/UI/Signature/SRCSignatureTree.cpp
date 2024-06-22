@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCSignatureTree.h"
+#include "Algo/Reverse.h"
 #include "IRCSignatureColumn.h"
 #include "Items/RCSignatureTreeItemBase.h"
 #include "Items/RCSignatureTreeRootItem.h"
@@ -95,6 +96,57 @@ void SRCSignatureTree::Refresh()
 		, /*bRecursive*/true);
 
 	SignatureTreeView->RequestTreeRefresh();
+}
+
+void SRCSignatureTree::EnterRenameMode()
+{
+	TArray<TSharedPtr<FRCSignatureTreeItemBase>> SelectedItems = GetSelectedItems();
+
+	// Remove all the items that can't be renamed
+	SelectedItems.RemoveAll([](const TSharedPtr<FRCSignatureTreeItemBase>& InItem)
+		{
+			return !InItem->GetOnRenameStateChanged();
+		});
+
+	RenameQueue.Reset();
+	RenameQueue.Append(MoveTemp(SelectedItems));
+
+	// Reverse as items will be removed from the end (pop) to avoid shifting items every dequeue
+	Algo::Reverse(RenameQueue);
+
+	ProcessRenameQueue();
+}
+
+void SRCSignatureTree::ProcessRenameQueue()
+{
+	if (TSharedPtr<FRCSignatureTreeItemBase> CurrentItemRenaming = CurrentItemRenamingWeak.Pin())
+	{
+		CurrentItemRenaming->SetRenaming(false);
+	}
+
+	CurrentItemRenamingWeak.Reset();
+
+	if (RenameQueue.IsEmpty())
+	{
+		return;
+	}
+
+	// Dequeue until a valid item is gotten
+	// Most likely it will be the first item
+	TSharedPtr<FRCSignatureTreeItemBase> ItemToRename;
+	do
+	{
+		ItemToRename = RenameQueue.Pop().Pin();
+	}
+	while (!RenameQueue.IsEmpty() && !ItemToRename.IsValid());
+
+	if (!ItemToRename.IsValid())
+	{
+		return;
+	}
+
+	CurrentItemRenamingWeak = ItemToRename;
+	ItemToRename->SetRenaming(true);
 }
 
 TArray<TSharedPtr<FRCSignatureTreeItemBase>> SRCSignatureTree::GetSelectedItems() const

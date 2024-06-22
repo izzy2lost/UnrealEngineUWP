@@ -146,9 +146,18 @@ FText FRCSignatureTreeSignatureItem::GetDisplayNameText() const
 	return FText::GetEmpty();
 }
 
-bool FRCSignatureTreeSignatureItem::CanEditDisplayNameText() const
+void FRCSignatureTreeSignatureItem::SetRenaming(bool bInRenaming)
 {
-	return true;
+	if (bRenaming != bInRenaming)
+	{
+		bRenaming = bInRenaming;
+		OnRenameStateChangedDelegate.Broadcast(bInRenaming);
+	}
+}
+
+TMulticastDelegateRegistration<void(bool)>* FRCSignatureTreeSignatureItem::GetOnRenameStateChanged() const
+{
+	return &OnRenameStateChangedDelegate;
 }
 
 void FRCSignatureTreeSignatureItem::SetDisplayNameText(const FText& InText)

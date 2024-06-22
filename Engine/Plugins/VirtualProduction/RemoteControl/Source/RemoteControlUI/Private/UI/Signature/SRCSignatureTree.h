@@ -29,6 +29,10 @@ public:
 
 	void Refresh();
 
+	void EnterRenameMode();
+
+	void ProcessRenameQueue();
+
 	TArray<TSharedPtr<FRCSignatureTreeItemBase>> GetSelectedItems() const;
 
 	//~ Begin SRCLogicPanelListBase
@@ -66,6 +70,12 @@ private:
 	TSharedPtr<SHeaderRow> HeaderRow;
 
 	TWeakPtr<SRCSignaturePanel> SignaturePanelWeak;
+
+	/** Items that are pending to be renamed */
+	TArray<TWeakPtr<FRCSignatureTreeItemBase>> RenameQueue;
+
+	/** Current item being renamed */
+	TWeakPtr<FRCSignatureTreeItemBase> CurrentItemRenamingWeak;
 
 	bool bSyncingSelection = false;
 };

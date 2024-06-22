@@ -2180,6 +2180,12 @@ void SRemoteControlPanel::RenameEntity_Execute() const
 		return;
 	}
 
+	if (SignaturePanel->IsListFocused())
+	{
+		SignaturePanel->EnterRenameMode();
+		return;
+	}
+
 	if (LastSelectedEntity->GetRCType() == SRCPanelTreeNode::FieldChild ||
 		LastSelectedEntity->GetRCType() == SRCPanelTreeNode::FieldGroup) // Field Child/Group does not contain entity ID, that is why it should not be processed
 	{
@@ -2197,6 +2203,11 @@ bool SRemoteControlPanel::CanRenameEntity() const
 	}
 
 	if (ControllerPanel->IsListFocused())
+	{
+		return true;
+	}
+
+	if (SignaturePanel->IsListFocused())
 	{
 		return true;
 	}

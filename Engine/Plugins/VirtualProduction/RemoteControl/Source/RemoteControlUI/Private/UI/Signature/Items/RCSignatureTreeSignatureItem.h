@@ -40,7 +40,8 @@ protected:
 	virtual TOptional<bool> IsEnabled() const override;
 	virtual void SetEnabled(bool bInEnabled) override;
 	virtual FText GetDisplayNameText() const override;
-	virtual bool CanEditDisplayNameText() const override;
+	virtual void SetRenaming(bool bInRenaming) override;
+	virtual TMulticastDelegateRegistration<void(bool)>* GetOnRenameStateChanged() const override;
 	virtual void SetDisplayNameText(const FText& InText) override;
 	virtual FText GetDescription() const override;
 	virtual int32 RemoveFromRegistry() override;
@@ -52,4 +53,10 @@ private:
 	TWeakObjectPtr<URCSignatureRegistry> RegistryWeak;
 
 	FGuid SignatureId;
+
+	/** delegate to call when entering/exiting rename mode */
+	mutable TMulticastDelegate<void(bool)> OnRenameStateChangedDelegate;
+
+	/** true if currently in rename mode */
+	bool bRenaming = false;
 };
