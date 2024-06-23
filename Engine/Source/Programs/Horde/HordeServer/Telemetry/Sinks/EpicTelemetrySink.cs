@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Telemetry;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
@@ -140,7 +141,7 @@ namespace HordeServer.Telemetry.Sinks
 			_httpClient = CreateHttpClient();
 
 			_jsonOptions = new JsonSerializerOptions();
-			Startup.ConfigureJsonSerializer(_jsonOptions);
+			JsonUtils.ConfigureJsonSerializer(_jsonOptions);
 			_jsonOptions.PropertyNamingPolicy = null;
 			_jsonOptions.Converters.Insert(0, new TableauDateTimeConverter());
 

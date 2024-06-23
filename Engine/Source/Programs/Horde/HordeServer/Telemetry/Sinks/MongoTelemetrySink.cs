@@ -71,7 +71,7 @@ namespace HordeServer.Telemetry.Sinks
 			_logger = logger;
 
 			_jsonOptions = new JsonSerializerOptions();
-			Startup.ConfigureJsonSerializer(_jsonOptions);
+			JsonUtils.ConfigureJsonSerializer(_jsonOptions);
 		}
 
 		/// <inheritdoc/>

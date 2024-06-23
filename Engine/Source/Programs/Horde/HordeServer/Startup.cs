@@ -3,14 +3,11 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Mime;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Amazon;
@@ -21,7 +18,6 @@ using Amazon.Extensions.NETCore.Setup;
 using Amazon.SQS;
 using EpicGames.AspNet;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
@@ -38,6 +34,7 @@ using EpicGames.Horde.Users;
 using EpicGames.Redis;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
+using HordeCommon;
 using HordeServer.Accounts;
 using HordeServer.Acls;
 using HordeServer.Agents;
@@ -91,7 +88,6 @@ using HordeServer.Tools;
 using HordeServer.Ugs;
 using HordeServer.Users;
 using HordeServer.Utilities;
-using HordeCommon;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -240,66 +236,6 @@ namespace HordeServer
 					return new DateTimeOffsetStringSerializer();
 				}
 				return null;
-			}
-		}
-
-		class JsonObjectIdConverter : JsonConverter<ObjectId>
-		{
-			public override ObjectId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-			{
-				string? str = reader.GetString();
-				if (str == null)
-				{
-					throw new InvalidDataException("Unable to parse object id");
-				}
-				if (str.Length == 0)
-				{
-					return ObjectId.Empty;
-				}
-				return ObjectId.Parse(str);
-			}
-
-			public override void Write(Utf8JsonWriter writer, ObjectId objectId, JsonSerializerOptions options)
-			{
-				writer.WriteStringValue(objectId.ToString());
-			}
-		}
-
-		class JsonDateTimeConverter : JsonConverter<DateTime>
-		{
-			public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-			{
-				Debug.Assert(typeToConvert == typeof(DateTime));
-
-				string? str = reader.GetString();
-				if (str == null)
-				{
-					throw new InvalidDataException("Unable to parse DateTime");
-				}
-				return DateTime.Parse(str, CultureInfo.CurrentCulture);
-			}
-
-			public override void Write(Utf8JsonWriter writer, DateTime dateTime, JsonSerializerOptions options)
-			{
-				writer.WriteStringValue(dateTime.ToUniversalTime().ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ssZ", CultureInfo.CurrentCulture));
-			}
-		}
-
-		class JsonTimeSpanConverter : JsonConverter<TimeSpan>
-		{
-			public override TimeSpan Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-			{
-				string? str = reader.GetString();
-				if (str == null)
-				{
-					throw new InvalidDataException("Unable to parse TimeSpan");
-				}
-				return TimeSpan.Parse(str, CultureInfo.CurrentCulture);
-			}
-
-			public override void Write(Utf8JsonWriter writer, TimeSpan timeSpan, JsonSerializerOptions options)
-			{
-				writer.WriteStringValue(timeSpan.ToString("c"));
 			}
 		}
 
@@ -466,7 +402,7 @@ namespace HordeServer
 			services.AddSingleton<RedisService>(sp => redisService);
 			services.AddSingleton<IRedisService>(sp => sp.GetRequiredService<RedisService>());
 			services.AddDataProtection().PersistKeysToStackExchangeRedis(() => redisService.GetDatabase(), "aspnet-data-protection");
-			
+
 			services.AddResponseCompression(options =>
 			{
 				options.EnableForHttps = true;
@@ -474,7 +410,7 @@ namespace HordeServer
 				options.Providers.Add<BrotliCompressionProvider>();
 				options.Providers.Add<ZstdCompressionProvider>();
 			});
-			
+
 			if (settings.CorsEnabled)
 			{
 				services.AddCors(options =>
@@ -960,7 +896,7 @@ namespace HordeServer
 				options.KnownNetworks.Clear();
 			});
 
-			services.AddMvc().AddJsonOptions(options => ConfigureJsonSerializer(options.JsonSerializerOptions));
+			services.AddMvc().AddJsonOptions(options => JsonUtils.ConfigureJsonSerializer(options.JsonSerializerOptions));
 			services.AddControllersWithViews(options => options.Filters.Add(new ObsoleteLoggingFilter()))
 				.AddRazorRuntimeCompilation();
 
@@ -1047,27 +983,6 @@ namespace HordeServer
 			LogValueFormatter.RegisterTypeAnnotation<LeaseId>("LeaseId");
 			LogValueFormatter.RegisterTypeAnnotation<LogId>("LogId");
 			LogValueFormatter.RegisterTypeAnnotation<UserId>("UserId");
-		}
-
-		public static JsonSerializerOptions JsonSerializerOptions { get; } = CreateJsonSerializerOptions();
-
-		static JsonSerializerOptions CreateJsonSerializerOptions()
-		{
-			JsonSerializerOptions options = new JsonSerializerOptions();
-			ConfigureJsonSerializer(options);
-			options.MakeReadOnly(true);
-			return options;
-		}
-
-		public static void ConfigureJsonSerializer(JsonSerializerOptions options)
-		{
-			HordeHttpClient.ConfigureJsonSerializer(options);
-			options.Converters.Add(new JsonObjectIdConverter());
-			options.Converters.Add(new JsonKnownTypesConverterFactory());
-			options.Converters.Add(new ObjectIdJsonConverterFactory());
-			options.Converters.Add(new SubResourceIdJsonConverterFactory());
-			options.Converters.Add(new JsonDateTimeConverter());
-			options.Converters.Add(new JsonTimeSpanConverter());
 		}
 
 		private static void ConfigureLogStorage(IServiceCollection services)

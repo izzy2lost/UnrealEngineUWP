@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Telemetry;
 using HordeServer.Telemetry.Sinks;
+using HordeServer.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -87,7 +88,7 @@ namespace HordeServer.Telemetry
 			try
 			{
 				JsonSerializerOptions options = new JsonSerializerOptions();
-				Startup.ConfigureJsonSerializer(options);
+				JsonUtils.ConfigureJsonSerializer(options);
 
 				return JsonSerializer.Serialize(telemetryEvent, options);
 			}

@@ -16,6 +16,7 @@ using EpicGames.Horde.Storage;
 using HordeServer.Acls;
 using HordeServer.Server;
 using HordeServer.Storage.ObjectStores;
+using HordeServer.Utilities;
 
 namespace HordeServer.Storage
 {
@@ -102,7 +103,7 @@ namespace HordeServer.Storage
 				using (MemoryStream stream = new MemoryStream())
 				{
 					JsonSerializerOptions options = new JsonSerializerOptions();
-					Startup.ConfigureJsonSerializer(options);
+					JsonUtils.ConfigureJsonSerializer(options);
 
 					JsonSerializer.Serialize(stream, backendConfig, options: options);
 

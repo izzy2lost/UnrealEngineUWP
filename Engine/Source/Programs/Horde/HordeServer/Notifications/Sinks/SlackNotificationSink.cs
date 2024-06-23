@@ -41,6 +41,7 @@ using HordeServer.Perforce;
 using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Caching.Memory;
@@ -279,7 +280,7 @@ namespace HordeServer.Notifications.Sinks
 			}
 
 			_jsonSerializerOptions = new JsonSerializerOptions();
-			Startup.ConfigureJsonSerializer(_jsonSerializerOptions);
+			JsonUtils.ConfigureJsonSerializer(_jsonSerializerOptions);
 
 			if (!String.IsNullOrEmpty(settings.Value.SlackUsers))
 			{

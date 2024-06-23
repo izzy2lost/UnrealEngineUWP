@@ -14,6 +14,7 @@ using EpicGames.Horde.Users;
 using EpicGames.Redis;
 using HordeServer.Server;
 using HordeServer.Users;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -145,7 +146,7 @@ namespace HordeServer.Configuration
 			_logger = logger;
 
 			_jsonOptions = new JsonSerializerOptions();
-			Startup.ConfigureJsonSerializer(_jsonOptions);
+			JsonUtils.ConfigureJsonSerializer(_jsonOptions);
 
 			_ticker = clock.AddSharedTicker<ConfigService>(_tickInterval, TickSharedAsync, logger);
 

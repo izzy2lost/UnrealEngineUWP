@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 using HordeServer.Telemetry.Metrics;
+using HordeServer.Utilities;
 
 namespace HordeServer.Telemetry.Sinks
 {
@@ -22,7 +23,7 @@ namespace HordeServer.Telemetry.Sinks
 			_metricCollection = metricCollection;
 
 			_jsonOptions = new JsonSerializerOptions();
-			Startup.ConfigureJsonSerializer(_jsonOptions);
+			JsonUtils.ConfigureJsonSerializer(_jsonOptions);
 		}
 
 		/// <inheritdoc/>

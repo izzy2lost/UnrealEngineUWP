@@ -16,7 +16,7 @@ namespace HordeServer.Utilities
 	/// Base class for converting to and from types containing an object id. Useful pattern for reducing boilerplate with strongly typed records.
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
-	abstract class ObjectIdConverter<T> where T : struct
+	public abstract class ObjectIdConverter<T> where T : struct
 	{
 		/// <summary>
 		/// Converts a type to a <see cref="ObjectId"/>
@@ -33,7 +33,7 @@ namespace HordeServer.Utilities
 	/// Attribute declaring an object id converter for a particular type
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Struct)]
-	sealed class ObjectIdConverterAttribute : Attribute
+	public sealed class ObjectIdConverterAttribute : Attribute
 	{
 		/// <summary>
 		/// The converter type
@@ -49,7 +49,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Class which serializes types with a <see cref="ObjectIdConverter{T}"/> to Json
 	/// </summary>
-	sealed class ObjectIdTypeConverter<TValue, TConverter> : TypeConverter where TValue : struct where TConverter : ObjectIdConverter<TValue>, new()
+	public sealed class ObjectIdTypeConverter<TValue, TConverter> : TypeConverter where TValue : struct where TConverter : ObjectIdConverter<TValue>, new()
 	{
 		readonly TConverter _converter = new TConverter();
 
@@ -84,23 +84,52 @@ namespace HordeServer.Utilities
 	}
 
 	/// <summary>
+	/// Class which serializes ObjectId types to Json
+	/// </summary>
+	public class ObjectIdJsonConverter : JsonConverter<ObjectId>
+	{
+		/// <inheritdoc/>
+		public override ObjectId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			string? str = reader.GetString();
+			if (str == null)
+			{
+				throw new InvalidDataException("Unable to parse object id");
+			}
+			if (str.Length == 0)
+			{
+				return ObjectId.Empty;
+			}
+			return ObjectId.Parse(str);
+		}
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, ObjectId objectId, JsonSerializerOptions options)
+		{
+			writer.WriteStringValue(objectId.ToString());
+		}
+	}
+
+	/// <summary>
 	/// Class which serializes types with a <see cref="ObjectIdConverter{T}"/> to Json
 	/// </summary>
-	sealed class ObjectIdJsonConverter<TValue, TConverter> : JsonConverter<TValue> where TValue : struct where TConverter : ObjectIdConverter<TValue>, new()
+	public sealed class ObjectIdJsonConverter<TValue, TConverter> : JsonConverter<TValue> where TValue : struct where TConverter : ObjectIdConverter<TValue>, new()
 	{
 		readonly TConverter _converter = new TConverter();
 
 		/// <inheritdoc/>
-		public override TValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => _converter.FromObjectId(ObjectId.Parse(reader.GetString()));
+		public override TValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) 
+			=> _converter.FromObjectId(ObjectId.Parse(reader.GetString()));
 
 		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, TValue value, JsonSerializerOptions options) => writer.WriteStringValue(_converter.ToObjectId(value).ToString());
+		public override void Write(Utf8JsonWriter writer, TValue value, JsonSerializerOptions options) 
+			=> writer.WriteStringValue(_converter.ToObjectId(value).ToString());
 	}
 
 	/// <summary>
 	/// Creates constructors for types with a <see cref="ObjectIdConverter{T}"/> to Json
 	/// </summary>
-	sealed class ObjectIdJsonConverterFactory : JsonConverterFactory
+	public sealed class ObjectIdJsonConverterFactory : JsonConverterFactory
 	{
 		/// <inheritdoc/>
 		public override bool CanConvert(Type typeToConvert) => typeToConvert.GetCustomAttribute<ObjectIdConverterAttribute>() != null;
@@ -120,12 +149,13 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Class which serializes object id types to BSON
 	/// </summary>
-	sealed class ObjectIdBsonSerializer<TValue, TConverter> : SerializerBase<TValue> where TValue : struct where TConverter : ObjectIdConverter<TValue>, new()
+	public sealed class ObjectIdBsonSerializer<TValue, TConverter> : SerializerBase<TValue> where TValue : struct where TConverter : ObjectIdConverter<TValue>, new()
 	{
 		readonly TConverter _converter = new TConverter();
 
 		/// <inheritdoc/>
-		public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) => _converter.FromObjectId(context.Reader.ReadObjectId());
+		public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) 
+			=> _converter.FromObjectId(context.Reader.ReadObjectId());
 
 		/// <inheritdoc/>
 		public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TValue value) => context.Writer.WriteObjectId(_converter.ToObjectId(value));
@@ -134,7 +164,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Class which serializes object id types to BSON
 	/// </summary>
-	sealed class ObjectIdBsonSerializationProvider : BsonSerializationProviderBase
+	public sealed class ObjectIdBsonSerializationProvider : BsonSerializationProviderBase
 	{
 		/// <inheritdoc/>
 		public override IBsonSerializer? GetSerializer(Type type, IBsonSerializerRegistry serializerRegistry)

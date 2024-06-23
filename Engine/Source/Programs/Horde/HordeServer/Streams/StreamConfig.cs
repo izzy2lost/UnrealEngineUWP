@@ -321,7 +321,7 @@ namespace HordeServer.Streams
 			}
 
 			// Compute a hash of this stream revision to make it easier to detect changes
-			byte[] streamData = JsonSerializer.SerializeToUtf8Bytes(this, Startup.JsonSerializerOptions);
+			byte[] streamData = JsonSerializer.SerializeToUtf8Bytes(this, JsonUtils.DefaultSerializerOptions);
 			Revision = IoHash.Compute(streamData).ToString();
 		}
 
