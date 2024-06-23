@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Text.Json;
+using HordeServer.Utilities;
 
 namespace HordeServer.Tests.Ddc.FunctionalTests
 {
@@ -11,7 +12,7 @@ namespace HordeServer.Tests.Ddc.FunctionalTests
 		private static JsonSerializerOptions ConfigureJsonOptions()
 		{
 			JsonSerializerOptions options = new JsonSerializerOptions();
-			Startup.ConfigureJsonSerializer(options);
+			JsonUtils.ConfigureJsonSerializer(options);
 			return options;
 		}
 	}

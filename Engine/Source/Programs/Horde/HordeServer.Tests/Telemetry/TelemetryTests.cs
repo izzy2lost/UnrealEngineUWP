@@ -12,6 +12,7 @@ using HordeServer.Server;
 using HordeServer.Telemetry;
 using HordeServer.Telemetry.Metrics;
 using HordeServer.Telemetry.Sinks;
+using HordeServer.Utilities;
 using Json.Path;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -334,7 +335,7 @@ namespace HordeServer.Tests.Telemetry
 		public void GroupConverterTest()
 		{
 			JsonSerializerOptions serializerOptions = new JsonSerializerOptions();
-			Startup.ConfigureJsonSerializer(serializerOptions);
+			JsonUtils.ConfigureJsonSerializer(serializerOptions);
 
 			MetricConfig? config = JsonSerializer.Deserialize<MetricConfig>("{ \"groupBy\": \"$.foo,$.bar\" }", serializerOptions);
 			Assert.IsNotNull(config);
