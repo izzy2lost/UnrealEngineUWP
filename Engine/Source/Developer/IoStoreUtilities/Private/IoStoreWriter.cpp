@@ -2292,8 +2292,6 @@ void FIoStoreWriterContextImpl::BeginEncryptionAndSigningThreadFunc()
 
 	FIoStoreDDCRequestDispatcherParams PutRequestDispatcherParams;
 	PutRequestDispatcherParams.QueueTimeLimitMs = 1000.f;
-	PutRequestDispatcherParams.MaxInflightBytes = 256ull << 20;
-	PutRequestDispatcherParams.MaxBatchBytes = 1ull << 20;
 	FIoStoreDDCPutRequestDispatcher DDCPutRequestDispatcher(PutRequestDispatcherParams);
 
 	for (;;)
