@@ -7,6 +7,7 @@
 #include "UObject/WeakObjectPtr.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FRCSignatureTreeItemBase;
 class FRCSignatureTreeItemSelection;
 class FScopedTransaction;
 class FStructOnScope;
@@ -27,12 +28,13 @@ public:
 	void Refresh();
 
 private:
-	TArray<TSharedPtr<FStructOnScope>> GatherStructOnScopes() const;
+	void GatherStructOnScopes(TArray<TSharedPtr<FStructOnScope>>& OutStructOnScopes, TArray<TWeakPtr<FRCSignatureTreeItemBase>>& OutItems) const;
 
 	void OnFinishedChangingProperties(const FPropertyChangedEvent& InChangeEvent);
 
 	//~ Begin FNotifyHook
 	virtual void NotifyPreChange(FEditPropertyChain* InPropertyAboutToChange) override;
+	virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged) override;
 	//~ End FNotifyHook
 
 	TSharedPtr<IStructureDetailsView> StructDetailsView;
@@ -42,4 +44,7 @@ private:
 	TWeakObjectPtr<URCSignatureRegistry> SignatureRegistryWeak;
 
 	TWeakPtr<FRCSignatureTreeItemSelection> SelectionWeak;
+
+	/** Currently viewed items in the Details Panel */
+	TArray<TWeakPtr<FRCSignatureTreeItemBase>> ViewedItems;
 };

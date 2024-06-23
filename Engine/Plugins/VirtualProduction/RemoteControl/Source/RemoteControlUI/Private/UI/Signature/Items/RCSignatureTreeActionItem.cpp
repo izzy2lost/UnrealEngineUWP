@@ -108,6 +108,14 @@ TSharedPtr<FStructOnScope> FRCSignatureTreeActionItem::MakeSelectionStruct()
 	return nullptr;
 }
 
+void FRCSignatureTreeActionItem::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged)
+{
+	if (FRCSignatureActionInstance* ActionInstance = FindActionInstanceMutable())
+	{
+		ActionInstance->PostEditChange(InPropertyChangedEvent, InPropertyThatChanged);
+	}
+}
+
 TSharedPtr<FRCSignatureTreeFieldItem> FRCSignatureTreeActionItem::GetParentFieldItem() const
 {
 	if (TSharedPtr<FRCSignatureTreeItemBase> Parent = GetParent())

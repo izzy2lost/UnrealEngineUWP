@@ -11,6 +11,11 @@ struct FRCSignature;
 struct FRCSignatureField;
 struct FRemoteControlProperty;
 
+#if WITH_EDITOR
+class FEditPropertyChain;
+struct FPropertyChangedEvent;
+#endif
+
 /** The context for a Signature Action to execute */
 struct FRCSignatureActionContext
 {
@@ -85,6 +90,11 @@ struct FRCSignatureAction
 	}
 
 #if WITH_EDITOR
+	/** Called whenever there's a change affecting the action in the Details Panel */
+	virtual void PostEditChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged)
+	{
+	}
+
 	/** Retrieves the icon to use to represent this Signature Action */
 	virtual FRCSignatureActionIcon GetIcon() const
 	{

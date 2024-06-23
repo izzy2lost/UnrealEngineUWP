@@ -10,6 +10,11 @@ struct FRCSignatureAction;
 struct FRCSignatureActionContext;
 struct FRCSignatureField;
 
+#if WITH_EDITOR
+class FEditPropertyChain;
+struct FPropertyChangedEvent;
+#endif
+
 /** Struct containing an Action Instance and handling its Execution */
 USTRUCT()
 struct FRCSignatureActionInstance
@@ -25,6 +30,10 @@ struct FRCSignatureActionInstance
 	REMOTECONTROL_API TSharedRef<FStructOnScope> MakeStructOnScope();
 
 	bool Execute(const FRCSignatureActionContext& InContext) const;
+
+#if WITH_EDITOR
+	REMOTECONTROL_API void PostEditChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged);
+#endif
 
 private:
 	UPROPERTY()

@@ -33,3 +33,13 @@ bool FRCSignatureActionInstance::Execute(const FRCSignatureActionContext& InCont
 	}
 	return false;
 }
+
+#if WITH_EDITOR
+void FRCSignatureActionInstance::PostEditChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged)
+{
+	if (FRCSignatureAction* Action = ActionInstance.GetMutablePtr())
+	{
+		Action->PostEditChange(InPropertyChangedEvent, InPropertyThatChanged);
+	}
+}
+#endif

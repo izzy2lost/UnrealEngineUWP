@@ -4,9 +4,11 @@
 
 #include "UI/BaseLogicUI/RCLogicModeBase.h"
 
+class FEditPropertyChain;
 class FRCSignatureTreeItemSelection;
 class FStructOnScope;
 class SRCSignatureTree;
+struct FPropertyChangedEvent;
 
 enum class ERCSignatureTreeItemViewFlags : uint8
 {
@@ -110,6 +112,11 @@ public:
 	virtual TSharedPtr<FStructOnScope> MakeSelectionStruct()
 	{
 		return nullptr;
+	}
+
+	/** Called when the Selection Struct created for this Item is changed via the Details Panel */
+	virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged)
+	{
 	}
 
 	virtual ERCSignatureTreeItemType GetItemType() const

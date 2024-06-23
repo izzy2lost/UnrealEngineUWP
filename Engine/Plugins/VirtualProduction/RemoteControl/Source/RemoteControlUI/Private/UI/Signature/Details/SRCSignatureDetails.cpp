@@ -47,22 +47,30 @@ SRCSignatureDetails::~SRCSignatureDetails()
 void SRCSignatureDetails::Refresh()
 {
 	TSharedRef<FStructOnScopeStructureDataProvider> StructProvider = MakeShared<FStructOnScopeStructureDataProvider>();
-	StructProvider->SetStructData(GatherStructOnScopes());
+
+	TArray<TSharedPtr<FStructOnScope>> StructOnScopes;
+	GatherStructOnScopes(StructOnScopes, ViewedItems);
+
+	StructProvider->SetStructData(StructOnScopes);
+
 	StructDetailsView->SetStructureProvider(StructProvider);
 }
 
-TArray<TSharedPtr<FStructOnScope>> SRCSignatureDetails::GatherStructOnScopes() const
+void SRCSignatureDetails::GatherStructOnScopes(TArray<TSharedPtr<FStructOnScope>>& OutStructOnScopes, TArray<TWeakPtr<FRCSignatureTreeItemBase>>& OutItems) const
 {
-	TArray<TSharedPtr<FStructOnScope>> StructOnScopes;
+	OutStructOnScopes.Reset();
+	OutItems.Reset();
 
 	TSharedPtr<FRCSignatureTreeItemSelection> Selection = SelectionWeak.Pin();
 	if (!Selection.IsValid())
 	{
-		return StructOnScopes;
+		return;
 	}
 
 	TConstArrayView<TWeakPtr<FRCSignatureTreeItemBase>> SelectedItems = Selection->GetSelectedItemsView();
-	StructOnScopes.Reserve(SelectedItems.Num());
+
+	OutStructOnScopes.Reserve(SelectedItems.Num());
+	OutItems.Reserve(SelectedItems.Num());
 
 	for (const TWeakPtr<FRCSignatureTreeItemBase>& SelectedItemWeak : SelectedItems)
 	{
@@ -78,10 +86,9 @@ TArray<TSharedPtr<FStructOnScope>> SRCSignatureDetails::GatherStructOnScopes() c
 			continue;
 		}
 
-		StructOnScopes.Add(MoveTemp(StructOnScope));
+		OutStructOnScopes.Add(MoveTemp(StructOnScope));
+		OutItems.Add(SelectedItem);
 	}
-
-	return StructOnScopes;
 }
 
 void SRCSignatureDetails::OnFinishedChangingProperties(const FPropertyChangedEvent& InChangeEvent)
@@ -94,11 +101,24 @@ void SRCSignatureDetails::NotifyPreChange(FEditPropertyChain* InPropertyAboutToC
 {
 	if (URCSignatureRegistry* SignatureRegistry = SignatureRegistryWeak.Get())
 	{
-		// Begin Transaction
-		ensureAlways(!CurrentTransaction.IsValid());
-		CurrentTransaction = MakeShared<FScopedTransaction>(LOCTEXT("EditSignature", "Edit Signature"));
+		// Begin Transaction, if not already in one
+		if (!CurrentTransaction.IsValid())
+		{
+			CurrentTransaction = MakeShared<FScopedTransaction>(LOCTEXT("EditSignature", "Edit Signature"));
+		}
 		SignatureRegistry->Modify();
 	}
 }
 
-#undef LOCTEXT_NAMESPACE 
+void SRCSignatureDetails::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged)
+{
+	for (TWeakPtr<FRCSignatureTreeItemBase> ViewedItemWeak : ViewedItems)
+	{
+		if (TSharedPtr<FRCSignatureTreeItemBase> ViewedItem = ViewedItemWeak.Pin())
+		{
+			ViewedItem->NotifyPostChange(InPropertyChangedEvent, InPropertyThatChanged);
+		}
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

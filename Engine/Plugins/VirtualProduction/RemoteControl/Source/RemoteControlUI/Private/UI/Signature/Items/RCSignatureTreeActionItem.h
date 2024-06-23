@@ -32,6 +32,7 @@ protected:
 	virtual FText GetDisplayNameText() const override;
 	virtual FText GetDescription() const override;
 	virtual TSharedPtr<FStructOnScope> MakeSelectionStruct() override;
+	virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged) override;
 	virtual ERCSignatureTreeItemType GetItemType() const override { return StaticItemType; }
 	//~ End FRCSignatureTreeItemBase
 
