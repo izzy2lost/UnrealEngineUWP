@@ -74,6 +74,7 @@
 #include "DragTool_FrustumSelect.h"
 #include "AnimationEditorViewportClient.h"
 #include "EditorInteractiveGizmoManager.h"
+#include "Editor/ControlRigViewportToolbarExtensions.h"
 #include "Tools/BakingHelper.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditMode)
@@ -441,6 +442,12 @@ void FControlRigEditMode::Enter()
 			Settings->OnSettingsChange.AddSP(this, &FControlRigEditMode::OnSettingsChanged);
 		}
 	}
+
+	UE::ControlRig::PopulateControlRigViewportToolbarTransformsSubmenu("LevelEditor.ViewportToolbar.Transforms");
+	UE::ControlRig::PopulateControlRigViewportToolbarSelectionSubmenu("LevelEditor.ViewportToolbar.Select");
+	UE::ControlRig::PopulateControlRigViewportToolbarShowSubmenu(
+		"LevelEditor.ViewportToolbar.Show", GetToolkit()->GetToolkitCommands()
+	);
 }
 
 //todo get working with Persona
@@ -463,6 +470,8 @@ static void ClearOutAnyActiveTools()
 
 void FControlRigEditMode::Exit()
 {
+	UE::ControlRig::RemoveControlRigViewportToolbarExtensions();
+
 	ClearOutAnyActiveTools();
 	OnControlRigAddedOrRemovedDelegate.Clear();
 	OnControlRigSelectedDelegate.Clear();
