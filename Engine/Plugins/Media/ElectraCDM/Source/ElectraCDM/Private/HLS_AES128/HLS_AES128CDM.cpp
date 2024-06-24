@@ -1,52 +1,49 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ClearKey/ClearKeyCDM.h"
+#include "HLS_AES128/HLS_AES128CDM.h"
 #include "ElectraCDM.h"
 #include "ElectraCDMClient.h"
-#include "ElectraCDMUtils.h"
 #include "Crypto/StreamCryptoAES128.h"
+#include "ElectraCDMUtils.h"
+#include "ElectraCDMModule.h"
 #include <Misc/Base64.h>
 #include <Misc/ScopeLock.h>
 #include <Dom/JsonObject.h>
 #include <Serialization/JsonReader.h>
 #include <Serialization/JsonSerializer.h>
 
-#define ENABLE_LEGACY_RAWKEY_OVERRIDE 1
-
-using namespace ElectraCDMUtils;
 
 namespace ElectraCDM
 {
 
-namespace ClearKeyCDM
+namespace HLSKeyParamNames
 {
-static const TCHAR* const JSONTextPropertyName = TEXT("#text");
-static FString UrlAttrib_dashif_laurl(TEXT("dashif:laurl"));
-static FString UrlAttrib_laurl(TEXT("laurl"));
-static FString UrlAttrib_clearkey_laurl(TEXT("clearkey:Laurl"));
-static FString UrlAttrib_Laurl(TEXT("Laurl"));
-};
+static FString URI(TEXT("URI"));
+}
 
-enum EClearKeyScheme
+
+enum class EHLSEncryptionScheme
 {
 	Unsupported,
 	Cenc,
-	Cbcs
+	Cbcs,
+	// AES128, CBC with PKCS7 padding
+	Cbc7
 };
 
-struct FClearKeyKIDKey
+struct FHLSKIDKey
 {
 	TArray<uint8> KID;
 	TArray<uint8> Key;
-	EClearKeyScheme EncryptionScheme = EClearKeyScheme::Unsupported;
+	EHLSEncryptionScheme EncryptionScheme = EHLSEncryptionScheme::Unsupported;
 };
 
 
-class FClearKeyCDM : public IClearKeyCDM, public IMediaCDMCapabilities, public TSharedFromThis<FClearKeyCDM, ESPMode::ThreadSafe>
+class FHLS_AES128_CDM : public IHLS_AES128_CDM, public IMediaCDMCapabilities, public TSharedFromThis<FHLS_AES128_CDM, ESPMode::ThreadSafe>
 {
 public:
-	FClearKeyCDM() = default;
-	virtual ~FClearKeyCDM() = default;
+	FHLS_AES128_CDM() = default;
+	virtual ~FHLS_AES128_CDM() = default;
 	virtual FString GetLastErrorMessage() override;
 	virtual const TArray<FString>& GetSchemeIDs() override;
 	virtual void GetCDMCustomJSONPrefixes(FString& OutAttributePrefix, FString& OutTextPropertyName, bool& bOutNoNamespaces) override;
@@ -58,29 +55,29 @@ public:
 	virtual ESupportResult SupportsType(const FString& InMimeType) override;
 	virtual ESupportResult RequiresSecureDecoder(const FString& InMimeType) override;
 
-	void AddPlayerSessionKeys(IMediaCDM::IPlayerSession* InPlayerSession, const TArray<FClearKeyKIDKey>& InNewSessionKeys);
-	bool GetPlayerSessionKey(FClearKeyKIDKey& OutKey, IMediaCDM::IPlayerSession* InPlayerSession, const TArray<uint8>& InForKID);
+	void AddPlayerSessionKeys(IMediaCDM::IPlayerSession* InPlayerSession, const TArray<FHLSKIDKey>& InNewSessionKeys);
+	bool GetPlayerSessionKey(FHLSKIDKey& OutKey, IMediaCDM::IPlayerSession* InPlayerSession, const TArray<uint8>& InForKID);
 
-	static EClearKeyScheme GetCommonSchemeFromCipher(const FString& InCipherName);
-	static EClearKeyScheme GetCommonSchemeFromCipher(uint32 InCipher4CC);
+	static EHLSEncryptionScheme GetCommonSchemeFromCipher(const FString& InCipherName);
+	static EHLSEncryptionScheme GetCommonSchemeFromCipher(uint32 InCipher4CC);
 public:
-	static TSharedPtr<FClearKeyCDM, ESPMode::ThreadSafe> Get();
+	static TSharedPtr<FHLS_AES128_CDM, ESPMode::ThreadSafe> Get();
 
 	FCriticalSection Lock;
-	TMap<IMediaCDM::IPlayerSession*, TArray<FClearKeyKIDKey>> ActiveLicensesPerPlayer;
+	TMap<IMediaCDM::IPlayerSession*, TArray<FHLSKIDKey>> ActiveLicensesPerPlayer;
 	FString LastErrorMessage;
 };
 
 
-class FClearKeyDRMDecrypter : public IMediaCDMDecrypter
+class FHLSDRMDecrypter : public IMediaCDMDecrypter
 {
 public:
-	FClearKeyDRMDecrypter();
+	FHLSDRMDecrypter();
 	void Initialize(const FString& InMimeType);
-	void SetLicenseKeys(const TArray<FClearKeyKIDKey>& InLicenseKeys);
+	void SetLicenseKeys(const TArray<FHLSKIDKey>& InLicenseKeys);
 	void SetState(ECDMState InNewState);
 	void SetLastErrorMessage(const FString& InNewErrorMessage);
-	virtual ~FClearKeyDRMDecrypter();
+	virtual ~FHLSDRMDecrypter();
 	virtual ECDMState GetState() override;
 	virtual FString GetLastErrorMessage() override;
 	virtual ECDMError UpdateInitDataFromPSSH(const TArray<uint8>& InPSSHData) override;
@@ -94,31 +91,37 @@ public:
 	virtual ECDMError BlockStreamDecryptEnd(IStreamDecryptHandle* InStreamDecryptContext) override;
 
 private:
+	struct FBlockDecrypterHandle : public IStreamDecryptHandle
+	{
+		TArray<uint8> KID;
+	};
+
 	struct FKeyDecrypter
 	{
-		FClearKeyKIDKey KIDKey;
+		FHLSKIDKey KIDKey;
 		TSharedPtr<ElectraCDM::IStreamDecrypterAES128, ESPMode::ThreadSafe> Decrypter;
 		ECDMState State = ECDMState::Idle;
 		bool bIsInitialized = false;
 	};
 
-	FClearKeyDRMDecrypter::FKeyDecrypter*  GetDecrypterForKID(const TArray<uint8>& KID);
+	FHLSDRMDecrypter::FKeyDecrypter* GetDecrypterForKID(const TArray<uint8>& KID);
 
 	FCriticalSection Lock;
-	TArray<FClearKeyKIDKey> LicenseKeys;
+	TArray<FHLSKIDKey> LicenseKeys;
 	TArray<FKeyDecrypter> KeyDecrypters;
 	ECDMState CurrentState = ECDMState::Idle;
+	FString MimeType;
 	FString LastErrorMsg;
 };
 
 
-class FClearKeyDRMClient : public IMediaCDMClient, public TSharedFromThis<FClearKeyDRMClient, ESPMode::ThreadSafe>
+class FHLSDRMClient : public IMediaCDMClient, public TSharedFromThis<FHLSDRMClient, ESPMode::ThreadSafe>
 {
 public:
-	virtual ~FClearKeyDRMClient();
+	virtual ~FHLSDRMClient();
 
-	FClearKeyDRMClient();
-	void Initialize(TSharedPtr<FClearKeyCDM, ESPMode::ThreadSafe> InOwningCDM, IMediaCDM::IPlayerSession* InForPlayerSession, const TArray<IMediaCDM::FCDMCandidate>& InCDMConfigurations);
+	FHLSDRMClient();
+	void Initialize(TSharedPtr<FHLS_AES128_CDM, ESPMode::ThreadSafe> InOwningCDM, IMediaCDM::IPlayerSession* InForPlayerSession, const TArray<IMediaCDM::FCDMCandidate>& InCDMConfigurations);
 
 	virtual ECDMState GetState() override;
 	virtual FString GetLastErrorMessage() override;
@@ -133,27 +136,25 @@ public:
 	virtual ECDMError CreateDecrypter(TSharedPtr<IMediaCDMDecrypter, ESPMode::ThreadSafe>& OutDecrypter, const FString& InMimeType) override;
 
 private:
-	EClearKeyScheme GetCommonSchemeFromConfiguration(const IMediaCDM::FCDMCandidate& InConfiguration);
+	EHLSEncryptionScheme GetCommonSchemeFromConfiguration(const IMediaCDM::FCDMCandidate& InConfiguration);
 	TArray<IMediaCDM::FCDMCandidate> GetConfigurationsForKID(const TArray<uint8>& InForKID);
 	int32 PrepareKIDsToRequest();
-	void AddKeyKID(const FClearKeyKIDKey& InKeyKid);
-	void AddKeyKIDs(const TArray<FClearKeyKIDKey>& InKeyKids);
+	void AddKeyKID(const FHLSKIDKey& InKeyKid);
+	void AddKeyKIDs(const TArray<FHLSKIDKey>& InKeyKids);
 	void FireEvent(IMediaCDMEventListener::ECDMEventType InEvent);
 	void RemoveStaleDecrypters();
 	void UpdateKeyWithDecrypters();
 	void UpdateStateWithDecrypters(ECDMState InNewState);
 	void GetValuesFromConfigurations();
-	bool GetURLsFrom(TArray<FString>& OutURLs, const TSharedPtr<FJsonValue>& JSONValue, const FString& PropertyName, const FString& AltPropertyName);
-	bool GetURLsFrom(TArray<FString>& OutURLs, const TSharedPtr<FJsonObject>& JSON, const FString& PropertyName, const FString& AltPropertyName);
 
 	FCriticalSection Lock;
 	IMediaCDM::IPlayerSession* PlayerSession = nullptr;
-	TWeakPtr<FClearKeyCDM, ESPMode::ThreadSafe> OwningCDM;
+	TWeakPtr<FHLS_AES128_CDM, ESPMode::ThreadSafe> OwningCDM;
 	TArray<IMediaCDM::FCDMCandidate> CDMConfigurations;
 	TArray<TWeakPtr<IMediaCDMEventListener, ESPMode::ThreadSafe>> Listeners;
-	TArray<TWeakPtr<FClearKeyDRMDecrypter, ESPMode::ThreadSafe>> Decrypters;
+	TArray<TWeakPtr<FHLSDRMDecrypter, ESPMode::ThreadSafe>> Decrypters;
 	TArray<FString> PendingRequiredKIDs;
-	TArray<FClearKeyKIDKey> LicenseKeys;
+	TArray<FHLSKIDKey> LicenseKeys;
 	TOptional<FString> LicenseServerURLOverride;
 	TArray<FString> LicenseServerURLsFromConfigs;
 	ECDMState CurrentState = ECDMState::Idle;
@@ -167,33 +168,31 @@ private:
 
 //-----------------------------------------------------------------------------
 /**
- * Registers this ClearKey CDM with the CDM manager
+ * Registers this CDM with the CDM manager
  */
-void IClearKeyCDM::RegisterWith(IMediaCDM& InDRMManager)
+void IHLS_AES128_CDM::RegisterWith(IMediaCDM& InDRMManager)
 {
-	InDRMManager.RegisterCDM(FClearKeyCDM::Get());
+	InDRMManager.RegisterCDM(FHLS_AES128_CDM::Get());
 }
 
 //-----------------------------------------------------------------------------
 /**
  * Returns the singleton of this CDM system.
  */
-TSharedPtr<FClearKeyCDM, ESPMode::ThreadSafe> FClearKeyCDM::Get()
+TSharedPtr<FHLS_AES128_CDM, ESPMode::ThreadSafe> FHLS_AES128_CDM::Get()
 {
-	static TSharedPtr<FClearKeyCDM, ESPMode::ThreadSafe> This = MakeShared<FClearKeyCDM, ESPMode::ThreadSafe>();
+	static TSharedPtr<FHLS_AES128_CDM, ESPMode::ThreadSafe> This = MakeShared<FHLS_AES128_CDM, ESPMode::ThreadSafe>();
 	return This;
 }
 
 //-----------------------------------------------------------------------------
 /**
- * Returns the scheme ID of ClearKey.
- * This is the official ID used with DASH.
+ * Returns an internal scheme ID for this CDM.
+ * There is no actual scheme UUID so we use the `METHOD` as specified in the HLS RFC8216
  */
-const TArray<FString>& FClearKeyCDM::GetSchemeIDs()
+const TArray<FString>& FHLS_AES128_CDM::GetSchemeIDs()
 {
-	static TArray<FString> SchemeIDs({TEXT("e2719d58-a985-b3c9-781a-b030af78d30e"),			// DASH
-									  TEXT("1077efec-c0b2-4d02-ace3-3c1e52e2fb4b")			// W3C
-									 });
+	static TArray<FString> SchemeIDs({TEXT("AES-128"), TEXT("SAMPLE-AES"), TEXT("SAMPLE-AES-CTR") });
 	return SchemeIDs;
 }
 
@@ -201,7 +200,7 @@ const TArray<FString>& FClearKeyCDM::GetSchemeIDs()
 /**
  * Returns the most recent error message.
  */
-FString FClearKeyCDM::GetLastErrorMessage()
+FString FHLS_AES128_CDM::GetLastErrorMessage()
 {
 	FScopeLock lock(&Lock);
 	return LastErrorMessage;
@@ -211,20 +210,21 @@ FString FClearKeyCDM::GetLastErrorMessage()
 /**
  * Returns the expected element prefixes for the AdditionalElements JSON.
  */
-void FClearKeyCDM::GetCDMCustomJSONPrefixes(FString& OutAttributePrefix, FString& OutTextPropertyName, bool& bOutNoNamespaces)
+void FHLS_AES128_CDM::GetCDMCustomJSONPrefixes(FString& OutAttributePrefix, FString& OutTextPropertyName, bool& bOutNoNamespaces)
 {
+	// None used.
 	OutAttributePrefix.Empty();
-	OutTextPropertyName = ClearKeyCDM::JSONTextPropertyName;
-	bOutNoNamespaces = false;	// keep the namespaces to differentiate between dashif:laurl and clearkey:Laurl
+	OutTextPropertyName.Empty();
+	bOutNoNamespaces = false;
 }
 
 //-----------------------------------------------------------------------------
 /**
  * Returns the capability interface of this CDM.
  */
-TSharedPtr<IMediaCDMCapabilities, ESPMode::ThreadSafe> FClearKeyCDM::GetCDMCapabilities(const FString& InValue, const FString& InAdditionalElements)
+TSharedPtr<IMediaCDMCapabilities, ESPMode::ThreadSafe> FHLS_AES128_CDM::GetCDMCapabilities(const FString& InValue, const FString& InAdditionalElements)
 {
-	if (InValue.IsEmpty() || InValue.Equals(TEXT("ClearKey1.0")))
+	if (InValue.IsEmpty() || InValue.Equals(TEXT("identity")))
 	{
 		return AsShared();
 	}
@@ -235,12 +235,10 @@ TSharedPtr<IMediaCDMCapabilities, ESPMode::ThreadSafe> FClearKeyCDM::GetCDMCapab
 /**
  * Creates a client instance of this CDM.
  * The application may create one or more instances, possibly for different key IDs.
- * In the context of DASH there is to be one client per Period that contains one or
- * more AdaptationSets that are encrypted.
  */
-ECDMError FClearKeyCDM::CreateDRMClient(TSharedPtr<IMediaCDMClient, ESPMode::ThreadSafe>& OutClient, IMediaCDM::IPlayerSession* InForPlayerSession, const TArray<IMediaCDM::FCDMCandidate>& InCandidates)
+ECDMError FHLS_AES128_CDM::CreateDRMClient(TSharedPtr<IMediaCDMClient, ESPMode::ThreadSafe>& OutClient, IMediaCDM::IPlayerSession* InForPlayerSession, const TArray<IMediaCDM::FCDMCandidate>& InCandidates)
 {
-	FClearKeyDRMClient* NewClient = new FClearKeyDRMClient;
+	FHLSDRMClient* NewClient = new FHLSDRMClient;
 	NewClient->Initialize(AsShared(), InForPlayerSession, InCandidates);
 	OutClient = MakeShareable(NewClient);
 	FScopeLock lock(&Lock);
@@ -252,10 +250,10 @@ ECDMError FClearKeyCDM::CreateDRMClient(TSharedPtr<IMediaCDMClient, ESPMode::Thr
 /**
  * Adds keys to the specified player session.
  */
-void FClearKeyCDM::AddPlayerSessionKeys(IMediaCDM::IPlayerSession* InPlayerSession, const TArray<FClearKeyKIDKey>& InNewSessionKeys)
+void FHLS_AES128_CDM::AddPlayerSessionKeys(IMediaCDM::IPlayerSession* InPlayerSession, const TArray<FHLSKIDKey>& InNewSessionKeys)
 {
 	FScopeLock lock(&Lock);
-	TArray<FClearKeyKIDKey>& Keys = ActiveLicensesPerPlayer.FindOrAdd(InPlayerSession);
+	TArray<FHLSKIDKey>& Keys = ActiveLicensesPerPlayer.FindOrAdd(InPlayerSession);
 	for(auto &NewKey : InNewSessionKeys)
 	{
 		bool bHaveAlready = false;
@@ -278,10 +276,10 @@ void FClearKeyCDM::AddPlayerSessionKeys(IMediaCDM::IPlayerSession* InPlayerSessi
 /**
  * Returns a player session's key for the specified KID.
  */
-bool FClearKeyCDM::GetPlayerSessionKey(FClearKeyKIDKey& OutKey, IMediaCDM::IPlayerSession* InPlayerSession, const TArray<uint8>& InForKID)
+bool FHLS_AES128_CDM::GetPlayerSessionKey(FHLSKIDKey& OutKey, IMediaCDM::IPlayerSession* InPlayerSession, const TArray<uint8>& InForKID)
 {
 	FScopeLock lock(&Lock);
-	const TArray<FClearKeyKIDKey>* Keys = ActiveLicensesPerPlayer.Find(InPlayerSession);
+	const TArray<FHLSKIDKey>* Keys = ActiveLicensesPerPlayer.Find(InPlayerSession);
 	if (Keys)
 	{
 		for(auto &Key : *Keys)
@@ -300,7 +298,7 @@ bool FClearKeyCDM::GetPlayerSessionKey(FClearKeyKIDKey& OutKey, IMediaCDM::IPlay
 /**
  * Releases all keys the specified player session has acquired.
  */
-ECDMError FClearKeyCDM::ReleasePlayerSessionKeys(IMediaCDM::IPlayerSession* PlayerSession)
+ECDMError FHLS_AES128_CDM::ReleasePlayerSessionKeys(IMediaCDM::IPlayerSession* PlayerSession)
 {
 	FScopeLock lock(&Lock);
 	LastErrorMessage.Empty();
@@ -313,9 +311,9 @@ ECDMError FClearKeyCDM::ReleasePlayerSessionKeys(IMediaCDM::IPlayerSession* Play
 /**
  * Returns if a specified cipher (eg. "cenc" or "cbcs") is supported by this CDM.
  */
-IMediaCDMCapabilities::ESupportResult FClearKeyCDM::SupportsCipher(const FString& InCipherType)
+IMediaCDMCapabilities::ESupportResult FHLS_AES128_CDM::SupportsCipher(const FString& InCipherType)
 {
-	return GetCommonSchemeFromCipher(InCipherType) != EClearKeyScheme::Unsupported ? IMediaCDMCapabilities::ESupportResult::Supported : IMediaCDMCapabilities::ESupportResult::NotSupported;
+	return GetCommonSchemeFromCipher(InCipherType) != EHLSEncryptionScheme::Unsupported ? IMediaCDMCapabilities::ESupportResult::Supported : IMediaCDMCapabilities::ESupportResult::NotSupported;
 }
 
 //-----------------------------------------------------------------------------
@@ -324,7 +322,7 @@ IMediaCDMCapabilities::ESupportResult FClearKeyCDM::SupportsCipher(const FString
  * The mime type should include a codecs="..." component and if it is video it
  * should also have a resolution=...x... component.
  */
-IMediaCDMCapabilities::ESupportResult FClearKeyCDM::SupportsType(const FString& InMimeType)
+IMediaCDMCapabilities::ESupportResult FHLS_AES128_CDM::SupportsType(const FString& InMimeType)
 {
 	// Everything is supported.
 	return IMediaCDMCapabilities::ESupportResult::Supported;
@@ -335,9 +333,8 @@ IMediaCDMCapabilities::ESupportResult FClearKeyCDM::SupportsType(const FString& 
  * Returns whether or not for a particular media stream format a secure decoder is
  * required to be used.
  */
-IMediaCDMCapabilities::ESupportResult FClearKeyCDM::RequiresSecureDecoder(const FString& InMimeType)
+IMediaCDMCapabilities::ESupportResult FHLS_AES128_CDM::RequiresSecureDecoder(const FString& InMimeType)
 {
-	// This is ClearKey... there is no real security here to begin with.
 	return IMediaCDMCapabilities::ESupportResult::SecureDecoderNotRequired;
 }
 
@@ -345,31 +342,41 @@ IMediaCDMCapabilities::ESupportResult FClearKeyCDM::RequiresSecureDecoder(const 
 /**
  * Converts cipher name to enum.
  */
-EClearKeyScheme FClearKeyCDM::GetCommonSchemeFromCipher(const FString& InCipherName)
+EHLSEncryptionScheme FHLS_AES128_CDM::GetCommonSchemeFromCipher(const FString& InCipherName)
 {
 	if (InCipherName.Equals(TEXT("cenc"), ESearchCase::IgnoreCase))
 	{
-		return EClearKeyScheme::Cenc;
+		return EHLSEncryptionScheme::Cenc;
 	}
 	else if (InCipherName.Equals(TEXT("cbcs"), ESearchCase::IgnoreCase))
 	{
-		return EClearKeyScheme::Cbcs;
+		return EHLSEncryptionScheme::Cbcs;
 	}
-	return EClearKeyScheme::Unsupported;
+	// `cbc7` is not official. We use it internally.
+	else if (InCipherName.Equals(TEXT("cbc7"), ESearchCase::IgnoreCase))
+	{
+		return EHLSEncryptionScheme::Cbc7;
+	}
+	return EHLSEncryptionScheme::Unsupported;
 }
 
-EClearKeyScheme FClearKeyCDM::GetCommonSchemeFromCipher(uint32 InCipher4CC)
+EHLSEncryptionScheme FHLS_AES128_CDM::GetCommonSchemeFromCipher(uint32 InCipher4CC)
 {
 	#define MAKE_4CC(a,b,c,d) (uint32)(((uint32)a << 24) | ((uint32)b << 16) | ((uint32)c << 8) | ((uint32)d))
 	if (InCipher4CC == MAKE_4CC('c', 'e', 'n', 'c'))
 	{
-		return EClearKeyScheme::Cenc;
+		return EHLSEncryptionScheme::Cenc;
 	}
 	else if (InCipher4CC == MAKE_4CC('c', 'b', 'c', 's'))
 	{
-		return EClearKeyScheme::Cbcs;
+		return EHLSEncryptionScheme::Cbcs;
 	}
-	return EClearKeyScheme::Unsupported;
+	// `cbc7` is not official. We use it internally.
+	else if (InCipher4CC == MAKE_4CC('c', 'b', 'c', '7'))
+	{
+		return EHLSEncryptionScheme::Cbc7;
+	}
+	return EHLSEncryptionScheme::Unsupported;
 }
 
 
@@ -382,7 +389,7 @@ EClearKeyScheme FClearKeyCDM::GetCommonSchemeFromCipher(uint32 InCipher4CC)
 /**
  * Construct a new client
  */
-FClearKeyDRMClient::FClearKeyDRMClient()
+FHLSDRMClient::FHLSDRMClient()
 {
 }
 
@@ -390,7 +397,7 @@ FClearKeyDRMClient::FClearKeyDRMClient()
 /**
  * Destroy a client
  */
-FClearKeyDRMClient::~FClearKeyDRMClient()
+FHLSDRMClient::~FHLSDRMClient()
 {
 }
 
@@ -398,7 +405,7 @@ FClearKeyDRMClient::~FClearKeyDRMClient()
 /**
  * Returns the client's current state.
  */
-ECDMState FClearKeyDRMClient::GetState()
+ECDMState FHLSDRMClient::GetState()
 {
 	FScopeLock lock(&Lock);
 	return CurrentState;
@@ -408,7 +415,7 @@ ECDMState FClearKeyDRMClient::GetState()
 /**
  * Returns the client's most recent error message.
  */
-FString FClearKeyDRMClient::GetLastErrorMessage()
+FString FHLSDRMClient::GetLastErrorMessage()
 {
 	FScopeLock lock(&Lock);
 	return LastErrorMsg;
@@ -418,7 +425,7 @@ FString FClearKeyDRMClient::GetLastErrorMessage()
 /**
  * Initializes the client.
  */
-void FClearKeyDRMClient::Initialize(TSharedPtr<FClearKeyCDM, ESPMode::ThreadSafe> InOwningCDM, IMediaCDM::IPlayerSession* InForPlayerSession, const TArray<IMediaCDM::FCDMCandidate>& InCDMConfigurations)
+void FHLSDRMClient::Initialize(TSharedPtr<FHLS_AES128_CDM, ESPMode::ThreadSafe> InOwningCDM, IMediaCDM::IPlayerSession* InForPlayerSession, const TArray<IMediaCDM::FCDMCandidate>& InCDMConfigurations)
 {
 	FScopeLock lock(&Lock);
 	OwningCDM = InOwningCDM;
@@ -432,7 +439,7 @@ void FClearKeyDRMClient::Initialize(TSharedPtr<FClearKeyCDM, ESPMode::ThreadSafe
 /**
  * Registers an event listener to the client.
  */
-void FClearKeyDRMClient::RegisterEventListener(TWeakPtr<IMediaCDMEventListener, ESPMode::ThreadSafe> InEventListener)
+void FHLSDRMClient::RegisterEventListener(TWeakPtr<IMediaCDMEventListener, ESPMode::ThreadSafe> InEventListener)
 {
 	FScopeLock lock(&Lock);
 	Listeners.Emplace(InEventListener);
@@ -449,7 +456,7 @@ void FClearKeyDRMClient::RegisterEventListener(TWeakPtr<IMediaCDMEventListener, 
 /**
  * Unregisters an event listener from the client.
  */
-void FClearKeyDRMClient::UnregisterEventListener(TWeakPtr<IMediaCDMEventListener, ESPMode::ThreadSafe> InEventListener)
+void FHLSDRMClient::UnregisterEventListener(TWeakPtr<IMediaCDMEventListener, ESPMode::ThreadSafe> InEventListener)
 {
 	FScopeLock lock(&Lock);
 	Listeners.Remove(InEventListener);
@@ -459,7 +466,7 @@ void FClearKeyDRMClient::UnregisterEventListener(TWeakPtr<IMediaCDMEventListener
 /**
  * Fires the given event at all registered event listeners.
  */
-void FClearKeyDRMClient::FireEvent(IMediaCDMEventListener::ECDMEventType InEvent)
+void FHLSDRMClient::FireEvent(IMediaCDMEventListener::ECDMEventType InEvent)
 {
 	TArray<TWeakPtr<IMediaCDMEventListener, ESPMode::ThreadSafe>> CopiedListeners;
 	Lock.Lock();
@@ -493,7 +500,7 @@ void FClearKeyDRMClient::FireEvent(IMediaCDMEventListener::ECDMEventType InEvent
  * Prepares the client to fetch a license and fires the event off to the
  * listeners to start the process.
  */
-void FClearKeyDRMClient::PrepareLicenses()
+void FHLSDRMClient::PrepareLicenses()
 {
 	int32 NumToRequest = PrepareKIDsToRequest();
 	if (NumToRequest)
@@ -516,7 +523,7 @@ void FClearKeyDRMClient::PrepareLicenses()
  * Overrides the license server URL to the given one.
  * This must happen before calling PrepareLicenses().
  */
-void FClearKeyDRMClient::SetLicenseServerURL(const FString& InLicenseServerURL)
+void FHLSDRMClient::SetLicenseServerURL(const FString& InLicenseServerURL)
 {
 	FScopeLock lock(&Lock);
 	LicenseServerURLOverride = InLicenseServerURL;
@@ -526,7 +533,7 @@ void FClearKeyDRMClient::SetLicenseServerURL(const FString& InLicenseServerURL)
 /**
  * Returns the license server URL to which to issue the license request.
  */
-void FClearKeyDRMClient::GetLicenseKeyURL(FString& OutLicenseURL)
+void FHLSDRMClient::GetLicenseKeyURL(FString& OutLicenseURL)
 {
 	FScopeLock lock(&Lock);
 	// If the URL has been set explicity from the outside return that one.
@@ -551,7 +558,7 @@ void FClearKeyDRMClient::GetLicenseKeyURL(FString& OutLicenseURL)
 /**
  * Adds a new KID with license key if the KID is not already known.
  */
-void FClearKeyDRMClient::AddKeyKID(const FClearKeyKIDKey& InKeyKid)
+void FHLSDRMClient::AddKeyKID(const FHLSKIDKey& InKeyKid)
 {
 	FScopeLock lock(&Lock);
 	for(auto &Key : LicenseKeys)
@@ -568,7 +575,7 @@ void FClearKeyDRMClient::AddKeyKID(const FClearKeyKIDKey& InKeyKid)
 /**
  * Adds a list of new KIDs with license keys when the KID is not already known.
  */
-void FClearKeyDRMClient::AddKeyKIDs(const TArray<FClearKeyKIDKey>& InKeyKids)
+void FHLSDRMClient::AddKeyKIDs(const TArray<FHLSKIDKey>& InKeyKids)
 {
 	for(auto &KeyKid : InKeyKids)
 	{
@@ -581,13 +588,13 @@ void FClearKeyDRMClient::AddKeyKIDs(const TArray<FClearKeyKIDKey>& InKeyKids)
  * Prepares the list of KIDs for which a license must be obtained.
  * Licenses the CDM already has will not be requested again.
  */
-int32 FClearKeyDRMClient::PrepareKIDsToRequest()
+int32 FHLSDRMClient::PrepareKIDsToRequest()
 {
 	// We need to get all the KIDs for which we (may) need to acquire a license.
 	FScopeLock lock(&Lock);
 	PendingRequiredKIDs.Empty();
 	check(CDMConfigurations.Num());
-	TSharedPtr<FClearKeyCDM, ESPMode::ThreadSafe> CDM = OwningCDM.Pin();
+	TSharedPtr<FHLS_AES128_CDM, ESPMode::ThreadSafe> CDM = OwningCDM.Pin();
 	if (CDMConfigurations.Num())
 	{
 		for(int32 nCfg=0; nCfg<CDMConfigurations.Num(); ++nCfg)
@@ -597,16 +604,16 @@ int32 FClearKeyDRMClient::PrepareKIDsToRequest()
 				if (CDMConfigurations[nCfg].DefaultKIDs[nKIDs].Len())
 				{
 					// Check if the CDM already has a key for this session's KID.
-					FString KID = StripDashesFromKID(CDMConfigurations[nCfg].DefaultKIDs[nKIDs]);
+					FString KID = ElectraCDMUtils::StripDashesFromKID(CDMConfigurations[nCfg].DefaultKIDs[nKIDs]);
 					TArray<uint8> BinKID;
-					FClearKeyKIDKey KeyKid;
-					ConvertKIDToBin(BinKID, KID);
+					FHLSKIDKey KeyKid;
+					ElectraCDMUtils::ConvertKIDToBin(BinKID, KID);
 					if (CDM.IsValid() && CDM->GetPlayerSessionKey(KeyKid, PlayerSession, BinKID))
 					{
 						AddKeyKID(KeyKid);
 						continue;
 					}
-					PendingRequiredKIDs.AddUnique(ConvertKIDToBase64(KID));
+					PendingRequiredKIDs.AddUnique(ElectraCDMUtils::ConvertKIDToBase64(KID));
 				}
 			}
 		}
@@ -619,9 +626,9 @@ int32 FClearKeyDRMClient::PrepareKIDsToRequest()
 /**
  * Converts encryption scheme string to enum.
  */
-EClearKeyScheme FClearKeyDRMClient::GetCommonSchemeFromConfiguration(const IMediaCDM::FCDMCandidate& InConfiguration)
+EHLSEncryptionScheme FHLSDRMClient::GetCommonSchemeFromConfiguration(const IMediaCDM::FCDMCandidate& InConfiguration)
 {
-	return FClearKeyCDM::GetCommonSchemeFromCipher(InConfiguration.CommonScheme);
+	return FHLS_AES128_CDM::GetCommonSchemeFromCipher(InConfiguration.CommonScheme);
 }
 
 
@@ -629,7 +636,7 @@ EClearKeyScheme FClearKeyDRMClient::GetCommonSchemeFromConfiguration(const IMedi
 /**
  * Returns the CDM configuration objects matching the given KID.
  */
-TArray<IMediaCDM::FCDMCandidate> FClearKeyDRMClient::GetConfigurationsForKID(const TArray<uint8>& InForKID)
+TArray<IMediaCDM::FCDMCandidate> FHLSDRMClient::GetConfigurationsForKID(const TArray<uint8>& InForKID)
 {
 	TArray<IMediaCDM::FCDMCandidate> Cfgs;
 	FScopeLock lock(&Lock);
@@ -640,7 +647,7 @@ TArray<IMediaCDM::FCDMCandidate> FClearKeyDRMClient::GetConfigurationsForKID(con
 			if (CDMConfigurations[nCfg].DefaultKIDs[nKIDs].Len())
 			{
 				TArray<uint8> BinKID;
-				ConvertKIDToBin(BinKID, StripDashesFromKID(CDMConfigurations[nCfg].DefaultKIDs[nKIDs]));
+				ElectraCDMUtils::ConvertKIDToBin(BinKID, ElectraCDMUtils::StripDashesFromKID(CDMConfigurations[nCfg].DefaultKIDs[nKIDs]));
 				if (BinKID == InForKID)
 				{
 					Cfgs.Emplace(CDMConfigurations[nCfg]);
@@ -657,25 +664,11 @@ TArray<IMediaCDM::FCDMCandidate> FClearKeyDRMClient::GetConfigurationsForKID(con
  * This includes the system specific blob of data as well as the HTTP method
  * to use and additioanl headers, like the "Content-Type: " header.
  */
-void FClearKeyDRMClient::GetLicenseKeyRequestData(TArray<uint8>& OutKeyRequestData, FString& OutHttpMethod, TArray<FString>& OutHttpHeaders, uint32& OutFlags)
+void FHLSDRMClient::GetLicenseKeyRequestData(TArray<uint8>& OutKeyRequestData, FString& OutHttpMethod, TArray<FString>& OutHttpHeaders, uint32& OutFlags)
 {
 	FScopeLock lock(&Lock);
-	// The request is a JSON string like here: https://w3c.github.io/encrypted-media/index.html#example-1
-	FString rq1 = TEXT("{\"kids\":[");
-	FString rq2 = TEXT("],\"type\":\"temporary\"}");
-	FString RequestJSON = rq1;
-	for(int32 i=0; i<PendingRequiredKIDs.Num(); ++i)
-	{
-		RequestJSON += FString::Printf(TEXT("\"%s\""), *PendingRequiredKIDs[i]);
-		if (i+1 < PendingRequiredKIDs.Num())
-		RequestJSON.AppendChar(TCHAR(','));
-	}
-	RequestJSON += rq2;
-
-	OutHttpMethod = TEXT("POST");
-	OutHttpHeaders.Emplace(TEXT("Content-Type: application/json"));
-	StringToArray(OutKeyRequestData, RequestJSON);
-	// We allow the use of custom key storage in case there is no license server URL.
+	OutHttpMethod = TEXT("GET");
+	// We allow the use of custom key storage.
 	OutFlags = EDRMClientFlags::EDRMFlg_AllowCustomKeyStorage;
 }
 
@@ -684,93 +677,37 @@ void FClearKeyDRMClient::GetLicenseKeyRequestData(TArray<uint8>& OutKeyRequestDa
  * Parses the license key response for keys and provides them to the
  * decrypter instances.
  */
-ECDMError FClearKeyDRMClient::SetLicenseKeyResponseData(void* InEventId, int32 HttpResponseCode, const TArray<uint8>& InKeyResponseData)
+ECDMError FHLSDRMClient::SetLicenseKeyResponseData(void* InEventId, int32 HttpResponseCode, const TArray<uint8>& InKeyResponseData)
 {
-	// The response is a JSON Web Key (JWK) as per RFC-7518
 	bool bSuccess = true;
-	TArray<FClearKeyKIDKey> NewLicenseKeys;
+	TArray<FHLSKIDKey> NewLicenseKeys;
 	LastErrorMsg.Empty();
 	if (HttpResponseCode == 200)
 	{
-#if ENABLE_LEGACY_RAWKEY_OVERRIDE
 		if (InKeyResponseData.Num() == 16)
 		{
 			FScopeLock lock(&Lock);
 			for(auto &KID : PendingRequiredKIDs)
 			{
-				FClearKeyKIDKey NewKey;
-				if (Base64UrlDecode(NewKey.KID, KID))
+				FHLSKIDKey NewKey;
+				if (ElectraCDMUtils::Base64UrlDecode(NewKey.KID, KID))
 				{
 					TArray<IMediaCDM::FCDMCandidate> Configs(GetConfigurationsForKID(NewKey.KID));
-					NewKey.EncryptionScheme = Configs.Num() ? GetCommonSchemeFromConfiguration(Configs[0]) : EClearKeyScheme::Unsupported;
+					NewKey.EncryptionScheme = Configs.Num() ? GetCommonSchemeFromConfiguration(Configs[0]) : EHLSEncryptionScheme::Unsupported;
 					NewKey.Key = InKeyResponseData;
 					NewLicenseKeys.Emplace(MoveTemp(NewKey));
 				}
 			}
 		}
 		else
-#endif
 		{
-			// Is the JSON starting with an UTF-8 BOM?
-			int32 ResponseOffset = InKeyResponseData.Num() > 3 && InKeyResponseData[0] == 0xEF && InKeyResponseData[1] == 0xBB && InKeyResponseData[2] == 0xBF ? 3 : 0;
-			FString JsonString = ArrayToString(InKeyResponseData, ResponseOffset);
-			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
-			TSharedPtr<FJsonObject> KeyResponse;
-			if (FJsonSerializer::Deserialize(Reader, KeyResponse))
-			{
-				TArray<TSharedPtr<FJsonValue>> Keys;
-				Keys = KeyResponse->GetArrayField(TEXT("keys"));
-				for(int32 i=0; i<Keys.Num(); ++i)
-				{
-					auto Key = Keys[i]->AsObject();
-					FString KTY = Key->GetStringField(TEXT("kty"));	// Mandatory (see RFC-7518 Section 6.1), must be "oct"
-					if (KTY.Equals(TEXT("oct")))
-					{
-						FString KID = Key->GetStringField(TEXT("kid"));
-						FString K = Key->GetStringField(TEXT("k"));
-						if (KID.Len() && K.Len())
-						{
-							FClearKeyKIDKey NewKey;
-							bool bOk = Base64UrlDecode(NewKey.KID, KID);
-							if (bOk)
-							{
-								bOk = Base64UrlDecode(NewKey.Key, K);
-							}
-							if (bOk)
-							{
-								TArray<IMediaCDM::FCDMCandidate> Configs(GetConfigurationsForKID(NewKey.KID));
-								// We require all KIDs to be unambiguously using the same encryption scheme
-								// so it is sufficient to look at the first configuration.
-								// If same KID configurations use different schemes this is an authoring error.
-								NewKey.EncryptionScheme = Configs.Num() ? GetCommonSchemeFromConfiguration(Configs[0]) : EClearKeyScheme::Unsupported;
-								NewLicenseKeys.Emplace(MoveTemp(NewKey));
-							}
-							else
-							{
-								LastErrorMsg = TEXT("Could not base64 decode k or kid in response");
-								bSuccess = false;
-								break;
-							}
-						}
-					}
-					else
-					{
-						LastErrorMsg = TEXT("Unexpected key type (kty) in response");
-						bSuccess = false;
-						break;
-					}
-				}
-			}
-			else
-			{
-				LastErrorMsg = TEXT("Failed to parse license response");
-				bSuccess = false;
-			}
+			LastErrorMsg = FString::Printf(TEXT("Received bad license key response."));
+			bSuccess = false;
 		}
 
 		if (bSuccess)
 		{
-			TSharedPtr<FClearKeyCDM, ESPMode::ThreadSafe> CDM = OwningCDM.Pin();
+			TSharedPtr<FHLS_AES128_CDM, ESPMode::ThreadSafe> CDM = OwningCDM.Pin();
 			if (CDM.IsValid())
 			{
 				CDM->AddPlayerSessionKeys(PlayerSession, NewLicenseKeys);
@@ -801,9 +738,9 @@ ECDMError FClearKeyDRMClient::SetLicenseKeyResponseData(void* InEventId, int32 H
  * usable until the keys arrive.
  * One decrypter instance is created per elementary stream to decode.
  */
-ECDMError FClearKeyDRMClient::CreateDecrypter(TSharedPtr<IMediaCDMDecrypter, ESPMode::ThreadSafe>& OutDecrypter, const FString& InMimeType)
+ECDMError FHLSDRMClient::CreateDecrypter(TSharedPtr<IMediaCDMDecrypter, ESPMode::ThreadSafe>& OutDecrypter, const FString& InMimeType)
 {
-	TSharedPtr<FClearKeyDRMDecrypter, ESPMode::ThreadSafe> NewDec = MakeShared<FClearKeyDRMDecrypter, ESPMode::ThreadSafe>();
+	TSharedPtr<FHLSDRMDecrypter, ESPMode::ThreadSafe> NewDec = MakeShared<FHLSDRMDecrypter, ESPMode::ThreadSafe>();
 	NewDec->Initialize(InMimeType);
 
 	FScopeLock lock(&Lock);
@@ -828,7 +765,7 @@ ECDMError FClearKeyDRMClient::CreateDecrypter(TSharedPtr<IMediaCDMDecrypter, ESP
 /**
  * Removes decrypters that the application no longer uses.
  */
-void FClearKeyDRMClient::RemoveStaleDecrypters()
+void FHLSDRMClient::RemoveStaleDecrypters()
 {
 	for(int32 i=0; i<Decrypters.Num(); ++i)
 	{
@@ -844,13 +781,13 @@ void FClearKeyDRMClient::RemoveStaleDecrypters()
 /**
  * Updates all this client's decrypters with the new set of license keys.
  */
-void FClearKeyDRMClient::UpdateKeyWithDecrypters()
+void FHLSDRMClient::UpdateKeyWithDecrypters()
 {
 	FScopeLock lock(&Lock);
 	RemoveStaleDecrypters();
 	for(int32 i=0; i<Decrypters.Num(); ++i)
 	{
-		TSharedPtr<FClearKeyDRMDecrypter, ESPMode::ThreadSafe> Decrypter = Decrypters[i].Pin();
+		TSharedPtr<FHLSDRMDecrypter, ESPMode::ThreadSafe> Decrypter = Decrypters[i].Pin();
 		Decrypter->SetLicenseKeys(LicenseKeys);
 	}
 }
@@ -860,13 +797,13 @@ void FClearKeyDRMClient::UpdateKeyWithDecrypters()
  * Sets the state of all this client's decrypters to the given state.
  * This is called in cases of license errors to make all instances fail.
  */
-void FClearKeyDRMClient::UpdateStateWithDecrypters(ECDMState InNewState)
+void FHLSDRMClient::UpdateStateWithDecrypters(ECDMState InNewState)
 {
 	FScopeLock lock(&Lock);
 	RemoveStaleDecrypters();
 	for(int32 i=0; i<Decrypters.Num(); ++i)
 	{
-		TSharedPtr<FClearKeyDRMDecrypter, ESPMode::ThreadSafe> Decrypter = Decrypters[i].Pin();
+		TSharedPtr<FHLSDRMDecrypter, ESPMode::ThreadSafe> Decrypter = Decrypters[i].Pin();
 		Decrypter->SetLastErrorMessage(LastErrorMsg);
 		Decrypter->SetState(InNewState);
 	}
@@ -876,13 +813,8 @@ void FClearKeyDRMClient::UpdateStateWithDecrypters(ECDMState InNewState)
 /**
  * Extracts relevant information from the AdditionalElements
  */
-void FClearKeyDRMClient::GetValuesFromConfigurations()
+void FHLSDRMClient::GetValuesFromConfigurations()
 {
-	// For ClearKey we do not expect to get much additional elements.
-	// While there could be a 'pssh' box it would not contain anything
-	// besides the scheme id and the KIDs (in box version 1), which we
-	// expect to have already been set up in the configuration.
-	// What we need is the license server URL or URLs.
 	FScopeLock lock(&Lock);
 	for(auto &Config : CDMConfigurations)
 	{
@@ -895,15 +827,15 @@ void FClearKeyDRMClient::GetValuesFromConfigurations()
 		TSharedPtr<FJsonObject> ConfigJSON;
 		if (FJsonSerializer::Deserialize(Reader, ConfigJSON))
 		{
-			// Try dashif:laurl first.
-			if (GetURLsFrom(LicenseServerURLsFromConfigs, ConfigJSON, ClearKeyCDM::UrlAttrib_dashif_laurl, ClearKeyCDM::UrlAttrib_laurl))
+			// Try to get the URI
+			FString URI;
+			if (ConfigJSON->TryGetStringField(HLSKeyParamNames::URI, URI))
 			{
-				continue;
+				LicenseServerURLsFromConfigs.AddUnique(MoveTemp(URI));
 			}
-			// Then the deprecated clearkey:Laurl
-			else if (GetURLsFrom(LicenseServerURLsFromConfigs, ConfigJSON, ClearKeyCDM::UrlAttrib_clearkey_laurl, ClearKeyCDM::UrlAttrib_Laurl))
+			else
 			{
-				continue;
+				UE_LOG(LogElectraCDM, Log, TEXT("Required URI not found in configuration object"));
 			}
 		}
 		else
@@ -915,100 +847,6 @@ void FClearKeyDRMClient::GetValuesFromConfigurations()
 	}
 }
 
-//-----------------------------------------------------------------------------
-/**
- * Tries to get URLs from a JSON value, which could either be a string, an object
- * with additional properties, or an array of the same.
- */
-bool FClearKeyDRMClient::GetURLsFrom(TArray<FString>& OutURLs, const TSharedPtr<FJsonValue>& JSONValue, const FString& PropertyName, const FString& AltPropertyName)
-{
-	// Try string first
-	FString String;
-	if (JSONValue->TryGetString(String))
-	{
-		OutURLs.AddUnique(MoveTemp(String));
-		return true;
-	}
-	// Try object next. This is when the URL has additional properties.
-	const TSharedPtr<FJsonObject>* Object = nullptr;
-	if (JSONValue->TryGetObject(Object))
-	{
-		if ((*Object)->TryGetStringField(ClearKeyCDM::JSONTextPropertyName, String))
-		{
-			OutURLs.AddUnique(MoveTemp(String));
-			return true;
-		}
-		// TBD: should we recurse into the object? For now let's not.
-		//return GetURLsFrom(OutURLs, *Object, PropertyName, AltPropertyName);
-	}
-	// Finally try array
-	const TArray<TSharedPtr<FJsonValue>>* Array = nullptr;
-	if (JSONValue->TryGetArray(Array))
-	{
-		bool bAny = false;
-		for(auto &Val : *Array)
-		{
-			if (GetURLsFrom(OutURLs, Val, PropertyName, AltPropertyName))
-			{
-				bAny = true;
-			}
-		}
-		return bAny;
-	}
-	return false;
-}
-
-//-----------------------------------------------------------------------------
-/**
- * Tries to get URLs from a JSON object, which could either be a string, an object
- * with additional properties, or an array of the same.
- */
-bool FClearKeyDRMClient::GetURLsFrom(TArray<FString>& OutURLs, const TSharedPtr<FJsonObject>& JSON, const FString& PropertyName, const FString& AltPropertyName)
-{
-	TArray<FString> StringArray;
-	FString String;
-	// Try single URL without attributes first.
-	if (JSON->TryGetStringField(PropertyName, String) || (AltPropertyName.Len() && JSON->TryGetStringField(AltPropertyName, String)))
-	{
-		OutURLs.AddUnique(MoveTemp(String));
-		return true;
-	}
-	// Try as array of URLs without attributes.
-	else if (JSON->TryGetStringArrayField(PropertyName, StringArray) || (AltPropertyName.Len() && JSON->TryGetStringArrayField(AltPropertyName, StringArray)))
-	{
-		for(auto &It : StringArray)
-		{
-			OutURLs.AddUnique(It);
-		}
-		return true;
-	}
-	// URL may have additional properties, turning it from a string or string array into an object or array of objects.
-	const TSharedPtr<FJsonObject>* Object = nullptr;
-	// Try single object. Attributes are of no interest at the moment.
-	if (JSON->TryGetObjectField(PropertyName, Object) || (AltPropertyName.Len() && JSON->TryGetObjectField(AltPropertyName, Object)))
-	{
-		if ((*Object)->TryGetStringField(ClearKeyCDM::JSONTextPropertyName, String))
-		{
-			OutURLs.AddUnique(MoveTemp(String));
-			return true;
-		}
-	}
-	// Finally try as array of objects.
-	const TArray<TSharedPtr<FJsonValue>>* ObjectArray = nullptr;
-	if (JSON->TryGetArrayField(PropertyName, ObjectArray) || (AltPropertyName.Len() && JSON->TryGetArrayField(AltPropertyName, ObjectArray)))
-	{
-		bool bAny = false;
-		for(auto &Val : *ObjectArray)
-		{
-			if (GetURLsFrom(OutURLs, Val, PropertyName, AltPropertyName))
-			{
-				bAny = true;
-			}
-		}
-		return bAny;
-	}
-	return false;
-}
 
 
 
@@ -1017,7 +855,7 @@ bool FClearKeyDRMClient::GetURLsFrom(TArray<FString>& OutURLs, const TSharedPtr<
 /**
  * Creates a new decrypter instance.
  */
-FClearKeyDRMDecrypter::FClearKeyDRMDecrypter()
+FHLSDRMDecrypter::FHLSDRMDecrypter()
 {
 }
 
@@ -1025,7 +863,7 @@ FClearKeyDRMDecrypter::FClearKeyDRMDecrypter()
 /**
  * Destroys a decrypter instance.
  */
-FClearKeyDRMDecrypter::~FClearKeyDRMDecrypter()
+FHLSDRMDecrypter::~FHLSDRMDecrypter()
 {
 }
 
@@ -1033,11 +871,12 @@ FClearKeyDRMDecrypter::~FClearKeyDRMDecrypter()
 /**
  * Initializes a decrypter instance to default state.
  */
-void FClearKeyDRMDecrypter::Initialize(const FString& InMimeType)
+void FHLSDRMDecrypter::Initialize(const FString& InMimeType)
 {
 	FScopeLock lock(&Lock);
 	CurrentState = ECDMState::Idle;
 	KeyDecrypters.Empty();
+	MimeType = InMimeType;
 }
 
 //-----------------------------------------------------------------------------
@@ -1045,7 +884,7 @@ void FClearKeyDRMDecrypter::Initialize(const FString& InMimeType)
  * Updates the valid license keys with this decrypter instance.
  * All currently active keys are removed and replaced with the new ones.
  */
-void FClearKeyDRMDecrypter::SetLicenseKeys(const TArray<FClearKeyKIDKey>& InLicenseKeys)
+void FHLSDRMDecrypter::SetLicenseKeys(const TArray<FHLSKIDKey>& InLicenseKeys)
 {
 	FScopeLock lock(&Lock);
 	LicenseKeys = InLicenseKeys;
@@ -1056,7 +895,7 @@ void FClearKeyDRMDecrypter::SetLicenseKeys(const TArray<FClearKeyKIDKey>& InLice
 /**
  * Returns the current decrypter's state.
  */
-ECDMState FClearKeyDRMDecrypter::GetState()
+ECDMState FHLSDRMDecrypter::GetState()
 {
 	FScopeLock lock(&Lock);
 	// This is the amalgamated state of all the internal decrypters per
@@ -1068,7 +907,7 @@ ECDMState FClearKeyDRMDecrypter::GetState()
 /**
  * Returns the most recent error message.
  */
-FString FClearKeyDRMDecrypter::GetLastErrorMessage()
+FString FHLSDRMDecrypter::GetLastErrorMessage()
 {
 	FScopeLock lock(&Lock);
 	return LastErrorMsg;
@@ -1078,7 +917,7 @@ FString FClearKeyDRMDecrypter::GetLastErrorMessage()
 /**
  * Sets a new state to this decrypter and all its currently active key decrypters.
  */
-void FClearKeyDRMDecrypter::SetState(ECDMState InNewState)
+void FHLSDRMDecrypter::SetState(ECDMState InNewState)
 {
 	FScopeLock lock(&Lock);
 	CurrentState = InNewState;
@@ -1092,7 +931,7 @@ void FClearKeyDRMDecrypter::SetState(ECDMState InNewState)
 /**
  * Updates the last error message.
  */
-void FClearKeyDRMDecrypter::SetLastErrorMessage(const FString& InNewErrorMessage)
+void FHLSDRMDecrypter::SetLastErrorMessage(const FString& InNewErrorMessage)
 {
 	FScopeLock lock(&Lock);
 	LastErrorMsg = InNewErrorMessage;
@@ -1104,12 +943,12 @@ void FClearKeyDRMDecrypter::SetLastErrorMessage(const FString& InNewErrorMessage
  * Called by the application with PSSH box data to update the current set of
  * key IDs when key rotation is used.
  */
-ECDMError FClearKeyDRMDecrypter::UpdateInitDataFromPSSH(const TArray<uint8>& InPSSHData)
+ECDMError FHLSDRMDecrypter::UpdateInitDataFromPSSH(const TArray<uint8>& InPSSHData)
 {
 	return ECDMError::NotSupported;
 }
 
-ECDMError FClearKeyDRMDecrypter::UpdateInitDataFromMultiplePSSH(const TArray<TArray<uint8>>& InPSSHData)
+ECDMError FHLSDRMDecrypter::UpdateInitDataFromMultiplePSSH(const TArray<TArray<uint8>>& InPSSHData)
 {
 	return ECDMError::NotSupported;
 }
@@ -1118,7 +957,7 @@ ECDMError FClearKeyDRMDecrypter::UpdateInitDataFromMultiplePSSH(const TArray<TAr
 /**
  * Update from a URL and additional scheme specific elements.
  */
-ECDMError FClearKeyDRMDecrypter::UpdateFromURL(const FString& InURL, const FString& InAdditionalElements)
+ECDMError FHLSDRMDecrypter::UpdateFromURL(const FString& InURL, const FString& InAdditionalElements)
 {
 	return ECDMError::NotSupported;
 }
@@ -1127,7 +966,7 @@ ECDMError FClearKeyDRMDecrypter::UpdateFromURL(const FString& InURL, const FStri
 /**
  * Locates the decrypter for the given key ID.
  */
-FClearKeyDRMDecrypter::FKeyDecrypter* FClearKeyDRMDecrypter::GetDecrypterForKID(const TArray<uint8>& KID)
+FHLSDRMDecrypter::FKeyDecrypter* FHLSDRMDecrypter::GetDecrypterForKID(const TArray<uint8>& KID)
 {
 	// Note: The critical section must be locked already!
 	for(int32 i=0; i<KeyDecrypters.Num(); ++i)
@@ -1148,7 +987,7 @@ FClearKeyDRMDecrypter::FKeyDecrypter* FClearKeyDRMDecrypter::GetDecrypterForKID(
 /**
  * Reinitializes the decrypter to its starting state.
  */
-void FClearKeyDRMDecrypter::Reinitialize()
+void FHLSDRMDecrypter::Reinitialize()
 {
 	FScopeLock lock(&Lock);
 
@@ -1170,23 +1009,23 @@ void FClearKeyDRMDecrypter::Reinitialize()
 /**
  * Decrypts data in place according to the encrypted sample information.
  */
-ECDMError FClearKeyDRMDecrypter::DecryptInPlace(uint8* InOutData, int32 InNumDataBytes, const FMediaCDMSampleInfo& InSampleInfo)
+ECDMError FHLSDRMDecrypter::DecryptInPlace(uint8* InOutData, int32 InNumDataBytes, const FMediaCDMSampleInfo& InSampleInfo)
 {
 	FScopeLock lock(&Lock);
 	LastErrorMsg.Empty();
-	FClearKeyDRMDecrypter::FKeyDecrypter* DecrypterState = GetDecrypterForKID(InSampleInfo.DefaultKID);
+	FHLSDRMDecrypter::FKeyDecrypter* DecrypterState = GetDecrypterForKID(InSampleInfo.DefaultKID);
 	TSharedPtr<ElectraCDM::IStreamDecrypterAES128, ESPMode::ThreadSafe> Decrypter = DecrypterState ? DecrypterState->Decrypter : nullptr;
 	if (Decrypter.IsValid() && DecrypterState)
 	{
 		ElectraCDM::IStreamDecrypterAES128::EResult Result;
 
-		EClearKeyScheme SchemeFromMedia = FClearKeyCDM::GetCommonSchemeFromCipher(InSampleInfo.Scheme4CC);
-		EClearKeyScheme SchemeFromKID = DecrypterState->KIDKey.EncryptionScheme;
+		EHLSEncryptionScheme SchemeFromMedia = FHLS_AES128_CDM::GetCommonSchemeFromCipher(InSampleInfo.Scheme4CC);
+		EHLSEncryptionScheme SchemeFromKID = DecrypterState->KIDKey.EncryptionScheme;
 
-		EClearKeyScheme SchemeToUse = SchemeFromMedia != EClearKeyScheme::Unsupported ? SchemeFromMedia : SchemeFromKID;
+		EHLSEncryptionScheme SchemeToUse = SchemeFromMedia != EHLSEncryptionScheme::Unsupported ? SchemeFromMedia : SchemeFromKID;
 
 		// "cenc" scheme? (AES-128 CTR)
-		if (SchemeToUse == EClearKeyScheme::Cenc)
+		if (SchemeToUse == EHLSEncryptionScheme::Cenc)
 		{
 			if (!DecrypterState->bIsInitialized)
 			{
@@ -1225,7 +1064,7 @@ ECDMError FClearKeyDRMDecrypter::DecryptInPlace(uint8* InOutData, int32 InNumDat
 			}
 		}
 		// "cbcs" scheme? (AES-128 CBC)
-		else if (SchemeToUse == EClearKeyScheme::Cbcs)
+		else if (SchemeToUse == EHLSEncryptionScheme::Cbcs)
 		{
 			int32 NumBytesDecrypted = 0;
 
@@ -1320,29 +1159,91 @@ ECDMError FClearKeyDRMDecrypter::DecryptInPlace(uint8* InOutData, int32 InNumDat
 }
 
 
-bool FClearKeyDRMDecrypter::IsBlockStreamDecrypter()
+bool FHLSDRMDecrypter::IsBlockStreamDecrypter()
 {
-	return false;
+	FScopeLock lock(&Lock);
+	// This depends on the encryption method
+	return MimeType.Equals(TEXT("cbc7"));
 }
 
-ECDMError FClearKeyDRMDecrypter::BlockStreamDecryptStart(IStreamDecryptHandle*& OutStreamDecryptContext, const FMediaCDMSampleInfo& InSampleInfo)
+ECDMError FHLSDRMDecrypter::BlockStreamDecryptStart(IStreamDecryptHandle*& OutStreamDecryptContext, const FMediaCDMSampleInfo& InSampleInfo)
 {
-	FScopeLock lock(&Lock);
 	OutStreamDecryptContext = nullptr;
-	LastErrorMsg = TEXT("Not a block stream decrypter");
-	return ECDMError::CipherModeMismatch;
-}
-ECDMError FClearKeyDRMDecrypter::BlockStreamDecryptInPlace(IStreamDecryptHandle* InOutStreamDecryptContext, int32& OutNumBytesDecrypted, uint8* InOutData, int32 InNumDataBytes, bool bIsLastBlock)
-{
+
 	FScopeLock lock(&Lock);
-	LastErrorMsg = TEXT("Not a block stream decrypter");
-	return ECDMError::CipherModeMismatch;
+	if (!IsBlockStreamDecrypter())
+	{
+		LastErrorMsg = TEXT("Not a block stream decrypter");
+		return ECDMError::CipherModeMismatch;
+	}
+
+	FHLSDRMDecrypter::FKeyDecrypter* DecrypterState = GetDecrypterForKID(InSampleInfo.DefaultKID);
+	TSharedPtr<ElectraCDM::IStreamDecrypterAES128, ESPMode::ThreadSafe> Decrypter = DecrypterState ? DecrypterState->Decrypter : nullptr;
+	if (Decrypter.IsValid() && DecrypterState)
+	{
+		if (!DecrypterState->bIsInitialized)
+		{
+			ElectraCDM::IStreamDecrypterAES128::EResult Result = Decrypter->CBCInit(DecrypterState->KIDKey.Key, &InSampleInfo.IV);
+			if ((DecrypterState->bIsInitialized = Result == ElectraCDM::IStreamDecrypterAES128::EResult::Ok) == false)
+			{
+				DecrypterState->State = ECDMState::InvalidKey;
+				CurrentState = ECDMState::InvalidKey;
+				LastErrorMsg = TEXT("Invalid key");
+				return ECDMError::Failure;
+			}
+		}
+		FBlockDecrypterHandle* Handle = new FBlockDecrypterHandle;
+		Handle->BlockSize = Decrypter->CBCGetEncryptionDataSize(1);
+		Handle->KID = InSampleInfo.DefaultKID;
+		OutStreamDecryptContext = reinterpret_cast<IStreamDecryptHandle*>(Handle);
+		return ECDMError::Success;
+	}
+	else
+	{
+		LastErrorMsg = TEXT("No valid decrypter found for KID");
+		return ECDMError::Failure;
+	}
 }
-ECDMError FClearKeyDRMDecrypter::BlockStreamDecryptEnd(IStreamDecryptHandle* InStreamDecryptContext)
+
+ECDMError FHLSDRMDecrypter::BlockStreamDecryptInPlace(IStreamDecryptHandle* InOutStreamDecryptContext, int32& OutNumBytesDecrypted, uint8* InOutData, int32 InNumDataBytes, bool bIsLastBlock)
 {
-	FScopeLock lock(&Lock);
-	LastErrorMsg = TEXT("Not a block stream decrypter");
-	return ECDMError::CipherModeMismatch;
+	FBlockDecrypterHandle* Handle = reinterpret_cast<FBlockDecrypterHandle*>(InOutStreamDecryptContext);
+	if (Handle)
+	{
+		FScopeLock lock(&Lock);
+		FHLSDRMDecrypter::FKeyDecrypter* DecrypterState = GetDecrypterForKID(Handle->KID);
+		TSharedPtr<ElectraCDM::IStreamDecrypterAES128, ESPMode::ThreadSafe> Decrypter = DecrypterState ? DecrypterState->Decrypter : nullptr;
+		if (Decrypter.IsValid() && DecrypterState && DecrypterState->bIsInitialized)
+		{
+			ElectraCDM::IStreamDecrypterAES128::EResult Result = Decrypter->CBCDecryptInPlace(OutNumBytesDecrypted, InOutData, InNumDataBytes, bIsLastBlock);
+			if (Result == ElectraCDM::IStreamDecrypterAES128::EResult::Ok)
+			{
+				return ECDMError::Success;
+			}
+			LastErrorMsg = FString::Printf(TEXT("Failed to decrypt (%d)"), (int32)Result);
+			return ECDMError::Failure;
+		}
+		LastErrorMsg = TEXT("Invalid or incorrect decrypter");
+		return ECDMError::Failure;
+	}
+	LastErrorMsg = TEXT("Invalid context passed");
+	return ECDMError::Failure;
+}
+
+ECDMError FHLSDRMDecrypter::BlockStreamDecryptEnd(IStreamDecryptHandle* InStreamDecryptContext)
+{
+	FBlockDecrypterHandle* Handle = reinterpret_cast<FBlockDecrypterHandle*>(InStreamDecryptContext);
+	if (Handle)
+	{
+		FHLSDRMDecrypter::FKeyDecrypter* DecrypterState = GetDecrypterForKID(Handle->KID);
+		TSharedPtr<ElectraCDM::IStreamDecrypterAES128, ESPMode::ThreadSafe> Decrypter = DecrypterState ? DecrypterState->Decrypter : nullptr;
+		if (Decrypter.IsValid() && DecrypterState)
+		{
+			DecrypterState->bIsInitialized = false;
+		}
+		delete Handle;
+	}
+	return ECDMError::Success;
 }
 
 
