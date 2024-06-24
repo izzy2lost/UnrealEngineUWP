@@ -235,11 +235,6 @@ public:
 		return RHI->RHICreateShaderLibrary(Platform, FilePath, Name);
 	}
 
-	virtual FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 NumQueries = UINT32_MAX) override final
-	{
-		return RHI->RHICreateRenderQueryPool(QueryType, NumQueries);
-	}
-
 	virtual FGPUFenceRHIRef RHICreateGPUFence(const FName &Name) override final
 	{
 		return RHI->RHICreateGPUFence(Name);

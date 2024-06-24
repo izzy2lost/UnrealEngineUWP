@@ -12,14 +12,9 @@
 
 // @todo - new gpu profiler
 
-#else
+#elif HAS_GPU_STATS
 
 typedef TArray<TCHAR, TInlineAllocator<4096u>> FDescriptionStringBuffer;
-
-// Only exposed for debugging. Disabling this carries a severe performance penalty
-#define RENDER_QUERY_POOLING_ENABLED 1
-
-#if HAS_GPU_STATS 
 
 CSV_DEFINE_CATEGORY_MODULE(RENDERCORE_API, GPU, true);
 
@@ -27,14 +22,6 @@ static TAutoConsoleVariable<int> CVarGPUStatsEnabled(
 	TEXT("r.GPUStatsEnabled"),
 	1,
 	TEXT("Enables or disables GPU stat recording"));
-
-
-static TAutoConsoleVariable<int> CVarGPUStatsMaxQueriesPerFrame(
-	TEXT("r.GPUStatsMaxQueriesPerFrame"),
-	-1,
-	TEXT("Limits the number of timestamps allocated per frame. -1 = no limit"), 
-	ECVF_RenderThreadSafe);
-
 
 static TAutoConsoleVariable<int> CVarGPUCsvStatsEnabled(
 	TEXT("r.GPUCsvStatsEnabled"),
@@ -56,9 +43,6 @@ static TAutoConsoleVariable<int> CVarGPUStatsChildTimesIncluded(
 	TEXT("to the total GPU time, so we probably want this disabled.\n")
 );
 
-#endif //HAS_GPU_STATS
-
-#if HAS_GPU_STATS
 static const int32 NumGPUProfilerBufferedFrames = 4;
 static const uint64 InvalidQueryResult = 0xFFFFFFFFFFFFFFFFull;
 
@@ -396,7 +380,6 @@ class FRealtimeGPUProfilerFrame
 public:
 	FRealtimeGPUProfilerFrame(FRenderQueryPoolRHIRef InRenderQueryPool, uint32& InQueryCount)
 		: NextEventIdx(1)
-		, OverflowEventCount(0)
 		, NextResultPendingEventIdx(1)
 		, QueryCount(InQueryCount)
 		, RenderQueryPool(InRenderQueryPool)
@@ -428,8 +411,6 @@ public:
 
 	void Clear(void* Dummy)
 	{
-		check(!OverflowEventCount);
-
 		NextEventIdx = 1;
 		NextResultPendingEventIdx = 1;
 
@@ -449,18 +430,8 @@ public:
 	{
 		if (NextEventIdx >= GpuProfilerEvents.Num())
 		{
-			const int32 MaxNumQueries = CVarGPUStatsMaxQueriesPerFrame.GetValueOnRenderThread();
-
-			if (MaxNumQueries < 0 || QueryCount < (uint32)MaxNumQueries)
-			{
-				GpuProfilerEvents.Add(new FRealtimeGPUProfilerEvent(*RenderQueryPool));
-				QueryCount += FRealtimeGPUProfilerEvent::GetNumRHIQueriesPerEvent();
-			}
-			else
-			{
-				++OverflowEventCount;
-				return {};
-			}
+			GpuProfilerEvents.Add(new FRealtimeGPUProfilerEvent(*RenderQueryPool));
+			QueryCount += FRealtimeGPUProfilerEvent::GetNumRHIQueriesPerEvent();
 		}
 
 		const int32 EventIdx = NextEventIdx++;
@@ -480,12 +451,6 @@ public:
 
 	FRealtimeGPUProfilerQuery PopEvent()
 	{
-		if (OverflowEventCount)
-		{
-			--OverflowEventCount;
-			return {};
-		}
-
 		const int32 EventIdx = EventStack.Pop(EAllowShrinking::No);
 
 		return GpuProfilerEvents[EventIdx].End();
@@ -853,7 +818,6 @@ private:
 	};
 
 	int32 NextEventIdx;
-	int32 OverflowEventCount;
 	int32 NextResultPendingEventIdx;
 
 	uint32& QueryCount;
@@ -898,8 +862,7 @@ FRealtimeGPUProfiler::FRealtimeGPUProfiler()
 {
 	if (GSupportsTimestampRenderQueries)
 	{
-		const int MaxGPUQueries = CVarGPUStatsMaxQueriesPerFrame.GetValueOnRenderThread();
-		RenderQueryPool = RHICreateRenderQueryPool(RQT_AbsoluteTime, (MaxGPUQueries > 0) ? MaxGPUQueries : UINT32_MAX);
+		RenderQueryPool = RHICreateRenderQueryPool(RQT_AbsoluteTime);
 		for (int Index = 0; Index < NumGPUProfilerBufferedFrames; Index++)
 		{
 			Frames.Add(new FRealtimeGPUProfilerFrame(RenderQueryPool, QueryCount));
@@ -1121,9 +1084,8 @@ FScopedDrawStatCategory::~FScopedDrawStatCategory()
 		RHICmdList->SetDrawStatsCategory(Previous);
 	}
 }
-#endif // HAS_GPU_STATS
 
-#if GPUPROFILERTRACE_ENABLED && HAS_GPU_STATS
+#if GPUPROFILERTRACE_ENABLED
 FRealtimeGPUProfilerHistoryItem::FRealtimeGPUProfilerHistoryItem()
 {
 	FMemory::Memset(*this, 0);
@@ -1159,4 +1121,4 @@ void FRealtimeGPUProfiler::FetchPerfByDescription(TArray<FRealtimeGPUProfilerDes
 }
 #endif  // GPUPROFILERTRACE_ENABLED
 
-#endif // (RHI_NEW_GPU_PROFILER == 0)
+#endif // HAS_GPU_STATS

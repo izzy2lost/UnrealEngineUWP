@@ -759,23 +759,6 @@ bool FDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineStateIn
 	return true;
 }
 
-FDefaultRHIRenderQueryPool::FDefaultRHIRenderQueryPool(ERenderQueryType InQueryType, FDynamicRHI* InDynamicRHI, uint32 InNumQueries)
-	: DynamicRHI(InDynamicRHI)
-	, QueryType(InQueryType)
-	, NumQueries(InNumQueries)
-{
-	if (NumQueries != UINT32_MAX && (GSupportsTimestampRenderQueries || InQueryType != RQT_AbsoluteTime))
-	{
-		Queries.Reserve(NumQueries);
-		for (uint32 i = 0; i < NumQueries; i++)
-		{
-			Queries.Push(DynamicRHI->RHICreateRenderQuery(QueryType));
-			check(Queries.Last().IsValid());
-			++AllocatedQueries;
-		}
-	}
-}
-
 FDefaultRHIRenderQueryPool::~FDefaultRHIRenderQueryPool()
 {
 	check(IsInRHIThread() || IsInRenderingThread());
@@ -791,37 +774,28 @@ FRHIPooledRenderQuery FDefaultRHIRenderQueryPool::AllocateQuery()
 	}
 	else
 	{
-		FRHIPooledRenderQuery Query = FRHIPooledRenderQuery(this, DynamicRHI->RHICreateRenderQuery(QueryType));
+		FRHIPooledRenderQuery Query = FRHIPooledRenderQuery(this, RHICreateRenderQuery(QueryType));
 		if (Query.IsValid())
 		{
 			++AllocatedQueries;
 		}
-		ensure(AllocatedQueries <= NumQueries);
+
 		return Query;
 	}
 }
 
 void FDefaultRHIRenderQueryPool::ReleaseQuery(TRefCountPtr<FRHIRenderQuery>&& Query)
 {
-	if (QueryType == ERenderQueryType::RQT_Occlusion)
-	{
-		static int dbg = 0;
-		dbg++;
-	}
 	check(IsInParallelRenderingThread());
-	//Hard to validate because of Resource resurrection, better to remove GetQueryRef entirely
-	//checkf(Query.IsValid() && Query.GetRefCount() <= 2, TEXT("Query has been released but reference still held: use FRHIPooledRenderQuery::GetQueryRef() with extreme caution"));
-	
 	checkf(Query.IsValid(), TEXT("Only release valid queries"));
-	checkf((uint32)Queries.Num() < NumQueries, TEXT("Pool contains more queries than it started with, double release somewhere?"));
 
 	Queries.Push(MoveTemp(Query));
 	check(!Query.IsValid());
 }
 
-FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 NumQueries)
+FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 /* unused NumQueries */)
 {
-	return GDynamicRHI->RHICreateRenderQueryPool(QueryType, NumQueries);
+	return new FDefaultRHIRenderQueryPool(QueryType);
 }
 
 EColorSpaceAndEOTF FDynamicRHI::RHIGetColorSpace(FRHIViewport* Viewport)
