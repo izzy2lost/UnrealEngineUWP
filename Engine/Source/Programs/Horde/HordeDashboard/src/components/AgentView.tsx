@@ -1403,7 +1403,7 @@ const agentContextMenuProps: IContextualMenuItem[] = [
    },
 ];
 
-const agentStatus = ["Active", "Ready", "Disabled", "Ephemeral", "Pending Conform", "Pending Shutdown", "Offline", "Offline (Autoscaler)", "Offline (Manual)", "Offline (Unexpected)"];
+const agentStatus = ["Active", "Ready", "Disabled", "Ephemeral", "No Pools", "Pending Conform", "Pending Shutdown", "Offline", "Offline (Autoscaler)", "Offline (Manual)", "Offline (Unexpected)"];
 
 
 export const AgentMenuBar: React.FC<{ agentView?: boolean }> = observer(({ agentView }) => {
@@ -2280,6 +2280,12 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
 
       if (filter.has("Active")) {
          if (item.leases?.length) {
+            filtered = false;
+         }
+      }
+
+      if (filter.has("No Pools")) {
+         if (!item.pools?.length) {
             filtered = false;
          }
       }
