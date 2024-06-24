@@ -2503,6 +2503,28 @@ TMap<FString, FString> GenerateAdditionalAssetMappings(const TMap<FString, FStri
 			}
 		}
 
+		// VerseAssetPath mapping used in GatherableTextData
+		// e.g. /localhost/Some/Package/Path/PackageName/PackageObject (note the use of '/' instead of '.' for the top-level Package object)
+		{
+			// Using a constant to avoid pulling in, what would otherwise be, unnecessary dependencies
+			const TCHAR* VerseRoot = TEXT("/localhost");
+
+			NameBuilder.Reset();
+			NameBuilder.Append(VerseRoot);
+			NameBuilder.Append(SrcNameString);
+			NameBuilder.AppendChar(TEXT('/'));
+			NameBuilder.Append(SrcPackageName);
+			FString SrcObjectName = NameBuilder.ToString();
+
+			NameBuilder.Reset();
+			NameBuilder.Append(VerseRoot);
+			NameBuilder.Append(DstNameString);
+			NameBuilder.AppendChar(TEXT('/'));
+			NameBuilder.Append(DstPackageName);
+			FString DstObjectName = NameBuilder.ToString();
+			Result.Add(MoveTemp(SrcObjectName), MoveTemp(DstObjectName));
+		}
+		
 		if (SrcPackageName != DstPackageName)
 		{
 			// PackageName (without PackageRoot or PackagePath) mapping (numbered suffix included)
