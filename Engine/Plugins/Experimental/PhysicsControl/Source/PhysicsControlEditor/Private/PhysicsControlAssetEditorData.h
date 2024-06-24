@@ -68,6 +68,9 @@ public:
 	/** Toggle simulation on and off */
 	void ToggleSimulation();
 
+	/** Destroys all existing controls modifiers and then recreates them from the control asset */
+	void RecreateControlsAndModifiers();
+
 	/** broadcast a change in the preview*/
 	void BroadcastPreviewChanged();
 

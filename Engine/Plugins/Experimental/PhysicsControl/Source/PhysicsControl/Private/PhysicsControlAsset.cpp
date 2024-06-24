@@ -5,19 +5,9 @@
 #include "Engine/SkeletalMesh.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 
-//#ifdef WITH_EDITOR
-//#include "Editor.h"
-//#endif // WITH_EDITOR
-
-
 //======================================================================================================================
 UPhysicsControlAsset::UPhysicsControlAsset()
 {
-	// This needs to be explored further - a possible way to hook into the BP compilation. However, we would also
-	// need to make sure we don't compile (and get marked as dirty) if there are no changes.
-//#ifdef WITH_EDITOR
-//	GEditor->OnBlueprintCompiled().AddUObject(this, &UPhysicsControlAsset::Compile);
-//#endif
 }
 
 #if WITH_EDITOR
@@ -63,7 +53,18 @@ void UPhysicsControlAsset::Compile()
 	AdditionalControlsAndModifiers = GetAdditionalControlsAndModifiers();
 	AdditionalSets = GetAdditionalSets();
 	InitialControlAndModifierUpdates = GetInitialControlAndModifierUpdates();
+
+	TArray<FName> OrigKeys;
+	Profiles.GetKeys(OrigKeys);
+
 	Profiles = GetProfiles();
+
+	TArray<FName> NewKeys;
+	Profiles.GetKeys(NewKeys);
+
+	bool bProfileListChanged = (OrigKeys != NewKeys);
+
+	OnControlAssetCompiledDelegate.Broadcast(bProfileListChanged);
 
 	Modify();
 }
@@ -93,6 +94,48 @@ bool UPhysicsControlAsset::IsCompilationNeeded() const
 	}
 	return false;
 }
+
+//======================================================================================================================
+bool UPhysicsControlAsset::IsSetupDirty() const
+{
+	if (CharacterSetupData != GetCharacterSetupData())
+	{
+		return true;
+	}
+	if (AdditionalControlsAndModifiers != GetAdditionalControlsAndModifiers())
+	{
+		return true;
+	}
+	if (AdditionalSets != GetAdditionalSets())
+	{
+		return true;
+	}
+	if (InitialControlAndModifierUpdates != GetInitialControlAndModifierUpdates())
+	{
+		return true;
+	}
+	return false;
+}
+
+//======================================================================================================================
+TArray<FName> UPhysicsControlAsset::GetDirtyProfiles() const
+{
+	TArray<FName> DirtyProfiles;
+
+	TMap<FName, FPhysicsControlControlAndModifierUpdates> CompiledProfiles = GetProfiles();
+
+	for (TMap<FName, FPhysicsControlControlAndModifierUpdates>::ElementType ProfilePair : Profiles)
+	{
+		FPhysicsControlControlAndModifierUpdates* Compiled = CompiledProfiles.Find(ProfilePair.Key);
+		if (Compiled && *Compiled == ProfilePair.Value)
+		{
+			continue;
+		}
+		DirtyProfiles.Push(ProfilePair.Key);
+	}
+	return DirtyProfiles;
+}
+
 
 //======================================================================================================================
 FPhysicsControlCharacterSetupData UPhysicsControlAsset::GetCharacterSetupData() const

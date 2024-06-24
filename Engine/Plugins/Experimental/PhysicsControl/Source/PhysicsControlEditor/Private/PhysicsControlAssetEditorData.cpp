@@ -144,7 +144,7 @@ void FPhysicsControlAssetEditorData::EnableSimulation(bool bEnableSimulation)
 			EditorSkelComp->WakeAllRigidBodies();
 
 			PhysicsControlComponent->PhysicsControlAsset = PhysicsControlAsset;
-			PhysicsControlComponent->CreateControlsAndBodyModifiersFromControlProfileAsset(
+			PhysicsControlComponent->CreateControlsAndBodyModifiersFromPhysicsControlAsset(
 				EditorSkelComp, nullptr, FName());
 		}
 		else
@@ -205,13 +205,25 @@ void FPhysicsControlAssetEditorData::EnableSimulation(bool bEnableSimulation)
 			EditorSkelComp->EnablePreview(true, PreviewAnimationAsset);
 		}
 
-		PhysicsControlComponent->DestroyControlsInSet("All");
-		PhysicsControlComponent->DestroyBodyModifiersInSet("All");
+		PhysicsControlComponent->DestroyAllControlsAndBodyModifiers();
 
 		BroadcastPreviewChanged();
 	}
 
 	bRunningSimulation = bEnableSimulation;
+}
+
+//======================================================================================================================
+// Danny TODO handle the RBWC mode
+void FPhysicsControlAssetEditorData::RecreateControlsAndModifiers()
+{
+	// Turn it off...
+	PhysicsControlComponent->DestroyAllControlsAndBodyModifiers();
+
+	// ...and back on again
+	PhysicsControlComponent->PhysicsControlAsset = PhysicsControlAsset;
+	PhysicsControlComponent->CreateControlsAndBodyModifiersFromPhysicsControlAsset(
+		EditorSkelComp, nullptr, FName());
 }
 
 //======================================================================================================================

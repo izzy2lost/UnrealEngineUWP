@@ -37,9 +37,11 @@ class PHYSICSCONTROLEDITOR_API FPhysicsControlAssetEditor :
 public:
 	friend class FPhysicsControlAssetApplicationMode;
 	friend class FPhysicsControlAssetEditorEditMode;
+	friend class FPhysicsControlAssetProfileDetailsCustomization;
+	friend class FPhysicsControlAssetPreviewDetailsCustomization;
+	friend class FPhysicsControlAssetSetupDetailsCustomization;
 
 public:
-
 	/** Initialize the asset editor. This will register the application mode, init the preview scene, etc. */
 	void InitAssetEditor(
 		const EToolkitMode::Type        Mode,
@@ -66,7 +68,7 @@ public:
 	// ~END FGCObject overrides.
 
 	// FTickableEditorObject overrides.
-	virtual void Tick(float DeltaTime) override {};
+	virtual void Tick(float DeltaTime) override;
 	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
 	virtual TStatId GetStatId() const override;
 	// ~END FTickableEditorObject overrides.
@@ -83,7 +85,16 @@ public:
 	/** Refreshes the preview viewport */
 	void RefreshPreviewViewport();
 
-private:
+	/** Invokes the control profile with the name, assuming simulation is running */
+	void InvokeControlProfile(FName ProfileName);
+
+	/** Invokes the most recently invoked control profile */
+	void ReinvokeControlProfile();
+
+	/** Destroys all existing controls modifiers and then recreates them from the control asset */
+	void RecreateControlsAndModifiers();
+
+protected:
 	FText GetSimulationToolTip() const;
 	FSlateIcon GetSimulationIcon() const;
 
@@ -126,14 +137,13 @@ private:
 	bool IsRunningSimulation() const;
 	bool IsNotRunningSimulation() const;
 
-private:
 	/** Make the constraint scale widget */
 	TSharedRef<SWidget> MakeConstraintScaleWidget();
 
 	/** Make the collision opacity widget */
 	TSharedRef<SWidget> MakeCollisionOpacityWidget();
 
-private:
+protected:
 	/** The persona toolkit. */
 	TSharedPtr<IPersonaToolkit> PersonaToolkit = nullptr;
 
@@ -163,4 +173,7 @@ private:
 
 	/** True if in OnTreeSelectionChanged()... protects against infinite recursion */
 	bool bSelecting;
+
+	/** Stored when a control profile is invoked */
+	FName PreviouslyInvokedControlProfile;
 };

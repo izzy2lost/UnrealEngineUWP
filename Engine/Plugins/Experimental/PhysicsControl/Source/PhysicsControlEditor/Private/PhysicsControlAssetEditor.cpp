@@ -588,6 +588,12 @@ void FPhysicsControlAssetEditor::OnToggleSimulation()
 }
 
 //======================================================================================================================
+void FPhysicsControlAssetEditor::RecreateControlsAndModifiers()
+{
+	EditorData->RecreateControlsAndModifiers();
+}
+
+//======================================================================================================================
 void FPhysicsControlAssetEditor::OnToggleSimulationNoGravity()
 {
 	EditorData->bNoGravitySimulation = !EditorData->bNoGravitySimulation;
@@ -1053,6 +1059,12 @@ void FPhysicsControlAssetEditor::AddReferencedObjects(FReferenceCollector& Colle
 }
 
 //======================================================================================================================
+void FPhysicsControlAssetEditor::Tick(float DeltaTime)
+{
+	GetPersonaToolkit()->GetPreviewScene()->InvalidateViews();
+}
+
+//======================================================================================================================
 TStatId FPhysicsControlAssetEditor::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FPhysicsControlAssetEditor, STATGROUP_Tickables);
@@ -1173,6 +1185,24 @@ void FPhysicsControlAssetEditor::RefreshPreviewViewport()
 	{
 		PersonaToolkit->GetPreviewScene()->InvalidateViews();
 	}
+}
+
+//======================================================================================================================
+void FPhysicsControlAssetEditor::InvokeControlProfile(FName ProfileName)
+{
+	// Danny TODO handle the RBWC simulation case
+	UPhysicsControlComponent* PCC = GetEditorData()->PhysicsControlComponent.Get();
+	if (PCC)
+	{
+		PCC->InvokeControlProfile(ProfileName);
+	}
+	PreviouslyInvokedControlProfile = ProfileName;
+}
+
+//======================================================================================================================
+void FPhysicsControlAssetEditor::ReinvokeControlProfile()
+{
+	InvokeControlProfile(PreviouslyInvokedControlProfile);
 }
 
 #undef LOCTEXT_NAMESPACE

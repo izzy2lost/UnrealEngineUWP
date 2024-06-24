@@ -5,14 +5,19 @@
 #include "CoreMinimal.h"
 #include "IDetailCustomization.h"
 #include "Types/SlateEnums.h"
+#include "Input/Reply.h"
 
+class UPhysicsControlAsset;
 class FPhysicsControlAssetEditor;
+
 class IDetailLayoutBuilder;
 class FUICommandInfo;
 class SWidget;
 class IPropertyHandle;
 class FUICommandList;
 class SEditableTextBox;
+
+struct FPhysicsControlControlAndModifierUpdates;
 
 class FPhysicsControlAssetProfileDetailsCustomization : public IDetailCustomization
 {
@@ -24,12 +29,19 @@ public:
 		: PhysicsControlAssetEditor(InPhysicsControlAssetEditor)
 	{}
 
-	// IDetailCustomization interface
+	//~ Begin IDetailCustomization
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
+	virtual void CustomizeDetails(const TSharedPtr<IDetailLayoutBuilder>& InDetailBuilder) override;
+	//~ End IDetailCustomization
 
-private:
-	void BindCommands();
+protected:
+	void OnProfilesChanged();
+	void OnProfileDetailsChanged();
 
-private:
+protected:
+	FReply InvokeControlProfile(FName ProfileName);
+
 	TWeakPtr<FPhysicsControlAssetEditor> PhysicsControlAssetEditor;
+
+	TWeakPtr<IDetailLayoutBuilder> DetailLayoutBuilderWeak;
 };

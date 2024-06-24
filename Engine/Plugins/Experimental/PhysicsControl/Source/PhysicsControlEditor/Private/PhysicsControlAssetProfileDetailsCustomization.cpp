@@ -2,27 +2,13 @@
 
 #include "PhysicsControlAssetProfileDetailsCustomization.h"
 
-#include "PhysicsControlAssetActions.h"
 #include "PhysicsControlAssetEditor.h"
-#include "PhysicsControlAssetEditorCommands.h"
+#include "PhysicsControlAsset.h"
+#include "PhysicsControlComponent.h"
+#include "PhysicsControlAssetEditorData.h"
 
-#include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
-#include "DetailWidgetRow.h"
-#include "EditorFontGlyphs.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "IDetailPropertyRow.h"
 #include "PropertyHandle.h"
-#include "ScopedTransaction.h"
-#include "Styling/StyleColors.h"
-#include "Widgets/Images/SImage.h"
-#include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SComboButton.h"
-#include "Widgets/Input/SEditableTextBox.h"
-#include "Widgets/Layout/SUniformGridPanel.h"
-#include "Widgets/SCompoundWidget.h"
-#include "Widgets/Text/SInlineEditableTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "PhysicsControlAssetProfileDetailsCustomization"
 
@@ -34,24 +20,84 @@ TSharedRef<IDetailCustomization> FPhysicsControlAssetProfileDetailsCustomization
 }
 
 //======================================================================================================================
-void FPhysicsControlAssetProfileDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
+void FPhysicsControlAssetProfileDetailsCustomization::CustomizeDetails(
+	const TSharedPtr<IDetailLayoutBuilder>& InDetailBuilder)
 {
-	BindCommands();
-
-	DetailLayout.HideCategory(TEXT("PreviewMesh"));
-	DetailLayout.HideCategory(TEXT("Actions"));
-	DetailLayout.HideCategory(TEXT("Inheritance"));
-	DetailLayout.HideCategory(TEXT("Setup"));
-
+	DetailLayoutBuilderWeak = InDetailBuilder;
+	FPhysicsControlAssetProfileDetailsCustomization::CustomizeDetails(*InDetailBuilder);
 }
 
 //======================================================================================================================
-void FPhysicsControlAssetProfileDetailsCustomization::BindCommands()
+void FPhysicsControlAssetProfileDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayoutBuilder)
 {
-	const FPhysicsControlAssetEditorCommands& Commands = FPhysicsControlAssetEditorCommands::Get();
+	DetailLayoutBuilder.HideCategory(TEXT("PreviewMesh"));
+	DetailLayoutBuilder.HideCategory(TEXT("Actions"));
+	DetailLayoutBuilder.HideCategory(TEXT("Inheritance"));
+	DetailLayoutBuilder.HideCategory(TEXT("Setup"));
+	DetailLayoutBuilder.HideCategory(TEXT("SetupEditing"));
 
-	TSharedPtr<FUICommandList> CommandList = PhysicsControlAssetEditor.Pin()->GetToolkitCommands();
+	const TSharedRef<IPropertyHandle> ProfilesProperty = DetailLayoutBuilder.GetProperty(
+		GET_MEMBER_NAME_CHECKED(UPhysicsControlAsset, MyProfiles));
 
+	ProfilesProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(
+		this, &FPhysicsControlAssetProfileDetailsCustomization::OnProfilesChanged));
+
+	ProfilesProperty->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateSP(
+			this, &FPhysicsControlAssetProfileDetailsCustomization::OnProfileDetailsChanged));
+}
+
+//======================================================================================================================
+// This is called when a parameter in one of the profiles changes
+void FPhysicsControlAssetProfileDetailsCustomization::OnProfileDetailsChanged()
+{
+	if (TSharedPtr<FPhysicsControlAssetEditor> PCAE = PhysicsControlAssetEditor.Pin())
+	{
+		UPhysicsControlAsset* PhysicsControlAsset = PCAE->GetEditorData()->PhysicsControlAsset.Get();
+		if (PhysicsControlAsset->bAutoCompileProfiles)
+		{
+			TArray<FName> DirtyProfiles;
+			if (PhysicsControlAsset->bAutoInvokeProfiles && PCAE->IsRunningSimulation())
+			{
+				DirtyProfiles = PhysicsControlAsset->GetDirtyProfiles();
+			}
+
+			PhysicsControlAsset->Compile();
+
+			for (FName DirtyProfile : DirtyProfiles)
+			{
+				InvokeControlProfile(DirtyProfile);
+			}
+		}
+	}
+}
+
+//======================================================================================================================
+// This is called when the list of profiles changes (i.e. profile added/removed)
+void FPhysicsControlAssetProfileDetailsCustomization::OnProfilesChanged()
+{
+	if (TSharedPtr<FPhysicsControlAssetEditor> PCAE = PhysicsControlAssetEditor.Pin())
+	{
+		UPhysicsControlAsset* PhysicsControlAsset = PCAE->GetEditorData()->PhysicsControlAsset.Get();
+		if (PhysicsControlAsset->bAutoCompileProfiles)
+		{
+			PhysicsControlAsset->Compile();
+		}
+	}
+}
+
+//======================================================================================================================
+FReply FPhysicsControlAssetProfileDetailsCustomization::InvokeControlProfile(FName ProfileName)
+{
+	if (TSharedPtr<FPhysicsControlAssetEditor> PCAE = PhysicsControlAssetEditor.Pin())
+	{
+		// Danny TODO handle the RBWC mode
+		UPhysicsControlComponent* PCC = PCAE->GetEditorData()->PhysicsControlComponent.Get();
+		if (PCC)
+		{
+			PCC->InvokeControlProfile(ProfileName);
+		}
+	}
+	return FReply::Handled();
 }
 
 #undef LOCTEXT_NAMESPACE

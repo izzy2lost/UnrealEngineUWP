@@ -21,18 +21,20 @@ public:
 	// Makes a new instance of this detail layout class for a specific detail view requesting it
 	static TSharedRef<IDetailCustomization> MakeInstance(TWeakPtr<FPhysicsControlAssetEditor> InPhysicsControlAssetEditor);
 
-	FPhysicsControlAssetPreviewDetailsCustomization(TWeakPtr<FPhysicsControlAssetEditor> InPhysicsControlAssetEditor)
-		: PhysicsControlAssetEditor(InPhysicsControlAssetEditor)
-	{}
+	FPhysicsControlAssetPreviewDetailsCustomization(TWeakPtr<FPhysicsControlAssetEditor> InPhysicsControlAssetEditor);
 
-	// IDetailCustomization interface
+	//~ Begin IDetailCustomization
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
+	virtual void CustomizeDetails(const TSharedPtr<IDetailLayoutBuilder>& InDetailBuilder) override;
+	//~ End IDetailCustomization
 
 private:
-	void BindCommands();
-
 	FReply InvokeControlProfile(FName ProfileName);
+
+	void OnControlAssetCompiled(bool bProfileListChanged);
 
 private:
 	TWeakPtr<FPhysicsControlAssetEditor> PhysicsControlAssetEditor;
+
+	TWeakPtr<IDetailLayoutBuilder> DetailLayoutBuilderWeak;
 };

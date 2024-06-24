@@ -25,6 +25,7 @@ UCLASS(BlueprintType)
 class PHYSICSCONTROL_API UPhysicsControlAsset : public UObject, public IInterface_PreviewMeshProvider
 {
 	GENERATED_BODY()
+
 public:
 	UPhysicsControlAsset();
 
@@ -65,6 +66,26 @@ public:
 	// Data that will then be compiled down into the runtime data
 
 #if WITH_EDITORONLY_DATA
+	// Whether editing the profiles will automatically compile.
+	UPROPERTY(EditAnywhere, Category = ProfileEditing)
+	bool bAutoCompileProfiles = true;
+
+	// Whether to automatically invoke profiles that have been edited (and have auto-compiled) when simulating
+	UPROPERTY(EditAnywhere, Category = ProfileEditing, Meta = (EditCondition="AutoCompileProfiles"))
+	bool bAutoInvokeProfiles = true;
+
+	// Whether editing the setup data will automatically compile.
+	UPROPERTY(EditAnywhere, Category = SetupEditing)
+	bool bAutoCompileSetup = true;
+
+	// Whether to automatically reinitialize following editing of setup data (when auto-compiling) when simulating
+	UPROPERTY(EditAnywhere, Category = SetupEditing, Meta = (EditCondition="AutoCompileSetup"))
+	bool bAutoReinitSetup = true;
+
+	// Whether to automatically re-invoke the previously invoked profile after automatically running the setup
+	UPROPERTY(EditAnywhere, Category = SetupEditing, Meta = (EditCondition="AutoCompileSetup"))
+	bool bAutoInvokeProfileAfterSetup = true;
+
 	/** A profile asset to inherit from (can be null). If set, we will just add/modify data in that */
 	UPROPERTY(EditAnywhere, Category = Inheritance)
 	TSoftObjectPtr<UPhysicsControlAsset> ParentAsset;
@@ -120,6 +141,9 @@ public:
 	// Buttons/actions in the editor
 
 #if WITH_EDITOR
+	DECLARE_EVENT_OneParam(FPhysicsControlAssetEditor, FOnControlAssetCompiled, bool);
+	FOnControlAssetCompiled& OnControlAssetCompiled() { return OnControlAssetCompiledDelegate; }
+
 	/** Shows all the controls etc that would be made */
 	UFUNCTION(CallInEditor, Category = Actions)
 	void ShowCompiledData() const;
@@ -138,6 +162,19 @@ public:
 	UFUNCTION(CallInEditor, Category = Actions)
 	bool IsCompilationNeeded() const;
 
+	/**
+	 * Returns a list of all the profiles that need compilation
+	 */
+	UFUNCTION(CallInEditor, Category = Actions)
+	TArray<FName> GetDirtyProfiles() const;
+
+	/**
+	 * Returns true if the setup data need compilation such that the controls etc need to be re-initialized.
+	 */
+	UFUNCTION(CallInEditor, Category = Actions)
+	bool IsSetupDirty() const;
+
+
 	/** Combines and returns data from our parent and ourself */
 	FPhysicsControlCharacterSetupData GetCharacterSetupData() const;
 
@@ -152,6 +189,9 @@ public:
 
 	/** Combines and returns data from our parent and ourself */
 	TMap<FName, FPhysicsControlControlAndModifierUpdates> GetProfiles() const;
+
+protected:
+	FOnControlAssetCompiled OnControlAssetCompiledDelegate;
 
 #endif
 
@@ -169,8 +209,4 @@ public:
 
 	static const FName GetPreviewMeshPropertyName();
 #endif
-
-
-
-
 };

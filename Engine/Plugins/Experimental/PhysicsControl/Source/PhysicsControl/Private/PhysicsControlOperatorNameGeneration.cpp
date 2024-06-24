@@ -217,7 +217,7 @@ void CreateAdditionalSets_Implementation(
 {
 	for (const FPhysicsControlSetUpdate& Set : AdditionalSets.ControlSetUpdates)
 	{
-		TArray<FName> Names = ExpandName(Set.Names, NameRecords.ControlSets);
+		TArray<FName> Names = ExpandNames(Set.Names, NameRecords.ControlSets);
 
 		for (FName Name : Names)
 		{
@@ -236,7 +236,7 @@ void CreateAdditionalSets_Implementation(
 
 	for (const FPhysicsControlSetUpdate& Set : AdditionalSets.ModifierSetUpdates)
 	{
-		TArray<FName> Names = ExpandName(Set.Names, NameRecords.BodyModifierSets);
+		TArray<FName> Names = ExpandNames(Set.Names, NameRecords.BodyModifierSets);
 
 		for (FName Name : Names)
 		{

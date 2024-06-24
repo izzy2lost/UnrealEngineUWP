@@ -12,20 +12,10 @@
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
-#include "EditorFontGlyphs.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IDetailPropertyRow.h"
 #include "PropertyHandle.h"
-#include "ScopedTransaction.h"
-#include "Styling/StyleColors.h"
-#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SComboButton.h"
-#include "Widgets/Input/SEditableTextBox.h"
-#include "Widgets/Layout/SUniformGridPanel.h"
-#include "Widgets/SCompoundWidget.h"
-#include "Widgets/Text/SInlineEditableTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "PhysicsControlAssetPreviewDetailsCustomization"
 
@@ -37,15 +27,39 @@ TSharedRef<IDetailCustomization> FPhysicsControlAssetPreviewDetailsCustomization
 }
 
 //======================================================================================================================
+FPhysicsControlAssetPreviewDetailsCustomization::FPhysicsControlAssetPreviewDetailsCustomization(
+	TWeakPtr<FPhysicsControlAssetEditor> InPhysicsControlAssetEditor)
+	: PhysicsControlAssetEditor(InPhysicsControlAssetEditor)
+{
+}
+
+//======================================================================================================================
+void FPhysicsControlAssetPreviewDetailsCustomization::CustomizeDetails(
+	const TSharedPtr<IDetailLayoutBuilder>& InDetailBuilder)
+{
+	DetailLayoutBuilderWeak = InDetailBuilder;
+	FPhysicsControlAssetPreviewDetailsCustomization::CustomizeDetails(*InDetailBuilder);
+
+	if (TSharedPtr<FPhysicsControlAssetEditor> PCAE = PhysicsControlAssetEditor.Pin())
+	{
+		if (UPhysicsControlAsset* PhysicsControlAsset = PCAE->GetEditorData()->PhysicsControlAsset.Get())
+		{
+			PhysicsControlAsset->OnControlAssetCompiled().AddSP(
+				this, &FPhysicsControlAssetPreviewDetailsCustomization::OnControlAssetCompiled);
+		}
+	}
+}
+
+//======================================================================================================================
 void FPhysicsControlAssetPreviewDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayoutBuilder)
 {
-	BindCommands();
-
 	DetailLayoutBuilder.HideCategory(TEXT("PreviewMesh"));
 	DetailLayoutBuilder.HideCategory(TEXT("Actions"));
 	DetailLayoutBuilder.HideCategory(TEXT("Inheritance"));
 	DetailLayoutBuilder.HideCategory(TEXT("Setup"));
 	DetailLayoutBuilder.HideCategory(TEXT("Profiles"));
+	DetailLayoutBuilder.HideCategory(TEXT("ProfileEditing"));
+	DetailLayoutBuilder.HideCategory(TEXT("SetupEditing"));
 
 	TSharedPtr<FPhysicsControlAssetEditorData> EditorData = PhysicsControlAssetEditor.Pin()->GetEditorData();
 	UPhysicsControlAsset* PCA = EditorData->PhysicsControlAsset.Get();
@@ -56,44 +70,40 @@ void FPhysicsControlAssetPreviewDetailsCustomization::CustomizeDetails(IDetailLa
 		for (const TPair<FName, FPhysicsControlControlAndModifierUpdates>& ProfilePair : PCA->Profiles)
 		{
 			const FName ProfileName = ProfilePair.Key;
-			DetailCategoryBuilder.AddCustomRow(
-				FText::FromName(ProfileName))
-				.NameContent()
-				[
-					SNew(STextBlock)
-						.Font(DetailLayoutBuilder.GetDetailFont())
-						.Text(FText::FromName(ProfileName))
-				]
-				.ValueContent()
+			FDetailWidgetRow& Row = DetailCategoryBuilder.AddCustomRow(FText::FromName(ProfileName));
+			Row.WholeRowContent()
 				[
 					SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-						.ContentPadding(FMargin(6, 2))
-						.Text(LOCTEXT("Invoke", "Invoke"))
+						.Text(FText::FromName(ProfileName))
 						.OnClicked(this, &FPhysicsControlAssetPreviewDetailsCustomization::InvokeControlProfile, ProfileName)
 				];
 		}
 	}
-
-}
-
-//======================================================================================================================
-// TODO Is this needed?
-void FPhysicsControlAssetPreviewDetailsCustomization::BindCommands()
-{
 }
 
 //======================================================================================================================
 FReply FPhysicsControlAssetPreviewDetailsCustomization::InvokeControlProfile(FName ProfileName)
 {
-	TSharedPtr<FPhysicsControlAssetEditorData> EditorData = PhysicsControlAssetEditor.Pin()->GetEditorData();
-	UPhysicsControlComponent* PCC = EditorData->PhysicsControlComponent.Get();
-	if (PCC)
+	if (TSharedPtr<FPhysicsControlAssetEditor> PCAE = PhysicsControlAssetEditor.Pin())
 	{
-		PCC->InvokeControlProfile(ProfileName);
+		PCAE->InvokeControlProfile(ProfileName);
 	}
 	return FReply::Handled();
 }
 
+//======================================================================================================================
+void FPhysicsControlAssetPreviewDetailsCustomization::OnControlAssetCompiled(bool bProfileListChanged)
+{
+	if (bProfileListChanged)
+	{
+		if (DetailLayoutBuilderWeak.IsValid())
+		{
+			if (IDetailLayoutBuilder* DetailLayoutBuilder = DetailLayoutBuilderWeak.Pin().Get())
+			{
+				DetailLayoutBuilder->ForceRefreshDetails();
+			}
+		}
+	}
+}
 
 #undef LOCTEXT_NAMESPACE

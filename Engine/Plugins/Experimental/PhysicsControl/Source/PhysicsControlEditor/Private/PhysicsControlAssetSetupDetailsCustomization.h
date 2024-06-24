@@ -27,9 +27,10 @@ public:
 	// IDetailCustomization interface
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
 
-private:
-	void BindCommands();
+protected:
+	void OnSetupChanged();
+	void OnSetupDetailsChanged();
 
-private:
+protected:
 	TWeakPtr<FPhysicsControlAssetEditor> PhysicsControlAssetEditor;
 };

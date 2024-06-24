@@ -123,7 +123,7 @@ public:
 	 *        SetControlEnabled(true) in order to enable it.
 	 * @return True if a new control was created, false if a control of the specified name already exists
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool CreateNamedControl(
 		FName                         Name,
 		UPrimitiveComponent*          ParentComponent,
@@ -310,12 +310,18 @@ public:
 		const bool                                   bEnabled = true);
 
 	/**
+	 * Destroys all controls and body modifiers
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void DestroyAllControlsAndBodyModifiers();
+
+	/**
 	 * Destroys a control
 	 *
 	 * @param Name The name of the control to destroy. 
 	 * @return     Returns true if the control was found and destroyed, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool DestroyControl(const FName Name);
 
 	/**
@@ -340,7 +346,7 @@ public:
 	 * Updates the parent object part of a control. Note that this won't change the name of the control (which may
 	 * subsequently be misleading), or any set it is included in, etc.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlParent(
 		const FName          Name, 
 		UPrimitiveComponent* ParentComponent,
@@ -369,7 +375,7 @@ public:
 	 * @param ControlData The new control data
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlData(const FName Name, const FPhysicsControlData ControlData);
 
 	/**
@@ -399,7 +405,7 @@ public:
 	 * @param ControlData The new control data
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlSparseData(const FName Name, const FPhysicsControlSparseData ControlData);
 
 	/**
@@ -430,7 +436,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlMultiplier
 	(const FName Name, const FPhysicsControlMultiplier ControlMultiplier, const bool bEnableControl = true);
 
@@ -470,7 +476,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlSparseMultiplier(
 		const FName Name, const FPhysicsControlSparseMultiplier ControlMultiplier, const bool bEnableControl = true);
 
@@ -513,7 +519,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlLinearData(
 		const FName Name,
 		const float Strength = 1.0f, 
@@ -533,7 +539,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlAngularData(
 		const FName Name,
 		const float Strength = 1.0f, 
@@ -549,7 +555,7 @@ public:
 	 * @param Position The position of the control point on the child mesh object (only relevant if that 
 	 *        object is in use and is being simulated)
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlPoint(const FName Name, const FVector Position);
 
 	/**
@@ -557,7 +563,7 @@ public:
 	 *
 	 * @param Name The name of the control to modify. 
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool ResetControlPoint(const FName Name);
 
 	/**
@@ -568,7 +574,7 @@ public:
 	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTarget(const FName Name, const FPhysicsControlTarget ControlTarget, const bool bEnableControl = true);
 
 	/**
@@ -614,9 +620,9 @@ public:
 	 *        want to specify the target transform for the object as a whole. If false, then the 
 	 *        target transform is used as is, and the system drives the control point towards this
 	 *        transform.
-	 * @return                  Returns true if the control was found and modified, false if not
+	 * @return Returns true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPositionAndOrientation(
 		const FName    Name,
 		const FVector  Position,
@@ -666,7 +672,7 @@ public:
 	 *        transform.
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPosition(
 		const FName   Name,
 		const FVector Position, 
@@ -713,7 +719,7 @@ public:
 	 *        transform.
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetOrientation(
 		const FName    Name,
 		const FRotator Orientation, 
@@ -748,7 +754,7 @@ public:
 	 * in size.
 	 * @return true if the control/position arrays match, false if they don't.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPositionsFromArray(
 		const TArray<FName>&   Names,
 		const TArray<FVector>& Positions, 
@@ -761,7 +767,7 @@ public:
 	 * in size.
 	 * @return true if the control/position arrays match, false if they don't.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetOrientationsFromArray(
 		const TArray<FName>&    Names,
 		const TArray<FRotator>& Orientations, 
@@ -774,7 +780,7 @@ public:
 	 * These array should match in size.
 	 * @return true if the control/position/orientation arrays match, false if they don't.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPositionsAndOrientationsFromArray(
 		const TArray<FName>&    Names,
 		const TArray<FVector>&  Positions,
@@ -797,7 +803,7 @@ public:
 	 * @param bEnableControl    Enables the control if it is currently disabled
 	 * @return                  Returns true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlTargetPoses(
 		const FName    Name,
 		const FVector  ParentPosition, 
@@ -818,7 +824,7 @@ public:
 	 *        the amount of velocity extracted from the animation that is used as targets for the controls
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlUseSkeletalAnimation(
 		const FName Name,
 		const bool  bUseSkeletalAnimation = true,
@@ -863,7 +869,7 @@ public:
 	 * @param bEnable  Whether to enable/disable the control
 	 * @return         Returns true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlEnabled(const FName Name, const bool bEnable = true);
 
 	/**
@@ -891,7 +897,7 @@ public:
 	 * @param bDisableCollision If set then the control will disable collision between the bodies it connects.
 	 * @return true if the control was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetControlDisableCollision(const FName Name, const bool bDisableCollision);
 
 	/**
@@ -914,7 +920,7 @@ public:
 	 * @param Control  The control data that will be filled in if found
 	 * @return         Returns true if the control was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlData(const FName Name, FPhysicsControlData& ControlData) const;
 
 	/**
@@ -922,7 +928,7 @@ public:
 	 * @param Control  The control multipliers that will be filled in if found
 	 * @return         Returns true if the control was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlMultiplier(const FName Name, FPhysicsControlMultiplier& ControlMultiplier) const;
 
 	/**
@@ -930,14 +936,14 @@ public:
 	 * @param Control  The control target, if found
 	 * @return         Returns true if the control was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlTarget(const FName Name, FPhysicsControlTarget& ControlTarget) const;
 
 	/**
 	 * @param Name        The name of the control to access. 
 	 * @return            Returns true if the control is enabled
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlEnabled(const FName Name) const;
 
 	/**
@@ -966,7 +972,7 @@ public:
 	 *        gets added to the set "All"
 	 * @param BodyModifierData The initial properties of the modifier
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool CreateNamedBodyModifier(
 		const FName                       Name,
 		UPrimitiveComponent*              Component,
@@ -1015,7 +1021,7 @@ public:
 	 * @param Name        The name of the body modifier to destroy. 
 	 * @return            Returns true if the body modifier was found and destroyed, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool DestroyBodyModifier(const FName Name);
 
 	/**
@@ -1043,7 +1049,7 @@ public:
 	 * @param ModifierData The new data
 	 * @return true if the modifier was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierData(const FName Name, const FPhysicsControlModifierData ModifierData);
 
 	/**
@@ -1073,7 +1079,7 @@ public:
 	 * @param ModifierData The new data
 	 * @return true if the modifier was found and modified, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierSparseData(const FName Name, const FPhysicsControlModifierSparseData ModifierData);
 
 	/**
@@ -1107,7 +1113,7 @@ public:
 	 * @param bMakeKinematic If set then the body will be made kinematic. If not set, then it won't be changed.
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierKinematicTarget(
 		const FName    Name,
 		const FVector  KinematicTargetPosition, 
@@ -1121,7 +1127,7 @@ public:
 	 * @param MovementType Whether to enable/disable simulation on the body
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierMovementType(
 		const FName                Name,
 		const EPhysicsMovementType MovementType = EPhysicsMovementType::Simulated);
@@ -1157,7 +1163,7 @@ public:
 	 * @param CollisionType Collision type to set on the body
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierCollisionType(
 		const FName                   Name,
 		const ECollisionEnabled::Type CollisionType = ECollisionEnabled::QueryAndPhysics);
@@ -1193,7 +1199,7 @@ public:
 	 * @param GravityMultiplier The amount of gravity to apply when simulating
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierGravityMultiplier(
 		const FName Name,
 		const float GravityMultiplier = 1.0f);
@@ -1230,7 +1236,7 @@ public:
 	 *        animation and that coming from simulation.
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierPhysicsBlendWeight(
 		const FName Name,
 		const float PhysicsBlendWeight = 1.0f);
@@ -1269,7 +1275,7 @@ public:
 	 *        animation, rather than world space. Only relevant if the body is part of a skeletal mesh.
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierUseSkeletalAnimation(
 		const FName Name,
 		const bool  bUseSkeletalAnimation);
@@ -1312,7 +1318,7 @@ public:
 	 *        dynamic ones.
 	 * @return true if the body modifier was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetBodyModifierUpdateKinematicFromSimulation(
 		const FName Name,
 		const bool  bUpdateKinematicFromSimulation);
@@ -1362,8 +1368,8 @@ public:
 	 * It is also possible to specify a mesh component to use for the "world" object - so that the world controls can 
 	 * be made to work in the space of another object (or a bone if that is a skeletal mesh component)
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void CreateControlsAndBodyModifiersFromLimbBones(
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
+	bool CreateControlsAndBodyModifiersFromLimbBones(
 		FPhysicsControlNames&                       AllWorldSpaceControls,
 		TMap<FName, FPhysicsControlNames>&          LimbWorldSpaceControls,
 		FPhysicsControlNames&                       AllParentSpaceControls,
@@ -1379,22 +1385,24 @@ public:
 		FName                                       WorldBoneName = NAME_None);
 
 	/**
-	 * This uses the control profile asset (that should have already been set) to create
-	 * controls and body modifiers
+	 * This uses the control profile asset (that should have already been assigned in our data) to create
+	 * controls and body modifiers.
 	 * It is also possible to specify a mesh component to use for the "world" object - so that the world controls can
 	 * be made to work in the space of another object (or a bone if that is a skeletal mesh component)
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void CreateControlsAndBodyModifiersFromControlProfileAsset(
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
+	bool CreateControlsAndBodyModifiersFromPhysicsControlAsset(
 		USkeletalMeshComponent* SkeletalMeshComponent,
 		UPrimitiveComponent*    WorldComponent,
 		FName                   WorldBoneName);
 
 	/**
 	 * Looks up the profile which should exist in the registered control profile asset, and invokes it.
+	 * 
+	 * @return true if successful, and false if the profile cannot be found.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	void InvokeControlProfile(FName ProfileName);
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
+	bool InvokeControlProfile(FName ProfileName);
 
 	/**
 	 * Adds a Control to a Set. This will add a new set if necessary. For example, you might
@@ -1552,7 +1560,7 @@ public:
 	 * 
 	 * @return true if successful, and false if no cached target can be found for the bone.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool SetCachedBoneData(
 		const USkeletalMeshComponent* SkeletalMeshComponent,
 		const FName                   BoneName, 
@@ -1574,7 +1582,7 @@ public:
 	 * 
 	 * @return true if the body modifier is found (even if no cached target is found), and false otherwise.
 	 */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool ResetBodyModifierToCachedBoneTransform(
 		const FName                        Name,
 		const EResetToCachedTargetBehavior Behavior = EResetToCachedTargetBehavior::ResetImmediately);
@@ -1596,11 +1604,11 @@ public:
 		const EResetToCachedTargetBehavior Behavior = EResetToCachedTargetBehavior::ResetImmediately);
 
 	/** Indicates if a control with the name exists (doesn't produce a warning if it doesn't) */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetControlExists(const FName Name) const;
 
 	/** Indicates if a body modifier with the name exists (doesn't produce a warning if it doesn't) */
-	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl, Meta = (ReturnDisplayName = "Success"))
 	bool GetBodyModifierExists(const FName Name) const;
 
 public:

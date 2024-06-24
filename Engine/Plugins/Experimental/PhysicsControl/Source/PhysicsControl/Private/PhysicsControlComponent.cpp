@@ -686,6 +686,13 @@ TMap<FName, FPhysicsControlNames> UPhysicsControlComponent::CreateControlsFromLi
 }
 
 //======================================================================================================================
+void UPhysicsControlComponent::DestroyAllControlsAndBodyModifiers()
+{
+	DestroyControlsInSet(TEXT("All"));
+	DestroyBodyModifiersInSet(TEXT("All"));
+}
+
+//======================================================================================================================
 bool UPhysicsControlComponent::DestroyControl(const FName Name)
 {
 	return DestroyControl(Name, EDestroyBehavior::RemoveRecord);
@@ -2050,11 +2057,11 @@ void UPhysicsControlComponent::SetBodyModifiersInSetUpdateKinematicFromSimulatio
 //======================================================================================================================
 const TArray<FName>& UPhysicsControlComponent::GetAllControlNames() const
 {
-	return GetControlNamesInSet("All");
+	return GetControlNamesInSet(TEXT("All"));
 }
 
 //======================================================================================================================
-void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromLimbBones(
+bool UPhysicsControlComponent::CreateControlsAndBodyModifiersFromLimbBones(
 	FPhysicsControlNames&                       AllWorldSpaceControls,
 	TMap<FName, FPhysicsControlNames>&          LimbWorldSpaceControls,
 	FPhysicsControlNames&                       AllParentSpaceControls,
@@ -2069,6 +2076,13 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromLimbBones(
 	UPrimitiveComponent*                        WorldComponent,
 	FName                                       WorldBoneName)
 {
+	UPhysicsAsset* PhysicsAsset = SkeletalMeshComponent ? SkeletalMeshComponent->GetPhysicsAsset() : nullptr;
+	if (!PhysicsAsset)
+	{
+		UE_LOG(LogPhysicsControl, Warning, TEXT("No physics asset in skeletal mesh"));
+		return false;
+	}
+
 	TMap<FName, FPhysicsControlLimbBones> LimbBones = 
 		GetLimbBonesFromSkeletalMesh(SkeletalMeshComponent, LimbSetupData);
 
@@ -2081,19 +2095,21 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromLimbBones(
 		ParentSpaceControlData);
 
 	LimbBodyModifiers = CreateBodyModifiersFromLimbBones(AllBodyModifiers, LimbBones, BodyModifierData);
+
+	return true;
 }
 
 //======================================================================================================================
-void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileAsset(
+bool UPhysicsControlComponent::CreateControlsAndBodyModifiersFromPhysicsControlAsset(
 	USkeletalMeshComponent* SkeletalMeshComponent,
 	UPrimitiveComponent*    WorldComponent,
 	FName                   WorldBoneName)
 {
-	if (!PhysicsControlAsset.IsValid())
+	if (!PhysicsControlAsset.LoadSynchronous())
 	{
 		UE_LOG(LogPhysicsControl, Warning,
-			TEXT("CreateControlsAndBodyModifiersFromControlProfile - unable to get/load the control profile asset"));
-		return;
+			TEXT("CreateControlsAndBodyModifiersFromPhysicsControlAsset - unable to get/load the control profile asset"));
+		return false;
 	}
 
 	FPhysicsControlNames AllWorldSpaceControls;
@@ -2103,7 +2119,7 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileA
 	FPhysicsControlNames AllBodyModifiers;
 	TMap<FName, FPhysicsControlNames> LimbBodyModifiers;
 
-	CreateControlsAndBodyModifiersFromLimbBones(
+	if (!CreateControlsAndBodyModifiersFromLimbBones(
 		AllWorldSpaceControls, LimbWorldSpaceControls, AllParentSpaceControls, LimbParentSpaceControls, 
 		AllBodyModifiers, LimbBodyModifiers,
 		SkeletalMeshComponent,
@@ -2112,7 +2128,12 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileA
 		PhysicsControlAsset->CharacterSetupData.DefaultParentSpaceControlData,
 		PhysicsControlAsset->CharacterSetupData.DefaultBodyModifierData,
 		WorldComponent,
-		WorldBoneName);
+		WorldBoneName))
+	{
+		// We assume that if this one fails, then everything fails. Also that if we can create the
+		// basic setup, then the rest is OK too.
+		return false;
+	}
 
 	// Create additional controls
 	for (const TPair<FName, FPhysicsControlCreationData>& ControlPair : 
@@ -2158,10 +2179,11 @@ void UPhysicsControlComponent::CreateControlsAndBodyModifiersFromControlProfileA
 	{
 		ApplyControlAndModifierUpdates(Updates);
 	}
+	return true;
 }
 
 //======================================================================================================================
-void UPhysicsControlComponent::InvokeControlProfile(FName ProfileName)
+bool UPhysicsControlComponent::InvokeControlProfile(FName ProfileName)
 {
 	if (!PhysicsControlAsset.IsValid())
 	{
@@ -2170,7 +2192,7 @@ void UPhysicsControlComponent::InvokeControlProfile(FName ProfileName)
 			UE_LOG(LogPhysicsControl, Warning,
 				TEXT("InvokeControlProfile - control profile asset is invalid or missing"));
 		}
-		return;
+		return false;
 	}
 
 	const FPhysicsControlControlAndModifierUpdates* ControlAndModifierUpdates =
@@ -2183,12 +2205,12 @@ void UPhysicsControlComponent::InvokeControlProfile(FName ProfileName)
 			UE_LOG(LogPhysicsControl, Warning,
 				TEXT("InvokeControlProfile - control profile %s not found"), *ProfileName.ToString());
 		}
-		return;
+		return false;
 	}
 
 	ApplyControlAndModifierUpdates(*ControlAndModifierUpdates);
 
-	return;
+	return true;
 }
 
 //======================================================================================================================
@@ -2289,7 +2311,7 @@ const TArray<FName>& UPhysicsControlComponent::GetControlNamesInSet(const FName 
 //======================================================================================================================
 const TArray<FName>& UPhysicsControlComponent::GetAllBodyModifierNames() const
 {
-	return GetBodyModifierNamesInSet("All");
+	return GetBodyModifierNamesInSet(TEXT("All"));
 }
 
 //======================================================================================================================
