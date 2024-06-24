@@ -4,7 +4,10 @@ using EpicGames.Horde.Acls;
 
 namespace HordeServer.Telemetry
 {
-	static class TelemetryAclAction
+	/// <summary>
+	/// ACL actions for telemetry operations
+	/// </summary>
+	public static class TelemetryAclAction
 	{
 		/// <summary>
 		/// Ability to search for various metrics
