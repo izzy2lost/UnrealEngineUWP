@@ -156,7 +156,7 @@ namespace HordeServer.Tools
 			if (request.State != null)
 			{
 				deployment = await deployment.UpdateAsync(request.State.Value, HttpContext.RequestAborted);
-				if (deployment == null)
+				if (request.State != ToolDeploymentState.Cancelled && deployment == null)
 				{
 					return NotFound(id, deploymentId);
 				}
