@@ -23,6 +23,7 @@
 #include "Logging/MessageLog.h"
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/Nodes/MovieGraphGlobalGameOverrides.h"
+#include "LevelSequence.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelinePIEExecutor)
 

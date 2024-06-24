@@ -12,6 +12,7 @@
 #include "MoviePipelineQueue.h"
 #include "MoviePipelinePrimaryConfig.h"
 #include "MoviePipelineQueueSubsystem.h"
+#include "LevelSequence.h"
 
 // Slate Includes
 #include "Widgets/SBoxPanel.h"

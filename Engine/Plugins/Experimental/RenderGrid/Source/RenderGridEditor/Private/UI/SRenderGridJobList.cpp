@@ -17,6 +17,7 @@
 #include "MoviePipelinePrimaryConfig.h"
 #include "MoviePipelineQueue.h"
 #include "MovieScene.h"
+#include "MovieSceneSequence.h"
 #include "PropertyCustomizationHelpers.h"
 #include "ScopedTransaction.h"
 #include "SlateOptMacros.h"
