@@ -124,10 +124,10 @@ namespace BuildPatchServices
 			// Save position
 			const TCHAR* EndOfLine = CharPtr;
 			// Grab info
-			FString Filename = FString(FilenameEnd - FilenameStart, FilenameStart).Replace(TEXT("\\"), TEXT("/"));
+			FString Filename = FString::ConstructFromPtrSize(FilenameStart, FilenameEnd - FilenameStart).Replace(TEXT("\\"), TEXT("/"));
 			FFileAttributes& FileAttributes = FileAttributesMap.FindOrAdd(Filename);
 			TArray<FString> AttributeParamsArray;
-			FString AttributeParams(EndOfLine - AttributesStart, AttributesStart);
+			FString AttributeParams = FString::ConstructFromPtrSize(AttributesStart, EndOfLine - AttributesStart);
 			AttributeParams.ParseIntoArrayWS(AttributeParamsArray);
 			for (const FString& AttributeParam : AttributeParamsArray)
 			{

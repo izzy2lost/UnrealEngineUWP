@@ -948,7 +948,7 @@ bool IAnalyzer::FEventData::GetString(const ANSICHAR* FieldName, FString& Out) c
 
 		if (Field.SizeAndType == sizeof(ANSICHAR))
 		{
-			Out = FString(Data->DataSize, (const ANSICHAR*)(Data->Data));
+			Out = FString::ConstructFromPtrSize((const ANSICHAR*)(Data->Data), Data->DataSize);
 			return true;
 		}
 

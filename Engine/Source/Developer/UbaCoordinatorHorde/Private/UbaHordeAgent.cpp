@@ -94,7 +94,7 @@ bool FUbaHordeAgent::UploadBinaries(const FString& BundleDirectory, const char* 
 
 	auto FindOrAddBlobFile = [&BlobFiles, &BundleDirectory](const AgentMessage::FBlobRequest& BlobRequest) -> FArchive*
 		{
-			const FString Locator(BlobRequest.Locator.Len(), BlobRequest.Locator.GetData());
+			const FString Locator = FString::ConstructFromPtrSize(BlobRequest.Locator.GetData(), BlobRequest.Locator.Len());
 
 			if (Locator.IsEmpty())
 			{

@@ -193,7 +193,7 @@ IStorageServerHttpClient::FResult FBuiltInHttpClient::RequestSync(
 	}
 	else
 	{
-		FString ErrorMessage = bHasResponsePayload ? FString(ResponsePayload->GetSize(), ANSI_TO_TCHAR(reinterpret_cast<ANSICHAR*>(ResponsePayload->GetData()))) : TEXT("Unknown error");
+		FString ErrorMessage = bHasResponsePayload ? FString::ConstructFromPtrSize(ANSI_TO_TCHAR(reinterpret_cast<ANSICHAR*>(ResponsePayload->GetData())), ResponsePayload->GetSize()) : TEXT("Unknown error");
 
 		return {TIoStatusOr<FIoBuffer>(FIoStatus(ErrorCode, ErrorMessage)), ContentType};
 	}

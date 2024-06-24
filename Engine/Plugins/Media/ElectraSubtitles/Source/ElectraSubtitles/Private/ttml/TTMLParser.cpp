@@ -74,19 +74,19 @@ struct ExpatUtils
 	static FString ToFStringL(const XML_LChar* In)
 	{
 		FUTF8ToTCHAR Converted((const ANSICHAR*)In);
-		return FString(Converted.Length(), (TCHAR*)Converted.Get());
+		return FString::ConstructFromPtrSize((TCHAR*)Converted.Get(), Converted.Length());
 	}
 
 	static FString ToFString(const XML_Char* In)
 	{
 		FUTF8ToTCHAR Converted((const ANSICHAR*)In);
-		return FString(Converted.Length(), (TCHAR*)Converted.Get());
+		return FString::ConstructFromPtrSize((TCHAR*)Converted.Get(), Converted.Length());
 	}
 
 	static FString ToFString(const XML_Char* In, int32 Len)
 	{
 		FUTF8ToTCHAR Converted((const ANSICHAR*)In, Len);
-		return FString(Converted.Length(), (TCHAR*)Converted.Get());
+		return FString::ConstructFromPtrSize((TCHAR*)Converted.Get(), Converted.Length());
 	}
 
 	static TArray<FXmlAttribute> ToAttributes(const XML_Char** InAtts)

@@ -42,7 +42,7 @@ FString FOpenXRPath::ToString() const
 	char PathChars[XR_MAX_PATH_LENGTH];
 	XrResult Result = xrPathToString(Instance, Path, XR_MAX_PATH_LENGTH, &PathCount, PathChars);
 	check(XR_SUCCEEDED(Result));
-	return XR_SUCCEEDED(Result) ? FString(PathCount - 1, PathChars) : FString();
+	return XR_SUCCEEDED(Result) ? FString::ConstructFromPtrSize(PathChars, PathCount - 1) : FString();
 }
 
 uint32 FOpenXRPath::GetStringLength() const

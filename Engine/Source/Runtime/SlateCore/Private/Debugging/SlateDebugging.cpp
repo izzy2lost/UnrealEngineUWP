@@ -505,7 +505,7 @@ void FSlateDebugging::BroadcastInputEvent(ESlateDebuggingInputEvent InputEventTy
 {
 	if (InReply.IsEventHandled() && InputEvent.IsBound())
 	{
-		InputEvent.Broadcast(FSlateDebuggingInputEventArgs(InputEventType, InInputEvent, InReply, HandlerWidget, FString(1, &AdditionalContent)));
+		InputEvent.Broadcast(FSlateDebuggingInputEventArgs(InputEventType, InInputEvent, InReply, HandlerWidget, FString::ConstructFromPtrSize(&AdditionalContent, 1)));
 	}
 	for (IWidgetInputRoutingEvent* Event : RoutingEvents)
 	{

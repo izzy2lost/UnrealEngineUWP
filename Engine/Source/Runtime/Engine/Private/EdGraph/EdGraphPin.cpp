@@ -1174,7 +1174,7 @@ bool UEdGraphPin::ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, class UO
 		// Advance over the '='
 		Buffer++;
 
-		FString PropertyToken(NumCharsInToken, StartBuffer);
+		FString PropertyToken = FString::ConstructFromPtrSize(StartBuffer, NumCharsInToken);
 		PropertyToken.TrimEndInline();
 		bool bParseSuccess = false;
 		if (PropertyToken == PinHelpers::PinIdName)
@@ -2166,7 +2166,7 @@ EPinResolveResult PinHelpers::ImportText_PinReference(const TCHAR*& Buffer, UEdG
 		Buffer++;
 	}
 
-	FString PinRefLine(Buffer - BufferStart, BufferStart);
+	FString PinRefLine = FString::ConstructFromPtrSize(BufferStart, Buffer - BufferStart);
 	FString OwningNodeString;
 	FString PinGuidString;
 	if (PinRefLine.Split(TEXT(" "), &OwningNodeString, &PinGuidString, ESearchCase::CaseSensitive, ESearchDir::FromEnd))

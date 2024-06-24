@@ -1115,7 +1115,7 @@ bool UGatherTextFromSourceCommandlet::FMacroArgumentGatherer::Gather(const TCHAR
 	{
 		return false;
 	}
-	FString NewArgument = FString(Count, Arg);
+	FString NewArgument = FString::ConstructFromPtrSize(Arg, Count);
 	NewArgument.TrimEndInline();
 
 	int32 CurrentArgLen = CurrentArgument.Len();

@@ -1256,7 +1256,7 @@ static FString ParseEntrypointDecl(FShaderSource::FViewType PreprocessedShader, 
 		}
 		++DeclBegin;
 
-		EntryPointDecl = FString(DeclEnd - DeclBegin, &PreprocessedShader[DeclBegin]);
+		EntryPointDecl = FString::ConstructFromPtrSize(&PreprocessedShader[DeclBegin], DeclEnd - DeclBegin);
 		EraseDebugLines(EntryPointDecl);
 		EntryPointDecl.TrimStartAndEndInline();
 		break;
@@ -1283,7 +1283,7 @@ uint8 ParseWaveSize(
 			const int32 EndNumber = EntrypointDecl.Find(TEXT(")"), ESearchCase::CaseSensitive, ESearchDir::FromStart, StartNumber);
 			check(EndNumber != INDEX_NONE);
 
-			FString WaveSizeValue(EndNumber - StartNumber, &EntrypointDecl[StartNumber]);
+			FString WaveSizeValue = FString::ConstructFromPtrSize(&EntrypointDecl[StartNumber], EndNumber - StartNumber);
 			WaveSizeValue.RemoveSpacesInline();
 			if (WaveSizeValue != TEXT("N"))  // skip the macro decl
 			{
@@ -1503,7 +1503,7 @@ static TArray<FString> ConvertUBToBindless(FString& PreprocessedShaderSource)
 			const TCHAR* MemberTypeStartPtr = nullptr;
 			const TCHAR* MemberTypeEndPtr = nullptr;
 			ParseHLSLTypeName(MemberSearchPtr, MemberTypeStartPtr, MemberTypeEndPtr);
-			const FString MemberTypeName(MemberTypeEndPtr - MemberTypeStartPtr, MemberTypeStartPtr);
+			const FString MemberTypeName = FString::ConstructFromPtrSize(MemberTypeStartPtr, MemberTypeEndPtr - MemberTypeStartPtr);
 
 			FString MemberName;
 			MemberSearchPtr = ParseHLSLSymbolName(MemberTypeEndPtr, MemberName);
@@ -1570,7 +1570,7 @@ static TArray<FString> ConvertUBToBindless(FString& PreprocessedShaderSource)
 			check(ClosingBracePtr);
 			const int32 ClosingBraceIndex = ClosingBracePtr - (*PreprocessedShaderSource);
 
-			const FString Members(ClosingBracePtr - OpeningBracePtr - 1, OpeningBracePtr + 1);
+			const FString Members = FString::ConstructFromPtrSize(OpeningBracePtr + 1, ClosingBracePtr - OpeningBracePtr - 1);
 			const FString NewDecl = GenerateNewDecl(CBIndex, Members, StructName);
 
 			const int32 OldDeclLen = ClosingBraceIndex - SearchIndex + 1;

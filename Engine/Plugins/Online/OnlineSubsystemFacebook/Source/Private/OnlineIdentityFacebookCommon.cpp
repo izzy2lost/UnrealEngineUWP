@@ -204,7 +204,7 @@ FUniqueNetIdPtr FOnlineIdentityFacebookCommon::CreateUniquePlayerId(uint8* Bytes
 {
 	if (Bytes != nullptr && Size > 0)
 	{
-		FString StrId(Size, (TCHAR*)Bytes);
+		FString StrId = FString::ConstructFromPtrSize((TCHAR*)Bytes, Size);
 		return FUniqueNetIdFacebook::Create(StrId);
 	}
 	return nullptr;

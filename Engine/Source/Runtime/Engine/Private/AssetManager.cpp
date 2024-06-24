@@ -1841,7 +1841,7 @@ TSharedPtr<FStreamableHandle> UAssetManager::ChangeBundleStateForPrimaryAssets(c
 				DebugName << TEXT(")");
 			}
 
-			NewHandle = LoadAssetList(MoveTemp(PathsToLoad), FStreamableDelegate(), Priority, FString(DebugName.Len(), DebugName.ToString()));
+			NewHandle = LoadAssetList(MoveTemp(PathsToLoad), FStreamableDelegate(), Priority, FString::ConstructFromPtrSize(DebugName.ToString(), DebugName.Len()));
 
 			if (!NewHandle.IsValid())
 			{

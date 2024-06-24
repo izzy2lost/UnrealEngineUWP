@@ -49,7 +49,7 @@ public:
 	virtual inline FOnlineSessionId FromReplicationData(const TArray<uint8>& ReplicationData) override
 	{
 		const FUTF8ToTCHAR IdValueTCHAR((char*)ReplicationData.GetData(), ReplicationData.Num());
-		const FString IdValue = FString(IdValueTCHAR.Length(), IdValueTCHAR.Get());
+		const FString IdValue = FString::ConstructFromPtrSize(IdValueTCHAR.Get(), IdValueTCHAR.Length());
 
 		if (!IdValue.IsEmpty())
 		{
@@ -114,7 +114,7 @@ public:
 	virtual inline FSessionInviteId FromReplicationData(const TArray<uint8>& ReplicationData) override
 	{
 		const FUTF8ToTCHAR IdValueTCHAR((char*)ReplicationData.GetData(), ReplicationData.Num());
-		const FString IdValue = FString(IdValueTCHAR.Length(), IdValueTCHAR.Get());
+		const FString IdValue = FString::ConstructFromPtrSize(IdValueTCHAR.Get(), IdValueTCHAR.Length());
 
 		if (!IdValue.IsEmpty())
 		{

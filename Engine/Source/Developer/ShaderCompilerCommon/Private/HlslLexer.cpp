@@ -752,7 +752,7 @@ namespace CrossCompiler
 			}
 
 		Done:
-			OutLiteral = FString(static_cast<int32>(Current - Original), Original);
+			OutLiteral = FString::ConstructFromPtrSize(Original, static_cast<int32>(Current - Original));
 			OutType = Type;
 			return true;
 

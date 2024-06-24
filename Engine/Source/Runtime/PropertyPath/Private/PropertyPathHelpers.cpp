@@ -676,7 +676,7 @@ FPropertyPathSegment::FPropertyPathSegment(int32 InCount, const TCHAR* InString)
 	int32 PropertyNameLength = 0;
 	PropertyPathHelpers::FindFieldNameAndArrayIndex(InCount, InString, PropertyNameLength, &PropertyName, ArrayIndex);
 	ensure(PropertyName != nullptr);
-	FString PropertyNameString(PropertyNameLength, PropertyName);
+	FString PropertyNameString = FString::ConstructFromPtrSize(PropertyName, PropertyNameLength);
 	Name = FName(*PropertyNameString, FNAME_Find);
 }
 
@@ -1047,7 +1047,7 @@ namespace PropertyPathHelpers
 			{
 				OutCount = Offset;
 				// here we need to copy - since we need a section of the string only
-				FString ArrayIndexString(InCount - Offset - 2, &InString[Offset + 1]);
+				FString ArrayIndexString = FString::ConstructFromPtrSize(&InString[Offset + 1], InCount - Offset - 2);
 				OutArrayIndex = FCString::Atoi(*ArrayIndexString);
 				break;
 		}

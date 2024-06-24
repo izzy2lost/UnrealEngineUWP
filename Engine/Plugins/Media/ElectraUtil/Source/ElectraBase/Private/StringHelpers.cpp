@@ -165,7 +165,7 @@ namespace Electra
 		FString ArrayToString(const TArray<uint8>& InArray)
 		{
 			FUTF8ToTCHAR cnv((const ANSICHAR*)InArray.GetData(), InArray.Num());
-			FString UTF8Text(cnv.Length(), cnv.Get());
+			FString UTF8Text = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 			//return (TCHAR*)FUTF8ToTCHAR((const ANSICHAR*)InArray.GetData(), InArray.Num()).Get();
 			//FString UTF8Text(InArray.Num(), (TCHAR*)FUTF8ToTCHAR((const ANSICHAR*)InArray.GetData(), InArray.Num()).Get());
 			return MoveTemp(UTF8Text);

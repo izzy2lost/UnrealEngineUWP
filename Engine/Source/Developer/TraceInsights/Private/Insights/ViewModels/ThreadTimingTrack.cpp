@@ -102,7 +102,7 @@ static void AppendMetadataToTooltip(FTooltipDrawState& Tooltip, TArrayView<const
 			break;
 		}
 
-		FString Key(static_cast<int32>(Context.AsLength()), Context.AsCString());
+		FString Key = FString::ConstructFromPtrSize(Context.AsCString(), static_cast<int32>(Context.AsLength()));
 		Key += TEXT(":");
 
 		if (!CborReader.ReadNext(Context))

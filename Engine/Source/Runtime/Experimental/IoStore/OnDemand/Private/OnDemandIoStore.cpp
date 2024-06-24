@@ -357,7 +357,7 @@ FString LexToString(EOnDemandContainerFlags Flags)
 {
 	TStringBuilder<128> Sb;
 	LexToString(Flags, Sb);
-	return FString(Sb.ToString(), Sb.Len());
+	return FString::ConstructFromPtrSize(Sb.ToString(), Sb.Len());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

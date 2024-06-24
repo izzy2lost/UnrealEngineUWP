@@ -118,7 +118,7 @@ bool FOpenXRHMDModule::PreInit()
 			{
 				WCHAR DeviceGuid[XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS];
 				GetAudioOutputDeviceGuidOculus(Instance, DeviceGuid);
-				OculusAudioOutputDevice = FString(XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS, DeviceGuid);
+				OculusAudioOutputDevice = FString::ConstructFromPtrSize(DeviceGuid, XR_MAX_AUDIO_DEVICE_STR_SIZE_OCULUS);
 			}
 		}
 		if (!CVarRetainPreInitInstance.GetValueOnAnyThread())

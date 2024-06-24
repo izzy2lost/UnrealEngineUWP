@@ -47,15 +47,15 @@ bool FDiagnosticsAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEventC
 		uint8 AppNameOffset = EventData.GetValue<uint8>("AppNameOffset");
 		uint8 CommandLineOffset = EventData.GetValue<uint8>("CommandLineOffset");
 
-		SessionInfo.Platform = FString(AppNameOffset, (const ANSICHAR*)Attachment);
+		SessionInfo.Platform = FString::ConstructFromPtrSize((const ANSICHAR*)Attachment, AppNameOffset);
 
 		Attachment += AppNameOffset;
 		int32 AppNameLength = CommandLineOffset - AppNameOffset;
-		SessionInfo.AppName = FString(AppNameLength, (const ANSICHAR*)Attachment);
+		SessionInfo.AppName = FString::ConstructFromPtrSize((const ANSICHAR*)Attachment, AppNameLength);
 
 		Attachment += AppNameLength;
 		int32 CommandLineLength = EventData.GetAttachmentSize() - CommandLineOffset;
-		SessionInfo.CommandLine = FString(CommandLineLength, (const ANSICHAR*)Attachment);
+		SessionInfo.CommandLine = FString::ConstructFromPtrSize((const ANSICHAR*)Attachment, CommandLineLength);
 
 		SessionInfo.ConfigurationType = (EBuildConfiguration)EventData.GetValue<uint8>("ConfigurationType");
 

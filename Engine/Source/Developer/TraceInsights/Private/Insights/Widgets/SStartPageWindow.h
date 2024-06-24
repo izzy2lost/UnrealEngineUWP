@@ -113,7 +113,7 @@ struct FTraceViewModel
 
 	static FText AnsiStringViewToText(const FAnsiStringView& AnsiStringView)
 	{
-		FString FatString(AnsiStringView.Len(), AnsiStringView.GetData());
+		FString FatString = FString::ConstructFromPtrSize(AnsiStringView.GetData(), AnsiStringView.Len());
 		return FText::FromString(FatString);
 	}
 };

@@ -514,7 +514,7 @@ void UDynamicMesh::ImportCustomProperties(const TCHAR* SourceText, FFeedbackCont
 			if (FoundMeshDataStart)
 			{
 				SourceText = FoundMeshDataStart + FCString::Strlen(MeshDataToken);
-				FString MeshData(MeshDataLen, SourceText);
+				FString MeshData = FString::ConstructFromPtrSize(SourceText, MeshDataLen);
 
 				// fix-up the hack applied to the Base64-encoded string in ExportCustomProperties()
 				for (int32 k = 0; k < MeshData.Len(); ++k)

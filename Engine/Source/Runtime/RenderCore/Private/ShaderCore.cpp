@@ -1509,7 +1509,7 @@ int HandleShaderCompileException(Windows::LPEXCEPTION_POINTERS Info, FString& Ou
 		const TCHAR* CallstackStart = FCString::Strfind(GErrorHist, TEXT("0x"));
 		if (CallstackStart && CallstackStart > GErrorHist)
 		{
-			OutExMsg = FString(CallstackStart - GErrorHist, GErrorHist);
+			OutExMsg = FString::ConstructFromPtrSize(GErrorHist, CallstackStart - GErrorHist);
 			OutCallStack = CallstackStart;
 		}
 		else
@@ -2695,7 +2695,7 @@ static void InternalGetShaderIncludes(const TCHAR* EntryPointVirtualFilePath, co
 				if (IncludeFilenameEnd)
 				{
 					//construct a string between the double quotations
-					FString ExtractedIncludeFilename(FString((int32)(IncludeFilenameEnd - IncludeFilenameBegin - 1), IncludeFilenameBegin + 1));
+					FString ExtractedIncludeFilename = FString::ConstructFromPtrSize(IncludeFilenameBegin + 1, (int32)(IncludeFilenameEnd - IncludeFilenameBegin - 1));
 
 					// If the include is relative, then it must be relative to the current virtual file path.
 					if (!ExtractedIncludeFilename.StartsWith(TEXT("/")))

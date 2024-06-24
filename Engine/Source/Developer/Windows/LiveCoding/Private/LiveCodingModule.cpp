@@ -349,7 +349,7 @@ void FLiveCodingModule::StartupModule()
 	{
 		TCHAR Scratch[MAX_PATH];
 		int Length = GetModuleFileNameEx(::GetCurrentProcess(), NULL, Scratch, MAX_PATH);
-		MainModuleName = FString(Length, Scratch);
+		MainModuleName = FString::ConstructFromPtrSize(Scratch, Length);
 	}
 
 	// https://docs.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb_ldr_data
@@ -401,7 +401,7 @@ void FLiveCodingModule::StartupModule()
 			break;
 		}
 
-		FString FullPath(ModuleData.FullDllName.Length / sizeof(ModuleData.FullDllName.Buffer[0]), ModuleData.FullDllName.Buffer);
+		FString FullPath = FString::ConstructFromPtrSize(ModuleData.FullDllName.Buffer, ModuleData.FullDllName.Length / sizeof(ModuleData.FullDllName.Buffer[0]));
 		if (!FullPath.Equals(MainModuleName, ESearchCase::IgnoreCase))
 		{
 			FPaths::NormalizeFilename(FullPath);
@@ -1496,7 +1496,7 @@ void FLiveCodingModule::OnDllNotification(unsigned int Reason, const void* DataP
 		UPTRINT	Base;
 	};
 	const auto& Data = *(FNotificationData*)DataPtr;
-	FString FullPath(Data.FullPath.Length / sizeof(Data.FullPath.Buffer[0]), Data.FullPath.Buffer);
+	FString FullPath = FString::ConstructFromPtrSize(Data.FullPath.Buffer, Data.FullPath.Length / sizeof(Data.FullPath.Buffer[0]));
 	FPaths::NormalizeFilename(FullPath);
 
 	switch (Reason)

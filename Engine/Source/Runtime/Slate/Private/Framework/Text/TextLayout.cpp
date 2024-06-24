@@ -610,7 +610,7 @@ void FTextLayout::FlowLineLayout(const int32 LineModelIndex, const float Wrappin
 
 				// This is a single word that's too long to fit onto a line, so we'll fallback to wrapping this word at grapheme cluster boundaries - this may require more than a single split
 				const int32 NonBreakingStringIndexOffset = PreviousBlockEnd;
-				const FString NonBreakingString = FString(Break.TrimmedRange.EndIndex - NonBreakingStringIndexOffset, **LineModel.Text + NonBreakingStringIndexOffset);
+				const FString NonBreakingString = FString::ConstructFromPtrSize(**LineModel.Text + NonBreakingStringIndexOffset, Break.TrimmedRange.EndIndex - NonBreakingStringIndexOffset);
 				GraphemeBreakIterator->SetStringRef(&NonBreakingString);
 
 				CurrentWidth = 0.0f;
@@ -1894,8 +1894,8 @@ bool FTextLayout::SplitLineAt(const FTextLocation& Location)
 
 	FLineModel& LineModel = LineModels[LineIndex];
 
-	FLineModel LeftLineModel(MakeShareable(new FString(BreakLocation, **LineModel.Text)));
-	FLineModel RightLineModel(MakeShareable(new FString(LineModel.Text->Len() - BreakLocation, **LineModel.Text + BreakLocation)));
+	FLineModel LeftLineModel(MakeShareable(new FString(FString::ConstructFromPtrSize(**LineModel.Text, BreakLocation))));
+	FLineModel RightLineModel(MakeShareable(new FString(FString::ConstructFromPtrSize(**LineModel.Text + BreakLocation, LineModel.Text->Len() - BreakLocation))));
 
 	checkf(LeftLineModel.Text->Len() == BreakLocation, TEXT("Debug Source: %s"), *DebugSourceInfo.Get(FString()));
 

@@ -1083,7 +1083,7 @@ FPropertyAndIndex FindPropertyAndArrayIndex(UStruct* InStruct, const FString& Pr
 		int32 OpenIndex = 0;
 		if (PropertyName.FindLastChar('[', OpenIndex))
 		{
-			FString TruncatedPropertyName(OpenIndex, *PropertyName);
+			FString TruncatedPropertyName = FString::ConstructFromPtrSize(*PropertyName, OpenIndex);
 			PropertyAndIndex.Property = FindFProperty<FProperty>(InStruct, *TruncatedPropertyName);
 
 			const int32 NumberLength = PropertyName.Len() - OpenIndex - 2;

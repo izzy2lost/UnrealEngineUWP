@@ -1729,7 +1729,7 @@ bool IsValidName(FStringView InName, FText* OutError)
 		{
 			if (OutError)
 			{
-				*OutError = FText::Format(NSLOCTEXT("PyGenUtil", "InvalidName_RestrictedCharacter", "Name contains '{0}' which is invalid for Python"), FText::AsCultureInvariant(FString(1, &Char)));
+				*OutError = FText::Format(NSLOCTEXT("PyGenUtil", "InvalidName_RestrictedCharacter", "Name contains '{0}' which is invalid for Python"), FText::AsCultureInvariant(FString::ConstructFromPtrSize(&Char, 1)));
 			}
 			return false;
 		}

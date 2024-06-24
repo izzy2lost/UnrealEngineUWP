@@ -661,7 +661,7 @@ FArchive& operator<<(FArchive& Ar, FPackagePath& PackagePath)
 	{
 		if (StringDataLen > 0)
 		{
-			FString SerializerString = FString(StringDataLen, PackagePath.StringData.Get());
+			FString SerializerString = FString::ConstructFromPtrSize(PackagePath.StringData.Get(), StringDataLen);
 			Ar << SerializerString;
 		}
 	}

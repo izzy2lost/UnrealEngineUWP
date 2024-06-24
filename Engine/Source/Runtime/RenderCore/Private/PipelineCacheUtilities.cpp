@@ -310,7 +310,7 @@ namespace Private
 
 bool UE::PipelineCacheUtilities::LoadStableKeysFile(const FStringView& Filename, TArray<FStableShaderKeyAndValue>& InOutArray)
 {
-	TUniquePtr<FArchive> FileArchiveInner(IFileManager::Get().CreateFileReader(*FString(Filename.Len(), Filename.GetData())));
+	TUniquePtr<FArchive> FileArchiveInner(IFileManager::Get().CreateFileReader(*FString::ConstructFromPtrSize(Filename.GetData(), Filename.Len())));
 	if (!FileArchiveInner)
 	{
 		return false;
@@ -391,7 +391,7 @@ bool UE::PipelineCacheUtilities::LoadStableKeysFile(const FStringView& Filename,
 
 bool UE::PipelineCacheUtilities::SaveStableKeysFile(const FStringView& Filename, const TSet<FStableShaderKeyAndValue>& Values)
 {
-	TUniquePtr<FArchive> FileArchiveInner(IFileManager::Get().CreateFileWriter(*FString(Filename.Len(), Filename.GetData())));
+	TUniquePtr<FArchive> FileArchiveInner(IFileManager::Get().CreateFileWriter(*FString::ConstructFromPtrSize(Filename.GetData(), Filename.Len())));
 	if (!FileArchiveInner)
 	{
 		return false;

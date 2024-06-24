@@ -323,7 +323,7 @@ void FShaderPreprocessOutput::StripCode(bool bCopyOriginalPreprocessdSource)
 						++Current;
 					}
 
-					FString DirectiveFileName(DirectiveFileNameLen, DirectiveFileNameStart);
+					FString DirectiveFileName = FString::ConstructFromPtrSize(DirectiveFileNameStart, DirectiveFileNameLen);
 
 					// scan to end-of-line and skip past the newline; this would be handled by the newline case above as well,
 					// but we don't want the newline at the end of the line directive to count in our calculated offsets for

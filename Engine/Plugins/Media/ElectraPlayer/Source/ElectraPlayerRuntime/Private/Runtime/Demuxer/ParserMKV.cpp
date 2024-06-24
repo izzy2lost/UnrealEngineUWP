@@ -724,7 +724,7 @@ namespace Electra
 						}
 						Chars.Add(0);
 						auto Cnv = StringCast<TCHAR>((const ANSICHAR*)Chars.GetData());
-						FString UTF8Text(Cnv.Length(), Cnv.Get());
+						FString UTF8Text = FString::ConstructFromPtrSize(Cnv.Get(), Cnv.Length());
 						*reinterpret_cast<FString*>(Elem->DataValue) = MoveTemp(UTF8Text);
 						break;
 					}
@@ -737,7 +737,7 @@ namespace Electra
 						}
 						Chars.Add(0);
 						auto Cnv = StringCast<TCHAR>((const UTF8CHAR*)Chars.GetData());
-						FString UTF8Text(Cnv.Length(), Cnv.Get());
+						FString UTF8Text = FString::ConstructFromPtrSize(Cnv.Get(), Cnv.Length());
 						*reinterpret_cast<FString*>(Elem->DataValue) = MoveTemp(UTF8Text);
 						break;
 						}

@@ -93,7 +93,7 @@ namespace OptionKeys
 					return false;
 				}
 				FUTF8ToTCHAR cnv((const ANSICHAR*)Buf.GetData(), NumBytes);
-				OutString = FString(cnv.Length(), cnv.Get());
+				OutString = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 				return true;
 			}
 			return false;

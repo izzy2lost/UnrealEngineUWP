@@ -342,7 +342,7 @@ bool FMetadataFilterState::ApplyFilterToMetadata(TArrayView<const uint8>& Metada
 			break;
 		}
 
-		FString CurrentKey(static_cast<int32>(Context.AsLength()), Context.AsCString());
+		FString CurrentKey = FString::ConstructFromPtrSize(Context.AsCString(), static_cast<int32>(Context.AsLength()));
 
 		if (!CborReader.ReadNext(Context))
 		{

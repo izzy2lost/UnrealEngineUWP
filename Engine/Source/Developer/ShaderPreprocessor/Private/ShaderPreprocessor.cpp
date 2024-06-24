@@ -387,7 +387,7 @@ static const ANSICHAR* StbResolveInclude(const ANSICHAR* PathInSource, uint32 Pa
 	}
 
 	// Slow path...  Platform specific files and procedurally generated files (/Engine/Generated/Material.ush) -- typically 5% of files.
-	FString PathModified(PathLen, PathInSource);
+	FString PathModified = FString::ConstructFromPtrSize(PathInSource, PathLen);
 	if (!PathModified.StartsWith(TEXT("/"))) // if path doesn't start with / it's relative, if so append the parent's folder and collapse any relative dirs
 	{
 		FString ParentFolder(ParentPathAnsi);

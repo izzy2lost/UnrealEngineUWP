@@ -271,13 +271,13 @@ FString FEditorCategoryUtils::GetCategoryDisplayString(const FString& Unsanitize
 			int32 EndIndex = DisplayString.Find(TEXT("}"), ESearchCase::CaseSensitive, ESearchDir::FromStart, KeyIndex);
 			if (EndIndex != INDEX_NONE)
 			{
-				FString ToReplaceStr(EndIndex+1 - KeyIndex, *DisplayString + KeyIndex);
+				FString ToReplaceStr = FString::ConstructFromPtrSize(*DisplayString + KeyIndex, EndIndex+1 - KeyIndex);
 				FString ReplacementStr;
 				
 				int32 KeyLen = EndIndex - (KeyIndex + 1);
 				if (KeyLen > 0)
 				{
-					FString Key(KeyLen, *DisplayString + KeyIndex+1);
+					FString Key = FString::ConstructFromPtrSize(*DisplayString + KeyIndex+1, KeyLen);
 					Key.TrimStartInline();
 					ReplacementStr = FEditorCategoryUtilsImpl::GetCategory(*Key).ToString();
 				}

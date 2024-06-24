@@ -24,7 +24,7 @@ FICUTextCharacterIterator_NativeUTF16::FICUTextCharacterIterator_NativeUTF16(FSt
 
 FICUTextCharacterIterator_NativeUTF16::FICUTextCharacterIterator_NativeUTF16(const FICUTextCharacterIterator_NativeUTF16& Other)
 	: icu::UCharCharacterIterator(Other)
-	, InternalString(FString(Other.StringRef.Len(), Other.StringRef.GetData()))
+	, InternalString(FString::ConstructFromPtrSize(Other.StringRef.GetData(), Other.StringRef.Len()))
 	, StringRef(InternalString)
 {
 	SetTextFromStringRef();
@@ -78,7 +78,7 @@ FICUTextCharacterIterator_ConvertToUnicodeString::FICUTextCharacterIterator_Conv
 }
 
 FICUTextCharacterIterator_ConvertToUnicodeString::FICUTextCharacterIterator_ConvertToUnicodeString(FStringView InString)
-	: FICUTextCharacterIterator_ConvertToUnicodeStringPrivate(FString(InString.Len(), InString.GetData()))
+	: FICUTextCharacterIterator_ConvertToUnicodeStringPrivate(FString::ConstructFromPtrSize(InString.GetData(), InString.Len()))
 	, icu::StringCharacterIterator(InternalString)
 {
 }
