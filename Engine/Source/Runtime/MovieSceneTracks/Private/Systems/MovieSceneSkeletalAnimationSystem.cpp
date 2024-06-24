@@ -284,7 +284,6 @@ void FBoneTransformFinalizeData::BoneTransformFinalized()
 		{
 			RelativeTransform = RelativeTransform * InitialTransform.GetValue();
 		}
-		const bool bIsGameWorld = (SkeletalMeshComponent->GetWorld()->IsGameWorld());
 
 		if (SwapRootBone == ESwapRootBone::SwapRootBone_Component)
 		{
