@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,7 +41,7 @@ namespace HordeServer.Telemetry
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TelemetryManager(IServiceProvider serviceProvider, IHttpClientFactory httpClientFactory, IClock clock, IOptions<ServerSettings> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
+		public TelemetryManager(IServiceProvider serviceProvider, IClock clock, IOptions<ServerSettings> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
 		{
 			_tracer = tracer;
 			_logger = loggerFactory.CreateLogger<TelemetryManager>();

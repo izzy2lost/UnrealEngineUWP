@@ -21,7 +21,6 @@ using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Sessions;
 using HordeServer.Agents.Telemetry;
-using HordeServer.Telemetry;
 using HordeServer.Tools;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
