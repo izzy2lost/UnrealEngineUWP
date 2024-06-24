@@ -627,10 +627,10 @@ void FChaosFleshCommands::CreateGeometryCache(const TArray<FString>& Args, UWorl
 						*MeshId, LODIndex);
 					continue;
 				}
+#if USE_USD_SDK && DO_USD_CACHING
 				const int32 NumVertices = BindingsEval.NumVertices();
 
 				TArray<TArray<FVector3f>> FramePositions;
-#if USE_USD_SDK && DO_USD_CACHING
 				//
 				// Open the USD cache, get all time samples.
 				//
@@ -706,11 +706,6 @@ void FChaosFleshCommands::CreateGeometryCache(const TArray<FString>& Args, UWorl
 				}
 
 				UE::ChaosCachingUSD::CloseStage(USDStage);
-#else // USE_USD_SDK && DO_USD_CACHING
-				// TODO: Get points from chaos cache?
-				UE_LOG(UChaosFleshCommandsLogging, Error, TEXT("USD Caching is not supported on this platform."));
-				return;
-#endif // USE_USD_SDK && DO_USD_CACHING
 
 				//
 				// Write deformed render vertices to GeometryCache.
@@ -759,6 +754,11 @@ void FChaosFleshCommands::CreateGeometryCache(const TArray<FString>& Args, UWorl
 					*GeometryCache->GetName());
 				PackagesToSave.AddUnique(GeometryCache->GetOutermost());
 
+#else // USE_USD_SDK && DO_USD_CACHING
+				// TODO: Get points from chaos cache?
+				UE_LOG(UChaosFleshCommandsLogging, Error, TEXT("USD Caching is not supported on this platform."));
+				return;
+#endif // USE_USD_SDK && DO_USD_CACHING
 			} // end for USkeletalMesh
 		} // end for FleshComponents
 	} // end for SelectedActors

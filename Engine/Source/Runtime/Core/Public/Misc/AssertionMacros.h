@@ -21,12 +21,14 @@
 	// executable. This code should never execute so using a separate section keeps
 	// it well off the hot path and hopefully out of the instruction cache. It also
 	// facilitates reasoning about the makeup of a compiled/linked binary.
+	// Also see UE_COLD.
 	#define UE_DEBUG_SECTION PLATFORM_CODE_SECTION(".uedbg")
 #else
 	// On ARM we can't do this because the executable will require jumps larger
 	// than the branch instruction can handle. Clang will only generate
 	// the trampolines in the .text segment of the binary. If the uedbg segment
 	// is present it will generate code that it cannot link.
+	// Consider using UE_COLD instead.
 	#define UE_DEBUG_SECTION
 #endif // DO_CHECK || DO_GUARD_SLOW
 #endif
@@ -194,7 +196,7 @@ public:
 // lambdas. This can be worked around by calling the lambda from inside this
 // templated (and correctly non-inlined) function.
 template <typename RetType=void, class InnerType, typename... ArgTypes>
-RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, ArgTypes const&... Args)
+RetType UE_COLD UE_DEBUG_SECTION DispatchCheckVerify (InnerType&& Inner, ArgTypes const&... Args)
 {
 	return Inner(Args...);
 }
@@ -387,9 +389,9 @@ RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, Ar
 		}
 	};
 
-	CORE_API bool UE_DEBUG_SECTION VARARGS EnsureFailed(std::atomic<bool>& bExecuted, const FStaticEnsureRecord* Ensure, ...);
-	
-	CORE_API bool UE_DEBUG_SECTION ExecCheckImplInternal(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, const ANSICHAR* Expr);
+	CORE_API bool UE_COLD UE_DEBUG_SECTION VARARGS EnsureFailed(std::atomic<bool>& bExecuted, const FStaticEnsureRecord* Ensure, ...);
+
+	CORE_API bool UE_COLD UE_DEBUG_SECTION ExecCheckImplInternal(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, const ANSICHAR* Expr);
 
 	} // UE::Assert::Private
 
@@ -404,11 +406,11 @@ RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, Ar
 
 	#define UE_ENSURE_IMPL(Always, InExpression) \
 		(LIKELY(!!(InExpression)) \
-			|| (::UE::Assert::Private::ExecCheckImplInternal([]() UE_DEBUG_SECTION -> std::atomic<bool>& { static std::atomic<bool> ENSURE_bExecuted = false; return ENSURE_bExecuted; } (), Always, __FILE__, __LINE__, #InExpression) \
+			|| (::UE::Assert::Private::ExecCheckImplInternal([]() UE_COLD UE_DEBUG_SECTION -> std::atomic<bool>& { static std::atomic<bool> ENSURE_bExecuted = false; return ENSURE_bExecuted; } (), Always, __FILE__, __LINE__, #InExpression) \
 			&& [] () { PLATFORM_BREAK(); return false; } ()))
 
 	#define UE_ENSURE_IMPL2(Capture, Always, InExpression, InFormat, ...) \
-		(LIKELY(!!(InExpression)) || ([Capture] () UE_DEBUG_SECTION \
+		(LIKELY(!!(InExpression)) || ([Capture] () UE_COLD UE_DEBUG_SECTION \
 		{ \
 			UE_VALIDATE_FORMAT_STRING(InFormat, ##__VA_ARGS__); \
 			static std::atomic<bool> ENSURE_bExecuted = false; \
@@ -507,7 +509,7 @@ namespace UEAsserts_Private
 ----------------------------------------------------------------------------*/
 
 /** low level fatal error handler. */
-CORE_API void UE_DEBUG_SECTION VARARGS LowLevelFatalErrorHandler(const ANSICHAR* File, int32 Line, const TCHAR* Format=TEXT(""), ... );
+CORE_API void UE_COLD UE_DEBUG_SECTION VARARGS LowLevelFatalErrorHandler (const ANSICHAR* File, int32 Line, const TCHAR* Format=TEXT(""), ... );
 
 #define LowLevelFatalError(Format, ...) \
 	{ \
