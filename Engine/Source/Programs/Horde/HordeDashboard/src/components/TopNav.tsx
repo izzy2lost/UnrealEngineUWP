@@ -455,12 +455,6 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       }
 
       serviceItems.push({
-         key: "software_tools",
-         text: "Downloads",
-         link: `/tools`
-      });
-
-      serviceItems.push({
          key: "job_artifacts",
          text: "Artifacts",
          onClick(ev, item) {
@@ -474,6 +468,11 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
          },
       });
 
+      serviceItems.push({
+         key: "software_tools",
+         text: "Downloads",
+         link: `/tools`
+      });
 
       const style = { ...menuStyles } as Partial<IContextualMenuStyles>;
 
