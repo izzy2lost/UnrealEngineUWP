@@ -547,11 +547,24 @@ namespace UnrealBuildTool
 
 	class UBAAgentCoordinatorHorde : IUBAAgentCoordinator, IDisposable
 	{
-		public UBAAgentCoordinatorHorde(ILogger logger, UnrealBuildAcceleratorConfig ubaConfig, CommandLineArguments? additionalArguments = null)
+		public string? Server => HordeConfig.HordeServer;
+		public bool Enabled => !HordeConfig.bDisableHorde;
+
+		public UBAAgentCoordinatorHorde(ILogger logger, UnrealBuildAcceleratorConfig ubaConfig, CommandLineArguments? additionalArguments = null, DirectoryReference? projectDir = null)
 		{
 			_logger = logger;
 			_ubaConfig = ubaConfig;
 
+			ConfigCache.ReadSettings(projectDir, BuildHostPlatform.Current.Platform, HordeConfig);
+			if (HordeConfig.HordeEnabled?.Equals("BuildMachineOnly", StringComparison.OrdinalIgnoreCase) == true && !Unreal.IsBuildMachine())
+			{
+				// reset
+				HordeConfig = new();
+			}
+			if (HordeConfig.HordeEnabled?.Equals("False", StringComparison.OrdinalIgnoreCase) == true)
+			{
+				HordeConfig.bDisableHorde = true;
+			}
 			XmlConfig.ApplyTo(HordeConfig);
 			additionalArguments?.ApplyTo(HordeConfig);
 

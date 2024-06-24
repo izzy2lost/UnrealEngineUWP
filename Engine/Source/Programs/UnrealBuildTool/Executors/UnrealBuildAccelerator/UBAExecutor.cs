@@ -105,17 +105,24 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public UBAExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, CommandLineArguments? additionalArguments = null)
+		public UBAExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, IEnumerable<TargetDescriptor> targetDescriptors)
 			: base(maxLocalActions, bAllCores, bCompactOutput, logger)
 		{
 			XmlConfig.ApplyTo(this);
 			XmlConfig.ApplyTo(UBAConfig);
 			CommandLine.ParseArguments(Environment.GetCommandLineArgs(), this, logger);
-			additionalArguments?.ApplyTo(this);
-			additionalArguments?.ApplyTo(UBAConfig);
+
+			List<UBAAgentCoordinatorHorde> hordeAgentCoordinators = new();
+			foreach (TargetDescriptor targetDescriptor in targetDescriptors)
+			{
+				targetDescriptor.AdditionalArguments.ApplyTo(this);
+				targetDescriptor.AdditionalArguments.ApplyTo(UBAConfig);
+				hordeAgentCoordinators.Add(new UBAAgentCoordinatorHorde(logger, UBAConfig, targetDescriptor.AdditionalArguments, targetDescriptor.ProjectFile?.Directory));
+			}
+			hordeAgentCoordinators.RemoveAll(x => !x.Enabled);
+			_agentCoordinators.AddRange(hordeAgentCoordinators.DistinctBy(x => x.Server));
 
 			_threadedLogger = new ThreadedLogger(logger);
-			_agentCoordinators.Add(new UBAAgentCoordinatorHorde(logger, UBAConfig, additionalArguments));
 		}
 
 		private void PrintConfiguration()
@@ -982,8 +989,8 @@ namespace UnrealBuildTool
 			return EpicGames.UBA.Utils.IsAvailable();
 		}
 
-		public UBALocalExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, CommandLineArguments? additionalArguments = null)
-			: base(maxLocalActions, bAllCores, bCompactOutput, logger, additionalArguments)
+		public UBALocalExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, IEnumerable<TargetDescriptor> targetDescriptors)
+			: base(maxLocalActions, bAllCores, bCompactOutput, logger, targetDescriptors)
 		{
 			UBAConfig.bDisableRemote = true;
 			UBAConfig.bForceBuildAllRemote = false;
