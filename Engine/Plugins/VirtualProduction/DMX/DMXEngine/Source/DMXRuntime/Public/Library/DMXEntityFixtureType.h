@@ -4,6 +4,7 @@
 
 #include "DMXAttribute.h"
 #include "DMXProtocolTypes.h"
+#include "GDTF/AttributeDefinitions/DMXGDTFPhysicalUnit.h"
 #include "Library/DMXEntity.h"
 #include "Library/DMXEntityReference.h"
 #include "Modulators/DMXModulator.h"
@@ -47,20 +48,48 @@ struct DMXRUNTIME_API FDMXFixtureFunction
 	/** Constructor */
 	FDMXFixtureFunction()
 		: Attribute()
-		, FunctionName()
-		, Description()
-		, DefaultValue(0)
-		, Channel(1)
-		, ChannelOffset_DEPRECATED(0)
-		, DataType(EDMXFixtureSignalFormat::E8Bit)
-		, bUseLSBMode(false)
 	{}
+
+	/** Implementing Serialize to convert UClass to FFieldClass */
+	void PostSerialize(const FArchive& Ar);
 
 	/** Returns the number of channels the function spans, according to its data type */
 	FORCEINLINE uint8 GetNumChannels() const { return static_cast<uint8>(DataType) + 1; }
 
 	/** Returns the last channel of the Function */
 	int32 GetLastChannel() const;
+
+#if WITH_EDITOR
+	/** Gets the Physical Value of the Function */
+	double GetPhysicalDefaultValue() const { return PhysicalDefaultValue; }
+
+	/** The Physical Unit this Physical Value is based on */
+	EDMXGDTFPhysicalUnit GetPhysicalUnit() const { return PhysicalUnit; }
+
+	/** The starting value of the Physical Value range, based on the Physical Unit */
+	double GetPhysicalFrom() const { return PhysicalFrom; }
+
+	/** The ending value of the Physical Value range, based on the Physical Unit */
+	double GetPhysicalTo() const { return PhysicalTo; }
+
+	/** Sets the Physical Default Value of the Function. */
+	void SetPhysicalUnit(EDMXGDTFPhysicalUnit NewPhysicalUnit) { PhysicalUnit = NewPhysicalUnit; }
+
+	/** Sets the Physical Default Value of the Function. */
+	void SetPhysicalDefaultValue(double InPhysicalDefaultValue);
+
+	/** Sets the Physical Default Value range of the Function. */
+	void SetPhysicalValueRange(double InPhysicalFrom, double InPhysicalTo);
+
+	/** Updated the Physica Default Value of the Function by the Default Value. */
+	void UpdatePhysicalDefaultValue();
+
+	// Property Name getters
+	FORCEINLINE static FName GetPhysicalDefaultValuePropertyName() { return GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, PhysicalDefaultValue); }
+	FORCEINLINE static FName GetPhysicalUnitPropertyName() { return GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, PhysicalUnit); }
+	FORCEINLINE static FName GetPhysicalFromPropertyName() { return GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, PhysicalFrom); }
+	FORCEINLINE static FName GetPhysicalToPropertyName() { return GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, PhysicalTo); }
+#endif // WITH_EDITOR
 
 	/**
 	 * The Attribute name to map this Function to.
@@ -78,17 +107,17 @@ struct DMXRUNTIME_API FDMXFixtureFunction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayPriority = "20"), Category = "Function Settings")
 	FString Description;
 
-	/** The Default Value of the function */
+	/** The Default DMX Value of the function */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayPriority = "30"), Category = "Function Settings")
-	int64 DefaultValue;
+	int64 DefaultValue = 0;
 
 	/** This function's starting channel (use editor above to make changes) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (DisplayName = "Channel Assignment", DisplayPriority = "2"), Category = "Function Settings")
-	int32 Channel;
+	int32 Channel = 1;
 
 	/** DEPRECATED 5.0. Instead the 'Channel' property is EditAnywhere so any function can be assigned freely */
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Deprecated since the Channel property can be set in the DMX Library Editor."))
-	int32 ChannelOffset_DEPRECATED;
+	int32 ChannelOffset_DEPRECATED = 0;
 
 	/** This function's data type. Defines the used number of channels (bytes) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayPriority = "5"), Category = "Function Settings")
@@ -108,7 +137,36 @@ struct DMXRUNTIME_API FDMXFixtureFunction
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName = "Use LSB Mode", DisplayPriority = "29"), Category = "Function Settings")
 	bool bUseLSBMode = false;
+
+private:
+#if WITH_EDITORONLY_DATA
+	/** The Physical Value used by default, based on the Physical Unit */
+	UPROPERTY(EditAnywhere, Transient, Category = "Physical Properties")
+	double PhysicalDefaultValue = 0.0;
+
+	/** The Physical Unit this Physical Value is based on */
+	UPROPERTY(EditAnywhere, Category = "Physical Properties")
+	EDMXGDTFPhysicalUnit PhysicalUnit = EDMXGDTFPhysicalUnit::None;
+
+	/** The starting value of the Physical Value range, based on the Physical Unit */
+	UPROPERTY(EditAnywhere, Category = "Physical Properties")
+	double PhysicalFrom = 0.0;
+
+	/** The ending value of the Physical Value range, based on the Physical Unit */
+	UPROPERTY(EditAnywhere, Category = "Physical Properties")
+	double PhysicalTo = 1.0;
+#endif // WITH_EDITORONLY_DATA
 };
+
+template<>
+struct TStructOpsTypeTraits<FDMXFixtureFunction> : public TStructOpsTypeTraitsBase2<FDMXFixtureFunction>
+{
+	enum
+	{
+		WithPostSerialize = true,
+	};
+};
+
 
 USTRUCT(BlueprintType)
 struct DMXRUNTIME_API FDMXFixtureCellAttribute
@@ -468,10 +526,10 @@ public:
 	 * Clamps the Default Value of the Function by its Data Type
 	 *
 	 * @param ModeIndex						The Index of the Mode in which the Functions reside
-	 * @param FunctionToRemoveIndex			The Index of the Function for which the Default Value is clamped
+	 * @param FunctionIndex					The Index of the Function for which the Default Value is clamped
 	 */
-	void ClampFunctionDefautValueByDataType(int32 ModeIndex, int32 FunctionToRemoveIndex);
-
+	UE_DEPRECATED(5.5, "Removed as physical values were introduced to FDMXFixtureFunction (editor only) . Please handle the default value of the function per use case.")
+	void ClampFunctionDefautValueByDataType(int32 ModeIndex, int32 FunctionIndex);
 
 	// Fixture Matrix related
 public:

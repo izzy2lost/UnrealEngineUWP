@@ -12,6 +12,7 @@
 #include "DMXProtocolSettings.h"
 #include "DMXRuntimeUtils.h"
 #include "DMXZipper.h"
+#include "GDTF/AttributeDefinitions/DMXGDTFAttribute.h"
 #include "GDTF/DMXGDTFDescription.h"
 #include "GDTF/DMXGDTFFixtureType.h"
 #include "GDTF/DMXModes/DMXGDTFChannelFunction.h"
@@ -47,6 +48,10 @@ namespace UE::DMX::GDTF
 			bool bLSBMode = false;
 			uint32 NumCells = 1;
 			uint32 DefaultValue = 0;
+
+			EDMXGDTFPhysicalUnit PhysicalUnit = EDMXGDTFPhysicalUnit::None;
+			double PhysicalFrom = 0.0;
+			double PhysicalTo = 1.0;
 		};
 
 		static bool GetChannelProperties(
@@ -78,6 +83,10 @@ namespace UE::DMX::GDTF
 
 			OutChannelProperties.DefaultValue = GetDefaultValue();
 			GetDataType(OutChannelProperties.SignalFormat, OutChannelProperties.bLSBMode);
+
+			OutChannelProperties.PhysicalUnit = GetPhysicalUnit();
+			OutChannelProperties.PhysicalFrom = GetPhysicalFrom();
+			OutChannelProperties.PhysicalTo = GetPhysicalTo();
 
 			const int32 NumGeometries = CountGeometries();
 			if (NumGeometries > 1)
@@ -187,6 +196,22 @@ namespace UE::DMX::GDTF
 			}
 
 			return 0;
+		}
+
+		EDMXGDTFPhysicalUnit GetPhysicalUnit() const
+		{
+			TSharedPtr<FDMXGDTFAttribute> Attribute = ChannelFunction.IsValid() ? ChannelFunction->ResolveAttribute() : nullptr;
+			return Attribute.IsValid() ? Attribute->PhysicalUnit : EDMXGDTFPhysicalUnit::None;
+		} 
+
+		double GetPhysicalFrom() const
+		{
+			return ChannelFunction.IsValid() ? ChannelFunction->PhysicalFrom : 0.0;
+		}
+
+		double GetPhysicalTo() const
+		{
+			return ChannelFunction.IsValid() ? ChannelFunction->PhysicalTo : 1.0;
 		}
 
 		bool GetMinOffsetOfDMXChannel(uint32& OutChannelOffset) const
@@ -409,6 +434,8 @@ namespace UE::DMX::GDTF
 				Function.bUseLSBMode = ChannelProperties.bLSBMode;
 				Function.DataType = ChannelProperties.SignalFormat;
 				Function.DefaultValue = ChannelProperties.DefaultValue;
+				Function.SetPhysicalUnit(ChannelProperties.PhysicalUnit);
+				Function.SetPhysicalValueRange(ChannelProperties.PhysicalFrom, ChannelProperties.PhysicalTo);
 
 				Mode.Functions.Add(Function);
 

@@ -2,19 +2,100 @@
 
 #include "SDMXFixtureFunctionEditor.h"
 
+#include "DMXAttributeToDefaultPhyiscalProperties.h"
+#include "DMXConversions.h"
 #include "DMXEditor.h"
 #include "DMXFixtureTypeSharedData.h"
-#include "Library/DMXEntityFixtureType.h"
-
+#include "DMXPhysicalUnitToDefaultValueRange.h"
 #include "IStructureDetailsView.h"
+#include "Library/DMXEntityFixtureType.h"
+#include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
-#include "Modules/ModuleManager.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 
 #define LOCTEXT_NAMESPACE "SDMXFixtureFunctionEditor"
+
+namespace UE::DMX::SDMXFixtureFunctionEditor::Private
+{
+	FDMXFixtureFunction* GetFixtureFunction(UDMXEntityFixtureType& FixtureType, int32 ModeIndex, int32 FunctionIndex)
+	{
+		if (!ensureMsgf(FixtureType.Modes.IsValidIndex(ModeIndex), TEXT("Trying to clamp Function Default Value, but Mode Index is not valid.")))
+		{
+			return nullptr;
+		}
+
+		FDMXFixtureMode& Mode = FixtureType.Modes[ModeIndex];
+		if (!ensureMsgf(Mode.Functions.IsValidIndex(FunctionIndex), TEXT("Trying to clamp Function Default Value, but Function Index is not valid.")))
+		{
+			return nullptr;
+		}
+
+		return &Mode.Functions[FunctionIndex];
+	}
+
+	/**
+	 * Clamps the Default Value of the Function by its Data Type
+	 *
+	 * @param ModeIndex						The Index of the Mode in which the Functions reside
+	 * @param FunctionIndex					The Index of the Function for which the Default Value is clamped
+	 */
+	void ClampFunctionDefautValueByDataType(UDMXEntityFixtureType& FixtureType, int32 ModeIndex, int32 FunctionIndex)
+	{
+		if (FDMXFixtureFunction* FunctionPtr = GetFixtureFunction(FixtureType, ModeIndex, FunctionIndex))
+		{
+			const uint32 SafeDefaultValue = FMath::Min(static_cast<int64>(TNumericLimits<uint32>::Max()), FunctionPtr->DefaultValue);
+			const uint32 ClampedDefaultValue = FDMXConversions::ClampValueBySignalFormat(SafeDefaultValue, FunctionPtr->DataType);
+
+			FunctionPtr->DefaultValue = ClampedDefaultValue;
+			FunctionPtr->UpdatePhysicalDefaultValue();
+		}
+	}
+
+	/**
+	 * Clamps the Physical Default Value of the Function by its Physical Unit^.
+	 *
+	 * @param ModeIndex						The Index of the Mode in which the Functions reside
+	 * @param FunctionIndex					The Index of the Function for which the Physical Default Value is clamped
+	 */
+	void ClampFunctionPhysicalDefautValueByPhysicalUnit(UDMXEntityFixtureType& FixtureType, int32 ModeIndex, int32 FunctionIndex)
+	{
+		if (FDMXFixtureFunction* FunctionPtr = GetFixtureFunction(FixtureType, ModeIndex, FunctionIndex))
+		{
+			const double PhysicalMin = FMath::Min(FunctionPtr->GetPhysicalFrom(), FunctionPtr->GetPhysicalTo());
+			const double PhysicalMax = FMath::Max(FunctionPtr->GetPhysicalFrom(), FunctionPtr->GetPhysicalTo());
+
+			const double ClampedPhysicalDefaultValue = FMath::Clamp(FunctionPtr->GetPhysicalDefaultValue(), PhysicalMin, PhysicalMax);
+			FunctionPtr->SetPhysicalDefaultValue(ClampedPhysicalDefaultValue);
+		}
+	}
+
+	/**
+	 * Updates the Physical Default Value of the Function from its Physical Unit.
+	 *
+	 * @param ModeIndex						The Index of the Mode in which the Functions reside
+	 * @param FunctionIndex					The Index of the Function for which the Physical Default Value is clamped
+	 */
+	void UpdateFunctionDefaultValueFromPhysicalUnit(UDMXEntityFixtureType& FixtureType, int32 ModeIndex, int32 FunctionIndex)
+	{
+		if (FDMXFixtureFunction* FunctionPtr = GetFixtureFunction(FixtureType, ModeIndex, FunctionIndex))
+		{
+			const TPair<double, double>& PhysicalUnitValueRange = FDMXPhysicalUnitToDefaultValueRange::GetValueRange(FunctionPtr->GetPhysicalUnit());
+
+			FunctionPtr->SetPhysicalValueRange(PhysicalUnitValueRange.Key, PhysicalUnitValueRange.Value);
+		}
+	}
+
+	void UpdateFunctionPhysicalUnitFromAttribute(UDMXEntityFixtureType& FixtureType, int32 ModeIndex, int32 FunctionIndex)
+	{
+		if (FDMXFixtureFunction* FunctionPtr = GetFixtureFunction(FixtureType, ModeIndex, FunctionIndex))
+		{
+			FDMXAttributeToDefaultPhyiscalProperties::ResetToDefaultPhysicalProperties(*FunctionPtr);
+		}
+	}
+}
 
 void SDMXFixtureFunctionEditor::Construct(const FArguments& InArgs, const TSharedRef<FDMXEditor>& InDMXEditor)
 {
@@ -89,11 +170,28 @@ void SDMXFixtureFunctionEditor::NotifyPreChange(FProperty* PropertyAboutToChange
 		}
 		else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, DataType))
 		{
-			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetDataTypeTransaction", "Data Type of Function"));
+			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetDataTypeTransaction", "Set Data Type of Function"));
 		}
 		else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, DefaultValue))
 		{
-			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetDefaultValueTransaction", "Default Value of Function"));
+			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetDefaultValueTransaction", "Set Default Value of Function"));
+		}
+		else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, DefaultValue))
+		{
+			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetDefaultValueTransaction", "Set Attribute of Function"));
+		}
+		else if (PropertyName == FDMXFixtureFunction::GetPhysicalDefaultValuePropertyName())
+		{
+			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetPhysicalValueTransaction", "Set Physical Default Value of Function"));
+		}
+		else if (PropertyName == FDMXFixtureFunction::GetPhysicalFromPropertyName() ||
+			PropertyName == FDMXFixtureFunction::GetPhysicalToPropertyName())
+		{
+			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetPhysicalValueTransaction", "Set Physical Range of Function"));
+		}
+		else if (PropertyName == FDMXFixtureFunction::GetPhysicalUnitPropertyName())
+		{
+			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetPhysicalValueTransaction", "Set Physical Unit of Function"));
 		}
 
 		FixtureType->Modify();
@@ -103,6 +201,8 @@ void SDMXFixtureFunctionEditor::NotifyPreChange(FProperty* PropertyAboutToChange
 
 void SDMXFixtureFunctionEditor::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged)
 {
+	using namespace UE::DMX::SDMXFixtureFunctionEditor::Private;
+
 	UDMXEntityFixtureType* FixtureType = WeakFixtureType.Get();
 	FDMXFixtureFunction* FunctionBeingEditedPtr = GetFunctionBeingEdited();
 
@@ -126,11 +226,26 @@ void SDMXFixtureFunctionEditor::NotifyPostChange(const FPropertyChangedEvent& Pr
 			else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, DataType))
 			{
 				FixtureType->AlignFunctionChannels(ModeIndex);
-				FixtureType->ClampFunctionDefautValueByDataType(ModeIndex, FunctionIndex);
+				ClampFunctionDefautValueByDataType(*FixtureType, ModeIndex, FunctionIndex);
 			}
 			else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, DefaultValue))
 			{
-				FixtureType->ClampFunctionDefautValueByDataType(ModeIndex, FunctionIndex);
+				ClampFunctionDefautValueByDataType(*FixtureType, ModeIndex, FunctionIndex);
+			}
+			else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, Attribute) ||
+				PropertyName == GET_MEMBER_NAME_CHECKED(FDMXAttribute, Name))
+			{
+				UpdateFunctionPhysicalUnitFromAttribute(*FixtureType, ModeIndex, FunctionIndex);
+			}
+			else if (PropertyName == FDMXFixtureFunction::GetPhysicalDefaultValuePropertyName() || 
+					PropertyName == FDMXFixtureFunction::GetPhysicalFromPropertyName() ||
+					PropertyName == FDMXFixtureFunction::GetPhysicalToPropertyName())
+			{
+				ClampFunctionPhysicalDefautValueByPhysicalUnit(*FixtureType, ModeIndex, FunctionIndex);
+			}
+			else if (PropertyName == FDMXFixtureFunction::GetPhysicalUnitPropertyName())
+			{
+				UpdateFunctionDefaultValueFromPhysicalUnit(*FixtureType, ModeIndex, FunctionIndex);
 			}
 
 			FPropertyChangedEvent ObjectPropertyChangedEvent(PropertyChangedEvent);

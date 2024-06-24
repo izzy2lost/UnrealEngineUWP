@@ -68,27 +68,28 @@ namespace UE::DMX::GDTF
 
 	void FDMXFixtureTypeToGDTFConverter::CreateAttributeDefinitions(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
 	{
-		TArray<FName> AttributeNames;
+		// Map of attribute names with their function. If function is nullptr, it's a matrix cell attribute
+		TMap<FName, const FDMXFixtureFunction*> AttributeNameToFunctionPtrMap;
 		for (const FDMXFixtureMode& Mode : UnrealFixtureType.Modes)
 		{
 			for (const FDMXFixtureFunction& Function : Mode.Functions)
 			{
-				AttributeNames.Add(Function.Attribute.Name);
+				AttributeNameToFunctionPtrMap.Add(Function.Attribute.Name, &Function);
 			}
 
 			if (Mode.bFixtureMatrixEnabled)
 			{
 				for (const FDMXFixtureCellAttribute& MatrixAttribute : Mode.FixtureMatrixConfig.CellAttributes)
 				{
-					AttributeNames.Add(MatrixAttribute.Attribute.Name);
+					AttributeNameToFunctionPtrMap.Add(MatrixAttribute.Attribute.Name, nullptr);
 				}
 			}
 		}
 
 		GDTFFixtureType->AttributeDefinitions = MakeShared<FDMXGDTFAttributeDefinitions>(GDTFFixtureType);
-		for (const FName& AttributeName : AttributeNames)
+		for (const TTuple<FName, const FDMXFixtureFunction*>& AttributeNameToFunctionPtrPair : AttributeNameToFunctionPtrMap)
 		{
-			const FName GDTFAttributeName = FDMXUnrealToGDTFAttributeConversion::ConvertUnrealToGDTFAttribute(AttributeName);
+			const FName GDTFAttributeName = FDMXUnrealToGDTFAttributeConversion::ConvertUnrealToGDTFAttribute(AttributeNameToFunctionPtrPair.Key);
 			
 			const FName PrettyName = FDMXUnrealToGDTFAttributeConversion::GetPrettyFromGDTFAttribute(GDTFAttributeName);
 			const FName FeatureGroupName = FDMXUnrealToGDTFAttributeConversion::GetFeatureGroupForGDTFAttribute(GDTFAttributeName);
@@ -137,9 +138,11 @@ namespace UE::DMX::GDTF
 			const TSharedRef<FDMXGDTFAttribute> GDTFAttribute = MakeShared<FDMXGDTFAttribute>(GDTFFixtureType->AttributeDefinitions.ToSharedRef());
 			GDTFFixtureType->AttributeDefinitions->Attributes.Add(GDTFAttribute);
 
+			const FDMXFixtureFunction* FunctionPtr = AttributeNameToFunctionPtrPair.Value;
+
 			GDTFAttribute->Name = GDTFAttributeName;
 			GDTFAttribute->Pretty = PrettyName.ToString();
-			GDTFAttribute->PhysicalUnit = EDMXGDTFPhysicalUnit::None;
+			GDTFAttribute->PhysicalUnit = FunctionPtr ? FunctionPtr->GetPhysicalUnit() : EDMXGDTFPhysicalUnit::None;
 			GDTFAttribute->Feature = FeatureGroupName.ToString() + TEXT(".") + FeatureName.ToString();
 		}
 	}
@@ -322,6 +325,9 @@ namespace UE::DMX::GDTF
 		const FDMXGDTFDMXValue Default = FDMXGDTFDMXValue(UnrealFunction.DefaultValue, UnrealFunction.GetNumChannels());
 		ChannelFunction->Default = Default;
 		ChannelFunction->DMXFrom = 0;
+
+		ChannelFunction->PhysicalFrom = UnrealFunction.GetPhysicalFrom();
+		ChannelFunction->PhysicalTo = UnrealFunction.GetPhysicalTo();
 	}
 
 	void FDMXFixtureTypeToGDTFConverter::CrateChannelFunction(const FDMXFixtureCellAttribute& UnrealCellAttribute, const TSharedRef<FDMXGDTFLogicalChannel>& GDTFLogicalChannel, const FString& GDTFAttribute)

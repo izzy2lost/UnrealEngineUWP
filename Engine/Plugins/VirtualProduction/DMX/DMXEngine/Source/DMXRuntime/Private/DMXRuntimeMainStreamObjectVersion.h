@@ -39,6 +39,9 @@ struct FDMXRuntimeMainStreamObjectVersion
 		// Rename GDTF import assets with invalid names
 		DMXFixGDTFImportAssetsWithInvalidNames,
 
+		// Upgrade Fixture Functions to make use of pysical properties where required (e.g. Pan, Tilt, Zoom)
+		DMXUpgradeFixtureFunctionsToUsePhysicalProperties,
+
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
 	};

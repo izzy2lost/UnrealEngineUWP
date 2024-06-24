@@ -2,6 +2,7 @@
 
 #include "Library/DMXEntityFixtureType.h"
 
+#include "DMXAttributeToDefaultPhyiscalProperties.h"
 #include "DMXConversions.h"
 #include "DMXProtocolSettings.h"
 #include "DMXRuntimeMainStreamObjectVersion.h"
@@ -16,10 +17,76 @@
 
 #define LOCTEXT_NAMESPACE "DMXEntityFixtureType"
 
+void FDMXFixtureFunction::PostSerialize(const FArchive& Ar)
+{
+#if WITH_EDITOR
+	if (Ar.IsLoading())
+	{
+		UpdatePhysicalDefaultValue();
+
+		// Upgrade Fixture Functions that were added before physical properties were added to use these properties
+		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXUpgradeFixtureFunctionsToUsePhysicalProperties)
+		{
+			using namespace UE::DMX;
+			FDMXAttributeToDefaultPhyiscalProperties::ResetToDefaultPhysicalProperties(*this);
+		}
+	}
+#endif
+}
+
 int32 FDMXFixtureFunction::GetLastChannel() const
 {
 	return Channel + GetNumChannels() - 1;
 }
+
+#if WITH_EDITOR
+void FDMXFixtureFunction::SetPhysicalDefaultValue(double InPhysicalDefaultValue)
+{
+	const double PhysicalMin = FMath::Min(PhysicalFrom, PhysicalTo);
+	const double PhysicalMax = FMath::Max(PhysicalFrom, PhysicalTo);
+
+	PhysicalDefaultValue = FMath::Clamp(InPhysicalDefaultValue, PhysicalMin, PhysicalMax);
+
+	const double PhysicalValueRange = PhysicalTo > PhysicalFrom ? PhysicalTo - PhysicalFrom : PhysicalFrom - PhysicalTo;
+	const double RelativePhysicalDefaultValue = PhysicalDefaultValue > PhysicalFrom ? PhysicalDefaultValue - PhysicalFrom : PhysicalFrom - PhysicalDefaultValue;
+	const double NormalizedPhysicalDefaultValue = FMath::IsNearlyZero(PhysicalValueRange) ? 0.0 : RelativePhysicalDefaultValue / PhysicalValueRange;
+
+	const uint32 MaxValue = FDMXConversions::GetSignalFormatMaxValue(DataType);
+	DefaultValue = FMath::Lerp(0, MaxValue, NormalizedPhysicalDefaultValue);
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+void FDMXFixtureFunction::SetPhysicalValueRange(double InPhysicalFrom, double InPhysicalTo)
+{
+	const double PhysicalValueRange = PhysicalTo > PhysicalFrom ? PhysicalTo - PhysicalFrom : PhysicalFrom - PhysicalTo;
+	const double RelativePhysicalDefaultValue = PhysicalDefaultValue > PhysicalFrom ? PhysicalDefaultValue - PhysicalFrom : PhysicalFrom - PhysicalDefaultValue;
+	const double NormalizedPhysicalDefaultValue = FMath::IsNearlyZero(PhysicalValueRange) ? 0.0 : RelativePhysicalDefaultValue / PhysicalValueRange;
+
+	PhysicalFrom = InPhysicalFrom;
+	PhysicalTo = InPhysicalTo;
+
+	const double NewPhysicalDefaultValue = FMath::Lerp(PhysicalFrom, PhysicalTo, NormalizedPhysicalDefaultValue);
+	
+	// Set both the default and the physical default value
+	SetPhysicalDefaultValue(NewPhysicalDefaultValue);
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+void FDMXFixtureFunction::UpdatePhysicalDefaultValue()
+{
+	const uint32 MaxValue = FDMXConversions::GetSignalFormatMaxValue(DataType);
+	const double NormalizedDefaultValue = static_cast<double>(DefaultValue) / MaxValue;
+
+	const double NewPhysicalValue = FMath::Lerp(PhysicalFrom, PhysicalTo, NormalizedDefaultValue);
+
+	constexpr double Tolerance = 0.01;
+	const double RoundedPhysicalValue = FMath::RoundToDouble(NewPhysicalValue / Tolerance) * Tolerance;
+
+	PhysicalDefaultValue = RoundedPhysicalValue;
+}
+#endif // WITH_EDITOR
 
 FDMXFixtureMatrix::FDMXFixtureMatrix()
 {
@@ -236,6 +303,7 @@ void UDMXEntityFixtureType::Serialize(FArchive& Ar)
 		}
 
 #if WITH_EDITOR
+		// Updgrade to use a soft object ptr for GDTF
 		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXImportGDTFIsASoftObjectPtr)
 		{
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -247,6 +315,7 @@ void UDMXEntityFixtureType::Serialize(FArchive& Ar)
 			}
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
+
 #endif // WITH_EDITOR
 	}
 }
@@ -964,22 +1033,24 @@ void UDMXEntityFixtureType::SetFunctionStartingChannel(int32 InModeIndex, int32 
 	}
 }
 
-void UDMXEntityFixtureType::ClampFunctionDefautValueByDataType(int32 ModeIndex, int32 FunctionToRemoveIndex)
+void UDMXEntityFixtureType::ClampFunctionDefautValueByDataType(int32 ModeIndex, int32 FunctionIndex)
 {
+	// DEPRECATED 5.5
 	if (ensureMsgf(Modes.IsValidIndex(ModeIndex), TEXT("Trying to clamp Function Default Value, but Mode Index is not valid.")))
 	{
 		FDMXFixtureMode& Mode = Modes[ModeIndex];
 
-		if (ensureMsgf(Mode.Functions.IsValidIndex(FunctionToRemoveIndex), TEXT("Trying to clamp Function Default Value, but Function Index is not valid.")))
+		if (ensureMsgf(Mode.Functions.IsValidIndex(FunctionIndex), TEXT("Trying to clamp Function Default Value, but Function Index is not valid.")))
 		{
-			FDMXFixtureFunction& Function = Mode.Functions[FunctionToRemoveIndex];
+			FDMXFixtureFunction& Function = Mode.Functions[FunctionIndex];
 			const uint32 SafeDefaultValue = FMath::Min(static_cast<int64>(TNumericLimits<uint32>::Max()), Function.DefaultValue);
 			const uint32 ClampedDefaultValue = FDMXConversions::ClampValueBySignalFormat(SafeDefaultValue, Function.DataType);
 
-			if (Function.DefaultValue != ClampedDefaultValue)
-			{
-				Function.DefaultValue = ClampedDefaultValue;
-			}
+			Function.DefaultValue = ClampedDefaultValue;
+
+#if WITH_EDITOR
+			Function.UpdatePhysicalDefaultValue();
+#endif
 		}
 	}
 }

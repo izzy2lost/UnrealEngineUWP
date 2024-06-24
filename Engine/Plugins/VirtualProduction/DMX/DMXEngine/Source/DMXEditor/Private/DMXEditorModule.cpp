@@ -11,6 +11,7 @@
 #include "Customizations/DMXEntityFixtureTypeDetails.h"
 #include "Customizations/DMXEntityReferenceCustomization.h"
 #include "Customizations/DMXFixtureCategoryCustomization.h"
+#include "Customizations/DMXFixtureFunctionCustomization.h"
 #include "Customizations/DMXFixtureSignalFormatCustomization.h"
 #include "Customizations/DMXLibraryPortReferencesCustomization.h"
 #include "Customizations/DMXMVRSceneActorDetails.h"
@@ -349,7 +350,9 @@ void FDMXEditorModule::RegisterClassCustomizations()
 }
 
 void FDMXEditorModule::RegisterPropertyTypeCustomizations()
-{
+{	
+	using namespace UE::DMX;
+
 	// Property type customization for the EDMXPixelMappingDistribution enum
 	RegisterCustomPropertyTypeLayout("EDMXPixelMappingDistribution", 
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXPixelMappingDistributionCustomization::MakeInstance)
@@ -358,6 +361,11 @@ void FDMXEditorModule::RegisterPropertyTypeCustomizations()
 	// Property type customization for the EDMXFixtureSignalFormat enum
 	RegisterCustomPropertyTypeLayout("EDMXFixtureSignalFormat", 
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXFixtureSignalFormatCustomization::MakeInstance)
+	);
+
+	// Property type customization for the FDMXFixtureFunction struct
+	RegisterCustomPropertyTypeLayout(FDMXFixtureFunction::StaticStruct()->GetFName(),
+		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXFixtureFunctionCustomization::MakeInstance)
 	);
 
 	// Property type customization for the FDMXAttributeName struct
@@ -372,9 +380,6 @@ void FDMXEditorModule::RegisterPropertyTypeCustomizations()
 
 	// Customizations for FDMXEntityReference structs
 	RegisterCustomPropertyTypeLayout(FDMXEntityFixtureTypeRef::StaticStruct()->GetFName(), 
-		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXEntityReferenceCustomization::MakeInstance)
-	);
-	RegisterCustomPropertyTypeLayout(FDMXEntityFixturePatchRef::StaticStruct()->GetFName(), 
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDMXEntityReferenceCustomization::MakeInstance)
 	);
 
