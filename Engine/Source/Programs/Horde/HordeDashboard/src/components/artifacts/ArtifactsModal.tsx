@@ -692,7 +692,7 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
                      </Stack>
                   </Stack>
                   <Stack style={{ paddingLeft: 0 }}>
-                     <Text style={{ fontSize: 11, whiteSpace: "pre-wrap", fontFamily: "Horde Cousine Regular" }}>{JSON.stringify(item.dirResponse ?? item.fileResponse ?? {}, undefined, 2).replaceAll("\\r", "").replaceAll("\\n", "\n")}</Text></Stack>
+                     <Text style={{ fontSize: 11, whiteSpace: "pre-wrap", fontFamily: "Horde Cousine Regular" }}>{ (handler.artifact ? JSON.stringify(handler.artifact, undefined, 2) + ",\n" : "") + JSON.stringify(item.dirResponse ?? item.fileResponse ?? {}, undefined, 2).replaceAll("\\r", "").replaceAll("\\n", "\n")}</Text></Stack>
                </Stack>
             </Callout>}
          </Stack>
