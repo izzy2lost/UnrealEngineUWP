@@ -9,15 +9,14 @@
 class FInstanceCullingMergedContext
 {
 public:
-	FInstanceCullingMergedContext(EShaderPlatform InShaderPlatform, bool bInMustAddAllContexts = false)
-		: ShaderPlatform(InShaderPlatform)
-		, bMustAddAllContexts(bInMustAddAllContexts)
-	{}
-
+	FInstanceCullingMergedContext(EShaderPlatform InShaderPlatform, bool bInMustAddAllContexts = false, int32 InNumBins = 2);
+	
 	struct FBatchItem
 	{
 		FInstanceCullingContext* Context = nullptr;
 		FInstanceCullingDrawParams* Result = nullptr;
+		// EBatchProcessingMode::Generic batches are put in bins, based on their view's PrevHZB
+		int32 GenericBinIndex = -1;
 	};
 
 	// Info about a batch of culling work produced by a context, when part of a batched job
@@ -34,6 +33,9 @@ public:
 		uint32 DynamicInstanceIdMax;
 		uint32 ItemDataOffset[uint32(EBatchProcessingMode::Num)];
 	};
+
+	/** Bin 0 is used for UnCulled batches, Culled ones go in bins >= 1. */
+	static constexpr uint32 FirstGenericBinIndex = 1;
 
 	/** Batches of GPU instance culling input data. */
 	TArray<FBatchItem, SceneRenderingAllocator> Batches;
@@ -53,8 +55,9 @@ public:
 	TArray<FInstanceCullingContext::FCompactionData, SceneRenderingAllocator> DrawCommandCompactionData;
 	TArray<uint32, SceneRenderingAllocator> CompactionBlockDataIndices;	
 
-	TStaticArray<TInstanceCullingLoadBalancer<SceneRenderingAllocator>, static_cast<uint32>(EBatchProcessingMode::Num)> LoadBalancers;
-	TStaticArray<TArray<uint32, SceneRenderingAllocator>, static_cast<uint32>(EBatchProcessingMode::Num)> BatchInds;
+	// these are the actual BINS, so we would need one per HZB
+	TArray<TInstanceCullingLoadBalancer<SceneRenderingAllocator>, SceneRenderingAllocator> LoadBalancers;
+	TArray<TArray<uint32, SceneRenderingAllocator>, SceneRenderingAllocator> BatchInds; // TODO: rename to ContextInds
 	TArray<FContextBatchInfoPacked, SceneRenderingAllocator> BatchInfos;
 
 	EShaderPlatform ShaderPlatform = SP_NumPlatforms;
@@ -63,8 +66,9 @@ public:
 	bool bMustAddAllContexts = false;
 	// Counters to sum up all sizes to facilitate pre-sizing
 	uint32 InstanceIdBufferElements = 0U;
-	TStaticArray<int32, uint32(EBatchProcessingMode::Num)> TotalBatches = TStaticArray<int32, uint32(EBatchProcessingMode::Num)>(InPlace, 0);
-	TStaticArray<int32, uint32(EBatchProcessingMode::Num)> TotalItems = TStaticArray<int32, uint32(EBatchProcessingMode::Num)>(InPlace, 0);
+	// preallocate 5 to cover all scenarios up to UnCulled bin + 4 HZBs in case of 4 primary views
+	TArray<int32, TInlineAllocator<5>> TotalBatches;
+	TArray<int32, TInlineAllocator<5>> TotalItems;
 	int32 TotalIndirectArgs = 0;
 	int32 TotalPayloads = 0;
 	int32 TotalViewIds = 0;
@@ -73,8 +77,6 @@ public:
 	int32 TotalCompactionBlocks = 0;
 	int32 TotalCompactionInstances = 0;
 
-	// Single Previous frame HZB which is shared among all batched contexts, thus only one is allowed (but the same can be used in multiple passes). (Needs atlas or bindless to expand).
-	FRDGTextureRef PrevHZB = nullptr;
 	int32 NumCullingViews = 0;
 
 	// Merge the queued batches and populate the derived data.
@@ -85,5 +87,7 @@ public:
 
 private:
 	void AddBatchItem(const FBatchItem& BatchItem);
+
+	int32 GetLoadBalancerIndex(EBatchProcessingMode Mode, const FBatchItem& BatchItem);
 
 };

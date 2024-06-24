@@ -57,6 +57,13 @@ int32 FInstanceCullingManager::RegisterView(const FViewInfo& ViewInfo)
 	Params.MaxPixelsPerEdgeMultipler = 1.0f;
 	Params.InstanceOcclusionQueryMask = ViewInfo.PrevViewInfo.InstanceOcclusionQueryMask;
 
+	if (ViewInfo.PrevViewInfo.HZB != nullptr)
+	{
+		check(IsInRenderingThread());
+
+		ViewPrevHZBs.AddUnique(ViewInfo.PrevViewInfo.HZB);
+	}	
+		
 	return RegisterView(Params);
 }
 
@@ -84,6 +91,32 @@ void FInstanceCullingManager::FlushRegisteredViews(FRDGBuilder& GraphBuilder)
 		CullingIntermediate.CullingViews = CreateStructuredBuffer(GraphBuilder, TEXT("InstanceCulling.CullingViews"), MakeArrayView<const Nanite::FPackedView>(CullingViews.GetData(), LocalNumRegisteredViews));
 		CullingIntermediate.NumViews = LocalNumRegisteredViews;
 	}
+}
+
+int32 FInstanceCullingManager::GetBinIndex(EBatchProcessingMode Mode, const TRefCountPtr<IPooledRenderTarget>& HZB)
+{
+	if (Mode == EBatchProcessingMode::UnCulled)
+	{
+		return 0;
+	}
+
+	int32 BinIndex;
+	// all contexts without a valid HZB go in the first bin, together with the first view's HZB
+	if (!HZB.IsValid())
+	{
+		return 1;
+	}
+
+	if (!ViewPrevHZBs.Find(HZB, BinIndex))
+	{
+		// error: the HZB is not registered correctly
+		return -1;
+	}
+
+	// bin 0 is used for EBatchProcessingMode::UnCulled batches
+	BinIndex += 1;
+
+	return BinIndex;
 }
 
 bool FInstanceCullingManager::AllowBatchedBuildRenderingCommands(const FGPUScene& GPUScene)
