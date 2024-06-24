@@ -192,8 +192,6 @@ private:
 
 	// Instantiate InstanceDataObject within BagData. Returns InstanceDataObject object. 
 	void CreateInstanceDataObjectUnsafe(UObject* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive = nullptr);
-
-	static void CopyTaggedProperties (const UObject* Source, UObject* Dest);
 };
 
 #endif // WITH_EDITORONLY_DATA

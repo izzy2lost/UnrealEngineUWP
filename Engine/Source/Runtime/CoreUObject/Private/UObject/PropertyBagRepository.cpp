@@ -31,6 +31,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogPropertyBagRepository, Log, All);
 namespace UE
 {
 
+/** Defined in InstanceDataObjectUtils.cpp */
+void CopyTaggedProperties(const UObject* Source, UObject* Dest);
+
 /** Internal registry that tracks the current set of types for property bag container objects instanced as placeholders for package exports that have invalid or missing class imports on load. */
 class FPropertyBagPlaceholderTypeRegistry
 {
@@ -880,24 +883,6 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 		// copy data from owner to IDO
 		CopyTaggedProperties(Owner, BagData.InstanceDataObject);
 	}
-}
-
-void FPropertyBagRepository::CopyTaggedProperties(const UObject* Source, UObject* Dest)
-{
-	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
-	TGuardValue<bool> ImpersonatePropertiesScope(SerializeContext->bImpersonateProperties, true);
-	// don't mark properties as set by serialization when performing copy
-	TGuardValue<bool> ScopedTrackSerializedProperties(SerializeContext->bTrackSerializedProperties, false);
-
-	TArray<uint8> Buffer;
-	Buffer.Reserve(Source->GetClass()->GetStructureSize());
-	FObjectWriter Writer(Buffer);
-	Writer.ArNoDelta = true;
-	Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), nullptr);
-
-	FObjectReader Reader(Buffer);
-	Reader.ArMergeOverrides = true;
-	Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), nullptr);
 }
 
 FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject, FArchive& InArchive)
