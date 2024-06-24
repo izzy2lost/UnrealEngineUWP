@@ -1067,6 +1067,9 @@ void FCookWorkerClient::HandleRetractionMessage(FMPCollectorClientMessageContext
 		}
 	}
 
+	UE_LOG(LogCook, Display, TEXT("Retraction message received from director. %d packages retracted."),
+		PackageNames.Num());
+
 	FRetractionResultsMessage ResultsMessage;
 	ResultsMessage.ReturnedPackages = MoveTemp(PackageNames);
 	SendMessage(ResultsMessage);
