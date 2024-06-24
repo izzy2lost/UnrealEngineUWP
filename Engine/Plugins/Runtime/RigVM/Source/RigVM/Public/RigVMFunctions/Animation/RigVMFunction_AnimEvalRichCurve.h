@@ -30,7 +30,7 @@ struct RIGVM_API FRigVMFunction_AnimEvalRichCurve : public FRigVMFunction_AnimBa
 	UPROPERTY(meta=(Input))
 	float Value;
 
-	UPROPERTY(meta=(Input, Constant))
+	UPROPERTY(meta=(Input))
 	FRuntimeFloatCurve Curve;
 
 	UPROPERTY(meta=(Input))

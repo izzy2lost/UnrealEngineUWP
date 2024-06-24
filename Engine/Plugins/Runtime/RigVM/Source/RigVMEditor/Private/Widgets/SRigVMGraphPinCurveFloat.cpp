@@ -46,6 +46,12 @@ TSharedRef<SWidget>	SRigVMGraphPinCurveFloat::GetDefaultValueWidget()
 	return Widget;
 }
 
+void SRigVMGraphPinCurveFloat::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	UpdateAndGetCurve();
+	SGraphPin::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+}
+
 TArray<FRichCurveEditInfoConst> SRigVMGraphPinCurveFloat::GetCurves() const
 {
 	TArray<FRichCurveEditInfoConst> Curves;
