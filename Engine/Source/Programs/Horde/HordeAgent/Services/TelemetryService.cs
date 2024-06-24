@@ -3,18 +3,10 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using System.Security.Cryptography;
 using System.Text;
 using EpicGames.Core;
-using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
-using Grpc.Net.Client;
-using HordeCommon.Rpc;
-using HordeCommon.Rpc.Messages;
-using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.Management.Infrastructure;
 
 namespace HordeAgent.Services;
@@ -262,12 +254,7 @@ class TelemetryService : IHostedService, IDisposable
 	private readonly TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(60);
 	private readonly TimeSpan _heartbeatMaxAllowedDiff = TimeSpan.FromSeconds(5);
 
-	private readonly WorkerService _workerService;
-	private readonly GrpcService _grpcService;
-	private readonly AgentSettings _agentSettings;
 	private readonly ILogger<TelemetryService> _logger;
-	private readonly TimeSpan _reportInterval;
-	private readonly ISystemMetrics? _systemMetrics;
 
 	private CancellationTokenSource? _eventLoopHeartbeatCts;
 	private Task? _eventLoopTask;
@@ -276,14 +263,9 @@ class TelemetryService : IHostedService, IDisposable
 	/// <summary>
 	/// Constructor
 	/// </summary>
-	public TelemetryService(WorkerService workerService, GrpcService grpcService, ISystemMetrics systemMetrics, IOptions<AgentSettings> settings, ILogger<TelemetryService> logger)
+	public TelemetryService(ILogger<TelemetryService> logger)
 	{
-		_workerService = workerService;
-		_grpcService = grpcService;
-		_agentSettings = settings.Value;
 		_logger = logger;
-		_reportInterval = TimeSpan.FromMilliseconds(_agentSettings.TelemetryReportInterval);
-		_systemMetrics = systemMetrics;
 	}
 
 	/// <inheritdoc/>

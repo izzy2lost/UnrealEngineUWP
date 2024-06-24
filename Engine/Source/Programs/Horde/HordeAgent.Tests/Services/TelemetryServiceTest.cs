@@ -25,7 +25,7 @@ public sealed class TelemetryServiceTest : IDisposable
 		using WorkerService workerService = new WorkerService(null!, null!, null!, null!);
 		GrpcService grpcService = new(settingsOpt, NullLogger<GrpcService>.Instance, _loggerFactory);
 
-		_telemetryService = new TelemetryService(workerService, grpcService, null!, settingsOpt, NullLogger<TelemetryService>.Instance);
+		_telemetryService = new TelemetryService(NullLogger<TelemetryService>.Instance);
 	}
 
 	[TestMethod]
