@@ -2,18 +2,18 @@
 
 #pragma once
 
-#include "Commandlets/Commandlet.h"
 #include "CoreMinimal.h"
+#include "Commandlets/Commandlet.h"
 #include "Editor/EditorPerformanceSettings.h"
 #include "Engine/Engine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "LiveLinkHub.h"
 #include "LiveLinkHubInputProcessor.h"
-#include "LiveLinkHubSettings.h"
 #include "LiveLinkHubTicker.h"
 #include "Misc/App.h"
 #include "Misc/CoreDelegates.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "Settings/LiveLinkHubSettings.h"
 #include "UObject/UObjectGlobals.h"
 
 #if PLATFORM_MAC

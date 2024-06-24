@@ -12,9 +12,8 @@
 #include "ISettingsModule.h"
 #include "LiveLinkEditorSettings.h"
 #include "LiveLinkHubClient.h"
-#include "LiveLinkHubSettings.h"
-#include "LiveLinkHubSubjectSettings.h"
 #include "LiveLinkHubCommands.h"
+#include "LiveLinkHubSubjectSettings.h"
 #include "LiveLinkProviderImpl.h"
 #include "LiveLinkSettings.h"
 #include "Misc/App.h"
@@ -23,6 +22,7 @@
 #include "Recording/LiveLinkHubRecordingController.h"
 #include "Recording/LiveLinkHubRecordingListController.h"
 #include "Session/LiveLinkHubSessionManager.h"
+#include "Settings/LiveLinkHubSettings.h"
 #include "Subjects/LiveLinkHubSubjectController.h"
 #include "UI/Window/LiveLinkHubWindowController.h"
 

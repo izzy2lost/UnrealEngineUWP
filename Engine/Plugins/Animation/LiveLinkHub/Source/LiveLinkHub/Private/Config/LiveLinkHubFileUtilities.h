@@ -33,4 +33,18 @@ namespace UE::LiveLinkHub::FileUtilities::Private
 
 	/** Convert config data from json. */
 	ULiveLinkHubSessionData* FromJson(const TSharedPtr<FJsonObject>& InJsonObject);
+
+	/** Evaluated results from a template file string. */
+	struct FFilenameTemplateData
+	{
+		/** Full original path with evaluated tokens. */
+		FString FullPath;
+		/** The evaluated folder(s) without the first forward slash or filename. */
+		FString FolderPath;
+		/** The evaluated filename. */
+		FString FileName;
+	};
+
+	/** Parse a filename template for included template tokens and output the computed result. */
+	void ParseFilenameTemplate(const FString& InFilenameTemplate, FFilenameTemplateData& OutTemplateData);
 }

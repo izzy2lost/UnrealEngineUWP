@@ -14,12 +14,12 @@
 #include "HAL/CriticalSection.h"
 #include "LiveLinkHubLog.h"
 #include "LiveLinkHubMessages.h"
-#include "LiveLinkHubSettings.h"
 #include "LiveLinkSettings.h"
 #include "MessageEndpointBuilder.h"
 #include "Misc/ScopeLock.h"
 #include "Session/LiveLinkHubSession.h"
 #include "Session/LiveLinkHubSessionManager.h"
+#include "Settings/LiveLinkHubSettings.h"
 #include "TimerManager.h"
 
 

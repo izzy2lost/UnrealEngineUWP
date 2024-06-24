@@ -4,8 +4,8 @@
 
 #include "HAL/IConsoleManager.h"
 #include "LiveLinkHubLog.h"
-#include "LiveLinkHubSettings.h"
 #include "Recording/LiveLinkRecording.h"
+#include "Settings/LiveLinkHubSettings.h"
 
 
 class FLiveLinkPlaybackTrackIterator

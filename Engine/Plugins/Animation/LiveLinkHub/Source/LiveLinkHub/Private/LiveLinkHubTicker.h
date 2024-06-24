@@ -5,8 +5,8 @@
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "LiveLinkHub.h"
-#include "LiveLinkHubSettings.h"
 #include "Misc/Timespan.h"
+#include "Settings/LiveLinkHubSettings.h"
 
 /** Object used to tick LiveLinkHub outside of the game thread. */
 class FLiveLinkHubTicker : public FRunnable

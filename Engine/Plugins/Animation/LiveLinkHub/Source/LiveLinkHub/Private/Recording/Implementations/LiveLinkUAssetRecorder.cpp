@@ -2,31 +2,35 @@
 
 #include "LiveLinkUAssetRecorder.h"
 
-#include "Recording/LiveLinkRecording.h"
-#include "Recording/Implementations/LiveLinkUAssetRecording.h"
-
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "Config/LiveLinkHubFileUtilities.h"
 #include "Containers/Map.h"
 #include "ContentBrowserModule.h"
 #include "Features/IModularFeatures.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "FileHelpers.h"
-#include "StructUtils/InstancedStruct.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "HAL/PlatformFileManager.h"
 #include "IContentBrowserSingleton.h"
 #include "LiveLinkHub.h"
 #include "LiveLinkHubClient.h"
+#include "LiveLinkHubLog.h"
 #include "LiveLinkHubModule.h"
-#include "LiveLinkTypes.h"
 #include "LiveLinkPreset.h"
+#include "LiveLinkTypes.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
+#include "Recording/Implementations/LiveLinkUAssetRecording.h"
+#include "Recording/LiveLinkRecording.h"
+#include "Settings/LiveLinkHubSettings.h"
+#include "StructUtils/InstancedStruct.h"
 #include "UI/Window/LiveLinkHubWindowController.h"
-#include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Widgets/Layout/SBox.h"
-#include "Widgets/SWidget.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SWidget.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.RecordingController"
 
@@ -144,22 +148,43 @@ bool FLiveLinkUAssetRecorder::OpenSaveDialog(const FString& InDefaultPath, const
 
 bool FLiveLinkUAssetRecorder::GetSavePresetPackageName(FString& OutName)
 {
-	FDateTime Today = FDateTime::Now();
+	using namespace UE::LiveLinkHub::FileUtilities::Private;
+	const FDateTime Today = FDateTime::Now();
 
 	TMap<FString, FStringFormatArg> FormatArgs;
 	FormatArgs.Add(TEXT("date"), Today.ToString());
+	
+	FFilenameTemplateData TemplateData;
+	ParseFilenameTemplate(GetDefault<ULiveLinkHubSettings>()->FilenameTemplate, TemplateData);
 
-	FString DialogStartPath = TEXT("/Game/LiveLinkRecordings");
+	const FString DefaultName = TemplateData.FileName;
+	const FString DefaultFolder = TemplateData.FolderPath;
+	
+	const FString ContentDir = FPaths::ProjectContentDir();
+	const FString DialogStartPath = FPaths::Combine(TEXT("/Game"), TemplateData.FolderPath);
+	const FString AbsoluteFolderPath = FPaths::Combine(ContentDir, TemplateData.FolderPath);
 
-	FString DefaultName = LOCTEXT("NewLiveLinkRecordingName", "NewLiveLinkRecording").ToString();
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 
+	// Create directory if it doesn't exist
+	if (!PlatformFile.DirectoryExists(*AbsoluteFolderPath))
+	{
+		if (!PlatformFile.CreateDirectoryTree(*AbsoluteFolderPath))
+		{
+			UE_LOG(LogLiveLinkHub, Error, TEXT("Failed to create directory %s."), *AbsoluteFolderPath);
+			return false;
+		}
+
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		AssetRegistryModule.Get().ScanPathsSynchronous({ TEXT("/Game") }, true);
+	}
 	FString UniquePackageName;
 	FString UniqueAssetName;
 
 	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-	AssetToolsModule.Get().CreateUniqueAssetName(DialogStartPath / DefaultName, TEXT(""), UniquePackageName, UniqueAssetName);
+	AssetToolsModule.Get().CreateUniqueAssetName(DefaultFolder / DefaultName, TEXT(""), UniquePackageName, UniqueAssetName);
 
-	FString DialogStartName = FPaths::GetCleanFilename(UniqueAssetName);
+	const FString DialogStartName = FPaths::GetCleanFilename(UniqueAssetName);
 
 	FString UserPackageName;
 	FString NewPackageName;

@@ -635,12 +635,13 @@ void ULiveLinkUAssetRecording::LoadFrameData(FFrameFileData& InFrameData, FLiveL
 
 FString ULiveLinkUAssetRecording::GetRecordingDataFilePath() const
 {
-	// todo: This path needs to be calculated from the settings file.
-	FString AssetPath = GetPathName();
-	FString BasePath = FPaths::ProjectSavedDir();
-	FString FilePath = FString::Printf(TEXT("%sRecordingData/%s.rec"), *BasePath, *FPaths::GetBaseFilename(AssetPath));
+	const FString AssetPath = GetPathName();
+	FString ObjectDirectory = FPaths::GetPath(AssetPath);
+	ObjectDirectory.RemoveFromStart(TEXT("/Game"));
+	const FString AbsoluteFolderPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectContentDir(), ObjectDirectory));
+	const FString AbsoluteFilePath = FString::Printf(TEXT("%s/%s.rec"), *AbsoluteFolderPath, *FPaths::GetBaseFilename(AssetPath));
 
-	return FilePath;
+	return AbsoluteFilePath;
 }
 
 void ULiveLinkUAssetRecording::FLiveLinkStreamAsyncTask::DoWork()
