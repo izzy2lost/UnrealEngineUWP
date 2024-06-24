@@ -367,6 +367,8 @@ namespace HordeServer
 		// This method gets called *multiple times* by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
+			services.AddSingleton<IServerInfo>(new ServerInfo());
+
 			// Register the plugin collection
 			Dictionary<string, IPluginStartup> plugins = new Dictionary<string, IPluginStartup>();
 			services.AddSingleton<IPluginCollection>(new PluginCollection(plugins));

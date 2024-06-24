@@ -10,7 +10,6 @@ using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
 using HordeServer.Acls;
 using HordeServer.Configuration;
-using HordeServer.Server;
 using HordeServer.Utilities;
 using Json.Path;
 
@@ -161,9 +160,9 @@ namespace HordeServer.Telemetry.Metrics
 		/// <summary>
 		/// Called after the store has been deserialized to compute cached values
 		/// </summary>
-		public void PostLoad(GlobalConfig globalConfig)
+		public void PostLoad(AclConfig parentAcl)
 		{
-			Acl.PostLoad(globalConfig.Acl, $"telemetry-store:{Id}");
+			Acl.PostLoad(parentAcl, $"telemetry-store:{Id}");
 
 			_metricLookup.Clear();
 			foreach (MetricConfig metric in Metrics)

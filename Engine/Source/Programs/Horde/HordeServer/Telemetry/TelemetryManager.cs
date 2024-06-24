@@ -29,23 +29,17 @@ namespace HordeServer.Telemetry
 		private readonly ITicker _ticker;
 		private readonly Tracer _tracer;
 		private readonly ILogger<TelemetryManager> _logger;
-
-		private static readonly TelemetryRecordMeta s_serverEventMetadata = new TelemetryRecordMeta
-		{
-			AppId = "Horde",
-			AppVersion = ServerApp.Version.ToString(),
-			AppEnvironment = ServerApp.DeploymentEnvironment,
-			SessionId = ServerApp.SessionId
-		};
+		private readonly TelemetryRecordMeta _serverEventMetadata;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TelemetryManager(IServiceProvider serviceProvider, IClock clock, IOptions<ServerSettings> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
+		public TelemetryManager(IServiceProvider serviceProvider, IServerInfo serverInfo, IClock clock, IOptions<ServerSettings> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
 		{
 			_tracer = tracer;
 			_logger = loggerFactory.CreateLogger<TelemetryManager>();
 			_ticker = clock.AddTicker<EpicTelemetrySink>(TimeSpan.FromSeconds(30.0), FlushAsync, _logger);
+			_serverEventMetadata = new TelemetryRecordMeta("Horde", serverInfo.Version.ToString(), serverInfo.Environment, serverInfo.SessionId);
 
 			foreach (BaseTelemetryConfig config in serverSettings.Value.Telemetry)
 			{
@@ -66,7 +60,7 @@ namespace HordeServer.Telemetry
 		/// <inheritdoc/>
 		public void WriteEvent(TelemetryStoreId telemetryStoreId, object payload)
 		{
-			WriteEvent(telemetryStoreId, s_serverEventMetadata, payload);
+			WriteEvent(telemetryStoreId, _serverEventMetadata, payload);
 		}
 
 		/// <inheritdoc/>

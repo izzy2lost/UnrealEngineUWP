@@ -356,7 +356,7 @@ namespace HordeServer.Server
 			foreach (TelemetryStoreConfig telemetryStore in TelemetryStores)
 			{
 				_telemetryStoreLookup.Add(telemetryStore.Id, telemetryStore);
-				telemetryStore.PostLoad(this);
+				telemetryStore.PostLoad(Acl);
 			}
 
 			Storage.PostLoad(this);
