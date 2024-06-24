@@ -1636,7 +1636,7 @@ export class Backend {
     /// Updates the state of an active deployment.
     updateDeployment(toolId: string, deploymentId: string, update: UpdateDeploymentRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.patch(`/api/v1/tools/${toolId}/deployments/${deploymentId}`, { request: update }).then(() => {
+            this.backend.patch(`/api/v1/tools/${toolId}/deployments/${deploymentId}`, update).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);

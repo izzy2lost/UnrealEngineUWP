@@ -5061,7 +5061,7 @@ export enum ToolDeploymentState {
 	Complete = "Complete",
 
 	/** The deployment has been cancelled. */
-	Cancelled = "Canceled"
+	Cancelled = "Cancelled"
 }
 
 /** Summary for a particular tool */
