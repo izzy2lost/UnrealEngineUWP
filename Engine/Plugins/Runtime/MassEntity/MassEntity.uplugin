@@ -16,11 +16,6 @@
 	"EnabledByDefault": false,
 	"Modules": [
 		{
-			"Name": "MassEntity",
-			"Type": "Runtime",
-			"LoadingPhase": "PreLoadingScreen"
-		},
-		{
 			"Name": "MassEntityTestSuite",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "Default"
