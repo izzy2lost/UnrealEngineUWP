@@ -1929,7 +1929,7 @@ void UMaterial::GetDependentFunctions(TArray<UMaterialFunctionInterface*>& Depen
 }
 #endif // WITH_EDITORONLY_DATA
 
-extern FPostProcessMaterialNode* IteratePostProcessMaterialNodes(const FFinalPostProcessSettings& Dest, const UMaterialInterface* Material, const UMaterial* Base, FBlendableEntry*& Iterator);
+extern FPostProcessMaterialNode* FindExistingBlendablePostProcessNode(const FFinalPostProcessSettings& Dest, const UMaterialInterface* Material, const UMaterial* Base);
 
 void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float Weight) const
 {
@@ -1946,9 +1946,10 @@ void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float
 		return;
 	}
 
-	FBlendableEntry* Iterator = 0;
+	// Materials that write to UserSceneTexture outputs are automatically non-blendable
+	bool bIsBlendable = Base->bIsBlendable && GetUserSceneTextureOutput(Base) == NAME_None;
 
-	FPostProcessMaterialNode* DestNode = IteratePostProcessMaterialNodes(Dest, this, Base, Iterator);
+	FPostProcessMaterialNode* DestNode = bIsBlendable ? FindExistingBlendablePostProcessNode(Dest, this, Base) : nullptr;
 
 	// is this the first one of this material?
 	if(!DestNode)
@@ -1963,7 +1964,7 @@ void UMaterialInterface::OverrideBlendableSettings(class FSceneView& View, float
 
 			InitialMID->CopyScalarAndVectorParameters(*SourceData, View.FeatureLevel);
 
-			FPostProcessMaterialNode InitialNode(InitialMID, GetBlendableLocation(Base), GetBlendablePriority(Base), Base->bIsBlendable);
+			FPostProcessMaterialNode InitialNode(InitialMID, GetBlendableLocation(Base), GetBlendablePriority(Base), bIsBlendable);
 
 			// no blending needed on this one
 			FPostProcessMaterialNode* InitialDestNode = Dest.BlendableManager.PushBlendableData(1.0f, InitialNode);

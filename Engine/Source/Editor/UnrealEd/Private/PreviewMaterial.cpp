@@ -477,6 +477,12 @@ UMaterialEditorInstanceConstant::UMaterialEditorInstanceConstant(const FObjectIn
 
 	// Default to override with nothing on MIC (don't inherit parent setting).
 	bNaniteOverride = true;
+
+	PostProcessOverrides.bIsOverrideable = false;
+	PostProcessOverrides.bOverrideBlendableLocation = false;
+	PostProcessOverrides.bOverrideBlendablePriority = false;
+	PostProcessOverrides.BlendableLocationOverride = BL_SceneColorAfterTonemapping;
+	PostProcessOverrides.BlendablePriorityOverride = 0;
 }
 
 void UMaterialEditorInstanceConstant::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)

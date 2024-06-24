@@ -491,10 +491,10 @@ struct FUserSceneTextureOverride
 
 struct FPostProcessBlendableOverrides
 {
-	bool bOverrideBlendableLocation;
-	bool bOverrideBlendablePriority;
-	TEnumAsByte<EBlendableLocation> BlendableLocationOverride;
-	int32 BlendablePriorityOverride;
+	bool bOverrideBlendableLocation = false;
+	bool bOverrideBlendablePriority = false;
+	TEnumAsByte<EBlendableLocation> BlendableLocationOverride = BL_SceneColorAfterTonemapping;
+	int32 BlendablePriorityOverride = 0;
 };
 
 template<class T>
@@ -871,7 +871,6 @@ public:
 	virtual ENGINE_API void RecacheUniformExpressions(bool bRecreateUniformBuffer) const override;
 	virtual ENGINE_API bool GetRefractionSettings(float& OutBiasValue) const override;
 	virtual ENGINE_API bool GetUserSceneTextureOverride(FName& InOutName) const override;
-	ENGINE_API FName GetUserSceneTextureOutput(const UMaterial* Base) const;
 	virtual ENGINE_API EBlendableLocation GetBlendableLocation(const UMaterial* Base) const override;
 	virtual ENGINE_API int32 GetBlendablePriority(const UMaterial* Base) const override;
 

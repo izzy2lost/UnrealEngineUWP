@@ -913,6 +913,7 @@ public:
 	ENGINE_API bool GetFontParameterValue(const FHashedMaterialParameterInfo& ParameterInfo,class UFont*& OutFontValue, int32& OutFontPage, bool bOveriddenOnly = false) const;
 	ENGINE_API virtual bool GetRefractionSettings(float& OutBiasValue) const;
 	ENGINE_API virtual bool GetUserSceneTextureOverride(FName& InOutValue) const;
+	ENGINE_API FName GetUserSceneTextureOutput(const UMaterial* Base) const;
 	ENGINE_API virtual EBlendableLocation GetBlendableLocation(const UMaterial* Base) const;
 	ENGINE_API virtual int32 GetBlendablePriority(const UMaterial* Base) const;
 

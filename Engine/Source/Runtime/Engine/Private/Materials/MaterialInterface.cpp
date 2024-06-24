@@ -1222,6 +1222,25 @@ bool UMaterialInterface::GetUserSceneTextureOverride(FName& InOutName) const
 	return false;
 }
 
+FName UMaterialInterface::GetUserSceneTextureOutput(const UMaterial* Base) const
+{
+	FName Result = NAME_None;
+
+	// Replacing tonemapper can't override output.
+	if (Base->BlendableLocation != BL_ReplacingTonemapper)
+	{
+		// UserSceneTexture output overrides are stored under key "NAME_None".  We store them in the override lookup to save space
+		// in the base structure, by avoiding a separate field just for the output override.
+		if (!GetUserSceneTextureOverride(Result) && Base)
+		{
+			// If no override was found, get the result from the base material
+			Result = FName(Base->UserSceneTexture);
+		}
+	}
+	return Result;
+
+}
+
 // Certain implementations support overrides to the base material setting, default behavior is to just return the value from the base material
 EBlendableLocation UMaterialInterface::GetBlendableLocation(const UMaterial* Base) const
 {

@@ -1201,25 +1201,6 @@ bool UMaterialInstance::GetUserSceneTextureOverride(FName& InOutName) const
 	}
 }
 
-FName UMaterialInstance::GetUserSceneTextureOutput(const UMaterial* Base) const
-{
-	FName Result = NAME_None;
-
-	// Replacing tonemapper can't override output.
-	if (Base->BlendableLocation != BL_ReplacingTonemapper)
-	{
-		// UserSceneTexture output overrides are stored under key "NAME_None".  We store them in the override lookup to save space
-		// in the base structure, by avoiding a separate field just for the output override.
-		if (!GetUserSceneTextureOverride(Result) && Base)
-		{
-			// If no override was found, get the result from the base material
-			Result = FName(Base->UserSceneTexture);
-		}
-	}
-	return Result;
-
-}
-
 EBlendableLocation UMaterialInstance::GetBlendableLocation(const UMaterial* Base) const
 {
 	check(Base);
@@ -4612,32 +4593,23 @@ void UMaterialInstance::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSiz
 	}
 }
 
-FPostProcessMaterialNode* IteratePostProcessMaterialNodes(const FFinalPostProcessSettings& Dest, const UMaterialInterface* Material, const UMaterial* Base, FBlendableEntry*& Iterator)
+FPostProcessMaterialNode* FindExistingBlendablePostProcessNode(const FFinalPostProcessSettings& Dest, const UMaterialInterface* Material, const UMaterial* Base)
 {
 	EBlendableLocation Location = Material->GetBlendableLocation(Base);
 	int32 Priority = Material->GetBlendablePriority(Base);
 
-	for (;;)
+	FBlendableEntry* Iterator = nullptr;
+
+	for (FPostProcessMaterialNode* DataPtr = Dest.BlendableManager.IterateBlendables<FPostProcessMaterialNode>(Iterator); DataPtr; DataPtr = Dest.BlendableManager.IterateBlendables<FPostProcessMaterialNode>(Iterator))
 	{
-		FPostProcessMaterialNode* DataPtr = Dest.BlendableManager.IterateBlendables<FPostProcessMaterialNode>(Iterator);
-
-		if (!DataPtr)
-		{
-			// end reached
-			return 0;
-		}
-
-		// Do not consider materials that are set as not blendable
-		if (!DataPtr->GetIsBlendable())
-		{
-			return 0;
-		}
-
-		if(DataPtr->GetLocation() == Location && DataPtr->GetPriority() == Priority && DataPtr->GetMaterialInterface()->GetMaterial() == Material)
+		// Only consider materials that are set as blendable
+		if (DataPtr->GetIsBlendable() && DataPtr->GetLocation() == Location && DataPtr->GetPriority() == Priority && DataPtr->GetMaterialInterface()->GetMaterial() == Base)
 		{
 			return DataPtr;
 		}
 	}
+
+	return nullptr;
 }
 
 void UMaterialInstance::AllMaterialsCacheResourceShadersForRendering(bool bUpdateProgressDialog, bool bCacheAllRemainingShaders)
