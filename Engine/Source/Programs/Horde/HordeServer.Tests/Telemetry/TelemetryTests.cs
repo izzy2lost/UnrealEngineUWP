@@ -22,6 +22,8 @@ namespace HordeServer.Tests.Telemetry
 	[TestClass]
 	public class TelemetryTests : TestSetup
 	{
+		static readonly TelemetryRecordMeta s_metadata = new TelemetryRecordMeta();
+
 		protected override void ConfigureServices(IServiceCollection services)
 		{
 			base.ConfigureServices(services);
@@ -55,9 +57,9 @@ namespace HordeServer.Tests.Telemetry
 
 			// Test 1
 			{
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 1 });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 2 });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 3 });
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Included", foo = 1 }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Included", foo = 2 }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Excluded", foo = 3 }));
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
@@ -93,9 +95,9 @@ namespace HordeServer.Tests.Telemetry
 
 			// Test 1
 			{
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1 });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2 });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3 });
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 1 }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 2 }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 3 }));
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
@@ -108,7 +110,7 @@ namespace HordeServer.Tests.Telemetry
 
 			// Test 2
 			{
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3 });
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 3 }));
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
@@ -123,7 +125,7 @@ namespace HordeServer.Tests.Telemetry
 			{
 				await Clock.AdvanceAsync(TimeSpan.FromHours(1.0));
 
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 4 });
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 4 }));
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
@@ -171,9 +173,9 @@ namespace HordeServer.Tests.Telemetry
 
 			// Test 1
 			{
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1 });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2, bar = 201 });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3, bar = new { baz = 101 } });
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 1 }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 2, bar = 201 }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 3, bar = new { baz = 101 } }));
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
@@ -235,7 +237,7 @@ namespace HordeServer.Tests.Telemetry
 
 			foreach (double value in values)
 			{
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = value });
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = value }));
 			}
 
 			await sink.FlushAsync(CancellationToken.None);
@@ -270,11 +272,11 @@ namespace HordeServer.Tests.Telemetry
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
 			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
 
-			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1, group = "first" });
-			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2, group = "first" });
-			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3, group = "first" });
-			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 4, group = "second" });
-			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 5 });
+			sink.SendEvent(TelemetryStoreId.Default, new TelemetryEvent(s_metadata, new { foo = 1, group = "first" }));
+			sink.SendEvent(TelemetryStoreId.Default, new TelemetryEvent(s_metadata, new { foo = 2, group = "first" }));
+			sink.SendEvent(TelemetryStoreId.Default, new TelemetryEvent(s_metadata, new { foo = 3, group = "first" }));
+			sink.SendEvent(TelemetryStoreId.Default, new TelemetryEvent(s_metadata, new { foo = 4, group = "second" }));
+			sink.SendEvent(TelemetryStoreId.Default, new TelemetryEvent(s_metadata, new { foo = 5 }));
 			await sink.FlushAsync(CancellationToken.None);
 			await collection.FlushAsync(CancellationToken.None);
 
@@ -318,7 +320,7 @@ namespace HordeServer.Tests.Telemetry
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
 			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
 
-			sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 123, group = "first, second & third" });
+			sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { foo = 123, group = "first, second & third" }));
 			await sink.FlushAsync(CancellationToken.None);
 			await collection.FlushAsync(CancellationToken.None);
 
@@ -378,13 +380,13 @@ namespace HordeServer.Tests.Telemetry
 
 			// Test 1
 			{
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 1, groupFacetA = "groupA" });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 2, groupFacetA = "groupA" });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 3, groupFacetA = "groupA", groupFacetB = "groupB" });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 4, groupFacetB = "groupB" });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 5, groupFacetB = "groupA,groupB" });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 6, groupFacetA = "groupA", groupFacetB = "groupB", groupFacetC = "groupC" });
-				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 6 });
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Included", foo = 1, groupFacetA = "groupA" }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Included", foo = 2, groupFacetA = "groupA" }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Included", foo = 3, groupFacetA = "groupA", groupFacetB = "groupB" }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Included", foo = 4, groupFacetB = "groupB" }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Included", foo = 5, groupFacetB = "groupA,groupB" }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Included", foo = 6, groupFacetA = "groupA", groupFacetB = "groupB", groupFacetC = "groupC" }));
+				sink.SendEvent(telemetryStoreConfig.Id, new TelemetryEvent(s_metadata, new { EventName = "Excluded", foo = 6 }));
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 

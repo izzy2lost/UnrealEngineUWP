@@ -727,7 +727,7 @@ namespace HordeServer.Jobs
 		readonly MongoIndex<JobDocument> _createTimeIndex;
 		readonly MongoIndex<JobDocument> _streamThenTemplateThenCreationTimeIndex;
 		readonly MongoIndex<JobDocument> _startedByBisectTaskIdIndex;
-		readonly ITelemetrySink _telemetrySink;
+		readonly ITelemetryWriter _telemetryWriter;
 		readonly IClock _clock;
 		readonly IGraphCollection _graphCollection;
 		readonly ILogCollection _logCollection;
@@ -738,12 +738,12 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobCollection(IMongoService mongoService, IClock clock, IGraphCollection graphCollection, ILogCollection logCollection, ITelemetrySink telemetrySink, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<JobCollection> logger)
+		public JobCollection(IMongoService mongoService, IClock clock, IGraphCollection graphCollection, ILogCollection logCollection, ITelemetryWriter telemetryWriter, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<JobCollection> logger)
 		{
 			_clock = clock;
 			_graphCollection = graphCollection;
 			_logCollection = logCollection;
-			_telemetrySink = telemetrySink;
+			_telemetryWriter = telemetryWriter;
 			_globalConfig = globalConfig;
 			_tracer = tracer;
 			_logger = logger;
@@ -792,7 +792,7 @@ namespace HordeServer.Jobs
 
 			if (_globalConfig.CurrentValue.TryGetStream(streamId, out StreamConfig? streamConfig) && !streamConfig.TelemetryStoreId.IsEmpty)
 			{
-				_telemetrySink.SendEvent(streamConfig.TelemetryStoreId, TelemetryRecordMeta.CurrentHordeInstance, new
+				_telemetryWriter.WriteEvent(streamConfig.TelemetryStoreId, new
 				{
 					EventName = "State.Job",
 					Id = newJob.Id,

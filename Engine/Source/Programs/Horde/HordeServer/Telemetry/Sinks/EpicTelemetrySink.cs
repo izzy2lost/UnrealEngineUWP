@@ -39,7 +39,7 @@ namespace HordeServer.Telemetry.Sinks
 	/// <summary>
 	/// Epic internal telemetry sink using the data router
 	/// </summary>
-	public sealed class EpicTelemetrySink : ITelemetrySinkInternal
+	public sealed class EpicTelemetrySink : ITelemetrySink
 	{
 		// Converter for datetime formats that Tableau can ingest
 		class TableauDateTimeConverter : JsonConverter<DateTime>

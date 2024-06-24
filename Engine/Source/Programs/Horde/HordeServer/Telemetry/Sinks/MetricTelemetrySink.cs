@@ -13,7 +13,7 @@ namespace HordeServer.Telemetry.Sinks
 	/// <summary>
 	/// Consumes telemetry events and generates metrics
 	/// </summary>
-	class MetricTelemetrySink : ITelemetrySinkInternal
+	class MetricTelemetrySink : ITelemetrySink
 	{
 		readonly IMetricCollection _metricCollection;
 		readonly JsonSerializerOptions _jsonOptions;

@@ -21,7 +21,7 @@ namespace HordeServer.Telemetry.Sinks
 	/// <summary>
 	/// Telemetry sink which writes data to a MongoDB collection
 	/// </summary>
-	public sealed class MongoTelemetrySink : ITelemetrySinkInternal, IHostedService, IAsyncDisposable
+	public sealed class MongoTelemetrySink : ITelemetrySink, IHostedService, IAsyncDisposable
 	{
 		class EventDocument
 		{

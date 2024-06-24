@@ -596,7 +596,7 @@ namespace HordeServer.Issues
 		readonly IMongoCollection<IssueStep> _issueSteps;
 		readonly IMongoCollection<IssueSuspect> _issueSuspects;
 		readonly IAuditLog<int> _auditLog;
-		readonly ITelemetrySink _telemetrySink;
+		readonly ITelemetryWriter _telemetryWriter;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
@@ -619,11 +619,11 @@ namespace HordeServer.Issues
 			});
 		}
 
-		public IssueCollection(IMongoService mongoService, IRedisService redisService, IUserCollection userCollection, IAuditLogFactory<int> auditLogFactory, ITelemetrySink telemetrySink, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<IssueCollection> logger)
+		public IssueCollection(IMongoService mongoService, IRedisService redisService, IUserCollection userCollection, IAuditLogFactory<int> auditLogFactory, ITelemetryWriter telemetryWriter, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<IssueCollection> logger)
 		{
 			_redisService = redisService;
 			_userCollection = userCollection;
-			_telemetrySink = telemetrySink;
+			_telemetryWriter = telemetryWriter;
 			_globalConfig = globalConfig;
 			_tracer = tracer;
 			_logger = logger;
@@ -741,7 +741,7 @@ namespace HordeServer.Issues
 
 			foreach (TelemetryStoreId telemetryStoreId in telemetryStoreIds)
 			{
-				_telemetrySink.SendEvent(telemetryStoreId, TelemetryRecordMeta.CurrentHordeInstance, new
+				_telemetryWriter.WriteEvent(telemetryStoreId, new
 				{
 					EventName = "State.Issue",
 					Id = issue.Id,
@@ -1512,7 +1512,7 @@ namespace HordeServer.Issues
 		{
 			if (_globalConfig.CurrentValue.TryGetStream(issueSpan.StreamId, out StreamConfig? streamConfig) && !streamConfig.TelemetryStoreId.IsEmpty)
 			{
-				_telemetrySink.SendEvent(streamConfig.TelemetryStoreId, TelemetryRecordMeta.CurrentHordeInstance, new
+				_telemetryWriter.WriteEvent(streamConfig.TelemetryStoreId, new
 				{
 					EventName = "State.IssueSpan",
 					Id = issueSpan.Id,

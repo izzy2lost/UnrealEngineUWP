@@ -201,7 +201,7 @@ namespace HordeServer.Tests
 			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
 			services.AddSingleton<IAuditLog<AgentId>>(sp => sp.GetRequiredService<IAuditLogFactory<AgentId>>().Create("Agents.Log", "AgentId"));
 			services.AddSingleton<ITelemetrySink, NullTelemetrySink>();
-			services.AddSingleton<ITelemetrySinkInternal, MetricTelemetrySink>();
+			services.AddSingleton<ITelemetrySink, MetricTelemetrySink>();
 			services.AddSingleton<OpenTelemetry.Trace.Tracer>(sp => TracerProvider.Default.GetTracer("TestTracer"));
 			services.AddSingleton(sp => new Meter("TestMeter"));
 

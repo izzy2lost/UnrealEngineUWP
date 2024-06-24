@@ -787,7 +787,7 @@ namespace HordeServer
 				});
 
 			services.AddSingleton<TelemetryManager>();
-			services.AddSingleton<ITelemetrySink>(sp => sp.GetRequiredService<TelemetryManager>());
+			services.AddSingleton<ITelemetryWriter>(sp => sp.GetRequiredService<TelemetryManager>());
 			services.AddHostedService(sp => sp.GetRequiredService<TelemetryManager>());
 			services.AddSingleton<MongoTelemetrySink>();
 			services.AddHostedService(sp => sp.GetRequiredService<MongoTelemetrySink>());

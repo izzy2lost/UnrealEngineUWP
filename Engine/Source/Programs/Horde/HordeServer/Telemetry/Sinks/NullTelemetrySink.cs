@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 
 namespace HordeServer.Telemetry.Sinks
@@ -13,8 +15,15 @@ namespace HordeServer.Telemetry.Sinks
 		public bool Enabled => false;
 
 		/// <inheritdoc/>
+		public ValueTask DisposeAsync()
+			=> default;
+
+		/// <inheritdoc/>
+		public ValueTask FlushAsync(CancellationToken cancellationToken)
+			=> default;
+
+		/// <inheritdoc/>
 		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
-		{
-		}
+		{ }
 	}
 }

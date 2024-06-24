@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver.Core.WireProtocol.Messages;
 using OpenTelemetry.Trace;
 
 namespace HordeServer.Telemetry
@@ -21,15 +22,23 @@ namespace HordeServer.Telemetry
 	/// <summary>
 	/// Telemetry sink dispatching incoming events to all registered sinks
 	/// </summary>
-	public sealed class TelemetryManager : ITelemetrySinkInternal, IHostedService
+	public sealed class TelemetryManager : ITelemetryWriter, IHostedService
 	{
 		/// <inheritdoc/>
 		public bool Enabled => _telemetrySinks.Count > 0;
 
-		private readonly List<ITelemetrySinkInternal> _telemetrySinks = new();
+		private readonly List<ITelemetrySink> _telemetrySinks = new();
 		private readonly ITicker _ticker;
 		private readonly Tracer _tracer;
 		private readonly ILogger<TelemetryManager> _logger;
+
+		private readonly static TelemetryRecordMeta s_serverEventMetadata = new TelemetryRecordMeta
+		{
+			AppId = "Horde",
+			AppVersion = ServerApp.Version.ToString(),
+			AppEnvironment = ServerApp.DeploymentEnvironment,
+			SessionId = ServerApp.SessionId
+		};
 
 		/// <summary>
 		/// Constructor
@@ -60,10 +69,18 @@ namespace HordeServer.Telemetry
 		}
 
 		/// <inheritdoc/>
-		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
+		public void WriteEvent(TelemetryStoreId telemetryStoreId, object payload)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(TelemetryManager)}.{nameof(SendEvent)}");
-			foreach (ITelemetrySinkInternal sink in _telemetrySinks)
+			WriteEvent(telemetryStoreId, s_serverEventMetadata, payload);
+		}
+
+		/// <inheritdoc/>
+		public void WriteEvent(TelemetryStoreId telemetryStoreId, TelemetryRecordMeta metadata, object payload)
+		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(TelemetryManager)}.{nameof(WriteEvent)}");
+
+			TelemetryEvent telemetryEvent = new TelemetryEvent(metadata, payload);
+			foreach (ITelemetrySink sink in _telemetrySinks)
 			{
 				using TelemetrySpan sinkSpan = _tracer.StartActiveSpan($"SendEvent");
 				string fullName = sink.GetType().FullName ?? "Unknown";
@@ -114,7 +131,7 @@ namespace HordeServer.Telemetry
 		public async ValueTask DisposeAsync()
 		{
 			await _ticker.DisposeAsync();
-			foreach (ITelemetrySinkInternal sink in _telemetrySinks)
+			foreach (ITelemetrySink sink in _telemetrySinks)
 			{
 				await sink.DisposeAsync();
 			}
@@ -123,7 +140,7 @@ namespace HordeServer.Telemetry
 		/// <inheritdoc />
 		public async ValueTask FlushAsync(CancellationToken cancellationToken)
 		{
-			foreach (ITelemetrySinkInternal sink in _telemetrySinks)
+			foreach (ITelemetrySink sink in _telemetrySinks)
 			{
 				await sink.FlushAsync(cancellationToken);
 			}

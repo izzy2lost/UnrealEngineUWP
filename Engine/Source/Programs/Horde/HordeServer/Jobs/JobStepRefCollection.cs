@@ -104,19 +104,19 @@ namespace HordeServer.Jobs
 		}
 
 		readonly IMongoCollection<JobStepRef> _jobStepRefs;
-		readonly ITelemetrySink _telemetrySink;
+		readonly ITelemetryWriter _telemetryWriter;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobStepRefCollection(IMongoService mongoService, ITelemetrySink telemetrySink, IOptionsMonitor<GlobalConfig> globalConfig)
+		public JobStepRefCollection(IMongoService mongoService, ITelemetryWriter telemetryWriter, IOptionsMonitor<GlobalConfig> globalConfig)
 		{
 			List<MongoIndex<JobStepRef>> indexes = new List<MongoIndex<JobStepRef>>();
 			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Ascending(x => x.Name).Descending(x => x.Change));
 
 			_jobStepRefs = mongoService.GetCollection<JobStepRef>("JobStepRefs", indexes);
-			_telemetrySink = telemetrySink;
+			_telemetryWriter = telemetryWriter;
 			_globalConfig = globalConfig;
 		}
 
@@ -128,7 +128,7 @@ namespace HordeServer.Jobs
 
 			if (_globalConfig.CurrentValue.TryGetStream(streamId, out StreamConfig? streamConfig) && !streamConfig.TelemetryStoreId.IsEmpty)
 			{
-				_telemetrySink.SendEvent(streamConfig.TelemetryStoreId, TelemetryRecordMeta.CurrentHordeInstance, new
+				_telemetryWriter.WriteEvent(streamConfig.TelemetryStoreId, new
 				{
 					EventName = "State.JobStepRef",
 					Id = id.ToString(),

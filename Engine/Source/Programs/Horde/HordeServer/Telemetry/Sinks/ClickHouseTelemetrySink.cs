@@ -17,7 +17,7 @@ namespace HordeServer.Telemetry.Sinks
 	/// <summary>
 	/// ClickHouse telemetry sink
 	/// </summary>
-	public sealed class ClickHouseTelemetrySink : ITelemetrySinkInternal
+	public sealed class ClickHouseTelemetrySink : ITelemetrySink
 	{
 		/// <summary>
 		/// Name of the HTTP client for writing telemetry data

@@ -46,7 +46,7 @@ namespace HordeServer.Server
 
 		readonly AgentService _agentService;
 		readonly LifetimeService _lifetimeService;
-		readonly ITelemetrySink _telemetrySink;
+		readonly ITelemetryWriter _telemetryWriter;
 		readonly IToolCollection _toolCollection;
 		readonly IAgentTelemetryCollection _agentTelemetryCollection;
 		readonly AclService _aclService;
@@ -56,11 +56,11 @@ namespace HordeServer.Server
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RpcService(AgentService agentService, LifetimeService lifetimeService, ITelemetrySink telemetrySink, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
+		public RpcService(AgentService agentService, LifetimeService lifetimeService, ITelemetryWriter telemetryWriter, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
 		{
 			_agentService = agentService;
 			_lifetimeService = lifetimeService;
-			_telemetrySink = telemetrySink;
+			_telemetryWriter = telemetryWriter;
 			_toolCollection = toolCollection;
 			_agentTelemetryCollection = agentTelemetryCollection;
 			_aclService = aclService;
@@ -480,7 +480,7 @@ namespace HordeServer.Server
 				FieldDescriptor caseDescriptor = oneofDescriptor.Accessor.GetCaseFieldDescriptor(wrappedEvent);
 
 				object wrappedValue = caseDescriptor.Accessor.GetValue(wrappedEvent);
-				_telemetrySink.SendEvent(TelemetryStoreId.Default, agentMeta, wrappedValue);
+				_telemetryWriter.WriteEvent(TelemetryStoreId.Default, agentMeta, wrappedValue);
 			}
 
 			return new Empty();

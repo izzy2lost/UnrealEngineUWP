@@ -157,7 +157,7 @@ namespace HordeServer.Telemetry
 			TelemetryRecordMeta recordMeta = new TelemetryRecordMeta(AppId: appId, AppVersion: appVersion, AppEnvironment: appEnvironment);
 			foreach (JsonObject eventPayload in request.Events)
 			{
-				_telemetryManager.SendEvent(storeId, recordMeta, eventPayload);
+				_telemetryManager.WriteEvent(storeId, recordMeta, eventPayload);
 			}
 
 			return NoContent();
