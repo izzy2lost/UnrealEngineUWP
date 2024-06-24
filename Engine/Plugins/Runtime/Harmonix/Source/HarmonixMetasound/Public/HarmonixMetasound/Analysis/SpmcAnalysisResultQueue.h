@@ -293,6 +293,16 @@ namespace HarmonixMetasound::Analysis
 				return Entry != nullptr;
 			}
 
+			bool operator==(const FEntry& Other)
+			{
+				return &Other == Entry;
+			}
+
+			bool operator!=(const FEntry& Other)
+			{
+				return &Other != Entry;
+			}
+
 			bool DiscontinuityDetectedInLastRead{ false };
 			const FEntry* Entry;
 			FReadCursor* ReadCursor;
@@ -389,6 +399,12 @@ namespace HarmonixMetasound::Analysis
 				Index = Items.Num();
 			}
 			Index--;
+		}
+
+		const FEntry& operator[](int32 Index)
+		{
+			check(Items.IsValidIndex(Index));
+			return Items[Index];
 		}
 
 	private:
