@@ -73,6 +73,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using OpenTelemetry.Trace;
+using HordeServer.Plugins;
 
 namespace HordeServer.Tests
 {
@@ -195,6 +196,8 @@ namespace HordeServer.Tests
 			services.AddSingleton<IConfiguration>(config);
 
 			services.AddHttpClient<RpcService>();
+
+			services.AddSingleton<IPluginCollection>(new PluginCollection(new Dictionary<string, IPluginStartup>()));
 
 			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
 			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));
