@@ -38,6 +38,7 @@ using HordeServer.Jobs.Bisect;
 using HordeServer.Logs;
 using HordeServer.Notifications;
 using HordeServer.Perforce;
+using HordeServer.Plugins;
 using HordeServer.Projects;
 using HordeServer.Secrets;
 using HordeServer.Storage;
@@ -246,6 +247,11 @@ namespace HordeServer.Server
 		public List<TelemetryStoreConfig> TelemetryStores { get; set; } = new List<TelemetryStoreConfig>();
 
 		/// <summary>
+		/// Plugin config objects
+		/// </summary>
+		public PluginConfigCollection Plugins { get; set; } = new PluginConfigCollection();
+
+		/// <summary>
 		/// General parameters for other tools. Can be queried through the api/v1/parameters endpoint.
 		/// </summary>
 		public JsonObject Parameters { get; set; } = new JsonObject();
@@ -354,6 +360,11 @@ namespace HordeServer.Server
 			}
 
 			Storage.PostLoad(this);
+
+			foreach (IPluginConfig pluginConfig in Plugins.Values)
+			{
+				pluginConfig.PostLoad(Acl);
+			}
 
 			_aclLookup.Clear();
 			BuildAclScopeLookup(Acl, _aclLookup);

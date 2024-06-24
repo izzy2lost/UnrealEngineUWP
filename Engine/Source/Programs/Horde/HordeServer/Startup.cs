@@ -71,6 +71,7 @@ using HordeServer.Logs.Storage;
 using HordeServer.Notifications;
 using HordeServer.Notifications.Sinks;
 using HordeServer.Perforce;
+using HordeServer.Plugins;
 using HordeServer.Replicators;
 using HordeServer.Secrets;
 using HordeServer.Secrets.Providers;
@@ -366,6 +367,19 @@ namespace HordeServer
 		// This method gets called *multiple times* by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
+			// Register the plugin collection
+			Dictionary<string, IPluginStartup> plugins = new Dictionary<string, IPluginStartup>();
+			services.AddSingleton<IPluginCollection>(new PluginCollection(plugins));
+
+			// Register all the plugin config types
+			foreach ((string name, IPluginStartup plugin) in plugins)
+			{
+				if (plugin.GlobalConfigType != null)
+				{
+					services.AddPluginConfig(name, plugin.GlobalConfigType);
+				}
+			}
+
 			// IOptionsMonitor pattern for live updating of configuration settings
 			services.Configure<ServerSettings>(x => BindServerSettings(Configuration, x));
 
@@ -895,7 +909,14 @@ namespace HordeServer
 				options.KnownNetworks.Clear();
 			});
 
-			services.AddMvc().AddJsonOptions(options => JsonUtils.ConfigureJsonSerializer(options.JsonSerializerOptions));
+			IMvcBuilder mvcBuilder = services.AddMvc()
+				.AddJsonOptions(options => JsonUtils.ConfigureJsonSerializer(options.JsonSerializerOptions));
+
+			foreach (Assembly pluginAssembly in plugins.Values.Select(x => x.GetType().Assembly).Distinct())
+			{
+				mvcBuilder.AddApplicationPart(pluginAssembly);
+			}
+
 			services.AddControllersWithViews(options => options.Filters.Add(new ObsoleteLoggingFilter()))
 				.AddRazorRuntimeCompilation();
 

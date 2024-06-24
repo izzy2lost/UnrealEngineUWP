@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Users;
 using EpicGames.Redis;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Users;
 using HordeServer.Utilities;
@@ -136,7 +137,7 @@ namespace HordeServer.Configuration
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConfigService(IRedisService redisService, IOptions<ServerSettings> serverSettings, IEnumerable<IConfigSource> sources, IClock clock, IHealthMonitor<ConfigService> health, ILogger<ConfigService> logger)
+		public ConfigService(IRedisService redisService, IOptions<ServerSettings> serverSettings, IEnumerable<IConfigSource> sources, IPluginCollection pluginCollection, IClock clock, IHealthMonitor<ConfigService> health, ILogger<ConfigService> logger)
 		{
 			_redisService = redisService;
 			_serverSettings = serverSettings.Value;
@@ -147,6 +148,16 @@ namespace HordeServer.Configuration
 
 			_jsonOptions = new JsonSerializerOptions();
 			JsonUtils.ConfigureJsonSerializer(_jsonOptions);
+
+			PluginConfigCollectionConverter pluginConfigConverter = new PluginConfigCollectionConverter();
+			foreach ((string name, IPluginStartup plugin) in pluginCollection.EnabledPlugins)
+			{
+				if (plugin.GlobalConfigType != null)
+				{
+					pluginConfigConverter.NameToType[name] = plugin.GlobalConfigType;
+				}
+			}
+			_jsonOptions.Converters.Add(pluginConfigConverter);
 
 			_ticker = clock.AddSharedTicker<ConfigService>(_tickInterval, TickSharedAsync, logger);
 
