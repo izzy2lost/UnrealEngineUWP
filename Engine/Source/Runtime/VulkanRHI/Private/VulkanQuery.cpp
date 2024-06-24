@@ -390,7 +390,7 @@ void FVulkanCommandListContext::ReadAndCalculateGPUFrameTime()
 {
 	check(IsImmediate());
 
-	if (FVulkanPlatform::SupportsTimestampRenderQueries() && FrameTiming)
+	if (GSupportsTimestampRenderQueries && FrameTiming)
 	{
 		uint64 Delta = 0;
 		

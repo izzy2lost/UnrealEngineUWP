@@ -469,7 +469,7 @@ void FVulkanCommandListContext::ReleasePendingState()
 
 FVulkanCommandListContext::~FVulkanCommandListContext()
 {
-	if (FVulkanPlatform::SupportsTimestampRenderQueries())
+	if (GSupportsTimestampRenderQueries)
 	{
 #if (RHI_NEW_GPU_PROFILER == 0)
 		FrameTiming->Release();

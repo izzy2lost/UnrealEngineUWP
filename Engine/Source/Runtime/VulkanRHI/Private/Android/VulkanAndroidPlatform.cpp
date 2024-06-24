@@ -592,7 +592,7 @@ void FVulkanAndroidPlatform::NotifyFoundDeviceLayersAndExtensions(VkPhysicalDevi
 
 bool FVulkanAndroidPlatform::SupportsTimestampRenderQueries()
 {
-	IConsoleVariable* CVarAndroidSupportsTimestampQueries = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsTimestampQueries"));
+	static const auto CVarAndroidSupportsTimestampQueries = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsTimestampQueries"));
 
 	// standalone devices have newer drivers where timestamp render queries work.
 	return CVarAndroidSupportsTimestampQueries != nullptr &&
@@ -605,7 +605,7 @@ bool FVulkanAndroidPlatform::SupportsDynamicResolution()
 
 #if USE_ANDROID_SWAPPY
 	
-	IConsoleVariable* CVarAndroidSupportsDynamicResolution = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsDynamicResolution"));
+	static const auto CVarAndroidSupportsDynamicResolution = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsDynamicResolution"));
 
 	bool bIsSwappyEnabled = FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() == 1;
 	return bIsSwappyEnabled && 
