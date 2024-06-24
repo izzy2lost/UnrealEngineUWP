@@ -667,6 +667,7 @@ namespace Gauntlet
 					SessionRole.AdditionalArtifactDirectories = TestRole.AdditionalArtifactDirectories;
 					SessionRole.ConfigureDevice = TestRole.ConfigureDevice;
 					SessionRole.MapOverride = TestRole.MapOverride;
+					SessionRole.CompressScreenshots = TestRole.CompressScreenshots;
 
 					SessionRoles.Add(SessionRole);
 				}

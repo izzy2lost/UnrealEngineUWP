@@ -393,6 +393,7 @@ namespace Gauntlet
 			InstallOnly = false;
 			DeferredLaunch = false;
 			CommandLineParams = new GauntletCommandLine();
+			CompressScreenshots = true;
 		}
 
 		public ERoleModifier RoleType { get; set; }
@@ -479,10 +480,14 @@ namespace Gauntlet
 		public string MapOverride { get; set; }
 
 		/// <summary>
-		/// Role device configuration 
+		/// Role device configuration
 		/// </summary>
 		public ConfigureDeviceHandler ConfigureDevice;
 
+		/// <summary>
+		/// Whether this role will compress screenshots produced as an artifact into a jpeg format
+		/// </summary>
+		public bool CompressScreenshots;
 	}
 
 	/// <summary>
