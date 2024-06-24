@@ -67,6 +67,10 @@ struct FParticleTransformTrack
 	const float GetEndTime() const;
 
 	void Compress();
+
+private:
+	void CopyTrackEntry(int32 FromIndex, int32 ToIndex);
+	void ResizeTrack(int32 NewSize);
 };
 
 USTRUCT()
