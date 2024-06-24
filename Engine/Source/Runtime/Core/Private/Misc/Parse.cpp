@@ -580,11 +580,14 @@ bool FParse::Value(	const TCHAR* Stream, const TCHAR* Match, FName& Name )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint32& Value )
 {
-	const TCHAR* Temp = FCString::Strifind(Stream,Match);
-	TCHAR* End;
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Value = FCString::Strtoi( Temp + FCString::Strlen(Match), &End, 10 );
+	}
+	TCHAR* End_NotUsed;
+
+	Value = FCString::Strtoi(Temp, &End_NotUsed, 10 );
 
 	return true;
 }
@@ -594,10 +597,12 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint32& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint8& Value )
 {
-	const TCHAR* Temp = FCString::Strifind(Stream,Match);
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Temp += FCString::Strlen( Match );
+	}
+
 	Value = (uint8)FCString::Atoi( Temp );
 	return Value!=0 || FChar::IsDigit(Temp[0]);
 }
@@ -607,10 +612,12 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint8& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int8& Value )
 {
-	const TCHAR* Temp = FCString::Strifind(Stream,Match);
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Temp += FCString::Strlen( Match );
+	}
+
 	Value = (int8)FCString::Atoi( Temp );
 	return Value!=0 || FChar::IsDigit(Temp[0]);
 }
@@ -620,10 +627,12 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int8& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint16& Value )
 {
-	const TCHAR* Temp = FCString::Strifind( Stream, Match );
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Temp += FCString::Strlen( Match );
+	}
+
 	Value = (uint16)FCString::Atoi( Temp );
 	return Value!=0 || FChar::IsDigit(Temp[0]);
 }
@@ -633,10 +642,12 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, uint16& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int16& Value )
 {
-	const TCHAR* Temp = FCString::Strifind( Stream, Match );
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Temp += FCString::Strlen( Match );
+	}
+
 	Value = (int16)FCString::Atoi( Temp );
 	return Value!=0 || FChar::IsDigit(Temp[0]);
 }
@@ -646,10 +657,13 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int16& Value )
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, float& Value )
 {
-	const TCHAR* Temp = FCString::Strifind( Stream, Match );
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Value = FCString::Atof( Temp+FCString::Strlen(Match) );
+	}
+
+	Value = FCString::Atof( Temp );
 	return true;
 }
 
@@ -658,10 +672,13 @@ bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, float& Value )
 //
 bool FParse::Value(const TCHAR* Stream, const TCHAR* Match, double& Value)
 {
-	const TCHAR* Temp = FCString::Strifind(Stream, Match);
-	if (Temp == NULL)
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Value = FCString::Atod(Temp + FCString::Strlen(Match));
+	}
+
+	Value = FCString::Atod(Temp);
 	return true;
 }
 
@@ -671,20 +688,23 @@ bool FParse::Value(const TCHAR* Stream, const TCHAR* Match, double& Value)
 //
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, int32& Value )
 {
-	const TCHAR* Temp = FCString::Strifind( Stream, Match );
-	if( Temp==NULL )
+	TCHAR Temp[256];
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
-	Value = FCString::Atoi( Temp + FCString::Strlen(Match) );
+	}
+
+	Value = FCString::Atoi( Temp );
 	return true;
 }
 
 //
 // Get a boolean value.
 //
-bool FParse::Bool( const TCHAR* Stream, const TCHAR* Match, bool& OnOff )
+bool FParse::Bool(const TCHAR* Stream, const TCHAR* Match, bool& OnOff)
 {
 	TCHAR TempStr[16];
-	if( FParse::Value( Stream, Match, TempStr, 16 ) )
+	if (FParse::Value(Stream, Match, TempStr, UE_ARRAY_COUNT(TempStr)))
 	{
 		OnOff = FCString::ToBool(TempStr);
 		return true;
@@ -701,8 +721,10 @@ bool FParse::Bool( const TCHAR* Stream, const TCHAR* Match, bool& OnOff )
 bool FParse::Value( const TCHAR* Stream, const TCHAR* Match, struct FGuid& Guid )
 {
 	TCHAR Temp[256];
-	if( !FParse::Value( Stream, Match, Temp, UE_ARRAY_COUNT(Temp) ) )
+	if (!FParse::Value(Stream, Match, Temp, UE_ARRAY_COUNT(Temp)))
+	{
 		return false;
+	}
 
 	Guid.A = Guid.B = Guid.C = Guid.D = 0;
 	if( FCString::Strlen(Temp)==32 )
