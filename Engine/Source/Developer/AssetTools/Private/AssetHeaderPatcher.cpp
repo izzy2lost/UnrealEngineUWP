@@ -822,15 +822,11 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 		TArray<FName> ToAppend;
 		for (FName& Name : NameTable)
 		{
-			FString TmpNameStr = Name.ToString(); // will contain a "[0-9]+" suffix, if any
+			FName TmpName = Name;
 
-			if (DoPatch(TmpNameStr))
+			if (DoPatch(TmpName))
 			{
-				// Construct a new FName based on our patched string.
-				// We give it "1" as its number so that if the string has a "[0-9]+" suffix we keep it as part of the plain string name. 
-				// When we write the NameTable back out, it will serialize the string with the number, but not the "1" set here.
-				FName TmpName = FName(*TmpNameStr, 1); 
-
+				FString TmpNameStr = Name.GetPlainNameString();
 				// If the string does not contain any path separators, then call it an Identifier.
 				if (!(TmpNameStr.Contains(TEXT("/")) || TmpNameStr.Contains(TEXT("\\"))))
 				{
