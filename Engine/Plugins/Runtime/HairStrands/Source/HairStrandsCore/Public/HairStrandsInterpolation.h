@@ -83,6 +83,7 @@ void AddGroomCacheUpdatePass(
 	uint32 InstanceRegisteredIndex,
 	uint32 PointCount,
 	float InterpolationFactor,
+	float MaxHairRadius,
 	FGroomCacheResources CacheResources0,
 	FGroomCacheResources CacheResources1,
 	FRDGBufferSRVRef InBuffer,

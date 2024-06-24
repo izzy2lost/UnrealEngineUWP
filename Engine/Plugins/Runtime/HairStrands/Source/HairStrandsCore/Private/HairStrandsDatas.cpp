@@ -26,14 +26,19 @@ float GetHairStrandsMaxLength(const FHairStrandsDatas& In)
 	return MaxLength;
 }
 
-float GetHairStrandsMaxRadius(const FHairStrandsDatas& In)
+float GetHairStrandsMaxRadius(const TArray<float>& InPointsRadius)
 {
 	float MaxRadius = 0;
-	for (float PointRadius : In.StrandsPoints.PointsRadius)
+	for (float PointRadius : InPointsRadius)
 	{
 		MaxRadius = FMath::Max(MaxRadius, PointRadius);
 	}
 	return MaxRadius;
+}
+
+float GetHairStrandsMaxRadius(const FHairStrandsDatas& In)
+{
+	return GetHairStrandsMaxRadius(In.StrandsPoints.PointsRadius);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

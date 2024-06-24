@@ -153,7 +153,7 @@ FGroomCacheResources CreateGroomCacheBuffer(FRDGBuilder& GraphBuilder, FGroomCac
 				InVertexData.PointsRadius.GetData(),
 				RadiusDataSizeInBytes,
 				ERDGInitialDataFlags::None);
-			GraphBuilder.QueueBufferExtraction(RadiusBuffer, &InVertexData.PositionBuffer);
+			GraphBuilder.QueueBufferExtraction(RadiusBuffer, &InVertexData.RadiusBuffer);
 		}
 		else
 		{
@@ -237,6 +237,7 @@ class FGroomCacheUpdatePassCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, ElementCount)
 		SHADER_PARAMETER(uint32, bHasRadiusData)
 		SHADER_PARAMETER(float, InterpolationFactor)
+		SHADER_PARAMETER(float, MaxHairRadius)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InPosition0Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InPosition1Buffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InRadius0Buffer)
@@ -265,6 +266,7 @@ void AddGroomCacheUpdatePass(
 	uint32 InstanceRegisteredIndex,
 	uint32 PointCount,
 	float InterpolationFactor,
+	float InMaxHairRadius,
 	FGroomCacheResources CacheResources0,
 	FGroomCacheResources CacheResources1,
 	FRDGBufferSRVRef InBuffer,
@@ -286,6 +288,7 @@ void AddGroomCacheUpdatePass(
 	Parameters->InDeformedOffsetBuffer = InDeformedOffsetBuffer;
 	Parameters->OutDeformedBuffer = OutBuffer;
 	Parameters->InterpolationFactor = InterpolationFactor;
+	Parameters->MaxHairRadius = InMaxHairRadius;
 	Parameters->bHasRadiusData = CacheResources0.bHasRadiusData ? 1u : 0u;
 
 	const FIntVector DispatchCount = FIntVector(FMath::DivideAndRoundUp(PointCount, FGroomCacheUpdatePassCS::GetGroupSize()), 1, 1);

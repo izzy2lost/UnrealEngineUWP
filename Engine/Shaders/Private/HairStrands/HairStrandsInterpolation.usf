@@ -917,6 +917,7 @@ uint InstanceRegisteredIndex;
 uint ElementCount;
 uint bHasRadiusData;
 float InterpolationFactor;
+float MaxHairRadius;
 
 Buffer<float> InPosition0Buffer;
 Buffer<float> InPosition1Buffer;
@@ -958,7 +959,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 
 	const float3 DeformedPositionOffset = ReadRenPositionOffset(InDeformedOffsetBuffer, InstanceRegisteredIndex);
 
-	WriteHairControlPointPosition(OutDeformedBuffer, Index, CP, DeformedPositionOffset, 1 /*Radius*/);
+	WriteHairControlPointPosition(OutDeformedBuffer, Index, CP, DeformedPositionOffset, MaxHairRadius);
 }
 
 #endif // SHADER_GROOMCACHE_UPDATE
