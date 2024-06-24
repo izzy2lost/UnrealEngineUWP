@@ -31,6 +31,12 @@ namespace EpicGames.Core
 			_baseConfigName = baseConfigName;
 		}
 		
+		/// <summary>
+		/// Get the registry key used
+		/// </summary>
+		/// <returns></returns>
+		public string GetRegistryKey() => _baseKey + "\\" + _keyPath;
+		
 		/// <inheritdoc/>
 		public IConfigurationProvider Build(IConfigurationBuilder builder)
 			=> new RegistryConfigProvider(_baseKey, _keyPath, _baseConfigName);
