@@ -2342,7 +2342,7 @@ FTimeRange FManifestDASHInternal::GetTotalTimeRange() const
 		bool bIsUpdating = AreUpdatesExpected();
 		FTimeValue ast = GetAnchorTime();
 		FTimeValue Now = PlayerSessionServices->GetSynchronizedUTCTime()->GetTime();
-		FTimeValue LastEnd = GetLastPeriodEndTime();
+		FTimeValue LastEnd = GetLastPeriodEndTime(true);
 		TotalTimeRange.End = bIsUpdating ? Now : LastEnd;
 		if (TotalTimeRange.End.IsValid())
 		{
@@ -2499,7 +2499,7 @@ FTimeValue FManifestDASHInternal::GetTimeshiftBufferDepth() const
 }
 
 
-FTimeValue FManifestDASHInternal::GetLastPeriodEndTime() const
+FTimeValue FManifestDASHInternal::GetLastPeriodEndTime(bool bForTimeline) const
 {
 	// As per Annex A.3.2
 	FTimeValue ast = GetAnchorTime();
@@ -2522,7 +2522,7 @@ FTimeValue FManifestDASHInternal::GetLastPeriodEndTime() const
 	// If MUP is zero then it is expected that InbandEventStream is used to signal when to update the MPD.
 	// Since the MPD will not update through MUP in this case we need to return that the period goes up
 	// to mediaPresentationDuration, in this case infinity.
-	if (MPDRoot->GetMinimumUpdatePeriod().IsValid() && MPDRoot->GetMinimumUpdatePeriod() > FTimeValue::GetZero())
+	if (bForTimeline && MPDRoot->GetMinimumUpdatePeriod().IsValid() && MPDRoot->GetMinimumUpdatePeriod() > FTimeValue::GetZero())
 	{
 		FTimeValue CheckTime = FetchTime + MPDRoot->GetMinimumUpdatePeriod();
 		return CheckTime < End ? CheckTime : End;
@@ -2571,7 +2571,7 @@ FTimeRange FManifestDASHInternal::GetSeekableTimeRange() const
 		bool bIsUpdating = AreUpdatesExpected() || EpicEventType == EEpicEventType::Dynamic;
 		FTimeValue Distance = bIsUpdating ? CalculateDistanceToLiveEdge() : FixedSeekEndDistance;
 		FTimeValue Now = PlayerSessionServices->GetSynchronizedUTCTime()->GetTime();
-		FTimeValue LastEnd = GetLastPeriodEndTime();
+		FTimeValue LastEnd = GetLastPeriodEndTime(true);
 		FTimeValue CurrentEnd = Now;
 		if (LastEnd.IsValid() && CurrentEnd > LastEnd)
 		{

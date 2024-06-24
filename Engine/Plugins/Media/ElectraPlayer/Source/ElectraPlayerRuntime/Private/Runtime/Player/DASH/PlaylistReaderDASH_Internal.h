@@ -904,7 +904,7 @@ public:
 	FTimeValue GetDesiredLiveLatency() const;
 
 	FTimeValue GetMPDValidityEndTime() const;
-	FTimeValue GetLastPeriodEndTime() const;
+	FTimeValue GetLastPeriodEndTime(bool bForTimeline) const;
 	FTimeValue GetMinimumUpdatePeriod() const;
 	bool AreUpdatesExpected() const;
 	bool IsStaticType() const;

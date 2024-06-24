@@ -545,7 +545,7 @@ IManifest::FResult FManifestDASH::FindPlayPeriod(TSharedPtrTS<IPlayPeriod>& OutP
 	PlayRangeEnd -= Manifest->GetAnchorTime();
 
 	// Quick out if the time falls outside the presentation.
-	FTimeValue TotalEndTime = Manifest->GetLastPeriodEndTime();
+	FTimeValue TotalEndTime = Manifest->GetLastPeriodEndTime(true);
 	TotalEndTime -= Manifest->GetAnchorTime();
 	if (PlayRangeEnd.IsValid() && TotalEndTime.IsValid() && PlayRangeEnd < TotalEndTime)
 	{
@@ -635,7 +635,7 @@ IManifest::FResult FManifestDASH::FindPlayPeriod(TSharedPtrTS<IPlayPeriod>& OutP
 		if (Manifest->IsDynamicEpicEvent())
 		{
 			FTimeValue Now = PlayerSessionServices->GetSynchronizedUTCTime()->GetTime();
-			FTimeValue End = Manifest->GetLastPeriodEndTime();
+			FTimeValue End = Manifest->GetLastPeriodEndTime(true);
 			if (Now >= End)
 			{
 				return IManifest::FResult(IManifest::FResult::EType::PastEOS);
@@ -1337,7 +1337,7 @@ IManifest::FResult FDASHPlayPeriod::GetStartingSegment(TSharedPtrTS<IStreamSegme
 			SearchOpt.PeriodDuration = Period->GetDuration();
 			if (!SearchOpt.PeriodDuration.IsValid() || SearchOpt.PeriodDuration.IsPositiveInfinity())
 			{
-				SearchOpt.PeriodDuration = Manifest->GetLastPeriodEndTime() - AST - Period->GetStart();
+				SearchOpt.PeriodDuration = Manifest->GetLastPeriodEndTime(false) - AST - Period->GetStart();
 			}
 			SearchOpt.PeriodPresentationEnd = PlayRangeEnd;
 			SearchOpt.bHasFollowingPeriod = Period->GetHasFollowingPeriod();
@@ -1616,7 +1616,7 @@ IManifest::FResult FDASHPlayPeriod::GetNextOrRetrySegment(TSharedPtrTS<IStreamSe
 	SearchOpt.PeriodDuration = Period->GetDuration();
 	if (!SearchOpt.PeriodDuration.IsValid() || SearchOpt.PeriodDuration.IsPositiveInfinity())
 	{
-		SearchOpt.PeriodDuration = Manifest->GetLastPeriodEndTime() - AST;
+		SearchOpt.PeriodDuration = Manifest->GetLastPeriodEndTime(false) - AST;
 	}
 	SearchOpt.QualityIndex = ActiveQualityIndex.Index;
 	SearchOpt.MaxQualityIndex = ActiveQualityIndex.MaxIndex;
