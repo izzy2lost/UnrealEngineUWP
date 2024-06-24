@@ -233,62 +233,59 @@ void FDeferredShadingSceneRenderer::RenderLumenSceneLighting(
 
 		LumenSceneData.IncrementSurfaceCacheUpdateFrameIndex();
 
-		if (LumenSceneData.GetNumCardPages() > 0)
+		if (LumenSceneData.bDebugClearAllCachedState)
 		{
-			if (LumenSceneData.bDebugClearAllCachedState)
+			AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.DirectLightingAtlas);
+			AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.IndirectLightingAtlas);
+			AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.RadiosityNumFramesAccumulatedAtlas);
+			AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.FinalLightingAtlas);
+			if (FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas)
 			{
-				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.DirectLightingAtlas);
-				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.IndirectLightingAtlas);
-				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.RadiosityNumFramesAccumulatedAtlas);
-				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.FinalLightingAtlas);
-				if (FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas)
-				{
-					AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas);
-				}
-				if (FrameTemporaries.NumFramesAccumulatedHistoryAtlas)
-				{
-					AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.NumFramesAccumulatedHistoryAtlas);
-				}
+				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas);
 			}
-
-			LumenRadiosity::FFrameTemporaries RadiosityFrameTemporaries;
-			LumenRadiosity::InitFrameTemporaries(GraphBuilder, LumenSceneData, ViewFamily, Views, RadiosityFrameTemporaries);
-
-			FLumenCardUpdateContext DirectLightingCardUpdateContext;
-			FLumenCardUpdateContext IndirectLightingCardUpdateContext;
-			Lumen::BuildCardUpdateContext(
-				GraphBuilder,
-				LumenSceneData,
-				Views,
-				FrameTemporaries,
-				RadiosityFrameTemporaries.bIndirectLightingHistoryValid,
-				DirectLightingCardUpdateContext,
-				IndirectLightingCardUpdateContext,
-				ComputePassFlags);
-
-			// Pointing cards debug data
-			if (GetLumenLightingStatMode() > 2)
+			if (FrameTemporaries.NumFramesAccumulatedHistoryAtlas)
 			{
-				FLumenSceneFrameTemporaries* NonCstFrameTemporaries = const_cast<FLumenSceneFrameTemporaries*>(&FrameTemporaries);
-				NonCstFrameTemporaries->DebugData = TraceLumenHardwareRayTracedDebug(GraphBuilder, Scene, Views[0], 0 /*ViewIndex*/, FrameTemporaries, ComputePassFlags);
+				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.NumFramesAccumulatedHistoryAtlas);
 			}
-
-			RenderDirectLightingForLumenScene(
-				GraphBuilder,
-				FrameTemporaries,
-				DirectLightingTaskData,
-				DirectLightingCardUpdateContext,
-				ComputePassFlags);
-
-			RenderRadiosityForLumenScene(
-				GraphBuilder,
-				FrameTemporaries,
-				RadiosityFrameTemporaries,
-				IndirectLightingCardUpdateContext,
-				ComputePassFlags);
-
-			LumenSceneData.bFinalLightingAtlasContentsValid = true;
 		}
+
+		LumenRadiosity::FFrameTemporaries RadiosityFrameTemporaries;
+		LumenRadiosity::InitFrameTemporaries(GraphBuilder, LumenSceneData, ViewFamily, Views, RadiosityFrameTemporaries);
+
+		FLumenCardUpdateContext DirectLightingCardUpdateContext;
+		FLumenCardUpdateContext IndirectLightingCardUpdateContext;
+		Lumen::BuildCardUpdateContext(
+			GraphBuilder,
+			LumenSceneData,
+			Views,
+			FrameTemporaries,
+			RadiosityFrameTemporaries.bIndirectLightingHistoryValid,
+			DirectLightingCardUpdateContext,
+			IndirectLightingCardUpdateContext,
+			ComputePassFlags);
+
+		// Pointing cards debug data
+		if (GetLumenLightingStatMode() > 2)
+		{
+			FLumenSceneFrameTemporaries* NonCstFrameTemporaries = const_cast<FLumenSceneFrameTemporaries*>(&FrameTemporaries);
+			NonCstFrameTemporaries->DebugData = TraceLumenHardwareRayTracedDebug(GraphBuilder, Scene, Views[0], 0 /*ViewIndex*/, FrameTemporaries, ComputePassFlags);
+		}
+
+		RenderDirectLightingForLumenScene(
+			GraphBuilder,
+			FrameTemporaries,
+			DirectLightingTaskData,
+			DirectLightingCardUpdateContext,
+			ComputePassFlags);
+
+		RenderRadiosityForLumenScene(
+			GraphBuilder,
+			FrameTemporaries,
+			RadiosityFrameTemporaries,
+			IndirectLightingCardUpdateContext,
+			ComputePassFlags);
+
+		LumenSceneData.bFinalLightingAtlasContentsValid = true;
 	}
 }
 

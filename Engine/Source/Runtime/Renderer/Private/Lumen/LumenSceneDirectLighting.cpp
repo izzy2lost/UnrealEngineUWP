@@ -1988,14 +1988,17 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 {
 	LLM_SCOPE_BYTAG(Lumen);
 
+	if (LightingTaskData)
+	{
+		LightingTaskData->Task.Wait();
+	}
+
 	if (CVarLumenLumenSceneDirectLighting.GetValueOnRenderThread() != 0 && CardUpdateContext.MaxUpdateTiles > 0)
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "DirectLighting");
 		QUICK_SCOPE_CYCLE_COUNTER(RenderDirectLightingForLumenScene);
 
 		check(LightingTaskData);
-		LightingTaskData->Task.Wait();
-
 		const FViewInfo& MainView = Views[0];
 		FLumenSceneData& LumenSceneData = *Scene->GetLumenSceneData(Views[0]);
 
