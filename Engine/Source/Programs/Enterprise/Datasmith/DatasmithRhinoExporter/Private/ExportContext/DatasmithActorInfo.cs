@@ -70,32 +70,36 @@ namespace DatasmithRhino.ExportContext
 		/// </summary>
 		private List<int> RelativeLayerIndices = new List<int>();
 		public Layer VisibilityLayer { get; private set; } = null;
-
-		public bool bIsVisible
+		
+		public bool bIsVisible => IsVisible();
+		
+		public bool IsVisible(bool bCheckParent=true)
 		{
-			get
+			bool bVisibleLocally = true;
+			if (RhinoCommonObject is Layer RhinoLayer)
 			{
-				bool bVisibleLocally = true;
-				if (RhinoCommonObject is Layer RhinoLayer)
-				{
-					// This recursion ensure that only layer actors with an actual exported object under them are considered visible.
-					// ie. Layers containing no mesh are not visible.
-					return RhinoLayer.IsVisible
-						&& ChildrenInternal.Any(Child => Child.bIsVisible);
-				}
-				else if (RhinoCommonObject is RhinoObject CurrentRhinoObject)
-				{
-					bVisibleLocally = CurrentRhinoObject.Visible;
-				}
-				else if (bIsRoot)
-				{
-					return true;
-				}
-
-				return bVisibleLocally
-					&& (VisibilityLayer == null || VisibilityLayer.IsVisible)
-					&& (DefinitionNode == null || DefinitionNode.bIsVisible);
+				// This recursion ensure that only layer actors with an actual exported object under them are considered visible.
+				// ie. Layers containing no mesh are not visible.
+				return RhinoLayer.IsVisible
+					&& ChildrenInternal.Any(Child => Child.IsVisible(bCheckParent=false));
 			}
+			else if (RhinoCommonObject is RhinoObject CurrentRhinoObject)
+			{
+				bVisibleLocally = CurrentRhinoObject.Visible;
+			}
+			else if (bIsRoot)
+			{
+				return true;
+			}
+			
+			// Take into account parent object visibility -
+			// Api sometimes reports brep objects composing ModelGeometry visible when the object itself is not visible
+			bool bParentVisible = !bCheckParent || Parent == null || Parent.bIsVisible;
+			
+			return bVisibleLocally
+			       && (VisibilityLayer == null || VisibilityLayer.IsVisible)
+			       && (DefinitionNode == null || DefinitionNode.bIsVisible)
+			       && bParentVisible;
 		}
 
 		public DatasmithActorInfo(Transform NodeTransform, string InName, string InUniqueLabel, string InBaseLabel)

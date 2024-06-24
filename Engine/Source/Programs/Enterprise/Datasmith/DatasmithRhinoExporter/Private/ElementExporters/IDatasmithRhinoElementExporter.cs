@@ -80,7 +80,7 @@ namespace DatasmithRhino.ElementExporters
 			foreach (T CurrentElementInfo in GetElementsToSynchronize())
 			{
 				DatasmithRhinoProgressManager.Instance.UpdateCurrentTaskProgress((float)(++ElementIndex) / TotalNumberOfElements);
-
+				
 				ValidateElement(CurrentElementInfo);
 
 				switch (CurrentElementInfo.DirectLinkStatus)
@@ -95,7 +95,7 @@ namespace DatasmithRhino.ElementExporters
 						}
 						else
 						{
-							//#ueent_todo Log elements who could not be exported in Datasmith logging API.
+							DatasmithRhinoPlugin.Instance.LogManager.AddLog(DatasmithRhinoLogType.Warning, $"SynchronizeSynchronously: Can't create Actor for '{CurrentElementInfo.BaseLabel}'['{CurrentElementInfo.Name}']");
 						}
 						break;
 					case DirectLinkSynchronizationStatus.Modified:
@@ -227,7 +227,7 @@ namespace DatasmithRhino.ElementExporters
 				}
 				else
 				{
-					//#ueent_todo Log elements who could not be exported in Datasmith logging API.
+					DatasmithRhinoPlugin.Instance.LogManager.AddLog(DatasmithRhinoLogType.Warning, $"SynchronizeSynchronously: CreatedElementInfos '{CreatedElementInfo.BaseLabel}'['{CreatedElementInfo.Name}'] has no ExportedElement");
 				}
 			}
 		}
