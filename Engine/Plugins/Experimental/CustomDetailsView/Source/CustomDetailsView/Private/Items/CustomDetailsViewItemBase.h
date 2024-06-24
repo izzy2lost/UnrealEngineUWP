@@ -53,6 +53,7 @@ public:
 	virtual void SetResetToDefaultOverride(const FResetToDefaultOverride& InOverride) override {}
 	virtual bool IsWidgetVisible() const override;
 	virtual void SetValueWidgetWidthOverride(TOptional<float> InWidth) override;
+	virtual void SetEnabledOverride(TAttribute<bool> InOverride) override;
 	//~ End ICustomDetailsViewItem
 
 	virtual void AddWholeRowWidget(const TSharedRef<SSplitter>& InSplitter
@@ -129,4 +130,7 @@ protected:
 
 	/** Overrides the create value widget's maximum width, if set. */
 	TOptional<float> ValueWidthOverride;
+
+	/** Set to give custom enabled override. */
+	TAttribute<bool> EnabledOverride;
 };

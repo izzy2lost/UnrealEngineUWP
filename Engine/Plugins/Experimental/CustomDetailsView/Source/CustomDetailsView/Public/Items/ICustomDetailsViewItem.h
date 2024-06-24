@@ -82,6 +82,9 @@ public:
 	/** Overrides the created value widget's maximum width. */
 	virtual void SetValueWidgetWidthOverride(TOptional<float> InWidth) = 0;
 
+	/** Overrides the created widget's enabled status. */
+	virtual void SetEnabledOverride(TAttribute<bool> InOverride) = 0;
+
 protected:
 	/** Adds the children of this node. */
 	virtual void GatherChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem,

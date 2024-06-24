@@ -361,6 +361,11 @@ void FCustomDetailsViewItemBase::SetValueWidgetWidthOverride(TOptional<float> In
 	ValueWidthOverride = InWidth;
 }
 
+void FCustomDetailsViewItemBase::SetEnabledOverride(TAttribute<bool> InOverride)
+{
+	EnabledOverride = InOverride;
+}
+
 void FCustomDetailsViewItemBase::AddWholeRowWidget(const TSharedRef<SSplitter>& InSplitter, const TSharedPtr<SWidget>& InPrependWidget,
 	const FDetailColumnSizeData& InColumnSizeData, const FMargin& InPadding)
 {
@@ -407,6 +412,11 @@ void FCustomDetailsViewItemBase::AddWholeRowWidget(const TSharedRef<SSplitter>& 
 		];
 
 	Widgets.Add(ECustomDetailsViewWidgetType::WholeRow, WholeRowWidget);
+
+	if (EnabledOverride.IsSet())
+	{
+		WholeRowWidget->SetEnabled(EnabledOverride);
+	}
 
 	InSplitter->AddSlot()
 		.Value(InColumnSizeData.GetWholeRowColumnWidth())
@@ -472,6 +482,11 @@ void FCustomDetailsViewItemBase::AddNameWidget(const TSharedRef<SSplitter>& InSp
 			HorizontalBox
 		];
 
+	if (EnabledOverride.IsSet())
+	{
+		HorizontalBox->SetEnabled(EnabledOverride);
+	}
+
 	Widgets.Add(ECustomDetailsViewWidgetType::Name, NameWidget);
 
 	InSplitter->AddSlot()
@@ -529,6 +544,11 @@ void FCustomDetailsViewItemBase::AddValueWidget(const TSharedRef<SSplitter>& InS
 			];
 	}
 
+	if (EnabledOverride.IsSet())
+	{
+		ValueWidgetInner->SetEnabled(EnabledOverride);
+	}
+
 	Widgets.Add(ECustomDetailsViewWidgetType::Value, ValueWidget);
 
 	InSplitter->AddSlot()
@@ -546,6 +566,11 @@ void FCustomDetailsViewItemBase::AddExtensionWidget(const TSharedRef<SSplitter>&
 	if (TSharedPtr<SWidget> OverrideWidget = GetOverrideWidget(ECustomDetailsViewWidgetType::Extensions))
 	{
 		ExtensionWidgetInner = OverrideWidget.ToSharedRef();
+
+		if (EnabledOverride.IsSet())
+		{
+			ExtensionWidgetInner->SetEnabled(EnabledOverride);
+		}
 	}
 
 	Widgets.Add(ECustomDetailsViewWidgetType::Extensions, SNullWidget::NullWidget);
