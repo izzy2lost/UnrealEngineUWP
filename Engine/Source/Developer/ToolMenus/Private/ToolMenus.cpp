@@ -1583,7 +1583,10 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 				Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName);
 
 			// Also add any top-level flagged children to the toolbar.
-			PopulateToolBarBuilderWithTopLevelChildren(ToolBarBuilder, MenuData, Block);
+			if (!bIsRaisingToTopLevel)
+			{
+				PopulateToolBarBuilderWithTopLevelChildren(ToolBarBuilder, MenuData, Block);
+			}
 		}
 	}
 	else if (Block.Type == EMultiBlockType::Separator)
