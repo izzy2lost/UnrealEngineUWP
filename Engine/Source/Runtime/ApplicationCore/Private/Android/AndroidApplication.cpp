@@ -155,6 +155,17 @@ bool FAndroidApplication::IsGamepadAttached() const
 	return false;
 }
 
+bool FAndroidApplication::GetNativeWindowResolution(int32_t& OutWidth, int32_t& OutHeight) const
+{
+	if (Windows.IsEmpty()) return false;
+
+	const TSharedPtr<FAndroidWindow>& Window = Windows[0];
+
+	if (!Window.IsValid()) return false;
+
+	return Window->GetNativeWindowResolution(OutWidth, OutHeight);
+}
+
 void FDisplayMetrics::RebuildDisplayMetrics( FDisplayMetrics& OutDisplayMetrics )
 {
 	// Get screen rect

@@ -105,6 +105,8 @@ public:
 
 	virtual bool IsGamepadAttached() const override;
 
+	bool GetNativeWindowResolution(int32_t& OutWidth, int32_t& OutHeight) const;
+
 	static TAutoConsoleVariable<bool> CVarAndroidSupportsTimestampQueries;
 	static TAutoConsoleVariable<bool> CVarAndroidSupportsDynamicResolution;
 

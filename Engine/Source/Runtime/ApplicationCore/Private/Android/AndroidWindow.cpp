@@ -415,6 +415,28 @@ void FAndroidWindow::EventManagerUpdateWindowDimensions(int32 Width, int32 Heigh
 	}
 }
 
+bool FAndroidWindow::GetNativeWindowResolution(int32_t& OutWidth, int32_t& OutHeight) const
+{
+#if USE_ANDROID_JNI
+
+	if (NativeWindow == nullptr) return false;
+
+	ANativeWindow* AndroidWindow = static_cast<ANativeWindow*>(NativeWindow);
+
+	OutWidth = ANativeWindow_getWidth(AndroidWindow);
+	OutHeight = ANativeWindow_getHeight(AndroidWindow);
+
+	return true;
+
+#else
+
+	// Android without JNI?
+	// Just making the function work for unexpected platforms
+	return FPlatformMisc::GetOverrideResolution(OutWidth, OutHeight);
+
+#endif
+}
+
 void* FAndroidWindow::WaitForHardwareWindow()
 {
 	// Sleep if the hardware window isn't currently available.
