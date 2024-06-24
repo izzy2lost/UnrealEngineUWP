@@ -225,6 +225,9 @@ public:
 	TAttribute<FSlateIcon> Icon;
 	TAttribute<FText> InputBindingLabel;
 
+	/** Optional override label to use when the entry appears in a toolbar. */
+	TAttribute<FText> ToolbarLabelOverride;
+
 private:
 
 	friend class UToolMenus;
