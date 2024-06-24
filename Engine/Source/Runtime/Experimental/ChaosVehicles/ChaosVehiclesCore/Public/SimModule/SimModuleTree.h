@@ -5,6 +5,7 @@
 #include "SimModule/DeferredForcesModular.h"
 #include "SimModule/SimulationModuleBase.h"
 #include "SimModule/ModuleInput.h"
+#include "SimModule/VehicleBlackboard.h"
 
 #include "SimModuleTree.generated.h"
 
@@ -113,10 +114,12 @@ namespace Chaos
 			bAnimationEnabled = true;
 			bSimulationEnabled = true;
 			SimTreeProcessingOrder = ESimTreeProcessingOrder::LeafFirst;
+			SimBlackboard = MakeUnique<FVehicleBlackboard>();
 		}
 
 		~FSimModuleTree()
 		{
+			SimBlackboard.Reset();
 			DeleteNodesBelow(0);
 		}
 
@@ -201,6 +204,11 @@ namespace Chaos
 		void SetSimState(const Chaos::FModuleNetDataArray& ModuleDatas);
 		void InterpolateState(const float LerpFactor, Chaos::FModuleNetDataArray& LerpDatas, const Chaos::FModuleNetDataArray& MinDatas, const Chaos::FModuleNetDataArray& MaxDatas);
 
+		FVehicleBlackboard* GetSimBlackboard()
+		{
+			return SimBlackboard.Get();
+		}
+
 	protected:
 		void SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIdx, FClusterUnionPhysicsProxy* PhysicsProxy);
 
@@ -226,6 +234,8 @@ namespace Chaos
 
 		FVehicleState VehicleState;
 		ESimTreeProcessingOrder SimTreeProcessingOrder;
+
+		TUniquePtr<FVehicleBlackboard> SimBlackboard;
 	};
 
 

@@ -7,6 +7,7 @@
 #include "Logging/LogMacros.h"
 #include "SimModule/ModuleFactoryRegister.h"
 #include "SimModule/ModuleInput.h"
+#include "SimModule/VehicleBlackboard.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSimulationModule, Warning, All);
 
@@ -320,6 +321,8 @@ namespace Chaos
 
 		ISimulationModuleBase* GetParent();
 		ISimulationModuleBase* GetFirstChild();
+
+		FVehicleBlackboard* GetSimBlackboard();
 
 		// for headless chaos testing
 		const FVector& GetAppliedForce() { return AppliedForce; }

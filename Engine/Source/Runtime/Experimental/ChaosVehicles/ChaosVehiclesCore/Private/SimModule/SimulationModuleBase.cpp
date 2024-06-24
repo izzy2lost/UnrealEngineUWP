@@ -63,6 +63,11 @@ ISimulationModuleBase* ISimulationModuleBase::GetFirstChild()
 	return nullptr;
 }
 
+FVehicleBlackboard* ISimulationModuleBase::GetSimBlackboard()
+{
+	return SimModuleTree ? SimModuleTree->GetSimBlackboard() : nullptr;
+}
+
 FPBDRigidClusteredParticleHandle* ISimulationModuleBase::GetClusterParticle(Chaos::FClusterUnionPhysicsProxy* Proxy)
 { 
 	if (ParticleIdx.IsValid() && CachedParticle && (CachedParticle->UniqueIdx() == ParticleIdx))
