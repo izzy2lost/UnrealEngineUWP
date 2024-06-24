@@ -110,18 +110,65 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiser(
 	TUniquePtr<IAutoExposure> AutoExposure,
 	TSharedPtr<ITransferFunction> TransferFunction)
 {
+	static TMap<EDenoiserRuntimeType, FString> DefaultRuntimeNames;
+	DefaultRuntimeNames.Emplace(EDenoiserRuntimeType::CPU, TEXT("NNERuntimeORTCpu"));
+	DefaultRuntimeNames.Emplace(EDenoiserRuntimeType::GPU, TEXT("NNERuntimeORTDml"));
+	DefaultRuntimeNames.Emplace(EDenoiserRuntimeType::RDG, TEXT("NNERuntimeORTDml"));
+
+	const static FString FallbackRuntimeNameRDG = TEXT("NNERuntimeRDGHlsl");
+
+	TArray<TPair<EDenoiserRuntimeType, FString>> RuntimePriorityQueue;
+	if (!RuntimeNameOverride.IsEmpty())
+	{
+		RuntimePriorityQueue.AddUnique({RuntimeType, RuntimeNameOverride});
+	}
+	
+	const FString& DefaultRuntimeName = DefaultRuntimeNames.FindChecked(RuntimeType);
+	if (RuntimeNameOverride != DefaultRuntimeName)
+	{
+		RuntimePriorityQueue.AddUnique({RuntimeType, DefaultRuntimeName});
+	}
+
+	if (RuntimeType >= EDenoiserRuntimeType::RDG)
+	{
+		if (RuntimeNameOverride != FallbackRuntimeNameRDG)
+		{
+			RuntimePriorityQueue.AddUnique({EDenoiserRuntimeType::RDG, FallbackRuntimeNameRDG});
+		}
+
+		const FString& DefaultRuntimeNameGPU = DefaultRuntimeNames.FindChecked(EDenoiserRuntimeType::GPU);
+		RuntimePriorityQueue.AddUnique({EDenoiserRuntimeType::GPU, DefaultRuntimeNameGPU});
+	}
+
+	if (RuntimeType >= EDenoiserRuntimeType::GPU)
+	{
+		const FString& DefaultRuntimeNameCPU = DefaultRuntimeNames.FindChecked(EDenoiserRuntimeType::CPU);
+		RuntimePriorityQueue.AddUnique({EDenoiserRuntimeType::CPU, DefaultRuntimeNameCPU});
+	}
+
 	TUniquePtr<IModelInstance> ModelInstance;
-	if (RuntimeType == EDenoiserRuntimeType::CPU)
+	for (const auto& Pair : RuntimePriorityQueue)
 	{
-		ModelInstance = FModelInstanceCPU::Make(ModelData, RuntimeNameOverride);
-	}
-	else if (RuntimeType == EDenoiserRuntimeType::GPU)
-	{
-		ModelInstance = FModelInstanceGPU::Make(ModelData, RuntimeNameOverride);
-	}
-	else if (RuntimeType == EDenoiserRuntimeType::RDG)
-	{
-		ModelInstance = FModelInstanceRDG::Make(ModelData, RuntimeNameOverride);
+		UE_LOG(LogNNEDenoiser, Log, TEXT("Try create model instance with runtime %s on %s..."), *Pair.Value, *UEnum::GetValueAsString(Pair.Key));
+
+		if (Pair.Key == EDenoiserRuntimeType::CPU)
+		{
+			ModelInstance = FModelInstanceCPU::Make(ModelData, Pair.Value);
+		}
+		else if (Pair.Key == EDenoiserRuntimeType::GPU)
+		{
+			ModelInstance = FModelInstanceGPU::Make(ModelData, Pair.Value);
+		}
+		else if (Pair.Key == EDenoiserRuntimeType::RDG)
+		{
+			ModelInstance = FModelInstanceRDG::Make(ModelData, Pair.Value);
+		}
+
+		if (ModelInstance.IsValid())
+		{
+			UE_LOG(LogNNEDenoiser, Display, TEXT("Created model instance with runtime %s on %s"), *Pair.Value, *UEnum::GetValueAsString(Pair.Key));
+			break;
+		}
 	}
 
 	if (!ModelInstance.IsValid())

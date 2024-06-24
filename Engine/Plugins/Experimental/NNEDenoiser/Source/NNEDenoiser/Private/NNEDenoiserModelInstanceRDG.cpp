@@ -16,60 +16,42 @@
 namespace UE::NNEDenoiser::Private
 {
 
-	static const FString DefaultRuntimeRDGName = TEXT("NNERuntimeORTDml");
-	static const FString FallbackRuntimeRDGName = TEXT("NNERuntimeRDGHlsl");
-
-namespace Internal
-{
-	TUniquePtr<FModelInstanceRDG> Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride)
+	TUniquePtr<FModelInstanceRDG> FModelInstanceRDG::Make(UNNEModelData& ModelData, const FString& RuntimeName)
 	{
-		FString RuntimeRDGName = RuntimeNameOverride.IsEmpty() ? DefaultRuntimeRDGName : RuntimeNameOverride;
+		check(!RuntimeName.IsEmpty());
 		
-		// Create the model
-		TWeakInterfacePtr<INNERuntimeRDG> RuntimeRDG = UE::NNE::GetRuntime<INNERuntimeRDG>(RuntimeRDGName);
-		if (!RuntimeRDG.IsValid())
+		TWeakInterfacePtr<INNERuntimeRDG> Runtime = UE::NNE::GetRuntime<INNERuntimeRDG>(RuntimeName);
+		if (!Runtime.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("No RDG runtime '%s' found. Valid RDG runtimes are: "), *RuntimeRDGName);
-			for (const FString& RuntimeName : UE::NNE::GetAllRuntimeNames<INNERuntimeRDG>())
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model instance. No RDG runtime '%s' found. Valid RDG runtimes are: "), *RuntimeName);
+			for (const FString& Name : UE::NNE::GetAllRuntimeNames<INNERuntimeRDG>())
 			{
-				UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *RuntimeName);
+				UE_LOG(LogNNEDenoiser, Log, TEXT("- %s"), *Name);
 			}
 			return {};
 		}
 
-		TSharedPtr<UE::NNE::IModelRDG> Model = RuntimeRDG->CreateModelRDG(ModelData);
+		if (Runtime->CanCreateModelRDG(ModelData) != INNERuntimeRDG::ECanCreateModelRDGStatus::Ok)
+		{
+			UE_LOG(LogNNEDenoiser, Log, TEXT("%s on RDG can not create model"), *RuntimeName);
+			return {};
+		}
+
+		TSharedPtr<UE::NNE::IModelRDG> Model = Runtime->CreateModelRDG(ModelData);
 		if (!Model.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create model using %s"), *RuntimeRDGName);
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model using %s on RDG"), *RuntimeName);
 			return {};
 		}
 
 		TSharedPtr<UE::NNE::IModelInstanceRDG> ModelInstance = Model->CreateModelInstanceRDG();
 		if (!ModelInstance.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create model instance using %s"), *RuntimeRDGName);
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model instance using %s on RDG"), *RuntimeName);
 			return {};
 		}
 
-		UE_LOG(LogNNEDenoiser, Log, TEXT("NNEDenoiserRDG: Creaded model instance from %s using %s"), *ModelData.GetFileId().ToString(), *RuntimeRDGName);
-
 		return MakeUnique<FModelInstanceRDG>(ModelInstance.ToSharedRef());
-	}
-} // namespace Internal
-
-	TUniquePtr<FModelInstanceRDG> FModelInstanceRDG::Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride)
-	{
-		if (!RuntimeNameOverride.IsEmpty())
-		{
-			return Internal::Make(ModelData, RuntimeNameOverride);
-		}
-
-		if (TUniquePtr<FModelInstanceRDG> Result = Internal::Make(ModelData, DefaultRuntimeRDGName); Result.IsValid())
-		{
-			return Result;
-		}
-
-		return Internal::Make(ModelData, FallbackRuntimeRDGName);
 	}
 
 	FModelInstanceRDG::FModelInstanceRDG(TSharedRef<UE::NNE::IModelInstanceRDG> ModelInstance) :

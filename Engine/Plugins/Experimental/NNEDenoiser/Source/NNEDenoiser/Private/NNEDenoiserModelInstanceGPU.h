@@ -18,7 +18,7 @@ class FModelInstanceGPU : public IModelInstance
 public:
 	explicit FModelInstanceGPU(TSharedRef<UE::NNE::IModelInstanceGPU> ModelInstance);
 
-	static TUniquePtr<FModelInstanceGPU> Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride = {});
+	static TUniquePtr<FModelInstanceGPU> Make(UNNEModelData& ModelData, const FString& RuntimeName);
 
 	virtual ~FModelInstanceGPU();
 

@@ -23,39 +23,40 @@ END_SHADER_PARAMETER_STRUCT()
 namespace UE::NNEDenoiser::Private
 {
 
-	static const FString DefaultRuntimeGPUName = TEXT("NNERuntimeORTDml");
-
-	TUniquePtr<FModelInstanceGPU> FModelInstanceGPU::Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride)
+	TUniquePtr<FModelInstanceGPU> FModelInstanceGPU::Make(UNNEModelData& ModelData, const FString& RuntimeName)
 	{
-		const FString RuntimeGPUName = RuntimeNameOverride.IsEmpty() ? DefaultRuntimeGPUName : RuntimeNameOverride;
+		check(!RuntimeName.IsEmpty());
 
-		// Create the model
-		TWeakInterfacePtr<INNERuntimeGPU> RuntimeGPU = UE::NNE::GetRuntime<INNERuntimeGPU>(RuntimeGPUName);
-		if (!RuntimeGPU.IsValid())
+		TWeakInterfacePtr<INNERuntimeGPU> Runtime = UE::NNE::GetRuntime<INNERuntimeGPU>(RuntimeName);
+		if (!Runtime.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("No GPU runtime '%s' found. Valid GPU runtimes are: "), *RuntimeGPUName);
-			for (const FString& RuntimeName : UE::NNE::GetAllRuntimeNames<INNERuntimeGPU>())
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model instance. No GPU runtime '%s' found. Valid GPU runtimes are: "), *RuntimeName);
+			for (const FString& Name : UE::NNE::GetAllRuntimeNames<INNERuntimeGPU>())
 			{
-				UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *RuntimeName);
+				UE_LOG(LogNNEDenoiser, Log, TEXT("- %s"), *Name);
 			}
 			return {};
 		}
 
-		TSharedPtr<UE::NNE::IModelGPU> Model = RuntimeGPU->CreateModelGPU(ModelData);
+		if (Runtime->CanCreateModelGPU(ModelData) != INNERuntimeGPU::ECanCreateModelGPUStatus::Ok)
+		{
+			UE_LOG(LogNNEDenoiser, Log, TEXT("%s on GPU can not create model"), *RuntimeName);
+			return {};
+		}
+
+		TSharedPtr<UE::NNE::IModelGPU> Model = Runtime->CreateModelGPU(ModelData);
 		if (!Model.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create model using %s"), *RuntimeGPUName);
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model using %s on GPU"), *RuntimeName);
 			return {};
 		}
 
 		TSharedPtr<UE::NNE::IModelInstanceGPU> ModelInstance = Model->CreateModelInstanceGPU();
 		if (!ModelInstance.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create model instance using %s"), *RuntimeGPUName);
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model instance using %s on GPU"), *RuntimeName);
 			return {};
 		}
-
-		UE_LOG(LogNNEDenoiser, Log, TEXT("NNEDenoiserGPU: Creaded model instance from %s using %s"), *ModelData.GetFileId().ToString(), *RuntimeGPUName);
 
 		return MakeUnique<FModelInstanceGPU>(ModelInstance.ToSharedRef());
 	}

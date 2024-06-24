@@ -20,39 +20,40 @@ END_SHADER_PARAMETER_STRUCT()
 namespace UE::NNEDenoiser::Private
 {
 
-	static const FString DefaultRuntimeCPUName = TEXT("NNERuntimeORTCpu");
-
-	TUniquePtr<FModelInstanceCPU> FModelInstanceCPU::Make(UNNEModelData& ModelData, const FString &RuntimeNameOverride)
+	TUniquePtr<FModelInstanceCPU> FModelInstanceCPU::Make(UNNEModelData& ModelData, const FString& RuntimeName)
 	{
-		const FString RuntimeCPUName = RuntimeNameOverride.IsEmpty() ? DefaultRuntimeCPUName : RuntimeNameOverride;
+		check(!RuntimeName.IsEmpty());
 
-		// Create the model
-		TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = UE::NNE::GetRuntime<INNERuntimeCPU>(RuntimeCPUName);
-		if (!RuntimeCPU.IsValid())
+		TWeakInterfacePtr<INNERuntimeCPU> Runtime = UE::NNE::GetRuntime<INNERuntimeCPU>(RuntimeName);
+		if (!Runtime.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("No CPU runtime '%s' found. Valid CPU runtimes are: "), *RuntimeCPUName);
-			for (const FString& RuntimeName : UE::NNE::GetAllRuntimeNames<INNERuntimeCPU>())
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model instance. No CPU runtime '%s' found. Valid CPU runtimes are: "), *RuntimeName);
+			for (const FString& Name : UE::NNE::GetAllRuntimeNames<INNERuntimeCPU>())
 			{
-				UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *RuntimeName);
+				UE_LOG(LogNNEDenoiser, Log, TEXT("- %s"), *Name);
 			}
 			return {};
 		}
 
-		TSharedPtr<UE::NNE::IModelCPU> Model = RuntimeCPU->CreateModelCPU(ModelData);
+		if (Runtime->CanCreateModelCPU(ModelData) != INNERuntimeCPU::ECanCreateModelCPUStatus::Ok)
+		{
+			UE_LOG(LogNNEDenoiser, Log, TEXT("%s on CPU can not create model"), *RuntimeName);
+			return {};
+		}
+
+		TSharedPtr<UE::NNE::IModelCPU> Model = Runtime->CreateModelCPU(ModelData);
 		if (!Model.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create model using %s"), *RuntimeCPUName);
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model using %s on CPU"), *RuntimeName);
 			return {};
 		}
 
 		TSharedPtr<UE::NNE::IModelInstanceCPU> ModelInstance = Model->CreateModelInstanceCPU();
 		if (!ModelInstance.IsValid())
 		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create model instance using %s"), *RuntimeCPUName);
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Could not create model instance using %s on CPU"), *RuntimeName);
 			return {};
 		}
-
-		UE_LOG(LogNNEDenoiser, Log, TEXT("NNEDenoiserCPU: Creaded model instance from %s using %s"), *ModelData.GetFileId().ToString(), *RuntimeCPUName);
 
 		return MakeUnique<FModelInstanceCPU>(ModelInstance.ToSharedRef());
 	}

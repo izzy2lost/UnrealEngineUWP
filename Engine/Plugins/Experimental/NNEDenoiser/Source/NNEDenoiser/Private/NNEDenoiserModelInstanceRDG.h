@@ -18,7 +18,7 @@ class FModelInstanceRDG : public IModelInstance
 public:
 	explicit FModelInstanceRDG(TSharedRef<UE::NNE::IModelInstanceRDG> ModelInstance);
 
-	static TUniquePtr<FModelInstanceRDG> Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride = {});
+	static TUniquePtr<FModelInstanceRDG> Make(UNNEModelData& ModelData, const FString& RuntimeName);
 
 	virtual ~FModelInstanceRDG();
 

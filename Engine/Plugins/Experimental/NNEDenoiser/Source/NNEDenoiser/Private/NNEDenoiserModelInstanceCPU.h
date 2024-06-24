@@ -20,7 +20,7 @@ class FModelInstanceCPU : public IModelInstance
 public:
 	explicit FModelInstanceCPU(TSharedRef<UE::NNE::IModelInstanceCPU> ModelInstance);
 
-	static TUniquePtr<FModelInstanceCPU> Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride = {});
+	static TUniquePtr<FModelInstanceCPU> Make(UNNEModelData& ModelData, const FString& RuntimeName);
 
 	virtual ~FModelInstanceCPU();
 
