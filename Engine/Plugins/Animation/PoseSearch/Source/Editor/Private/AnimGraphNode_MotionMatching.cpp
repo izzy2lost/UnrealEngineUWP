@@ -27,12 +27,6 @@ FText UAnimGraphNode_MotionMatching::GetMenuCategory() const
 	return LOCTEXT("NodeCategory", "Pose Search");
 }
 
-void UAnimGraphNode_MotionMatching::BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog)
-{
-	UAnimBlueprint* AnimBlueprint = GetAnimBlueprint();
-	AnimBlueprint->FindOrAddGroup(Node.GetGroupName());
-}
-
 UScriptStruct* UAnimGraphNode_MotionMatching::GetTimePropertyStruct() const
 {
 	return FAnimNode_MotionMatching::StaticStruct();
