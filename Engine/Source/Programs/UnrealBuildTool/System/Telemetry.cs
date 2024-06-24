@@ -155,6 +155,7 @@ namespace UnrealBuildTool
 		public int SucceededCoordinators { get; }
 		public int FailedCoordinators { get; }
 
+		[JsonConverter(typeof(DurationDataRouterEventConverter))]
 		public TimeSpan DurationWaitingForRemote { get; }
 
 		public double RetriedLocalRate => RetriedLocalActions / (double)TotalActions;
