@@ -56,8 +56,7 @@ namespace Metasound::Engine
 #if WITH_EDITOR
 	namespace MetasoundEngineModulePrivate
 	{
-		// Temporarily disabled while fixing up assets
-		int32 EnableMetaSoundEditorAssetValidation = 0;
+		int32 EnableMetaSoundEditorAssetValidation = 1;
 
 		FAutoConsoleVariableRef CVarEnableMetaSoundEditorAssetValidation(
 			TEXT("au.MetaSound.Editor.EnableAssetValidation"),
