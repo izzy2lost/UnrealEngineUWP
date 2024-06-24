@@ -796,7 +796,7 @@ namespace CrossCompiler
 			[&OutSource](const void* Data, uint32 Size)
 			{
 				// Convert source buffer to FString
-				FString Converted(reinterpret_cast<const ANSICHAR*>(Data), Size);
+				FString Converted = FString::ConstructFromPtrSize(reinterpret_cast<const ANSICHAR*>(Data), Size);
 				OutSource = MoveTemp(Converted);
 			}
 		);

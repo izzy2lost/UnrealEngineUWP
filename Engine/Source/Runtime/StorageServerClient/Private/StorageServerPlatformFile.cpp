@@ -893,7 +893,7 @@ FString FStorageServerPlatformFile::ConvertToAbsolutePathForExternalAppForRead(c
 		Result << DotSlashSkip;
 		if (LowerLevel->FileExists(Result.ToString()))
 		{
-			return FString(Result.GetData(), Result.Len());
+			return FString::ConstructFromPtrSize(Result.GetData(), Result.Len());
 		}
 	}
 #endif
