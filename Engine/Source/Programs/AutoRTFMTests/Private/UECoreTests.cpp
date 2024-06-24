@@ -24,7 +24,7 @@ TEST_CASE("UECore.FDelegateHandle")
 		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 		REQUIRE(!Handle.IsValid());
 	}
-	
+
 	REQUIRE(!Handle.IsValid());
 
 	SECTION("With Commit")
@@ -578,18 +578,223 @@ TEST_CASE("UECore.TIntrusiveReferenceController")
 	}
 }
 
-TEST_CASE("UECore.FTextCache")
+TEST_CASE("UECore.FText")
 {
 	FText Text;
 	REQUIRE(Text.IsEmpty());
 
-	AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
-		{
-			FString S("Sheesh");
-			Text = FTextCache::Get().FindOrCache(ANSI_TO_TCHAR("Oh my"), FTextInspector::GetTextId(FText::FromString(S)));
-			AutoRTFM::AbortTransaction();
-		});
+	SECTION("With Abort")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				Text = FText::FromString(FString(TEXT("Sheesh")));
+				AutoRTFM::AbortTransaction();
+			});
 
-	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-	REQUIRE(Text.IsEmpty());
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+		REQUIRE(Text.IsEmpty());
+	}
+
+	SECTION("With Commit")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				Text = FText::FromString(FString(TEXT("Sheesh")));
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+		REQUIRE(!Text.IsEmpty());
+		REQUIRE(Text.ToString() == TEXT("Sheesh"));
+	}
+}
+
+TEST_CASE("UECore.FTextCache")
+{
+	// FTextCache is a singleton. Grab its reference.
+	FTextCache& Cache = FTextCache::Get();
+
+	// Use a fixed cache key for the tests below.
+	const FTextId Key{TEXT("NAMESPACE"), TEXT("KEY")};
+
+	// As FTextCache does not supply any way to query what's held in the cache,
+	// the best we can do here is to call FindOrCache() and check the returned
+	// FText strings are as expected.
+	auto CheckCacheHealthy = [&]
+	{
+		FText LookupA = Cache.FindOrCache(TEXT("VALUE"), Key);
+		REQUIRE(LookupA.ToString() == TEXT("VALUE"));
+		FText LookupB = Cache.FindOrCache(TEXT("REPLACEMENT"), Key);
+		REQUIRE(LookupB.ToString() == TEXT("REPLACEMENT"));
+		Cache.RemoveCache(Key);
+	};
+
+	SECTION("FindOrCache() Add new")
+	{
+		SECTION("With Abort")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Cache.FindOrCache(TEXT("VALUE"), Key);
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+			CheckCacheHealthy();
+		}
+
+		SECTION("With Commit")
+		{
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Cache.FindOrCache(TEXT("VALUE"), Key);
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+			CheckCacheHealthy();
+		}
+	}
+
+	SECTION("FindOrCache() Replace with same value")
+	{
+		SECTION("With Abort")
+		{
+			// Add an entry to the cache before the transaction
+			Cache.FindOrCache(TEXT("VALUE"), Key);
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Cache.FindOrCache(TEXT("REPLACEMENT"), Key);
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+			CheckCacheHealthy();
+		}
+
+		SECTION("With Commit")
+		{
+			// Add an entry to the cache before the transaction
+			Cache.FindOrCache(TEXT("VALUE"), Key);
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Cache.FindOrCache(TEXT("VALUE"), Key);
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+			CheckCacheHealthy();
+		}
+	}
+
+	SECTION("FindOrCache() Replace with different value")
+	{
+		SECTION("With Abort")
+		{
+			// Add an entry to the cache before the transaction
+			Cache.FindOrCache(TEXT("ORIGINAL"), Key);
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Cache.FindOrCache(TEXT("REPLACEMENT"), Key);
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+			CheckCacheHealthy();
+		}
+
+		SECTION("With Commit")
+		{
+			// Add an entry to the cache before the transaction
+			Cache.FindOrCache(TEXT("ORIGINAL"), Key);
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Cache.FindOrCache(TEXT("REPLACEMENT"), Key);
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+			CheckCacheHealthy();
+		}
+	}
+
+	static constexpr bool bSupportsTransactionalRemoveCache = false; // #jira SOL-6743
+	if (!bSupportsTransactionalRemoveCache)
+	{
+		return;
+	}
+
+	SECTION("RemoveCache()")
+	{
+		SECTION("With Abort")
+		{
+			// Add an entry to the cache before the transaction
+			Cache.FindOrCache(TEXT("VALUE"), Key);
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Cache.RemoveCache(Key);
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+			CheckCacheHealthy();
+		}
+
+		SECTION("With Commit")
+		{
+			// Add an entry to the cache before the transaction
+			Cache.FindOrCache(TEXT("VALUE"), Key);
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+				{
+					Cache.RemoveCache(Key);
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+			CheckCacheHealthy();
+		}
+	}
+
+
+	SECTION("Mixed Closed & Open")
+	{
+		SECTION("Closed: FindOrCache() Open: RemoveCache()")
+		{
+			SECTION("With Abort")
+			{
+				AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+					{
+						Cache.FindOrCache(TEXT("VALUE"), Key);
+						AutoRTFM::Open([&]{ Cache.RemoveCache(Key); });
+						AutoRTFM::AbortTransaction();
+					});
+
+				REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+				CheckCacheHealthy();
+			}
+
+			SECTION("With Commit")
+			{
+				AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]()
+					{
+						Cache.FindOrCache(TEXT("VALUE"), Key);
+						AutoRTFM::Open([&]{ Cache.RemoveCache(Key); });
+					});
+
+				REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+				CheckCacheHealthy();
+			}
+		}
+	}
 }
