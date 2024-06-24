@@ -14,6 +14,7 @@ using EpicGames.Horde.Streams;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using OpenTelemetry.Exporter;
@@ -87,11 +88,24 @@ public static class OpenTelemetryHelper
 
 		void DatadogAspNetRequestEnricher(Activity activity, HttpRequest request)
 		{
+			activity.DisplayName = $"{request.Method} {request.Headers.Host}{request.Path}";
+			
+			// From https://docs.datadoghq.com/standard-attributes/
 			activity.SetTag("service.name", settings.ServiceName);
 			activity.SetTag("operation.name", "http.request");
-			string url = $"{request.Method} {request.Headers.Host}{request.Path}";
-			activity.DisplayName = url;
-			activity.SetTag("resource.name", url);
+			activity.SetTag("http.client_ip", request.HttpContext.Connection.RemoteIpAddress);
+			activity.SetTag("usr.id", request.HttpContext.User.GetUserId());
+			activity.SetTag("usr.name", request.HttpContext.User.GetUser());
+			
+			// Header sent by the dashboard to indicate how long a user has been inactive for a particular browser page (in seconds)
+			if (request.Headers.TryGetValue("X-Horde-LastUserActivity", out StringValues values))
+			{
+				string? value = values.FirstOrDefault();
+				if (!String.IsNullOrEmpty(value) && Int32.TryParse(value, out int lastUserActivity))
+				{
+					activity.SetTag("horde.lastUserActivity", lastUserActivity);
+				}
+			}
 		}
 
 		bool FilterHttpRequests(HttpContext context)

@@ -111,32 +111,28 @@ namespace HordeServer.Utilities
 		public static AccountId? GetAccountId(this ClaimsPrincipal principal)
 		{
 			string? idValue = principal.FindFirstValue(HordeClaimTypes.AccountId);
-			if (idValue == null)
-			{
-				return null;
-			}
-			else
-			{
-				return AccountId.Parse(idValue);
-			}
+			return idValue == null ? null : AccountId.Parse(idValue);
 		}
 
 		/// <summary>
-		/// Gets the Horde user id from a principal
+		/// Gets the Horde user ID from a principal
 		/// </summary>
 		/// <param name="principal"></param>
 		/// <returns></returns>
 		public static UserId? GetUserId(this ClaimsPrincipal principal)
 		{
 			string? idValue = principal.FindFirstValue(HordeClaimTypes.UserId);
-			if (idValue == null)
-			{
-				return null;
-			}
-			else
-			{
-				return UserId.Parse(idValue);
-			}
+			return idValue == null ? null : UserId.Parse(idValue);
+		}
+		
+		/// <summary>
+		/// Gets the Horde username from a principal
+		/// </summary>
+		/// <param name="principal"></param>
+		/// <returns></returns>
+		public static string? GetUser(this ClaimsPrincipal principal)
+		{
+			return principal.FindFirstValue(HordeClaimTypes.User);
 		}
 
 		/// <summary>
@@ -147,11 +143,7 @@ namespace HordeServer.Utilities
 		public static string? GetExternalIssueUser(this ClaimsPrincipal user)
 		{
 			Claim? claim = user.FindFirst(HordeClaimTypes.ExternalIssueUser);
-			if (claim == null)
-			{
-				return null;
-			}
-			return claim.Value;
+			return claim?.Value;
 		}
 
 		/// <summary>
