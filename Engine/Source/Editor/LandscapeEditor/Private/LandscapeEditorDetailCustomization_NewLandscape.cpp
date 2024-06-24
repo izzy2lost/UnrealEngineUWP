@@ -1223,8 +1223,11 @@ FReply FLandscapeEditorDetailCustomization_NewLandscape::OnCreateButtonClicked()
 			double RegionSizeX = RegionSizeXTexels * LandscapeProxy->GetActorScale3D().X;
 			double RegionSizeY = RegionSizeYTexels * LandscapeProxy->GetActorScale3D().Y;
 			ALocationVolume* RegionVolume = LandscapeRegionUtils::CreateLandscapeRegionVolume(World, LandscapeProxy, RegionCoordinate, RegionSizeX);
-			RegionVolumes.Add(RegionVolume);
-			
+			if (RegionVolume)
+			{
+				RegionVolumes.Add(RegionVolume);
+			}
+
 			TArray<ALandscapeProxy*> CreatedStreamingProxies;
 			AddComponents(LandscapeInfo, LandscapeSubsystem, NewComponents, CreatedStreamingProxies);
 			

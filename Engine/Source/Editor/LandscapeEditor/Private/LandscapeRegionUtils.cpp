@@ -32,6 +32,10 @@ ALocationVolume* CreateLandscapeRegionVolume(UWorld* InWorld, ALandscapeProxy* I
 	SpawnParameters.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 
 	ALocationVolume* LocationVolume = InWorld->SpawnActor<ALocationVolume>(Location, Rotation, SpawnParameters);
+	if (LocationVolume == nullptr)
+	{
+		return nullptr;
+	}
 	LocationVolume->SetActorLabel(Label);
 
 	LocationVolume->AttachToActor(InParentLandscapeActor, FAttachmentTransformRules::KeepWorldTransform);
