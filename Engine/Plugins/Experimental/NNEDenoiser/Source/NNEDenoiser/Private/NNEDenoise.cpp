@@ -9,21 +9,28 @@ DEFINE_LOG_CATEGORY(LogNNEDenoiser);
 
 void FNNEDenoiserModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
-	UE_LOG(LogNNEDenoiser, Log, TEXT("NNEDenoiser module starting up"));
+	// During cook, we are not allowed to call IsRayTracingAllowed() later, therefore we assume Ray Tracing is not available and do not register the View Extension.
+	if (IsRunningCookCommandlet())
+	{
+		return;
+	}
 
 	FCoreDelegates::OnPostEngineInit.AddLambda([this] ()
 	{
-		ViewExtension = FSceneViewExtensions::NewExtension<UE::NNEDenoiser::Private::FViewExtension>();
+		// Only register View Extension if Ray Tracing is available.
+		if (IsRayTracingAllowed())
+		{
+			ViewExtension = FSceneViewExtensions::NewExtension<UE::NNEDenoiser::Private::FViewExtension>();
+		}
+		else
+		{
+			UE_LOG(LogNNEDenoiser, Log, TEXT("Ray Tracing is not enabled, therefore NNEDenoiser is not registered!"));
+		}
 	});
 }
 
 void FNNEDenoiserModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
-	UE_LOG(LogNNEDenoiser, Log, TEXT("NNEDenoiser module shut down"));
-
 	ViewExtension.Reset();
 }
 
