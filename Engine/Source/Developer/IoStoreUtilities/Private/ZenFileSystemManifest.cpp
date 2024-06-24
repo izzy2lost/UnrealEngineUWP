@@ -527,11 +527,17 @@ int32 FZenFileSystemManifest::Generate()
 
 const FZenFileSystemManifest::FManifestEntry& FZenFileSystemManifest::CreateManifestEntry(const FString& Filename)
 {
-	FString CookedEngineDirectory = FPaths::Combine(CookDirectory, TEXT("Engine"));
+	const FString FullFilename = FPaths::ConvertRelativePathToFull(Filename);
 
-	auto AddEntry = [this, &Filename](const FString& ClientDirectory, const FString& LocalDirectory) -> const FManifestEntry&
+	FString CookedEngineDirectory = FPaths::Combine(CookDirectory, TEXT("Engine"));
+	FString CookedEngineDirectoryTrailingSeparator;
+	CookedEngineDirectoryTrailingSeparator.Reserve(CookedEngineDirectory.Len() + 1);
+	CookedEngineDirectoryTrailingSeparator.Append(CookedEngineDirectory);
+	CookedEngineDirectoryTrailingSeparator.AppendChar(TEXT('/'));
+
+	auto AddEntry = [this, &FullFilename](const FString& ClientDirectory, const FString& LocalDirectory) -> const FManifestEntry&
 	{
-		FStringView RelativePath = Filename;
+		FStringView RelativePath = FullFilename;
 		RelativePath.RightChopInline(LocalDirectory.Len() + 1);
 
 		FString ServerRelativeDirectory = LocalDirectory;
@@ -545,13 +551,18 @@ const FZenFileSystemManifest::FManifestEntry& FZenFileSystemManifest::CreateMani
 		return AddManifestEntry(FileChunkId, MoveTemp(ServerPath), MoveTemp(ClientPath));
 	};
 
-	if (Filename.StartsWith(CookedEngineDirectory))
+	if (FullFilename.StartsWith(CookedEngineDirectoryTrailingSeparator))
 	{
 		return AddEntry(TEXT("/{engine}"), CookedEngineDirectory);
 	}
 
 	FString CookedProjectDirectory = FPaths::Combine(CookDirectory, FApp::GetProjectName());
-	if (Filename.StartsWith(CookedProjectDirectory))
+	FString CookedProjectDirectoryTrailingSeparator;
+	CookedProjectDirectoryTrailingSeparator.Reserve(CookedProjectDirectory.Len() + 1);
+	CookedProjectDirectoryTrailingSeparator.Append(CookedProjectDirectory);
+	CookedProjectDirectoryTrailingSeparator.AppendChar(TEXT('/'));
+
+	if (FullFilename.StartsWith(CookedProjectDirectoryTrailingSeparator))
 	{
 		return AddEntry(TEXT("/{project}"), CookedProjectDirectory);
 	}

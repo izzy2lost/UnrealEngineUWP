@@ -34,6 +34,8 @@
 #include "Async/Async.h"
 #include "Async/Future.h"
 #include "Virtualization/VirtualizationSystem.h"
+#include "CookedPackageStore.h"
+#include "ZenStoreHttpClient.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, PakFileUtilities);
 
@@ -553,6 +555,7 @@ struct FPakCommandLineParameters
 	FString InputFinalPakFilename; // This is the resulting pak file we want to end up with after we generate the pak patch.  This is used instead of passing in the raw content.
 	FString ChangedFilesOutputFilename;
 	FString CsvPath;
+	FString ProjectStoreFilename;
 	bool EncryptIndex;
 	bool UseCustomCompressor;
 	FGuid EncryptionKeyGuid;
@@ -672,7 +675,7 @@ struct FCompressedFileBuffer
 	}
 
 	void ResetSource();
-	bool ReadSource(const FPakInputPair& InFile);
+	bool ReadSource(const FPakInputPair& InFile, FCookedPackageStore* PackageStore);
 	void SetSourceAsWorkingBuffer();
 
 	TUniquePtr<FMemoryCompressor> BeginCompressFileToWorkingBuffer(const FPakInputPair& InFile, FName CompressionMethod, const int32 CompressionBlockSize, FGraphEventRef EndCompressionBarrier);
@@ -828,35 +831,46 @@ void FCompressedFileBuffer::ResetSource()
 	UncompressedBuffer.Empty();
 }
 
-bool FCompressedFileBuffer::ReadSource(const FPakInputPair& InputInfo)
+bool FCompressedFileBuffer::ReadSource(const FPakInputPair& InputInfo, FCookedPackageStore* PackageStore)
 {
 	if (!InputInfo.bNeedRehydration)
 	{
 		TUniquePtr<FArchive> FileHandle(IFileManager::Get().CreateFileReader(*InputInfo.Source));
-		if (!FileHandle)
+		if (FileHandle)
 		{
-			OriginalSize = -1;
-			return false;
+			OriginalSize = FileHandle->TotalSize();
+			const int64 PaddedEncryptedFileSize = Align(OriginalSize, FAES::AESBlockSize);
+
+			UncompressedBuffer.SetNumUninitialized(PaddedEncryptedFileSize);
+
+			FileHandle->Serialize(UncompressedBuffer.GetData(), OriginalSize);
+
+			if (!FileHandle->IsError())
+			{
+				return true;
+			}
 		}
-
-		OriginalSize = FileHandle->TotalSize();
-		const int64 PaddedEncryptedFileSize = Align(OriginalSize, FAES::AESBlockSize);
-
-		UncompressedBuffer.SetNumUninitialized(PaddedEncryptedFileSize);
-
-		FileHandle->Serialize(UncompressedBuffer.GetData(), OriginalSize);
-
-		if (!FileHandle->IsError())
+		else if (PackageStore && PackageStore->HasZenStoreClient())
 		{
-			return true;
+			FString FullFilename = FPaths::ConvertRelativePathToFull(InputInfo.Source);
+			FIoChunkId ChunkId = PackageStore->GetChunkIdFromFileName(FullFilename);
+			if (ChunkId.IsValid())
+			{
+				TIoStatusOr<FIoBuffer> ChunkReadStatus = PackageStore->ReadChunk(ChunkId);
+				if (ChunkReadStatus.IsOk())
+				{
+					FIoBuffer Buffer = ChunkReadStatus.ConsumeValueOrDie();
+					OriginalSize = Buffer.GetSize();
+					const int64 PaddedEncryptedFileSize = Align(OriginalSize, FAES::AESBlockSize);
+					UncompressedBuffer.SetNumUninitialized(PaddedEncryptedFileSize);
+					FMemory::Memcpy(UncompressedBuffer.GetData(), Buffer.GetData(), Buffer.GetSize());
+					return true;
+				}
+			}
 		}
-		else
-		{
-			UncompressedBuffer.Empty();
-			OriginalSize = -1;
-
-			return false;
-		}
+		UncompressedBuffer.Empty();
+		OriginalSize = -1;
+		return false;
 	}
 	else
 	{
@@ -1266,6 +1280,8 @@ void ProcessCommonCommandLine(const TCHAR* CmdLine, FPakCommandLineParameters& C
 	FParse::Value(CmdLine, TEXT("-patchSeekOptMode="), (int32&)CmdLineParameters.SeekOptParams.Mode);
 
 	FParse::Value(CmdLine, TEXT("csv="), CmdLineParameters.CsvPath);
+
+	FParse::Value(FCommandLine::Get(), TEXT("ProjectStore="), CmdLineParameters.ProjectStoreFilename);
 }
 
 void ProcessPakFileSpecificCommandLine(const TCHAR* CmdLine, const TArray<FString>& NonOptionArguments, TArray<FPakInputPair>& Entries, FPakCommandLineParameters& CmdLineParameters)
@@ -2163,6 +2179,7 @@ private:
 	TSpscQueue<FOutputPakFileEntry*> WriteQueue;
 	TFuture<void> CompressionThread;
 	TFuture<void> WriterThread;
+	TUniquePtr<FCookedPackageStore> PackageStore;
 	FEventRef CompressionQueueEntryAddedEvent;
 	FEventRef WriteQueueEntryAddedEvent;
 	FEventRef EntryRetiredEvent;
@@ -2203,6 +2220,20 @@ bool FPakWriterContext::Initialize(const FPakCommandLineParameters& InCmdLinePar
 			FormatLogLine += CompressionMethod.ToString();
 		}
 		UE_LOG(LogPakFile, Display, TEXT("%s"), *FormatLogLine);
+	}
+
+	if (!CmdLineParameters.ProjectStoreFilename.IsEmpty())
+	{
+		TUniquePtr<FCookedPackageStore> NewPackageStore = MakeUnique<FCookedPackageStore>(FPaths::GetPath(CmdLineParameters.ProjectStoreFilename));
+		FIoStatus Status = NewPackageStore->LoadProjectStore(*CmdLineParameters.ProjectStoreFilename);
+		if (Status.IsOk())
+		{
+			PackageStore = MoveTemp(NewPackageStore);
+		}
+		else
+		{
+			UE_LOG(LogPakFile, Fatal, TEXT("Failed loading project store '%s'"), *CmdLineParameters.ProjectStoreFilename);
+		}
 	}
 
 	// Oodle is built into the Engine now and can be used to decode startup phase files (ini,res,uplugin)
@@ -2366,7 +2397,7 @@ void FPakWriterContext::BeginCompress(FOutputPakFileEntry* Entry)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(BeginCompress);
 
-	if (!Entry->AccessCompressedBuffer().ReadSource(Entry->InputPair))
+	if (!Entry->AccessCompressedBuffer().ReadSource(Entry->InputPair, PackageStore.Get()))
 	{
 		// TODO: Should we give an error?
 		Entry->bSomeCompressionSucceeded = true; // Prevent loading in EndCompress

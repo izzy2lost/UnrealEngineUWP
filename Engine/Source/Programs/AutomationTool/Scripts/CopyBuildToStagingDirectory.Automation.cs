@@ -3486,6 +3486,12 @@ namespace AutomationScripts
 					CommonAdditionalArgs += " -allowForIndexUnload";
 				}
 			}
+			
+			if (!string.IsNullOrEmpty(SC.PackageStoreData.MarkerFullPath))
+			{
+				CommonAdditionalArgs += String.Format(" -ProjectStore={0}",
+					MakePathSafeToUseWithCommandLine(SC.PackageStoreData.MarkerFullPath));
+			}
 
 			// pass the targetplatform so the index may be able to be frozen
 			CommonAdditionalArgs += " -platform=" + ConfigHierarchy.GetIniPlatformName(SC.StageTargetPlatform.IniPlatformType);
