@@ -53,11 +53,12 @@ public:
 private:
 	/** 
 	 * Calculates a frustum to check actors against 
-	 * 
+	 *
+	 * @param InView			Information about scene projection
 	 * @param OutFrustum		The created frustum
 	 * @param bUseBoxFrustum	If true a frustum out of the current dragged box will be created.  false will use the view frustum.
 	 */
-	UNREALED_API void CalculateFrustum( FSceneView* View, FConvexVolume& OutFrustum, bool bUseBoxFrustum );
+	UNREALED_API void CalculateFrustum( const FSceneView* InView, FConvexVolume& OutFrustum, bool bUseBoxFrustum ) const;
 
 	/** 
 	 * Returns true if the provided BSP node intersects with the provided frustum 

@@ -1808,19 +1808,13 @@ bool FControlRigEditMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorV
 	}
 	
 	//need to check for a zero frustum since ComponentIsTouchingSelectionFrustum will return true, selecting everything, when this is the case
-	const bool bMalformedFrustum = (InFrustum.Planes[0].IsNearlyZero() && InFrustum.Planes[2].IsNearlyZero()) || (InFrustum.Planes[3].IsNearlyZero() &&
-		InFrustum.Planes[4].IsNearlyZero());
+	// cf. FDragTool_ActorFrustumSelect::CalculateFrustum 
+	const bool bAreTopBottomMalformed = InFrustum.Planes[0].IsNearlyZero() && InFrustum.Planes[2].IsNearlyZero();
+	const bool bAreRightLeftMalformed = InFrustum.Planes[1].IsNearlyZero() && InFrustum.Planes[3].IsNearlyZero();
+	const bool bMalformedFrustum = bAreTopBottomMalformed || bAreRightLeftMalformed;
 	if (bMalformedFrustum || InViewportClient->IsInGameView() == true || Settings->bHideControlShapes)
 	{
-		if (Settings->bOnlySelectRigControls)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-		return FEdMode::FrustumSelect(InFrustum, InViewportClient, InSelect);
+		return Settings->bOnlySelectRigControls;
 	}
 
 	FScopedTransaction ScopedTransaction(LOCTEXT("SelectControlTransaction", "Select Control"), !AreEditingControlRigDirectly() && !GIsTransacting);
