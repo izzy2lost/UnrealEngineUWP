@@ -115,6 +115,12 @@ void FGenerationHelper::Uninitialize()
 	{
 		return;
 	}
+
+	// Demote stalled packages; we will be garbage collecting so they no longer need to be preserved.
+	// And we need to demote them so that they drop their references to the generation helper and allow it to be
+	// deleted if no longer referenced
+	DemoteStalledPackages(OwnerInfo.PackageData->GetPackageDatas().GetCookOnTheFlyServer());
+
 	NotifyCompletion(ICookPackageSplitter::ETeardown::Complete);
 	check(!CookPackageSplitterInstance);
 
@@ -186,6 +192,28 @@ void FGenerationHelper::OnAllSavesCompleted(UCookOnTheFlyServer& COTFS)
 	// these references
 	ClearKeepForCompletedAllSavesMessage();
 	ClearKeepForAllSavedOrGC();
+
+	// Demote stalled packages; we will no longer need to come back to them
+	DemoteStalledPackages(COTFS);
+}
+
+void FGenerationHelper::DemoteStalledPackages(UCookOnTheFlyServer& COTFS)
+{
+	// For any packages that we stalled because they were retracted and assigned to another worker,
+	// demote them now. But don't demote non-stalled packages, because doing so could demote the final
+	// package that we just saved locally and still needs to finish its work in PumpSaves.
+	auto ConditionalDemote = [&COTFS](FCookGenerationInfo& Info)
+		{
+			if (Info.PackageData->IsStalled())
+			{
+				COTFS.DemoteToIdle(*Info.PackageData, ESendFlags::QueueAddAndRemove, ESuppressCookReason::RetractedByCookDirector);
+			}
+		};
+	ConditionalDemote(OwnerInfo);
+	for (FCookGenerationInfo& Info : PackagesToGenerate)
+	{
+		ConditionalDemote(Info);
+	}
 }
 
 void FGenerationHelper::DiagnoseWhyNotShutdown()
@@ -1268,6 +1296,23 @@ void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Pack
 	}
 }
 
+bool FGenerationHelper::ShouldRetractionStallRatherThanDemote(FPackageData& PackageData)
+{
+	FCookGenerationInfo* Info = FindInfo(PackageData);
+	if (Info)
+	{
+		if (PackageData.IsInStateProperty(EPackageStateProperty::Saving))
+		{
+			if (Info->GetSaveState() > FCookGenerationInfo::ESaveState::StartPopulate)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
 void FGenerationHelper::FetchExternalActorDependencies()
 {
 	if (!IsValid())
@@ -1435,6 +1480,21 @@ void FGenerationHelper::PreGarbageCollectGCLifetimeData()
 	// Starts at one because the caller of PreGarbageCollect has a ref
 	uint32 HoldForGCRefCounts = 1;
 	HoldForGCRefCounts += ReferenceFromKeepForAllSavedOrGC.IsValid() ? 1 : 0;
+	// Every stalled package will be holding a refcount, but is allowed to be demoted and released
+	// if we are going to garbage collect.
+	// If the generator package is stalled, that's a complex case that we don't need to handle optimally;
+	// just keep the entire generation helper referenced.
+	if (OwnerInfo.PackageData->IsStalled())
+	{
+		return;
+	}
+	for (FCookGenerationInfo& Info : PackagesToGenerate)
+	{
+		if (Info.PackageData->GetParentGenerationHelper() && Info.PackageData->IsStalled())
+		{
+			HoldForGCRefCounts += 1;
+		}
+	}
 
 	check(GetRefCount() >= HoldForGCRefCounts);
 	if (GetRefCount() > HoldForGCRefCounts)
@@ -1447,7 +1507,8 @@ void FGenerationHelper::PreGarbageCollectGCLifetimeData()
 	// We should either uninitialize or destroy after the garbage collect.
 	// We should not uninitialize unless the Generator package is going to be collected, but we are in a state
 	// where nothing in the cooker is depending on the package anymore (all generator and generated packages are
-	// not in the save state) so we do expect the generator package to be garbage collected by the upcoming GC
+	// not in the save state or are stalled) so we do expect the generator package to be garbage collected by the
+	// upcoming GC.
 	// But for that to happen we have to drop our references to it from this FGenerationHelper, so we need
 	// to uninitialize. Also mark that we should check for generator garbage collect in PostGarbageCollect.
 	// Depending on the Splitter class, it may tolerate failure to GC the Generator package, in which case we

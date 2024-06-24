@@ -341,6 +341,14 @@ public:
 		EPackageState NewState);
 
 	/**
+	 * Called when a package is retracted from a CookWorker, or from the Director's local worker. Default behavior
+	 * for a retracted pacakge is to demote the package to idle, but if the state of the package is too advanced to
+	 * recreate without a garbage collect, then the GenerationHelper instead needs to stall the package in case it
+	 * is assigned back to this worker later.
+	 */
+	bool ShouldRetractionStallRatherThanDemote(FPackageData& PackageData);
+
+	/**
 	 * Record all dependencies from the generator package that are ExternalActor dependencies and
 	 * store them on this.
 	 */
@@ -455,6 +463,7 @@ private:
 	void Uninitialize();
 	void ModifyNumSaved(int32 Delta);
 	void VerifyGeneratorPackageGarbageCollected();
+	void DemoteStalledPackages(UCookOnTheFlyServer& COTFS);
 
 private:
 	// When adding a new variable, add it to Uninitialize as well

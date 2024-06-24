@@ -824,6 +824,55 @@ void FPackageData::SendToState(EPackageState NextState, ESendFlags SendFlags, ES
 	PackageDatas.GetMonitor().OnStateChanged(*this, OldState);
 }
 
+void FPackageData::Stall(EPackageState TargetState, ESendFlags SendFlags)
+{
+	switch (TargetState)
+	{
+	case EPackageState::SaveStalledAssignedToWorker:
+	case EPackageState::SaveStalledRetracted:
+		if (GetState() != EPackageState::SaveActive)
+		{
+			return;
+		}
+		break;
+	default:
+		return;
+	}
+
+	SendToState(TargetState, SendFlags, EStateChangeReason::Retraction);
+}
+
+void FPackageData::UnStall(ESendFlags SendFlags)
+{
+	EPackageState TargetState = EPackageState::Idle;
+
+	switch (GetState())
+	{
+	case EPackageState::SaveStalledAssignedToWorker:
+	case EPackageState::SaveStalledRetracted:
+		TargetState = EPackageState::SaveActive;
+		break;
+	default:
+		return;
+	}
+
+	UE_LOG(LogCook, Display, TEXT("Unstalling package %s; it will resume saving from the point at which it was retracted."),
+		*WriteToString<256>(GetPackageName()));
+	SendToState(TargetState, SendFlags, EStateChangeReason::Retraction);
+}
+
+bool FPackageData::IsStalled() const
+{
+	switch (GetState())
+	{
+	case EPackageState::SaveStalledAssignedToWorker:
+	case EPackageState::SaveStalledRetracted:
+		return true;
+	default:
+		return false;
+	}
+}
+
 void FPackageData::CheckInContainer() const
 {
 	switch (GetState())

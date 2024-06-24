@@ -460,6 +460,22 @@ public:
 	 * @param ReleaseSaveReason Explanation for why the state is changing, used for debugging.
 	 */
 	void SendToState(EPackageState NextState, ESendFlags SendFlags, EStateChangeReason ReleaseSaveReason);
+
+	/**
+	 * Stall the package into the target stalled state, if it is in a valid source state for the target stalled state.
+	 * Does nothing if not in a valid source state. SendFlags are passed into SendToState.
+	 */
+	void Stall(EPackageState TargetState, ESendFlags SendFlags);
+
+	/**
+	 * If the package is in a stalled state, returns the package to the active state that is a source state for that
+	 * stalled state. Does nothing if not in a valid source state.SendFlags are passed into SendToState.
+	 */
+	void UnStall(ESendFlags SendFlags);
+
+	/** Return whether the package is in one of the stalled states. */
+	bool IsStalled() const;
+
 	/* Debug-only code to assert that this PackageData is contained by the container matching its current state. */
 	void CheckInContainer() const;
 	/**

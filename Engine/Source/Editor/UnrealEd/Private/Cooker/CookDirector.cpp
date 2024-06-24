@@ -735,7 +735,7 @@ void FCookDirector::TickFromSchedulerThread()
 			// we have to
 			for (FPackageData* PackageData : COTFS.PackageDatas->GetSaveStalledSet())
 			{
-				if (PackageData->GetState() == EPackageState::SaveStalledAssignedToWorker)
+				if (PackageData->IsInStateProperty(EPackageStateProperty::AssignedToWorkerProperty))
 				{
 					bRemoteWorkerHasWork = true;
 					break;
@@ -2152,10 +2152,28 @@ FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker,
 		}
 		else
 		{
-			EPackageState NewState = PackageData->IsInStateProperty(EPackageStateProperty::Saving)
-				? EPackageState::SaveStalledAssignedToWorker
-				: EPackageState::AssignedToWorker;
-			PackageData->SendToState(NewState, ESendFlags::QueueAdd, EStateChangeReason::Retraction);
+			TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
+			if (!GenerationHelper)
+			{
+				GenerationHelper = PackageData->GetParentGenerationHelper();
+			}
+			bool bShouldStall = false;
+			if (GenerationHelper)
+			{
+				bShouldStall = GenerationHelper->ShouldRetractionStallRatherThanDemote(*PackageData);
+			}
+			if (bShouldStall)
+			{
+				PackageData->Stall(EPackageState::SaveStalledAssignedToWorker, ESendFlags::QueueAddAndRemove);
+				// ShouldRetractionStallRatherThanDemote should not return true unless the Stall will succeed
+				check(PackageData->GetState() == EPackageState::SaveStalledAssignedToWorker);
+				UE_LOG(LogCook, Display, TEXT("Retracting generated package %s; it will remain in memory on the director's worker until the generator finishes saving."),
+					*WriteToString<256>(PackageData->GetPackageName()));
+			}
+			else
+			{
+				PackageData->SendToState(EPackageState::AssignedToWorker, ESendFlags::QueueAdd, EStateChangeReason::Retraction);
+			}
 			PackageData->SetWorkerAssignment(Assignment);
 		}
 	}

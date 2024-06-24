@@ -895,8 +895,8 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 					&NeedCookPlatformsBuffer);
 			if (PackageData.IsInProgress())
 			{
-				// If already in progress and no new platforms, ignore the duplicate
-				// If there are new platforms, we don't currently handle that; the director should have retracted it first
+				// If already in progress but there are new platforms requested, we don't currently handle that;
+				// the director should have retracted it first
 				for (const ITargetPlatform* TargetPlatform : NeedCookPlatforms)
 				{
 					check(TargetPlatform != CookerLoadingPlatformKey);
@@ -904,6 +904,9 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 						TEXT("CookWorker received AssignPackage for package %s which is already in progress, with new platform %s. Adding new platforms to an inprogress package is not yet supported"),
 						*PackageData.GetPackageName().ToString(), *TargetPlatform->PlatformName());
 				}
+				// If no new platforms, just allow the package to continue in its progress. If it was in a stalled-by-retraction state,
+				// return it to active.
+				PackageData.UnStall(ESendFlags::QueueAddAndRemove);
 				continue;
 			}
 
@@ -1041,7 +1044,27 @@ void FCookWorkerClient::HandleRetractionMessage(FMPCollectorClientMessageContext
 		FPackageData* PackageData = COTFS.PackageDatas->FindPackageDataByPackageName(PackageName);
 		check(PackageData);
 		PackageData->ResetReachable();
-		COTFS.DemoteToIdle(*PackageData, ESendFlags::QueueAddAndRemove, ESuppressCookReason::RetractedByCookDirector);
+		TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
+		if (!GenerationHelper)
+		{
+			GenerationHelper = PackageData->GetParentGenerationHelper();
+		}
+		bool bShouldStall = false;
+		if (GenerationHelper)
+		{
+			bShouldStall = GenerationHelper->ShouldRetractionStallRatherThanDemote(*PackageData);
+		}
+		if (bShouldStall)
+		{
+			UE_LOG(LogCook, Display, TEXT("Retracting generated package %s; it will remain in memory on this worker until the generator finishes saving."),
+				*WriteToString<256>(PackageData->GetPackageName()));
+			PackageData->Stall(EPackageState::SaveStalledRetracted, ESendFlags::QueueAddAndRemove);
+		}
+		else
+		{
+			COTFS.DemoteToIdle(*PackageData, ESendFlags::QueueAddAndRemove,
+				ESuppressCookReason::RetractedByCookDirector);
+		}
 	}
 
 	FRetractionResultsMessage ResultsMessage;
