@@ -110,7 +110,7 @@ public:
 	void CreateHairSimulation(const int32 GroupIndex, const int32 LODIndex);
 
 	/** Enable/Disable hair simulation while transitioning from one LOD to another one */
-	void SwitchSimulationLOD(const int32 PreviousLOD, const int32 CurrentLOD);
+	void SwitchSimulationLOD(const int32 PreviousLOD, const int32 CurrentLOD, const EHairLODSelectionType InLODSelectionType);
 
 	/** Check if the simulation is enabled or not */
 	bool IsSimulationEnable(int32 GroupIndex, int32 LODIndex) const;

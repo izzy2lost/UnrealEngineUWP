@@ -1546,17 +1546,19 @@ void UGroomComponent::UpdateHairSimulation()
 	UpdateSimulatedGroups();
 }
 
-void UGroomComponent::SwitchSimulationLOD(const int32 PreviousLOD, const int32 CurrentLOD)
+void UGroomComponent::SwitchSimulationLOD(const int32 PreviousLOD, const int32 CurrentLOD, const EHairLODSelectionType InLODSelectionType)
 {
 	if (GroomAsset && PreviousLOD != CurrentLOD)
 	{
 		bool bRequiresSimulationUpdate = false;
 		for (int32 GroupIt = 0, GroupCount = GroomAsset->GetHairGroupsPlatformData().Num(); GroupIt < GroupCount; ++GroupIt)
 		{
-			if ((IsSimulationEnable(GroupIt, PreviousLOD) != IsSimulationEnable(GroupIt, CurrentLOD)))
+			const bool bPrevSimEnable = IsSimulationEnable(GroupIt, PreviousLOD);
+			const bool bCurrSimEnable = IsSimulationEnable(GroupIt, CurrentLOD);
+			if (bPrevSimEnable != bCurrSimEnable)
 			{
 				// Sanity check. Simulation does not support immediate mode.
-				check(LODSelectionType != EHairLODSelectionType::Immediate);
+				check(InLODSelectionType != EHairLODSelectionType::Immediate);
 
 				CreateHairSimulation(GroupIt, CurrentLOD);
 				bRequiresSimulationUpdate = true;
@@ -1793,7 +1795,7 @@ void UGroomComponent::SetForcedLOD(int32 CurrLODIndex)
 	}
 
 	// Inform simulation about LOD switch.
-	SwitchSimulationLOD(PrevLODIndex, CurrLODIndex);
+	SwitchSimulationLOD(PrevLODIndex, CurrLODIndex, CurrLODSelectionType);
 
 	// Finally, update the forced LOD value and LOD selection type
 	const bool bHasLODSwitch = CurrLODIndex != PrevLODIndex;
@@ -3655,7 +3657,7 @@ void UGroomComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, F
 		}
 
 		// 2. If there is a LOD change, update the simulation adequately 
-		SwitchSimulationLOD(LODPredictedIndex, EffectiveForceLOD);
+		SwitchSimulationLOD(LODPredictedIndex, EffectiveForceLOD, LODSelectionType);
 
 		// 3. Update global predicted index (used for SyncLOD API)
 		LODPredictedIndex = EffectiveForceLOD;
