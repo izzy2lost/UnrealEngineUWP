@@ -1691,12 +1691,14 @@ export type CreateZipRequest = {
 
 /** Describes an artifact */
 export type GetArtifactResponseV2 = {
-
 	id: string;
 	type: ArtifactContextType;
 	keys: string[]
 	name: string;
 	description?: string;
+	streamId?: string;
+	change?: number;
+	metadata?: string[];
 }
 
 /** Result of an artifact search */

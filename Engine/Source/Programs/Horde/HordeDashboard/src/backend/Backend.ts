@@ -502,6 +502,17 @@ export class Backend {
         });
     }
 
+    getArtifacts(streamId?: string, minChange?: number, maxChange?: number, name?: string, type?: string): Promise<FindArtifactsResponse> {
+
+        return new Promise<FindArtifactsResponse>((resolve, reject) => {
+
+            this.backend.get(`/api/v2/artifacts`, { params: { streamId: streamId, minChange: minChange, maxChange: maxChange, name: name, type: type } })
+                .then(response => { resolve(response.data); })
+                .catch(reason => reject(reason));
+        })
+    }
+
+
     getJobArtifactsV2(ids?: string[], keys?: string[]): Promise<FindArtifactsResponse> {
 
         const uniqueIds = Array.from(new Set(ids ?? []));

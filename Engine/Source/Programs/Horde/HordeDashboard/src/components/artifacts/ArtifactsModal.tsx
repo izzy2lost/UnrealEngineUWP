@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Callout, DetailsList, DetailsListLayoutMode, DirectionalHint, FontIcon, IColumn, IconButton, Modal, PrimaryButton, ScrollablePane, Selection, SelectionMode, SelectionZone, Spinner, SpinnerSize, Stack, Text, mergeStyleSets } from "@fluentui/react";
+import { Callout, DetailsList, DetailsListLayoutMode, DirectionalHint, FontIcon, IColumn, IContextualMenuProps, IconButton, Modal, NavBase, PrimaryButton, ScrollablePane, Selection, SelectionMode, SelectionZone, Spinner, SpinnerSize, Stack, Text, mergeStyleSets } from "@fluentui/react";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
@@ -90,7 +90,7 @@ class ArtifactsHandler {
          return;
       }
 
-      let a: GetArtifactResponseV2 | undefined; 
+      let a: GetArtifactResponseV2 | undefined;
 
       if (this.artifactId) {
          a = artifacts.find(a => a.id === this.artifactId)
@@ -99,7 +99,7 @@ class ArtifactsHandler {
       if (!a) {
          a = artifacts.find(a => a.type === this.context)!;
       }
-      
+
 
       if (!a) {
          console.error("Unable to find artifact for context", this.context, artifacts);
@@ -433,6 +433,7 @@ function formatBytes(bytes: number, decimals = 2) {
 const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ handler }) => {
 
    const [selectKey, setSelectionKey] = useState(0);
+   const navigate = useNavigate();
 
 
    // subscribe
@@ -465,8 +466,30 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
       buttonText = `Download (${sizeText})`;
    }
 
+   let jobUrl = "";
+   if (handler.jobId) {
+      jobUrl = `/job/${handler.jobId}`;
+      if (handler.stepId) {
+         jobUrl += `?step=${handler.stepId}`;
+      }
+   }
+
+   const downloadProps: IContextualMenuProps = {
+      items: [
+         {
+            key: 'navigate_to_job',
+            text: 'Navigate to Job',
+            onClick: () => {
+               navigate(`/job/${handler.jobId}`)
+            }
+         }
+      ],
+      directionalHint: DirectionalHint.bottomRightEdge
+   };
+
+
    return <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
-      <PrimaryButton styles={{ root: { fontFamily: 'Horde Open Sans SemiBold !important' } }} disabled={!selection.filesSelected && !selection.directoriesSelected} onClick={async () => {
+      <PrimaryButton split menuProps={downloadProps} styles={{ root: { fontFamily: 'Horde Open Sans SemiBold !important' } }} disabled={!selection.filesSelected && !selection.directoriesSelected} onClick={async () => {
 
          const selection = handler.currentSelection.items;
 
@@ -521,7 +544,7 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler }> = observer(({ hand
 
 let idcounter = 0;
 
-const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string, artifactId? :string }> = observer(({ jobId, stepId, artifacts, contextType, artifactPath, artifactId }) => {
+const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string, artifactId?: string }> = observer(({ jobId, stepId, artifacts, contextType, artifactPath, artifactId }) => {
 
    // eslint-disable-next-line
    const handler = ArtifactsHandler.current ?? new ArtifactsHandler(jobId, stepId, contextType, artifactPath, artifacts, artifactId);
@@ -774,7 +797,7 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
 
 
 
-export const JobArtifactsModal: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string, artifactId? :string, onClose: () => void }> = ({ jobId, stepId, artifacts, contextType, artifactPath, artifactId, onClose }) => {
+export const JobArtifactsModal: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string, artifactId?: string, onClose: () => void }> = ({ jobId, stepId, artifacts, contextType, artifactPath, artifactId, onClose }) => {
 
    const { hordeClasses } = getHordeStyling();
 
