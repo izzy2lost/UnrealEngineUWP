@@ -74,7 +74,7 @@ class UMovieSceneBindingPropertyInfoList : public UObject
 	GENERATED_BODY()
 public:
 	// List of locator info for a particular binding
-	UPROPERTY(EditAnywhere, Category = "Default")
+	UPROPERTY(EditAnywhere, Category = "Binding Properties")
 	TArray<FMovieSceneBindingPropertyInfo> Bindings;
 };
 
