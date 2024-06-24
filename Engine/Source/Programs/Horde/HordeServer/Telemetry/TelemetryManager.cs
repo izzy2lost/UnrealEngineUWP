@@ -55,9 +55,6 @@ namespace HordeServer.Telemetry
 					case EpicTelemetryConfig epicConfig:
 						_telemetrySinks.Add(new EpicTelemetrySink(epicConfig, loggerFactory.CreateLogger<EpicTelemetrySink>()));
 						break;
-					case ClickHouseTelemetryConfig chConfig:
-						_telemetrySinks.Add(new ClickHouseTelemetrySink(chConfig, httpClientFactory, loggerFactory.CreateLogger<ClickHouseTelemetrySink>()));
-						break;
 					case MongoTelemetryConfig mongoConfig:
 						_telemetrySinks.Add(serviceProvider.GetRequiredService<MongoTelemetrySink>());
 						break;

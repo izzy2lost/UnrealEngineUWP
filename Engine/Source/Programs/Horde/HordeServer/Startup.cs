@@ -798,7 +798,6 @@ namespace HordeServer
 			services.AddSingleton<IMetricCollection, MetricCollection>(sp => sp.GetRequiredService<MetricCollection>());
 
 			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
-			services.AddHttpClient(ClickHouseTelemetrySink.HttpClientName, client => { });
 
 			// Create the agent telemetry collection, and register the hosted service so we can flush from any server.
 			services.AddSingleton<AgentTelemetryCollection>();

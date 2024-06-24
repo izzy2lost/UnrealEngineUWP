@@ -37,4 +37,21 @@ namespace HordeServer.Telemetry
 	/// <param name="AppEnvironment">Name of the environment that the sending application is running in</param>
 	/// <param name="SessionId">Unique identifier for the current session</param>
 	public record class TelemetryRecordMeta(string? AppId = null, string? AppVersion = null, string? AppEnvironment = null, string? SessionId = null);
+
+	/// <summary>
+	/// Inactive implementation of <see cref="ITelemetryWriter"/>
+	/// </summary>
+	public class NullTelemetryWriter : ITelemetryWriter
+	{
+		/// <inheritdoc/>
+		public bool Enabled { get; } = false;
+
+		/// <inheritdoc/>
+		public void WriteEvent(TelemetryStoreId telemetryStoreId, object payload)
+		{ }
+
+		/// <inheritdoc/>
+		public void WriteEvent(TelemetryStoreId telemetryStoreId, TelemetryRecordMeta metadata, object payload)
+		{ }
+	}
 }

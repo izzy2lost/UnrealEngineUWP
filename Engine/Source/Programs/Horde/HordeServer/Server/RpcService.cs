@@ -26,7 +26,6 @@ using HordeServer.Tools;
 using HordeServer.Utilities;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
-using HordeCommon.Rpc.Messages.Telemetry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -455,35 +454,6 @@ namespace HordeServer.Server
 			_agentTelemetryCollection.Add(new AgentId(request.AgentId), telemetry);
 
 			return Task.FromResult(new Empty());
-		}
-
-		/// <summary>
-		/// Receives telemetry events from agents
-		/// </summary>
-		/// <param name="request">Request arguments</param>
-		/// <param name="context">Context for the RPC call</param>
-		/// <returns>An empty response</returns>
-		public override async Task<Empty> SendTelemetryEvents(RpcSendTelemetryEventsRequest request, ServerCallContext context)
-		{
-			ISession? session = null;
-
-			SessionId? sessionId = context.GetHttpContext().User.GetSessionClaim();
-			if (sessionId != null)
-			{
-				session = await _agentService.GetSessionAsync(sessionId.Value);
-			}
-
-			TelemetryRecordMeta agentMeta = new TelemetryRecordMeta("HordeAgent", session?.Version ?? "(Unknown)", ServerApp.DeploymentEnvironment, sessionId?.ToString() ?? "(Unknown)");
-			foreach (RpcWrappedTelemetryEvent wrappedEvent in request.Events)
-			{
-				OneofDescriptor oneofDescriptor = RpcWrappedTelemetryEvent.Descriptor.Oneofs[0];
-				FieldDescriptor caseDescriptor = oneofDescriptor.Accessor.GetCaseFieldDescriptor(wrappedEvent);
-
-				object wrappedValue = caseDescriptor.Accessor.GetValue(wrappedEvent);
-				_telemetryWriter.WriteEvent(TelemetryStoreId.Default, agentMeta, wrappedValue);
-			}
-
-			return new Empty();
 		}
 	}
 }

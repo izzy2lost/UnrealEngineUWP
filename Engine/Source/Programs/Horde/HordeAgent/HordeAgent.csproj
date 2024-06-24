@@ -150,7 +150,6 @@
     <Protobuf Include="..\HordeServer\Protos\horde\messages\agent_requirements.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
     <Protobuf Include="..\HordeServer\Protos\horde\messages\lease.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
     <Protobuf Include="..\HordeServer\Protos\horde\messages\aws_lambda.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\messages\telemetry.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
     <Protobuf Include="..\HordeServer\Protos\horde\tasks\compute_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
     <Protobuf Include="..\HordeServer\Protos\horde\tasks\restart_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
     <Protobuf Include="..\HordeServer\Protos\horde\tasks\shutdown_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
