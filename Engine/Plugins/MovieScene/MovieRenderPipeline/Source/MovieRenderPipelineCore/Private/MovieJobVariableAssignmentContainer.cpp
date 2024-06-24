@@ -286,6 +286,7 @@ bool UMovieJobVariableAssignmentContainer::GenerateVariableOverride(const UMovie
 	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(ToolTipMetaDataKey, InGraphVariable->Description));
 	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(CategoryMetaDataKey, InGraphVariable->GetCategory()));
 	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(EnableCategoriesMetaDataKey, FString()));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(DisplayNameMetaDataKey, InGraphVariable->GetMemberName()));	// Display the raw variable name, not the "friendly" name
 #endif
 
 	// Track a separate EditCondition property that can enable/disable the above property. Since the variable can be

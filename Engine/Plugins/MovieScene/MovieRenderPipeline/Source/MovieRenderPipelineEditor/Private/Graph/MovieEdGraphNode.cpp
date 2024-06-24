@@ -317,7 +317,7 @@ void UMoviePipelineEdGraphNode::GetPropertyPromotionContextMenuActions(UToolMenu
 		
 		ExposeAsPinSection.AddMenuEntry(
 			PropertyInfo.Name,
-			FText::FromName(PropertyInfo.Name),
+			PropertyInfo.ContextMenuName.IsEmpty() ? FText::FromName(PropertyInfo.Name) : PropertyInfo.ContextMenuName,
 			LOCTEXT("PromotePropertyToPin", "Promote this property to a pin on this node."),
 			FSlateIcon(),
 			FUIAction(
@@ -348,8 +348,10 @@ void UMoviePipelineEdGraphNode::GetPropertyPromotionContextMenuActions(UToolMenu
 
 void UMoviePipelineEdGraphNode::PromotePropertyToVariable(const FMovieGraphPropertyInfo& TargetProperty) const
 {
+	const FName PromotedVariableName = TargetProperty.PromotionName.IsNone() ? TargetProperty.Name : TargetProperty.PromotionName;
+	
 	// Note: AddVariable() will take care of determining a unique name if there is already a variable with the property's name
-	if (UMovieGraphVariable* NewGraphVariable = RuntimeNode->GetGraph()->AddVariable(TargetProperty.Name))
+	if (UMovieGraphVariable* NewGraphVariable = RuntimeNode->GetGraph()->AddVariable(PromotedVariableName))
 	{
 		// Set the new variable's type to match the property that is being promoted
 		UObject* ValueTypeObject = const_cast<UObject*>(TargetProperty.ValueTypeObject.Get());

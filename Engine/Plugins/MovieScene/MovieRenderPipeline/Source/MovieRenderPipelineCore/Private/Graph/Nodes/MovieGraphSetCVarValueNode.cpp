@@ -17,6 +17,33 @@ EMovieGraphBranchRestriction UMovieGraphSetCVarValueNode::GetBranchRestriction()
 	return EMovieGraphBranchRestriction::Globals;
 }
 
+TArray<FMovieGraphPropertyInfo> UMovieGraphSetCVarValueNode::GetOverrideablePropertyInfo() const
+{
+	TArray<FMovieGraphPropertyInfo> PropertyInfo = Super::GetOverrideablePropertyInfo();
+
+	for (FMovieGraphPropertyInfo& Info : PropertyInfo)
+	{
+		if (Info.Name == GET_MEMBER_NAME_CHECKED(UMovieGraphSetCVarValueNode, Value))
+		{
+			const FString CVarName = Name.IsEmpty() ? TEXT("NoCVarName") : Name;
+			
+			// This custom display name will show up in the property promotion context menu
+			Info.ContextMenuName = FText::Format(NSLOCTEXT("MovieGraphNodes", "SetCvarValueNode_ValuePromotionContextMenuName", "Value ({0})"), FText::FromString(CVarName));
+
+			// If the property is promoted, the created variable should have the name of the cvar
+			Info.PromotionName = FName(CVarName);
+		}
+	}
+
+	// Also remove the "Name" property -- it should not show up as a property that can be promoted
+	PropertyInfo.RemoveAll([](const FMovieGraphPropertyInfo& InPropertyInfo)
+	{
+		return InPropertyInfo.Name == GET_MEMBER_NAME_CHECKED(UMovieGraphSetCVarValueNode, Name);
+	});
+
+	return PropertyInfo;
+}
+
 #if WITH_EDITOR
 FText UMovieGraphSetCVarValueNode::GetNodeTitle(const bool bGetDescriptive) const
 {

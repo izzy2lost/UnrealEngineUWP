@@ -45,6 +45,14 @@ struct FMovieGraphPropertyInfo
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	FName Name;
 
+	/** The display name of the property which will be shown in the context menu. If empty, the value from 'Name' will be used. */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	FText ContextMenuName;
+
+	/** If this property is promoted, this is the name of the variable that is created. If empty, the value from 'Name' will be used. */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	FName PromotionName;
+
 	/** Whether this property is dynamic (ie, it does not correspond to a native UPROPERTY on the node). */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	bool bIsDynamicProperty = false;
@@ -79,9 +87,12 @@ struct FMovieGraphPropertyInfo
 	bool operator==(const FMovieGraphPropertyInfo& Other) const
 	{
 		return (Name == Other.Name)
+			&& (ContextMenuName.EqualTo(Other.ContextMenuName))
+			&& (PromotionName == Other.PromotionName)
 			&& (bIsDynamicProperty == Other.bIsDynamicProperty)
 			&& (ValueType == Other.ValueType)
-			&& (ValueTypeObject == Other.ValueTypeObject);
+			&& (ValueTypeObject == Other.ValueTypeObject)
+			&& (bIsPermanentlyExposed == Other.bIsPermanentlyExposed);
 	}
 };
 

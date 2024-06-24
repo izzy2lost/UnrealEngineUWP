@@ -265,6 +265,9 @@ private:
 
 	/* The metadata key on properties that is associated with the variable's category. */
 	static inline FName CategoryMetaDataKey = FName(TEXT("Category"));
+
+	/* The metadata key on properties that is associated with the variable's display name. */
+	static inline FName DisplayNameMetaDataKey = FName(TEXT("DisplayName"));
 	
 	/* The metadata key on property bag properties that allows them to show up grouped in the details panel. */
 	static inline FName EnableCategoriesMetaDataKey = FName(TEXT("EnableCategories"));

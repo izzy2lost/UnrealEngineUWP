@@ -16,6 +16,7 @@ public:
 
 	virtual FString GetNodeInstanceName() const override;
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
+	virtual TArray<FMovieGraphPropertyInfo> GetOverrideablePropertyInfo() const override;
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
