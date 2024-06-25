@@ -161,7 +161,7 @@ namespace EpicGames.Core
 				return false;
 			}
 
-			// Find each occurence of the name within the remaining string, then test whether it's surrounded by directory separators
+			// Find each occurrence of the name within the remaining string, then test whether it's surrounded by directory separators
 			int matchIdx = offset;
 			for (; ; )
 			{
