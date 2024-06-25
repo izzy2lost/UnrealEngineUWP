@@ -11,34 +11,25 @@
 namespace mu
 {
 
-	class NodeColour;
-	typedef Ptr<NodeColour> NodeColourPtr;
-	typedef Ptr<const NodeColour> NodeColourPtrConst;
-
-
-    //! %Base class of any node that outputs a colour.
-    //! \ingroup model
+    /** Base class of any node that outputs a colour.
+	*/
     class MUTABLETOOLS_API NodeColour : public Node
     {
     public:
 
-        //-----------------------------------------------------------------------------------------
         // Node Interface
-        //-----------------------------------------------------------------------------------------
-
-        const FNodeType* GetType() const override;
-        static const FNodeType* GetStaticType();
-
-
-        //-----------------------------------------------------------------------------------------
-        // Interface pattern
-        //-----------------------------------------------------------------------------------------
-        class Private;
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
     protected:
 
         //! Forbidden. Manage with the Ptr<> template.
         inline ~NodeColour() {}
+
+	private:
+
+		static FNodeType StaticType;
+
     };
 
 }

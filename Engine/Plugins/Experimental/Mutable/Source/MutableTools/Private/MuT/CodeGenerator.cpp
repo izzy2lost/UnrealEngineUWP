@@ -2369,7 +2369,7 @@ namespace mu
 		case mu::ETableColumnType::Color:
 		{
 			mu::Ptr<mu::NodeColourConstant> pNode = new NodeColourConstant();
-			pNode->SetValue(mu::DefaultMutableColorValue);
+			pNode->Value = mu::DefaultMutableColorValue;
 
 			FColorGenerationResult ChildResult;
 			FGenericGenerationOptions Options;

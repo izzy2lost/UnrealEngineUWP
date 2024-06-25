@@ -56,22 +56,22 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 
 	if (const UCustomizableObjectNodeColorConstant* TypedNodeColorConst = Cast<UCustomizableObjectNodeColorConstant>(Node))
 	{
-		mu::NodeColourConstantPtr ColorNode = new mu::NodeColourConstant();
+		mu::Ptr<mu::NodeColourConstant> ColorNode = new mu::NodeColourConstant();
 		Result = ColorNode;
 
-		ColorNode->SetValue(TypedNodeColorConst->Value);
+		ColorNode->Value = TypedNodeColorConst->Value;
 	}
 
 	else if (const UCustomizableObjectNodeColorParameter* TypedNodeColorParam = Cast<UCustomizableObjectNodeColorParameter>(Node))
 	{
-		mu::NodeColourParameterPtr ColorNode = new mu::NodeColourParameter();
+		mu::Ptr<mu::NodeColourParameter> ColorNode = new mu::NodeColourParameter();
 		Result = ColorNode;
 
 		GenerationContext.AddParameterNameUnique(Node, TypedNodeColorParam->ParameterName);
 
-		ColorNode->SetName(TypedNodeColorParam->ParameterName);
-		ColorNode->SetUid(GenerationContext.GetNodeIdUnique(Node).ToString());
-		ColorNode->SetDefaultValue(TypedNodeColorParam->DefaultValue);
+		ColorNode->Name = TypedNodeColorParam->ParameterName;
+		ColorNode->Uid = GenerationContext.GetNodeIdUnique(Node).ToString();
+		ColorNode->DefaultValue = TypedNodeColorParam->DefaultValue;
 
 		GenerationContext.ParameterUIDataMap.Add(TypedNodeColorParam->ParameterName, FMutableParameterData(
 			TypedNodeColorParam->ParamUIMetadata,
@@ -126,16 +126,16 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 				GenerationContext.Compiler->CompilerLog(Message, Node);
 			}
 
-			mu::NodeColourSwitchPtr SwitchNode = new mu::NodeColourSwitch;
-			SwitchNode->SetParameter(SwitchParam);
-			SwitchNode->SetOptionCount(NumSwitchOptions);
+			mu::Ptr<mu::NodeColourSwitch> SwitchNode = new mu::NodeColourSwitch;
+			SwitchNode->Parameter = SwitchParam;
+			SwitchNode->Options.SetNum(NumSwitchOptions);
 
 			for (int SelectorIndex = 0; SelectorIndex < NumSwitchOptions; ++SelectorIndex)
 			{
 				const UEdGraphPin* const ColorPin = TypedNodeColorSwitch->GetElementPin(SelectorIndex);
 				if (const UEdGraphPin* ConnectedPin = FollowInputPin(*ColorPin))
 				{
-					SwitchNode->SetOption(SelectorIndex, GenerateMutableSourceColor(ConnectedPin, GenerationContext));
+					SwitchNode->Options[SelectorIndex] = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
 				}
 			}
 
@@ -145,98 +145,98 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 
 	else if (const UCustomizableObjectNodeTextureSample* TypedNodeTexSample = Cast<UCustomizableObjectNodeTextureSample>(Node))
 	{
-		mu::NodeColourSampleImagePtr ColorNode = new mu::NodeColourSampleImage();
+		mu::Ptr<mu::NodeColourSampleImage> ColorNode = new mu::NodeColourSampleImage();
 		Result = ColorNode;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeTexSample->TexturePin()))
 		{
 			mu::NodeImagePtr TextureNode = GenerateMutableSourceImage(ConnectedPin, GenerationContext, 0);
-			ColorNode->SetImage(TextureNode);
+			ColorNode->Image = TextureNode;
 		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeTexSample->XPin()))
 		{
 			mu::NodeScalarPtr XNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-			ColorNode->SetX(XNode);
+			ColorNode->X = XNode;
 		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeTexSample->YPin()))
 		{
 			mu::NodeScalarPtr YNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-			ColorNode->SetY(YNode);
+			ColorNode->Y = YNode;
 		}
 	}
 
 	else if (const UCustomizableObjectNodeColorArithmeticOp* TypedNodeColorArith = Cast<UCustomizableObjectNodeColorArithmeticOp>(Node))
 	{
-		mu::NodeColourArithmeticOperationPtr OpNode = new mu::NodeColourArithmeticOperation();
+		mu::Ptr<mu::NodeColourArithmeticOperation> OpNode = new mu::NodeColourArithmeticOperation();
 		Result = OpNode;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeColorArith->XPin()))
 		{
 			mu::NodeColourPtr XNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
-			OpNode->SetA(XNode);
+			OpNode->A = XNode;
 		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeColorArith->YPin()))
 		{
 			mu::NodeColourPtr YNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
-			OpNode->SetB(YNode);
+			OpNode->B = YNode;
 		}
 
 		switch (TypedNodeColorArith->Operation)
 		{
 		case EColorArithmeticOperation::E_Add:
-			OpNode->SetOperation(mu::NodeColourArithmeticOperation::OPERATION::AO_ADD);
+			OpNode->Operation = mu::NodeColourArithmeticOperation::EOperation::Add;
 			break;
 
 		case EColorArithmeticOperation::E_Sub:
-			OpNode->SetOperation(mu::NodeColourArithmeticOperation::OPERATION::AO_SUBTRACT);
+			OpNode->Operation = mu::NodeColourArithmeticOperation::EOperation::Subtract;
 			break;
 
 		case EColorArithmeticOperation::E_Mul:
-			OpNode->SetOperation(mu::NodeColourArithmeticOperation::OPERATION::AO_MULTIPLY);
+			OpNode->Operation = mu::NodeColourArithmeticOperation::EOperation::Multiply;
 			break;
 
 		case EColorArithmeticOperation::E_Div:
-			OpNode->SetOperation(mu::NodeColourArithmeticOperation::OPERATION::AO_DIVIDE);
+			OpNode->Operation = mu::NodeColourArithmeticOperation::EOperation::Divide;
 			break;
 		}
 	}
 
 	else if (const UCustomizableObjectNodeColorFromFloats* TypedNodeFrom = Cast<UCustomizableObjectNodeColorFromFloats>(Node))
 	{
-		mu::NodeColourFromScalarsPtr OpNode = new mu::NodeColourFromScalars();
+		mu::Ptr<mu::NodeColourFromScalars> OpNode = new mu::NodeColourFromScalars();
 		Result = OpNode;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeFrom->RPin()))
 		{
 			mu::NodeScalarPtr FloatNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-			OpNode->SetX(FloatNode);
+			OpNode->X = FloatNode;
 		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeFrom->GPin()))
 		{
 			mu::NodeScalarPtr FloatNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-			OpNode->SetY(FloatNode);
+			OpNode->Y = FloatNode;
 		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeFrom->BPin()))
 		{
 			mu::NodeScalarPtr FloatNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-			OpNode->SetZ(FloatNode);
+			OpNode->Z = FloatNode;
 		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeFrom->APin()))
 		{
 			mu::NodeScalarPtr FloatNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-			OpNode->SetW(FloatNode);
+			OpNode->W = FloatNode;
 		}
 	}
 
 	else if (const UCustomizableObjectNodeColorVariation* TypedNodeColorVar = Cast<const UCustomizableObjectNodeColorVariation>(Node))
 	{
-		mu::NodeColourVariationPtr ColorNode = new mu::NodeColourVariation();
+		mu::Ptr<mu::NodeColourVariation> ColorNode = new mu::NodeColourVariation();
 		Result = ColorNode;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeColorVar->DefaultPin()))
@@ -244,7 +244,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 			mu::NodeColourPtr ChildNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
 			if (ChildNode)
 			{
-				ColorNode->SetDefaultColour(ChildNode.get());
+				ColorNode->DefaultColour = ChildNode;
 			}
 			else
 			{
@@ -253,17 +253,17 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 		}
 
 		const int32 NumVariations = TypedNodeColorVar->GetNumVariations();
-		ColorNode->SetVariationCount(NumVariations);
+		ColorNode->Variations.SetNum(NumVariations);
 		for (int VariationIndex = 0; VariationIndex < NumVariations; ++VariationIndex)
 		{
 			const UEdGraphPin* VariationPin = TypedNodeColorVar->VariationPin(VariationIndex);
 			if (!VariationPin) continue;
 
-			ColorNode->SetVariationTag(VariationIndex, TypedNodeColorVar->GetVariation(VariationIndex).Tag);
+			ColorNode->Variations[VariationIndex].Tag = TypedNodeColorVar->GetVariation(VariationIndex).Tag;
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*VariationPin))
 			{
 				mu::NodeColourPtr ChildNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
-				ColorNode->SetVariationColour(VariationIndex, ChildNode.get());
+				ColorNode->Variations[VariationIndex].Colour = ChildNode;
 			}
 		}
 	}
@@ -271,8 +271,8 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 	else if (const UCustomizableObjectNodeTable* TypedNodeTable = Cast<UCustomizableObjectNodeTable>(Node))
 	{
 		//This node will add a white color in case of error
-		mu::NodeColourConstantPtr WhiteColorNode = new mu::NodeColourConstant();
-		WhiteColorNode->SetValue(FVector4f(1.0f, 1.0f, 1.0f, 1.0f));
+		mu::Ptr<mu::NodeColourConstant> WhiteColorNode = new mu::NodeColourConstant();
+		WhiteColorNode->Value = FVector4f(1.0f, 1.0f, 1.0f, 1.0f);
 
 		Result = WhiteColorNode;
 
@@ -300,7 +300,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 
 				if (Table)
 				{
-					mu::NodeColourTablePtr ColorTableNode = new mu::NodeColourTable();
+					mu::Ptr<mu::NodeColourTable> ColorTableNode = new mu::NodeColourTable();
 
 					// Generating a new Color column if not exists
 					if (Table->FindColumn(ColumnName) == INDEX_NONE)
@@ -321,10 +321,10 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 						Result = ColorTableNode;
 
 						ColorTableNode->Table = Table;
-						ColorTableNode->SetColumn(ColumnName);
-						ColorTableNode->SetParameterName(TypedNodeTable->ParameterName);
-						ColorTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
-						ColorTableNode->SetDefaultRowName(TypedNodeTable->DefaultRowName.ToString());
+						ColorTableNode->ColumnName = ColumnName;
+						ColorTableNode->ParameterName = TypedNodeTable->ParameterName;
+						ColorTableNode->bNoneOption = TypedNodeTable->bAddNoneOption;
+						ColorTableNode->DefaultRowName = TypedNodeTable->DefaultRowName.ToString();
 					}
 				}
 				else

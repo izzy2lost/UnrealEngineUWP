@@ -6,65 +6,39 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeColour.h"
+#include "MuT/NodeRange.h"
+#include "Math/Vector4.h"
+#include "Math/MathFwd.h"
 
 namespace mu
 {
 
-	class NodeColourParameter;
-    using NodeColourParameterPtr = Ptr<NodeColourParameter>;
-    using NodeColourParameterPtrConst = Ptr<const NodeColourParameter>;
-
-    class NodeRange;
-    using NodeRangePtr = Ptr<NodeRange>;
-    using NodeRangePtrConst = Ptr<const NodeRange>;
-
-
-	//! Node that defines a colour model parameter.
-	//! \ingroup model
+	/** Node that defines a colour model parameter.
+	*/
 	class MUTABLETOOLS_API NodeColourParameter : public NodeColour
 	{
 	public:
 
-		NodeColourParameter();
+		FVector4f DefaultValue;
+		FString Name;
+		FString Uid;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		TArray<Ptr<NodeRange>> Ranges;
 
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
+	public:
 
-		//! Set the name of the parameter.
-		void SetName( const FString& );
-
-		//! Set the uid of the parameter.
-		void SetUid( const FString& );
-
-		//! Set the default value of the parameter.
-		void SetDefaultValue( FVector4f );
-
-        //! Set the number of ranges (dimensions) for this parameter.
-        //! By default a parameter has 0 ranges, meaning it only has one value.
-        void SetRangeCount( int i );
-        void SetRange( int i, NodeRangePtr pRange );
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeColourParameter();
+		~NodeColourParameter() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

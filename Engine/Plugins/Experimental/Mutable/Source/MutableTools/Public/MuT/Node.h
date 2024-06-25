@@ -148,13 +148,40 @@ namespace mu
 			Count
 		};
 
+
+		/** Information about the type of a node, to provide some means to the tools to deal generically with nodes. */
+		struct FNodeType
+		{
+			FNodeType();
+			FNodeType(Node::EType, const FNodeType* Parent);
+
+			Node::EType Type;
+			const FNodeType* Parent;
+
+			inline bool IsA(const FNodeType* CandidateType) const
+			{
+				if (CandidateType == this)
+				{
+					return true;
+				}
+
+				if (Parent)
+				{
+					return Parent->IsA(CandidateType);
+				}
+
+				return false;
+			}
+		};
+
+
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 
 		/** Node type hierarchy data. */
-        virtual const struct FNodeType* GetType() const;
-		static const struct FNodeType* GetStaticType();
+		virtual const FNodeType* GetType() const { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		/** Set the opaque context returned in messages in the compiler log. */
 		void SetMessageContext(const void* context);
@@ -164,43 +191,20 @@ namespace mu
         // Interface pattern
 		//-----------------------------------------------------------------------------------------
 		class Private;
-		//virtual Private* GetBasePrivate() const = 0;
 
 	protected:
 
 		inline ~Node() {}
 
-		//!
-		EType Type = EType::None;
-
 		/** This is an opaque context used to attach to reported error messages. */
 		const void* MessageContext = nullptr;
 
+	private:
+
+		static FNodeType StaticType;
+
 	};
 
-	/** Information about the type of a node, to provide some means to the tools to deal generically with nodes. */
-	struct FNodeType
-	{
-		FNodeType();
-		FNodeType(Node::EType, const FNodeType* pParent);
 
-		Node::EType Type;
-		const FNodeType* m_pParent;
-
-		inline bool IsA(const FNodeType* CandidateType) const
-		{
-			if (CandidateType == this)
-			{
-				return true;
-			}
-
-			if (m_pParent)
-			{
-				return m_pParent->IsA(CandidateType);
-			}
-
-			return false;
-		}
-	};
-
+	using FNodeType = Node::FNodeType;
 }

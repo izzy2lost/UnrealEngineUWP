@@ -11,62 +11,37 @@
 namespace mu
 {
 
-    // Forward definitions
-    class NodeColourVariation;
-    typedef Ptr<NodeColourVariation> NodeColourVariationPtr;
-    typedef Ptr<const NodeColourVariation> NodeColourVariationPtrConst;
-
-
-    //!
-    //! \ingroup model
+	/** Select different color subgraphs based on active tags. */
     class MUTABLETOOLS_API NodeColourVariation : public NodeColour
     {
+	public:
+
+		Ptr<NodeColour> DefaultColour;
+
+		struct FVariation
+		{
+			Ptr<NodeColour> Colour;
+			FString Tag;
+		};
+
+		TArray<FVariation> Variations;
+
     public:
 
-        NodeColourVariation();
-
-        //-----------------------------------------------------------------------------------------
-        // Node Interface
-        //-----------------------------------------------------------------------------------------
-
-        const FNodeType* GetType() const override;
-        static const FNodeType* GetStaticType();
-
-        //-----------------------------------------------------------------------------------------
-        // Own Interface
-        //-----------------------------------------------------------------------------------------
-
-        //!
-        void SetDefaultColour( NodeColour* Colour );
-
-        //! Set the number of tags to consider in this variation
-        void SetVariationCount( int32 count );
-
-        //!
-        int GetVariationCount() const;
-
-        //! Set the tag or state name that will enable a specific vartiation
-        void SetVariationTag( int32 index, const FString& Tag );
-
-        //!
-        void SetVariationColour( int32 index, NodeColour* Colour );
-
-        //!}
-
-
-        //-----------------------------------------------------------------------------------------
-        // Interface pattern
-        //-----------------------------------------------------------------------------------------
-        class Private;
-        Private* GetPrivate() const;
+		// Node Interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
     protected:
-        //! Forbidden. Manage with the Ptr<> template.
-        ~NodeColourVariation();
 
-    private:
-        Private* m_pD;
-    };
+        //! Forbidden. Manage with the Ptr<> template.
+		~NodeColourVariation() {}
+
+	private:
+
+		static FNodeType StaticType;
+	
+	};
 
 
 } // namespace mu

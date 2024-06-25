@@ -6,68 +6,37 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeColour.h"
+#include "MuT/NodeScalar.h"
 
 
 namespace mu
 {
 
-	// Forward definitions
-	class NodeScalar;
-	typedef Ptr<NodeScalar> NodeScalarPtr;
-	typedef Ptr<const NodeScalar> NodeScalarPtrConst;
-
-	class NodeColourFromScalars;
-	typedef Ptr<NodeColourFromScalars> NodeColourFromScalarsPtr;
-	typedef Ptr<const NodeColourFromScalars> NodeColourFromScalarsPtrConst;
-
-
-	//! Obtain a colour by sampling an image at specific homogeneous coordinates.
-	//! \ingroup model
+	/** Obtain a colour by sampling an image at specific homogeneous coordinates.
+	*/
 	class MUTABLETOOLS_API NodeColourFromScalars : public NodeColour
 	{
 	public:
 
-		NodeColourFromScalars();
+		Ptr<NodeScalar> X;
+		Ptr<NodeScalar> Y;
+		Ptr<NodeScalar> Z;
+		Ptr<NodeScalar> W;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
+	public:
 
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		//! Get the node generating the x coordinate to sample, in the range of 0.0 to 1.0.
-		//! If it is not specified, a value of 1 will be used.
-		NodeScalarPtr GetX() const;
-		void SetX( NodeScalarPtr );
-
-		NodeScalarPtr GetY() const;
-		void SetY( NodeScalarPtr );
-
-		NodeScalarPtr GetZ() const;
-		void SetZ( NodeScalarPtr );
-
-		NodeScalarPtr GetW() const;
-		void SetW( NodeScalarPtr );
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeColourFromScalars();
+		~NodeColourFromScalars() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

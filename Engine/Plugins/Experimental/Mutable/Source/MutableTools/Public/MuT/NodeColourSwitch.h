@@ -6,68 +6,35 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeColour.h"
+#include "MuT/NodeScalar.h"
 
 
 namespace mu
 {
 
-	// Forward definitions
-	class NodeScalar;
-	typedef Ptr<NodeScalar> NodeScalarPtr;
-	typedef Ptr<const NodeScalar> NodeScalarPtrConst;
-
-    class NodeColourSwitch;
-    typedef Ptr<NodeColourSwitch> NodeColourSwitchPtr;
-    typedef Ptr<const NodeColourSwitch> NodeColourSwitchPtrConst;
-
-
-    //! This node selects an output Colour from a set of input Colours based on a parameter.
-	//! \ingroup model
+    /** This node selects an output Colour from a set of input Colours based on a parameter. 
+	*/
     class MUTABLETOOLS_API NodeColourSwitch : public NodeColour
 	{
 	public:
 
-        NodeColourSwitch();
+		Ptr<NodeScalar> Parameter;
+		TArray<Ptr<NodeColour>> Options;
 
+	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
-
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		//! Get the node generating the parameter used to select the option.
-		NodeScalarPtr GetParameter() const;
-		void SetParameter( NodeScalarPtr );
-
-        //! Set the number of option Colours. It will keep the currently set targets and initialise
-		//! the new ones as null.
-		void SetOptionCount( int );
-
-        //! Get the node generating the t-th option Colour.
-        NodeColourPtr GetOption( int t ) const;
-        void SetOption( int t, NodeColourPtr );
-
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		/** Node type hierarchy data. */
+		virtual const FNodeType* GetType() const { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-        ~NodeColourSwitch();
+		~NodeColourSwitch() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

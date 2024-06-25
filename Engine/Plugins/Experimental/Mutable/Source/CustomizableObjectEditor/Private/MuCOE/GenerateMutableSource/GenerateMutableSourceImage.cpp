@@ -459,30 +459,26 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 
 	else if (const UCustomizableObjectNodeTextureFromFloats* TypedNodeFromFloats = Cast<UCustomizableObjectNodeTextureFromFloats>(Node))
 	{		
-		mu::NodeColourFromScalarsPtr Color = new mu::NodeColourFromScalars();
+		mu::Ptr<mu::NodeColourFromScalars> Color = new mu::NodeColourFromScalars();
 
 		if (const UEdGraphPin* RPin = FollowInputPin(*TypedNodeFromFloats->RPin()))
 		{
-			mu::NodeScalarPtr R = GenerateMutableSourceFloat(RPin, GenerationContext);
-			Color->SetX(R);
+			Color->X = GenerateMutableSourceFloat(RPin, GenerationContext);
 		}
 
 		if (const UEdGraphPin* GPin = FollowInputPin(*TypedNodeFromFloats->GPin()))
 		{
-			mu::NodeScalarPtr G = GenerateMutableSourceFloat(GPin, GenerationContext);
-			Color->SetY(G);
+			Color->Y = GenerateMutableSourceFloat(GPin, GenerationContext);
 		}
 
 		if (const UEdGraphPin* BPin = FollowInputPin(*TypedNodeFromFloats->BPin()))
 		{
-			mu::NodeScalarPtr B = GenerateMutableSourceFloat(BPin, GenerationContext);
-			Color->SetZ(B);
+			Color->Z = GenerateMutableSourceFloat(BPin, GenerationContext);
 		}
 
 		if (const UEdGraphPin* APin = FollowInputPin(*TypedNodeFromFloats->APin()))
 		{
-			mu::NodeScalarPtr A = GenerateMutableSourceFloat(APin, GenerationContext);
-			Color->SetW(A);
+			Color->W = GenerateMutableSourceFloat(APin, GenerationContext);
 		}
 
 		mu::NodeImagePlainColourPtr ImageFromColour = new mu::NodeImagePlainColour;

@@ -1606,11 +1606,11 @@ namespace mu
 
 			Ptr<NodeColourFromScalars> pPropsNode = new NodeColourFromScalars();
 
-			if (node.m_pAngleFadeStart) pPropsNode->SetX(node.m_pAngleFadeStart);
-			else pPropsNode->SetX(pDefaultFade);
+			if (node.m_pAngleFadeStart) pPropsNode->X = node.m_pAngleFadeStart;
+			else pPropsNode->X = pDefaultFade;
 
-			if (node.m_pAngleFadeEnd) pPropsNode->SetY(node.m_pAngleFadeEnd);
-			else pPropsNode->SetY(pDefaultFade);
+			if (node.m_pAngleFadeEnd) pPropsNode->Y = node.m_pAngleFadeEnd;
+			else pPropsNode->Y = pDefaultFade;
 
 			ImageRasterOp->angleFadeProperties = Generate_Generic(pPropsNode, Options);
 		}
@@ -2013,7 +2013,7 @@ namespace mu
     Ptr<ASTOp> CodeGenerator::GeneratePlainImageCode( const FVector4f& InColor, const FImageGenerationOptions& Options )
     {
 		Ptr<NodeColourConstant> ConstantColor = new NodeColourConstant();
-		ConstantColor->SetValue(InColor);
+		ConstantColor->Value = InColor;
 
         Ptr<NodeImagePlainColour> PlainNode = new NodeImagePlainColour();
 		PlainNode->SetColour(ConstantColor);

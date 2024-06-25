@@ -193,8 +193,8 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 		return mu::NodeImagePtr();
 	}
 	
-	mu::NodeColourConstantPtr ZeroColorNode = new mu::NodeColourConstant();
-	ZeroColorNode->SetValue(FVector4f(0.f, 0.f, 0.f, 1.0f));
+	mu::Ptr<mu::NodeColourConstant> ZeroColorNode = new mu::NodeColourConstant();
+	ZeroColorNode->Value = FVector4f(0.f, 0.f, 0.f, 1.0f);
 
 	mu::NodeImagePlainColourPtr ZeroPlainColourNode = new mu::NodeImagePlainColour;
 	ZeroPlainColourNode->SetSize(TextureSize, TextureSize);
@@ -237,11 +237,11 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 		ImageNodesAlphaChannelNode->SetSource(0, ImageNodes[i]);
 		ImageNodesAlphaChannelNode->SetSourceChannel(0, 3);
 
-		mu::NodeColourFromScalarsPtr ColourFromScalars = new mu::NodeColourFromScalars;
-		ColourFromScalars->SetX(ImageNodes_ProjectorTempData[i].NodeOpacityParameter);
-		ColourFromScalars->SetY(ImageNodes_ProjectorTempData[i].NodeOpacityParameter);
-		ColourFromScalars->SetZ(ImageNodes_ProjectorTempData[i].NodeOpacityParameter);
-		ColourFromScalars->SetW(OneConstantNode);
+		mu::Ptr<mu::NodeColourFromScalars> ColourFromScalars = new mu::NodeColourFromScalars;
+		ColourFromScalars->X = ImageNodes_ProjectorTempData[i].NodeOpacityParameter;
+		ColourFromScalars->Y = ImageNodes_ProjectorTempData[i].NodeOpacityParameter;
+		ColourFromScalars->Z = ImageNodes_ProjectorTempData[i].NodeOpacityParameter;
+		ColourFromScalars->W = OneConstantNode;
 
 		mu::NodeImageLayerColourPtr OpacityMultiLayerNode = new mu::NodeImageLayerColour;
 		OpacityMultiLayerNode->SetBlendType(mu::EBlendType::BT_MULTIPLY);

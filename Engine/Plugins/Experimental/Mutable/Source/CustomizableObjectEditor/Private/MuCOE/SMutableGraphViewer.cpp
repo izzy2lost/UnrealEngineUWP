@@ -77,8 +77,6 @@
 #include "MuT/NodeModifierMeshClipDeformPrivate.h"
 #include "MuT/NodeModifierMeshClipWithMeshPrivate.h"
 #include "MuT/NodeModifierMeshClipWithUVMaskPrivate.h"
-#include "MuT/NodeColourParameterPrivate.h"
-#include "MuT/NodeColourSampleImagePrivate.h"
 #include "MuT/NodeImageInterpolatePrivate.h"
 #include "MuT/NodeImagePlainColourPrivate.h"
 #include "MuT/NodeImageProjectPrivate.h"
@@ -86,15 +84,12 @@
 #include "MuT/NodeMeshMorphPrivate.h"
 #include "MuT/NodeScalarEnumParameterPrivate.h"
 #include "MuT/NodeScalarParameterPrivate.h"
-#include "MuT/NodeColourPrivate.h"
 #include "MuT/NodeMeshMakeMorphPrivate.h"
 #include "MuT/NodeScalarCurvePrivate.h"
 #include "MuT/NodeProjectorPrivate.h"
-#include "MuT/NodeColourSwitchPrivate.h"
 #include "MuT/NodeImageInvertPrivate.h"
 #include "MuT/NodeImageSwizzlePrivate.h"
 #include "MuT/NodeImageMultiLayerPrivate.h"
-#include "MuT/NodeColourFromScalarsPrivate.h"
 #include "MuT/NodeScalarSwitchPrivate.h"
 
 class FExtender;
@@ -620,10 +615,9 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeColourSampleImage::GetStaticType())
 	{
 		mu::NodeColourSampleImage* ColorSampleImageVar = StaticCast<mu::NodeColourSampleImage*>(ParentNode);
-		mu::NodeColourSampleImage::Private* Private = ColorSampleImageVar->GetPrivate();
-		AddChildFunc(Private->m_pImage.get(), FString::Printf(TEXT("IMAGE")));
-		AddChildFunc(Private->m_pX.get(), FString::Printf(TEXT("X")));
-		AddChildFunc(Private->m_pY.get(), FString::Printf(TEXT("Y")));
+		AddChildFunc(ColorSampleImageVar->Image.get(), FString::Printf(TEXT("IMAGE")));
+		AddChildFunc(ColorSampleImageVar->X.get(), FString::Printf(TEXT("X")));
+		AddChildFunc(ColorSampleImageVar->Y.get(), FString::Printf(TEXT("Y")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeImageInterpolate::GetStaticType())
@@ -655,10 +649,9 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeColourParameter::GetStaticType())
 	{
 		mu::NodeColourParameter* ColorParameterVar = StaticCast<mu::NodeColourParameter*>(ParentNode);
-		mu::NodeColourParameter::Private* Private = ColorParameterVar->GetPrivate();
-		for (int32 RangeIndex = 0; RangeIndex < Private->m_ranges.Num(); RangeIndex++)
+		for (int32 RangeIndex = 0; RangeIndex < ColorParameterVar->Ranges.Num(); RangeIndex++)
 		{
-			AddChildFunc(Private->m_ranges[RangeIndex].get(), FString::Printf(TEXT("RANGE [%d]"), RangeIndex));
+			AddChildFunc(ColorParameterVar->Ranges[RangeIndex].get(), FString::Printf(TEXT("RANGE [%d]"), RangeIndex));
 		}
 	}
 
@@ -706,11 +699,10 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeColourSwitch::GetStaticType())
 	{
 		mu::NodeColourSwitch* ColorSwitchVar = StaticCast<mu::NodeColourSwitch*>(ParentNode);
-		mu::NodeColourSwitch::Private* Private = ColorSwitchVar->GetPrivate();
-		AddChildFunc(Private->m_pParameter.get(), TEXT("PARAM"));
-		for (int32 OptionIndex = 0; OptionIndex < Private->m_options.Num(); ++OptionIndex)
+		AddChildFunc(ColorSwitchVar->Parameter.get(), TEXT("PARAM"));
+		for (int32 OptionIndex = 0; OptionIndex < ColorSwitchVar->Options.Num(); ++OptionIndex)
 		{
-			AddChildFunc(Private->m_options[OptionIndex].get(), FString::Printf(TEXT("OPTION [%d]"), OptionIndex));
+			AddChildFunc(ColorSwitchVar->Options[OptionIndex].get(), FString::Printf(TEXT("OPTION [%d]"), OptionIndex));
 		}
 	}
 
@@ -774,11 +766,10 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeColourFromScalars::GetStaticType())
 	{
 		mu::NodeColourFromScalars* ScalarTableVar = StaticCast<mu::NodeColourFromScalars*>(ParentNode);
-		mu::NodeColourFromScalars::Private* Private = ScalarTableVar->GetPrivate();
-		AddChildFunc(Private->m_pX.get(), TEXT("X"));
-		AddChildFunc(Private->m_pY.get(), TEXT("Y"));
-		AddChildFunc(Private->m_pZ.get(), TEXT("Z"));
-		AddChildFunc(Private->m_pW.get(), TEXT("W"));
+		AddChildFunc(ScalarTableVar->X.get(), TEXT("X"));
+		AddChildFunc(ScalarTableVar->Y.get(), TEXT("Y"));
+		AddChildFunc(ScalarTableVar->Z.get(), TEXT("Z"));
+		AddChildFunc(ScalarTableVar->W.get(), TEXT("W"));
 	}
 	
 	else

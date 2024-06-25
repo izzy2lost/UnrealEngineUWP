@@ -6,55 +6,34 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeColour.h"
-
+#include "Math/Vector4.h"
+#include "Math/MathFwd.h"
 
 namespace mu
 {
 
-	class NodeColourConstant;
-	typedef Ptr<NodeColourConstant> NodeColourConstantPtr;
-	typedef Ptr<const NodeColourConstant> NodeColourConstantPtrConst;
-
-
-	//! This node outputs a predefined colour value.
-	//! \ingroup model
+	/** This node outputs a predefined colour value.
+	*/
 	class MUTABLETOOLS_API NodeColourConstant : public NodeColour
 	{
 	public:
 
-		NodeColourConstant();
+		FVector4f Value;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
+	public:
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		//! Get the value that this node returns
-		FVector4f GetValue() const;
-
-		//! Set the value to be returned by this node
-		void SetValue(FVector4f);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeColourConstant();
+		~NodeColourConstant() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

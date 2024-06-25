@@ -4,79 +4,45 @@
 
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
-#include "MuT/Node.h"
 #include "MuT/NodeColour.h"
 
 
 namespace mu
 {
 
-	// Forward definitions
-	class NodeColourArithmeticOperation;
-	typedef Ptr<NodeColourArithmeticOperation> NodeColourArithmeticOperationPtr;
-	typedef Ptr<const NodeColourArithmeticOperation> NodeColourArithmeticOperationPtrConst;
-
-
-    //! Perform a per-component arithmetic operation between two colours.
-	//! \ingroup model
+    /** Perform a per - component arithmetic operation between two colours. 
+	*/
 	class MUTABLETOOLS_API NodeColourArithmeticOperation : public NodeColour
 	{
 	public:
 
-		NodeColourArithmeticOperation();
-
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
-
-		virtual const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		//! Possible arithmetic operations
-		typedef enum
+		/** Possible arithmetic operations. */
+		enum class EOperation
 		{
-			AO_ADD,
-			AO_SUBTRACT,
-			AO_MULTIPLY,
-            AO_DIVIDE,
-            _AO_COUNT
-		} OPERATION;
+			Add,
+			Subtract,
+			Multiply,
+			Divide
+		};
 
-        static const char* s_opTypeName[ _AO_COUNT ];
+		EOperation Operation;
+		Ptr<NodeColour> A;
+		Ptr<NodeColour> B;
 
-		//! Get child selection type
-		OPERATION GetOperation() const;
+	public:
 
-		//! Set the child selection type
-		void SetOperation(OPERATION);
-
-
-		//! Get the first operand
-		NodeColourPtr GetA() const;
-		void SetA(NodeColourPtr);
-
-		// Get the second operand
-		NodeColourPtr GetB() const;
-		void SetB(NodeColourPtr);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		/** Node type hierarchy data. */
+		virtual const FNodeType* GetType() const { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeColourArithmeticOperation();
+		~NodeColourArithmeticOperation() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

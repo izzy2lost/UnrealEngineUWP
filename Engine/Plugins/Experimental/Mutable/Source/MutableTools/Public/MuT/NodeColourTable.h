@@ -12,14 +12,8 @@
 namespace mu
 {
 
-	// Forward definitions
-	class NodeColourTable;
-	typedef Ptr<NodeColourTable> NodeColourTablePtr;
-	typedef Ptr<const NodeColourTable> NodeColourTablePtrConst;
-
-
-	//! This node provides the meshes stored in the column of a table.
-	//! \ingroup transform
+	/** This node provides the meshes stored in the column of a table.
+	*/
 	class MUTABLETOOLS_API NodeColourTable : public NodeColour
 	{
 	public:
@@ -35,23 +29,6 @@ namespace mu
 		// Node interface
 		virtual const FNodeType* GetType() const override { return GetStaticType(); }
 		static const FNodeType* GetStaticType() { return &StaticType; }
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		//! Set the name of the implicit table parameter.
-		void SetParameterName( const FString& strName );
-
-		//!
-		void SetColumn( const FString& strName );
-
-		//!
-		void SetNoneOption(bool bAddNoneOption);
-
-		//! Set the row name to be used as default value
-		void SetDefaultRowName(const FString RowName);
-
 
 	protected:
 
