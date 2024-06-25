@@ -427,6 +427,8 @@ TEST_CASE("API.IsTransactional")
 
     bool InTransaction = false;
     bool InOpenNest = false;
+	bool InAbort = true;
+	bool InCommit = true;
 
     AutoRTFM::Commit([&]
     {
@@ -436,10 +438,27 @@ TEST_CASE("API.IsTransactional")
         {
             InOpenNest = AutoRTFM::IsTransactional();
         });
+
+		AutoRTFM::Transact([&]
+			{
+				AutoRTFM::OnAbort([&]
+					{
+						InAbort = AutoRTFM::IsTransactional();
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		AutoRTFM::OnCommit([&]
+			{
+				InCommit = AutoRTFM::IsTransactional();
+			});
     });
 
     REQUIRE(true == InTransaction);
     REQUIRE(true == InOpenNest);
+	REQUIRE(false == InAbort);
+	REQUIRE(false == InCommit);
 }
 
 TEST_CASE("API.IsClosed")
@@ -450,10 +469,27 @@ TEST_CASE("API.IsClosed")
     bool InTransaction = false;
     bool InOpenNest = true;
     bool InClosedNestInOpenNest = false;
+	bool InAbort = true;
+	bool InCommit = true;
 
     AutoRTFM::Commit([&]
     {
         InTransaction = AutoRTFM::IsClosed();
+
+		AutoRTFM::Transact([&]
+			{
+				AutoRTFM::OnAbort([&]
+					{
+						InAbort = AutoRTFM::IsClosed();
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		AutoRTFM::OnCommit([&]
+			{
+				InCommit = AutoRTFM::IsClosed();
+			});
 
         AutoRTFM::Open([&]
         {
@@ -469,6 +505,56 @@ TEST_CASE("API.IsClosed")
     REQUIRE(true == InTransaction);
     REQUIRE(false == InOpenNest);
     REQUIRE(true == InClosedNestInOpenNest);
+	REQUIRE(false == InAbort);
+	REQUIRE(false == InCommit);
+}
+
+TEST_CASE("API.IsCommittingOrAborting")
+{
+	REQUIRE(false == AutoRTFM::IsCommittingOrAborting());
+
+	// Set to the opposite of what we expect at the end of function.
+	bool InTransaction = true;
+	bool InOpenNest = true;
+	bool InClosedNestInOpenNest = true;
+	bool InAbort = false;
+	bool InCommit = false;
+
+	AutoRTFM::Commit([&]
+		{
+			InTransaction = AutoRTFM::IsCommittingOrAborting();
+
+			AutoRTFM::Transact([&]
+				{
+					AutoRTFM::OnAbort([&]
+						{
+							InAbort = AutoRTFM::IsCommittingOrAborting();
+						});
+
+					AutoRTFM::AbortTransaction();
+				});
+
+			AutoRTFM::OnCommit([&]
+				{
+					InCommit = AutoRTFM::IsCommittingOrAborting();
+				});
+
+			AutoRTFM::Open([&]
+				{
+					InOpenNest = AutoRTFM::IsCommittingOrAborting();
+
+					REQUIRE(AutoRTFM::EContextStatus::OnTrack == AutoRTFM::Close([&]
+						{
+							InClosedNestInOpenNest = AutoRTFM::IsCommittingOrAborting();
+						}));
+				});
+		});
+
+	REQUIRE(false == InTransaction);
+	REQUIRE(false == InOpenNest);
+	REQUIRE(false == InClosedNestInOpenNest);
+	REQUIRE(true == InAbort);
+	REQUIRE(true == InCommit);
 }
 
 TEST_CASE("API.Transact")

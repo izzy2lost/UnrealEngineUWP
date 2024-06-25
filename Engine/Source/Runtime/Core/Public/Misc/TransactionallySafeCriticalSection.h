@@ -26,7 +26,7 @@ struct FTransactionallySafeCriticalSectionDefinition final
 {
 	void Lock()
 	{
-		if (AutoRTFM::IsTransactional())
+		if (AutoRTFM::IsTransactional() || AutoRTFM::IsCommittingOrAborting())
 		{
 			AutoRTFM::Open([&]
 				{
@@ -42,7 +42,7 @@ struct FTransactionallySafeCriticalSectionDefinition final
 
 			AutoRTFM::OnAbort([this]
 				{
-					check(0 != TransactionalLockCount);
+					ensure(0 != TransactionalLockCount);
 					TransactionalLockCount -= 1;
 
 					if (0 == TransactionalLockCount)
@@ -54,17 +54,17 @@ struct FTransactionallySafeCriticalSectionDefinition final
 		else
 		{
 			CriticalSection.Lock();
-			check(0 == TransactionalLockCount);
+			ensure(0 == TransactionalLockCount);
 		}
 	}
 
 	void Unlock()
 	{
-		if (AutoRTFM::IsTransactional())
+		if (AutoRTFM::IsTransactional() || AutoRTFM::IsCommittingOrAborting())
 		{
 			AutoRTFM::OnCommit([this]
 				{
-					check(0 != TransactionalLockCount);
+					ensure(0 != TransactionalLockCount);
 					TransactionalLockCount -= 1;
 
 					if (0 == TransactionalLockCount)
@@ -75,7 +75,7 @@ struct FTransactionallySafeCriticalSectionDefinition final
 		}
 		else
 		{
-			check(0 == TransactionalLockCount);
+			ensure(0 == TransactionalLockCount);
 			CriticalSection.Unlock();
 		}
 	}

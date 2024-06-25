@@ -214,7 +214,7 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_transactional") bool autortfm_
 {
 	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
 	{
-		return FContext::Get()->IsTransactional();
+		return FContext::IsTransactional();
 	}
 
 	return false;
@@ -223,6 +223,16 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_transactional") bool autortfm_
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_closed") bool autortfm_is_closed()
 {
     return false;
+}
+
+extern "C" bool autortfm_is_committing_or_aborting()
+{
+	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
+	{
+		return FContext::IsCommittingOrAborting();
+	}
+
+	return false;
 }
 
 // First Part - the API exposed outside transactions.

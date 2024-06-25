@@ -136,6 +136,15 @@ UE_AUTORTFM_FORCEINLINE bool autortfm_is_closed(void)
 #endif
 
 #if UE_AUTORTFM
+UE_AUTORTFM_API bool autortfm_is_committing_or_aborting(void);
+#else
+UE_AUTORTFM_FORCEINLINE bool autortfm_is_committing_or_aborting(void)
+{
+	return false;
+}
+#endif
+
+#if UE_AUTORTFM
 UE_AUTORTFM_API autortfm_result autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
 #else
 UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
@@ -449,23 +458,20 @@ auto AutoRTFMLookupInstrumentedFunctorInvoker(const TFunctor& Functor) -> void(*
 }
 #endif
 
-// Tells if we are currently running in a transaction. This will return true in an
-// open nest (see Open). This function is handled specially in the compiler, it
-// will be constant folded as 'true' in closed code, or
-// preserved as a function call in open code
+// Tells if we are currently running in a transaction. This will return true in an open nest
+// (see `Open`). This function is handled specially in the compiler and will be constant folded
+// as true in closed code, or preserved as a function call in open code.
 UE_AUTORTFM_FORCEINLINE bool IsTransactional() { return autortfm_is_transactional(); }
 
-// Tells if we are currently running in the closed nest of a transaction. By
-// default, transactional code is in a closed nest; the only way to be in an open
-// nest is to request it via Open.
-//
-// The advantages of this function over IsTransactional are:
-//
-// - It's faster, the compiler will constant-fold this.
-// - Usually, if you are doing special things for transactions, it's to work around
-//   the transactional openation in a closed nest. So, it's often more correct
-//   to test IsClosed than IsTransactional.
+// Tells if we are currently running in the closed nest of a transaction. By default,
+// transactional code is in a closed nest; the only way to be in an open nest is to request it
+// via `Open`. This function is handled specially in the compiler and will be constant folded
+// as true in closed code, and false in open code.
 UE_AUTORTFM_FORCEINLINE bool IsClosed() { return autortfm_is_closed(); }
+
+// Tells us if we are currently committing or aborting a transaction. This will return true
+// in an on-abort or on-commit.
+UE_AUTORTFM_FORCEINLINE bool IsCommittingOrAborting() { return autortfm_is_committing_or_aborting(); }
 
 // Run the functor in a transaction. Memory writes and other side effects get instrumented
 // and will be reversed if the transaction aborts.

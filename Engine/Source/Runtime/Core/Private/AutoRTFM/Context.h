@@ -18,6 +18,7 @@ public:
     static FContext* TryGet();
     static FContext* Get();
     static bool IsTransactional();
+	static bool IsCommittingOrAborting();
     
     // This is public API
     ETransactionResult Transact(void (*InstrumentedFunction)(void*), void* Arg);

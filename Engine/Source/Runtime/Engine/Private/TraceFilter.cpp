@@ -100,10 +100,7 @@ public:
 		if (bHadElements && AnnotationMap.Num() == 0)
 		{
 			// we are removing the last one, so if we are auto removing or verifying removal, unregister now
-			AutoRTFM::OnCommit([this]
-				{
-					GUObjectArray.RemoveUObjectDeleteListener(this);
-				});
+			GUObjectArray.RemoveUObjectDeleteListener(this);
 		}
 	}
 
@@ -280,13 +277,20 @@ FAutoConsoleCommand FlushFilterStateCommand(TEXT("TraceFilter.FlushState"), TEXT
 template<bool bForceThreadSafe>
 bool FTraceFilter::IsObjectTraceable(const UObject* InObject)
 {
-	if constexpr (!bForceThreadSafe)
-	{
-		check(GObjectFilterAnnotations.IsLocked());
-	}
+	bool bResult = false;
 
-	// Object not found in the AnnotationMap means that it is at the default value, which is bIsTraceable == true
-	return GObjectFilterAnnotations.GetAnnotationMap().Find(InObject) == nullptr;
+	AutoRTFM::Open([&]
+		{
+			if constexpr (!bForceThreadSafe)
+			{
+				check(GObjectFilterAnnotations.IsLocked());
+			}
+
+			// Object not found in the AnnotationMap means that it is at the default value, which is bIsTraceable == true
+			bResult = GObjectFilterAnnotations.GetAnnotationMap().Find(InObject) == nullptr;
+		});
+
+	return bResult;
 }
 
 template bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject);
@@ -295,33 +299,41 @@ template bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ true>(cons
 template<bool bForceThreadSafe>
 void FTraceFilter::SetObjectIsTraceable(const UObject* InObject, bool bIsTraceable)
 {
-	ensure(InObject);
-
-	if constexpr (bForceThreadSafe)
+	AutoRTFM::Open([&]
 	{
-		FTraceFilterObjectAnnotation Annotation;
-		Annotation.bIsTraceable = bIsTraceable;
-		GObjectFilterAnnotations.AddAnnotation(InObject, Annotation);
+		ensure(InObject);
 
-		if (bIsTraceable)
+		if constexpr (bForceThreadSafe)
 		{
-			TRACE_OBJECT(InObject);
-		}
-	}
-	else
-	{
-		check(GObjectFilterAnnotations.IsLocked());
-		TMap<const UObjectBase*, FTraceFilterObjectAnnotation>& AnnotationMap = GObjectFilterAnnotations.GetAnnotationMap();
-		if (!bIsTraceable)
-		{
-			AnnotationMap.FindOrAdd(InObject).bIsTraceable = false;
+			FTraceFilterObjectAnnotation Annotation;
+			Annotation.bIsTraceable = bIsTraceable;
+			GObjectFilterAnnotations.AddAnnotation(InObject, Annotation);
+
+			if (bIsTraceable)
+			{
+				TRACE_OBJECT(InObject);
+			}
 		}
 		else
 		{
-			AnnotationMap.Remove(InObject);
-			TRACE_OBJECT(InObject);
+			check(GObjectFilterAnnotations.IsLocked());
+			TMap<const UObjectBase*, FTraceFilterObjectAnnotation>& AnnotationMap = GObjectFilterAnnotations.GetAnnotationMap();
+			if (!bIsTraceable)
+			{
+				AnnotationMap.FindOrAdd(InObject).bIsTraceable = false;
+			}
+			else
+			{
+				AnnotationMap.Remove(InObject);
+				TRACE_OBJECT(InObject);
+			}
 		}
-	}
+	});
+
+AutoRTFM::OnAbort([InObject, bIsTraceable]
+	{
+		SetObjectIsTraceable(InObject, !bIsTraceable);
+	});
 }
 
 template void FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ true>(const UObject* InObject, bool bIsTraceable);
@@ -330,19 +342,7 @@ template void FTraceFilter::SetObjectIsTraceable</*bForceThreadSafe = */ false>(
 template<bool bForceThreadSafe>
 void FTraceFilter::MarkObjectTraceable(const UObject* InObject)
 {
-	ensure(InObject);
-
-	if constexpr (bForceThreadSafe)
-	{
-		FTraceFilterObjectAnnotation Annotation;
-		Annotation.bIsTraceable = true;
-		GObjectFilterAnnotations.AddAnnotation(InObject, Annotation);
-	}
-	else
-	{
-		check(GObjectFilterAnnotations.IsLocked());
-		SetObjectIsTraceable(InObject, true);
-	}
+	SetObjectIsTraceable<bForceThreadSafe>(InObject, true);
 }
 
 template void FTraceFilter::MarkObjectTraceable</*bForceThreadSafe = */ true>(const UObject* InObject);
@@ -372,3 +372,4 @@ void FTraceFilter::Unlock()
 }
 
 #endif // TRACE_FILTERING_ENABLED
+

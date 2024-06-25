@@ -99,14 +99,26 @@ bool FContext::IsTransactional()
         return false;
     }
 
-    if ((Context->GetStatus() != EContextStatus::Idle) && (Context->GetStatus() != EContextStatus::Committing))
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    return Context->GetStatus() == EContextStatus::OnTrack;
+}
+
+bool FContext::IsCommittingOrAborting()
+{
+	FContext* Context = TryGet();
+
+	if (!Context)
+	{
+		return false;
+	}
+
+	switch (Context->GetStatus())
+	{
+	default:
+		return true;
+	case EContextStatus::Idle:
+	case EContextStatus::OnTrack:
+		return false;
+	}
 }
 
 bool FContext::StartTransaction()

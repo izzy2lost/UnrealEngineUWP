@@ -73,6 +73,57 @@ bool FAutoRTFMTraceFilterTests::RunTest(const FString & Parameters)
 			});
 
 		TEST_CHECK_TRUE(FTraceFilter::IsObjectTraceable(Object));
+
+		FTraceFilter::SetObjectIsTraceable(Object, false);
+		TEST_CHECK_TRUE(!FTraceFilter::IsObjectTraceable(Object));
+
+		UAutoRTFMTestObject* Other = NewObject<UAutoRTFMTestObject>();
+		UAutoRTFMTestObject* Another = NewObject<UAutoRTFMTestObject>();
+
+		FTraceFilter::SetObjectIsTraceable(Other, false);
+		TEST_CHECK_TRUE(!FTraceFilter::IsObjectTraceable(Other));
+
+		Result = AutoRTFM::Transact([&]
+			{
+				AutoRTFM::OnAbort([&]
+					{
+						FTraceFilter::SetObjectIsTraceable(Other, true);
+					});
+
+				FTraceFilter::SetObjectIsTraceable(Object, true);
+
+				AutoRTFM::OnAbort([&]
+					{
+						FTraceFilter::SetObjectIsTraceable(Another, true);
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+		TEST_CHECK_TRUE(!FTraceFilter::IsObjectTraceable(Object));
+		TEST_CHECK_TRUE(FTraceFilter::IsObjectTraceable(Other));
+		TEST_CHECK_TRUE(FTraceFilter::IsObjectTraceable(Another));
+
+		Result = AutoRTFM::Transact([&]
+			{
+				AutoRTFM::OnCommit([&]
+					{
+						FTraceFilter::SetObjectIsTraceable(Other, false);
+					});
+
+				FTraceFilter::SetObjectIsTraceable(Object, true);
+
+				AutoRTFM::OnCommit([&]
+					{
+						FTraceFilter::SetObjectIsTraceable(Another, false);
+					});
+			});
+
+		TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+		TEST_CHECK_TRUE(FTraceFilter::IsObjectTraceable(Object));
+		TEST_CHECK_TRUE(!FTraceFilter::IsObjectTraceable(Other));
+		TEST_CHECK_TRUE(!FTraceFilter::IsObjectTraceable(Another));
 	}
 
 	{

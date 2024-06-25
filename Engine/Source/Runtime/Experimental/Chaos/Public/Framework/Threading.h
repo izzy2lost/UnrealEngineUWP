@@ -975,7 +975,7 @@ FORCEINLINE void EnsureIsInGameThreadContext()
 	{
 		void ReadLock()
 		{
-			if (AutoRTFM::IsTransactional())
+			if (AutoRTFM::IsTransactional() || AutoRTFM::IsCommittingOrAborting())
 			{
 				// Transactionally pessimise ReadLock -> WriteLock.
 				WriteLock();
@@ -983,27 +983,27 @@ FORCEINLINE void EnsureIsInGameThreadContext()
 			else
 			{
 				Lock.ReadLock();
-				check(0 == TransactionalLockCount);
+				ensure(0 == TransactionalLockCount);
 			}
 		}
 
 		void ReadUnlock()
 		{
-			if (AutoRTFM::IsTransactional())
+			if (AutoRTFM::IsTransactional() || AutoRTFM::IsCommittingOrAborting())
 			{
 				// Transactionally pessimise ReadUnlock -> WriteUnlock.
 				WriteUnlock();
 			}
 			else
 			{
-				check(0 == TransactionalLockCount);
+				ensure(0 == TransactionalLockCount);
 				Lock.ReadUnlock();
 			}
 		}
 
 		void WriteLock()
 		{
-			if (AutoRTFM::IsTransactional())
+			if (AutoRTFM::IsTransactional() || AutoRTFM::IsCommittingOrAborting())
 			{
 				AutoRTFM::Open([&]
 					{
@@ -1019,7 +1019,7 @@ FORCEINLINE void EnsureIsInGameThreadContext()
 
 				AutoRTFM::OnAbort([this]
 					{
-						check(0 != TransactionalLockCount);
+						ensure(0 != TransactionalLockCount);
 						TransactionalLockCount -= 1;
 
 						if (0 == TransactionalLockCount)
@@ -1031,17 +1031,17 @@ FORCEINLINE void EnsureIsInGameThreadContext()
 			else
 			{
 				Lock.WriteLock();
-				check(0 == TransactionalLockCount);
+				ensure(0 == TransactionalLockCount);
 			}
 		}
 
 		void WriteUnlock()
 		{
-			if (AutoRTFM::IsTransactional())
+			if (AutoRTFM::IsTransactional() || AutoRTFM::IsCommittingOrAborting())
 			{
 				AutoRTFM::OnCommit([this]
 					{
-						check(0 != TransactionalLockCount);
+						ensure(0 != TransactionalLockCount);
 						TransactionalLockCount -= 1;
 
 						if (0 == TransactionalLockCount)
@@ -1052,7 +1052,7 @@ FORCEINLINE void EnsureIsInGameThreadContext()
 			}
 			else
 			{
-				check(0 == TransactionalLockCount);
+				ensure(0 == TransactionalLockCount);
 				Lock.WriteUnlock();
 			}
 		}
