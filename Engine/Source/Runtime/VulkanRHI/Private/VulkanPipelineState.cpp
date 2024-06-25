@@ -65,7 +65,7 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 
 	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
-		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = DescriptorSetsLayout->RemappingInfo.StageInfos[Set];
+		const FVulkanDescriptorSetsLayoutInfo::FStageInfo& StageInfo = DescriptorSetsLayout->StageInfos[Set];
 		if (!StageInfo.Types.Num())
 		{
 			continue;
@@ -111,7 +111,7 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 
 	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
-		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = DescriptorSetsLayout->RemappingInfo.StageInfos[Set];
+		const FVulkanDescriptorSetsLayoutInfo::FStageInfo& StageInfo = DescriptorSetsLayout->StageInfos[Set];
 		if (!StageInfo.Types.Num())
 		{
 			continue;

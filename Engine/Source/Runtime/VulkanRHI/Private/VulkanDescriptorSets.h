@@ -37,84 +37,6 @@ struct FUniformBufferGatherInfo
 };
 
 
-// Information for remapping descriptor sets when combining layouts
-struct FDescriptorSetRemappingInfo
-{
-	struct FStageInfo
-	{
-		TArray<VkDescriptorType>	Types;
-		uint32						PackedGlobalsSize = 0;
-		uint32						NumBoundUniformBuffers = 0;
-		uint16						NumImageInfos = 0;
-		uint16						NumBufferInfos = 0;
-		uint16						NumAccelerationStructures = 0;
-
-		inline bool IsEmpty() const
-		{
-			if (Types.Num() != 0)
-			{
-				return false;
-			}
-
-			if (PackedGlobalsSize != 0)
-			{
-				return false;
-			}
-
-			if (NumBoundUniformBuffers != 0)
-			{
-				return false;
-			}
-
-			return true;
-		}
-	};
-	TStaticArray<FStageInfo, ShaderStage::NumStages>	StageInfos;
-
-	inline bool operator==(const FDescriptorSetRemappingInfo& In) const
-	{
-		for (uint32 StageInfosIndex = 0; StageInfosIndex < ShaderStage::NumStages; ++StageInfosIndex)
-		{
-			if (StageInfos[StageInfosIndex].PackedGlobalsSize != In.StageInfos[StageInfosIndex].PackedGlobalsSize ||
-				StageInfos[StageInfosIndex].NumBoundUniformBuffers != In.StageInfos[StageInfosIndex].NumBoundUniformBuffers ||
-				StageInfos[StageInfosIndex].NumBufferInfos != In.StageInfos[StageInfosIndex].NumBufferInfos ||
-				StageInfos[StageInfosIndex].NumImageInfos != In.StageInfos[StageInfosIndex].NumImageInfos ||
-				StageInfos[StageInfosIndex].NumAccelerationStructures != In.StageInfos[StageInfosIndex].NumAccelerationStructures ||
-				StageInfos[StageInfosIndex].Types.Num() != In.StageInfos[StageInfosIndex].Types.Num() ||
-				FMemory::Memcmp(StageInfos[StageInfosIndex].Types.GetData(), In.StageInfos[StageInfosIndex].Types.GetData(), sizeof(VkDescriptorType) * StageInfos[StageInfosIndex].Types.Num()))
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	inline bool operator != (const FDescriptorSetRemappingInfo& In) const
-	{
-		return !(*this == In);
-	}
-
-	inline bool IsEmpty() const
-	{
-		for (int32 Index = 0; Index < ShaderStage::NumStages; ++Index)
-		{
-			const FStageInfo& StageInfo = StageInfos[Index];
-
-			if (StageInfo.Types.Num() || StageInfo.NumBufferInfos || StageInfo.NumImageInfos || StageInfo.NumAccelerationStructures)
-			{
-				return false;
-			}
-
-			if (!StageInfo.IsEmpty())
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-};
-
 // Information for the layout of descriptor sets; does not hold runtime objects
 class FVulkanDescriptorSetsLayoutInfo
 {
@@ -231,7 +153,7 @@ public:
 			}
 		}
 
-		if (RemappingInfo != In.RemappingInfo)
+		if (StageInfos != In.StageInfos)
 		{
 			return false;
 		}
@@ -245,7 +167,7 @@ public:
 		Hash = Info.Hash;
 		TypesUsageID = Info.TypesUsageID;
 		SetLayouts = Info.SetLayouts;
-		RemappingInfo = Info.RemappingInfo;
+		StageInfos = Info.StageInfos;
 	}
 
 	inline const TMap<VkDescriptorType, uint32>& GetLayoutTypes() const
@@ -263,6 +185,43 @@ public:
 		return GetTypesUsed(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) > 0;
 	}
 
+	struct FStageInfo
+	{
+		TArray<VkDescriptorType>	Types;
+		uint32						PackedGlobalsSize = 0;
+		uint32						NumBoundUniformBuffers = 0;
+		uint16						NumImageInfos = 0;
+		uint16						NumBufferInfos = 0;
+		uint16						NumAccelerationStructures = 0;
+
+		inline bool IsEmpty() const
+		{
+			if ((Types.Num() != 0) || (PackedGlobalsSize != 0) || (NumBoundUniformBuffers != 0))
+			{
+				return false;
+			}
+
+			return true;
+		}
+
+		inline bool operator==(const FStageInfo& In) const
+		{
+			if (PackedGlobalsSize != In.PackedGlobalsSize ||
+				NumBoundUniformBuffers != In.NumBoundUniformBuffers ||
+				NumBufferInfos != In.NumBufferInfos ||
+				NumImageInfos != In.NumImageInfos ||
+				NumAccelerationStructures != In.NumAccelerationStructures ||
+				Types.Num() != In.Types.Num() ||
+				FMemory::Memcmp(Types.GetData(), In.Types.GetData(), Types.NumBytes()))
+			{
+				return false;
+			}
+
+			return true;
+		}
+	};
+	TStaticArray<FStageInfo, ShaderStage::NumStages> StageInfos;
+
 protected:
 	TMap<VkDescriptorType, uint32> LayoutTypes;
 	TArray<FSetLayout> SetLayouts;
@@ -276,8 +235,6 @@ protected:
 	void CompileTypesUsageID();
 
 	void AddDescriptor(int32 DescriptorSetIndex, const VkDescriptorSetLayoutBinding& Descriptor);
-
-	FDescriptorSetRemappingInfo	RemappingInfo;
 
 	friend class FVulkanPipelineStateCacheManager;
 	friend class FVulkanCommonPipelineDescriptorState;

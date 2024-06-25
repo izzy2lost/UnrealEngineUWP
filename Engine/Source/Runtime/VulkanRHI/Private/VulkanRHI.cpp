@@ -1690,7 +1690,7 @@ void FVulkanDescriptorSetsLayoutInfo::AddDescriptor(int32 DescriptorSetIndex, co
 	VkDescriptorSetLayoutBinding* Binding = new(DescSetLayout.LayoutBindings) VkDescriptorSetLayoutBinding;
 	*Binding = Descriptor;
 
-	const FDescriptorSetRemappingInfo::FStageInfo& SetInfo = RemappingInfo.StageInfos[DescriptorSetIndex];
+	const FStageInfo& SetInfo = StageInfos[DescriptorSetIndex];
 	check(SetInfo.Types[Descriptor.binding] == Descriptor.descriptorType);
 	switch (Descriptor.descriptorType)
 	{
@@ -1699,15 +1699,15 @@ void FVulkanDescriptorSetsLayoutInfo::AddDescriptor(int32 DescriptorSetIndex, co
 	case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
 	case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
 	case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
-		IncrementChecked(RemappingInfo.StageInfos[DescriptorSetIndex].NumImageInfos);
+		IncrementChecked(StageInfos[DescriptorSetIndex].NumImageInfos);
 		break;
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
-		IncrementChecked(RemappingInfo.StageInfos[DescriptorSetIndex].NumBufferInfos);
+		IncrementChecked(StageInfos[DescriptorSetIndex].NumBufferInfos);
 		break;
 	case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-		IncrementChecked(RemappingInfo.StageInfos[DescriptorSetIndex].NumAccelerationStructures);
+		IncrementChecked(StageInfos[DescriptorSetIndex].NumAccelerationStructures);
 		break;
 	case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
 	case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
@@ -1731,7 +1731,7 @@ void FVulkanDescriptorSetsLayoutInfo::GenerateHash(const TArrayView<FRHISamplerS
 
 	for (uint32 RemapingIndex = 0; RemapingIndex < ShaderStage::NumStages; ++RemapingIndex)
 	{
-		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo.StageInfos[RemapingIndex];
+		const FStageInfo& StageInfo = StageInfos[RemapingIndex];
 
 		Hash = FCrc::TypeCrc32(StageInfo.PackedGlobalsSize, Hash);
 		Hash = FCrc::TypeCrc32(StageInfo.NumBoundUniformBuffers, Hash);

@@ -714,8 +714,6 @@ void FVulkanDescriptorSetsLayoutInfo::ProcessBindingsForStage(VkShaderStageFlagB
 template<bool bIsCompute>
 void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Device, const FUniformBufferGatherInfo& UBGatherInfo, const TArrayView<FRHISamplerState*>& ImmutableSamplers)
 {
-	checkSlow(RemappingInfo.IsEmpty());
-
 	// We'll be reusing this struct
 	VkDescriptorSetLayoutBinding Binding;
 	FMemory::Memzero(Binding);
@@ -728,9 +726,11 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 	int32 CurrentImmutableSampler = 0;
 	for (int32 Stage = 0; Stage < (bIsCompute ? 1 : ShaderStage::NumStages); ++Stage)
 	{
+		checkSlow(StageInfos[Stage].IsEmpty());
+
 		if (const FVulkanShaderHeader* ShaderHeader = UBGatherInfo.CodeHeaders[Stage])
 		{
-			FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo.StageInfos[Stage];
+			FStageInfo& StageInfo = StageInfos[Stage];
 
 			Binding.stageFlags = UEFrequencyToVKStageBit(bIsCompute ? SF_Compute : ShaderStage::GetFrequencyForGfxStage((ShaderStage::EStage)Stage));
 
