@@ -903,7 +903,7 @@ namespace UnrealBuildTool
 			foreach (KeyValuePair<string, FileReference> TargetPair in TargetNameToTargetFile)
 			{
 				TargetRules? Rules = CreateTargetRulesInstance(TargetPair.Key + "Target", new TargetInfo(TargetPair.Key, Platform, Configuration, null, ProjectFile, null), Logger);
-				if (Rules != null && Rules.Type == Type)
+				if (Rules != null && Rules.Type == Type && !Rules.bExplicitTargetForType)
 				{
 					Matches.Add(TargetPair.Key);
 				}

@@ -818,6 +818,11 @@ namespace UnrealBuildTool
 		public bool bGenerateProgramProject { get; set; }
 
 		/// <summary>
+		/// If true, GetTargetNameByType will not consider this target, thereby disambiguating -TargetType=X.
+		/// </summary>
+		public bool bExplicitTargetForType { get; set; }
+
+		/// <summary>
 		/// Whether the target should be included in the default solution build configuration
 		/// Setting this to false will skip building when running in the IDE
 		/// </summary>
