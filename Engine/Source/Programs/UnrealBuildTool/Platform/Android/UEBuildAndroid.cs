@@ -47,8 +47,14 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Enables runtime ray tracing support.
 		/// </summary>
-		[ConfigFile(ConfigHierarchyType.Engine, "/Script/AndroidTargetPlatform.AndroidTargetSettings")]
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/AndroidRuntimeSettings.AndroidRuntimeSettings")]
 		public bool bEnableRayTracing = false;
+
+		/// <summary>
+		/// Enables the desktop renderer.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/AndroidRuntimeSettings.AndroidRuntimeSettings")]
+		public bool bSupportsVulkanSM5 = false;
 
 		/// <summary>
 		/// Enables ASIS plugin and STANDALONE support.
@@ -94,6 +100,8 @@ namespace UnrealBuildTool
 		public bool bEnableMinimalUndefinedBehaviorSanitizer => Inner.bEnableMinimalUndefinedBehaviorSanitizer;
 
 		public bool bEnableRayTracing => Inner.bEnableRayTracing;
+
+		public bool bSupportsVulkanSM5 => Inner.bSupportsVulkanSM5;
 
 		public bool bEnableASISPlugin => Inner.bEnableASISPlugin;
 
@@ -505,7 +513,7 @@ namespace UnrealBuildTool
 			CompileEnvironment.Definitions.Add("USE_NULL_RHI=0");
  			CompileEnvironment.Definitions.Add("WITH_RHI_BREADCRUMBS=1");
 
-			if (Target.AndroidPlatform.bEnableRayTracing)
+			if (Target.AndroidPlatform.bEnableRayTracing && Target.AndroidPlatform.bSupportsVulkanSM5)
 			{
 				Logger.LogInformation("Compiling with ray tracing enabled");
 				CompileEnvironment.Definitions.Add("RHI_RAYTRACING=1");

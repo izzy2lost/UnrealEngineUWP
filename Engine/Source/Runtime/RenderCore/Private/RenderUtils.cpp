@@ -2058,9 +2058,10 @@ bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck
 	#endif // WITH_EDITOR
 
 	const bool bMetalSM5 = Platform == SP_METAL_SM5 || ParentPreviewPlatform == SP_METAL_SM5;
+	const bool bVulkanSM5 = Platform == SP_VULKAN_SM5 || Platform == SP_VULKAN_SM5_ANDROID;
 	return (bSkipProjectCheck || bLumenSupported)
 		&& FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(Platform)
-		&& (IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM6) || Platform == SP_VULKAN_SM5 || bMetalSM5) // Android and Mac can't rely on SM6 yet, but want to run Lumen
+		&& (IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM6) || bVulkanSM5 || bMetalSM5) // Android and Mac can't rely on SM6 yet, but want to run Lumen
 		&& !IsForwardShadingEnabled(Platform);
 }
 
