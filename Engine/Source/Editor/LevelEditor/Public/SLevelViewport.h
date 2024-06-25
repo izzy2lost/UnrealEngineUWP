@@ -397,7 +397,7 @@ public:
 	EVisibility GetToolbarVisibility() const;
 
 	/** Get the visibility for items considered to be part of the 'full' viewport toolbar */
-	EVisibility GetFullToolbarVisibility() const { return (bShowToolbarAndControls && bShowFullToolbar) ? EVisibility::Visible : EVisibility::Collapsed; }
+	EVisibility GetFullToolbarVisibility() const { return (bShowToolbarAndControls && bShowFullToolbar) ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; }
 
 	/** Unpin and close all actor preview windows */
 	void RemoveAllPreviews(const bool bRemoveFromDesktopViewport = true);

@@ -127,7 +127,7 @@ void SLevelViewportToolBar::Construct( const FArguments& InArgs )
 	[
 		SNew(SBorder)
 		.BorderImage(FAppStyle::Get().GetBrush("EditorViewportToolBar.Background"))
-		.Cursor(EMouseCursor::Default)
+		.Visibility(EVisibility::SelfHitTestInvisible)
 		[
 			SNew( SVerticalBox )
 			+ SVerticalBox::Slot()
