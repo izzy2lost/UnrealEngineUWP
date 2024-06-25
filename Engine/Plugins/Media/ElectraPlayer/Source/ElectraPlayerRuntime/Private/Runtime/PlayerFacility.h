@@ -34,6 +34,7 @@ namespace Electra
 			MKVPlaylist,
 			MKVStreamReader,
 			MKVParser,
+			MPEGTSParser,
 			LicenseKey,
 			DASHMPDReader,
 			DASHMPDParser,
