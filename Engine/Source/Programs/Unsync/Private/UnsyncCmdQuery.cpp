@@ -274,10 +274,11 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 
 	struct FTaskContext
 	{
-		std::mutex				  Mutex;
-		std::vector<FResultEntry> FoundEntries;
-		bool					  bParentThreadVerbose = false;
-		int32					  ParentThreadIndent   = 0;
+		std::mutex						Mutex;
+		std::vector<FResultEntry>		FoundEntries;
+		std::unordered_set<std::string> VisitedDirectories;
+		bool							bParentThreadVerbose = false;
+		int32							ParentThreadIndent	 = 0;
 	};
 
 	FTaskGroup	 Tasks = GScheduler->CreateTaskGroup();
@@ -286,37 +287,59 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	Context.bParentThreadVerbose = GLogVerbose;
 	Context.ParentThreadIndent	 = GLogIndent;
 
-	std::function<void(std::string, int32)> ExploreDirectory =
-		[&Context, &AuthDesc, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks, &Options](std::string Path, int32 CurrentDepth)
+	std::function<void(std::string, int32, const FDirectoryListing*)> ExploreDirectory =
+		[&Context, &AuthDesc, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks, &Options](
+			std::string					   Path,
+			int32						   CurrentDepth,
+			const FDirectoryListing* DirectoryListingPtr)
 	{
 		FLogVerbosityScope VerboseScope(Context.bParentThreadVerbose);
 		FLogIndentScope	   IndentScope(Context.ParentThreadIndent, true);
 
-		UNSYNC_VERBOSE2(L"Listing '%hs'", Path.c_str());
+		FDirectoryListing RemoteDirectoryListing;
 
-		GScheduler->NetworkSemaphore.Acquire(false);
-		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
-
-		TResult<FDirectoryListing> DirectoryListingResult =
-			ProxyQuery::ListDirectory(Options.Remote.Protocol, *Connection, &AuthDesc, Path);
-
-		ConnectionPool.Release(std::move(Connection));
-		GScheduler->NetworkSemaphore.Release();
-
-		if (DirectoryListingResult.IsError())
+		if (!DirectoryListingPtr)
 		{
-			LogError(DirectoryListingResult.GetError());
-			return;
+			UNSYNC_VERBOSE2(L"Listing '%hs'", Path.c_str());
+
+			GScheduler->NetworkSemaphore.Acquire(false);
+			std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
+
+			TResult<FDirectoryListing> DirectoryListingResult =
+				ProxyQuery::ListDirectory(Options.Remote.Protocol, *Connection, &AuthDesc, Path);
+
+			ConnectionPool.Release(std::move(Connection));
+			GScheduler->NetworkSemaphore.Release();
+
+			if (DirectoryListingResult.IsError())
+			{
+				LogError(DirectoryListingResult.GetError());
+				return;
+			}
+
+			std::swap(RemoteDirectoryListing, DirectoryListingResult.GetData());
+			DirectoryListingPtr = &RemoteDirectoryListing;
 		}
 
-		const FDirectoryListing& DirectoryListing = DirectoryListingResult.GetData();
+		const FDirectoryListing& DirectoryListing = *DirectoryListingPtr;
 
 		for (const FDirectoryListingEntry& DirEntry : DirectoryListing.Entries)
 		{
+			std::string DirEntryName = DirEntry.Name;
+
+			// Only include one subdirectory level
+			const size_t SeparatorPos = DirEntryName.find(PATH_SEPARATOR);
+			if (SeparatorPos != std::string::npos)
+			{
+				DirEntryName = DirEntryName.substr(0, PATH_SEPARATOR);
+			}
+
 			FEntry NextEntry;
-			NextEntry.Path	= Path + "\\" + DirEntry.Name;
+			NextEntry.Path	= Path + PATH_SEPARATOR + DirEntryName;
 			NextEntry.Depth = CurrentDepth + 1;
 
+			// Include only leaf directory entries in the final output
+			if (SeparatorPos == std::string::npos)
 			{
 				std::lock_guard<std::mutex> LockGuard(Context.Mutex);
 
@@ -333,15 +356,46 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 				continue;
 			}
 
-			if (DirEntry.bDirectory && std::regex_match(DirEntry.Name, SubdirPatterns[CurrentDepth], std::regex_constants::match_any))
+			if (DirEntry.bDirectory && std::regex_match(DirEntryName, SubdirPatterns[CurrentDepth], std::regex_constants::match_any))
 			{
-				UNSYNC_VERBOSE2(L"Matched: '%hs'", DirEntry.Name.c_str());
-				Tasks.run([ExploreDirectory, NextEntry]() { ExploreDirectory(NextEntry.Path, NextEntry.Depth); });
+				UNSYNC_VERBOSE2(L"Matched: '%hs'", DirEntryName.c_str());
+
+				// Directory listing may already include some child sub-directories, so we can skip some network requests
+				FDirectoryListing SubDirectoryListing;
+				std::string		  RequiredPrefix = DirEntryName + PATH_SEPARATOR;
+
+				for (const FDirectoryListingEntry& DirEntry2 : DirectoryListing.Entries)
+				{
+					if (DirEntry2.Name.starts_with(RequiredPrefix))
+					{
+						FDirectoryListingEntry SubDirEntry = DirEntry2;
+						SubDirEntry.Name				   = SubDirEntry.Name.substr(RequiredPrefix.length());
+						SubDirectoryListing.Entries.push_back(SubDirEntry);
+					}
+				}
+
+				{
+					// Only visit each sub-directory once
+					std::lock_guard<std::mutex> LockGuard(Context.Mutex);
+					if (!Context.VisitedDirectories.insert(NextEntry.Path).second)
+					{
+						continue;
+					}
+				}
+
+				if (SubDirectoryListing.Entries.empty())
+				{
+					Tasks.run([ExploreDirectory, NextEntry]() { ExploreDirectory(NextEntry.Path, NextEntry.Depth, nullptr); });
+				}
+				else
+				{
+					ExploreDirectory(NextEntry.Path, NextEntry.Depth, &SubDirectoryListing);
+				}
 			}
 		}
 	};
 
-	ExploreDirectory(RootPath, 0);
+	ExploreDirectory(RootPath, 0, nullptr);
 	Tasks.wait();
 
 	std::vector<FResultEntry>& ResultEntries = Context.FoundEntries;

@@ -952,6 +952,12 @@ RunTests(const std::string& Preset)
 		extern void TestHordeManifestDecode();
 		TestHordeManifestDecode();
 	}
+
+	if (Preset == "horde_artifact_format" || Preset == "all")
+	{
+		extern void TestHordeArtifactFormat();
+		TestHordeArtifactFormat();
+	}
 }
 
 }  // namespace unsync

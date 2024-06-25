@@ -31,20 +31,27 @@ struct FHordeProtocolImpl : FRemoteProtocolBase
 };
 
 
-struct FHordeVirtualPath
+struct FHordeArtifactQuery
 {
-	std::string ArtifactPrefix;
+	std::string Type;
+	std::string Id;
+	std::string Change;
+	std::vector<std::string> Keys;
 
-	std::optional<std::string> StreamId;
-	std::optional<std::string> ArtifactId;
-	std::optional<uint64>	   Change;
+	uint32 MaxResults = 1000000;
 
-	static TResult<FHordeVirtualPath> FromString(std::string_view Str);
+	// Template to use for formatting results, e.g.: `{StreamName}.{BuildName}/{Platform}#{Id}`
+	std::string Format;
+
+	// Query parts, delimited by directory separator character
+	std::vector<std::string> Parts;
+
+	static TResult<FHordeArtifactQuery> FromString(std::string_view Str);
 };
 
 struct FHordeArtifactEntry
 {
-	uint64					 Change = 0;
+	std::string				 Change;
 	std::string				 Id;
 	std::string				 Name;
 	std::string				 Description;

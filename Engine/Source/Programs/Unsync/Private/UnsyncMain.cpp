@@ -669,21 +669,21 @@ InnerMain(int Argc, char** Argv)
 		bFilesystemSource = false;
 		if (RemoteDesc.RequestPath.empty())
 		{
-			TResult<FHordeVirtualPath> VirtualPath = FHordeVirtualPath::FromString(SourceFilenameUtf8);
-			if (VirtualPath.IsError())
+			TResult<FHordeArtifactQuery> Query = FHordeArtifactQuery::FromString(SourceFilenameUtf8);
+			if (Query.IsError())
 			{
 				UNSYNC_ERROR(L"Could not parse sync source path");
-				LogError(VirtualPath.GetError());
+				LogError(Query.GetError());
 				return 1;
 			}
 
-			if (!VirtualPath->ArtifactId)
+			if (Query->Id.empty())
 			{
 				UNSYNC_ERROR(L"Could not parse sync source path. Artifact ID is expected, i.e. '#123456abcdef'.");
 				return 1;
 			}
 
-			SourceFilenameUtf8 = "api/v2/artifacts/" + VirtualPath->ArtifactId.value();
+			SourceFilenameUtf8 = "api/v2/artifacts/" + Query->Id;
 			RemoteDesc.RequestPath = SourceFilenameUtf8;
 		}
 	}

@@ -84,6 +84,13 @@ FRemoteDesc::FromUrl(std::string_view Url, EProtocolFlavor ProtocolFlavorHint)
 
 	FRemoteDesc Result;
 
+	const size_t NamespacePos = Url.find_last_of('#');
+	if (NamespacePos != std::string::npos)
+	{
+		Result.StorageNamespace = Url.substr(NamespacePos + 1);
+		Url						= Url.substr(0, NamespacePos);
+	}
+
 	const size_t SchemePos	 = Url.find("://");
 	const bool	 bHaveScheme = SchemePos != std::string::npos;
 
@@ -125,8 +132,6 @@ FRemoteDesc::FromUrl(std::string_view Url, EProtocolFlavor ProtocolFlavorHint)
 
 	const bool bRequestLooksLikeHordeArtifact = RequestPathLooksLikeHordeArtifact(Result.RequestPath);
 
-	const size_t NamespacePos = HostAddress.find_last_of('#');
-
 	if (ProtocolFlavorHint == EProtocolFlavor::Unknown)
 	{
 		// Try to guess protocol flavor
@@ -142,7 +147,7 @@ FRemoteDesc::FromUrl(std::string_view Url, EProtocolFlavor ProtocolFlavorHint)
 				{
 					Result.Protocol = EProtocolFlavor::Jupiter;
 				}
-				if (bRequestLooksLikeHordeArtifact || Scheme.starts_with("horde"))
+				else if (bRequestLooksLikeHordeArtifact || Scheme.starts_with("horde"))
 				{
 					Result.Protocol = EProtocolFlavor::Horde;
 				}
@@ -156,12 +161,6 @@ FRemoteDesc::FromUrl(std::string_view Url, EProtocolFlavor ProtocolFlavorHint)
 	else
 	{
 		Result.Protocol = ProtocolFlavorHint;
-	}
-
-	if (NamespacePos != std::string::npos)
-	{
-		Result.StorageNamespace = HostAddress.substr(NamespacePos + 1);
-		HostAddress				= HostAddress.substr(0, NamespacePos);
 	}
 
 	uint16		 HostPort = 0;

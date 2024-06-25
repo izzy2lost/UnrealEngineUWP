@@ -850,7 +850,7 @@ ProxyQuery::FDirectoryListing::ToJson() const
 		}
 
 		Result += "{ ";
-		FormatJsonKeyValueStr(Result, "name", Entry.Name, ", ");
+		FormatJsonKeyValueStr(Result, "name", StringEscape(Entry.Name), ", ");
 		FormatJsonKeyValueBool(Result, "is_directory", Entry.bDirectory, ", ");
 		FormatJsonKeyValueUInt(Result, "mtime", Entry.Mtime, ", ");
 		FormatJsonKeyValueUInt(Result, "size", Entry.Size);

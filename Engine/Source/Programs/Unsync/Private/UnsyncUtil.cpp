@@ -345,28 +345,45 @@ ToString(const FPath& Path)
 }
 
 std::string
-StringToLower(const std::string& Input)
+StringToLower(std::string_view Input)
 {
-	std::string Result = Input;
+	std::string Result(Input);
 	std::transform(Result.begin(), Result.end(), Result.begin(), [](int32 C) { return char(::tolower(C)); });
 	return Result;
 }
 
 
 std::wstring
-StringToLower(const std::wstring& Input)
+StringToLower(std::wstring_view Input)
 {
-	std::wstring Result = Input;
+	std::wstring Result(Input);
 	std::transform(Result.begin(), Result.end(), Result.begin(), [](int32 C) { return wchar_t(::tolower(C)); });
 	return Result;
 }
 
 std::wstring
-StringToUpper(const std::wstring& Input)
+StringToUpper(std::wstring_view Input)
 {
-	std::wstring Result = Input;
+	std::wstring Result(Input);
 	std::transform(Result.begin(), Result.end(), Result.begin(), [](int32 C) { return wchar_t(::toupper(C)); });
 	return Result;
+}
+
+bool
+StringStartsWith(const std::string_view String, const std::string_view Prefix, bool bCaseSensitive)
+{
+	if (bCaseSensitive)
+	{
+		return String.starts_with(Prefix);
+	}
+	else if (Prefix.length() <= String.length())
+	{
+		return _strnicmp(String.data(), Prefix.data(), Prefix.length()) == 0;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 bool
@@ -772,6 +789,30 @@ LooksLikeUrl(std::string_view Str)
 	}
 	
 	return false;
+}
+
+std::vector<std::string_view>
+SplitByAny(std::string_view String, const char* SeparatorCharacters)
+{
+	std::vector<std::string_view> Result;
+
+	while (!String.empty())
+	{
+		size_t Pos = String.find_first_of(SeparatorCharacters);
+		if (Pos == std::string::npos)
+		{
+			Result.push_back(String);
+			break;
+		}
+
+		std::string_view Part = String.substr(0, Pos);
+
+		Result.push_back(Part);
+
+		String = String.substr(Pos + 1);
+	}
+
+	return Result;
 }
 
 }  // namespace unsync

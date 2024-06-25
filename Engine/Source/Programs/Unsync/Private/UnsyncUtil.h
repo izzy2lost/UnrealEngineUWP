@@ -154,18 +154,46 @@ ToString(const std::string_view StringView)
 
 std::string ToString(const FPath& Path);
 
-std::string StringToLower(const std::string& Input);
-std::wstring StringToLower(const std::wstring& Input);
-std::wstring StringToUpper(const std::wstring& Input);
+std::string StringToLower(std::string_view Input);
+std::wstring StringToLower(std::wstring_view Input);
+std::wstring StringToUpper(std::wstring_view Input);
 
 std::string StringEscape(const std::string_view Input);
 
 bool StringEquals(const std::string_view A, const std::string_view B, bool bCaseSensitive = true);
+bool StringStartsWith(const std::string_view String, const std::string_view Prefix, bool bCaseSensitive = true);
 
 inline bool
 UncasedStringEquals(const std::string_view A, const std::string_view B)
 {
 	return StringEquals(A, B, false);
+}
+
+inline bool
+IsAsciiAlphabetCharacter(const char C)
+{
+	return (C >= 'a' && C <= 'z') || (C >= 'A' && C <= 'Z');
+}
+
+inline bool
+IsAsciiNumericCharacter(const char C)
+{
+	return C >= '0' && C <= '9';
+}
+
+inline bool
+IsAsciiAlphaNumericCharacter(const char C)
+{
+	return IsAsciiAlphabetCharacter(C) || IsAsciiNumericCharacter(C);
+}
+
+std::vector<std::string_view> SplitByAny(std::string_view String, const char* SeparatorCharacters);
+inline std::vector<std::string_view>
+
+SplitBy(std::string_view String, char SeparatorCharacter)
+{
+	char Chars[2] = {SeparatorCharacter, 0};
+	return SplitByAny(String, Chars);
 }
 
 // Takes a drive-based path (e.g. P:/Foo/Bar) and converts it to universal form (e.g. //server/Foo/Bar), if possible.

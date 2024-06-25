@@ -9,6 +9,7 @@
 #include <json11.hpp>
 #include <optional>
 #include <stdio.h>
+#include <span>
 
 namespace unsync {
 
@@ -253,61 +254,205 @@ FHordeProtocolImpl::QueryHello(FHttpConnection& HttpConnection)
 	return ResultOk(Result);
 }
 
-TResult<FHordeVirtualPath>
-FHordeVirtualPath::FromString(std::string_view Str)
+static std::optional<std::string_view>
+FindFirstByPrefix(std::span<const std::string> Strings, std::string_view Prefix)
 {
-	FHordeVirtualPath Result;
-	size_t			  ChangeSeparatorPos	 = Str.find_first_of('@');
-	size_t			  ArtifactIdSeparatorPos = Str.find_first_of('#');
-
-	std::string_view ArtifactPrefix;
-	std::string_view StreamId;
-	std::string_view Change;
-	std::string_view ArtifactId;
-
-	if (ArtifactIdSeparatorPos != std::string::npos)
+	for (const std::string& It : Strings)
 	{
-		ArtifactId = Str.substr(ArtifactIdSeparatorPos + 1);
+		if (StringStartsWith(It, Prefix, false))
+		{
+			return std::string_view(It);
+		}
 	}
 
-	if (ChangeSeparatorPos != std::string::npos)
-	{
-		Change = Str.substr(ChangeSeparatorPos + 1);
-		Str	   = Str.substr(0, ChangeSeparatorPos);
-	}
+	return {};
+}
 
-	if (!ArtifactId.empty())
+std::optional<std::string_view>
+GetMetadataValueByPrefix(std::span<const std::string> MetadataEntries, std::string_view Prefix)
+{
+	std::optional<std::string_view> Entry = FindFirstByPrefix(MetadataEntries, Prefix);
+	if (Entry)
 	{
-		Result.ArtifactId = ArtifactId;
-	}
-
-	size_t StreamSeparatorPos = Str.find_first_of("/\\");
-
-	if (StreamSeparatorPos != std::string::npos)
-	{
-		ArtifactPrefix = Str.substr(0, StreamSeparatorPos);
-		StreamId	   = Str.substr(StreamSeparatorPos + 1);
+		return Entry->substr(Prefix.length());
 	}
 	else
 	{
-		ArtifactPrefix = Str;
+		return {};
+	}
+}
+
+std::optional<std::string_view>
+TryStripPrefix(std::string_view String, std::string_view Prefix)
+{
+	if (StringStartsWith(String, Prefix, false))
+	{
+		return String.substr(Prefix.length());
+	}
+	else
+	{
+		return {};
+	}
+}
+
+static std::string
+UrlEncode(std::string_view String)
+{
+	std::string Result;
+	Result.reserve(String.length() * 3);
+
+	for (char C : String)
+	{
+		if (IsAsciiAlphaNumericCharacter(C))
+		{
+			Result.push_back(C);
+		}
+		else
+		{
+			char HexChars[2] = {};
+			BytesToHexChars(HexChars, 2, reinterpret_cast<const uint8*>(&C), 1);
+			Result.push_back('%');
+			Result.push_back(HexChars[0]);
+			Result.push_back(HexChars[1]);
+		}
 	}
 
-	Result.ArtifactPrefix = ArtifactPrefix;
+	return Result;
+}
 
-	if (!StreamId.empty())
+TResult<FHordeArtifactQuery>
+FHordeArtifactQuery::FromString(std::string_view Str)
+{
+	FHordeArtifactQuery Result;
+
+	std::vector<std::string_view> PathParts = SplitBy(Str, PATH_SEPARATOR);
+	std::string_view			  RootPath	= PathParts[0];
+
+	for (std::string_view PathPart : PathParts)
 	{
-		Result.StreamId = StreamId;
+		if (!Result.Parts.empty())
+		{
+			// TODO: derived the ID by parsing the request string using the format specification
+			size_t ArtifactIdPos = PathPart.find_last_of('#');
+			if (ArtifactIdPos != std::string::npos)
+			{
+				Result.Id = PathPart.substr(ArtifactIdPos + 1);
+			}
+		}
+
+		Result.Parts.push_back(std::string(PathPart));
 	}
 
-	if (!Change.empty())
+	std::vector<std::string_view> FilterParts = SplitBy(RootPath, ';');
+
+	for (std::string_view FilterPart : FilterParts)
 	{
-		std::string ChangeStr = std::string(Change);
+		std::optional<std::string_view> Value;
+		if (Value = TryStripPrefix(FilterPart, "type="); Value)
+		{
+			Result.Type = StringToLower(*Value);
+		}
+		else if (Value = TryStripPrefix(FilterPart, "key="); Value)
+		{
+			Result.Keys.push_back(UrlEncode(StringToLower(std::string(*Value))));
+		}
+		else if (Value = TryStripPrefix(FilterPart, "change="); Value)
+		{
+			Result.Change = *Value;
+		}
+		else if (Value = TryStripPrefix(FilterPart, "id="); Value)
+		{
+			Result.Id = *Value;
+		}
+		else
+		{
+			Result.Format = FilterPart;
+		}
+	}
 
-		long long unsigned ParsedChange = 0;
-		sscanf(ChangeStr.c_str(), "%llu", &ParsedChange);
+	return ResultOk(Result);
+}
 
-		Result.Change = ParsedChange;
+std::string
+GetEscapedFormattedNameField(std::string_view StreamName)
+{
+	std::string Result = std::string(StreamName);
+	for (char& C : Result)
+	{
+		if (C == '/' || C == '\\')
+		{
+			C = '+';
+		}
+	}
+
+	return Result;
+}
+
+TResult<std::string>
+FormatArtifactName(const FHordeArtifactEntry& Artifact, std::string_view Format, std::string_view PlaceholderValue = "[unknown]")
+{
+	std::string Result;
+
+	while (!Format.empty())
+	{
+		if (Format.front() == '{')
+		{
+			size_t ClosingPos = Format.find('}');
+			if (ClosingPos == std::string::npos)
+			{
+				return AppError(fmt::format("Expected to find '{}' character in the format template string: '{}'", '}', Format));
+			}
+
+			std::string_view VarName = Format.substr(1, ClosingPos - 1);
+
+			Format = Format.substr(ClosingPos + 1);
+
+			if (UncasedStringEquals(VarName, "dir"))
+			{
+				Result.push_back(PATH_SEPARATOR);
+				continue;
+			}
+
+			std::string Key = fmt::format("{}=", VarName);
+
+			// First try to get the value from metadata, then from artifact itself
+
+			std::optional<std::string_view> Value = GetMetadataValueByPrefix(Artifact.Metadata, Key);
+
+			if (!Value)
+			{
+				if (UncasedStringEquals(Key, "change="))
+				{
+					Value = Artifact.Change;
+				}
+				else if (UncasedStringEquals(Key, "id="))
+				{
+					Value = Artifact.Id;
+				}
+				else if (UncasedStringEquals(Key, "name="))
+				{
+					Value = Artifact.Name;
+				}
+				else if (UncasedStringEquals(Key, "streamid="))
+				{
+					Value = Artifact.StreamId;
+				}
+			}
+
+			if (Value)
+			{
+				Result.append(GetEscapedFormattedNameField(*Value));
+			}
+			else
+			{
+				Result.append(PlaceholderValue);
+			}
+		}
+		else
+		{
+			Result.push_back(Format.front());
+			Format = Format.substr(1);
+		}
 	}
 
 	return ResultOk(Result);
@@ -321,36 +466,41 @@ FHordeProtocolImpl::QueryListDirectory(FHttpConnection& Connection, const FAuthD
 
 	FDirectoryListing Result;
 
-	TResult<FHordeVirtualPath> VirtualPath = FHordeVirtualPath::FromString(Path);
-	if (VirtualPath.IsError())
+	TResult<FHordeArtifactQuery> QueryParseResult = FHordeArtifactQuery::FromString(Path);
+	if (QueryParseResult.IsError())
 	{
-		return MoveError<ProxyQuery::FDirectoryListing>(VirtualPath);
+		return MoveError<ProxyQuery::FDirectoryListing>(QueryParseResult);
 	}
 
-	// If we have the artifact ID, simply add a virtual .unsync directory to indicate that a manifest is available.
-	// TODO: It's also possible to list the actual artifact contents from this point, if needed.
-	if (VirtualPath->ArtifactId)
+	const FHordeArtifactQuery& Query = QueryParseResult.GetData();
+
+	std::string_view Root = Query.Parts[0];
+
+	std::string RequiredPathPrefix;
+	if (Root.length() != Path.length())
 	{
-		FDirectoryListingEntry DummyManifestEntry;
-		DummyManifestEntry.Name = ".unsync";
-		DummyManifestEntry.bDirectory = true;
-		Result.Entries.push_back(DummyManifestEntry);
-		return ResultOk(Result);
+		RequiredPathPrefix = Path.substr(Root.length() + 1);
+		if (RequiredPathPrefix.back() != (PATH_SEPARATOR))
+		{
+			RequiredPathPrefix.push_back(PATH_SEPARATOR);
+		}
 	}
 
-	uint32 MaxResults = 1000000;
+	std::string RequestUrl = fmt::format("/api/v2/artifacts?maxResults={}", Query.MaxResults);
 
-	std::string RequestUrl = fmt::format("/api/v2/artifacts?type=packaged-build&maxResults={}", MaxResults);
-	if (VirtualPath->Change)
+	if (!Query.Type.empty())
 	{
-		uint64 ChangeNumber = VirtualPath->Change.value();
-		RequestUrl += fmt::format("&minChange={0}&maxChange={0}", ChangeNumber);
+		RequestUrl += fmt::format("&type={}", Query.Type);
 	}
 
-	if (VirtualPath->StreamId)
+	if (!Query.Change.empty())
 	{
-		const std::string& StreamId = VirtualPath->StreamId.value();
-		RequestUrl += fmt::format("&streamId={}", StreamId);
+		RequestUrl += fmt::format("&minChange={0}&maxChange={0}", Query.Change);
+	}
+
+	for (const std::string& Key : Query.Keys)
+	{
+		RequestUrl += fmt::format("&key={}", Key);
 	}
 
 	std::string BearerToken;
@@ -397,12 +547,16 @@ FHordeProtocolImpl::QueryListDirectory(FHttpConnection& Connection, const FAuthD
 
 		Entry.Name = It["name"].string_value();
 
-		if (!Entry.Name.starts_with(VirtualPath->ArtifactPrefix))
+		const Json& ChangeJson = It["change"];
+		if (ChangeJson.is_number())
 		{
-			continue;
+			Entry.Change = fmt::format("{}", llu(ChangeJson.number_value()));
+		}
+		else if (ChangeJson.is_string())
+		{
+			Entry.Change = ChangeJson.string_value();
 		}
 
-		Entry.Change	  = uint64(It["change"].number_value());
 		Entry.Id		  = It["id"].string_value();
 		Entry.Description = It["description"].string_value();
 		Entry.StreamId	  = It["streamId"].string_value();
@@ -432,39 +586,80 @@ FHordeProtocolImpl::QueryListDirectory(FHttpConnection& Connection, const FAuthD
 			  HordeArtifacts.end(),
 			  [](const FHordeArtifactEntry& A, const FHordeArtifactEntry& B) { return A.Change > B.Change; });
 
-	// Present a virtual two-level hierarchy: @change/package
-
-	if (VirtualPath->Change)
+	if (!Query.Format.empty())
 	{
 		for (const FHordeArtifactEntry& HordeArtifactEntry : HordeArtifacts)
 		{
 			FDirectoryListingEntry DirectoryEntry;
 
-			DirectoryEntry.bDirectory = true;
-			DirectoryEntry.Name		  = fmt::format("{}#{}", HordeArtifactEntry.Name, HordeArtifactEntry.Id);
+			TResult<std::string> FormattedName = FormatArtifactName(HordeArtifactEntry, Query.Format);
 
-			Result.Entries.push_back(DirectoryEntry);
+			if (FormattedName.IsOk())
+			{
+				if (FormattedName->starts_with(RequiredPathPrefix))
+				{
+					std::string_view Name = std::string_view(*FormattedName).substr(RequiredPathPrefix.length());
+
+					DirectoryEntry.bDirectory = true;
+					DirectoryEntry.Name		  = Name;
+
+					Result.Entries.push_back(DirectoryEntry);
+				}
+			}
+			else
+			{
+				LogError(FormattedName.GetError());
+				break;
+			}
 		}
 	}
 	else
 	{
-		// Output virtual directories for unique CLs
-		uint64			  LastChangeNumber = 0;
 		for (const FHordeArtifactEntry& HordeArtifactEntry : HordeArtifacts)
 		{
-			if (LastChangeNumber == HordeArtifactEntry.Change)
-			{
-				continue;
-			}
-
 			FDirectoryListingEntry DirectoryEntry;
-
 			DirectoryEntry.bDirectory = true;
-			DirectoryEntry.Name		  = fmt::format("{}@{}", HordeArtifactEntry.StreamId, HordeArtifactEntry.Change);
-
+			DirectoryEntry.Name		  = fmt::format("#{}", HordeArtifactEntry.Id);
 			Result.Entries.push_back(DirectoryEntry);
+		}
+	}
 
-			LastChangeNumber = HordeArtifactEntry.Change;
+	// Create intermediate virtual directories
+	{
+		std::vector<FDirectoryListingEntry> VirtualEntries;
+		std::unordered_set<std::string>		UniqueEntries;
+
+		for (const FDirectoryListingEntry& Entry : Result.Entries)
+		{
+			UniqueEntries.insert(Entry.Name);
+		}
+
+		for (const FDirectoryListingEntry& Entry : Result.Entries)
+		{
+			std::vector<std::string_view> Parts = SplitBy(Entry.Name, PATH_SEPARATOR);
+			std::string					  PartialName;
+			for (std::string_view Part : Parts)
+			{
+				if (!PartialName.empty())
+				{
+					PartialName.push_back(PATH_SEPARATOR);
+				}
+				PartialName += Part;
+
+				bool bInserted = UniqueEntries.insert(PartialName).second;
+				if (bInserted)
+				{
+					FDirectoryListingEntry VirtualEntry;
+					VirtualEntry.Name = PartialName;
+					VirtualEntry.bDirectory = true;
+					VirtualEntries.push_back(VirtualEntry);
+				}
+			}
+		}
+
+		for (const FDirectoryListingEntry& Entry : VirtualEntries)
+		{
+			Result.Entries.push_back(Entry);
 		}
 	}
 
@@ -669,6 +864,25 @@ void TestHordeManifestDecode()
 	{
 		LogError(Manifest.GetError());
 	}
+}
+
+
+void
+TestHordeArtifactFormat()
+{
+	UNSYNC_LOG(L"TestHordeArtifactFormat()");
+	UNSYNC_LOG_INDENT;
+
+	FHordeArtifactEntry Artifact;
+	Artifact.Change	  = "12345";
+	Artifact.Id		  = "aabbcc";
+	Artifact.Name	  = "test_name";
+	Artifact.Metadata.push_back("foo=bar");
+	Artifact.Metadata.push_back("stream=test_stream");
+	Artifact.Metadata.push_back("buildname=build_name");
+
+	TResult<std::string> Name = FormatArtifactName(Artifact, "{Stream}.{BuildName}.{Change}");
+	UNSYNC_ASSERT(Name.GetData() == "test_stream.build_name.12345");
 }
 
 }
