@@ -12,6 +12,12 @@ namespace AutomatedPerfTest
 	public class AutomatedPerfTestConfigBase : UnrealTestConfiguration
 	{
 		/// <summary>
+		/// Name of the project (TODO: parse from the build metadata? What about github builds?)
+		/// </summary>
+		[AutoParamWithNames("AutomatedPerfTest.ProjectName")]
+		public string ProjectName = "";
+
+		/// <summary>
 		/// If we're running on the build machine
 		/// </summary>
 		[AutoParamWithNames(false, "AutomatedPerfTest.IsBuildMachine")]
@@ -58,7 +64,13 @@ namespace AutomatedPerfTest
 		/// </summary>
 		[AutoParamWithNames("", "AutomatedPerfTest.PerfCacheRoot")]
 		public string PerfCacheRoot;
-		
+
+		/// <summary>
+		/// Path to a JSON file with ignored issues (ensures, warnings, errros). Can be used to suppress hard-to-fix issues, on a per-branch basis
+		/// </summary>
+		[AutoParamWithNames("", "AutomatedPerfTest.IgnoredIssuesConfigAbsPath")]
+		public string IgnoredIssuesConfigAbsPath;
+
 		/// <summary>
 		/// Which platform we're testing on 
 		/// </summary>
