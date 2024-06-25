@@ -151,7 +151,7 @@ public:
 		return ObjectPathRedirectionMap;
 	}
 	
-	/** Returns the set of paths, if any, that are redirected TO the provided path. This performs a relatively slow linear search. */
+	/** Returns the set of paths, if any, that are redirected TO the provided path.*/
 	COREUOBJECT_API void GetAllSourcePathsForTargetPath(const FSoftObjectPath& TargetPath, TArray<FSoftObjectPath>& OutSourcePaths) const;
 
 	/** Used with GetObjectPathRedirectionMapUnderLock with code like:
@@ -164,6 +164,12 @@ public:
 	}
 
 private:
+	
+	/** Handles adding forward and reverse map entries. Must be called while holding the critical section */
+	void AddObjectPathRedirectionInternal(const FSoftObjectPath& Source, const FSoftObjectPath& Destination);
+
+	/** Handles removing forward and reverse map entries. Must be called while holding the critical section */
+	bool TryRemoveObjectPathRedirectionInternal(const FSoftObjectPath& Source);
 
 	/** A map of assets referenced by soft object paths, with the key being the package with the reference */
 	typedef TSet<FSoftObjectPathProperty> FSoftObjectPathPropertySet;
@@ -180,6 +186,10 @@ private:
 	/** When saving, apply this remapping to all soft object paths */
 	TMap<FSoftObjectPath, FSoftObjectPath> ObjectPathRedirectionMap;
 
+	/** A reverse lookup map for use with GetAllSourcePathsForTargetPath */
+	typedef TArray<FSoftObjectPath, TInlineAllocator<1>> ObjectPathSourcesArray;
+	TMap<FSoftObjectPath, TArray<FSoftObjectPath, TInlineAllocator<1>>> ObjectPathRedirectionReverseMap;
+
 	/** For ObjectPathRedirectionMap map */
 	mutable FCriticalSection CriticalSection;
 
@@ -190,6 +200,8 @@ private:
 		Enabled,
 	};
 	ETrackingReferenceTypesState TrackingReferenceTypesState;
+
+	friend class FRedirectCollectorReverseLookupTest;
 };
 
 // global redirect collector callback structure
