@@ -187,8 +187,18 @@ AsyncInt TextureExporter::ExportRawAsUAsset(RawBufferPtr RawObj,const FExportMap
 		FAssetRegistryModule::AssetCreated(NewTexture);
 		Package->FullyLoad();
 		FTextureCompilingManager::Get().FinishCompilation({NewTexture});
-		bool success = UEditorLoadingAndSavingUtils::SavePackages({ Package }, false);
-		Promise.set_value(success);
+		
+		bool Success = true;
+		if (Setting.bSave)
+		{
+			Success = UEditorLoadingAndSavingUtils::SavePackages({ Package }, false);
+		}
+		else
+		{
+			Package->SetDirtyFlag(true);
+		}
+
+		Promise.set_value(Success);
 #else
 		Promise.set_value(-1);
 #endif

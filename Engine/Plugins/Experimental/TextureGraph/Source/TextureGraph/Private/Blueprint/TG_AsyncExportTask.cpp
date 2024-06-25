@@ -14,10 +14,12 @@ UTG_AsyncExportTask::UTG_AsyncExportTask(const FObjectInitializer& ObjectInitial
 	
 }
 
-UTG_AsyncExportTask* UTG_AsyncExportTask::TG_AsyncExportTask( UTextureGraph* InTextureGraph, const bool OverwriteTextures)
+UTG_AsyncExportTask* UTG_AsyncExportTask::TG_AsyncExportTask( UTextureGraph* InTextureGraph, const bool OverwriteTextures, const bool bSave)
 {
 	UTG_AsyncExportTask* Task = NewObject<UTG_AsyncExportTask>();
 	Task->OverwriteTextures = OverwriteTextures;
+	Task->bSave = bSave;
+
 	if (InTextureGraph != nullptr)
 	{
 		Task->OrignalTextureGraphPtr = InTextureGraph;
@@ -44,7 +46,7 @@ void UTG_AsyncExportTask::Activate()
 	TargetExportSettings = FExportSettings();
 	TargetExportSettings.OnDone.BindUFunction(this, "OnExportDone");
 
-	FTG_HelperFunctions::ExportAsync(TextureGraphPtr, "", "", TargetExportSettings, false, OverwriteTextures, true)
+	FTG_HelperFunctions::ExportAsync(TextureGraphPtr, "", "", TargetExportSettings, false, OverwriteTextures, true,bSave)
 		.then([this](bool)
 		{
 			OnExportDone();
