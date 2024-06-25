@@ -37,12 +37,15 @@ namespace Chaos::Softs
 			bool InbUseSOR = true,
 			FSolverReal InOmegaSOR = (FSolverReal)1.6,
 			bool InbUseGSNeohookean = false,
-			bool InbDoSelfCollision = false,
-			bool InbDoInComponentSelfCollision = false,
+			bool InbDoSpringCollision = false,
+			bool InbDoInComponentSpringCollision = false,
 			int32 InNRingExcluded = 1,
-			FSolverReal InCollisionSearchRadius = (FSolverReal)0,
-			FSolverReal InCollisionSpringStiffness = (FSolverReal)500.,
+			FSolverReal InSpringCollisionSearchRadius = (FSolverReal)0,
+			FSolverReal InSpringCollisionStiffness = (FSolverReal)500.,
 			bool InbAllowSliding = true,
+			bool InbDoSphereRepulsion = false,
+			FSolverReal InSphereRepulsionRadius = (FSolverReal)0,
+			FSolverReal InSphereRepulsionStiffness = (FSolverReal)500.,
 			bool InbDoMuscleActivation = false,
 			bool InbCollideWithFullMesh = false, 
 			bool InbEnableDynamicSprings = true)
@@ -67,12 +70,15 @@ namespace Chaos::Softs
 			, bUseSOR(InbUseSOR)
 			, OmegaSOR(InOmegaSOR)
 			, bUseGSNeohookean(InbUseGSNeohookean)
-			, bDoSelfCollision(InbDoSelfCollision)
-			, bDoInComponentSelfCollision(InbDoInComponentSelfCollision)
+			, bDoSpringCollision(InbDoSpringCollision)
+			, bDoInComponentSpringCollision(InbDoInComponentSpringCollision)
 			, NRingExcluded(InNRingExcluded)
-			, CollisionSearchRadius(InCollisionSearchRadius)
-			, CollisionSpringStiffness(InCollisionSpringStiffness)
+			, SpringCollisionSearchRadius(InSpringCollisionSearchRadius)
+			, SpringCollisionStiffness(InSpringCollisionStiffness)
 			, bAllowSliding(InbAllowSliding)
+			, bDoSphereRepulsion(InbDoSphereRepulsion)
+			, SphereRepulsionRadius(InSphereRepulsionRadius)
+			, SphereRepulsionStiffness(InSphereRepulsionStiffness)
 			, bDoMuscleActivation(InbDoMuscleActivation)
 			, bCollideWithFullMesh(InbCollideWithFullMesh)
 			, bEnableDynamicSprings(InbEnableDynamicSprings)
@@ -99,12 +105,15 @@ namespace Chaos::Softs
 		bool bUseSOR = true;
 		FSolverReal OmegaSOR = (FSolverReal)1.6;
 		bool bUseGSNeohookean = false;
-		bool bDoSelfCollision = false;
-		bool bDoInComponentSelfCollision = false;
+		bool bDoSpringCollision = false;
+		bool bDoInComponentSpringCollision = false;
 		int32 NRingExcluded = 1;
-		FSolverReal CollisionSearchRadius = (FSolverReal)0;
-		FSolverReal CollisionSpringStiffness = (FSolverReal)500.;
+		FSolverReal SpringCollisionSearchRadius = (FSolverReal)0;
+		FSolverReal SpringCollisionStiffness = (FSolverReal)500.;
 		bool bAllowSliding = true;
+		bool bDoSphereRepulsion = false;
+		FSolverReal SphereRepulsionRadius = (FSolverReal)0;
+		FSolverReal SphereRepulsionStiffness = (FSolverReal)500.;
 		bool bDoMuscleActivation = false;
 		bool bCollideWithFullMesh = false;
 		bool bEnableDynamicSprings = true; 

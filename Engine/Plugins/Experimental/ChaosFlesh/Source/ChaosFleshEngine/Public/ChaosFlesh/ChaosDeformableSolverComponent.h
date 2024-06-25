@@ -96,44 +96,76 @@ struct FSolverGridBasedCollisionsGroup
 };
 
 USTRUCT(BlueprintType)
-struct FCollisionSpringGroup
+struct FInComponentSpringCollisionGroup
 {
 	GENERATED_USTRUCT_BODY()
 	/**
-	* If uses spring self-collision
+	* If uses in-component spring self-collision
 	*/
-	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
-	bool bDoSelfCollision = false;
+	UPROPERTY(EditAnywhere, Category = "InComponentSpringCollision")
+	bool bDoInComponentSpringCollision = false;
 	/**
-	* If uses in-component self-collision
+	* N ring to exclude for in-component spring self-collision
 	*/
-	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
-	bool bDoInComponentSelfCollision = false;
-	/**
-	* N ring to exclude for in-component self-collision 
-	*/
-	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
+	UPROPERTY(EditAnywhere, Category = "InComponentSpringCollision")
 	int32 NRingExcluded = 1;
+};
+
+USTRUCT(BlueprintType)
+struct FSpringCollisionGroup
+{
+	GENERATED_USTRUCT_BODY()
 	/**
-	* Search radius for point triangle pairs
+	* If uses component-component spring collision
 	*/
-	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
+	UPROPERTY(EditAnywhere, Category = "SpringCollision")
+	bool bDoSpringCollision = false;
+	/**
+	* In-component spring self collision detection parameters
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpringCollision")
+	FInComponentSpringCollisionGroup InComponentSpringCollision;
+	/**
+	* Search radius for point triangle collision pairs
+	*/
+	UPROPERTY(EditAnywhere, Category = "SpringCollision")
 	float CollisionSearchRadius = 0.f;
 	/**
 	* Collision spring stiffness; larger value will stop penetration better
 	*/
-	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
-	float CollisionSpringStiffness = 500.f;
+	UPROPERTY(EditAnywhere, Category = "SpringCollision")
+	float SpringCollisionStiffness = 500.f;
 	/**
 	* Anisotropic springs will allow sliding on the triangle
 	*/
-	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
+	UPROPERTY(EditAnywhere, Category = "SpringCollision")
 	bool bAllowSliding = true;
 	/**
 	* Do self collision with kinematic triangles as well
 	*/
-	UPROPERTY(EditAnywhere, Category = "CollisionSpring")
+	UPROPERTY(EditAnywhere, Category = "SpringCollision")
 	bool bCollideWithFullmesh = true;
+};
+
+USTRUCT(BlueprintType)
+struct FSphereRepulsionGroup
+{
+	GENERATED_USTRUCT_BODY()
+	/**
+	* If uses sphere repulsion for collision
+	*/
+	UPROPERTY(EditAnywhere, Category = "SphereRepulsion")
+	bool bDoSphereRepulsion = false;
+	/**
+	* Search radius for repulsion pairs
+	*/
+	UPROPERTY(EditAnywhere, Category = "SphereRepulsion")
+	float SphereRepulsionRadius = 0.f;
+	/**
+	* Stiffness for sphere repulsion
+	*/
+	UPROPERTY(EditAnywhere, Category = "SphereRepulsion")
+	float SphereRepulsionStiffness = 500.f;
 };
 
 USTRUCT(BlueprintType)
@@ -170,12 +202,18 @@ struct FSolverGaussSeidelConstraintsGroup
 	*/
 	UPROPERTY(EditAnywhere, Category = "GaussSeidelConstraints")
 	bool bEnableDynamicSprings = true;
-
+	
 	/**
-	* Collsion detection radius and stiffness
+	* Component-component collision detection radius and stiffness
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GaussSeidelConstraints")
-	FCollisionSpringGroup CollisionSpring;
+	FSpringCollisionGroup SpringCollision;
+
+	/**
+	* Sphere repulsion parameters
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GaussSeidelConstraints")
+	FSphereRepulsionGroup SphereRepulsion;
 };
 
 USTRUCT(BlueprintType)

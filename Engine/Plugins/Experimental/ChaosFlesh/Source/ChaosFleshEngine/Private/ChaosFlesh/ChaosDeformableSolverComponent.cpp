@@ -236,14 +236,17 @@ void UDeformableSolverComponent::BuildSimulationProxy()
 			, SolverConstraints.GaussSeidelConstraints.bUseSOR
 			, SolverConstraints.GaussSeidelConstraints.OmegaSOR
 			, SolverConstraints.GaussSeidelConstraints.bUseGSNeohookean
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bDoSelfCollision
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bDoInComponentSelfCollision
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.NRingExcluded
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.CollisionSearchRadius
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.CollisionSpringStiffness
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bAllowSliding
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bDoSpringCollision
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.InComponentSpringCollision.bDoInComponentSpringCollision
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.InComponentSpringCollision.NRingExcluded
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.CollisionSearchRadius
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.SpringCollisionStiffness
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bAllowSliding
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.bDoSphereRepulsion
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.SphereRepulsionRadius
+			, SolverConstraints.GaussSeidelConstraints.SphereRepulsion.SphereRepulsionStiffness
 			, SolverMuscleActivation.bDoMuscleActivation
-			, SolverConstraints.GaussSeidelConstraints.CollisionSpring.bCollideWithFullmesh
+			, SolverConstraints.GaussSeidelConstraints.SpringCollision.bCollideWithFullmesh
 			, SolverConstraints.GaussSeidelConstraints.bEnableDynamicSprings
 		));
 
