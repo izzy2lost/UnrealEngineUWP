@@ -9,6 +9,7 @@
 #include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectIterator.h"
+#include "UObject/ObjectVisibility.h"
 #include "Templates/Casts.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/PackageName.h"
@@ -1188,11 +1189,7 @@ void GetObjectsWithOuter(const class UObjectBase* Outer, TArray<UObject *>& Resu
 #endif
 
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	int32 StartNum = Results.Num();
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
@@ -1256,11 +1253,7 @@ void ForEachObjectWithOuterBreakable(const class UObjectBase* Outer, TFunctionRe
 #endif
 
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 	FHashTableLock HashLock(ThreadHash);
@@ -1305,11 +1298,7 @@ UObjectBase* FindObjectWithOuter(const class UObjectBase* Outer, const class UCl
 	UObject* Result = nullptr;
 	check( Outer );
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	EInternalObjectFlags ExclusionInternalFlags = EInternalObjectFlags::Unreachable;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags = EInternalObjectFlags::AsyncLoading;
-	}
+	EInternalObjectFlags ExclusionInternalFlags = EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	if( NameToLookFor != NAME_None )
 	{
@@ -1359,11 +1348,7 @@ void ForEachObjectWithPackage(const class UPackage* Package, TFunctionRef<bool(U
 	check(Package != nullptr);
 
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 	FHashTableLock HashLock(ThreadHash);
@@ -1470,11 +1455,7 @@ FORCEINLINE void ForEachObjectOfClasses_Implementation(FUObjectHashTables& Threa
 	TRACE_CPUPROFILER_EVENT_SCOPE(ForEachObjectOfClasses_Implementation);
 
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionInternalFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
 
 	TBucketMapLock ClassToObjectListMapLock(ThreadHash.ClassToObjectListMap);
 
@@ -1576,7 +1557,7 @@ bool ClassHasInstancesAsyncLoading(const UClass* ClassToLookFor)
 				UObject *Object = static_cast<UObject*>(*ObjectIt);
 				// If the object is async loading we'll want to indicate as such to the caller,
 				// excepting two cases - garbage objects and the CDO:
-				if (Object->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading) 
+				if (Object->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading) 
 					// garbage objects won't require that the class be kept alive:
 					&& !Object->HasAnyInternalFlags(EInternalObjectFlags::Garbage) 
 					// CDO is required and owned by the class - also doesn't need to keep the class alive:

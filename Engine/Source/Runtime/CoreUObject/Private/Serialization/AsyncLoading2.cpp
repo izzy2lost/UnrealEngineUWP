@@ -2733,12 +2733,23 @@ struct FAsyncPackage2
 			// Mark objects created during async loading process (e.g. from within PostLoad or CreateExport) as async loaded so they 
 			// cannot be found. This requires also keeping track of them so we can remove the async loading flag later one when we 
 			// finished routing PostLoad to all objects.
-			Object->SetInternalFlags(EInternalObjectFlags::AsyncLoading);
+			// 
+			// Once we pass the publish gate, we mark new objects in phase 2, they are generally preloaded as soon
+			// as they are created. However, it leaves a small window where GT could find a RF_NeedLoad object from phase 2...
+			if (ObjectsNowInPhase2)
+			{
+				Object->SetInternalFlags(EInternalObjectFlags::AsyncLoadingPhase2 | EInternalObjectFlags::Async);
+			}
+			else
+			{
+				Object->SetInternalFlags(EInternalObjectFlags::AsyncLoadingPhase1 | EInternalObjectFlags::Async);
+			}
 
 			ConstructedObjects.Add(Object);
 		}
 	}
 
+	void MoveConstructedObjectsToPhase2();
 	void ClearConstructedObjects();
 
 	/** Class specific callback for initializing non-native objects */
@@ -2815,6 +2826,8 @@ private:
 	int32						PostLoadInstanceIndex = 0;
 	/** Current loading state of a package. */
 	std::atomic<EAsyncPackageLoadingState2> AsyncPackageLoadingState { EAsyncPackageLoadingState2::NewPackage };
+	/** Whether the constructed objects have been moved to the second loading phase. */
+	std::atomic<bool> ObjectsNowInPhase2 = false;
 
 	struct FAllDependenciesState
 	{
@@ -4091,6 +4104,14 @@ void FAsyncLoadingThread2::ConditionalBeginDeferredPostLoad(FAsyncLoadingThreadS
 	check(ThreadState.bCanAccessAsyncLoadingThreadData);
 	if (DeferredPostLoadGroup->PackagesWithExportsToPostLoadCount == 0)
 	{
+		// Move everything to the second phase so that StaticFind from inside postload can
+		// see objects ready for postload.
+		for (int32 Index = DeferredPostLoadGroup->Packages.Num() - 1; Index >= 0; --Index)
+		{
+			FAsyncPackage2* Package = DeferredPostLoadGroup->Packages[Index];
+			Package->MoveConstructedObjectsToPhase2();
+		}
+
 		// Release the post load node of packages in the post load group in reverse order that they were added to the group
 		// This usually means that dependencies will be post load first, similarly to how they are also serialized first
 		for (int32 Index = DeferredPostLoadGroup->Packages.Num() - 1; Index >= 0; --Index)
@@ -4295,6 +4316,9 @@ bool FAsyncLoadingThread2::CreateAsyncPackagesFromQueue(FAsyncLoadingThreadState
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CreateAsyncPackagesFromQueue);
 	
+	// Package creation needs access to all objects
+	TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::None);
+
 	bool bPackagesCreated = false;
 	const int32 TimeSliceGranularity = ThreadState.UseTimeLimit() ? 4 : MAX_int32;
 
@@ -4711,6 +4735,9 @@ void FAsyncLoadEventQueue2::PushExternal(FEventLoadNode2* Node)
 
 bool FAsyncLoadEventQueue2::PopAndExecute(FAsyncLoadingThreadState2& ThreadState)
 {
+	// By default, nodes are all executed without visibility filter
+	TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::None);
+
 	if (TimedOutEventNode)
 	{
 		// Backup and reset the node before executing it in case we end up with a recursive flush call, we don't want the same node run multiple time.
@@ -4762,6 +4789,9 @@ bool FAsyncLoadEventQueue2::PopAndExecute(FAsyncLoadingThreadState2& ThreadState
 
 bool FAsyncLoadEventQueue2::ExecuteSyncLoadEvents(FAsyncLoadingThreadState2& ThreadState)
 {
+	// By default, nodes are all executed without visibility filter
+	TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::None);
+
 	check(!ThreadState.SyncLoadContextStack.IsEmpty());
 	FAsyncLoadingSyncLoadContext& SyncLoadContext = *ThreadState.SyncLoadContextStack.Top();
 
@@ -5946,6 +5976,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_CreateLinkerLoadExports(FAsy
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_CreateLinkerLoadExports);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
+
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
 	check(Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::CreateLinkerLoadExports);
 
 	FAsyncPackageScope2 Scope(Package);
@@ -5990,6 +6022,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_ResolveLinkerLoadImports(FAs
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_ResolveLinkerLoadImports);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
+
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
 	check(Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::ResolveLinkerLoadImports);
 
 	FAsyncPackageScope2 Scope(Package);
@@ -6014,6 +6048,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_PreloadLinkerLoadExports(FAs
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_PreloadLinkerLoadExports);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
+
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
 	check(Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::PreloadLinkerLoadExports);
 
 	FAsyncPackageScope2 Scope(Package);
@@ -6047,6 +6083,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_ProcessPackageSummary(FAsync
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_ProcessPackageSummary);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
+	
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
 	check(Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::WaitingForIo);
 	Package->AsyncPackageLoadingState = EAsyncPackageLoadingState2::ProcessPackageSummary;
 
@@ -6167,6 +6205,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_DependenciesReady(FAsyncLoad
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_DependenciesReady);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
+	
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
 	check(Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::WaitingForDependencies);
 
 	Package->AsyncPackageLoadingState = EAsyncPackageLoadingState2::DependenciesReady;
@@ -6234,6 +6274,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_ProcessExportBundle(FAsyncLo
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_ProcessExportBundle);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
+	
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
 	check(Package->AsyncPackageLoadingState >= EAsyncPackageLoadingState2::DependenciesReady);
 	Package->AsyncPackageLoadingState = EAsyncPackageLoadingState2::ProcessExportBundles;
 
@@ -6669,7 +6711,7 @@ void FAsyncPackage2::EventDrivenCreateExport(const FAsyncPackageHeaderData& Head
 	if (Object)
 	{
 		// If it has the AsyncLoading flag set it was created during the current load of this package (likely as a subobject)
-		if (!Object->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+		if (!Object->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 		{
 			ExportObject.bWasFoundInMemory = true;
 		}
@@ -6983,6 +7025,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_ExportsDone(FAsyncLoadingThr
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_ExportsDone);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
+
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
 #if ALT2_ENABLE_LINKERLOAD_SUPPORT
 	check(Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::ProcessExportBundles || 
 		  Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::WaitingForExternalReads ||
@@ -7276,6 +7320,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_PostLoadExportBundle(FAsyncL
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_PostLoad);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
+
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
 	check(Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::PostLoad);
 	check(Package->ExternalReadDependencies.Num() == 0);
 
@@ -7421,6 +7467,12 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_DeferredPostLoadExportBundle
 	TRACE_CPUPROFILER_EVENT_SCOPE(Event_DeferredPostLoad);
 	UE_ASYNC_PACKAGE_DEBUG(Package->Desc);
 	check(Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::DeferredPostLoad);
+
+	check(FUObjectThreadContext::Get().AsyncVisibilityFilter == EInternalObjectFlags::None);
+	// Prevent objects still being loaded from being visible from the game thread during postload.
+	// This avoids StaticFind, ObjectIterators or SoftObjectPtr from being able to resolve RF_NeedLoad objects along with other potential
+	// race condition during creation and serialization.
+	TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::AsyncLoadingPhase1);
 
 	FAsyncPackageScope2 PackageScope(Package);
 	TGuardValue<bool> GuardIsRoutingPostLoad(PackageScope.ThreadContext.IsRoutingPostLoad, true);
@@ -7646,6 +7698,9 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessAsyncLoadingFromGameThread
 
 	check(IsInGameThread());
 
+	// By default, game thread can only access objects in Phase 2. Further scoping is needed to access everything.
+	TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::AsyncLoadingPhase1);
+
 	FAsyncLoadingTickScope2 InAsyncLoadingTick(*this);
 	uint32 LoopIterations = 0;
 
@@ -7786,7 +7841,7 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 			if (Package->AsyncPackageLoadingState == EAsyncPackageLoadingState2::Finalize)
 			{
 				TArray<UObject*> CDODefaultSubobjects;
-				// Clear async loading flags (we still want RF_Async, but EInternalObjectFlags::AsyncLoading can be cleared)
+				// Clear async loading flags (we still want EInternalObjectFlags::Async, but EInternalObjectFlags::AsyncLoading can be cleared)
 				for (const FExportObject& Export : Package->Data.Exports)
 				{
 					if (Export.bFiltered || Export.bExportLoadFailed)
@@ -7805,9 +7860,9 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 						CDOToHandle->GetDefaultSubobjects(CDODefaultSubobjects);
 						for (UObject* SubObject : CDODefaultSubobjects)
 						{
-							if (SubObject && SubObject->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+							if (SubObject && SubObject->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 							{
-								SubObject->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading);
+								SubObject->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading);
 							}
 						}
 						CDODefaultSubobjects.Reset();
@@ -7997,9 +8052,11 @@ EAsyncPackageState::Type FAsyncLoadingThread2::TickAsyncLoadingFromGameThread(FA
 	//TRACE_INT_VALUE(GraphArcCount, GraphAllocator.TotalArcCount);
 	//TRACE_MEMORY_VALUE(GraphMemory, GraphAllocator.TotalAllocated);
 
-
 	check(IsInGameThread());
 	check(!IsGarbageCollecting());
+
+	// By default, game thread can only access objects in Phase 2. Further scoping is needed to access everything.
+	TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::AsyncLoadingPhase1);
 
 #if WITH_EDITOR
 	// In the editor loading cannot be part of a transaction as it cannot be undone, and may result in recording half-loaded objects. So we suppress any active transaction while in this stack, and set the editor loading flag
@@ -8441,7 +8498,7 @@ static void VerifyObjectLoadFlagsWhenFinishedLoading()
 	TRACE_CPUPROFILER_EVENT_SCOPE(VerifyObjectLoadFlagsWhenFinishedLoading);
 
 	const EInternalObjectFlags AsyncFlags =
-		EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading;
+		EInternalObjectFlags::Async | EInternalObjectFlags_AsyncLoading;
 
 	const EObjectFlags LoadIntermediateFlags = 
 		EObjectFlags::RF_NeedLoad | EObjectFlags::RF_WillBeLoaded |
@@ -8818,13 +8875,68 @@ void FAsyncPackage2::ClearImportedPackages()
 	}
 }
 
+void FAsyncPackage2::MoveConstructedObjectsToPhase2()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(MoveConstructedObjectsToPhase2);
+
+	for (UObject* Object : ConstructedObjects)
+	{
+		check(!Object->HasAnyFlags(RF_NeedLoad | RF_NeedInitialization));
+		Object->SetInternalFlags(EInternalObjectFlags::AsyncLoadingPhase2);
+		Object->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoadingPhase1);
+	}
+
+	TArray<UObject*> CDODefaultSubobjects;
+	for (FExportObject& Export : Data.Exports)
+	{
+		UObject* Object = Export.Object;
+
+		// CDO need special handling, no matter if it's listed in DeferredFinalizeObjects
+		UObject* CDOToHandle = ((Object != nullptr) && Object->HasAnyFlags(RF_ClassDefaultObject)) ? Object : nullptr;
+
+		if (CDOToHandle != nullptr)
+		{
+			CDOToHandle->GetDefaultSubobjects(CDODefaultSubobjects);
+			for (UObject* SubObject : CDODefaultSubobjects)
+			{
+				if (SubObject && SubObject->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoadingPhase1))
+				{
+					check(!SubObject->HasAnyFlags(RF_NeedLoad | RF_NeedInitialization));
+					SubObject->SetInternalFlags(EInternalObjectFlags::AsyncLoadingPhase2);
+					SubObject->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoadingPhase1);
+				}
+			}
+			CDODefaultSubobjects.Reset();
+		}
+
+		if (Object)
+		{
+			check(!Object->HasAnyFlags(RF_NeedLoad | RF_NeedInitialization));
+			if (Object->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoadingPhase1))
+			{
+				Object->SetInternalFlags(EInternalObjectFlags::AsyncLoadingPhase2);
+				Object->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoadingPhase1);
+			}
+		}
+	}
+
+	if (LinkerRoot && LinkerRoot->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoadingPhase1))
+	{
+		check(!LinkerRoot->HasAnyFlags(RF_NeedLoad | RF_NeedInitialization));
+		LinkerRoot->SetInternalFlags(EInternalObjectFlags::AsyncLoadingPhase2);
+		LinkerRoot->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoadingPhase1);
+	}
+
+	ObjectsNowInPhase2 = true;
+}
+
 void FAsyncPackage2::ClearConstructedObjects()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ClearConstructedObjects);
 
 	for (UObject* Object : ConstructedObjects)
 	{
-		Object->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading | EInternalObjectFlags::Async);
+		Object->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading | EInternalObjectFlags::Async);
 	}
 	ConstructedObjects.Empty();
 
@@ -8833,11 +8945,11 @@ void FAsyncPackage2::ClearConstructedObjects()
 		if (Export.bWasFoundInMemory)
 		{
 			check(Export.Object);
-			Export.Object->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading | EInternalObjectFlags::Async);
+			Export.Object->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading | EInternalObjectFlags::Async);
 		}
 		else
 		{
-			checkf(!Export.Object || !Export.Object->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading | EInternalObjectFlags::Async),
+			checkf(!Export.Object || !Export.Object->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading | EInternalObjectFlags::Async),
 				TEXT("Export object: %s (ObjectFlags=%x, InternalObjectFlags=%x)"),
 					*Export.Object->GetFullName(),
 					Export.Object->GetFlags(),
@@ -8847,7 +8959,7 @@ void FAsyncPackage2::ClearConstructedObjects()
 
 	if (LinkerRoot)
 	{
-		LinkerRoot->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading | EInternalObjectFlags::Async);
+		LinkerRoot->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading | EInternalObjectFlags::Async);
 	}
 }
 
@@ -9073,6 +9185,10 @@ void FAsyncPackage2::FinishUPackage()
 void FAsyncLoadingThread2::ConditionalProcessEditorCallbacks()
 {
 	check(IsInGameThread());
+	
+	// Prevent objects still being loaded from being accessible from the game thread.
+	TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::AsyncLoadingPhase1);
+
 	if (!GameThreadState->SyncLoadContextStack.IsEmpty())
 	{
 		return;
@@ -9326,6 +9442,9 @@ void FAsyncLoadingThread2::FlushLoading(TConstArrayView<int32> RequestIDs)
 {
 	if (IsAsyncLoadingPackages())
 	{
+		// Prevent objects still being loaded from being accessible from the game thread.
+		TGuardValue GuardVisibilityFilter(FUObjectThreadContext::Get().AsyncVisibilityFilter, EInternalObjectFlags::AsyncLoadingPhase1);
+
 		// We can't possibly support flushing from async loading thread unless we have the partial request support active.
 #if WITH_PARTIAL_REQUEST_DURING_RECURSION
 		const bool bIsFlushSupportedOnCurrentThread = IsInGameThread() || IsInAsyncLoadingThread();

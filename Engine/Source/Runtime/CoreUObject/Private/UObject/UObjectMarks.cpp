@@ -8,6 +8,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/GarbageCollectionGlobals.h"
+#include "UObject/ObjectVisibility.h"
 
 struct FObjectMark
 {
@@ -218,11 +219,8 @@ EObjectMark ObjectGetAllMarks(const class UObjectBase* Object)
 void GetObjectsWithAllMarks(TArray<UObject *>& Results, EObjectMark Marks)
 {
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	EInternalObjectFlags ExclusionFlags = EInternalObjectFlags::Unreachable;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	EInternalObjectFlags ExclusionFlags = EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
+
 	const TMap<const UObjectBase *, FObjectMark>& Map = FThreadMarkAnnotation::Get().MarkAnnotation.GetAnnotationMap();
 	Results.Empty(Map.Num());
 	for (TMap<const UObjectBase *, FObjectMark>::TConstIterator It(Map); It; ++It)
@@ -241,11 +239,8 @@ void GetObjectsWithAllMarks(TArray<UObject *>& Results, EObjectMark Marks)
 void GetObjectsWithAnyMarks(TArray<UObject *>& Results, EObjectMark Marks)
 {
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
-	EInternalObjectFlags ExclusionFlags = EInternalObjectFlags::Unreachable;
-	if (!IsInAsyncLoadingThread())
-	{
-		ExclusionFlags |= EInternalObjectFlags::AsyncLoading;
-	}
+	EInternalObjectFlags ExclusionFlags = EInternalObjectFlags::Unreachable | UE::GetAsyncLoadingInternalFlagsExclusion();
+
 	const TMap<const UObjectBase *, FObjectMark>& Map = FThreadMarkAnnotation::Get().MarkAnnotation.GetAnnotationMap();
 	Results.Empty(Map.Num());
 	for (TMap<const UObjectBase *, FObjectMark>::TConstIterator It(Map); It; ++It)

@@ -29,6 +29,7 @@
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectHashPrivate.h"
 #include "UObject/Object.h"
+#include "UObject/ObjectVisibility.h"
 #include "UObject/GarbageCollection.h"
 #include "UObject/Class.h"
 #include "UObject/CoreRedirects.h"
@@ -271,10 +272,11 @@ namespace
 	 * @param ObjectPackage Package of the object to find.
 	 * @param ObjectName Name of the object to find.
 	 * @param ExactClass If the class match has to be exact. I.e. ObjectClass == FoundObjects.GetClass()
+	 * @param ExclusiveInternalFlags Do not return objects that have any of these internal flags
 	 *
 	 * @returns Found object.
 	 */
-	UObject* StaticFindObjectWithChangedLegacyPath(UClass* ObjectClass, UObject* ObjectPackage, FName ObjectName, bool ExactClass)
+	UObject* StaticFindObjectWithChangedLegacyPath(UClass* ObjectClass, UObject* ObjectPackage, FName ObjectName, bool ExactClass, EInternalObjectFlags ExclusiveInternalFlags)
 	{
 		UObject* MatchingObject = nullptr;
 
@@ -304,16 +306,24 @@ namespace
 
 			MatchingObject = StaticFindObject(ObjectClass, ObjectPackage->GetOutermost(), *ObjectName.ToString(), ExactClass);
 
-			if (MatchingObject && bSubclassOfPathChangedClass)
+			if (MatchingObject)
 			{
-				// If the class wasn't given exactly, check if found object is of class that outers were changed.
-				UClass* MatchingObjectClass = MatchingObject->GetClass();
-				if (!(MatchingObjectClass == UEnum::StaticClass()	// Enums
-					|| MatchingObjectClass == UScriptStruct::StaticClass() || MatchingObjectClass == UStruct::StaticClass() // Structs
-					|| (MatchingObjectClass == UFunction::StaticClass() && bHasDelegateSignaturePostfix)) // Delegates
-					)
+				if (MatchingObject->HasAnyInternalFlags(ExclusiveInternalFlags))
 				{
 					return nullptr;
+				}
+
+				if (bSubclassOfPathChangedClass)
+				{
+					// If the class wasn't given exactly, check if found object is of class that outers were changed.
+					UClass* MatchingObjectClass = MatchingObject->GetClass();
+					if (!(MatchingObjectClass == UEnum::StaticClass()	// Enums
+						|| MatchingObjectClass == UScriptStruct::StaticClass() || MatchingObjectClass == UStruct::StaticClass() // Structs
+						|| (MatchingObjectClass == UFunction::StaticClass() && bHasDelegateSignaturePostfix)) // Delegates
+						)
+					{
+						return nullptr;
+					}
 				}
 			}
 		}
@@ -416,13 +426,13 @@ UObject* StaticFindObjectFast(UClass* ObjectClass, UObject* ObjectPackage, FName
 	UE_CLOG(IsGarbageCollectingAndLockingUObjectHashTables(), LogUObjectGlobals, Fatal, TEXT("Illegal call to StaticFindObjectFast() while garbage collecting!"));
 
 	// We don't want to return any objects that are currently being background loaded unless we're using FindObject during async loading.
-	ExclusiveInternalFlags |= IsInAsyncLoadingThread() ? EInternalObjectFlags::None : EInternalObjectFlags::AsyncLoading;	
+	ExclusiveInternalFlags |= UE::GetAsyncLoadingInternalFlagsExclusion();
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UObject* FoundObject = StaticFindObjectFastInternal(ObjectClass, ObjectPackage, ObjectName, bExactClass, bAnyPackage, ExclusiveFlags, ExclusiveInternalFlags);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	if (!FoundObject)
 	{
-		FoundObject = StaticFindObjectWithChangedLegacyPath(ObjectClass, ObjectPackage, ObjectName, bExactClass);
+		FoundObject = StaticFindObjectWithChangedLegacyPath(ObjectClass, ObjectPackage, ObjectName, bExactClass, ExclusiveInternalFlags);
 	}
 
 	return FoundObject;
@@ -437,12 +447,12 @@ UObject* StaticFindObjectFast(UClass* ObjectClass, UObject* ObjectPackage, FName
 	UE_CLOG(IsGarbageCollectingAndLockingUObjectHashTables(), LogUObjectGlobals, Fatal, TEXT("Illegal call to StaticFindObjectFast() while garbage collecting!"));
 
 	// We don't want to return any objects that are currently being background loaded unless we're using FindObject during async loading.
-	ExclusiveInternalFlags |= IsInAsyncLoadingThread() ? EInternalObjectFlags::None : EInternalObjectFlags::AsyncLoading;
+	ExclusiveInternalFlags |= UE::GetAsyncLoadingInternalFlagsExclusion();
 	UObject* FoundObject = StaticFindObjectFastInternal(ObjectClass, ObjectPackage, ObjectName, bExactClass, ExclusiveFlags, ExclusiveInternalFlags);
 
 	if (!FoundObject)
 	{
-		FoundObject = StaticFindObjectWithChangedLegacyPath(ObjectClass, ObjectPackage, ObjectName, bExactClass);
+		FoundObject = StaticFindObjectWithChangedLegacyPath(ObjectClass, ObjectPackage, ObjectName, bExactClass, ExclusiveInternalFlags);
 	}
 
 	return FoundObject;
@@ -455,13 +465,13 @@ UObject* StaticFindObjectFastSafe(UClass* ObjectClass, UObject* ObjectPackage, F
 	if (!UE::IsSavingPackage(nullptr) && !IsGarbageCollectingAndLockingUObjectHashTables())
 	{
 		// We don't want to return any objects that are currently being background loaded unless we're using FindObject during async loading.
-		ExclusiveInternalFlags |= IsInAsyncLoadingThread() ? EInternalObjectFlags::None : EInternalObjectFlags::AsyncLoading;
+		ExclusiveInternalFlags |= UE::GetAsyncLoadingInternalFlagsExclusion();
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FoundObject = StaticFindObjectFastInternal(ObjectClass, ObjectPackage, ObjectName, bExactClass, bAnyPackage, ExclusiveFlags, ExclusiveInternalFlags);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (!FoundObject)
 		{
-			FoundObject = StaticFindObjectWithChangedLegacyPath(ObjectClass, ObjectPackage, ObjectName, bExactClass);
+			FoundObject = StaticFindObjectWithChangedLegacyPath(ObjectClass, ObjectPackage, ObjectName, bExactClass, ExclusiveInternalFlags);
 		}
 	}
 
@@ -475,11 +485,11 @@ UObject* StaticFindObjectFastSafe(UClass* ObjectClass, UObject* ObjectPackage, F
 	if (!UE::IsSavingPackage(nullptr) && !IsGarbageCollectingAndLockingUObjectHashTables())
 	{
 		// We don't want to return any objects that are currently being background loaded unless we're using FindObject during async loading.
-		ExclusiveInternalFlags |= IsInAsyncLoadingThread() ? EInternalObjectFlags::None : EInternalObjectFlags::AsyncLoading;
+		ExclusiveInternalFlags |= UE::GetAsyncLoadingInternalFlagsExclusion();;
 		FoundObject = StaticFindObjectFastInternal(ObjectClass, ObjectPackage, ObjectName, bExactClass, ExclusiveFlags, ExclusiveInternalFlags);
 		if (!FoundObject)
 		{
-			FoundObject = StaticFindObjectWithChangedLegacyPath(ObjectClass, ObjectPackage, ObjectName, bExactClass);
+			FoundObject = StaticFindObjectWithChangedLegacyPath(ObjectClass, ObjectPackage, ObjectName, bExactClass, ExclusiveInternalFlags);
 		}
 	}
 
@@ -651,7 +661,7 @@ bool StaticFindAllObjectsFast(TArray<UObject*>& OutFoundObjects, UClass* ObjectC
 	UE_CLOG(UE::IsSavingPackage(nullptr) || IsGarbageCollectingAndLockingUObjectHashTables(), LogUObjectGlobals, Fatal, TEXT("Illegal call to StaticFindAllObjectsFast() while serializing object data or garbage collecting!"));
 
 	// We don't want to return any objects that are currently being background loaded unless we're using FindObject during async loading.
-	ExclusiveInternalFlags |= IsInAsyncLoadingThread() ? EInternalObjectFlags::None : EInternalObjectFlags::AsyncLoading;
+	ExclusiveInternalFlags |= UE::GetAsyncLoadingInternalFlagsExclusion();
 	return StaticFindAllObjectsFastInternal(OutFoundObjects, ObjectClass, ObjectName, ExactClass, ExclusiveFlags, ExclusiveInternalFlags);
 }
 
@@ -661,7 +671,7 @@ bool StaticFindAllObjectsFastSafe(TArray<UObject*>& OutFoundObjects, UClass* Obj
 	if (!UE::IsSavingPackage(nullptr) && !IsGarbageCollectingAndLockingUObjectHashTables())
 	{
 		// We don't want to return any objects that are currently being background loaded unless we're using FindObject during async loading.
-		ExclusiveInternalFlags |= IsInAsyncLoadingThread() ? EInternalObjectFlags::None : EInternalObjectFlags::AsyncLoading;
+		ExclusiveInternalFlags |= UE::GetAsyncLoadingInternalFlagsExclusion();
 		bFoundObjects = StaticFindAllObjectsFastInternal(OutFoundObjects, ObjectClass, ObjectName, ExactClass, ExclusiveFlags, ExclusiveInternalFlags);
 	}
 	return bFoundObjects;
@@ -3038,9 +3048,9 @@ UObject* StaticDuplicateObjectEx( FObjectDuplicationParameters& Parameters )
 		*Parameters.SourceObject->GetClass()->GetName(), Parameters.SourceObject->GetClass()->GetPropertiesSize(),
 		*Parameters.DestClass->GetName(), Parameters.DestClass->GetPropertiesSize());
 	
-	UE_CLOG(FPlatformProperties::RequiresCookedData() && Parameters.SourceObject->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading), LogUObjectGlobals, Warning, TEXT("Duplicating object '%s' that's still being async loaded"), *Parameters.SourceObject->GetFullName());
+	UE_CLOG(FPlatformProperties::RequiresCookedData() && Parameters.SourceObject->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading), LogUObjectGlobals, Warning, TEXT("Duplicating object '%s' that's still being async loaded"), *Parameters.SourceObject->GetFullName());
 	// Make sure we're not duplicating the AsyncLoading, Async or LoaderImport internal flags, they will prevent the object from being gcd.
-	Parameters.InternalFlagMask &= ~(EInternalObjectFlags::Async | EInternalObjectFlags::LoaderImport | EInternalObjectFlags::AsyncLoading);
+	Parameters.InternalFlagMask &= ~(EInternalObjectFlags::Async | EInternalObjectFlags::LoaderImport | EInternalObjectFlags_AsyncLoading);
 
 	if (!IsAsyncLoading() && Parameters.SourceObject->HasAnyFlags(RF_ClassDefaultObject))
 	{
@@ -3255,7 +3265,7 @@ UObject* StaticDuplicateObjectEx( FObjectDuplicationParameters& Parameters )
 
 bool SaveToTransactionBuffer(UObject* Object, bool bMarkDirty)
 {
-	check(!Object->HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading));
+	check(!Object->HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags_AsyncLoading));
 	bool bSavedToTransactionBuffer = false;
 
 	// Script packages should not end up in the transaction buffer.
@@ -3660,7 +3670,7 @@ UObject* StaticAllocateObject
 		// Sanity checks for async flags.
 		// It's possible to duplicate an object on the game thread that is still being referenced 
 		// by async loading code or has been created on a different thread than the main thread.
-		Obj->ClearInternalFlags(EInternalObjectFlags::AsyncLoading);
+		Obj->ClearInternalFlags(EInternalObjectFlags_AsyncLoading);
 		if (Obj->HasAnyInternalFlags(EInternalObjectFlags::Async) && IsInGameThread())
 		{
 			Obj->ClearInternalFlags(EInternalObjectFlags::Async);
@@ -4543,7 +4553,7 @@ UObject* StaticConstructObject_Internal(const FStaticConstructObjectParameters& 
 	
 	if (GIsEditor && 
 		// Do not consider object creation in transaction if the object is marked as async or in being async loaded 
-		!Result->HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading) &&
+		!Result->HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags_AsyncLoading) &&
 		// Read GUndo only if not having Async flags set to avoid making TSAN unhappy that we're trying to read an unsynchronized global
 		GUndo &&
 		(InFlags & RF_Transactional) && !(InFlags & RF_NeedLoad) && 

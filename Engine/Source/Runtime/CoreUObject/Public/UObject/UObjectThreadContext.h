@@ -22,6 +22,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/PropertyPathName.h"
+#include "UObject/ObjectMacros.h"
 
 class FLinkerLoad;
 class FName;
@@ -99,6 +100,8 @@ public:
 	void* AsyncPackage;
 	/** Async package loader currently processing objects */
 	IAsyncPackageLoader* AsyncPackageLoader;
+	/** Async loading visibility filter */
+	EInternalObjectFlags AsyncVisibilityFilter = EInternalObjectFlags::None;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/** Stack to ensure that PostInitProperties is routed through Super:: calls. **/
