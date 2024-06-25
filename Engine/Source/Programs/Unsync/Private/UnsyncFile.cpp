@@ -144,7 +144,7 @@ ConvertDirectorySeparatorsToNative(std::string& Path)
 		Path.begin(),
 		Path.end(),
 		[](char C) { return C == '/' || C == '\\'; },
-		char(FPath::preferred_separator));
+		PATH_SEPARATOR);
 }
 
 void
