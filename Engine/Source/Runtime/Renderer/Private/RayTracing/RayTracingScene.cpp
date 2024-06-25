@@ -284,36 +284,8 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 						TransformUploadData);
 				});
 
-			FBuildInstanceBufferPassParams* PassParams = GraphBuilder.AllocParameters<FBuildInstanceBufferPassParams>();
-			PassParams->InstanceBuffer = GraphBuilder.CreateUAV(Layer.InstanceBuffer);
-			PassParams->DebugInstanceGPUSceneIndexBuffer = DebugInstanceGPUSceneIndexBufferUAV;
-			PassParams->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-
-#if STATS
-			PassParams->OutputStats = OutputStatsBufferUAV;
-#endif
-
-			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("RayTracingBuildInstanceBuffer"),
-				PassParams,
-				ComputePassFlags,
-				[PassParams,
-				this,
-				&Layer,
-				GPUScene,
-				&SceneInitializer,
-				NumNativeGPUSceneInstances = Layer.InitializationData.NumNativeGPUSceneInstances,
-				NumNativeCPUInstances = Layer.InitializationData.NumNativeCPUInstances,
-				CullingParameters = View.RayTracingCullingParameters
-				](FRHICommandList& RHICmdList)
+			GraphBuilder.AddCommandListSetupTask([&Layer, &SceneInitializer](FRHICommandList& RHICmdList)
 				{
-					RHICmdList.UnlockBuffer(Layer.InstanceUploadBuffer);
-
-					if (NumNativeCPUInstances > 0)
-					{
-						RHICmdList.UnlockBuffer(Layer.TransformUploadBuffer);
-					}
-
 					for (uint32 GPUIndex : RHICmdList.GetGPUMask())
 					{
 						FRayTracingAccelerationStructureAddress* AddressesPtr = (FRayTracingAccelerationStructureAddress*)RHICmdList.LockBufferMGPU(
@@ -333,6 +305,36 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 							});
 
 						RHICmdList.UnlockBufferMGPU(Layer.AccelerationStructureAddressesBuffer.Buffer, GPUIndex);
+					}
+				});
+
+			FBuildInstanceBufferPassParams* PassParams = GraphBuilder.AllocParameters<FBuildInstanceBufferPassParams>();
+			PassParams->InstanceBuffer = GraphBuilder.CreateUAV(Layer.InstanceBuffer);
+			PassParams->DebugInstanceGPUSceneIndexBuffer = DebugInstanceGPUSceneIndexBufferUAV;
+			PassParams->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+
+#if STATS
+			PassParams->OutputStats = OutputStatsBufferUAV;
+#endif
+
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("RayTracingBuildInstanceBuffer"),
+				PassParams,
+				ComputePassFlags,
+				[PassParams,
+				this,
+				&Layer,
+				GPUScene,
+				NumNativeGPUSceneInstances = Layer.InitializationData.NumNativeGPUSceneInstances,
+				NumNativeCPUInstances = Layer.InitializationData.NumNativeCPUInstances,
+				CullingParameters = View.RayTracingCullingParameters
+				](FRHICommandList& RHICmdList)
+				{
+					RHICmdList.UnlockBuffer(Layer.InstanceUploadBuffer);
+
+					if (NumNativeCPUInstances > 0)
+					{
+						RHICmdList.UnlockBuffer(Layer.TransformUploadBuffer);
 					}
 
 					BuildRayTracingInstanceBuffer(
