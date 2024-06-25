@@ -9,6 +9,11 @@ namespace HordeServer.Plugins
 	/// </summary>
 	class PluginCollection : IPluginCollection
 	{
+		/// <summary>
+		/// Static empty plugin collection
+		/// </summary>
+		public static IPluginCollection Empty { get; } = new PluginCollection(new Dictionary<string, IPluginStartup>());
+
 		/// <inheritdoc/>
 		public IReadOnlyDictionary<string, IPluginStartup> EnabledPlugins { get; }
 

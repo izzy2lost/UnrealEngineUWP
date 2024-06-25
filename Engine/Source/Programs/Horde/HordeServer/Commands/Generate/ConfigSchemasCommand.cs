@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
@@ -21,11 +23,13 @@ namespace HordeServer.Commands.Generate
 		{
 			_outputDir ??= DirectoryReference.Combine(ServerApp.AppDir, "Schemas");
 
+			JsonSchemaCache schemaCache = new JsonSchemaCache(new PluginCollection(new Dictionary<string, IPluginStartup>()));
+
 			DirectoryReference.CreateDirectory(_outputDir);
 			foreach (Type schemaType in SchemaController.ConfigSchemas)
 			{
 				FileReference outputFile = FileReference.Combine(_outputDir, $"{schemaType.Name}.json");
-				Schemas.CreateSchema(schemaType).Write(outputFile);
+				schemaCache.CreateSchema(schemaType).Write(outputFile);
 			}
 
 			return Task.FromResult(0);

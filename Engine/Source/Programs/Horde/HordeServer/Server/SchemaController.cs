@@ -39,6 +39,16 @@ namespace HordeServer.Server
 		/// </summary>
 		public static Type[] ConfigSchemas { get; } = FindSchemaTypes();
 
+		readonly JsonSchemaCache _schemaCache;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public SchemaController(JsonSchemaCache schemaCache)
+		{
+			_schemaCache = schemaCache;
+		}
+
 		static Type[] FindSchemaTypes()
 		{
 			List<Type> schemaTypes = new List<Type>();
@@ -90,7 +100,7 @@ namespace HordeServer.Server
 			{
 				if (schemaType.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase))
 				{
-					JsonSchema schema = Schemas.CreateSchema(schemaType);
+					JsonSchema schema = _schemaCache.CreateSchema(schemaType);
 
 					using MemoryStream stream = new MemoryStream();
 					schema.Write(stream);

@@ -368,6 +368,7 @@ namespace HordeServer
 		public void ConfigureServices(IServiceCollection services)
 		{
 			services.AddSingleton<IServerInfo>(new ServerInfo());
+			services.AddSingleton<JsonSchemaCache>();
 
 			// Register the plugin collection
 			Dictionary<string, IPluginStartup> plugins = new Dictionary<string, IPluginStartup>();
