@@ -566,8 +566,8 @@ protected:
 	/** Starts temporary instances of global evaluators and tasks for a given frame. */
 	EStateTreeRunStatus StartTemporaryEvaluatorsAndGlobalTasks(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame);
 
-	/** Stops leftover global evaluators and tasks in the provided temporary instance data. */
-	void StopTemporaryEvaluatorsAndGlobalTasks(TArrayView<FStateTreeTemporaryInstanceData> TempInstances);
+	/** Stops temporary global evaluators and tasks for the provided frame. */
+	void StopTemporaryEvaluatorsAndGlobalTasks(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame);
 
 	/**
 	 * Ticks tasks of all active states starting from current state by delta time.

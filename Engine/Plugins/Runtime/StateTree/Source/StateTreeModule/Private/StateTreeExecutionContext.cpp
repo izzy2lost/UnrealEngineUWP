@@ -993,9 +993,6 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 		MakeArrayView(InstanceStructs.GetData() + NumCommonInstanceData, InstanceStructs.Num() - NumCommonInstanceData),
 		MakeArrayView(TempInstanceStructs.GetData() + NumCommonInstanceData, TempInstanceStructs.Num() - NumCommonInstanceData));
 
-	// Stop any temporary global tasks or evals that were left over.
-	StopTemporaryEvaluatorsAndGlobalTasks(TempInstances);
-	
 	InstanceData.ResetTemporaryInstances();
 }
 
@@ -2404,10 +2401,10 @@ EStateTreeRunStatus FStateTreeExecutionContext::StartTemporaryEvaluatorsAndGloba
 	return Result;
 }
 
-void FStateTreeExecutionContext::StopTemporaryEvaluatorsAndGlobalTasks(TArrayView<FStateTreeTemporaryInstanceData> TempInstances)
+void FStateTreeExecutionContext::StopTemporaryEvaluatorsAndGlobalTasks(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame)
 {
 	// @todo: figure out debugger phase for temporary stop.
-	STATETREE_CLOG(!TempInstances.IsEmpty(), Verbose, TEXT("Stop Temporary Evaluators & Global tasks left over from previous state selection"));
+	STATETREE_LOG(Verbose, TEXT("Stop Temporary Evaluators & Global tasks"));
 
 	// Create temporary transition to stop the unused global tasks and evaluators.
 	constexpr  EStateTreeRunStatus CompletionStatus = EStateTreeRunStatus::Stopped; 
@@ -2415,16 +2412,18 @@ void FStateTreeExecutionContext::StopTemporaryEvaluatorsAndGlobalTasks(TArrayVie
 	Transition.TargetState = FStateTreeStateHandle::FromCompletionStatus(CompletionStatus);
 	Transition.CurrentRunStatus = CompletionStatus;
 
+	TArrayView<FStateTreeTemporaryInstanceData> TempInstances = InstanceDataStorage->GetMutableTemporaryInstances();
 	for (int32 Index = TempInstances.Num() - 1; Index >= 0; Index--)
 	{
 		FStateTreeTemporaryInstanceData& TempInstance = TempInstances[Index];
+		if (TempInstance.StateTree != CurrentFrame.StateTree || TempInstance.RootState != CurrentFrame.RootState)
+		{
+			continue;
+		}
+
 		if (TempInstance.OwnerNodeIndex.IsValid()
 			&& TempInstance.Instance.IsValid())
 		{
-			FStateTreeExecutionFrame TempFrame;
-			TempFrame.StateTree = TempInstance.StateTree;
-			TempFrame.RootState = TempInstance.RootState;
-
 			FStateTreeDataView NodeInstanceView;
 			if (FStateTreeInstanceObjectWrapper* Wrapper = TempInstance.Instance.GetMutablePtr<FStateTreeInstanceObjectWrapper>())
 			{
@@ -2435,10 +2434,10 @@ void FStateTreeExecutionContext::StopTemporaryEvaluatorsAndGlobalTasks(TArrayVie
 				NodeInstanceView = FStateTreeDataView(TempInstance.Instance);
 			}
 			
-			FCurrentlyProcessedFrameScope FrameScope(*this, nullptr, TempFrame);
+			FCurrentlyProcessedFrameScope FrameScope(*this, CurrentParentFrame, CurrentFrame);
 			FNodeInstanceDataScope DataScope(*this, TempInstance.DataHandle, NodeInstanceView);
 
-			FConstStructView NodeView = TempFrame.StateTree->Nodes[TempInstance.OwnerNodeIndex.Get()];
+			FConstStructView NodeView = CurrentFrame.StateTree->Nodes[TempInstance.OwnerNodeIndex.Get()];
 			if (const FStateTreeTaskBase* Task = NodeView.GetPtr<const FStateTreeTaskBase>())
 			{
 				STATETREE_LOG(Verbose, TEXT("  Stop: '%s'"), *Task->Name.ToString());
@@ -3873,6 +3872,8 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				{
 					return Frame.StateTree == StateTree && Frame.RootState == RootState;
 				});
+
+			bool bStartedTemporaryEvaluatorsAndGlobalTasks = false;
 			if (ExistingFrame)
 			{
 				NewFrame.ActiveInstanceIndexBase = ExistingFrame->ActiveInstanceIndexBase;
@@ -3904,8 +3905,12 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				{
 					STATETREE_LOG(VeryVerbose, TEXT("%hs: Cannot select state '%s' because cannot start nested tree's '%s' global tasks and evaluators.  '%s' using StateTree '%s'."),
 						__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle), *GetFullNameSafe(NewFrame.StateTree), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
+					
+					StopTemporaryEvaluatorsAndGlobalTasks(nullptr, NewFrame);
 					return false;
 				}
+
+				bStartedTemporaryEvaluatorsAndGlobalTasks = true;
 			}
 				
 			OutSelectionResult.PushFrame(NewFrame);
@@ -3914,6 +3919,11 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 			if (SelectStateInternal(&CurrentFrame, OutSelectionResult.GetSelectedFrames().Last(), ExistingFrame, {NewFrame.RootState}, OutSelectionResult))
 			{
 				return true;
+			}
+
+			if (bStartedTemporaryEvaluatorsAndGlobalTasks)
+			{
+				StopTemporaryEvaluatorsAndGlobalTasks(nullptr, NewFrame);
 			}
 				
 			OutSelectionResult.PopFrame();
