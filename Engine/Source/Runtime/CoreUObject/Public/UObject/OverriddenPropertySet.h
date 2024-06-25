@@ -109,10 +109,7 @@ struct FOverriddenPropertyNodeID
 {
 	GENERATED_BODY()
 
-	FOverriddenPropertyNodeID(FName InPath = NAME_None)
-		: Path(InPath)
-		, Object(nullptr)
-	{}
+	FOverriddenPropertyNodeID(const FProperty* Property = nullptr);
 
 	FOverriddenPropertyNodeID(const UObject& InObject)
 		: Object(&InObject)
@@ -122,6 +119,9 @@ struct FOverriddenPropertyNodeID
 		const int32 ObjectIndex = GUObjectArray.ObjectToIndex(&InObject);
 		Path = *(FString::Printf(TEXT("%d%d"), ObjectIndex, GUObjectArray.AllocateSerialNumber(ObjectIndex)));
 	}
+
+	static FOverriddenPropertyNodeID RootNodeId();
+	static FOverriddenPropertyNodeID ForMapKey(const FProperty* KeyProperty, const void* KeyData);
 
 	bool operator==(const FOverriddenPropertyNodeID& Other) const
 	{
@@ -329,7 +329,7 @@ private:
 	UPROPERTY()
 	TSet<FOverriddenPropertyNode> OverriddenPropertyNodes;
 
-	static inline FOverriddenPropertyNodeID RootNodeID = FOverriddenPropertyNodeID(FName(TEXT("root")));
+	static inline FOverriddenPropertyNodeID RootNodeID = FOverriddenPropertyNodeID::RootNodeId();
 
 	/** Archetype is cache when it is or its archetype is about to be replaced **/
 	TObjectPtr<UObject> CachedArchetype = nullptr;
