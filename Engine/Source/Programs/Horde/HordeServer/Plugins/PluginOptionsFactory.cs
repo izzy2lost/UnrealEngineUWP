@@ -42,14 +42,7 @@ namespace HordeServer.Plugins
 
 		/// <inheritdoc/>
 		public T Create(string name)
-		{
-			T? config;
-			if (!_globalConfig.CurrentValue.Plugins.TryGetValue<T>(_pluginName, out config))
-			{
-				config = new T();
-			}
-			return config;
-		}
+			=> (T)_globalConfig.CurrentValue.Plugins[_pluginName];
 
 		/// <inheritdoc/>
 		public IChangeToken GetChangeToken()

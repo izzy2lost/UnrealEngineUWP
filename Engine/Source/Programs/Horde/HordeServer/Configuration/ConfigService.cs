@@ -112,6 +112,7 @@ namespace HordeServer.Configuration
 		readonly IRedisService _redisService;
 		readonly ServerSettings _serverSettings;
 		readonly Dictionary<string, IConfigSource> _sources;
+		readonly IPluginCollection _pluginCollection;
 		readonly JsonSerializerOptions _jsonOptions;
 		readonly RedisKey _snapshotKey = "config";
 		readonly IHealthMonitor _health;
@@ -142,6 +143,7 @@ namespace HordeServer.Configuration
 			_redisService = redisService;
 			_serverSettings = serverSettings.Value;
 			_sources = sources.ToDictionary(x => x.Scheme, x => x, StringComparer.OrdinalIgnoreCase);
+			_pluginCollection = pluginCollection;
 			_health = health;
 			_health.SetName("GlobalConfig");
 			_logger = logger;
@@ -743,6 +745,16 @@ namespace HordeServer.Configuration
 			// Build the new config and store the project and stream configs inside it
 			GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(snapshot.Data, _jsonOptions)!;
 			globalConfig.Revision = IoHash.Compute(data.Span).ToString();
+
+			// Ensure that all plugins have an entry in the global config so they can register their ACLs
+			foreach (ILoadedPlugin loadedPlugin in _pluginCollection.LoadedPlugins)
+			{
+				if (!globalConfig.Plugins.TryGetValue(loadedPlugin.Name, out _))
+				{
+					IPluginConfig pluginConfig = (IPluginConfig)Activator.CreateInstance(loadedPlugin.GlobalConfigType)!;
+					globalConfig.Plugins.Add(loadedPlugin.Name, pluginConfig);
+				}
+			}
 
 			// Run the postload callbacks on all the config objects
 			globalConfig.PostLoad(_serverSettings);
