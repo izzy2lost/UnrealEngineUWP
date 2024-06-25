@@ -1057,7 +1057,7 @@ void FIoStoreOnDemandModule::Mount(FOnDemandMountArgs&& Args, FOnDemandMountComp
 		{
 			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on-demand, reason '%s'"), *Status.ToString());
 			IoStore.Reset();
-			return OnCompleted(Args.MountId, TIoStatusOr<FOnDemandMountResult>(Status));
+			return OnCompleted(FOnDemandMountResult{ Args.MountId, Status });
 		}
 	}
 
@@ -1226,10 +1226,10 @@ void FIoStoreOnDemandModule::InitializeInternal()
 	{
 		IoStore->Mount(
 			MoveTemp(MountArgs.GetValue()),
-			[](FStringView MountId, TIoStatusOr<FOnDemandMountResult> MountResult)
+			[](FOnDemandMountResult MountResult)
 			{
-				UE_CLOG(!MountResult.IsOk(), LogIas, Error,
-					TEXT("Failed to mount TOC for '%.*s', reason '%s'"), MountId.Len(), MountId.GetData(), *MountResult.Status().ToString());
+				UE_CLOG(!MountResult.Status.IsOk(), LogIas, Error,
+					TEXT("Failed to mount TOC for '%s', reason '%s'"), *MountResult.MountId, *MountResult.Status.ToString());
 			});
 	}
 }

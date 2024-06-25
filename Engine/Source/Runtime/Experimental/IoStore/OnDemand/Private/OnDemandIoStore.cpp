@@ -498,7 +498,7 @@ void FOnDemandIoStore::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted 
 {
 	if (Args.MountId.IsEmpty())
 	{
-		return OnCompleted(FStringView(), FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid Mount ID")));
+		return OnCompleted(FOnDemandMountResult{ FString(), FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid Mount ID"))});
 	}
 
 	{
@@ -508,7 +508,7 @@ void FOnDemandIoStore::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted 
 		if (MountRequest.IsValid())
 		{
 			UE_LOG(LogIoStoreOnDemand, Warning, TEXT("Mount request '%s' is already mounting"), *Args.MountId);
-			return OnCompleted(Args.MountId, FIoStatus(EIoErrorCode::InvalidParameter));
+			return OnCompleted(FOnDemandMountResult{ Args.MountId, FIoStatus(EIoErrorCode::InvalidParameter) });
 		}
 
 		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Enqueing mount request, MountId='%s'"), *Args.MountId);
@@ -770,7 +770,7 @@ bool FOnDemandIoStore::Tick()
 				MountRequests.Remove(Request->MountArgs.MountId);
 			}
 			FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
-			OnCompleted(Request->MountArgs.MountId, Status);
+			OnCompleted(FOnDemandMountResult{ Request->MountArgs.MountId, Status });
 			continue;
 		}
 
@@ -823,7 +823,7 @@ bool FOnDemandIoStore::Tick()
 					MountRequests.Remove(Request->MountArgs.MountId);
 				}
 				FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
-				OnCompleted(Request->MountArgs.MountId, Status);
+				OnCompleted(FOnDemandMountResult{ Request->MountArgs.MountId, Status });
 				continue;
 			}
 		}
@@ -864,7 +864,7 @@ bool FOnDemandIoStore::Tick()
 			}
 
 			FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
-			OnCompleted(Request->MountArgs.MountId, FOnDemandMountResult());
+			OnCompleted(FOnDemandMountResult{ Request->MountArgs.MountId });
 		}
 	}
 

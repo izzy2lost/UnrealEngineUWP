@@ -270,9 +270,11 @@ struct FOnDemandMountArgs
 
 struct FOnDemandMountResult
 {
+	FString MountId;
+	FIoStatus Status;
 };
 
-using FOnDemandMountCompleted = TUniqueFunction<void(FStringView, TIoStatusOr<FOnDemandMountResult>)>;
+using FOnDemandMountCompleted = TUniqueFunction<void(FOnDemandMountResult)>;
 
 class FIoStoreOnDemandModule
 	: public IModuleInterface
