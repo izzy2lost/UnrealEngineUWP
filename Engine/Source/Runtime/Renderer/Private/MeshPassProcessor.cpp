@@ -1780,6 +1780,7 @@ public:
 		static FName BatchedPrimitiveSlotName = "BatchedPrimitive";
 		FRHIUniformBufferLayoutInitializer Initializer(TEXT("DynamicBatchedPrimitive"), 16u);
 		EnumAddFlags(Initializer.Flags, ERHIUniformBufferFlags::UniformView);
+		EnumAddFlags(Initializer.Flags, ERHIUniformBufferFlags::NoEmulatedUniformBuffer); // implicit for UniformView
 		Initializer.Resources.Add({0, UBMT_RDG_BUFFER_SRV});
 		Initializer.StaticSlot = FUniformBufferStaticSlotRegistry::Get().FindSlotByName(BatchedPrimitiveSlotName);
 		Initializer.BindingFlags = EUniformBufferBindingFlags::StaticAndShader;
