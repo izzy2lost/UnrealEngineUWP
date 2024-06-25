@@ -627,6 +627,14 @@
 			"interval": "00:30:00"
 		},
 		{
+			"id": "ubt-uba-cache-rate",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
+			"groupBy": "$.Payload.Build_BranchName,$.Payload.Target,$.Payload.Mode,$.Payload.Configuration,$.Payload.Platform",
+			"property": "$.Payload.CacheRate",
+			"function": "Average",
+			"interval": "00:30:00"
+		},
+		{
 			"id": "ubt-uba-remote-usage-all",
 			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
 			"groupBy": "$.Payload.Build_BranchName",
@@ -655,6 +663,14 @@
 			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
 			"groupBy": "$.Payload.Build_BranchName",
 			"property": "$.Payload.FailureRate",
+			"function": "Average",
+			"interval": "00:30:00"
+		},
+		{
+			"id": "ubt-uba-cache-rate-all",
+			"filter": "$[?(@.Payload.EventName == 'Core.UBT.Executor' && search(@.Payload.Executor, \"Unreal Build Accelerator\") )]",
+			"groupBy": "$.Payload.Build_BranchName",
+			"property": "$.Payload.CacheRate",
 			"function": "Average",
 			"interval": "00:30:00"
 		},

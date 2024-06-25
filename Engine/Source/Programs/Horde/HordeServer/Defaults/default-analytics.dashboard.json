@@ -570,6 +570,15 @@
 							]
 						},
 						{
+							"name": "Cache Rate All (Average)",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-cache-rate-all"
+								}
+							]
+						},
+						{
 							"name": "Actions All (Sum)",
 							"display": "Value",
 							"metrics": [
@@ -606,6 +615,15 @@
 							"metrics": [
 								{
 									"id": "ubt-uba-remote-usage"
+								}
+							]
+						},
+						{
+							"name": "CacheRate (Average)",
+							"display": "Ratio",
+							"metrics": [
+								{
+									"id": "ubt-uba-cache-rate"
 								}
 							]
 						},
