@@ -557,6 +557,44 @@ bool ContentBrowserUtils::TryGetFolderBrushAndShadowName(const FContentBrowserIt
 	return true;
 }
 
+bool ContentBrowserUtils::TryGetFolderBrushAndShadowNameSmall(const FContentBrowserItem& InFolder, FName& OutBrushName, FName& OutShadowBrushName)
+{
+	if (!InFolder.IsValid() || !InFolder.IsFolder())
+	{
+		return false;
+	}
+
+	OutShadowBrushName = TEXT("ContentBrowser.FolderItem.DropShadow");
+	const bool bDeveloperFolder = IsItemDeveloperContent(InFolder);
+	const bool bCodeFolder = EnumHasAnyFlags(InFolder.GetItemCategory(), EContentBrowserItemFlags::Category_Class);
+	const FContentBrowserItemDataAttributeValue VirtualAttributeValue = InFolder.GetItemAttribute(ContentBrowserItemAttributes::ItemIsCustomVirtualFolder);
+	const bool bVirtualFolder = VirtualAttributeValue.IsValid() && VirtualAttributeValue.GetValue<bool>();
+	const bool bPluginFolder = IsItemPluginRootFolder(InFolder);
+
+	if (bDeveloperFolder)
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosedDeveloper");
+	}
+	else if (bCodeFolder)
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosedCode");
+	}
+	else if (bVirtualFolder && ShouldShowCustomVirtualFolderIcon())
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosedVirtual");
+		OutShadowBrushName = TEXT("ContentBrowser.ListViewVirtualFolderShadow");
+	}
+	else if (bPluginFolder && ShouldShowPluginFolderIcon())
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosedPluginRoot");
+	}
+	else
+	{
+		OutBrushName = TEXT("ContentBrowser.AssetTreeFolderClosed");
+	}
+	return true;
+}
+
 bool ContentBrowserUtils::IsCollectionPath(const FString& InPath, FName* OutCollectionName, ECollectionShareType::Type* OutCollectionShareType)
 {
 	static const FString CollectionsRootPrefix = TEXT("/Collections");
