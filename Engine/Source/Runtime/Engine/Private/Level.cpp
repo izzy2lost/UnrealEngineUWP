@@ -4322,7 +4322,7 @@ void ULevel::DetachAttachAllActorsPackages(bool bReattach)
 					GetObjectsWithPackage(ActorExternalPackage, Objects, bIncludeNestedSubobjects, RF_NoFlags, EInternalObjectFlags::Garbage);
 					for (UObject* Object : Objects)
 					{
-						if (Object != Actor && Object->GetFName() != NAME_PackageMetaData)
+						if (!Cast<AActor>(Object) && Object->GetFName() != NAME_PackageMetaData)
 						{
 							// Move objects in the destination level package
 							Object->Rename(nullptr, LevelPackage);
