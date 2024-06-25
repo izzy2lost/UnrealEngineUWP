@@ -155,11 +155,10 @@ public class ControllerIntegrationTest : IAsyncDisposable
 		ConfigService configService = services.GetRequiredService<ConfigService>();
 		ITemplateCollection templateService = services.GetRequiredService<ITemplateCollection>();
 		JobService jobService = services.GetRequiredService<JobService>();
-		IArtifactCollectionV1 artifactCollection = services.GetRequiredService<IArtifactCollectionV1>();
 		AgentService agentService = services.GetRequiredService<AgentService>();
 		IGraphCollection graphCollection = services.GetRequiredService<IGraphCollection>();
 		IOptions<ServerSettings> serverSettings = services.GetRequiredService<IOptions<ServerSettings>>();
 
-		return await Fixture.CreateAsync(configService, graphCollection, templateService, jobService, artifactCollection, agentService, serverSettings.Value);
+		return await Fixture.CreateAsync(configService, graphCollection, templateService, jobService, agentService, serverSettings.Value);
 	}
 }

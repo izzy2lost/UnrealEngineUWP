@@ -224,7 +224,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<IAgentCollection, AgentCollection>();
 			services.AddSingleton<IAgentTelemetryCollection, AgentTelemetryCollection>();
 			services.AddSingleton<IArtifactCollection, ArtifactCollection>();
-			services.AddSingleton<IArtifactCollectionV1, ArtifactCollectionV1>();
 			services.AddSingleton<ICommitService, CommitService>();
 			services.AddSingleton<IGraphCollection, GraphCollection>();
 			services.AddSingleton<IIssueCollection, IssueCollection>();
@@ -281,7 +280,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<JobService>();
 			services.AddSingleton<JobExpirationService>();
 			services.AddSingleton<LifetimeService>();
-			services.AddSingleton<ILogStorage, NullLogStorage>();
 			services.AddSingleton<LogTailService>();
 			services.AddSingleton<INotificationService, NotificationService>();
 			services.AddSingleton<IPerforceService, PerforceServiceStub>();
@@ -303,8 +301,6 @@ namespace HordeServer.Tests
 
 			services.AddSingleton<FileObjectStoreFactory>();
 			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
-			services.AddSingleton<IObjectStore<PersistentLogStorage>>(sp => new MemoryObjectStore().ForType<PersistentLogStorage>());
-			services.AddSingleton<IObjectStore<ArtifactCollectionV1>>(sp => new MemoryObjectStore().ForType<ArtifactCollectionV1>());
 
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<StorageBackendCache>();
@@ -313,7 +309,7 @@ namespace HordeServer.Tests
 
 		public Task<Fixture> CreateFixtureAsync()
 		{
-			return Fixture.CreateAsync(ConfigService, GraphCollection, TemplateCollection, JobService, ArtifactCollection, AgentService, ServerSettings);
+			return Fixture.CreateAsync(ConfigService, GraphCollection, TemplateCollection, JobService, AgentService, ServerSettings);
 		}
 
 		private JobsController GetJobsController()

@@ -48,6 +48,7 @@ RUN dotnet restore Source/Programs/Horde/HordeServer/HordeServer.csproj -p:WithH
 COPY Binaries/DotNET/EpicGames.Perforce.Native/ Binaries/DotNET/EpicGames.Perforce.Native/
 COPY Source/Programs/Shared/ Source/Programs/Shared/
 COPY Source/Programs/Horde/.editorconfig Source/Programs/Horde/.editorconfig
+COPY Source/Programs/Horde/Plugins/ Source/Programs/Horde/Plugins/
 COPY Source/Programs/Horde/HordeServer/ Source/Programs/Horde/HordeServer/
 COPY Source/Programs/Horde/HordeServer.Shared/ Source/Programs/Horde/HordeServer.Shared/
 COPY Source/Programs/AutomationTool/AutomationUtils/Matchers/ Source/Programs/AutomationTool/AutomationUtils/Matchers/
