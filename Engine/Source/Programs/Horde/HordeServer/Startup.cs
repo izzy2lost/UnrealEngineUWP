@@ -948,7 +948,12 @@ namespace HordeServer
 			{
 				config.SchemaGeneratorOptions.SchemaFilters.Add(new SwaggerSchemaFilter());
 				config.SwaggerDoc("v1", new OpenApiInfo { Title = "Horde Server API", Version = "v1" });
-				config.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml"));
+
+				string xmlDocFile = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
+				if (File.Exists(xmlDocFile))
+				{
+					config.IncludeXmlComments(xmlDocFile);
+				}
 			});
 
 			services.Configure<ApiBehaviorOptions>(options =>
