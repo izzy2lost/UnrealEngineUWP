@@ -116,6 +116,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FCompactEventDesc::DoesEventMatchDesc(const FStateTreeEvent& Event) const
 {
+	if (Tag.IsValid() && (!Event.Tag.IsValid() || !Event.Tag.MatchesTag(Tag)))
+	{
+		return false;
+	}
+
 	const UScriptStruct* EventPayloadStruct = Event.Payload.GetScriptStruct();
-	return (!Tag.IsValid() || !Event.Tag.IsValid() || Event.Tag.MatchesTag(Tag)) && (EventPayloadStruct == nullptr || PayloadStruct == nullptr || EventPayloadStruct->IsChildOf(PayloadStruct));
+	if (PayloadStruct && (EventPayloadStruct == nullptr || !EventPayloadStruct->IsChildOf(PayloadStruct)))
+	{
+		return false;
+	}
+
+	return true;
 }
