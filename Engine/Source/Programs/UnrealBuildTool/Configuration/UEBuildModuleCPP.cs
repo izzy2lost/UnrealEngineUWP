@@ -1791,7 +1791,7 @@ namespace UnrealBuildTool
 
 						CompileEnvironment = new CppCompileEnvironment(CompileEnvironment);
 						CompileEnvironment.Definitions.Clear();
-						CompileEnvironment.ForceIncludeFiles.Add(PrivateDefinitionsFileItem);
+						CompileEnvironment.ForceIncludeFiles.Insert(0, PrivateDefinitionsFileItem);
 						CompileEnvironment.PrecompiledHeaderAction = PrecompiledHeaderAction.Include;
 						CompileEnvironment.PrecompiledHeaderIncludeFilename = Instance.HeaderFile.Location;
 						CompileEnvironment.PCHInstance = Instance;
@@ -1830,7 +1830,7 @@ namespace UnrealBuildTool
 					CompileEnvironment.Definitions.Clear();
 
 					FileItem PrivateDefinitionsFileItem = Graph.CreateIntermediateTextFile(PrivateDefinitionsFile, Writer.ToString());
-					CompileEnvironment.ForceIncludeFiles.Add(PrivateDefinitionsFileItem);
+					CompileEnvironment.ForceIncludeFiles.Insert(0, PrivateDefinitionsFileItem);
 					return PrivateDefinitionsFileItem;
 				}
 			}
@@ -2283,6 +2283,25 @@ namespace UnrealBuildTool
 
 			// Setup the compile environment for the module.
 			SetupPrivateCompileEnvironment(Result.UserIncludePaths, Result.SystemIncludePaths, Result.ModuleInterfacePaths, Result.Definitions, Result.AdditionalFrameworks, Result.AdditionalPrerequisites, Rules.bLegacyPublicIncludePaths, Rules.bLegacyParentIncludePaths);
+
+			foreach (string ForceIncludeFile in Rules.ForceIncludeFiles)
+			{
+				if (Path.IsPathFullyQualified(ForceIncludeFile))
+				{
+					Result.ForceIncludeFiles.Add(FileItem.GetItemByPath(ForceIncludeFile));
+				}
+				else
+				{
+					FileReference? Path = Result.UserIncludePaths.Concat(Result.SystemIncludePaths).Select(x => FileReference.Combine(x, ForceIncludeFile)).FirstOrDefault(x => FileReference.Exists(x));
+					if (Path == null)
+					{
+						Logger.LogWarning("Unable to resolve force include path '{Path}'. Please verify that it can be found in the include directories for module '{Module}'", ForceIncludeFile, Name);
+						continue;
+					}
+					Result.ForceIncludeFiles.Add(FileItem.GetItemByFileReference(Path));
+				}
+				
+			}
 
 			return Result;
 		}

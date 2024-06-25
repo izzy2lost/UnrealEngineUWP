@@ -1341,6 +1341,8 @@ namespace UnrealBuildTool
 			Writer.WriteValue("Rules", RulesFile.FullName);
 			Writer.WriteValue("PCHUsage", Rules.PCHUsage.ToString());
 
+			ExportJsonStringArray(Writer, "ForceIncludeModules", Rules.ForceIncludeFiles);
+
 			if (Rules.PrivatePCHHeaderFile != null)
 			{
 				Writer.WriteValue("PrivatePCH", FileReference.Combine(ModuleDirectory, Rules.PrivatePCHHeaderFile).FullName);

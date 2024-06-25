@@ -741,6 +741,11 @@ namespace UnrealBuildTool
 		private FPSemanticsMode? FPSemanticsPrivate = null;
 
 		/// <summary>
+		/// Header files that should be force included for every source file in this module.
+		/// </summary>
+		public List<string> ForceIncludeFiles { get; } = new List<string>();
+
+		/// <summary>
 		/// Explicit private PCH for this module. Implies that this module will not use a shared PCH.
 		/// </summary>
 		public string? PrivatePCHHeaderFile { get; set; }
