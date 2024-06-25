@@ -1965,9 +1965,27 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 				// Add the "View Modes" sub menu.
 				{
 					// Stay backward-compatible with the old viewport toolbar.
-					UToolMenus::Get()->RegisterMenu(
-						"LevelEditor.ViewportToolbar.ViewModes", "LevelEditor.LevelViewportToolbar.View"
-					);
+					{
+						// Create our grandparent menu.
+						if (!UToolMenus::Get()->IsMenuRegistered("UnrealEd.ViewportToolbar.View"))
+						{
+							UToolMenus::Get()->RegisterMenu("UnrealEd.ViewportToolbar.View");
+						}
+
+						// Create our parent menu.
+						if (!UToolMenus::Get()->IsMenuRegistered("LevelEditor.LevelViewportToolbar.View"))
+						{
+							UToolMenus::Get()->RegisterMenu(
+								"LevelEditor.LevelViewportToolbar.View", "UnrealEd.ViewportToolbar.View"
+							);
+						}
+
+						// Create our menu.
+						UToolMenus::Get()->RegisterMenu(
+							"LevelEditor.ViewportToolbar.ViewModes", "LevelEditor.LevelViewportToolbar.View"
+						);
+					}
+
 					FToolMenuEntry ViewModesSubmenu = UE::LevelEditor::CreateViewportToolbarViewModesSubmenu();
 					ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
 					RightSection.AddEntry(ViewModesSubmenu);
@@ -1985,6 +2003,7 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 							"LevelEditor.ViewportToolbar.Show", "LevelEditor.LevelViewportToolbar.Show"
 						);
 					}
+
 					FToolMenuEntry ShowSubmenu = UE::LevelEditor::CreateViewportToolbarShowSubmenu();
 					ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
 					RightSection.AddEntry(ShowSubmenu);

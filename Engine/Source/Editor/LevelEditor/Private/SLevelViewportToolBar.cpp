@@ -77,9 +77,19 @@ public:
 	{
 		SEditorViewportViewMenu::RegisterMenus();
 
-		if (!UToolMenus::Get()->IsMenuRegistered("LevelEditor.LevelViewportToolBar.View"))
+		// Use a static bool to track whether or not this menu is registered. Bool instead of checking the registered
+		// state with ToolMenus because we want the new viewport toolbar to be able to create this menu without breaking
+		// this code. Static because this code can be called multiple times using different instances of this class.
+		static bool bDidRegisterMenu = false;
+		if (!bDidRegisterMenu)
 		{
-			UToolMenu* Menu = UToolMenus::Get()->RegisterMenu("LevelEditor.LevelViewportToolBar.View", "UnrealEd.ViewportToolbar.View");
+			bDidRegisterMenu = true;
+
+			// Don't warn here to avoid warnings if the new viewport toolbar already has created an empty version
+			// of this menu.
+			UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(
+				"LevelEditor.LevelViewportToolBar.View", "UnrealEd.ViewportToolbar.View", EMultiBoxType::Menu, false
+			);
 			Menu->AddDynamicSection("LevelSection", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu) {
 				if (UEditorViewportViewMenuContext* Context = InMenu->FindContext<UEditorViewportViewMenuContext>())
 				{
@@ -1008,11 +1018,18 @@ void SLevelViewportToolBar::FillCameraMenu(UToolMenu* Menu) const
 TSharedRef<SWidget> SLevelViewportToolBar::GenerateShowMenu() const
 {
 	static const FName MenuName("LevelEditor.LevelViewportToolbar.Show");
+
+	// Use a static bool to track whether or not this menu is registered. Bool instead of checking the registered state
+	// with ToolMenus because we want the new viewport toolbar to be able to create this menu without breaking this
+	// code. Static because this code can be called multiple times using different instances of this class.
 	static bool bDidRegisterMenu = false;
 	if (!bDidRegisterMenu)
 	{
 		bDidRegisterMenu = true;
-		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(MenuName);
+
+		// Don't warn here to avoid warnings if the new viewport toolbar already has created an empty version
+		// of this menu.
+		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(MenuName, NAME_None, EMultiBoxType::Menu, false);
 		Menu->AddDynamicSection(
 			"LevelDynamicSection",
 			FNewToolMenuDelegate::CreateLambda(

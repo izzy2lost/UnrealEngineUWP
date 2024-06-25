@@ -54,9 +54,17 @@ const FSlateBrush* SEditorViewportViewMenu::GetViewMenuLabelIcon() const
 
 void SEditorViewportViewMenu::RegisterMenus() const
 {
-	if (!UToolMenus::Get()->IsMenuRegistered(BaseMenuName))
+	// Use a static bool to track whether or not this menu is registered. Bool instead of checking the registered state
+	// with ToolMenus because we want the new viewport toolbar to be able to create this menu without breaking this
+	// code. Static because this code can be called multiple times using different instances of this class.
+	static bool bDidRegisterMenu = false;
+	if (!bDidRegisterMenu)
 	{
-		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(BaseMenuName);
+		bDidRegisterMenu = true;
+
+		// Don't warn here to avoid warnings if the new viewport toolbar already has created an empty version
+		// of this menu.
+		UToolMenu* Menu = UToolMenus::Get()->RegisterMenu(BaseMenuName, NAME_None, EMultiBoxType::Menu, false);
 		Menu->AddDynamicSection("BaseSection", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
 		{
 			if (UEditorViewportViewMenuContext* Context = InMenu->FindContext<UEditorViewportViewMenuContext>())
