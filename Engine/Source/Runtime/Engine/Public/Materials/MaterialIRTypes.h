@@ -19,16 +19,32 @@ const TCHAR* TypeKindToString(ETypeKind Kind);
 
 struct FType
 {
-	ETypeKind 	Kind;
+	// Identifies what derived type this is.
+	ETypeKind Kind;
 
+	// Returns the type matching specified UE::Shader::FType.
 	static FTypePtr FromShaderType(const UE::Shader::FType& InShaderType);
+	
+	// Returns the `void` type.
 	static FTypePtr GetVoid();
 
-	FStringView GetSpelling() const;
+	// Returns whether this type is a `bool` scalar.
+	bool IsBool1() const;
+
+	// Returns this type upcast this type to ArithmeticType if it is one. Otherwise it returns nullptr.
 	FArithmeticTypePtr AsArithmetic() const;
+
+	// Returns this type upcast this type to ArithmeticType if it's a scalar. Otherwise it returns nullptr.
 	FArithmeticTypePtr AsScalar() const;
+
+	// Returns this type upcast this type to ArithmeticType if it's a vector. Otherwise it returns nullptr.
 	FArithmeticTypePtr AsVector() const;
+
+	// Returns this type upcast this type to ArithmeticType if it's a matrix. Otherwise it returns nullptr.
 	FArithmeticTypePtr AsMatrix() const;
+
+	// Returns the this type name spelling (e.g. float4x4).
+	FStringView GetSpelling() const;
 };
 
 enum EScalarKind
@@ -45,17 +61,20 @@ struct FArithmeticType : FType
 	int NumRows;
 	int NumColumns;
 
-	static FArithmeticTypePtr GetBool();
-	static FArithmeticTypePtr GetInt();
-	static FArithmeticTypePtr GetFloat();
+	static FArithmeticTypePtr GetBool1();
+	static FArithmeticTypePtr GetInt1();
+	static FArithmeticTypePtr GetFloat1();
+
 	static FArithmeticTypePtr GetScalar(EScalarKind InScalarKind);
 	static FArithmeticTypePtr GetVector(EScalarKind InScalarKind, int NumRows);
 	static FArithmeticTypePtr GetMatrix(EScalarKind InScalarKind, int NumColumns, int NumRows);
 	static FArithmeticTypePtr Get(EScalarKind InScalarKind, int NumRows, int NumColumns);
 
-	bool IsScalar() const { return NumRows == 1 && NumColumns == 1; }
+	int  GetNumComponents() const { return NumRows * NumColumns; }
+	bool IsScalar() const { return GetNumComponents() == 1; }
 	bool IsVector() const { return NumRows > 1 && NumColumns == 1; }
 	bool IsMatrix() const { return NumRows > 1 && NumColumns > 1; }
+	FArithmeticTypePtr ToScalar() const;
 };
 
 } // namespace UE::MIR

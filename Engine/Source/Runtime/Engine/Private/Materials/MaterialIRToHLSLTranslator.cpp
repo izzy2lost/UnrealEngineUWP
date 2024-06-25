@@ -15,6 +15,8 @@
 #include "Materials/MaterialExpressionVolumetricAdvancedMaterialOutput.h"
 #include "RenderUtils.h"
 
+#include <inttypes.h>
+
 #if WITH_EDITOR
 
 namespace IR = UE::MIR;
@@ -50,21 +52,9 @@ struct FHLSLPrinter
 		return *this;
 	}
 
-	FHLSLPrinter& operator<<(int32 Value)
+	FHLSLPrinter& operator<<(int Value)
 	{
 		Buffer.Appendf(TEXT("%d"), Value);
-		return *this;
-	}
-
-	FHLSLPrinter& operator<<(uint32 Value)
-	{
-		Buffer.Appendf(TEXT("%u"), Value);
-		return *this;
-	}
-
-	FHLSLPrinter& operator<<(float Value)
-	{
-		Buffer.Appendf(TEXT("%.5ff"), Value);
 		return *this;
 	}
 
@@ -272,6 +262,26 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 	{
 		switch (Instr->Kind)
 		{
+			case IR::VK_Dimensional:
+			{
+				const IR::FDimensional* Vector = static_cast<const IR::FDimensional*>(Instr);
+
+				IR::FArithmeticTypePtr ArithType = Vector->Type->AsArithmetic();
+				check(ArithType && ArithType->IsVector());
+
+				Printer << ScalarKindToString(ArithType->ScalarKind) << ArithType->NumRows << TEXT("(");
+
+				Printer.BeginList();
+				for (IR::FValue* Component : Vector->GetComponents())
+				{
+					Printer.PrintListSeparator();
+					LowerValue(Component);
+				}
+
+				Printer << TEXT(")");
+				break;
+			}
+
 			case IR::VK_SetMaterialOutput:
 			{
 				auto Output = static_cast<const IR::FSetMaterialOutput*>(Instr);
@@ -279,7 +289,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 				// Special case MP_SubsurfaceColor as the actual property is a combination of the color and the profile but we don't want to expose the profile
 				const FString& PropertyName = (Output->Property == MP_SubsurfaceColor) ? "Subsurface" : FMaterialAttributeDefinitionMap::GetAttributeName(Output->Property);
 
-				Printer << TEXT("PixelMaterialInputs.") << PropertyName << TEXT(" = ") << InlineValue(Output->Arg);
+				Printer << TEXT("PixelMaterialInputs.") << PropertyName << TEXT(" = ") << LowerValue(Output->Arg);
 
 				break;
 			}
@@ -288,7 +298,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 			{
 				auto BinaryOperator = static_cast<const IR::FBinaryOperator*>(Instr);
 
-				InlineValue(BinaryOperator->LhsArg);
+				LowerValue(BinaryOperator->LhsArg);
 
 				const TCHAR* OpString;
 				switch (BinaryOperator->Operator)
@@ -304,7 +314,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 				}
 				Printer << OpString;
 
-				InlineValue(BinaryOperator->RhsArg);
+				LowerValue(BinaryOperator->RhsArg);
 
 				break;
 			}
@@ -315,22 +325,39 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 
 				if (IsFoldable(Branch))
 				{
-					Printer << InlineValue(Branch->ConditionArg)
-					<< TEXT(" ? ") << InlineValue(Branch->TrueArg)
-					<< TEXT(" : ") << InlineValue(Branch->FalseArg);
+					Printer << LowerValue(Branch->ConditionArg)
+						<< TEXT(" ? ") << LowerValue(Branch->TrueArg)
+						<< TEXT(" : ") << LowerValue(Branch->FalseArg);
 				}
 				else
 				{
 					Printer << EndOfStatement;
-					Printer << TEXT("if (") << InlineValue(Branch->ConditionArg) << TEXT(")") << NewLine << OpenBrace;
+					Printer << TEXT("if (") << LowerValue(Branch->ConditionArg) << TEXT(")") << NewLine << OpenBrace;
 					Printer << LowerBlock(Branch->TrueBlock);
-					Printer << LocalToIdentifier[Instr] << " = " << InlineValue(Branch->TrueArg) << EndOfStatement;
+					Printer << LocalToIdentifier[Instr] << " = " << LowerValue(Branch->TrueArg) << EndOfStatement;
 					Printer << CloseBrace << NewLine;
 					Printer << TEXT("else") << NewLine << OpenBrace;
 					Printer << LowerBlock(Branch->FalseBlock);
-					Printer << LocalToIdentifier[Instr] << " = " << InlineValue(Branch->FalseArg) << EndOfStatement;
+					Printer << LocalToIdentifier[Instr] << " = " << LowerValue(Branch->FalseArg) << EndOfStatement;
 					Printer << CloseBrace;
 				}
+				break;
+			}
+			
+			case IR::VK_Subscript:
+			{
+				const IR::FSubscript* Subscript = static_cast<const IR::FSubscript*>(Instr);
+
+				LowerValue(Subscript->Arg);
+
+				if (IR::FArithmeticTypePtr ArgArithmeticType = Subscript->Arg->Type->AsVector())
+				{
+					const TCHAR* ComponentsStr[] = { TEXT(".x"), TEXT(".y"), TEXT(".z"), TEXT(".w") };
+					check(Subscript->Index <= ArgArithmeticType->GetNumComponents());
+
+					Printer << ComponentsStr[Subscript->Index];
+				}
+
 				break;
 			}
 
@@ -341,50 +368,45 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 		return NoOp;
 	}
 
-	ENoOp InlineValue(const IR::FValue* InValue)
+	ENoOp LowerValue(const IR::FValue* InValue)
 	{
 		if (const IR::FInstruction* Instr = InValue->AsInstruction())
 		{
 			if (Instr->NumUsers <= 1 && IsFoldable(Instr))
 			{
-                LowerInstruction(Instr);
-            }
-            else
-			{
-                Printer << LocalToIdentifier[Instr];
-            }
-		}
-		else if (const IR::FScalarConstant* Scalar = InValue->As<IR::FScalarConstant>())
-		{
-			IR::FArithmeticTypePtr ArithType = Scalar->Type->AsArithmetic();
-			check(ArithType && ArithType->IsScalar());
-
-			switch (ArithType->ScalarKind)
-			{
-				case IR::SK_Bool: Printer << Scalar->Boolean; break;
-				case IR::SK_Int: Printer << Scalar->Integer; break;
-				case IR::SK_Float: Printer << Scalar->Float; break;
+				Printer << LowerInstruction(Instr);
 			}
-		}
-		else if (const IR::FDimensional* Vector = InValue->As<IR::FDimensional>())
-		{
-			IR::FArithmeticTypePtr ArithType = Vector->Type->AsArithmetic();
-			check(ArithType && ArithType->IsVector());
-
-			Printer << ScalarKindToString(ArithType->ScalarKind) << ArithType->NumRows << TEXT("(");
-
-			Printer.BeginList();
-			for (IR::FValue* Component : Vector->GetComponents())
+			else
 			{
-				Printer.PrintListSeparator();
-				InlineValue(Component);
+				Printer << LocalToIdentifier[Instr];
 			}
 
-			Printer << TEXT(")");
+			return NoOp;
 		}
-		else
+
+		switch (InValue->Kind)
 		{
-			UE_MIR_UNREACHABLE();
+			case IR::VK_Constant:
+			{
+				const IR::FConstant* Scalar = static_cast<const IR::FConstant*>(InValue);
+				
+				IR::FArithmeticTypePtr ArithType = Scalar->Type->AsArithmetic();
+				check(ArithType && ArithType->IsScalar());
+
+				switch (ArithType->ScalarKind)
+				{
+					case IR::SK_Bool:  Printer.Buffer.Append(Scalar->Boolean ? TEXT("true") : TEXT("false")); break;
+					case IR::SK_Int:   Printer.Buffer.Appendf(TEXT("%") PRId64, Scalar->Integer); break;
+					case IR::SK_Float: Printer.Buffer.Appendf(TEXT("%.5ff"), Scalar->Float); break;
+				}
+
+				break;
+			}
+
+			default:
+			{
+				UE_MIR_UNREACHABLE();
+			}
 		}
 
 		return NoOp;

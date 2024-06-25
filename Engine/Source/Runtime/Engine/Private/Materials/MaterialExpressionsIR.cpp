@@ -308,8 +308,8 @@ static void BuildBinaryArithmeticOperator(
 		: IR::FArithmeticType::GetScalar(IR::SK_Float);
 
 	// Convert operand values to determined result type. 
-	LhsValue = Emitter.TryEmitConvert(LhsValue, ResultType);
-	RhsValue = Emitter.TryEmitConvert(RhsValue, ResultType);
+	LhsValue = Emitter.TryEmitConstruct(ResultType, LhsValue);
+	RhsValue = Emitter.TryEmitConstruct(ResultType, RhsValue);
 
 	if (Emitter.IsInvalid())
 	{
@@ -373,8 +373,8 @@ void UMaterialExpressionIf::Build(IR::FEmitter& Emitter)
 	}
 
 	// Convert both conditional argument values to the common type. This is expected to work as the common type could be found.
-	AValue = Emitter.TryEmitConvert(AValue, ConditionArgsType);
-	BValue = Emitter.TryEmitConvert(BValue, ConditionArgsType);
+	AValue = Emitter.TryEmitConstruct(ConditionArgsType, AValue);
+	BValue = Emitter.TryEmitConstruct(ConditionArgsType, BValue);
 
 	// Now determine the output type by taking the common arithmetic type between result values.
 	IR::FArithmeticTypePtr OutputType = Emitter.TryGetCommonArithmeticType(AGreaterThanBValue->Type->AsArithmetic(), AEqualsBValue->Type->AsArithmetic());
@@ -386,9 +386,9 @@ void UMaterialExpressionIf::Build(IR::FEmitter& Emitter)
 	}
 
 	// Convert result values to the common result type.
-	AGreaterThanBValue = Emitter.TryEmitConvert(AGreaterThanBValue, OutputType);
-	AEqualsBValue = Emitter.TryEmitConvert(AEqualsBValue, OutputType);
-	ALessThanBValue = Emitter.TryEmitConvert(ALessThanBValue, OutputType);
+	AGreaterThanBValue = Emitter.TryEmitConstruct(OutputType, AGreaterThanBValue);
+	AEqualsBValue = Emitter.TryEmitConstruct(OutputType, AEqualsBValue);
+	ALessThanBValue = Emitter.TryEmitConstruct(OutputType, ALessThanBValue);
 
 	if (Emitter.IsInvalid())
 	{

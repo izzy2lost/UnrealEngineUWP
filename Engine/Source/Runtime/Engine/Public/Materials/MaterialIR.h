@@ -12,17 +12,20 @@ namespace UE::MIR {
 enum EValueKind
 {
 	/* Values */
-	VK_ScalarConstant,
-	VK_Dimensional,
+
+	VK_Constant,
 
 	/* Instructions */
-	VK_InstructionBegin,
 
-	VK_SetMaterialOutput = VK_InstructionBegin,
+	VK_Dimensional,
+	VK_SetMaterialOutput,
 	VK_BinaryOperator,
 	VK_Branch,
+	VK_Subscript,
+	VK_Cast,
 
 	VK_InstructionEnd,
+	VK_InstructionBegin = VK_Dimensional,
 };
 
 /* Values */
@@ -38,6 +41,9 @@ struct FValue
 	bool Equals(const FValue* Other) const;
 	uint32 GetSizeInBytes() const;
 	TArrayView<FValue*> GetUses();
+	
+	template <typename T>
+	T* As() { return this && IsA(T::TypeKind) ? static_cast<T*>(this) : nullptr; }
 
 	template <typename T>
 	const T* As() const { return this && IsA(T::TypeKind) ? static_cast<const T*>(this) : nullptr; }
@@ -49,29 +55,48 @@ struct TValue : FValue
 	static constexpr EValueKind TypeKind = TTypeKind;
 };
 
-struct FScalarConstant : TValue<VK_ScalarConstant>
+using TInteger = int64_t;
+using TFloat = double;
+
+struct FConstant : TValue<VK_Constant>
 {
 	union
 	{
-		bool  Boolean;
-		int   Integer;
-		float Float;
+		bool  		Boolean;
+		TInteger	Integer;
+		TFloat 	Float;
 	};
-};
 
-struct FDimensional : TValue<VK_Dimensional>
-{
-	TArrayView<FValue* const> GetComponents() const;
-	TArrayView<FValue*> GetMutableComponents();
-};
-
-template <int TDimension>
-struct TDimensional : FDimensional
-{
-	FValue* Components[TDimension];
+	template <typename T>
+	T Get() const
+	{
+		if constexpr (std::is_same_v<T, bool>)
+		{
+			return Boolean;
+		}
+		else if constexpr (std::is_integral_v<T>)
+		{
+			return Integer;
+		}
+		else if constexpr (std::is_floating_point_v<T>)
+		{
+			return Float;
+		}
+		else
+		{
+			check(false && "unexpected type T.");
+		}
+	}
 };
 
 /* Instructions */
+
+struct FBlock
+{
+	FBlock* Parent{};
+	FInstruction* Instructions{};
+	int32 Level{};
+};
 
 enum EInstructionFlags
 {
@@ -81,7 +106,7 @@ enum EInstructionFlags
 
 struct FInstruction : FValue
 {
-	EInstructionFlags Flags = IF_None;
+	EInstructionFlags Flags{};
 	FInstruction* Next{};
 	FBlock* Block{};
 	uint32 NumUsers{};
@@ -91,17 +116,29 @@ struct FInstruction : FValue
 	bool GetInnerBlock(int32 Index, FValue*& OutArg, FBlock*& OutBlock); 
 };
 
-struct FBlock
-{
-	FBlock* Parent{};
-	FInstruction* Instructions{};
-	int32 Level{};
-};
-
 template <EValueKind TTypeKind>
 struct TInstruction : FInstruction
 {
 	static constexpr EValueKind TypeKind = TTypeKind;
+};
+
+struct FDimensional : TInstruction<VK_Dimensional>
+{
+	// Returns the constant array of component values. 
+	TArrayView<FValue* const> GetComponents() const;
+
+	// Returns the mutable array of component values. 
+	TArrayView<FValue*> GetComponents();
+
+	// Returns whether all components are constant.
+	bool AreComponentsConstant() const;
+
+};
+
+template <int TDimension>
+struct TDimensional : FDimensional
+{
+	FValue* Components[TDimension];
 };
 
 struct FSetMaterialOutput : TInstruction<VK_SetMaterialOutput>
@@ -113,14 +150,24 @@ struct FSetMaterialOutput : TInstruction<VK_SetMaterialOutput>
 enum EBinaryOperator
 {
 	BO_Invalid,
+
+	/* Arithmetic */
 	BO_Add,
 	BO_Subtract,
 	BO_Multiply,
 	BO_Divide,
+
+	/* Comparison */
 	BO_Greater,
+	BO_GreaterOrEquals,
 	BO_Lower,
+	BO_LowerOrEquals,
 	BO_Equals,
+	BO_NotEquals,
 };
+
+bool IsArithmeticOperator(EBinaryOperator Op);
+bool IsComparisonOperator(EBinaryOperator Op);
 
 struct FBinaryOperator : TInstruction<VK_BinaryOperator>
 {
@@ -136,6 +183,17 @@ struct FBranch : TInstruction<VK_Branch>
 	FValue* FalseArg{};
 	FBlock TrueBlock{};
 	FBlock FalseBlock{};
+};
+
+struct FSubscript : TInstruction<VK_Subscript>
+{
+	FValue* Arg;
+	int Index;
+};
+
+struct FCast : TInstruction<VK_Cast>
+{
+	FValue* Arg{};
 };
 
 } // namespace UE::MIR

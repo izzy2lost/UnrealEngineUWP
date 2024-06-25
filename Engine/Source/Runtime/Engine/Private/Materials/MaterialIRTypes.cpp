@@ -66,6 +66,11 @@ FStringView FType::GetSpelling() const
 	UE_MIR_UNREACHABLE();
 }
 
+bool FType::IsBool1() const
+{
+	return this == FArithmeticType::GetBool1();
+}
+
 FArithmeticTypePtr FType::AsArithmetic() const
 {
 	return Kind == TK_Arithmetic ? static_cast<FArithmeticTypePtr>(this) : nullptr; 
@@ -100,17 +105,17 @@ const TCHAR* ScalarKindToString(EScalarKind Kind)
 	}
 }
 
-FArithmeticTypePtr FArithmeticType::GetBool()
+FArithmeticTypePtr FArithmeticType::GetBool1()
 {
 	return GetScalar(SK_Bool);
 }
 
-FArithmeticTypePtr FArithmeticType::GetInt()
+FArithmeticTypePtr FArithmeticType::GetInt1()
 {
 	return GetScalar(SK_Int);
 }
 
-FArithmeticTypePtr FArithmeticType::GetFloat()
+FArithmeticTypePtr FArithmeticType::GetFloat1()
 {
 	return GetScalar(SK_Float);
 }
@@ -193,6 +198,11 @@ FArithmeticTypePtr FArithmeticType::Get(EScalarKind InScalarKind, int NumRows, i
 	int Index = InScalarKind * 4 * 4 + (NumRows - 1) * 4 + (NumColumns - 1);
 	check(Index < UE_ARRAY_COUNT(Types));
 	return &Types[Index];
+}
+
+FArithmeticTypePtr FArithmeticType::ToScalar() const
+{
+	return FArithmeticType::GetScalar(ScalarKind);
 }
 
 } // namespace UE::MIR

@@ -9,6 +9,31 @@
 
 namespace UE::MIR {
 
+enum class EVectorComponent : uint8_t
+{
+	X, Y, Z, W, 
+};
+
+// Return the lower case string representation of specified component (e.g. "x")
+const TCHAR* VectorComponentToString(EVectorComponent);
+
+//
+struct FSwizzleMask
+{
+	EVectorComponent Components[4];
+	int NumComponents{};
+
+	FSwizzleMask() {}
+	FSwizzleMask(EVectorComponent X);
+	FSwizzleMask(EVectorComponent X, EVectorComponent Y);
+	FSwizzleMask(EVectorComponent X, EVectorComponent Y, EVectorComponent Z);
+	FSwizzleMask(EVectorComponent X, EVectorComponent Y, EVectorComponent Z, EVectorComponent W);
+
+	void Append(EVectorComponent Component);
+	const EVectorComponent* begin() const { return Components; }
+	const EVectorComponent* end() const { return Components + NumComponents; }
+};
+
 //
 class FEmitter
 {
@@ -30,7 +55,7 @@ public:
 	FEmitter& DefaultToFloatZero(const FExpressionInput* Input);
 
 	//
-	FEmitter& DefaultTo(const FExpressionInput* Input, float Float);
+	FEmitter& DefaultTo(const FExpressionInput* Input, TFloat Float);
 
 	// It gets the value flowing into it and checks that its type is float scalar.
 	FValue* TryGetFloat(const FExpressionInput* Input);
@@ -62,11 +87,14 @@ public:
 
 	FValue* EmitConstantFromShaderValue(const UE::Shader::FValue& InValue);
 	FValue* EmitConstantScalarZero(EScalarKind Kind);
-	FValue* EmitConstantFloat1(float InX);
+	FValue* EmitConstantTrue();
+	FValue* EmitConstantFalse();
+	FValue* EmitConstantBool1(bool InX);
+	FValue* EmitConstantFloat1(TFloat InX);
 	FValue* EmitConstantFloat2(const FVector2f& InValue);
 	FValue* EmitConstantFloat3(const FVector3f& InValue);
 	FValue* EmitConstantFloat4(const FVector4f& InValue);
-	FValue* EmitConstantInt1(int InX);
+	FValue* EmitConstantInt1(TInteger InX);
 	FValue* EmitConstantInt2(const FIntVector2& InValue);
 	FValue* EmitConstantInt3(const FIntVector3& InValue);
 	FValue* EmitConstantInt4(const FIntVector4& InValue);
@@ -76,14 +104,15 @@ public:
 
 	/* Other Values */
 
-	FValue* EmitArithmetic(FArithmeticTypePtr Type, FValue* Scalar);
+	FValue* EmitSubscript(FValue* Value, int ComponentIndex);
+	FValue* TryEmitSwizzle(FValue* Value, FSwizzleMask Mask);
 
 	/* Instructions */
 
 	FSetMaterialOutput* EmitSetMaterialOutput(EMaterialProperty InProperty, FValue* InArgValue);
 	FValue* EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FValue* Rhs);
 	FValue* EmitBranch(FValue* Condition, FValue* True, FValue* False);
-	FValue* TryEmitConvert(FValue* Value, FTypePtr TargetType);
+	FValue* TryEmitConstruct(FTypePtr Type, FValue* Initializer);
 
 	/* Types */
 
@@ -100,14 +129,17 @@ public:
 
 	void Error(FString Message);
 
+	struct FPrivate;
+
 private:
 	UMaterial* Material{};
 	FMaterialIRModule* Module{};
 	UMaterialExpression* Expression{};
 	FMaterialIRModuleBuilder* Builder{};
 	bool bHasExprBuildError = false;
+	FValue* ConstantTrue;
+	FValue* ConstantFalse;
 
-	struct FPrivate;
 	friend FMaterialIRModuleBuilder;
 };
 
