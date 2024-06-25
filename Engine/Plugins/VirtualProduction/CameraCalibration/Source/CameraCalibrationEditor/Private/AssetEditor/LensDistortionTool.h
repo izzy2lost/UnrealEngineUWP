@@ -281,6 +281,7 @@ private:
 	FCalibrationDataset Dataset;
 
 	/** The solver object that runs the lens calibration on another thread. The ptr is stored to access the solver to get status updates and/or cancel the calibration from the game thread */
+	UPROPERTY(Transient)
 	TObjectPtr<ULensDistortionSolver> Solver;
 
 	/** An asynchronous task handle. When valid, the tool will poll its state to determine when the task has completed, and then extract the calibration result from this task handle. */
@@ -308,7 +309,10 @@ private:
 	bool bIsActive = false;
 
 	/** Material and Texture that draw the coverage overlay on top of the simulcam viewport during capture */
+	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> OverlayMID;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> OverlayTexture;
 
 	/** Weak ptr to the steps controller that created this step */

@@ -284,7 +284,7 @@ bool ULensDistortionTool::DetectCheckerboardPattern(TArray<FColor>& Pixels, FInt
 	const FIntPoint OverlayTextureSize = FIntPoint(OverlayTexture->GetSizeX(), OverlayTexture->GetSizeY());
 	RescalePoints(CameraFeedAdjustedCorners, OverlayTextureSize, Size);
 
-	FOpenCVHelper::DrawCheckerboardCorners(DetectedCorners, OutRow->CheckerboardDimensions, OverlayTexture);
+	FOpenCVHelper::DrawCheckerboardCorners(CameraFeedAdjustedCorners, OutRow->CheckerboardDimensions, OverlayTexture);
 
 	if (TSharedPtr<FCameraCalibrationStepsController> StepsController = WeakStepsController.Pin())
 	{
