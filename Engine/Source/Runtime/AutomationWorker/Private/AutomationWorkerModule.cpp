@@ -210,7 +210,7 @@ void FAutomationWorkerModule::ReportTestComplete()
 			Message->Duration = ExecutionInfo.Duration;
 			// Prune log entries if it is a success to reduce foot print.
 			Message->Entries = bPruneLogsOnSuccess && bSuccess ?
-				ExecutionInfo.GetEntries().FilterByPredicate([](const FAutomationExecutionEntry& Entry) { return Entry.Event.Context != "log"; }) : ExecutionInfo.GetEntries();
+				ExecutionInfo.GetEntries().FilterByPredicate([](const FAutomationExecutionEntry& Entry) { return Entry.Event.Context != TEXT("log"); }) : ExecutionInfo.GetEntries();
 			Message->WarningTotal = ExecutionInfo.GetWarningTotal();
 			Message->ErrorTotal = ExecutionInfo.GetErrorTotal();
 
