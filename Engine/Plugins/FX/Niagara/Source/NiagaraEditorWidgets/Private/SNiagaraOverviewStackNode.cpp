@@ -666,7 +666,12 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateNodeContentArea_Default()
 		.BorderBackgroundColor(TAttribute<FSlateColor>(this, &SNiagaraOverviewStackNode::GetScalabilityTintAlpha))
 	];
 
-	return ScalabilityWrapper.ToSharedRef();
+	ContentAreaWidget = SNew(SInvalidationPanel)
+	[
+		ScalabilityWrapper.ToSharedRef()
+	];
+
+	return ContentAreaWidget.ToSharedRef();
 }
 
 TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateTopContentBar_Default()

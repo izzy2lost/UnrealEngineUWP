@@ -4,6 +4,7 @@
 
 #include "SGraphNode.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SInvalidationPanel.h"
 #include "SNiagaraOverviewStack.h"
 #include "ViewModels/NiagaraSystemScalabilityViewModel.h"
 
@@ -137,6 +138,7 @@ private:
 	TWeakObjectPtr<UNiagaraSystemScalabilityViewModel> ScalabilityViewModel;
 	TWeakPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModelWeak;
 	TSharedPtr<SOverlay> ScalabilityWrapper;
+	TSharedPtr<SInvalidationPanel> ContentAreaWidget;
 
 	TArray<UNiagaraStackEntry*> RendererPreviewStackEntries;
 	bool bIsHoveringThumbnail = false;
