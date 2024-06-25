@@ -327,7 +327,6 @@ void FD3D12BindlessResourceManager::Recycle(FD3D12DescriptorHeap* DescriptorHeap
 			break;
 		}
 	}
-	check(bFound);
 }
 
 void FD3D12BindlessResourceManager::InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12View* View)
