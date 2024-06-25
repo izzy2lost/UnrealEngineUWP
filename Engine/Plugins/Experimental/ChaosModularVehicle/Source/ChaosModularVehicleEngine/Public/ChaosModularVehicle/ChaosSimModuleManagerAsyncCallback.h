@@ -217,6 +217,8 @@ struct CHAOSMODULARVEHICLEENGINE_API FModularVehicleAsyncInput
 	* Vehicle simulation running on the Physics Thread
 	*/
 	virtual TUniquePtr<struct FModularVehicleAsyncOutput> Simulate(UWorld* World, const float DeltaSeconds, const float TotalSeconds, bool& bWakeOut) const;
+
+	virtual void OnContactModification(Chaos::FCollisionContactModifier& Modifier) const;
 	virtual void ApplyDeferredForces() const;
 	virtual void ProcessInputs();
 

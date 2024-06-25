@@ -26,6 +26,7 @@ namespace Chaos
 	struct FModuleNetData;
 	struct FSimOutputData;
 	class FClusterUnionPhysicsProxy;
+	class FCollisionContactModifier;
 
 	const FName HandbrakeControlName("Handbrake");
 	const FName ThrottleControlName("Throttle");
@@ -206,6 +207,8 @@ namespace Chaos
 		{
 			Simulate(DeltaTime, Inputs, VehicleModuleSystem);
 		}
+
+		virtual void OnContactModification(Chaos::FCollisionContactModifier& Modifier, Chaos::FClusterUnionPhysicsProxy* Proxy) {}
 
 		/**
 		* The main Simulation function that is called from the physics async callback thread

@@ -13,6 +13,7 @@
 FSimModuleDebugParams GSimModuleDebugParams;
 
 DECLARE_CYCLE_STAT(TEXT("AsyncCallback:OnPreSimulate_Internal"), STAT_AsyncCallback_OnPreSimulate, STATGROUP_ChaosSimModuleManager);
+DECLARE_CYCLE_STAT(TEXT("AsyncCallback:OnContactModification_Internal"), STAT_AsyncCallback_OnContactModification, STATGROUP_ChaosSimModuleManager);
 
 FName FChaosSimModuleManagerAsyncCallback::GetFNameForStatId() const
 {
@@ -111,7 +112,53 @@ void FChaosSimModuleManagerAsyncCallback::OnPreSimulate_Internal()
  */
 void FChaosSimModuleManagerAsyncCallback::OnContactModification_Internal(Chaos::FCollisionContactModifier& Modifications)
 {
+	using namespace Chaos;
 
+	SCOPE_CYCLE_COUNTER(STAT_AsyncCallback_OnContactModification);
+
+	float DeltaTime = GetDeltaTime_Internal();
+	float SimTime = GetSimTime_Internal();
+
+	const FChaosSimModuleManagerAsyncInput* Input = GetConsumerInput_Internal();
+	if (Input == nullptr)
+	{
+		return;
+	}
+
+	const int32 NumVehicles = Input->VehicleInputs.Num();
+
+	UWorld* World = Input->World.Get();	//only safe to access for scene queries
+	if (World == nullptr || NumVehicles == 0)
+	{
+		//world is gone so don't bother.
+		return;
+	}
+
+	Chaos::FPhysicsSolver* PhysicsSolver = static_cast<Chaos::FPhysicsSolver*>(GetSolver());
+	if (PhysicsSolver == nullptr)
+	{
+		return;
+	}
+
+	const TArray<TUniquePtr<FModularVehicleAsyncInput>>& InputVehiclesBatch = Input->VehicleInputs;
+
+	// beware running the vehicle simulation in parallel, code must remain threadsafe
+	auto LambdaParallelUpdate = [&Modifications, &InputVehiclesBatch](int32 Idx)
+	{
+		const FModularVehicleAsyncInput& VehicleInput = *InputVehiclesBatch[Idx];
+
+		if (VehicleInput.Proxy == nullptr)
+		{
+			return;
+		}
+
+		bool bWake = false;
+		VehicleInput.OnContactModification(Modifications);
+
+	};
+
+	bool ForceSingleThread = !GSimModuleDebugParams.EnableMultithreading;
+	PhysicsParallelFor(InputVehiclesBatch.Num(), LambdaParallelUpdate, ForceSingleThread);
 }
 
 
@@ -138,6 +185,14 @@ TUniquePtr<FModularVehicleAsyncOutput> FModularVehicleAsyncInput::Simulate(UWorl
 	Output->bValid = true;
 
 	return MoveTemp(Output);
+}
+
+void FModularVehicleAsyncInput::OnContactModification(Chaos::FCollisionContactModifier& Modifications) const
+{
+	if (Vehicle && Vehicle->VehicleSimulationPT)
+	{
+		Vehicle->VehicleSimulationPT->OnContactModification(Modifications, Proxy);
+	}
 }
 
 void FModularVehicleAsyncInput::ApplyDeferredForces() const

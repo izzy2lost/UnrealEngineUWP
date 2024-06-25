@@ -59,6 +59,8 @@ public:
 	virtual void Simulate(UWorld* InWorld, float DeltaSeconds, const FModularVehicleAsyncInput& InputData, FModularVehicleAsyncOutput& OutputData, IPhysicsProxyBase* Proxy);
 	virtual void Simulate_ClusterUnion(UWorld* InWorld, float DeltaSeconds, const FModularVehicleAsyncInput& InputData, FModularVehicleAsyncOutput& OutputData, Chaos::FClusterUnionPhysicsProxy* Proxy);
 
+	virtual void OnContactModification(Chaos::FCollisionContactModifier& Modifier, IPhysicsProxyBase* Proxy);
+
 	void ApplyDeferredForces(FGeometryCollectionPhysicsProxy* RigidHandle);
 	void ApplyDeferredForces(Chaos::FClusterUnionPhysicsProxy* Proxy);
 

@@ -252,6 +252,16 @@ void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnion
 
 }
 
+void FSimModuleTree::OnContactModification(FCollisionContactModifier& Modifier, FClusterUnionPhysicsProxy* PhysicsProxy)
+{
+	TArray<int> RootNodes;
+	GetRootNodes(RootNodes);
+	for (int RootIndex : RootNodes)
+	{
+		OnContactModificationInternal(RootIndex, Modifier, PhysicsProxy);
+	}
+}
+
 void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIndex, FClusterUnionPhysicsProxy* PhysicsProxy)
 {
 	if (ISimulationModuleBase* Module = AccessSimModule(NodeIndex))
@@ -338,6 +348,18 @@ void FSimModuleTree::SimulateNodeBFS(float DeltaTime, FAllInputs& Inputs, const 
 				}
 			}
 		}
+	}
+}
+
+void FSimModuleTree::OnContactModificationInternal(int NodeIndex, FCollisionContactModifier& Modifier, FClusterUnionPhysicsProxy* PhysicsProxy)
+{
+	if (ISimulationModuleBase* Module = AccessSimModule(NodeIndex))
+	{
+		Module->OnContactModification(Modifier, PhysicsProxy);
+	}
+	for (int ChildIdx : GetChildren(NodeIndex))
+	{
+		OnContactModificationInternal(ChildIdx, Modifier, PhysicsProxy);
 	}
 }
 

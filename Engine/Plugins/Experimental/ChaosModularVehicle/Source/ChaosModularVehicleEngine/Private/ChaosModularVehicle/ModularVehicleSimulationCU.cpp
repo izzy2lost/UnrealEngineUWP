@@ -89,6 +89,23 @@ void FModularVehicleSimulationCU::Simulate(UWorld* InWorld, float DeltaSeconds, 
 	Simulate_ClusterUnion(InWorld, DeltaSeconds, InputData, OutputData, static_cast<Chaos::FClusterUnionPhysicsProxy*>(Proxy));
 }
 
+void FModularVehicleSimulationCU::OnContactModification(Chaos::FCollisionContactModifier& Modifier, IPhysicsProxyBase* Proxy)
+{
+	using namespace Chaos;
+	Chaos::EnsureIsInPhysicsThreadContext();
+	check(Proxy->GetType() == EPhysicsProxyType::ClusterUnionProxy)
+	Chaos::FClusterUnionPhysicsProxy* ClusterProxy = static_cast<Chaos::FClusterUnionPhysicsProxy*>(Proxy);
+	check(ClusterProxy);
+
+	FPBDRigidsEvolutionGBF& Evolution = *static_cast<FPBDRigidsSolver*>(Proxy->GetSolver<FPBDRigidsSolver>())->GetEvolution();
+	FClusterUnionManager& ClusterUnionManager = Evolution.GetRigidClustering().GetClusterUnionManager();
+	const FClusterUnionIndex& CUI = ClusterProxy->GetClusterUnionIndex();
+
+	if (SimModuleTree.IsValid())
+	{
+		SimModuleTree->OnContactModification(Modifier, ClusterProxy);
+	}
+}
 
 void FModularVehicleSimulationCU::Simulate_ClusterUnion(UWorld* InWorld, float DeltaSeconds, const FModularVehicleAsyncInput& InputData, FModularVehicleAsyncOutput& OutputData, Chaos::FClusterUnionPhysicsProxy* Proxy)
 {
