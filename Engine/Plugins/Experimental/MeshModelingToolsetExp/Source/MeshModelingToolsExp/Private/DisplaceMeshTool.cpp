@@ -22,6 +22,9 @@
 #include "Operations/SelectiveTessellate.h"
 #include "Materials/MaterialInterface.h"
 #include "Properties/MeshStatisticsProperties.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 
 // needed to disable normals recalculation on the underlying asset
 #include "AssetUtils/MeshDescriptionUtil.h"
@@ -927,6 +930,18 @@ USingleTargetWithSelectionTool* UDisplaceMeshToolBuilder::CreateNewTool(const FT
 {
 	return NewObject<UDisplaceMeshTool>(SceneState.ToolManager);
 }
+
+const FToolTargetTypeRequirements& UDisplaceMeshToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
+}
+
 
 /*
  * Tool

@@ -25,6 +25,9 @@ class MESHMODELINGTOOLSEDITORONLYEXP_API UAttributeEditorToolBuilder : public UM
 public:
 	virtual UMultiSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
+
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 

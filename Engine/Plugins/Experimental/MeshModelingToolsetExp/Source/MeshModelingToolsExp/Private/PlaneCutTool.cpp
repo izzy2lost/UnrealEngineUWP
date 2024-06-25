@@ -30,8 +30,6 @@
 
 #include "ModelingToolTargetUtil.h"
 #include "TargetInterfaces/MaterialProvider.h"
-#include "TargetInterfaces/MeshDescriptionCommitter.h"
-#include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ModelingToolTargetUtil.h"
 
@@ -476,7 +474,7 @@ void UPlaneCutTool::GenerateAsset(const TArray<FDynamicMeshOpResult>& Results)
 			}
 		}
 
-		UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Targets[OrigMeshIdx], *UseMesh, true);
+		UE::ToolTarget::CommitDynamicMeshUpdate(Targets[OrigMeshIdx], *UseMesh, true);
 	}
 
 	if (bNeedToAdd)

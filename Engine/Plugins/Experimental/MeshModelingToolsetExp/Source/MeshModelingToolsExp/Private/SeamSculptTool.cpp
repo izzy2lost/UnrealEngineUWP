@@ -129,7 +129,7 @@ void USeamSculptTool::OnShutdown(EToolShutdownType ShutdownType)
 
 		GetToolManager()->BeginUndoTransaction(LOCTEXT("SeamSculptTransactionName", "UV Seam Edit"));
 
-		UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Target, ResultMesh, true);
+		UE::ToolTarget::CommitDynamicMeshUpdate(Target, ResultMesh, true);
 
 		GetToolManager()->EndUndoTransaction();
 	}

@@ -9,6 +9,8 @@
 
 #include "MeshDescription.h"
 
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/MeshDescriptionCommitter.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ModelingToolTargetUtil.h"
 #include "DynamicMesh/NonManifoldMappingSupport.h"
@@ -173,7 +175,16 @@ bool UMeshAttributePaintToolBuilder::CanBuildTool(const FToolBuilderState& Scene
 			[](UActorComponent& Component) { return !ToolBuilderUtil::IsVolume(Component); }) >= 1;
 }
 
-
+const FToolTargetTypeRequirements& UMeshAttributePaintToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
+}
 
 
 void UMeshAttributePaintTool::SetWorld(UWorld* World)

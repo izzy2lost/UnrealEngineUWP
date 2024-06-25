@@ -302,7 +302,7 @@ void UHoleFillTool::OnShutdown(EToolShutdownType ShutdownType)
 		GetToolManager()->BeginUndoTransaction(LOCTEXT("HoleFillToolTransactionName", "Hole Fill Tool"));
 
 		check(Result.Mesh.Get() != nullptr);
-		UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Target, *Result.Mesh.Get(), true);
+		UE::ToolTarget::CommitDynamicMeshUpdate(Target, *Result.Mesh.Get(), true);
 
 		GetToolManager()->EndUndoTransaction();
 	}

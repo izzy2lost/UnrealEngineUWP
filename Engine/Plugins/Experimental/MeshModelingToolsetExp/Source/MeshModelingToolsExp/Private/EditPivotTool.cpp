@@ -71,7 +71,16 @@ void UEditPivotToolBuilder::InitializeNewTool(UMultiSelectionMeshEditingTool* Ne
 	}
 }
 
-
+const FToolTargetTypeRequirements& UEditPivotToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
+}
 
 
 void UEditPivotToolActionPropertySet::PostAction(EEditPivotToolActions Action)

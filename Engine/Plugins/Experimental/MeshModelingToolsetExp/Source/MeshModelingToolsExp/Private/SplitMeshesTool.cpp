@@ -17,7 +17,7 @@
 #include "Selections/GeometrySelectionUtil.h"
 #include "Util/ColorConstants.h"
 
-#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/DynamicMeshProvider.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SplitMeshesTool)
@@ -33,7 +33,7 @@ const FToolTargetTypeRequirements& USplitMeshesToolBuilder::GetTargetRequirement
 {
 	static FToolTargetTypeRequirements TypeRequirements({
 		UMaterialProvider::StaticClass(),
-		UMeshDescriptionProvider::StaticClass(),
+		UDynamicMeshProvider::StaticClass(),
 		UPrimitiveComponentBackedTarget::StaticClass()
 		});
 	return TypeRequirements;

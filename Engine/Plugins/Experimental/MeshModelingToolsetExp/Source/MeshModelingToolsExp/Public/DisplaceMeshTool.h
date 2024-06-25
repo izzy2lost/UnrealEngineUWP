@@ -295,6 +295,9 @@ class MESHMODELINGTOOLSEXP_API UDisplaceMeshToolBuilder : public USingleTargetWi
 	GENERATED_BODY()
 public:
 	virtual USingleTargetWithSelectionTool* CreateNewTool(const FToolBuilderState& SceneState) const override final;
+
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 /**

@@ -293,7 +293,7 @@ void UBaseCreateFromSelectedTool::UpdateAsset(const FDynamicMeshOpResult& Result
 	MeshTransforms::ApplyTransform(*Result.Mesh, ResultTransform, true);
 	MeshTransforms::ApplyTransformInverse(*Result.Mesh, TargetToWorld, true);
 
-	UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(UpdateTarget, *Result.Mesh, true);
+	UE::ToolTarget::CommitDynamicMeshUpdate(UpdateTarget, *Result.Mesh, true);
 
 	FComponentMaterialSet MaterialSet;
 	MaterialSet.Materials = GetOutputMaterials();

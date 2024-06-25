@@ -276,6 +276,9 @@ class MESHMODELINGTOOLSEDITORONLYEXP_API USkinWeightsPaintToolBuilder : public U
 
 public:
 	UMeshSurfacePointTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 // for saveing/restoring the brush settings separately for each brush mode (Add, Replace, etc...)

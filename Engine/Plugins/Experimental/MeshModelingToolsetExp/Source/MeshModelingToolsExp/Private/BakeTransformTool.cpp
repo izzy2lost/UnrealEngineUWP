@@ -40,7 +40,16 @@ UMultiSelectionMeshEditingTool* UBakeTransformToolBuilder::CreateNewTool(const F
 	return NewObject<UBakeTransformTool>(SceneState.ToolManager);
 }
 
-
+const FToolTargetTypeRequirements& UBakeTransformToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
+}
 
 
 /*

@@ -9,6 +9,9 @@
 #include "MeshDescriptionToDynamicMesh.h"
 #include "MeshOpPreviewHelpers.h"
 #include "SkeletalMeshAttributes.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
+#include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ToolSetupUtil.h"
 #include "ToolTargetManager.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -38,6 +41,17 @@ UMultiSelectionMeshEditingTool* USkinWeightsBindingToolBuilder::CreateNewTool(co
 	USkinWeightsBindingTool* Tool = NewObject<USkinWeightsBindingTool>(SceneState.ToolManager);
 	Tool->Init(SceneState);
 	return Tool;
+}
+
+const FToolTargetTypeRequirements& USkinWeightsBindingToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
 }
 
 USkinWeightsBindingTool::USkinWeightsBindingTool()

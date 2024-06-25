@@ -433,7 +433,7 @@ void ULatticeDeformerTool::OnShutdown(EToolShutdownType ShutdownType)
 			FTransform3d LocalToWorld(TargetComponent->GetWorldTransform());
 			MeshTransforms::ApplyTransformInverse(*DynamicMeshResult, LocalToWorld, true);
 
-			UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Targets[0], *DynamicMeshResult, true);
+			UE::ToolTarget::CommitDynamicMeshUpdate(Targets[0], *DynamicMeshResult, true);
 
 			GetToolManager()->EndUndoTransaction();
 		}

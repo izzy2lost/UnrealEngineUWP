@@ -471,7 +471,7 @@ void UMirrorTool::GenerateAsset(const TArray<FDynamicMeshOpResult>& Results)
 		{
 			NewSelection.Actors.Add(UE::ToolTarget::GetTargetActor(Targets[OrigMeshIdx]));
 
-			UE::ToolTarget::CommitMeshDescriptionUpdateViaDynamicMesh(Targets[OrigMeshIdx], *Mesh, true);
+			UE::ToolTarget::CommitDynamicMeshUpdate(Targets[OrigMeshIdx], *Mesh, true);
 		}
 		else
 		{

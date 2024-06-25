@@ -42,6 +42,8 @@
 #include "AnimationRuntime.h"
 #include "DynamicMesh/DynamicVertexSkinWeightsAttribute.h"
 #include "TargetInterfaces/DynamicMeshCommitter.h"
+#include "TargetInterfaces/MeshDescriptionCommitter.h"
+#include "TargetInterfaces/MeshDescriptionProvider.h"
 #include "Operations/TransferBoneWeights.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkinWeightsPaintTool)
@@ -1010,6 +1012,17 @@ UMeshSurfacePointTool* USkinWeightsPaintToolBuilder::CreateNewTool(const FToolBu
 	USkinWeightsPaintTool* Tool = NewObject<USkinWeightsPaintTool>(SceneState.ToolManager);
 	Tool->Init(SceneState);
 	return Tool;
+}
+
+const FToolTargetTypeRequirements& USkinWeightsPaintToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UMeshDescriptionProvider::StaticClass(),
+		UMeshDescriptionCommitter::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+		});
+	return TypeRequirements;
 }
 
 void USkinWeightsPaintTool::Init(const FToolBuilderState& InSceneState)
