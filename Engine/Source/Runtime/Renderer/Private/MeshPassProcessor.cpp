@@ -348,7 +348,8 @@ FRayTracingLocalShaderBindings* FMeshDrawShaderBindings::SetRayTracingShaderBind
 		}
 	}
 
-	checkf(MaxUniformBufferIndex + 1 == NumUniformBufferParameters + LooseParameterBuffers.Num(),
+	// Vulkan places loose parameter data in the shader record which does not add to UB count
+	checkf(MaxUniformBufferIndex + 1 == NumUniformBufferParameters + (GRHIGlobals.RayTracing.SupportsLooseParamsInShaderRecord ? 0 : LooseParameterBuffers.Num()),
 		TEXT("Highest index of a uniform buffer was %d, but there were %d uniform buffer parameters and %d loose parameters"),
 		MaxUniformBufferIndex,
 		NumUniformBufferParameters,

@@ -434,6 +434,9 @@ struct FRHIGlobals
 		/** Whether or not the RHI supports inline ray tracing in compute shaders, without a full ray tracing pipeline. */
 		bool SupportsInlineRayTracing = false;
 
+		/** Wether an extra uniform buffer parameter is required when loose parameters are present, or if they are stored directly in the shader record. */
+		bool SupportsLooseParamsInShaderRecord = false;
+
 		/** Required alignment for ray tracing acceleration structures. */
 		uint32 AccelerationStructureAlignment = 0;
 

@@ -25,7 +25,9 @@ struct FVulkanHitGroupSystemParameters
 	uint32 BindlessHitGroupSystemIndexBuffer;
 	uint32 BindlessHitGroupSystemVertexBuffer;
 
-	uint32 BindlessUniformBuffers[16];
+	uint32 BindlessUniformBuffers[32];
+
+	// *** Globals start here ***
 };
 
 
@@ -78,6 +80,16 @@ public:
 	}
 
 	void SetLocalShaderParameters(EShaderFrequency Frequency, uint32 RecordIndex, uint32 OffsetWithinRecord, const void* InData, uint32 InDataSize);
+
+	void SetLooseParameterData(EShaderFrequency Frequency, uint32 RecordIndex, const void* InData, uint32 InDataSize)
+	{
+		if (InData && InDataSize)
+		{
+			// Place the loose parameter data after the FVulkanHitGroupSystemParameters in the shader record
+			const uint32 LooseParameterDataOffset = Align(sizeof(FVulkanHitGroupSystemParameters), 4);
+			SetLocalShaderParameters(Frequency, RecordIndex, LooseParameterDataOffset, InData, InDataSize);
+		}
+	}
 
 	void Commit(FVulkanCommandListContext& Context);
 

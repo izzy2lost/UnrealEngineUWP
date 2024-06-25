@@ -31,6 +31,8 @@ enum class EShaderParameterParserConfigurationFlags
 	BindlessUsesArrays      = 1 << 2,
 	// Some RHI Validation requires parameters to be parsed
 	AlwaysParseParams		= 1 << 3,
+	// Replace loose data globals in bindless shaders
+	ReplaceGlobals			= 1 << 4,
 };
 ENUM_CLASS_FLAGS(EShaderParameterParserConfigurationFlags)
 
@@ -58,6 +60,13 @@ public:
 		virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const
 		{
 			checkf(false, TEXT("Platforms that support bindless must override GenerateBindlessAccess"));
+			return FString();
+		}
+
+		/** Generate shader code for accessing a bindless resource or sampler */
+		virtual FString ReplaceGlobal(FStringView FullDeclString, FStringView ParamName) const
+		{
+			checkf(false, TEXT("Platforms that support replacing globals must override ReplaceGlobal"));
 			return FString();
 		}
 
@@ -94,7 +103,7 @@ public:
 		int32 ParsedPragmaLineOffset = 0;
 		int32 ParsedLineOffset = 0;
 
-		/** Character position of the start and end of the parameter decelaration in FParsedShaderParameter::OriginalParsedShader */
+		/** Character position of the start and end of the parameter declaration in FParsedShaderParameter::OriginalParsedShader */
 		int32 ParsedCharOffsetStart = INDEX_NONE;
 		int32 ParsedCharOffsetEnd = INDEX_NONE;
 

@@ -46,6 +46,13 @@ static FAutoConsoleVariableRef GCVarSubmitOnTraceRays(
 	ECVF_ReadOnly
 );
 
+static int32 GVulkanRayTracingMaxShaderGroupStride = 4096;
+static FAutoConsoleVariableRef GCVarVulkanRayTracingMaxShaderGroupStride(
+	TEXT("r.Vulkan.RayTracing.MaxShaderGroupStride"),
+	GVulkanRayTracingMaxShaderGroupStride,
+	TEXT("The default size to allocate for each record (default: 4096)."),
+	ECVF_ReadOnly
+);
 
 // Ray tracing stat counters
 
@@ -928,15 +935,14 @@ FVulkanRayTracingShaderTable::FVulkanRayTracingShaderTable(FVulkanDevice* Device
 	, HandleSize(Device->GetOptionalExtensionProperties().RayTracingPipelineProps.shaderGroupHandleSize)
 	, HandleSizeAligned(Align(HandleSize, Device->GetOptionalExtensionProperties().RayTracingPipelineProps.shaderGroupHandleAlignment))
 {
-	auto InitAlloc = [Device = Device, HandleSizeAligned = HandleSizeAligned](FVulkanShaderTableAllocation& Alloc, uint32 InHandleCount, bool InUseLocalRecord) 
+	auto InitAlloc = [HandleSizeAligned = HandleSizeAligned](FVulkanShaderTableAllocation& Alloc, uint32 InHandleCount, bool InUseLocalRecord) 
 	{
 		Alloc.HandleCount = InHandleCount;
 		Alloc.bUseLocalRecord = InUseLocalRecord;
 
 		if (Alloc.HandleCount > 0)
 		{
-			const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& RayTracingPipelineProps = Device->GetOptionalExtensionProperties().RayTracingPipelineProps;
-			Alloc.Region.stride = InUseLocalRecord ? FMath::Min<VkDeviceSize>(RayTracingPipelineProps.maxShaderGroupStride, 4096) : HandleSizeAligned; // :todo-jn: shrink stride to necessary amount
+			Alloc.Region.stride = InUseLocalRecord ? (uint32)GVulkanRayTracingMaxShaderGroupStride : HandleSizeAligned;
 			Alloc.Region.size = Alloc.HandleCount * Alloc.Region.stride;
 
 			// Host buffer
@@ -1024,7 +1030,7 @@ void FVulkanRayTracingShaderTable::SetLocalShaderParameters(EShaderFrequency Fre
 
 	checkfSlow(OffsetWithinRecord % 4 == 0, TEXT("SBT record parameters must be written on DWORD-aligned boundary"));
 	checkfSlow(InDataSize % 4 == 0, TEXT("SBT record parameters must be DWORD-aligned"));
-	checkf(OffsetWithinRecord + InDataSize <= Alloc.Region.size, TEXT("SBT record write request is out of bounds"));
+	checkf(OffsetWithinRecord + InDataSize <= Alloc.Region.stride, TEXT("SBT record write request is out of bounds"));
 
 	const uint32 WriteOffset = HandleSizeAligned + (Alloc.Region.stride * RecordIndex) + OffsetWithinRecord;
 	FMemory::Memcpy(&Alloc.HostBuffer[WriteOffset], InData, InDataSize);
@@ -1366,6 +1372,10 @@ static FRHIRayTracingShader* GetBuiltInRayTracingShader()
 
 void FVulkanDevice::InitializeRayTracing()
 {
+	const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& RayTracingPipelineProps = GetOptionalExtensionProperties().RayTracingPipelineProps;
+	checkf((uint32)GVulkanRayTracingMaxShaderGroupStride <= RayTracingPipelineProps.maxShaderGroupStride, 
+		TEXT("Specified value for r.Vulkan.RayTracing.MaxShaderGroupStride is too large for this device! It will be capped."));
+	GVulkanRayTracingMaxShaderGroupStride = FMath::Min<VkDeviceSize>(RayTracingPipelineProps.maxShaderGroupStride, GVulkanRayTracingMaxShaderGroupStride);
 }
 
 // Temporary code to generate dummy UBs to bind when none is provided to prevent bindless code from crashing
@@ -1576,7 +1586,7 @@ FVulkanRayTracingPipelineState::FVulkanRayTracingPipelineState(FVulkanDevice* co
 	RayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
 	RayTracingPipelineCreateInfo.layout = InDevice->GetBindlessDescriptorManager()->GetPipelineLayout();
 	RayTracingPipelineCreateInfo.flags = VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
-	
+
 	VkDeferredOperationKHR DeferredOp = VK_NULL_HANDLE; // :todo-jn: more speed
 	if (GVulkanRayTracingAllowDeferredOperation >= 0)
 	{
@@ -2199,6 +2209,7 @@ void FVulkanCommandListContext::RHIRayTraceDispatchIndirect(
 
 static void SetSystemParametersUB(FVulkanHitGroupSystemParameters& OutSystemParameters, FVulkanRayTracingShaderTable* ShaderTable, uint32 InNumUniformBuffers, FRHIUniformBuffer* const* InUniformBuffers, const FVulkanRayTracingShader* InShader)
 {
+
 	// Plug the shaders in the right slots using LayoutHash comparisons
 	check(InShader->GetCodeHeader().UniformBufferInfos.Num() <= (int32)InNumUniformBuffers);
 	for (int32 UBIndex = 0; UBIndex < InShader->GetCodeHeader().UniformBufferInfos.Num(); ++UBIndex)
@@ -2218,6 +2229,7 @@ static void SetSystemParametersUB(FVulkanHitGroupSystemParameters& OutSystemPara
 
 		const FRHIDescriptorHandle BindlessHandle = UniformBuffer->GetBindlessHandle();
 		check(BindlessHandle.IsValid());
+		check(UniformBufferInfo.BindlessCBIndex < UE_ARRAY_COUNT(OutSystemParameters.BindlessUniformBuffers));
 		OutSystemParameters.BindlessUniformBuffers[UniformBufferInfo.BindlessCBIndex] = BindlessHandle.GetIndex();
 
 		ShaderTable->AddUBRef(UniformBuffer);
@@ -2252,6 +2264,7 @@ static void SetRayTracingHitGroup(
 		SetSystemParametersUB(SystemParameters, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
 
 		ShaderTable->SetLocalShaderParameters(SF_RayHitGroup, RecordIndex, 0, SystemParameters);
+		ShaderTable->SetLooseParameterData(SF_RayHitGroup, RecordIndex, LooseParameterData, LooseParameterDataSize);
 	}
 
 	ShaderTable->SetSlot(SF_RayHitGroup, RecordIndex, HitGroupIndex, Pipeline->GetShaderHandles(SF_RayHitGroup));
@@ -2262,6 +2275,7 @@ static void SetGenericSystemParameters(
 	FVulkanRayTracingShaderTable* ShaderTable, uint32 RecordIndex,
 	FRHIRayTracingPipelineState* InPipeline, uint32 ShaderIndexInPipeline,
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
+	uint32 LooseParameterDataSize, const void* LooseParameterData,
 	uint32 UserData, const EShaderFrequency ShaderFrequency)
 {
 	FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
@@ -2272,6 +2286,7 @@ static void SetGenericSystemParameters(
 	SystemParameters.RootConstants.UserData = UserData;
 	SetSystemParametersUB(SystemParameters, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
 	ShaderTable->SetLocalShaderParameters(ShaderFrequency, RecordIndex, 0, SystemParameters);
+	ShaderTable->SetLooseParameterData(ShaderFrequency, RecordIndex, LooseParameterData, LooseParameterDataSize);
 
 	ShaderTable->SetSlot(ShaderFrequency, RecordIndex, ShaderIndexInPipeline, Pipeline->GetShaderHandles(ShaderFrequency));
 }
@@ -2326,6 +2341,7 @@ void FVulkanCommandListContext::RHISetBindingsOnShaderBindingTable(FRHIShaderBin
 				ShaderTable, Binding.RecordIndex,
 				Pipeline, Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers, Binding.UniformBuffers,
+				Binding.LooseParameterDataSize, Binding.LooseParameterData,
 				Binding.UserData,
 				SF_RayCallable);
 		}
@@ -2335,6 +2351,7 @@ void FVulkanCommandListContext::RHISetBindingsOnShaderBindingTable(FRHIShaderBin
 				ShaderTable, Binding.RecordIndex,
 				Pipeline, Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers, Binding.UniformBuffers,
+				Binding.LooseParameterDataSize, Binding.LooseParameterData,
 				Binding.UserData,
 				SF_RayMiss);
 		}

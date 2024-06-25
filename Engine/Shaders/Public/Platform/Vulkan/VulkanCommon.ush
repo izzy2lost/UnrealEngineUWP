@@ -7,7 +7,7 @@
 #pragma once
 
 // Update this GUID to invalidate shader recompilation for only Vulkan shaders
-#pragma message("UESHADERMETADATA_VERSION 52DDF0DD-4378-4376-9CFF-4DCC8271F475")
+#pragma message("UESHADERMETADATA_VERSION 23542B66-F3AF-43B3-9B33-6C550B201903")
 
 #define COMPILER_SUPPORTS_ULONG_TYPES 1
 #define COMPILER_SUPPORTS_UINT64_IMAGE_ATOMICS (1 && COMPILER_SUPPORTS_ULONG_TYPES)
@@ -86,6 +86,11 @@ void ImageInterlockedAddUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 	#define OVERRIDE_RAY_TRACING_HIT_GROUP_SYSTEM_RESOURCES 1
 	#include "/Engine/Shared/RayTracingBuiltInResources.h"
 
+	struct VulkanShaderRecordLooseParameterData
+	{
+		uint VulkanShaderRecordDummyGlobals;
+	};
+
 	// Combine the common FHitGroupSystemRootConstants with bindless parameters
 	// :todo-jn: must match with VulkanRayTracing.h decl until we create a common header like RayTracingBuiltInResources.h
 	struct FVulkanHitGroupSystemParameters
@@ -95,7 +100,10 @@ void ImageInterlockedAddUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 		uint BindlessHitGroupSystemIndexBuffer;
 		uint BindlessHitGroupSystemVertexBuffer;
 
-		uint BindlessUniformBuffers[VULKAN_MAX_BINDLESS_UNIFORM_BUFFERS_PER_STAGE];
+		uint BindlessUniformBuffers[32];
+
+		// Globals must be kept at the end of FVulkanHitGroupSystemParameters
+		VulkanShaderRecordLooseParameterData Globals;
 	};
 
 	[[vk::shader_record_ext]] ConstantBuffer<FVulkanHitGroupSystemParameters> VulkanHitGroupSystemParameters;

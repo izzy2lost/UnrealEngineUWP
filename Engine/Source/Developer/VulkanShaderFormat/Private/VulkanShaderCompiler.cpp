@@ -229,6 +229,7 @@ struct FVulkanShaderCompilerInternalState
 	FString IntersectionEntry;
 
 	TArray<FString> AllBindlessUBs;
+	uint32 ShaderRecordGlobalsSize = 0;
 
 	// Forwarded calls for convenience
 	inline EShaderFrequency GetShaderFrequency() const
@@ -1447,7 +1448,6 @@ void ModifyVulkanCompilerInput(FShaderCompilerInput& Input)
 	Input.Environment.SetDefine(TEXT("BINDLESS_SRV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSRVArrayPrefix);
 	Input.Environment.SetDefine(TEXT("BINDLESS_UAV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessUAVArrayPrefix);
 	Input.Environment.SetDefine(TEXT("BINDLESS_SAMPLER_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSamplerArrayPrefix);
-	Input.Environment.SetDefine(TEXT("VULKAN_MAX_BINDLESS_UNIFORM_BUFFERS_PER_STAGE"), VulkanBindless::MaxUniformBuffersPerStage);
 
 	if (IsAndroidShaderFormat(Input.ShaderFormat))
 	{
@@ -1584,9 +1584,67 @@ static TArray<FString> ConvertUBToBindless(FString& PreprocessedShaderSource)
 }
 
 
+// Helper function to know how much space to set aside in the shader record for a global
+static uint32 GetSizeForType(FStringView TypeName, FStringView ArraySize)
+{
+	static TMap<FStringView, uint32> SizeForTypeMap;
+	if (SizeForTypeMap.Num() == 0)
+	{
+		SizeForTypeMap.Add(FStringView(TEXT("uint")),   4);
+		SizeForTypeMap.Add(FStringView(TEXT("uint2")),  8);
+		SizeForTypeMap.Add(FStringView(TEXT("uint4")),  16);
+		SizeForTypeMap.Add(FStringView(TEXT("float")),  4);
+		SizeForTypeMap.Add(FStringView(TEXT("float2")), 8);
+		SizeForTypeMap.Add(FStringView(TEXT("float4")), 16);
+	}
+
+	checkf(ArraySize.Len() == 0, TEXT("Need to add array support!")); // :todo-jn: Add array parsing
+
+	const uint32* TypeSize = SizeForTypeMap.Find(TypeName);
+	checkf(TypeSize, TEXT("Missing type size for %.*s"), TypeName.Len(), TypeName.GetData());
+	return *TypeSize;
+}
+
+
+// :todo-jn: TEMPORARY EXPERIMENT - will eventually move into preprocessing step
+static uint32 ConvertGlobalsToShaderRecord(const FShaderParameterParser& ShaderParameterParser, const TMap<FStringView, FStringView>& ReplacedGlobals, FString& PreprocessedShaderSource, FShaderCompilerOutput& Output)
+{
+	uint32 ShaderRecordGlobalsSize = 0;
+	uint32 ShaderRecordParamCount = 0;
+	FString ShaderRecordGlobalsString;
+
+	for (const auto& ParamDecl : ReplacedGlobals)
+	{
+		ShaderRecordGlobalsString += ParamDecl.Value;
+
+		const FString ParamName(ParamDecl.Key);
+		const FShaderParameterParser::FParsedShaderParameter& Info = ShaderParameterParser.FindParameterInfos(ParamName);
+		const uint32 ParamSize = GetSizeForType(Info.ParsedType, Info.ParsedArraySize);
+
+		HandleReflectedGlobalConstantBufferMember(
+			ParamName,
+			ShaderRecordParamCount++,
+			ShaderRecordGlobalsSize,
+			ParamSize,
+			Output
+		);
+
+		ShaderRecordGlobalsSize += ParamSize; 
+	}
+
+	if (ShaderRecordGlobalsString.Len())
+	{
+		const int32 ReplacementCount = PreprocessedShaderSource.ReplaceInline(TEXT("uint VulkanShaderRecordDummyGlobals;"), *ShaderRecordGlobalsString, ESearchCase::CaseSensitive);
+		checkf(ReplacementCount == 1, TEXT("VulkanShaderRecordDummyGlobals was replaced %d times!"), ReplacementCount);
+	}
+
+	return ShaderRecordGlobalsSize;
+}
+
+
 static void UpdateBindlessUBs(const FVulkanShaderCompilerInternalState& InternalState, VulkanShaderCompilerSerializedOutput& SerializedOutput, FShaderCompilerOutput& Output)
 {
-	check(SerializedOutput.Header.Bindings.Num() <= 1);  // :todo-jn: allow for globals in slot 0 (looseparams)
+	checkf(SerializedOutput.Header.Bindings.Num() == 0, TEXT("Shaders using bindless UBs should have no other bindings."));
 	for (int32 CBIndex = 0; CBIndex < InternalState.AllBindlessUBs.Num(); CBIndex++)
 	{
 		const FString& CBName = InternalState.AllBindlessUBs[CBIndex];
@@ -1713,11 +1771,12 @@ static bool CompileShaderGroup(
 
 struct FVulkanShaderParameterParserPlatformConfiguration : public FShaderParameterParser::FPlatformConfiguration
 {
-	FVulkanShaderParameterParserPlatformConfiguration(const FShaderCompilerInput& Input)
+	FVulkanShaderParameterParserPlatformConfiguration(const FShaderCompilerInput& Input, TMap<FStringView, FStringView>& InReplacedGlobals)
 		: FShaderParameterParser::FPlatformConfiguration()
 		, bIsRayTracingShader(Input.IsRayTracingShader())
 		, HitGroupSystemIndexBufferName(FShaderParameterParser::kBindlessSRVPrefix + FString(TEXT("HitGroupSystemIndexBuffer")))
 		, HitGroupSystemVertexBufferName(FShaderParameterParser::kBindlessSRVPrefix + FString(TEXT("HitGroupSystemVertexBuffer")))
+		, ReplacedGlobals(InReplacedGlobals)
 	{
 		EnumAddFlags(Flags, EShaderParameterParserConfigurationFlags::SupportsBindless | EShaderParameterParserConfigurationFlags::BindlessUsesArrays);
 
@@ -1726,6 +1785,12 @@ struct FVulkanShaderParameterParserPlatformConfiguration : public FShaderParamet
 		{
 			ConstantBufferType = TEXTVIEW("cbuffer");
 			EnumAddFlags(Flags, EShaderParameterParserConfigurationFlags::UseStableConstantBuffer);
+		}
+
+		// Place loose data params in the shader record for shaders with bindless UBs
+		if (bIsRayTracingShader && (Input.Target.GetFrequency() != SF_RayGen))
+		{
+			EnumAddFlags(Flags, EShaderParameterParserConfigurationFlags::ReplaceGlobals);
 		}
 	}
 
@@ -1750,9 +1815,21 @@ struct FVulkanShaderParameterParserPlatformConfiguration : public FShaderParamet
 			IndexString.Len(), IndexString.GetData());
 	}
 
+	// Fill the global with the value stored in the shader record
+	virtual FString ReplaceGlobal(FStringView FullDeclString, FStringView ParamName) const final
+	{
+		ReplacedGlobals.Add(ParamName, FullDeclString);
+
+		FString NewDecl(FullDeclString);
+		NewDecl = TEXT("static ") + NewDecl;
+		NewDecl.InsertAt(NewDecl.Find(TEXT(";")), FString::Printf(TEXT(" = VulkanHitGroupSystemParameters.Globals.%.*s"), ParamName.Len(), ParamName.GetData()));
+		return NewDecl;
+	}
+
 	const bool bIsRayTracingShader;
 	const FString HitGroupSystemIndexBufferName;
 	const FString HitGroupSystemVertexBufferName;
+	TMap<FStringView, FStringView>& ReplacedGlobals;
 };
 
 void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
@@ -1762,7 +1839,8 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 	FString EntryPointName = Input.EntryPointName;
 	FString PreprocessedSource(InPreprocessOutput.GetSourceViewWide());
 
-	FVulkanShaderParameterParserPlatformConfiguration PlatformConfiguration(Input);
+	TMap<FStringView, FStringView> ReplacedGlobals; // Note: these FStringView point to memory in FShaderParameterParser
+	FVulkanShaderParameterParserPlatformConfiguration PlatformConfiguration(Input, ReplacedGlobals);
 	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);
 	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedSource))
 	{
@@ -1774,10 +1852,11 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 
 	if (InternalState.bUseBindlessUniformBuffer)
 	{
+		InternalState.ShaderRecordGlobalsSize = ConvertGlobalsToShaderRecord(ShaderParameterParser, ReplacedGlobals, PreprocessedSource, Output);
 		InternalState.AllBindlessUBs = ConvertUBToBindless(PreprocessedSource);
 	}
 
-	if (ShaderParameterParser.DidModifyShader() || InternalState.AllBindlessUBs.Num() > 0)
+	if (ShaderParameterParser.DidModifyShader() || InternalState.AllBindlessUBs.Num() || InternalState.ShaderRecordGlobalsSize)
 	{
 		Output.ModifiedShaderSource = PreprocessedSource;
 	}

@@ -193,6 +193,10 @@ RAY_TRACING_ENTRY_MISS(SparseVoxelsMissShader,
 	Payload.SetMiss();
 }
 
+// These variables are only used by the ray gen shaders below
+// Investigate why MipLevel isn't dead stripped when building the shaders above (see UE-218402).
+#if RAYGENSHADER
+
 // Scene
 RaytracingAccelerationStructure TLAS;
 
@@ -205,6 +209,8 @@ int MipLevel;
 
 // Output
 RWTexture2D<float4> RWLightingTexture;
+
+#endif
 
 FRayDesc CreateVolumeRay(
 	float3 Origin,

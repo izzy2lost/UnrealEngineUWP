@@ -988,9 +988,11 @@ void FShaderParameterParser::ApplyBindlessModifications(FString& PreprocessedSha
 		TArray<FShaderCodeModifications> Modifications;
 		Modifications.Reserve(ParsedParameters.Num());
 
+		const bool bReplaceGlobals = EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::ReplaceGlobals);
+
 		for (TPair<FString, FParsedShaderParameter>& Itr : ParsedParameters)
 		{
-			FParsedShaderParameter& ParsedParameter = Itr.Value;
+			const FParsedShaderParameter& ParsedParameter = Itr.Value;
 
 			if (!ParsedParameter.IsFound())
 			{
@@ -1005,6 +1007,26 @@ void FShaderParameterParser::ApplyBindlessModifications(FString& PreprocessedSha
 				Modif.Replace = GenerateBindlessParameterDeclaration(ParsedParameter);
 
 				Modifications.Add(Modif);
+			}
+			else if (bReplaceGlobals)
+			{
+				const bool IsGlobalParam = 
+					(ParsedParameter.BaseType == UBMT_INVALID) &&
+					!ParsedParameter.ParsedName.StartsWith(FShaderParameterParser::kBindlessSamplerArrayPrefix) &&
+					!ParsedParameter.ParsedName.StartsWith(FShaderParameterParser::kBindlessSRVArrayPrefix) &&
+					!ParsedParameter.ParsedName.StartsWith(FShaderParameterParser::kBindlessUAVArrayPrefix);
+
+				if (IsGlobalParam)
+				{
+					FShaderCodeModifications Modif;
+					Modif.CharOffsetStart = ParsedParameter.ParsedCharOffsetStart;
+					Modif.CharOffsetEnd = ParsedParameter.ParsedCharOffsetEnd + 1;
+
+					const int32 NumChars = Modif.CharOffsetEnd - Modif.CharOffsetStart;
+					Modif.Replace = PlatformConfiguration.ReplaceGlobal(FStringView(&OriginalParsedShader[Modif.CharOffsetStart], NumChars), ParsedParameter.ParsedName);
+
+					Modifications.Add(Modif);
+				}
 			}
 		}
 
