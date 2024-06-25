@@ -17,6 +17,8 @@ public class AvalancheRemoteControlEditor : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
+                "InputCore",
+                "RemoteControl",
                 "RemoteControlComponents",
                 "RemoteControlComponentsEditor",
                 "RemoteControlUI",

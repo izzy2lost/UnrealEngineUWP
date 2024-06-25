@@ -4,6 +4,7 @@
 
 #include "HAL/Platform.h"
 
+class ULevel;
 class URemoteControlPreset;
 
 struct FAvaRemoteControlUtils
@@ -22,4 +23,12 @@ struct FAvaRemoteControlUtils
 	 *	Unregister the given RemoteControlPreset from the RemoteControl module.
 	 */
 	AVALANCHEREMOTECONTROL_API static void UnregisterRemoteControlPreset(URemoteControlPreset* InRemoteControlPreset);
+
+	/**
+	 * Iterates the active Embedded Presets and finds the one that is within the given Level
+	 * Note: this will not find presets that have not been registered, even if outered to the given Level.
+	 * @param InLevel the level containing the preset
+	 * @return the registered preset if found, null otherwise
+	 */
+	AVALANCHEREMOTECONTROL_API static URemoteControlPreset* FindEmbeddedPresetInLevel(ULevel* InLevel);
 };

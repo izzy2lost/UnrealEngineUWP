@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaRemoteControlUtils.h"
+#include "Engine/Level.h"
 #include "IRemoteControlModule.h"
 #include "RemoteControlPreset.h"
 #include "Subsystems/RemoteControlComponentsSubsystem.h"
@@ -108,4 +109,26 @@ void FAvaRemoteControlUtils::UnregisterRemoteControlPreset(URemoteControlPreset*
 	}
 	
 	RemoteControlModule.UnregisterEmbeddedPreset(InRemoteControlPreset);
+}
+
+URemoteControlPreset* FAvaRemoteControlUtils::FindEmbeddedPresetInLevel(ULevel* InLevel)
+{
+	if (!InLevel)
+	{
+		return nullptr;
+	}
+
+	TArray<TWeakObjectPtr<URemoteControlPreset>> EmbeddedPresets;
+	IRemoteControlModule::Get().GetEmbeddedPresets(EmbeddedPresets);
+
+	for (const TWeakObjectPtr<URemoteControlPreset>& EmbeddedPresetWeak : EmbeddedPresets)
+	{
+		URemoteControlPreset* EmbeddedPreset = EmbeddedPresetWeak.Get();
+		if (EmbeddedPreset && EmbeddedPreset->GetTypedOuter<ULevel>() == InLevel)
+		{
+			return EmbeddedPreset;
+		}
+	}
+
+	return nullptr;
 }

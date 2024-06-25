@@ -9,7 +9,7 @@ class URCVirtualPropertyBase;
 class URemoteControlPreset;
 
 /** Struct describing data to identify/find a Controller in a given preset */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, DisplayName="Motion Design RC Controller Id")
 struct FAvaRCControllerId
 {
 	GENERATED_BODY()
