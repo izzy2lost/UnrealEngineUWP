@@ -325,6 +325,7 @@ protected:
 	HTTP_API bool HasAnyBoundDelegate() const;
 
 	HTTP_API void UpdateUrlPatternsToLogResponse(IConsoleVariable* CVar);
+	HTTP_API void UpdateUrlPatternsToMockFailure(IConsoleVariable* CVar);
 
 protected:
 	/** List of Http requests that are actively being processed */
@@ -395,6 +396,10 @@ protected:
 	bool bUseEventLoop = true;
 
 	TArray<FString> UrlPatternsToLogResponse;
+	FCriticalSection UrlPatternsToLogResponseCriticalSection;
+
+	TMap<FString, int32> UrlPatternsToMockFailure;
+	FCriticalSection UrlPatternsToMockFailureCriticalSection;
 
 PACKAGE_SCOPE:
 
@@ -403,9 +408,6 @@ PACKAGE_SCOPE:
 
 	/** Used to lock access to get completed requests */
 	FCriticalSection CompletedRequestLock;
-
-	/** Used to lock access to url patterns for logging */
-	FCriticalSection UrlPatternsToLogResponseCriticalSection;
 
 	/**
 	 * Broadcast that a non-threaded HTTP request is complete.
@@ -435,4 +437,6 @@ PACKAGE_SCOPE:
 	HTTP_API void RecordPlatformStats(const FHttpStatsPlatform& PlatformStats);
 
 	HTTP_API bool ShouldLogResponse(FStringView Url);
+
+	HTTP_API TOptional<int32> GetMockFailure(FStringView Url);
 };

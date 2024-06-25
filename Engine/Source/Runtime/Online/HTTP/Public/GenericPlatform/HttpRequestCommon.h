@@ -90,6 +90,7 @@ protected:
 
 	HTTP_API virtual void CleanupRequest() = 0;
 
+	HTTP_API void HandleStatusCodeReceived(int32 StatusCode);
 	HTTP_API void TriggerStatusCodeReceivedDelegate(int32 StatusCode);
 
 	HTTP_API void SetEffectiveURL(const FString& InEffectiveURL);
@@ -104,6 +105,13 @@ protected:
 	HTTP_API void CloseRequestPayloadDefaultImpl();
 
 	HTTP_API void LogResponse(const TSharedPtr<IHttpResponse>& InResponse);
+	HTTP_API bool WillTriggerMockFailure();
+
+	HTTP_API void InitResponse();
+
+	HTTP_API virtual FHttpResponsePtr CreateResponse() = 0;
+	// The function for each impl to make sure when mocking response code, the internal state is valid for finishing request successfully
+	HTTP_API virtual void MockResponseData() = 0;
 
 protected:
 	/** Current status of request being processed */

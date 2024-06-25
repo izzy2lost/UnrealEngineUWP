@@ -29,7 +29,14 @@ TAutoConsoleVariable<int32> CVarHttpEventLoopEnableChance(
 TAutoConsoleVariable<FString> CVarHttpUrlPatternsToLogResponse(
 	TEXT("http.UrlPatternsToLogResponse"),
 	TEXT(""),
-	TEXT("List of url patterns to log headers and json content: \"epicgames.com,unrealengine.com,...\""),
+	TEXT("List of url patterns to log headers and json content: \"epicgames.com unrealengine.com ...\""),
+	ECVF_SaveForNextBoot
+);
+
+TAutoConsoleVariable<FString> CVarHttpUrlPatternsToMockFailure(
+	TEXT("http.UrlPatternsToMockFailure"),
+	TEXT(""),
+	TEXT("List of url patterns to mock failure with response code, 0 indicates ConnectionError: \"epicgames.com->0 unrealengine.com->503 ...\""),
 	ECVF_SaveForNextBoot
 );
 
@@ -106,11 +113,15 @@ void FHttpManager::Initialize()
 
 	UpdateUrlPatternsToLogResponse(CVarHttpUrlPatternsToLogResponse.AsVariable());
 	CVarHttpUrlPatternsToLogResponse.AsVariable()->OnChangedDelegate().AddRaw(this, &FHttpManager::UpdateUrlPatternsToLogResponse);
+
+	UpdateUrlPatternsToMockFailure(CVarHttpUrlPatternsToMockFailure.AsVariable());
+	CVarHttpUrlPatternsToMockFailure.AsVariable()->OnChangedDelegate().AddRaw(this, &FHttpManager::UpdateUrlPatternsToMockFailure);
 }
 
 void FHttpManager::Shutdown()
 {
 	CVarHttpUrlPatternsToLogResponse.AsVariable()->OnChangedDelegate().Clear();
+	CVarHttpUrlPatternsToMockFailure.AsVariable()->OnChangedDelegate().Clear();
 
 	{
 		FScopeLock ScopeLock(&RequestLock);
@@ -673,7 +684,7 @@ void FHttpManager::UpdateUrlPatternsToLogResponse(IConsoleVariable* CVar)
 {
 	const FScopeLock CacheLock(&UrlPatternsToLogResponseCriticalSection);
 	const FString UrlPatternsToLogResponseStr = CVar->AsVariable()->GetString();
-	UrlPatternsToLogResponseStr.ParseIntoArray(UrlPatternsToLogResponse, TEXT(","));
+	UrlPatternsToLogResponseStr.ParseIntoArray(UrlPatternsToLogResponse, TEXT(" "));
 }
 
 bool FHttpManager::ShouldLogResponse(FStringView Url)
@@ -688,5 +699,41 @@ bool FHttpManager::ShouldLogResponse(FStringView Url)
 	}
 
 	return false;
+}
+
+void FHttpManager::UpdateUrlPatternsToMockFailure(IConsoleVariable* CVar)
+{
+	const FScopeLock CacheLock(&UrlPatternsToMockFailureCriticalSection);
+	const FString UrlPatternsToMockFailureStr = CVar->AsVariable()->GetString();
+
+	TArray<FString> UrlPatternsToMockFailureStrings;
+	UrlPatternsToMockFailureStr.ParseIntoArray(UrlPatternsToMockFailureStrings, TEXT(" "));
+
+	for (const FString& UrlPatternToMockFailureString : UrlPatternsToMockFailureStrings)
+	{
+		TArray<FString> UrlPattern;
+		UrlPatternToMockFailureString.ParseIntoArray(UrlPattern, TEXT("->"));
+		if (UrlPattern.Num() == 2)
+		{
+			int32 ResponseCode = FCString::Atoi(*UrlPattern[1]);
+			UrlPatternsToMockFailure.Emplace(UrlPattern[0], ResponseCode);
+		}
+	}
+}
+
+TOptional<int32> FHttpManager::GetMockFailure(FStringView Url)
+{
+	TOptional<int32> Result;
+	const FScopeLock CacheLock(&UrlPatternsToMockFailureCriticalSection);
+
+	for (const TPair<FString, int32>& UrlPattern : UrlPatternsToMockFailure)
+	{
+		if (Url.Contains(UrlPattern.Key))
+		{
+			Result = UrlPattern.Value;
+		}
+	}
+
+	return Result;
 }
 

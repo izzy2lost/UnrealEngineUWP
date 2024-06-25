@@ -21,6 +21,20 @@
 
 extern TAutoConsoleVariable<bool> CVarHttpSetGeneralFailureReasonFromCommonCode;
 
+TAutoConsoleVariable<bool> CVarHttpCurlSetResponseCodeWhenMarkAsCompleted(
+	TEXT("http.CurlSetResponseCodeWhenMarkAsCompleted"),
+	true,
+	TEXT("Set response code in when mark as completed, instead of setting it in FinishRequest."),
+	ECVF_SaveForNextBoot
+);
+
+TAutoConsoleVariable<bool> CVarHttpCurlReadContentLengthWhenFinish(
+	TEXT("http.CurlReadContentLengthWhenFinish"),
+	false,
+	TEXT("Whether to read content length from curl handle when finish request"),
+	ECVF_SaveForNextBoot
+);
+
 #if WITH_SSL
 static int SslCertVerify(int PreverifyOk, X509_STORE_CTX* Context)
 {
@@ -447,11 +461,7 @@ size_t FCurlHttpRequest::ReceiveResponseHeaderCallback(void* Ptr, size_t SizeInB
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_ReceiveResponseHeaderCallback);
 
-	if (!ResponseCommon.IsValid())
-	{
-		ResponseCommon = MakeShared<FCurlHttpResponse>(*this);
-		TotalBytesRead = 0;
-	}
+	InitResponse();
 
 	OnAnyActivityOccur(TEXTVIEW("Received header"));
 
@@ -550,10 +560,7 @@ size_t FCurlHttpRequest::ReceiveResponseBodyCallback(void* Ptr, size_t SizeInBlo
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_ReceiveResponseBodyCallback);
 	LLM_SCOPE(ELLMTag::Networking);
 
-	if (!ResponseCommon.IsValid())
-	{
-		ResponseCommon = MakeShared<FCurlHttpResponse>(*this);
-	}
+	InitResponse();
 
 	OnAnyActivityOccur(TEXTVIEW("Received body"));
 
@@ -1149,6 +1156,19 @@ void FCurlHttpRequest::MarkAsCompleted(CURLcode InCurlCompletionResult)
 	CurlCompletionResult = InCurlCompletionResult;
 	bCurlRequestCompleted = true;
 
+	if (CVarHttpCurlSetResponseCodeWhenMarkAsCompleted.GetValueOnAnyThread())
+	{
+		if (TSharedPtr<FCurlHttpResponse> Response = StaticCastSharedPtr<FCurlHttpResponse>(ResponseCommon))
+		{
+			// get the information
+			long HttpCode = 0;
+			if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
+			{
+				Response->SetResponseCode(HttpCode);
+			}
+		}
+	}
+
 	StopActivityTimeoutTimer();
 }
 
@@ -1169,18 +1189,23 @@ void FCurlHttpRequest::FinishRequest()
 		{
 			Response->bSucceeded = (CURLE_OK == CurlCompletionResult);
 
-			// get the information
-			long HttpCode = 0;
-			if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
+			if (!CVarHttpCurlSetResponseCodeWhenMarkAsCompleted.GetValueOnAnyThread())
 			{
-				Response->HttpCode = HttpCode;
+				// get the information
+				long HttpCode = 0;
+				if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
+				{
+					Response->SetResponseCode(HttpCode);
+				}
 			}
 
 			// If content length wasn't received through response header 
 			if (Response->ContentLength == 0)
 			{
 				double ContentLengthDownload = 0.0;
-				if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &ContentLengthDownload) && ContentLengthDownload > 0.0)
+				if (CVarHttpCurlReadContentLengthWhenFinish.GetValueOnAnyThread() && 
+					CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &ContentLengthDownload) && 
+					ContentLengthDownload > 0.0)
 				{
 					Response->ContentLength = static_cast< uint64 >(ContentLengthDownload);
 				}
@@ -1191,10 +1216,10 @@ void FCurlHttpRequest::FinishRequest()
 				}
 			}
 
-			if (Response->HttpCode <= 0 && URL.StartsWith(TEXT("Http"), ESearchCase::IgnoreCase))
+			if (Response->GetResponseCode() <= 0 && URL.StartsWith(TEXT("Http"), ESearchCase::IgnoreCase))
 			{
 				UE_LOG(LogHttp, Warning, TEXT("%p: invalid HTTP response code received. URL: %s, HTTP code: %d, content length: %llu, actual payload size: %llu"),
-					this, *GetURL(), Response->HttpCode, Response->ContentLength, TotalBytesRead.load());
+					this, *GetURL(), Response->GetResponseCode(), Response->ContentLength, TotalBytesRead.load());
 				Response->bSucceeded = false;
 			}
 		}
@@ -1322,11 +1347,24 @@ void FCurlHttpRequest::CleanupRequest()
 	CloseRequestPayloadDefaultImpl();
 }
 
+FHttpResponsePtr FCurlHttpRequest::CreateResponse()
+{
+	return MakeShared<FCurlHttpResponse>(*this);
+}
+
+void FCurlHttpRequest::MockResponseData()
+{
+	CurlCompletionResult = CURLE_OK;
+	bCurlRequestCompleted = true;
+
+	TSharedPtr<FCurlHttpResponse> Response = StaticCastSharedPtr<FCurlHttpResponse>(ResponseCommon);
+	Response->bSucceeded = true;
+}
+
 // FCurlHttpRequest
 
 FCurlHttpResponse::FCurlHttpResponse(const FCurlHttpRequest& InRequest)
 	: FHttpResponseCommon(InRequest)
-	, HttpCode(EHttpResponseCodes::Unknown)
 	, ContentLength(0)
 	, bIsReady(0)
 	, bSucceeded(0)
@@ -1388,17 +1426,13 @@ const TArray<uint8>& FCurlHttpResponse::GetContent() const
 	return Payload;
 }
 
-int32 FCurlHttpResponse::GetResponseCode() const
-{
-	return HttpCode;
-}
-
 FString FCurlHttpResponse::GetContentAsString() const
 {
 	// Content is NOT null-terminated; we need to specify lengths here
 	FUTF8ToTCHAR TCHARData(reinterpret_cast<const ANSICHAR*>(Payload.GetData()), Payload.Num());
 	return FString(TCHARData.Length(), TCHARData.Get());
 }
+
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif //WITH_CURL

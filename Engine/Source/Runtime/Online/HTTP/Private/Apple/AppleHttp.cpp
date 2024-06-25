@@ -126,12 +126,18 @@ extern TAutoConsoleVariable<bool> CVarHttpSetGeneralFailureReasonFromCommonCode;
 	[super dealloc];
 }
 
-- (void) HandleStatusCodeReceived:(int32) StatusCode
+- (void) HandleStatusCodeReceived
 {
 	if (TSharedPtr<FAppleHttpRequest> Request = SourceRequest.Pin())
 	{
-		Request->TriggerStatusCodeReceivedDelegate(StatusCode);
+		int32 StatusCode = [self GetStatusCode];
+		Request->HandleStatusCodeReceived(StatusCode);
 	}
+}
+
+- (void)SetRequestStatus:(EHttpRequestStatus::Type)InRequestStatus
+{
+	self.RequestStatus = InRequestStatus;
 }
 
 - (bool)HandleBodyDataReceived:(void*)Ptr Size:(int64)InSize
@@ -211,9 +217,7 @@ extern TAutoConsoleVariable<bool> CVarHttpSetGeneralFailureReasonFromCommonCode;
 
 	self.Response = response;
 
-	int32 StatusCode = [self GetStatusCode];
-	
-	[self HandleStatusCodeReceived: StatusCode];
+	[self HandleStatusCodeReceived];
 
 	NSURL* Url = [self.Response URL];
 	FString EffectiveURL([Url absoluteString]);
@@ -817,10 +821,10 @@ bool FAppleHttpRequest::SetupRequest()
 		SetStatus(EHttpRequestStatus::Processing);
 		SetFailureReason(EHttpFailureReason::None);
 
-		TSharedPtr<FAppleHttpResponse> Response = MakeShared<FAppleHttpResponse>(*this);
-		ResponseCommon = Response;
+		InitResponse();
 
 		// Both Task and Response keep a strong reference to the delegate
+		TSharedPtr<FAppleHttpResponse> Response = StaticCastSharedPtr<FAppleHttpResponse>(ResponseCommon);
 		Task.delegate = Response->ResponseDelegate;
 
 		//Setup delegates before starting the request
@@ -839,6 +843,17 @@ bool FAppleHttpRequest::SetupRequest()
 	}
 }
 
+FHttpResponsePtr FAppleHttpRequest::CreateResponse()
+{
+	return MakeShared<FAppleHttpResponse>(*this);
+}
+
+void FAppleHttpRequest::MockResponseData()
+{
+	TSharedPtr<FAppleHttpResponse> Response = StaticCastSharedPtr<FAppleHttpResponse>(ResponseCommon);
+	[Response->ResponseDelegate SetRequestStatus: EHttpRequestStatus::Succeeded];
+}
+
 void FAppleHttpRequest::FinishRequest()
 {
 	PostProcess();
@@ -852,29 +867,31 @@ void FAppleHttpRequest::FinishRequest()
 	}
 	else
 	{
-		EHttpFailureReason Reason = EHttpFailureReason::Other;
-		if (Response)
+		if (FailureReason == EHttpFailureReason::None) // FailureReason could have been set by FHttpRequestCommon::WillTriggerMockFailure
 		{
-			Reason = Response->GetFailureReasonFromDelegate();
-			if (Reason == EHttpFailureReason::Cancelled)
+			EHttpFailureReason Reason = EHttpFailureReason::Other;
+			if (Response)
 			{
-				if (bTimedOut)
+				Reason = Response->GetFailureReasonFromDelegate();
+				if (Reason == EHttpFailureReason::Cancelled)
 				{
-					Reason = EHttpFailureReason::TimedOut;
-				}
-				else if (bActivityTimedOut)
-				{
-					Reason = EHttpFailureReason::ConnectionError;
+					if (bTimedOut)
+					{
+						Reason = EHttpFailureReason::TimedOut;
+					}
+					else if (bActivityTimedOut)
+					{
+						Reason = EHttpFailureReason::ConnectionError;
+					}
 				}
 			}
+			else if (bCanceled)
+			{
+				Reason = EHttpFailureReason::Cancelled;
+			}
+			SetFailureReason(Reason);
 		}
-		else if (bCanceled)
-		{
-			Reason = EHttpFailureReason::Cancelled;
-		}
-		SetFailureReason(Reason);
 
-		UE_LOG(LogHttp, Verbose, TEXT("Request failed: %p Reason %s"), this, LexToString(Reason));
 		if (GetFailureReason() == EHttpFailureReason::ConnectionError)
 		{
 			ResponseCommon = nullptr;
@@ -1066,11 +1083,6 @@ FString FAppleHttpResponse::GetContentAsString() const
 	FMemory::Memcpy( ZeroTerminatedPayload.GetData(), Payload.GetData(), Payload.Num() );
 
 	return UTF8_TO_TCHAR( ZeroTerminatedPayload.GetData() );
-}
-
-int32 FAppleHttpResponse::GetResponseCode() const
-{
-	return [ResponseDelegate GetStatusCode];
 }
 
 bool FAppleHttpResponse::IsReady() const

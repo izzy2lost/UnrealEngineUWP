@@ -355,6 +355,9 @@ private:
 
 	virtual void ClearInCaseOfRetry() override;
 
+	virtual FHttpResponsePtr CreateResponse() override;
+	virtual void MockResponseData() override;
+
 private:
 
 	/** Pointer to an easy handle specific to this request */
@@ -421,7 +424,6 @@ public:
 	//~ End IHttpBase Interface
 
 	//~ Begin IHttpResponse Interface
-	virtual int32 GetResponseCode() const override;
 	virtual FString GetContentAsString() const override;
 	//~ End IHttpResponse Interface
 
@@ -439,8 +441,6 @@ private:
 	TSharedPtr<FArchive> ResponseBodyReceiveStream;
 	/** Cached key/value header pairs. Parsed once request completes. Only accessible on the game thread. */
 	TMap<FString, FString> Headers;
-	/** Cached code from completed response */
-	int32 HttpCode;
 	/** Cached content length from completed response */
 	uint64 ContentLength;
 	/** True when the response has finished async processing */

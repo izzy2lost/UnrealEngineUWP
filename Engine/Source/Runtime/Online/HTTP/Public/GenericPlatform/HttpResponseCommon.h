@@ -24,14 +24,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	HTTP_API virtual const FString& GetEffectiveURL() const override;
 	HTTP_API virtual EHttpRequestStatus::Type GetStatus() const override;
 	HTTP_API virtual EHttpFailureReason GetFailureReason() const override;
+	HTTP_API virtual int32 GetResponseCode() const override;
 
 protected:
 	HTTP_API void SetRequestStatus(EHttpRequestStatus::Type InCompletionStatus);
 	HTTP_API void SetRequestFailureReason(EHttpFailureReason InFailureReason);
 	HTTP_API void SetEffectiveURL(const FString& InEffectiveURL);
+	HTTP_API void SetResponseCode(int32 InResponseCode);
 
 	FString URL;
 	FString EffectiveURL;
 	EHttpRequestStatus::Type CompletionStatus;
 	EHttpFailureReason FailureReason;
+	int32 ResponseCode = EHttpResponseCodes::Unknown;
 };

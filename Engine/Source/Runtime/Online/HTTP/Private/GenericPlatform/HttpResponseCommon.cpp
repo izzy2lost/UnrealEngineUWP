@@ -57,4 +57,15 @@ void FHttpResponseCommon::SetEffectiveURL(const FString& InEffectiveURL)
 {
 	EffectiveURL = InEffectiveURL;
 }
+
+int32 FHttpResponseCommon::GetResponseCode() const
+{
+	return ResponseCode;
+}
+
+void FHttpResponseCommon::SetResponseCode(int32 InResponseCode)
+{
+	ResponseCode = InResponseCode;
+}
+
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

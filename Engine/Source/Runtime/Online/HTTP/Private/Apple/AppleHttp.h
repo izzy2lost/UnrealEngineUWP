@@ -77,7 +77,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	using FHttpRequestCommon::StartActivityTimeoutTimer;
 	using FHttpRequestCommon::ResetActivityTimeoutTimer;
 	using FHttpRequestCommon::StopActivityTimeoutTimer;
-	using FHttpRequestCommon::TriggerStatusCodeReceivedDelegate;
+	using FHttpRequestCommon::HandleStatusCodeReceived;
 	using FHttpRequestCommon::SetEffectiveURL;
 	using FHttpRequestCommon::PassReceivedDataToStream;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -96,6 +96,9 @@ private:
 	 * @return true if the request was started
 	 */
 	virtual bool SetupRequest() override;
+
+	virtual FHttpResponsePtr CreateResponse() override;
+	virtual void MockResponseData() override;
 
 	virtual void AbortRequest() override;
 
@@ -155,7 +158,6 @@ public:
 	//~ End IHttpBase Interface
 
 	//~ Begin IHttpResponse Interface
-	virtual int32 GetResponseCode() const override;
 	virtual FString GetContentAsString() const override;
 	//~ End IHttpResponse Interface
 

@@ -105,11 +105,65 @@ bool FHttpRequestCommon::PreCheck() const
 	return true;
 }
 
+bool FHttpRequestCommon::WillTriggerMockFailure()
+{
+	TOptional<int32> MockResponseCode = FHttpModule::Get().GetHttpManager().GetMockFailure(GetURL());
+	if (MockResponseCode.IsSet())
+	{
+		if (MockResponseCode.GetValue() == EHttpResponseCodes::Unknown)
+		{
+			int32 HttpConnectionTimeout = FHttpModule::Get().GetHttpConnectionTimeout();
+			TWeakPtr<FHttpRequestCommon> RequestWeakPtr(SharedThis(this));
+			FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr]() {
+				if (TSharedPtr<FHttpRequestCommon> RequestPtr = RequestWeakPtr.Pin())
+				{
+					RequestPtr->SetFailureReason(EHttpFailureReason::ConnectionError);
+					RequestPtr->FinishRequestNotInHttpManager();
+				}
+			}, HttpConnectionTimeout);
+		}
+		else
+		{
+			InitResponse();
+			ResponseCommon->SetResponseCode(MockResponseCode.GetValue());
+			MockResponseData();
+			FinishRequestNotInHttpManager();
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+void FHttpRequestCommon::InitResponse()
+{
+	if (!ResponseCommon)
+	{
+		FHttpResponsePtr Response = CreateResponse();
+		ResponseCommon = StaticCastSharedPtr<FHttpResponseCommon>(Response);
+	}
+}
+
 bool FHttpRequestCommon::PreProcess()
 {
 	ClearInCaseOfRetry();
 
-	if (!PreCheck() || !SetupRequest())
+	if (!PreCheck())
+	{
+		FinishRequestNotInHttpManager();
+		return false;
+	}
+
+	if (WillTriggerMockFailure())
+	{
+		// Connect timeout mocking will trigger FinishRequest after a delay, still make sure total timeout 
+		// works when mocking connect timeout
+		StartTotalTimeoutTimer();
+		return false;
+	}
+
+	if (!SetupRequest())
 	{
 		FinishRequestNotInHttpManager();
 		return false;
@@ -339,12 +393,11 @@ void FHttpRequestCommon::StartActivityTimeoutTimerBy(double DelayToTrigger)
 		return;
 	}
 
-	TWeakPtr<IHttpRequest> RequestWeakPtr(AsShared());
+	TWeakPtr<FHttpRequestCommon> RequestWeakPtr(SharedThis(this));
 	ActivityTimeoutHttpTaskTimerHandle = FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr]() {
-		if (TSharedPtr<IHttpRequest> RequestPtr = RequestWeakPtr.Pin())
+		if (TSharedPtr<FHttpRequestCommon> RequestPtr = RequestWeakPtr.Pin())
 		{
-			TSharedPtr<FHttpRequestCommon> RequestCommonPtr = StaticCastSharedPtr<FHttpRequestCommon>(RequestPtr);
-			RequestCommonPtr->OnActivityTimeoutTimerTaskTrigger();
+			RequestPtr->OnActivityTimeoutTimerTaskTrigger();
 		}
 	}, DelayToTrigger + 0.05);
 }
@@ -501,6 +554,15 @@ void FHttpRequestCommon::ProcessRequestUntilComplete()
 	ProcessRequest();
 	Event->Wait();
 	FPlatformProcess::ReturnSynchEventToPool(Event);
+}
+
+void FHttpRequestCommon::HandleStatusCodeReceived(int32 StatusCode)
+{
+	if (ResponseCommon)
+	{
+		ResponseCommon->SetResponseCode(StatusCode);
+	}
+	TriggerStatusCodeReceivedDelegate(StatusCode);
 }
 
 void FHttpRequestCommon::TriggerStatusCodeReceivedDelegate(int32 StatusCode)
