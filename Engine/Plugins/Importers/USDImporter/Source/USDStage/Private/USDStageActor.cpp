@@ -4248,6 +4248,12 @@ void AUsdStageActor::UpdateSpawnedObjectsTransientFlag(bool bTransient)
 void AUsdStageActor::OnActorAddedToSequencer(AActor* NewActor, const FGuid Guid, TWeakPtr<ISequencer> WeakSequencer)
 {
 #if WITH_EDITOR
+
+	if (bIsAddingBinding)
+	{
+		// Prevent re-entrancy
+		return;
+	}
 	if (!NewActor || !NewActor->HasAnyFlags(RF_Transient))
 	{
 		return;
@@ -4290,6 +4296,7 @@ void AUsdStageActor::OnActorAddedToSequencer(AActor* NewActor, const FGuid Guid,
 		return;
 	}
 
+
 	// The UI action to add the actor to the sequencer should have spawned it's transaction already, but just in case it
 	// hasn't let's do that, as we'll end up modifying UObjects in here
 	FScopedTransaction Transaction(
@@ -4298,7 +4305,9 @@ void AUsdStageActor::OnActorAddedToSequencer(AActor* NewActor, const FGuid Guid,
 	Sequence->Modify();
 	MovieScene->Modify();
 
+	bIsAddingBinding = true;
 	FUsdStageActorImpl::SetupDynamicBinding(PrimPath, Guid, Sequence, *GetName(), PinnedSequencer);
+	bIsAddingBinding = false;
 #endif	  // WITH_EDITOR
 }
 

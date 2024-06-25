@@ -466,6 +466,7 @@ protected:
 	bool bIsTransitioningIntoPIE;
 	bool bIsModifyingAProperty;
 	bool bIsUndoRedoing;
+	bool bIsAddingBinding = false;
 
 	FDelegateHandle OnRedoHandle;
 	FDelegateHandle OnSequencerCreatedHandle;

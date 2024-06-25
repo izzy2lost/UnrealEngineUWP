@@ -38,6 +38,27 @@ void UMovieSceneReplaceableDirectorBlueprintBinding::OnBindingAddedOrChanged(UMo
 		}
 	}
 }
+
+UMovieSceneCustomBinding* UMovieSceneReplaceableDirectorBlueprintBinding::CreateCustomBindingFromBinding(const FMovieSceneBindingReference& BindingReference, UObject* SourceObject, UMovieScene& OwnerMovieScene)
+{
+	// We override this specifically to initialize PreviewSpawnableType on conversions so that we end up with a custom preview from whatever object was passed in in that case.
+	UMovieSceneReplaceableDirectorBlueprintBinding* NewCustomBinding = nullptr;
+
+	const FName TemplateName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), SourceObject ? SourceObject->GetFName() : GetClass()->GetFName());
+	const FName InstancedBindingName = MakeUniqueObjectName(&OwnerMovieScene, UObject::StaticClass(), *FString(TemplateName.ToString() + TEXT("_CustomBinding")));
+
+	NewCustomBinding = NewObject<UMovieSceneReplaceableDirectorBlueprintBinding>(&OwnerMovieScene, GetClass(), InstancedBindingName, RF_Transactional);
+
+	// If no inner spawnable class has been set, and it's available, set it to Spawnable Actor so we at least get some preview when converting an existing binding to this type
+	if (!NewCustomBinding->PreviewSpawnableType && UMovieScene::IsCustomBindingClassAllowed(UMovieSceneSpawnableActorBinding::StaticClass()))
+	{
+		NewCustomBinding->PreviewSpawnableType = UMovieSceneSpawnableActorBinding::StaticClass();
+	}
+
+	NewCustomBinding->PreviewSpawnable = NewCustomBinding->CreateInnerSpawnable(SourceObject, OwnerMovieScene);
+	NewCustomBinding->InitReplaceableBinding(SourceObject, OwnerMovieScene);
+	return NewCustomBinding;
+}
 #endif
 
 FMovieSceneBindingResolveResult UMovieSceneReplaceableDirectorBlueprintBinding::ResolveRuntimeBindingInternal(const FMovieSceneBindingResolveParams& ResolveParams, int32 BindingIndex, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
@@ -50,14 +71,6 @@ FMovieSceneBindingResolveResult UMovieSceneReplaceableDirectorBlueprintBinding::
 
 UMovieSceneSpawnableBindingBase* UMovieSceneReplaceableDirectorBlueprintBinding::CreateInnerSpawnable(UObject* SourceObject, UMovieScene& OwnerMovieScene)
 {
-#if WITH_EDITOR
-	// If no inner spawnable class has been set, and it's available, set it to Spawnable Actor so we at least get some preview when converting an existing binding to this type
-	if (!PreviewSpawnableType && UMovieScene::IsCustomBindingClassAllowed(UMovieSceneSpawnableActorBinding::StaticClass()))
-	{
-		PreviewSpawnableType = UMovieSceneSpawnableActorBinding::StaticClass();
-	}
-#endif
 	return UMovieSceneReplaceableBindingBase::CreateInnerSpawnable(SourceObject, OwnerMovieScene);
 }
-
 #undef LOCTEXT_NAMESPACE

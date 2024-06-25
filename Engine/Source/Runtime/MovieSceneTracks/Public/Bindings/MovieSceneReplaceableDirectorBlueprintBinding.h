@@ -36,12 +36,15 @@ public:
 
 	// Preview Spawnable Type to use for this replaceable
 	// TODO: Do I want to consider moving this sort of thing to the base class so any replaceable type can choose any other spawnable type?
-	// TODO: Changing this will require 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sequencer")
 	TSubclassOf<UMovieSceneSpawnableBindingBase> PreviewSpawnableType;
 
 protected:
 	/* MovieSceneReplaceableBindingBase overrides*/
+
+#if WITH_EDITOR
+	MOVIESCENETRACKS_API virtual UMovieSceneCustomBinding* CreateCustomBindingFromBinding(const FMovieSceneBindingReference& BindingReference, UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
+#endif
 
 	// By default we return nullptr here, as we rely on Sequencer's BindingOverride mechanism to bind these actors during runtime.
 	// This can be overridden if desired in subclasses to provide a different way to resolve to an actor at runtime while still using spawnable actor as the preview.

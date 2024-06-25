@@ -202,6 +202,7 @@ bool FLevelSequenceEditorActorSpawner::CanSetupDefaultsForSpawnable(UObject* Spa
 void FLevelSequenceEditorActorSpawner::SetupDefaultsForSpawnable(UObject* SpawnedObject, const FGuid& Guid, const TOptional<FTransformData>& TransformData, TSharedRef<ISequencer> Sequencer, USequencerSettings* Settings)
 {
 	TOptional<FTransformData> DefaultTransform = TransformData;
+	DefaultTransform->Scale = FVector(1.0f, 1.0f, 1.0f);
 
 	AActor* SpawnedActor = Cast<AActor>(SpawnedObject);
 	if (SpawnedActor)
