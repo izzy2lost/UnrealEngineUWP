@@ -58,6 +58,8 @@
 class AActor;
 class FBlueprintEditorToolbar;
 class FBlueprintNamespaceHelper;
+class FEditorViewportSelectability;
+class FEditorViewportSelectabilityBridge;
 class FProperty;
 class FReferenceCollector;
 class FSCSEditorTreeNode;
@@ -1384,6 +1386,8 @@ public://@TODO
 	/** Whether delegates are allowed  to be displayed/created in a blueprint */
 	virtual bool AreDelegatesAllowed() const;
 
+	FEditorViewportSelectabilityBridge& GetViewportSelectabilityBridge();
+
 protected:
 
 	/** Should intermediate build products be saved when recompiling? */
@@ -1639,6 +1643,8 @@ private:
 
 	virtual void OnBlueprintProjectSettingsChanged(UObject*, struct FPropertyChangedEvent&);
 	virtual void OnBlueprintEditorPreferencesChanged(UObject*, struct FPropertyChangedEvent&);
+
+	TUniquePtr<FEditorViewportSelectabilityBridge> ViewportSelectabilityBridge;
 };
 
 #undef LOCTEXT_NAMESPACE

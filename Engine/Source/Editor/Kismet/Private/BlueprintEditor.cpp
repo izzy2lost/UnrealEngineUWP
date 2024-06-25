@@ -181,6 +181,7 @@
 #include "BlueprintActionDatabase.h"
 #include "Algo/MinElement.h"
 #include "Editor/EditorEngine.h"
+#include "EditorViewportSelectabilityBridge.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogBlueprintEditor, Log, All);
 
@@ -2459,6 +2460,11 @@ void FBlueprintEditor::InitBlueprintEditor(
 		.AddRaw(this, &FBlueprintEditor::OnBlueprintEditorPreferencesChanged);
 	BlueprintProjectSettingsChangedHandle = GetMutableDefault<UBlueprintEditorProjectSettings>()->OnSettingChanged()
 		.AddRaw(this, &FBlueprintEditor::OnBlueprintProjectSettingsChanged);
+
+	if (const TSharedPtr<SSCSEditorViewport> Viewport = GetSubobjectViewport())
+	{
+		ViewportSelectabilityBridge = MakeUnique<FEditorViewportSelectabilityBridge>(Viewport->GetViewportClient());
+	}
 }
 
 void FBlueprintEditor::InitToolMenuContext(FToolMenuContext& MenuContext)
@@ -10882,6 +10888,12 @@ bool FBlueprintEditor::AreMacrosAllowed() const
 bool FBlueprintEditor::AreDelegatesAllowed() const
 {
 	return true;
+}
+
+FEditorViewportSelectabilityBridge& FBlueprintEditor::GetViewportSelectabilityBridge()
+{
+	check(ViewportSelectabilityBridge.IsValid());
+	return *ViewportSelectabilityBridge.Get();
 }
 
 /////////////////////////////////////////////////////

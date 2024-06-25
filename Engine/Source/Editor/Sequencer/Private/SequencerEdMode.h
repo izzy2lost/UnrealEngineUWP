@@ -14,6 +14,7 @@ class FCanvas;
 class FEditorViewportClient;
 class FPrimitiveDrawInterface;
 class FSceneView;
+class FEditorViewportSelectability;
 class ISequencer;
 class FSequencer;
 class FViewport;
@@ -23,6 +24,7 @@ class UMovieScene3DTransformTrack;
 struct FMovieSceneEvaluationTrack;
 struct FMovieSceneInterrogationData;
 class USequencerSettings;
+class FSequencerSelectabilityTool;
 
 // This struct wraps up functionality for creating a marquee(frustum or box) selection drag tool
 // It does so based upon the type of viewport being drawn.
@@ -86,20 +88,23 @@ public:
 	virtual void Enter() override;
 	virtual void Exit() override;
 	virtual bool IsCompatibleWith(FEditorModeID OtherModeID) const override;
-	virtual bool InputKey( FEditorViewportClient* ViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event ) override;
+	virtual bool InputKey(FEditorViewportClient* ViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event) override;
 	virtual void Render(const FSceneView* View,FViewport* Viewport,FPrimitiveDrawInterface* PDI) override;
-	virtual void DrawHUD(FEditorViewportClient* ViewportClient,FViewport* Viewport,const FSceneView* View,FCanvas* Canvas) override;
+	virtual void DrawHUD(FEditorViewportClient* ViewportClient, FViewport* Viewport, const FSceneView* View, FCanvas* Canvas) override;
 	virtual bool UsesTransformWidget() const override { return false; }
 	virtual bool UsesTransformWidget(UE::Widget::EWidgetMode CheckMode) const override { return false; }
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
-
 	virtual bool StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
 	virtual bool EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
-	virtual bool MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y) override;
+	virtual bool GetCursor(EMouseCursor::Type& OutCursor) const override;
+	virtual bool MouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InX, int32 InY) override;
 	virtual bool ProcessCapturedMouseMoves(FEditorViewportClient* InViewportClient, FViewport* InViewport, const TArrayView<FIntPoint>& CapturedMouseMoves) override;
+	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy *InHitProxy, const FViewportClick &InClick) override;
+	virtual bool BoxSelect(FBox& InBox, bool InSelect) override;
+	virtual bool FrustumSelect(const FConvexVolume& InFrustum, FEditorViewportClient* InViewportClient, bool InSelect) override;
 	virtual bool InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector& InDrag, FRotator& InRot, FVector& InScale) override;
-	virtual void Tick(FEditorViewportClient* ViewportClient,float DeltaTime);
+	virtual void Tick(FEditorViewportClient* ViewportClient,float DeltaTime) override;
 
 	bool IsPressingMoveTimeSlider(FViewport* InViewport) const;
 	bool IsDoingDrag(FViewport* InViewport) const;
@@ -116,6 +121,14 @@ public:
 
 	/** Clean up any mesh trails and their associated key actors */
 	void CleanUpMeshTrails();
+
+	bool IsViewportSelectionLimited() const;
+
+	void EnableSelectabilityTool(const bool bInEnabled);
+
+	bool IsObjectSelectableInViewport(UObject* const InObject) const;
+
+	TSharedPtr<ISequencer> GetFirstActiveSequencer() const;
 
 protected:
 	void DrawTracks3D(FPrimitiveDrawInterface* PDI);
@@ -149,6 +162,9 @@ private:
 
 	/** If the pivot location needs to be updated */
 	bool bUpdatePivot = false;
+
+	TSharedPtr<class FSequencerEdModeTool> DefaultTool;
+	TSharedPtr<FSequencerSelectabilityTool> SelectabilityTool;
 };
 
 /**

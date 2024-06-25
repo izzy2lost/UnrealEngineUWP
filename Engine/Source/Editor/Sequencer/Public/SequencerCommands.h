@@ -475,6 +475,9 @@ public:
 	/** Forcibly refresh the UI */
 	TSharedPtr< FUICommandInfo > RefreshUI;
 
+	/** Toggles selectability of viewport objects to Sequencer items only */
+	TSharedPtr< FUICommandInfo > ToggleLimitViewportSelection;
+
 	/**
 	 * Initialize commands
 	 */

@@ -236,6 +236,8 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE(FOnTreeViewChanged);
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnViewportSelectionLimitedChanged, const bool /*bInEnabled*/);
+
 public:
 
 	/** Close the sequencer. */
@@ -873,6 +875,18 @@ public:
 	* Returns priority-sorted list of custom binding types supported by this Sequencer. 
 	*/
 	virtual TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> GetSupportedCustomBindingTypes() const { static TArray<TSubclassOf<UMovieSceneCustomBinding>> EmptyArray; return EmptyArray; }
+
+	/** @return True if the Sequencer is currently limiting viewport selection to only Sequencer objects. */
+	virtual bool IsViewportSelectionLimited() const = 0;
+
+	/** Turns on or off Sequencer selection limiting. */
+	virtual void SetViewportSelectionLimited(const bool bInSelectionLimited) = 0;
+
+	/** @return True if the specified object is selectable in the viewport and not made unselectable by the Sequencer selection limiting. */
+	virtual bool IsObjectSelectableInViewport(UObject* const InObject) = 0;
+
+	/** @return Delegate executed when Sequencer selection limiting is enabled or disabled. */
+	virtual FOnViewportSelectionLimitedChanged& OnViewportSelectionLimitedChanged() = 0;
 
 protected:
 	FOnInitializeDetailsPanel InitializeDetailsPanelEvent;

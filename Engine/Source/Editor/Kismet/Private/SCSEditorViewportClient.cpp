@@ -22,7 +22,9 @@
 #include "Editor/EditorEngine.h"
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "Editor/UnrealEdEngine.h"
+#include "EditorViewportSelectability.h"
 #include "EditorComponents.h"
+#include "EditorViewportSelectabilityBridge.h"
 #include "Engine/Blueprint.h"
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
@@ -337,6 +339,18 @@ void FSCSEditorViewportClient::DrawCanvas( FViewport& InViewport, FSceneView& Vi
 			}
 		}
 	}
+
+	// If enabled, draw viewport selection limited text
+	const TSharedPtr<FBlueprintEditor> BlueprintEditor = BlueprintEditorPtr.Pin();
+	if (BlueprintEditor.IsValid())
+	{
+		FEditorViewportSelectabilityBridge& SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge();
+		if (SelectabilityBridge.IsViewportSelectionLimited())
+		{
+			const FText SelectionLimitedText = SelectabilityBridge.GetViewportSelectionLimitedText();
+			FEditorViewportSelectability::DrawEnabledTextNotice(&Canvas, SelectionLimitedText);
+		}
+	}
 }
 
 bool FSCSEditorViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
@@ -349,6 +363,24 @@ bool FSCSEditorViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 	}
 
 	return bHandled;
+}
+
+void FSCSEditorViewportClient::MouseMove(FViewport* InViewport, int32 InX, int32 InY)
+{
+	HHitProxy* const HitResult = InViewport ? InViewport->GetHitProxy(InX, InY) : nullptr;
+	UpdateHoverFromHitProxy(HitResult);
+
+	return FEditorViewportClient::MouseMove(InViewport, InX, InY);
+}
+
+EMouseCursor::Type FSCSEditorViewportClient::GetCursor(FViewport* InViewport, int32 InX, int32 InY)
+{
+	if (MouseCursor.IsSet())
+	{
+		return MouseCursor.GetValue();
+	}
+
+	return FEditorViewportClient::GetCursor(InViewport, InX, InY);
 }
 
 void FSCSEditorViewportClient::ProcessClick(class FSceneView& View, class HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
@@ -418,7 +450,8 @@ void FSCSEditorViewportClient::ProcessClick(class FSceneView& View, class HHitPr
 				if (ActorProxy->Actor == PreviewActor)
 				{
 					const UPrimitiveComponent* TestComponent = ActorProxy->PrimComponent;
-					if (ActorProxy->Actor->GetComponents().Contains(TestComponent))
+					if (ActorProxy->Actor->GetComponents().Contains(TestComponent)
+						&& IsObjectSelectableInViewport(const_cast<UPrimitiveComponent*>(TestComponent)))
 					{
 						SelectedCompInstance = TestComponent;
 					}
@@ -1158,5 +1191,79 @@ void FSCSEditorViewportClient::RefreshPreviewBounds()
 			}
 		}
 		PreviewActorBounds = BoundsBuilder;
+	}
+}
+
+bool FSCSEditorViewportClient::IsViewportSelectionLimited() const
+{
+	if (const TSharedPtr<FBlueprintEditor> BlueprintEditor = BlueprintEditorPtr.Pin())
+	{
+		return BlueprintEditor->GetViewportSelectabilityBridge().IsViewportSelectionLimited();
+	}
+	return false;
+}
+
+bool FSCSEditorViewportClient::IsObjectSelectableInViewport(UObject* const InObject) const
+{
+	if (const TSharedPtr<FBlueprintEditor> BlueprintEditor = BlueprintEditorPtr.Pin())
+	{
+		return BlueprintEditor->GetViewportSelectabilityBridge().IsObjectSelectableInViewport(InObject);
+	}
+	return true;
+}
+
+void FSCSEditorViewportClient::UpdateHoverFromHitProxy(HHitProxy* const InHitProxy)
+{
+	const bool bIsViewportSelectionLimited = IsViewportSelectionLimited();
+
+	UPrimitiveComponent* PrimitiveComponent = nullptr;
+	bool bIsGizmoHit = false;
+	bool bIsActorHit = false;
+
+	if (InHitProxy)
+	{
+		if (InHitProxy->IsA(HWidgetAxis::StaticGetType()))
+		{
+			if (bIsViewportSelectionLimited)
+			{
+				bIsGizmoHit = true;
+			}
+		}
+		else if (InHitProxy->IsA(HActor::StaticGetType()))
+		{
+			const HActor* const ActorHitProxy = static_cast<HActor*>(InHitProxy);
+			if (ActorHitProxy && IsValid(ActorHitProxy->PrimComponent))
+			{
+				if (bIsViewportSelectionLimited)
+				{
+					bIsActorHit = true;
+				}
+				PrimitiveComponent = const_cast<UPrimitiveComponent*>(ActorHitProxy->PrimComponent.Get());
+			}
+		}
+	}
+
+	FEditorViewportSelectability::UpdateHoveredPrimitive(bIsViewportSelectionLimited
+		, PrimitiveComponent
+		, HoveredPrimitiveComponents
+		, [this](UObject* const InObject) -> bool
+		{
+			return IsObjectSelectableInViewport(InObject);
+		});
+
+	// Set mouse cursor after hovered primitive component list has been updated
+	MouseCursor.Reset();
+
+	if (bIsGizmoHit)
+	{
+		MouseCursor = EMouseCursor::CardinalCross;
+	}
+	else if (bIsActorHit)
+	{
+		MouseCursor = HoveredPrimitiveComponents.IsEmpty() ? EMouseCursor::SlashedCircle : EMouseCursor::Crosshairs;
+	}
+	else if (bIsViewportSelectionLimited)
+	{
+		MouseCursor = EMouseCursor::SlashedCircle;
 	}
 }

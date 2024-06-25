@@ -3,6 +3,7 @@
 #pragma once
 
 #include "EditorViewportClient.h"
+#include "EditorViewportSelectability.h"
 #include "Engine/EngineBaseTypes.h"
 #include "InputCoreTypes.h"
 #include "Math/Axis.h"
@@ -15,6 +16,7 @@
 
 class AActor;
 class FCanvas;
+class FEditorViewportSelectability;
 class FPreviewScene;
 class FPrimitiveDrawInterface;
 class FSceneView;
@@ -50,6 +52,8 @@ public:
 	virtual void Draw(const FSceneView* View,FPrimitiveDrawInterface* PDI) override;
 	virtual void DrawCanvas( FViewport& InViewport, FSceneView& View, FCanvas& Canvas ) override;
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
+	virtual void MouseMove(FViewport* InViewport, int32 InX, int32 InY) override;
+	virtual EMouseCursor::Type GetCursor(FViewport* InViewport, int32 InX, int32 InY) override;
 	virtual void ProcessClick(class FSceneView& View, class HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override;
 	virtual bool InputWidgetDelta( FViewport* Viewport, EAxisList::Type CurrentAxis, FVector& Drag, FRotator& Rot, FVector& Scale ) override;
 	virtual void TrackingStarted( const struct FInputEventState& InInputState, bool bIsDragging, bool bNudge ) override;
@@ -133,6 +137,11 @@ public:
 	 */
 	AActor* GetPreviewActor() const;
 
+	bool IsViewportSelectionLimited() const;
+
+	/** @return True if the specified object is selectable in the viewport and not made unselectable by the Sequencer selection limiting. */
+	bool IsObjectSelectableInViewport(UObject* const InObject) const;
+
 protected:
 	/**
 	 * Initiates a transaction.
@@ -149,7 +158,10 @@ protected:
 	 */
 	void RefreshPreviewBounds();
 
+	void UpdateHoverFromHitProxy(HHitProxy* const InHitProxy);
+
 private:
+
 	UE::Widget::EWidgetMode WidgetMode;
 	ECoordSystem WidgetCoordSystem;
 
@@ -173,4 +185,9 @@ private:
 
 	bool HandleBeginTransform();
 	bool HandleEndTransform();
+
+	/** Hovered primitives and their last overlay color before we apply the hover overlay */
+	TMap<TWeakObjectPtr<UPrimitiveComponent>, TOptional<FColor>> HoveredPrimitiveComponents;
+
+	TOptional<EMouseCursor::Type> MouseCursor;
 };

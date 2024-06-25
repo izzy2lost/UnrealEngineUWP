@@ -289,6 +289,7 @@ namespace UE
 	} // namespace Sequencer
 } // namespace UE
 
+bool FSequencer::bSelectionLimited = false;
 
 void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegates, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates)
 {
@@ -11503,6 +11504,12 @@ void FSequencer::BindCommands()
 		Commands.RefreshUI,
 		FExecuteAction::CreateSP( this, &FSequencer::RefreshUI));
 
+	SequencerCommandBindings->MapAction(
+		Commands.ToggleLimitViewportSelection,
+		FExecuteAction::CreateSP(this, &FSequencer::ToggleLimitViewportSelection),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FSequencer::IsViewportSelectionLimited));
+
 	// If this sequencer supports a curve editor, let's add bindings for it.
 	FCurveEditorExtension* CurveEditorExtension = ViewModel->CastDynamic<FCurveEditorExtension>();
 	if (CurveEditorExtension && ensure(CurveEditorExtension->GetCurveEditor()))
@@ -11941,5 +11948,107 @@ void FSequencer::OnCameraCutUpdated(const UE::MovieScene::FOnCameraCutUpdatedPar
 	OnCameraCutEvent.Broadcast(Params.ViewTarget, Params.bIsJumpCut);
 }
 
-#undef LOCTEXT_NAMESPACE
+void FSequencer::ToggleLimitViewportSelection()
+{
+	bSelectionLimited = !bSelectionLimited;
+	
+	SetViewportSelectionLimited(bSelectionLimited);
+}
 
+bool FSequencer::IsViewportSelectionLimited() const
+{
+	return bSelectionLimited;
+}
+
+void FSequencer::SetViewportSelectionLimited(const bool bInSelectionLimited)
+{
+	bSelectionLimited = bInSelectionLimited;
+
+	if (FSequencerEdMode* const SequencerEdMode = (FSequencerEdMode*)GLevelEditorModeTools().GetActiveMode(FSequencerEdMode::EM_SequencerMode))
+	{
+		SequencerEdMode->EnableSelectabilityTool(bSelectionLimited);
+	}
+
+	OnSelectionLimitedChangedDelegate.Broadcast(bSelectionLimited);
+}
+
+bool FSequencer::IsObjectSelectableInViewport(UObject* const InObject)
+{
+	using namespace UE::Sequencer;
+
+	if (!bSelectionLimited)
+	{
+		return true;
+	}
+
+	UMovieSceneSequence* const FocusedSequence = GetFocusedMovieSceneSequence();
+	if (!IsValid(FocusedSequence))
+	{
+		return true;
+	}
+
+	const TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = GetSharedPlaybackState();
+	const FMovieSceneEvaluationState* const EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>();
+	if (!EvaluationState)
+	{
+		return true;
+	}
+
+	const UMovieSceneSequence* OutSequence = nullptr;
+
+	// Early out on first sequence the object is found in
+	ForEachSubSequenceRecursively(FocusedSequence,
+		[this, InObject, EvaluationState, &OutSequence](UMovieSceneSequence* const InCurrentSequence)
+		{
+			const FGuid ObjectGuid = FindObjectId(*InObject, EvaluationState->FindSequenceId(InCurrentSequence));
+			if (ObjectGuid.IsValid())
+			{
+				OutSequence = InCurrentSequence;
+				return false; // Stop looping recursively
+			}
+			return true; // Continue loop recursively
+		});
+
+	return IsValid(OutSequence);
+}
+
+void FSequencer::ForEachSubSequenceRecursively(UMovieSceneSequence* const InSequence, const TFunctionRef<bool(UMovieSceneSequence* const InCurrentSequence)>& InFunction)
+{
+	if (!IsValid(InSequence) || !InFunction(InSequence))
+	{
+		return;
+	}
+
+	UMovieScene* const MovieScene = InSequence->GetMovieScene();
+	if (!IsValid(MovieScene))
+	{
+		return;
+	}
+
+	// Converting to TSet as GetAllSections() seems to return multiples of the same object
+	const TSet<UMovieSceneSection*> AllSections = TSet<UMovieSceneSection*>(MovieScene->GetAllSections());
+
+	for (UMovieSceneSection* const Section : AllSections)
+	{
+		UMovieSceneSubSection* const SubSection = Cast<UMovieSceneSubSection>(Section);
+		if (!IsValid(SubSection))
+		{
+			continue;
+		}
+
+		UMovieSceneSequence* const Sequence = SubSection->GetSequence();
+		if (!IsValid(Sequence) || !InFunction(Sequence))
+		{
+			continue;
+		}
+
+		ForEachSubSequenceRecursively(Sequence, InFunction);
+	}
+}
+
+ISequencer::FOnViewportSelectionLimitedChanged& FSequencer::OnViewportSelectionLimitedChanged()
+{
+	return OnSelectionLimitedChangedDelegate;
+}
+
+#undef LOCTEXT_NAMESPACE

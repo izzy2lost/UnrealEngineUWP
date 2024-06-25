@@ -1569,8 +1569,21 @@ void SSequencer::PopulateToolBar(UToolMenu* InMenu)
 			AllowEditsModeEntry.StyleNameOverride = SequencerToolbarStyleName;
 			Section.AddEntry(AllowEditsModeEntry);
 		}
-
+		
 		Section.AddSeparator(NAME_None);
+	}
+
+	{
+		FToolMenuSection& SelectionSection = InMenu->AddSection(TEXT("Selection"));
+
+		FToolMenuEntry ToggleLockViewportSelectionEntry = FToolMenuEntry::InitToolBarButton(FSequencerCommands::Get().ToggleLimitViewportSelection
+			, FText()
+			, FSequencerCommands::Get().ToggleLimitViewportSelection->GetDescription()
+			, FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("ContentBrowser.Local.Small")));
+		ToggleLockViewportSelectionEntry.StyleNameOverride = SequencerToolbarStyleName;
+		SelectionSection.AddEntry(ToggleLockViewportSelectionEntry);
+
+		SelectionSection.AddSeparator(NAME_None);
 	}
 
 	{

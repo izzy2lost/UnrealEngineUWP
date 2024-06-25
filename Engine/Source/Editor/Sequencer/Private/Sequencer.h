@@ -1160,10 +1160,26 @@ public:
 
 	TSharedRef<SWidget> MakePlayTimeDisplay(const TSharedRef<INumericTypeInterface<double>>& InNumericTypeInterface);
 
+	/** @return True if the Sequencer is currently limiting selection to only Sequencer key-able objects */
+	bool IsViewportSelectionLimited() const override;
+
+	/** Turns on or off Sequencer selection limiting. */
+	void SetViewportSelectionLimited(const bool bInSelectionLimited) override;
+
+	/** @return True if the object specified is selectable in the viewport */
+	bool IsObjectSelectableInViewport(UObject* const InObject) override;
+
+	ISequencer::FOnViewportSelectionLimitedChanged& OnViewportSelectionLimitedChanged() override;
+
 private:
 
 	/** Update the time bases for the current movie scene */
 	void UpdateTimeBases();
+
+	/** Toggles Sequencer selection limiting. */
+	void ToggleLimitViewportSelection();
+
+	void ForEachSubSequenceRecursively(UMovieSceneSequence* const InSequence, const TFunctionRef<bool(UMovieSceneSequence* const InCurrentSequence)>& InFunction);
 
 	/** User-supplied settings object for this sequencer */
 	TObjectPtr<USequencerSettings> Settings;
@@ -1490,6 +1506,12 @@ private:
 	TMap<AActor*, FGuid> CachedCameraActors;
 	uint32 LastKnownStateSerial = 0;
 
-	/* Cached list of supported custom binding types*/
+	/** Cached list of supported custom binding types */
 	TArray<const TSubclassOf<UMovieSceneCustomBinding>> SupportedCustomBindingTypes;
+
+	/** True if limiting selection to only Sequencer objects */
+	static bool bSelectionLimited;
+
+	/** Delegate that is called when selection limiting has been toggled on or off */
+	FOnViewportSelectionLimitedChanged OnSelectionLimitedChangedDelegate;
 };
