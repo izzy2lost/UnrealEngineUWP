@@ -22,4 +22,14 @@ namespace HordeServer.Plugins
 		/// <param name="parentAcl">The parent ACL scope</param>
 		void PostLoad(AclConfig parentAcl);
 	}
+
+	/// <summary>
+	/// Empty implementation of <see cref="IPluginConfig"/>
+	/// </summary>
+	public sealed class EmptyPluginConfig : IPluginConfig
+	{
+		/// <inheritdoc/>
+		public void PostLoad(AclConfig parentAcl)
+		{ }
+	}
 }

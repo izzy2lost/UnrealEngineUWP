@@ -370,16 +370,6 @@ namespace HordeServer
 			services.AddSingleton<IServerInfo>(new ServerInfo());
 			services.AddSingleton<JsonSchemaCache>();
 
-			// Register the plugin collection
-			PluginCollection pluginCollection = new PluginCollection();
-			services.AddSingleton<IPluginCollection>(pluginCollection);
-
-			// Register all the plugin config types
-			foreach (ILoadedPlugin plugin in pluginCollection.LoadedPlugins)
-			{
-				plugin.ConfigureServices(services);
-			}
-
 			// IOptionsMonitor pattern for live updating of configuration settings
 			services.Configure<ServerSettings>(x => BindServerSettings(Configuration, x));
 
@@ -392,6 +382,18 @@ namespace HordeServer
 			// Bind the settings again for local variable access in this method
 			ServerSettings settings = new();
 			BindServerSettings(Configuration, settings);
+
+			// Register the plugin collection
+			PluginCollection pluginCollection = new PluginCollection();
+			services.AddSingleton<IPluginCollection>(pluginCollection);
+
+			// Register all the plugin services
+			IConfigurationSection pluginsConfig = Configuration.GetSection("Horde").GetSection("Plugins");
+			foreach (ILoadedPlugin plugin in pluginCollection.LoadedPlugins)
+			{
+				IConfigurationSection pluginConfig = pluginsConfig.GetSection(plugin.Name.ToString());
+				plugin.ConfigureServices(pluginConfig, services);
+			}
 
 			OpenTelemetryHelper.Configure(services, settings.OpenTelemetry);
 

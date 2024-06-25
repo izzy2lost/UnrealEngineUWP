@@ -2,7 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using HordeServer.Acls;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HordeServer.Plugins
@@ -32,8 +35,9 @@ namespace HordeServer.Plugins
 		}
 
 		class LoadedPlugin<TServerConfig, TGlobalConfig, TStartup> : ILoadedPlugin
+			where TServerConfig : class, new()
 			where TGlobalConfig : class, IPluginConfig, new()
-			where TStartup : class, IPluginStartup, new()
+			where TStartup : class, IPluginStartup
 		{
 			readonly IPluginMetadata _metadata;
 
@@ -46,12 +50,71 @@ namespace HordeServer.Plugins
 			public LoadedPlugin(IPluginMetadata metadata)
 				=> _metadata = metadata;
 
-			public void ConfigureServices(IServiceCollection serviceCollection)
+			public void ConfigureServices(IConfiguration config, IServiceCollection serviceCollection)
 			{
 				serviceCollection.AddPluginConfig<TGlobalConfig>(Name);
 
-				TStartup startup = new TStartup();
+				TStartup startup = CreateStartup(config);
 				startup.ConfigureServices(serviceCollection);
+			}
+
+			static TStartup CreateStartup(IConfiguration configuration)
+			{
+				ConstructorInfo? chosenConstructor = null;
+				ParameterInfo[]? chosenConstructorParams = null;
+
+				ConstructorInfo[] constructors = typeof(TStartup).GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+				foreach (ConstructorInfo constructor in constructors)
+				{
+					ParameterInfo[] parameters = constructor.GetParameters();
+					if (IsValidConstructor(parameters))
+					{
+						if (chosenConstructorParams == null || parameters.Length > chosenConstructorParams.Length)
+						{
+							chosenConstructor = constructor;
+							chosenConstructorParams = parameters;
+						}
+					}
+				}
+
+				TStartup startup;
+				if (chosenConstructor == null || chosenConstructorParams == null)
+				{
+					startup = Activator.CreateInstance<TStartup>();
+				}
+				else
+				{
+					object[] arguments = new object[chosenConstructorParams.Length];
+					for (int idx = 0; idx < chosenConstructorParams.Length; idx++)
+					{
+						ParameterInfo parameter = chosenConstructorParams[idx];
+						if (parameter.ParameterType == typeof(TServerConfig))
+						{
+							arguments[idx] = new TServerConfig();
+							configuration.Bind(arguments[idx]);
+						}
+						else
+						{
+							throw new NotImplementedException();
+						}
+					}
+
+					startup = (TStartup)chosenConstructor.Invoke(arguments);
+				}
+
+				return startup;
+			}
+
+			static bool IsValidConstructor(ParameterInfo[] parameters)
+			{
+				foreach (ParameterInfo parameter in parameters)
+				{
+					if (parameter.ParameterType != typeof(TServerConfig))
+					{
+						return false;
+					}
+				}
+				return true;
 			}
 
 			public ILoadedPlugin Load()
@@ -81,7 +144,7 @@ namespace HordeServer.Plugins
 			PluginAttribute attr = startupType.GetCustomAttribute<PluginAttribute>()
 				?? throw new InvalidOperationException($"Cannot add {startupType.Name} as a plugin. No {nameof(PluginAttribute)} was found.");
 
-			Type pluginType = typeof(LoadedPlugin<,,>).MakeGenericType(attr.ServerConfigType ?? typeof(object), attr.GlobalConfigType ?? typeof(object), startupType);
+			Type pluginType = typeof(LoadedPlugin<,,>).MakeGenericType(attr.ServerConfigType ?? typeof(object), attr.GlobalConfigType ?? typeof(EmptyPluginConfig), startupType);
 			ILoadedPlugin loadedPlugin = (ILoadedPlugin)Activator.CreateInstance(pluginType, metadata)!;
 			_loadedPlugins.Add(loadedPlugin);
 

@@ -2,6 +2,7 @@
 
 using System;
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HordeServer.Plugins
@@ -50,8 +51,9 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Configure services for the plugin
 		/// </summary>
+		/// <param name="configuration">Static configuration data</param>
 		/// <param name="serviceCollection">Service collection instance</param>
-		void ConfigureServices(IServiceCollection serviceCollection);
+		void ConfigureServices(IConfiguration configuration, IServiceCollection serviceCollection);
 	}
 
 	/// <summary>
@@ -62,7 +64,7 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Adds a plugin's services to a service collection
 		/// </summary>
-		public static void AddPlugin(this IServiceCollection serviceCollection, ILoadedPlugin plugin)
-			=> plugin.ConfigureServices(serviceCollection);
+		public static void AddPlugin(this IServiceCollection serviceCollection, ILoadedPlugin plugin, IConfiguration configuration)
+			=> plugin.ConfigureServices(configuration, serviceCollection);
 	}
 }
