@@ -369,6 +369,7 @@ int32 UEditorValidatorSubsystem::ValidateAssetsWithSettings(
 	FValidateAssetsResults& OutResults) const
 {
 	FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
+	DataValidationLog.SetCurrentPage(InSettings.MessageLogPageTitle);
 	ValidateAssetsInternal(DataValidationLog, TSet<FAssetData>{AssetDataList}, InSettings, OutResults);
 	
 	if (const EMessageSeverity::Type* Severity = InSettings.ShowMessageLogSeverity.GetPtrOrNull())
@@ -700,20 +701,19 @@ void UEditorValidatorSubsystem::ValidateOnSave(TArray<FAssetData> AssetDataList,
 		}));
 	}
 
-	FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
-	FText SavedAsset = AssetDataList.Num() == 1 ? FText::FromName(AssetDataList[0].AssetName) : LOCTEXT("MultipleErrors", "multiple assets");
-	DataValidationLog.NewPage(FText::Format(LOCTEXT("DataValidationLogPage", "Asset Save: {0}"), SavedAsset));
-
+	FText SavedAsset = AssetDataList.Num() == 1 ? FText::FromName(AssetDataList[0].AssetName) : LOCTEXT("MultipleAssets", "multiple assets");
 	FValidateAssetsResults Results;
 
 	Settings.bSkipExcludedDirectories = true;
 	Settings.bShowIfNoFailures = false;
 	Settings.ValidationUsecase = EDataValidationUsecase::Save;
 	Settings.bLoadAssetsForValidation = false;
-	Settings.MessageLogPageTitle = LOCTEXT("DataValidation.ValidateOnSaveMessageLogPage", "Validate Saved Assets");
+	Settings.MessageLogPageTitle = FText::Format(LOCTEXT("MessageLogPageTitle.ValidateSavedAssets", "Asset Save: {0}"), SavedAsset);
 
 	if (ValidateAssetsWithSettings(AssetDataList, Settings, Results) > 0)
 	{
+		FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
+
 		const FText ErrorMessageNotification = FText::Format(
 			LOCTEXT("ValidationFailureNotification", "Validation failed when saving {0}, check Data Validation log"), SavedAsset);
 		DataValidationLog.Notify(ErrorMessageNotification, EMessageSeverity::Warning, /*bForce=*/ true);
@@ -798,7 +798,8 @@ void UEditorValidatorSubsystem::ValidateChangelistPreSubmit(
 	FValidateAssetsSettings Settings;
 	Settings.ValidationUsecase = EDataValidationUsecase::PreSubmit;
 	Settings.bLoadAssetsForValidation = GetDefault<UDataValidationSettings>()->bLoadAssetsWhenValidatingChangelists;
-	Settings.MessageLogPageTitle = FText::Format(LOCTEXT("DataValidation.ValidateChangelistMessageLogPage", "Validate Changelist {0}"), FText::FromString(InChangelist->GetIdentifier()));
+	Settings.MessageLogPageTitle = FText::Format(LOCTEXT("MessageLogPageTitle.ValidateChangelist", "Changelist Validation: {0}"), FText::FromString(InChangelist->GetIdentifier()));
+
 	FValidateAssetsResults Results;
 	OutResult = ValidateChangelist(Changelist, Settings, Results);
 	
@@ -860,13 +861,10 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateChangelistsInternal(
 		return EDataValidationResult::NotValidated;
 	}
 
-	// Choose a specific message log page for this output, flushing in case other recursive calls also write to this log 
-	{	
-		FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
-		DataValidationLog.SetCurrentPage(Settings.MessageLogPageTitle);
-	}
-
 	FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
+
+	// Choose a specific message log page for this output, flushing in case other recursive calls also write to this log
+	DataValidationLog.SetCurrentPage(Settings.MessageLogPageTitle);
 
 	for (UDataValidationChangelist* CL : Changelists)
 	{

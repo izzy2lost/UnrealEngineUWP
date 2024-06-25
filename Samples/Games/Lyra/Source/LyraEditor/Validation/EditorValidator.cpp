@@ -182,8 +182,10 @@ bool UEditorValidator::ValidatePackages(const TArray<FString>& ExistingPackageNa
 		}
 	}
 
+	const FText ValidationPageName = LOCTEXT("ValidatePackages", "Validate Packages");
+
 	FMessageLog DataValidationLog("AssetCheck");
-	DataValidationLog.NewPage(LOCTEXT("ValidatePackages", "Validate Packages"));
+	DataValidationLog.NewPage(ValidationPageName);
 
 	if (AllPackagesToValidate.Num() > MaxPackagesToLoad)
 	{
@@ -282,6 +284,7 @@ bool UEditorValidator::ValidatePackages(const TArray<FString>& ExistingPackageNa
 			Settings.bSkipExcludedDirectories = true;
 			Settings.bShowIfNoFailures = true;
 			Settings.ValidationUsecase = InValidationUsecase;
+			Settings.MessageLogPageTitle = ValidationPageName;
 
 			const bool bHasInvalidFiles = GEditor->GetEditorSubsystem<UEditorValidatorSubsystem>()->ValidateAssetsWithSettings(AssetsToCheck, Settings, Results) > 0;
 

@@ -313,13 +313,12 @@ void FDataValidationModule::ValidateAssets(const TArray<FAssetData>& SelectedAss
 	if (EditorValidationSubsystem)
 	{
 		FValidateAssetsSettings Settings;
-		FValidateAssetsResults Results;
-
 		Settings.bSkipExcludedDirectories = false;
 		Settings.bShowIfNoFailures = true;
 		Settings.ValidationUsecase = InValidationUsecase;
-		Settings.MessageLogPageTitle = LOCTEXT("ValidateSelectedAssets", "Validate Selected Assets");
+		Settings.MessageLogPageTitle = FText::Format(LOCTEXT("MessageLogPageTitle.ValidateSelectedAssets", "Asset Validation: {0}"), SelectedAssets.Num() == 1 ? FText::FromName(SelectedAssets[0].AssetName) : LOCTEXT("MultipleAssets", "multiple assets"));
 
+		FValidateAssetsResults Results;
 		EditorValidationSubsystem->ValidateAssetsWithSettings(bValidateDependencies ? DependentAssets.Array() : SelectedAssets, Settings, Results);
 	}
 }
