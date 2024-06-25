@@ -17,6 +17,8 @@ class FSourceControlFileStatusMonitor;
 class SSourceControlLogin;
 class SWindow;
 
+struct FCanDeleteAssetResult;
+
 class FSourceControlModule : public ISourceControlModule
 {
 public:
@@ -122,6 +124,10 @@ private:
 	/** Delegate handling when source control features are unregistered */
 	void HandleModularFeatureUnregistered(const FName& Type, IModularFeature* ModularFeature);
 
+#if WITH_EDITOR
+	/** Delegate called when trying to delete asset(s) to verify that it is allowed by the SourceControl */
+	void OnAssetsCanDelete(const TArray<UObject*>& InObjects, FCanDeleteAssetResult& OutCanDeleteAssetResult) const;
+#endif
 private:
 	/** The settings object */
 	FSourceControlSettings SourceControlSettings;

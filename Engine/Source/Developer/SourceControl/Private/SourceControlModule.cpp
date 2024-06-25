@@ -23,6 +23,7 @@
 #endif
 
 #if WITH_EDITOR
+	#include "Editor.h"
 	#include "EngineAnalytics.h"
 	#include "Interfaces/IAnalyticsProvider.h"
 #endif
@@ -68,6 +69,10 @@ void FSourceControlModule::StartupModule()
 
 	AssetDataCache.Startup();
 
+#if WITH_EDITOR
+	FEditorDelegates::OnAssetsCanDelete.AddRaw(this, &FSourceControlModule::OnAssetsCanDelete);
+#endif
+	
 	SourceControlFileStatusMonitor = MakeShared<FSourceControlFileStatusMonitor>();
 }
 
@@ -92,6 +97,10 @@ void FSourceControlModule::ShutdownModule()
 	// we don't care about modular features any more
 	IModularFeatures::Get().OnModularFeatureRegistered().RemoveAll(this);
 	IModularFeatures::Get().OnModularFeatureUnregistered().RemoveAll(this);
+
+#if WITH_EDITOR
+	FEditorDelegates::OnAssetsCanDelete.RemoveAll(this);
+#endif
 
 	SourceControlFileStatusMonitor.Reset();
 }
@@ -467,6 +476,51 @@ void FSourceControlModule::HandleModularFeatureUnregistered(const FName& Type, I
 		ClearCurrentSourceControlProvider();
 	}
 }
+
+#if WITH_EDITOR
+void FSourceControlModule::OnAssetsCanDelete(const TArray<UObject*>& InObjects, FCanDeleteAssetResult& OutCanDeleteAssetResult) const
+{
+	ISourceControlProvider& SourceControlProvider = GetProvider();
+	if (IsEnabled() && SourceControlProvider.IsAvailable())
+	{
+		TArray<FString> PackagesNames;
+		PackagesNames.Reserve(InObjects.Num());
+		for (UObject* Object : InObjects)
+		{
+			if (Object)
+			{
+				if (UPackage* ObjectPackage = Object->GetPackage())
+				{
+					FString PackageFilename;
+					if (FPackageName::DoesPackageExist(ObjectPackage->GetName(), &PackageFilename))
+					{
+						PackagesNames.Add(PackageFilename);
+					}
+				}
+			}
+		}
+
+		TArray<FSourceControlStateRef> PackageSCCStates;
+		if (PackagesNames.Num())
+		{
+			SourceControlProvider.GetState(PackagesNames, PackageSCCStates, EStateCacheUsage::ForceUpdate);
+		}
+
+		for (const FSourceControlStateRef& SCCState : PackageSCCStates)
+		{
+			if (SCCState->IsSourceControlled())
+			{
+				if (!SCCState->CanDelete())
+				{
+					OutCanDeleteAssetResult.Set(false);
+					UE_LOG(LogSourceControl, Warning, TEXT("Asset(s) can't be deleted because at least one is currently checked out by another user and/or not at latest."));
+					return;
+				}
+			}
+		}
+	}
+}
+#endif
 
 bool FSourceControlModule::GetUseGlobalSettings() const
 {
