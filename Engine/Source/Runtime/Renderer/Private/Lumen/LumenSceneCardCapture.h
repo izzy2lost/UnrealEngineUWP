@@ -104,13 +104,17 @@ void AddCardCaptureDraws(
 
 }
 
+BEGIN_UNIFORM_BUFFER_STRUCT(FLumenCardOutputs, )
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget0)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget1)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget2)
+END_UNIFORM_BUFFER_STRUCT()
+
 namespace Nanite
 {
-
-void RecordLumenCardParameters(
-	FRHIBatchedShaderParameters& ShaderParameters,
-	FNaniteShadingCommand& ShadingCommand,
-	const TArray<FRHIUnorderedAccessView*, TInlineAllocator<3>>& OutputTargets
-);
-
+	void RecordLumenCardParameters(
+		FRHIBatchedShaderParameters& ShaderParameters,
+		FNaniteShadingCommand& ShadingCommand,
+		TUniformBufferRef<FLumenCardOutputs> Outputs
+	);
 }

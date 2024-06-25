@@ -309,6 +309,18 @@ public:
 	}
 };
 
+BEGIN_UNIFORM_BUFFER_STRUCT(FComputeShadingOutputs, )
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget0)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget1)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget2)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget3)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget4)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget5)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget6)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTarget7)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, OutTargets)
+END_UNIFORM_BUFFER_STRUCT()
+
 /**
  * The base type for compute shaders that render the emissive color, and light-mapped/ambient lighting of a mesh.
  * The base type is shared between the versions with and without sky light.
@@ -343,20 +355,21 @@ public:
 		LightMapPolicyType::ComputeParametersType::Bind(Initializer.ParameterMap);
 
 		ReflectionCaptureBuffer.Bind(Initializer.ParameterMap, TEXT("ReflectionCapture"));
+		ShadingOutputsParam.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs"));
 
 		ViewRectParam.Bind(Initializer.ParameterMap, TEXT("ViewRect"));
 		PassDataParam.Bind(Initializer.ParameterMap, TEXT("PassData"));
 
-		Target0.Bind(Initializer.ParameterMap, TEXT("OutTarget0"), SPF_Optional);
-		Target1.Bind(Initializer.ParameterMap, TEXT("OutTarget1"), SPF_Optional);
-		Target2.Bind(Initializer.ParameterMap, TEXT("OutTarget2"), SPF_Optional);
-		Target3.Bind(Initializer.ParameterMap, TEXT("OutTarget3"), SPF_Optional);
-		Target4.Bind(Initializer.ParameterMap, TEXT("OutTarget4"), SPF_Optional);
-		Target5.Bind(Initializer.ParameterMap, TEXT("OutTarget5"), SPF_Optional);
-		Target6.Bind(Initializer.ParameterMap, TEXT("OutTarget6"), SPF_Optional);
-		Target7.Bind(Initializer.ParameterMap, TEXT("OutTarget7"), SPF_Optional);
+		Target0.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget0"));
+		Target1.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget1"));
+		Target2.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget2"));
+		Target3.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget3"));
+		Target4.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget4"));
+		Target5.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget5"));
+		Target6.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget6"));
+		Target7.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTarget7"));
 
-		Targets.Bind(Initializer.ParameterMap, TEXT("OutTargets"), SPF_Optional);
+		Targets.Bind(Initializer.ParameterMap, TEXT("ComputeShadingOutputs.OutTargets"));
 
 		// These parameters should only be used nested in the base pass uniform buffer
 		check(!Initializer.ParameterMap.ContainsParameterAllocation(FFogUniformParameters::FTypeInfo::GetStructMetadata()->GetShaderVariableName()));
@@ -378,32 +391,25 @@ public:
 		FRHIBatchedShaderParameters& BatchedParameters,
 		const FUintVector4& ViewRect,
 		const FUintVector4& PassData,
-		FRHIUnorderedAccessView* Target0UAV,
-		FRHIUnorderedAccessView* Target1UAV,
-		FRHIUnorderedAccessView* Target2UAV,
-		FRHIUnorderedAccessView* Target3UAV,
-		FRHIUnorderedAccessView* Target4UAV,
-		FRHIUnorderedAccessView* Target5UAV,
-		FRHIUnorderedAccessView* Target6UAV,
-		FRHIUnorderedAccessView* Target7UAV,
-		FRHIUnorderedAccessView* Targets
+		FRHIUniformBuffer* ShadingOutputs
 	);
 
 	uint32 GetBoundTargetMask() const;
 
 private:
-	LAYOUT_FIELD(FShaderUniformBufferParameter,	ReflectionCaptureBuffer);
-	LAYOUT_FIELD(FShaderParameter,				ViewRectParam);
-	LAYOUT_FIELD(FShaderParameter,				PassDataParam);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target0);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target1);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target2);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target3);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target4);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target5);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target6);
-	LAYOUT_FIELD(FShaderResourceParameter,		Target7);
-	LAYOUT_FIELD(FShaderResourceParameter,		Targets);
+	LAYOUT_FIELD(FShaderUniformBufferParameter,       ReflectionCaptureBuffer);
+	LAYOUT_FIELD(FShaderUniformBufferParameter,       ShadingOutputsParam);
+	LAYOUT_FIELD(FShaderParameter,                    ViewRectParam);
+	LAYOUT_FIELD(FShaderParameter,                    PassDataParam);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target0);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target1);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target2);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target3);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target4);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target5);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target6);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Target7);
+	LAYOUT_FIELD(FShaderUniformBufferMemberParameter, Targets);
 };
 
 /**

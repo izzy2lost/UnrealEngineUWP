@@ -114,6 +114,8 @@ public:
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenCardPS, TEXT("/Engine/Private/Lumen/LumenCardPixelShader.usf"), TEXT("Main"), SF_Pixel);
 
+IMPLEMENT_UNIFORM_BUFFER_STRUCT_EX(FLumenCardOutputs, "LumenCardOutputs", FShaderParametersMetadata::EUsageFlags::ManuallyBoundByPass);
+
 class FLumenCardCS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FLumenCardCS, MeshMaterial);
@@ -139,10 +141,7 @@ public:
 	: FMeshMaterialShader(Initializer)
 	{
 		PassDataParam.Bind(Initializer.ParameterMap, TEXT("PassData"));
-
-		Target0.Bind(Initializer.ParameterMap, TEXT("OutTarget0"), SPF_Mandatory);
-		Target1.Bind(Initializer.ParameterMap, TEXT("OutTarget1"), SPF_Mandatory);
-		Target2.Bind(Initializer.ParameterMap, TEXT("OutTarget2"), SPF_Mandatory);
+		LumenCardOutputsParam.Bind(Initializer.ParameterMap, TEXT("LumenCardOutputs"), SPF_Mandatory);
 	}
 
 	FLumenCardCS() = default;
@@ -166,26 +165,15 @@ public:
 		OutEnvironment.CompilerFlags.Add(CFLAG_CheckForDerivativeOps);
 	}
 
-	inline void SetPassParameters(
-		FRHIBatchedShaderParameters& BatchedParameters,
-		const FUintVector4& PassData,
-		FRHIUnorderedAccessView* Target0UAV,
-		FRHIUnorderedAccessView* Target1UAV,
-		FRHIUnorderedAccessView* Target2UAV
-	)
+	void SetPassParameters(FRHIBatchedShaderParameters& BatchedParameters, const FUintVector4& PassData, FRHIUniformBuffer* Outputs)
 	{
 		SetShaderValue(BatchedParameters, PassDataParam, PassData);
-
-		SetUAVParameter(BatchedParameters, Target0, Target0UAV);
-		SetUAVParameter(BatchedParameters, Target1, Target1UAV);
-		SetUAVParameter(BatchedParameters, Target2, Target2UAV);
+		SetUniformBufferParameter(BatchedParameters, LumenCardOutputsParam, Outputs);
 	}
 
 private:
 	LAYOUT_FIELD(FShaderParameter, PassDataParam);
-	LAYOUT_FIELD(FShaderResourceParameter, Target0);
-	LAYOUT_FIELD(FShaderResourceParameter, Target1);
-	LAYOUT_FIELD(FShaderResourceParameter, Target2);
+	LAYOUT_FIELD(FShaderUniformBufferParameter, LumenCardOutputsParam);
 };
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenCardCS, TEXT("/Engine/Private/Lumen/LumenCardComputeShader.usf"), TEXT("Main"), SF_Compute);
@@ -241,7 +229,7 @@ void CollectLumenCardPSOInitializers(
 void RecordLumenCardParameters(
 	FRHIBatchedShaderParameters& ShaderParameters,
 	FNaniteShadingCommand& ShadingCommand,
-	const TArray<FRHIUnorderedAccessView*, TInlineAllocator<3>>& OutputTargets
+	TUniformBufferRef<FLumenCardOutputs> Outputs
 )
 {
 	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.Pipeline->ComputeShader;
@@ -259,9 +247,7 @@ void RecordLumenCardParameters(
 		ShadingCommand.Pipeline->LumenCardData->TypedShader->SetPassParameters(
 			ShaderParameters,
 			ShadingCommand.PassData,
-			OutputTargets[0],
-			OutputTargets[1],
-			OutputTargets[2]
+			Outputs.GetReference()
 		);
 	}
 }

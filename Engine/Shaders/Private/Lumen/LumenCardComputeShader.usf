@@ -38,10 +38,6 @@ uint4 PassData;
 
 #endif
 
-RWTexture2D<float4> OutTarget0;
-RWTexture2D<float4> OutTarget1;
-RWTexture2D<float4> OutTarget2;
-
 struct FLumenOutput
 {
 	float4 Target0;
@@ -51,9 +47,9 @@ struct FLumenOutput
 
 void ExportPixel(const uint2 PixelPos, FLumenOutput ShadedPixel)
 {
-	OutTarget0[PixelPos] = ShadedPixel.Target0;
-	OutTarget1[PixelPos] = ShadedPixel.Target1;
-	OutTarget2[PixelPos] = ShadedPixel.Target2;
+	LumenCardOutputs.OutTarget0[PixelPos] = ShadedPixel.Target0;
+	LumenCardOutputs.OutTarget1[PixelPos] = ShadedPixel.Target1;
+	LumenCardOutputs.OutTarget2[PixelPos] = ShadedPixel.Target2;
 }
 
 #if !IS_NANITE_PASS

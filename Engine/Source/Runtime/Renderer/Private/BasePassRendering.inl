@@ -100,29 +100,12 @@ void TBasePassComputeShaderPolicyParamType<LightMapPolicyType>::SetPassParameter
 	FRHIBatchedShaderParameters& BatchedParameters,
 	const FUintVector4& ViewRect,
 	const FUintVector4& PassData,
-	FRHIUnorderedAccessView* Target0UAV,
-	FRHIUnorderedAccessView* Target1UAV,
-	FRHIUnorderedAccessView* Target2UAV,
-	FRHIUnorderedAccessView* Target3UAV,
-	FRHIUnorderedAccessView* Target4UAV,
-	FRHIUnorderedAccessView* Target5UAV,
-	FRHIUnorderedAccessView* Target6UAV,
-	FRHIUnorderedAccessView* Target7UAV,
-	FRHIUnorderedAccessView* TargetsUAV
+	FRHIUniformBuffer* ShadingOutputs
 )
 {
+	SetUniformBufferParameter(BatchedParameters, ShadingOutputsParam, ShadingOutputs);
 	SetShaderValue(BatchedParameters, ViewRectParam, ViewRect);
 	SetShaderValue(BatchedParameters, PassDataParam, PassData);
-
-	SetUAVParameter(BatchedParameters, Target0, Target0UAV);
-	SetUAVParameter(BatchedParameters, Target1, Target1UAV);
-	SetUAVParameter(BatchedParameters, Target2, Target2UAV);
-	SetUAVParameter(BatchedParameters, Target3, Target3UAV);
-	SetUAVParameter(BatchedParameters, Target4, Target4UAV);
-	SetUAVParameter(BatchedParameters, Target5, Target5UAV);
-	SetUAVParameter(BatchedParameters, Target6, Target6UAV);
-	SetUAVParameter(BatchedParameters, Target7, Target7UAV);
-	SetUAVParameter(BatchedParameters, Targets, TargetsUAV);
 }
 
 template<typename LightMapPolicyType>

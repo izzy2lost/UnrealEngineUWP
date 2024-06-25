@@ -54,64 +54,21 @@ uint4 PassData;
 	#endif
 #endif
 
-#if PIXELSHADEROUTPUT_MRT0
-	#if DUAL_SOURCE_COLOR_BLENDING_ENABLED && MATERIAL_WORKS_WITH_DUAL_SOURCE_COLOR_BLENDING
-		RWTexture2D<float4> OutTarget0; // DUAL_SOURCE_BLENDING_SLOT(0)
-	#else
-		RWTexture2D<float4> OutTarget0;
-	#endif
-#endif
-
-#if PIXELSHADEROUTPUT_MRT1
-	#if DUAL_SOURCE_COLOR_BLENDING_ENABLED && MATERIAL_WORKS_WITH_DUAL_SOURCE_COLOR_BLENDING
-		RWTexture2D<float4> OutTarget1; // DUAL_SOURCE_BLENDING_SLOT(1)
-	#else
-		RWTexture2D<float4> OutTarget1;
-	#endif
-#endif
-
-#if PIXELSHADEROUTPUT_MRT2
-	RWTexture2D<float4> OutTarget2;
-#endif
-
-#if PIXELSHADEROUTPUT_MRT3
-	RWTexture2D<float4> OutTarget3;
-#endif
 
 #if SUBSTRATE_OPAQUE_DEFERRED
-	RWTexture2DArray<uint> OutTargets;
-
 #if SUBSTRATE_FIRST_MRT_INDEX > 4
 	#error Substrate doesn't currently handle more than 4 base GBuffer MRTs
 #endif
 #if SUBSTRATE_FIRST_MRT_INDEX == 4
-	#define SUBSTRATE_TOP_LAYER_NAME OutTarget4
+	#define SUBSTRATE_TOP_LAYER_NAME ComputeShadingOutputs.OutTarget4
 #elif SUBSTRATE_FIRST_MRT_INDEX == 3
-	#define SUBSTRATE_TOP_LAYER_NAME OutTarget3
+	#define SUBSTRATE_TOP_LAYER_NAME ComputeShadingOutputs.OutTarget3
 #elif SUBSTRATE_FIRST_MRT_INDEX == 2
-	#define SUBSTRATE_TOP_LAYER_NAME OutTarget2
+	#define SUBSTRATE_TOP_LAYER_NAME ComputeShadingOutputs.OutTarget2
 #else
-	#define SUBSTRATE_TOP_LAYER_NAME OutTarget1
+	#define SUBSTRATE_TOP_LAYER_NAME ComputeShadingOutputs.OutTarget1
 #endif
-	RWTexture2D<SUBSTRATE_TOP_LAYER_TYPE> SUBSTRATE_TOP_LAYER_NAME;
-
 #else // SUBSTRATE_OPAQUE_DEFERRED
-
-	#if PIXELSHADEROUTPUT_MRT4
-		RWTexture2D<float4> OutTarget4;
-	#endif
-
-	#if PIXELSHADEROUTPUT_MRT5
-		RWTexture2D<float4> OutTarget5;
-	#endif
-
-	#if PIXELSHADEROUTPUT_MRT6
-		RWTexture2D<float4> OutTarget6;
-	#endif
-
-	#if PIXELSHADEROUTPUT_MRT7
-		RWTexture2D<float4> OutTarget7;
-	#endif
 
 #endif // SUBSTRATE_OPAQUE_DEFERRED
 
@@ -169,7 +126,7 @@ void ConditionalExport(bool Forced, uint2 PixelPos, FPixelShaderOut ShadedPixel,
 	if (Forced || ShadedPixel.SubstrateOutput[Index] != 0)
 #endif
 	{
-		OutTargets[uint3(PixelPos, Index)] = ShadedPixel.SubstrateOutput[Index];
+		ComputeShadingOutputs.OutTargets[uint3(PixelPos, Index)] = ShadedPixel.SubstrateOutput[Index];
 	}
 }
 
@@ -197,19 +154,19 @@ void ExportPixel(const uint2 PixelPos, FPixelShaderOut ShadedPixel)
 #endif 
 
 #if PIXELSHADEROUTPUT_MRT0
-	OutTarget0[PixelPos] = ShadedPixel.MRT[0];
+	ComputeShadingOutputs.OutTarget0[PixelPos] = ShadedPixel.MRT[0];
 #endif
 
 #if PIXELSHADEROUTPUT_MRT1
-	OutTarget1[PixelPos] = ShadedPixel.MRT[1];
+	ComputeShadingOutputs.OutTarget1[PixelPos] = ShadedPixel.MRT[1];
 #endif
 
 #if PIXELSHADEROUTPUT_MRT2
-	OutTarget2[PixelPos] = ShadedPixel.MRT[2];
+	ComputeShadingOutputs.OutTarget2[PixelPos] = ShadedPixel.MRT[2];
 #endif
 
 #if PIXELSHADEROUTPUT_MRT3
-	OutTarget3[PixelPos] = ShadedPixel.MRT[3];
+	ComputeShadingOutputs.OutTarget3[PixelPos] = ShadedPixel.MRT[3];
 #endif
 
 #if SUBSTRATE_OPAQUE_DEFERRED
@@ -228,19 +185,19 @@ void ExportPixel(const uint2 PixelPos, FPixelShaderOut ShadedPixel)
 #else // SUBSTRATE_OPAQUE_DEFERRED
 
 #if PIXELSHADEROUTPUT_MRT4
-	OutTarget4[PixelPos] = ShadedPixel.MRT[4];
+	ComputeShadingOutputs.OutTarget4[PixelPos] = ShadedPixel.MRT[4];
 #endif
 
 #if PIXELSHADEROUTPUT_MRT5
-	OutTarget5[PixelPos] = ShadedPixel.MRT[5];
+	ComputeShadingOutputs.OutTarget5[PixelPos] = ShadedPixel.MRT[5];
 #endif
 
 #if PIXELSHADEROUTPUT_MRT6
-	OutTarget6[PixelPos] = ShadedPixel.MRT[6];
+	ComputeShadingOutputs.OutTarget6[PixelPos] = ShadedPixel.MRT[6];
 #endif
 
 #if PIXELSHADEROUTPUT_MRT7
-	OutTarget7[PixelPos] = ShadedPixel.MRT[7];
+	ComputeShadingOutputs.OutTarget7[PixelPos] = ShadedPixel.MRT[7];
 #endif
 
 #endif // SUBSTRATE_OPAQUE_DEFERRED

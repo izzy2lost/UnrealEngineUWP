@@ -23,6 +23,7 @@
 #include "PSOPrecacheMaterial.h"
 #include "PSOPrecacheValidation.h"
 #include "Nanite/NaniteMaterialsSceneExtension.h"
+#include "RenderGraphResources.h"
 
 extern TAutoConsoleVariable<int32> CVarNaniteShowDrawEvents;
 
@@ -397,6 +398,7 @@ class FShadingBinValidateCS : public FNaniteGlobalShader
 };
 IMPLEMENT_GLOBAL_SHADER(FShadingBinValidateCS, "/Engine/Private/Nanite/NaniteShadeBinning.usf", "ShadingBinValidateCS", SF_Compute);
 
+IMPLEMENT_UNIFORM_BUFFER_STRUCT_EX(FComputeShadingOutputs, "ComputeShadingOutputs", FShaderParametersMetadata::EUsageFlags::NeedsReflectedMembers|FShaderParametersMetadata::EUsageFlags::ManuallyBoundByPass);
 
 BEGIN_SHADER_PARAMETER_STRUCT(FNaniteShadingPassParameters, )
 	RDG_BUFFER_ACCESS(ShadingBinArgs, ERHIAccess::IndirectArgs)
@@ -407,15 +409,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteShadingPassParameters, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteShadingUniformParameters, NaniteShading)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FOpaqueBasePassUniformParameters, BasePass)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardPassUniformParameters, CardPass)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget0)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget1)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget2)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget3)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget4)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget5)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget6)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget7)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, OutTargets)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FComputeShadingOutputs, ComputeShadingOutputs)
 END_SHADER_PARAMETER_STRUCT()
 
 namespace Nanite
@@ -695,8 +689,7 @@ inline void RecordShadingParameters(
 	FNaniteShadingCommand& ShadingCommand,
 	const uint32 DataByteOffset,
 	const FUint32Vector4& ViewRect,
-	TConstArrayView<FRHIUnorderedAccessView*> OutputTargets,
-	FRHIUnorderedAccessView* OutputTargetsArray
+	TUniformBufferRef<FComputeShadingOutputs> OutputTargetsBuffer
 )
 {
 	const bool bNoDerivativeOps = !!ShadingCommand.Pipeline->bNoDerivativeOps;
@@ -714,15 +707,7 @@ inline void RecordShadingParameters(
 			BatchedParameters,
 			ViewRect,
 			ShadingCommand.PassData,
-			OutputTargets[0],
-			OutputTargets[1],
-			OutputTargets[2],
-			OutputTargets[3],
-			OutputTargets[4],
-			OutputTargets[5],
-			OutputTargets[6],
-			OutputTargets[7],
-			OutputTargetsArray
+			OutputTargetsBuffer.GetReference()
 		);
 	}
 }
@@ -803,8 +788,7 @@ inline bool PrepareShadingCommand(FNaniteShadingCommand& ShadingCommand)
 
 struct FNaniteShadingPassIntermediates
 {
-	TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>> OutputTargets;
-	FRHIUnorderedAccessView* OutputTargetsArray = nullptr;
+	TUniformBufferRef<FComputeShadingOutputs> ShadingOutputs;
 	TBitArray<SceneRenderingBitArrayAllocator> VisibilityData;
 	FRHIBuffer* IndirectArgsBuffer = nullptr;
 	FUint32Vector4 ViewRect;
@@ -843,16 +827,8 @@ static TSharedPtr<FNaniteShadingPassIntermediates> CreateNaniteShadingPassInterm
 		Intermediates->VisibilityData = VisibilityResults->GetShadingBinVisibility();
 	}
 
-	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget0));
-	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget1));
-	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget2));
-	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget3));
-	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget4));
-	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget5));
-	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget6));
-	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget7));
-
-	Intermediates->OutputTargetsArray = GetOutputTargetRHI(ShadingPassParameters->OutTargets);
+	TRDGUniformBufferRef<FComputeShadingOutputs> ShadingOutputs = ShadingPassParameters->ComputeShadingOutputs.GetUniformBuffer();
+	Intermediates->ShadingOutputs = ShadingOutputs->GetRHIRef();
 
 	Intermediates->ViewRect = FUint32Vector4(
 		(uint32)ViewRect.Min.X,
@@ -901,7 +877,7 @@ static void DispatchComputeShaderBundle(
 
 					Dispatch.RecordIndex = ShadingCommand.ShadingBin;
 					Dispatch.Parameters.Emplace(*ParameterAllocator);
-					RecordShadingParameters(*Dispatch.Parameters, ShadingCommand, DataByteOffset, Intermediates.ViewRect, Intermediates.OutputTargets, Intermediates.OutputTargetsArray);
+					RecordShadingParameters(*Dispatch.Parameters, ShadingCommand, DataByteOffset, Intermediates.ViewRect, Intermediates.ShadingOutputs);
 					Dispatch.Parameters->Finish();
 					Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
 					Dispatch.WorkGraphShader = ShadingCommand.Pipeline->WorkGraphShader;
@@ -1029,27 +1005,49 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	const bool bLumenGIEnabled = SceneRenderer.IsLumenGIEnabled(View);
 	Result.BasePass = CreateOpaqueBasePassUniformBuffer(GraphBuilder, View, 0, {}, DBufferTextures, bLumenGIEnabled);
 
+	FComputeShadingOutputs* ShadingOutputs = GraphBuilder.AllocParameters<FComputeShadingOutputs>();
+
 	// No possibility of read/write hazard due to fully resolved vbuffer/materials
 	const ERDGUnorderedAccessViewFlags OutTargetFlags = ERDGUnorderedAccessViewFlags::SkipBarrier;
 
-	FRDGTextureUAVRef MaterialTextureArrayUAV = nullptr;
+	FRDGTextureUAVRef DummyUAV{};
+	auto GetDummyUAV = [&DummyUAV, &GraphBuilder, OutTargetFlags]()
+	{
+		if (!DummyUAV)
+		{
+			FRDGTextureDesc DummyDesc = FRDGTextureDesc::Create2D(
+				FIntPoint(1u, 1u),
+				PF_R32_UINT,
+				FClearValueBinding::Transparent,
+				TexCreate_ShaderResource | TexCreate_UAV
+			);
+
+			DummyUAV = GraphBuilder.CreateUAV(GraphBuilder.CreateTexture(DummyDesc, TEXT("Nanite.TargetDummy")), OutTargetFlags);
+		}
+		return DummyUAV;
+	};
+
 	if (Substrate::IsSubstrateEnabled())
 	{
-		MaterialTextureArrayUAV = GraphBuilder.CreateUAV(SceneRenderer.Scene->SubstrateSceneData.MaterialTextureArray, OutTargetFlags);
+		ShadingOutputs->OutTargets = GraphBuilder.CreateUAV(SceneRenderer.Scene->SubstrateSceneData.MaterialTextureArray, OutTargetFlags);
+	}
+	else
+	{
+		ShadingOutputs->OutTargets = GetDummyUAV();
 	}
 
 	const bool bMaintainCompression = (GNaniteFastTileClear == 2) && RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform);
 
 	FRDGTextureUAVRef* OutTargets[MaxSimultaneousRenderTargets] =
 	{
-		&Result.OutTarget0,
-		&Result.OutTarget1,
-		&Result.OutTarget2,
-		&Result.OutTarget3,
-		&Result.OutTarget4,
-		&Result.OutTarget5,
-		&Result.OutTarget6,
-		&Result.OutTarget7
+		&ShadingOutputs->OutTarget0,
+		&ShadingOutputs->OutTarget1,
+		&ShadingOutputs->OutTarget2,
+		&ShadingOutputs->OutTarget3,
+		&ShadingOutputs->OutTarget4,
+		&ShadingOutputs->OutTarget5,
+		&ShadingOutputs->OutTarget6,
+		&ShadingOutputs->OutTarget7
 	};
 
 	for (uint32 TargetIndex = 0; TargetIndex < MaxSimultaneousRenderTargets; ++TargetIndex)
@@ -1058,15 +1056,7 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 		{
 			if ((BoundTargetMask & (1u << TargetIndex)) == 0u)
 			{
-				// Change any target over to a dummy if not written by at least one shading command
-				FRDGTextureDesc DummyDesc = FRDGTextureDesc::Create2D(
-					FIntPoint(1u, 1u),
-					PF_R32_UINT,
-					FClearValueBinding::Transparent,
-					TexCreate_ShaderResource | TexCreate_UAV
-				);
-
-				*OutTargets[TargetIndex] = GraphBuilder.CreateUAV(GraphBuilder.CreateTexture(DummyDesc, TEXT("Nanite.TargetDummy")), OutTargetFlags);
+				*OutTargets[TargetIndex] = GetDummyUAV();
 			}
 			else if (bMaintainCompression)
 			{
@@ -1077,9 +1067,13 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 				*OutTargets[TargetIndex] = GraphBuilder.CreateUAV(TargetTexture, OutTargetFlags);
 			}
 		}
+		else
+		{
+			*OutTargets[TargetIndex] = GetDummyUAV();
+		}
 	}
 
-	Result.OutTargets = MaterialTextureArrayUAV;
+	Result.ComputeShadingOutputs = GraphBuilder.CreateUniformBuffer(ShadingOutputs);
 
 	return Result;
 }
@@ -1289,8 +1283,7 @@ void DispatchBasePass(
 									ShadingCommand,
 									DataByteOffset,
 									Intermediates->ViewRect,
-									Intermediates->OutputTargets,
-									Intermediates->OutputTargetsArray
+									Intermediates->ShadingOutputs
 								);
 
 								RecordShadingCommand(
@@ -1336,7 +1329,7 @@ void DispatchBasePass(
 					if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 					{
 						FRHIBatchedShaderParameters& ShadingParameters = RHICmdList.GetScratchShaderParameters();
-						RecordShadingParameters(ShadingParameters, ShadingCommand, DataByteOffset, Intermediates->ViewRect, Intermediates->OutputTargets, Intermediates->OutputTargetsArray);
+						RecordShadingParameters(ShadingParameters, ShadingCommand, DataByteOffset, Intermediates->ViewRect, Intermediates->ShadingOutputs);
 						RecordShadingCommand(RHICmdList, Intermediates->IndirectArgsBuffer, IndirectArgsStride, ShadingParameters, ShadingCommand);
 					}
 				}
@@ -2169,6 +2162,16 @@ struct FLumenShadingBinEntry
 	FNaniteShadingBin ShadingBin;
 };
 
+BEGIN_SHADER_PARAMETER_STRUCT(FLumenMeshCapturePassParameters, )
+	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRaster)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteShadingUniformParameters, NaniteShading)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FOpaqueBasePassUniformParameters, BasePass)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardPassUniformParameters, CardPass)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardOutputs, LumenCardOutputs)
+END_SHADER_PARAMETER_STRUCT()
+
 void DispatchLumenMeshCapturePass(
 	FRDGBuilder& GraphBuilder,
 	FScene& Scene,
@@ -2368,7 +2371,8 @@ void DispatchLumenMeshCapturePass(
 		[&BinData = CaptureContext.ShadingBinData]() -> auto& { return BinData; }
 	);
 
-	FNaniteShadingPassParameters* ShadingPassParameters = GraphBuilder.AllocParameters<FNaniteShadingPassParameters>();
+	FLumenMeshCapturePassParameters* LumenCardPassParameters = GraphBuilder.AllocParameters<FLumenMeshCapturePassParameters>();
+
 	{
 		// NaniteRaster Uniform Buffer
 		{
@@ -2384,7 +2388,7 @@ void DispatchLumenMeshCapturePass(
 			UniformParameters->RenderFlags					= RasterResults.RenderFlags;
 			UniformParameters->DebugFlags					= RasterResults.DebugFlags;
 
-			ShadingPassParameters->NaniteRaster				= GraphBuilder.CreateUniformBuffer(UniformParameters);
+			LumenCardPassParameters->NaniteRaster				= GraphBuilder.CreateUniformBuffer(UniformParameters);
 		}
 
 		// NaniteShading Uniform Buffer
@@ -2415,27 +2419,33 @@ void DispatchLumenMeshCapturePass(
 			UniformParameters->MultiViewRectScaleOffsets	= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FVector4>(GraphBuilder));
 			UniformParameters->InViews						= GraphBuilder.CreateSRV(PackedViewBuffer);
 
-			ShadingPassParameters->NaniteShading			= GraphBuilder.CreateUniformBuffer(UniformParameters);
+			LumenCardPassParameters->NaniteShading			= GraphBuilder.CreateUniformBuffer(UniformParameters);
 		}
 	}
 
 	CardPagesToRender[0].PatchView(&Scene, SharedView);
-	ShadingPassParameters->View = SharedView->GetShaderParameters();
-	ShadingPassParameters->Scene = SharedView->GetSceneUniforms().GetBuffer(GraphBuilder);
-	ShadingPassParameters->CardPass = GraphBuilder.CreateUniformBuffer(PassUniformParameters);
+	LumenCardPassParameters->View = SharedView->GetShaderParameters();
+	LumenCardPassParameters->Scene = SharedView->GetSceneUniforms().GetBuffer(GraphBuilder);
+	LumenCardPassParameters->CardPass = GraphBuilder.CreateUniformBuffer(PassUniformParameters);
 
-	// No possibility of read/write hazard due to fully resolved vbuffer/materials
-	const ERDGUnorderedAccessViewFlags OutTargetFlags = ERDGUnorderedAccessViewFlags::SkipBarrier;
+	{
+		FLumenCardOutputs* Outputs = GraphBuilder.AllocParameters<FLumenCardOutputs>();
 
-	ShadingPassParameters->OutTarget0 = GraphBuilder.CreateUAV(AlbedoAtlasTexture, OutTargetFlags);
-	ShadingPassParameters->OutTarget1 = GraphBuilder.CreateUAV(NormalAtlasTexture, OutTargetFlags);
-	ShadingPassParameters->OutTarget2 = GraphBuilder.CreateUAV(EmissiveAtlasTexture, OutTargetFlags);
+		// No possibility of read/write hazard due to fully resolved vbuffer/materials
+		const ERDGUnorderedAccessViewFlags OutTargetFlags = ERDGUnorderedAccessViewFlags::SkipBarrier;
+
+		Outputs->OutTarget0 = GraphBuilder.CreateUAV(AlbedoAtlasTexture, OutTargetFlags);
+		Outputs->OutTarget1 = GraphBuilder.CreateUAV(NormalAtlasTexture, OutTargetFlags);
+		Outputs->OutTarget2 = GraphBuilder.CreateUAV(EmissiveAtlasTexture, OutTargetFlags);
+
+		LumenCardPassParameters->LumenCardOutputs = GraphBuilder.CreateUniformBuffer(Outputs);
+	}
 
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("LumenShadeCS"),
-		ShadingPassParameters,
+		LumenCardPassParameters,
 		ERDGPassFlags::Compute,
-		[ShadingPassParameters, SharedView, &ShadingCommands, &CapturePasses = CaptureContext.Passes]
+		[LumenCardPassParameters, SharedView, &ShadingCommands, &CapturePasses = CaptureContext.Passes]
 		(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 		{
 			// This is processed within the RDG pass lambda, so the setup task should be complete by now.
@@ -2443,22 +2453,6 @@ void DispatchLumenMeshCapturePass(
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(LumenEmitGBuffer);
 			SCOPED_DRAW_EVENTF(RHICmdList, LumenEmitGBuffer, TEXT("%d materials"), CapturePasses.Num());
-
-			TArray<FRHIUnorderedAccessView*, TInlineAllocator<3>> OutputTargets;
-			auto GetOutputTargetRHI = [](const FRDGTextureUAVRef OutputTarget)
-			{
-				FRHIUnorderedAccessView* OutputTargetRHI = nullptr;
-				if (OutputTarget != nullptr)
-				{
-					OutputTarget->MarkResourceAsUsed();
-					OutputTargetRHI = OutputTarget->GetRHI();
-				}
-				return OutputTargetRHI;
-			};
-
-			OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget0));
-			OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget1));
-			OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget2));
 
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
 			check(!BatchedParameters.HasParameters());
@@ -2478,9 +2472,11 @@ void DispatchLumenMeshCapturePass(
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, LumenCS, GShowMaterialDrawEvents != 0, TEXT("%s [%d tiles]"), GetShadingMaterialName(ShadingCommand.Pipeline->MaterialProxy), CapturePass.TotalTileCount);
 			#endif
 
+				TRDGUniformBufferRef<FLumenCardOutputs> LumenCardOutputs = LumenCardPassParameters->LumenCardOutputs.GetUniformBuffer();
+
 				// Record parameters
 				FRHIBatchedShaderParameters& ShadingParameters = RHICmdList.GetScratchShaderParameters();
-				Nanite::RecordLumenCardParameters(ShadingParameters, ShadingCommand, OutputTargets);
+				Nanite::RecordLumenCardParameters(ShadingParameters, ShadingCommand, LumenCardPassParameters->LumenCardOutputs->GetRHIRef());
 
 				// Record dispatch
 				{
