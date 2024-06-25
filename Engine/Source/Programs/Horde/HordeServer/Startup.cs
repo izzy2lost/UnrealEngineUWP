@@ -371,16 +371,13 @@ namespace HordeServer
 			services.AddSingleton<JsonSchemaCache>();
 
 			// Register the plugin collection
-			Dictionary<string, IPluginStartup> plugins = new Dictionary<string, IPluginStartup>();
-			services.AddSingleton<IPluginCollection>(new PluginCollection(plugins));
+			PluginCollection pluginCollection = new PluginCollection();
+			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin config types
-			foreach ((string name, IPluginStartup plugin) in plugins)
+			foreach (ILoadedPlugin plugin in pluginCollection.LoadedPlugins)
 			{
-				if (plugin.GlobalConfigType != null)
-				{
-					services.AddPluginConfig(name, plugin.GlobalConfigType);
-				}
+				plugin.ConfigureServices(services);
 			}
 
 			// IOptionsMonitor pattern for live updating of configuration settings
@@ -915,7 +912,7 @@ namespace HordeServer
 			IMvcBuilder mvcBuilder = services.AddMvc()
 				.AddJsonOptions(options => JsonUtils.ConfigureJsonSerializer(options.JsonSerializerOptions));
 
-			foreach (Assembly pluginAssembly in plugins.Values.Select(x => x.GetType().Assembly).Distinct())
+			foreach (Assembly pluginAssembly in pluginCollection.LoadedPlugins.Select(x => x.Assembly).Distinct())
 			{
 				mvcBuilder.AddApplicationPart(pluginAssembly);
 			}

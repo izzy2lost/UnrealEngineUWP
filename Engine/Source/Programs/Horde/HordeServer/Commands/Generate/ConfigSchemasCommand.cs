@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -23,7 +22,7 @@ namespace HordeServer.Commands.Generate
 		{
 			_outputDir ??= DirectoryReference.Combine(ServerApp.AppDir, "Schemas");
 
-			JsonSchemaCache schemaCache = new JsonSchemaCache(new PluginCollection(new Dictionary<string, IPluginStartup>()));
+			JsonSchemaCache schemaCache = new JsonSchemaCache(new PluginCollection());
 
 			DirectoryReference.CreateDirectory(_outputDir);
 			foreach (Type schemaType in SchemaController.ConfigSchemas)

@@ -15,7 +15,7 @@ namespace HordeServer.Plugins
 	sealed class PluginOptionsFactory<T> : IOptionsFactory<T>, IOptionsChangeTokenSource<T>
 		where T : class, IPluginConfig, new()
 	{
-		readonly string _pluginName;
+		readonly PluginName _pluginName;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly IOptionsChangeTokenSource<GlobalConfig> _globalConfigChangeTokenSource;
 
@@ -25,7 +25,7 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PluginOptionsFactory(string pluginName, IServiceProvider serviceProvider)
+		public PluginOptionsFactory(PluginName pluginName, IServiceProvider serviceProvider)
 			: this(pluginName, serviceProvider.GetRequiredService<IOptionsMonitor<GlobalConfig>>(), serviceProvider.GetRequiredService<IOptionsChangeTokenSource<GlobalConfig>>())
 		{
 		}
@@ -33,7 +33,7 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PluginOptionsFactory(string pluginName, IOptionsMonitor<GlobalConfig> globalConfig, IOptionsChangeTokenSource<GlobalConfig> globalConfigChangeTokenSource)
+		public PluginOptionsFactory(PluginName pluginName, IOptionsMonitor<GlobalConfig> globalConfig, IOptionsChangeTokenSource<GlobalConfig> globalConfigChangeTokenSource)
 		{
 			_pluginName = pluginName;
 			_globalConfig = globalConfig;
@@ -64,26 +64,11 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Register an options factory for the given plugin options type
 		/// </summary>
-		public static void AddPluginConfig(this IServiceCollection services, string name, Type configType)
+		public static void AddPluginConfig<T>(this IServiceCollection services, PluginName name) where T : class, IPluginConfig, new()
 		{
-			Type helperType = typeof(RegistrationHelper<>).MakeGenericType(configType);
-			RegistrationHelper registration = (RegistrationHelper)Activator.CreateInstance(helperType)!;
-			registration.Register(services, name);
-		}
-
-		abstract class RegistrationHelper
-		{
-			public abstract void Register(IServiceCollection services, string name);
-		}
-
-		class RegistrationHelper<T> : RegistrationHelper where T : class, IPluginConfig, new()
-		{
-			public override void Register(IServiceCollection services, string name)
-			{
-				services.AddSingleton<PluginOptionsFactory<T>>(sp => new PluginOptionsFactory<T>(name, sp));
-				services.AddSingleton<IOptionsFactory<T>>(sp => sp.GetRequiredService<PluginOptionsFactory<T>>());
-				services.AddSingleton<IOptionsChangeTokenSource<T>>(sp => sp.GetRequiredService<PluginOptionsFactory<T>>());
-			}
+			services.AddSingleton<PluginOptionsFactory<T>>(sp => new PluginOptionsFactory<T>(name, sp));
+			services.AddSingleton<IOptionsFactory<T>>(sp => sp.GetRequiredService<PluginOptionsFactory<T>>());
+			services.AddSingleton<IOptionsChangeTokenSource<T>>(sp => sp.GetRequiredService<PluginOptionsFactory<T>>());
 		}
 	}
 }

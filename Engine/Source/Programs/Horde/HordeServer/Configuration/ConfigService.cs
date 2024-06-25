@@ -150,11 +150,11 @@ namespace HordeServer.Configuration
 			JsonUtils.ConfigureJsonSerializer(_jsonOptions);
 
 			PluginConfigCollectionConverter pluginConfigConverter = new PluginConfigCollectionConverter();
-			foreach ((string name, IPluginStartup plugin) in pluginCollection.EnabledPlugins)
+			foreach (ILoadedPlugin plugin in pluginCollection.LoadedPlugins)
 			{
 				if (plugin.GlobalConfigType != null)
 				{
-					pluginConfigConverter.NameToType[name] = plugin.GlobalConfigType;
+					pluginConfigConverter.NameToType[plugin.Name] = plugin.GlobalConfigType;
 				}
 			}
 			_jsonOptions.Converters.Add(pluginConfigConverter);

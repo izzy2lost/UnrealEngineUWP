@@ -198,7 +198,7 @@ namespace HordeServer.Tests
 			services.AddHttpClient<RpcService>();
 
 			services.AddSingleton<IServerInfo>(new ServerInfo());
-			services.AddSingleton<IPluginCollection>(new PluginCollection(new Dictionary<string, IPluginStartup>()));
+			services.AddSingleton<IPluginCollection>(new PluginCollection());
 
 			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
 			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));

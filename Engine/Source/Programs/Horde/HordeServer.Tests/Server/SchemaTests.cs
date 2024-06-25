@@ -14,7 +14,7 @@ namespace HordeServer.Tests.Server
 		[TestMethod]
 		public void StreamSchema()
 		{
-			JsonSchemaCache cache = new JsonSchemaCache(PluginCollection.Empty);
+			JsonSchemaCache cache = new JsonSchemaCache(new PluginCollection());
 			JsonSchema schema = cache.CreateSchema(typeof(StreamConfig));
 			_ = schema;
 		}
@@ -22,7 +22,7 @@ namespace HordeServer.Tests.Server
 		[TestMethod]
 		public void ProjectSchema()
 		{
-			JsonSchemaCache cache = new JsonSchemaCache(PluginCollection.Empty);
+			JsonSchemaCache cache = new JsonSchemaCache(new PluginCollection());
 			JsonSchema schema = cache.CreateSchema(typeof(StreamConfig));
 			_ = schema;
 		}

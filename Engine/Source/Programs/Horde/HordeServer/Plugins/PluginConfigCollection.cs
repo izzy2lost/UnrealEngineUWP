@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EpicGames.Horde;
 
 namespace HordeServer.Plugins
 {
@@ -12,19 +13,12 @@ namespace HordeServer.Plugins
 	/// Collection of <see cref="IPluginConfig"/> objects.
 	/// </summary>
 	[JsonConverter(typeof(PluginConfigCollectionConverter))]
-	public class PluginConfigCollection : Dictionary<string, IPluginConfig>
+	public class PluginConfigCollection : Dictionary<PluginName, IPluginConfig>
 	{
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public PluginConfigCollection()
-			: base(StringComparer.OrdinalIgnoreCase)
-		{ }
-
 		/// <summary>
 		/// Attempts to get a plugin config of a specific type
 		/// </summary>
-		public bool TryGetValue<T>(string name, [NotNullWhen(true)] out T? value) where T : class, IPluginConfig
+		public bool TryGetValue<T>(PluginName name, [NotNullWhen(true)] out T? value) where T : class, IPluginConfig
 		{
 			IPluginConfig? config;
 			if (base.TryGetValue(name, out config) && config is T typedConfig)
@@ -48,7 +42,7 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Map of plugin names to the expected config type
 		/// </summary>
-		public Dictionary<string, Type> NameToType { get; } = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
+		public Dictionary<PluginName, Type> NameToType { get; } = new Dictionary<PluginName, Type>();
 
 		/// <inheritdoc/>
 		public override PluginConfigCollection? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -61,11 +55,13 @@ namespace HordeServer.Plugins
 			PluginConfigCollection result = new PluginConfigCollection();
 			while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
 			{
-				string? name = reader.GetString();
-				if (name == null || !reader.Read())
+				string? nameStr = reader.GetString();
+				if (nameStr == null || !reader.Read())
 				{
 					throw new JsonException("Invalid plugin name");
 				}
+
+				PluginName name = new PluginName(new StringId(nameStr));
 				if (NameToType.TryGetValue(name, out Type? type))
 				{
 					object? obj = JsonSerializer.Deserialize(ref reader, type, options);
@@ -91,9 +87,9 @@ namespace HordeServer.Plugins
 		public override void Write(Utf8JsonWriter writer, PluginConfigCollection value, JsonSerializerOptions options)
 		{
 			writer.WriteStartObject();
-			foreach ((string name, IPluginConfig config) in value)
+			foreach ((PluginName name, IPluginConfig config) in value)
 			{
-				writer.WritePropertyName(name);
+				writer.WritePropertyName(name.ToString());
 				JsonSerializer.Serialize(writer, config, config.GetType(), options);
 			}
 			writer.WriteEndObject();

@@ -10,8 +10,13 @@ namespace HordeServer.Plugins
 	public interface IPluginCollection
 	{
 		/// <summary>
-		/// The enabled plugins
+		/// List of available plugins
 		/// </summary>
-		IReadOnlyDictionary<string, IPluginStartup> EnabledPlugins { get; }
+		IReadOnlyList<IPlugin> Plugins { get; }
+
+		/// <summary>
+		/// List of the enabled plugins
+		/// </summary>
+		IReadOnlyList<ILoadedPlugin> LoadedPlugins { get; }
 	}
 }
