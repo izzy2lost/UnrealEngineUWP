@@ -40,6 +40,7 @@
       <Aliases>JobDriver</Aliases>
     </ProjectReference>
     <ProjectReference Include="..\HordeServer\HordeServer.csproj" />
+    <ProjectReference Include="..\Plugins\Analytics\HordeServer.Analytics\HordeServer.Analytics.csproj" />
   </ItemGroup>
 
   <ItemGroup>
