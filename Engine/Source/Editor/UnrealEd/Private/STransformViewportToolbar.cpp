@@ -80,23 +80,7 @@ TSharedRef<SWidget> STransformViewportToolBar::GenerateSurfaceSnappingMenu()
 
 	MenuBuilder.BeginSection("SurfaceSnappingSettings", LOCTEXT("SnapToSurfaceSettings", "Settings"));
 	{
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("SnapToSurfaceSettings_Rotation", "Rotate to Surface Normal"),
-			LOCTEXT("SnapToSurfaceSettings_RotationTip", "When checked, snapping an object to a surface will also rotate the object to align to the surface normal"),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateStatic([] {
-					auto& Settings = GetMutableDefault<ULevelEditorViewportSettings>()->SnapToSurface;
-					Settings.bSnapRotation = !Settings.bSnapRotation;
-					}),
-				FCanExecuteAction::CreateStatic(IsSnappingEnabled),
-				FIsActionChecked::CreateStatic([] {
-					const auto& Settings = GetDefault<ULevelEditorViewportSettings>()->SnapToSurface;
-					return Settings.bSnapRotation;
-					})),
-				NAME_None,
-			EUserInterfaceActionType::Check);
-
+		MenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().RotateToSurfaceNormal);
 
 		MenuBuilder.AddWidget(
 

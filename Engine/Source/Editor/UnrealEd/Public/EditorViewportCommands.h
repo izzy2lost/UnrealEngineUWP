@@ -251,6 +251,10 @@ public:
 
 	/** Enables or disables snapping to surfaces when dragging in the viewport */
 	TSharedPtr< FUICommandInfo > SurfaceSnapping;
+
+	/** Enables or disables rotating to surface normal when snapping to surfaces */
+	TSharedPtr< FUICommandInfo > RotateToSurfaceNormal;
+
 public:
 	/** Registers our commands with the binding system */
 	virtual void RegisterCommands() override;

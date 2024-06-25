@@ -1946,6 +1946,13 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 					SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					LeftSection.AddEntry(SelectionSubmenu);
 				}
+
+				// Add the "Snapping" sub menu.
+				{
+					FToolMenuEntry SnappingSubmenu = UE::LevelEditor::CreateViewportToolbarSnappingSubmenu();
+					SnappingSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					LeftSection.AddEntry(SnappingSubmenu);
+				}
 			}
 
 			// Add the right-aligned part of the viewport toolbar.

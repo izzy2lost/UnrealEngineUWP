@@ -21,9 +21,11 @@
 #include "ToolMenus.h"
 #include "ViewportToolbar/LevelViewportContext.h"
 #include "ViewportToolbar/UnrealEdViewportToolbar.h"
+#include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SVolumeControl.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SToolTip.h"
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "LevelEditorViewportToolbar"
@@ -125,6 +127,208 @@ void PopulateShowLayersSubmenu(UToolMenu* InMenu, TWeakPtr<::SLevelViewport> InV
 			);
 		}
 	}
+}
+
+// TODO: Maybe export CreateSurfaceSnapOffsetEntry function, so that it can be used elsewhere, e.g. STransformViewportToolbar.cpp
+FToolMenuEntry CreateSurfaceSnapOffsetEntry()
+{
+	FText Label = LOCTEXT("SurfaceOffsetLabel", "Surface Offset");
+	FText Tooltip = LOCTEXT("SurfaceOffsetTooltip", "The amount of offset to apply when snapping to surfaces");
+
+	FToolMenuEntry SurfaceOffset = FToolMenuEntry::InitMenuEntry(
+		"SurfaceOffset",
+		Label,
+		Tooltip,
+		FSlateIcon(),
+		FUIAction());
+
+	const FMargin WidgetsMargin(8.0f, 0.0f, 0.0f, 0.0f);
+
+	SurfaceOffset.MakeCustomWidget.BindLambda(
+		[Label, Tooltip, WidgetsMargin](const FToolMenuContext& InContext, const FToolMenuCustomWidgetContext& InWidgetContext)
+		{
+			// clang-format on
+			return SNew(SHorizontalBox).IsEnabled_Lambda([]()
+				{
+					return GetDefault<ULevelEditorViewportSettings>()->SnapToSurface.bEnabled;
+				})
+				+ SHorizontalBox::Slot().VAlign(VAlign_Center).Padding(WidgetsMargin).AutoWidth()
+				[
+					SNew(STextBlock).Text(Label).TextStyle(InWidgetContext.StyleSet,
+					                                       ISlateStyle::Join(InWidgetContext.StyleName, ".Label"))
+				]
+				+ SHorizontalBox::Slot().VAlign(VAlign_Center).Padding(WidgetsMargin).AutoWidth()
+				[
+					SNew(SBox).Padding(WidgetsMargin).MinDesiredWidth(100.0f)
+					[
+						// Min/Max/Slider values taken from STransformViewportToolbar.cpp
+						SNew(SNumericEntryBox<float>)
+						.ToolTipText(Tooltip)
+						.MinValue(0.0f)
+						.MaxValue(static_cast<float>(HALF_WORLD_MAX))
+						.MaxSliderValue(1000.0f)
+						.AllowSpin(true)
+						.MaxFractionalDigits(2)
+						.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+						.OnValueChanged_Lambda([](float InNewValue)
+						{
+							auto* Settings = GetMutableDefault<ULevelEditorViewportSettings>();
+							Settings->SnapToSurface.SnapOffsetExtent = InNewValue;
+						})
+						.Value_Lambda([]()
+						{
+							return GetDefault<ULevelEditorViewportSettings>()->SnapToSurface.SnapOffsetExtent;
+						})
+					]
+				];
+			// clang-format off
+		});
+
+	return SurfaceOffset;
+}
+
+FToolMenuEntry CreateSurfaceSnapMenu()
+{
+	FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda([](UToolMenu* Submenu)
+	{
+		FToolMenuSection& SurfaceSnappingSection = Submenu->FindOrAddSection("SurfaceSnapping", LOCTEXT("SurfaceSnappingLabel", "Surface Snapping"));
+
+		// Add "Rotate to surface normal" checkbox.
+		{
+			FToolMenuEntry RotateToSurfaceNormalSnapping = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RotateToSurfaceNormal);
+			SurfaceSnappingSection.AddEntry(RotateToSurfaceNormalSnapping);
+		}
+
+		// Add "Surface offset" widget.
+		{
+			SurfaceSnappingSection.AddEntry(CreateSurfaceSnapOffsetEntry());
+		}
+	});
+
+	FToolUIAction CheckboxMenuAction;
+	{
+		CheckboxMenuAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				auto* Settings = GetMutableDefault<ULevelEditorViewportSettings>();
+				Settings->SnapToSurface.bEnabled = !Settings->SnapToSurface.bEnabled;
+			}
+		);
+		CheckboxMenuAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				return GetDefault<ULevelEditorViewportSettings>()->SnapToSurface.bEnabled ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			}
+		);
+	}
+
+	FToolMenuEntry SurfaceSnapping = FToolMenuEntry::InitSubMenu(
+		"SurfaceSnapping",
+		LOCTEXT("SurfaceSnapLabel", "Surface"),
+		FEditorViewportCommands::Get().SurfaceSnapping->MakeTooltip()->GetTextTooltip(),
+		MakeMenuDelegate,
+		CheckboxMenuAction,
+		EUserInterfaceActionType::ToggleButton
+	);
+
+	return SurfaceSnapping;
+}
+
+FToolMenuEntry CreateActorSnapDistanceEntry()
+{
+	const FText Label = LOCTEXT("ActorSnapDistanceLabel", "Snap Distance");
+	const FText Tooltip = LOCTEXT("ActorSnapDistanceTooltip", "The amount of offset to apply when snapping to surfaces");
+
+	FToolMenuEntry SnapDistance = FToolMenuEntry::InitMenuEntry(
+		"ActorSnapDistance",
+		Label,
+		Tooltip,
+		FSlateIcon(),
+		FUIAction());
+
+	const FMargin WidgetsMargin(8.0f, 0.0f, 0.0f, 0.0f);
+
+	SnapDistance.MakeCustomWidget.BindLambda(
+		[Label, Tooltip, WidgetsMargin](const FToolMenuContext& InContext, const FToolMenuCustomWidgetContext& InWidgetContext)
+		{
+			// clang-format on
+			return SNew(SHorizontalBox).IsEnabled_Lambda([]()
+				{
+					return !!GetDefault<ULevelEditorViewportSettings>()->bEnableActorSnap;
+				})
+				+ SHorizontalBox::Slot().VAlign(VAlign_Center).Padding(WidgetsMargin).AutoWidth()
+				[
+					SNew(STextBlock).Text(Label).TextStyle(InWidgetContext.StyleSet,
+					                                       ISlateStyle::Join(InWidgetContext.StyleName, ".Label"))
+				]
+				+ SHorizontalBox::Slot().VAlign(VAlign_Center).Padding(WidgetsMargin).AutoWidth()
+				[
+					SNew(SBox).Padding(WidgetsMargin).MinDesiredWidth(100.0f)
+					[
+						// TODO: Check how to improve performance for this widget OnValueChanged.
+						// Same functionality in LevelEditorToolBar.cpp seems to have better performance
+						SNew(SNumericEntryBox<float>)
+						.ToolTipText(Tooltip)
+						.MinValue(0.0f)
+						.MaxValue(1.0f)
+						.MaxSliderValue(1.0f)
+						.AllowSpin(true)
+						.MaxFractionalDigits(1)
+						.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+						.OnValueChanged_Static(&FLevelEditorActionCallbacks::SetActorSnapSetting)
+						.Value_Lambda([]()
+						{
+							return FLevelEditorActionCallbacks::GetActorSnapSetting();
+						})
+					]
+				];
+			// clang-format off
+		});
+
+	return SnapDistance;
+}
+
+FToolMenuEntry CreateActorSnapMenu()
+{
+	FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda([](UToolMenu* Submenu)
+	{
+		FToolMenuSection& ActorSnappingSection = Submenu->FindOrAddSection("ActorSnapping", LOCTEXT("ActorSnappingLabel", "Actor Snapping"));
+
+		// Add "Actor snapping" widget.
+		{
+			ActorSnappingSection.AddEntry(CreateActorSnapDistanceEntry());
+		}
+	});
+
+	FToolUIAction CheckboxMenuAction;
+	{
+		CheckboxMenuAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				if (ULevelEditorViewportSettings* Settings = GetMutableDefault<ULevelEditorViewportSettings>())
+				{
+					Settings->bEnableActorSnap = !Settings->bEnableActorSnap;
+				}
+			}
+		);
+		CheckboxMenuAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				return GetDefault<ULevelEditorViewportSettings>()->bEnableActorSnap ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			}
+		);
+	}
+
+	FToolMenuEntry ActorSnapping = FToolMenuEntry::InitSubMenu(
+		"ActorSnapping",
+		LOCTEXT("ActorSnapLabel", "Actor"),
+		FLevelEditorCommands::Get().EnableActorSnap->MakeTooltip()->GetTextTooltip(),
+		MakeMenuDelegate,
+		CheckboxMenuAction,
+		EUserInterfaceActionType::ToggleButton
+	);
+
+	return ActorSnapping;
 }
 
 } // namespace UE::LevelEditor::Private
@@ -1839,6 +2043,54 @@ FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu()
 						SettingsSection.AddMenuEntry(LevelViewportActions.AdvancedSettings);
 					}
 				}
+			}
+		)
+	);
+}
+
+FToolMenuEntry CreateViewportToolbarSnappingSubmenu()
+{
+	return FToolMenuEntry::InitSubMenu(
+		"Snapping",
+		LOCTEXT("SnappingSubmenuLabel", "Snapping"),
+		LOCTEXT("SnappingSubmenuTooltip", "Viewport-related snapping settings"),
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* Submenu) -> void
+			{
+				FToolMenuSection& SnappingSection =
+					Submenu->FindOrAddSection("Snapping", LOCTEXT("SnappingLabel", "Snapping"));
+
+				SnappingSection.AddEntry(Private::CreateSurfaceSnapMenu());
+
+				FToolMenuEntry GridSnapping = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().LocationGridSnap);
+				GridSnapping.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+				GridSnapping.Label = LOCTEXT("GridSnapLabel", "Grid");
+				GridSnapping.SetShowInToolbarTopLevel(true);
+				SnappingSection.AddEntry(GridSnapping);
+
+				FToolMenuEntry RotationSnapping = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RotationGridSnap);
+				RotationSnapping.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+				RotationSnapping.Label = LOCTEXT("RotationSnapLabel", "Rotation");
+				SnappingSection.AddEntry(RotationSnapping);
+
+				FToolMenuEntry ScaleSnapping = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().ScaleGridSnap);
+				ScaleSnapping.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+				ScaleSnapping.Label = LOCTEXT("ScaleSnapLabel", "Scale");
+				SnappingSection.AddEntry(ScaleSnapping);
+
+				SnappingSection.AddEntry(Private::CreateActorSnapMenu());
+
+				FToolMenuEntry SocketSnapping = FToolMenuEntry::InitMenuEntry(FLevelEditorCommands::Get().ToggleSocketSnapping);
+				SocketSnapping.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+				SocketSnapping.Label = LOCTEXT("SocketSnapLabel", "Socket");
+				SnappingSection.AddEntry(SocketSnapping);
+
+				FToolMenuEntry VertexSnapping = FToolMenuEntry::InitMenuEntry(FLevelEditorCommands::Get().EnableVertexSnap);
+				VertexSnapping.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+				VertexSnapping.Label = LOCTEXT("VertexSnapLabel", "Vertex");
+				SnappingSection.AddEntry(VertexSnapping);
+
+				// TODO: add Planar Snapping
 			}
 		)
 	);

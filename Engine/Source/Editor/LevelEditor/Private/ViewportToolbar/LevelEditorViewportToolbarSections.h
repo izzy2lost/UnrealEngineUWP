@@ -43,4 +43,6 @@ void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport>
 TSharedRef<SWidget> BuildVolumeControlCustomWidget();
 FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu();
 
+FToolMenuEntry CreateViewportToolbarSnappingSubmenu();
+
 } // namespace UE::LevelEditor

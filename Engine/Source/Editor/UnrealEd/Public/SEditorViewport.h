@@ -260,6 +260,15 @@ protected:
 	 */
 	static UNREALED_API bool OnIsSurfaceSnapEnabled();
 
+	/**
+	 * Called when rotation matching surface normal has been enabled/disabled
+	 */
+	static UNREALED_API void OnToggleRotateToSurfaceNormal();
+
+	/**
+	 * Called to test whether rotation matching surface normal is enabled or not
+	 */
+	static UNREALED_API bool IsRotateToSurfaceNormalEnabled();
 
 protected:
 	TSharedPtr<SOverlay> ViewportOverlay;

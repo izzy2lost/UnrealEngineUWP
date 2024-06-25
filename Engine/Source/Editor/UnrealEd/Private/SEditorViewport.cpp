@@ -371,6 +371,13 @@ void SEditorViewport::BindCommands()
 		);
 
 	CommandListRef.MapAction(
+		Commands.RotateToSurfaceNormal,
+		FExecuteAction::CreateStatic( &SEditorViewport::OnToggleRotateToSurfaceNormal ),
+		FCanExecuteAction::CreateStatic( &SEditorViewport::OnIsSurfaceSnapEnabled ),
+		FIsActionChecked::CreateStatic( &SEditorViewport::IsRotateToSurfaceNormalEnabled ) 
+		);
+
+	CommandListRef.MapAction(
 		(Client.IsValid() && Client->IsLevelEditorClient()) ? Commands.ToggleInGameExposure : Commands.ToggleAutoExposure,
 		FExecuteAction::CreateSP( this, &SEditorViewport::ChangeExposureSetting),
 		FCanExecuteAction(),
@@ -848,6 +855,18 @@ void SEditorViewport::OnToggleSurfaceSnap()
 bool SEditorViewport::OnIsSurfaceSnapEnabled()
 {
 	return GetDefault<ULevelEditorViewportSettings>()->SnapToSurface.bEnabled;
+}
+
+void SEditorViewport::OnToggleRotateToSurfaceNormal()
+{
+	auto& Settings = GetMutableDefault<ULevelEditorViewportSettings>()->SnapToSurface;
+	Settings.bSnapRotation = !Settings.bSnapRotation;
+}
+
+bool SEditorViewport::IsRotateToSurfaceNormalEnabled()
+{
+	const auto& Settings = GetDefault<ULevelEditorViewportSettings>()->SnapToSurface;
+	return Settings.bSnapRotation;
 }
 
 bool SEditorViewport::IsPreviewingScreenPercentage() const
