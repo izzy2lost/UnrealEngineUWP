@@ -5,6 +5,7 @@
 #include "OnDemandInstallCache.h"
 #include "OnDemandPackageStoreBackend.h"
 
+#include "Algo/Accumulate.h"
 #include "Algo/Copy.h"
 #include "Algo/Find.h"
 #include "Algo/RemoveIf.h"
@@ -493,11 +494,11 @@ FIoStatus FOnDemandIoStore::Initialize()
 	return EIoErrorCode::Ok;
 }
 
-void FOnDemandIoStore::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted)
+void FOnDemandIoStore::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted)
 {
 	if (Args.MountId.IsEmpty())
 	{
-		return OnCompleted(FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid Mount ID")));
+		return OnCompleted(FStringView(), FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid Mount ID")));
 	}
 
 	{
@@ -507,7 +508,7 @@ void FOnDemandIoStore::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&
 		if (MountRequest.IsValid())
 		{
 			UE_LOG(LogIoStoreOnDemand, Warning, TEXT("Mount request '%s' is already mounting"), *Args.MountId);
-			return OnCompleted(FIoStatus(EIoErrorCode::InvalidParameter));
+			return OnCompleted(Args.MountId, FIoStatus(EIoErrorCode::InvalidParameter));
 		}
 
 		UE_LOG(LogIoStoreOnDemand, Log, TEXT("Enqueing mount request, MountId='%s'"), *Args.MountId);
@@ -769,7 +770,7 @@ bool FOnDemandIoStore::Tick()
 				MountRequests.Remove(Request->MountArgs.MountId);
 			}
 			FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
-			OnCompleted(Status);
+			OnCompleted(Request->MountArgs.MountId, Status);
 			continue;
 		}
 
@@ -822,7 +823,7 @@ bool FOnDemandIoStore::Tick()
 					MountRequests.Remove(Request->MountArgs.MountId);
 				}
 				FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
-				OnCompleted(Status);
+				OnCompleted(Request->MountArgs.MountId, Status);
 				continue;
 			}
 		}
@@ -863,10 +864,7 @@ bool FOnDemandIoStore::Tick()
 			}
 
 			FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
-			OnCompleted(FOnDemandMountResult
-			{
-				.MountId = Request->MountArgs.MountId
-			});
+			OnCompleted(Request->MountArgs.MountId, FOnDemandMountResult());
 		}
 	}
 
@@ -1101,8 +1099,13 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FMountRequest& MountRequest)
 				continue;
 			}
 
-			FTagSet NewTagSet; 
+			FTagSet NewTagSet;
 			NewTagSet.Tag = TagSet->Tag;
+			NewTagSet.PackageIds.Reserve(Algo::TransformAccumulate(
+				TagSet->Packages,
+				[](const FOnDemandTocTagSetPackageList& PackageIndices) -> int32 { return PackageIndices.PackageIndicies.Num(); },
+				int32(0))
+			);
 			for (const FOnDemandTocTagSetPackageList& PackageIndices : TagSet->Packages)
 			{
 				if (MountRequest.Containers.IsEmpty() || int32(PackageIndices.ContainerIndex) > (MountRequest.Containers.Num() - 1))
@@ -1119,7 +1122,6 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FMountRequest& MountRequest)
 					continue;
 				}
 
-				NewTagSet.PackageIds.Reserve(PackageIndices.PackageIndicies.Num());
 				for (int32 IdIdx : PackageIndices.PackageIndicies)
 				{
 					NewTagSet.PackageIds.Add(Container.Header->PackageIds[IdIdx]);

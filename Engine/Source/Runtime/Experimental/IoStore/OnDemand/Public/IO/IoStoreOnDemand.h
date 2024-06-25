@@ -270,10 +270,9 @@ struct FOnDemandMountArgs
 
 struct FOnDemandMountResult
 {
-	FString MountId;
 };
 
-using FOnDemandMountCompleted = TFunction<void(TIoStatusOr<FOnDemandMountResult>)>;
+using FOnDemandMountCompleted = TUniqueFunction<void(FStringView, TIoStatusOr<FOnDemandMountResult>)>;
 
 class FIoStoreOnDemandModule
 	: public IModuleInterface
@@ -296,7 +295,7 @@ public:
 
 	UE_API void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const;
 
-	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
+	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted);
 	UE_API FIoStatus Unmount(FStringView MountId);
 
 	virtual void StartupModule() override;
