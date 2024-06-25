@@ -34,24 +34,21 @@ namespace HordeServer.Telemetry
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TelemetryManager(IServiceProvider serviceProvider, IServerInfo serverInfo, IClock clock, IOptions<ServerSettings> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
+		public TelemetryManager(IServiceProvider serviceProvider, IServerInfo serverInfo, IClock clock, IOptions<AnalyticsServerConfig> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
 		{
 			_tracer = tracer;
 			_logger = loggerFactory.CreateLogger<TelemetryManager>();
 			_ticker = clock.AddTicker<EpicTelemetrySink>(TimeSpan.FromSeconds(30.0), FlushAsync, _logger);
 			_serverEventMetadata = new TelemetryRecordMeta("Horde", serverInfo.Version.ToString(), serverInfo.Environment, serverInfo.SessionId);
 
-			foreach (BaseTelemetryConfig config in serverSettings.Value.Telemetry)
+			TelemetrySinkConfig telemetrySinks = serverSettings.Value.Sinks;
+			if (telemetrySinks.Epic?.Enabled ?? false)
 			{
-				switch (config)
-				{
-					case EpicTelemetryConfig epicConfig:
-						_telemetrySinks.Add(new EpicTelemetrySink(epicConfig, loggerFactory.CreateLogger<EpicTelemetrySink>()));
-						break;
-					case MongoTelemetryConfig mongoConfig:
-						_telemetrySinks.Add(serviceProvider.GetRequiredService<MongoTelemetrySink>());
-						break;
-				}
+				_telemetrySinks.Add(new EpicTelemetrySink(telemetrySinks.Epic, serverInfo, loggerFactory.CreateLogger<EpicTelemetrySink>()));
+			}
+			if (telemetrySinks.Mongo?.Enabled ?? false)
+			{
+				_telemetrySinks.Add(serviceProvider.GetRequiredService<MongoTelemetrySink>());
 			}
 
 			_telemetrySinks.Add(serviceProvider.GetRequiredService<MetricTelemetrySink>());

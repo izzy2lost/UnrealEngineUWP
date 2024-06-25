@@ -127,6 +127,7 @@ namespace HordeServer.Telemetry.Sinks
 			}
 		}
 
+		readonly IServerInfo _serverInfo;
 		readonly Dictionary<TelemetryRecordMeta, Writer> _writers = new Dictionary<TelemetryRecordMeta, Writer>();
 		readonly ILogger _logger;
 
@@ -136,8 +137,9 @@ namespace HordeServer.Telemetry.Sinks
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public EpicTelemetrySink(IEpicTelemetrySinkConfig config, ILogger<EpicTelemetrySink> logger)
+		public EpicTelemetrySink(IEpicTelemetrySinkConfig config, IServerInfo serverInfo, ILogger<EpicTelemetrySink> logger)
 		{
+			_serverInfo = serverInfo;
 			_httpClient = CreateHttpClient();
 
 			_jsonOptions = new JsonSerializerOptions();
@@ -217,7 +219,7 @@ namespace HordeServer.Telemetry.Sinks
 				{
 					request.RequestUri = uri;
 					request.Method = HttpMethod.Post;
-					request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Horde", ServerApp.Version.ToString()));
+					request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Horde", _serverInfo.Version.ToString()));
 					request.Content = new ByteArrayContent(packet);
 					request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 

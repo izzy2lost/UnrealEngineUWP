@@ -27,12 +27,12 @@ namespace HordeServer.Telemetry
 	{
 		readonly TelemetryManager _telemetryManager;
 		readonly IMetricCollection _metricCollection;
-		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly IOptionsSnapshot<AnalyticsGlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TelemetryController(TelemetryManager telemetryManager, IMetricCollection metricCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public TelemetryController(TelemetryManager telemetryManager, IMetricCollection metricCollection, IOptionsSnapshot<AnalyticsGlobalConfig> globalConfig)
 		{
 			_telemetryManager = telemetryManager;
 			_metricCollection = metricCollection;

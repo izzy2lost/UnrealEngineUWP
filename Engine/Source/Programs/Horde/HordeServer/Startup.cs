@@ -280,57 +280,10 @@ namespace HordeServer
 
 		public IConfiguration Configuration { get; }
 
-		/// <summary>
-		/// Bind config to concrete subclasses of BaseTelemetryConfig
-		/// </summary>
-		/// <param name="settings">Settings object being updated</param>
-		/// <param name="telemetrySection">Telemetry config section</param>
-		/// <exception cref="ConfigurationException"></exception>
-		private static void BindTelemetrySettings(ServerSettings settings, IConfiguration telemetrySection)
-		{
-			List<BaseTelemetryConfig> telemetryConfigs = new();
-			foreach (IConfigurationSection child in telemetrySection.GetChildren())
-			{
-				string? typeStr = child.GetValue<string>("Type");
-				if (typeStr == null || !Enum.TryParse(typeStr, true, out TelemetrySinkType sinkType))
-				{
-					throw new ConfigurationException($"Unable to parse sink type '{typeStr}'");
-				}
-
-				switch (sinkType)
-				{
-					case TelemetrySinkType.Epic:
-						EpicTelemetryConfig epic = new();
-						child.Bind(epic);
-						telemetryConfigs.Add(epic);
-						break;
-
-					case TelemetrySinkType.ClickHouse:
-						ClickHouseTelemetryConfig clickHouse = new();
-						child.Bind(clickHouse);
-						telemetryConfigs.Add(clickHouse);
-						break;
-
-					case TelemetrySinkType.Mongo:
-						MongoTelemetryConfig mongo = new();
-						child.Bind(mongo);
-						telemetryConfigs.Add(mongo);
-						break;
-
-					case TelemetrySinkType.None:
-					default:
-						break;
-				}
-			}
-
-			settings.Telemetry = telemetryConfigs;
-		}
-
 		public static void BindServerSettings(IConfiguration configuration, ServerSettings settings)
 		{
 			IConfigurationSection hordeSection = configuration.GetSection("Horde");
 			hordeSection.Bind(settings);
-			BindTelemetrySettings(settings, hordeSection.GetSection("Telemetry"));
 			settings.Validate();
 		}
 
@@ -385,6 +338,7 @@ namespace HordeServer
 
 			// Register the plugin collection
 			PluginCollection pluginCollection = new PluginCollection();
+			pluginCollection.Add<AnalyticsPlugin>(new PluginMetadata { Name = new PluginName("analytics") });
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin services
@@ -801,19 +755,6 @@ namespace HordeServer
 						.RequireAuthenticatedUser()
 						.Build();
 				});
-
-			services.AddSingleton<TelemetryManager>();
-			services.AddSingleton<ITelemetryWriter>(sp => sp.GetRequiredService<TelemetryManager>());
-			services.AddHostedService(sp => sp.GetRequiredService<TelemetryManager>());
-			services.AddSingleton<MongoTelemetrySink>();
-			services.AddHostedService(sp => sp.GetRequiredService<MongoTelemetrySink>());
-			services.AddSingleton<MetricTelemetrySink>();
-
-			services.AddSingleton<MetricCollection>();
-			services.AddHostedService(sp => sp.GetRequiredService<MetricCollection>());
-			services.AddSingleton<IMetricCollection, MetricCollection>(sp => sp.GetRequiredService<MetricCollection>());
-
-			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
 
 			// Create the agent telemetry collection, and register the hosted service so we can flush from any server.
 			services.AddSingleton<AgentTelemetryCollection>();

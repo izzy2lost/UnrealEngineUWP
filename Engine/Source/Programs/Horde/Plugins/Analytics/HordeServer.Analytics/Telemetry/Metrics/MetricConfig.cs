@@ -13,6 +13,8 @@ using HordeServer.Configuration;
 using HordeServer.Utilities;
 using Json.Path;
 
+#pragma warning disable CA2227 // Change x to be read-only by removing the property setter
+
 namespace HordeServer.Telemetry.Metrics
 {
 	/// <summary>

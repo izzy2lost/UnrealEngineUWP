@@ -165,93 +165,6 @@ namespace HordeServer
 	}
 
 	/// <summary>
-	/// Type of telemetry provider to use
-	/// </summary>
-	public enum TelemetrySinkType
-	{
-		/// <summary>
-		/// No telemetry sink (default)
-		/// </summary>
-		None,
-
-		/// <summary>
-		/// Use the Epic telemetry sink
-		/// </summary>
-		Epic,
-
-		/// <summary>
-		/// Use the ClickHouse telemetry sink
-		/// </summary>
-		ClickHouse,
-
-		/// <summary>
-		/// Mongo telemetry
-		/// </summary>
-		Mongo,
-	}
-
-	/// <summary>
-	/// Configuration for the telemetry sink
-	/// </summary>
-	public class BaseTelemetryConfig
-	{
-		/// <summary>
-		/// Type of telemetry sink
-		/// </summary>
-		public TelemetrySinkType Type { get; set; } = TelemetrySinkType.None;
-	}
-
-	/// <summary>
-	/// Configuration for the telemetry sink
-	/// </summary>
-	public class EpicTelemetryConfig : BaseTelemetryConfig, IEpicTelemetrySinkConfig
-	{
-		/// <summary>
-		/// Base URL for the telemetry server
-		/// </summary>
-		public Uri? Url { get; set; }
-
-		/// <summary>
-		/// Application name to send in the event messages
-		/// </summary>
-		public string AppId { get; set; } = "Horde";
-
-		/// <inheritdoc />
-		public override string ToString()
-		{
-			return $"{nameof(Url)}={Url} {nameof(AppId)}={AppId}";
-		}
-	}
-
-	/// <summary>
-	/// Configuration for the telemetry sink
-	/// </summary>
-	public class ClickHouseTelemetryConfig : BaseTelemetryConfig
-	{
-		/// <summary>
-		/// Base URL for ClickHouse server
-		/// </summary>
-		public Uri? Url { get; set; }
-
-		/// <inheritdoc />
-		public override string ToString()
-		{
-			return $"{nameof(Url)}={Url}";
-		}
-	}
-
-	/// <summary>
-	/// Configuration for the telemetry sink
-	/// </summary>
-	public class MongoTelemetryConfig : BaseTelemetryConfig
-	{
-		/// <summary>
-		/// Number of days worth of telmetry events to keep
-		/// </summary>
-		public double RetainDays { get; set; } = 1;
-	}
-
-	/// <summary>
 	/// Feature flags to aid rollout of new features.
 	///
 	/// Once a feature is running in its intended state and is stable, the flag should be removed.
@@ -980,11 +893,6 @@ namespace HordeServer
 		/// Options for the commit service
 		/// </summary>
 		public CommitSettings Commits { get; set; } = new CommitSettings();
-
-		/// <summary>
-		/// Settings for sending telemetry events to external services (for example Snowflake, ClickHouse etc)
-		/// </summary>
-		public List<BaseTelemetryConfig> Telemetry { get; set; } = new();
 
 		/// <summary>
 		/// Tools bundled along with the server. Data for each tool can be produced using the 'bundle create' command, and should be stored in the Tools directory.

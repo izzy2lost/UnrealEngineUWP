@@ -58,12 +58,12 @@ namespace HordeServer.Telemetry.Metrics
 		readonly AsyncEvent _flushEvent = new AsyncEvent();
 		readonly BackgroundTask _flushTask;
 		readonly IClock _clock;
-		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
+		readonly IOptionsMonitor<AnalyticsGlobalConfig> _globalConfig;
 		readonly ILogger _logger;
 
 		Dictionary<SampleKey, List<double>> _queuedSamples = new Dictionary<SampleKey, List<double>>();
 
-		public MetricCollection(IMongoService mongoService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<MetricCollection> logger)
+		public MetricCollection(IMongoService mongoService, IClock clock, IOptionsMonitor<AnalyticsGlobalConfig> globalConfig, ILogger<MetricCollection> logger)
 		{
 			List<MongoIndex<MetricDocument>> indexes = new List<MongoIndex<MetricDocument>>();
 			indexes.Add(MongoIndex.Create<MetricDocument>(keys => keys.Ascending(x => x.TelemetryStoreId).Descending(x => x.Time).Ascending(x => x.MetricId).Ascending(x => x.Group)));
