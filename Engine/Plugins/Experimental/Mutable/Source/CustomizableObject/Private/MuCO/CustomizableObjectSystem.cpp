@@ -2727,7 +2727,7 @@ namespace impl
 		}
 
 		// If not image needs to be processed, go to end directly
-		Task_Mutable_GetImages_End(OperationData, StartTime, StartCycles);
+		Task_Mutable_GetImages_End(OperationData, StartCycles, StartTime);
 	}
 
 
