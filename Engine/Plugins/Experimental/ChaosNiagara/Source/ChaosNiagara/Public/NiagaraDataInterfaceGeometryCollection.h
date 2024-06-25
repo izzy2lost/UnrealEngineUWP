@@ -135,7 +135,11 @@ struct FNDIGeometryCollectionData
 	/** Physics asset Cpu arrays */
 	FNDIGeometryCollectionArrays* AssetArrays = nullptr;
 
+	// Flag when there pending transform writes that need to go back to the component
 	bool bHasPendingComponentTransformUpdate = false;
+
+	// True if we need to upload new data to the gpu
+	bool bNeedsRenderUpdate = false;
 };
 
 UENUM()
