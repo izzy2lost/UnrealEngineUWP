@@ -124,6 +124,11 @@ bool SRigVMGraphPinCurveFloat::IsValidCurve(FRichCurveEditInfo CurveInfo)
 					return true;
 				}
 			}
+			else
+			{
+				// for any other node, the curve is valid
+				return true;
+			}
 		}
 	}
 	return false;
