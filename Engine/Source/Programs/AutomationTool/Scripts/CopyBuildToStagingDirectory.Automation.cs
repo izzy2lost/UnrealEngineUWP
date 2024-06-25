@@ -3486,8 +3486,8 @@ namespace AutomationScripts
 					CommonAdditionalArgs += " -allowForIndexUnload";
 				}
 			}
-			
-			if (!string.IsNullOrEmpty(SC.PackageStoreData.MarkerFullPath))
+
+			if ((SC.PackageStoreData != null) && !string.IsNullOrEmpty(SC.PackageStoreData.MarkerFullPath))
 			{
 				CommonAdditionalArgs += String.Format(" -ProjectStore={0}",
 					MakePathSafeToUseWithCommandLine(SC.PackageStoreData.MarkerFullPath));
