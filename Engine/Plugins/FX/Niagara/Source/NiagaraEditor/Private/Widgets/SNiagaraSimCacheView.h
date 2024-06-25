@@ -39,7 +39,7 @@ public:
 private:
 	bool GetShouldGenerateWidget(FName Name);
 	void GenerateColumns();
-	void UpdateDIWidget();
+	void UpdateCustomDisplayWidget();
 
 	TArray<TSharedPtr<int32>>					RowItems;
 	TSharedPtr<FNiagaraSimCacheViewModel>		SimCacheViewModel;
@@ -47,6 +47,6 @@ private:
 	TSharedPtr<SHeaderRow>						HeaderRowWidget;
 	TSharedPtr<SListView<TSharedPtr<int32>>>	ListViewWidget;
 	TSharedPtr<SWidgetSwitcher>					SwitchWidget;
-	TArray<TSharedPtr<SWidget>>					DIVisualizerWidgets;
-	TSharedPtr<SScrollBar>						DataInterfaceScrollBar;
+	TArray<TSharedPtr<SWidget>>					CustomDisplayWidgets;
+	TSharedPtr<SScrollBar>						CustomDisplayScrollBar;
 };

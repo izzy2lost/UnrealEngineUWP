@@ -560,7 +560,7 @@ bool FNiagaraSimCacheCaptureInfo::Process()
 		//First Frame of Capture, init the sim cache.
 		if (ProcessedFrames == Request.CaptureDelayFrames)
 		{	
-			FNiagaraSimCacheCreateParameters CacheCreateParameters;
+			FNiagaraSimCacheCreateParameters CacheCreateParameters = FNiagaraSimCacheCreateParameters::CreateForDebugging();
 			CacheCreateParameters.bAllowSerializeLargeCache = false;
 
 			SimCache.Reset(NewObject<UNiagaraSimCache>(GetTransientPackage()));

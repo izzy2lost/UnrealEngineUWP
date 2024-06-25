@@ -907,6 +907,9 @@ void FNiagaraEditorStyle::InitSimCacheEditor()
 	FTableRowStyle DataInterfaceStyle = EmitterStyle;
 	Set("NiagaraEditor.SimCache.DataInterfaceItem", DataInterfaceStyle);
 
+	FTableRowStyle DebugDataStyle = EmitterStyle;
+	Set("NiagaraEditor.SimCache.DebugData", DebugDataStyle);
+
 	const FLinearColor NormalColor(0.15, 0.15, 0.15, 1);
 
 	Set ("NiagaraEditor.SimCache.FilterToggleStyle", FCheckBoxStyle()

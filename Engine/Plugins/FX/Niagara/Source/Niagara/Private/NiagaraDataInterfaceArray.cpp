@@ -96,8 +96,7 @@ void UNiagaraDataInterfaceArray::SetShaderParameters(const FNiagaraDataInterface
 
 UObject* UNiagaraDataInterfaceArray::SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
 {
-	UNDIArraySimCacheData* CacheData = NewObject<UNDIArraySimCacheData>(SimCache);
-	return CacheData;
+	return OptionalPerInstanceData ? NewObject<UNDIArraySimCacheData>(SimCache) : nullptr;
 }
 
 bool UNiagaraDataInterfaceArray::SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const

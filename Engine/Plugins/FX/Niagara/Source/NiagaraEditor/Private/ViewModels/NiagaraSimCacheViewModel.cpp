@@ -74,8 +74,20 @@ void FNiagaraSimCacheViewModel::SetupPreviewComponentAndInstance()
 	}
 }
 
-TConstArrayView<FNiagaraSimCacheViewModel::FComponentInfo> FNiagaraSimCacheViewModel::GetComponentInfos(
-	int32 InEmitterIndex) const
+TConstArrayView<FNiagaraSimCacheViewModel::FComponentInfo> FNiagaraSimCacheViewModel::GetSelectedComponentInfos() const
+{
+	if (SelectionMode == ESelectionMode::SystemInstance)
+	{
+		return GetComponentInfos(INDEX_NONE);
+	}
+	else if (SelectionMode == ESelectionMode::Emitter)
+	{
+		return GetComponentInfos(SelectedEmitterIndex);
+	}
+	return MakeArrayView<FComponentInfo>(nullptr, 0);
+}
+
+TConstArrayView<FNiagaraSimCacheViewModel::FComponentInfo> FNiagaraSimCacheViewModel::GetComponentInfos(int32 InEmitterIndex) const
 {
 	if( InEmitterIndex == INDEX_NONE)
 	{
@@ -92,7 +104,7 @@ TConstArrayView<FNiagaraSimCacheViewModel::FComponentInfo> FNiagaraSimCacheViewM
 
 FText FNiagaraSimCacheViewModel::GetComponentText(const FName ComponentName, const int32 InstanceIndex) const
 {
-	const FComponentInfo* ComponentInfo = GetCurrentComponentInfos().FindByPredicate([ComponentName](const FComponentInfo& FoundInfo) { return FoundInfo.Name == ComponentName; });
+	const FComponentInfo* ComponentInfo = GetSelectedComponentInfos().FindByPredicate([ComponentName](const FComponentInfo& FoundInfo) { return FoundInfo.Name == ComponentName; });
 
 	if (ComponentInfo)
 	{
@@ -155,19 +167,53 @@ void FNiagaraSimCacheViewModel::SetFrameIndex(const int32 InFrameIndex)
 	OnViewDataChangedDelegate.Broadcast(false);
 }
 
-const UObject* FNiagaraSimCacheViewModel::GetActiveDataInterfaceStorage() const
+const UObject* FNiagaraSimCacheViewModel::GetSelectedDataInterfaceStorage() const
 {
-	if (SimCache)
+	if (SelectionMode == ESelectionMode::DataInterface && SimCache)
 	{
-		return SimCache->GetDataInterfaceStorageObject(GetActiveDataInterface());
+		return SimCache->GetDataInterfaceStorageObject(SelectedDataInterface);
 	}
 	return nullptr;
 }
 
-void FNiagaraSimCacheViewModel::SetEmitterIndex(const int32 InEmitterIndex, FNiagaraVariableBase InActiveDataInterface)
+void FNiagaraSimCacheViewModel::SetSelectedSystemInstance()
 {
-	EmitterIndex = InEmitterIndex;
-	ActiveDataInterface = InActiveDataInterface;
+	SelectionMode			= ESelectionMode::SystemInstance;
+	SelectedEmitterIndex	= INDEX_NONE;
+	SelectedDataInterface	= FNiagaraVariableBase();
+
+	RefreshFromSelectionChanged();
+}
+
+void FNiagaraSimCacheViewModel::SetSelectedEmitter(int32 EmitterIndex)
+{
+	SelectionMode			= ESelectionMode::Emitter;
+	SelectedEmitterIndex	= EmitterIndex;
+	SelectedDataInterface	= FNiagaraVariableBase();
+
+	RefreshFromSelectionChanged();
+}
+
+void FNiagaraSimCacheViewModel::SetSelectedDataInterface(FNiagaraVariableBase DIVariable)
+{
+	SelectionMode			= ESelectionMode::DataInterface;
+	SelectedEmitterIndex	= INDEX_NONE;
+	SelectedDataInterface	= DIVariable;
+
+	RefreshFromSelectionChanged();
+}
+
+void FNiagaraSimCacheViewModel::SetSelectedDebugData()
+{
+	SelectionMode			= ESelectionMode::DebugData;
+	SelectedEmitterIndex	= INDEX_NONE;
+	SelectedDataInterface	= FNiagaraVariableBase();
+
+	RefreshFromSelectionChanged();
+}
+
+void FNiagaraSimCacheViewModel::RefreshFromSelectionChanged()
+{
 	UpdateCachedFrame();
 	UpdateCurrentEntries();
 	bComponentFilterActive = false;
@@ -188,6 +234,11 @@ int32 FNiagaraSimCacheViewModel::GetNumEmitterLayouts() const
 FName FNiagaraSimCacheViewModel::GetEmitterLayoutName(const int32 Index) const
 {
 	return SimCache ? SimCache->GetEmitterName(Index) : NAME_None;
+}
+
+const UNiagaraSimCacheDebugData* FNiagaraSimCacheViewModel::GetCacheDebugData() const
+{
+	return SimCache ? SimCache->GetDebugData() : nullptr;
 }
 
 FNiagaraSimCacheViewModel::FOnViewDataChanged& FNiagaraSimCacheViewModel::OnViewDataChanged()
@@ -237,23 +288,45 @@ void FNiagaraSimCacheViewModel::UpdateCachedFrame()
 		return;
 	}
 
-	if ( EmitterIndex != INDEX_NONE && EmitterIndex >= SimCache->GetNumEmitters() )
+	// Determine if we need to read attributes from the cache
+	TOptional<int32> EmitterIndex;
+	switch (SelectionMode)
 	{
-		return;
+		case ESelectionMode::SystemInstance:
+			NumInstances = 1;
+			EmitterIndex = INDEX_NONE;
+			break;
+
+		case ESelectionMode::Emitter:
+			if (SelectedEmitterIndex >= 0 && SelectedEmitterIndex < SimCache->GetNumEmitters())
+			{
+				EmitterIndex = SelectedEmitterIndex;
+				NumInstances = SimCache->GetEmitterNumInstances(SelectedEmitterIndex, FrameIndex);
+			}
+			break;
+
+		case ESelectionMode::DataInterface:
+		case ESelectionMode::DebugData:
+			NumInstances = 1;
+			break;
 	}
 
-	NumInstances = EmitterIndex == INDEX_NONE ? 1 : SimCache->GetEmitterNumInstances(EmitterIndex, FrameIndex);
-	const FName EmitterName = EmitterIndex == INDEX_NONE ? NAME_None : SimCache->GetEmitterName(EmitterIndex);
+	// Read attributes
+	if (EmitterIndex.IsSet())
+	{
+		const FName EmitterName = EmitterIndex.GetValue() == INDEX_NONE ? NAME_None : SimCache->GetEmitterName(EmitterIndex.GetValue());
 
-	SimCache->ForEachEmitterAttribute(EmitterIndex,
-		[&](const FNiagaraSimCacheVariable& Variable)
-		{
-			// Pull in data
-			SimCache->ReadAttribute(FloatComponents, HalfComponents, Int32Components, Variable.Variable.GetName(), EmitterName, FrameIndex);
+		SimCache->ForEachEmitterAttribute(
+			EmitterIndex.GetValue(),
+			[&](const FNiagaraSimCacheVariable& Variable)
+			{
+				// Pull in data
+				SimCache->ReadAttribute(FloatComponents, HalfComponents, Int32Components, Variable.Variable.GetName(), EmitterName, FrameIndex);
 
-			return true;
-		}
-	);
+				return true;
+			}
+		);
+	}
 }
 
 void FNiagaraSimCacheViewModel::UpdateComponentInfos()
@@ -268,7 +341,6 @@ void FNiagaraSimCacheViewModel::UpdateComponentInfos()
 	{
 		return;
 	}
-	
 	
 	SimCache->ForEachEmitterAttribute(INDEX_NONE,
 		[&](const FNiagaraSimCacheVariable& Variable)
@@ -474,6 +546,18 @@ void FNiagaraSimCacheViewModel::BuildEntries(TWeakPtr<SNiagaraSimCacheTreeView> 
 			RootEntries.Add(CurrentDataInterfaceItem);
 			BufferEntries.Add(CurrentDataInterfaceBufferItem);
 		}
+
+		if (SimCache->GetDebugData() != nullptr)
+		{
+			const TSharedRef<FNiagaraSimCacheDebugDataTreeItem> TreeItem = MakeShared<FNiagaraSimCacheDebugDataTreeItem>(OwningTreeView);
+			const TSharedRef<FNiagaraSimCacheOverviewDebugDataItem> DataItem = MakeShared<FNiagaraSimCacheOverviewDebugDataItem>();
+			const FText DisplayNameText = LOCTEXT("DebugData", "Debug Data");
+			TreeItem->SetDisplayName(DisplayNameText);
+			DataItem->SetDisplayName(DisplayNameText);
+
+			RootEntries.Add(TreeItem);
+			BufferEntries.Add(DataItem);
+		}
 	}
 
 	UpdateCurrentEntries();
@@ -481,19 +565,27 @@ void FNiagaraSimCacheViewModel::BuildEntries(TWeakPtr<SNiagaraSimCacheTreeView> 
 
 void FNiagaraSimCacheViewModel::UpdateCurrentEntries()
 {
-	// The overview panel is in charge of building these entries.
-	// Early out if they haven't been built yet.
-	if(!RootEntries.IsValidIndex(EmitterIndex +1))
+	SelectedRootEntries.Empty();
+	switch (SelectionMode)
 	{
-		return;
+		case ESelectionMode::SystemInstance:
+			SelectedRootEntries.Add(RootEntries[0]);
+			return;
+		case ESelectionMode::Emitter:
+			if (RootEntries.IsValidIndex(SelectedEmitterIndex + 1))
+			{
+				SelectedRootEntries.Add(RootEntries[SelectedEmitterIndex + 1]);
+			}
+			return;
+		default:
+			//-TODO: DO we need to do something here?
+			break;
 	}
-	CurrentRootEntries.Empty();
-	CurrentRootEntries.Add(RootEntries[EmitterIndex + 1]);
 }
 
-TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* FNiagaraSimCacheViewModel::GetCurrentRootEntries()
+TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* FNiagaraSimCacheViewModel::GetSelectedRootEntries()
 {
-	return &CurrentRootEntries;
+	return &SelectedRootEntries;
 }
 
 TArray<TSharedRef<FNiagaraSimCacheOverviewItem>>* FNiagaraSimCacheViewModel::GetBufferEntries()
@@ -503,7 +595,7 @@ TArray<TSharedRef<FNiagaraSimCacheOverviewItem>>* FNiagaraSimCacheViewModel::Get
 
 bool FNiagaraSimCacheViewModel::CanCopyActiveToClipboard() const
 {
-	return IsCacheValid() && !ActiveDataInterface.IsValid();
+	return IsCacheValid() && SelectionMode == ESelectionMode::DataInterface;
 }
 
 void FNiagaraSimCacheViewModel::CopyActiveToClipboard() const
@@ -514,7 +606,7 @@ void FNiagaraSimCacheViewModel::CopyActiveToClipboard() const
 	}
 
 	FString ClipboardString;
-	TConstArrayView<FComponentInfo> ComponentInfos = GetCurrentComponentInfos();
+	TConstArrayView<FComponentInfo> ComponentInfos = GetSelectedComponentInfos();
 
 	ClipboardString.Append(TEXT("Instance"));
 	for ( int iComponent=0; iComponent < ComponentInfos.Num(); ++iComponent)

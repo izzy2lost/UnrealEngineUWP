@@ -361,8 +361,7 @@ FReply FNiagaraComponentDetails::OnCaptureSelectedSystem()
 		SimCache->SetFlags(RF_Transient);
 		CapturedCaches.Emplace(SimCache);
 
-		FNiagaraSimCacheCreateParameters CreateParameters;
-		
+	
 		FNiagaraSimCacheCaptureParameters CaptureParameters;
 
 		CaptureParameters.CaptureRate = 1;
@@ -380,7 +379,7 @@ FReply FNiagaraComponentDetails::OnCaptureSelectedSystem()
 					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(CapturedSimCache, EToolkitMode::Standalone);
 				}
 			});
-			SimCacheCapture->CaptureNiagaraSimCache(SimCache, CreateParameters, NiagaraComponentToUse, CaptureParameters);
+			SimCacheCapture->CaptureNiagaraSimCache(SimCache, FNiagaraSimCacheCreateParameters::CreateForDebugging(), NiagaraComponentToUse, CaptureParameters);
 		}
 
 		

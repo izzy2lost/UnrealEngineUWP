@@ -120,16 +120,17 @@ void SNiagaraSimCacheOverview::Construct(const FArguments& InArgs)
 	];
 }
 
-TSharedRef<ITableRow> SNiagaraSimCacheOverview::OnGenerateRowForItem(TSharedRef<FNiagaraSimCacheOverviewItem> Item,
-	const TSharedRef<STableViewBase>& Owner)
+TSharedRef<ITableRow> SNiagaraSimCacheOverview::OnGenerateRowForItem(TSharedRef<FNiagaraSimCacheOverviewItem> Item, const TSharedRef<STableViewBase>& Owner)
 {
 	static const char* ItemStyles[] =
 	{
 		"NiagaraEditor.SimCache.SystemItem",
 		"NiagaraEditor.SimCache.EmitterItem",
 		"NiagaraEditor.SimCache.ComponentItem",
-		"NiagaraEditor.SimCache.DataInterfaceItem"
+		"NiagaraEditor.SimCache.DataInterfaceItem",
+		"NiagaraEditor.SimCache.DebugData",
 	};
+	static_assert(UE_ARRAY_COUNT(ItemStyles) == int(ENiagaraSimCacheOverviewItemType::MAX), "Mismatch on style count");
 
 	ENiagaraSimCacheOverviewItemType StyleType = Item->GetType();
 	
@@ -146,7 +147,24 @@ void SNiagaraSimCacheOverview::OnListSelectionChanged(TSharedPtr<FNiagaraSimCach
 {
 	if (Item.IsValid())
 	{
-		ViewModel->SetEmitterIndex(Item->GetBufferIndex(), Item->GetDataInterface());
+		switch (Item->GetType())
+		{
+			case ENiagaraSimCacheOverviewItemType::System:
+				ViewModel->SetSelectedSystemInstance();
+				break;
+
+			case ENiagaraSimCacheOverviewItemType::Emitter:
+				ViewModel->SetSelectedEmitter(Item->GetBufferIndex());
+				break;
+
+			case ENiagaraSimCacheOverviewItemType::DataInterface:
+				ViewModel->SetSelectedDataInterface(Item->GetDataInterface());
+				break;
+
+			case ENiagaraSimCacheOverviewItemType::DebugData:
+				ViewModel->SetSelectedDebugData();
+				break;
+		}
 	}
 }
 

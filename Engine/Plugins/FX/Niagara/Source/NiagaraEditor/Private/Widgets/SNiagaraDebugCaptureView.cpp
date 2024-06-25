@@ -341,14 +341,12 @@ void SNiagaraDebugCaptureView::OnSingleFrameSelected()
 		TSharedPtr<ISequencer> Sequencer = SystemViewModel.Get()->GetSequencer();
 		Sequencer->OnPlay(false);
 
-		const FNiagaraSimCacheCreateParameters CreateParameters;
-
 		FQualifiedFrameTime StartTime = Sequencer->GetGlobalTime();
 		float CurrentAge = TargetComponent->GetDesiredAge();
 
 		UNiagaraSimCache* OutCache = CapturedCache.Get();
 
-		SimCacheCapture.CaptureCurrentFrameImmediate(CapturedCache.Get(), CreateParameters, TargetComponent, OutCache, true, 0.01666f);
+		SimCacheCapture.CaptureCurrentFrameImmediate(CapturedCache.Get(), FNiagaraSimCacheCreateParameters::CreateForDebugging(), TargetComponent, OutCache, true, 0.01666f);
 
 		if(OutCache)
 		{
@@ -372,7 +370,6 @@ void SNiagaraDebugCaptureView::OnMultiFrameSelected()
 	{
 		UNiagaraSimCache* MultiFrameCache = NewObject<UNiagaraSimCache>(GetTransientPackage(), GetTempCacheName(TargetComponent->GetFXSystemAsset()->GetName()));
 		MultiFrameCache->SetFlags(RF_Transient);
-		const FNiagaraSimCacheCreateParameters CreateParameters;
 		
 		FNiagaraSimCacheCaptureParameters CaptureParameters;
 		CaptureParameters.NumFrames = NumFrames;
@@ -383,7 +380,7 @@ void SNiagaraDebugCaptureView::OnMultiFrameSelected()
 
 		SimCacheCapture.OnCaptureComplete().AddSP(this, &SNiagaraDebugCaptureView::OnCaptureComplete);
 		
-		SimCacheCapture.CaptureNiagaraSimCache(MultiFrameCache, CreateParameters, TargetComponent, CaptureParameters);
+		SimCacheCapture.CaptureNiagaraSimCache(MultiFrameCache, FNiagaraSimCacheCreateParameters::CreateForDebugging(), TargetComponent, CaptureParameters);
 	}
 }
 
@@ -404,9 +401,9 @@ void SNiagaraDebugCaptureView::OnCaptureComplete(UNiagaraSimCache* CapturedSimCa
 			{
 				if(SimCacheViewModel->GetEmitterLayoutName(i) == SelectedEmitterHandleViewModel->GetName())
 				{
-					if(SimCacheViewModel->GetEmitterIndex() != i)
+					if(SimCacheViewModel->GetSelectedEmitter() != i)
 					{
-						SimCacheViewModel->SetEmitterIndex(i);
+						SimCacheViewModel->SetSelectedEmitter(i);
 					}
 					break;
 				}

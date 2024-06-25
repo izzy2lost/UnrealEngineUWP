@@ -15,6 +15,7 @@
 #include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraSimCacheAttributeReaderHelper.h"
 #include "NiagaraSimCacheCustomStorageInterface.h"
+#include "NiagaraSimCacheDebugData.h"
 #include "NiagaraSimCacheHelper.h"
 #include "NiagaraSystemImpl.h"
 #include "NiagaraSystemInstance.h"
@@ -27,6 +28,15 @@ UNiagaraSimCache::FOnCacheEndWrite		UNiagaraSimCache::OnCacheEndWrite;
 namespace FNiagaraSimCacheInternal
 {
 	FNiagaraDataInterfaceUtilities::FDataInterfaceSearchOptions DISearchOptions = { true };
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FNiagaraSimCacheCreateParameters FNiagaraSimCacheCreateParameters::CreateForDebugging()
+{
+	FNiagaraSimCacheCreateParameters CreateParameters;
+	CreateParameters.bIncludeDebugData = true;
+	return CreateParameters;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -339,6 +349,9 @@ bool UNiagaraSimCache::BeginWrite(FNiagaraSimCacheCreateParameters InCreateParam
 	}
 	DataInterfaceStorage.Empty();
 
+	// Create our debug data (if required)
+	DebugData = CreateParameters.bIncludeDebugData ? NewObject<UNiagaraSimCacheDebugData>(this) : nullptr;
+
 	// Not explicit capture mode?  Empty the list as internally we reuse this list when in rendering only mode
 	if (CreateParameters.AttributeCaptureMode == ENiagaraSimCacheAttributeCaptureMode::ExplicitAttributes)
 	{
@@ -548,6 +561,9 @@ bool UNiagaraSimCache::BeginAppend(FNiagaraSimCacheCreateParameters InCreatePara
 		}
 	}
 
+	// We don't support debug caches when appending
+	DebugData = nullptr;
+
 	if (CacheFrames.Num() == 0)
 	{
 		StartSeconds = 0.0f;
@@ -682,6 +698,12 @@ bool UNiagaraSimCache::WriteFrame(UNiagaraComponent* NiagaraComponent, FNiagaraS
 		{
 			Helper.WriteDataBuffer(*EmitterCurrentData, CacheLayout.EmitterLayouts[i], CacheEmitterFrame.ParticleDataBuffers, 0, EmitterCurrentData->GetNumInstances());
 		}
+	}
+
+	// If we have debug data time to capture that also
+	if (DebugData)
+	{
+		DebugData->CaptureFrame(Helper, CacheFrames.Num() - 1);
 	}
 
 	// Store data interface data

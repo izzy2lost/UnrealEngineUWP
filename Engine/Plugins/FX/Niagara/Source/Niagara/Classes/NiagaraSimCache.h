@@ -11,6 +11,7 @@
 #include "NiagaraSimCache.generated.h"
 
 class UNiagaraComponent;
+class UNiagaraSimCacheDebugData;
 struct FNiagaraSimCacheDataBuffersLayout;
 
 UENUM(BlueprintType)
@@ -86,6 +87,12 @@ struct FNiagaraSimCacheCreateParameters
 	uint32 bAllowSerializeLargeCache : 1 = true;
 
 	/**
+	When enabled additional information is stored that can be useful for debugging a simulation
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SimCache")
+	uint32 bIncludeDebugData : 1 = false;
+
+	/**
 	List of Attributes to force include in the SimCache rebase, they should be the full path to the attribute
 	For example, MyEmitter.Particles.MyQuat would force the particle attribute MyQuat to be included for MyEmitter
 	*/
@@ -119,6 +126,9 @@ struct FNiagaraSimCacheCreateParameters
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SimCache", meta=(EditCondition="AttributeCaptureMode == ENiagaraSimCacheAttributeCaptureMode::ExplicitAttributes"))
 	TArray<FName> ExplicitCaptureAttributes;
+
+	// Helper function to setup the parameters for capturing a cache for debugging
+	NIAGARA_API static FNiagaraSimCacheCreateParameters CreateForDebugging();
 };
 
 USTRUCT()
@@ -462,6 +472,9 @@ public:
 	/** Returns the actual data we have captured in the SimCache for the given data interface. */
 	NIAGARA_API const UObject* GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const;
 
+	/** Returns the debug data stored inside the cache, intended for internal use only. */
+	NIAGARA_API const UNiagaraSimCacheDebugData* GetDebugData() const { return DebugData; }
+
 	/**
 	Get number of active instances for the emitter at the given frame.
 	An EmitterIndex or INDEX_NONE will return information about the system instance.
@@ -609,6 +622,9 @@ private:
 
 	UPROPERTY()
 	TMap<FNiagaraVariableBase, TObjectPtr<UObject>> DataInterfaceStorage;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraSimCacheDebugData> DebugData;
 
 	int32 CaptureTickCount = INDEX_NONE;
 	double CaptureStartTime = 0;

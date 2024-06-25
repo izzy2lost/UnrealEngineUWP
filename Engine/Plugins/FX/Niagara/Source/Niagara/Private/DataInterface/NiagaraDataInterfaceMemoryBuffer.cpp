@@ -949,8 +949,7 @@ void UNiagaraDataInterfaceMemoryBuffer::SetShaderParameters(const FNiagaraDataIn
 
 UObject* UNiagaraDataInterfaceMemoryBuffer::SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
 {
-	UNDIMemoryBufferSimCacheData* CacheData = NewObject<UNDIMemoryBufferSimCacheData>(SimCache);
-	return CacheData;
+	return OptionalPerInstanceData ? NewObject<UNDIMemoryBufferSimCacheData>(SimCache) : nullptr;
 }
 
 bool UNiagaraDataInterfaceMemoryBuffer::SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const

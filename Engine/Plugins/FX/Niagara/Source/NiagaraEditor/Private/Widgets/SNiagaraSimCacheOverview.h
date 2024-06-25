@@ -19,49 +19,26 @@ enum class ENiagaraSimCacheOverviewItemType
 	Emitter,
 	Component,
 	DataInterface,
+	DebugData,
 	MAX,
 };
 
 struct FNiagaraSimCacheOverviewItem : public TSharedFromThis<FNiagaraSimCacheOverviewItem>
 {
+	FNiagaraSimCacheOverviewItem() = default;
 	virtual ~FNiagaraSimCacheOverviewItem() = default;
 
-	FNiagaraSimCacheOverviewItem()
-	{
-		
-	}
+	FText GetDisplayNameText() { return DisplayName; }
+	void SetDisplayName(const FText& NewName) { DisplayName = NewName; }
 
-	FText GetDisplayNameText()
-	{
-		return DisplayName;
-	}
+	virtual int32 GetBufferIndex() { return BufferIndex; }
+	void SetBufferIndex(int32 NewIndex) { BufferIndex = NewIndex; }
 
-	void SetDisplayName(const FText& NewName)
-	{
-		DisplayName = NewName;
-	}
+	virtual FNiagaraVariableBase GetDataInterface() { return FNiagaraVariableBase(); }
 
-	virtual int32 GetBufferIndex()
-	{
-		return BufferIndex;
-	}
+	virtual ENiagaraSimCacheOverviewItemType GetType () { checkNoEntry(); return ENiagaraSimCacheOverviewItemType::MAX; }
 
-	void SetBufferIndex(int32 NewIndex)
-	{
-		BufferIndex = NewIndex;
-	}
-
-	virtual FNiagaraVariableBase GetDataInterface()
-	{
-		return FNiagaraVariableBase();
-	}
-
-	virtual ENiagaraSimCacheOverviewItemType GetType () { return ENiagaraSimCacheOverviewItemType::MAX; }
-
-	virtual TSharedRef<SWidget> GetRowWidget()
-	{
-		return SNew(STextBlock).Text(GetDisplayNameText());
-	}
+	virtual TSharedRef<SWidget> GetRowWidget() { return SNew(STextBlock).Text(GetDisplayNameText()); }
 
 	int32 BufferIndex = INDEX_NONE;
 	FText DisplayName;
@@ -83,6 +60,11 @@ struct FNiagaraSimCacheOverviewDataInterfaceItem : FNiagaraSimCacheOverviewItem
 	virtual FNiagaraVariableBase GetDataInterface() override { return DataInterfaceReference; }
 
 	FNiagaraVariableBase DataInterfaceReference;
+};
+
+struct FNiagaraSimCacheOverviewDebugDataItem : FNiagaraSimCacheOverviewItem
+{
+	virtual ENiagaraSimCacheOverviewItemType GetType() override { return ENiagaraSimCacheOverviewItemType::DebugData; }
 };
 
 class SNiagaraSimCacheOverview : public SCompoundWidget

@@ -17,6 +17,14 @@ class UNiagaraComponent;
 class FNiagaraSimCacheViewModel : public TSharedFromThis<FNiagaraSimCacheViewModel>, public FGCObject
 {
 public:
+	enum class ESelectionMode
+	{
+		SystemInstance,
+		Emitter,
+		DataInterface,
+		DebugData,
+	};
+
 	struct FComponentInfo
 	{
 		FName Name = NAME_None;
@@ -35,16 +43,13 @@ public:
 	NIAGARAEDITOR_API FNiagaraSimCacheViewModel();
 	NIAGARAEDITOR_API virtual ~FNiagaraSimCacheViewModel() override;
 	
-	NIAGARAEDITOR_API TConstArrayView<FComponentInfo> GetCurrentComponentInfos() const { return GetComponentInfos(EmitterIndex); }
+	NIAGARAEDITOR_API TConstArrayView<FComponentInfo> GetSelectedComponentInfos() const;
 	NIAGARAEDITOR_API TConstArrayView<FComponentInfo> GetComponentInfos(int32 InEmitterIndex) const;
 
 	NIAGARAEDITOR_API int32 GetNumInstances() const { return NumInstances; }
 	NIAGARAEDITOR_API int32 GetNumFrames() const;
 	NIAGARAEDITOR_API int32 GetFrameIndex() const { return FrameIndex; }
 	NIAGARAEDITOR_API void SetFrameIndex(const int32 InFrameIndex);
-
-	NIAGARAEDITOR_API FNiagaraVariableBase GetActiveDataInterface() const { return ActiveDataInterface; };
-	NIAGARAEDITOR_API const UObject* GetActiveDataInterfaceStorage() const;
 
 	NIAGARAEDITOR_API FOnViewDataChanged& OnViewDataChanged();
 	NIAGARAEDITOR_API FOnSimCacheChanged& OnSimCacheChanged();
@@ -55,18 +60,31 @@ public:
 	TConstArrayView<FString> GetComponentFilters() const { return ComponentFilterArray; }
 	void SetComponentFilters(const TArray<FString>& NewComponentFilterArray);
 	bool IsComponentFilterActive() const { return bComponentFilterActive; }
-	
-	int32 GetEmitterIndex() const { return EmitterIndex; };
-	void SetEmitterIndex(int32 InEmitterIndex, FNiagaraVariableBase ActiveDataInterface = FNiagaraVariableBase());
+
+	ESelectionMode GetSelectionMode() const { return SelectionMode; }
+	int32 GetSelectedEmitter() const { return SelectedEmitterIndex; };
+	FNiagaraVariableBase GetSelectedDataInterface() const { return SelectedDataInterface; };
+
+	NIAGARAEDITOR_API const UObject* GetSelectedDataInterfaceStorage() const;
+
+	void SetSelectedSystemInstance();
+	void SetSelectedEmitter(int32 EmitterIndex);
+	void SetSelectedDataInterface(FNiagaraVariableBase DIVariable);
+	void SetSelectedDebugData();
+private:
+	void RefreshFromSelectionChanged();
+public:
 
 	FText GetComponentText(FName ComponentName, int32 InstanceIndex) const;
 	bool IsCacheValid() const;
 	int32 GetNumEmitterLayouts() const;
 	FName GetEmitterLayoutName(int32 Index) const;
 
+	const UNiagaraSimCacheDebugData* GetCacheDebugData() const;
+
 	// Construct entries for the tree view.
 	void BuildEntries(TWeakPtr<SNiagaraSimCacheTreeView> OwningTreeView);
-	TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* GetCurrentRootEntries();
+	TArray<TSharedRef<FNiagaraSimCacheTreeItem>>* GetSelectedRootEntries();
 	TArray<TSharedRef<FNiagaraSimCacheOverviewItem>>* GetBufferEntries();
 
 	bool CanCopyActiveToClipboard() const;
@@ -102,12 +120,11 @@ private:
 
 	// Which frame of the cached sim is being viewed
 	int32 FrameIndex = 0;
-	
-	// Which Emitter of the cached sim is being viewed
-	int32 EmitterIndex = INDEX_NONE;
 
-	// Which data interface of the cached sim is being viewed
-	FNiagaraVariableBase ActiveDataInterface;
+	// Handles what is selected currently
+	ESelectionMode			SelectionMode = ESelectionMode::SystemInstance;
+	int32					SelectedEmitterIndex = INDEX_NONE;
+	FNiagaraVariableBase	SelectedDataInterface;
 
 	// Number of particles in the given frame
 	int32 NumInstances = 0;
@@ -118,7 +135,7 @@ private:
 	// TODO: Component infos for Data Interfaces?
 
 	TArray<TSharedRef<FNiagaraSimCacheTreeItem>> RootEntries;
-	TArray<TSharedRef<FNiagaraSimCacheTreeItem>> CurrentRootEntries;
+	TArray<TSharedRef<FNiagaraSimCacheTreeItem>> SelectedRootEntries;
 
 	TArray<TSharedRef<FNiagaraSimCacheOverviewItem>> BufferEntries;
 

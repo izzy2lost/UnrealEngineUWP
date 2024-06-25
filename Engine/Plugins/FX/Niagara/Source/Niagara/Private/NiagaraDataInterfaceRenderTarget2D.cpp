@@ -578,10 +578,14 @@ bool UNiagaraDataInterfaceRenderTarget2D::RenderVariableToCanvas(FNiagaraSystemI
 
 NIAGARA_API UObject* UNiagaraDataInterfaceRenderTarget2D::SimCacheBeginWrite(UObject* InSimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const
 {
+	if (!OptionalPerInstanceData)
+	{
+		return nullptr;
+	}
+
 	UNDIRenderTargetVolumeSimCacheData* SimCacheData = nullptr;
 	SimCacheData = NewObject<UNDIRenderTargetVolumeSimCacheData>(InSimCache);
 	SimCacheData->CompressionType = NDIRenderTarget2DLocal::GetSimCacheCompressionType();
-
 	return SimCacheData;	
 }
 
