@@ -170,10 +170,36 @@ namespace HordeServer.Storage
 	}
 
 	/// <summary>
+	/// Types of storage backend to use
+	/// </summary>
+	public enum StorageBackendType
+	{
+		/// <summary>
+		/// Local filesystem
+		/// </summary>
+		FileSystem,
+
+		/// <summary>
+		/// AWS S3
+		/// </summary>
+		Aws,
+
+		/// <summary>
+		/// Azure blob store
+		/// </summary>
+		Azure,
+
+		/// <summary>
+		/// In-memory only (for testing)
+		/// </summary>
+		Memory,
+	};
+
+	/// <summary>
 	/// Common settings object for different providers
 	/// </summary>
 	[DebuggerDisplay("{Id}")]
-	public class BackendConfig : IStorageBackendOptions
+	public class BackendConfig : IAwsStorageOptions
 	{
 		/// <summary>
 		/// The storage backend ID

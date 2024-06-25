@@ -59,7 +59,6 @@ using HordeServer.Devices;
 using HordeServer.Issues;
 using HordeServer.Issues.External;
 using HordeServer.Jobs;
-using HordeServer.Jobs.Artifacts;
 using HordeServer.Jobs.Bisect;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Schedules;
@@ -67,7 +66,6 @@ using HordeServer.Jobs.Templates;
 using HordeServer.Jobs.TestData;
 using HordeServer.Jobs.Timing;
 using HordeServer.Logs;
-using HordeServer.Logs.Storage;
 using HordeServer.Notifications;
 using HordeServer.Notifications.Sinks;
 using HordeServer.Perforce;
@@ -258,21 +256,6 @@ namespace HordeServer
 			}
 		}
 
-		static IObjectStore CreateObjectStore(IServiceProvider sp, StorageBackendOptions options)
-		{
-			switch (options.Type ?? StorageBackendType.FileSystem)
-			{
-				case StorageBackendType.FileSystem:
-					return sp.GetRequiredService<FileObjectStoreFactory>().CreateStore(DirectoryReference.Combine(ServerApp.DataDir, options.BaseDir ?? "Storage"));
-				case StorageBackendType.Aws:
-					return sp.GetRequiredService<AwsObjectStoreFactory>().CreateStore(options);
-				case StorageBackendType.Memory:
-					return new MemoryObjectStore();
-				default:
-					throw new NotImplementedException();
-			}
-		}
-
 		public Startup(IConfiguration configuration)
 		{
 			Configuration = configuration;
@@ -404,7 +387,6 @@ namespace HordeServer
 			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IAgentCollection, AgentCollection>();
 			services.AddSingleton<IArtifactCollection, ArtifactCollection>();
-			services.AddSingleton<IArtifactCollectionV1, ArtifactCollectionV1>();
 			services.AddSingleton<IGraphCollection, GraphCollection>();
 			services.AddSingleton<IIssueCollection, IssueCollection>();
 			services.AddSingleton<IJobCollection, JobCollection>();
@@ -564,8 +546,6 @@ namespace HordeServer
 			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
 			services.AddSingleton<AwsObjectStoreFactory>();
 			services.AddSingleton<FileObjectStoreFactory>();
-			services.AddSingleton(sp => CreateObjectStore(sp, settings.LogStorage).ForType<PersistentLogStorage>());
-			services.AddSingleton(sp => CreateObjectStore(sp, settings.ArtifactStorage).ForType<ArtifactCollectionV1>());
 
 			if (settings.WithAws)
 			{
@@ -586,8 +566,6 @@ namespace HordeServer
 				services.AddSingleton<IPoolSizeStrategyFactory, LeaseUtilizationAwsMetricStrategyFactory>();
 				services.AddSingleton<IPoolSizeStrategyFactory, ComputeQueueAwsMetricStrategyFactory>();
 			}
-
-			ConfigureLogStorage(services);
 
 			AuthenticationBuilder authBuilder = services.AddAuthentication(options =>
 				{
@@ -951,19 +929,6 @@ namespace HordeServer
 			LogValueFormatter.RegisterTypeAnnotation<LeaseId>("LeaseId");
 			LogValueFormatter.RegisterTypeAnnotation<LogId>("LogId");
 			LogValueFormatter.RegisterTypeAnnotation<UserId>("UserId");
-		}
-
-		private static void ConfigureLogStorage(IServiceCollection services)
-		{
-			services.AddSingleton<PersistentLogStorage>();
-
-			services.AddSingleton<ILogStorage>(provider =>
-			{
-				ILogStorage storage = provider.GetRequiredService<PersistentLogStorage>();
-				storage = new SequencedLogStorage(storage);
-				storage = new LocalLogStorage(50, storage);
-				return storage;
-			});
 		}
 
 		public sealed class BlobLocatorBsonSerializer : SerializerBase<BlobLocator>

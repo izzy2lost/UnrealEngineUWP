@@ -8,7 +8,6 @@ using Amazon.CloudWatch;
 using HordeServer.Agents;
 using HordeServer.Configuration;
 using HordeServer.Jobs;
-using HordeServer.Jobs.Artifacts;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
 using HordeServer.Perforce;

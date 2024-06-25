@@ -24,119 +24,6 @@ using HordeServer.Tools;
 namespace HordeServer
 {
 	/// <summary>
-	/// Types of storage backend to use
-	/// </summary>
-	public enum StorageBackendType
-	{
-		/// <summary>
-		/// Local filesystem
-		/// </summary>
-		FileSystem,
-
-		/// <summary>
-		/// AWS S3
-		/// </summary>
-		Aws,
-
-		/// <summary>
-		/// Azure blob store
-		/// </summary>
-		Azure,
-
-		/// <summary>
-		/// In-memory only (for testing)
-		/// </summary>
-		Memory,
-	};
-
-	/// <summary>
-	/// Common settings for different storage backends
-	/// </summary>
-	public interface IStorageBackendOptions : IAwsStorageOptions, IAzureStorageOptions
-	{
-		/// <summary>
-		/// Base directory for filesystem storage
-		/// </summary>
-		string? BaseDir { get; }
-
-		/// <summary>
-		/// The type of storage backend to use
-		/// </summary>
-		StorageBackendType? Type { get; }
-	}
-
-	/// <summary>
-	/// Common settings object for different providers
-	/// </summary>
-	public class StorageBackendOptions : IStorageBackendOptions
-	{
-		/// <inheritdoc/>
-		public StorageBackendType? Type { get; set; }
-
-		/// <inheritdoc/>
-		public string? BaseDir { get; set; }
-
-		/// <inheritdoc/>
-		public string? AwsBucketName { get; set; }
-
-		/// <inheritdoc/>
-		public string? AwsBucketPath { get; set; }
-
-		/// <inheritdoc/>
-		public AwsCredentialsType? AwsCredentials { get; set; }
-
-		/// <inheritdoc/>
-		public string? AwsRole { get; set; }
-
-		/// <inheritdoc/>
-		public string? AwsProfile { get; set; }
-
-		/// <inheritdoc/>
-		public string? AwsRegion { get; set; }
-
-		/// <inheritdoc/>
-		public string? AzureConnectionString { get; set; }
-
-		/// <inheritdoc/>
-		public string? AzureContainerName { get; set; }
-	}
-
-	/// <summary>
-	/// Options for configuring a blob store
-	/// </summary>
-	public class BlobStoreOptions : StorageBackendOptions
-	{
-	}
-
-	/// <summary>
-	/// Options for configuring the default tree store implementation
-	/// </summary>
-	public interface ITreeStoreOptions
-	{
-		/// <summary>
-		/// Options for creating bundles
-		/// </summary>
-		BundleOptions Bundle { get; }
-
-		/// <summary>
-		/// Options for chunking content
-		/// </summary>
-		ChunkingOptions Chunking { get; }
-	}
-
-	/// <summary>
-	/// Options for storing trees
-	/// </summary>
-	public class TreeStoreOptions : BlobStoreOptions, ITreeStoreOptions
-	{
-		/// <inheritdoc/>
-		public BundleOptions Bundle { get; set; } = new BundleOptions();
-
-		/// <inheritdoc/>
-		public ChunkingOptions Chunking { get; set; } = new ChunkingOptions();
-	}
-
-	/// <summary>
 	/// Type of run mode this process should use. Each carry different types of workloads. 
 	/// More than one mode can be active. But not all modes are not guaranteed to be compatible with each other and will
 	/// raise an error if combined in such a way.
@@ -615,30 +502,9 @@ namespace HordeServer
 		public bool RedisReadOnlyMode { get; set; }
 
 		/// <summary>
-		/// Type of write cache to use in log service
-		/// Currently Supported: "InMemory" or "Redis"
-		/// </summary>
-		public string LogServiceWriteCacheType { get; set; } = "InMemory";
-
-		/// <summary>
 		/// Overridden settings for storage backends. Useful for running against a production server with custom backends.
 		/// </summary>
 		public List<BackendConfig> StorageBackends { get; set; } = new List<BackendConfig>();
-
-		/// <summary>
-		/// Settings for artifact storage
-		/// </summary>
-		public StorageBackendOptions LogStorage { get; set; } = new StorageBackendOptions() { BaseDir = "Logs" };
-
-		/// <summary>
-		/// Settings for artifact storage
-		/// </summary>
-		public StorageBackendOptions ArtifactStorage { get; set; } = new StorageBackendOptions() { BaseDir = "Artifacts" };
-
-		/// <summary>
-		/// Configuration of tree storage
-		/// </summary>
-		public TreeStoreOptions CommitStorage { get; set; } = new TreeStoreOptions() { BaseDir = "Commits" };
 
 		/// <summary>
 		/// Whether to log json to stdout
@@ -649,11 +515,6 @@ namespace HordeServer
 		/// Whether to log requests to the UpdateSession and QueryServerState RPC endpoints
 		/// </summary>
 		public bool LogSessionRequests { get; set; } = false;
-
-		/// <summary>
-		/// Whether to enable the hosted LogService running background jobs
-		/// </summary>
-		public bool EnableLogService { get; set; } = true;
 
 		/// <summary>
 		/// Default fleet manager to use (when not specified by pool)

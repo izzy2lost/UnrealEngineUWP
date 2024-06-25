@@ -17,7 +17,6 @@ using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Artifacts;
 using HordeServer.Commits;
-using HordeServer.Jobs.Artifacts;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
 using HordeServer.Jobs.Timing;
@@ -48,7 +47,6 @@ namespace HordeServer.Jobs
 		private readonly JobService _jobService;
 		private readonly ITemplateCollection _templateCollection;
 		private readonly IArtifactCollection _artifactCollection;
-		private readonly IArtifactCollectionV1 _artifactCollectionV1;
 		private readonly IUserCollection _userCollection;
 		private readonly INotificationService _notificationService;
 		private readonly AgentService _agentService;
@@ -57,7 +55,7 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobsController(IGraphCollection graphs, ICommitService commitService, IPerforceService perforce, JobService jobService, ITemplateCollection templateCollection, IArtifactCollection artifactCollection, IArtifactCollectionV1 artifactCollectionV1, IUserCollection userCollection, INotificationService notificationService, AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public JobsController(IGraphCollection graphs, ICommitService commitService, IPerforceService perforce, JobService jobService, ITemplateCollection templateCollection, IArtifactCollection artifactCollection, IUserCollection userCollection, INotificationService notificationService, AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_graphs = graphs;
 			_commitService = commitService;
@@ -65,7 +63,6 @@ namespace HordeServer.Jobs
 			_jobService = jobService;
 			_templateCollection = templateCollection;
 			_artifactCollection = artifactCollection;
-			_artifactCollectionV1 = artifactCollectionV1;
 			_userCollection = userCollection;
 			_notificationService = notificationService;
 			_agentService = agentService;
@@ -1764,102 +1761,6 @@ namespace HordeServer.Jobs
 				subscription = await _notificationService.GetSubscriptionsAsync(step.NotificationTriggerId.Value, User, cancellationToken);
 			}
 			return new GetNotificationResponse(subscription);
-		}
-
-		/// <summary>
-		/// Gets a particular step currently scheduled to be executed for a job
-		/// </summary>
-		/// <param name="jobId">Unique id for the job</param>
-		/// <param name="batchId">Unique id for the batch</param>
-		/// <param name="stepId">Unique id for the step</param>
-		/// <param name="name"></param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>List of nodes to be executed</returns>
-		[HttpGet]
-		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}/artifacts/{*name}")]
-		public async Task<ActionResult> GetArtifactAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, string name, CancellationToken cancellationToken)
-		{
-			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
-			if (job == null)
-			{
-				return NotFound(jobId);
-			}
-
-			StreamConfig? streamConfig;
-			if (!_globalConfig.Value.TryGetStream(job.StreamId, out streamConfig))
-			{
-				return NotFound(job.StreamId);
-			}
-			if (!streamConfig.Authorize(JobAclAction.ViewJob, User))
-			{
-				return Forbid(JobAclAction.ViewJob, jobId);
-			}
-
-			if (!job.TryGetBatch(batchId, out IJobStepBatch? batch))
-			{
-				return NotFound(jobId, batchId);
-			}
-			if (!batch.TryGetStep(stepId, out _))
-			{
-				return NotFound(jobId, batchId, stepId);
-			}
-
-			IReadOnlyList<IArtifactV1> artifacts = await _artifactCollectionV1.GetArtifactsAsync(jobId, stepId, name, cancellationToken);
-			if (artifacts.Count == 0)
-			{
-				return NotFound();
-			}
-
-			IArtifactV1 artifact = artifacts[0];
-			return new FileStreamResult(await _artifactCollectionV1.OpenArtifactReadStreamAsync(artifact, cancellationToken), artifact.MimeType);
-		}
-
-		/// <summary>
-		/// Gets a particular step currently scheduled to be executed for a job
-		/// </summary>
-		/// <param name="jobId">Unique id for the job</param>
-		/// <param name="batchId">Unique id for the batch</param>
-		/// <param name="stepId">Unique id for the step</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>List of nodes to be executed</returns>
-		[HttpGet]
-		[Route("/api/v1/jobs/{jobId}/batches/{batchId}/steps/{stepId}/trace")]
-		public async Task<ActionResult> GetStepTraceAsync(JobId jobId, JobStepBatchId batchId, JobStepId stepId, CancellationToken cancellationToken)
-		{
-			IJob? job = await _jobService.GetJobAsync(jobId, cancellationToken);
-			if (job == null)
-			{
-				return NotFound(jobId);
-			}
-
-			StreamConfig? streamConfig;
-			if (!_globalConfig.Value.TryGetStream(job.StreamId, out streamConfig))
-			{
-				return NotFound(job.StreamId);
-			}
-			if (!streamConfig.Authorize(JobAclAction.ViewJob, User))
-			{
-				return Forbid(JobAclAction.ViewJob, jobId);
-			}
-
-			if (!job.TryGetBatch(batchId, out IJobStepBatch? batch))
-			{
-				return NotFound(jobId, batchId);
-			}
-			if (!batch.TryGetStep(stepId, out _))
-			{
-				return NotFound(jobId, batchId, stepId);
-			}
-
-			IReadOnlyList<IArtifactV1> artifacts = await _artifactCollectionV1.GetArtifactsAsync(jobId, stepId, null, cancellationToken);
-			foreach (IArtifactV1 artifact in artifacts)
-			{
-				if (artifact.Name.Equals("trace.json", StringComparison.OrdinalIgnoreCase))
-				{
-					return new FileStreamResult(await _artifactCollectionV1.OpenArtifactReadStreamAsync(artifact, cancellationToken), "text/json");
-				}
-			}
-			return NotFound();
 		}
 
 		/// <summary>
