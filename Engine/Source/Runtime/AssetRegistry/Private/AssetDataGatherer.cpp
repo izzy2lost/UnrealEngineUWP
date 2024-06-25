@@ -3600,6 +3600,7 @@ FAssetDataGatherer::FAssetDataGatherer(const TArray<FString>& InLongPackageNames
 	, bIsIdle(false)
 	, bFirstTickAfterIdle(true)
 	, bFinishedInitialDiscovery(false)
+	, bIsInitialSearchCompleted(false)
 	, WaitBatchCount(-1)
 	, LastCacheSaveNumUncachedAssetFiles(0)
 	, CacheInUseCount(0)
@@ -3667,6 +3668,8 @@ void FAssetDataGatherer::OnInitialSearchCompleted()
 	{
 		Discovery->OnInitialSearchCompleted();
 	}
+
+	bIsInitialSearchCompleted.store(true, std::memory_order_relaxed);
 }
 
 void FAssetDataGatherer::StartAsync()
@@ -3719,6 +3722,8 @@ uint32 FAssetDataGatherer::Run()
 			if ((Status != UE::AssetRegistry::Impl::EGatherStatus::TickActiveGatherActive)
 				&& (Status != UE::AssetRegistry::Impl::EGatherStatus::TickActiveGatherIdle))
 			{
+				// Consider creating a TRACE_CPUPROFILER_EVENT_SCOPE_STR_CONDITIONAL
+				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL("FAssetDataGatherer Sleep", !bIsInitialSearchCompleted.load(std::memory_order_relaxed));
 				FPlatformProcess::Sleep(bLocalIdle ? IdleSleepTime : PausedSleepTime);
 			}
 		}

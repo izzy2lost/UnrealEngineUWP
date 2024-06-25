@@ -470,6 +470,8 @@ private:
 	bool bFirstTickAfterIdle;
 	/** True if we have finished discovering our first wave of files, to report metrics for that most-important wave. */
 	bool bFinishedInitialDiscovery;
+	/** True if OnInitialSearchCompleted has been called. */
+	std::atomic<bool> bIsInitialSearchCompleted;
 
 	// Variable section for variables that are read/writable only within TickLock.
 

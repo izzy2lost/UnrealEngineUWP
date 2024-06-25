@@ -4614,6 +4614,9 @@ bool FAssetRegistryImpl::ClassRequiresGameThreadProcessing(const UClass* Class) 
 
 Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FTickContext& TickContext)
 {
+	// Consider creating a TRACE_CPUPROFILER_EVENT_SCOPE_STR_CONDITIONAL
+	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL("FAssetRegistryImpl::TickGatherer", !bInitialSearchCompleted);
+
 	using namespace UE::AssetRegistry::Impl;
 	FEventContext& EventContext = TickContext.EventContext;
 	FInterruptionContext& InOutInterruptionContext = TickContext.InterruptionContext;
@@ -6909,6 +6912,14 @@ bool FAssetRegistryImpl::RemoveAssetData(Impl::FEventContext& EventContext, FAss
 		{
 			EventContext.AssetEvents.Emplace(*AssetData, Impl::FEventContext::EEvent::Removed);
 		}
+
+		// Make sure to consider redirections!
+#if WITH_EDITOR
+		if (AssetData->IsRedirector())
+		{
+			GRedirectCollector.RemoveAssetPathRedirection(AssetData->GetSoftObjectPath());
+		}
+#endif
 
 		// Remove from the class map if removing a blueprint
 		if (ClassGeneratorNames.Contains(AssetData->AssetClassPath))
