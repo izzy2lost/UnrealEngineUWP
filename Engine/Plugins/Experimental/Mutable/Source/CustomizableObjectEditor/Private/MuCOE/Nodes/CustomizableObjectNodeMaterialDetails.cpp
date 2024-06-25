@@ -41,7 +41,7 @@ void FCustomizableObjectNodeMaterialDetails::CustomizeDetails(IDetailLayoutBuild
 
 	IDetailCategoryBuilder& CustomCategory = DetailBuilder.EditCategory("CustomizableObject");
 	TSharedRef<IPropertyHandle> MaterialProperty = DetailBuilder.GetProperty("Material");
-	TSharedRef<IPropertyHandle> ComponentNameProperty = DetailBuilder.GetProperty("ComponentName");
+	TSharedRef<IPropertyHandle> ComponentNameProperty = DetailBuilder.GetProperty("MeshComponentName");
 
 	// Added Material property manually to display it above of the rest of properties
 	CustomCategory.AddProperty(MaterialProperty);
