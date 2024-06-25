@@ -310,22 +310,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 			auto GetIDFromKey = [&](uint8* KeyData) -> FOverriddenPropertyNodeID
 			{
-				if (FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProp))
-				{
-					if (const UObject* Object = KeyObjectProperty->GetObjectPropertyValue(KeyData))
-					{
-						return FOverriddenPropertyNodeID(*Object);
-					}
-				}
-				else
-				{
-					FString KeyString;
-					KeyProp->ExportTextItem_Direct(KeyString, KeyData, /*DefaultValue*/nullptr, /*Parent*/nullptr, PPF_None);
-					return FOverriddenPropertyNodeID(FName(KeyString));
-				}
-		
-				checkf(false, TEXT("This case is not handled"))
-				return FOverriddenPropertyNodeID();
+				return FOverriddenPropertyNodeID::ForMapKey(KeyProp, KeyData);
 			};
 
 			if (UnderlyingArchive.IsLoading())
