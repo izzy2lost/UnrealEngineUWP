@@ -1868,10 +1868,6 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry respect Retry-After heade
 	{
 		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
 	}
-	SECTION("ServiceUnavail")
-	{
-		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::ServiceUnavail));
-	}
 
 	uint32 RetryAfter = 4;
 

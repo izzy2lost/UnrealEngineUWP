@@ -32,38 +32,34 @@ TOptional<double> ReadThrottledTimeFromResponseInSeconds(FHttpResponsePtr Respon
 	// Check if there was a Retry-After header
 	if (Response.IsValid())
 	{
-		int32 ResponseCode = Response->GetResponseCode();
-		if (ResponseCode == EHttpResponseCodes::TooManyRequests || ResponseCode == EHttpResponseCodes::ServiceUnavail)
+		FString RetryAfter = Response->GetHeader(TEXT("Retry-After"));
+		if (!RetryAfter.IsEmpty())
 		{
-			FString RetryAfter = Response->GetHeader(TEXT("Retry-After"));
-			if (!RetryAfter.IsEmpty())
+			if (RetryAfter.IsNumeric())
 			{
-				if (RetryAfter.IsNumeric())
-				{
-					// seconds
-					LockoutPeriod.Emplace(FCString::Atof(*RetryAfter));
-				}
-				else
-				{
-					// http date
-					FDateTime UTCServerTime;
-					if (FDateTime::ParseHttpDate(RetryAfter, UTCServerTime))
-					{
-						const FDateTime UTCNow = FDateTime::UtcNow();
-						LockoutPeriod.Emplace((UTCServerTime - UTCNow).GetTotalSeconds());
-					}
-				}
+				// seconds
+				LockoutPeriod.Emplace(FCString::Atof(*RetryAfter));
 			}
 			else
 			{
-				FString RateLimitReset = Response->GetHeader(TEXT("X-Rate-Limit-Reset"));
-				if (!RateLimitReset.IsEmpty())
+				// http date
+				FDateTime UTCServerTime;
+				if (FDateTime::ParseHttpDate(RetryAfter, UTCServerTime))
 				{
-					// UTC seconds
-					const FDateTime UTCServerTime = FDateTime::FromUnixTimestamp(FCString::Atoi64(*RateLimitReset));
 					const FDateTime UTCNow = FDateTime::UtcNow();
 					LockoutPeriod.Emplace((UTCServerTime - UTCNow).GetTotalSeconds());
 				}
+			}
+		}
+		else
+		{
+			FString RateLimitReset = Response->GetHeader(TEXT("X-Rate-Limit-Reset"));
+			if (!RateLimitReset.IsEmpty())
+			{
+				// UTC seconds
+				const FDateTime UTCServerTime = FDateTime::FromUnixTimestamp(FCString::Atoi64(*RateLimitReset));
+				const FDateTime UTCNow = FDateTime::UtcNow();
+				LockoutPeriod.Emplace((UTCServerTime - UTCNow).GetTotalSeconds());
 			}
 		}
 	}
