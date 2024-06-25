@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "MaterialShared.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialExpressionMeshPaintTextureObject.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
 #include "Materials/MaterialInstance.h"
@@ -103,6 +104,15 @@ void IMeshPaintComponentAdapter::DefaultQueryPaintableTextures(int32 MaterialInd
 					if ((OutDefaultIndex == INDEX_NONE) && TextureBase->IsDefaultMeshpaintTexture)
 					{
 						OutDefaultIndex = TextureIndex;
+					}
+				}
+
+				// If material samples the primitive mesh paint texture, then add it here.
+				if (UMaterialExpressionMeshPaintTextureObject* MeshPaintTextureExpression = Cast<UMaterialExpressionMeshPaintTextureObject>(Expression))
+				{
+					if (UTexture* MesPaintTexture = MeshComponent->GetMeshPaintTexture())
+					{
+						InOutTextureList.AddUnique(FPaintableTexture{ MesPaintTexture, 0 });
 					}
 				}
 			}
@@ -397,7 +407,7 @@ namespace UE::MeshPaintingToolset
 		return *this;
 	}
 
-	void FDefaultTextureOverride::ApplyOrRemoveTextureOverride(const UMeshComponent* InMeshComponent, const UTexture* SourceTexture, UTexture* OverrideTexture) const
+	void FDefaultTextureOverride::ApplyOrRemoveTextureOverride(UMeshComponent* InMeshComponent, const UTexture* SourceTexture, UTexture* OverrideTexture) const
 	{
 		check(IsInGameThread());
 
@@ -417,11 +427,16 @@ namespace UE::MeshPaintingToolset
 			{
 				// Keep track of the material overridden
 				Private::FGlobalTextureOverrideState::RegisterMaterialOverride(this, MaterialToCheck, SourceTexture, OverrideTexture, FeatureLevel);
-
 			}
 
 			++MaterialIndex;
 			MaterialToCheck = InMeshComponent->GetMaterial(MaterialIndex);
+		}
+
+		// Check to see if the source texture is the special mesh paint texture on the component.
+		if (InMeshComponent->GetMeshPaintTexture() == SourceTexture)
+		{
+			InMeshComponent->SetMeshPaintTextureOverride(OverrideTexture);
 		}
 	}
 

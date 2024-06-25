@@ -118,7 +118,7 @@ namespace UE::MeshPaintingToolset
 	class MESHPAINTINGTOOLSET_API FDefaultTextureOverride final
 	{
 	public:
-		void ApplyOrRemoveTextureOverride(const UMeshComponent* InMeshComponent, const UTexture* SourceTexture, UTexture* OverrideTexture) const;
+		void ApplyOrRemoveTextureOverride(UMeshComponent* InMeshComponent, const UTexture* SourceTexture, UTexture* OverrideTexture) const;
 
 		~FDefaultTextureOverride();
 
