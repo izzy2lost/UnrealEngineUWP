@@ -11,6 +11,7 @@
 #define FILTER_DIRECTIONAL_LIGHT_SHADOWING 1
 #include "../ForwardShadowingCommon.ush"
 #include "LumenSceneDirectLighting.ush"
+#include "LumenFloatQuantization.ush"
 
 FDeferredLightData GetLumenDirectLightingLightData(uint LightIndex, float3 PreViewTranslation, float Exposure)
 {
@@ -101,5 +102,5 @@ void LumenCardBatchDirectLightingCS(
 		}
 	}
 
-	RWDirectLightingAtlas[AtlasCoord] = Irradiance;
+	RWDirectLightingAtlas[AtlasCoord] = QuantizeForFloatRenderTarget(Irradiance, int3(AtlasCoord, View.StateFrameIndexMod8 + 1));
 }

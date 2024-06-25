@@ -75,6 +75,7 @@ namespace Lumen
 	bool UseWaveOps(EShaderPlatform ShaderPlatform);
 	bool UseThreadGroupSize32();
 	EPixelFormat GetLightingDataFormat();
+	FVector3f GetLightingQuantizationError();
 
 	// Surface cache
 	bool IsSurfaceCacheFrozen();

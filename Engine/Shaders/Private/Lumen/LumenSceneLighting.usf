@@ -6,6 +6,7 @@
 
 #include "../Common.ush"
 #include "../BRDF.ush"
+#include "LumenFloatQuantization.ush"
 #include "LumenCardCommon.ush"
 #include "LumenCardTile.ush"
 #include "LumenSceneLighting.ush"
@@ -484,7 +485,7 @@ void CombineLumenSceneLightingCS(
 	float3 IndirectLighting = Texture2DSampleLevel(IndirectLightingAtlas, BilinearClampedSampler, IndirectLightingAtlasUV, 0).xyz;
 
 	float3 FinalLighting = CombineFinalLighting(Albedo, Emissive, DirectLighting, IndirectLighting);
-	RWFinalLightingAtlas[AtlasCoord] = FinalLighting;
+	RWFinalLightingAtlas[AtlasCoord] = QuantizeForFloatRenderTarget(FinalLighting, int3(AtlasCoord, View.StateFrameIndexMod8 + 2));
 }
 
 void ClearLumenCardsPS(

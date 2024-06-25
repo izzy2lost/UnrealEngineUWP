@@ -7,6 +7,7 @@
 #include "../LumenTracingCommon.ush"
 #include "../LumenSoftwareRayTracing.ush"
 #include "../LumenCardTile.ush"
+#include "../LumenFloatQuantization.ush"
 #include "LumenRadiosity.ush"
 #include "../../RayTracing/RayGenUtils.ush"
 
@@ -254,11 +255,14 @@ void LumenRadiositySpatialFilterProbeRadiance(
 		uint2 RadiosityProbeTracingAtlasCoord = ProbeAtlasCoord * HemisphereProbeResolution + TraceTexelCoord;
 
 		float CenterWeight = 2.0f;
-		float3 Radiance = TraceRadianceAtlas[RadiosityProbeTracingAtlasCoord] * CenterWeight;
-		float TotalWeight = CenterWeight;
+		float3 Radiance = TraceRadianceAtlas[RadiosityProbeTracingAtlasCoord];
 
 		if (RadiosityTexel.bValid)
 		{
+			const float E = BlueNoiseScalar(RadiosityProbeTracingAtlasCoord, RadiosityTexel.IndirectLightingTemporalIndex + 1);
+			Radiance *= CenterWeight;
+			float TotalWeight = CenterWeight;
+
 			uint2 ResLevelSizeInProbes = CardPage.ResLevelSizeInTiles * RadiosityTileSize;
 			uint2 CardPageProbeCoord = CardPage.CardUVRect.xy * ResLevelSizeInProbes;
 			int2 ProbeCoordInCard = CardPageProbeCoord + CardTile.TileCoord * RadiosityTileSize + (CoordInCardTile >> ProbeSpacingInRadiosityTexelsDivideShift);
@@ -302,9 +306,11 @@ void LumenRadiositySpatialFilterProbeRadiance(
 					Radiance,
 					TotalWeight);
 			}
+
+			Radiance = QuantizeForFloatRenderTarget(Radiance / TotalWeight, E);
 		}
 
-		RWFilteredTraceRadianceAtlas[RadiosityProbeTracingAtlasCoord] = Radiance / TotalWeight;
+		RWFilteredTraceRadianceAtlas[RadiosityProbeTracingAtlasCoord] = Radiance;
 	}
 }
 
@@ -510,6 +516,8 @@ void LumenRadiosityIntegrateCS(
 
 		float3 HistoryRadiosity = RWRadiosityAtlas[RadiosityTexel.AtlasCoord];
 		TexelRadiance = lerp(HistoryRadiosity, TexelRadiance, Alpha);
+
+		TexelRadiance = QuantizeForFloatRenderTarget(TexelRadiance, int3(RadiosityTexel.AtlasCoord, CardPage.IndirectLightingTemporalIndex + 2));
 #endif
 
 		////////////////////////

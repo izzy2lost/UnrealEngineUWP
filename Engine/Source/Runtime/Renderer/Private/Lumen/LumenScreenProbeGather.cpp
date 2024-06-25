@@ -1012,6 +1012,7 @@ class FScreenProbeTemporalReprojectionCS : public FGlobalShader
 		SHADER_PARAMETER(FVector4f,HistoryUVToScreenPositionScaleBias)
 		SHADER_PARAMETER(FVector4f,HistoryUVMinMax)
 		SHADER_PARAMETER(FIntVector4,HistoryViewportMinMax)
+		SHADER_PARAMETER(FVector3f, TargetFormatQuantizationError)
 		SHADER_PARAMETER(uint32, bIsSubstrateTileHistoryValid)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, DiffuseIndirect)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, BackfaceDiffuseIndirect)
@@ -1594,6 +1595,7 @@ void UpdateHistoryScreenProbeGather(
 						PassParameters->DiffuseIndirect = DiffuseIndirect;
 						PassParameters->BackfaceDiffuseIndirect = BackfaceDiffuseIndirect;
 						PassParameters->RoughSpecularIndirect = RoughSpecularIndirect;
+						PassParameters->TargetFormatQuantizationError = Lumen::GetLightingQuantizationError();
 
 						// SUBSTRATE_TODO: Reenable once history tracking is correct
 						#if 0
@@ -1905,6 +1907,7 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenScreenProbeGather(
 	}
 	ScreenProbeParameters.ScreenProbeRayDirectionFrameIndex = StateFrameIndex % FMath::Max(CVarLumenScreenProbeTemporalMaxRayDirections.GetValueOnRenderThread(), 1);
 	ScreenProbeParameters.bSupportsHairScreenTraces = SupportsHairScreenTraces() ? 1u : 0u;
+	ScreenProbeParameters.TargetFormatQuantizationError = Lumen::GetLightingQuantizationError();
 
 	FRDGTextureDesc DownsampledDepthDesc(FRDGTextureDesc::Create2D(ScreenProbeParameters.ScreenProbeAtlasBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV));
 	ScreenProbeParameters.ScreenProbeSceneDepth = GraphBuilder.CreateTexture(DownsampledDepthDesc, TEXT("Lumen.ScreenProbeGather.ScreenProbeSceneDepth"));

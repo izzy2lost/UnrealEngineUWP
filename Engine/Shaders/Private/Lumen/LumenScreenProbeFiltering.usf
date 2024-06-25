@@ -5,6 +5,7 @@
 #include "../BRDF.ush"
 #include "LumenScreenProbeCommon.ush"
 #include "LumenScreenProbeTracingCommon.ush"
+#include "LumenFloatQuantization.ush"
 #include "../SHCommon.ush"
 
 #ifndef THREADGROUP_SIZE
@@ -252,7 +253,7 @@ void ScreenProbeTemporallyAccumulateTraceRadianceCS(
 
 			float3 UpdatedRadiance = lerp(NewRadiance, TotalHistoryRadiance, TotalHistoryWeight > 0.0f ? ProbeTemporalFilterHistoryWeight : 0.0f);
 
-			RWScreenProbeRadiance[DispatchThreadId.xy] = UpdatedRadiance;
+			RWScreenProbeRadiance[DispatchThreadId.xy] = QuantizeForFloatRenderTarget(UpdatedRadiance, int3(DispatchThreadId.xy, View.StateFrameIndexMod8 + 10));
 		}
 		else
 		{
@@ -353,6 +354,8 @@ void GatherNeighborRadiance(
 	}
 }
 
+int SpatialFilterPassIndex;
+
 [numthreads(PROBE_THREADGROUP_SIZE_2D, PROBE_THREADGROUP_SIZE_2D, 1)]
 void ScreenProbeFilterGatherTracesCS(
 	uint3 GroupId : SV_GroupID,
@@ -372,6 +375,10 @@ void ScreenProbeFilterGatherTracesCS(
 
 		if (SceneDepth > 0.0f)
 		{
+			// ProbeTexelCenter is also blue noise but it is uniform in the probe and doesn't change between filter passes.
+			// Using BlueNoiseScalar because this shader is VALU bound. Fetching noise values earlier seem to give better perf.
+			const float E = BlueNoiseScalar(DispatchThreadId.xy, View_StateFrameIndexMod8 + SpatialFilterPassIndex + 11);
+
 			float ScreenProbeTracesMoving = GetScreenProbeMoving(ScreenProbeAtlasCoord);
 
 			float2 ScreenUV = GetScreenUVFromScreenProbePosition(ScreenProbeScreenPosition);
@@ -426,7 +433,7 @@ void ScreenProbeFilterGatherTracesCS(
 				TotalRadiance /= TotalWeight;
 			}
 
-			RWScreenProbeRadiance[DispatchThreadId.xy] = TotalRadiance;
+			RWScreenProbeRadiance[DispatchThreadId.xy] = QuantizeForFloatRenderTarget(TotalRadiance, E);
 		}
 		else
 		{
@@ -488,7 +495,7 @@ void ScreenProbeInjectLightSamplesCS(
 				}
 			}
 
-			RWScreenProbeRadiance[DispatchThreadId.xy] = TotalRadiance * PI;
+			RWScreenProbeRadiance[DispatchThreadId.xy] = QuantizeForFloatRenderTarget(TotalRadiance * PI, Random.x);
 		}
 		else
 		{
@@ -988,6 +995,6 @@ void ScreenProbeGenerateMipLevelCS(
 		Lighting += ScreenProbeRadianceWithBorderParentMip.Load(uint3(ParentFinalAtlasCoord + uint2(1, 1), 0)).xyz;
 
 		uint2 WriteCoord = MipSize * ScreenProbeAtlasCoord + ProbeTexelCoord;
-		RWScreenProbeRadianceWithBorderMip[WriteCoord] = Lighting / 4;
+		RWScreenProbeRadianceWithBorderMip[WriteCoord] = QuantizeForFloatRenderTarget(Lighting / 4, int3(WriteCoord, View.StateFrameIndexMod8 + MipLevel + 13));
 	}
 }

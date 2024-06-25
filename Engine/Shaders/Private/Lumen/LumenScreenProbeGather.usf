@@ -19,6 +19,7 @@
 #include "../MortonCode.ush"
 #include "LumenScreenSpaceBentNormal.ush"
 #include "LumenReflectionsCombine.ush"
+#include "LumenFloatQuantization.ush"
 #include "../ReflectionEnvironmentShared.ush"
 
 #ifndef THREADGROUP_SIZE
@@ -2016,7 +2017,8 @@ void ScreenProbeTemporalReprojectionCS(
 	OutRoughSpecularIndirect.rgb = -min(-OutRoughSpecularIndirect.rgb, 0.0f);
 
 	RWNewHistoryDiffuseIndirect[Coord.SvPositionFlatten] = float4(OutDiffuseIndirect, 0.0f);
-	RWNewHistoryRoughSpecularIndirect[Coord.SvPositionFlatten] = OutRoughSpecularIndirect;
+	RWNewHistoryRoughSpecularIndirect[Coord.SvPositionFlatten] =
+		QuantizeForFloatRenderTarget(OutRoughSpecularIndirect, int3(Coord.SvPositionFlatten.xy, Coord.SvPositionFlatten.z + View.StateFrameIndexMod8 + 15));
 	RWNumHistoryFramesAccumulated[Coord.SvPositionFlatten] = NewNumFramesAccumulated / MaxFramesAccumulated;
 
 #if SUPPORT_BACKFACE_DIFFUSE
@@ -2038,7 +2040,8 @@ void ScreenProbeTemporalReprojectionCS(
 		OutBackfaceDiffuseIndirect = lerp(HistoryBackfaceDiffuseIndirect, NewBackfaceDiffuseLighting, Alpha);
 	}
 
-	RWNewHistoryBackfaceDiffuseIndirect[Coord.SvPositionFlatten] = OutBackfaceDiffuseIndirect;
+	RWNewHistoryBackfaceDiffuseIndirect[Coord.SvPositionFlatten] =
+		QuantizeForFloatRenderTarget(OutBackfaceDiffuseIndirect, int3(Coord.SvPositionFlatten.xy, Coord.SvPositionFlatten.z + View.StateFrameIndexMod8 + 15));
 #endif
 }
 

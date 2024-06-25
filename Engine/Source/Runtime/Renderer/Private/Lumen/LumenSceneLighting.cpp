@@ -145,6 +145,7 @@ class FLumenCardCombineLightingCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTiles)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWFinalLightingAtlas)
 		SHADER_PARAMETER(FVector2f, IndirectLightingAtlasHalfTexelSize)
+		SHADER_PARAMETER(FVector3f, TargetFormatQuantizationError)
 	END_SHADER_PARAMETER_STRUCT()
 
 	using FPermutationDomain = TShaderPermutationDomain<>;
@@ -184,6 +185,7 @@ void Lumen::CombineLumenSceneLighting(
 	PassParameters->RWFinalLightingAtlas = GraphBuilder.CreateUAV(FrameTemporaries.FinalLightingAtlas);
 	const FIntPoint IndirectLightingAtlasSize = LumenSceneData.GetRadiosityAtlasSize();
 	PassParameters->IndirectLightingAtlasHalfTexelSize = FVector2f(0.5f / IndirectLightingAtlasSize.X, 0.5f / IndirectLightingAtlasSize.Y);
+	PassParameters->TargetFormatQuantizationError = Lumen::GetLightingQuantizationError();
 
 	auto ComputeShader = View.ShaderMap->GetShader<FLumenCardCombineLightingCS>();
 

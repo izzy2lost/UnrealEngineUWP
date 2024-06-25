@@ -9,6 +9,7 @@
 #include "LumenRadianceCacheCommon.ush"
 #include "LumenScreenProbeCommon.ush"
 #include "LumenScreenProbeTracingCommon.ush"
+#include "LumenFloatQuantization.ush"
 #include "LumenVisualizeTraces.ush"
 
 #define IS_SSGI_SHADER 0
@@ -348,7 +349,7 @@ void ScreenProbeTraceScreenTexturesCS(
 						#if DEBUG_VISUALIZE_TRACE_TYPES
 							RWTraceRadiance[TraceBufferCoord] = float3(.5f, 0, 0) * View.PreExposure;
 						#else
-							RWTraceRadiance[TraceBufferCoord] = Lighting;
+							RWTraceRadiance[TraceBufferCoord] = QuantizeForFloatRenderTarget(Lighting, Noise);
 						#endif
 
 						{

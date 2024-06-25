@@ -81,6 +81,13 @@ EPixelFormat Lumen::GetLightingDataFormat()
 	return CVarLumenLightingDataFormat.GetValueOnRenderThread() == 0 ? PF_FloatR11G11B10 : PF_FloatRGBA;
 }
 
+extern FVector3f ComputePixelFormatQuantizationError(EPixelFormat PixelFormat);
+
+FVector3f Lumen::GetLightingQuantizationError()
+{
+	return ComputePixelFormatQuantizationError(GetLightingDataFormat());
+}
+
 namespace Lumen
 {
 	bool AnyLumenHardwareRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)

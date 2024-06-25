@@ -584,6 +584,7 @@ class FLumenCardBatchDirectLightingCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWDirectLightingAtlas)
 		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER(FVector2f, ViewExposure)
+		SHADER_PARAMETER(FVector3f, TargetFormatQuantizationError)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FMultiView : SHADER_PERMUTATION_BOOL("HAS_MULTIPLE_VIEWS");
@@ -1023,6 +1024,7 @@ static void RenderDirectLightIntoLumenCardsBatched(
 	PassParameters->LightTileOffsetNumPerCardTile = LightTileOffsetNumPerCardTileSRV;
 	PassParameters->LightTilesPerCardTile = LightTilesPerCardTileSRV;
 	PassParameters->RWDirectLightingAtlas = DirectLightingAtlasUAV;
+	PassParameters->TargetFormatQuantizationError = Lumen::GetLightingQuantizationError();
 
 	int32 NumViewOrigins = FrameTemporaries.ViewOrigins.Num();
 	for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)

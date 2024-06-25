@@ -308,6 +308,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenRadiosityTexelTraceParameters, )
 	SHADER_PARAMETER(uint32, NumViews)
 	SHADER_PARAMETER(uint32, ViewIndex)
 	SHADER_PARAMETER(uint32, MaxCardTiles)
+	SHADER_PARAMETER(FVector3f, TargetFormatQuantizationError)
 	SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 END_SHADER_PARAMETER_STRUCT()
 
@@ -690,6 +691,7 @@ void LumenRadiosity::AddRadiosityPass(
 		// Needs to be set to valid value inside view loop
 		RadiosityTexelTraceParameters.ViewIndex = RadiosityTexelTraceParameters.NumViews;
 		RadiosityTexelTraceParameters.MaxCardTiles = MaxCardTiles;
+		RadiosityTexelTraceParameters.TargetFormatQuantizationError = Lumen::GetLightingQuantizationError();
 
 		FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 		RadiosityTexelTraceParameters.BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);

@@ -197,6 +197,7 @@ class FScreenProbeFilterGatherTracesCS : public FGlobalShader
 		SHADER_PARAMETER(float, SpatialFilterMaxRadianceHitAngle)
 		SHADER_PARAMETER(float, SpatialFilterPositionWeightScale)
 		SHADER_PARAMETER(int32, SpatialFilterHalfKernelSize)
+		SHADER_PARAMETER(int32, SpatialFilterPassIndex)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FScreenProbeParameters, ScreenProbeParameters)
 	END_SHADER_PARAMETER_STRUCT()
@@ -221,12 +222,12 @@ class FScreenProbeInjectLightSamplesCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FScreenProbeInjectLightSamplesCS)
 	SHADER_USE_PARAMETER_STRUCT(FScreenProbeInjectLightSamplesCS, FGlobalShader)
 
-		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWScreenProbeRadiance)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ScreenProbeRadiance)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FScreenProbeParameters, ScreenProbeParameters)
-		END_SHADER_PARAMETER_STRUCT()
+	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -580,6 +581,7 @@ void FilterScreenProbes(
 			PassParameters->SpatialFilterHalfKernelSize = GLumenScreenProbeSpatialFilterHalfKernelSize;
 			PassParameters->View = View.ViewUniformBuffer;
 			PassParameters->ScreenProbeParameters = ScreenProbeParameters;
+			PassParameters->SpatialFilterPassIndex = PassIndex;
 
 			auto ComputeShader = View.ShaderMap->GetShader<FScreenProbeFilterGatherTracesCS>(0);
 

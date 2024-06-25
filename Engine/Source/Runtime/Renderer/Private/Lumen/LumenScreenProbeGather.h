@@ -95,6 +95,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FScreenProbeParameters, )
 	SHADER_PARAMETER(int32, FixedJitterIndex)
 	SHADER_PARAMETER(uint32, ScreenProbeRayDirectionFrameIndex)
 	SHADER_PARAMETER(uint32, bSupportsHairScreenTraces)
+	SHADER_PARAMETER(FVector3f, TargetFormatQuantizationError)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, NumAdaptiveScreenProbes)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, AdaptiveScreenProbeData)
