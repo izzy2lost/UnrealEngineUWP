@@ -1236,41 +1236,58 @@ void FKAggregateGeom::GetAggGeom(const FTransform& Transform, const FColor Color
 /** Release the RenderInfo (if its there) and safely clean up any resources. Can be called from any thread. */
 void FKAggregateGeom::FreeRenderInfo()
 {
-	// See if we have rendering resources to free
-	auto RenderInfo = RenderInfoPtr.exchange(nullptr, std::memory_order_acq_rel);
+	// See if we have rendering resources to free. We do this in the open (non-transactionally) because of
+	// the threaded nature of this operation.
+	FKConvexGeomRenderInfo* RenderInfo = nullptr;
+
+	AutoRTFM::Open([&]
+		{
+			RenderInfo = RenderInfoPtr.exchange(nullptr, std::memory_order_acq_rel);
+		});
+
 	if (RenderInfo)
 	{
-		// Should always have these if RenderInfo exists
-		check(RenderInfo->VertexBuffers);
-		check(RenderInfo->IndexBuffer);
-
-		// Fire off a render command to free these resources
-		ENQUEUE_RENDER_COMMAND(FKAggregateGeomFreeRenderInfo)(
-			[RenderInfoToRelease = RenderInfo](FRHICommandList& RHICmdList)
+		AutoRTFM::OnCommit([this, RenderInfo]
 			{
-				RenderInfoToRelease->VertexBuffers->ColorVertexBuffer.ReleaseResource();
-				RenderInfoToRelease->VertexBuffers->StaticMeshVertexBuffer.ReleaseResource();
-				RenderInfoToRelease->VertexBuffers->PositionVertexBuffer.ReleaseResource();
-				RenderInfoToRelease->IndexBuffer->ReleaseResource();
+				// Should always have these if RenderInfo exists
+				check(nullptr != RenderInfo);
+				check(RenderInfo->VertexBuffers);
+				check(RenderInfo->IndexBuffer);
 
-				// May not exist if no geometry was available
-				if (RenderInfoToRelease->CollisionVertexFactory != nullptr)
-				{
-					RenderInfoToRelease->CollisionVertexFactory->ReleaseResource();
-				}
+				// Fire off a render command to free these resources
+				ENQUEUE_RENDER_COMMAND(FKAggregateGeomFreeRenderInfo)(
+					[RenderInfoToRelease = RenderInfo](FRHICommandList& RHICmdList)
+					{
+						RenderInfoToRelease->VertexBuffers->ColorVertexBuffer.ReleaseResource();
+						RenderInfoToRelease->VertexBuffers->StaticMeshVertexBuffer.ReleaseResource();
+						RenderInfoToRelease->VertexBuffers->PositionVertexBuffer.ReleaseResource();
+						RenderInfoToRelease->IndexBuffer->ReleaseResource();
 
-				// Free memory.
-				delete RenderInfoToRelease->VertexBuffers;
-				delete RenderInfoToRelease->IndexBuffer;
+						// May not exist if no geometry was available
+						if (RenderInfoToRelease->CollisionVertexFactory != nullptr)
+						{
+							RenderInfoToRelease->CollisionVertexFactory->ReleaseResource();
+						}
 
-				if (RenderInfoToRelease->CollisionVertexFactory != nullptr)
-				{
-					delete RenderInfoToRelease->CollisionVertexFactory;
-				}
+						// Free memory.
+						delete RenderInfoToRelease->VertexBuffers;
+						delete RenderInfoToRelease->IndexBuffer;
 
-				delete RenderInfoToRelease;
-			}
-		);
+						if (RenderInfoToRelease->CollisionVertexFactory != nullptr)
+						{
+							delete RenderInfoToRelease->CollisionVertexFactory;
+						}
+
+						delete RenderInfoToRelease;
+					});
+			});
+
+		AutoRTFM::OnAbort([this, RenderInfo]
+			{
+				check(nullptr != RenderInfo);
+				FKConvexGeomRenderInfo* OldRenderInfo = RenderInfoPtr.exchange(RenderInfo, std::memory_order_acq_rel);
+				ensure(nullptr == OldRenderInfo);
+			});
 	}
 }
 

@@ -4,6 +4,7 @@
 #include "Misc/App.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "AutoRTFMTestActor.h"
+#include "AutoRTFMTestBodySetup.h"
 #include "AutoRTFMTestLevel.h"
 #include "AutoRTFMTestPrimitiveComponent.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
@@ -101,6 +102,30 @@ bool FAutoRTFMActorComponentTests::RunTest(const FString & Parameters)
 
 	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
 	TEST_CHECK_TRUE(!Component->IsRegistered());
+
+	// This test requires us to have a fresh body instance so that it has to be created during the register.
+	Component->BodyInstance = FBodyInstance();
+
+	// And we need a valid body setup so that there is shapes created too.
+	Component->BodySetup = NewObject<UAutoRTFMTestBodySetup>();
+	Component->BodySetup->AggGeom.SphereElems.Add(FKSphereElem(1.0f));
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->RegisterComponentWithWorld(World);
+			AutoRTFM::AbortTransaction();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	TEST_CHECK_TRUE(!Component->IsRegistered());
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->RegisterComponentWithWorld(World);
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	TEST_CHECK_TRUE(Component->IsRegistered());
 
 	return true;
 }

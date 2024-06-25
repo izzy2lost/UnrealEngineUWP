@@ -7,6 +7,7 @@
 #include "NullTestRunner.h"
 #include "Materials/Material.h"
 #include "AutoRTFM/AutoRTFM.h"
+#include "AutoRTFMTestEngine.h"
 
 #if WITH_AUTOMATION_WORKER
 namespace UE::AutoRTFM
@@ -57,6 +58,9 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 	PreInit();
 	LoadModules();
 	PostInit();
+	
+	GEngine = NewObject<UAutoRTFMTestEngine>(GetTransientPackage());
+	GEngine->DefaultPhysMaterial = NewObject<UPhysicalMaterial>();
 
 	UE_LOG(LogAutoRTFMEngineTests, Display, TEXT("AutoRTFMEngineTests"));
 

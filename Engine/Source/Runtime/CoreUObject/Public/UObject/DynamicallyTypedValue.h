@@ -10,6 +10,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 class FReferenceCollector;
 

@@ -12,4 +12,8 @@ class UAutoRTFMTestPrimitiveComponent : public UPrimitiveComponent
 
 public:
     int Value = 42;
+
+	UBodySetup* BodySetup = nullptr;
+
+	UBodySetup* GetBodySetup() override { return BodySetup; }
 };
