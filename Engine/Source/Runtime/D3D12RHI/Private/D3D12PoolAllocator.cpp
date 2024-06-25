@@ -438,7 +438,12 @@ void FD3D12PoolAllocator::AllocateResource(uint32 GPUIndex, D3D12_HEAP_TYPE InHe
 			TRefCountPtr<FD3D12Heap> BackingHeap = new FD3D12Heap(GetParentDevice(), GetVisibilityMask(), TraceHeapId);
 			bool bTrack = false;
 			BackingHeap->SetHeap(Heap, InName, bTrack);
-			BackingHeap->BeginTrackingResidency(HeapDesc.SizeInBytes);
+
+			// Only track resources that cannot be accessed on the CPU.
+			if (IsGPUOnly(InHeapType, &HeapProps))
+			{
+				BackingHeap->BeginTrackingResidency(HeapDesc.SizeInBytes);
+			}
 
 			VERIFYD3D12RESULT(Adapter->CreatePlacedResource(Desc, BackingHeap, 0, InCreateState, InResourceStateMode, InCreateState, InClearValue, &NewResource, InName));
 		}
