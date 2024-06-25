@@ -652,10 +652,10 @@ protected:
 	TObjectPtr<UMaterialInstanceDynamic> WaterInfoMID;
 
 	/** Islands in this water body*/
-	UPROPERTY(Category = Water, VisibleAnywhere, AdvancedDisplay)
+	UPROPERTY(Category = Water, EditAnywhere, AdvancedDisplay)
 	TArray<TSoftObjectPtr<AWaterBodyIsland>> WaterBodyIslands;
 
-	UPROPERTY(Category = Water, VisibleAnywhere, AdvancedDisplay)
+	UPROPERTY(Category = Water, EditAnywhere, AdvancedDisplay)
 	TArray<TSoftObjectPtr<AWaterBodyExclusionVolume>> WaterBodyExclusionVolumes;
 
 	UPROPERTY(Transient)
