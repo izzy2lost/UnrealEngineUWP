@@ -30,6 +30,11 @@ UENUM()
 enum class EResolution
 {
 	Auto		  = 0		UMETA(DisplayName = "Auto"),
+	Resolution8   = 8		UMETA(DisplayName = "8"),
+	Resolution16  = 16		UMETA(DisplayName = "16"),
+	Resolution32  = 32		UMETA(DisplayName = "32"),
+	Resolution64  = 64		UMETA(DisplayName = "64"),
+	Resolution128 = 128		UMETA(DisplayName = "128"),
 	Resolution256 = 256		UMETA(DisplayName = "256"),
 	Resolution512 = 512		UMETA(DisplayName = "512"),
 	Resolution1024 = 1024	UMETA(DisplayName = "1024"),

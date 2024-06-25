@@ -537,7 +537,7 @@ int UTG_Node::GetAllOutputValues(TArray<FTG_Variant>& OutVariants, TArray<FName>
 			}
 			else
 			{
-				UE_LOG(LogTextureGraph, Log, TEXT("Output {} failed to collect as variant"), *(Pin->GetAliasName().ToString()));
+				UE_LOG(LogTextureGraph, Warning, TEXT("Output {} failed to collect as variant"), *(Pin->GetAliasName().ToString()));
 			}
 		}
 	}

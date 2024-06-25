@@ -934,8 +934,7 @@ BlobRef Blobber::AddInternal(BlobPtr BlobObj, BlobCacheOptions Options)
 
 				/// We need to remove this hash mapping
 				RemoveHashMapping(Hash->Value());
-
-				return BlobRef(nullptr);
+				Existing = BlobRef();
 			}
 
 			/// 2. If the incoming BlobObj is un-tiled but the Existing one IS tiled
@@ -955,13 +954,15 @@ BlobRef Blobber::AddInternal(BlobPtr BlobObj, BlobCacheOptions Options)
 
 				/// We need to remove this hash mapping
 				RemoveHashMapping(Hash->Value());
-
-				return BlobRef(nullptr);
+				Existing = BlobRef();
 			}
 		}
 
-		check(BlobObj->IsTiled() == Existing->IsTiled());
-		return Existing;
+		if (Existing)
+		{
+			check(BlobObj->IsTiled() == Existing->IsTiled());
+			return Existing;
+		}
 	}
 
 	/// Don't do this with temp hashes of blobs because they could be the same as 
