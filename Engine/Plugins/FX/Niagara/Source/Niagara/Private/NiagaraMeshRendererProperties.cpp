@@ -462,6 +462,10 @@ void UNiagaraMeshRendererProperties::Serialize(FArchive& Ar)
 		{
 			bSubImageBlend = false;
 		}
+		if (NiagaraVersion < FNiagaraCustomVersion::CustomSortingBindingToAge)
+		{
+			CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_NORMALIZED_AGE);
+		}
 	}
 
 	Super::Serialize(Ar);
@@ -511,7 +515,7 @@ void UNiagaraMeshRendererProperties::InitBindings()
 		MeshIndexBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_MESH_INDEX);
 
 		//Default custom sorting to age
-		CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_NORMALIZED_AGE);
+		CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_AGE);
 
 		// Initialize the array with a single, defaulted entry
 		Meshes.AddDefaulted();

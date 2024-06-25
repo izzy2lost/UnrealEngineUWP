@@ -230,6 +230,7 @@ public:
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_Velocity() { return Particles_Velocity; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_Color() { return Particles_Color; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_SpriteRotation() { return Particles_SpriteRotation; }
+	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_Age() { return Particles_Age; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_NormalizedAge() { return Particles_NormalizedAge; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_SpriteSize() { return Particles_SpriteSize; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_Particles_SpriteFacing() { return Particles_SpriteFacing; }
@@ -370,6 +371,7 @@ private:
 	static NIAGARA_API FNiagaraVariable Particles_Velocity;
 	static NIAGARA_API FNiagaraVariable Particles_Color;
 	static NIAGARA_API FNiagaraVariable Particles_SpriteRotation;
+	static NIAGARA_API FNiagaraVariable Particles_Age;
 	static NIAGARA_API FNiagaraVariable Particles_NormalizedAge;
 	static NIAGARA_API FNiagaraVariable Particles_SpriteSize;
 	static NIAGARA_API FNiagaraVariable Particles_SpriteFacing;

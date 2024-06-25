@@ -230,6 +230,10 @@ void UNiagaraSpriteRendererProperties::Serialize(FStructuredArchive::FRecord Rec
 		{
 			bSubImageBlend = false;
 		}
+		if (NiagaraVersion < FNiagaraCustomVersion::CustomSortingBindingToAge)
+		{
+			CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_NORMALIZED_AGE);
+		}
 	}
 
 	// MIC will replace the main material during serialize
@@ -304,7 +308,7 @@ void UNiagaraSpriteRendererProperties::InitBindings()
 		RendererVisibilityTagBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_VISIBILITY_TAG);
 
 		//Default custom sorting to age
-		CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_NORMALIZED_AGE);
+		CustomSortingBinding = FNiagaraConstants::GetAttributeDefaultBinding(SYS_PARAM_PARTICLES_AGE);
 	}
 
 	SetPreviousBindings(FVersionedNiagaraEmitter(), SourceMode);

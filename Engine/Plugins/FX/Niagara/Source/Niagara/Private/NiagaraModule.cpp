@@ -270,6 +270,7 @@ FNiagaraVariable INiagaraModule::Particles_Position;
 FNiagaraVariable INiagaraModule::Particles_Velocity;
 FNiagaraVariable INiagaraModule::Particles_Color;
 FNiagaraVariable INiagaraModule::Particles_SpriteRotation;
+FNiagaraVariable INiagaraModule::Particles_Age;
 FNiagaraVariable INiagaraModule::Particles_NormalizedAge;
 FNiagaraVariable INiagaraModule::Particles_SpriteSize;
 FNiagaraVariable INiagaraModule::Particles_SpriteFacing;
@@ -434,6 +435,7 @@ void INiagaraModule::StartupModule()
 	Particles_Velocity = FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Particles.Velocity"));
 	Particles_Color = FNiagaraVariable(FNiagaraTypeDefinition::GetColorDef(), TEXT("Particles.Color"));
 	Particles_SpriteRotation = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.SpriteRotation"));
+	Particles_Age = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.Age"));
 	Particles_NormalizedAge = FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particles.NormalizedAge"));
 	Particles_SpriteSize = FNiagaraVariable(FNiagaraTypeDefinition::GetVec2Def(), TEXT("Particles.SpriteSize"));
 	Particles_SpriteFacing = FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Particles.SpriteFacing"));

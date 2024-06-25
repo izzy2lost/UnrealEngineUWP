@@ -107,6 +107,7 @@
 #define SYS_PARAM_PARTICLES_VELOCITY                     INiagaraModule::GetVar_Particles_Velocity()
 #define SYS_PARAM_PARTICLES_COLOR                        INiagaraModule::GetVar_Particles_Color()
 #define SYS_PARAM_PARTICLES_SPRITE_ROTATION              INiagaraModule::GetVar_Particles_SpriteRotation()
+#define SYS_PARAM_PARTICLES_AGE                          INiagaraModule::GetVar_Particles_Age()
 #define SYS_PARAM_PARTICLES_NORMALIZED_AGE               INiagaraModule::GetVar_Particles_NormalizedAge()
 #define SYS_PARAM_PARTICLES_SPRITE_SIZE                  INiagaraModule::GetVar_Particles_SpriteSize()
 #define SYS_PARAM_PARTICLES_SPRITE_FACING                INiagaraModule::GetVar_Particles_SpriteFacing()
