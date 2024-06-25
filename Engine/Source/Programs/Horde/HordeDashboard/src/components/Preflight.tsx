@@ -105,7 +105,7 @@ export const PreflightRedirector: React.FC = () => {
 
       console.log(`Redirecting preflight: ${window.location.href}`);
 
-      backend.getJobs({ filter: "id", count: 1, preflightChange: cl }).then(result => {
+      backend.getJobs({ filter: "id,streamId", count: 1, preflightChange: cl }).then(result => {
 
          if (result && result.length === 1) {
 
