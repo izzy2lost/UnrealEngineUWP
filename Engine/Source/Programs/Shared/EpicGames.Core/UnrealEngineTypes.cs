@@ -1226,6 +1226,11 @@ namespace EpicGames.Core
 		ExperimentalAlwaysOverriden = 0x0400000000000000,
 
 		/// <summary>
+		/// ****Experimental*** Property should never be overridden when using overridable serialization
+		/// </summary>
+		ExperimentalNeverOverriden = 0x0800000000000000,
+
+		/// <summary>
 		/// All Native Access Specifier flags
 		/// </summary>
 		NativeAccessSpecifiers = NativeAccessSpecifierPublic | NativeAccessSpecifierProtected | NativeAccessSpecifierPrivate,

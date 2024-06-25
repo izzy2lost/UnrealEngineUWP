@@ -27,6 +27,12 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 	checkf(bUseOverridableSerialization, TEXT("Nobody should use this method if it is not setup to use overridable serialization"));
 
 	const FArchiveSerializedPropertyChain* CurrentPropertyChain = Ar.GetSerializedPropertyChain();
+	const FProperty* CurrentProperty = Property ? Property : (CurrentPropertyChain ? CurrentPropertyChain->GetPropertyFromStack(0) : nullptr);
+	if (CurrentProperty && CurrentProperty->HasAnyPropertyFlags(CPF_ExperimentalNeverOverriden))
+	{
+		return EOverriddenPropertyOperation::None;
+	}
+
 	const EOverriddenPropertyOperation OverriddenOperation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(CurrentPropertyChain, Property) : EOverriddenPropertyOperation::None;
 	if (OverriddenOperation != EOverriddenPropertyOperation::None)
 	{
@@ -34,7 +40,7 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 	}
 
 	// It does not mean that if we have no record of an overriden operation that a subobject might have one, need to traverse all possible subobjects. 
-	if (const FProperty* CurrentProperty = Property ? Property : (CurrentPropertyChain ? CurrentPropertyChain->GetPropertyFromStack(0) : nullptr) )
+	if (CurrentProperty)
 	{
 		if (CurrentProperty->HasAnyPropertyFlags(CPF_ExperimentalAlwaysOverriden))
 		{
