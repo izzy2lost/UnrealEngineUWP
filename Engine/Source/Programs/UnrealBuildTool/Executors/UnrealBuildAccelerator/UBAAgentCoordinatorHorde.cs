@@ -561,6 +561,14 @@ namespace UnrealBuildTool
 				// reset
 				HordeConfig = new();
 			}
+			if (Unreal.IsBuildMachine())
+			{
+				string? hordeUrl = System.Environment.GetEnvironmentVariable("UE_HORDE_URL");
+				if (!String.IsNullOrEmpty(hordeUrl))
+				{
+					HordeConfig.HordeServer = hordeUrl;
+				}
+			}	
 			if (HordeConfig.HordeEnabled?.Equals("False", StringComparison.OrdinalIgnoreCase) == true)
 			{
 				HordeConfig.bDisableHorde = true;
