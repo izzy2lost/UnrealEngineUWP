@@ -5,6 +5,7 @@
 #include "Chaos/Math/Poisson.h"
 #include "ChaosFlesh/ChaosFlesh.h"
 #include "ChaosFlesh/TetrahedralCollection.h"
+#include "GeometryCollection/Facades/CollectionMuscleActivationFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshComputeFiberFieldNode)
 
@@ -201,4 +202,110 @@ void FComputeFiberFieldNode::ComputeFiberField(
 		ScalarField,
 		MaxIterations,
 		Tolerance);
+}
+
+void FComputeFiberStreamlineNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	//
+	// Gather inputs
+	//
+
+	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+	FFieldCollection OutVectorField;
+	TArray<int32> InOriginIndices = GetValue<TArray<int32>>(Context, &OriginIndices);
+	TArray<int32> InInsertionIndices = GetValue<TArray<int32>>(Context, &InsertionIndices);
+
+	//
+	// Pull Origin & Insertion data out of the geometry collection.  We may want other ways of specifying
+	// these via an input on the node...
+	//
+
+	// Origin & Insertion
+	TManagedArray<int32>* Origin = nullptr;
+	TManagedArray<int32>* Insertion = nullptr;
+	if (InOriginIndices.IsEmpty() || InInsertionIndices.IsEmpty())
+	{
+		// Origin & Insertion group
+		if (OriginInsertionGroupName.IsEmpty())
+		{
+			UE_LOG(LogChaosFlesh, Warning, TEXT("ComputeFiberFieldNode: Attr 'OriginInsertionGroupName' cannot be empty."));
+			Out->SetValue(MoveTemp(InCollection), Context);
+			return;
+		}
+
+		// Origin vertices
+		if (InOriginIndices.IsEmpty())
+		{
+			if (OriginVertexFieldName.IsEmpty())
+			{
+				UE_LOG(LogChaosFlesh, Warning, TEXT("ComputeFiberFieldNode: Attr 'OriginVertexFieldName' cannot be empty."));
+				Out->SetValue(MoveTemp(InCollection), Context);
+				return;
+			}
+			Origin = InCollection.FindAttribute<int32>(FName(OriginVertexFieldName), FName(OriginInsertionGroupName));
+			if (!Origin)
+			{
+				UE_LOG(LogChaosFlesh, Warning,
+					TEXT("ComputeFiberFieldNode: Failed to find geometry collection attr '%s' in group '%s'"),
+					*OriginVertexFieldName, *OriginInsertionGroupName);
+				Out->SetValue(MoveTemp(InCollection), Context);
+				return;
+			}
+		}
+
+		// Insertion vertices
+		if (InInsertionIndices.IsEmpty())
+		{
+			if (InsertionVertexFieldName.IsEmpty())
+			{
+				UE_LOG(LogChaosFlesh, Warning, TEXT("ComputeFiberFieldNode: Attr 'InsertionVertexFieldName' cannot be empty."));
+				Out->SetValue(MoveTemp(InCollection), Context);
+				return;
+			}
+			Insertion = InCollection.FindAttribute<int32>(FName(InsertionVertexFieldName), FName(OriginInsertionGroupName));
+			if (!Insertion)
+			{
+				UE_LOG(LogChaosFlesh, Warning,
+					TEXT("ComputeFiberFieldNode: Failed to find geometry collection attr '%s' in group '%s'"),
+					*InsertionVertexFieldName, *OriginInsertionGroupName);
+				Out->SetValue(MoveTemp(InCollection), Context);
+				return;
+			}
+		}
+	}
+
+	InOriginIndices = Origin ? Origin->GetConstArray() : InOriginIndices;
+	InInsertionIndices = Insertion ? Insertion->GetConstArray() : InInsertionIndices;
+	if (InOriginIndices.Num() == 0 || InInsertionIndices.Num() == 0)
+	{
+		FindOutput(&VectorField)->SetValue(MoveTemp(OutVectorField), Context);
+		FindOutput(&Collection)->SetValue(MoveTemp(InCollection), Context);
+		return;
+	}
+	//
+	// Compute muscle fiber streamlines
+	// Save streamlines to muscle group
+	//
+	GeometryCollection::Facades::FMuscleActivationFacade MuscleActivation(InCollection);
+
+	TArray<TArray<TArray<FVector3f>>> Streamlines = MuscleActivation.BuildStreamlines(Origin ? Origin->GetConstArray() : InOriginIndices,
+		Insertion ? Insertion->GetConstArray() : InInsertionIndices, NumLinesMultiplier, MaxStreamlineIterations, MaxPointsPerLine);
+
+	//Render streamlines
+	for (int32 i = 0; i < Streamlines.Num(); ++i)
+	{
+		for (int32 j = 0; j < Streamlines[i].Num(); ++j)
+		{
+			for (int32 k = 1; k < Streamlines[i][j].Num(); ++k)
+			{
+				OutVectorField.AddVectorToField(Streamlines[i][j][k - 1], Streamlines[i][j][k]);
+			}
+		}
+	}
+
+	//
+	// Set output(s)
+	//
+	FindOutput(&VectorField)->SetValue(MoveTemp(OutVectorField), Context);
+	FindOutput(&Collection)->SetValue(MoveTemp(InCollection), Context);
 }

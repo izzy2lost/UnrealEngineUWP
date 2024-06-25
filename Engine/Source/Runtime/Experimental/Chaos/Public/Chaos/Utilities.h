@@ -1216,5 +1216,152 @@ namespace Chaos
 				}
 			}
 		}
+
+		inline FIntVector3 SortFIntVector3(FIntVector3& V)
+		{
+			if (V[1] < V[0])
+			{
+				int32 V0 = V[0];
+				V[0] = V[1];
+				V[1] = V0;
+			}
+			if (V[2] < V[0])
+			{
+				int32 V2 = V[2];
+				V[2] = V[1];
+				V[1] = V[0];
+				V[0] = V2;
+			}
+			else if (V[2] < V[1])
+			{
+				int32 V1 = V[1];
+				V[1] = V[2];
+				V[2] = V1;
+			}
+			return V;
+		}
+
+		// For each of the 4 triangle faces in a tet, return local vertex indices
+		// right hand rule, triangle normal pointing outwards
+		inline FIntVector3 TetFace(int32 f) {
+			switch (f) {
+			case 0:
+				return { 1, 2, 3 };
+			case 1:
+				return { 0, 3, 2 };
+			case 2:
+				return { 0, 1, 3 };
+			case 3:
+				return { 0, 2, 1 };
+			default:
+				return { -1, -1, -1 };
+			}
+		}
+
+		template <typename Func1, typename Func2>
+		TArray<FIntVector2> ComputeMeshFacePairs(const TArray<FIntVector4>& Mesh, Func1 GreaterThan, Func2 Equal) {
+			int32 NumFacesPerElement = 4;
+			int32 face_number = Mesh.Num() * NumFacesPerElement;
+			TArray<int32> AllFaces, ranges;
+			AllFaces.SetNum(face_number);
+			for (int32 f = 0; f < face_number; f++) {
+				AllFaces[f] = f;
+			}
+
+			AllFaces.Sort([&GreaterThan, &Mesh](int32 face_a, int32 face_b) { return GreaterThan(Mesh, face_a, face_b); });
+			TArray<FIntVector2> CommonFacePairs;
+			int32 f1 = 0, f2 = 1;
+			while (f2 < AllFaces.Num())
+			{
+				if (Equal(Mesh, AllFaces[f1], AllFaces[f2])) //common face from two tetrahedra
+				{
+					CommonFacePairs.Add(FIntVector2(AllFaces[f1], AllFaces[f2]));
+					f1 += 2;
+					f2 += 2;
+				}
+				else //boundary face
+				{
+					CommonFacePairs.Add(FIntVector2(AllFaces[f1], -1));
+					f1 += 1;
+					f2 += 1;
+				}
+			}
+			if (f1 < AllFaces.Num())
+			{
+				CommonFacePairs.Add(FIntVector2(AllFaces[f1], -1));
+			}
+			return CommonFacePairs;
+		}
+
+		//returns pairs of face indices {FaceA, FaceB} that are shared by two adjacent tetrahedra or boundary face {FaceA, -1}
+		inline TArray<FIntVector2> ComputeTetMeshFacePairs(const TArray<FIntVector4>& TetMesh) {
+			auto FaceGreaterThan = [](FIntVector3& i1, FIntVector3& i2)
+			{
+				SortFIntVector3(i1);
+				SortFIntVector3(i2);
+				if (i1[0] > i2[0])
+					return true;
+				else if (i1[0] == i2[0] && i1[1] > i2[1])
+					return true;
+				return (i1[0] == i2[0] && i1[1] == i2[1] && i1[2] > i2[2]);
+			};
+			auto FaceEqual = [](FIntVector3& i1, FIntVector3& i2)
+			{
+				SortFIntVector3(i1);
+				SortFIntVector3(i2);
+				return i1 == i2;
+			};
+			auto GreaterThan = [&FaceGreaterThan](const TArray<FIntVector4>& Mesh, int32 e1, int32 e2)
+			{
+				int32 Local1 = e1 % 4;
+				int32 Element1 = e1 / 4;
+				FIntVector3 LocalFace1 = TetFace(Local1);
+				FIntVector3 Edge1 = FIntVector3(Mesh[Element1][LocalFace1[0]], Mesh[Element1][LocalFace1[1]], Mesh[Element1][LocalFace1[2]]);
+				int32 Local2 = e2 % 4;
+				int32 Element2 = e2 / 4;
+				FIntVector3 LocalFace2 = TetFace(Local2);
+				FIntVector3 Edge2 = FIntVector3(Mesh[Element2][LocalFace2[0]], Mesh[Element2][LocalFace2[1]], Mesh[Element2][LocalFace2[2]]);
+				return FaceGreaterThan(Edge1, Edge2);
+			};
+			auto Equal = [&FaceEqual](const TArray<FIntVector4>& Mesh, int32 e1, int32 e2)
+			{
+				int32 Local1 = e1 % 4;
+				int32 Element1 = e1 / 4;
+				FIntVector3 LocalFace1 = TetFace(Local1);
+				FIntVector3 Edge1 = FIntVector3(Mesh[Element1][LocalFace1[0]], Mesh[Element1][LocalFace1[1]], Mesh[Element1][LocalFace1[2]]);
+				int32 Local2 = e2 % 4;
+				int32 Element2 = e2 / 4;
+				FIntVector3 LocalFace2 = TetFace(Local2);
+				FIntVector3 Edge2 = FIntVector3(Mesh[Element2][LocalFace2[0]], Mesh[Element2][LocalFace2[1]], Mesh[Element2][LocalFace2[2]]);
+				return FaceEqual(Edge1, Edge2);
+			};
+			return ComputeMeshFacePairs(TetMesh, GreaterThan, Equal);
+		}
+
+		//Return a randomly sampled point in selected tetrahedra following uniform distribution
+		inline TArray<TArray<FVector3f>> RandomPointsInTet(const TArray<FVector3f>& x, const TArray<FIntVector4>& TetMesh, const TArray<int32>& SampleElements, int32 NumRandomPointsPerElement = 1) {
+			srand(1);
+			TArray<TArray<FVector3f>> SampledPoints;
+			SampledPoints.SetNum(SampleElements.Num());
+			for (int32 ElemIdx = 0; ElemIdx < SampleElements.Num(); ++ElemIdx)
+			{
+				int32 e = SampleElements[ElemIdx];
+				for (int32 i = 0; i < NumRandomPointsPerElement; ++i) {
+					FVector4f Weights(0);
+					FVector3f Point(0);
+					float TotalWeight = 0;
+					for (int32 j = 0; j < 4; ++j) {
+						Weights[j] = float(rand()) / float(RAND_MAX);
+						TotalWeight += Weights[j];
+					}
+					for (int32 j = 0; j < 4; ++j) {
+						Weights[j] /= TotalWeight;
+						Point += Weights[j] * x[TetMesh[e][j]];
+					}
+					SampledPoints[ElemIdx].Add(Point);
+				}
+			}
+			return SampledPoints;
+		}
 	} // namespace Utilities
 } // namespace Chaos

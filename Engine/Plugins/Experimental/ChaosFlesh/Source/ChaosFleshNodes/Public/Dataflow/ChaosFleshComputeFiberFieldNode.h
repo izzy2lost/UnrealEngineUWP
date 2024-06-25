@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEngine.h"
+#include "Field/FieldSystemTypes.h"
 
 #include "ChaosFleshComputeFiberFieldNode.generated.h"
 
@@ -71,4 +72,60 @@ public:
 		const TArray<int32>& Insertion,
 		TArray<FVector3f>& Directions,
 		TArray<float>& ScalarField) const;
+};
+
+/**
+* Computes fiber streamlines (line segments) flowing from muscle origins to insertions in the muscle fiber field.
+*/
+USTRUCT(meta = (DataflowFlesh))
+struct FComputeFiberStreamlineNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FComputeFiberStreamlineNode, "ComputeFiberStreamline", "Flesh", "")
+	DATAFLOW_NODE_RENDER_TYPE("VolumeRender", FFieldCollection::StaticType(), "VectorField")
+
+public:
+	//typedef FManagedArrayCollection DataType;
+
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "Collection", DataflowPassthrough = "Collection"))
+	FManagedArrayCollection Collection;
+
+	UPROPERTY(meta = (DataflowInput, DisplayName = "OriginVertexIndices"))
+	TArray<int32> OriginIndices;
+
+	UPROPERTY(meta = (DataflowInput, DisplayName = "InsertionVertexIndices"))
+	TArray<int32> InsertionIndices;
+
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	FString OriginInsertionGroupName = FString();
+
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	FString OriginVertexFieldName = FString("Origin");
+
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	FString InsertionVertexFieldName = FString("Insertion");
+
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	int32 MaxStreamlineIterations = 500;
+
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	int32 MaxPointsPerLine = 20;
+
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	int32 NumLinesMultiplier = 1;
+
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "VectorField"))
+	FFieldCollection VectorField;
+
+	FComputeFiberStreamlineNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&OriginIndices);
+		RegisterInputConnection(&InsertionIndices);
+		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&VectorField);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };

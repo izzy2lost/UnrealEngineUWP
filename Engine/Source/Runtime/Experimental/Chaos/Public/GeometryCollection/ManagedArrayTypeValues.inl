@@ -58,6 +58,7 @@ MANAGED_ARRAY_TYPE(TArray<FIntVector3>, IntVector3Array)
 MANAGED_ARRAY_TYPE(TArray<FVector4f>, Vector4fArray)
 MANAGED_ARRAY_TYPE(Chaos::PMatrix33d, PMatrix33d)
 MANAGED_ARRAY_TYPE(TArray<Chaos::PMatrix33d>, PMatrix33dArray)
+MANAGED_ARRAY_TYPE(TArray<TArray<FVector3f>>, FVector3fNestedArray)
 
 // NOTE: new types must be added at the bottom to keep serialization from breaking
 

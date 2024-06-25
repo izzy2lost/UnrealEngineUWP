@@ -16,23 +16,31 @@ void FVisualizeFiberFieldNode::Evaluate(Dataflow::FContext& Context, const FData
 		
 		if (TManagedArray<FVector3f>* Vertex = InCollection.FindAttribute<FVector3f>("Vertex", "Vertices"))
 		{
-			if (TManagedArray<FIntVector4>* Elements = InCollection.FindAttribute<FIntVector4>(FTetrahedralCollection::TetrahedronAttribute, FTetrahedralCollection::TetrahedralGroup))
+			if (TManagedArray<FLinearColor>* Color = InCollection.FindAttribute<FLinearColor>("Color", "Vertices"))
 			{
-				if (TManagedArray<FVector3f>* FiberDirections = InCollection.FindAttribute<FVector3f>("FiberDirection", FTetrahedralCollection::TetrahedralGroup))
+				if (TManagedArray<FIntVector4>* Elements = InCollection.FindAttribute<FIntVector4>(FTetrahedralCollection::TetrahedronAttribute, FTetrahedralCollection::TetrahedralGroup))
 				{
-					ensureMsgf(Elements->Num() == FiberDirections->Num(), TEXT("Fiber direction has different size than elements"));
-					for (int32 ElemIndex = 0; ElemIndex < Elements->Num(); ElemIndex++)
+					if (TManagedArray<FVector3f>* FiberDirections = InCollection.FindAttribute<FVector3f>("FiberDirection", FTetrahedralCollection::TetrahedralGroup))
 					{
-						if ((*FiberDirections)[ElemIndex].Length() > 1e-10)
+						ensureMsgf(Elements->Num() == FiberDirections->Num(), TEXT("Fiber direction has different size than elements"));
+						for (int32 ElemIndex = 0; ElemIndex < Elements->Num(); ElemIndex++)
 						{
-							FVector3f VectorStart = { 0,0,0 };
-							for (int32 LocalIndex = 0; LocalIndex < 4; LocalIndex++)
+							if ((*FiberDirections)[ElemIndex].Length() > 1e-10)
 							{
-								VectorStart += (*Vertex)[(*Elements)[ElemIndex][LocalIndex]];
+								FVector3f VectorStart = { 0,0,0 };
+								FLinearColor VectorColor(EForceInit::ForceInitToZero);
+
+								for (int32 LocalIndex = 0; LocalIndex < 4; LocalIndex++)
+								{
+									VectorStart += (*Vertex)[(*Elements)[ElemIndex][LocalIndex]];
+									VectorColor += (*Color)[(*Elements)[ElemIndex][LocalIndex]];
+								}
+								VectorStart /= float(4);
+								VectorColor /= float(4);
+								FVector3f VectorEnd = VectorStart + (*FiberDirections)[ElemIndex] * VectorScale;
+								int32 VectorIndex = OutVectorField.AddVectorToField(VectorStart, VectorEnd);
+								OutVectorField.SetColorOnVector(VectorIndex, VectorColor);
 							}
-							VectorStart /= float(4);
-							FVector3f VectorEnd = VectorStart + (*FiberDirections)[ElemIndex] * VectorScale;
-							OutVectorField.AddVectorToField(VectorStart, VectorEnd);
 						}
 					}
 				}

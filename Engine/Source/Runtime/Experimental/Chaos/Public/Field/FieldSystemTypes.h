@@ -415,25 +415,52 @@ public:
 		AddGroup("VectorField"); 
 		AddAttribute<FVector3f>("Start", "VectorField");
 		AddAttribute<FVector3f>("End", "VectorField");
+		AddAttribute<FLinearColor>("Color", "VectorField");
 	}
 	
-	void AddVectorToField(FVector3f Start, FVector3f End)
+	int32 AddVectorToField(FVector3f Start, FVector3f End)
 	{
 		int32 Size = AddElements(1, "VectorField");
 		ModifyAttribute<FVector3f>("Start", "VectorField")[Size] = Start;
 		ModifyAttribute<FVector3f>("End", "VectorField")[Size] = End;
+		ModifyAttribute<FLinearColor>("Color", "VectorField")[Size] = FLinearColor(0.6f, 0.6f, 0.6f);
+		return Size;
+	}
+
+	void SetColorOnVector(int32 Index, FLinearColor Color)
+	{
+		if (0 <= Index && Index < NumElements("VectorField"))
+		{
+			ModifyAttribute<FLinearColor>("Color", "VectorField")[Index] = Color;
+		}
 	}
 	
 	TArray<TPair<FVector3f, FVector3f>> GetVectorField() const
 	{
 		TArray<TPair<FVector3f, FVector3f>> VectorField;
-		const TManagedArray<FVector3f>& VectorFieldStart = GetAttribute<FVector3f>("Start", "VectorField");
-		const TManagedArray<FVector3f>& VectorFieldEnd = GetAttribute<FVector3f>("End", "VectorField");
-		for (int32 i = 0; i < NumElements("VectorField"); i++)
+		if (FindAttribute<FVector3f>("Start", "VectorField") != nullptr && FindAttribute<FVector3f>("End", "VectorField") != nullptr)
 		{
-			VectorField.Add(TPair<FVector3f, FVector3f>(VectorFieldStart[i], VectorFieldEnd[i]));
+			const TManagedArray<FVector3f>& VectorFieldStart = GetAttribute<FVector3f>("Start", "VectorField");
+			const TManagedArray<FVector3f>& VectorFieldEnd = GetAttribute<FVector3f>("End", "VectorField");
+			for (int32 i = 0; i < NumElements("VectorField"); i++)
+			{
+				VectorField.Add(TPair<FVector3f, FVector3f>(VectorFieldStart[i], VectorFieldEnd[i]));
+			}
 		}
 		return VectorField;
+	}
+
+	TArray<FLinearColor> GetVectorColor() const
+	{
+		if (FindAttribute<FLinearColor>("Color", "VectorField") != nullptr)
+		{
+			const TManagedArray<FLinearColor>& Color = GetAttribute<FLinearColor>("Color", "VectorField");
+			return Color.GetConstArray();
+		}
+		else
+		{
+			return TArray<FLinearColor>();
+		}
 	}
 
 };

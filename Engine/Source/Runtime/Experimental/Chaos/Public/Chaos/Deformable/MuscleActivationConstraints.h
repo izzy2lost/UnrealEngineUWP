@@ -28,18 +28,27 @@ namespace Chaos::Softs
 			for (int MuscleIdx = 0; MuscleIdx < FMuscleActivation.NumMuscles(); MuscleIdx++)
 			{
 				Data MuscleActivationData = FMuscleActivation.GetMuscleActivationData(MuscleIdx);
-				for (int32 i = 0; i < MuscleActivationData.MuscleActivationElement.Num(); i++)
+				if (FMuscleActivation.IsValidGeometryIndex(MuscleActivationData.GeometryGroupIndex))
 				{
-					MuscleActivationData.MuscleActivationElement[i] += ElementOffset;
+					int32 OldSize = MuscleActivationElement.Num();
+					MuscleActivationElement.SetNum(OldSize + 1);
+					FiberDirectionMatrix.SetNum(OldSize + 1);
+					ContractionVolumeScale.SetNum(OldSize + 1);
+					for (int32 i = 0; i < MuscleActivationData.MuscleActivationElement.Num(); i++)
+					{
+						if (FMuscleActivation.IsValidElementIndex(MuscleActivationData.MuscleActivationElement[i]))
+						{
+							MuscleActivationElement[OldSize].Add(MuscleActivationData.MuscleActivationElement[i] + ElementOffset);
+							FiberDirectionMatrix[OldSize].Add(MuscleActivationData.FiberDirectionMatrix[i]);
+							ContractionVolumeScale[OldSize].Add(MuscleActivationData.ContractionVolumeScale[i]);
+						}
+					}
+					MuscleActivationData.OriginInsertionPair[0] += VertexOffset;
+					MuscleActivationData.OriginInsertionPair[1] += VertexOffset;
+					OriginInsertionPair.Add(MuscleActivationData.OriginInsertionPair);
+					OriginInsertionRestLength.Add(MuscleActivationData.OriginInsertionRestLength);
+					Activation.Add(0.f);
 				}
-				MuscleActivationElement.Add(MuscleActivationData.MuscleActivationElement);
-				MuscleActivationData.OriginInsertionPair[0] += VertexOffset;
-				MuscleActivationData.OriginInsertionPair[1] += VertexOffset;
-				OriginInsertionPair.Add(MuscleActivationData.OriginInsertionPair);
-				OriginInsertionRestLength.Add(MuscleActivationData.OriginInsertionRestLength);
-				Activation.Add(0.f);
-				FiberDirectionMatrix.Add(MuscleActivationData.FiberDirectionMatrix);
-				ContractionVolumeScale.Add(MuscleActivationData.ContractionVolumeScale);
 			}
 		}
 

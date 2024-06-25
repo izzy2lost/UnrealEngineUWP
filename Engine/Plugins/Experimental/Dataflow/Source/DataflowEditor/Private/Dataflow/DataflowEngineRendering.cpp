@@ -555,34 +555,33 @@ namespace Dataflow
 				FName PrimaryOutput = State.GetRenderOutputs()[0]; // "VectorField"
 				if (PrimaryOutput.IsEqual(FName("VectorField")))
 				{
-					FFieldCollection Default;
-					const FFieldCollection& Collection = State.GetValue<FFieldCollection>(PrimaryOutput, Default);
-					TArray<TPair<FVector3f, FVector3f>> VectorField = Collection.GetVectorField();
-					const int32 NumVertices = 3 * VectorField.Num();
-					const int32 NumTriangles = VectorField.Num();
+						FFieldCollection Default;
+						const FFieldCollection& Collection = State.GetValue<FFieldCollection>(PrimaryOutput, Default);
+						TArray<TPair<FVector3f, FVector3f>> VectorField = Collection.GetVectorField();
+						TArray<FLinearColor> VertexColors = Collection.GetVectorColor();
+						const int32 NumVertices = 3 * VectorField.Num();
+						const int32 NumTriangles = VectorField.Num();
 
-					TArray<FVector3f> Vertices; Vertices.AddUninitialized(NumVertices);
-					TArray<FIntVector> Tris; Tris.AddUninitialized(NumTriangles);
-					TArray<FVector3f> VertexNormals; VertexNormals.AddUninitialized(NumVertices);
-					TArray<FLinearColor> VertexColors; VertexColors.AddUninitialized(NumVertices);
+						TArray<FVector3f> Vertices; Vertices.AddUninitialized(NumVertices);
+						TArray<FIntVector> Tris; Tris.AddUninitialized(NumTriangles);
+						TArray<FVector3f> VertexNormals; VertexNormals.AddUninitialized(NumVertices);
 
-					for (int32 i = 0; i < VectorField.Num(); i++)
-					{
-
-						FVector3f Dir = VectorField[i].Value - VectorField[i].Key;
-						FVector3f DirAdd = Dir;
-						DirAdd.X += 1.f;
-						FVector3f OrthogonalDir = (Dir ^ DirAdd).GetSafeNormal();
-						Tris[i] = FIntVector(3 * i, 3 * i + 1, 3 * i + 2);
-						Vertices[3 * i] = VectorField[i].Key;
-						Vertices[3 * i + 1] = VectorField[i].Value;
-						Vertices[3 * i + 2] = VectorField[i].Key + float(0.1) * Dir.Size() * OrthogonalDir;
-						FVector3f TriangleNormal = (OrthogonalDir ^ Dir).GetSafeNormal();
-						VertexNormals[3 * i] = TriangleNormal;
-						VertexNormals[3 * i + 1] = TriangleNormal;
-						VertexNormals[3 * i + 2] = TriangleNormal;
-						VertexColors[i] = FLinearColor(FDataflowEditorModule::SurfaceColor);
-					}
+						for (int32 i = 0; i < VectorField.Num(); i++)
+						{
+							
+							FVector3f Dir = VectorField[i].Value - VectorField[i].Key;
+							FVector3f DirAdd = Dir;
+							DirAdd.X += 1.f;
+							FVector3f OrthogonalDir = (Dir^ DirAdd).GetSafeNormal();
+							Tris[i] = FIntVector(3*i, 3*i+1, 3*i+2);
+							Vertices[3*i] = VectorField[i].Key;
+							Vertices[3*i+1] = VectorField[i].Value;
+							Vertices[3*i+2] = VectorField[i].Key + float(0.1) * Dir.Size() * OrthogonalDir;
+							FVector3f TriangleNormal = (OrthogonalDir ^ Dir).GetSafeNormal();
+							VertexNormals[3*i] = TriangleNormal;
+							VertexNormals[3*i+1] = TriangleNormal;
+							VertexNormals[3*i+2] = TriangleNormal;
+						}
 
 					int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());
 					RenderCollection.AddSurface(MoveTemp(Vertices), MoveTemp(Tris), MoveTemp(VertexNormals), MoveTemp(VertexColors));
