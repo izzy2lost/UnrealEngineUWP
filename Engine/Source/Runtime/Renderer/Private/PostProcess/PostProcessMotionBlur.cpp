@@ -461,6 +461,8 @@ class FMotionBlurFilterCS : public FMotionBlurShader
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, VelocityTile)
 
 		SHADER_PARAMETER(FScreenTransform, ColorToVelocity)
+		SHADER_PARAMETER(FScreenTransform, SeparateTranslucencyUVToViewportUV)
+		SHADER_PARAMETER(FScreenTransform, ViewportUVToSeparateTranslucencyUV)
 		SHADER_PARAMETER(int32, MaxSampleCount)
 		SHADER_PARAMETER(int32, OutputMip1)
 		SHADER_PARAMETER(int32, OutputMip2)
@@ -1025,9 +1027,12 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 		
 			OriginalPassParameters.TranslucencyTexture = PostMotionBlurTranslucency;
 			OriginalPassParameters.TranslucencySampler = GetPostMotionBlurTranslucencySampler(bScaleTranslucency);
-			OriginalPassParameters.ColorToTranslucency = FScreenTransform::ChangeTextureUVCoordinateFromTo(
-				Viewports.Color,
-				FScreenPassTextureViewport(PostMotionBlurTranslucency->Desc.Extent, FIntRect(FIntPoint::ZeroValue, PostMotionBlurTranslucencySize)));
+			FScreenPassTextureViewport TranslucencyViewport = FScreenPassTextureViewport(PostMotionBlurTranslucency->Desc.Extent, FIntRect(FIntPoint::ZeroValue, PostMotionBlurTranslucencySize));
+			OriginalPassParameters.ColorToTranslucency = FScreenTransform::ChangeTextureUVCoordinateFromTo(Viewports.Color, TranslucencyViewport);
+			OriginalPassParameters.SeparateTranslucencyUVToViewportUV = FScreenTransform::ChangeTextureBasisFromTo(
+				TranslucencyViewport, FScreenTransform::ETextureBasis::TextureUV, FScreenTransform::ETextureBasis::ViewportUV);
+			OriginalPassParameters.ViewportUVToSeparateTranslucencyUV = FScreenTransform::ChangeTextureBasisFromTo(
+				TranslucencyViewport, FScreenTransform::ETextureBasis::ViewportUV, FScreenTransform::ETextureBasis::TextureUV);
 			OriginalPassParameters.TranslucencyUVMin = FVector2f(0.0f, 0.0f);
 			OriginalPassParameters.TranslucencyUVMax = (FVector2f(PostMotionBlurTranslucencySize) - FVector2f(0.5f, 0.5f)) * PostMotionBlurTranslucencyExtentInv;
 			OriginalPassParameters.TranslucencyExtentInverse = PostMotionBlurTranslucencyExtentInv;
@@ -1043,6 +1048,8 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 			OriginalPassParameters.TranslucencyTexture = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
 			OriginalPassParameters.TranslucencySampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			OriginalPassParameters.ColorToTranslucency = FScreenTransform::Identity;
+			OriginalPassParameters.SeparateTranslucencyUVToViewportUV = FScreenTransform::Identity;
+			OriginalPassParameters.ViewportUVToSeparateTranslucencyUV = FScreenTransform::Identity;
 			OriginalPassParameters.TranslucencyUVMin = FVector2f(0.0f, 0.0f);
 			OriginalPassParameters.TranslucencyUVMax = FVector2f(0.0f, 0.0f);
 			OriginalPassParameters.TranslucencyExtentInverse = FVector2f(0.0f, 0.0f);

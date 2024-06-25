@@ -82,6 +82,8 @@ SCREEN_PASS_TEXTURE_VIEWPORT(Color)
 SCREEN_PASS_TEXTURE_VIEWPORT(Velocity)
 SCREEN_PASS_TEXTURE_VIEWPORT(VelocityTile)
 FScreenTransform ColorToVelocity;
+FScreenTransform SeparateTranslucencyUVToViewportUV;
+FScreenTransform ViewportUVToSeparateTranslucencyUV;
 uint MaxSampleCount;
 uint OutputMip1;
 uint OutputMip2;
@@ -249,6 +251,14 @@ mb_half GetVelocityLengthPixels(mb_half2 EncodedVelocity)
 {
 	// 11:11:10  (VelocityLength, VelocityAngle, Depth)
 	return EncodedVelocity.x;
+}
+
+float2 ApplyLensDistortionOnTranslucencyUV(float2 SeparateTranslucencyUV)
+{
+	float2 DistortedViewportUV = ApplyScreenTransform(SeparateTranslucencyUV, SeparateTranslucencyUVToViewportUV);
+	float2 UndistortedViewportUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, DistortedViewportUV);
+	
+	return ApplyScreenTransform(UndistortedViewportUV, ViewportUVToSeparateTranslucencyUV);
 }
 
 
@@ -743,10 +753,10 @@ void MainCS(
 		BRANCH
 		if (bLensDistortion)
 		{
-			PostMotionBlurTranslucencyUV0 = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV0);
-			PostMotionBlurTranslucencyUV1 = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV1);
-			PostMotionBlurTranslucencyUV2 = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV2);
-			PostMotionBlurTranslucencyUV3 = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV3);
+			PostMotionBlurTranslucencyUV0 = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV0);
+			PostMotionBlurTranslucencyUV1 = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV1);
+			PostMotionBlurTranslucencyUV2 = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV2);
+			PostMotionBlurTranslucencyUV3 = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV3);
 		}
 			
 		PostMotionBlurTranslucencyUV0 = clamp(PostMotionBlurTranslucencyUV0, TranslucencyUVMin, TranslucencyUVMax);
@@ -996,7 +1006,7 @@ void MainCS(
 		BRANCH
 		if (bLensDistortion)
 		{
-			PostMotionBlurTranslucencyUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, PostMotionBlurTranslucencyUV);
+			PostMotionBlurTranslucencyUV = ApplyLensDistortionOnTranslucencyUV(PostMotionBlurTranslucencyUV);
 		}
 		PostMotionBlurTranslucencyUV = clamp(PostMotionBlurTranslucencyUV, TranslucencyUVMin, TranslucencyUVMax);
 		

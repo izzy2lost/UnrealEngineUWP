@@ -32,6 +32,9 @@ SamplerState      UndistortingDisplacementSampler;
 
 FScreenTransform ScreenPosToSceneColorUV;
 FScreenTransform ScreenPosToSeparateTranslucencyUV;
+FScreenTransform SeparateTranslucencyUVToViewportUV;
+FScreenTransform ViewportUVToSeparateTranslucencyUV;
+
 float2 SeparateTranslucencyUVMin;
 float2 SeparateTranslucencyUVMax;
 float2 SeparateTranslucencyExtentInverse;
@@ -50,7 +53,9 @@ void MainPS(
 	BRANCH
 	if (bLensDistortion)
 	{
-		SeparateTranslucencyUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, SeparateTranslucencyUV);
+		float2 DistortedViewportUV = ApplyScreenTransform(SeparateTranslucencyUV, SeparateTranslucencyUVToViewportUV);
+		float2 UndistortedViewportUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, DistortedViewportUV);
+		SeparateTranslucencyUV = ApplyScreenTransform(UndistortedViewportUV, ViewportUVToSeparateTranslucencyUV);
 	}
 
 	float4 SceneColorSample = SceneColorTexture.SampleLevel(SceneColorSampler, SceneColorUV, 0);
