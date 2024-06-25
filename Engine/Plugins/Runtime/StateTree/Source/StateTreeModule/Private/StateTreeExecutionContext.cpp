@@ -434,16 +434,8 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 		// Transition to Succeeded state.
 		FStateTreeTransitionResult Transition;
 		Transition.TargetState = FStateTreeStateHandle::FromCompletionStatus(CompletionStatus);
-		Transition.CurrentRunStatus = CompletionStatus;
-		FStateTreeExecutionFrame& NewFrame = Transition.NextActiveFrames.AddDefaulted_GetRef();
-		NewFrame.StateTree = &RootStateTree;
-		NewFrame.RootState = FStateTreeStateHandle::Root;
-		NewFrame.ActiveStates = {};
-		
+		Transition.CurrentRunStatus = CompletionStatus;		
 		ExitState(Transition);
-
-		// Stop evaluators and global tasks.
-		StopEvaluatorsAndGlobalTasks(CompletionStatus);
 
 		// No active states or global tasks anymore, reset frames.
 		Exec.ActiveFrames.Reset();
@@ -1771,6 +1763,36 @@ void FStateTreeExecutionContext::ExitState(const FStateTreeTransitionResult& Tra
 			NextFrame = &Transition.NextActiveFrames[FrameIndex];
 		}
 
+		const bool bShouldCallOnEvaluatorsAndGlobalTasks = NextFrame == nullptr && CurrentFrame.bIsGlobalFrame;
+		ExitStateCalls.Emplace(EStateTreeStateChangeType::Changed, bShouldCallOnEvaluatorsAndGlobalTasks);
+		
+		if (bShouldCallOnEvaluatorsAndGlobalTasks)
+		{
+			for (int32 EvalIndex = CurrentStateTree->EvaluatorsBegin; EvalIndex < (CurrentStateTree->EvaluatorsBegin + CurrentStateTree->EvaluatorsNum); EvalIndex++)
+			{
+				const FStateTreeEvaluatorBase& Eval = CurrentStateTree->Nodes[EvalIndex].Get<const FStateTreeEvaluatorBase>();
+				const FStateTreeDataView EvalInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Eval.InstanceDataHandle);
+				FNodeInstanceDataScope DataScope(*this, Eval.InstanceDataHandle, EvalInstanceView);
+
+				if (Eval.BindingsBatch.IsValid())
+				{
+					CopyBatchOnActiveInstances(CurrentParentFrame, CurrentFrame, EvalInstanceView, Eval.BindingsBatch);
+				}
+			}
+
+			for (int32 TaskIndex = CurrentStateTree->GlobalTasksBegin; TaskIndex < (CurrentStateTree->GlobalTasksBegin + CurrentStateTree->GlobalTasksNum); TaskIndex++)
+			{
+				const FStateTreeTaskBase& Task = CurrentStateTree->Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
+				const FStateTreeDataView TaskInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Task.InstanceDataHandle);
+				FNodeInstanceDataScope DataScope(*this, Task.InstanceDataHandle, TaskInstanceView);
+
+				if (Task.BindingsBatch.IsValid() && Task.bShouldCopyBoundPropertiesOnExitState)
+				{
+					CopyBatchOnActiveInstances(CurrentParentFrame, CurrentFrame, TaskInstanceView, Task.BindingsBatch);
+				}
+			}
+		}
+
 		for (int32 Index = 0; Index < CurrentFrame.ActiveStates.Num(); Index++)
 		{
 			const FStateTreeStateHandle CurrentHandle = CurrentFrame.ActiveStates[Index];
@@ -1893,6 +1915,16 @@ void FStateTreeExecutionContext::ExitState(const FStateTreeTransitionResult& Tra
 			}
 
 			STATETREE_TRACE_STATE_EVENT(CurrentHandle, EStateTreeTraceEventType::OnExited);
+		}
+
+		// Frame exit call
+		{
+			const FExitStateCall& ExitCall = ExitStateCalls[CallIndex--];
+			if (ExitCall.bShouldCall)
+			{
+				CurrentTransition.ChangeType = ExitCall.ChangeType;
+				CallStopOnEvaluatorsAndGlobalTasks(CurrentParentFrame, CurrentFrame, CurrentTransition);
+			}
 		}
 	}
 
@@ -2209,55 +2241,65 @@ void FStateTreeExecutionContext::StopEvaluatorsAndGlobalTasks(const EStateTreeRu
 	Transition.TargetState = FStateTreeStateHandle::FromCompletionStatus(CompletionStatus);
 	Transition.CurrentRunStatus = CompletionStatus;
 
+	bool bIsLastGlobalFrame = true;
 	for (int32 FrameIndex = Exec.ActiveFrames.Num() - 1; FrameIndex >= 0; FrameIndex--)
 	{
 		const FStateTreeExecutionFrame* CurrentParentFrame = FrameIndex > 0 ? &Exec.ActiveFrames[FrameIndex - 1] : nullptr;
 		const FStateTreeExecutionFrame& CurrentFrame = Exec.ActiveFrames[FrameIndex];
 		if (CurrentFrame.bIsGlobalFrame)
 		{
-			FCurrentlyProcessedFrameScope FrameScope(*this, CurrentParentFrame, CurrentFrame);
+			// LastInitializedTaskIndex belongs to the last frame.
+			const FStateTreeIndex16 LastTaskToBeStopped = bIsLastGlobalFrame ? LastInitializedTaskIndex : FStateTreeIndex16::Invalid;
+			CallStopOnEvaluatorsAndGlobalTasks(CurrentParentFrame, CurrentFrame, Transition, LastTaskToBeStopped);
+			bIsLastGlobalFrame = false;
+		}
+	}
+}
 
-			const UStateTree* CurrentStateTree = CurrentFrame.StateTree;
+void FStateTreeExecutionContext::CallStopOnEvaluatorsAndGlobalTasks(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& Frame, const FStateTreeTransitionResult& Transition, const FStateTreeIndex16 LastInitializedTaskIndex /*= FStateTreeIndex16()*/)
+{
+	check(Frame.bIsGlobalFrame);
 
-			for (int32 TaskIndex = (CurrentStateTree->GlobalTasksBegin + CurrentStateTree->GlobalTasksNum) - 1;  TaskIndex >= CurrentStateTree->GlobalTasksBegin; TaskIndex--)
+	FCurrentlyProcessedFrameScope FrameScope(*this, ParentFrame, Frame);
+	const UStateTree* CurrentStateTree = Frame.StateTree;
+
+	for (int32 TaskIndex = (CurrentStateTree->GlobalTasksBegin + CurrentStateTree->GlobalTasksNum) - 1;  TaskIndex >= CurrentStateTree->GlobalTasksBegin; TaskIndex--)
+	{
+		const FStateTreeTaskBase& Task =  CurrentStateTree->Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
+		const FStateTreeDataView TaskInstanceView = GetDataView(ParentFrame, Frame, Task.InstanceDataHandle);
+		FNodeInstanceDataScope DataScope(*this, Task.InstanceDataHandle, TaskInstanceView);
+
+		// Ignore disabled task
+		if (Task.bTaskEnabled == false)
+		{
+			STATETREE_LOG(VeryVerbose, TEXT("%*sSkipped 'ExitState' for disabled Task: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
+			continue;
+		}
+
+		// Relying here that invalid value of LastInitializedTaskIndex == MAX_uint16.
+		if (TaskIndex <= LastInitializedTaskIndex.Get())
+		{
+			STATETREE_LOG(Verbose, TEXT("  Stop: '%s'"), *Task.Name.ToString());
 			{
-				const FStateTreeTaskBase& Task =  CurrentStateTree->Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
-				const FStateTreeDataView TaskInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Task.InstanceDataHandle);
-				FNodeInstanceDataScope DataScope(*this, Task.InstanceDataHandle, TaskInstanceView);
-
-				// Ignore disabled task
-				if (Task.bTaskEnabled == false)
-				{
-					STATETREE_LOG(VeryVerbose, TEXT("%*sSkipped 'ExitState' for disabled Task: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
-					continue;
-				}
-
-				// Relying here that invalid value of LastInitializedTaskIndex == MAX_uint16.
-				if (TaskIndex <= LastInitializedTaskIndex.Get())
-				{
-					STATETREE_LOG(Verbose, TEXT("  Stop: '%s'"), *Task.Name.ToString());
-					{
-						QUICK_SCOPE_CYCLE_COUNTER(StateTree_Task_TreeStop);
-						Task.ExitState(*this, Transition);
-					}
-					STATETREE_TRACE_TASK_EVENT(TaskIndex, TaskInstanceView, EStateTreeTraceEventType::OnExited, Transition.CurrentRunStatus);
-				}
+				QUICK_SCOPE_CYCLE_COUNTER(StateTree_Task_TreeStop);
+				Task.ExitState(*this, Transition);
 			}
+			STATETREE_TRACE_TASK_EVENT(TaskIndex, TaskInstanceView, EStateTreeTraceEventType::OnExited, Transition.CurrentRunStatus);
+		}
+	}
 
-			for (int32 EvalIndex = (CurrentStateTree->EvaluatorsBegin + CurrentStateTree->EvaluatorsNum) - 1; EvalIndex >= CurrentStateTree->EvaluatorsBegin; EvalIndex--)
-			{
-				const FStateTreeEvaluatorBase& Eval = CurrentStateTree->Nodes[EvalIndex].Get<const FStateTreeEvaluatorBase>();
-				const FStateTreeDataView EvalInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Eval.InstanceDataHandle);
-				FNodeInstanceDataScope DataScope(*this, Eval.InstanceDataHandle, EvalInstanceView);
+	for (int32 EvalIndex = (CurrentStateTree->EvaluatorsBegin + CurrentStateTree->EvaluatorsNum) - 1; EvalIndex >= CurrentStateTree->EvaluatorsBegin; EvalIndex--)
+	{
+		const FStateTreeEvaluatorBase& Eval = CurrentStateTree->Nodes[EvalIndex].Get<const FStateTreeEvaluatorBase>();
+		const FStateTreeDataView EvalInstanceView = GetDataView(ParentFrame, Frame, Eval.InstanceDataHandle);
+		FNodeInstanceDataScope DataScope(*this, Eval.InstanceDataHandle, EvalInstanceView);
 
-				STATETREE_LOG(Verbose, TEXT("  Stop: '%s'"), *Eval.Name.ToString());
-				{
-					QUICK_SCOPE_CYCLE_COUNTER(StateTree_Eval_TreeStop);
-					Eval.TreeStop(*this);
+		STATETREE_LOG(Verbose, TEXT("  Stop: '%s'"), *Eval.Name.ToString());
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(StateTree_Eval_TreeStop);
+			Eval.TreeStop(*this);
 
-					STATETREE_TRACE_EVALUATOR_EVENT(EvalIndex, EvalInstanceView, EStateTreeTraceEventType::OnTreeStopped);
-				}
-			}
+			STATETREE_TRACE_EVALUATOR_EVENT(EvalIndex, EvalInstanceView, EStateTreeTraceEventType::OnTreeStopped);
 		}
 	}
 }
