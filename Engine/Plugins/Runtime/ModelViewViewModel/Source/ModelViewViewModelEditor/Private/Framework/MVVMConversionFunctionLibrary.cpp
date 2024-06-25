@@ -87,7 +87,8 @@ public:
 
 FFunctionEntry::FFunctionEntry(FConversionFunctionValue Function)
 	: ConversionFunctionValue(Function)
-{}
+{
+}
 
 FCollection::FCollection()
 {
@@ -103,6 +104,8 @@ FCollection::FCollection()
 
 	FModuleManager::Get().OnModulesChanged().AddRaw(this, &FCollection::HandleModulesChanged);
 	FCoreUObjectDelegates::ReloadCompleteDelegate.AddRaw(this, &FCollection::HandleReloadComplete);
+
+	GetMutableDefault<UMVVMDeveloperProjectSettings>()->OnLibrarySettingChanged.AddRaw(this, &FCollection::Rebuild);
 }
 
 FCollection::~FCollection()
@@ -111,10 +114,13 @@ FCollection::~FCollection()
 
 	if (FAssetRegistryModule* AssetRegistryModule = FModuleManager::GetModulePtr<FAssetRegistryModule>(TEXT("AssetRegistry")))
 	{
-		IAssetRegistry& AssetRegistry = AssetRegistryModule->Get();
-		AssetRegistry.OnAssetAdded().RemoveAll(this);
-		AssetRegistry.OnAssetRemoved().RemoveAll(this);
-		AssetRegistry.OnAssetRenamed().RemoveAll(this);
+		if (AssetRegistryModule->IsValid())
+		{
+			IAssetRegistry& AssetRegistry = AssetRegistryModule->Get();
+			AssetRegistry.OnAssetAdded().RemoveAll(this);
+			AssetRegistry.OnAssetRemoved().RemoveAll(this);
+			AssetRegistry.OnAssetRenamed().RemoveAll(this);
+		}
 	}
 
 	FEditorDelegates::OnAssetsPreDelete.RemoveAll(this);
@@ -125,6 +131,8 @@ FCollection::~FCollection()
 
 	if (UObjectInitialized() && !IsEngineExitRequested())
 	{
+		GetMutableDefault<UMVVMDeveloperProjectSettings>()->OnLibrarySettingChanged.RemoveAll(this);
+
 		for (TPair<FObjectKey, FFunctionContainer> PairClass : ClassOrBlueprintToFunctions)
 		{
 			if (PairClass.Value.bIsUserWidget)
@@ -455,6 +463,11 @@ void FCollection::UnegisterBlueprintCallback(UObject* ObjectKey)
 		Blueprint->OnChanged().RemoveAll(this);
 		Blueprint->OnCompiled().RemoveAll(this);
 	}
+}
+
+void FCollection::Rebuild()
+{
+	bRefreshAll = true;
 }
 
 TArray<::UE::MVVM::FConversionFunctionValue> FCollection::GetFunctions(const UWidgetBlueprint* WidgetBlueprint) const

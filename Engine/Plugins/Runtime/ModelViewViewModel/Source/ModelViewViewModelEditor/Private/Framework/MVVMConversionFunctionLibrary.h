@@ -56,6 +56,9 @@ public:
 
 	[[nodiscard]] const TSharedPtr<FFunctionEntry> FindFunction(::UE::MVVM::FConversionFunctionValue) const;
 
+	/** Rebuild the library when a setting outside of MVVM changed. */
+	void Rebuild();
+
 private:
 	void RefreshIfNeeded();
 	void Build();

@@ -61,6 +61,22 @@ FText UMVVMDeveloperProjectSettings::GetSectionText() const
 	return LOCTEXT("MVVMProjectSettings", "UMG Model View Viewmodel");
 }
 
+#if WITH_EDITOR
+void UMVVMDeveloperProjectSettings::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeChainProperty(PropertyChangedEvent);
+
+	const FName PropertyName = PropertyChangedEvent.Property->GetFName();
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UMVVMDeveloperProjectSettings, ConversionFunctionFilter)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UMVVMDeveloperProjectSettings, AllowedClassForConversionFunctions)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UMVVMDeveloperProjectSettings, DeniedClassForConversionFunctions)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UMVVMDeveloperProjectSettings, DeniedModuleForConversionFunctions))
+	{
+		OnLibrarySettingChanged.Broadcast();
+	}
+}
+#endif
+
 bool UMVVMDeveloperProjectSettings::PropertyHasFiltering(const UStruct* ObjectStruct, const FProperty* Property) const
 {
 	check(ObjectStruct);

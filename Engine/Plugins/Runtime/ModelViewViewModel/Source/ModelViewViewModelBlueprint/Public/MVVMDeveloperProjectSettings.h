@@ -71,6 +71,9 @@ public:
 
 	virtual FName GetCategoryName() const override;
 	virtual FText GetSectionText() const override;
+#if WITH_EDITOR
+	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
+#endif
 
 	bool PropertyHasFiltering(const UStruct* ObjectStruct, const FProperty* Property) const;
 	bool IsPropertyAllowed(const UBlueprint* Context, const UStruct* ObjectStruct, const FProperty* Property) const;
@@ -175,6 +178,8 @@ public:
 	/** Modules excluded for conversion function list. ie. "/Script/MyModule" */
 	UPROPERTY(EditAnywhere, config, Category = "Defaults", meta = (EditCondition = "ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::AllowedList"))
 	TSet<FName> DeniedModuleForConversionFunctions;
+
+	FSimpleMulticastDelegate OnLibrarySettingChanged;
 
 	/** The default value of UMVVMBlueprintViewSettings::bForceExecuteBindingOnSetSource. */
 	UPROPERTY(EditAnywhere, config, Category = "Defaults")
