@@ -2,6 +2,7 @@
 
 #include "SNiagaraParameterMenu.h"
 
+#include "EdGraphSchema_Niagara.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraph/EdGraphSchema.h"
