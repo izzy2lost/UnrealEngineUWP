@@ -30,6 +30,11 @@ namespace Gauntlet
 			string DevicesArg,
 			int ParallelTasks )
 		{
+			if (string.IsNullOrEmpty(ProjectName))
+			{
+				throw new Exception("need -project=<project name>");
+			}
+
 			if (string.IsNullOrEmpty(PlatformParam) || string.IsNullOrEmpty(BuildPath))
 			{
 				throw new Exception("need -platform=<platform> and -path=\"path to build\"");
