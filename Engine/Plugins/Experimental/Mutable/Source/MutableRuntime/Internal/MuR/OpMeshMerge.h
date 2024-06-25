@@ -710,6 +710,22 @@ namespace mu
 
 		// This affects both vertex IDs and layout block ids.
 		bool bNeedsExplicitIds = pFirst->MeshIDPrefix != pSecond->MeshIDPrefix;
+
+		// These two extra checks are necessary for corner cases of meshes merging with fragments of themselves that
+		// undergo different operations.
+		if (!bNeedsExplicitIds)
+		{
+			UntypedMeshBufferIteratorConst FirstIDs(pFirst->VertexBuffers, MBS_VERTEXINDEX, 0);
+			UntypedMeshBufferIteratorConst SecondIDs(pSecond->VertexBuffers, MBS_VERTEXINDEX, 0);
+			bNeedsExplicitIds = FirstIDs.GetFormat() != SecondIDs.GetFormat();
+		}
+		if (!bNeedsExplicitIds)
+		{
+			UntypedMeshBufferIteratorConst FirstIDs(pFirst->VertexBuffers, MBS_LAYOUTBLOCK, 0);
+			UntypedMeshBufferIteratorConst SecondIDs(pSecond->VertexBuffers, MBS_LAYOUTBLOCK, 0);
+			bNeedsExplicitIds = FirstIDs.GetFormat() != SecondIDs.GetFormat();
+		}
+
 		if (!bNeedsExplicitIds)
 		{
 			// This is needed in case a mesh merges with itself.
