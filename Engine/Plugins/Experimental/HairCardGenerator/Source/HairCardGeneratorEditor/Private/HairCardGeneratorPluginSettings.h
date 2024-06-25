@@ -367,7 +367,7 @@ public:
 	TSet<FName> ApplyToCardGroups = {NAME_None};
 
 	// Total number of cards to generate for this settings group
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cards", meta=(ClampMin="1", ClampMax="10000"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cards", meta=(ClampMin="1", ClampMax="100000"))
 	int32 TargetNumberOfCards = 2000;
 
 	// Target number of triangles of the final mesh, only for adaptive subdivision
