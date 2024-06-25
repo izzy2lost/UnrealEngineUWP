@@ -420,9 +420,9 @@ TUniquePtr<class FWorldPartitionActorDesc> AWaterZone::CreateClassActorDesc() co
 	return TUniquePtr<FWorldPartitionActorDesc>(new FWaterZoneActorDesc());
 }
 
-FBox AWaterZone::GetStreamingBounds() const
+void AWaterZone::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
-	return GetZoneBounds();
+	OutRuntimeBounds = OutEditorBounds = GetZoneBounds();
 }
 #endif // WITH_EDITOR
 

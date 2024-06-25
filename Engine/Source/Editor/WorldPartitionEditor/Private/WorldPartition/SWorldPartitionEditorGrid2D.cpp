@@ -1400,7 +1400,8 @@ uint32 SWorldPartitionEditorGrid2D::PaintActors(const FGeometry& AllottedGeometr
 			{
 				Guid = InActor->GetActorGuid();
 				Label = *InActor->GetActorLabel(false);
-				ActorBounds = InActor->GetStreamingBoundsEditor();
+				FBox RuntimeActorBounds;
+				InActor->GetStreamingBounds(RuntimeActorBounds, ActorBounds);
 				DescBounds = InActorDescInstance ? InActorDescInstance->GetEditorBounds() : ActorBounds;
 				bIsSpatiallyLoaded = InActor->GetIsSpatiallyLoaded();
 			}
@@ -2194,7 +2195,10 @@ void SWorldPartitionEditorGrid2D::FocusSelection()
 	{
 		if (AActor* Actor = Cast<AActor>(*It))
 		{
-			SelectionBox += Actor->GetStreamingBoundsEditor();
+			FBox RuntimeBounds;
+			FBox EditorBounds;
+			Actor->GetStreamingBounds(RuntimeBounds, EditorBounds);
+			SelectionBox += EditorBounds;
 		}
 	}
 

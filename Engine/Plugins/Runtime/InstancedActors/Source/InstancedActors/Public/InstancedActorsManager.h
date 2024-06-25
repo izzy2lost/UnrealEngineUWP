@@ -253,7 +253,7 @@ protected:
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual bool IsUserManaged() const override { return true; }
-	virtual FBox GetStreamingBounds() const override;
+	virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const override;
 #endif
 	//~ End AActor Overrides
 

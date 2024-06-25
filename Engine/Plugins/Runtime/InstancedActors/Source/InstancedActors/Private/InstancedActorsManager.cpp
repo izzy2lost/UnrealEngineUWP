@@ -608,7 +608,7 @@ void AInstancedActorsManager::SerializeInstancePersistenceData(FStructuredArchiv
 }
 
 #if WITH_EDITOR
-FBox AInstancedActorsManager::GetStreamingBounds() const
+void AInstancedActorsManager::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
 	UWorld* World = GetWorld();
 	check(World);
@@ -616,15 +616,10 @@ FBox AInstancedActorsManager::GetStreamingBounds() const
 	if (World->IsPartitionedWorld())
 	{
 		UActorPartitionSubsystem::FCellCoord CellCoord = UActorPartitionSubsystem::FCellCoord::GetCellCoord(GetActorLocation(), GetLevel(), GetGridSize());
-		return UActorPartitionSubsystem::FCellCoord::GetCellBounds(CellCoord, GetGridSize());
+		OutRuntimeBounds = OutEditorBounds = UActorPartitionSubsystem::FCellCoord::GetCellBounds(CellCoord, GetGridSize());
 	}
-	else
-	{
-		constexpr double BoundsMin = TNumericLimits<double>::Lowest();
-		constexpr double BoundsMax = TNumericLimits<double>::Max();
-		FBox LocalCellBounds = { FVector(BoundsMin), FVector(BoundsMax) };
-		return LocalCellBounds;
-	}
+
+	OutRuntimeBounds = OutEditorBounds = FBox(FVector(-HALF_WORLD_MAX), FVector(HALF_WORLD_MAX));
 }
 
 uint32 AInstancedActorsManager::GetDefaultGridSize(UWorld* InWorld) const
@@ -1130,8 +1125,10 @@ void AInstancedActorsManager::AuditInstances(FOutputDevice& Ar, bool bDebugDraw,
 
 #if WITH_EDITOR
 		// Draw streaming bounds
-		FBox StreamingBounds = GetStreamingBounds();
-		DrawDebugBox(World, StreamingBounds.GetCenter(), StreamingBounds.GetExtent(), FColor::Orange, /*bPersistentLines*/ DebugDrawDuration == -1.0f, DebugDrawDuration);
+		FBox RuntimeBounds;
+		FBox EditorBounds;
+		GetStreamingBounds(RuntimeBounds, EditorBounds);
+		DrawDebugBox(World, RuntimeBounds.GetCenter(), RuntimeBounds.GetExtent(), FColor::Orange, /*bPersistentLines*/ DebugDrawDuration == -1.0f, DebugDrawDuration);
 #endif // WITH_EDITOR
 	}
 #endif // UE_ENABLE_DEBUG_DRAWING
@@ -1817,14 +1814,16 @@ bool AInstancedActorsManager::SetSMInstanceTransform(const FSMInstanceId& Instan
 #endif
 
 	// Don't allow people to move an IA outside of this IAMs streaming bounds.
-	const FBox StreamingBounds = GetStreamingBounds();
+	FBox RuntimeBounds;
+	FBox EditorBounds;
+	GetStreamingBounds(RuntimeBounds, EditorBounds);
 	FTransform WorldTransform = bWorldSpace ? InstanceTransform : (InstanceTransform * GetActorTransform());
-	if (!StreamingBounds.IsInside(WorldTransform.GetLocation()))
+	if (!RuntimeBounds.IsInside(WorldTransform.GetLocation()))
 	{
 #if ENABLE_DRAW_DEBUG
 		FColor BoundsColor(255, 20, 20, 125);
-		DrawDebugSolidBox(GetWorld(), StreamingBounds, BoundsColor, FTransform::Identity);
-		DrawDebugBox(GetWorld(), StreamingBounds.GetCenter(), StreamingBounds.GetExtent(), FColor::Red);
+		DrawDebugSolidBox(GetWorld(), RuntimeBounds, BoundsColor, FTransform::Identity);
+		DrawDebugBox(GetWorld(), RuntimeBounds.GetCenter(), RuntimeBounds.GetExtent(), FColor::Red);
 #endif
 		return false;
 	}

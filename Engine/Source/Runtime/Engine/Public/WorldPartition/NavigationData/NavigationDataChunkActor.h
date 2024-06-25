@@ -38,7 +38,7 @@ public:
 
 	//~ Begin AActor Interface.
 	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return false; }
-	ENGINE_API virtual FBox GetStreamingBounds() const override;
+	ENGINE_API virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const override;
 	//~ End AActor Interface.
 #endif // WITH_EDITOR
 

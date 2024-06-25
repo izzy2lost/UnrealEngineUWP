@@ -25,7 +25,9 @@ void FLandscapeActorDesc::Init(const AActor* InActor)
 			LandscapeActorGuid = LandscapeActor->GetActorGuid();
 		}
 
-		EditorBounds = InActor->GetStreamingBoundsEditor();
+		// FLandscapeActorDesc derives from FPartitionActorDesc but doesn't use the cell bounds as the parent class was designed for.
+		// @todo_ow: make FLandscapeActorDesc derives from FWorldPartitionActorDesc instead?
+		InActor->GetStreamingBounds(RuntimeBounds, EditorBounds);
 	}
 }
 

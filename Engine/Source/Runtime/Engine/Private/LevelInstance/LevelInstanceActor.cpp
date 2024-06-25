@@ -282,26 +282,21 @@ void ALevelInstance::EditorGetUnderlyingActors(TSet<AActor*>& OutUnderlyingActor
 	LevelInstanceActorImpl.EditorGetUnderlyingActors(OutUnderlyingActors);
 }
 
-FBox ALevelInstance::GetStreamingBounds() const
+void ALevelInstance::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
-	FBox LevelInstanceBounds;
-	if (LevelInstanceActorImpl.GetBounds(LevelInstanceBounds))
+	Super::GetStreamingBounds(OutRuntimeBounds, OutEditorBounds);
+	
+	FBox LevelInstanceRuntimeBounds;
+	if (LevelInstanceActorImpl.GetBounds(LevelInstanceRuntimeBounds))
 	{
-		return LevelInstanceBounds;
+		OutRuntimeBounds = LevelInstanceRuntimeBounds;
 	}
 
-	return Super::GetStreamingBounds();
-}
-
-FBox ALevelInstance::GetStreamingBoundsEditor() const
-{
 	FBox LevelInstanceEditorBounds;
 	if (LevelInstanceActorImpl.GetEditorBounds(LevelInstanceEditorBounds))
 	{
-		return LevelInstanceEditorBounds;
+		OutEditorBounds = LevelInstanceEditorBounds;
 	}
-
-	return Super::GetStreamingBoundsEditor();
 }
 
 bool ALevelInstance::IsUserManaged() const

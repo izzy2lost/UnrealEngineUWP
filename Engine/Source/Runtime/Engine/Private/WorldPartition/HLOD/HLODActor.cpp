@@ -480,9 +480,9 @@ void AWorldPartitionHLOD::SetHLODBounds(const FBox& InBounds)
 	HLODBounds = InBounds;
 }
 
-FBox AWorldPartitionHLOD::GetStreamingBounds() const
+void AWorldPartitionHLOD::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
-	return HLODBounds;
+	OutRuntimeBounds = OutEditorBounds = HLODBounds;
 }
 
 int64 AWorldPartitionHLOD::GetStat(FName InStatName) const

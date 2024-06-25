@@ -93,7 +93,7 @@ public:
 	
 #if WITH_EDITOR
 	virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
-	virtual FBox GetStreamingBounds() const override;
+	virtual void GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const override;
 #endif //WITH_EDITOR
 
 	UFUNCTION(BlueprintCallable, Category=Rendering)

@@ -1016,9 +1016,11 @@ int32 UWorldPartitionConvertCommandlet::Main(const FString& Params)
 					// Only override default grid placement on actors that are spatially loaded
 					else if (Actor->GetIsSpatiallyLoaded() && Actor->CanChangeIsSpatiallyLoadedFlag())
 					{
-						const FBox ActorBounds = Actor->GetStreamingBounds();
+						FBox ActorRuntimeBounds;
+						FBox ActorEditorBounds;
+						Actor->GetStreamingBounds(ActorRuntimeBounds, ActorEditorBounds);
 
-						if (!WorldBounds.IsInside(ActorBounds))
+						if (!WorldBounds.IsInside(ActorRuntimeBounds))
 						{
 							Actor->SetIsSpatiallyLoaded(false);
 						}

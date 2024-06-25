@@ -1214,20 +1214,25 @@ static bool HasComponentForceActorNonSpatiallyLoaded(const AActor* InActor)
 	return bHasComponentForceActorNonSpatiallyLoaded;
 }
 
+void AActor::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
+{
+	OutRuntimeBounds.Init();
+	ForEachStreamingRelevantComponent(this, false, [&OutRuntimeBounds](const UActorComponent* Component, const FBox& StreamingBound)
+	{
+		OutRuntimeBounds += StreamingBound;
+	});
+
+	OutEditorBounds.Init();
+	ForEachStreamingRelevantComponent(this, true, [&OutEditorBounds](const UActorComponent* Component, const FBox& StreamingBound)
+	{
+		OutEditorBounds += StreamingBound;
+	});
+}
+
 FBox AActor::GetStreamingBounds() const
 {
 	FBox StreamingBounds(ForceInit);
 	ForEachStreamingRelevantComponent(this, false, [&StreamingBounds](const UActorComponent* Component, const FBox& StreamingBound)
-	{
-		StreamingBounds += StreamingBound;
-	});
-	return StreamingBounds;
-}
-
-FBox AActor::GetStreamingBoundsEditor() const
-{
-	FBox StreamingBounds(ForceInit);
-	ForEachStreamingRelevantComponent(this, true, [&StreamingBounds](const UActorComponent* Component, const FBox& StreamingBound)
 	{
 		StreamingBounds += StreamingBound;
 	});

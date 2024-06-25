@@ -90,8 +90,14 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 
 	ActorTransform = InActor->GetActorTransform();
 
-	RuntimeBounds = !bIsDefaultActorDesc ? InActor->GetStreamingBounds() : FBox(ForceInit);
-	EditorBounds = !bIsDefaultActorDesc ? InActor->GetStreamingBoundsEditor() : FBox(ForceInit);
+	RuntimeBounds.Init();
+	EditorBounds.Init();
+	
+	if (!bIsDefaultActorDesc)
+	{
+		InActor->GetStreamingBounds(RuntimeBounds, EditorBounds);
+	}
+
 	RuntimeGrid = InActor->GetRuntimeGrid();
 	bIsSpatiallyLoaded = InActor->GetIsSpatiallyLoaded();
 	bActorIsEditorOnly = InActor->IsEditorOnly();
@@ -604,6 +610,11 @@ void FWorldPartitionActorDesc::Serialize(FArchive& Ar)
 		{
 			Ar << RuntimeBounds << EditorBounds;
 		}
+	}
+	else
+	{
+		RuntimeBounds.Init();
+		EditorBounds.Init();
 	}
 	
 	if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::ConvertedActorGridPlacementToSpatiallyLoadedFlag)
