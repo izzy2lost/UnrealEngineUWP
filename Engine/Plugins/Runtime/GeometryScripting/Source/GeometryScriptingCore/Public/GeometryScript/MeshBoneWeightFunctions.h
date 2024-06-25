@@ -17,6 +17,12 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBoneWeight
 {
 	GENERATED_BODY()
 
+	FGeometryScriptBoneWeight() = default;
+	FGeometryScriptBoneWeight(int32 InBoneIndex, float InWeight) :
+		BoneIndex(InBoneIndex), Weight(InWeight)
+	{
+	}
+
 	UPROPERTY(BlueprintReadWrite, Category = BoneWeights)
 	int32 BoneIndex = 0;
 
