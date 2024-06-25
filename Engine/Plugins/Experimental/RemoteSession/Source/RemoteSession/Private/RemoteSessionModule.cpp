@@ -174,7 +174,7 @@ bool FRemoteSessionModule::HandleSettingsSaved()
 
 void FRemoteSessionModule::AddChannelFactory(const FStringView InChannelName, ERemoteSessionChannelMode InHostMode, TWeakPtr<IRemoteSessionChannelFactoryWorker> Worker)
 {
-	FRemoteSessionChannelRegistry::Get().RegisterChannelFactory(*FString(InChannelName.Len(), InChannelName.GetData()), InHostMode, Worker);
+	FRemoteSessionChannelRegistry::Get().RegisterChannelFactory(*FString::ConstructFromPtrSize(InChannelName.GetData(), InChannelName.Len()), InHostMode, Worker);
 }
 
 void FRemoteSessionModule::RemoveChannelFactory(TWeakPtr<IRemoteSessionChannelFactoryWorker> Worker)

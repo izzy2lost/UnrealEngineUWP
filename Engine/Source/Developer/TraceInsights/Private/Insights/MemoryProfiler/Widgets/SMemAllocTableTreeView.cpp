@@ -1895,7 +1895,7 @@ bool SMemAllocTableTreeView::BuildOpenSourceSubMenuItems(FMenuBuilder& MenuBuild
 				const int32 FileNameLen = FCString::Strlen(Frame->Symbol->File);
 				if (FileNameLen > MaxFileNameLen)
 				{
-					FString FileNameStr = TEXT("...") + FString(MaxFileNameLen, Frame->Symbol->File + (FileNameLen - MaxFileNameLen));
+					FString FileNameStr = TEXT("...") + FString::ConstructFromPtrSize(Frame->Symbol->File + (FileNameLen - MaxFileNameLen), MaxFileNameLen);
 					FileName = FText::FromString(FileNameStr);
 				}
 				else
@@ -1908,7 +1908,7 @@ bool SMemAllocTableTreeView::BuildOpenSourceSubMenuItems(FMenuBuilder& MenuBuild
 				const int32 SymbolNameLen = FCString::Strlen(Frame->Symbol->Name);
 				if (SymbolNameLen > MaxSymbolNameLen)
 				{
-					FString SymbolNameStr = TEXT("...") + FString(MaxSymbolNameLen, Frame->Symbol->Name + (SymbolNameLen - MaxSymbolNameLen));
+					FString SymbolNameStr = TEXT("...") + FString::ConstructFromPtrSize(Frame->Symbol->Name + (SymbolNameLen - MaxSymbolNameLen), MaxSymbolNameLen);
 					SymbolName = FText::FromString(SymbolNameStr);
 				}
 				else

@@ -38,7 +38,7 @@ namespace Electra
 				}
 			}
 			auto Cnv = StringCast<TCHAR>(reinterpret_cast<const UTF8CHAR*>(ConvBuf.GetData()), ConvBuf.Num());
-			return FString(Cnv.Length(), Cnv.Get());
+			return FString::ConstructFromPtrSize(Cnv.Get(), Cnv.Length());
 		}
 
 		int32 FindFirstOf(const FString& InString, const FString& SplitAt, int32 FirstPos)

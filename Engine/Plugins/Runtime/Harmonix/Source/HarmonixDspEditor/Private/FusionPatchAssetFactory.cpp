@@ -242,7 +242,7 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 	
 	const FString SourceFile = GetCurrentFilename();
 	FString JsonString;
-	const FString DtaString(BufferEnd - Buffer, Buffer);
+	const FString DtaString = FString::ConstructFromPtrSize(Buffer, BufferEnd - Buffer);
 
 	FDtaParser::DtaStringToJsonString(DtaString, JsonString);
 	FString ErrorMessage;

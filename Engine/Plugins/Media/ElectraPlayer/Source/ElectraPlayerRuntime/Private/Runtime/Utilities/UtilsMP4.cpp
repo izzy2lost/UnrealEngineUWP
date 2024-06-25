@@ -222,7 +222,7 @@ void UtilsMP4::FMetadataParser::ParseBoxDataList(const FString& AsCategory, cons
 			Lang[0] = (char)(0x60 + ((LanguageIndicator & 0x7c00) >> 10));
 			Lang[1] = (char)(0x60 + ((LanguageIndicator & 0x03e0) >> 5));
 			Lang[2] = (char)(0x60 + (LanguageIndicator & 0x001f));
-			Item->Language = FString(3, Lang);
+			Item->Language = FString::ConstructFromPtrSize(Lang, 3);
 		}
 
 		bool bSet = true;

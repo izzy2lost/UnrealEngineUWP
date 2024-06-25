@@ -937,7 +937,7 @@ void FAssetSearchManager::StoreIndexForAsset_DDC(const UObject* InAsset)
 void FAssetSearchManager::LoadDDCContentIntoDatabase(const FAssetData& InAsset, const TArray<uint8>& Content, const FString& DerivedDataKey)
 {
 	FUTF8ToTCHAR WByteBuffer((const ANSICHAR*)Content.GetData(), Content.Num());
-	FString IndexedJson(WByteBuffer.Length(), WByteBuffer.Get());
+	FString IndexedJson = FString::ConstructFromPtrSize(WByteBuffer.Get(), WByteBuffer.Length());
 
 	AddOrUpdateAsset(InAsset, IndexedJson, DerivedDataKey);
 }

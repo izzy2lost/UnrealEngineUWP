@@ -199,7 +199,7 @@ int32 ParseParams(const FString& ParamStr, TArray<FString>& OutArray)
 		int32 DelimLimit = 4;
 		while (const TCHAR *At = FCString::Strstr(Start, TEXT("/")))
 		{
-			OutArray.Emplace(At - Start, Start);
+			OutArray.Emplace(FString::ConstructFromPtrSize(Start, At - Start));
 			Start = At + 1;
 			if (--DelimLimit == 0)
 			{

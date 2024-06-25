@@ -676,7 +676,7 @@ void UNiagaraNodeConvert::AutowireNewNode(UEdGraphPin* FromPin)
 		for (int32 i = 0; i < AutowireSwizzle.Len(); ++i)
 		{
 			TCHAR Char = AutowireSwizzle[i];
-			FString CharStr = FString(1, &Char);
+			FString CharStr = FString::ConstructFromPtrSize(&Char, 1);
 			SrcPath.Empty(SrcPath.Num());
 			DestPath.Empty(DestPath.Num());
 

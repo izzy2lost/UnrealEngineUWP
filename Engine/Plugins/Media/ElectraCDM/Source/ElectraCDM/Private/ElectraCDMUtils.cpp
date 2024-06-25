@@ -56,7 +56,7 @@ namespace ElectraCDMUtils
 	FString ArrayToString(const TArray<uint8>& InArray, int32 InStartAt)
 	{
 		FUTF8ToTCHAR cnv((const ANSICHAR*)InArray.GetData() + InStartAt, InArray.Num() - InStartAt);
-		FString UTF8Text(cnv.Length(), cnv.Get());
+		FString UTF8Text = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 		return MoveTemp(UTF8Text);
 	}
 

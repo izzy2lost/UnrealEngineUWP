@@ -108,7 +108,7 @@ void FInternetAddrEOS::SetRawIp(const TArray<uint8>& RawAddr)
 {
 	// Need auto here, as might give us different return type depending on size of TCHAR
 	auto ConvertedTCHARData = StringCast<TCHAR>(reinterpret_cast<const ANSICHAR*>(RawAddr.GetData()), RawAddr.Num());
-	const FString IpAsString(ConvertedTCHARData.Length(), ConvertedTCHARData.Get());
+	const FString IpAsString = FString::ConstructFromPtrSize(ConvertedTCHARData.Get(), ConvertedTCHARData.Length());
 
 	bool bUnused;
 	SetIp(*IpAsString, bUnused);

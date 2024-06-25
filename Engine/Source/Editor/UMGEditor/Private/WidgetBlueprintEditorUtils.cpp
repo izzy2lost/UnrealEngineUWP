@@ -2564,7 +2564,7 @@ FString RemoveSuffixFromName(const FString OldName)
 			}
 		}
 	}
-	return FString(NameLen, *OldName);
+	return FString::ConstructFromPtrSize(*OldName, NameLen);
 }
 
 FString FWidgetBlueprintEditorUtils::FindNextValidName(UWidgetTree* WidgetTree, const FString& Name)

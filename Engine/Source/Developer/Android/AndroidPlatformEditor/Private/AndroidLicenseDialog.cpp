@@ -87,7 +87,7 @@ void SAndroidLicenseDialog::Construct(const FArguments& InArgs)
 
 				{
 					const FUTF8ToTCHAR ConvertedString(reinterpret_cast<ANSICHAR*>(LicenseStart), LicenseLength);
-					LicenseText = FString(ConvertedString.Length(), ConvertedString.Get());
+					LicenseText = FString::ConstructFromPtrSize(ConvertedString.Get(), ConvertedString.Length());
 				}
 
 				FSHA1::HashBuffer(LicenseStart, LicenseLength, LicenseHash.Hash);

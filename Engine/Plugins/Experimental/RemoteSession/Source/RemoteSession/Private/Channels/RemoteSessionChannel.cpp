@@ -33,7 +33,7 @@ void FRemoteSessionChannelRegistry::RemoveChannelFactory(TWeakPtr<IRemoteSession
 
 TSharedPtr<IRemoteSessionChannel> FRemoteSessionChannelRegistry::CreateChannel(const FStringView InChannelName, ERemoteSessionChannelMode InMode, TBackChannelSharedPtr<IBackChannelConnection> InConnection)
 {
-	FString Name = FString(InChannelName.Len(), InChannelName.GetData());
+	FString Name = FString::ConstructFromPtrSize(InChannelName.GetData(), InChannelName.Len());
 
 	if (!RegisteredFactories.Contains(Name))
 	{

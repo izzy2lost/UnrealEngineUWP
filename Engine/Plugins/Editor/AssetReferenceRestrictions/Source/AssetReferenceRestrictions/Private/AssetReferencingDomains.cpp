@@ -84,7 +84,7 @@ public:
 		if (RemainingPath.FindChar(TEXT('/'), /*out*/ DirectorySeparatorIndex))
 		{
 			check(DirectorySeparatorIndex > 0);
-			const FString DirectoryName(DirectorySeparatorIndex, RemainingPath.GetData());
+			const FString DirectoryName = FString::ConstructFromPtrSize(RemainingPath.GetData(), DirectorySeparatorIndex);
 
 			TSharedPtr<FDomainPathNode>& ChildFolder = SubFolders.FindOrAdd(DirectoryName);
 			if (!ChildFolder.IsValid())

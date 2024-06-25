@@ -218,7 +218,7 @@ public:
 	virtual FText GetText() const override
 	{
 		FUTF8ToTCHAR cnv((const ANSICHAR*)Subtitle->GetData().GetData(), Subtitle->GetData().Num());
-		FString UTF8Text(cnv.Length(), cnv.Get());
+		FString UTF8Text = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 		return FText::FromString(UTF8Text);
 	}
 

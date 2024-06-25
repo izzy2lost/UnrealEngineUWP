@@ -37,7 +37,7 @@ FString FStompMessage::GetBodyAsString() const
 	// TODO get encoding from content-type header. Currently assuming utf8
 	FStompBuffer& Body = Frame->GetBody();
 	FUTF8ToTCHAR Convert((ANSICHAR*)Body.GetData(), Body.Num());
-	return FString(Convert.Length(), Convert.Get());
+	return FString::ConstructFromPtrSize(Convert.Get(), Convert.Length());
 }
 
 const uint8* FStompMessage::GetRawBody() const

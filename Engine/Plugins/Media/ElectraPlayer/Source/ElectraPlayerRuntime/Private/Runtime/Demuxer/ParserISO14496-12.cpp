@@ -136,7 +136,7 @@ namespace Electra
 				if (bIsUTF8)
 				{
 					FUTF8ToTCHAR cnv((const ANSICHAR*)SrcBuf.GetData(), SrcBuf.Num());
-					return FString(cnv.Length(), cnv.Get());
+					return FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 				}
 				else
 				{
@@ -1520,7 +1520,7 @@ namespace Electra
 			Language[1] = (char)(0x60 + ((Value16 & 0x03e0) >> 5));
 			Language[2] = (char)(0x60 + (Value16 & 0x001f));
 			// Try to map the ISO-639-2T language code to the shorter ISO-639-1 code if possible.
-			Lang639_1 = ISO639::MapTo639_1(FString(FMEDIA_STATIC_ARRAY_COUNT(Language), Language));
+			Lang639_1 = ISO639::MapTo639_1(FString::ConstructFromPtrSize(Language, FMEDIA_STATIC_ARRAY_COUNT(Language)));
 			RETURN_IF_ERROR(ParseInfo->Reader()->Read(Value16));				// pre_defined (in QuickTime this held 'Quality')
 			return Error;
 		}
@@ -2423,7 +2423,7 @@ namespace Electra
 						return UEMEDIA_ERROR_FORMAT_ERROR;
 					}
 					FUTF8ToTCHAR cnv((const ANSICHAR*)FontName, FontNameLength);
-					fr.FontName = FString(cnv.Length(), cnv.Get());
+					fr.FontName = FString::ConstructFromPtrSize(cnv.Get(), cnv.Length());
 				}
 			}
 
@@ -5051,7 +5051,7 @@ namespace Electra
 			const FFillerData* Filler = NameBox ? NameBox->GetFillerData() : nullptr;
 			if (Filler)
 			{
-				FString name(Filler->Size, static_cast<const ANSICHAR*>(Filler->Data));
+				FString name = FString::ConstructFromPtrSize(static_cast<const ANSICHAR*>(Filler->Data), Filler->Size);
 				return TMediaOptionalValue<FString>(name);
 			}
 			return TMediaOptionalValue<FString>();

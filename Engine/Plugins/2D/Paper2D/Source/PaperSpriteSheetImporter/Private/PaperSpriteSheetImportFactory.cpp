@@ -65,7 +65,7 @@ UObject* UPaperSpriteSheetImportFactory::FactoryCreateText(UClass* InClass, UObj
 	UPaperSpriteSheet* Result = nullptr;
 	
 	const FString NameForErrors(InName.ToString());
-	const FString FileContent(BufferEnd - Buffer, Buffer);
+	const FString FileContent = FString::ConstructFromPtrSize(Buffer, BufferEnd - Buffer);
 	
 	if (Importer.ImportFromString(FileContent, NameForErrors, /*bSilent=*/ false) &&
 		Importer.ImportTextures(LongPackagePath, CurrentSourcePath))

@@ -236,7 +236,7 @@ namespace Electra
 							*OutPtr = SrcPtr;
 						}
 						auto Cnv = StringCast<TCHAR>(reinterpret_cast<const UTF8CHAR*>(ConvBuf.GetData()), ConvBuf.Num());
-						return FString(Cnv.Length(), Cnv.Get());
+						return FString::ConstructFromPtrSize(Cnv.Get(), Cnv.Length());
 					}
 					else if (Encoding == 1 && NumBytes > 1)
 					{
@@ -251,7 +251,7 @@ namespace Electra
 						if (BOM == 0xfffe)
 						{
 							auto Cnv = StringCast<TCHAR>(reinterpret_cast<const UCS2CHAR*>(SrcPtr+2), NumSrcChars/2-1);
-							return FString(Cnv.Length(), Cnv.Get());
+							return FString::ConstructFromPtrSize(Cnv.Get(), Cnv.Length());
 						}
 						else if (BOM == 0xfeff)
 						{
@@ -263,7 +263,7 @@ namespace Electra
 								be[k+1] = SrcPtr[k+0];
 							}
 							auto Cnv = StringCast<TCHAR>(reinterpret_cast<const UCS2CHAR*>(be.GetData()+2), NumSrcChars/2-1);
-							return FString(Cnv.Length(), Cnv.Get());
+							return FString::ConstructFromPtrSize(Cnv.Get(), Cnv.Length());
 						}
 					}
 				}

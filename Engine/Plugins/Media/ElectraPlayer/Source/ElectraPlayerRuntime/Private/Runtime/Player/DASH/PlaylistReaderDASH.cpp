@@ -1111,7 +1111,7 @@ FErrorDetail FPlaylistReaderDASH::GetXMLResponseString(FString& OutXMLString, FR
 			return CreateErrorAndLog(FString::Printf(TEXT("Document has unsupported UTF-32 LE BOM!")), ERRCODE_DASH_MPD_UNSUPPORTED_DOCUMENT_ENCODING);
 		}
 		FUTF8ToTCHAR TextConv((const ANSICHAR*)ResponseBytes, NumResponseBytes);
-		FString XML(TextConv.Length(), TextConv.Get());
+		FString XML = FString::ConstructFromPtrSize(TextConv.Get(), TextConv.Length());
 		OutXMLString = MoveTemp(XML);
 	}
 	return FErrorDetail();
@@ -1126,7 +1126,7 @@ FErrorDetail FPlaylistReaderDASH::GetResponseString(FString& OutString, FResourc
 		int32 NumResponseBytes = ResponseBuffer->Num();
 		const uint8* ResponseBytes = (const uint8*)ResponseBuffer->GetLinearReadData();
 		FUTF8ToTCHAR TextConv((const ANSICHAR*)ResponseBytes, NumResponseBytes);
-		FString UTF8Text(TextConv.Length(), TextConv.Get());
+		FString UTF8Text = FString::ConstructFromPtrSize(TextConv.Get(), TextConv.Length());
 		OutString = MoveTemp(UTF8Text);
 	}
 	return FErrorDetail();

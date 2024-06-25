@@ -285,7 +285,7 @@ void UExternalRpcRegistry::AddRequestToLedger(const FHttpServerRequest& Request)
 		FRpcLedgerEntry NewEntry;
 		NewEntry.RpcName = Request.Headers[TEXT("rpcname")][0];
 		FUTF8ToTCHAR WByteBuffer(reinterpret_cast<const ANSICHAR*>(Request.Body.GetData()), Request.Body.Num());
-		NewEntry.RequestBody = FString(WByteBuffer.Length(), WByteBuffer.Get());
+		NewEntry.RequestBody = FString::ConstructFromPtrSize(WByteBuffer.Get(), WByteBuffer.Length());
 		NewEntry.RequestTime = FDateTime::UtcNow();
 		RequestLedger.Add(NewEntry);
 	}
