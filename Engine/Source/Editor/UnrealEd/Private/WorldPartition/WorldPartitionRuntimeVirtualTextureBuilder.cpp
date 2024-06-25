@@ -122,6 +122,10 @@ bool UWorldPartitionRuntimeVirtualTextureBuilder::RunInternal(UWorld* World, con
 			FGlobalComponentRecreateRenderStateContext Context;
 		}
 
+		// Flush all rendering commands issued by UpdateAllPrimitiveSceneInfos inside the FGlobalComponentRecreateRenderStateContext. 
+		// Some rendering commands may trigger some shader compilations that we need to be issued and wait for completion before rendering the RVT.
+		FlushRenderingCommands();
+
 		// FGlobalComponentRecreateRenderStateContext can create new shaderJobs, make sure to wait on them.
 		FAssetCompilingManager::Get().FinishAllCompilation();
 		FAssetCompilingManager::Get().ProcessAsyncTasks();
