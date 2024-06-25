@@ -66,7 +66,7 @@ bool FHeap::bIsGCReadyForExternalMarking;
 bool FHeap::bIsGCMarkingExternallySignaled;
 bool FHeap::bIsGCTerminationWaitingForExternalSignal;
 bool FHeap::bIsGCTerminatingExternally;
-bool FHeap::bIsTerminated;
+bool FHeap::bIsTerminated = true;
 bool FHeap::bIsInitialized;
 double FHeap::TotalTimeSpentCollecting;
 double FHeap::TimeOfPreMarking;
@@ -280,16 +280,19 @@ void FHeap::BeginCollection(FIOContext Context)
 	V_DIE_IF(bIsGCTerminationWaitingForExternalSignal);
 	V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::Inactive);
 
-	if (bIsExternallyControlled && !IsWithoutThreadingDuringCollection())
 	{
 		TUniqueLock Lock(Mutex);
-		if (bIsExternallyControlled)
+		if (!IsWithoutThreadingDuringCollection())
 		{
-			while (!bIsGCMarkingExternallySignaled && bIsExternallyControlled)
+			while (bIsExternallyControlled && !bIsGCMarkingExternallySignaled)
 			{
 				ConditionVariable.Wait(Mutex);
 			}
 		}
+
+		// We have either decided to run a cycle without external control, or received an external signal.
+		// Any outstanding calls to EnableExternalControl must now wait until after termination.
+		bIsTerminated = false;
 	}
 
 	// Make sure mark bits are locked (i.e. committed and prevented from being decommitted by the libpas scavenger) before we tell folks to start using them.
@@ -299,7 +302,6 @@ void FHeap::BeginCollection(FIOContext Context)
 		TUniqueLock Lock(Mutex);
 		bIsMarking = true;
 		bIsCollecting = true;
-		bIsTerminated = false;
 	}
 
 	Context.SoftHandshake([](FHandshakeContext) {});
@@ -767,12 +769,17 @@ void FHeap::DestructorCallback(void* Object, void* Arg)
 
 void FHeap::EnableExternalControl(FIOContext Context)
 {
+	// We are about to wait on the GC thread, but it may request a stack scan at the same time.
+	// Under manual stack scanning, we are unable to respond to such a request while waiting,
+	// which would cause a deadlock. A manually empty stack lets the GC thread handle the request
+	// on its own, and proceed to wake us up.
+	V_DIE_UNLESS(!Context.UsesManualStackScanning() || Context.IsInManuallyEmptyStack());
+
 	using namespace UE;
 	TUniqueLock Lock(Mutex);
 	V_DIE_IF(bIsExternallyControlled);
-	V_DIE_UNLESS(!Context.UsesManualStackScanning() || Context.IsInManuallyEmptyStack());
 	NormalizeWithoutThreadingAtCollectionStart();
-	while (bIsMarking)
+	while (!bIsTerminated)
 	{
 		ConditionVariable.Wait(Mutex);
 	}

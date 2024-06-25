@@ -3759,6 +3759,19 @@ static bool bInFrankenGCStartStop = false; // This just tracks if we are in a St
 static bool bFrankenGCEnabled = false;
 static Verse::FCollectionCycleRequest VerseCycleRequest;
 
+static FORCEINLINE Verse::FIOContext RelinquishVerseHeapAccess(Verse::FRunningContext RunningContext)
+{
+	Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
+	Context.SetIsInManuallyEmptyStack(true);
+	return Context;
+}
+
+static FORCEINLINE Verse::FRunningContext AcquireVerseHeapAccess(Verse::FIOContext Context)
+{
+	Context.SetIsInManuallyEmptyStack(false);
+	return Context.AcquireAccessForManualStackScanning();
+}
+
 static bool UpdateFrankenGCMode()
 {
 	bool bNewState = GEnableFrankenGC;
@@ -3768,13 +3781,11 @@ static bool UpdateFrankenGCMode()
 		if (bFrankenGCEnabled)
 		{
 			Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
-			Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
-			Context.SetIsInManuallyEmptyStack(true);
+			Verse::FIOContext Context = RelinquishVerseHeapAccess(RunningContext);
 
 			Verse::FHeap::EnableExternalControl(Context);
 
-			Context.SetIsInManuallyEmptyStack(false);
-			Context.AcquireAccessForManualStackScanning();
+			AcquireVerseHeapAccess(Context);
 		}
 		else
 		{
@@ -3793,20 +3804,6 @@ void EnableFrankenGCMode(bool bEnable)
 bool ShouldFrankenGCRun()
 {
 	return UpdateFrankenGCMode() && Verse::FHeap::IsGCStartPendingExternalSignal();
-}
-
-static FORCEINLINE void RelinquishVerseHeapAccess()
-{
-	Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
-	Verse::FIOContext Context = RunningContext.RelinquishAccessForManualStackScanning();
-	Context.SetIsInManuallyEmptyStack(true);
-}
-
-static FORCEINLINE void AcquireVerseHeapAccess()
-{
-	Verse::FIOContext Context = Verse::FIOContextPromise{};
-	Context.SetIsInManuallyEmptyStack(false);
-	Context.AcquireAccessForManualStackScanning();
 }
 
 // Called at the start of a full mark cycle, which may span multiple ticks.
@@ -3838,14 +3835,6 @@ static FORCEINLINE void StopVerseGC()
 	}
 }
 #else
-static FORCEINLINE void RelinquishVerseHeapAccess()
-{
-}
-
-static FORCEINLINE void AcquireVerseHeapAccess()
-{
-}
-
 static FORCEINLINE void StartVerseGC()
 {
 }
@@ -5584,7 +5573,10 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 	}
 	GGCStats.bFinishedAsFullPurge = bPerformFullPurge;
 
-	RelinquishVerseHeapAccess();
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	Verse::FRunningContext RunningContext = Verse::FRunningContextPromise{};
+	Verse::FIOContext Context = RelinquishVerseHeapAccess(RunningContext);
+#endif
 	
 	if (bPerformFullPurge)
 	{
@@ -5700,7 +5692,9 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 		UE::GC::PostCollectGarbageImpl<false>(ObjectKeepFlags);
 	}
 
-	AcquireVerseHeapAccess();
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	AcquireVerseHeapAccess(Context);
+#endif
 }
 
 void FReachabilityAnalysisState::PerformReachabilityAnalysis()

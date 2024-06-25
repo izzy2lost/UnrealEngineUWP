@@ -41,17 +41,17 @@ void FReachabilityAnalysisState::FinishIteration()
 	NumIterations++;
 }
 
-static bool VerseGCIsMarking()
+static bool VerseGCIsTerminationPending()
 {
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	if (GIsFrankenGCCollecting)
 	{
 		Verse::FIOContext Context = Verse::FIOContextPromise{};
-		return !Verse::FHeap::IsGCTerminationPendingExternalSignal(Context);
+		return Verse::FHeap::IsGCTerminationPendingExternalSignal(Context);
 	}
 #endif
 
-	return false;
+	return true;
 }
 
 bool FReachabilityAnalysisState::CheckIfAnyContextIsSuspended()
@@ -63,7 +63,7 @@ bool FReachabilityAnalysisState::CheckIfAnyContextIsSuspended()
 	}
 	if (!bIsSuspended)
 	{
-		bIsSuspended = VerseGCIsMarking();
+		bIsSuspended = !VerseGCIsTerminationPending();
 	}
 	return bIsSuspended;
 }
