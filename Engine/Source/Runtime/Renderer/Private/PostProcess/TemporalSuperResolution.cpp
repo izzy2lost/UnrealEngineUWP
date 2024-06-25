@@ -278,7 +278,7 @@ TAutoConsoleVariable<int32> CVarTSRAsyncCompute(
 
 TAutoConsoleVariable<int32> CVarTSRReprojectionField(
 	TEXT("r.TSR.ReprojectionField"), 0,
-	TEXT("Enables TSR's reprojection field for higher reprojection vector upscale and dilate quality (Experimental, disabled by default).\n")
+	TEXT("Enables TSR's reprojection field for higher reprojection vector upscale and dilate quality (Enabled by default on high, epic and cinematic anti-aliasing quality).\n")
 	TEXT("\n")
 	TEXT("When the reprojection fields is enabled, it dilates the reprojection vector by half spatially ")
 	TEXT("anti-aliased rendering pixel from the depth buffer, instead by a full rendering pixel ")
