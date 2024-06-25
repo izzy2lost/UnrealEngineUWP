@@ -19,14 +19,6 @@ ULiveLinkUAssetRecording::~ULiveLinkUAssetRecording()
 void ULiveLinkUAssetRecording::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
-	
-	FString FilePath = GetRecordingDataFilePath();
-	
-	if (Ar.IsSaving())
-	{
-		// todo: async stream save
-		SaveRecording();
-	}
 }
 
 void ULiveLinkUAssetRecording::SaveRecording()

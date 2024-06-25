@@ -226,6 +226,10 @@ void FLiveLinkUAssetRecorder::SaveRecording()
 		NewRecording->LengthInSeconds = TimeRecordingEnded - TimeRecordingStarted;
 		NewRecording->RecordingPreset->BuildFromClient();
 		NewRecording->RecordingData = MoveTemp(*CurrentRecording);
+
+		// todo: async stream save and utilize bulk data within UAsset instead of a separate file.
+		NewRecording->SaveRecording();
+		
 		NewRecording->MarkPackageDirty();
 
 		//FAssetRegistryModule::AssetCreated(NewPreset);  Disabled for now since unsure if needed.
