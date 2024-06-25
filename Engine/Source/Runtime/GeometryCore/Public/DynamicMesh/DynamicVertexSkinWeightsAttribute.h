@@ -256,6 +256,27 @@ public:
 	// Accessors/Queries
 	//
 
+	/** Returns a list of all unique bone indices that are used by this skin weight attribute.
+	 *  \return A unique list of bone indices used by all bone weights across all vertices. 
+	 */
+	TSet<int32> GetBoundBoneIndices() const
+	{
+		if (VertexBoneWeights.Num() == 0)
+		{
+			return {};	// No weights defined, return the empty set.
+		}
+
+		TSet<int32> UniqueBoneIndices;
+		for (int VertexID = 0; VertexID < VertexBoneWeights.Num(); ++VertexID)
+		{
+			for (FBoneWeight BoneWeight: VertexBoneWeights[VertexID])
+			{
+				UniqueBoneIndices.Add(BoneWeight.GetBoneIndex());
+			}
+		}
+		return UniqueBoneIndices;
+	}
+
 	bool CopyThroughMapping(const TDynamicAttributeBase<ParentType>* Source, const FMeshIndexMappings& Mapping) override
 	{
 		// Don't snarf the FBoneWeight as a concrete object, since it _may_ contain a pointer

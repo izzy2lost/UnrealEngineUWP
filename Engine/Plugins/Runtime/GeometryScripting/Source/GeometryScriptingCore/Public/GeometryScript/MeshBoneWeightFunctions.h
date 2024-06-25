@@ -189,6 +189,23 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBoneInfo
 	FLinearColor Color = FLinearColor::White;
 };
 
+
+UENUM(BlueprintType)
+enum class EBonesToCopyFromSource : uint8
+{
+	/** Copy all bones from the source mesh to the target, regardless of whether they're bound or not. 
+	 */
+	AllBones = 0,
+
+	/** Keep only bones that are actually bound to the target mesh, including all parent bones up to the root. */
+	OnlyBoundAndParents = 1,
+	
+	/** Keep only bones that are actually bound to the target mesh and the root bone. Any existing bones between
+	 *  the two will not be copied. Bound bones will have their parent as either the root bone or another bound bone. */
+	OnlyBoundAndRoot = 2
+};
+
+
 USTRUCT(BlueprintType)
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyBonesFromMeshOptions
 {
@@ -198,6 +215,10 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyBonesFromMeshOptions
 	 * target skeleton to the source skeleton.*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool ReindexWeights = false;
+
+	/** Specify which bones are copied from the source mesh to the target. */
+	UPROPERTY(EditAnyWhere, BlueprintReadWrite, Category = Options)
+	EBonesToCopyFromSource BonesToCopyFromSource = EBonesToCopyFromSource::AllBones;
 };
 
 UCLASS(meta = (ScriptName = "GeometryScript_BoneWeights"))
@@ -232,6 +253,23 @@ public:
 		bool& bProfileExisted,
 		bool bReplaceExistingProfile = false,
 		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile() );
+
+	/**
+	 * Copies all bone weights from a source profile onto a target profile, on the same mesh, replacing all 
+	 * weights that existed on the target profile. If either the source or the target profile didn't exist,
+	 * then bProfileExisted will be set to false and no weights are copied.
+	 * @param bProfileExisted will be returned true if both of the requested bone weight profiles exist
+	 * @param TargetProfile The skin weight profile to copy to.
+	 * @param SourceProfile The skin weight profile to copy from.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	MeshCopyBoneWeights( 
+		UDynamicMesh* TargetMesh,
+		bool& bProfileExisted,
+		FGeometryScriptBoneWeightProfile TargetProfile,
+		FGeometryScriptBoneWeightProfile SourceProfile = FGeometryScriptBoneWeightProfile()
+		);
 	
 	/**
 	 * Determine the largest bone weight index that exists on the Mesh
@@ -297,6 +335,27 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
+	 * Blends two bone weights using an Alpha value that ranges from 0 to 1, inclusive. If Alpha is 0, then only weights from BoneWeightsA are used,
+	 * and if Alpha is 1, then only weights from BoneWeightsB are used. For any value in between the weights are linearly interpolated.
+	 * Each bone weight from either array, that has the same bone index, are linearly interpolated. Any bone weights that are missing from either
+	 * BoneWeightsA or BoneWeightsB, are assumed to exist and have a weight of 0. After blending, the result is renormalized and sorted.
+	 * Values that are below the influence threshold, or exceeding the default bone weight limit (currently set to 12) will be thrown away.
+	 * @param BoneWeightsA List of bone weights to blend, such that its influence is greatest when Alpha is 0 and smallest when Alpha is 1.
+	 * @param BoneWeightsB List of bone weights to blend, such that its influence is greatest when Alpha is 1 and smallest when Alpha is 0.
+	 * @param Alpha The blending factor, ranging from 0 to 1, inclusive. Values outside of this range are clamped.
+	 * @param Result The resulting blend of the two bone weight arrays. 
+	 */
+	UFUNCTION(BlueprintPure, Category = "GeometryScript|MeshQueries|BoneWeights")
+	static void
+	BlendBoneWeights(
+		const TArray<FGeometryScriptBoneWeight>& BoneWeightsA,
+		const TArray<FGeometryScriptBoneWeight>& BoneWeightsB,
+		float Alpha,
+		TArray<FGeometryScriptBoneWeight>& Result,
+		UGeometryScriptDebug* Debug = nullptr
+	);
+	
+	/**
 	 * Set all vertices of the TargetMesh to the given Bone/Skin Weights
 	 * @param BoneWeights input array of bone index/weight pairs for the Vertex
 	 * @param Profile identifier for the bone/skin weight profile
@@ -308,7 +367,7 @@ public:
 		const TArray<FGeometryScriptBoneWeight>& BoneWeights,
 		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile(),
 		UGeometryScriptDebug* Debug = nullptr);
-
+	
 	/** 
 	 *  Computes a smooth skin binding for the given mesh to the skeleton provided.
 	 *  @param Skeleton The skeleton to compute binding for the skin weights.
