@@ -534,7 +534,11 @@ struct GAMEPLAYABILITIES_API FGameplayModifierInfo
 	UPROPERTY(EditDefaultsOnly, Category=GameplayModifier, meta=(FilterMetaTag="HideFromModifiers"))
 	FGameplayAttribute Attribute;
 
-	/** The numeric operation of this modifier: Override, Add, Multiply, etc  */
+	/**
+	 * The numeric operation of this modifier: Override, Add, Multiply, etc
+	 * When multiple modifiers aggregate together, the equation is:
+	 * ((BaseValue + AddBase) * MultiplyAdditive / DivideAdditive * MultiplyCompound) + AddFinal
+	 */
 	UPROPERTY(EditDefaultsOnly, Category=GameplayModifier)
 	TEnumAsByte<EGameplayModOp::Type> ModifierOp = EGameplayModOp::Additive;
 

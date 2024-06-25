@@ -103,7 +103,7 @@ bool FGameplayModEvaluationChannelSettings::operator!=(const FGameplayModEvaluat
 
 float GameplayEffectUtilities::GetModifierBiasByModifierOp(EGameplayModOp::Type ModOp)
 {
-	static const float ModifierOpBiases[EGameplayModOp::Max] = {0.f, 1.f, 1.f, 0.f};
+	static const float ModifierOpBiases[EGameplayModOp::Max] = {0.f, 1.f, 1.f, 0.f, 0.f, 0.f};
 	check(ModOp >= 0 && ModOp < EGameplayModOp::Max);
 
 	return ModifierOpBiases[ModOp];
