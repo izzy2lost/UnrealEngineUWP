@@ -154,25 +154,6 @@ void InitTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 #endif
 
-RWBuffer<uint> RWIndirectArgs;
-StructuredBuffer<uint> CompositeTileAllocator;
-uint MaxCompositeTiles;
-
-#ifdef InitCompositeIndirectArgsCS
-
-[numthreads(THREADGROUP_SIZE, 1, 1)]
-void InitCompositeIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
-{
-	if (all(DispatchThreadId == 0))
-	{
-		// Dispatch one group per shadow mask tile
-		uint NumGroups = min(CompositeTileAllocator[0], MaxCompositeTiles);
-		WriteDispatchIndirectArgs(RWIndirectArgs, 0, NumGroups, 1, 1);
-	}
-}
-
-#endif
-
 RWTexture2D<float4> RWCompositeUpsampleWeights;
 
 Texture2D<float> DownsampledSceneDepth;

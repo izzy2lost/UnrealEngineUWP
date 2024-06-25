@@ -73,7 +73,6 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 
 uint2 DownsampledViewMin;
 uint2 DownsampledViewSize;
-uint MaxCompositeTiles;
 float SamplingMinWeight;
 uint2 NumSamplesPerPixel;
 int DebugMode;
@@ -81,25 +80,13 @@ int DebugMode;
 RWTexture2D<float> RWDownsampledSceneDepth;
 RWTexture2D<UNORM float3> RWDownsampledSceneWorldNormal;
 RWTexture2D<float2> RWSampleLuminanceSum;
-RWStructuredBuffer<uint> RWCompositeTileAllocator;
-RWStructuredBuffer<uint2> RWCompositeTileData;
 RWTexture2D<uint> RWLightSamples;
 
 float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 
-groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
-
 groupshared uint SharedCandidateLightHiMask;
 groupshared uint SharedCandidateLightMask[SHARED_LIGHT_MASK_SIZE];
-
-void MarkLocalLightIndex(uint LocalLightIndex)
-{
-	// Re-distribute nearby ids to different bytes in order to balance gather workload
-	uint DWORDIndex = LocalLightIndex % SHARED_LIGHT_MASK_SIZE;
-	uint BitMask = 1u << (LocalLightIndex / SHARED_LIGHT_MASK_SIZE);
-	InterlockedOr(SharedLightMask[DWORDIndex], BitMask);
-}
 
 StructuredBuffer<uint> DownsampledTileAllocator;
 StructuredBuffer<uint> DownsampledTileData;
@@ -124,7 +111,6 @@ void GenerateLightSamplesCS(
 
 	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
 	{
-		SharedLightMask[LinearThreadIndex] = 0;
 		SharedCandidateLightMask[LinearThreadIndex] = 0;
 	}
 
@@ -381,43 +367,6 @@ void GenerateLightSamplesCS(
 				}
 
 				RWLightSamples[DownsampledScreenCoord * NumSamplesPerPixel + LightSampleOffsets[LightSampleIndex]] = PackLightSample(LightSample);
-
-				// Mark tiles which need to be processed
-				if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
-				{
-					MarkLocalLightIndex(LightSample.LocalLightIndex);
-				}
-			}
-		}
-
-		GroupMemoryBarrierWithGroupSync();
-
-		// Write out allocated shadow mask tiles
-		// #ml_todo: process part of the list per tread
-		if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
-		{
-			const uint LightIndex = LinearThreadIndex;
-			const uint BitMask = 1u << LightIndex;
-
-			uint2 DownsampledScreenCoord = DownsampledTileCoord * TILE_SIZE;
-	
-			uint LightMask = SharedLightMask[LinearThreadIndex];
-			while (LightMask != 0)
-			{
-				const uint NextBitIndex = firstbitlow(LightMask);
-				const uint NextBitMask = 1u << NextBitIndex;
-				LightMask ^= NextBitMask;
-
-				const uint LocalLightIndex = LinearThreadIndex + NextBitIndex * SHARED_LIGHT_MASK_SIZE;
-
-				// #ml_todo: merge allocations through groupshared and do only one atomic per group, or just replace entire thing with a scalar loop over SelectedSamples?
-				uint CompositeTileIndex = 0;
-				InterlockedAdd(RWCompositeTileAllocator[0], 1, CompositeTileIndex);
-
-				if (CompositeTileIndex < MaxCompositeTiles)
-				{
-					RWCompositeTileData[CompositeTileIndex] = PackCompositeTile(LocalLightIndex, DownsampledScreenCoord);
-				}
 			}
 		}
 	}

@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Many Lights shaders
-#pragma message("UESHADERMETADATA_VERSION DE81D00C-08D2-4DA6-956F-B7566B5AF5A8")
+#pragma message("UESHADERMETADATA_VERSION A48A689C-146E-4051-BAD6-21564B78503F")
 
 #define MANY_LIGHTS 1
 #include "../LightGridCommon.ush"
@@ -24,10 +24,9 @@
 #define DEBUG_MODE_VISUALIZE_TRACING  2
 
 // Keep in sync with ManyLights.cpp
-#define SHADING_ATLAS_SIZE_IN_TILES 512
 #define DOWNSAMPLE_FACTOR			2
 #define TILE_SIZE					8
-// Limited by PackLightSample, PackShadingTile and SharedCandidateLightHiMask
+// Limited by PackLightSample and SharedCandidateLightHiMask
 #define MAX_LOCAL_LIGHT_INDEX		1024
 #define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
 
@@ -45,14 +44,6 @@ uint PackTile(uint2 TileCoord)
 uint2 UnpackTile(uint PackedTile)
 {
 	return uint2(PackedTile & 0xFFFF, PackedTile >> 16);
-}
-
-uint2 GetShadingTileAtlasCoord(uint ShadingTileIndex, uint2 CoordInTile)
-{
-	uint2 AtlasCoord;
-	AtlasCoord.x = (ShadingTileIndex % SHADING_ATLAS_SIZE_IN_TILES) * TILE_SIZE + CoordInTile.x;
-	AtlasCoord.y = (ShadingTileIndex / SHADING_ATLAS_SIZE_IN_TILES) * TILE_SIZE + CoordInTile.y;
-	return AtlasCoord;
 }
 
 struct FLightSample
@@ -120,54 +111,6 @@ float2 DownsampledScreenCoordToScreenUV(uint2 DownsampledScreenCoord)
 	uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);
 	float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 	return ScreenUV;
-}
-
-uint2 PackCompositeTile(uint LocalLightIndex, uint2 DownsampledScreenCoord)
-{
-	DownsampledScreenCoord /= TILE_SIZE;
-
-	uint2 PackedTile;
-	PackedTile.x = LocalLightIndex;
-	PackedTile.y = (DownsampledScreenCoord.x & 0xFFFF) | ((DownsampledScreenCoord.y & 0xFFFF) << 16);
-	return PackedTile;
-}
-
-void UnpackCompositeTile(uint2 PackedTile, out uint LocalLightIndex, out uint2 DownsampledScreenCoord)
-{
-	LocalLightIndex = PackedTile.x;
-	DownsampledScreenCoord.x = PackedTile.y & 0xFFFF;
-	DownsampledScreenCoord.y = PackedTile.y >> 16;
-
-	DownsampledScreenCoord *= TILE_SIZE;
-}
-
-struct FShadingTile
-{
-	uint LocalLightIndex;
-	uint ShadingTileIndex;
-};
-
-uint PackShadingTile(uint LocalLightIndex, uint ShadingTileIndex)
-{
-	uint PackedShadingTile = LocalLightIndex & 0xFFF;
-	PackedShadingTile |= ShadingTileIndex << 12;
-	return PackedShadingTile;
-}
-
-FShadingTile UnpackShadingTile(uint PackedShadingTile)
-{
-	FShadingTile ShadingTile;
-	ShadingTile.LocalLightIndex = PackedShadingTile & 0xFFF;
-	ShadingTile.ShadingTileIndex = PackedShadingTile >> 12;
-	return ShadingTile;
-}
-
-uint2 ShadingTileGridSize;
-uint MaxShadingTilesPerGridCell;
-
-uint GetShadingTileGridOffset(uint2 ShadingTileCoord, uint IndexInCell)
-{
-	return (ShadingTileCoord.x + ShadingTileCoord.y * ShadingTileGridSize.x) * MaxShadingTilesPerGridCell + IndexInCell;
 }
 
 // Remove texture detail before denoising

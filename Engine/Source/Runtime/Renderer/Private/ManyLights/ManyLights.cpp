@@ -25,13 +25,6 @@ static TAutoConsoleVariable<int32> CVarManyLightsNumSamplesPerPixel(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarManyLightsMaxShadingTilesPerGridCell(
-	TEXT("r.ManyLights.MaxShadingTilesPerGridCell"),
-	32,
-	TEXT("Maximum number of shading tiles per grid cell."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
 static TAutoConsoleVariable<float> CVarManyLightsSamplingMinWeight(
 	TEXT("r.ManyLights.Sampling.MinWeight"),
 	0.001f,
@@ -156,13 +149,18 @@ static TAutoConsoleVariable<int32> CVarManyLightsIESProfiles(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarManyLightsTest(
+	TEXT("r.ManyLights.Test"),
+	1,
+	TEXT("Test."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 namespace ManyLights
 {
 	// must match values in ManyLights.ush
 	constexpr int32 TileSize = 8;
 	constexpr int32 MaxLocalLightIndexXY = 16; // 16 * 16 = 256
-	constexpr uint32 ShadingTileIndexUnshadowed = 0xFFFFF; // limited by PackShadingTile()
-	constexpr uint32 ShadingAtlasSizeInTiles = 512;
 
 	bool IsEnabled()
 	{
@@ -208,10 +206,15 @@ namespace ManyLights
 		return StateFrameIndex;
 	}
 
+	FIntPoint GetNumSamplesPerPixel2d(int32 NumSamplesPerPixel1d)
+	{
+		return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
+	}
+
 	FIntPoint GetNumSamplesPerPixel2d()
 	{
 		const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarManyLightsNumSamplesPerPixel.GetValueOnAnyThread(), 1, 4));
-		return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
+		return GetNumSamplesPerPixel2d(NumSamplesPerPixel1d);
 	}
 
 	int32 GetDebugMode()
@@ -309,36 +312,6 @@ class FInitTileIndirectArgsCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FInitTileIndirectArgsCS, "/Engine/Private/ManyLights/ManyLights.usf", "InitTileIndirectArgsCS", SF_Compute);
 
-class FInitCompositeIndirectArgsCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FInitCompositeIndirectArgsCS)
-	SHADER_USE_PARAMETER_STRUCT(FInitCompositeIndirectArgsCS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWIndirectArgs)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompositeTileAllocator)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return ManyLights::ShouldCompileShaders(Parameters);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-	}
-
-	static int32 GetGroupSize()
-	{
-		return 64;
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FInitCompositeIndirectArgsCS, "/Engine/Private/ManyLights/ManyLights.usf", "InitCompositeIndirectArgsCS", SF_Compute);
-
 class FGenerateLightSamplesCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FGenerateLightSamplesCS)
@@ -350,8 +323,6 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, RWSampleLuminanceSum)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWDownsampledSceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float3>, RWDownsampledSceneWorldNormal)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompositeTileAllocator)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint2>, RWCompositeTileData)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileData)
@@ -484,46 +455,6 @@ class FInitCompositeUpsampleWeightsCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FInitCompositeUpsampleWeightsCS, "/Engine/Private/ManyLights/ManyLights.usf", "InitCompositeUpsampleWeightsCS", SF_Compute);
 
-class FResolveLightSamplesCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FResolveLightSamplesCS)
-	SHADER_USE_PARAMETER_STRUCT(FResolveLightSamplesCS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
-		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWShadingTileAllocator)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWShadingTileGridAllocator)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWShadingTileGrid)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWShadingTileAtlas)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, CompositeTileData)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<flaot4>, CompositeUpsampleWeights)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static int32 GetGroupSize()
-	{
-		return 8;
-	}
-
-	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FDebugMode>;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return ManyLights::ShouldCompileShaders(Parameters);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		ManyLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FResolveLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsResolve.usf", "ResolveLightSamplesCS", SF_Compute);
-
 class FShadeLightSamplesCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FShadeLightSamplesCS)
@@ -536,12 +467,8 @@ class FShadeLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWResolvedSpecularLighting)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileData)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadingTileAllocator)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompositeTileAllocator)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingTileGridAllocator)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadingTileGrid)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadingTiles)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, ShadingTileAtlas)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<flaot4>, CompositeUpsampleWeights)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static int32 GetGroupSize()
@@ -553,8 +480,9 @@ class FShadeLightSamplesCS : public FGlobalShader
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
 	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
+	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 1, 2, 4);
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FNumSamplesPerPixel1d, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -588,6 +516,12 @@ class FShadeLightSamplesCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		ManyLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		const int32 NumSamplesPerPixel1d = PermutationVector.Get<FNumSamplesPerPixel1d>();
+		const FIntPoint NumSamplesPerPixel2d = ManyLights::GetNumSamplesPerPixel2d(NumSamplesPerPixel1d);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_2D_X"), NumSamplesPerPixel2d.X);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_2D_Y"), NumSamplesPerPixel2d.Y);
 	}
 };
 
@@ -764,16 +698,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 		const FIntPoint SampleBufferSize = DownsampledBufferSize * NumSamplesPerPixel2d;
 		const FIntPoint DonwnsampledSampleBufferSize = DownsampledBufferSize * NumSamplesPerPixel2d;
 
-		// #ml_todo: make atlas size based on the resolution
-		const FIntPoint ShadingTileGridSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, ManyLights::TileSize);
-		const FIntPoint ShadingTileAtlasSize = ManyLights::TileSize * ManyLights::ShadingAtlasSizeInTiles;
-		const int32 MaxShadingTiles = ManyLights::ShadingAtlasSizeInTiles * ManyLights::ShadingAtlasSizeInTiles;
-		check(MaxShadingTiles == (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (ManyLights::TileSize * ManyLights::TileSize));
-		check(MaxShadingTiles < ManyLights::ShadingTileIndexUnshadowed);
-		const int32 MaxCompositeTiles = MaxShadingTiles;
-
-		const int32 MaxShadingTilesPerGridCell = FMath::Max(CVarManyLightsMaxShadingTilesPerGridCell.GetValueOnRenderThread(), 0);
-
 		FRDGTextureRef DownsampledSceneDepth = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("ManyLights.DownsampledSceneDepth"));
@@ -865,10 +789,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 			ManyLightsParameters.DownsampledTileMask = DownsampledTileMask;
 			ManyLightsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
 			ManyLightsParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
-			ManyLightsParameters.MaxCompositeTiles = MaxCompositeTiles;
-			ManyLightsParameters.MaxShadingTiles = MaxShadingTiles;
-			ManyLightsParameters.MaxShadingTilesPerGridCell = MaxShadingTilesPerGridCell;
-			ManyLightsParameters.ShadingTileGridSize = ShadingTileGridSize;
 			ManyLightsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
 			ManyLightsParameters.SamplingMinWeight = FMath::Max(CVarManyLightsSamplingMinWeight.GetValueOnRenderThread(), 0.0f);
 			ManyLightsParameters.TileDataStride = TileDataStride;
@@ -978,10 +898,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 				FIntVector(1, 1, 1));
 		}
 
-		FRDGBufferRef CompositeTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("ManyLights.CompositeTileAllocator"));
-		FRDGBufferRef CompositeTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxCompositeTiles), TEXT("ManyLights.CompositeTileData"));
-		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompositeTileAllocator), 0);
-
 		FRDGTextureRef SampleLuminanceSum = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("ManyLights.SampleLuminanceSum"));
@@ -991,8 +907,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 			FRDGTextureUAVRef SampleLuminanceSumUAV = GraphBuilder.CreateUAV(SampleLuminanceSum, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef DownsampledSceneDepthUAV = GraphBuilder.CreateUAV(DownsampledSceneDepth, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef DownsampledSceneWorldNormalUAV = GraphBuilder.CreateUAV(DownsampledSceneWorldNormal, ERDGUnorderedAccessViewFlags::SkipBarrier);
-			FRDGBufferUAVRef CompositeTileAllocatorUAV = GraphBuilder.CreateUAV(CompositeTileAllocator, ERDGUnorderedAccessViewFlags::SkipBarrier);
-			FRDGBufferUAVRef CompositeTileDataUAV = GraphBuilder.CreateUAV(CompositeTileData, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef LightSamplesUAV = GraphBuilder.CreateUAV(LightSamples, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
 			// Clear tiles which don't contain any lights or geometry
@@ -1028,8 +942,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
 				PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
 				PassParameters->RWLightSamples = LightSamplesUAV;
-				PassParameters->RWCompositeTileAllocator = CompositeTileAllocatorUAV;
-				PassParameters->RWCompositeTileData = CompositeTileDataUAV;
 				PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
 				PassParameters->DownsampledTileData = GraphBuilder.CreateSRV(DownsampledTileData);
 
@@ -1050,25 +962,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 					DownsampledTileIndirectArgs,
 					TileType * sizeof(FRHIDispatchIndirectParameters));
 			}
-		}
-
-		FRDGBufferRef CompositeTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("ManyLights.CompositeTileIndirectArgs"));
-
-		// Setup indirect args for shadow mask tile updates
-		{
-			FInitCompositeIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompositeIndirectArgsCS::FParameters>();
-			PassParameters->ManyLightsParameters = ManyLightsParameters;
-			PassParameters->RWIndirectArgs = GraphBuilder.CreateUAV(CompositeTileIndirectArgs);
-			PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
-
-			auto ComputeShader = View.ShaderMap->GetShader<FInitCompositeIndirectArgsCS>();
-
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("InitCompositeIndirectArgs"),
-				ComputeShader,
-				PassParameters,
-				FIntVector(1, 1, 1));
 		}
 
 		ManyLights::RayTraceLightSamples(
@@ -1102,51 +995,6 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 				ComputeShader,
 				PassParameters,
 				GroupCount);
-		}
-
-		FRDGBufferRef ShadingTileAllocator = GraphBuilder.CreateBuffer(
-			FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1),
-			TEXT("ManyLightsParameters.ShadingTileAllocator"));
-
-		FRDGTextureRef ShadingTileGridAllocator = GraphBuilder.CreateTexture(
-			FRDGTextureDesc::Create2D(ShadingTileGridSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-			TEXT("ManyLights.ShadingTileGridAllocator"));
-
-		FRDGBufferRef ShadingTileGrid = GraphBuilder.CreateBuffer(
-			FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), ShadingTileGridSize.X * ShadingTileGridSize.Y * MaxShadingTilesPerGridCell),
-			TEXT("ManyLightsParameters.ShadingTileGrid"));
-
-		FRDGTextureRef ShadingTileAtlas = GraphBuilder.CreateTexture(
-			FRDGTextureDesc::Create2D(ShadingTileAtlasSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-			TEXT("ManyLights	.ShadingTileAtlas"));
-
-		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileAllocator), 0u);
-		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileGridAllocator), 0u);
-
-		// Composite shadow masks traces
-		{
-			FResolveLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FResolveLightSamplesCS::FParameters>();
-			PassParameters->ManyLightsParameters = ManyLightsParameters;
-			PassParameters->IndirectArgs = CompositeTileIndirectArgs;
-			PassParameters->RWShadingTileAllocator = GraphBuilder.CreateUAV(ShadingTileAllocator);
-			PassParameters->RWShadingTileGridAllocator = GraphBuilder.CreateUAV(ShadingTileGridAllocator);
-			PassParameters->RWShadingTileGrid = GraphBuilder.CreateUAV(ShadingTileGrid);
-			PassParameters->RWShadingTileAtlas = GraphBuilder.CreateUAV(ShadingTileAtlas);
-			PassParameters->CompositeTileData = GraphBuilder.CreateSRV(CompositeTileData);
-			PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
-			PassParameters->LightSamples = LightSamples;
-
-			FResolveLightSamplesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FResolveLightSamplesCS::FDebugMode>(bDebug);
-			auto ComputeShader = View.ShaderMap->GetShader<FResolveLightSamplesCS>(PermutationVector);
-
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("CompositeLightSamples"),
-				ComputeShader,
-				PassParameters,
-				CompositeTileIndirectArgs,
-				0);
 		}
 
 		FRDGTextureRef ResolvedDiffuseLighting = GraphBuilder.CreateTexture(
@@ -1190,19 +1038,17 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->RWResolvedSpecularLighting = ResolvedSpecularLightingUAV;
 				PassParameters->IndirectArgs = TileIndirectArgs;
 				PassParameters->ManyLightsParameters = ManyLightsParameters;
-				PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
 				PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
 				PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
-				PassParameters->ShadingTileAllocator = GraphBuilder.CreateSRV(ShadingTileAllocator);
-				PassParameters->ShadingTileGridAllocator = ShadingTileGridAllocator;
-				PassParameters->ShadingTileGrid = GraphBuilder.CreateSRV(ShadingTileGrid);
-				PassParameters->ShadingTileAtlas = ShadingTileAtlas;
+				PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
+				PassParameters->LightSamples = LightSamples;
 
 				FShadeLightSamplesCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
 				PermutationVector.Set<FShadeLightSamplesCS::FIESProfile>(CVarManyLightsIESProfiles.GetValueOnRenderThread() != 0);
 				PermutationVector.Set<FShadeLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
 				PermutationVector.Set<FShadeLightSamplesCS::FTexturedRectLights>(CVarManyLightsTexturedRectLights.GetValueOnRenderThread() != 0);
+				PermutationVector.Set<FShadeLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
 				PermutationVector.Set<FShadeLightSamplesCS::FDebugMode>(bDebug);
 				auto ComputeShader = View.ShaderMap->GetShader<FShadeLightSamplesCS>(PermutationVector);
 

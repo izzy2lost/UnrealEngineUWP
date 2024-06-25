@@ -12,20 +12,43 @@
 RWTexture2D<float3> RWResolvedDiffuseLighting;
 RWTexture2D<float3> RWResolvedSpecularLighting;
 
-Texture2D<float> ShadingTileAtlas;
-Texture2D<uint> ShadingTileGridAllocator;
-StructuredBuffer<uint> ShadingTileGrid;
-StructuredBuffer<uint> CompositeTileAllocator;
-StructuredBuffer<uint> ShadingTileAllocator;
-uint MaxCompositeTiles;
-uint MaxShadingTiles;
+int2 SampleViewMin;
+int2 SampleViewSize;
 
 StructuredBuffer<uint> TileAllocator;
 StructuredBuffer<uint> TileData;
 uint TileDataStride;
 
+Texture2D<uint> LightSamples;
+Texture2D<float4> CompositeUpsampleWeights;
+
+// 4x4 neighborhood with borders
+#define SHARED_TILE_SIZE_X ((4 + 2) * NUM_SAMPLES_PER_PIXEL_2D_X)
+#define SHARED_TILE_SIZE_Y ((4 + 2) * NUM_SAMPLES_PER_PIXEL_2D_Y)
+groupshared uint SharedSamples[SHARED_TILE_SIZE_X][SHARED_TILE_SIZE_Y];
+
+// Light scalarization
+groupshared uint SharedLightHiMask;
+groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
+
+void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float UpsampleWeight, inout float SampleWeightSum)
+{
+	for (uint SampleOffsetY = 0; SampleOffsetY < NUM_SAMPLES_PER_PIXEL_2D_Y; ++SampleOffsetY)
+	{
+		for (uint SampleOffsetX = 0; SampleOffsetX < NUM_SAMPLES_PER_PIXEL_2D_X; ++SampleOffsetX)
+		{
+			FLightSample LightSample = UnpackLightSample(SharedSamples[SharedSampleCoord.x * NUM_SAMPLES_PER_PIXEL_2D_X + SampleOffsetX][SharedSampleCoord.y * NUM_SAMPLES_PER_PIXEL_2D_Y + SampleOffsetY]);
+
+			if (LightSample.LocalLightIndex == LocalLightIndex)
+			{
+				SampleWeightSum += LightSample.Weight * UpsampleWeight;
+			}
+		}
+	}
+}
+
 /**
- * Apply all lights per pixel to affected tiles using sampled weights from upscaled shading tiles
+ * Upsample light weights and apply all lights per pixel to affected tiles
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ShadeLightSamplesCS(
@@ -33,11 +56,69 @@ void ShadeLightSamplesCS(
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
 {
+	uint LinearThreadIndex = GroupThreadId.x + GroupThreadId.y * THREADGROUP_SIZE;
+
+	if (LinearThreadIndex == 0)
+	{
+		SharedLightHiMask = 0;
+	}
+
+	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
+	{
+		SharedLightMask[LinearThreadIndex] = 0;
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
 	uint TileIndex = GroupId.x;
 	if (TileIndex < TileAllocator[TILE_TYPE])
 	{
 		uint2 TileCoord = UnpackTile(TileData[TileIndex + TILE_TYPE * TileDataStride]);
 		uint2 ScreenCoord = TileCoord * TILE_SIZE + GroupThreadId.xy;
+		uint LocalLightHiMask = 0;
+
+		// First load all samples into shared memory
+		for (uint SharedCoordY = GroupThreadId.y; SharedCoordY < SHARED_TILE_SIZE_Y; SharedCoordY += THREADGROUP_SIZE)
+		{
+			for (uint SharedCoordX = GroupThreadId.x; SharedCoordX < SHARED_TILE_SIZE_X; SharedCoordX += THREADGROUP_SIZE)
+			{
+				const uint2 NumSamplesPerPixel = uint2(NUM_SAMPLES_PER_PIXEL_2D_X, NUM_SAMPLES_PER_PIXEL_2D_Y);
+				uint2 SharedSampleCoord = uint2(SharedCoordX, SharedCoordY);
+				int2 DownsampledScreenCoord = int2(TileCoord * TILE_SIZE - 1) / DOWNSAMPLE_FACTOR + SharedSampleCoord / NumSamplesPerPixel;
+				int2 SampleCoord = DownsampledScreenCoord * NumSamplesPerPixel + SharedSampleCoord % NumSamplesPerPixel;
+
+				FLightSample LightSample = InitLightSample();
+
+				if (and(all(SampleCoord >= SampleViewMin), all(SampleCoord < SampleViewMin + SampleViewSize)))
+				{
+					LightSample = UnpackLightSample(LightSamples[SampleCoord]);
+
+					if (LightSample.bVisible && LightSample.LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
+					{
+						uint DWORDIndex = LightSample.LocalLightIndex / 32;
+						uint BitMask = 1u << (LightSample.LocalLightIndex % 32);
+						InterlockedOr(SharedLightMask[DWORDIndex], BitMask);
+
+						uint HiBitMask = 1u << DWORDIndex;
+						LocalLightHiMask |= HiBitMask;
+					}
+					else
+					{
+						LightSample = InitLightSample();
+					}
+				}
+
+				SharedSamples[SharedSampleCoord.x][SharedSampleCoord.y] = PackLightSample(LightSample);
+			}
+		}
+
+		uint WaveHiMask = WaveActiveBitOr(LocalLightHiMask);
+		if (WaveIsFirstLane())
+		{
+			InterlockedOr(SharedLightHiMask, WaveHiMask);
+		}
+
+		GroupMemoryBarrierWithGroupSync();
 
 		if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 		{
@@ -61,97 +142,109 @@ void ShadeLightSamplesCS(
 				DiffuseLighting = 0.0f;
 				SpecularLighting = 0.0f;
 
-				uint2 ShadingTileCoord = TileCoord;
-				uint2 CoordInShadingTile = GroupThreadId.xy;
-
 				float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);		
 				float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
-
-				uint NumShadingTilesInCell = ShadingTileGridAllocator.Load(int3(ShadingTileCoord, 0));
 
 				#if DEBUG_MODE
 				if (bDebug)
 				{
 					Print(Context, TEXT("ShadeSamplesCS"));
 					Newline(Context);
+					Print(Context, UnpackLightSample(SharedSamples[0][0]).LocalLightIndex);
+					Print(Context, UnpackLightSample(SharedSamples[1][0]).LocalLightIndex);
+					Print(Context, UnpackLightSample(SharedSamples[2][0]).LocalLightIndex);
+					Print(Context, UnpackLightSample(SharedSamples[3][0]).LocalLightIndex);
+					Print(Context, UnpackLightSample(SharedSamples[4][0]).LocalLightIndex);
+					Print(Context, UnpackLightSample(SharedSamples[5][0]).LocalLightIndex);
+					Newline(Context);
 					Print(Context, TEXT("ScreenCoord: "));
 					Print(Context, ScreenCoord.x);
 					Print(Context, ScreenCoord.y);
-					Newline(Context);
-					Print(Context, TEXT("NumShadingTilesInCell: "));
-					Print(Context, NumShadingTilesInCell);
-					Newline(Context);
-					Print(Context, TEXT("ShadingTiles:    "));
-					Print(Context, ShadingTileAllocator[0]);
-					Print(Context, MaxShadingTiles);
-					Print(Context, ShadingTileAllocator[0] / float(MaxShadingTiles));
 					Newline(Context);
 					Print(Context, TEXT("LightId   | Weight    | Diffuse   | Specular"));
 				}
 				#endif
 
-				for (uint IndexInCell = 0; IndexInCell < NumShadingTilesInCell; ++IndexInCell)
+				uint LightHiMask = SharedLightHiMask;
+				while (LightHiMask != 0)
 				{
-					const uint PackedShadingTile = ShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, IndexInCell)];
-					const FShadingTile ShadingTile = UnpackShadingTile(PackedShadingTile);
-					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(ShadingTile.LocalLightIndex);
-					FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+					const uint NextHiBitIndex = firstbitlow(LightHiMask);
+					const uint NextHiBitMask = 1u << NextHiBitIndex;
+					LightHiMask ^= NextHiBitMask;
 
-					float SampleWeight = 0.0f;
+					const uint MaskIndex = NextHiBitIndex;
+					uint LightMask = SharedLightMask[MaskIndex];
 
-					if (ShadingTile.ShadingTileIndex < MaxShadingTiles)
+					while (LightMask != 0)
 					{
-						uint2 ShadingTileAtlasCoord = GetShadingTileAtlasCoord(ShadingTile.ShadingTileIndex, CoordInShadingTile);
-						SampleWeight = ShadingTileAtlas[ShadingTileAtlasCoord];
-					}
+						const uint NextBitIndex = firstbitlow(LightMask);
+						const uint NextBitMask = 1u << NextBitIndex;
+						LightMask ^= NextBitMask;
 
-					if (SampleWeight > 0.01f && LightData.IESAtlasIndex >= 0)
-					{
-						// #ml_todo: evaluate moving this to CompositeLightSamplesCS
-						SampleWeight *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
-					}
+						const uint LocalLightIndex = MaskIndex * 32 + NextBitIndex;
 
-					#if DEBUG_MODE
-					if (bDebug)
-					{
-						Newline(Context);
-						Print(Context, LocalLightData.LightSceneId);
-						Print(Context, SampleWeight);
-					}
-					#endif
+						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
-					if (SampleWeight > 0.0f)
-					{
-						GBuffer.Roughness = max(GBuffer.Roughness, View.MinRoughness);
+						float4 DownsampledScreenWeights = CompositeUpsampleWeights[ScreenCoord];
+						uint2 SharedSampleCoord00 = (GroupThreadId.xy + 1) / DOWNSAMPLE_FACTOR;
 
-						float4 LightAttenuation = 1.0f;
-						float Dither = 0.5f;
-						float SurfaceShadow = 1;
-						float AmbientOcclusion = ScreenSpaceAO;
+						float SampleWeight = 0.0f;
+						AccumulateLightSample(SharedSampleCoord00 + uint2(0, 0), LocalLightIndex, DownsampledScreenWeights.x, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord00 + uint2(1, 0), LocalLightIndex, DownsampledScreenWeights.y, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord00 + uint2(0, 1), LocalLightIndex, DownsampledScreenWeights.z, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord00 + uint2(1, 1), LocalLightIndex, DownsampledScreenWeights.w, SampleWeight);
 
-						// #ml_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
-						#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
+						if (SampleWeight > 0.01f && LightData.IESAtlasIndex >= 0)
 						{
-							GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+							// #ml_todo: evaluate moving this to CompositeLightSamplesCS
+							SampleWeight *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 						}
-						#endif
-						LightData.ShadowedBits = 0;
 
-						FDeferredLightingSplit SplitLighting = GetDynamicLightingSplit(
-							TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, GBuffer.ShadingModelID, 
-							LightData, LightAttenuation, Dither, ScreenCoord, 
-							SurfaceShadow);
-
-						DiffuseLighting += SplitLighting.DiffuseLighting.xyz * SampleWeight;
-						SpecularLighting += SplitLighting.SpecularLighting.xyz * SampleWeight;
-
-						#if DEBUG_MODE 
+						#if DEBUG_MODE
 						if (bDebug)
 						{
-							Print(Context, SplitLighting.DiffuseLighting.xyz);
-							Print(Context, SplitLighting.SpecularLighting.xyz);
+							Newline(Context);
+							Print(Context, DownsampledScreenWeights);
+							Newline(Context);
+							Print(Context, LocalLightData.LightSceneId);
+							Print(Context, SampleWeight);
 						}
 						#endif
+
+						if (SampleWeight > 0.0f)
+						{
+							GBuffer.Roughness = max(GBuffer.Roughness, View.MinRoughness);
+
+							float4 LightAttenuation = 1.0f;
+							float Dither = 0.5f;
+							float SurfaceShadow = 1;
+							float AmbientOcclusion = ScreenSpaceAO;
+
+							// #ml_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
+							#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
+							{
+								GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+							}
+							#endif
+							LightData.ShadowedBits = 0;
+
+							FDeferredLightingSplit SplitLighting = GetDynamicLightingSplit(
+								TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, GBuffer.ShadingModelID, 
+								LightData, LightAttenuation, Dither, ScreenCoord, 
+								SurfaceShadow);
+
+							DiffuseLighting += SplitLighting.DiffuseLighting.xyz * SampleWeight;
+							SpecularLighting += SplitLighting.SpecularLighting.xyz * SampleWeight;
+
+							#if DEBUG_MODE 
+							if (bDebug)
+							{
+								Print(Context, SplitLighting.DiffuseLighting.xyz);
+								Print(Context, SplitLighting.SpecularLighting.xyz);
+							}
+							#endif
+						}
 					}
 				}
 
