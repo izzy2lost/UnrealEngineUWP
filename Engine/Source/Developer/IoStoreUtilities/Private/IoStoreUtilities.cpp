@@ -4611,6 +4611,7 @@ struct FIoStoreWriterInfo
 static bool DoAssetRegistryWritebackDuringStage(
 	EAssetRegistryWritebackMethod InMethod, 
 	bool bInWritePluginMetadata,
+	FCookedPackageStore* InPackageStore,
 	const FString& InCookedDir, 
 	bool bInCompressionEnabled,
 	TArray<TSharedPtr<IIoStoreWriter>>& InIoStoreWriters, 
@@ -4632,7 +4633,7 @@ static bool DoAssetRegistryWritebackDuringStage(
 	// We always need the cook metadata in order to update the corresponding hash.
 	EnumAddFlags(FilesNeeded, ECookMetadataFiles::CookMetadata);
 
-	if (FindAndLoadMetadataFiles(InCookedDir, FilesNeeded, AssetRegistry, &AssetRegistryFileName, &CookMetadata, &CookMetadataFileName) == ECookMetadataFiles::None)
+	if (FindAndLoadMetadataFiles(InPackageStore, InCookedDir, FilesNeeded, AssetRegistry, &AssetRegistryFileName, &CookMetadata, &CookMetadataFileName) == ECookMetadataFiles::None)
 	{
 		// already logged
 		return false;
@@ -5547,6 +5548,7 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 		DoAssetRegistryWritebackDuringStage(
 			Arguments.WriteBackMetadataToAssetRegistry, 
 			Arguments.bWritePluginSizeSummaryJsons, 
+			Arguments.PackageStore.Get(),
 			Arguments.CookedDir, 
 			GeneralIoWriterSettings.CompressionMethod != NAME_None, 
 			IoStoreWriters, 

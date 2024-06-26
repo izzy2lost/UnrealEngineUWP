@@ -261,7 +261,7 @@ FIoStatus FCookedPackageStore::LoadChunkHashes()
 	else
 	{
 		FAssetRegistryState AssetRegistry;
-		if (FindAndLoadMetadataFiles(CookedDir, ECookMetadataFiles::None, AssetRegistry, nullptr, nullptr, nullptr) == ECookMetadataFiles::None)
+		if (FindAndLoadMetadataFiles(this, CookedDir, ECookMetadataFiles::None, AssetRegistry, nullptr, nullptr, nullptr) == ECookMetadataFiles::None)
 		{
 			return FIoStatus(EIoErrorCode::NotFound);
 		}
@@ -349,6 +349,11 @@ const FPackageStoreEntryResource* FCookedPackageStore::GetPackageStoreEntry(FPac
 bool FCookedPackageStore::HasZenStoreClient() const
 {
 	return ZenStoreClient.IsValid();
+}
+
+UE::FZenStoreHttpClient* FCookedPackageStore::GetZenStoreClient()
+{
+	return ZenStoreClient.Get();
 }
 
 TIoStatusOr<FIoBuffer> FCookedPackageStore::ReadChunk(const FIoChunkId& ChunkId)

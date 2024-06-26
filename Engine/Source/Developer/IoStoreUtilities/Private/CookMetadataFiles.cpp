@@ -6,39 +6,59 @@
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 #include "CookMetadata.h"
+#include "CookedPackageStore.h"
 #include "HAL/FileManager.h"
+#include "IO/IoBuffer.h"
 #include "IO/IoStore.h"
+#include "Memory/MemoryView.h"
 #include "Misc/Paths.h"
 #include "ProfilingDebugging/CountersTrace.h"
 #include "Serialization/LargeMemoryReader.h"
+#include "ZenStoreHttpClient.h"
 
 // Returns the hash of the development asset registry or 0 on failure.
-static uint64 LoadAssetRegistry(const FString& InAssetRegistryFileName, FAssetRegistryState& OutAssetRegistry)
+static uint64 LoadAssetRegistry(FCookedPackageStore* InPackageStore, const FString& InAssetRegistryFileName, FIoChunkId InAssetRegistryChunkId, FAssetRegistryState& OutAssetRegistry)
 {
 	FAssetRegistryVersion::Type Version;
 	FAssetRegistryLoadOptions Options(UE::AssetRegistry::ESerializationTarget::ForDevelopment);
 
-	TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(*InAssetRegistryFileName));
-	if (FileReader)
+	if (InPackageStore && InPackageStore->HasZenStoreClient() && InAssetRegistryChunkId.IsValid())
 	{
-		TArray64<uint8> Data;
-		Data.SetNumUninitialized(FileReader->TotalSize());
-		FileReader->Serialize(Data.GetData(), Data.Num());
-		check(!FileReader->IsError());
+		FIoBuffer Buffer;
+		Buffer = InPackageStore->ReadChunk(InAssetRegistryChunkId).ConsumeValueOrDie();
+		uint64 DevArHash = UE::Cook::FCookMetadataState::ComputeHashOfDevelopmentAssetRegistry(Buffer.GetView());
 
-		uint64 DevArHash = UE::Cook::FCookMetadataState::ComputeHashOfDevelopmentAssetRegistry(MakeMemoryView(Data));
-
-		FLargeMemoryReader MemoryReader(Data.GetData(), Data.Num());
+		FLargeMemoryReader MemoryReader(Buffer.GetData(), Buffer.GetSize());
 		if (OutAssetRegistry.Load(MemoryReader, Options, &Version))
 		{
 			return DevArHash;
 		}
 	}
+	else
+	{
+		TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(*InAssetRegistryFileName));
+		if (FileReader)
+		{
+			TArray64<uint8> Data;
+			Data.SetNumUninitialized(FileReader->TotalSize());
+			FileReader->Serialize(Data.GetData(), Data.Num());
+			check(!FileReader->IsError());
 
-	return 0;;
+			uint64 DevArHash = UE::Cook::FCookMetadataState::ComputeHashOfDevelopmentAssetRegistry(MakeMemoryView(Data));
+
+			FLargeMemoryReader MemoryReader(Data.GetData(), Data.Num());
+			if (OutAssetRegistry.Load(MemoryReader, Options, &Version))
+			{
+				return DevArHash;
+			}
+		}
+	}
+
+	return 0;
 }
 
 ECookMetadataFiles FindAndLoadMetadataFiles(
+	FCookedPackageStore* InPackageStore,
 	const FString& InCookedDir, ECookMetadataFiles InRequiredFiles, 
 	FAssetRegistryState& OutAssetRegistry, FString* OutAssetRegistryFileName /*optional, set on success*/,
 	UE::Cook::FCookMetadataState* OutCookMetadata, FString* OutCookMetadataFileName /*optional, set on success or need*/)
@@ -58,6 +78,31 @@ ECookMetadataFiles FindAndLoadMetadataFiles(
 		}
 	}
 
+	FIoChunkId AssetRegistryChunkId = FIoChunkId::InvalidChunkId;
+	if ((PossibleAssetRegistryFiles.Num() == 0) && InPackageStore)
+	{
+		if (UE::FZenStoreHttpClient* ZenStoreClient = InPackageStore->GetZenStoreClient())
+		{
+			TIoStatusOr<FCbObject> ProjectInfoStatus = ZenStoreClient->GetProjectInfo().Get();
+			if (ProjectInfoStatus.IsOk())
+			{
+				FCbObject ProjectInfo = ProjectInfoStatus.ConsumeValueOrDie();
+				FString ProjectFile(ProjectInfo["projectfile"].AsString());
+				FString ProjectName = FPaths::GetBaseFilename(ProjectFile);
+				if (!ProjectName.IsEmpty())
+				{
+					FString CandidateAssetRegistryFilename = FPaths::Combine(InCookedDir, ProjectName, "Metadata", GetDevelopmentAssetRegistryFilename());
+					FPaths::NormalizeFilename(CandidateAssetRegistryFilename);
+					AssetRegistryChunkId = InPackageStore->GetChunkIdFromFileName(CandidateAssetRegistryFilename);
+					if (AssetRegistryChunkId.IsValid())
+					{
+						PossibleAssetRegistryFiles.Add(MoveTemp(CandidateAssetRegistryFilename));
+					}
+				}
+			}
+		}
+	}
+
 	if (PossibleAssetRegistryFiles.Num() == 0)
 	{
 		if (EnumHasAnyFlags(InRequiredFiles, ECookMetadataFiles::AssetRegistry))
@@ -71,8 +116,10 @@ ECookMetadataFiles FindAndLoadMetadataFiles(
 		return ECookMetadataFiles::None;
 	}
 
+	FPaths::NormalizeFilename(PossibleAssetRegistryFiles[0]);
+
 	UE_LOG(LogIoStore, Display, TEXT("Using input asset registry: %s"), *PossibleAssetRegistryFiles[0]);
-	uint64 LoadedDevArHash = LoadAssetRegistry(PossibleAssetRegistryFiles[0], OutAssetRegistry);
+	uint64 LoadedDevArHash = LoadAssetRegistry(InPackageStore, PossibleAssetRegistryFiles[0], AssetRegistryChunkId, OutAssetRegistry);
 
 	if (LoadedDevArHash == 0)
 	{
@@ -86,17 +133,11 @@ ECookMetadataFiles FindAndLoadMetadataFiles(
 	{
 		// The cook metadata file should be adjacent to the development asset registry.
 		FString CookMetadataFileName = FPaths::GetPath(PossibleAssetRegistryFiles[0]) / UE::Cook::GetCookMetadataFilename();
-		if (IFileManager::Get().FileExists(*CookMetadataFileName))
+
+		auto ValidateAndOutputCookMetadata = [InRequiredFiles, LoadedDevArHash, &CookMetadataFileName, &OutCookMetadata, &OutCookMetadataFileName, &ResultFiles]()
 		{
-			if (OutCookMetadata->ReadFromFile(CookMetadataFileName) == false)
-			{
-				UE_LOG(LogIoStore, Error, TEXT("Failed to deserialize cook metadata file - invalid data. [%s]"), *CookMetadataFileName);
-				if (EnumHasAnyFlags(InRequiredFiles, ECookMetadataFiles::CookMetadata))
-				{
-					return ECookMetadataFiles::None;
-				}
-			}
-			else if (OutCookMetadata->GetAssociatedDevelopmentAssetRegistryHash() != LoadedDevArHash &&
+
+			if (OutCookMetadata->GetAssociatedDevelopmentAssetRegistryHash() != LoadedDevArHash &&
 				OutCookMetadata->GetAssociatedDevelopmentAssetRegistryHashPostWriteback() != LoadedDevArHash) // during testing we can repeat stage after cook so we might have already edited it.
 			{
 				if (EnumHasAnyFlags(InRequiredFiles, ECookMetadataFiles::CookMetadata))
@@ -104,7 +145,7 @@ ECookMetadataFiles FindAndLoadMetadataFiles(
 					UE_LOG(LogIoStore, Error,
 						TEXT("Cook metadata file mismatch: Hash of associated development asset registry does not match. [%s] %llx vs %llx (%llx post writeback)"),
 						*CookMetadataFileName, LoadedDevArHash, OutCookMetadata->GetAssociatedDevelopmentAssetRegistryHash(), OutCookMetadata->GetAssociatedDevelopmentAssetRegistryHashPostWriteback());
-					return ECookMetadataFiles::None;
+					return false;
 				}
 				else
 				{
@@ -121,6 +162,52 @@ ECookMetadataFiles FindAndLoadMetadataFiles(
 				{
 					*OutCookMetadataFileName = MoveTemp(CookMetadataFileName);
 				}
+			}
+			return true;
+		};
+
+		if (InPackageStore && InPackageStore->HasZenStoreClient() && AssetRegistryChunkId.IsValid())
+		{
+			FIoChunkId CookMetadataChunkId = InPackageStore->GetChunkIdFromFileName(CookMetadataFileName);
+			if (!CookMetadataChunkId.IsValid())
+			{
+				UE_LOG(LogIoStore, Error, TEXT("Failed to find cook metadata file - chunk missing from package store. [%s]"), *CookMetadataFileName);
+				if (EnumHasAnyFlags(InRequiredFiles, ECookMetadataFiles::CookMetadata))
+				{
+					return ECookMetadataFiles::None;
+				}
+			}
+
+			FIoBuffer Buffer;
+			Buffer = InPackageStore->ReadChunk(CookMetadataChunkId).ConsumeValueOrDie();
+
+			FLargeMemoryReader MemoryReader(Buffer.GetData(), Buffer.GetSize());
+			if (!OutCookMetadata->Serialize(MemoryReader))
+			{
+				UE_LOG(LogIoStore, Error, TEXT("Failed to deserialize cook metadata from package store (%s)"), *CookMetadataFileName);
+				if (EnumHasAnyFlags(InRequiredFiles, ECookMetadataFiles::CookMetadata))
+				{
+					return ECookMetadataFiles::None;
+				}
+			}
+			else if (!ValidateAndOutputCookMetadata())
+			{
+				return ECookMetadataFiles::None;
+			}
+		}
+		else if (IFileManager::Get().FileExists(*CookMetadataFileName))
+		{
+			if (!OutCookMetadata->ReadFromFile(CookMetadataFileName))
+			{
+				UE_LOG(LogIoStore, Error, TEXT("Failed to deserialize cook metadata file - invalid data. [%s]"), *CookMetadataFileName);
+				if (EnumHasAnyFlags(InRequiredFiles, ECookMetadataFiles::CookMetadata))
+				{
+					return ECookMetadataFiles::None;
+				}
+			}
+			else if (!ValidateAndOutputCookMetadata())
+			{
+				return ECookMetadataFiles::None;
 			}
 		}
 		else

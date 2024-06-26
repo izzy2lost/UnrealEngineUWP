@@ -128,6 +128,7 @@ FZenStoreHttpClient::TryCreateProject(FStringView InProjectId,
 		}
 	}
 
+	ProjectPath = WriteToString<128>("/prj/", InProjectId);
 	OplogPath = WriteToString<128>("/prj/", InProjectId, "/oplog/", InOplogId);
 	OplogNewEntryPath = WriteToString<128>("/prj/", InProjectId, "/oplog/", InOplogId, "/new");
 	OplogPrepNewEntryPath = WriteToString<128>("/prj/", InProjectId, "/oplog/", InOplogId, "/prep");
@@ -237,6 +238,7 @@ void FZenStoreHttpClient::InitializeReadOnly(FStringView InProjectId, FStringVie
 		UE::Zen::FZenScopedRequestPtr Request(RequestPool.Get());
 
 		OplogPath = WriteToString<128>("/prj/", InProjectId, "/oplog/", InOplogId);
+		ProjectPath = WriteToString<128>("/prj/", InProjectId);
 
 		TArray64<uint8> GetBuffer;
 		if (!Download(*Request, OplogPath, &GetBuffer, Zen::EContentType::CbObject) || Request->GetResponseCode() != 200)
@@ -592,6 +594,30 @@ TIoStatusOr<FIoBuffer> FZenStoreHttpClient::ReadOpLogUri(FStringBuilderBase& Chu
 	return FIoStatus(EIoErrorCode::NotFound);
 }
 
+TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetProjectInfo()
+{
+#if WITH_EDITOR
+	EAsyncExecution ThreadPool = EAsyncExecution::LargeThreadPool;
+#else
+	EAsyncExecution ThreadPool = EAsyncExecution::ThreadPool;
+#endif
+	return Async(ThreadPool, [this]
+	{
+		UE::Zen::FZenScopedRequestPtr Request(RequestPool.Get());
+
+		TArray64<uint8> GetBuffer;
+		if (Download(*Request, ProjectPath, &GetBuffer, Zen::EContentType::CbObject) && Request->GetResponseCode() == 200)
+		{
+			FCbObjectView Response(GetBuffer.GetData());
+			return TIoStatusOr<FCbObject>(FCbObject::Clone(Response));
+		}
+		else
+		{
+			return TIoStatusOr<FCbObject>(FIoStatus(EIoErrorCode::NotFound));
+		}
+	});
+}
+
 TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetOplog()
 {
 #if WITH_EDITOR
@@ -781,6 +807,11 @@ TIoStatusOr<uint64> FZenStoreHttpClient::EndBuildPass(FCbPackage OpEntry)
 TIoStatusOr<uint64> FZenStoreHttpClient::AppendOp(FCbPackage OpEntry)
 {
 	return TIoStatusOr<uint64>();
+}
+
+TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetProjectInfo()
+{
+	return TFuture<TIoStatusOr<FCbObject>>();
 }
 
 TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetOplog()

@@ -62,6 +62,7 @@ public:
 	uint16 GetPort() const { return 8558; }
 #endif
 
+	TFuture<TIoStatusOr<FCbObject>> GetProjectInfo();
 	TFuture<TIoStatusOr<FCbObject>> GetOplog();
 	TFuture<TIoStatusOr<FCbObject>> GetFiles();
 	TFuture<TIoStatusOr<FCbObject>> GetChunkInfos();
@@ -95,6 +96,7 @@ private:
 #endif
 	TUniquePtr<Zen::FZenHttpRequestPool> RequestPool;
 	SaltGenerator SaltGen;
+	FString ProjectPath;
 	FString OplogPath;
 	FString OplogNewEntryPath;
 	FString OplogPrepNewEntryPath;
