@@ -67,14 +67,14 @@ namespace UnsyncUI
 		public string ScavengePath { get; }
 		public string DstPathBase => Path.GetDirectoryName(DstPath);
         public bool DryRun { get; }
-        public string Proxy { get; }
+        public UnsyncServerConfig Server { get; }
 		public string AdditionalArgs { get; }
 		public string[] IncludeFilter { get; }
 		public string[] Exclusions { get; }
 
-        public string ProxyStr => string.IsNullOrWhiteSpace(Proxy) ? "(none)" : Proxy;
+        public string ProxyStr => string.IsNullOrWhiteSpace(Server?.address) ? "(none)" : Server.address;
 
-        public string Name => $"{Build.Name}{(DryRun ? " - Dry Run" : "")}";
+		public string Name => $"{Build.Name}{(DryRun ? " - Dry Run" : "")}";
 
 		private double totalProgress = 0;
         public double TotalProgress
@@ -171,7 +171,7 @@ namespace UnsyncUI
 			string dstPath,
 			string scavengePath,
 			bool dryRun,
-			string proxy,
+			UnsyncServerConfig server,
 			string additionalArgs,
 			string[] exclusions,
 			Action<JobModel> onCompletion,
@@ -182,7 +182,7 @@ namespace UnsyncUI
             DstPath = dstPath?.TrimEnd('\\');
 			ScavengePath = scavengePath?.TrimEnd('\\');
             DryRun = dryRun;
-            Proxy = proxy?.TrimEnd('\\');
+            Server = server;
 			AdditionalArgs = additionalArgs;
 			IncludeFilter = build.Include?.Split(',', StringSplitOptions.RemoveEmptyEntries)
 				.Select(Entry => Entry.Trim())
@@ -366,9 +366,9 @@ namespace UnsyncUI
 					args.Add("-d");
 				}
 
-				if (!string.IsNullOrWhiteSpace(Proxy))
+				if (Server != null)
 				{
-					args.Add($"--proxy \"{Proxy}\"");
+					args.Add(Server.GetCommandLineArgs());
 
 					if (App.Current.Config.EnableUserAuthentication
 						&& App.Current.Config.loggedInUser != null)

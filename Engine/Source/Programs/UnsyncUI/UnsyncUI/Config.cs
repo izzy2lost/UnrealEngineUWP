@@ -20,6 +20,13 @@ namespace UnsyncUI
 		{
 			public string Name { get; set; }
 			public string Path { get; set; }
+			public string Protocol { get; set; }
+
+			public UnsyncServerConfig GetServerConfig()
+			{
+				return new UnsyncServerConfig { address=Path, protocol=Protocol };
+			}
+
 		}
 
 		internal struct BuildTemplate
@@ -235,12 +242,6 @@ namespace UnsyncUI
 				throw new Exception("Unable to find unsync.exe binary specified in config file.");
 			}
 
-			Proxies.Add(new Proxy()
-			{
-				Name = "(none)",
-				Path = null
-			});
-
 			List<Proxy> ConfigProxies = new List<Proxy>();
 
 			var proxiesConfigNode = rootNode.Element("proxies");
@@ -249,7 +250,8 @@ namespace UnsyncUI
 				ConfigProxies.AddRange(proxiesConfigNode.Elements("proxy").Select(p => new Proxy()
 				{
 					Name = p.Attribute("name")?.Value,
-					Path = p.Attribute("path")?.Value
+					Path = p.Attribute("path")?.Value,
+					Protocol = p.Attribute("protocol")?.Value
 				}));
 			}
 
@@ -259,21 +261,39 @@ namespace UnsyncUI
 				RootProxy = ConfigProxies.First();
 			}
 
-			// Auto-discover proxies
-			(List<Proxy> DiscoveredProxies, Proxy DiscoveredRootProxy) = DiscoverProxies(ConfigProxies);
+			if (RootProxy != null)
+			{
+				// Horde requires a server connection, but unsync / native file system does not
+				if (RootProxy.Protocol == "horde")
+				{
+					Proxies.AddRange(ConfigProxies);
+				}
+				else
+				{
+					Proxies.Add(new Proxy()
+					{
+						Name = "(none)",
+						Path = null,
+						Protocol = null,
+					});
 
-			if (DiscoveredRootProxy != null)
-			{
-				RootProxy = DiscoveredRootProxy;
-			}
+					// Auto-discover proxies
+					(List<Proxy> DiscoveredProxies, Proxy DiscoveredRootProxy) = DiscoverProxies(ConfigProxies);
 
-			if (DiscoveredProxies == null)
-			{
-				Proxies.AddRange(ConfigProxies);
-			}
-			else
-			{
-				Proxies.AddRange(DiscoveredProxies);
+					if (DiscoveredRootProxy != null)
+					{
+						RootProxy = DiscoveredRootProxy;
+					}
+
+					if (DiscoveredProxies == null)
+					{
+						Proxies.AddRange(ConfigProxies);
+					}
+					else
+					{
+						Proxies.AddRange(DiscoveredProxies);
+					}
+				}
 			}
 
 			Projects = rootNode.Element("projects").Elements("project").Select(p => new Project()
@@ -299,7 +319,7 @@ namespace UnsyncUI
 
 				try
 				{
-					UnsyncQueryUtil QueryUtil = new UnsyncQueryUtil(UnsyncPath, SeedServer.Path);
+					UnsyncQueryUtil QueryUtil = new UnsyncQueryUtil(UnsyncPath, SeedServer.GetServerConfig());
 
 					var ParsedProxies = new List<Proxy>();
 
@@ -338,7 +358,7 @@ namespace UnsyncUI
 		private UnsyncQueryConfig CreateUnsyncQueryConfig()
 		{
 			UnsyncQueryConfig unsyncConfig = new UnsyncQueryConfig();
-			unsyncConfig.proxyAddress = RootProxy.Path;
+			unsyncConfig.server = RootProxy.GetServerConfig();
 			unsyncConfig.unsyncPath = UnsyncPath;
 			return unsyncConfig;
 		}

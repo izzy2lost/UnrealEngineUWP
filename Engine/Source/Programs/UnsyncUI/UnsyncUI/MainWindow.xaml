@@ -85,7 +85,7 @@
 				<RowDefinition Height="auto" />
 				<RowDefinition Height="*" />
 			</Grid.RowDefinitions>
-			<GroupBox Grid.Row="0" Header="Proxy">
+			<GroupBox Grid.Row="0" Header="Server">
 				<Grid>
 					<Grid.RowDefinitions>
 						<RowDefinition Height="auto" />
@@ -111,7 +111,7 @@
 							<ColumnDefinition Width="*"/>
 						</Grid.ColumnDefinitions>
 						<TextBlock Grid.Column="0" Visibility="{Binding Path=ShouldShowLoginInfo, Converter={StaticResource VisConv_Collapsed}}">
-							<Run Text="[Experimental] User:"/>
+							<Run Text="User:"/>
 							<!--Logged in-->
 							<TextBlock Visibility="{Binding Path=LoggedInUser, Converter={StaticResource VisConv_Collapsed}}">
 								<Run FontWeight="Bold" Text="{Binding Path=LoggedInUser, Mode=OneWay}"/>

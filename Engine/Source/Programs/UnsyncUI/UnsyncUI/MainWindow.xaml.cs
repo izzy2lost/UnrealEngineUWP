@@ -227,7 +227,7 @@ namespace UnsyncUI
 				return;
 			}
 
-			UnsyncQueryUtil queryUtil = new UnsyncQueryUtil(Config.UnsyncPath, Config.RootProxy.Path);
+			UnsyncQueryUtil queryUtil = new UnsyncQueryUtil(Config.UnsyncPath, Config.RootProxy.Path, Config.RootProxy.Protocol);
 
 			try
 			{
@@ -345,7 +345,7 @@ namespace UnsyncUI
 					build.Config.DstPath,
 					build.Config.ScavengePath,
 					build.Config.DryRun, 
-					SelectedProxy?.Path,
+					SelectedProxy?.GetServerConfig(),
 					AdditionalArgs, 
 					build.Config.Exclusions, 
 					OnJobCompleted, 

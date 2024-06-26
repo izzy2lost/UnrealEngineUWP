@@ -12,10 +12,33 @@ using System.Collections;
 
 namespace UnsyncUI
 {
+	public class UnsyncServerConfig
+	{
+		public String address;
+		public String protocol;
+
+		public String GetCommandLineArgs()
+		{
+			List<String> args = new List<String>();
+
+			if (!string.IsNullOrWhiteSpace(address))
+			{
+				args.Add($"--server {address}");
+			}
+
+			if (!string.IsNullOrWhiteSpace(protocol))
+			{
+				args.Add($"--protocol {protocol}");
+			}
+
+			return string.Join(" ", args);
+		}
+	}
+
 	public class UnsyncQueryConfig
 	{
 		public String unsyncPath;
-		public String proxyAddress;
+		public UnsyncServerConfig server;
 	}
 
 	class SearchQueryResultEntry
@@ -63,11 +86,16 @@ namespace UnsyncUI
 			Config = InConfig;
 		}
 
-		public UnsyncQueryUtil(string unsyncPath, string proxyAddress)
+		public UnsyncQueryUtil(string unsyncPath, string serverAddress, string serverProtocol)
+			: this(unsyncPath, new UnsyncServerConfig { address = serverAddress, protocol = serverProtocol } )
+		{
+		}
+
+		public UnsyncQueryUtil(string unsyncPath, UnsyncServerConfig server)
 		{
 			Config = new UnsyncQueryConfig();
 			Config.unsyncPath = unsyncPath;
-			Config.proxyAddress = proxyAddress;
+			Config.server = server;
 		}
 
 		private string RunCommand(string argsStr)
@@ -106,13 +134,13 @@ namespace UnsyncUI
 
 		public List<UnsyncMirrorDesc> Mirrors()
 		{
-			string responseJson = RunCommand($"query mirrors --proxy {Config.proxyAddress}");
+			string responseJson = RunCommand($"query mirrors {Config.server.GetCommandLineArgs()}");
 			return JsonSerializer.Deserialize<List<UnsyncMirrorDesc>>(responseJson);
 		}
 
 		public LoginQueryResult Login()
 		{
-			string responseJson = RunCommand($"login --decode --proxy {Config.proxyAddress}");
+			string responseJson = RunCommand($"login --decode {Config.server.GetCommandLineArgs()}");
 			return JsonSerializer.Deserialize<LoginQueryResult>(responseJson);
 		}
 	}
@@ -197,7 +225,7 @@ namespace UnsyncUI
 		{
 			foreach (String query in queryStrings)
 			{
-				String argsStr = query + $" --proxy {Config.proxyAddress}";
+				String argsStr = query + $" {Config.server.GetCommandLineArgs()}";
 
 				var proc = new AsyncProcess(Config.unsyncPath, argsStr);
 				var responseJson = "";
