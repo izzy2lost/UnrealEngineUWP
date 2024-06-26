@@ -2414,14 +2414,6 @@ bool FTexturePlatformData::IsReadyForAsyncPostLoad() const
 	}
 #endif
 
-	for (int32 MipIndex = 0; MipIndex < Mips.Num(); ++MipIndex)
-	{
-		const FTexture2DMipMap& Mip = Mips[MipIndex];
-		if (!Mip.BulkData.IsAsyncLoadingComplete())
-		{
-			return false;
-		}
-	}
 	return true;
 }
 

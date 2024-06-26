@@ -841,7 +841,7 @@ void FSkeletalMeshLODModel::Serialize(FArchive& Ar, UObject* Owner, int32 Idx)
 			RawPointIndices_DEPRECATED.Serialize(Ar, Owner);
 			if (RawPointIndices_DEPRECATED.GetBulkDataSize())
 			{
-				if (RawPointIndices_DEPRECATED.IsAsyncLoadingComplete() && !RawPointIndices_DEPRECATED.IsBulkDataLoaded())
+				if (!RawPointIndices_DEPRECATED.IsBulkDataLoaded())
 				{
 					RawPointIndices_DEPRECATED.LoadBulkDataWithFileReader();
 				}

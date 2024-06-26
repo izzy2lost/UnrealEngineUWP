@@ -35,10 +35,6 @@
 #include "Templates/PimplPtr.h"
 #include "UObject/NameTypes.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "IO/IoDispatcher.h"
-#endif
-
 class FIoBuffer;
 class FIoChunkId;
 class FLinkerLoad;
@@ -52,10 +48,8 @@ namespace UE { namespace Serialization { class FEditorBulkData; } }
 enum class EFileRegionType : uint8;
 
 #if WITH_EDITOR == 0 && WITH_EDITORONLY_DATA == 0
-	#define USE_NEW_BULKDATA UE_DEPRECATED_MACRO(5.1, "The USE_NEW_BULKDATA macro has been deprecated in favor of USE_RUNTIME_BULKDATA.") 1
 	#define USE_RUNTIME_BULKDATA 1
 #else
-	#define USE_NEW_BULKDATA UE_DEPRECATED_MACRO(5.1, "The USE_NEW_BULKDATA macro has been deprecated in favor of USE_RUNTIME_BULKDATA.") 0
 	#define USE_RUNTIME_BULKDATA 0
 #endif
 
@@ -168,8 +162,8 @@ enum EBulkDataFlags : uint32
 	BULKDATA_UsesIoDispatcher = 1u << 31u,
 	/** Assigned at runtime to indicate that the BulkData allocation is a memory mapped region of a file and not raw data. */
 	BULKDATA_DataIsMemoryMapped = 1 << 30,
-	/** Assigned at runtime to indicate that the BulkData object has an async loading request in flight and will need to wait on it. */
-	BULKDATA_HasAsyncReadPending = 1 << 29,
+	/** DEPRECATED */
+	BULKDATA_HasAsyncReadPending UE_DEPRECATED(5.5, "This flag no longer does anything")  = 1 << 29,
 	/** Assigned at runtime to indicate that the BulkData object should be considered for discard even if it cannot load from disk. */
 	BULKDATA_AlwaysAllowDiscard = 1 << 28,
 };
@@ -213,15 +207,6 @@ enum EBulkDataLockFlags
  * Callback to use when making streaming requests
  */
 typedef TFunction<void(bool bWasCancelled, IBulkDataIORequest*)> FBulkDataIORequestCallBack;
-
-UE_DEPRECATED(5.1, "Use CreateStreamingRequest instead")
-TUniquePtr<IBulkDataIORequest> CreateBulkDataIoDispatcherRequest(
-	const FIoChunkId& InChunkID,
-	int64 InOffsetInBulkData = 0,
-	int64 InBytesToRead = INDEX_NONE,
-	FBulkDataIORequestCallBack* InCompleteCallback = nullptr,
-	uint8* InUserSuppliedMemory = nullptr,
-	int32 InPriority = IoDispatcherPriority_Low);
 
 /**
  * @documentation @todo documentation
@@ -278,32 +263,6 @@ private:
 	// if memory mapped IO was used, these will be non-null
 	IMappedFileHandle* MappedHandle;
 	IMappedFileRegion* MappedRegion;
-};
-
-UE_DEPRECATED(5.1, "Use CreateStreamingRequest instead");
-class FBulkDataIORequest : public IBulkDataIORequest
-{
-public:
-	FBulkDataIORequest(IAsyncReadFileHandle* InFileHandle);
-	FBulkDataIORequest(IAsyncReadFileHandle* InFileHandle, IAsyncReadRequest* InReadRequest, int64 BytesToRead);
-
-	virtual ~FBulkDataIORequest();
-
-	bool MakeReadRequest(int64 Offset, int64 BytesToRead, EAsyncIOPriorityAndFlags PriorityAndFlags, FBulkDataIORequestCallBack* CompleteCallback, uint8* UserSuppliedMemory);
-
-	virtual bool PollCompletion() const override;
-	virtual bool WaitCompletion( float TimeLimitSeconds = 0.0f ) override;
-
-	virtual uint8* GetReadResults() override;
-	virtual int64 GetSize() const override;
-
-	virtual void Cancel() override;
-
-private:
-	IAsyncReadFileHandle* FileHandle;
-	IAsyncReadRequest* ReadRequest;
-
-	int64 Size;
 };
 
 namespace UE::BulkData::Private
@@ -646,10 +605,11 @@ public:
 	COREUOBJECT_API bool IsBulkDataLoaded() const;
 
 	/**
-	* Returns whether the bulk data asynchronous load has completed.
+	* Deprecated
 	*
-	* @return true if bulk data has been loaded or async loading was not used to load this data, false otherwise
+	* @return As of 5.5 this will always return true as ::StartAsyncLoading was removed
 	*/
+	UE_DEPRECATED(5.5, "No longer provides any functionality (assume that this will always return true")
 	COREUOBJECT_API bool IsAsyncLoadingComplete() const;
 
 	/**
@@ -752,9 +712,6 @@ public:
 	*/
 	COREUOBJECT_API uint32 GetBulkDataFlags() const;
 
-	UE_DEPRECATED(5.1, "Bulk Data will always use default alignment")
-	COREUOBJECT_API void SetBulkDataAlignment(uint16 BulkDataAlignmentToSet);
-
 	/**
 	* Gets the current bulk data alignment.
 	*
@@ -768,21 +725,6 @@ public:
 	 * @param BulkDataFlagsToClear	Bulk data flags to clear
 	 */
 	COREUOBJECT_API void ClearBulkDataFlags( uint32 BulkDataFlagsToClear );
-
-	/** Returns the PackagePath this bulkdata resides in */
-	UE_DEPRECATED(5.1, "Deprecated, no replacement")
-	const FPackagePath& GetPackagePath() const
-	{ 
-		static FPackagePath Empty;
-		return Empty;
-	}
-
-	/** Returns which segment of its PackagePath this bulkdata resides in */
-	UE_DEPRECATED(5.1, "Deprecated, no replacement")
-	EPackageSegment GetPackageSegment() const
-	{ 
-		return EPackageSegment::Header;
-	}
 
 	/** 
 	 * Returns the io filename hash associated with this bulk data.
@@ -871,17 +813,6 @@ public:
 	 * Forces the bulk data to be resident in memory and detaches the archive.
 	 */
 	COREUOBJECT_API void ForceBulkDataResident();
-
-	/** 
-	* Initiates a new asynchronous operation to load the dulkdata from disk assuming that it is not already
-	* loaded.
-	* Note that a new asynchronous loading operation will not be created if one is already in progress.
-	*
-	* @return True if an asynchronous loading operation is in progress by the time that the method returns
-	* and false if the data is already loaded or cannot be loaded from disk.
-	*/
-	UE_DEPRECATED(5.1, "Use FBulkDataRequest or CreateStreamingRequest instead")
-	COREUOBJECT_API bool StartAsyncLoading();
 	
 	/**
 	 * Sets whether we should store the data compressed on disk.
@@ -936,9 +867,6 @@ public:
 		// @todo if non-mapped bulk data, do we need to detach this, or mimic GetCopy more than we do?
 		return DataAllocation.StealFileMapping(this); 
 	}
-
-	UE_DEPRECATED(5.1, "Call GetBulkDataVersions instead.")
-	COREUOBJECT_API FCustomVersionContainer GetCustomVersions(FArchive& InlineArchive) const;
 
 	/**
 	 * Get the CustomVersions used in the file containing the BulkData payload. If !IsInSeparateFile, this will be
@@ -996,21 +924,6 @@ public:
 	 */
 	COREUOBJECT_API IBulkDataIORequest* CreateStreamingRequest(int64 OffsetInBulkData, int64 BytesToRead, EAsyncIOPriorityAndFlags Priority, FBulkDataIORequestCallBack* CompleteCallback, uint8* UserSuppliedMemory) const;
 
-	/**
-	 * Create an async read request for a range of bulk data streaming tokens
-	 * The request will read all data between the two given streaming tokens objects. They must both represent areas of data in the file!
-	 * There is no way to validate this and it is up to the caller to make sure that it is correct.
-	 * The memory to be read into will be automatically allocated the size of which can be retrieved by calling IBulkDataIORequest::GetSize()
-	 *
-	 * @param Start				The bulk data to start reading from.
-	 * @param End				The bulk data to finish reading from.
-	 * @param Priority			Priority and flags of the request. If this includes AIOP_FLAG_PRECACHE, then memory will never be returned. The request should always be canceled and waited for, even for a precache request.
-	 * @param CompleteCallback	Called from an arbitrary thread when the request is complete. Can be nullptr, if non-null, must remain valid until it is called. It will always be called.
-	 * @return					A request for the read. This is owned by the caller and must be deleted by the caller.
-	**/
-	UE_DEPRECATED(5.1, "Use FBulkDataRequest instead")
-	static COREUOBJECT_API IBulkDataIORequest* CreateStreamingRequestForRange(const BulkDataRangeArray& RangeArray, EAsyncIOPriorityAndFlags Priority, FBulkDataIORequestCallBack* CompleteCallback);
-
 	/** Enable the given flags in the given accumulator variable. */
 	static COREUOBJECT_API void SetBulkDataFlagsOn(EBulkDataFlags& InOutAccumulator, EBulkDataFlags FlagsToSet);
 	/** Disable the given flags in the given accumulator variable. */
@@ -1061,8 +974,8 @@ private:
 	 */
 	COREUOBJECT_API bool TryLoadDataIntoMemory(FIoBuffer Dest);
 
-	/** Flushes any pending async load of bulk data  and copies the data to Dest buffer*/
-	COREUOBJECT_API void FlushAsyncLoading();
+	UE_DEPRECATED(5.5, "No longer provides any functionality")
+	COREUOBJECT_API void FlushAsyncLoading() {}
 
 	/** Returns if the offset needs fixing when serialized */
 	COREUOBJECT_API bool NeedsOffsetFixup() const;
@@ -1207,75 +1120,6 @@ public:
 	}
 };
 
-UE_DEPRECATED(5.1, "Use FBulkData/TBulkData");
-struct FUntypedBulkData : public FBulkData
-{
-	virtual ~FUntypedBulkData() = default;
-
-	/**
-	 * Returns the number of elements allocated.
-	 *
-	 * @return Number of elements
-	 */
-	int64 GetElementCount() const
-	{
-		return GetBulkDataSize() / GetElementSize();
-	}
-
-	/**
-	 * Returns size in bytes of single element.
-	 *
-	 * Pure virtual that needs to be overloaded in derived classes.
-	 *
-	 * @return Size in bytes of single element
-	 */
-	virtual int32 GetElementSize() const = 0;
-	
-	/**
-	 * Change size of locked bulk data. Only valid if locked via read-write lock.
-	 *
-	 * @param ElementCount	Number of elements to allocate.
-	 */
-	void* Realloc(int64 ElementCount)
-	{
-		return FBulkData::Realloc(ElementCount, GetElementSize());
-	}
-
-	void Serialize(FArchive& Ar, UObject* Owner, int32 Idx=INDEX_NONE, bool bAttemptFileMapping = false, EFileRegionType FileRegionType = EFileRegionType::None)
-	{
-		FBulkData::Serialize(Ar, Owner, bAttemptFileMapping, GetElementSize(), FileRegionType);
-	}
-
-protected:
-
-	FUntypedBulkData()
-	{
-		SerializeElementsCallback = [this](FArchive& Ar, void* Data, int64 Size, EBulkDataFlags InBulkDataFlags)
-		{
-			SerializeBulkData(Ar, Data, Size, InBulkDataFlags);
-		};
-#if !USE_RUNTIME_BULKDATA
-		SerializeBulkDataElements = &SerializeElementsCallback;
-#endif // !USE_RUNTIME_BULKDATA
-	}
-
-	COREUOBJECT_API virtual void SerializeElements(FArchive& Ar, void* Data);
-	
-	virtual void SerializeElement(FArchive& Ar, void* Data, int64 ElementIndex) = 0;
-
-	virtual bool RequiresSingleElementSerialization(FArchive& Ar)
-	{
-		return false;
-	}
-	
-private:
-
-	COREUOBJECT_API void SerializeBulkData(FArchive& Ar, void* Data, int64 BulkDataSize, EBulkDataFlags InBulkDataFlags);
-
-	FSerializeBulkDataElements SerializeElementsCallback;
-};
-
-using FBulkDataInterface UE_DEPRECATED(5.1, "FBulkDataInterface is deprecated. Use FBulkData") = FBulkData;
 using FByteBulkData = TBulkData<uint8>;
 using FWordBulkData = TBulkData<uint16>;
 using FIntBulkData = TBulkData<int32>;

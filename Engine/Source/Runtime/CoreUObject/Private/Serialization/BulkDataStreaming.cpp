@@ -27,80 +27,6 @@ TRACE_DECLARE_ATOMIC_INT_COUNTER(BulkDataBatchRequest_PendingCount, TEXT("BulkDa
  */
 #define UE_ENABLE_BULKDATA_RANGE_TEST 0
 
-FBulkDataIORequest::FBulkDataIORequest(IAsyncReadFileHandle* InFileHandle)
-	: FileHandle(InFileHandle)
-	, ReadRequest(nullptr)
-	, Size(INDEX_NONE)
-{
-}
-
-FBulkDataIORequest::FBulkDataIORequest(IAsyncReadFileHandle* InFileHandle, IAsyncReadRequest* InReadRequest, int64 BytesToRead)
-	: FileHandle(InFileHandle)
-	, ReadRequest(InReadRequest)
-	, Size(BytesToRead)
-{
-
-}
-
-FBulkDataIORequest::~FBulkDataIORequest()
-{
-	delete ReadRequest;
-	delete FileHandle;
-}
-
-bool FBulkDataIORequest::MakeReadRequest(int64 Offset, int64 BytesToRead, EAsyncIOPriorityAndFlags PriorityAndFlags, FBulkDataIORequestCallBack* CompleteCallback, uint8* UserSuppliedMemory)
-{
-	check(ReadRequest == nullptr);
-
-	FBulkDataIORequestCallBack LocalCallback = *CompleteCallback;
-	FAsyncFileCallBack AsyncFileCallBack = [LocalCallback, BytesToRead, this](bool bWasCancelled, IAsyncReadRequest* InRequest)
-	{
-		// In some cases the call to ReadRequest can invoke the callback immediately (if the requested data is cached 
-		// in the pak file system for example) which means that FBulkDataIORequest::ReadRequest might not actually be
-		// set correctly, so we need to make sure it is assigned before we invoke LocalCallback!
-		ReadRequest = InRequest;
-
-		Size = BytesToRead;
-		LocalCallback(bWasCancelled, this);
-	};
-
-	ReadRequest = FileHandle->ReadRequest(Offset, BytesToRead, PriorityAndFlags, &AsyncFileCallBack, UserSuppliedMemory);
-	
-	if (ReadRequest != nullptr)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool FBulkDataIORequest::PollCompletion() const
-{
-	return ReadRequest->PollCompletion();
-}
-
-bool FBulkDataIORequest::WaitCompletion(float TimeLimitSeconds)
-{
-	return ReadRequest->WaitCompletion(TimeLimitSeconds);
-}
-
-uint8* FBulkDataIORequest::GetReadResults()
-{
-	return ReadRequest->GetReadResults();
-}
-
-int64 FBulkDataIORequest::GetSize() const
-{
-	return Size;
-}
-
-void FBulkDataIORequest::Cancel()
-{
-	ReadRequest->Cancel();
-}
-
 //////////////////////////////////////////////////////////////////////////////
 
 namespace UE::BulkData::Private
@@ -437,24 +363,6 @@ uint8* FChunkBulkDataRequest::GetReadResults()
 
 //////////////////////////////////////////////////////////////////////////////
 
-TUniquePtr<IBulkDataIORequest> CreateBulkDataIoDispatcherRequest(
-	const FIoChunkId& ChunkId,
-	int64 Offset,
-	int64 Size,
-	FBulkDataIORequestCallBack* Callback,
-	uint8* UserSuppliedMemory,
-	int32 Priority)
-{
-	FIoBuffer Buffer = UserSuppliedMemory ? FIoBuffer(FIoBuffer::Wrap, UserSuppliedMemory, Size) : FIoBuffer(Size);
-
-	TUniquePtr<FChunkBulkDataRequest> Request = MakeUnique<FChunkBulkDataRequest>(Callback, MoveTemp(Buffer));
-	Request->Issue(ChunkId, FIoReadOptions(Offset, Size), Priority);
-
-	return Request;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-
 bool OpenReadBulkData(
 	const FBulkMetaData& BulkMeta,
 	const FIoChunkId& BulkChunkId,
@@ -554,93 +462,6 @@ bool TryMemoryMapBulkData(
 	}
 
 	return false;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-
-class FAsyncBulkDataRequests
-{
-public:
-	void AddPendingRequest(
-		FBulkData* Owner,
-		TUniquePtr<IAsyncReadFileHandle>&& FileHandle,
-		TUniquePtr<IAsyncReadRequest>&& ReadRequest)
-	{
-		FScopeLock _(&RequestsCS);
-		PendingRequests.Add(Owner, FPendingRequest { MoveTemp(FileHandle), MoveTemp(ReadRequest) });
-	}
-
-	void Flush(FBulkData* Owner)
-	{
-		FPendingRequest PendingRequest;
-
-		{
-			FScopeLock _(&RequestsCS);
-			PendingRequest = MoveTemp(PendingRequests.FindChecked(Owner));
-			PendingRequests.Remove(Owner);
-		}
-		
-		PendingRequest.ReadRequest->WaitCompletion();
-	}
-
-	static FAsyncBulkDataRequests& Get()
-	{
-		static FAsyncBulkDataRequests Instance;
-		return Instance;
-	}
-
-private:
-	struct FPendingRequest
-	{
-		TUniquePtr<IAsyncReadFileHandle> FileHandle;
-		TUniquePtr<IAsyncReadRequest> ReadRequest;
-	};
-
-	TMap<FBulkData*, FPendingRequest> PendingRequests;
-	FCriticalSection RequestsCS;
-};
-
-bool StartAsyncLoad(
-	FBulkData* Owner,
-	const FBulkMetaData& BulkMeta,
-	const FIoChunkId& BulkChunkId,
-	int64 Offset,
-	int64 Size,
-	EAsyncIOPriorityAndFlags Priority,
-	TFunction<void(TIoStatusOr<FIoBuffer>)>&& Callback)
-{
-	if (TUniquePtr<IAsyncReadFileHandle> FileHandle = OpenAsyncReadBulkData(BulkMeta, BulkChunkId))
-	{
-		FAsyncFileCallBack FileReadCallback = [Callback = MoveTemp(Callback), Size = Size]
-			(bool bCanceled, IAsyncReadRequest* Request)
-			{
-				if (bCanceled)
-				{
-					Callback(FIoStatus(EIoErrorCode::Cancelled));
-				}
-				else if (uint8* Data = Request->GetReadResults())
-				{
-					Callback(FIoBuffer(FIoBuffer::AssumeOwnership, Data, Size));
-				}
-				else
-				{
-					Callback(FIoStatus(EIoErrorCode::ReadError));
-				}
-			};
-		
-		if (IAsyncReadRequest* Request = FileHandle->ReadRequest(Offset, Size, Priority, &FileReadCallback))
-		{
-			FAsyncBulkDataRequests::Get().AddPendingRequest(Owner, MoveTemp(FileHandle), TUniquePtr<IAsyncReadRequest>(Request));
-			return true;
-		}
-	}
-
-	return false;
-}
-
-void FlushAsyncLoad(FBulkData* Owner)
-{
-	FAsyncBulkDataRequests::Get().Flush(Owner);
 }
 
 } // namespace UE::BulkData

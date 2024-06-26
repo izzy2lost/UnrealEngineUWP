@@ -277,7 +277,7 @@ void FRawMeshBulkData::LoadRawMesh(FRawMesh& OutMesh)
 		// This allows any thread to be able to deserialize from the RawMesh directly
 		// from disk so we can unload bulk data from memory.
 		bool bHasBeenLoadedFromFileReader = false;
-		if (BulkData.IsAsyncLoadingComplete() && !BulkData.IsBulkDataLoaded())
+		if (!BulkData.IsBulkDataLoaded())
 		{
 			// This can't be called in -game mode because we're not allowed to load bulk data outside of EDL.
 			bHasBeenLoadedFromFileReader = BulkData.LoadBulkDataWithFileReader();
