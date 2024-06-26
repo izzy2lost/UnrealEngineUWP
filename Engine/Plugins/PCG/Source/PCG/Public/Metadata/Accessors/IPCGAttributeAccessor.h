@@ -27,6 +27,11 @@ enum class EPCGAttributeAccessorFlags
 	// USE WITH CAUTION
 	AllowSetDefaultValue = 1 << 3,
 
+	// New writes usually create a new metadata entry key when we write. In most cases, that's not mandatory, so use this flag to re-use an existing key.
+	// Only useful for writing to attributes.
+	// USE WITH CAUTION
+	AllowReuseMetadataEntryKey = 1 << 4,
+
 	AllowBroadcastAndConstructible = AllowBroadcast | AllowConstructible
 };
 ENUM_CLASS_FLAGS(EPCGAttributeAccessorFlags);
@@ -132,6 +137,8 @@ public:
 	{
 		return false;
 	}
+
+	virtual void Prepare(IPCGAttributeAccessorKeys& Keys, int32 Count, const bool bCanReuseEntryKeys) {}
 
 	int16 GetUnderlyingType() const { return UnderlyingType; }
 	bool IsReadOnly() const { return bReadOnly; }

@@ -24,7 +24,12 @@ namespace PCGMetadataBase
 	TAutoConsoleVariable<int> CVarMetadataOperationChunkSize(
 		TEXT("pcg.MetadataOperationChunkSize"),
 		256,
-		TEXT("Metadata operations chunk size."));
+		TEXT("Metadata operations chunk size."));	
+	
+	TAutoConsoleVariable<bool> CVarMetadataOperationReserveValues(
+		TEXT("pcg.MetadataOperationReserveValues"),
+		true,
+		TEXT("Metadata operations reserve values."));
 }
 
 void UPCGMetadataSettingsBase::PostLoad()

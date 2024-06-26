@@ -813,6 +813,91 @@ public:
 		DefaultValue = Value;
 	}
 
+	void Prepare(int32 Count)
+	{
+		EntryToValueKeyMap.Reserve(EntryToValueKeyMap.Num() + Count);
+		if constexpr (!PCG::Private::MetadataTraits<T>::CompressData)
+		{
+			Values.Reserve(Values.Num() + Count);
+		}
+	}
+
+	int32 PreallocateValues(TArrayView<PCGMetadataEntryKey*> EntryKeys, bool bLockless)
+	{
+		int32 StartIndex = INDEX_NONE;
+
+		if constexpr (!PCG::Private::MetadataTraits<T>::CompressData)
+		{
+			if (!bLockless)
+			{
+				ValueLock.WriteLock();
+			}
+
+			StartIndex = Values.Num();
+
+			if constexpr (std::is_trivially_copyable_v<T>)
+			{
+				Values.SetNumUninitialized(Values.Num() + EntryKeys.Num(), /*AllowShrinking=*/EAllowShrinking::No);
+			}
+			else
+			{
+				Values.SetNum(Values.Num() + EntryKeys.Num(), /*AllowShrinking=*/EAllowShrinking::No);
+			}
+
+			if (!bLockless)
+			{
+				ValueLock.WriteUnlock();
+			}
+		}
+
+		if (!bLockless)
+		{
+			EntryMapLock.WriteLock();
+		}
+
+		EntryToValueKeyMap.Reserve(EntryToValueKeyMap.Num() + EntryKeys.Num());
+
+		if constexpr (!PCG::Private::MetadataTraits<T>::CompressData)
+		{
+			for (int32 i = 0; i < EntryKeys.Num(); ++i)
+			{
+				const PCGMetadataValueKey ValueKey = StartIndex + i + ValueKeyOffset;
+				EntryToValueKeyMap.Emplace(*EntryKeys[i], ValueKey);
+			}
+		}
+
+		if (!bLockless)
+		{
+			EntryMapLock.WriteUnlock();
+		}
+
+		return StartIndex;
+	}
+
+	void SetValues_TryLockless(TArrayView<PCGMetadataEntryKey*> EntryKeys, TArrayView<const T> InValues, int32 StartIndex)
+	{
+		if constexpr (PCG::Private::MetadataTraits<T>::CompressData)
+		{
+			SetValues(EntryKeys, InValues);
+		}
+		else
+		{
+			check(StartIndex != INDEX_NONE && Values.IsValidIndex(StartIndex + InValues.Num() - 1));
+
+			if constexpr (std::is_trivially_copyable_v<T>)
+			{
+				FMemory::Memcpy(Values.GetData() + StartIndex, InValues.GetData(), InValues.Num() * sizeof(T));
+			}
+			else
+			{
+				for (int32 i = 0; i < InValues.Num(); ++i)
+				{
+					Values[StartIndex + i] = InValues[i];
+				}
+			}
+		}
+	}
+
 protected:
 	/** Code related to computing compared values (min, max, sub, add) */
 	template<typename IT = T, typename TEnableIf<PCG::Private::MetadataTraits<IT>::CanMinMax>::Type* = nullptr>

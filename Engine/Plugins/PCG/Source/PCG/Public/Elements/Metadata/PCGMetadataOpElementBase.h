@@ -22,6 +22,7 @@ namespace PCGMetadataBase
 {
 	extern TAutoConsoleVariable<bool> CVarMetadataOperationInMT;
 	extern TAutoConsoleVariable<int> CVarMetadataOperationChunkSize;
+	extern TAutoConsoleVariable<bool> CVarMetadataOperationReserveValues;
 }
 
 namespace PCGMetadataSettingsBaseConstants
@@ -431,12 +432,21 @@ inline bool FPCGMetadataElementBase::DoNAryOp(PCGMetadataOps::FOperationData& In
 
 	InOperationData.Validate<NbInputs, NbOutputs>();
 
-	EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::AllowBroadcast;
+	EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible;
 
 	// First set the default value (only on first pass)
 	PCG::Private::NAryOperation::Options Options{ Flags, Flags | EPCGAttributeAccessorFlags::AllowSetDefaultValue, true };
 	if (!InOperationData.Context->AsyncState.bStarted)
 	{
+		if (PCGMetadataBase::CVarMetadataOperationReserveValues.GetValueOnAnyThread())
+		{
+			for (int32 j = 0; j < NbOutputs; ++j)
+			{
+				// We can't re-use entry keys yet, it can be dangerous in some situations where some points share their entry key.
+				InOperationData.OutputAccessors[j]->Prepare(*InOperationData.OutputKeys[j], InOperationData.NumberOfElementsToProcess, /*bCanReuseEntryKeys=*/false);
+			}
+		}
+
 		PCG::Private::NAryOperation::Operation<InputTypes...>(InOperationData, /*StartIndex=*/0, /*Range=*/1, Options, InCallbacks);
 	}
 

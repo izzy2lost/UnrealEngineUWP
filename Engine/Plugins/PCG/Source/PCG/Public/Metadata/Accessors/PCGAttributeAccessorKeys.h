@@ -15,7 +15,7 @@ class UPCGMetadata;
 namespace PCGAttributeAccessorKeys
 {
 	template <typename T, typename Container, typename Func>
-	bool GetKeys(Container& InContainer, int32 InStart, TArrayView<T*>& OutItems, Func&& Transform)
+	bool GetKeys(Container& InContainer, int32 InStart, TArrayView<T*> OutItems, Func&& Transform)
 	{
 		if (InContainer.Num() == 0)
 		{
@@ -64,11 +64,11 @@ public:
 	* @return true if it succeeded, false otherwise. (like num == 0,unsupported type or read only)
 	*/
 	template <typename ObjectType>
-	bool GetKeys(int32 InStart, TArrayView<ObjectType*>& OutKeys);
+	bool GetKeys(int32 InStart, TArrayView<ObjectType*> OutKeys);
 
 	// Same function but const.
 	template <typename ObjectType>
-	bool GetKeys(int32 InStart, TArrayView<const ObjectType*>& OutKeys) const;
+	bool GetKeys(int32 InStart, TArrayView<const ObjectType*> OutKeys) const;
 
 	/**
 	* Retrieve in the given argument pointer of the wanted type.
@@ -118,14 +118,14 @@ public:
 	bool IsReadOnly() const { return bIsReadOnly; }
 
 protected:
-	virtual bool GetPointKeys(int32 InStart, TArrayView<FPCGPoint*>& OutPoints) { return false; }
-	virtual bool GetPointKeys(int32 InStart, TArrayView<const FPCGPoint*>& OutPoints) const { return false; }
+	virtual bool GetPointKeys(int32 InStart, TArrayView<FPCGPoint*> OutPoints) { return false; }
+	virtual bool GetPointKeys(int32 InStart, TArrayView<const FPCGPoint*> OutPoints) const { return false; }
 
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*>& OutObjects) { return false; }
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*>& OutObjects) const { return false; }
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*> OutObjects) { return false; }
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*> OutObjects) const { return false; }
 
-	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*>& OutEntryKeys) { return false; }
-	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*>& OutEntryKeys) const { return false; }
+	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*> OutEntryKeys) { return false; }
+	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*> OutEntryKeys) const { return false; }
 
 	bool bIsReadOnly = false;
 };
@@ -152,8 +152,8 @@ public:
 	virtual int32 GetNum() const override { return Entries.Num(); }
 
 protected:
-	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*>& OutEntryKeys) override;
-	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*>& OutEntryKeys) const override;
+	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*> OutEntryKeys) override;
+	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*> OutEntryKeys) const override;
 
 	void InitializeFromMetadata(const UPCGMetadata* Metadata);
 
@@ -178,14 +178,14 @@ public:
 	virtual int32 GetNum() const override { return Points.Num(); }
 
 protected:
-	virtual bool GetPointKeys(int32 InStart, TArrayView<FPCGPoint*>& OutPoints) override;
-	virtual bool GetPointKeys(int32 InStart, TArrayView<const FPCGPoint*>& OutPoints) const override;
+	virtual bool GetPointKeys(int32 InStart, TArrayView<FPCGPoint*> OutPoints) override;
+	virtual bool GetPointKeys(int32 InStart, TArrayView<const FPCGPoint*> OutPoints) const override;
 
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*>& OutObjects) override;
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*>& OutObjects) const override;
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*> OutObjects) override;
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*> OutObjects) const override;
 
-	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*>& OutEntryKeys) override;
-	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*>& OutEntryKeys) const override;
+	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*> OutEntryKeys) override;
+	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*> OutEntryKeys) const override;
 
 	TArrayView<FPCGPoint> Points;
 };
@@ -222,12 +222,12 @@ public:
 	virtual int32 GetNum() const override { return Objects.Num(); }
 
 protected:
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*>& OutObjects) override
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*> OutObjects) override
 	{
 		return PCGAttributeAccessorKeys::GetKeys(Objects, InStart, OutObjects, [](ObjectType& Obj) -> ObjectType* { return &Obj; });
 	}
 
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*>& OutObjects) const override
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*> OutObjects) const override
 	{
 		return PCGAttributeAccessorKeys::GetKeys(Objects, InStart, OutObjects, [](const ObjectType& Obj) -> const ObjectType* { return &Obj; });
 	}
@@ -267,7 +267,7 @@ public:
 	virtual int32 GetNum() const override { return 1; }
 
 protected:
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*>& OutObjects) override
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*> OutObjects) override
 	{
 		if (Ptr == nullptr)
 		{
@@ -282,7 +282,7 @@ protected:
 		return true;
 	}
 
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*>& OutObjects) const override
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*> OutObjects) const override
 	{
 		if (Ptr == nullptr)
 		{
@@ -324,12 +324,12 @@ public:
 	virtual int32 GetNum() const override { return Ptrs.Num(); }
 
 protected:
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*>& OutObjects) override
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<void*> OutObjects) override
 	{
 		return PCGAttributeAccessorKeys::GetKeys(Ptrs, InStart, OutObjects, [](void* Ptr) -> void* { return Ptr; });
 	}
 
-	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*>& OutObjects) const override
+	virtual bool GetGenericObjectKeys(int32 InStart, TArrayView<const void*> OutObjects) const override
 	{
 		return PCGAttributeAccessorKeys::GetKeys(Ptrs, InStart, OutObjects, [](const void* Ptr) -> const void* { return Ptr; });
 	}
@@ -338,7 +338,7 @@ protected:
 };
 
 template <typename ObjectType>
-inline bool IPCGAttributeAccessorKeys::GetKeys(int32 InStart, TArrayView<ObjectType*>& OutKeys)
+inline bool IPCGAttributeAccessorKeys::GetKeys(int32 InStart, TArrayView<ObjectType*> OutKeys)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IPCGAttributeAccessorKeys::GetKeys);
 
@@ -366,7 +366,7 @@ inline bool IPCGAttributeAccessorKeys::GetKeys(int32 InStart, TArrayView<ObjectT
 }
 
 template <typename ObjectType>
-inline bool IPCGAttributeAccessorKeys::GetKeys(int32 InStart, TArrayView<const ObjectType*>& OutKeys) const
+inline bool IPCGAttributeAccessorKeys::GetKeys(int32 InStart, TArrayView<const ObjectType*> OutKeys) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IPCGAttributeAccessorKeys::GetKeys);
 
