@@ -328,6 +328,12 @@ public:
 		/**  */
 		SLATE_ARGUMENT_DEFAULT( EOutputLogSettingsMenuFlags, SettingsMenuFlags ) = EOutputLogSettingsMenuFlags::None;
 
+		/** Should this output log enable support for limiting the number of logged lines. */
+		SLATE_ARGUMENT_DEFAULT( bool, EnableLoggingLimitMenu ) = false;
+
+		/** The limit to the number of lines we output to the logging widget. */
+		SLATE_ARGUMENT_DEFAULT( TOptional<int32>, LoggingLineLimit ) = {};
+
 		SLATE_ARGUMENT( FDefaultCategorySelectionMap, DefaultCategorySelection )
 
 		/** Used to determine the set of initially discovered log categories that should be selected */
@@ -427,6 +433,9 @@ protected:
 
 private:
 
+	/** The log limit menu entry to prevent logs from consuming the output log widget. */
+	TSharedRef<SWidget> MakeLogLimitMenuItem();
+
 	void BuildInitialLogCategoryFilter(const FArguments& InArgs);
 	
 	/** Called by Slate when the filter box changes text. */
@@ -507,6 +516,7 @@ private:
 	void OpenLogFileInExternalEditor();
 
 	FReply OnDockInLayoutClicked();
+
 protected:
 	TSharedPtr<SConsoleInputBox> ConsoleInputBox;
 
@@ -516,6 +526,12 @@ protected:
 	FDelegateHandle SettingsWatchHandle;
 
 	bool bShouldCreateDrawerDockButton = false;
+
+	bool bShouldShowLoggingLimitMenu = false;
+
+	bool bEnableLoggingLimit = false;
+
+	int32 LoggingLineLimit = 10000;
 };
 
 /** Output log text marshaller to convert an array of FOutputLogMessages into styled lines to be consumed by an FTextLayout */
@@ -539,6 +555,7 @@ public:
 
 	int32 GetNumMessages() const;
 	int32 GetNumFilteredMessages();
+	int32 GetNumCachedMessages();
 
 	void MarkMessagesCacheAsDirty();
 

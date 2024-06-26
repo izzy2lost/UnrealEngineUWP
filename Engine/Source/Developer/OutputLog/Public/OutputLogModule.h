@@ -55,7 +55,7 @@ public:
 	virtual TSharedRef<SWidget> MakeOutputLogDrawerWidget(const FSimpleDelegate& OnCloseConsole);
 
 	virtual TSharedRef<SWidget> MakeOutputLogWidget(const FOutputLogCreationParams& Params);
-	
+
 	/** Opens a debug console in the specified window, if not already open */
 	virtual void ToggleDebugConsoleForWindow(const TSharedRef<SWindow>& Window, const EDebugConsoleStyle::Type InStyle, const FDebugConsoleDelegates& DebugConsoleDelegates);
 
@@ -67,6 +67,16 @@ public:
 	virtual void FocusOutputLogConsoleBox(const TSharedRef<SWidget> OutputLogToFocus);
 
 	virtual const TSharedPtr<SWidget> GetOutputLog() const;
+
+	/*
+	 * Suspend the collection of global log data that is used for constructing output log widgets.  This global log will perpetually collect logging information perpetually and may exhaust memory.
+	 */
+	virtual void SuspendGlobalLog();
+
+	/*
+	 * Resume global log collection. Note this has a memory impact as log entries are stored for the life of the running edit.
+	 */
+	virtual void ResumeGlobalLog();
 
 	/** Opens and focuses on the Output Log Drawer if the status bar exists, otherwise opens and focuses on the Output Log Tab. */
 	void OUTPUTLOG_API FocusOutputLog();

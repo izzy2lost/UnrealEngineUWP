@@ -2,6 +2,7 @@
 
 #include "SOutputLog.h"
 #include "ConsoleSettings.h"
+#include "Framework/Commands/UICommandInfo.h"
 #include "Framework/Text/IRun.h"
 #include "Framework/Text/TextLayout.h"
 #include "Misc/ConfigCacheIni.h"
@@ -23,6 +24,8 @@
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SNumericEntryBox.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Features/IModularFeatures.h"
 #include "Misc/CoreDelegates.h"
 #include "HAL/PlatformOutputDevices.h"
@@ -1030,6 +1033,7 @@ void FOutputLogTextLayoutMarshaller::ClearMessages()
 {
 	NextPendingMessageIndex = 0;
 	Messages.Empty();
+	bNumMessagesCacheDirty = true;
 	MakeDirty();
 }
 
@@ -1070,6 +1074,17 @@ int32 FOutputLogTextLayoutMarshaller::GetNumFilteredMessages()
 		return GetNumMessages();
 	}
 
+	// Re-count messages if filter changed before we refresh
+	if (bNumMessagesCacheDirty)
+	{
+		CountMessages();
+	}
+
+	return CachedNumMessages;
+}
+
+int32 FOutputLogTextLayoutMarshaller::GetNumCachedMessages()
+{
 	// Re-count messages if filter changed before we refresh
 	if (bNumMessagesCacheDirty)
 	{
@@ -1165,6 +1180,10 @@ void SOutputLog::Construct( const FArguments& InArgs, bool bCreateDrawerDockButt
 	bShouldCreateDrawerDockButton = bCreateDrawerDockButton;
 	BuildInitialLogCategoryFilter(InArgs);
 
+	bShouldShowLoggingLimitMenu = InArgs._EnableLoggingLimitMenu;
+	bEnableLoggingLimit = InArgs._LoggingLineLimit.IsSet();
+	LoggingLineLimit = InArgs._LoggingLineLimit.Get(10000);
+
 	MessagesTextMarshaller = FOutputLogTextLayoutMarshaller::Create(InArgs._Messages, &Filter);
 
 	MessagesTextBox = SNew(SMultiLineEditableTextBox)
@@ -1229,6 +1248,22 @@ void SOutputLog::Construct( const FArguments& InArgs, bool bCreateDrawerDockButt
 				]
 			]
 			+SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(4, 0)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("LogLineLimitReached", "Log line limit reached. Clear log to continue."))
+				.ColorAndOpacity(FSlateColor(FLinearColor::Yellow))
+				.Visibility(MakeAttributeLambda([this]() {
+					if (!bEnableLoggingLimit || MessagesTextMarshaller->GetNumCachedMessages() < LoggingLineLimit)
+					{
+						return EVisibility::Hidden;
+					}
+					return EVisibility::Visible;
+				}))
+			]
+			+SHorizontalBox::Slot()
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			.Padding(4, 0)
@@ -1278,7 +1313,9 @@ void SOutputLog::Construct( const FArguments& InArgs, bool bCreateDrawerDockButt
 		.AutoHeight()
 		[
 			SAssignNew(ConsoleInputBox, SConsoleInputBox)
-			.Visibility(MakeAttributeLambda([]() { return  FOutputLogModule::Get().ShouldHideConsole() ? EVisibility::Collapsed : EVisibility::Visible; }))
+			.Visibility(MakeAttributeLambda([]() {
+				return FOutputLogModule::Get().ShouldHideConsole() ? EVisibility::Collapsed : EVisibility::Visible;
+			}))
 			.OnConsoleCommandExecuted(this, &SOutputLog::OnConsoleCommandExecuted)
 			.OnCloseConsole(InArgs._OnCloseConsole)
 			// Always place suggestions above the input line for the output log widget
@@ -1421,7 +1458,44 @@ bool SOutputLog::CreateLogMessages( const TCHAR* V, ELogVerbosity::Type Verbosit
 
 void SOutputLog::Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category)
 {
-	MessagesTextMarshaller->AppendPendingMessage(V, Verbosity, Category);
+	if (!bEnableLoggingLimit || MessagesTextMarshaller->GetNumCachedMessages() < LoggingLineLimit)
+	{
+		MessagesTextMarshaller->AppendPendingMessage(V, Verbosity, Category);
+	}
+}
+
+TSharedRef<SWidget> SOutputLog::MakeLogLimitMenuItem()
+{
+	return SNew(SHorizontalBox)
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("LimitLog", "Logging Limit"))
+		]
+		+SHorizontalBox::Slot()
+		.FillWidth(1.f)
+		[
+			SNew(SSpacer)
+		]
+		+SHorizontalBox::Slot()
+		.HAlign(HAlign_Right)
+		[
+			SNew(SNumericEntryBox<int32>)
+			.AllowSpin(true)
+			.Justification(ETextJustify::Right)
+			.MinDesiredValueWidth(100)
+			.MaxSliderValue(100000)
+			.OnValueChanged_Lambda([this](int32 NewValue){
+				if (NewValue > 100)
+				{
+					LoggingLineLimit = NewValue;
+				}
+			})
+			.Value_Lambda([this](){ return LoggingLineLimit; })
+		];
 }
 
 void SOutputLog::ExtendTextBoxMenu(FMenuBuilder& Builder)
@@ -1437,6 +1511,18 @@ void SOutputLog::ExtendTextBoxMenu(FMenuBuilder& Builder)
 		FSlateIcon(), 
 		ClearOutputLogAction
 		);
+
+	Builder.AddMenuEntry(
+		FUIAction(
+			FExecuteAction::CreateLambda([this](){ bEnableLoggingLimit = !bEnableLoggingLimit; }),
+			FCanExecuteAction::CreateLambda([] { return true; }),
+			FIsActionChecked::CreateLambda([this] { return bEnableLoggingLimit; }),
+			FIsActionButtonVisible::CreateLambda([this] { return bShouldShowLoggingLimitMenu; })
+		),
+		MakeLogLimitMenuItem(),
+		NAME_None,
+		LOCTEXT("LimitLogToolTip", "Limits Logging to specified number of lines."),
+		EUserInterfaceActionType::ToggleButton);
 
 	const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
 	const FVector2D RelativeCursorPos = MessagesTextBox->GetTickSpaceGeometry().AbsoluteToLocal(CursorPos);
