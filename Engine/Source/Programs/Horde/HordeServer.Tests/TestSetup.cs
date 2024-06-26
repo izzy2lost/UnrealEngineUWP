@@ -80,11 +80,8 @@ namespace HordeServer.Tests
 	///
 	/// Easier to pass all these things around in a single object.
 	/// </summary>
-	public class TestSetup : DatabaseIntegrationTest
+	public class TestSetup : ServerServiceTest
 	{
-		public FakeClock Clock => ServiceProvider.GetRequiredService<FakeClock>();
-		public IMemoryCache Cache => ServiceProvider.GetRequiredService<IMemoryCache>();
-
 		public IGraphCollection GraphCollection => ServiceProvider.GetRequiredService<IGraphCollection>();
 		public INotificationTriggerCollection NotificationTriggerCollection => ServiceProvider.GetRequiredService<INotificationTriggerCollection>();
 		public IStreamCollection StreamCollection => ServiceProvider.GetRequiredService<IStreamCollection>();
@@ -104,13 +101,11 @@ namespace HordeServer.Tests
 		public IDashboardPreviewCollection DashboardPreviewCollection => ServiceProvider.GetRequiredService<IDashboardPreviewCollection>();
 		public IBisectTaskCollection BisectTaskCollection => ServiceProvider.GetRequiredService<IBisectTaskCollection>();
 
-		public AclService AclService => ServiceProvider.GetRequiredService<AclService>();
 		public FleetService FleetService => ServiceProvider.GetRequiredService<FleetService>();
 		public AgentService AgentService => ServiceProvider.GetRequiredService<AgentService>();
 		public AgentRelayService AgentRelayService => ServiceProvider.GetRequiredService<AgentRelayService>();
 		public ICommitService CommitService => ServiceProvider.GetRequiredService<ICommitService>();
 		public GlobalsService GlobalsService => ServiceProvider.GetRequiredService<GlobalsService>();
-		public IMongoService MongoService => ServiceProvider.GetRequiredService<IMongoService>();
 		public ITemplateCollection TemplateCollection => ServiceProvider.GetRequiredService<ITemplateCollection>();
 		internal PerforceServiceStub PerforceService => (PerforceServiceStub)ServiceProvider.GetRequiredService<IPerforceService>();
 		public ISubscriptionCollection SubscriptionCollection => ServiceProvider.GetRequiredService<ISubscriptionCollection>();
@@ -118,19 +113,13 @@ namespace HordeServer.Tests
 		public IssueService IssueService => ServiceProvider.GetRequiredService<IssueService>();
 		public JobTaskSource JobTaskSource => ServiceProvider.GetRequiredService<JobTaskSource>();
 		public JobService JobService => ServiceProvider.GetRequiredService<JobService>();
-		public IDowntimeService DowntimeService => ServiceProvider.GetRequiredService<IDowntimeService>();
 		public RpcService RpcService => ServiceProvider.GetRequiredService<RpcService>();
 		public PoolService PoolService => ServiceProvider.GetRequiredService<PoolService>();
-		public LifetimeService LifetimeService => ServiceProvider.GetRequiredService<LifetimeService>();
 		public ScheduleService ScheduleService => ServiceProvider.GetRequiredService<ScheduleService>();
 		public DeviceService DeviceService => ServiceProvider.GetRequiredService<DeviceService>();
 		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
 		public TestDataService TestDataService => ServiceProvider.GetRequiredService<TestDataService>();
 		public ComputeService ComputeService => ServiceProvider.GetRequiredService<ComputeService>();
-		public ServerStatusService ServerStatusService => ServiceProvider.GetRequiredService<ServerStatusService>();
-
-		public ServerSettings ServerSettings => ServiceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
-		public IOptionsMonitor<ServerSettings> ServerSettingsMon => ServiceProvider.GetRequiredService<IOptionsMonitor<ServerSettings>>();
 
 		public JobsController JobsController => GetJobsController();
 		public AgentsController AgentsController => GetAgentsController();
@@ -140,56 +129,6 @@ namespace HordeServer.Tests
 		public DashboardController DashboardController => GetDashboardController();
 		public TestDataController TestDataController => GetTestDataController();
 		public BisectTasksController BisectTasksController => GetBisectTasksController();
-
-		public OpenTelemetry.Trace.Tracer Tracer => ServiceProvider.GetRequiredService<OpenTelemetry.Trace.Tracer>();
-		public Meter Meter => ServiceProvider.GetRequiredService<Meter>();
-		public ConfigService ConfigService => ServiceProvider.GetRequiredService<ConfigService>();
-		public IOptionsMonitor<GlobalConfig> GlobalConfig => ServiceProvider.GetRequiredService<IOptionsMonitor<GlobalConfig>>();
-		public IOptionsSnapshot<GlobalConfig> GlobalConfigSnapshot => ServiceProvider.GetRequiredService<IOptionsSnapshot<GlobalConfig>>();
-
-		public IPluginCollection PluginCollection => ServiceProvider.GetRequiredService<IPluginCollection>();
-
-		private static bool s_datadogWriterPatched;
-
-		readonly PluginCollection _pluginCollection;
-
-		public TestSetup()
-		{
-			_pluginCollection = new PluginCollection();
-			_pluginCollection.Add<AnalyticsPlugin>();
-
-			PatchDatadogWriter();
-		}
-
-		protected void SetConfig(GlobalConfig globalConfig)
-		{
-			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins);
-			ConfigService.OverrideConfig(globalConfig);
-		}
-
-		protected void UpdateConfig(Action<GlobalConfig> action)
-		{
-			GlobalConfig globalConfig = GlobalConfig.CurrentValue;
-			action(globalConfig);
-			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins);
-			ConfigService.OverrideConfig(globalConfig);
-		}
-
-		protected override void ConfigureSettings(ServerSettings settings)
-		{
-			DirectoryReference baseDir = DirectoryReference.Combine(ServerApp.DataDir, "Tests");
-			try
-			{
-				FileUtils.ForceDeleteDirectoryContents(baseDir);
-			}
-			catch
-			{
-			}
-
-			settings.WithAws = true;
-
-			settings.ForceConfigUpdateOnStartup = true;
-		}
 
 		protected override void ConfigureServices(IServiceCollection services)
 		{
@@ -201,31 +140,10 @@ namespace HordeServer.Tests
 
 			services.AddHttpClient<RpcService>();
 
-			services.AddSingleton<IServerInfo>(new ServerInfo());
-			services.AddSingleton<IPluginCollection>(_pluginCollection);
-
-			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
-			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));
-
-			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
 			services.AddSingleton<IAuditLog<AgentId>>(sp => sp.GetRequiredService<IAuditLogFactory<AgentId>>().Create("Agents.Log", "AgentId"));
-			services.AddSingleton<ITelemetrySink, NullTelemetrySink>();
-			services.AddSingleton<NullTelemetrySink>();
-			services.AddSingleton<ITelemetrySink, MetricTelemetrySink>();
-			services.AddSingleton<MetricTelemetrySink>();
 
-			services.AddSingleton<TelemetryManager>();
-			services.AddSingleton<ITelemetryWriter>(sp => sp.GetRequiredService<TelemetryManager>());
 			services.AddSingleton<OpenTelemetry.Trace.Tracer>(sp => TracerProvider.Default.GetTracer("TestTracer"));
 			services.AddSingleton(sp => new Meter("TestMeter"));
-			services.AddSingleton<MetricCollection>();
-			services.AddSingleton<IMetricCollection, MetricCollection>(sp => sp.GetRequiredService<MetricCollection>());
-
-			services.AddSingleton<ConfigService>();
-			services.AddSingleton<IOptionsFactory<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
-			services.AddSingleton<IOptionsChangeTokenSource<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
-
-			services.AddSingleton<IConfigSource, FileConfigSource>();
 
 			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IAgentCollection, AgentCollection>();
@@ -255,11 +173,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<IDeviceCollection, DeviceCollection>();
 			services.AddSingleton<IDashboardPreviewCollection, DashboardPreviewCollection>();
 
-			services.AddSingleton<FakeClock>();
-			services.AddSingleton<IClock>(sp => sp.GetRequiredService<FakeClock>());
-			services.AddSingleton<IHostApplicationLifetime, AppLifetimeStub>();
-			services.AddSingleton<IHostEnvironment, WebHostEnvironmentStub>();
-
 			// Empty mocked object to satisfy basic test runs
 			services.AddSingleton<IAmazonEC2>(sp => new Mock<IAmazonEC2>().Object);
 			services.AddSingleton<IAmazonAutoScaling>(sp => new Mock<IAmazonAutoScaling>().Object);
@@ -271,7 +184,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<IPoolSizeStrategyFactory, LeaseUtilizationStrategyFactory>();
 			services.AddSingleton<IPoolSizeStrategyFactory, LeaseUtilizationAwsMetricStrategyFactory>();
 
-			services.AddSingleton<AclService>();
 			services.AddSingleton<AgentService>();
 			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
 			services.AddSingleton<AgentRelayService>();
@@ -282,11 +194,9 @@ namespace HordeServer.Tests
 			services.AddSingleton<RequestTrackerService>();
 			services.AddSingleton<GlobalsService>();
 			services.AddSingleton<JobTaskSource>();
-			services.AddSingleton<IDowntimeService, DowntimeServiceStub>();
 			services.AddSingleton<IssueService>();
 			services.AddSingleton<JobService>();
 			services.AddSingleton<JobExpirationService>();
-			services.AddSingleton<LifetimeService>();
 			services.AddSingleton<LogTailService>();
 			services.AddSingleton<INotificationService, NotificationService>();
 			services.AddSingleton<IPerforceService, PerforceServiceStub>();
@@ -300,9 +210,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<ComputeService>();
 			services.AddSingleton<EnrollmentService>();
 
-			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
-			services.AddSingleton<ServerStatusService>();
-
 			services.AddSingleton<ConformTaskSource>();
 			services.AddSingleton<ICommitService, CommitService>();
 
@@ -312,11 +219,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<StorageBackendCache>();
 			services.AddSingleton<BundleCache>();
-
-			foreach (ILoadedPlugin plugin in _pluginCollection.LoadedPlugins)
-			{
-				plugin.ConfigureServices(new ConfigurationBuilder().Build(), services);
-			}
 		}
 
 		public Task<Fixture> CreateFixtureAsync()
@@ -461,54 +363,6 @@ namespace HordeServer.Tests
 		}
 
 		/// <summary>
-		/// Hack the Datadog tracing library to not block during shutdown of tests.
-		/// Without this fix, the lib will try to send traces to a host that isn't running and block for +20 secs
-		///
-		/// Since so many of the interfaces and classes in the lib are internal it was difficult to replace Tracer.Instance
-		/// </summary>
-		private static void PatchDatadogWriter()
-		{
-			if (s_datadogWriterPatched)
-			{
-				return;
-			}
-
-			s_datadogWriterPatched = true;
-
-			string msg = "Unable to patch Datadog agent writer! Tests will still work, but shutdown will block for +20 seconds.";
-
-			FieldInfo? agentWriterField = Datadog.Trace.Tracer.Instance.GetType().GetField("_agentWriter", BindingFlags.NonPublic | BindingFlags.Instance);
-			if (agentWriterField == null)
-			{
-				Console.Error.WriteLine(msg);
-				return;
-			}
-
-			object? agentWriterInstance = agentWriterField.GetValue(Datadog.Trace.Tracer.Instance);
-			if (agentWriterInstance == null)
-			{
-				Console.Error.WriteLine(msg);
-				return;
-			}
-
-			FieldInfo? processExitField = agentWriterInstance.GetType().GetField("_processExit", BindingFlags.NonPublic | BindingFlags.Instance);
-			if (processExitField == null)
-			{
-				Console.Error.WriteLine(msg);
-				return;
-			}
-
-			TaskCompletionSource<bool>? processExitInstance = (TaskCompletionSource<bool>?)processExitField.GetValue(agentWriterInstance);
-			if (processExitInstance == null)
-			{
-				Console.Error.WriteLine(msg);
-				return;
-			}
-
-			processExitInstance.TrySetResult(true);
-		}
-
-		/// <summary>
 		/// Find an available TCP/IP port
 		/// </summary>
 		/// <returns>Port number available</returns>
@@ -542,15 +396,5 @@ namespace HordeServer.Tests
 			UpdateConfig(config => config.Pools.Add(poolConfig));
 			return await PoolCollection.GetAsync(poolConfig.Id) ?? throw new NotImplementedException();
 		}
-	}
-
-	public class DowntimeServiceStub : IDowntimeService
-	{
-		public DowntimeServiceStub(bool isDowntimeActive = false)
-		{
-			IsDowntimeActive = isDowntimeActive;
-		}
-
-		public bool IsDowntimeActive { get; set; }
 	}
 }

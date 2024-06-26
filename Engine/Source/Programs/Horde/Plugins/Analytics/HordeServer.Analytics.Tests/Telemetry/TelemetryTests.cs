@@ -12,15 +12,16 @@ using HordeServer.Server;
 using HordeServer.Telemetry;
 using HordeServer.Telemetry.Metrics;
 using HordeServer.Telemetry.Sinks;
+using HordeServer.Tests;
 using HordeServer.Utilities;
 using Json.Path;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace HordeServer.Tests.Telemetry
+namespace HordeServer.Analytics.Tests.Telemetry
 {
 	[TestClass]
-	public class TelemetryTests : TestSetup
+	public class TelemetryTests : ServerServiceTest
 	{
 		static readonly TelemetryRecordMeta s_metadata = new TelemetryRecordMeta();
 
@@ -28,8 +29,7 @@ namespace HordeServer.Tests.Telemetry
 		{
 			base.ConfigureServices(services);
 
-			services.AddSingleton<MetricTelemetrySink>();
-			services.AddSingleton<IMetricCollection, MetricCollection>();
+			services.AddAnalytics();
 		}
 
 		[TestMethod]

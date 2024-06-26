@@ -1,0 +1,180 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.Metrics;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Threading.Tasks;
+using EpicGames.Core;
+using HordeCommon;
+using HordeServer.Acls;
+using HordeServer.Auditing;
+using HordeServer.Configuration;
+using HordeServer.Plugins;
+using HordeServer.Server;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace HordeServer.Tests
+{
+	public class ServerServiceTest : DatabaseIntegrationTest
+	{
+		public FakeClock Clock => ServiceProvider.GetRequiredService<FakeClock>();
+		public IMemoryCache Cache => ServiceProvider.GetRequiredService<IMemoryCache>();
+
+		public AclService AclService => ServiceProvider.GetRequiredService<AclService>();
+		public IMongoService MongoService => ServiceProvider.GetRequiredService<IMongoService>();
+		public IDowntimeService DowntimeService => ServiceProvider.GetRequiredService<IDowntimeService>();
+		public LifetimeService LifetimeService => ServiceProvider.GetRequiredService<LifetimeService>();
+		public ServerStatusService ServerStatusService => ServiceProvider.GetRequiredService<ServerStatusService>();
+
+		public ServerSettings ServerSettings => ServiceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
+		public IOptionsMonitor<ServerSettings> ServerSettingsMon => ServiceProvider.GetRequiredService<IOptionsMonitor<ServerSettings>>();
+
+		public OpenTelemetry.Trace.Tracer Tracer => ServiceProvider.GetRequiredService<OpenTelemetry.Trace.Tracer>();
+		public Meter Meter => ServiceProvider.GetRequiredService<Meter>();
+		public ConfigService ConfigService => ServiceProvider.GetRequiredService<ConfigService>();
+		public IOptionsMonitor<GlobalConfig> GlobalConfig => ServiceProvider.GetRequiredService<IOptionsMonitor<GlobalConfig>>();
+		public IOptionsSnapshot<GlobalConfig> GlobalConfigSnapshot => ServiceProvider.GetRequiredService<IOptionsSnapshot<GlobalConfig>>();
+
+		public IPluginCollection PluginCollection => ServiceProvider.GetRequiredService<IPluginCollection>();
+
+		private static bool s_datadogWriterPatched;
+
+		readonly PluginCollection _pluginCollection;
+
+		public ServerServiceTest()
+		{
+			_pluginCollection = new PluginCollection();
+			_pluginCollection.Add<AnalyticsPlugin>();
+
+			PatchDatadogWriter();
+		}
+
+		protected void SetConfig(GlobalConfig globalConfig)
+		{
+			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins);
+			ConfigService.OverrideConfig(globalConfig);
+		}
+
+		protected void UpdateConfig(Action<GlobalConfig> action)
+		{
+			GlobalConfig globalConfig = GlobalConfig.CurrentValue;
+			action(globalConfig);
+			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins);
+			ConfigService.OverrideConfig(globalConfig);
+		}
+
+		protected override void ConfigureSettings(ServerSettings settings)
+		{
+			DirectoryReference baseDir = DirectoryReference.Combine(ServerApp.DataDir, "Tests");
+			try
+			{
+				FileUtils.ForceDeleteDirectoryContents(baseDir);
+			}
+			catch
+			{
+			}
+
+			settings.WithAws = true;
+
+			settings.ForceConfigUpdateOnStartup = true;
+		}
+
+		protected override void ConfigureServices(IServiceCollection services)
+		{
+			base.ConfigureServices(services);
+
+			services.AddSingleton<IServerInfo>(new ServerInfo());
+			services.AddSingleton<IPluginCollection>(_pluginCollection);
+
+			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
+			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));
+
+			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
+
+			services.AddSingleton<ConfigService>();
+			services.AddSingleton<IOptionsFactory<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
+			services.AddSingleton<IOptionsChangeTokenSource<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
+
+			services.AddSingleton<IConfigSource, FileConfigSource>();
+
+			services.AddSingleton<FakeClock>();
+			services.AddSingleton<IClock>(sp => sp.GetRequiredService<FakeClock>());
+			services.AddSingleton<IHostApplicationLifetime, AppLifetimeStub>();
+			services.AddSingleton<IHostEnvironment, WebHostEnvironmentStub>();
+
+			services.AddSingleton<AclService>();
+			services.AddSingleton<IDowntimeService, DowntimeServiceStub>();
+			services.AddSingleton<LifetimeService>();
+
+			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
+			services.AddSingleton<ServerStatusService>();
+
+			foreach (ILoadedPlugin plugin in _pluginCollection.LoadedPlugins)
+			{
+				plugin.ConfigureServices(new ConfigurationBuilder().Build(), services);
+			}
+		}
+
+		protected void AddPlugin<T>() where T : class, IPluginStartup
+		{
+			_pluginCollection.Add<T>();
+		}
+
+		/// <summary>
+		/// Hack the Datadog tracing library to not block during shutdown of tests.
+		/// Without this fix, the lib will try to send traces to a host that isn't running and block for +20 secs
+		///
+		/// Since so many of the interfaces and classes in the lib are internal it was difficult to replace Tracer.Instance
+		/// </summary>
+		private static void PatchDatadogWriter()
+		{
+			if (s_datadogWriterPatched)
+			{
+				return;
+			}
+
+			s_datadogWriterPatched = true;
+
+			/*			string msg = "Unable to patch Datadog agent writer! Tests will still work, but shutdown will block for +20 seconds.";
+
+						FieldInfo? agentWriterField = Datadog.Trace.Tracer.Instance.GetType().GetField("_agentWriter", BindingFlags.NonPublic | BindingFlags.Instance);
+						if (agentWriterField == null)
+						{
+							Console.Error.WriteLine(msg);
+							return;
+						}
+
+						object? agentWriterInstance = agentWriterField.GetValue(Datadog.Trace.Tracer.Instance);
+						if (agentWriterInstance == null)
+						{
+							Console.Error.WriteLine(msg);
+							return;
+						}
+
+						FieldInfo? processExitField = agentWriterInstance.GetType().GetField("_processExit", BindingFlags.NonPublic | BindingFlags.Instance);
+						if (processExitField == null)
+						{
+							Console.Error.WriteLine(msg);
+							return;
+						}
+
+						TaskCompletionSource<bool>? processExitInstance = (TaskCompletionSource<bool>?)processExitField.GetValue(agentWriterInstance);
+						if (processExitInstance == null)
+						{
+							Console.Error.WriteLine(msg);
+							return;
+						}
+
+						processExitInstance.TrySetResult(true);
+			*/
+		}
+	}
+}

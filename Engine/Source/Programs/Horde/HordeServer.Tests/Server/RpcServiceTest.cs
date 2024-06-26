@@ -27,39 +27,6 @@ namespace HordeServer.Tests.Server
 {
 	using ISession = Microsoft.AspNetCore.Http.ISession;
 
-	public class AppLifetimeStub : IHostApplicationLifetime
-	{
-		public CancellationToken ApplicationStarted { get; }
-		public CancellationToken ApplicationStopping { get; }
-		public CancellationToken ApplicationStopped { get; }
-
-		public AppLifetimeStub()
-		{
-			ApplicationStarted = new CancellationToken();
-			ApplicationStopping = new CancellationToken();
-			ApplicationStopped = new CancellationToken();
-		}
-
-		public void StopApplication()
-		{
-			throw new NotImplementedException();
-		}
-	}
-
-	public class WebHostEnvironmentStub : IHostEnvironment
-	{
-		public string ApplicationName { get; set; } = "HordeTest";
-		public IFileProvider ContentRootFileProvider { get; set; }
-		public string ContentRootPath { get; set; }
-		public string EnvironmentName { get; set; } = "Testing";
-
-		public WebHostEnvironmentStub()
-		{
-			ContentRootPath = Directory.CreateTempSubdirectory("HordeTest").FullName;
-			ContentRootFileProvider = new PhysicalFileProvider(ContentRootPath);
-		}
-	}
-
 	sealed class HttpContextStub : HttpContext
 	{
 		public override ConnectionInfo Connection { get; } = null!;

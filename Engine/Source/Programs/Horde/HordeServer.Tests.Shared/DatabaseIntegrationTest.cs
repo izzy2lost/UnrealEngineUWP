@@ -170,45 +170,6 @@ namespace HordeServer.Tests
 		}
 	}
 
-	public class ServiceTest : IAsyncDisposable
-	{
-		private ServiceProvider? _serviceProvider = null;
-
-		public IServiceProvider ServiceProvider
-		{
-			get
-			{
-				if (_serviceProvider == null)
-				{
-					IServiceCollection services = new ServiceCollection();
-					ConfigureServices(services);
-
-					_serviceProvider = services.BuildServiceProvider();
-				}
-				return _serviceProvider;
-			}
-		}
-
-		public virtual async ValueTask DisposeAsync()
-		{
-			GC.SuppressFinalize(this);
-
-			if (_serviceProvider != null)
-			{
-				await _serviceProvider.DisposeAsync();
-				_serviceProvider = null;
-			}
-		}
-
-		protected virtual void ConfigureSettings(ServerSettings settings)
-		{
-		}
-
-		protected virtual void ConfigureServices(IServiceCollection services)
-		{
-		}
-	}
-
 	public class DatabaseIntegrationTest : ServiceTest
 	{
 		private static readonly object s_lockObject = new object();
