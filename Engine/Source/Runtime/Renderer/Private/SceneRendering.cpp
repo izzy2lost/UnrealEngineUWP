@@ -1734,14 +1734,17 @@ void FViewInfo::SetupUniformBufferParameters(
 	}
 
 	uint32 FrameIndex = 0;
+	uint32 OutputFrameIndex = 0;
 	if (ViewState)
 	{
 		FrameIndex = ViewState->GetFrameIndex();
+		OutputFrameIndex = ViewState->GetOutputFrameIndex();
 	}
 
 	// TODO(GA): kill StateFrameIndexMod8 because this is only a scalar bit mask with StateFrameIndex anyway.
 	ViewUniformShaderParameters.StateFrameIndexMod8 = FrameIndex % 8;
 	ViewUniformShaderParameters.StateFrameIndex = FrameIndex;
+	ViewUniformShaderParameters.StateOutputFrameIndex = OutputFrameIndex;
 
 	{
 		// If rendering in stereo, the other stereo passes uses the left eye's translucency lighting volume.

@@ -1002,8 +1002,20 @@ public:
 	// if TemporalAA is on this cycles through 0..TemporalAASampleCount-1, ResetViewState() puts it back to 0
 	int32 TemporalAASampleIndex;
 
-	// counts up by one each frame, warped in 0..7 range, ResetViewState() puts it back to 0
+	// Counts up by one each frame, ResetViewState() puts it back to 0. Should be used as the seed for Halton
+	// and other per-render changes. Use OutputFrameIndex as the seed if the effect should be per output frame.
+	// Under normal rendering FrameIndex == OutputFrameIndex and there is no distinction between per-render and
+	// per-frame, but when accumulating multiple samples then FrameIndex will be unique for each accumulation sample
+	// rendered, but OutputFrameIndex will only increment per multi-sample accumulated output frame.
+	// 
+	// Can be overwritten by OverrideFrameIndexValue.
 	uint32 FrameIndex;
+
+	// Counts up by one each frame, ResetViewState() puts it back to zero. See FrameIndex for more details. This should
+	// equal FrameIndex in normal scenarios, but can differ when accumulating multiple samples to produce one output frame.
+	//
+	// Can be overwritten by OverrideOutputFrameIndexValue
+	uint32 OutputFrameIndex;
 	
 	/** Informations of to persist for the next frame's FViewInfo::PrevViewInfo.
 	 *
@@ -1198,11 +1210,25 @@ public:
 		return FrameIndex;
 	}
 
+	// Returns the index of the output frame with a desired power of two modulus.
+	inline uint32 GetOutputFrameIndex(uint32 Pow2Modulus) const
+	{
+		check(FMath::IsPowerOfTwo(Pow2Modulus));
+		return OutputFrameIndex & (Pow2Modulus - 1);
+	}
+
+	// Returns 32bits output frame index. Matches GetFrameIndex unless using multi-sample accumulation.
+	inline uint32 GetOutputFrameIndex() const
+	{
+		return OutputFrameIndex;
+	}
+
 	// to make rendering more deterministic
 	virtual void ResetViewState()
 	{
 		TemporalAASampleIndex = 0;
 		FrameIndex = 0;
+		OutputFrameIndex = 0;
 		DistanceFieldTemporalSampleIndex = 0;
 		PreExposure = 1.f;
 

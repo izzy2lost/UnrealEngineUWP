@@ -4979,6 +4979,17 @@ void FSceneRenderer::PrepareViewStateForVisibility(const FSceneTexturesConfig& S
 			{
 				ViewState->FrameIndex = View.OverrideFrameIndexValue.GetValue();
 			}
+
+			if (View.OverrideOutputFrameIndexValue.IsSet())
+			{
+				ViewState->OutputFrameIndex = View.OverrideOutputFrameIndexValue.GetValue();
+			}
+			else
+			{
+				// If the output frame index isn't being overwritten then we keep it in sync with
+				// FrameIndex so that downstream systems are unchanged.
+				ViewState->OutputFrameIndex = ViewState->FrameIndex;
+			}
 		}
 		
 		// Subpixel jitter for temporal AA

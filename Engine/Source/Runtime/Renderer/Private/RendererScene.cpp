@@ -374,6 +374,7 @@ FSceneViewState::FSceneViewState(ERHIFeatureLevel::Type FeatureLevel, FSceneView
 	MIDUsedCount = 0;
 	TemporalAASampleIndex = 0;
 	FrameIndex = 0;
+	OutputFrameIndex = 0;
 	DistanceFieldTemporalSampleIndex = 0;
 	bDOFHistory = true;
 	bDOFHistory2 = true;

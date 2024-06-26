@@ -251,6 +251,7 @@ TSharedPtr<FSceneViewFamilyContext> UMoviePipelineImagePassBase::CalculateViewFa
 	// Override the view's FrameIndex to be based on our progress through the sequence. This greatly increases
 	// determinism with things like TAA.
 	View->OverrideFrameIndexValue = InOutSampleState.FrameIndex;
+	View->OverrideOutputFrameIndexValue = InOutSampleState.OutputState.OutputFrameNumber;
 	View->bCameraCut = InOutSampleState.bCameraCut;
 	View->bIsOfflineRender = true;
 	View->AntiAliasingMethod = IsAntiAliasingSupported() ? InOutSampleState.AntiAliasingMethod : EAntiAliasingMethod::AAM_None;

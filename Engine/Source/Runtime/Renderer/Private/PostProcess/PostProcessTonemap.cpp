@@ -710,12 +710,14 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 	CommonParameters.View = View.GetShaderParameters();
 
 	{
-		uint8 FrameIndexMod8 = 0;
+		uint8 OutputFrameIndexMod8 = 0;
 		if (View.ViewState)
 		{
-			FrameIndexMod8 = View.ViewState->GetFrameIndex(8);
+			// Grain should be temporally stable when accumulating multiple samples per output frame, so we use OutputFrameIndex instead of FrameIndex.
+			// Without this, the effect of grain is softened which goes against artistic intent after they tune it to the real-time viewport.
+			OutputFrameIndexMod8 = View.ViewState->GetOutputFrameIndex(8);
 		}
-		GrainRandomFromFrame(&CommonParameters.FilmGrain.GrainRandomFull, FrameIndexMod8);
+		GrainRandomFromFrame(&CommonParameters.FilmGrain.GrainRandomFull, OutputFrameIndexMod8);
 	}
 
 	if (View.FilmGrainTexture)
@@ -754,8 +756,9 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 		CommonParameters.FilmGrain.FilmGrainTexture = FilmGrainTexture;
 		CommonParameters.FilmGrain.FilmGrainSampler = TStaticSamplerState<SF_Bilinear, AM_Wrap, AM_Wrap>::GetRHI();
 
+		// Grain should be temporally stable when accumulating multiple samples per output frame, so we use OutputFrameIndex instead of FrameIndex.
 		int32 RandomSequenceLength = CVarFilmGrainSequenceLength.GetValueOnRenderThread();
-		int32 RandomSequenceIndex = (View.ViewState ? View.ViewState->FrameIndex : 0) % RandomSequenceLength;
+		int32 RandomSequenceIndex = (View.ViewState ? View.ViewState->GetOutputFrameIndex() : 0) % RandomSequenceLength;
 
 		FVector2f RandomGrainTextureUVOffset;
 		RandomGrainTextureUVOffset.X = Halton(RandomSequenceIndex + 1, 2);

@@ -202,6 +202,8 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToSceneView(TSharedRef<FS
 	// determinism with things like TAA.
 	FSceneView* View = const_cast<FSceneView*>(InOutFamily->Views[0]);
 	View->OverrideFrameIndexValue = InInitData.FrameIndex;
+	View->OverrideOutputFrameIndexValue = InInitData.TimeData.OutputFrameNumber;
+
 	// Each shot should initialize a scene history from scratch so there should be no need to do an extra camera cut flag.
 	View->bCameraCut = false; 
 	View->AntiAliasingMethod = InInitData.AntiAliasingMethod;

@@ -851,6 +851,7 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, FrameCounter) \
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, StateFrameIndexMod8) \
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, StateFrameIndex) \
+	VIEW_UNIFORM_BUFFER_MEMBER(uint32, StateOutputFrameIndex) \
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, DebugViewModeMask) \
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, WorldIsPaused) \
 	VIEW_UNIFORM_BUFFER_MEMBER_EX(float, CameraCut, EShaderPrecisionModifier::Half) \
@@ -1527,6 +1528,11 @@ public:
 	
 	/** The frame index to override, useful for keeping determinism when rendering sequences. **/
 	TOptional<uint32> OverrideFrameIndexValue;
+	/** 
+	* If set, overrides the Output Frame Index. Useful for Halton-like offsets that should produce the same results in multi-sample accumulation when rendering sequences. 
+	* If unset, renderer defaults to FrameIndex.
+	*/
+	TOptional<uint32> OverrideOutputFrameIndexValue;
 
 	/** In some cases, the principal point of the lens is not at the center of the screen, especially for overlapped tile
 	 *  rendering. So given a UV in [-1,1] viewport space, convert it to the [-1,1] viewport space of the lens using
