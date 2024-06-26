@@ -42,14 +42,14 @@ public class ToolsControllerTests
 		storageConfig.Namespaces.Add(new NamespaceConfig { Id = Namespace.Tools, Backend = new BackendId("tools-backend") });
 
 		GlobalConfig globalConfig = new();
-		globalConfig.Plugins.AddStorageTestConfig(storageConfig);
+		globalConfig.Plugins.AddStorageConfig(storageConfig);
 		globalConfig.Tools.Add(new ToolConfig(toolId) { Name = "Foo", Description = "This is foo", Acl = new AclConfig() { Entries = [aclEntryConfig] }, Public = false });
 		
 		ServerSettings serverSettings = new() { AuthMethod = AuthMethod.Horde };
 		globalConfig.PostLoad(serverSettings, pluginCollection.LoadedPlugins);
 
 		Dictionary<string, string> settings = new() { { "Horde:AuthMethod", AuthMethod.Horde.ToString() } };
-		await using FakeHordeWebApp app = new(settings);
+		await using FakeHordeWebApp app = new(settings: settings);
 		
 		ConfigService configService = app.ServiceProvider.GetRequiredService<ConfigService>();
 		IToolCollection tools = app.ServiceProvider.GetRequiredService<IToolCollection>();

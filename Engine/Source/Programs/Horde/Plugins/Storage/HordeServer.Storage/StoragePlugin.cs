@@ -52,4 +52,16 @@ namespace HordeServer.Storage
 			return new StorageBackendCache(cacheDir, _staticConfig.BundleCacheSizeBytes, serviceProvider.GetRequiredService<ILogger<StorageBackendCache>>());
 		}
 	}
+
+	/// <summary>
+	/// Helper methods for storage config
+	/// </summary>
+	public static class StoragePluginExtensions
+	{
+		/// <summary>
+		/// Configures the storage plugin
+		/// </summary>
+		public static void AddStorageConfig(this IDictionary<PluginName, IPluginConfig> dictionary, StorageConfig storageConfig)
+			=> dictionary[new PluginName("Storage")] = storageConfig;
+	}
 }

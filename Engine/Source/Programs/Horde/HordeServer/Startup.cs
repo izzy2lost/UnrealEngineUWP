@@ -52,7 +52,6 @@ using HordeServer.Commits;
 using HordeServer.Compute;
 using HordeServer.Configuration;
 using HordeServer.Dashboard;
-using HordeServer.Ddc;
 using HordeServer.Devices;
 using HordeServer.Issues;
 using HordeServer.Issues.External;
@@ -124,7 +123,6 @@ namespace HordeServer
 {
 	using ContentHash = EpicGames.Core.ContentHash;
 	using ILogger = Microsoft.Extensions.Logging.ILogger;
-	using ReferenceResolver = HordeServer.Ddc.ReferenceResolver;
 
 	class Startup
 	{
@@ -317,6 +315,7 @@ namespace HordeServer
 			PluginCollection pluginCollection = new PluginCollection();
 			pluginCollection.Add<AnalyticsPlugin>();
 			pluginCollection.Add<StoragePlugin>();
+			pluginCollection.Add<DdcPlugin>();
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin services
@@ -515,17 +514,6 @@ namespace HordeServer
 			{
 				services.AddSingleton<IExternalIssueService, DefaultExternalIssueService>();
 			}
-
-			// DDC
-			services.AddScoped<IRequestHelper, RequestHelper>();
-			services.AddScoped<IBlobService, BlobService>();
-			services.AddScoped<IRefService, RefService>();
-			services.AddScoped<IReferenceResolver, ReferenceResolver>();
-			services.AddScoped<IContentIdStore, ContentIdStore>();
-			services.AddSingleton<BufferedPayloadFactory>();
-			services.AddSingleton<NginxRedirectHelper>();
-			services.AddSingleton<FormatResolver>();
-			services.AddSingleton<CompressedBufferUtils>();
 
 			// Secret providers
 			services.AddSingleton<SecretCollectionInternal>();

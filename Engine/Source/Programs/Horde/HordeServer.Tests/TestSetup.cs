@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Claims;
@@ -12,9 +11,6 @@ using Amazon.CloudWatch;
 using Amazon.EC2;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.ObjectStores;
 using HordeServer.Accounts;
 using HordeServer.Agents;
 using HordeServer.Agents.Enrollment;
@@ -58,7 +54,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
-using OpenTelemetry.Trace;
 
 namespace HordeServer.Tests
 {
@@ -330,7 +325,7 @@ namespace HordeServer.Tests
 			{
 				await agent.TryUpdateWorkspacesAsync(workspaces, false);
 			}
-			
+
 			if (requestShutdown)
 			{
 				await agent.TryUpdateAsync(new UpdateAgentOptions { RequestShutdown = true });

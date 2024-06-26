@@ -45,7 +45,7 @@ public class DebugControllerTests
 		{
 			settings["Horde:EnableDebugEndpoints"] = Convert.ToString(enableDebugEndpoints.Value);
 		}
-		return new FakeHordeWebApp(settings);
+		return new FakeHordeWebApp(settings: settings);
 	}
 }
 

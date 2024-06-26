@@ -30,7 +30,7 @@ public class AccountControllerTest : IAsyncDisposable
 		{
 			{ "Horde:AuthMethod", "Horde" },
 		};
-		_app = new FakeHordeWebApp(settings);
+		_app = new FakeHordeWebApp(settings: settings);
 		_accountCollection = _app.ServiceProvider.GetRequiredService<IAccountCollection>();
 	}
 
