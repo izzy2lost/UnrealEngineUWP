@@ -339,6 +339,7 @@ private:
 	void RegisterDelegatesForWorld(UWorld* World);
 	void UnregisterDelegatesForWorld(UWorld* World);
 
+	void OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
 	void OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType);
 	void OnPostPIEStarted(bool bIsSimulating);
 	void OnEndPIE(bool bIsSimulating);

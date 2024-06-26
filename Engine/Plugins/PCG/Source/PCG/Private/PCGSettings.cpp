@@ -11,6 +11,9 @@
 #include "PCGPin.h"
 #include "PCGSubgraph.h"
 #include "PCGSubsystem.h"
+#include "Compute/PCGComputeGraph.h"
+#include "Compute/PCGDataBinding.h"
+#include "Compute/PCGDataForGPU.h"
 #include "Elements/PCGAddTag.h"
 #include "Helpers/PCGHelpers.h"
 #include "Helpers/PCGSettingsHelpers.h"
@@ -185,6 +188,54 @@ void UPCGSettingsInterface::SetEnabled(bool bInEnabled)
 		}
 #endif
 	}
+}
+
+FPCGDataCollectionDesc UPCGSettings::ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const
+{
+	check(InputPin && Binding);
+
+	FPCGDataCollectionDesc PinDesc;
+
+	// Grab data from all incident edges.
+	for (const UPCGEdge* Edge : InputPin->Edges)
+	{
+		// InputPin is upstream output pin.
+		const UPCGPin* UpstreamOutputPin = Edge->InputPin;
+		if (!UpstreamOutputPin)
+		{
+			continue;
+		}
+
+		const UPCGSettings* UpstreamSettings = UpstreamOutputPin->Node ? UpstreamOutputPin->Node->GetSettings() : nullptr;
+		check(UpstreamSettings);
+
+		// Add data from connected upstream output pin.
+		PinDesc.Combine(UpstreamSettings->ComputeOutputPinDataDesc(UpstreamOutputPin, Binding));
+	}
+
+	return PinDesc;
+}
+
+FPCGDataCollectionDesc UPCGSettings::ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* Binding) const
+{
+	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
+	return ComputeOutputPinDataDesc(Node->GetOutputPin(OutputPinLabel), Binding);
+}
+
+FPCGDataCollectionDesc UPCGSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
+{
+	// This base class implementation will be called on upstream CPU nodes. Get the downstream pin alias in order to
+	// pick the relevant data items out of the compute graph element's input data collection.
+	if (const FName* FoundPinAlias = Binding->Graph->OutputCPUPinToInputGPUPinAlias.Find(OutputPin))
+	{
+		return FPCGDataCollectionDesc::BuildFromInputDataCollectionAndInputPinLabel(
+			Binding->DataForGPU.InputDataCollection,
+			*FoundPinAlias,
+			Binding->Graph->GetAttributeLookupTable());
+	}
+
+	ensure(false);
+	return {};
 }
 
 uint32 UPCGSettings::GetTypeNameHash() const
@@ -591,9 +642,18 @@ EPCGChangeType UPCGSettings::GetChangeTypeForProperty(FPropertyChangedEvent& Pro
 
 EPCGChangeType UPCGSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
 {
+	EPCGChangeType ChangeType = EPCGChangeType::Settings;
+
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSettings, bExecuteOnGPU))
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return EPCGChangeType::Settings | (IsStructuralProperty(InPropertyName) ? EPCGChangeType::Structural : EPCGChangeType::None);
+	ChangeType |= IsStructuralProperty(InPropertyName) ? EPCGChangeType::Structural : EPCGChangeType::None;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	return ChangeType;
 }
 
 void UPCGSettings::DirtyCache()

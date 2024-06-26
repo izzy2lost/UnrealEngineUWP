@@ -1,0 +1,489 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "/Engine/Private/Quaternion.ush"
+
+RWByteAddressBuffer {DataInterfaceName}_DataCollectionBuffer;
+
+// TODO: These defines could be code-gen'd to stay in sync with our PCGComputeConstants
+#define POINT_POSITION_ID 0
+#define POINT_ROTATION_ID 1
+#define POINT_SCALE_ID 2
+#define POINT_BOUNDS_MIN_ID 3
+#define POINT_BOUNDS_MAX_ID 4
+#define POINT_COLOR_ID 5
+#define POINT_DENSITY_ID 6
+#define POINT_SEED_ID 7
+#define POINT_STEEPNESS_ID 8
+#define POINT_METADATA_ENTRY_ID 9
+
+// #################### HEADER READERS ##########################
+
+uint GetNumData_{DataInterfaceName}()
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(0);
+}
+
+uint ReadDataAddress_{DataInterfaceName}(uint DataIndex)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load((DataIndex + 1) * 4);
+}
+
+uint ReadDataId_{DataInterfaceName}(uint DataAddress)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 0);
+}
+
+uint ReadDataNumAttributes_{DataInterfaceName}(uint DataAddress)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 4);
+}
+
+uint ReadDataPreambleSize_{DataInterfaceName}(uint DataAddress)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 8);
+}
+
+// For PointData, this is just NumPoints
+uint ReadDataInfo_{DataInterfaceName}(uint DataAddress)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 12);
+}
+
+// Returns (DataIndex, DataAddress, ElementIndex)
+uint3 GetThreadData_{DataInterfaceName}(uint ThreadIndex)
+{
+	int ElementIndex = ThreadIndex;
+
+	const uint NumData = GetNumData_{DataInterfaceName}();
+	for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
+	{
+		const uint DataAddress = ReadDataAddress_{DataInterfaceName}(DataIndex);
+		const uint ElemCount = ReadDataInfo_{DataInterfaceName}(DataAddress);
+
+		if (ElementIndex < ElemCount)
+		{
+			return uint3(DataIndex, DataAddress, ElementIndex);
+		}
+
+		ElementIndex -= ElemCount;
+	}
+
+	return uint3(-1, -1, -1);
+}
+
+uint GetNumElements_{DataInterfaceName}()
+{
+	uint NumElements = 0;
+
+	const uint NumData = GetNumData_{DataInterfaceName}();
+	for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
+	{
+		const uint DataAddress = ReadDataAddress_{DataInterfaceName}(DataIndex);
+		NumElements += ReadDataInfo_{DataInterfaceName}(DataAddress);
+	}
+
+	return NumElements;
+}
+
+uint ReadDataAttributeHeadersAddress_{DataInterfaceName}(uint DataAddress)
+{
+	return DataAddress + ReadDataPreambleSize_{DataInterfaceName}(DataAddress);
+}
+
+uint ReadAttributeHeaderAddress_{DataInterfaceName}(uint AttributeHeadersAddress, uint AttributeId)
+{
+	return AttributeHeadersAddress + AttributeId * 8;
+}
+
+uint ReadAttributeIdAndStride_{DataInterfaceName}(uint AttributeHeaderAddress)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(AttributeHeaderAddress);
+}
+
+uint ReadAttributeId_{DataInterfaceName}(uint AttributeHeaderAddress)
+{
+	return ReadAttributeIdAndStride_{DataInterfaceName}(AttributeHeaderAddress) >> 8;
+}
+
+uint ReadAttributeStride_{DataInterfaceName}(uint AttributeHeaderAddress)
+{
+	return ReadAttributeIdAndStride_{DataInterfaceName}(AttributeHeaderAddress) & (0xFFFFFFFF >> 24);
+}
+
+uint ReadAttributeAddress_{DataInterfaceName}(uint AttributeHeaderAddress)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(AttributeHeaderAddress + 4);
+}
+
+uint ReadAttributeAddress_{DataInterfaceName}(uint InDataAddress, uint InAttributeId)
+{
+	const uint AttributeHeadersAddress = ReadDataAttributeHeadersAddress_{DataInterfaceName}(InDataAddress);
+	const uint NumAttributes = ReadDataNumAttributes_{DataInterfaceName}(InDataAddress);
+
+	for (uint AttributeIndex = 0; AttributeIndex < NumAttributes; ++AttributeIndex)
+	{
+		const uint AttributeHeaderAddress = ReadAttributeHeaderAddress_{DataInterfaceName}(AttributeHeadersAddress, AttributeIndex);
+
+		if (ReadAttributeId_{DataInterfaceName}(AttributeHeaderAddress) == InAttributeId)
+		{
+			return ReadAttributeAddress_{DataInterfaceName}(AttributeHeaderAddress);
+		}
+	}
+
+	return -1;
+}
+
+// #################### HEADER WRITERS ##########################
+
+void WriteNumData_{DataInterfaceName}(uint NumData)
+{
+	{DataInterfaceName}_DataCollectionBuffer.Store(0, NumData);
+}
+
+void WriteDataAddress_{DataInterfaceName}(uint DataIndex, uint DataAddress)
+{
+	{DataInterfaceName}_DataCollectionBuffer.Store((DataIndex + 1) * 4, DataAddress);
+}
+
+void WriteDataId_{DataInterfaceName}(uint DataAddress, uint Id)
+{
+	{DataInterfaceName}_DataCollectionBuffer.Store(DataAddress + 0, Id);
+}
+
+void WriteDataNumAttributes_{DataInterfaceName}(uint DataAddress, uint NumAttributes)
+{
+	{DataInterfaceName}_DataCollectionBuffer.Store(DataAddress + 4, NumAttributes);
+}
+
+void WriteDataPreambleSize_{DataInterfaceName}(uint DataAddress, uint PreambleSize)
+{
+	{DataInterfaceName}_DataCollectionBuffer.Store(DataAddress + 8, PreambleSize);
+}
+
+// For PointData, this is just NumPoints
+void WriteDataInfo_{DataInterfaceName}(uint DataAddress, uint Info)
+{
+	{DataInterfaceName}_DataCollectionBuffer.Store(DataAddress + 12, Info);
+}
+
+void WriteAttributeIdAndStride_{DataInterfaceName}(uint AttributeHeaderAddress, uint IdAndStride)
+{
+	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeHeaderAddress, IdAndStride);
+}
+
+void WriteAttributeAddress_{DataInterfaceName}(uint AttributeHeaderAddress, uint AttributeAddress)
+{
+	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeHeaderAddress + 4, AttributeAddress);
+}
+
+uint LoadBuffer_{DataInterfaceName}(uint Address)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(Address);
+}
+
+void StoreBuffer_{DataInterfaceName}(uint Address, uint Value)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Store(Address, Value);
+}
+
+// #################### ATTRIBUTE GETTERS ##########################
+
+uint ComputeAddressHelper_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint DataAddress = ReadDataAddress_{DataInterfaceName}(DataIndex);
+	const uint AttributeHeadersAddress = ReadDataAttributeHeadersAddress_{DataInterfaceName}(DataAddress);
+	const uint AttributeHeaderAddress = ReadAttributeHeaderAddress_{DataInterfaceName}(AttributeHeadersAddress, AttributeId);
+	return ReadAttributeAddress_{DataInterfaceName}(AttributeHeaderAddress);
+}
+
+bool GetBool_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return asbool({DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4));
+}
+
+int GetInt_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return asint({DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4));
+}
+
+float GetFloat_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4));
+}
+
+float2 GetFloat2_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load2(AttributeAddress + ElementIndex * 2 * 4));
+}
+
+float3 GetFloat3_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load3(AttributeAddress + ElementIndex * 3 * 4));
+}
+
+float4 GetFloat4_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(AttributeAddress + ElementIndex * 4 * 4));
+}
+
+float3 GetRotator_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load3(AttributeAddress + ElementIndex * 3 * 4));
+}
+
+float4 GetQuat_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(AttributeAddress + ElementIndex * 4 * 4));
+}
+
+// #################### ATTRIBUTE SETTERS ##########################
+
+void SetBool_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, bool Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, asuint(Value));
+}
+
+void SetInt_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, int Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, asuint(Value));
+}
+
+void SetFloat_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, float Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, asuint(Value));
+}
+
+void SetFloat2_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, float2 Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store2(AttributeAddress + ElementIndex * 2 * 4, asuint(Value));
+}
+
+void SetFloat3_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, float3 Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store3(AttributeAddress + ElementIndex * 3 * 4, asuint(Value));
+}
+
+void SetFloat4_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, float4 Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store4(AttributeAddress + ElementIndex * 4 * 4, asuint(Value));
+}
+
+void SetRotator_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, float3 Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store3(AttributeAddress + ElementIndex * 3 * 4, asuint(Value));
+}
+
+void SetQuat_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, float4 Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store4(AttributeAddress + ElementIndex * 4 * 4, asuint(Value));
+}
+
+// #################### POINT ATTRIBUTE GETTERS ##########################
+
+float3 GetPosition_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetFloat3_{DataInterfaceName}(DataIndex, POINT_POSITION_ID, ElementIndex);
+}
+
+float4 GetRotation_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetFloat4_{DataInterfaceName}(DataIndex, POINT_ROTATION_ID, ElementIndex);
+}
+
+float3 GetScale_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetFloat3_{DataInterfaceName}(DataIndex, POINT_SCALE_ID, ElementIndex);
+}
+
+float3 GetBoundsMin_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetFloat3_{DataInterfaceName}(DataIndex, POINT_BOUNDS_MIN_ID, ElementIndex);
+}
+
+float3 GetBoundsMax_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetFloat3_{DataInterfaceName}(DataIndex, POINT_BOUNDS_MAX_ID, ElementIndex);
+}
+
+float4 GetColor_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetFloat4_{DataInterfaceName}(DataIndex, POINT_COLOR_ID, ElementIndex);
+}
+
+float GetDensity_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetFloat_{DataInterfaceName}(DataIndex, POINT_DENSITY_ID, ElementIndex);
+}
+
+float GetSteepness_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetFloat_{DataInterfaceName}(DataIndex, POINT_STEEPNESS_ID, ElementIndex);
+}
+
+int GetSeed_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+{
+	return GetInt_{DataInterfaceName}(DataIndex, POINT_SEED_ID, ElementIndex);
+}
+
+float4x4 GetPointTransform_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
+{
+	const FQuat Rotation = GetRotation_{DataInterfaceName}(InDataIndex, InElementIndex);
+	const half3x3 RotationMatrix = QuatToMatrix(Rotation);
+	const float3 Position = GetPosition_{DataInterfaceName}(InDataIndex, InElementIndex);
+	const float3 Scale = GetScale_{DataInterfaceName}(InDataIndex, InElementIndex);
+	
+	const float3 Axis0 = Scale.x * RotationMatrix[0];
+	const float3 Axis1 = Scale.y * RotationMatrix[1];
+	const float3 Axis2 = Scale.z * RotationMatrix[2];
+
+	return float4x4(
+		Axis0.x, Axis0.y, Axis0.z, Position.x,
+		Axis1.x, Axis1.y, Axis1.z, Position.y,
+		Axis2.x, Axis2.y, Axis2.z, Position.z,
+		(float3)0.0, 1.0);
+}
+
+// #################### POINT ATTRIBUTE SETTERS ##########################
+
+void SetPosition_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float3 Position)
+{
+	SetFloat3_{DataInterfaceName}(DataIndex, POINT_POSITION_ID, ElementIndex, Position);
+}
+
+void SetRotation_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float4 Rotation)
+{
+	SetFloat4_{DataInterfaceName}(DataIndex, POINT_ROTATION_ID, ElementIndex, Rotation);
+}
+
+void SetScale_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float3 Scale)
+{
+	SetFloat3_{DataInterfaceName}(DataIndex, POINT_SCALE_ID, ElementIndex, Scale);
+}
+
+void SetBoundsMin_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float3 BoundsMin)
+{
+	SetFloat3_{DataInterfaceName}(DataIndex, POINT_BOUNDS_MIN_ID, ElementIndex, BoundsMin);
+}
+
+void SetBoundsMax_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float3 BoundsMax)
+{
+	SetFloat3_{DataInterfaceName}(DataIndex, POINT_BOUNDS_MAX_ID, ElementIndex, BoundsMax);
+}
+
+void SetColor_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float4 Color)
+{
+	SetFloat4_{DataInterfaceName}(DataIndex, POINT_COLOR_ID, ElementIndex, Color);
+}
+
+void SetDensity_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float Density)
+{
+	SetFloat_{DataInterfaceName}(DataIndex, POINT_DENSITY_ID, ElementIndex, Density);
+}
+
+void SetSteepness_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float Steepness)
+{
+	SetFloat_{DataInterfaceName}(DataIndex, POINT_STEEPNESS_ID, ElementIndex, Steepness);
+}
+
+void SetSeed_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int Seed)
+{
+	SetInt_{DataInterfaceName}(DataIndex, POINT_SEED_ID, ElementIndex, Seed);
+}
+
+void SetSeedFromPosition_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float3 Position)
+{
+	const int3 PosInt = (int3)Position;
+	const int Seed = ((PosInt.x * 196314165U) + 907633515U) ^ ((PosInt.y * 73148459U) + 453816763U) ^ ((PosInt.z * 34731343U) + 453816743U);
+
+	SetInt_{DataInterfaceName}(DataIndex, POINT_SEED_ID, ElementIndex, Seed);
+}
+
+void SetPointTransform_{DataInterfaceName}(uint InDataIndex, uint InElementIndex, float4x4 Transform)
+{
+	const float3 Scale = float3(length(Transform._m00_m01_m02), length(Transform._m10_m11_m12), length(Transform._m20_m21_m22));
+	SetScale_{DataInterfaceName}(InDataIndex, InElementIndex, Scale);
+
+	// Assumes Transform axes have the correct handedness. We could do more work to fix this up too if required.
+	float3x3 RotationMatix = Transform;
+	// Required unfortunately, QuatFromMatrix expects orthonormalized.
+	RotationMatix[0] /= Scale.x;
+	RotationMatix[1] /= Scale.y;
+	RotationMatix[2] /= Scale.z;
+	const FQuat Rotation = QuatFromMatrix(RotationMatix);
+	SetRotation_{DataInterfaceName}(InDataIndex, InElementIndex, Rotation);
+
+	const float3 Position = Transform._m03_m13_m23;
+	SetPosition_{DataInterfaceName}(InDataIndex, InElementIndex, Position);
+}
+
+// Write single point data collection header
+void WriteSinglePointDataCollectionHeader_{DataInterfaceName}(uint InPointCount)
+{
+    const uint NumData = 1;
+    WriteNumData_{DataInterfaceName}(NumData);
+    
+	// TODO code gen the various constants here and below rather than hardcoding them.
+    const static uint AttributeStrides[9] = { 3, 4, 3, 3, 3, 4, 1, 1, 1 };
+    
+    for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
+    {
+        const uint DataAddress = 8;
+        const uint Id = 0; // PCG_POINT_DATA_TYPE_ID
+        const uint NumAttributes = 9; // Number of point attributes
+        const uint PreambleSizeBytes = 16; // PCG_POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES
+        const uint NumElements = InPointCount;
+        
+        WriteDataAddress_{DataInterfaceName}(DataIndex, DataAddress);
+        WriteDataId_{DataInterfaceName}(DataAddress, Id);
+        WriteDataNumAttributes_{DataInterfaceName}(DataAddress, NumAttributes);
+        WriteDataPreambleSize_{DataInterfaceName}(DataAddress, PreambleSizeBytes);
+        WriteDataInfo_{DataInterfaceName}(DataAddress, NumElements);
+        
+        const uint AttributeHeadersAddress = DataAddress + PreambleSizeBytes;
+        // TODO: These magic numbers should be code gen'd using the constants in PCGComputeConstants
+        uint CurrentAttributeAddress = AttributeHeadersAddress + 128 * 8; // MAX_NUM_ATTRS * ATTR_HEADER_SIZE_BYTES
+        
+        for (uint AttributeIndex = 0; AttributeIndex < NumAttributes; ++AttributeIndex)
+        {
+            const uint AttributeHeaderAddress = AttributeHeadersAddress + 8 * AttributeIndex;
+            const uint AttributeId = AttributeIndex; // Point attributes are [0, 8)
+            const uint AttributeStrideBytes = AttributeStrides[AttributeIndex] * 4;
+            const uint AttributeIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
+            
+            WriteAttributeIdAndStride_{DataInterfaceName}(AttributeHeaderAddress, AttributeIdAndStride);
+            WriteAttributeAddress_{DataInterfaceName}(AttributeHeaderAddress, CurrentAttributeAddress);
+            
+            CurrentAttributeAddress += NumElements * AttributeStrideBytes;
+        }
+    }
+}
+
+// Initialize a single point with default values.
+void InitializePoint_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
+{
+	SetPosition_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
+	SetRotation_{DataInterfaceName}(InDataIndex, InElementIndex, float4(0.0f, 0.0f, 0.0f, 1.0f));
+	SetScale_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
+	SetBoundsMin_{DataInterfaceName}(InDataIndex, InElementIndex, -50.0f);
+	SetBoundsMax_{DataInterfaceName}(InDataIndex, InElementIndex, 50.0f);
+	SetColor_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
+	SetDensity_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
+	SetSeed_{DataInterfaceName}(InDataIndex, InElementIndex, 42);
+	SetSteepness_{DataInterfaceName}(InDataIndex, InElementIndex, 0.5f);
+}

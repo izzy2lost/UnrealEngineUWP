@@ -74,6 +74,10 @@ public:
 	/** Will return the subsystem from the World if it exists and if it is initialized */
 	static UPCGSubsystem* GetInstance(UWorld* World);
 
+	/** Adds an action that will be executed once at the beginning of this subsystem's next Tick(). */
+	using FTickAction = TFunction<void()>;
+	void RegisterBeginTickAction(FTickAction&& Action);
+
 #if WITH_EDITOR
 	/** Returns PIE world if it is active, otherwise returns editor world. */
 	static UPCGSubsystem* GetActiveEditorInstance();
@@ -334,6 +338,8 @@ private:
 #endif // WITH_EDITOR
 	
 private:
+	void ExecuteBeginTickActions();
+
 	APCGWorldActor* PCGWorldActor = nullptr;
 	FPCGGraphExecutor* GraphExecutor = nullptr;
 	FPCGRuntimeGenScheduler* RuntimeGenScheduler = nullptr;
@@ -343,6 +349,9 @@ private:
 	/** A record of stacks that were executed. Used to populate debugging tool UIs. */
 	TArray<FPCGStack> ExecutedStacks;
 	mutable FRWLock ExecutedStacksLock;
+
+	/** Functions will be executed at the beginning of the tick and then removed from this array. */
+	TArray<FTickAction> BeginTickActions;
 
 #if WITH_EDITOR
 	FCriticalSection PCGWorldActorLock;

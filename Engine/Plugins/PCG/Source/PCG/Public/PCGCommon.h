@@ -47,6 +47,8 @@ enum class EPCGChangeType : uint8
 	Structural = 1 << 5,
 	/** Anything related to generation grids - changing grid size or adding/removing grid size nodes. */
 	GenerationGrid = 1 << 6,
+	/** Change to any shader source code. */
+	ShaderSource = 1 << 7,
 };
 ENUM_CLASS_FLAGS(EPCGChangeType);
 

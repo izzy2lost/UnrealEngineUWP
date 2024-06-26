@@ -40,6 +40,46 @@ public:
 
 	/** Returns the post graph element, which is used to determine results caching behavior */
 	FPCGElementPtr GetSharedTrivialPostGraphElement();
+	
+	/** Used to track new unique virtual pins created on generated compute graph elements. */
+	using FNodePin = TTuple<FPCGTaskId, /*Pin label*/FName, /*Pin is input*/bool>;
+	using FOriginalToVirtualPin = TMap<FNodePin, /*Virtual pin label*/FName>;
+
+	/** Outputs sets of task IDs, where each set is GPU nodes that can be compiled into a compute graph and dispatched together. */
+	void CollectGPUNodeSubsets(
+		const TArray<FPCGGraphTask>& InCompiledTasks,
+		const TMap<FPCGTaskId, TArray<FPCGTaskId>>& InTaskSuccessors,
+		const TSet<FPCGTaskId>& InGPUCompatibleTaskIds,
+		TArray<TSet<FPCGTaskId>>& OutNodeSubsetsToConvertToCFGraph);
+
+	/** For GPU node inputs that have multiple incident edges, bundle them into a single edge. This is to avoid an inefficient
+	* gather operation on the GPU, and allows data interfaces to pick their data from the compute graph element input data collection
+	* using unique virtual input pin labels. */
+	void CreateGatherTasksAtGPUInputs(const TSet<FPCGTaskId>& InGPUCompatibleTaskIds, TArray<FPCGGraphTask>& InOutCompiledTasks);
+
+	/** Wires in a compute graph element alongside each set of GPU compatible nodes. The tasks for each node will be culled later. */
+	void WireGPUGraphNode(
+		FPCGTaskId InGPUGraphTaskId,
+		const TSet<FPCGTaskId>& InCollapsedTasks,
+		const TSet<FPCGTaskId>& InGPUCompatibleTaskIds,
+		TArray<FPCGGraphTask>& InOutCompiledTasks,
+		const TMap<FPCGTaskId,
+		TArray<FPCGTaskId>>& InTaskSuccessors,
+		FOriginalToVirtualPin& OutOriginalToVirtualPin,
+		TMap<const UPCGPin*, FName>& OutOutputCPUPinToVirtualPin);
+
+	/** Compiles a compute graph. */
+	void BuildGPUGraphTask(
+		UPCGGraph* InGraph,
+		FPCGTaskId InGPUGraphTaskId,
+		const TSet<FPCGTaskId>& InCollapsedTasks,
+		const TMap<FPCGTaskId, TArray<FPCGTaskId>>& InTaskSuccessors,
+		TArray<FPCGGraphTask>& InOutCompiledTasks,
+		const FOriginalToVirtualPin& InOriginalToVirtualPin,
+		const TMap<const UPCGPin*, FName>& InOutputCPUPinToVirtualPin);
+
+	/** Finds connected subgraphs of GPU - enabled nodes that can be dispatched together and replaces each one with a compute graph. */
+	void CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTask>& InOutCompiledTasks);
 
 private:
 	TArray<FPCGGraphTask> CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext);
@@ -49,6 +89,9 @@ private:
 
 	/** Returns the trivial element object shared by all tasks that need it. */
 	FPCGElementPtr GetSharedTrivialElement();
+
+	/** Returns the gather element object shared by all tasks that need it. */
+	FPCGElementPtr GetSharedGatherElement();
 
 	/** Propagates grid sizes through a graph's compiled tasks. */
 	static void ResolveGridSizes(
@@ -97,8 +140,10 @@ private:
 	TMap<UPCGGraph*, TMap<uint32, FPCGStackContext>> TopGraphToStackContextMap;
 
 	FPCGElementPtr SharedTrivialElement;
+	FPCGElementPtr SharedGatherElement;
 	FPCGElementPtr SharedTrivialPostGraphElement;
 	mutable FRWLock SharedTrivialElementLock;
+	mutable FRWLock SharedGatherElementLock;
 
 #if WITH_EDITOR
 	void RemoveFromCacheRecursive(UPCGGraph* InGraph);

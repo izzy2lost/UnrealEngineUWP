@@ -5,14 +5,18 @@
 #include "PCGContext.h"
 #include "PCGElement.h"
 
+#include "Interfaces/IPluginManager.h"
 #include "Modules/ModuleManager.h"
 
 #if WITH_EDITOR
 #include "Elements/PCGDifferenceElement.h"
-#include "ISettingsModule.h"
-#include "ShowFlags.h"
 #include "Tests/Determinism/PCGDeterminismNativeTests.h"
 #include "Tests/Determinism/PCGDifferenceDeterminismTest.h"
+
+#include "ISettingsModule.h"
+#include "ShaderCore.h"
+#include "ShowFlags.h"
+#include "Misc/Paths.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "FPCGModule"
@@ -25,6 +29,9 @@ void FPCGModule::StartupModule()
 	RegisterNativeElementDeterminismTests();
 
 	FEngineShowFlags::RegisterCustomShowFlag(PCGEngineShowFlags::Debug, /*DefaultEnabled=*/true, EShowFlagGroup::SFG_Developer, LOCTEXT("ShowFlagDisplayName", "PCG Debug"));
+
+	const FString PluginShaderDir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("PCG"))->GetBaseDir(), TEXT("Shaders"));
+	AddShaderSourceDirectoryMapping(TEXT("/Plugin/PCG"), PluginShaderDir);
 }
 
 void FPCGModule::ShutdownModule()

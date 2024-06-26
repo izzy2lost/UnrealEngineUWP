@@ -12,6 +12,7 @@
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
 #include "PCGWorldActor.h"
+#include "Compute/Elements/PCGComputeGraphElement.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
@@ -223,6 +224,12 @@ bool FPCGGraphTask::IsApproximatelyEqual(const FPCGGraphTask& Other) const
 			const PCGGraphExecutor::FPCGGridLinkageElement& LinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement&>(*Element);
 			const PCGGraphExecutor::FPCGGridLinkageElement& OtherLinkageElement = static_cast<const PCGGraphExecutor::FPCGGridLinkageElement&>(*Other.Element);
 			bElementsMatch = (LinkageElement == OtherLinkageElement);
+		}
+		else if (Element->IsComputeGraphElement() && Other.Element->IsComputeGraphElement())
+		{
+			const FPCGComputeGraphElement& ComputeGraphElement = static_cast<const FPCGComputeGraphElement&>(*Element);
+			const FPCGComputeGraphElement& OtherComputeGraphElement = static_cast<const FPCGComputeGraphElement&>(*Other.Element);
+			bElementsMatch = (ComputeGraphElement == OtherComputeGraphElement);
 		}
 		else
 		{

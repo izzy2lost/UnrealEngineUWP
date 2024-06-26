@@ -1,0 +1,98 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Public/Platform.ush"
+
+float3 CreateGrid2D(int ElementIndex, int NumPoints, int NumRows, float3 Min, float3 Max)
+{
+    if (NumRows == 0)
+	{
+		return Min;
+	}
+
+    const int NumCols = ceil((0.f + NumPoints) / NumRows);
+
+    if (NumCols == 0)
+	{
+		return Min;
+	}
+
+    const int IndexX = ElementIndex / NumRows;
+    const int IndexY = ElementIndex - NumRows * IndexX;
+
+    float3 Spacing = (Max - Min);
+    if (NumCols > 1)
+	{
+		Spacing.x /= (NumCols - 1);
+	}
+    if (NumRows > 1)
+	{
+		Spacing.y /= (NumRows - 1);
+	}
+
+    float3 Position = Min;
+    Position.x += IndexX * Spacing.x;
+    Position.y += IndexY * Spacing.y;
+
+    return Position;
+}
+
+float3 CreateGrid2D(int ElementIndex, int NumPoints, float3 Min, float3 Max)
+{
+	if (NumPoints <= 0)
+	{
+		return Min;
+	}
+
+    const int NumRows = ceil(sqrt(NumPoints));
+    return CreateGrid2D(ElementIndex, NumPoints, NumRows, Min, Max);
+}
+
+float3 CreateGrid3D(int ElementIndex, int NumPoints, int NumRows, int NumCols, float3 Min, float3 Max)
+{
+    if (NumRows == 0 || NumCols == 0)
+	{
+		return Min;
+	}
+
+    const int NumLayers = ceil((0.f + NumPoints) / (NumRows * NumCols));
+
+    if (NumLayers == 0)
+	{
+		return Min;
+	}
+
+    int3 Index;
+    Index.x = ElementIndex % NumCols;
+    Index.y = (ElementIndex / NumCols) % NumRows;
+    Index.z = ElementIndex / (NumRows * NumCols);
+
+    float3 Spacing = Max - Min;
+    if (NumCols > 1)
+	{
+		Spacing.x /= (NumCols - 1);
+	}
+    if (NumRows > 1)
+	{
+		Spacing.y /= (NumRows - 1);
+	}
+    if (NumLayers > 1)
+	{
+		Spacing.z /= (NumLayers - 1);
+	}
+
+    return Min + Index * Spacing;
+}
+
+float3 CreateGrid3D(int ElementIndex, int NumPoints, float3 Min, float3 Max)
+{
+	if (NumPoints <= 0)
+	{
+		return Min;
+	}
+
+    const int NumRows = round(pow(NumPoints, 1.f / 3.f));
+    const int NumCols = NumRows;
+
+    return CreateGrid3D(ElementIndex, NumPoints, NumRows, NumCols, Min, Max);
+}

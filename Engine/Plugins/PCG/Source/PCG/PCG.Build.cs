@@ -9,7 +9,8 @@ namespace UnrealBuildTool.Rules
 			PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 			PublicDependencyModuleNames.AddRange(
-				new string[] {
+				new string[]
+				{
 					"Chaos",
 					"Core",
 					"CoreUObject",
@@ -26,10 +27,10 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"ComputeFramework",
 					"PCGCompute",
 					"Voronoi",
-				}
-			);
+				});
 
 			if (Target.bBuildEditor == true)
 			{
@@ -39,8 +40,7 @@ namespace UnrealBuildTool.Rules
 						"UnrealEd",
 						"Settings",
 						"SourceControl",
-					}
-				);
+					});
 			}
 
 			bDisableAutoRTFMInstrumentation = true;

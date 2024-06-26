@@ -49,6 +49,7 @@
 #include "PropertyEditorModule.h"
 #include "SNodePanel.h"
 #include "ScopedTransaction.h"
+#include "ShaderCore.h"
 #include "SourceCodeNavigation.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
@@ -200,6 +201,8 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	const FName PCGGraphEditorAppName = FName(TEXT("PCGEditorApp"));
 
 	InitAssetEditor(InMode, InToolkitHost, PCGGraphEditorAppName, StandaloneDefaultLayout, /*bCreateDefaultStandaloneMenu=*/ true, /*bCreateDefaultToolbar=*/ true, InPCGGraph);
+
+	PCGGraphBeingEdited->OnGraphChangedDelegate.AddRaw(this, &FPCGEditor::OnGraphChanged);
 
 	// Hook to map change / delete actor to refresh debug object selection list, to help prevent it going stale.
 	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
@@ -920,6 +923,8 @@ void FPCGEditor::OnForceGraphRegeneration_Clicked()
 			}
 
 			ChangeType |= EPCGChangeType::GenerationGrid;
+
+			ChangeType |= EPCGChangeType::ShaderSource;
 		}
 
 		PCGGraphBeingEdited->ForceNotificationForEditor(ChangeType);
@@ -2847,6 +2852,8 @@ void FPCGEditor::OnClose()
 
 	if (PCGGraphBeingEdited)
 	{
+		PCGGraphBeingEdited->OnGraphChangedDelegate.RemoveAll(this);
+
 		if (PCGGraphBeingEdited->IsInspecting())
 		{
 			PCGGraphBeingEdited->DisableInspection();
@@ -3065,6 +3072,16 @@ void FPCGEditor::UnregisterDelegatesForWorld(UWorld* World)
 	{
 		Subsystem->OnComponentUnregistered.RemoveAll(this);
 		Subsystem->OnComponentGenerationCompleteOrCancelled.RemoveAll(this);
+	}
+}
+
+void FPCGEditor::OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType)
+{
+	if (!!(ChangeType & EPCGChangeType::ShaderSource))
+	{
+		// Flush the shader file cache in case we are editing engine or data interface shaders.
+		// We could make the user do this manually, but that makes iterating on data interfaces really painful.
+		FlushShaderFileCache();
 	}
 }
 

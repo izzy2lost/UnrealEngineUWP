@@ -103,6 +103,9 @@ public:
 	/** Is this element used for marshalling data across higen grids. Used as rudimentary RTTI for element object comparisons (editor only). */
 	virtual bool IsGridLinkage() const { return false; }
 
+	/** Is this element used for dispatching compute graphs. Used as rudimentary RTTI for element object comparisons (editor only). */
+	virtual bool IsComputeGraphElement() const { return false; }
+
 	/** Note: must be called from the main thread. */
 	void DebugDisplay(FPCGContext* Context) const;
 #endif

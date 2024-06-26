@@ -34,6 +34,16 @@ enum class EPCGPinStatus : uint8
 	Advanced
 };
 
+/** Method for computing the size of a pin on a GPU node. */
+UENUM()
+enum class EPCGPinBufferSizeMode : uint8
+{
+	FromFirstPin UMETA(DisplayName = "Match First Input Pin"),
+	FromSecondPin UMETA(DisplayName = "Match Second Input Pin"),
+	FirstPinXSecondPin UMETA(DisplayName = "First Input Pin X Second Input Pin"),
+	FixedElementCount,
+};
+
 USTRUCT(BlueprintType, meta=(HasNativeBreak="/Script/PCG.PCGBlueprintPinHelpers.BreakPinProperty", HasNativeMake="/Script/PCG.PCGBlueprintPinHelpers.MakePinProperty"))
 struct PCG_API FPCGPinProperties
 {
@@ -68,6 +78,13 @@ struct PCG_API FPCGPinProperties
 	FText Tooltip;
 #endif
 
+	/** Compute graphs use this to calculate the buffer size of output pins. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bDisplayBufferSizeSettings && AllowedTypes == EPCGDataType::Point", EditConditionHides))
+	EPCGPinBufferSizeMode BufferSizeMode = EPCGPinBufferSizeMode::FromFirstPin;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bDisplayBufferSizeSettings && AllowedTypes == EPCGDataType::Point && BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount", EditConditionHides))
+	int FixedBufferElementCount = 4;
+
 	// Multiple connections are only possible if we support multi data.
 	bool AllowsMultipleConnections() const { return bAllowMultipleData && bAllowMultipleConnections; }
 
@@ -86,6 +103,21 @@ struct PCG_API FPCGPinProperties
 	// Convert the bIsAdvanced boolean to PinStatus for deprecation purposes.
 	void PostSerialize(const FArchive& Ar);
 
+#if WITH_EDITOR
+	bool CanEditChange(const FEditPropertyChain& PropertyChain) const;
+#endif
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient)
+	bool bDisplayBufferSizeSettings = true;
+
+	UPROPERTY(Transient)
+	bool bAllowEditMultipleData = true;
+	
+	UPROPERTY(Transient)
+	bool bAllowEditMultipleConnections = true;
+#endif // WITH_EDITORONLY_DATA
+
 private:
 #if WITH_EDITORONLY_DATA
 	/* Advanced pin will be hidden by default in the UI and will be shown only if the user extend the node (in the UI) to see advanced pins. */
@@ -93,7 +125,7 @@ private:
 	bool bAdvancedPin_DEPRECATED = false;
 #endif // WITH_EDITORONLY_DATA
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (AllowPrivateAccess = "true", EditCondition = "bAllowMultipleData", DisplayAfter = "bAllowMultipleData"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (AllowPrivateAccess = "true", DisplayAfter = "bAllowMultipleData"))
 	bool bAllowMultipleConnections = true;
 };
 
@@ -103,6 +135,7 @@ struct TStructOpsTypeTraits<FPCGPinProperties> : public TStructOpsTypeTraitsBase
 	enum
 	{
 		WithPostSerialize = true,
+		WithCanEditChange = true,
 	};
 };
 

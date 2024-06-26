@@ -91,7 +91,9 @@ bool FPCGPinProperties::operator==(const FPCGPinProperties& Other) const
 		bAllowMultipleData == Other.bAllowMultipleData &&
 		Usage == Other.Usage &&
 		PinStatus == Other.PinStatus &&
-		bInvisiblePin == Other.bInvisiblePin;
+		bInvisiblePin == Other.bInvisiblePin &&
+		BufferSizeMode == Other.BufferSizeMode &&
+		FixedBufferElementCount == Other.FixedBufferElementCount;
 }
 
 void FPCGPinProperties::PostSerialize(const FArchive& Ar)
@@ -108,6 +110,25 @@ void FPCGPinProperties::PostSerialize(const FArchive& Ar)
 	}
 #endif // WITH_EDITOR
 }
+
+#if WITH_EDITOR
+bool FPCGPinProperties::CanEditChange(const FEditPropertyChain& PropertyChain) const
+{
+	if (FProperty* Property = PropertyChain.GetActiveNode()->GetValue())
+	{
+		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(FPCGPinProperties, bAllowMultipleData))
+		{
+			return bAllowEditMultipleData;
+		}
+		else if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(FPCGPinProperties, bAllowMultipleConnections))
+		{
+			return bAllowMultipleData && bAllowEditMultipleConnections;
+		}
+	}
+
+	return true;
+}
+#endif // WITH_EDITOR
 
 UPCGPin::UPCGPin(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

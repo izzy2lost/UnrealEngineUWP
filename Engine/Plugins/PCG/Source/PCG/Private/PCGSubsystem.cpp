@@ -208,6 +208,11 @@ UPCGSubsystem* UPCGSubsystem::GetInstance(UWorld* World)
 	}
 }
 
+void UPCGSubsystem::RegisterBeginTickAction(FTickAction&& Action)
+{
+	BeginTickActions.Emplace(Action);
+}
+
 #if WITH_EDITOR
 UPCGSubsystem* UPCGSubsystem::GetActiveEditorInstance()
 {
@@ -253,6 +258,8 @@ bool UPCGSubsystem::RemoveAndCopyConstructionScriptSourceComponent(AActor* InCom
 void UPCGSubsystem::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	ExecuteBeginTickActions();
 
 #if WITH_EDITOR
 	PerActorConstructionScriptSourceComponents.Empty();
@@ -1751,6 +1758,17 @@ void UPCGSubsystem::CreatePartitionActorsWithinBounds(UPCGComponent* InComponent
 }
 
 #endif // WITH_EDITOR
+
+void UPCGSubsystem::ExecuteBeginTickActions()
+{
+	TArray<FTickAction> Actions = MoveTemp(BeginTickActions);
+	BeginTickActions.Reset();
+
+	for (FTickAction& Action : Actions)
+	{
+		Action();
+	}
+}
 
 void UPCGSubsystem::FlushCache()
 {

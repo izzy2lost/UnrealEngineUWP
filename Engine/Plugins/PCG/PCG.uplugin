@@ -35,6 +35,10 @@
 		{
 			"Name": "EditorScriptingUtilities",
 			"Enabled": true
+		},
+		{
+			"Name": "ComputeFramework",
+			"Enabled": true
 		}
 	]
 }
