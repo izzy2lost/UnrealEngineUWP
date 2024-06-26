@@ -42,6 +42,13 @@ struct FPCGKernelAttributeKey
 
 struct FPCGKernelAttributeDesc
 {
+	explicit FPCGKernelAttributeDesc(int32 InIndex, EPCGKernelAttributeType InType, FName InName)
+		: Index(InIndex)
+		, Type(InType)
+		, Name(InName)
+	{
+	}
+
 	int32 Index = INDEX_NONE;
 	EPCGKernelAttributeType Type = EPCGKernelAttributeType::Float;
 	FName Name = NAME_None;

@@ -994,9 +994,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 	{
 		if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
 		{
-			const UPCGPin* FirstPin = (KernelType == EPCGKernelType::PointProcessor)
-				? GetPointProcessingInputPin()
-				: CastChecked<UPCGNode>(GetOuter())->GetPassThroughInputPin();
+			const UPCGPin* FirstPin = Node->GetPassThroughInputPin();
 			const UPCGPin* SecondPin = GetSecondPointProcessingInputPin();
 			const UPCGPin* PrimaryOutputPin = GetFirstPointOutputPin();
 			

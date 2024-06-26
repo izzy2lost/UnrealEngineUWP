@@ -16,15 +16,15 @@ namespace PCGDataForGPUConstants
 {
 	const static FPCGKernelAttributeDesc PointPropertyDescs[NUM_POINT_PROPERTIES] =
 	{
-		{ POINT_POSITION_ATTRIBUTE_ID,   EPCGKernelAttributeType::Float3 },
-		{ POINT_ROTATION_ATTRIBUTE_ID,   EPCGKernelAttributeType::Quat   },
-		{ POINT_SCALE_ATTRIBUTE_ID,      EPCGKernelAttributeType::Float3 },
-		{ POINT_BOUNDS_MIN_ATTRIBUTE_ID, EPCGKernelAttributeType::Float3 },
-		{ POINT_BOUNDS_MAX_ATTRIBUTE_ID, EPCGKernelAttributeType::Float3 },
-		{ POINT_COLOR_ATTRIBUTE_ID,      EPCGKernelAttributeType::Float4 },
-		{ POINT_DENSITY_ATTRIBUTE_ID,    EPCGKernelAttributeType::Float  },
-		{ POINT_SEED_ATTRIBUTE_ID,       EPCGKernelAttributeType::Int    },
-		{ POINT_STEEPNESS_ATTRIBUTE_ID,  EPCGKernelAttributeType::Float  }
+		FPCGKernelAttributeDesc(POINT_POSITION_ATTRIBUTE_ID,   EPCGKernelAttributeType::Float3, NAME_None),
+		FPCGKernelAttributeDesc(POINT_ROTATION_ATTRIBUTE_ID,   EPCGKernelAttributeType::Quat,   NAME_None),
+		FPCGKernelAttributeDesc(POINT_SCALE_ATTRIBUTE_ID,      EPCGKernelAttributeType::Float3, NAME_None),
+		FPCGKernelAttributeDesc(POINT_BOUNDS_MIN_ATTRIBUTE_ID, EPCGKernelAttributeType::Float3, NAME_None),
+		FPCGKernelAttributeDesc(POINT_BOUNDS_MAX_ATTRIBUTE_ID, EPCGKernelAttributeType::Float3, NAME_None),
+		FPCGKernelAttributeDesc(POINT_COLOR_ATTRIBUTE_ID,      EPCGKernelAttributeType::Float4, NAME_None),
+		FPCGKernelAttributeDesc(POINT_DENSITY_ATTRIBUTE_ID,    EPCGKernelAttributeType::Float,  NAME_None),
+		FPCGKernelAttributeDesc(POINT_SEED_ATTRIBUTE_ID,       EPCGKernelAttributeType::Int,    NAME_None),
+		FPCGKernelAttributeDesc(POINT_STEEPNESS_ATTRIBUTE_ID,  EPCGKernelAttributeType::Float,  NAME_None)
 	};
 }
 
