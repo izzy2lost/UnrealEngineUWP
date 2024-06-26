@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
-#include "SGraphNode.h"
+#include "MuCOE/Nodes/SCustomizableObjectNode.h"
 
 #include "CustomizableObjectNodeTexture.generated.h"
 
@@ -18,14 +18,14 @@ class UTexture2D;
 struct FGeometry;
 
 // Class to render the Texture thumbnail of a CustomizableObjectNodeTexture
-class SGraphNodeTexture : public SGraphNode
+class SGraphNodeTexture : public SCustomizableObjectNode
 {
 public:
 
 	SLATE_BEGIN_ARGS(SGraphNodeTexture) {}
 	SLATE_END_ARGS();
 
-	SGraphNodeTexture() : SGraphNode() {};
+	SGraphNodeTexture() : SCustomizableObjectNode() {}
 
 	// Builds the SGraphNodeTexture when needed
 	void Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode);
@@ -48,7 +48,7 @@ public:
 public:
 
 	// Pointer to the NodeTexture that owns this SGraphNode
-	UCustomizableObjectNodeTextureBase* NodeTexture;
+	UCustomizableObjectNodeTextureBase* NodeTexture = nullptr;
 
 	// Single property that only draws the combo box widget of the Texture
 	TSharedPtr<class ISinglePropertyView> TextureSelector;

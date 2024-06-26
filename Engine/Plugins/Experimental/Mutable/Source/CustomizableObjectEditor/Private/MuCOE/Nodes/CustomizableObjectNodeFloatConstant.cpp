@@ -73,15 +73,11 @@ TSharedPtr<SGraphNode> UCustomizableObjectNodeFloatConstant::CreateVisualWidget(
 
 void SGraphNodeFloatConstant::Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode)
 {
-	GraphNode = InGraphNode;
 	NodeFloatConstant = Cast< UCustomizableObjectNodeFloatConstant >(InGraphNode);
 
 	WidgetStyle = FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox");
 
-	if (NodeFloatConstant)
-	{
-		UpdateGraphNode();
-	}
+	SCustomizableObjectNode::Construct({}, InGraphNode);
 }
 
 

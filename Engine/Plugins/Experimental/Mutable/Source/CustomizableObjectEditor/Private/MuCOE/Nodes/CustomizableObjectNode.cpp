@@ -2,6 +2,7 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
 
+#include "SCustomizableObjectNode.h"
 #include "Containers/Queue.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditor.h"
@@ -306,6 +307,12 @@ void UCustomizableObjectNode::DestroyNode()
 {
 	Super::DestroyNode();
 	DestroyNodeDelegate.Broadcast();
+}
+
+
+TSharedPtr<SGraphNode> UCustomizableObjectNode::CreateVisualWidget()
+{
+	return SNew(SCustomizableObjectNode, this);
 }
 
 

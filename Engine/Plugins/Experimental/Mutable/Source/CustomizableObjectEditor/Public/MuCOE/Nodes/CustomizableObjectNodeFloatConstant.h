@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
-#include "SGraphNode.h"
+#include "MuCOE/Nodes/SCustomizableObjectNode.h"
 
 #include "CustomizableObjectNodeFloatConstant.generated.h"
 
@@ -18,7 +18,7 @@ struct FPropertyChangedEvent;
 struct FSlateBrush;
 
 // Class create an input float in the NodeFloatConstant
-class SGraphNodeFloatConstant : public SGraphNode
+class SGraphNodeFloatConstant : public SCustomizableObjectNode
 {
 public:
 
@@ -26,7 +26,7 @@ public:
 
 	SLATE_END_ARGS();
 
-	SGraphNodeFloatConstant() : SGraphNode() {};
+	SGraphNodeFloatConstant() : SCustomizableObjectNode() {};
 
 	// Builds the SGraphNodeFloatConstant when needed
 	void Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode);

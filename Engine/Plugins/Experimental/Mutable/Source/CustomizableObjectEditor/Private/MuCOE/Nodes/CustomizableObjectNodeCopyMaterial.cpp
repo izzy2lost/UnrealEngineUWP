@@ -332,6 +332,19 @@ const UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetParameterPin(EMateria
 }
 
 
+UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetParameterPin(const FGuid& ParameterId) const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetParameterPin(ParameterId);
+	}
+	else
+	{
+		return nullptr;	
+	}
+}
+
+
 bool UCustomizableObjectNodeCopyMaterial::IsImageMutableMode(int32 ImageIndex) const
 {
 	UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode();
@@ -347,33 +360,6 @@ bool UCustomizableObjectNodeCopyMaterial::IsImageMutableMode(const UEdGraphPin& 
 	check(NodeMaterial);
 
 	return NodeMaterial->IsImageMutableMode(Pin);
-}
-
-
-void UCustomizableObjectNodeCopyMaterial::UpdateImagePinMode(const FGuid ParameterId)
-{
-	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
-	{
-		NodeMaterial->UpdateImagePinMode(ParameterId);
-	}
-}
-
-
-void UCustomizableObjectNodeCopyMaterial::UpdateImagePinMode(const UEdGraphPin& Pin)
-{
-	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
-	{
-		NodeMaterial->UpdateImagePinMode(Pin);
-	}
-}
-
-
-void UCustomizableObjectNodeCopyMaterial::UpdateAllImagesPinMode()
-{
-	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
-	{
-		NodeMaterial->UpdateAllImagesPinMode();
-	}
 }
 
 

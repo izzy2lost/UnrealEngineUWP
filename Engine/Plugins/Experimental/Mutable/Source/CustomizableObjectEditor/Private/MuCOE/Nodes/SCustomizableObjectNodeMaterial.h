@@ -2,21 +2,23 @@
 
 #pragma once
 
+#include "SCustomizableObjectNode.h"
 #include "SGraphNode.h"
 
+class UCustomizableObjectNodeMaterial;
 class SGraphPin;
-class UEdGraphNode;
 class UEdGraphPin;
 
 
 /** Custom widget for the Material node. */
-class SCustomizableObjectNodeMaterial : public SGraphNode
+class SCustomizableObjectNodeMaterial : public SCustomizableObjectNode
 {
 public:
 	SLATE_BEGIN_ARGS(SCustomizableObjectNodeMaterial) {}
 	SLATE_END_ARGS();
 
-	void Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode);
+	void Construct(const FArguments& InArgs, UCustomizableObjectNodeMaterial* InGraphNode);
 
-	TSharedPtr<SGraphPin> CreatePinWidget(UEdGraphPin* Pin) const override;
+	// SGraphNode interface
+	virtual TSharedPtr<SGraphPin> CreatePinWidget(UEdGraphPin* Pin) const override;
 };

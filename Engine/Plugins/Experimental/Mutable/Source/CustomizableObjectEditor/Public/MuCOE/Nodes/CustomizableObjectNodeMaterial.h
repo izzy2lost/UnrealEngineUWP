@@ -72,12 +72,9 @@ enum class ENodePinMode
 UENUM()
 enum class EPinMode
 {
-	/** Use the defined node pin mode. Does not override it. */
-	Default,
-	/** Override the node pin mode. Set it to Mutable mode. */
-	Mutable,
-	/** Override the node pin mode. Set it to Pass-through mode. */
-	Passthrough
+	Default UMETA(DisplayName = "Node Defined", ToolTip = "Use node's \"Default Texture Parameter Mode\"."),
+	Mutable UMETA(ToolTip = "The Material Texture Parameters goes through Mutable."),
+	Passthrough UMETA(ToolTip = "The Material Texture Parameters is not modified by Mutable.")
 };
 
 
@@ -87,7 +84,7 @@ enum class EUVLayoutMode
 {
 	/** Does not override the UV Index specified in the Material. */
 	FromMaterial,
-	/* Texture should not be transformed by any layout. Theses textures will not be reduced automatically for LODs. */
+	/* Texture should not be transformed by any layout. These textures will not be reduced automatically for LODs. */
 	Ignore,
 	/** User specified UV Index. */
 	Index
@@ -119,7 +116,6 @@ public:
 
 	// UCustomizableObjectNode interface
 	virtual void BackwardsCompatibleFixup() override;
-	virtual void PostBackwardsCompatibleFixup() override;
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual bool CanPinBeHidden(const UEdGraphPin& Pin) const override;
 	virtual bool HasPinViewer() const override;
@@ -127,11 +123,11 @@ public:
 	virtual bool ProvidesCustomPinRelevancyTest() const override { return true; }
 	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
 	virtual bool CustomRemovePin(UEdGraphPin& Pin) override;
-	virtual void ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode) override;
 	virtual void BreakExistingConnectionsPostConnection(UEdGraphPin* InputPin, UEdGraphPin* OutputPin) override;
 	virtual bool IsNodeOutDatedAndNeedsRefresh() override;
 	virtual FString GetRefreshMessage() const override;
 	virtual TSharedPtr<IDetailsView> CustomizePinDetails(const UEdGraphPin& Pin) const override;
+	void ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode);
 
 	
 	// UCustomizableObjectNodeMaterialBase interface
@@ -147,12 +143,10 @@ public:
 	virtual int32 GetParameterLayerIndex(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual FText GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual bool HasParameter(const FGuid& ParameterId) const override;
-	virtual const UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual UEdGraphPin* GetParameterPin(const FGuid& ParameterId) const override;
 	virtual bool IsImageMutableMode(int32 ImageIndex) const override;
 	virtual bool IsImageMutableMode(const UEdGraphPin& Pin) const override;
-	virtual void UpdateImagePinMode(const FGuid ParameterId) override;
-	virtual void UpdateImagePinMode(const UEdGraphPin& Pin) override;
-	virtual void UpdateAllImagesPinMode() override;
 	virtual UTexture2D* GetImageReferenceTexture(int32 ImageIndex) const override;
 	virtual UTexture2D* GetImageValue(int32 ImageIndex) const override;
 	virtual int32 GetImageUVLayout(int32 ImageIndex) const override;
@@ -168,13 +162,16 @@ public:
 	void SetComponentName(const FName& Name);
 
 private:
+	/** Set the Pin Mode of a Texture Parameter Pin. */
+	void SetImagePinMode(UEdGraphPin& Pin, EPinMode PinMode) const;
+	
 	/** Delegate called when a Texture Parameter Pin Mode changes. */
 	FPostImagePinModeChangedDelegate PostImagePinModeChangedDelegate;
 
 	UPROPERTY(EditAnywhere, Category=CustomizableObject)
 	TObjectPtr<UMaterialInterface> Material = nullptr;
 
-	UPROPERTY(EditAnywhere, Category=CustomizableObject, Meta = (ToolTip = "Set all Mateiral Texture Parameters to the specified mode. Each Texture Parameter Pin can override this mode."))
+	UPROPERTY(EditAnywhere, Category=CustomizableObject, DisplayName = "Default Texture Parameter Mode", Meta = (ToolTip = "All Mateiral Texture Parameters set to \"Node Defined\" will use this mode."))
 	ENodePinMode TextureParametersMode = ENodePinMode::Passthrough;
 
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
@@ -196,14 +193,10 @@ private:
 
 	static const TArray<EMaterialParameterType> ParameterTypes;
 
-	/** Relates a Parameter id (key) to a Pin (value). Only used to improve performance. */
+	/** Relates a Parameter id (key) to a Pin (value). Only used to improve performance.
+	  * If a deprecated pin and a non-deprecated pin have the same Parameter id, this the non-deprecated one prevails. */
 	UPROPERTY()
 	TMap<FGuid, FEdGraphPinReference> PinsParameter;
-
-	/** Relates an Image pin (key) to its Image Pin Mode (value). 
-		Represents the real mode of the pin. Required due to some node configurations can force the mode independently of what the user had previously selected */
-	UPROPERTY()
-	TMap<FGuid, EPinMode> PinsImagePinMode;
 	
 	/** Create the pin data of the given parameter type. */
 	UCustomizableObjectNodeMaterialPinDataParameter* CreatePinData(EMaterialParameterType Type, int32 ParameterIndex);
@@ -224,11 +217,14 @@ private:
 	/** Returns the texture coordinate of the given Material Expression. Returns -1 if not found. */
 	static int32 GetExpressionTextureCoordinate(UMaterial* Material, const FGuid &ImageId);
 
-	/** Converts node NodePinMode (does not include Default mode) to PinMode. */
-	static EPinMode NodePinModeToImagePinMode(ENodePinMode NodePinMode);
+	/** Return the Pin Category given the node NodePinMode. */
+	static FName NodePinModeToImagePinMode(ENodePinMode NodePinMode);
 
-	/** Returns the Image Pin Mode the pin should be at. It does not update its mode, to update it call UpdateImagePinMode. */
-	EPinMode GetImagePinMode(const UEdGraphPin& Pin) const;
+	/** Return the Pin Category given a PinMode. */
+	FName GetImagePinMode(EPinMode PinMode) const;
+
+	/** Return the Pin Category given a Pin. */
+	FName GetImagePinMode(const UEdGraphPin& Pin) const;
 
 	/** Get the UV Layout Index defined in the Material. */
 	int32 GetImageUVLayoutFromMaterial(int32 ImageIndex) const;
@@ -260,6 +256,8 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeMaterialPinDataImage :
 public:
 	// UObject interface
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
+
 private:
 	virtual void PostLoad() override;
 	
@@ -281,7 +279,7 @@ public:
 	
 private:
 	/** Image pin mode. If is not default, overrides the defined node behaviour. */
-	UPROPERTY(EditAnywhere, Category = NoCategory)
+	UPROPERTY(EditAnywhere, Category = NoCategory, DisplayName = "Texture Parameter Mode")
 	EPinMode PinMode = EPinMode::Default;
 
 public:

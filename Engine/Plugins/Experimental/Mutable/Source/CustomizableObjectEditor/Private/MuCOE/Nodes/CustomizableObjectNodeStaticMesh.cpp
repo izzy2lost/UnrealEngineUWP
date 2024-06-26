@@ -526,8 +526,7 @@ TSharedPtr<SGraphNode> UCustomizableObjectNodeStaticMesh::CreateVisualWidget()
 
 void SGraphNodeStaticMesh::Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode)
 {
-	GraphNode = InGraphNode;
-	NodeStaticMesh = Cast< UCustomizableObjectNodeStaticMesh >(GraphNode);
+	NodeStaticMesh = Cast< UCustomizableObjectNodeStaticMesh >(InGraphNode);
 
 	WidgetSize = 128.0f;
 	ThumbnailSize = 128;
@@ -546,7 +545,7 @@ void SGraphNodeStaticMesh::Construct(const FArguments& InArgs, UEdGraphNode* InG
 
 	StaticMeshSelector = PropPlugin.CreateSingleProperty(NodeStaticMesh, "StaticMesh", SingleDetails);	
 
-	UpdateGraphNode();
+	SCustomizableObjectNode::Construct({}, InGraphNode);
 }
 
 

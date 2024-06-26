@@ -81,8 +81,7 @@ FText UCustomizableObjectNodeTexture::GetTooltipText() const
 
 void SGraphNodeTexture::Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode)
 {
-	GraphNode = InGraphNode;
-	NodeTexture = Cast<UCustomizableObjectNodeTextureBase>(GraphNode);
+	NodeTexture = Cast<UCustomizableObjectNodeTextureBase>(InGraphNode);
 
 	FPropertyEditorModule& PropPlugin = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
@@ -96,8 +95,8 @@ void SGraphNodeTexture::Construct(const FArguments& InArgs, UEdGraphNode* InGrap
 	TextureBrush.ImageSize.X = 128.0f;
 	TextureBrush.ImageSize.Y = 128.0f;
 	TextureBrush.DrawAs = ESlateBrushDrawType::Image;
-	
-	UpdateGraphNode();
+
+	SCustomizableObjectNode::Construct({}, InGraphNode);
 }
 
 

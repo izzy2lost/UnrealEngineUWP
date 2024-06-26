@@ -813,8 +813,7 @@ int32 UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialIndexFor(const int
 
 void SGraphNodeSkeletalMesh::Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode)
 {
-	GraphNode = InGraphNode;
-	NodeSkeletalMesh = Cast< UCustomizableObjectNodeSkeletalMesh >(GraphNode);
+	NodeSkeletalMesh = Cast< UCustomizableObjectNodeSkeletalMesh >(InGraphNode);
 
 	WidgetSize = 128.0f;
 	ThumbnailSize = 128;
@@ -834,7 +833,7 @@ void SGraphNodeSkeletalMesh::Construct(const FArguments& InArgs, UEdGraphNode* I
 
 	SkeletalMeshSelector = PropPlugin.CreateSingleProperty(NodeSkeletalMesh, "SkeletalMesh", SingleDetails);
 
-	UpdateGraphNode();
+	SCustomizableObjectNode::Construct({}, InGraphNode);
 }
 
 

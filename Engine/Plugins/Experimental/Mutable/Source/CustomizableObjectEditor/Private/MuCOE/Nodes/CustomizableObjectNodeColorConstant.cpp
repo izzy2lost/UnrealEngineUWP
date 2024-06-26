@@ -75,15 +75,11 @@ TSharedPtr<SGraphNode> UCustomizableObjectNodeColorConstant::CreateVisualWidget(
 
 void SGraphNodeColorConstant::Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode)
 {
-	GraphNode = InGraphNode;
 	NodeColorConstant = Cast< UCustomizableObjectNodeColorConstant >(InGraphNode);
 
 	WidgetStyle = FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox");
 
-	if (NodeColorConstant)
-	{
-		UpdateGraphNode();
-	}
+	SCustomizableObjectNode::Construct({}, InGraphNode);
 }
 
 void SGraphNodeColorConstant::UpdateGraphNode()

@@ -1400,24 +1400,4 @@ FText UEdGraphSchema_CustomizableObject::GetPinCategoryName(const FName& PinCate
 }
 
 
-const FName& UEdGraphSchema_CustomizableObject::GetPinCategory(const EMaterialParameterType Type)
-{
-	switch(Type)
-	{
-	case EMaterialParameterType::Texture:
-		return UEdGraphSchema_CustomizableObject::PC_Image;
-
-	case EMaterialParameterType::Vector:
-		return UEdGraphSchema_CustomizableObject::PC_Color;
-
-	case EMaterialParameterType::Scalar:
-		return UEdGraphSchema_CustomizableObject::PC_Float;
-
-	default:
-		check(false); // Type not contemplated.
-		return PC_Image; // Fake result.
-	}
-}
-
-
 #undef LOCTEXT_NAMESPACE

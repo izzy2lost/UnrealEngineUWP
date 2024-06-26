@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MuCOE/Nodes/CustomizableObjectNode.h"
-#include "SGraphNode.h"
+#include "MuCOE/Nodes/SCustomizableObjectNode.h"
 
 #include "CustomizableObjectNodeColorConstant.generated.h"
 
@@ -29,14 +29,14 @@ enum class ColorChannel
 };
 
 // Class create color inputs in the NodeColorConstant
-class SGraphNodeColorConstant : public SGraphNode
+class SGraphNodeColorConstant : public SCustomizableObjectNode
 {
 public:
 
 	SLATE_BEGIN_ARGS(SGraphNodeColorConstant) {}
 	SLATE_END_ARGS();
 
-	SGraphNodeColorConstant() : SGraphNode() {};
+	SGraphNodeColorConstant() : SCustomizableObjectNode() {}
 
 	// Builds the SGraphNodeFloatConstant when needed
 	void Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode);
@@ -68,7 +68,7 @@ private:
 private:
 
 	// Pointer to the NodeFloatconstant that owns this SGraphNode
-	UCustomizableObjectNodeColorConstant* NodeColorConstant;
+	UCustomizableObjectNodeColorConstant* NodeColorConstant = nullptr;
 
 	// Style for the SpinBox
 	FSpinBoxStyle WidgetStyle;

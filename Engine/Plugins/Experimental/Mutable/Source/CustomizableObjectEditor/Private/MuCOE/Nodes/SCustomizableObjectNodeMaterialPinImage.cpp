@@ -2,6 +2,7 @@
 
 #include "MuCOE/Nodes/SCustomizableObjectNodeMaterialPinImage.h"
 
+#include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
@@ -17,18 +18,13 @@ struct FSlateBrush;
 
 void SCustomizableObjectNodeMaterialPinImage::Construct(const FArguments& InArgs, UEdGraphPin* InGraphPinObj)
 {
-	SGraphPin::Construct(SGraphPin::FArguments(), InGraphPinObj);
+	SCustomizableObjectNodePin::Construct(SCustomizableObjectNodePin::FArguments(), InGraphPinObj);
 
 	// Override previously defined tool tip.
 	TSharedPtr<IToolTip> TooltipWidget = SNew(SToolTip)
-		.Text(this, &SCustomizableObjectNodeMaterialPinImage::GetTooltipText);
+		.Text(this, &SCustomizableObjectNodeMaterialPinImage::GetPinTooltipText);
 
 	SetToolTip(TooltipWidget);
-
-	// Cache pin icons.
-	CachedPinMutableConnected = UE_MUTABLE_GET_BRUSH(TEXT("Graph.Pin.Connected"));
-	CachedPinMutableDisconnected = UE_MUTABLE_GET_BRUSH(TEXT("Graph.Pin.Disconnected"));
-	CachedPinPassthroughDisconnected = UE_MUTABLE_GET_BRUSH(TEXT("Graph.ExecPin.Disconnected"));
 }
 
 
@@ -46,34 +42,14 @@ TSharedRef<SWidget>	SCustomizableObjectNodeMaterialPinImage::GetDefaultValueWidg
 }
 
 
-const FSlateBrush* SCustomizableObjectNodeMaterialPinImage::GetPinIcon() const
-{
-	if (CastChecked<UCustomizableObjectNodeMaterial>(GraphPinObj->GetOwningNode())->IsImageMutableMode(*GraphPinObj))
-	{
-		if (GraphPinObj->LinkedTo.Num())
-		{
-			return CachedPinMutableConnected;
-		}
-		else
-		{
-			return CachedPinMutableDisconnected;
-		}
-	}
-	else
-	{
-		return CachedPinPassthroughDisconnected;
-	}
-}
-
-
-FText SCustomizableObjectNodeMaterialPinImage::GetTooltipText() const
+FText SCustomizableObjectNodeMaterialPinImage::GetPinTooltipText() const
 {
 	if (GraphPinObj->bOrphanedPin)
 	{
 		return LOCTEXT("PinModeMutableOrpahan", "Pin not disapearing due to being connected or having a property modified.");
 	}
 	
-	if (CastChecked<UCustomizableObjectNodeMaterial>(GraphPinObj->GetOwningNode())->IsImageMutableMode(*GraphPinObj))
+	if (GraphPinObj->PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Image)
 	{
 		return LOCTEXT("PinModeMutableTooltip", "Texture Parameter goes through Mutable.");
 	}
@@ -86,7 +62,7 @@ FText SCustomizableObjectNodeMaterialPinImage::GetTooltipText() const
 
 FText SCustomizableObjectNodeMaterialPinImage::GetDefaultValueText() const
 {
-	if (CastChecked<UCustomizableObjectNodeMaterial>(GraphPinObj->GetOwningNode())->IsImageMutableMode(*GraphPinObj))
+	if (GraphPinObj->PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Image)
 	{
 		return LOCTEXT("PinModeMutable", "mutable");
 	}

@@ -166,9 +166,6 @@ public:
 	
 	/** Given a pin category name, get its friendly name (user readable). */
 	static FText GetPinCategoryName(const FName& PinCategory);
-
-	/** Given a Material parameter type, returns the Mutable pin category. */
-	static const FName& GetPinCategory(EMaterialParameterType Type);
 };
 
 

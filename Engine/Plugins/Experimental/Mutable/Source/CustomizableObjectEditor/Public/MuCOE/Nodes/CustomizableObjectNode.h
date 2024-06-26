@@ -92,6 +92,7 @@ public:
 	virtual void NodeConnectionListChanged() override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 	virtual void DestroyNode() override;
+	virtual TSharedPtr<SGraphNode> CreateVisualWidget() override;
 
 	/** Allocates the default pins using the empty remap pins action. Usually called from CreateNode. */
 	virtual void AllocateDefaultPins() override final; // Final. Override AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) instead

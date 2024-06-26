@@ -45,11 +45,9 @@ public:
 	virtual FText GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual bool HasParameter(const FGuid& ParameterId) const override;
 	virtual const UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual UEdGraphPin* GetParameterPin(const FGuid& ParameterId) const override;
 	virtual bool IsImageMutableMode(int32 ImageIndex) const override;
 	virtual bool IsImageMutableMode(const UEdGraphPin& Pin) const override;
-	virtual void UpdateImagePinMode(const FGuid ParameterId) override;
-	virtual void UpdateImagePinMode(const UEdGraphPin& Pin) override;
-	virtual void UpdateAllImagesPinMode() override;
 	virtual UTexture2D* GetImageReferenceTexture(int32 ImageIndex) const override;
 	virtual UTexture2D* GetImageValue(int32 ImageIndex) const override;
 	virtual int32 GetImageUVLayout(int32 ImageIndex) const override;

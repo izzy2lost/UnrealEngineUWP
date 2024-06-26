@@ -187,17 +187,6 @@ void UCustomizableObjectNodeTable::BackwardsCompatibleFixup()
 }
 
 
-void UCustomizableObjectNodeTable::PostBackwardsCompatibleFixup()
-{
-	Super::PostBackwardsCompatibleFixup();
-
-	if (Table)
-	{
-		OnTableChangedDelegateHandle = Table->OnDataTableChanged().AddUObject(this, &UCustomizableObjectNodeTable::OnTableChanged);
-	}
-}
-
-
 void UCustomizableObjectNodeTable::PostLoad()
 {
 	Super::PostLoad();
@@ -258,25 +247,6 @@ void UCustomizableObjectNodeTable::PreEditChange(FProperty* PropertyAboutToChang
 		Table)
 	{
 		Table->OnDataTableChanged().Remove(OnTableChangedDelegateHandle);
-	}
-}
-
-
-void UCustomizableObjectNodeTable::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeChainProperty(PropertyChangedEvent);
-
-	if (const FProperty* PropertyThatChanged = PropertyChangedEvent.Property)
-	{
-		if (PropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeTable, Table))
-		{
-			if (Table)
-			{
-				OnTableChangedDelegateHandle = Table->OnDataTableChanged().AddUObject(this, &UCustomizableObjectNodeTable::OnTableChanged);
-			}
-			
-			OnTableChanged();
-		}
 	}
 }
 
@@ -1087,24 +1057,6 @@ void UCustomizableObjectNodeTable::GetAnimationColumns(const FGuid& ColumnId, FS
 		AnimBPColumnName = ColumnData->AnimInstanceColumnName;
 		AnimSlotColumnName = ColumnData->AnimSlotColumnName;
 		AnimTagColumnName = ColumnData->AnimTagColumnName;
-	}
-}
-
-
-void UCustomizableObjectNodeTable::OnTableChanged()
-{	
-	for (const UEdGraphPin* Pin : GetAllNonOrphanPins())
-	{
-		if (Pin->Direction == EGPD_Output)
-		{
-			for (const UEdGraphPin* ConnectedPin : FollowOutputPinArray(*Pin))
-        	{
-        		if (UCustomizableObjectNodeMaterial* NodeMaterial = Cast<UCustomizableObjectNodeMaterial>(ConnectedPin->GetOwningNode()))
-        		{
-        			NodeMaterial->UpdateAllImagesPinMode();
-        		}
-        	}
-		}
 	}
 }
 

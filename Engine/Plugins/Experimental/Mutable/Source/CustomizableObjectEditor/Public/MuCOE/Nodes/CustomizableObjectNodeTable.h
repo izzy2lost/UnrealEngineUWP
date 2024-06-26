@@ -235,7 +235,6 @@ public:
 	// UObject interface
 	virtual void PostLoad() override;
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
-	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	
 	// EdGraphNode interface
@@ -246,7 +245,6 @@ public:
 	virtual bool GetCanRenameNode() const override { return true; }
 	
 	// UCustomizableObjectNode interface
-	virtual void PostBackwardsCompatibleFixup() override;
 	virtual void BackwardsCompatibleFixup() override;
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	bool IsNodeOutDatedAndNeedsRefresh() override;
@@ -281,9 +279,6 @@ public:
 	// Get the anim blueprint and anim slot columns related to a mesh
 	void GetAnimationColumns(const FGuid& ColumnId, FString& AnimBPColumnName, FString& AnimSlotColumnName, FString& AnimTagColumnName) const;
 
-	/** Callback called when the Table property or its contents has changed. */
-	void OnTableChanged();
-	
 	template<class T> 
 	T* GetColumnDefaultAssetByType(FString ColumnName) const
 	{

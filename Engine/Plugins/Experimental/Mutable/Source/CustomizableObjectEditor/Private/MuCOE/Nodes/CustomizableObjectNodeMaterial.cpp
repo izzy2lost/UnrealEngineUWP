@@ -45,7 +45,7 @@ bool UCustomizableObjectNodeMaterialRemapPinsByName::Equal(const UCustomizableOb
 	const UCustomizableObjectNodeMaterialPinDataParameter* PinDataNewPin = Cast<UCustomizableObjectNodeMaterialPinDataParameter>(Node.GetPinData(NewPin));
 	if (PinDataOldPin && PinDataNewPin)
 	{
-		return PinDataOldPin->ParameterId == PinDataNewPin->ParameterId;
+		return PinDataOldPin->ParameterId == PinDataNewPin->ParameterId && (!OldPin.LinkedTo.Num() || OldPin.PinType == NewPin.PinType); // Pin type must match only if it was connected
 	}
 	else
 	{
@@ -66,8 +66,17 @@ void UCustomizableObjectNodeMaterialRemapPinsByName::RemapPins(const UCustomizab
 			{
 				bFound = true;
 
-				PinsToRemap.Add(OldPin, NewPin);
-				break;
+				if (UEdGraphPin** Result = PinsToRemap.Find(OldPin))
+				{
+					if ((*Result)->bOrphanedPin) // The node can have a deprecated and non-deprecated pin that should remap to the same new pin. Prioritize the non-deprecated
+					{
+						*Result = NewPin;
+					}
+				}
+				else
+				{
+					PinsToRemap.Add(OldPin, NewPin);
+				}
 			}
 		}
 
@@ -111,6 +120,7 @@ EPinMode UCustomizableObjectNodeMaterialPinDataImage::GetPinMode() const
 void UCustomizableObjectNodeMaterialPinDataImage::SetPinMode(const EPinMode InPinMode)
 {
 	FObjectEditorUtils::SetPropertyValue(this, GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeMaterialPinDataImage, PinMode), InPinMode);
+	NodeMaterial->GetPostImagePinModeChangedDelegate()->Broadcast();
 }
 
 
@@ -128,11 +138,6 @@ void UCustomizableObjectNodeMaterialPinDataImage::Copy(const UCustomizableObject
 		UVLayoutMode = PinDataOldPin->UVLayoutMode;
 		UVLayout = PinDataOldPin->UVLayout;
 		ReferenceTexture = PinDataOldPin->ReferenceTexture;
-
-		if (NodeMaterial)
-		{
-			NodeMaterial->UpdateImagePinMode(ParameterId);
-		}
 	}
 }
 
@@ -162,65 +167,41 @@ int32 UCustomizableObjectNodeMaterial::GetExpressionTextureCoordinate(UMaterial*
 }
 
 
-EPinMode UCustomizableObjectNodeMaterial::NodePinModeToImagePinMode(const ENodePinMode NodePinMode)
+FName UCustomizableObjectNodeMaterial::NodePinModeToImagePinMode(const ENodePinMode NodePinMode)
 {
 	switch (NodePinMode)
 	{
 	case ENodePinMode::Mutable:
-		return EPinMode::Mutable;
+		return UEdGraphSchema_CustomizableObject::PC_Image;
 	case ENodePinMode::Passthrough:
-		return EPinMode::Passthrough;
+		return UEdGraphSchema_CustomizableObject::PC_PassThroughImage;
 	default:
-		check(false); // Missing case.
-		return EPinMode::Mutable;
+		unimplemented();
+		return {};
 	}
 }
 
 
-EPinMode UCustomizableObjectNodeMaterial::GetImagePinMode(const UEdGraphPin& Pin) const
+FName UCustomizableObjectNodeMaterial::GetImagePinMode(const EPinMode PinMode) const
 {
-	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
-
-	if (UEdGraphPin *FollowedPin = FollowInputPin(Pin))
-	{
-		if (FollowedPin->PinType.PinCategory == Schema->PC_PassThroughImage)
-		{
-			return EPinMode::Passthrough;
-		}
-
-		return EPinMode::Mutable;
-	}
-	else if (!Pin.LinkedTo.IsEmpty())
-	{
-		// This can happen if an external pin node is not connected to an expose pin node yet
-		if (UEdGraphPin* LinkedToPin = Pin.LinkedTo[0])
-		{
-			if (const UCustomizableObjectNodeExternalPin* ExternalPinNode = Cast<UCustomizableObjectNodeExternalPin>(LinkedToPin->GetOwningNode()))
-			{
-				if (ExternalPinNode->PinType == Schema->PC_Image)
-				{
-					return EPinMode::Mutable;
-				}
-				else if (ExternalPinNode->PinType == Schema->PC_PassThroughImage)
-				{
-					return EPinMode::Passthrough;
-				}
-			}
-		}
-	}
-	
-	switch (GetPinData<UCustomizableObjectNodeMaterialPinDataImage>(Pin).GetPinMode())
+	switch (PinMode)
 	{
 	case EPinMode::Default:
 		return NodePinModeToImagePinMode(TextureParametersMode);
 	case EPinMode::Mutable:
-		return EPinMode::Mutable;
+		return UEdGraphSchema_CustomizableObject::PC_Image;
 	case EPinMode::Passthrough:
-		return EPinMode::Passthrough;
+		return UEdGraphSchema_CustomizableObject::PC_PassThroughImage;
 	default:
-		check(false); // Missing case.
-		return EPinMode::Mutable;
+		unimplemented();
+		return {};
 	}
+}
+
+
+FName UCustomizableObjectNodeMaterial::GetImagePinMode(const UEdGraphPin& Pin) const
+{
+	return GetImagePinMode(GetPinData<UCustomizableObjectNodeMaterialPinDataImage>(Pin).GetPinMode());
 }
 
 
@@ -292,9 +273,20 @@ void UCustomizableObjectNodeMaterialPinDataImage::PostEditChangeProperty(FProper
 	{
 		if (PropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeMaterialPinDataImage, PinMode))
 		{
-			NodeMaterial->UpdateImagePinMode(ParameterId);
+			NodeMaterial->UCustomizableObjectNode::ReconstructNode();
 		}
 	}
+}
+
+
+bool UCustomizableObjectNodeMaterialPinDataImage::CanEditChange(const FProperty* InProperty) const
+{
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeMaterialPinDataImage, PinMode))
+	{
+		return !NodeMaterial->GetPin(*this)->LinkedTo.Num();
+	}
+	
+	return Super::CanEditChange(InProperty);
 }
 
 
@@ -558,8 +550,6 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			{
 				UCustomizableObjectNodeMaterialPinDataImage* PinDataImage = Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetPinData(*Pin));
 				PinDataImage->NodeMaterial = this;
-				
-				PinsImagePinMode.Add(Pin->PinId, GetImagePinMode(*Pin));
 			}
 		}
 	}
@@ -571,8 +561,6 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			if (UCustomizableObjectNodeMaterialPinDataImage* const PinDataImage = Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetPinData(*Pin)))
 			{
 				PinDataImage->NodeMaterial = this;
-				
-				PinsImagePinMode.Add(Pin->PinId, GetImagePinMode(*Pin));
 			}
 		}
 	}
@@ -629,8 +617,6 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 							if (UCustomizableObjectNodeMaterialPinDataImage* PinDataImage = Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetPinData(*ImagePin)))
 							{
 								PinDataImage->PinMode = EPinMode::Mutable;
-
-								PinsImagePinMode.Add(ImagePin->PinId, GetImagePinMode(*ImagePin));
 							}
 						}
 					}
@@ -643,14 +629,54 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 	{
 		MeshComponentName = FName(FString::FromInt(MeshComponentIndex_DEPRECATED));
 	}
-}
 
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeMaterialTypedImagePins)
+	{
+		const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+		
+		for (UEdGraphPin* Pin : GetAllPins())
+		{
+			if (Pin->PinType.PinCategory != UEdGraphSchema_CustomizableObject::PC_Image)
+			{
+				continue;
+			}
+			
+			if (Pin->LinkedTo.Num())
+			{
+				const UEdGraphPin* LinkedPin = Pin->LinkedTo[0];
 
-void UCustomizableObjectNodeMaterial::PostBackwardsCompatibleFixup()
-{
-	Super::PostBackwardsCompatibleFixup();
-	
-	UpdateAllImagesPinMode(); // Could be changed when not loaded.
+				UCustomizableObjectNodeMaterialPinDataImage& PinData = GetPinData<UCustomizableObjectNodeMaterialPinDataImage>(*Pin);
+
+				if (LinkedPin->PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Image)
+				{
+					Pin->PinType.PinCategory = UEdGraphSchema_CustomizableObject::PC_Image;
+
+					if (PinData.PinMode == EPinMode::Default &&
+						TextureParametersMode == ENodePinMode::Passthrough)
+					{
+						PinData.PinMode = EPinMode::Mutable;
+					}
+				}
+				else if (LinkedPin->PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_PassThroughImage)
+				{
+					Pin->PinType.PinCategory = UEdGraphSchema_CustomizableObject::PC_PassThroughImage;
+
+					if (PinData.PinMode == EPinMode::Default &&
+						TextureParametersMode == ENodePinMode::Mutable)
+					{
+						PinData.PinMode = EPinMode::Passthrough;
+					}
+				}
+			}
+			else
+			{
+				if (!IsImageMutableMode(*Pin))
+				{
+					Pin->PinType.PinCategory = UEdGraphSchema_CustomizableObject::PC_PassThroughImage;
+				}				
+			}
+		}
+	}
 }
 
 
@@ -685,7 +711,8 @@ void UCustomizableObjectNodeMaterial::PostEditChangeProperty(FPropertyChangedEve
 		}
 		else if (PropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeMaterial, TextureParametersMode))
 		{
-			UpdateAllImagesPinMode();
+			Super::ReconstructNode();
+			PostImagePinModeChangedDelegate.Broadcast();
 		}
 	}
 }
@@ -782,59 +809,24 @@ bool UCustomizableObjectNodeMaterial::IsImageMutableMode(const int32 ImageIndex)
 	}
 	else
 	{
-		return NodePinModeToImagePinMode(TextureParametersMode) == EPinMode::Mutable;
+		return NodePinModeToImagePinMode(TextureParametersMode) == UEdGraphSchema_CustomizableObject::PC_Image;
 	}
 }
 
 
 bool UCustomizableObjectNodeMaterial::IsImageMutableMode(const UEdGraphPin& Pin) const
 {
-	return PinsImagePinMode[Pin.PinId] == EPinMode::Mutable;
+	return GetImagePinMode(Pin) == UEdGraphSchema_CustomizableObject::PC_Image; // The ImageMutableMode is stored in the PinData, not in the PinCategory
 }
 
 
-void UCustomizableObjectNodeMaterial::UpdateImagePinMode(const FGuid ParameterId)
+void UCustomizableObjectNodeMaterial::SetImagePinMode(UEdGraphPin& Pin, const EPinMode PinMode) const
 {
-	UpdateImagePinMode(*PinsParameter[ParameterId].Get());
-}
+	UCustomizableObjectNodeMaterialPinDataImage& PinData = GetPinData<UCustomizableObjectNodeMaterialPinDataImage>(Pin);
 
-
-void UCustomizableObjectNodeMaterial::UpdateImagePinMode(const UEdGraphPin& Pin)
-{
-	EPinMode* PinMode = PinsImagePinMode.Find(Pin.PinId);
-	const EPinMode OldPinMode = *PinMode;
-
-	*PinMode = GetImagePinMode(Pin);
+	Pin.PinType.PinCategory = GetImagePinMode(PinMode);	// Change the category so that it will remap correctly when reconstructing.
 	
-	if (*PinMode != OldPinMode)
-	{
-		PostImagePinModeChangedDelegate.Broadcast();
-	}
-}
-
-
-void UCustomizableObjectNodeMaterial::UpdateAllImagesPinMode()
-{
-	bool bChanged = false;
-	
-	const int32 NumImages = GetNumParameters(EMaterialParameterType::Texture);
-	for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
-	{
-		if (const UEdGraphPin* Pin = GetParameterPin(EMaterialParameterType::Texture, ImageIndex))
-		{
-			EPinMode* PinMode = PinsImagePinMode.Find(Pin->PinId);
-			const EPinMode OldPinMode = *PinMode;
-
-			*PinMode = GetImagePinMode(*Pin);
-
-			bChanged = bChanged || (*PinMode != OldPinMode);
-		}
-	}
-
-	if (bChanged)
-	{
-		PostImagePinModeChangedDelegate.Broadcast();
-	}
+	PinData.SetPinMode(PinMode); // Will trigger a reconstruct.
 }
 
 
@@ -1043,13 +1035,19 @@ bool UCustomizableObjectNodeMaterial::HasParameter(const FGuid& ParameterId) con
 }
 
 
-const UEdGraphPin* UCustomizableObjectNodeMaterial::GetParameterPin(const EMaterialParameterType Type, const int32 ParameterIndex) const
+UEdGraphPin* UCustomizableObjectNodeMaterial::GetParameterPin(const EMaterialParameterType Type, const int32 ParameterIndex) const
 {
 	const FGuid ParameterId = GetParameterId(Type, ParameterIndex);
 	
-	if (const FEdGraphPinReference* PinReference = PinsParameter.Find(ParameterId))
+	return GetParameterPin(ParameterId);
+}
+
+
+UEdGraphPin* UCustomizableObjectNodeMaterial::GetParameterPin(const FGuid& ParameterId) const
+{
+	if (const FEdGraphPinReference* Result = PinsParameter.Find(ParameterId))
 	{
-		return PinReference->Get();
+		return Result->Get();
 	}
 	else
 	{
@@ -1103,18 +1101,15 @@ TSharedPtr<IDetailsView> UCustomizableObjectNodeMaterial::CustomizePinDetails(co
 
 bool UCustomizableObjectNodeMaterial::CustomRemovePin(UEdGraphPin& Pin)
 {
-	if (const UCustomizableObjectNodeMaterialPinDataParameter* PinData = Cast<UCustomizableObjectNodeMaterialPinDataParameter>(GetPinData(Pin)))
+	for (TMap<FGuid, FEdGraphPinReference>::TIterator Iterator = PinsParameter.CreateIterator(); Iterator; ++Iterator)
 	{
-		if (const FEdGraphPinReference* Result = PinsParameter.Find(PinData->ParameterId);
-			Result &&
-			Result->Get() == &Pin)
+		if (Iterator->Value.Get() == &Pin)
 		{
-			PinsParameter.Remove(PinData->ParameterId);
+			Iterator.RemoveCurrent();
+			break;
 		}
 	}
 
-	PinsImagePinMode.Remove(Pin.PinId);
-	
 	return Super::CustomRemovePin(Pin);
 }
 
@@ -1122,8 +1117,6 @@ bool UCustomizableObjectNodeMaterial::CustomRemovePin(UEdGraphPin& Pin)
 void UCustomizableObjectNodeMaterial::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode)
 {
 	Super::ReconstructNode(RemapPinsMode);
-
-	UpdateAllImagesPinMode();
 
 	// When a material node is created, the first component is set as its mesh component
 	if (MeshComponentName.IsNone())
@@ -1264,24 +1257,44 @@ UCustomizableObjectNodeMaterialPinDataParameter* UCustomizableObjectNodeMaterial
 
 void UCustomizableObjectNodeMaterial::AllocateDefaultParameterPins(const EMaterialParameterType Type)
 {
-	const FName PinCategory = UEdGraphSchema_CustomizableObject::GetPinCategory(Type);
-
 	const int32 NumParameters = GetNumParameters(Type);
 	for (int32 ParameterIndex = 0; ParameterIndex < NumParameters; ++ParameterIndex)
 	{
 		UCustomizableObjectNodeMaterialPinDataParameter* PinData = CreatePinData(Type, ParameterIndex);
-		
+
 		const FName PinName = GetPinName(Type, ParameterIndex);
+
+		FName PinCategory;
+		switch(Type)
+		{
+		case EMaterialParameterType::Texture:
+			if (IsImageMutableMode(ParameterIndex)) // If a pin exists, we store the PinMode in its PinData.
+			{
+				PinCategory = UEdGraphSchema_CustomizableObject::PC_Image;				
+			}
+			else
+			{
+				PinCategory = UEdGraphSchema_CustomizableObject::PC_PassThroughImage;
+			}
+			break;
+
+		case EMaterialParameterType::Vector:
+			PinCategory = UEdGraphSchema_CustomizableObject::PC_Color;
+			break;
+
+		case EMaterialParameterType::Scalar:
+			PinCategory = UEdGraphSchema_CustomizableObject::PC_Float;
+			break;
+
+		default:
+			check(false); // Type not contemplated
+		}		
+		
 		UEdGraphPin* Pin = CustomCreatePin(EGPD_Input, PinCategory, PinName, PinData);
 		Pin->bHidden = true;
 		Pin->bDefaultValueIsIgnored = true;
 
 		PinsParameter.Add(PinData->ParameterId, FEdGraphPinReference(Pin));
-
-		if (Type == EMaterialParameterType::Texture)
-		{
-			PinsImagePinMode.Add(Pin->PinId, GetImagePinMode(*Pin));
-		}
 	}
 }
 
@@ -1340,13 +1353,31 @@ void UCustomizableObjectNodeMaterial::PinConnectionListChanged(UEdGraphPin* Pin)
 			}
 		}
 	}
-	else if (Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetPinData(*Pin)))
+	else if (Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetPinData(*Pin))) // Image pin
 	{
-		UpdateImagePinMode(*Pin);
-	}
-	else if (Pin == GetMaterialAssetPin())
-	{
-		UpdateAllImagesPinMode();	
+		// If necessary, automatically change the Pin Mode. Connected pin can never change its type.
+		if (Pin->LinkedTo.Num())
+		{
+			if (UEdGraphPin* LinkedPin = Pin->LinkedTo[0])
+			{
+				EPinMode PinMode = EPinMode::Default;
+		
+				if (LinkedPin->PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Image)
+				{
+					PinMode = EPinMode::Mutable;
+				}
+				else if (LinkedPin->PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_PassThroughImage)
+				{
+					PinMode = EPinMode::Passthrough;
+				}
+				else
+				{
+					unimplemented()
+				}
+		
+				SetImagePinMode(*Pin, PinMode);
+			}
+		}
 	}
 }
 
@@ -1364,12 +1395,12 @@ bool UCustomizableObjectNodeMaterial::CanConnect(const UEdGraphPin* InOwnedInput
 
 	if (InOwnedInputPin && InOutputPin)
 	{
-		if (InOwnedInputPin->PinType.PinCategory == Schema->PC_Image &&
-			InOutputPin->PinType.PinCategory == Schema->PC_PassThroughImage)
+		if ((InOwnedInputPin->PinType.PinCategory == Schema->PC_Image && InOutputPin->PinType.PinCategory == Schema->PC_PassThroughImage) ||
+			(InOwnedInputPin->PinType.PinCategory == Schema->PC_PassThroughImage && InOutputPin->PinType.PinCategory == Schema->PC_Image))
 		{
 			return true;
 		}
-
+		
 		if (InOwnedInputPin->PinType.PinCategory == Schema->PC_Mesh &&
 			InOutputPin->PinType.PinCategory == Schema->PC_PassThroughMesh)
 		{

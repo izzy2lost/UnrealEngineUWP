@@ -5,7 +5,7 @@
 #include "GameplayTagContainer.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMesh.h"
 #include "MuCOE/CustomizableObjectEditor_Deprecated.h"
-#include "SGraphNode.h"
+#include "MuCOE/Nodes/SCustomizableObjectNode.h"
 #include "MuCOE/RemapPins/CustomizableObjectNodeRemapPinsByNameDefaultPin.h"
 
 #include "CustomizableObjectNodeSkeletalMesh.generated.h"
@@ -33,14 +33,14 @@ struct FSlateBrush;
 
 
 // Class to render the Skeletal Mesh thumbnail of a CustomizableObjectNodeSkeletalMesh
-class SGraphNodeSkeletalMesh : public SGraphNode
+class SGraphNodeSkeletalMesh : public SCustomizableObjectNode
 {
 public:
 
 	SLATE_BEGIN_ARGS(SGraphNodeSkeletalMesh) {}
 	SLATE_END_ARGS();
 
-	SGraphNodeSkeletalMesh() : SGraphNode() {};
+	SGraphNodeSkeletalMesh() : SCustomizableObjectNode() {};
 
 	// Builds the SGraphNodeSkeletalMesh when needed
 	void Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode);

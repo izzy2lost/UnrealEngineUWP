@@ -76,12 +76,19 @@ public:
 	/** Returns true if the Material contains the given Material Parameter. */
 	virtual bool HasParameter(const FGuid& ParameterId) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::HasParameter, return {}; );
 	
-	/** Get the Vector pin for the given Material Vector Parameter.
-	 * Not all parameters have pin.
+	/** Get the pin for the given Material Parameter.
+	 * Not all parameters have pins.
 	 *
-	 * @param ParameterIndex Has to be valid.
+	 * @param ParameterIndex Material Parameter id.
 	 * @return Can return nullptr. */
 	virtual const UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetMaterialNode, return {}; );
+
+	/** Get the pin for the given Material Parameter.
+	 * Not all parameters have pins.
+	 *
+	 * @param ParameterId Material Parameter id.
+	 * @return Can return nullptr. */
+	virtual UEdGraphPin* GetParameterPin(const FGuid& ParameterId) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetParameterPin, return {}; );
 	
 	// --------------------
 	// IMAGES PARAMETERS
@@ -94,15 +101,6 @@ public:
 
 	/** Given an Image pin, returns true if the Material Texture Parameter goes through Mutable. */
 	virtual bool IsImageMutableMode(const UEdGraphPin& Pin) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::IsImageMutableMode, return {}; );
-
-	/** Update a Material Texture Parameter Mode. */
-	virtual void UpdateImagePinMode(const FGuid ParameterId) PURE_VIRTUAL(UCustomizableObjectNodeMaterial::UpdateImagePinMode, );
-	
-	/** Update a Material Texture Parameter Mode. */
-	virtual void UpdateImagePinMode(const UEdGraphPin& Pin) PURE_VIRTUAL(UCustomizableObjectNodeMaterial::UpdateImagePinMode, );
-
-	/** Update all Material Texture Parameters Mode. */
-	virtual void UpdateAllImagesPinMode() PURE_VIRTUAL(UCustomizableObjectNodeMaterial::UpdateAllImagesPinMode, );
 	
 	/** Returns the reference texture assigned to a Material Texture Parameter.
 	 *

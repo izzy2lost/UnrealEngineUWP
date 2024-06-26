@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MuCOE/Nodes/CustomizableObjectNodeMesh.h"
-#include "SGraphNode.h"
+#include "MuCOE/Nodes/SCustomizableObjectNode.h"
 
 #include "CustomizableObjectNodeStaticMesh.generated.h"
 
@@ -26,14 +26,14 @@ struct FSlateBrush;
 
 
 // Class to render the Static Mesh thumbnail of a CustomizableObjectNodeStaticMesh
-class SGraphNodeStaticMesh : public SGraphNode
+class SGraphNodeStaticMesh : public SCustomizableObjectNode
 {
 public:
 
 	SLATE_BEGIN_ARGS(SGraphNodeStaticMesh) {}
 	SLATE_END_ARGS();
 
-	SGraphNodeStaticMesh() : SGraphNode() {};
+	SGraphNodeStaticMesh() : SCustomizableObjectNode() {};
 
 	// Builds the SGraphNodeStaticMesh when needed
 	void Construct(const FArguments& InArgs, UEdGraphNode* InGraphNode);
@@ -58,7 +58,7 @@ public:
 	TSharedPtr<class ISinglePropertyView> StaticMeshSelector;
 
 	// Pointer to the NodeStaticMesh that owns this SGraphNode
-	class UCustomizableObjectNodeStaticMesh* NodeStaticMesh;
+	class UCustomizableObjectNodeStaticMesh* NodeStaticMesh = nullptr;
 
 private:
 

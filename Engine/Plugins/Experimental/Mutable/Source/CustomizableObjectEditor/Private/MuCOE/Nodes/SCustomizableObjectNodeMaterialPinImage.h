@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "SCustomizableObjectNodePin.h"
 #include "SGraphPin.h"
 
 class SWidget;
@@ -9,13 +10,8 @@ class UEdGraphPin;
 struct FSlateBrush;
 
 
-/** Material node custom Image pin. Allows to define a custom style to Image pins.
- *  
- * Currently these different styles allow the user to differentiate the different states an Image pin can have:
- * - passthrough: The texture does NOT go trough the mutable pipeline.
- * - mutable: The texture goes trough the mutable pipeline.
- */
-class SCustomizableObjectNodeMaterialPinImage : public SGraphPin
+/** Implements the "MUTABLE" and "PASSTHROUGH" text next to the pin name. */
+class SCustomizableObjectNodeMaterialPinImage : public SCustomizableObjectNodePin
 {
 public:
 
@@ -25,7 +21,6 @@ public:
 	void Construct(const FArguments& InArgs, UEdGraphPin* InGraphPinObj);
 
 	TSharedRef<SWidget>	GetDefaultValueWidget() override;
-	const FSlateBrush* GetPinIcon() const override;
 
 private:
 	/** Return pin state text. */
@@ -35,9 +30,5 @@ private:
 	EVisibility GetDefaultValueVisibility() const;
 
 	/** Return pin tool tip. */
-	FText GetTooltipText() const;
-
-	const FSlateBrush* CachedPinMutableConnected;
-	const FSlateBrush* CachedPinMutableDisconnected;
-	const FSlateBrush* CachedPinPassthroughDisconnected;
+	FText GetPinTooltipText() const;
 };

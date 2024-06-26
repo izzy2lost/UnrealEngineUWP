@@ -2,6 +2,7 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeReroute.h"
 
+#include "SCustomizableObjectNodeReroute.h"
 #include "SGraphNodeKnot.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/GraphTraversal.h"
@@ -82,7 +83,7 @@ bool UCustomizableObjectNodeReroute::ShouldDrawNodeAsControlPointOnly(int32& Out
 
 TSharedPtr<SGraphNode> UCustomizableObjectNodeReroute::CreateVisualWidget()
 {
-	return SNew(SGraphNodeKnot, this);
+	return SNew(SCustomizableObjectNodeReroute, this);
 }
 
 
