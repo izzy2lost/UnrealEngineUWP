@@ -15,7 +15,6 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
-
 #define LOCTEXT_NAMESPACE "SDMXFixtureFunctionEditor"
 
 namespace UE::DMX::SDMXFixtureFunctionEditor::Private
@@ -122,6 +121,8 @@ void SDMXFixtureFunctionEditor::Construct(const FArguments& InArgs, const TShare
 
 	FStructureDetailsViewArgs StructureDetailsViewArgs;
 
+	using namespace UE::DMX;
+
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	StructDetailsView = PropertyModule.CreateStructureDetailView(DetailsViewArgs, StructureDetailsViewArgs, nullptr);
 	StructDetailsView->GetDetailsView()->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &SDMXFixtureFunctionEditor::IsPropertyVisible));
@@ -176,10 +177,6 @@ void SDMXFixtureFunctionEditor::NotifyPreChange(FProperty* PropertyAboutToChange
 		{
 			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetDefaultValueTransaction", "Set Default Value of Function"));
 		}
-		else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, DefaultValue))
-		{
-			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetAttributeTransaction", "Set Attribute of Function"));
-		}
 		else if (PropertyName == FDMXFixtureFunction::GetPhysicalDefaultValuePropertyName())
 		{
 			Transaction = MakeUnique<FScopedTransaction>(LOCTEXT("SetPhysicalValueTransaction", "Set Physical Default Value of Function"));
@@ -226,16 +223,11 @@ void SDMXFixtureFunctionEditor::NotifyPostChange(const FPropertyChangedEvent& Pr
 			else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, DataType))
 			{
 				FixtureType->AlignFunctionChannels(ModeIndex);
-				ClampFunctionDefautValueByDataType(*FixtureType, ModeIndex, FunctionIndex);
+				UpdateFunctionDefaultValueFromPhysicalUnit(*FixtureType, ModeIndex, FunctionIndex);
 			}
 			else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, DefaultValue))
 			{
 				ClampFunctionDefautValueByDataType(*FixtureType, ModeIndex, FunctionIndex);
-			}
-			else if (PropertyName == GET_MEMBER_NAME_CHECKED(FDMXFixtureFunction, Attribute) ||
-				PropertyName == GET_MEMBER_NAME_CHECKED(FDMXAttribute, Name))
-			{
-				UpdateFunctionPhysicalUnitFromAttribute(*FixtureType, ModeIndex, FunctionIndex);
 			}
 			else if (PropertyName == FDMXFixtureFunction::GetPhysicalDefaultValuePropertyName() || 
 					PropertyName == FDMXFixtureFunction::GetPhysicalFromPropertyName() ||

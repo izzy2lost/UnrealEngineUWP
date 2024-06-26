@@ -29,7 +29,7 @@ namespace UE::DMX::GDTF
 
 	FXmlNode* FDMXGDTFGeometryReference::CreateXmlNode(FXmlNode& Parent)
 	{
-		const FString DefaultModel = TEXT("");
+		const FName DefaultModel = "";
 
 		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
 			.SetAttribute(TEXT("Name"), Name)

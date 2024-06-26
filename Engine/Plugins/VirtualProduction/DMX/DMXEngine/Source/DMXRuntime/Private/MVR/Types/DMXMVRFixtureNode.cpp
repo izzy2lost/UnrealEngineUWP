@@ -594,6 +594,14 @@ void UDMXMVRFixtureNode::CreateXmlNodeInParent(FXmlNode& ParentNode) const
 	FXmlAttribute UUIDAttribute(UUIDAttributeName, UUID.ToString(EGuidFormats::DigitsWithHyphens));
 	Attributes.Add(UUIDAttribute);
 
+	// MultiPatch attribute
+	if (MultiPatch.IsSet())
+	{
+		constexpr TCHAR MultiPatchAttributeName[] = TEXT("multipatch");
+		FXmlAttribute MultiPatchAttribute(MultiPatchAttributeName, MultiPatch.GetValue().ToString(EGuidFormats::DigitsWithHyphens));
+		Attributes.Add(MultiPatchAttribute);
+	}
+
 	FixtureXmlNode->SetAttributes(Attributes);
 
 

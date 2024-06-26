@@ -47,12 +47,6 @@ namespace UE::DMX
 		/** Creates an General Scene Description Xml File from the MVR Source, as it was imported */
 		const TSharedPtr<FXmlFile> CreateSourceGeneralSceneDescriptionXmlFile(const UDMXMVRGeneralSceneDescription* GeneralSceneDescription) const;
 
-		/** Tries to remove MVR fixtures that are not present in the level, depending on export options. */
-		void TryRemoveMVRFixturesNotPresentInLevel(UDMXMVRGeneralSceneDescription* GeneralSceneDescription, UDMXLibrary* DMXLibrary, const TMap<const UDMXComponent*, const AActor*>& DMXComponentToActorMap);
-
-		/** Tries to create MVR fixtures from patches used more than once in the level and apply transforms depending on export options. */
-		void TryUpdateFixtureNodesFromLevel(UDMXMVRGeneralSceneDescription* GeneralSceneDescription, const TMap<const UDMXComponent*, const AActor*>& DMXComponentToActorMap, bool bUseTransformsFromLevel);
-
 		/**
 		 * Gets raw source data or creates (possibly empty) source data where the source data is not present.
 		 * Prior 5.1 there was no source data stored. Offers a dialog to load missing data

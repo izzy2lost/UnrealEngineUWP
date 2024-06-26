@@ -13,6 +13,11 @@ namespace UE::DMX
 		const FDefaultPhyicalProperties* AttributeNameToDefaultPhysicalProperitesPtr = AttributeNameToDefaultPhysicalProperitesMap.Find(InOutFunction.Attribute.Name);
 		if (AttributeNameToDefaultPhysicalProperitesPtr)
 		{
+			if (InOutFunction.GetPhysicalUnit() == AttributeNameToDefaultPhysicalProperitesPtr->PhysicalUnit)
+			{
+				return;
+			}
+
 			InOutFunction.SetPhysicalUnit(AttributeNameToDefaultPhysicalProperitesPtr->PhysicalUnit);
 			InOutFunction.SetPhysicalValueRange(AttributeNameToDefaultPhysicalProperitesPtr->PhysicalFrom, AttributeNameToDefaultPhysicalProperitesPtr->PhysicalTo);
 		}

@@ -433,9 +433,12 @@ namespace UE::DMX::GDTF
 				Function.Channel = ChannelProperties.FirstChannel;
 				Function.bUseLSBMode = ChannelProperties.bLSBMode;
 				Function.DataType = ChannelProperties.SignalFormat;
-				Function.DefaultValue = ChannelProperties.DefaultValue;
+
+				// Set physical properties (order matters here)
 				Function.SetPhysicalUnit(ChannelProperties.PhysicalUnit);
 				Function.SetPhysicalValueRange(ChannelProperties.PhysicalFrom, ChannelProperties.PhysicalTo);
+				Function.DefaultValue = ChannelProperties.DefaultValue;
+				Function.UpdatePhysicalDefaultValue();
 
 				Mode.Functions.Add(Function);
 

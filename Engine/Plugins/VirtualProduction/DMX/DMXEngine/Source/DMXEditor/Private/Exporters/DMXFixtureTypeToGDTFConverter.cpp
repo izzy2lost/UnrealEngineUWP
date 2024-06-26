@@ -156,7 +156,7 @@ namespace UE::DMX::GDTF
 			const TSharedRef<FDMXGDTFModel> InstanceModel = MakeShared<FDMXGDTFModel>(GDTFFixtureType);
 			GDTFFixtureType->Models.Add(InstanceModel);
 
-			InstanceModel->Name = "Layers";
+			InstanceModel->Name = FDMXFixtureTypeToGDTFGeometryFactory::CellsModelName;
 			InstanceModel->PrimitiveType = EDMXGDTFModelPrimitiveType::Cube;
 			InstanceModel->Height = 0.01f;
 			InstanceModel->Length = 1.f;
@@ -170,15 +170,17 @@ namespace UE::DMX::GDTF
 
 		FDMXFixtureTypeToGDTFGeometryFactory GeometryFactory(UnrealFixtureType, GDTFFixtureType->GeometryCollect.ToSharedRef());
 
+		ModesWithBaseGeometry = GeometryFactory.GetModesWithBaseGeometry();
 		FunctionsWithControlledGeometry = GeometryFactory.GetFunctionsWithControlledGeometry();
 	}
 
 	void FDMXFixtureTypeToGDTFConverter::CreateDMXModes(const UDMXEntityFixtureType& UnrealFixtureType, const TSharedRef<FDMXGDTFFixtureType>& GDTFFixtureType)
 	{
+		int32 ModeCount = 1;
 		for (const FDMXFixtureMode& UnrealMode : UnrealFixtureType.Modes)
 		{
-			const FDMXFixtureFunctionWithControlledGeometry* ControlledGeometryPtr = Algo::FindBy(FunctionsWithControlledGeometry, &UnrealMode, &FDMXFixtureFunctionWithControlledGeometry::ModePtr);
-			if (!ensureMsgf(ControlledGeometryPtr, TEXT("%hs: Unexpected cannot controlled root geometry for DMX Mode '%s'. Failed to convert mode to GDTF."), __FUNCTION__, *UnrealMode.ModeName))
+			const FDMXFixtureModeWithBaseGeometry* ModeWithBaseGeometryPtr = Algo::FindBy(ModesWithBaseGeometry, &UnrealMode, &FDMXFixtureModeWithBaseGeometry::ModePtr);
+			if (!ensureMsgf(ModeWithBaseGeometryPtr, TEXT("%hs: Unexpected cannot find base geometry for DMX Mode '%s'. Failed to convert mode to GDTF."), __FUNCTION__, *UnrealMode.ModeName))
 			{
 				continue;
 			}
@@ -187,11 +189,13 @@ namespace UE::DMX::GDTF
 			const TSharedRef<FDMXGDTFDMXMode> DMXMode = MakeShared<FDMXGDTFDMXMode>(GDTFFixtureType);
 			GDTFFixtureType->DMXModes.Add(DMXMode);
 
-			DMXMode->Name = *UnrealMode.ModeName;
+			DMXMode->Name = *FString::Printf(TEXT("Mode %i %s"), ModeCount, *UnrealMode.ModeName);
 			DMXMode->Description = TEXT("Unreal Engine generated DMX Mode");
-			DMXMode->Geometry = ControlledGeometryPtr->ControlledGeometry->Name;
+			DMXMode->Geometry = ModeWithBaseGeometryPtr->BaseGeometry->Name;
 
 			CreateDMXChannels(UnrealMode, DMXMode);
+
+			ModeCount++;
 		}
 	}
 
@@ -200,8 +204,8 @@ namespace UE::DMX::GDTF
 		// Create DMX Channels for non-matrix Unreal Functions
 		for (const FDMXFixtureFunction& UnrealFunction : UnrealMode.Functions)
 		{
-			const FDMXFixtureFunctionWithControlledGeometry* ControlledGeometryPtr = Algo::FindBy(FunctionsWithControlledGeometry, &UnrealFunction, &FDMXFixtureFunctionWithControlledGeometry::FunctionPtr);
-			if (!ensureMsgf(ControlledGeometryPtr, TEXT("%hs: Unexpected cannot find geometry for DMX Function '%s'. Failed to convert mode to GDTF."), __FUNCTION__, *UnrealFunction.FunctionName))
+			const FDMXFixtureFunctionWithControlledGeometry* FunctionWithControlledGeometryPtr = Algo::FindBy(FunctionsWithControlledGeometry, &UnrealFunction, &FDMXFixtureFunctionWithControlledGeometry::FunctionPtr);
+			if (!ensureMsgf(FunctionWithControlledGeometryPtr, TEXT("%hs: Unexpected cannot find controlled geometry for DMX Function '%s'. Failed to convert mode to GDTF."), __FUNCTION__, *UnrealFunction.FunctionName))
 			{
 				continue;
 			}
@@ -209,7 +213,7 @@ namespace UE::DMX::GDTF
 			const TSharedRef<FDMXGDTFDMXChannel> DMXChannel = MakeShared<FDMXGDTFDMXChannel>(GDTFDMXMode);
 			GDTFDMXMode->DMXChannels.Add(DMXChannel);
 
-			const FString ControlledGeometryName = ControlledGeometryPtr->ControlledGeometry->Name.ToString();
+			const FString ControlledGeometryName = FunctionWithControlledGeometryPtr->ControlledGeometry->Name.ToString();
 			const FString GDTFAttribute = FDMXUnrealToGDTFAttributeConversion::ConvertUnrealToGDTFAttribute(UnrealFunction.Attribute.Name).ToString();
 			const FString ChannelFunctionName = UnrealFunction.FunctionName;
 

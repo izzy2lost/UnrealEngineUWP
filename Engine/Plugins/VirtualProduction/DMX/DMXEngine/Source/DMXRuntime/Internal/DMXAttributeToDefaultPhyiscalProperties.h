@@ -38,6 +38,7 @@ namespace UE::DMX
 			{ "Pan", FDefaultPhyicalProperties(EDMXGDTFPhysicalUnit::Angle, -120.0, 120.0) },
 			{ "Tilt", FDefaultPhyicalProperties(EDMXGDTFPhysicalUnit::Angle, -120.0, 120.0) },
 
+			{ "Angle", FDefaultPhyicalProperties(EDMXGDTFPhysicalUnit::Angle, 0.0, 120.0) },
 		};
 	};
 }

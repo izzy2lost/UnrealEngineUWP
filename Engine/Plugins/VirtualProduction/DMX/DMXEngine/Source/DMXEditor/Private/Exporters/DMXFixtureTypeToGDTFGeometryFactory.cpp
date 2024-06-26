@@ -13,11 +13,16 @@
 
 namespace UE::DMX::GDTF
 {
+	const FName FDMXFixtureTypeToGDTFGeometryFactory::CellsModelName = "Cells";
+
 	const FName FDMXFixtureTypeToGDTFGeometryFactory::BaseGeometryName = "Base";
 	const FName FDMXFixtureTypeToGDTFGeometryFactory::PanGeometryName = "Yoke";
 	const FName FDMXFixtureTypeToGDTFGeometryFactory::HeadGeometryName = "Head";
 	const FName FDMXFixtureTypeToGDTFGeometryFactory::BeamGeometryName = "Beam";
 	const FName FDMXFixtureTypeToGDTFGeometryFactory::MatrixBeamGeometryName = "Instance";
+
+	const FName FDMXFixtureTypeToGDTFGeometryFactory::PanAttributeName = "Pan";
+	const FName FDMXFixtureTypeToGDTFGeometryFactory::TiltAttributeName = "Tilt";
 
 	namespace Internal
 	{
@@ -31,10 +36,15 @@ namespace UE::DMX::GDTF
 				TotalNumChannels += Function.GetNumChannels();
 			}
 
-			bWithPan = Algo::AnyOf(Mode.Functions, [](const FDMXFixtureFunction& Function) { return Function.Attribute.Name == TEXT("Pan"); });
-			bWithTilt = Algo::AnyOf(Mode.Functions, [](const FDMXFixtureFunction& Function) { return Function.Attribute.Name == TEXT("Tilt"); });
+			bWithPan = Algo::AnyOf(Mode.Functions, [](const FDMXFixtureFunction& Function) { return Function.Attribute.Name == FDMXFixtureTypeToGDTFGeometryFactory::PanAttributeName; });
+			bWithTilt = Algo::AnyOf(Mode.Functions, [](const FDMXFixtureFunction& Function) { return Function.Attribute.Name == FDMXFixtureTypeToGDTFGeometryFactory::TiltAttributeName; });
 		}
 	}
+
+	FDMXFixtureModeWithBaseGeometry::FDMXFixtureModeWithBaseGeometry(const FDMXFixtureMode* InModePtr, TSharedRef<const FDMXGDTFGeometry> InBaseGeometry)
+		: ModePtr(InModePtr)
+		, BaseGeometry(InBaseGeometry)
+	{}
 
 	FDMXFixtureFunctionWithControlledGeometry::FDMXFixtureFunctionWithControlledGeometry(const FDMXFixtureMode* InModePtr, const FDMXFixtureFunction* InFunctionPtr, TSharedRef<const FDMXGDTFGeometry> InControlledGeometry)
 		: ModePtr(InModePtr)
@@ -49,24 +59,83 @@ namespace UE::DMX::GDTF
 		BuildGeometries();
 	}
 
+	TArray<FDMXFixtureModeWithBaseGeometry> FDMXFixtureTypeToGDTFGeometryFactory::GetModesWithBaseGeometry() const
+	{
+		TArray<FDMXFixtureModeWithBaseGeometry> Result;
+
+		for (const FDMXFixtureMode& Mode : FixtureType.Modes)
+		{
+			const FDMXUniqueModeGeometry UniqueModeGeometry(Mode);
+			const TSharedRef<FDMXGDTFGeometry>* BaseGeometryPtr = UniqueModeGeometryToGeometryMap.Find(UniqueModeGeometry);
+			if (!ensureMsgf(BaseGeometryPtr, TEXT("Unexpected cannot find Geometry for Mode %s."), *Mode.ModeName))
+			{
+				return Result;
+			}
+
+			Result.Add(FDMXFixtureModeWithBaseGeometry(&Mode, *BaseGeometryPtr));
+		}
+
+		return Result;
+	}
+
 	TArray<FDMXFixtureFunctionWithControlledGeometry> FDMXFixtureTypeToGDTFGeometryFactory::GetFunctionsWithControlledGeometry() const
 	{
 		TArray<FDMXFixtureFunctionWithControlledGeometry> Result;
 
 		for (const FDMXFixtureMode& Mode : FixtureType.Modes)
 		{
-			FDMXUniqueModeGeometry UniqueModeGeometry(Mode);
-			const TSharedRef<FDMXGDTFGeometry>* GeometryPtr = UniqueModeGeometryToGeometryMap.Find(UniqueModeGeometry);
-
-			if (!ensureMsgf(GeometryPtr, TEXT("Unexpected cannot find Geometry for Mode %s."), *Mode.ModeName))
+			const FDMXUniqueModeGeometry UniqueModeGeometry(Mode);
+			const TSharedRef<FDMXGDTFGeometry>* BaseGeometryPtr = UniqueModeGeometryToGeometryMap.Find(UniqueModeGeometry);
+			if (!ensureMsgf(BaseGeometryPtr, TEXT("Unexpected cannot find Geometry for Mode %s."), *Mode.ModeName))
 			{
 				return Result;
 			}
 
+			const TSharedRef<FDMXGDTFGeometry> BaseGeometry = *BaseGeometryPtr;
+
+			const bool bWithPrimaryAxis = UniqueModeGeometry.bWithPan || UniqueModeGeometry.bWithTilt;
+			const TSharedPtr<FDMXGDTFGeometry> PrimaryAxisGeometry = bWithPrimaryAxis ? BaseGeometry->AxisArray[0] : nullptr;
+
+			const bool bWithSecondaryAxisGeometry = UniqueModeGeometry.bWithPan && UniqueModeGeometry.bWithTilt && PrimaryAxisGeometry.IsValid() && !PrimaryAxisGeometry->AxisArray.IsEmpty();
+			const TSharedPtr<FDMXGDTFGeometry> SecondaryAxisGeometry = bWithSecondaryAxisGeometry ? PrimaryAxisGeometry->AxisArray[0] : nullptr;
+			
+			const TSharedPtr<FDMXGDTFGeometry> BeamGeometry =
+				bWithSecondaryAxisGeometry && !SecondaryAxisGeometry->BeamArray.IsEmpty() ? SecondaryAxisGeometry->BeamArray[0] :
+				bWithPrimaryAxis && !PrimaryAxisGeometry->BeamArray.IsEmpty() ? PrimaryAxisGeometry->BeamArray[0] :
+				!BaseGeometry->BeamArray.IsEmpty() ? BaseGeometry->BeamArray[0] :
+				nullptr;
+
 			Algo::Transform(Mode.Functions, Result,
-				[&Mode, GeometryPtr](const FDMXFixtureFunction& Function)
+				[&Mode, &UniqueModeGeometry, &BaseGeometry, &PrimaryAxisGeometry, &SecondaryAxisGeometry, &BeamGeometry](const FDMXFixtureFunction& Function)
 				{
-					return FDMXFixtureFunctionWithControlledGeometry(&Mode, &Function, *GeometryPtr);
+					// Return axis geometries for pan and tilt
+					const bool bPanFunction = Function.Attribute == PanAttributeName;
+					const bool bTiltFunction = Function.Attribute == TiltAttributeName;
+					if (bPanFunction || bTiltFunction)
+					{
+						const bool bOnlyOneAxis = UniqueModeGeometry.bWithPan != UniqueModeGeometry.bWithTilt;
+						if (PrimaryAxisGeometry.IsValid() && (bOnlyOneAxis || bPanFunction))
+						{
+							return FDMXFixtureFunctionWithControlledGeometry(&Mode, &Function, PrimaryAxisGeometry.ToSharedRef());
+						}
+						else if (SecondaryAxisGeometry.IsValid())
+						{
+							return FDMXFixtureFunctionWithControlledGeometry(&Mode, &Function, SecondaryAxisGeometry.ToSharedRef());
+						}
+
+						ensureMsgf(0, TEXT("Unexpected could not find axis geometry for Pan or Tilt"));
+						return FDMXFixtureFunctionWithControlledGeometry(&Mode, &Function, BaseGeometry);
+					}
+
+					// Other attributes control the beam if available
+					if (BeamGeometry.IsValid())
+					{
+						return FDMXFixtureFunctionWithControlledGeometry(&Mode, &Function, BeamGeometry.ToSharedRef());
+					}
+					else
+					{
+						return FDMXFixtureFunctionWithControlledGeometry(&Mode, &Function, BaseGeometry);
+					}
 				});
 		}
 
@@ -187,14 +256,17 @@ namespace UE::DMX::GDTF
 			for (int32 CellID = 0; CellID < NumCells; CellID++)
 			{
 				const int32 DMXOffset = CellID * CellSize + 1;
-				const FName GeometryName = *FString::Printf(TEXT("Layer_%i"), CellID + 1);
+
+				const int32 Row = CellID / Mode.FixtureMatrixConfig.YCells + 1;
+				const int32 Column = CellID % Mode.FixtureMatrixConfig.YCells + 1;
+				const FName GeometryReferenceName = *FString::Printf(TEXT("Cell_%i_%i"), Row, Column);
 
 				const TSharedRef<FDMXGDTFGeometryReference> GeometryReference = MakeShared<FDMXGDTFGeometryReference>(OuterGeometry);
 				OuterGeometry->GeometryReferenceArray.Add(GeometryReference);
 
-				GeometryReference->Name = GeometryName;
+				GeometryReference->Name = GeometryReferenceName;
 				GeometryReference->Geometry = GetOrCreateMatrixBeamGeometryInstance()->Name;
-				GeometryReference->Model = TEXT("Layers");
+				GeometryReference->Model = CellsModelName;
 
 				const TSharedRef<FDMXGDTFGeometryBreak> Break = MakeShared<FDMXGDTFGeometryBreak>(GeometryReference);
 				Break->DMXBreak = 1;

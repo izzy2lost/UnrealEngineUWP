@@ -121,7 +121,7 @@ struct DMXRUNTIME_API FDMXFixtureFunction
 
 	/** This function's data type. Defines the used number of channels (bytes) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayPriority = "5"), Category = "Function Settings")
-	EDMXFixtureSignalFormat DataType;
+	EDMXFixtureSignalFormat DataType = EDMXFixtureSignalFormat::E8Bit;
 
 	/**
 	 * Least Significant Byte mode makes the individual bytes (channels) of the function be

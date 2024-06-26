@@ -3,11 +3,13 @@
 #include "MVR/DMXMVRGeneralSceneDescription.h"
 
 #include "Algo/AnyOf.h"
+#include "Algo/Find.h"
 #include "Algo/MaxElement.h"
+#include "EngineUtils.h"
+#include "Game/DMXComponent.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXImportGDTF.h"
-#include "Library/DMXGDTFAssetImportData.h"
 #include "Library/DMXLibrary.h"
 #include "MVR/DMXMVRAssetImportData.h"
 #include "MVR/Types/DMXMVRChildListNode.h"
@@ -76,8 +78,10 @@ void UDMXMVRGeneralSceneDescription::WriteDMXLibraryToGeneralSceneDescription(co
 	// Deprecated 5.5, renamed to WriteDMXLibrary
 	WriteDMXLibrary(DMXLibrary);
 }
+#endif // WITH_EDITOR
 
-void UDMXMVRGeneralSceneDescription::WriteDMXLibrary(const UDMXLibrary& DMXLibrary)
+#if WITH_EDITOR
+void UDMXMVRGeneralSceneDescription::WriteDMXLibrary(const UDMXLibrary& DMXLibrary, FDMXMVRGeneralSceneDescriptionWorldParams WorldParams)
 {
 	TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary.GetEntitiesTypeCast<UDMXEntityFixturePatch>();
 	Algo::Sort(FixturePatches, [](const UDMXEntityFixturePatch* FixturePatchA, const UDMXEntityFixturePatch* FixturePatchB)
@@ -87,6 +91,7 @@ void UDMXMVRGeneralSceneDescription::WriteDMXLibrary(const UDMXLibrary& DMXLibra
 
 			return AbsoluteAddressA <= AbsoluteAddressB;
 		});
+	FixturePatches.Remove(nullptr);
 
 	// Remove Fixture Nodes no longer defined in the DMX Library
 	TArray<FGuid> MVRFixtureUUIDsInUse;
@@ -94,6 +99,7 @@ void UDMXMVRGeneralSceneDescription::WriteDMXLibrary(const UDMXLibrary& DMXLibra
 	{
 		MVRFixtureUUIDsInUse.Add(FixturePatch->GetMVRFixtureUUID());
 	}
+
 	TArray<UDMXMVRFixtureNode*> FixtureNodes;
 	RootNode->GetFixtureNodes(FixtureNodes);
 	for (UDMXMVRFixtureNode* FixtureNode : FixtureNodes)
@@ -104,7 +110,7 @@ void UDMXMVRGeneralSceneDescription::WriteDMXLibrary(const UDMXLibrary& DMXLibra
 		}
 	}
 
-	// Create or update MVR Fixtures for each Fixture Patch's MVR Fixture UUIDs
+	// Write all Patches in library
 	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
 	{
 		if (FixturePatch)
@@ -112,61 +118,77 @@ void UDMXMVRGeneralSceneDescription::WriteDMXLibrary(const UDMXLibrary& DMXLibra
 			WriteFixturePatch(*FixturePatch);
 		}
 	}
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-UDMXMVRFixtureNode* UDMXMVRGeneralSceneDescription::WriteFixturePatch(const UDMXEntityFixturePatch& FixturePatch)
-{
-	const UDMXLibrary* DMXLibrary = FixturePatch.GetParentLibrary();
-	if (!DMXLibrary)
+	
+	// Only export the library if there's no world
+	if (!WorldParams.World)
 	{
-		return nullptr;
+		return;
 	}
 
-	const FGuid& MVRFixtureUUID = FixturePatch.GetMVRFixtureUUID();
-	const TObjectPtr<UDMXMVRParametricObjectNodeBase>* ParametricObjectNodePtr = RootNode->FindParametricObjectNodeByUUID(MVRFixtureUUID);
-	UDMXMVRFixtureNode* MVRFixtureNode = ParametricObjectNodePtr ? Cast<UDMXMVRFixtureNode>(*ParametricObjectNodePtr) : nullptr;
+	// Consider the world 
+	const TMap<const UDMXComponent*, const AActor*> DMXComponentToActorMap = GetDMXComponentToActorMap(WorldParams.World);
 
-	if (!MVRFixtureNode)
+	// Create fixtures and write transforms if desired
+	for (const UDMXEntityFixturePatch* FixturePatchInLibrary : FixturePatches)
 	{
-		UDMXMVRChildListNode& AnyChildList = RootNode->GetOrCreateFirstChildListNode();
-		MVRFixtureNode = AnyChildList.CreateParametricObject<UDMXMVRFixtureNode>();
+		FGuid MultiPatchUUID;
+		for (const TTuple<const UDMXComponent*, const AActor*>& DMXComponentToActorPair : DMXComponentToActorMap)
+		{
+			const UDMXEntityFixturePatch* FixturePatchInWorld = DMXComponentToActorPair.Key ? DMXComponentToActorPair.Key->GetFixturePatch() : nullptr;
+			const AActor* Actor = DMXComponentToActorPair.Value;
+			if (!FixturePatchInWorld || !Actor || FixturePatchInWorld != FixturePatchInLibrary)
+			{
+				continue;
+			}
 
-		MVRFixtureNode->Name = FixturePatch.Name;
-		MVRFixtureNode->UUID = MVRFixtureUUID;
-		MVRFixtureNode->FixtureID = FString::FromInt(FixturePatch.GetFixtureID());
+			if (!MultiPatchUUID.IsValid())
+			{
+				// Remember the MVR UUID of the first patch as multi patch UUID
+				MultiPatchUUID = FixturePatchInWorld->GetMVRFixtureUUID();
+
+				const TOptional<FTransform> OptionalTransform = WorldParams.bUseTransformsFromLevel ? Actor->GetTransform() : TOptional<FTransform>();
+				WriteFixturePatch(*FixturePatchInLibrary, OptionalTransform);
+			}
+			else if (WorldParams.bCreateMultiPatchFixtures)
+			{
+				const TOptional<FTransform> OptionalTransform = WorldParams.bUseTransformsFromLevel ? Actor->GetTransform() : TOptional<FTransform>();
+				WriteFixturePatch(*FixturePatchInLibrary, OptionalTransform, MultiPatchUUID);
+			}
+		}
 	}
-	check(MVRFixtureNode);
+	
+	// Update fixture nodes to contain newly added multi patch fixtures
+	RootNode->GetFixtureNodes(FixtureNodes); 
 
-	MVRFixtureNode->SetUniverseID(FixturePatch.GetUniverseID());
-	MVRFixtureNode->SetStartingChannel(FixturePatch.GetStartingChannel());
 
-	UDMXEntityFixtureType* FixtureType = FixturePatch.GetFixtureType();
-	const int32 ModeIndex = FixturePatch.GetActiveModeIndex();
-	bool bSetGDTFSpec = false;
-
-	if (FixtureType && FixtureType->Modes.IsValidIndex(ModeIndex))
+	// Remove patches not present in the world if desired
+	if (!WorldParams.bExportPatchesNotPresentInWorld)
 	{
-		// Instead refer to the generated file name
-		MVRFixtureNode->GDTFMode = FixtureType->Modes[ModeIndex].ModeName;
+		for (const UDMXEntityFixturePatch* FixturePatchInLibrary : FixturePatches)
+		{
+			const bool bPatchUsedInWorldAndLibrary = Algo::AnyOf(DMXComponentToActorMap, [FixturePatchInLibrary](const TTuple<const UDMXComponent*, const AActor*>& DMXComponentToActorPair)
+				{
+					return DMXComponentToActorPair.Key && DMXComponentToActorPair.Key->GetFixturePatch() == FixturePatchInLibrary;
+				});					
 
-		constexpr bool bWithExtension = false;
-		MVRFixtureNode->GDTFSpec = FixtureType->GetCleanGDTFFileNameSynchronous(bWithExtension);
+			if (!bPatchUsedInWorldAndLibrary && FixturePatchInLibrary)
+			{
+				for (UDMXMVRFixtureNode* FixtureNode : FixtureNodes)
+				{
+					if (!FixtureNode)
+					{
+						continue;
+					}
 
-		bSetGDTFSpec = true;
+					if (FixtureNode->UUID == FixturePatchInLibrary->GetMVRFixtureUUID() ||
+						(FixtureNode->MultiPatch.IsSet() && FixtureNode->MultiPatch.GetValue() == FixturePatchInLibrary->GetMVRFixtureUUID()))
+					{
+						RootNode->RemoveParametricObjectNode(FixtureNode);
+					}
+				}
+			}
+		}
 	}
-
-	if (!bSetGDTFSpec)
-	{
-		// Don't set a mode when there's no GDTF
-		MVRFixtureNode->GDTFMode = TEXT("");
-		MVRFixtureNode->GDTFSpec = TEXT("");
-	}
-
-	SanetizeFixtureNode(*MVRFixtureNode);
-
-	return MVRFixtureNode;
 }
 #endif // WITH_EDITOR
 
@@ -208,37 +230,134 @@ TSharedPtr<FXmlFile> UDMXMVRGeneralSceneDescription::CreateXmlFile() const
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR
+void UDMXMVRGeneralSceneDescription::WriteFixturePatch(const UDMXEntityFixturePatch& FixturePatch, const TOptional<FTransform>& OptionalTransform, const FGuid& MultiPatchUUID)
+{
+	TArray<UDMXMVRFixtureNode*> FixtureNodes;
+	RootNode->GetFixtureNodes(FixtureNodes);
+
+	UDMXMVRFixtureNode* MVRFixtureNode = nullptr;
+	const UDMXMVRFixtureNode* const* ParentMultiPatchFixtureNodePtr = [&FixtureNodes, &MultiPatchUUID]() -> const UDMXMVRFixtureNode* const*
+		{
+			if (MultiPatchUUID.IsValid())
+			{
+				const UDMXMVRFixtureNode* const* ResultPtr = Algo::FindByPredicate(FixtureNodes, [&MultiPatchUUID](const UDMXMVRFixtureNode* Other)
+					{
+						return Other->UUID == MultiPatchUUID;
+					});
+				ensureMsgf(ResultPtr, TEXT("MultiPatch UUID provided but no corresponding node can be found"));
+
+				return ResultPtr;
+			}
+			
+			return nullptr;
+		}(); 
+
+	if (ParentMultiPatchFixtureNodePtr)
+	{
+		// Create a multipatch fixture
+		UDMXMVRChildListNode& AnyChildList = RootNode->GetOrCreateFirstChildListNode();
+		MVRFixtureNode = AnyChildList.CreateParametricObject<UDMXMVRFixtureNode>();
+
+		MVRFixtureNode->Name = FixturePatch.Name;
+		MVRFixtureNode->UUID = FGuid::NewGuid();
+		MVRFixtureNode->MultiPatch = (*ParentMultiPatchFixtureNodePtr)->UUID;
+	}
+	else
+	{
+		const FGuid& MVRFixtureUUID = FixturePatch.GetMVRFixtureUUID();
+
+		// Find an existing fixture
+		const TObjectPtr<UDMXMVRParametricObjectNodeBase>* ParametricObjectNodePtr = RootNode->FindParametricObjectNodeByUUID(MVRFixtureUUID);
+		MVRFixtureNode = ParametricObjectNodePtr ? Cast<UDMXMVRFixtureNode>(*ParametricObjectNodePtr) : nullptr;
+
+		if (!MVRFixtureNode)
+		{
+			// Create a new fixture
+			UDMXMVRChildListNode& AnyChildList = RootNode->GetOrCreateFirstChildListNode();
+			MVRFixtureNode = AnyChildList.CreateParametricObject<UDMXMVRFixtureNode>();
+
+			MVRFixtureNode->Name = FixturePatch.Name;
+			MVRFixtureNode->Name = FixturePatch.Name;
+			MVRFixtureNode->UUID = MVRFixtureUUID;
+			MVRFixtureNode->FixtureID = FString::FromInt(FixturePatch.GetFixtureID());
+		}
+	}
+	check(MVRFixtureNode)
+
+	if(OptionalTransform.IsSet())
+	{
+		MVRFixtureNode->SetTransformAbsolute(OptionalTransform.GetValue());
+	}
+
+	MVRFixtureNode->SetUniverseID(FixturePatch.GetUniverseID());
+	MVRFixtureNode->SetStartingChannel(FixturePatch.GetStartingChannel());
+
+	UDMXEntityFixtureType* FixtureType = FixturePatch.GetFixtureType();
+	const int32 ModeIndex = FixturePatch.GetActiveModeIndex();
+	bool bSetGDTFSpec = false;
+
+	if (FixtureType && FixtureType->Modes.IsValidIndex(ModeIndex))
+	{
+		// Instead refer to the generated file name
+		MVRFixtureNode->GDTFMode = FixtureType->Modes[ModeIndex].ModeName;
+
+		constexpr bool bWithExtension = false;
+		MVRFixtureNode->GDTFSpec = FixtureType->GetCleanGDTFFileNameSynchronous(bWithExtension);
+
+		bSetGDTFSpec = true;
+	}
+
+	if (!bSetGDTFSpec)
+	{
+		// Don't set a mode when there's no GDTF
+		MVRFixtureNode->GDTFMode = TEXT("");
+		MVRFixtureNode->GDTFSpec = TEXT("");
+	}
+
+	SanetizeFixtureNode(*MVRFixtureNode);
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
 void UDMXMVRGeneralSceneDescription::SanetizeFixtureNode(UDMXMVRFixtureNode& FixtureNode)
 {
 	TArray<UDMXMVRFixtureNode*> FixtureNodes;
 	GetFixtureNodes(FixtureNodes);
 
-	const bool bInvalidFixtureID = Algo::AnyOf(FixtureNodes, [&FixtureNode](const UDMXMVRFixtureNode* Other)
-		{
-			return
-				Other != &FixtureNode &&
-				Other->FixtureID == FixtureNode.FixtureID;
-		});
-	if (bInvalidFixtureID)
+	if (FixtureNode.MultiPatch.IsSet())
 	{
-		const UDMXMVRFixtureNode* const* MaxFixtureNodePtr = Algo::MaxElementBy(FixtureNodes, [](const UDMXMVRFixtureNode* FixtureNode)
-			{
-				int32 IntegralFixtureID;
-				return LexTryParseString(IntegralFixtureID, *FixtureNode->FixtureID) ? IntegralFixtureID : 1;
-			});
-
-		FixtureNode.FixtureID = MaxFixtureNodePtr ? (*MaxFixtureNodePtr)->FixtureID : TEXT("1");
+		FixtureNode.FixtureID = TEXT("");
+		FixtureNode.CustomId.Reset();
 	}
-
-	const bool bInvalidMVRUUID = Algo::AnyOf(FixtureNodes, [&FixtureNode](const UDMXMVRFixtureNode* Other)
-		{
-			return
-				Other != &FixtureNode &&
-				Other->UUID == FixtureNode.UUID;
-		});
-	if (bInvalidMVRUUID)
+	else
 	{
-		FixtureNode.UUID = FGuid::NewGuid();
+		const bool bInvalidFixtureID = Algo::AnyOf(FixtureNodes, [&FixtureNode](const UDMXMVRFixtureNode* Other)
+			{
+				return
+					Other != &FixtureNode &&
+					Other->FixtureID == FixtureNode.FixtureID;
+			});
+		if (bInvalidFixtureID)
+		{
+			const UDMXMVRFixtureNode* const* MaxFixtureNodePtr = Algo::MaxElementBy(FixtureNodes, [](const UDMXMVRFixtureNode* FixtureNode)
+				{
+					int32 IntegralFixtureID;
+					return LexTryParseString(IntegralFixtureID, *FixtureNode->FixtureID) ? IntegralFixtureID : 1;
+				});
+
+			FixtureNode.FixtureID = MaxFixtureNodePtr ? (*MaxFixtureNodePtr)->FixtureID : TEXT("1");
+		}
+
+		const bool bInvalidMVRUUID = Algo::AnyOf(FixtureNodes, [&FixtureNode](const UDMXMVRFixtureNode* Other)
+			{
+				return
+					Other != &FixtureNode &&
+					Other->UUID == FixtureNode.UUID;
+			});
+		if (bInvalidMVRUUID)
+		{
+			FixtureNode.UUID = FGuid::NewGuid();
+		}
 	}
 }
 #endif // WITH_EDITOR
@@ -249,6 +368,48 @@ bool UDMXMVRGeneralSceneDescription::ParseGeneralSceneDescriptionXml(const TShar
 	checkf(RootNode, TEXT("Unexpected: MVR General Scene Description Root Node is invalid."));
 
 	return RootNode->InitializeFromGeneralSceneDescriptionXml(GeneralSceneDescriptionXml);
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+TMap<const UDMXComponent*, const AActor*> UDMXMVRGeneralSceneDescription::GetDMXComponentToActorMap(const UWorld* World) const
+{
+	TMap<const UDMXComponent*, const AActor*> DMXComponentToActorMap;
+	if (!World)
+	{
+		return DMXComponentToActorMap;
+	}
+
+	for (TActorIterator<AActor> It(World, AActor::StaticClass()); It; ++It)
+	{
+		const AActor* Actor = *It;
+		if (!Actor)
+		{
+			continue;
+		}
+
+		const TSet<UActorComponent*> Components = Actor->GetComponents();
+
+		TArray<const UDMXComponent*> DMXComponents;
+		Algo::TransformIf(Components, DMXComponents,
+			[](const UActorComponent* Component)
+			{
+				return Component &&
+					Component->IsA(UDMXComponent::StaticClass()) &&
+					CastChecked<UDMXComponent>(Component)->GetFixturePatch();
+			},
+			[](const UActorComponent* Component)
+			{
+				return CastChecked<UDMXComponent>(Component);
+			});
+
+		for (const UDMXComponent* DMXComponent : DMXComponents)
+		{
+			DMXComponentToActorMap.Add(TTuple<const UDMXComponent*, const AActor*>(DMXComponent, Actor));
+		}
+	}
+
+	return DMXComponentToActorMap;
 }
 #endif // WITH_EDITOR
 

@@ -13,6 +13,7 @@ class UDMXEntityFixtureType;
 namespace UE::DMX::GDTF
 {
 	struct FDMXFixtureFunctionWithControlledGeometry;
+	struct FDMXFixtureModeWithBaseGeometry;
 	class FDMXGDTFAttributeDefinitions;
 	class FDMXGDTFDMXChannel;
 	class FDMXGDTFDMXMode;
@@ -59,6 +60,9 @@ namespace UE::DMX::GDTF
 
 		/** Creates a Channel Function for the Logical Channel, using an Unreal Cell Attribute as the input */
 		void CrateChannelFunction(const FDMXFixtureCellAttribute& UnrealCellAttribute, const TSharedRef<FDMXGDTFLogicalChannel>& GDTFLogicalChannel, const FString& GDTFAttribute);
+
+		/** Map of Modes with their base geometry */
+		TArray<FDMXFixtureModeWithBaseGeometry> ModesWithBaseGeometry;
 
 		/** Map of Functions with the geometry they control */
 		TArray<FDMXFixtureFunctionWithControlledGeometry> FunctionsWithControlledGeometry;

@@ -47,6 +47,16 @@ namespace UE::DMX::GDTF
 		};
 	}
 
+	/** A struct that links a mode to its base geometry */
+	struct FDMXFixtureModeWithBaseGeometry
+	{
+		FDMXFixtureModeWithBaseGeometry(const FDMXFixtureMode* InModePtr, TSharedRef<const FDMXGDTFGeometry> InBaseGeometry);
+
+		const FDMXFixtureMode* ModePtr = nullptr;
+		const TSharedRef<const FDMXGDTFGeometry> BaseGeometry;
+	};
+
+	/** A struct that links a function to its controlled geometry */
 	struct FDMXFixtureFunctionWithControlledGeometry
 	{
 		FDMXFixtureFunctionWithControlledGeometry(const FDMXFixtureMode* InModePtr, const FDMXFixtureFunction* InFunctionPtr, TSharedRef<const FDMXGDTFGeometry> InControlledGeometry);
@@ -64,15 +74,23 @@ namespace UE::DMX::GDTF
 
 	public:
 		FDMXFixtureTypeToGDTFGeometryFactory(const UDMXEntityFixtureType& InFixtureType, const TSharedRef<FDMXGDTFGeometryCollect>& InBaseGeometryCollect);
-		
+
+		/** Returns an array of functions with their linked geometry */
+		TArray<FDMXFixtureModeWithBaseGeometry> GetModesWithBaseGeometry() const;
+
 		/** Returns an array of functions with their linked geometry */
 		TArray<FDMXFixtureFunctionWithControlledGeometry> GetFunctionsWithControlledGeometry() const;
+
+		static const FName CellsModelName;
 
 		static const FName BaseGeometryName;
 		static const FName PanGeometryName;
 		static const FName HeadGeometryName;
 		static const FName BeamGeometryName;
 		static const FName MatrixBeamGeometryName;
+
+		static const FName PanAttributeName;
+		static const FName TiltAttributeName;
 
 	private:
 		/** Builds all geometries */

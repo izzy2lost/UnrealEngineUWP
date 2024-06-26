@@ -44,7 +44,7 @@ namespace UE::DMX::GDTF
 		 * point is Models Collect. If model is not set, the model is taken from
 		 * the referenced geometry.
 		 */
-		FString Model;
+		FName Model;
 
 		/**
 		 * As children, the Geometry Type Reference has a list of a breaks. The count of the children depends on the

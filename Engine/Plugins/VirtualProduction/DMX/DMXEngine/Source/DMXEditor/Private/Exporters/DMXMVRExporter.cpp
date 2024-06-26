@@ -2,7 +2,6 @@
 
 #include "Exporters/DMXMVRExporter.h"
 
-#include "Algo/AnyOf.h"
 #include "DesktopPlatformModule.h"
 #include "DMXEditorLog.h"
 #include "DMXEditorSettings.h"
@@ -29,7 +28,6 @@
 #include "Misc/Paths.h"
 #include "MVR/DMXMVRAssetImportData.h"
 #include "MVR/DMXMVRGeneralSceneDescription.h"
-#include "MVR/Types/DMXMVRFixtureNode.h"
 #include "Subsystems/UnrealEditorSubsystem.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/SDMXMVRExportOptions.h"
@@ -111,22 +109,23 @@ namespace UE::DMX
 				return SaveFilenames[0];
 			}();
 
+		// Get Export options
+		UUnrealEditorSubsystem* UnrealEditorSubsystem = GEditor->GetEditorSubsystem<UUnrealEditorSubsystem>();
+		const UDMXMVRExportOptions* ExportOptions = GetDefault<UDMXMVRExportOptions>();
+
+		FDMXMVRGeneralSceneDescriptionWorldParams WorldParams;
+		WorldParams.World = UnrealEditorSubsystem->GetEditorWorld();
+		WorldParams.bCreateMultiPatchFixtures = ExportOptions->bCreateMultiPatchFixtures;
+		WorldParams.bExportPatchesNotPresentInWorld = ExportOptions->bExportPatchesNotPresentInWorld;
+		WorldParams.bUseTransformsFromLevel = ExportOptions->bUseTransformsFromLevel;
+
 		// Create a copy of the library's general scene description, so transforms exported aren't written to the dmx library
-		DMXLibrary->UpdateGeneralSceneDescription();
 		UDMXMVRGeneralSceneDescription* TempGeneralSceneDescription = DuplicateObject<UDMXMVRGeneralSceneDescription>(DMXLibrary->GetLazyGeneralSceneDescription(), GetTransientPackage());
+		TempGeneralSceneDescription->WriteDMXLibrary(*DMXLibrary, WorldParams);
 		if (!ensureAlwaysMsgf(TempGeneralSceneDescription, TEXT("Trying to export DMX Library '%s' as MVR file, but its General Scene Description is invalid."), *DMXLibrary->GetName()))
 		{
 			OutErrorReason = FText::Format(LOCTEXT("MVRExportGeneralSceneDescriptionInvalidReason", "DMX Library is invalid. Cannot export {0}."), FText::FromString(OutFilePathAndName));
 			return;
-		}
-
-		const UDMXMVRExportOptions* ExportOptions = GetDefault<UDMXMVRExportOptions>();
-		if (ExportOptions->bConsiderLevel)
-		{
-			const TMap<const UDMXComponent*, const AActor*> DMXComponentToActorMap = GetDMXComponentToActorMap();
-
-			TryRemoveMVRFixturesNotPresentInLevel(TempGeneralSceneDescription, DMXLibrary, DMXComponentToActorMap);
-			TryUpdateFixtureNodesFromLevel(TempGeneralSceneDescription, DMXComponentToActorMap, ExportOptions->bUseTransformsFromLevel);
 		}
 
 		const TSharedRef<FDMXZipper> Zip = MakeShared<FDMXZipper>();
@@ -423,83 +422,6 @@ namespace UE::DMX
 						Zip->AddFile(SourceFileName, SourceFileData);
 					}
 				}
-			}
-		}
-	}
-
-	void FDMXMVRExporter::TryRemoveMVRFixturesNotPresentInLevel(UDMXMVRGeneralSceneDescription* GeneralSceneDescription, UDMXLibrary* DMXLibrary, const TMap<const UDMXComponent*, const AActor*>& DMXComponentToActorMap)
-	{
-		if (!ensureMsgf(GeneralSceneDescription && DMXLibrary, TEXT("Trying to write MVR Fixture Transforms from Level to MVR General Scene Description, but General Scene Description or DMX Library are invalid")))
-		{
-			return;
-		}
-
-		const UDMXMVRExportOptions* ExportOptions = GetDefault<UDMXMVRExportOptions>();
-		if (ExportOptions->bExportPatchesNotPresentInLevel)
-		{
-			return;
-		}
-
-		const TArray<UDMXEntityFixturePatch*> FixturePatchesInLibrary = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
-
-		TArray<const UDMXEntityFixturePatch*> FixturePatchesToRemove;
-		Algo::TransformIf(FixturePatchesInLibrary, FixturePatchesToRemove,
-			[&DMXComponentToActorMap](const UDMXEntityFixturePatch* FixturePatch)
-			{
-				const bool bPatchExistsInLevel = Algo::AnyOf(DMXComponentToActorMap, [FixturePatch](const TTuple<const UDMXComponent*, const AActor*>& DMXComponentToActorPair)
-					{
-						const UDMXComponent* DMXComponent = DMXComponentToActorPair.Key;
-						return
-							DMXComponent &&
-							FixturePatch &&
-							DMXComponent->GetFixturePatch() == FixturePatch;
-					});
-
-				return !bPatchExistsInLevel;
-			},
-			[](const UDMXEntityFixturePatch* FixturePatch)
-			{
-				return FixturePatch;
-			});
-
-		for (const UDMXEntityFixturePatch* FixturePatch : FixturePatchesToRemove)
-		{
-			GeneralSceneDescription->RemoveFixtureNode(FixturePatch->GetMVRFixtureUUID());
-		}
-	}
-
-	void FDMXMVRExporter::TryUpdateFixtureNodesFromLevel(UDMXMVRGeneralSceneDescription* GeneralSceneDescription, const TMap<const UDMXComponent*, const AActor*>& DMXComponentToActorMap, bool bUseTransformsFromLevel)
-	{
-		if (!ensureMsgf(GeneralSceneDescription, TEXT("Trying to write MVR Fixture Transforms from Level to MVR General Scene Description, but General Scene Description are invalid")))
-		{
-			return;
-		}		
-		
-		const UDMXMVRExportOptions* ExportOptions = GetDefault<UDMXMVRExportOptions>();
-
-		TArray<UDMXMVRFixtureNode*> FixtureNodes;
-		GeneralSceneDescription->GetFixtureNodes(FixtureNodes);
-
-		TSet<FGuid> UsedMVRUUIDs;
-		for (const TTuple<const UDMXComponent*, const AActor*>& DMXComponentToActorPair : DMXComponentToActorMap)
-		{
-			const UDMXEntityFixturePatch* FixturePatch = DMXComponentToActorPair.Key->GetFixturePatch();
-			const AActor* Actor = DMXComponentToActorPair.Value;
-			if (!FixturePatch || !Actor || UsedMVRUUIDs.Contains(FixturePatch->GetMVRFixtureUUID()))
-			{
-				continue;
-			}
-
-			UDMXMVRFixtureNode* FixtureNode = GeneralSceneDescription->WriteFixturePatch(*FixturePatch);
-			if (!FixtureNode)
-			{
-				continue;
-			}
-
-			UsedMVRUUIDs.Add(FixtureNode->UUID);
-			if (ExportOptions->bUseTransformsFromLevel)
-			{
-				FixtureNode->SetTransformAbsolute(Actor->GetTransform());
 			}
 		}
 	}
