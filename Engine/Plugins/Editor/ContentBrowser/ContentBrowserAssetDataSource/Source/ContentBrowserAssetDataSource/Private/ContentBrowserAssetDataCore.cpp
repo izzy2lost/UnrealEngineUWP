@@ -1402,19 +1402,11 @@ void AppendAssetObjectPath(const FAssetData& AssetData, FString& InOutStr)
 
 void AppendAssetPackageName(const FAssetData& AssetData, FString& InOutStr)
 {
-	UPackage* Package = AssetData.GetPackage();
-	if (InOutStr.IsEmpty())
+	if (!InOutStr.IsEmpty())
 	{
-		InOutStr = Package->GetPathName();
+		InOutStr += LINE_TERMINATOR;
 	}
-	else
-	{
-		if (InOutStr.Len() > 0)
-		{
-			InOutStr += LINE_TERMINATOR;
-		}
-		InOutStr += Package->GetPathName();
-	}
+	InOutStr += AssetData.PackageName.ToString();
 }
 
 bool AppendAssetFolderItemReference(IAssetRegistry* InAssetRegistry, const FContentBrowserAssetFolderItemDataPayload& InFolderPayload, FString& InOutStr)
