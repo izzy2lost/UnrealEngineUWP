@@ -263,6 +263,7 @@ namespace UnsyncUI
 		{
 			return (Build.Build.Path == otherJob.Build.Build.Path)
 				&& (Build.Platform == otherJob.Build.Platform)
+				&& (Build.Flavor == otherJob.Build.Flavor)
 				&& (DstPathBase == otherJob.DstPathBase);
 		}
 
