@@ -12,7 +12,6 @@ using EpicGames.Redis;
 using HordeServer.Server;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace HordeServer.Logs
