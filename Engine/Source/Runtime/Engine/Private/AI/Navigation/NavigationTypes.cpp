@@ -15,7 +15,7 @@
 
 DEFINE_STAT(STAT_Navigation_MetaAreaTranslation);
 
-static const uint32 MAX_NAV_SEARCH_NODES = 2048;
+static constexpr uint32 MAX_NAV_SEARCH_NODES = 2048;
 
 namespace FNavigationSystem
 {
@@ -76,20 +76,6 @@ namespace FNavigationSystem
 	}	
 }
 
-FNavigationDirtyArea::FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject /*= nullptr*/)
-	: Bounds(InBounds)
-	, Flags(InFlags)
-	, OptionalSourceObject(InOptionalSourceObject)
-{
-#if !NO_LOGGING
-	if (!Bounds.IsValid || Bounds.ContainsNaN())
-	{
-		UE_LOG(LogNavigation, Warning, TEXT("Creation of FNavigationDirtyArea with invalid bounds%s. Bounds: %s, SourceObject: %s."),
-			Bounds.ContainsNaN() ? TEXT(" (contains NaN)") : TEXT(""), *Bounds.ToString(), *GetFullNameSafe(OptionalSourceObject.Get()));
-	}
-#endif //!NO_LOGGING	
-}
-
 //----------------------------------------------------------------------//
 // FNavigationQueryFilter
 //----------------------------------------------------------------------//
@@ -141,12 +127,13 @@ FString FNavDataConfig::GetDescription() const
 	return FString::Printf(TEXT("Name %s class %s agent radius %.1f")
 		, *Name.ToString(), *NavDataClass.ToString(), AgentRadius);
 }
+
 //----------------------------------------------------------------------//
 // FNavigationRelevantData
 //----------------------------------------------------------------------//
 bool FNavigationRelevantData::FCollisionDataHeader::IsValid(const uint8* RawData, int32 RawDataSize)
 {
-	const int32 HeaderSize = sizeof(FCollisionDataHeader);
+	constexpr int32 HeaderSize = sizeof(FCollisionDataHeader);
 	return (RawDataSize == 0) || ((RawDataSize >= HeaderSize) && (((const FCollisionDataHeader*)RawData)->DataSize == RawDataSize));
 }
 
@@ -197,7 +184,7 @@ FNavigationQueryFilter::FNavigationQueryFilter(const FNavigationQueryFilter& Sou
 FNavigationQueryFilter::FNavigationQueryFilter(const FNavigationQueryFilter* Source)
 	: MaxSearchNodes(DefaultMaxSearchNodes)
 {
-	if (Source != NULL)
+	if (Source != nullptr)
 	{
 		Assign(*Source);
 	}
@@ -220,7 +207,7 @@ FNavigationQueryFilter& FNavigationQueryFilter::operator=(const FNavigationQuery
 
 void FNavigationQueryFilter::Assign(const FNavigationQueryFilter& Source)
 {
-	if (Source.GetImplementation() != NULL)
+	if (Source.GetImplementation() != nullptr)
 	{
 		QueryFilterImpl = Source.QueryFilterImpl;
 	}
@@ -361,7 +348,7 @@ FNavLinkId FNavLinkId::GenerateUniqueId(FNavLinkAuxiliaryId AuxiliaryId, FGuid A
 	// Apply NavLinkIdBitMask to differentiate Legacy Ids (that do not have the mask set).
 	const uint64 UniqueId = UE::Navigation::NavLinkIdHelpers::Private::MakeIdFromGUID(AuxiliaryId, ActorInstanceGuid) | NavLinkIdBitMask;
 
-	UE_LOG(LogNavLink, VeryVerbose, TEXT("%hs id: %u."), __FUNCTION__, UniqueId);
+	UE_LOG(LogNavLink, VeryVerbose, TEXT("%hs id: %llu."), __FUNCTION__, UniqueId);
 
 	return FNavLinkId(UniqueId);
 }

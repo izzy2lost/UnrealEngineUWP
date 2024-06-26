@@ -11,7 +11,10 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "GameFramework/Actor.h"
 #include "AI/Navigation/NavDataGatheringMode.h"
-#endif
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "NavigationDirtyArea.h"
+#endif //UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "NavigationTypes.generated.h"
 
 #define INVALID_NAVQUERYID uint32(0)
@@ -79,7 +82,7 @@ namespace ENavigationOptionFlag
 
 namespace ENavigationDirtyFlag
 {
-	enum Type
+	enum Type : uint8
 	{
 		Geometry			= (1 << 0),
 		DynamicModifier		= (1 << 1),
@@ -89,27 +92,6 @@ namespace ENavigationDirtyFlag
 		All				= Geometry | DynamicModifier,		// all rebuild steps here without additional flags
 	};
 }
-
-struct FNavigationDirtyArea
-{
-	FBox Bounds;
-	int32 Flags;
-	TWeakObjectPtr<UObject> OptionalSourceObject;
-	
-	FNavigationDirtyArea() : Flags(0) {}
-	ENGINE_API FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject = nullptr);
-	FORCEINLINE bool HasFlag(ENavigationDirtyFlag::Type Flag) const { return (Flags & Flag) != 0; }
-
-	bool operator==(const FNavigationDirtyArea& Other) const 
-	{ 
-		return Flags == Other.Flags && OptionalSourceObject == Other.OptionalSourceObject && Bounds.Equals(Other.Bounds); 
-	}
-	
-	bool operator!=( const FNavigationDirtyArea& Other) const
-	{
-		return !(*this == Other);
-	}
-};
 
 UENUM()
 enum class ENavDataGatheringModeConfig : uint8

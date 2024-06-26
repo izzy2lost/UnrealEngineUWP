@@ -11,7 +11,7 @@
 #include "UObject/UnrealNames.h"
 
 class UObject;
-
+struct FNavigationDirtyArea;
 
 NAVIGATIONSYSTEM_API DECLARE_LOG_CATEGORY_EXTERN(LogNavigationDirtyArea, Warning, All);
 

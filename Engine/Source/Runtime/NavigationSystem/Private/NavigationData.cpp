@@ -2,16 +2,16 @@
 
 #include "NavigationData.h"
 
-#include "AssetCompilingManager.h"
-#include "EngineGlobals.h"
-#include "AI/Navigation/NavAgentInterface.h"
-#include "Components/PrimitiveComponent.h"
 #include "AI/NavDataGenerator.h"
-#include "NavigationSystem.h"
-#include "NavFilters/NavigationQueryFilter.h"
+#include "AI/Navigation/NavAgentInterface.h"
+#include "AI/Navigation/NavAreaBase.h"
+#include "AI/Navigation/NavigationDirtyArea.h"
+#include "AssetCompilingManager.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/Engine.h"
 #include "NavAreas/NavArea.h"
-#include "AI/Navigation/NavAreaBase.h"
+#include "NavFilters/NavigationQueryFilter.h"
+#include "NavigationSystem.h"
 #include "VisualLogger/VisualLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NavigationData)

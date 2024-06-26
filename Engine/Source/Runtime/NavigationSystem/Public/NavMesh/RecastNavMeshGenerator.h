@@ -3,21 +3,24 @@
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CoreMinimal.h"
-#endif
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "Stats/Stats.h"
-#include "AI/NavigationSystemBase.h"
-#include "AI/Navigation/NavigationTypes.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "AI/NavDataGenerator.h"
+#include "AI/Navigation/NavigationDirtyArea.h"
 #include "AI/Navigation/NavigationInvokerPriority.h"
 #include "AI/Navigation/NavigationRelevantData.h"
-#include "EngineDefines.h"
+#include "AI/Navigation/NavigationTypes.h"
 #include "AI/NavigationModifier.h"
-#include "NavigationOctree.h"
-#include "NavMesh/RecastNavMesh.h"
+#include "AI/NavigationSystemBase.h"
 #include "Async/AsyncWork.h"
-#include "UObject/GCObject.h"
-#include "AI/NavDataGenerator.h"
-#include "NavMesh/RecastHelpers.h"
+#include "EngineDefines.h"
 #include "NavDebugTypes.h"
+#include "NavigationOctree.h"
+#include "NavMesh/RecastHelpers.h"
+#include "NavMesh/RecastNavMesh.h"
+#include "UObject/GCObject.h"
 
 #if WITH_RECAST
 

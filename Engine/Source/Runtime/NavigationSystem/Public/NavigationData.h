@@ -28,6 +28,7 @@ class INavLinkCustomInterface;
 class UNavArea;
 class UPrimitiveComponent;
 class UNavigationQueryFilter;
+struct FNavigationDirtyArea;
 
 USTRUCT()
 struct FSupportedAreaData

@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NavigationDirtyAreasController.h"
+#include "AI/Navigation/NavigationDirtyArea.h"
+#include "AI/Navigation/NavigationDirtyElement.h"
 #include "NavigationData.h"
 #include "NavigationSystem.h"
 #include "VisualLogger/VisualLogger.h"
-#include "AI/Navigation/NavigationDirtyElement.h"
 
 DEFINE_LOG_CATEGORY(LogNavigationDirtyArea);
 
