@@ -21,7 +21,8 @@ BufferDescriptor T_FlatColorTexture::GetFlatColorDesc(FString name, BufferFormat
 	Desc.ItemsPerPoint = 4;
 	Desc.Width = 1;
 	Desc.Height = 1;
-
+	Desc.bMipMaps = true;
+	
 	return Desc;
 }
 
@@ -39,7 +40,8 @@ TiledBlobPtr T_FlatColorTexture::Create(MixUpdateCyclePtr InCycle, BufferDescrip
 	Desc.Height = InCycle->GetMix()->GetNumYTiles();
 	Desc.Format = BufferFormat::Byte;
 	Desc.ItemsPerPoint = 4;
-
+	Desc.bMipMaps = true;
+	
 	BufferDescriptor OutputDesc = BufferDescriptor::Combine(Desc, DesiredOutputDesc);
 	if (OutputDesc.Format == BufferFormat::Byte) // Byte size automatically enable sRGB
 	{
@@ -52,7 +54,8 @@ TiledBlobPtr T_FlatColorTexture::Create(MixUpdateCyclePtr InCycle, BufferDescrip
 		 ->AddArg(WithUnbounded(ARG_INT(OutputDesc.ItemsPerPoint,"ItemsPerPoint")))
 		 ->AddArg(WithUnbounded(ARG_INT(OutputDesc.Height, "Height")))
 		 ->AddArg(WithUnbounded(ARG_INT(OutputDesc.Width, "Width")))
-		 ->AddArg(WithUnbounded(ARG_INT((int32)OutputDesc.Format, "Format")));
+		 ->AddArg(WithUnbounded(ARG_INT((int32)OutputDesc.Format, "Format")))
+		 ->AddArg(WithUnbounded(ARG_INT((int32)OutputDesc.bMipMaps, "MipMaps")));
 
 	auto JobResult = RenderJob->InitResult(SimpleColor->GetName(), &OutputDesc);
 	
