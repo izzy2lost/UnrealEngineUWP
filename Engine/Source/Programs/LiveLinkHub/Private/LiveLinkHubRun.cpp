@@ -25,6 +25,17 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 {
 	FTaskTagScope Scope(ETaskTag::EGameThread);
 
+#if !(UE_BUILD_SHIPPING)
+	if (FParse::Param(CommandLine, TEXT("WaitForDebugger")))
+	{
+		while (!FPlatformMisc::IsDebuggerPresent())
+		{
+			FPlatformProcess::Sleep(0.1f);
+		}
+		UE_DEBUG_BREAK();
+	}
+#endif
+
 #if WITH_ASSET_LOADING_AUDIT
 	FCoreDelegates::OnSyncLoadPackage.AddLambda([](const FString& PackageName)
 		{
@@ -83,7 +94,7 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 	GIsSilent = true;
 
 	// Start up the main loop, adding some extra command line arguments:
-	const int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("LiveLinkHubCommandlet -Messaging -DDC=NoShared -NoShaderCompile")));
+	const int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("-RUN=LiveLinkHubCommandlet -Messaging -DDC=NoShared -NoShaderCompile")));
 
 	if (Result != 0)
 	{

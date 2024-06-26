@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using UnrealBuildTool;
-using System.Collections.Generic;
 using EpicGames.Core;
+using UnrealBuildTool;
+
 
 [SupportedPlatforms(UnrealPlatformClass.Desktop)]
 public class LiveLinkHubTarget : TargetRules
 {
 	// Whether this should be built as a monolithic executable.
+	// FIXME?: This shadows an existing UBT switch, but the default is flipped.
 	[CommandLine("-Monolithic")]
 	public bool bMonolithic = false;
 
@@ -36,7 +37,7 @@ public class LiveLinkHubTarget : TargetRules
 		
 		// These plugins are required for running LiveLinkHub. 
 		// They may be a direct dependency or a dependency of one of our plugins.
-		AdditionalPlugins.AddRange(new string[]
+		EnablePlugins.AddRange(new string[]
 		{
 			"LiveLink",
 			"LiveLinkHub",
@@ -48,10 +49,11 @@ public class LiveLinkHubTarget : TargetRules
 			"ProceduralMeshComponent", // Needed by LensComponent
 			"PropertyAccessEditor",
 			"PythonScriptPlugin",
-			"UdpMessaging"
+			"UdpMessaging",
+			"CameraCalibrationCore",
+			"AppleARKitFaceSupport",
 		});
-		
-		
+
 		if (bEnableThirdPartyPlugins)
 		{
 			OptionalPlugins.AddRange(new string[]
@@ -59,7 +61,9 @@ public class LiveLinkHubTarget : TargetRules
 				"LiveLinkViconDataStream",
 				"MocopiLiveLink",
 				"PoseAILiveLink",
-				"Smartsuit"
+				"Smartsuit",
+				//"LiveLinkMVNPlugin",
+				//"OptitrackLiveLink",
 			});
 		}
 
@@ -70,11 +74,6 @@ public class LiveLinkHubTarget : TargetRules
 				"CaptureManager"
 			});
 		}
-
-		OptionalPlugins.AddRange(new string[]
-		{
-			"AppleARKitFaceSupport"
-		});
 
 		bCompileAgainstCoreUObject = true;
 		bCompileAgainstEngine = true;
@@ -103,6 +102,9 @@ public class LiveLinkHubTarget : TargetRules
 
 		bEnableTrace = true;
 
+		// FIXME?: Without this, staging fails on several files in TargetPlatform-related
+		// restricted subdirectories (Engine/Binaries/Win64/{Android,IOS,Linux,LinuxArm64...}).
+		//OptedInModulePlatforms = new UnrealTargetPlatform[] { Target.Platform };
 		OptedInModulePlatforms = new UnrealTargetPlatform[] { UnrealTargetPlatform.Win64, UnrealTargetPlatform.Mac,
 															  UnrealTargetPlatform.Linux, UnrealTargetPlatform.LinuxArm64 };
 	}

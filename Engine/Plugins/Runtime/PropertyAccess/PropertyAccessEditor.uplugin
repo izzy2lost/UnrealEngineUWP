@@ -23,5 +23,5 @@
 			"LoadingPhase" : "PreDefault"
 		}		
 	],
-	"SupportedPrograms": ["ChaosVisualDebugger"]
+	"SupportedPrograms": ["ChaosVisualDebugger", "LiveLinkHub"]
 }
