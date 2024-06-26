@@ -110,7 +110,7 @@ void UCEClonerEffectorExtension::OnEffectorsChanged()
 	const FNiagaraUserRedirectionParameterStore& ExposedParameters = Component->GetOverrideParameters();
 
 	static const FNiagaraVariable EffectorIndexDIVar(FNiagaraTypeDefinition(UNiagaraDataInterfaceArrayInt32::StaticClass()), TEXT("EffectorIndexArray"));
-	UNiagaraDataInterfaceArrayInt32* EffectorIndexArrayDI = CastChecked<UNiagaraDataInterfaceArrayInt32>(ExposedParameters.GetDataInterface(EffectorIndexDIVar));
+	UNiagaraDataInterfaceArrayInt32* EffectorIndexArrayDI = Cast<UNiagaraDataInterfaceArrayInt32>(ExposedParameters.GetDataInterface(EffectorIndexDIVar));
 
 	if (!EffectorIndexArrayDI)
 	{

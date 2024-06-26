@@ -297,6 +297,7 @@ void UCEClonerLayoutBase::OnSystemPackageLoaded(const FName& InName, UPackage* I
 	{
 		InPackage->SetFlags(RF_Transient);
 		NiagaraSystem->RemoveFromRoot();
+		NiagaraSystem->ClearFlags(RF_Standalone);
 
 		for (FNiagaraEmitterHandle& SystemEmitterHandle : NiagaraSystem->GetEmitterHandles())
 		{
