@@ -33,6 +33,7 @@ const FName OutRateClientMax("OutRateClientMax");
 const FName OutRateClientMin("OutRateClientMin");
 const FName InPacketsLost("InPacketsLost");
 const FName OutPacketsLost("OutPacketsLost");
+const FName AverageJitterInMS("AverageJitterInMS");
 const FName InBunches("InBunches");
 const FName OutBunches("OutBunches");
 const FName Ping("Ping");

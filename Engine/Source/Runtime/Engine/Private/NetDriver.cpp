@@ -1684,6 +1684,9 @@ void UNetDriver::SetupNetworkMetrics()
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsLost, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsLost, 0);
 
+	// (Client only) Current jitter for this connection in milliseconds
+	GetMetrics()->CreateFloat(UE::Net::Metric::AverageJitterInMS, 0);
+
 	// The number of incoming bunches per second across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::InBunches, 0);
 
@@ -8120,6 +8123,7 @@ void UNetDriver::UpdateNetworkStats()
 				if (ServerConnection != nullptr)
 				{
 					NumOpenChannels = ServerConnection->OpenChannels.Num();
+					GetMetrics()->SetFloat(UE::Net::Metric::AverageJitterInMS, ServerConnection->GetAverageJitterInMS());
 				}
 
 				for (int32 i = 0; i < ClientConnections.Num(); i++)

@@ -35,6 +35,7 @@ extern ENGINE_API const FName OutRateClientMax;
 extern ENGINE_API const FName OutRateClientMin;
 extern ENGINE_API const FName InPacketsLost;
 extern ENGINE_API const FName OutPacketsLost;
+extern ENGINE_API const FName AverageJitterInMS;
 extern ENGINE_API const FName InBunches;
 extern ENGINE_API const FName OutBunches;
 extern ENGINE_API const FName Ping;
