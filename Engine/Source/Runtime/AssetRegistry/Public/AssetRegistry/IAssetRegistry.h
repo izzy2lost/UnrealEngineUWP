@@ -72,6 +72,15 @@ ENUM_CLASS_FLAGS(EScanFlags);
 
 ASSETREGISTRY_API FString LexToString(EScanFlags Flags);
 
+enum class EEnumerateAssetsFlags : uint32
+{
+	None = 0,							// No flags
+	OnlyOnDiskAssets = (1 << 0),		// should only assets on disk be included in the enumeration. When set only DiskGatheredData will be used, does not calculate from UObjects.
+	AllowUnmountedPaths = (1 << 1),		// should unmounted asset paths be allowed
+	AllowUnfilteredArAssets = (1 << 2),	// skip the filtering of UE::AssetRegistry::FFiltering
+};
+ENUM_CLASS_FLAGS(EEnumerateAssetsFlags);
+
 } // namespace UE::AssetRegistry
 
 USTRUCT(BlueprintType)
@@ -301,10 +310,29 @@ public:
 	 * @param Callback function to call for each asset data enumerated
 	 * @param bSkipARFilteredAssets If true, skips Objects that return true for IsAsset but are not assets in the current platform.
 	 */
+	UE_DEPRECATED(5.5, "Use EnumerateAssets with InEnumerateFlags instead.")
 	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
-		bool bSkipARFilteredAssets = true) const = 0;
+		bool bSkipARFilteredAssets) const = 0;
+	UE_DEPRECATED(5.5, "Use EnumerateAssets with InEnumerateFlags instead.")
 	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
-		bool bSkipARFilteredAssets = true) const = 0;
+		bool bSkipARFilteredAssets) const = 0;
+
+	/**
+	 * Enumerate asset data for all assets that match the filter.
+	 * Assets returned must satisfy every filter component if there is at least one element in the component's array.
+	 * Assets will satisfy a component if they match any of the elements in it.
+	 *
+	 * @param Filter filter to apply to the assets in the AssetRegistry
+	 * @param Callback function to call for each asset data enumerated
+	 * @param InEnumerateFlags flags to control enumeration and filtering.
+	 *        @see EEnumerateAssetsFlags.
+	 */
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback) const = 0;
+	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback) const = 0;
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const = 0;
+	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const = 0;
 
 	/**
 	 * Gets the asset data for the specified object path
@@ -389,8 +417,21 @@ public:
 	 * @param bIncludeOnlyOnDiskAssets If true, use only DiskGatheredData, do not calculate from UObjects.
 	 *        @see IAssetRegistry class header for bIncludeOnlyOnDiskAssets.
 	 */
+	UE_DEPRECATED(5.5, "Use EnumerateAllAssets with InEnumerateFlags instead.")
 	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback,
-		bool bIncludeOnlyOnDiskAssets = false) const = 0;
+		bool bIncludeOnlyOnDiskAssets) const = 0;
+
+	/**
+	 * Enumerate asset data for all assets currently cached in the asset registry. 
+	 * This method may be slow, use a filter if possible to avoid iterating over the entire registry.
+	 * 
+	 * @param Callback function to call for each asset data enumerated
+	 * @param InEnumerateFlags flags to control enumeration and filtering.
+	 *        @see IAssetRegistry class header for EEnumerateAssetsFlags.
+	 */
+	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback) const = 0;
+	virtual bool EnumerateAllAssets(TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const = 0;
 
 	/**
 	 * Gets the LongPackageName for all packages with the given PackageName.

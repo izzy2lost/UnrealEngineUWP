@@ -190,7 +190,7 @@ void UAssetRegistryHelpers::GetBlueprintAssets(const FARFilter& InFilter, TArray
 		}
 		return true;
 	};
-	AssetRegistry.EnumerateAssets(Filter, FilterLambda);
+	AssetRegistry.EnumerateAssets(Filter, FilterLambda, UE::AssetRegistry::EEnumerateAssetsFlags::None);
 }
 
 bool UAssetRegistryHelpers::IsAssetDataBlueprintOfClassSet(const FAssetData& AssetData, const TSet<FTopLevelAssetPath>& ClassNameSet)

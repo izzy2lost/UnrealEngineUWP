@@ -655,12 +655,13 @@ bool FAssetRegistryState::HasAssets(const FName PackagePath, bool bSkipARFiltere
 
 bool FAssetRegistryState::GetAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets) const
 {
+	const UE::AssetRegistry::EEnumerateAssetsFlags Flags = bSkipARFilteredAssets ? UE::AssetRegistry::EEnumerateAssetsFlags::None : UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets;
 	return EnumerateAssets(Filter, PackageNamesToSkip, [&OutAssetData](const FAssetData& AssetData)
 	{
 		OutAssetData.Emplace(AssetData);
 		return true;
 	},
-	bSkipARFilteredAssets);
+	Flags);
 }
 
 namespace UE::AssetRegistry::Private
@@ -909,6 +910,19 @@ void FilterAssets(TArray<const FAssetData*>& InOutResults, const AccelerationMap
 bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip,
 	TFunctionRef<bool(const FAssetData&)> Callback, bool bSkipARFilteredAssets) const
 {
+	const UE::AssetRegistry::EEnumerateAssetsFlags Flags = bSkipARFilteredAssets ? UE::AssetRegistry::EEnumerateAssetsFlags::None : UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets;
+	return EnumerateAssets(Filter, PackageNamesToSkip, Callback, Flags);
+}
+
+bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip,
+	TFunctionRef<bool(const FAssetData&)> Callback) const
+{
+	return EnumerateAssets(Filter, PackageNamesToSkip, Callback, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets);
+}
+
+bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip,
+	TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const
+{
 	using namespace UE::AssetRegistry::Private;
 
 	// Verify filter input. If all assets are needed, use EnumerateAllAssets() instead.
@@ -920,7 +934,7 @@ bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const
 	const uint32 FilterWithoutPackageFlags = Filter.WithoutPackageFlags;
 	const uint32 FilterWithPackageFlags = Filter.WithPackageFlags;
 	auto ShouldSkipAssetData =
-		[this, &PackageNamesToSkip, bSkipARFilteredAssets, FilterWithoutPackageFlags, FilterWithPackageFlags]
+		[this, &PackageNamesToSkip, InEnumerateFlags, FilterWithoutPackageFlags, FilterWithPackageFlags]
 		(const FAssetData* AssetData)
 		{
 			if (PackageNamesToSkip.Contains(AssetData->PackageName) |			//-V792
@@ -930,13 +944,14 @@ bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const
 				return true;
 			}
 
-			if (IsPackageUnmountedAndFiltered(AssetData->PackageName))
+			if (!EnumHasAnyFlags(InEnumerateFlags, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnmountedPaths)
+				&& IsPackageUnmountedAndFiltered(AssetData->PackageName))
 			{
 				return true;
 			}
 
-			return bSkipARFilteredAssets &&
-				UE::AssetRegistry::FFiltering::ShouldSkipAsset(AssetData->AssetClassPath, AssetData->PackageFlags);
+			return (!EnumHasAnyFlags(InEnumerateFlags, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets) &&
+				UE::AssetRegistry::FFiltering::ShouldSkipAsset(AssetData->AssetClassPath, AssetData->PackageFlags));
 		};
 
 
@@ -1045,32 +1060,25 @@ bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const
 
 bool FAssetRegistryState::GetAllAssets(const TSet<FName>& PackageNamesToSkip, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets) const
 {
+	const UE::AssetRegistry::EEnumerateAssetsFlags EnumerateFlags = bSkipARFilteredAssets ? UE::AssetRegistry::EEnumerateAssetsFlags::None : UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets;
 	OutAssetData.Reserve(OutAssetData.Num() + CachedAssets.Num() - PackageNamesToSkip.Num());
 	return EnumerateAllAssets(PackageNamesToSkip, [&OutAssetData](const FAssetData& AssetData)
 	{
 		OutAssetData.Emplace(AssetData);
 		return true;
 	},
-	bSkipARFilteredAssets);
+	EnumerateFlags);
 }
 
 bool FAssetRegistryState::EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback, bool bSkipARFilteredAssets) const
 {
-	// All unloaded disk assets
-	for (const FAssetData* AssetData : CachedAssets)
-	{
-		if (AssetData &&
-			!PackageNamesToSkip.Contains(AssetData->PackageName) &&
-			!IsPackageUnmountedAndFiltered(AssetData->PackageName) &&
-			(!bSkipARFilteredAssets || !UE::AssetRegistry::FFiltering::ShouldSkipAsset(AssetData->AssetClassPath, AssetData->PackageFlags)))
-		{
-			if (!Callback(*AssetData))
-			{
-				return true;
-			}
-		}
-	}
-	return true;
+	const UE::AssetRegistry::EEnumerateAssetsFlags EnumerateFlags = bSkipARFilteredAssets ? UE::AssetRegistry::EEnumerateAssetsFlags::None : UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets;
+	return EnumerateAllAssets(PackageNamesToSkip, Callback, EnumerateFlags);
+}
+
+bool FAssetRegistryState::EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback) const
+{
+	return EnumerateAllAssets(PackageNamesToSkip, Callback, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets);
 }
 
 void FAssetRegistryState::EnumerateAllAssets(TFunctionRef<void(const FAssetData&)> Callback) const
@@ -1082,6 +1090,24 @@ void FAssetRegistryState::EnumerateAllAssets(TFunctionRef<void(const FAssetData&
 			Callback(*AssetData);
 		}
 	}
+}
+
+bool FAssetRegistryState::EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const
+{
+	for (const FAssetData* AssetData : CachedAssets)
+	{
+		if (AssetData &&
+			!PackageNamesToSkip.Contains(AssetData->PackageName) &&
+			(EnumHasAnyFlags(InEnumerateFlags, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnmountedPaths) || !IsPackageUnmountedAndFiltered(AssetData->PackageName)) &&
+			(EnumHasAnyFlags(InEnumerateFlags, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets) || !UE::AssetRegistry::FFiltering::ShouldSkipAsset(AssetData->AssetClassPath, AssetData->PackageFlags)))
+		{
+			if (!Callback(*AssetData))
+			{
+				return true;
+			}
+		}
+	}
+	return true;
 }
 
 void FAssetRegistryState::EnumerateAllPaths(TFunctionRef<void(FName PathName)> Callback) const

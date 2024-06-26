@@ -250,7 +250,6 @@ namespace GameFeatureVersePathMapper
 			}
 			AssetData.PackageName.ToString(PackagePathBuilder);
 			FStringView PackageRoot = FPathViews::GetMountPointNameFromPath(PackagePathBuilder);
-
 			GFPChunks.Emplace(PackageRoot, ChunkId);
 
 			return true;
@@ -265,7 +264,7 @@ namespace GameFeatureVersePathMapper
 	{
 		return FindGFPChunksImpl([&DevAR](const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback)
 		{
-			DevAR.EnumerateAssets(Filter, {}, Callback);
+			DevAR.EnumerateAssets(Filter, {}, Callback, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnmountedPaths | UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnfilteredArAssets);
 		});
 	}
 
@@ -274,7 +273,7 @@ namespace GameFeatureVersePathMapper
 		const IAssetRegistry& AR = IAssetRegistry::GetChecked();
 		return FindGFPChunksImpl([&AR](const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback)
 		{
-			AR.EnumerateAssets(Filter, Callback);
+			AR.EnumerateAssets(Filter, Callback, UE::AssetRegistry::EEnumerateAssetsFlags::AllowUnmountedPaths);
 		});
 	}
 

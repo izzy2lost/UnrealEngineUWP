@@ -282,9 +282,9 @@ public:
 
 	/** Enumerate assets in the State, filtering by filter and package not in PackagesToSkip */
 	void EnumerateDiskAssets(const FARCompiledFilter& InFilter, TSet<FName>& PackagesToSkip,
-		TFunctionRef<bool(const FAssetData&)> Callback, bool bSkipARFilteredAssets) const;
-	/** Enumerate assets in the State, filtering by package not in PackagesToSkip */
-	void EnumerateAllDiskAssets(TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback) const;
+		TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const;
+	/** Enumerate all assets in the State. PackageNamesToSkip are filtered. EEnumerateAssetsFlags provide additional filtering. */
+	void EnumerateAllDiskAssets(TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags = UE::AssetRegistry::EEnumerateAssetsFlags::None) const;
 
 	/** Waits for the gatherer to be idle if it is operating synchronously. */
 	void WaitForGathererIdleIfSynchronous();

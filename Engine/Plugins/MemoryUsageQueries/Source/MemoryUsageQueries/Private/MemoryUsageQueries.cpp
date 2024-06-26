@@ -1257,8 +1257,6 @@ class FPackageStoreLazyDatabase final
 		if (!bIsAssetDatabaseSearched)
 		{
 			const FAssetRegistryModule& AssetRegistryModule = GetAssetRegistryModule();
-			constexpr bool bOnlyOnDiskAssets = true;
-
 			AssetRegistryModule.Get().EnumerateAllAssets(
 				[&](const FAssetData& Data)
 				{
@@ -1277,7 +1275,7 @@ class FPackageStoreLazyDatabase final
 
 					return true;
 				},
-				bOnlyOnDiskAssets);
+				UE::AssetRegistry::EEnumerateAssetsFlags::OnlyOnDiskAssets);
 
 			if (bIterationBrokeEarly)
 			{

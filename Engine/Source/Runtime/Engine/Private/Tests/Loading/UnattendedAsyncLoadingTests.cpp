@@ -206,7 +206,7 @@ bool FUnattendedLoadingTest::RunTest(const FString& Parameters)
 			
 			return false;
 		},
-		true /* bIncludeOnlyOnDiskAssets */
+		UE::AssetRegistry::EEnumerateAssetsFlags::OnlyOnDiskAssets
 	);
 
 	// Use the unattended loader to load all unique packages gathered in the list.

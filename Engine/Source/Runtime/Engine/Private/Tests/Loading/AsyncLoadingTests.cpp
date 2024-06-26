@@ -40,7 +40,7 @@ bool FThreadSafeAsyncLoadingTest::RunTest(const FString& Parameters)
 			
 			return false;
 		},
-		true /* bIncludeOnlyOnDiskAssets */
+		UE::AssetRegistry::EEnumerateAssetsFlags::OnlyOnDiskAssets
 	);
 
 	TArray<FName> PackagesToLoad(UniquePackages.Array());

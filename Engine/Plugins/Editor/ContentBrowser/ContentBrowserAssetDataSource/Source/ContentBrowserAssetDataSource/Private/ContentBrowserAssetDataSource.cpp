@@ -284,7 +284,7 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 			}
 			OnPathPopulated(InAssetData);
 			return true;
-		}, /*bIncludeOnlyOnDiskAssets*/true);
+		}, UE::AssetRegistry::EEnumerateAssetsFlags::OnlyOnDiskAssets);
 	RecentlyPopulatedAssetFolders.Empty();
 
 	FPackageName::QueryRootContentPaths(RootContentPaths);
