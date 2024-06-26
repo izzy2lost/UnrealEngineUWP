@@ -125,6 +125,7 @@ void SScrollBox::Construct( const FArguments& InArgs )
 	FrontPadScrolling = InArgs._FrontPadScrolling;
 	bAnimateWheelScrolling = InArgs._AnimateWheelScrolling;
 	WheelScrollMultiplier = InArgs._WheelScrollMultiplier;
+	bEnableTouchScrolling = InArgs._EnableTouchScrolling;
 	NavigationScrollPadding = InArgs._NavigationScrollPadding;
 	NavigationDestination = InArgs._NavigationDestination;
 	ScrollWhenFocusChanges = InArgs._ScrollWhenFocusChanges;
@@ -681,7 +682,7 @@ bool SScrollBox::ComputeVolatility() const
 
 FReply SScrollBox::OnPreviewMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if (MouseEvent.IsTouchEvent() && !bFingerOwningTouchInteraction.IsSet())
+	if (bEnableTouchScrolling && MouseEvent.IsTouchEvent() && !bFingerOwningTouchInteraction.IsSet())
 	{
 		// Clear any inertia 
 		InertialScrollManager.ClearScrollVelocity();
@@ -846,7 +847,7 @@ FReply SScrollBox::OnMouseMove( const FGeometry& MyGeometry, const FPointerEvent
 
 void SScrollBox::OnMouseEnter( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
-	if ( MouseEvent.IsTouchEvent() )
+	if (bEnableTouchScrolling && MouseEvent.IsTouchEvent())
 	{
 		if ( !bFingerOwningTouchInteraction.IsSet() )
 		{
@@ -1188,6 +1189,12 @@ void SScrollBox::SetScrollingAnimationInterpolationSpeed(float NewScrollingAnima
 void SScrollBox::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
 {
 	WheelScrollMultiplier = NewWheelScrollMultiplier;
+}
+
+void SScrollBox::SetIsTouchScrollingEnabled(const bool bInEnableTouchScrolling)
+{
+	bEnableTouchScrolling = bInEnableTouchScrolling;
+	ensureMsgf(!bFingerOwningTouchInteraction.IsSet(), TEXT("TouchScrollingEnabled flag should not be changed while scrolling."));
 }
 
 void SScrollBox::SetScrollWhenFocusChanges(EScrollWhenFocusChanges NewScrollWhenFocusChanges)

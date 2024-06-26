@@ -104,6 +104,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		.AnimateWheelScrolling(bAnimateWheelScrolling)
 		.ScrollAnimationInterpSpeed(ScrollAnimationInterpolationSpeed)
 		.WheelScrollMultiplier(WheelScrollMultiplier)
+		.EnableTouchScrolling(bEnableTouchScrolling)
 		.OnUserScrolled(BIND_UOBJECT_DELEGATE(FOnUserScrolled, SlateHandleUserScrolled))
 		.OnScrollBarVisibilityChanged(BIND_UOBJECT_DELEGATE(FOnScrollBarVisibilityChanged, SlateHandleScrollBarVisibilityChanged));
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -142,6 +143,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	MyScrollBox->SetAnimateWheelScrolling(bAnimateWheelScrolling);
 	MyScrollBox->SetScrollingAnimationInterpolationSpeed(ScrollAnimationInterpolationSpeed);
 	MyScrollBox->SetWheelScrollMultiplier(WheelScrollMultiplier);
+	MyScrollBox->SetIsTouchScrollingEnabled(bEnableTouchScrolling);
 	MyScrollBox->SetStyle(&WidgetStyle);
 	MyScrollBox->InvalidateStyle();
 	MyScrollBox->SetScrollBarStyle(&WidgetBarStyle);
@@ -457,6 +459,20 @@ void UScrollBox::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
 float UScrollBox::GetWheelScrollMultiplier() const
 {
 	return WheelScrollMultiplier;
+}
+
+void UScrollBox::SetIsTouchScrollingEnabled(bool bInEnableTouchScrolling)
+{
+	bEnableTouchScrolling = bInEnableTouchScrolling;
+	if (MyScrollBox)
+	{
+		MyScrollBox->SetIsTouchScrollingEnabled(bInEnableTouchScrolling);
+	}
+}
+
+bool UScrollBox::GetIsTouchScrollingEnabled() const
+{
+	return bEnableTouchScrolling;
 }
 
 void UScrollBox::SetScrollWhenFocusChanges(EScrollWhenFocusChanges NewScrollWhenFocusChanges)

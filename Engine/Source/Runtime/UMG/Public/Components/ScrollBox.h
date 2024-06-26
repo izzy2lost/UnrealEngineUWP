@@ -27,6 +27,10 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Scroll", meta = (AllowPrivateAccess = "true", DisplayAfter = "bAnimateWheelScrolling"))
 	float ScrollAnimationInterpolationSpeed = 15.f;
 
+	/** True to allow scrolling using touch input. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter="GetIsTouchScrollingEnabled", Setter="SetIsTouchScrollingEnabled", Category = "Scroll", meta = (AllowPrivateAccess = "true", DisplayAfter = "WheelScrollMultiplier"))
+	bool bEnableTouchScrolling = true;
+
 public:
 
 	UE_DEPRECATED(5.2, "Direct access to WidgetStyle is deprecated. Please use the getter or setter.")
@@ -179,6 +183,11 @@ public:
 	UMG_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
 
 	UMG_API float GetWheelScrollMultiplier() const;
+
+	UFUNCTION(Category = "Scroll")
+	UMG_API void SetIsTouchScrollingEnabled(bool bInEnableTouchScrolling);
+
+	UMG_API bool GetIsTouchScrollingEnabled() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Scroll")
 	UMG_API void SetScrollWhenFocusChanges(EScrollWhenFocusChanges NewScrollWhenFocusChanges);

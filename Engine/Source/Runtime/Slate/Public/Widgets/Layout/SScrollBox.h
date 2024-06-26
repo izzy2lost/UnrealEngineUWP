@@ -248,6 +248,7 @@ public:
 		, _AnimateWheelScrolling(false)
 		, _ScrollAnimationInterpSpeed(15.f)
 		, _WheelScrollMultiplier(1.f)
+		, _EnableTouchScrolling(true)
 		, _NavigationDestination(EDescendantScrollDestination::IntoView)
 		, _NavigationScrollPadding(0.0f)
 		, _ScrollWhenFocusChanges(EScrollWhenFocusChanges::NoScroll)
@@ -294,6 +295,8 @@ public:
 		SLATE_ARGUMENT(float, ScrollAnimationInterpSpeed);
 
 		SLATE_ARGUMENT(float, WheelScrollMultiplier);
+
+		SLATE_ARGUMENT(bool, EnableTouchScrolling);
 
 		SLATE_ARGUMENT(EDescendantScrollDestination, NavigationDestination);
 
@@ -345,6 +348,9 @@ public:
 	SLATE_API void SetScrollingAnimationInterpolationSpeed(float NewScrollingAnimationInterpolationSpeed);
 
 	SLATE_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
+
+	/** Enables/disables being able to scroll using touch input. */
+	SLATE_API void SetIsTouchScrollingEnabled(const bool bInEnableTouchScrolling);
 	
 	SLATE_API void SetScrollWhenFocusChanges(EScrollWhenFocusChanges NewScrollWhenFocusChanges);
 
@@ -584,6 +590,9 @@ protected:
 
 	/** Multiplier applied to each click of the scroll wheel (applied alongside the global scroll amount) */
 	float WheelScrollMultiplier = 1.f;
+
+	/** True to allow scrolling by using touch input. */
+	bool bEnableTouchScrolling = true;
 
 	/** The speed of interpolation for the scrolling animation */
 	float ScrollingAnimationInterpolationSpeed = 15.f;
