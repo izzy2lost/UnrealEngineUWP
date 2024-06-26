@@ -18,7 +18,7 @@ void StoreSceneHistoryCS(
 	uint2 ScreenCoord = DispatchThreadId + View.ViewRectMinAndSize.xy;
 	FLumenMaterialData LumenMaterial = ReadMaterialData(ScreenCoord);
 
-	RWDepthTexture[DispatchThreadId + View.ViewRectMinAndSize.xy] = ConvertToDeviceZ(LumenMaterial.SceneDepth);
+	RWDepthTexture[DispatchThreadId + View.ViewRectMinAndSize.xy] = LumenMaterial.SceneDepth;
 
 	#if PERMUTATION_STORE_NORMAL
 	{

@@ -150,24 +150,19 @@ void ShadeLightSamplesCS(
 
 				float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);		
 				float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+				float4 DownsampledScreenWeights = CompositeUpsampleWeights[ScreenCoord];
 
 				#if DEBUG_MODE
 				if (bDebug)
 				{
 					Print(Context, TEXT("ShadeSamplesCS"));
 					Newline(Context);
-					Print(Context, UnpackLightSample(SharedSamples[0][0]).LocalLightIndex);
-					Print(Context, UnpackLightSample(SharedSamples[1][0]).LocalLightIndex);
-					Print(Context, UnpackLightSample(SharedSamples[2][0]).LocalLightIndex);
-					Print(Context, UnpackLightSample(SharedSamples[3][0]).LocalLightIndex);
-					Print(Context, UnpackLightSample(SharedSamples[4][0]).LocalLightIndex);
-					Print(Context, UnpackLightSample(SharedSamples[5][0]).LocalLightIndex);
-					Newline(Context);
 					Print(Context, TEXT("ScreenCoord: "));
 					Print(Context, ScreenCoord.x);
 					Print(Context, ScreenCoord.y);
 					Newline(Context);
-					Print(Context, TEXT("LightId   | Weight    | Diffuse   | Specular"));
+
+					Print(Context, TEXT("LocalLightId |LightId   | Weight    | Diffuse   | Specular"));
 				}
 				#endif
 
@@ -192,7 +187,6 @@ void ShadeLightSamplesCS(
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
-						float4 DownsampledScreenWeights = CompositeUpsampleWeights[ScreenCoord];
 						uint2 SharedSampleCoord00 = (GroupThreadId.xy + 1) / DOWNSAMPLE_FACTOR;
 
 						float SampleWeight = 0.0f;
@@ -211,8 +205,7 @@ void ShadeLightSamplesCS(
 						if (bDebug)
 						{
 							Newline(Context);
-							Print(Context, DownsampledScreenWeights);
-							Newline(Context);
+							Print(Context, LocalLightIndex);
 							Print(Context, LocalLightData.LightSceneId);
 							Print(Context, SampleWeight);
 						}

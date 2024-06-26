@@ -285,10 +285,6 @@ void DenoiserTemporalCS(
 					float2 HistoryGatherUV = (HistoryScreenCoord + 1.0f) * View.BufferSizeAndInvSize.zw;
 
 					float4 HistorySampleSceneDepth4 = ManyLightsDepthHistory.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy;
-					HistorySampleSceneDepth4.x = ConvertFromDeviceZ(HistorySampleSceneDepth4.x);
-					HistorySampleSceneDepth4.y = ConvertFromDeviceZ(HistorySampleSceneDepth4.y);
-					HistorySampleSceneDepth4.z = ConvertFromDeviceZ(HistorySampleSceneDepth4.z);
-					HistorySampleSceneDepth4.w = ConvertFromDeviceZ(HistorySampleSceneDepth4.w);
 
 					// #ml_todo: plane weighting
 					float ReprojectedSceneDepth = ConvertFromDeviceZ(HistoryScreenPosition.z);
