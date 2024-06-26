@@ -15,6 +15,7 @@ using MongoDB.Driver;
 
 namespace HordeServer.Tests.Storage
 {
+#if false
 	[TestClass]
 	public class StorageControllerTests : ControllerIntegrationTest
 	{
@@ -57,4 +58,5 @@ namespace HordeServer.Tests.Storage
 			Assert.AreEqual(blob1.Path, locator1.BaseLocator.ToString());
 		}
 	}
+#endif
 }

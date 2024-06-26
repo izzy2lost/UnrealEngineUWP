@@ -10,6 +10,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.ObjectStores;
@@ -181,10 +182,10 @@ namespace HordeServer.Storage
 
 		class State
 		{
-			public GlobalConfig Config { get; }
+			public StorageConfig Config { get; }
 			public Dictionary<NamespaceId, NamespaceInfo> Namespaces { get; } = new Dictionary<NamespaceId, NamespaceInfo>();
 
-			public State(GlobalConfig config)
+			public State(StorageConfig config)
 			{
 				Config = config;
 			}
@@ -377,7 +378,8 @@ namespace HordeServer.Storage
 		readonly BundleCache _bundleCache;
 		readonly IMemoryCache _memoryCache;
 		readonly IObjectStoreFactory _objectStoreFactory;
-		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
+		readonly IOptionsMonitor<StorageConfig> _storageConfig;
+		readonly IOptions<StaticStorageConfig> _staticStorageConfig;
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
@@ -400,14 +402,15 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageService(IMongoService mongoService, IRedisService redisService, IClock clock, BundleCache bundleCache, IMemoryCache memoryCache, IObjectStoreFactory objectStoreFactory, IOptionsMonitor<GlobalConfig> globalConfig, Tracer tracer, ILogger<StorageService> logger)
+		public StorageService(IMongoService mongoService, IRedisService redisService, IClock clock, BundleCache bundleCache, IMemoryCache memoryCache, IObjectStoreFactory objectStoreFactory, IOptionsMonitor<StorageConfig> storageConfig, IOptions<StaticStorageConfig> staticStorageConfig, Tracer tracer, ILogger<StorageService> logger)
 		{
 			_redisService = redisService;
 			_clock = clock;
 			_bundleCache = bundleCache;
 			_memoryCache = memoryCache;
 			_objectStoreFactory = objectStoreFactory;
-			_globalConfig = globalConfig;
+			_storageConfig = storageConfig;
+			_staticStorageConfig = staticStorageConfig;
 			_tracer = tracer;
 			_logger = logger;
 
@@ -443,23 +446,23 @@ namespace HordeServer.Storage
 		class StorageClientFactory : IStorageClientFactory
 		{
 			readonly StorageService _storageService;
-			readonly GlobalConfig _globalConfig;
+			readonly StorageConfig _storageConfig;
 
-			public StorageClientFactory(StorageService storageService, GlobalConfig globalConfig)
+			public StorageClientFactory(StorageService storageService, StorageConfig storageConfig)
 			{
 				_storageService = storageService;
-				_globalConfig = globalConfig;
+				_storageConfig = storageConfig;
 			}
 
 			public IStorageClient? TryCreateClient(NamespaceId namespaceId)
-				=> _storageService.TryCreateClient(_globalConfig, namespaceId);
+				=> _storageService.TryCreateClient(_storageConfig, namespaceId);
 		}
 
 		/// <summary>
 		/// Creates a new storage client factory using the current global config value
 		/// </summary>
-		public IStorageClientFactory CreateStorageClientFactory(GlobalConfig globalConfig)
-			=> new StorageClientFactory(this, globalConfig);
+		public IStorageClientFactory CreateStorageClientFactory(StorageConfig storageConfig)
+			=> new StorageClientFactory(this, storageConfig);
 
 		/// <inheritdoc/>
 		public async Task StartAsync(CancellationToken cancellationToken)
@@ -485,12 +488,12 @@ namespace HordeServer.Storage
 
 		/// <inheritdoc/>
 		public IStorageBackend? TryCreateBackend(NamespaceId namespaceId)
-			=> TryCreateBackend(_globalConfig.CurrentValue, namespaceId);
+			=> TryCreateBackend(_storageConfig.CurrentValue, namespaceId);
 
 		/// <inheritdoc/>
-		public IStorageBackend? TryCreateBackend(GlobalConfig globalConfig, NamespaceId namespaceId)
+		public IStorageBackend? TryCreateBackend(StorageConfig storageConfig, NamespaceId namespaceId)
 		{
-			State snapshot = CreateState(globalConfig);
+			State snapshot = CreateState(storageConfig);
 			return snapshot.TryCreateBackend(namespaceId);
 		}
 
@@ -500,13 +503,13 @@ namespace HordeServer.Storage
 
 		/// <inheritdoc/>
 		public IStorageClient? TryCreateClient(NamespaceId namespaceId, BundleOptions? bundleOptions = null)
-			=> TryCreateClient(_globalConfig.CurrentValue, namespaceId, bundleOptions);
+			=> TryCreateClient(_storageConfig.CurrentValue, namespaceId, bundleOptions);
 
 		/// <inheritdoc/>
-		public IStorageClient? TryCreateClient(GlobalConfig globalConfig, NamespaceId namespaceId, BundleOptions? bundleOptions = null)
+		public IStorageClient? TryCreateClient(StorageConfig storageConfig, NamespaceId namespaceId, BundleOptions? bundleOptions = null)
 		{
 #pragma warning disable CA2000 // Call dispose on backend; will be disposed by BundleStorageClient
-			IStorageBackend? backend = TryCreateBackend(globalConfig, namespaceId);
+			IStorageBackend? backend = TryCreateBackend(storageConfig, namespaceId);
 #pragma warning restore CA2000
 			if (backend == null)
 			{
@@ -520,23 +523,30 @@ namespace HordeServer.Storage
 
 		#region Config
 
-		State CreateState(GlobalConfig globalConfig)
+		State CreateState(StorageConfig storageConfig)
 		{
 			lock (_lockObject)
 			{
-				if (_lastState == null || !String.Equals(_lastConfigRevision, globalConfig.Revision, StringComparison.Ordinal))
+				if (_lastState == null || !String.Equals(_lastConfigRevision, storageConfig.Revision, StringComparison.Ordinal))
 				{
-					_logger.LogDebug("Updating storage providers for config {Revision}", globalConfig.Revision);
+					_logger.LogDebug("Updating storage providers for config {Revision}", storageConfig.Revision);
 
-					State nextState = new State(globalConfig);
+					State nextState = new State(storageConfig);
 
-					StorageConfig storageConfig = globalConfig.Storage;
 					foreach (NamespaceConfig namespaceConfig in storageConfig.Namespaces)
 					{
 						NamespaceId namespaceId = namespaceConfig.Id;
 						try
 						{
-							IObjectStore objectStore = _objectStoreFactory.CreateObjectStore(namespaceConfig.BackendConfig);
+							BackendId backendId = namespaceConfig.Backend;
+
+							BackendConfig? backendConfig = _staticStorageConfig.Value.Backends.FirstOrDefault(x => x.Id == namespaceConfig.Backend);
+							if (backendConfig == null && !storageConfig.TryGetBackend(namespaceConfig.Backend, out backendConfig))
+							{
+								throw new StorageException($"Missing or invalid backend identifier for namespace {namespaceConfig.Id}");
+							}
+
+							IObjectStore objectStore = _objectStoreFactory.CreateObjectStore(backendConfig);
 
 							if (!String.IsNullOrEmpty(namespaceConfig.Prefix))
 							{
@@ -555,7 +565,7 @@ namespace HordeServer.Storage
 					}
 
 					_lastState = nextState;
-					_lastConfigRevision = globalConfig.Revision;
+					_lastConfigRevision = storageConfig.Revision;
 				}
 				return _lastState;
 			}
@@ -596,7 +606,7 @@ namespace HordeServer.Storage
 
 		async ValueTask CheckBlobExistsAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken)
 		{
-			if (_globalConfig.CurrentValue.Storage.EnableGcVerification)
+			if (_storageConfig.CurrentValue.EnableGcVerification)
 			{
 				try
 				{
@@ -657,7 +667,7 @@ namespace HordeServer.Storage
 			DateTime ingestTimeUtc = _clock.UtcNow - TimeSpan.FromMinutes(30.0);
 
 			// Get the current state of the storage system
-			State state = CreateState(_globalConfig.CurrentValue);
+			State state = CreateState(_storageConfig.CurrentValue);
 
 			Dictionary<NamespaceId, BundleStorageClient> cachedClients = new();
 			try
@@ -1024,15 +1034,13 @@ namespace HordeServer.Storage
 			DateTime utcNow = _clock.UtcNow;
 			for (; ; )
 			{
-				GlobalConfig globalConfig = _globalConfig.CurrentValue;
-
-				State state = CreateState(globalConfig);
-
-				StorageConfig storageConfig = state.Config.Storage;
+				StorageConfig storageConfig = _storageConfig.CurrentValue;
 				if (!storageConfig.EnableGc && !storageConfig.EnableGcVerification)
 				{
 					break;
 				}
+
+				State state = CreateState(storageConfig);
 
 				// Synchronize the list of configured namespaces with the GC state object
 				GcState gcState = await _gcState.GetAsync(cancellationToken);
@@ -1106,7 +1114,7 @@ namespace HordeServer.Storage
 			double score = GetGcTimestamp(utcNow);
 
 			RedisSortedSetKey<RedisValue> checkSet = GetGcCheckSet(namespaceInfo.Id);
-			while (_globalConfig.CurrentValue.Storage.EnableGc || _globalConfig.CurrentValue.Storage.EnableGcVerification)
+			while (_storageConfig.CurrentValue.EnableGc || _storageConfig.CurrentValue.EnableGcVerification)
 			{
 				long length = await _redisService.GetDatabase().SortedSetLengthAsync(checkSet);
 				int batchSize = (int)Math.Min(length, 1024);

@@ -81,11 +81,6 @@ namespace HordeServer.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
-		{
-		}
-
-		/// <inheritdoc/>
 		public async Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			if (!await _blobContainer.ExistsAsync(cancellationToken))

@@ -6,22 +6,34 @@ using System.Linq;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Storage
 {
 	[TestClass]
-	public class BlobStoreTests : TestSetup
+	public class BlobStoreTests : ServerServiceTest
 	{
 		static readonly BlobType s_blobType = new BlobType("{AFDF76A7-4DEE-5333-F5B5-37B8451251CA}", 1);
 
+		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
+
+		public BlobStoreTests()
+		{
+			AddPlugin<StoragePlugin>();
+		}
+
 		IStorageClient CreateStorageClient()
 		{
+			StorageConfig storageConfig = new StorageConfig();
+			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
+			storageConfig.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("default"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
-			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("default"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
+			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
 			SetConfig(globalConfig);
 
 			return StorageService.CreateClient(new NamespaceId("default"));

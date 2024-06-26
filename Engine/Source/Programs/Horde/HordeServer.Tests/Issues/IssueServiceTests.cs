@@ -23,6 +23,7 @@ using HordeServer.Issues;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
+using HordeServer.Plugins;
 using HordeServer.Projects;
 using HordeServer.Server;
 using HordeServer.Storage;
@@ -149,11 +150,13 @@ namespace HordeServer.Tests.Issues
 			projectConfig.Streams.Add(CreateStream(_releaseStreamId, ReleaseStreamName));
 			projectConfig.Streams.Add(CreateStream(_devStreamId, DevStreamName));
 
+			StorageConfig storageConfig = new StorageConfig();
+			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
+			storageConfig.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("horde-logs"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
+
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Projects.Add(projectConfig);
-			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
-			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("horde-logs"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
-
+			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
 			SetConfig(globalConfig);
 
 			static StreamConfig CreateStream(StreamId streamId, string streamName)

@@ -16,6 +16,7 @@ testProjects=(
 	"Source/Programs/Shared/EpicGames.Serialization.Tests/EpicGames.Serialization.Tests.csproj"
 	"Source/Programs/Horde/HordeServer.Tests/HordeServer.Tests.csproj"
 	"Source/Programs/Horde/Plugins/Analytics/HordeServer.Analytics.Tests/HordeServer.Analytics.Tests.csproj"
+	"Source/Programs/Horde/Plugins/Storage/HordeServer.Storage.Tests/HordeServer.Storage.Tests.csproj"
 )
 
 for csProj in "${testProjects[@]}"; do

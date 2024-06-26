@@ -136,7 +136,7 @@ namespace HordeServer.Plugins
 		{
 			if (!_loadedPluginNames.Add(metadata.Name))
 			{
-				throw new NotImplementedException();
+				throw new InvalidOperationException($"An implementation of the {metadata.Name} plugin has already been added");
 			}
 
 			PluginAttribute attr = startupType.GetCustomAttribute<PluginAttribute>()

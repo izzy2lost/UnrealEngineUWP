@@ -10,7 +10,6 @@ using System.Security.Claims;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Amazon.EC2.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
@@ -24,6 +23,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+#pragma warning disable CA2227 // Change x to be read-only by removing the property setter
+
 namespace HordeServer.Storage
 {
 	/// <summary>
@@ -35,20 +36,20 @@ namespace HordeServer.Storage
 	public class StorageController : HordeControllerBase
 	{
 		readonly StorageService _storageService;
-		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly IOptionsSnapshot<StorageConfig> _storageConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageController(StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public StorageController(StorageService storageService, IOptionsSnapshot<StorageConfig> storageConfig)
 		{
 			_storageService = storageService;
-			_globalConfig = globalConfig;
+			_storageConfig = storageConfig;
 		}
 
 		bool Authorize(NamespaceId namespaceId, AclAction action)
 		{
-			return _globalConfig.Value.Storage.TryGetNamespace(namespaceId, out NamespaceConfig? namespaceConfig) && namespaceConfig.Authorize(action, User);
+			return _storageConfig.Value.TryGetNamespace(namespaceId, out NamespaceConfig? namespaceConfig) && namespaceConfig.Authorize(action, User);
 		}
 
 		/// <summary>
@@ -127,7 +128,7 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Reads a blob from storage, without performing namespace access checks.
 		/// </summary>
-		internal static async Task<ActionResult> ReadBlobInternalAsync(IStorageBackend storageBackend, BlobLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
+		public static async Task<ActionResult> ReadBlobInternalAsync(IStorageBackend storageBackend, BlobLocator locator, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
 			Uri? redirectUrl = await storageBackend.TryGetBlobReadRedirectAsync(locator, cancellationToken);
 			if (redirectUrl != null)
@@ -259,7 +260,7 @@ namespace HordeServer.Storage
 		public async Task<ActionResult<ReadRefResponse>> ReadRefAsync(NamespaceId namespaceId, RefName refName, CancellationToken cancellationToken)
 		{
 			NamespaceConfig? namespaceConfig;
-			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
+			if (!_storageConfig.Value.TryGetNamespace(namespaceId, out namespaceConfig))
 			{
 				return NotFound(namespaceId);
 			}
@@ -274,7 +275,7 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Reads a ref from storage, without performing namespace access checks.
 		/// </summary>
-		internal static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(IStorageClientFactory storageService, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
+		public static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(IStorageClientFactory storageService, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
 			using IStorageClient client = storageService.CreateClient(namespaceId);
 
@@ -376,7 +377,7 @@ namespace HordeServer.Storage
 		public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BlobLocator locator, [FromQuery] string? pkt = null, [FromQuery] string? exp = null, [FromQuery] bool data = false, CancellationToken cancellationToken = default)
 		{
 			NamespaceConfig? namespaceConfig;
-			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
+			if (!_storageConfig.Value.TryGetNamespace(namespaceId, out namespaceConfig))
 			{
 				return NotFound(namespaceId);
 			}

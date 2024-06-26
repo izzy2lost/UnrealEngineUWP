@@ -27,8 +27,6 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.ObjectStores;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using EpicGames.Redis;
@@ -77,7 +75,6 @@ using HordeServer.Server;
 using HordeServer.Server.Notices;
 using HordeServer.ServiceAccounts;
 using HordeServer.Storage;
-using HordeServer.Storage.ObjectStores;
 using HordeServer.Streams;
 using HordeServer.Tasks;
 using HordeServer.Tools;
@@ -319,6 +316,7 @@ namespace HordeServer
 			// Register the plugin collection
 			PluginCollection pluginCollection = new PluginCollection();
 			pluginCollection.Add<AnalyticsPlugin>();
+			pluginCollection.Add<StoragePlugin>();
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin services
@@ -506,13 +504,8 @@ namespace HordeServer
 
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<NoticeService>();
-			services.AddSingleton<StorageService>();
-			services.AddSingleton<IStorageService>(sp => sp.GetRequiredService<StorageService>());
-			services.AddScoped(sp => sp.GetRequiredService<StorageService>().CreateStorageClientFactory(sp.GetRequiredService<IOptionsSnapshot<GlobalConfig>>().Value));
 			services.AddSingleton<IBlockCache>(sp => CreateBlockCache(sp));
 			services.AddSingleton<TestDataService>();
-			services.AddSingleton<BundleCache>();
-			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
 
 			if (settings.JiraUrl != null)
 			{
@@ -538,11 +531,6 @@ namespace HordeServer
 			services.AddSingleton<SecretCollectionInternal>();
 			services.AddScoped<ISecretCollection, SecretCollection>();
 			services.AddSingleton<ISecretProvider, AwsParameterStoreSecretProvider>();
-
-			// Storage providers
-			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
-			services.AddSingleton<AwsObjectStoreFactory>();
-			services.AddSingleton<FileObjectStoreFactory>();
 
 			if (settings.WithAws)
 			{
@@ -910,13 +898,6 @@ namespace HordeServer
 			ServerSettings serverSettings = serviceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
 			DirectoryReference cacheDir = DirectoryReference.Combine(ServerApp.DataDir, String.IsNullOrEmpty(serverSettings.BlockCacheDir) ? "BlockCache" : serverSettings.BlockCacheDir);
 			return BlockCache.Create(cacheDir, (int)(serverSettings.BlockCacheSizeBytes / (1024 * 1024 * 1024)));
-		}
-
-		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)
-		{
-			ServerSettings serverSettings = serviceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
-			DirectoryReference cacheDir = DirectoryReference.Combine(ServerApp.DataDir, String.IsNullOrEmpty(serverSettings.BundleCacheDir) ? "Cache" : serverSettings.BundleCacheDir);
-			return new StorageBackendCache(cacheDir, serverSettings.BundleCacheSizeBytes, serviceProvider.GetRequiredService<ILogger<StorageBackendCache>>());
 		}
 
 		public static void ConfigureFormatters()

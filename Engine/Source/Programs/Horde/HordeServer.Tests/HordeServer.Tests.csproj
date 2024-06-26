@@ -41,7 +41,8 @@
       <Aliases>JobDriver</Aliases>
     </ProjectReference>
     <ProjectReference Include="..\HordeServer\HordeServer.csproj" />
-    <ProjectReference Include="..\Plugins\Analytics\HordeServer.Analytics\HordeServer.Analytics.csproj" />
+    <ProjectReference Include="..\Plugins\Analytics\HordeServer.Analytics.Tests\HordeServer.Analytics.Tests.csproj" />
+    <ProjectReference Include="..\Plugins\Storage\HordeServer.Storage.Tests\HordeServer.Storage.Tests.csproj" />
   </ItemGroup>
 
   <ItemGroup>

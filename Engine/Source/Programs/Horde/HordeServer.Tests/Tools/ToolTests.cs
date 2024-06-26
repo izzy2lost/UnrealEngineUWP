@@ -14,6 +14,7 @@ using HordeServer.Tools;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using HordeServer.Plugins;
 
 namespace HordeServer.Tests.Tools
 {
@@ -24,11 +25,14 @@ namespace HordeServer.Tests.Tools
 
 		public ToolTests()
 		{
+			StorageConfig storageConfig = new StorageConfig();
+			storageConfig.Backends.Clear();
+			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("tools-backend"), Type = StorageBackendType.Memory });
+			storageConfig.Namespaces.Clear();
+			storageConfig.Namespaces.Add(new NamespaceConfig { Id = Namespace.Tools, Backend = new BackendId("tools-backend") });
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Storage.Backends.Clear();
-			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("tools-backend"), Type = StorageBackendType.Memory });
-			globalConfig.Storage.Namespaces.Clear();
-			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = Namespace.Tools, Backend = new BackendId("tools-backend") });
+			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
 			globalConfig.Tools.Add(new ToolConfig(_toolId) { Name = "UnrealGameSync", Description = "Tool for syncing content from source control" });
 			SetConfig(globalConfig);
 		}

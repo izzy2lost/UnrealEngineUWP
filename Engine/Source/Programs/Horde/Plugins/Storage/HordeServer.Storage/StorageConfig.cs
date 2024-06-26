@@ -14,9 +14,13 @@ using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using HordeServer.Acls;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Storage.ObjectStores;
 using HordeServer.Utilities;
+
+#pragma warning disable CA1716 // Rename type Namespace to it no longer conflicts with the reserved language keyword 'Namespace'
+#pragma warning disable CA2227 // Change x to be read-only by removing the property setter
 
 namespace HordeServer.Storage
 {
@@ -49,8 +53,14 @@ namespace HordeServer.Storage
 	/// <summary>
 	/// Configuration for storage
 	/// </summary>
-	public class StorageConfig
+	public class StorageConfig : IPluginConfig
 	{
+		/// <summary>
+		/// Hash of the current object revision to allow detecting changes
+		/// </summary>
+		[JsonIgnore]
+		public string Revision { get; set; } = String.Empty;
+
 		/// <summary>
 		/// Whether to enable garbage collection
 		/// </summary>
@@ -77,15 +87,11 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Called after the config has been read from disk
 		/// </summary>
-		internal void PostLoad(GlobalConfig globalConfig)
+		public void PostLoad(AclConfig parentAcl)
 		{
 			// Create a lookup for backend configs, allowing later entries to override previous ones
 			_backendLookup.Clear();
 			foreach (BackendConfig backendConfig in Backends)
-			{
-				_backendLookup[backendConfig.Id] = backendConfig;
-			}
-			foreach (BackendConfig backendConfig in globalConfig.ServerSettings.StorageBackends)
 			{
 				_backendLookup[backendConfig.Id] = backendConfig;
 			}
@@ -121,9 +127,13 @@ namespace HordeServer.Storage
 					throw new StorageException($"Missing or invalid backend identifier for namespace {namespaceConfig.Id}");
 				}
 
-				namespaceConfig.PostLoad(globalConfig, backendConfig);
+				namespaceConfig.PostLoad(parentAcl);
 				_namespaceLookup[namespaceConfig.Id] = namespaceConfig;
 			}
+
+			// Create a unique id to allow detect changes
+			byte[] data = JsonSerializer.SerializeToUtf8Bytes<StorageConfig>(this, JsonUtils.DefaultSerializerOptions);
+			Revision = IoHash.Compute(data).ToString();
 		}
 
 		static BackendConfig MergeBackendConfigs(BackendId backendId, Dictionary<BackendId, BackendConfig> baseIdToConfig, Dictionary<BackendId, BackendConfig> mergedIdToConfig)
@@ -167,6 +177,32 @@ namespace HordeServer.Storage
 		/// <param name="namespaceConfig">Receives the backend config on success</param>
 		/// <returns>True on success</returns>
 		public bool TryGetNamespace(NamespaceId namespaceId, [NotNullWhen(true)] out NamespaceConfig? namespaceConfig) => _namespaceLookup.TryGetValue(namespaceId, out namespaceConfig);
+	}
+
+	/// <summary>
+	/// Static settings for the storage system
+	/// </summary>
+	public class StaticStorageConfig
+	{
+		/// <summary>
+		/// Directory to use for the coarse-grained backend cache. This caches full bundles downloaded from the upstream object store.
+		/// </summary>
+		public string? BundleCacheDir { get; set; }
+
+		/// <summary>
+		/// Maximum size of the storage cache on disk. Accepts standard binary suffixes (kb, mb, gb, tb, etc...)
+		/// </summary>
+		public string BundleCacheSize { get; set; } = "1gb";
+
+		/// <summary>
+		/// Accessor for the bundle cache size in bytes
+		/// </summary>
+		public long BundleCacheSizeBytes => StringUtils.ParseBytesString(BundleCacheSize);
+
+		/// <summary>
+		/// Overridden settings for storage backends. Useful for running against a production server with custom backends.
+		/// </summary>
+		public List<BackendConfig> Backends { get; set; } = new List<BackendConfig>();
 	}
 
 	/// <summary>
@@ -277,18 +313,6 @@ namespace HordeServer.Storage
 	public class NamespaceConfig
 	{
 		/// <summary>
-		/// Owner of this config object
-		/// </summary>
-		[JsonIgnore]
-		public GlobalConfig GlobalConfig { get; private set; } = null!;
-
-		/// <summary>
-		/// The referenced backend config
-		/// </summary>
-		[JsonIgnore]
-		public BackendConfig BackendConfig { get; private set; } = null!;
-
-		/// <summary>
 		/// Identifier for this namespace
 		/// </summary>
 		[Required]
@@ -328,14 +352,10 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Callback once the configuration has been read from disk
 		/// </summary>
-		/// <param name="globalConfig"></param>
 		/// <param name="backendConfig"></param>
-		public void PostLoad(GlobalConfig globalConfig, BackendConfig backendConfig)
+		public void PostLoad(AclConfig parentAcl)
 		{
-			GlobalConfig = globalConfig;
-			BackendConfig = backendConfig;
-
-			Acl.PostLoad(globalConfig.Acl, $"namespace:{Id}");
+			Acl.PostLoad(parentAcl, $"namespace:{Id}");
 		}
 
 		/// <summary>
@@ -344,8 +364,6 @@ namespace HordeServer.Storage
 		/// <param name="action">The action being performed</param>
 		/// <param name="user">The principal to validate</param>
 		public bool Authorize(AclAction action, ClaimsPrincipal user)
-		{
-			return Acl?.Authorize(action, user) ?? GlobalConfig.Authorize(action, user);
-		}
+			=> Acl.Authorize(action, user);
 	}
 }

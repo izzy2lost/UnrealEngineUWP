@@ -57,10 +57,12 @@ namespace HordeServer.Tests.Ddc.FunctionalTests.References
 
 			ServerSettings serverSettings = ServiceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
 
-			GlobalConfig globalConfig = ServiceProvider.GetRequiredService<IOptions<GlobalConfig>>().Value;
+			StorageConfig storageConfig = new StorageConfig();
+			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("default"), Type = StorageBackendType.Memory });
+			storageConfig.Namespaces.Add(new NamespaceConfig { Id = TestNamespace, Backend = storageConfig.Backends[^1].Id });
 
-			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default"), Type = StorageBackendType.Memory });
-			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = TestNamespace, Backend = globalConfig.Storage.Backends[^1].Id });
+			GlobalConfig globalConfig = ServiceProvider.GetRequiredService<IOptions<GlobalConfig>>().Value;
+			globalConfig.Plugins.AddStorageTestConfig(storageConfig);
 			globalConfig.PostLoad(serverSettings, new List<ILoadedPlugin>());
 
 			ConfigService configService = ServiceProvider.GetRequiredService<ConfigService>();

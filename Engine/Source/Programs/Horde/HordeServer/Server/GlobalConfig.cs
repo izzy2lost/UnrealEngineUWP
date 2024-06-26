@@ -40,7 +40,6 @@ using HordeServer.Perforce;
 using HordeServer.Plugins;
 using HordeServer.Projects;
 using HordeServer.Secrets;
-using HordeServer.Storage;
 using HordeServer.Streams;
 using HordeServer.Tools;
 using HordeServer.Utilities;
@@ -230,11 +229,6 @@ namespace HordeServer.Server
 		public TimeSpan? AgentShutdownIfDisabledGracePeriod { get; set; } = null;
 
 		/// <summary>
-		/// Storage configuration
-		/// </summary>
-		public StorageConfig Storage { get; set; } = new StorageConfig();
-
-		/// <summary>
 		/// Configuration for different artifact types
 		/// </summary>
 		public List<ArtifactTypeConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeConfig>();
@@ -349,8 +343,6 @@ namespace HordeServer.Server
 			}
 			ConfigObject.MergeDefaults<string, PoolConfig>(Pools.Select(x => (x.Id.ToString(), x.Base?.ToString(), x)));
 			UpdateWorkspacesForPools();
-
-			Storage.PostLoad(this);
 
 			// Ensure that all plugins have an entry in the global config so they can register their ACLs
 			foreach (ILoadedPlugin loadedPlugin in loadedPlugins)

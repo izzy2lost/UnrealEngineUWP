@@ -17,6 +17,7 @@ namespace HordeServer.Storage
 	class ObjectStoreFactory : IObjectStoreFactory
 	{
 		readonly IServiceProvider _serviceProvider;
+		readonly IServerInfo _serverInfo;
 		readonly object _lockObject = new object();
 		IReadOnlyDictionary<IoHash, IObjectStore> _objectStores = new Dictionary<IoHash, IObjectStore>();
 		readonly ILogger _logger;
@@ -24,9 +25,10 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ObjectStoreFactory(IServiceProvider serviceProvider, ILogger<ObjectStoreFactory> logger)
+		public ObjectStoreFactory(IServiceProvider serviceProvider, IServerInfo serverInfo, ILogger<ObjectStoreFactory> logger)
 		{
 			_serviceProvider = serviceProvider;
+			_serverInfo = serverInfo;
 			_logger = logger;
 		}
 
@@ -65,7 +67,7 @@ namespace HordeServer.Storage
 			switch (config.Type ?? StorageBackendType.FileSystem)
 			{
 				case StorageBackendType.FileSystem:
-					return _serviceProvider.GetRequiredService<FileObjectStoreFactory>().CreateStore(DirectoryReference.Combine(ServerApp.DataDir, config.BaseDir ?? "Storage"));
+					return _serviceProvider.GetRequiredService<FileObjectStoreFactory>().CreateStore(DirectoryReference.Combine(_serverInfo.DataDir, config.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
 					return _serviceProvider.GetRequiredService<AwsObjectStoreFactory>().CreateStore(config);
 				case StorageBackendType.Memory:

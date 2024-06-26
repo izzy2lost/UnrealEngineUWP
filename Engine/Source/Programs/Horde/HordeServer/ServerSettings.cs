@@ -16,7 +16,6 @@ using EpicGames.Horde.Tools;
 using EpicGames.Perforce;
 using HordeServer.Agents.Fleet;
 using HordeServer.Server;
-using HordeServer.Storage;
 using HordeServer.Tools;
 
 namespace HordeServer
@@ -502,7 +501,7 @@ namespace HordeServer
 		/// <summary>
 		/// Overridden settings for storage backends. Useful for running against a production server with custom backends.
 		/// </summary>
-		public List<BackendConfig> StorageBackends { get; set; } = new List<BackendConfig>();
+		public string LogServiceWriteCacheType { get; set; } = "InMemory";
 
 		/// <summary>
 		/// Whether to log json to stdout
@@ -712,21 +711,6 @@ namespace HordeServer
 		/// Whether to open a browser on startup
 		/// </summary>
 		public bool OpenBrowser { get; set; } = false;
-
-		/// <summary>
-		/// Directory to use for the coarse-grained backend cache. This caches full bundles downloaded from the upstream object store.
-		/// </summary>
-		public string? BundleCacheDir { get; set; }
-
-		/// <summary>
-		/// Maximum size of the storage cache on disk. Accepts standard binary suffixes (kb, mb, gb, tb, etc...)
-		/// </summary>
-		public string BundleCacheSize { get; set; } = "1gb";
-
-		/// <summary>
-		/// Accessor for the bundle cache size in bytes
-		/// </summary>
-		public long BundleCacheSizeBytes => StringUtils.ParseBytesString(BundleCacheSize);
 
 		/// <summary>
 		/// Directory to store the fine-grained block cache. This caches individual exports embedded in bundles.

@@ -25,11 +25,9 @@ namespace HordeServer.Analytics.Tests.Telemetry
 	{
 		static readonly TelemetryRecordMeta s_metadata = new TelemetryRecordMeta();
 
-		protected override void ConfigureServices(IServiceCollection services)
+		public TelemetryTests()
 		{
-			base.ConfigureServices(services);
-
-			services.AddAnalytics();
+			AddPlugin<AnalyticsPlugin>();
 		}
 
 		[TestMethod]
@@ -52,7 +50,7 @@ namespace HordeServer.Analytics.Tests.Telemetry
 			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Plugins.AddAnalytics(analyticsConfig);
+			globalConfig.Plugins.AddAnalyticsTestConfig(analyticsConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -93,7 +91,7 @@ namespace HordeServer.Analytics.Tests.Telemetry
 			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Plugins.AddAnalytics(analyticsConfig);
+			globalConfig.Plugins.AddAnalyticsTestConfig(analyticsConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -174,7 +172,7 @@ namespace HordeServer.Analytics.Tests.Telemetry
 			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Plugins.AddAnalytics(analyticsConfig);
+			globalConfig.Plugins.AddAnalyticsTestConfig(analyticsConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -241,7 +239,7 @@ namespace HordeServer.Analytics.Tests.Telemetry
 			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Plugins.AddAnalytics(analyticsConfig);
+			globalConfig.Plugins.AddAnalyticsTestConfig(analyticsConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -281,7 +279,7 @@ namespace HordeServer.Analytics.Tests.Telemetry
 			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Plugins.AddAnalytics(analyticsConfig);
+			globalConfig.Plugins.AddAnalyticsTestConfig(analyticsConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -332,7 +330,7 @@ namespace HordeServer.Analytics.Tests.Telemetry
 			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Plugins.AddAnalytics(analyticsConfig);
+			globalConfig.Plugins.AddAnalyticsTestConfig(analyticsConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -393,7 +391,7 @@ namespace HordeServer.Analytics.Tests.Telemetry
 			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Plugins.AddAnalytics(analyticsConfig);
+			globalConfig.Plugins.AddAnalyticsTestConfig(analyticsConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();

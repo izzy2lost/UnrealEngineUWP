@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,16 +15,26 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Storage
 {
 	[TestClass]
-	public sealed class GcServiceTests : TestSetup
+	public sealed class GcServiceTests : ServerServiceTest
 	{
+		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
+
+		public GcServiceTests()
+		{
+			AddPlugin<StoragePlugin>();
+		}
+
 		[TestMethod]
 		public async Task CreateBasicTreeAsync()
 		{
 			await StorageService.StartAsync(CancellationToken.None);
 
+			StorageConfig storageConfig = new StorageConfig();
+			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
+			storageConfig.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("default"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
-			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("default"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
+			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
 			SetConfig(globalConfig);
 
 			using IStorageClient store = StorageService.CreateClient(new NamespaceId("default"));
@@ -46,7 +57,7 @@ namespace HordeServer.Tests.Storage
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
-			IObjectStore backend = ServiceProvider.GetRequiredService<IObjectStoreFactory>().CreateObjectStore(globalConfig.Storage.Backends[0]);
+			IObjectStore backend = ServiceProvider.GetRequiredService<IObjectStoreFactory>().CreateObjectStore(storageConfig.Backends[0]);
 
 			ObjectKey[] remaining = await backend.EnumerateAsync().ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);

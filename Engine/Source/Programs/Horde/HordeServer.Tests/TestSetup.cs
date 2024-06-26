@@ -117,6 +117,12 @@ namespace HordeServer.Tests
 		public TestDataController TestDataController => GetTestDataController();
 		public BisectTasksController BisectTasksController => GetBisectTasksController();
 
+		public TestSetup()
+		{
+			AddPlugin<AnalyticsPlugin>();
+			AddPlugin<StoragePlugin>();
+		}
+
 		protected override void ConfigureServices(IServiceCollection services)
 		{
 			base.ConfigureServices(services);
@@ -128,9 +134,6 @@ namespace HordeServer.Tests
 			services.AddHttpClient<RpcService>();
 
 			services.AddSingleton<IAuditLog<AgentId>>(sp => sp.GetRequiredService<IAuditLogFactory<AgentId>>().Create("Agents.Log", "AgentId"));
-
-			services.AddSingleton<OpenTelemetry.Trace.Tracer>(sp => TracerProvider.Default.GetTracer("TestTracer"));
-			services.AddSingleton(sp => new Meter("TestMeter"));
 
 			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IAgentCollection, AgentCollection>();
@@ -199,13 +202,6 @@ namespace HordeServer.Tests
 
 			services.AddSingleton<ConformTaskSource>();
 			services.AddSingleton<ICommitService, CommitService>();
-
-			services.AddSingleton<FileObjectStoreFactory>();
-			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
-
-			services.AddSingleton<StorageService>();
-			services.AddSingleton<StorageBackendCache>();
-			services.AddSingleton<BundleCache>();
 		}
 
 		public Task<Fixture> CreateFixtureAsync()
@@ -334,7 +330,7 @@ namespace HordeServer.Tests
 			{
 				await agent.TryUpdateWorkspacesAsync(workspaces, false);
 			}
-
+			
 			if (requestShutdown)
 			{
 				await agent.TryUpdateAsync(new UpdateAgentOptions { RequestShutdown = true });

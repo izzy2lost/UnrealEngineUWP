@@ -588,6 +588,7 @@ namespace HordeServer.Configuration
 
 				JsonObject configObj = await context.PreprocessFileAsync(GetGlobalConfigUri(), configNode, cancellationToken);
 				CopyJsonNode(configObj, "TelemetryStores", "Plugins.Analytics.Stores");
+				CopyJsonNode(configObj, "Storage", "Plugins.Storage");
 
 				GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(configObj, _jsonOptions)!;
 				if (globalConfig.VersionEnum < GlobalVersion.Latest)
@@ -624,7 +625,19 @@ namespace HordeServer.Configuration
 				throw new ConfigException(context, ex.Message, ex);
 			}
 		}
-
+		/*
+		static bool TryGetChildNode(JsonNode node, string name, [NotNullWhen(true)] out JsonNode? child)
+		{
+			child = node[name];
+			if (child != null)
+			{
+				JsonObject? parentObj = node as JsonObject;
+				parentObj
+				parentObj.TryGetPropertyValue(
+			}
+			return child != null;
+		}
+		*/
 		static void CopyJsonNode(JsonObject rootObj, string sourcePath, string targetPath)
 		{
 			JsonNode? sourceNode = rootObj;

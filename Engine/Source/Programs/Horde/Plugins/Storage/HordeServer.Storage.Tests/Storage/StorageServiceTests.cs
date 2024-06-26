@@ -11,8 +11,15 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Storage
 {
 	[TestClass]
-	public class StorageServiceTests : TestSetup
+	public class StorageServiceTests : ServerServiceTest
 	{
+		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
+
+		public StorageServiceTests()
+		{
+			AddPlugin<StoragePlugin>();
+		}
+
 		[TestMethod]
 		public async Task BlobCollectionTestAsync()
 		{

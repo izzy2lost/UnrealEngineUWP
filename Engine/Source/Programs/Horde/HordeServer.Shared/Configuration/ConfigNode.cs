@@ -49,6 +49,11 @@ namespace HordeServer.Configuration
 	public abstract class ConfigNode
 	{
 		/// <summary>
+		/// Default options for new json node objects
+		/// </summary>
+		internal static JsonNodeOptions s_defaultJsonNodeOptions { get; } = new JsonNodeOptions { PropertyNameCaseInsensitive = true };
+
+		/// <summary>
 		/// Parses macro definitions from this object
 		/// </summary>
 		/// <param name="node">Node to parse macros from</param>
@@ -120,7 +125,7 @@ namespace HordeServer.Configuration
 			}
 			else if (node is JsonObject obj)
 			{
-				JsonObject result = new JsonObject();
+				JsonObject result = new JsonObject(s_defaultJsonNodeOptions);
 				foreach ((string propertyName, JsonNode? propertyNode) in obj)
 				{
 					result[propertyName] = ExpandMacros(propertyNode, context);
@@ -321,7 +326,7 @@ namespace HordeServer.Configuration
 		/// <inheritdoc/>
 		public override async Task<JsonNode?> PreprocessAsync(JsonNode? node, JsonNode? existingNode, ConfigContext context, CancellationToken cancellationToken)
 		{
-			JsonObject? targetObject = ((JsonObject?)existingNode) ?? new JsonObject();
+			JsonObject? targetObject = ((JsonObject?)existingNode) ?? new JsonObject(s_defaultJsonNodeOptions);
 			foreach ((string key, JsonNode? element) in (JsonObject)node!)
 			{
 				context.EnterScope($"[{key}]");
@@ -545,7 +550,7 @@ namespace HordeServer.Configuration
 			}
 
 			// Ensure that the target object is valid so we can write properties into it
-			target ??= new JsonObject();
+			target ??= new JsonObject(s_defaultJsonNodeOptions);
 
 			// Parse all the macros for this scope
 			if (MacroScope)

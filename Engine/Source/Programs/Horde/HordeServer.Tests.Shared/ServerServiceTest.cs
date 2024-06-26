@@ -20,6 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
 
 namespace HordeServer.Tests
 {
@@ -52,7 +53,6 @@ namespace HordeServer.Tests
 		public ServerServiceTest()
 		{
 			_pluginCollection = new PluginCollection();
-			_pluginCollection.Add<AnalyticsPlugin>();
 
 			PatchDatadogWriter();
 		}
@@ -96,6 +96,9 @@ namespace HordeServer.Tests
 
 			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
 			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));
+
+			services.AddSingleton<OpenTelemetry.Trace.Tracer>(sp => TracerProvider.Default.GetTracer("TestTracer"));
+			services.AddSingleton(sp => new Meter("TestMeter"));
 
 			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
 
