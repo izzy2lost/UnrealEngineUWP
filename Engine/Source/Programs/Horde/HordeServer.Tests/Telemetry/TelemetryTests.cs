@@ -48,8 +48,8 @@ namespace HordeServer.Tests.Telemetry
 			telemetryStoreConfig.Id = TelemetryStoreId.Default;
 			telemetryStoreConfig.Metrics.Add(metricConfig);
 
-			AnalyticsGlobalConfig analyticsConfig = new AnalyticsGlobalConfig();
-			analyticsConfig.TelemetryStores.Add(telemetryStoreConfig);
+			AnalyticsConfig analyticsConfig = new AnalyticsConfig();
+			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Plugins.AddAnalytics(analyticsConfig);
@@ -89,8 +89,8 @@ namespace HordeServer.Tests.Telemetry
 			telemetryStoreConfig.Id = TelemetryStoreId.Default;
 			telemetryStoreConfig.Metrics.Add(metricConfig);
 
-			AnalyticsGlobalConfig analyticsConfig = new AnalyticsGlobalConfig();
-			analyticsConfig.TelemetryStores.Add(telemetryStoreConfig);
+			AnalyticsConfig analyticsConfig = new AnalyticsConfig();
+			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Plugins.AddAnalytics(analyticsConfig);
@@ -170,8 +170,8 @@ namespace HordeServer.Tests.Telemetry
 			telemetryStoreConfig.Metrics.Add(metricConfig1);
 			telemetryStoreConfig.Metrics.Add(metricConfig2);
 
-			AnalyticsGlobalConfig analyticsConfig = new AnalyticsGlobalConfig();
-			analyticsConfig.TelemetryStores.Add(telemetryStoreConfig);
+			AnalyticsConfig analyticsConfig = new AnalyticsConfig();
+			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Plugins.AddAnalytics(analyticsConfig);
@@ -237,8 +237,8 @@ namespace HordeServer.Tests.Telemetry
 			telemetryStoreConfig.Id = TelemetryStoreId.Default;
 			telemetryStoreConfig.Metrics.Add(metricConfig);
 
-			AnalyticsGlobalConfig analyticsConfig = new AnalyticsGlobalConfig();
-			analyticsConfig.TelemetryStores.Add(telemetryStoreConfig);
+			AnalyticsConfig analyticsConfig = new AnalyticsConfig();
+			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Plugins.AddAnalytics(analyticsConfig);
@@ -277,8 +277,8 @@ namespace HordeServer.Tests.Telemetry
 			telemetryStoreConfig.Id = TelemetryStoreId.Default;
 			telemetryStoreConfig.Metrics.Add(metricConfig);
 
-			AnalyticsGlobalConfig analyticsConfig = new AnalyticsGlobalConfig();
-			analyticsConfig.TelemetryStores.Add(telemetryStoreConfig);
+			AnalyticsConfig analyticsConfig = new AnalyticsConfig();
+			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Plugins.AddAnalytics(analyticsConfig);
@@ -328,8 +328,8 @@ namespace HordeServer.Tests.Telemetry
 			telemetryStoreConfig.Id = TelemetryStoreId.Default;
 			telemetryStoreConfig.Metrics.Add(metricConfig);
 
-			AnalyticsGlobalConfig analyticsConfig = new AnalyticsGlobalConfig();
-			analyticsConfig.TelemetryStores.Add(telemetryStoreConfig);
+			AnalyticsConfig analyticsConfig = new AnalyticsConfig();
+			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Plugins.AddAnalytics(analyticsConfig);
@@ -389,8 +389,8 @@ namespace HordeServer.Tests.Telemetry
 			telemetryStoreConfig.Id = TelemetryStoreId.Default;
 			telemetryStoreConfig.Metrics.Add(metricConfig);
 
-			AnalyticsGlobalConfig analyticsConfig = new AnalyticsGlobalConfig();
-			analyticsConfig.TelemetryStores.Add(telemetryStoreConfig);
+			AnalyticsConfig analyticsConfig = new AnalyticsConfig();
+			analyticsConfig.Stores.Add(telemetryStoreConfig);
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Plugins.AddAnalytics(analyticsConfig);

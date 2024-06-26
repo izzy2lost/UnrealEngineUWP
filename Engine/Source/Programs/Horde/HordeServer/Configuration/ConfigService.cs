@@ -587,7 +587,7 @@ namespace HordeServer.Configuration
 				ObjectConfigNode configNode = new ObjectConfigNode(typeof(GlobalConfig));
 
 				JsonObject configObj = await context.PreprocessFileAsync(GetGlobalConfigUri(), configNode, cancellationToken);
-				CopyJsonNode(configObj, "TelemetryStores", "Plugins.Analytics.TelemetryStores");
+				CopyJsonNode(configObj, "TelemetryStores", "Plugins.Analytics.Stores");
 
 				GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(configObj, _jsonOptions)!;
 				if (globalConfig.VersionEnum < GlobalVersion.Latest)

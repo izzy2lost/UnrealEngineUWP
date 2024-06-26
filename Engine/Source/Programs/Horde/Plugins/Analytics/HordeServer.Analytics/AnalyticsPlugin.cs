@@ -17,7 +17,7 @@ namespace HordeServer
 	/// <summary>
 	/// Main entry point for the analytics plugin
 	/// </summary>
-	[Plugin("Analytics", ServerConfigType = typeof(AnalyticsServerConfig), GlobalConfigType = typeof(AnalyticsGlobalConfig))]
+	[Plugin("Analytics", GlobalConfigType = typeof(AnalyticsConfig), ServerConfigType = typeof(AnalyticsServerConfig))]
 	public class AnalyticsPlugin : IPluginStartup
 	{
 		/// <inheritdoc/>

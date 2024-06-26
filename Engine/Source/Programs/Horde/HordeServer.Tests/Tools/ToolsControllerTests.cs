@@ -30,8 +30,11 @@ public class ToolsControllerTests
 	{
 		AclEntryConfig aclEntryConfig = new(HordeClaims.AgentRoleClaim, [ToolAclAction.DownloadTool]);
 		ToolId toolId = new("foo");
-		GlobalConfig globalConfig = new();
 
+		PluginCollection pluginCollection = new PluginCollection();
+		pluginCollection.Add<AnalyticsPlugin>();
+
+		GlobalConfig globalConfig = new();
 		globalConfig.Storage.Backends.Clear();
 		globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("tools-backend"), Type = StorageBackendType.Memory });
 		globalConfig.Storage.Namespaces.Clear();
@@ -39,7 +42,8 @@ public class ToolsControllerTests
 		globalConfig.Tools.Add(new ToolConfig(toolId) { Name = "Foo", Description = "This is foo", Acl = new AclConfig() { Entries = [aclEntryConfig] }, Public = false });
 
 		ServerSettings serverSettings = new() { AuthMethod = AuthMethod.Horde };
-		globalConfig.PostLoad(serverSettings, new List<ILoadedPlugin>());
+		globalConfig.PostLoad(serverSettings, pluginCollection.LoadedPlugins);
+
 		Dictionary<string, string> settings = new() { { "Horde:AuthMethod", AuthMethod.Horde.ToString() } };
 		await using FakeHordeWebApp app = new(settings);
 

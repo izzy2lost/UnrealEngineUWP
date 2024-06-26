@@ -27,16 +27,16 @@ namespace HordeServer.Telemetry
 	{
 		readonly TelemetryManager _telemetryManager;
 		readonly IMetricCollection _metricCollection;
-		readonly IOptionsSnapshot<AnalyticsGlobalConfig> _globalConfig;
+		readonly IOptionsSnapshot<AnalyticsConfig> _analyticsConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TelemetryController(TelemetryManager telemetryManager, IMetricCollection metricCollection, IOptionsSnapshot<AnalyticsGlobalConfig> globalConfig)
+		public TelemetryController(TelemetryManager telemetryManager, IMetricCollection metricCollection, IOptionsSnapshot<AnalyticsConfig> analyticsConfig)
 		{
 			_telemetryManager = telemetryManager;
 			_metricCollection = metricCollection;
-			_globalConfig = globalConfig;
+			_analyticsConfig = analyticsConfig;
 		}
 
 		/// <summary>
@@ -72,13 +72,13 @@ namespace HordeServer.Telemetry
 		[Route("/api/v1/telemetry/{storeId}/metrics")]
 		public async Task<ActionResult<List<GetTelemetryMetricsResponse>>> GetMetricsAsync(TelemetryStoreId storeId, [FromQuery] MetricId[] id, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] string? group = null, [FromQuery] int results = 50, CancellationToken cancellationToken = default)
 		{
-			if (!_globalConfig.Value.Authorize(TelemetryAclAction.QueryMetrics, User))
+			if (!_analyticsConfig.Value.Authorize(TelemetryAclAction.QueryMetrics, User))
 			{
 				return Forbid(TelemetryAclAction.QueryMetrics);
 			}
 
 			TelemetryStoreConfig? telemetryStoreConfig;
-			if (!_globalConfig.Value.TryGetTelemetryStore(storeId, out telemetryStoreConfig))
+			if (!_analyticsConfig.Value.TryGetTelemetryStore(storeId, out telemetryStoreConfig))
 			{
 				return NotFound(storeId);
 			}

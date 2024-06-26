@@ -58,12 +58,12 @@ namespace HordeServer.Telemetry.Metrics
 		readonly AsyncEvent _flushEvent = new AsyncEvent();
 		readonly BackgroundTask _flushTask;
 		readonly IClock _clock;
-		readonly IOptionsMonitor<AnalyticsGlobalConfig> _globalConfig;
+		readonly IOptionsMonitor<AnalyticsConfig> _analyticsConfig;
 		readonly ILogger _logger;
 
 		Dictionary<SampleKey, List<double>> _queuedSamples = new Dictionary<SampleKey, List<double>>();
 
-		public MetricCollection(IMongoService mongoService, IClock clock, IOptionsMonitor<AnalyticsGlobalConfig> globalConfig, ILogger<MetricCollection> logger)
+		public MetricCollection(IMongoService mongoService, IClock clock, IOptionsMonitor<AnalyticsConfig> analyticsConfig, ILogger<MetricCollection> logger)
 		{
 			List<MongoIndex<MetricDocument>> indexes = new List<MongoIndex<MetricDocument>>();
 			indexes.Add(MongoIndex.Create<MetricDocument>(keys => keys.Ascending(x => x.TelemetryStoreId).Descending(x => x.Time).Ascending(x => x.MetricId).Ascending(x => x.Group)));
@@ -71,7 +71,7 @@ namespace HordeServer.Telemetry.Metrics
 
 			_flushTask = new BackgroundTask(BackgroundTickAsync);
 			_clock = clock;
-			_globalConfig = globalConfig;
+			_analyticsConfig = analyticsConfig;
 			_logger = logger;
 		}
 
@@ -100,7 +100,7 @@ namespace HordeServer.Telemetry.Metrics
 			JsonArray array = new JsonArray { node };
 
 			TelemetryStoreConfig? telemetryStoreConfig;
-			if (_globalConfig.CurrentValue.TryGetTelemetryStore(storeId, out telemetryStoreConfig))
+			if (_analyticsConfig.CurrentValue.TryGetTelemetryStore(storeId, out telemetryStoreConfig))
 			{
 				foreach (MetricConfig metric in telemetryStoreConfig.Metrics)
 				{
@@ -258,7 +258,7 @@ namespace HordeServer.Telemetry.Metrics
 				foreach ((SampleKey sampleKey, List<double> sampleValues) in samples)
 				{
 					MetricConfig? metricConfig;
-					if (_globalConfig.CurrentValue.TryGetTelemetryStore(sampleKey.Store, out TelemetryStoreConfig? telemetryStoreConfig) && telemetryStoreConfig.TryGetMetric(sampleKey.Metric, out metricConfig))
+					if (_analyticsConfig.CurrentValue.TryGetTelemetryStore(sampleKey.Store, out TelemetryStoreConfig? telemetryStoreConfig) && telemetryStoreConfig.TryGetMetric(sampleKey.Metric, out metricConfig))
 					{
 						await CombineValuesAsync(sampleKey.Store, metricConfig, sampleKey.Group, sampleKey.Time, sampleValues, cancellationToken);
 					}

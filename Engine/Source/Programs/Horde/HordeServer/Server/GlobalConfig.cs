@@ -240,6 +240,12 @@ namespace HordeServer.Server
 		public List<ArtifactTypeConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeConfig>();
 
 		/// <summary>
+		/// Metrics to aggregate on the Horde server
+		/// </summary>
+		[Obsolete("Use Plugins.Analytics.Stores instead")]
+		public List<LegacyTelemetryStoreConfig> TelemetryStores { get; set; } = new List<LegacyTelemetryStoreConfig>();
+
+		/// <summary>
 		/// Plugin config objects
 		/// </summary>
 		public PluginConfigCollection Plugins { get; set; } = new PluginConfigCollection();
@@ -788,6 +794,22 @@ namespace HordeServer.Server
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// Shim for supporting includes and macros in telemetry settings before creating the analytics plugin
+	/// </summary>
+	public class LegacyTelemetryStoreConfig
+	{
+		/// <summary>
+		/// Includes for other configuration files
+		/// </summary>
+		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
+
+		/// <summary>
+		/// Macros within this configuration
+		/// </summary>
+		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
 	}
 
 	/// <summary>

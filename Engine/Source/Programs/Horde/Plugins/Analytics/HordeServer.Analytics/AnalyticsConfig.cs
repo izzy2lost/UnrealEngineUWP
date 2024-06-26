@@ -20,12 +20,12 @@ namespace HordeServer
 	/// <summary>
 	/// Config settings for analytics
 	/// </summary>
-	public class AnalyticsGlobalConfig : IPluginConfig
+	public class AnalyticsConfig : IPluginConfig
 	{
 		/// <summary>
 		/// Metrics to aggregate on the Horde server
 		/// </summary>
-		public List<TelemetryStoreConfig> TelemetryStores { get; set; } = new List<TelemetryStoreConfig>();
+		public List<TelemetryStoreConfig> Stores { get; set; } = new List<TelemetryStoreConfig>();
 
 		private AclConfig _parentAcl = null!;
 		private readonly Dictionary<TelemetryStoreId, TelemetryStoreConfig> _telemetryStoreLookup = new Dictionary<TelemetryStoreId, TelemetryStoreConfig>();
@@ -35,7 +35,7 @@ namespace HordeServer
 			_parentAcl = parentAcl;
 
 			_telemetryStoreLookup.Clear();
-			foreach (TelemetryStoreConfig telemetryStore in TelemetryStores)
+			foreach (TelemetryStoreConfig telemetryStore in Stores)
 			{
 				_telemetryStoreLookup.Add(telemetryStore.Id, telemetryStore);
 				telemetryStore.PostLoad(parentAcl);

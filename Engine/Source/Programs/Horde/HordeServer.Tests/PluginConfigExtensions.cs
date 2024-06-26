@@ -6,7 +6,7 @@ namespace HordeServer.Tests
 {
 	static class PluginConfigExtensions
 	{
-		public static void AddAnalytics(this PluginConfigCollection configCollection, AnalyticsGlobalConfig config)
+		public static void AddAnalytics(this PluginConfigCollection configCollection, AnalyticsConfig config)
 			=> configCollection[new PluginName("Analytics")] = config;
 	}
 }
