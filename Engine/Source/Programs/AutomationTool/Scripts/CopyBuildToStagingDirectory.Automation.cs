@@ -5479,6 +5479,8 @@ namespace AutomationScripts
 					);
 				LogDeploymentContext(SC);
 
+				SC.CustomDeployment = SC.StageTargetPlatform?.GetCustomDeploymentHandler(Params, SC);
+
 				if (Params.PreModifyDeploymentContextCallback != null)
 				{
 					Params.PreModifyDeploymentContextCallback(Params, SC);

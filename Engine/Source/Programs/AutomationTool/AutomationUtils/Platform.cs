@@ -748,6 +748,16 @@ namespace AutomationTool
 		}
 
 		/// <summary>
+		/// Get the custom deployment handler for this platform,
+		/// </summary>
+		/// <param name="Params"></param>
+		/// <param name="SC">Deployment Context</param>
+		public virtual CustomDeploymentHandler GetCustomDeploymentHandler(ProjectParams Params, DeploymentContext SC)
+		{
+			return null;
+		}
+
+		/// <summary>
 		/// True if this platform is supported.
 		/// </summary>
 		public virtual bool SupportsMultiDeviceDeploy

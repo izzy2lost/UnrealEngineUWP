@@ -47,33 +47,6 @@ public class Win64Platform : Platform
 		return Devices.ToArray();
 	}
 
-	public override void PlatformSetupParams(ref ProjectParams Params)
-	{
-		base.PlatformSetupParams(ref Params);
-
-		// use a custom deployment handler if one is requested
-		Params.PreModifyDeploymentContextCallback = new Action<ProjectParams, DeploymentContext>((ProjectParams Params, DeploymentContext SC) =>
-		{
-			if (SC.CustomDeployment == null)
-			{			
-				string CustomDeploymentName = null;
-
-				ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, Params.RawProjectPath.Directory, PlatformType, SC.CustomConfig);
-				EngineIni.GetString("/Script/WindowsTargetPlatform.WindowsTargetSettings", "CustomDeployment", out CustomDeploymentName);
-
-				if (string.IsNullOrEmpty(CustomDeploymentName))
-				{
-					CustomDeploymentName = Params.CustomDeploymentHandler;
-				}
-
-				if (!string.IsNullOrEmpty(CustomDeploymentName))
-				{
-					SC.CustomDeployment = CustomDeploymentHandler.Create(CustomDeploymentName, this);
-				}
-			}			
-		});
-	}
-
 	public override void Deploy(ProjectParams Params, DeploymentContext SC)
 	{
 		// We only care about deploying for SteamDeck
@@ -357,6 +330,24 @@ public class Win64Platform : Platform
 	public override List<string> GetDebugFileExtensions()
 	{
 		return new List<string> { ".pdb", ".map" };
+	}
+
+	public override CustomDeploymentHandler GetCustomDeploymentHandler(ProjectParams Params, DeploymentContext SC)
+	{
+		ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, Params.RawProjectPath.Directory, PlatformType, SC.CustomConfig);
+		EngineIni.GetString("/Script/WindowsTargetPlatform.WindowsTargetSettings", "CustomDeployment", out string CustomDeploymentName);
+
+		if (string.IsNullOrEmpty(CustomDeploymentName))
+		{
+			CustomDeploymentName = Params.CustomDeploymentHandler;
+		}
+
+		if (!string.IsNullOrEmpty(CustomDeploymentName))
+		{
+			return CustomDeploymentHandler.Create(CustomDeploymentName, this);
+		}
+
+		return base.GetCustomDeploymentHandler(Params, SC);
 	}
 
 	public override bool SignExecutables(DeploymentContext SC, ProjectParams Params)
