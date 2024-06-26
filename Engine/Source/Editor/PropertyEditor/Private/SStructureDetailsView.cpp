@@ -276,13 +276,20 @@ void SStructureDetailsView::ForceRefresh()
 	SetStructureProvider(StructProvider);
 }
 
+void SStructureDetailsView::InvalidateCachedState()
+{
+	for (const TSharedPtr<FComplexPropertyNode>& RootNode : RootNodes)
+	{
+		RootNode->InvalidateCachedState();
+	}
+}
+
 void SStructureDetailsView::ClearSearch()
 {
 	CurrentFilter.FilterStrings.Empty();
 	SearchBox->SetText(FText::GetEmpty());
 	RerunCurrentFilter();
 }
-
 
 const TArray< TWeakObjectPtr<UObject> >& SStructureDetailsView::GetSelectedObjects() const
 {
