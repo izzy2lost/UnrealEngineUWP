@@ -91,7 +91,14 @@ ELogVerbosity::Type FFeedbackContext::ResolveVerbosity(ELogVerbosity::Type Verbo
 {
 	if (Verbosity == ELogVerbosity::Error && TreatErrorsAsWarnings)
 	{
-		return ELogVerbosity::Warning;
+		// Only override the verbosity of errors if we are not currently handling a fatal failure.
+		// Some of the codepaths invoked when handling critical/fatal errors might involve logging
+		// the failure as an error along with some additional information, and we don't want to
+		// suppress fatal failures.
+		if (!GIsCriticalError)
+		{
+			return ELogVerbosity::Warning;
+		}
 	}
 	if (Verbosity == ELogVerbosity::Warning && TreatWarningsAsErrors)
 	{
