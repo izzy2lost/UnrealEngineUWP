@@ -130,19 +130,28 @@ struct FEnumSchemaId : FSchemaId {};
 
 //////////////////////////////////////////////////////////////////////////
 
+struct FNoId {};
+inline constexpr FNoId NoId;
+
+//////////////////////////////////////////////////////////////////////////
+
 struct FNestedScopeId { uint32 Idx; };
 struct FFlatScopeId { FNameId Name; };
 
 class FScopeId
 {
 	static constexpr uint32 NestedBit = 0x80000000u;
+	static constexpr uint32 Unscoped = ~0u;
+
 	uint32 Handle;
 public:
+	FScopeId(FNoId) : Handle(Unscoped) {}
 	explicit FScopeId(FFlatScopeId Flat) : Handle(Flat.Name.Idx) 				{ check(AsFlat().Name == Flat.Name); }
 	explicit FScopeId(FNestedScopeId Nested) : Handle(Nested.Idx | NestedBit) 	{ check(AsNested().Idx == Nested.Idx); }
 
-	bool							IsFlat() const 					{ return  !(Handle & NestedBit); }
-	bool							IsNested() const 				{ return !!(Handle & NestedBit); }
+	explicit						operator bool() const			{ return Handle != ~0u; }
+	bool							IsFlat() const 					{ return !(Handle & NestedBit); }
+	bool							IsNested() const 				{ return !!(*this) & !!(Handle & NestedBit); }
 	FFlatScopeId					AsFlat() const 					{ check(IsFlat()); 		return {FNameId{Handle}}; }
 	FNestedScopeId					AsNested() const				{ check(IsNested()); 	return {Handle & ~NestedBit}; }
 	uint32							AsInt() const					{ return Handle; }
@@ -204,15 +213,12 @@ struct FTypeId
 
 //////////////////////////////////////////////////////////////////////////
 
-struct FNoId {};
-inline constexpr FNoId NoId;
-
-
 inline uint32 ToIdx(FNameId Id) { return Id.Idx; }
 inline uint32 ToIdx(FMemberId Name) { return Name.Id.Idx; }
 inline uint32 ToIdx(FSchemaId Id) { return Id.Idx; }
 inline uint32 ToIdx(FNestedScopeId Id) { return Id.Idx; }
 inline uint32 ToIdx(FParametricTypeId Id) { return Id.AsInt(); }
+inline uint32 ToIdx(FConcreteTypenameId Name) { return Name.Id.Idx; }
 
 template<class IdType>
 IdType FromIdx(uint32 Idx) { return {Idx}; }
@@ -265,6 +271,7 @@ using FOptionalStructSchemaId = TOptionalId<FStructSchemaId>;
 using FOptionalEnumSchemaId = TOptionalId<FEnumSchemaId>;
 using FOptionalNestedScopeId = TOptionalId<FNestedScopeId>;
 using FOptionalParametricTypeId = TOptionalId<FParametricTypeId>;
+using FOptionalConcreteTypenameId = TOptionalId<FConcreteTypenameId>;
 
 template<class IdType>
 inline constexpr TOptionalId<IdType> ToOptional(IdType Id) { return Id; }
@@ -276,7 +283,7 @@ inline constexpr FOptionalSchemaId ToOptionalSchema(FStructSchemaId Id) { return
 // Resolved FNestedScopeId
 struct FNestedScope
 {
-	FScopeId		Outer;
+	FScopeId		Outer; // @invariant !!Outer
 	FFlatScopeId 	Inner;
 
 	bool operator==(FNestedScope O) const { return Outer.AsInt() == O.Outer.AsInt() && Inner.Name == O.Inner.Name; }
@@ -289,8 +296,8 @@ struct FParameterIndexRange : FBaseTypenameId { using FBaseTypenameId::FBaseType
 // Name-resolved FParametricTypeId
 struct FParametricType
 {
-	FConcreteTypenameId		Name;
-	FParameterIndexRange	Parameters;
+	FOptionalConcreteTypenameId	Name;
+	FParameterIndexRange		Parameters;
 
 	bool operator==(FParametricType O) const { return Name == O.Name && Parameters.AsInt() == O.Parameters.AsInt(); }
 };
@@ -299,9 +306,11 @@ struct FParametricType
 struct FParametricTypeView
 {
 	FParametricTypeView(FConcreteTypenameId InName, uint8 NumParams, const FTypeId* Params) : Name(InName), NumParameters(NumParams), Parameters(Params) {}
+	FParametricTypeView(FOptionalConcreteTypenameId InName, uint8 NumParams, const FTypeId* Params) : Name(InName), NumParameters(NumParams), Parameters(Params) {}
 	FParametricTypeView(FConcreteTypenameId InName, TConstArrayView<FTypeId> Params);
+	FParametricTypeView(FOptionalConcreteTypenameId InName, TConstArrayView<FTypeId> Params);
 
-	FConcreteTypenameId			Name;
+	FOptionalConcreteTypenameId	Name;
 	uint8						NumParameters;
 	const FTypeId*				Parameters;
 

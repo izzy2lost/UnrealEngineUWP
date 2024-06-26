@@ -1279,7 +1279,7 @@ TEST_CASE_NAMED(FPlainPropsReadWriteTest, "System::Core::Serialization::PlainPro
 			CHECK(Names[FlatUsed.Name] == "FlatUsed");
 
 			FParametricTypeView S4 = ResolveUntranslatedParametricType(Batch, S4T.Name.AsParametric());
-			CHECK(Names[S4.Name.Id] == "S4");
+			CHECK(Names[S4.Name.Get().Id] == "S4");
 			CHECK(S4.NumParameters == 2);
 			
 			FTypeId S2T = S4.Parameters[0];

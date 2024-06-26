@@ -15,6 +15,7 @@
 
 
 PP_NAME_STRUCT(, FName);
+PP_REFLECT_STRUCT_TEMPLATE(, TTuple, void, Key, Value) // Todo handle TTuple and higher arities
 
 namespace UE::Math
 {
@@ -304,15 +305,16 @@ struct TOptionalBinding : public IItemRangeBinding
 
 //////////////////////////////////////////////////////////////////////////
 
-template <typename T>
+template <typename T, typename KeyFuncs, typename SetAllocator>
 struct TSetBinding : public IItemRangeBinding
 {
 	using SizeType = int32;
 	using ItemType = T;
+	using SetType = TSet<T, KeyFuncs, SetAllocator>;
 
 	virtual void MakeItems(FLoadRangeContext& Ctx) const override
 	{
-		TSet<T>& Set = Ctx.Request.GetRange<TSet<T>>();
+		SetType& Set = Ctx.Request.GetRange<SetType>();
 		SizeType Num = static_cast<SizeType>(Ctx.Request.NumTotal());
 
 		static constexpr bool bAllocate = sizeof(T) > sizeof(FLoadRangeContext::Scratch);
@@ -411,6 +413,12 @@ struct TSetBinding : public IItemRangeBinding
 
 //////////////////////////////////////////////////////////////////////////
 
+template <typename K, typename V, typename SetAllocator, typename KeyFuncs>
+struct TMapBinding : public TSetBinding<TPair<K, V>, KeyFuncs, SetAllocator>
+{};
+
+//////////////////////////////////////////////////////////////////////////
+
 //TODO: macroify, e.g PP_CUSTOM_BIND(PLAINPROPS_API, FTransform, Transform, Translate, Rotate, Scale)
 struct FTransformBinding : public ICustomBinding
 {
@@ -428,8 +436,8 @@ struct FTransformBinding : public ICustomBinding
 		MemberIds[(uint8)EMember::Rotate] = Ids::IndexMember("Rotate");
 		MemberIds[(uint8)EMember::Scale] = Ids::IndexMember("Scale");
 
-		VectorId = IndexNativeStruct<FVector, Ids>();
-		QuatId = IndexNativeStruct<FQuat, Ids>();
+		VectorId = IndexStruct<FVector, Ids>();
+		QuatId = IndexStruct<FQuat, Ids>();
 	}
 
 	PLAINPROPS_API void	Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FSaveContext& Context) const;
@@ -652,7 +660,6 @@ struct TSetDeltaBinding : public ICustomBinding
 
 }
 
-
 namespace PlainProps
 {
 
@@ -677,10 +684,16 @@ struct TRangeBind<TUniquePtr<T>>
 	using Type = UE::TUniquePtrBinding<T>;
 };
 
-template<typename T>
-struct TRangeBind<TSet<T>>
+template <typename T, typename KeyFuncs, typename SetAllocator>
+struct TRangeBind<TSet<T, KeyFuncs, SetAllocator>>
 {
-	using Type = UE::TSetBinding<T>;
+	using Type = UE::TSetBinding<T, KeyFuncs, SetAllocator>;
+};
+
+template <typename K, typename V, typename SetAllocator, typename KeyFuncs>
+struct TRangeBind<TMap<K, V, SetAllocator, KeyFuncs>>
+{
+	using Type = UE::TMapBinding<K, V, SetAllocator, KeyFuncs>;
 };
 
 template<typename T>
@@ -695,4 +708,5 @@ struct TCustomBind<FTransform>
 {
 	using Type = UE::FTransformBinding;
 };
-}
+
+} // namespace PlainProps

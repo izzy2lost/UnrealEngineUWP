@@ -38,6 +38,7 @@ struct FIds
 	static FEnumSchemaId	IndexEnum(FAnsiStringView Name)				{ return IndexEnum(IndexNativeType(Name)); }
 	static FStructSchemaId	IndexStruct(FTypeId Type)					{ return GNames.IndexStruct(Type); }
 	static FStructSchemaId	IndexStruct(FAnsiStringView Name)			{ return IndexStruct(IndexNativeType(Name)); }
+	static FIdIndexerBase&	GetIndexer()								{ return GNames; }
 	static const FDebugIds& GetDebug()									{ return GNames; }
 };
 
@@ -190,14 +191,14 @@ FBatchSaver::FBatchSaver()
 template<class T>
 void FBatchSaver::Save(T&& Object) 
 {
-	FStructSchemaId Id = IndexNativeStruct<std::remove_reference_t<T>, FIds>();
+	FStructSchemaId Id = IndexStruct<std::remove_reference_t<T>, FIds>();
 	SavedObjects.Emplace(Id, SaveStruct(&Object, Id, {GTypes, GSchemas, Customs, Scratch}));
 }
 
 template<class T>
 bool FBatchSaver::SaveDelta(const T& Object, const T& Default) 
 {
-	FStructSchemaId Id = IndexNativeStruct<std::remove_reference_t<T>, FIds>();
+	FStructSchemaId Id = IndexStruct<std::remove_reference_t<T>, FIds>();
 	if (FBuiltStructPtr Delta = SaveStructDelta(&Object, &Default, Id, {GTypes, GSchemas, Customs, Scratch}))
 	{
 		SavedObjects.Emplace(Id, MoveTemp(Delta));
@@ -462,12 +463,19 @@ struct FNames
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FNames, void, Name, Names);
 
-
 struct FStr
 {
 	FString S;
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FStr, void, S);
+
+struct FNDC
+{
+	int X = -1;
+	explicit FNDC(int I) : X(I) {}
+	friend bool operator==(FNDC A, FNDC B) = default;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FNDC, void, X);
 
 struct FSets
 {
@@ -478,6 +486,19 @@ struct FSets
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FSets, void, Leaves, Ranges, Structs);
 
 inline bool operator==(const FSets& A, const FSets& B)
+{
+	return LegacyCompareEqual(A.Leaves, B.Leaves) && LegacyCompareEqual(A.Ranges, B.Ranges) && LegacyCompareEqual(A.Structs, B.Structs);
+}
+
+struct FMaps
+{
+	TMap<bool, bool> Leaves;
+	TMap<int, TArray<char>> Ranges;
+	TMap<FInt, FNDC> Structs;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FMaps, void, Leaves, Ranges, Structs);
+
+inline bool operator==(const FMaps& A, const FMaps& B)
 {
 	return LegacyCompareEqual(A.Leaves, B.Leaves) && LegacyCompareEqual(A.Ranges, B.Ranges) && LegacyCompareEqual(A.Structs, B.Structs);
 }
@@ -523,14 +544,6 @@ TArray<TUniquePtr<T>> MakeTwo(T&& A, T&& B)
 }
 
 //////////////////////////////////////////////////////////////////////////
-
-struct FNDC
-{
-	int X = -1;
-	explicit FNDC(int I) : X(I) {}
-	friend bool operator==(FNDC A, FNDC B) = default;
-};
-PP_REFLECT_STRUCT(PlainProps::UE::Test, FNDC, void, X);
 
 struct FNDCIntrusive : FNDC
 {
@@ -813,6 +826,27 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 				CHECK(Batch.Load<FSets>() == FSets{{'a','b'}});
 				CHECK(Batch.Load<FSets>() == FSets{{'b','a'}});
 				CHECK(Batch.Load<FSets>() == FSets{{'z','a','?'}});
+			});
+	}
+
+	SECTION("TMap")
+	{
+		TScopedStructBinding<FInt> Int;
+		TScopedStructBinding<FNDC> NDC;
+		TScopedStructBinding<FMaps> Maps;
+		TScopedStructBinding<TPair<bool, bool>> BoolBoolPair;
+		TScopedStructBinding<TPair<int, TArray<char>>> IntStringPair;
+		TScopedStructBinding<TPair<FInt, FNDC>> IntNDCPair;
+		
+		Run([](FBatchSaver& Batch)
+			{
+				Batch.Save(FMaps{});
+				Batch.Save(FMaps{{{true, true}, {false, false}}, {{5, {'h', 'i'}}}, {{{7}, FNDC{8}}}});
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FMaps>() == FMaps{});
+				CHECK(Batch.Load<FMaps>() == FMaps{{{true, true}, {false, false}}, {{5, {'h', 'i'}}}, {{{7}, FNDC{8}}}});
 			});
 	}
 

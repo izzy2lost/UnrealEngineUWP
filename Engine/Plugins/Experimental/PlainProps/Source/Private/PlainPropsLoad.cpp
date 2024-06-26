@@ -249,6 +249,14 @@ static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FS
 	return Memcpy ? FLoadStructPlan(Memcpy.GetValue()) : MakeSchemaLoadPlan(From, To, ToMemberIds, ToStructIds, OutSubsetSchemas);
 }
 
+class FMemberlessDummyBinding : public ICustomBinding
+{
+	virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override { check(false); }
+	virtual void LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override { check(false);}
+	virtual bool DiffCustom(const void* StructA, const void* StructB) const override { check(false); return false; }
+};
+static FMemberlessDummyBinding GMemberlessBinding;
+
 FLoadBatchPtr CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FCustomBindings& Customs, const FSchemaBindings& Schemas, TConstArrayView<FStructSchemaId> RuntimeIds)
 {
 	check(NumStructSchemas(ReadId) == RuntimeIds.Num());
@@ -268,15 +276,24 @@ FLoadBatchPtr CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarat
 		int32 SubsetSchemaOffset = SubsetSchemaData.Num();
 		if (const ICustomBinding* Custom = Customs.FindStruct(RuntimeId))
 		{
-			Plans[SavedId.Idx] = FLoadStructPlan(*Custom) ;
+			Plans[SavedId.Idx] = FLoadStructPlan(*Custom);
 		}
 		else
 		{
 			const FStructSchema& From = ResolveStructSchema(ReadId, SavedId);
-			const FSchemaBinding& To = Schemas.GetStruct(RuntimeId);
-			// Possible optimization - some simple memcpy cases doesn't need to resolve the declaration
-			TConstArrayView<FMemberId> ToMemberIds = Declarations.Get(RuntimeId).GetMemberOrder();
-			Plans[SavedId.Idx] = MakeLoadPlan(From, To, ToMemberIds, RuntimeIds, /* out */ SubsetSchemaData);	
+			if (From.NumMembers)
+			{
+				const FSchemaBinding& To = Schemas.GetStruct(RuntimeId);
+				// Possible optimization - some simple memcpy cases doesn't need to resolve the declaration
+				TConstArrayView<FMemberId> ToMemberIds = Declarations.Get(RuntimeId).GetMemberOrder();
+				Plans[SavedId.Idx] = MakeLoadPlan(From, To, ToMemberIds, RuntimeIds, /* out */ SubsetSchemaData);	
+			}
+			else
+			{
+				checkf(!From.Type.Scope && From.Type.Name.NumParameters == 2, TEXT("Only range-bound template parameters are memberless. "
+					"They're always anonymous two-parameter types and uninstantiable as structs, bound via MakeAnonymousParametricType()"));
+				Plans[SavedId.Idx] = FLoadStructPlan(GMemberlessBinding);
+			}
 		}
 		
 		SubsetSchemaSizes[SavedId.Idx] = SubsetSchemaData.Num() - SubsetSchemaOffset;

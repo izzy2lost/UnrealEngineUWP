@@ -291,7 +291,7 @@ static void TranslateScopeIds(TArrayView<FNestedScopeId> Out, FIdIndexerBase& In
 		check(Scope.Outer.IsFlat() || Scope.Outer.AsNested().Idx < OutIdx);
 		FScopeId Outer = Scope.Outer.IsFlat() ? FScopeId(Translate(Scope.Outer.AsFlat(), ToNames)) : FScopeId(Out[Scope.Outer.AsNested().Idx]);
 		FFlatScopeId Inner = Translate(Scope.Inner, ToNames);
-		Out[OutIdx] = Indexer.NestScope(Outer, Inner).AsNested();
+		Out[OutIdx++] = Indexer.NestScope(Outer, Inner).AsNested();
 	}
 }
 
@@ -306,7 +306,7 @@ static void TranslateParametricTypeIds(TArrayView<FParametricTypeId> Out, FIdInd
 		{
 			Params.Add(To.Remap(FromParameter));
 		}
-		Out[OutIdx] = Indexer.MakeParametricTypeId(To.Remap(Parametric.Name), Params);
+		Out[OutIdx++] = Indexer.MakeParametricTypeId(To.Remap(Parametric.Name), Params);
 	}
 }
 
@@ -316,6 +316,7 @@ static void TranslateSchemaIds(TArrayView<FSchemaId> Out, FIdIndexerBase& Indexe
 	for (const FStructSchema& FromSchema : GetStructSchemas(From))
 	{
 		FTypeId ToType = To.Remap(FromSchema.Type);
+		checkSlow(ToType.Name.NumParameters == FromSchema.Type.Name.NumParameters);
 		Out[OutIdx++] = Indexer.IndexStruct(ToType);
 	}
 	

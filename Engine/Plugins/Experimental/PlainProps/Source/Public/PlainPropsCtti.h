@@ -60,7 +60,8 @@ template<typename T> using CttiOf = typename TCttiOf<T>::Type;
 #define PP_REFLECT_STRUCT(NS, T, S, ...)				_PP_REFLECT_STRUCT(_PP_NUM_ARGS(__VA_ARGS__), NS, T, S, __VA_ARGS__)
 #define PP_REFLECT_STRUCT_TEMPLATE(NS, T, S, ...)		_PP_REFLECT_STRUCT_TEMPLATE(_PP_NUM_ARGS(__VA_ARGS__), NS, T, S, __VA_ARGS__)
 #define PP_NAME_STRUCT(NS, T)							struct T##_Ctti { inline static constexpr char Name[] = #T; using Type = NS :: T; }; T##_Ctti CttiOfPtr(T*);
-
+#define PP_NAME_STRUCT_TEMPLATE(NS, T)					template<class... Ts> struct T##_Ctti { inline static constexpr char Name[] = #T; using Type = NS :: T<Ts...>; using TemplateArgs = std::tuple<Ts...>; }; template<class... Ts> T##_Ctti<Ts...> CttiOfPtr(T<Ts...>*);
+		
 // Alternate set of macros to reflect classes/structs with bitfield bool members, e.g. uint8 bOol : 1;
 
 #define PP_REFLECT_STRUCT_ONLY(N, NS, T, S)				struct T##_Ctti { inline static constexpr char Name[] = #T; using Type = NS :: T; using Super = S; static constexpr int NumVars = N; template<int> struct Var; }; T##_Ctti CttiOfPtr(T*);
@@ -90,6 +91,9 @@ static constexpr void ForEachVar(Fn&& Visitor)
 }
 
 //////////////////////////////////////////////////////////////////////////
+
+template<class Ctti>
+concept Templated = requires { typename Ctti::TemplateArgs; };
 
 } // namespace PlainProps
 

@@ -9,6 +9,7 @@
 #include "PlainPropsDeclare.h"
 #include "PlainPropsRead.h"
 #include "PlainPropsTypes.h"
+#include <tuple>
 
 namespace PlainProps 
 {
@@ -536,29 +537,73 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+template<class Ctti, typename Ids>
+FTypeId IndexStructOrEnumType();
+
 template<typename Enum, typename Ids>
-FEnumSchemaId IndexNativeEnum()
+FEnumSchemaId IndexEnum()
 {
 	static FEnumSchemaId Id = Ids::IndexEnum(CttiOf<Enum>::Name);
 	return Id;
 }
 
 template<typename Struct, typename Ids>
-FStructSchemaId IndexNativeStruct()
+FStructSchemaId IndexStruct()
 {
-	static FStructSchemaId Id = Ids::IndexStruct(CttiOf<Struct>::Name);
+	static FStructSchemaId Id = Ids::IndexStruct(IndexStructOrEnumType<CttiOf<Struct>, Ids>());
 	return Id;
 }
 
 template<typename Struct, typename Ids>
-FOptionalStructSchemaId IndexOptionalNativeStruct()
+FOptionalStructSchemaId IndexOptionalStruct()
 {
 	if constexpr (!std::is_void_v<Struct>)
 	{
-		return IndexNativeStruct<Struct, Ids>();
+		return IndexStruct<Struct, Ids>();
 	}
 	
 	return NoId;
+}
+
+template<typename T, typename Ids>
+FTypeId IndexAnyType()
+{
+	using RangeBinding = RangeBind<T>;
+	if constexpr (!std::is_void_v<RangeBinding>)
+	{
+		FTypeId InnerType = IndexAnyType<typename RangeBinding::ItemType, Ids>();
+		FTypeId SizeType = { NoId, Ids::IndexTypename(CttiOf<typename RangeBinding::SizeType>::Name) };
+		return Ids::GetIndexer().MakeAnonymousParametricType({InnerType, SizeType});
+	}
+	else if constexpr (std::is_arithmetic_v<T>)
+	{
+		return { NoId, Ids::IndexTypename(CttiOf<T>::Name) };
+	}
+	else 
+	{
+		return IndexStructOrEnumType<CttiOf<T>, Ids>();
+	}
+}
+
+template<typename Ids, typename... Ts>
+FTypeId IndexTemplatedType(FTypeId TemplatedType, const std::tuple<Ts...>*)
+{
+	FTypeId Parameters[] = { (IndexAnyType<Ts, Ids>())... };
+	return Ids::GetIndexer().MakeParametricType(TemplatedType, Parameters);
+}
+
+template<class Ctti, typename Ids>
+FTypeId IndexStructOrEnumType()
+{
+	FTypeId Type = Ids::IndexNativeType(Ctti::Name);
+	if constexpr (Templated<Ctti>)
+	{
+		return IndexTemplatedType<Ids>(Type, (typename Ctti::TemplateArgs*)nullptr);
+	}
+	else
+	{
+		return Type;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -566,7 +611,7 @@ FOptionalStructSchemaId IndexOptionalNativeStruct()
 template<typename Type, class Ids>
 FMemberBindType BindMemberLeaf(FOptionalSchemaId& OutSchema)
 {
-	OutSchema = std::is_enum_v<Type> ? ToOptional(static_cast<FSchemaId>(IndexNativeEnum<Type, Ids>())) : NoId;
+	OutSchema = std::is_enum_v<Type> ? ToOptional(static_cast<FSchemaId>(IndexEnum<Type, Ids>())) : NoId;
 	return FMemberBindType(ReflectLeaf<Type>);
 }
 
@@ -620,7 +665,7 @@ FMemberBindType BindMemberStruct(FOptionalSchemaId& OutSchema)
 {
 	if constexpr (std::is_void_v<CustomBinding>)
 	{
-		OutSchema = FOptionalSchemaId(IndexNativeStruct<Type, typename Runtime::Ids>());
+		OutSchema = FOptionalSchemaId(IndexStruct<Type, typename Runtime::Ids>());
 	}
 	else
 	{
@@ -635,12 +680,12 @@ FMemberBindType BindType(FOptionalSchemaId& OutSchema)
 {
 	if constexpr (std::is_arithmetic_v<Type> || std::is_enum_v<Type>)
 	{
-		OutSchema = std::is_enum_v<Type> ? ToOptional(static_cast<FSchemaId>(IndexNativeEnum<Type, Ids>())) : NoId;
+		OutSchema = std::is_enum_v<Type> ? ToOptional(static_cast<FSchemaId>(IndexEnum<Type, Ids>())) : NoId;
 		return FMemberBindType(ReflectLeaf<Type>);
 	}
 	else
 	{
-		OutSchema = FOptionalSchemaId(IndexNativeStruct<Type, Ids>());
+		OutSchema = FOptionalSchemaId(IndexStruct<Type, Ids>());
 		return FMemberBindType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});
 	}
 }
@@ -774,9 +819,9 @@ FEnumSchemaId DeclareNativeEnum(FDeclarations& Out, EEnumMode Mode)
 template<class Ctti, class Ids>
 FStructSchemaId DeclareNativeStruct(FDeclarations& Out, EMemberPresence Occupancy)
 {
-	FTypeId Type = Ids::IndexNativeType(Ctti::Name);
+	FTypeId Type = IndexStructOrEnumType<Ctti, Ids>();
 	FStructSchemaId Id = Ids::IndexStruct(Type);
-	FOptionalStructSchemaId SuperId = IndexOptionalNativeStruct<typename Ctti::Super, Ids>();
+	FOptionalStructSchemaId SuperId = IndexOptionalStruct<typename Ctti::Super, Ids>();
 	FMemberId MemberIds[Ctti::NumVars];
 	ForEachVar<Ctti>([&]<class Var>()
 	{ 
@@ -870,11 +915,14 @@ struct FIdBinding
 	FMemberId							Remap(FMemberId Old) const				{ return { Remap(Old.Id) }; }
 	FFlatScopeId						Remap(FFlatScopeId Old) const			{ return { Remap(Old.Name) }; }
 	FNestedScopeId						Remap(FNestedScopeId Old) const			{ return NestedScopes[Old.Idx]; }
-	FScopeId							Remap(FScopeId Old) const				{ return Old.IsNested() ? FScopeId(Remap(Old.AsNested())) : FScopeId(Remap(Old.AsFlat())); }
+	FScopeId							Remap(FScopeId Old) const				{ return Old.IsFlat() ? FScopeId(Remap(Old.AsFlat())) : Old ? FScopeId(Remap(Old.AsNested())) : Old; }
 	FConcreteTypenameId					Remap(FConcreteTypenameId Old) const	{ return { Remap(Old.Id) }; }	
 	FParametricTypeId					Remap(FParametricTypeId Old) const		{ return ParametricTypes[Old.Idx]; }
 	FTypenameId							Remap(FTypenameId Old) const			{ return Old.IsConcrete() ? FTypenameId(Remap(Old.AsConcrete())) : FTypenameId(Remap(Old.AsParametric())); }
 	FTypeId								Remap(FTypeId Old) const				{ return { Remap(Old.Scope), Remap(Old.Name) }; }
+
+	template<typename T>
+	TOptionalId<T>						Remap(TOptionalId<T> Old) const			{ return Old ? ToOptional(Remap(Old.Get())) : Old; }
 
 	TConstArrayView<FStructSchemaId>	GetStructIds(int32 NumStructs) const
 	{

@@ -38,13 +38,16 @@ struct FWriteIds
 	FMemberId							Remap(FMemberId Old) const				{ return { Remap(Old.Id) }; }
 	FFlatScopeId						Remap(FFlatScopeId Old) const			{ return { Remap(Old.Name) }; }
 	FNestedScopeId						Remap(FNestedScopeId Old) const			{ return NestedScopes[Old.Idx].Get(); }
-	FScopeId							Remap(FScopeId Old) const				{ return Old.IsNested() ? FScopeId(Remap(Old.AsNested())) : FScopeId(Remap(Old.AsFlat())); }
+	FScopeId							Remap(FScopeId Old) const				{ return Old.IsFlat() ? FScopeId(Remap(Old.AsFlat())) : Old ? FScopeId(Remap(Old.AsNested())) : Old; }
 	FConcreteTypenameId					Remap(FConcreteTypenameId Old) const	{ return { Remap(Old.Id) }; }	
 	FParametricTypeId					Remap(FParametricTypeId Old) const		{ return ParametricTypes[Old.Idx].Get(); }
 	FTypenameId							Remap(FTypenameId Old) const			{ return Old.IsConcrete() ? FTypenameId(Remap(Old.AsConcrete())) : FTypenameId(Remap(Old.AsParametric())); }
 	FTypeId								Remap(FTypeId Old) const				{ return { Remap(Old.Scope), Remap(Old.Name) }; }
 	FStructSchemaId						RemapStruct(FSchemaId Old) const		{ return Structs[Old.Idx].Get(); }
 	FEnumSchemaId						RemapEnum(FSchemaId Old) const			{ return Enums[Old.Idx].Get(); }
+
+	template<typename T>
+	TOptionalId<T>						Remap(TOptionalId<T> Old) const			{ return Old ? ToOptional(Remap(Old.Get())) : Old; }
 };
 
 static TConstArrayView<FNameId> GetUsedNames(const FBuiltStructSchema& Used)
@@ -92,6 +95,14 @@ struct FUsedIds
 		Names[Name.Idx] = true;
 	}
 	
+	void MarkUsed(FOptionalConcreteTypenameId Name)
+	{
+		if (Name)
+		{
+			MarkUsed(Name.Get().Id);
+		}
+	}
+	
 	void MarkUsed(FTypeId Type)
 	{
 		MarkUsed(Type.Scope);
@@ -104,7 +115,7 @@ struct FUsedIds
 		{
 			MarkUsed(Scope.AsFlat().Name);
 		}
-		else
+		else if (Scope)
 		{
 			FBitReference Used = NestedScopes[Scope.AsNested().Idx];
 			if (!Used)
@@ -132,7 +143,7 @@ struct FUsedIds
 				Used = true;
 
 				FParametricTypeView ParametricType = Declared.Resolve(Typename.AsParametric());
-				MarkUsed(ParametricType.Name.Id);
+				MarkUsed(ParametricType.Name);
 				for (FTypeId Parameter : ParametricType.GetParameters())
 				{
 					MarkUsed(Parameter);
@@ -779,7 +790,7 @@ void FDebugIds::AppendDebugString(FString& Out, FScopeId Scope) const
 	{
 		AppendDebugString(Out, Scope.AsFlat().Name);
 	}
-	else
+	else if (Scope)
 	{
 		FNestedScope Nested = Resolve(Scope.AsNested());
 		AppendDebugString(Out, Nested.Outer);
@@ -797,21 +808,29 @@ void FDebugIds::AppendDebugString(FString& Out, FTypenameId Typename) const
 	else
 	{
 		FParametricTypeView ParametricType = Resolve(Typename.AsParametric());
-		AppendDebugString(Out, ParametricType.Name.Id);
-		Out.AppendChar('<');
+	
+		if (ParametricType.Name)
+		{
+			AppendDebugString(Out, ParametricType.Name.Get().Id);
+		}
+
+		Out.AppendChar(ParametricType.Name ? '<' : '[');
 		for (FTypeId Parameter : ParametricType.GetParameters())
 		{
 			AppendDebugString(Out, Parameter);
 			Out.AppendChar(',');
 		}
-		Out.GetCharArray()[Out.Len() - 1] = '>';
+		Out.GetCharArray()[Out.Len() - 1] = ParametricType.Name ? '>' : ']';
 	}
 }
 
 void FDebugIds::AppendDebugString(FString& Out, FTypeId Type) const
 {
-	AppendDebugString(Out, Type.Scope);
-	Out.AppendChar('.');
+	if (Type.Scope)
+	{
+		AppendDebugString(Out, Type.Scope);
+		Out.AppendChar('.');
+	}
 	AppendDebugString(Out, Type.Name);
 }
 

@@ -51,7 +51,7 @@ void FDeclarations::DeclareStruct(FStructSchemaId Id, FTypeId Type, TConstArrayV
 	}
 
 	TUniquePtr<FStructDeclaration>& Ptr = DeclaredStructs[Id.Idx];
-	checkf(!Ptr, TEXT("Already declared"));
+	checkf(!Ptr, TEXT("'%s' is already declared"), *Debug.Print(Id));
 
 	FStructDeclaration Header{Id, Type, Super, Occupancy, IntCastChecked<uint16>(MemberOrder.Num())};
 	void* Data = FMemory::Malloc(sizeof(FStructDeclaration) + MemberOrder.Num() * MemberOrder.GetTypeSize());
@@ -67,7 +67,7 @@ void FDeclarations::DeclareEnum(FEnumSchemaId Id, FTypeId Type, EEnumMode Mode, 
 	}
 	
 	TUniquePtr<FEnumDeclaration>& Ptr = DeclaredEnums[Id.Idx];
-	checkf(!Ptr, TEXT("Already declared")); 
+	checkf(!Ptr, TEXT("'%s' is already declared"), *Debug.Print(Id));
 
 	FEnumDeclaration Header{Type, Mode, Width, IntCastChecked<uint16>(Enumerators.Num())};
 	void* Data = FMemory::Malloc(sizeof(FEnumDeclaration) + Enumerators.Num() * Enumerators.GetTypeSize());

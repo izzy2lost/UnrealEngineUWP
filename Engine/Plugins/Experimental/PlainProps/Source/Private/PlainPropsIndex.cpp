@@ -31,10 +31,10 @@ FParametricTypeView::FParametricTypeView(FConcreteTypenameId InName, TConstArray
 namespace ParametricTypeHash
 {
 
-static uint32 Calculate(FConcreteTypenameId Name, TConstArrayView<FTypeId> Parameters)
+static uint32 Calculate(FOptionalConcreteTypenameId Name, TConstArrayView<FTypeId> Parameters)
 {
 	uint64 ParametersHash = FXxHash64::HashBuffer(Parameters.GetData(), sizeof(FTypeId) * Parameters.Num()).Hash;
-	return HashCombineFast(Name.Id.Idx, static_cast<uint32>(ParametersHash));
+	return HashCombineFast(GetTypeHash(Name), static_cast<uint32>(ParametersHash));
 }
 
 static constexpr uint8 FreeSlotByte = 0xFF;
@@ -127,7 +127,7 @@ FScopeId FIdIndexerBase::NestScope(FScopeId Outer, FFlatScopeId Inner)
 	return FScopeId(NestedScopes.Index(Outer, Inner));
 }
 
-FParametricTypeId FIdIndexerBase::MakeParametricTypeId(FConcreteTypenameId Name, TConstArrayView<FTypeId> Params)
+FParametricTypeId FIdIndexerBase::MakeParametricTypeId(FOptionalConcreteTypenameId Name, TConstArrayView<FTypeId> Params)
 {
 	return ParametricTypes.Index({Name, IntCastChecked<uint8>(Params.Num()), Params.GetData()});
 }
@@ -135,6 +135,11 @@ FParametricTypeId FIdIndexerBase::MakeParametricTypeId(FConcreteTypenameId Name,
 FTypeId FIdIndexerBase::MakeParametricType(FTypeId Type, TConstArrayView<FTypeId> Params)
 {
 	return {Type.Scope, FTypenameId(MakeParametricTypeId(Type.Name.AsConcrete(), Params))};
+}
+
+FTypeId FIdIndexerBase::MakeAnonymousParametricType(TConstArrayView<FTypeId> Params)
+{
+	return { NoId, FTypenameId(MakeParametricTypeId(NoId, Params)) };
 }
 
 FEnumSchemaId FIdIndexerBase::IndexEnum(FTypeId Type)

@@ -50,8 +50,9 @@ class FIdIndexerBase : public FDebugIds
 {
 public:
 	PLAINPROPS_API FScopeId				NestScope(FScopeId Outer, FFlatScopeId Inner);
-	PLAINPROPS_API FParametricTypeId	MakeParametricTypeId(FConcreteTypenameId Name, TConstArrayView<FTypeId> Params);
+	PLAINPROPS_API FParametricTypeId	MakeParametricTypeId(FOptionalConcreteTypenameId Name, TConstArrayView<FTypeId> Params);
 	PLAINPROPS_API FTypeId				MakeParametricType(FTypeId Type, TConstArrayView<FTypeId> Params);
+	PLAINPROPS_API FTypeId				MakeAnonymousParametricType(TConstArrayView<FTypeId> Params);
 
 	PLAINPROPS_API FEnumSchemaId		IndexEnum(FTypeId Type);
 	PLAINPROPS_API FStructSchemaId		IndexStruct(FTypeId Type);
