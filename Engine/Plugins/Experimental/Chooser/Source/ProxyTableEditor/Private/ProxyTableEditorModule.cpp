@@ -27,12 +27,16 @@ void FModule::StartupModule()
 void FModule::ShutdownModule()
 {
 	FProxyTableEditorCommands::Unregister();
-	
-	if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+
+	if (UObjectInitialized() && !IsEngineExitRequested())
 	{
-		PropertyModule->UnregisterCustomPropertyTypeLayout(FProxyStructOutput::StaticStruct()->GetFName());
+
+		if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+		{
+			PropertyModule->UnregisterCustomPropertyTypeLayout(FProxyStructOutput::StaticStruct()->GetFName());
+		}
 	}
-	
+
 	FProxyTableEditorStyle::Shutdown();
 }
 
