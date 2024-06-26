@@ -24,6 +24,7 @@
 #include "MuT/NodeColourSampleImage.h"
 #include "MuT/NodeComponentEdit.h"
 #include "MuT/NodeComponentNew.h"
+#include "MuT/NodeComponentSwitch.h"
 #include "MuT/NodeExtensionData.h"
 #include "MuT/NodeImageProject.h"
 #include "MuT/NodeLOD.h"
@@ -117,7 +118,7 @@ namespace mu
 
         CodeGenerator( CompilerOptions::Private* options );
 
-        //! Data will be stored in m_states
+        //! Data will be stored in States
         void GenerateRoot( const Ptr<const Node> );
 
 	public:
@@ -215,17 +216,17 @@ namespace mu
     public:
 
         //! Settings
-        CompilerOptions::Private* m_compilerOptions = nullptr;
+        CompilerOptions::Private* CompilerOptions = nullptr;
 
 		//!
-		FirstPassGenerator m_firstPass;
+		FirstPassGenerator FirstPass;
 
         //!
-        ErrorLogPtr m_pErrorLog;
+        ErrorLogPtr ErrorLog;
 
         //! After the entire code generation this contains the information about all the states
         typedef TArray< TPair<FObjectState, Ptr<ASTOp>> > StateList;
-        StateList m_states;
+        StateList States;
 
     private:
 
@@ -238,22 +239,22 @@ namespace mu
 		TArray<FGeneratedConstantMesh> GeneratedConstantMeshes;
 
         /** List of image resources for every image formats that have been generated so far as palceholders for missing images. */
-        Ptr<Image> m_missingImage[size_t(EImageFormat::IF_COUNT)];
+        Ptr<Image> MissingImage[size_t(EImageFormat::IF_COUNT)];
 
 
         //! List of already used vertex ID groups that must be unique.
         TSet<uint32> UniqueVertexIDGroups;
 
 		// (top-down) Tags that are active when generating nodes.
-		TArray< TArray<FString> > m_activeTags;
+		TArray< TArray<FString> > ActiveTags;
 
         struct FParentKey
         {
-            const NodeObjectNew* m_pObject = nullptr;
-            int32 m_lod = -1;
+            const NodeObjectNew* ObjectNode = nullptr;
+            int32 Lod = -1;
          };
 
-		TArray< FParentKey > m_currentParents;
+		TArray< FParentKey > CurrentParents;
 
         // List of additional components to add to an object that come from child objects.
         // The index is the object and lod that should receive the components.
@@ -261,25 +262,25 @@ namespace mu
         {
 			FAdditionalComponentKey()
             {
-                m_pObject = nullptr;
-                m_lod = -1;
+				ObjectNode = nullptr;
+				Lod = -1;
             }
 
-            const NodeObjectNew* m_pObject;
-            int32 m_lod;
+            const NodeObjectNew* ObjectNode;
+            int32 Lod;
 
 			FORCEINLINE bool operator==(const FAdditionalComponentKey& Other) const
 			{
-				return m_pObject == Other.m_pObject
+				return ObjectNode == Other.ObjectNode
 					&&
-					m_lod == Other.m_lod;
+					Lod == Other.Lod;
 			}
 
 			friend FORCEINLINE uint32 GetTypeHash(const FAdditionalComponentKey& InKey)
 			{
 				uint32 KeyHash = 0;
-				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.m_pObject));
-				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.m_lod));
+				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.ObjectNode));
+				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.Lod));
 				return KeyHash;
 			}
 		};
@@ -289,9 +290,9 @@ namespace mu
         struct FObjectGenerationData
         {
             // Condition that enables a specific object
-            Ptr<ASTOp> m_condition;
+            Ptr<ASTOp> Condition;
         };
-		TArray<FObjectGenerationData> m_currentObject;
+		TArray<FObjectGenerationData> CurrentObject;
 
 		/** The key for generated tables is made of the source table and a parameter name. */
 		struct FTableCacheKey
@@ -442,7 +443,7 @@ namespace mu
 		};
 
 		typedef TMap<FGeneratedImageCacheKey, FImageGenerationResult> GeneratedImagesMap;
-		GeneratedImagesMap m_generatedImages;
+		GeneratedImagesMap GeneratedImages;
 
 		void GenerateImage(const FImageGenerationOptions&, FImageGenerationResult& result, const NodeImagePtrConst& node);
 		void GenerateImage_Constant(const FImageGenerationOptions&, FImageGenerationResult&, const NodeImageConstant*);
@@ -560,24 +561,24 @@ namespace mu
 		struct FMeshGenerationResult
 		{
 			//! Mesh after all code tree is applied
-			Ptr<ASTOp> meshOp;
+			Ptr<ASTOp> MeshOp;
 
 			//! Original base mesh before removes, morphs, etc.
-			Ptr<ASTOp> baseMeshOp;
+			Ptr<ASTOp> BaseMeshOp;
 
 			/** Generated node layouts with their own block ids. */
 			TArray<FGeneratedLayout> GeneratedLayouts;
 
-			TArray<Ptr<ASTOp>> layoutOps;
+			TArray<Ptr<ASTOp>> LayoutOps;
 
 			struct FExtraLayouts
 			{
 				/** Source node layouts to use with these extra mesh. They don't have block ids. */
 				TArray<FGeneratedLayout> GeneratedLayouts;
-				Ptr<ASTOp> condition;
-				Ptr<ASTOp> meshFragment;
+				Ptr<ASTOp> Condition;
+				Ptr<ASTOp> MeshFragment;
 			};
-			TArray< FExtraLayouts > extraMeshLayouts;
+			TArray< FExtraLayouts > ExtraMeshLayouts;
 		};
 		
 		struct FGeneratedMeshCacheKey
@@ -600,7 +601,7 @@ namespace mu
 		};
 
         typedef TMap<FGeneratedMeshCacheKey,FMeshGenerationResult> GeneratedMeshMap;
-        GeneratedMeshMap m_generatedMeshes;
+        GeneratedMeshMap GeneratedMeshes;
 
 		/** Store the mesh generation data for surfaces that we intend to share across LODs. 
 		* The key is the SharedSurfaceId.
@@ -810,18 +811,18 @@ namespace mu
 
 		if (NumRows == 0)
 		{
-			m_pErrorLog->GetPrivate()->Add("The table has no rows.", ELMT_ERROR, node.GetMessageContext());
+			ErrorLog->GetPrivate()->Add("The table has no rows.", ELMT_ERROR, node.GetMessageContext());
 			return nullptr;
 		}
         else if (ColIndex < 0)
         {
-            m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.GetMessageContext());
+            ErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.GetMessageContext());
             return nullptr;
         }
 
         if (NodeTable->GetPrivate()->Columns[ ColIndex ].Type != TYPE )
         {
-            m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.", ELMT_ERROR, node.GetMessageContext());
+            ErrorLog->GetPrivate()->Add("Table column type is not the right type.", ELMT_ERROR, node.GetMessageContext());
             return nullptr;
         }
 
@@ -836,7 +837,7 @@ namespace mu
         {
             check(NodeTable->GetPrivate()->Rows[i].Id <= 0xFFFF);
             auto Condition = (uint16)NodeTable->GetPrivate()->Rows[i].Id;
-            Ptr<ASTOp> Branch = GenerateOption( node, ColIndex, (int)i, m_pErrorLog.get() );
+            Ptr<ASTOp> Branch = GenerateOption( node, ColIndex, (int)i, ErrorLog.get() );
 
 			if (Branch || TYPE != ETableColumnType::Mesh)
 			{

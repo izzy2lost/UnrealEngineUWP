@@ -17,23 +17,23 @@ namespace mu
     typedef Ptr<const NodeSurface> NodeSurfacePtrConst;
 
 
-    //! This class is the parent of all nodes that output a Surface.
+    /** This class is the parent of all nodes that output a Surface. */
     class MUTABLETOOLS_API NodeSurface : public Node
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
-
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
         inline ~NodeSurface() {}
+
+	private:
+
+		static FNodeType StaticType;
 
 	};
 

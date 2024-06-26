@@ -114,7 +114,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 	else if (const UCustomizableObjectNodeFloatSwitch* TypedNodeFloatSwitch = Cast<UCustomizableObjectNodeFloatSwitch>(Node))
 	{
 		// Using a lambda so control flow is easier to manage.
-		Result = [&]()
+		Result = [&]() -> mu::Ptr<mu::NodeScalar>
 		{
 			const UEdGraphPin* SwitchParameter = TypedNodeFloatSwitch->SwitchParameter();
 
@@ -127,7 +127,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 					: LOCTEXT("InvalidEnumInSwitch", "Switch nodes must have a single enum with all the options inside. Please remove all the enums but one and refresh the switch node.");
 
 				GenerationContext.Compiler->CompilerLog(Message, Node);
-				return Result;
+				return nullptr;
 			}
 
 			const UEdGraphPin* EnumPin = FollowInputPin(*SwitchParameter);
@@ -143,7 +143,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 					GenerationContext.Compiler->CompilerLog(Message, Node);
 				}
 
-				return Result;
+				return nullptr;
 			}
 
 			if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
@@ -151,7 +151,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 				const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
 				GenerationContext.Compiler->CompilerLog(Message, Node);
 
-				return Result;
+				return nullptr;
 			}
 
 			const int32 NumSwitchOptions = TypedNodeFloatSwitch->GetNumElements();
@@ -163,9 +163,9 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 				GenerationContext.Compiler->CompilerLog(Message, Node);
 			}
 
-			mu::NodeScalarSwitchPtr SwitchNode = new mu::NodeScalarSwitch;
-			SwitchNode->SetParameter(SwitchParam);
-			SwitchNode->SetOptionCount(NumSwitchOptions);
+			mu::Ptr<mu::NodeScalarSwitch> SwitchNode = new mu::NodeScalarSwitch;
+			SwitchNode->Parameter = SwitchParam;
+			SwitchNode->Options.SetNum(NumSwitchOptions);
 
 			for (int SelectorIndex = 0; SelectorIndex < NumSwitchOptions; ++SelectorIndex)
 			{
@@ -173,13 +173,12 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 				{
 					if (const UEdGraphPin* ConnectedPin = FollowInputPin(*FloatPin))
 					{
-						SwitchNode->SetOption(SelectorIndex, GenerateMutableSourceFloat(ConnectedPin, GenerationContext));
+						SwitchNode->Options[SelectorIndex] = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
 					}
 				}
 			}
 
-			Result = SwitchNode;
-			return Result;
+			return SwitchNode;
 		}(); // invoke lambda.
 	}
 

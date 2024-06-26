@@ -383,7 +383,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		if (bGeneratingImplicitComponent)
 		{
 			MeshNode = GenerationContext.ComponentMeshOverride;
-			SurfNode->SetMesh(MeshNode);
+			SurfNode->Mesh = MeshNode;
 
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMeshPin()))
 			{
@@ -411,8 +411,8 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 					MeshFormatNode->SetMessageContext(Node);
 
-					SurfNode->SetCustomID(SurfaceMetadataUniqueHash);
-					SurfNode->SetMesh(MeshFormatNode);
+					SurfNode->ExternalId = SurfaceMetadataUniqueHash;
+					SurfNode->Mesh = MeshFormatNode;
 				}
 				else
 				{
@@ -461,7 +461,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		}
 
 		int32 NumImages = TypedNodeMat->GetNumParameters(EMaterialParameterType::Texture);
-		SurfNode->SetImageCount(NumImages);
+		SurfNode->Images.SetNum(NumImages);
 
 		if (!GenerationContext.Options.TargetPlatform || GenerationContext.Options.TargetPlatform->IsServerOnly())
 		{
@@ -494,13 +494,14 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 					// This is a connected pass-through texture that simply has to be passed to the core
 					mu::Ptr<mu::NodeImage> PassThroughImagePtr = GenerateMutableSourceImage(ConnectedPin, GenerationContext, 0);
-					SurfNode->SetImage(ImageIndex, PassThroughImagePtr);
+					SurfNode->Images[ImageIndex].Image = PassThroughImagePtr;
 
 					check(Props.ImagePropertiesIndex != INDEX_NONE);
 					const FString SurfNodeImageName = FString::Printf(TEXT("%d"), Props.ImagePropertiesIndex);
-					SurfNode->SetImageName(ImageIndex, SurfNodeImageName);
-					SurfNode->SetImageLayoutIndex(ImageIndex, -1);
-					SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->GetMaterial()->GetName(), Props.TextureParameterName);
+					SurfNode->Images[ImageIndex].Name = SurfNodeImageName;
+					SurfNode->Images[ImageIndex].LayoutIndex = -1;
+					SurfNode->Images[ImageIndex].MaterialName = TypedNodeMat->GetMaterial()->GetName();
+					SurfNode->Images[ImageIndex].MaterialParameterName = Props.TextureParameterName;
 
 				}
 			}
@@ -864,7 +865,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 							ImageNode = LastImage;
 						}
 
-						SurfNode->SetImage(ImageIndex, ImageNode);
+						SurfNode->Images[ImageIndex].Image = ImageNode;
 
 						check(Props.ImagePropertiesIndex != INDEX_NONE);
 						const FString SurfNodeImageName = FString::Printf(TEXT("%d"), Props.ImagePropertiesIndex);
@@ -873,7 +874,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						const int32 LayerIndex = TypedNodeMat->GetParameterLayerIndex(EMaterialParameterType::Texture, ImageIndex);
 						const FString LayerEncoding = LayerIndex != INDEX_NONE ? "-MutableLayerParam:" + FString::FromInt(LayerIndex) : "";
 						
-						SurfNode->SetImageName(ImageIndex, SurfNodeImageName + LayerEncoding);
+						SurfNode->Images[ImageIndex].Name = SurfNodeImageName + LayerEncoding;
 
 						// If we are generating an implicit component (with a passthrough mesh) we don't apply any layout.
 						int32 UVLayout = -1;
@@ -881,8 +882,9 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						{
 							UVLayout = TypedNodeMat->GetImageUVLayout(ImageIndex);;
 						}
-						SurfNode->SetImageLayoutIndex(ImageIndex, UVLayout);
-						SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->GetMaterial()->GetName(), ImageName);
+						SurfNode->Images[ImageIndex].LayoutIndex = UVLayout;
+						SurfNode->Images[ImageIndex].MaterialName = TypedNodeMat->GetMaterial()->GetName();
+						SurfNode->Images[ImageIndex].MaterialParameterName = ImageName;
 
 						if (bShareProjectionTexturesBetweenLODs && bIsGroupProjectorImage)
 						{
@@ -898,10 +900,10 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				else
 				{
 					ensure(LOD > GenerationContext.FirstLODAvailable);
-					check(ProjectorInfo->SurfNode->GetImage(ImageIndex) == ProjectorInfo->ImageNode);
-					SurfNode->SetImage(ImageIndex, ProjectorInfo->ImageNode);
-					SurfNode->SetImageName(ImageIndex, ProjectorInfo->TextureName);
-					SurfNode->SetImageLayoutIndex(ImageIndex, ProjectorInfo->UVLayout);
+					check(ProjectorInfo->SurfNode->Images[ImageIndex].Image == ProjectorInfo->ImageNode);
+					SurfNode->Images[ImageIndex].Image = ProjectorInfo->ImageNode;
+					SurfNode->Images[ImageIndex].Name = ProjectorInfo->TextureName;
+					SurfNode->Images[ImageIndex].LayoutIndex = ProjectorInfo->UVLayout;
 
 					TextureNameToProjectionResFactor.Add(ProjectorInfo->RealTextureName, ProjectorInfo->AlternateProjectionResolutionFactor);
 					AlternateResStateName = ProjectorInfo->AlternateResStateName;
@@ -910,7 +912,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		}
 
 		const int32 NumVectors = TypedNodeMat->GetNumParameters(EMaterialParameterType::Vector);
-		SurfNode->SetVectorCount(NumVectors);
+		SurfNode->Vectors.SetNum(NumVectors);
 		for (int32 VectorIndex = 0; VectorIndex < NumVectors; ++VectorIndex)
 		{
 			const UEdGraphPin* VectorPin = TypedNodeMat->GetParameterPin(EMaterialParameterType::Vector, VectorIndex);
@@ -923,7 +925,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			{				
 				if (const UEdGraphPin* ConnectedPin = FollowInputPin(*VectorPin))
 				{
-					mu::NodeColourPtr ColorNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
+					mu::Ptr<mu::NodeColour> ColorNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
 
 					// Encoding material layer in mutable name
 					if (const int32 LayerIndex = TypedNodeMat->GetParameterLayerIndex(EMaterialParameterType::Vector, VectorIndex); LayerIndex != INDEX_NONE)
@@ -931,14 +933,14 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						VectorName += "-MutableLayerParam:" + FString::FromInt(LayerIndex);
 					}
 
-					SurfNode->SetVector(VectorIndex, ColorNode);
-					SurfNode->SetVectorName(VectorIndex, VectorName);
+					SurfNode->Vectors[VectorIndex].Vector = ColorNode;
+					SurfNode->Vectors[VectorIndex].Name = VectorName;
 				}
 			}
 		}
 
 		const int32 NumScalar = TypedNodeMat->GetNumParameters(EMaterialParameterType::Scalar);
-		SurfNode->SetScalarCount(NumScalar);
+		SurfNode->Scalars.SetNum(NumScalar);
 		for (int32 ScalarIndex = 0; ScalarIndex < NumScalar; ++ScalarIndex)
 		{
 			const UEdGraphPin* ScalarPin = TypedNodeMat->GetParameterPin(EMaterialParameterType::Scalar, ScalarIndex);
@@ -959,8 +961,8 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						ScalarName += "-MutableLayerParam:" + FString::FromInt(LayerIndex);
 					}
 
-					SurfNode->SetScalar(ScalarIndex, ScalarNode);
-					SurfNode->SetScalarName(ScalarIndex, ScalarName);
+					SurfNode->Scalars[ScalarIndex].Scalar = ScalarNode;
+					SurfNode->Scalars[ScalarIndex].Name = ScalarName;
 				}
 			}
 		}
@@ -968,7 +970,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		// New method to pass the surface id as a scalar parameter
 		{
 			int32 MaterialIndex = NumScalar;
-			SurfNode->SetScalarCount(NumScalar + 1);
+			SurfNode->Scalars.SetNum(NumScalar + 1);
 
 			const UEdGraphPin* MaterialPin = TypedNodeMat->GetMaterialAssetPin();
 
@@ -982,8 +984,8 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					GenerationContext.CurrentMaterialTableParameterId = MaterialName;
 					mu::NodeScalarPtr ScalarNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
 
-					SurfNode->SetScalar(MaterialIndex, ScalarNode);
-					SurfNode->SetScalarName(MaterialIndex, MaterialName);
+					SurfNode->Scalars[MaterialIndex].Scalar = ScalarNode;
+					SurfNode->Scalars[MaterialIndex].Name = MaterialName;
 				}
 			}
 			else
@@ -991,21 +993,21 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				mu::NodeScalarConstantPtr ScalarNode = new mu::NodeScalarConstant();
 				ScalarNode->SetValue(ReferencedMaterialsIndex);
 
-				SurfNode->SetScalar(MaterialIndex, ScalarNode);
-				SurfNode->SetScalarName(MaterialIndex, MaterialName);
+				SurfNode->Scalars[MaterialIndex].Scalar = ScalarNode;
+				SurfNode->Scalars[MaterialIndex].Name = MaterialName;
 			}
 		}
 		
 
 		for (const FString& Tag : TypedNodeMat->GetTags())
 		{
-			SurfNode->AddTag(Tag);
+			SurfNode->Tags.Add(Tag);
 		}
 
-		TArray<mu::NodeSurfaceNewPtr>* ArraySurfaceNodePtr = GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Find(TypedNodeMat->GetMaterialNode());
+		TArray<mu::Ptr<mu::NodeSurfaceNew>>* ArraySurfaceNodePtr = GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Find(TypedNodeMat->GetMaterialNode());
 		if (ArraySurfaceNodePtr == nullptr)
 		{
-			TArray<mu::NodeSurfaceNewPtr> ArraySurfaceNode;
+			TArray<mu::Ptr<mu::NodeSurfaceNew>> ArraySurfaceNode;
 			ArraySurfaceNode.Add(SurfNode);
 			ArraySurfaceNodePtr = &GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Add(TypedNodeMat->GetMaterialNode(), ArraySurfaceNode);
 		}
@@ -1017,36 +1019,18 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		// If an alternate resolution for a particular state is present, clone the surface node, add the image resizing and inject the surface variation node
 		if (TextureNameToProjectionResFactor.Num() > 0 && !AlternateResStateName.IsEmpty())
 		{
-			mu::NodeSurfaceNewPtr SurfNode2 = new mu::NodeSurfaceNew;
+			mu::Ptr<mu::NodeSurfaceNew> SurfNode2 = new mu::NodeSurfaceNew;
 
-			SurfNode2->SetCustomID(SurfaceMetadataUniqueHash);
+			SurfNode2->ExternalId = SurfaceMetadataUniqueHash;
 
-			SurfNode2->SetMesh(SurfNode->GetMesh());
+			SurfNode2->Mesh = SurfNode->Mesh;
+			SurfNode2->Tags = SurfNode->Tags;
+			SurfNode2->Vectors = SurfNode->Vectors;
+			SurfNode2->Scalars = SurfNode->Scalars;
+			SurfNode2->Strings = SurfNode->Strings;
+			SurfNode2->Images = SurfNode->Images;
 
-			SurfNode2->SetVectorCount(SurfNode->GetVectorCount());
-
-			for (int32 VectorParamIndex = 0; VectorParamIndex < SurfNode->GetVectorCount(); ++VectorParamIndex)
-			{
-				SurfNode2->SetVector(VectorParamIndex, SurfNode->GetVector(VectorParamIndex));
-				SurfNode2->SetVectorName(VectorParamIndex, SurfNode->GetVectorName(VectorParamIndex));
-			}
-
-			SurfNode2->SetScalarCount(SurfNode->GetScalarCount());
-
-			for (int32 ScalarParamIndex = 0; ScalarParamIndex < SurfNode->GetScalarCount(); ++ScalarParamIndex)
-			{
-				SurfNode2->SetScalar(ScalarParamIndex, SurfNode->GetScalar(ScalarParamIndex));
-				SurfNode2->SetScalarName(ScalarParamIndex, SurfNode->GetScalarName(ScalarParamIndex));
-			}
-
-			for (const FString& Tag : TypedNodeMat->GetTags())
-			{
-				SurfNode2->AddTag(Tag);
-			}
-
-			SurfNode2->SetImageCount(SurfNode->GetImageCount());
-
-			for (int32 ImageIndex = 0; ImageIndex < SurfNode->GetImageCount(); ++ImageIndex)
+			for (int32 ImageIndex = 0; ImageIndex < SurfNode2->Images.Num(); ++ImageIndex)
 			{
 				const FString ImageName = TypedNodeMat->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
 				if (float* ResolutionFactor = TextureNameToProjectionResFactor.Find(ImageName))
@@ -1059,9 +1043,9 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						mu::NodeImageResizePtr NodeImageResize = new mu::NodeImageResize;
 						NodeImageResize->SetRelative(true);
 						NodeImageResize->SetSize(*ResolutionFactor, *ResolutionFactor);
-						NodeImageResize->SetBase(SurfNode->GetImage(ImageIndex));
+						NodeImageResize->SetBase(SurfNode2->Images[ImageIndex].Image);
 
-						SurfNode2->SetImage(ImageIndex, NodeImageResize);
+						SurfNode2->Images[ImageIndex].Image = NodeImageResize;
 
 						if (ProjectorInfo)
 						{
@@ -1074,27 +1058,20 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					{
 						ensure(LOD > GenerationContext.FirstLODAvailable);
 						check(ProjectorInfo->bIsAlternateResolutionResized);
-						SurfNode2->SetImage(ImageIndex, ProjectorInfo->ImageResizeNode);
+						SurfNode2->Images[ImageIndex].Image = ProjectorInfo->ImageResizeNode;
 					}
 				}
-				else
-				{
-					SurfNode2->SetImage(ImageIndex, SurfNode->GetImage(ImageIndex));
-				}
-
-				SurfNode2->SetImageName(ImageIndex, SurfNode->GetImageName(ImageIndex));
-				SurfNode2->SetImageLayoutIndex(ImageIndex, SurfNode->GetImageLayoutIndex(ImageIndex));
 			}
 
 			ArraySurfaceNodePtr->AddUnique(SurfNode2);
 
-			mu::NodeSurfaceVariationPtr SurfaceVariation = new mu::NodeSurfaceVariation;
-			SurfaceVariation->SetVariationType(mu::NodeSurfaceVariation::VariationType::State);
-			SurfaceVariation->SetVariationCount(1);
-			SurfaceVariation->SetVariationTag(0, AlternateResStateName);
+			mu::Ptr<mu::NodeSurfaceVariation> SurfaceVariation = new mu::NodeSurfaceVariation;
+			SurfaceVariation->Type = mu::NodeSurfaceVariation::VariationType::State;
+			SurfaceVariation->Variations.SetNum(1);
+			SurfaceVariation->Variations[0].Tag = AlternateResStateName;
 
-			SurfaceVariation->AddDefaultSurface(&*SurfNode);
-			SurfaceVariation->AddVariationSurface(0, &*SurfNode2);
+			SurfaceVariation->DefaultSurfaces.Add(SurfNode);
+			SurfaceVariation->Variations[0].Surfaces.Add(SurfNode2);
 
 			Result = SurfaceVariation;
 		}
@@ -1102,7 +1079,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 	else if (UCustomizableObjectNodeExtendMaterial* TypedNodeExt = Cast<UCustomizableObjectNodeExtendMaterial>(Node))
 	{
-		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
+		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
 		[&] // Using a lambda so control flow is easier to manage.
@@ -1122,7 +1099,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 			// Parent, probably generated, will be retrieved from the cache
 			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->SetParent(ParentNode.get());
+			SurfNode->Parent = ParentNode;
 
 			mu::NodeMeshPtr AddMeshNode;
 			FMutableGraphMeshGenerationData MeshData;
@@ -1170,12 +1147,12 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				mu::NodePatchMeshPtr MeshPatch = new mu::NodePatchMesh();
 				MeshPatch->SetAdd(MeshFormat.get());
 
-				SurfNode->SetMesh(MeshPatch.get());
+				SurfNode->Mesh = MeshPatch;
 				MeshPatch->SetMessageContext(Node);
 			}
 			
 			const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
-			SurfNode->SetImageCount(NumImages);
+			SurfNode->Textures.SetNum(NumImages);
 			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
 			{
 				mu::NodeImagePtr ImageNode;
@@ -1188,7 +1165,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					if (ProjectorInfo)
 					{
 						ensure(LOD > GenerationContext.FirstLODAvailable);
-						check(ProjectorInfo->SurfNode->GetImage(ImageIndex) == ProjectorInfo->ImageNode);
+						check(ProjectorInfo->SurfNode->Images[ImageIndex].Image == ProjectorInfo->ImageNode);
 						ImageNode = ProjectorInfo->ImageNode;
 
 						//TextureNameToProjectionResFactor.Add(ProjectorInfo->RealTextureName, ProjectorInfo->AlternateProjectionResolutionFactor);
@@ -1229,7 +1206,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 				if (ImageNode)
 				{
-					SurfNode->SetImage(ImageIndex, ImageNode);
+					SurfNode->Textures[ImageIndex].Extend = ImageNode;
 				}
 
 			}
@@ -1237,14 +1214,14 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		
 			for (const FString& Tag : TypedNodeExt->Tags)
 			{
-				SurfNode->AddTag(Tag);
+				SurfNode->Tags.Add(Tag);
 			}
 		}();
 	}
 
 	else if (const UCustomizableObjectNodeRemoveMesh* TypedNodeRem = Cast<UCustomizableObjectNodeRemoveMesh>(Node))
 	{
-		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
+		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
 		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeRem->GetParentMaterialNode();
@@ -1256,7 +1233,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		{
 			// Parent, probably generated, will be retrieved from the cache
 			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->SetParent(ParentNode.get());
+			SurfNode->Parent = ParentNode;
 
 			mu::NodeMeshPtr RemoveMeshNode;
 
@@ -1270,7 +1247,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			{
 				mu::NodePatchMeshPtr MeshPatch = new mu::NodePatchMesh();
 				MeshPatch->SetRemove(RemoveMeshNode.get());
-				SurfNode->SetMesh(MeshPatch.get());
+				SurfNode->Mesh = MeshPatch;
 				MeshPatch->SetMessageContext(Node);
 			}
 
@@ -1280,7 +1257,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 	else if (const UCustomizableObjectNodeRemoveMeshBlocks* TypedNodeRemBlocks = Cast<UCustomizableObjectNodeRemoveMeshBlocks>(Node))
 	{
-		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
+		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
 		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeRemBlocks->GetParentMaterialNode();
@@ -1292,7 +1269,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		{
 			// Parent, probably generated, will be retrieved from the cache
 			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->SetParent(ParentNode.get());
+			SurfNode->Parent = ParentNode.get();
 
 			const UEdGraphPin* BaseSourcePin = FindMeshBaseSource(*ParentMaterialNode->OutputPin(), false);
 
@@ -1352,7 +1329,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 				mu::NodePatchMeshPtr MeshPatch = new mu::NodePatchMesh();
 				MeshPatch->SetRemove(MeshFrag.get());
-				SurfNode->SetMesh(MeshPatch.get());
+				SurfNode->Mesh = MeshPatch.get();
 				MeshPatch->SetMessageContext(Node);
 			}
 
@@ -1362,7 +1339,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 	else if (UCustomizableObjectNodeEditMaterial* TypedNodeEdit = Cast<UCustomizableObjectNodeEditMaterial>(Node))
 	{
-		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
+		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
 		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
@@ -1374,11 +1351,10 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		{
 			// Parent, probably generated, will be retrieved from the cache
 			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->SetParent(ParentNode.get());
-
+			SurfNode->Parent = ParentNode;
 
 			const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
-			SurfNode->SetImageCount(NumImages);
+			SurfNode->Textures.SetNum(NumImages);
 			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
 			{
 				const FGuid ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
@@ -1389,7 +1365,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					
 					const UEdGraphPin* ConnectedImagePin = FollowInputPin(*TypedNodeEdit->GetUsedImagePin(ImageId));
 					
-					mu::NodePatchImagePtr ImagePatchNode = new mu::NodePatchImage;
+					mu::Ptr<mu::NodePatchImage> ImagePatchNode = new mu::NodePatchImage;
 					ImagePatchNode->SetMessageContext(Node);
 
 					// \todo: expose these two options?
@@ -1457,7 +1433,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						ImagePatchNode->SetBlock(BlockIndex, FoundBlockIndices[BlockIndex]);
 					}
 
-					SurfNode->SetPatch(ImageIndex, ImagePatchNode);
+					SurfNode->Textures[ImageIndex].Patch = ImagePatchNode;
 				}
 
 				AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeEdit);
@@ -1467,7 +1443,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 	else if (const UCustomizableObjectNodeMorphMaterial* TypedNodeMorph = Cast<UCustomizableObjectNodeMorphMaterial>(Node))
 	{
-		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
+		mu::Ptr<mu::NodeSurfaceEdit> SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
 		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeMorph->GetParentMaterialNode();
@@ -1479,7 +1455,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		{
 			// Parent, probably generated, will be retrieved from the cache
 			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->SetParent(ParentNode.get());
+			SurfNode->Parent = ParentNode;
 
 			const UEdGraphPin* BaseSourcePin = FindMeshBaseSource(*ParentMaterialNode->OutputPin(), false);
 			if (!BaseSourcePin)
@@ -1496,7 +1472,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				MorphedSourceMeshNode->SetMessageContext(Node);					
 				MorphedSourceMeshNode->SetValue(MorphedSourceMesh);
 				
-				SurfNode->SetMorph(MorphedSourceMeshNode);
+				SurfNode->Morph = MorphedSourceMeshNode;
 				
 				if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMorph->FactorPin()))
 				{
@@ -1536,7 +1512,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					if (validStaticFactor)
 					{
 						mu::NodeScalarPtr FactorNode = GenerateMutableSourceFloat(ConnectedPin, GenerationContext);
-						SurfNode->SetFactor(FactorNode);
+						SurfNode->MorphFactor = FactorNode;
 					}
 				}
 			}
@@ -1547,7 +1523,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 	else if (const UCustomizableObjectNodeMaterialVariation* TypedNodeVar = Cast<UCustomizableObjectNodeMaterialVariation>(Node))
 	{
-		mu::NodeSurfaceVariationPtr SurfNode = new mu::NodeSurfaceVariation();
+		mu::Ptr<mu::NodeSurfaceVariation> SurfNode = new mu::NodeSurfaceVariation();
 		Result = SurfNode;
 
 		mu::NodeSurfaceVariation::VariationType muType = mu::NodeSurfaceVariation::VariationType::Tag;
@@ -1559,7 +1535,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			check(false);
 			break;
 		}
-		SurfNode->SetVariationType(muType);
+		SurfNode->Type = muType;
 
 		for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*TypedNodeVar->DefaultPin()))
 		{
@@ -1567,7 +1543,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			mu::NodeSurfacePtr ChildNode = GenerateMutableSourceSurface(ConnectedPin, GenerationContext);
 			if (ChildNode)
 			{
-				SurfNode->AddDefaultSurface(ChildNode.get());
+				SurfNode->DefaultSurfaces.Add(ChildNode);
 			}
 			else
 			{
@@ -1576,21 +1552,21 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		}
 
 		const int32 NumVariations = TypedNodeVar->GetNumVariations();
-		SurfNode->SetVariationCount(NumVariations);
+		SurfNode->Variations.SetNum(NumVariations);
 		for (int VariationIndex = 0; VariationIndex < NumVariations; ++VariationIndex)
 		{
 			mu::NodeSurfacePtr VariationSurfaceNode;
 
 			if (UEdGraphPin* VariationPin = TypedNodeVar->VariationPin(VariationIndex))
 			{
-				SurfNode->SetVariationTag(VariationIndex, TypedNodeVar->GetVariation(VariationIndex).Tag);
+				SurfNode->Variations[VariationIndex].Tag = TypedNodeVar->GetVariation(VariationIndex).Tag;
 				for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*VariationPin))
 				{
 					// Is it a modifier?
 					mu::NodeSurfacePtr ChildNode = GenerateMutableSourceSurface(ConnectedPin, GenerationContext);
 					if (ChildNode)
 					{
-						SurfNode->AddVariationSurface(VariationIndex, ChildNode.get());
+						SurfNode->Variations[VariationIndex].Surfaces.Add( ChildNode );
 					}
 					else
 					{
@@ -1644,8 +1620,8 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				}
 
 				mu::Ptr<mu::NodeSurfaceSwitch> SwitchNode = new mu::NodeSurfaceSwitch;
-				SwitchNode->SetParameter(SwitchParam);
-				SwitchNode->SetOptionCount(NumSwitchOptions);
+				SwitchNode->Parameter = SwitchParam;
+				SwitchNode->Options.SetNum(NumSwitchOptions);
 
 				for (int32 SelectorIndex = 0; SelectorIndex < NumSwitchOptions; ++SelectorIndex)
 				{
@@ -1654,7 +1630,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						mu::NodeSurfacePtr ChildNode = GenerateMutableSourceSurface(ConnectedPin, GenerationContext);
 						if (ChildNode)
 						{
-							SwitchNode->SetOption(SelectorIndex, ChildNode.get());
+							SwitchNode->Options[SelectorIndex] = ChildNode;
 						}
 						else
 						{

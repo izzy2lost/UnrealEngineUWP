@@ -26,10 +26,10 @@
 #include "MuT/NodeObjectNew.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeSurface.h"
-#include "MuT/NodeSurfaceEditPrivate.h"
-#include "MuT/NodeSurfaceNewPrivate.h"
-#include "MuT/NodeSurfaceVariationPrivate.h"
-#include "MuT/NodeSurfaceSwitchPrivate.h"
+#include "MuT/NodeSurfaceEdit.h"
+#include "MuT/NodeSurfaceNew.h"
+#include "MuT/NodeSurfaceVariation.h"
+#include "MuT/NodeSurfaceSwitch.h"
 #include "MuT/NodeScalarEnumParameterPrivate.h"
 
 namespace mu
@@ -40,22 +40,21 @@ namespace mu
 	{
 		// Default conditions when there is no restriction accumulated.
 		FConditionContext noCondition;
-        m_currentCondition.Add(noCondition);
-        m_currentStateCondition.Add(StateCondition());
+        CurrentCondition.Add(noCondition);
+        CurrentStateCondition.Add(StateCondition());
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    void FirstPassGenerator::Generate( Ptr<ErrorLog> InErrorLog,
+    void FirstPassGenerator::Generate( Ptr<mu::ErrorLog> InErrorLog,
                                        const Node* Root,
-                                       bool bIgnoreStates,
+									   bool bIgnoreStates,
 									   CodeGenerator* InGenerator )
 	{
 		MUTABLE_CPUPROFILER_SCOPE(FirstPassGenerate);
 
 		Generator = InGenerator;
-		m_pErrorLog = InErrorLog;
-        m_ignoreStates = bIgnoreStates;
+		ErrorLog = InErrorLog;
 
 		// Step 1: collect all objects, surfaces and object conditions
         if (Root)
@@ -64,16 +63,16 @@ namespace mu
  		}
 
 		// Step 2: Collect all tags and a list of the surfaces that activate them
-		for (int32 s=0; s<surfaces.Num(); ++s)
+		for (int32 s=0; s<Surfaces.Num(); ++s)
 		{
 			// Collect the tags in new surfaces
-			for (int32 t=0; t<surfaces[s].node->GetPrivate()->m_tags.Num(); ++t)
+			for (int32 t=0; t< Surfaces[s].Node->Tags.Num(); ++t)
 			{
 				int32 tag = -1;
-                const FString& tagStr = surfaces[s].node->GetPrivate()->m_tags[t];
-                for (int32 i = 0; i<m_tags.Num() && tag<0; ++i)
+                const FString& tagStr = Surfaces[s].Node->Tags[t];
+                for (int32 i = 0; i<Tags.Num() && tag<0; ++i)
 				{
-                    if (m_tags[i].tag == tagStr)
+                    if (Tags[i].Tag == tagStr)
 					{
 						tag = i;
 					}
@@ -82,30 +81,30 @@ namespace mu
 				// New tag?
 				if (tag < 0)
 				{
-                    tag = m_tags.Num();
+                    tag = Tags.Num();
 					FTag newTag;
-                    newTag.tag = tagStr;
-                    m_tags.Add(newTag);
+                    newTag.Tag = tagStr;
+                    Tags.Add(newTag);
 				}
 
-                if (m_tags[tag].surfaces.Find(s)==INDEX_NONE)
+                if (Tags[tag].Surfaces.Find(s)==INDEX_NONE)
 				{
-                    m_tags[tag].surfaces.Add(s);
+                    Tags[tag].Surfaces.Add(s);
 				}
 			}
 
             // Collect the tags in edit surfaces
-            for (int32 e=0; e<surfaces[s].edits.Num(); ++e)
+            for (int32 e=0; e< Surfaces[s].Edits.Num(); ++e)
             {
-                const FSurface::FEdit& edit = surfaces[s].edits[e];
-                for (int32 t=0; t<edit.node->GetPrivate()->m_tags.Num(); ++t)
+                const FSurface::FEdit& edit = Surfaces[s].Edits[e];
+                for (int32 t=0; t<edit.Node->Tags.Num(); ++t)
                 {
                     int32 tag = -1;
-					const FString& tagStr = edit.node->GetPrivate()->m_tags[t];
+					const FString& tagStr = edit.Node->Tags[t];
 
-                    for (int32 i = 0; i<m_tags.Num() && tag<0; ++i)
+                    for (int32 i = 0; i<Tags.Num() && tag<0; ++i)
                     {
-                        if (m_tags[i].tag == tagStr)
+                        if (Tags[i].Tag == tagStr)
                         {
                             tag = i;
                         }
@@ -114,15 +113,15 @@ namespace mu
                     // New tag?
                     if (tag < 0)
                     {
-                        tag = m_tags.Num();
+                        tag = Tags.Num();
 						FTag newTag;
-                        newTag.tag = tagStr;
-                        m_tags.Add(newTag);
+                        newTag.Tag = tagStr;
+                        Tags.Add(newTag);
                     }
 
-                    if (m_tags[tag].edits.Find({s,e}) == INDEX_NONE)
+                    if (Tags[tag].Edits.Find({s,e}) == INDEX_NONE)
                     {
-                        m_tags[tag].edits.Add({s,e});
+                        Tags[tag].Edits.Add({s,e});
                     }
                 }
             }
@@ -132,14 +131,14 @@ namespace mu
         // Step 3: Create default state if necessary
         if ( bIgnoreStates )
         {
-            m_states.Empty();
+            States.Empty();
         }
 
-        if ( m_states.IsEmpty() )
+        if ( States.IsEmpty() )
         {
             FObjectState data;
             data.Name = "Default";
-            m_states.Emplace( data, Root );
+            States.Emplace( data, Root );
         }
 	}
 
@@ -199,13 +198,13 @@ namespace mu
 
 		// Add the data about this modifier
 		FModifier thisData;
-		thisData.node = InNode;
-		thisData.objectCondition = m_currentCondition.Last().objectCondition;
-		thisData.stateCondition = m_currentStateCondition.Last();
+		thisData.Node = InNode;
+		thisData.ObjectCondition = CurrentCondition.Last().ObjectCondition;
+		thisData.StateCondition = CurrentStateCondition.Last();
 		thisData.LOD = CurrentLOD;
-		thisData.positiveTags = m_currentPositiveTags;
-		thisData.negativeTags = m_currentNegativeTags;
-		modifiers.Add(thisData);
+		thisData.PositiveTags = CurrentPositiveTags;
+		thisData.NegativeTags = CurrentNegativeTags;
+		Modifiers.Add(thisData);
 	}
 
 
@@ -214,33 +213,31 @@ namespace mu
 	{
 		// Add the data about this surface
 		FSurface thisData;
-		thisData.node = InNode;
-		thisData.Component = m_currentComponent;
+		thisData.Node = InNode;
+		thisData.Component = CurrentComponent;
 		thisData.LOD = CurrentLOD;
-		thisData.objectCondition = m_currentCondition.Last().objectCondition;
-		thisData.stateCondition = m_currentStateCondition.Last();
-		thisData.positiveTags = m_currentPositiveTags;
-		thisData.negativeTags = m_currentNegativeTags;
-		surfaces.Add(thisData);
+		thisData.ObjectCondition = CurrentCondition.Last().ObjectCondition;
+		thisData.StateCondition = CurrentStateCondition.Last();
+		thisData.PositiveTags = CurrentPositiveTags;
+		thisData.NegativeTags = CurrentNegativeTags;
+		Surfaces.Add(thisData);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
     void FirstPassGenerator::Generate_SurfaceEdit(const NodeSurfaceEdit* InNode)
 	{
-		const NodeSurfaceEdit::Private* Private = InNode->GetPrivate();
-
 		// Store a reference to this node in the surface data for the surface that this node is
 		// editing.
-		FSurface* Surface = surfaces.FindByPredicate([&Private](const FSurface& s)
+		FSurface* Surface = Surfaces.FindByPredicate([&InNode](const FSurface& s)
         {
             // Are we editing the main surface node of this surface?
-            if (s.node.get() == Private->m_pParent.get()) return true;
+            if (s.Node.get() == InNode->Parent.get()) return true;
 
             // Are we editing an edit node modifying this surface?
-            for (const auto& e: s.edits)
+            for (const FSurface::FEdit& e: s.Edits)
             {
-                if (Private->m_pParent && e.node==Private->m_pParent)
+                if (InNode->Parent && e.Node== InNode->Parent)
                 {
                     return true;
                 }
@@ -254,15 +251,15 @@ namespace mu
 		if (Surface)
 		{
 			FSurface::FEdit edit;
-			edit.PositiveTags = m_currentPositiveTags;
-			edit.NegativeTags = m_currentNegativeTags;
-            edit.node = InNode;
-            edit.condition = m_currentCondition.Last().objectCondition;
-			Surface->edits.Add(edit);
+			edit.PositiveTags = CurrentPositiveTags;
+			edit.NegativeTags = CurrentNegativeTags;
+            edit.Node = InNode;
+            edit.Condition = CurrentCondition.Last().ObjectCondition;
+			Surface->Edits.Add(edit);
 		}
 		else
 		{
-			m_pErrorLog->GetPrivate()->Add("Missing parent object for edit node.", ELMT_WARNING, InNode->GetMessageContext());
+			ErrorLog->GetPrivate()->Add("Missing parent object for edit node.", ELMT_WARNING, InNode->GetMessageContext());
 		}
 	}
 
@@ -270,52 +267,50 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_SurfaceVariation(const NodeSurfaceVariation* InNode)
 	{
-		const NodeSurfaceVariation::Private* Private = InNode->GetPrivate();
-
-        switch(Private->m_type)
+        switch(InNode->Type)
         {
 
         case NodeSurfaceVariation::VariationType::Tag:
         {
             // Any of the tags in the variations would prevent the default surface
-            auto oldNegativeTags = m_currentNegativeTags;
-            for (int32 v=0; v< Private->m_variations.Num(); ++v)
+			TArray<FString> OldNegativeTags = CurrentNegativeTags;
+            for (int32 v=0; v< InNode->Variations.Num(); ++v)
             {
-                m_currentNegativeTags.Add(Private->m_variations[v].m_tag);
+                CurrentNegativeTags.Add(InNode->Variations[v].Tag);
             }
 
-            for(const auto& n: Private->m_defaultSurfaces)
+            for(const Ptr<NodeSurface>& n: InNode->DefaultSurfaces)
             {
 				Generate_Generic(n.get());
 			}
-            for(const auto& n: Private->m_defaultModifiers)
+            for(const Ptr<NodeModifier>& n: InNode->DefaultModifiers)
             {
 				Generate_Modifier(n.get());
             }
 
-            m_currentNegativeTags = oldNegativeTags;
+            CurrentNegativeTags = OldNegativeTags;
 
-            for (int32 v=0; v< Private->m_variations.Num(); ++v)
+            for (int32 v=0; v< InNode->Variations.Num(); ++v)
             {
-                m_currentPositiveTags.Add(Private->m_variations[v].m_tag);
-                for (const auto& s : Private->m_variations[v].m_surfaces)
+                CurrentPositiveTags.Add(InNode->Variations[v].Tag);
+                for (const Ptr<NodeSurface>& s : InNode->Variations[v].Surfaces)
                 {
 					Generate_Generic(s.get());
                 }
 
-                for (const auto& s : Private->m_variations[v].m_modifiers)
+                for (const Ptr<NodeModifier>& s : InNode->Variations[v].Modifiers)
                 {
 					Generate_Modifier(s.get());
 				}
 
-                m_currentPositiveTags.Pop();
+                CurrentPositiveTags.Pop();
 
                 // Tags have an order in a variation node: the current tag should prevent any following
                 // variation surface
-                m_currentNegativeTags.Add(Private->m_variations[v].m_tag);
+                CurrentNegativeTags.Add(InNode->Variations[v].Tag);
             }
 
-            m_currentNegativeTags = oldNegativeTags;
+            CurrentNegativeTags = OldNegativeTags;
 
             break;
         }
@@ -323,7 +318,7 @@ namespace mu
 
         case NodeSurfaceVariation::VariationType::State:
         {
-            size_t stateCount = m_states.Num();
+            int32 stateCount = States.Num();
 
             // Default
             {
@@ -332,15 +327,15 @@ namespace mu
                 {
 					StateCondition AllTrue;
 					AllTrue.Init(true,stateCount);
-                    defaultStates = m_currentStateCondition.Last().IsEmpty()
+                    defaultStates = CurrentStateCondition.Last().IsEmpty()
                             ? AllTrue
-                            : m_currentStateCondition.Last();
+                            : CurrentStateCondition.Last();
 
-                    for (const auto& v: Private->m_variations)
+                    for (const NodeSurfaceVariation::FVariation& v: InNode->Variations)
                     {
                         for( size_t s=0; s<stateCount; ++s )
                         {
-                            if (m_states[s].Key.Name==v.m_tag)
+                            if (States[s].Key.Name==v.Tag)
                             {
                                 // Remove this state from the default options, since it has its own variation
                                 defaultStates[s] = false;
@@ -349,47 +344,47 @@ namespace mu
                     }
                 }
 
-                m_currentStateCondition.Add(defaultStates);
+                CurrentStateCondition.Add(defaultStates);
 
-                for (const auto& n : Private->m_defaultSurfaces)
+                for (const Ptr<NodeSurface>& n : InNode->DefaultSurfaces)
                 {
 					Generate_Generic(n.get());
 				}
-                for (const auto& n : Private->m_defaultModifiers)
+                for (const Ptr<NodeModifier>& n : InNode->DefaultModifiers)
                 {
 					Generate_Modifier(n.get());
 				}
 
-                m_currentStateCondition.Pop();
+                CurrentStateCondition.Pop();
             }
 
             // Variation branches
-            for (const auto& v: Private->m_variations)
+            for (const auto& v: InNode->Variations)
             {
                 // Store the states for this variation here
 				StateCondition variationStates;
 				variationStates.Init(false,stateCount);
 
-                for( size_t s=0; s<stateCount; ++s )
+                for( int32 StateIndex=0; StateIndex<stateCount; ++StateIndex)
                 {
-                    if (m_states[s].Key.Name==v.m_tag)
+                    if (States[StateIndex].Key.Name==v.Tag)
                     {
-                        variationStates[s] = true;
+                        variationStates[StateIndex] = true;
                     }
                 }
 
-                m_currentStateCondition.Add(variationStates);
+                CurrentStateCondition.Add(variationStates);
 
-                for (const auto& n : v.m_surfaces)
+                for (const Ptr<NodeSurface>& n : v.Surfaces)
                 {
 					Generate_Generic(n.get());
 				}
-                for (const auto& n : v.m_modifiers)
+                for (const Ptr<NodeModifier>& n : v.Modifiers)
                 {
 					Generate_Modifier(n.get());
 				}
 
-                m_currentStateCondition.Pop();
+                CurrentStateCondition.Pop();
             }
 
             break;
@@ -406,9 +401,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_SurfaceSwitch(const NodeSurfaceSwitch* InNode)
 	{
-		const NodeSurfaceSwitch::Private* Private = InNode->GetPrivate();
-
-		if (Private->Options.Num() == 0)
+		if (InNode->Options.Num() == 0)
 		{
 			// No options in the switch!
 			return;
@@ -417,9 +410,9 @@ namespace mu
 		// Prepare the enumeration parameter
 		CodeGenerator::FGenericGenerationOptions Options;
 		CodeGenerator::FScalarGenerationResult ScalarResult;
-		if (Private->Parameter)
+		if (InNode->Parameter)
 		{
-			Generator->GenerateScalar( ScalarResult, Options, Private->Parameter );
+			Generator->GenerateScalar( ScalarResult, Options, InNode->Parameter );
 		}
 		else
 		{
@@ -428,7 +421,7 @@ namespace mu
 		}
 
 		// Parse the options
-		for (int32 t = 0; t < Private->Options.Num(); ++t)
+		for (int32 t = 0; t < InNode->Options.Num(); ++t)
 		{
 			// Create a comparison operation as the boolean parameter for the child
 			Ptr<ASTOpFixed> ParamOp = new ASTOpFixed();
@@ -437,25 +430,25 @@ namespace mu
 			ParamOp->op.args.BoolEqualScalarConst.constant = (int16)t;
 
 			// Combine the new condition with previous conditions coming from parent objects
-			if (m_currentCondition.Last().objectCondition)
+			if (CurrentCondition.Last().ObjectCondition)
 			{
 				Ptr<ASTOpFixed> op = new ASTOpFixed();
 				op->op.type = OP_TYPE::BO_AND;
-				op->SetChild(op->op.args.BoolBinary.a, m_currentCondition.Last().objectCondition);
+				op->SetChild(op->op.args.BoolBinary.a, CurrentCondition.Last().ObjectCondition);
 				op->SetChild(op->op.args.BoolBinary.b, ParamOp);
 				ParamOp = op;
 			}
 
 			FConditionContext data;
-			data.objectCondition = ParamOp;
-			m_currentCondition.Push(data);
+			data.ObjectCondition = ParamOp;
+			CurrentCondition.Push(data);
 
-			if (Private->Options[t])
+			if (InNode->Options[t])
 			{
-				Generate_Generic(Private->Options[t].get());
+				Generate_Generic(InNode->Options[t].get());
 			}
 
-			m_currentCondition.Pop();
+			CurrentCondition.Pop();
 		}
 	}
 
@@ -463,7 +456,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_ComponentNew(const NodeComponentNew* InNode)
 	{
-        m_currentComponent = InNode;
+        CurrentComponent = InNode;
 
 		CurrentLOD = 0;
 		for (const Ptr<NodeLOD>& c : InNode->LODs)
@@ -476,14 +469,14 @@ namespace mu
 		}
 		CurrentLOD = -1;
 
-		m_currentComponent = nullptr;
+		CurrentComponent = nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_ComponentEdit(const NodeComponentEdit* InNode)
 	{
-		m_currentComponent = InNode->GetParentComponentNew();
+		CurrentComponent = InNode->GetParentComponentNew();
 
 		CurrentLOD = 0;
 		for (const Ptr<NodeLOD>& c : InNode->LODs)
@@ -496,7 +489,7 @@ namespace mu
 		}
 		CurrentLOD = -1;
 
-		m_currentComponent = nullptr;
+		CurrentComponent = nullptr;
 	}
 
 
@@ -526,21 +519,21 @@ namespace mu
 	{
 		// Add the data about this object
 		FObject thisData;
-		thisData.node = InNode;
-        thisData.condition = m_currentCondition.Last().objectCondition;
-		objects.Add(thisData);
+		thisData.Node = InNode;
+        thisData.Condition = CurrentCondition.Last().ObjectCondition;
+		Objects.Add(thisData);
 
         // Accumulate the model states
         for ( const FObjectState& s: InNode->States )
         {
-            m_states.Emplace( s, InNode );
+            States.Emplace( s, InNode );
 
             if ( s.RuntimeParams.Num() > MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE )
             {
                 FString Msg = FString::Printf( TEXT("State [%s] has more than %d runtime parameters. Their update may fail."), 
 					*s.Name,
                     MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE);
-                m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, InNode->GetMessageContext());
+				ErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, InNode->GetMessageContext());
             }
         }
 
@@ -612,7 +605,7 @@ namespace mu
 						{
 							FString Msg = FString::Printf(TEXT("The Group Node [%s] has type Toggle and its direct child is a Group node, which is not allowed. Change the type or add a Child Object node in between them."),
 								*Private->Name);
-							m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, InNode->GetMessageContext());
+							ErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, InNode->GetMessageContext());
 						}
 						else
 						{
@@ -670,22 +663,22 @@ namespace mu
                 }
 
                 // Combine the new condition with previous conditions coming from parent objects
-                if (m_currentCondition.Last().objectCondition)
+                if (CurrentCondition.Last().ObjectCondition)
                 {
                     Ptr<ASTOpFixed> op = new ASTOpFixed();
                     op->op.type = OP_TYPE::BO_AND;
-                    op->SetChild( op->op.args.BoolBinary.a,m_currentCondition.Last().objectCondition);
+                    op->SetChild( op->op.args.BoolBinary.a,CurrentCondition.Last().ObjectCondition);
                     op->SetChild( op->op.args.BoolBinary.b,paramOp);
                     paramOp = op;
                 }
 
 				FConditionContext data;
-                data.objectCondition = paramOp;
-                m_currentCondition.Add( data );
+                data.ObjectCondition = paramOp;
+                CurrentCondition.Add( data );
 
 				Generate_Generic(pChildNode.get());
 
-                m_currentCondition.Pop();
+                CurrentCondition.Pop();
             }
         }
  	}

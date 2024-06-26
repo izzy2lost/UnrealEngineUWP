@@ -38,6 +38,7 @@
 #include "MuT/NodeImageTable.h"
 #include "MuT/NodeObjectGroup.h"
 #include "MuT/NodeObjectNew.h"
+#include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceSwitch.h"
 #include "MuT/NodeSurfaceVariation.h"
@@ -58,10 +59,6 @@
 #include "MuT/NodeObjectNew.h"
 
 #include "MuT/NodeObjectGroupPrivate.h"
-#include "MuT/NodeSurfaceNewPrivate.h"
-#include "MuT/NodeSurfaceEditPrivate.h"
-#include "MuT/NodeSurfaceSwitchPrivate.h"
-#include "MuT/NodeSurfaceVariationPrivate.h"
 #include "MuT/NodeModifierPrivate.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeMeshFormatPrivate.h"
@@ -90,7 +87,6 @@
 #include "MuT/NodeImageInvertPrivate.h"
 #include "MuT/NodeImageSwizzlePrivate.h"
 #include "MuT/NodeImageMultiLayerPrivate.h"
-#include "MuT/NodeScalarSwitchPrivate.h"
 
 class FExtender;
 class FReferenceCollector;
@@ -348,74 +344,75 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeSurfaceNew::GetStaticType())
 	{
 		mu::NodeSurfaceNew* SurfaceNew = StaticCast<mu::NodeSurfaceNew*>(ParentNode);
-		mu::NodeSurfaceNew::Private* Private = SurfaceNew->GetPrivate();
-		AddChildFunc(Private->Mesh.get(), TEXT("MESH"));
+		AddChildFunc(SurfaceNew->Mesh.get(), TEXT("MESH"));
 
-		for (int32 l = 0; l < Private->m_images.Num(); ++l)
+		for (int32 l = 0; l < SurfaceNew->Images.Num(); ++l)
 		{
-			AddChildFunc(Private->m_images[l].m_pImage.get(), FString::Printf(TEXT("IMAGE [%s]"), *Private->m_images[l].m_name));
+			AddChildFunc(SurfaceNew->Images[l].Image.get(), FString::Printf(TEXT("IMAGE [%s]"), *SurfaceNew->Images[l].Name));
 		}
 
-		for (int32 l = 0; l < Private->m_vectors.Num(); ++l)
+		for (int32 l = 0; l < SurfaceNew->Vectors.Num(); ++l)
 		{
-			AddChildFunc(Private->m_vectors[l].m_pVector.get(), FString::Printf(TEXT("VECTOR [%s]"), *Private->m_vectors[l].m_name));
+			AddChildFunc(SurfaceNew->Vectors[l].Vector.get(), FString::Printf(TEXT("VECTOR [%s]"), *SurfaceNew->Vectors[l].Name));
 		}
 
-		for (int32 l = 0; l < Private->m_scalars.Num(); ++l)
+		for (int32 l = 0; l < SurfaceNew->Scalars.Num(); ++l)
 		{
-			AddChildFunc(Private->m_scalars[l].m_pScalar.get(), FString::Printf(TEXT("SCALAR [%s]"), *Private->m_scalars[l].m_name));
+			AddChildFunc(SurfaceNew->Scalars[l].Scalar.get(), FString::Printf(TEXT("SCALAR [%s]"), *SurfaceNew->Scalars[l].Name));
+		}
+
+		for (int32 l = 0; l < SurfaceNew->Strings.Num(); ++l)
+		{
+			AddChildFunc(SurfaceNew->Strings[l].String.get(), FString::Printf(TEXT("STRING [%s]"), *SurfaceNew->Strings[l].Name));
 		}
 	}
 
 	else if (ParentNode->GetType() == mu::NodeSurfaceEdit::GetStaticType())
 	{
 		mu::NodeSurfaceEdit* SurfaceEdit = StaticCast<mu::NodeSurfaceEdit*>(ParentNode);
-		mu::NodeSurfaceEdit::Private* Private = SurfaceEdit->GetPrivate();
-		AddChildFunc(Private->m_pMesh.get(), TEXT("MESH"));
-		AddChildFunc(Private->m_pMorph.get(), TEXT("MORPH"));
-		AddChildFunc(Private->m_pFactor.get(), TEXT("MORPH_FACTOR"));
+		AddChildFunc(SurfaceEdit->Mesh.get(), TEXT("MESH"));
+		AddChildFunc(SurfaceEdit->Morph.get(), TEXT("MORPH"));
+		AddChildFunc(SurfaceEdit->MorphFactor.get(), TEXT("MORPH_FACTOR"));
 
-		for (int32 l = 0; l < Private->m_textures.Num(); ++l)
+		for (int32 l = 0; l < SurfaceEdit->Textures.Num(); ++l)
 		{
-			AddChildFunc(Private->m_textures[l].m_pExtend.get(), FString::Printf(TEXT("EXTEND [%d]"), l));
-			AddChildFunc(Private->m_textures[l].m_pPatch.get(), FString::Printf(TEXT("PATCH [%d]"), l));
+			AddChildFunc(SurfaceEdit->Textures[l].Extend.get(), FString::Printf(TEXT("EXTEND [%d]"), l));
+			AddChildFunc(SurfaceEdit->Textures[l].Patch.get(), FString::Printf(TEXT("PATCH [%d]"), l));
 		}
 	}
 
 	else if (ParentNode->GetType() == mu::NodeSurfaceSwitch::GetStaticType())
 	{
 		mu::NodeSurfaceSwitch* SurfaceSwitch = StaticCast<mu::NodeSurfaceSwitch*>(ParentNode);
-		mu::NodeSurfaceSwitch::Private* Private = SurfaceSwitch->GetPrivate();
-		AddChildFunc(Private->Parameter.get(), TEXT("PARAM"));
-		for (int32 l = 0; l < Private->Options.Num(); ++l)
+		AddChildFunc(SurfaceSwitch->Parameter.get(), TEXT("PARAM"));
+		for (int32 l = 0; l < SurfaceSwitch->Options.Num(); ++l)
 		{
-			AddChildFunc(Private->Options[l].get(), FString::Printf(TEXT("OPTION [%d]"), l));
+			AddChildFunc(SurfaceSwitch->Options[l].get(), FString::Printf(TEXT("OPTION [%d]"), l));
 		}
 	}
 
 	else if (ParentNode->GetType() == mu::NodeSurfaceVariation::GetStaticType())
 	{
 		mu::NodeSurfaceVariation* SurfaceVar = StaticCast<mu::NodeSurfaceVariation*>(ParentNode);
-		mu::NodeSurfaceVariation::Private* Private = SurfaceVar->GetPrivate();
-		for (int32 l = 0; l < Private->m_defaultSurfaces.Num(); ++l)
+		for (int32 l = 0; l < SurfaceVar->DefaultSurfaces.Num(); ++l)
 		{
-			AddChildFunc(Private->m_defaultSurfaces[l].get(), FString::Printf(TEXT("DEF SURF [%d]"), l));
+			AddChildFunc(SurfaceVar->DefaultSurfaces[l].get(), FString::Printf(TEXT("DEF SURF [%d]"), l));
 		}
-		for (int32 l = 0; l < Private->m_defaultModifiers.Num(); ++l)
+		for (int32 l = 0; l < SurfaceVar->DefaultModifiers.Num(); ++l)
 		{
-			AddChildFunc(Private->m_defaultModifiers[l].get(), FString::Printf(TEXT("DEF MOD [%d]"), l));
+			AddChildFunc(SurfaceVar->DefaultModifiers[l].get(), FString::Printf(TEXT("DEF MOD [%d]"), l));
 		}
 
-		for (int32 v = 0; v < Private->m_variations.Num(); ++v)
+		for (int32 v = 0; v < SurfaceVar->Variations.Num(); ++v)
 		{
-			const mu::NodeSurfaceVariation::Private::FVariation Var = Private->m_variations[v];
-			for (int32 l = 0; l < Var.m_surfaces.Num(); ++l)
+			const mu::NodeSurfaceVariation::FVariation Var = SurfaceVar->Variations[v];
+			for (int32 l = 0; l < Var.Surfaces.Num(); ++l)
 			{
-				AddChildFunc(Var.m_surfaces[l].get(), FString::Printf(TEXT("VAR [%s] SURF [%d]"), *Var.m_tag, l));
+				AddChildFunc(Var.Surfaces[l].get(), FString::Printf(TEXT("VAR [%s] SURF [%d]"), *Var.Tag, l));
 			}
-			for (int32 l = 0; l < Var.m_modifiers.Num(); ++l)
+			for (int32 l = 0; l < Var.Modifiers.Num(); ++l)
 			{
-				AddChildFunc(Var.m_modifiers[l].get(), FString::Printf(TEXT("VAR [%s] MOD [%d]"), *Var.m_tag, l));
+				AddChildFunc(Var.Modifiers[l].get(), FString::Printf(TEXT("VAR [%s] MOD [%d]"), *Var.Tag, l));
 			}
 		}
 	}
@@ -755,11 +752,10 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeScalarSwitch::GetStaticType())
 	{
 		mu::NodeScalarSwitch* ScalarSwitchVar = StaticCast<mu::NodeScalarSwitch*>(ParentNode);
-		mu::NodeScalarSwitch::Private* Private = ScalarSwitchVar->GetPrivate();
-		AddChildFunc(Private->m_pParameter.get(), TEXT("PARAM"));
-		for (int32 OptionIndex = 0; OptionIndex < Private->m_options.Num(); ++OptionIndex)
+		AddChildFunc(ScalarSwitchVar->Parameter.get(), TEXT("PARAM"));
+		for (int32 OptionIndex = 0; OptionIndex < ScalarSwitchVar->Options.Num(); ++OptionIndex)
 		{
-			AddChildFunc(Private->m_options[OptionIndex].get(), FString::Printf(TEXT("OPTION [%d]"), OptionIndex));
+			AddChildFunc(ScalarSwitchVar->Options[OptionIndex].get(), FString::Printf(TEXT("OPTION [%d]"), OptionIndex));
 		}
 	}
 	

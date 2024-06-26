@@ -30,7 +30,7 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext)
+mu::Ptr<mu::NodeColour> GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext)
 {
 	check(Pin)
 	RETURN_ON_CYCLE(*Pin, GenerationContext)
@@ -52,7 +52,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 		Node->SetRefreshNodeWarning();
 	}
 
-	mu::NodeColourPtr Result;
+	mu::Ptr<mu::NodeColour> Result;
 
 	if (const UCustomizableObjectNodeColorConstant* TypedNodeColorConst = Cast<UCustomizableObjectNodeColorConstant>(Node))
 	{
@@ -80,7 +80,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 
 	else if (const UCustomizableObjectNodeColorSwitch* TypedNodeColorSwitch = Cast<UCustomizableObjectNodeColorSwitch>(Node))
 	{
-		Result = [&]()
+		Result = [&]() -> mu::Ptr<mu::NodeColourSwitch>
 		{
 			if (const int32 NumParameters = FollowInputPinArray(*TypedNodeColorSwitch->SwitchParameter()).Num();
 				NumParameters != 1)
@@ -90,7 +90,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 					: LOCTEXT("InvalidEnumInSwitch", "Switch nodes must have a single enum with all the options inside. Please remove all the enums but one and refresh the switch node.");
 
 				GenerationContext.Compiler->CompilerLog(Message, Node);
-				return Result;
+				return nullptr;
 			}
 
 			const UEdGraphPin* EnumPin = FollowInputPin(*TypedNodeColorSwitch->SwitchParameter());
@@ -106,7 +106,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 					GenerationContext.Compiler->CompilerLog(Message, Node);
 				}
 
-				return Result;
+				return nullptr;
 			}
 
 			if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
@@ -114,7 +114,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 				const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
 				GenerationContext.Compiler->CompilerLog(Message, Node);
 
-				return Result;
+				return nullptr;
 			}
 
 			const int32 NumSwitchOptions = TypedNodeColorSwitch->GetNumElements();
@@ -139,7 +139,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 				}
 			}
 
-			return static_cast<mu::NodeColourPtr>(SwitchNode);
+			return SwitchNode;
 		}(); // invoke lambda;
 	}
 
@@ -174,14 +174,12 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeColorArith->XPin()))
 		{
-			mu::NodeColourPtr XNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
-			OpNode->A = XNode;
+			OpNode->A = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
 		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeColorArith->YPin()))
 		{
-			mu::NodeColourPtr YNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
-			OpNode->B = YNode;
+			OpNode->B = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
 		}
 
 		switch (TypedNodeColorArith->Operation)
@@ -241,7 +239,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeColorVar->DefaultPin()))
 		{
-			mu::NodeColourPtr ChildNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
+			mu::Ptr<mu::NodeColour> ChildNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
 			if (ChildNode)
 			{
 				ColorNode->DefaultColour = ChildNode;
@@ -262,7 +260,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 			ColorNode->Variations[VariationIndex].Tag = TypedNodeColorVar->GetVariation(VariationIndex).Tag;
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*VariationPin))
 			{
-				mu::NodeColourPtr ChildNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
+				mu::Ptr<mu::NodeColour> ChildNode = GenerateMutableSourceColor(ConnectedPin, GenerationContext);
 				ColorNode->Variations[VariationIndex].Colour = ChildNode;
 			}
 		}

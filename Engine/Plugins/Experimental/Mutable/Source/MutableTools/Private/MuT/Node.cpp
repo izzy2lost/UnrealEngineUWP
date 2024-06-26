@@ -7,7 +7,14 @@
 
 #include "MuT/NodeComponent.h"
 #include "MuT/NodeComponentNew.h"
+#include "MuT/NodeComponentSwitch.h"
+#include "MuT/NodeComponentVariation.h"
 #include "MuT/NodeLOD.h"
+#include "MuT/NodeSurface.h"
+#include "MuT/NodeSurfaceNew.h"
+#include "MuT/NodeSurfaceEdit.h"
+#include "MuT/NodeSurfaceSwitch.h"
+#include "MuT/NodeSurfaceVariation.h"
 #include "MuT/NodeExtensionData.h"
 #include "MuT/NodeExtensionDataConstant.h"
 #include "MuT/NodeImageTable.h"
@@ -20,6 +27,7 @@
 #include "MuT/NodeColourArithmeticOperation.h"
 #include "MuT/NodeColourFromScalars.h"
 #include "MuT/NodeColourTable.h"
+#include "MuT/NodeScalarSwitch.h"
 
 namespace mu
 {
@@ -29,6 +37,17 @@ namespace mu
 
 	FNodeType NodeComponent::StaticType = FNodeType(Node::EType::Component, Node::GetStaticType());
 	FNodeType NodeComponentNew::StaticType = FNodeType(Node::EType::ComponentNew, NodeComponent::GetStaticType());
+	FNodeType NodeComponentSwitch::StaticType = FNodeType(Node::EType::ComponentSwitch, NodeComponent::GetStaticType());
+	FNodeType NodeComponentVariation::StaticType = FNodeType(Node::EType::ComponentVariation, NodeComponent::GetStaticType());
+
+	FNodeType NodeScalarSwitch::StaticType = FNodeType(Node::EType::ScalarSwitch, NodeScalar::GetStaticType());
+
+	FNodeType NodeSurface::StaticType = FNodeType(Node::EType::Surface, Node::GetStaticType());
+	FNodeType NodeSurfaceNew::StaticType = FNodeType(Node::EType::SurfaceNew, NodeSurface::GetStaticType());
+	FNodeType NodeSurfaceEdit::StaticType = FNodeType(Node::EType::SurfaceEdit, NodeSurface::GetStaticType());
+	FNodeType NodeSurfaceSwitch::StaticType = FNodeType(Node::EType::SurfaceSwitch, NodeSurface::GetStaticType());
+	FNodeType NodeSurfaceVariation::StaticType = FNodeType(Node::EType::SurfaceVariation, NodeSurface::GetStaticType());
+
 	FNodeType NodeLOD::StaticType = FNodeType(Node::EType::LOD, Node::GetStaticType());
 	FNodeType NodeExtensionData::StaticType = FNodeType(Node::EType::ExtensionData, Node::GetStaticType());
 	FNodeType NodeExtensionDataConstant::StaticType = FNodeType(Node::EType::ExtensionDataConstant, NodeExtensionData::GetStaticType());

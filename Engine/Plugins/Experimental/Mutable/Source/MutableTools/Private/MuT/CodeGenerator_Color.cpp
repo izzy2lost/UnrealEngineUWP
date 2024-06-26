@@ -139,7 +139,7 @@ namespace mu
 
 		Ptr<ASTOpParameter> op;
 
-		Ptr<ASTOpParameter>* it = m_firstPass.ParameterNodes.Find(Typed);
+		Ptr<ASTOpParameter>* it = FirstPass.ParameterNodes.Find(Typed);
 
 		if (!it)
 		{
@@ -169,7 +169,7 @@ namespace mu
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			m_firstPass.ParameterNodes.Add(Typed, op);
+			FirstPass.ParameterNodes.Add(Typed, op);
 		}
 		else
 		{
@@ -245,13 +245,13 @@ namespace mu
 		}
 
 		// Process variations in reverse order, since conditionals are built bottom-up.
-		for (int t = node.Variations.Num() - 1; t >= 0; --t)
+		for (int32 t = node.Variations.Num() - 1; t >= 0; --t)
 		{
-			int tagIndex = -1;
+			int32 tagIndex = -1;
 			const FString& tag = node.Variations[t].Tag;
-			for (int i = 0; i < m_firstPass.m_tags.Num(); ++i)
+			for (int32 i = 0; i < FirstPass.Tags.Num(); ++i)
 			{
-				if (m_firstPass.m_tags[i].tag == tag)
+				if (FirstPass.Tags[i].Tag == tag)
 				{
 					tagIndex = i;
 				}
@@ -260,7 +260,7 @@ namespace mu
 			if (tagIndex < 0)
 			{
 				FString Msg = FString::Printf(TEXT("Unknown tag found in color variation [%s]."), *tag);
-				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Typed->GetMessageContext());
+				ErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Typed->GetMessageContext());
 				continue;
 			}
 
@@ -282,7 +282,7 @@ namespace mu
 			conditional->type = OP_TYPE::CO_CONDITIONAL;
 			conditional->no = currentOp;
 			conditional->yes = variationOp;
-			conditional->condition = m_firstPass.m_tags[tagIndex].genericCondition;
+			conditional->condition = FirstPass.Tags[tagIndex].GenericCondition;
 
 			currentOp = conditional;
 		}
@@ -303,9 +303,9 @@ namespace mu
 		// Source image
 		FImageGenerationOptions ImageOptions;
 		ImageOptions.State = Options.State;
-		if (!m_activeTags.IsEmpty())
+		if (!ActiveTags.IsEmpty())
 		{
-			ImageOptions.ActiveTags = m_activeTags.Last();
+			ImageOptions.ActiveTags = ActiveTags.Last();
 		}
 
 		Ptr<ASTOp> base;
@@ -490,7 +490,7 @@ namespace mu
 		const NodeColourTable& node = *Typed;
 
 		result.op = GenerateTableSwitch<NodeColourTable, ETableColumnType::Color, OP_TYPE::CO_SWITCH>(node,
-			[this, &Options](const NodeColourTable& node, int colIndex, int row, ErrorLog* pErrorLog)
+			[this, &Options](const NodeColourTable& node, int32 colIndex, int32 row, mu::ErrorLog* pErrorLog)
 			{
 				Ptr<NodeColourConstant> CellData = new NodeColourConstant();
 				FVector4f Colour = node.Table->GetPrivate()->Rows[row].Values[colIndex].Color;
@@ -507,7 +507,7 @@ namespace mu
 	{
 		// Log a warning
 		FString Msg = FString::Printf(TEXT("Required connection not found: %s"), strWhere);
-		m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, errorContext);
+		ErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, errorContext);
 
 		// Create a constant colour node
 		Ptr<NodeColourConstant> pNode = new NodeColourConstant();

@@ -352,33 +352,33 @@ namespace mu
 		if (!OverlappingBlocks.IsEmpty())
 		{
 			FString Msg = FString::Printf(TEXT("Source mesh has %d layout block overlapping in LOD %d"),
-				OverlappingBlocks.Num() + 1, m_currentParents.Last().m_lod
+				OverlappingBlocks.Num() + 1, CurrentParents.Last().Lod
 			);
-			m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, errorContext);
+			ErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, errorContext);
 		}
 
 		// Get the information about the texture coordinates channel
-		int buffer = -1;
-		int channel = -1;
+		int32 buffer = -1;
+		int32 channel = -1;
 		currentLayoutMesh->GetVertexBuffers().FindChannel(MBS_TEXCOORDS,
-			(int)currentLayoutChannel,
+			(int32)currentLayoutChannel,
 			&buffer,
 			&channel);
 		check(buffer >= 0);
 		check(channel >= 0);
 
 		EMeshBufferSemantic semantic;
-		int semanticIndex;
+		int32 semanticIndex;
 		EMeshBufferFormat format;
-		int components;
-		int offset;
+		int32 components;
+		int32 offset;
 		currentLayoutMesh->GetVertexBuffers().GetChannel
 		(buffer, channel, &semantic, &semanticIndex, &format, &components, &offset);
 		check(semantic == MBS_TEXCOORDS);
 
 		uint8* pData = currentLayoutMesh->GetVertexBuffers().GetBufferData(buffer);
-		int elemSize = currentLayoutMesh->GetVertexBuffers().GetElementSize(buffer);
-		int channelOffset = currentLayoutMesh->GetVertexBuffers().GetChannelOffset(buffer, channel);
+		int32 elemSize = currentLayoutMesh->GetVertexBuffers().GetElementSize(buffer);
+		int32 channelOffset = currentLayoutMesh->GetVertexBuffers().GetChannelOffset(buffer, channel);
 		pData += channelOffset;
 
 
@@ -420,8 +420,8 @@ namespace mu
 			// Mutable does not support non-normalized UVs
 			if (bNonNormalizedUVs && !bIsOverlayLayout)
 			{
-				FString Msg = FString::Printf(TEXT("Source mesh has non-normalized UVs in LOD %d"), m_currentParents.Last().m_lod );
-				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, errorContext);
+				FString Msg = FString::Printf(TEXT("Source mesh has non-normalized UVs in LOD %d"), CurrentParents.Last().Lod );
+				ErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, errorContext);
 			}
 		}
 
@@ -453,11 +453,11 @@ namespace mu
 		// TODO: We could skip this if there's only one block and it fits the entire grid
 		for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; ++TriangleIndex)
 		{
-			uint32 Index0 = int(ItIndices.GetAsUINT32());
+			uint32 Index0 = int32(ItIndices.GetAsUINT32());
 			++ItIndices;
-			uint32 Index1 = int(ItIndices.GetAsUINT32());
+			uint32 Index1 = int32(ItIndices.GetAsUINT32());
 			++ItIndices;
-			uint32 Index2 = int(ItIndices.GetAsUINT32());
+			uint32 Index2 = int32(ItIndices.GetAsUINT32());
 			++ItIndices;
 
 			uint16 X, Y;
@@ -593,7 +593,7 @@ namespace mu
 		}
 
 		// Warn about vertices without a block id
-		if (FirstLODToIgnoreWarnings == -1 || m_currentParents.Last().m_lod < FirstLODToIgnoreWarnings)
+		if (FirstLODToIgnoreWarnings == -1 || CurrentParents.Last().Lod < FirstLODToIgnoreWarnings)
 		{
 			TArray<float> UnassignedUVs;
 			UnassignedUVs.Reserve(NumVertices / 100);
@@ -610,13 +610,13 @@ namespace mu
 
 			if (!UnassignedUVs.IsEmpty())
 			{
-				FString Msg = FString::Printf(TEXT("Source mesh has %d vertices not assigned to any layout block in LOD %d"), UnassignedUVs.Num(), m_currentParents.Last().m_lod);
+				FString Msg = FString::Printf(TEXT("Source mesh has %d vertices not assigned to any layout block in LOD %d"), UnassignedUVs.Num(), CurrentParents.Last().Lod);
 
 				ErrorLogMessageAttachedDataView attachedDataView;
 				attachedDataView.m_unassignedUVs = UnassignedUVs.GetData();
 				attachedDataView.m_unassignedUVsSize = (size_t)UnassignedUVs.Num();
 
-				m_pErrorLog->GetPrivate()->Add(Msg, attachedDataView, ELMT_WARNING, errorContext);
+				ErrorLog->GetPrivate()->Add(Msg, attachedDataView, ELMT_WARNING, errorContext);
 			}
 		}
 
@@ -721,7 +721,7 @@ namespace mu
 		FGeneratedMeshCacheKey Key;
 		Key.Node = InUntypedNode;
 		Key.Options = InOptions;
-        GeneratedMeshMap::ValueType* it = m_generatedMeshes.Find(Key);
+        GeneratedMeshMap::ValueType* it = GeneratedMeshes.Find(Key);
         if ( it )
         {
 			OutResult = *it;
@@ -753,7 +753,7 @@ namespace mu
 		}
 
         // Cache the result
-        m_generatedMeshes.Add( Key, OutResult);
+        GeneratedMeshes.Add( Key, OutResult);
     }
 
 
@@ -784,12 +784,12 @@ namespace mu
         if ( node.Base )
         {
             GenerateMesh(InOptions,BaseResult, node.Base );
-            OpMorph->Base = BaseResult.meshOp;
+            OpMorph->Base = BaseResult.MeshOp;
         }
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add( "Mesh morph base node is not set.",
+            ErrorLog->GetPrivate()->Add( "Mesh morph base node is not set.",
                                             ELMT_ERROR, InMorphNode->GetMessageContext());
         }        
 
@@ -805,7 +805,7 @@ namespace mu
             GenerateMesh(TargetOptions, TargetResult, node.Morph);
 
             // TODO: Make sure that the target is a mesh with the morph format
-            Ptr<ASTOp> target = TargetResult.meshOp;
+            Ptr<ASTOp> target = TargetResult.MeshOp;
 
             OpMorph->Target = target;
         }
@@ -829,8 +829,8 @@ namespace mu
 			OpBind->PhysicsToDeform = node.PhysicsToDeform;
 			OpBind->BindingMethod = static_cast<uint32>(EShapeBindingMethod::ReshapeClosestProject);
             
-			OpBind->Mesh = BaseResult.meshOp;
-            OpBind->Shape = BaseResult.meshOp;
+			OpBind->Mesh = BaseResult.MeshOp;
+            OpBind->Shape = BaseResult.MeshOp;
            
 			OpApply->bReshapeVertices = OpBind->bReshapeVertices;
 			OpApply->bRecomputeNormals = OpBind->bRecomputeNormals;
@@ -847,14 +847,14 @@ namespace mu
 
  		if (OpMorphReshape)
 		{
-			OutResult.meshOp = OpMorphReshape;
+			OutResult.MeshOp = OpMorphReshape;
 		}
 		else
 		{
-			OutResult.meshOp = OpMorph;
+			OutResult.MeshOp = OpMorph;
 		}
 
-        OutResult.baseMeshOp = BaseResult.baseMeshOp;
+        OutResult.BaseMeshOp = BaseResult.BaseMeshOp;
 		OutResult.GeneratedLayouts = BaseResult.GeneratedLayouts;
 }
 
@@ -883,12 +883,12 @@ namespace mu
 			BaseOptions.bLayouts = false;
 			GenerateMesh(BaseOptions, BaseResult, node.m_pBase );
 
-            op->Base = BaseResult.meshOp;
+            op->Base = BaseResult.MeshOp;
         }
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add( "Mesh make morph base node is not set.",
+            ErrorLog->GetPrivate()->Add( "Mesh make morph base node is not set.",
                                             ELMT_ERROR, InMakeMorphNode->GetMessageContext());
         }
 
@@ -902,17 +902,17 @@ namespace mu
 			FMeshGenerationResult TargetResult;
             GenerateMesh( TargetOptions, TargetResult, node.m_pTarget );
 
-            op->Target = TargetResult.meshOp;
+            op->Target = TargetResult.MeshOp;
         }
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add( "Mesh make morph target node is not set.",
+            ErrorLog->GetPrivate()->Add( "Mesh make morph target node is not set.",
                                             ELMT_ERROR, InMakeMorphNode->GetMessageContext());
         }
 
-        OutResult.meshOp = op;
-        OutResult.baseMeshOp = BaseResult.baseMeshOp;
+        OutResult.MeshOp = op;
+        OutResult.BaseMeshOp = BaseResult.BaseMeshOp;
 		OutResult.GeneratedLayouts = BaseResult.GeneratedLayouts;
 	}
 
@@ -935,9 +935,9 @@ namespace mu
             if ( node.m_fragmentType==NodeMeshFragment::FT_LAYOUT_BLOCKS )
             {
                 Ptr<ASTOpMeshExtractLayoutBlocks> op = new ASTOpMeshExtractLayoutBlocks();
-                OutResult.meshOp = op;
+                OutResult.MeshOp = op;
 
-                op->Source = BaseResult.meshOp;
+                op->Source = BaseResult.MeshOp;
 
                 if (BaseResult.GeneratedLayouts.Num()>node.LayoutOrGroup )
                 {
@@ -953,7 +953,7 @@ namespace mu
                         }
                         else
                         {
-                            m_pErrorLog->GetPrivate()->Add( "Internal layout block index error.",
+                            ErrorLog->GetPrivate()->Add( "Internal layout block index error.",
                                                             ELMT_ERROR, FragmentNode->GetMessageContext());
                         }
                     }
@@ -961,7 +961,7 @@ namespace mu
                 else
                 {
                     // This argument is required
-                    m_pErrorLog->GetPrivate()->Add( "Missing layout in mesh fragment source.",
+                    ErrorLog->GetPrivate()->Add( "Missing layout in mesh fragment source.",
                                                     ELMT_ERROR, FragmentNode->GetMessageContext());
                 }
             }
@@ -975,11 +975,11 @@ namespace mu
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add( "Mesh fragment source is not set.",
+            ErrorLog->GetPrivate()->Add( "Mesh fragment source is not set.",
                                             ELMT_ERROR, FragmentNode->GetMessageContext());
         }
 
-        OutResult.baseMeshOp = BaseResult.baseMeshOp;
+        OutResult.BaseMeshOp = BaseResult.BaseMeshOp;
 		OutResult.GeneratedLayouts = BaseResult.GeneratedLayouts;
 	}
 
@@ -993,7 +993,7 @@ namespace mu
         // Generate the code
         Ptr<ASTOpFixed> op = new ASTOpFixed();
         op->op.type = OP_TYPE::ME_INTERPOLATE;
-        OutResult.meshOp = op;
+        OutResult.MeshOp = op;
 
         // Factor
         if ( Node* pFactor = node.m_pFactor.get() )
@@ -1009,7 +1009,7 @@ namespace mu
 
         //
         Ptr<ASTOp> base = 0;
-        int count = 0;
+        int32 count = 0;
         for ( int32 t=0
             ; t<node.m_targets.Num() && t<MUTABLE_OP_MAX_INTERPOLATE_COUNT-1
             ; ++t )
@@ -1026,17 +1026,17 @@ namespace mu
                 // The first target is the base
                 if (count==0)
                 {
-                    base = TargetResult.meshOp;
-                    op->SetChild( op->op.args.MeshInterpolate.base, TargetResult.meshOp );
+                    base = TargetResult.MeshOp;
+                    op->SetChild( op->op.args.MeshInterpolate.base, TargetResult.MeshOp );
 
-                    OutResult.baseMeshOp = TargetResult.baseMeshOp;
+                    OutResult.BaseMeshOp = TargetResult.BaseMeshOp;
 					OutResult.GeneratedLayouts = TargetResult.GeneratedLayouts;
 				}
                 else
                 {
                     Ptr<ASTOpMeshDifference> dop = new ASTOpMeshDifference();
                     dop->Base = base;
-                    dop->Target = TargetResult.meshOp;
+                    dop->Target = TargetResult.MeshOp;
 
                     // \todo Texcoords are broken?
                     dop->bIgnoreTextureCoords = true;
@@ -1063,7 +1063,7 @@ namespace mu
         {
             // TODO
             //op.args.MeshInterpolate.target[0] = GenerateMissingImageCode( "First mesh", IF_RGB_UBYTE );
-            m_pErrorLog->GetPrivate()->Add
+            ErrorLog->GetPrivate()->Add
                 ( "Mesh interpolation: at least the first mesh is required.",
                   ELMT_ERROR, InterpolateNode->GetMessageContext());
         }
@@ -1115,7 +1115,7 @@ namespace mu
 				FMeshGenerationResult BranchResults;
                 GenerateMesh(TargetOptions, BranchResults, node.m_options[t] );
 
-                Ptr<ASTOp> branch = BranchResults.meshOp;
+                Ptr<ASTOp> branch = BranchResults.MeshOp;
                 op->cases.Emplace((int16)t,op,branch);
 
 				if (!bFirstValidConnectionFound)
@@ -1126,7 +1126,7 @@ namespace mu
             }
         }
 
-        OutResult.meshOp = op;
+        OutResult.MeshOp = op;
     }
 
 
@@ -1135,11 +1135,11 @@ namespace mu
 	{
 		//
 		FMeshGenerationResult NewResult = OutResult;
-		int t = 0;
+		int32 t = 0;
 		bool bFirstRowGenerated = false;
 
 		Ptr<ASTOp> Op = GenerateTableSwitch<NodeMeshTable, ETableColumnType::Mesh, OP_TYPE::ME_SWITCH>(*TableNode,
-			[this, &NewResult, &bFirstRowGenerated, &InOptions] (const NodeMeshTable& node, int colIndex, int row, ErrorLog* pErrorLog)
+			[this, &NewResult, &bFirstRowGenerated, &InOptions] (const NodeMeshTable& node, int32 colIndex, int32 row, mu::ErrorLog* pErrorLog)
 			{
 				mu::Ptr<mu::Mesh> pMesh = node.Table->GetPrivate()->Rows[row].Values[colIndex].Mesh;
 				FMeshGenerationResult BranchResults;
@@ -1150,9 +1150,9 @@ namespace mu
 					pCell->SetValue(pMesh);
 
 					// TODO Take into account layout strategy
-					int numLayouts = node.Layouts.Num();
+					int32 numLayouts = node.Layouts.Num();
 					pCell->SetLayoutCount(numLayouts);
-					for (int i = 0; i < numLayouts; ++i)
+					for (int32 i = 0; i < numLayouts; ++i)
 					{
 						pCell->SetLayout(i, node.Layouts[i]);
 					}
@@ -1175,10 +1175,10 @@ namespace mu
 					}
 				}
 
-				return BranchResults.meshOp;
+				return BranchResults.MeshOp;
 			});
 
-		NewResult.meshOp = Op;
+		NewResult.MeshOp = Op;
 
 		OutResult = NewResult;
 	}
@@ -1202,7 +1202,7 @@ namespace mu
 			FMeshGenerationOptions DefaultOptions = InOptions;
 
 			GenerateMesh(DefaultOptions, BranchResults, node.m_defaultMesh );
-            currentMeshOp = BranchResults.meshOp;
+            currentMeshOp = BranchResults.MeshOp;
             currentResult = BranchResults;
             firstOptionProcessed = true;
         }
@@ -1210,11 +1210,11 @@ namespace mu
         // Process variations in reverse order, since conditionals are built bottom-up.
         for ( int32 t = node.m_variations.Num()-1; t >= 0; --t )
         {
-            int tagIndex = -1;
+            int32 tagIndex = -1;
             const FString& tag = node.m_variations[t].m_tag;
-            for ( int i = 0; i < m_firstPass.m_tags.Num(); ++i )
+            for ( int32 i = 0; i < FirstPass.Tags.Num(); ++i )
             {
-                if ( m_firstPass.m_tags[i].tag==tag)
+                if ( FirstPass.Tags[i].Tag==tag)
                 {
                     tagIndex = i;
                 }
@@ -1222,7 +1222,7 @@ namespace mu
 
             if ( tagIndex < 0 )
             {
-                m_pErrorLog->GetPrivate()->Add( 
+                ErrorLog->GetPrivate()->Add( 
 					FString::Printf(TEXT("Unknown tag found in mesh variation [%s]."), *tag),
 					ELMT_WARNING,
 					VariationNode->GetMessageContext(),
@@ -1244,7 +1244,7 @@ namespace mu
                 FMeshGenerationResult BranchResults;
 				GenerateMesh(VariationOptions, BranchResults, node.m_variations[t].m_mesh );
 
-                variationMeshOp = BranchResults.meshOp;
+                variationMeshOp = BranchResults.MeshOp;
 
                 if ( !firstOptionProcessed )
                 {
@@ -1257,13 +1257,13 @@ namespace mu
             conditional->type = OP_TYPE::ME_CONDITIONAL;
             conditional->no = currentMeshOp;
             conditional->yes = variationMeshOp;            
-            conditional->condition = m_firstPass.m_tags[tagIndex].genericCondition;
+            conditional->condition = FirstPass.Tags[tagIndex].GenericCondition;
 
             currentMeshOp = conditional;
         }
 
         OutResult = currentResult;
-        OutResult.meshOp = currentMeshOp;
+        OutResult.MeshOp = currentMeshOp;
     }
 
 
@@ -1274,8 +1274,8 @@ namespace mu
 
         Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource();
 		ConstantOp->Type = OP_TYPE::ME_CONSTANT;
-		OutResult.baseMeshOp = ConstantOp;
-		OutResult.meshOp = ConstantOp;
+		OutResult.BaseMeshOp = ConstantOp;
+		OutResult.MeshOp = ConstantOp;
 		OutResult.GeneratedLayouts.Empty();
 
 		bool bIsOverridingLayouts = !InOptions.OverrideLayouts.IsEmpty();
@@ -1285,7 +1285,7 @@ namespace mu
 		{
 			// This data is required
 			MeshPtr EmptyMesh = new Mesh();
-			ConstantOp->SetValue(EmptyMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+			ConstantOp->SetValue(EmptyMesh, CompilerOptions->OptimisationOptions.DiskCacheContext);
 			EmptyMesh->MeshIDPrefix = ConstantOp->GetValueHash();
 
 			FGeneratedConstantMesh MeshEntry;
@@ -1294,7 +1294,7 @@ namespace mu
 			GeneratedConstantMeshes.Add(MeshEntry);
 
 			// Log an error message
-			m_pErrorLog->GetPrivate()->Add("Constant mesh not set.", ELMT_WARNING, InNode->GetMessageContext());
+			ErrorLog->GetPrivate()->Add("Constant mesh not set.", ELMT_WARNING, InNode->GetMessageContext());
 
 			return;
 		}
@@ -1306,8 +1306,8 @@ namespace mu
 			ReferenceOp->ID = pMesh->GetReferencedMesh();
 			ReferenceOp->bForceLoad = pMesh->IsForceLoad();
 
-			OutResult.baseMeshOp = ReferenceOp;
-			OutResult.meshOp = ReferenceOp;
+			OutResult.BaseMeshOp = ReferenceOp;
+			OutResult.MeshOp = ReferenceOp;
 
 			return;
 		}
@@ -1395,7 +1395,7 @@ namespace mu
 			Ptr<Mesh> Cloned = pMesh->Clone();
 			Cloned->EnsureSurfaceData();
 
-			ConstantOp->SetValue(Cloned, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+			ConstantOp->SetValue(Cloned, CompilerOptions->OptimisationOptions.DiskCacheContext);
 
 			// Add the unique vertex ID prefix in all cases, since it is free memory-wise
 			uint32 MeshIDPrefix = uint32(ConstantOp->GetValueHash());
@@ -1466,8 +1466,8 @@ namespace mu
 			}
 		}
 
-		OutResult.baseMeshOp = LastMeshOp;
-		OutResult.meshOp = LastMeshOp;
+		OutResult.BaseMeshOp = LastMeshOp;
+		OutResult.MeshOp = LastMeshOp;
 
 		// Add the tags operation
 		if (Tags.Num())
@@ -1480,7 +1480,7 @@ namespace mu
 
 		// Apply the modifier for the pre-normal operations stage.
 		bool bModifiersForBeforeOperations = true;
-		OutResult.meshOp = ApplyMeshModifiers(InOptions, LastMeshOp, bModifiersForBeforeOperations, InNode->GetMessageContext());
+		OutResult.MeshOp = ApplyMeshModifiers(InOptions, LastMeshOp, bModifiersForBeforeOperations, InNode->GetMessageContext());
     }
 
 
@@ -1497,7 +1497,7 @@ namespace mu
 			FMeshGenerationResult baseResult;
 			GenerateMesh(Options,baseResult, node.Source);
             Ptr<ASTOpMeshFormat> op = new ASTOpMeshFormat();
-            op->Source = baseResult.meshOp;
+            op->Source = baseResult.MeshOp;
             op->Flags = 0;
 
             Ptr<Mesh> FormatMesh = new Mesh();
@@ -1521,11 +1521,11 @@ namespace mu
 
             Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
             cop->Type = OP_TYPE::ME_CONSTANT;
-            cop->SetValue( FormatMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext );
+            cop->SetValue( FormatMesh, CompilerOptions->OptimisationOptions.DiskCacheContext );
             op->Format = cop;
 
-            OutResult.meshOp = op;
-            OutResult.baseMeshOp = baseResult.baseMeshOp;
+            OutResult.MeshOp = op;
+            OutResult.BaseMeshOp = baseResult.BaseMeshOp;
 			OutResult.GeneratedLayouts = baseResult.GeneratedLayouts;
 		}
         else
@@ -1548,17 +1548,17 @@ namespace mu
         if (node.Source)
         {
             GenerateMesh(InOptions, OutResult, node.Source);
-            op->source = OutResult.meshOp;
+            op->source = OutResult.MeshOp;
         }
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add("Mesh transform base node is not set.", ELMT_ERROR, TransformNode->GetMessageContext() );
+            ErrorLog->GetPrivate()->Add("Mesh transform base node is not set.", ELMT_ERROR, TransformNode->GetMessageContext() );
         }
 
         op->matrix = node.Transform;
 
-        OutResult.meshOp = op;
+        OutResult.MeshOp = op;
     }
 
 
@@ -1575,12 +1575,12 @@ namespace mu
         {
 			FMeshGenerationOptions BaseOptions = InOptions;
             GenerateMesh(BaseOptions, OutResult, node.m_pSource);
-            op->source = OutResult.meshOp;
+            op->source = OutResult.MeshOp;
         }
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add("Mesh clip-morph-plane source node is not set.",
+            ErrorLog->GetPrivate()->Add("Mesh clip-morph-plane source node is not set.",
                 ELMT_ERROR, ClipNode->GetMessageContext());
         }
 
@@ -1630,7 +1630,7 @@ namespace mu
         op->dist = node.m_dist;
         op->factor = node.m_factor;
 
-        OutResult.meshOp = op;
+        OutResult.MeshOp = op;
     }
 
 
@@ -1647,12 +1647,12 @@ namespace mu
         if (node.m_pSource)
         {
             GenerateMesh(InOptions, OutResult, node.m_pSource );
-            op->SetChild( op->op.args.MeshClipWithMesh.source, OutResult.meshOp );
+            op->SetChild( op->op.args.MeshClipWithMesh.source, OutResult.MeshOp );
         }
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add("Mesh clip-with-mesh source node is not set.",
+            ErrorLog->GetPrivate()->Add("Mesh clip-with-mesh source node is not set.",
                 ELMT_ERROR, ClipNode->GetMessageContext());
         }
 
@@ -1666,16 +1666,16 @@ namespace mu
 
             FMeshGenerationResult clipResult;
             GenerateMesh(ClipOptions, clipResult, node.m_pClipMesh);
-            op->SetChild( op->op.args.MeshClipWithMesh.clipMesh, clipResult.meshOp );
+            op->SetChild( op->op.args.MeshClipWithMesh.clipMesh, clipResult.MeshOp );
 		}
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add("Mesh clip-with-mesh clipping mesh node is not set.",
+            ErrorLog->GetPrivate()->Add("Mesh clip-with-mesh clipping mesh node is not set.",
                 ELMT_ERROR, ClipNode->GetMessageContext());
         }
 
-        OutResult.meshOp = op;
+        OutResult.MeshOp = op;
     }
 
 	//---------------------------------------------------------------------------------------------
@@ -1690,12 +1690,12 @@ namespace mu
 		if (Node.m_pBaseMesh)
 		{
 			GenerateMesh(InOptions, Result, Node.m_pBaseMesh);
-			OpBind->Mesh = Result.meshOp;
+			OpBind->Mesh = Result.MeshOp;
 		}
 		else
 		{
 			// This argument is required
-			m_pErrorLog->GetPrivate()->Add("Mesh Clip Deform base mesh node is not set.", ELMT_ERROR, ClipDeform->GetMessageContext());
+			ErrorLog->GetPrivate()->Add("Mesh Clip Deform base mesh node is not set.", ELMT_ERROR, ClipDeform->GetMessageContext());
 		}
 
 		// Base Shape
@@ -1708,13 +1708,13 @@ namespace mu
 
 			FMeshGenerationResult baseResult;
 			GenerateMesh(ClipOptions, baseResult, Node.m_pClipShape);
-			OpBind->Shape = baseResult.meshOp;
-			OpClipDeform->ClipShape = baseResult.meshOp;
+			OpBind->Shape = baseResult.MeshOp;
+			OpClipDeform->ClipShape = baseResult.MeshOp;
 		}
 
 		OpClipDeform->Mesh = OpBind;
 
-		Result.meshOp = OpClipDeform;
+		Result.MeshOp = OpClipDeform;
 	}
 
     //---------------------------------------------------------------------------------------------
@@ -1729,12 +1729,12 @@ namespace mu
         if (node.m_pBase)
         {
             GenerateMesh(InOptions, OutResult, node.m_pBase );
-            op->base = OutResult.meshOp;
+            op->base = OutResult.MeshOp;
         }
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add("Mesh apply-pose base node is not set.",
+            ErrorLog->GetPrivate()->Add("Mesh apply-pose base node is not set.",
                 ELMT_ERROR, PoseNode->GetMessageContext());
         }
 
@@ -1748,16 +1748,16 @@ namespace mu
 
             FMeshGenerationResult poseResult;
             GenerateMesh(PoseOptions, poseResult, node.m_pPose );
-            op->pose = poseResult.meshOp;
+            op->pose = poseResult.MeshOp;
 		}
         else
         {
             // This argument is required
-            m_pErrorLog->GetPrivate()->Add("Mesh apply-pose pose node is not set.",
+            ErrorLog->GetPrivate()->Add("Mesh apply-pose pose node is not set.",
                 ELMT_ERROR, PoseNode->GetMessageContext());
         }
 
-        OutResult.meshOp = op;
+        OutResult.MeshOp = op;
     }
 
 
@@ -1772,12 +1772,12 @@ namespace mu
 		if (node.m_pMeshA)
 		{
 			GenerateMesh(InOptions, OutResult, node.m_pMeshA);
-			op->meshA = OutResult.meshOp;
+			op->meshA = OutResult.MeshOp;
 		}
 		else
 		{
 			// This argument is required
-			m_pErrorLog->GetPrivate()->Add("Mesh geometric op mesh-a node is not set.",
+			ErrorLog->GetPrivate()->Add("Mesh geometric op mesh-a node is not set.",
 				ELMT_ERROR, GeomNode->GetMessageContext());
 		}
 
@@ -1791,13 +1791,13 @@ namespace mu
 
 			FMeshGenerationResult bResult;
 			GenerateMesh(OtherOptions, bResult, node.m_pMeshB);
-			op->meshB = bResult.meshOp;
+			op->meshB = bResult.MeshOp;
 		}
 
 		op->scalarA = Generate_Generic(node.m_pScalarA, InOptions);
 		op->scalarB = Generate_Generic(node.m_pScalarB, InOptions);
 
-		OutResult.meshOp = op;
+		OutResult.MeshOp = op;
 	}
 
 
@@ -1833,12 +1833,12 @@ namespace mu
 		if (Node.BaseMesh)
 		{
 			GenerateMesh(InOptions, OutResult, Node.BaseMesh);
-			OpBind->Mesh = OutResult.meshOp;
+			OpBind->Mesh = OutResult.MeshOp;
 		}
 		else
 		{
 			// This argument is required
-			m_pErrorLog->GetPrivate()->Add("Mesh reshape base node is not set.", ELMT_ERROR, Reshape->GetMessageContext());
+			ErrorLog->GetPrivate()->Add("Mesh reshape base node is not set.", ELMT_ERROR, Reshape->GetMessageContext());
 		}
 
 		// Base and target shapes shouldn't have layouts or modifiers.
@@ -1852,7 +1852,7 @@ namespace mu
 		{
 			FMeshGenerationResult baseResult;
 			GenerateMesh(ShapeOptions, baseResult, Node.BaseShape);
-			OpBind->Shape = baseResult.meshOp;
+			OpBind->Shape = baseResult.MeshOp;
 		}
 
 		OpApply->Mesh = OpBind;
@@ -1862,10 +1862,10 @@ namespace mu
 		{
 			FMeshGenerationResult targetResult;
 			GenerateMesh(ShapeOptions, targetResult, Node.TargetShape);
-			OpApply->Shape = targetResult.meshOp;
+			OpApply->Shape = targetResult.MeshOp;
 		}
 
-		OutResult.meshOp = OpApply;
+		OutResult.MeshOp = OpApply;
 	}
 
 }

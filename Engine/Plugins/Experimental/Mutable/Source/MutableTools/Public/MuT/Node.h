@@ -129,6 +129,8 @@ namespace mu
 			Component,
 			ComponentNew,
 			ComponentEdit,
+			ComponentSwitch,
+			ComponentVariation,
 
 			Object,
 			ObjectNew,

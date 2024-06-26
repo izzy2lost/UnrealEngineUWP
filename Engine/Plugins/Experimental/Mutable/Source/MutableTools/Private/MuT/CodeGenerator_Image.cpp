@@ -121,7 +121,7 @@ namespace mu
 		FGeneratedImageCacheKey key;
 		key.Options = Options;
 		key.Node = Untyped;
-		GeneratedImagesMap::ValueType* CachedPtr = m_generatedImages.Find(key);
+		GeneratedImagesMap::ValueType* CachedPtr = GeneratedImages.Find(key);
 		if (CachedPtr)
 		{
 			Result = *CachedPtr;
@@ -161,7 +161,7 @@ namespace mu
 			}
 
 			// Cache the Result
-			m_generatedImages.Add(key, Result);
+			GeneratedImages.Add(key, Result);
 		}
 	}
 
@@ -184,7 +184,7 @@ namespace mu
             pImage = GenerateMissingImage(EImageFormat::IF_RGB_UBYTE );
 
             // Log an error message
-            m_pErrorLog->GetPrivate()->Add( "Constant image not set.", ELMT_WARNING, InNode->GetMessageContext());
+            ErrorLog->GetPrivate()->Add( "Constant image not set.", ELMT_WARNING, InNode->GetMessageContext());
         }
 
 
@@ -209,7 +209,7 @@ namespace mu
 		{
 			Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
 			op->Type = OP_TYPE::IM_CONSTANT;
-			op->SetValue(pImage, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+			op->SetValue(pImage, CompilerOptions->OptimisationOptions.DiskCacheContext);
 			op->SourceDataDescriptor = InNode->SourceDataDescriptor;
 			Result.op = op;
 		}
@@ -261,7 +261,7 @@ namespace mu
 
         Ptr<ASTOpParameter> op;
 
-		Ptr<ASTOpParameter>* it = m_firstPass.ParameterNodes.Find( node.m_pNode );
+		Ptr<ASTOpParameter>* it = FirstPass.ParameterNodes.Find( node.m_pNode );
         if ( !it )
         {
             op = new ASTOpParameter();
@@ -281,7 +281,7 @@ namespace mu
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			m_firstPass.ParameterNodes.Add(node.m_pNode, op);
+			FirstPass.ParameterNodes.Add(node.m_pNode, op);
 		}
         else
         {
@@ -696,7 +696,7 @@ namespace mu
         }
 
         // Target images
-        int numTargets = 0;
+        int32 numTargets = 0;
 
 		UE::Math::TIntVector2<int32> FinalRectSize = Options.RectSize;
 
@@ -1417,11 +1417,11 @@ namespace mu
 			}
 			else
 			{
-				m_pErrorLog->GetPrivate()->Add("Layout or block index error.", ELMT_ERROR, InNode->GetMessageContext());
+				ErrorLog->GetPrivate()->Add("Layout or block index error.", ELMT_ERROR, InNode->GetMessageContext());
 			}
 
 
-			Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.meshOp;
+			Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.MeshOp;
 
             if (projectorResult.type == PROJECTOR_TYPE::WRAPPING)
             {
@@ -1432,7 +1432,7 @@ namespace mu
 				Ptr<Mesh> FormatMeshResult = new Mesh();
 				CreateMeshOptimisedForWrappingProjection(FormatMeshResult.get(), node.m_layout);
 
-                cop->SetValue(FormatMeshResult, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+                cop->SetValue(FormatMeshResult, CompilerOptions->OptimisationOptions.DiskCacheContext);
 
                 Ptr<ASTOpMeshFormat> FormatOp = new ASTOpMeshFormat();
 				FormatOp->Flags = OP::MeshFormatArgs::Vertex
@@ -1463,7 +1463,7 @@ namespace mu
 				Ptr<Mesh> FormatMeshResult = new Mesh();
                 CreateMeshOptimisedForProjection(FormatMeshResult.get(), node.m_layout);
 
-                cop->SetValue(FormatMeshResult, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+                cop->SetValue(FormatMeshResult, CompilerOptions->OptimisationOptions.DiskCacheContext);
 
                 Ptr<ASTOpMeshFormat> FormatOp = new ASTOpMeshFormat();
 				FormatOp->Flags = OP::MeshFormatArgs::Vertex
@@ -1483,9 +1483,9 @@ namespace mu
             Ptr<const Mesh> TempMesh = new Mesh();
             Ptr<ASTOpConstantResource> cop = new ASTOpConstantResource();
             cop->Type = OP_TYPE::ME_CONSTANT;
-            cop->SetValue(TempMesh, m_compilerOptions->OptimisationOptions.DiskCacheContext);
+            cop->SetValue(TempMesh, CompilerOptions->OptimisationOptions.DiskCacheContext);
 			ProjectOp->SetChild(ProjectOp->op.args.MeshProject.mesh, cop );
-            m_pErrorLog->GetPrivate()->Add( "Projector mesh not set.", ELMT_ERROR, InNode->GetMessageContext() );
+            ErrorLog->GetPrivate()->Add( "Projector mesh not set.", ELMT_ERROR, InNode->GetMessageContext() );
         }
 
 
@@ -1639,7 +1639,7 @@ namespace mu
 			MakeGrowMapOp->Border = MUTABLE_GROW_BORDER_VALUE;
 
 			// If we want to be able to generate progressive mips efficiently, we need mipmaps for the "displacement map".
-			if (m_compilerOptions->OptimisationOptions.bEnableProgressiveImages)
+			if (CompilerOptions->OptimisationOptions.bEnableProgressiveImages)
 			{
 				Ptr<ASTOpImageMipmap> MipMask = new ASTOpImageMipmap;
 				MipMask->Source = MakeGrowMapOp->Mask.child();
@@ -1706,8 +1706,8 @@ namespace mu
 
         if ( blockX && blockY )
         {
-            int32 mipsX = (int)ceilf( logf( (float)blockX )/logf(2.0f) );
-            int32 mipsY = (int)ceilf( logf( (float)blockY )/logf(2.0f) );
+            int32 mipsX = (int32)ceilf( logf( (float)blockX )/logf(2.0f) );
+            int32 mipsY = (int32)ceilf( logf( (float)blockY )/logf(2.0f) );
             op->BlockLevels = (uint8)FMath::Max( mipsX, mipsY );
         }
         else
@@ -1770,13 +1770,13 @@ namespace mu
         }
         
         // Process variations in reverse order, since conditionals are built bottom-up.
-        for ( int t = int( node.m_variations.Num() ) - 1; t >= 0; --t )
+        for ( int32 t = int32( node.m_variations.Num() ) - 1; t >= 0; --t )
         {
-            int tagIndex = -1;
+            int32 tagIndex = -1;
             const FString& tag = node.m_variations[t].m_tag;
-            for ( int i = 0; i < int( m_firstPass.m_tags.Num() ); ++i )
+            for ( int32 i = 0; i < int32( FirstPass.Tags.Num() ); ++i )
             {
-                if ( m_firstPass.m_tags[i].tag == tag )
+                if ( FirstPass.Tags[i].Tag == tag )
                 {
                     tagIndex = i;
                 }
@@ -1786,7 +1786,7 @@ namespace mu
             {
 				FString Msg = FString::Printf(TEXT("Unknown tag found in image variation [%s]."), *tag );
 
-                m_pErrorLog->GetPrivate()->Add( Msg, ELMT_WARNING, InNode->GetMessageContext() );
+                ErrorLog->GetPrivate()->Add( Msg, ELMT_WARNING, InNode->GetMessageContext() );
                 continue;
             }
 
@@ -1808,13 +1808,13 @@ namespace mu
             conditional->type = OP_TYPE::IM_CONDITIONAL;
             conditional->no = currentOp;
             conditional->yes = variationOp;
-            conditional->condition = m_firstPass.m_tags[tagIndex].genericCondition;
+            conditional->condition = FirstPass.Tags[tagIndex].GenericCondition;
 
             currentOp = conditional;
         }
 
         // Make sure all options are the same format and size
-        auto desc = currentOp->GetImageDesc( true );
+        FImageDesc desc = currentOp->GetImageDesc( true );
         if ( desc.m_format == EImageFormat::IF_NONE )
         {
             // TODO: Look for the most generic of the options?
@@ -1849,7 +1849,7 @@ namespace mu
 		const NodeImageTable& node = *InNode;
 
 		Result.op = GenerateTableSwitch<NodeImageTable, ETableColumnType::Image, OP_TYPE::IM_SWITCH>(node,
-			[this, InNode, Options](const NodeImageTable& node, int colIndex, int row, ErrorLog* pErrorLog)
+			[this, InNode, Options](const NodeImageTable& node, int32 colIndex, int32 row, mu::ErrorLog* pErrorLog)
 			{
 				const FTableValue& CellData = node.Table->GetPrivate()->Rows[row].Values[colIndex];
 				Ptr<const Image> pImage = nullptr;
@@ -1902,7 +1902,7 @@ namespace mu
 	Ptr<Image> CodeGenerator::GenerateMissingImage(EImageFormat Format)
 	{
 		// Create the image node if it hasn't been created yet.
-		if (!m_missingImage[SIZE_T(Format)])
+		if (!MissingImage[SIZE_T(Format)])
 		{
 			// Make a checkered debug image
 			const FImageSize Size(16, 16);
@@ -1983,10 +1983,10 @@ namespace mu
 
 			}
 
-			m_missingImage[(SIZE_T)Format] = GeneratedImage;
+			MissingImage[(SIZE_T)Format] = GeneratedImage;
 		}
 
-		return m_missingImage[(SIZE_T)Format].get();
+		return MissingImage[(SIZE_T)Format].get();
 	}
 
 
@@ -1994,7 +1994,7 @@ namespace mu
 	{
 		// Log an error message
 		FString Msg = FString::Printf(TEXT("Required connection not found: %s"), strWhere );
-		m_pErrorLog->GetPrivate()->Add( Msg, ELMT_ERROR, errorContext );
+		ErrorLog->GetPrivate()->Add( Msg, ELMT_ERROR, errorContext );
 
 		// Make a checkered debug image
 		Ptr<Image> GeneratedImage = GenerateMissingImage( format );

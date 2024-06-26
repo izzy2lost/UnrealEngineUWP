@@ -21,7 +21,7 @@ namespace mu
 		NodeMeshPtr m_pSource;
 		NodeMeshPtr m_pClipMesh;
 
-		TArray<FString> m_tags;
+		TArray<FString> Tags;
 
 	};
 

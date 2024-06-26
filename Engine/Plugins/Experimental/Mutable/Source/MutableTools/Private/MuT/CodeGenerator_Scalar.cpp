@@ -36,7 +36,6 @@
 #include "MuT/NodeScalarParameter.h"
 #include "MuT/NodeScalarParameterPrivate.h"
 #include "MuT/NodeScalarSwitch.h"
-#include "MuT/NodeScalarSwitchPrivate.h"
 #include "MuT/NodeScalarTable.h"
 #include "MuT/NodeScalarVariation.h"
 #include "MuT/NodeScalarVariationPrivate.h"
@@ -138,7 +137,7 @@ namespace mu
 
 		Ptr<ASTOpParameter> op;
 
-		Ptr<ASTOpParameter>* it = m_firstPass.ParameterNodes.Find(node.m_pNode);
+		Ptr<ASTOpParameter>* it = FirstPass.ParameterNodes.Find(node.m_pNode);
 		if (!it)
 		{
 			FParameterDesc param;
@@ -160,7 +159,7 @@ namespace mu
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			m_firstPass.ParameterNodes.Add(node.m_pNode, op);
+			FirstPass.ParameterNodes.Add(node.m_pNode, op);
 		}
 		else
 		{
@@ -178,7 +177,7 @@ namespace mu
 
 		Ptr<ASTOpParameter> op;
 
-		Ptr<ASTOpParameter>* it = m_firstPass.ParameterNodes.Find(node.m_pNode);
+		Ptr<ASTOpParameter>* it = FirstPass.ParameterNodes.Find(node.m_pNode);
 		if (!it)
 		{
 			FParameterDesc param;
@@ -207,7 +206,7 @@ namespace mu
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			m_firstPass.ParameterNodes.Add(node.m_pNode, op);
+			FirstPass.ParameterNodes.Add(node.m_pNode, op);
 		}
 		else
 		{
@@ -221,9 +220,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateScalar_Switch(FScalarGenerationResult& result, const FGenericGenerationOptions& Options, const Ptr<const NodeScalarSwitch>& Typed)
 	{
-		const NodeScalarSwitch::Private& node = *Typed->GetPrivate();
+		const NodeScalarSwitch& node = *Typed;
 
-		if (node.m_options.Num() == 0)
+		if (node.Options.Num() == 0)
 		{
 			// No options in the switch!
 			Ptr<ASTOp> missingOp = GenerateMissingScalarCode(TEXT("Switch option"),
@@ -237,10 +236,10 @@ namespace mu
 		op->type = OP_TYPE::SC_SWITCH;
 
 		// Variable value
-		if (node.m_pParameter)
+		if (node.Parameter)
 		{
 			FScalarGenerationResult ChildResult;
-			GenerateScalar(ChildResult, Options, node.m_pParameter.get());
+			GenerateScalar(ChildResult, Options, node.Parameter.get());
 			op->variable = ChildResult.op;
 		}
 		else
@@ -250,13 +249,13 @@ namespace mu
 		}
 
 		// Options
-		for (int32 t = 0; t < node.m_options.Num(); ++t)
+		for (int32 t = 0; t < node.Options.Num(); ++t)
 		{
 			Ptr<ASTOp> branch;
-			if (node.m_options[t])
+			if (node.Options[t])
 			{
 				FScalarGenerationResult ChildResult;
-				GenerateScalar(ChildResult, Options, node.m_options[t].get());
+				GenerateScalar(ChildResult, Options, node.Options[t].get());
 				branch = ChildResult.op;
 			}
 			else
@@ -289,13 +288,13 @@ namespace mu
 		}
 
 		// Process variations in reverse order, since conditionals are built bottom-up.
-		for (int t = node.m_variations.Num() - 1; t >= 0; --t)
+		for (int32 t = node.m_variations.Num() - 1; t >= 0; --t)
 		{
-			int tagIndex = -1;
+			int32 tagIndex = -1;
 			const FString& tag = node.m_variations[t].m_tag;
-			for (int i = 0; i < m_firstPass.m_tags.Num(); ++i)
+			for (int32 i = 0; i < FirstPass.Tags.Num(); ++i)
 			{
-				if (m_firstPass.m_tags[i].tag == tag)
+				if (FirstPass.Tags[i].Tag == tag)
 				{
 					tagIndex = i;
 				}
@@ -305,7 +304,7 @@ namespace mu
 			{
 				FString Msg = FString::Printf(TEXT("Unknown tag found in image variation [%s]."), *tag);
 
-				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Typed->GetMessageContext());
+				ErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Typed->GetMessageContext());
 				continue;
 			}
 
@@ -327,7 +326,7 @@ namespace mu
 			conditional->type = OP_TYPE::SC_CONDITIONAL;
 			conditional->no = op;
 			conditional->yes = variationOp;
-			conditional->condition = m_firstPass.m_tags[tagIndex].genericCondition;
+			conditional->condition = FirstPass.Tags[tagIndex].GenericCondition;
 
 			op = conditional;
 		}
@@ -411,7 +410,7 @@ namespace mu
 		const NodeScalarTable& node = *Typed;
 
 		Ptr<ASTOp> Op = GenerateTableSwitch<NodeScalarTable, ETableColumnType::Scalar, OP_TYPE::SC_SWITCH>(node,
-			[this,&Options](const NodeScalarTable& node, int colIndex, int row, ErrorLog* pErrorLog)
+			[this,&Options](const NodeScalarTable& node, int32 colIndex, int32 row, mu::ErrorLog* pErrorLog)
 			{
 				NodeScalarConstantPtr pCell = new NodeScalarConstant();
 				float scalar = node.Table->GetPrivate()->Rows[row].Values[colIndex].Scalar;
@@ -428,7 +427,7 @@ namespace mu
 	{
 		// Log a warning
 		FString Msg = FString::Printf(TEXT("Required connection not found: %s"), strWhere );
-		m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, errorContext);
+		ErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, errorContext);
 
 		// Create a constant node
 		NodeScalarConstantPtr pNode = new NodeScalarConstant();

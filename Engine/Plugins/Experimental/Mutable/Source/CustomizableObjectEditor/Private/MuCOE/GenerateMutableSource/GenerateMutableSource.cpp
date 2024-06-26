@@ -318,7 +318,7 @@ void FMutableGraphGenerationContext::GenerateClippingCOInternalTags()
 
 					for (int32 k = 0; k < It2->Value.Num(); ++k)
 					{
-						It2->Value[k]->AddTag(TagName);
+						It2->Value[k]->Tags.Add(TagName);
 					}
 				}
 			}
@@ -352,7 +352,7 @@ void FMutableGraphGenerationContext::GenerateSharedSurfacesUniqueIds()
 			}
 
 			FSharedSurface& CurrentSharedSurface = SharedSurfaces[SurfaceIndex];
-			CurrentSharedSurface.NodeSurfaceNew->SetSharedSurfaceId(UniqueId);
+			CurrentSharedSurface.NodeSurfaceNew->SharedSurfaceId = UniqueId;
 			VisitedSurfaces[SurfaceIndex] = true;
 
 			for (int32 AuxSurfaceIndex = SurfaceIndex; AuxSurfaceIndex < NumSurfaces && !CurrentSharedSurface.bMakeUnique; ++AuxSurfaceIndex)
@@ -367,7 +367,7 @@ void FMutableGraphGenerationContext::GenerateSharedSurfacesUniqueIds()
 					continue;
 				}
 
-				SharedSurfaces[AuxSurfaceIndex].NodeSurfaceNew->SetSharedSurfaceId(UniqueId);
+				SharedSurfaces[AuxSurfaceIndex].NodeSurfaceNew->SharedSurfaceId = UniqueId;
 				VisitedSurfaces[AuxSurfaceIndex] = true;
 			}
 
@@ -2140,7 +2140,7 @@ void FMutableComponentInfo::AccumulateBonesToRemovePerLOD(const FComponentSettin
 
 #undef LOCTEXT_NAMESPACE
 
-FMutableGraphGenerationContext::FSharedSurface::FSharedSurface(uint8 InLOD, const mu::NodeSurfaceNewPtr& InNodeSurfaceNew)
+FMutableGraphGenerationContext::FSharedSurface::FSharedSurface(uint8 InLOD, const mu::Ptr<mu::NodeSurfaceNew>& InNodeSurfaceNew)
 {
 	LOD = InLOD;
 	NodeSurfaceNew = InNodeSurfaceNew;

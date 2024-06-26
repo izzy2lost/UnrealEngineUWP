@@ -21,10 +21,8 @@ namespace mu
 
 	public:
 
-		//-----------------------------------------------------------------------------------------
         // Node interface
-		//-----------------------------------------------------------------------------------------
-		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		virtual const FNodeType* GetType() const override { return &StaticType; }
 		static const FNodeType* GetStaticType() { return &StaticType; }
 
         //-----------------------------------------------------------------------------------------

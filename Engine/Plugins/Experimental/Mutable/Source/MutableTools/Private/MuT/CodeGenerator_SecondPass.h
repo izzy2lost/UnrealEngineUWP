@@ -24,22 +24,22 @@ namespace mu
 	{
 	public:
 
-		SecondPassGenerator( FirstPassGenerator* firstPass, const CompilerOptions::Private* options  );
+		SecondPassGenerator( FirstPassGenerator*, const CompilerOptions::Private*  );
 
 		// Return true on success.
-        bool Generate( ErrorLogPtr pErrorLog, const Node* root );
+        bool Generate( Ptr<ErrorLog>, const Node* Root );
 
 	private:
 
-        FirstPassGenerator* m_pFirstPass = nullptr;
-        const CompilerOptions::Private *m_pCompilerOptions = nullptr;
+        FirstPassGenerator* FirstPass = nullptr;
+        const CompilerOptions::Private *CompilerOptions = nullptr;
 
 
         //!
-        Ptr<ErrorLog> m_pErrorLog;
+        Ptr<ErrorLog> ErrorLog;
 
         //!
-        struct CONDITION_GENERATION_KEY
+        struct FConditionGenerationKey
         {
             size_t tagOrSurfIndex = 0;
             set<size_t> posSurf;
@@ -47,7 +47,7 @@ namespace mu
             set<size_t> posTag;
             set<size_t> negTag;
 
-            inline bool operator<(const CONDITION_GENERATION_KEY& o) const
+            inline bool operator<(const FConditionGenerationKey& o) const
             {
                 if (tagOrSurfIndex<o.tagOrSurfIndex) return true;
                 if (tagOrSurfIndex>o.tagOrSurfIndex) return false;
@@ -65,10 +65,10 @@ namespace mu
 
         // List of surfaces that activate or deactivate every tag, or another surface that activates a tag in this set.
 		// \TODO: Change to UE containers
-		vector< set<size_t> > m_surfacesPerTag;
-		vector< set<size_t> > m_tagsPerTag;
+		TArray< set<size_t> > SurfacesPerTag;
+		TArray< set<size_t> > TagsPerTag;
 
-        std::map<CONDITION_GENERATION_KEY,Ptr<ASTOp>> m_tagConditionGenerationCache;
+        std::map<FConditionGenerationKey,Ptr<ASTOp>> TagConditionGenerationCache;
 
         UniqueOpPool m_opPool;
 
@@ -81,15 +81,15 @@ namespace mu
 
         /** Generate Surface, Edit or Modifier condition.
     	 * @param Index Surface, Edit or Modifier index.
-    	 * @param positiveTags function that given the Surface, Edit or Modifier index, returns its positive tags.
-    	 * @param negativeTags function that given the Surface, Edit or Modifier, returns its negative tags.
+    	 * @param PositiveTags function that given the Surface, Edit or Modifier index, returns its positive tags.
+    	 * @param NegativeTags function that given the Surface, Edit or Modifier, returns its negative tags.
     	 * @param posSurf already visited Surfaces, Edits, or Modifiers that participate positively in the condition.
     	 * @param negSurf already visited Surfaces, Edits, or Modifiers that participate negatively in the condition.
       	 * @param posSurf Tags that already belong to the condition (positively).
 		 * @param negSurf Tags that already belong to the condition (negatively). */
         Ptr<ASTOp> GenerateSurfaceOrModifierCodition(size_t Index,
-									        TFunction<const TArray<FString>&(size_t)> positiveTags,
-											TFunction<const TArray<FString>&(size_t)> negativeTags,
+									        TFunction<const TArray<FString>&(size_t)> PositiveTags,
+											TFunction<const TArray<FString>&(size_t)> NegativeTags,
                                             const set<size_t>& posSurf,
                                             const set<size_t>& negSurf,
                                             const set<size_t>& posTag,

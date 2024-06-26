@@ -87,7 +87,7 @@ namespace mu
 
 		Ptr<ASTOpParameter> op;
 
-		Ptr<ASTOpParameter>* it = m_firstPass.ParameterNodes.Find(node.m_pNode);
+		Ptr<ASTOpParameter>* it = FirstPass.ParameterNodes.Find(node.m_pNode);
 		if (!it)
 		{
 			FParameterDesc param;
@@ -109,7 +109,7 @@ namespace mu
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			m_firstPass.ParameterNodes.Add(node.m_pNode,op);
+			FirstPass.ParameterNodes.Add(node.m_pNode,op);
 		}
 		else
 		{

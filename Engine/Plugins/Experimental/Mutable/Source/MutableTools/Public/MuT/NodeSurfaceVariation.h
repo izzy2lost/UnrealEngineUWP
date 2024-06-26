@@ -6,17 +6,10 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeSurface.h"
+#include "MuT/NodeModifier.h"
 
 namespace mu
 {
-
-	// Forward definitions
-    class NodeSurfaceVariation;
-    typedef Ptr<NodeSurfaceVariation> NodeSurfaceVariationPtr;
-    typedef Ptr<const NodeSurfaceVariation> NodeSurfaceVariationPtrConst;
-
-    class NodeModifier;
-
 
 	//! This node modifies a node of the parent object of the object that this node belongs to.
     //! It allows to extend, cut and morph the parent Surface's meshes.
@@ -25,67 +18,45 @@ namespace mu
 	{
 	public:
 
-        NodeSurfaceVariation();
-
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
-
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		//! 
-        void AddDefaultSurface(NodeSurface* surface);
-        void AddDefaultModifier(NodeModifier* modifier);
-
-		//! Set the number of tags to consider in this variation
-		void SetVariationCount( int count );
+		TArray<Ptr<NodeSurface>> DefaultSurfaces;
+		TArray<Ptr<NodeModifier>> DefaultModifiers;
 
 		//!
-		int GetVariationCount() const;
+		enum class VariationType : uint8
+		{
+			//! The variation selection is controlled by tags defined in other surfaces.
+			//! Default value.
+			Tag = 0,
 
-        //!
-        enum class VariationType : uint8
-        {
-            //! The variation selection is controlled by tags defined in other surfaces.
-            //! Default value.
-            Tag = 0,
+			//! The variation selection is controlled by the state the object is in.
+			State
+		};
 
-            //! The variation selection is controlled by the state the object is in.
-            State
-        };
+		NodeSurfaceVariation::VariationType Type = NodeSurfaceVariation::VariationType::Tag;
 
-        //!
-        void SetVariationType(VariationType);
+		struct FVariation
+		{
+			TArray<Ptr<NodeSurface>> Surfaces;
+			TArray<Ptr<NodeModifier>> Modifiers;
+			FString Tag;
+		};
 
-        //! Set the tag or state name that will enable a specific vartiation
-		void SetVariationTag(int index, const FString& Tag);
+		TArray<FVariation> Variations;
 
-		//! 
-        void AddVariationSurface(int index, NodeSurface* surface);
-        void AddVariationModifier(int index, NodeModifier* modifier);
+	public:
 
-		//!}
-
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-        ~NodeSurfaceVariation();
+		~NodeSurfaceVariation() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

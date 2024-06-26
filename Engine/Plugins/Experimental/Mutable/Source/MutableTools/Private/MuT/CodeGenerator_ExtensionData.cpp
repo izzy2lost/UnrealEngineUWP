@@ -75,7 +75,7 @@ class Node;
 			Data = new ExtensionData();
 			
 			// Log an error message
-			m_pErrorLog->GetPrivate()->Add("Constant extension data not set", ELMT_WARNING, Constant->GetMessageContext());
+			ErrorLog->GetPrivate()->Add("Constant extension data not set", ELMT_WARNING, Constant->GetMessageContext());
 		}
 
 		Op->Value = Data;
@@ -149,15 +149,15 @@ class Node;
 		for (int32 VariationIndex = Variation->Variations.Num() - 1; VariationIndex >= 0; --VariationIndex)
 		{
 			const FString& Tag = Variation->Variations[VariationIndex].Tag;
-			const int32 TagIndex = m_firstPass.m_tags.IndexOfByPredicate([Tag](const FirstPassGenerator::FTag& CandidateTag)
+			const int32 TagIndex = FirstPass.Tags.IndexOfByPredicate([Tag](const FirstPassGenerator::FTag& CandidateTag)
 			{
-				return CandidateTag.tag == Tag;
+				return CandidateTag.Tag == Tag;
 			});
 
 			if (TagIndex == INDEX_NONE)
 			{
 				const FString Msg = FString::Printf(TEXT("Unknown tag found in Extension Data variation [%s]"), *Tag);
-				m_pErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Variation->GetMessageContext());
+				ErrorLog->GetPrivate()->Add(Msg, ELMT_WARNING, Variation->GetMessageContext());
 				continue;
 			}
 
@@ -179,7 +179,7 @@ class Node;
 			Conditional->type = OP_TYPE::ED_CONDITIONAL;
 			Conditional->no = CurrentOp;
 			Conditional->yes = VariationOp;
-			Conditional->condition = m_firstPass.m_tags[TagIndex].genericCondition;
+			Conditional->condition = FirstPass.Tags[TagIndex].GenericCondition;
 
 			CurrentOp = Conditional;
 		}
@@ -191,7 +191,7 @@ class Node;
 	{
 		// Log a warning
 		const FString Msg = FString::Printf(TEXT("Required connection not found: %s"), StrWhere);
-		m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, ErrorContext);
+		ErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, ErrorContext);
 
 		// Create a constant extension data
 		Ptr<const NodeExtensionDataConstant> Node = new NodeExtensionDataConstant;

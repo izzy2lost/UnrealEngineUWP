@@ -61,7 +61,7 @@ namespace mu
 		FVector3f m_selectionBoxRadius;
 		FBoneName m_vertexSelectionBone;
 
-		TArray<FString> m_tags;
+		TArray<FString> Tags;
 
 		// Max distance a vertex can have to the bone in order to be affected. A negative value
 		// means no limit.

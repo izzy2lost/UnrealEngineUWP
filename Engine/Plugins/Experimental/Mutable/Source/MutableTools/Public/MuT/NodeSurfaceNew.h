@@ -6,237 +6,90 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeSurface.h"
+#include "MuT/NodeMesh.h"
+#include "MuT/NodeImage.h"
+#include "MuT/NodeScalar.h"
+#include "MuT/NodeString.h"
+#include "MuT/NodeColour.h"
 
 namespace mu
 {
-
-	// Forward definitions
-	class NodeMesh;
-	typedef Ptr<NodeMesh> NodeMeshPtr;
-	typedef Ptr<const NodeMesh> NodeMeshPtrConst;
-
-	class NodeImage;
-	typedef Ptr<NodeImage> NodeImagePtr;
-	typedef Ptr<const NodeImage> NodeImagePtrConst;
-
-    class NodeColour;
-    typedef Ptr<NodeColour> NodeColourPtr;
-    typedef Ptr<const NodeColour> NodeColourPtrConst;
-
-    class NodeScalar;
-    typedef Ptr<NodeScalar> NodeScalarPtr;
-    typedef Ptr<const NodeScalar> NodeScalarPtrConst;
-
-    class NodeString;
-    typedef Ptr<NodeString> NodeStringPtr;
-    typedef Ptr<const NodeString> NodeStringPtrConst;
-
-    class NodeSurface;
-    typedef Ptr<NodeSurface> NodeSurfacePtr;
-    typedef Ptr<const NodeSurface> NodeSurfacePtrConst;
-
-    class NodeSurfaceNew;
-    typedef Ptr<NodeSurfaceNew> NodeSurfaceNewPtr;
-    typedef Ptr<const NodeSurfaceNew> NodeSurfaceNewPtrConst;
-
-
 
     //! This node makes a new Surface from several meshes and images.
     class MUTABLETOOLS_API NodeSurfaceNew : public NodeSurface
 	{
 	public:
 
-        NodeSurfaceNew();
+		FString Name;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
+		/** An optional, opaque id that will be returned in the surfaces of the created
+		* instances. Can be useful to identify surfaces on the application side.
+		*/
+		uint32 ExternalId = 0;
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		/** Add an id that will be used to identify the same surface in other LODs. */
+		int32 SharedSurfaceId = INDEX_NONE;
 
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
+		Ptr<NodeMesh> Mesh;
 
-        //! Set the name of the Surface.
-        void SetName( const FString&);
+		struct FImageData
+		{
+			FString Name;
+			FString MaterialName;
+			FString MaterialParameterName;
+			NodeImagePtr Image;
 
-        //! Add an optional, opaque id that will be returned in the surfaces of the created
-        //! instances. Can be useful to identify surfaces on the application side.
-        //! See Instance::GetSurfaceCustomId
-        void SetCustomID( uint32 id );
+			// It could be negative, to indicate no layout.
+			int8 LayoutIndex = 0;
+		};
 
-		//! Add an id that will be used to identify the same surface in other LODs 
-		void SetSharedSurfaceId( int32 SharedSurfaceId );
+		TArray<FImageData> Images;
 
-        //! \name Tags
-        //! \{
+		struct FVectorData
+		{
+			FString Name;
+			Ptr<NodeColour> Vector;
+		};
 
-        //! Add a tag to the surface:
-        //! - the surface will be affected by modifier nodes with the same tag
-        //! - the tag will be enabled when the surface is added to an object, and it can activate
-        //! variations for any surface.
-		void AddTag(const FString& tagName);
+		TArray<FVectorData> Vectors;
 
-        //! \}
+		struct FScalar
+		{
+			FString Name;
+			Ptr<NodeScalar> Scalar;
+		};
 
-		//! \name Meshes
-        //! \{
+		TArray<FScalar> Scalars;
 
-		//! Get the node generating one of the meshes in the Surface.
-		//! \param index index of the mesh, from 0 to GetMeshCount()-1
-		Ptr<NodeMesh> GetMesh() const;
+		struct FStringData
+		{
+			FString Name;
+			Ptr<NodeString> String;
+		};
 
-        //! Set the node generating one of the meshes in the Surface.
-		//! \param index index of the mesh, from 0 to GetMeshCount()-1
-		void SetMesh( Ptr<NodeMesh> );
+		TArray<FStringData> Strings;
 
-		//! \}
+		/** Tags added to the surface:
+		* - the surface will be affected by modifier nodes with the same tag
+		* - the tag will be enabled when the surface is added to an object, and it can activate
+		* variations for any surface.
+		*/
+		TArray<FString> Tags;
 
+	public:
 
-		//! \name Images
-		//! \{
-
-		//! Get the number of images in the Surface.
-		int GetImageCount() const;
-
-		//! Set the number of images in the Surface.
-		void SetImageCount(int);
-
-		//! Get the node generating one of the images in the Surface.
-		//! \param index index of the image, from 0 to GetImageCount()-1
-		NodeImagePtr GetImage(int index) const;
-
-		//! Set the node generating one of the images in the Surface.
-		//! \param index index of the image, from 0 to GetImageCount()-1
-		void SetImage(int index, NodeImagePtr);
-
-		//! Get the name of a image in the Surface.
-		//! \param index index of the image, from 0 to GetImageCount()-1
-		const FString& GetImageName(int index) const;
-
-        //! Set the name of a image in the Surface.
-        //! \param index index of the image, from 0 to GetImageCount()-1
-        //! \param strName name of the image
-        void SetImageName( int index, const FString& strName );
-
-        //! Get the name of a image in the Surface.
-        //! \param index index of the image, from 0 to GetImageCount()-1
-        int GetImageLayoutIndex( int index ) const;
-
-        //! Set the name of a image in the Surface.
-        //! \param index index of the image, from 0 to GetImageCount()-1
-        //! \param layoutIndex index of the layout that will be used with this image.
-        void SetImageLayoutIndex( int imageIndex, int layoutIndex );
-
-		//! This can be used to ser additional information for error reporting.
-		//! It is not propagated to compiled objects in any way.
-		void SetImageAdditionalNames(int index, const FString& strMaterialName, const FString& strMaterialParameterName);
-
-        //! \}
-
-
-        //! \name Vectors
-        //! \{
-
-        //! Get the number of vectors in the Surface.
-        int GetVectorCount() const;
-
-        //! Set the number of vectors in the Surface.
-        void SetVectorCount(int);
-
-        //! Get the node generating one of the vectors in the Surface.
-        //! \param index index of the vector, from 0 to GetVectorCount()-1
-        NodeColourPtr GetVector(int index) const;
-
-        //! Set the node generating one of the vectors in the Surface.
-        //! \param index index of the vector, from 0 to GetVectorCount()-1
-        void SetVector(int index, NodeColourPtr);
-
-        //! Get the name of a vectors in the Surface.
-        //! \param index index of the vector, from 0 to GetVectorCount()-1
-        const FString& GetVectorName(int index) const;
-
-        //! Set the name of a image in the Surface.
-        //! \param index index of the vector, from 0 to GetVectorCount()-1
-        //! \param strName name of the vector
-        void SetVectorName(int index, const FString& strName);
-
-        //! \}
-
-
-        //! \name Scalars
-        //! \{
-
-        //! Get the number of Scalars in the Surface.
-        int GetScalarCount() const;
-
-        //! Set the number of Scalars in the Surface.
-        void SetScalarCount( int );
-
-        //! Get the node generating one of the Scalars in the Surface.
-        //! \param index index of the Scalar, from 0 to GetScalarCount()-1
-        NodeScalarPtr GetScalar( int index ) const;
-
-        //! Set the node generating one of the Scalars in the Surface.
-        //! \param index index of the Scalar, from 0 to GetScalarCount()-1
-        void SetScalar( int index, NodeScalarPtr );
-
-        //! Get the name of a Scalars in the Surface.
-        //! \param index index of the Scalar, from 0 to GetScalarCount()-1
-        const FString& GetScalarName( int index ) const;
-
-        //! Set the name of a image in the Surface.
-        //! \param index index of the Scalar, from 0 to GetScalarCount()-1
-        //! \param strName name of the Scalar
-        void SetScalarName( int index, const FString& strName );
-
-        //! \}
-
-
-        //! \name Strings
-        //! \{
-
-        //! Get the number of strings in the Surface.
-        int GetStringCount() const;
-
-        //! Set the number of strings in the Surface.
-        void SetStringCount( int );
-
-        //! Get the node generating one of the strings in the Surface.
-        //! \param index index of the strings, from 0 to GetStringCount()-1
-        NodeStringPtr GetString( int index ) const;
-
-        //! Set the node generating one of the Strings in the Surface.
-        //! \param index index of the String, from 0 to GetStringCount()-1
-        void SetString( int index, NodeStringPtr );
-
-        //! Get the name of a String in the Surface.
-        //! \param index index of the String, from 0 to GetStringCount()-1
-        const FString& GetStringName( int index ) const;
-
-        //! Set the name of a image in the Surface.
-        //! \param index index of the String, from 0 to GetStringCount()-1
-        //! \param strName name of the String
-        void SetStringName( int index, const FString& strName );
-
-        //! \}
-
-        //-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-        ~NodeSurfaceNew();
+		~NodeSurfaceNew() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

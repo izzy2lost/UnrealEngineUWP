@@ -16,7 +16,7 @@ namespace mu
 	{
 	public:
 
-		/** Externally managed id assign to this component. */
+		/** Externally managed id assigned to this component. */
 		uint16 Id = 0;
 
 	public:

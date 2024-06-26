@@ -109,7 +109,7 @@ namespace mu
 
 		Ptr<ASTOpParameter> op;
 
-		Ptr<ASTOpParameter>* it = m_firstPass.ParameterNodes.Find(node.m_pNode);
+		Ptr<ASTOpParameter>* it = FirstPass.ParameterNodes.Find(node.m_pNode);
 		if (!it)
 		{
 			FParameterDesc param;
@@ -133,7 +133,7 @@ namespace mu
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			m_firstPass.ParameterNodes.Add(node.m_pNode, op);
+			FirstPass.ParameterNodes.Add(node.m_pNode, op);
 		}
 		else
 		{
@@ -151,7 +151,7 @@ namespace mu
 		const void* errorContext)
 	{
 		// Log an error message
-		m_pErrorLog->GetPrivate()->Add("Required projector connection not found.",
+		ErrorLog->GetPrivate()->Add("Required projector connection not found.",
 			ELMT_ERROR, errorContext);
 
 		FProjector p;

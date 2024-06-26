@@ -21,8 +21,8 @@ namespace mu
 	{
 		check(firstPass);
 		check(options);
-		m_pFirstPass = firstPass;
-		m_pCompilerOptions = options;
+		FirstPass = firstPass;
+		CompilerOptions = options;
 	}
 
 
@@ -33,7 +33,7 @@ namespace mu
 		const set<size_t>& posTag,
 		const set<size_t>& negTag)
 	{
-		auto& t = m_pFirstPass->m_tags[tagIndex];
+		auto& t = FirstPass->Tags[tagIndex];
 
 		// If this tag is already in the list of positive tags, return true as condition
 		if (posTag.find(tagIndex) != posTag.end())
@@ -48,39 +48,39 @@ namespace mu
 		}
 
 		// Cached?
-		CONDITION_GENERATION_KEY key;
+		FConditionGenerationKey key;
 		key.tagOrSurfIndex = tagIndex;
 		//    key.negSurf = negSurf;
 		//    key.posSurf = posSurf;
 		//    key.negTag = negTag;
 		//    key.posTag = posTag;
-		for (auto s : negTag) { if (m_tagsPerTag[tagIndex].count(s) > 0) { key.negTag.insert(s); } }
-		for (auto s : posTag) { if (m_tagsPerTag[tagIndex].count(s) > 0) { key.posTag.insert(s); } }
-		for (auto s : negSurf) { if (m_surfacesPerTag[tagIndex].count(s) > 0) { key.negSurf.insert(s); } }
-		for (auto s : posSurf) { if (m_surfacesPerTag[tagIndex].count(s) > 0) { key.posSurf.insert(s); } }
+		for (auto s : negTag) { if (TagsPerTag[tagIndex].count(s) > 0) { key.negTag.insert(s); } }
+		for (auto s : posTag) { if (TagsPerTag[tagIndex].count(s) > 0) { key.posTag.insert(s); } }
+		for (auto s : negSurf) { if (SurfacesPerTag[tagIndex].count(s) > 0) { key.negSurf.insert(s); } }
+		for (auto s : posSurf) { if (SurfacesPerTag[tagIndex].count(s) > 0) { key.posSurf.insert(s); } }
 
 		{
-			auto it = m_tagConditionGenerationCache.find(key);
-			if (it != m_tagConditionGenerationCache.end())
+			auto it = TagConditionGenerationCache.find(key);
+			if (it != TagConditionGenerationCache.end())
 			{
 				return it->second;
 			}
 		}
 
-		auto PositiveTags = [this](size_t SurfaceIndex) -> TArray<FString>&
+		auto PositiveTagsFunc = [this](size_t SurfaceIndex) -> TArray<FString>&
 		{
-			return m_pFirstPass->surfaces[SurfaceIndex].positiveTags;
+			return FirstPass->Surfaces[SurfaceIndex].PositiveTags;
 		};
 
-		auto NegativeTags = [this](size_t SurfaceIndex) -> TArray<FString>&
+		auto NegativeTagsFunc = [this](size_t SurfaceIndex) -> TArray<FString>&
 		{
-			return m_pFirstPass->surfaces[SurfaceIndex].negativeTags;
+			return FirstPass->Surfaces[SurfaceIndex].NegativeTags;
 		};
 		
 		Ptr<ASTOp> c;
 
 		// Condition expression for all the surfaces that activate the tag
-		for (auto surfIndex : t.surfaces)
+		for (int32 surfIndex : t.Surfaces)
 		{
 			if (posSurf.find(surfIndex) != posSurf.end())
 			{
@@ -96,17 +96,17 @@ namespace mu
 				continue;
 			}
 
-			const auto& surface = m_pFirstPass->surfaces[surfIndex];
+			const auto& surface = FirstPass->Surfaces[surfIndex];
 
-			auto positiveTags = posTag;
-			positiveTags.insert(tagIndex);
+			auto PositiveTags = posTag;
+			PositiveTags.insert(tagIndex);
 
 			Ptr<ASTOp> surfCondition = GenerateSurfaceOrModifierCodition(surfIndex,
-				PositiveTags,
-				NegativeTags,
+				PositiveTagsFunc,
+				NegativeTagsFunc,
 				posSurf,
 				negSurf,
-				positiveTags,
+				PositiveTags,
 				negTag);
 
 			// If the surface is a constant false, we can skip adding it
@@ -124,13 +124,13 @@ namespace mu
 			{
 				Ptr<ASTOpFixed> f = new ASTOpFixed();
 				f->op.type = OP_TYPE::BO_AND;
-				f->SetChild(f->op.args.BoolBinary.a, surface.objectCondition);
+				f->SetChild(f->op.args.BoolBinary.a, surface.ObjectCondition);
 				f->SetChild(f->op.args.BoolBinary.b, surfCondition);
 				fullCondition = m_opPool.Add(f);
 			}
 			else
 			{
-				fullCondition = m_opPool.Add(surface.objectCondition);
+				fullCondition = m_opPool.Add(surface.ObjectCondition);
 			}
 
 
@@ -148,14 +148,14 @@ namespace mu
 			}
 
 			// Optimise the condition now.
-			//PartialOptimise( c, m_pCompilerOptions->OptimisationOptions );
+			//PartialOptimise( c, CompilerOptions->OptimisationOptions );
 		}
 
 
 		// Condition expression for all the edit-surfaces that activate the tag
-		for (auto editKey : t.edits)
+		for (const TPair<int32,int32>& EditKey : t.Edits)
 		{
-			if (negSurf.find(editKey.Key) != negSurf.end())
+			if (negSurf.find(EditKey.Key) != negSurf.end())
 			{
 				// The surface in the edit is a negative requirement higher up in the condition so
 				// this branch never be true.
@@ -163,27 +163,27 @@ namespace mu
 			}
 
 			Ptr<ASTOp> surfCondition;
-			if (posSurf.find(editKey.Key) != posSurf.end())
+			if (posSurf.find(EditKey.Key) != posSurf.end())
 			{
 				// This surface in the edit is already a positive requirement higher up in the condition
 				// so we don't need that part of the condition
 			}
 			else
 			{
-				auto positiveTags = posTag;
-				positiveTags.insert(tagIndex);
+				auto PositiveTags = posTag;
+				PositiveTags.insert(tagIndex);
 
-				surfCondition = GenerateSurfaceOrModifierCodition(editKey.Key,
-					PositiveTags,
-					NegativeTags,
+				surfCondition = GenerateSurfaceOrModifierCodition(EditKey.Key,
+					PositiveTagsFunc,
+					NegativeTagsFunc,
 					posSurf,
 					negSurf,
-					positiveTags,
+					PositiveTags,
 					negTag);
 			}
 
-			const auto& surface = m_pFirstPass->surfaces[editKey.Key];
-			const auto& edit = surface.edits[editKey.Value];
+			const FirstPassGenerator::FSurface& surface = FirstPass->Surfaces[EditKey.Key];
+			const FirstPassGenerator::FSurface::FEdit& edit = surface.Edits[EditKey.Value];
 
 			// Combine object and surface conditions
 			Ptr<ASTOp> fullCondition;
@@ -191,13 +191,13 @@ namespace mu
 			{
 				Ptr<ASTOpFixed> f = new ASTOpFixed();
 				f->op.type = OP_TYPE::BO_AND;
-				f->SetChild(f->op.args.BoolBinary.a, surface.objectCondition);
+				f->SetChild(f->op.args.BoolBinary.a, surface.ObjectCondition);
 				f->SetChild(f->op.args.BoolBinary.b, surfCondition);
 				fullCondition = m_opPool.Add(f);
 			}
 			else
 			{
-				fullCondition = m_opPool.Add(surface.objectCondition);
+				fullCondition = m_opPool.Add(surface.ObjectCondition);
 			}
 
 			// Combine with edit condition
@@ -205,13 +205,13 @@ namespace mu
 			{
 				Ptr<ASTOpFixed> f = new ASTOpFixed();
 				f->op.type = OP_TYPE::BO_AND;
-				f->SetChild(f->op.args.BoolBinary.a, edit.condition);
+				f->SetChild(f->op.args.BoolBinary.a, edit.Condition);
 				f->SetChild(f->op.args.BoolBinary.b, fullCondition);
 				fullCondition = m_opPool.Add(f);
 			}
 			else
 			{
-				fullCondition = m_opPool.Add(edit.condition);
+				fullCondition = m_opPool.Add(edit.Condition);
 			}
 
 
@@ -230,15 +230,15 @@ namespace mu
 		}
 
 
-		m_tagConditionGenerationCache.insert(std::make_pair<>(key, c));
+		TagConditionGenerationCache.insert(std::make_pair<>(key, c));
 
 		return c;
 	}
 
 	//---------------------------------------------------------------------------------------------
 	mu::Ptr<ASTOp> SecondPassGenerator::GenerateSurfaceOrModifierCodition(size_t Index,
-		TFunction<const TArray<FString>&(size_t)> PositiveTags,
-		TFunction<const TArray<FString>&(size_t)> NegativeTags,
+		TFunction<const TArray<FString>&(size_t)> PositiveTagsFunc,
+		TFunction<const TArray<FString>&(size_t)> NegativeTagsFunc,
 		const set<size_t>& posSurf,
 		const set<size_t>& negSurf,
 		const set<size_t>& posTag,
@@ -258,9 +258,9 @@ namespace mu
 
 		Ptr<ASTOp> c;
 
-		for (const auto& t : PositiveTags(Index))
+		for (const FString& t : PositiveTagsFunc(Index))
 		{
-			auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == t; });
+			const FirstPassGenerator::FTag* it = FirstPass->Tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.Tag == t; });
 			if (!it)
 			{
 				// This could happen if a tag is in a variation but noone defines it.
@@ -268,7 +268,7 @@ namespace mu
 				return m_opPool.Add(new ASTOpConstantBool(false));
 			}
 
-			size_t tagIndex = it - &m_pFirstPass->m_tags[0];
+			size_t tagIndex = it - &FirstPass->Tags[0];
 
 			set<size_t> positiveSurfacesVisited = posSurf;
 			positiveSurfacesVisited.insert(Index);
@@ -328,16 +328,16 @@ namespace mu
 		}
 
 
-		for (const auto& t : NegativeTags(Index))
+		for (const FString& t : NegativeTagsFunc(Index))
 		{
-			auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == t; });
+			const FirstPassGenerator::FTag* it = FirstPass->Tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.Tag == t; });
 			if (!it)
 			{
 				// This could happen if a tag is in a variation but noone defines it.
 				continue;
 			}
 
-			size_t tagIndex = it - &m_pFirstPass->m_tags[0];
+			size_t tagIndex = it - &FirstPass->Tags[0];
 
 			set<size_t> positiveSurfacesVisited = negSurf;
 			set<size_t> negativeSurfacesVisited = posSurf;
@@ -406,22 +406,22 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	bool SecondPassGenerator::Generate( ErrorLogPtr pErrorLog, const Node* root)
+	bool SecondPassGenerator::Generate( Ptr<mu::ErrorLog> InErrorLog, const Node* root)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(SecondPassGenerate);
 
 		check(root);
-		m_pErrorLog = pErrorLog;
+		ErrorLog = InErrorLog;
 
 		// Find the list of surfaces every tag depends on
-		m_surfacesPerTag.clear();
-		m_surfacesPerTag.resize(m_pFirstPass->m_tags.Num());
-		m_tagsPerTag.clear();
-		m_tagsPerTag.resize(m_pFirstPass->m_tags.Num());
-		for (size_t t = 0; t < m_pFirstPass->m_tags.Num(); ++t)
+		SurfacesPerTag.Empty();
+		SurfacesPerTag.SetNum(FirstPass->Tags.Num());
+		TagsPerTag.Empty();
+		TagsPerTag.SetNum(FirstPass->Tags.Num());
+		for (size_t t = 0; t < FirstPass->Tags.Num(); ++t)
 		{
 			set<size_t> pendingSurfs;
-			for (size_t s : m_pFirstPass->m_tags[t].surfaces)
+			for (size_t s : FirstPass->Tags[t].Surfaces)
 			{
 				pendingSurfs.insert(s);
 			}
@@ -440,46 +440,46 @@ namespace mu
 
 				processedSurfs.insert(cs);
 
-				m_surfacesPerTag[t].insert(cs);
+				SurfacesPerTag[t].insert(cs);
 
-				auto& csurf = m_pFirstPass->surfaces[cs];
-				for (auto sct : csurf.positiveTags)
+				auto& csurf = FirstPass->Surfaces[cs];
+				for (const FString& sct : csurf.PositiveTags)
 				{
-					auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == sct; });
+					const FirstPassGenerator::FTag* it = FirstPass->Tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.Tag == sct; });
 					if (!it)
 					{
 						// This could happen if a tag is in a variation but noone defines it.
 						continue;
 					}
 
-					size_t ct = it - &m_pFirstPass->m_tags[0];
+					size_t ct = it - &FirstPass->Tags[0];
 
-					m_tagsPerTag[t].insert(ct);
+					TagsPerTag[t].insert(ct);
 
-					for (size_t s : m_pFirstPass->m_tags[ct].surfaces)
+					for (size_t s : FirstPass->Tags[ct].Surfaces)
 					{
-						if (m_surfacesPerTag[t].find(s) != m_surfacesPerTag[t].end())
+						if (SurfacesPerTag[t].find(s) != SurfacesPerTag[t].end())
 						{
 							pendingSurfs.insert(s);
 						}
 					}
 				}
-				for (auto sct : csurf.negativeTags)
+				for (const FString& sct : csurf.NegativeTags)
 				{
-					auto it = m_pFirstPass->m_tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.tag == sct; });
+					const FirstPassGenerator::FTag* it = FirstPass->Tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.Tag == sct; });
 					if (!it)
 					{
 						// This could happen if a tag is in a variation but noone defines it.
 						continue;
 					}
 
-					size_t ct = it - &m_pFirstPass->m_tags[0];
+					size_t ct = it - &FirstPass->Tags[0];
 
-					m_tagsPerTag[t].insert(ct);
+					TagsPerTag[t].insert(ct);
 
-					for (size_t s : m_pFirstPass->m_tags[ct].surfaces)
+					for (size_t s : FirstPass->Tags[ct].Surfaces)
 					{
-						if (m_surfacesPerTag[t].find(s) != m_surfacesPerTag[t].end())
+						if (SurfacesPerTag[t].find(s) != SurfacesPerTag[t].end())
 						{
 							pendingSurfs.insert(s);
 						}
@@ -489,85 +489,85 @@ namespace mu
 		}
 
 		// Create the conditions for every surface, modifier and individual tag.
-		m_tagConditionGenerationCache.clear();
+		TagConditionGenerationCache.clear();
 
-		for (int32 SurfaceIndex = 0; SurfaceIndex < m_pFirstPass->surfaces.Num(); ++SurfaceIndex)
+		for (int32 SurfaceIndex = 0; SurfaceIndex < FirstPass->Surfaces.Num(); ++SurfaceIndex)
 		{
-			FirstPassGenerator::FSurface& Surface = m_pFirstPass->surfaces[SurfaceIndex];
+			FirstPassGenerator::FSurface& Surface = FirstPass->Surfaces[SurfaceIndex];
 
 			{
 				set<size_t> Empty;
 
 				auto PositiveTags = [this](size_t SurfaceIndex) -> const TArray<FString>&
 				{
-					return m_pFirstPass->surfaces[SurfaceIndex].positiveTags;
+					return FirstPass->Surfaces[SurfaceIndex].PositiveTags;
 				};
 
 				auto NegativeTags = [this](size_t SurfaceIndex) -> const TArray<FString>&
 				{
-					return m_pFirstPass->surfaces[SurfaceIndex].negativeTags;
+					return FirstPass->Surfaces[SurfaceIndex].NegativeTags;
 				};
 				
 				Ptr<ASTOp> c = GenerateSurfaceOrModifierCodition(SurfaceIndex, PositiveTags, NegativeTags, Empty, Empty, Empty, Empty);
-				m_pFirstPass->surfaces[SurfaceIndex].surfaceCondition = c;
+				FirstPass->Surfaces[SurfaceIndex].SurfaceCondition = c;
 			}
 			
-			for (int32 EditIndex = 0; EditIndex < Surface.edits.Num(); ++EditIndex)
+			for (int32 EditIndex = 0; EditIndex < Surface.Edits.Num(); ++EditIndex)
 			{
-				FirstPassGenerator::FSurface::FEdit& Edit = Surface.edits[EditIndex];
+				FirstPassGenerator::FSurface::FEdit& Edit = Surface.Edits[EditIndex];
 				
 				set<size_t> Empty;
 
 				auto PositiveTags = [&Surface](size_t SurfaceIndex) -> const TArray<FString>&
 				{
-					return Surface.edits[SurfaceIndex].PositiveTags;
+					return Surface.Edits[SurfaceIndex].PositiveTags;
 				};
 
 				auto NegativeTags = [&Surface](size_t SurfaceIndex) -> const TArray<FString>&
 				{
-					return Surface.edits[SurfaceIndex].NegativeTags;
+					return Surface.Edits[SurfaceIndex].NegativeTags;
 				};
 				
 				Ptr<ASTOp> c = GenerateSurfaceOrModifierCodition(EditIndex, PositiveTags, NegativeTags, Empty, Empty, Empty, Empty);
 
 				Ptr<ASTOpFixed> OpAnd = new ASTOpFixed;
 				OpAnd->op.type = OP_TYPE::BO_AND;
-				OpAnd->SetChild(OpAnd->op.args.BoolBinary.a, Edit.condition);
+				OpAnd->SetChild(OpAnd->op.args.BoolBinary.a, Edit.Condition);
 				OpAnd->SetChild(OpAnd->op.args.BoolBinary.b, c);
 				c = m_opPool.Add(OpAnd);
 				
-				Edit.condition = OpAnd;
+				Edit.Condition = OpAnd;
 			}
 		}
 
-		for (int32 ModifierIndex = 0; ModifierIndex < m_pFirstPass->modifiers.Num(); ++ModifierIndex)
+		for (int32 ModifierIndex = 0; ModifierIndex < FirstPass->Modifiers.Num(); ++ModifierIndex)
 		{
 			set<size_t> Empty;
 
 			auto PositiveTags = [this](size_t SurfaceIndex) -> TArray<FString>&
 			{
-				return m_pFirstPass->modifiers[SurfaceIndex].positiveTags;
+				return FirstPass->Modifiers[SurfaceIndex].PositiveTags;
 			};
 
 			auto NegativeTags = [this](size_t SurfaceIndex) -> TArray<FString>&
 			{
-				return m_pFirstPass->modifiers[SurfaceIndex].negativeTags;
+				return FirstPass->Modifiers[SurfaceIndex].NegativeTags;
 			};
 				
 			Ptr<ASTOp> c = GenerateSurfaceOrModifierCodition(ModifierIndex, PositiveTags, NegativeTags, Empty, Empty, Empty, Empty);
 			
-			m_pFirstPass->modifiers[ModifierIndex].surfaceCondition = c;
+			FirstPass->Modifiers[ModifierIndex].SurfaceCondition = c;
 		}
 
-		for (int32 s = 0; s < m_pFirstPass->m_tags.Num(); ++s)
+		for (int32 s = 0; s < FirstPass->Tags.Num(); ++s)
 		{
 			set<size_t> empty;
 			Ptr<ASTOp> c = GenerateTagCondition(s, empty, empty, empty, empty);
-			m_pFirstPass->m_tags[s].genericCondition = c;
+			FirstPass->Tags[s].GenericCondition = c;
 		}
 
 
-		m_pFirstPass = nullptr;
+		FirstPass = nullptr;
 
 		return true;
 	}

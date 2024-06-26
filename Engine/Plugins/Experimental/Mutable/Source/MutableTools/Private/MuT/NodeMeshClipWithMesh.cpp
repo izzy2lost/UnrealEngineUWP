@@ -52,6 +52,6 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshClipWithMesh::AddTag(const char* tagName)
 	{
-		m_pD->m_tags.Add(tagName);
+		m_pD->Tags.Add(tagName);
 	}
 }

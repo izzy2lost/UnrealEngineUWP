@@ -231,9 +231,9 @@ namespace mu
 
             gen.GenerateRoot( pNode );
 
-            check( !gen.m_states.IsEmpty() );
+            check( !gen.States.IsEmpty() );
 
-            for ( const auto& s: gen.m_states )
+            for ( const TPair<FObjectState, Ptr<ASTOp>>& s: gen.States )
             {
                 FStateCompilationData data;
                 data.nodeState = s.Key;
@@ -242,13 +242,13 @@ namespace mu
                 states.Add( data );
             }
 
-            genErrorLog = gen.m_pErrorLog;
+            genErrorLog = gen.ErrorLog;
 
 			// Set the parameter list from the non-optimized data, so that we have them all even if they are optimized out
-			int32 ParameterCount = gen.m_firstPass.ParameterNodes.Num();
+			int32 ParameterCount = gen.FirstPass.ParameterNodes.Num();
 			Parameters.SetNum(ParameterCount);
 			int32 ParameterIndex = 0;
-			for ( const TPair<Ptr<const Node>, Ptr<ASTOpParameter>>& Entry : gen.m_firstPass.ParameterNodes )
+			for ( const TPair<Ptr<const Node>, Ptr<ASTOpParameter>>& Entry : gen.FirstPass.ParameterNodes )
 			{
 				Parameters[ParameterIndex] = Entry.Value->parameter;
 				++ParameterIndex;
@@ -344,7 +344,7 @@ namespace mu
 						"safely dismissed in case of partial compilation."), 
 						*s.nodeState.Name,
 						*s.nodeState.RuntimeParams[p]);
-                    m_pD->m_pErrorLog->GetPrivate()->Add(Temp, ELMT_WARNING, pNode->GetMessageContext() );
+                    m_pD->ErrorLog->GetPrivate()->Add(Temp, ELMT_WARNING, pNode->GetMessageContext() );
                 }
             }
 
@@ -402,8 +402,8 @@ namespace mu
 		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("Program size"), int64(Program.m_opAddress.Num()));
 
         // Merge the log in the right order
-        genErrorLog->Merge( m_pD->m_pErrorLog.get() );
-        m_pD->m_pErrorLog = genErrorLog.get();
+        genErrorLog->Merge( m_pD->ErrorLog.get() );
+        m_pD->ErrorLog = genErrorLog.get();
 
 		// Pack data
 		m_pD->GenerateRoms(pResult.Get(), m_pD->m_options.get(), LinkerOptions.AdditionalData );
@@ -417,7 +417,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     ErrorLogPtrConst Compiler::GetLog() const
     {
-        return m_pD->m_pErrorLog;
+        return m_pD->ErrorLog;
     }
 
 

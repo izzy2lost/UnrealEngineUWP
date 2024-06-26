@@ -10,6 +10,8 @@
 #include "MuT/Node.h"
 #include "MuT/NodeComponentEdit.h"
 #include "MuT/NodeComponentNew.h"
+#include "MuT/NodeComponentSwitch.h"
+#include "MuT/NodeComponentVariation.h"
 #include "MuT/NodeLOD.h"
 #include "MuT/NodeModifier.h"
 #include "MuT/NodeModifierMeshClipDeform.h"
@@ -63,10 +65,10 @@ namespace mu
 		//! Store the conditions that will enable or disable every object
 		struct FObject
 		{
-			const NodeObjectNew* node;
-            Ptr<ASTOp> condition;
+			const NodeObjectNew* Node = nullptr;
+            Ptr<ASTOp> Condition;
 		};
-		TArray<FObject> objects;
+		TArray<FObject> Objects;
 
         //! Type used to represent the activation conditions regarding states
         //! This is the state mask for the states in which this surface must be added. If it
@@ -82,7 +84,7 @@ namespace mu
         //! it is reached with.
 		struct FSurface
 		{
-            Ptr<const NodeSurfaceNew> node;
+            Ptr<const NodeSurfaceNew> Node;
 
 			// Parent Component where this surface will be added. It may be different from the 
 			// Component that defined it (if it was an edit component).
@@ -90,95 +92,95 @@ namespace mu
 			int32 LOD = 0;
 
             // List of tags that are required for the presence of this surface
-			TArray<FString> positiveTags;
+			TArray<FString> PositiveTags;
 
             // List of tags that block the presence of this surface
-			TArray<FString> negativeTags;
+			TArray<FString> NegativeTags;
 
 			// This conditions is the condition of the object defining this surface which may not
 			// be the parent object where this surface will be added.
-            Ptr<ASTOp> objectCondition;
+            Ptr<ASTOp> ObjectCondition;
 
             // This is filled in the first pass.
-            StateCondition stateCondition;
+            StateCondition StateCondition;
 
             // Condition for this surface to be enabled when all the object conditions are met.
             // This is filled in CodeGenerator_SecondPass.
-            Ptr<ASTOp> surfaceCondition;
+            Ptr<ASTOp> SurfaceCondition;
 
 			// All surface editing nodes that edit this surface
             struct FEdit
             {
-            	// List of tags that are required for the presence of this surface
+				//! Reference to the edit node, used during compilation.
+				const NodeSurfaceEdit* Node = nullptr;
+				
+				// List of tags that are required for the presence of this surface
             	TArray<FString> PositiveTags;
 
             	// List of tags that block the presence of this surface
             	TArray<FString> NegativeTags;
             	
                 //! Condition that enables the effects of this edit node on the surface
-                Ptr<ASTOp> condition;
-
-                //! Reference to the edit node, used during compilation.
-                const NodeSurfaceEdit* node = nullptr;
+                Ptr<ASTOp> Condition;
             };
-			TArray<FEdit> edits;
+			TArray<FEdit> Edits;
 
             // This is filled in the final code generation pass
-            Ptr<ASTOp> resultSurfaceOp;
-            Ptr<ASTOp> resultMeshOp;
+            Ptr<ASTOp> ResultSurfaceOp;
+            Ptr<ASTOp> ResultMeshOp;
         };
-		TArray<FSurface> surfaces;
+		TArray<FSurface> Surfaces;
 
 		//! Store the conditions that enable every modifier.
 		struct FModifier
 		{
-            const NodeModifier* node = nullptr;
+            const NodeModifier* Node = nullptr;
 
             // List of tags that are required to apply this modifier
-			TArray<FString> positiveTags;
+			TArray<FString> PositiveTags;
 
             // List of tags that block the activation of this modifier
-			TArray<FString> negativeTags;
+			TArray<FString> NegativeTags;
 
             // This conditions is the condition of the object defining this modifier which may not
             // be the parent object where this surface will be added.
-            Ptr<ASTOp> objectCondition;
+            Ptr<ASTOp> ObjectCondition;
 
             // This conditions is the condition for this modifier to be enabled when all the object conditions are met.
             // This is filled in CodeGenerator_SecondPass.
-            Ptr<ASTOp> surfaceCondition;
+            Ptr<ASTOp> SurfaceCondition;
 
             // This is filled in CodeGenerator_SecondPass.
-            StateCondition stateCondition;
+            StateCondition StateCondition;
 
             //
             int32 LOD = 0;
         };
-		TArray<FModifier> modifiers;
+		TArray<FModifier> Modifiers;
 
 		//! Info about all found tags.
 		struct FTag
 		{
-			FString tag;
+			FString Tag;
 
             // Surfaces that activate the tag. These are indices to the FirstPassGenerator::surfaces
             // vector.
-			TArray<int> surfaces;
+			TArray<int32> Surfaces;
 
             // Edit Surfaces that activate the tag. These first element of the pair are indices to
             // the FirstPassGenerator::surfaces vector. The second element are indices to the
             // "edits" in the specific surface.
-			TArray<TPair<int,int>> edits;
+			TArray<TPair<int32,int32>> Edits;
 
             // This conditions is the condition for this tag to be enabled considering no other
             // condition. This is filled in CodeGenerator_SecondPass.
-            Ptr<ASTOp> genericCondition;
+            Ptr<ASTOp> GenericCondition;
         };
-        TArray<FTag> m_tags;
+        TArray<FTag> Tags;
 
-        //! Accumulate the model states found while generating code, with their generated root nodes.
+        /** Accumulate the model states found while generating code, with their generated root nodes. */
         typedef TArray< TPair<FObjectState, const Node*> > StateList;
-        StateList m_states;
+        StateList States;
 
 		/** Parameters added for every node. */
 		TMap< Ptr<const Node>, Ptr<ASTOpParameter> > ParameterNodes;
@@ -187,19 +189,19 @@ namespace mu
 
         struct FConditionContext
         {
-            Ptr<ASTOp> objectCondition;
+            Ptr<ASTOp> ObjectCondition;
         };
-		TArray< FConditionContext > m_currentCondition;
+		TArray< FConditionContext > CurrentCondition;
 
         //!
-		TArray< StateCondition > m_currentStateCondition;
+		TArray< StateCondition > CurrentStateCondition;
 
-		//! When processing surfaces, this is the parent component the surfaces may be added to
-        const NodeComponentNew* m_currentComponent = nullptr;
+		/** When processing surfaces, this is the parent component the surfaces may be added to. */
+        const NodeComponentNew* CurrentComponent = nullptr;
 
         //! Current relevant tags so far. Used during traversal.
-		TArray<FString> m_currentPositiveTags;
-		TArray<FString> m_currentNegativeTags;
+		TArray<FString> CurrentPositiveTags;
+		TArray<FString> CurrentNegativeTags;
 
 		//** Index of the LOD we are processing. */
         int32 CurrentLOD = -1;
@@ -208,10 +210,7 @@ namespace mu
 		CodeGenerator* Generator = nullptr;
 
         //!
-        ErrorLogPtr m_pErrorLog;
-
-        //!
-        bool m_ignoreStates = false;
+        Ptr<ErrorLog> ErrorLog;
 	};
 
 }

@@ -88,10 +88,10 @@ namespace mu
 
         Private()
         {
-            m_pErrorLog = new ErrorLog();
+            ErrorLog = new mu::ErrorLog();
         }
 
-        Ptr<ErrorLog> m_pErrorLog;
+        Ptr<ErrorLog> ErrorLog;
 
         /** */
         Ptr<CompilerOptions> m_options;

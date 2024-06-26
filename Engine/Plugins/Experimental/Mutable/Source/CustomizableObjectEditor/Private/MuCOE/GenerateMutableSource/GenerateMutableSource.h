@@ -332,9 +332,9 @@ struct FGroupNodeIdsTempData
 
 struct FGroupProjectorImageInfo
 {
-	mu::NodeImagePtr ImageNode;
-	mu::NodeImagePtr ImageResizeNode;
-	mu::NodeSurfaceNewPtr SurfNode;
+	mu::Ptr<mu::NodeImage> ImageNode;
+	mu::Ptr<mu::NodeImage> ImageResizeNode;
+	mu::Ptr<mu::NodeSurfaceNew> SurfNode;
 	UCustomizableObjectNodeMaterialBase* TypedNodeMat;
 	FString TextureName;
 	FString RealTextureName;
@@ -344,7 +344,7 @@ struct FGroupProjectorImageInfo
 	int32 UVLayout = 0;
 
 	FGroupProjectorImageInfo(mu::NodeImagePtr InImageNode, const FString& InTextureName, const FString& InRealTextureName, UCustomizableObjectNodeMaterialBase* InTypedNodeMat,
-		float InAlternateProjectionResolutionFactor, const FString& InAlternateResStateName, mu::NodeSurfaceNewPtr InSurfNode, int32 InUVLayout)
+		float InAlternateProjectionResolutionFactor, const FString& InAlternateResStateName, mu::Ptr<mu::NodeSurfaceNew> InSurfNode, int32 InUVLayout)
 		: TypedNodeMat(InTypedNodeMat), TextureName(InTextureName), RealTextureName(InRealTextureName),
 		AlternateResStateName(InAlternateResStateName), AlternateProjectionResolutionFactor(InAlternateProjectionResolutionFactor), 
 		UVLayout(InUVLayout)
@@ -768,7 +768,7 @@ struct FMutableGraphGenerationContext
 
 	// Data structures used for clipping feature by assigning a Customizable Object
 	// Map with pairs (Unreal Mutable material node Guid, array with its corresponding Mutable surface node) to add tags from clipping nodes
-	TMap<class UCustomizableObjectNodeMaterial*, TArray<mu::NodeSurfaceNewPtr>> MapMaterialNodeToMutableSurfaceNodeArray;
+	TMap<class UCustomizableObjectNodeMaterial*, TArray<mu::Ptr<mu::NodeSurfaceNew>>> MapMaterialNodeToMutableSurfaceNodeArray;
 
 	// Map with pairs (Unreal Mutable clip mesh node, array with its corresponding Mutable mesh modifier nodes) to add tags
 	TMap<class UCustomizableObjectNodeMeshClipWithMesh*, TArray<mu::Ptr<mu::NodeModifierMeshClipWithMesh>>> MapClipMeshNodeToMutableClipMeshNodeArray;
@@ -871,12 +871,12 @@ struct FMutableGraphGenerationContext
 
 	struct FSharedSurface
 	{
-		FSharedSurface(uint8 InLOD, const mu::NodeSurfaceNewPtr& InNodeSurfaceNew);
+		FSharedSurface(uint8 InLOD, const mu::Ptr<mu::NodeSurfaceNew>& InNodeSurfaceNew);
 
 		bool operator==(const FSharedSurface& o) const;
 
 		uint8 LOD = 0;
-		mu::NodeSurfaceNewPtr NodeSurfaceNew;
+		mu::Ptr<mu::NodeSurfaceNew> NodeSurfaceNew;
 
 		bool bMakeUnique = false;
 		TArray<SIZE_T> NodeModifierIDs;
