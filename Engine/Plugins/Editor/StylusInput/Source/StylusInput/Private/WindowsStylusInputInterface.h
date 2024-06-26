@@ -7,7 +7,7 @@
 class FWindowsStylusInputInterfaceImpl;
 class SWindow;
 
-class FWindowsStylusInputInterface : public IStylusInputInterfaceInternal
+class FWindowsStylusInputInterface : public IStylusInputInterfaceInternal, public TSharedFromThis<FWindowsStylusInputInterface>
 {
 public:
 	FWindowsStylusInputInterface(TUniquePtr<FWindowsStylusInputInterfaceImpl> InImpl);
