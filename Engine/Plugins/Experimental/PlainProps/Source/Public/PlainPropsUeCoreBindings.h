@@ -110,15 +110,16 @@ namespace PlainProps::UE
 namespace PlainProps::UE
 {
 
-template <typename T>
+template <typename T, class Allocator>
 struct TArrayBinding : public IItemRangeBinding
 {
 	using SizeType = int32;
 	using ItemType = T;
+	using ArrayType = TArray<T, Allocator>;
 
 	virtual void MakeItems(FLoadRangeContext& Ctx) const override
 	{
-		TArray<T>& Array = Ctx.Request.GetRange<TArray<T>>();
+		ArrayType& Array = Ctx.Request.GetRange<ArrayType>();
 		if constexpr (std::is_default_constructible_v<T>)
 		{
 			Array.SetNum(Ctx.Request.NumTotal());
@@ -134,7 +135,7 @@ struct TArrayBinding : public IItemRangeBinding
 
 	virtual void ReadItems(FSaveRangeContext& Ctx) const override
 	{
-		const TArray<T>& Array = Ctx.Request.GetRange<TArray<T>>();
+		const ArrayType& Array = Ctx.Request.GetRange<ArrayType>();
 		Ctx.Items.SetAll(Array.GetData(), static_cast<uint64>(Array.Num()));
 	}
 };
@@ -666,10 +667,10 @@ namespace PlainProps
 template<>
 PLAINPROPS_API void AppendString(FString& Out, const FName& Name);
 
-template<typename T>
-struct TRangeBind<TArray<T>>
+template<typename T, typename Allocator>
+struct TRangeBind<TArray<T, Allocator>>
 {
-	using Type = UE::TArrayBinding<T>;
+	using Type = UE::TArrayBinding<T, Allocator>;
 };
 
 template<>

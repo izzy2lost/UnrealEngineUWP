@@ -433,11 +433,11 @@ class FLeafRangeAllocator
 public:
 	FLeafRangeAllocator(FScratchAllocator& InScratch, FUnpackedLeafType InExpected) : Scratch(InScratch), Expected(InExpected) {}
 
-	template<typename LeafType, typename SizeType>
-	LeafType* AllocateRange(SizeType Num)
+	template<LeafType T, typename SizeType>
+	T* AllocateRange(SizeType Num)
 	{
-		check(ReflectLeaf<LeafType> == Expected);
-		return Num ? static_cast<LeafType*>(Allocate(ReflectLeaf<LeafType>, IntCastChecked<uint64>(Num))) : nullptr;
+		check(ReflectArithmetic<T> == Expected);
+		return Num ? static_cast<T*>(Allocate(ReflectArithmetic<T>, IntCastChecked<uint64>(Num))) : nullptr;
 	}
 
 	FBuiltRange* GetAllocatedRange() { return Range; }
@@ -458,19 +458,27 @@ public:
 	
 	// The returned ranges hide the internal representations so we can change format in the future, 
 	// e.g. store zeroes or 1.0f in some compact fashion or even var int encodings
-	template<typename LeafType>
+	template<Arithmetic T>
 	auto As() const
 	{
-		check(Leaf == ReflectLeaf<LeafType>);
-		if constexpr (std::is_same_v<bool, LeafType>)
+		check(Leaf == ReflectArithmetic<T>);
+		if constexpr (std::is_same_v<bool, T>)
 		{
 			return FBoolRangeView(static_cast<const uint8*>(Data), Num);
 		}
 		else
 		{
-			return TRangeView<LeafType>(static_cast<const LeafType*>(Data), Num);
+			return TRangeView<T>(static_cast<const T*>(Data), Num);
 		}
 	}
+	
+	template<Enumeration T>
+	TRangeView<T> As() const
+	{
+		check(Leaf == ReflectEnum<T>);
+		return TRangeView<T>(static_cast<const T*>(Data), Num);
+	}
+
 };
 
 // Specialized binding for transcoding leaf ranges
@@ -511,9 +519,12 @@ using RangeBind = typename TRangeBind<T>::Type;
 
 struct FMemberBinding
 {
-	FMemberBinding() : InnermostType(FLeafBindType(ELeafBindType::Bool, ELeafWidth::B8)) {}
+	explicit FMemberBinding(uint64 InOffset = 0)
+	: Offset(InOffset)
+	, InnermostType(FLeafBindType(ELeafBindType::Bool, ELeafWidth::B8))
+	{}
 
-	uint64							Offset = 0;
+	uint64							Offset;
 	FMemberBindType					InnermostType;		// Always Leaf or Struct
 	FOptionalSchemaId				InnermostSchema;	// Enum or struct schema
 	TConstArrayView<FRangeBinding>	RangeBindings;		// Non-empty -> Range
@@ -575,14 +586,16 @@ FTypeId IndexAnyType()
 		FTypeId SizeType = { NoId, Ids::IndexTypename(CttiOf<typename RangeBinding::SizeType>::Name) };
 		return Ids::GetIndexer().MakeAnonymousParametricType({InnerType, SizeType});
 	}
-	else if constexpr (std::is_arithmetic_v<T>)
-	{
-		return { NoId, Ids::IndexTypename(CttiOf<T>::Name) };
-	}
 	else 
 	{
 		return IndexStructOrEnumType<CttiOf<T>, Ids>();
 	}
+}
+
+template<Arithmetic T, typename Ids>
+FTypeId IndexAnyType()
+{
+	return { NoId, Ids::IndexTypename(CttiOf<T>::Name) };
 }
 
 template<typename Ids, typename... Ts>
@@ -607,13 +620,6 @@ FTypeId IndexStructOrEnumType()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
-template<typename Type, class Ids>
-FMemberBindType BindMemberLeaf(FOptionalSchemaId& OutSchema)
-{
-	OutSchema = std::is_enum_v<Type> ? ToOptional(static_cast<FSchemaId>(IndexEnum<Type, Ids>())) : NoId;
-	return FMemberBindType(ReflectLeaf<Type>);
-}
 
 template<typename CustomBinding, class Runtime>
 FStructSchemaId BindCustomStructOnce()
@@ -676,18 +682,24 @@ FMemberBindType BindMemberStruct(FOptionalSchemaId& OutSchema)
 }
 
 template<typename Type, class Ids>
-FMemberBindType BindType(FOptionalSchemaId& OutSchema)
+FMemberBindType BindInnermostType(FOptionalSchemaId& OutSchema)
 {
-	if constexpr (std::is_arithmetic_v<Type> || std::is_enum_v<Type>)
-	{
-		OutSchema = std::is_enum_v<Type> ? ToOptional(static_cast<FSchemaId>(IndexEnum<Type, Ids>())) : NoId;
-		return FMemberBindType(ReflectLeaf<Type>);
-	}
-	else
-	{
-		OutSchema = FOptionalSchemaId(IndexStruct<Type, Ids>());
-		return FMemberBindType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});
-	}
+	OutSchema = FOptionalSchemaId(IndexStruct<Type, Ids>());
+	return FMemberBindType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});
+}
+
+template<Arithmetic Type, class Ids>
+FMemberBindType BindInnermostType(FOptionalSchemaId& OutSchema)
+{
+	OutSchema = NoId;
+	return FMemberBindType(ReflectArithmetic<Type>);
+}
+
+template<Enumeration Type, class Ids>
+FMemberBindType BindInnermostType(FOptionalSchemaId& OutSchema)
+{
+	OutSchema = ToOptional(static_cast<FSchemaId>(IndexEnum<Type, Ids>()));
+	return FMemberBindType(ReflectEnum<Type>);
 }
 
 template<typename RangeBinding>
@@ -756,40 +768,39 @@ TConstArrayView<FRangeBinding> GetRangeBindings()
 	}
 }
 
-template<class Var, class Runtime>
-FMemberBinding BindMember()
+template<LeafType Type, class Runtime>
+FMemberBinding BindMember(uint64 Offset)
+{
+	FMemberBinding Out(Offset);
+	Out.InnermostType = BindInnermostType<Type, typename Runtime::Ids>(Out.InnermostSchema);
+	return Out;
+}
+
+template<typename Type, class Runtime>
+FMemberBinding BindMember(uint64 Offset)
 {
 	using Ids = typename Runtime::Ids;
-	using Type = Var::Type;
+	using CustomBinding = typename Runtime::template CustomBindings<Type>::Type;
 
-	FMemberBinding Out;
-	Out.Offset = Var::Offset;
-	if constexpr (std::is_arithmetic_v<Type> || std::is_enum_v<Type>)
+	FMemberBinding Out(Offset);
+	if constexpr (!std::is_void_v<CustomBinding>)
 	{
-		Out.InnermostType = BindMemberLeaf<Type, Ids>(Out.InnermostSchema);
+		Out.InnermostType = BindMemberStruct<Type, CustomBinding, Runtime>(Out.InnermostSchema);
 	}
 	else
 	{
-		using CustomBinding = typename Runtime::template CustomBindings<Type>::Type;
-		if constexpr (!std::is_void_v<CustomBinding>)
+		using RangeBinding = RangeBind<Type>;
+		if constexpr (!std::is_void_v<RangeBinding>)
 		{
-			Out.InnermostType = BindMemberStruct<Type, CustomBinding, Runtime>(Out.InnermostSchema);
+			constexpr uint32 NumRangeBindings = CountRangeBindings<RangeBinding>();
+			using InnermostType = typename TInnerType<RangeBinding, NumRangeBindings>::Type;
+
+			Out.RangeBindings = GetRangeBindings<RangeBinding, NumRangeBindings>();
+			Out.InnermostType = BindInnermostType<InnermostType, Ids>(Out.InnermostSchema);
 		}
 		else
 		{
-			using RangeBinding = RangeBind<Type>;
-			if constexpr (!std::is_void_v<RangeBinding>)
-			{
-				constexpr uint32 NumRangeBindings = CountRangeBindings<RangeBinding>();
-				using InnermostType = typename TInnerType<RangeBinding, NumRangeBindings>::Type;
-
-				Out.RangeBindings = GetRangeBindings<RangeBinding, NumRangeBindings>();
-				Out.InnermostType = BindType<InnermostType, Ids>(Out.InnermostSchema);
-			}
-			else
-			{
-				Out.InnermostType = BindMemberStruct<Type, CustomBinding, Runtime>(Out.InnermostSchema);
-			}
+			Out.InnermostType = BindMemberStruct<Type, CustomBinding, Runtime>(Out.InnermostSchema);
 		}
 	}
 	
@@ -838,7 +849,7 @@ void BindNativeStruct(FSchemaBindings& Out, FStructSchemaId DeclaredId)
 	FMemberBinding MemberBindings[Ctti::NumVars];
 	ForEachVar<Ctti>([&]<class Var>()
 	{ 
-		MemberBindings[Var::Index] = BindMember<Var, Runtime>();
+		MemberBindings[Var::Index] = BindMember<typename Var::Type, Runtime>(Var::Offset);
 	});
 	Out.BindStruct(DeclaredId, MemberBindings);
 }

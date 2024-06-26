@@ -141,18 +141,16 @@ struct FTypedRange
 	FBuiltRange* Values = nullptr;
 };
 
-template<typename LeafType, typename SizeType>
+template<Arithmetic T, typename SizeType>
 FMemberSchema MakeLeafRangeSchema()
 {
-	check(std::is_arithmetic_v<LeafType>);
-	return { FMemberType(RangeSizeOf(SizeType{})), ReflectLeaf<LeafType>.Pack(), 1, NoId, nullptr };
+	return { FMemberType(RangeSizeOf(SizeType{})), ReflectArithmetic<T>.Pack(), 1, NoId, nullptr };
 }
 
-template<typename EnumType, typename SizeType>
+template<Enumeration T, typename SizeType>
 FMemberSchema MakeEnumRangeSchema(FEnumSchemaId Schema)
 {
-	check(std::is_enum_v<EnumType>);
-	return { FMemberType(RangeSizeOf(SizeType{})), ReflectLeaf<EnumType>.Pack(), 1, Schema, nullptr };
+	return { FMemberType(RangeSizeOf(SizeType{})), ReflectEnum<T>.Pack(), 1, Schema, nullptr };
 }
 
 inline constexpr FMemberType DefaultStructType = FMemberType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});
@@ -170,24 +168,24 @@ PLAINPROPS_API FMemberSchema MakeNestedRangeSchema(FScratchAllocator& Scratch, E
 
 [[nodiscard]] PLAINPROPS_API FBuiltRange* CloneLeaves(FScratchAllocator& Scratch, uint64 Num, const void* Data, SIZE_T LeafSize);
 
-template<typename LeafType, typename SizeType>
-[[nodiscard]] FTypedRange BuildLeafRange(FScratchAllocator& Scratch, const LeafType* Values, SizeType Num)
+template<LeafType T, typename SizeType>
+[[nodiscard]] FTypedRange BuildLeafRange(FScratchAllocator& Scratch, const T* Values, SizeType Num)
 {
 	// todo: detect invalid floats
-	return { MakeLeafRangeSchema<LeafType, SizeType>(), CloneLeaves(Scratch, Num, Values, sizeof(LeafType)) };
+	return { MakeLeafRangeSchema<T, SizeType>(), CloneLeaves(Scratch, Num, Values, sizeof(T)) };
 }
 
-template<typename LeafType, typename SizeType>
-[[nodiscard]] FTypedRange BuildLeafRange(FScratchAllocator& Scratch, TConstArrayView<LeafType, SizeType> Values)
+template<LeafType T, typename SizeType>
+[[nodiscard]] FTypedRange BuildLeafRange(FScratchAllocator& Scratch, TConstArrayView<T, SizeType> Values)
 {
 	// todo: detect invalid floats
-	return { MakeLeafRangeSchema<LeafType, SizeType>(), CloneLeaves(Scratch, Values.Num(), Values.GetData(), sizeof(LeafType)) };
+	return { MakeLeafRangeSchema<T, SizeType>(), CloneLeaves(Scratch, Values.Num(), Values.GetData(), sizeof(T)) };
 }
 
-template<typename EnumType, typename SizeType>
-[[nodiscard]] FTypedRange BuildEnumRange(FScratchAllocator& Scratch, FEnumSchemaId Enum, TConstArrayView<EnumType, SizeType> Values)
+template<Enumeration T, typename SizeType>
+[[nodiscard]] FTypedRange BuildEnumRange(FScratchAllocator& Scratch, FEnumSchemaId Enum, TConstArrayView<T, SizeType> Values)
 {
-	return { MakeEnumRangeSchema<EnumType, SizeType>(Enum), CloneLeaves(Scratch, Values.Num(), Values.GetData(), sizeof(EnumType)) };
+	return { MakeEnumRangeSchema<T, SizeType>(Enum), CloneLeaves(Scratch, Values.Num(), Values.GetData(), sizeof(T)) };
 }
 
 [[nodiscard]] inline FTypedRange MakeStructRange(FStructSchemaId Schema, ERangeSizeType SizeType, FBuiltRange* Values )
@@ -223,17 +221,16 @@ struct FBuiltMember
 class FMemberBuilder
 {
 public:
-	template<typename LeafType>
-	void Add(FMemberId Name, LeafType Value)
+	template<Arithmetic T>
+	void Add(FMemberId Name, T Value)
 	{
-		static_assert(std::is_arithmetic_v<LeafType>, "Illegal leaf type");
-		AddLeaf(Name, ReflectLeaf<LeafType>, {}, ValueCast(Value));
+		AddLeaf(Name, ReflectArithmetic<T>, {}, ValueCast(Value));
 	}
 
-	template<typename EnumType>
-	void AddEnum(FMemberId Name, FEnumSchemaId Schema, EnumType Value)
+	template<Enumeration T>
+	void AddEnum(FMemberId Name, FEnumSchemaId Schema, T Value)
 	{
-		AddLeaf(Name, ReflectLeaf<EnumType>, ToOptional(Schema), ValueCast(Value));
+		AddLeaf(Name, ReflectEnum<T>, ToOptional(Schema), ValueCast(Value));
 	}
 	
 	void AddEnum8(FMemberId Name, FEnumSchemaId Schema, uint8 Value)	{ AddLeaf(Name, {ELeafType::Enum, ELeafWidth::B8},  ToOptional(Schema), Value); }
@@ -274,7 +271,7 @@ struct FDenseMemberBuilder
 	{
 		// Todo: Handle enums, ranges and structs
 		FBuiltValue Values[] = { {.Leaf = ValueCast(Head)}, {.Leaf = (ValueCast(Tail))}...  };
-		return BuildHomo(Declaration, FMemberType(ReflectLeaf<T>.Pack()), Values);
+		return BuildHomo(Declaration, FMemberType(ReflectArithmetic<T>.Pack()), Values);
 	}
 
 private:

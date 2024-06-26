@@ -650,16 +650,16 @@ private:
 		}
 	}
 
-	void WriteLeaf(FLeafType LeafType, uint64 LeafValue)
+	void WriteLeaf(FLeafType Leaf, uint64 LeafValue)
 	{
-		if (LeafType.Type == ELeafType::Bool)
+		if (Leaf.Type == ELeafType::Bool)
 		{
 			check(LeafValue <= 1);
 			Bits.WriteBit(!!LeafValue);
 		}
 		else
 		{
-			WriteUnsigned(LeafValue, SizeOf(LeafType.Width));
+			WriteUnsigned(LeafValue, SizeOf(Leaf.Width));
 		}
 	}
 		

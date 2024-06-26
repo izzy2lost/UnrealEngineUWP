@@ -319,6 +319,17 @@ struct FParametricTypeView
 
 //////////////////////////////////////////////////////////////////////////
 
+template<class T>
+concept Arithmetic = std::is_arithmetic_v<T>;
+
+template<class T>
+concept Enumeration = std::is_enum_v<T>;
+
+template<class T>
+concept LeafType = std::is_arithmetic_v<T> || std::is_enum_v<T>;
+
+//////////////////////////////////////////////////////////////////////////
+
 struct FUnpackedLeafType
 {
 	ELeafType Type;
@@ -338,31 +349,34 @@ struct FUnpackedLeafType
 	}
 };
 
+template<Enumeration T>
+inline constexpr FUnpackedLeafType ReflectEnum = { ELeafType::Enum, LeafWidth<sizeof(T)> };
+
 template<typename T>
-constexpr FUnpackedLeafType ReflectEnum()
+constexpr FUnpackedLeafType IllegalLeaf()
 {
-	static_assert(std::is_enum_v<T>);
-	return FUnpackedLeafType(ELeafType::Enum, LeafWidth<sizeof(T)>);
+	static_assert(!sizeof(T), "Unsupported leaf type");
+	return { ELeafType::Bool,	ELeafWidth::B8 };
 }
 
-template<typename T>
-constexpr FUnpackedLeafType ReflectLeaf = ReflectEnum<T>();
+template<Arithmetic T>
+inline constexpr FUnpackedLeafType ReflectArithmetic = IllegalLeaf<T>;
 
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<bool>		= { ELeafType::Bool,	ELeafWidth::B8 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<int8>		= { ELeafType::IntS,	ELeafWidth::B8 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<int16>	= { ELeafType::IntS,	ELeafWidth::B16 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<int32>	= { ELeafType::IntS,	ELeafWidth::B32 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<int64>	= { ELeafType::IntS,	ELeafWidth::B64 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<uint8>	= { ELeafType::IntU,	ELeafWidth::B8 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<uint16>	= { ELeafType::IntU,	ELeafWidth::B16 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<uint32>	= { ELeafType::IntU,	ELeafWidth::B32 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<uint64>	= { ELeafType::IntU,	ELeafWidth::B64 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<float>	= { ELeafType::Float,	ELeafWidth::B32 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<double>	= { ELeafType::Float,	ELeafWidth::B64 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<char>		= { ELeafType::Unicode,	ELeafWidth::B8 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<char8_t>	= { ELeafType::Unicode,	ELeafWidth::B8 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<char16_t>	= { ELeafType::Unicode,	ELeafWidth::B16 };
-template<> inline constexpr FUnpackedLeafType ReflectLeaf<char32_t>	= { ELeafType::Unicode,	ELeafWidth::B32 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<bool>		= { ELeafType::Bool,	ELeafWidth::B8 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<int8>		= { ELeafType::IntS,	ELeafWidth::B8 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<int16>		= { ELeafType::IntS,	ELeafWidth::B16 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<int32>		= { ELeafType::IntS,	ELeafWidth::B32 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<int64>		= { ELeafType::IntS,	ELeafWidth::B64 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<uint8>		= { ELeafType::IntU,	ELeafWidth::B8 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<uint16>		= { ELeafType::IntU,	ELeafWidth::B16 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<uint32>		= { ELeafType::IntU,	ELeafWidth::B32 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<uint64>		= { ELeafType::IntU,	ELeafWidth::B64 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<float>		= { ELeafType::Float,	ELeafWidth::B32 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<double>		= { ELeafType::Float,	ELeafWidth::B64 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<char>		= { ELeafType::Unicode,	ELeafWidth::B8 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<char8_t>	= { ELeafType::Unicode,	ELeafWidth::B8 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<char16_t>	= { ELeafType::Unicode,	ELeafWidth::B16 };
+template<> inline constexpr FUnpackedLeafType ReflectArithmetic<char32_t>	= { ELeafType::Unicode,	ELeafWidth::B32 };
 
 //////////////////////////////////////////////////////////////////////////
 

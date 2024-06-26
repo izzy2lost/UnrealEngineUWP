@@ -340,8 +340,8 @@ FOptionalSchemaId FMemberReader::GrabRangeSchema(FMemberType InnermostType)
 		return FOptionalSchemaId(GrabStructSchema(InnermostType.AsStruct()));
 	}
 
-	ELeafType LeafType = InnermostType.AsLeaf().Type;
-	return LeafType == ELeafType::Enum ? FOptionalSchemaId(GrabEnumSchema()) : NoId;
+	ELeafType Type = InnermostType.AsLeaf().Type;
+	return Type == ELeafType::Enum ? FOptionalSchemaId(GrabEnumSchema()) : NoId;
 }
 
 FLeafView FMemberReader::GrabLeaf()

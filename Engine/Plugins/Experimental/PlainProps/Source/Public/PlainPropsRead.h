@@ -203,10 +203,17 @@ struct FLeafView
 	FORCEINLINE uint64		AsEnum64() const	{ return As<uint64,	FUnpackedLeafType{ELeafType::Enum, ELeafWidth::B64}>(); }
 
 private:
-	template<typename T, FUnpackedLeafType ExpectedType = ReflectLeaf<T>>
+	template<Arithmetic T, FUnpackedLeafType ExpectedLeaf = ReflectArithmetic<T>>
 	FORCEINLINE T As() const
 	{
-		check(ExpectedType == Leaf);
+		check(ExpectedLeaf == Leaf);
+		return *reinterpret_cast<const T*>(Value.Ptr);
+	}
+
+	template<Enumeration T, FUnpackedLeafType ExpectedLeaf = ReflectEnum<T>>
+	FORCEINLINE T As() const
+	{
+		check(ExpectedLeaf == Leaf);
 		return *reinterpret_cast<const T*>(Value.Ptr);
 	}
 };
@@ -427,13 +434,20 @@ public:
 	TRangeView<char8_t>		AsUtf8() const		{ return As<char8_t>(); }
 	TRangeView<char16_t>	AsUtf16() const		{ return As<char16_t>(); }
 	TRangeView<char32_t>	AsUtf32() const		{ return As<char32_t>(); }
-
-	template<typename LeafType>
-	TRangeView<LeafType> As() const
+	
+	template<Arithmetic T>
+	TRangeView<T> As() const
 	{
-		static_assert(!std::is_same_v<LeafType, bool>);
-		check(FUnpackedLeafType(Type, Width) == ReflectLeaf<LeafType>);
-		return TRangeView<LeafType>(reinterpret_cast<const LeafType*>(Values), NumItems);
+		static_assert(!std::is_same_v<T, bool>);
+		check(FUnpackedLeafType(Type, Width) == ReflectArithmetic<T>);
+		return TRangeView<T>(reinterpret_cast<const T*>(Values), NumItems);
+	}
+
+	template<Enumeration T>
+	TRangeView<T> As() const
+	{
+		check(FUnpackedLeafType(Type, Width) == ReflectEnum<T>);
+		return TRangeView<T>(reinterpret_cast<const T*>(Values), NumItems);
 	}
 
 	//FEnumFlatRangeView		AsFlatEnums();	// @pre GetType() == ELeafType::Enum
@@ -572,9 +586,15 @@ public:
 	FStructView				GrabStruct();			// @pre PeekKind() == EMemberKind::Struct
 	//FAnyMemberView		GrabAny();				// @pre HasMore()
 
+	// Experimental 
 	// @pre Has N more contiguous members of the expected leaf type
-	template<typename T>
+	template<Arithmetic T>
 	void					GrabLeaves(T* Out, uint32 N);
+
+	// Experimental
+	// @pre Has N more contiguous members of the expected leaf type
+	template<Enumeration T>
+	void					GrabEnums(T* Out, uint32 N);
 
 protected: // for unit tests
 	const FMemberType*		Footer;
@@ -621,24 +641,29 @@ protected: // for unit tests
 	void					GrabLeaves(void* Out, uint32 Num, SIZE_T NumBytes);
 };
 
-template<typename T>
+template<Arithmetic T>
 void FMemberReader::GrabLeaves(T* Out, uint32 N)
 {
 	if (N)
 	{
-		constexpr FUnpackedLeafType Leaf = ReflectLeaf<T>;
-		if constexpr (Leaf.Type == ELeafType::Bool)
+		if constexpr (std::is_same_v<bool, T>)
 		{
 			GrabBools(Out, N);
-		}
-		else if constexpr (Leaf.Type == ELeafType::Enum)
-		{
-			GrabEnums(Out, N, sizeof(T));
 		}
 		else
 		{
 			GrabLeaves(Out, N, sizeof(T));
 		}
+	}
+}
+
+template<Enumeration T>
+void FMemberReader::GrabEnums(T* Out, uint32 N)
+{
+	if (N)
+	{
+		GrabLeaves(Out, N, sizeof(T));
+		InnerSchemaIdx += N;
 	}
 }
 
