@@ -1635,8 +1635,10 @@ namespace impl
 		
 		if (CVarEnableBenchmark.GetValueOnAnyThread())
 		{
-			Operation->UpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
-			mu::FGlobalMemoryCounter::Zero();
+			// Get the amount of mutable memory in use now
+			Operation->UpdateStartBytes = mu::FGlobalMemoryCounter::GetAbsoluteCounter();
+			// Reset the counter to later get the peak during the updated
+			mu::FGlobalMemoryCounter::Zero();													
 		}
 
 		// Prepare streaming for the current customizable object
@@ -2934,10 +2936,13 @@ namespace impl
 			}
 		} // if (!bInstanceValid)
 
-		// Memory used in the context of this the update of mesh
-		OperationData->UpdateEndPeakBytes = mu::FGlobalMemoryCounter::GetPeak();
-		// Memory used in the context of the mesh update + the baseline memory already in use by mutable
-		OperationData->UpdateEndRealPeakBytes = OperationData->UpdateEndPeakBytes + OperationData->UpdateStartBytes;
+		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		{
+			// Memory used in the context of this the update of mesh
+			OperationData->UpdateEndPeakBytes = mu::FGlobalMemoryCounter::GetPeak();
+			// Memory used in the context of the mesh update + the baseline memory used by mutable when starting the update
+			OperationData->UpdateEndRealPeakBytes = OperationData->UpdateEndPeakBytes + OperationData->UpdateStartBytes;
+		}
 		
 		UCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = System->GetPrivate();
 

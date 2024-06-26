@@ -482,10 +482,13 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_UpdateImage);
 		const double StartTime = FPlatformTime::Seconds();
 		
-		// Cache memory used when starting the update of the image
-		OperationData->ImageUpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
-		mu::FGlobalMemoryCounter::Zero();
-		
+		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		{
+			// Cache memory used when starting the update of the image
+			OperationData->ImageUpdateStartBytes = mu::FGlobalMemoryCounter::GetAbsoluteCounter();
+			mu::FGlobalMemoryCounter::Zero();
+		}
+
 		// Any external texture that may be needed for this update will be requested from Mutable Core's GetImage
 		// which will safely access the GlobalExternalImages map, and then just get the cached image or issue a disk read
 

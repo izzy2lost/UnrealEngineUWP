@@ -139,7 +139,7 @@ namespace Impl
 		if (CVarEnableBenchmark.GetValueOnAnyThread())
 		{
 			// Cache memory used when starting the update of the image
-			OperationData->ImageUpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
+			OperationData->ImageUpdateStartBytes = mu::FGlobalMemoryCounter::GetAbsoluteCounter();
 			mu::FGlobalMemoryCounter::Zero();
 		}
 		

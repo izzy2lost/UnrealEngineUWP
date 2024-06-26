@@ -84,7 +84,7 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 #endif
 		
 		// Get the memory being used by mutable before the compilation
-		const int64 CompilationStartMutableBytes = mu::FGlobalMemoryCounter::GetCounter();
+		const int64 CompilationStartMutableBytes = mu::FGlobalMemoryCounter::GetAbsoluteCounter();
 		mu::FGlobalMemoryCounter::Zero();
 		
 		UE_LOG(LogMutable,Display,TEXT("Compiling Customizable Object..."));
