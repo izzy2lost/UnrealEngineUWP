@@ -41,7 +41,6 @@ AsyncBufferResultPtr TargetTextureSet::BindTo(RenderMaterial_BPPtr Material, TAr
 	
 	for(const FMaterialMappingInfo MappingInfo : MaterialMappingInfo)
 	{
-		
 		BindOnTextureUpdate(Material, MappingInfo);
 	}
 			
@@ -94,9 +93,12 @@ void TargetTextureSet::SetTexture(FName TextureName, TiledBlobRef InTexture)
 	}
 
 	//if there exists a callback, now is the time to update it 
-	if (Callbacks.Contains(TextureName) && Callbacks[TextureName])
+	if (Callbacks.Contains(TextureName) && Callbacks[TextureName].Num())
 	{
-		Callbacks[TextureName](InTexture);
+		for(int i = 0; i < Callbacks[TextureName].Num(); i++)
+		{
+			Callbacks[TextureName][i](InTexture);
+		}
 	}
 }
 
@@ -171,11 +173,11 @@ void TargetTextureSet::RegisterCallback(TextureReadyCallback Callback, FMaterial
 
 	if(Callbacks.Contains(MaterialMappingInfo.Target))
 	{
-		Callbacks[MaterialMappingInfo.Target] = Callback;
+		Callbacks[MaterialMappingInfo.Target].Add(Callback);
 	}
 	else
 	{
-		Callbacks.Add(MaterialMappingInfo.Target, Callback);
+		Callbacks.Add(MaterialMappingInfo.Target, TArray<TextureReadyCallback>{Callback});
 	}
 }
 

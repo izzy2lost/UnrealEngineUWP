@@ -17,7 +17,7 @@ class TEXTUREGRAPHENGINE_API TargetTextureSet : public TextureSet
 {
 protected:
 
-	mutable TMap<FName, TextureReadyCallback> Callbacks;		/// The callbacks to call when texture is set
+	mutable TMap<FName, TArray<TextureReadyCallback>> Callbacks;		/// The callbacks to call when texture is set
 
 	int32							Id = -1;					/// The ID/index into the list of target texture sets
 	FString							Name;						/// Display name of this target set
