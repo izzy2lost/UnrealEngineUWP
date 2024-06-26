@@ -57,7 +57,7 @@ namespace HordeServer.Logs
 		readonly ITicker _expireTailsTicker;
 
 		readonly ILogger _logger;
-		readonly ServerSettings _settings;
+		readonly IServerInfo _serverInfo;
 
 		IAsyncDisposable? _tailStartSubscription;
 
@@ -72,15 +72,15 @@ namespace HordeServer.Logs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogTailService(IRedisService redisService, IClock clock, IOptions<ServerSettings> settings, ILogger<LogTailService> logger)
-			: this(redisService, clock, 32, settings, logger)
+		public LogTailService(IRedisService redisService, IClock clock, IServerInfo serverInfo, ILogger<LogTailService> logger)
+			: this(redisService, clock, 32, serverInfo, logger)
 		{
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogTailService(IRedisService redisService, IClock clock, int chunkLineCount, IOptions<ServerSettings> settings, ILogger<LogTailService> logger)
+		public LogTailService(IRedisService redisService, IClock clock, int chunkLineCount, IServerInfo serverInfo, ILogger<LogTailService> logger)
 		{
 			if ((chunkLineCount & (chunkLineCount - 1)) != 0)
 			{
@@ -94,7 +94,7 @@ namespace HordeServer.Logs
 
 			_clock = clock;
 			_expireTailsTicker = clock.AddSharedTicker<LogTailService>(TimeSpan.FromSeconds(30.0), ExpireTailsAsync, logger);
-			_settings = settings.Value;
+			_serverInfo = serverInfo;
 			_logger = logger;
 		}
 
@@ -102,7 +102,7 @@ namespace HordeServer.Logs
 		public async Task StartAsync(CancellationToken cancellationToken)
 		{
 			_tailStartSubscription = await _redisService.SubscribeAsync(_tailStartChannel, OnTailStart);
-			if (_settings.IsRunModeActive(RunMode.Worker))
+			if (_serverInfo.IsRunModeActive(RunMode.Worker))
 			{
 				await _expireTailsTicker.StartAsync();
 			}
@@ -111,7 +111,7 @@ namespace HordeServer.Logs
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
-			if (_settings.IsRunModeActive(RunMode.Worker))
+			if (_serverInfo.IsRunModeActive(RunMode.Worker))
 			{
 				await _expireTailsTicker.StopAsync();
 			}

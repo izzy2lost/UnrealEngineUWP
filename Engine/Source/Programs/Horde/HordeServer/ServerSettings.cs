@@ -17,34 +17,6 @@ using HordeServer.Server;
 namespace HordeServer
 {
 	/// <summary>
-	/// Type of run mode this process should use. Each carry different types of workloads. 
-	/// More than one mode can be active. But not all modes are not guaranteed to be compatible with each other and will
-	/// raise an error if combined in such a way.
-	/// </summary>
-	public enum RunMode
-	{
-		/// <summary>
-		/// Default no-op value (ASP.NET config will default to this for enums that cannot be parsed)
-		/// </summary> 
-		None,
-
-		/// <summary>
-		/// Handle and respond to incoming external requests, such as HTTP REST and gRPC calls.
-		/// These requests are time-sensitive and short-lived, typically less than 5 secs.
-		/// If processes handling requests are unavailable, it will be very visible for users.
-		/// </summary>
-		Server,
-
-		/// <summary>
-		/// Run non-request facing workloads. Such as background services, processing queues, running work
-		/// based on timers etc. Short periods of downtime or high CPU usage due to bursts are fine for this mode.
-		/// No user requests will be impacted directly. If auto-scaling is used, a much more aggressive policy can be
-		/// applied (tighter process packing, higher avg CPU usage).
-		/// </summary>
-		Worker
-	}
-
-	/// <summary>
 	/// Feature flags to aid rollout of new features.
 	///
 	/// Once a feature is running in its intended state and is stable, the flag should be removed.
