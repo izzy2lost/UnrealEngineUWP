@@ -114,6 +114,17 @@ namespace PCGSubsystemConsole
 				PCGSubsystem->DestroyAllPCGWorldActors();
 			}
 		}));
+
+	static FAutoConsoleCommand CommandRefreshRuntimeGen(
+		TEXT("pcg.RuntimeGeneration.Refresh"),
+		TEXT("Cleans up and re-generates all GenerateAtRuntime PCG components, including their partition actors."),
+		FConsoleCommandDelegate::CreateLambda([]()
+		{
+			if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				PCGSubsystem->RefreshAllRuntimeGenComponents(EPCGChangeType::GenerationGrid);
+			}
+		}));
 #endif
 }
 
@@ -905,6 +916,14 @@ void UPCGSubsystem::RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, 
 		// Only need to remove PAs if the grid sizes have changed.
 		const bool bRemovePartitionActors = !!(ChangeType & EPCGChangeType::GenerationGrid);
 		RuntimeGenScheduler->RefreshComponent(RuntimeComponent, bRemovePartitionActors);
+	}
+}
+
+void UPCGSubsystem::RefreshAllRuntimeGenComponents(EPCGChangeType ChangeType)
+{
+	for (UPCGComponent* Component : GetAllRegisteredComponents())
+	{
+		RefreshRuntimeGenComponent(Component, ChangeType);
 	}
 }
 

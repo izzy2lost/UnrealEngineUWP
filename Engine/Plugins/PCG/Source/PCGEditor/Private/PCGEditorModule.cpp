@@ -566,6 +566,19 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 		false,
 		FSlateIcon());
 
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("RefreshRuntimeGen", "Refresh all runtime gen components"),
+		LOCTEXT("RefreshRuntimeGen_Tooltip", "Cleans up and re-generates all GenerateAtRuntime PCG components, including their partition actors."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda([]()
+			{
+				if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+				{
+					PCGSubsystem->RefreshAllRuntimeGenComponents(EPCGChangeType::GenerationGrid);
+				}
+			})),
+		NAME_None);
 }
 
 void FPCGEditorModule::RegisterSettings()
