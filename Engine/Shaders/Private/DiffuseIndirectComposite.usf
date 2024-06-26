@@ -59,6 +59,10 @@ RWTexture2D<float3> OutOpaqueRoughRefractionSceneColor;
 RWTexture2D<float3> OutSubSurfaceSceneColor;
 #endif
 
+// Remove a branch of code that is unused where TransformSignal() should always early exit.
+// SPIRV does not recognize that the code should be remove which adds an unnecessary parameter requirement.
+#define FORCE_IDENTICAL_COLOR_SPACE 1
+
 //------------------------------------------------------- INCLUDES
 
 #include "Common.ush"
