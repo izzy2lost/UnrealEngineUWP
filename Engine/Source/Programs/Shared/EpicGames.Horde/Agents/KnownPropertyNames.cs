@@ -76,4 +76,9 @@ public static class KnownPropertyNames
 	/// AWS: Instance type
 	/// </summary>
 	public const string AwsInstanceType = "aws-instance-type";
+	
+	/// <summary>
+	/// Whether the Wine compatibility layer is enabled (for running Windows applications on Linux)
+	/// </summary>
+	public const string WineEnabled = "WineEnabled";
 }

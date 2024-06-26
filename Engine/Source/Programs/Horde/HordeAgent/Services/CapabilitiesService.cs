@@ -244,7 +244,12 @@ namespace HordeAgent.Services
 				{
 					await AddAwsPropertiesAsync(primaryDevice.Properties, logger);
 				}
-
+				
+				if (_settings.WineExecutablePath != null)
+				{
+					primaryDevice.Properties.Add($"{KnownPropertyNames.WineEnabled}=true");
+				}
+				
 				// Parse the CPU info
 				List<Dictionary<string, string>>? cpuRecords = await ReadLinuxHwPropsAsync("/proc/cpuinfo", logger);
 				if (cpuRecords != null)
