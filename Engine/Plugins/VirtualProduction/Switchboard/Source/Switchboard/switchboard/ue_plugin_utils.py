@@ -177,7 +177,7 @@ class UnrealPluginManager:
             if (dot_idx := rest.name.find('.')) != -1:
                 rest = rest.parent / rest.name[:dot_idx]
 
-        if mount_name == PROJECT_CONTENT_MOUNT_POINT:
+        if mount_name == PROJECT_CONTENT_MOUNT_NAME:
             assert self._uproject_path
             return self._uproject_path.parent / 'Content' / rest
         else:
