@@ -423,7 +423,7 @@ FUniqueNetIdPtr FOnlineIdentityGoogleCommon::CreateUniquePlayerId(uint8* Bytes, 
 {
 	if (Bytes != nullptr && Size > 0)
 	{
-		FString StrId(Size, (TCHAR*)Bytes);
+		FString StrId = FString::ConstructFromPtrSize((TCHAR*)Bytes, Size);
 		return FUniqueNetIdGoogle::Create(StrId);
 	}
 	return nullptr;

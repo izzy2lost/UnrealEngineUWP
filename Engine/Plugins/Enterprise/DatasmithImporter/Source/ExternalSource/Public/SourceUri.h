@@ -103,7 +103,7 @@ namespace UE::DatasmithImporter
 			if (QueryContainer.Num() > 0)
 			{
 				TCHAR QueryDelimiter(GetQueryStartCharacter());
-				FString QueryString(1, &QueryDelimiter);
+				FString QueryString = FString::ConstructFromPtrSize(&QueryDelimiter, 1);
 				for (typename TContainer::TConstIterator It = QueryContainer.CreateConstIterator(); It;)
 				{
 					const TPair<FString, FString>& CurrentPair = *It;

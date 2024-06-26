@@ -63,7 +63,7 @@ private:
 		// but since logging should be multithread-safe, it should be thread-local member or explicitly synchronised
 		auto StrPtr = StringCast<TCHAR>(message.c_str(), Size);
 		// to zero-terminate the string
-		FString Msg{ StrPtr.Length(), StrPtr.Get() };
+		FString Msg = FString::ConstructFromPtrSize( StrPtr.Get(), StrPtr.Length() );
 
 		switch (severity)
 		{

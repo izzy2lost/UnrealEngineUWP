@@ -167,7 +167,7 @@ namespace UE::OSC
 		}
 
 		// Exclude null terminator here; this constructor appends one.
-		return FString(Count - 1, (ANSICHAR*)(&Data[InitPosition]));
+		return FString::ConstructFromPtrSize((ANSICHAR*)(&Data[InitPosition]), Count - 1);
 	}
 
 	void FStream::WriteString(const FString& InString)

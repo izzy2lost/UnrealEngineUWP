@@ -343,7 +343,7 @@ TArray<FSVGStyle> FSVGImporterUtils::StylesFromCSS(FString InData)
 					if (ClassNameLength >= 0)
 					{
 						// todo: expand on this kind of syntax?  something.class
-						CurrClassName = FString(ClassNameLength, Start + CurrClassNameBeginIndex);
+						CurrClassName = FString::ConstructFromPtrSize(Start + CurrClassNameBeginIndex, ClassNameLength);
 						if (CurrClassName.StartsWith("."))
 						{
 							CurrClassName.RemoveAt(0);
@@ -382,10 +382,10 @@ TArray<FSVGStyle> FSVGImporterUtils::StylesFromCSS(FString InData)
 					const int32 AttributeValueLength = CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex;
 					if (AttributeNameLength >= 0 || AttributeValueLength >= 0)
 					{
-						FString AttributeName = FString(AttributeNameLength, Start + CurrAttributeNameBeginIndex);
+						FString AttributeName = FString::ConstructFromPtrSize(Start + CurrAttributeNameBeginIndex, AttributeNameLength);
 						AttributeName.RemoveSpacesInline();
 
-						FString AttributeValue = FString(CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex, Start + CurrAttributeValueBeginIndex);
+						FString AttributeValue = FString::ConstructFromPtrSize(Start + CurrAttributeValueBeginIndex, CurrAttributeValueEndIndex - CurrAttributeValueBeginIndex);
 						AttributeValue.RemoveSpacesInline();
 
 						CurrStyleAttributes.Add(AttributeName, AttributeValue);

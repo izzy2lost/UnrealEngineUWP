@@ -198,7 +198,7 @@ void FWebSocketMessageTransport::OnJsonMessage(const FString& InMessage, FWebSoc
 
 void FWebSocketMessageTransport::OnServerJsonMessage(void* InData, int32 InDataSize, FWebSocketMessageConnectionRef InWebSocketMessageConnection)
 {
-	FString Message(InDataSize, reinterpret_cast<UTF8CHAR*>(InData));
+	FString Message = FString::ConstructFromPtrSize(reinterpret_cast<UTF8CHAR*>(InData), InDataSize);
 	OnJsonMessage(Message, InWebSocketMessageConnection);
 }
 

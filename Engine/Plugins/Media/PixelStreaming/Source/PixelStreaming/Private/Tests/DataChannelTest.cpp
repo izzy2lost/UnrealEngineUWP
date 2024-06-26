@@ -44,7 +44,7 @@ namespace UE::PixelStreaming
 				*bComplete.Get() = true;
 				const size_t DescriptorSize = (RawBuffer.data.size() - 1) / sizeof(TCHAR);
 				const TCHAR* DescPtr = reinterpret_cast<const TCHAR*>(RawBuffer.data.data() + 1);
-				const FString Message(DescriptorSize, DescPtr);
+				const FString Message = FString::ConstructFromPtrSize(DescPtr, DescriptorSize);
 				TestTrue(FString::Printf(TEXT("Received echo (%s) != sent echo (%s)."), *Message, *EchoContent), Message == EchoContent);
 			}
 		};
