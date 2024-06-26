@@ -37,6 +37,9 @@ public:
 	// Actions can use this to decide what to load at runtime
 	virtual void GetGameFeatureLoadingMode(bool& bLoadClientData, bool& bLoadServerData) const { bLoadClientData = true; bLoadServerData = true; }
 
+	// Called to determine the plugin URL for a given known Plugin. Can be used if the policy wants to deliver non file based URLs.
+	virtual bool GetGameFeaturePluginURL(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL) const;
+
 	// Called to determine if a plugin is allowed to be loaded or not
 	// (e.g., when doing a fast cook a game might want to disable some or all game feature plugins)
 	virtual bool IsPluginAllowed(const FString& PluginURL) const { return true; }

@@ -2105,24 +2105,16 @@ bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginDetails(const TSharedRef
 	// Ideally this would work with any protocol, but for current uses cases the exact protocol doesn't seem to matter.
 
 	const FString& PluginDescriptorFilename = Plugin->GetDescriptorFileName();
-
 	// Make sure you are in a game feature plugins folder. All GameFeaturePlugins are rooted in a GameFeatures folder.
 	if (!PluginDescriptorFilename.IsEmpty() && GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(FPaths::ConvertRelativePathToFull(PluginDescriptorFilename)) && FPaths::FileExists(PluginDescriptorFilename))
 	{
-		bool bIsFileProtocol = true;
-		if (GetPluginURLByName(Plugin->GetName(), OutPluginURL))
+		const FString PluginName = Plugin->GetName();
+		const bool bFoundPluginURL = GetPluginURLByName(PluginName, OutPluginURL);
+		if (!bFoundPluginURL)
 		{
-			bIsFileProtocol = UGameFeaturesSubsystem::IsPluginURLProtocol(OutPluginURL, EGameFeaturePluginProtocol::File);
+			GameSpecificPolicies->GetGameFeaturePluginURL(Plugin, OutPluginURL);
 		}
-		else
-		{
-			OutPluginURL = GetPluginURL_FileProtocol(PluginDescriptorFilename);
-		}
-
-		if (bIsFileProtocol)
-		{
-			return GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, OutPluginDetails);
-		}
+		return GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, OutPluginDetails);
 	}
 
 	return false;
