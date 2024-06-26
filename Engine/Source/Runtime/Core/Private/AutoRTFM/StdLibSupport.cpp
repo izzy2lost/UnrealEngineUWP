@@ -41,6 +41,20 @@ void* RTFM_malloc(size_t Size)
 
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION(malloc);
 
+void* RTFM_calloc(size_t Count, size_t Size)
+{
+    void* Result = calloc(Count, Size);
+	FContext* Context = FContext::Get();
+    Context->GetCurrentTransaction()->DeferUntilAbort([Result]
+    {
+        free(Result);
+    });
+    Context->DidAllocate(Result, Count * Size);
+    return Result;
+}
+
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION(calloc);
+
 void RTFM_free(void* Ptr)
 {
     if (Ptr)
