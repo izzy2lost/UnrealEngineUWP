@@ -90,7 +90,7 @@ void UE::Interchange::FTaskPreCompletion_GameThread::Execute()
 			Message->AssetType = ImportedObject->GetClass();
 
 			//Clear any async flag from the created asset and all its subobjects
-			const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading;
+			const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async;
 			ImportedObject->ClearInternalFlags(AsyncFlags);
 
 			TArray<UObject*> ImportedSubobjects;

@@ -390,7 +390,7 @@ void FFinishBuildMorphTargetData::ApplyEditorData(USkeletalMesh * SkeletalMesh, 
 	//Clear any async flags after the morphtargets have been set to the skeletalmesh
 	for (UMorphTarget* MorphTarget : SkeletalMesh->GetMorphTargets())
 	{
-		const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading;
+		const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async;
 		MorphTarget->ClearInternalFlags(AsyncFlags);
 	}
 
