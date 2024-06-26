@@ -274,7 +274,7 @@ void LumenReflectionDenoiserTemporalCS(
 		for (uint SharedCoordX = GroupThreadId.x; SharedCoordX < SHARED_TILE_SIZE; SharedCoordX += REFLECTION_THREADGROUP_SIZE_2D)
 		{
 			int3 ResolvedSpecularCoord;
-			ResolvedSpecularCoord.xy = TileData.Coord * REFLECTION_THREADGROUP_SIZE_2D + int2(SharedCoordX, SharedCoordY) - SHARED_TILE_BORDER;
+			ResolvedSpecularCoord.xy = TileData.Coord * REFLECTION_THREADGROUP_SIZE_2D + View.ViewRectMinAndSize.xy + int2(SharedCoordX, SharedCoordY) - SHARED_TILE_BORDER;
 			ResolvedSpecularCoord.z = Coord.SvPositionFlatten.z;
 			
 			float3 SpecularLightingYCoCg = INVALID_LIGHTING;
