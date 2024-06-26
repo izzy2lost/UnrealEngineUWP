@@ -109,6 +109,14 @@ namespace UE::DMX
 				return SaveFilenames[0];
 			}();
 
+		// Create a copy of the library's general scene description, so transforms exported aren't written to the dmx library
+		UDMXMVRGeneralSceneDescription* TempGeneralSceneDescription = DuplicateObject<UDMXMVRGeneralSceneDescription>(DMXLibrary->GetLazyGeneralSceneDescription(), GetTransientPackage());
+		if (!ensureAlwaysMsgf(TempGeneralSceneDescription, TEXT("Trying to export DMX Library '%s' as MVR file, but its General Scene Description is invalid."), *DMXLibrary->GetName()))
+		{
+			OutErrorReason = FText::Format(LOCTEXT("MVRExportGeneralSceneDescriptionInvalidReason", "DMX Library is invalid. Cannot export {0}."), FText::FromString(OutFilePathAndName));
+			return;
+		}		
+		
 		// Get Export options
 		UUnrealEditorSubsystem* UnrealEditorSubsystem = GEditor->GetEditorSubsystem<UUnrealEditorSubsystem>();
 		const UDMXMVRExportOptions* ExportOptions = GetDefault<UDMXMVRExportOptions>();
@@ -119,14 +127,7 @@ namespace UE::DMX
 		WorldParams.bExportPatchesNotPresentInWorld = ExportOptions->bExportPatchesNotPresentInWorld;
 		WorldParams.bUseTransformsFromLevel = ExportOptions->bUseTransformsFromLevel;
 
-		// Create a copy of the library's general scene description, so transforms exported aren't written to the dmx library
-		UDMXMVRGeneralSceneDescription* TempGeneralSceneDescription = DuplicateObject<UDMXMVRGeneralSceneDescription>(DMXLibrary->GetLazyGeneralSceneDescription(), GetTransientPackage());
 		TempGeneralSceneDescription->WriteDMXLibrary(*DMXLibrary, WorldParams);
-		if (!ensureAlwaysMsgf(TempGeneralSceneDescription, TEXT("Trying to export DMX Library '%s' as MVR file, but its General Scene Description is invalid."), *DMXLibrary->GetName()))
-		{
-			OutErrorReason = FText::Format(LOCTEXT("MVRExportGeneralSceneDescriptionInvalidReason", "DMX Library is invalid. Cannot export {0}."), FText::FromString(OutFilePathAndName));
-			return;
-		}
 
 		const TSharedRef<FDMXZipper> Zip = MakeShared<FDMXZipper>();
 		if (!ZipGeneralSceneDescription(Zip, TempGeneralSceneDescription, OutErrorReason))
