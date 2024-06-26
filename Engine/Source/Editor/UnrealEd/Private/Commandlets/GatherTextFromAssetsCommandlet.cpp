@@ -373,6 +373,8 @@ void UGatherTextFromAssetsCommandlet::PurgeGarbage(const bool bPurgeReferencedPa
 {
 	check(ObjectsToKeepAlive.Num() == 0);
 
+	FlushAsyncLoading();
+
 	TSet<FName> LoadedPackageNames;
 	TSet<FName> PackageNamesToKeepAlive;
 
