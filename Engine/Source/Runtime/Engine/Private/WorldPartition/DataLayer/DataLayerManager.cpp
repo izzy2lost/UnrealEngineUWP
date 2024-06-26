@@ -200,12 +200,7 @@ void UDataLayerManager::Initialize()
 	// Make sure WorldDataLayers is part of the Actors list so that it gets cooked properly as part of the Persistent Level
 	// This auto-corrects itself when resaving the level.
 	ULevel* WorldDataLayerLevel = WorldDataLayers->GetLevel();
-	int32 ActorIndex;
-	if (!WorldDataLayerLevel->Actors.Find(WorldDataLayers, ActorIndex))
-	{
-		WorldDataLayerLevel->Actors.Add(WorldDataLayers);
-		WorldDataLayerLevel->ActorsForGC.Add(WorldDataLayers);
-	}
+	WorldDataLayerLevel->TryAddActorToList(WorldDataLayers, /*bAddUnique*/true);
 
 	DataLayerLoadingPolicy = NewObject<UDataLayerLoadingPolicy>(this, GetDataLayerLoadingPolicyClass());
 

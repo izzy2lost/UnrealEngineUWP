@@ -1496,8 +1496,7 @@ bool AActor::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags 
 	{
 		if (ULevel* MyLevel = GetLevel())
 		{
-			MyLevel->Actors.Add(this);
-			MyLevel->ActorsForGC.Add(this);
+			MyLevel->TryAddActorToList(this, /*bAddUnique*/false);
 
 			UWorld* World = MyLevel->GetWorld();
 			if (World && World->bIsWorldInitialized && bPerformComponentRegWork)

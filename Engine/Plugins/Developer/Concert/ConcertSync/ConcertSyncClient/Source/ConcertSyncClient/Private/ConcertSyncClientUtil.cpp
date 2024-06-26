@@ -167,13 +167,10 @@ void AddActorToOwnerLevel(AActor* InActor)
 {
 	if (ULevel* Level = InActor->GetLevel())
 	{
-		if (Level->Actors.Contains(InActor))
+		if (!Level->TryAddActorToList(InActor, /*bAddUnique*/true))
 		{
 			return;
 		}
-
-		Level->Actors.Add(InActor);
-		Level->ActorsForGC.Add(InActor);
 
 #if WITH_EDITOR
 		if (GIsEditor)

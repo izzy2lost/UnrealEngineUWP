@@ -413,6 +413,9 @@ public:
 	/** Array of actors to be exposed to GC in this level. All other actors will be referenced through ULevelActorContainer */
 	TArray<TObjectPtr<AActor>> ActorsForGC;
 
+	/** Add actor to list */
+	ENGINE_API bool TryAddActorToList(AActor* InActor, bool bAddUnique);
+
 #if WITH_EDITORONLY_DATA
 	AActor* PlayFromHereActor;
 

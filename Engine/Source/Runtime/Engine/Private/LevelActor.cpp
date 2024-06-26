@@ -709,8 +709,7 @@ AActor* UWorld::SpawnActor( UClass* Class, FTransform const* UserTransformPtr, c
 	{
 		ModifyLevel( LevelToSpawnIn );
 	}
-	LevelToSpawnIn->Actors.Add( Actor );
-	LevelToSpawnIn->ActorsForGC.Add(Actor);
+	LevelToSpawnIn->TryAddActorToList( Actor, /*bAddUnique*/false);
 
 #if PERF_SHOW_MULTI_PAWN_SPAWN_FRAMES
 	if( Cast<APawn>(Actor) )

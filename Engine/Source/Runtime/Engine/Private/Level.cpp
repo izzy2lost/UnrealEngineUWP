@@ -95,6 +95,15 @@ static FAutoConsoleVariableRef CVarActorClusteringEnabled(
 	ECVF_Default
 );
 
+// Fix crash caused by ActorsForGC.Add() being called when not clustering. ActorsForGC does not particpate in undo (Serialize) or garbage collection when not clustering leading to stale pointers. (FORT-741623)
+int32 GActorClusteringFixStalePointers = 1;
+static FAutoConsoleVariableRef CVarActorClusteringFixStalePointers(
+	TEXT("gc.ActorClusteringFixStalePointers"),
+	GActorClusteringFixStalePointers,
+	TEXT("Enables fix for stale pointers."),
+	ECVF_Default
+);
+
 int32 GOptimizeActorRegistration = 1;
 static FAutoConsoleVariableRef CVarOptimizeActorRegistration(
 	TEXT("s.OptimizeActorRegistration"),
@@ -443,16 +452,59 @@ void ULevel::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collecto
 	ULevel* This = CastChecked<ULevel>(InThis);
 
 	// Let GC know that we're referencing some AActor objects
-	if (FPlatformProperties::RequiresCookedData() && GActorClusteringEnabled && This->bGarbageCollectionClusteringEnabled && This->bActorClusterCreated)
+	if (GActorClusteringFixStalePointers)
 	{
-		Collector.AddStableReferenceArray(&This->ActorsForGC);
+		if (This->bActorClusterCreated)
+		{
+			Collector.AddStableReferenceArray(&This->ActorsForGC);
+		}
+		else
+		{
+			Collector.AddStableReferenceArray(&This->Actors);
+		}
 	}
 	else
 	{
-		Collector.AddStableReferenceArray(&This->Actors);
+		if (FPlatformProperties::RequiresCookedData() && GActorClusteringEnabled && This->bGarbageCollectionClusteringEnabled && This->bActorClusterCreated)
+		{
+			Collector.AddStableReferenceArray(&This->ActorsForGC);
+		}
+		else
+		{
+			Collector.AddStableReferenceArray(&This->Actors);
+		}
 	}
 
 	Super::AddReferencedObjects( This, Collector );
+}
+
+bool ULevel::TryAddActorToList(AActor* InActor, bool bAddUnique)
+{
+	bool bResult = true;
+	if (bAddUnique)
+	{
+		const int32 OriginalLen = Actors.Num();
+		Actors.AddUnique(InActor);
+		bResult = (Actors.Num() != OriginalLen);
+	}
+	else
+	{
+		Actors.Add(InActor);
+	}
+
+	if (!GActorClusteringFixStalePointers || bActorClusterCreated)
+	{
+		if (bAddUnique)
+		{
+			ActorsForGC.AddUnique(InActor);
+		}
+		else
+		{
+			ActorsForGC.Add(InActor);
+		}
+	}
+
+	return bResult;
 }
 
 void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
@@ -862,8 +914,8 @@ void ULevel::AddLoadedActors(const TArray<AActor*>& ActorList, const FTransform*
 
 		if (!ActorsSet.Contains(Actor))
 		{
-			Actors.Add(Actor);
-			ActorsForGC.Add(Actor);
+			TryAddActorToList(Actor, /*bAddUnique*/false);
+
 			ActorsQueue.Add(Actor);
 
 			// Handle child actors
