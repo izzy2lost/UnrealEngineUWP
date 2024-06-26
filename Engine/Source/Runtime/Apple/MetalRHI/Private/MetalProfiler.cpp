@@ -68,6 +68,24 @@ void WriteString(FArchive* OutputFile, const char* String)
 	OutputFile->Serialize((void*)String, sizeof(ANSICHAR)*FCStringAnsi::Strlen(String));
 }
 
+void FMetalGPUTiming::PlatformStaticInitialize(void* UserData)
+{
+	// Are the static variables initialized?
+	if ( !GAreGlobalsInitialized )
+	{
+		GIsSupported = true;
+		SetTimingFrequency(1000 * 1000 * 1000);
+		GAreGlobalsInitialized = true;
+		
+		MTL::Device* MTLDevice = ((FMetalContext*)UserData)->GetDevice();
+		
+		MTL::Timestamp CPUTimeStamp, GPUTimestamp;
+		MTLDevice->sampleTimestamps(&CPUTimeStamp, &GPUTimestamp);
+
+		FGPUTiming::SetCalibrationTimestamp({ GPUTimestamp, CPUTimeStamp });
+	}
+}
+
 FMetalEventNode::~FMetalEventNode()
 {
     
