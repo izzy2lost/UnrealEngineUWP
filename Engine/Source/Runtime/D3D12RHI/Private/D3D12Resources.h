@@ -1053,7 +1053,7 @@ private:
 	uint32 ShadowBufferSize;
 };
 
-class FD3D12ShaderBundle : public FRHIShaderBundle
+class FD3D12ShaderBundle : public FRHIShaderBundle, public FD3D12DeviceChild
 {
 	friend class FD3D12CommandContext;
 	friend class FD3D12DynamicRHI;
@@ -1061,6 +1061,7 @@ class FD3D12ShaderBundle : public FRHIShaderBundle
 public:
 	FD3D12ShaderBundle(FD3D12Device* InDevice, const FShaderBundleCreateInfo& CreateInfo)
 	: FRHIShaderBundle(CreateInfo)
+	, FD3D12DeviceChild(InDevice)
 	{
 	}
 };

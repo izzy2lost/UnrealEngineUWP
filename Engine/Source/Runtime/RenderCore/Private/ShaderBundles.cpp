@@ -21,7 +21,6 @@ bool FDispatchShaderBundleCS::ShouldCompilePermutation(const FGlobalShaderPermut
 
 void FDispatchShaderBundleCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
-	OutEnvironment.CompilerFlags.Add(CFLAG_ForceBindful);
 	OutEnvironment.CompilerFlags.Add(CFLAG_RootConstants);
 
 	OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), ThreadGroupSizeX);

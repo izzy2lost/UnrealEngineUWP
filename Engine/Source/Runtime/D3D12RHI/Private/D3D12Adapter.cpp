@@ -1233,6 +1233,8 @@ void FD3D12Adapter::InitializeDevices()
 
 			bBindlessResourcesAllowed = (BindlessResourcesConfig != ERHIBindlessConfiguration::Disabled);
 			bBindlessSamplersAllowed = (BindlessSamplersConfig != ERHIBindlessConfiguration::Disabled);
+
+			GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters = (bBindlessResourcesAllowed || bBindlessSamplersAllowed);
 		}
 #endif
 

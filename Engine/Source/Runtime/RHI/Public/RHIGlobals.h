@@ -578,14 +578,21 @@ struct FRHIGlobals
 	/** Whether current RHI supports shader root constants. */
 	bool SupportsShaderRootConstants = false;
 
-	/** Whether current RHI supports native shader bundle dispatch. */
-	bool SupportsShaderBundleDispatch = false;
-	
-	/** Whether current RHI supports shader bundle dispatch using work graphs. */
-	bool SupportsShaderBundleWorkGraphDispatch = false;
+	struct FShaderBundles
+	{
+		/** Whether current RHI supports native shader bundle dispatch. */
+		bool SupportsDispatch = false;
 
-	/** Whether current RHI supports shader bundle dispatch and RHI parallel translate. */
-	bool SupportsShaderBundleParallel = false;
+		/** Whether current RHI supports shader bundle dispatch using work graphs. */
+		bool SupportsWorkGraphDispatch = false;
+
+		/** Whether current RHI supports shader bundle dispatch and RHI parallel translate. */
+		bool SupportsParallel = false;
+
+		/** Whether the current RHI requires shared bindless parameters. */
+		bool RequiresSharedBindlessParameters = false;
+
+	} ShaderBundles;
 
 	/** true if the RHI supports Mesh and Amplification shaders with tier0 capability */
 	bool SupportsMeshShadersTier0 = false;
@@ -819,9 +826,9 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsRasterOrderViews                           GRHIGlobals.SupportsRasterOrderViews
 #define GRHISupportsConservativeRasterization                  GRHIGlobals.SupportsConservativeRasterization
 #define GRHISupportsShaderRootConstants                        GRHIGlobals.SupportsShaderRootConstants
-#define GRHISupportsShaderBundleDispatch                       GRHIGlobals.SupportsShaderBundleDispatch
-#define GRHISupportsShaderBundleWorkGraphDispatch              GRHIGlobals.SupportsShaderBundleWorkGraphDispatch
-#define GRHISupportsShaderBundleParallel                       GRHIGlobals.SupportsShaderBundleParallel
+#define GRHISupportsShaderBundleDispatch                       GRHIGlobals.ShaderBundles.SupportsDispatch
+#define GRHISupportsShaderBundleWorkGraphDispatch              GRHIGlobals.ShaderBundles.SupportsWorkGraphDispatch
+#define GRHISupportsShaderBundleParallel                       GRHIGlobals.ShaderBundles.SupportsParallel
 #define GRHISupportsMeshShadersTier0                           GRHIGlobals.SupportsMeshShadersTier0
 #define GRHISupportsMeshShadersTier1                           GRHIGlobals.SupportsMeshShadersTier1
 #define GRHISupportsShaderWorkGraphsTier1                      GRHIGlobals.SupportsShaderWorkGraphsTier1

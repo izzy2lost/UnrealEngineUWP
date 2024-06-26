@@ -552,7 +552,7 @@ static void RecordBindings(
 
 #endif // D3D12_RHI_WORKGRAPHS
 
-void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIBuffer* RecordArgBuffer, TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
+void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIBuffer* RecordArgBuffer, TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters, TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
 {
 #if D3D12_RHI_WORKGRAPHS
 
@@ -619,7 +619,7 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 	}
 
 	FD3D12ExplicitDescriptorCache TransientDescriptorCache(GetParentDevice(), MaxTasks /* Worker Count */);
-	TransientDescriptorCache.Init(NumViewDescriptors, NumSamplerDescriptors, ERHIBindlessConfiguration::AllShaders);
+	TransientDescriptorCache.Init(0, NumViewDescriptors, NumSamplerDescriptors, ERHIBindlessConfiguration::AllShaders);
 
 	TArray<FShaderBundleBinderOps, TInlineAllocator<MaxWorkers>> BinderOps;
 	BinderOps.SetNum(MaxTasks);

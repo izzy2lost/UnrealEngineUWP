@@ -5,12 +5,7 @@
 
 #define RHI_VALIDATE_STATIC_UNIFORM_BUFFERS (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
 
-namespace UE
-{
-namespace RHICore
-{
-
-void ValidateStaticUniformBuffer(FRHIUniformBuffer* UniformBuffer, FUniformBufferStaticSlot Slot, uint32 ExpectedHash)
+void UE::RHICore::ValidateStaticUniformBuffer(FRHIUniformBuffer* UniformBuffer, FUniformBufferStaticSlot Slot, uint32 ExpectedHash)
 {
 #if RHI_VALIDATE_STATIC_UNIFORM_BUFFERS
 	FUniformBufferStaticSlotRegistry& SlotRegistry = FUniformBufferStaticSlotRegistry::Get();
@@ -63,7 +58,7 @@ void ValidateStaticUniformBuffer(FRHIUniformBuffer* UniformBuffer, FUniformBuffe
 #endif
 }
 
-void SetupShaderCodeValidationData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
+void UE::RHICore::SetupShaderCodeValidationData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
 {
 #if RHI_INCLUDE_SHADER_DEBUG_DATA && ENABLE_RHI_VALIDATION
 	if (GRHIValidationEnabled && RHIShader)
@@ -84,10 +79,11 @@ void SetupShaderCodeValidationData(FRHIShader* RHIShader, FShaderCodeReader& Sha
 #endif
 }
 
-void DispatchShaderBundleEmulation(
+void UE::RHICore::DispatchShaderBundleEmulation(
 	FRHIComputeCommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 	TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
 {
 	for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
@@ -100,6 +96,17 @@ void DispatchShaderBundleEmulation(
 		checkf(Dispatch.Shader->HasShaderBundleUsage(), TEXT("All shaders in a bundle must specify CFLAG_ShaderBundle"));
 
 		SetComputePipelineState(InRHICmdList, Dispatch.Shader);
+
+		if (SharedBindlessParameters.Num())
+		{
+			InRHICmdList.SetShaderParameters(
+				Dispatch.Shader,
+				{},
+				{},
+				{},
+				SharedBindlessParameters
+			);
+		}
 
 		if (Dispatch.Parameters->HasParameters())
 		{
@@ -122,11 +129,12 @@ void DispatchShaderBundleEmulation(
 	}
 }
 
-void DispatchShaderBundleEmulation(
+void UE::RHICore::DispatchShaderBundleEmulation(
 	FRHICommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
 	const FRHIShaderBundleGraphicsState& BundleState,
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches)
 {
 	if (Dispatches.Num() == 0)
@@ -163,6 +171,17 @@ void DispatchShaderBundleEmulation(
 
 		SetGraphicsPipelineState(InRHICmdList, Dispatch.PipelineInitializer, BundleState.StencilRef);
 
+		if (SharedBindlessParameters.Num())
+		{
+			InRHICmdList.SetShaderParameters(
+				MSVSShader,
+				{},
+				{},
+				{},
+				SharedBindlessParameters
+			);
+		}
+
 		if (Dispatch.Parameters_MSVS->HasParameters())
 		{
 			InRHICmdList.SetShaderParameters(
@@ -171,6 +190,17 @@ void DispatchShaderBundleEmulation(
 				Dispatch.Parameters_MSVS->Parameters,
 				Dispatch.Parameters_MSVS->ResourceParameters,
 				Dispatch.Parameters_MSVS->BindlessParameters
+			);
+		}
+
+		if (SharedBindlessParameters.Num())
+		{
+			InRHICmdList.SetShaderParameters(
+				ShaderState.GetPixelShader(),
+				{},
+				{},
+				{},
+				SharedBindlessParameters
 			);
 		}
 
@@ -204,7 +234,7 @@ void DispatchShaderBundleEmulation(
 }
 
 const bool GRHIShaderDiagnosticEnabled = true;
-void SetupShaderDiagnosticData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
+void UE::RHICore::SetupShaderDiagnosticData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
 {
 	if (RHIShader && GRHIShaderDiagnosticEnabled)
 	{
@@ -221,13 +251,13 @@ void SetupShaderDiagnosticData(FRHIShader* RHIShader, FShaderCodeReader& ShaderC
 }
 
 TArray<FShaderDiagnosticData> GShaderDiagnosticDatas;
-void RegisterDiagnosticMessages(const TArray<FShaderDiagnosticData>& In)
+void UE::RHICore::RegisterDiagnosticMessages(const TArray<FShaderDiagnosticData>& In)
 {
 	// Not thread safe
 	GShaderDiagnosticDatas.Append(In);
 }
 
-const FString* GetDiagnosticMessage(uint32 MessageID)
+const FString* UE::RHICore::GetDiagnosticMessage(uint32 MessageID)
 {
 	// Not thread safe
 	if (const FShaderDiagnosticData* Found = GShaderDiagnosticDatas.FindByPredicate([MessageID](const FShaderDiagnosticData& In) { return In.Hash == MessageID; }))
@@ -236,6 +266,3 @@ const FString* GetDiagnosticMessage(uint32 MessageID)
 	}
 	return nullptr;
 }
-
-} //! RHICore
-} //! UE

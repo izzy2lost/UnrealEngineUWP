@@ -1300,7 +1300,7 @@ public:
 			const uint32 NumSamplerDescriptors = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
 
 			DescriptorCache = new FD3D12ExplicitDescriptorCache(Device, MaxBindingWorkers);
-			DescriptorCache->Init(NumViewDescriptors, NumSamplerDescriptors, ERHIBindlessConfiguration::RayTracingShaders);
+			DescriptorCache->Init(0, NumViewDescriptors, NumSamplerDescriptors, ERHIBindlessConfiguration::RayTracingShaders);
 		}
 
 		NumMissRecords = Initializer.NumMissShaderSlots;
@@ -4754,7 +4754,7 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	else
 	{
 		FD3D12ExplicitDescriptorCache TransientDescriptorCache(CommandContext.GetParentDevice(), FD3D12RayTracingShaderBindingTableInternal::MaxBindingWorkers);
-		TransientDescriptorCache.Init(MAX_SRVS + MAX_UAVS, MAX_SAMPLERS, ERHIBindlessConfiguration::RayTracingShaders);
+		TransientDescriptorCache.Init(0, MAX_SRVS + MAX_UAVS, MAX_SAMPLERS, ERHIBindlessConfiguration::RayTracingShaders);
 
 		CommandContext.SetExplicitDescriptorCache(TransientDescriptorCache);
 		CommandContext.GraphicsCommandList()->SetComputeRootSignature(Pipeline->GlobalRootSignature);

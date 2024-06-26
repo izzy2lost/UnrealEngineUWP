@@ -28,6 +28,7 @@ extern RHICORE_API void DispatchShaderBundleEmulation(
 	FRHIComputeCommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 	TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches
 );
 
@@ -36,6 +37,7 @@ extern RHICORE_API void DispatchShaderBundleEmulation(
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
 	const FRHIShaderBundleGraphicsState& BundleState,
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches
 );
 

@@ -293,6 +293,7 @@ public:
 	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIBuffer* RecordArgBuffer,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 		bool bEmulated) {}
 
@@ -300,6 +301,7 @@ public:
 		FRHIShaderBundle* ShaderBundle,
 		FRHIBuffer* RecordArgBuffer,
 		const FRHIShaderBundleGraphicsState& BundleState,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) {}
 

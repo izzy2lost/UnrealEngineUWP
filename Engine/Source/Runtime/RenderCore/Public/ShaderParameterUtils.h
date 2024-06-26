@@ -271,11 +271,10 @@ void SetSingleShaderValue(
 // Mixed mode binding utilities
 
 /// Utility to set all legacy and non-legacy parameters for a shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
-template<typename TShaderType, typename TShaderTypeRHI, typename... TArguments>
+template<typename TShaderType, typename... TArguments>
 inline void SetBatchedShaderParametersMixed(
 	FRHIBatchedShaderParameters& BatchedParameters,
 	const TShaderRef<TShaderType>& InShader,
-	TShaderTypeRHI* InShaderRHI,
 	const typename TShaderType::FParameters& Parameters,
 	TArguments&&... InArguments)
 {
@@ -284,6 +283,18 @@ inline void SetBatchedShaderParametersMixed(
 
 	// Legacy second
 	InShader->SetParameters(BatchedParameters, Forward<TArguments>(InArguments)...);
+}
+
+template<typename TShaderType, typename TShaderTypeRHI, typename... TArguments>
+UE_DEPRECATED(5.5, "SetBatchedShaderParametersMixed does not need an RHI shader")
+inline void SetBatchedShaderParametersMixed(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const TShaderRef<TShaderType>& InShader,
+	TShaderTypeRHI* InShaderRHI,
+	const typename TShaderType::FParameters& Parameters,
+	TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
@@ -296,57 +307,64 @@ inline void SetShaderParametersMixed(
 	TArguments&&... InArguments)
 {
 	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShaderRHI, Parameters, Forward<TArguments>(InArguments)...);
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 	RHICmdList.SetBatchedShaderParameters(InShaderRHI, BatchedParameters);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a Vertex shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
 inline void SetShaderParametersMixedVS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
 {
-	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetVertexShader(), Parameters, Forward<TArguments>(InArguments)...);
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a Mesh shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
 inline void SetShaderParametersMixedMS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
 {
-	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetMeshShader(), Parameters, Forward<TArguments>(InArguments)...);
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for an Amplification shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
 inline void SetShaderParametersMixedAS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
 {
-	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetAmplificationShader(), Parameters, Forward<TArguments>(InArguments)...);
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a Pixel shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
 inline void SetShaderParametersMixedPS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
 {
-	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetPixelShader(), Parameters, Forward<TArguments>(InArguments)...);
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a Geometry shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
 inline void SetShaderParametersMixedGS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
 {
-	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetGeometryShader(), Parameters, Forward<TArguments>(InArguments)...);
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a Compute shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
 inline void SetShaderParametersMixedCS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
 {
-	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetComputeShader(), Parameters, Forward<TArguments>(InArguments)...);
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a WorkGraph shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TShaderType, typename... TArguments>
+UE_DEPRECATED(5.5, "Please use SetBatchedShaderParametersMixed directly.")
 inline void SetShaderParametersMixedWS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
 {
-	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetWorkGraphShader(), Parameters, Forward<TArguments>(InArguments)...);
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 /// Utility to set all legacy and non-legacy parameters for a Vertex shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)

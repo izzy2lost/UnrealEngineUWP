@@ -673,6 +673,105 @@ FRHIShaderParameterResource ExtractShaderParameterResource(FShaderParameterReade
 	}
 }
 
+template<typename TParameterFunction>
+static void IterateShaderParameterMembersInternal(
+	const FShaderParametersMetadata& ParametersMetadata,
+	uint16 ByteOffset,
+	TParameterFunction Lambda)
+{
+	for (const FShaderParametersMetadata::FMember& Member : ParametersMetadata.GetMembers())
+	{
+		EUniformBufferBaseType BaseType = Member.GetBaseType();
+		const uint16 MemberOffset = ByteOffset + uint16(Member.GetOffset());
+		const uint32 NumElements = Member.GetNumElements();
+
+		if (BaseType == UBMT_INCLUDED_STRUCT)
+		{
+			check(NumElements == 0);
+			IterateShaderParameterMembersInternal(*Member.GetStructMetadata(), MemberOffset, Lambda);
+		}
+		else if (BaseType == UBMT_NESTED_STRUCT && NumElements == 0)
+		{
+			IterateShaderParameterMembersInternal(*Member.GetStructMetadata(), MemberOffset, Lambda);
+		}
+		else if (BaseType == UBMT_NESTED_STRUCT && NumElements > 0)
+		{
+			const FShaderParametersMetadata& NewParametersMetadata = *Member.GetStructMetadata();
+			for (uint32 ArrayElementId = 0; ArrayElementId < NumElements; ArrayElementId++)
+			{
+				uint16 NewStructOffset = MemberOffset + ArrayElementId * NewParametersMetadata.GetSize();
+				IterateShaderParameterMembersInternal(NewParametersMetadata, NewStructOffset, Lambda);
+			}
+		}
+		else
+		{
+			const bool bParametersAreExpanded = NumElements > 0 && (IsShaderParameterTypeRHIResource(BaseType) || IsRDGResourceReferenceShaderParameterType(BaseType));
+			if (bParametersAreExpanded)
+			{
+				const uint16 ElementSize = SHADER_PARAMETER_POINTER_ALIGNMENT;
+
+				for (uint32 Index = 0; Index < NumElements; Index++)
+				{
+					Lambda(BaseType, MemberOffset + Index * ElementSize);
+				}
+			}
+			else
+			{
+				Lambda(BaseType, MemberOffset);
+			}
+		}
+	}
+}
+
+static bool DoesBaseTypeSupportBindless(EUniformBufferBaseType Type)
+{
+	switch (Type)
+	{
+	case UBMT_TEXTURE:
+	case UBMT_SRV:
+	case UBMT_UAV:
+	case UBMT_SAMPLER:
+	case UBMT_RDG_TEXTURE:
+	case UBMT_RDG_TEXTURE_SRV:
+	case UBMT_RDG_TEXTURE_NON_PIXEL_SRV:
+	case UBMT_RDG_TEXTURE_UAV:
+	case UBMT_RDG_BUFFER_SRV:
+	case UBMT_RDG_BUFFER_UAV:
+	case UBMT_RESOURCE_COLLECTION:
+		return true;
+	}
+	return false;
+}
+
+void SetAllShaderParametersAsBindless(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FShaderParametersMetadata* ParametersMetadata,
+	const void* InParametersData)
+{
+	TConstArrayView<uint8> ParametersData((const uint8*)InParametersData, ParametersMetadata->GetSize());
+
+	const FShaderParameterReader Reader(ParametersData);
+
+	uint16 ByteOffset = 0;
+	IterateShaderParameterMembersInternal(*ParametersMetadata, ByteOffset, [&BatchedParameters, Reader](EUniformBufferBaseType BaseType, uint16 ByteOffset)
+		{
+			if (DoesBaseTypeSupportBindless(BaseType))
+			{
+				FShaderParameterBindings::FBindlessResourceParameter Parameter{};
+				Parameter.GlobalConstantOffset = ByteOffset;
+				Parameter.ByteOffset = ByteOffset;
+				Parameter.BaseType = BaseType;
+
+				// Make sure the resource wasn't set to null
+				if (Reader.Read<void*>(Parameter))
+				{
+					const FRHIShaderParameterResource ShaderParameterResource = ExtractShaderParameterResource(Reader, Parameter);
+					BatchedParameters.AddBindlessParameter(ShaderParameterResource);
+				}
+			}
+		});
+}
+
 static void ExtractShaderParameterResources(
 	TArray<FRHIShaderParameterResource>& OutResourceParameters,
 	TArray<FRHIShaderParameterResource>& OutBindlessParameters,

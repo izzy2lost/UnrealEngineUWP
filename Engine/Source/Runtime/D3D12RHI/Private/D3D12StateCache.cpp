@@ -799,7 +799,7 @@ void FD3D12StateCache::ApplyBindlessResources(const FD3D12RootSignature* const p
 	}
 
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
-	if (pRootSignature->HasCBVs())
+	if (pRootSignature && pRootSignature->HasCBVs())
 	{
 		FD3D12ConstantBufferCache& CBVCache = PipelineState.Common.CBVCache;
 

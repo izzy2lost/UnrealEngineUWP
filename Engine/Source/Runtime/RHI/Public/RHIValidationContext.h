@@ -154,10 +154,16 @@ public:
 	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIBuffer* RecordArgBuffer,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 		bool bEmulated) final override
 	{
-		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
+		if (!GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters)
+		{
+			RHI_VALIDATION_CHECK(SharedBindlessParameters.Num() == 0, TEXT("SharedBindlessParameters should not be set on this platform and configuration"));
+		}
+
+		RHI_VALIDATION_CHECK(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
 		{
 			if (!Dispatch.IsValid())
@@ -182,19 +188,25 @@ public:
 
 		Tracker->Assert(RecordArgBuffer->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 
-		RHIContext->RHIDispatchComputeShaderBundle(ShaderBundleRHI, RecordArgBuffer, Dispatches, bEmulated);
+		RHIContext->RHIDispatchComputeShaderBundle(ShaderBundleRHI, RecordArgBuffer, SharedBindlessParameters, Dispatches, bEmulated);
 	}
 	
 	virtual void RHIDispatchGraphicsShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIBuffer* RecordArgBuffer,
 		const FRHIShaderBundleGraphicsState& BundleState,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) final override
 	{
+		if (!GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters)
+		{
+			RHI_VALIDATION_CHECK(SharedBindlessParameters.Num() == 0, TEXT("SharedBindlessParameters should not be set on this platform and configuration"));
+		}
+
 		// TODO:
 #if 0
-		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
+		RHI_VALIDATION_CHECK(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
 		{
 			if (!Dispatch.IsValid())
@@ -218,7 +230,7 @@ public:
 
 		Tracker->Assert(RecordArgBuffer->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 #endif
-		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBuffer, BundleState, Dispatches, bEmulated);
+		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBuffer, BundleState, SharedBindlessParameters, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override
@@ -486,10 +498,16 @@ public:
 	virtual void RHIDispatchComputeShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIBuffer* RecordArgBuffer,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 		TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 		bool bEmulated) final override
 	{
-		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
+		if (!GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters)
+		{
+			RHI_VALIDATION_CHECK(SharedBindlessParameters.Num() == 0, TEXT("SharedBindlessParameters should not be set on this platform and configuration"));
+		}
+
+		RHI_VALIDATION_CHECK(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		RHIValidation::FStageBoundUniformBuffers& BoundUniformBuffers = State.BoundUniformBuffers.Get(SF_Compute);
 
 		for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
@@ -516,19 +534,25 @@ public:
 
 		Tracker->Assert(RecordArgBuffer->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 
-		RHIContext->RHIDispatchComputeShaderBundle(ShaderBundleRHI, RecordArgBuffer, Dispatches, bEmulated);
+		RHIContext->RHIDispatchComputeShaderBundle(ShaderBundleRHI, RecordArgBuffer, SharedBindlessParameters, Dispatches, bEmulated);
 	}
 
 	virtual void RHIDispatchGraphicsShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIBuffer* RecordArgBuffer,
 		const FRHIShaderBundleGraphicsState& BundleState,
+		TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) final override
 	{
+		if (!GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters)
+		{
+			RHI_VALIDATION_CHECK(SharedBindlessParameters.Num() == 0, TEXT("SharedBindlessParameters should not be set on this platform and configuration"));
+		}
+
 		// TODO
 #if 0
-		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
+		RHI_VALIDATION_CHECK(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
 		{
 			if (!Dispatch.IsValid())
@@ -553,7 +577,7 @@ public:
 
 		Tracker->Assert(RecordArgBuffer->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 #endif
-		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBuffer, BundleState, Dispatches, bEmulated);
+		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBuffer, BundleState, SharedBindlessParameters, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override

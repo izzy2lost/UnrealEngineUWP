@@ -1537,6 +1537,7 @@ void FD3D12CommandContext::RHISetShaderRootConstants(const FUint32Vector4& Const
 void FD3D12CommandContext::RHIDispatchComputeShaderBundle(
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* RecordArgBuffer,
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 	TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches,
 	bool bEmulated
 )
@@ -1549,11 +1550,11 @@ void FD3D12CommandContext::RHIDispatchComputeShaderBundle(
 	if (bEmulated)
 	{
 		TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
-		UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBuffer, Dispatches);
+		UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBuffer, SharedBindlessParameters, Dispatches);
 	}
 	else
 	{
-		DispatchWorkGraphShaderBundle(ShaderBundle, RecordArgBuffer, Dispatches);
+		DispatchWorkGraphShaderBundle(ShaderBundle, RecordArgBuffer, SharedBindlessParameters, Dispatches);
 	}
 }
 
@@ -1561,6 +1562,7 @@ void FD3D12CommandContext::RHIDispatchGraphicsShaderBundle(
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* RecordArgBuffer,
 	const FRHIShaderBundleGraphicsState& BundleState,
+	TConstArrayView<FRHIShaderParameterResource> SharedBindlessParameters,
 	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 	bool bEmulated
 )
@@ -1573,7 +1575,7 @@ void FD3D12CommandContext::RHIDispatchGraphicsShaderBundle(
 	if (bEmulated)
 	{
 		TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
-		UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBuffer, BundleState, Dispatches);
+		UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBuffer, BundleState, SharedBindlessParameters, Dispatches);
 	}
 	else
 	{

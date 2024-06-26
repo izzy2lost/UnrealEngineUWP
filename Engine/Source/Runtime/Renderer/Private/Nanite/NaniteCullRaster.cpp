@@ -213,6 +213,20 @@ static TAutoConsoleVariable<int32> CVarNaniteBundleRaster(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarNaniteBundleRasterSW(
+	TEXT("r.Nanite.Bundle.RasterSW"),
+	1,
+	TEXT("Whether to enable Nanite shader bundle dispatch for Software raster"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarNaniteBundleRasterHW(
+	TEXT("r.Nanite.Bundle.RasterHW"),
+	1,
+	TEXT("Whether to enable Nanite shader bundle dispatch for Hardware raster"),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarNaniteRasterSort(
 	TEXT("r.Nanite.RasterSort"),
 	1,
@@ -1495,6 +1509,7 @@ static uint32 PackMaterialBitFlags_RenderThread(const FMaterial& RasterMaterial,
 class FMicropolyRasterizeCS : public FNaniteMaterialShader
 {
 	DECLARE_SHADER_TYPE(FMicropolyRasterizeCS, Material);
+	SHADER_USE_PARAMETER_STRUCT_MIXED(FMicropolyRasterizeCS, FNaniteMaterialShader);
 
 	class FDepthOnlyDim : SHADER_PERMUTATION_BOOL("DEPTH_ONLY");
 	class FTwoSidedDim : SHADER_PERMUTATION_BOOL("NANITE_TWO_SIDED");
@@ -1523,20 +1538,6 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 	>;
 
 	using FParameters = FRasterizePassParameters;
-
-	FMicropolyRasterizeCS() = default;
-	FMicropolyRasterizeCS(const ShaderMetaType::CompiledShaderInitializerType & Initializer)
-		: FNaniteMaterialShader(Initializer)
-	{
-		Bindings.BindForLegacyShaderParameters(
-			this,
-			Initializer.PermutationId,
-			Initializer.ParameterMap,
-			*FParameters::FTypeInfo::GetStructMetadata(),
-			// Don't require full bindings, we use FMaterialShader::SetParameters
-			false
-		);
-	}
 
 	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
 	{
@@ -1704,21 +1705,15 @@ static TShaderRef<FMicropolyRasterizeCS> GetMicropolyRasterizeShader(
 }
 
 template<typename TShaderType, typename... TArguments>
-static inline void SetShaderParametersMixed(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, EShaderFrequency Frequency, TArguments&&... InArguments)
+static inline void SetShaderBundleParameters(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, EShaderFrequency Frequency, TArguments&&... InArguments)
 {
-	if (Frequency == SF_Compute)
-	{
-		SetShaderParametersMixedCS(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
-	}
-	else if (Frequency == SF_WorkGraphComputeNode)
-	{
-		SetShaderParametersMixedWS(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
-	}
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
 }
 
 class FHWRasterizeVS : public FNaniteMaterialShader
 {
 	DECLARE_SHADER_TYPE(FHWRasterizeVS, Material);
+	SHADER_USE_PARAMETER_STRUCT_MIXED(FHWRasterizeVS, FNaniteMaterialShader);
 
 	class FDepthOnlyDim : SHADER_PERMUTATION_BOOL("DEPTH_ONLY");
 	class FPrimShaderDim : SHADER_PERMUTATION_BOOL("NANITE_PRIM_SHADER");
@@ -1741,20 +1736,6 @@ class FHWRasterizeVS : public FNaniteMaterialShader
 	>;
 
 	using FParameters = FRasterizePassParameters;
-
-	FHWRasterizeVS() = default;
-	FHWRasterizeVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-	: FNaniteMaterialShader(Initializer)
-	{
-		Bindings.BindForLegacyShaderParameters(
-			this,
-			Initializer.PermutationId,
-			Initializer.ParameterMap,
-			*FParameters::FTypeInfo::GetStructMetadata(),
-			// Don't require full bindings, we use FMaterialShader::SetParameters
-			false
-		);
-	}
 
 	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
 	{
@@ -1866,6 +1847,7 @@ IMPLEMENT_MATERIAL_SHADER_TYPE(, FHWRasterizeVS, TEXT("/Engine/Private/Nanite/Na
 class FHWRasterizeMS : public FNaniteMaterialShader
 {
 	DECLARE_SHADER_TYPE(FHWRasterizeMS, Material);
+	SHADER_USE_PARAMETER_STRUCT_MIXED(FHWRasterizeMS, FNaniteMaterialShader);
 
 	class FDepthOnlyDim : SHADER_PERMUTATION_BOOL("DEPTH_ONLY");
 	class FVirtualTextureTargetDim : SHADER_PERMUTATION_BOOL("VIRTUAL_TEXTURE_TARGET");
@@ -1889,20 +1871,6 @@ class FHWRasterizeMS : public FNaniteMaterialShader
 	>;
 
 	using FParameters = FRasterizePassParameters;
-
-	FHWRasterizeMS() = default;
-	FHWRasterizeMS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-	: FNaniteMaterialShader(Initializer)
-	{
-		Bindings.BindForLegacyShaderParameters(
-			this,
-			Initializer.PermutationId,
-			Initializer.ParameterMap,
-			*FParameters::FTypeInfo::GetStructMetadata(),
-			// Don't require full bindings, we use FMaterialShader::SetParameters
-			false
-		);
-	}
 
 	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
 	{
@@ -2021,6 +1989,7 @@ class FHWRasterizePS : public FNaniteMaterialShader
 {
 public:
 	DECLARE_SHADER_TYPE(FHWRasterizePS, Material);
+	SHADER_USE_PARAMETER_STRUCT_MIXED(FHWRasterizePS, FNaniteMaterialShader);
 
 	class FDepthOnlyDim : SHADER_PERMUTATION_BOOL("DEPTH_ONLY");
 	class FMeshShaderDim : SHADER_PERMUTATION_BOOL("NANITE_MESH_SHADER");
@@ -2044,20 +2013,6 @@ public:
 	>;
 
 	using FParameters = FRasterizePassParameters;
-
-	FHWRasterizePS() = default;
-	FHWRasterizePS(const ShaderMetaType::CompiledShaderInitializerType & Initializer)
-	: FNaniteMaterialShader(Initializer)
-	{
-		Bindings.BindForLegacyShaderParameters(
-			this,
-			Initializer.PermutationId,
-			Initializer.ParameterMap,
-			*FParameters::FTypeInfo::GetStructMetadata(),
-			// Don't require full bindings, we use FMaterialShader::SetParameters
-			false
-		);
-	}
 
 	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
 	{
@@ -2845,6 +2800,8 @@ private:
 
 		TRDGUniformBufferRef<FNaniteRasterUniformParameters> RasterUniformBuffer = nullptr;
 
+		bool bAnyBindless = false;
+
 		void Reserve(int32 BinCount)
 		{
 			RasterizerPasses.Reserve(BinCount);
@@ -2930,6 +2887,14 @@ private:
 
 						FRHIBatchedShaderParametersAllocator& ScratchAllocator = RHICmdList.GetScratchShaderParameters().Allocator;
 
+						FRHIBatchedShaderParameters CommonParameters(ScratchAllocator);
+						if (GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters)
+						{
+							SetAllShaderParametersAsBindless(CommonParameters, Parameters);
+							CommonParameters.Finish();
+							Command.SharedBindlessParameters = CommonParameters.BindlessParameters;
+						}
+
 						for (const int32 Indirection : DispatchList.Indirections)
 						{
 							const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
@@ -2957,16 +2922,16 @@ private:
 							Dispatch.Parameters_MSVS.Emplace(ScratchAllocator);
 							if (IsMeshShaderRasterPath(HardwarePath))
 							{
-								SetShaderParametersMixedMS(*Dispatch.Parameters_MSVS, RasterizerPass.RasterMeshShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
+								SetBatchedShaderParametersMixed(*Dispatch.Parameters_MSVS, RasterizerPass.RasterMeshShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
 							}
 							else
 							{
-								SetShaderParametersMixedVS(*Dispatch.Parameters_MSVS, RasterizerPass.RasterVertexShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
+								SetBatchedShaderParametersMixed(*Dispatch.Parameters_MSVS, RasterizerPass.RasterVertexShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
 							}
 							Dispatch.Parameters_MSVS->Finish();
 
 							Dispatch.Parameters_PS.Emplace(ScratchAllocator);
-							SetShaderParametersMixedPS(*Dispatch.Parameters_PS, RasterizerPass.RasterPixelShader, Parameters, ViewInfo, RasterizerPass.PixelMaterialProxy, *RasterizerPass.PixelMaterial);
+							SetBatchedShaderParametersMixed(*Dispatch.Parameters_PS, RasterizerPass.RasterPixelShader, Parameters, ViewInfo, RasterizerPass.PixelMaterialProxy, *RasterizerPass.PixelMaterial);
 							Dispatch.Parameters_PS->Finish();
 
 							Dispatch.PipelineInitializer = GraphicsPSOInit;
@@ -3125,6 +3090,15 @@ private:
 
 						FRHIBatchedShaderParametersAllocator& ScratchAllocator = RHICmdList.GetScratchShaderParameters().Allocator;
 
+						if (GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters)
+						{
+							FRHIBatchedShaderParameters CommonParameters(ScratchAllocator);
+							SetAllShaderParametersAsBindless(CommonParameters, Parameters);
+							CommonParameters.Finish();
+
+							Command.SharedBindlessParameters = CommonParameters.BindlessParameters;
+						}
+
 						for (const int32 Indirection : DispatchList.Indirections)
 						{
 							const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
@@ -3141,7 +3115,7 @@ private:
 
 							Dispatch.Parameters.Emplace(ScratchAllocator);
 
-							SetShaderParametersMixed(
+							SetShaderBundleParameters(
 								*Dispatch.Parameters,
 								*Shader,
 								Parameters,
@@ -4351,12 +4325,12 @@ FBinningData FRenderer::AddPass_Binning(
 
 static bool UseRasterShaderBundleSW(EShaderPlatform Platform)
 {
-	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && (!!GRHISupportsShaderBundleDispatch || CanUseShaderBundleWorkGraph(Platform));
+	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && CVarNaniteBundleRasterSW.GetValueOnAnyThread() && (GRHISupportsShaderBundleDispatch || CanUseShaderBundleWorkGraph(Platform));
 }
 
 static bool UseRasterShaderBundleHW(EShaderPlatform Platform)
 {
-	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && !!GRHISupportsShaderBundleDispatch;
+	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && CVarNaniteBundleRasterHW.GetValueOnAnyThread() && GRHISupportsShaderBundleDispatch;
 }
 
 void FRenderer::PrepareRasterizerPasses(
@@ -4382,6 +4356,8 @@ void FRenderer::PrepareRasterizerPasses(
 
 	Context.SWShaderBundle = nullptr;
 	Context.HWShaderBundle = nullptr;
+
+	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 
 	// Create Shader Bundle
 	if (RasterBinCount > 0)
@@ -4410,7 +4386,7 @@ void FRenderer::PrepareRasterizerPasses(
 		const uint32 ArgStride = NANITE_RASTERIZER_ARG_COUNT * 4u;
 		
 		// SW shader bundle
-		if (UseRasterShaderBundleSW(GetFeatureLevelShaderPlatform(FeatureLevel)))
+		if (UseRasterShaderBundleSW(ShaderPlatform))
 		{
 			FShaderBundleCreateInfo BundleCreateInfo;
 			BundleCreateInfo.ArgOffset = 0u;
@@ -4422,7 +4398,7 @@ void FRenderer::PrepareRasterizerPasses(
 		}
 
 		// HW shader bundle
-		if (UseRasterShaderBundleHW(GetFeatureLevelShaderPlatform(FeatureLevel)))
+		if (UseRasterShaderBundleHW(ShaderPlatform))
 		{
 			FShaderBundleCreateInfo BundleCreateInfo;
 			BundleCreateInfo.ArgOffset = 16u;
@@ -4449,6 +4425,7 @@ void FRenderer::PrepareRasterizerPasses(
 		RasterBinCount,
 		RenderFlags = RenderFlags,
 		FeatureLevel,
+		ShaderPlatform,
 		bUseSetupCache,
 		bCustomPass,
 		bLumenCapture,
@@ -4470,7 +4447,7 @@ void FRenderer::PrepareRasterizerPasses(
 		FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Cluster;
 		FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Patch;
 
-		const bool bUseWorkGraphShaders = UseWorkGraphForRasterBundles(GetFeatureLevelShaderPlatform(FeatureLevel));
+		const bool bUseWorkGraphShaders = UseWorkGraphForRasterBundles(ShaderPlatform);
 		const EShaderFrequency ShaderFrequencyCS = bUseWorkGraphShaders ? SF_WorkGraphComputeNode : SF_Compute;
 
 		SetupPermutationVectors(
@@ -4488,7 +4465,7 @@ void FRenderer::PrepareRasterizerPasses(
 		const auto FillFixedMaterialShaders = [&](FRasterizerPass& RasterizerPass)
 		{
 			const bool bMeshShaderRasterPath = IsMeshShaderRasterPath(HardwarePath);
-			const bool bUseBarycentricPermutation = ShouldUseSvBarycentricPermutation(GetFeatureLevelShaderPlatform(FeatureLevel), RasterizerPass.bPixelProgrammable, bMeshShaderRasterPath);
+			const bool bUseBarycentricPermutation = ShouldUseSvBarycentricPermutation(ShaderPlatform, RasterizerPass.bPixelProgrammable, bMeshShaderRasterPath);
 			const bool bFixedDisplacementFallback = RasterizerPass.RasterPipeline.bFixedDisplacementFallback;
 
 			if (bMeshShaderRasterPath)
@@ -4593,7 +4570,7 @@ void FRenderer::PrepareRasterizerPasses(
 				FMaterialShaderTypes NonProgrammableShaderTypes;
 				FMaterialShaderTypes PatchShaderType;
 				GetMaterialShaderTypes(
-					GetFeatureLevelShaderPlatform(FeatureLevel),
+					ShaderPlatform,
 					HardwarePath,
 					RasterizerPass.bVertexProgrammable,
 					RasterizerPass.bPixelProgrammable,
@@ -4810,7 +4787,7 @@ void FRenderer::PrepareRasterizerPasses(
 			if (!RasterizerPass.bHidden)
 			{
 				const bool bMeshShaderRasterPath = IsMeshShaderRasterPath(HardwarePath);
-				const bool bUseBarycentricPermutation = ShouldUseSvBarycentricPermutation(GetFeatureLevelShaderPlatform(FeatureLevel), RasterizerPass.bPixelProgrammable, bMeshShaderRasterPath);
+				const bool bUseBarycentricPermutation = ShouldUseSvBarycentricPermutation(ShaderPlatform, RasterizerPass.bPixelProgrammable, bMeshShaderRasterPath);
 
 				if (bMeshShaderRasterPath)
 				{

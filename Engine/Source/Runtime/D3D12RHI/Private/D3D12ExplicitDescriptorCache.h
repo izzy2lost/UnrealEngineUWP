@@ -121,7 +121,7 @@ public:
 		WorkerData.SetNum(MaxWorkerCount);
 	}
 
-	void Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig);
+	void Init(uint32 NumConstantDescriptors, uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig);
 
 	// Returns descriptor heap base index for this descriptor table allocation or -1 if allocation failed.
 	int32 Allocate(const D3D12_CPU_DESCRIPTOR_HANDLE* Descriptors, uint32 NumDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 WorkerIndex);

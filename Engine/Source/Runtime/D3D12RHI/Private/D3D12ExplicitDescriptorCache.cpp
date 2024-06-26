@@ -304,7 +304,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE FD3D12ExplicitDescriptorHeap::GetDescriptorGPU(uint3
 
 ///
 
-void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig)
+void FD3D12ExplicitDescriptorCache::Init(uint32 NumConstantDescriptors, uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
@@ -317,9 +317,10 @@ void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSa
 	const bool bBindlessSamplers = false;
 #endif
 
-	if (!bBindlessViews)
+	const uint32 TotalViewDescriptors = NumConstantDescriptors + (bBindlessViews ? 0 : NumViewDescriptors);
+	if (TotalViewDescriptors)
 	{
-		ViewHeap.Init(NumViewDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		ViewHeap.Init(TotalViewDescriptors, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
 		
 	if (!bBindlessSamplers)
