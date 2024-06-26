@@ -71,6 +71,8 @@ public:
 
 	CORE_API friend void operator<<(FStructuredArchiveSlot Slot, FPackageId& Value);
 
+	CORE_API friend void SerializeForLog(FCbWriter& Writer, const FPackageId& Value);
+
 #if WITH_PACKAGEID_NAME_MAP
 	CORE_API FName GetName() const;
 #endif
