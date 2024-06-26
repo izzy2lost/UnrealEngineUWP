@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ConcertMessageData.h"
 #include "ConcertSyncSessionFlags.h"
 #include "Replication/IConcertServerReplicationManager.h"
 #include "Replication/Util/Mocks/ReplicationWorkspaceEmptyMock.h"
@@ -9,8 +10,7 @@
 
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::ConcertSyncServer::Replication { class IReplicationWorkspace;
-}
+namespace UE::ConcertSyncServer::Replication { class IReplicationWorkspace; }
 
 class FAutomationTestBase;
 
@@ -30,7 +30,7 @@ namespace UE::ConcertSyncTests::Replication
 			);
 
 		/** Connects a client to the server. */
-		FReplicationClient& ConnectClient();
+		FReplicationClient& ConnectClient(FConcertClientInfo ClientInfo = {});
 		
 		/** Lets the server process any messages that have come in. */
 		void TickServer(float FakeDeltaTime = 1.f / 60.f);

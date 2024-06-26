@@ -10,6 +10,7 @@
 #include "Misc/EBreakBehavior.h"
 #include "Templates/Function.h"
 
+struct FConcertStreamArray;
 struct FConcertReplication_ChangeSyncControl;
 class IConcertSession;
 
@@ -78,7 +79,13 @@ namespace UE::ConcertSyncServer::Replication
 		void OnPostClientLeft(const FClientId& ClientEndpointId);
 		/** Takes away authority from the given client from the given object. */
 		void RemoveAuthority(const FConcertReplicatedObjectId& Object);
-		
+
+		/** Applies a change authority request as if EndpointId had sent it. */
+		void ApplyChangeAuthorityRequest(const FClientId& EndpointId, const FConcertReplication_ChangeAuthority_Request& Request, TMap<FSoftObjectPath, FConcertStreamArray>& OutRejectedObjects, FConcertReplication_ChangeSyncControl& OutChangedSyncControl)
+		{
+			InternalApplyChangeAuthorityRequest(EndpointId, Request, OutRejectedObjects,  OutChangedSyncControl, false);
+		}
+
 		DECLARE_DELEGATE_RetVal_OneParam(FConcertReplication_ChangeSyncControl, FGenerateSyncControl, const FGuid& ClientId);
 		/** Sets the delegate that is called to fill the sync control portion of FConcertReplication_ChangeAuthority_Response. */
 		FGenerateSyncControl& OnGenerateSyncControl() { return GenerateSyncControlDelegate; }
@@ -104,6 +111,13 @@ namespace UE::ConcertSyncServer::Replication
 			const FConcertSessionContext& Context,
 			const FConcertReplication_ChangeAuthority_Request& Request,
 			FConcertReplication_ChangeAuthority_Response& Response
+			);
+		void InternalApplyChangeAuthorityRequest(
+			const FClientId& EndpointId,
+			const FConcertReplication_ChangeAuthority_Request& Request,
+			TMap<FSoftObjectPath, FConcertStreamArray>& OutRejectedObjects,
+			FConcertReplication_ChangeSyncControl& OutChangedSyncControl,
+			bool bShouldLog = true
 			);
 
 		/** Finds a stream registered with the client by its ID. */

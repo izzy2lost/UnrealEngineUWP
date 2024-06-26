@@ -23,6 +23,11 @@ namespace UE::ConcertSyncTests::Replication
 			AvailableObjects.Add(&Object);
 			OnObjectDiscoveredDelegate.Broadcast(Object);
 		}
+		void HideObject(UObject& Object)
+		{
+			AvailableObjects.Remove(&Object);
+			OnObjectRemovedDelegate.Broadcast(&Object);
+		}
 		
 		virtual void PushTrackedObjects(TArrayView<const FSoftObjectPath> InTrackedObjects) override
 		{

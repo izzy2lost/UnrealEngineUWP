@@ -193,6 +193,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 	}
 
+
 	EConcertSessionResponseCode FAuthorityManager::HandleChangeAuthorityRequest(
 		const FConcertSessionContext& Context,
 		const FConcertReplication_ChangeAuthority_Request& Request,
@@ -201,23 +202,37 @@ namespace UE::ConcertSyncServer::Replication
 	{
 		// This log does two things: 1. Identify issues in unit tests / at runtime 2. Warn about possibly malicious attempts when the server runs.
 		UE_CLOG(Request.TakeAuthority.IsEmpty() && Request.ReleaseAuthority.IsEmpty(), LogConcert, Warning, TEXT("Received invalid authority request (TakeAuthority.Num() == 0 and ReleaseAuthority.Num() == 0)"));
+		
+		InternalApplyChangeAuthorityRequest(Context.SourceEndpointId, Request, Response.RejectedObjects, Response.SyncControl);
+		Response.ErrorCode = EReplicationResponseErrorCode::Handled;
+		return EConcertSessionResponseCode::Success;
+	}
+	
+	void FAuthorityManager::InternalApplyChangeAuthorityRequest(
+		const FClientId& EndpointId,
+		const FConcertReplication_ChangeAuthority_Request& Request,
+		TMap<FSoftObjectPath, FConcertStreamArray>& OutRejectedObjects,
+		FConcertReplication_ChangeSyncControl& OutChangedSyncControl,
+		bool bShouldLog
+		)
+	{
 		bool bMadeChanges = false;
 		
-		FClientAuthorityData& AuthorityData = ClientAuthorityData.FindOrAdd(Context.SourceEndpointId);
-		const FClientId& ClientId = Context.SourceEndpointId;
-		Private::ForEachReplicatedObject(Request.TakeAuthority, [this, &Response, &bMadeChanges, &AuthorityData, &ClientId](const FStreamId& StreamId, const FSoftObjectPath& ObjectPath)
+		const FClientId& ClientId = EndpointId;
+		FClientAuthorityData& AuthorityData = ClientAuthorityData.FindOrAdd(ClientId);
+		Private::ForEachReplicatedObject(Request.TakeAuthority, [this, &OutRejectedObjects, bShouldLog, &bMadeChanges, &AuthorityData, &ClientId](const FStreamId& StreamId, const FSoftObjectPath& ObjectPath)
 		{
 			const FConcertReplicatedObjectId ObjectToAuthor{ { StreamId, ObjectPath }, ClientId };
 			if (CanTakeAuthority(ObjectToAuthor))
 			{
-				UE_LOG(LogConcert, Log, TEXT("Transferred authority of %s to client %s for their stream %s"), *ObjectPath.ToString(), *ClientId.ToString(EGuidFormats::Short), *StreamId.ToString(EGuidFormats::Short));
+				UE_CLOG(bShouldLog, LogConcert, Log, TEXT("Transferred authority of %s to client %s for their stream %s"), *ObjectPath.ToString(), *ClientId.ToString(EGuidFormats::Short), *StreamId.ToString(EGuidFormats::Short));
 				AuthorityData.OwnedObjects.FindOrAdd(StreamId).Add(ObjectPath);
 				bMadeChanges = true;
 			}
 			else
 			{
-				UE_LOG(LogConcert, Log, TEXT("Rejected %s request of authority over %s in stream %s"), *ClientId.ToString(EGuidFormats::Short), *ObjectPath.ToString(), *StreamId.ToString(EGuidFormats::Short));
-				Response.RejectedObjects.FindOrAdd(ObjectPath).StreamIds.AddUnique(StreamId);
+				UE_CLOG(bShouldLog, LogConcert, Log, TEXT("Rejected %s request of authority over %s in stream %s"), *ClientId.ToString(EGuidFormats::Short), *ObjectPath.ToString(), *StreamId.ToString(EGuidFormats::Short));
+				OutRejectedObjects.FindOrAdd(ObjectPath).StreamIds.AddUnique(StreamId);
 			}
 		});
 		
@@ -239,13 +254,10 @@ namespace UE::ConcertSyncServer::Replication
 			}
 		});
 
-		Response.ErrorCode = EReplicationResponseErrorCode::Handled;
 		if (bMadeChanges && ensure(GenerateSyncControlDelegate.IsBound()))
 		{
-			Response.SyncControl = GenerateSyncControlDelegate.Execute(Context.SourceEndpointId);
+			OutChangedSyncControl = GenerateSyncControlDelegate.Execute(ClientId);
 		}
-		
-		return EConcertSessionResponseCode::Success;
 	}
 	
 	const FConcertReplicationStream* FAuthorityManager::FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const

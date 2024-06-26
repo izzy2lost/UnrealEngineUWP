@@ -43,6 +43,18 @@ void FConcertServerWorkspace::ProduceClientLeaveReplicationActivity(const FGuid&
 	}
 }
 
+bool FConcertServerWorkspace::GetLastLeaveReplicationActivityByClient(const FConcertClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const
+{
+	// TODO: DO
+	return false;
+}
+
+bool FConcertServerWorkspace::GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const
+{
+	// TODO: DO
+	return false;
+}
+
 void FConcertServerWorkspace::BindSession(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession)
 {
 	check(InLiveSession->IsValidSession());

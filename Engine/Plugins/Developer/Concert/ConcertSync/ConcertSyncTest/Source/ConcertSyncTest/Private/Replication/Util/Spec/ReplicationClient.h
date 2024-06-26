@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ConcertMessageData.h"
 #include "ConcertSyncSessionFlags.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Util/ClientServerCommunicationTest.h"
@@ -34,11 +35,11 @@ namespace UE::ConcertSyncTests::Replication
 	{
 	public:
 		
-		FReplicationClient(const FGuid& ClientEndPointId, EConcertSyncSessionFlags SessionFlags, FConcertServerSessionMock& Server, FAutomationTestBase& TestContext)
+		FReplicationClient(const FGuid& ClientEndPointId, EConcertSyncSessionFlags SessionFlags, FConcertServerSessionMock& Server, FAutomationTestBase& TestContext, FConcertClientInfo ClientInfo = {})
 			: ClientEndPointId(ClientEndPointId)
 			, SessionFlags(SessionFlags)
 			, TestContext(TestContext)
-			, ClientSessionMock(MakeShared<FConcertClientSessionMock>(ClientEndPointId, Server))
+			, ClientSessionMock(MakeShared<FConcertClientSessionMock>(ClientEndPointId, Server, MoveTemp(ClientInfo)))
 		{}
 		
 		/** Lets the client process any messages that have come in. */
@@ -58,6 +59,8 @@ namespace UE::ConcertSyncTests::Replication
 		void LeaveReplication() const;
 
 		const FGuid& GetEndpointId() const { return ClientEndPointId; }
+		const FConcertClientInfo& GetClientInfo() const { return ClientSessionMock->GetLocalClientInfo(); }
+		
 		TSharedRef<FConcertClientSessionBaseMock> GetClientSessionMock() const { return ClientSessionMock; }
 		FConcertClientReplicationBridgeMock& GetBridgeMock() const { checkf(BridgeMock, TEXT("You forgot to call JoinReplication")); return *BridgeMock; }
 		IConcertClientReplicationManager& GetClientReplicationManager() const { checkf(ClientReplicationManager, TEXT("You forgot to call JoinReplication")); return *ClientReplicationManager; }

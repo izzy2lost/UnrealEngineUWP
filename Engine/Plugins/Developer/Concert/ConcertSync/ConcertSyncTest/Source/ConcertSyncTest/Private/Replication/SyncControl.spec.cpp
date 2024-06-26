@@ -289,7 +289,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 					.Next([this, &Manager, &ReleaseAuthority, &SyncControlBeforeRelease](FConcertReplication_ChangeAuthority_Response&& Response)
 					{
 						// Aggregate is validated in SyncControlState.spec.cpp
-						SyncControlBeforeRelease.AppendChanges(ReleaseAuthority, Response);
+						SyncControlBeforeRelease.AppendAuthorityChange(ReleaseAuthority, Response);
 						TestTrue(TEXT("Client predicted correctly"), SyncControlBeforeRelease == Manager.GetSyncControlledObjects());
 					});
 
@@ -300,7 +300,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 					.Next([this, &Manager, &SyncControlBeforeTake, &TakeAuthority](FConcertReplication_ChangeAuthority_Response&& Response)
 					{
 						// Aggregate is validated in SyncControlState.spec.cpp
-						SyncControlBeforeTake.AppendChanges(TakeAuthority, Response);
+						SyncControlBeforeTake.AppendAuthorityChange(TakeAuthority, Response);
 						TestTrue(TEXT("Client predicted correctly"), SyncControlBeforeTake == Manager.GetSyncControlledObjects());
 					});
 			});
@@ -317,7 +317,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 					.Next([this, &Manager, &StreamChange, &SyncControlBeforeRelease](FConcertReplication_ChangeStream_Response&& Response)
 					{
 						// Aggregate is validated in SyncControlState.spec.cpp
-						SyncControlBeforeRelease.AppendChanges(StreamChange);
+						SyncControlBeforeRelease.AppendStreamChange(StreamChange);
 						TestTrue(TEXT("Client predicted correctly"), SyncControlBeforeRelease == Manager.GetSyncControlledObjects());
 					});
 			});

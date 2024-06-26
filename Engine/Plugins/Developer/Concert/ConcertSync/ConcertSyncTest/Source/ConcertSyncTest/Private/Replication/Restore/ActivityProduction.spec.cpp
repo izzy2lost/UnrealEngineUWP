@@ -1,18 +1,18 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Util/Spec/ReplicationClient.h"
-#include "Util/Spec/ReplicationServer.h"
+#include "Replication/Util/Mocks/ReplicationWorkspaceCallInterceptorMock.h"
+#include "Replication/Util/Spec/ReplicationClient.h"
+#include "Replication/Util/Spec/ReplicationServer.h"
+#include "Replication/Util/Spec/ObjectTestReplicator.h"
 
 #include "Misc/AutomationTest.h"
 #include "Replication/Messages/ReplicationActivity.h"
-#include "Util/Mocks/ReplicationWorkspaceCallDetectorMock.h"
-#include "Util/Spec/ObjectTestReplicator.h"
 
 namespace UE::ConcertSyncTests::Replication
 {
-	BEGIN_DEFINE_SPEC(FLeaveReplicationActivitySpec, "Editor.Concert.Replication.Activity", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	BEGIN_DEFINE_SPEC(FLeaveReplicationActivitySpec, "Editor.Concert.Replication.RestoreContent.Activity", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 		/** Detects calls into the workspace */
-		TSharedPtr<FReplicationWorkspaceCallDetectorMock> WorkspaceMock;
+		TSharedPtr<FReplicationWorkspaceCallInterceptorMock> WorkspaceMock;
 	
 		TUniquePtr<FObjectTestReplicator> ObjectReplicator;
 		TUniquePtr<FReplicationServer> Server;
@@ -64,7 +64,7 @@ namespace UE::ConcertSyncTests::Replication
 	{
 		BeforeEach([this]
 		{
-			WorkspaceMock = MakeShared<FReplicationWorkspaceCallDetectorMock>();
+			WorkspaceMock = MakeShared<FReplicationWorkspaceCallInterceptorMock>();
 			ObjectReplicator = MakeUnique<FObjectTestReplicator>();
 			Server = MakeUnique<FReplicationServer>(*this, EConcertSyncSessionFlags::Default_MultiUserSession, WorkspaceMock.ToSharedRef());
 			Client = &Server->ConnectClient();
@@ -89,9 +89,9 @@ namespace UE::ConcertSyncTests::Replication
 		});
 	}
 	
-	BEGIN_DEFINE_SPEC(FNoReplicationActivitiesSpec, "Editor.Concert.Replication.Activity", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	BEGIN_DEFINE_SPEC(FNoReplicationActivitiesSpec, "Editor.Concert.Replication.RestoreContent.Activity", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 		/** Detects calls into the workspace */
-		TSharedPtr<FReplicationWorkspaceCallDetectorMock> WorkspaceMock;
+		TSharedPtr<FReplicationWorkspaceCallInterceptorMock> WorkspaceMock;
 	
 		TUniquePtr<FReplicationServer> Server;
 		FReplicationClient* Client = nullptr;
@@ -102,7 +102,7 @@ namespace UE::ConcertSyncTests::Replication
 	{
 		BeforeEach([this]
 		{
-			WorkspaceMock = MakeShared<FReplicationWorkspaceCallDetectorMock>();
+			WorkspaceMock = MakeShared<FReplicationWorkspaceCallInterceptorMock>();
 			Server = MakeUnique<FReplicationServer>(*this, EConcertSyncSessionFlags::Default_MultiUserSession & ~EConcertSyncSessionFlags::ShouldEnableReplicationActivities, WorkspaceMock.ToSharedRef());
 			Client = &Server->ConnectClient();
 

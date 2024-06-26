@@ -16,10 +16,12 @@
 #include "SyncControlManager.h"
 
 #include "HAL/Platform.h"
+#include "Replication/Messages/RestoreContent.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
 #include "Templates/UnrealTemplate.h"
 
+struct FConcertSyncReplicationPayload_LeaveReplication;
 class FConcertServerWorkspace;
 class IConcertClientReplicationBridge;
 class IConcertServerSession;
@@ -120,7 +122,20 @@ namespace UE::ConcertSyncServer::Replication
 
 		// Changing streams
 		EConcertSessionResponseCode HandleChangeStreamRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_ChangeStream_Request& Request, FConcertReplication_ChangeStream_Response& Response);
+		/** Applies a validated change stream request. */
+		void ApplyChangeStreamRequest(const FConcertReplication_ChangeStream_Request& Request, FConcertReplicationClient& Client);
 
+		// Restoring content
+		EConcertSessionResponseCode HandleRestoreContentRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_RestoreContent_Request& Request, FConcertReplication_RestoreContent_Response& Response);
+		/** @return Response code to return for the request and the payload to apply, if there is anything that should be applied. */
+		TTuple<EConcertReplicationRestoreErrorCode, TOptional<FConcertSyncReplicationPayload_LeaveReplication>> ValidateRestoreContentRequest(const FGuid& RequestingEndpointId, const FConcertReplication_RestoreContent_Request& Request) const;
+		/** Applies a validated restore content request. */
+		void ApplyRestoreContentRequest(const FGuid& RequestingEndpointId, const FConcertReplication_RestoreContent_Request& Request, const FConcertSyncReplicationPayload_LeaveReplication& DataToApply, FConcertReplication_ChangeSyncControl& ChangedSyncControl);
+		/** Restores the stream content in DataToApply to Client according to how Request specifies it. */
+		void RestoreStreamContent(const FConcertReplication_RestoreContent_Request& Request, const FConcertSyncReplicationPayload_LeaveReplication& DataToApply, FConcertReplicationClient& Client, FConcertReplication_ChangeSyncControl& OutChangedSyncControl);
+		/** Restores the authority in DataToApply to Client. */
+		void RestoreAuthority(const FConcertSyncReplicationPayload_LeaveReplication& DataToApply, const FConcertReplicationClient& Client, FConcertReplication_ChangeSyncControl& OutChangedSyncControl);
+		
 		// Leaving
 		void HandleLeaveReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_LeaveEvent& EventData);
 		void OnConnectionChanged(IConcertServerSession& ConcertServerSession, EConcertClientStatus ConcertClientStatus, const FConcertSessionClientInfo& ConcertSessionClientInfo);

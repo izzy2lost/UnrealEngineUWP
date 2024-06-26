@@ -44,18 +44,28 @@ namespace UE::ConcertSyncTests::Replication
 
 	FConcertReplicationStream FObjectTestReplicator::CreateStream(FGuid SenderStreamId, EConcertObjectReplicationMode ReplicationMode, uint8 ReplicationRate) const
 	{
+		FConcertReplicationStream SendingStream;
+		SendingStream.BaseDescription.Identifier = SenderStreamId;
+		SendingStream.BaseDescription.FrequencySettings.Defaults = { ReplicationMode, ReplicationRate };
+		AddToStream(SendingStream);
+		return SendingStream;
+	}
+
+	void FObjectTestReplicator::AddToStream(FConcertReplicationStream& Stream, EConcertObjectReplicationMode ReplicationMode, uint8 ReplicationRate) const
+	{
 		FConcertReplicatedObjectInfo ReplicatedObjectInfo { TestObject->GetClass() };
 		ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(*TestObject->GetClass(), [&ReplicatedObjectInfo](FConcertPropertyChain&& Chain)
 		{
 			ReplicatedObjectInfo.PropertySelection.ReplicatedProperties.Emplace(MoveTemp(Chain));
 			return EBreakBehavior::Continue;
 		});
+		Stream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, ReplicatedObjectInfo);
 
-		FConcertReplicationStream SendingStream;
-		SendingStream.BaseDescription.Identifier = SenderStreamId;
-		SendingStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, ReplicatedObjectInfo);
-		SendingStream.BaseDescription.FrequencySettings.Defaults = { ReplicationMode, ReplicationRate };
-		return SendingStream;
+		const FConcertObjectReplicationSettings FrequencySettings { ReplicationMode, ReplicationRate };
+		if (Stream.BaseDescription.FrequencySettings.Defaults != FrequencySettings)
+		{
+			Stream.BaseDescription.FrequencySettings.ObjectOverrides.Add(TestObject, FrequencySettings);
+		}
 	}
 
 	void FObjectTestReplicator::SimulateSendObjectToReceiver(

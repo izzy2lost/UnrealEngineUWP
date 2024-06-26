@@ -14,6 +14,7 @@
 #include <type_traits>
 
 #include "Messages/Muting.h"
+#include "Messages/RestoreContent.h"
 
 namespace UE::ConcertSyncCore::Replication
 {
@@ -66,31 +67,43 @@ namespace UE::ConcertSyncCore::Replication
 
 		/** Combines implicit and explicit sync control changes caused by authority changes. */
 		template<CObjectInStreamInvocable TOnAllowed, CObjectInStreamInvocable TOnDisallowed>
-		void AppendChanges(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed);
-		void AppendChanges(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response);
+		void AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed);
+		void AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response);
 
 		/** Combines implicit sync control changes caused by stream change. */
 		template<CObjectInStreamInvocable TOnDisallowed>
-		void AppendChanges(const FConcertReplication_ChangeStream_Request& Request, TOnDisallowed&& OnDisallowed);
-		void AppendChanges(const FConcertReplication_ChangeStream_Request& Request);
-
+		void AppendStreamChange(const FConcertReplication_ChangeStream_Request& Request, TOnDisallowed&& OnDisallowed);
+		void AppendStreamChange(const FConcertReplication_ChangeStream_Request& Request);
+		
 		/**
 		 * Combines implicit sync control changes caused by the local client sending a mute event.
 		 * @return The objects that were predictively removed by the request. Pass this back into AppendChanges once you get the response.
 		 */
 		template<CObjectInStreamInvocable TOnDisallowed>
-		FPredictedObjectRemoval AppendChanges(const FConcertReplication_ChangeMuteState_Request& Request, TOnDisallowed&& OnDisallowed);
-		FPredictedObjectRemoval AppendChanges(const FConcertReplication_ChangeMuteState_Request& Request);
-
+		FPredictedObjectRemoval PredictAndApplyMuteChanges(const FConcertReplication_ChangeMuteState_Request& Request, TOnDisallowed&& OnDisallowed);
+		FPredictedObjectRemoval PredictAndApplyMuteChanges(const FConcertReplication_ChangeMuteState_Request& Request);
 		/**
 		 * Looks at the response:
 		 * - if the change failed, reverts the predictively removed sync control
 		 * - if the change succeeded, appends the contained sync control
 		 */
 		template<CObjectInStreamInvocable TOnAllowed>
-		void AppendChanges(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response, TOnAllowed&& OnAllowed);
-		void AppendChanges(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response);
+		void ApplyOrRevertMuteResponse(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response, TOnAllowed&& OnAllowed);
+		void ApplyOrRevertMuteResponse(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response);
 		
+		/**
+		 * If the request replaces the content, removes sync control for all objects.
+		 * @return The objects that were predictively removed by the request. Pass this back into AppendChanges once you get the response.
+		 */
+		template<CObjectInStreamInvocable TOnDisallowed>
+		FPredictedObjectRemoval PredictAndApplyRestoreContentChanges(const FConcertReplication_RestoreContent_Request& Request, TOnDisallowed&& OnDisallowed);
+		/**
+		 * Looks at the response
+		 * - if the change failed, reverts the predictively removed sync control.
+		 * - if the change succeeded, appends the contained sync control.
+		 */
+		template<CObjectInStreamInvocable TOnAllowed, CObjectInStreamInvocable TOnDisallowed>
+		void ApplyOrRevertRestoreContentResponse(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_RestoreContent_Response& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed);
 		
 		friend bool operator==(const FSyncControlState& Left, const FSyncControlState& Right)
 		{
@@ -150,7 +163,7 @@ namespace UE::ConcertSyncCore::Replication
 	}
 	
 	template <CObjectInStreamInvocable TOnAllowed, CObjectInStreamInvocable TOnDisallowed>
-	void FSyncControlState::AppendChanges(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed)
+	void FSyncControlState::AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed)
 	{
 		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ImplicitChange : Request.ReleaseAuthority)
 		{
@@ -169,13 +182,13 @@ namespace UE::ConcertSyncCore::Replication
 		AppendChanges(Response.SyncControl, MoveTemp(OnAllowed), MoveTemp(OnDisallowed));
 	}
 
-	inline void FSyncControlState::AppendChanges(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response)
+	inline void FSyncControlState::AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response)
 	{
-		AppendChanges(Request, Response, [](const FConcertObjectInStreamID&){}, [](const FConcertObjectInStreamID&){});
+		AppendAuthorityChange(Request, Response, [](const FConcertObjectInStreamID&){}, [](const FConcertObjectInStreamID&){});
 	}
 	
 	template <CObjectInStreamInvocable TOnDisallowed>
-	void FSyncControlState::AppendChanges(const FConcertReplication_ChangeStream_Request& Request, TOnDisallowed&& OnDisallowed)
+	void FSyncControlState::AppendStreamChange(const FConcertReplication_ChangeStream_Request& Request, TOnDisallowed&& OnDisallowed)
 	{
 		for (auto It = AllowedObjects.CreateIterator(); It; ++It)
 		{
@@ -207,13 +220,13 @@ namespace UE::ConcertSyncCore::Replication
 		}
 	}
 
-	inline void FSyncControlState::AppendChanges(const FConcertReplication_ChangeStream_Request& Request)
+	inline void FSyncControlState::AppendStreamChange(const FConcertReplication_ChangeStream_Request& Request)
 	{
-		AppendChanges(Request, [](const FConcertObjectInStreamID&){});
+		AppendStreamChange(Request, [](const FConcertObjectInStreamID&){});
 	}
 
 	template <CObjectInStreamInvocable TOnDisallowed>
-	FSyncControlState::FPredictedObjectRemoval FSyncControlState::AppendChanges(const FConcertReplication_ChangeMuteState_Request& Request, TOnDisallowed&& OnDisallowed)
+	FSyncControlState::FPredictedObjectRemoval FSyncControlState::PredictAndApplyMuteChanges(const FConcertReplication_ChangeMuteState_Request& Request, TOnDisallowed&& OnDisallowed)
 	{
 		FPredictedObjectRemoval RemovedObjects;
 		const auto Remove = [&OnDisallowed, &RemovedObjects](TSet<FConcertObjectInStreamID>::TIterator& It)
@@ -256,13 +269,13 @@ namespace UE::ConcertSyncCore::Replication
 		return RemovedObjects;
 	}
 
-	inline FSyncControlState::FPredictedObjectRemoval FSyncControlState::AppendChanges(const FConcertReplication_ChangeMuteState_Request& Request)
+	inline FSyncControlState::FPredictedObjectRemoval FSyncControlState::PredictAndApplyMuteChanges(const FConcertReplication_ChangeMuteState_Request& Request)
 	{
-		return AppendChanges(Request, [](const FConcertObjectInStreamID&){});
+		return PredictAndApplyMuteChanges(Request, [](const FConcertObjectInStreamID&){});
 	}
 
 	template <CObjectInStreamInvocable TOnAllowed>
-	void FSyncControlState::AppendChanges(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response, TOnAllowed&& OnAllowed)
+	void FSyncControlState::ApplyOrRevertMuteResponse(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response, TOnAllowed&& OnAllowed)
 	{
 		if (Response.IsSuccess())
 		{
@@ -279,9 +292,50 @@ namespace UE::ConcertSyncCore::Replication
 		}
 	}
 
-	inline void FSyncControlState::AppendChanges(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response)
+	inline void FSyncControlState::ApplyOrRevertMuteResponse(const FPredictedObjectRemoval& ObjectsRemovedInRequest, const FConcertReplication_ChangeMuteState_Response& Response)
 	{
-		AppendChanges(ObjectsRemovedInRequest, Response, [](const FConcertObjectInStreamID&){});
+		ApplyOrRevertMuteResponse(ObjectsRemovedInRequest, Response, [](const FConcertObjectInStreamID&){});
+	}
+
+	template <CObjectInStreamInvocable TOnDisallowed>
+	FSyncControlState::FPredictedObjectRemoval FSyncControlState::PredictAndApplyRestoreContentChanges(
+		const FConcertReplication_RestoreContent_Request& Request,
+		TOnDisallowed&& OnDisallowed
+		)
+	{
+		FPredictedObjectRemoval PredictedRemoval;
+		if (EnumHasAnyFlags(Request.Flags, EConcertReplicationRestoreContentFlags::RestoreOnTop))
+		{
+			return PredictedRemoval;
+		}
+
+		// The request will replace everything we have - so disallow all. 
+		for (const FConcertObjectInStreamID& Object : AllowedObjects)
+		{
+			OnDisallowed(Object);
+		}
+		PredictedRemoval.Objects = MoveTemp(AllowedObjects);
+		
+		return PredictedRemoval;
+	}
+
+	template <CObjectInStreamInvocable TOnAllowed, CObjectInStreamInvocable TOnDisallowed>
+	void FSyncControlState::ApplyOrRevertRestoreContentResponse(
+		const FPredictedObjectRemoval& ObjectsRemovedInRequest,
+		const FConcertReplication_RestoreContent_Response& Response,
+		TOnAllowed&& OnAllowed,
+		TOnDisallowed&& OnDisallowed
+		)
+	{
+		if (Response.IsSuccess())
+		{
+			AppendChanges(Response.SyncControl, OnAllowed, OnDisallowed);
+		}
+		else
+		{
+			// Do not assign MoveTemp(ObjectsRemovedInRequest.Objects) because we have been modified between!
+			AllowedObjects.Append(ObjectsRemovedInRequest.Objects);
+		}
 	}
 }
 

@@ -21,6 +21,7 @@ namespace UE::ConcertSyncClient::Replication
 		: public FNoncopyable
 		, ConcertSyncCore::Replication::FSyncControlState
 	{
+		using Detail = FSyncControlState;
 	public:
 
 		explicit FLocalSyncControl(IConcertSession& InSession UE_LIFETIMEBOUND)
@@ -53,7 +54,7 @@ namespace UE::ConcertSyncClient::Replication
 		void ProcessAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response)
 		{
 			OnPreSyncControlChangedDelegate.Broadcast();
-			AppendChanges(Request, Response);
+			AppendAuthorityChange(Request, Response);
 			OnPostSyncControlChangedDelegate.Broadcast();
 		}
 
@@ -64,7 +65,7 @@ namespace UE::ConcertSyncClient::Replication
 		void ProcessStreamChange(const FConcertReplication_ChangeStream_Request& Request)
 		{
 			OnPreSyncControlChangedDelegate.Broadcast();
-			AppendChanges(Request);
+			AppendStreamChange(Request);
 			OnPostSyncControlChangedDelegate.Broadcast();
 		}
 
@@ -75,7 +76,7 @@ namespace UE::ConcertSyncClient::Replication
 		FPredictedObjectRemoval PredictAndApplyMuteChanges(const FConcertReplication_ChangeMuteState_Request& Request)
 		{
 			bool bMadeChange = false;
-			FPredictedObjectRemoval Predicition = AppendChanges(Request, [this, &bMadeChange](const FConcertObjectInStreamID&)
+			FPredictedObjectRemoval Predicition = Detail::PredictAndApplyMuteChanges(Request, [this, &bMadeChange](const FConcertObjectInStreamID&)
 			{
 				if (!bMadeChange)
 				{
@@ -95,7 +96,7 @@ namespace UE::ConcertSyncClient::Replication
 		void ApplyOrRevertMuteResponse(const FPredictedObjectRemoval& RemovedByRequest, const FConcertReplication_ChangeMuteState_Response& Response)
 		{
 			bool bMadeChange = false;
-			AppendChanges(RemovedByRequest, Response, [this, &bMadeChange](const FConcertObjectInStreamID&)
+			Detail::ApplyOrRevertMuteResponse(RemovedByRequest, Response, [this, &bMadeChange](const FConcertObjectInStreamID&)
 			{
 				if (!bMadeChange)
 				{
@@ -108,6 +109,51 @@ namespace UE::ConcertSyncClient::Replication
 				OnPostSyncControlChangedDelegate.Broadcast();
 			}
 		}
+
+		
+		/**
+		 * Applies the implicit changes made by the request assuming the request will be accepted.
+		 * @return The removed objects to be passed to ApplyOrRevertRestoreContentResponse.
+		 */
+		FPredictedObjectRemoval PredictAndApplyRestoreContentChanges(const FConcertReplication_RestoreContent_Request& Request)
+		{
+			bool bMadeChange = false;
+			FPredictedObjectRemoval Predicition = Detail::PredictAndApplyRestoreContentChanges(Request, [this, &bMadeChange](const FConcertObjectInStreamID&)
+			{
+				if (!bMadeChange)
+				{
+					OnPreSyncControlChangedDelegate.Broadcast();
+				}
+				bMadeChange = true;
+			});
+			if (bMadeChange)
+			{
+				OnPostSyncControlChangedDelegate.Broadcast();
+			}
+
+			return Predicition;
+		}
+
+		/** Either reverts previous changes made if the request was rejected, or applies the sync control returned by the server otherwise. */
+		void ApplyOrRevertRestoreContentResponse(const FPredictedObjectRemoval& RemovedByRequest, const FConcertReplication_RestoreContent_Response& Response)
+		{
+			bool bMadeChange = false;
+			const auto OnChange = [this, &bMadeChange](const FConcertObjectInStreamID&)
+			{
+				if (!bMadeChange)
+				{
+					OnPreSyncControlChangedDelegate.Broadcast();
+				}
+				bMadeChange = true;
+			};
+			Detail::ApplyOrRevertRestoreContentResponse(RemovedByRequest, Response, OnChange, OnChange);
+			
+			if (bMadeChange)
+			{
+				OnPostSyncControlChangedDelegate.Broadcast();
+			}
+		}
+		
 		
 		DECLARE_MULTICAST_DELEGATE(FSyncControlChanged);
 		FSyncControlChanged& OnPreSyncControlChanged() { return OnPreSyncControlChangedDelegate; }

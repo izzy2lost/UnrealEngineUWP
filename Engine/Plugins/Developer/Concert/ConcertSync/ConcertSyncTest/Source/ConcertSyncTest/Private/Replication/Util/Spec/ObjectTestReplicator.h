@@ -80,6 +80,12 @@ namespace UE::ConcertSyncTests::Replication
 			EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::Realtime,
 			uint8 ReplicationRate = 30
 		) const;
+		/** Util adding replication settings for TestObject to a stream */
+		void AddToStream(
+			FConcertReplicationStream& Stream,
+			EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::Realtime,
+			uint8 ReplicationRate = 30
+			) const;
 		
 		/** This overload allows you to send properties but from multiple streams. */
 		void SimulateSendObjectToReceiver(

@@ -42,7 +42,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 				const FConcertReplication_ChangeAuthority_Request Request { .ReleaseAuthority = { { ObjectReplicator->TestObject, {{ SenderStreamId }} } } };
 				const FConcertReplication_ChangeAuthority_Response Response;
 				TArray<FConcertObjectInStreamID> RemovedObjects;
-				SyncControl.AppendChanges(
+				SyncControl.AppendAuthorityChange(
 					Request,
 					Response,
 					[this](const FConcertObjectInStreamID&){ AddError(TEXT("No object should be added")); },
@@ -61,7 +61,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 				const FConcertReplication_ChangeAuthority_Request Request { .TakeAuthority = {{ ObjectReplicator->TestObject, {{ SenderStreamId }}}}};
 				const FConcertReplication_ChangeAuthority_Response Response { .SyncControl = {{{ ObjectId, true }}}};
 				TArray<FConcertObjectInStreamID> AddedObjects;
-				SyncControl.AppendChanges(
+				SyncControl.AppendAuthorityChange(
 					Request,
 					Response,
 					[&AddedObjects](const FConcertObjectInStreamID& Object){ AddedObjects.Add(Object); },
@@ -79,7 +79,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 				FConcertReplication_ChangeStream_Request StreamChange;
 				StreamChange.ObjectsToRemove.Add({ SenderStreamId, ObjectReplicator->TestObject });
 				TArray<FConcertObjectInStreamID> RemovedObjects;
-				SyncControl.AppendChanges(StreamChange, [&RemovedObjects](const FConcertObjectInStreamID& Object){ RemovedObjects.Add(Object); });
+				SyncControl.AppendStreamChange(StreamChange, [&RemovedObjects](const FConcertObjectInStreamID& Object){ RemovedObjects.Add(Object); });
 				
 				TestTrue(TEXT("Removed TestObject"), RemovedObjects.Contains(FConcertObjectInStreamID{ SenderStreamId, ObjectReplicator->TestObject }));
 				TestEqual(TEXT("Removed exactly 1 object"), RemovedObjects.Num(), 1);
@@ -93,7 +93,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 					
 					FConcertReplication_ChangeMuteState_Request Request;
 					Request.ObjectsToMute.Add(ObjectReplicator->TestObject, { EConcertReplicationMuteOption::OnlyObject });
-					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.AppendChanges(Request);
+					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.PredictAndApplyMuteChanges(Request);
 					
 					TestEqual(TEXT("SyncControl.Num() == 0"), SyncControl.Num(), 0);
 				});
@@ -104,12 +104,12 @@ namespace UE::ConcertSyncTests::Replication::UI
 					
 					FConcertReplication_ChangeMuteState_Request Request;
 					Request.ObjectsToUnmute.Add(ObjectReplicator->TestObject, { EConcertReplicationMuteOption::OnlyObject });
-					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.AppendChanges(Request);
+					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.PredictAndApplyMuteChanges(Request);
 					TestEqual(TEXT("SyncControl.Num() == 0"), SyncControl.Num(), 0);
 
 					FConcertReplication_ChangeMuteState_Response Response { EConcertReplicationMuteErrorCode::Accepted };
 					Response.SyncControl.NewControlStates.Add({ SenderStreamId, ObjectReplicator->TestObject }, true);
-					SyncControl.AppendChanges(Removal, Response);
+					SyncControl.ApplyOrRevertMuteResponse(Removal, Response);
 					
 					TestEqual(TEXT("SyncControl.Num() == 1"), SyncControl.Num(), 1);
 					TestTrue(TEXT("Contains TestObject"), SyncControl.IsObjectAllowed({ SenderStreamId, ObjectReplicator->TestObject }));
@@ -121,10 +121,10 @@ namespace UE::ConcertSyncTests::Replication::UI
 					
 					FConcertReplication_ChangeMuteState_Request Request;
 					Request.ObjectsToMute.Add(ObjectReplicator->TestObject, { EConcertReplicationMuteOption::OnlyObject });
-					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.AppendChanges(Request);
+					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.PredictAndApplyMuteChanges(Request);
 
 					const FConcertReplication_ChangeMuteState_Response Response { EConcertReplicationMuteErrorCode::Timeout };
-					SyncControl.AppendChanges(Removal, Response);
+					SyncControl.ApplyOrRevertMuteResponse(Removal, Response);
 					
 					TestEqual(TEXT("SyncControl.Num() == 1"), SyncControl.Num(), 1);
 					TestTrue(TEXT("Contains TestObject"), SyncControl.IsObjectAllowed({ SenderStreamId, ObjectReplicator->TestObject }));
@@ -140,7 +140,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 					
 					FConcertReplication_ChangeMuteState_Request Request;
 					Request.ObjectsToMute.Add(ObjectReplicator->TestObject, { EConcertReplicationMuteOption::ObjectAndSubobjects });
-					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.AppendChanges(Request);
+					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.PredictAndApplyMuteChanges(Request);
 					
 					TestEqual(TEXT("SyncControl.Num() == 0"), SyncControl.Num(), 0);
 				});
@@ -151,7 +151,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 
 					FConcertReplication_ChangeMuteState_Request Request;
 					Request.ObjectsToUnmute.Add(ObjectReplicator->TestObject, { EConcertReplicationMuteOption::ObjectAndSubobjects });
-					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.AppendChanges(Request);
+					const FSyncControlState::FPredictedObjectRemoval Removal = SyncControl.PredictAndApplyMuteChanges(Request);
 					
 					FConcertReplication_ChangeMuteState_Response Response { EConcertReplicationMuteErrorCode::Accepted };
 					Response.SyncControl.NewControlStates =
@@ -159,7 +159,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 						{ { SenderStreamId, ObjectReplicator->TestObject }, true },
 						{ { SenderStreamId, SubobjectReplicator->TestObject }, true },
 					};
-					SyncControl.AppendChanges(Removal, Response);
+					SyncControl.ApplyOrRevertMuteResponse(Removal, Response);
 					
 					TestEqual(TEXT("SyncControl.Num() == 2"), SyncControl.Num(), 2);
 					TestTrue(TEXT("Contains root"), SyncControl.IsObjectAllowed({ SenderStreamId, ObjectReplicator->TestObject }));

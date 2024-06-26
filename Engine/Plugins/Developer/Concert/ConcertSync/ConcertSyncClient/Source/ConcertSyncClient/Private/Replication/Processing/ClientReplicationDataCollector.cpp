@@ -131,6 +131,15 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
+	void FClientReplicationDataCollector::ClearReplicatedObjects()
+	{
+		for (const TPair<FSoftObjectPath, TArray<FObjectInfo>>& Pair : ObjectsToReplicate)
+		{
+			Bridge.PopTrackedObjects({ Pair.Key });
+		}
+		ObjectsToReplicate.Reset();
+	}
+
 	void FClientReplicationDataCollector::ForEachOwnedObject(
 		TFunctionRef<EBreakBehavior(const FSoftObjectPath&)> Callback
 		) const

@@ -66,6 +66,9 @@ namespace UE::ConcertSyncClient::Replication
 		 */
 		void OnObjectStreamModified(const FSoftObjectPath& Object, TArrayView<const FGuid> PutStreams);
 
+		/** Clears all currently replicated objects. */
+		void ClearReplicatedObjects();
+
 		/** Iterates every object for which there is at least one owning stream. */
 		void ForEachOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath&)> Callback) const;
 		/** Writes all owning streams for ObjectPath into Paths. */

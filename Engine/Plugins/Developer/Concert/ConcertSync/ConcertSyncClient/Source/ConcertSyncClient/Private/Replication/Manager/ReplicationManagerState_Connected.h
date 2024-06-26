@@ -56,6 +56,7 @@ namespace UE::ConcertSyncClient::Replication
 		virtual bool HasSyncControl(const FConcertObjectInStreamID& Object) const override { return SyncControl.IsObjectAllowed(Object); }
 		virtual TFuture<FConcertReplication_ChangeMuteState_Response> ChangeMuteState(FConcertReplication_ChangeMuteState_Request) override;
 		virtual TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(FConcertReplication_QueryMuteState_Request Request) override;
+		virtual TFuture<FConcertReplication_RestoreContent_Response> RestoreContent(FConcertReplication_RestoreContent_Request Request) override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:
@@ -110,7 +111,7 @@ namespace UE::ConcertSyncClient::Replication
 		void Tick(IConcertClientSession& Session, float DeltaTime);
 		
 		/** Updates replicated objects affected by the change request. */
-		void UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplication_ChangeStream_Response& Response);
+		void UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request);
 		void HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request);
 		void RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request);
 
@@ -118,11 +119,14 @@ namespace UE::ConcertSyncClient::Replication
 		 * Updates the objects which should be replicated after changing authority.
 		 * 
 		 * @note Request is accepted as && because this function rewrites its memory when looking at rejections.
-		 * Since the request was already sent to the server it is assumed the request can just contain trash after.
+		 * Since the request was already sent to the server it can just contain trash after.
 		 */
 		void UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response);
 		void HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request);
 		void RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request);
+
+		/** Updates the objects which should be replicated after they have been reset to a completely new state (e.g. when restoring session content manually). */
+		void UpdateReplicatedObjectAfterServerSideChange(const FConcertQueriedClientInfo& NewState);
 		
 		/** Callback to Sender for obtaining an object's frequency settings. */
 		FConcertObjectReplicationSettings GetObjectFrequencySettings(const FConcertReplicatedObjectId& Object) const;

@@ -14,6 +14,7 @@
 #include "Replication/Messages/ClientQuery.h"
 #include "Replication/Messages/Handshake.h"
 #include "Replication/Messages/ReplicationActivity.h"
+#include "Replication/Messages/RestoreContent.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Util/JoinRequestValidation.h"
 #include "Util/LogUtils.h"
@@ -44,9 +45,10 @@ namespace UE::ConcertSyncServer::Replication
 		Session->RegisterCustomRequestHandler<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(this, &FConcertServerReplicationManager::HandleJoinReplicationSessionRequest);
 		Session->RegisterCustomRequestHandler<FConcertReplication_QueryReplicationInfo_Request, FConcertReplication_QueryReplicationInfo_Response>(this, &FConcertServerReplicationManager::HandleQueryReplicationInfoRequest);
 		Session->RegisterCustomRequestHandler<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(this, &FConcertServerReplicationManager::HandleChangeStreamRequest);
+		Session->RegisterCustomRequestHandler<FConcertReplication_RestoreContent_Request, FConcertReplication_RestoreContent_Response>(this, &FConcertServerReplicationManager::HandleRestoreContentRequest);
 		Session->RegisterCustomEventHandler<FConcertReplication_LeaveEvent>(this, &FConcertServerReplicationManager::HandleLeaveReplicationSessionRequest);
+		
 		Session->OnSessionClientChanged().AddRaw(this, &FConcertServerReplicationManager::OnConnectionChanged);
-
 		Session->OnTick().AddRaw(this, &FConcertServerReplicationManager::Tick);
 	}
 

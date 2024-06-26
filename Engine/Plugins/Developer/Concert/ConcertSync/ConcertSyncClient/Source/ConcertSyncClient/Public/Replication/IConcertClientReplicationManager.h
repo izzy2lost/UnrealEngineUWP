@@ -8,6 +8,7 @@
 #include "Replication/Messages/ClientQuery.h"
 #include "Replication/Messages/Handshake.h"
 #include "Replication/Messages/Muting.h"
+#include "Replication/Messages/RestoreContent.h"
 
 template<typename ResultType>
 class TFuture;
@@ -133,10 +134,10 @@ public:
 	virtual TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(FConcertReplication_QueryMuteState_Request Request = {}) = 0;
 	TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(TSet<FSoftObjectPath> Objects);
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPreStreamsChanged,
-		const FConcertReplication_ChangeStream_Request&,
-		const FConcertReplication_ChangeStream_Response&
-		);
+	/** Restore this client's stream content and authority to what a client had when they left. */
+	virtual TFuture<FConcertReplication_RestoreContent_Response> RestoreContent(FConcertReplication_RestoreContent_Request Request = {}) = 0;
+
+	DECLARE_MULTICAST_DELEGATE(FOnPreStreamsChanged);
 	/** Called right before the result of GetRegisteredStreams changes. */
 	virtual FOnPreStreamsChanged& OnPreStreamsChanged() = 0;
 	
@@ -144,10 +145,7 @@ public:
 	/** Called right after the result of GetRegisteredStreams has changed. */
 	virtual FOnPostStreamsChanged& OnPostStreamsChanged() = 0;
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPreAuthorityChanged,
-		const FConcertReplication_ChangeAuthority_Request&,
-		const FConcertReplication_ChangeAuthority_Response&
-		);
+	DECLARE_MULTICAST_DELEGATE(FOnPreAuthorityChanged);
 	/** Called right before GetClientOwnedObjects changes. */
 	virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() = 0;
 	

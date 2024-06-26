@@ -140,6 +140,13 @@ namespace UE::ConcertSyncClient::Replication
 			: MakeFulfilledPromise<FConcertReplication_QueryMuteState_Response>().GetFuture(); 
 	}
 
+	TFuture<FConcertReplication_RestoreContent_Response> FReplicationManager::RestoreContent(FConcertReplication_RestoreContent_Request Request)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->RestoreContent(MoveTemp(Request))
+			: MakeFulfilledPromise<FConcertReplication_RestoreContent_Response>().GetFuture(); 
+	}
+
 	IConcertClientReplicationManager::FOnPreStreamsChanged& FReplicationManager::OnPreStreamsChanged()
 	{
 		// Check() to avoid returning some dummy static variable

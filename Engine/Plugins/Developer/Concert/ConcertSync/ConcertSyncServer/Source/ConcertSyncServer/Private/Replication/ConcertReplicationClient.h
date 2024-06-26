@@ -42,7 +42,7 @@ namespace UE::ConcertSyncServer::Replication
 		
 		/** Updates the StreamDescriptions array with the changes from Request. The request already passed validation and is valid to apply. */
 		void ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request);
-
+		
 		const FGuid& GetClientEndpointId() const { return ClientEndpointId; }
 		const TArray<FConcertReplicationStream>& GetStreamDescriptions() const { return StreamDescriptions; }
 

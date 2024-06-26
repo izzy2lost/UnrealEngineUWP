@@ -19,10 +19,10 @@ namespace UE::ConcertSyncTests::Replication
 		, ServerReplicationManager(ConcertSyncServer::TestInterface::CreateServerReplicationManager(ServerSessionMock, *ReplicationWorkspace, InSessionFlags))
 	{}
 
-	FReplicationClient& FReplicationServer::ConnectClient()
+	FReplicationClient& FReplicationServer::ConnectClient(FConcertClientInfo ClientInfo)
 	{
 		const FGuid ClientEndpointId(0, 0, 0, Clients.Num() + 1); // {0, 0, 0, 0} is used by the server.
-		Clients.Add(MakeUnique<FReplicationClient>(ClientEndpointId, SessionFlags, *ServerSessionMock, TestContext));
+		Clients.Add(MakeUnique<FReplicationClient>(ClientEndpointId, SessionFlags, *ServerSessionMock, TestContext, MoveTemp(ClientInfo)));
 		ServerSessionMock->ConnectClient(ClientEndpointId, *(Clients.Last()->GetClientSessionMock()));
 		return *Clients.Last();
 	}
