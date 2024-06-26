@@ -504,8 +504,13 @@ void FAnimNode_FootPlacement::UpdatePlantingPlaneInterpolation(
 	const FVector TraceDirection = Context.ApproachDirWS;
 	const FPlane LastPlantPlane = InOutPlantPlane;
 
-	const bool bTraceAgainstSimpleAndComplex = TraceSettings.SimpleCollisionInfluence > 0.0f;
-	if (bTraceAgainstSimpleAndComplex &&!FMath::IsNearlyEqual(AlignmentAlpha, 1.0f))
+	if (TraceSettings.bDisableComplexTrace)
+	{
+		FVector ImpactLocationWS;
+		// Trace against simple geometry only
+		UE::Anim::FootPlacement::FindPlantPlane(Context, TraceSettings, FootTransformWS.GetLocation(), false, InOutPlantPlane, ImpactLocationWS);
+	}
+	else if (TraceSettings.SimpleCollisionInfluence > 0.0f && !FMath::IsNearlyEqual(AlignmentAlpha, 1.0f))
 	{
 		FVector ImpactLocationSimpleWS; 
 		FVector ImpactLocationComplexWS;

@@ -284,8 +284,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Trace Settings", meta=(EditCondition="bEnabled", DisplayAfter="bEnabled"))
 	float SweepRadius = 5.0f;
 
-	// The channel to use for our complex trace
 	UPROPERTY(EditAnywhere, Category = "Trace Settings", meta=(EditCondition="bEnabled", DisplayAfter="bEnabled"))
+	bool bDisableComplexTrace = false;
+
+	// The channel to use for our complex trace
+	UPROPERTY(EditAnywhere, Category = "Trace Settings", meta=(EditCondition="!bDisableComplexTrace", DisplayAfter="bDisableComplexTrace"))
 	TEnumAsByte<ETraceTypeQuery> ComplexTraceChannel = TraceTypeQuery1;
 
 	// How much the feet can penetrate the ground geometry. It's recommended to allow some to account for interpolation
