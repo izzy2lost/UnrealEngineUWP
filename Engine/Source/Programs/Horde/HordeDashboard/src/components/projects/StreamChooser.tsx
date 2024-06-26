@@ -9,12 +9,13 @@ export interface IStreamChooser {
 }
 
 export interface IStreamChooserProps {
+   defaultStreamId?: string;
 
 }
 
 export const StreamChooser = React.forwardRef<IStreamChooser, IStreamChooserProps>((props, ref) => {
 
-   const [chosen, setChosen] = useState("");
+   const [chosen, setChosen] = useState(props?.defaultStreamId ?? "");
 
    useImperativeHandle(ref, () => ({
       streamId: chosen,

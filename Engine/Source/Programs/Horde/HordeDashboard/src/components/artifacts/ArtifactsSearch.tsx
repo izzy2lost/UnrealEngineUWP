@@ -119,7 +119,7 @@ const artifactTypes: IComboBoxOption[] = [
    }
 ]
 
-export const FindArtifactsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+export const FindArtifactsModal: React.FC<{ streamId?: string, onClose: () => void }> = ({ streamId, onClose }) => {
 
    const [state, setState] = useState<{ searching?: boolean, artifacts?: GetArtifactResponseV2[] }>({});
    const streamRef = React.useRef<IStreamChooser>(null);
@@ -221,20 +221,20 @@ export const FindArtifactsModal: React.FC<{ onClose: () => void }> = ({ onClose 
                   <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 20 }}>
                      <Stack >
                         <Label>Stream</Label>
-                        <StreamChooser ref={streamRef} />
+                        <StreamChooser defaultStreamId={streamId} ref={streamRef} />
                      </Stack>
                      <Stack >
-                        <TextField componentRef={minChangeRef} style={{ width: 92 }} label="Min Changelist" />
+                        <TextField key="min_change_option" componentRef={minChangeRef} style={{ width: 92 }} label="Min Changelist" />
                      </Stack>
                      <Stack >
-                        <TextField componentRef={maxChangeRef} style={{ width: 92 }} label="Max Changelist" />
+                        <TextField key="max_change_option" componentRef={maxChangeRef} style={{ width: 92 }} label="Max Changelist" />
                      </Stack>
                      <Stack >
-                        <TextField componentRef={nameRef} style={{ width: 220 }} label="Name" spellCheck={false} autoComplete="off" />
+                        <TextField key="name_option" componentRef={nameRef} style={{ width: 220 }} label="Name" spellCheck={false} autoComplete="off" />
                      </Stack>
                      <Stack>
                         <Label>Artifact Type</Label>
-                        <ComboBox componentRef={typeRef} allowFreeform={true} autoComplete="off" spellCheck={false} style={{ width: 144, textAlign: "left" }} defaultSelectedKey="step-all" options={filterTypes} calloutProps={{ doNotLayer: true }} />
+                        <ComboBox key="type_option" componentRef={typeRef} allowFreeform={true} autoComplete="off" spellCheck={false} style={{ width: 144, textAlign: "left" }} defaultSelectedKey="step-all" options={filterTypes} calloutProps={{ doNotLayer: true }} />
                      </Stack>
                   </Stack>
                   <Stack horizontal>

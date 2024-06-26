@@ -73,6 +73,7 @@ registerIcons({
       "Dot": IconContents.DOT,
       "Pin": IconContents.PIN,
       "Unpin": IconContents.UNPIN,
+      "Search": IconContents.SEARCH,
       "SearchTemplate": IconContents.SEARCH_TEMPLATE,
       "History": IconContents.HISTORY,
       "Import": IconContents.IMPORT,
