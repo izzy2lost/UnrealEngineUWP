@@ -126,40 +126,6 @@ private:
 };
 
 /**
- * SConstraintsCreationWidget
- */
-
-class CONTROLRIGEDITOR_API SConstraintsCreationWidget : public SCompoundWidget
-{
-public:
-
-	SLATE_BEGIN_ARGS(SConstraintsCreationWidget)	{}
-
-		SLATE_EVENT(FOnConstraintCreated, OnConstraintCreated)
-	
-	SLATE_END_ARGS()
-
-	FOnConstraintCreated OnConstraintCreated;
-	
-	/** Constructs this widget with InArgs */
-	void Construct(const FArguments& InArgs);
-
-private:
-	/** Types */
-	using ItemSharedPtr = TSharedPtr<FDroppableConstraintItem>;
-	using ConstraintItemListView = SListView< ItemSharedPtr >;
-
-	/** Generates a widget for the specified item */
-	TSharedRef<ITableRow> OnGenerateWidgetForItem(ItemSharedPtr InItem, const TSharedRef<STableViewBase>& OwnerTable);
-	
-	/** List view that shows constraint types*/
-	TSharedPtr< ConstraintItemListView > ListView;
-
-	/** Static list of constraint types */
-	static TArray< ItemSharedPtr > ListItems;
-};
-
-/**
  * The classes below are used to display a list of constraints. 
  */
 

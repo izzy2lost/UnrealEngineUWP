@@ -417,6 +417,18 @@ void SConstraintMenuEntry::NotifyPostChange(const FPropertyChangedEvent& InPrope
 
 FReply SConstraintMenuEntry::CreateSelectionPicker(const bool bUseDefault) const
 {
+	struct FCreationArgs
+	{
+		FOnConstraintCreated CreationDelegate;
+		ETransformConstraintType ConstraintType = ETransformConstraintType::Parent;
+		bool bUseDefault = false;
+	};
+
+	FCreationArgs Args;
+	Args.CreationDelegate = OnConstraintCreated;
+	Args.ConstraintType = ConstraintType;
+	Args.bUseDefault = bUseDefault;
+	
 	// FIXME temp approach for selecting the parent
 	FSlateApplication::Get().DismissAllMenus();
 	
@@ -425,9 +437,9 @@ FReply SConstraintMenuEntry::CreateSelectionPicker(const bool bUseDefault) const
 	ActorPickerMode.BeginActorPickingMode(
 		FOnGetAllowedClasses(), 
 		FOnShouldFilterActor(), 
-		FOnActorSelected::CreateLambda([CreationDelegate = OnConstraintCreated, Type = ConstraintType, bUseDefault](AActor* InActor)
+		FOnActorSelected::CreateLambda([Args](AActor* InActor)
 		{
-			CreateConstraint(InActor, CreationDelegate, Type, bUseDefault);
+			CreateConstraint(InActor, Args.CreationDelegate, Args.ConstraintType, Args.bUseDefault);
 		}) );
 	
 	return FReply::Handled();
