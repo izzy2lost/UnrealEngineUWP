@@ -51,21 +51,56 @@ protected:
 	{
 		FMediaSyncBarrierData()
 		{
+			Reset();
 		}
 
-		/** For now, we build it directly based on presentation info from the stream */
-		FMediaSyncBarrierData(const UE::RivermaxCore::FPresentedFrameInfo& FrameInfo)
-			: PresentedFrameBoundaryNumber(FrameInfo.PresentedFrameBoundaryNumber)
-			, LastRenderedFrameNumber(FrameInfo.RenderedFrameNumber)
+		/** Reset the data to default values */
+		void Reset()
 		{
+			for (int32 Idx = 0; Idx < FRAMEHISTORYLEN; ++Idx)
+			{
+				PresentedFrameBoundaryNumber[Idx] = 0;
+				LastRenderedFrameNumber[Idx] = 0;
+			}
 		}
+
+		/** Insert the given frame information into the recorded presentation history */
+		void InsertFrameInfo(const UE::RivermaxCore::FPresentedFrameInfo& FrameInfo)
+		{
+			// Shift existing history entries
+			for (int32 Idx = FRAMEHISTORYLEN - 1; Idx > 0; --Idx)
+			{
+				PresentedFrameBoundaryNumber[Idx] = PresentedFrameBoundaryNumber[Idx - 1];
+				LastRenderedFrameNumber[Idx] = LastRenderedFrameNumber[Idx - 1];
+			}
+
+			// Insert new frame info at the beginning
+			PresentedFrameBoundaryNumber[0] = FrameInfo.PresentedFrameBoundaryNumber;
+			LastRenderedFrameNumber[0] = FrameInfo.RenderedFrameNumber;
+		}
+
+		/** Rendered frames as comma separated string */
+		FString LastRenderedFrameNumbersAsString() const;
+
+		/** Presented frame boundaries as comma separated string */
+		FString PresentedFrameBoundaryNumbersAsString() const;
+
+		/** Returns true if the frame presentation history indicates a desynced state */
+		bool HasConfirmedDesync(const FMediaSyncBarrierData& OtherBarrierData) const;
+
+		/** How many frames to include in the history */
+		static constexpr int32 FRAMEHISTORYLEN = 2;
 
 		/** Frame boundary number at which the last frame was presented.  */
-		uint64 PresentedFrameBoundaryNumber = 0;
+		uint64 PresentedFrameBoundaryNumber[FRAMEHISTORYLEN];
 		
 		/** Last engine frame number that was presented */
-		uint32 LastRenderedFrameNumber = 0;
+		uint32 LastRenderedFrameNumber[FRAMEHISTORYLEN];
+
 	};
+
+	/** Holds data provided to server by this node when joining the barrier */
+	struct FMediaSyncBarrierData BarrierDataStruct;
 
 	/** Synchronization margin (ms) */
 	float MarginMs = 5.0f;
