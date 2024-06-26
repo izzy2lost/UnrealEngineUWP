@@ -309,6 +309,8 @@ bool UCommonInputPlatformSettings::TryGetInputBrush(FSlateBrush& OutBrush, const
 
 FName UCommonInputPlatformSettings::GetBestGamepadNameForHardware(FName CurrentGamepadName, FName InputDeviceName, const FString& HardwareDeviceIdentifier)
 {
+	InitializeControllerData();
+
 	FName FirstMatch = NAME_None;
 
 	// This is far more complicated than it should be because XInput exposes no information about device type,
