@@ -30,9 +30,7 @@
 		<Property Name="DefaultTargetTestList" Value="" />
 	</Do>
 
-	<Property Name="AgentOverride" Value="EditorPerfWin64" />
 	<Property Name="TestAgentOverride" Value="EditorPerfWin64" />
-	<Property Name="ClientCompileAgentOverride" Value="EditorPerfWin64" />
 	<!-- Common Setting Overrides -->
 	
 	<Property Name="ICVFXTestingPath" Value="$(RootDir)/Engine/Plugins/VirtualProduction/ICVFXTesting/Scripts"/>
