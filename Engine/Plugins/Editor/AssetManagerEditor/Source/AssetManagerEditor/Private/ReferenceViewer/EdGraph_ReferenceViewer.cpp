@@ -356,10 +356,10 @@ TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveRefere
 	TArray<FReferencingPropertyDescription> ReferencingProperties;
 
 	// Registering referencing properties to the output array. Property type defaults to EReferencedPropertyType::Property
-	auto AddReferencingProperty = [&ReferencingProperties](const FString& InPropertyName, const FString& InReferencerName,
-		FReferencingPropertyDescription::EAssetReferenceType InPropertyType = FReferencingPropertyDescription::EAssetReferenceType::Property)
+	auto AddReferencingProperty = [&ReferencingProperties, &InReferencedAsset](const FString& InPropertyName, const FString& InReferencerName
+		, FReferencingPropertyDescription::EAssetReferenceType InPropertyType = FReferencingPropertyDescription::EAssetReferenceType::Property)
 	{
-		FReferencingPropertyDescription PropertyDescription(InPropertyName, InReferencerName, InPropertyType);
+		FReferencingPropertyDescription PropertyDescription(InPropertyName, InReferencerName, InPropertyType, InReferencedAsset->GetClass());
 
 		if (!ReferencingProperties.Contains(PropertyDescription))
 		{

@@ -23,10 +23,11 @@ struct FReferencingPropertyDescription
 		None
 	};
 
-	FReferencingPropertyDescription(const FString& InName, const FString& InReferencerName, const EAssetReferenceType& InType) :
+	FReferencingPropertyDescription(const FString& InName, const FString& InReferencerName, const EAssetReferenceType& InType, const UClass* InClass) :
 		Name(InName),
 		ReferencerName(InReferencerName),
-		Type(InType)
+		Type(InType),
+		PropertyClass(InClass)
 	{
 	}
 
@@ -49,6 +50,8 @@ struct FReferencingPropertyDescription
 	/** Returns the property type as a string (useful e.g. for tooltips) */
 	FString GetTypeAsString() const;
 
+	const UClass* GetPropertyClass() const { return PropertyClass; }
+
 private:
 	friend class SReferencedPropertyNode;
 	FReferencingPropertyDescription() = default;
@@ -56,6 +59,8 @@ private:
 	FString Name;
 	FString ReferencerName;
 	EAssetReferenceType Type = EAssetReferenceType::None;
+
+	const UClass* PropertyClass = nullptr;
 };
 
 

@@ -136,18 +136,25 @@ FText SReferencedPropertyNode::GetTooltipText() const
 
 const FSlateBrush* SReferencedPropertyNode::GetIconBrush() const
 {
-	const FSlateBrush* ComponentIcon = FSlateIconFinder::FindIconBrushForClass(UObject::StaticClass());
 
-	switch (PropertyDescription.GetType())
+	const UClass* Class = PropertyDescription.GetPropertyClass();
+
+	const FSlateBrush* ComponentIcon;
+
+	if (Class)
 	{
-		case FReferencingPropertyDescription::EAssetReferenceType::Component:
+		ComponentIcon = FSlateIconFinder::FindIconBrushForClass(Class);
+	}
+	else
+	{
+		if (PropertyDescription.GetType() == FReferencingPropertyDescription::EAssetReferenceType::Component)
+		{
 			ComponentIcon = FSlateIconFinder::FindIconBrushForClass(UActorComponent::StaticClass(), TEXT("SCS.Component"));
-			break;
-		case FReferencingPropertyDescription::EAssetReferenceType::Property:
-		case FReferencingPropertyDescription::EAssetReferenceType::Value:
-		case FReferencingPropertyDescription::EAssetReferenceType::None:
-			break;
-		default: ;
+		}
+		else
+		{
+			ComponentIcon = FSlateIconFinder::FindIconBrushForClass(UObject::StaticClass());
+		}
 	}
 
 	return ComponentIcon;
