@@ -120,6 +120,11 @@ namespace VirtualBoneNameHelpers
 	{
 		return FName(SkipPrefix(InName));
 	}
+
+	bool CheckVirtualBonePrefix(const FString& InName)
+	{
+		return InName.StartsWith(VirtualBonePrefix);
+	}
 }
 
 #if WITH_EDITORONLY_DATA
@@ -1929,6 +1934,32 @@ bool USkeleton::AddNewVirtualBone(const FName SourceBoneName, const FName Target
 	RegenerateVirtualBoneGuid();
 	HandleVirtualBoneChanges();
 
+
+	return true;
+}
+
+bool USkeleton::AddNewNamedVirtualBone(const FName SourceBoneName, const FName TargetBoneName, const FName VirtualBoneName)
+{
+	if (!VirtualBoneNameHelpers::CheckVirtualBonePrefix(VirtualBoneName.ToString()))
+	{
+		return false;
+	}
+
+	for (const FVirtualBone& SSBone : VirtualBones)
+	{
+		if ((SSBone.SourceBoneName == SourceBoneName && SSBone.TargetBoneName == TargetBoneName) ||
+			SSBone.VirtualBoneName == VirtualBoneName)
+		{
+			return false;
+		}
+	}
+
+	Modify();
+
+	VirtualBones.Emplace(SourceBoneName, TargetBoneName, VirtualBoneName);
+
+	RegenerateVirtualBoneGuid();
+	HandleVirtualBoneChanges();
 
 	return true;
 }

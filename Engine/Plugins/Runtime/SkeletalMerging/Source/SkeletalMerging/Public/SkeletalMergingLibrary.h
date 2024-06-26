@@ -119,7 +119,7 @@ public:
 
 protected:
 	static void AddSockets(USkeleton* InSkeleton, const TArray<TObjectPtr<class USkeletalMeshSocket>>& InSockets);
-	static void AddVirtualBones(USkeleton* InSkeleton, const TArray<const struct FVirtualBone*> InVirtualBones);
+	static void AddVirtualBones(USkeleton* InSkeleton, const TArray<const struct FVirtualBone*>& InVirtualBones);
 	static void AddCurveNames(USkeleton* InSkeleton, const TMap<FName, const struct FCurveMetaData*>& InCurves);
 	static void AddBlendProfiles(USkeleton* InSkeleton, const TMap<FName, TArray<const class UBlendProfile*>>& InBlendProfiles);
 	static void AddAnimationSlotGroups(USkeleton* InSkeleton, const TMap<FName, TSet<FName>>& InSlotGroupsNames);

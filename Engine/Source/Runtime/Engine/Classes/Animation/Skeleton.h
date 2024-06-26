@@ -246,6 +246,7 @@ namespace VirtualBoneNameHelpers
 
 	ENGINE_API FString AddVirtualBonePrefix(const FString& InName);
 	ENGINE_API FName RemoveVirtualBonePrefix(const FString& InName);
+	ENGINE_API bool CheckVirtualBonePrefix(const FString& InName);
 }
 
 USTRUCT()
@@ -264,6 +265,13 @@ public:
 	FName VirtualBoneName;
 
 	FVirtualBone() {}
+
+	FVirtualBone(FName InSource, FName InTarget, FName InVirtual)
+		: SourceBoneName(InSource)
+		, TargetBoneName(InTarget)
+		, VirtualBoneName(InVirtual)
+	{
+	}
 
 	FVirtualBone(FName InSource, FName InTarget)
 		: SourceBoneName(InSource)
@@ -434,6 +442,8 @@ public:
 
 	ENGINE_API bool AddNewVirtualBone(const FName SourceBoneName, const FName TargetBoneName, FName& NewVirtualBoneName);
 
+	ENGINE_API bool AddNewNamedVirtualBone(const FName SourceBoneName, const FName TargetBoneName, const FName NewVirtualBoneName);
+	
 	ENGINE_API void RemoveVirtualBones(const TArray<FName>& BonesToRemove);
 
 	ENGINE_API void RenameVirtualBone(const FName OriginalBoneName, const FName NewBoneName);
