@@ -18,7 +18,7 @@ class UAvaVisibilityModifier : public UAvaArrangeBaseModifier
 public:
 	/** Sets the child index range to hide instead of showing. */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Visibility")
-	AVALANCHEMODIFIERS_API void SetInvertVisibility(const bool bInInvertVisibility);
+	AVALANCHEMODIFIERS_API void SetInvertVisibility(bool bInInvertVisibility);
 
 	/** Returns true if hiding the child index range instead of showing. */
 	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Visibility")
@@ -37,12 +37,21 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Visibility")
-	AVALANCHEMODIFIERS_API void SetTreatAsRange(const bool bInTreatAsRange);
+	AVALANCHEMODIFIERS_API void SetTreatAsRange(bool bInTreatAsRange);
 
 	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Visibility")
 	bool GetTreatAsRange() const
 	{
 		return bTreatAsRange;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Visibility")
+	AVALANCHEMODIFIERS_API void SetSkipWhenHidden(bool bInSkip);
+
+	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|Visibility")
+	bool GetSkipWhenHidden() const
+	{
+		return bSkipWhenHidden;
 	}
 
 protected:
@@ -83,6 +92,11 @@ protected:
 	UPROPERTY(EditInstanceOnly, Setter="SetInvertVisibility", Getter="GetInvertVisibility", Category="Visibility", meta=(AllowPrivateAccess="true"))
 	bool bInvertVisibility = false;
 
+	/** If true, when the top actor having this modifier is hidden, children actor visibility state will not be handled */
+	UPROPERTY(EditInstanceOnly, Setter="SetSkipWhenHidden", Getter="GetSkipWhenHidden", Category="Visibility", meta=(AllowPrivateAccess="true"))
+	bool bSkipWhenHidden = true;
+
+private:
 	/** Visibility defined for direct children of this actor, used by other modifiers of this type to check */
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	TMap<TWeakObjectPtr<AActor>, bool> DirectChildrenActorsWeak;
