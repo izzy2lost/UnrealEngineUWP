@@ -69,7 +69,7 @@ struct FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadin
 
 	// Used for mesh property overrides
 	TArray<TArray<int32>> AttributeOverridePartition;
-	TArray<FSoftISMComponentDescriptor> OverriddenDescriptors;
+	TArray<FPCGSoftISMComponentDescriptor> OverriddenDescriptors;
 
 	// Keeping track of all touched resources to allow for correct cleanup on abort
 	TArray<TWeakObjectPtr<UPCGManagedISMComponent>> TouchedResources;

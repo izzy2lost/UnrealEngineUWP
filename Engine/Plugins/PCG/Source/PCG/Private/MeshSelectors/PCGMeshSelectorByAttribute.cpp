@@ -24,7 +24,7 @@ namespace PCGMeshSelectorAttribute
 	// Returns variation based on mesh, material overrides and reverse culling
 	FPCGMeshInstanceList& GetInstanceList(
 		TArray<FPCGMeshInstanceList>& InstanceLists,
-		const FSoftISMComponentDescriptor& TemplateDescriptor,
+		const FPCGSoftISMComponentDescriptor& TemplateDescriptor,
 		TSoftObjectPtr<UStaticMesh> Mesh,
 		const TArray<TSoftObjectPtr<UMaterialInterface>>& MaterialOverrides,
 		bool bReverseCulling,
@@ -170,7 +170,7 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMeshSelectorByAttribute::SelectEntries::BuildingPartition);
 
 		TArray<FPCGObjectPropertyOverrideDescription> PropertyOverrides = Settings->StaticMeshComponentPropertyOverrides;
-		const FString StaticMeshPropertyString = GET_MEMBER_NAME_CHECKED(FSoftISMComponentDescriptor, StaticMesh).ToString();
+		const FString StaticMeshPropertyString = GET_MEMBER_NAME_CHECKED(FPCGSoftISMComponentDescriptor, StaticMesh).ToString();
 
 		// Add the Static mesh override to the list only if not already provided
 		if (!Algo::AnyOf(PropertyOverrides, [&StaticMeshPropertyString](const FPCGObjectPropertyOverrideDescription& PropertyOverride) { return PropertyOverride.PropertyTarget == StaticMeshPropertyString; }))
@@ -180,12 +180,12 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 			PropertyOverrides.Emplace(MeshSelector, StaticMeshPropertyString);
 		}
 
-		// Validate all the selectors are actual FSoftISMComponentDescriptor properties
+		// Validate all the selectors are actual FPCGSoftISMComponentDescriptor properties
 		TArray<FPCGAttributePropertySelector> ValidSelectorOverrides;
 
 		for (const FPCGObjectPropertyOverrideDescription& PropertyOverride : PropertyOverrides)
 		{
-			if (FSoftISMComponentDescriptor::StaticStruct()->FindPropertyByName(FName(PropertyOverride.PropertyTarget)))
+			if (FPCGSoftISMComponentDescriptor::StaticStruct()->FindPropertyByName(FName(PropertyOverride.PropertyTarget)))
 			{
 				ValidSelectorOverrides.Emplace_GetRef() = FPCGAttributePropertySelector::CreateFromOtherSelector<FPCGAttributePropertySelector>(PropertyOverride.InputSource);
 			}
@@ -205,7 +205,7 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 		Context.OverriddenDescriptors.Reserve(Context.AttributeOverridePartition.Num());
 		for (int I = 0; I < Context.AttributeOverridePartition.Num(); ++I)
 		{
-			FSoftISMComponentDescriptor& Descriptor = Context.OverriddenDescriptors.Add_GetRef(TemplateDescriptor);
+			FPCGSoftISMComponentDescriptor& Descriptor = Context.OverriddenDescriptors.Add_GetRef(TemplateDescriptor);
 
 			// If partition is empty (which can happen, esp. for the default partition on the default value, we'll just skip it here.
 			if (Context.AttributeOverridePartition[I].IsEmpty())
@@ -243,7 +243,7 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 		{
 			const int32 PartitionIndex = CurrentPartitionIndex++;
 			TArray<int32>& Partition = Context.AttributeOverridePartition[PartitionIndex];
-			const FSoftISMComponentDescriptor& CurrentPartitionDescriptor = Context.OverriddenDescriptors[PartitionIndex];
+			const FPCGSoftISMComponentDescriptor& CurrentPartitionDescriptor = Context.OverriddenDescriptors[PartitionIndex];
 			
 			if (Partition.IsEmpty() || CurrentPartitionDescriptor.StaticMesh.IsNull())
 			{

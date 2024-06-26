@@ -66,6 +66,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = MeshSelector)
 	TObjectPtr<UPCGMeshSelectorBase> MeshSelectorParameters;
 
+	/** Allows PCG to make some changes on the descriptors as situation arises (using ISM instead of HISM for nanite meshes, etc.) */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = MeshSelector)
+	bool bAllowDescriptorChanges = true;
+
 	/** Defines the method of custom data packing for spawned (H)ISMCs */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = InstanceDataPacker)
 	TSubclassOf<UPCGInstanceDataPackerBase> InstanceDataPackerType;

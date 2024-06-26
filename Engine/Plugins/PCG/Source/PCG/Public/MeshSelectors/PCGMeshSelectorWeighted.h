@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "PCGMeshSelectorBase.h"
+#include "MeshSelectors/PCGMeshSelectorBase.h"
+#include "MeshSelectors/PCGISMDescriptor.h"
 
 #include "PCGMeshSelectorWeighted.generated.h"
 
@@ -29,7 +30,7 @@ struct PCG_API FPCGMeshSelectorWeightedEntry
 #endif // WITH_EDITOR
 
 	UPROPERTY(EditAnywhere, Category = Settings)
-	FSoftISMComponentDescriptor Descriptor;
+	FPCGSoftISMComponentDescriptor Descriptor;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "0"))
 	int Weight = 1;
@@ -37,9 +38,7 @@ struct PCG_API FPCGMeshSelectorWeightedEntry
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient, VisibleAnywhere, Category = Settings)
 	FName DisplayName = NAME_None;
-#endif
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TSoftObjectPtr<UStaticMesh> Mesh_DEPRECATED;
 

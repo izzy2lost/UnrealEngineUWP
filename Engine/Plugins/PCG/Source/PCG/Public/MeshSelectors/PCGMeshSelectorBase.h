@@ -3,10 +3,10 @@
 #pragma once
 
 #include "PCGPoint.h"
+#include "MeshSelectors/PCGISMDescriptor.h"
 #include "Metadata/PCGMetadata.h"
 
 #include "Engine/CollisionProfile.h"
-#include "ISMPartition/ISMComponentDescriptor.h"
 
 #include "PCGMeshSelectorBase.generated.h"
 
@@ -26,13 +26,13 @@ struct FPCGMeshInstanceList
 
 	FPCGMeshInstanceList() = default;
 
-	explicit FPCGMeshInstanceList(const FSoftISMComponentDescriptor& InDescriptor)
+	explicit FPCGMeshInstanceList(const FPCGSoftISMComponentDescriptor& InDescriptor)
 		: Descriptor(InDescriptor)
 		, AttributePartitionIndex(INDEX_NONE)
 	{}
 
 	UPROPERTY(EditAnywhere, Category = Settings)
-	FSoftISMComponentDescriptor Descriptor;
+	FPCGSoftISMComponentDescriptor Descriptor;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	TArray<FTransform> Instances;

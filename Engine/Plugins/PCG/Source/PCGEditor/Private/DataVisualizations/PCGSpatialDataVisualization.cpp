@@ -166,9 +166,23 @@ void IPCGSpatialDataVisualization::ExecuteDebugDisplay(FPCGContext* Context, con
 	Params[0].NumCustomDataFloats = NumCustomData;
 	Params[0].Descriptor.StaticMesh = Mesh;
 	Params[0].Descriptor.OverrideMaterials = Materials;
+	Params[0].Descriptor.Mobility = EComponentMobility::Static;
 	Params[0].Descriptor.BodyInstance.SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+
 	// Note: In the future we may consider enabling culling for performance reasons, but for now culling disabled.
 	Params[0].Descriptor.InstanceStartCullDistance = Params[0].Descriptor.InstanceEndCullDistance = 0;
+	// Additional performance switches
+	Params[0].Descriptor.bAffectDistanceFieldLighting = false;
+	Params[0].Descriptor.bAffectDynamicIndirectLighting = false;
+	Params[0].Descriptor.bAffectDynamicIndirectLightingWhileHidden = false;
+	Params[0].Descriptor.bCastContactShadow = false;
+	Params[0].Descriptor.bCastDynamicShadow = false;
+	Params[0].Descriptor.bCastShadow = false;	
+	Params[0].Descriptor.bCastStaticShadow = false;
+	Params[0].Descriptor.bGenerateOverlapEvents = false;
+	Params[0].Descriptor.bIncludeInHLOD = false;
+	Params[0].Descriptor.bReceivesDecals = false;
+	Params[0].Descriptor.bVisibleInRayTracing = false;
 	
 	// If the root actor we're binding to is movable, then the ISMC should be movable by default
 	if (USceneComponent* SceneComponent = TargetActor->GetRootComponent())

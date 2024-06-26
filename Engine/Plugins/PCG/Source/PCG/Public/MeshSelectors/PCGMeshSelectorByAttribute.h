@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "PCGMeshSelectorBase.h"
+#include "MeshSelectors/PCGMeshSelectorBase.h"
+#include "MeshSelectors/PCGISMDescriptor.h"
 
 #include "PCGMeshSelectorByAttribute.generated.h"
 
@@ -28,7 +29,7 @@ public:
 	FName AttributeName;
 
 	UPROPERTY(EditAnywhere, Category = MeshSelector)
-	FSoftISMComponentDescriptor TemplateDescriptor;
+	FPCGSoftISMComponentDescriptor TemplateDescriptor;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MeshSelector, meta = (InlineEditConditionToggle))
 	bool bUseAttributeMaterialOverrides = false;

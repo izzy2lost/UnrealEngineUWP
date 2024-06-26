@@ -50,10 +50,37 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedISMC);
 
+	FISMComponentDescriptor Descriptor = InParams.Descriptor;
+
+	// If the component class is invalid, default to HISM.
+	// TODO: should this be part of the descriptor changes?
+	if (!Descriptor.ComponentClass)
+	{
+		Descriptor.ComponentClass = UHierarchicalInstancedStaticMeshComponent::StaticClass();
+	}
+
+	if (InParams.bAllowDescriptorChanges)
+	{
+		if (Descriptor.ComponentClass == UHierarchicalInstancedStaticMeshComponent::StaticClass())
+		{
+			// Done as in InstancedStaticMesh.cpp
+#if WITH_EDITOR
+			const bool bMeshHasNaniteData = StaticMesh->IsNaniteEnabled();
+#else
+			const bool bMeshHasNaniteData = StaticMesh->GetRenderData() && StaticMesh->GetRenderData()->HasValidNaniteData();
+#endif
+
+			if (bMeshHasNaniteData)
+			{
+				Descriptor.ComponentClass = UInstancedStaticMeshComponent::StaticClass();
+			}
+		}
+	}
+
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::GetOrCreateManagedISMC::FindMatchingMISMC);
 		UPCGManagedISMComponent* MatchingResource = nullptr;
-		InSourceComponent->ForEachManagedResource([&MatchingResource, &InParams, &InTargetActor, SettingsUID](UPCGManagedResource* InResource)
+		InSourceComponent->ForEachManagedResource([&MatchingResource, &InParams, &InTargetActor, &Descriptor, SettingsUID](UPCGManagedResource* InResource)
 		{
 			// Early out if already found a match
 			if (MatchingResource)
@@ -73,7 +100,7 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 					if (IsValid(ISMC) &&
 						ISMC->GetOwner() == InTargetActor &&
 						ISMC->NumCustomDataFloats == InParams.NumCustomDataFloats &&
-						Resource->GetDescriptor() == InParams.Descriptor)
+						Resource->GetDescriptor() == Descriptor)
 					{
 						MatchingResource = Resource;
 					}
@@ -93,37 +120,15 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 	// No matching ISM component found, let's create a new one
 	InTargetActor->Modify(!InSourceComponent->IsInPreviewMode());
 
-	// Done as in InstancedStaticMesh.cpp
-#if WITH_EDITOR
-	const bool bMeshHasNaniteData = StaticMesh->IsNaniteEnabled();
-#else
-	const bool bMeshHasNaniteData = StaticMesh->GetRenderData() && StaticMesh->GetRenderData()->HasValidNaniteData();
-#endif
-
 	FString ComponentName;
-	TSubclassOf<UInstancedStaticMeshComponent> ComponentClass = InParams.Descriptor.ComponentClass;
-
-	// If the component class in invalid, default to HISM.
-	if (!ComponentClass)
-	{
-		ComponentClass = UHierarchicalInstancedStaticMeshComponent::StaticClass();
-	}
 
 	// It's potentially less efficient to put nanite meshes inside of HISMs so decay those to ISM in this case.
 	// Note the equality here, not a IsA because we do not want to change derived types either
-	if (ComponentClass == UHierarchicalInstancedStaticMeshComponent::StaticClass())
+	if (Descriptor.ComponentClass == UHierarchicalInstancedStaticMeshComponent::StaticClass())
 	{
-		if (bMeshHasNaniteData)
-		{
-			ComponentClass = UInstancedStaticMeshComponent::StaticClass();
-		}
-		else
-		{
-			ComponentName = TEXT("HISM_");
-		}
+		ComponentName = TEXT("HISM_");
 	}
-
-	if (ComponentClass == UInstancedStaticMeshComponent::StaticClass())
+	else if (Descriptor.ComponentClass == UInstancedStaticMeshComponent::StaticClass())
 	{
 		ComponentName = TEXT("ISM_");
 	}
@@ -131,8 +136,8 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 	ComponentName += StaticMesh->GetName();
 
 	const EObjectFlags ObjectFlags = (InSourceComponent->IsInPreviewMode() ? RF_Transient : RF_NoFlags);
-	UInstancedStaticMeshComponent* ISMC = NewObject<UInstancedStaticMeshComponent>(InTargetActor, ComponentClass, MakeUniqueObjectName(InTargetActor, ComponentClass, FName(ComponentName)), ObjectFlags);
-	InParams.Descriptor.InitComponent(ISMC);
+	UInstancedStaticMeshComponent* ISMC = NewObject<UInstancedStaticMeshComponent>(InTargetActor, Descriptor.ComponentClass, MakeUniqueObjectName(InTargetActor, Descriptor.ComponentClass, FName(ComponentName)), ObjectFlags);
+	Descriptor.InitComponent(ISMC);
 	ISMC->SetNumCustomDataFloats(InParams.NumCustomDataFloats);
 
 	ISMC->RegisterComponent();
@@ -145,7 +150,7 @@ UPCGManagedISMComponent* UPCGActorHelpers::GetOrCreateManagedISMC(AActor* InTarg
 	// Create managed resource on source component
 	UPCGManagedISMComponent* Resource = NewObject<UPCGManagedISMComponent>(InSourceComponent);
 	Resource->SetComponent(ISMC);
-	Resource->SetDescriptor(InParams.Descriptor);
+	Resource->SetDescriptor(Descriptor);
 	if (InTargetActor->GetRootComponent())
 	{
 		Resource->SetRootLocation(InTargetActor->GetRootComponent()->GetComponentLocation());

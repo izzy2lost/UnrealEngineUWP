@@ -30,13 +30,14 @@ struct FPCGISMCBuilderParameters
 {
 	FISMComponentDescriptor Descriptor;
 	int32 NumCustomDataFloats = 0;
+	bool bAllowDescriptorChanges = true;
 
 	friend inline uint32 GetTypeHash(const FPCGISMCBuilderParameters& Key)
 	{
 		return HashCombine(GetTypeHash(Key.Descriptor), 1 + Key.NumCustomDataFloats);
 	}
 
-	inline bool operator==(const FPCGISMCBuilderParameters& Other) const { return Descriptor == Other.Descriptor && NumCustomDataFloats == Other.NumCustomDataFloats; }
+	inline bool operator==(const FPCGISMCBuilderParameters& Other) const { return Descriptor == Other.Descriptor && NumCustomDataFloats == Other.NumCustomDataFloats && bAllowDescriptorChanges == Other.bAllowDescriptorChanges; }
 };
 
 struct FPCGSplineMeshComponentBuilderParameters
