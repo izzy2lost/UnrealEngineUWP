@@ -330,7 +330,7 @@ FHordeArtifactQuery::FromString(std::string_view Str)
 
 	for (std::string_view PathPart : PathParts)
 	{
-		if (!Result.Parts.empty())
+		if (!Result.Parts.empty() || PathParts.size() == 1)
 		{
 			// TODO: derived the ID by parsing the request string using the format specification
 			size_t ArtifactIdPos = PathPart.find_last_of('#');
