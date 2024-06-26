@@ -301,14 +301,18 @@ inline int32 FindNeighborsInternal(FKDTreeImplementation* KDTreeImplementation, 
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FKDTree_FindNeighbors);
 
-	check(Query.GetData() && Query.Num() == KDTreeImplementation->dim && KDTreeImplementation->root_node);
+	if (KDTreeImplementation)
+	{
+		check(Query.GetData() && Query.Num() == KDTreeImplementation->dim && KDTreeImplementation->root_node);
 
-	const nanoflann::SearchParams SearchParams(
-		32,			// Ignored parameter (Kept for compatibility with the FLANN interface).
-		0.f,		// search for eps-approximate neighbours (default: 0)
-		false);		// only for radius search, require neighbours sorted by
-	KDTreeImplementation->findNeighbors(Result, Query.GetData(), SearchParams);
-	return Result.Num();
+		const nanoflann::SearchParams SearchParams(
+			32,			// Ignored parameter (Kept for compatibility with the FLANN interface).
+			0.f,		// search for eps-approximate neighbours (default: 0)
+			false);		// only for radius search, require neighbours sorted by
+		KDTreeImplementation->findNeighbors(Result, Query.GetData(), SearchParams);
+		return Result.Num();
+	}
+	return 0;
 
 #else // UE_POSE_SEARCH_USE_NANOFLANN
 

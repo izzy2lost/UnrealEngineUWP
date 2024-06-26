@@ -546,7 +546,7 @@ void FAnimationAssetSampler::Process()
 	}
 }
 
-void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction<bool(UAnimNotifyState_PoseSearchBase*)> ProcessPoseSearchBase) const
+void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, const TFunction<bool(UAnimNotifyState_PoseSearchBase*)>& ProcessPoseSearchBase) const
 {
 	float SampleTime = Time;
 	FAnimNotifyContext NotifyContext;
@@ -571,7 +571,7 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 					}
 
 					// Get notifies for highest weighted
-					const float ExtractionStartTime = FMath::Min(SampleTime - (ExtractionInterval * 0.5f), BlendSample.Animation->GetPlayLength());
+					const float ExtractionStartTime = FMath::Min(SampleTime, BlendSample.Animation->GetPlayLength()) - (ExtractionInterval * 0.5f);
 					BlendSample.Animation->GetAnimNotifies(ExtractionStartTime, ExtractionInterval, NotifyContext);
 				}
 			}
@@ -584,7 +584,7 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAssetPtr.Get()))
 	{
 		// getting pose search notifies in an interval of size ExtractionInterval, centered on Time
-		const float ExtractionStartTime = FMath::Min(Time - (ExtractionInterval * 0.5f), SequenceBase->GetPlayLength());
+		const float ExtractionStartTime = FMath::Min(Time, SequenceBase->GetPlayLength()) - (ExtractionInterval * 0.5f);
 		SequenceBase->GetAnimNotifies(ExtractionStartTime, ExtractionInterval, NotifyContext);
 	}
 	else
@@ -595,23 +595,14 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TFunction
 	// check which notifies actually overlap Time and are of the right base type
 	for (const FAnimNotifyEventReference& EventReference : NotifyContext.ActiveNotifies)
 	{
-		const FAnimNotifyEvent* NotifyEvent = EventReference.GetNotify();
-		if (!NotifyEvent)
+		if (const FAnimNotifyEvent* NotifyEvent = EventReference.GetNotify())
 		{
-			continue;
-		}
-
-		// @todo: is this condition necessary? can we just rely on the ExtractionInterval?
-		if (NotifyEvent->GetTime() > SampleTime || (NotifyEvent->GetTime() + NotifyEvent->GetDuration()) < SampleTime)
-		{
-			continue;
-		}
-
-		if (UAnimNotifyState_PoseSearchBase* PoseSearchAnimNotify = Cast<UAnimNotifyState_PoseSearchBase>(NotifyEvent->NotifyStateClass))
-		{
-			if (!ProcessPoseSearchBase(PoseSearchAnimNotify))
+			if (UAnimNotifyState_PoseSearchBase* PoseSearchAnimNotify = Cast<UAnimNotifyState_PoseSearchBase>(NotifyEvent->NotifyStateClass))
 			{
-				break;
+				if (!ProcessPoseSearchBase(PoseSearchAnimNotify))
+				{
+					break;
+				}
 			}
 		}
 	}

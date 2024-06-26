@@ -133,7 +133,7 @@ bool FAnimationAssetSamplers::IsLoopable() const
 	return true;
 }
 
-void FAnimationAssetSamplers::ExtractPoseSearchNotifyStates(float Time, TFunction<bool(UAnimNotifyState_PoseSearchBase*)> ProcessPoseSearchBase) const
+void FAnimationAssetSamplers::ExtractPoseSearchNotifyStates(float Time, const TFunction<bool(UAnimNotifyState_PoseSearchBase*)>& ProcessPoseSearchBase) const
 {
 	for (const FAnimationAssetSampler* Sampler : AnimationAssetSamplers)
 	{
@@ -141,7 +141,7 @@ void FAnimationAssetSamplers::ExtractPoseSearchNotifyStates(float Time, TFunctio
 	}
 }
 
-bool FAnimationAssetSamplers::ProcessAllAnimNotifyEvents(TFunction<bool(TConstArrayView<FAnimNotifyEvent>)> ProcessAnimNotifyEvents) const
+bool FAnimationAssetSamplers::ProcessAllAnimNotifyEvents(const TFunction<bool(TConstArrayView<FAnimNotifyEvent>)>& ProcessAnimNotifyEvents) const
 {
 	for (const FAnimationAssetSampler* Sampler : AnimationAssetSamplers)
 	{
@@ -764,7 +764,7 @@ bool FAssetIndexer::GetSampleVelocity(FVector& OutSampleVelocity, float SampleTi
 	return false;
 }
 
-bool FAssetIndexer::ProcessAllAnimNotifyEvents(TFunction<bool(TConstArrayView<FAnimNotifyEvent>)> ProcessAnimNotifyEvents) const
+bool FAssetIndexer::ProcessAllAnimNotifyEvents(const TFunction<bool(TConstArrayView<FAnimNotifyEvent>)>& ProcessAnimNotifyEvents) const
 {
 	return AssetSamplers.ProcessAllAnimNotifyEvents(ProcessAnimNotifyEvents);
 }
