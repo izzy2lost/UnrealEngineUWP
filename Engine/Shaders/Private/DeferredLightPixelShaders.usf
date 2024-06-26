@@ -101,7 +101,7 @@ FDerivedParams GetDerivedParams(in FInputParams Input, in float SceneDepth)
 	Out.TranslatedWorldPosition = mul(float4(ClipPosition, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 	Out.CameraVector = GetCameraVectorFromTranslatedWorldPosition(Out.TranslatedWorldPosition);
 #else
-	Out.TranslatedWorldPosition = Input.ScreenVector * SceneDepth + GetTranslatedWorldCameraPosFromView(Input.PixelPos + 0.5f);
+	Out.TranslatedWorldPosition = Input.ScreenVector * SceneDepth + GetTranslatedWorldCameraPosFromView(Input.PixelPos);
 	Out.CameraVector = normalize(Input.ScreenVector);
 #endif
 	return Out;

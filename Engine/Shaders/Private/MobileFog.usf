@@ -54,7 +54,7 @@ void MobileFogVS(
 	// texture coord from vb
 	OutTexCoord = InPosition * ResolvedView.ScreenPositionScaleBias.xy + ResolvedView.ScreenPositionScaleBias.wz;
 	// deproject to world space
-	OutScreenVector = mul(float4(InPosition,1,0), ResolvedView.ScreenToTranslatedWorld).xyz;
+	OutScreenVector = ScreenVectorFromScreenRect(float4(InPosition,1,0));
 }
 
 void MobileFogPS(
@@ -85,7 +85,7 @@ void MobileFogPS(
 	float DeviceZ = LookupDeviceZ(TexCoord, ArrayIndex);
 	float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 	float3 WorldPositionRelativeToCamera = ScreenVector.xyz * SceneDepth;
-	float3 TranslatedWorldPosition = WorldPositionRelativeToCamera + ResolvedView.TranslatedWorldCameraOrigin;
+	float3 TranslatedWorldPosition = WorldPositionRelativeToCamera + GetTranslatedWorldCameraPosFromView(SVPos.xy);
 
 // at least one of these is active
 #if PERMUTATION_SUPPORT_HEIGHT_FOG
