@@ -239,7 +239,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	 * @param	InOptionalParams		Optional parameters for async loading the asset
 	 * @return Unique ID associated with this load request (the same object or package can be associated with multiple IDs).
 	 */
-	COREUOBJECT_API int32 LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams = FLoadAssetAsyncOptionalParams());
+	COREUOBJECT_API int32 LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams = FLoadAssetAsyncOptionalParams()) const;
 
 	/**
 	 * Attempts to find a currently loaded object that matches this path

@@ -609,7 +609,7 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 	return LoadedObject;
 }
 
-int32 FSoftObjectPath::LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams)
+int32 FSoftObjectPath::LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDelegate, FLoadAssetAsyncOptionalParams InOptionalParams) const
 {
 	FSoftObjectPath RequestedPath = *this;
 	FSoftObjectPath PathToLoad = RequestedPath;
