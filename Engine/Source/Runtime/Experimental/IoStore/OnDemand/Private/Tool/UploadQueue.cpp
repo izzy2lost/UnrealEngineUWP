@@ -4,7 +4,7 @@
 
 #include "UploadQueue.h"
 
-#include <Containers/UnrealString.h>
+#include <Async/Async.h>
 #include <CoreGlobals.h>
 #include <Misc/OutputDeviceRedirector.h>
 #include <IO/IoStoreOnDemand.h>

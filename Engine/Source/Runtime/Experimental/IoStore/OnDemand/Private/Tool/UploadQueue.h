@@ -7,9 +7,11 @@
 
 #include "IO/IoBuffer.h"
 
+#include <Async/Future.h>
 #include <Containers/Array.h>
-#include <Containers/StringConv.h>
+#include <Containers/Queue.h>
 #include <Containers/StringView.h>
+#include <Containers/UnrealString.h>
 #include <String/LexFromString.h>
 
 
