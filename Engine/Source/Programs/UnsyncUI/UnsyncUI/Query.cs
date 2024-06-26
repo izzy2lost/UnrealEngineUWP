@@ -181,6 +181,21 @@ namespace UnsyncUI
 			this.DirectorySchema = DirectorySchema;
 		}
 
+		public string FormatArtifactPath(string virtualPath) 
+		{
+			if (Config.server?.protocol == "horde")
+			{
+				// extract artifact ID assuming 'foobar#1234abcd' convention
+				int artifactIdPos = virtualPath.LastIndexOf('#');
+				string artifactId = artifactIdPos == -1 ? virtualPath : virtualPath.Substring(artifactIdPos);				
+				return artifactId;
+			}
+			else
+			{
+				return virtualPath; 
+			}
+		}
+
 		private async Task LazyInit(CancellationToken cancellationToken)
 		{
 			if (!Initialized)

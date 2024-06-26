@@ -73,6 +73,7 @@ namespace UnsyncUI
 	{
 		public Task<IEnumerable<string>> EnumerateDirectories(string path, CancellationToken token);
 		public Task<IEnumerable<string>> EnumerateFiles(string path, CancellationToken token);
+		public string FormatArtifactPath(string virtualPath) { return virtualPath; }
 	}
 
 	public class NativeDirectoryEnumerator : IDirectoryEnumerator

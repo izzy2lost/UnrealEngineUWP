@@ -163,18 +163,21 @@ namespace UnsyncUI
 							var files = await dirEnum.EnumerateFiles(path, cancellationToken.Token);
 							currentDir.ParseFileGroups(files.ToList(), template, out fileGroups);
 						}
+
+						string formattedPath = dirEnum.FormatArtifactPath(path);
+
 						if (fileGroups?.Any() == true)
 						{
 							foreach (var fileGroup in fileGroups)
 							{
-								Platforms.Add(new BuildPlatformModel(this, fileGroup.Platform, path, fileGroup.Flavor, fileGroup.Include));
+								Platforms.Add(new BuildPlatformModel(this, fileGroup.Platform, formattedPath, fileGroup.Flavor, fileGroup.Include));
 							}
-							Platforms.Add(new BuildPlatformModel(this, template.Platform, path, "All", null));
+							Platforms.Add(new BuildPlatformModel(this, template.Platform, formattedPath, "All", null));
 						}
 						else
 						{
 							// This folder is a valid build
-							Platforms.Add(new BuildPlatformModel(this, template.Platform, path, template.Flavor, null));
+							Platforms.Add(new BuildPlatformModel(this, template.Platform, formattedPath, template.Flavor, null));
 						}
 					}
 					else
