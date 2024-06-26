@@ -210,8 +210,6 @@ int MipLevel;
 // Output
 RWTexture2D<float4> RWLightingTexture;
 
-#endif
-
 FRayDesc CreateVolumeRay(
 	float3 Origin,
 	float3 Direction,
@@ -600,3 +598,5 @@ RAY_TRACING_ENTRY_RAYGEN(RenderSingleScatteringWithPreshadingRGS)
 	// Output..
 	RWLightingTexture[PixelCoord] += float4(Radiance * View.PreExposure, Luminance(Transmittance));
 }
+
+#endif  // RAYGENSHADER
