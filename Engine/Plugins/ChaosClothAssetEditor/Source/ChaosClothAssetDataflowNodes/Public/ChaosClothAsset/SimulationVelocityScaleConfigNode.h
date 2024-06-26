@@ -26,7 +26,7 @@ public:
 	/**
 	 * Enable linear velocity clamping.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (InlineEditConditionToggle))
 	bool bEnableLinearVelocityClamping = false;
 
 	/**
@@ -39,7 +39,7 @@ public:
 	/**
 	 * Enable linear acceleration clamping.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (InlineEditConditionToggle))
 	bool bEnableLinearAccelerationClamping = false;
 
 	/**
@@ -60,7 +60,7 @@ public:
 	/**
 	 * Enable angular velocity clamping.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (InlineEditConditionToggle))
 	bool bEnableAngularVelocityClamping = false;
 
 	/**
@@ -73,7 +73,7 @@ public:
 	/**
 	 * Enable angular acceleration clamping.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties", meta = (InlineEditConditionToggle))
 	bool bEnableAngularAccelerationClamping = false;
 
 	/**

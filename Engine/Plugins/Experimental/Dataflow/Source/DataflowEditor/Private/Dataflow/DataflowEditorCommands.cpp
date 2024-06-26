@@ -357,6 +357,7 @@ void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSh
 	case EPropertyChangeType::ArrayClear:
 	case EPropertyChangeType::ArrayMove:
 	case EPropertyChangeType::Duplicate:
+	case EPropertyChangeType::ToggleEditable:
 		if (ensure(OutDataflow && InPropertyChangedEvent.Property && InPropertyChangedEvent.Property->GetOwnerUObject()))
 		{
 			OutDataflow->Modify();  // Modify must be called even if SelectedNodes is empty because comment nodes aren't part of the selection set but still have properties
