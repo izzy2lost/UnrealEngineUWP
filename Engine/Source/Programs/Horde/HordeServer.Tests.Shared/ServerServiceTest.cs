@@ -91,7 +91,7 @@ namespace HordeServer.Tests
 		{
 			base.ConfigureServices(services);
 
-			services.AddSingleton<IServerInfo>(new ServerInfo());
+			services.AddSingleton<IServerInfo, ServerInfo>();
 			services.AddSingleton<IPluginCollection>(_pluginCollection);
 
 			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });

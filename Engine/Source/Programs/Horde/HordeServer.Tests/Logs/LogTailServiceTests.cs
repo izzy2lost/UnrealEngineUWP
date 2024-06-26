@@ -73,7 +73,7 @@ namespace HordeServer.Tests.Logs
 		{
 			IRedisService redisService = ServiceProvider.GetRequiredService<IRedisService>();
 
-			LogTailService tailService = new LogTailService(redisService, ServiceProvider.GetRequiredService<IClock>(), 4, ServiceProvider.GetRequiredService<IOptions<ServerSettings>>(), ServiceProvider.GetRequiredService<ILogger<LogTailService>>());
+			LogTailService tailService = new LogTailService(redisService, ServiceProvider.GetRequiredService<IClock>(), 4, ServiceProvider.GetRequiredService<IServerInfo>(), ServiceProvider.GetRequiredService<ILogger<LogTailService>>());
 			await tailService.StartAsync(CancellationToken.None);
 
 			await tailService.EnableTailingAsync(_logId, 30);
@@ -173,7 +173,7 @@ namespace HordeServer.Tests.Logs
 			LogTailService tailService = ServiceProvider.GetRequiredService<LogTailService>();
 			await tailService.StartAsync(CancellationToken.None);
 
-			LogTailService tailService2 = new LogTailService(ServiceProvider.GetRequiredService<IRedisService>(), ServiceProvider.GetRequiredService<IClock>(), 4, ServiceProvider.GetRequiredService<IOptions<ServerSettings>>(), ServiceProvider.GetRequiredService<ILogger<LogTailService>>());
+			LogTailService tailService2 = new LogTailService(ServiceProvider.GetRequiredService<IRedisService>(), ServiceProvider.GetRequiredService<IClock>(), 4, ServiceProvider.GetRequiredService<IServerInfo>(), ServiceProvider.GetRequiredService<ILogger<LogTailService>>());
 
 			Task<int> task = tailService.WaitForTailNextAsync(_logId, CancellationToken.None);
 			Assert.IsTrue(!task.IsCompleted);

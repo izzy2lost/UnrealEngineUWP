@@ -15,7 +15,6 @@ using EpicGames.Horde.Logs;
 using HordeServer.Agents.Sessions;
 using HordeServer.Jobs;
 using HordeServer.Logs;
-using HordeServer.Logs.Data;
 using HordeServer.Utilities;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -31,7 +30,7 @@ namespace HordeServer.Tests.Logs
 			byte[] jsonData = Encoding.UTF8.GetBytes(jsonText);
 
 			byte[] outputData = new byte[jsonData.Length];
-			int outputLength = LogText.ConvertToPlainText(jsonData, outputData, 0);
+			int outputLength = HordeServer.Logs.LogCollection.ConvertToPlainText(jsonData, outputData, 0);
 			string outputText = Encoding.UTF8.GetString(outputData, 0, outputLength);
 
 			string expectText = "       \tdepends on: /mnt/horde/U5+R5.0+Inc+Min/Sync/Engine/Binaries/Linux/libUnrealEditor-Core.so\n";
