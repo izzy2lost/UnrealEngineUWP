@@ -8,11 +8,16 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "SOutputLog.h"
+
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 #include "Interfaces/TargetDeviceId.h"
 #include "Interfaces/ITargetDevice.h"
+#endif
+
 
 class SComboButton;
 
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 struct FTargetDeviceEntry
 {
 	FTargetDeviceId			DeviceId;
@@ -23,6 +28,7 @@ struct FTargetDeviceEntry
 typedef TSharedPtr<FTargetDeviceEntry> FTargetDeviceEntryPtr;
 
 DECLARE_DELEGATE_OneParam(FSelectedTargetDeviceChangedDelegate, ITargetDevicePtr);
+#endif
 
 class SDeviceOutputLog : public SOutputLog
 {
@@ -43,8 +49,10 @@ public:
 	 */
 	void Construct( const FArguments& InArgs );
 
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	FSelectedTargetDeviceChangedDelegate& OnSelectedDeviceChanged() { return OnSelectedDeviceChangedDelegate; }
 	ITargetDevicePtr GetSelectedTargetDevice() const;
+#endif
 
 protected:
 	// SWidget interface
@@ -56,6 +64,7 @@ protected:
 
 	void ExecuteConsoleCommand(const FString& ExecCommand);
 
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	/** Callback for lost target devices. */
 	void HandleTargetPlatformDeviceLost(ITargetDeviceRef LostDevice);
 	/** Callback for discovered target devices. */
@@ -73,19 +82,23 @@ protected:
 	
 	const FSlateBrush* GetTargetDeviceBrush(FTargetDeviceEntryPtr DeviceEntry) const;
 	const FSlateBrush* GetSelectedTargetDeviceBrush() const;
-		
+#endif
+
 private:
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	TArray<FTargetDeviceEntryPtr>			DeviceList;
 	FTargetDeviceEntryPtr					CurrentDevicePtr;
 	ITargetDeviceOutputPtr					CurrentDeviceOutputPtr;
 
 	TSharedPtr<SComboButton> TargetDeviceComboButton;
-		
+#endif
 	/** Synchronization object for access to buffered lines */
 	FCriticalSection		BufferedLinesSynch;
 	TArray<FBufferedLine>	BufferedLines;
 
+#if OUTPUTLOG_HAS_TARGET_PLATFORMS
 	FSelectedTargetDeviceChangedDelegate OnSelectedDeviceChangedDelegate;
 
 	bool bAutoSelectDevice;
+#endif
 };

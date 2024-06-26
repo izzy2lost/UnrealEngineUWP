@@ -14,7 +14,6 @@ public class OutputLog : ModuleRules
 				"InputCore",
 				"Slate",
 				"SlateCore",
-				"TargetPlatform",
 				"DesktopPlatform",
 				"ToolWidgets",
 				"ToolMenus",
@@ -34,11 +33,13 @@ public class OutputLog : ModuleRules
 
 		if (Target.bBuildEditor || Target.bBuildDeveloperTools)
 		{
-			PrivateIncludePathModuleNames.AddRange(
-				new string[] {
-					"WorkspaceMenuStructure",
-				}
-			);
+			PrivateIncludePathModuleNames.Add("WorkspaceMenuStructure");
+			PrivateDependencyModuleNames.Add("TargetPlatform");
+			PrivateDefinitions.Add("OUTPUTLOG_HAS_TARGET_PLATFORMS=1");
+		}
+		else
+		{
+			PrivateDefinitions.Add("OUTPUTLOG_HAS_TARGET_PLATFORMS=0");
 		}
 
 		if (Target.bCompileAgainstEngine)
