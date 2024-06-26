@@ -6,6 +6,7 @@
 #include "LiveLinkHubApplication.h"
 #include "LiveLinkHubLog.h"
 #include "LiveLinkHubSubjectSettings.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "Recording/LiveLinkHubPlaybackController.h"
@@ -13,12 +14,9 @@
 #include "Settings/LiveLinkHubSettings.h"
 #include "Settings/LiveLinkHubSettingsCustomization.h"
 #include "Subjects/LiveLinkHubSubjectSettingsDetailsCustomization.h"
-
-#if !WITH_LIVELINK_HUB
 #include "HAL/FileManager.h"
 #include "Misc/AsyncTaskNotification.h"
 #include "ToolMenus.h"
-#endif
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubModule"
 
@@ -37,7 +35,6 @@ void FLiveLinkHubModule::StartLiveLinkHub()
 
 void FLiveLinkHubModule::StartupModule()
 {
-#if !WITH_LIVELINK_HUB  // When running in the editor
 	FToolMenuOwnerScoped OwnerScoped(this);
 	UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools");
 	FToolMenuSection& Section = Menu->AddSection("VirtualProductionSection", LOCTEXT("VirtualProductionSection", "Virtual Production"));
@@ -47,29 +44,31 @@ void FLiveLinkHubModule::StartupModule()
 		LOCTEXT("LiveLinkHubTooltip", "Launch the LiveLink Hub app."),
 		FSlateIcon("LiveLinkStyle", "LiveLinkClient.Common.Icon.Small"),
 		FUIAction(FExecuteAction::CreateRaw(this, &FLiveLinkHubModule::OpenLiveLinkHub)));
-#else
+
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.RegisterCustomClassLayout(ULiveLinkHubSubjectSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkHubSubjectSettingsDetailsCustomization::MakeInstance));
-#endif
-	if (FPropertyEditorModule* PropertyEditorModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+
+	PropertyModule.RegisterCustomClassLayout(ULiveLinkHubSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkHubSettingsCustomization::MakeInstance));
+
+	bUseSubjectSettingsDetailsCustomization =
+		GConfig->GetBoolOrDefault(TEXT("LiveLink"), TEXT("bUseLiveLinkHubSubjectSettingsDetailsCustomization"), false, GEngineIni);
+	if (bUseSubjectSettingsDetailsCustomization)
 	{
-		PropertyEditorModule->RegisterCustomClassLayout(ULiveLinkHubSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkHubSettingsCustomization::MakeInstance));
+		PropertyModule.RegisterCustomClassLayout(ULiveLinkHubSubjectSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkHubSubjectSettingsDetailsCustomization::MakeInstance));
 	}
 }
 
 void FLiveLinkHubModule::ShutdownModule()
 {
-#if !WITH_LIVELINK_HUB
 	UToolMenus::UnregisterOwner(this);
-#else
-	if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
-	{
-		PropertyModule->UnregisterCustomClassLayout(ULiveLinkHubSubjectSettings::StaticClass()->GetFName());
-	}
-#endif
+
 	if (FPropertyEditorModule* PropertyEditorModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{
 		PropertyEditorModule->UnregisterCustomClassLayout(ULiveLinkHubSettings::StaticClass()->GetFName());
+
+		if (bUseSubjectSettingsDetailsCustomization)
+		{
+			PropertyEditorModule->UnregisterCustomClassLayout(ULiveLinkHubSubjectSettings::StaticClass()->GetFName());
+		}
 	}
 }
 
@@ -98,7 +97,6 @@ TSharedPtr<FLiveLinkHubPlaybackController> FLiveLinkHubModule::GetPlaybackContro
 	return LiveLinkHub ? LiveLinkHub->PlaybackController : nullptr;
 }
 
-#if !WITH_LIVELINK_HUB
 void FLiveLinkHubModule::OpenLiveLinkHub() const
 {
 	FAsyncTaskNotificationConfig NotificationConfig;
@@ -167,7 +165,6 @@ void FLiveLinkHubModule::OpenLiveLinkHub() const
 			false);
 	}
 }
-#endif /** WITH_LIVELINK_HUB */
 
 TSharedPtr<FLiveLinkHubSubjectController> FLiveLinkHubModule::GetSubjectController() const
 {

@@ -11,16 +11,13 @@
 #include "LiveLinkMessageBusDiscoveryManager.h"
 #include "LiveLinkSettings.h"
 #include "Misc/CommandLine.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 #include "Styling/SlateStyle.h"
 #include "Styling/SlateStyleRegistry.h"
 
 LLM_DEFINE_TAG(LiveLink);
 #define LOCTEXT_NAMESPACE "LiveLinkModule"
-
-#ifndef WITH_LIVELINK_HUB
-#define WITH_LIVELINK_HUB 0
-#endif
 
 
 FLiveLinkClient* FLiveLinkModule::LiveLinkClient_AnyThread = nullptr;
@@ -42,10 +39,14 @@ void FLiveLinkModule::StartupModule()
 	FLiveLinkLogInstance::CreateInstance();
 	CreateStyle();
 
-#if !WITH_LIVELINK_HUB
-	FPlatformAtomics::InterlockedExchangePtr((void**)&LiveLinkClient_AnyThread, &LiveLinkClient);
-	IModularFeatures::Get().RegisterModularFeature(FLiveLinkClient::ModularFeatureName, &LiveLinkClient);
-#endif
+	const bool bUseModularClientReference = GConfig->GetBoolOrDefault(
+		TEXT("LiveLink"), TEXT("bUseModularClientReference"), false, GEngineIni);
+
+	if (!bUseModularClientReference)
+	{
+		FPlatformAtomics::InterlockedExchangePtr((void**)&LiveLinkClient_AnyThread, &LiveLinkClient);
+		IModularFeatures::Get().RegisterModularFeature(FLiveLinkClient::ModularFeatureName, &LiveLinkClient);
+	}
 
 	LiveLinkMotionController.RegisterController();
 
@@ -64,11 +65,14 @@ void FLiveLinkModule::ShutdownModule()
 #endif
 	LiveLinkMotionController.UnregisterController();
 
+	const bool bUseModularClientReference = GConfig->GetBoolOrDefault(
+		TEXT("LiveLink"), TEXT("bUseModularClientReference"), false, GEngineIni);
 
-#if !WITH_LIVELINK_HUB
-	IModularFeatures::Get().UnregisterModularFeature(FLiveLinkClient::ModularFeatureName, &LiveLinkClient);
-	FPlatformAtomics::InterlockedExchangePtr((void**)&LiveLinkClient_AnyThread, nullptr);
-#endif
+	if (!bUseModularClientReference)
+	{
+		IModularFeatures::Get().UnregisterModularFeature(FLiveLinkClient::ModularFeatureName, &LiveLinkClient);
+		FPlatformAtomics::InterlockedExchangePtr((void**)&LiveLinkClient_AnyThread, nullptr);
+	}
 
 	FSlateStyleRegistry::UnRegisterSlateStyle(*StyleSet.Get());
 	FLiveLinkLogInstance::DestroyInstance();

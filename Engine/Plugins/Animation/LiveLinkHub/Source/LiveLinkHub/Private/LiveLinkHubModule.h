@@ -14,9 +14,6 @@ class FLiveLinkHubSubjectController;
 class FUICommandList;
 class ILiveLinkHubSessionManager;
 
-#ifndef WITH_LIVELINK_HUB
-#define WITH_LIVELINK_HUB 0
-#endif
 
 class FLiveLinkHubModule : public ILiveLinkHubModule
 {
@@ -42,11 +39,13 @@ public:
 	/** Get the subject controller. */
     TSharedPtr<ILiveLinkHubSessionManager> GetSessionManager() const;
 
-#if !WITH_LIVELINK_HUB
 	/** Launch livelink hub. */
 	void OpenLiveLinkHub() const;
-#endif
+
 private:
 	/** LiveLinkHub object responsible for initializing the different controllers. */
 	TSharedPtr<FLiveLinkHub> LiveLinkHub;
+
+	/** Config-driven. True in LiveLink Hub standalone application, false in UE. */
+	bool bUseSubjectSettingsDetailsCustomization;
 };

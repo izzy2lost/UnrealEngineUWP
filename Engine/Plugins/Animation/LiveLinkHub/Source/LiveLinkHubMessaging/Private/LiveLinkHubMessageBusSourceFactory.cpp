@@ -1,17 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LiveLinkHubMessageBusSourceFactory.h"
-
 #include "LiveLinkHubMessageBusSource.h"
-
+#include "Misc/ConfigCacheIni.h"
 #include "SLiveLinkMessageBusSourceFactory.h"
-
-#ifndef WITH_LIVELINK_HUB
-#define WITH_LIVELINK_HUB 0
-#endif
 
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubMessageBusSourceFactory"
+
 
 FText ULiveLinkHubMessageBusSourceFactory::GetSourceDisplayName() const
 {
@@ -40,11 +36,8 @@ TSharedPtr<FLiveLinkMessageBusSource> ULiveLinkHubMessageBusSourceFactory::MakeS
 
 bool ULiveLinkHubMessageBusSourceFactory::IsEnabled() const
 {
-#if WITH_LIVELINK_HUB
-return false;
-#else
-return true;
-#endif
+	return GConfig->GetBoolOrDefault(TEXT("LiveLinkHub"), TEXT("bEnableLLHMessageBusSourceFactory"), true, GEngineIni);
 }
+
 
 #undef LOCTEXT_NAMESPACE

@@ -66,6 +66,9 @@ private:
 	// Hadnles subject selection changing.
 	void OnSubjectSelectionChangedHandler(FLiveLinkSubjectUIEntryPtr SubjectEntry, ESelectInfo::Type SelectInfo);
 
+	// Sources and subjects live in different tabs in LiveLink Hub.
+	bool bSeparateSourcesSubjects = false;
+
 public:
 	// Sources view
 	TSharedPtr<FLiveLinkSourcesView> SourcesView;

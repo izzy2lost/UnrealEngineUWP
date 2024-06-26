@@ -8,14 +8,14 @@
 #include "LiveLinkClient.h"
 #include "LiveLinkClientCommands.h"
 #include "LiveLinkClientPanelViews.h"
+#include "Misc/ConfigCacheIni.h"
 #include "SLiveLinkDataView.h"
 
-#ifndef WITH_LIVELINK_HUB
-#define WITH_LIVELINK_HUB 0
-#endif
 
 FLiveLinkPanelController::FLiveLinkPanelController(TAttribute<bool> bInReadOnly)
 {
+	bSeparateSourcesSubjects = GConfig->GetBoolOrDefault(TEXT("LiveLink"), TEXT("bPanelControllerSeparateSourcesSubjects"), false, GEngineIni);
+
 	Client = (FLiveLinkClient*)&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 
 	OnSourcesChangedHandle = Client->OnLiveLinkSourcesChanged().AddRaw(this, &FLiveLinkPanelController::OnSourcesChangedHandler);
@@ -100,15 +100,17 @@ void FLiveLinkPanelController::OnSubjectSelectionChangedHandler(FLiveLinkSubject
 		if (SubjectEntry->IsSource())
 		{
 			SourcesDetailsView->SetObject(SubjectEntry->GetSettings());
-#if !WITH_LIVELINK_HUB // Sources and subjects live in different tabs in the hub
-			SubjectsDetailsView->SetSubjectKey(FLiveLinkSubjectKey());
-#endif
+			if (!bSeparateSourcesSubjects)
+			{
+				SubjectsDetailsView->SetSubjectKey(FLiveLinkSubjectKey());
+			}
 		}
 		else
 		{
-#if !WITH_LIVELINK_HUB // Sources and subjects live in different tabs in the hub
-			SourcesDetailsView->SetObject(nullptr);
-#endif
+			if (!bSeparateSourcesSubjects)
+			{
+				SourcesDetailsView->SetObject(nullptr);
+			}
 			SubjectsDetailsView->SetSubjectKey(SubjectEntry->SubjectKey);
 		}
 		bDetailViewSet = true;
@@ -118,9 +120,10 @@ void FLiveLinkPanelController::OnSubjectSelectionChangedHandler(FLiveLinkSubject
 
 	if (!bDetailViewSet)
 	{
-#if !WITH_LIVELINK_HUB
-		SourcesDetailsView->SetObject(nullptr);
-#endif
+		if (!bSeparateSourcesSubjects)
+		{
+			SourcesDetailsView->SetObject(nullptr);
+		}
 		SubjectsDetailsView->SetSubjectKey(FLiveLinkSubjectKey());
 	}
 
@@ -129,10 +132,11 @@ void FLiveLinkPanelController::OnSubjectSelectionChangedHandler(FLiveLinkSubject
 	{
 		SourcesView->SourcesListView->SetSelection(SourcesView->SourceData[FoundSourceIndex]);
 
-#if WITH_LIVELINK_HUB
-		// Update source details to the selected subject's source.
-		SourcesDetailsView->SetObject(SourcesView->SourceData[FoundSourceIndex]->GetSourceSettings());
-#endif
+		if (bSeparateSourcesSubjects)
+		{
+			// Update source details to the selected subject's source.
+			SourcesDetailsView->SetObject(SourcesView->SourceData[FoundSourceIndex]->GetSourceSettings());
+		}
 	}
 	else
 	{

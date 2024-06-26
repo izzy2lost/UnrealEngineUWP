@@ -22,6 +22,7 @@
 #include "LiveLinkSourceFactory.h"
 #include "Logging/MessageLog.h"
 #include "LiveLinkSourceSettings.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
 #include "LiveLinkVirtualSubject.h"
 #include "Misc/MessageDialog.h"
@@ -43,10 +44,6 @@
 #include "SPositiveActionButton.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/SWindow.h"
-
-#ifndef WITH_LIVELINK_HUB
-#define WITH_LIVELINK_HUB 0
-#endif
 
 
 #define LOCTEXT_NAMESPACE "LiveLinkClientPanel"
