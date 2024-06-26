@@ -585,6 +585,15 @@ static TIoStatusOr<FUploadResult> UploadContainerFiles(
 				return FIoStatus(EIoErrorCode::ReadError, TEXT("Encoded chunk size does not match buffer"));
 			}
 
+			// At runtime we are limited to MAX_uint32 for chunk lengths to save space and because anything larger than that
+			// is not reasonable to load via IoStoreOnDemand anyway. So we need to check for this now and fail the upload if
+			// there is a chunk that will fail at runtime.
+			// Note that EncodedSize should always be <= RawChunkSize but test both to be safe.
+			if (RawChunkSize > MAX_uint32 || EncodedChunkSize > MAX_uint32)
+			{
+				return FIoStatus(EIoErrorCode::InvalidParameter, WriteToString<512>(*ChunkInfo.FileName, TEXT(": Chunk size should not exceed MAX_uint32")));
+			}
+
 			FOnDemandTocEntry& TocEntry = ContainerEntry.Entries.AddDefaulted_GetRef();
 			TocEntry.ChunkId = ChunkInfo.Id;
 			TocEntry.Hash = ChunkHash;
