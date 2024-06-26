@@ -50,9 +50,8 @@ enum class ERHIAccess : uint32
 	None = Unknown,
 	Mask = (Last << 1) - 1,
 
-	// By default Graphics use the light weight pixel barrier. 
-	// If you need the access a resource from another stage (ex: VS), use SRVGraphicsNonPixel.
-	SRVGraphics = SRVGraphicsPixel,
+	// Graphics is a combination of pixel and non-pixel
+	SRVGraphics = SRVGraphicsPixel | SRVGraphicsNonPixel,
 
 	// A mask of the two possible SRV states
 	SRVMask = SRVCompute | SRVGraphics,
@@ -61,7 +60,7 @@ enum class ERHIAccess : uint32
 	UAVMask = UAVCompute | UAVGraphics,
 
 	// A mask of all bits representing read-only states which cannot be combined with other write states.
-	ReadOnlyExclusiveMask = CPURead | Present | IndirectArgs | VertexOrIndexBuffer | SRVGraphics | SRVGraphicsNonPixel | SRVCompute | CopySrc | ResolveSrc | BVHRead | ShadingRateSource,
+	ReadOnlyExclusiveMask = CPURead | Present | IndirectArgs | VertexOrIndexBuffer | SRVGraphics | SRVCompute | CopySrc | ResolveSrc | BVHRead | ShadingRateSource,
 
 	// A mask of all bits representing read-only states on the compute pipe which cannot be combined with other write states.
 	ReadOnlyExclusiveComputeMask = CPURead | IndirectArgs | SRVCompute | CopySrc | BVHRead,

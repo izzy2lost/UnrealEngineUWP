@@ -1976,6 +1976,7 @@ VkImageLayout FVulkanLayoutManager::GetDefaultLayout(FVulkanCmdBuffer* CmdBuffer
 	case ERHIAccess::SRVCompute:
 	case ERHIAccess::SRVGraphics:
 	case ERHIAccess::SRVGraphicsNonPixel:
+	case ERHIAccess::SRVGraphicsPixel:
 	case ERHIAccess::SRVMask:
 	{
 		if (VulkanTexture.IsDepthOrStencilAspect())

@@ -243,7 +243,9 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMask
 				{
 					ERHIAccess Access = IsComputeShaderFrequency(Shader.GetFrequency())
 						? ERHIAccess::SRVCompute
-						: ERHIAccess::SRVGraphics;
+						: Shader.GetFrequency() == SF_Pixel
+							? ERHIAccess::SRVGraphicsPixel
+							: ERHIAccess::SRVGraphicsNonPixel;
 
 					Tracker->Assert(SRV->GetViewIdentity(), Access);
 				}
@@ -280,7 +282,6 @@ void SetResourcesFromTables(TBinder&& Binder, FRHIShader const& Shader, TBitMask
 #if ENABLE_RHI_VALIDATION
 				if (Tracker)
 				{
-					// Buffers currently do not require use of the the NonPixelSRV state
 					ERHIAccess Access = IsComputeShaderFrequency(Shader.GetFrequency())
 						? ERHIAccess::UAVCompute
 						: ERHIAccess::UAVGraphics;
