@@ -127,6 +127,78 @@ bool FAutoRTFMActorComponentTests::RunTest(const FString & Parameters)
 	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
 	TEST_CHECK_TRUE(Component->IsRegistered());
 
+	Component->UnregisterComponent();
+	TEST_CHECK_TRUE(!Component->IsRegistered());
+
+	FBodyInstance SomeInstance;
+
+	// This test requires us to have a fresh body instance so that it has to be created during the register.
+	Component->BodyInstance = FBodyInstance();
+	Component->BodyInstance.bSimulatePhysics = 1;
+	Component->BodyInstance.WeldParent = &SomeInstance;
+	TEST_CHECK_TRUE(Component->IsWelded());
+
+	UAutoRTFMTestBodySetup* BodySetup = NewObject<UAutoRTFMTestBodySetup>();
+	BodySetup->AggGeom.SphereElems.Add(FKSphereElem(1.0f));
+
+	Component->BodyInstance.BodySetup = BodySetup;
+
+	UAutoRTFMTestPrimitiveComponent* Parent0 = NewObject<UAutoRTFMTestPrimitiveComponent>(Actor);
+	UAutoRTFMTestPrimitiveComponent* Parent1 = NewObject<UAutoRTFMTestPrimitiveComponent>(Actor);
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->WeldTo(Parent0);
+			AutoRTFM::AbortTransaction();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	TEST_CHECK_TRUE(Component->IsWelded());
+	TEST_CHECK_TRUE(&SomeInstance == Component->BodyInstance.WeldParent);
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->WeldTo(Parent0);
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	TEST_CHECK_TRUE(!Component->IsWelded());
+	TEST_CHECK_TRUE(nullptr == Component->BodyInstance.WeldParent);
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->WeldTo(Parent1);
+			AutoRTFM::AbortTransaction();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	TEST_CHECK_TRUE(!Component->IsWelded());
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->WeldTo(Parent1);
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	TEST_CHECK_TRUE(!Component->IsWelded());
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->UnWeldFromParent();
+			AutoRTFM::AbortTransaction();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	TEST_CHECK_TRUE(!Component->IsWelded());
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->UnWeldFromParent();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	TEST_CHECK_TRUE(!Component->IsWelded());
+
 	return true;
 }
 

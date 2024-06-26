@@ -969,7 +969,18 @@ bool UPrimitiveComponent::WeldToImplementation(USceneComponent * InParent, FName
 			//if root is kinematic simply set child to be kinematic and we're done
 			if ((RootComponent->IsSimulatingPhysics(SocketName) == false) && (bWeldToKinematicParent == false))
 			{
-				FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, nullptr);
+				void* OriginalWeldParent = nullptr;
+
+				// Because this uses atomics we need to run it non-transactionally.
+				UE_AUTORTFM_OPEN({ OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, nullptr); });
+
+				// But remember that on abort we need to fudge the pointer back into the place we took it from.
+				AutoRTFM::OnAbort([BI, OriginalWeldParent]
+					{
+						void* Old = FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, OriginalWeldParent);
+						ensure(nullptr == Old);
+					});
+				
 				SetSimulatePhysics(false);
 				return false;	//return false because we need to continue with regular body initialization
 			}
@@ -1025,8 +1036,20 @@ void UPrimitiveComponent::UnWeldFromParent()
 			bool bRootIsBeingDeleted = !IsValidChecked(RootComponent) || RootComponent->IsUnreachable();
 			const FBodyInstance* PrevWeldParent = NewRootBI->WeldParent;
 			RootBI->UnWeld(NewRootBI);
-			
-			FPlatformAtomics::InterlockedExchangePtr((void**)&NewRootBI->WeldParent, nullptr);
+
+			{
+				void* OriginalWeldParent = nullptr;
+
+				// Because this uses atomics we need to run it non-transactionally.
+				UE_AUTORTFM_OPEN({ OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&NewRootBI->WeldParent, nullptr); });
+
+				// But remember that on abort we need to fudge the pointer back into the place we took it from.
+				AutoRTFM::OnAbort([NewRootBI, OriginalWeldParent]
+					{
+						void* Old = FPlatformAtomics::InterlockedExchangePtr((void**)&NewRootBI->WeldParent, OriginalWeldParent);
+						ensure(nullptr == Old);
+					});
+			}
 
 			bool bHasBodySetup = GetBodySetup() != nullptr;
 
@@ -1061,7 +1084,19 @@ void UPrimitiveComponent::UnWeldFromParent()
 					}
 
 					//At this point, NewRootBI must be kinematic because it's being unwelded.
-					FPlatformAtomics::InterlockedExchangePtr((void**)&ChildBI->WeldParent, nullptr); //null because we are currently kinematic
+
+					void* OriginalWeldParent = nullptr;
+
+					// Because this uses atomics we need to run it non-transactionally.
+					//null because we are currently kinematic
+					UE_AUTORTFM_OPEN({ OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&ChildBI->WeldParent, nullptr); });
+
+					// But remember that on abort we need to fudge the pointer back into the place we took it from.
+					AutoRTFM::OnAbort([ChildBI, OriginalWeldParent]
+						{
+							void* Old = FPlatformAtomics::InterlockedExchangePtr((void**)&ChildBI->WeldParent, OriginalWeldParent);
+							ensure(nullptr == Old);
+						});
 				}
 			}
 
