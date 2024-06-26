@@ -125,7 +125,7 @@ namespace UE::ChooserEditor
 					InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
 				];
 		
-			if (Chooser->bEnableDebugTesting)
+			if (Chooser->GetEnableDebugTesting())
 			{
 				TSharedRef<SWidget> ObjectPicker = CreateObjectPicker(Chooser, ObjectColumn, Row);
 				ObjectPicker->SetEnabled(TAttribute<bool>::CreateLambda([Chooser]() { return !Chooser->HasDebugTarget(); }));

@@ -62,7 +62,7 @@ TSharedRef<SWidget> CreateFloatRangeColumnWidget(UChooserTable* Chooser, FChoose
 				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
 			];
 	
-		if (Chooser->bEnableDebugTesting)
+		if (Chooser->GetEnableDebugTesting())
 		{
 			ColumnHeaderWidget = SNew(SVerticalBox)
 			+ SVerticalBox::Slot()

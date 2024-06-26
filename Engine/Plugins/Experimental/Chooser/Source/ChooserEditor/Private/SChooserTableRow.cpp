@@ -167,7 +167,7 @@ namespace UE::ChooserEditor
 							SNew(SColorBlock).Visibility(EVisibility::HitTestInvisible).Color_Lambda(
 									[this,Column]()
 									{
-										if (Chooser->bDebugTestValuesValid)
+										if (Chooser->GetDebugTestValuesValid())
 										{
 											if (Column->HasCosts())
 											{

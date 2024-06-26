@@ -51,7 +51,7 @@ TSharedRef<SWidget> CreateBoolColumnWidget(UChooserTable* Chooser, FChooserColum
 				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
 			];
 	
-		if (Chooser->bEnableDebugTesting)
+		if (Chooser->GetEnableDebugTesting())
 		{
 			ColumnHeaderWidget = SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
@@ -141,7 +141,7 @@ TSharedRef<SWidget> CreateOutputBoolColumnWidget(UChooserTable* Chooser, FChoose
 				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
 			];
 	
-		if (Chooser->bEnableDebugTesting)
+		if (Chooser->GetEnableDebugTesting())
 		{
 			ColumnHeaderWidget = SNew(SVerticalBox)
 			+ SVerticalBox::Slot()

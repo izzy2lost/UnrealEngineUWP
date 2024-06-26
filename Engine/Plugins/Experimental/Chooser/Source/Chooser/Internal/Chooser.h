@@ -65,14 +65,35 @@ public:
 	void IterateRecentContextObjects(TFunction<void(const FString&)> Callback) const;
 	void UpdateDebugging(FChooserEvaluationContext& Context) const;
 	
-	// enable display of which cells pass/fail based on current TestValue for each column
-	bool bEnableDebugTesting = false;
-	mutable bool bDebugTestValuesValid = false;
-
 	static const FName PropertyNamesTag;
 	static const FString PropertyTagDelimiter;
 
-private: 
+		
+	void SetEnableDebugTesting(bool bValue)
+	{
+		GetContextOwner()->bEnableDebugTesting = bValue;
+	}
+	
+	bool GetEnableDebugTesting() const
+	{
+		return GetContextOwner()->bEnableDebugTesting;
+	}
+	
+	void SetDebugTestValuesValid(bool bValue) const
+   	{
+   		GetContextOwner()->bDebugTestValuesValid = bValue;
+   	}
+	
+	bool GetDebugTestValuesValid() const
+	{
+		return GetContextOwner()->bDebugTestValuesValid;
+	}
+
+private:
+	// enable display of which cells pass/fail based on current TestValue for each column
+	bool bEnableDebugTesting = false;
+	mutable bool bDebugTestValuesValid = false;
+	
 	// caching the OutputObjectType and ContextObjectType so that on Undo, we can tell if we should fire the changed delegate
 	UClass* CachedPreviousOutputObjectType = nullptr;
 	EObjectChooserResultType CachedPreviousResultType = EObjectChooserResultType::ObjectResult;

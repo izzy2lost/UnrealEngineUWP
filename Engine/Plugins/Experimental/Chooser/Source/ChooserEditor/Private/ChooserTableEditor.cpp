@@ -142,10 +142,10 @@ void FChooserTableEditor::MakeDebugTargetMenu(UToolMenu* InToolMenu)
 					{
 						UChooserTable* Chooser = GetRootChooser();
 						Chooser->ResetDebugTarget();
-						if (Chooser->bEnableDebugTesting)
+						if (Chooser->GetEnableDebugTesting())
 						{
-							Chooser->bEnableDebugTesting = false;
-							Chooser->bDebugTestValuesValid = false;
+							Chooser->SetEnableDebugTesting(false);
+							Chooser->SetDebugTestValuesValid(false);
 							UpdateTableColumns();
 						}
 					}),
@@ -165,10 +165,10 @@ void FChooserTableEditor::MakeDebugTargetMenu(UToolMenu* InToolMenu)
 					{
 						UChooserTable* Chooser = GetRootChooser();
 						Chooser->ResetDebugTarget();
-						if (!Chooser->bEnableDebugTesting)
+						if (!Chooser->GetEnableDebugTesting())
 						{
-							Chooser->bEnableDebugTesting = true;
-							Chooser->bDebugTestValuesValid = true;
+							Chooser->SetEnableDebugTesting(true);
+							Chooser->SetDebugTestValuesValid(true);
 							UpdateTableColumns();
 						}
 					}),
@@ -192,10 +192,10 @@ void FChooserTableEditor::MakeDebugTargetMenu(UToolMenu* InToolMenu)
 								{
 									UChooserTable* Chooser = GetRootChooser();
 									Chooser->SetDebugTarget(ObjectName);
-									Chooser->bDebugTestValuesValid = false;
-									if (!Chooser->bEnableDebugTesting)
+									Chooser->SetDebugTestValuesValid(false);
+									if (!Chooser->GetEnableDebugTesting())
 									{
-										Chooser->bEnableDebugTesting = true;
+										Chooser->SetEnableDebugTesting(true);
 										UpdateTableColumns();
 									}
 								}),
@@ -262,7 +262,7 @@ void FChooserTableEditor::RegisterToolbar()
 							}
 							else
 							{
-								return Chooser->bEnableDebugTesting ? LOCTEXT("Manual Testing", "Manual Testing") : LOCTEXT("Debug Target", "Debug Target");
+								return Chooser->GetEnableDebugTesting() ? LOCTEXT("Manual Testing", "Manual Testing") : LOCTEXT("Debug Target", "Debug Target");
 							}
 						}),
 						LOCTEXT("Debug Target Tooltip", "Select an object that has recently been the context object for this chooser to visualize the selection results")));

@@ -46,7 +46,7 @@ namespace UE::ChooserEditor
 						SNew(SImage)
 						.Visibility_Lambda([this]()
 						{
-							return ChooserEditor->GetChooser()->bDebugTestValuesValid && RowIndex == ChooserEditor->GetChooser()->GetDebugSelectedRow() ? EVisibility::HitTestInvisible : EVisibility::Hidden;
+							return ChooserEditor->GetChooser()->GetDebugTestValuesValid() && RowIndex == ChooserEditor->GetChooser()->GetDebugSelectedRow() ? EVisibility::HitTestInvisible : EVisibility::Hidden;
 						})
 						.Image(FAppStyle::Get().GetBrush("Icons.ArrowRight"))
 					]

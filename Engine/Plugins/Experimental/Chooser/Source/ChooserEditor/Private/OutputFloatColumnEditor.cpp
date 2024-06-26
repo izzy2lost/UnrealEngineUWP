@@ -45,7 +45,7 @@ TSharedRef<SWidget> CreateOutputFloatColumnWidget(UChooserTable* Chooser, FChoos
 				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
 			];
 	
-		if (Chooser->bEnableDebugTesting)
+		if (Chooser->GetEnableDebugTesting())
 		{
 			ColumnHeaderWidget = SNew(SVerticalBox)
 			+ SVerticalBox::Slot()

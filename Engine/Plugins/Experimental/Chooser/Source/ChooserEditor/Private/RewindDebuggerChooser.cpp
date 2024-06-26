@@ -45,7 +45,7 @@ void FRewindDebuggerChooser::Update(float DeltaTime, IRewindDebugger* RewindDebu
 						if (ContextOwner->GetDebugTargetName() == ContextObjectInfo.Name)
 						{
 							Chooser->SetDebugSelectedRow(ChooserEvaluationData.SelectedIndex);
-							Chooser->bDebugTestValuesValid = true;
+							Chooser->SetDebugTestValuesValid(true);
 
 							ChooserProvider->ReadChooserValueTimeline(OwnerId, [StartTime, EndTime, Chooser, &ChooserEvaluationData](const FChooserProvider::ChooserValueTimeline& ValueTimeline)
 							{

@@ -71,7 +71,7 @@ namespace UE::ChooserEditor
 					InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
 				];
 
-			if (Chooser->bEnableDebugTesting)
+			if (Chooser->GetEnableDebugTesting())
 			{
 				UClass* AllowedClass = UObject::StaticClass();
 				if (ObjectClassColumn->InputValue.IsValid())

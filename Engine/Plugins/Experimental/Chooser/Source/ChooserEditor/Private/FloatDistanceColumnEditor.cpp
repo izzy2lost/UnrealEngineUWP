@@ -49,7 +49,7 @@ TSharedRef<SWidget> CreateFloatDistanceColumnWidget(UChooserTable* Chooser, FCho
 				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
 			];
 	
-		if (Chooser->bEnableDebugTesting)
+		if (Chooser->GetEnableDebugTesting())
 		{
 			ColumnHeaderWidget = SNew(SVerticalBox)
 			+ SVerticalBox::Slot()

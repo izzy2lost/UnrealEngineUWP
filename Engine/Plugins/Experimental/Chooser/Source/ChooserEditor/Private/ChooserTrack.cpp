@@ -112,7 +112,7 @@ bool FChooserTrack::HandleDoubleClickInternal()
 		{
 			const FObjectInfo& OwnerObjectInfo  = GameplayProvider->GetObjectInfo(ObjectId);
 			ChooserTable->SetDebugTarget(OwnerObjectInfo.Name);
-			ChooserTable->bEnableDebugTesting = true;
+			ChooserTable->SetEnableDebugTesting(true);
 		}
 		
 
