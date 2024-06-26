@@ -23,6 +23,10 @@ public:
 	//Returns the same as GetRequestID() if no task has been associated yet.
 	UE_DEPRECATED(5.5, "Method deprecated") const FString& GetRequestDebugID() const;
 
+#if !UE_BUILD_SHIPPING
+	virtual void GetDebugText(TArray<FString>& Output) override;
+#endif
+
 protected:
 	void SetInternalDownloadId(uint64 Id) {DownloadId = Id;}
 	uint64 GetInternalDownloadId() const {return DownloadId;}
@@ -36,7 +40,6 @@ protected:
 	}
 
 	friend class FApplePlatformBackgroundHttpManager;
-	
 private:
 	uint64 DownloadId;
 

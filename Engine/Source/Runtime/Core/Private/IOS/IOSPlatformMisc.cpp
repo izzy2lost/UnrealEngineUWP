@@ -71,6 +71,11 @@ void (* GMemoryWarningHandler)(const FGenericMemoryWarningContext& Context) = NU
 /** global for showing the splash screen */
 bool GShowSplashScreen = true;
 
+#if !UE_BUILD_SHIPPING
+/** global for showing debug console */
+bool GDebugConsoleOpen = false;
+#endif
+
 static int32 GetFreeMemoryMB()
 {
 	FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
@@ -1962,6 +1967,13 @@ bool FIOSPlatformMisc::CPUHasHwAesSupport()
 {
 	return DetectCPUFeatures().bHasAes;
 }
+
+#if !UE_BUILD_SHIPPING
+bool FIOSPlatformMisc::IsConsoleOpen()
+{
+	return GDebugConsoleOpen;
+}
+#endif
 
 static FCriticalSection EnsureLock;
 static bool bReentranceGuard = false;

@@ -209,5 +209,12 @@ public:
 	* Destructor for overrides 
 	*/
 	virtual ~IBackgroundHttpRequest() = default;
+
+#if !UE_BUILD_SHIPPING
+	/**
+	 * Returns debug text for download screen to help troubleshoot download issues
+	 */
+	virtual void GetDebugText(TArray<FString>& Output) {}
+#endif
 };
 

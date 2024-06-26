@@ -223,6 +223,9 @@ NSString* const SerializationKeyRetryCountPerURL = @"r";
 - (uint64)GetCurrentDownloadedBytes:(NSUInteger)DownloadId;
 - (void)RecreateDownload:(NSUInteger)DownloadId ShouldResetRetryCount:(bool)ResetRetryCount;
 - (void)RecreateDownloads;
+#if !UE_BUILD_SHIPPING
+- (NSString*)GetDownloadDebugText:(NSUInteger)DownloadId;
+#endif
 
 - (void)StartCheckingForStaleDownloads;
 - (void)StopCheckingForStaleDownloads;
@@ -851,6 +854,35 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
 	UE_DNLD_LOG(@"RecreateDownloads finished");
 }
 
+#if !UE_BUILD_SHIPPING
+- (NSString*)GetDownloadDebugText:(NSUInteger)DownloadId
+{
+	NSURLSessionDownloadTask* Task = [self FindDownloadTaskFor:DownloadId];
+	if (Task != nil)
+	{
+		NSString* Description = [NSString stringWithFormat:@"iOSBG %llu %@", (uint64)DownloadId, Task.currentRequest.URL.absoluteString];
+
+		NSNumber* ResultStatusCode = [Task.progress.userInfo objectForKey:NSProgressDownloadResultStatusCode];
+		if (ResultStatusCode != nil)
+		{
+			return [NSString stringWithFormat:@"%@ finished with status %i", Description, (int32)ResultStatusCode.integerValue];
+		}
+
+		NSNumber* CompletedBytes = [Task.progress.userInfo objectForKey:NSProgressDownloadCompletedBytes];
+		if (CompletedBytes != nil)
+		{
+			return [NSString stringWithFormat:@"%@ downloaded %.2f MBytes", Description, (double)CompletedBytes.unsignedLongLongValue / (1024.0 * 1024.0)];
+		}
+
+		return [NSString stringWithFormat:@"%@ pending", Description];
+	}
+	else
+	{
+		return [NSString stringWithFormat:@"%llu is not tracked", (uint64)DownloadId];
+	}
+}
+#endif
+
 - (void)StartCheckingForStaleDownloads
 {
 	if (_ForegroundStaleDownloadCheckTimer == nil && CheckForForegroundStaleDownloadsWithInterval > 0.0)
@@ -1317,3 +1349,14 @@ void FBackgroundURLSessionHandler::SaveBackgroundHttpFileHashHelperState()
 		[[FBackgroundNSURLSession Shared] SaveFileHashHelperState];
 	}
 }
+
+#if !UE_BUILD_SHIPPING
+void FBackgroundURLSessionHandler::GetDownloadDebugText(const uint64 DownloadId, TArray<FString>& Output)
+{
+	@autoreleasepool
+	{
+		const FString DebugText([[FBackgroundNSURLSession Shared] GetDownloadDebugText:DownloadId]);
+		Output.Add(DebugText);
+	}
+}
+#endif

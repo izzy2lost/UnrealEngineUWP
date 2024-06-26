@@ -22,6 +22,13 @@ void FApplePlatformBackgroundHttpRequest::ResumeRequest()
 	FBackgroundURLSessionHandler::ResumeDownload(DownloadId);
 }
 
+#if !UE_BUILD_SHIPPING
+void FApplePlatformBackgroundHttpRequest::GetDebugText(TArray<FString>& Output)
+{
+	FBackgroundURLSessionHandler::GetDownloadDebugText(DownloadId, Output);
+}
+#endif
+
 const FString& FApplePlatformBackgroundHttpRequest::GetRequestDebugID() const
 {
 	static const FString EmptyString = TEXT("");

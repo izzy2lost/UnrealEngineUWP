@@ -215,6 +215,10 @@ struct CORE_API FIOSPlatformMisc : public FApplePlatformMisc
 
 	static bool CPUHasHwCrcSupport();
 	static bool CPUHasHwAesSupport();
+
+#if !UE_BUILD_SHIPPING
+	static bool IsConsoleOpen();
+#endif
 };
 
 typedef FIOSPlatformMisc FPlatformMisc;

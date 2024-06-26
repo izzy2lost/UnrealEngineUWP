@@ -86,4 +86,8 @@ public:
 
 	// To be used by ApplePlatformBackgroundHttpManager
 	static void SaveBackgroundHttpFileHashHelperState();
+
+#if !UE_BUILD_SHIPPING
+	static void GetDownloadDebugText(const uint64 DownloadId, TArray<FString>& Output);
+#endif
 };

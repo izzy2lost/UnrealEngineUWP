@@ -4058,6 +4058,16 @@ void FDefaultInstallBundleManager::StartBundlePersistentStatTracking(TSharedRef<
 	}
 }
 
+#if !UE_BUILD_SHIPPING
+void FDefaultInstallBundleManager::GetDebugText(TArray<FString>& Output)
+{
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	{
+		Pair.Value->GetDebugText(Output);
+	}
+}
+#endif
+
 void FDefaultInstallBundleManager::StopBundlePersistentStatTracking(TSharedRef<FContentRequest> ContentRequest)
 {
 	//Only bother calling Stop if this bundle supported tracking persistent bundle stats

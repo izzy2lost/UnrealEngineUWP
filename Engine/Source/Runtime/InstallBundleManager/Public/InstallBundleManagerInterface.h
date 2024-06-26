@@ -198,5 +198,9 @@ public:
 
 	virtual void StartSessionPersistentStatTracking(const FString& SessionName, const TArray<FName>& RequiredBundles = TArray<FName>(), const FString& ExpectedAnalyticsID = FString(), bool bForceResetStatData = false, const FInstallBundleCombinedContentState* State = nullptr) {}
 	virtual void StopSessionPersistentStatTracking(const FString& SessionName) {}
+
+#if !UE_BUILD_SHIPPING
+	virtual void GetDebugText(TArray<FString>& Output) {}
+#endif
 };
 

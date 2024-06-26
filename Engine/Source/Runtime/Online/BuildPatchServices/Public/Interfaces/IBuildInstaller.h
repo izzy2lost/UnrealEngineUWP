@@ -464,6 +464,13 @@ public:
 	 * @returns a const reference to the configuration
 	 */
 	virtual const BuildPatchServices::FBuildInstallerConfiguration& GetConfiguration() const = 0;
+
+#if !UE_BUILD_SHIPPING
+	/**
+	 * Returns debug text for download screen to help troubleshoot download issues
+	 */
+	virtual void GetDebugText(TArray<FString>& Output) {}
+#endif
 };
 
 static_assert((uint32)EBuildPatchInstallError::NumInstallErrors == 12, "Please add support for the extra values to the Lex functions below.");

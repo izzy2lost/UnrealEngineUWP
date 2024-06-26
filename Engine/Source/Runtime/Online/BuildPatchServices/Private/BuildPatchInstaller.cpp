@@ -612,6 +612,26 @@ namespace BuildPatchServices
 		return Configuration;
 	}
 
+#if !UE_BUILD_SHIPPING
+	void FBuildPatchInstaller::GetDebugText(TArray<FString>& Output)
+	{
+		if (!DownloadServiceStatistics.IsValid())
+		{
+			return;
+		}
+
+		TArray<FDownload> Downloads = DownloadServiceStatistics->GetCurrentDownloads();
+		for (const FDownload& Download: Downloads)
+		{
+			Output.Add(FString::Printf(TEXT("BPI %s downloaded %.2f MBytes / %.2f MBytes"),
+				*Download.Data,
+				(double)Download.Received / (1024.0 * 1024.0),
+				(double)Download.Size / (1024.0 * 1024.0)
+			));
+		}
+	}
+#endif
+
 	bool FBuildPatchInstaller::StartInstallation()
 	{
 		if (Thread == nullptr)

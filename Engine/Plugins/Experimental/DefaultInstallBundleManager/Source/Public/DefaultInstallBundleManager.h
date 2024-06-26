@@ -682,7 +682,10 @@ public:
 
 	virtual void StartSessionPersistentStatTracking(const FString& SessionName, const TArray<FName>& RequiredBundles = TArray<FName>(), const FString& ExpectedAnalyticsID = FString(), bool bForceResetStatData = false, const FInstallBundleCombinedContentState* State = nullptr) override;
 	virtual void StopSessionPersistentStatTracking(const FString& SessionName) override;
-	
+
+#if !UE_BUILD_SHIPPING
+	virtual void GetDebugText(TArray<FString>& Output) override;
+#endif
 protected:
 	//Special version of these to wrap our calls to PersistentStats
 	void StartBundlePersistentStatTracking(TSharedRef<FContentRequest> ContentRequest, const FString& ExpectedAnalyticsID = FString(), bool bForceResetStatData = false);
