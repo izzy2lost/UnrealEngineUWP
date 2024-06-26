@@ -3850,7 +3850,14 @@ void FNiagaraCompilationNodeParameterMapFor::Compile(FTranslator* Translator, TA
 		FNiagaraCompilationNodeParameterMapSet::Compile(Translator, Outputs);
 		//Translator->Message(FNiagaraCompileEventSeverity::Log,LOCTEXT("UnsupportedParamMapFor", "Parameter map for is not yet supported on cpu."), this, nullptr);
 	}
+}
 
+void FNiagaraCompilationNodeParameterMapFor::CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const
+{
+	FNiagaraCompilationNodeParameterMapSet::CollectInputPinsToCompile(Translator, ActiveInputPins);
+
+	// we need to cull the iteration pin from the list of pins to compile as it's already going to be compiled during the MapFor::Compile
+	ActiveInputPins.Remove(&InputPins[1]);
 }
 
 FNiagaraCompilationNodeParameterMapForWithContinue::FNiagaraCompilationNodeParameterMapForWithContinue(const UNiagaraNodeParameterMapForWithContinue* InNode, FNiagaraCompilationGraphCreateContext& Context)
@@ -3884,6 +3891,14 @@ void FNiagaraCompilationNodeParameterMapForWithContinue::Compile(FTranslator* Tr
 		FNiagaraCompilationNodeParameterMapSet::Compile(Translator, Outputs);
 		//Translator->Message(FNiagaraCompileEventSeverity::Log,LOCTEXT("UnsupportedParamMapFor", "Parameter map for is not yet supported on cpu."), this, nullptr);
 	}
+}
+
+void FNiagaraCompilationNodeParameterMapForWithContinue::CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const
+{
+	FNiagaraCompilationNodeParameterMapFor::CollectInputPinsToCompile(Translator, ActiveInputPins);
+
+	// we also need to cull out the iteration enabled pin
+	ActiveInputPins.Remove(&InputPins[2]);
 }
 
 FNiagaraCompilationNodeParameterMapForIndex::FNiagaraCompilationNodeParameterMapForIndex(const UNiagaraNodeParameterMapForIndex* InNode, FNiagaraCompilationGraphCreateContext& Context)
@@ -3979,21 +3994,8 @@ void FNiagaraCompilationNodeParameterMapSet::Compile(FTranslator* Translator, TA
 	check(Outputs.Num() == 0);
 	Outputs.Init(INDEX_NONE, OutputPins.Num());
 
-	TArray<const FNiagaraCompilationInputPin*, TInlineAllocator<16>> ActiveInputPins;
-	ActiveInputPins.Reserve(InputPins.Num());
-	// do a first pass over all of the pins so that we can properly cull out input pins and
-	// propagate the disabled pins up the chain
-	for (const FNiagaraCompilationInputPin& InputPin : InputPins)
-	{
-		if (Translator->IsFunctionVariableCulledFromCompilation(InputPin.PinName))
-		{
-			Translator->CullMapSetInputPin(&InputPin);
-		}
-		else
-		{
-			ActiveInputPins.Add(&InputPin);
-		}
-	}
+	FInputPinCollection ActiveInputPins;
+	CollectInputPinsToCompile(Translator, ActiveInputPins);
 
 	TArray<FTranslator::FCompiledPin, TInlineAllocator<16>> CompileInputs;
 	CompileInputs.Reserve(ActiveInputPins.Num());
@@ -4015,6 +4017,24 @@ void FNiagaraCompilationNodeParameterMapSet::Compile(FTranslator* Translator, TA
 	if (ActiveInputPins.Num() && ActiveInputPins[0] && ActiveInputPins[0]->LinkedTo)
 	{
 		Translator->ParameterMapSet(this, CompileInputs, Outputs);
+	}
+}
+
+void FNiagaraCompilationNodeParameterMapSet::CollectInputPinsToCompile(FTranslator* Translator, FInputPinCollection& ActiveInputPins) const
+{
+	ActiveInputPins.Reserve(InputPins.Num());
+	// do a first pass over all of the pins so that we can properly cull out input pins and
+	// propagate the disabled pins up the chain
+	for (const FNiagaraCompilationInputPin& InputPin : InputPins)
+	{
+		if (Translator->IsFunctionVariableCulledFromCompilation(InputPin.PinName))
+		{
+			Translator->CullMapSetInputPin(&InputPin);
+		}
+		else
+		{
+			ActiveInputPins.Add(&InputPin);
+		}
 	}
 }
 
