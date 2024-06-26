@@ -608,6 +608,10 @@ namespace HordeServer.Storage
 						_logger.LogWarning("Blob {BlobId} ({Locator}) accessed after being garbage collected", blobInfo.Id, locator);
 					}
 				}
+				catch (OperationCanceledException)
+				{
+					throw;
+				}
 				catch (Exception ex)
 				{
 					_logger.LogWarning(ex, "Exception checking if blob {NamespaceId}:{Locator} exists", namespaceId, locator);
