@@ -528,7 +528,7 @@ namespace HordeServer.Notifications.Sinks
 
 			if (job.AbortedByUserId != null)
 			{
-				attachment.AddSection($"*Job cancelled by {await FormatMentionAsync(job.AbortedByUserId.Value, true, cancellationToken)}");
+				attachment.AddSection($"*Job cancelled by {await FormatMentionAsync(job.AbortedByUserId.Value, true, cancellationToken)}*");
 			}
 			else if (jobOutcome == JobStepOutcome.Success)
 			{
