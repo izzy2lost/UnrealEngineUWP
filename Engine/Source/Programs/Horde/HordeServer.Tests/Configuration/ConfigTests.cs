@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using HordeServer.Configuration;
+using HordeServer.Plugins;
 using HordeServer.Projects;
 using HordeServer.Server;
 using HordeServer.Streams;
@@ -178,7 +179,7 @@ namespace HordeServer.Tests.Configuration
 			inputWorkspaces["subSubType"] = new WorkspaceConfig { Base = "subType", Identifier = "subSubType" };
 			
 			gc.Projects.Add(new ProjectConfig { Streams = [new StreamConfig { WorkspaceTypes = inputWorkspaces }]});
-			gc.PostLoad(new ServerSettings());
+			gc.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
 
 			Dictionary<string,WorkspaceConfig> workspaces = gc.Projects[0].Streams[0].WorkspaceTypes;
 			Assert.AreEqual(3, workspaces.Count);
@@ -210,7 +211,7 @@ namespace HordeServer.Tests.Configuration
 				]
 			});
 			
-			gc.PostLoad(new ServerSettings());
+			gc.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
 
 			Dictionary<string, WorkspaceConfig> workspaces = gc.Projects[0].Streams[0].WorkspaceTypes;
 			Assert.AreEqual(4, workspaces.Count);

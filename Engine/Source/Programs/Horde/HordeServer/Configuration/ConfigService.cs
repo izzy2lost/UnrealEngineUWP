@@ -5,8 +5,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -16,6 +18,7 @@ using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Users;
 using HordeServer.Utilities;
+using Json.Path;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,6 +30,8 @@ using StackExchange.Redis;
 
 namespace HordeServer.Configuration
 {
+	using JsonObject = System.Text.Json.Nodes.JsonObject;
+
 	/// <summary>
 	/// Service which processes runtime configuration data.
 	/// </summary>
@@ -277,7 +282,7 @@ namespace HordeServer.Configuration
 			{
 				Uri globalConfigUri = GetGlobalConfigUri();
 				GlobalConfig globalConfig = await context.ReadAsync<GlobalConfig>(globalConfigUri, cancellationToken);
-				globalConfig.PostLoad(_serverSettings);
+				globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins);
 
 				foreach (OverrideConfigFile file in overrideFiles.Values)
 				{
@@ -581,7 +586,12 @@ namespace HordeServer.Configuration
 				// Read the new config in
 				Uri globalConfigUri = GetGlobalConfigUri();
 
-				GlobalConfig globalConfig = await context.ReadAsync<GlobalConfig>(globalConfigUri, cancellationToken);
+				ObjectConfigNode configNode = new ObjectConfigNode(typeof(GlobalConfig));
+
+				JsonObject configObj = await context.PreprocessFileAsync(GetGlobalConfigUri(), configNode, cancellationToken);
+				CopyJsonNode(configObj, "TelemetryStores", "Plugins.Analytics.TelemetryStores");
+
+				GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(configObj, _jsonOptions)!;
 				if (globalConfig.VersionEnum < GlobalVersion.Latest)
 				{
 					List<string> message = new List<string>();
@@ -607,7 +617,7 @@ namespace HordeServer.Configuration
 				}
 
 				// Execute a PostLoad before returning so we can validate that everything is valid
-				globalConfig.PostLoad(_serverSettings);
+				globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins);
 
 				return snapshot;
 			}
@@ -615,6 +625,40 @@ namespace HordeServer.Configuration
 			{
 				throw new ConfigException(context, ex.Message, ex);
 			}
+		}
+
+		static void CopyJsonNode(JsonObject rootObj, string sourcePath, string targetPath)
+		{
+			JsonNode? sourceNode = rootObj;
+
+			string[] sourceFragments = sourcePath.Split('.');
+			foreach (string sourceFragment in sourceFragments)
+			{
+				sourceNode = sourceNode[sourceFragment];
+				if (sourceNode == null)
+				{
+					return;
+				}
+			}
+
+			JsonObject? targetObj = rootObj;
+
+			string[] targetFragments = targetPath.Split('.');
+			for (int idx = 0; idx < targetFragments.Length - 1; idx++)
+			{
+				string targetFragment = targetFragments[idx];
+
+				JsonObject? nextObj = targetObj[targetFragment] as JsonObject;
+				if (nextObj == null)
+				{
+					nextObj = new JsonObject();
+					targetObj[targetFragment] = nextObj;
+				}
+
+				targetObj = nextObj;
+			}
+
+			targetObj[targetFragments[^1]] = sourceNode.DeepClone();
 		}
 
 		internal byte[] Serialize(GlobalConfig config)
@@ -746,18 +790,8 @@ namespace HordeServer.Configuration
 			GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(snapshot.Data, _jsonOptions)!;
 			globalConfig.Revision = IoHash.Compute(data.Span).ToString();
 
-			// Ensure that all plugins have an entry in the global config so they can register their ACLs
-			foreach (ILoadedPlugin loadedPlugin in _pluginCollection.LoadedPlugins)
-			{
-				if (!globalConfig.Plugins.TryGetValue(loadedPlugin.Name, out _))
-				{
-					IPluginConfig pluginConfig = (IPluginConfig)Activator.CreateInstance(loadedPlugin.GlobalConfigType)!;
-					globalConfig.Plugins.Add(loadedPlugin.Name, pluginConfig);
-				}
-			}
-
 			// Run the postload callbacks on all the config objects
-			globalConfig.PostLoad(_serverSettings);
+			globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins);
 			return globalConfig;
 		}
 	}

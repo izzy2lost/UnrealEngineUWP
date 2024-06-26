@@ -153,6 +153,19 @@ namespace HordeServer.Plugins
 		/// Adds a plugin with the given startup class
 		/// </summary>
 		/// <typeparam name="T">Type of the startup class</typeparam>
+		public ILoadedPlugin Add<T>() where T : class, IPluginStartup
+		{
+			PluginAttribute attr = typeof(T).GetCustomAttribute<PluginAttribute>()
+				?? throw new InvalidOperationException($"Cannot add {typeof(T).Name} as a plugin. No {nameof(PluginAttribute)} was found.");
+
+			return Add<T>(new PluginMetadata{ Name = new PluginName(attr.Name) });
+		}
+
+		/// <summary>
+		/// Adds a plugin with the given startup class
+		/// </summary>
+		/// <typeparam name="T">Type of the startup class</typeparam>
+		/// <param name="metadata">Metadata for the plugin</param>
 		public ILoadedPlugin Add<T>(IPluginMetadata metadata) where T : class, IPluginStartup
 		{
 			ILoadedPlugin plugin = AddLoadedPlugin(metadata, typeof(T));

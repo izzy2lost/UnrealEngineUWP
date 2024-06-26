@@ -20,6 +20,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using HordeServer.Configuration;
 using HordeServer.Ddc;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Storage;
 using Microsoft.AspNetCore.Mvc;
@@ -60,7 +61,7 @@ namespace HordeServer.Tests.Ddc.FunctionalTests.References
 
 			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default"), Type = StorageBackendType.Memory });
 			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = TestNamespace, Backend = globalConfig.Storage.Backends[^1].Id });
-			globalConfig.PostLoad(serverSettings);
+			globalConfig.PostLoad(serverSettings, new List<ILoadedPlugin>());
 
 			ConfigService configService = ServiceProvider.GetRequiredService<ConfigService>();
 			configService.OverrideConfig(globalConfig);

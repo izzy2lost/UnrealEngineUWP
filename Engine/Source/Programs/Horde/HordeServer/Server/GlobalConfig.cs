@@ -242,11 +242,6 @@ namespace HordeServer.Server
 		public List<ArtifactTypeConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeConfig>();
 
 		/// <summary>
-		/// Metrics to aggregate on the Horde server
-		/// </summary>
-		public List<TelemetryStoreConfig> TelemetryStores { get; set; } = new List<TelemetryStoreConfig>();
-
-		/// <summary>
 		/// Plugin config objects
 		/// </summary>
 		public PluginConfigCollection Plugins { get; set; } = new PluginConfigCollection();
@@ -286,7 +281,6 @@ namespace HordeServer.Server
 		private readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
 		private readonly Dictionary<SecretId, SecretConfig> _secretLookup = new Dictionary<SecretId, SecretConfig>();
 		private readonly Dictionary<PoolId, PoolConfig> _poolLookup = new Dictionary<PoolId, PoolConfig>();
-		private readonly Dictionary<TelemetryStoreId, TelemetryStoreConfig> _telemetryStoreLookup = new Dictionary<TelemetryStoreId, TelemetryStoreConfig>();
 
 		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
 		public bool Authorize(AclAction action, ClaimsPrincipal user)
@@ -295,7 +289,7 @@ namespace HordeServer.Server
 		/// <summary>
 		/// Called after the config file has been read
 		/// </summary>
-		public void PostLoad(ServerSettings serverSettings)
+		public void PostLoad(ServerSettings serverSettings, IReadOnlyList<ILoadedPlugin> loadedPlugins)
 		{
 			ServerSettings = serverSettings;
 
@@ -352,14 +346,17 @@ namespace HordeServer.Server
 			ConfigObject.MergeDefaults<string, PoolConfig>(Pools.Select(x => (x.Id.ToString(), x.Base?.ToString(), x)));
 			UpdateWorkspacesForPools();
 
-			_telemetryStoreLookup.Clear();
-			foreach (TelemetryStoreConfig telemetryStore in TelemetryStores)
-			{
-				_telemetryStoreLookup.Add(telemetryStore.Id, telemetryStore);
-				telemetryStore.PostLoad(Acl);
-			}
-
 			Storage.PostLoad(this);
+
+			// Ensure that all plugins have an entry in the global config so they can register their ACLs
+			foreach (ILoadedPlugin loadedPlugin in loadedPlugins)
+			{
+				if (!Plugins.TryGetValue(loadedPlugin.Name, out _))
+				{
+					IPluginConfig pluginConfig = (IPluginConfig)Activator.CreateInstance(loadedPlugin.GlobalConfigType)!;
+					Plugins.Add(loadedPlugin.Name, pluginConfig);
+				}
+			}
 
 			foreach (IPluginConfig pluginConfig in Plugins.Values)
 			{
@@ -580,14 +577,6 @@ namespace HordeServer.Server
 		/// <param name="config">Configuration for the pool</param>
 		/// <returns>True if the pool configuration was found</returns>
 		public bool TryGetPool(PoolId poolId, [NotNullWhen(true)] out PoolConfig? config) => _poolLookup.TryGetValue(poolId, out config);
-
-		/// <summary>
-		/// Attempts to get configuration for a pool from this object
-		/// </summary>
-		/// <param name="telemetryStoreId">The pool identifier</param>
-		/// <param name="config">Configuration for the telemetry store</param>
-		/// <returns>True if the telemetry configuration was found</returns>
-		public bool TryGetTelemetryStore(TelemetryStoreId telemetryStoreId, [NotNullWhen(true)] out TelemetryStoreConfig? config) => _telemetryStoreLookup.TryGetValue(telemetryStoreId, out config);
 
 		/// <summary>
 		/// Attempt to resolve an IP address to a network config

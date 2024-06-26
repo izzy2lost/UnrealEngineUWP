@@ -11,6 +11,7 @@ using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
 using HordeServer.Perforce;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Tests.Stubs.Services;
 using Microsoft.AspNetCore.Hosting;
@@ -157,8 +158,9 @@ public class ControllerIntegrationTest : IAsyncDisposable
 		JobService jobService = services.GetRequiredService<JobService>();
 		AgentService agentService = services.GetRequiredService<AgentService>();
 		IGraphCollection graphCollection = services.GetRequiredService<IGraphCollection>();
+		IPluginCollection pluginCollection = services.GetRequiredService<IPluginCollection>();
 		IOptions<ServerSettings> serverSettings = services.GetRequiredService<IOptions<ServerSettings>>();
 
-		return await Fixture.CreateAsync(configService, graphCollection, templateService, jobService, agentService, serverSettings.Value);
+		return await Fixture.CreateAsync(configService, graphCollection, templateService, jobService, agentService, pluginCollection, serverSettings.Value);
 	}
 }

@@ -15,6 +15,7 @@ using HordeServer.Configuration;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
+using HordeServer.Plugins;
 using HordeServer.Projects;
 using HordeServer.Server;
 using HordeServer.Streams;
@@ -35,10 +36,10 @@ namespace HordeServer.Tests
 		public string Agent1Name { get; private set; } = null!;
 		public const string PoolName = "TestingPool";
 
-		public static async Task<Fixture> CreateAsync(ConfigService configService, IGraphCollection graphCollection, ITemplateCollection templateCollection, JobService jobService, AgentService agentService, ServerSettings serverSettings)
+		public static async Task<Fixture> CreateAsync(ConfigService configService, IGraphCollection graphCollection, ITemplateCollection templateCollection, JobService jobService, AgentService agentService, IPluginCollection pluginCollection, ServerSettings serverSettings)
 		{
 			Fixture fixture = new Fixture();
-			await fixture.PopulateAsync(configService, graphCollection, templateCollection, jobService, agentService, serverSettings);
+			await fixture.PopulateAsync(configService, graphCollection, templateCollection, jobService, agentService, pluginCollection, serverSettings);
 
 			//			(PerforceService as PerforceServiceStub)?.AddChange("//UE5/Main", 112233, "leet.coder", "Did stuff", new []{"file.cpp"});
 			//			(PerforceService as PerforceServiceStub)?.AddChange("//UE5/Main", 1111, "swarm", "A shelved CL here", new []{"renderer.cpp"});
@@ -46,7 +47,7 @@ namespace HordeServer.Tests
 			return fixture;
 		}
 
-		private async Task PopulateAsync(ConfigService configService, IGraphCollection graphCollection, ITemplateCollection templateCollection, JobService jobService, AgentService agentService, ServerSettings serverSettings)
+		private async Task PopulateAsync(ConfigService configService, IGraphCollection graphCollection, ITemplateCollection templateCollection, JobService jobService, AgentService agentService, IPluginCollection pluginCollection, ServerSettings serverSettings)
 		{
 			FixtureGraph fg = new FixtureGraph();
 			fg.Id = ContentHash.Empty;
@@ -80,7 +81,7 @@ namespace HordeServer.Tests
 			ProjectConfig projectConfig = new ProjectConfig { Id = projectId, Name = "UE5", Streams = new List<StreamConfig> { streamConfig } };
 
 			GlobalConfig globalConfig = new GlobalConfig { Projects = new List<ProjectConfig> { projectConfig } };
-			globalConfig.PostLoad(serverSettings);
+			globalConfig.PostLoad(serverSettings, pluginCollection.LoadedPlugins);
 			configService.OverrideConfig(globalConfig);
 
 			StreamId = streamId;

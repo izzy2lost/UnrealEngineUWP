@@ -147,16 +147,23 @@ namespace HordeServer.Tests
 		public IOptionsMonitor<GlobalConfig> GlobalConfig => ServiceProvider.GetRequiredService<IOptionsMonitor<GlobalConfig>>();
 		public IOptionsSnapshot<GlobalConfig> GlobalConfigSnapshot => ServiceProvider.GetRequiredService<IOptionsSnapshot<GlobalConfig>>();
 
+		public IPluginCollection PluginCollection => ServiceProvider.GetRequiredService<IPluginCollection>();
+
 		private static bool s_datadogWriterPatched;
+
+		readonly PluginCollection _pluginCollection;
 
 		public TestSetup()
 		{
+			_pluginCollection = new PluginCollection();
+			_pluginCollection.Add<AnalyticsPlugin>();
+
 			PatchDatadogWriter();
 		}
 
 		protected void SetConfig(GlobalConfig globalConfig)
 		{
-			globalConfig.PostLoad(ServerSettings);
+			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins);
 			ConfigService.OverrideConfig(globalConfig);
 		}
 
@@ -164,7 +171,7 @@ namespace HordeServer.Tests
 		{
 			GlobalConfig globalConfig = GlobalConfig.CurrentValue;
 			action(globalConfig);
-			globalConfig.PostLoad(ServerSettings);
+			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins);
 			ConfigService.OverrideConfig(globalConfig);
 		}
 
@@ -195,7 +202,7 @@ namespace HordeServer.Tests
 			services.AddHttpClient<RpcService>();
 
 			services.AddSingleton<IServerInfo>(new ServerInfo());
-			services.AddSingleton<IPluginCollection>(new PluginCollection());
+			services.AddSingleton<IPluginCollection>(_pluginCollection);
 
 			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
 			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));
@@ -305,11 +312,16 @@ namespace HordeServer.Tests
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<StorageBackendCache>();
 			services.AddSingleton<BundleCache>();
+
+			foreach (ILoadedPlugin plugin in _pluginCollection.LoadedPlugins)
+			{
+				plugin.ConfigureServices(new ConfigurationBuilder().Build(), services);
+			}
 		}
 
 		public Task<Fixture> CreateFixtureAsync()
 		{
-			return Fixture.CreateAsync(ConfigService, GraphCollection, TemplateCollection, JobService, AgentService, ServerSettings);
+			return Fixture.CreateAsync(ConfigService, GraphCollection, TemplateCollection, JobService, AgentService, PluginCollection, ServerSettings);
 		}
 
 		private JobsController GetJobsController()

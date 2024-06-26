@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -10,6 +11,7 @@ using EpicGames.Horde.Server;
 using EpicGames.Horde.Tools;
 using HordeServer.Acls;
 using HordeServer.Configuration;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.ServiceAccounts;
 using HordeServer.Storage;
@@ -38,7 +40,7 @@ public class ToolsControllerTests
 		globalConfig.Tools.Add(new ToolConfig(toolId) { Name = "Foo", Description = "This is foo", Acl = new AclConfig() { Entries = [aclEntryConfig] }, Public = false });
 		
 		ServerSettings serverSettings = new() { AuthMethod = AuthMethod.Horde };
-		globalConfig.PostLoad(serverSettings);
+		globalConfig.PostLoad(serverSettings, new List<ILoadedPlugin>());
 		Dictionary<string, string> settings = new() { { "Horde:AuthMethod", AuthMethod.Horde.ToString() } };
 		await using FakeHordeWebApp app = new (settings);
 		

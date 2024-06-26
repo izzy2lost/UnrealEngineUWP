@@ -11,6 +11,7 @@ using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
 using HordeServer.Agents;
 using HordeServer.Compute;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -259,7 +260,7 @@ namespace HordeServer.Tests.Compute
 				new() { Id = cluster1, Condition = $"pool == '{poolFoo.ToString()}'" },
 				new() { Id = cluster2, Condition = $"pool == '{poolBar.ToString()}'" }
 			};
-			GlobalConfig.CurrentValue.PostLoad(new ServerSettings());
+			GlobalConfig.CurrentValue.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
 
 			List<string> props = ["ComputeIp=11.0.0.1", "ComputePort=5000"];
 			IAgent agent1 = await CreateAgentAsync(new PoolId("foo"), properties: props);
@@ -300,7 +301,7 @@ namespace HordeServer.Tests.Compute
 				new NetworkConfig { CidrBlock = "11.0.0.0/16", Id = "network1", ComputeId = "compute1" },
 				new NetworkConfig { CidrBlock = "12.0.0.0/16", Id = "network2", ComputeId = "compute2" },
 			] };
-			globalConfig.PostLoad(new ServerSettings());
+			globalConfig.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
 			Assert.AreEqual(new ClusterId("compute1"), ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("11.0.0.1")));
 			Assert.AreEqual(new ClusterId("compute2"), ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("12.0.1.1")));
 			Assert.ThrowsException<ComputeServiceException>(() => ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("123.123.123.123")));
@@ -309,7 +310,7 @@ namespace HordeServer.Tests.Compute
 			{
 				Networks = [new NetworkConfig { CidrBlock = "0.0.0.0/0", Id = "catchAll", ComputeId = "catchAll" }]
 			};
-			globalConfigCatchAll.PostLoad(new ServerSettings());
+			globalConfigCatchAll.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
 			Assert.AreEqual(new ClusterId("catchAll"), ComputeService.FindBestComputeClusterId(globalConfigCatchAll, IPAddress.Parse("123.123.123.123")));
 		}
 
@@ -379,7 +380,7 @@ namespace HordeServer.Tests.Compute
 				NullLogger<ComputeService>.Instance);
 			await CreateAgentAsync(new PoolId(pool), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
 			GlobalConfig.CurrentValue.Compute = [ccc];
-			GlobalConfig.CurrentValue.PostLoad(ss);
+			GlobalConfig.CurrentValue.PostLoad(ss, new List<ILoadedPlugin>());
 			return cs;
 		}
 

@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace HordeServer.Configuration
@@ -181,28 +182,6 @@ namespace HordeServer.Configuration
 		}
 
 		/// <summary>
-		/// Reads an object from a particular URL
-		/// </summary>
-		/// <typeparam name="T">Type of object to read</typeparam>
-		/// <param name="uri">Location of the file to read</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		public async Task<T> ReadAsync<T>(Uri uri, CancellationToken cancellationToken) where T : class, new()
-		{
-			IConfigFile file = await ReadFileAsync(uri, cancellationToken);
-			JsonObject obj = await ParseFileAsync(file, cancellationToken);
-
-			IncludeStack.Push(file);
-
-			ObjectConfigNode type = new ObjectConfigNode(typeof(T));
-			obj = await type.PreprocessAsync(obj, this, cancellationToken);
-
-			IncludeStack.Pop();
-
-			return JsonSerializer.Deserialize<T>(obj, JsonOptions) ?? new T();
-		}
-
-		/// <summary>
 		/// Parses a config file as a json object
 		/// </summary>
 		/// <param name="file">File to parse</param>
@@ -219,6 +198,39 @@ namespace HordeServer.Configuration
 			}
 
 			return obj;
+		}
+
+		/// <summary>
+		/// Reads an object from a particular URL
+		/// </summary>
+		/// <param name="uri">Location of the file to read</param>
+		/// <param name="rootNode">Root node describing the preprocessor fields</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public async Task<JsonObject> PreprocessFileAsync(Uri uri, ObjectConfigNode rootNode, CancellationToken cancellationToken)
+		{
+			IConfigFile file = await ReadFileAsync(uri, cancellationToken);
+			JsonObject obj = await ParseFileAsync(file, cancellationToken);
+
+			IncludeStack.Push(file);
+			obj = await rootNode.PreprocessAsync(obj, this, cancellationToken);
+			IncludeStack.Pop();
+
+			return obj;
+		}
+
+		/// <summary>
+		/// Reads an object from a particular URL
+		/// </summary>
+		/// <typeparam name="T">Type of object to read</typeparam>
+		/// <param name="uri">Location of the file to read</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public async Task<T> ReadAsync<T>(Uri uri, CancellationToken cancellationToken) where T : class, new()
+		{
+			ObjectConfigNode type = new ObjectConfigNode(typeof(T));
+			JsonObject obj = await PreprocessFileAsync(uri, type, cancellationToken);
+			return JsonSerializer.Deserialize<T>(obj, JsonOptions) ?? new T();
 		}
 	}
 }

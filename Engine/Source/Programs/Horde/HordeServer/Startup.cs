@@ -321,7 +321,7 @@ namespace HordeServer
 
 			// Register the plugin collection
 			PluginCollection pluginCollection = new PluginCollection();
-			pluginCollection.Add<AnalyticsPlugin>(new PluginMetadata { Name = new PluginName("analytics") });
+			pluginCollection.Add<AnalyticsPlugin>();
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin services

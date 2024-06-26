@@ -17,6 +17,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using HordeServer.Configuration;
 using HordeServer.Ddc;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,7 +45,7 @@ namespace HordeServer.Tests.Ddc.FunctionalTests.CompressedBlobs
 
 			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default"), Type = StorageBackendType.Memory });
 			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId(TestNamespace), Backend = globalConfig.Storage.Backends[^1].Id });
-			globalConfig.PostLoad(serverSettings);
+			globalConfig.PostLoad(serverSettings, new List<ILoadedPlugin>());
 
 			ConfigService configService = ServiceProvider.GetRequiredService<ConfigService>();
 			configService.OverrideConfig(globalConfig);
