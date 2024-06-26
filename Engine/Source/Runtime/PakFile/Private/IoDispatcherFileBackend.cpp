@@ -1514,11 +1514,6 @@ FAutoConsoleTaskPriority CPrio_IoDispatcherTaskPriority(
 	ENamedThreads::NormalTaskPriority // if we don't have background threads, then use normal priority threads at normal task priority instead
 );
 
-ENamedThreads::Type FFileIoStore::FDecompressAsyncTask::GetDesiredThread()
-{
-	return CPrio_IoDispatcherTaskPriority.Get();
-}
-
 void FFileIoStore::ScatterBlock(FFileIoStoreCompressedBlock* CompressedBlock, bool bIsAsync)
 {
 	LLM_SCOPE(ELLMTag::FileSystem);
@@ -1851,10 +1846,22 @@ FIoRequestImpl* FFileIoStore::GetCompletedIoRequests()
 		}
 
 		// Scatter block asynchronous when the block is compressed, encrypted or signed
-		bool bScatterAsync = bIsMultithreaded && GIoDispatcherForceSynchronousScatter==0 && (!BlockToDecompress->CompressionMethod.IsNone() || BlockToDecompress->EncryptionKey.IsValid() || BlockToDecompress->SignatureHash);
+		const bool bScatterAsync = bIsMultithreaded && GIoDispatcherForceSynchronousScatter == 0 &&
+			(!BlockToDecompress->CompressionMethod.IsNone() ||
+			 BlockToDecompress->EncryptionKey.IsValid() ||
+			 BlockToDecompress->SignatureHash);
 		if (bScatterAsync)
 		{
-			TGraphTask<FDecompressAsyncTask>::CreateTask().ConstructAndDispatchWhenReady(*this, BlockToDecompress);
+			UE::Tasks::Launch(
+				TEXT("ScatterBlockDecompressionTask"),
+				[this, BlockToDecompress]
+				{
+					ScatterBlock(BlockToDecompress, true);
+				},
+				(CPrio_IoDispatcherTaskPriority.Get() == ENamedThreads::BackgroundThreadPriority) ?
+				UE::Tasks::ETaskPriority::BackgroundNormal :
+				UE::Tasks::ETaskPriority::Normal
+			);
 		}
 		else
 		{

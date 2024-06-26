@@ -8,7 +8,6 @@
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Stats/Stats.h"
-#include "Async/TaskGraphInterfaces.h"
 #include "HAL/Runnable.h"
 #include "Misc/AES.h"
 #include "GenericPlatform/GenericPlatformFile.h"
@@ -125,37 +124,6 @@ public:
 	uint32 GetThreadId() const;
 
 private:
-	class FDecompressAsyncTask
-	{
-	public:
-		FDecompressAsyncTask(FFileIoStore& InOuter, FFileIoStoreCompressedBlock* InCompressedBlock)
-			: Outer(InOuter)
-			, CompressedBlock(InCompressedBlock)
-		{
-
-		}
-
-		static FORCEINLINE TStatId GetStatId()
-		{
-			RETURN_QUICK_DECLARE_CYCLE_STAT(FIoStoreDecompressTask, STATGROUP_TaskGraphTasks);
-		}
-
-		static ENamedThreads::Type GetDesiredThread();
-
-		FORCEINLINE static ESubsequentsMode::Type GetSubsequentsMode()
-		{
-			return ESubsequentsMode::FireAndForget;
-		}
-
-		void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-		{
-			Outer.ScatterBlock(CompressedBlock, true);
-		}
-
-	private:
-		FFileIoStore& Outer;
-		FFileIoStoreCompressedBlock* CompressedBlock;
-	};
 
 	bool Resolve(FIoRequestImpl* Request);
 	void OnNewPendingRequestsAdded();
