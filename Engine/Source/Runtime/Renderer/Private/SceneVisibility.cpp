@@ -3827,7 +3827,7 @@ void FVisibilityViewPacket::BeginInitVisibility()
 ///////////////////////////////////////////////////////////////////////////////
 
 FDynamicMeshElementContext::FDynamicMeshElementContext(FSceneRenderer& SceneRenderer)
-	: ViewFamily(SceneRenderer.ViewFamily)
+	: FirstViewFamily(SceneRenderer.ViewFamily)
 	, Views(SceneRenderer.AllViews)
 	, Primitives(SceneRenderer.Scene->Primitives)
 	// Defer committing GPU scene and Material updates until the mesh collectors are finished. Deferring materials allows VT updates to
@@ -3841,6 +3841,23 @@ FDynamicMeshElementContext::FDynamicMeshElementContext(FSceneRenderer& SceneRend
 	, DynamicVertexBuffer(*RHICmdList)
 	, DynamicIndexBuffer(*RHICmdList)
 {
+	// With Custom Render Passes, it's possible to have Views that point to a different Family.  Divide Views into groups with the same family.
+	uint8 ViewSubsetMask = 0;
+	int32 LastViewIndex = Views.Num() - 1;
+	for (int32 ViewIndex = 0; ViewIndex <= LastViewIndex; ViewIndex++)
+	{
+		ViewSubsetMask |= 1u << ViewIndex;
+
+		// Check if the next element has a different ViewFamily, or this is the last view.  If so, emit the GetDynamicMeshElements call
+		// with visibility mask bits set for the subset of views with the same ViewFamily, and reset the mask for the next family.
+		if (ViewIndex == LastViewIndex || Views[ViewIndex]->Family != Views[ViewIndex + 1]->Family)
+		{
+			// Emit a batch with the given mask, and reset the mask
+			ViewFamilyGroups.Add({ Views[ViewIndex]->Family, ViewSubsetMask });
+			ViewSubsetMask = 0;
+		}
+	}
+
 	RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
 
 	ViewMeshArraysPerView.SetNum(Views.Num());
@@ -3948,7 +3965,22 @@ void FDynamicMeshElementContext::GatherDynamicMeshElementsForPrimitive(FPrimitiv
 	}
 
 	MeshCollector.SetPrimitive(Primitive->Proxy, Primitive->DefaultDynamicHitProxyId);
-	Primitive->Proxy->GetDynamicMeshElements(ViewFamily.AllViews, ViewFamily, ViewMask, MeshCollector);
+
+	// If Custom Render Passes aren't in use, there will be only one group, which is the common case.
+	if (ViewFamilyGroups.Num() == 1 || Primitive->Proxy->SinglePassGDME())
+	{
+		Primitive->Proxy->GetDynamicMeshElements(FirstViewFamily.AllViews, FirstViewFamily, ViewMask, MeshCollector);
+	}
+	else
+	{
+		for (FViewFamilyGroup& Group : ViewFamilyGroups)
+		{
+			if (uint8 MaskedViewMask = ViewMask & Group.ViewSubsetMask)
+			{
+				Primitive->Proxy->GetDynamicMeshElements(FirstViewFamily.AllViews, *Group.Family, MaskedViewMask, MeshCollector);
+			}
+		}
+	}
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
@@ -3969,7 +4001,22 @@ void FDynamicMeshElementContext::GatherDynamicMeshElementsForEditorPrimitive(FPr
 {
 #if WITH_EDITOR
 	EditorMeshCollector.SetPrimitive(Primitive->Proxy, Primitive->DefaultDynamicHitProxyId);
-	Primitive->Proxy->GetDynamicMeshElements(ViewFamily.AllViews, ViewFamily, ViewMask, EditorMeshCollector);
+
+	// If Custom Render Passes aren't in use, there will be only one group, which is the common case.
+	if (ViewFamilyGroups.Num() == 1 || Primitive->Proxy->SinglePassGDME())
+	{
+		Primitive->Proxy->GetDynamicMeshElements(FirstViewFamily.AllViews, FirstViewFamily, ViewMask, EditorMeshCollector);
+	}
+	else
+	{
+		for (FViewFamilyGroup& Group : ViewFamilyGroups)
+		{
+			if (uint8 MaskedViewMask = ViewMask & Group.ViewSubsetMask)
+			{
+				Primitive->Proxy->GetDynamicMeshElements(FirstViewFamily.AllViews, *Group.Family, MaskedViewMask, EditorMeshCollector);
+			}
+		}
+	}
 #endif
 }
 

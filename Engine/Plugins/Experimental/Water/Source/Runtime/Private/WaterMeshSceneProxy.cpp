@@ -168,6 +168,9 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	AWaterZone* WaterZone = CastChecked<AWaterZone>(Component->GetOwner());
 	checkf(WaterZone != nullptr, TEXT("WaterMeshComponent is owned by an actor that is not a WaterZone. This is not supported!"));
 
+	// Need to enable single pass GetDynamicMeshElements, as the function uses all Views together to compute visible water tiles
+	bSinglePassGDME = true;
+
 	if (Component->ShouldBuildQuadTreeInSceneProxy())
 	{
 		// Get the QuadTreeBuilder and build the quadtree
@@ -410,11 +413,30 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 		return;
 	}
 
-	// Set up wireframe material (if needed)
-	const bool bWireframe = AllowDebugViewmodes() && (ViewFamily.EngineShowFlags.Wireframe || CVarWaterMeshShowWireframe.GetValueOnRenderThread() == 1);
+	// Figure out which views have wireframe enabled
+	uint32 WireframeVisibilityMap = 0;
+	if (AllowDebugViewmodes())
+	{
+		if (CVarWaterMeshShowWireframe.GetValueOnRenderThread() == 1)
+		{
+			// Force all views to wireframe
+			WireframeVisibilityMap = VisibilityMap;
+		}
+		else
+		{
+			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+			{
+				if ((VisibilityMap & (1 << ViewIndex)) && Views[ViewIndex]->Family->EngineShowFlags.Wireframe)
+				{
+					WireframeVisibilityMap |= (1 << ViewIndex);
+				}
+			}
+		}
+	}
 
+	// Set up wireframe material (if needed)
 	FColoredMaterialRenderProxy* WireframeMaterialInstance = nullptr;
-	if (bWireframe && CVarWaterMeshShowWireframeAtBaseHeight.GetValueOnRenderThread() == 1)
+	if (WireframeVisibilityMap && CVarWaterMeshShowWireframeAtBaseHeight.GetValueOnRenderThread() == 1)
 	{
 		WireframeMaterialInstance = new FColoredMaterialRenderProxy(
 			GEngine->WireframeMaterial ? GEngine->WireframeMaterial->GetRenderProxy() : NULL,
@@ -536,6 +558,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 				TRACE_CPUPROFILER_EVENT_SCOPE(BucketsPerView);
 
 				const bool bInstancedStereo = Views[ViewIndex]->bIsInstancedStereoEnabled;
+				const bool bViewIsWireframe = WireframeVisibilityMap & (1 << ViewIndex);
 
 				for (int32 MaterialIndex = 0; MaterialIndex < NumWaterMaterials; ++MaterialIndex)
 				{
@@ -548,7 +571,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 
 						TRACE_CPUPROFILER_EVENT_SCOPE(DensityBucket);
 
-						const FMaterialRenderProxy* MaterialRenderProxy = (WireframeMaterialInstance != nullptr) ? WireframeMaterialInstance : WaterQuadTree.GetWaterMaterials()[MaterialIndex];
+						const FMaterialRenderProxy* MaterialRenderProxy = bViewIsWireframe && WireframeMaterialInstance ? WireframeMaterialInstance : WaterQuadTree.GetWaterMaterials()[MaterialIndex];
 						check(MaterialRenderProxy != nullptr);
 
 						bool bUseForDepthPass = false;
@@ -565,7 +588,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 						{
 							// Set up mesh batch
 							FMeshBatch& Mesh = Collector.AllocateMesh();
-							Mesh.bWireframe = bWireframe;
+							Mesh.bWireframe = bViewIsWireframe;
 							Mesh.VertexFactory = bInstancedStereo ? (FVertexFactory*)WaterVertexFactoryIndirectDrawISR : (FVertexFactory*)WaterVertexFactoryIndirectDraw;
 							Mesh.MaterialRenderProxy = MaterialRenderProxy;
 							Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
@@ -731,6 +754,8 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(BucketsPerView);
 
+			const bool bViewIsWireframe = WireframeVisibilityMap & (1 << ViewIndex);
+
 			FWaterQuadTree::FTraversalOutput& WaterInstanceData = WaterInstanceDataPerView[TraversalIndex];
 			TraversalIndex++;
 
@@ -751,7 +776,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 
 					TRACE_CPUPROFILER_EVENT_SCOPE(DensityBucket);
 
-					const FMaterialRenderProxy* MaterialRenderProxy = (WireframeMaterialInstance != nullptr) ? WireframeMaterialInstance : WaterQuadTree.GetWaterMaterials()[MaterialIndex];
+					const FMaterialRenderProxy* MaterialRenderProxy = bViewIsWireframe && WireframeMaterialInstance ? WireframeMaterialInstance : WaterQuadTree.GetWaterMaterials()[MaterialIndex];
 					check(MaterialRenderProxy != nullptr);
 
 					bool bUseForDepthPass = false;
@@ -768,7 +793,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 					{
 						// Set up mesh batch
 						FMeshBatch& Mesh = Collector.AllocateMesh();
-						Mesh.bWireframe = bWireframe;
+						Mesh.bWireframe = bViewIsWireframe;
 						Mesh.VertexFactory = WaterVertexFactories[DensityIndex];
 						Mesh.MaterialRenderProxy = MaterialRenderProxy;
 						Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();

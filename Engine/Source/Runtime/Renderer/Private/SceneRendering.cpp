@@ -2947,6 +2947,12 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		// Disable sky rendering, which is gated by the Atmosphere flag (unnecessary perf cost during base pass rendering)
 		FamilyCVS.EngineShowFlags.Atmosphere = false;
 
+		// Force enable the Lighting flag.  Custom Render Passes don't run lighting regardless of this flag, but disabling it causes the function
+		// "IsRichView()" to return true, forcing certain render proxy classes to go through a slow dynamic rendering code path used for debug
+		// visualization, which isn't relevant for Custom Render Passes.  Avoids a massive silent perf loss if someone has modified the flag
+		// (which is user facing in the Scene Capture properties).
+		FamilyCVS.EngineShowFlags.Lighting = true;
+
 		FCustomRenderPassInfo& CustomRenderPassInfo = CustomRenderPassInfos.Emplace_GetRef(FamilyCVS, ViewFamily);
 		CustomRenderPassInfo.CustomRenderPass = CustomRenderPass;
 		CustomRenderPassInfo.ViewFamily.Time = ViewFamily.Time;

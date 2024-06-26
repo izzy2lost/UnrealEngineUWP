@@ -24,6 +24,10 @@ namespace UE::XRCreative::Private
 			: FPrimitiveSceneProxy(InComponent)
 		{
 			GetGeometryQueryFunc = MoveTemp(GeometryQueryFunc);
+
+			// GetDynamicMeshElements needs to run single pass, because the function GetGeometryQueryFunc consumes cached geometry
+			// generated over the previous frame, and the geometry won't exist if called a second time.
+			bSinglePassGDME = true;
 		}
 
 		virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override

@@ -261,6 +261,12 @@ public:
 private:
 	void Finish();
 
+	struct FViewFamilyGroup
+	{
+		const FSceneViewFamily* Family;
+		uint8 ViewSubsetMask;				// Subset of views with the given view family
+	};
+
 	struct FViewMeshArrays
 	{
 		TArray<FMeshBatchAndRelevance, SceneRenderingAllocator> DynamicMeshElements;
@@ -276,9 +282,10 @@ private:
 #endif
 	};
 
-	const FSceneViewFamily& ViewFamily;
+	const FSceneViewFamily& FirstViewFamily;
 	TArrayView<FViewInfo*> Views;
 	TArrayView<FPrimitiveSceneInfo*> Primitives;
+	TArray<FViewFamilyGroup, TInlineAllocator<1>> ViewFamilyGroups;
 	TArray<FViewMeshArrays, TInlineAllocator<2>> ViewMeshArraysPerView;
 	TArray<FDynamicPrimitive, SceneRenderingAllocator> DynamicPrimitives;
 	FMeshElementCollector MeshCollector;

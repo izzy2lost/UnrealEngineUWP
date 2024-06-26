@@ -347,7 +347,13 @@ public:
 	 */
 	void DebugLightGrid(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bNeedLightGrid);
 
-	void RenderBasePass(
+	/**
+	 * The following three functions are static, for compile time enforcement related to CustomRenderPass rendering, which uses these functions.
+	 * Custom Render Passes have a separate ViewFamily, and making these functions static prevents the ViewFamily member in the scene renderer
+	 * class from being inadvertently accessed.
+	 */
+	static void RenderBasePass(
+		FDeferredShadingSceneRenderer& Renderer,
 		FRDGBuilder& GraphBuilder,
 		TArrayView<FViewInfo> InViews,
 		FSceneTextures& SceneTextures,
@@ -359,7 +365,8 @@ public:
 		struct FNaniteShadingCommands& NaniteBasePassShadingCommands,
 		const TArrayView<Nanite::FRasterResults>& NaniteRasterResults);
 
-	void RenderBasePassInternal(
+	static void RenderBasePassInternal(
+		FDeferredShadingSceneRenderer& Renderer,
 		FRDGBuilder& GraphBuilder,
 		TArrayView<FViewInfo> InViews,
 		const FSceneTextures& SceneTextures,
@@ -374,10 +381,11 @@ public:
 		struct FNaniteShadingCommands& NaniteBasePassShadingCommands,
 		const TArrayView<Nanite::FRasterResults>& NaniteRasterResults);
 
-	void RenderAnisotropyPass(
+	static void RenderAnisotropyPass(
 		FRDGBuilder& GraphBuilder,
 		TArrayView<FViewInfo> InViews,
 		FSceneTextures& SceneTextures,
+		const FScene* Scene,
 		bool bDoParallelPass);
 	/**
 	 * Runs water pre-pass if enabled and returns an RDG-allocated object with intermediates, or null.

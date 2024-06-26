@@ -434,6 +434,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bCollisionEnabled(InProxyDesc.IsCollisionEnabled())
 ,	bTreatAsBackgroundForOcclusion(InProxyDesc.bTreatAsBackgroundForOcclusion)
 ,	bSupportsParallelGDME(true)
+,	bSinglePassGDME(false)
 ,	bVisibleInLumenScene(false)
 ,	bOpaqueOrMasked(true)
 ,	bCanSkipRedundantTransformUpdates(true)

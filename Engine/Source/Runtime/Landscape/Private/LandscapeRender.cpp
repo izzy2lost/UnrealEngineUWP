@@ -1358,6 +1358,9 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	// They do however have continuous LOD which is problematic, considered static as the LODs (are intended to) represent the same static surface.
 	bHasDeformableMesh = false;
 
+	// Enabled just so the GVarDumpLandscapeLODsCurrentFrame debug feature only runs once per render proxy in GetDynamicMeshElements
+	bSinglePassGDME = true;
+
 	VisibilityHelper.Init(InComponent, this);
 
 	if (!VisibilityHelper.ShouldBeVisible())
@@ -2584,7 +2587,6 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 	int32 NumPasses = 0;
 	int32 NumTriangles = 0;
 	int32 NumDrawCalls = 0;
-	const bool bIsWireframe = ViewFamily.EngineShowFlags.Wireframe;
 
 	const FLandscapeRenderSystem& RenderSystem = *LandscapeRenderSystems.FindChecked(LandscapeKey);
 
@@ -2596,6 +2598,11 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 			ParameterArray.ElementParams.AddDefaulted(1);
 
 			const FSceneView* View = Views[ViewIndex];
+
+			// With bSinglePassGDME == true, there can be a different view family per active view, so grab a reference to the specific view family
+			const FSceneViewFamily& ViewSpecificFamily = *View->Family;
+
+			const bool bIsWireframe = ViewSpecificFamily.EngineShowFlags.Wireframe;
 
 			int32 LODToRender = static_cast<int32>(RenderSystem.GetSectionLODValue(*View, RenderCoord));
 
@@ -2805,7 +2812,7 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 				else
 #endif
 					// Regular Landscape rendering. Only use the dynamic path if we're rendering a rich view or we've disabled the static path for debugging.
-					if (IsRichView(ViewFamily) ||
+					if (IsRichView(ViewSpecificFamily) ||
 						GLandscapeDebugOptions.bDisableStatic ||
 						bIsWireframe ||
 #if WITH_EDITOR
@@ -2833,7 +2840,7 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 
 #if WITH_EDITOR
 			  // Extra render passes for landscape tools
-			if (GLandscapeEditModeActive)
+			if (GLandscapeEditModeActive && ViewSpecificFamily.EngineShowFlags.Editor)
 			{
 				// Region selection
 				if (EditToolRenderData.SelectedType)
@@ -2923,9 +2930,9 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 				DrawWireBox(Collector.GetPDI(ViewIndex), GetBounds().GetBox(), FColor(255, 255, 0), SDPG_World);
 			}
 
-			if (ViewFamily.EngineShowFlags.Bounds)
+			if (ViewSpecificFamily.EngineShowFlags.Bounds)
 			{
-				RenderBounds(Collector.GetPDI(ViewIndex), ViewFamily.EngineShowFlags, GetBounds(), IsSelected());
+				RenderBounds(Collector.GetPDI(ViewIndex), ViewSpecificFamily.EngineShowFlags, GetBounds(), IsSelected());
 			}
 		}
 	}

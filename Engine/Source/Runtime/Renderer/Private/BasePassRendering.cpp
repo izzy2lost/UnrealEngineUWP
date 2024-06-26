@@ -962,6 +962,7 @@ void ModifyBasePassCSPSCompilationEnvironment(const FMeshMaterialShaderPermutati
 }
 
 void FDeferredShadingSceneRenderer::RenderBasePass(
+	FDeferredShadingSceneRenderer& Renderer,
 	FRDGBuilder& GraphBuilder,
 	TArrayView<FViewInfo> InViews,
 	FSceneTextures& SceneTextures,
@@ -974,6 +975,10 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 	const TArrayView<Nanite::FRasterResults>& NaniteRasterResults)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::RenderBasePass);
+
+	// This function has been deliberately made static, so it doesn't have access to the ViewFamily member, to support Custom Render Passes,
+	// which have a separate ViewFamily.  Create a local reference to the first view's Family here.
+	FViewFamilyInfo& ViewFamily = *(FViewFamilyInfo*)InViews[0].Family;
 
 	const bool bEnableParallelBasePasses = GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePass.GetValueOnRenderThread();
 
@@ -1037,7 +1042,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 
 	TStaticArray<FTextureRenderTargetBinding, MaxSimultaneousRenderTargets> BasePassTextures;
 	uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures);
-	Substrate::AppendSubstrateMRTs(*this, BasePassTextureCount, BasePassTextures);
+	Substrate::AppendSubstrateMRTs(Renderer, BasePassTextureCount, BasePassTextures);
 	TArrayView<FTextureRenderTargetBinding> BasePassTexturesView = MakeArrayView(BasePassTextures.GetData(), BasePassTextureCount);
 	FRDGTextureRef BasePassDepthTexture = SceneTextures.Depth.Target;
 	FLinearColor SceneColorClearValue = FLinearColor::Black;
@@ -1106,7 +1111,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 		{
 			// We only render this warning text when bRequiresRHIClear==true to make sure the scene color buffer is allocated at this stage.
 			// When false, the option specifies that all pixels must be written to by a sky dome anyway.
-			RenderSkyAtmosphereEditorNotifications(GraphBuilder, InViews, SceneTextures.Color.Target);
+			Renderer.RenderSkyAtmosphereEditorNotifications(GraphBuilder, InViews, SceneTextures.Color.Target);
 		}
 	}
 
@@ -1148,7 +1153,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 	}
 	ForwardBasePassTextures.bIs24BitUnormDepthStencil = ForwardBasePassTextures.SceneDepthIfResolved ? GPixelFormats[ForwardBasePassTextures.SceneDepthIfResolved->Desc.Format].bIs24BitUnormDepthStencil : 1;
 
-	RenderBasePassInternal(GraphBuilder, InViews, SceneTextures, BasePassRenderTargets, BasePassDepthStencilAccess, ForwardBasePassTextures, DBufferTextures, bDoParallelBasePass, bRenderLightmapDensity, InstanceCullingManager, bNaniteEnabled, NaniteBasePassShadingCommands, NaniteRasterResults);
+	RenderBasePassInternal(Renderer, GraphBuilder, InViews, SceneTextures, BasePassRenderTargets, BasePassDepthStencilAccess, ForwardBasePassTextures, DBufferTextures, bDoParallelBasePass, bRenderLightmapDensity, InstanceCullingManager, bNaniteEnabled, NaniteBasePassShadingCommands, NaniteRasterResults);
 	
 	for (const TSharedRef<ISceneViewExtension>& ViewExtension : ViewFamily.ViewExtensions)
 	{
@@ -1164,9 +1169,9 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 	}
 
 	// The anisotropy GBuffer is used for lighting, and not needed when running a scene capture with ERendererOutput::BasePass (BaseColor or Normal output), which doesn't run lighting.
-	if (ShouldRenderAnisotropyPass(InViews) && GetRendererOutput() == ERendererOutput::FinalSceneColor)
+	if (ShouldRenderAnisotropyPass(InViews) && Renderer.GetRendererOutput() == ERendererOutput::FinalSceneColor)
 	{
-		RenderAnisotropyPass(GraphBuilder, InViews, SceneTextures, bEnableParallelBasePasses);
+		RenderAnisotropyPass(GraphBuilder, InViews, SceneTextures, ViewFamily.Scene->GetRenderScene(), bEnableParallelBasePasses);
 	}
 
 #if !(UE_BUILD_SHIPPING)
@@ -1304,6 +1309,7 @@ static void RenderEditorPrimitives(
 }
 
 void FDeferredShadingSceneRenderer::RenderBasePassInternal(
+	FDeferredShadingSceneRenderer& Renderer,
 	FRDGBuilder& GraphBuilder,
 	TArrayView<FViewInfo> InViews,
 	const FSceneTextures& SceneTextures,
@@ -1320,6 +1326,11 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 {
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderBasePass);
 	SCOPED_NAMED_EVENT(FDeferredShadingSceneRenderer_RenderBasePass, FColor::Emerald);
+
+	// This function has been deliberately made static, so it doesn't have access to the ViewFamily member, to support Custom Render Passes,
+	// which have a separate ViewFamily.  Create a local reference to the first view's Family here.
+	FViewFamilyInfo& ViewFamily = *(FViewFamilyInfo*)InViews[0].Family;
+	FScene* Scene = ViewFamily.Scene->GetRenderScene();
 
 #if WITH_DEBUG_VIEW_MODES
 	Nanite::EDebugViewMode NaniteDebugViewMode = Nanite::EDebugViewMode::None;
@@ -1394,7 +1405,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 			Nanite::DispatchBasePass(
 				GraphBuilder,
 				NaniteBasePassShadingCommands,
-				*this,
+				Renderer,
 				SceneTextures,
 				BasePassRenderTargets,
 				DBufferTextures,
@@ -1412,7 +1423,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		if (bNaniteEnabled)
 		{
 			// Should always have a full Z prepass with Nanite
-			check(ShouldRenderPrePass());
+			check(Renderer.ShouldRenderPrePass());
 
 			for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 			{
@@ -1451,7 +1462,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1, "View%d", ViewIndex);
 				View.BeginRenderView();
 
-				const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
+				const bool bLumenGIEnabled = Renderer.GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
 
 				FMeshPassProcessorRenderState DrawRenderState;
 				SetupBasePassState(BasePassDepthStencilAccess, ViewFamily.EngineShowFlags.ShaderComplexity, DrawRenderState);
@@ -1472,7 +1483,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						RDG_EVENT_NAME("BasePassParallel"),
 						PassParameters,
 						ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-						[this, &View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+						[&View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 					{
 						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
 						View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
@@ -1485,7 +1496,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 				if (bShouldRenderViewForNanite)
 				{
 					// Should always have a full Z prepass with Nanite
-					check(ShouldRenderPrePass());
+					check(Renderer.ShouldRenderPrePass());
 
 					RenderNaniteBasePass(View, ViewIndex);
 				}
@@ -1506,7 +1517,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						RDG_EVENT_NAME("SkyPassParallel"),
 						SkyPassPassParameters,
 						ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-						[this, &View, SkyPassPassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+						[&View, SkyPassPassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 					{
 						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(SkyPassPassParameters));
 						View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &SkyPassPassParameters->InstanceCullingDrawParams);
@@ -1523,7 +1534,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1, "View%d", ViewIndex);
 				View.BeginRenderView();
 
-				const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
+				const bool bLumenGIEnabled = Renderer.GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
 
 				FMeshPassProcessorRenderState DrawRenderState;
 				SetupBasePassState(BasePassDepthStencilAccess, ViewFamily.EngineShowFlags.ShaderComplexity, DrawRenderState);
@@ -1544,7 +1555,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						RDG_EVENT_NAME("BasePass"),
 						PassParameters,
 						ERDGPassFlags::Raster,
-						[this, &View, PassParameters](FRHICommandList& RHICmdList)
+						[&View, PassParameters](FRHICommandList& RHICmdList)
 						{
 							SetStereoViewport(RHICmdList, View, 1.0f);
 							View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
@@ -1556,7 +1567,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 				if (bShouldRenderViewForNanite)
 				{
 					// Should always have a full Z prepass with Nanite
-					check(ShouldRenderPrePass());
+					check(Renderer.ShouldRenderPrePass());
 
 					RenderNaniteBasePass(View, ViewIndex);
 				}
@@ -1577,7 +1588,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						RDG_EVENT_NAME("SkyPass"),
 						SkyPassParameters,
 						ERDGPassFlags::Raster,
-						[this, &View, SkyPassParameters](FRHICommandList& RHICmdList)
+						[&View, SkyPassParameters](FRHICommandList& RHICmdList)
 						{
 							SetStereoViewport(RHICmdList, View, 1.0f);
 							View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].DispatchDraw(nullptr, RHICmdList, &SkyPassParameters->InstanceCullingDrawParams);

@@ -225,6 +225,9 @@ public:
 			FColor(157,149,223,255))
 #endif
 	{
+		// GetDynamicMeshElements needs to run single pass, due to handling of the bAnySelectedSurfs flag across multiple views
+		bSinglePassGDME = true;
+
 		ENQUEUE_RENDER_COMMAND(InitOrUpdateVertexBufferCmd)([VertexBuffer = &InComponent->GetModel()->VertexBuffer](FRHICommandList& RHICmdList)
 		{
 			if (!VertexBuffer->Buffers.PositionVertexBuffer.IsInitialized())
@@ -303,10 +306,13 @@ public:
 			{
 				const FSceneView* View = Views[ViewIndex];
 
-				bool bShowSelection = GIsEditor && !View->bIsGameView && ViewFamily.EngineShowFlags.Selection;
-				bool bDynamicBSPTriangles = bShowSelection || IsRichView(ViewFamily);
-				bool bShowBSPTriangles = ViewFamily.EngineShowFlags.BSPTriangles;
-				bool bShowBSP = ViewFamily.EngineShowFlags.BSP;
+				// View families can vary per view, with bSinglePassGDME == true being set for this class, so get the specific family for the view
+				const FSceneViewFamily& ViewSpecificFamily = *View->Family;
+
+				bool bShowSelection = GIsEditor && !View->bIsGameView && ViewSpecificFamily.EngineShowFlags.Selection;
+				bool bDynamicBSPTriangles = bShowSelection || IsRichView(ViewSpecificFamily);
+				bool bShowBSPTriangles = ViewSpecificFamily.EngineShowFlags.BSPTriangles;
+				bool bShowBSP = ViewSpecificFamily.EngineShowFlags.BSP;
 
 #if WITH_EDITOR
 				bool bDrawCollision = false;

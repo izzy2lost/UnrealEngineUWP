@@ -748,6 +748,7 @@ public:
 	inline bool ShouldRenderInMainPass() const { return bRenderInMainPass; }
 	inline bool ShouldRenderInDepthPass() const { return bRenderInMainPass || bRenderInDepthPass; }
 	inline bool SupportsParallelGDME() const { return bSupportsParallelGDME; }
+	inline bool SinglePassGDME() const { return bSinglePassGDME; }
 	inline bool IsCollisionEnabled() const { return bCollisionEnabled; }
 	inline bool IsHovered() const { return bHovered; }
 	inline bool IsOwnedBy(const AActor* Actor) const { return Owners.Find(Actor) != INDEX_NONE; }
@@ -1269,6 +1270,15 @@ protected:
 
 	/** Whether the proxy supports asynchronously calling GetDynamicMeshElements. If disabled, all calls for various proxies are serialized with respect to each other. */
 	uint8 bSupportsParallelGDME : 1;
+
+	/**
+	 * Whether to call GetDynamicMeshElements a single time, instead of once per unique FSceneViewFamily.  If set to true, the GetDynamicMeshElements
+	 * implementation must take into account that Views may point to different view families, with different EngineShowFlags.  In practice, this means
+	 * using View->Family in the loop over Views, especially for accessing EngineShowFlags, rather than the ViewFamily parameter passed in.  The
+	 * "AllViews" member, plus certain other members like the frame counter and time, are invariant across view families, and safe to access from
+	 * ViewFamily.  Example use cases are features that do global processing or initialize a common shared buffer across views, which are fairly rare.
+	 */
+	uint8 bSinglePassGDME : 1;
 
 	/** Whether this component should be tracked by Lumen Scene. Turning this off will remove it from Lumen Scene and Lumen won't generate surface cache for it. */
 	uint8 bVisibleInLumenScene : 1;
