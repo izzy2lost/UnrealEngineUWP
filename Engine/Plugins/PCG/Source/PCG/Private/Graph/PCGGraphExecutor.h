@@ -149,10 +149,14 @@ struct FPCGGraphActiveTask : TSharedFromThis<FPCGGraphActiveTask>
 	// Those members need to be modified under the FPCGGraphExecutor::LiveTasksLock (unless we are running the old executor path)
 	UE::Tasks::TTask<bool> ExecutingTask;
 	bool bIsExecutingTask = false;
+
+	// Used to know if task should be in ActiveTasks or ActiveTasksGameThreadOnly
+	bool bIsGameThreadOnly = false;
+	// TaskIndex inside ActiveTasks/ActiveTasksGameThreadOnly/SleepingTasks for fast removal
+	int32 TaskIndex = INDEX_NONE;
+
 	static int32 NumExecuting;
 	TArray<TObjectPtr<const UObject>> ExecutingReferences;
-
-	TSharedPtr<UE::Tasks::FCancellationToken> CancelToken;
 };
 
 class FPCGGraphExecutor : public FGCObject
@@ -267,10 +271,10 @@ private:
 		bool bIsBypassed = false;
 	};
 		
-	void PostTaskExecute(TSharedPtr<FPCGGraphActiveTask> ActiveTask);
+	void PostTaskExecute(TSharedPtr<FPCGGraphActiveTask> ActiveTask, bool bIsDone);
 	bool ProcessScheduledTasks();
 	void ExecuteTasksEnded();
-	bool ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphActiveTask>* OutMainThreadTask = nullptr);
+	bool ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphActiveTask>* OutMainThreadTask = nullptr, bool bForceCheckSleepingTasks = false);
 
 	TSet<UPCGComponent*> Cancel(TFunctionRef<bool(TWeakObjectPtr<UPCGComponent>)> CancelFilter);
 	void ClearAllTasks();
@@ -346,13 +350,14 @@ private:
 	UE::FSpinLock LiveTasksLock;
 	TArray<FPCGGraphTask> ReadyTasks;
 	TArray<TSharedPtr<FPCGGraphActiveTask>> ActiveTasks;
+	TArray<TSharedPtr<FPCGGraphActiveTask>> ActiveTasksGameThreadOnly;
+	TArray<TSharedPtr<FPCGGraphActiveTask>> SleepingTasks;
+	bool bNeedToCheckSleepingTasks = false;
+
 	// Used to keep GC references to in flight caching results (not yet stored to output and might not be in cache anymore)
 	TMap<FPCGTaskId, TUniquePtr<FCachedResult>> CachingResults;
 	int32 NumWorkerTasks = 0;
 
-	// @todo_pcg: to remove when we remove ExecuteV1
-	TArray<TSharedPtr<FPCGGraphActiveTask>> SleepingTasks;
-	
 	/** Lock level 3 */
 	UE::FSpinLock CollectGCReferenceTasksLock;
 	TSet<TSharedPtr<FPCGGraphActiveTask>> CollectGCReferenceTasks;
