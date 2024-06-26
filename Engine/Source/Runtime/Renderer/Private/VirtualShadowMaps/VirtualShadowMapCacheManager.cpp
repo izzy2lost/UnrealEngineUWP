@@ -15,6 +15,7 @@
 #include "RendererOnScreenNotification.h"
 #include "SystemTextures.h"
 #include "Shadows/ShadowScene.h"
+#include "ProfilingDebugging/CountersTrace.h"
 
 CSV_DECLARE_CATEGORY_EXTERN(VSM);
 
@@ -130,6 +131,14 @@ FAutoConsoleVariableRef CVarVSMNewInvalidations(
 	TEXT("r.Shadow.Virtual.Cache.NewInvalidations"),
 	GVSMNewInvalidations,
 	TEXT("Use the new path for VSM invalidations that performs better and allows extended cache page residency. The old path will be removed in the future."),
+	ECVF_RenderThreadSafe
+);
+
+int32 GVSMLightRadiusInvalidationCulling = 1;
+FAutoConsoleVariableRef CVarVSMLightRadiusCulling(
+	TEXT("r.Shadow.Virtual.Cache.CPUCullInvalidationsOutsideLightRadius"),
+	GVSMLightRadiusInvalidationCulling,
+	TEXT("CPU culls invalidations that are outside a local light's radius."),
 	ECVF_RenderThreadSafe
 );
 
@@ -306,9 +315,18 @@ void FVirtualShadowMapPerLightCacheEntry::UpdateClipmap(const FVector& LightDire
 		Prev.RenderedFrameNumber = -1;
 	}
 	bIsUncached = bNewIsUncached;
+
+	LightOrigin = FVector(0, 0, 0);
+	LightRadius = -1.0f;
 }
 
-bool FVirtualShadowMapPerLightCacheEntry::UpdateLocal(const FProjectedShadowInitializer& InCacheKey, bool bNewIsDistantLight, bool bCacheEnabled, bool bAllowInvalidation)
+bool FVirtualShadowMapPerLightCacheEntry::UpdateLocal(
+	const FProjectedShadowInitializer& InCacheKey,
+	const FVector& NewLightOrigin,
+	const float NewLightRadius,
+	bool bNewIsDistantLight,
+	bool bCacheEnabled,
+	bool bAllowInvalidation)
 {
 	// TODO: The logic in this function is needlessly convoluted... clean up
 
@@ -343,6 +361,8 @@ bool FVirtualShadowMapPerLightCacheEntry::UpdateLocal(const FProjectedShadowInit
 	Current.ScheduledFrameNumber = -1;
 	bIsDistantLight = bNewIsDistantLight;
 	bIsUncached = bNewIsUncached;
+	LightOrigin = NewLightOrigin;
+	LightRadius = NewLightRadius;
 
 	return Prev.RenderedFrameNumber >= 0;
 }
@@ -375,7 +395,8 @@ static uint32 EncodeInstanceInvalidationPayload(int32 VirtualShadowMapId, uint32
 	return Payload;
 }
 
-FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::FInvalidatingPrimitiveCollector(FVirtualShadowMapArrayCacheManager* InCacheManager)
+FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::FInvalidatingPrimitiveCollector(
+	FVirtualShadowMapArrayCacheManager* InCacheManager)
 	: Scene(InCacheManager->Scene)
 	, Manager(*InCacheManager)
 {
@@ -418,7 +439,9 @@ void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddPri
 	Manager.ShadowInvalidatingInstancesImplementation.PrimitiveInstancesToInvalidate.Reset();
 }
 
-void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddInvalidation(FPrimitiveSceneInfo * PrimitiveSceneInfo, EInvalidationCause InvalidationCause)
+void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddInvalidation(
+	FPrimitiveSceneInfo * PrimitiveSceneInfo,
+	EInvalidationCause InvalidationCause)
 {
 	const int32 PrimitiveID = PrimitiveSceneInfo->GetIndex();
 	const int32 InstanceSceneDataOffset = PrimitiveSceneInfo->GetInstanceSceneDataOffset();
@@ -480,26 +503,45 @@ void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddInv
 	// Nanite meshes need special handling because they don't get culled on CPU, thus always process invalidations for those
 	const bool bIsNaniteMesh = PrimitiveFlagsCompact.bIsNaniteMesh;
 
+	const FBoxSphereBounds PrimitiveBounds = PrimitiveSceneInfo->Proxy->GetBounds();
 	for (auto& CacheEntry : Manager.CacheEntries)
 	{
-		TBitArray<>& CachedPrimitives = CacheEntry.Value->CachedPrimitives;
-		if (bIsNaniteMesh || GVSMNewInvalidations ||
-			// This isn't a super-safe test in the new world as we have both pre and post-invalidations, and additionally
-			// things like instance count can change between the two, so we really do need to do both sets back to back.
-			(PersistentPrimitiveIndex.Index < CachedPrimitives.Num() && CachedPrimitives[PersistentPrimitiveIndex.Index]))
+		// We don't need explicit invalidations for force invalidated/uncached lights
+		if (!CacheEntry.Value->IsUncached())
 		{
-			//UE_LOG(LogRenderer, Warning, TEXT("Invalidating instances: %u, %u"), InstanceSceneDataOffset, NumInstanceSceneDataEntries);
-
-			if (!bIsNaniteMesh)
+			bool bInvalidate = false;
+			if (GVSMNewInvalidations)
 			{
-				// Clear the record as we're wiping it out.
-				CachedPrimitives[PersistentPrimitiveIndex.Index] = false;
+				// Quick bounds overlap check to eliminate stuff that is too far away to affect a light
+				bInvalidate = GVSMLightRadiusInvalidationCulling == 0 || CacheEntry.Value->AffectsBounds(PrimitiveBounds);
+				if (!bInvalidate)
+				{
+					//UE_LOG(LogRenderer, Display, TEXT("VirtualShadowMapCacheManager: Skipped invalidation %s!"), *PrimitiveSceneInfo->GetOwnerActorNameOrLabelForDebuggingOnly());
+				}
+			}
+			else
+			{
+				TBitArray<>& CachedPrimitives = CacheEntry.Value->CachedPrimitives;
+				if (bIsNaniteMesh ||
+					(PersistentPrimitiveIndex.Index < CachedPrimitives.Num() && CachedPrimitives[PersistentPrimitiveIndex.Index]))
+				{
+					if (!bIsNaniteMesh)
+					{
+						// Clear the record as we're wiping it out.
+						CachedPrimitives[PersistentPrimitiveIndex.Index] = false;
+						//UE_LOG(LogRenderer, Display, TEXT("VirtualShadowMapCacheManager: Primitive invalidated %s!"), *PrimitiveSceneInfo->GetOwnerActorNameOrLabelForDebuggingOnly());
+					}
+					bInvalidate = true;
+				}
 			}
 
-			// Add item for each shadow map explicitly, inflates host data but improves load balancing,
-			for (const auto& SmCacheEntry : CacheEntry.Value->ShadowMapEntries)
+			if (bInvalidate)
 			{
-				Instances.Add(InstanceSceneDataOffset, NumInstanceSceneDataEntries, EncodeInstanceInvalidationPayload(SmCacheEntry.CurrentVirtualShadowMapId));
+				// Add item for each shadow map explicitly, inflates host data but improves load balancing,
+				for (const auto& SmCacheEntry : CacheEntry.Value->ShadowMapEntries)
+				{
+					Instances.Add(InstanceSceneDataOffset, NumInstanceSceneDataEntries, EncodeInstanceInvalidationPayload(SmCacheEntry.CurrentVirtualShadowMapId));
+				}
 			}
 		}
 	}
@@ -982,6 +1024,7 @@ void FVirtualShadowMapPerLightCacheEntry::OnPrimitiveRendered(const FPrimitiveSc
 {
 	// Mark as (potentially present in a cached page somehwere, so we'd need to invalidate if it is removed/moved)
 	CachedPrimitives[PrimitiveSceneInfo->GetPersistentIndex().Index] = true;
+	//UE_LOG(LogRenderer, Display, TEXT("VirtualShadowMapCacheManager: Primitive cached %s!"), *PrimitiveSceneInfo->GetOwnerActorNameOrLabelForDebuggingOnly());
 
 	bool bInvalidate = false;
 	bool bMarkAsDynamic = true;
@@ -1627,7 +1670,7 @@ FVirtualShadowMapInvalidationSceneUpdater::FVirtualShadowMapInvalidationSceneUpd
 	: CacheManager(InCacheManager)
 {}
 
-void FVirtualShadowMapInvalidationSceneUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet)
+void FVirtualShadowMapInvalidationSceneUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms)
 {
 	SCOPED_NAMED_EVENT(FScene_VirtualShadowCacheUpdate, FColor::Orange);
 
@@ -1637,38 +1680,35 @@ void FVirtualShadowMapInvalidationSceneUpdater::PreSceneUpdate(FRDGBuilder& Grap
 
 	if (CacheManager.IsCacheDataAvailable())
 	{
-	FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(&CacheManager);
+		FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(&CacheManager);
 
-	// Primitives that are tracked as always invalidating shadows, pipe through as transform updates
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : CacheManager.Scene->ShadowScene->GetAlwaysInvalidatingPrimitives())
-	{
-		InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
-	}
+		// Primitives that are tracked as always invalidating shadows, pipe through as transform updates
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : CacheManager.Scene->ShadowScene->GetAlwaysInvalidatingPrimitives())
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
+		}
 
-	// All removed primitives must invalidate their footprints in the VSM before leaving
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.RemovedPrimitiveSceneInfos)
-	{
-		InvalidatingPrimitiveCollector.Removed(PrimitiveSceneInfo);
-	}
-	// As must all primitive updates, 
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.UpdatedPrimitiveSceneInfos)
-	{
-		InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
-	}
+		// All removed primitives must invalidate their footprints in the VSM before leaving
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.RemovedPrimitiveSceneInfos)
+		{
+			InvalidatingPrimitiveCollector.Removed(PrimitiveSceneInfo);
+		}
+		// As must all primitive updates, 
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.UpdatedPrimitiveSceneInfos)
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
+		}
 
-	// TODO! Where do we get this data from...
-	/*
-	for (const auto& CullDistance : UpdatedInstanceCullDistance)
-	{
-		InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.Key->GetPrimitiveSceneInfo());
-	}
-	*/
+		// TODO! Where do we get this data from...
+		/*
+		for (const auto& CullDistance : UpdatedInstanceCullDistance)
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.Key->GetPrimitiveSceneInfo());
+		}
+		*/
 
-	// TODO: Perhaps pass this in from the caller in RendererScene?
-	FSceneUniformBuffer SceneUniforms;
-	CacheManager.Scene->GPUScene.FillSceneUniformBuffer(GraphBuilder, SceneUniforms);
-
-	CacheManager.ProcessInvalidations(GraphBuilder, SceneUniforms, InvalidatingPrimitiveCollector);
+		TRACE_INT_VALUE(TEXT("Shadow.Virtual.Cache.PreInvalidationInstances"), InvalidatingPrimitiveCollector.Instances.GetTotalNumInstances());
+		CacheManager.ProcessInvalidations(GraphBuilder, SceneUniforms, InvalidatingPrimitiveCollector);
 	}
 }
 
@@ -1686,18 +1726,19 @@ void FVirtualShadowMapInvalidationSceneUpdater::PostGPUSceneUpdate(FRDGBuilder& 
 	SCOPED_NAMED_EVENT(FScene_VirtualShadowCacheUpdate, FColor::Orange);
 	if (CacheManager.IsCacheDataAvailable())
 	{
-	FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(&CacheManager);
+		FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(&CacheManager);
 
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PostUpdateChangeSet.AddedPrimitiveSceneInfos)
-	{
-		InvalidatingPrimitiveCollector.Added(PrimitiveSceneInfo);
-	}
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PostUpdateChangeSet.UpdatedPrimitiveSceneInfos)
-	{
-		InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
-	}
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PostUpdateChangeSet.AddedPrimitiveSceneInfos)
+		{
+			InvalidatingPrimitiveCollector.Added(PrimitiveSceneInfo);
+		}
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PostUpdateChangeSet.UpdatedPrimitiveSceneInfos)
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
+		}
 
-	CacheManager.ProcessInvalidations(GraphBuilder, SceneUniforms, InvalidatingPrimitiveCollector);
+		TRACE_INT_VALUE(TEXT("Shadow.Virtual.Cache.PostInvalidationInstances"), InvalidatingPrimitiveCollector.Instances.GetTotalNumInstances());
+		CacheManager.ProcessInvalidations(GraphBuilder, SceneUniforms, InvalidatingPrimitiveCollector);
 	}
 	PostUpdateChangeSet = FScenePostUpdateChangeSet();
 }

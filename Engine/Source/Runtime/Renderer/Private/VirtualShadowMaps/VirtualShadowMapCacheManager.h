@@ -101,12 +101,24 @@ public:
 	/**
 	 * Returns true if the cache entry is valid (has previous state).
 	 */
-	bool UpdateLocal(const FProjectedShadowInitializer &InCacheKey, bool bNewIsDistantLight, bool bCacheEnabled, bool bAllowInvalidation);
+	bool UpdateLocal(
+		const FProjectedShadowInitializer &InCacheKey,
+		const FVector& NewLightOrigin,
+		const float NewLightRadius,
+		bool bNewIsDistantLight,
+		bool bCacheEnabled,
+		bool bAllowInvalidation);
 
 	/**
 	 * Mark as invalid, i.e., needing rendering.
 	 */
 	void Invalidate();
+
+	bool AffectsBounds(const FBoxSphereBounds& Bounds) const
+	{
+		return (LightRadius <= 0.0f) ||			// Infinite extent light (directional, etc)
+			((Bounds.Origin - LightOrigin).SizeSquared() <= FMath::Square(LightRadius + Bounds.SphereRadius));
+	}
 
 	// TODO: We probably don't need the prev/next thing anymore
 	struct FFrameState
@@ -139,6 +151,10 @@ public:
 	TArray<FVirtualShadowMapCacheEntry> ShadowMapEntries;
 
 	TArray<FVirtualShadowMapInstanceRange> PrimitiveInstancesToInvalidate;
+
+	// Rough bounds for invalidation culling
+	FVector LightOrigin = FVector(0, 0, 0);
+	float LightRadius = -1.0f;		// Negative means infinite
 
 private:
 	FProjectedShadowInitializer LocalCacheKey;
@@ -281,7 +297,8 @@ public:
 	class FInvalidatingPrimitiveCollector
 	{
 	public:
-		FInvalidatingPrimitiveCollector(FVirtualShadowMapArrayCacheManager* InCacheManager);
+		FInvalidatingPrimitiveCollector(
+			FVirtualShadowMapArrayCacheManager* InCacheManager);
 
 		void AddPrimitivesToInvalidate();
 
@@ -291,13 +308,8 @@ public:
 			AddInvalidation(PrimitiveSceneInfo, EInvalidationCause::Removed);
 		}
 
-		// Primitive instances updated
-		void UpdatedInstances(FPrimitiveSceneInfo* PrimitiveSceneInfo)
-		{
-			AddInvalidation(PrimitiveSceneInfo, EInvalidationCause::Updated);
-		}
-
 		// Primitive moved/transform was updated
+		// NOTE: Cache flags should not be cleared in the pre-pass if there is going to be a post-pass
 		void UpdatedTransform(FPrimitiveSceneInfo* PrimitiveSceneInfo)
 		{
 			AddInvalidation(PrimitiveSceneInfo, EInvalidationCause::Updated);
@@ -471,7 +483,7 @@ class FVirtualShadowMapInvalidationSceneUpdater : public ISceneExtensionUpdater
 public:
 	FVirtualShadowMapInvalidationSceneUpdater(FVirtualShadowMapArrayCacheManager& InCacheManager);
 
-	virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet) override;
+	virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms) override;
 	virtual void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet) override;
 	virtual void PostGPUSceneUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms) override;
 

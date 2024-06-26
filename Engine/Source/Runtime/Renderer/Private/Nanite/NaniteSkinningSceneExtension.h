@@ -32,7 +32,7 @@ public:
 		FUpdater(FSkinningSceneExtension& InSceneData);
 
 		virtual void End();
-		virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet) override;
+		virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms) override;
 		virtual void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet) override;
 		
 		void RequestSkinningUpload(FPrimitiveSceneInfo* Primitive);

@@ -249,7 +249,13 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FShadowSceneRenderer::AddLocalLi
 	const float DistantLightForceCacheFootprintFraction = FMath::Clamp(CVarDistantLightForceCacheFootprintFraction.GetValueOnRenderThread(), 0.0f, 1.0f);
 	bool bShouldForceTimeSliceDistantUpdate = (bIsDistantLight && MaxScreenRadius <= BiasedFootprintThreshold * DistantLightForceCacheFootprintFraction);
 	LocalLightShadowFrameSetup.PerLightCacheEntry = PerLightCacheEntry;
-	bool bIsCached = PerLightCacheEntry->UpdateLocal(ProjectedShadowInitializer, bIsDistantLight, CacheManager->IsCacheEnabled(), !bShouldForceTimeSliceDistantUpdate);
+	bool bIsCached = PerLightCacheEntry->UpdateLocal(
+		ProjectedShadowInitializer,
+		LightSceneProxy->GetOrigin(),
+		LightSceneProxy->GetRadius(),
+		bIsDistantLight,
+		CacheManager->IsCacheEnabled(),
+		!bShouldForceTimeSliceDistantUpdate);
 
 	if (bIsCached && bIsDistantLight && PerLightCacheEntry->Prev.ScheduledFrameNumber == Scene.GetFrameNumber())
 	{

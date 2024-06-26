@@ -451,7 +451,7 @@ void FSkinningSceneExtension::FUpdater::End()
 	SceneData->SyncAllTasks();
 }
 
-void FSkinningSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet)
+void FSkinningSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet, FSceneUniformBuffer& SceneUniforms)
 {
 	// If there was a pending upload from a prior update (due to the buffer never being used), finish the upload now.
 	// This keeps the upload entries from growing unbounded and prevents any undefined behavior caused by any
