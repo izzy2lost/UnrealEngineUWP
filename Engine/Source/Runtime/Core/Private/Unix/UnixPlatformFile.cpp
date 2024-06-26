@@ -816,15 +816,21 @@ FUnixMappedFileRegion::~FUnixMappedFileRegion()
 FString FUnixPlatformFile::NormalizeFilename(const TCHAR* Filename, bool bIsForWriting)
 {
 	FString Result(Filename);
+
+	// If we are already absolute return
+	if (!FPaths::IsRelative(Result))
+	{
+		return Result;
+	}
+
 	FPaths::NormalizeFilename(Result);
 	return FPaths::ConvertRelativePathToFull(Result);
 }
 
 FString FUnixPlatformFile::NormalizeDirectory(const TCHAR* Directory, bool bIsForWriting)
 {
-	FString Result(Directory);
-	FPaths::NormalizeDirectoryName(Result);
-	return FPaths::ConvertRelativePathToFull(Result);
+	// Both these functions do the same thing
+	return NormalizeFilename(Directory, bIsForWriting);
 }
 
 bool FUnixPlatformFile::FileExists(const TCHAR* Filename)
