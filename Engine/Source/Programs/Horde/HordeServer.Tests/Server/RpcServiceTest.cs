@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Security.Claims;
@@ -12,15 +11,13 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using Grpc.Core;
+using HordeCommon.Rpc;
+using HordeCommon.Rpc.Messages;
 using HordeServer.Agents;
 using HordeServer.Server;
 using HordeServer.Utilities;
-using HordeCommon.Rpc;
-using HordeCommon.Rpc.Messages;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Server
