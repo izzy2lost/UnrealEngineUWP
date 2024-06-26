@@ -26,6 +26,8 @@ public:
 	virtual ~FTraceController() override;
 
 private:
+	virtual void SendDiscoveryRequest(const FGuid& SessionId, const FGuid& InstanceId) const override;
+	virtual void SendDiscoveryRequest() override;
 	virtual void SendStatusUpdateRequest() override;
 	virtual void SendChannelUpdateRequest() override;
 	virtual void SendSettingsUpdateRequest() override;
@@ -69,9 +71,6 @@ private:
 	*  Returns true if a discovery ping was sent. 
 	*/
 	bool RediscoverSelectedSession() const;
-
-	/* Send a discovery ping to a specific instance rather than broadcast a request. */
-	void SendDiscoveryPing(const TSharedPtr<ISessionInstanceInfo>& Instance) const;
 
 private:
 	

@@ -39,6 +39,18 @@ FTraceController::~FTraceController()
 	}
 }
 
+void FTraceController::SendDiscoveryRequest(const FGuid& SessionId, const FGuid& InstanceId) const
+{
+	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlDiscoveryPing>();
+	Message->SessionId = SessionId;
+	Message->InstanceId = InstanceId;
+	MessageEndpoint->Publish<FTraceControlDiscoveryPing>(Message);
+}
+void FTraceController::SendDiscoveryRequest()
+{
+	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlDiscoveryPing>();
+	MessageEndpoint->Publish<FTraceControlDiscoveryPing>(Message);
+}
 
 void FTraceController::SendStatusUpdateRequest()
 {
@@ -253,7 +265,7 @@ void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInsta
 	}
 	else
 	{
-		SendDiscoveryPing(InstanceInfo);
+		SendDiscoveryRequest(InstanceInfo->GetOwnerSession()->GetSessionId(), InstanceInfo->GetInstanceId());
 	}
 
 	SessionSelectionChangedEvent.Broadcast();
@@ -308,21 +320,11 @@ bool FTraceController::RediscoverSelectedSession() const
 	{
 		if (!InstanceToAddress.Contains(SelectedInstance->GetInstanceId()))
 		{
-			SendDiscoveryPing(SelectedInstance);
+			SendDiscoveryRequest(SelectedInstance->GetOwnerSession()->GetSessionId(), SelectedInstance->GetInstanceId());
 			return true;
 		}
 	}
 	return false;
-}
-
-void FTraceController::SendDiscoveryPing(const TSharedPtr<ISessionInstanceInfo>& Instance) const
-{
-	// We haven't discovered this instance yet, send a discovery message specifically
-	// to that instance.
-	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlDiscoveryPing>();
-	Message->SessionId = Instance->GetOwnerSession()->GetSessionId();
-	Message->InstanceId = Instance->GetInstanceId();
-	MessageEndpoint->Publish<FTraceControlDiscoveryPing>(Message);
 }
 
 FTraceController::FTracingInstance::FTracingInstance(const TSharedRef<IMessageBus>& InMessageBus, FMessageAddress InService)
@@ -331,3 +333,7 @@ FTraceController::FTracingInstance::FTracingInstance(const TSharedRef<IMessageBu
 {
 }
 
+TSharedPtr<ITraceController> ITraceController::Create(TSharedPtr<IMessageBus>& InBus)
+{
+	return MakeShareable(new FTraceController(InBus.ToSharedRef()));
+}

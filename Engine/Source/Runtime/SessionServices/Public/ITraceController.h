@@ -126,6 +126,18 @@ public:
 	virtual ~ITraceController() = default;
 
 	/**
+	 * Request to discover a specific instance
+	 * @param SessionId Session id of the instance
+	 * @param InstanceId Instance id
+	 */
+	virtual void SendDiscoveryRequest(const FGuid& SessionId, const FGuid& InstanceId) const = 0;
+
+	/**
+	 * Request to discover all instances
+	 */
+	virtual void SendDiscoveryRequest() = 0;
+
+	/**
 	 * Request update of the status from all sessions and instances.
 	 */
 	virtual void SendStatusUpdateRequest() = 0;
@@ -193,4 +205,11 @@ public:
 	 * Returns the number of selected sessions.
 	 */
 	virtual uint32 GetNumSelectedInstances() = 0;
+
+	/**
+	 * Create an instance using a custom message bus
+	 * @param MessageBus Message bus the controller will use
+	 */
+	SESSIONSERVICES_API static TSharedPtr<ITraceController> Create(TSharedPtr<class IMessageBus>& MessageBus);
 };
+

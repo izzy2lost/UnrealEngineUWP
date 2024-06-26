@@ -13,13 +13,14 @@ class FTraceServiceImpl
 {
 public:
 	FTraceServiceImpl();
+	FTraceServiceImpl(const TSharedPtr<IMessageBus>&);
 	virtual ~FTraceServiceImpl() {};
 	
 private:
 	void OnStatusPing(const FTraceControlStatusPing& Message, const TSharedRef<IMessageContext>& Context);
 	void OnChannelsPing(const FTraceControlChannelsPing& Message, const TSharedRef<IMessageContext>& Context);
 	void OnSettingsPing(const FTraceControlSettingsPing& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
-	void OnConnectRequest(const FTraceControlDiscoveryPing& Message, const TSharedRef<IMessageContext>& Context);
+	void OnDiscoveryPing(const FTraceControlDiscoveryPing& Message, const TSharedRef<IMessageContext>& Context);
 	void OnStop(const FTraceControlStop& Message, const TSharedRef<IMessageContext>& Context);
 	void OnSend(const FTraceControlSend& Message, const TSharedRef<IMessageContext>& Context);
 	void OnChannelSet(const FTraceControlChannelsSet& Message, const TSharedRef<IMessageContext>& Context);
@@ -41,48 +42,55 @@ private:
 
 
 FTraceServiceImpl::FTraceServiceImpl()
+	: FTraceServiceImpl(IMessagingModule::Get().GetDefaultBus())
+{
+}
+
+FTraceServiceImpl::FTraceServiceImpl(const TSharedPtr<IMessageBus>& InBus)
 {
 	SessionId = FApp::GetSessionId();
 	InstanceId = FApp::GetInstanceId();
-	
-	MessageEndpoint = FMessageEndpoint::Builder("FTraceService")
-		.Handling<FTraceControlDiscoveryPing>(this, &FTraceServiceImpl::OnConnectRequest)
-		.Handling<FTraceControlChannelsSet>(this, &FTraceServiceImpl::OnChannelSet)
-		.Handling<FTraceControlStop>(this, &FTraceServiceImpl::OnStop)
-		.Handling<FTraceControlSend>(this, &FTraceServiceImpl::OnSend)
-		.Handling<FTraceControlFile>(this, &FTraceServiceImpl::OnFile)
-		.Handling<FTraceControlSnapshotSend>(this, &FTraceServiceImpl::OnSnapshotSend)
-		.Handling<FTraceControlSnapshotFile>(this, &FTraceServiceImpl::OnSnapshotFile)
-		.Handling<FTraceControlPause>(this, &FTraceServiceImpl::OnPause)
-		.Handling<FTraceControlResume>(this, &FTraceServiceImpl::OnResume)
-		.Handling<FTraceControlBookmark>(this, &FTraceServiceImpl::OnBookmark)
-		.Handling<FTraceControlScreenshot>(this, &FTraceServiceImpl::OnScreenshot)
-		.Handling<FTraceControlSetStatNamedEvents>(this, &FTraceServiceImpl::OnSetStatNamedEvents)
-		.Handling<FTraceControlStatusPing>(this, &FTraceServiceImpl::OnStatusPing)
-		.Handling<FTraceControlSettingsPing>(this, &FTraceServiceImpl::OnSettingsPing)
-		.Handling<FTraceControlChannelsPing>(this, &FTraceServiceImpl::OnChannelsPing);
 
-	if (!MessageEndpoint.IsValid())
+	if (InBus.IsValid())
 	{
-		 return;
-	}
+		MessageEndpoint = FMessageEndpoint::Builder("FTraceService", InBus.ToSharedRef())
+			.Handling<FTraceControlDiscoveryPing>(this, &FTraceServiceImpl::OnDiscoveryPing)
+			.Handling<FTraceControlChannelsSet>(this, &FTraceServiceImpl::OnChannelSet)
+			.Handling<FTraceControlStop>(this, &FTraceServiceImpl::OnStop)
+			.Handling<FTraceControlSend>(this, &FTraceServiceImpl::OnSend)
+			.Handling<FTraceControlFile>(this, &FTraceServiceImpl::OnFile)
+			.Handling<FTraceControlSnapshotSend>(this, &FTraceServiceImpl::OnSnapshotSend)
+			.Handling<FTraceControlSnapshotFile>(this, &FTraceServiceImpl::OnSnapshotFile)
+			.Handling<FTraceControlPause>(this, &FTraceServiceImpl::OnPause)
+			.Handling<FTraceControlResume>(this, &FTraceServiceImpl::OnResume)
+			.Handling<FTraceControlBookmark>(this, &FTraceServiceImpl::OnBookmark)
+			.Handling<FTraceControlScreenshot>(this, &FTraceServiceImpl::OnScreenshot)
+			.Handling<FTraceControlSetStatNamedEvents>(this, &FTraceServiceImpl::OnSetStatNamedEvents)
+			.Handling<FTraceControlStatusPing>(this, &FTraceServiceImpl::OnStatusPing)
+			.Handling<FTraceControlSettingsPing>(this, &FTraceServiceImpl::OnSettingsPing)
+			.Handling<FTraceControlChannelsPing>(this, &FTraceServiceImpl::OnChannelsPing);
 
-	MessageEndpoint->Subscribe<FTraceControlStatusPing>();
-	MessageEndpoint->Subscribe<FTraceControlSettingsPing>();
-	MessageEndpoint->Subscribe<FTraceControlDiscoveryPing>();
-	MessageEndpoint->Subscribe<FTraceControlChannelsPing>();
-	MessageEndpoint->Subscribe<FTraceControlStop>();
-	MessageEndpoint->Subscribe<FTraceControlSend>();
-	MessageEndpoint->Subscribe<FTraceControlChannelsSet>();
-	MessageEndpoint->Subscribe<FTraceControlFile>();
-	MessageEndpoint->Subscribe<FTraceControlSnapshotSend>();
-	MessageEndpoint->Subscribe<FTraceControlSnapshotSend>();
-	MessageEndpoint->Subscribe<FTraceControlPause>();
-	MessageEndpoint->Subscribe<FTraceControlResume>();
-	MessageEndpoint->Subscribe<FTraceControlBookmark>();
-	MessageEndpoint->Subscribe<FTraceControlScreenshot>();
-	MessageEndpoint->Subscribe<FTraceControlSetStatNamedEvents>();
-	
+		if (!MessageEndpoint.IsValid())
+		{
+			return;
+		}
+
+		MessageEndpoint->Subscribe<FTraceControlStatusPing>();
+		MessageEndpoint->Subscribe<FTraceControlSettingsPing>();
+		MessageEndpoint->Subscribe<FTraceControlDiscoveryPing>();
+		MessageEndpoint->Subscribe<FTraceControlChannelsPing>();
+		MessageEndpoint->Subscribe<FTraceControlStop>();
+		MessageEndpoint->Subscribe<FTraceControlSend>();
+		MessageEndpoint->Subscribe<FTraceControlChannelsSet>();
+		MessageEndpoint->Subscribe<FTraceControlFile>();
+		MessageEndpoint->Subscribe<FTraceControlSnapshotSend>();
+		MessageEndpoint->Subscribe<FTraceControlSnapshotSend>();
+		MessageEndpoint->Subscribe<FTraceControlPause>();
+		MessageEndpoint->Subscribe<FTraceControlResume>();
+		MessageEndpoint->Subscribe<FTraceControlBookmark>();
+		MessageEndpoint->Subscribe<FTraceControlScreenshot>();
+		MessageEndpoint->Subscribe<FTraceControlSetStatNamedEvents>();
+	}
 }
 
 void FTraceServiceImpl::FillTraceStatusMessage(FTraceControlStatus* Message)
@@ -252,13 +260,14 @@ void FTraceServiceImpl::OnSettingsPing(const FTraceControlSettingsPing& Message,
 	MessageEndpoint->Send(Response, Context->GetSender());
 }
 
-void FTraceServiceImpl::OnConnectRequest(const FTraceControlDiscoveryPing& Message, const TSharedRef<IMessageContext>& Context)
+void FTraceServiceImpl::OnDiscoveryPing(const FTraceControlDiscoveryPing& Message, const TSharedRef<IMessageContext>& Context)
 {
-	if (Message.InstanceId == FApp::GetInstanceId() && Message.SessionId == FApp::GetSessionId())
+	if ((!Message.SessionId.IsValid() && !Message.InstanceId.IsValid()) || (Message.InstanceId == FApp::GetInstanceId() && Message.SessionId == FApp::GetSessionId()))
 	{
 		const auto Response = FMessageEndpoint::MakeMessage<FTraceControlDiscovery>();
 		Response->SessionId = FApp::GetSessionId();
 		Response->InstanceId = FApp::GetInstanceId();
+
 		FillTraceStatusMessage(Response);
 
 		MessageEndpoint->Send(
@@ -274,3 +283,7 @@ FTraceService::FTraceService()
 	Impl = MakePimpl<FTraceServiceImpl>();
 }
 
+FTraceService::FTraceService(TSharedPtr<IMessageBus> InBus)
+{
+	Impl = MakePimpl<FTraceServiceImpl>(InBus);
+}
