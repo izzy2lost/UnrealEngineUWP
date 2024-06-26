@@ -38,8 +38,7 @@ FSceneViewInitOptions FMovieGraphImagePassBase::CreateViewInitOptions(const UE::
 	ViewInitOptions.SetViewRectangle(FIntRect(FIntPoint(0, 0), RenderResolution));
 	ViewInitOptions.ViewRotationMatrix = FInverseRotationMatrix(InCameraInfo.ViewInfo.Rotation);
 	ViewInitOptions.ViewActor = InCameraInfo.ViewActor;
-	ViewInitOptions.ProjectionMatrix = InCameraInfo.ProjectionMatrix;
-
+	
 	// Rotate the view 90 degrees to match the rest of the engine.
 	ViewInitOptions.ViewRotationMatrix = ViewInitOptions.ViewRotationMatrix * FMatrix(
 		FPlane(0, 0, 1, 0),
@@ -121,13 +120,13 @@ void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* I
 	}
 }
 
-TSharedRef<FSceneViewFamilyContext> FMovieGraphImagePassBase::CreateSceneViewFamily(const FViewFamilyInitData& InInitData, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
+TSharedRef<FSceneViewFamilyContext> FMovieGraphImagePassBase::CreateSceneViewFamily(const FViewFamilyInitData& InInitData) const
 {
 
 	EViewModeIndex ViewModeIndex = InInitData.ViewModeIndex;
 	FEngineShowFlags ShowFlags = InInitData.ShowFlags;
 
-	const bool bIsPerspective = InCameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Type::Perspective;
+	const bool bIsPerspective = InInitData.ProjectionMode == ECameraProjectionMode::Type::Perspective;
 
 	// Allow the Engine Showflag system to override our engine showflags, based on our view mode index.
 	// This is required for certain debug view modes (to have matching show flags set for rendering).
@@ -148,6 +147,8 @@ TSharedRef<FSceneViewFamilyContext> FMovieGraphImagePassBase::CreateSceneViewFam
 
 	return OutViewFamily;
 }
+
+
 
 void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToViewFamily(TSharedRef<FSceneViewFamilyContext> InOutFamily, const FViewFamilyInitData& InInitData) const
 {
@@ -239,19 +240,6 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToSceneView(TSharedRef<FS
 		}
 	}
 
-	// Orthographic cameras don't support anti-aliasing outside the path tracer (other than FXAA)
-	const bool bIsOrthographicCamera = !View->IsPerspectiveProjection();
-	if (bIsOrthographicCamera)
-	{
-		bool bIsSupportedAAMethod = View->AntiAliasingMethod == EAntiAliasingMethod::AAM_FXAA;
-		bool bIsPathTracer = InOutFamily->EngineShowFlags.PathTracing;
-		bool bWarnJitters = InCameraInfo.ProjectionMatrixJitterAmount.SquaredLength() > SMALL_NUMBER;
-		if ((!bIsPathTracer && !bIsSupportedAAMethod) || bWarnJitters)
-		{
-			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Orthographic Cameras are only supported with PathTracer or Deferred with FXAA Anti-Aliasing"));
-		}
-	}
-
 	{
 		bool bMethodWasUnsupported = false;
 		if (View->AntiAliasingMethod == AAM_TemporalAA && !SupportsGen4TAA(View->GetShaderPlatform()))
@@ -275,8 +263,8 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToSceneView(TSharedRef<FS
 	{
 		// If we're not using TAA, TSR, or Path Tracing we will apply the View Matrix projection jitter. Normally TAA sets this
 		// inside FSceneRenderer::PreVisibilityFrameSetup. Path Tracing does its own anti-aliasing internally.
-		bool bApplyProjectionJitter = !bIsOrthographicCamera
-			&& !InOutFamily->EngineShowFlags.PathTracing
+		bool bApplyProjectionJitter = 
+			   !InOutFamily->EngineShowFlags.PathTracing
 			&& !IsTemporalAccumulationBasedMethod(View->AntiAliasingMethod);
 		if (bApplyProjectionJitter)
 		{
@@ -285,116 +273,54 @@ void FMovieGraphImagePassBase::ApplyMovieGraphOverridesToSceneView(TSharedRef<FS
 	}
 }
 
-FMatrix FMovieGraphImagePassBase::CalculateProjectionMatrix(const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
+void FMovieGraphImagePassBase::CalculateProjectionMatrix(UE::MovieGraph::DefaultRenderer::FCameraInfo& InOutCameraInfo, FSceneViewProjectionData& InOutProjectionData, const FIntPoint InBackbufferResolution, const FIntPoint InAccumulatorResolution) const
 {
-	// Calculate a Projection Matrix. This code unfortunately ends up similar to, but not quite the same as FMinimalViewInfo::CalculateProjectionMatrixGivenView
-	FMatrix BaseProjMatrix;
-	
 	// TileSize should respect the actual backbuffer size being used by the render.
-	float ViewRectWidth = InCameraInfo.TilingParams.TileSize.X;
-	float ViewRectHeight = InCameraInfo.TilingParams.TileSize.Y;
+	float ViewRectWidth = InBackbufferResolution.X;
+	float ViewRectHeight = InBackbufferResolution.Y;
+	FIntRect ViewRect = FIntRect(FIntPoint(0, 0), InBackbufferResolution);
 
 	const float DestAspectRatio = ViewRectWidth / ViewRectHeight;
-	const float CameraAspectRatio = InCameraInfo.bAllowCameraAspectRatio ? InCameraInfo.ViewInfo.AspectRatio : DestAspectRatio;
-	
-	float ViewFOV = InCameraInfo.ViewInfo.FOV;
+	const float CameraAspectRatio = InOutCameraInfo.bAllowCameraAspectRatio ? InOutCameraInfo.ViewInfo.AspectRatio : DestAspectRatio;
+
+	float ViewFOV = InOutCameraInfo.ViewInfo.FOV;
 
 	// Inflate our FOV to support the overscan 
-	ViewFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((1.0f + InCameraInfo.OverscanFraction) * FMath::Tan(FMath::DegreesToRadians(ViewFOV * 0.5f))));
-	
-	if (InCameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Orthographic)
+	ViewFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((1.0f + InOutCameraInfo.OverscanFraction) * FMath::Tan(FMath::DegreesToRadians(ViewFOV * 0.5f))));
+	InOutCameraInfo.ViewInfo.FOV = ViewFOV;
+	InOutCameraInfo.ViewInfo.DesiredFOV = ViewFOV;
+
+	// Overscan the Orthographic pass too.
+	InOutCameraInfo.ViewInfo.OrthoWidth *= 1.0f + InOutCameraInfo.OverscanFraction;
+
+	const int TotalTileCount = InOutCameraInfo.TilingParams.TileCount.X * InOutCameraInfo.TilingParams.TileCount.Y;
+
+	// If they're using high-resolution tiling we can't support letterboxing (as the blended areas we would render with
+	// would have been cropped via letterboxing), so to handle this scenario we disable aspect ratio constraints and then
+	// manually rescale the view (if needed) to mimick the effect of letterboxing.
+	TEnumAsByte<EAspectRatioAxisConstraint> AspectRatioAxisConstraint = InOutCameraInfo.ViewInfo.AspectRatioAxisConstraint.Get(EAspectRatioAxisConstraint::AspectRatio_MaintainXFOV);
+	if (TotalTileCount > 1 && InOutCameraInfo.ViewInfo.bConstrainAspectRatio)
 	{
-		const float YScale = 1.0f / InCameraInfo.ViewInfo.AspectRatio;
-		const float OverscanScale = 1.0f + (InCameraInfo.OverscanFraction);
-
-		const float HalfOrthoWidth = (InCameraInfo.ViewInfo.OrthoWidth / 2.0f) * OverscanScale;
-		const float ScaledOrthoHeight = (InCameraInfo.ViewInfo.OrthoWidth / 2.0f) * OverscanScale * YScale;
-
-		const float NearPlane = InCameraInfo.ViewInfo.OrthoNearClipPlane;
-		const float FarPlane = InCameraInfo.ViewInfo.OrthoFarClipPlane;
-
-		const float ZScale = 1.0f / (FarPlane - NearPlane);
-		const float ZOffset = -NearPlane;
-
-		BaseProjMatrix = FReversedZOrthoMatrix(
-			HalfOrthoWidth,
-			ScaledOrthoHeight,
-			ZScale,
-			ZOffset
-		);
+		if (CameraAspectRatio < DestAspectRatio)
+		{
+			AspectRatioAxisConstraint = EAspectRatioAxisConstraint::AspectRatio_MaintainYFOV;
+			InOutCameraInfo.ViewInfo.OrthoWidth *= (DestAspectRatio / CameraAspectRatio);
+		}
+		else if (CameraAspectRatio > DestAspectRatio)
+		{
+			// Don't rescale the width and keep it X-constrained.
+			AspectRatioAxisConstraint = EAspectRatioAxisConstraint::AspectRatio_MaintainXFOV;
+		}
+		InOutCameraInfo.ViewInfo.bConstrainAspectRatio = false;
 	}
-	else
-	{
-		float XAxisMultiplier;
-		float YAxisMultiplier;
 
-		if (InCameraInfo.ViewInfo.bConstrainAspectRatio)
-		{
-			// If the camera's aspect ratio has a thinner width, then stretch the horizontal fov more than usual to 
-			// account for the extra with of (before constraining - after constraining)
-			if (InCameraInfo.ViewInfo.AspectRatio < DestAspectRatio)
-			{
-				const float ConstrainedWidth = ViewRectHeight * InCameraInfo.ViewInfo.AspectRatio;
-				XAxisMultiplier = ConstrainedWidth / (float)ViewRectWidth;
-				YAxisMultiplier = InCameraInfo.ViewInfo.AspectRatio;
-			}
-			// Simplified some math here but effectively functions similarly to the above, the unsimplified code would look like:
-			// const float ConstrainedHeight = ViewRectWidth / CameraCache.AspectRatio;
-			// YAxisMultiplier = (ConstrainedHeight / ViewInitOptions.GetViewRect.Height()) * CameraCache.AspectRatio;
-			else
-			{
-				XAxisMultiplier = 1.0f;
-				YAxisMultiplier = ViewRectWidth / ViewRectHeight;
-			}
-		}
-		else
-		{
-			const EAspectRatioAxisConstraint AspectRatioAxisConstraint = GetDefault<ULocalPlayer>()->AspectRatioAxisConstraint;
-			if (((ViewRectWidth > ViewRectHeight) && (AspectRatioAxisConstraint == AspectRatio_MajorAxisFOV)) || (AspectRatioAxisConstraint == AspectRatio_MaintainXFOV))
-			{
-				//if the viewport is wider than it is tall
-				XAxisMultiplier = 1.0f;
-				YAxisMultiplier = ViewRectWidth / ViewRectHeight;
-			}
-			else
-			{
-				//if the viewport is taller than it is wide
-				XAxisMultiplier = ViewRectHeight / ViewRectWidth;
-				YAxisMultiplier = 1.0f;
-			}
-		}
-
-		const float MinZ = InCameraInfo.ViewInfo.GetFinalPerspectiveNearClipPlane();
-		const float MaxZ = MinZ;
-		// Avoid zero ViewFOV's which cause divide by zero's in projection matrix
-		const float MatrixFOV = FMath::Max(0.001f, ViewFOV) * (float)PI / 360.0f;
+	FIntRect ViewExtents = FViewport::CalculateViewExtents(InOutCameraInfo.ViewInfo.AspectRatio, DestAspectRatio, ViewRect, InAccumulatorResolution);
 
 
-		if ((bool)ERHIZBuffer::IsInverted)
-		{
-			BaseProjMatrix = FReversedZPerspectiveMatrix(
-				MatrixFOV,
-				MatrixFOV,
-				XAxisMultiplier,
-				YAxisMultiplier,
-				MinZ,
-				MaxZ
-			);
-		}
-		else
-		{
-			BaseProjMatrix = FPerspectiveMatrix(
-				MatrixFOV,
-				MatrixFOV,
-				XAxisMultiplier,
-				YAxisMultiplier,
-				MinZ,
-				MaxZ
-			);
-		}
-	}
 	
-	return BaseProjMatrix;
+
+	// This function updates data in both the FMinimalViewInfo and the ProjectionData
+	FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(InOutCameraInfo.ViewInfo, AspectRatioAxisConstraint, ViewExtents, InOutProjectionData);
 }
 
 FVector4f FMovieGraphImagePassBase::CalculatePrinciplePointOffsetForTiling(const UE::MovieGraph::DefaultRenderer::FMovieGraphTilingParams& InTilingParams) const 

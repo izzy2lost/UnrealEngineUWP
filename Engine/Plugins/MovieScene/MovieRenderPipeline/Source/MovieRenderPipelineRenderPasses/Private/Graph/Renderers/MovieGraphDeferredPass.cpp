@@ -218,16 +218,6 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		// Move the final render by this much in the accumulator to counteract the offset put into the view matrix.
 		// Note that when bAllowSpatialJitter is false, SpatialShiftX/Y will always be zero.
 		FVector2D OverlappedSubpixelShift = FVector2D(0.5f - SpatialShiftAmount.X, 0.5f - SpatialShiftAmount.Y);
-		
-		FMatrix ProjectionMatrix = CalculateProjectionMatrix(CameraInfo);
-		float DoFSensorScale = 1.f;
-
-		// Modify the perspective matrix to do an off center projection, with overlap for high-res tiling
-		const bool bOrthographic = CameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Type::Orthographic;
-		ModifyProjectionMatrixForTiling(CameraInfo.TilingParams, bOrthographic, ProjectionMatrix, DoFSensorScale);
-		
-		CameraInfo.ProjectionMatrix = ProjectionMatrix;
-		CameraInfo.DoFSensorScale = DoFSensorScale;
 
 		// The Scene View Family must be constructed first as the FSceneView needs it to be constructed
 		UE::MovieGraph::Rendering::FViewFamilyInitData ViewFamilyInitData;
@@ -240,11 +230,23 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		ViewFamilyInitData.AntiAliasingMethod = AntiAliasingMethod;
 		ViewFamilyInitData.ShowFlags = ParentNodeThisFrame->GetShowFlags();
 		ViewFamilyInitData.ViewModeIndex = ParentNodeThisFrame->GetViewModeIndex();
-		
-		TSharedRef<FSceneViewFamilyContext> ViewFamily = CreateSceneViewFamily(ViewFamilyInitData, CameraInfo);
-		 
-		// Now we can construct a View to go within this family.
+		ViewFamilyInitData.ProjectionMode = CameraInfo.ViewInfo.ProjectionMode;
+
+		TSharedRef<FSceneViewFamilyContext> ViewFamily = CreateSceneViewFamily(ViewFamilyInitData);
 		FSceneViewInitOptions SceneViewInitOptions = CreateViewInitOptions(CameraInfo, ViewFamily.ToSharedPtr().Get(), SceneViewState);
+		
+		
+		CalculateProjectionMatrix(CameraInfo, SceneViewInitOptions, BackbufferResolution, AccumulatorResolution);
+	
+		// Modify the perspective matrix to do an off center projection, with overlap for high-res tiling
+		const bool bOrthographic = CameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Type::Orthographic;
+		ModifyProjectionMatrixForTiling(CameraInfo.TilingParams, bOrthographic, SceneViewInitOptions.ProjectionMatrix, CameraInfo.DoFSensorScale);
+		
+		// Scale the DoF sensor scale to counteract overscan, otherwise the size of Bokeh changes when you have Overscan enabled.
+		// This needs to come after we modify it for Tiling.
+		CameraInfo.DoFSensorScale *= 1.0 + CameraInfo.OverscanFraction;
+		 
+		// Construct a View to go within this family.
 		FSceneView* NewView = CreateSceneView(SceneViewInitOptions, ViewFamily, CameraInfo);
 		
 		// Then apply Movie Render Queue specific overrides to the ViewFamily, and then to the SceneView.

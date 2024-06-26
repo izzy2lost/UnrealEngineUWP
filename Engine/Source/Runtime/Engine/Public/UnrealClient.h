@@ -604,6 +604,17 @@ public:
 	 * @return	constrained view rectangle
 	 */
 	ENGINE_API FIntRect CalculateViewExtents(float AspectRatio, const FIntRect& ViewRect);
+	
+	/**
+	* Calculates the view inside the viewport when the aspect ratio is locked.
+	* Used for creating cinematic bars.
+	* @param AspectRatio [in] ratio to lock to
+	* @param DesiredAspectRatio [in] the aspect ratio of the viewport
+	* @param ViewRect [in] unconstrained view rectangle
+	* @param DestSize [in] the size of the the viewport
+	* @return constrained view rectangle
+	*/
+	ENGINE_API static FIntRect CalculateViewExtents(float AspectRatio, float DesiredAspectRatio, const FIntRect& ViewRect, const FIntPoint& DestSize);
 
 	/**
 	 *	Sets a viewport client if one wasn't provided at construction time.

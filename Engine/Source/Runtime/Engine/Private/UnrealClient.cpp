@@ -2181,28 +2181,28 @@ void FViewport::UpdateViewportRHI(bool bDestroyed, uint32 NewSizeX, uint32 NewSi
 	}
 }
 
-FIntRect FViewport::CalculateViewExtents(float AspectRatio, const FIntRect& ViewRect)
+FIntRect FViewport::CalculateViewExtents(float AspectRatio, float DesiredAspectRatio, const FIntRect& ViewRect, const FIntPoint& DestSize)
 {
 	FIntRect Result = ViewRect;
 
 	const float CurrentSizeX = ViewRect.Width();
 	const float CurrentSizeY = ViewRect.Height();
 
-	// the viewport's SizeX/SizeY may not always match the GetDesiredAspectRatio(), so adjust the requested AspectRatio to compensate
-	const float AdjustedAspectRatio = AspectRatio / (GetDesiredAspectRatio() / ((float)GetSizeXY().X / (float)GetSizeXY().Y));
+	// the viewport's SizeX/SizeY may not always match the DesiredAspectRatio, so adjust the requested AspectRatio to compensate
+	const float AdjustedAspectRatio = AspectRatio / (DesiredAspectRatio / ((float)DestSize.X / (float)DestSize.Y));
 
 	// If desired, enforce a particular aspect ratio for the render of the scene. 
 	// Results in black bars at top/bottom etc.
 	const float AspectRatioDifference = AdjustedAspectRatio - (CurrentSizeX / CurrentSizeY);
 
-	if( FMath::Abs( AspectRatioDifference ) > 0.01f )
+	if (FMath::Abs(AspectRatioDifference) > 0.01f)
 	{
 		// If desired aspect ratio is bigger than current - we need black bars on top and bottom.
-		if( AspectRatioDifference > 0.0f )
+		if (AspectRatioDifference > 0.0f)
 		{
 			// Calculate desired Y size.
-			const int32 NewSizeY = FMath::Max(1, FMath::RoundToInt( CurrentSizeX / AdjustedAspectRatio ) );
-			Result.Min.Y = FMath::RoundToInt( 0.5f * (CurrentSizeY - NewSizeY) );
+			const int32 NewSizeY = FMath::Max(1, FMath::RoundToInt(CurrentSizeX / AdjustedAspectRatio));
+			Result.Min.Y = FMath::RoundToInt(0.5f * (CurrentSizeY - NewSizeY));
 			Result.Max.Y = Result.Min.Y + NewSizeY;
 			Result.Min.Y += ViewRect.Min.Y;
 			Result.Max.Y += ViewRect.Min.Y;
@@ -2210,8 +2210,8 @@ FIntRect FViewport::CalculateViewExtents(float AspectRatio, const FIntRect& View
 		// Otherwise - will place bars on the sides.
 		else
 		{
-			const int32 NewSizeX = FMath::Max(1, FMath::RoundToInt( CurrentSizeY * AdjustedAspectRatio ) );
-			Result.Min.X = FMath::RoundToInt( 0.5f * (CurrentSizeX - NewSizeX) );
+			const int32 NewSizeX = FMath::Max(1, FMath::RoundToInt(CurrentSizeY * AdjustedAspectRatio));
+			Result.Min.X = FMath::RoundToInt(0.5f * (CurrentSizeX - NewSizeX));
 			Result.Max.X = Result.Min.X + NewSizeX;
 			Result.Min.X += ViewRect.Min.X;
 			Result.Max.X += ViewRect.Min.X;
@@ -2219,6 +2219,11 @@ FIntRect FViewport::CalculateViewExtents(float AspectRatio, const FIntRect& View
 	}
 
 	return Result;
+}
+
+FIntRect FViewport::CalculateViewExtents(float AspectRatio, const FIntRect& ViewRect)
+{
+	return CalculateViewExtents(AspectRatio, GetDesiredAspectRatio(), ViewRect, GetSizeXY());
 }
 
 /**

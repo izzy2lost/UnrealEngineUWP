@@ -67,9 +67,6 @@ namespace UE::MovieGraph::DefaultRenderer
 		/** should we respect the camera's aspect ratio settings. */
 		bool bAllowCameraAspectRatio;
 
-		/** Projection Matrix this camera should use. Used instead of the one calculated by FMinimalViewInfo to handle special cases. */
-		FMatrix ProjectionMatrix;
-
 		// questionable if these are fcamerainfo
 		/** When using tiling, we scale the sensor to counteract the view changes. This value comes from modifying the ProjectionMatrix. */
 		float DoFSensorScale;
