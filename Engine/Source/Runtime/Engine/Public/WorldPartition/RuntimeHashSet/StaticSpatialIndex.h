@@ -256,6 +256,7 @@ namespace FStaticSpatialIndex
 			{
 				// Build leaves
 				FNode* CurrentNode = nullptr;
+				FBox CurrentNodeBox(ForceInit);
 				TArray<FNode> Nodes;
 
 				for (int32 ElementIndex = 0; ElementIndex < this->DataInterface.GetNumBox(); ElementIndex++)
@@ -264,13 +265,26 @@ namespace FStaticSpatialIndex
 
 					if (!CurrentNode || (CurrentNode->Content.template Get<typename FNode::FLeafType>().Num() >= MaxNumElementsPerLeaf))
 					{
+						if (CurrentNode)
+						{
+							CurrentNode->BoxMin = CurrentNodeBox.Min;
+							CurrentNode->BoxMax = CurrentNodeBox.Max;
+							CurrentNodeBox.Init();
+						}
+
 						CurrentNode = &Nodes.Emplace_GetRef();
 						CurrentNode->Content.template Emplace<typename FNode::FLeafType>();
 					}
 
-					CurrentNode->Box += Element;
+					CurrentNodeBox += Element;
 					CurrentNode->Content.template Get<typename FNode::FLeafType>().Add(ElementIndex);
 				}
+
+				check(CurrentNode);
+
+				CurrentNode->BoxMin = CurrentNodeBox.Min;
+				CurrentNode->BoxMax = CurrentNodeBox.Max;
+				CurrentNodeBox.Init();
 
 				// Build nodes
 				while (Nodes.Num() > 1)
@@ -282,13 +296,28 @@ namespace FStaticSpatialIndex
 					{
 						if (!CurrentNode || (CurrentNode->Content.template Get<typename FNode::FNodeType>().Num() >= MaxNumElementsPerNode))
 						{
+							if (CurrentNode)
+							{
+								CurrentNode->BoxMin = CurrentNodeBox.Min;
+								CurrentNode->BoxMax = CurrentNodeBox.Max;
+								CurrentNode->Content.template Get<typename FNode::FNodeType>().Shrink();
+								CurrentNodeBox.Init();
+							}
+
 							CurrentNode = &TopNodes.Emplace_GetRef();
 							CurrentNode->Content.template Emplace<typename FNode::FNodeType>();
 						}
 
-						CurrentNode->Box += Node.Box;
+						CurrentNodeBox += Node.GetBox();
 						CurrentNode->Content.template Get<typename FNode::FNodeType>().Add(MoveTemp(Node));
 					}
+
+					check(CurrentNode);
+
+					CurrentNode->BoxMin = CurrentNodeBox.Min;
+					CurrentNode->BoxMax = CurrentNodeBox.Max;
+					CurrentNode->Content.template Get<typename FNode::FNodeType>().Shrink();
+					CurrentNodeBox.Init();
 
 					Nodes = MoveTemp(TopNodes);
 				}
@@ -382,9 +411,14 @@ namespace FStaticSpatialIndex
 				inline TIterator end() { return TIterator(StartIndex + NumElements); }
 				inline TIterator end() const { return TIterator(StartIndex + NumElements); }
 			};
+			using FVectorType = typename Profile::FVector;
 			using FBoxType = typename Profile::FBox;
 
-			FBoxType Box = FBoxType(ForceInit);
+			inline FBoxType GetBox() const { return FBoxType(BoxMin, BoxMax); }
+
+			FVectorType BoxMin;
+			FVectorType BoxMax;
+
 			TVariant<FNodeType, FLeafType> Content;
 		};
 
@@ -420,7 +454,7 @@ namespace FStaticSpatialIndex
 			{
 				for (auto& ChildNode : InNode->Content.template Get<typename FNode::FNodeType>())
 				{
-					if (ChildNode.Box.Intersect(InBox))
+					if (ChildNode.GetBox().Intersect(InBox))
 					{
 						if (!ForEachIntersectingElementRecursive(&ChildNode, InBox, InFunc))
 						{
@@ -456,7 +490,7 @@ namespace FStaticSpatialIndex
 			{
 				for (auto& ChildNode : InNode->Content.template Get<typename FNode::FNodeType>())
 				{
-					if (FastSphereAABBIntersection<Profile>(FVector(InSphereCenter), InRadiusSquared, ChildNode.Box))
+					if (FastSphereAABBIntersection<Profile>(FVector(InSphereCenter), InRadiusSquared, ChildNode.GetBox()))
 					{
 						if (!ForEachIntersectingElementRecursive(&ChildNode, InSphereCenter, InRadiusSquared, InFunc))
 						{

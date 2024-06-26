@@ -134,6 +134,19 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	UWorld* OuterWorld = GetTypedOuter<UWorld>();
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
+	// Get container name
+	const FString ContainerPackageName = StreamingGenerationContext->GetActorSetContainerForContextBaseContainerInstance()->ContainerInstanceCollection->GetBaseContainerInstancePackageName().ToString();
+	FString ContainerShortName = FPackageName::GetShortName(ContainerPackageName);
+	if (!ContainerPackageName.StartsWith(TEXT("/Game/")))
+	{
+		TArray<FString> SplitContainerPath;
+		if (ContainerPackageName.ParseIntoArray(SplitContainerPath, TEXT("/")))
+		{
+			ContainerShortName += TEXT(".");
+			ContainerShortName += SplitContainerPath[0];
+		}
+	}
+
 	//
 	// Generate runtime partitions streaming cell desccriptors
 	//
@@ -215,6 +228,19 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 
 				StreamingData.Name = CellDescInstance.SourcePartition->Name;
 				StreamingData.LoadingRange = CellDescInstance.SourcePartition->LoadingRange;
+
+				StreamingData.DebugName = ContainerShortName + TEXT(".") + CellDescInstance.SourcePartition->Name.ToString();
+
+				if (CellDescInstance.DataLayerInstances.Num())
+				{
+					const FDataLayersID DataLayerdID(CellDescInstance.DataLayerInstances);
+					StreamingData.DebugName += FString::Printf(TEXT("_d%x"), DataLayerdID.GetHash());
+				}
+
+				if (CellDescInstance.ContentBundleID.IsValid())
+				{
+					StreamingData.DebugName += FString::Printf(TEXT("_c%x"), *UContentBundleDescriptor::GetContentBundleCompactString(CellDescInstance.ContentBundleID));
+				}
 
 				if (CellDescInstance.bIsSpatiallyLoaded)
 				{

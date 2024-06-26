@@ -11,10 +11,10 @@ class UHLODLayer;
 class URuntimePartitionPersistent;
 struct FPropertyChangedChainEvent;
 
-using FStaticSpatialIndexSorter = FStaticSpatialIndex::TNodeSorterMorton<FStaticSpatialIndex::FSpatialIndexProfile3D, 65536>;
+using FStaticSpatialIndexSorter = FStaticSpatialIndex::TNodeSorterHilbert<FStaticSpatialIndex::FSpatialIndexProfile3D, 65536>;
 using FStaticSpatialIndexType = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>, FStaticSpatialIndexSorter, FStaticSpatialIndex::FSpatialIndexProfile3D>;
 
-using FStaticSpatialIndexSorter2D = FStaticSpatialIndex::TNodeSorterMorton<FStaticSpatialIndex::FSpatialIndexProfile2D, 65536>;
+using FStaticSpatialIndexSorter2D = FStaticSpatialIndex::TNodeSorterHilbert<FStaticSpatialIndex::FSpatialIndexProfile2D, 65536>;
 using FStaticSpatialIndexType2D = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>, FStaticSpatialIndexSorter2D, FStaticSpatialIndex::FSpatialIndexProfile2D>;
 
 /** Holds an HLOD setup for a particular partition class. */
@@ -88,6 +88,11 @@ protected:
 	/** Name of the runtime partition, currently maps to target grids. */
 	UPROPERTY()
 	FName Name;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FString DebugName;
+#endif
 
 	UPROPERTY()
 	int32 LoadingRange = 0;

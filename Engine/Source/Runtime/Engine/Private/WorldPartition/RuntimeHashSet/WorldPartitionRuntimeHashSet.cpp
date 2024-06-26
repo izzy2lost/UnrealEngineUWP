@@ -20,6 +20,8 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 {
 	if (!SpatialIndex)
 	{
+		uint32 StaticIndexAllocatedSize = 0;
+
 		TArray<UWorldPartitionRuntimeCell*> SpatiallyLoadedCells3D;
 		TArray<UWorldPartitionRuntimeCell*> SpatiallyLoadedCells2D;
 		
@@ -48,6 +50,7 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 					return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(Cell->GetStreamingBounds(), Cell);
 				});
 				SpatialIndex->Init(MoveTemp(PartitionsElements));
+				StaticIndexAllocatedSize += SpatialIndex->GetAllocatedSize();
 			}
 		
 			SpatialIndexForce2D = MakeUnique<FStaticSpatialIndexType2D>();
@@ -60,6 +63,7 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 					return TPair<FBox2D, TObjectPtr<UWorldPartitionRuntimeCell>>(CellBounds2D, Cell);
 				});
 				SpatialIndexForce2D->Init(MoveTemp(PartitionsElements));
+				StaticIndexAllocatedSize += SpatialIndexForce2D->GetAllocatedSize();
 			}
 		}
 
@@ -75,8 +79,13 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 					return TPair<FBox2D, TObjectPtr<UWorldPartitionRuntimeCell>>(CellBounds2D, Cell);
 				});
 				SpatialIndex2D->Init(MoveTemp(PartitionsElements));
+				StaticIndexAllocatedSize += SpatialIndex2D->GetAllocatedSize();
 			}
 		}
+
+#if WITH_EDITOR
+		UE_LOG(LogWorldPartition, Verbose, TEXT("CreatePartitionsSpatialIndex: %s used %s"), *DebugName, *FGenericPlatformMemory::PrettyMemory(StaticIndexAllocatedSize));
+#endif
 	}
 }
 
