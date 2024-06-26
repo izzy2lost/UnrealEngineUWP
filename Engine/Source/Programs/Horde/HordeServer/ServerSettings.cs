@@ -17,8 +17,6 @@ using EpicGames.Perforce;
 using HordeServer.Agents.Fleet;
 using HordeServer.Server;
 using HordeServer.Storage;
-using HordeServer.Storage.ObjectStores;
-using HordeServer.Telemetry.Sinks;
 using HordeServer.Tools;
 
 namespace HordeServer
@@ -242,8 +240,8 @@ namespace HordeServer
 		/// </summary>
 		[Obsolete("Use MongoConnectionString instead")]
 		public string? DatabaseConnectionString
-		{ 
-			get => MongoConnectionString; 
+		{
+			get => MongoConnectionString;
 			set => MongoConnectionString = value;
 		}
 
@@ -491,7 +489,7 @@ namespace HordeServer
 		/// <inheritdoc cref="RedisConnectionString"/>
 		[Obsolete("Use RedisConnectionString instead")]
 		public string? RedisConnectionConfig
-		{ 
+		{
 			get => RedisConnectionString;
 			set => RedisConnectionString = value;
 		}

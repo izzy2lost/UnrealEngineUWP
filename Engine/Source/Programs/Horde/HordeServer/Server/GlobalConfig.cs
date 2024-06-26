@@ -19,7 +19,6 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Streams;
-using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Tools;
 using EpicGames.Horde.Users;
 using EpicGames.Perforce;
@@ -43,7 +42,6 @@ using HordeServer.Projects;
 using HordeServer.Secrets;
 using HordeServer.Storage;
 using HordeServer.Streams;
-using HordeServer.Telemetry.Metrics;
 using HordeServer.Tools;
 using HordeServer.Utilities;
 

@@ -2,7 +2,6 @@
 
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -29,21 +28,21 @@ public class ToolsControllerTests
 	[TestMethod]
 	public async Task DownloadToolWithAclAsync()
 	{
-		AclEntryConfig aclEntryConfig = new (HordeClaims.AgentRoleClaim, [ToolAclAction.DownloadTool]);
-		ToolId toolId = new ("foo");
+		AclEntryConfig aclEntryConfig = new(HordeClaims.AgentRoleClaim, [ToolAclAction.DownloadTool]);
+		ToolId toolId = new("foo");
 		GlobalConfig globalConfig = new();
-		
+
 		globalConfig.Storage.Backends.Clear();
 		globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("tools-backend"), Type = StorageBackendType.Memory });
 		globalConfig.Storage.Namespaces.Clear();
 		globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = Namespace.Tools, Backend = new BackendId("tools-backend") });
 		globalConfig.Tools.Add(new ToolConfig(toolId) { Name = "Foo", Description = "This is foo", Acl = new AclConfig() { Entries = [aclEntryConfig] }, Public = false });
-		
+
 		ServerSettings serverSettings = new() { AuthMethod = AuthMethod.Horde };
 		globalConfig.PostLoad(serverSettings, new List<ILoadedPlugin>());
 		Dictionary<string, string> settings = new() { { "Horde:AuthMethod", AuthMethod.Horde.ToString() } };
-		await using FakeHordeWebApp app = new (settings);
-		
+		await using FakeHordeWebApp app = new(settings);
+
 		ConfigService configService = app.ServiceProvider.GetRequiredService<ConfigService>();
 		IToolCollection tools = app.ServiceProvider.GetRequiredService<IToolCollection>();
 		IServiceAccountCollection serviceAccounts = app.ServiceProvider.GetRequiredService<IServiceAccountCollection>();
@@ -52,7 +51,7 @@ public class ToolsControllerTests
 
 		List<IUserClaim> claims = [new UserClaim("http://epicgames.com/ue/horde/role", "agent")];
 		(IServiceAccount _, string token) = await serviceAccounts.CreateAsync(new CreateServiceAccountOptions("myDesc", claims));
-		
+
 		// Create tool and deployment
 		using MemoryStream ms = new(await ToolTests.CreateZipFileDataAsync("foo.txt", "foo content"));
 		ITool? tool = await tools.GetAsync(toolId);
@@ -60,7 +59,7 @@ public class ToolsControllerTests
 		tool = await tool.CreateDeploymentAsync(new ToolDeploymentConfig() { Version = "1" }, ms);
 
 		HttpClient client = app.CreateHttpClient();
-		using HttpRequestMessage req = new (HttpMethod.Get, $"/api/v1/tools/{toolId.Id}?action=download");
+		using HttpRequestMessage req = new(HttpMethod.Get, $"/api/v1/tools/{toolId.Id}?action=download");
 		req.Headers.Authorization = new AuthenticationHeaderValue("ServiceAccount", token);
 		HttpResponseMessage res = await client.SendAsync(req);
 		Assert.AreEqual(HttpStatusCode.OK, res.StatusCode);
