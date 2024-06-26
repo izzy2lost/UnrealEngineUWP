@@ -6,6 +6,7 @@
 #include "CoreGlobals.h"
 #include "Logging/LogMacros.h"
 #include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 
 const TCHAR* FLinuxPlatformProcess::BaseDir()
 {
