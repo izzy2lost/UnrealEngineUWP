@@ -49,7 +49,7 @@ void FDateTimeStructCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> S
 		[
 			SNew(SEditableTextBox)
 				.ClearKeyboardFocusOnCommit(false)
-				.IsEnabled(!PropertyHandle->IsEditConst())
+				.IsEnabled(StructPropertyHandle, &IPropertyHandle::IsEditable)
 				.ForegroundColor(this, &FDateTimeStructCustomization::HandleTextBoxForegroundColor)
 				.OnTextChanged(this, &FDateTimeStructCustomization::HandleTextBoxTextChanged)
 				.OnTextCommitted(this, &FDateTimeStructCustomization::HandleTextBoxTextCommited)
