@@ -10,8 +10,11 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
 using HordeServer.Acls;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Storage;
+
+#pragma warning disable CA2227 // Change x to be read-only by removing the property setter
 
 namespace HordeServer.Tools
 {
@@ -21,12 +24,6 @@ namespace HordeServer.Tools
 	[DebuggerDisplay("{Id}")]
 	public class ToolConfig
 	{
-		/// <summary>
-		/// The global config containing this tool
-		/// </summary>
-		[JsonIgnore]
-		public GlobalConfig GlobalConfig { get; private set; } = null!;
-
 		/// <summary>
 		/// Unique identifier for the tool
 		/// </summary>
@@ -106,16 +103,44 @@ namespace HordeServer.Tools
 		/// <summary>
 		/// Called after the config has been read
 		/// </summary>
-		/// <param name="globalConfig">Parent GlobalConfig object</param>
-		public void PostLoad(GlobalConfig globalConfig)
+		/// <param name="parentAcl">Parent ACL object</param>
+		public void PostLoad(AclConfig parentAcl)
 		{
-			GlobalConfig = globalConfig;
-			Acl.PostLoad(globalConfig.Acl, $"tool:{Id}");
+			Acl.PostLoad(parentAcl, $"tool:{Id}");
 		}
 
 		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
 		public bool Authorize(AclAction action, ClaimsPrincipal user)
 			=> Acl.Authorize(action, user);
+	}
+
+	/// <summary>
+	/// Configuration for a tool bundled alongsize the server
+	/// </summary>
+	public class BundledToolConfig : ToolConfig
+	{
+		/// <summary>
+		/// Version string for the current tool data
+		/// </summary>
+		public string Version { get; set; } = "1.0";
+
+		/// <summary>
+		/// Ref name in the tools directory
+		/// </summary>
+		public RefName RefName { get; set; } = new RefName("default-ref");
+
+		/// <summary>
+		/// Directory containing blob data for this tool. If empty, the tools/{id} folder next to the server will be used.
+		/// </summary>
+		public string? DataDir { get; set; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BundledToolConfig()
+		{
+			Public = true;
+		}
 	}
 
 	/// <summary>

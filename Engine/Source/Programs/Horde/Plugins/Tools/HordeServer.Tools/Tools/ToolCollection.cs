@@ -195,24 +195,28 @@ namespace HordeServer.Tools
 			}
 		}
 
+		private readonly IServerInfo _serverInfo;
 		private readonly IMongoCollection<ToolDocument> _tools;
 		private readonly StorageService _storageService;
 		private readonly FileObjectStoreFactory _fileObjectStoreFactory;
 		private readonly IClock _clock;
 		private readonly BundleCache _cache;
-		private readonly IOptionsMonitor<GlobalConfig> _globalConfig;
+		private readonly IOptionsMonitor<ToolsConfig> _toolsConfig;
+		private readonly IOptions<ToolsServerConfig> _toolsServerConfig;
 		private readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ToolCollection(IMongoService mongoService, StorageService storageService, BundleCache cache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ToolCollection> logger)
+		public ToolCollection(IMongoService mongoService, IServerInfo serverInfo, StorageService storageService, BundleCache cache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, IOptionsMonitor<ToolsConfig> toolsConfig, IOptions<ToolsServerConfig> toolsServerConfig, ILogger<ToolCollection> logger)
 		{
+			_serverInfo = serverInfo;
 			_tools = mongoService.GetCollection<ToolDocument>("Tools");
 			_storageService = storageService;
 			_fileObjectStoreFactory = fileObjectStoreFactory;
 			_clock = clock;
-			_globalConfig = globalConfig;
+			_toolsConfig = toolsConfig;
+			_toolsServerConfig = toolsServerConfig;
 			_cache = cache;
 			_logger = logger;
 		}
@@ -225,7 +229,7 @@ namespace HordeServer.Tools
 			}
 
 			ToolConfig? toolConfig;
-			if (!_globalConfig.CurrentValue.TryGetTool(document.Id, out toolConfig))
+			if (!_toolsConfig.CurrentValue.TryGetTool(document.Id, out toolConfig))
 			{
 				return null;
 			}
@@ -236,17 +240,17 @@ namespace HordeServer.Tools
 		/// <inheritdoc/>
 		public async Task<ITool?> GetAsync(ToolId id, CancellationToken cancellationToken)
 		{
-			GlobalConfig globalConfig = _globalConfig.CurrentValue;
+			ToolsConfig toolsConfig = _toolsConfig.CurrentValue;
 
 			ToolConfig? toolConfig;
-			if (globalConfig.TryGetTool(id, out toolConfig))
+			if (toolsConfig.TryGetTool(id, out toolConfig))
 			{
 				ToolDocument document = await FindOrAddDocumentAsync(toolConfig, cancellationToken);
 				return new Tool(this, document, toolConfig, _clock.UtcNow);
 			}
 
 			BundledToolConfig? bundledToolConfig;
-			if (globalConfig.ServerSettings.TryGetBundledTool(id, out bundledToolConfig))
+			if (_toolsServerConfig.Value.TryGetBundledTool(id, out bundledToolConfig))
 			{
 				ToolDocument document = CreateBundledToolDocument(bundledToolConfig);
 				return new Tool(this, document, bundledToolConfig, _clock.UtcNow);
@@ -259,15 +263,15 @@ namespace HordeServer.Tools
 		public async Task<IReadOnlyList<ITool>> GetAllAsync(CancellationToken cancellationToken)
 		{
 			DateTime utcNow = _clock.UtcNow;
-			GlobalConfig globalConfig = _globalConfig.CurrentValue;
+			ToolsConfig toolsConfig = _toolsConfig.CurrentValue;
 
 			List<Tool> tools = new List<Tool>();
-			foreach (ToolConfig toolConfig in globalConfig.Tools)
+			foreach (ToolConfig toolConfig in toolsConfig.Tools)
 			{
 				ToolDocument document = await FindOrAddDocumentAsync(toolConfig, cancellationToken);
 				tools.Add(new Tool(this, document, toolConfig, utcNow));
 			}
-			foreach (BundledToolConfig bundledToolConfig in globalConfig.ServerSettings.BundledTools)
+			foreach (BundledToolConfig bundledToolConfig in _toolsServerConfig.Value.BundledTools)
 			{
 				ToolDocument document = CreateBundledToolDocument(bundledToolConfig);
 				tools.Add(new Tool(this, document, bundledToolConfig, utcNow));
@@ -463,7 +467,7 @@ namespace HordeServer.Tools
 		{
 			if (toolConfig is BundledToolConfig bundledConfig)
 			{
-				return BundleStorageClient.CreateFromDirectory(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"Tools"), _cache, _logger);
+				return BundleStorageClient.CreateFromDirectory(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? $"Tools"), _cache, _logger);
 			}
 			else
 			{
@@ -480,7 +484,7 @@ namespace HordeServer.Tools
 		{
 			if (toolConfig is BundledToolConfig bundledConfig)
 			{
-				return new FileStorageBackend(_fileObjectStoreFactory.CreateStore(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"tools/{toolConfig.Id}")), _logger);
+				return new FileStorageBackend(_fileObjectStoreFactory.CreateStore(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? $"tools/{toolConfig.Id}")), _logger);
 			}
 			else
 			{

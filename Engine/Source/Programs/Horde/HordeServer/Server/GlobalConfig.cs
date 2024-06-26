@@ -17,7 +17,6 @@ using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
-using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
 using EpicGames.Horde.Users;
@@ -39,7 +38,6 @@ using HordeServer.Notifications;
 using HordeServer.Perforce;
 using HordeServer.Plugins;
 using HordeServer.Projects;
-using HordeServer.Secrets;
 using HordeServer.Streams;
 using HordeServer.Tools;
 using HordeServer.Utilities;
@@ -203,19 +201,9 @@ namespace HordeServer.Server
 		public List<ComputeClusterConfig> Compute { get; set; } = new List<ComputeClusterConfig>();
 
 		/// <summary>
-		/// List of secrets
-		/// </summary>
-		public List<SecretConfig> Secrets { get; set; } = new List<SecretConfig>();
-
-		/// <summary>
 		/// Device configuration
 		/// </summary>
 		public DeviceConfig? Devices { get; set; }
-
-		/// <summary>
-		/// List of tools hosted by the server
-		/// </summary>
-		public List<ToolConfig> Tools { get; set; } = new List<ToolConfig>();
 
 		/// <summary>
 		/// Maximum number of conforms to run at once
@@ -273,11 +261,9 @@ namespace HordeServer.Server
 
 		private readonly Dictionary<ProjectId, ProjectConfig> _projectLookup = new Dictionary<ProjectId, ProjectConfig>();
 		private readonly Dictionary<StreamId, StreamConfig> _streamLookup = new Dictionary<StreamId, StreamConfig>();
-		private readonly Dictionary<ToolId, ToolConfig> _toolLookup = new Dictionary<ToolId, ToolConfig>();
 		private readonly Dictionary<ClusterId, ComputeClusterConfig> _computeClusterLookup = new Dictionary<ClusterId, ComputeClusterConfig>();
 		private readonly Dictionary<AclScopeName, AclConfig> _aclLookup = new Dictionary<AclScopeName, AclConfig>();
 		private readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
-		private readonly Dictionary<SecretId, SecretConfig> _secretLookup = new Dictionary<SecretId, SecretConfig>();
 		private readonly Dictionary<PoolId, PoolConfig> _poolLookup = new Dictionary<PoolId, PoolConfig>();
 
 		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
@@ -309,13 +295,6 @@ namespace HordeServer.Server
 				}
 			}
 
-			_toolLookup.Clear();
-			foreach (ToolConfig tool in Tools)
-			{
-				_toolLookup.Add(tool.Id, tool);
-				tool.PostLoad(this);
-			}
-
 			_computeClusterLookup.Clear();
 			foreach (ComputeClusterConfig computeCluster in Compute)
 			{
@@ -327,13 +306,6 @@ namespace HordeServer.Server
 			foreach (ArtifactTypeConfig artifactType in ArtifactTypes)
 			{
 				_artifactTypeLookup.Add(artifactType.Type, artifactType);
-			}
-
-			_secretLookup.Clear();
-			foreach (SecretConfig secret in Secrets)
-			{
-				_secretLookup.Add(secret.Id, secret);
-				secret.PostLoad(this);
 			}
 
 			_poolLookup.Clear();
@@ -559,14 +531,6 @@ namespace HordeServer.Server
 		}
 
 		/// <summary>
-		/// Attempts to get configuration for a tool from this object
-		/// </summary>
-		/// <param name="toolId">The tool identifier</param>
-		/// <param name="config">Configuration for the tool</param>
-		/// <returns>True if the tool configuration was found</returns>
-		public bool TryGetTool(ToolId toolId, [NotNullWhen(true)] out ToolConfig? config) => _toolLookup.TryGetValue(toolId, out config);
-
-		/// <summary>
 		/// Attempts to get configuration for a pool from this object
 		/// </summary>
 		/// <param name="poolId">The pool identifier</param>
@@ -636,21 +600,6 @@ namespace HordeServer.Server
 		/// <returns>True on success</returns>
 		public bool TryGetComputeCluster(ClusterId clusterId, [NotNullWhen(true)] out ComputeClusterConfig? config)
 			=> _computeClusterLookup.TryGetValue(clusterId, out config);
-
-		/// <summary>
-		/// Attempts to get compute cluster configuration from this object
-		/// </summary>
-		/// <param name="secretId">Secret id</param>
-		/// <param name="config">Receives the secret configuration on success</param>
-		/// <returns>True on success</returns>
-		public bool TryGetSecret(SecretId secretId, [NotNullWhen(true)] out SecretConfig? config)
-			=> _secretLookup.TryGetValue(secretId, out config);
-
-		/// <summary>
-		/// Authorize access to a secret
-		/// </summary>
-		public bool Authorize(SecretId secretId, AclAction action, ClaimsPrincipal user)
-			=> TryGetSecret(secretId, out SecretConfig? secretConfig) && secretConfig.Authorize(action, user);
 
 		/// <summary>
 		/// Authorizes a user to perform a given action

@@ -10,6 +10,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
+using HordeServer.Tools;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 
@@ -98,7 +99,9 @@ namespace HordeServer.Commands.Generate
 				JsonConfigFile serverConfig = await JsonConfigFile.ReadAsync(serverConfigFile);
 
 				JsonObject hordeConfig = JsonConfigFile.FindOrAddNode(serverConfig.Root, "Horde", () => new JsonObject());
-				JsonArray bundledTools = JsonConfigFile.FindOrAddNode(hordeConfig, nameof(ServerSettings.BundledTools), () => new JsonArray());
+				JsonObject pluginsConfig = JsonConfigFile.FindOrAddNode(hordeConfig, "Plugins", () => new JsonObject());
+				JsonObject toolsConfig = JsonConfigFile.FindOrAddNode(serverConfig.Root, "Tools", () => new JsonObject());
+				JsonArray bundledTools = JsonConfigFile.FindOrAddNode(toolsConfig, nameof(ToolsServerConfig.BundledTools), () => new JsonArray());
 
 				JsonObject bundledTool = JsonConfigFile.FindOrAddElementByKey(bundledTools, nameof(BundledToolConfig.Id), Id);
 				bundledTool[nameof(BundledToolConfig.Name)] = Name ?? Id.ToString();

@@ -588,7 +588,9 @@ namespace HordeServer.Configuration
 
 				JsonObject configObj = await context.PreprocessFileAsync(GetGlobalConfigUri(), configNode, cancellationToken);
 				CopyJsonNode(configObj, "TelemetryStores", "Plugins.Analytics.Stores");
+				CopyJsonNode(configObj, "Secrets", "Plugins.Secrets.Secrets");
 				CopyJsonNode(configObj, "Storage", "Plugins.Storage");
+				CopyJsonNode(configObj, "Tools", "Plugins.Tools.Tools");
 
 				GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(configObj, _jsonOptions)!;
 				if (globalConfig.VersionEnum < GlobalVersion.Latest)

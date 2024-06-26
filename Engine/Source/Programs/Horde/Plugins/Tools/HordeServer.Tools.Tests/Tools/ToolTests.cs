@@ -19,21 +19,27 @@ using HordeServer.Plugins;
 namespace HordeServer.Tests.Tools
 {
 	[TestClass]
-	public class ToolTests : TestSetup
+	public class ToolTests : ServerServiceTest
 	{
 		readonly ToolId _toolId = new ToolId("ugs");
 
 		public ToolTests()
 		{
+			AddPlugin<StoragePlugin>();
+			AddPlugin<ToolsPlugin>();
+
 			StorageConfig storageConfig = new StorageConfig();
 			storageConfig.Backends.Clear();
 			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("tools-backend"), Type = StorageBackendType.Memory });
 			storageConfig.Namespaces.Clear();
 			storageConfig.Namespaces.Add(new NamespaceConfig { Id = Namespace.Tools, Backend = new BackendId("tools-backend") });
 
+			ToolsConfig toolsConfig = new ToolsConfig();
+			toolsConfig.Tools.Add(new ToolConfig(_toolId) { Name = "UnrealGameSync", Description = "Tool for syncing content from source control" });
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
-			globalConfig.Tools.Add(new ToolConfig(_toolId) { Name = "UnrealGameSync", Description = "Tool for syncing content from source control" });
+			globalConfig.Plugins.AddStorageConfig(storageConfig);
+			globalConfig.Plugins.AddToolsConfig(toolsConfig);
 			SetConfig(globalConfig);
 		}
 

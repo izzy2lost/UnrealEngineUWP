@@ -68,15 +68,12 @@ using HordeServer.Notifications.Sinks;
 using HordeServer.Perforce;
 using HordeServer.Plugins;
 using HordeServer.Replicators;
-using HordeServer.Secrets;
-using HordeServer.Secrets.Providers;
 using HordeServer.Server;
 using HordeServer.Server.Notices;
 using HordeServer.ServiceAccounts;
 using HordeServer.Storage;
 using HordeServer.Streams;
 using HordeServer.Tasks;
-using HordeServer.Tools;
 using HordeServer.Ugs;
 using HordeServer.Users;
 using HordeServer.Utilities;
@@ -316,6 +313,8 @@ namespace HordeServer
 			pluginCollection.Add<AnalyticsPlugin>();
 			pluginCollection.Add<StoragePlugin>();
 			pluginCollection.Add<DdcPlugin>();
+			pluginCollection.Add<SecretsPlugin>();
+			pluginCollection.Add<ToolsPlugin>();
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin services
@@ -405,8 +404,6 @@ namespace HordeServer
 			services.AddSingleton<IDeviceCollection, DeviceCollection>();
 			services.AddSingleton<INoticeCollection, NoticeCollection>();
 			services.AddSingleton<IDashboardPreviewCollection, DashboardPreviewCollection>();
-
-			services.AddSingleton<IToolCollection, ToolCollection>();
 
 			services.AddSingleton<IConfigSource, InMemoryConfigSource>();
 			services.AddSingleton<IConfigSource, FileConfigSource>();
@@ -514,11 +511,6 @@ namespace HordeServer
 			{
 				services.AddSingleton<IExternalIssueService, DefaultExternalIssueService>();
 			}
-
-			// Secret providers
-			services.AddSingleton<SecretCollectionInternal>();
-			services.AddScoped<ISecretCollection, SecretCollection>();
-			services.AddSingleton<ISecretProvider, AwsParameterStoreSecretProvider>();
 
 			if (settings.WithAws)
 			{

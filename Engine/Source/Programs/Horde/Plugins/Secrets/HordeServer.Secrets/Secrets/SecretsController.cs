@@ -22,15 +22,15 @@ namespace HordeServer.Secrets
 	public class SecretsController : HordeControllerBase
 	{
 		readonly ISecretCollection _secretCollection;
-		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly IOptionsSnapshot<SecretsConfig> _secretsConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SecretsController(ISecretCollection secretCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public SecretsController(ISecretCollection secretCollection, IOptionsSnapshot<SecretsConfig> secretsConfig)
 		{
 			_secretCollection = secretCollection;
-			_globalConfig = globalConfig;
+			_secretsConfig = secretsConfig;
 		}
 
 		/// <summary>
@@ -41,7 +41,7 @@ namespace HordeServer.Secrets
 		public ActionResult<GetSecretsResponse> GetSecrets()
 		{
 			List<SecretId> secretIds = new List<SecretId>();
-			foreach (SecretConfig secret in _globalConfig.Value.Secrets)
+			foreach (SecretConfig secret in _secretsConfig.Value.Secrets)
 			{
 				if (secret.Authorize(SecretAclAction.ViewSecret, User))
 				{
@@ -68,7 +68,7 @@ namespace HordeServer.Secrets
 			{
 				return NotFound(secretId);
 			}
-			if (!_globalConfig.Value.Authorize(secret.Id, SecretAclAction.ViewSecret, User))
+			if (!_secretsConfig.Value.Authorize(secret.Id, SecretAclAction.ViewSecret, User))
 			{
 				return Forbid(SecretAclAction.ViewSecret, secretId);
 			}

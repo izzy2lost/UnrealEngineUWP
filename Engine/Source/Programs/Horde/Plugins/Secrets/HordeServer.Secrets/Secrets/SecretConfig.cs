@@ -8,6 +8,8 @@ using EpicGames.Horde.Secrets;
 using HordeServer.Acls;
 using HordeServer.Server;
 
+#pragma warning disable CA2227 // Change x to be read-only by removing the property setter
+
 namespace HordeServer.Secrets
 {
 	/// <summary>
@@ -38,10 +40,10 @@ namespace HordeServer.Secrets
 		/// <summary>
 		/// Called after the config has been read
 		/// </summary>
-		/// <param name="globalConfig">Parent GlobalConfig object</param>
-		public void PostLoad(GlobalConfig globalConfig)
+		/// <param name="parentAcl">Parent acl object</param>
+		public void PostLoad(AclConfig parentAcl)
 		{
-			Acl.PostLoad(globalConfig.Acl, $"secret:{Id}");
+			Acl.PostLoad(parentAcl, $"secret:{Id}");
 		}
 
 		/// <summary>

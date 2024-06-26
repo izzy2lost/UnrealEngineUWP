@@ -11,7 +11,7 @@ namespace HordeServer.Plugins
 	/// <summary>
 	/// Concrete implementation of <see cref="IPluginCollection"/>
 	/// </summary>
-	class PluginCollection : IPluginCollection
+	public class PluginCollection : IPluginCollection
 	{
 		// Plugin which is compiled into the application or already loaded
 		class StaticPlugin : IPlugin

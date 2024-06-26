@@ -18,22 +18,22 @@ namespace HordeServer.Secrets
 	public class SecretCollection : ISecretCollection
 	{
 		readonly SecretCollectionInternal _secretCollectionInternal;
-		readonly IOptionsSnapshot<GlobalConfig> _options;
+		readonly IOptionsSnapshot<SecretsConfig> _secretsConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SecretCollection(SecretCollectionInternal secretCollectionInternal, IOptionsSnapshot<GlobalConfig> options)
+		public SecretCollection(SecretCollectionInternal secretCollectionInternal, IOptionsSnapshot<SecretsConfig> secretsConfig)
 		{
 			_secretCollectionInternal = secretCollectionInternal;
-			_options = options;
+			_secretsConfig = secretsConfig;
 		}
 
 		/// <inheritdoc/>
 		public async Task<ISecret?> GetAsync(SecretId secretId, CancellationToken cancellationToken)
 		{
 			SecretConfig? secretConfig;
-			if (!_options.Value.TryGetSecret(secretId, out secretConfig))
+			if (!_secretsConfig.Value.TryGetSecret(secretId, out secretConfig))
 			{
 				return null;
 			}

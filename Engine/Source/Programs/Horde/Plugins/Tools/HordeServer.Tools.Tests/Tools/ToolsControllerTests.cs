@@ -41,9 +41,12 @@ public class ToolsControllerTests
 		storageConfig.Namespaces.Clear();
 		storageConfig.Namespaces.Add(new NamespaceConfig { Id = Namespace.Tools, Backend = new BackendId("tools-backend") });
 
+		ToolsConfig toolsConfig = new ToolsConfig();
+		toolsConfig.Tools.Add(new ToolConfig(toolId) { Name = "Foo", Description = "This is foo", Acl = new AclConfig() { Entries = [aclEntryConfig] }, Public = false });
+
 		GlobalConfig globalConfig = new();
 		globalConfig.Plugins.AddStorageConfig(storageConfig);
-		globalConfig.Tools.Add(new ToolConfig(toolId) { Name = "Foo", Description = "This is foo", Acl = new AclConfig() { Entries = [aclEntryConfig] }, Public = false });
+		globalConfig.Plugins.AddToolsConfig(toolsConfig);
 		
 		ServerSettings serverSettings = new() { AuthMethod = AuthMethod.Horde };
 		globalConfig.PostLoad(serverSettings, pluginCollection.LoadedPlugins);

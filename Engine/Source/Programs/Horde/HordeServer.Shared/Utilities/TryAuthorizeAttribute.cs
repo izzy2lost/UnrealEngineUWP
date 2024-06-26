@@ -13,7 +13,7 @@ namespace HordeServer.Utilities
 	/// Attempts to authorize the user, but does not challenge or forbid access if authorization fails.
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
-	sealed class TryAuthorizeAttribute : Attribute, IAsyncAuthorizationFilter
+	public sealed class TryAuthorizeAttribute : Attribute, IAsyncAuthorizationFilter
 	{
 		/// <inheritdoc/>
 		public async Task OnAuthorizationAsync(AuthorizationFilterContext context)

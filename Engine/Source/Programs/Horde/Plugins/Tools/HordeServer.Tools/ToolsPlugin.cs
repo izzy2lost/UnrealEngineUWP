@@ -1,0 +1,33 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using HordeServer.Plugins;
+using HordeServer.Tools;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HordeServer
+{
+	/// <summary>
+	/// Entry point for the storage plugin
+	/// </summary>
+	[Plugin("Tools", GlobalConfigType = typeof(ToolsConfig), ServerConfigType = typeof(ToolsServerConfig))]
+	public class ToolsPlugin : IPluginStartup
+	{
+		/// <inheritdoc/>
+		public void ConfigureServices(IServiceCollection services)
+		{
+			services.AddSingleton<IToolCollection, ToolCollection>();
+		}
+	}
+
+	/// <summary>
+	/// Helper methods for tools config
+	/// </summary>
+	public static class ToolsPluginExtensions
+	{
+		/// <summary>
+		/// Configures the tools plugin
+		/// </summary>
+		public static void AddToolsConfig(this IDictionary<PluginName, IPluginConfig> dictionary, ToolsConfig toolsConfig)
+			=> dictionary[new PluginName("Tools")] = toolsConfig;
+	}
+}
