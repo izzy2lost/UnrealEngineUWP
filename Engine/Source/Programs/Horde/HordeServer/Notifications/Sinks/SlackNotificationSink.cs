@@ -1611,7 +1611,11 @@ namespace HordeServer.Notifications.Sinks
 
 		static string GetDefaultUserName(UserId userId)
 		{
-			if (userId == IIssue.ResolvedByUnknownId)
+			if (userId == KnownUsers.System)
+			{
+				return "Horde";
+			}
+			else if (userId == IIssue.ResolvedByUnknownId)
 			{
 				return "Horde (Unknown)";
 			}
