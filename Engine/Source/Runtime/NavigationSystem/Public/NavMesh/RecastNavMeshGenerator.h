@@ -987,9 +987,6 @@ public:
 
 	NAVIGATIONSYSTEM_API void RemoveTiles(const TArray<FIntPoint>& Tiles);
 
-	UE_DEPRECATED(5.3, "Use overload with FNavMeshDirtyTileElement instead.")
-	NAVIGATIONSYSTEM_API void ReAddTiles(const TArray<FIntPoint>& Tiles);
-
 	NAVIGATIONSYSTEM_API void ReAddTiles(const TArray<FNavMeshDirtyTileElement>& Tiles);
 
 	bool IsBuildingRestrictedToActiveTiles() const { return bRestrictBuildingToActiveTiles; }
@@ -1013,13 +1010,6 @@ protected:
 	NAVIGATIONSYSTEM_API virtual TSharedRef<FRecastTileGenerator> CreateTileGenerator(const FIntPoint& Coord, const TArray<FBox>& DirtyAreas, const double PendingTileCreationTime = 0.);
 
 	template <typename T>
-	UE_DEPRECATED(5.3, "Use ConstructTileGeneratorImpl instead.")
-	TSharedRef<T> ConstuctTileGeneratorImpl(const FIntPoint& Coord, const TArray<FBox>& DirtyAreas, const double PendingTileCreationTime = 0.)
-	{
-		return ConstructTileGeneratorImpl<T>(Coord, DirtyAreas, PendingTileCreationTime);
-	}
-	
-	template <typename T>
 	TSharedRef<T> ConstructTileGeneratorImpl(const FIntPoint& Coord, const TArray<FBox>& DirtyAreas, const double PendingTileCreationTime)
 	{
 		TSharedRef<T> TileGenerator = MakeShareable(new T(*this, Coord, PendingTileCreationTime));
@@ -1030,7 +1020,7 @@ protected:
 	UE_DEPRECATED(5.5, "Use BBoxGrowthLow and BBoxGrowthHigh properties instead.")
 	void SetBBoxGrowth(const FVector& InBBox)
 	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS		
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		BBoxGrowth = InBBox;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
@@ -1100,7 +1090,7 @@ protected:
 	ARecastNavMesh*	DestNavMesh;
 	
 	/** List of dirty tiles that needs to be regenerated */
-	TNavStatArray<FPendingTileElement> PendingDirtyTiles;			
+	TNavStatArray<FPendingTileElement> PendingDirtyTiles;
 	
 	/** List of dirty tiles currently being regenerated */
 	TNavStatArray<TRunningTileElement<FRecastTileGeneratorWrapper>> RunningDirtyTiles;
@@ -1128,9 +1118,6 @@ protected:
 	uint32 bInitialized:1;
 
 	uint32 bRestrictBuildingToActiveTiles:1;
-
-	UE_DEPRECATED(5.3, "Use SortPendingTilesMethod instead.")
-	uint32 bSortTilesWithSeedLocations:1;
 
 	/** Runtime generator's version, increased every time all tile generators get invalidated
 	 *	like when navmesh size changes */

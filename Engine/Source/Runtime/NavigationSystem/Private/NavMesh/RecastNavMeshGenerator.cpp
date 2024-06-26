@@ -4882,9 +4882,6 @@ FRecastNavMeshGenerator::FRecastNavMeshGenerator(ARecastNavMesh& InDestNavMesh)
 	, DestNavMesh(&InDestNavMesh)
 	, bInitialized(false)
 	, bRestrictBuildingToActiveTiles(false)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	, bSortTilesWithSeedLocations(true)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS	
 	, Version(0)
 {
 	INC_DWORD_STAT_BY(STAT_NavigationMemory, sizeof(*this));
@@ -5632,17 +5629,6 @@ void FRecastNavMeshGenerator::RemoveTiles(const TArray<FIntPoint>& Tiles)
 	}
 }
 
-// Deprecated 
-void FRecastNavMeshGenerator::ReAddTiles(const TArray<FIntPoint>& Tiles)
-{
-	TArray<FNavMeshDirtyTileElement> ConvertedTiles;
-	for (const FIntPoint& Point : Tiles)
-	{
-		ConvertedTiles.Add(FNavMeshDirtyTileElement{Point, TNumericLimits<FVector::FReal>::Max(), ENavigationInvokerPriority::Default});
-	}
-	ReAddTiles(ConvertedTiles);
-}
-	
 void FRecastNavMeshGenerator::ReAddTiles(const TArray<FNavMeshDirtyTileElement>& Tiles)
 {
 	static const FVector Expansion(1, 1, BIG_NUMBER);

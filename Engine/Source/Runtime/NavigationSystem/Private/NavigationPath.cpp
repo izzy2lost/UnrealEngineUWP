@@ -598,12 +598,3 @@ void UNavigationPath::SetPathPointsFromPath(FNavigationPath& NativePath)
 		PathPoints.Add(PathPoint.Location);
 	}
 }
-
-
-//------------------------------------------------------------------------//
-// deprecated functions
-//------------------------------------------------------------------------//
-void FNavigationPath::DebugDraw(const ANavigationData* NavData, FColor PathColor, UCanvas* Canvas, bool bPersistent, const uint32 NextPathPointIndex) const
-{
-	DebugDraw(NavData, PathColor, Canvas, bPersistent, -1.f, NextPathPointIndex);
-}

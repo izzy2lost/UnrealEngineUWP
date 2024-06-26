@@ -70,22 +70,6 @@ class URecastNavMeshDataChunk : public UNavigationDataChunk
 	NAVIGATIONSYSTEM_API virtual void Serialize(FArchive& Ar) override;
 	//~ End UObject Interface
 
-	/** Attaches tiles to specified navmesh, transferring tile ownership to navmesh */
-	UE_DEPRECATED(5.1, "Use overload using ARecastNavMesh& instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> AttachTiles(FPImplRecastNavMesh& NavMeshImpl);
-
-	/** Attaches tiles to specified navmesh */
-	UE_DEPRECATED(5.1, "Use overload using ARecastNavMesh& instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> AttachTiles(FPImplRecastNavMesh& NavMeshImpl, const bool bKeepCopyOfData, const bool bKeepCopyOfCacheData);
-
-	/** Detaches tiles from specified navmesh, taking tile ownership */
-	UE_DEPRECATED(5.1, "Use overload using ARecastNavMesh& instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> DetachTiles(FPImplRecastNavMesh& NavMeshImpl);
-
-	/** Detaches tiles from specified navmesh */
-	UE_DEPRECATED(5.1, "Use overload using ARecastNavMesh& instead")
-	NAVIGATIONSYSTEM_API TArray<uint32> DetachTiles(FPImplRecastNavMesh& NavMeshImpl, const bool bTakeDataOwnership, const bool bTakeCacheDataOwnership);
-
 #if WITH_RECAST
 	/** Attaches tiles to specified navmesh, transferring tile ownership to navmesh */
 	NAVIGATIONSYSTEM_API TArray<FNavTileRef> AttachTiles(ARecastNavMesh& NavMesh);

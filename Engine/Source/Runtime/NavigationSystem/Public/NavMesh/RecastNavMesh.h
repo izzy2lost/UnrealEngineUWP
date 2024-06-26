@@ -777,16 +777,6 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta=(ClampMin = "300.0"))
 	float TileSizeUU;
 
-	/** horizontal size of voxelization cell */
-	UE_DEPRECATED(5.2, "Set the CellSizes for the required navmesh resolutions in NavMeshResolutionParams.")
-	UPROPERTY(config)
-	float CellSize;
-
-	/** vertical size of voxelization cell */
-	UE_DEPRECATED(5.2, "Set the CellHeight for the required navmesh resolutions in NavMeshResolutionParams.")
-	UPROPERTY(config)
-	float CellHeight;
-
 	/** Resolution params 
 	 * If using multiple resolutions, it's recommended to chose the highest resolution first and 
 	 * set it according to the highest desired precision and then the other resolutions. */
@@ -804,11 +794,6 @@ class ARecastNavMesh : public ANavigationData
 	/* The maximum slope (angle) that the agent can move on. */ 
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta=(ClampMin = "0.0", ClampMax = "89.0", UIMin = "0.0", UIMax = "89.0" ))
 	float AgentMaxSlope;
-
-	/** Largest vertical step the agent can perform */
-	UE_DEPRECATED(5.3, "Set the AgentMaxStepHeight for the required navmesh resolutions in NavMeshResolutionParams.")
-	UPROPERTY(config)
-	float AgentMaxStepHeight;
 
 	/* The minimum dimension of area. Areas smaller than this will be discarded */
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta=(ClampMin = "0.0"))
@@ -1254,10 +1239,6 @@ public:
 	NAVIGATIONSYSTEM_API void RequestDrawingUpdate(bool bForce = false);
 
 	/** called after regenerating tiles */
-	UE_DEPRECATED(5.1, "Use new version with FNavTileRef")
-	NAVIGATIONSYSTEM_API virtual void OnNavMeshTilesUpdated(const TArray<uint32>& ChangedTiles);
-
-	/** called after regenerating tiles */
 	NAVIGATIONSYSTEM_API virtual void OnNavMeshTilesUpdated(const TArray<FNavTileRef>& ChangedTiles);
 
 	/** Event from generator that navmesh build has finished */
@@ -1281,9 +1262,6 @@ public:
 	//----------------------------------------------------------------------//
 	// Debug                                                                
 	//----------------------------------------------------------------------//
-	/** Debug rendering support. */
-	UE_DEPRECATED(5.1, "Please use the new signature of GetDebugGeometryForTile()")
-	NAVIGATIONSYSTEM_API void GetDebugGeometry(FRecastDebugGeometry& OutGeometry, int32 TileIndex = INDEX_NONE) const;
 
 	/* Gather debug geometry.
 	 * @params OutGeometry Output geometry.
@@ -1515,9 +1493,6 @@ public:
 	/** Check if poly is a custom link */
 	NAVIGATIONSYSTEM_API bool IsCustomLink(NavNodeRef PolyRef) const;
 
-	UE_DEPRECATED(5.3, "Use new override of this function with Array<FNavLinkId>* CustomLinks. This function has no effect.")
-	bool FindStraightPath(const FVector& StartLoc, const FVector& EndLoc, const TArray<NavNodeRef>& PathCorridor, TArray<FNavPathPoint>& PathPoints, TArray<uint32>* CustomLinks) const { return false; }
-
 	/** finds stringpulled path from given corridor */
 	NAVIGATIONSYSTEM_API bool FindStraightPath(const FVector& StartLoc, const FVector& EndLoc, const TArray<NavNodeRef>& PathCorridor, TArray<FNavPathPoint>& PathPoints, TArray<FNavLinkId>* CustomLinks = NULL) const;
 
@@ -1538,20 +1513,12 @@ public:
 	NAVIGATIONSYSTEM_API bool IsUsingActiveTilesGeneration(const UNavigationSystemV1& NavSys) const;
 
 	NAVIGATIONSYSTEM_API virtual void ConditionalConstructGenerator() override;
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS	
-	UE_DEPRECATED(5.2, "UpdateGenerationProperties is unused, it will be removed")
-	NAVIGATIONSYSTEM_API void UpdateGenerationProperties(const FRecastNavMeshGenerationProperties& GenerationProps);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS	
 	
 	bool ShouldGatherDataOnGameThread() const { return bDoFullyAsyncNavDataGathering == false; }
 	int32 GetTileNumberHardLimit() const { return TileNumberHardLimit; }
 
 	NAVIGATIONSYSTEM_API virtual void UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& InvokerLocations);
 	NAVIGATIONSYSTEM_API virtual void RemoveTiles(const TArray<FIntPoint>& Tiles);
-	
-	UE_DEPRECATED(5.3, "Use overload with FNavMeshDirtyTileElement instead.")
-	NAVIGATIONSYSTEM_API void RebuildTile(const TArray<FIntPoint>& Tiles);
 
 	NAVIGATIONSYSTEM_API void RebuildTile(const TArray<FNavMeshDirtyTileElement>& Tiles);
 	
@@ -1564,10 +1531,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 protected:
 
 	NAVIGATIONSYSTEM_API void UpdatePolyRefBitsPreview();
-	
-	/** Invalidates active paths that go through changed tiles  */
-	UE_DEPRECATED(5.1, "Use new version with FNavTileRef")
-	NAVIGATIONSYSTEM_API void InvalidateAffectedPaths(const TArray<uint32>& ChangedTiles);
 
 	/** Invalidates active paths that go through changed tiles  */
 	NAVIGATIONSYSTEM_API void InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedTiles);

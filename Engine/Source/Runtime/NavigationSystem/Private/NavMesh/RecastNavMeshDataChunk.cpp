@@ -199,54 +199,6 @@ void URecastNavMeshDataChunk::SerializeRecastData(FArchive& Ar, int32 NavMeshVer
 }
 #endif// WITH_RECAST
 
-// Deprecated
-TArray<uint32> URecastNavMeshDataChunk::AttachTiles(FPImplRecastNavMesh& NavMeshImpl)
-{
-	TArray<uint32> TileIds;
-#if WITH_RECAST
-	check(NavMeshImpl.NavMeshOwner);
-	const TArray<FNavTileRef> TileRefs = AttachTiles(*NavMeshImpl.NavMeshOwner);
-	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(&NavMeshImpl, TileRefs, TileIds);
-#endif // WITH_RECAST
-	return TileIds;
-}
-
-// Deprecated
-TArray<uint32> URecastNavMeshDataChunk::AttachTiles(FPImplRecastNavMesh& NavMeshImpl, const bool bKeepCopyOfData, const bool bKeepCopyOfCacheData)
-{
-	TArray<uint32> TileIds;
-#if WITH_RECAST
-	check(NavMeshImpl.NavMeshOwner);
-	const TArray<FNavTileRef> TileRefs = AttachTiles(*NavMeshImpl.NavMeshOwner, bKeepCopyOfData, bKeepCopyOfCacheData);
-	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(&NavMeshImpl, TileRefs, TileIds);
-#endif // WITH_RECAST
-	return TileIds;
-}
-
-// Deprecated
-TArray<uint32> URecastNavMeshDataChunk::DetachTiles(FPImplRecastNavMesh& NavMeshImpl)
-{
-	TArray<uint32> TileIds;
-#if WITH_RECAST
-	check(NavMeshImpl.NavMeshOwner);
-	const TArray<FNavTileRef> TileRefs = DetachTiles(*NavMeshImpl.NavMeshOwner);
-	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(&NavMeshImpl, TileRefs, TileIds);
-#endif // WITH_RECAST
-	return TileIds;
-}
-
-// Deprecated
-TArray<uint32> URecastNavMeshDataChunk::DetachTiles(FPImplRecastNavMesh& NavMeshImpl, const bool bTakeDataOwnership, const bool bTakeCacheDataOwnership)
-{
-	TArray<uint32> TileIds;
-#if WITH_RECAST
-	check(NavMeshImpl.NavMeshOwner);
-	const TArray<FNavTileRef> TileRefs = DetachTiles(*NavMeshImpl.NavMeshOwner, bTakeDataOwnership, bTakeCacheDataOwnership);
-	FNavTileRef::DeprecatedGetTileIdsFromNavTileRefs(&NavMeshImpl, TileRefs, TileIds);
-#endif // WITH_RECAST
-	return TileIds;
-}
-
 #if WITH_RECAST
 TArray<FNavTileRef> URecastNavMeshDataChunk::AttachTiles(ARecastNavMesh& NavMesh)
 {

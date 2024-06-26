@@ -679,35 +679,6 @@ void ARecastNavMesh::PostLoad()
 			UNavigationSystemBase::OnNavigationInitStartStaticDelegate().AddUObject(this, &ARecastNavMesh::CheckToDiscardSubLevelNavData);
 		}
 	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	// If needed, initialize from deprecated value.
-	if (NavMeshVersion < NAVMESHVER_TILE_RESOLUTIONS)
-	{
-		for (int i = 0; i < (uint8)ENavigationDataResolution::MAX; ++i)
-		{
-			SetCellSize((ENavigationDataResolution)i, CellSize);
-		}
-	}
-
-	// If needed, initialize CellHeight from the deprecated value.
-	if (NavMeshVersion < NAVMESHVER_TILE_RESOLUTIONS_CELLHEIGHT)
-	{
-		for (int i = 0; i < (uint8)ENavigationDataResolution::MAX; ++i)
-		{
-			SetCellHeight((ENavigationDataResolution)i, CellHeight);
-		}
-	}
-
-	// If needed, initialize AgentMaxStepHeight from the deprecated value.
-	if (NavMeshVersion < NAVMESHVER_TILE_RESOLUTIONS_AGENTMAXSTEPHEIGHT)
-	{
-		for (int i = 0; i < (uint8)ENavigationDataResolution::MAX; ++i)
-		{
-			SetAgentMaxStepHeight((ENavigationDataResolution)i, AgentMaxStepHeight);
-		}
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	for (uint8 Index = 0; Index < (uint8)ENavigationDataResolution::MAX; Index++)
 	{
@@ -2624,39 +2595,6 @@ bool ARecastNavMesh::GetPolysWithinPathingDistance(FVector const& StartLoc, cons
 	return RecastNavMeshImpl && RecastNavMeshImpl->GetPolysWithinPathingDistance(StartLoc, PathingDistance, GetRightFilterRef(Filter), QueryOwner, FoundPolys, DebugData);
 }
 
-// Deprecated
-void ARecastNavMesh::GetDebugGeometry(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const
-{
-	if (RecastNavMeshImpl)
-	{
-		FNavTileRef TileRef;
-		if (TileIndex != INDEX_NONE)
-		{
-			TArray<FNavTileRef> TileRefs;
-			FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
-			TileRef = TileRefs[0];
-		}
-		GetDebugGeometryForTile(OutGeometry, TileRef);
-	}
-}
-
-// Deprecated
-bool ARecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, int32 TileIndex) const
-{
-	if (RecastNavMeshImpl)
-	{
-		FNavTileRef TileRef;
-		if (TileIndex != INDEX_NONE)
-		{
-			TArray<FNavTileRef> TileRefs;
-			FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, { static_cast<uint32>(TileIndex) }, TileRefs);
-			TileRef = TileRefs[0];
-		}
-		return GetDebugGeometryForTile(OutGeometry, TileRef);
-	}
-	return true;
-}
-
 bool ARecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeometry, FNavTileRef TileRef) const
 {
 	if (RecastNavMeshImpl)
@@ -2737,25 +2675,9 @@ void ARecastNavMesh::DrawDebugPathCorridor(NavNodeRef const* PathPolys, int32 Nu
 #endif // ENABLE_DRAW_DEBUG
 }
 
-// Deprecated
-void ARecastNavMesh::OnNavMeshTilesUpdated(const TArray<uint32>& ChangedTiles)
-{
-	TArray<FNavTileRef> ChangedTileRefs;
-	FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, ChangedTiles, ChangedTileRefs);
-	OnNavMeshTilesUpdated(ChangedTileRefs);
-}
-
 void ARecastNavMesh::OnNavMeshTilesUpdated(const TArray<FNavTileRef>& ChangedTiles)
 {
 	InvalidateAffectedPaths(ChangedTiles);
-}
-
-// Deprecated
-void ARecastNavMesh::InvalidateAffectedPaths(const TArray<uint32>& ChangedTiles)
-{
-	TArray<FNavTileRef> ChangedTileRefs;
-	FNavTileRef::DeprecatedMakeTileRefsFromTileIds(RecastNavMeshImpl, ChangedTiles, ChangedTileRefs);
-	InvalidateAffectedPaths(ChangedTileRefs);
 }
 
 void ARecastNavMesh::InvalidateAffectedPaths(const TArray<FNavTileRef>& ChangedTiles)
@@ -3502,21 +3424,11 @@ void ARecastNavMesh::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 						}
 					}
 
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					// Update the deprecated CellSize to fit the default resolution CellSize
-					CellSize = NavMeshResolutionParams[(uint8)ENavigationDataResolution::Default].CellSize;
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 					bRebuild = true;
 				}
 			}
 			else if (PropName == GET_MEMBER_NAME_CHECKED(FNavMeshResolutionParam, CellHeight))
 			{
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				// Update the deprecated CellHeight to fit the default resolution CellHeight
-				CellHeight = NavMeshResolutionParams[(uint8)ENavigationDataResolution::Default].CellHeight;
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 				bRebuild = true;
 			}
 			else if (MemberProperty && (MemberProperty->GetFName() == NAME_NavLinkJumpDownConfig || MemberProperty->GetFName() == NAME_NavLinkJumpOverConfig))
@@ -3581,11 +3493,6 @@ void ARecastNavMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 					const float NewCellSize = UE::NavMesh::Private::GetClampedCellSize(TileSizeUU / (float)CellCount);
 					SetCellSize((ENavigationDataResolution)Index, NewCellSize);
 				}
-
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				// Set deprecated CellSize
-				CellSize = GetCellSize(ENavigationDataResolution::Default);
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 				// update config
 				FillConfig(NavDataConfig);
@@ -3695,41 +3602,6 @@ void ARecastNavMesh::ConditionalConstructGenerator()
 		}
 	}
 }
-
-// Deprecated
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void ARecastNavMesh::UpdateGenerationProperties(const FRecastNavMeshGenerationProperties& GenerationProps)
-{
-	TilePoolSize = GenerationProps.TilePoolSize;
-	TileSizeUU = GenerationProps.TileSizeUU;
-
-	CellSize = GenerationProps.CellSize;
-	CellHeight = GenerationProps.CellHeight;
-
-	AgentRadius = GenerationProps.AgentRadius;
-	AgentHeight = GenerationProps.AgentHeight;
-	AgentMaxSlope = GenerationProps.AgentMaxSlope;
-
-	AgentMaxStepHeight = GenerationProps.AgentMaxStepHeight;
-
-	MinRegionArea = GenerationProps.MinRegionArea;
-	MergeRegionSize = GenerationProps.MergeRegionSize;
-	MaxSimplificationError = GenerationProps.MaxSimplificationError;
-	TileNumberHardLimit = GenerationProps.TileNumberHardLimit;
-	RegionPartitioning = GenerationProps.RegionPartitioning;
-	LayerPartitioning = GenerationProps.LayerPartitioning;
-	RegionChunkSplits = GenerationProps.RegionChunkSplits;
-	LayerChunkSplits = GenerationProps.LayerChunkSplits;
-	bSortNavigationAreasByCost = GenerationProps.bSortNavigationAreasByCost;
-	bPerformVoxelFiltering = GenerationProps.bPerformVoxelFiltering;
-	bMarkLowHeightAreas = GenerationProps.bMarkLowHeightAreas;
-	bUseExtraTopCellWhenMarkingAreas = GenerationProps.bUseExtraTopCellWhenMarkingAreas;
-	bFilterLowSpanSequences = GenerationProps.bFilterLowSpanSequences;
-	bFilterLowSpanFromTileCache = GenerationProps.bFilterLowSpanFromTileCache;
-	bFixedTilePoolSize = GenerationProps.bFixedTilePoolSize;
-	bIsWorldPartitioned = GenerationProps.bIsWorldPartitioned;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool ARecastNavMesh::IsVoxelCacheEnabled()
 {
@@ -4043,18 +3915,6 @@ void ARecastNavMesh::RemoveTiles(const TArray<FIntPoint>& Tiles)
 			MyGenerator->RemoveTiles(Tiles);
 		}
 	}
-}
-
-// Deprecated
-void ARecastNavMesh::RebuildTile(const TArray<FIntPoint>& Tiles)
-{
-	TArray<FNavMeshDirtyTileElement> ActiveTiles;
-	ActiveTiles.Reserve(Tiles.Num());
-	for (const FIntPoint& Point : Tiles)
-	{
-		ActiveTiles.Add(FNavMeshDirtyTileElement{Point, TNumericLimits<FVector::FReal>::Max(), ENavigationInvokerPriority::Default});
-	}
-	RebuildTile(ActiveTiles);
 }
 
 void ARecastNavMesh::RebuildTile(const TArray<FNavMeshDirtyTileElement>& Tiles)
