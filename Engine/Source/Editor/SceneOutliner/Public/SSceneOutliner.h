@@ -246,7 +246,11 @@ public:
 		void Construct(const FArguments& InArgs, const FSceneOutlinerInitializationOptions& InitOptions);
 
 	/** Default constructor - initializes data that is shared between all tree items */
-	SSceneOutliner() : SharedData(MakeShareable(new FSharedSceneOutlinerData)) {}
+	SSceneOutliner() 
+		: SharedData(MakeShareable(new FSharedSceneOutlinerData)) 
+		, Filters(MakeShareable(new FSceneOutlinerFilters))
+		, InteractiveFilters(MakeShareable(new FSceneOutlinerFilters))
+	{}
 
 	/** SSceneOutliner destructor */
 	virtual ~SSceneOutliner();
@@ -597,7 +601,10 @@ private:
 				OnItemPassesFilters(Temporary);
 			}
 
-		bPassesFilters &= SearchBoxFilter->PassesFilter(Temporary);
+			if (SearchBoxFilter)
+			{
+				bPassesFilters &= SearchBoxFilter->PassesFilter(Temporary);
+			}
 			
 		if (bForce || bPassesFilters)
 		{
@@ -637,7 +644,12 @@ private:
 
 	bool PassesAllFilters(const FSceneOutlinerTreeItemPtr& Item) const
 	{
-		bool bPassesFilters = SearchBoxFilter->PassesFilter(*Item);
+		bool bPassesFilters = false;
+		
+		if (SearchBoxFilter)
+		{
+			bPassesFilters = SearchBoxFilter->PassesFilter(*Item);
+		}
 
 		if(FilterCollection)
 		{

@@ -54,9 +54,6 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 	// We use the filter collection provided, otherwise we create our own
 	Filters = InInitOptions.Filters.IsValid() ? InInitOptions.Filters : MakeShareable(new FSceneOutlinerFilters);
 
-	// The interactive filter collection
-	InteractiveFilters = MakeShareable(new FSceneOutlinerFilters);
-
 	OutlinerIdentifier = InInitOptions.OutlinerIdentifier;
 	
 	// Setup the SearchBox
