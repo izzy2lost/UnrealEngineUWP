@@ -286,7 +286,7 @@ namespace UE::ContentBrowser::Private
 			Set("ContentBrowser.AssetTileItem.HoverBorder", new FSlateRoundedBoxBrush(TransparentHover, 4.0f, FStyleColors::Hover, 1.0f));
 		}
 
-		Set("ContentBrowser.AssetTileItem.DropShadow", new CORE_BOX_BRUSH("Starship/ContentBrowser/drop-shadow", FMargin(4.0f / 64.0f)));
+		Set("ContentBrowser.AssetTileItem.DropShadow", new BOX_BRUSH("Starship/ContentBrowser/drop-shadow", FMargin(4.0f / 64.0f)));
 		Set("ContentBrowser.FolderItem.DropShadow", new IMAGE_BRUSH("Starship/ContentBrowser/folder-drop-shadow", FVector2D(256, 256)));
 
 		Set("ContentBrowser.ShowSourcesView", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/file-tree", CoreStyleConstants::Icon16x16));

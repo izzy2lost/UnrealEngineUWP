@@ -402,7 +402,7 @@ private:
 				{
 					if (IConsoleVariable* PostBuffersEnabled = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.CopyBackbufferToSlatePostRenderTargets")))
 					{
-						UE_LOG(LogUMGEditor, Warning, TEXT("Disabling Slate Post Buffers for multi-window PIE session, currently not supported."));
+						UE_LOG(LogUMGEditor, Log, TEXT("Disabling Slate Post Buffers for multi-window PIE session, currently not supported."));
 
 						bCachedArePostBuffersEnabled = PostBuffersEnabled->GetBool();
 						PostBuffersEnabled->Set(false);
