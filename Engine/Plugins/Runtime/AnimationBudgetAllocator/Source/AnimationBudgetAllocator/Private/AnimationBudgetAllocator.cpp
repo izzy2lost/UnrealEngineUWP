@@ -73,6 +73,7 @@ FAnimationBudgetAllocator::FAnimationBudgetAllocator(UWorld* InWorld)
 	SetParametersFromCVars();
 
 	OnWorldBeginPlayHandle = InWorld->OnWorldBeginPlay.AddRaw(this, &FAnimationBudgetAllocator::HandleWorldBeginPlay);
+	GarbageCollectStartedHandle = FCoreUObjectDelegates::GetGarbageCollectStartedDelegate().AddRaw(this, &FAnimationBudgetAllocator::HandleGarbageCollectStarted);
 	PostGarbageCollectHandle = FCoreUObjectDelegates::GetPostGarbageCollect().AddRaw(this, &FAnimationBudgetAllocator::HandlePostGarbageCollect);
 	OnWorldPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddRaw(this, &FAnimationBudgetAllocator::OnWorldPreActorTick);
 	OnCVarParametersChangedHandle = GOnCVarParametersChanged.AddRaw(this, &FAnimationBudgetAllocator::SetParametersFromCVars);
@@ -90,6 +91,8 @@ FAnimationBudgetAllocator::~FAnimationBudgetAllocator()
 	{
 		World->OnWorldBeginPlay.Remove(OnWorldBeginPlayHandle);
 	}
+
+	FCoreUObjectDelegates::GetGarbageCollectStartedDelegate().Remove(GarbageCollectStartedHandle);
 	FCoreUObjectDelegates::GetPostGarbageCollect().Remove(PostGarbageCollectHandle);
 	FWorldDelegates::OnWorldPreActorTick.Remove(OnWorldPreActorTickHandle);
 	GOnCVarParametersChanged.Remove(OnCVarParametersChangedHandle);
@@ -999,16 +1002,25 @@ void FAnimationBudgetAllocator::AddReferencedObjects(FReferenceCollector& Collec
 	}
 }
 
-void FAnimationBudgetAllocator::HandlePostGarbageCollect()
+void FAnimationBudgetAllocator::RemoveDeadComponents()
 {
-	// Remove dead components backwards, readjusting indices
 	for (int32 DataIndex = AllComponentData.Num() - 1; DataIndex >= 0; --DataIndex)
 	{
-		if (AllComponentData[DataIndex].Component == nullptr)
+		if (!IsValid(AllComponentData[DataIndex].Component))
 		{
 			RemoveHelper(DataIndex, nullptr);
 		}
 	}
+}
+
+void FAnimationBudgetAllocator::HandleGarbageCollectStarted()
+{
+	RemoveDeadComponents();
+}
+
+void FAnimationBudgetAllocator::HandlePostGarbageCollect()
+{
+	RemoveDeadComponents();
 }
 
 void FAnimationBudgetAllocator::SetGameThreadLastTickTimeMs(int32 InManagerHandle, float InGameThreadLastTickTimeMs)

@@ -163,6 +163,12 @@ protected:
 	/** We tick before all actors in the world using this delegate */
 	void OnWorldPreActorTick(UWorld* InWorld, ELevelTick InLevelTick, float InDeltaSeconds);
 
+	/** Remove dead components backwards, readjusting indices */
+	void RemoveDeadComponents();
+
+	/** Clean up dead components at the start of GC, but before Lock. */
+	void HandleGarbageCollectStarted();
+
 	/** Clean up dead components post GC */
 	void HandlePostGarbageCollect();
 
@@ -263,7 +269,10 @@ protected:
 	/** Throttle counter for delaying reduced work */
 	int32 ReducedComponentWorkCounter;
 
-	/** Handle used to track garbage collection */
+	/** Handle used to track start of garbage collection */
+	FDelegateHandle GarbageCollectStartedHandle;
+
+	/** Handle used to track post-garbage collection */
 	FDelegateHandle PostGarbageCollectHandle;
 
 	/** Handle used for ticking */
