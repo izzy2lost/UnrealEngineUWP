@@ -203,7 +203,7 @@ void FODSCManager::AddThreadedShaderPipelineRequest(
 
 void FODSCManager::RegisterMaterialInstance(const UMaterialInstance* MaterialInstance)
 {
-	if (IsODSCActive() && MaterialInstance->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+	if (IsODSCActive() && MaterialInstance->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 	{
 		FScopeLock Lock(&GODSCManager->MaterialInstancesCachedUniformExpressionsCS);
 		TWeakObjectPtr<const UMaterialInstance>& MaterialInstanceSoftPtr = GODSCManager->MaterialInstancesCachedUniformExpressions.FindOrAdd(MaterialInstance);
@@ -229,7 +229,7 @@ bool FODSCManager::HasAsyncLoadingInstances()
 	{
 		const UMaterialInstance* MI = Iter.Value().Get();
 
-		if (MI == nullptr || !MI->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+		if (MI == nullptr || !MI->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 		{
 			Iter.RemoveCurrent();
 			continue;

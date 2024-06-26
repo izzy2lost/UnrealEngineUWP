@@ -230,7 +230,7 @@ void FLevelStreamingGCHelper::VerifyLevelsGotRemovedByGC()
 					// But disregard package object itself.
 					&& !Object->IsA(UPackage::StaticClass()))
 				{
-					if (bIsAsyncLoading && Object->HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading))
+					if (bIsAsyncLoading && Object->HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags_AsyncLoading))
 					{
 						UE_LOG(LogGarbage, Display, TEXT("Level object %s isn't released by async loading yet, "
 							"it will get garbage collected next time instead."),

@@ -850,7 +850,7 @@ static void ConformComponentsUtils::ConformRemovedNativeComponents(UObject* BpCd
 		// else, the component has been removed from our native super class
 
 		Component->DestroyComponent(/*bPromoteChildren =*/false);
-		if (Component->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+		if (Component->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 		{
 			// Async loading components cannot be pending kill, or the async loading code will assert when trying to postload them.
 			Component->ClearGarbage();

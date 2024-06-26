@@ -4053,7 +4053,7 @@ void FAsyncPackage::Event_StartPostload()
 			FObjectExport& Export = Linker->ExportMap[LocalExportIndex];
 			UObject* Object = Export.Object;
 			checkSlow(!(Object && !ReferencedObjects.Contains(Object)));
-			if (Object && (Object->HasAnyFlags(RF_NeedPostLoad) || Object->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading)))
+			if (Object && (Object->HasAnyFlags(RF_NeedPostLoad) || Object->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading)))
 			{
 				check(Object->IsValidLowLevelFast());
 				LoadContext->AddLoadedObject(Object);
@@ -5563,7 +5563,7 @@ void FAsyncLoadingThread::NotifyConstructedDuringAsyncLoading(UObject* Object, b
 	// finished routing PostLoad to all objects.
 	if (!bSubObject)
 	{
-		Object->SetInternalFlags(EInternalObjectFlags::AsyncLoading);
+		Object->SetInternalFlags(EInternalObjectFlags_AsyncLoading);
 	}
 
 	FAsyncPackage* AsyncPackage = static_cast<FAsyncPackage*>(ThreadContext.AsyncPackage);
@@ -5737,7 +5737,7 @@ void FAsyncPackage::AddObjectReference(UObject* InObject)
 
 void FAsyncPackage::EmptyReferencedObjects()
 {
-	const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading;
+	const EInternalObjectFlags AsyncFlags = EInternalObjectFlags::Async | EInternalObjectFlags_AsyncLoading;
 	FScopeLock ReferencedObjectsLock(&ReferencedObjectsCritical);
 	for (UObject* Obj : ReferencedObjects)
 	{
@@ -7120,7 +7120,7 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 			UObject* Object = DeferredFinalizeObjects[DeferredFinalizeIndex++];
 			if (Object)
 			{
-				Object->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading);
+				Object->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading);
 			}
 
 			// CDO need special handling, no matter if it's listed in DeferredFinalizeObjects
@@ -7132,9 +7132,9 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 				CDOToHandle->GetDefaultSubobjects(CDODefaultSubobjects);
 				for (UObject* SubObject : CDODefaultSubobjects)
 				{
-					if (SubObject && SubObject->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+					if (SubObject && SubObject->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 					{
-						SubObject->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading);
+						SubObject->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading);
 					}
 				}
 				CDODefaultSubobjects.Reset();
@@ -7159,8 +7159,8 @@ EAsyncPackageState::Type FAsyncPackage::PostLoadDeferredObjects(double InTickSta
 		{
 			LastObjectWorkWasPerformedOn = LinkerRoot;
 			LastTypeOfWorkPerformed = TEXT("CreateClustersFromPackage");
-			LinkerRoot->AtomicallyClearInternalFlags(EInternalObjectFlags::AsyncLoading);
-			LinkerRoot->MarkAsFullyLoaded();			
+			LinkerRoot->AtomicallyClearInternalFlags(EInternalObjectFlags_AsyncLoading);
+			LinkerRoot->MarkAsFullyLoaded();
 			LinkerRoot->SetLoadTime((float)(FPlatformTime::Seconds() - LoadStartTime));
 
 			if (Linker)

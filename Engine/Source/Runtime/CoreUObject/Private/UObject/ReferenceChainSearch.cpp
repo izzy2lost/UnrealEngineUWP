@@ -1323,7 +1323,7 @@ FString FReferenceChainSearch::GetObjectFlags(const FGCObjectInfo& InObject)
 		Flags += TEXT("(async) ");
 	}
 
-	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 	{
 		Flags += TEXT("(asyncloading) ");
 	}

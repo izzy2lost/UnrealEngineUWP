@@ -1460,7 +1460,7 @@ bool UObject::CanModify() const
 	return
 		!HasAnyFlags(RF_NeedInitialization) && !IsGarbageCollecting() && !GExitPurge && !IsUnreachable() &&
 		// Prevent modification while loading
-		!HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags::AsyncLoading) &&
+		!HasAnyInternalFlags(EInternalObjectFlags::Async | EInternalObjectFlags_AsyncLoading) &&
 		// Only the game-thread should be allowed to touch the transaction buffer at all
 		IsInGameThread();
 }

@@ -2655,7 +2655,7 @@ void ULandscapeSplineSegment::PostInitProperties()
 
 #if WITH_EDITORONLY_DATA
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_NeedLoad) &&
-		!HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+		!HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 	{
 		// create a new random seed for all new objects
 		RandomSeed = FMath::Rand();

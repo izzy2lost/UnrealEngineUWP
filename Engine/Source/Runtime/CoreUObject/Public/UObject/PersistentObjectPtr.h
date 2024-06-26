@@ -242,7 +242,7 @@ private:
 	// For example, objects that are in the process of being async loaded may not be cached
 	inline bool CanCacheObjectPointer(const UObject* Ptr) const
 	{
-		if (IsInAsyncLoadingThread() && Ptr && Ptr->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+		if (IsInAsyncLoadingThread() && Ptr && Ptr->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 		{
 			return false;
 		}

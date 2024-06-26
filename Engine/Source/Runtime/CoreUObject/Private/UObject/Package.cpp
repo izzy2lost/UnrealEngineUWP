@@ -330,7 +330,7 @@ bool UPackage::IsFullyLoaded() const
 		return false;
 	}
 
-	if (HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+	if (HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading))
 	{
 		// If it's in the middle of an async load, don't make any changes and respect the current 'false' value of bHasBeenFullyLoaded
 		return false;

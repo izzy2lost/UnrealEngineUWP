@@ -660,7 +660,7 @@ void UActorModifierCoreBase::PostModifierWorldLoad(UWorld* InWorld, ELevelTick I
 	// Check actor is in the world loaded and does not need post load and is not in async loading
 	if (Actor
 		&& InWorld == Actor->GetWorld()
-		&& !Actor->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading)
+		&& !Actor->HasAnyInternalFlags(EInternalObjectFlags_AsyncLoading)
 		&& !Actor->HasAnyFlags(EObjectFlags::RF_NeedPostLoad)
 		&& !Actor->HasAnyFlags(EObjectFlags::RF_NeedPostLoadSubobjects))
 	{
