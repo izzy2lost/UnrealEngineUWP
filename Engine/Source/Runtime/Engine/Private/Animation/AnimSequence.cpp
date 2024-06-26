@@ -58,7 +58,9 @@ LLM_DEFINE_TAG(SequenceData);
 #include "Animation/AnimData/IAnimationDataModel.h"
 #include "Animation/BuiltInAttributeTypes.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Cooker/CookDeterminismHelper.h"
 #include "ProfilingDebugging/CookStats.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/MemoryHasher.h"
 #include "Misc/DataValidation.h"
 #endif // WITH_EDITOR
@@ -911,6 +913,32 @@ void UAnimSequence::GetPreloadDependencies(TArray<UObject*>& OutDeps)
 	}
 }
 
+#if WITH_EDITOR
+class FAnimSequenceDeterminismHelper : public UE::Cook::IDeterminismHelper
+{
+public:
+	FAnimSequenceDeterminismHelper(UAnimSequence* InAnimSequence)
+		: AnimSequence(InAnimSequence)
+	{
+	}
+
+	virtual void ConstructDiagnostics(UE::Cook::IDeterminismConstructDiagnosticsContext& Context) override
+	{
+		const FIoHash KeyHash = AnimSequence->CreateDerivedDataKeyHash(Context.GetTargetPlatform());
+
+		FCbWriter Writer;
+		Writer.BeginObject();
+		Writer << "DDCKey" << WriteToString<64>(KeyHash);
+		Writer.EndObject();
+
+		Context.AddDiagnostic("UAnimSequence", Writer.Save());
+	}
+
+private:
+	UAnimSequence* AnimSequence;
+};
+#endif
+
 void UAnimSequence::PreSave(const class ITargetPlatform* TargetPlatform)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
@@ -936,6 +964,11 @@ void UAnimSequence::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	if (!ObjectSaveContext.IsProceduralSave())
 	{
 		UpdateRetargetSourceAsset();
+	}
+
+	if (ObjectSaveContext.IsDeterminismDebug())
+	{
+		ObjectSaveContext.RegisterDeterminismHelper(new FAnimSequenceDeterminismHelper(this));
 	}
 #endif
 
