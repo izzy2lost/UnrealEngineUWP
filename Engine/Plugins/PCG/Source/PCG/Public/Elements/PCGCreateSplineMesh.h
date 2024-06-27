@@ -59,8 +59,11 @@ struct FPCGCreateSplineMeshContext : public FPCGContext, public IPCGAsyncLoading
 
 class FPCGCreateSplineMeshElement : public IPCGElement
 {
-protected:
+public:
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
+
+protected:
 	virtual FPCGContext* CreateContext() override;
 	virtual bool PrepareDataInternal(FPCGContext* InContext) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
