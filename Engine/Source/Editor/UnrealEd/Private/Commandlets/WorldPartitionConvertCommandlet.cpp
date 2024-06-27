@@ -1614,6 +1614,8 @@ int32 UWorldPartitionConvertCommandlet::Main(const FString& Params)
 	{
 		if (bGenerateIni || !FPlatformFileManager::Get().GetPlatformFile().FileExists(*LevelConfigFilename))
 		{
+			GConfig->AddNewBranch(LevelConfigFilename);
+	
 			SaveConfig(CPF_Config, *LevelConfigFilename);
 
 			if (!bOnlyMergeSubLevels)
