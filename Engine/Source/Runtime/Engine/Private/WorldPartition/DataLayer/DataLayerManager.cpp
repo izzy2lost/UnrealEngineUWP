@@ -295,8 +295,7 @@ bool UDataLayerManager::SetDataLayerInstanceRuntimeState(const UDataLayerInstanc
 {
 	if (InDataLayerInstance)
 	{
-		InDataLayerInstance->GetOuterWorldDataLayers()->SetDataLayerRuntimeState(InDataLayerInstance, InState, bInIsRecursive);
-		return true;
+		return InDataLayerInstance->GetOuterWorldDataLayers()->SetDataLayerRuntimeState(InDataLayerInstance, InState, bInIsRecursive);
 	}
 	UE_LOG(LogWorldPartition, Error, TEXT("Invalid Data Layer Instance."));
 	return false;

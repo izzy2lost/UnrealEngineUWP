@@ -347,38 +347,39 @@ EDataLayerUpdateFlags FDesiredLayerStates::Apply(FPreAnimatedDataLayerStorage* P
 				}
 
 				const EDataLayerRuntimeState DesiredStateValue = DesiredState.GetValue();
-				UDataLayerManager::GetDataLayerManager(DataLayer)->SetDataLayerInstanceRuntimeState(DataLayer, DesiredStateValue);
-
-				if (StateValue.ShouldFlushStreaming(DesiredStateValue) && !IsDataLayerReady(DataLayer, DesiredStateValue, true))
+				if (UDataLayerManager::GetDataLayerManager(DataLayer)->SetDataLayerInstanceRuntimeState(DataLayer, DesiredStateValue))
 				{
-					// Exception for Full flush is if Desired State is Activated but we are not at least in Loaded state
-					if (DesiredStateValue == EDataLayerRuntimeState::Activated && !IsDataLayerReady(DataLayer, EDataLayerRuntimeState::Loaded, false))
+					if (StateValue.ShouldFlushStreaming(DesiredStateValue) && !IsDataLayerReady(DataLayer, DesiredStateValue, true))
 					{
-						Flags |= EDataLayerUpdateFlags::FlushStreamingFull;
-						UE_LOG(LogMovieScene, Warning, TEXT("[UMovieSceneDataLayerSystem] Data layer with name '%s' is causing a full streaming flush (%s)"),
-							*DataLayer->GetDataLayerShortName(),
-							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+						// Exception for Full flush is if Desired State is Activated but we are not at least in Loaded state
+						if (DesiredStateValue == EDataLayerRuntimeState::Activated && !IsDataLayerReady(DataLayer, EDataLayerRuntimeState::Loaded, false))
+						{
+							Flags |= EDataLayerUpdateFlags::FlushStreamingFull;
+							UE_LOG(LogMovieScene, Warning, TEXT("[UMovieSceneDataLayerSystem] Data layer with name '%s' is causing a full streaming flush (%s)"),
+								*DataLayer->GetDataLayerShortName(),
+								*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
 							
-						CSV_EVENT_GLOBAL(TEXT("SeqDataLayerFlushFull-%s-%s"),
-							*DataLayer->GetDataLayerShortName(),
-							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
-					}
-					else
-					{
-						Flags |= EDataLayerUpdateFlags::FlushStreamingVisibility;
-						UE_LOG(LogMovieScene, Log, TEXT("[UMovieSceneDataLayerSystem] Data layer with name '%s' is causing a visibility streaming flush (%s)"),
-							*DataLayer->GetDataLayerShortName(),
-							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+							CSV_EVENT_GLOBAL(TEXT("SeqDataLayerFlushFull-%s-%s"),
+								*DataLayer->GetDataLayerShortName(),
+								*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+						}
+						else
+						{
+							Flags |= EDataLayerUpdateFlags::FlushStreamingVisibility;
+							UE_LOG(LogMovieScene, Log, TEXT("[UMovieSceneDataLayerSystem] Data layer with name '%s' is causing a visibility streaming flush (%s)"),
+								*DataLayer->GetDataLayerShortName(),
+								*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
 							
-						CSV_EVENT_GLOBAL(TEXT("SeqDataLayerFlushVis-%s-%s"),
-							*DataLayer->GetDataLayerShortName(),
-							*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+							CSV_EVENT_GLOBAL(TEXT("SeqDataLayerFlushVis-%s-%s"),
+								*DataLayer->GetDataLayerShortName(),
+								*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)DesiredStateValue).ToString());
+						}
 					}
-				}
 
-				if (StateValue.ShouldPerformGarbageCollect(DesiredStateValue))
-				{
-					Flags |= EDataLayerUpdateFlags::PerformGarbageCollect;
+					if (StateValue.ShouldPerformGarbageCollect(DesiredStateValue))
+					{
+						Flags |= EDataLayerUpdateFlags::PerformGarbageCollect;
+					}
 				}
 			}
 		}

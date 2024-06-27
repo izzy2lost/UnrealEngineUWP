@@ -179,11 +179,11 @@ void AWorldDataLayers::ResetDataLayerRuntimeStates()
 	AWORLDDATALAYERS_UPDATE_REPLICATED_DATALAYERS(RepEffectiveLoadedDataLayerNames, Empty);
 }
 
-void AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bInIsRecursive)
+bool AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bInIsRecursive)
 {
 	if (!InDataLayerInstance || !InDataLayerInstance->IsRuntime())
 	{
-		return;
+		return false;
 	}
 
 	const ENetMode NetMode = GetNetMode();
@@ -199,35 +199,53 @@ void AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InData
 	{
 		if (NetMode != NM_Standalone && NetMode != NM_Client)
 		{
-			UE_LOG(LogWorldPartition, Log, TEXT("Client Only Data Layer state change '%s' was ignored: %s -> %s"),
+			UE_LOG(LogWorldPartition, Verbose, TEXT("Client Only Data Layer state change '%s' was ignored: %s -> %s"),
 				*InDataLayerInstance->GetDataLayerShortName(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
-			return;
+			return false;
 		}
 	}
 	else if (bDataLayerServerOnly)
 	{
 		if (NetMode == NM_Client)
 		{
-			UE_LOG(LogWorldPartition, Log, TEXT("Server Only Data Layer state change '%s' was ignored: %s -> %s"),
+			UE_LOG(LogWorldPartition, Verbose, TEXT("Server Only Data Layer state change '%s' was ignored: %s -> %s"),
 				*InDataLayerInstance->GetDataLayerShortName(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
 				*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
-			return;
+			return false;
 		}
 	}
 	else if (NetMode == NM_Client)
 	{
-		UE_LOG(LogWorldPartition, Log, TEXT("Data Layer '%s' state change was ignored on client: %s -> %s"),
+		UE_LOG(LogWorldPartition, Verbose, TEXT("Data Layer '%s' state change was ignored on client: %s -> %s"),
 			*InDataLayerInstance->GetDataLayerShortName(),
 			*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
 			*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
-		return;
+		return false;
 	}
 
 	if (CurrentState != InState)
 	{
+		if (GetWorld()->IsGameWorld())
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (DataLayersFilterDelegate.IsBound())
+			{
+				const FString DataLayerShortName(InDataLayerInstance->GetDataLayerShortName());
+				if (!DataLayersFilterDelegate.Execute(FName(*DataLayerShortName), CurrentState, InState))
+				{
+					UE_LOG(LogWorldPartition, Verbose, TEXT("Data Layer '%s' state change was filtered out: %s -> %s"),
+						*DataLayerShortName,
+						*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
+						*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
+					return false;
+				}
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+
 		TargetLoadedDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
 		TargetActiveDataLayerNames.Remove(InDataLayerInstance->GetDataLayerFName());
 
@@ -268,6 +286,8 @@ void AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InData
 			return true;
 		});
 	}
+
+	return true;
 }
 
 void AWorldDataLayers::OnDataLayerRuntimeStateChanged_Implementation(const UDataLayerInstance* InDataLayer, EDataLayerRuntimeState InState)
