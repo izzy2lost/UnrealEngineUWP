@@ -15,7 +15,8 @@
 
 
 PP_NAME_STRUCT(, FName);
-PP_REFLECT_STRUCT_TEMPLATE(, TTuple, void, Key, Value) // Todo handle TTuple and higher arities
+PP_NAME_STRUCT_TEMPLATE(, TSet);
+PP_REFLECT_STRUCT_TEMPLATE(, TTuple, void, Key, Value); // Todo handle TTuple and higher arities
 
 namespace UE::Math
 {
@@ -421,7 +422,7 @@ struct TMapBinding : public TSetBinding<TPair<K, V>, KeyFuncs, SetAllocator>
 //////////////////////////////////////////////////////////////////////////
 
 //TODO: macroify, e.g PP_CUSTOM_BIND(PLAINPROPS_API, FTransform, Transform, Translate, Rotate, Scale)
-struct FTransformBinding : public ICustomBinding
+struct FTransformBinding : ICustomBinding
 {
 	using Type = FTransform;
 	inline static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
@@ -448,46 +449,57 @@ struct FTransformBinding : public ICustomBinding
 
 //////////////////////////////////////////////////////////////////////////
 
-struct FSetOps
+struct FSetDeltaOps
 {
 	union
 	{
-		struct
-		{
-			FMemberId Add;
-			FMemberId Del;
-			FMemberId Set;
-		};
-
-		FMemberId All[3];
+		FMemberId MemberIds[3] = {};
+		struct { FMemberId Add, Del, Set; } Ops;
 	};
 	
 	template<class Ids>	
-	static const FSetOps& Get()
+	void InitIds()
 	{
-		static FSetOps Ops = {Ids::IndexMember("Add"), Ids::IndexMember("Del"), Ids::IndexMember("Set")};
-		return Ops;
+		static FSetDeltaOps Cache = {.MemberIds = {Ids::IndexMember("Add"), Ids::IndexMember("Del"), Ids::IndexMember("Set")}};
+		*this = Cache;
 	}
 };
 
-template <class Ids, typename T>
-struct TSetDeltaBinding : public ICustomBinding
+template <typename T, typename KeyFuncs, typename SetAllocator>
+struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
 {
-	using Type = TSet<T>;
+	using Type = TSet<T, KeyFuncs, SetAllocator>;
 	static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
-	
-	static TConstArrayView<FMemberId> GetMemberIds() { return FSetOps::Get<Ids>().All; }
 
-	virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override;
-
-	virtual void LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
+	void Save(FMemberBuilder& Dst, const Type& Src, const Type* Default, const FSaveContext& Context) const
 	{
-		Type& Out = *static_cast<Type*>(Dst);
+		if (Default)
+		{
+			if (Default->IsEmpty())
+			{
+				// Todo: Add everything
+			}
+			else
+			{
+				// TODO: Range builder for missing items, iterate over defaults elements and check existence in Src
+				// Dst.AddRange(Ops.Del, MissingItems) if non-empty;
+
+				// TODO: Range builder for added items, iterate over defaults elements and check existence in Src
+			}
+		}
+		else
+		{
+			// Dst.AddRange(Ops.Set, );
+		}
+	}
+
+	inline void Load(Type& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const
+	{
 		FMemberReader Members(Src);
 
 		if (Method == ECustomLoadMethod::Construct)
 		{
-			::new (Dst) Type;
+			::new (&Dst) Type;
 		}
 				
 		if (!Members.HasMore())
@@ -495,40 +507,37 @@ struct TSetDeltaBinding : public ICustomBinding
 			return;
 		}
 
-		FSetOps Ops = FSetOps::Get<Ids>();
 		FMemberId Name = Members.PeekName().Get();
 		FRangeView Items = Members.GrabRange();
 		int32 NumItems = static_cast<int32>(Items.Num());
 		if (Name == Ops.Set)
 		{
-			Out.Empty(NumItems);
-			AddItems(Out, Items);
+			Dst.Empty(NumItems);
+			AddItems(Dst, Items, Batch);
 		}
 		else if (Name == Ops.Add)
 		{
-			Out.Reserve(Out.Num() + NumItems);
-			AddItems(Out, Items);
+			Dst.Reserve(Dst.Num() + NumItems);
+			AddItems(Dst, Items, Batch);
 		}
 		else if (Name == Ops.Del)
 		{
-			RemoveItems(Out, NumItems);
+			RemoveItems(Dst, Items);
 		
 			if (Members.HasMore())
 			{
 				check(Members.PeekName() == Ops.Add);
 				Items = Members.GrabRange();
-				Out.Reserve(Out.Num() + static_cast<int32>(Items.Num()));
-				AddItems(Out, Items);
+				Dst.Reserve(Dst.Num() + static_cast<int32>(Items.Num()));
+				AddItems(Dst, Items, Batch);
 			}
 		}
 		
 		check(!Members.HasMore());
 	}
 
-	virtual bool DiffCustom(const void* StructA, const void* StructB) const override
+	inline static bool Diff(const Type& A, const Type& B)
 	{
-		const Type& A = *static_cast<const Type*>(StructA);
-		const Type& B = *static_cast<const Type*>(StructB);
 		if (A.Num() != B.Num())
 		{
 			return false;
@@ -545,11 +554,11 @@ struct TSetDeltaBinding : public ICustomBinding
 		return true;
 	}
 
-	void AddItems(Type& Out, FRangeView Items, const FLoadBatch& Batch)
+	static void AddItems(Type& Out, FRangeView Items, const FLoadBatch& Batch)
 	{
 		check(!Items.IsEmpty());
 
-		if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
+		if constexpr (LeafType<T>)
 		{
 			for (T Item : Items.AsLeaves().As<T>())
 			{
@@ -561,11 +570,11 @@ struct TSetDeltaBinding : public ICustomBinding
 			FStructRangeView Structs = Items.AsStructs();
 			for (FStructView Item : Structs)
 			{
-				if constexpr (std::is_default_constructible_v<T>())
+				if constexpr (std::is_default_constructible_v<T>)
 				{
 					T Tmp;
 					PlainProps::LoadStruct(&Tmp, Item, Batch);	
-					Out.Emplace(MoveTemp(Item));
+					Out.Emplace(MoveTemp(Tmp));
 				}
 				else
 				{
@@ -577,22 +586,32 @@ struct TSetDeltaBinding : public ICustomBinding
 				}
 			}
 		}
-		else if constexpr (std::is_default_constructible_v<T>())
+		else // Nested range
 		{
-			using Binding = RangeBind<T>;
-			const IItemRangeBinding* Bindings[] = {};// ... generate somehow ... };
-			T Tmp;
-			for (FRangeView Item : Items.AsRanges())
+			using RangeBinding = RangeBind<T>;
+			if constexpr (std::is_default_constructible_v<T> && !std::is_void_v<RangeBinding>)
 			{
-				LoadRange(&Tmp, Item, Bindings, Batch);
-				Out.Emplace(MoveTemp(*Tmp));
+				static constexpr ERangeSizeType MaxSize = RangeSizeOf(typename RangeBinding::SizeType{});
+				//const IItemRangeBinding* Bindings[] = {};// TODO ... generate somehow ... ;
+				T Tmp;
+				for (FRangeView Item : Items.AsRanges())
+				{
+				//	LoadRange(&Tmp, Item, MaxSize, Bindings, Batch);
+				//	Out.Emplace(MoveTemp(*Tmp));
+				}
+			}
+			else
+			{
+				check(Items.IsNestedRange());
+				checkf(std::is_default_constructible_v<T>, TEXT("Ranges must be default-constructible"));
+				checkf(!std::is_void_v<RangeBinding>, TEXT("Inner range type unbound (no TRangeBind specialization)"));
 			}
 		}
-		else
-		{
-			check(Items.IsNestedRange());
-			checkf(false, TEXT("Ranges must be default-constructible"));
-		}
+	}
+
+	static void RemoveItems(Type& Out, FRangeView Items)
+	{
+		// TODO copy paste from AddItems or template AddItems -> ApplyItems<EOp::Add/Del>
 	}
 };
 
@@ -612,7 +631,7 @@ struct TSetDeltaBinding : public ICustomBinding
 //	};
 //
 //template <typename... Ts>
-//struct TVariantBinding : public ICustomBinding
+//struct TVariantBinding : ICustomBinding
 //{
 //	using VariantType = TVariant<Ts...>;
 //

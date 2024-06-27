@@ -249,7 +249,7 @@ static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FS
 	return Memcpy ? FLoadStructPlan(Memcpy.GetValue()) : MakeSchemaLoadPlan(From, To, ToMemberIds, ToStructIds, OutSubsetSchemas);
 }
 
-class FMemberlessDummyBinding : public ICustomBinding
+struct FMemberlessDummyBinding : ICustomBinding
 {
 	virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override { check(false); }
 	virtual void LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override { check(false);}

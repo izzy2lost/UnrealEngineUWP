@@ -243,9 +243,8 @@ enum ECustomLoadMethod { Construct, Assign };
 /// * custom delta semantics
 /// * other runtime representations than struct/class, e.g. serialize database
 /// * optimization for very common struct
-class ICustomBinding
+struct ICustomBinding
 {
-public:
 	virtual ~ICustomBinding() {}
 	virtual void				SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) = 0;
 	virtual void				LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const = 0;
@@ -631,7 +630,7 @@ FStructSchemaId BindCustomStructOnce()
 
 		FBinding()
 		{
-			FTypeId Name = Ids::IndexNativeType(CttiOf<Type>::Name);
+			FTypeId Name = IndexStructOrEnumType<CttiOf<Type>, Ids>();
 			Id = Ids::IndexStruct(Name);
 			CustomBinding::template InitIds<Ids>();
 			Runtime::GetTypes().DeclareStruct(Id, Name, CustomBinding::MemberIds, CustomBinding::Occupancy);

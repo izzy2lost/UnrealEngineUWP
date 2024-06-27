@@ -26,6 +26,7 @@ static TIdIndexer<FName>	GNames;
 static FDeclarations		GTypes(/* debug */ GNames);
 static FSchemaBindings		GSchemas(/* debug */ GNames);
 static FCustomBindings		GCustoms(/* debug */ GNames);
+static FCustomBindings		GDeltaCustoms(/* debug */ GNames, /* base*/ &GCustoms);
 
 struct FIds
 {
@@ -52,6 +53,34 @@ struct FDefaultRuntime
 	static FDeclarations&			GetTypes()			{ return GTypes; }
 	static FSchemaBindings&			GetSchemas()		{ return GSchemas; }
 	static FCustomBindings&			GetCustoms()		{ return GCustoms; }
+};
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+struct TCustomDeltaBind
+{
+	using Type = void;
+};
+
+template <typename T, typename KeyFuncs, typename SetAllocator>
+struct TCustomDeltaBind<TSet<T, KeyFuncs, SetAllocator>>
+{
+	using Type = UE::TSetDeltaBinding<T, KeyFuncs, SetAllocator>;
+};
+
+//template <typename K, typename V, typename SetAllocator, typename KeyFuncs>
+//struct TCustomDeltaBind<TMap<K, V, SetAllocator, KeyFuncs>>
+//{
+//	using Type = UE::TMapDeltaBinding<K, V, SetAllocator, KeyFuncs>;
+//};
+
+struct FDeltaRuntime : FDefaultRuntime
+{
+	template<class T> using CustomBindings = TCustomDeltaBind<T>;
+
+	static FCustomBindings&			GetCustoms()		{ return GDeltaCustoms; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -126,12 +155,12 @@ struct FNameDeclaration
 	}
 };
 
-struct FTestCustomBinding : public ICustomBinding
+struct FTestCustomBinding : ICustomBinding
 {
 	virtual FStructSchemaId GetId() const = 0;
 };
 
-struct FNameBinding : public FTestCustomBinding
+struct FNameBinding : FTestCustomBinding
 {
 	virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void*, const FSaveContext& Ctx) override
 	{
@@ -159,8 +188,6 @@ struct FNameBinding : public FTestCustomBinding
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
-inline constexpr uint32 Magics[] = { 0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887766, 0xF0F1F2F3 , 0x00112233};
 
 class FBatchSaver
 {
@@ -220,6 +247,8 @@ TConstArrayView<T> GrabNumAndArray(/* in-out */ FByteReader& It)
 	uint32 Num = It.Grab<uint32>();
 	return MakeArrayView(reinterpret_cast<const T*>(It.GrabBytes(Num * sizeof(T))), Num);
 }
+
+inline constexpr uint32 Magics[] = { 0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887766, 0xF0F1F2F3 , 0x00112233};
 
 TArray64<uint8> FBatchSaver::Write() const
 {
@@ -588,7 +617,7 @@ PP_REFLECT_STRUCT(PlainProps::UE::Test, FDelta, void, A, B, C, D, E);
 //	int Id = 0;
 //};
 //
-//struct FObjectReferenceBinding : public ICustomBinding
+//struct FObjectReferenceBinding : ICustomBinding
 //{
 //	using Type = FObject*;
 //
@@ -880,6 +909,12 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 				CHECK(Batch.Load<FDelta>() == FDelta{.D = {0}});
 				CHECK(Batch.Load<FDelta>() == FDelta{.E = "!!"});
 			});
+	}
+
+	SECTION("TSetDelta")
+	{
+		TScopedStructBinding<FInt> Int;
+		//TScopedStructBinding<FSets, EMemberPresence::AllowSparse, FDeltaRuntime> Sets;
 	}
 
 	SECTION("Transform")
