@@ -814,7 +814,7 @@ private:
 
 public:
 	/** The type of mouse action required by the user to trigger the button's 'Click' */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (ExposeOnSFpawn = true))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (ExposeOnSpawn = true))
 	TEnumAsByte<EButtonClickMethod::Type> ClickMethod;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
