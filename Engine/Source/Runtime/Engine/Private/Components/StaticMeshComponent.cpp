@@ -1129,6 +1129,16 @@ void UStaticMeshComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelCon
 	}
 }
 
+void UStaticMeshComponent::GetUsedTextures(TArray<UTexture*>& OutTextures, EMaterialQualityLevel::Type QualityLevel)
+{
+	if (MeshPaintTexture)
+	{
+		OutTextures.AddUnique(MeshPaintTexture);
+	}
+
+	Super::GetUsedTextures(OutTextures, QualityLevel);
+}
+
 UBodySetup* UStaticMeshComponent::GetBodySetup()
 {
 	if (GetStaticMesh())
