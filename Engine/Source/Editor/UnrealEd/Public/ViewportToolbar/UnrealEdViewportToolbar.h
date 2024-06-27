@@ -21,6 +21,10 @@ UNREALED_API bool ShowOldViewportToolbars();
 /** The value of this function is controlled by the CVAR "ToolMenusViewportToolbars". */
 UNREALED_API bool ShowNewViewportToolbars();
 
+UNREALED_API FToolMenuEntry CreateViewportToolbarTransformsSection();
+
+UNREALED_API FToolMenuEntry CreateViewportToolbarSelectionSection();
+
 UNREALED_API FText GetViewModesSubmenuLabel(TWeakPtr<SEditorViewport> InViewport);
 
 /**

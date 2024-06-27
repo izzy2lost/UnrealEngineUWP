@@ -6,15 +6,19 @@
 #include "DebugViewModeHelpers.h"
 #include "EditorViewportClient.h"
 #include "EditorViewportCommands.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "GPUSkinCache.h"
 #include "GPUSkinCacheVisualizationMenuCommands.h"
+#include "LevelEditorActions.h"
 #include "RayTracingDebugVisualizationMenuCommands.h"
 #include "SEditorViewport.h"
+#include "Settings/LevelEditorViewportSettings.h"
 #include "Templates/SharedPointer.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
 #include "ViewportToolbar/UnrealEdViewportToolbarContext.h"
+#include "Widgets/Input/SSpinBox.h"
 
 #define LOCTEXT_NAMESPACE "UnrealEdViewportToolbar"
 
@@ -43,6 +47,165 @@ bool ShowOldViewportToolbars()
 bool ShowNewViewportToolbars()
 {
 	return Private::CVarToolMenusViewportToolbarsValue >= 1;
+}
+
+FToolMenuEntry CreateViewportToolbarTransformsSection()
+{
+	return FToolMenuEntry::InitSubMenu(
+		"Transforms",
+		LOCTEXT("TransformsSubmenuLabel", "Transforms"),
+		LOCTEXT("TransformsSubmenuTooltip", "Viewport-related transforms tools"),
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* Submenu) -> void
+			{
+				{
+					FToolMenuSection& TransformToolsSection =
+						Submenu->FindOrAddSection("TransformTools", LOCTEXT("TransformToolsLabel", "Transform Tools"));
+
+					FToolMenuEntry SelectMode = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().SelectMode);
+					SelectMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+					SelectMode.SetShowInToolbarTopLevel(true);
+					TransformToolsSection.AddEntry(SelectMode);
+
+					FToolMenuEntry TranslateMode =
+						FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().TranslateMode);
+					TranslateMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+					TranslateMode.SetShowInToolbarTopLevel(true);
+					TransformToolsSection.AddEntry(TranslateMode);
+
+					FToolMenuEntry RotateMode = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RotateMode);
+					RotateMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+					RotateMode.SetShowInToolbarTopLevel(true);
+					TransformToolsSection.AddEntry(RotateMode);
+
+					FToolMenuEntry ScaleMode = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().ScaleMode);
+					ScaleMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+					ScaleMode.SetShowInToolbarTopLevel(true);
+					TransformToolsSection.AddEntry(ScaleMode);
+				}
+
+				{
+					FToolMenuSection& SpacesSection = Submenu->FindOrAddSection("Spaces", LOCTEXT("SpacesLabel", "Spaces"));
+
+					FToolMenuEntry WorldSpace =
+						FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RelativeCoordinateSystem_World);
+					WorldSpace.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+					WorldSpace.SetShowInToolbarTopLevel(true);
+					SpacesSection.AddEntry(WorldSpace);
+
+					FToolMenuEntry LocalSpace =
+						FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RelativeCoordinateSystem_Local);
+					LocalSpace.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+					LocalSpace.SetShowInToolbarTopLevel(true);
+					SpacesSection.AddEntry(LocalSpace);
+				}
+
+				{
+					FToolMenuSection& GizmoSection = Submenu->FindOrAddSection("Gizmo", LOCTEXT("GizmoLabel", "Gizmo"));
+
+					GizmoSection.AddMenuEntry(
+						FLevelEditorCommands::Get().ShowTransformWidget,
+						LOCTEXT("ShowTransformGizmoLabel", "Show Transform Gizmo")
+					);
+
+					TSharedRef<SWidget> GizmoScaleWidget =
+						// clang-format off
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.FillWidth(0.9f)
+						[
+							SNew(SSpinBox<int32>)
+								.MinValue(-10)
+								.MaxValue(150)
+								.ToolTipText_Lambda(
+									[]() -> FText
+									{
+										return FText::AsNumber(
+											GetDefault<ULevelEditorViewportSettings>()->TransformWidgetSizeAdjustment
+										);
+									}
+								)
+								.Value_Lambda(
+									[]() -> float
+									{
+										return GetDefault<ULevelEditorViewportSettings>()->TransformWidgetSizeAdjustment;
+									}
+								)
+								.OnValueChanged_Lambda(
+									[](float InValue)
+									{
+										ULevelEditorViewportSettings* ViewportSettings =
+											GetMutableDefault<ULevelEditorViewportSettings>();
+										ViewportSettings->TransformWidgetSizeAdjustment = InValue;
+										ViewportSettings->PostEditChange();
+									}
+								)
+						]
+						+ SHorizontalBox::Slot()
+						.FillWidth(0.1f);
+					// clang-format on
+					GizmoSection.AddEntry(FToolMenuEntry::InitWidget(
+						"GizmoScale", GizmoScaleWidget, LOCTEXT("GizmoScaleLabel", "Gizmo Scale")
+					));
+				}
+			}
+		)
+	);
+}
+
+FToolMenuEntry CreateViewportToolbarSelectionSection()
+{
+	return FToolMenuEntry::InitSubMenu(
+		"Select",
+		LOCTEXT("SelectonSubmenuLabel", "Select"),
+		LOCTEXT("SelectionSubmenuTooltip", "Viewport-related selection tools"),
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* Submenu) -> void
+			{
+				{
+					FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
+
+					UnnamedSection.AddMenuEntry(FGenericCommands::Get().SelectAll);
+					UnnamedSection.AddMenuEntry(FLevelEditorCommands::Get().SelectNone);
+					UnnamedSection.AddMenuEntry(FLevelEditorCommands::Get().InvertSelection);
+
+					UnnamedSection.AddSeparator("Advanced");
+
+					UnnamedSection.AddMenuEntry(FLevelEditorCommands::Get().SelectAllActorsOfSameClass);
+				}
+
+				{
+					FToolMenuSection& ByTypeSection =
+						Submenu->FindOrAddSection("ByTypeSection", LOCTEXT("ByTypeSectionLabel", "By Type"));
+
+					ByTypeSection.AddSubMenu(
+						"BSP",
+						LOCTEXT("BspLabel", "BSP"),
+						LOCTEXT("BspTooltip", "BSP-related tools"),
+						FNewToolMenuDelegate::CreateLambda(
+							[](UToolMenu* BspMenu)
+							{
+								FToolMenuSection& SelectAllSection = BspMenu->FindOrAddSection(
+									"SelectAllBSP", LOCTEXT("SelectAllBSPLabel", "Select All BSP")
+								);
+
+								SelectAllSection.AddMenuEntry(FLevelEditorCommands::Get().SelectAllAddditiveBrushes);
+								SelectAllSection.AddMenuEntry(FLevelEditorCommands::Get().SelectAllSubtractiveBrushes);
+								SelectAllSection.AddMenuEntry(FLevelEditorCommands::Get().SelectAllSurfaces);
+							}
+						)
+					);
+				}
+
+				{
+					FToolMenuSection& OptionsSection =
+						Submenu->FindOrAddSection("Options", LOCTEXT("OptionsLabel", "Options"));
+
+					OptionsSection.AddMenuEntry(FLevelEditorCommands::Get().AllowTranslucentSelection);
+				}
+			}
+		)
+	);
 }
 
 FText GetViewModesSubmenuLabel(TWeakPtr<SEditorViewport> InViewport)

@@ -17,10 +17,6 @@ namespace UE::LevelEditor
 
 bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
 
-FToolMenuEntry CreateViewportToolbarTransformsSection();
-
-FToolMenuEntry CreateViewportToolbarSelectionSection();
-
 TSharedPtr<FExtender> GetViewModesLegacyExtenders();
 void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InViewport);
 void ExtendViewModesSubmenu(FName InViewModesSubmenuName);

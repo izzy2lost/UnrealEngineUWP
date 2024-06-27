@@ -1926,14 +1926,14 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 
 				// Add the "Transforms" sub menu.
 				{
-					FToolMenuEntry TransformsSubmenu = UE::LevelEditor::CreateViewportToolbarTransformsSection();
+					FToolMenuEntry TransformsSubmenu = UE::UnrealEd::CreateViewportToolbarTransformsSection();
 					TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					LeftSection.AddEntry(TransformsSubmenu);
 				}
 
 				// Add the "Selection" sub menu.
 				{
-					FToolMenuEntry SelectionSubmenu = UE::LevelEditor::CreateViewportToolbarSelectionSection();
+					FToolMenuEntry SelectionSubmenu = UE::UnrealEd::CreateViewportToolbarSelectionSection();
 					SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					LeftSection.AddEntry(SelectionSubmenu);
 				}
