@@ -7,21 +7,35 @@
 #include "UObject/WeakObjectPtr.h"
 
 class UObject;
-namespace ENavigationDirtyFlag
+
+enum class ENavigationDirtyFlag : uint8
 {
-	enum Type : uint8;
-}
+	None				= 0,
+	Geometry			= (1 << 0),
+	DynamicModifier		= (1 << 1),
+	UseAgentHeight		= (1 << 2),
+	NavigationBounds	= (1 << 3),
+
+	All = Geometry | DynamicModifier, // all rebuild steps here without additional flags
+};
+ENUM_CLASS_FLAGS(ENavigationDirtyFlag);
 
 struct FNavigationDirtyArea
 {
 	FBox Bounds = FBox(ForceInit);
-	int32 Flags = 0;
 	TWeakObjectPtr<UObject> OptionalSourceObject;
+	ENavigationDirtyFlag Flags = ENavigationDirtyFlag::None;
 
-	FNavigationDirtyArea();
+	FNavigationDirtyArea() = default;
+	ENGINE_API FNavigationDirtyArea(const FBox& InBounds, ENavigationDirtyFlag InFlags, UObject* const InOptionalSourceObject = nullptr);
+
+	UE_DEPRECATED(5.5, "Use constructor taking ENavigationDirtyFlag instead.")
 	ENGINE_API FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject = nullptr);
 
-	FORCEINLINE bool HasFlag(ENavigationDirtyFlag::Type Flag) const { return (Flags & Flag) != 0; }
+	bool HasFlag(const ENavigationDirtyFlag Flag) const
+	{
+		return (Flags & Flag) != ENavigationDirtyFlag::None;
+	}
 
 	bool operator==(const FNavigationDirtyArea& Other) const
 	{ 

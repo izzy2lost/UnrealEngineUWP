@@ -916,8 +916,14 @@ public:
 	/** updates bounds of all components implementing INavRelevantInterface */
 	static NAVIGATIONSYSTEM_API void UpdateNavOctreeBounds(AActor* Actor);
 
+	NAVIGATIONSYSTEM_API void AddDirtyArea(const FBox& NewArea, ENavigationDirtyFlag Flags, const FName& DebugReason = NAME_None);
+	NAVIGATIONSYSTEM_API void AddDirtyArea(const FBox& NewArea, ENavigationDirtyFlag Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FName& DebugReason = NAME_None);
+	NAVIGATIONSYSTEM_API void AddDirtyAreas(const TArray<FBox>& NewAreas, ENavigationDirtyFlag Flags, const FName& DebugReason = NAME_None);
+	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag instead.")
 	NAVIGATIONSYSTEM_API void AddDirtyArea(const FBox& NewArea, int32 Flags, const FName& DebugReason = NAME_None);
+	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag instead.")
 	NAVIGATIONSYSTEM_API void AddDirtyArea(const FBox& NewArea, int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FName& DebugReason = NAME_None);
+	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag instead.")
 	NAVIGATIONSYSTEM_API void AddDirtyAreas(const TArray<FBox>& NewAreas, int32 Flags, const FName& DebugReason = NAME_None);
 	NAVIGATIONSYSTEM_API bool HasDirtyAreasQueued() const;
 	NAVIGATIONSYSTEM_API int32 GetNumDirtyAreas() const;
@@ -1272,8 +1278,9 @@ protected:
 	NAVIGATIONSYSTEM_API void UnregisterNavOctreeElement(UObject* ElementOwner, INavRelevantInterface* ElementInterface, int32 UpdateFlags);
 	
 	/** read element data from navigation octree */
+	NAVIGATIONSYSTEM_API bool GetNavOctreeElementData(const UObject& NodeOwner, ENavigationDirtyFlag& OutDirtyFlags, FBox& OutDirtyBounds);
+	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag& instead.")
 	NAVIGATIONSYSTEM_API bool GetNavOctreeElementData(const UObject& NodeOwner, int32& DirtyFlags, FBox& DirtyBounds);
-	//bool GetNavOctreeElementData(UObject* NodeOwner, int32& DirtyFlags, FBox& DirtyBounds);
 
 	/** Adds given element to NavOctree. No check for owner's validity are performed, 
 	 *	nor its presence in NavOctree - function assumes callee responsibility 

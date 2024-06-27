@@ -2,9 +2,12 @@
 
 #pragma once
 
-#include "UObject/ObjectMacros.h"
+#include "AI/Navigation/NavigationDirtyArea.h"
 #include "AI/Navigation/NavigationTypes.h"
 #include "AI/NavigationModifier.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "UObject/ObjectMacros.h"
+#endif //UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 
 struct FNavigationRelevantDataFilter 
 {
@@ -109,15 +112,21 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 	FORCEINLINE bool IsEmpty() const { return !HasGeometry() && !HasModifiers(); }
 	FORCEINLINE SIZE_T GetAllocatedSize() const { return CollisionData.GetAllocatedSize() + VoxelData.GetAllocatedSize() + Modifiers.GetAllocatedSize(); }
 	FORCEINLINE SIZE_T GetGeometryAllocatedSize() const { return CollisionData.GetAllocatedSize() + VoxelData.GetAllocatedSize(); }
-	FORCEINLINE int32 GetDirtyFlag() const
+	FORCEINLINE ENavigationDirtyFlag GetDirtyFlag() const
 	{
 		const bool bSetGeometryFlag = HasGeometry() || IsPendingLazyGeometryGathering() ||
 			Modifiers.GetFillCollisionUnderneathForNavmesh() || Modifiers.GetMaskFillCollisionUnderneathForNavmesh() ||
 			(Modifiers.GetNavMeshResolution() != ENavigationDataResolution::Invalid);
 		
-		return (bSetGeometryFlag ? ENavigationDirtyFlag::Geometry : 0) |
-			((HasDynamicModifiers() || NeedAnyPendingLazyModifiersGathering()) ? ENavigationDirtyFlag::DynamicModifier : 0) |
-			(Modifiers.HasAgentHeightAdjust() ? ENavigationDirtyFlag::UseAgentHeight : 0);
+		return (bSetGeometryFlag
+				? ENavigationDirtyFlag::Geometry
+				: ENavigationDirtyFlag::None)
+			| ((HasDynamicModifiers() || NeedAnyPendingLazyModifiersGathering())
+				? ENavigationDirtyFlag::DynamicModifier
+				: ENavigationDirtyFlag::None)
+			| (Modifiers.HasAgentHeightAdjust()
+				? ENavigationDirtyFlag::UseAgentHeight
+				: ENavigationDirtyFlag::None);
 	}
 
 	FORCEINLINE FCompositeNavModifier GetModifierForAgent(const struct FNavAgentProperties* NavAgent = nullptr) const

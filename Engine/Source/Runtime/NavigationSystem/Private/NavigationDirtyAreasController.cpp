@@ -115,17 +115,30 @@ void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArra
 	}
 }
 
+// Deprecated
 void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc /*= nullptr*/,
+	const FNavigationDirtyElement* DirtyElement /*= nullptr*/, const FName& DebugReason /*= NAME_None*/)
+{
+	AddAreas({NewArea}, static_cast<ENavigationDirtyFlag>(Flags), ObjectProviderFunc, DirtyElement, DebugReason);
+}
+
+// Deprecated
+void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAreas, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FNavigationDirtyElement* DirtyElement, const FName& DebugReason)
+{
+	AddAreas(NewAreas, static_cast<ENavigationDirtyFlag>(Flags), ObjectProviderFunc, DirtyElement, DebugReason);
+}
+
+void FNavigationDirtyAreasController::AddArea(const FBox& NewArea, const ENavigationDirtyFlag Flags, const TFunction<UObject*()>& ObjectProviderFunc /*= nullptr*/,
 	const FNavigationDirtyElement* DirtyElement /*= nullptr*/, const FName& DebugReason /*= NAME_None*/)
 {
 	AddAreas({NewArea}, Flags, ObjectProviderFunc, DirtyElement, DebugReason);
 }
 
-void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAreas, const int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FNavigationDirtyElement* DirtyElement, const FName& DebugReason)
+void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAreas, const ENavigationDirtyFlag Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FNavigationDirtyElement* DirtyElement, const FName& DebugReason)
 {
 #if !UE_BUILD_SHIPPING
 	// always keep track of reported areas even when filtered out by invalid area as long as flags are valid
-	bDirtyAreasReportedWhileAccumulationLocked = bDirtyAreasReportedWhileAccumulationLocked || (Flags > 0 && !bCanAccumulateDirtyAreas);
+	bDirtyAreasReportedWhileAccumulationLocked |= (Flags != ENavigationDirtyFlag::None) && !bCanAccumulateDirtyAreas;
 
 	checkf(NewAreas.Num() > 0, TEXT("All callers of this method are expected to provide at least one area."));
 #endif // !UE_BUILD_SHIPPING
@@ -220,7 +233,7 @@ void FNavigationDirtyAreasController::AddAreas(const TConstArrayView<FBox> NewAr
 		}
 #endif // !UE_BUILD_SHIPPING
 
-		if (Flags > 0 && bCanAccumulateDirtyAreas)
+		if (Flags != ENavigationDirtyFlag::None && bCanAccumulateDirtyAreas)
 		{
 			DirtyAreas.Add(FNavigationDirtyArea(NewArea, Flags, SourceObject));
 		}

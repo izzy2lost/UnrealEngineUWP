@@ -5,10 +5,10 @@
 #include "AI/NavigationSystemBase.h"
 #endif
 
-FNavigationDirtyArea::FNavigationDirtyArea(const FBox& InBounds, const int32 InFlags, UObject* const InOptionalSourceObject)
+FNavigationDirtyArea::FNavigationDirtyArea(const FBox& InBounds, const ENavigationDirtyFlag InFlags, UObject* const InOptionalSourceObject)
 	: Bounds(InBounds)
-	, Flags(InFlags)
 	, OptionalSourceObject(InOptionalSourceObject)
+	, Flags(InFlags)
 {
 #if !NO_LOGGING
 	if (!Bounds.IsValid || Bounds.ContainsNaN())
@@ -17,4 +17,10 @@ FNavigationDirtyArea::FNavigationDirtyArea(const FBox& InBounds, const int32 InF
 			Bounds.ContainsNaN() ? TEXT(" (contains NaN)") : TEXT(""), *Bounds.ToString(), *GetFullNameSafe(OptionalSourceObject.Get()));
 	}
 #endif //!NO_LOGGING
+}
+
+// Deprecated
+FNavigationDirtyArea::FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject /*= nullptr*/)
+	: FNavigationDirtyArea(InBounds, static_cast<ENavigationDirtyFlag>(InFlags), InOptionalSourceObject)
+{
 }

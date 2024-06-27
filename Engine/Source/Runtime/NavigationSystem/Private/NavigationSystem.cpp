@@ -2802,7 +2802,7 @@ void UNavigationSystemV1::RegisterCustomLink(INavLinkCustomInterface& CustomLink
 			const FBox LinkBounds = ComputeCustomLinkBounds(CustomLink);
 			if (LinkBounds.IsValid)
 			{
-				AddDirtyArea(LinkBounds, FNavigationOctreeController::OctreeUpdate_Modifiers);
+				AddDirtyArea(LinkBounds, ENavigationDirtyFlag::DynamicModifier);
 			}
 		}
 	}
@@ -3240,19 +3240,37 @@ void UNavigationSystemV1::UnregisterComponentToNavOctree(UActorComponent* Comp)
 	}
 }
 
+// Deprecated
 void UNavigationSystemV1::AddDirtyArea(const FBox& NewArea, int32 Flags, const FName& DebugReason /*= NAME_None*/)
+{
+	AddDirtyArea(NewArea, static_cast<ENavigationDirtyFlag>(Flags), DebugReason);
+}
+
+// Deprecated
+void UNavigationSystemV1::AddDirtyArea(const FBox& NewArea, int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FName& DebugReason /*= NAME_None*/)
+{
+	AddDirtyArea(NewArea, static_cast<ENavigationDirtyFlag>(Flags), ObjectProviderFunc, DebugReason);
+}
+
+// Deprecated
+void UNavigationSystemV1::AddDirtyAreas(const TArray<FBox>& NewAreas, int32 Flags, const FName& DebugReason /*= NAME_None*/)
+{ 
+	AddDirtyAreas(NewAreas, static_cast<ENavigationDirtyFlag>(Flags), DebugReason);
+}
+
+void UNavigationSystemV1::AddDirtyArea(const FBox& NewArea, const ENavigationDirtyFlag Flags, const FName& DebugReason /*= NAME_None*/)
 {
 	DefaultDirtyAreasController.AddArea(NewArea, Flags, nullptr, nullptr, DebugReason);
 }
 
-void UNavigationSystemV1::AddDirtyArea(const FBox& NewArea, int32 Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FName& DebugReason /*= NAME_None*/)
+void UNavigationSystemV1::AddDirtyArea(const FBox& NewArea, const ENavigationDirtyFlag Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FName& DebugReason /*= NAME_None*/)
 {
 	DefaultDirtyAreasController.AddArea(NewArea, Flags, ObjectProviderFunc, nullptr, DebugReason);
 }
 
-void UNavigationSystemV1::AddDirtyAreas(const TArray<FBox>& NewAreas, int32 Flags, const FName& DebugReason /*= NAME_None*/)
-{ 
-	if (Flags == 0)
+void UNavigationSystemV1::AddDirtyAreas(const TArray<FBox>& NewAreas, const ENavigationDirtyFlag Flags, const FName& DebugReason /*= NAME_None*/)
+{
+	if (Flags == ENavigationDirtyFlag::None)
 	{
 		return;
 	}
@@ -3285,9 +3303,18 @@ void UNavigationSystemV1::AddElementToNavOctree(const FNavigationDirtyElement& D
 	FNavigationDataHandler(DefaultOctreeController, DefaultDirtyAreasController).AddElementToNavOctree(DirtyElement);
 }
 
+bool UNavigationSystemV1::GetNavOctreeElementData(const UObject& NodeOwner, ENavigationDirtyFlag& OutDirtyFlags, FBox& OutDirtyBounds)
+{
+	return DefaultOctreeController.GetNavOctreeElementData(NodeOwner, OutDirtyFlags, OutDirtyBounds);
+}
+
+// Deprecated
 bool UNavigationSystemV1::GetNavOctreeElementData(const UObject& NodeOwner, int32& DirtyFlags, FBox& DirtyBounds)
 {
-	return DefaultOctreeController.GetNavOctreeElementData(NodeOwner, DirtyFlags, DirtyBounds);
+	ENavigationDirtyFlag TmpDirtyFlags = ENavigationDirtyFlag::None;
+	const bool bSuccess = GetNavOctreeElementData(NodeOwner, TmpDirtyFlags, DirtyBounds);
+	DirtyFlags = static_cast<int32>(TmpDirtyFlags);
+	return bSuccess;
 }
 
 void UNavigationSystemV1::UnregisterNavOctreeElement(UObject* ElementOwner, INavRelevantInterface* ElementInterface, int32 UpdateFlags)

@@ -64,34 +64,16 @@ namespace FNavigationSystem
 }
 
 UENUM()
-namespace ENavigationOptionFlag
+enum class ENavigationOptionFlag : uint8
 {
-	enum Type : int
-	{
-		Default,
-		Enable UMETA(DisplayName = "Yes"),	// UHT was complaining when tried to use True as value instead of Enable
-
-		Disable UMETA(DisplayName = "No"),
-
-		MAX UMETA(Hidden)
-	};
-}
+	Default,
+	Enable UMETA(DisplayName = "Yes"), // UHT was complaining when tried to use True as value instead of Enable
+	Disable UMETA(DisplayName = "No"),
+	MAX UMETA(Hidden)
+};
 
 //////////////////////////////////////////////////////////////////////////
 // Navigation data generation
-
-namespace ENavigationDirtyFlag
-{
-	enum Type : uint8
-	{
-		Geometry			= (1 << 0),
-		DynamicModifier		= (1 << 1),
-		UseAgentHeight		= (1 << 2),
-		NavigationBounds	= (1 << 3),
-
-		All				= Geometry | DynamicModifier,		// all rebuild steps here without additional flags
-	};
-}
 
 UENUM()
 enum class ENavDataGatheringModeConfig : uint8

@@ -32,6 +32,8 @@ struct FNavigationOctreeController
 	NAVIGATIONSYSTEM_API const FNavigationOctree* GetOctree() const;
 	NAVIGATIONSYSTEM_API FNavigationOctree* GetMutableOctree();
 	NAVIGATIONSYSTEM_API const FOctreeElementId2* GetObjectsNavOctreeId(const UObject& Object) const;
+	NAVIGATIONSYSTEM_API bool GetNavOctreeElementData(const UObject& NodeOwner, ENavigationDirtyFlag& OutDirtyFlags, FBox& OutDirtyBounds);
+	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag& instead.")
 	NAVIGATIONSYSTEM_API bool GetNavOctreeElementData(const UObject& NodeOwner, int32& DirtyFlags, FBox& DirtyBounds);
 	NAVIGATIONSYSTEM_API const FNavigationRelevantData* GetDataForObject(const UObject& Object) const;
 	NAVIGATIONSYSTEM_API FNavigationRelevantData* GetMutableDataForObject(const UObject& Object);

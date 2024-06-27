@@ -519,7 +519,7 @@ void UNavigationPath::EnableDebugDrawing(bool bShouldDrawDebugData, FLinearColor
 	}
 }
 
-void UNavigationPath::EnableRecalculationOnInvalidation(TEnumAsByte<ENavigationOptionFlag::Type> DoRecalculation)
+void UNavigationPath::EnableRecalculationOnInvalidation(const ENavigationOptionFlag DoRecalculation)
 {
 	if (DoRecalculation != RecalculateOnInvalidation)
 	{

@@ -10,7 +10,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogNavOctree, Warning, All);
 
 namespace UE::NavigationHelper::Private
 {
-	int32 GetDirtyFlag(int32 UpdateFlags, int32 DefaultValue)
+	ENavigationDirtyFlag GetDirtyFlag(const int32 UpdateFlags, const ENavigationDirtyFlag DefaultValue)
 	{
 		return ((UpdateFlags & FNavigationOctreeController::OctreeUpdate_Geometry) != 0) ? ENavigationDirtyFlag::All :
 			((UpdateFlags & FNavigationOctreeController::OctreeUpdate_Modifiers) != 0) ? ENavigationDirtyFlag::DynamicModifier :
@@ -51,7 +51,7 @@ void FNavigationDataHandler::RemoveNavOctreeElementId(const FOctreeElementId2& E
 		// mark area occupied by given element as dirty except if explicitly set to skip this default behavior
 		if (!ElementData.Data->bShouldSkipDirtyAreaOnAddOrRemove)
 		{
-			const int32 DirtyFlag = UE::NavigationHelper::Private::GetDirtyFlag(UpdateFlags, ElementData.Data->GetDirtyFlag());
+			const ENavigationDirtyFlag DirtyFlag = UE::NavigationHelper::Private::GetDirtyFlag(UpdateFlags, ElementData.Data->GetDirtyFlag());
 			DirtyAreasController.AddArea(ElementData.Bounds.GetBox(), DirtyFlag, [&ElementData] { return ElementData.Data->SourceObject.Get(); }, nullptr, "Remove from navoctree");
 		}
 
@@ -96,7 +96,7 @@ FSetElementId FNavigationDataHandler::RegisterNavOctreeElement(UObject& ElementO
 
 		if (bCanAdd)
 		{
-			FNavigationDirtyElement UpdateInfo(&ElementOwner, &ElementInterface, UE::NavigationHelper::Private::GetDirtyFlag(UpdateFlags, 0), DirtyAreasController.bUseWorldPartitionedDynamicMode);
+			FNavigationDirtyElement UpdateInfo(&ElementOwner, &ElementInterface, UE::NavigationHelper::Private::GetDirtyFlag(UpdateFlags, ENavigationDirtyFlag::None), DirtyAreasController.bUseWorldPartitionedDynamicMode);
 
 			SetId = OctreeController.PendingOctreeUpdates.FindId(UpdateInfo);
 			if (SetId.IsValidId())
@@ -180,7 +180,7 @@ void FNavigationDataHandler::AddElementToNavOctree(const FNavigationDirtyElement
 	}
 
 	// mark area occupied by given element as dirty except if explicitly set to skip this default behavior
-	const int32 DirtyFlag = DirtyElement.FlagsOverride ? DirtyElement.FlagsOverride : GeneratedData.Data->GetDirtyFlag();
+	const ENavigationDirtyFlag DirtyFlag = DirtyElement.FlagsOverride != ENavigationDirtyFlag::None ? DirtyElement.FlagsOverride : GeneratedData.Data->GetDirtyFlag();
 	if (GeneratedData.Data->bShouldSkipDirtyAreaOnAddOrRemove)
 	{
 		if (DirtyElement.ExplicitAreasToDirty.Num() > 0)
@@ -268,7 +268,7 @@ void FNavigationDataHandler::UpdateNavOctreeElement(UObject& ElementOwner, INavR
 
 	// grab existing octree data
 	FBox CurrentBounds;
-	int32 CurrentFlags;
+	ENavigationDirtyFlag CurrentFlags;
 	const bool bAlreadyExists = OctreeController.GetNavOctreeElementData(ElementOwner, CurrentFlags, CurrentBounds);
 
 	// don't invalidate pending requests
