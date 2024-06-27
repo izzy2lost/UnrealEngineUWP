@@ -49,3 +49,35 @@ FVector2D UAvaBroadcastLibrary::GetChannelViewportSize(const UObject* InWorldCon
 	
 	return FAvaBroadcastOutputChannel::GetDefaultMediaOutputSize(EAvaBroadcastChannelType::Program);
 }
+
+FName UAvaBroadcastLibrary::GetChannelName(const UObject* InWorldContextObject)
+{
+	if (const UAvaPlayable* Playable = UAvaPlayableLibrary::GetPlayable(InWorldContextObject))
+	{
+		if (const UAvaPlayableGroup* PlayableGroup = Playable->GetPlayableGroup())
+		{
+			return PlayableGroup->GetChannelName();
+		}
+	}
+	return NAME_None;
+}
+
+EAvaBroadcastChannelState UAvaBroadcastLibrary::GetChannelStatus(const FName InChannelName)
+{
+	const FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannel(InChannelName);
+	if (Channel.IsValidChannel())
+	{
+		return Channel.GetState();
+	}
+	return EAvaBroadcastChannelState::Offline;;
+}
+
+EAvaBroadcastChannelType UAvaBroadcastLibrary::GetChannelType(const FName InChannelName)
+{
+	const FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannel(InChannelName);
+	if (Channel.IsValidChannel())
+	{
+		return Channel.GetChannelType();
+	}
+	return EAvaBroadcastChannelType::Program;
+}
