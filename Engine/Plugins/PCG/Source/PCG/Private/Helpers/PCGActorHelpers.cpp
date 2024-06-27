@@ -358,7 +358,8 @@ bool UPCGActorHelpers::DeleteActors(UWorld* World, const TArray<TSoftObjectPtr<A
 		// the next GC to collect those packages
 		//
 		// The fix here is to create a dummy transaction so that the deleted actors are tracked but since we don't want to actually push a transaction, we cancel it after the DestroyActor calls
-		FScopedTransaction DummyTransaction(NSLOCTEXT("PCGActorHelpers", "DummyTransaction", "DummyTransaction"), World && !World->IsGameWorld() && ActorsToDelete.Num() > 0 && !GEditor->IsTransactionActive());
+		const bool bShouldTransact = World && !World->IsGameWorld() && ActorsToDelete.Num() > 0 && !GEditor->IsTransactionActive() && !GIsTransacting;
+		FScopedTransaction DummyTransaction(NSLOCTEXT("PCGActorHelpers", "DummyTransaction", "DummyTransaction"), bShouldTransact);
 #endif
 
 		// Not in editor, really unlikely to happen but might be slow
