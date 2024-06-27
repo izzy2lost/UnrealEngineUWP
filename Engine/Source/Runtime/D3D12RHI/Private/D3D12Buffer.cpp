@@ -504,7 +504,7 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 			FD3D12ResourceLocation NewLocation(Device);
 			Data = Adapter.GetUploadHeapAllocator(Device->GetGPUIndex()).AllocUploadResource(BufferSize, Buffer->BufferAlignment, NewLocation);
 
-			RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), TEXT("FD3D12DynamicRHI::LockBuffer"),
+			RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), FRHICommandListBase::EThreadFence::Enabled, TEXT("FD3D12DynamicRHI::LockBuffer"),
 			[
 				Resource = Buffer,
 				NewLocation = MoveTemp(NewLocation)
@@ -534,8 +534,6 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 #endif
 				Resource->RenameLDAChain(Contexts, NewLocation);
 			});
-
-			RHICmdList.RHIThreadFence(true);
 		}
 	}
 	else

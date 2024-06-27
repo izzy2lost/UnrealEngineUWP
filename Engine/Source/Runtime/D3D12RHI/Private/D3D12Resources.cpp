@@ -1709,7 +1709,7 @@ uint32 FD3D12Buffer::GetParentGPUIndex() const
 
 void FD3D12DynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
 {
-	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), TEXT("FD3D12DynamicRHI::RHIReplaceResources"),
+	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), FRHICommandListBase::EThreadFence::Enabled, TEXT("FD3D12DynamicRHI::RHIReplaceResources"),
 		[ReplaceInfos = MoveTemp(ReplaceInfos)](FD3D12ContextArray const& Contexts)
 		{
 			for (FRHIResourceReplaceInfo const& Info : ReplaceInfos)
@@ -1761,6 +1761,4 @@ void FD3D12DynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArr
 			}
 		}
 	);
-
-	RHICmdList.RHIThreadFence(true);
 }

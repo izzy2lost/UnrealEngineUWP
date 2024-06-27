@@ -593,9 +593,15 @@ public:
 	{
 		FRHICommandListBase::EnqueueLambda(TEXT("TRHILambdaCommand"), Forward<LAMBDA>(Lambda));
 	}
+	
+	enum class EThreadFence
+	{
+		Enabled,
+		Disabled
+	};
 
 	template <typename LAMBDA>
-	void EnqueueLambdaMultiPipe(ERHIPipeline Pipelines, const TCHAR* LambdaName, LAMBDA&& Lambda)
+	void EnqueueLambdaMultiPipe(ERHIPipeline Pipelines, EThreadFence ThreadFence, const TCHAR* LambdaName, LAMBDA&& Lambda)
 	{
 		checkf(IsTopOfPipe() || Bypass(), TEXT("Cannot enqueue a multi-pipe lambda from the bottom of pipe."));
 
@@ -620,6 +626,11 @@ public:
 		}
 
 		ActivatePipelines(OldPipeline);
+		
+		if (ThreadFence == EThreadFence::Enabled)
+		{
+			RHIThreadFence(true);
+		}
 	}
 
 	FORCEINLINE bool HasCommands() const

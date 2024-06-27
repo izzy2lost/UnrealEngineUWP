@@ -653,7 +653,7 @@ void FD3D12ContextCommon::ConditionalSplitCommandList()
 
 void FD3D12DynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
 {
-	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), TEXT("FD3D12DynamicRHI::RHIBeginFrame"),
+	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), FRHICommandListBase::EThreadFence::Enabled, TEXT("FD3D12DynamicRHI::RHIBeginFrame"),
 		[this](FD3D12ContextArray const& Contexts)
 		{
 			for (auto& Adapter : ChosenAdapters)

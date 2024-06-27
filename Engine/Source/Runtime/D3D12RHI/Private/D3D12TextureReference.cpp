@@ -89,7 +89,7 @@ void FD3D12DynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList
 	// @todo dev-pr - This should be refactored out when we eventually remove FRHITextureReference.
 	TRefCountPtr<FRHITextureReference> Ref = TextureRef;
 
-	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), TEXT("FD3D12DynamicRHI::RHIUpdateTextureReference"),
+	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), FRHICommandListBase::EThreadFence::Enabled, TEXT("FD3D12DynamicRHI::RHIUpdateTextureReference"),
 	[
 		TextureRef = MoveTemp(Ref),
 		NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture()
@@ -100,6 +100,4 @@ void FD3D12DynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList
 			It.GetFirst()->SwitchToNewTexture(Contexts, It.GetSecond());
 		}
 	});
-
-	RHICmdList.RHIThreadFence(true);
 }
