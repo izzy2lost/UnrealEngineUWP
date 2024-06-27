@@ -489,26 +489,6 @@ bool FGenericReadRequest::CheckForPrecache()
 	return false;
 }
 
-FFileOpenResult IPlatformFile::OpenRead(const TCHAR* Filename, IPlatformFile::EOpenReadFlags Flags)
-{
-	if (EnumHasAnyFlags(Flags, EOpenReadFlags::AllowDelete))
-	{
-		return MakeError(TEXTVIEW("The current IPlatformFile implementation does not support the EReadFlags::AllowDelete flag"));
-	}
-
-	const bool bWrite = EnumHasAnyFlags(Flags, EOpenReadFlags::AllowWrite);
-
-	IFileHandle* Handle = OpenRead(Filename, bWrite);
-	if (Handle != nullptr)
-	{
-		return MakeValue(Handle);
-	}
-	else
-	{
-		return MakeError(TEXTVIEW("[Unknown Error] Current IPlatformFile implementation does not support returning error messages"));
-	}
-}
-
 IAsyncReadFileHandle* IPlatformFile::OpenAsyncRead(const TCHAR* Filename)
 {
 	return new FGenericAsyncReadFileHandle(this, Filename);

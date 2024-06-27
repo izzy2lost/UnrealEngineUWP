@@ -1257,14 +1257,11 @@ IAsyncReadFileHandle* FWindowsPlatformFile::OpenAsyncRead(const TCHAR* Filename)
 }
 #endif
 
-FFileOpenResult FWindowsPlatformFile::OpenRead(const TCHAR* Filename, EOpenReadFlags Flags)
+IFileHandle* FWindowsPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWrite)
 {
-	const uint32  Access	= GENERIC_READ;
-	const uint32  WinFlags  =	FILE_SHARE_READ |
-								(EnumHasAnyFlags(Flags, EOpenReadFlags::AllowWrite) ? FILE_SHARE_WRITE : 0) |
-								(EnumHasAnyFlags(Flags, EOpenReadFlags::AllowDelete) ? FILE_SHARE_DELETE : 0);
-	const uint32  Create	= OPEN_EXISTING;
-
+	uint32  Access    = GENERIC_READ;
+	uint32  WinFlags  = FILE_SHARE_READ | (bAllowWrite ? FILE_SHARE_WRITE : 0);
+	uint32  Create    = OPEN_EXISTING;
 #define USE_OVERLAPPED_IO (!IS_PROGRAM && !WITH_EDITOR)		// Use straightforward synchronous I/O in cooker/editor
 
 	TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
@@ -1273,8 +1270,7 @@ FFileOpenResult FWindowsPlatformFile::OpenRead(const TCHAR* Filename, EOpenReadF
 	if (Handle != INVALID_HANDLE_VALUE)
 	{
 		TRACE_PLATFORMFILE_END_OPEN(Handle);
-		FAsyncBufferedFileReaderWindows* FileHandle = new FAsyncBufferedFileReaderWindows(Handle, Access, WinFlags, FILE_FLAG_OVERLAPPED);
-		return MakeValue(FileHandle);
+		return new FAsyncBufferedFileReaderWindows(Handle, Access, WinFlags, FILE_FLAG_OVERLAPPED);
 	}
 #else
 	HANDLE Handle = CreateFileW(*FNormalizedFilename(Filename), Access, WinFlags, NULL, Create, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -1288,33 +1284,19 @@ FFileOpenResult FWindowsPlatformFile::OpenRead(const TCHAR* Filename, EOpenReadF
 		// double check that the handle is valid before returning it
 		if (FileHandle->IsValid())
 		{
-			return MakeValue(FileHandle);
+			return FileHandle;
 		}
 		else
 		{
 			delete FileHandle;
-			return MakeError(TEXTVIEW("Failed to create FFileHandleWindows"));
+
+			return nullptr;
 		}
 	}
-#endif //USE_OVERLAPPED_IO
+#endif
 	else
 	{
 		TRACE_PLATFORMFILE_FAIL_OPEN(Filename);
-		return MakeError(TEXTVIEW("Failed to open file for reading"), FPlatformMisc::GetLastError());
-	}
-}
-
-IFileHandle* FWindowsPlatformFile::OpenRead(const TCHAR* Filename, bool bAllowWrite)
-{
-	const EOpenReadFlags Flags = bAllowWrite ? EOpenReadFlags::AllowWrite : EOpenReadFlags::None;
-
-	FFileOpenResult Result = OpenRead(Filename, Flags);
-	if (Result.IsValid())
-	{
-		return Result.StealValue().Release();
-	}
-	else
-	{
 		return nullptr;
 	}
 }

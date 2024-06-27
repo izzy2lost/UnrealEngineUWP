@@ -17,7 +17,6 @@
 #include "Misc/DateTime.h"
 #include "Misc/EnumClassFlags.h"
 #include "Templates/Function.h"
-#include "Templates/ValueOrError.h"
 
 class FArchive;
 class IAsyncReadFileHandle;
@@ -272,60 +271,6 @@ struct FFileJournalData
 	bool bIsDirectory : 1;
 };
 
-/** Stores custom error messages from the engine along with an optional system error code that can provider more detailed infomation */
-class FFileSystemError
-{
-public:
-	FFileSystemError() = delete;
-	UE_NONCOPYABLE(FFileSystemError);
-
-	explicit FFileSystemError(FString&& InErrorMessage, int32 InSystemErrorCode = 0)
-		: ErrorMessage(MoveTemp(InErrorMessage))
-		, SystemErrorCode(InSystemErrorCode)
-	{
-	}
-
-	explicit FFileSystemError(FStringView InErrorMessage, int32 InSystemErrorCode = 0)
-		: ErrorMessage(InErrorMessage)
-		, SystemErrorCode(InSystemErrorCode)
-	{
-	}
-
-	/** Return the error message, if a valid system error code was provided then this will be appended to the end of the message */
-	FString GetMessage()
-	{
-		if (SystemErrorCode != 0)
-		{
-			TCHAR FormattedErrorMsg[MAX_SPRINTF] = { 0 };
-			FPlatformMisc::GetSystemErrorMessage(FormattedErrorMsg, UE_ARRAY_COUNT(FormattedErrorMsg), SystemErrorCode);
-
-			return FString::Printf(TEXT("%s [%s (%d)]"), *ErrorMessage, FormattedErrorMsg, SystemErrorCode);
-		}
-		else
-		{
-			return ErrorMessage;
-		}
-	}
-
-	/** Return the error message, if a valid system error code was provided then this will be appended to the end of the message */
-	template <typename CharType>
-	friend inline TStringBuilderBase<CharType>& operator<<(TStringBuilderBase<CharType>& Builder, const FFileSystemError& Error)
-	{
-		TCHAR FormattedErrorMsg[MAX_SPRINTF] = { 0 };
-		FPlatformMisc::GetSystemErrorMessage(FormattedErrorMsg, UE_ARRAY_COUNT(FormattedErrorMsg), Error.SystemErrorCode);
-
-		Builder << Error.ErrorMessage << TEXT(" [") << FormattedErrorMsg << TEXT(" (") << Error.SystemErrorCode << TEXT(")]");
-		return Builder;
-	}
-
-private:
-	FString ErrorMessage;
-	int32 SystemErrorCode;
-};
-
-/** Data structure returned by calls to IPlatformFile::OpenRead */
-using FFileOpenResult = TValueOrError<TUniquePtr<IFileHandle>, FFileSystemError>;
-
 /**
 * File I/O Interface
 **/
@@ -481,34 +426,12 @@ public:
 	 */
 	virtual bool SetMarkOfTheWeb(FStringView Filename, bool bNewStatus, const FString* InSourceURL = nullptr) { return false; }
 
-	/** Flags to be used when opening a file for reading via IPlatformFile::OpenRead */
-	enum class EOpenReadFlags : uint8
-	{
-		None = 0,
-		/** Allow other handles/processes to write to this file. This flag is needed to open files that are currently being written to as well */
-		AllowWrite	= 1 << 0,
-		/** Allow the file to be deleted or renamed while keeping this handle valid for reading. */
-		AllowDelete = 1 << 1
-	};
-
-	/**
-	 * Open a file handle for reading.
-	 * 
-	 * @param Filename	The file to be opened
-	 * @param Flags		Allows specialization of the open operation, @see EReadFlags
-	 * 
-	 * @return	The return value will either contain the valid file handle or an error message. @see FFileOpenResult
-	 */
-	[[nodiscard]] CORE_API virtual FFileOpenResult OpenRead(const TCHAR* Filename, EOpenReadFlags Flags);
-
-	/**
-	 * Attempt to open a file for reading.
-	 * Please consider using the new overload that takes EReadFlags instead of bools as parameters.
+	/** Attempt to open a file for reading.
 	 *
 	 * @param Filename file to be opened
 	 * @param bAllowWrite (applies to certain platforms only) whether this file is allowed to be written to by other processes. This flag is needed to open files that are currently being written to as well.
 	 *
-	 * @return If successful will return a non-nullptr pointer. Close the file by deleting the handle.
+	 * @return If successful will return a non-nullptr pointer. Close the file by delete'ing the handle.
 	 */
 	virtual IFileHandle*	OpenRead(const TCHAR* Filename, bool bAllowWrite = false) = 0;
 
@@ -517,7 +440,8 @@ public:
 		return OpenRead(Filename, bAllowWrite);
 	}
 
-	/** Attempt to open a file for writing. If successful will return a non-nullptr pointer. Close the file by deleting the handle. **/
+
+	/** Attempt to open a file for writing. If successful will return a non-nullptr pointer. Close the file by delete'ing the handle. **/
 	virtual IFileHandle*	OpenWrite(const TCHAR* Filename, bool bAppend = false, bool bAllowRead = false) = 0;
 
 	/** Return true if the directory exists. **/
@@ -993,6 +917,3 @@ inline FFileJournalData::FFileJournalData()
 	, bIsDirectory(false)
 {
 }
-
-ENUM_CLASS_FLAGS(IPlatformFile::EOpenReadFlags);
-
