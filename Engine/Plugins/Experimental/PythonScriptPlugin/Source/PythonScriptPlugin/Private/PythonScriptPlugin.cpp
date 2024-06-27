@@ -41,6 +41,7 @@
 
 #if WITH_EDITOR
 #include "EditorSupportDelegates.h"
+#include "EditorUtilities/EditorPythonExecuter.h"
 #include "DesktopPlatformModule.h"
 #include "Styling/AppStyle.h"
 #include "Engine/Engine.h"
@@ -780,6 +781,10 @@ FSimpleMulticastDelegate& FPythonScriptPlugin::OnPythonShutdown()
 
 void FPythonScriptPlugin::StartupModule()
 {
+#if WITH_EDITOR
+	FEditorPythonExecuter::OnStartupModule();
+#endif
+
 	if (!IsPythonAvailable())
 	{
 		return;
@@ -831,6 +836,10 @@ void FPythonScriptPlugin::OnPostEngineInit()
 
 void FPythonScriptPlugin::ShutdownModule()
 {
+#if WITH_EDITOR
+	FEditorPythonExecuter::OnShutdownModule();
+#endif
+
 	if (!IsPythonAvailable())
 	{
 		return;

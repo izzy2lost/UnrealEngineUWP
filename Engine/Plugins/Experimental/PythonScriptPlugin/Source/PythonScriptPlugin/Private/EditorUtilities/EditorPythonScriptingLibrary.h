@@ -10,7 +10,7 @@
  * Utility class for Python scripting functionality.
  */
 UCLASS(meta=(ScriptName="EditorPythonScripting"))
-class EDITORSCRIPTINGUTILITIES_API UEditorPythonScriptingLibrary : public UBlueprintFunctionLibrary
+class UEditorPythonScriptingLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#if WITH_EDITOR
 
 /**
  * Class that will execute a Python script once the editor is ready.
@@ -15,3 +16,5 @@ public:
 	static void OnStartupModule();
 	static void OnShutdownModule();
 };
+
+#endif	// WITH_EDITOR

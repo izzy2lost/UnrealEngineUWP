@@ -2,17 +2,15 @@
 
 #include "EditorPythonExecuter.h"
 
-#include "AssetRegistry/AssetRegistryModule.h"
+#if WITH_EDITOR
+
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Editor.h"
 #include "EditorPythonScriptingLibrary.h"
+#include "IPythonScriptPlugin.h"
+#include "Misc/AsyncTaskNotification.h"
 #include "Misc/CommandLine.h"
 #include "TickableEditorObject.h"
-
-#include "Interfaces/IMainFrameModule.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Widgets/SWindow.h"
-#include "Widgets/Input/SButton.h"
-#include "Widgets/Text/STextBlock.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEditorPythonExecuter, Log, All);
 
@@ -20,115 +18,28 @@ DEFINE_LOG_CATEGORY_STATIC(LogEditorPythonExecuter, Log, All);
 
 namespace InternalEditorPythonRunner
 {
-	class SExecutingDialog;
 	class FExecuterTickable;
 
-	TSharedPtr<SExecutingDialog> ExecuterDialog = nullptr;
-	FExecuterTickable* Executer = nullptr;
+	TUniquePtr<FAsyncTaskNotification> Notification;
+	TUniquePtr<FExecuterTickable> Executer;
 
-	/*
-	 * Show a window to tell the user what is going on
-	 */
-	class SExecutingDialog : public SCompoundWidget
+	void CreateNotification(const FString& ScriptAndArgs)
 	{
-	public:
-		SLATE_BEGIN_ARGS(SExecutingDialog) {}
-		SLATE_END_ARGS()
+		FAsyncTaskNotificationConfig NotificationConfig;
+		NotificationConfig.TitleText = LOCTEXT("ExecutingPythonScript", "Executing Python Script...");
+		NotificationConfig.ProgressText = FText::AsCultureInvariant(ScriptAndArgs);
+		NotificationConfig.bCanCancel = true;
+		Notification = MakeUnique<FAsyncTaskNotification>(NotificationConfig);
+	}
 
-		/** Constructs this widget with InArgs */
-		void Construct(const FArguments& InArgs)
+	void DestroyNotification()
+	{
+		if (Notification)
 		{
-			ChildSlot
-			[
-				SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-				.Padding(FMargin(4, 8, 4, 4))
-				[
-					SNew(SVerticalBox)
-					+ SVerticalBox::Slot()
-					.Padding(16, 0)
-					.FillHeight(1.f)
-					.VAlign(VAlign_Center)
-					[
-						SNew(SVerticalBox)
-						+ SVerticalBox::Slot()
-						.AutoHeight()
-						.Padding(0, 0, 0, 8)
-						.HAlign(HAlign_Center)
-						[
-							SNew(STextBlock)
-							.Text(LOCTEXT("WaitPythonExecuting", "Please wait while Python is executing."))
-						]
-					]
-
-					// Cancel button
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					.Padding(0, 4)
-					.HAlign(HAlign_Right)
-					[
-						SNew(SButton)
-						.OnClicked(this, &SExecutingDialog::CancelClicked)
-						.Text(LOCTEXT("CancelButton", "Cancel"))
-					]
-				]
-			];
+			Notification->SetComplete(true);
+			Notification.Reset();
 		}
-
-		/** Opens the dialog in a new window */
-		static void OpenDialog()
-		{
-			if (FSlateApplication::IsInitialized())
-			{
-				TSharedRef<SWindow> PythonWindow = SNew(SWindow)
-					.Title(LOCTEXT("PythonWindowsDialog", "Executing Python..."))
-					.SizingRule(ESizingRule::Autosized)
-					.SupportsMaximize(false)
-					.SupportsMinimize(false)
-					[
-						SAssignNew(ExecuterDialog, SExecutingDialog)
-					];
-
-				IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
-
-				if (MainFrameModule.GetParentWindow().IsValid())
-				{
-					FSlateApplication::Get().AddWindowAsNativeChild(PythonWindow, MainFrameModule.GetParentWindow().ToSharedRef());
-				}
-				else
-				{
-					FSlateApplication::Get().AddWindow(PythonWindow);
-				}
-			}
-		}
-
-		/** Closes the dialog. */
-		void CloseDialog()
-		{
-			if (FSlateApplication::IsInitialized())
-			{
-				TSharedPtr<SWindow> Window = FSlateApplication::Get().FindWidgetWindow(AsShared());
-
-				if (Window.IsValid())
-				{
-					Window->RequestDestroyWindow();
-				}
-			}
-		}
-
-	private:
-		/** Handler for when "Cancel" is clicked */
-		FReply CancelClicked()
-		{
-			if (GEditor)
-			{
-				GEditor->CloseEditor();
-			}
-
-			CloseDialog();
-			return FReply::Handled();
-		}
-	};
+	}
 
 	/*
 	 * Tick until we are ready.
@@ -138,43 +49,63 @@ namespace InternalEditorPythonRunner
 	class FExecuterTickable : FTickableEditorObject
 	{
 	public:
-		FExecuterTickable(const FString& InFileName)
-			: FileName(InFileName)
+		FExecuterTickable(FString&& InScriptAndArgs, bool InErrorsAreFatal)
+			: ScriptAndArgs(MoveTemp(InScriptAndArgs))
+			, bErrorsAreFatal(InErrorsAreFatal)
 		{
-			GIsRunningUnattendedScript = true; // Prevent all dialog modal from showing up
 		}
 
 		virtual void Tick(float DeltaTime) override
 		{
+			if (IsExitRequested())
+			{
+				return;
+			}
+
+			if (Notification && Notification->GetPromptAction() == EAsyncTaskNotificationPromptAction::Cancel)
+			{
+				RequestExit();
+				return;
+			}
+
 			if (bIsRunning)
 			{
 				if (!UEditorPythonScriptingLibrary::GetKeepPythonScriptAlive())
 				{
-					CloseEditor();
+					RequestExit();
+					return;
 				}
 			}
 
 			// if we are here the editor is ready.
-			if (!IsEngineExitRequested() && !bIsRunning && GWorld && GEngine && GEditor && DeltaTime > 0 && GLog)
+			if (!bIsRunning && GWorld && GEngine && GEditor && DeltaTime > 0 && GLog)
 			{
-				if (!FileName.IsEmpty())
+				if (!ScriptAndArgs.IsEmpty())
 				{
 					// check if the AssetRegistryModule is ready
-					FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-					if (!AssetRegistryModule.Get().IsLoadingAssets())
+					if (!IAssetRegistry::GetChecked().IsLoadingAssets())
 					{
 						bIsRunning = true;
 
-						// Try and run the command
-						if (!GEngine->Exec(GWorld, *FString::Printf(TEXT("PY %s"), *FileName), *GLog))
+						FPythonCommandEx PythonCommand;
+						PythonCommand.Flags |= EPythonCommandFlags::Unattended; // Prevent all dialog modal from showing up
+						PythonCommand.Command = ScriptAndArgs;
+						if (!IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand))
 						{
-							UE_LOG(LogEditorPythonExecuter, Error, TEXT("-ExecutePythonScript cannot be used without a valid Python Script Plugin. Ensure the plugin is enabled and wasn't compiled with Python support stubbed out."));
+							if (bErrorsAreFatal)
+							{
+								UE_LOG(LogEditorPythonExecuter, Fatal, TEXT("Python script executed with errors"));
+							}
+							else
+							{
+								UE_LOG(LogEditorPythonExecuter, Error, TEXT("Python script executed with errors"));
+							}
 						}
 					}
 				}
 				else
 				{
-					CloseEditor();
+					RequestExit();
 				}
 			}
 		}
@@ -184,21 +115,27 @@ namespace InternalEditorPythonRunner
 			return TStatId();
 		}
 
-		void CloseEditor()
+	private:
+		void RequestExit()
 		{
-			if (ExecuterDialog.IsValid())
-			{
-				ExecuterDialog->CloseDialog();
-				ExecuterDialog = nullptr;
-			}
+			bExitRequested = true;
+			DestroyNotification();
 			if (GEngine)
 			{
 				GEngine->HandleDeferCommand(TEXT("QUIT_EDITOR"), *GLog); // Defer close the editor
 			}
 		}
 
-		FString FileName;
+		bool IsExitRequested() const
+		{
+			return bExitRequested || IsEngineExitRequested();
+		}
+
+		FString ScriptAndArgs;
+		bool bErrorsAreFatal = false;
+
 		bool bIsRunning = false;
+		bool bExitRequested = false;
 	};
 }
 
@@ -250,24 +187,27 @@ void FEditorPythonExecuter::OnStartupModule()
 		{
 			UE_LOG(LogEditorPythonExecuter, Error, TEXT("-ExecutePythonScript cannot be used by a commandlet."));
 		}
+		else if (!IPythonScriptPlugin::Get()->IsPythonAvailable())
+		{
+			UE_LOG(LogEditorPythonExecuter, Error, TEXT("-ExecutePythonScript cannot be used when Python support is disabled."));
+		}
 		else
 		{
-			InternalEditorPythonRunner::Executer = new InternalEditorPythonRunner::FExecuterTickable(MoveTemp(ScriptAndArgs));
-			InternalEditorPythonRunner::SExecutingDialog::OpenDialog();
+			IPythonScriptPlugin::Get()->OnPythonInitialized().AddLambda([ScriptAndArgs = MoveTemp(ScriptAndArgs), bScriptErrorsAreFatal = FParse::Param(FCommandLine::Get(), TEXT("ScriptErrorsAreFatal"))]() mutable
+			{
+				InternalEditorPythonRunner::CreateNotification(ScriptAndArgs);
+				InternalEditorPythonRunner::Executer = MakeUnique<InternalEditorPythonRunner::FExecuterTickable>(MoveTemp(ScriptAndArgs), bScriptErrorsAreFatal);
+			});
 		}
 	}
 }
 
 void FEditorPythonExecuter::OnShutdownModule()
 {
-	if (InternalEditorPythonRunner::ExecuterDialog.IsValid())
-	{
-		InternalEditorPythonRunner::ExecuterDialog->CloseDialog();
-		InternalEditorPythonRunner::ExecuterDialog = nullptr;
-	}
-
-	delete InternalEditorPythonRunner::Executer;
-	InternalEditorPythonRunner::Executer = nullptr;
+	InternalEditorPythonRunner::DestroyNotification();
+	InternalEditorPythonRunner::Executer.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE
+
+#endif	// WITH_EDITOR
