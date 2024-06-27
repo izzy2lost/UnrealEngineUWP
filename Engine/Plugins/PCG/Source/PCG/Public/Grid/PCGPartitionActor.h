@@ -41,6 +41,8 @@ public:
 	virtual void PostUnregisterAllComponents() override;
 #if WITH_EDITOR
 	virtual AActor* GetSceneOutlinerParent() const override;
+	virtual bool ShouldExport() override { return false; }
+	virtual bool ShouldImport(FStringView ActorPropString, bool IsMovingLevel) override { return false; }
 #endif
 	//~End AActor Interface
 
