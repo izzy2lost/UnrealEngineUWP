@@ -23,4 +23,12 @@ public:
     }
 
     int Value;
+
+	bool bHitOnComponentPhysicsStateChanged = false;
+
+	UFUNCTION()
+	ENGINE_API void OnComponentPhysicsStateChanged(UPrimitiveComponent* ChangedComponent, EComponentPhysicsStateChange StateChange)
+	{
+		bHitOnComponentPhysicsStateChanged = true;
+	}
 };

@@ -6,6 +6,7 @@
 #include "AutoRTFMTestActor.h"
 #include "AutoRTFMTestBodySetup.h"
 #include "AutoRTFMTestLevel.h"
+#include "AutoRTFMTestObject.h"
 #include "AutoRTFMTestPrimitiveComponent.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
@@ -198,6 +199,32 @@ bool FAutoRTFMActorComponentTests::RunTest(const FString & Parameters)
 
 	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
 	TEST_CHECK_TRUE(!Component->IsWelded());
+
+	TEST_CHECK_TRUE(!Component->IsRegistered());
+	Component->RegisterComponent();
+
+	UAutoRTFMTestObject* const Object = NewObject<UAutoRTFMTestObject>();
+
+	Component->OnComponentPhysicsStateChanged.AddDynamic(Object, &UAutoRTFMTestObject::OnComponentPhysicsStateChanged);
+
+	TEST_CHECK_TRUE(!Object->bHitOnComponentPhysicsStateChanged);
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->UnregisterComponent();
+			AutoRTFM::AbortTransaction();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	TEST_CHECK_TRUE(!Object->bHitOnComponentPhysicsStateChanged);
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Component->UnregisterComponent();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	TEST_CHECK_TRUE(Object->bHitOnComponentPhysicsStateChanged);
 
 	return true;
 }

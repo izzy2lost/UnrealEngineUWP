@@ -10,6 +10,7 @@
 #include "HAL/PlatformMath.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/ScopeLock.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/NameTypes.h"
@@ -103,7 +104,7 @@ private:
 	static COREUOBJECT_API FObjectListener SparseDelegateObjectListener;
 
 	/** Critical Section for locking access to the sparse delegate map */
-	static COREUOBJECT_API FCriticalSection SparseDelegateMapCritical;
+	static COREUOBJECT_API FTransactionallySafeCriticalSection SparseDelegateMapCritical;
 
 	/** Delegate map is a map of Delegate names to a shared pointer of the multicast script delegate */
 	typedef TMap<FName, TSharedPtr<FMulticastScriptDelegate>> FSparseDelegateMap;
