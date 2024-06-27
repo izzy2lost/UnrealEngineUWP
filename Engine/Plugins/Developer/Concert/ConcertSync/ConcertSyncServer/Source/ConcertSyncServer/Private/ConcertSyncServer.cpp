@@ -601,6 +601,7 @@ void FConcertSyncServer::DestroyLiveSession(const TSharedRef<IConcertServerSessi
 	{
 		DestroyWorkspace(LiveSession.ToSharedRef());
 		DestroySequencerManager(LiveSession.ToSharedRef());
+		DestroyReplicationManager(InSession->GetId());
 		LiveSessions.Remove(InSession->GetId());
 	}
 }
