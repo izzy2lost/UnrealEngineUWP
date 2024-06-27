@@ -50,5 +50,5 @@ protected:
 	UPROPERTY()
 	TMap<FPCGKernelAttributeKey, int32 /* Attribute Index */> GlobalAttributeLookupTable;
 
-	friend class FPCGGraphCompiler;
+	friend class FPCGGraphCompilerGPU;
 };
