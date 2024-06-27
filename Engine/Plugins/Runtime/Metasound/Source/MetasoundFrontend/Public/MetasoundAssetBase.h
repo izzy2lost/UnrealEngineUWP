@@ -324,8 +324,6 @@ public:
 		return Interfaces;
 	}
 
-	TUniquePtr<Metasound::IOperator> CreateOperator(const Metasound::FBuildOperatorParams& BuildOperatorParams, Metasound::FInputVertexInterfaceData& InputData) const;
-
 private:
 	
 	TSet<FMetasoundFrontendVersion> Interfaces;

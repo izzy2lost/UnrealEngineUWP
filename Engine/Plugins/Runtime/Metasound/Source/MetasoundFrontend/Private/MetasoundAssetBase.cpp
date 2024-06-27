@@ -1086,23 +1086,4 @@ FMetasoundAssetProxy::FMetasoundAssetProxy(const FMetasoundAssetProxy& Other)
 	Graph = Other.Graph;
 }
 
-TUniquePtr<Metasound::IOperator> FMetasoundAssetProxy::CreateOperator(const Metasound::FBuildOperatorParams& BuildOperatorParams, Metasound::FInputVertexInterfaceData& InputData) const
-{
-	using namespace Metasound;
-	if (ensure(Graph.IsValid()))
-	{
-		FBuildResults Results;
-		FBuildOperatorParams Params
-		{
-			*Graph.Get(),
-			BuildOperatorParams.OperatorSettings,
-			InputData,
-			BuildOperatorParams.Environment,
-			nullptr
-		};
-		return Graph->GetDefaultOperatorFactory()->CreateOperator(Params, Results);
-	}
-	return nullptr;
-}
-
 #undef LOCTEXT_NAMESPACE // "MetaSound"
