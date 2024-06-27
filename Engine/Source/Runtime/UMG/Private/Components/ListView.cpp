@@ -116,6 +116,16 @@ void UListView::SetSelectionMode(TEnumAsByte<ESelectionMode::Type> InSelectionMo
 	}
 }
 
+void UListView::SetScrollIntoViewAlignment (EScrollIntoViewAlignment NewScrollIntoViewAlignment)
+{
+	ScrollIntoViewAlignment = NewScrollIntoViewAlignment;
+	if (MyListView)
+	{
+		MyListView->SetScrollIntoViewAlignment(NewScrollIntoViewAlignment);
+	}
+}
+
+
 int32 UListView::BP_GetNumItemsSelected() const
 {
 	return GetNumItemsSelected();

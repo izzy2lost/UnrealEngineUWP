@@ -57,11 +57,17 @@ enum class EListItemAlignment : uint8
 UENUM(BlueprintType)
 enum class EScrollIntoViewAlignment : uint8
 {
+	/** Item will only be scrolled enough to be brought into view */
+	IntoView,
+
+	/** Always scroll the widget so it appears at the top/Left of the scrollable area. */
+	TopOrLeft,
+
 	/** Item will be aligned to the center of the view */
 	CenterAligned,
 
-	/** Item will only be scrolled enough to be brought into view */
-	IntoView,
+	/** Always scroll the widget so it appears at the bottom/Right of the scrollable area. */
+	BottomOrRight
 };
 
 DECLARE_DELEGATE_OneParam(

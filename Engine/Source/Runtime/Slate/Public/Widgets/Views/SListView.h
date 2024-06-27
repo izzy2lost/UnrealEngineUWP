@@ -2022,6 +2022,12 @@ public:
 		}
 	}
 
+	/* Sets ScrollIntoViewAlignment which allows to stick the selected item to either side or center */
+	void SetScrollIntoViewAlignment (EScrollIntoViewAlignment NewScrollIntoViewAlignment)
+	{
+		ScrollIntoViewAlignment = NewScrollIntoViewAlignment;
+	}
+
 	/**
 	 * Find a widget for this item if it has already been constructed.
 	 *
@@ -2120,7 +2126,9 @@ protected:
 				// When navigating, we don't want to scroll partially visible existing rows all the way to the center, so we count partially displayed indices in the displayed range
 				const double MinDisplayedIndex = bNavigateOnScrollIntoView ? FMath::FloorToDouble(CurrentScrollOffset) : FMath::CeilToDouble(CurrentScrollOffset);
 				const double MaxDisplayedIndex = bNavigateOnScrollIntoView ? FMath::CeilToDouble(CurrentScrollOffset + NumFullEntriesInView) : FMath::FloorToDouble(CurrentScrollOffset + NumFullEntriesInView);
-				if (IndexOfItem < MinDisplayedIndex || IndexOfItem > MaxDisplayedIndex)
+				if (IndexOfItem < MinDisplayedIndex || IndexOfItem > MaxDisplayedIndex || 
+					ScrollIntoViewAlignment == EScrollIntoViewAlignment::TopOrLeft || 
+					ScrollIntoViewAlignment == EScrollIntoViewAlignment::BottomOrRight)
 				{
 					// Scroll the top of the listview to the item in question
 					double NewScrollOffset = IndexOfItem;
@@ -2140,6 +2148,16 @@ protected:
 						}
 
 						// The alternative is that IndexOfItem < MinDisplayedIndex, and NewScrollOffset is already correct for that case
+						break;
+
+					case EScrollIntoViewAlignment::TopOrLeft:
+						// Set NewScrollOffset to exactly IndexOfItem to ensure it's at the top/left
+						NewScrollOffset = IndexOfItem;
+						break;
+
+					case EScrollIntoViewAlignment::BottomOrRight:
+						// Set NewScrollOffset to position the item at the bottom/right
+						NewScrollOffset = IndexOfItem - (NumLiveWidgets - 1.0);
 						break;
 					}
 

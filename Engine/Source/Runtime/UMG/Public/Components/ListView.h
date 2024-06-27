@@ -106,6 +106,10 @@ public:
 	/** Sets the new selection mode, preserving the current selection where possible. */
 	UFUNCTION(BlueprintCallable, Category = ListView)
 	UMG_API void SetSelectionMode(TEnumAsByte<ESelectionMode::Type> SelectionMode);
+	
+	/* Sets ScrollIntoViewAlignment which allows to stick the selected item to either side or center */
+	UFUNCTION(BlueprintCallable, Category = ListView)
+	UMG_API void SetScrollIntoViewAlignment (EScrollIntoViewAlignment NewScrollIntoViewAlignment);
 
 	/** Returns true if a refresh is pending and the list will be rebuilt on the next tick */
 	UFUNCTION(BlueprintCallable, Category = ListView)
@@ -166,6 +170,7 @@ protected:
 		Args.Orientation = Orientation;
 		Args.ListViewStyle = &WidgetStyle;
 		Args.ScrollBarStyle = &ScrollBarStyle;
+		Args.ScrollIntoViewAlignment = ScrollIntoViewAlignment;
 		MyListView = ITypedUMGListView<UObject*>::ConstructListView<ListViewT>(this, ListItems, Args);
 		
 		MyListView->SetOnEntryInitialized(SListView<UObject*>::FOnEntryInitialized::CreateUObject(this, &UListView::HandleOnEntryInitializedInternal));
@@ -202,6 +207,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = ListView)
 	bool bReturnFocusToSelection = false;
+
+	/** Sets where to scroll a widget to when using explicit navigation */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Scrolling)
+	EScrollIntoViewAlignment ScrollIntoViewAlignment = EScrollIntoViewAlignment::CenterAligned;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UObject>> ListItems;
