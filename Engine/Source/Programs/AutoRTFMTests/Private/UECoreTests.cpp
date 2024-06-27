@@ -797,6 +797,8 @@ TEST_CASE("UECore.FTextCache")
 
 				CheckCacheHealthy();
 			}
+		}
+	}
 }
 
 TEST_CASE("UECore.FUObjectItem")
