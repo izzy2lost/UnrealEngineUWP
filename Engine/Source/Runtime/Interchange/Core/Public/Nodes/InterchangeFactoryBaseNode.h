@@ -317,6 +317,12 @@ public:
 	INTERCHANGECORE_API void FillAllCustomAttributeFromObject(UObject* Object) const;
 
 	/**
+	 * Removes all custom attribute delegates registered for the provided class.
+	 * @param Class				The class used to pick which delegates to remove.
+	 */
+	INTERCHANGECORE_API void RemoveCustomAttributesForClass(UClass* Class);
+
+	/**
 	 * Copies all the custom attributes from SourceNode to this node, and
 	 * gets the appropriate values from Object.
 	 * @param SourceNode		The source factory node to copy from.

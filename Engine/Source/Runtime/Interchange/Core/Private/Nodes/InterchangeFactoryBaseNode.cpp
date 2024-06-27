@@ -288,6 +288,12 @@ void UInterchangeFactoryBaseNode::FillAllCustomAttributeFromObject(UObject* Obje
 	}
 }
 
+void UInterchangeFactoryBaseNode::RemoveCustomAttributesForClass(UClass* Class)
+{
+	ApplyCustomAttributeDelegates.Remove(Class);
+	FillCustomAttributeDelegates.Remove(Class);
+}
+
 UInterchangeFactoryBaseNode* UInterchangeFactoryBaseNode::DuplicateWithObject(const UInterchangeFactoryBaseNode* SourceNode, UObject* Object)
 {
 	UInterchangeFactoryBaseNode* CurrentNode = NewObject<UInterchangeFactoryBaseNode>(GetTransientPackage(), SourceNode->GetClass());
