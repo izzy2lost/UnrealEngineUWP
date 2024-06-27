@@ -442,11 +442,7 @@ namespace UnrealToUsd
 		TSet<FName>& OutPropertyPathsToRefresh
 	);
 
-	/**
-	 * Returns the attributes that in USD correspond to a property in UE.
-	 * The first one is the "main" attribute, when appropriate. e.g. for a RectLight prim and UnrealIdentifiers::IntensityPropertyName,
-	 * we'll receive intensity, exposure, width and height, in that order.
-	 */
+	UE_DEPRECATED(5.5, "This function has moved to the UsdUtils namespace")
 	USDUTILITIES_API TArray<UE::FUsdAttribute> GetAttributesForProperty(const UE::FUsdPrim& Prim, const FName& PropertyPath);
 
 	/**
@@ -500,5 +496,23 @@ namespace UnrealToUsd
 		bool bInvertFilter = false
 	);
 }	 // namespace UnrealToUsd
+
+namespace UsdUtils
+{
+	/**
+	 * Returns the attributes that in USD correspond to a property in UE.
+	 * The first one is the "main" attribute, when appropriate. e.g. for a RectLight prim and UnrealIdentifiers::IntensityPropertyName,
+	 * we'll receive intensity, exposure, width and height, in that order.
+	 */
+	USDUTILITIES_API TArray<UE::FUsdAttribute> GetAttributesForProperty(const UE::FUsdPrim& Prim, const FName& PropertyPath);
+
+	/**
+	 * Returns the names of UE properties that need to be written to, when reading an USD attribute.
+	 * Example: If AttrName is "inputs:radius" and Prim is a SphereLight, this will return [UnrealIdentifiers::SourceRadiusPropertyName];
+	 * 			If AttrName is "inputs:radius" and Prim is a DiskLight, this will return
+	 *          [UnrealIdentifiers::SourceWidthPropertyName, UnrealIdentifiers::SourceHeightPropertyName].
+	 */
+	USDUTILITIES_API TArray<FName> GetPropertiesForAttribute(const UE::FUsdPrim& Prim, const FString& AttrName);
+}
 
 #endif	  // #if USE_USD_SDK

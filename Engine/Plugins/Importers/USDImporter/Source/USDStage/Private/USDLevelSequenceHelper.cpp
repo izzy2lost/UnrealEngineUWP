@@ -1405,7 +1405,7 @@ void FUsdLevelSequenceHelperImpl::CreateSubSequenceSection(ULevelSequence& Seque
 	{
 		if (UE::FUsdPrim SequencePrim = UsdStage.GetPrimAtPath(UE::FSdfPath(*PrimPathsForSequence[0])))
 		{
-			TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(SequencePrim, UnrealIdentifiers::TransformPropertyName);
+			TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(SequencePrim, UnrealIdentifiers::TransformPropertyName);
 			if (Attrs.Num() > 0)
 			{
 				SubLayerOffset = UsdUtils::GetLayerToStageOffset(Attrs[0]);
@@ -1717,7 +1717,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 
 		// Get all *animated* attributes that may contribute to the transform
 		bool bAreAllMuted = true;
-		TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, UnrealIdentifiers::TransformPropertyName);
+		TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, UnrealIdentifiers::TransformPropertyName);
 		for (int32 Index = Attrs.Num() - 1; Index >= 0; --Index)
 		{
 			const UE::FUsdAttribute& Attr = Attrs[Index];
@@ -1796,7 +1796,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 		}
 	}
 
-	TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, UnrealIdentifiers::HiddenInGamePropertyName);
+	TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, UnrealIdentifiers::HiddenInGamePropertyName);
 	if (Attrs.Num() > 0)
 	{
 		UE::FUsdAttribute VisibilityAttribute = Attrs[0];
@@ -1821,7 +1821,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 				{
 					if (UsdUtils::HasAnimatedVisibility(ParentPrim))
 					{
-						TArray<UE::FUsdAttribute> ParentAttrs = UnrealToUsd::GetAttributesForProperty(
+						TArray<UE::FUsdAttribute> ParentAttrs = UsdUtils::GetAttributesForProperty(
 							ParentPrim,
 							UnrealIdentifiers::HiddenInGamePropertyName
 						);
@@ -2067,7 +2067,7 @@ void FUsdLevelSequenceHelperImpl::AddCameraTracks(const UUsdPrimTwin& PrimTwin, 
 
 	for (const FName& PropertyName : TrackedProperties)
 	{
-		TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, PropertyName);
+		TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, PropertyName);
 		if (Attrs.Num() < 1)
 		{
 			continue;
@@ -2191,7 +2191,7 @@ void FUsdLevelSequenceHelperImpl::AddLightTracks(const UUsdPrimTwin& PrimTwin, c
 		const FName& PropertyPath = Pair.Key;
 		ETrackType TrackType = Pair.Value;
 
-		TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, PropertyPath);
+		TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, PropertyPath);
 		if (Attrs.Num() < 1)
 		{
 			continue;
@@ -2537,7 +2537,7 @@ void FUsdLevelSequenceHelperImpl::AddVolumeTracks(const UUsdPrimTwin& PrimTwin, 
 	// Here we'll just get *any* of the filePath attrs from this Volume prim to check for the
 	// muted bool. We won't use the attribute itself for the baking though, as our timeSamples are already
 	// on the SparseVolumeTexture AssetUserData, and the keyframe values are just their indices
-	TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, PropertyPath);
+	TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(Prim, PropertyPath);
 	if (Attrs.Num() < 1)
 	{
 		return;
@@ -4004,7 +4004,7 @@ void FUsdLevelSequenceHelperImpl::HandleMovieSceneChange(UMovieScene& MovieScene
 	{
 		if (!UsdLevelSequenceHelperImpl::FindTrackTypeOrDerived<UMovieScenePropertyTrack>(&MovieScene, Guid, PropertyPath))
 		{
-			for (UE::FUsdAttribute& Attr : UnrealToUsd::GetAttributesForProperty(Prim, PropertyPath))
+			for (UE::FUsdAttribute& Attr : UsdUtils::GetAttributesForProperty(Prim, PropertyPath))
 			{
 				RemoveTimeSamplesForAttr(Attr);
 			}
@@ -4421,7 +4421,7 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 			{
 				const FName& PropertyPath = PropertyTrack->GetPropertyPath();
 
-				TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(UsdPrim, PropertyPath);
+				TArray<UE::FUsdAttribute> Attrs = UsdUtils::GetAttributesForProperty(UsdPrim, PropertyPath);
 				if (Attrs.Num() > 0)
 				{
 					// Only mute/unmute the first (i.e. main) attribute: If we mute the intensity track we don't want to also mute the

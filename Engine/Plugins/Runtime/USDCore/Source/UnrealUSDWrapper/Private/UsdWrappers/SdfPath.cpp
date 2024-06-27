@@ -220,10 +220,28 @@ namespace UE
 #endif	  // #if USE_USD_SDK
 	}
 
+	bool FSdfPath::IsPrimPath() const
+	{
+#if USE_USD_SDK
+		return Impl->PxrSdfPath.Get().IsPrimPath();
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
+
 	bool FSdfPath::IsAbsoluteRootOrPrimPath() const
 	{
 #if USE_USD_SDK
 		return Impl->PxrSdfPath.Get().IsAbsoluteRootOrPrimPath();
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
+
+	bool FSdfPath::IsPrimPropertyPath() const
+	{
+#if USE_USD_SDK
+		return Impl->PxrSdfPath.Get().IsPrimPropertyPath();
 #else
 		return false;
 #endif	  // #if USE_USD_SDK
@@ -269,6 +287,15 @@ namespace UE
 	{
 #if USE_USD_SDK
 		return FSdfPath(Impl->PxrSdfPath.Get().GetParentPath());
+#else
+		return FSdfPath();
+#endif	  // #if USE_USD_SDK
+	}
+
+	FSdfPath FSdfPath::GetPrimPath() const
+	{
+#if USE_USD_SDK
+		return FSdfPath(Impl->PxrSdfPath.Get().GetPrimPath());
 #else
 		return FSdfPath();
 #endif	  // #if USE_USD_SDK

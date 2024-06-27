@@ -915,57 +915,14 @@ bool UsdUtils::IsAnimated(const pxr::UsdPrim& Prim)
 
 	FScopedUsdAllocs UsdAllocs;
 
-	pxr::UsdGeomXformable Xformable(Prim);
-	if (Xformable)
+	if (HasAnimatedTransform(Prim))
 	{
-		std::vector<double> TimeSamples;
-		Xformable.GetTimeSamples(&TimeSamples);
-
-		if (TimeSamples.size() > 0)
-		{
-			return true;
-		}
-
-		// If this xformable has an op to reset the xform stack and one of its ancestors is animated, then we need to pretend
-		// its transform is also animated. This because that op effectively means "discard the parent transform and treat this
-		// as a direct world transform", but when reading we'll manually recompute the relative transform to its parent anyway
-		// (for simplicity's sake). If that parent (or any of its ancestors) is being animated, we'll need to recompute this
-		// for every animation keyframe, which basically means we're animated too
-		if (Xformable.GetResetXformStack())
-		{
-			pxr::UsdPrim AncestorPrim = Prim.GetParent();
-			while (AncestorPrim && !AncestorPrim.IsPseudoRoot())
-			{
-				if (pxr::UsdGeomXformable AncestorXformable{AncestorPrim})
-				{
-					std::vector<double> AncestorTimeSamples;
-					if (AncestorXformable.GetTimeSamples(&AncestorTimeSamples) && AncestorTimeSamples.size() > 0)
-					{
-						return true;
-					}
-
-					// The exception is if our ancestor also wants to reset its xform stack (i.e. its transform is meant to be
-					// used as the world transform). In this case we don't need to care about higher up ancestors anymore, as
-					// their transforms wouldn't affect below this prim anyway
-					if (AncestorXformable.GetResetXformStack())
-					{
-						break;
-					}
-				}
-
-				AncestorPrim = AncestorPrim.GetParent();
-			}
-		}
+		return true;
 	}
 
-	const std::vector<pxr::UsdAttribute>& Attributes = Prim.GetAttributes();
-	for (const pxr::UsdAttribute& Attribute : Attributes)
+	if (HasAnimatedAttributes(Prim))
 	{
-		std::vector<double> TimeSamples;
-		if (Attribute.GetTimeSamples(&TimeSamples) && TimeSamples.size() > 0)
-		{
-			return true;
-		}
+		return true;
 	}
 
 	if (pxr::UsdSkelSkeleton Skeleton{Prim})
@@ -1005,6 +962,83 @@ bool UsdUtils::IsAnimated(const pxr::UsdPrim& Prim)
 				{
 					return true;
 				}
+			}
+		}
+	}
+
+	return false;
+}
+
+bool UsdUtils::HasAnimatedAttributes(const pxr::UsdPrim& Prim)
+{
+	if (!Prim || !Prim.IsActive())
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	const std::vector<pxr::UsdAttribute>& Attributes = Prim.GetAttributes();
+	for (const pxr::UsdAttribute& Attribute : Attributes)
+	{
+		std::vector<double> TimeSamples;
+		if (Attribute.GetTimeSamples(&TimeSamples) && TimeSamples.size() > 0)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool UsdUtils::HasAnimatedTransform(const pxr::UsdPrim& Prim)
+{
+	if (!Prim || !Prim.IsActive())
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdGeomXformable Xformable(Prim);
+	if (Xformable)
+	{
+		std::vector<double> TimeSamples;
+		Xformable.GetTimeSamples(&TimeSamples);
+
+		if (TimeSamples.size() > 0)
+		{
+			return true;
+		}
+
+		// If this xformable has an op to reset the xform stack and one of its ancestors is animated, then we need to pretend
+		// its transform is also animated. This because that op effectively means "discard the parent transform and treat this
+		// as a direct world transform", but when reading we'll manually recompute the relative transform to its parent anyway
+		// (for simplicity's sake). If that parent (or any of its ancestors) is being animated, we'll need to recompute this
+		// for every animation keyframe, which basically means we're animated too
+		if (Xformable.GetResetXformStack())
+		{
+			pxr::UsdPrim AncestorPrim = Prim.GetParent();
+			while (AncestorPrim && !AncestorPrim.IsPseudoRoot())
+			{
+				if (pxr::UsdGeomXformable AncestorXformable{AncestorPrim})
+				{
+					std::vector<double> AncestorTimeSamples;
+					if (AncestorXformable.GetTimeSamples(&AncestorTimeSamples) && AncestorTimeSamples.size() > 0)
+					{
+						return true;
+					}
+
+					// The exception is if our ancestor also wants to reset its xform stack (i.e. its transform is meant to be
+					// used as the world transform). In this case we don't need to care about higher up ancestors anymore, as
+					// their transforms wouldn't affect below this prim anyway
+					if (AncestorXformable.GetResetXformStack())
+					{
+						break;
+					}
+				}
+
+				AncestorPrim = AncestorPrim.GetParent();
 			}
 		}
 	}

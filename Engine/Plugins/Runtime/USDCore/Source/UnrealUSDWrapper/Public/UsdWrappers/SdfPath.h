@@ -65,7 +65,9 @@ namespace UE
 		bool IsEmpty() const noexcept;
 
 		bool IsAbsoluteRootPath() const;
+		bool IsPrimPath() const;
 		bool IsAbsoluteRootOrPrimPath() const;
+		bool IsPrimPropertyPath() const;
 		FString GetName() const;
 		FString GetElementString() const;
 		FSdfPath GetAbsoluteRootOrPrimPath() const;
@@ -73,6 +75,7 @@ namespace UE
 		FSdfPath ReplaceName(const TCHAR* NewLeafName) const;
 
 		FSdfPath GetParentPath() const;
+		FSdfPath GetPrimPath() const;
 		FSdfPath AppendPath(const UE::FSdfPath& NewRelativeSuffix) const;
 		FSdfPath AppendChild(const TCHAR* ChildName) const;
 		FSdfPath AppendProperty(FName PropertyName) const;

@@ -5316,6 +5316,11 @@ bool UnrealToUsd::ConvertXformable(
 
 TArray<UE::FUsdAttribute> UnrealToUsd::GetAttributesForProperty(const UE::FUsdPrim& Prim, const FName& PropertyPath)
 {
+	return UsdUtils::GetAttributesForProperty(Prim, PropertyPath);
+}
+
+TArray<UE::FUsdAttribute> UsdUtils::GetAttributesForProperty(const UE::FUsdPrim& Prim, const FName& PropertyPath)
+{
 	using namespace UnrealIdentifiers;
 
 	FScopedUsdAllocs Allocs;
@@ -5543,6 +5548,93 @@ TArray<UE::FUsdAttribute> UnrealToUsd::GetAttributesForProperty(const UE::FUsdPr
 		if (pxr::UsdMediaSpatialAudio Audio{Prim})
 		{
 			return {UE::FUsdAttribute{Audio.GetGainAttr()}};
+		}
+	}
+
+	return {};
+}
+
+TArray<FName> UsdUtils::GetPropertiesForAttribute(const UE::FUsdPrim& Prim, const FString& AttrName)
+{
+	using namespace UnrealIdentifiers;
+
+	// Note: This function may seem confusing and "backwards", but it is correct.
+	// The logic here is essentially "If this attribute is animated, which tracks do I need to generate?"
+
+	FScopedUsdAllocs Allocs;
+	pxr::UsdPrim UsdPrim{Prim};
+
+	pxr::TfToken AttrToken = UnrealToUsd::ConvertToken(*AttrName).Get();
+
+	// First check the standard cases, which should be the most common
+	// clang-format off
+	const static std::unordered_map<pxr::TfToken, TArray<FName>, pxr::TfHash> StandardMapping = {
+		{pxr::UsdGeomTokens->visibility, 					{HiddenInGamePropertyName}},
+
+		{pxr::UsdGeomTokens->focalLength, 					{CurrentFocalLengthPropertyName}},
+		{pxr::UsdGeomTokens->focusDistance, 				{ManualFocusDistancePropertyName}},
+		{pxr::UsdGeomTokens->fStop, 						{CurrentAperturePropertyName}},
+		{pxr::UsdGeomTokens->horizontalAperture, 			{SensorWidthPropertyName}},
+		{pxr::UsdGeomTokens->verticalAperture, 				{SensorHeightPropertyName}},
+
+		{pxr::UsdLuxTokens->inputsIntensity, 				{IntensityPropertyName}},
+		{pxr::UsdLuxTokens->inputsExposure, 				{IntensityPropertyName}}, // In USD true intensity is just a function of "intensity" and "exposure"
+		{pxr::UsdLuxTokens->inputsColor, 					{LightColorPropertyName}},
+		{pxr::UsdLuxTokens->inputsColorTemperature, 		{TemperaturePropertyName}},
+		{pxr::UsdLuxTokens->inputsEnableColorTemperature, 	{UseTemperaturePropertyName}},
+	};
+	// clang-format on
+	std::unordered_map<pxr::TfToken, TArray<FName>, pxr::TfHash>::const_iterator Iter = StandardMapping.find(AttrToken);
+	if (Iter != StandardMapping.end())
+	{
+		return Iter->second;
+	}
+
+	// Check to see if it's one of the edge cases that depends on the prim type.
+	if (AttrToken == pxr::UsdLuxTokens->inputsRadius)
+	{
+		if (UsdPrim.IsA<pxr::UsdLuxSphereLight>())
+		{
+			return {SourceRadiusPropertyName, IntensityPropertyName};
+		}
+		else if (UsdPrim.IsA<pxr::UsdLuxDiskLight>())
+		{
+			return {SourceWidthPropertyName, SourceHeightPropertyName, IntensityPropertyName};
+		}
+	}
+	else if (AttrToken == pxr::UsdLuxTokens->inputsWidth)
+	{
+		if (UsdPrim.IsA<pxr::UsdLuxRectLight>())
+		{
+			return {SourceWidthPropertyName, IntensityPropertyName};
+		}
+	}
+	else if (AttrToken == pxr::UsdLuxTokens->inputsHeight)
+	{
+		if (UsdPrim.IsA<pxr::UsdLuxRectLight>())
+		{
+			return {SourceHeightPropertyName, IntensityPropertyName};
+		}
+	}
+	else if (AttrToken == pxr::UsdLuxTokens->inputsAngle)
+	{
+		if (UsdPrim.IsA<pxr::UsdLuxDistantLight>())
+		{
+			return {LightSourceAnglePropertyName};
+		}
+	}
+	else if (AttrToken == pxr::UsdLuxTokens->inputsShapingConeAngle)
+	{
+		if (UsdPrim.IsA<pxr::UsdLuxSphereLight>() && UsdPrim.HasAPI<pxr::UsdLuxShapingAPI>())
+		{
+			return {OuterConeAnglePropertyName, IntensityPropertyName};
+		}
+	}
+	else if (AttrToken == pxr::UsdLuxTokens->inputsShapingConeSoftness)
+	{
+		if (UsdPrim.IsA<pxr::UsdLuxSphereLight>() && UsdPrim.HasAPI<pxr::UsdLuxShapingAPI>())
+		{
+			return {InnerConeAnglePropertyName, IntensityPropertyName};
 		}
 	}
 

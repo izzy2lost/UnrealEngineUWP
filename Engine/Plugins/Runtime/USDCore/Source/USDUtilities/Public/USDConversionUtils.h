@@ -252,6 +252,8 @@ namespace UsdUtils
 	}
 
 	USDUTILITIES_API bool IsAnimated(const pxr::UsdPrim& Prim);
+	USDUTILITIES_API bool HasAnimatedAttributes(const pxr::UsdPrim& Prim);
+	USDUTILITIES_API bool HasAnimatedTransform(const pxr::UsdPrim& Prim);
 	USDUTILITIES_API bool HasAnimatedVisibility(const pxr::UsdPrim& Prim);
 
 	/**

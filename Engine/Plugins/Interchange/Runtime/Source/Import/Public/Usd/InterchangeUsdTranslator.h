@@ -14,6 +14,7 @@
 
 #include "InterchangeUsdTranslator.generated.h"
 
+enum class EUsdInterpolationType : uint8;
 namespace UE::InterchangeUsdTranslator::Private
 {
 	class UInterchangeUSDTranslatorImpl;
@@ -51,6 +52,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "USD Translator")
 	FName MaterialPurpose;
 
+	/** Describes how to interpolate between a timeSample value and the next */
+	UPROPERTY(EditAnywhere, Category = "USD Translator")
+	EUsdInterpolationType InterpolationType;
+
 	/** Whether to use the specified StageOptions instead of the stage's own settings */
 	UPROPERTY(EditAnywhere, Category = "USD Translator")
 	bool bOverrideStageOptions;
@@ -87,6 +92,10 @@ public:
 	virtual void SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings) override;
 	/** End UInterchangeTranslatorBase API*/
 
+	TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> ResolveAnimationPayloadQuery(
+		const UE::Interchange::FAnimationPayloadQuery& PayloadQuery
+	) const;
+
 	/** Begin Interchange payload interfaces */
 	virtual TFuture<TOptional<UE::Interchange::FMeshPayloadData>> GetMeshPayloadData(
 		const FInterchangeMeshPayLoadKey& PayLoadKey,
@@ -101,7 +110,8 @@ public:
 		TOptional<FString>& AlternateTexturePath
 	) const override;
 
-	virtual TArray<UE::Interchange::FAnimationPayloadData> GetAnimationPayloadData(const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQuery
+	virtual TArray<UE::Interchange::FAnimationPayloadData> GetAnimationPayloadData(
+		const TArray<UE::Interchange::FAnimationPayloadQuery>& PayloadQueries
 	) const override;
 	/** End Interchange payload interfaces */
 
