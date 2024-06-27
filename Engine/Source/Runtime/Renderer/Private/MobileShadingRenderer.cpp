@@ -1278,10 +1278,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				{
 					FGenerateMips::Execute(GraphBuilder, FeatureLevel, CustomRenderPass->GetRenderTargetTexture(), FGenerateMipsParams());
 				}
-
-				// Materials in the main view renderer will be using this render target, so we need RDG to transition it back to SRV now,
-				// rather than at the end of graph execution.
-				GraphBuilder.UseExternalAccessMode(CustomRenderPass->GetRenderTargetTexture(), ERHIAccess::SRVMask);
 			}
 
 			CustomRenderPass->EndPass(GraphBuilder);

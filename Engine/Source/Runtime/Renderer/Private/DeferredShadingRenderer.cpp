@@ -2130,10 +2130,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			#if WITH_MGPU
 				DoCrossGPUTransfers(GraphBuilder, CustomRenderPass->GetRenderTargetTexture(), CustomRenderPassViews, false, FRHIGPUMask::All());
 			#endif
-
-				// Materials in the main view renderer will be using this render target, so we need RDG to transition it back to SRV now,
-				// rather than at the end of graph execution.
-				GraphBuilder.UseExternalAccessMode(CustomRenderPass->GetRenderTargetTexture(), ERHIAccess::SRVMask);
 			}
 
 			CustomRenderPass->EndPass(GraphBuilder);

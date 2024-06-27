@@ -959,6 +959,13 @@ public:
 	{
 		RenderTargetTexture = SceneCaptureRenderTarget->GetRenderTargetTexture(GraphBuilder);
 	}
+
+	virtual void OnEndPass(FRDGBuilder& GraphBuilder) override
+	{
+		// Materials in the main view renderer will be using this render target, so we need RDG to transition it back to SRV now,
+		// rather than at the end of graph execution.
+		GraphBuilder.UseExternalAccessMode(RenderTargetTexture, ERHIAccess::SRVMask);
+	}
 	
 	FRenderTarget* SceneCaptureRenderTarget = nullptr;
 };
