@@ -578,38 +578,6 @@ enum class ENiagaraExecutionState : uint32
 };
 
 UENUM()
-enum class ENiagaraExecutionStateManagement : uint32
-{
-	/** Change the execution state to active (if possible). */
-	Awaken,
-	/**
-	Change the execution state to inactivate (if possible) and stop spawning particles.
-	Age will continue to increase and can complete if the loop condition is complete.
-	Can be woken again.
-	*/
-	SleepAndLetParticlesFinish,
-	/**
-	Change the execution state to inactivate clear (if possible), and kill all existing particles.
-	Age will continue to increase and can complete if the loop condition is complete.
-	Can be woken again.
-	*/
-	SleepAndClearParticles,
-	/**
-	Change the execution state to complete (if possible), and kill all existing particles.
-	Can not wake up again.
-	*/
-	KillImmediately,
-	/**
-	Change the execution state to inactive (if possible), and stop spawning particles.
-	When we have no particles activate will change the execution state to complete (if possible).
-	Can not wake up again if particles are still active.
-	*/
-	KillAfterParticlesFinish,
-
-	Num UMETA(Hidden)
-};
-
-UENUM()
 enum class ENiagaraCoordinateSpace : uint32
 {
 	/** Use the coordinate space specified by the Emitter*/
