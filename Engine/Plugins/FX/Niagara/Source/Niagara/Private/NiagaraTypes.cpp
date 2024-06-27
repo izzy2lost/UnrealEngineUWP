@@ -14,6 +14,9 @@
 static FName NAME_NiagaraDouble(TEXT("NiagaraDouble"));
 static FName NAME_NiagaraPosition(TEXT("NiagaraPosition"));
 
+// Emitter stats makes some assumptions about how you can cast from a ENiagaraExecutionStateManagement to ENiagaraExecutionState and the enum values will match
+static_assert(int(ENiagaraExecutionState::Num) == int(ENiagaraExecutionStateManagement::Num), "ENiagaraExecutionState & ENiagaraExecutionStateManagement must match 1:1 as scripts assume they can cast between");
+
 void FNiagaraVariableBase::SetNamespacedName(const FString& InNamespace, FName InVariableName)
 {
 	TStringBuilder<128> NameBuilder;
