@@ -15,6 +15,9 @@ class TEXTUREGRAPH_API FTG_HelperFunctions
 {
 
 public:
+	static bool IsFileNameValid(FName FileName, FText& Reason);
+	static bool IsFolderPathValid(FString FolderPath, FText& Reason);
+
 	static void	InitTargets(UTextureGraph* InTextureGraph);
 	static TArray<BlobPtr> GetTexturedOutputs(const UTG_Node* Node, FTG_EvaluationContext* TextureConversionContext = nullptr);
 
@@ -22,8 +25,6 @@ public:
 
 	static AsyncBool ExportAsync(UTextureGraph* InTextureGraph, FString ExportPath, FString AssetName, FExportSettings& TargetExportSettings, bool OverrideExportPath, bool OverwriteTextures = true,bool ExportAllOutputs = false, bool bSave = true);
 	static AsyncBool RenderAsync(UTextureGraph* InTextureGraph, JobBatchPtr ExistingBatch = nullptr);
-
-
 	
 	template <typename T_Type>
 	static TArray<T_Type> GetOutputsOfType(const UTG_Node* Node)
