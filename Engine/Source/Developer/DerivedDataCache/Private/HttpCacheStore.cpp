@@ -2804,13 +2804,13 @@ void FHttpCacheStore::GetChunkGroupAsync(
 		return;
 	}
 
-	ECachePolicy GroupPolicy(ECachePolicy::None);
+	ECachePolicy GroupPolicy = ECachePolicy::SkipData | ECachePolicy::SkipMeta;
 	TArray<FCacheGetChunkRequest> RequestGroup;
 	RequestGroup.Reserve(static_cast<int>(EndRequest - StartRequest));
 	for (const FCacheGetChunkRequest* Request = StartRequest; Request != EndRequest; ++Request)
 	{
 		RequestGroup.Add(*Request);
-		GroupPolicy |= Request->Policy;
+		GroupPolicy = CombineCachePolicy(GroupPolicy, Request->Policy);
 	}
 
 	if (StartRequest->Id.IsValid())

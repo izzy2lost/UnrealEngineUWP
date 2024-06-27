@@ -122,6 +122,12 @@ static ECachePolicy ParseCachePolicy(const TStringView<CharType> Text)
 namespace UE::DerivedData
 {
 
+ECachePolicy CombineCachePolicy(const ECachePolicy A, const ECachePolicy B)
+{
+	constexpr ECachePolicy NegativeFlags = ECachePolicy::SkipData | ECachePolicy::SkipMeta;
+	return ((A | B) & ~NegativeFlags) | ((A & B) & NegativeFlags);
+}
+
 FAnsiStringBuilderBase& operator<<(FAnsiStringBuilderBase& Builder, ECachePolicy Policy) { return Private::CachePolicyToString(Builder, Policy); }
 FWideStringBuilderBase& operator<<(FWideStringBuilderBase& Builder, ECachePolicy Policy) { return Private::CachePolicyToString(Builder, Policy); }
 FUtf8StringBuilderBase& operator<<(FUtf8StringBuilderBase& Builder, ECachePolicy Policy) { return Private::CachePolicyToString(Builder, Policy); }
@@ -252,12 +258,8 @@ FCacheRecordPolicy FCacheRecordPolicyBuilder::Build()
 	FCacheRecordPolicy Policy(BasePolicy);
 	if (Shared)
 	{
-		const auto Add = [](const ECachePolicy A, const ECachePolicy B)
-		{
-			return ((A | B) & ~ECachePolicy::SkipData) | ((A & B) & ECachePolicy::SkipData);
-		};
 		const TConstArrayView<FCacheValuePolicy> Values = Shared->GetValuePolicies();
-		Policy.RecordPolicy = Algo::TransformAccumulate(Values, &FCacheValuePolicy::Policy, BasePolicy, Add);
+		Policy.RecordPolicy = Algo::TransformAccumulate(Values, &FCacheValuePolicy::Policy, BasePolicy, CombineCachePolicy);
 		Policy.Shared = MoveTemp(Shared);
 	}
 	return Policy;
