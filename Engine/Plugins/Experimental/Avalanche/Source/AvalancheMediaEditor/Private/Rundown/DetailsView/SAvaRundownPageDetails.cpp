@@ -46,7 +46,8 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 	UAvaRundown* const Rundown = InRundownEditor->GetRundown();
 	if (IsValid(Rundown))
 	{
-		Rundown->GetOnPagesChanged().AddSP(this, &SAvaRundownPageDetails::OnRundownPagesChanged);
+		Rundown->GetOnPagesChanged().AddSP(this, &SAvaRundownPageDetails::OnPagesChanged);
+		Rundown->GetOnPageListChanged().AddSP(this, &SAvaRundownPageDetails::OnPageListChanged);
 	}
 
 	TSharedRef<SHorizontalBox> AnimationHeader = SNew(SHorizontalBox);
@@ -190,7 +191,7 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 		]
 	];
 
-	OnPageSelectionChanged({});
+	ActivePageId = FAvaRundownPage::InvalidPageId;
 }
 
 SAvaRundownPageDetails::~SAvaRundownPageDetails()
@@ -202,6 +203,7 @@ SAvaRundownPageDetails::~SAvaRundownPageDetails()
 		if (IsValid(Rundown))
 		{
 			Rundown->GetOnPagesChanged().RemoveAll(this);
+			Rundown->GetOnPageListChanged().RemoveAll(this);
 		}
 	}
 	if (IAvaMediaModule::IsModuleLoaded() && IAvaMediaModule::Get().IsManagedInstanceCacheAvailable())
@@ -212,17 +214,21 @@ SAvaRundownPageDetails::~SAvaRundownPageDetails()
 
 void SAvaRundownPageDetails::OnPageEvent(const TArray<int32>& InSelectedPageIds, UE::AvaRundown::EPageEvent InPageEvent)
 {
+	bool bRefreshPanels = false;
 	if (InPageEvent == UE::AvaRundown::EPageEvent::SelectionChanged || InPageEvent == UE::AvaRundown::EPageEvent::ReimportRequest)
 	{
-		OnPageSelectionChanged(InSelectedPageIds);
+		const int32 PreviousActivePageId = ActivePageId;
+		ActivePageId = InSelectedPageIds.IsEmpty() ? FAvaRundownPage::InvalidPageId : InSelectedPageIds[0];
+
+		// Only refresh the panels if the page id changed or if a reimport request (forced refresh).
+		bRefreshPanels = ActivePageId != PreviousActivePageId || InPageEvent == UE::AvaRundown::EPageEvent::ReimportRequest;
+	}
+
+	if (bRefreshPanels)
+	{
 		RemoteControlProps->Refresh(InSelectedPageIds);
 		RCControllerPanel->Refresh(InSelectedPageIds);
 	}
-}
-
-void SAvaRundownPageDetails::OnPageSelectionChanged(const TArray<int32>& InSelectedPageIds)
-{
-	ActivePageId = InSelectedPageIds.IsEmpty() ? FAvaRundownPage::InvalidPageId : InSelectedPageIds[0];
 }
 
 void SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated(const FSoftObjectPath& InAssetPath)
@@ -478,7 +484,7 @@ FReply SAvaRundownPageDetails::DuplicateSelectedPage()
 	return FReply::Handled();
 }
 
-void SAvaRundownPageDetails::OnRundownPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const EAvaRundownPageChanges InChanges)
+void SAvaRundownPageDetails::OnPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const EAvaRundownPageChanges InChanges)
 {
 	// Refreshing the page while the mouse is captured will result in losing the capture
 	// and ending any drag event that is actively changing the value.
@@ -486,6 +492,15 @@ void SAvaRundownPageDetails::OnRundownPagesChanged(const UAvaRundown* InRundown,
 	{
 		// Queue a refresh on next tick to avoid issues with cascading events.
 		QueueRefreshSelectedPage();
+	}
+}
+
+void SAvaRundownPageDetails::OnPageListChanged(const FAvaRundownPageListChangeParams& InParams)
+{
+	// If the current page is removed, fire off a selection changed immediately.
+	if (InParams.AffectedPages.Contains(ActivePageId) && EnumHasAnyFlags(InParams.ChangeType, EAvaRundownPageListChange::RemovedPages))
+	{
+		OnPageEvent({}, UE::AvaRundown::EPageEvent::SelectionChanged);
 	}
 }
 

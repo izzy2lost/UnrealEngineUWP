@@ -14,10 +14,11 @@ class FText;
 class SAvaRundownPageRemoteControlProps;
 class SAvaRundownRCControllerPanel;
 class UAvaRundown;
-struct FAvaRundownPage;
-struct FSoftObjectPath;
-struct FSlateBrush;
 enum class EAvaRundownPageChanges : uint8;
+struct FAvaRundownPage;
+struct FAvaRundownPageListChangeParams;
+struct FSlateBrush;
+struct FSoftObjectPath;
 
 class SAvaRundownPageDetails : public SCompoundWidget
 {
@@ -31,7 +32,6 @@ public:
 	virtual ~SAvaRundownPageDetails() override;
 
 	void OnPageEvent(const TArray<int32>& InSelectedPageIds, UE::AvaRundown::EPageEvent InPageEvent);
-	void OnPageSelectionChanged(const TArray<int32>& InSelectedPageIds);
 	void OnManagedInstanceCacheEntryInvalidated(const FSoftObjectPath& InAssetPath);
 
 protected:
@@ -59,8 +59,9 @@ protected:
 
 	FReply DuplicateSelectedPage();
 
-	void OnRundownPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const EAvaRundownPageChanges InChanges);
-
+	void OnPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, const EAvaRundownPageChanges InChanges);
+	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	
 private:
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
 

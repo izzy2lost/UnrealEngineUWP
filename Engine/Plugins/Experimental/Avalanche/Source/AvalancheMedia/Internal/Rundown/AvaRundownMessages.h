@@ -599,6 +599,12 @@ struct FAvaRundownPageListChanged : public FAvaRundownMsgBase
 	UPROPERTY()
 	FString Rundown;
 
+	UPROPERTY()
+	EAvaRundownPageListType ListType = EAvaRundownPageListType::Instance;
+
+	UPROPERTY()
+	int32 SubListIndex = INDEX_NONE;
+	
 	/** See EAvaPageListChange flags. */
 	UPROPERTY()
 	uint8 ChangeType = 0;

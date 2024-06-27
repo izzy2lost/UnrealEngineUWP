@@ -39,8 +39,6 @@ public:
 
 	void OnTabActivated(TSharedRef<SDockTab> InDockTab, ETabActivationCause InActivationCause);
 
-	FName GetTabId() const { return TabId; }
-
 	TSharedPtr<SDockTab> GetMyTab() const { return MyTabWeak.Pin(); }
 	void SetMyTab(TSharedRef<SDockTab> InTab) { MyTabWeak = InTab; }
 
@@ -71,7 +69,7 @@ public:
 	}
 	
 private:
-	void OnInstancedPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
 
 	TArray<int32> FilterPlayingPages(FFilterPageFunctionRef InFilterPageFunction) const;
 	TArray<int32> FilterSelectedOrPlayingPages(FFilterPageFunctionRef InFilterPageFunction, const bool bInAllowFallback) const;
@@ -84,7 +82,6 @@ private:
 	int32 GetPageIdToTakeNext() const;
 
 protected:
-	FName TabId;
 	TWeakPtr<SDockTab> MyTabWeak;
 
 	FReply MakeActive();

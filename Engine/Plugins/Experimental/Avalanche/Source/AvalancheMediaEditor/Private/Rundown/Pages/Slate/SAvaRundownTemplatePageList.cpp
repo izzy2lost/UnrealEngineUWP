@@ -39,7 +39,7 @@ void SAvaRundownTemplatePageList::Construct(const FArguments& InArgs, TSharedPtr
 	UAvaRundown* const Rundown = InRundownEditor->GetRundown();
 	check(Rundown);
 
-	Rundown->GetOnTemplatePageListChanged().AddSP(this, &SAvaRundownTemplatePageList::OnTemplatePageListChanged);
+	Rundown->GetOnPageListChanged().AddSP(this, &SAvaRundownTemplatePageList::OnPageListChanged);
 
 	Refresh();
 }
@@ -48,7 +48,7 @@ SAvaRundownTemplatePageList::~SAvaRundownTemplatePageList()
 {
 	if (UAvaRundown* const Rundown = GetValidRundown())
 	{
-		Rundown->GetOnTemplatePageListChanged().RemoveAll(this);
+		Rundown->GetOnPageListChanged().RemoveAll(this);
 	}
 }
 
@@ -498,8 +498,13 @@ TArray<int32> SAvaRundownTemplatePageList::AddPastedPages(const TArray<FAvaRundo
 	return {};
 }
 
-void SAvaRundownTemplatePageList::OnTemplatePageListChanged(const FAvaRundownPageListChangeParams& InParams)
+void SAvaRundownTemplatePageList::OnPageListChanged(const FAvaRundownPageListChangeParams& InParams)
 {
+	if (PageListReference != InParams.PageListReference)
+	{
+		return;
+	}
+
 	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
 	{
 		RundownEditor->RefreshTemplateVisibility();

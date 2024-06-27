@@ -80,11 +80,6 @@ bool SAvaRundownRCControllerPanel::HasRemoteControlPreset(const URemoteControlPr
 	return false;
 }
 
-void SAvaRundownRCControllerPanel::OnPageSelectionChanged(const TArray<int32>& InSelectedPageIds)
-{
-	Refresh(InSelectedPageIds);
-}
-
 void SAvaRundownRCControllerPanel::UpdatePropertyRowGenerators(int32 InNumGenerators)
 {
 	if (PropertyRowGenerators.Num() != InNumGenerators)

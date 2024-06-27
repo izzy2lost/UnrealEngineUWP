@@ -2,7 +2,6 @@
 
 #include "SAvaRundownInstancedPageList.h"
 
-#include "IAvaMediaEditorModule.h"
 #include "Misc/PathViews.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownCommands.h"
@@ -21,8 +20,6 @@
 #include "Rundown/Pages/Columns/AvaRundownPageStatusColumn.h"
 #include "Rundown/Pages/Columns/AvaRundownPageTemplateNameColumn.h"
 #include "Rundown/Pages/PageViews/AvaRundownInstancedPageViewImpl.h"
-#include "Rundown/TabFactories/AvaRundownInstancedPageListTabFactory.h"
-#include "Rundown/TabFactories/AvaRundownSubListDocumentTabFactory.h"
 #include "SAvaRundownPageList.h"
 #include "ScopedTransaction.h"
 #include "Styling/StyleColors.h"
@@ -48,16 +45,7 @@ void SAvaRundownInstancedPageList::Construct(const FArguments& InArgs, TSharedPt
 
 	check(InPageListReference.Type == EAvaRundownPageListType::Instance || Rundown->IsValidSubList(PageListReference));
 
-	if (PageListReference.Type == EAvaRundownPageListType::Instance)
-	{
-		TabId = FAvaRundownInstancedPageListTabFactory::TabID;
-		Rundown->GetOnInstancedPageListChanged().AddSP(this, &SAvaRundownInstancedPageList::OnInstancedPageListChanged);
-	}
-	else
-	{
-		FAvaRundownSubListDocumentTabFactory::GetTabId(InPageListReference.SubListIndex);
-		Rundown->GetSubList(InPageListReference.SubListIndex).OnPageListChanged.AddSP(this, &SAvaRundownInstancedPageList::OnInstancedPageListChanged);
-	}
+	Rundown->GetOnPageListChanged().AddSP(this, &SAvaRundownInstancedPageList::OnPageListChanged);
 
 	if (Rundown->IsValidSubList(PageListReference))
 	{
@@ -119,14 +107,7 @@ SAvaRundownInstancedPageList::~SAvaRundownInstancedPageList()
 {
 	if (UAvaRundown* const Rundown = GetValidRundown())
 	{
-		if (PageListReference.Type == EAvaRundownPageListType::Instance)
-		{
-			Rundown->GetOnInstancedPageListChanged().RemoveAll(this);
-		}
-		else if (Rundown->IsValidSubList(PageListReference))
-		{
-			Rundown->GetSubList(PageListReference.SubListIndex).OnPageListChanged.RemoveAll(this);
-		}
+		Rundown->GetOnPageListChanged().RemoveAll(this);
 	}
 }
 
@@ -1157,8 +1138,13 @@ bool SAvaRundownInstancedPageList::CanPlayNextPage() const
 	return IsPageIdValid(PageIdToTakeNext);
 }
 
-void SAvaRundownInstancedPageList::OnInstancedPageListChanged(const FAvaRundownPageListChangeParams& InParams)
+void SAvaRundownInstancedPageList::OnPageListChanged(const FAvaRundownPageListChangeParams& InParams)
 {
+	if (PageListReference != InParams.PageListReference)
+	{
+		return;
+	}
+	
 	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
 	{
 		RundownEditor->RefreshInstancedVisibility();
@@ -1231,7 +1217,7 @@ void SAvaRundownInstancedPageList::OnPageViewNameCommitted(const FText& InNewTex
 		if (Rundown->IsValidSubList(PageListReference))
 		{
 			Rundown->GetSubList(PageListReference.SubListIndex).Name = InNewText;
-			Rundown->GetSubList(PageListReference.SubListIndex).OnPageListChanged.Broadcast({Rundown, EAvaRundownPageListChange::RenamedPageView, {}});
+			Rundown->GetOnPageListChanged().Broadcast({Rundown, PageListReference, EAvaRundownPageListChange::RenamedPageView, {}});
 
 			if (TSharedPtr<SDockTab> MyTab = MyTabWeak.Pin())
 			{

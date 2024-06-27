@@ -481,6 +481,8 @@ void FAvaRundownServer::OnPageListChanged(const FAvaRundownPageListChangeParams&
 {
 	FAvaRundownPageListChanged* ReplyMessage = FMessageEndpoint::MakeMessage<FAvaRundownPageListChanged>();
 	ReplyMessage->Rundown = FSoftObjectPath(InParams.Rundown).ToString();
+	ReplyMessage->ListType = InParams.PageListReference.Type;
+	ReplyMessage->SubListIndex = InParams.PageListReference.SubListIndex;
 	ReplyMessage->ChangeType = static_cast<uint8>(InParams.ChangeType);
 	ReplyMessage->AffectedPages = InParams.AffectedPages;
 	
@@ -2404,8 +2406,7 @@ FAvaRundownServer::FRundownEntry::FRundownEntry(const TSharedPtr<FAvaRundownServ
 	{
 		const TSharedRef<FAvaRundownServer> RundownServerRef = InRundownServer.ToSharedRef();
 		Rundown->GetOnPagesChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPagesChanged);
-		Rundown->GetOnInstancedPageListChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPageListChanged);
-		Rundown->GetOnTemplatePageListChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPageListChanged);
+		Rundown->GetOnPageListChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPageListChanged);
 		Rundown->GetOnCanClosePlaybackContext().AddSP(RundownServerRef, &FAvaRundownServer::OnCanClosePlaybackContext);
 	}
 }
@@ -2415,8 +2416,7 @@ FAvaRundownServer::FRundownEntry::~FRundownEntry()
 	if (Rundown)
 	{
 		Rundown->GetOnPagesChanged().RemoveAll(RundownServerRaw);
-		Rundown->GetOnInstancedPageListChanged().RemoveAll(RundownServerRaw);
-		Rundown->GetOnTemplatePageListChanged().RemoveAll(RundownServerRaw);
+		Rundown->GetOnPageListChanged().RemoveAll(RundownServerRaw);
 		Rundown->GetOnCanClosePlaybackContext().RemoveAll(RundownServerRaw);
 	}
 }

@@ -46,8 +46,6 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedPtr<FAvaRundownEditor>& InRundownEditor);
 	
 	bool HasRemoteControlPreset(const URemoteControlPreset* InPreset) const;
-
-	void OnPageSelectionChanged(const TArray<int32>& InSelectedPageIds);
 	
 	void Refresh(const TArray<int32>& InSelectedPageIds);
 	

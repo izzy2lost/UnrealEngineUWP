@@ -24,10 +24,10 @@ DEFINE_LOG_CATEGORY(LogAvaRundown);
 
 #define LOCTEXT_NAMESPACE "AvaRundown"
 
-void FAvaRundownPageCollection::Empty(UAvaRundown* InRundown)
+void FAvaRundownPageCollection::Empty(UAvaRundown* InRundown, const FAvaRundownPageListReference& InPageListReference)
 {
 	TArray<int32> PageIds;
-	if (OnPageListChanged.IsBound() && Pages.IsEmpty() == false)
+	if (InRundown->GetOnPageListChanged().IsBound() && Pages.IsEmpty() == false)
 	{
 		PageIds.Reserve(Pages.Num());
 		for (const FAvaRundownPage& Page : Pages)
@@ -41,7 +41,7 @@ void FAvaRundownPageCollection::Empty(UAvaRundown* InRundown)
 	
 	if (PageIds.IsEmpty() == false)
 	{
-		OnPageListChanged.Broadcast({InRundown, EAvaRundownPageListChange::RemovedPages, PageIds});
+		InRundown->GetOnPageListChanged().Broadcast({InRundown, InPageListReference, EAvaRundownPageListChange::RemovedPages, PageIds});
 	}
 }
 
@@ -140,8 +140,8 @@ void UAvaRundown::PostEditUndo()
 	
 	//Force Refresh for any Undo
 	RefreshPageIndices();
-	GetOnTemplatePageListChanged().Broadcast({this, EAvaRundownPageListChange::All, {}});
-	GetOnInstancedPageListChanged().Broadcast({this, EAvaRundownPageListChange::All, {}});
+	GetOnPageListChanged().Broadcast({this, TemplatePageList, EAvaRundownPageListChange::All, {}});
+	GetOnPageListChanged().Broadcast({this, InstancePageList, EAvaRundownPageListChange::All, {}});
 }
 #endif
 
@@ -165,8 +165,8 @@ bool UAvaRundown::Empty()
 	}
 	
 	SubLists.Empty();
-	InstancedPages.Empty(this);
-	TemplatePages.Empty(this);
+	InstancedPages.Empty(this, InstancePageList);
+	TemplatePages.Empty(this, TemplatePageList);
 	
 	return true;
 }
@@ -189,7 +189,7 @@ int32 UAvaRundown::AddTemplateInternal(const FAvaRundownPageIdGeneratorParams& I
 	
 	RefreshPageIndices();
 
-	GetOnTemplatePageListChanged().Broadcast({this, EAvaRundownPageListChange::AddedPages, {TemplateId}});
+	GetOnPageListChanged().Broadcast({this, TemplatePageList, EAvaRundownPageListChange::AddedPages, {TemplateId}});
 
 	return TemplateId;
 }
@@ -234,7 +234,7 @@ TArray<int32> UAvaRundown::AddTemplates(const TArray<FAvaRundownPage>& InSourceT
 
 	if (!OutTemplateIds.IsEmpty())
 	{
-		GetOnTemplatePageListChanged().Broadcast({this, EAvaRundownPageListChange::AddedPages, OutTemplateIds});
+		GetOnPageListChanged().Broadcast({this, TemplatePageList, EAvaRundownPageListChange::AddedPages, OutTemplateIds});
 	}
 
 	return OutTemplateIds;
@@ -268,7 +268,7 @@ TArray<int32> UAvaRundown::AddPagesFromTemplates(const TArray<int32>& InTemplate
 	}
 
 	RefreshPageIndices();
-	GetOnInstancedPageListChanged().Broadcast({this, EAvaRundownPageListChange::AddedPages, OutPageIds});
+	GetOnPageListChanged().Broadcast({this, InstancePageList, EAvaRundownPageListChange::AddedPages, OutPageIds});
 
 	return OutPageIds;
 }
@@ -280,7 +280,7 @@ int32 UAvaRundown::AddPageFromTemplate(int32 InTemplateId, const FAvaRundownPage
 	if (NewId != FAvaRundownPage::InvalidPageId)
 	{
 		RefreshPageIndices();
-		GetOnInstancedPageListChanged().Broadcast({this, EAvaRundownPageListChange::AddedPages, {NewId}});
+		GetOnPageListChanged().Broadcast({this, InstancePageList, EAvaRundownPageListChange::AddedPages, {NewId}});
 	}
 
 	return NewId;
@@ -329,7 +329,7 @@ bool UAvaRundown::ChangePageOrder(const FAvaRundownPageListReference& InPageList
 		Collection.PageIndices.Empty();
 		RefreshPageIndices();
 
-		Collection.OnPageListChanged.Broadcast({this, EAvaRundownPageListChange::ReorderedPageView, {}});
+		GetOnPageListChanged().Broadcast({this, InPageListReference, EAvaRundownPageListChange::ReorderedPageView, {}});
 
 		return true;
 	}
@@ -356,7 +356,7 @@ bool UAvaRundown::ChangePageOrder(const FAvaRundownPageListReference& InPageList
 		}
 
 		SubList.PageIds = NewIndices;
-		SubList.OnPageListChanged.Broadcast({this, EAvaRundownPageListChange::ReorderedPageView, {}});
+		GetOnPageListChanged().Broadcast({this, InPageListReference, EAvaRundownPageListChange::ReorderedPageView, {}});
 
 		return true;
 	}
@@ -477,14 +477,15 @@ int32 UAvaRundown::RemovePages(const TArray<int32>& InPageIds)
 
 	if (bRemovedTemplate)
 	{
-		GetOnTemplatePageListChanged().Broadcast({this, EAvaRundownPageListChange::RemovedPages, {InPageIds}});
+		GetOnPageListChanged().Broadcast({this, TemplatePageList, EAvaRundownPageListChange::RemovedPages, {InPageIds}});
 	}
 
 	if (bRemovedInstanced)
 	{
-		GetOnInstancedPageListChanged().Broadcast({this, EAvaRundownPageListChange::RemovedPages, {InPageIds}});
+		GetOnPageListChanged().Broadcast({this, InstancePageList, EAvaRundownPageListChange::RemovedPages, {InPageIds}});
 	}
 
+	int32 SubListIndex = 0;
 	for (FAvaRundownSubList& SubList : SubLists)
 	{
 		bool bFoundInstance = false;
@@ -500,8 +501,9 @@ int32 UAvaRundown::RemovePages(const TArray<int32>& InPageIds)
 
 		if (bFoundInstance)
 		{
-			SubList.OnPageListChanged.Broadcast({this, EAvaRundownPageListChange::RemovedPages, {InPageIds}});
+			GetOnPageListChanged().Broadcast({this, CreateSubListReference(SubListIndex), EAvaRundownPageListChange::RemovedPages, {InPageIds}});
 		}
+		++SubListIndex;
 	}
 
 	return RemovedCount;
@@ -577,26 +579,28 @@ bool UAvaRundown::RenumberPageId(int32 InPageId, int32 InNewPageId)
 			}
 		}
 
-		GetOnTemplatePageListChanged().Broadcast({this, EAvaRundownPageListChange::RenumberedPageId, {InNewPageId}});
+		GetOnPageListChanged().Broadcast({this, TemplatePageList, EAvaRundownPageListChange::RenumberedPageId, {InNewPageId}});
 
 		if (bFoundInstanceOfTemplate)
 		{
-			GetOnInstancedPageListChanged().Broadcast({this, EAvaRundownPageListChange::RenumberedPageId, {InNewPageId}});
+			GetOnPageListChanged().Broadcast({this, InstancePageList, EAvaRundownPageListChange::RenumberedPageId, {InNewPageId}});
 		}
 	}
 	else if (InstanceIdx)
 	{
-		GetOnInstancedPageListChanged().Broadcast({this, EAvaRundownPageListChange::RenumberedPageId, {InNewPageId}});
+		GetOnPageListChanged().Broadcast({this, InstancePageList, EAvaRundownPageListChange::RenumberedPageId, {InNewPageId}});
 
+		int32 SubListIndex = 0;
 		for (FAvaRundownSubList& SubList : SubLists)
 		{
-			int32 Index = SubList.PageIds.Find(InPageId);
+			const int32 Index = SubList.PageIds.Find(InPageId);
 
 			if (Index != INDEX_NONE)
 			{
 				SubList.PageIds[Index] = InNewPageId;
-				SubList.OnPageListChanged.Broadcast({this, EAvaRundownPageListChange::RenumberedPageId, {InNewPageId}});
+				GetOnPageListChanged().Broadcast({this, CreateSubListReference(SubListIndex), EAvaRundownPageListChange::RenumberedPageId, {InNewPageId}});
 			}
+			++SubListIndex;
 		}
 	}
 	else
@@ -1401,7 +1405,7 @@ bool UAvaRundown::AddPageToSubList(int32 InSubListIndex, int32 InPageId, const F
 			SubLists[InSubListIndex].PageIds.Add(InPageId);
 		}
 		
-		SubLists[InSubListIndex].OnPageListChanged.Broadcast({this, EAvaRundownPageListChange::AddedPages, {InPageId}});
+		GetOnPageListChanged().Broadcast({this, CreateSubListReference(InSubListIndex), EAvaRundownPageListChange::AddedPages, {InPageId}});
 		return true;
 	}
 
@@ -1426,7 +1430,7 @@ bool UAvaRundown::AddPagesToSubList(int32 InSubListIndex, const TArray<int32>& I
 
 		if (bAddedPage)
 		{
-			SubLists[InSubListIndex].OnPageListChanged.Broadcast({this, EAvaRundownPageListChange::AddedPages, InPages});
+			GetOnPageListChanged().Broadcast({this, CreateSubListReference(InSubListIndex), EAvaRundownPageListChange::AddedPages, InPages});
 			return true;
 		}
 	}
@@ -1445,7 +1449,7 @@ int32 UAvaRundown::RemovePagesFromSubList(int32 InSubListIndex, const TArray<int
 
 		if (Removed > 0)
 		{
-			SubLists[InSubListIndex].OnPageListChanged.Broadcast({this, EAvaRundownPageListChange::RemovedPages, InPages});
+			GetOnPageListChanged().Broadcast({this, CreateSubListReference(InSubListIndex), EAvaRundownPageListChange::RemovedPages, InPages});
 		}
 
 		return Removed;

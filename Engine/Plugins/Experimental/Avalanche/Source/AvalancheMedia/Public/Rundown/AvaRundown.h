@@ -89,6 +89,7 @@ struct FAvaRundownPageIdGeneratorParams
 struct FAvaRundownPageListChangeParams
 {
 	UAvaRundown* Rundown;
+	FAvaRundownPageListReference PageListReference;
 	EAvaRundownPageListChange ChangeType;
 	TArray<int32> AffectedPages;
 };
@@ -106,9 +107,7 @@ struct FAvaRundownPageCollection
 
 	/** Cache mapping the Page Id to the index where the Page with such Page Id is at */
 	TMap<int32, int32> PageIndices;
-
-	FOnAvaRundownPageListChanged OnPageListChanged;
-
+	
 	int32 GetPageIndex(const int32 InPageId) const
 	{
 		if (InPageId != FAvaRundownPage::InvalidPageId)
@@ -119,7 +118,7 @@ struct FAvaRundownPageCollection
 		return INDEX_NONE;
 	}
 
-	AVALANCHEMEDIA_API void Empty(UAvaRundown* InRundown);
+	AVALANCHEMEDIA_API void Empty(UAvaRundown* InRundown, const FAvaRundownPageListReference& InPageListReference);
 
 	/** Complete refresh of the page indices. */
 	void RefreshPageIndices()
@@ -151,8 +150,6 @@ struct FAvaRundownSubList
 
 	UPROPERTY()
 	FText Name;
-
-	FOnAvaRundownPageListChanged OnPageListChanged;
 };
 
 namespace UE::AvaRundown
@@ -418,8 +415,7 @@ public:
 	/** Gets the page following the page with the given page id. Using current active page list. */
 	FAvaRundownPage& GetNextPage(int32 InPageId)  { return GetNextPage(InPageId, ActivePageList);}
 	
-	FOnAvaRundownPageListChanged& GetOnTemplatePageListChanged() { return TemplatePages.OnPageListChanged; }
-	FOnAvaRundownPageListChanged& GetOnInstancedPageListChanged() { return InstancedPages.OnPageListChanged; }
+	FOnAvaRundownPageListChanged& GetOnPageListChanged() { return OnPageListChanged; }
 	FOnAvaRundownPagesChanged& GetOnPagesChanged() { return OnPagesChanged; }
 
 	/** Delegate called to determine if the playback context can be closed. */
@@ -728,6 +724,7 @@ public:
 
 protected:
 	FOnAvaRundownPagesChanged OnPagesChanged;
+	FOnAvaRundownPageListChanged OnPageListChanged;
 	FOnActiveListChanged OnActiveListChanged;
 	mutable FOnCanClosePlaybackContext OnCanClosePlaybackContext;
 };
