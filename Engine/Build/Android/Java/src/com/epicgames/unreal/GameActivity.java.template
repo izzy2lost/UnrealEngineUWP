@@ -4071,7 +4071,9 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		super.onConfigurationChanged(newConfig);
 //$${gameActivityonConfigurationChangedAdditions}$$
 		// forward the orientation
-		nativeOnOrientationChanged(newConfig.orientation);
+		Log.debug("==============> onConfigurationChanged: orientation : " + newConfig.orientation);
+		deviceScreenOrientation = newConfig.orientation;
+		nativeOnOrientationChanged(deviceScreenOrientation);
 	}
 
 	public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
