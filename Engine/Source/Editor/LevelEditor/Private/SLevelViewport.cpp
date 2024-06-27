@@ -106,6 +106,7 @@
 #include "SkeletalRenderPublic.h"
 #include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 #include "ViewportToolbar/LevelViewportContext.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 static const FName LevelEditorName("LevelEditor");
 static FAutoConsoleCommand EnableInViewportMenu(TEXT("Editor.EnableInViewportMenu"), TEXT("Enables the new in-viewport property menu"), FConsoleCommandDelegate::CreateStatic(&SLevelViewport::EnableInViewportMenu));
@@ -1986,7 +1987,12 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 						);
 					}
 
-					FToolMenuEntry ViewModesSubmenu = UE::LevelEditor::CreateViewportToolbarViewModesSubmenu();
+					// Add the level editor specific entries.
+					UE::LevelEditor::ExtendViewModesSubmenu("LevelEditor.ViewportToolbar.ViewModes");
+
+					// Create and add the submenu entry to make the menu we just created and extended appear in the
+					// viewport toolbar itself.
+					FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
 					ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
 					RightSection.AddEntry(ViewModesSubmenu);
 				}
@@ -2046,10 +2052,19 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			}
 		}
 
-		ULevelViewportContext* const ContextObject = NewObject<ULevelViewportContext>();
-		ContextObject->LevelViewport = SharedThis(this);
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
+			ContextObject->Viewport = SharedThis(this);
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
 
-		ViewportToolbarContext.AddObject(ContextObject);
+		// Add the level editor viewport toolbar context.
+		{
+			ULevelViewportContext* const ContextObject = NewObject<ULevelViewportContext>();
+			ContextObject->LevelViewport = SharedThis(this);
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
 	}
 
 	const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)

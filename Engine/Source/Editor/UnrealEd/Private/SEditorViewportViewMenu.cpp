@@ -9,6 +9,7 @@
 #include "RenderResource.h"
 #include "SEditorViewport.h"
 #include "ViewportToolbar/UnrealEdViewportToolbar.h"
+#include "ViewportToolbar/UnrealEdViewportToolbarContext.h"
 
 #define LOCTEXT_NAMESPACE "EditorViewportViewMenu"
 

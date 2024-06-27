@@ -884,49 +884,25 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 	}
 }
 
-FToolMenuEntry CreateViewportToolbarViewModesSubmenu()
+void ExtendViewModesSubmenu(FName InViewModesSubmenuName)
 {
-	// This has to be a dynamic entry for the ViewModes submenu's label to be able to access the context.
-	return FToolMenuEntry::InitDynamicEntry(
-		"DynamicViewModes",
-		FNewToolMenuSectionDelegate::CreateLambda(
-			[](FToolMenuSection& InDynamicSection) -> void
+	UToolMenu* const Submenu = UToolMenus::Get()->ExtendMenu(InViewModesSubmenuName);
+
+	Submenu->AddDynamicSection(
+		"LevelEditorViewModesExtensionDynamicSection",
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* InDynamicMenu)
 			{
-				TAttribute<FText> LabelAttribute = UE::UnrealEd::GetViewModesSubmenuLabel(nullptr);
-				if (ULevelViewportContext* const LevelViewportContext =
-						InDynamicSection.FindContext<ULevelViewportContext>())
+				ULevelViewportContext* const LevelViewportContext = InDynamicMenu->FindContext<ULevelViewportContext>();
+				if (!LevelViewportContext)
 				{
-					TWeakPtr<SEditorViewport> EditorViewport = LevelViewportContext->LevelViewport;
-					LabelAttribute = TAttribute<FText>::CreateLambda(
-						[EditorViewport]()
-						{
-							return UE::UnrealEd::GetViewModesSubmenuLabel(EditorViewport);
-						}
-					);
+					return;
 				}
 
-				InDynamicSection.AddSubMenu(
-					"ViewModes",
-					LabelAttribute,
-					LOCTEXT("ViewModesSubmenuTooltip", "View mode settings for the current viewport."),
-					FNewToolMenuDelegate::CreateLambda(
-						[](UToolMenu* Submenu) -> void
-						{
-							ULevelViewportContext* const LevelViewportContext =
-								Submenu->FindContext<ULevelViewportContext>();
-							if (!LevelViewportContext)
-							{
-								return;
-							}
-
-							if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
-							{
-								UE::UnrealEd::PopulateViewModesMenu(Submenu, LevelViewport.ToSharedRef());
-								PopulateViewModesMenu(Submenu, LevelViewport.ToSharedRef());
-							}
-						}
-					)
-				);
+				if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+				{
+					PopulateViewModesMenu(InDynamicMenu, LevelViewport.ToSharedRef());
+				}
 			}
 		)
 	);

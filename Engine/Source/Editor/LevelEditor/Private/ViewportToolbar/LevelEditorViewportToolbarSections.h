@@ -23,7 +23,7 @@ FToolMenuEntry CreateViewportToolbarSelectionSection();
 
 TSharedPtr<FExtender> GetViewModesLegacyExtenders();
 void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InViewport);
-FToolMenuEntry CreateViewportToolbarViewModesSubmenu();
+void ExtendViewModesSubmenu(FName InViewModesSubmenuName);
 
 FToolMenuEntry CreateShowFoliageSubmenu();
 FToolMenuEntry CreateShowHLODsSubmenu();

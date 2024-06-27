@@ -12,7 +12,9 @@
 #include "SEditorViewport.h"
 #include "Templates/SharedPointer.h"
 #include "ToolMenu.h"
+#include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
+#include "ViewportToolbar/UnrealEdViewportToolbarContext.h"
 
 #define LOCTEXT_NAMESPACE "UnrealEdViewportToolbar"
 
@@ -317,6 +319,53 @@ void PopulateViewModesMenu(
 		Section.AddEntry(
 			FToolMenuEntry::InitWidget("WireframeOpacity", WireOpacityMenu, LOCTEXT("WireframeOpacity", "Opacity")));
 	}
+}
+
+FToolMenuEntry CreateViewportToolbarViewModesSubmenu()
+{
+	// This has to be a dynamic entry for the ViewModes submenu's label to be able to access the context.
+	return FToolMenuEntry::InitDynamicEntry(
+		"DynamicViewModes",
+		FNewToolMenuSectionDelegate::CreateLambda(
+			[](FToolMenuSection& InDynamicSection) -> void
+			{
+				// Base the label on the current view mode.
+				TAttribute<FText> LabelAttribute = UE::UnrealEd::GetViewModesSubmenuLabel(nullptr);
+				if (UUnrealEdViewportToolbarContext* const Context =
+						InDynamicSection.FindContext<UUnrealEdViewportToolbarContext>())
+				{
+					LabelAttribute = TAttribute<FText>::CreateLambda(
+						[WeakViewport = Context->Viewport]()
+						{
+							return UE::UnrealEd::GetViewModesSubmenuLabel(WeakViewport);
+						}
+					);
+				}
+
+				InDynamicSection.AddSubMenu(
+					"ViewModes",
+					LabelAttribute,
+					LOCTEXT("ViewModesSubmenuTooltip", "View mode settings for the current viewport."),
+					FNewToolMenuDelegate::CreateLambda(
+						[](UToolMenu* Submenu) -> void
+						{
+							UUnrealEdViewportToolbarContext* const Context =
+								Submenu->FindContext<UUnrealEdViewportToolbarContext>();
+							if (!Context)
+							{
+								return;
+							}
+
+							if (const TSharedPtr<SEditorViewport> Viewport = Context->Viewport.Pin())
+							{
+								PopulateViewModesMenu(Submenu, Viewport.ToSharedRef(), Context->IsViewModeSupported);
+							}
+						}
+					)
+				);
+			}
+		)
+	);
 }
 
 } // namespace UE::UnrealEd

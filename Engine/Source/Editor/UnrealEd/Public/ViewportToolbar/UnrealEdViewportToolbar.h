@@ -5,17 +5,17 @@
 #include "Delegates/DelegateCombinations.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Templates/SharedPointerFwd.h"
+#include "UnrealEdViewportToolbarContext.h"
 
 class FText;
 class SEditorViewport;
 class UToolMenu;
+struct FToolMenuEntry;
 
 namespace UE::UnrealEd
 {
 
 UNREALED_API FText GetViewModesSubmenuLabel(TWeakPtr<SEditorViewport> InViewport);
-
-DECLARE_DELEGATE_RetVal_OneParam(bool, IsViewModeSupportedDelegate, EViewModeIndex);
 
 /**
  * Populate a given UToolMenu with entries for a View Modes viewport toolbar submenu.
@@ -27,5 +27,7 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, IsViewModeSupportedDelegate, EViewModeInd
 UNREALED_API void PopulateViewModesMenu(UToolMenu* InMenu,
 	TSharedRef<SEditorViewport> InViewport,
 	IsViewModeSupportedDelegate InIsViewModeSupported = IsViewModeSupportedDelegate());
+
+UNREALED_API FToolMenuEntry CreateViewportToolbarViewModesSubmenu();
 
 } // namespace UE::UnrealEd
