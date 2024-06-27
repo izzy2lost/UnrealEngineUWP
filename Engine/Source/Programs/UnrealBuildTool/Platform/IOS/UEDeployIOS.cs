@@ -410,9 +410,19 @@ namespace UnrealBuildTool
 				Text.AppendLine("\t<key>CADisableMinimumFrameDurationOnPhone</key><true/>");
 			}
 
-			// disable exempt encryption
+			// set exempt encryption
+			bool bUsesNonExemptEncryption = false;
+			string ITSEncryptionExportComplianceCode = "";
+			Ini.GetBool("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "bUsesNonExemptEncryption", out bUsesNonExemptEncryption);
+			Ini.GetString("/Script/IOSRuntimeSettings.IOSRuntimeSettings", "ITSEncryptionExportComplianceCode", out ITSEncryptionExportComplianceCode);
 			Text.AppendLine("\t<key>ITSAppUsesNonExemptEncryption</key>");
-			Text.AppendLine("\t<false/>");
+			Text.AppendLine(String.Format("\t<{0}/>", bUsesNonExemptEncryption ? "true" : "false"));
+			if (bUsesNonExemptEncryption && !String.IsNullOrWhiteSpace(ITSEncryptionExportComplianceCode))
+			{
+				Text.AppendLine("\t<key>ITSEncryptionExportComplianceCode</key>");
+				Text.AppendLine(String.Format("\t<string>{0}</string>", ITSEncryptionExportComplianceCode));
+			}
+			
 			// add location services descriptions if used
 			if (!String.IsNullOrWhiteSpace(LocationAlwaysUsageDescription))
 			{

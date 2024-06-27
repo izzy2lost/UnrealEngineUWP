@@ -214,7 +214,7 @@ public:
     // Should the app be compatible for high refresh rate (iPhone only)
     UPROPERTY(GlobalConfig, EditAnywhere, Category = Rendering, meta = (DisplayName = "Enable ProMotion 120Hz on supported iPhone devices"))
     bool bSupportHighRefreshRates;
-        
+
     /** Whether to enable LOD streaming for landscape visual meshes. Requires Metal support. */
     UPROPERTY(GlobalConfig, EditAnywhere, Category = Rendering, Meta = (DisplayName = "Stream landscape visual mesh LODs"))
     bool bStreamLandscapeMeshLODs;
@@ -244,12 +244,20 @@ public:
 	
 	// Enable generation of xcode archive package
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Generate xcode archive package"))
-	bool bGenerateXCArchive;	
-	
+	bool bGenerateXCArchive;
+
+	// Does the app require use of NON-standard encryption
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "ITSAppUsesNonExemptEncryption plist value"))
+	bool bUsesNonExemptEncryption;
+
+	// If bUsesNonExemptEncryption, set the ITSEncryptionExportComplianceCode
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (EditCondition = "bUsesNonExemptEncryption", DisplayName = "Set ITSEncryptionExportComplianceCode"))
+	FString ITSEncryptionExportComplianceCode;
+
 	// Enable Advertising Identified
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Enable Advertising Identified (IDFA)"))
 	bool bEnableAdvertisingIdentifier;
-	
+
 	// Any additional linker flags to pass to the linker in non-shipping builds
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Additional Non-Shipping Linker Flags", ConfigHierarchyEditable))
 	FString AdditionalLinkerFlags;
