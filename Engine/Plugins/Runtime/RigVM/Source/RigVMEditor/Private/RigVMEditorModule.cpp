@@ -92,26 +92,43 @@ void FRigVMEditorModule::StartupModule()
 					UContentBrowserAssetContextMenuContext* Context = InSection.FindContext<UContentBrowserAssetContextMenuContext>();
 					if (Context)
 					{
-						TArray<UObject*> SelectedObjects = Context->GetSelectedObjects();
-						if (SelectedObjects.Num() == 1 && SelectedObjects[0]->IsA<URigVMBlueprint>())
+						TArray<FAssetData> SelectedAssets = Context->SelectedAssets;
+						if (SelectedAssets.Num() != 1)
 						{
-							InSection.AddMenuEntry("CreateVariant", LOCTEXT("CreateVariant", "Create variant"), LOCTEXT("CreateVariant_ToolTip", "Create a variant for this asset"), FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"), FExecuteAction::CreateLambda([SelectedObjects]()
-							{
-								FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+							// We only expect a single asset
+							return;
+						}
 
-								FString PathName = FPackageName::GetLongPackagePath(SelectedObjects[0]->GetPathName());
-								FString ObjectName = SelectedObjects[0]->GetName();
+						const FAssetData& SelectedAssetData = SelectedAssets[0];
+						if (!SelectedAssetData.IsInstanceOf<URigVMBlueprint>())
+						{
+							// We aren't dealing with a RigVMBlueprint derived type
+							return;
+						}
+
+						FSoftObjectPath SoftObjectPath = SelectedAssetData.GetSoftObjectPath();
+						InSection.AddMenuEntry("CreateVariant", LOCTEXT("CreateVariant", "Create variant"), LOCTEXT("CreateVariant_ToolTip", "Create a variant for this asset"), FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"), FExecuteAction::CreateLambda([SoftObjectPath]()
+							{
+								// Perform the load from within our lambda since this can be expensive, and should not be done speculatively
+								UObject* SelectedObject = SoftObjectPath.TryLoad();
+								if (!SelectedObject)
+								{
+									return;
+								}
+
+								FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+								FString PathName = SoftObjectPath.GetLongPackageName();
+								FString ObjectName = SelectedObject->GetName();
 								FString PackageName;
 								FString BasePackageName = PathName + "/" + ObjectName;
 								AssetToolsModule.Get().CreateUniqueAssetName(BasePackageName, TEXT(""), PackageName, ObjectName);
 
-								UObject* DuplicateAsset = AssetToolsModule.Get().DuplicateAsset(ObjectName, PathName, SelectedObjects[0]);
+								UObject* DuplicateAsset = AssetToolsModule.Get().DuplicateAsset(ObjectName, PathName, SelectedObject);
 								if (URigVMBlueprint* DuplicateBlueprint = Cast<URigVMBlueprint>(DuplicateAsset))
 								{
-									DuplicateBlueprint->AssetVariant = Cast<URigVMBlueprint>(SelectedObjects[0])->AssetVariant;
+									DuplicateBlueprint->AssetVariant = Cast<URigVMBlueprint>(SelectedObject)->AssetVariant;
 								}
 							}));
-						}
 					}
 				}));
 			}
