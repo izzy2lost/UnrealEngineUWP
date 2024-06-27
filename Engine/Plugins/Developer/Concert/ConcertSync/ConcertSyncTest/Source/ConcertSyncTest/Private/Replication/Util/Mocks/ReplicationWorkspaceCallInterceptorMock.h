@@ -4,7 +4,6 @@
 
 #include "Replication/IReplicationWorkspace.h"
 #include "Replication/Messages/ReplicationActivity.h"
-#include "Replication/Messages/RestoreContent.h"
 
 #include "Misc/Optional.h"
 #include "Misc/Guid.h"
@@ -19,21 +18,24 @@ namespace UE::ConcertSyncTests::Replication
 		/** Arguments of last ProduceClientLeaveReplicationActivity call. */
 		TOptional<TTuple<FGuid, FConcertSyncReplicationPayload_LeaveReplication>> LastCall_ProduceClientLeaveReplicationActivity;
 		/** Arguments of last GetLastLeaveReplicationActivityByClient call. */
-		mutable TOptional<TTuple<FConcertClientInfo>> LastCall_GetLastLeaveReplicationActivityByClient;
+		mutable TOptional<TTuple<FConcertSessionClientInfo>> LastCall_GetLastLeaveReplicationActivityByClient;
 		/** Arguments of last GetLastLeaveReplicationActivityByClient call. */
 		mutable TOptional<TTuple<int64>> LastCall_GetLeaveReplicationActivityById;
 
+		/** The result to return in ProduceClientLeaveReplicationActivity. */
+		TOptional<int64> ReturnResult_ProduceClientLeaveReplicationActivity = 0;
 		/** The result to return in GetLastLeaveReplicationActivityByClient. */
 		TOptional<FConcertSyncReplicationPayload_LeaveReplication> ReturnResult_GetLastLeaveReplicationActivityByClient;
 		/** The result to return in GetLastLeaveReplicationActivityByClient. */
 		TOptional<FConcertSyncReplicationPayload_LeaveReplication> ReturnResult_GetLeaveReplicationActivityById;
 		
 		//~ Begin IReplicationWorkspace Interface
-		virtual void ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData) override
+		virtual TOptional<int64> ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData) override
 		{
 			LastCall_ProduceClientLeaveReplicationActivity = MakeTuple(EndpointId, EventData);
+			return ReturnResult_ProduceClientLeaveReplicationActivity;
 		}
-		virtual bool GetLastLeaveReplicationActivityByClient(const FConcertClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override
+		virtual bool GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override
 		{
 			LastCall_GetLastLeaveReplicationActivityByClient = MakeTuple(InClientInfo);
 			if (ReturnResult_GetLastLeaveReplicationActivityByClient)

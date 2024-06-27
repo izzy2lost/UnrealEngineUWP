@@ -13,7 +13,6 @@
 #include "ConcertLogGlobal.h"
 #include "ConcertPackageEvents.h"
 #include "ConcertUtil.h"
-#include "HistoryEdition/ActivityDependencyGraph.h"
 #include "Replication/Messages/ReplicationActivity.h"
 #include "Serialization/MemoryReader.h"
 
@@ -21,38 +20,24 @@
 
 FConcertServerWorkspace::FConcertServerWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession, TSharedPtr<IConcertFileSharingService> InFileSharingService)
 	: FileSharingService(MoveTemp(InFileSharingService))
+	, ReplicationWorkspace(
+		InLiveSession->GetSessionDatabase(),
+		UE::ConcertSyncServer::FFindSessionClient::CreateLambda([this](const FGuid& EndpointId)
+		{
+			FConcertSessionClientInfo Info;
+			return LiveSession->GetSession().FindSessionClient(EndpointId, Info) ? Info : TOptional<FConcertSessionClientInfo>{};
+		}),
+		UE::ConcertSyncServer::FShouldIgnoreClientActivityOnRestore::CreateRaw(this, &FConcertServerWorkspace::ShouldIgnoreClientActivityOnRestore)
+		)
 {
 	BindSession(InLiveSession);
+	// Sync replication activity back to clients when it is added to the database
+	ReplicationWorkspace.OnAddReplicationActivity().AddRaw(this, &FConcertServerWorkspace::OnAddReplicationActivity);
 }
 
 FConcertServerWorkspace::~FConcertServerWorkspace()
 {
 	UnbindSession();
-}
-
-void FConcertServerWorkspace::ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData)
-{
-	if (EnumHasAnyFlags(LiveSession->GetSessionFlags(), EConcertSyncSessionFlags::ShouldEnableReplicationActivities))
-	{
-		FConcertSyncReplicationActivity Activity;
-		Activity.EndpointId = EndpointId;
-		Activity.EventData.SetPayload(EventData);
-		Activity.EventSummary.SetTypedPayload(FConcertSyncReplicationActivitySummary::CreateSummaryForEvent(Activity.EventData));
-		Activity.bIgnored = ShouldIgnoreClientActivityOnRestore(EndpointId);
-		AddReplicationActivity(Activity);
-	}
-}
-
-bool FConcertServerWorkspace::GetLastLeaveReplicationActivityByClient(const FConcertClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const
-{
-	// TODO: DO
-	return false;
-}
-
-bool FConcertServerWorkspace::GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const
-{
-	// TODO: DO
-	return false;
 }
 
 void FConcertServerWorkspace::BindSession(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession)
@@ -1181,12 +1166,9 @@ void FConcertServerWorkspace::SendSyncPackageActivityEvent(const FConcertWorkspa
 	LiveSession->GetSession().SendCustomEvent(SyncEvent, InTargetEndpointId, EConcertMessageFlags::ReliableOrdered);
 }
 
-void FConcertServerWorkspace::AddReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity)
+void FConcertServerWorkspace::OnAddReplicationActivity(const int64 ActivityId, const bool bSuccess)
 {
-	// Add the activity and sync it
-	int64 ActivityId = 0;
-	int64 EventId = 0;
-	if (LiveSession->GetSessionDatabase().AddReplicationActivity(InReplicationActivity, ActivityId, EventId))
+	if (bSuccess)
 	{
 		PostActivityAdded(ActivityId);
 		SyncCommandQueue->QueueCommand(LiveSyncEndpoints, [this, SyncActivityId = ActivityId](const FConcertServerSyncCommandQueue::FSyncCommandContext& InSyncCommandContext, const FGuid& InEndpointId)

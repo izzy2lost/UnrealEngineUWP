@@ -6,6 +6,7 @@
 #include "IConcertSyncServer.h"
 #include "IConcertServerEventSink.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/Platform.h"
 
 class IConcertServerSession;
 class FConcertServerWorkspace;
@@ -63,7 +64,7 @@ private:
 	void CreateSequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	void DestroySequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	
-	void CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, UE::ConcertSyncServer::Replication::IReplicationWorkspace& InWorkspace, EConcertSyncSessionFlags InSessionFlags);
+	void CreateReplicationManager(const TSharedRef<IConcertServerSession>& InSession, UE::ConcertSyncServer::Replication::IReplicationWorkspace& InWorkspace UE_LIFETIMEBOUND, EConcertSyncSessionFlags InSessionFlags);
 	void DestroyReplicationManager(const FGuid& SessionId); 
 
 	bool CreateLiveSession(const TSharedRef<IConcertServerSession>& InSession, const FInternalLiveSessionCreationParams& AdditionalParams);

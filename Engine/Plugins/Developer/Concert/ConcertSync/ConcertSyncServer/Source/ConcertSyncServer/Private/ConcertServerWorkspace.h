@@ -7,6 +7,7 @@
 #include "IConcertSessionHandler.h"
 #include "Misc/Optional.h"
 #include "Replication/IReplicationWorkspace.h"
+#include "Replication/ReplicationWorkspace.h"
 
 class IConcertFileSharingService;
 class IConcertMessage;
@@ -31,18 +32,15 @@ enum class EConcertLockFlags : uint8
 };
 ENUM_CLASS_FLAGS(EConcertLockFlags);
 
-class FConcertServerWorkspace : public UE::ConcertSyncServer::Replication::IReplicationWorkspace
+class FConcertServerWorkspace
 {
 public:
 	
 	explicit FConcertServerWorkspace(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession, TSharedPtr<IConcertFileSharingService> InFileSharingService);
-	virtual ~FConcertServerWorkspace() override;
+	~FConcertServerWorkspace();
 
-	//~ Begin IReplicationWorkspace Interface
-	virtual void ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData) override;
-	virtual bool GetLastLeaveReplicationActivityByClient(const FConcertClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override;
-	virtual bool GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override;
-	//~ End IReplicationWorkspace Interface
+	/** @return Gets the portion of the workspace that manages replication data. */
+	UE::ConcertSyncServer::Replication::IReplicationWorkspace& GetReplicationWorkspace() { return ReplicationWorkspace; }
 
 private:
 	
@@ -261,12 +259,13 @@ private:
 	void SendSyncPackageActivityEvent(const FConcertWorkspaceSyncActivityEvent& SyncEvent, const FGuid& InTargetEndpointId) const;
 
 	/**
-	 * Add a new replication activity to the session database, and sync the result back to all clients.
-	 * @note The endpoint ID referenced by the activity must exist in the database (@see SetEndpoint).
+	 * Called when the replication workspace attempted to add a FConcertSyncReplicationActivity to the database.
+	 * This syncs the result back to all clients.
 	 *
-	 * @param InReplicationActivity		The replication activity to add (the ActivityId, EventTime, EventType, and EventId members are ignored).
+	 * @param ActivityId	The identifier of the activity that was attempted to be added
+	 * @param bSuccess		Whether the activity was actually added to the database (i.e. false means the attempt failed).
 	 */
-	void AddReplicationActivity(const FConcertSyncReplicationActivity& InReplicationActivity);
+	void OnAddReplicationActivity(const int64 ActivityId, const bool bSuccess);
 	
 	/**
 	 * Send a sync event for a replication activity in the session database.
@@ -289,7 +288,7 @@ private:
 	 * @param ClientEndpoint The client for which the check must be done.
 	 * @return True if the activity should be flagged as 'ignored on restore'.
 	 */
-	bool ShouldIgnoreClientActivityOnRestore(const FGuid ClientEndpoint) const { return IgnoredActivityClients.Contains(ClientEndpoint); }
+	bool ShouldIgnoreClientActivityOnRestore(const FGuid& ClientEndpoint) const { return IgnoredActivityClients.Contains(ClientEndpoint); }
 
 	/**
 	 * Returns true if the package data is small enough to be exchanged using a single TArray<> data structure. If the package data is
@@ -349,4 +348,7 @@ private:
 
 	/** Optional side channel to exchange large blobs (package data) with the client in a scalable way (ex. the request/response transport layer is not designed and doesn't support exchanging 3GB packages). */
 	TSharedPtr<IConcertFileSharingService> FileSharingService;
+
+	/** Manages replication data for the database. */
+	UE::ConcertSyncServer::FReplicationWorkspace ReplicationWorkspace;
 };
