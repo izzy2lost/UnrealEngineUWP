@@ -42,6 +42,10 @@ public class AutoRTFMTestsTarget : TargetRules
 
 		MinCpuArchX64 = MinimumCpuArchitectureX64.AVX;
 
+		bCompileWithStatsWithoutEngine = true;
+		GlobalDefinitions.Add("ENABLE_STATNAMEDEVENTS=1");
+		GlobalDefinitions.Add("ENABLE_STATNAMEDEVENTS_UOBJECT=1");
+
 		// Allow for disabling writing out the logfile, since in `PreSubmitTest.py` we run this target simultaneously
 		// multiple times, and doing so would cause writing them out to stomp each other.
 		if (!bAllowLogFile)

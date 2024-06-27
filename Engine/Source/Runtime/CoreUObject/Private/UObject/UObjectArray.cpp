@@ -67,22 +67,21 @@ void FUObjectItem::CreateStatID() const
 #if STATS
 	StatID = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_UObjects>(LongName);
 #else // ENABLE_STATNAMEDEVENTS
-	const auto& ConversionData = StringCast<PROFILER_CHAR>(*LongName);
-	const int32 NumStorageChars = (ConversionData.Length() + 1);	//length doesn't include null terminator
-
-	PROFILER_CHAR* StoragePtr = new PROFILER_CHAR[NumStorageChars];
-	FMemory::Memcpy(StoragePtr, ConversionData.Get(), NumStorageChars * sizeof(PROFILER_CHAR));
-
-	// delay the delete of the StatIDStringStorage swap until after the transaction
-	UE_AUTORTFM_ONCOMMIT2(=)
-	{
-		if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) != nullptr)
+	UE_AUTORTFM_OPEN(
 		{
-			delete[] StoragePtr;
-		}
-	};
+			const auto& ConversionData = StringCast<PROFILER_CHAR>(*LongName);
+			const int32 NumStorageChars = (ConversionData.Length() + 1);	//length doesn't include null terminator
 
-	StatID = TStatId(StatIDStringStorage);
+			PROFILER_CHAR* const StoragePtr = new PROFILER_CHAR[NumStorageChars];
+			FMemory::Memcpy(StoragePtr, ConversionData.Get(), NumStorageChars * sizeof(PROFILER_CHAR));
+
+			if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) != nullptr)
+			{
+				delete[] StoragePtr;
+			}
+
+			StatID = TStatId(StatIDStringStorage);
+		});
 #endif
 }
 #endif

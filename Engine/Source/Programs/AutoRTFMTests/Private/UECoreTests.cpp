@@ -8,6 +8,8 @@
 #include "Internationalization/TextCache.h"
 #include "Serialization/CustomVersion.h"
 #include "UObject/NameTypes.h"
+#include "UObject/UObjectArray.h"
+#include "MyAutoRTFMTestObject.h"
 
 TEST_CASE("UECore.FDelegateHandle")
 {
@@ -795,6 +797,166 @@ TEST_CASE("UECore.FTextCache")
 
 				CheckCacheHealthy();
 			}
+}
+
+TEST_CASE("UECore.FUObjectItem")
+{
+	SECTION("CreateStatID First In Open")
+	{
+		FUObjectItem Item;
+		Item.Object = NewObject<UMyAutoRTFMTestObject>();
+		Item.CreateStatID();
+
+		PROFILER_CHAR* const StatIDStringStorage = Item.StatIDStringStorage;
+
+		// If we abort then we won't change anything.
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				Item.CreateStatID();
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+		REQUIRE(StatIDStringStorage == Item.StatIDStringStorage);
+
+		// But also if we commit we likewise won't change anything because
+		// the string storage was already created before the transaction
+		// began.
+		Result = AutoRTFM::Transact([&]
+			{
+				Item.CreateStatID();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+		REQUIRE(StatIDStringStorage == Item.StatIDStringStorage);
+	}
+
+	SECTION("CreateStatID First In Closed")
+	{
+		FUObjectItem Item;
+		Item.Object = NewObject<UMyAutoRTFMTestObject>();
+		REQUIRE(nullptr == Item.StatIDStringStorage);
+		REQUIRE(!Item.StatID.IsValidStat());
+
+		// If we abort then we won't change anything.
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				Item.CreateStatID();
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+		REQUIRE(nullptr != Item.StatIDStringStorage);
+		REQUIRE(Item.StatID.IsValidStat());
+
+		PROFILER_CHAR* const StatIDStringStorage = Item.StatIDStringStorage;
+
+		// If we commit though we'll create the stat ID.
+		Result = AutoRTFM::Transact([&]
+			{
+				Item.CreateStatID();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+		REQUIRE(StatIDStringStorage == Item.StatIDStringStorage);
+		REQUIRE(Item.StatID.IsValidStat());
+	}
+
+	SECTION("CreateStatID On In-Transaction Object")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FUObjectItem Item;
+				Item.Object = NewObject<UMyAutoRTFMTestObject>();
+				Item.CreateStatID();
+
+				AutoRTFM::Open([&]
+					{
+						REQUIRE(nullptr != Item.StatIDStringStorage);
+						REQUIRE(Item.StatID.IsValidStat());
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FUObjectItem Item;
+				Item.Object = NewObject<UMyAutoRTFMTestObject>();
+				Item.CreateStatID();
+
+				AutoRTFM::Open([&]
+					{
+						REQUIRE(nullptr != Item.StatIDStringStorage);
+						REQUIRE(Item.StatID.IsValidStat());
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("CreateStatID In Closed Then Again In Open")
+	{
+		{
+			FUObjectItem Item;
+			Item.Object = NewObject<UMyAutoRTFMTestObject>();
+			REQUIRE(nullptr == Item.StatIDStringStorage);
+			REQUIRE(!Item.StatID.IsValidStat());
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+				{
+					Item.CreateStatID();
+
+					AutoRTFM::Open([&]
+						{
+							REQUIRE(nullptr != Item.StatIDStringStorage);
+							REQUIRE(Item.StatID.IsValidStat());
+
+							PROFILER_CHAR* const StatIDStringStorage = Item.StatIDStringStorage;
+
+							Item.CreateStatID();
+
+							REQUIRE(StatIDStringStorage == Item.StatIDStringStorage);
+							REQUIRE(Item.StatID.IsValidStat());
+						});
+
+					AutoRTFM::AbortTransaction();
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+			REQUIRE(nullptr != Item.StatIDStringStorage);
+			REQUIRE(Item.StatID.IsValidStat());
+		}
+
+		{
+			FUObjectItem Item;
+			Item.Object = NewObject<UMyAutoRTFMTestObject>();
+			REQUIRE(nullptr == Item.StatIDStringStorage);
+			REQUIRE(!Item.StatID.IsValidStat());
+
+			AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+				{
+					Item.CreateStatID();
+
+					AutoRTFM::Open([&]
+						{
+							REQUIRE(nullptr != Item.StatIDStringStorage);
+							REQUIRE(Item.StatID.IsValidStat());
+
+							PROFILER_CHAR* const StatIDStringStorage = Item.StatIDStringStorage;
+
+							Item.CreateStatID();
+
+							REQUIRE(StatIDStringStorage == Item.StatIDStringStorage);
+							REQUIRE(Item.StatID.IsValidStat());
+						});
+				});
+
+			REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+			REQUIRE(nullptr != Item.StatIDStringStorage);
+			REQUIRE(Item.StatID.IsValidStat());
 		}
 	}
 }
