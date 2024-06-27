@@ -50,6 +50,10 @@ PathTracingSpatialTemporalDenoising.usf: Spatial temporal denoising for path tra
 #define PREPASS_PHASE_INIT				0
 #define PREPASS_PHASE_UPDATE			1
 
+#ifndef RANKED_LUMINANCE_VARIANCE
+#define RANKED_LUMINANCE_VARIANCE		0
+#endif
+
 #ifndef SPATIAL_DENOISING
 #define SPATIAL_DENOISING				0
 #endif
@@ -133,11 +137,30 @@ struct FPixelMaterialLightingFingerprint
 	float4 Var;
 };
 
+void Max3Index(in float3 Value, out int MaxIndex)
+{
+	MaxIndex = (Value.x > Value.y) ? 0 : 1;
+	MaxIndex = Value[MaxIndex] > Value.z ? MaxIndex : 2;
+}
+
 void Max3(in float3 Value, out float MaxValue, out int MaxIndex)
 {
 	MaxIndex = (Value.x > Value.y) ? 0 : 1;
 	MaxIndex = Value[MaxIndex] > Value.z ? MaxIndex : 2;
 	MaxValue = Value[MaxIndex];
+}
+
+void Min3Index(in float3 Value, out int MinIndex)
+{
+	MinIndex = (Value.x <= Value.y) ? 0 : 1;
+	MinIndex = Value[MinIndex] <= Value.z ? MinIndex : 2;
+}
+
+void Min3(in float3 Value, out float MinValue, out int MinIndex)
+{
+	MinIndex = (Value.x <= Value.y) ? 0 : 1;
+	MinIndex = Value[MinIndex] <= Value.z ? MinIndex : 2;
+	MinValue = Value[MinIndex];
 }
 
 #if K_NUM_OF_TEXTURES_PER_PASS <= 7 && (TEMPORAL_REPROJECTION_ALIGN||TEMPORAL_REPROJECTION_MERGE)
@@ -261,13 +284,6 @@ struct FFindMinContext
 	int Index;
 	float Value;
 };
-
-void Min3(in float3 Value, out float MinValue, out int MinIndex)
-{
-	MinIndex = (Value.x <= Value.y) ? 0 : 1;
-	MinIndex = Value[MinIndex] <= Value.z ? MinIndex : 2;
-	MinValue = Value[MinIndex];
-}
 
 void Min4(in float4 Value, out float MinValue, out int MinIndex)
 {
@@ -792,6 +808,20 @@ Texture2D<float4> NormalTexture;
 RWStructuredBuffer<FPixelMaterialLightingFingerprint> RWVarianceMap;
 int Iteration;
 
+// Channel ranked luminance places the max value to g, and minimal to b
+// In this way, the luminance is perception independent. The variance of (X,0,0) is the same to (0,X,0)
+// instead of being smaller. 
+float3 ChannelRankedLuminance(float3 Value)
+{
+	int Index = 0;
+	Max3Index(Value, Index);
+	Swap(Value[Index], Value.g); // swap max value to g
+	Min3Index(Value, Index);
+	Swap(Value[Index], Value.b); // swap min value to b
+
+	return Luminance(Value);
+}
+
 // Note that the radiance, albedo and normal are the mean value.
 float4 GetMeanFromTextures(int2 Position)
 {
@@ -799,9 +829,14 @@ float4 GetMeanFromTextures(int2 Position)
 #if VARIANCE_TYPE == RADIANCE_MULTI_CHANNEL
 	Value  = InputTexture[Position];
 #elif VARIANCE_TYPE == RADIANCE_ALBEDO_NORMAL_SINGLECHANNEL
+
+#if RANKED_LUMINANCE_VARIANCE
+	Value.x = ChannelRankedLuminance(InputTexture[Position].rgb);
+	Value.y = ChannelRankedLuminance(AlbedoTexture[Position].rgb);
+#else
 	Value.x = Luminance(InputTexture[Position].rgb);
 	Value.y = Luminance(AlbedoTexture[Position].rgb);
-	
+#endif
 	//The length of the average normal indicates the variance
 	//1: All pointing to the same direction
 	//0: Uniform in all directions

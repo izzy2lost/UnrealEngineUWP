@@ -246,6 +246,20 @@ namespace NFORDenoise
 		TEXT("(0,1]: Use a specific bandwidth."),
 		ECVF_RenderThreadSafe);
 
+	TAutoConsoleVariable<bool> CVarNFORBandwidthSelectionMSEPreserveDetail(
+		TEXT("r.NFOR.BandwidthSelection.MSE.PreserveDetail"),
+		true,
+		TEXT("false: Use bandwidth = 1.0 to filter MSE.")
+		TEXT("true: Use the corresponding bandwidth to filter MSE"),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<bool> CVarNFORBandwidthSelectionMapPreserveDetail(
+		TEXT("r.NFOR.BandwidthSelection.Map.PreserveDetail"),
+		false,
+		TEXT("false: Use bandwidth = 1.0 to filter MSE.")
+		TEXT("true: Use the corresponding bandwidth to filter MSE"),
+		ECVF_RenderThreadSafe);
+
 	// Working in progress
 	TAutoConsoleVariable<int32> CVarNFORAlbedoDivideRecoverPhase(
 		TEXT("r.NFOR.AlbedoDivide.RecoverPhase"),
@@ -590,6 +604,17 @@ namespace NFORDenoise
 
 		return Bandwidths;
 	}
+
+	bool ShouldBandwidthSelectionMSEPreserveDetail()
+	{
+		return CVarNFORBandwidthSelectionMSEPreserveDetail.GetValueOnRenderThread();
+	}
+
+	bool ShouldBandwidthSelectionMapPreserveDetail()
+	{
+		return CVarNFORBandwidthSelectionMapPreserveDetail.GetValueOnRenderThread();
+	}
+
 
 	EPixelFormat GetFeaturePixelFormat()
 	{
@@ -2729,7 +2754,8 @@ namespace NFORDenoise
 
 				// NLM filtering of MSE texture.
 				FRDGTextureRef FilteredMSETexure = GraphBuilder.CreateTexture(MSE.Image->Desc, TEXT("NFOR.FilteredMSE"));
-				FNonLocalMeanParameters MSENonLocalMeanParameters = GetNonLocalMeanParameters(1, RadiancePatchDistance, 1.0f);
+				FNonLocalMeanParameters MSENonLocalMeanParameters = GetNonLocalMeanParameters(1, RadiancePatchDistance, 
+					ShouldBandwidthSelectionMSEPreserveDetail() ? Bandwidths[i]: 1.0f);
 
 				ApplyNonLocalMeanFilterIfRequired(
 					GraphBuilder,
@@ -2780,7 +2806,8 @@ namespace NFORDenoise
 			// Filter the selection map with image variance
 			FRDGTextureRef FilteredSelectionMap = GraphBuilder.CreateTexture(Desc, TEXT("NFOR.FilteredSelectionMap"));
 			{
-				FNonLocalMeanParameters SelectionMapNonLocalMeanParameters = GetNonLocalMeanParameters(1, RadiancePatchDistance, 1.0f);
+				FNonLocalMeanParameters SelectionMapNonLocalMeanParameters = GetNonLocalMeanParameters(1, RadiancePatchDistance, 
+					ShouldBandwidthSelectionMapPreserveDetail() ? Bandwidths[0] : 1.0f);
 
 				ApplyNonLocalMeanFilterIfRequired(
 					GraphBuilder,

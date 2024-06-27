@@ -164,6 +164,15 @@ namespace {
 		TEXT("1: Output variance texture to denoisers, or the postprocess material usually used by MRQ")
 	);
 
+	TAutoConsoleVariable<int32> CVarPathTracingDenoiserPrepassRankedLuminanceVariance(
+		TEXT("r.PathTracing.Denoiser.Prepass.RankedLuminanceVariance"),
+		1,
+		TEXT("Select the luminance type when calculating the variance:\n")
+		TEXT("0: use default luminance to estimate variance.\n")
+		TEXT("1: Use channel ranked luminance when calculating variance.\n"),
+		ECVF_RenderThreadSafe
+	);
+
 	TAutoConsoleVariable<int32> CVarPathTracingSpatialDenoiser(
 		TEXT("r.PathTracing.SpatialDenoiser"),
 		1,
@@ -1796,7 +1805,13 @@ public:
 
 	class FPrepassPhase : SHADER_PERMUTATION_BOOL("PREPASS_PHASE");	// 0: initialize, 1: update
 	class FVarianceType : SHADER_PERMUTATION_ENUM_CLASS("VARIANCE_TYPE", EVarianceType);
-	using FPermutationDomain = TShaderPermutationDomain<FPrepassPhase,FVarianceType>;
+	class FRankedLuminanceVariance : SHADER_PERMUTATION_BOOL("RANKED_LUMINANCE_VARIANCE");
+	using FPermutationDomain = TShaderPermutationDomain<FPrepassPhase,FVarianceType, FRankedLuminanceVariance>;
+
+	static bool UseRankedLuminanceVariance()
+	{
+		return CVarPathTracingDenoiserPrepassRankedLuminanceVariance.GetValueOnRenderThread() != 0;
+	}
 
 	static EVarianceType GetVarianceType()
 	{
@@ -1896,6 +1911,7 @@ void PathTracingSpatialTemporalDenoisingPrePass(FRDGBuilder& GraphBuilder, const
 			SHADER::FPermutationDomain ComputeShaderPermutationVector;
 			ComputeShaderPermutationVector.Set<SHADER::FPrepassPhase>(bUpdateVarianceMapPhase);
 			ComputeShaderPermutationVector.Set<SHADER::FVarianceType>(SHADER::GetVarianceType());
+			ComputeShaderPermutationVector.Set<SHADER::FRankedLuminanceVariance>(SHADER::UseRankedLuminanceVariance());
 
 			TShaderMapRef<SHADER> ComputeShader(View.ShaderMap, ComputeShaderPermutationVector);
 			FComputeShaderUtils::AddPass(
