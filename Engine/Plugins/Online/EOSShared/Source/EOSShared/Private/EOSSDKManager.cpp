@@ -1085,13 +1085,16 @@ void FEOSSDKManager::Shutdown()
 
 		if (ActivePlatforms.Num() > 0)
 		{
-			FRWScopeLock ScopeLock(ActivePlatformsCS, SLT_Write);
+			{
+				FRWScopeLock ScopeLock(ActivePlatformsCS, SLT_Write);
 
-			UE_LOG(LogEOSSDK, Warning, TEXT("FEOSSDKManager::Shutdown Releasing %d remaining platforms"), ActivePlatforms.Num());
+				UE_LOG(LogEOSSDK, Warning, TEXT("FEOSSDKManager::Shutdown Releasing %d remaining platforms"), ActivePlatforms.Num());
 
-			TArray<EOS_HPlatform> ActivePlatformHandles;
-			ActivePlatforms.GenerateKeyArray(ActivePlatformHandles);
-			ReleasedPlatforms.Append(ActivePlatformHandles);
+				TArray<EOS_HPlatform> ActivePlatformHandles;
+				ActivePlatforms.GenerateKeyArray(ActivePlatformHandles);
+				ReleasedPlatforms.Append(ActivePlatformHandles);
+			}
+
 			ReleaseReleasedPlatforms();
 		}
 
