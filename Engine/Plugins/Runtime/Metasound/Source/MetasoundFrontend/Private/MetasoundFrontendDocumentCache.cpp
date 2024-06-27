@@ -114,12 +114,19 @@ namespace Metasound::Frontend
 			EdgeCacheMap.Add(InBuildPageID, EdgeCache);
 			TSharedRef<FDocumentGraphNodeCache> NodeCache = FDocumentGraphNodeCache::Create(ThisShared, InBuildPageID, ModifyDelegates.Get());
 			NodeCacheMap.Add(InBuildPageID, NodeCache);
+
 			InterfaceCache = FDocumentGraphInterfaceCache::Create(ThisShared, ModifyDelegates->InterfaceDelegates);
 		}
 
 		ModifyDelegates->OnDependencyAdded.AddSP(this, &FDocumentCache::OnDependencyAdded);
 		ModifyDelegates->OnRemoveSwappingDependency.AddSP(this, &FDocumentCache::OnRemoveSwappingDependency);
 		ModifyDelegates->OnRenamingDependencyClass.AddSP(this, &FDocumentCache::OnRenamingDependencyClass);
+
+		ModifyDelegates->PageDelegates.OnRemovingPage.AddSPLambda(this, [this](const FDocumentMutatePageArgs& Args)
+		{
+			EdgeCacheMap.Remove(Args.PageID);
+			NodeCacheMap.Remove(Args.PageID);
+		});
 	}
 
 	const FMetasoundFrontendDocument& FDocumentCache::GetDocument() const

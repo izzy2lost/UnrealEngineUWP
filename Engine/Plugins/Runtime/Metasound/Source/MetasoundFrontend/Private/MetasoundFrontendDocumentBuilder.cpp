@@ -1336,17 +1336,16 @@ bool FMetaSoundFrontendDocumentBuilder::CanAddEdge(const FMetasoundFrontendEdge&
 void FMetaSoundFrontendDocumentBuilder::ClearDocument(TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> ModifyDelegates)
 {
 	FMetasoundFrontendDocument& Doc = GetDocumentChecked();
-
-	Doc.Interfaces.Reset();
-	Doc.Dependencies.Reset();
-
-#if WITH_EDITORONLY_DATA
-	Doc.Metadata.MemberMetadata.Reset();
-#endif // WITH_EDITORONLY_DATA
-
 	FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
-	GraphClass.Interface.Inputs.Reset();
-	GraphClass.Interface.Outputs.Reset();
+
+	GraphClass.Interface.Inputs.Empty();
+	GraphClass.Interface.Outputs.Empty();
+
+#if WITH_EDITOR
+	GraphClass.Interface.SetInputStyle({ });
+	GraphClass.Interface.SetOutputStyle({ });
+#endif // WITH_EDITOR
+
 	GraphClass.PresetOptions.InputsInheritingDefault.Reset();
 	GraphClass.PresetOptions.bIsPreset = false;
 
@@ -1354,9 +1353,17 @@ void FMetaSoundFrontendDocumentBuilder::ClearDocument(TSharedRef<Metasound::Fron
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FMetasoundFrontendGraph& Graph = GraphClass.GetDefaultGraph();
-	Graph.Nodes.Reset();
-	Graph.Edges.Reset();
+	Graph.Variables.Empty();
+	Graph.Nodes.Empty();
+	Graph.Edges.Empty();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	Doc.Interfaces.Empty();
+	Doc.Dependencies.Empty();
+
+#if WITH_EDITORONLY_DATA
+	Doc.Metadata.MemberMetadata.Empty();
+#endif // WITH_EDITORONLY_DATA
 
 	Reload(ModifyDelegates);
 }
