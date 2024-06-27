@@ -7,7 +7,7 @@ import moment from 'moment-timezone';
 import React, { useEffect, useId, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import backend from '../backend';
-import { ArtifactContextType, ArtifactData, EventSeverity, GetChangeSummaryResponse, GetJobStepRefResponse, GetLogEventResponse, LogLevel } from '../backend/Api';
+import { ArtifactContextType, EventSeverity, GetChangeSummaryResponse, GetJobStepRefResponse, GetLogEventResponse, LogLevel } from '../backend/Api';
 import { CommitCache } from '../backend/CommitCache';
 import dashboard from '../backend/Dashboard';
 import { JobDetails } from '../backend/JobDetails';
@@ -22,7 +22,6 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { ChangeContextMenu, ChangeContextMenuTarget } from './ChangeButton';
 import { HistoryModal } from './HistoryModal';
 import { IssueModalV2 } from './IssueViewV2';
-import { JobDetailArtifacts } from './JobDetailArtifacts';
 import { useQuery } from './JobDetailCommon';
 import { LogItem, renderLine } from './LogRender';
 import { JobLogSource, LogSource } from './LogSource';
@@ -412,41 +411,6 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
    </Modal>);
 });
 
-const StepArtifactsModal: React.FC<{ jobDetails: JobDetails, stepId: string | undefined, onClose: () => void }> = observer(({ jobDetails, stepId, onClose }) => {
-
-   const { hordeClasses } = getHordeStyling();
-
-   let artifacts: ArtifactData[] = jobDetails.artifacts;
-   if (stepId) {
-      artifacts = artifacts.filter(artifact => artifact.stepId === stepId);
-   }
-
-   let height = Math.min(36 * artifacts.length + 60, 500) + 200;
-
-   const hordeTheme = getHordeTheme();
-
-   return (<Modal isOpen={true} styles={{ main: { padding: 8, width: 1084, height: height, backgroundColor: hordeTheme.horde.contentBackground } }} className={hordeClasses.modal} onDismiss={() => { onClose() }}>
-
-      <Stack styles={{ root: { paddingTop: 8, paddingLeft: 24, paddingRight: 12, paddingBottom: 16 } }}>
-         <Stack tokens={{ childrenGap: 12 }}>
-            <Stack horizontal styles={{ root: { padding: 8 } }}>
-               <Stack grow horizontalAlign="end">
-                  <IconButton
-                     iconProps={{ iconName: 'Cancel' }}
-                     onClick={() => { onClose(); }}
-                  />
-               </Stack>
-            </Stack>
-
-            <Stack styles={{ root: { paddingLeft: 4, paddingRight: 0, paddingBottom: 4 } }}>
-               <JobDetailArtifacts jobDetails={jobDetails} stepId={stepId} topPadding={0} />
-            </Stack>
-         </Stack>
-      </Stack>
-   </Modal>);
-
-});
-
 const LogProgressIndicator: React.FC<{ logSource: LogSource }> = observer(({ logSource }) => {
 
    // subscribe
@@ -516,7 +480,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
       return () => {
          globalHandler = globalSearchState = undefined;
-         window.removeEventListener("keydown", handler);         
+         window.removeEventListener("keydown", handler);
       };
 
    }, []);
@@ -924,110 +888,92 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    if (fixme) {
 
-      let artifacts: ArtifactData[] = [];
 
-      if (fixme.artifacts) {
-         const artifactStepId = fixme!.stepByLogId(logId)?.id
-         if (artifactStepId) {
-            artifacts = fixme.artifacts.filter(artifact => artifact.stepId === artifactStepId);
-         }
+      const stepArtifacts = (logSource as JobLogSource).artifactsV2;
+
+      const atypes = new Map<ArtifactContextType, number>();
+      const knownTypes = new Set<string>(["step-saved", "step-output", "step-trace"]);
+
+      stepArtifacts?.forEach(a => {
+         let c = atypes.get(a.type) ?? 0;
+         c++;
+         atypes.set(a.type, c);
+      });
+
+      const opsList: IContextualMenuItem[] = [];
+
+      const navigateToArtifacts = (context: string) => {
+         const search = new URLSearchParams(window.location.search);
+         search.set("artifactContext", encodeURIComponent(context));
+         const url = `${window.location.pathname}?` + search.toString();
+         navigate(url, { replace: true })
       }
 
-      if (!fixme.jobdata?.useArtifactsV2) {
-         menuProps.items.push({
-            key: 'jobstep_artifacts',
-            disabled: artifacts.length === 0,
-            text: `Step Artifacts`,
-            onClick: () => setLogArtifacts("legacy")
-         })
-      } else {
-
-         const stepArtifacts = (logSource as JobLogSource).artifactsV2;
-
-         const atypes = new Map<ArtifactContextType, number>();
-         const knownTypes = new Set<string>(["step-saved", "step-output", "step-trace"]);
-
-         stepArtifacts?.forEach(a => {
-            let c = atypes.get(a.type) ?? 0;
-            c++;
-            atypes.set(a.type, c);
-         });
-
-         const opsList: IContextualMenuItem[] = [];
-
-         const navigateToArtifacts = (context: string) => {
-            const search = new URLSearchParams(window.location.search);
-            search.set("artifactContext", encodeURIComponent(context));
-            const url = `${window.location.pathname}?` + search.toString();
-            navigate(url, { replace: true })
+      opsList.push({
+         key: 'stepops_artifacts_step',
+         text: "Logs",
+         iconProps: { iconName: "Folder" },
+         disabled: !atypes.get("step-saved"),
+         onClick: () => {
+            navigateToArtifacts("step-saved");
          }
+      });
 
+      opsList.push({
+         key: 'stepops_artifacts_output',
+         text: "Temp Storage",
+         iconProps: { iconName: "MenuOpen" },
+         disabled: !atypes.get("step-output"),
+         onClick: () => {
+            navigateToArtifacts("step-output");
+         }
+      });
+
+      opsList.push({
+         key: 'stepops_artifacts_trace',
+         text: "Traces",
+         iconProps: { iconName: "SearchTemplate" },
+         disabled: !atypes.get("step-trace"),
+         onClick: () => {
+            navigateToArtifacts("step-trace");
+         }
+      });
+
+      const custom = stepArtifacts?.filter(a => !knownTypes.has(a.type)).sort((a, b) => a.type.localeCompare(b.type));
+      custom?.forEach(c => {
          opsList.push({
-            key: 'stepops_artifacts_step',
-            text: "Logs",
-            iconProps: { iconName: "Folder" },
-            disabled: !atypes.get("step-saved"),
-            onClick: () => {
-               navigateToArtifacts("step-saved");
-            }
+            key: `stepops_artifacts_${c.type}`,
+            text: c.description ?? c.name,
+            iconProps: { iconName: "Clean" },
+            onClick: () => { navigateToArtifacts(c.type) }
          });
-
-         opsList.push({
-            key: 'stepops_artifacts_output',
-            text: "Temp Storage",
-            iconProps: { iconName: "MenuOpen" },
-            disabled: !atypes.get("step-output"),
-            onClick: () => {
-               navigateToArtifacts("step-output");
-            }
-         });
-
-         opsList.push({
-            key: 'stepops_artifacts_trace',
-            text: "Traces",
-            iconProps: { iconName: "SearchTemplate" },
-            disabled: !atypes.get("step-trace"),
-            onClick: () => {
-               navigateToArtifacts("step-trace");
-            }
-         });
-
-         const custom = stepArtifacts?.filter(a => !knownTypes.has(a.type)).sort((a, b) => a.type.localeCompare(b.type));
-         custom?.forEach(c => {
-            opsList.push({
-               key: `stepops_artifacts_${c.type}`,
-               text: c.description ?? c.name,
-               iconProps: { iconName: "Clean" },
-               onClick: () => { navigateToArtifacts(c.type) }
-            });
-         })
-
-
-         menuProps.items.push({
-            key: 'jobstep_artifacts',
-            text: `Artifacts`,
-            subMenuProps: {
-               items: opsList
-            }
-         })
-      }
-
-      menuProps.items.push({
-         key: 'jobstep_history',
-         text: 'Step History',
-         onClick: () => setLogHistory(true)
       })
 
-      if (logSource.agentTelemetry) {
-         menuProps.items.push({
-            key: 'jobstep_agent_telemetry',
-            text: logTelemetry ? 'Hide Telemetry' : 'Show Telemetry',
-            onClick: () => {
-               logSource.agentTelemetry?.show(!logTelemetry);
-               setLogTelemetry(!logTelemetry)               
-            }
-         })
-      }
+
+      menuProps.items.push({
+         key: 'jobstep_artifacts',
+         text: `Artifacts`,
+         subMenuProps: {
+            items: opsList
+         }
+      })
+   }
+
+   menuProps.items.push({
+      key: 'jobstep_history',
+      text: 'Step History',
+      onClick: () => setLogHistory(true)
+   })
+
+   if (logSource.agentTelemetry) {
+      menuProps.items.push({
+         key: 'jobstep_agent_telemetry',
+         text: logTelemetry ? 'Hide Telemetry' : 'Show Telemetry',
+         onClick: () => {
+            logSource.agentTelemetry?.show(!logTelemetry);
+            setLogTelemetry(!logTelemetry)
+         }
+      })
    }
 
    function updateError() {
@@ -1156,7 +1102,6 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
    return <Stack>
       {!!fixme && <IssueModalV2 issueId={query.get("issue")} popHistoryOnClose={issueHistory} />}
       {!!fixme && logHistory && <StepHistoryModal jobDetails={fixme!} stepId={fixme!.stepByLogId(logId)?.id} onClose={() => setLogHistory(false)} />}
-      {!!fixme && logArtifacts === "legacy" && <StepArtifactsModal jobDetails={fixme!} stepId={fixme!.stepByLogId(logId)?.id} onClose={() => setLogArtifacts("")} />}
       {!!fixme && !!artifactContext && logArtifacts !== "legacy" && <JobArtifactsModal jobId={fixme!.jobdata!.id} stepId={fixme!.stepByLogId(logId)?.id!} artifacts={(logSource as JobLogSource).artifactsV2} contextType={artifactContext} artifactPath={artifactPath} onClose={() => { navigate(window.location.pathname, { replace: true }) }} />}
       {!!historyAgentId && <HistoryModal agentId={historyAgentId} onDismiss={() => { navigate(baseUrl, { replace: true }); setHistoryAgentId(undefined) }} />}
       <Breadcrumbs items={logSource?.crumbs ?? []} title={logSource?.crumbTitle} />
@@ -1304,7 +1249,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                         <Markdown>{summaryText}</Markdown>
                      </Stack>
                   </Stack>
-                  {logTelemetry && !! logSource.agentTelemetry && <AgentTelemetrySparkline handler={logSource.agentTelemetry} />}
+                  {logTelemetry && !!logSource.agentTelemetry && <AgentTelemetrySparkline handler={logSource.agentTelemetry} />}
                   <Stack horizontalAlign="center" style={{ paddingBottom: 12 }}>
                      <Separator styles={{ root: { fontSize: 0, width: "100%", padding: 0, selectors: { '::before': { background: dashboard.darktheme ? '#313638' : '#D3D2D1' } } } }} />
                   </Stack>

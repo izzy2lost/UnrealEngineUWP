@@ -213,7 +213,6 @@ export type PoolData = GetPoolResponse
 export type BatchData = GetBatchResponse
 export type EventData = GetLogEventResponse
 export type LogData = GetLogFileResponse
-export type ArtifactData = GetArtifactResponse
 export type AclData = GetAclResponse
 export type AclEntryData = GetAclEntryResponse
 export type SoftwareData = GetSoftwareResponse
@@ -1307,9 +1306,6 @@ export type GetJobResponse = {
 	/** Whether to update issues based on the outcome of this job */
 	updateIssues?: boolean;
 
-	/** Whether to use the V2 artifacts endpoint */
-	useArtifactsV2?: boolean;
-
 	artifacts?: GetJobArtifactResponse[];
 
 	/**  Custom permissions for this object */
@@ -1620,35 +1616,6 @@ export type GetLogFileResponse = {
 
 	/** Number of lines in the file	*/
 	lineCount: number;
-
-	/**Per-object permissions */
-	acl?: GetAclResponse;
-
-}
-
-/**Response describing an artifact */
-export type GetArtifactResponse = {
-
-	/**Unique id of the artifact */
-	id: string;
-
-	/** Unique id of the job for this artifact */
-	jobId: string;
-
-	/** Unique id of the job for this artifact */
-	stepId?: string;
-
-	/** Download code for this artifact */
-	code?: string;
-
-	/** Name of the artifact */
-	name: string;
-
-	/** MimeType of the artifact	*/
-	mimeType: string;
-
-	/** Length of the artifact, in bytes */
-	length: number;
 
 	/**Per-object permissions */
 	acl?: GetAclResponse;

@@ -443,7 +443,7 @@ export class JobLogSource extends LogSource {
    private async updateArtifacts() {
       const details = this.jobDetails;
 
-      if (!details.jobdata?.useArtifactsV2 || this.artifactsV2 !== undefined || !this.logData?.id || details.getLogActive(this.logData.id)) {
+      if (this.artifactsV2 !== undefined || !this.logData?.id || details.getLogActive(this.logData.id)) {
          return;
       }
 

@@ -238,10 +238,6 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
 
    const jobData = jobDetails.jobData;
 
-   if (!jobData?.useArtifactsV2) {
-      return null;
-   }
-
    // subscribe
    if (dashboard.updated) { }
    if (jobDetails.updated) { }

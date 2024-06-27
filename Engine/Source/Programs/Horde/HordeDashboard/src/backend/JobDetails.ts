@@ -6,7 +6,7 @@ import moment from 'moment';
 import backend from '.';
 import { getBatchInitElapsed, getNiceTime, getStepETA, getStepElapsed, getStepFinishTime, getStepTimingDelta } from '../base/utilities/timeUtils';
 import { getBatchText } from '../components/JobDetailCommon';
-import { AgentData, ArtifactData, BatchData, EventData, GetJobTimingResponse, GetLabelStateResponse, GetLabelTimingInfoResponse, IssueData, JobData, JobState, JobStepBatchState, JobStepError, JobStepOutcome, JobStepState, LabelState, ReportPlacement, StepData, StreamData, TestData } from './Api';
+import { AgentData, BatchData, EventData, GetJobTimingResponse, GetLabelStateResponse, GetLabelTimingInfoResponse, IssueData, JobData, JobState, JobStepBatchState, JobStepError, JobStepOutcome, JobStepState, LabelState, ReportPlacement, StepData, StreamData, TestData } from './Api';
 import { projectStore } from './ProjectStore';
 
 
@@ -766,12 +766,6 @@ export class JobDetails {
                 requests.push(this.getLogEvents(logId));
             }
 
-            let artifactsIdx = -1;
-            if (!jobdata.useArtifactsV2 && !this.artifacts?.length) {
-                artifactsIdx = requests.length;
-                requests.push(backend.getJobArtifacts(this.id!));
-            }
-
             Promise.all(requests as any).then(async (values) => {
 
                 if (this.canceled.has(cancelID)) {
@@ -780,10 +774,6 @@ export class JobDetails {
 
                 if (!this.isLogView) {
                     this.testdata = values[1] as any;
-                }
-
-                if (artifactsIdx !== -1) {
-                    this.artifacts = values[artifactsIdx] as any;
                 }
 
                 this.process();
@@ -850,8 +840,7 @@ export class JobDetails {
     stream?: StreamData
     labels: JobLabel[] = []
     batches: BatchData[] = []
-    events: EventData[] = []
-    artifacts: ArtifactData[] = []
+    events: EventData[] = []    
     testdata: TestData[] = []
     issues: IssueData[] = [];
     private timing?: GetJobTimingResponse;
