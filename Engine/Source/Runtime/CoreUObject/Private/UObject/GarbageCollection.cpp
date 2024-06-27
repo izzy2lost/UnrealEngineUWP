@@ -541,7 +541,7 @@ namespace UE::GC
 #if PERF_DETAILED_PER_CLASS_GC_STATS
 		// Keep track of how many objects of a certain class we're purging.
 		const FName& ClassName = Object->GetClass()->GetFName();
-		int32 InstanceCount = ClassToPurgeCountMap.FindRef( ClassName );
+		uint64 InstanceCount = ClassToPurgeCountMap.FindRef( ClassName );
 		ClassToPurgeCountMap.Add( ClassName, ++InstanceCount );
 #endif
 	}
