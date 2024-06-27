@@ -522,6 +522,17 @@ namespace Chaos
 		return 0.0f;
 	}
 
+	FReal FPBDJointUtilities::GetAngularTwistDriveTorqueLimit(
+		const FPBDJointSolverSettings& SolverSettings,
+		const FPBDJointSettings& JointSettings)
+	{
+		if (JointSettings.bAngularTwistVelocityDriveEnabled)
+		{
+			return JointSettings.AngularDriveMaxTorque[(int)EJointAngularConstraintIndex::Twist];
+		}
+		return 0.0f;
+	}
+
 	FReal FPBDJointUtilities::GetAngularSwingDriveStiffness(
 		const FPBDJointSolverSettings& SolverSettings,
 		const FPBDJointSettings& JointSettings)
@@ -540,6 +551,17 @@ namespace Chaos
 		if (JointSettings.bAngularSwingVelocityDriveEnabled)
 		{
 			return (SolverSettings.AngularDriveDampingOverride >= 0.0f) ? SolverSettings.AngularDriveDampingOverride : JointSettings.AngularDriveDamping[(int)EJointAngularConstraintIndex::Swing1];
+		}
+		return 0.0f;
+	}
+
+	FReal FPBDJointUtilities::GetAngularSwingDriveTorqueLimit(
+		const FPBDJointSolverSettings& SolverSettings,
+		const FPBDJointSettings& JointSettings)
+	{
+		if (JointSettings.bAngularSwingVelocityDriveEnabled)
+		{
+			return JointSettings.AngularDriveMaxTorque[(int)EJointAngularConstraintIndex::Swing1];
 		}
 		return 0.0f;
 	}

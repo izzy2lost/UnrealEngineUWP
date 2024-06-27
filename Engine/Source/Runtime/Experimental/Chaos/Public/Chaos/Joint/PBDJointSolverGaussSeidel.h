@@ -322,6 +322,7 @@ namespace Chaos
 			const FVec3& Axis,
 			const FReal Angle,
 			const FReal AngVelTarget,
+			const FReal LambdaLimit,
 			FReal& Lambda);
 
 		void ApplyRotationConstraintSoftKD(
@@ -334,6 +335,7 @@ namespace Chaos
 			const FVec3& Axis,
 			const FReal Angle,
 			const FReal AngVelTarget,
+			const FReal LambdaLimit,
 			FReal& Lambda);
 
 		void ApplyRotationConstraintSoftDD(
@@ -344,6 +346,7 @@ namespace Chaos
 			const FVec3& Axis,
 			const FReal Angle,
 			const FReal AngVelTarget,
+			const FReal LambdaLimit,
 			FReal& Lambda);
 
 		void ApplyLockedRotationConstraints(
