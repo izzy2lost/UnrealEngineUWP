@@ -76,7 +76,7 @@ void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedViewModes(TArray<Data
 
 bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	auto HasRenderableCollection = [](const FDataflowNode* InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context)
+	auto HasManagedArrayCollection = [](const FDataflowNode* InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context)
 	{
 		if (InDataflowNode && Context)
 		{
@@ -84,12 +84,7 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 			{
 				if (Output->GetType() == FName("FManagedArrayCollection"))
 				{
-					const FManagedArrayCollection DefaultValue;
-					const FManagedArrayCollection& Collection = Output->GetValue<FManagedArrayCollection>(*Context, DefaultValue);
-					if (Collection.HasGroup("Geometry"))
-					{
-						return true;
-					}
+					return true;
 				}
 			}
 		}
@@ -111,7 +106,7 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 						{
 							if (const FDataflowNode* PrimarySelection = ContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
 							{
-								return HasRenderableCollection(PrimarySelection, EvaluationContext);
+								return HasManagedArrayCollection(PrimarySelection, EvaluationContext);
 							}
 						}
 					}

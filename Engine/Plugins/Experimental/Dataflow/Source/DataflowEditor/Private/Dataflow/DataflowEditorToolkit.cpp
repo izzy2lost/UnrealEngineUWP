@@ -916,6 +916,13 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 				}
 
 				EditorContent->SetPrimarySelectedNode(PrimarySelection);
+
+				// Call the node's OnSelected function. Some nodes use this to cache information from the inputs (e.g. FDataflowCollectionAddScalarVertexPropertyNode::CachedCollectionGroupNames)
+				TSharedPtr<Dataflow::FEngineContext> DataflowContext = EditorContent->GetDataflowContext();
+				if (PrimarySelection && DataflowContext.IsValid())
+				{
+					PrimarySelection->GetDataflowNode()->OnSelected(*DataflowContext);
+				}
 			}
 
 			if (GetDataflowGraphEditor()->IsAltDown())

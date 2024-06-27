@@ -42,6 +42,8 @@ namespace Dataflow
 			: Name(InRenderName), Type(InTypeName), Outputs(InOutputs) {}
 		FRenderingParameter(FString InRenderName, FName InTypeName, TArray<FName>&& InOutputs)
 			: Name(InRenderName), Type(InTypeName), Outputs(InOutputs) {}
+		
+		bool operator==(const FRenderingParameter& Other) const = default;
 
 		FString Name = FString("");
 		FName Type = FName("");

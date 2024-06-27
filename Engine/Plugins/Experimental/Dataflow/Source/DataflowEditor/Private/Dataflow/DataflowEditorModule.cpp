@@ -9,6 +9,8 @@
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEngineRendering.h"
 #include "Dataflow/DataflowSNodeFactories.h"
+#include "Dataflow/ScalarVertexPropertyGroupCustomization.h"
+#include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
 
 #include "CoreMinimal.h"
 #include "EdGraphUtilities.h"
@@ -25,12 +27,24 @@ void FDataflowEditorModule::StartupModule()
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
 
+	// Register type customizations
+	if (FPropertyEditorModule* const PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+	{
+		PropertyModule->RegisterCustomPropertyTypeLayout(FScalarVertexPropertyGroup::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FScalarVertexPropertyGroupCustomization::MakeInstance));
+	}
+
 	Dataflow::RenderingCallbacks();
 }
 
 void FDataflowEditorModule::ShutdownModule()
 {	
 	FEditorModeRegistry::Get().UnregisterMode(UDataflowEditorMode::EM_DataflowEditorModeId);
+
+	// Deregister type customizations
+	if (FPropertyEditorModule* const PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+	{
+		PropertyModule->UnregisterCustomPropertyTypeLayout(FScalarVertexPropertyGroup::StaticStruct()->GetFName());
+	}
 }
 
 IMPLEMENT_MODULE(FDataflowEditorModule, DataflowEditor)

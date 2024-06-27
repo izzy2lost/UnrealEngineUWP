@@ -4,6 +4,7 @@
 #include "ChaosClothAsset/AddWeightMapNode.h"
 #include "ChaosClothAsset/AttributeNode.h"
 #include "ChaosClothAsset/BindToRootBoneNode.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ColorScheme.h"
 #include "ChaosClothAsset/CopySimulationToRenderMeshNode.h"
 #include "ChaosClothAsset/SelectionGroupCustomization.h"
@@ -66,6 +67,7 @@
 #include "ChaosClothAsset/ConnectableValueCustomization.h"
 #include "ChaosClothAsset/ConnectableValue.h"
 #include "ChaosClothAsset/ClothDataflowViewModes.h"
+#include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
 #include "Dataflow/DataflowNodeColorsRegistry.h"
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowRenderingFactory.h"
@@ -219,10 +221,6 @@ namespace UE::Chaos::ClothAsset
 						Normals = ClothFacade.GetRenderNormal();
 						// TODO: Get materials from the render mesh
 					}
-					else
-					{
-						checkf(false, TEXT("Invalid View Mode for FClothCollection rendering"));
-					}
 
 					TArray<FLinearColor> Colors;
 					Colors.Init(FLinearColor::Gray, Vertices.Num());	// TODO: Choose a vertex color
@@ -234,7 +232,7 @@ namespace UE::Chaos::ClothAsset
 			}
 		};
 
-		Dataflow::FRenderKey FClothSurfaceRenderCallbacks::RenderKey = { "SurfaceRender", FName("FClothCollection") };
+		Dataflow::FRenderKey FClothSurfaceRenderCallbacks::RenderKey = { TEXT("SurfaceRender"), FName("FClothCollection") };
 
 		static void RegisterRenderingCallbacks()
 		{
@@ -253,6 +251,34 @@ namespace UE::Chaos::ClothAsset
 			Dataflow::FRenderingViewModeFactory::GetInstance().DeregisterViewMode(FCloth3DSimViewMode::Name);
 			Dataflow::FRenderingViewModeFactory::GetInstance().DeregisterViewMode(FClothRenderViewMode::Name);
 		}
+
+
+
+		class FClothCollectionAddScalarVertexPropertyCallbacks : public IDataflowAddScalarVertexPropertyCallbacks
+		{
+		public:
+
+			const static FName Name;
+
+			virtual ~FClothCollectionAddScalarVertexPropertyCallbacks() override = default;
+
+			virtual FName GetName() const override
+			{
+				return Name;
+			}
+
+			virtual TArray<FName> GetTargetGroupNames() const override
+			{
+				return { ClothCollectionGroup::SimVertices2D, ClothCollectionGroup::SimVertices3D, ClothCollectionGroup::RenderVertices };
+			}
+
+			virtual TArray<Dataflow::FRenderingParameter> GetRenderingParameters() const override
+			{
+				return { {TEXT("SurfaceRender"), FName("FClothCollection"), {TEXT("Collection")} } };
+			}
+		};
+
+		const FName FClothCollectionAddScalarVertexPropertyCallbacks::Name = FName(TEXT("FClothCollectionAddScalarVertexPropertyCallbacks"));
 
 	}  // End namespace Private
 
@@ -286,6 +312,8 @@ namespace UE::Chaos::ClothAsset
 			}
 
 			Private::RegisterRenderingCallbacks();
+
+			DataflowAddScalarVertexPropertyCallbackRegistry::Get().RegisterCallbacks(MakeUnique<Private::FClothCollectionAddScalarVertexPropertyCallbacks>());
 		}
 
 		virtual void ShutdownModule() override
@@ -314,6 +342,8 @@ namespace UE::Chaos::ClothAsset
 					PropertyModule->UnregisterCustomPropertyTypeLayout(FChaosClothAssetImportedIntValue::StaticStruct()->GetFName());
 				}
 			}
+
+			DataflowAddScalarVertexPropertyCallbackRegistry::Get().DeregisterCallbacks(Private::FClothCollectionAddScalarVertexPropertyCallbacks::Name);
 		}
 	};
 }  // End namespace UE::Chaos::ClothAsset
