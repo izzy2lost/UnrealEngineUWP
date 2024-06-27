@@ -25,6 +25,7 @@ typedef TMulticastDelegate<void(IConsoleVariable*), FDefaultDelegateUserPolicy> 
 
 namespace Metasound
 {
+	class IGraph;
 	class FGraph;
 	namespace Frontend
 	{
@@ -43,15 +44,16 @@ namespace Metasound
 	} // namespace Frontend
 } // namespace Metasound
 
-
 /** FMetasoundAssetBase is intended to be a mix-in subclass for UObjects which utilize
  * Metasound assets.  It provides consistent access to FMetasoundFrontendDocuments, control
  * over the FMetasoundFrontendClassInterface of the FMetasoundFrontendDocument.  It also enables the UObject
  * to be utilized by a host of other engine tools built to support MetaSounds.
  */
-class METASOUNDFRONTEND_API FMetasoundAssetBase
+class METASOUNDFRONTEND_API FMetasoundAssetBase : public IAudioProxyDataFactory
 {
 public:
+	virtual TSharedPtr<Audio::IProxyData> CreateProxyData(const Audio::FProxyDataInitParams& InitParams) override;
+
 	static const FString FileExtension;
 
 	FMetasoundAssetBase() = default;
@@ -295,3 +297,38 @@ private:
 
 	Metasound::Frontend::FGraphRegistryKey GraphRegistryKey;
 };
+
+class METASOUNDFRONTEND_API FMetasoundAssetProxy final : public Audio::TProxyData<FMetasoundAssetProxy>
+{
+public:
+	IMPL_AUDIOPROXY_CLASS(FMetasoundAssetProxy);
+
+	struct FParameters
+	{
+		TSet<FMetasoundFrontendVersion> Interfaces;
+		TSharedPtr<const Metasound::IGraph> Graph;
+
+	};
+
+	explicit FMetasoundAssetProxy(const FParameters& InParams);
+	
+	FMetasoundAssetProxy(const FMetasoundAssetProxy& Other);
+
+	const Metasound::IGraph* GetGraph() const
+	{
+		return Graph.Get();
+	}
+
+	const TSet<FMetasoundFrontendVersion>& GetInterfaces() const
+	{
+		return Interfaces;
+	}
+
+	TUniquePtr<Metasound::IOperator> CreateOperator(const Metasound::FBuildOperatorParams& BuildOperatorParams, Metasound::FInputVertexInterfaceData& InputData) const;
+
+private:
+	
+	TSet<FMetasoundFrontendVersion> Interfaces;
+	TSharedPtr<const Metasound::IGraph> Graph;
+};
+using FMetasoundAssetProxyPtr = TSharedPtr<FMetasoundAssetProxy, ESPMode::ThreadSafe>;

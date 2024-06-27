@@ -261,6 +261,21 @@ bool FMetasoundAssetBase::ConformObjectDataToInterfaces()
 	return false;
 }
 
+TSharedPtr<Audio::IProxyData> FMetasoundAssetBase::CreateProxyData(const Audio::FProxyDataInitParams& InitParams)
+{
+	using namespace Metasound::Frontend;
+	TScriptInterface<const IMetaSoundDocumentInterface> DocInterface = GetOwningAsset();
+	const FGraphRegistryKey& Key = GetGraphRegistryKey();
+	FMetasoundAssetProxy::FParameters Args;
+	Args.Interfaces = DocInterface->GetConstDocument().Interfaces;
+	Args.Graph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(Key);
+	if (Args.Graph.IsValid())
+	{
+		return MakeShared<FMetasoundAssetProxy>(Args);
+	}
+	return nullptr;
+}
+
 void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions)
 {
 	UpdateAndRegisterForExecution(MoveTemp(InRegistrationOptions));
@@ -1058,5 +1073,36 @@ const FMetasoundAssetBase::FRuntimeData& FMetasoundAssetBase::GetRuntimeData() c
 	return PlaceholderForDeprecatedMethod;
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+FMetasoundAssetProxy::FMetasoundAssetProxy(const FParameters& InParams)
+{
+	Interfaces = InParams.Interfaces;
+	Graph = InParams.Graph;
+}
+
+FMetasoundAssetProxy::FMetasoundAssetProxy(const FMetasoundAssetProxy& Other)
+{
+	Interfaces = Other.Interfaces;
+	Graph = Other.Graph;
+}
+
+TUniquePtr<Metasound::IOperator> FMetasoundAssetProxy::CreateOperator(const Metasound::FBuildOperatorParams& BuildOperatorParams, Metasound::FInputVertexInterfaceData& InputData) const
+{
+	using namespace Metasound;
+	if (ensure(Graph.IsValid()))
+	{
+		FBuildResults Results;
+		FBuildOperatorParams Params
+		{
+			*Graph.Get(),
+			BuildOperatorParams.OperatorSettings,
+			InputData,
+			BuildOperatorParams.Environment,
+			nullptr
+		};
+		return Graph->GetDefaultOperatorFactory()->CreateOperator(Params, Results);
+	}
+	return nullptr;
+}
 
 #undef LOCTEXT_NAMESPACE // "MetaSound"
