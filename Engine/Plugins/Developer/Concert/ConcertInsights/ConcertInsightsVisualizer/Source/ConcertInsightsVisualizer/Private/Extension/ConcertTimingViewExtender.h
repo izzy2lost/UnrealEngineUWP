@@ -1,4 +1,3 @@
-
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
@@ -33,4 +32,3 @@ namespace UE::ConcertInsightsVisualizer
 		TMap<UE::Insights::Timing::ITimingViewSession*, FPerSessionData> PerSessionDataMap;
 	};
 }
-
