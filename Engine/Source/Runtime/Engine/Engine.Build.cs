@@ -117,6 +117,11 @@ public class Engine : ModuleRules
 			PublicDependencyModuleNames.Add("ApplicationCore");
 		}
 
+		if (Target.bCompileIoStoreOnDemand && !Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("IoStoreOnDemand");
+		}
+
 		PublicIncludePathModuleNames.AddRange(
 			new string[] {
 				"TypedElementFramework",

@@ -170,6 +170,8 @@ namespace UnrealBuildTool
 
 		public bool bUseGameplayDebuggerCore => Inner.bUseGameplayDebuggerCore;
 
+		public bool bCompileIoStoreOnDemand => Inner.bCompileIoStoreOnDemand;
+
 		public bool bUseIris => Inner.bUseIris;
 
 		public bool bTrackRHIResourceInfoForTest => Inner.bTrackRHIResourceInfoForTest;

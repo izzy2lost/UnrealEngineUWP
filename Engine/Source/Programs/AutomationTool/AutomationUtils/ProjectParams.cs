@@ -1061,7 +1061,17 @@ namespace AutomationTool
 			}
 
 			this.Upload = Command.ParseParamValue("upload");
-			
+
+			this.ApplyIoStoreOnDemand = Command.ParseParam("ApplyIoStoreOnDemand");
+			if (this.ApplyIoStoreOnDemand)
+			{
+				// Compile the IoStoreOnDemand module when uploading content for streaming
+				this.AdditionalBuildOptions += " -CompileIoStoreOnDemand";
+
+				// Required to force the project to use chunk manifests
+				this.Manifests = true;
+			}
+
 			this.XcodeBuildOptions = ParseParamValueIfNotSpecified(Command, XcodeBuildOptions, "xcodebuildoptions", null);
 
 			if (ClientConfigsToBuild == null)
@@ -2400,6 +2410,9 @@ namespace AutomationTool
 
 		[Help("upload", "Arguments for uploading on demand content")]
 		public string Upload { get; set; }
+
+		[Help("applyiostoreondemand", "Forces IoStoreOnDemand to be enabled for the project even if it is not set up for it")]
+		public bool ApplyIoStoreOnDemand { get; }
 
 		[Help("XcodeBuildOptions", "Extra options to pass to xcodebuild")]
 		public string XcodeBuildOptions { get; set; }

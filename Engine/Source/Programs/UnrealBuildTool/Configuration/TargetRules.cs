@@ -1024,6 +1024,13 @@ namespace UnrealBuildTool
 		GameplayDebuggerOverrideState UseGameplayDebuggerOverride;
 
 		/// <summary>
+		/// Whether to use I/O store on-demand
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-CompileIoStoreOnDemand", Value = "true")]
+		public bool bCompileIoStoreOnDemand { get; set; } = false;
+
+		/// <summary>
 		/// Whether to use Iris.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]

@@ -1642,6 +1642,12 @@ namespace AutomationScripts
 						PlatformEngineConfig.GetBool("/Script/Engine.NetworkSettings", "n.VerifyPeer", out bStageSSLCertificates);
 					}
 
+					if (Params.ApplyIoStoreOnDemand)
+					{
+						// The IoStoreOnDemand system requires SSL certificates at runtime so make sure we stage them
+						bStageSSLCertificates = true;
+					}
+
 					if (bStageSSLCertificates)
 					{
 						// Game's SSL certs
@@ -2607,10 +2613,49 @@ namespace AutomationScripts
 					RulesList.Add(PakRules);
 				}
 			}
+
+			if (Params.ApplyIoStoreOnDemand)
+			{
+				// If there are no pak rules for an 'OnDemand' container we will need to create one via CreateIoStoreOnDemandPakRules
+				if (RulesList.FindIndex(x => x.bOnDemand == true) == -1)
+				{
+					RulesList.AddRange(CreateIoStoreOnDemandPakRules());
+				}
+			}
+
 			if (RulesList.Count == 0)
 			{
 				return null;
 			}
+
+			return RulesList;
+		}
+
+		/// <summary>
+		/// Creates a list of pak file rules that will need to be applied in order for IoStoreOnDemand to work by forcing bulkdata
+		/// into a 'OnDemand' container.
+		/// </summary>
+		/// <returns>The list of rules </returns>
+		private static List<PakFileRules> CreateIoStoreOnDemandPakRules()
+		{
+			List<PakFileRules> RulesList = new List<PakFileRules>();
+
+			PakFileRules PakRules = new PakFileRules();
+			PakRules.Name = "BulkDataOnDemand";
+			PakRules.bOnDemand = true;
+			PakRules.Filter = new FileFilter();
+
+			PakRules.Filter.AddRule("*.uptnl");
+			PakRules.Filter.AddRule("*.ubulk");
+
+			// Map files can be too large for IAS to reasonably handle but with CookToZen it would be difficult for us
+			// to filter by file sizeand it is difficult to justify doing that work given that this is a testing/development
+			//feature.
+			// So for now we should exclude anything under /Map/ directories which should solve most problems.
+			PakRules.Filter.AddRule("-.../Map/*");
+
+			RulesList.Add(PakRules);
+
 			return RulesList;
 		}
 
