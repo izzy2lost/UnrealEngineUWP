@@ -75,8 +75,11 @@ void UPackage::PostInitProperties()
 	SetLinkerPackageVersion(GPackageFileUEVersion);
 	SetLinkerLicenseeVersion(GPackageFileLicenseeUEVersion);
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	SetMetaData(nullptr);
+#endif // WITH_METADATA
+
+#if WITH_EDITORONLY_DATA
 	// Always generate a new unique PersistentGuid, required for new disk packages.
 	// For existing disk packages it will be replaced with the existing PersistentGuid when loading the package summary.
 	// For existing script packages it will be replaced in ConstructUPackage with the CRC of the generated code files.
@@ -89,7 +92,7 @@ void UPackage::PostInitProperties()
 	bLoadedByEditorPropertiesOnly = !HasAnyFlags(RF_ClassDefaultObject) && !HasAnyPackageFlags(PKG_CompiledIn) && (IsRunningCommandlet());
 
 	bIsDynamicPIEPackagePending = false;
-#endif
+#endif // WITH_EDITORONLY_DATA
 }
 
 
@@ -230,9 +233,7 @@ TArray<UPackage*> UPackage::GetExternalPackages() const
  */
 UMetaData* UPackage::GetMetaData()
 {
-	checkf(!FPlatformProperties::RequiresCookedData(), TEXT("MetaData is only allowed in the Editor."));
-
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UMetaData* LocalMetaData = MetaData;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -261,7 +262,7 @@ UMetaData* UPackage::GetMetaData()
 	return LocalMetaData;
 #else
 	return nullptr;
-#endif
+#endif // WITH_METADATA
 }
 
 /**
@@ -300,14 +301,14 @@ void UPackage::TagSubobjects(EObjectFlags NewFlags)
 {
 	Super::TagSubobjects(NewFlags);
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (MetaData)
 	{
 		MetaData->SetFlags(NewFlags);
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif
+#endif // WITH_METADATA
 }
 
 /**
@@ -435,4 +436,4 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(UPackage, UObject,
 	{
 	}
 );
-#endif
+#endif // WITH_EDITORONLY_DATA

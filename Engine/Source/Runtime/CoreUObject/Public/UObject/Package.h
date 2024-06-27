@@ -308,14 +308,16 @@ public:
 	UE_DEPRECATED(5.0, "Use Get/SetFileSize instead")
 	uint64 FileSize;
 
+#if WITH_METADATA
+	// MetaData for the editor, or NULL in the game
+	UE_DEPRECATED(5.0, "Use Get/HasMetaData instead")
+	class UMetaData* MetaData;
+#endif // WITH_METADATA
+
 #if WITH_EDITORONLY_DATA
 	/** Editor only: Thumbnails stored in this package */
 	UE_DEPRECATED(5.0, "Use Get/SetThumbnailMap instead")
 	TUniquePtr< FThumbnailMap > ThumbnailMap;
-
-	// MetaData for the editor, or NULL in the game
-	UE_DEPRECATED(5.0, "Use Get/HasMetaData instead")
-	class UMetaData* MetaData;
 
 	/** Editor only: PIE instance ID this package belongs to, INDEX_NONE otherwise */
 	UE_DEPRECATED(5.0, "Use Get/SetPIEInstanceID instead")
@@ -425,9 +427,9 @@ private:
 
 	void SetMetaData(UMetaData* InMetaData)
 	{
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		MetaData = InMetaData;
-#endif
+#endif // WITH_METADATA
 	}
 
 public:
@@ -913,11 +915,11 @@ public:
 	 */
 	bool HasMetaData() const
 	{
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		return MetaData != nullptr;
 #else
 		return false;
-#endif
+#endif // WITH_METADATA
 	}
 
 	/**

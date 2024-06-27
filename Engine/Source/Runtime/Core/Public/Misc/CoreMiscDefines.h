@@ -28,7 +28,11 @@
 #endif
 
 /** This controls if metadata for compiled in classes is unpacked and setup at boot time. Meta data is not normally used except by the editor. **/
-#define WITH_METADATA (WITH_EDITORONLY_DATA && WITH_EDITOR)
+#ifndef WITH_METADATA
+#define WITH_METADATA WITH_EDITORONLY_DATA
+#elif WITH_EDITORONLY_DATA && !WITH_METADATA
+#error WITH_EDITORONLY_DATA=1 requires WITH_METADATA=1
+#endif
 
 // Option to check for UE_DISABLE_OPTIMIZATION being submitted
 #ifndef UE_CHECK_DISABLE_OPTIMIZATION

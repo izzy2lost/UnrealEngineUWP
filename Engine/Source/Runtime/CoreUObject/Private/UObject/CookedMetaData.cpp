@@ -26,7 +26,7 @@ void PrepareCookedMetaDataForPurge(UObject* CookedMetaDataPtr)
 template <typename CookedMetaDataOuterType, typename CookedMetaDataType>
 void PostLoadCookedMetaData(CookedMetaDataType* CookedMetaDataPtr)
 {
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	checkf(CookedMetaDataPtr->GetPackage()->HasAnyPackageFlags(PKG_Cooked), TEXT("Cooked meta-data should only be loaded for a cooked package!"));
 
 	if (CookedMetaDataOuterType* Owner = CastChecked<CookedMetaDataOuterType>(CookedMetaDataPtr->GetOuter()))
@@ -35,7 +35,7 @@ void PostLoadCookedMetaData(CookedMetaDataType* CookedMetaDataPtr)
 		CookedMetaDataPtr->ApplyMetaData(Owner);
 		PrepareCookedMetaDataForPurge(CookedMetaDataPtr);
 	}
-#endif
+#endif // WITH_METADATA
 }
 
 } // namespace CookedMetaDataUtil::Internal
@@ -50,7 +50,7 @@ void FObjectCookedMetaDataStore::CacheMetaData(const UObject* SourceObject)
 {
 	ObjectMetaData.Reset();
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	if (UPackage* SourcePackage = SourceObject->GetPackage())
 	{
 		if (const UMetaData* SourceMetaData = SourcePackage->GetMetaData())
@@ -61,12 +61,12 @@ void FObjectCookedMetaDataStore::CacheMetaData(const UObject* SourceObject)
 			}
 		}
 	}
-#endif
+#endif // WITH_METADATA
 }
 
 void FObjectCookedMetaDataStore::ApplyMetaData(UObject* TargetObject) const
 {
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	if (UPackage* TargetPackage = TargetObject->GetPackage())
 	{
 		if (UMetaData* TargetMetaData = TargetPackage->GetMetaData())
@@ -74,7 +74,7 @@ void FObjectCookedMetaDataStore::ApplyMetaData(UObject* TargetObject) const
 			TargetMetaData->ObjectMetaDataMap.FindOrAdd(TargetObject).Append(ObjectMetaData);
 		}
 	}
-#endif
+#endif // WITH_METADATA
 }
 
 
@@ -87,19 +87,19 @@ void FFieldCookedMetaDataStore::CacheMetaData(const FField* SourceField)
 {
 	FieldMetaData.Reset();
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	if (const TMap<FName, FString>* SourceFieldMetaData = SourceField->GetMetaDataMap())
 	{
 		FieldMetaData = *SourceFieldMetaData;
 	}
-#endif
+#endif // WITH_METADATA
 }
 
 void FFieldCookedMetaDataStore::ApplyMetaData(FField* TargetField) const
 {
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	TargetField->AppendMetaData(FieldMetaData);
-#endif
+#endif // WITH_METADATA
 }
 
 

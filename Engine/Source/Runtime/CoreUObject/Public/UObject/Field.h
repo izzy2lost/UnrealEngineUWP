@@ -435,9 +435,9 @@ public:
 		return Container.Field != Other.Container.Field;
 	}
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	COREUOBJECT_API bool HasMetaData(const FName& Key) const;
-#endif
+#endif // WITH_METADATA
 
 	/** Support comparison functions that make this usable as a KeyValue for a TSet<> */
 	[[nodiscard]] friend uint32 GetTypeHash(const FFieldVariant& InFieldVariant)
@@ -753,38 +753,12 @@ public:
 	{
 	}
 
-#if WITH_EDITORONLY_DATA
-
+#if WITH_METADATA
 private:
 	/** Editor-only meta data map */
 	TMap<FName, FString>* MetaDataMap;
 
 public:
-
-	/**
-	* Walks up the chain of packages until it reaches the top level, which it ignores.
-	*
-	* @param	bStartWithOuter		whether to include this object's name in the returned string
-	* @return	string containing the path name for this object, minus the outermost-package's name
-	*/
-	COREUOBJECT_API FString GetFullGroupName(bool bStartWithOuter) const;
-
-	/**
-	* Finds the localized display name or native display name as a fallback.
-	*
-	* @return The display name for this object.
-	*/
-	COREUOBJECT_API FText GetDisplayNameText() const;
-
-	/**
-	* Finds the localized tooltip or native tooltip as a fallback.
-	*
-	* @param bShortTooltip Look for a shorter version of the tooltip (falls back to the long tooltip if none was specified)
-	*
-	* @return The tooltip for this object.
-	*/
-	COREUOBJECT_API FText GetToolTipText(bool bShortTooltip = false) const;
-
 	/**
 	* Determines if the property has any metadata associated with the key
 	*
@@ -936,6 +910,33 @@ public:
 
 	/** Copies all metadata from Source Field to Dest Field */
 	static COREUOBJECT_API void CopyMetaData(const FField* InSourceField, FField* InDestField);
+#endif // WITH_METADATA
+
+#if WITH_EDITORONLY_DATA
+public:
+	/**
+	* Walks up the chain of packages until it reaches the top level, which it ignores.
+	*
+	* @param	bStartWithOuter		whether to include this object's name in the returned string
+	* @return	string containing the path name for this object, minus the outermost-package's name
+	*/
+	COREUOBJECT_API FString GetFullGroupName(bool bStartWithOuter) const;
+
+	/**
+	* Finds the localized display name or native display name as a fallback.
+	*
+	* @return The display name for this object.
+	*/
+	COREUOBJECT_API FText GetDisplayNameText() const;
+
+	/**
+	* Finds the localized tooltip or native tooltip as a fallback.
+	*
+	* @param bShortTooltip Look for a shorter version of the tooltip (falls back to the long tooltip if none was specified)
+	*
+	* @return The tooltip for this object.
+	*/
+	COREUOBJECT_API FText GetToolTipText(bool bShortTooltip = false) const;
 
 	/** Creates a new FField from existing UField */
 	static COREUOBJECT_API FField* CreateFromUField(UField* InField);
@@ -943,9 +944,9 @@ public:
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnConvertCustomUFieldToFField, FFieldClass*, UField*, FField*&);
 	/** Gets a delegate to convert custom UField types to FFields */
 	static COREUOBJECT_API FOnConvertCustomUFieldToFField& GetConvertCustomUFieldToFFieldDelegate();
-
 #endif // WITH_EDITORONLY_DATA
 
+public:
 	/** Duplicates an FField */
 	static COREUOBJECT_API FField* Duplicate(const FField* InField, FFieldVariant DestOwner, const FName DestName = NAME_None, EObjectFlags FlagMask = RF_AllFlags, EInternalObjectFlags InternalFlagsMask = EInternalObjectFlags_AllFlags);
 

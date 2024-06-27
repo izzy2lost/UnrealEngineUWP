@@ -933,7 +933,7 @@ FText UEnum::GetToolTipTextByIndex(int32 NameIndex) const
 
 #endif
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 
 bool UEnum::HasMetaData( const TCHAR* Key, int32 NameIndex/*=INDEX_NONE*/ ) const
 {
@@ -1051,7 +1051,7 @@ void UEnum::RemoveMetaData( const TCHAR* Key, int32 NameIndex/*=INDEX_NONE*/) co
 	MetaData->RemoveValue( this, *KeyString );
 }
 
-#endif
+#endif // WITH_METADATA
 
 int64 UEnum::ParseEnum(const TCHAR*& Str)
 {

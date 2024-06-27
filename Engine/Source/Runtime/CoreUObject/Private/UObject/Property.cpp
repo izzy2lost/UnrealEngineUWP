@@ -718,8 +718,8 @@ const TCHAR* FPropertyHelpers::ReadToken( const TCHAR* Buffer, FStringBuilderBas
 	FProperty implementation.
 -----------------------------------------------------------------------------*/
 
-#if UE_GAME && UE_FNAME_OUTLINE_NUMBER
-	static_assert(sizeof(FProperty) <= 104, "FProperty was optimized to reduce its size so most of the classes that inherent from it will fall withing 112 bytes bin of MallocBinned3");
+#if UE_GAME && UE_FNAME_OUTLINE_NUMBER && !WITH_METADATA
+	static_assert(sizeof(FProperty) <= 104, "FProperty was optimized to reduce its size so most of the classes that inherent from it will fall within 112 bytes bin of MallocBinned3");
 #endif
 
 IMPLEMENT_FIELD(FProperty)

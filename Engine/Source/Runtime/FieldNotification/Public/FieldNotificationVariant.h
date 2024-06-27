@@ -32,9 +32,9 @@ public:
 	using ::FFieldVariant::operator bool;
 	using ::FFieldVariant::operator ==;
 	using ::FFieldVariant::operator !=;
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	using ::FFieldVariant::HasMetaData;
-#endif
+#endif // WITH_METADATA
 
 	inline bool IsProperty() const
 	{

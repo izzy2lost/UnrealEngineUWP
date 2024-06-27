@@ -3610,14 +3610,14 @@ bool FLinkerLoad::VerifyImportInner(const int32 ImportIndex, FString& WarningSuf
 				Import.SourceLinker = FindExistingLinkerForPackage(Package);
 			}
 		}
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		if (Import.SourceLinker && !Package->HasAnyFlags(RF_LoadCompleted))
 		{
 			// If we didn't fully load, make sure our metadata is loaded before using this
 			// We need this case for user defined structs due to the LOAD_DeferDependencyLoads code above
 			Import.SourceLinker->LoadMetaDataFromExportMap(false);
 		}
-#endif
+#endif // WITH_METADATA
 		return Package;
 	};
 
@@ -4145,7 +4145,7 @@ UClass* FLinkerLoad::TryCreatePlaceholderClassForExport(int32 ExportIndex)
 }
 #endif
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 int32 FLinkerLoad::LoadMetaDataFromExportMap(bool bForcePreload)
 {
 	UMetaData* MetaData = nullptr;
@@ -4195,7 +4195,7 @@ int32 FLinkerLoad::LoadMetaDataFromExportMap(bool bForcePreload)
 
 	return MetaDataIndex;
 }
-#endif
+#endif // WITH_METADATA
 
 /**
  * Loads all objects in package.
@@ -4236,12 +4236,9 @@ void FLinkerLoad::LoadAllObjects(bool bForcePreload)
 	// MetaData object index in this package.
 	int32 MetaDataIndex = INDEX_NONE;
 
-#if WITH_EDITORONLY_DATA
-	if(!FPlatformProperties::RequiresCookedData())
-	{
-		MetaDataIndex = LoadMetaDataFromExportMap(bForcePreload);
-	}
-#endif
+#if WITH_METADATA
+	MetaDataIndex = LoadMetaDataFromExportMap(bForcePreload);
+#endif // WITH_METADATA
 	
 #if USE_STABLE_LOCALIZATION_KEYS
 	if (GIsEditor && (LoadFlags & LOAD_ForDiff))
@@ -7186,11 +7183,11 @@ bool FLinkerLoad::ShouldSkipProperty(const FProperty* InProperty) const
 {
 	if (bSkipKnownProperties)
 	{
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		static const FName NAME_IsLooseMetadata(ANSITEXTVIEW("IsLoose"));
 		static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
 		if (!InProperty->GetBoolMetaData(NAME_IsLooseMetadata) && !InProperty->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
-#endif
+#endif // WITH_METADATA
 		{
 			return true;
 		}

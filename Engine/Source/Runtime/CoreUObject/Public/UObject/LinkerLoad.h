@@ -894,7 +894,7 @@ private:
 	UClass* TryCreatePlaceholderClassForExport(int32 ExportIndex);
 #endif
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	/** 
 	 * Looks for and loads meta data object from export map.
 	 *
@@ -905,7 +905,7 @@ private:
 	 *         INDEX_NONE otherwise.
 	 */
 	int32 LoadMetaDataFromExportMap(bool bForcePreload);
-#endif
+#endif // WITH_METADATA
 
 	UObject* CreateImport( int32 Index );
 

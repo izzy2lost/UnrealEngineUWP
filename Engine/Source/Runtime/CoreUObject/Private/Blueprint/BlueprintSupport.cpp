@@ -722,7 +722,7 @@ bool FLinkerLoad::RegenerateBlueprintClass(UClass* LoadClass, UObject* ClassDefa
 		// Blueprint has been completely preloaded.
 		ForcePreloadObject(*ClassSourceObject);
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		// We likely don't need to load meta data here at all! but we have been doing so 
 		// since 2080292 - subtly the code from 2080292 wouldn't assert about missing metadata
 		// but only because UPackage::GetMetaData creates a dummy UMetaData object that is
@@ -738,7 +738,7 @@ bool FLinkerLoad::RegenerateBlueprintClass(UClass* LoadClass, UObject* ClassDefa
 				ForcePreloadObject(*MetadataExport.Object);
 			}
 		}
-#endif
+#endif // WITH_METADATA
 
 		// Flush (ie: create and preload) all remaining exports in the package.
 		//

@@ -392,6 +392,10 @@ void UField::FormatNativeToolTip(FString& ToolTipString, bool bRemoveExtraSectio
 	}
 }
 
+#endif // WITH_EDITORONLY_DATA
+
+#if WITH_METADATA
+
 /**
  * Determines if the property has any metadata associated with the key
  * 
@@ -548,7 +552,7 @@ void UField::RemoveMetaData(const FName& Key)
 	return Package->GetMetaData()->RemoveValue(this, Key);
 }
 
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 bool UField::HasAnyCastFlags(const uint64 InCastFlags) const
 {
@@ -2470,7 +2474,7 @@ FString UStruct::GetAuthoredNameForField(const FField* Field) const
 	return FString();
 }
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 bool UStruct::GetBoolMetaDataHierarchical(const FName& Key) const
 {
 	bool bResult = false;
@@ -2519,7 +2523,7 @@ const UStruct* UStruct::HasMetaDataHierarchical(const FName& Key) const
 	return nullptr;
 }
 
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 #if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 	/**
@@ -4002,7 +4006,7 @@ static FString GetFieldLocation(const UField* Field)
 	{
 		StructLocation += FString::Printf(TEXT(" File:%s"), *ModuleRelativeIncludePath);
 	}
-#endif
+#endif // WITH_EDITORONLY_DATA
 	return StructLocation;
 };
 
@@ -4204,7 +4208,7 @@ bool FAutomationTestAttemptToFindUninitializedScriptStructMembers::RunTest(const
 	}
 }
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 /** 
 * Checks if MetaData value contains short type name 
 * @param MetaDataKey MetaData key name
@@ -4419,7 +4423,7 @@ bool FAutomationTestAttemptToFindShortTypeNamesInMetaData::RunTest(const FString
 	return FStructUtils::AttemptToFindShortTypeNamesInMetaData() == 0;
 }
 
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 // bExactCheck - Check for places where structs serialize a different set of object references to what they declare (Conservative is always an error)
 // otherwise - Check for places where structs serialize object references they don't declare (Conservative allows serializing any reference types)

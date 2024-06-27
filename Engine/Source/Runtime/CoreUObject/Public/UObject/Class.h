@@ -213,7 +213,9 @@ class UField : public UObject
 	 * @param bRemoveExtraSections	If true, cut off the comment on first line separator or 2 empty lines in a row
 	 */
 	static COREUOBJECT_API void FormatNativeToolTip(FString& ToolTipString, bool bRemoveExtraSections = true);
+#endif // WITH_EDITORONLY_DATA
 
+#if WITH_METADATA
 	/**
 	 * Determines if the property has any metadata associated with the key
 	 * 
@@ -330,7 +332,7 @@ class UField : public UObject
 	/** Clear any metadata associated with the key */
 	COREUOBJECT_API void RemoveMetaData(const TCHAR* Key);
 	COREUOBJECT_API void RemoveMetaData(const FName& Key);
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 	COREUOBJECT_API bool HasAnyCastFlags(const uint64 InCastFlags) const;
 	COREUOBJECT_API bool HasAllCastFlags(const uint64 InCastFlags) const;
@@ -667,7 +669,7 @@ public:
 	/** Destroys all properties owned by this struct */
 	COREUOBJECT_API void DestroyChildPropertiesAndResetPropertyLinks();
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	/** Try and find boolean metadata with the given key. If not found on this class, work up hierarchy looking for it. */
 	COREUOBJECT_API bool GetBoolMetaDataHierarchical(const FName& Key) const;
 
@@ -681,7 +683,9 @@ public:
 	 * @return pointer to the UStruct that has associated metadata, nullptr if Key is not associated with any UStruct in the hierarchy
 	 */
 	COREUOBJECT_API const UStruct* HasMetaDataHierarchical(const FName& Key) const;
+#endif // WITH_METADATA
 
+#if WITH_EDITORONLY_DATA
 	/* Returns true if this struct has Asset Registry searchable properties */
 	FORCEINLINE bool HasAssetRegistrySearchableProperties() const
 	{
@@ -2421,7 +2425,7 @@ public:
 	COREUOBJECT_API FText GetToolTipTextByIndex(int32 NameIndex) const;
 #endif
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	/**
 	 * Wrapper method for easily determining whether this enum has metadata associated with it.
 	 * 
@@ -2461,7 +2465,7 @@ public:
 	 *
 	 */
 	COREUOBJECT_API void RemoveMetaData( const TCHAR* Key, int32 NameIndex=INDEX_NONE ) const;
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 	
 	/**
 	 * @param EnumPath         Full enum path.
@@ -4164,10 +4168,10 @@ struct FStructUtils
 	/** Looks for uninitialized script struct pointers. Returns the number found */
 	COREUOBJECT_API static int32 AttemptToFindUninitializedScriptStructMembers();
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 	/** Looks for short type names within struct metadata. Returns the number found */
 	COREUOBJECT_API static int32 AttemptToFindShortTypeNamesInMetaData();
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 #endif // !(UE_BUILD_TEST || UE_BUILD_SHIPPING)
 };
 

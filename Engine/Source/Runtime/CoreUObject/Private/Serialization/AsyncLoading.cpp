@@ -6016,14 +6016,14 @@ EAsyncPackageState::Type FAsyncPackage::TickAsyncPackage(bool InbUseTimeLimit, b
 					LoadingState = CreateImports();
 				}
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 				// Create and preload the package meta-data
 				if (LoadingState == EAsyncPackageState::Complete && !bLoadHasFinished)
 				{
 					SCOPED_LOADTIMER(Package_CreateMetaData);
 					LoadingState = CreateMetaData();
 				}
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 				// Create exports from linker export table and also preload them.
 				if (LoadingState == EAsyncPackageState::Complete && !bLoadHasFinished)
@@ -6701,7 +6701,7 @@ EAsyncPackageState::Type FAsyncPackage::CreateImports()
 	return ImportIndex == Linker->ImportMap.Num() ? EAsyncPackageState::Complete : EAsyncPackageState::TimeOut;
 }
 
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 /**
 * Creates and loads meta-data for the package.
 *
@@ -6720,7 +6720,7 @@ EAsyncPackageState::Type FAsyncPackage::CreateMetaData()
 
 	return EAsyncPackageState::Complete;
 }
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 /**
  * Create exports till time limit is exceeded.
@@ -6738,14 +6738,14 @@ EAsyncPackageState::Type FAsyncPackage::CreateExports()
 	// Create exports.
 	while( ExportIndex < Linker->ExportMap.Num() && !IsTimeLimitExceeded() )
 	{
-#if WITH_EDITORONLY_DATA
+#if WITH_METADATA
 		checkf(MetaDataIndex.IsSet(), TEXT("FAsyncPackage::CreateExports called before FAsyncPackage::CreateMetaData!"));
 		if (ExportIndex == MetaDataIndex.GetValue())
 		{
 			++ExportIndex;
 			continue;
 		}
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_METADATA
 
 		const FObjectExport& Export = Linker->ExportMap[ExportIndex];
 		// Precache data and see whether it's already finished.
