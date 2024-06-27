@@ -775,7 +775,8 @@ public:
 		bUsesAnisotropy(false),
 		bIsLightFunctionAtlasCompatible(false),
 		bUsesDisplacement(false),
-		bUsedWithNeuralNetworks(false)
+		bUsedWithNeuralNetworks(false),
+		bUsesCustomizedUVs(false)
 	{
 #if WITH_EDITOR
 		FMemory::Memzero(EstimatedLWCFuncUsagesVS);
@@ -925,7 +926,8 @@ public:
 	/** Whether the material uses NNE. */
 	LAYOUT_BITFIELD(uint8, bUsedWithNeuralNetworks, 1);
 	
-
+	/** Whether the material uses customized UVs. */
+	LAYOUT_BITFIELD(uint8, bUsesCustomizedUVs, 1);
 };
 
 struct FDebugShaderPipelineInfo

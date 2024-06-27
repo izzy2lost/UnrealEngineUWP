@@ -838,8 +838,8 @@ void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 
 					RasterPipeline.bWPOEnabled = MaterialSection.MaterialRelevance.bUsesWorldPositionOffset;
 					RasterPipeline.bDisplacementEnabled = MaterialSection.MaterialRelevance.bUsesDisplacement;
-					RasterPipeline.bPerPixelEval = MaterialSection.MaterialRelevance.bMasked ||
-						MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
+					RasterPipeline.bPerPixelEval = MaterialSection.MaterialRelevance.bMasked || MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
+					RasterPipeline.bVertexUVs = MaterialSection.MaterialRelevance.bUsesVertexInterpolator || MaterialSection.MaterialRelevance.bUsesCustomizedUVs;
 
 					RasterPipeline.DisplacementScaling = MaterialSection.DisplacementScaling;
 					RasterPipeline.DisplacementFadeRange = MaterialSection.DisplacementFadeRange;

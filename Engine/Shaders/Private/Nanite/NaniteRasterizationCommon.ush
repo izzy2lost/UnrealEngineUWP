@@ -370,6 +370,7 @@ struct FMaterialShader
 	FVisibleCluster				VisibleCluster;
 	FNaniteVertTransforms		VertTransforms;
 	FNaniteTransformedTri		TransformedTri;
+	FMaterialVertexParameters	VertexParameters;
 
 #if MATERIAL_SHADER_HAS_DISPLACEMENT
 	FNaniteMaterialDisplacementParams	DisplacementParams;
@@ -377,24 +378,37 @@ struct FMaterialShader
 	float								DisplacementFadeOffset;
 #endif
 
-	float3 EvaluateWorldPositionOffset( FNanitePostDeformVertex InputVert )
+	void InitVertexParameters(FNanitePostDeformVertex InputVert)
+	{
+	#if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
+		// Should be Pow2(InvScale) but that requires renormalization
+		float3x3 LocalToWorld = DFToFloat3x3(InstanceData.LocalToWorld);
+		float3 InvScale = InstanceData.InvNonUniformScale;
+		LocalToWorld[0] *= InvScale.x;
+		LocalToWorld[1] *= InvScale.y;
+		LocalToWorld[2] *= InvScale.z;
+
+		VertexParameters = MakeInitializedMaterialVertexParameters();
+		SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, true /* WPO */);
+		SetVertexParameterAttributeData(VertexParameters, InputVert, InstanceDynamicData.LocalToTranslatedWorld, LocalToWorld);
+	#endif
+	}
+
+	void GetCustomizedUVs(inout float2 OutCustomizedUVs[NUM_TEX_COORD_INTERPOLATORS])
+	{
+	#if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
+		GetMaterialCustomizedUVs(VertexParameters, OutCustomizedUVs);
+		GetCustomInterpolators(VertexParameters, OutCustomizedUVs);
+	#endif
+	}
+
+	float3 EvaluateWorldPositionOffset()
 	{
 		float3 WorldPositionOffset = 0.0f;
 	#if NANITE_VERTEX_PROGRAMMABLE
 		BRANCH
 		if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_EVALUATE_WORLD_POSITION_OFFSET) != 0u)
 		{
-			// Should be Pow2(InvScale) but that requires renormalization
-			float3x3 LocalToWorld = DFToFloat3x3(InstanceData.LocalToWorld);
-			float3 InvScale = InstanceData.InvNonUniformScale;
-			LocalToWorld[0] *= InvScale.x;
-			LocalToWorld[1] *= InvScale.y;
-			LocalToWorld[2] *= InvScale.z;
-
-			FMaterialVertexParameters VertexParameters = MakeInitializedMaterialVertexParameters();
-			SetVertexParameterInstanceData(VertexParameters, InstanceData, PrimitiveData, true /* WPO */);
-			SetVertexParameterAttributeData(VertexParameters, InputVert, InstanceDynamicData.LocalToTranslatedWorld, LocalToWorld);
-
 		#if ENABLE_NEW_HLSL_GENERATOR
 			EvaluateVertexMaterialAttributes(VertexParameters);
 		#endif

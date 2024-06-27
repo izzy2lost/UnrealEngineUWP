@@ -234,13 +234,13 @@ void SetVertexParameterAttributeData(inout FMaterialVertexParameters VertexParam
 	half3x3 TangentToLocal = CalcVertexTangentToLocal(VertexParameters.SceneData.Primitive, VertexParameters.SceneData.InstanceData, Vert);
 	float4x4 TranslatedWorldToPrimitive = DFFastToTranslatedWorld(VertexParameters.SceneData.Primitive.WorldToLocal, ResolvedView.PreViewTranslation);
 
-	VertexParameters.WorldPosition		= mul(float4(Vert.Position, 1), LocalToTranslatedWorld).xyz;
-	VertexParameters.PositionInstanceSpace = Vert.Position;
-	VertexParameters.PositionPrimitiveSpace = mul(float4(VertexParameters.WorldPosition, 1), TranslatedWorldToPrimitive).xyz;
-	VertexParameters.TangentToWorld		= mul(TangentToLocal, LocalToWorldNoScale);
-	VertexParameters.VertexColor		= Vert.RawAttributeData.Color;
-	VertexParameters.PreSkinnedPosition = Vert.Position;
-	VertexParameters.PreSkinnedNormal	= TangentToLocal[2];
+	VertexParameters.WorldPosition			= mul(float4(Vert.Position, 1), LocalToTranslatedWorld).xyz;
+	VertexParameters.PositionInstanceSpace	= Vert.Position;
+	VertexParameters.PositionPrimitiveSpace	= mul(float4(VertexParameters.WorldPosition, 1), TranslatedWorldToPrimitive).xyz;
+	VertexParameters.TangentToWorld			= mul(TangentToLocal, LocalToWorldNoScale);
+	VertexParameters.VertexColor			= Vert.RawAttributeData.Color;
+	VertexParameters.PreSkinnedPosition		= Vert.PointLocal;
+	VertexParameters.PreSkinnedNormal		= Vert.PreSkinnedNormal;
 
 #if NUM_MATERIAL_TEXCOORDS_VERTEX
 	UNROLL

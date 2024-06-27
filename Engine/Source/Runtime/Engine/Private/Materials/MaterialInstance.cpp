@@ -1982,6 +1982,16 @@ FMaterialResource* UMaterialInstance::GetMaterialResource(ERHIFeatureLevel::Type
 	return Parent ? Parent->GetMaterialResource(InFeatureLevel, QualityLevel) : nullptr;
 }
 
+bool UMaterialInstance::HasVertexInterpolator() const
+{
+	return Parent ? Parent->HasVertexInterpolator() : false;
+}
+
+bool UMaterialInstance::HasCustomizedUVs() const
+{
+	return Parent ? Parent->HasCustomizedUVs() : false;
+}
+
 bool UMaterialInstance::WritesToRuntimeVirtualTexture() const
 {
 	return Parent ? Parent->WritesToRuntimeVirtualTexture() : false;

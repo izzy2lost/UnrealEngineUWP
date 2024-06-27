@@ -324,6 +324,7 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 	uint32 SubstrateClampedClosureCount;
 	bool SubstrateIsComplexSpecialPath;
 	bool bSubstrateComplexSpecialPath;
+	uint8 NumCustomizedUVs;
 	bool bTextureSampleDebug;
 	TArray<TPair<FString, int32>> SubstrateDefines;
 	TArray<TObjectPtr<UMaterialParameterCollection>> ParameterCollections;
@@ -417,6 +418,7 @@ struct FHLSLMaterialTranslator::FEnvironmentDefines
 		Ar << bSubstrateFastPath;
 		Ar << SubstrateClampedClosureCount;
 		Ar << bSubstrateComplexSpecialPath;
+		Ar << NumCustomizedUVs;
 		Ar << bTextureSampleDebug;
 		Ar << SubstrateDefines;
 
@@ -1757,6 +1759,7 @@ void FHLSLMaterialTranslator::TranslateMaterial()
 	MaterialCompilationOutput.bUsesWorldPositionOffset = bUsesWorldPositionOffset;
 	MaterialCompilationOutput.bUsesPixelDepthOffset = bUsesPixelDepthOffset;
 	MaterialCompilationOutput.bUsesDisplacement = bUsesDisplacement;
+	MaterialCompilationOutput.bUsesCustomizedUVs = Material->GetNumCustomizedUVs() > 0;
 
 	// Fully rough if we have a roughness code chunk and it's constant and evaluates to 1.
 	bIsFullyRough = Chunk[MP_Roughness] != INDEX_NONE && IsMaterialPropertyUsed(MP_Roughness, Chunk[MP_Roughness], FLinearColor(1, 0, 0, 0), 1) == false;
@@ -2597,9 +2600,10 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 	}
 
 	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_CUSTOM_DATA"), EnvironmentDefines->bUsesPerInstanceCustomData);
-
 	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_FADE_AMOUNT"), EnvironmentDefines->bUsesPerInstanceFadeAmount);
+
 	OutEnvironment.SetDefine(TEXT("USES_VERTEX_INTERPOLATOR"), EnvironmentDefines->bUsesVertexInterpolator);
+	OutEnvironment.SetDefine(TEXT("NUM_CUSTOMIZED_UVS"), EnvironmentDefines->NumCustomizedUVs);
 
 	OutEnvironment.SetDefine(TEXT("MATERIAL_SKY_ATMOSPHERE"), EnvironmentDefines->bUsesSkyAtmosphere);
 	OutEnvironment.SetDefine(TEXT("INTERPOLATE_VERTEX_COLOR"), EnvironmentDefines->bUsesVertexColor);
@@ -14994,6 +14998,7 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 	EnvironmentDefines->MaterialPathTracingBufferRead = MaterialCompilationOutput.UsedPathTracingBufferTextures;
 	EnvironmentDefines->MaterialNeuralPostProcess = (MaterialCompilationOutput.bUsedWithNeuralNetworks || Material->IsUsedWithNeuralNetworks()) && Material->IsPostProcessMaterial();
 	EnvironmentDefines->PixelDepthOffsetMode = Material->GetPixelDepthOffsetMode();
+	EnvironmentDefines->NumCustomizedUVs = Material->GetNumCustomizedUVs();
 
 	// Count the number of VTStacks (each stack will allocate a feedback slot)
 	EnvironmentDefines->NumVirtualTextureSamples = VTStacks.Num();

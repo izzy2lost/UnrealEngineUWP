@@ -524,6 +524,8 @@ FMaterialRelevance UMaterialInterface::GetRelevance_Internal(const UMaterial* Ma
 	MaterialRelevance.bUsesSkyMaterial = Material->bIsSky;
 	MaterialRelevance.bUsesSingleLayerWaterMaterial = bUsesSingleLayerWaterMaterial;
 	MaterialRelevance.bUsesAnisotropy = bUsesAnisotropy;
+	MaterialRelevance.bUsesCustomizedUVs = MaterialResource->GetNumCustomizedUVs() > 0;
+	MaterialRelevance.bUsesVertexInterpolator = MaterialResource->HasVertexInterpolator();
 	MaterialRelevance.SubstrateClosureCountMask = SubstrateBSDFCountMask;
 	MaterialRelevance.SubstrateUintPerPixel = SubstrateUintPerPixel;
 	MaterialRelevance.bUsesComplexSpecialRenderPath = MaterialResource->MaterialGetSubstrateUsesComplexSpecialRenderPath_GameThread();
@@ -1418,6 +1420,16 @@ bool UMaterialInterface::GetCastDynamicShadowAsMasked() const
 	return false;
 }
 
+bool UMaterialInterface::HasVertexInterpolator() const
+{
+	return false;
+}
+
+bool UMaterialInterface::HasCustomizedUVs() const
+{
+	return false;
+}
+
 bool UMaterialInterface::WritesToRuntimeVirtualTexture() const
 {
 	return false;
@@ -1435,7 +1447,7 @@ bool UMaterialInterface::IsShadingModelFromMaterialExpression() const
 
 USubsurfaceProfile* UMaterialInterface::GetSubsurfaceProfile_Internal() const
 {
-	return NULL;
+	return nullptr;
 }
 
 USpecularProfile* UMaterialInterface::GetSpecularProfile_Internal(uint32 Index) const

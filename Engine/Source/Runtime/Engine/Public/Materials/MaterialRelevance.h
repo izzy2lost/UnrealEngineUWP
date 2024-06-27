@@ -35,6 +35,8 @@ struct FMaterialRelevance
 			uint8 bUsesWorldPositionOffset : 1;
 			uint8 bUsesDisplacement : 1;
 			uint8 bUsesPixelDepthOffset : 1;
+			uint8 bUsesCustomizedUVs : 1;
+			uint8 bUsesVertexInterpolator : 1;
 			uint8 bDecal : 1;
 			uint8 bTranslucentSurfaceLighting : 1;
 			uint8 bUsesSceneDepth : 1;

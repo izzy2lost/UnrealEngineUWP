@@ -386,8 +386,10 @@ public:
 
 	static bool IsVertexProgrammable(const FMaterialShaderParameters& MaterialParameters, bool bHWRasterShader)
 	{
-		return MaterialParameters.bHasVertexPositionOffsetConnected ||
-			(!bHWRasterShader && MaterialParameters.bIsTessellationEnabled);
+		const bool bPixelProgrammable = IsPixelProgrammable(MaterialParameters);
+		const bool bHasVertexUVs = bPixelProgrammable && (MaterialParameters.bHasVertexInterpolator || MaterialParameters.NumCustomizedUVs > 0);
+		const bool bHasTessellation = (!bHWRasterShader && MaterialParameters.bIsTessellationEnabled);
+		return MaterialParameters.bHasVertexPositionOffsetConnected || bHasVertexUVs || bHasTessellation;
 	}
 
 	static bool IsVertexProgrammable(uint32 MaterialBitFlags)
@@ -540,6 +542,7 @@ struct FNaniteRasterPipeline
 	bool bHasDisplacementFadeOut : 1 = false;
 	bool bFixedDisplacementFallback : 1 = false;
 	bool bCastShadow : 1 = false;
+	bool bVertexUVs : 1 = false;
 
 	static FNaniteRasterPipeline GetFixedFunctionPipeline(uint8 BinMask);
 

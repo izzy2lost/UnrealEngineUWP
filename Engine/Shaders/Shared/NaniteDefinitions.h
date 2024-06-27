@@ -203,11 +203,12 @@
 #define NANITE_MATERIAL_FLAG_TWO_SIDED						0x40
 #define NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS				0x80
 #define NANITE_MATERIAL_FLAG_CAST_SHADOW					0x100
+#define NANITE_MATERIAL_FLAG_VERTEX_UVS						0x200
 
 #define NANITE_TRANSCODE_PASS_INDEPENDENT					0
 #define NANITE_TRANSCODE_PASS_PARENT_DEPENDENT				1
 
-#define NANITE_MATERIAL_VERTEX_PROGRAMMABLE_FLAGS			(NANITE_MATERIAL_FLAG_WORLD_POSITION_OFFSET | NANITE_MATERIAL_FLAG_DISPLACEMENT)
+#define NANITE_MATERIAL_VERTEX_PROGRAMMABLE_FLAGS			(NANITE_MATERIAL_FLAG_WORLD_POSITION_OFFSET | NANITE_MATERIAL_FLAG_DISPLACEMENT | NANITE_MATERIAL_FLAG_VERTEX_UVS)
 #define NANITE_MATERIAL_PIXEL_PROGRAMMABLE_FLAGS			(NANITE_MATERIAL_FLAG_PIXEL_DEPTH_OFFSET | NANITE_MATERIAL_FLAG_PIXEL_DISCARD)
 
 // Fixed Function Bin IDs
@@ -314,6 +315,7 @@ struct FNaniteMaterialFlags
 	bool bTwoSided;
 	bool bNoDerivativeOps;
 	bool bCastShadow;
+	bool bVertexUVs;
 
 	bool bVertexProgrammable;
 	bool bPixelProgrammable;
@@ -331,6 +333,7 @@ INLINE_ATTR FNaniteMaterialFlags UnpackNaniteMaterialFlags(UINT_TYPE Packed)
 	MaterialFlags.bTwoSided = (Packed & NANITE_MATERIAL_FLAG_TWO_SIDED) != 0u;
 	MaterialFlags.bNoDerivativeOps = (Packed & NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS) != 0u;
 	MaterialFlags.bCastShadow = (Packed & NANITE_MATERIAL_FLAG_CAST_SHADOW) != 0u;
+	MaterialFlags.bVertexUVs = (Packed & NANITE_MATERIAL_FLAG_VERTEX_UVS) != 0u;
 	MaterialFlags.bVertexProgrammable = (Packed & NANITE_MATERIAL_VERTEX_PROGRAMMABLE_FLAGS) != 0u;
 	MaterialFlags.bPixelProgrammable = (Packed & NANITE_MATERIAL_PIXEL_PROGRAMMABLE_FLAGS) != 0u;
 	return MaterialFlags;
@@ -338,7 +341,7 @@ INLINE_ATTR FNaniteMaterialFlags UnpackNaniteMaterialFlags(UINT_TYPE Packed)
 
 INLINE_ATTR bool IsNaniteMaterialVertexProgrammable(FNaniteMaterialFlags MaterialFlags)
 {
-	return MaterialFlags.bWorldPositionOffset || MaterialFlags.bDisplacement;
+	return MaterialFlags.bWorldPositionOffset || MaterialFlags.bDisplacement || MaterialFlags.bVertexUVs;
 }
 
 INLINE_ATTR bool IsNaniteMaterialPixelProgrammable(FNaniteMaterialFlags MaterialFlags)
@@ -398,6 +401,11 @@ INLINE_ATTR UINT_TYPE PackNaniteMaterialBitFlags(FNaniteMaterialFlags Flags)
 	if (Flags.bCastShadow)
 	{
 		MaterialBitFlags |= NANITE_MATERIAL_FLAG_CAST_SHADOW;
+	}
+
+	if (Flags.bVertexUVs)
+	{
+		MaterialBitFlags |= NANITE_MATERIAL_FLAG_VERTEX_UVS;
 	}
 
 	return MaterialBitFlags;

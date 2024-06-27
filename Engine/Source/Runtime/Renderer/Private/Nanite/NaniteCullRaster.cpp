@@ -1470,6 +1470,7 @@ END_SHADER_PARAMETER_STRUCT()
 static uint32 PackMaterialBitFlags(
 	const FMaterial& RasterMaterial,
 	const FNaniteRasterPipeline& RasterPipeline,
+	bool bMaterialHasProgrammableVertexUVs,
 	bool bMaterialUsesWorldPositionOffset,
 	bool bMaterialUsesPixelDepthOffset,
 	bool bMaterialUsesDisplacement)
@@ -1483,14 +1484,21 @@ static uint32 PackMaterialBitFlags(
 	Flags.bSkinnedMesh			= RasterPipeline.bSkinnedMesh;
 	Flags.bTwoSided				= RasterPipeline.bIsTwoSided;
 	Flags.bCastShadow			= RasterPipeline.bCastShadow;
+
+	const bool bPixelProgrammable = IsNaniteMaterialPixelProgrammable(Flags);
+	Flags.bVertexUVs = bMaterialHasProgrammableVertexUVs && bPixelProgrammable;
+
 	return PackNaniteMaterialBitFlags(Flags);
 }
 
 static uint32 PackMaterialBitFlags_GameThread(const FMaterial& RasterMaterial, const FNaniteRasterPipeline& RasterPipeline)
 {
+	const bool bProgrammableVertexUVs = RasterMaterial.HasVertexInterpolator() || RasterMaterial.GetNumCustomizedUVs() > 0;
+
 	return PackMaterialBitFlags(
 		RasterMaterial,
 		RasterPipeline,
+		bProgrammableVertexUVs,
 		RasterMaterial.MaterialUsesWorldPositionOffset_GameThread(),
 		RasterMaterial.MaterialUsesPixelDepthOffset_GameThread(),
 		RasterMaterial.MaterialUsesDisplacement_GameThread());
@@ -1498,9 +1506,12 @@ static uint32 PackMaterialBitFlags_GameThread(const FMaterial& RasterMaterial, c
 
 static uint32 PackMaterialBitFlags_RenderThread(const FMaterial& RasterMaterial, const FNaniteRasterPipeline& RasterPipeline)
 {
+	const bool bProgrammableVertexUVs = RasterMaterial.HasVertexInterpolator() || RasterMaterial.GetNumCustomizedUVs() > 0;
+
 	return PackMaterialBitFlags(
 		RasterMaterial,
 		RasterPipeline,
+		bProgrammableVertexUVs,
 		RasterMaterial.MaterialUsesWorldPositionOffset_RenderThread(),
 		RasterMaterial.MaterialUsesPixelDepthOffset_RenderThread(),
 		RasterMaterial.MaterialUsesDisplacement_RenderThread());
@@ -2136,6 +2147,7 @@ struct FRasterizerPass
 	bool bSkinnedMesh = false;
 	bool bTwoSided = false;
 	bool bCastShadow = false;
+	bool bVertexUVs = false;
 
 	uint32 IndirectOffset = 0u;
 	uint32 RasterBin = ~uint32(0u);
@@ -4549,6 +4561,7 @@ void FRenderer::PrepareRasterizerPasses(
 			RasterizerPass.bSkinnedMesh = MaterialBitFlags & NANITE_MATERIAL_FLAG_SKINNED_MESH;
 			RasterizerPass.bTwoSided = MaterialBitFlags & NANITE_MATERIAL_FLAG_TWO_SIDED;
 			RasterizerPass.bCastShadow = MaterialBitFlags & NANITE_MATERIAL_FLAG_CAST_SHADOW;
+			RasterizerPass.bVertexUVs = MaterialBitFlags & NANITE_MATERIAL_FLAG_VERTEX_UVS;
 
 			if (RasterMaterialCache.bFinalized)
 			{

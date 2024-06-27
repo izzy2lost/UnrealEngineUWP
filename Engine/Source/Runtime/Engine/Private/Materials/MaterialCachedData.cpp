@@ -61,6 +61,7 @@ FMaterialCachedExpressionData::FMaterialCachedExpressionData()
 	, bHasPerInstanceCustomData(false)
 	, bHasPerInstanceRandom(false)
 	, bHasVertexInterpolator(false)
+	, bHasCustomizedUVs(false)
 {
 	QualityLevelsUsed.AddDefaulted(EMaterialQualityLevel::Num);
 #if WITH_EDITORONLY_DATA

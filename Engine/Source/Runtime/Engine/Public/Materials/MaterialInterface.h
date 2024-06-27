@@ -940,6 +940,8 @@ public:
 	ENGINE_API virtual FDisplacementFadeRange GetDisplacementFadeRange() const;
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const;
+	ENGINE_API virtual bool HasVertexInterpolator() const;
+	ENGINE_API virtual bool HasCustomizedUVs() const;
 	ENGINE_API virtual bool HasPixelAnimation() const;
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const;
 	ENGINE_API virtual uint32 NumSpecularProfile_Internal() const;

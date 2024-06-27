@@ -2804,6 +2804,7 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 			Entry.bHasVertexInterpolator		= CachedMaterialData.bHasVertexInterpolator;
 			Entry.bHasPerInstanceRandomID		= CachedMaterialData.bHasPerInstanceRandom;
 			Entry.bHasPerInstanceCustomData		= CachedMaterialData.bHasPerInstanceCustomData;
+			Entry.bHasVertexUVs					= CachedMaterialData.bHasCustomizedUVs;
 			Entry.bHasPixelDepthOffset			= Material->HasPixelDepthOffsetConnected();
 			Entry.bHasWorldPositionOffset		= Material->HasVertexPositionOffsetConnected();
 			Entry.bHasTessellationEnabled		= Material->IsTessellationEnabled();

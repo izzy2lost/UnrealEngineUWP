@@ -367,6 +367,9 @@ struct FMaterialCachedExpressionData
 	uint32 bHasVertexInterpolator : 1;
 
 	UPROPERTY()
+	uint32 bHasCustomizedUVs : 1;
+
+	UPROPERTY()
 	uint32 PropertyConnectedBitmask_DEPRECATED = 0;
 
 	/** Each bit corresponds to EMaterialProperty connection status. */

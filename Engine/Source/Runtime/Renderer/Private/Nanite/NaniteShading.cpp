@@ -547,6 +547,8 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 
 uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps)
 {
+	const bool bMaterialHasProgrammableVertexUVs = Material.HasVertexInterpolator() || Material.GetNumCustomizedUVs() > 0;
+
 	FNaniteMaterialFlags Flags = { 0 };
 	Flags.bPixelDiscard = Material.IsMasked();
 	Flags.bPixelDepthOffset = Material.MaterialUsesPixelDepthOffset_RenderThread();
@@ -554,6 +556,10 @@ uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, b
 	Flags.bDisplacement = UseNaniteTessellation() && Material.MaterialUsesDisplacement_RenderThread();
 	Flags.bNoDerivativeOps = bNoDerivativeOps;
 	Flags.bTwoSided = Material.IsTwoSided();
+
+	const bool bPixelProgrammable = IsNaniteMaterialPixelProgrammable(Flags);
+	Flags.bVertexUVs = bMaterialHasProgrammableVertexUVs && bPixelProgrammable;
+
 	const uint32 PackedFlags = PackNaniteMaterialBitFlags(Flags);
 	return ((BoundTargetMask & 0xFFu) << 24u) | (PackedFlags & 0x00FFFFFFu);
 }
@@ -1760,6 +1766,7 @@ FNaniteRasterPipeline FNaniteRasterPipeline::GetFixedFunctionPipeline(uint8 BinM
 	Pipeline.bHasPixelDistance = false;
 	Pipeline.bHasDisplacementFadeOut = false;
 	Pipeline.bCastShadow = (BinMask & NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW) != 0;
+	Pipeline.bVertexUVs = false;
 	return Pipeline;
 }
 
@@ -1787,14 +1794,16 @@ uint32 FNaniteRasterPipeline::GetPipelineHash() const
 	} HashKey;
 
 	HashKey.MaterialFlags  = 0;
-	HashKey.MaterialFlags |= bIsTwoSided					? 0x1u : 0x0u;
-	HashKey.MaterialFlags |= bWPOEnabled					? 0x2u : 0x0u;
-	HashKey.MaterialFlags |= bDisplacementEnabled			? 0x4u : 0x0u;
-	HashKey.MaterialFlags |= bPerPixelEval					? 0x8u : 0x0u;
-	HashKey.MaterialFlags |= bSplineMesh					? 0x10u : 0x0u;
-	HashKey.MaterialFlags |= bSkinnedMesh					? 0x20u : 0x0u;
-	HashKey.MaterialFlags |= bCastShadow					? 0x40u : 0x0u;
-	HashKey.MaterialFlags |= bFixedDisplacementFallback		? 0x80u : 0x0u;
+	HashKey.MaterialFlags |= bIsTwoSided					? 0x1u   : 0x0u;
+	HashKey.MaterialFlags |= bWPOEnabled					? 0x2u   : 0x0u;
+	HashKey.MaterialFlags |= bDisplacementEnabled			? 0x4u   : 0x0u;
+	HashKey.MaterialFlags |= bPerPixelEval					? 0x8u   : 0x0u;
+	HashKey.MaterialFlags |= bSplineMesh					? 0x10u  : 0x0u;
+	HashKey.MaterialFlags |= bSkinnedMesh					? 0x20u  : 0x0u;
+	HashKey.MaterialFlags |= bCastShadow					? 0x40u  : 0x0u;
+	HashKey.MaterialFlags |= bFixedDisplacementFallback		? 0x80u  : 0x0u;
+	HashKey.MaterialFlags |= bVertexUVs						? 0x100u : 0x0u;
+
 	HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
 
 	HashKey.DisplacementScaling = DisplacementScaling;
@@ -1828,6 +1837,7 @@ bool FNaniteRasterPipeline::GetFallbackPipeline(FNaniteRasterPipeline& OutFallba
 			OutFallback.bHasDisplacementFadeOut = false;
 			OutFallback.bPerPixelEval = false;
 			OutFallback.bDisplacementEnabled = false;
+			OutFallback.bVertexUVs = false;
 		}
 		else
 		{

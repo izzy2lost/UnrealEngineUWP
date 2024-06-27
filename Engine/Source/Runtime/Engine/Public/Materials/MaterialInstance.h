@@ -897,6 +897,8 @@ public:
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const override;
 	ENGINE_API virtual bool IsDeferredDecal() const override;
+	ENGINE_API virtual bool HasVertexInterpolator() const override;
+	ENGINE_API virtual bool HasCustomizedUVs() const override;
 	ENGINE_API virtual bool HasPixelAnimation() const override;
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const override;
 	ENGINE_API virtual bool CastsRayTracedShadows() const override;

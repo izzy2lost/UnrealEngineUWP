@@ -56,14 +56,22 @@ struct FNanitePostDeformVertex
 {
 	// Index of the vertex in the cluster
 	uint VertIndex;
+
 	// Post-deformed position of the vertex
 	float3 Position;
+
 	// Decoded vertex position (BEFORE deformation)
 	float3 PointLocal;
+
+	// Vertex normal (BEFORE deformation)
+	float3 PreSkinnedNormal;
+
 	// Post-deformed tangent basis of the vertex
 	FNaniteTangentBasis TangentBasis;
+
 	// Normalized distance along the spline (spline meshes only)
 	half SplineDist;
+
 	// Decoded vertex attribute data
 	FNaniteRawAttributeData RawAttributeData;
 };
@@ -75,9 +83,9 @@ FNanitePostDeformVertex DeformLocalNaniteVertex(FPrimitiveSceneData PrimitiveDat
 	Output.TangentBasis			= MakeTangentBasis(Input.RawAttributeData);
 	Output.SplineDist			= 0.0f;
 	Output.RawAttributeData		= Input.RawAttributeData;
-
-	Output.PointLocal = Input.Position;
-	Output.Position   = Input.Position;
+	Output.PointLocal			= Input.Position;
+	Output.Position				= Input.Position;
+	Output.PreSkinnedNormal		= Output.TangentBasis.TangentZ;
 
 #if USE_SKINNING
 	BRANCH

@@ -6844,6 +6844,16 @@ bool UMaterial::WritesToRuntimeVirtualTexture() const
 	return GetCachedExpressionData().bHasRuntimeVirtualTextureOutput;
 }
 
+bool UMaterial::HasVertexInterpolator() const
+{
+	return GetCachedExpressionData().bHasVertexInterpolator;
+}
+
+bool UMaterial::HasCustomizedUVs() const
+{
+	return GetCachedExpressionData().bHasCustomizedUVs;
+}
+
 USubsurfaceProfile* UMaterial::GetSubsurfaceProfile_Internal() const
 {
 	checkSlow(IsInGameThread());

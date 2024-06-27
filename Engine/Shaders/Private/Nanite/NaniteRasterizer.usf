@@ -729,7 +729,8 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 		BRANCH
 		if (bEvaluateWPO)
 		{
-			WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset(InputVert);
+			MaterialShader.InitVertexParameters(InputVert);
+			WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset();
 		}
 	#endif
 
@@ -1209,12 +1210,14 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	MaterialShader.ApplyFallbackDisplacement(InputVert);
 #endif
 
+	MaterialShader.InitVertexParameters(InputVert);
+
 	BRANCH
 	if ( (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0 )
-	{		
-		WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset(InputVert);
+	{
+		WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset();
 	}
-	
+
 	const float3 PointTranslatedWorld = DFTransformLocalToTranslatedWorld(InputVert.Position, InstanceData.LocalToWorld, NaniteView.PreViewTranslation).xyz + WorldPositionOffset;
 	float4 PointClip = mul( float4( PointTranslatedWorld, 1 ), NaniteView.TranslatedWorldToClip );
 #if VIRTUAL_TEXTURE_TARGET
@@ -1238,9 +1241,22 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	Out.PrimitivePacked = PackPrimitiveAttributes(MakePrimitiveAttributes(NaniteView, VisibleCluster, PixelValue, bReverseWindingOrder));
 #endif
 
+#if NANITE_PIXEL_PROGRAMMABLE && NUM_TEX_COORD_INTERPOLATORS > 0
+	float2 CustomizedUVs[NUM_TEX_COORD_INTERPOLATORS];
+	MaterialShader.GetCustomizedUVs(CustomizedUVs);
+#endif
+
 #if NANITE_PIXEL_PROGRAMMABLE
-	Out.TexCoords.xy = InputVert.RawAttributeData.TexCoords[0];
-	Out.TexCoords.zw = InputVert.RawAttributeData.TexCoords[1];
+	#if NUM_TEX_COORD_INTERPOLATORS > 1
+		Out.TexCoords.xy = CustomizedUVs[0];
+		Out.TexCoords.zw = CustomizedUVs[1];
+	#elif NUM_TEX_COORD_INTERPOLATORS > 0
+		Out.TexCoords.xy = CustomizedUVs[0];
+		Out.TexCoords.zw = InputVert.RawAttributeData.TexCoords[1];
+	#else
+		Out.TexCoords.xy = InputVert.RawAttributeData.TexCoords[0];
+		Out.TexCoords.zw = InputVert.RawAttributeData.TexCoords[1];
+	#endif
 #endif
 
 #if !PIXELSHADER

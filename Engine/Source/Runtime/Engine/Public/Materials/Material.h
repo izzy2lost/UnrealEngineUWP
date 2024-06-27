@@ -1207,6 +1207,8 @@ public:
 	ENGINE_API virtual float GetMaxWorldPositionOffsetDisplacement() const override;
 	ENGINE_API virtual bool ShouldAlwaysEvaluateWorldPositionOffset() const override;
 	ENGINE_API virtual bool HasPixelAnimation() const override;
+	ENGINE_API virtual bool HasVertexInterpolator() const override;
+	ENGINE_API virtual bool HasCustomizedUVs() const override;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const override;
 
 	ENGINE_API virtual FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;

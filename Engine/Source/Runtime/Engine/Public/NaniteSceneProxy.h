@@ -45,6 +45,7 @@ struct FMaterialAuditEntry
 	uint8 bHasPixelDepthOffset			: 1;
 	uint8 bHasTessellationEnabled		: 1;
 	uint8 bHasVertexInterpolator		: 1;
+	uint8 bHasVertexUVs					: 1;
 	uint8 bHasPerInstanceRandomID		: 1;
 	uint8 bHasPerInstanceCustomData		: 1;
 	uint8 bHasInvalidUsage				: 1;
@@ -216,16 +217,16 @@ public:
 
 		inline bool IsVertexProgrammableRaster(bool bEvaluateWPO) const
 		{
-			return (bEvaluateWPO && MaterialRelevance.bUsesWorldPositionOffset) ||
-				MaterialRelevance.bUsesDisplacement;
+			const bool bEnableWPO = (bEvaluateWPO && MaterialRelevance.bUsesWorldPositionOffset);
+			const bool bEnableVertexUVs = MaterialRelevance.bUsesCustomizedUVs && IsPixelProgrammableRaster();
+			return bEnableWPO || bEnableVertexUVs || MaterialRelevance.bUsesDisplacement;
 		}
 
 		inline bool IsPixelProgrammableRaster() const
 		{
 			// NOTE: MaterialRelevance.bTwoSided does not go into bHasPixelProgrammableRaster
 			// because we want only want this flag to control culling, not a full raster bin
-			return MaterialRelevance.bUsesPixelDepthOffset ||
-				MaterialRelevance.bMasked;
+			return MaterialRelevance.bUsesPixelDepthOffset || MaterialRelevance.bMasked;
 		}
 	};
 
