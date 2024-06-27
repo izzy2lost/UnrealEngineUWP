@@ -178,7 +178,7 @@ namespace HordeServer.Tests.Logs
 			// Will implicitly test GetLogFileAsync(), AddCachedLogFile()
 			JobId jobId = JobIdUtils.GenerateNewId();
 			SessionId sessionId = SessionIdUtils.GenerateNewId();
-			ILog a = await LogCollection.AddAsync(jobId, null, sessionId, LogType.Text, logId: null, CancellationToken.None);
+			ILog a = await LogCollection.AddAsync(jobId, null, sessionId, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
 			ILog b = (await LogCollection.GetAsync(a.Id, CancellationToken.None))!;
 			Assert.AreEqual(a.JobId, b.JobId);
 			Assert.AreEqual(a.SessionId, b.SessionId);

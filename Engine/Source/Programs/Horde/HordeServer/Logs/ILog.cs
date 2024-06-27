@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
@@ -27,47 +28,42 @@ namespace HordeServer.Logs
 		/// <summary>
 		/// Identifier for the log. Randomly generated.
 		/// </summary>
-		public LogId Id { get; }
+		LogId Id { get; }
 
 		/// <summary>
 		/// Unique id of the job containing this log
 		/// </summary>
-		public JobId JobId { get; }
+		JobId JobId { get; }
 
 		/// <summary>
 		/// The lease allowed to write to this log
 		/// </summary>
-		public LeaseId? LeaseId { get; }
+		LeaseId? LeaseId { get; }
 
 		/// <summary>
 		/// The session allowed to write to this log
 		/// </summary>
-		public SessionId? SessionId { get; }
+		SessionId? SessionId { get; }
 
 		/// <summary>
 		/// Type of data stored in this log 
 		/// </summary>
-		public LogType Type { get; }
+		LogType Type { get; }
 
 		/// <summary>
 		/// Namespace containing the log data
 		/// </summary>
-		public NamespaceId NamespaceId { get; }
+		NamespaceId NamespaceId { get; }
 
 		/// <summary>
 		/// Name of the ref used to store data for this log
 		/// </summary>
-		public RefName RefName { get; }
+		RefName RefName { get; }
 
-		//		/// <summary>
-		//		/// Number of lines (V2 storage backend)
-		//		/// </summary>
-		//		public int LineCount { get; }
-
-		//		/// <summary>
-		//		/// Whether the log is complete (V2 storage backend)
-		//		/// </summary>
-		//		public bool Complete { get; }
+		/// <summary>
+		/// Acl scope that owns this log
+		/// </summary>
+		AclScopeName AclScopeName { get; }
 
 		/// <summary>
 		/// Delete this log

@@ -12,7 +12,6 @@ using HordeServer.Logs;
 using HordeServer.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Logs

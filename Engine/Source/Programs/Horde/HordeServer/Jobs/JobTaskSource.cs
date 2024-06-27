@@ -831,7 +831,7 @@ namespace HordeServer.Jobs
 					if (waiter.LeaseSource.TrySetResult(lease))
 					{
 						_logger.LogInformation("Assigned lease to agent");
-						await _logCollection.AddAsync(job.Id, leaseId, agent.SessionId, LogType.Json, logId, cancellationToken);
+						await _logCollection.AddAsync(job.Id, leaseId, agent.SessionId, LogType.Json, logId, streamConfig.Acl.ScopeName, cancellationToken);
 						return lease;
 					}
 				}

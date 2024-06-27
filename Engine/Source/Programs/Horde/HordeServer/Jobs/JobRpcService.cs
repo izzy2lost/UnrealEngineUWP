@@ -312,7 +312,7 @@ namespace HordeServer.Jobs
 			}
 
 			// Create a log file if necessary
-			log.Value ??= await _logCollection.AddAsync(job.Id, batch.LeaseId, batch.SessionId, LogType.Json);
+			log.Value ??= await _logCollection.AddAsync(job.Id, batch.LeaseId, batch.SessionId, LogType.Json, aclScopeName: streamConfig.Acl.ScopeName);
 
 			// Get the node for this step
 			IGraph graph = await _jobService.GetGraphAsync(job);

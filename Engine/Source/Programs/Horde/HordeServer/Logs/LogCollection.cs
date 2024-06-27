@@ -11,6 +11,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
@@ -45,6 +46,7 @@ namespace HordeServer.Logs
 			LogType ILog.Type => _document.Type;
 			NamespaceId ILog.NamespaceId => _document.NamespaceId;
 			RefName ILog.RefName => _document.RefName;
+			AclScopeName ILog.AclScopeName => _document.AclScopeName;
 
 			public Log(LogCollection collection, LogDocument document)
 			{
@@ -115,6 +117,7 @@ namespace HordeServer.Logs
 
 			public NamespaceId NamespaceId { get; set; } = Namespace.Logs;
 			public RefName RefName { get; set; }
+			public AclScopeName AclScopeName { get; set; }
 
 			[BsonIgnoreIfDefault]
 			public bool Complete { get; set; }
@@ -127,7 +130,7 @@ namespace HordeServer.Logs
 			{
 			}
 
-			public LogDocument(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId, NamespaceId namespaceId)
+			public LogDocument(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId, NamespaceId namespaceId, AclScopeName aclScopeName)
 			{
 				Id = logId ?? LogIdUtils.GenerateNewId();
 				JobId = jobId;
@@ -138,6 +141,7 @@ namespace HordeServer.Logs
 				MaxLineIndex = 0;
 				NamespaceId = namespaceId;
 				RefName = new RefName(Id.ToString());
+				AclScopeName = aclScopeName;
 			}
 		}
 
@@ -292,9 +296,9 @@ namespace HordeServer.Logs
 		}
 
 		/// <inheritdoc/>
-		public async Task<ILog> AddAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId, CancellationToken cancellationToken)
+		public async Task<ILog> AddAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId, AclScopeName aclScopeName, CancellationToken cancellationToken)
 		{
-			LogDocument newLog = new LogDocument(jobId, leaseId, sessionId, type, logId, Namespace.Logs);
+			LogDocument newLog = new LogDocument(jobId, leaseId, sessionId, type, logId, Namespace.Logs, aclScopeName);
 			await _logCollection.InsertOneAsync(newLog, null, cancellationToken);
 			return new Log(this, newLog);
 		}
