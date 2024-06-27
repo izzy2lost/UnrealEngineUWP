@@ -1657,7 +1657,7 @@ export type CreateZipRequest = {
 
 
 /** Describes an artifact */
-export type GetArtifactResponseV2 = {
+export type GetArtifactResponse = {
 	id: string;
 	type: ArtifactContextType;
 	keys: string[]
@@ -1671,7 +1671,7 @@ export type GetArtifactResponseV2 = {
 /** Result of an artifact search */
 export type FindArtifactsResponse = {
 	/** List of artifacts matching the search criteria*/
-	artifacts: GetArtifactResponseV2[];
+	artifacts: GetArtifactResponse[];
 }
 
 /** Describes a file within an artifact */

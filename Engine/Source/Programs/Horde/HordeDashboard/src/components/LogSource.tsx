@@ -3,7 +3,7 @@
 import { action, makeObservable, observable } from "mobx";
 import moment, { Moment } from 'moment-timezone';
 import backend from '../backend';
-import { AgentData, BatchData, EventSeverity, GetArtifactResponseV2, GetJobsTabResponse, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, StepData, StreamData } from "../backend/Api";
+import { AgentData, BatchData, EventSeverity, GetArtifactResponse, GetJobsTabResponse, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, StepData, StreamData } from "../backend/Api";
 import { getBatchSummaryMarkdown, getStepSummaryMarkdown, JobDetails } from "../backend/JobDetails";
 import { getLeaseElapsed, getStepPercent } from '../base/utilities/timeUtils';
 import { BreadcrumbItem } from './Breadcrumbs';
@@ -608,7 +608,7 @@ export class JobLogSource extends LogSource {
    batch?: BatchData;
    step?: StepData;
    
-   artifactsV2?: GetArtifactResponseV2[];
+   artifactsV2?: GetArtifactResponse[];
 
    _agentTelemety: AgentTelemetryHandler = new AgentTelemetryHandler();
 

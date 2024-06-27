@@ -3,15 +3,15 @@ import { getHordeStyling } from "../../styles/Styles";
 import { IStreamChooser, StreamChooser } from "../projects/StreamChooser";
 import React, { useState } from "react";
 import backend from "../../backend";
-import { GetArtifactResponseV2 } from "../../backend/Api";
+import { GetArtifactResponse } from "../../backend/Api";
 import dashboard from "../../backend/Dashboard";
 import { JobArtifactsModal } from "./ArtifactsModal";
 import { projectStore } from "../../backend/ProjectStore";
 
 
-const ArtifactsList: React.FC<{ artifacts?: GetArtifactResponseV2[] }> = ({ artifacts }) => {
+const ArtifactsList: React.FC<{ artifacts?: GetArtifactResponse[] }> = ({ artifacts }) => {
 
-   const [browse, setBrowse] = useState<{ jobId?: string, stepId?: string, artifactId?: string, artifact?: GetArtifactResponseV2 }>({});
+   const [browse, setBrowse] = useState<{ jobId?: string, stepId?: string, artifactId?: string, artifact?: GetArtifactResponse }>({});
 
    if (!artifacts?.length) {
       return null;
@@ -36,7 +36,7 @@ const ArtifactsList: React.FC<{ artifacts?: GetArtifactResponseV2[] }> = ({ arti
 
       if (props) {
 
-         const item = props!.item as GetArtifactResponseV2;
+         const item = props!.item as GetArtifactResponse;
 
          let background: string | undefined;
          if (props.itemIndex % 2 === 0) {
@@ -121,7 +121,7 @@ const artifactTypes: IComboBoxOption[] = [
 
 export const FindArtifactsModal: React.FC<{ streamId?: string, onClose: () => void }> = ({ streamId, onClose }) => {
 
-   const [state, setState] = useState<{ searching?: boolean, artifacts?: GetArtifactResponseV2[] }>({});
+   const [state, setState] = useState<{ searching?: boolean, artifacts?: GetArtifactResponse[] }>({});
    const streamRef = React.useRef<IStreamChooser>(null);
    const minChangeRef = React.useRef<ITextField>(null);
    const maxChangeRef = React.useRef<ITextField>(null);
@@ -172,11 +172,37 @@ export const FindArtifactsModal: React.FC<{ streamId?: string, onClose: () => vo
          if (!streamId) {
             streamId = undefined;
          }
+         
+         const mongoId = /^[a-fA-F0-9]{24}$/i;
 
-         const artifacts = await backend.getArtifacts(streamId, minChange, maxChange, name, type);
+         let id: string | undefined;
+
+         if (name?.length) {
+            if (name.match(mongoId)?.length) {
+               id = name;
+            }
+         }
+
+         let artifacts: GetArtifactResponse[] = [];
+
+         if (id) {
+            try {
+               const artifact = await backend.getArtifactData(id);
+               if (artifact?.id) {
+                  artifacts = [artifact];
+               }
+            } catch (reason) {
+               console.error(reason)
+            }            
+
+         } else {
+            const find = await backend.getArtifacts(streamId, minChange, maxChange, name, type);
+            artifacts = find.artifacts;
+         }
+         
 
          setState({
-            searching: false, artifacts: artifacts.artifacts
+            searching: false, artifacts: artifacts
          });
 
       } catch (reason) {
@@ -230,7 +256,7 @@ export const FindArtifactsModal: React.FC<{ streamId?: string, onClose: () => vo
                         <TextField key="max_change_option" componentRef={maxChangeRef} style={{ width: 92 }} label="Max Changelist" />
                      </Stack>
                      <Stack >
-                        <TextField key="name_option" componentRef={nameRef} style={{ width: 220 }} label="Name" spellCheck={false} autoComplete="off" />
+                        <TextField key="name_option" componentRef={nameRef} style={{ width: 220 }} label="Name / Artifact Id" spellCheck={false} autoComplete="off"/>
                      </Stack>
                      <Stack>
                         <Label>Artifact Type</Label>

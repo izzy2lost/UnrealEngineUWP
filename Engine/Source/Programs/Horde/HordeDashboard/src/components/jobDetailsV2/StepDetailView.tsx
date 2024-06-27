@@ -5,7 +5,7 @@ import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import backend from "../../backend";
-import { GetArtifactResponseV2 } from "../../backend/Api";
+import { GetArtifactResponse } from "../../backend/Api";
 import { getHordeStyling } from "../../styles/Styles";
 import { HistoryModal } from "../HistoryModal";
 import { useQuery } from "../JobDetailCommon";
@@ -92,7 +92,7 @@ class StepDetailDataView extends JobDataView {
       super.clear();
    }
 
-   artifacts?: GetArtifactResponseV2[];
+   artifacts?: GetArtifactResponse[];
 
    stepId?: string;
 

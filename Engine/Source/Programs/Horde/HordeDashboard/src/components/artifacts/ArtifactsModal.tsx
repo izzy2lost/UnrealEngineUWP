@@ -6,7 +6,7 @@ import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
 import { NavigateFunction, useNavigate } from "react-router-dom";
 import backend from "../../backend";
-import { ArtifactContextType, GetArtifactDirectoryEntryResponse, GetArtifactDirectoryResponse, GetArtifactFileEntryResponse, GetArtifactResponseV2 } from "../../backend/Api";
+import { ArtifactContextType, GetArtifactDirectoryEntryResponse, GetArtifactDirectoryResponse, GetArtifactFileEntryResponse, GetArtifactResponse } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { getHordeStyling } from "../../styles/Styles";
 
@@ -29,7 +29,7 @@ type BrowserItem = {
 
 class ArtifactsHandler {
 
-   constructor(jobId: string, stepId: string, contextType: ArtifactContextType, artifactPath?: string, artifacts?: GetArtifactResponseV2[], artifactId?: string) {
+   constructor(jobId: string, stepId: string, contextType: ArtifactContextType, artifactPath?: string, artifacts?: GetArtifactResponse[], artifactId?: string) {
       makeObservable(this);
       this.jobId = jobId;
       this.stepId = stepId;
@@ -57,7 +57,7 @@ class ArtifactsHandler {
 
    private async set(artifactPath?: string) {
 
-      let artifacts: GetArtifactResponseV2[] | undefined = this.artifacts;
+      let artifacts: GetArtifactResponse[] | undefined = this.artifacts;
 
       if (!artifacts) {
 
@@ -90,7 +90,7 @@ class ArtifactsHandler {
          return;
       }
 
-      let a: GetArtifactResponseV2 | undefined;
+      let a: GetArtifactResponse | undefined;
 
       if (this.artifactId) {
          a = artifacts.find(a => a.id === this.artifactId)
@@ -262,8 +262,8 @@ class ArtifactsHandler {
 
    browse?: GetArtifactDirectoryResponse;
 
-   artifact?: GetArtifactResponseV2;
-   artifacts?: GetArtifactResponseV2[];
+   artifact?: GetArtifactResponse;
+   artifacts?: GetArtifactResponse[];
 
    artifactId?: string;
 
@@ -552,7 +552,7 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler, openArtifactInfo: ()
 
 let idcounter = 0;
 
-const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string, artifactId?: string }> = observer(({ jobId, stepId, artifacts, contextType, artifactPath, artifactId }) => {
+const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponse[], contextType: ArtifactContextType, artifactPath?: string, artifactId?: string }> = observer(({ jobId, stepId, artifacts, contextType, artifactPath, artifactId }) => {
 
    // eslint-disable-next-line
    const handler = ArtifactsHandler.current ?? new ArtifactsHandler(jobId, stepId, contextType, artifactPath, artifacts, artifactId);
@@ -806,7 +806,7 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
 
 
 
-export const JobArtifactsModal: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponseV2[], contextType: ArtifactContextType, artifactPath?: string, artifactId?: string, onClose: () => void }> = ({ jobId, stepId, artifacts, contextType, artifactPath, artifactId, onClose }) => {
+export const JobArtifactsModal: React.FC<{ jobId: string; stepId: string, artifacts?: GetArtifactResponse[], contextType: ArtifactContextType, artifactPath?: string, artifactId?: string, onClose: () => void }> = ({ jobId, stepId, artifacts, contextType, artifactPath, artifactId, onClose }) => {
 
    const { hordeClasses } = getHordeStyling();
 

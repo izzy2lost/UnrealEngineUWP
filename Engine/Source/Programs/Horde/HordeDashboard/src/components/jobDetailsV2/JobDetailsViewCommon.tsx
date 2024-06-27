@@ -5,7 +5,7 @@ import moment from "moment";
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import backend from "../../backend";
-import { BatchData, GetArtifactResponseV2, GetJobTimingResponse, GetLabelStateResponse, GetTemplateRefResponse, JobData, JobState, LabelState, ReportPlacement, StepData, StreamData } from "../../backend/Api";
+import { BatchData, GetArtifactResponse, GetJobTimingResponse, GetLabelStateResponse, GetTemplateRefResponse, JobData, JobState, LabelState, ReportPlacement, StepData, StreamData } from "../../backend/Api";
 import { JobLabel } from "../../backend/JobDetails";
 import { PollBase } from "../../backend/PollBase";
 import { projectStore } from "../../backend/ProjectStore";
@@ -652,7 +652,7 @@ export class JobDetailsV2 extends PollBase {
    template?: GetTemplateRefResponse;
 
    // stepId => artifacts
-   stepArtifacts = new Map<string, GetArtifactResponseV2[]>();
+   stepArtifacts = new Map<string, GetArtifactResponse[]>();
 
    @observable
    private rootUpdated: number = 0;
