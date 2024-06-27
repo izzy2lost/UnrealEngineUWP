@@ -4048,6 +4048,9 @@ void UTexture::ForceRebuildPlatformData(uint8 InEncodeSpeedOverride /* =255 ETex
 	FTexturePlatformData** PlatformDataLinkPtr = GetRunningPlatformData();
 	if (PlatformDataLinkPtr && *PlatformDataLinkPtr && FApp::CanEverRender())
 	{
+		// Cache() will clear FTexturePlatformData::Mips which can be accessed by the streaming update
+		WaitForPendingInitOrStreaming();
+
 		FTexturePlatformData *&PlatformDataLink = *PlatformDataLinkPtr;
 		FlushRenderingCommands();
 
