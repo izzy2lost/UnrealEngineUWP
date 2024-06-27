@@ -66,6 +66,8 @@ UObject* FMovieSceneSpawnRegister::SpawnObject(const FGuid& BindingId, UMovieSce
 						return nullptr;
 					}
 
+					SpawnOwnership = SpawnableBinding->SpawnOwnership;
+
 					// Call the Spawnable binding itself to spawn the object
 					SpawnedActor = SpawnableBinding->SpawnObject(BindingId, BindingIndex, MovieScene, TemplateID, SharedPlaybackState);
 				}
