@@ -194,17 +194,19 @@ UE_TRACE_API FChannel* FindChannel(FChannelId ChannelId) UE_TRACE_IMPL(nullptr);
 } // namespace UE
 
 ////////////////////////////////////////////////////////////////////////////////
-#define UE_TRACE_EVENT_DEFINE(LoggerName, EventName)					TRACE_PRIVATE_EVENT_DEFINE(LoggerName, EventName)
-#define UE_TRACE_EVENT_BEGIN(LoggerName, EventName, ...)				TRACE_PRIVATE_EVENT_BEGIN(LoggerName, EventName, ##__VA_ARGS__)
-#define UE_TRACE_EVENT_BEGIN_EXTERN(LoggerName, EventName, ...)			TRACE_PRIVATE_EVENT_BEGIN_EXTERN(LoggerName, EventName, ##__VA_ARGS__)
-#define UE_TRACE_EVENT_FIELD(FieldType, FieldName)						TRACE_PRIVATE_EVENT_FIELD(FieldType, FieldName)
-#define UE_TRACE_EVENT_REFERENCE_FIELD(RefLogger, RefEvent, FieldName)	TRACE_PRIVATE_EVENT_REFFIELD(RefLogger, RefEvent, FieldName)
-#define UE_TRACE_EVENT_END()											TRACE_PRIVATE_EVENT_END()
-#define UE_TRACE_LOG(LoggerName, EventName, ChannelsExpr, ...)			TRACE_PRIVATE_LOG(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
-#define UE_TRACE_LOG_SCOPED(LoggerName, EventName, ChannelsExpr, ...)	TRACE_PRIVATE_LOG_SCOPED(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
-#define UE_TRACE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ...)	TRACE_PRIVATE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
-#define UE_TRACE_GET_DEFINITION_TYPE_ID(LoggerName, EventName)			TRACE_PRIVATE_GET_DEFINITION_TYPE_ID(LoggerName, EventName)
-#define UE_TRACE_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ...) TRACE_PRIVATE_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_EVENT_DEFINE(LoggerName, EventName)											TRACE_PRIVATE_EVENT_DEFINE(LoggerName, EventName)
+#define UE_TRACE_EVENT_BEGIN(LoggerName, EventName, ...)										TRACE_PRIVATE_EVENT_BEGIN(LoggerName, EventName, ##__VA_ARGS__)
+#define UE_TRACE_EVENT_BEGIN_EXTERN(LoggerName, EventName, ...)									TRACE_PRIVATE_EVENT_BEGIN_EXTERN(LoggerName, EventName, ##__VA_ARGS__)
+#define UE_TRACE_EVENT_FIELD(FieldType, FieldName)												TRACE_PRIVATE_EVENT_FIELD(FieldType, FieldName)
+#define UE_TRACE_EVENT_REFERENCE_FIELD(RefLogger, RefEvent, FieldName)							TRACE_PRIVATE_EVENT_REFFIELD(RefLogger, RefEvent, FieldName)
+#define UE_TRACE_EVENT_END()																	TRACE_PRIVATE_EVENT_END()
+#define UE_TRACE_LOG(LoggerName, EventName, ChannelsExpr, ...)									TRACE_PRIVATE_LOG(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_LOG_SCOPED(LoggerName, EventName, ChannelsExpr, ...)							TRACE_PRIVATE_LOG_SCOPED(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...)	TRACE_PRIVATE_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__)
+#define UE_TRACE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ...)							TRACE_PRIVATE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__)
+#define UE_TRACE_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...)	TRACE_PRIVATE_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__)
+#define UE_TRACE_GET_DEFINITION_TYPE_ID(LoggerName, EventName)									TRACE_PRIVATE_GET_DEFINITION_TYPE_ID(LoggerName, EventName)
+#define UE_TRACE_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ...)					TRACE_PRIVATE_LOG_DEFINITION(LoggerName, EventName, Id, ChannelsExpr, ##__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 #define UE_TRACE_CHANNEL(ChannelName, ...)				TRACE_PRIVATE_CHANNEL(ChannelName, ##__VA_ARGS__)

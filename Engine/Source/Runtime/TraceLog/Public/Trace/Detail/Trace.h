@@ -154,6 +154,10 @@ class FChannel;
 			if (const auto& __restrict EventName = *UE_LAUNDER((F##LoggerName##EventName##Fields*)(&LogScope))) \
 				((void)EventName),
 
+#define TRACE_PRIVATE_LOG_PRELUDE_CONDITIONAL(EnterFunc, LoggerName, EventName, ChannelsExpr, Condition, ...) \
+	if (Condition) \
+		TRACE_PRIVATE_LOG_PRELUDE(EnterFunc, LoggerName, EventName, ChannelsExpr, __VA_ARGS__) 
+
 #define TRACE_PRIVATE_LOG_EPILOG() \
 				LogScope += LogScope
 
@@ -167,9 +171,21 @@ class FChannel;
 		PREPROCESSOR_JOIN(TheScope, __LINE__).SetActive(), \
 		TRACE_PRIVATE_LOG_EPILOG()
 
+#define TRACE_PRIVATE_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...) \
+	UE::Trace::Private::FScopedLogScope PREPROCESSOR_JOIN(TheScope, __LINE__); \
+	TRACE_PRIVATE_LOG_PRELUDE_CONDITIONAL(ScopedEnter, LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__) \
+		PREPROCESSOR_JOIN(TheScope, __LINE__).SetActive(), \
+		TRACE_PRIVATE_LOG_EPILOG()
+
 #define TRACE_PRIVATE_LOG_SCOPED_T(LoggerName, EventName, ChannelsExpr, ...) \
 	UE::Trace::Private::FScopedStampedLogScope PREPROCESSOR_JOIN(TheScope, __LINE__); \
 	TRACE_PRIVATE_LOG_PRELUDE(ScopedStampedEnter, LoggerName, EventName, ChannelsExpr, ##__VA_ARGS__) \
+		PREPROCESSOR_JOIN(TheScope, __LINE__).SetActive(), \
+		TRACE_PRIVATE_LOG_EPILOG()
+
+#define TRACE_PRIVATE_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, ChannelsExpr, Condition, ...) \
+	UE::Trace::Private::FScopedStampedLogScope PREPROCESSOR_JOIN(TheScope, __LINE__); \
+	TRACE_PRIVATE_LOG_PRELUDE_CONDITIONAL(ScopedStampedEnter, LoggerName, EventName, ChannelsExpr, Condition, ##__VA_ARGS__) \
 		PREPROCESSOR_JOIN(TheScope, __LINE__).SetActive(), \
 		TRACE_PRIVATE_LOG_EPILOG()
 
@@ -232,7 +248,15 @@ class FChannel;
 	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
 		EventName
 
+#define TRACE_PRIVATE_LOG_SCOPED_CONDITIONAL(LoggerName, EventName, Condition, ...) \
+	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
+		EventName
+
 #define TRACE_PRIVATE_LOG_SCOPED_T(LoggerName, EventName, ...) \
+	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
+		EventName
+
+#define TRACE_PRIVATE_LOG_SCOPED_T_CONDITIONAL(LoggerName, EventName, Condition, ...) \
 	if (const auto& EventName = *(F##LoggerName##EventName##Dummy*)1) \
 		EventName
 
