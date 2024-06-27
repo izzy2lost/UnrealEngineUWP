@@ -157,6 +157,8 @@ namespace UE::MultiUserClient
 		void HandleReplicationSessionJoined(const ConcertSyncClient::Replication::FJoinReplicatedSessionResult& JoinSessionResult);
 		/** Sets the current connection state and triggers OnReplicationConnectionStateChangedDelegate. */
 		void SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState NewState);
+		/** Restores the content the client had when they last left the session. */
+		void RestoreContentFromLastTime();
 
 		/** Sets up delegates for implementing the broadcasting of OnStreamServerStateChangedDelegate and OnAuthorityServerStateChangedDelegate. */
 		void SetupClientConnectionEvents();

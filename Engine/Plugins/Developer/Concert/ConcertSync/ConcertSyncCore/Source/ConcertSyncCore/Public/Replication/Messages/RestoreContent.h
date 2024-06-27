@@ -8,7 +8,7 @@
 #include "Replication/Messages/SyncControl.h"
 #include "RestoreContent.generated.h"
 
-UENUM()
+UENUM(Flags) 
 enum class EConcertReplicationRestoreContentFlags : uint8
 {
 	None = 0,
@@ -71,7 +71,7 @@ struct FConcertReplication_RestoreContent_Request
 	/** If EConcertReplicationRestoreContentFlags::RestoreAuthority is set, describes how to deal with authority conflicts. */
 	UPROPERTY()
 	EConcertReplicationAuthorityRestoreMode AuthorityRestorationMode = EConcertReplicationAuthorityRestoreMode::ExcludeAlreadyOwnedObjectPropertiesFromStream;
-
+	
 	/**
 	 * The ID of an activity that contains a client's replication state.
 	 * The activity must be a FConcertSyncReplicationActivity with whose EventData.ActivityType == EConcertSyncReplicationActivityType::LeaveReplication.
@@ -106,6 +106,24 @@ enum class EConcertReplicationRestoreErrorCode : uint8
 	/** EConcertReplicationAuthorityRestoreMode::AllOrNothing was set and another client had authority over one of the would-be restore objects. */
 	AuthorityConflict
 };
+
+namespace UE::ConcertSyncCore
+{
+	inline FString LexToString(EConcertReplicationRestoreErrorCode ErrorCode)
+	{
+		switch (ErrorCode)
+		{
+		case EConcertReplicationRestoreErrorCode::Timeout: return TEXT("Timeout");
+		case EConcertReplicationRestoreErrorCode::Success: return TEXT("Success");
+		case EConcertReplicationRestoreErrorCode::Invalid: return TEXT("Invalid");
+		case EConcertReplicationRestoreErrorCode::NotSupported: return TEXT("NotSupported");
+		case EConcertReplicationRestoreErrorCode::NoSuchActivity: return TEXT("NotSupported");
+		case EConcertReplicationRestoreErrorCode::NameConflict: return TEXT("NameConflict");
+		case EConcertReplicationRestoreErrorCode::AuthorityConflict: return TEXT("AuthorityConflict");
+			default: checkNoEntry(); return TEXT("Unknown");
+		}
+	}
+}
 
 USTRUCT()
 struct FConcertReplication_RestoreContent_Response

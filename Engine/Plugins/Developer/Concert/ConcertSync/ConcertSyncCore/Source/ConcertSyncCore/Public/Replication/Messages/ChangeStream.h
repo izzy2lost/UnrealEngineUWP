@@ -63,7 +63,7 @@ struct FConcertReplication_ChangeStream_PutObject
 	CONCERTSYNCCORE_API TOptional<FConcertReplicatedObjectInfo> MakeObjectInfoIfValid() const;
 };
 
-UENUM()
+UENUM(Flags)
 enum class EConcertReplicationChangeFrequencyFlags : uint8
 {
 	None = 0,

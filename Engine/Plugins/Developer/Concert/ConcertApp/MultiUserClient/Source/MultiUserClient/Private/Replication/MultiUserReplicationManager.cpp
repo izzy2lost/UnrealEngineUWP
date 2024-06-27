@@ -8,7 +8,12 @@
 #include "Replication/IConcertClientReplicationManager.h"
 
 #include "Containers/Ticker.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "UObject/Package.h"
+#include "Widgets/Notifications/SNotificationList.h"
+
+#define LOCTEXT_NAMESPACE "FMultiUserReplicationManager"
 
 namespace UE::MultiUserClient
 {
@@ -36,7 +41,6 @@ namespace UE::MultiUserClient
 		}
 
 		ConnectionState = EMultiUserReplicationConnectionState::Connecting;
-		// For now we join without any initial data - this will likely change in the future (5.5+)
 		Manager->JoinReplicationSession({})
 			.Next([WeakThis = AsWeak()](ConcertSyncClient::Replication::FJoinReplicatedSessionResult&& JoinSessionResult)
 			{
@@ -89,6 +93,9 @@ namespace UE::MultiUserClient
 			ConnectedState.Emplace(Client, DiscoveryContainer);
 			SetupClientConnectionEvents();
 			SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Connected);
+
+			// For convenience, the client should attempt to restore the content when they last left.
+			RestoreContentFromLastTime();
 		}
 		else
 		{
@@ -100,6 +107,37 @@ namespace UE::MultiUserClient
 	{
 		ConnectionState = NewState;
 		OnReplicationConnectionStateChangedDelegate.Broadcast(ConnectionState);
+	}
+
+	void FMultiUserReplicationManager::RestoreContentFromLastTime()
+	{
+		Client->GetReplicationManager()->RestoreContent(
+			{
+				.Flags = EConcertReplicationRestoreContentFlags::StreamsAndAuthority | EConcertReplicationRestoreContentFlags::ValidateUniqueClient
+			}
+		)
+		.Next([ClientInfo = Client->GetConcertClient()->GetClientInfo()](FConcertReplication_RestoreContent_Response&& Response)
+		{
+			UE_LOG(LogConcert, Log, TEXT("Content restoration completed with result '%s'"), *ConcertSyncCore::LexToString(Response.ErrorCode));
+			const bool bIsTimeout = !IsInGameThread() || Response.ErrorCode == EConcertReplicationRestoreErrorCode::Timeout;
+			if (Response.IsSuccess() || bIsTimeout || !FSlateApplication::IsInitialized())
+			{
+				return;
+			}
+
+			FSlateNotificationManager& NotificationManager = FSlateNotificationManager::Get();
+			FNotificationInfo NotificationInfo(LOCTEXT("RestoreFailed.Main", "Replication Content Restore"));
+			NotificationInfo.SubText = FText::Format(
+				LOCTEXT("RestoreFailed.SubTextFmt", "Display name {0} and device name {1} already taken by another client in session."),
+				FText::FromString(ClientInfo.DisplayName),
+				FText::FromString(ClientInfo.DeviceName)
+				);
+			NotificationInfo.bFireAndForget = true;
+			NotificationInfo.bUseSuccessFailIcons = true;
+			NotificationInfo.ExpireDuration = 4.f;
+			NotificationManager.AddNotification(NotificationInfo)
+				->SetCompletionState(SNotificationItem::CS_Fail);
+		});
 	}
 
 	void FMultiUserReplicationManager::SetupClientConnectionEvents()
@@ -117,7 +155,6 @@ namespace UE::MultiUserClient
 
 	void FMultiUserReplicationManager::OnClientAuthorityServerStateChanged(const FGuid EndpointId) const
 	{
-		
 		UE_LOG(LogConcert, Verbose, TEXT("Client %s authority changed"), *EndpointId.ToString());
 		OnAuthorityServerStateChangedDelegate.Broadcast(EndpointId);
 	}
@@ -206,3 +243,5 @@ namespace UE::MultiUserClient
 		, UserNotifier(ClientManager, MuteManager)
 	{}
 }
+
+#undef LOCTEXT_NAMESPACE
