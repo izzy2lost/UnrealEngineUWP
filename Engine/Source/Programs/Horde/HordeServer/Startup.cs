@@ -977,19 +977,23 @@ namespace HordeServer
 		public sealed class AclActionBsonSerializer : SerializerBase<AclAction>
 		{
 			/// <inheritdoc/>
-			public override AclAction Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) => new AclAction(context.Reader.ReadString());
+			public override AclAction Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) 
+				=> new AclAction(context.Reader.ReadString());
 
 			/// <inheritdoc/>
-			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AclAction value) => context.Writer.WriteString(value.Name);
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AclAction value) 
+				=> context.Writer.WriteString(value.Name);
 		}
 
 		public sealed class AclScopeNameBsonSerializer : SerializerBase<AclScopeName>
 		{
 			/// <inheritdoc/>
-			public override AclScopeName Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) => new AclScopeName(context.Reader.ReadString());
+			public override AclScopeName Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) 
+				=> new AclScopeName(context.Reader.ReadString());
 
 			/// <inheritdoc/>
-			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AclScopeName value) => context.Writer.WriteString(value.Text);
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AclScopeName value)
+				=> context.Writer.WriteString(value.Text ?? String.Empty);
 		}
 
 		sealed class SubResourceIdBsonSerializer<TValue, TConverter> : SerializerBase<TValue> where TValue : struct where TConverter : SubResourceIdConverter<TValue>, new()
@@ -997,10 +1001,12 @@ namespace HordeServer
 			readonly TConverter _converter = new TConverter();
 
 			/// <inheritdoc/>
-			public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) => _converter.FromSubResourceId(new SubResourceId((ushort)context.Reader.ReadInt32()));
+			public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) 
+				=> _converter.FromSubResourceId(new SubResourceId((ushort)context.Reader.ReadInt32()));
 
 			/// <inheritdoc/>
-			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TValue value) => context.Writer.WriteInt32(_converter.ToSubResourceId(value).Value);
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TValue value) 
+				=> context.Writer.WriteInt32(_converter.ToSubResourceId(value).Value);
 		}
 
 		/// <summary>

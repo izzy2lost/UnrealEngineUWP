@@ -28,13 +28,15 @@ namespace EpicGames.Horde.Acls
 		/// </summary>
 		/// <param name="name">Name to append</param>
 		/// <returns>New scope name</returns>
-		public AclScopeName Append(string name) => new AclScopeName($"{Text}/{name}");
+		public AclScopeName Append(string name) 
+			=> String.IsNullOrEmpty(Text)? new AclScopeName(name) : new AclScopeName($"{Text}/{name}");
 
 		/// <inheritdoc/>
-		public bool Equals(AclScopeName other) => Text.Equals(other.Text, StringComparison.Ordinal);
+		public bool Equals(AclScopeName other) 
+			=> String.Equals(Text ?? String.Empty, other.Text ?? String.Empty, StringComparison.Ordinal);
 
 		/// <inheritdoc/>
-		public override int GetHashCode() => Text.GetHashCode(StringComparison.Ordinal);
+		public override int GetHashCode() => (Text ?? String.Empty).GetHashCode(StringComparison.Ordinal);
 
 		/// <inheritdoc/>
 		public override string ToString() => Text;
