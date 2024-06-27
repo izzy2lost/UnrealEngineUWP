@@ -9,38 +9,7 @@
 
 class ALandscape;
 class FPCGLandscapeDataInterfaceParameters;
-class FPCGLandscapeTextureResource;
-
-/** Manages the resources created by this DI. */
-class FPCGLandscapeResource
-{
-public:
-	struct FResourceKey
-	{
-		TWeakObjectPtr<const ALandscape> Source = nullptr;
-		TArray<FIntPoint> CapturedRegions;
-		FIntPoint MinCaptureRegion = FIntPoint(ForceInitToZero);
-		FIntPoint MaxCaptureRegion = FIntPoint(ForceInitToZero);
-		bool bIncludesHeight = false;
-	};
-
-	FPCGLandscapeResource() {}
-	FPCGLandscapeResource(const FResourceKey& InKey);
-
-	/** Release the LandscapeTextures resource handle on the RHI and clear the pointer. */
-	void Release();
-
-	FPCGLandscapeTextureResource* LandscapeTextures = nullptr;
-	FVector3f LandscapeLWCTile = FVector3f::ZeroVector;
-	FMatrix ActorToWorldTransform = FMatrix::Identity;
-	FMatrix WorldToActorTransform = FMatrix::Identity;
-	FVector4 UvScaleBias = FVector4(1.0f, 1.0f, 0.0f, 0.0f);
-	FIntPoint CellCount = FIntPoint(ForceInitToZero);
-	FVector2D TextureWorldGridSize = FVector2D(1.0f, 1.0f);
-
-private:
-	FResourceKey ResourceKey;
-};
+class FPCGLandscapeResource;
 
 /** Data Interface allowing sampling of a Landscape. */
 UCLASS(ClassGroup = (Procedural))
@@ -71,20 +40,19 @@ class UPCGLandscapeDataProvider : public UComputeDataProvider
 
 public:
 	void Initialize(ALandscape* InLandscape, const FBox& Bounds);
-	~UPCGLandscapeDataProvider();
 
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
 	//~ End UComputeDataProvider Interface
 
 private:
-	FPCGLandscapeResource Resource;
+	TUniquePtr<FPCGLandscapeResource> Resource;
 };
 
 class FPCGLandscapeDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FPCGLandscapeDataProviderProxy(const FPCGLandscapeResource& InResource)
+	FPCGLandscapeDataProviderProxy(const FPCGLandscapeResource* InResource)
 		: Resource(InResource)
 	{}
 
@@ -97,5 +65,5 @@ public:
 protected:
 	using FParameters = FPCGLandscapeDataInterfaceParameters;
 
-	FPCGLandscapeResource Resource;
+	const FPCGLandscapeResource* Resource = nullptr;
 };
