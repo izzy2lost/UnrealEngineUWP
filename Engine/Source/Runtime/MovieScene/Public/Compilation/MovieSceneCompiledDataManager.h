@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Compilation/MovieSceneCompiledDataID.h"
+#include "Compilation/MovieSceneDeterminismFence.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Containers/Set.h"
@@ -112,7 +113,7 @@ private:
 
 	/** 16 Bytes */
 	UPROPERTY()
-	TArray<FFrameTime> DeterminismFences;
+	TArray<FMovieSceneDeterminismFence> DeterminismFences;
 
 	/** 16 bytes */
 	UPROPERTY()
@@ -149,7 +150,7 @@ struct FMovieSceneCompiledDataEntry
 	FGuid CompiledSignature;
 
 	/** 16 Bytes */
-	TArray<FFrameTime> DeterminismFences;
+	TArray<FMovieSceneDeterminismFence> DeterminismFences;
 
 	/** 8 Bytes */
 	FObjectKey SequenceKey;

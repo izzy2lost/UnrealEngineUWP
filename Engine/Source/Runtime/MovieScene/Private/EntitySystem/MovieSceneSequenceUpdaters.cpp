@@ -29,6 +29,12 @@ namespace UE
 namespace MovieScene
 {
 
+struct FMovieSceneDeterminismFenceWithSubframe
+{
+	FFrameTime FrameTime;
+	uint8 bInclusive : 1;
+};
+
 /** Flat sequence updater (ie, no hierarchy) */
 struct FSequenceUpdater_Flat : ISequenceUpdater
 {
@@ -51,7 +57,7 @@ private:
 
 	TRange<FFrameNumber> CachedEntityRange;
 
-	TOptional<TArray<FFrameTime>> CachedDeterminismFences;
+	TOptional<TArray<FMovieSceneDeterminismFence>> CachedDeterminismFences;
 	FMovieSceneCompiledDataID CompiledDataID;
 
 	TOptional<bool> bDynamicWeighting;
@@ -100,7 +106,7 @@ private:
 	TOptional<bool> bDynamicWeighting;
 };
 
-void DissectRange(TArrayView<const FFrameTime> InDissectionTimes, const TRange<FFrameTime>& Bounds, TArray<TRange<FFrameTime>>& OutDissections)
+void DissectRange(TArrayView<const FMovieSceneDeterminismFenceWithSubframe> InDissectionTimes, const TRange<FFrameTime>& Bounds, TArray<TRange<FFrameTime>>& OutDissections)
 {
 	if (InDissectionTimes.Num() == 0)
 	{
@@ -111,16 +117,19 @@ void DissectRange(TArrayView<const FFrameTime> InDissectionTimes, const TRange<F
 
 	for (int32 Index = 0; Index < InDissectionTimes.Num(); ++Index)
 	{
-		FFrameTime DissectionTime = InDissectionTimes[Index];
+		FMovieSceneDeterminismFenceWithSubframe DissectionFence = InDissectionTimes[Index];
 
-		TRange<FFrameTime> Dissection(LowerBound, TRangeBound<FFrameTime>::Exclusive(DissectionTime));
+		TRange<FFrameTime> Dissection = DissectionFence.bInclusive
+			? TRange<FFrameTime>(LowerBound, TRangeBound<FFrameTime>::Inclusive(DissectionFence.FrameTime))
+			: TRange<FFrameTime>(LowerBound, TRangeBound<FFrameTime>::Exclusive(DissectionFence.FrameTime));
+
 		if (!Dissection.IsEmpty())
 		{
 			ensureAlwaysMsgf(Bounds.Contains(Dissection), TEXT("Dissection specified for a range outside of the current bounds"));
 
 			OutDissections.Add(Dissection);
 
-			LowerBound = TRangeBound<FFrameTime>::Inclusive(DissectionTime);
+			LowerBound = TRangeBound<FFrameTime>::FlipInclusion(Dissection.GetUpperBound());
 		}
 	}
 
@@ -131,25 +140,69 @@ void DissectRange(TArrayView<const FFrameTime> InDissectionTimes, const TRange<F
 	}
 }
 
-TArrayView<const FFrameTime> GetFencesWithinRange(TArrayView<const FFrameTime> Fences, const TRange<FFrameTime>& Boundary)
+void DissectRange(TArrayView<const FMovieSceneDeterminismFence> InDissectionTimes, const TRange<FFrameTime>& Bounds, TArray<TRange<FFrameTime>>& OutDissections)
+{
+	if (InDissectionTimes.Num() == 0)
+	{
+		return;
+	}
+
+	TRangeBound<FFrameTime> LowerBound = Bounds.GetLowerBound();
+
+	for (int32 Index = 0; Index < InDissectionTimes.Num(); ++Index)
+	{
+		FMovieSceneDeterminismFence DissectionFence = InDissectionTimes[Index];
+
+		TRange<FFrameTime> Dissection = DissectionFence.bInclusive
+			? TRange<FFrameTime>(LowerBound, TRangeBound<FFrameTime>::Inclusive(DissectionFence.FrameNumber))
+			: TRange<FFrameTime>(LowerBound, TRangeBound<FFrameTime>::Exclusive(DissectionFence.FrameNumber));
+
+		if (!Dissection.IsEmpty())
+		{
+			ensureAlwaysMsgf(Bounds.Contains(Dissection), TEXT("Dissection specified for a range outside of the current bounds"));
+
+			OutDissections.Add(Dissection);
+
+			LowerBound = TRangeBound<FFrameTime>::FlipInclusion(Dissection.GetUpperBound());
+		}
+	}
+
+	TRange<FFrameTime> TailRange(LowerBound, Bounds.GetUpperBound());
+	if (!TailRange.IsEmpty())
+	{
+		OutDissections.Add(TailRange);
+	}
+}
+
+TArrayView<const FMovieSceneDeterminismFence> GetFencesWithinRange(TArrayView<const FMovieSceneDeterminismFence> Fences, const TRange<FFrameTime>& Boundary)
 {
 	if (Fences.Num() == 0 || Boundary.IsEmpty())
 	{
-		return TArrayView<const FFrameTime>();
+		return TArrayView<const FMovieSceneDeterminismFence>();
 	}
 
-	// Take care to include or exclude the lower bound of the range if it's on a whole frame numbe
-	const int32 StartFence = Boundary.GetLowerBound().IsClosed() ? Algo::UpperBound(Fences, Boundary.GetLowerBoundValue()) : 0;
+	// Take care to include or exclude the lower bound of the range if it's on a whole frame number
+	const int32 StartFence = Boundary.GetLowerBound().IsOpen()
+		? 0
+		: Boundary.GetLowerBound().IsInclusive() && Boundary.GetLowerBoundValue().GetSubFrame() == 0.0
+			? Algo::LowerBoundBy(Fences, Boundary.GetLowerBoundValue().FrameNumber, &FMovieSceneDeterminismFence::FrameNumber)
+			: Algo::UpperBoundBy(Fences, Boundary.GetLowerBoundValue().FrameNumber, &FMovieSceneDeterminismFence::FrameNumber);
+
 	if (StartFence >= Fences.Num())
 	{
-		return TArrayView<const FFrameTime>();
+		return TArrayView<const FMovieSceneDeterminismFence>();
 	}
 
-	const int32 EndFence = Boundary.GetUpperBound().IsClosed() ? Algo::UpperBound(Fences, Boundary.GetUpperBoundValue()) : Fences.Num();
+	const int32 EndFence = Boundary.GetUpperBound().IsOpen()
+		? 0
+		: Boundary.GetUpperBound().IsInclusive() && Boundary.GetUpperBoundValue().GetSubFrame() == 0.0
+			? Algo::LowerBoundBy(Fences, Boundary.GetUpperBoundValue().FrameNumber, &FMovieSceneDeterminismFence::FrameNumber)
+			: Algo::UpperBoundBy(Fences, Boundary.GetUpperBoundValue().FrameNumber, &FMovieSceneDeterminismFence::FrameNumber);
+
 	const int32 NumFences = FMath::Max(0, EndFence - StartFence);
 	if (NumFences == 0)
 	{
-		return TArrayView<const FFrameTime>();
+		return TArrayView<const FMovieSceneDeterminismFence>();
 	}
 
 	return MakeArrayView(Fences.GetData() + StartFence, NumFences);
@@ -200,12 +253,12 @@ void FSequenceUpdater_Flat::PopulateUpdateFlags(TSharedRef<const FSharedPlayback
 {
 	if (!CachedDeterminismFences.IsSet())
 	{
-		UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
-		TArrayView<const FFrameTime>    DeterminismFences   = CompiledDataManager->GetEntryRef(CompiledDataID).DeterminismFences;
+		UMovieSceneCompiledDataManager*               CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
+		TArrayView<const FMovieSceneDeterminismFence> DeterminismFences   = CompiledDataManager->GetEntryRef(CompiledDataID).DeterminismFences;
 
 		if (DeterminismFences.Num() != 0)
 		{
-			CachedDeterminismFences = TArray<FFrameTime>(DeterminismFences.GetData(), DeterminismFences.Num());
+			CachedDeterminismFences = TArray<FMovieSceneDeterminismFence>(DeterminismFences.GetData(), DeterminismFences.Num());
 		}
 		else
 		{
@@ -228,12 +281,12 @@ void FSequenceUpdater_Flat::DissectContext(TSharedRef<const FSharedPlaybackState
 {
 	if (!CachedDeterminismFences.IsSet())
 	{
-		UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
-		TArrayView<const FFrameTime>    DeterminismFences   = CompiledDataManager->GetEntryRef(CompiledDataID).DeterminismFences;
+		UMovieSceneCompiledDataManager*               CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
+		TArrayView<const FMovieSceneDeterminismFence> DeterminismFences   = CompiledDataManager->GetEntryRef(CompiledDataID).DeterminismFences;
 
 		if (DeterminismFences.Num() != 0)
 		{
-			CachedDeterminismFences = TArray<FFrameTime>(DeterminismFences.GetData(), DeterminismFences.Num());
+			CachedDeterminismFences = TArray<FMovieSceneDeterminismFence>(DeterminismFences.GetData(), DeterminismFences.Num());
 		}
 		else
 		{
@@ -243,7 +296,7 @@ void FSequenceUpdater_Flat::DissectContext(TSharedRef<const FSharedPlaybackState
 
 	if (CachedDeterminismFences->Num() != 0)
 	{
-		TArrayView<const FFrameTime> TraversedFences = GetFencesWithinRange(CachedDeterminismFences.GetValue(), Context.GetRange());
+		TArrayView<const FMovieSceneDeterminismFence> TraversedFences = GetFencesWithinRange(CachedDeterminismFences.GetValue(), Context.GetRange());
 		UE::MovieScene::DissectRange(TraversedFences, Context.GetRange(), OutDissections);
 	}
 }
@@ -407,12 +460,12 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 {
 	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
 
-	TRange<FFrameNumber> TraversedRange = Context.GetFrameNumberRange();
-	TArray<FFrameTime>   RootDissectionTimes;
+	TRange<FFrameNumber>                TraversedRange = Context.GetFrameNumberRange();
+	TArray<FMovieSceneDeterminismFenceWithSubframe> RootDissectionTimes;
 
 	{
-		const FMovieSceneCompiledDataEntry& DataEntry       = CompiledDataManager->GetEntryRef(CompiledDataID);
-		TArrayView<const FFrameTime>        TraversedFences = GetFencesWithinRange(DataEntry.DeterminismFences, Context.GetRange());
+		const FMovieSceneCompiledDataEntry&           DataEntry       = CompiledDataManager->GetEntryRef(CompiledDataID);
+		TArrayView<const FMovieSceneDeterminismFence> TraversedFences = GetFencesWithinRange(DataEntry.DeterminismFences, Context.GetRange());
 
 		UE::MovieScene::DissectRange(TraversedFences, Context.GetRange(), OutDissections);
 	}
@@ -428,7 +481,7 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 			// When Context.GetRange() does not fall on whole frame boundaries, we can sometimes end up with a range that clamps to being empty, even though the range overlapped
 			// the traversed range. ie if we evaluated range (1.5, 10], our traversed range would be [2, 11). If we have a sub sequence range of (10, 20), it would still be iterated here
 			// because [2, 11) overlaps (10, 20), but when clamped to the evaluated range, the range is (10, 10], which is empty.
-			if (!RootClampRange.IsEmpty())
+			if (RootClampRange.IsEmpty())
 			{
 				continue;
 			}
@@ -445,12 +498,12 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 					continue;
 				}
 
-				TArrayView<const FFrameTime> SubDeterminismFences = CompiledDataManager->GetEntryRef(SubDataID).DeterminismFences;
+				TArrayView<const FMovieSceneDeterminismFence> SubDeterminismFences = CompiledDataManager->GetEntryRef(SubDataID).DeterminismFences;
 				if (SubDeterminismFences.Num() > 0)
 				{
 					TRange<FFrameTime>   InnerRange           = SubData->RootToSequenceTransform.TransformRangeUnwarped(RootClampRange);
 
-					TArrayView<const FFrameTime> TraversedFences  = GetFencesWithinRange(SubDeterminismFences, InnerRange);
+					TArrayView<const FMovieSceneDeterminismFence> TraversedFences  = GetFencesWithinRange(SubDeterminismFences, InnerRange);
 					if (TraversedFences.Num() > 0)
 					{
 						FMovieSceneWarpCounter WarpCounter;
@@ -458,7 +511,7 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 						SubData->RootToSequenceTransform.TransformTime(RootClampRange.GetLowerBoundValue(), Unused, WarpCounter);
 
 						FMovieSceneSequenceTransform InverseTransform = SubData->RootToSequenceTransform.InverseFromLoop(WarpCounter);
-						Algo::Transform(TraversedFences, RootDissectionTimes, [InverseTransform](FFrameTime In){ return In * InverseTransform; });
+						Algo::Transform(TraversedFences, RootDissectionTimes, [InverseTransform](const FMovieSceneDeterminismFence& In){ return FMovieSceneDeterminismFenceWithSubframe{In.FrameNumber * InverseTransform, In.bInclusive }; });
 					}
 				}
 			}
@@ -467,7 +520,7 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 
 	if (RootDissectionTimes.Num() > 0)
 	{
-		Algo::Sort(RootDissectionTimes);
+		Algo::SortBy(RootDissectionTimes, &FMovieSceneDeterminismFenceWithSubframe::FrameTime);
 		UE::MovieScene::DissectRange(RootDissectionTimes, Context.GetRange(), OutDissections);
 	}
 }

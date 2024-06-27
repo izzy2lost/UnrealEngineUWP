@@ -775,7 +775,7 @@ void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID, U
 			{
 				if (Mark.bIsDeterminismFence)
 				{
-					GatheredData.DeterminismData.Fences.Add(Mark.FrameNumber);
+					GatheredData.DeterminismData.Fences.Emplace(Mark.FrameNumber, Mark.bIsInclusiveTime);
 				}
 			}
 
@@ -860,7 +860,7 @@ void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID, U
 	Entry.DeterminismFences = MoveTemp(GatheredData.DeterminismData.Fences);
 	if (Entry.DeterminismFences.Num())
 	{
-		Algo::Sort(Entry.DeterminismFences);
+		Algo::SortBy(Entry.DeterminismFences, &FMovieSceneDeterminismFence::FrameNumber);
 		const int32 NewNum = Algo::Unique(Entry.DeterminismFences);
 		if (NewNum != Entry.DeterminismFences.Num())
 		{
