@@ -2307,8 +2307,8 @@ namespace UE::UsdGeomMeshConversion::Private
 					FPolygonGroupID NewPolygonGroup = OutMeshDescription.CreatePolygonGroup();
 					PolygonGroupMapping.Add(CombinedMaterialIndex, NewPolygonGroup);
 
-					const FString& SlotName = InMeshData.LocalMaterialInfo.Slots[LocalMaterialIndex].SlotName;
-					MaterialSlotNames[NewPolygonGroup] = *SlotName;
+					// This is important for runtime, where the material slots are matched to LOD sections based on their material slot name
+					MaterialSlotNames[NewPolygonGroup] = *LexToString(NewPolygonGroup.GetValue());
 				}
 			}
 
@@ -3476,7 +3476,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 		{
 			const pxr::UsdGeomSubset& GeomSubset = GeomSubsets[GeomSubsetIndex];
 			pxr::UsdPrim GeomSubsetPrim = GeomSubset.GetPrim();
-			FString SlotName = UsdToUnreal::ConvertString(GeomSubsetPrim.GetName());
 			FString GeomSubsetPath = UsdToUnreal::ConvertPath(GeomSubsetPrim.GetPath());
 			bool bHasAssignment = false;
 
@@ -3492,7 +3491,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 						if (TOptional<FString> UnrealMaterial = UsdUtils::GetUnrealSurfaceOutput(ShadeMaterial.GetPrim()))
 						{
 							FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
-							Slot.SlotName = SlotName;
 							Slot.MaterialSource = UnrealMaterial.GetValue();
 							Slot.AssignmentType = UsdUtils::EPrimAssignmentType::UnrealMaterial;
 							Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3508,7 +3506,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 					if (TOptional<FString> UnrealMaterial = FetchFirstUEMaterialFromAttribute(GeomSubsetPrim, TimeCode))
 					{
 						FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
-						Slot.SlotName = SlotName;
 						Slot.MaterialSource = UnrealMaterial.GetValue();
 						Slot.AssignmentType = UsdUtils::EPrimAssignmentType::UnrealMaterial;
 						Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3524,7 +3521,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 				if (TOptional<FString> BoundMaterial = FetchMaterialByComputingBoundMaterial(GeomSubsetPrim))
 				{
 					FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
-					Slot.SlotName = SlotName;
 					Slot.MaterialSource = BoundMaterial.GetValue();
 					Slot.AssignmentType = UsdUtils::EPrimAssignmentType::MaterialPrim;
 					Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3541,7 +3537,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 			if (!bHasAssignment)
 			{
 				FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
-				Slot.SlotName = SlotName;
 				Slot.PrimPaths.Add(GeomSubsetPath);
 				bHasAssignment = true;
 			}
@@ -3590,8 +3585,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 	bool bHasMainAssignment = false;
 	if (bNeedsMainAssignment)
 	{
-		const FString MainSlotName = TEXT("Main");
-
 		// Priority 1: Material is an unreal asset
 		if (RenderContext == UnrealIdentifiers::Unreal)
 		{
@@ -3604,7 +3597,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 				if (TOptional<FString> UnrealMaterial = UsdUtils::GetUnrealSurfaceOutput(ShadeMaterial.GetPrim()))
 				{
 					FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
-					Slot.SlotName = MainSlotName;
 					Slot.MaterialSource = UnrealMaterial.GetValue();
 					Slot.AssignmentType = UsdUtils::EPrimAssignmentType::UnrealMaterial;
 					Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3620,7 +3612,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 				if (TOptional<FString> UnrealMaterial = FetchFirstUEMaterialFromAttribute(UsdPrim, TimeCode))
 				{
 					FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
-					Slot.SlotName = MainSlotName;
 					Slot.MaterialSource = UnrealMaterial.GetValue();
 					Slot.AssignmentType = UsdUtils::EPrimAssignmentType::UnrealMaterial;
 					Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3637,7 +3628,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 			if (TOptional<FString> BoundMaterial = FetchMaterialByComputingBoundMaterial(UsdPrim))
 			{
 				FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
-				Slot.SlotName = MainSlotName;
 				Slot.MaterialSource = BoundMaterial.GetValue();
 				Slot.AssignmentType = UsdUtils::EPrimAssignmentType::MaterialPrim;
 				Slot.bMeshIsDoubleSided = bIsDoubleSided;
@@ -3656,7 +3646,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 			if (DisplayColor)
 			{
 				FUsdPrimMaterialSlot& Slot = Result.Slots.Emplace_GetRef();
-				Slot.SlotName = MainSlotName;
 				Slot.MaterialSource = DisplayColor.GetValue().ToString();
 				Slot.AssignmentType = UsdUtils::EPrimAssignmentType::DisplayColor;
 				Slot.bMeshIsDoubleSided = bIsDoubleSided;

@@ -24,6 +24,7 @@
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdPrim.h"
+#include "UsdWrappers/UsdSkelSkinningQuery.h"
 
 #include "Animation/AnimBlueprint.h"
 #include "Animation/AnimInstance.h"
@@ -526,7 +527,7 @@ namespace UsdSkelRootTranslatorImpl
 																	  &StageInfo,
 																	  Options](const pxr::UsdGeomMesh& LODMesh, int32 LODIndex)
 		{
-			pxr::UsdSkelSkinningQuery SkinningQuery = UsdUtils::CreateSkinningQuery(LODMesh, SkelQuery);
+			pxr::UsdSkelSkinningQuery SkinningQuery = UsdUtils::CreateSkinningQuery(LODMesh.GetPrim(), SkelQuery);
 			if (!SkinningQuery)
 			{
 				return true;	// Continue trying other LODs

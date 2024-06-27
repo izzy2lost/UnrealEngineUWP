@@ -2,9 +2,7 @@
 
 #include "USDSkeletalDataConversion.h"
 
-#include "Engine/SkinnedAssetCommon.h"
 #include "UnrealUSDWrapper.h"
-#include "UObject/Package.h"
 #include "USDAttributeUtils.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
@@ -22,6 +20,8 @@
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdAttribute.h"
 #include "UsdWrappers/UsdPrim.h"
+#include "UsdWrappers/UsdSkelSkeletonQuery.h"
+#include "UsdWrappers/UsdSkelSkinningQuery.h"
 #include "UsdWrappers/UsdStage.h"
 
 #include "Animation/AnimCurveTypes.h"
@@ -30,6 +30,7 @@
 #include "Async/ParallelFor.h"
 #include "BoneWeights.h"
 #include "ControlRig.h"
+#include "Engine/SkinnedAssetCommon.h"
 #include "Evaluation/MovieSceneSequenceTransform.h"
 #include "IMovieScenePlayer.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
@@ -46,6 +47,8 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rigs/RigHierarchyElements.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
+#include "StaticMeshAttributes.h"
+#include "UObject/Package.h"
 
 #if WITH_EDITOR
 #include "Animation/DebugSkelMeshComponent.h"
@@ -1205,30 +1208,45 @@ namespace UnrealToUsdImpl
 	}
 }	 // namespace UnrealToUsdImpl
 
-bool UsdToUnreal::ConvertSkeleton(const pxr::UsdSkelSkeletonQuery& SkeletonQuery, FSkeletalMeshImportData& SkelMeshImportData)
+bool UsdToUnreal::ConvertSkeleton(
+	const pxr::UsdSkelSkeletonQuery& InSkeletonQuery,
+	FUsdSkeletonData& OutConvertedData,
+	bool bEnsureAtLeastOneBone,
+	bool bEnsureSingleRootBone
+)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertSkeleton);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertSkeletonToTempData);
 
-	using namespace pxr;
+	// Note: In here "joint" and "bone" are used interchangeably
 
-	TArray<FString> JointNames;
-	TArray<int32> ParentJointIndices;
-
-	uint32 RootBoneCount = 0;
+	if (!InSkeletonQuery)
+	{
+		return false;
+	}
 
 	// Retrieve the joint names and parent indices from the skeleton topology
 	// GetJointOrder already orders them from parent-to-child
-	VtArray<TfToken> JointOrder = SkeletonQuery.GetJointOrder();
-	const UsdSkelTopology& SkelTopology = SkeletonQuery.GetTopology();
+	pxr::VtArray<pxr::TfToken> JointOrder = InSkeletonQuery.GetJointOrder();
+	const pxr::UsdSkelTopology& SkelTopology = InSkeletonQuery.GetTopology();
+	const int32 NumBones = SkelTopology.GetNumJoints();
+	if (NumBones > MAX_BONES)
+	{
+		return false;
+	}
+
+	// Fill in everything but transforms
+	uint32 RootBoneCount = 0;
+	OutConvertedData.Bones.Reset();
+	OutConvertedData.Bones.SetNum(NumBones);
 	for (uint32 Index = 0; Index < SkelTopology.GetNumJoints(); ++Index)
 	{
-		SdfPath JointPath(JointOrder[Index]);
-
+		pxr::SdfPath JointPath{JointOrder[Index]};
 		FString JointName = UsdToUnreal::ConvertString(JointPath.GetName());
-		JointNames.Add(JointName);
+		int32 ParentIndex = SkelTopology.GetParent(Index);
 
-		int ParentIndex = SkelTopology.GetParent(Index);
-		ParentJointIndices.Add(ParentIndex);
+		FUsdSkeletonData::FBone& Bone = OutConvertedData.Bones[Index];
+		Bone.Name = JointName;
+		Bone.ParentIndex = ParentIndex;
 
 		if (ParentIndex == -1)
 		{
@@ -1237,9 +1255,9 @@ bool UsdToUnreal::ConvertSkeleton(const pxr::UsdSkelSkeletonQuery& SkeletonQuery
 	}
 
 	// Skeleton has no joints: Generate a dummy single "Root" bone skeleton
-	if (JointNames.Num() == 0)
+	if (NumBones == 0)
 	{
-		FString SkeletonPrimPath = UsdToUnreal::ConvertPath(SkeletonQuery.GetPrim().GetPath());
+		FString SkeletonPrimPath = UsdToUnreal::ConvertPath(InSkeletonQuery.GetPrim().GetPath());
 
 		FUsdLogManager::LogMessage(
 			EMessageSeverity::Warning,
@@ -1247,48 +1265,46 @@ bool UsdToUnreal::ConvertSkeleton(const pxr::UsdSkelSkeletonQuery& SkeletonQuery
 				LOCTEXT(
 					"NoBonesInSkeleton",
 					"Skeleton prim '{0}' has no joints! "
-					"A new skeleton with a single 'Root' bone will be generated as USkeletalMeshes require valid skeletons. "
+					"A new skeleton with a single root joint will be generated as USkeletalMeshes require valid skeletons. "
 					"Note that this new skeleton may be written back to the USD stage when exporting the corresponding asset."
 				),
 				FText::FromString(SkeletonPrimPath)
 			)
 		);
-
-		SkelMeshImportData.RefBonesBinary.AddZeroed(1);
-
-		SkeletalMeshImportData::FBone& Bone = SkelMeshImportData.RefBonesBinary.Last();
+	}
+	if (bEnsureAtLeastOneBone)
+	{
+		FUsdSkeletonData::FBone& Bone = OutConvertedData.Bones.Emplace_GetRef();
 		Bone.Name = TEXT("Root");
 		Bone.ParentIndex = INDEX_NONE;
-		Bone.NumChildren = 0;
-		Bone.BonePos.Transform = FTransform3f::Identity;
-		Bone.BonePos.Length = 1.0f;
-		Bone.BonePos.XSize = 100.0f;
-		Bone.BonePos.YSize = 100.0f;
-		Bone.BonePos.ZSize = 100.0f;
 		return true;
 	}
 
-	if (JointNames.Num() > MAX_BONES)
+	// Get the rest transforms that will end up on the skeleton data.
+	// Note that we'll want to use the data in restTransforms, so that the skeletal mesh assumes the pose described
+	// by them when non-animated. See the gigantic comment inside ConvertSkinnedMesh.
+	pxr::VtArray<pxr::GfMatrix4d> JointLocalRestTransforms;
+	const bool bAtRest = true;
+	bool bTransformsComputed = InSkeletonQuery.ComputeJointLocalTransforms(&JointLocalRestTransforms, pxr::UsdTimeCode::EarliestTime(), bAtRest);
+	if (NumBones != JointLocalRestTransforms.size())
 	{
 		return false;
 	}
 
-	// Retrieve the bone transforms to be used as the reference pose
-	TArray<FTransform> BoneTransforms;
+	pxr::VtArray<pxr::GfMatrix4d> JointWorldBindTransforms;
+	bTransformsComputed &= InSkeletonQuery.GetJointWorldBindTransforms(&JointWorldBindTransforms);
 
-	// Note that for the FReferenceSkeleton we'll want to use the data in restTransforms, so that the skeletal mesh
-	// assumes the pose described by them when non-animated. See the gigantic comment inside ConvertSkinnedMesh.
-	VtArray<GfMatrix4d> JointLocalRestTransforms;
-	const bool bAtRest = true;
-	bool bJointTransformsComputed = SkeletonQuery.ComputeJointLocalTransforms(&JointLocalRestTransforms, UsdTimeCode::EarliestTime(), bAtRest);
-	if (bJointTransformsComputed)
+	pxr::VtArray<pxr::GfMatrix4d> JointLocalBindTransforms;
+	bTransformsComputed &= pxr::UsdSkelComputeJointLocalTransforms(SkelTopology, JointWorldBindTransforms, &JointLocalBindTransforms);
+
+	if (bTransformsComputed)
 	{
-		UsdStageWeakPtr Stage = SkeletonQuery.GetSkeleton().GetPrim().GetStage();
+		pxr::UsdStageWeakPtr Stage = InSkeletonQuery.GetSkeleton().GetPrim().GetStage();
 		const FUsdStageInfo StageInfo(Stage);
 
 		for (uint32 Index = 0; Index < JointLocalRestTransforms.size(); ++Index)
 		{
-			const GfMatrix4d& UsdMatrix = JointLocalRestTransforms[Index];
+			FUsdSkeletonData::FBone& Bone = OutConvertedData.Bones[Index];
 
 			// Here we use DecomposeWithUniformReflection instead of the previous UsdToUnreal::ConvertMatrix(StageInfo, UsdMatrix)
 			// call, because internally that would have done the matrix decomposition via FTransform::SetFromMatrix.
@@ -1302,74 +1318,98 @@ bool UsdToUnreal::ConvertSkeleton(const pxr::UsdSkelSkeletonQuery& SkeletonQuery
 			// Note that FBX secretly does this as well, because the FBX SDK's Matrix.GetT(), Matrix.GetQ() and Matrix.GetS()
 			// (used within UnFbx::FFbxImporter::ImportBones) seem to behave the same way and flip all axes when a reflection is
 			// detected.
-			FTransform BoneTransform;
 			{
-				FMatrix Matrix = UsdToUnreal::ConvertMatrix(UsdMatrix);
-				BoneTransform = UsdUtils::DecomposeWithUniformReflection(Matrix);
-				BoneTransform = UsdUtils::ConvertTransformToUESpace(StageInfo, BoneTransform);
+				const pxr::GfMatrix4d& UsdRestTransform = JointLocalRestTransforms[Index];
+				FMatrix Matrix = UsdToUnreal::ConvertMatrix(UsdRestTransform);
+				FTransform RestTransform = UsdUtils::DecomposeWithUniformReflection(Matrix);
+				RestTransform = UsdUtils::ConvertTransformToUESpace(StageInfo, RestTransform);
+				Bone.LocalRestTransform = RestTransform;
 			}
-			BoneTransforms.Add(BoneTransform);
+			{
+				const pxr::GfMatrix4d& UsdBindTransform = JointLocalBindTransforms[Index];
+				FMatrix Matrix = UsdToUnreal::ConvertMatrix(UsdBindTransform);
+				FTransform BindTransform = UsdUtils::DecomposeWithUniformReflection(Matrix);
+				BindTransform = UsdUtils::ConvertTransformToUESpace(StageInfo, BindTransform);
+				Bone.LocalBindTransform = BindTransform;
+			}
 		}
-	}
-
-	if (JointNames.Num() != BoneTransforms.Num())
-	{
-		return false;
 	}
 
 	// If we have more than one root bone, let's create a new "true root bone" and add the
 	// previously root bones as children of it
-	if (RootBoneCount > 1)
+	if (bEnsureSingleRootBone && RootBoneCount > 1)
 	{
-		for (int32& Index : ParentJointIndices)
+		TSet<FString> BoneNames;
+		for (FUsdSkeletonData::FBone& Bone : OutConvertedData.Bones)
 		{
+			BoneNames.Add(Bone.Name);
+
 			// Have previously root bones point at the new bone we'll add soon
-			if (Index == INDEX_NONE)
+			if (Bone.ParentIndex == INDEX_NONE)
 			{
-				Index = 0;
+				Bone.ParentIndex = 0;
 			}
 			// All other index references have to move one over since we'll push
 			// a new root bone into the start of the array
 			else
 			{
-				Index += 1;
+				Bone.ParentIndex += 1;
 			}
 		}
 
-		const uint64 FirstIndex = 0;
-		const int32 RootParentIndex = INDEX_NONE;
+		FUsdSkeletonData::FBone TrueRoot;
+		TrueRoot.Name = UsdUnreal::ObjectUtils::GetUniqueName(TEXT("Root"), BoneNames);
+		TrueRoot.ParentIndex = INDEX_NONE;
+		TrueRoot.LocalRestTransform = FTransform::Identity;
+		OutConvertedData.Bones.Insert(TrueRoot, 0);
+	}
 
-		FString UniqueNewRootName = UsdUnreal::ObjectUtils::GetUniqueName(TEXT("Root"), TSet<FString>{JointNames});
+	// Fill in child indices (easier now so we don't have to remap them for multiple root bones)
+	for (int32 Index = 0; Index < NumBones; ++Index)
+	{
+		FUsdSkeletonData::FBone& Bone = OutConvertedData.Bones[Index];
+		if (Bone.ParentIndex >= 0)
+		{
+			FUsdSkeletonData::FBone& ParentBone = OutConvertedData.Bones[Bone.ParentIndex];
+			ParentBone.ChildIndices.Add(Index);
+		}
+	}
 
-		JointNames.Insert(UniqueNewRootName, FirstIndex);
-		BoneTransforms.Insert(FTransform::Identity, FirstIndex);
-		ParentJointIndices.Insert(RootParentIndex, FirstIndex);
+	return true;
+}
+
+bool UsdToUnreal::ConvertSkeleton(const pxr::UsdSkelSkeletonQuery& SkeletonQuery, FSkeletalMeshImportData& SkelMeshImportData)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertSkeleton);
+
+	FUsdSkeletonData TempData;
+	const bool bEnsureAtLeastOneBone = true;
+	const bool bEnsureSingleRootBone = true;
+	const bool bSuccess = ConvertSkeleton(SkeletonQuery, TempData, bEnsureAtLeastOneBone, bEnsureSingleRootBone);
+	if (!bSuccess)
+	{
+		return false;
 	}
 
 	// Store the retrieved data as bones into the SkeletalMeshImportData
-	SkelMeshImportData.RefBonesBinary.AddZeroed(JointNames.Num());
-	for (int32 Index = 0; Index < JointNames.Num(); ++Index)
+	const int32 NumBones = TempData.Bones.Num();
+	SkelMeshImportData.RefBonesBinary.AddZeroed(NumBones);
+	for (int32 Index = 0; Index < NumBones; ++Index)
 	{
-		SkeletalMeshImportData::FBone& Bone = SkelMeshImportData.RefBonesBinary[Index];
+		FUsdSkeletonData::FBone& InBone = TempData.Bones[Index];
+		SkeletalMeshImportData::FBone& OutBone = SkelMeshImportData.RefBonesBinary[Index];
 
-		Bone.Name = JointNames[Index];
-		Bone.ParentIndex = ParentJointIndices[Index];
-		// Increment the number of children each time a bone is referenced as a parent bone; the root has a parent index of -1
-		if (Bone.ParentIndex >= 0)
-		{
-			// The joints are ordered from parent-to-child so the parent will already have been added to the array
-			SkeletalMeshImportData::FBone& ParentBone = SkelMeshImportData.RefBonesBinary[Bone.ParentIndex];
-			++ParentBone.NumChildren;
-		}
-
-		SkeletalMeshImportData::FJointPos& JointMatrix = Bone.BonePos;
-		JointMatrix.Transform = FTransform3f(BoneTransforms[Index]);
+		OutBone.Name = InBone.Name;
+		OutBone.ParentIndex = InBone.ParentIndex;
+		OutBone.NumChildren = InBone.ChildIndices.Num();
 
 		// Not sure if Length and X/Y/Z Size need to be set, there are no equivalents in USD
+		SkeletalMeshImportData::FJointPos& JointMatrix = OutBone.BonePos;
 		JointMatrix.Length = 1.f;
 		JointMatrix.XSize = 100.f;
 		JointMatrix.YSize = 100.f;
 		JointMatrix.ZSize = 100.f;
+		JointMatrix.Transform = FTransform3f(InBone.LocalRestTransform);
 	}
 
 	return true;
@@ -2429,7 +2469,7 @@ bool UsdToUnreal::ConvertSkelAnim(
 					int32 LODIndex
 				)
 			{
-				pxr::UsdSkelSkinningQuery SkinningQuery = UsdUtils::CreateSkinningQuery(LODMesh, InUsdSkeletonQuery);
+				pxr::UsdSkelSkinningQuery SkinningQuery = UsdUtils::CreateSkinningQuery(LODMesh.GetPrim(), InUsdSkeletonQuery);
 				if (!SkinningQuery)
 				{
 					return true;	// Continue trying other LODs
@@ -3102,12 +3142,20 @@ pxr::UsdSkelSkinningQuery UsdUtils::CreateSkinningQuery(const pxr::UsdGeomMesh& 
 		return {};
 	}
 
+	return CreateSkinningQuery(SkinnedPrim, SkeletonQuery);
+}
+
+UE::FUsdSkelSkinningQuery UsdUtils::CreateSkinningQuery(const pxr::UsdPrim& SkinnedMeshPrim, const pxr::UsdSkelSkeletonQuery& SkeletonQuery)
+{
+	pxr::UsdSkelBindingAPI SkelBindingAPI{SkinnedMeshPrim};
 	const pxr::UsdSkelAnimQuery& AnimQuery = SkeletonQuery.GetAnimQuery();
+	if (!SkelBindingAPI || !AnimQuery)
+	{
+		return {};
+	}
 
-	pxr::UsdSkelBindingAPI SkelBindingAPI{SkinnedPrim};
-
-	return pxr::UsdSkelSkinningQuery(
-		SkinnedPrim,
+	return UE::FUsdSkelSkinningQuery{pxr::UsdSkelSkinningQuery(
+		SkinnedMeshPrim,
 		SkeletonQuery ? SkeletonQuery.GetJointOrder() : pxr::VtTokenArray(),
 		AnimQuery ? AnimQuery.GetBlendShapeOrder() : pxr::VtTokenArray(),
 		SkelBindingAPI.GetJointIndicesAttr(),
@@ -3117,7 +3165,7 @@ pxr::UsdSkelSkinningQuery UsdUtils::CreateSkinningQuery(const pxr::UsdGeomMesh& 
 		SkelBindingAPI.GetJointsAttr(),
 		SkelBindingAPI.GetBlendShapesAttr(),
 		SkelBindingAPI.GetBlendShapeTargetsRel()
-	);
+	)};
 }
 
 void UsdUtils::BindAnimationSource(pxr::UsdPrim& Prim, const pxr::UsdPrim& AnimationSource)
@@ -3246,6 +3294,209 @@ bool UsdUtils::GetSkelQueries(
 	OutSkeletonQuery = InOutSkelCache->GetSkelQuery(InSkeletonPrim);
 
 	return InOutSkelCache->ComputeSkelBinding(InSkelRootPrim, InSkeletonPrim, &OutSkelBinding, pxr::UsdTraverseInstanceProxies());
+}
+
+bool UsdUtils::ApplyBlendShape(
+	FMeshDescription& InOutMeshDescription,
+	const pxr::UsdPrim& InBlendShapePrim,
+	float Weight,
+	const FString InInbetweenName
+)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdToUnreal::ConvertBlendShape);
+
+	FScopedUsdAllocs Allocs;
+
+	pxr::UsdSkelBlendShape UsdBlendShape{InBlendShapePrim};
+	if (!UsdBlendShape)
+	{
+		return false;
+	}
+
+	pxr::UsdStageRefPtr Stage = InBlendShapePrim.GetStage();
+	if (!Stage)
+	{
+		return false;
+	}
+
+	FUsdStageInfo StageInfo{Stage};
+
+	// Collect blend shape deltas
+	pxr::VtArray<pxr::GfVec3f> PositionOffsets;
+	pxr::VtArray<pxr::GfVec3f> NormalOffsets;
+	pxr::VtArray<int> PointIndices;
+	{
+		pxr::UsdAttribute IndicesAttr = UsdBlendShape.GetPointIndicesAttr();
+		IndicesAttr.Get(&PointIndices);
+
+		if (!InInbetweenName.IsEmpty())
+		{
+			if (pxr::UsdSkelInbetweenShape Inbetween = UsdBlendShape.GetInbetween(UnrealToUsd::ConvertToken(*InInbetweenName).Get()))
+			{
+				Inbetween.GetOffsets(&PositionOffsets);
+				Inbetween.GetNormalOffsets(&NormalOffsets);
+			}
+			else
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Failed to find inbetween '%s' when applying blend shape prim '%s' to a mesh description"),
+					*InInbetweenName,
+					*UsdToUnreal::ConvertPath(InBlendShapePrim.GetPrimPath())
+				);
+			}
+		}
+		else
+		{
+			if (pxr::UsdAttribute OffsetsAttr = UsdBlendShape.GetOffsetsAttr())
+			{
+				OffsetsAttr.Get(&PositionOffsets);
+			}
+
+			if (pxr::UsdAttribute NormalsAttr = UsdBlendShape.GetNormalOffsetsAttr())
+			{
+				NormalsAttr.Get(&NormalOffsets);
+			}
+		}
+	}
+
+	FStaticMeshAttributes Attributes{InOutMeshDescription};
+	TVertexAttributesRef<FVector3f> MeshPositions = Attributes.GetVertexPositions();
+	TVertexInstanceAttributesRef<FVector3f> MeshInstanceNormals = Attributes.GetVertexInstanceNormals();
+
+	bool bApplied = false;
+
+	// We have one value for each vertex of the mesh description
+	if (PointIndices.size() == 0)
+	{
+		// Position offsets
+		if (PositionOffsets.size() == (size_t)MeshPositions.GetNumElements())
+		{
+			for (uint32 OffsetIndex = 0; OffsetIndex < PositionOffsets.size(); ++OffsetIndex)
+			{
+				const FVector UEOffset = UsdToUnreal::ConvertVector(StageInfo, PositionOffsets[OffsetIndex]);
+				MeshPositions[OffsetIndex] += FVector3f{UEOffset * Weight};
+			}
+
+			bApplied = true;
+		}
+		else
+		{
+			FString InbetweenText = InInbetweenName.IsEmpty() ? FString::Printf(TEXT(" (inbetween '%s')"), *InInbetweenName) : TEXT("");
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Failed to apply position offsets from BlendShape '%s'%s: Expected MeshDescription to have %d vertex positions, but it has %u!"),
+				*UsdToUnreal::ConvertPath(InBlendShapePrim.GetPrimPath()),
+				*InbetweenText,
+				PositionOffsets.size(),
+				MeshPositions.GetNumElements()
+			);
+		}
+
+		// Normal offsets
+		if (NormalOffsets.size() == (size_t)MeshPositions.GetNumElements())
+		{
+			for (uint32 VertexIndex = 0; VertexIndex < NormalOffsets.size(); ++VertexIndex)
+			{
+				const FVector UENormal = UsdToUnreal::ConvertVector(StageInfo, NormalOffsets[VertexIndex]).GetSafeNormal();
+
+				TArrayView<const FVertexInstanceID> Instances = InOutMeshDescription.GetVertexVertexInstanceIDs(VertexIndex);
+				for (FVertexInstanceID InstanceID : Instances)
+				{
+					MeshInstanceNormals[InstanceID] = (MeshInstanceNormals[InstanceID] + Weight * FVector3f{UENormal}).GetSafeNormal();
+				}
+			}
+
+			bApplied = true;
+		}
+		else if (NormalOffsets.size() != 0)
+		{
+			FString InbetweenText = InInbetweenName.IsEmpty() ? FString::Printf(TEXT(" (inbetween '%s')"), *InInbetweenName) : TEXT("");
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Failed to apply normal offsets from BlendShape '%s'%s: Expected MeshDescription to have %d vertices, but it has %u!"),
+				*UsdToUnreal::ConvertPath(InBlendShapePrim.GetPrimPath()),
+				*InbetweenText,
+				NormalOffsets.size(),
+				MeshPositions.GetNumElements()
+			);
+		}
+	}
+	// We have values for only a few vertices of the mesh description
+	else if (PointIndices.size() > 0)
+	{
+		// Position offsets
+		if (PointIndices.size() == PositionOffsets.size())
+		{
+			for (uint32 OffsetIndex = 0; OffsetIndex < PositionOffsets.size(); ++OffsetIndex)
+			{
+				int TargetPointIndex = PointIndices[OffsetIndex];
+				if (TargetPointIndex >= 0 && TargetPointIndex < MeshPositions.GetNumElements())
+				{
+					const FVector UEOffset = UsdToUnreal::ConvertVector(StageInfo, PositionOffsets[OffsetIndex]);
+					MeshPositions[TargetPointIndex] += FVector3f{UEOffset * Weight};
+				}
+			}
+
+			bApplied = true;
+		}
+		else
+		{
+			FString InbetweenText = InInbetweenName.IsEmpty() ? FString::Printf(TEXT(" (inbetween '%s')"), *InInbetweenName) : TEXT("");
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT(
+					"Failed to apply indexed position offsets from BlendShape '%s'%s: The blend shape has %u offsets, but %u indices! (those should match)"
+				),
+				*UsdToUnreal::ConvertPath(InBlendShapePrim.GetPrimPath()),
+				*InbetweenText,
+				PositionOffsets.size(),
+				PointIndices.size()
+			);
+		}
+
+		// Normal offsets
+		if (PointIndices.size() == NormalOffsets.size())
+		{
+			for (uint32 NormalIndex = 0; NormalIndex < NormalOffsets.size(); ++NormalIndex)
+			{
+				int TargetPointIndex = PointIndices[NormalIndex];
+				if (TargetPointIndex >= 0 && TargetPointIndex < MeshPositions.GetNumElements())
+				{
+					const FVector UENormal = UsdToUnreal::ConvertVector(StageInfo, NormalOffsets[NormalIndex]).GetSafeNormal();
+
+					TArrayView<const FVertexInstanceID> Instances = InOutMeshDescription.GetVertexVertexInstanceIDs(TargetPointIndex);
+					for (FVertexInstanceID InstanceID : Instances)
+					{
+						MeshInstanceNormals[InstanceID] = (MeshInstanceNormals[InstanceID] + Weight * FVector3f{UENormal}).GetSafeNormal();
+					}
+				}
+			}
+
+			bApplied = true;
+		}
+		else if (NormalOffsets.size() != 0)
+		{
+			FString InbetweenText = InInbetweenName.IsEmpty() ? FString::Printf(TEXT(" (inbetween '%s')"), *InInbetweenName) : TEXT("");
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT(
+					"Failed to apply indexed normal offsets from BlendShape '%s'%s: The blend shape has %u offsets, but %u indices! (those should match)"
+				),
+				*UsdToUnreal::ConvertPath(InBlendShapePrim.GetPrimPath()),
+				*InbetweenText,
+				NormalOffsets.size(),
+				PointIndices.size()
+			);
+		}
+	}
+
+	return bApplied;
 }
 
 #endif	  // USE_USD_SDK

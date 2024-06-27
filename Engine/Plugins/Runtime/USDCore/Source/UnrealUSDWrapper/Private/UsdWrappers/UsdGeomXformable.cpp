@@ -112,18 +112,21 @@ namespace UE
 
 #if USE_USD_SDK
 	FUsdGeomXformable::FUsdGeomXformable(const pxr::UsdGeomXformable& InUsdGeomXformable)
+		: FUsdTyped(InUsdGeomXformable)
 	{
 		FScopedUnrealAllocs UnrealAllocs;
 		Impl = MakeUnique<Internal::FUsdGeomXformableImpl>(InUsdGeomXformable);
 	}
 
 	FUsdGeomXformable::FUsdGeomXformable(pxr::UsdGeomXformable&& InUsdGeomXformable)
+		: FUsdTyped(MoveTemp(InUsdGeomXformable))
 	{
 		FScopedUnrealAllocs UnrealAllocs;
 		Impl = MakeUnique<Internal::FUsdGeomXformableImpl>(MoveTemp(InUsdGeomXformable));
 	}
 
 	FUsdGeomXformable::FUsdGeomXformable(const pxr::UsdPrim& Prim)
+		: FUsdTyped(Prim)
 	{
 		FScopedUnrealAllocs UnrealAllocs;
 		Impl = MakeUnique<Internal::FUsdGeomXformableImpl>(Prim);

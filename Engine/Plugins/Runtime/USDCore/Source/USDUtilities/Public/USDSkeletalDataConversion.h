@@ -53,6 +53,11 @@ namespace UsdUtils
 	struct FUsdPrimMaterialAssignmentInfo;
 }
 
+namespace UE
+{
+	class FUsdSkelSkinningQuery;
+}
+
 #endif	  // #if USE_USD_SDK
 
 namespace UsdUtils
@@ -121,6 +126,11 @@ namespace UsdUtils
 
 #if USE_USD_SDK
 	/** Allows creation of a skinning query from the underlying skinned mesh and skeleton. Adapted from the USD SDK implementation */
+	USDUTILITIES_API UE::FUsdSkelSkinningQuery CreateSkinningQuery(
+		const pxr::UsdPrim& SkinnedMeshPrim,
+		const pxr::UsdSkelSkeletonQuery& SkeletonQuery
+	);
+	UE_DEPRECATED(5.5, "Please use the other overload of CreateSkinningQuery, that can better work with the UsdWrapper types and no-RTTI modules")
 	USDUTILITIES_API pxr::UsdSkelSkinningQuery CreateSkinningQuery(
 		const pxr::UsdGeomMesh& SkinnedMesh,
 		const pxr::UsdSkelSkeletonQuery& SkeletonQuery
@@ -161,12 +171,60 @@ namespace UsdUtils
 		pxr::UsdSkelSkeletonQuery& OutSkeletonQuery,
 		pxr::UsdSkelCache* InOutSkelCache = nullptr
 	);
+
+	/**
+	 * Converts and applies the blend shape deltas from InBlendShapePrim onto the mesh described by InOutMeshDescription.
+	 * Note that we expect InOutMeshDescription and InBlendShapePrim to at least have a matching number of vertices/points.
+	 * @param InOutMeshDescription - The mesh data to deform with the blend shape
+	 * @param InBlendShapePrim - The UsdSkelBlendShape prim to deform the mesh with
+	 * @param Weight - Scalar that multiplies the deltas before they're applied to the mesh deformation:
+	 *                 0.0f means no effect, 1.0f adds the deltas at full strength, etc.
+	 * @param InInbetweenName - The name of the inbetween shape of InBlendShapePrim to apply instead, if any.
+	 *                          If left empty (default) the main blend shape is applied instead.
+	 * @return Whether the conversion was successful or not.
+	 */
+	USDUTILITIES_API bool ApplyBlendShape(
+		FMeshDescription& InOutMeshDescription,
+		const pxr::UsdPrim& InBlendShapePrim,
+		float Weight = 1.0f,
+		const FString InInbetweenName = {}
+	);
 #endif	  // USE_USD_SDK
 }	 // namespace UsdUtils
 
 #if USE_USD_SDK && WITH_EDITOR
 namespace UsdToUnreal
 {
+	struct FUsdSkeletonData
+	{
+		struct FBone
+		{
+			FString Name;
+			FTransform LocalRestTransform = FTransform::Identity;
+			FTransform LocalBindTransform = FTransform::Identity;
+
+			TArray<int32> ChildIndices;
+			int32 ParentIndex = INDEX_NONE;	   // Root bones remain with INDEX_NONE
+		};
+
+		TArray<FBone> Bones;
+	};
+
+	/**
+	 * Extracts skeleton data from UsdSkeletonQuery and places the results in ConvertedData.
+	 * @param UsdSkeletonQuery - SkeletonQuery with the data to convert
+	 * @param ConvertedData - Output parameter that will be filled with the converted data
+	 * @param bEnsureAtLeastOneBone - Whether to ensure the resulting ConvertedData contains at least one bone (adding one if needed)
+	 * @param bEnsureSingleRootBone - Whether to ensure the resulting ConvertedData has a *single* root bone
+	 *                                (adding a new one and reparenting the previous root bones to it, if needed)
+	 * @return Whether the conversion was successful or not.
+	 */
+	USDUTILITIES_API bool ConvertSkeleton(
+		const pxr::UsdSkelSkeletonQuery& UsdSkeletonQuery,
+		FUsdSkeletonData& ConvertedData,
+		bool bEnsureAtLeastOneBone = true,
+		bool bEnsureSingleRootBone = true
+	);
 	/**
 	 * Extracts skeleton data from UsdSkeletonQuery and places the results in SkelMeshImportData.
 	 * @param UsdSkeletonQuery - SkeletonQuery with the data to convert
@@ -305,7 +363,7 @@ namespace UsdToUnreal
 		UsdUtils::FBlendShapeMap& InBlendShapesByPath,
 		USkeletalMesh* InOutSkeletalMesh
 	);
-}
+}	 // namespace UsdToUnreal
 
 namespace UnrealToUsd
 {

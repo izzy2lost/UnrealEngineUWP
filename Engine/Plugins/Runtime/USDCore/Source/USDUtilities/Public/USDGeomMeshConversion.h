@@ -273,10 +273,6 @@ namespace UsdUtils
 	 */
 	struct FUsdPrimMaterialSlot
 	{
-		// This carries the name of the UsdGeomSubset if applicable, or just "Main" for the single material slot
-		// directly on the Mesh prim
-		FString SlotName;
-
 		/**
 		 * Path to the prims that contain this material assignment (e.g. '/Root/my_cube' or '/Root/my_cube/geomsubset_0'.
 		 * This is a set because this single material slot in UE may be merged from N identical prims.
@@ -312,7 +308,6 @@ namespace UsdUtils
 
 		friend FArchive& operator<<(FArchive& Ar, FUsdPrimMaterialSlot& Slot)
 		{
-			Ar << Slot.SlotName;
 			Ar << Slot.MaterialSource;
 			Ar << Slot.AssignmentType;
 			Ar << Slot.bMeshIsDoubleSided;

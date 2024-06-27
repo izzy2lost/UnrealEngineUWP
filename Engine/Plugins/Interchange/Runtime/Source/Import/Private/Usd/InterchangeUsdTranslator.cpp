@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved. 
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Usd/InterchangeUsdTranslator.h"
 
@@ -7,20 +7,27 @@
 #include "UsdWrappers/UsdAttribute.h"
 #include "UsdWrappers/UsdGeomXformable.h"
 #include "UsdWrappers/UsdPrim.h"
+#include "UsdWrappers/UsdRelationship.h"
+#include "UsdWrappers/UsdSkelBlendShape.h"
+#include "UsdWrappers/UsdSkelBlendShapeQuery.h"
+#include "UsdWrappers/UsdSkelCache.h"
+#include "UsdWrappers/UsdSkelInbetweenShape.h"
+#include "UsdWrappers/UsdSkelSkeletonQuery.h"
+#include "UsdWrappers/UsdSkelSkinningQuery.h"
 #include "UsdWrappers/UsdStage.h"
 #include "UsdWrappers/UsdTyped.h"
-#include "UsdWrappers/VtValue.h"
 
+#include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDGeomMeshConversion.h"
+#include "USDLightConversion.h"
 #include "USDLog.h"
-#include "USDLightConversion.h"	
 #include "USDMaterialUtils.h"
 #include "USDPrimConversion.h"
 #include "USDShadeConversion.h"
+#include "USDSkeletalDataConversion.h"
 #include "USDStageOptions.h"
 #include "USDTypesConversion.h"
-#include "USDValueConversion.h"
 
 #include "Async/Async.h"
 #include "HAL/IConsoleManager.h"
@@ -33,6 +40,7 @@
 #include "InterchangeTexture2DNode.h"
 #include "InterchangeTranslatorHelper.h"
 #include "Internationalization/Regex.h"
+#include "Rendering/SkeletalMeshLODImporterData.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 #include "UDIMUtilities.h"
@@ -44,7 +52,6 @@
 #include "pxr/usd/usdPhysics/tokens.h"
 #include "pxr/usd/usdShade/tokens.h"
 #include "USDIncludesEnd.h"
-
 #endif	  // USE_USD_SDK
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeUsdTranslator)
@@ -71,6 +78,19 @@ namespace UE::InterchangeUsdTranslator::Private
 	const static FString LightPrefix = TEXT("\\Light\\");
 	const static FString MaterialPrefix = TEXT("\\Material\\");
 	const static FString MeshPrefix = TEXT("\\Mesh\\");
+	const static FString MorphTargetPrefix = TEXT("\\MorphTarget\\");
+
+	// Information intended to be passed down from parent to children (by value) as we traverse the stage
+	struct FTraversalInfo
+	{
+		UInterchangeBaseNode* ParentNode = nullptr;
+
+		TSharedPtr<UE::FUsdSkelCache> FurthestSkelCache;
+		UE::FUsdPrim ClosestParentSkelRoot;
+
+		UE::FUsdSkelSkeletonQuery ActiveSkelQuery;
+		TSharedPtr<TArray<FString>> SkelJointNames;	   // Needed for skel mesh payloads
+	};
 
 	// Small container that we can use Pimpl with so we don't have to include too many USD includes on the header file.
 	//
@@ -91,8 +111,15 @@ namespace UE::InterchangeUsdTranslator::Private
 		// we can reuse it (otherwise we have to keep converting the FNames into Tokens all the time)
 		UsdToUnreal::FUsdMeshConversionOptions CachedMeshConversionOptions;
 #endif
+
+		// When traversing we'll generate FTraversalInfo objects. If we need to (e.g. for skinned meshes),
+		// we'll store the info for that translated node here, so we don't have to recompute it when returning
+		// the payload data.
+		// Note: We only do this when needed: This shouldn't have data for every prim in the stage.
+		TMap<FString, FTraversalInfo> NodeUidToCachedTraversalInfo;
+		mutable FRWLock CachedTraversalInfoLock;
 	};
-}
+}	 // namespace UE::InterchangeUsdTranslator::Private
 
 UInterchangeUsdTranslatorSettings::UInterchangeUsdTranslatorSettings()
 	: GeometryPurpose((int32)(EUsdPurpose::Default | EUsdPurpose::Proxy | EUsdPurpose::Render | EUsdPurpose::Guide))
@@ -131,9 +158,9 @@ TArray<FString> UInterchangeUSDTranslator::GetSupportedFormats() const
 	return Extensions;
 }
 
+#if USE_USD_SDK
 namespace UE::InterchangeUsdTranslator::Private
 {
-#if USE_USD_SDK
 	FString EncodeTexturePayloadKey(const UsdToUnreal::FTextureParameterValue& Value)
 	{
 		// Encode the compression settings onto the payload key as we need to move that into the
@@ -474,7 +501,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		{
 			LightNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
 			LightNode->SetAssetName(NodeName);
-				
+
 			LightNode->SetCustomLightColor(Color);
 			LightNode->SetCustomTemperature(Temperature);
 			LightNode->SetCustomUseTemperature(UseTemperature);
@@ -491,7 +518,7 @@ namespace UE::InterchangeUsdTranslator::Private
 			LightNode->SetCustomIntensity(Intensity);
 
 			// LightSourceAngle currently not supported by UInterchangeDirectionalLightNode
-			//float Angle = UsdUtils::GetAttributeValue<float>(Prim, TEXTVIEW("inputs:angle"));
+			// float Angle = UsdUtils::GetAttributeValue<float>(Prim, TEXTVIEW("inputs:angle"));
 
 			NodeContainer.AddNode(LightNode);
 		}
@@ -500,7 +527,7 @@ namespace UE::InterchangeUsdTranslator::Private
 			const FUsdStageInfo StageInfo(Prim.GetStage());
 
 			const float Radius = UsdUtils::GetAttributeValue<float>(Prim, RadiusToken);
-			const float SourceRadius = UsdToUnreal::ConvertDistance(StageInfo, Radius); // currently not supported
+			const float SourceRadius = UsdToUnreal::ConvertDistance(StageInfo, Radius);	   // currently not supported
 
 			if (Prim.HasAPI(TEXT("ShapingAPI")))
 			{
@@ -613,7 +640,74 @@ namespace UE::InterchangeUsdTranslator::Private
 #endif	  // USE_USD_SDK
 	}
 
-	void AddMeshNode(const UE::FUsdPrim& Prim, UInterchangeUSDTranslatorImpl* TranslatorImpl, UInterchangeBaseNodeContainer& NodeContainer)
+	void AddMorphTargetNodes(
+		const UE::FUsdPrim& Prim,
+		UInterchangeUSDTranslatorImpl* TranslatorImpl,
+		UInterchangeMeshNode& MeshNode,
+		UInterchangeBaseNodeContainer& NodeContainer
+	)
+	{
+		UE::FUsdSkelBlendShapeQuery Query{Prim};
+		if (!Query)
+		{
+			return;
+		}
+
+		const FString MeshPrimPath = Prim.GetPrimPath().GetString();
+
+		TFunction<void(const FString&, int32, const FString&)> AddMorphTargetNode =
+			[&MeshNode, &MeshPrimPath, &NodeContainer](const FString& MorphTargetName, int32 BlendShapeIndex, const FString& InbetweenName)
+		{
+			// Note: We identify a blend shape by its Mesh prim path and the blend shape index, even though
+			// the blend shape itself is a full standalone prim. This is for two reasons:
+			//  - We need to also read the Mesh prim's mesh data when emitting the payload, so having the Mesh path on the payload key is handy;
+			//  - It could be possible for different meshes to share the same BlendShape (possibly?), so we really want a separate version of
+			//    a blend shape for each mesh that uses it.
+			//
+			// Despite of that though, we'll just use the blendshape (+inbetween) name for MorphTargetName (so not anything's full path),
+			// so that users can get different blendshapes across the model to combine into a single morph target. Interchange has
+			// an import option to let you control whether they become separate morph targets or not anyway
+			// ("Merge Morph Targets with Same Name")
+			FString IDString = FString::Printf(TEXT("%s\\%d\\%s"), *MeshPrimPath, BlendShapeIndex, *InbetweenName);
+			FString MorphTargetUid = MorphTargetPrefix + IDString;
+
+			UInterchangeMeshNode* MorphTargetMeshNode = NewObject<UInterchangeMeshNode>(&NodeContainer);
+			MorphTargetMeshNode->InitializeNode(MorphTargetUid, MorphTargetName, EInterchangeNodeContainerType::TranslatedAsset);
+			MorphTargetMeshNode->SetPayLoadKey(IDString, EInterchangeMeshPayLoadType::MORPHTARGET);
+			MorphTargetMeshNode->SetMorphTarget(true);
+			MorphTargetMeshNode->SetMorphTargetName(MorphTargetName);
+			NodeContainer.AddNode(MorphTargetMeshNode);
+			MeshNode.SetMorphTargetDependencyUid(MorphTargetUid);
+		};
+
+		for (size_t Index = 0; Index < Query.GetNumBlendShapes(); ++Index)
+		{
+			UE::FUsdSkelBlendShape BlendShape = Query.GetBlendShape(Index);
+			if (!BlendShape)
+			{
+				continue;
+			}
+
+			UE::FUsdPrim BlendShapePrim = BlendShape.GetPrim();
+			FString MorphTargetName = BlendShapePrim.GetName().ToString();
+			AddMorphTargetNode(MorphTargetName, Index, FString{});
+
+			TArray<UE::FUsdSkelInbetweenShape> Inbetweens = BlendShape.GetInbetweens();
+			for (const UE::FUsdSkelInbetweenShape& Inbetween : Inbetweens)
+			{
+				FString InbetweenName = Inbetween.GetAttr().GetName().ToString();
+				FString InnerMorphTargetName = MorphTargetName + TEXT("_") + InbetweenName;
+				AddMorphTargetNode(InnerMorphTargetName, Index, InbetweenName);
+			}
+		}
+	}
+
+	void AddMeshNode(
+		const UE::FUsdPrim& Prim,
+		UInterchangeUSDTranslatorImpl* TranslatorImpl,
+		UInterchangeBaseNodeContainer& NodeContainer,
+		const FTraversalInfo& Info
+	)
 	{
 		FString PrimPath = Prim.GetPrimPath().GetString();
 		FString NodeUid = MeshPrefix + PrimPath;
@@ -625,10 +719,33 @@ namespace UE::InterchangeUsdTranslator::Private
 			return;
 		}
 
+		// Fill in the MeshNode itself
 		UInterchangeMeshNode* MeshNode = NewObject<UInterchangeMeshNode>(&NodeContainer);
 		MeshNode->InitializeNode(NodeUid, NodeName, EInterchangeNodeContainerType::TranslatedAsset);
-		MeshNode->SetPayLoadKey(PrimPath, EInterchangeMeshPayLoadType::STATIC);
 		MeshNode->SetAssetName(NodeName);
+		const bool bIsSkinned = static_cast<bool>(Info.ClosestParentSkelRoot) && Prim.HasAPI(TEXT("SkelBindingAPI"));
+		if (bIsSkinned)
+		{
+			MeshNode->SetSkinnedMesh(true);
+			MeshNode->SetPayLoadKey(PrimPath, EInterchangeMeshPayLoadType::SKELETAL);
+			if (Info.ActiveSkelQuery)
+			{
+				MeshNode->SetSkeletonDependencyUid(Info.ActiveSkelQuery.GetSkeleton().GetPrimPath().GetString());
+			}
+
+			AddMorphTargetNodes(Prim, TranslatorImpl, *MeshNode, NodeContainer);
+
+			// When returning the payload data later, we'll need at the very least our SkeletonQuery, so
+			// here we store the Info object into the Impl
+			{
+				FWriteScopeLock ScopedInfoWriteLock{TranslatorImpl->CachedTraversalInfoLock};
+				TranslatorImpl->NodeUidToCachedTraversalInfo.Add(NodeUid, Info);
+			}
+		}
+		else
+		{
+			MeshNode->SetPayLoadKey(PrimPath, EInterchangeMeshPayLoadType::STATIC);
+		}
 
 		// Material assignments
 		{
@@ -644,7 +761,13 @@ namespace UE::InterchangeUsdTranslator::Private
 
 			for (const UsdUtils::FUsdPrimMaterialSlot& Slot : Assignments.Slots)
 			{
-				const FString& SlotName = Slot.SlotName;
+				// Use the material prim path/display color desc as the material slot name, because Interchange
+				// already has a mechanism to merge material slots with the same name. Using the material name itself
+				// as the slot name has Interchange combine slots with identical materials, which works fine. If we
+				// were to use GeomSubset names or prim names in here though, it's possible that two similarly named
+				// slots in different skeletal mesh chunks (but with different materials!) could get merged together,
+				// which is not what we want
+				const FString& SlotName = Slot.MaterialSource;
 
 				// Get the Uid of the material instance that we'll end up assigning to this slot
 				FString MaterialInstanceUid;
@@ -681,12 +804,135 @@ namespace UE::InterchangeUsdTranslator::Private
 		NodeContainer.AddNode(MeshNode);
 	}
 
+	void AddSkeletonNodes(
+		const UE::FUsdPrim& Prim,
+		UInterchangeUSDTranslatorImpl* TranslatorImpl,
+		UInterchangeSceneNode& SkeletonPrimNode,
+		UInterchangeBaseNodeContainer& NodeContainer,
+		FTraversalInfo Info
+	)
+	{
+		// If we're not inside of a SkelRoot, the skeleton shouldn't really do anything
+		if (!Info.FurthestSkelCache.IsValid())
+		{
+			return;
+		}
+
+		// By the time we get here we've already emitted a scene node for the skeleton prim itself, so we just
+		// need to emit a node hierarchy that mirrors the joints.
+
+		// Make the prim node into an Interchange joint/bone itself. By doing this we solve three issues:
+		//  - It becomes easy to identify our SkeletonDependencyUid when parsing Mesh nodes: It's just the skeleton prim path
+		//    (as opposed to having to target the translated node of the first root joint of the skeleton);
+		//  - We automatically handle USD skeletons with multiple root bones: We'll only ever have one "true"
+		//    root bone anyway: The SkeletonPrimNode itself;
+		//  - If a skeleton has no bones at all somehow, we'll still make one "bone" for it (this node).
+		SkeletonPrimNode.AddSpecializedType(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString());
+		SkeletonPrimNode.SetCustomBindPoseLocalTransform(&NodeContainer, FTransform::Identity);
+		SkeletonPrimNode.SetCustomTimeZeroLocalTransform(&NodeContainer, FTransform::Identity);
+
+		// Convert the skeleton bones/joints into ConvertedData
+		UE::FUsdSkelSkeletonQuery SkelQuery = Info.FurthestSkelCache->GetSkelQuery(Prim);
+		const bool bEnsureAtLeastOneBone = false;
+		const bool bEnsureSingleRootBone = false;
+		UsdToUnreal::FUsdSkeletonData ConvertedData;
+		const bool bSuccess = UsdToUnreal::ConvertSkeleton(SkelQuery, ConvertedData, bEnsureAtLeastOneBone, bEnsureSingleRootBone);
+		if (!bSuccess)
+		{
+			return;
+		}
+
+		// Recursively traverse ConvertedData spawning the joint translated nodes
+		TFunction<void(const UsdToUnreal::FUsdSkeletonData::FBone&, UInterchangeSceneNode&, const FString&)> RecursiveTraverseBones = nullptr;
+		RecursiveTraverseBones = [&RecursiveTraverseBones,
+								  &ConvertedData,
+								  &NodeContainer	//
+		](const UsdToUnreal::FUsdSkeletonData::FBone& Bone, UInterchangeSceneNode& ParentNode, const FString& BonePath)
+		{
+			// Concatenate a full "bone path" here for uniqueness, because Bone.Name is just the name of this
+			// single bone/joint itself (e.g. "Elbow")
+			const FString BoneNodeUid = BonePath + TEXT("\\") + Bone.Name;
+
+			UInterchangeSceneNode* BoneNode = NewObject<UInterchangeSceneNode>(&NodeContainer);
+			BoneNode->InitializeNode(BoneNodeUid, Bone.Name, EInterchangeNodeContainerType::TranslatedScene);
+			BoneNode->SetCustomLocalTransform(&NodeContainer, Bone.LocalRestTransform);
+
+			BoneNode->AddSpecializedType(UE::Interchange::FSceneNodeStaticData::GetJointSpecializeTypeString());
+			BoneNode->SetCustomBindPoseLocalTransform(&NodeContainer, Bone.LocalBindTransform);
+			BoneNode->SetCustomTimeZeroLocalTransform(&NodeContainer, Bone.LocalRestTransform);
+
+			NodeContainer.AddNode(BoneNode);
+			NodeContainer.SetNodeParentUid(BoneNodeUid, ParentNode.GetUniqueID());
+
+			for (int32 ChildIndex : Bone.ChildIndices)
+			{
+				RecursiveTraverseBones(ConvertedData.Bones[ChildIndex], *BoneNode, BoneNodeUid);
+			}
+		};
+
+		// Start traversing from the root bones (we may have more than one)
+		const FString SkeletonPrimNodeUid = SkeletonPrimNode.GetUniqueID();
+		for (const UsdToUnreal::FUsdSkeletonData::FBone& Bone : ConvertedData.Bones)
+		{
+			if (Bone.ParentIndex == INDEX_NONE)
+			{
+				RecursiveTraverseBones(Bone, SkeletonPrimNode, SkeletonPrimNodeUid);
+			}
+		}
+
+		// Cache our joint names in order, as this is needed when generating skeletal mesh payloads
+		Info.SkelJointNames = MakeShared<TArray<FString>>();
+		Info.SkelJointNames->Reserve(ConvertedData.Bones.Num());
+		for (const UsdToUnreal::FUsdSkeletonData::FBone& Bone : ConvertedData.Bones)
+		{
+			Info.SkelJointNames->Add(Bone.Name);
+		}
+		{
+			FWriteScopeLock ScopedInfoWriteLock{TranslatorImpl->CachedTraversalInfoLock};
+			TranslatorImpl->NodeUidToCachedTraversalInfo.Add(SkeletonPrimNodeUid, Info);
+		}
+	}
+
+	void UpdateTraversalInfo(FTraversalInfo& Info, const UE::FUsdPrim& CurrentPrim)
+	{
+		if (CurrentPrim.IsA(TEXT("SkelRoot")))
+		{
+			if (!Info.ClosestParentSkelRoot)
+			{
+				// The root-most skel cache should handle any nested UsdSkel prims as well
+				Info.FurthestSkelCache = MakeShared<UE::FUsdSkelCache>();
+
+				const bool bTraverseInstanceProxies = true;
+				Info.FurthestSkelCache->Populate(CurrentPrim, bTraverseInstanceProxies);
+			}
+
+			Info.ClosestParentSkelRoot = CurrentPrim;
+		}
+
+		if (Info.ClosestParentSkelRoot && CurrentPrim.HasAPI(TEXT("SkelBindingAPI")))
+		{
+			UE::FUsdStage Stage = CurrentPrim.GetStage();
+
+			if (UE::FUsdRelationship SkelRel = CurrentPrim.GetRelationship(TEXT("skel:skeleton")))
+			{
+				TArray<UE::FSdfPath> Targets;
+				if (SkelRel.GetTargets(Targets) && Targets.Num() > 0)
+				{
+					UE::FUsdPrim TargetSkeleton = Stage.GetPrimAtPath(Targets[0]);
+					if (TargetSkeleton && TargetSkeleton.IsA(TEXT("Skeleton")))
+					{
+						Info.ActiveSkelQuery = Info.FurthestSkelCache->GetSkelQuery(TargetSkeleton);
+					}
+				}
+			}
+		}
+	}
+
 	void Traverse(
-		const UE::FUsdStage& UsdStage,
 		const UE::FUsdPrim& Prim,
 		UInterchangeUSDTranslatorImpl* TranslatorImpl,
 		UInterchangeBaseNodeContainer& NodeContainer,
-		UInterchangeBaseNode* ParentNode
+		FTraversalInfo Info
 	)
 	{
 		// Ignore prim subtrees from disabled purposes
@@ -697,8 +943,11 @@ namespace UE::InterchangeUsdTranslator::Private
 			return;
 		}
 
-		FString NodeUid = Prim.GetPrimPath().GetString();
+		FString SceneNodeUid = Prim.GetPrimPath().GetString();
 		FString DisplayLabel(Prim.GetName().ToString());
+
+		// Do this before generating other nodes as they may need the updated info
+		UpdateTraversalInfo(Info, Prim);
 
 		// Generate asset node if applicable
 		const FString* Prefix = nullptr;
@@ -710,7 +959,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		else if (Prim.IsA(TEXT("Mesh")))
 		{
 			Prefix = &MeshPrefix;
-			AddMeshNode(Prim, TranslatorImpl, NodeContainer);
+			AddMeshNode(Prim, TranslatorImpl, NodeContainer, Info);
 		}
 		else if (Prim.IsA(TEXT("Camera")))
 		{
@@ -723,45 +972,112 @@ namespace UE::InterchangeUsdTranslator::Private
 			AddLightNode(Prim, NodeContainer);
 		}
 
-		// Generate scene node if we're an Xformable
+		// Only prims that require rendering (and have a renderable parent) get a scene node.
+		// This includes Xforms but also Scopes, which are not Xformable
 		UInterchangeSceneNode* SceneNode = nullptr;
-		FTransform Transform = FTransform::Identity;
-		if (UsdToUnreal::ConvertXformable(UsdStage, UE::FUsdTyped(Prim), Transform, UsdUtils::GetDefaultTimeCode(), nullptr))
+		if (Prim.IsA(TEXT("Imageable")) && (Info.ParentNode || Prim.GetParent().IsPseudoRoot()))
 		{
 			SceneNode = NewObject<UInterchangeSceneNode>(&NodeContainer);
-			SceneNode->InitializeNode(NodeUid, DisplayLabel, EInterchangeNodeContainerType::TranslatedScene);
-			SceneNode->SetCustomLocalTransform(&NodeContainer, Transform);
+			SceneNode->InitializeNode(SceneNodeUid, DisplayLabel, EInterchangeNodeContainerType::TranslatedScene);
 			NodeContainer.AddNode(SceneNode);
+
+			// If we're an Xformable, get our transform
+			FTransform Transform = FTransform::Identity;
+			bool bResetTransformStack = false;
+			if (UsdToUnreal::ConvertXformable(
+					Prim.GetStage(),
+					UE::FUsdTyped(Prim),
+					Transform,
+					UsdUtils::GetEarliestTimeCode(),
+					&bResetTransformStack
+				))
+			{
+				SceneNode->SetCustomLocalTransform(&NodeContainer, Transform);
+			}
+
+			// Skeleton joints are separate scene nodes in Interchange, so we need to emit that node hierarchy now
+			if (Prim.IsA(TEXT("Skeleton")))
+			{
+				AddSkeletonNodes(Prim, TranslatorImpl, *SceneNode, NodeContainer, Info);
+			}
 
 			// Connect scene node and asset node
 			if (Prefix)
 			{
-				const FString AssetNodeUid = *Prefix + NodeUid;
+				const FString AssetNodeUid = *Prefix + SceneNodeUid;
 				SceneNode->SetCustomAssetInstanceUid(AssetNodeUid);
 			}
 
 			// Connect parent and child scene nodes
-			if (ParentNode)
+			if (Info.ParentNode)
 			{
-				NodeContainer.SetNodeParentUid(SceneNode->GetUniqueID(), ParentNode->GetUniqueID());
+				NodeContainer.SetNodeParentUid(SceneNode->GetUniqueID(), Info.ParentNode->GetUniqueID());
 			}
 		}
+
+		// Note: This has the effect of effectively shutting down the generation of scene nodes
+		// below any prim that is not a least an Imageable, as we check for a valid parent before
+		// generating one
+		Info.ParentNode = SceneNode;
 
 		// Recurse into child prims
 		for (const FUsdPrim& ChildPrim : Prim.GetChildren())
 		{
-			Traverse(UsdStage, ChildPrim, TranslatorImpl, NodeContainer, SceneNode);
+			Traverse(ChildPrim, TranslatorImpl, NodeContainer, Info);
 		}
 	}
 
-	bool GetStaticMeshPayloadDataForPayLoadKey(
-		const UE::FUsdStage& UsdStage,
-		const FString& PrimPath,
+	void FixSkeletalMeshDescriptionColors(FMeshDescription& MeshDescription)
+	{
+		// FSkeletalMeshImportData::GetMeshDescription() will reinterpret our Wedge FColors as linear, and put those
+		// sRGB values disguised as linear into the mesh description. This also seems to disagree with the patch on
+		// cl 32791826, so here we have to fix that up and get our mesh description colors to be actually linear...
+		//
+		// This will hopefully go away once we have our own skinned mesh to FMeshDescription conversion function.
+		//
+		// Note: Weirdly enough skeletal meshes seem to put linear colors on VertexColor output, while static meshes
+		// put sRGB colors? Maybe this is why the comment above the change on 32791826 mentions to remove the ToFColor on
+		// StaticMeshBuilder? This is overall very confusing
+		FStaticMeshAttributes Attributes(MeshDescription);
+		TVertexInstanceAttributesRef<FVector4f> VertexColor = Attributes.GetVertexInstanceColors();
+		for (FVertexInstanceID VertexInstanceID : MeshDescription.VertexInstances().GetElementIDs())
+		{
+			const FColor ActualSRGB = FLinearColor(VertexColor[VertexInstanceID]).ToFColor(false);
+			VertexColor[VertexInstanceID] = FLinearColor{ActualSRGB};
+		}
+	}
+
+	void FixMaterialSlotNames(FMeshDescription& MeshDescription, const TArray<UsdUtils::FUsdPrimMaterialSlot>& MeshAssingmentSlots)
+	{
+		// Fixup material slot names to match the material that is assigned. For Interchange it is better to have the material
+		// slot names match what is assigned into them, as it will use those names to "merge identical slots" depending on the
+		// import options.
+		//
+		// Note: These names must also match what is set via MeshNode->SetSlotMaterialDependencyUid(SlotName, MaterialUid)
+		FStaticMeshAttributes StaticMeshAttributes(MeshDescription);
+		for (int32 MaterialSlotIndex = 0; MaterialSlotIndex < StaticMeshAttributes.GetPolygonGroupMaterialSlotNames().GetNumElements();
+			 ++MaterialSlotIndex)
+		{
+			int32 MaterialIndex = 0;
+			LexFromString(MaterialIndex, *StaticMeshAttributes.GetPolygonGroupMaterialSlotNames()[MaterialSlotIndex].ToString());
+
+			if (MeshAssingmentSlots.IsValidIndex(MaterialIndex))
+			{
+				const FString Source = MeshAssingmentSlots[MaterialIndex].MaterialSource;
+				StaticMeshAttributes.GetPolygonGroupMaterialSlotNames()[MaterialSlotIndex] = *Source;
+			}
+		}
+	}
+
+	bool GetStaticMeshPayloadData(
+		const FString& PayloadKey,
+		const UInterchangeUSDTranslatorImpl& Impl,
 		const UsdToUnreal::FUsdMeshConversionOptions& Options,
 		FMeshDescription& OutMeshDescription
 	)
 	{
-		UE::FUsdPrim Prim = UsdStage.GetPrimAtPath(UE::FSdfPath{ *PrimPath });
+		const FString& PrimPath = PayloadKey;
+		UE::FUsdPrim Prim = Impl.UsdStage.GetPrimAtPath(UE::FSdfPath{*PrimPath});
 		if (!Prim)
 		{
 			return false;
@@ -770,11 +1086,163 @@ namespace UE::InterchangeUsdTranslator::Private
 		// TODO: We can't do much with these yet: There will be used to generate primvar-compatible
 		// versions of the materials that are assigned to this mesh, whenever we get a pipeline
 		UsdUtils::FUsdPrimMaterialAssignmentInfo TempMaterialInfo;
-		return UsdToUnreal::ConvertGeomMesh(Prim, OutMeshDescription, TempMaterialInfo, Options);
+		bool bSuccess = UsdToUnreal::ConvertGeomMesh(Prim, OutMeshDescription, TempMaterialInfo, Options);
+		if (!bSuccess)
+		{
+			return false;
+		}
+
+		FixMaterialSlotNames(OutMeshDescription, TempMaterialInfo.Slots);
+
+		return true;
 	}
 
-#endif
+	bool GetSkeletalMeshPayloadData(
+		const FString& PayloadKey,
+		const UInterchangeUSDTranslatorImpl& Impl,
+		const UsdToUnreal::FUsdMeshConversionOptions& Options,
+		FMeshDescription& OutMeshDescription,
+		TArray<FString>& OutJointNames
+	)
+	{
+		const FString& PrimPath = PayloadKey;
+		UE::FUsdPrim Prim = Impl.UsdStage.GetPrimAtPath(UE::FSdfPath{*PrimPath});
+		if (!Prim)
+		{
+			return false;
+		}
+
+		const FString& MeshNodeUid = MeshPrefix + Prim.GetPrimPath().GetString();
+
+		// Read these variables from the data we cached during traversal for translation
+		TSharedPtr<TArray<FString>> JointNames = nullptr;
+		UE::FUsdSkelSkeletonQuery SkelQuery;
+		{
+			FReadScopeLock ReadLock{Impl.CachedTraversalInfoLock};
+
+			const FTraversalInfo* MeshInfo = Impl.NodeUidToCachedTraversalInfo.Find(MeshNodeUid);
+			if (!MeshInfo)
+			{
+				return false;
+			}
+			SkelQuery = MeshInfo->ActiveSkelQuery;
+			if (!SkelQuery)
+			{
+				return false;
+			}
+
+			// The above fields are associated to the mesh *asset* node Uid (hence the prefix),
+			// while the joint names are associated to the skeleton *scene* node Uid, so no prefix
+			const FString SkeletonNodeUid = SkelQuery.GetSkeleton().GetPrimPath().GetString();
+			const FTraversalInfo* SkeletonInfo = Impl.NodeUidToCachedTraversalInfo.Find(SkeletonNodeUid);
+			if (!SkeletonInfo)
+			{
+				return false;
+			}
+			JointNames = SkeletonInfo->SkelJointNames;
+			if (!JointNames)
+			{
+				return false;
+			}
+		}
+
+		UE::FUsdSkelSkinningQuery SkinningQuery = UsdUtils::CreateSkinningQuery(Prim, SkelQuery);
+		if (!SkinningQuery)
+		{
+			return false;
+		}
+
+		FSkeletalMeshImportData SkelMeshImportData;
+		UsdUtils::FUsdPrimMaterialAssignmentInfo TempMaterialInfo;
+		bool bSuccess = UsdToUnreal::ConvertSkinnedMesh(SkinningQuery, SkelQuery, SkelMeshImportData, TempMaterialInfo, Options);
+		if (!bSuccess)
+		{
+			return false;
+		}
+
+		// TODO: Swap this code path with some function to directly convert a skinned USD mesh to MeshDescription.
+		// We need that on the other USD workflows as well, not only here...
+		//
+		// Note: This is also doubly bad because it internally recomputes tangents and normals, which will also
+		// be done by Interchange later..
+		const USkeletalMesh* UnusedSkelMesh = nullptr;
+		FSkeletalMeshBuildSettings* UnusedBuildSettings = nullptr;
+		bSuccess = SkelMeshImportData.GetMeshDescription(UnusedSkelMesh, UnusedBuildSettings, OutMeshDescription);
+		if (!bSuccess)
+		{
+			return false;
+		}
+
+		FixSkeletalMeshDescriptionColors(OutMeshDescription);
+
+		FixMaterialSlotNames(OutMeshDescription, TempMaterialInfo.Slots);
+
+		OutJointNames = *JointNames;
+
+		return true;
+	}
+
+	bool GetMorphTargetPayloadData(
+		const FString& PayloadKey,
+		const UInterchangeUSDTranslatorImpl& Impl,
+		const UsdToUnreal::FUsdMeshConversionOptions& Options,
+		FMeshDescription& OutMeshDescription,
+		FString& OutMorphTargetName
+	)
+	{
+		// Our payloadkey should be something like "/MySkelRoot/MyMeshPrim\2\BlendShapeName_inbetweens:someName"
+		const bool bCullEmpty = false;
+		TArray<FString> PayloadKeyTokens;
+		PayloadKey.ParseIntoArray(PayloadKeyTokens, TEXT("\\"), bCullEmpty);
+		if (PayloadKeyTokens.Num() != 3)
+		{
+			return false;
+		}
+
+		const FString& MeshPrimPath = PayloadKeyTokens[0];
+		const FString& BlendShapeIndexStr = PayloadKeyTokens[1];
+		const FString& InbetweenName = PayloadKeyTokens[2];
+
+		int32 BlendShapeIndex = INDEX_NONE;
+		bool bLexed = LexTryParseString(BlendShapeIndex, *BlendShapeIndexStr);
+		if (!bLexed)
+		{
+			return false;
+		}
+
+		UE::FUsdPrim MeshPrim = Impl.UsdStage.GetPrimAtPath(FSdfPath{*MeshPrimPath});
+		UE::FUsdSkelBlendShapeQuery Query{MeshPrim};
+		if (!Query)
+		{
+			return false;
+		}
+
+		UE::FUsdSkelBlendShape BlendShape = Query.GetBlendShape(BlendShapeIndex);
+		if (!BlendShape)
+		{
+			return false;
+		}
+
+		// TODO: This is extremely slow, as it will reimport the mesh for every single morph target!
+		// It seems to be what the other translators do, however. We need some form of FMeshDescription caching here
+		TArray<FString> UnusedJointNames;
+		bool bConverted = GetSkeletalMeshPayloadData(MeshPrimPath, Impl, Options, OutMeshDescription, UnusedJointNames);
+		if (!bConverted || OutMeshDescription.IsEmpty())
+		{
+			return false;
+		}
+
+		OutMorphTargetName = BlendShape.GetPrim().GetName().ToString();
+		if (!InbetweenName.IsEmpty())
+		{
+			OutMorphTargetName += TEXT("_") + InbetweenName;
+		}
+
+		const float Weight = 1.0f;
+		return UsdUtils::ApplyBlendShape(OutMeshDescription, BlendShape.GetPrim(), Weight, InbetweenName);
+	}
 }	 // namespace UE::InterchangeUsdTranslator::Private
+#endif	  // USE_USD_SDK
 
 bool UInterchangeUSDTranslator::Translate(UInterchangeBaseNodeContainer& NodeContainer) const
 {
@@ -826,11 +1294,10 @@ bool UInterchangeUSDTranslator::Translate(UInterchangeBaseNodeContainer& NodeCon
 																	 : UnrealToUsd::ConvertToken(*Settings->MaterialPurpose.ToString()).Get();
 
 	// Traverse stage and emit translated nodes
-	FUsdPrim RootPrim = ImplPtr->UsdStage.GetPseudoRoot();
-	for (const FUsdPrim& Prim : RootPrim.GetChildren())
+	FTraversalInfo Info;
+	for (const FUsdPrim& Prim : ImplPtr->UsdStage.GetPseudoRoot().GetChildren())
 	{
-		UInterchangeBaseNode* ParentNode = nullptr;
-		Traverse(ImplPtr->UsdStage, Prim, ImplPtr, NodeContainer, ParentNode);
+		Traverse(Prim, ImplPtr, NodeContainer, Info);
 	}
 
 	return true;
@@ -935,17 +1402,37 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeUSDTranslator:
 			{
 				case EInterchangeMeshPayLoadType::STATIC:
 				{
-					bSuccess = UE::InterchangeUsdTranslator::Private::GetStaticMeshPayloadDataForPayLoadKey(
-						ImplPtr->UsdStage,
+					bSuccess = UE::InterchangeUsdTranslator::Private::GetStaticMeshPayloadData(
 						PayloadKey.UniqueId,
+						*ImplPtr,
 						OptionsCopy,
 						MeshPayloadData.MeshDescription
 					);
 					break;
 				}
-				case EInterchangeMeshPayLoadType::SKELETAL:		  // Fallthrough
-				case EInterchangeMeshPayLoadType::MORPHTARGET:	  // Fallthrough
-				case EInterchangeMeshPayLoadType::NONE:			  // Fallthrough
+				case EInterchangeMeshPayLoadType::SKELETAL:
+				{
+					bSuccess = UE::InterchangeUsdTranslator::Private::GetSkeletalMeshPayloadData(
+						PayloadKey.UniqueId,
+						*ImplPtr,
+						OptionsCopy,
+						MeshPayloadData.MeshDescription,
+						MeshPayloadData.JointNames
+					);
+					break;
+				}
+				case EInterchangeMeshPayLoadType::MORPHTARGET:
+				{
+					bSuccess = UE::InterchangeUsdTranslator::Private::GetMorphTargetPayloadData(
+						PayloadKey.UniqueId,
+						*ImplPtr,
+						OptionsCopy,
+						MeshPayloadData.MeshDescription,
+						MeshPayloadData.MorphTargetName
+					);
+					break;
+				}
+				case EInterchangeMeshPayLoadType::NONE:	   // Fallthrough
 				default:
 					break;
 			}
@@ -1018,9 +1505,9 @@ TOptional<UE::Interchange::FImportBlockedImage> UInterchangeUSDTranslator::GetBl
 	TextureGroup TextureGroup;
 	bool bDecoded = DecodeTexturePayloadKey(PayloadKey, FilePath, TextureGroup);
 	if (!bDecoded)
-{
-	return {};
-}
+	{
+		return {};
+	}
 
 	AlternateTexturePath = FilePath;
 
