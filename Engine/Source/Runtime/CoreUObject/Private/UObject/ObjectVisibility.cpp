@@ -4,7 +4,7 @@
 #include "UObject/UObjectThreadContext.h"
 #include "HAL/IConsoleManager.h"
 
-static bool GUseObjectVisibilityFilterForAsyncLoading = false;
+static bool GUseObjectVisibilityFilterForAsyncLoading = true;
 static FAutoConsoleVariableRef CVarUseObjectVisibilityFilterForAsyncLoading(
 	TEXT("s.UseObjectVisibilityFilterForAsyncLoading"),
 	GUseObjectVisibilityFilterForAsyncLoading,
