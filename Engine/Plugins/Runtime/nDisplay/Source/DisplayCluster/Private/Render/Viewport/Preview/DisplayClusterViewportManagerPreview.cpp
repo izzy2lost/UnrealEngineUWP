@@ -84,7 +84,7 @@ void FDisplayClusterViewportManagerPreview::OnPreviewRenderTick()
 
 	// Special case for RootActorProxy object (proxy always refers to external DCRA in the scene)
 	ADisplayClusterRootActor* RootActorProxy = Configuration->GetRootActor(EDisplayClusterRootActorType::Preview);
-	if (RootActorProxy != SceneRootActor)
+	if (RootActorProxy && RootActorProxy != SceneRootActor)
 	{
 		// Since this DCRA is a proxy and the DCRA on the scene is a separate object,
 		// it does not pass component positions and properties from the scene to the proxy.
