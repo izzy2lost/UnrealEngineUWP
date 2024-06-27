@@ -123,6 +123,7 @@ FNodeCullingBounds InitNodeCullingBounds(FCluster Cluster)
 }
 
 void TransformNodeCullingBounds(
+	FNaniteView NaniteView,
 	FPrimitiveSceneData PrimitiveData,
 	FInstanceSceneData InstanceData,
 	uint CullingFlags,
@@ -196,6 +197,23 @@ void TransformNodeCullingBounds(
 		Bounds.BoxExtent = InstanceData.LocalBoundsExtent;
 		Bounds.BoxCenter = InstanceData.LocalBoundsCenter;
 	}
+
+#if SUPPORT_FIRST_PERSON_RENDERING
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_IS_FIRST_PERSON_PRIMITIVE) != 0)
+	{
+		const float4x4 LocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
+		const float4x4 TranslatedWorldToLocal = DFFastToTranslatedWorld(InstanceData.WorldToLocal, NaniteView.PreViewTranslation);
+		const float4x4 WorldToDeformedWorld = float4x4(
+			NaniteView.FirstPersonTransform[0], 0.0f,
+			NaniteView.FirstPersonTransform[1], 0.0f,
+			NaniteView.FirstPersonTransform[2], 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f);
+		const float4x4 LocalToDeformedLocal = mul(mul(LocalToTranslatedWorld, WorldToDeformedWorld), TranslatedWorldToLocal);
+
+		Bounds.BoxCenter = mul(float4(Bounds.BoxCenter, 1.0f), LocalToDeformedLocal).xyz;
+		Bounds.BoxExtent = abs(Bounds.BoxExtent.x * LocalToDeformedLocal[0].xyz) + abs(Bounds.BoxExtent.y * LocalToDeformedLocal[1].xyz) + abs(Bounds.BoxExtent.z * LocalToDeformedLocal[2].xyz);
+	}
+#endif // SUPPORT_FIRST_PERSON_RENDERING
 }
 
 // Get the area of an "inclusive" rect (which means that the max is inside the rect), also guards against negative area (where min > max)
@@ -380,7 +398,7 @@ struct FNaniteTraversalClusterCullCallback
 			}
 #endif
 
-			TransformNodeCullingBounds(PrimitiveData, InstanceData, CandidateNode.Flags, bExpandWPOBounds, NodeBounds);
+			TransformNodeCullingBounds(NaniteView, PrimitiveData, InstanceData, CandidateNode.Flags, bExpandWPOBounds, NodeBounds);
 
 			FBoxCull Cull;
 			Cull.Init( NaniteView, NodeBounds.BoxCenter, NodeBounds.BoxExtent, InstanceData.NonUniformScale, DynamicData.LocalToTranslatedWorld, DynamicData.PrevLocalToTranslatedWorld );
@@ -621,7 +639,7 @@ struct FNaniteTraversalClusterCullCallback
 		}
 #endif
 
-		TransformNodeCullingBounds(PrimitiveData, InstanceData, VisibleCluster.Flags, bExpandWPOBounds, ClusterBounds);
+		TransformNodeCullingBounds(NaniteView, PrimitiveData, InstanceData, VisibleCluster.Flags, bExpandWPOBounds, ClusterBounds);
 
 		bool bUseHWRaster = false;
 		

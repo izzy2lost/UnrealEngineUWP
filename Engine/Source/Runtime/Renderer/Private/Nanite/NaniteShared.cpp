@@ -196,6 +196,13 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 	PackedView.LightingChannelMask = 
 		((uint8)(Params.bUseLightingChannelMask ? 0b1000 : 0)) | // 4th bit is toggle
 		((uint8)(Params.LightingChannelMask & 0b0111)); // 3 first bits are mask
+
+	const FMatrix& FirstPersonTransform = Params.ViewMatrices.GetFirstPersonTransform();
+	PackedView.FirstPersonTransformRowsExceptRow2Z.X =	uint32(FFloat16(FirstPersonTransform.M[0][0]).Encoded) | (uint32(FFloat16(FirstPersonTransform.M[0][1]).Encoded) << 16u);	// Row0 XY
+	PackedView.FirstPersonTransformRowsExceptRow2Z.Y =	uint32(FFloat16(FirstPersonTransform.M[0][2]).Encoded) | (uint32(FFloat16(FirstPersonTransform.M[1][0]).Encoded) << 16u);	// Row0 Z and Row1 X
+	PackedView.FirstPersonTransformRowsExceptRow2Z.Z =	uint32(FFloat16(FirstPersonTransform.M[1][1]).Encoded) | (uint32(FFloat16(FirstPersonTransform.M[1][2]).Encoded) << 16u);	// Row1 YZ
+	PackedView.FirstPersonTransformRowsExceptRow2Z.W =	uint32(FFloat16(FirstPersonTransform.M[2][0]).Encoded) | (uint32(FFloat16(FirstPersonTransform.M[2][1]).Encoded) << 16u);	// Row2 XY
+	PackedView.FirstPersonTransformRow2Z =				uint32(FFloat16(FirstPersonTransform.M[2][2]).Encoded);																		// Row2 Z
 	
 	return PackedView;
 

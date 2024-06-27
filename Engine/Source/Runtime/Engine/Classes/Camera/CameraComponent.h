@@ -45,6 +45,22 @@ class UCameraComponent : public USceneComponent
 	UFUNCTION(BlueprintCallable, Category = Camera)
 	virtual void SetFieldOfView(float InFieldOfView) { FieldOfView = InFieldOfView; }
 
+	/**
+	 * The horizontal field of view (in degrees) used for primitives tagged as "IsFirstPerson".
+	 */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraSettings, meta = (UIMin = "5.0", UIMax = "170", ClampMin = "0.001", ClampMax = "360.0", Units = deg, EditCondition = "bEnableFirstPersonFieldOfView"))
+	float FirstPersonFieldOfView;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	virtual void SetFirstPersonFieldOfView(float InFirstPersonFieldOfView) { FirstPersonFieldOfView = InFirstPersonFieldOfView; }
+
+	/**
+	 * The scale to apply to primitives tagged as "IsFirstPerson". This is used to scale down primitives towards the camera such that they are small enough not to intersect with the scene.
+	 */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraSettings, meta = (UIMin = "0.001", UIMax = "1.0", ClampMin = "0.001", ClampMax = "1.0", EditCondition = "bEnableFirstPersonScale"))
+	float FirstPersonScale;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	virtual void SetFirstPersonScale(float InFirstPersonScale) { FirstPersonScale = InFirstPersonScale; }
+
 	/** The desired width (in world units) of the orthographic view (ignored in Perspective mode) */
 	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraSettings)
 	float OrthoWidth;
@@ -141,6 +157,18 @@ class UCameraComponent : public USceneComponent
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
 	uint8 bUsePawnControlRotation : 1;
+
+	/** True if the first person field of view should be used for primitives tagged as "IsFirstPerson". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
+	uint8 bEnableFirstPersonFieldOfView : 1;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetEnableFirstPersonFieldOfView(bool bInEnableFirstPersonFieldOfView) { bEnableFirstPersonFieldOfView = bInEnableFirstPersonFieldOfView; }
+
+	/** True if the first person scale should be used for primitives tagged as "IsFirstPerson". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
+	uint8 bEnableFirstPersonScale : 1;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetEnableFirstPersonScale(bool bInEnableFirstPersonScale) { bEnableFirstPersonScale = bInEnableFirstPersonScale; }
 
 protected:
 	/** True to enable the additive view offset, for adjusting the view without moving the component. */

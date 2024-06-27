@@ -1467,6 +1467,17 @@ public:
 	static ENGINE_API bool ProjectWorldToScreen(APlayerController const* Player, const FVector& WorldPosition, FVector2D& ScreenPosition, bool bPlayerViewportRelative = false);
 
 	/**
+	 * Transforms a world space location into "first person space". This function mirrors the morphing that is applied to first person primitives
+	 * when they are rendered on the GPU, so it can be used for spawning objects (e.g. projectiles or ejected shell casings) relative to the morphed
+	 * first person geometry on screen.
+	 * @param ViewInfo					FMinimalViewInfo struct holding the first person camera parameters.
+	 * @param WorldPosition				World space position to transform.
+	 * @param bIgnoreFirstPersonScale	Ignores the scaling that is applied to first person primitives which can be useful when spawning full size world space projectiles relative to a first person weapon.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Camera")
+	static ENGINE_API FVector TransformWorldToFirstPerson(const FMinimalViewInfo& ViewInfo, const FVector& WorldPosition, bool bIgnoreFirstPersonScale);
+
+	/**
 	 * Returns the View Matrix, Projection Matrix and the View x Projection Matrix for a given view
 	 * @param DesiredView			FMinimalViewInfo struct for a camera.
 	 * @param ViewMatrix			(out) Corresponding View Matrix

@@ -47,6 +47,9 @@ struct FPackedNaniteView
 
 	int4		HZBTestViewRect;
 
-	float3		Padding1;
+	uint4		FirstPersonTransformRowsExceptRow2Z; // Packed into half floats
+	uint		FirstPersonTransformRow2Z;
 	uint		LightingChannelMask;
+	uint		Padding0;
+	uint		Padding1;
 };

@@ -836,6 +836,7 @@ FSceneView* ULocalPlayer::CalcSceneView( class FSceneViewFamily* ViewFamily,
 	ViewInitOptions.bUseFieldOfViewForLOD = ViewInfo.bUseFieldOfViewForLOD;
 	ViewInitOptions.FOV = ViewInfo.FOV;
 	ViewInitOptions.DesiredFOV = ViewInfo.DesiredFOV;
+	ViewInitOptions.FirstPersonParams = FFirstPersonParameters(ViewInfo.FirstPersonFOV, ViewInfo.FirstPersonScale, ViewInfo.bUseFirstPersonParameters);
 
 	// Fill out the rest of the view init options
 	ViewInitOptions.ViewFamily = ViewFamily;

@@ -793,6 +793,7 @@ public:
 	inline bool Holdout() const { return bHoldout; }
 	inline bool IsSplineMesh() const { return bSplineMesh; }
 	inline bool IsSkinnedMesh() const { return bSkinnedMesh; }
+	inline bool IsFirstPerson() const { return bIsFirstPerson; }
 
 	inline FRHIUniformBuffer* GetUniformBuffer() const
 	{
@@ -1465,6 +1466,9 @@ protected:
 
 	/** If this is True, this primitive is a skinned mesh */
 	uint8 bSkinnedMesh : 1;
+
+	/** If this is True, this primitive is to be rendered as a first person view object */
+	uint8 bIsFirstPerson : 1;
 	
 private:
 

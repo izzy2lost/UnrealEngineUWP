@@ -1283,6 +1283,7 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 	{
 		ViewInitOptions.bUseFieldOfViewForLOD = ControllingActorViewInfo.bUseFieldOfViewForLOD;
 		ViewInitOptions.FOV = ControllingActorViewInfo.FOV;
+		ViewInitOptions.FirstPersonParams = FFirstPersonParameters(ControllingActorViewInfo.FirstPersonFOV, ControllingActorViewInfo.FirstPersonScale, ControllingActorViewInfo.bUseFirstPersonParameters);
 	}
 
 	ViewInitOptions.OverrideFarClippingPlaneDistance = FarPlane;

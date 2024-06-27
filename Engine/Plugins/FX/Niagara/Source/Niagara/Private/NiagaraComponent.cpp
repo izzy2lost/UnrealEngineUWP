@@ -384,7 +384,8 @@ TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustom
 				.HasCapsuleRepresentation(HasDynamicIndirectShadowCasterRepresentation())
 				.UseVolumetricLightmap(bHasPrecomputedVolumetricLightmap)
 				.UseSingleSampleShadowFromStationaryLights(UseSingleSampleShadowFromStationaryLights())
-				.HasPixelAnimation(AnyMaterialHasPixelAnimation());
+				.HasPixelAnimation(AnyMaterialHasPixelAnimation())
+				.IsFirstPersonPrimitive(bIsFirstPerson);
 		if ( InstanceBounds.IsValid )
 		{
 			UBBuilder.InstanceLocalBounds(InstanceBounds);

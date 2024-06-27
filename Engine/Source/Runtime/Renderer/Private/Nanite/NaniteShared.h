@@ -74,8 +74,11 @@ struct FPackedView
 
 	FIntVector4	HZBTestViewRect;	// In full resolution
 
-	FVector3f	Padding1;
-	uint32		LightingChannelMask;
+	FUintVector4	FirstPersonTransformRowsExceptRow2Z; // Packed into half floats
+	uint32			FirstPersonTransformRow2Z;
+	uint32			LightingChannelMask;
+	uint32			Padding0;
+	uint32			Padding1;
 	
 
 	

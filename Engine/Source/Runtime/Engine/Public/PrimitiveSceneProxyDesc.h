@@ -61,6 +61,7 @@ struct FPrimitiveSceneProxyDesc
 		bIsOwnerEditorOnly = false;
 		bIsInstancedStaticMesh = false;
 		bHoldout = false;
+		bIsFirstPerson = false;
 
 		bHasStaticLighting = false;
 		bHasValidSettingsForStaticLighting = false;
@@ -119,6 +120,7 @@ struct FPrimitiveSceneProxyDesc
 	uint32 bHiddenInSceneCapture : 1;
 	uint32 bRayTracingFarField : 1;
 	uint32 bHoldout : 1;
+	uint32 bIsFirstPerson : 1;
 
 	// not mirrored from UPrimitiveComponent
 	uint32 bIsVisible : 1;

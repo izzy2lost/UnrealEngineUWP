@@ -8320,6 +8320,12 @@ void GlobalBeginCompileShader(
 	}
 
 	{
+		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.FirstPersonRendering.Enabled"));
+		const bool bSupportFirstPersonRendering = CVar && CVar->GetInt() > 0;
+		SET_SHADER_DEFINE(Input.Environment, SUPPORT_FIRST_PERSON_RENDERING, bSupportFirstPersonRendering ? 1 : 0);
+	}
+
+	{
 		const bool bTranslucentUsesLightRectLights = GetTranslucentUsesLightRectLights();
 		SET_SHADER_DEFINE(Input.Environment, SUPPORT_RECTLIGHT_ON_FORWARD_LIT_TRANSLUCENT, bTranslucentUsesLightRectLights ? 1 : 0);
 	}

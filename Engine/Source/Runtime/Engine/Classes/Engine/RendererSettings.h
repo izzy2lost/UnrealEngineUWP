@@ -1147,6 +1147,15 @@ class URendererSettings : public UDeveloperSettings
 		uint32 bSupportCloudShadowOnSingleLayerWater : 1;
 
 	/**
+	"Compiles shaders with support for rendering first person primitives with a different depth scale and field of view."
+	*/
+	UPROPERTY(config, EditAnywhere, Category = ShaderPermutationReduction, meta = (
+		ConsoleVariable = "r.FirstPersonRendering.Enabled", DisplayName = "Support First Person Rendering",
+		ToolTip = "Compiles shaders with support for rendering first person primitives with a different depth scale and field of view.",
+		ConfigRestartRequired = true))
+		uint32 bSupportFirstPersonRendering : 1;
+
+	/**
 	"Enable Substrate materials (Beta)."
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Substrate, meta = (

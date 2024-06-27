@@ -306,6 +306,7 @@ void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InCompo
 	bRayTracingFarField = InComponent->bRayTracingFarField;
 	bHoldout = InComponent->bHoldout;
 	bWantsEditorEffects = InComponent->bWantsEditorEffects;
+	bIsFirstPerson = InComponent->bIsFirstPerson;
 	
 	bIsVisible = InComponent->IsVisible();
 	bIsVisibleEditor = InComponent->GetVisibleFlag();
@@ -490,6 +491,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,   bHoldout(InProxyDesc.bHoldout)
 ,	bSplineMesh(false)
 ,	bSkinnedMesh(false)
+,	bIsFirstPerson(InProxyDesc.bIsFirstPerson)
 ,	bUseAsOccluder(InProxyDesc.bUseAsOccluder)
 ,	bSelectable(InProxyDesc.bSelectable)
 ,	bHasPerInstanceHitProxies(InProxyDesc.bHasPerInstanceHitProxies)
@@ -844,7 +846,8 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.HasPixelAnimation(AnyMaterialHasPixelAnimation())
 			.RayTracingFarField(IsRayTracingFarField())
 			.RayTracingHasGroupId(GetRayTracingGroupId() != FPrimitiveSceneProxy::InvalidRayTracingGroupId)
-			.MeshPaintTextureDescriptor(GetMeshPaintTextureDescriptor());
+			.MeshPaintTextureDescriptor(GetMeshPaintTextureDescriptor())
+			.IsFirstPersonPrimitive(bIsFirstPerson);
 
 	if (PrimitiveSceneInfo != nullptr)
 	{

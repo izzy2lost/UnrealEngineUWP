@@ -3330,6 +3330,11 @@ bool UGameplayStatics::ProjectWorldToScreen(APlayerController const* Player, con
 	return false;
 }
 
+FVector UGameplayStatics::TransformWorldToFirstPerson(const FMinimalViewInfo& ViewInfo, const FVector& WorldPosition, bool bIgnoreFirstPersonScale)
+{
+	return ViewInfo.TransformWorldToFirstPerson(WorldPosition, bIgnoreFirstPersonScale);
+}
+
 void UGameplayStatics::CalculateViewProjectionMatricesFromViewTarget(AActor* InViewTarget, FMatrix& OutViewMatrix, FMatrix& OutProjectionMatrix, FMatrix& OutViewProjectionMatrix)
 {
 	if (InViewTarget)

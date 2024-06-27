@@ -136,6 +136,8 @@ struct FNaniteView
 	float4x4	PrevViewToClip;
 	FDFMatrix	PrevClipToWorld;
 
+	float3x3	FirstPersonTransform;
+
 	float4		TranslatedGlobalClipPlane;
 
 	int4		ViewRect;
@@ -761,6 +763,10 @@ FNaniteView UnpackNaniteView(FPackedNaniteView PackedView)
 	NaniteView.InstanceOcclusionQueryMask	= PackedView.InstanceOcclusionQueryMask;
 	NaniteView.bUseLightingChannelMask		= (PackedView.LightingChannelMask & 0b1000) > 0;
 	NaniteView.LightingChannelMask			= (PackedView.LightingChannelMask & 0b0111);
+	NaniteView.FirstPersonTransform			= float3x3(
+		f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.x       ), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.x >> 16u), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.y       ),
+		f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.y >> 16u), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.z       ), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.z >> 16u),
+		f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.w       ), f16tof32(PackedView.FirstPersonTransformRowsExceptRow2Z.w >> 16u), f16tof32(PackedView.FirstPersonTransformRow2Z));
 
 	return NaniteView;
 }
@@ -817,6 +823,8 @@ FNaniteView GetNaniteView( uint ViewIndex )
 	
 	//This path isn't used for the shadow passes but initializing to same value as in GetDefaultLightingChannelMask() for consistency
 	NaniteView.LightingChannelMask	= 0x1;
+
+	NaniteView.FirstPersonTransform			= (float3x3)LocalView.FirstPersonTransform;
 
 
 #else // !NANITE_USE_VIEW_UNIFORM_BUFFER

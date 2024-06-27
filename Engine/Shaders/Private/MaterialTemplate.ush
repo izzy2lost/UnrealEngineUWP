@@ -3660,12 +3660,21 @@ SHADER_POP_WARNINGS_STATE
 
 float3 GetMaterialWorldPositionOffset(FMaterialVertexParameters Parameters)
 {
+	float3 WPO = float3(0, 0, 0);
 	BRANCH
 	if (ShouldEnableWorldPositionOffset(Parameters))
 	{
-		return ClampWorldPositionOffset(Parameters, GetMaterialWorldPositionOffsetRaw(Parameters));
+		WPO = ClampWorldPositionOffset(Parameters, GetMaterialWorldPositionOffsetRaw(Parameters));
 	}
-	return float3(0, 0, 0);
+#if SUPPORT_FIRST_PERSON_RENDERING
+	BRANCH
+	if ((GetPrimitiveData(Parameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_IS_FIRST_PERSON_PRIMITIVE) != 0)
+	{
+		const float3 FirstPersonPosition = mul(Parameters.WorldPosition + WPO, (float3x3)ResolvedView.FirstPersonTransform);
+		WPO = FirstPersonPosition - Parameters.WorldPosition;
+	}
+#endif // SUPPORT_FIRST_PERSON_RENDERING
+	return WPO;
 }
 
 float3 GetMaterialPreviousWorldPositionOffsetRaw(FMaterialVertexParameters Parameters)
@@ -3678,12 +3687,21 @@ SHADER_POP_WARNINGS_STATE
 
 float3 GetMaterialPreviousWorldPositionOffset(FMaterialVertexParameters Parameters)
 {
+	float3 WPO = float3(0, 0, 0);
 	BRANCH
 	if (ShouldEnableWorldPositionOffset(Parameters))
 	{
-		return ClampWorldPositionOffset(Parameters, GetMaterialPreviousWorldPositionOffsetRaw(Parameters));
+		WPO = ClampWorldPositionOffset(Parameters, GetMaterialPreviousWorldPositionOffsetRaw(Parameters));
 	}
-	return float3(0, 0, 0);
+#if SUPPORT_FIRST_PERSON_RENDERING
+	BRANCH
+	if ((GetPrimitiveData(Parameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_IS_FIRST_PERSON_PRIMITIVE) != 0)
+	{
+		const float3 FirstPersonPosition = mul(Parameters.WorldPosition + WPO, (float3x3)ResolvedView.PrevFirstPersonTransform);
+		WPO = FirstPersonPosition - Parameters.WorldPosition;
+	}
+#endif // SUPPORT_FIRST_PERSON_RENDERING
+	return WPO;
 }
 
 // .rgb:SubsurfaceColor, .a:SSProfileId in 0..1 range

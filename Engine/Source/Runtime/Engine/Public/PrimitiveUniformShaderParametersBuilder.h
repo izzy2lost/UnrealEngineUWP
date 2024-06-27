@@ -65,6 +65,7 @@ public:
 		bRayTracingFarField							= false;
 		bRayTracingHasGroupId						= false;
 		bHasPerClusterDisplacementFallbackRaster	= false;
+		bIsFirstPersonPrimitive						= false;
 
 		Parameters.MaxWPOExtent						= 0.0f;
 		Parameters.MinMaterialDisplacement			= 0.0f;
@@ -138,6 +139,7 @@ public:
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			RayTracingFarField);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			RayTracingHasGroupId);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			HasPerClusterDisplacementFallbackRaster);
+	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			IsFirstPersonPrimitive);
 
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			InstanceSceneDataOffset);
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			NumInstanceSceneDataEntries);
@@ -437,6 +439,7 @@ public:
 		Parameters.Flags |= bRayTracingFarField ? PRIMITIVE_SCENE_DATA_FLAG_RAYTRACING_FAR_FIELD : 0u;
 		Parameters.Flags |= bRayTracingHasGroupId ? PRIMITIVE_SCENE_DATA_FLAG_RAYTRACING_HAS_GROUPID : 0u;
 		Parameters.Flags |= bHasPerClusterDisplacementFallbackRaster ? PRIMITIVE_SCENE_DATA_FLAG_PER_CLUSTER_DISPLACEMENT_FALLBACK_RASTER : 0u;
+		Parameters.Flags |= bIsFirstPersonPrimitive ? PRIMITIVE_SCENE_DATA_FLAG_IS_FIRST_PERSON_PRIMITIVE : 0u;
 		
 		Parameters.VisibilityFlags = 0;
 		Parameters.VisibilityFlags |= bCastHiddenShadow ? PRIMITIVE_VISIBILITY_FLAG_CAST_HIDDEN_SHADOW : 0u;
@@ -505,4 +508,5 @@ private:
 	uint32 bRayTracingFarField : 1;
 	uint32 bRayTracingHasGroupId : 1;
 	uint32 bHasPerClusterDisplacementFallbackRaster : 1;
+	uint32 bIsFirstPersonPrimitive : 1;
 };

@@ -73,6 +73,8 @@ UCameraComponent::UCameraComponent(const FObjectInitializer& ObjectInitializer)
 #endif
 
 	FieldOfView = 90.0f;
+	FirstPersonFieldOfView = 90.0f;
+	FirstPersonScale = 1.0f;
 	AspectRatio = 1.777778f;
 	OrthoWidth = DEFAULT_ORTHOWIDTH;
 	bAutoCalculateOrthoPlanes = true;
@@ -88,6 +90,8 @@ UCameraComponent::UCameraComponent(const FObjectInitializer& ObjectInitializer)
 	bUsePawnControlRotation = false;
 	bAutoActivate = true;
 	bLockToHmd = true;
+	bEnableFirstPersonFieldOfView = false;
+	bEnableFirstPersonScale = false;
 
 #if WITH_EDITORONLY_DATA
 	bTickInEditor = true;
@@ -454,6 +458,9 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 	DesiredView.AutoPlaneShift = AutoPlaneShift;
 	DesiredView.bUpdateOrthoPlanes = bUpdateOrthoPlanes;
 	DesiredView.bUseCameraHeightAsViewTarget = bUseCameraHeightAsViewTarget;
+	DesiredView.FirstPersonFOV = bEnableFirstPersonFieldOfView ? FirstPersonFieldOfView : DesiredView.FOV;
+	DesiredView.FirstPersonScale = bEnableFirstPersonScale ? FirstPersonScale : 1.0f;
+	DesiredView.bUseFirstPersonParameters = bEnableFirstPersonFieldOfView || bEnableFirstPersonScale;
 	
 	if (bAutoCalculateOrthoPlanes)
 	{

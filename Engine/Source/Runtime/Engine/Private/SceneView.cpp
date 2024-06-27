@@ -388,6 +388,12 @@ static TAutoConsoleVariable<float> CVarOverrideTimeMaterialExpressions(
 
 #endif
 
+static TAutoConsoleVariable<int32> CVarFirstPersonRenderingSupported(
+	TEXT("r.FirstPersonRendering.Enabled"),
+	0,
+	TEXT("Compiles shaders with support for rendering first person primitives with a different depth scale and field of view."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_GeneralShaderChange);
+
 /** Global vertex color view mode setting when SHOW_VertexColors show flag is set */
 EVertexColorViewMode::Type GVertexColorViewMode = EVertexColorViewMode::Color;
 TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture = nullptr;
@@ -734,6 +740,19 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 		Initializer.ConstrainedViewRect.Size().X * 0.5f * ProjectionScale.X,
 		Initializer.ConstrainedViewRect.Size().Y * 0.5f * ProjectionScale.Y
 	);
+
+	if (Initializer.FirstPersonParams.bUseParameters)
+	{
+		// The projection matrix uses 1/tan(HalfFOV) on the X and Y components in view space, so in order to cancel out the existing FOV and achieve a different first person FOV, we do
+		//		(1 / tan(HalfFirstPersonFOV)) / (1 / tan(HalfFOV)) 
+		// which is equivalent to
+		//		tan(HalfFOV) / tan(HalfFirstPersonFOV)
+		// This correction factor should be independent of the actual aspect ratio used on the original projection matrix. As the FOV correction needs to be done in view space, we can conveniently
+		// also use this opportunity to scale down the first person geometry towards the camera. The geometry takes up the same solid angle from the perspective of the camera and therefore appears the
+		// same size while taking up a smaller range in the depth buffer, reducing the likelyhood of intersections with the scene.
+		const float FOVCorrectionFactor = GetTanHalfFov().X / FMath::Tan(FMath::DegreesToRadians(Initializer.FirstPersonParams.FOV) * 0.5f);
+		FirstPersonTransform = TranslatedViewMatrix * FScaleMatrix(FVector(FOVCorrectionFactor, FOVCorrectionFactor, 1.0f) * Initializer.FirstPersonParams.Scale) * InvTranslatedViewMatrix;
+	}
 }
 
 FViewMatrices::FViewMatrices(const FSceneViewInitOptions& InitOptions) : FViewMatrices()
@@ -746,6 +765,7 @@ FViewMatrices::FViewMatrices(const FSceneViewInitOptions& InitOptions) : FViewMa
 	Initializer.CameraToViewTarget	 = InitOptions.CameraToViewTarget;
 	Initializer.ConstrainedViewRect  = InitOptions.GetConstrainedViewRect();
 	Initializer.StereoPass           = InitOptions.StereoPass;
+	Initializer.FirstPersonParams    = InitOptions.FirstPersonParams;
 
 	Init(Initializer);
 }
@@ -2701,6 +2721,9 @@ void FSceneView::SetupCommonViewUniformBufferParameters(
 
 		ViewUniformShaderParameters.ClipToPrevClipWithAA = FMatrix44f(InvViewProj * PrevViewProj);		// LWC_TODO: Precision loss?
 	}
+
+	ViewUniformShaderParameters.FirstPersonTransform = FMatrix44f(InViewMatrices.GetFirstPersonTransform());
+	ViewUniformShaderParameters.PrevFirstPersonTransform = FMatrix44f(InPrevViewMatrices.GetFirstPersonTransform());
 
 	// LWC_TODO: precision loss? These values are probably quite small and easily within float range.
 	ViewUniformShaderParameters.TemporalAAJitter = FVector4f(

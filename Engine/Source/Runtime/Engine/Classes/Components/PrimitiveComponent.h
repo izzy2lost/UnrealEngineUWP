@@ -648,6 +648,10 @@ public:
 	UPROPERTY()
 	uint8 bRayTracingFarField : 1;
 
+	/** If this is true, the camera FirstPersonFieldOfView and FirstPersonScale parameters will be used on this component. These parameters can be used to render the component with a different field of view and a smaller depth range such that clipping with the scene can be avoided. This is useful for rendering first person view geometry. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Rendering)
+	uint8 bIsFirstPerson : 1;
+
 protected:
 	/** Result of last call to AreAllCollideableDescendantsRelative(). */
 	uint8 bCachedAllCollideableDescendantsRelative : 1;
@@ -1953,6 +1957,10 @@ public:
 	/** Sets bHideInSceneCapture property and marks the render state dirty. */
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetHiddenInSceneCapture(bool bValue);
+
+	/** Sets bIsFirstPerson property and marks the render state dirty. */
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetIsFirstPerson(bool bValue);
 
 	/**
 	 * Count of all component overlap events (begin or end) ever generated for any components.

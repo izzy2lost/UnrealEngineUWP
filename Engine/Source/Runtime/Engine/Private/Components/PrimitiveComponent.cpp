@@ -407,6 +407,8 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	bIgnoreBoundsForEditorFocus = false;
 	bVisibleInSceneCaptureOnly = false;
 	bHiddenInSceneCapture = false;
+
+	bIsFirstPerson = false;
 }
 
 bool UPrimitiveComponent::UsesOnlyUnlitMaterials() const
@@ -1185,6 +1187,12 @@ void UPrimitiveComponent::PostEditChangeProperty(FPropertyChangedEvent& Property
 		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPrimitiveComponent, bLightAttachmentsAsGroup))
 		{
 			MarkChildPrimitiveComponentRenderStateDirty();
+		}
+
+		// bIsFirstPerson can be toggled at runtime and needs to propagate to the scene proxy.
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPrimitiveComponent, bIsFirstPerson))
+		{
+			MarkRenderStateDirty();
 		}
 	}
 
@@ -4565,6 +4573,15 @@ void UPrimitiveComponent::SetHiddenInSceneCapture(bool bValue)
 	if (bHiddenInSceneCapture != bValue)
 	{
 		bHiddenInSceneCapture = bValue;
+		MarkRenderStateDirty();
+	}
+}
+
+void UPrimitiveComponent::SetIsFirstPerson(bool bValue)
+{
+	if (bIsFirstPerson != bValue)
+	{
+		bIsFirstPerson = bValue;
 		MarkRenderStateDirty();
 	}
 }

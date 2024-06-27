@@ -53,6 +53,14 @@ struct FMinimalViewInfo
 	UPROPERTY(Transient)
 	float DesiredFOV;
 
+	/** The horizontal field of view (in degrees) used for primitives tagged as "IsFirstPerson". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	float FirstPersonFOV;
+
+	/** The scale to apply to primitives tagged as "IsFirstPerson". This is used to scale down primitives towards the camera such that they are small enough not to intersect with the scene. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	float FirstPersonScale;
+
 	/** The desired width (in world units) of the orthographic view (ignored in Perspective mode) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
 	float OrthoWidth;
@@ -96,6 +104,10 @@ struct FMinimalViewInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
 	uint32 bConstrainAspectRatio:1; 
 
+	// If bUseFirstPersonParameters is true, FirstPersonFOV and FirstPersonScale should be applied to primitives tagged as "IsFirstPerson".
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
+	uint32 bUseFirstPersonParameters : 1;
+
 	// If true, account for the field of view angle when computing which level of detail to use for meshes.
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=CameraSettings)
 	uint32 bUseFieldOfViewForLOD:1;
@@ -130,6 +142,8 @@ public:
 		, Rotation(ForceInit)
 		, FOV(90.0f)
 		, DesiredFOV(90.0f)
+		, FirstPersonFOV(90.0f)
+		, FirstPersonScale(1.0f)
 		, OrthoWidth(512.0f)
 		, bAutoCalculateOrthoPlanes(true)
 		, AutoPlaneShift(0.0f)
@@ -140,6 +154,7 @@ public:
 		, PerspectiveNearClipPlane(-1.0f)
 		, AspectRatio(1.33333333f)
 		, bConstrainAspectRatio(false)
+		, bUseFirstPersonParameters(false)
 		, bUseFieldOfViewForLOD(true)
 		, ProjectionMode(ECameraProjectionMode::Perspective)
 		, PostProcessBlendWeight(0.0f)
@@ -183,4 +198,14 @@ public:
 	{
 		CameraToViewTarget = ActorLocation - Location;
 	}
+
+	/**
+	 * Transforms a world space location into "first person space". This function mirrors the morphing that is applied to first person primitives
+	 * when they are rendered on the GPU, so it can be used for spawning objects (e.g. projectiles or ejected shell casings) relative to the morphed
+	 * first person geometry on screen.
+	 * Setting bIgnoreFirstPersonScale to true only applies the field of view morphing and is useful for cases where a full size projectile is spawned in front
+	 * of the first person weapon. By ignoring the first person scale for the spawn location, the spawned full-size projectile will be spawned a bit further away from the camera,
+	 * but its on-screen size will look correct.
+	 */
+	ENGINE_API FVector TransformWorldToFirstPerson(const FVector& WorldPosition, bool bIgnoreFirstPersonScale) const;
 };

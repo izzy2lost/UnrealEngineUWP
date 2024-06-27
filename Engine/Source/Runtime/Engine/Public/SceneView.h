@@ -154,6 +154,21 @@ enum class ESecondaryScreenPercentageMethod
 	// TODO: Same config as primary upscale?
 };
 
+struct FFirstPersonParameters
+{
+	/** The horizontal field of view (in degrees) used for primitives tagged as "IsFirstPerson". */
+	float FOV = 90.0f;
+
+	/** The scale to apply to primitives tagged as "IsFirstPerson". This is used to scale down primitives towards the camera such that they are small enough not to intersect with the scene. */
+	float Scale = 1.0f;
+
+	/** If bUseParameters is true, FOV and Scale should be applied to primitives tagged as "IsFirstPerson". */
+	bool bUseParameters = false;
+
+	FFirstPersonParameters() = default;
+	FFirstPersonParameters(float InFOV, float InScale, bool bInUseParameters) : FOV(InFOV), Scale(InScale), bUseParameters(bInUseParameters) {}
+};
+
 // Construction parameters for a FSceneView
 struct FSceneViewInitOptions : public FSceneViewProjectionData
 {
@@ -206,6 +221,9 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 	float FOV;
 	float DesiredFOV;
 
+	/** Parameters controlling the rendering (FOV and scale) of first person primitives. */
+	FFirstPersonParameters FirstPersonParams;
+
 	/** Whether this view is being used to render a scene capture. */
 	bool bIsSceneCapture;
 
@@ -254,6 +272,7 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 		, bUseFieldOfViewForLOD(true)
 		, FOV(90.f)
 		, DesiredFOV(90.f)
+		, FirstPersonParams()
 		, bIsSceneCapture(false)
 		, bIsSceneCaptureCube(false)
 		, bSceneCaptureUsesRayTracing(false)
@@ -282,6 +301,7 @@ struct FViewMatrices
 		FIntRect ConstrainedViewRect = FIntRect(0, 0, 0, 0);
 		FVector CameraToViewTarget = FVector::ZeroVector;
 		EStereoscopicPass StereoPass = EStereoscopicPass::eSSP_FULL;
+		FFirstPersonParameters FirstPersonParams = {};
 	};
 
 	FViewMatrices()
@@ -301,6 +321,7 @@ struct FViewMatrices
 		TranslatedViewProjectionMatrix.SetIdentity();
 		InvTranslatedViewProjectionMatrix.SetIdentity();
 		ScreenToClipMatrix.SetIdentity();
+		FirstPersonTransform.SetIdentity();
 		PreViewTranslation = FVector::ZeroVector;
 		ViewOrigin = FVector::ZeroVector;
 		CameraToViewTarget = FVector::ZeroVector;
@@ -346,6 +367,8 @@ private:
 	FMatrix		InvTranslatedViewProjectionMatrix;
 	/** The screen to clip matrix (defined depending on whether this is a perspective or ortho projection view)*/
 	FMatrix		ScreenToClipMatrix;
+	/** Scale and shear to avoid first person primitives to clip with the scene and to achieve a first person specific FOV. */
+	FMatrix		FirstPersonTransform;
 	/** The translation to apply to the world before TranslatedViewProjectionMatrix. Usually it is -ViewOrigin but with rereflections this can differ */
 	FVector		PreViewTranslation;
 	/** The camera/viewport location in world space */
@@ -455,6 +478,11 @@ public:
 	inline const FMatrix& GetScreenToClipMatrix() const
 	{
 		return ScreenToClipMatrix;
+	}
+
+	inline const FMatrix& GetFirstPersonTransform() const
+	{
+		return FirstPersonTransform;
 	}
 
 	inline const FVector& GetPreViewTranslation() const
@@ -774,6 +802,8 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FMatrix44f, ScreenToTranslatedWorld) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FMatrix44f, MobileMultiviewShadowTransform) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FMatrix44f, MobileMultiviewDecalTransform) \
+	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FMatrix44f, FirstPersonTransform) \
+	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FMatrix44f, PrevFirstPersonTransform) \
 	VIEW_UNIFORM_BUFFER_MEMBER(FVector3f, ViewOriginHigh) \
 	VIEW_UNIFORM_BUFFER_MEMBER_EX(FVector3f, ViewForward, EShaderPrecisionModifier::Half) \
 	VIEW_UNIFORM_BUFFER_MEMBER_EX(FVector3f, ViewUp, EShaderPrecisionModifier::Half) \
