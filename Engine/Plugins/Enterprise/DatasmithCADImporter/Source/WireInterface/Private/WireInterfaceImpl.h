@@ -54,16 +54,16 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 	private:
 		/** Model traversal */
 		bool TraverseModel();
-		TSharedPtr<IDatasmithActorElement> TraverseDag(const TAlDagNodePtr<AlDagNode>& DagNode);
+		TSharedPtr<IDatasmithActorElement> TraverseDag(const FAlDagNodePtr& DagNode);
 
-		TSharedPtr<IDatasmithActorElement> ProcessGeometryNode(const TAlDagNodePtr<AlDagNode>& GeomNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
-		TSharedPtr<IDatasmithActorElement> TraverseGroupNode(const TAlDagNodePtr<AlGroupNode>& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
-		TSharedPtr<IDatasmithActorElement> ProcessGroupNode(const TAlDagNodePtr<AlGroupNode>& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
-		TSharedPtr<IDatasmithActorElement> ProcessBodyNode(TSharedPtr<FBodyNode>& BodyNode, const TAlDagNodePtr<AlGroupNode>& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
-		TSharedPtr<IDatasmithActorElement> ProcessPatchMesh(TSharedPtr<FPatchMesh>& PatchMesh, const TAlDagNodePtr<AlGroupNode>& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> ProcessGeometryNode(const FAlDagNodePtr& GeomNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> TraverseGroupNode(const FAlDagNodePtr& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> ProcessGroupNode(const FAlDagNodePtr& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> ProcessBodyNode(TSharedPtr<FBodyNode>& BodyNode, const FAlDagNodePtr& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
+		TSharedPtr<IDatasmithActorElement> ProcessPatchMesh(TSharedPtr<FPatchMesh>& PatchMesh, const FAlDagNodePtr& GroupNode, const TAlObjectPtr<AlLayer>& ParentLayer = TAlObjectPtr<AlLayer>());
 
 		TSharedPtr<IDatasmithActorElement> FindOrAddLayerActor(const TAlObjectPtr<AlLayer>& Layer);
-		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(const TAlDagNodePtr<AlDagNode>& GeomNode);
+		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(const FAlDagNodePtr& GeomNode);
 		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(TSharedPtr<FBodyNode>& BodyNode);
 		TSharedPtr<IDatasmithMeshElement> FindOrAddMeshElement(TSharedPtr<FPatchMesh>& PatchMesh);
 
@@ -88,13 +88,34 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		TSharedPtr<CADLibrary::ICADModelConverter> GetModelConverter() const;
 		TOptional<FMeshDescription> GetMeshDescriptionFromBodyNode(TSharedPtr<FBodyNode>& BodyNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
 		TOptional<FMeshDescription> GetMeshDescriptionFromPatchMesh(TSharedPtr<FPatchMesh>& PatchMesh, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-		TOptional<FMeshDescription> GetMeshDescriptionFromParametricNode(const TAlDagNodePtr<AlDagNode>& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
-		TOptional<FMeshDescription> GetMeshDescriptionFromMeshNode(const TAlDagNodePtr<AlMeshNode>& MeshNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
+		TOptional<FMeshDescription> GetMeshDescriptionFromParametricNode(const FAlDagNodePtr& DagNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
+		TOptional<FMeshDescription> GetMeshDescriptionFromMeshNode(const FAlDagNodePtr& MeshNode, TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& MeshParameters);
 
+		FAlDagNodePtr FindOrAddDagNode(AlDagNode* InDagNode)
+		{
+			if (!InDagNode)
+			{
+				return FAlDagNodePtr();
+			}
+
+			if (FAlDagNodePtr* DagNodePtr = EncounteredNodes.Find(InDagNode))
+			{
+#if WIRE_MEMORY_CHECK
+				ensure(false);
+#endif
+				return *DagNodePtr;
+			}
+
+			FAlDagNodePtr& NewDagNode = EncounteredNodes.Add(InDagNode);
+			NewDagNode = InDagNode;
+
+			return NewDagNode;
+		}
 	private:
 		TSharedPtr<IDatasmithScene> DatasmithScene;
 		FString OutputPath;
 		FString SceneFullPath;
+		FString SceneVersion;
 
 		FWireSettings WireSettings;
 
@@ -105,14 +126,16 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		TMap<FString, TSharedPtr<IDatasmithBaseMaterialElement>> ShaderNameToMaterial;
 
 		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> GeomNodeToMeshElement;
-		TMap<TSharedPtr<IDatasmithMeshElement>, AlDagNode*> MeshElementToParametricNode;
-		TMap<TSharedPtr<IDatasmithMeshElement>, AlMeshNode*> MeshElementToMeshNode;
+		TMap<TSharedPtr<IDatasmithMeshElement>, FAlDagNodePtr> MeshElementToParametricNode;
+		TMap<TSharedPtr<IDatasmithMeshElement>, FAlDagNodePtr> MeshElementToMeshNode;
 
 		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> BodyNodeToMeshElement;
 		TMap<TSharedPtr<IDatasmithMeshElement>, TSharedPtr<FBodyNode>> MeshElementToBodyNode;
 
 		TMap<uint32, TSharedPtr<IDatasmithMeshElement>> PatchMeshToMeshElement;
 		TMap<TSharedPtr<IDatasmithMeshElement>, TSharedPtr<FPatchMesh>> MeshElementToPatchMesh;
+
+		TMap<AlDagNode*, FAlDagNodePtr> EncounteredNodes;
 
 		TMap<uint32, TSharedPtr<IDatasmithActorElement>> LayerToActor;
 	};

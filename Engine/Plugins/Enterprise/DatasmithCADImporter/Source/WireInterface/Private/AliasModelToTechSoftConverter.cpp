@@ -36,6 +36,8 @@
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
+#define LOCTEXT_NAMESPACE "WireInterface"
+
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
 
@@ -263,13 +265,18 @@ A3DTopoLoop* FAliasModelToTechSoftConverter::CreateTopoLoop(const AlTrimBoundary
 	TArray<A3DTopoCoEdge*> Edges;
 	Edges.Reserve(20);
 
-	for (TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve()); TrimCurve.IsValid(); TrimCurve = TAlObjectPtr<AlTrimCurve>(TrimCurve->nextCurve()))
+	TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve());
+	statusCode Status = TrimCurve ? sSuccess : sObjectNotFound;
+
+	while(Status == sSuccess)
 	{
 		A3DTopoCoEdge* Edge = CreateEdge(*TrimCurve);
 		if (Edge != nullptr)
 		{
 			Edges.Add(Edge);
 		}
+
+		Status = TrimCurve->nextCurveD();
 	}
 
 	if (Edges.Num() == 0)
@@ -288,27 +295,25 @@ A3DTopoLoop* FAliasModelToTechSoftConverter::CreateTopoLoop(const AlTrimBoundary
 
 void FAliasModelToTechSoftConverter::LinkEdgesLoop(const AlTrimBoundary& TrimBoundary)
 {
-	for (TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve()); TrimCurve.IsValid(); TrimCurve = TAlObjectPtr<AlTrimCurve>(TrimCurve->nextCurve()))
-	{
-		A3DTopoCoEdge** Edge = AlEdgeToTSCoEdge.Find(TrimCurve->fSpline);
-		if (Edge == nullptr)
-		{
-			continue;
-		}
+	TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve());
+	statusCode Status = TrimCurve ? sSuccess : sObjectNotFound;
 
-		// Link edges
-		TAlObjectPtr<AlTrimCurve> TwinCurve(TrimCurve->getTwinCurve());
-		if (TwinCurve.IsValid())
+	while (Status == sSuccess)
+	{
+		if (A3DTopoCoEdge** Edge = AlEdgeToTSCoEdge.Find(TrimCurve->fSpline))
 		{
-			if (A3DTopoCoEdge** TwinEdge = AlEdgeToTSCoEdge.Find(TwinCurve->fSpline))
+			TAlObjectPtr<AlTrimCurve> TwinCurve(TrimCurve->getTwinCurve());
+			if (TwinCurve.IsValid())
 			{
-				if (TwinEdge != nullptr)
+				if (A3DTopoCoEdge** TwinEdge = AlEdgeToTSCoEdge.Find(TwinCurve->fSpline))
 				{
 					CADLibrary::TechSoftInterface::LinkCoEdges(*Edge, *TwinEdge);
 					break;
 				}
 			}
 		}
+
+		Status = TrimCurve->nextCurveD();
 	}
 }
 
@@ -323,7 +328,10 @@ A3DTopoFace* FAliasModelToTechSoftConverter::AddTrimRegion(const AlTrimRegion& I
 	TArray<A3DTopoLoop*> Loops;
 	Loops.Reserve(5);
 
-	for (TAlObjectPtr<AlTrimBoundary> TrimBoundary(InTrimRegion.firstBoundary()); TrimBoundary.IsValid(); TrimBoundary = TAlObjectPtr<AlTrimBoundary>(TrimBoundary->nextBoundary()))
+	TAlObjectPtr<AlTrimBoundary> TrimBoundary(InTrimRegion.firstBoundary());
+	statusCode Status = TrimBoundary ? sSuccess : sObjectNotFound;
+
+	while(Status == sSuccess)
 	{
 		A3DTopoLoop* Loop = CreateTopoLoop(*TrimBoundary);
 		if (Loop != nullptr)
@@ -331,6 +339,8 @@ A3DTopoFace* FAliasModelToTechSoftConverter::AddTrimRegion(const AlTrimRegion& I
 			Loops.Add(Loop);
 			LinkEdgesLoop(*TrimBoundary);
 		}
+
+		TrimBoundary->nextBoundaryD();
 	}
 
 	if (Loops.Num() == 0)
@@ -354,14 +364,14 @@ A3DTopoFace* FAliasModelToTechSoftConverter::AddTrimRegion(const AlTrimRegion& I
 }
 #endif
 
-bool FAliasModelToTechSoftConverter::AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference InObjectReference)
+bool FAliasModelToTechSoftConverter::AddBRep(const FAlDagNodePtr& DagNode, uint32 SlotID, EAliasObjectReference InObjectReference)
 {
 	FColor Color(SlotID);
 
 	return AddBRep(DagNode, Color, InObjectReference);
 }
 
-bool FAliasModelToTechSoftConverter::AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference InObjectReference)
+bool FAliasModelToTechSoftConverter::AddBRep(const FAlDagNodePtr& DagNode, const FColor& Color, EAliasObjectReference InObjectReference)
 {
 #ifdef USE_TECHSOFT_SDK
 	AlEdgeToTSCoEdge.Empty();
@@ -369,62 +379,55 @@ bool FAliasModelToTechSoftConverter::AddBRep(AlDagNode& DagNode, const FColor& C
 	AlMatrix4x4 AlMatrix;
 	if (InObjectReference == EAliasObjectReference::ParentReference)
 	{
-		DagNode.localTransformationMatrix(AlMatrix);
+		DagNode->localTransformationMatrix(AlMatrix);
 	}
 
 	boolean bAlOrientation;
-	DagNode.getSurfaceOrientation(bAlOrientation);
+	DagNode->getSurfaceOrientation(bAlOrientation);
 	bool bOrientation = !(bool)bAlOrientation;
 
 	TArray<A3DTopoFace*> TSFaces;
 	TSFaces.Reserve(100);
 
-	AlObjectType objectType = DagNode.type();
-	switch (objectType)
+	TAlObjectPtr<AlShell> Shell;
+	if (DagNode.GetShell(Shell))
 	{
-
-	case kShellNodeType:
-	{
-		if (AlShellNode* ShellNode = DagNode.asShellNodePtr())
+		TAlObjectPtr<AlTrimRegion> TrimRegion(Shell->firstTrimRegion());
+		statusCode Status = TrimRegion ? sSuccess : sObjectNotFound;
+		while(Status == sSuccess)
 		{
-			TAlObjectPtr<AlShell> AliasShell(ShellNode->shell());
-			if(AlIsValid(AliasShell.Get()))
+			A3DTopoFace* TSFace = AddTrimRegion(*TrimRegion, Color, InObjectReference, AlMatrix);
+			if (TSFace != nullptr)
 			{
-				for (TAlObjectPtr<AlTrimRegion> TrimRegion(AliasShell->firstTrimRegion()); TrimRegion.IsValid(); TrimRegion = TAlObjectPtr<AlTrimRegion>(TrimRegion->nextRegion()))
+				TSFaces.Add(TSFace);
+			}
+
+			Status = TrimRegion->nextRegionD();
+		}
+	}
+	else
+	{
+		TAlObjectPtr<AlSurface> Surface;
+		if (DagNode.GetSurface(Surface))
+		{
+			TAlObjectPtr<AlTrimRegion> TrimRegion(Surface->firstTrimRegion());
+			statusCode Status = TrimRegion ? sSuccess : sObjectNotFound;
+			if (Status == sSuccess)
+			{
+				while (Status == sSuccess)
 				{
 					A3DTopoFace* TSFace = AddTrimRegion(*TrimRegion, Color, InObjectReference, AlMatrix);
 					if (TSFace != nullptr)
 					{
 						TSFaces.Add(TSFace);
 					}
+
+					Status = TrimRegion->nextRegionD();
 				}
 			}
-		}
-		break;
-	}
-
-	case kSurfaceNodeType:
-	{
-		if (AlSurfaceNode* SurfaceNode = DagNode.asSurfaceNodePtr())
-		{
-			TAlObjectPtr<AlSurface> AliasSurface(SurfaceNode->surface());
-			if (AlIsValid(AliasSurface.Get()))
+			else
 			{
-				TAlObjectPtr<AlTrimRegion> TrimRegion(AliasSurface->firstTrimRegion());
-				if (TrimRegion.IsValid())
-				{
-					for (; TrimRegion.IsValid(); TrimRegion = TAlObjectPtr<AlTrimRegion>(TrimRegion->nextRegion()))
-					{
-						A3DTopoFace* TSFace = AddTrimRegion(*TrimRegion, Color, InObjectReference, AlMatrix);
-						if (TSFace != nullptr)
-						{
-							TSFaces.Add(TSFace);
-						}
-					}
-					break;
-				}
-
-				A3DSurfBase* TSSurface = AliasToTechSoftUtils::AddNURBSSurface(*AliasSurface, InObjectReference, AlMatrix);
+				A3DSurfBase* TSSurface = AliasToTechSoftUtils::AddNURBSSurface(*Surface, InObjectReference, AlMatrix);
 				if (TSSurface != nullptr)
 				{
 					A3DTopoFace* TSFace = CADLibrary::TechSoftUtils::CreateTopoFaceWithNaturalLoop(TSSurface);
@@ -437,10 +440,6 @@ bool FAliasModelToTechSoftConverter::AddBRep(AlDagNode& DagNode, const FColor& C
 				}
 			}
 		}
-		break;
-	}
-	default:
-		break;
 	}
 
 	if (TSFaces.IsEmpty())
@@ -484,25 +483,25 @@ bool FAliasModelToTechSoftConverter::AddGeometry(const CADLibrary::FCADModelGeom
 	{
 		const FDagNodeGeometry& DagNodeGeometry = static_cast<const FDagNodeGeometry&>(Geometry);
 
-		return AddBRep(*DagNodeGeometry.DagNode, 0, DagNodeGeometry.Reference);
+		return AddBRep(DagNodeGeometry.DagNode, 0, DagNodeGeometry.Reference);
 	}
 	else if (Geometry.Type == (int32)ECADModelGeometryType::BodyNode)
 	{
 		const FBodyNodeGeometry& BodyNodeGeometry = static_cast<const FBodyNodeGeometry&>(Geometry);
 
-		bool bBRepAdded = true;
-		BodyNodeGeometry.BodyNode->IterateOnSurfaceNodes([&](const TAlDagNodePtr<AlSurfaceNode>& SurfaceNode)
+		bool bBodyAdded = false;
+		BodyNodeGeometry.BodyNode->IterateOnDagNodes([&](const FAlDagNodePtr& DagNode)
 			{
-				bBRepAdded &= AddBRep(*SurfaceNode, BodyNodeGeometry.BodyNode->GetSlotIndex(SurfaceNode.Get()), BodyNodeGeometry.Reference);
+				// #wire_import: TODO: Inform user one DagNode was not imported
+				const bool bBRepAdded = AddBRep(DagNode, BodyNodeGeometry.BodyNode->GetSlotIndex(DagNode), BodyNodeGeometry.Reference);
+				if (!bBRepAdded)
+				{
+					UE_LOG(LogWireInterface, Warning, TEXT("Failed to add DagNode %s to StaticMesh."), *DagNode.GetName());
+				}
+				bBodyAdded |= bBRepAdded;
 			});
 
-		BodyNodeGeometry.BodyNode->IterateOnShellNodes([&](const TAlDagNodePtr<AlShellNode>& ShellNode)
-			{
-				bBRepAdded &= AddBRep(*ShellNode, BodyNodeGeometry.BodyNode->GetSlotIndex(ShellNode.Get()), BodyNodeGeometry.Reference);
-			});
-
-		ensure(bBRepAdded);
-		return bBRepAdded;
+		return bBodyAdded;
 	}
 
 	return false;
@@ -510,3 +509,5 @@ bool FAliasModelToTechSoftConverter::AddGeometry(const CADLibrary::FCADModelGeom
 
 }
 #endif
+
+#undef LOCTEXT_NAMESPACE // "WireInterface"

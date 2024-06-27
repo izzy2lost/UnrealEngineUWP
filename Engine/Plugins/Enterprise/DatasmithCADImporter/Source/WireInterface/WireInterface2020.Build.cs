@@ -56,7 +56,7 @@ public abstract class WireInterfaceBase : ModuleRules
 		PublicDefinitions.Add($"UE_DATASMITHWIRETRANSLATOR_MODULE_NAME={GetType().Name}");
 		PublicDefinitions.Add($"UE_OPENMODEL_MAJOR_VERSION={GetMajorVersion()}");
 		PublicDefinitions.Add($"UE_OPENMODEL_MINOR_VERSION={GetMinorVersion()}");
-		PublicDefinitions.Add("THINFACE_ENABLED=0");
+		PublicDefinitions.Add("WIRE_THINFACE_ENABLED=0");
 
 		if (System.Type.GetType(GetAliasVersion()) != null)
 		{

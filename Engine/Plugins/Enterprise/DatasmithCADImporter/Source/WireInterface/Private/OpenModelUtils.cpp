@@ -5,12 +5,13 @@
 #include "CADOptions.h"
 #include "DatasmithUtils.h"
 #include "DatasmithTranslator.h"
-#include "IDatasmithSceneElements.h"
 
 #include "MeshAttributes.h"
 #include "MeshDescription.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
+
+DEFINE_LOG_CATEGORY(LogWireInterface);
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -55,7 +56,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		{
 			Hash = GetTypeHash(Name);
 
-			for (const TAlDagNodePtr<AlMeshNode>& MeshNode : MeshNodes)
+			for (const FAlDagNodePtr& MeshNode : MeshNodes)
 			{
 				Hash = HashCombine(Hash, MeshNode.GetHash());
 			}
@@ -68,12 +69,13 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		return bInitialized;
 	}
 
-	int32 FBodyNode::GetSlotIndex(const TAlDagNodePtr<AlDagNode>& DagNode)
+	int32 FBodyNode::GetSlotIndex(const FAlDagNodePtr& DagNode)
 	{
 		// #wire_import: Add support for AlShell
-		if (TAlDagNodePtr<AlSurfaceNode> SurfaceNode = DagNode->asSurfaceNodePtr())
+		if (DagNode.IsASurface())
 		{
-			if (TAlObjectPtr<AlSurface> Surface = SurfaceNode->surface())
+			TAlObjectPtr<AlSurface> Surface;
+			if (DagNode.GetSurface(Surface))
 			{
 				TAlObjectPtr<AlShader> Shader(Surface->firstShader());
 				return Shader ? ShaderNameToSlotIndex[Shader.GetName()] : 0;
@@ -86,7 +88,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 	bool FBodyNode::Initialize()
 	{
-		if (SurfaceNodes.IsEmpty() && ShellNodes.IsEmpty())
+		if (DagNodes.IsEmpty())
 		{
 			return false;
 		}
@@ -96,60 +98,74 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			Hash = GetTypeHash(Name);
 
 			int32 SlotIndex = 0;
-			TSet<TAlObjectPtr<AlLayer>> LayerSet;
+			TMap<FString, AlLayer*> LayerSet;
 
-			for (const TAlDagNodePtr<AlSurfaceNode>& SurfaceNode : SurfaceNodes)
+			TFunction<void(const TAlObjectPtr<AlShader>&)> RegisterShader = [this, &SlotIndex](const TAlObjectPtr<AlShader>& Shader)
+				{
+					if (Shader && !ShaderNameToSlotIndex.Contains(Shader.GetName()))
+					{
+						ShaderNameToSlotIndex.Add(Shader.GetName(), SlotIndex);
+						SlotIndexToShader.Add(SlotIndex++, Shader);
+					}
+				};
+
+			for (const FAlDagNodePtr& DagNode : DagNodes)
 			{
-				TAlObjectPtr<AlSurface> Surface(SurfaceNode->surface());
-				if (!Surface)
+				TAlObjectPtr<AlSurface> Surface;
+				if (DagNode.GetSurface(Surface))
 				{
-					continue;
+					TAlObjectPtr<AlShader> Shader(Surface->firstShader());
+					ensureWire(Shader);
+					RegisterShader(Shader);
+				}
+				else
+				{
+					TAlObjectPtr<AlShell> Shell;
+					if (DagNode.GetShell(Shell))
+					{
+						TAlObjectPtr<AlShader> Shader(Shell->firstShader());
+						RegisterShader(Shader);
+						// #wire_import: Do we have as many shaders than trim regions
+#if WIRE_ENSURE_ENABLED
+						int32 ShaderCount = 0;
+						{
+							statusCode Status = Shader.IsValid() ? sSuccess : sFailure;
+							while (Status == sSuccess)
+							{
+								++ShaderCount;
+								Status = Shell->nextShaderD(Shader.Get());
+							};
+						}
+						TAlObjectPtr<AlTrimRegion> TrimRegion(Shell->firstTrimRegion());
+						int32 TrimCount = 0;
+						{
+							statusCode Status = TrimRegion.IsValid() ? sSuccess : sFailure;
+							while (Status == sSuccess)
+							{
+								++TrimCount;
+								Status = TrimRegion->nextRegionD();
+							};
+						}
+						ensureWire(ShaderCount == TrimCount);
+#endif
+					}
+					else
+					{
+						ensure(false);
+					}
 				}
 
-				TAlObjectPtr<AlShader> Shader(Surface->firstShader());
-				if (Shader && !ShaderNameToSlotIndex.Contains(Shader.GetName()))
+
+				if (DagNode.GetLayer())
 				{
-					ShaderNameToSlotIndex.Add(Shader.GetName(), SlotIndex);
-					SlotIndexToShader.Add(SlotIndex++, Shader);
+					LayerSet.Add(DagNode.GetLayerName(), DagNode.GetLayer().Get());
 				}
 
-				if (TAlObjectPtr<AlLayer> SLayer = SurfaceNode->layer())
-				{
-					LayerSet.Add(TAlObjectPtr<AlLayer >(SLayer));
-				}
-
-				Hash = HashCombine(Hash, SurfaceNode.GetHash());
-			}
-
-			for (const TAlDagNodePtr<AlShellNode>& ShellNode : ShellNodes)
-			{
-				// #wire_import: Extract all shaders
-				TAlObjectPtr<AlShell> Shell(ShellNode->shell());
-				if (!Shell)
-				{
-					continue;
-				}
-
-				TAlObjectPtr<AlShader> Shader(Shell->firstShader());
-				if (Shader && !ShaderNameToSlotIndex.Contains(Shader.GetName()))
-				{
-					ShaderNameToSlotIndex.Add(Shader.GetName(), SlotIndex);
-					SlotIndexToShader.Add(SlotIndex++, Shader);
-				}
-
-				if (TAlObjectPtr<AlLayer> SLayer = ShellNode->layer())
-				{
-					LayerSet.Add(TAlObjectPtr<AlLayer >(SLayer));
-				}
-				Hash = HashCombine(Hash, ShellNode.GetHash());
+				Hash = HashCombine(Hash, DagNode.GetHash());
 			}
 
 			ensureWire(LayerSet.Num() == 1);
-			TAlObjectPtr<AlLayer> GeomLayer = LayerSet.Array()[0];
-			if (GeomLayer != Layer)
-			{
-				Layer = GeomLayer;
-			}
+			// #wire_import: TODO - Make sure Body's layer is the same as those of the added geometries
 
 			UniqueID = TEXT("BodyNode") + FString::FromInt(Hash);
 
@@ -159,30 +175,31 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		return bInitialized;
 	}
 
-	void FBodyNode::AddSurfaceNode(const TAlDagNodePtr<AlSurfaceNode>& SurfaceNode)
+	bool FBodyNode::AddNode(FAlDagNodePtr& DagNode)
 	{
-		if (OpenModelUtils::IsGeometryValid(SurfaceNode.Get()))
+		if (DagNode.IsASurface() || DagNode.IsAShell())
 		{
-			SurfaceNodes.Add(SurfaceNode);
+			DagNodes.Add(DagNode);
+			return true;
 		}
-	}
+#if WIRE_ENSURE_ENABLED
+		ensureWire(false);
+#endif
 
-	void FBodyNode::AddShellNode(const TAlDagNodePtr<AlShellNode>& ShellNode)
-	{
-		if (OpenModelUtils::IsGeometryValid(ShellNode.Get()))
-		{
-			ShellNodes.Add(ShellNode);
-		}
+		return false;
 	}
 
 	template<>
 	uint32 TAlObjectPtr<AlLayer>::GetHash() const
 	{
 		uint32 Hash = GetTypeHash(GetName());
-		Hash = HashCombine(Hash, GetTypeHash(Ptr->number()));
-		Hash = HashCombine(Hash, GetTypeHash(Ptr->color()));
-		Hash = HashCombine(Hash, (bool)Ptr->invisible() ? 1 : 0);
-		Hash = HashCombine(Hash, (bool)Ptr->isSymmetric() ? 1 : 0);
+		if (IsValid())
+		{
+			Hash = HashCombine(Hash, GetTypeHash(Super::Get()->number()));
+			Hash = HashCombine(Hash, GetTypeHash(Super::Get()->color()));
+			Hash = HashCombine(Hash, (bool)Super::Get()->invisible() ? 1 : 0);
+			Hash = HashCombine(Hash, (bool)Super::Get()->isSymmetric() ? 1 : 0);
+		}
 
 		return Hash;
 	}
@@ -196,7 +213,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		CsvString = Layer.GetName();
 
-		TAlObjectPtr<AlLayer> ParentLayer(Layer->parentLayer());
+		TAlObjectPtr<AlLayer> ParentLayer = FLayerContainer::FindOrAdd(Layer->parentLayer());
 		while (ParentLayer)
 		{
 			FString ParentLayerName = ParentLayer.GetName();
@@ -205,7 +222,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 				CsvString += TEXT(",") + ParentLayerName;
 			}
 
-			ParentLayer = ParentLayer->parentLayer();
+			ParentLayer = FLayerContainer::FindOrAdd(ParentLayer->parentLayer());
 		}
 
 		return !CsvString.IsEmpty();
@@ -219,34 +236,6 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		}
 
 		return ActorElement->IsA(EDatasmithElementType::StaticMeshActor) || ActorElement->GetChildrenCount() > 0;
-	}
-
-	void OpenModelUtils::SetActorTransform(IDatasmithActorElement& ActorElement, const TAlDagNodePtr<AlDagNode>& DagNode)
-	{
-		// #wire_import: Find why no transform applied if layer is symmetrical???
-		if (DagNode.HasSymmetry())
-		{
-			return;
-		}
-
-		AlMatrix4x4 AlGlobalMatrix;
-		DagNode->globalTransformationMatrix(AlGlobalMatrix);
-
-		FMatrix GlobalMatrix;
-		double* MatrixFloats = (double*)GlobalMatrix.M;
-		for (int32 IndexI = 0; IndexI < 4; ++IndexI)
-		{
-			for (int32 IndexJ = 0; IndexJ < 4; ++IndexJ)
-			{
-				MatrixFloats[IndexI * 4 + IndexJ] = AlGlobalMatrix[IndexI][IndexJ];
-			}
-		}
-
-		FTransform GlobalTransform = FDatasmithUtils::ConvertTransform(FDatasmithUtils::EModelCoordSystem::ZUp_RightHanded, FTransform(GlobalMatrix));
-
-		ActorElement.SetTranslation(GlobalTransform.GetTranslation());
-		ActorElement.SetScale(GlobalTransform.GetScale3D());
-		ActorElement.SetRotation(GlobalTransform.GetRotation());
 	}
 
 	bool OpenModelUtils::IsValidActor(const TSharedPtr<IDatasmithActorElement>& ActorElement)
@@ -462,7 +451,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		return true;
 	}
 
-	TAlDagNodePtr<AlMeshNode> OpenModelUtils::TesselateDagLeaf(const AlDagNode& DagLeaf, ETesselatorType TessType, double Tolerance)
+	FAlDagNodePtr OpenModelUtils::TesselateDagLeaf(const AlDagNode& DagLeaf, ETesselatorType TessType, double Tolerance)
 	{
 		AlDagNode* TesselatedNode = nullptr;
 		statusCode TessStatus;
@@ -478,69 +467,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 			break;
 		}
 
-		TAlDagNodePtr<AlMeshNode> MeshNode(TesselatedNode ? TesselatedNode->asMeshNodePtr() : nullptr);
-		if ((TessStatus == sSuccess) && MeshNode)
-		{
-			return MeshNode;
-		}
-		else
-		{
-			return TAlDagNodePtr<AlMeshNode>();
-		}
-	}
-
-	bool OpenModelUtils::IsGeometryValid(const TAlDagNodePtr<AlDagNode>& GeomNode)
-	{
-		TAlObjectPtr<AlLayer> Layer(GeomNode->layer());
-		if (Layer.IsValid() && (bool)Layer->invisible())
-		{
-			return false;
-		}
-
-		bool bValidGeometry = false;
-
-		{
-			TAlDagNodePtr<AlMeshNode> MeshNode(GeomNode->asMeshNodePtr());
-			if (MeshNode)
-			{
-				TAlObjectPtr<AlMesh> Mesh(MeshNode->mesh());
-				bValidGeometry |= Mesh.IsValid();
-			}
-		}
-		{
-			TAlDagNodePtr<AlShellNode> ShellNode(GeomNode->asShellNodePtr());
-			if (ShellNode)
-			{
-				TAlObjectPtr<AlShell> Shell(ShellNode->shell());
-				bValidGeometry |= Shell.IsValid();
-			}
-		}
-		{
-			TAlDagNodePtr<AlSurfaceNode> SurfaceNode(GeomNode->asSurfaceNodePtr());
-			if (SurfaceNode)
-			{
-				TAlObjectPtr<AlSurface> Surface(SurfaceNode->surface());
-				bValidGeometry |= Surface.IsValid();
-			}
-		}
-		return bValidGeometry;
-	}
-
-	bool OpenModelUtils::IsDagNodeValid(const TAlDagNodePtr<AlDagNode>& DagNode)
-	{
-		TAlObjectPtr<AlLayer> Layer(DagNode->layer());
-		if (Layer.IsValid() && (bool)Layer->invisible())
-		{
-			return false;
-		}
-
-		TAlDagNodePtr<AlGroupNode> GroupNode(DagNode->asGroupNodePtr());
-		if (GroupNode)
-		{
-			return true;
-		}
-
-		return IsGeometryValid(DagNode);
+		return TessStatus == sSuccess ? TesselatedNode : FAlDagNodePtr();
 	}
 
 	CADLibrary::FMeshParameters OpenModelUtils::GetMeshParameters(const TAlObjectPtr<AlLayer>& Layer)
@@ -568,18 +495,42 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		return MeshParameters;
 	}
 
-	CADLibrary::FMeshParameters OpenModelUtils::GetMeshParameters(AlDagNode& DagNode)
+	CADLibrary::FMeshParameters FAlDagNodePtr::GetMeshParameters() const
 	{
-		CADLibrary::FMeshParameters MeshParameters = GetMeshParameters(DagNode.layer());
-		
-		boolean bAlOrientation;
-		DagNode.getSurfaceOrientation(bAlOrientation);
+		if (!IsValid())
+		{
+			return {};
+		}
 
-		MeshParameters.bNeedSwapOrientation = (DagNode.type() == kMeshNodeType) ? (bool)bAlOrientation : false;
+		CADLibrary::FMeshParameters MeshParameters = OpenModelUtils::GetMeshParameters(GetLayer());
+
+		boolean bAlOrientation;
+		AsADagNode()->getSurfaceOrientation(bAlOrientation);
+
+		MeshParameters.bNeedSwapOrientation = IsAMesh() ? (bool)bAlOrientation : false;
 
 		return MeshParameters;
 	}
 
+	TMap<AlLayer*, TAlObjectPtr<AlLayer>> FLayerContainer::LayerMap;
+
+	TAlObjectPtr<AlLayer> FLayerContainer::FindOrAdd(AlLayer* Layer)
+	{
+		if (const TAlObjectPtr<AlLayer>* ValuePtr = LayerMap.Find(Layer))
+		{
+			return *ValuePtr;
+		}
+
+		TAlObjectPtr<AlLayer>& LayerPtr = LayerMap.Add(Layer);
+		LayerPtr = Layer;
+
+		return LayerPtr;
+	}
+
+	void FLayerContainer::Reset()
+	{
+		LayerMap.Reset();
+	}
 }
 
 #endif

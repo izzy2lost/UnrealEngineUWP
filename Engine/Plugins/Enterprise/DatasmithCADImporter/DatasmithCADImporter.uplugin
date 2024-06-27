@@ -135,6 +135,22 @@
 			]
 		},
 		{
+			"Name": "WireInterface2024_1",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		},
+		{
+			"Name": "WireInterface2025_0",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64"
+			]
+		},
+		{
 			"Name": "ParametricSurfaceExtension",
 			"Type": "Editor",
 			"LoadingPhase": "Default",

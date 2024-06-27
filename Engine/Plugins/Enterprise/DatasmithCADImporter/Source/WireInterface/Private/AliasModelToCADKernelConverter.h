@@ -44,8 +44,8 @@ public:
 	virtual bool AddGeometry(const CADLibrary::FCADModelGeometry& Geometry) override;
 	// End FCADModelToCADKernelConverterBase overrides
 
-	bool AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference ObjectReference);
-	bool AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference ObjectReference);
+	bool AddBRep(const FAlDagNodePtr& DagNode, const FColor& Color, EAliasObjectReference ObjectReference);
+	bool AddBRep(const FAlDagNodePtr& DagNode, uint32 SlotID, EAliasObjectReference ObjectReference);
 
 protected:
 	TSharedPtr<UE::CADKernel::FTopologicalEdge> AddEdge(const AlTrimCurve& TrimCurve, TSharedPtr<UE::CADKernel::FSurface>& CarrierSurface);

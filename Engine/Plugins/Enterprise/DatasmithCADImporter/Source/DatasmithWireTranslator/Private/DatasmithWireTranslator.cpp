@@ -28,12 +28,6 @@ static TAutoConsoleVariable<bool> CVarAliasUseNative(
 	TEXT("If true, the AlaisStudio tessellator will be used. Default false.\n"),
 	ECVF_Default);
 
-TAutoConsoleVariable<bool> GAliasLayerAsActor(
-	TEXT("ds.CADTranslator.Alias.LayersAsActors"),
-	false,
-	TEXT("If true, the first level of actors in the outliner is the layers. Default is false\n"),
-	ECVF_Default);
-
 static TMap<uint32, FInterfaceMaker> RegisteredInterfaces;
 static uint64 AliasVersion = 0;
 
@@ -151,39 +145,6 @@ bool FDatasmithWireTranslator::LoadScene(TSharedRef<IDatasmithScene> OutScene)
 	}
 
 	WireInterface->SetImportSettings(WireImportOptions->Settings);
-
-	UE_LOG(LogDatasmithWireTranslator, Display, TEXT("CAD translation [%s]."), *GetSource().GetSourceFile());
-	UE_LOG(LogDatasmithWireTranslator, Display, TEXT(" - Parsing Library:      %s"), TEXT("Alias"));
-	UE_LOG(LogDatasmithWireTranslator, Display, TEXT(" - Tessellation Library: %s"), CommonTessellationOptions.bUseCADKernel ? TEXT("CADKernel") : TEXT("TechSoft"));
-	UE_LOG(LogDatasmithWireTranslator, Display, TEXT(" - Import parameters:"));
-
-	UE_LOG(LogDatasmithWireTranslator, Display, TEXT("     - ChordTolerance:     %lf"), CommonTessellationOptions.ChordTolerance);
-	UE_LOG(LogDatasmithWireTranslator, Display, TEXT("     - MaxEdgeLength:      %lf"), CommonTessellationOptions.MaxEdgeLength);
-	UE_LOG(LogDatasmithWireTranslator, Display, TEXT("     - MaxNormalAngle:     %lf"), CommonTessellationOptions.NormalTolerance);
-	
-	FString StitchingTechnique;
-	switch (CommonTessellationOptions.StitchingTechnique)
-	{
-	case EDatasmithCADStitchingTechnique::StitchingHeal:
-		StitchingTechnique = TEXT("Heal");
-		break;
-	case EDatasmithCADStitchingTechnique::StitchingSew:
-		StitchingTechnique = TEXT("Sew");
-		break;
-	default:
-		StitchingTechnique = TEXT("None");
-		break;
-	}
-	UE_LOG(LogDatasmithWireTranslator, Display, TEXT("     - StitchingTechnique: %s"), *StitchingTechnique);
-
-	if (CommonTessellationOptions.bUseCADKernel)
-	{
-		UE_LOG(LogDatasmithWireTranslator, Display, TEXT("     - Stitching Options:"));
-		//UE_LOG(LogDatasmithWireTranslator, Display, TEXT("         - ForceSew:              %s"), CADLibrary::FImportParameters::bGStitchingForceSew ? TEXT("True") : TEXT("False"));
-		//UE_LOG(LogDatasmithWireTranslator, Display, TEXT("         - RemoveThinFaces:       %s"), CADLibrary::FImportParameters::bGStitchingRemoveThinFaces ? TEXT("True") : TEXT("False"));
-		//UE_LOG(LogDatasmithWireTranslator, Display, TEXT("         - RemoveDuplicatedFaces: %s"), CADLibrary::FImportParameters::bGStitchingRemoveDuplicatedFaces ? TEXT("True") : TEXT("False"));
-		//UE_LOG(LogDatasmithWireTranslator, Display, TEXT("         - ForceFactor:           %f"), CADLibrary::FImportParameters::GStitchingForceFactor);
-	}
 
 	static const FString CacheRootDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("WireTranslator"), TEXT("Cache")));
 	

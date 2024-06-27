@@ -50,16 +50,19 @@
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
+#define LOCTEXT_NAMESPACE "WireInterface"
+
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
+using namespace UE::CADKernel;
+using ECADKernelSewOption = UE::CADKernel::ESewOption;
 
 namespace AliasToCADKernelUtils
 {
-
 	template<typename Surface_T>
-	TSharedPtr<UE::CADKernel::FSurface> AddNURBSSurface(double GeometricTolerance, Surface_T& AliasSurface, EAliasObjectReference InObjectReference, const AlMatrix4x4& InAlMatrix)
+	TSharedPtr<FSurface> AddNURBSSurface(double GeometricTolerance, Surface_T& AliasSurface, EAliasObjectReference InObjectReference, const AlMatrix4x4& InAlMatrix)
 	{
-		UE::CADKernel::FNurbsSurfaceHomogeneousData NURBSData;
+		FNurbsSurfaceHomogeneousData NURBSData;
 		NURBSData.bSwapUV= true;
 		NURBSData.bIsRational = true;
 
@@ -109,7 +112,7 @@ namespace AliasToCADKernelUtils
 			Poles[Index + 2] *= UNIT_CONVERSION_CM_TO_MM;
 		}
 
-		return UE::CADKernel::FSurface::MakeNurbsSurface(GeometricTolerance, NURBSData);
+		return FSurface::MakeNurbsSurface(GeometricTolerance, NURBSData);
 	}
 }
 
@@ -119,9 +122,9 @@ FAliasModelToCADKernelConverter::FAliasModelToCADKernelConverter(const FDatasmit
 	SetTolerances(Options.GetGeometricTolerance(true), Options.GetStitchingTolerance(true));
 }
 
-TSharedPtr<UE::CADKernel::FTopologicalEdge> FAliasModelToCADKernelConverter::AddEdge(const AlTrimCurve& AliasTrimCurve, TSharedPtr<UE::CADKernel::FSurface>& CarrierSurface)
+TSharedPtr<FTopologicalEdge> FAliasModelToCADKernelConverter::AddEdge(const AlTrimCurve& AliasTrimCurve, TSharedPtr<FSurface>& CarrierSurface)
 {
-	UE::CADKernel::FNurbsCurveData NurbsCurveData;
+	FNurbsCurveData NurbsCurveData;
 
 	NurbsCurveData.Degree = AliasTrimCurve.degree();
 	int32 ControlPointCount = AliasTrimCurve.numberOfCVs();
@@ -150,13 +153,13 @@ TSharedPtr<UE::CADKernel::FTopologicalEdge> FAliasModelToCADKernelConverter::Add
 		NurbsCurveData.Poles[Index].Z = 0;
 	}
 
-	TSharedPtr<UE::CADKernel::FCurve> Nurbs = UE::CADKernel::FCurve::MakeNurbsCurve(NurbsCurveData);
+	TSharedPtr<FCurve> Nurbs = FCurve::MakeNurbsCurve(NurbsCurveData);
 
-	TSharedRef<UE::CADKernel::FRestrictionCurve> RestrictionCurve = UE::CADKernel::FCurve::MakeShared<UE::CADKernel::FRestrictionCurve>(CarrierSurface.ToSharedRef(), Nurbs.ToSharedRef());
-	TSharedPtr<UE::CADKernel::FTopologicalEdge> Edge = UE::CADKernel::FTopologicalEdge::Make(RestrictionCurve);
+	TSharedRef<FRestrictionCurve> RestrictionCurve = FCurve::MakeShared<FRestrictionCurve>(CarrierSurface.ToSharedRef(), Nurbs.ToSharedRef());
+	TSharedPtr<FTopologicalEdge> Edge = FTopologicalEdge::Make(RestrictionCurve);
 	if (!Edge.IsValid())
 	{
-		return TSharedPtr<UE::CADKernel::FTopologicalEdge>();
+		return TSharedPtr<FTopologicalEdge>();
 	}
 
 	// Only TrimCurve with twin need to be in the map used in LinkEdgesLoop 
@@ -169,37 +172,44 @@ TSharedPtr<UE::CADKernel::FTopologicalEdge> FAliasModelToCADKernelConverter::Add
 	return Edge;
 }
 
-TSharedPtr<UE::CADKernel::FTopologicalLoop> FAliasModelToCADKernelConverter::AddLoop(const AlTrimBoundary& TrimBoundary, TSharedPtr<UE::CADKernel::FSurface>& CarrierSurface, const bool bIsExternal)
+TSharedPtr<FTopologicalLoop> FAliasModelToCADKernelConverter::AddLoop(const AlTrimBoundary& TrimBoundary, TSharedPtr<FSurface>& CarrierSurface, const bool bIsExternal)
 {
-	TArray<TSharedPtr<UE::CADKernel::FTopologicalEdge>> Edges;
+	TArray<TSharedPtr<FTopologicalEdge>> Edges;
 	TArray<UE::CADKernel::EOrientation> Directions;
 
-	for (TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve()); TrimCurve.IsValid(); TrimCurve = TAlObjectPtr<AlTrimCurve>(TrimCurve->nextCurve()))
+	TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve());
+	statusCode Status = TrimCurve ? sSuccess : sObjectNotFound;
+	while (Status == sSuccess)
 	{
-		TSharedPtr<UE::CADKernel::FTopologicalEdge> Edge = AddEdge(*TrimCurve, CarrierSurface);
+		TSharedPtr<FTopologicalEdge> Edge = AddEdge(*TrimCurve, CarrierSurface);
 		if (Edge.IsValid())
 		{
 			Edges.Add(Edge);
 			Directions.Emplace(UE::CADKernel::EOrientation::Front);
 		}
+
+		Status = TrimCurve->nextCurveD();
 	}
 
 	if (Edges.Num() == 0)
 	{
-		return TSharedPtr<UE::CADKernel::FTopologicalLoop>();
+		return TSharedPtr<FTopologicalLoop>();
 	}
 
-	TSharedPtr<UE::CADKernel::FTopologicalLoop> Loop = UE::CADKernel::FTopologicalLoop::Make(Edges, Directions, bIsExternal, GeometricTolerance);
+	TSharedPtr<FTopologicalLoop> Loop = FTopologicalLoop::Make(Edges, Directions, bIsExternal, GeometricTolerance);
 	return Loop;
 }
 
-void FAliasModelToCADKernelConverter::LinkEdgesLoop(const AlTrimBoundary& TrimBoundary, UE::CADKernel::FTopologicalLoop& Loop)
+void FAliasModelToCADKernelConverter::LinkEdgesLoop(const AlTrimBoundary& TrimBoundary, FTopologicalLoop& Loop)
 {
-	for (TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve()); TrimCurve.IsValid(); TrimCurve = TAlObjectPtr<AlTrimCurve>(TrimCurve->nextCurve()))
+	TAlObjectPtr<AlTrimCurve> TrimCurve(TrimBoundary.firstCurve());
+	statusCode Status = TrimCurve ? sSuccess : sObjectNotFound;
+	while (Status == sSuccess)
 	{
-		TSharedPtr<UE::CADKernel::FTopologicalEdge>* Edge = AlEdge2CADKernelEdge.Find(TrimCurve->fSpline);
+		TSharedPtr<FTopologicalEdge>* Edge = AlEdge2CADKernelEdge.Find(TrimCurve->fSpline);
 		if (!Edge || !Edge->IsValid() || (*Edge)->IsDeleted() || (*Edge)->IsDegenerated())
 		{
+			Status = TrimCurve->nextCurveD();
 			continue;
 		}
 
@@ -209,7 +219,7 @@ void FAliasModelToCADKernelConverter::LinkEdgesLoop(const AlTrimBoundary& TrimBo
 		TAlObjectPtr<AlTrimCurve> TwinCurve(TrimCurve->getTwinCurve());
 		if (TwinCurve.IsValid())
 		{
-			if (TSharedPtr<UE::CADKernel::FTopologicalEdge>* TwinEdge = AlEdge2CADKernelEdge.Find(TwinCurve->fSpline))
+			if (TSharedPtr<FTopologicalEdge>* TwinEdge = AlEdge2CADKernelEdge.Find(TwinCurve->fSpline))
 			{
 				if (TwinEdge->IsValid() && !(*TwinEdge)->IsDeleted() && !(*TwinEdge)->IsDegenerated())
 				{
@@ -217,37 +227,44 @@ void FAliasModelToCADKernelConverter::LinkEdgesLoop(const AlTrimBoundary& TrimBo
 				}
 			}
 		}
+
+		Status = TrimCurve->nextCurveD();
 	}
 }
 
-TSharedPtr<UE::CADKernel::FTopologicalFace> FAliasModelToCADKernelConverter::AddTrimRegion(const AlTrimRegion& TrimRegion, EAliasObjectReference InObjectReference, const AlMatrix4x4& InAlMatrix, bool bInOrientation)
+TSharedPtr<FTopologicalFace> FAliasModelToCADKernelConverter::AddTrimRegion(const AlTrimRegion& TrimRegion, EAliasObjectReference InObjectReference, const AlMatrix4x4& InAlMatrix, bool bInOrientation)
 {
-	TSharedPtr<UE::CADKernel::FSurface> Surface = AliasToCADKernelUtils::AddNURBSSurface(GeometricTolerance, TrimRegion, InObjectReference, InAlMatrix);
+	TSharedPtr<FSurface> Surface = AliasToCADKernelUtils::AddNURBSSurface(GeometricTolerance, TrimRegion, InObjectReference, InAlMatrix);
 	if (!Surface.IsValid())
 	{
-		return TSharedPtr<UE::CADKernel::FTopologicalFace>();
+		return TSharedPtr<FTopologicalFace>();
 	}
 
 	bool bIsExternal = true;
-	TArray<TSharedPtr<UE::CADKernel::FTopologicalLoop>> Loops;
-	for (TAlObjectPtr<AlTrimBoundary> TrimBoundary(TrimRegion.firstBoundary()); TrimBoundary.IsValid(); TrimBoundary = TAlObjectPtr<AlTrimBoundary>(TrimBoundary->nextBoundary()))
+	TArray<TSharedPtr<FTopologicalLoop>> Loops;
+	TAlObjectPtr<AlTrimBoundary> TrimBoundary(TrimRegion.firstBoundary());
+
+	statusCode Status = TrimBoundary ? sSuccess : sObjectNotFound;
+	while (Status == sSuccess)
 	{
-		TSharedPtr<UE::CADKernel::FTopologicalLoop> Loop = AddLoop(*TrimBoundary, Surface, bIsExternal);
+		TSharedPtr<FTopologicalLoop> Loop = AddLoop(*TrimBoundary, Surface, bIsExternal);
 		if (Loop.IsValid())
 		{
 			LinkEdgesLoop(*TrimBoundary, *Loop);
 			Loops.Add(Loop);
 			bIsExternal = false;
 		}
+
+		Status = TrimBoundary->nextBoundaryD();
 	}
 
 	if (Loops.Num() == 0)
 	{
-		UE::CADKernel::FMessage::Printf(UE::CADKernel::EVerboseLevel::Log, TEXT("The Face %s is degenerate, this face is ignored\n"), TrimRegion.name());
-		return TSharedPtr<UE::CADKernel::FTopologicalFace>();
+		FMessage::Printf(EVerboseLevel::Log, TEXT("The Face %s is degenerate, this face is ignored\n"), TrimRegion.name());
+		return TSharedPtr<FTopologicalFace>();
 	}
 
-	TSharedRef<UE::CADKernel::FTopologicalFace> Face = UE::CADKernel::FEntity::MakeShared<UE::CADKernel::FTopologicalFace>(Surface);
+	TSharedRef<FTopologicalFace> Face = FEntity::MakeShared<FTopologicalFace>(Surface);
 	Face->SetPatchId(LastFaceId++);
 
 	int32 DoubtfulLoopOrientationCount = 0;
@@ -258,116 +275,108 @@ TSharedPtr<UE::CADKernel::FTopologicalFace> FAliasModelToCADKernelConverter::Add
 		Face->SetAsDegenerated();
 		Face->Delete();
 
-		UE::CADKernel::FMessage::Printf(UE::CADKernel::EVerboseLevel::Log, TEXT("The Face %s is degenerate, this face is ignored\n"), TrimRegion.name());
-		return TSharedPtr<UE::CADKernel::FTopologicalFace>();
+		FMessage::Printf(EVerboseLevel::Log, TEXT("The Face %s is degenerate, this face is ignored\n"), TrimRegion.name());
+		return TSharedPtr<FTopologicalFace>();
 	}
 
 	return Face;
 }
 
-void FAliasModelToCADKernelConverter::AddFace(const AlSurface& Surface, EAliasObjectReference InObjectReference, const AlMatrix4x4& InAlMatrix, bool bInOrientation, TSharedRef<UE::CADKernel::FShell>& Shell)
+void FAliasModelToCADKernelConverter::AddFace(const AlSurface& Surface, EAliasObjectReference InObjectReference, const AlMatrix4x4& InAlMatrix, bool bInOrientation, TSharedRef<FShell>& Shell)
 {
 	TAlObjectPtr<AlTrimRegion> TrimRegion(Surface.firstTrimRegion());
-	if (TrimRegion.IsValid())
+	statusCode Status = TrimRegion ? sSuccess : sObjectNotFound;
+	if (Status == sSuccess)
 	{
-		for (; TrimRegion.IsValid(); TrimRegion = TAlObjectPtr<AlTrimRegion>(TrimRegion->nextRegion()))
+		while(Status == sSuccess)
 		{
-			TSharedPtr<UE::CADKernel::FTopologicalFace> Face = AddTrimRegion(*TrimRegion, InObjectReference, InAlMatrix, bInOrientation);
+			TSharedPtr<FTopologicalFace> Face = AddTrimRegion(*TrimRegion, InObjectReference, InAlMatrix, bInOrientation);
 			if (Face.IsValid())
 			{
 				Shell->Add(Face.ToSharedRef(), bInOrientation ? UE::CADKernel::EOrientation::Front : UE::CADKernel::EOrientation::Back);
 			}
-		}
-		return;
-	}
 
-	TSharedPtr<UE::CADKernel::FSurface> CADKernelSurface = AliasToCADKernelUtils::AddNURBSSurface(GeometricTolerance, Surface, InObjectReference, InAlMatrix);
-	if (CADKernelSurface.IsValid())
-	{
-		TSharedRef<UE::CADKernel::FTopologicalFace> Face = UE::CADKernel::FEntity::MakeShared<UE::CADKernel::FTopologicalFace>(CADKernelSurface);
-		Face->ApplyNaturalLoops();
-		// Surface can be too thin based on tolerances. Skip it
-		// #cadkernel_check: Warn user a surface was too thin
-		if (Face->GetLoops().Num() > 0)
-		{
-			Shell->Add(Face, bInOrientation ? UE::CADKernel::EOrientation::Front : UE::CADKernel::EOrientation::Back);
+			Status = TrimRegion->nextRegionD();
 		}
-		// #wire_import: Log that this face was not added
+	}
+	else
+	{
+		TSharedPtr<FSurface> CADKernelSurface = AliasToCADKernelUtils::AddNURBSSurface(GeometricTolerance, Surface, InObjectReference, InAlMatrix);
+		if (CADKernelSurface.IsValid())
+		{
+			TSharedRef<FTopologicalFace> Face = FEntity::MakeShared<FTopologicalFace>(CADKernelSurface);
+			Face->ApplyNaturalLoops();
+			// Surface can be too thin based on tolerances. Skip it
+			// #cadkernel_check: Warn user a surface was too thin
+			if (Face->GetLoops().Num() > 0)
+			{
+				Shell->Add(Face, bInOrientation ? UE::CADKernel::EOrientation::Front : UE::CADKernel::EOrientation::Back);
+			}
+			// #wire_import: Log that this face was not added
+		}
 	}
 }
 
-void FAliasModelToCADKernelConverter::AddShell(const AlShell& InShell, EAliasObjectReference InObjectReference, const AlMatrix4x4& InAlMatrix, bool bInOrientation, TSharedRef<UE::CADKernel::FShell>& CADKernelShell)
+void FAliasModelToCADKernelConverter::AddShell(const AlShell& InShell, EAliasObjectReference InObjectReference, const AlMatrix4x4& InAlMatrix, bool bInOrientation, TSharedRef<FShell>& CADKernelShell)
 {
-	for(TAlObjectPtr<AlTrimRegion> TrimRegion(InShell.firstTrimRegion()); TrimRegion.IsValid(); TrimRegion = TAlObjectPtr<AlTrimRegion>(TrimRegion->nextRegion()))
+	TAlObjectPtr<AlTrimRegion> TrimRegion(InShell.firstTrimRegion());
+	statusCode Status = TrimRegion ? sSuccess : sObjectNotFound;
+	while (Status == sSuccess)
 	{
-		TSharedPtr<UE::CADKernel::FTopologicalFace> Face = AddTrimRegion(*TrimRegion, InObjectReference, InAlMatrix, bInOrientation);
+		TSharedPtr<FTopologicalFace> Face = AddTrimRegion(*TrimRegion, InObjectReference, InAlMatrix, bInOrientation);
 		if (Face.IsValid())
 		{
 			CADKernelShell->Add(Face.ToSharedRef(), bInOrientation ? UE::CADKernel::EOrientation::Front : UE::CADKernel::EOrientation::Back);
 		}
+
+		Status = TrimRegion->nextRegionD();
 	}
 }
 
-bool FAliasModelToCADKernelConverter::AddBRep(AlDagNode& DagNode, const FColor& Color, EAliasObjectReference InObjectReference)
+bool FAliasModelToCADKernelConverter::AddBRep(const FAlDagNodePtr& DagNode, const FColor& Color, EAliasObjectReference InObjectReference)
 {
 	uint32 ColorId = (uint32)CADLibrary::BuildColorUId(Color);
 	return AddBRep(DagNode, ColorId, InObjectReference);
 }
 
-bool FAliasModelToCADKernelConverter::AddBRep(AlDagNode& DagNode, uint32 SlotID, EAliasObjectReference InObjectReference)
+bool FAliasModelToCADKernelConverter::AddBRep(const FAlDagNodePtr& DagNode, uint32 SlotID, EAliasObjectReference InObjectReference)
 {
+	if (!DagNode.IsValid())
+	{
+		return false;
+	}
+
 	AlEdge2CADKernelEdge.Empty();
 
 	boolean bAlOrientation;
-	DagNode.getSurfaceOrientation(bAlOrientation);
+	DagNode->getSurfaceOrientation(bAlOrientation);
 	bool bOrientation = !(bool)bAlOrientation;
 
 	AlMatrix4x4 AlMatrix;
 	if (InObjectReference == EAliasObjectReference::ParentReference)
 	{
-		DagNode.localTransformationMatrix(AlMatrix);
+		DagNode->localTransformationMatrix(AlMatrix);
 	}
 
-	TSharedRef<UE::CADKernel::FShell> CADKernelShell = UE::CADKernel::FEntity::MakeShared<UE::CADKernel::FShell>();
+	TSharedRef<FShell> CADKernelShell = FEntity::MakeShared<FShell>();
 
-	AlObjectType objectType = DagNode.type();
-	switch (objectType)
+	TAlObjectPtr<AlShell> Shell;
+	if (DagNode.GetShell(Shell))
 	{
-		// Push all leaf nodes into 'leaves'
-	case kShellNodeType:
+		AddShell(*Shell, InObjectReference, AlMatrix, bOrientation, CADKernelShell);
+	}
+	else
 	{
-		if (AlShellNode* ShellNode = DagNode.asShellNodePtr())
+		TAlObjectPtr<AlSurface> Surface;
+		if (DagNode.GetSurface(Surface))
 		{
-			AlShell* ShellPtr = ShellNode->shell();
-			if(AlIsValid(ShellPtr))
-			{
-				TAlObjectPtr<AlShell> AliasShell(ShellPtr);
-				AddShell(*ShellPtr, InObjectReference, AlMatrix, bOrientation, CADKernelShell);
-			}
+			AddFace(*Surface, InObjectReference, AlMatrix, bOrientation, CADKernelShell);
 		}
-		break;
-	}
-
-	case kSurfaceNodeType:
-	{
-		if (AlSurfaceNode* SurfaceNode = DagNode.asSurfaceNodePtr())
-		{
-			AlSurface* SurfacePtr = SurfaceNode->surface();
-			if (AlIsValid(SurfacePtr))
-			{
-				TAlObjectPtr<AlSurface> AliasSurface(SurfacePtr);
-				AddFace(*SurfacePtr, InObjectReference, AlMatrix, bOrientation, CADKernelShell);
-			}
-		}
-		break;
-	}
-	default:
-		break;
 	}
 
 	if (CADKernelShell->FaceCount() > 0)
 	{
-		TSharedRef<UE::CADKernel::FBody> CADKernelBody = UE::CADKernel::FEntity::MakeShared<UE::CADKernel::FBody>();
+		TSharedRef<FBody> CADKernelBody = FEntity::MakeShared<FBody>();
 
 		CADKernelBody->SetColorId(SlotID);
 		CADKernelBody->AddShell(CADKernelShell);
@@ -384,7 +393,7 @@ bool FAliasModelToCADKernelConverter::AddBRep(AlDagNode& DagNode, uint32 SlotID,
 
 bool FAliasModelToCADKernelConverter::Tessellate(const CADLibrary::FMeshParameters& InMeshParameters, FMeshDescription& OutMeshDescription)
 {
-	UE::CADKernel::FModel& Model = CADKernelSession.GetModel();
+	FModel& Model = CADKernelSession.GetModel();
 
 	CADLibrary::FMeshConversionContext Context(ImportParameters, InMeshParameters, GeometricTolerance);
 
@@ -397,15 +406,15 @@ bool FAliasModelToCADKernelConverter::RepairTopology()
 	// Apply stitching if applicable
 	if (ImportParameters.GetStitchingTechnique() != StitchingNone)
 	{
-		UE::CADKernel::ESewOption SewOptionValue = (UE::CADKernel::ESewOption)SewOption::GetFromImportParameters();
+		ECADKernelSewOption SewOptionValue = (ECADKernelSewOption)CADLibrary::SewOption::GetFromImportParameters();
 
-#if !THINFACE_ENABLED
-		SewOptionValue = UE::CADKernel::ESewOption((uint8)SewOptionValue & (uint8)~ESewOption::RemoveThinFaces);
+#if !WIRE_THINFACE_ENABLED
+		SewOptionValue = ECADKernelSewOption((uint8)SewOptionValue & (uint8)~ECADKernelSewOption::RemoveThinFaces);
 #endif
 
-		UE::CADKernel::FTopomakerOptions TopomakerOptions(SewOptionValue, StitchingTolerance, FImportParameters::GStitchingForceFactor);
+		FTopomakerOptions TopomakerOptions(SewOptionValue, StitchingTolerance, FImportParameters::GStitchingForceFactor);
 
-		UE::CADKernel::FTopomaker Topomaker(CADKernelSession, TopomakerOptions);
+		FTopomaker Topomaker(CADKernelSession, TopomakerOptions);
 		Topomaker.Sew();
 		Topomaker.SplitIntoConnectedShells();
 		Topomaker.OrientShells();
@@ -420,32 +429,22 @@ bool FAliasModelToCADKernelConverter::AddGeometry(const CADLibrary::FCADModelGeo
 	{
 		const FDagNodeGeometry& DagNodeGeometry = static_cast<const FDagNodeGeometry&>(Geometry);
 
-		return AddBRep(*DagNodeGeometry.DagNode, 0, DagNodeGeometry.Reference);
+		return AddBRep(DagNodeGeometry.DagNode, 0, DagNodeGeometry.Reference);
 	}
 	else if (Geometry.Type == (int32)ECADModelGeometryType::BodyNode)
 	{
 		const FBodyNodeGeometry& BodyNodeGeometry = static_cast<const FBodyNodeGeometry&>(Geometry);
 
-		bool bBodyAdded = true;
-		if (BodyNodeGeometry.BodyNode->HasSurfaceNodes())
-		{
-			bool bBRepAdded = false; // Track that at least one surface was properly added.
-			BodyNodeGeometry.BodyNode->IterateOnSurfaceNodes([&](const TAlDagNodePtr<AlSurfaceNode>& SurfaceNode)
+		bool bBodyAdded = false;
+		BodyNodeGeometry.BodyNode->IterateOnDagNodes([&](const FAlDagNodePtr& DagNode)
+			{
+				const bool bBRepAdded = AddBRep(DagNode, BodyNodeGeometry.BodyNode->GetSlotIndex(DagNode), BodyNodeGeometry.Reference);
+				if (!bBRepAdded)
 				{
-					bBRepAdded |= AddBRep(*SurfaceNode, BodyNodeGeometry.BodyNode->GetSlotIndex(SurfaceNode.Get()), BodyNodeGeometry.Reference);
-				});
-			bBodyAdded &= bBRepAdded;
-		}
-
-		if (BodyNodeGeometry.BodyNode->HasShellNodes())
-		{
-			bool bBRepAdded = false; // Track that at least one shell was properly added.
-			BodyNodeGeometry.BodyNode->IterateOnShellNodes([&](const TAlDagNodePtr<AlShellNode>& ShellNode)
-				{
-					bBRepAdded |= AddBRep(*ShellNode, BodyNodeGeometry.BodyNode->GetSlotIndex(ShellNode.Get()), BodyNodeGeometry.Reference);
-				});
-			bBodyAdded &= bBRepAdded;
-		}
+					UE_LOG(LogWireInterface, Warning, TEXT("Failed to add DagNode %s to StaticMesh."), *DagNode.GetName());
+				}
+				bBodyAdded |= bBRepAdded;
+			});
 
 		ensureWire(bBodyAdded);
 		return bBodyAdded;
@@ -457,3 +456,5 @@ bool FAliasModelToCADKernelConverter::AddGeometry(const CADLibrary::FCADModelGeo
 }
 
 #endif
+
+#undef LOCTEXT_NAMESPACE // "WireInterface"
