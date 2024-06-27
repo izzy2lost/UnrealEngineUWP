@@ -15,6 +15,7 @@ public class LiveLinkHubEditorTarget : TargetRules
 	{
 		Type = TargetType.Editor;
 		bExplicitTargetForType = true;
+		bGenerateProgramProject = true;
 
 		SolutionDirectory = "Programs/LiveLink";
 		LaunchModuleName = "LiveLinkHubLauncher";
@@ -65,11 +66,6 @@ public class LiveLinkHubEditorTarget : TargetRules
 		if (Platform == UnrealTargetPlatform.Win64)
 		{
 			OutputFile += ".exe";
-		}
-
-		if (bGenerateProjectFiles)
-		{
-			Type = TargetType.Program;
 		}
 	}
 }
