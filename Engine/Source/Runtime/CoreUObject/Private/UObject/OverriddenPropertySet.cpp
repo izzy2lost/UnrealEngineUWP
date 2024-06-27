@@ -91,52 +91,6 @@ FEnableOverridableSerializationScope::~FEnableOverridableSerializationScope()
 	}
 }
 
-FOverriddenPropertyNodeID::FOverriddenPropertyNodeID(const FProperty* Property)
-	: Object(nullptr)
-{
-	if (Property)
-	{
-		// append typename to the end of the property ID
-		UE::FPropertyTypeNameBuilder TypeNameBuilder;
-		Property->SaveTypeName(TypeNameBuilder);
-		UE::FPropertyTypeName TypeName = TypeNameBuilder.Build();
-		TStringBuilder<256> StringBuilder;
-		StringBuilder << Property->GetFName();
-		StringBuilder << " - ";
-		StringBuilder << TypeName;
-		Path = FName(StringBuilder.ToView());
-	}
-}
-
-FOverriddenPropertyNodeID FOverriddenPropertyNodeID::RootNodeId()
-{
-	FOverriddenPropertyNodeID Result;
-	Result.Path = FName(TEXT("root"));
-	return Result;
-}
-
-FOverriddenPropertyNodeID FOverriddenPropertyNodeID::ForMapKey(const FProperty* KeyProperty, const void* KeyData)
-{
-	if (const FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProperty))
-	{
-		if (const UObject* Object = KeyObjectProperty->GetObjectPropertyValue(KeyData))
-		{
-			return FOverriddenPropertyNodeID(*Object);
-		}
-	}
-	else
-	{
-		FString KeyString;
-		KeyProperty->ExportTextItem_Direct(KeyString, KeyData, /*DefaultValue*/nullptr, /*Parent*/nullptr, PPF_None);
-		FOverriddenPropertyNodeID Result;
-		Result.Path = FName(KeyString);
-		return Result;
-	}
-		
-	checkf(false, TEXT("This case is not handled"))
-	return FOverriddenPropertyNodeID();
-}
-
 //----------------------------------------------------------------------//
 // FOverriddenPropertyNodeID
 //----------------------------------------------------------------------//
@@ -202,7 +156,8 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 		const FOverriddenPropertyNode* CurrentOverriddenPropertyNode = nullptr;
 		if (OverriddenPropertyNode)
 		{
-			if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentProperty))
+			const FName CurrentPropID = CurrentProperty->GetFName();
+			if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
 			{
 				CurrentOverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 				checkf(CurrentOverriddenPropertyNode, TEXT("Expecting a node"));
@@ -287,7 +242,19 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 				{
 					// Caller wants to know about any override state on the reference of the map pair itself
 					checkf(MapProperty->KeyProp, TEXT("Expecting a key type for Maps"));
-					FOverriddenPropertyNodeID OverriddenKeyID = FOverriddenPropertyNodeID::ForMapKey(MapProperty->KeyProp, MapHelper.GetKeyPtr(InternalMapIndex));
+					FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapProperty->KeyProp);
+
+					FOverriddenPropertyNodeID OverriddenKeyID;
+					if (const UObject* OverriddenKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(InternalMapIndex)) : nullptr)
+					{
+						OverriddenKeyID = FOverriddenPropertyNodeID(*OverriddenKeyObject);
+					}
+					else
+					{
+						FString OverriddenKey;
+						MapProperty->KeyProp->ExportTextItem_Direct(OverriddenKey, MapHelper.GetKeyPtr(InternalMapIndex), nullptr, nullptr, PPF_None);
+						OverriddenKeyID = FName(OverriddenKey);
+					}
 
 					if (const FOverriddenPropertyNodeID* CurrentPropKey = CurrentOverriddenPropertyNode->SubPropertyNodeKeys.Find(OverriddenKeyID))
 					{
@@ -335,7 +302,8 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 		FOverriddenPropertyNode* CurrentOverriddenPropertyNode = nullptr;
 		if (OverriddenPropertyNode)
 		{
-			if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentProperty))
+			const FName CurrentPropID = CurrentProperty->GetFName();
+			if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
 			{
 				CurrentOverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 				checkf(CurrentOverriddenPropertyNode, TEXT("Expecting a node"));
@@ -451,7 +419,20 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 			else if (MapHelper.IsValidIndex(InternalMapIndex) && CurrentOverriddenPropertyNode)
 			{
 				checkf(MapProperty->KeyProp, TEXT("Expecting a key type for Maps"));
-				FOverriddenPropertyNodeID OverriddenKeyID = FOverriddenPropertyNodeID::ForMapKey(MapProperty->KeyProp, MapHelper.GetKeyPtr(InternalMapIndex));
+				FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapProperty->KeyProp);
+
+				// Calculate the node from the key
+				FOverriddenPropertyNodeID OverriddenKeyID;
+				if (const UObject* OverriddenKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(InternalMapIndex)) : nullptr)
+				{
+					OverriddenKeyID = FOverriddenPropertyNodeID(*OverriddenKeyObject);
+				}
+				else
+				{
+					FString OverriddenKey;
+					MapProperty->KeyProp->ExportTextItem_Direct(OverriddenKey, MapHelper.GetKeyPtr(InternalMapIndex), nullptr, nullptr, PPF_None);
+					OverriddenKeyID = FName(OverriddenKey);
+				}
 
 				FOverriddenPropertyNodeID CurrentPropKey;
 				if (CurrentOverriddenPropertyNode->SubPropertyNodeKeys.RemoveAndCopyValue(OverriddenKeyID, CurrentPropKey))
@@ -547,12 +528,13 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 	const FProperty* Property = PropertyNode->GetValue();
 	checkf(Property, TEXT("Expecting a valid property"));
 
+	const FOverriddenPropertyNodeID PropID(Property->GetFName());
 	const void* SubValuePtr = Property->ContainerPtrToValuePtr<void>(Data, 0); //@todo support static arrays
 
 	FOverriddenPropertyNode* SubPropertyNode = nullptr;
 	if (ParentPropertyNode)
 	{
-		FOverriddenPropertyNode& SubPropertyNodeRef = FindOrAddNode(*ParentPropertyNode, Property);
+		FOverriddenPropertyNode& SubPropertyNodeRef = FindOrAddNode(*ParentPropertyNode, PropID);
 		SubPropertyNode = SubPropertyNodeRef.Operation != EOverriddenPropertyOperation::Replace ? &SubPropertyNodeRef : nullptr;
 	}
 
@@ -839,7 +821,17 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 				{
 					if(SubPropertyNode)
 					{
-						FOverriddenPropertyNodeID OverriddenKeyID = FOverriddenPropertyNodeID::ForMapKey(MapProperty->KeyProp, MapHelper.GetKeyPtr(It.GetInternalIndex()));
+						FOverriddenPropertyNodeID OverriddenKeyID;
+						if (const UObject* OverriddenKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(It.GetInternalIndex())) : nullptr)
+						{
+							OverriddenKeyID = FOverriddenPropertyNodeID(*OverriddenKeyObject);
+						}
+						else
+						{
+							FString OverriddenKey;
+							MapProperty->KeyProp->ExportTextItem_Direct(OverriddenKey, MapHelper.GetKeyPtr(It.GetInternalIndex()), nullptr, nullptr, PPF_None);
+							OverriddenKeyID = FName(OverriddenKey);
+						}
 						FOverriddenPropertyNode& OverriddenKeyNode = FindOrAddNode(*SubPropertyNode, OverriddenKeyID);
 						OverriddenKeyNode.Operation = EOverriddenPropertyOperation::Replace;
 					}
@@ -862,7 +854,18 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 
 				if(SubPropertyNode)
 				{
-					FOverriddenPropertyNodeID AddedKeyID = FOverriddenPropertyNodeID::ForMapKey(MapProperty->KeyProp, MapHelper.GetKeyPtr(InternalMapIndex));
+					FOverriddenPropertyNodeID AddedKeyID;
+					if (const UObject* AddedKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(InternalMapIndex)) : nullptr)
+					{
+						AddedKeyID = FOverriddenPropertyNodeID(*AddedKeyObject);
+					}
+					else
+					{
+						FString AddedKey;
+						MapProperty->KeyProp->ExportTextItem_Direct(AddedKey, MapHelper.GetKeyPtr(InternalMapIndex), nullptr, nullptr, PPF_None);
+						AddedKeyID = FName(AddedKey);
+					}
+
 					FOverriddenPropertyNode& AddedKeyNode = FindOrAddNode(*SubPropertyNode, AddedKeyID);
 					AddedKeyNode.Operation = EOverriddenPropertyOperation::Add;
 				}
@@ -874,7 +877,17 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 
 				if(SubPropertyNode)
 				{
-					FOverriddenPropertyNodeID RemovedKeyID = FOverriddenPropertyNodeID::ForMapKey(MapProperty->KeyProp, PreEditMapHelper.GetKeyPtr(InternalPreEditMapIndex));
+					FOverriddenPropertyNodeID RemovedKeyID;
+					if (const UObject* RemovedKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(PreEditMapHelper.GetKeyPtr(InternalPreEditMapIndex)) : nullptr)
+					{
+						RemovedKeyID = FOverriddenPropertyNodeID(*RemovedKeyObject);
+					}
+					else
+					{
+						FString RemovedKey;
+						MapProperty->KeyProp->ExportTextItem_Direct(RemovedKey, PreEditMapHelper.GetKeyPtr(InternalPreEditMapIndex), nullptr, nullptr, PPF_None);
+						RemovedKeyID = FName(RemovedKey);
+					}
 					FOverriddenPropertyNode& RemovedKeyNode = FindOrAddNode(*SubPropertyNode, RemovedKeyID);
 					if (RemovedKeyNode.Operation == EOverriddenPropertyOperation::Add)
 					{
@@ -1136,7 +1149,8 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 	while (PropertyIterator && OverriddenPropertyNode && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
 	{
 		const FProperty* CurrentProperty = (*PropertyIterator);
-		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentProperty))
+		const FName CurrentPropID = CurrentProperty->GetFName();
+		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
 		{
 			OverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 			checkf(OverriddenPropertyNode, TEXT("Expecting a node"));
@@ -1174,7 +1188,8 @@ FOverriddenPropertyNode* FOverriddenPropertySet::SetOverriddenPropertyOperation(
 	while (PropertyIterator && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
 	{
 		const FProperty* CurrentProperty = (*PropertyIterator);
-		OverriddenPropertyNode = &FindOrAddNode(*OverriddenPropertyNode, CurrentProperty);
+		const FName CurrentPropID = CurrentProperty->GetFName();
+		OverriddenPropertyNode = &FindOrAddNode(*OverriddenPropertyNode, CurrentPropID);
 		++PropertyIterator;
 	}
 
@@ -1252,7 +1267,8 @@ const FOverriddenPropertyNode* FOverriddenPropertySet::GetOverriddenPropertyNode
 	while (PropertyIterator && OverriddenPropertyNode)
 	{
 		const FProperty* CurrentProperty = (*PropertyIterator);
-		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentProperty))
+		const FName CurrentPropID = CurrentProperty->GetFName();
+		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
 		{
 			OverriddenPropertyNode = OverriddenPropertyNodes.Find(*CurrentPropKey);
 			checkf(OverriddenPropertyNode, TEXT("Expecting a node"));
