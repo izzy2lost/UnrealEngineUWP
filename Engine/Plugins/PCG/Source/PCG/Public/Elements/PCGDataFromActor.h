@@ -81,6 +81,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ShowOnlyInnerProperties))
 	FPCGActorSelectorSettings ActorSelector;
 
+	/** Describes which components to select for the data collection. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ShowOnlyInnerProperties))
+	FPCGComponentSelectorSettings ComponentSelector;
+
 	/** Describes what kind of data we will collect from the found actor(s). */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data Retrieval Settings", meta = (EditCondition = "DisplayModeSettings()", EditConditionHides, HideEditConditionToggle))
 	EPCGGetDataFromActorMode Mode = EPCGGetDataFromActorMode::ParseActorComponents;
@@ -131,6 +135,7 @@ public:
 struct FPCGDataFromActorContext : public FPCGLoadObjectsFromPathContext
 {
 	TArray<AActor*> FoundActors;
+	FPCGComponentSelectorSettings ComponentSelector;
 	bool bPerformedQuery = false;
 
 #if WITH_EDITOR

@@ -408,13 +408,29 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataFromActorElement::Execute::FindActors);
 			TArray<AActor*> ActorsFromInput;
+			TArray<UActorComponent*> ComponentsFromInput;
 
 			if (Settings->ActorSelector.ActorFilter == EPCGActorFilter::FromInput)
 			{
-				Algo::Transform(Context->PathsToObjectsAndDataIndex, ActorsFromInput, [](const TTuple<FSoftObjectPath, int32, int32>& InPath) { return Cast<AActor>(InPath.Get<0>().ResolveObject()); });
+				for (const TTuple<FSoftObjectPath, int32, int32>& InPath : Context->PathsToObjectsAndDataIndex)
+				{
+					UObject* Object = InPath.Get<0>().ResolveObject();
+					if (AActor* Actor = Cast<AActor>(Object))
+					{
+						ActorsFromInput.AddUnique(Actor);
+					}
+					else if (UActorComponent* ActorComponent = Cast<UActorComponent>(Object))
+					{
+						ComponentsFromInput.Add(ActorComponent);
+						ActorsFromInput.AddUnique(ActorComponent->GetOwner());
+					}
+				}
 			}
 
-			Context->FoundActors = PCGActorSelector::FindActors(Settings->ActorSelector, Context->SourceComponent.Get(), BoundsCheck, SelfIgnoreCheck, ActorsFromInput);
+			Context->ComponentSelector = Settings->ComponentSelector;
+			Context->ComponentSelector.ComponentList = std::move(ComponentsFromInput);
+
+			Context->FoundActors = PCGActorSelector::FindActors(&Settings->ActorSelector, &Context->ComponentSelector, Context->SourceComponent.Get(), BoundsCheck, SelfIgnoreCheck, ActorsFromInput);
 			Context->bPerformedQuery = true;
 
 #if WITH_EDITOR
@@ -509,6 +525,22 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 	return true;
 }
 
+bool ShouldIgnorePCGComponent(FPCGDataFromActorContext* Context, const UPCGDataFromActorSettings* Settings, UPCGComponent* Component, const UPCGComponent* SourceOriginalComponent)
+{
+	check(Context && Settings);
+	if (!Context->ComponentSelector.FilterComponent(Component))
+	{
+		return true;
+	}
+
+	const UPCGComponent* OriginalComponent = Component ? Component->GetOriginalComponent() : nullptr;
+	const AActor* SourceOriginalOwner = SourceOriginalComponent->GetOwner();
+
+	return !OriginalComponent
+		|| OriginalComponent == SourceOriginalComponent
+		|| (Settings->ActorSelector.bIgnoreSelfAndChildren && OriginalComponent->GetOwner() == SourceOriginalOwner);
+}
+
 void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* InContext, TArray<FPCGTaskId>& OutWaitTasks) const
 {
 	if (!FoundActor)
@@ -544,10 +576,8 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 
 	for (UPCGComponent* Component : PCGComponents)
 	{
-		const UPCGComponent* OriginalComponent = Component ? Component->GetOriginalComponent() : nullptr;
-
 		// Avoid waiting on our own execution (including local components).
-		if (!OriginalComponent || OriginalComponent == SourceOriginalComponent || (Settings->ActorSelector.bIgnoreSelfAndChildren && OriginalComponent->GetOwner() == SourceOwner))
+		if (ShouldIgnorePCGComponent(Context, Settings, Component, SourceOriginalComponent))
 		{
 			continue;
 		}
@@ -612,9 +642,10 @@ void FPCGDataFromActorElement::ProcessActors(FPCGContext* Context, const UPCGDat
 	}
 }
 
-void FPCGDataFromActorElement::CreateReferenceData(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, const TArray<AActor*>& Actors) const
+void FPCGDataFromActorElement::CreateReferenceData(FPCGContext* InContext, const UPCGDataFromActorSettings* Settings, const TArray<AActor*>& Actors) const
 {
-	check(Context);
+	check(InContext);
+	FPCGDataFromActorContext* Context = static_cast<FPCGDataFromActorContext*>(InContext);
 	check(Settings && (Settings->Mode == EPCGGetDataFromActorMode::GetActorReference || Settings->Mode == EPCGGetDataFromActorMode::GetComponentsReference));
 
 	const bool bCreateActorReferences = (Settings->Mode == EPCGGetDataFromActorMode::GetActorReference || Settings->Mode == EPCGGetDataFromActorMode::GetComponentsReference);
@@ -636,27 +667,33 @@ void FPCGDataFromActorElement::CreateReferenceData(FPCGContext* Context, const U
 
 	for (AActor* Actor : Actors)
 	{
-		if (Actor)
+		if (!Actor)
 		{
-			if (ComponentReference)
+			continue;
+		}
+
+		if (ComponentReference)
+		{
+			TInlineComponentArray<UActorComponent*, 16> Components;
+			Actor->GetComponents(Components);
+
+			FSoftObjectPath ActorPath(Actor);
+
+			for (UActorComponent* Component : Components)
 			{
-				TInlineComponentArray<UActorComponent*, 16> Components;
-				Actor->GetComponents(Components);
-
-				FSoftObjectPath ActorPath(Actor);
-
-				for (UActorComponent* Component : Components)
+				if(!Context->ComponentSelector.FilterComponent(Component))
 				{
-					PCGMetadataEntryKey Entry = ParamData->MutableMetadata()->AddEntry();
-					ActorReference->SetValue(Entry, ActorPath);
-					ComponentReference->SetValue(Entry, FSoftObjectPath(Component));
-
+					continue;
 				}
+
+				PCGMetadataEntryKey Entry = ParamData->MutableMetadata()->AddEntry();
+				ActorReference->SetValue(Entry, ActorPath);
+				ComponentReference->SetValue(Entry, FSoftObjectPath(Component));
 			}
-			else if (ActorReference)
-			{
-				ActorReference->SetValue(ParamData->MutableMetadata()->AddEntry(), FSoftObjectPath(Actor));
-			}
+		}
+		else if (ActorReference)
+		{
+			ActorReference->SetValue(ParamData->MutableMetadata()->AddEntry(), FSoftObjectPath(Actor));
 		}
 	}
 
@@ -703,9 +740,10 @@ void FPCGDataFromActorElement::MergeActorsIntoData(FPCGContext* Context, const U
 	}
 }
 
-void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGDataFromActorSettings* Settings, AActor* FoundActor) const
+void FPCGDataFromActorElement::ProcessActor(FPCGContext* InContext, const UPCGDataFromActorSettings* Settings, AActor* FoundActor) const
 {
-	check(Context);
+	check(InContext);
+	FPCGDataFromActorContext* Context = static_cast<FPCGDataFromActorContext*>(InContext);
 	check(Settings);
 
 	UPCGComponent* SourceComponent = Context->SourceComponent.IsValid() ? Context->SourceComponent.Get() : nullptr;
@@ -732,14 +770,11 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 			Settings->bComponentsMustOverlapSelf,
 			Settings->bComponentsMustOverlapSelf ? SourceComponent->GetGridBounds() : FBox());
 
+		// Remove any PCG components that are filtered from the component selector &
 		// Remove any PCG components that don't belong to an external execution context (i.e. share the same original component), or that share a common root actor.
-		PCGComponents.RemoveAllSwap([Settings, SourceOwner, SourceOriginalComponent](UPCGComponent* Component)
+		PCGComponents.RemoveAllSwap([Context, Settings, SourceOriginalComponent](UPCGComponent* Component)
 		{
-			const UPCGComponent* OriginalComponent = Component ? Component->GetOriginalComponent() : nullptr;
-
-			return !OriginalComponent
-				|| OriginalComponent == SourceOriginalComponent
-				|| (Settings->ActorSelector.bIgnoreSelfAndChildren && OriginalComponent->GetOwner() == SourceOwner);
+			return ShouldIgnorePCGComponent(Context, Settings, Component, SourceOriginalComponent);
 		});
 
 		for (UPCGComponent* Component : PCGComponents)
@@ -760,7 +795,7 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	{
 		if (!PCGComponents.IsEmpty())
 		{
-			PCGE_LOG(Log, GraphAndLog, FText::Format(LOCTEXT("ActorHasNoGeneratedData", "Actor '{0}' does not have any previously generated data"), FText::FromName(FoundActor->GetFName())));
+			PCGE_LOG(Log, GraphAndLog, FText::Format(LOCTEXT("ActorHasNoGeneratedData", "Actor '{0}' does not have any previously generated data, or all its components were filtered out."), FText::FromName(FoundActor->GetFName())));
 		}
 
 		return;
@@ -770,6 +805,25 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 		PCGE_LOG(Warning, GraphAndLog, FText::Format(LOCTEXT("ActorHasNoProperty", "Actor '{0}' does not have a property name '{1}'"), FText::FromName(FoundActor->GetFName()), FText::FromName(Settings->PropertyName)));
 		return;
 	}
+
+	auto GetActorDataCollection = [SourceComponent, Context, Settings](AActor* Actor, EPCGDataType DataType, bool bParseActor) -> FPCGDataCollection
+	{
+		FPCGGetDataFunctionRegistryParams GDFRParams;
+		GDFRParams.SourceComponent = SourceComponent;
+		GDFRParams.ComponentSelector = &Context->ComponentSelector;
+		GDFRParams.bParseActor = bParseActor;
+		GDFRParams.DataTypeFilter = DataType;
+
+		FPCGGetDataFunctionRegistryOutput GDFROutput;
+		FPCGModule::ConstGetDataFunctionRegistry().GetDataFromActor(Context, GDFRParams, Actor, GDFROutput);
+
+		if (GDFROutput.bSanitizedTagAttributeNames && !Settings->bSilenceSanitizedAttributeNameWarnings)
+		{
+			PCGE_LOG_C(Warning, GraphAndLog, Context, PCGDataFromActorConstants::TagNamesSanitizedWarning);
+		}
+
+		return GDFROutput.Collection;
+	};
 
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
@@ -805,7 +859,6 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 		// Soft object pointer to UPCGData
 		// Array of pcg data -> all on the default pin
 		// Map of pcg data -> use key for pin? might not be robust
-		// FPCGDataCollection
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(FoundProperty))
 		{
 			if (StructProperty->Struct == FPCGDataCollection::StaticStruct())
@@ -825,31 +878,17 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	else
 	{
 		const bool bParseActor = (Settings->Mode != EPCGGetDataFromActorMode::GetSinglePoint);
-		EPCGDataType DataFilter = Settings->GetDataFilter();
-		bool bAttributeNameWasSanitized = false;
-		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, DataFilter, bParseActor, &bAttributeNameWasSanitized);
-
-		if (bAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
-		{
-			PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
-		}
-
-		Outputs += Collection.TaggedData;
+		FPCGDataCollection ActorDataCollection = GetActorDataCollection(FoundActor, Settings->GetDataFilter(), bParseActor);
+		Outputs += ActorDataCollection.TaggedData;
 	}
 
 	// Finally, if we're in a case where we need to output the single point data too, let's do it now.
 	if (Settings->bAlsoOutputSinglePointData && (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents))
 	{
 		const bool bParseActor = false;
-		bool bAttributeNameWasSanitized = false;
-		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, EPCGDataType::Any, bParseActor, &bAttributeNameWasSanitized);
+		FPCGDataCollection SinglePointActorDataCollection = GetActorDataCollection(FoundActor, EPCGDataType::Any, bParseActor);
 
-		if (bAttributeNameWasSanitized && !Settings->bSilenceSanitizedAttributeNameWarnings)
-		{
-			PCGE_LOG(Warning, GraphAndLog, PCGDataFromActorConstants::TagNamesSanitizedWarning);
-		}
-
-		for (const FPCGTaggedData& SinglePointData : Collection.TaggedData)
+		for (const FPCGTaggedData& SinglePointData : SinglePointActorDataCollection.TaggedData)
 		{
 			FPCGTaggedData& OutSinglePoint = Outputs.Add_GetRef(SinglePointData);
 			OutSinglePoint.Pin = PCGDataFromActorConstants::SinglePointPinLabel;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PCGDataVisualizationRegistry.h"
+#include "Data/PCGGetDataFunctionRegistry.h"
 
 #include "Modules/ModuleInterface.h"
 #include "Stats/Stats.h"
@@ -42,9 +43,14 @@ public:
 	virtual bool SupportsDynamicReloading() override { return true; }
 	//~ End IModuleInterface implementation
 
-#if WITH_EDITOR
 	PCG_API static FPCGModule& GetPCGModuleChecked();
+	static const FPCGGetDataFunctionRegistry& ConstGetDataFunctionRegistry() { return GetPCGModuleChecked().GetDataFunctionRegistry; }
+	static FPCGGetDataFunctionRegistry& MutableGetDataFunctionRegistry() { return GetPCGModuleChecked().GetDataFunctionRegistry; }
 
+private:
+	FPCGGetDataFunctionRegistry GetDataFunctionRegistry;
+
+#if WITH_EDITOR
 private:
 	void RegisterNativeElementDeterminismTests();
 	void DeregisterNativeElementDeterminismTests();

@@ -7,6 +7,7 @@
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
 
+#include "Components/ActorComponent.h"
 #include "GameFramework/Actor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGActorSelector)
@@ -198,6 +199,42 @@ namespace PCGActorSelector
 			{
 				break;
 			}
+		}
+
+		return FoundActors;
+	}
+
+	TArray<AActor*> FilterActors(const FPCGComponentSelectorSettings& Settings, TArrayView<AActor*> InputActors)
+	{
+		TArray<AActor*> FilteredActors;
+		FilteredActors.Reserve(InputActors.Num());
+
+		for (AActor* InputActor : InputActors)
+		{
+			if (InputActor && Settings.FilterActor(InputActor))
+			{
+				FilteredActors.Add(InputActor);
+			}
+		}
+
+		return FilteredActors;
+	}
+
+	TArray<AActor*> FindActors(const FPCGActorSelectorSettings* ActorSettings, const FPCGComponentSelectorSettings* ComponentSettings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors)
+	{
+		TArray<AActor*> FoundActors;
+		if (ActorSettings)
+		{
+			FoundActors = FindActors(*ActorSettings, InComponent, BoundsCheck, SelfIgnoreCheck, InputActors);
+		}
+		else
+		{
+			FoundActors = InputActors;
+		}
+
+		if (!FoundActors.IsEmpty() && ComponentSettings)
+		{
+			FoundActors = FilterActors(*ComponentSettings, FoundActors);
 		}
 
 		return FoundActors;
@@ -529,4 +566,82 @@ FPCGActorSelectorSettings FPCGActorSelectorSettings::ReconstructFromKey(const FP
 	Result.ActorSelectionClass = InKey.SelectionClass;
 
 	return Result;
+}
+
+bool FPCGComponentSelectorSettings::FilterComponent(UActorComponent* InComponent) const
+{
+	check(InComponent);
+
+	if (!ComponentList.IsEmpty() && !ComponentList.Contains(InComponent))
+	{
+		return false;
+	}
+	else
+	{
+		return (ComponentSelection == EPCGComponentSelection::ByTag) ? (ComponentSelectionTag == NAME_None || InComponent->ComponentTags.Contains(ComponentSelectionTag)) :
+			(ComponentSelectionClass == nullptr || ComponentSelectionClass == UActorComponent::StaticClass() || InComponent->GetClass()->IsChildOf(ComponentSelectionClass));
+	}
+}
+
+bool FPCGComponentSelectorSettings::FilterActor(AActor* InActor) const
+{
+	check(InActor);
+	TInlineComponentArray<UActorComponent*> ActorComponents;
+	InActor->GetComponents(ActorComponents);
+
+	for (UActorComponent* ActorComponent : ActorComponents)
+	{
+		if (FilterComponent(ActorComponent))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+TArray<UActorComponent*> FPCGComponentSelectorSettings::FilterComponents(TArrayView<UActorComponent*> InComponents) const
+{
+	TArrayView<UActorComponent*> Components;
+	TArray<UActorComponent*> InPreFilteredComponents;
+	if (!ComponentList.IsEmpty())
+	{
+		Algo::CopyIf(InComponents, InPreFilteredComponents, [this](UActorComponent* Component) { return ComponentList.Contains(Component); });
+		Components = TArrayView<UActorComponent*>(InPreFilteredComponents);
+	}
+	else
+	{
+		Components = InComponents;
+	}
+
+	TArray<UActorComponent*> FilteredComponents;
+	FilteredComponents.Reserve(Components.Num());
+
+	if ((ComponentSelection == EPCGComponentSelection::ByTag && ComponentSelectionTag == NAME_None) ||
+		(ComponentSelection == EPCGComponentSelection::ByClass && (ComponentSelectionClass == nullptr || ComponentSelectionClass == UActorComponent::StaticClass())))
+	{
+		FilteredComponents = Components;
+	}
+	else if (ComponentSelection == EPCGComponentSelection::ByTag)
+	{
+		for (UActorComponent* Component : Components)
+		{
+			if (Component && Component->ComponentTags.Contains(ComponentSelectionTag))
+			{
+				FilteredComponents.Add(Component);
+			}
+		}
+	}
+	else if (ComponentSelection == EPCGComponentSelection::ByClass)
+	{
+		for (UActorComponent* Component : Components)
+		{
+			if (Component && Component->GetClass()->IsChildOf(ComponentSelectionClass))
+			{
+				FilteredComponents.Add(Component);
+			}
+		}
+	}
+
+	return FilteredComponents;
 }

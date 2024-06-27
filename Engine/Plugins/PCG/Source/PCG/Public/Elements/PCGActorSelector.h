@@ -10,6 +10,7 @@
 #include "PCGActorSelector.generated.h"
 
 class AActor;
+class UActorComponent;
 class UPCGComponent;
 class UWorld;
 struct FPCGActorSelectorSettings;
@@ -22,6 +23,14 @@ enum class EPCGActorSelection : uint8
 	ByName UMETA(Hidden),
 	ByClass,
 	ByPath UMETA(Hidden), // Hidden because actors are not tracked by paths.
+	Unknown UMETA(Hidden)
+};
+
+UENUM()
+enum class EPCGComponentSelection : uint8
+{
+	ByTag,
+	ByClass,
 	Unknown UMETA(Hidden)
 };
 
@@ -171,8 +180,46 @@ struct PCG_API FPCGActorSelectorSettings
 	static FPCGActorSelectorSettings ReconstructFromKey(const FPCGSelectionKey& InKey);
 };
 
+USTRUCT(BlueprintType)
+struct PCG_API FPCGComponentSelectorSettings
+{
+	GENERATED_BODY()
+
+	/** How to select when filtering actors. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Component Selector Settings", meta = (EditCondition = "bShowComponentSelection", EditConditionHides))
+	EPCGComponentSelection ComponentSelection = EPCGComponentSelection::ByTag;
+
+	/** Tag to match against when filtering actors. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Component Selector Settings", meta = (EditCondition = "bShowComponentSelection && ComponentSelection==EPCGComponentSelection::ByTag", EditConditionHides))
+	FName ComponentSelectionTag;
+
+	/** Actor class to match against when filtering actors. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Component Selector Settings", meta = (EditCondition = "bShowComponentSelection && bShowComponentSelectionClass && ComponentSelection==EPCGComponentSelection::ByClass", EditConditionHides, AllowAbstract = "true"))
+	TSubclassOf<UActorComponent> ComponentSelectionClass;
+
+	UPROPERTY(Transient)
+	bool bShowComponentSelection = true;
+
+	UPROPERTY(Transient)
+	bool bShowComponentSelectionClass = true;
+
+	TArray<UActorComponent*> ComponentList;
+
+	bool FilterComponent(UActorComponent* InComponent) const;
+	bool FilterActor(AActor* InActor) const;
+	TArray<UActorComponent*> FilterComponents(TArrayView<UActorComponent*> InComponents) const;
+};
+
 namespace PCGActorSelector
 {
+	// Simple actor filtering
 	PCG_API TArray<AActor*> FindActors(const FPCGActorSelectorSettings& Settings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors = TArrayView<AActor*>());
 	PCG_API AActor* FindActor(const FPCGActorSelectorSettings& InSettings, UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors = TArrayView<AActor*>());
+
+	// Actor + Component filtering
+	PCG_API TArray<AActor*> FindActors(const FPCGActorSelectorSettings* ActorSettings, const FPCGComponentSelectorSettings* ComponentSettings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors = TArrayView<AActor*>());
+	PCG_API AActor* FindActor(const FPCGActorSelectorSettings* ActorSettings, const FPCGComponentSelectorSettings* ComponentSettings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck, TArrayView<AActor*> InputActors = TArrayView<AActor*>());
+	
+	// Additional filter methods
+	PCG_API TArray<AActor*> FilterActors(const FPCGComponentSelectorSettings& ComponentSettings, TArrayView<AActor*> InActors);
 }

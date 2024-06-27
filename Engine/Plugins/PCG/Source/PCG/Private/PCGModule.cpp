@@ -21,6 +21,11 @@
 
 #define LOCTEXT_NAMESPACE "FPCGModule"
 
+FPCGModule& FPCGModule::GetPCGModuleChecked()
+{
+	return FModuleManager::GetModuleChecked<FPCGModule>("PCG");
+}
+
 #if WITH_EDITOR
 void FPCGModule::StartupModule()
 {
@@ -39,11 +44,6 @@ void FPCGModule::ShutdownModule()
 	DeregisterNativeElementDeterminismTests();
 
 	PCGDeterminismTests::FNativeTestRegistry::Destroy();
-}
-
-FPCGModule& FPCGModule::GetPCGModuleChecked()
-{
-	return FModuleManager::GetModuleChecked<FPCGModule>("PCG");
 }
 
 void FPCGModule::RegisterNativeElementDeterminismTests()

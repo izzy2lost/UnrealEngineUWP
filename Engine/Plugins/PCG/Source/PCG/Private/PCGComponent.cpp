@@ -8,21 +8,12 @@
 #include "PCGGraph.h"
 #include "PCGInputOutputSettings.h"
 #include "PCGManagedResource.h"
-#include "PCGParamData.h"
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
-#include "Data/PCGCollisionShapeData.h"
-#include "Data/PCGDifferenceData.h"
 #include "Data/PCGIntersectionData.h"
 #include "Data/PCGLandscapeData.h"
-#include "Data/PCGLandscapeSplineData.h"
-#include "Data/PCGPointData.h"
-#include "Data/PCGPrimitiveData.h"
-#include "Data/PCGProjectionData.h"
 #include "Data/PCGSpatialData.h"
-#include "Data/PCGSplineData.h"
 #include "Data/PCGUnionData.h"
-#include "Data/PCGVolumeData.h"
 #include "Graph/PCGStackContext.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
@@ -35,21 +26,13 @@
 #include "Utils/PCGGraphExecutionLogging.h"
 
 #include "CoreGlobals.h"
-#include "LandscapeComponent.h"
 #include "LandscapeProxy.h"
-#include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Transform.h"
-#include "Components/BillboardComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
-#include "Components/ShapeComponent.h"
-#include "Components/SplineComponent.h"
-#include "Components/SplineMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
-#include "GameFramework/Volume.h"
 #include "Kismet/GameplayStatics.h"
-#include "LandscapeSplinesComponent.h"
 #include "UObject/Package.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGComponent)
@@ -2862,245 +2845,15 @@ FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, co
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::CreateActorPCGData);
 
-	if (bOutOptionalSanitizedTagAttributeName)
-	{
-		*bOutOptionalSanitizedTagAttributeName = false;
-	}
+	FPCGGetDataFunctionRegistryParams Params;
+	Params.SourceComponent = Component;
+	Params.bParseActor = bParseActor;
+	Params.DataTypeFilter = InDataFilter;
 
-	FPCGDataCollection Collection;
+	FPCGGetDataFunctionRegistryOutput Output;
+	FPCGModule::ConstGetDataFunctionRegistry().GetDataFromActor(/*Context=*/nullptr, Params, Actor, Output);
 
-	if (!Actor)
-	{
-		return Collection;
-	}
-
-	auto NameTagsToStringTags = [](const FName& InName) { return InName.ToString(); };
-	TSet<FString> ActorTags;
-	Algo::Transform(Actor->Tags, ActorTags, NameTagsToStringTags);
-
-	// Fill in collection based on the data on the given actor.
-	// Some actor types we will forego full parsing to build strictly on the actor existence, such as partition actors, volumes and landscape
-	// TODO: add factory for extensibility
-	// TODO: review the !bParseActor cases - it might make sense to have just a point for a partition actor, even if we preintersect it.
-	APCGPartitionActor* PartitionActor = (!!(InDataFilter & EPCGDataType::Spatial) || !!(InDataFilter & EPCGDataType::Volume)) ? Cast<APCGPartitionActor>(Actor) : nullptr;
-	ALandscapeProxy* LandscapeActor = !!(InDataFilter & EPCGDataType::Landscape) ? Cast<ALandscapeProxy>(Actor) : nullptr;
-	AVolume* VolumeActor = !!(InDataFilter & EPCGDataType::Volume) ? Cast<AVolume>(Actor) : nullptr;
-	if (!bParseActor && !!(InDataFilter & EPCGDataType::Point))
-	{
-		UPCGPointData* Data = NewObject<UPCGPointData>();
-		Data->InitializeFromActor(Actor, bOutOptionalSanitizedTagAttributeName);
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-	else if (!bParseActor && !!(InDataFilter & EPCGDataType::Param))
-	{
-		UPCGParamData* Data = NewObject<UPCGParamData>();
-		check(Data && Data->MutableMetadata());
-		
-		if (FPCGMetadataAttribute<FSoftObjectPath>* ActorReferenceAttribute = Data->MutableMetadata()->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/true))
-		{
-			ActorReferenceAttribute->SetValue(Data->MutableMetadata()->AddEntry(), FSoftObjectPath(Actor));
-		}
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-	else if (PartitionActor)
-	{
-		check(!Component || Component->GetOwner() == Actor); // Invalid processing otherwise because of the this usage
-
-		UPCGVolumeData* VolumeData = NewObject<UPCGVolumeData>();
-		UPCGSpatialData* Result = VolumeData;
-		if (InDataFilter == EPCGDataType::Volume)
-		{
-			VolumeData->Initialize(PCGHelpers::GetGridBounds(Actor, Component));
-		}
-		else
-		{
-			VolumeData->Initialize(PartitionActor->GetFixedBounds());
-
-			UPCGComponent* OriginalComponent = Component ? PartitionActor->GetOriginalComponent(Component) : nullptr;
-			// Important note: we do NOT call the collection version here, as we want to have a union if that's the case
-			const UPCGSpatialData* OriginalComponentSpatialData = OriginalComponent ? Cast<const UPCGSpatialData>(OriginalComponent->GetActorPCGData()) : nullptr;
-
-			if (OriginalComponentSpatialData)
-			{
-				Result = Result->IntersectWith(nullptr, OriginalComponentSpatialData);
-			}
-		}
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Result;
-		// No need to keep partition actor tags, though we might want to push PCG grid GUID at some point
-	}
-	else if (LandscapeActor)
-	{
-		UPCGLandscapeData* Data = NewObject<UPCGLandscapeData>();
-		const UPCGGraph* PCGGraph = Component ? Component->GetGraph() : nullptr;
-
-		FPCGLandscapeDataProps LandscapeDataProps;
-		LandscapeDataProps.bGetHeightOnly = false;
-		LandscapeDataProps.bGetLayerWeights = (!PCGGraph || PCGGraph->bLandscapeUsesMetadata);
-
-		Data->Initialize({ LandscapeActor }, PCGHelpers::GetGridBounds(Actor, Component), LandscapeDataProps);
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-	else if (VolumeActor)
-	{
-		UPCGVolumeData* Data = NewObject<UPCGVolumeData>();
-		Data->Initialize(VolumeActor);
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-	else // Prepare data on a component basis
-	{
-		using PrimitiveComponentArray = TInlineComponentArray<UPrimitiveComponent*, 4>;
-		PrimitiveComponentArray Primitives;
-
-		auto RemoveDuplicatesFromPrimitives = [&Primitives](const auto& InComponents)
-		{
-			Primitives.RemoveAll([&InComponents](UPrimitiveComponent* Component)
-			{
-				return InComponents.Contains(Component);
-			});
-		};
-
-		auto RemovePCGGeneratedEntries = [](auto& InComponents)
-		{
-			for (int32 Index = InComponents.Num() - 1; Index >= 0; --Index)
-			{
-				if (InComponents[Index]->ComponentTags.Contains(PCGHelpers::DefaultPCGTag))
-				{
-					InComponents.RemoveAtSwap(Index);
-				}
-			}
-		};
-
-		auto RemoveSplineMeshComponents = [](PrimitiveComponentArray& InComponents)
-		{
-			for (int32 Index = InComponents.Num() - 1; Index >= 0; --Index)
-			{
-				if (InComponents[Index]->IsA<USplineMeshComponent>())
-				{
-					InComponents.RemoveAtSwap(Index);
-				}
-			}
-		};
-
-		Actor->GetComponents(Primitives);
-		RemovePCGGeneratedEntries(Primitives);
-
-		TInlineComponentArray<ULandscapeSplinesComponent*, 4> LandscapeSplines;
-		Actor->GetComponents(LandscapeSplines);
-		RemovePCGGeneratedEntries(LandscapeSplines);
-		RemoveDuplicatesFromPrimitives(LandscapeSplines);
-
-		TInlineComponentArray<USplineComponent*, 4> Splines;
-		Actor->GetComponents(Splines);
-		RemovePCGGeneratedEntries(Splines);
-		RemoveDuplicatesFromPrimitives(Splines);
-
-		// If we have a better representation than the spline mesh components, we shouldn't create them
-		if (!LandscapeSplines.IsEmpty() || !Splines.IsEmpty())
-		{
-			RemoveSplineMeshComponents(Primitives);
-		}
-
-		TInlineComponentArray<UShapeComponent*, 4> Shapes;
-		Actor->GetComponents(Shapes);
-		RemovePCGGeneratedEntries(Shapes);
-		RemoveDuplicatesFromPrimitives(Shapes);
-
-		if (!!(InDataFilter & EPCGDataType::Spline))
-		{
-			for (ULandscapeSplinesComponent* SplineComponent : LandscapeSplines)
-			{
-				UPCGLandscapeSplineData* SplineData = NewObject<UPCGLandscapeSplineData>();
-				SplineData->Initialize(SplineComponent);
-
-				FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-				TaggedData.Data = SplineData;
-				Algo::Transform(SplineComponent->ComponentTags, TaggedData.Tags, NameTagsToStringTags);
-				TaggedData.Tags.Append(ActorTags);
-			}
-
-			for (USplineComponent* SplineComponent : Splines)
-			{
-				UPCGSplineData* SplineData = NewObject<UPCGSplineData>();
-				SplineData->Initialize(SplineComponent);
-
-				FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-				TaggedData.Data = SplineData;
-				Algo::Transform(SplineComponent->ComponentTags, TaggedData.Tags, NameTagsToStringTags);
-				TaggedData.Tags.Append(ActorTags);
-			}
-		}
-
-		if (!!(InDataFilter & EPCGDataType::Primitive))
-		{
-			for (UShapeComponent* ShapeComponent : Shapes)
-			{
-				UPCGSpatialData* Data = nullptr;
-				if (UPCGCollisionShapeData::IsSupported(ShapeComponent))
-				{
-					UPCGCollisionShapeData* ShapeData = NewObject<UPCGCollisionShapeData>();
-					ShapeData->Initialize(ShapeComponent);
-
-					Data = ShapeData;
-				}
-				else
-				{
-					UPCGPrimitiveData* ShapeData = NewObject<UPCGPrimitiveData>();
-					ShapeData->Initialize(ShapeComponent);
-
-					Data = ShapeData;
-				}
-
-				FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-				TaggedData.Data = Data;
-				Algo::Transform(ShapeComponent->ComponentTags, TaggedData.Tags, NameTagsToStringTags);
-				TaggedData.Tags.Append(ActorTags);
-			}
-
-			for (UPrimitiveComponent* PrimitiveComponent : Primitives)
-			{
-				// Exception: skip the billboard component
-				if (Cast<UBillboardComponent>(PrimitiveComponent))
-				{
-					continue;
-				}
-
-				UPCGPrimitiveData* PrimitiveData = NewObject<UPCGPrimitiveData>();
-				PrimitiveData->Initialize(PrimitiveComponent);
-
-				FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-				TaggedData.Data = PrimitiveData;
-				Algo::Transform(PrimitiveComponent->ComponentTags, TaggedData.Tags, NameTagsToStringTags);
-				TaggedData.Tags.Append(ActorTags);
-			}
-		}
-	}
-
-	// Finally, if it's not a special actor and there are not parsed components, then return a single point at the actor position
-	if (Collection.TaggedData.IsEmpty() && !!(InDataFilter & EPCGDataType::Point))
-	{
-		UPCGPointData* Data = NewObject<UPCGPointData>();
-		Data->InitializeFromActor(Actor, bOutOptionalSanitizedTagAttributeName);
-
-		FPCGTaggedData& TaggedData = Collection.TaggedData.Emplace_GetRef();
-		TaggedData.Data = Data;
-		TaggedData.Tags = ActorTags;
-	}
-
-	return Collection;
+	return Output.Collection;
 }
 
 void UPCGComponent::RefreshSchedulingPolicy()
