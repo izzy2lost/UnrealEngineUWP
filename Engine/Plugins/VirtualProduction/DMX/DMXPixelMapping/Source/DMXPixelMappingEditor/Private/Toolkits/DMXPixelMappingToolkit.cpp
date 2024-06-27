@@ -50,6 +50,8 @@ FDMXPixelMappingToolkit::FDMXPixelMappingToolkit()
 	: AnalyticsProvider("PixelMappingEditor")
 {
 	EditorSettingsDump = TArray<uint8, TFixedAllocator<sizeof(UDMXPixelMappingEditorSettings)>>(reinterpret_cast<const uint8*>(GetDefault<UDMXPixelMappingEditorSettings>()), (int32)sizeof(UDMXPixelMappingEditorSettings));
+
+	Selection = NewObject<UDMXPixelMappingToolkitSelection>(GetTransientPackage(), NAME_None, RF_Transactional);
 }
 
 FDMXPixelMappingToolkit::~FDMXPixelMappingToolkit()
@@ -293,9 +295,19 @@ FDMXPixelMappingComponentReference FDMXPixelMappingToolkit::GetReferenceFromComp
 	return FDMXPixelMappingComponentReference(SharedThis(this), InComponent);
 }
 
+UDMXPixelMappingRendererComponent* FDMXPixelMappingToolkit::GetActiveRendererComponent() const
+{
+	checkf(Selection, TEXT("Unexpected invalid selection object in pixel mapping toolkit."));
+
+	return Selection->ActiveRendererComponent.Get();
+}
+
 void FDMXPixelMappingToolkit::SetActiveRenderComponent(UDMXPixelMappingRendererComponent* InComponent)
 {
-	ActiveRendererComponent = InComponent;
+	checkf(Selection, TEXT("Unexpected invalid selection object in pixel mapping toolkit."));
+
+	Selection->Modify();
+	Selection->ActiveRendererComponent = InComponent;
 }
 
 template <typename ComponentType>
@@ -313,13 +325,16 @@ TArray<ComponentType> FDMXPixelMappingToolkit::MakeComponentArray(const TSet<FDM
 
 void FDMXPixelMappingToolkit::SelectComponents(const TSet<FDMXPixelMappingComponentReference>& InSelectedComponents)
 {
+	checkf(Selection, TEXT("Unexpected invalid selection object in pixel mapping toolkit."));
+
 	// Update selection
-	SelectedComponents.Empty();
-	ActiveOutputComponents.Empty();
+	Selection->Modify();
+	Selection->Components.Reset();
+	ActiveOutputComponents.Reset();
 
-	SelectedComponents.Append(InSelectedComponents);
+	Selection->Components.Append(InSelectedComponents);
 
-	for (const FDMXPixelMappingComponentReference& ComponentReference : SelectedComponents)
+	for (const FDMXPixelMappingComponentReference& ComponentReference : Selection->Components)
 	{
 		if (UDMXPixelMappingRootComponent* RootComponent = Cast<UDMXPixelMappingRootComponent>(ComponentReference.GetComponent()))
 		{
@@ -345,7 +360,7 @@ void FDMXPixelMappingToolkit::SelectComponents(const TSet<FDMXPixelMappingCompon
 
 	// Always order selected components topmost, but keep their relative z-ordering
 	TArray<UDMXPixelMappingOutputComponent*> SelectedOutputComponents;
-	Algo::TransformIf(SelectedComponents, SelectedOutputComponents,
+	Algo::TransformIf(Selection->Components, SelectedOutputComponents,
 		[](const FDMXPixelMappingComponentReference& ComponentReference)
 		{
 			return ComponentReference.GetComponent() && ComponentReference.GetComponent()->IsA(UDMXPixelMappingOutputComponent::StaticClass());
@@ -365,7 +380,7 @@ void FDMXPixelMappingToolkit::SelectComponents(const TSet<FDMXPixelMappingCompon
 
 bool FDMXPixelMappingToolkit::IsComponentSelected(UDMXPixelMappingBaseComponent* Component) const
 {
-	for (const FDMXPixelMappingComponentReference& ComponentReference : SelectedComponents)
+	for (const FDMXPixelMappingComponentReference& ComponentReference : Selection->Components)
 	{
 		if (Component && Component == ComponentReference.GetComponent())
 		{
@@ -472,13 +487,12 @@ void FDMXPixelMappingToolkit::UpdateBlueprintNodes() const
 void FDMXPixelMappingToolkit::SaveThumbnailImage()
 {
 	UDMXPixelMapping* PixelMapping = GetDMXPixelMapping();
-	if (PixelMapping)
+	UDMXPixelMappingRendererComponent* ActiveRendererComponent = GetActiveRendererComponent();
+
+	UTexture* Texture = ActiveRendererComponent ? ActiveRendererComponent->GetRenderedInputTexture() : nullptr;
+	if (IsValid(Texture) && Texture->IsFullyStreamedIn())
 	{
-		UTexture* Texture = ActiveRendererComponent.IsValid() ? ActiveRendererComponent->GetRenderedInputTexture() : nullptr;
-		if (IsValid(Texture) && Texture->IsFullyStreamedIn())
-		{
-			PixelMapping->ThumbnailImage = Texture;
-		}
+		PixelMapping->ThumbnailImage = Texture;
 	}
 }
 
@@ -534,7 +548,9 @@ TArray<UDMXPixelMappingBaseComponent*> FDMXPixelMappingToolkit::CreateComponents
 
 void FDMXPixelMappingToolkit::DeleteSelectedComponents()
 {
-	if (SelectedComponents.IsEmpty())
+	checkf(Selection, TEXT("Unexpected invalid selection object in pixel mapping toolkit."));
+
+	if (Selection->Components.IsEmpty())
 	{
 		return;
 	}
@@ -542,7 +558,7 @@ void FDMXPixelMappingToolkit::DeleteSelectedComponents()
 	TGuardValue Guard(bRemovingComponents, true);
 
 	TSet<FDMXPixelMappingComponentReference> ParentComponentReferences;
-	for (const FDMXPixelMappingComponentReference& SelectedComponentReference : SelectedComponents)
+	for (const FDMXPixelMappingComponentReference& SelectedComponentReference : Selection->Components)
 	{
 		UDMXPixelMappingBaseComponent* SelectedComponent = SelectedComponentReference.GetComponent();
 		if (SelectedComponent)
@@ -561,11 +577,7 @@ void FDMXPixelMappingToolkit::DeleteSelectedComponents()
 
 				ParentComponent->RemoveChild(SelectedComponent);
 
-				const bool bParentComponentIsBeingRemoved = Algo::FindByPredicate(SelectedComponents, [ParentComponent](const FDMXPixelMappingComponentReference& Reference)
-					{
-						return Reference.GetComponent() == ParentComponent;
-					}) != nullptr;
-
+				const bool bParentComponentIsBeingRemoved = Algo::FindBy(Selection->Components, ParentComponent, &FDMXPixelMappingComponentReference::GetComponent) != nullptr;
 				if (!bParentComponentIsBeingRemoved)
 				{
 					ParentComponentReferences.Add(FDMXPixelMappingComponentReference(StaticCastSharedRef<FDMXPixelMappingToolkit>(AsShared()), ParentComponent));
@@ -685,6 +697,16 @@ void FDMXPixelMappingToolkit::ToggleGridSnapping()
 		PixelMapping->bGridSnappingEnabled = !PixelMapping->bGridSnappingEnabled;
 		PixelMapping->PostEditChange();
 	}
+}
+
+void FDMXPixelMappingToolkit::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(Selection);
+}
+
+FString FDMXPixelMappingToolkit::GetReferencerName() const
+{
+	return TEXT("FDMXPixelMappingToolkit");
 }
 
 void FDMXPixelMappingToolkit::PostUndo(bool bSuccess)
@@ -837,6 +859,13 @@ void FDMXPixelMappingToolkit::RenameComponent(const FName& CurrentObjectName, co
 	ComponentToRename->Modify();
 	ComponentToRename->Rename(*UniqueName.ToString());
 	UpdateBlueprintNodes();
+}
+
+const TSet<FDMXPixelMappingComponentReference>& FDMXPixelMappingToolkit::GetSelectedComponents() const
+{
+	checkf(Selection, TEXT("Unexpected invalid selection object in pixel mapping toolkit."));
+
+	return Selection->Components;
 }
 
 TSharedRef<SDMXPixelMappingDMXLibraryView> FDMXPixelMappingToolkit::GetOrCreateDMXLibraryView()
@@ -1093,8 +1122,10 @@ ECheckBoxState FDMXPixelMappingToolkit::GetTransformHandleModeCheckboxState(EDMX
 
 UDMXPixelMappingFixtureGroupComponent* FDMXPixelMappingToolkit::GetFixtureGroupFromSelection() const
 {
+	checkf(Selection, TEXT("Unexpected invalid selection object in pixel mapping toolkit."));
+
 	TArray<UDMXPixelMappingFixtureGroupComponent*> FixtureGroupComponents;
-	for (const FDMXPixelMappingComponentReference& ComponentReference : SelectedComponents)
+	for (const FDMXPixelMappingComponentReference& ComponentReference : Selection->Components)
 	{
 		UDMXPixelMappingBaseComponent* Component = ComponentReference.GetComponent();
 		if (!Component)

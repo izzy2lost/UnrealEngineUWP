@@ -650,12 +650,21 @@ int32 SDMXPixelMappingDesignerView::GetGridSize() const
 
 void SDMXPixelMappingDesignerView::PostUndo(bool bSuccess)
 {
-	CachedRendererComponent = nullptr;
+	const TSharedPtr<FDMXPixelMappingToolkit> Toolkit = WeakToolkit.Pin();
+	if (!Toolkit.IsValid())
+	{
+		return;
+	}
+
+	UDMXPixelMappingRendererComponent* RendererComponent = Toolkit->GetActiveRendererComponent();
+	CachedRendererComponent = RendererComponent;
+	RebuildDesigner();
 }
 
 void SDMXPixelMappingDesignerView::PostRedo(bool bSuccess)
 {
-	CachedRendererComponent = nullptr;
+	// Same as post undo
+	PostUndo(bSuccess);
 }
 
 void SDMXPixelMappingDesignerView::RebuildDesigner()

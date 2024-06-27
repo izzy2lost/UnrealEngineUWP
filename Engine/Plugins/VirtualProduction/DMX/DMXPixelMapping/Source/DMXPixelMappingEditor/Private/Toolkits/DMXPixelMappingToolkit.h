@@ -11,6 +11,8 @@
 #include "UObject/GCObject.h"
 #include "Widgets/Views/SHeaderRow.h"
 
+#include "DMXPixelMappingToolkit.generated.h"
+
 enum class ECheckBoxState : uint8;
 enum class EDMXPixelMappingResetDMXMode : uint8;
 class FDMXPixelMappingComponentTemplate;
@@ -40,6 +42,20 @@ namespace UE::DMX
 	};
 }
 
+/** Selection in the pixel mapping toollkit. Using the UObject system for undo/redo. */
+UCLASS(Transient)
+class UDMXPixelMappingToolkitSelection
+	: public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	TSet<FDMXPixelMappingComponentReference> Components;
+
+	UPROPERTY()
+	TWeakObjectPtr<UDMXPixelMappingRendererComponent> ActiveRendererComponent;
+};
 
 /**
  * Implements an Editor toolkit for Pixel Mapping.
@@ -48,6 +64,7 @@ class FDMXPixelMappingToolkit
 	: public FAssetEditorToolkit
 	, public FTickableEditorObject
 	, public FSelfRegisteringEditorUndoClient
+	, public FGCObject
 {
 	using EDMXPixelMappingTransformHandleMode = UE::DMX::EDMXPixelMappingTransformHandleMode;
 
@@ -91,16 +108,16 @@ public:
 	virtual bool IsTickable() const override { return true; }
 	virtual TStatId GetStatId() const override;
 	//~ End FTickableEditorObject Interface
-		
+
 	UDMXPixelMapping* GetDMXPixelMapping() const;
 
 	FDMXPixelMappingComponentReference GetReferenceFromComponent(UDMXPixelMappingBaseComponent* InComponent);
 
-	UDMXPixelMappingRendererComponent* GetActiveRendererComponent() const { return ActiveRendererComponent.Get(); }
+	UDMXPixelMappingRendererComponent* GetActiveRendererComponent() const;
 
 	const TSharedPtr<FUICommandList>& GetDesignerCommandList() const { return DesignerCommandList; }
 
-	const TSet<FDMXPixelMappingComponentReference>& GetSelectedComponents() const { return SelectedComponents; }
+	const TSet<FDMXPixelMappingComponentReference>& GetSelectedComponents() const;
 
 	/** Gets or creates the DMX Library View for this Pixel Mapping instance */
 	TSharedRef<SDMXPixelMappingDMXLibraryView> GetOrCreateDMXLibraryView();
@@ -165,6 +182,12 @@ public:
 
 	/** Returns the current transform handle mode */
 	EDMXPixelMappingTransformHandleMode GetTransformHandleMode() const { return TransformHandleMode; }
+
+protected:
+	//~ Begin FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override;
+	//~ End FGCObject interface
 
 private:
 	//~ Begin FSelfRegisteringEditorUndoClient interface
@@ -261,11 +284,10 @@ private:
 
 	FOnSelectedComponentsChangedDelegate OnSelectedComponentsChangedDelegate;
 
-	TSet<FDMXPixelMappingComponentReference> SelectedComponents;
+	/** The selection object */
+	TObjectPtr<UDMXPixelMappingToolkitSelection> Selection;
 
 	TSharedPtr<FDMXPixelMappingToolbar> Toolbar;
-
-	TWeakObjectPtr<UDMXPixelMappingRendererComponent> ActiveRendererComponent;
 
 	TArray<TWeakObjectPtr<UDMXPixelMappingOutputComponent>> ActiveOutputComponents;
 

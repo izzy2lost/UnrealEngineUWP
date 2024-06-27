@@ -5,11 +5,10 @@
 #include "DragAndDrop/DecoratedDragDropOp.h"
 
 class FDMXPixelMappingComponentTemplate;
-class FDMXPixelMappingComponentReference;
 class FDMXPixelMappingGroupChildDragDropHelper;
 class FDMXPixelMappingToolkit;
 class UDMXPixelMappingBaseComponent;
-
+struct FDMXPixelMappingComponentReference;
 
 /**
  * This drag drop operation allows Component templates from the palate to be dragged and dropped into the designer
