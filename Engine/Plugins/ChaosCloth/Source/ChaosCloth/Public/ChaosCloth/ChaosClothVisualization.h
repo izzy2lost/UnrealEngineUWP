@@ -31,11 +31,15 @@ namespace Chaos
 		// Editor & runtime functions
 		CHAOSCLOTH_API void SetSolver(const ::Chaos::FClothingSimulationSolver* InSolver);
 
+		CHAOSCLOTH_API void DrawParticleIndices(FCanvas* Canvas = nullptr, const FSceneView* SceneView = nullptr) const;
+		CHAOSCLOTH_API void DrawElementIndices(FCanvas* Canvas = nullptr, const FSceneView* SceneView = nullptr) const;
+		CHAOSCLOTH_API void DrawMaxDistanceValues(FCanvas* Canvas = nullptr, const FSceneView* SceneView = nullptr) const;
+
 		CHAOSCLOTH_API void DrawPhysMeshWired(FPrimitiveDrawInterface* PDI = nullptr) const;
 		CHAOSCLOTH_API void DrawAnimMeshWired(FPrimitiveDrawInterface* PDI = nullptr) const;
-		CHAOSCLOTH_API void DrawAnimNormals(FPrimitiveDrawInterface* PDI = nullptr) const;
+		CHAOSCLOTH_API void DrawAnimNormals(FPrimitiveDrawInterface* PDI = nullptr, const FReal Length = 20.) const;
 		CHAOSCLOTH_API void DrawOpenEdges(FPrimitiveDrawInterface* PDI = nullptr) const;
-		CHAOSCLOTH_API void DrawPointNormals(FPrimitiveDrawInterface* PDI = nullptr) const;
+		CHAOSCLOTH_API void DrawPointNormals(FPrimitiveDrawInterface* PDI = nullptr, const FReal Length = 20.) const;
 		CHAOSCLOTH_API void DrawPointVelocities(FPrimitiveDrawInterface* PDI = nullptr) const;
 		CHAOSCLOTH_API void DrawCollision(FPrimitiveDrawInterface* PDI = nullptr) const;
 		CHAOSCLOTH_API void DrawBackstops(FPrimitiveDrawInterface* PDI = nullptr) const;
@@ -59,11 +63,14 @@ namespace Chaos
 #else  // #if CHAOS_DEBUG_DRAW
 		void SetSolver(const ::Chaos::FClothingSimulationSolver* /*InSolver*/) {}
 
+		void DrawParticleIndices(FCanvas* /*Canvas*/, const FSceneView* /*SceneView*/) const {}
+		void DrawElementIndices(FCanvas* /*Canvas*/, const FSceneView* /*SceneView*/) const {}
+		void DrawMaxDistanceValues(FCanvas* /*Canvas*/, const FSceneView* /*SceneView*/) const {}
 		void DrawPhysMeshWired(FPrimitiveDrawInterface* /*PDI*/ = nullptr) const {}
 		void DrawAnimMeshWired(FPrimitiveDrawInterface* /*PDI*/ = nullptr) const {}
-		void DrawAnimNormals(FPrimitiveDrawInterface* /*PDI*/ = nullptr) const {}
+		void DrawAnimNormals(FPrimitiveDrawInterface* /*PDI*/ = nullptr, const FReal /*Length*/ = 20.) const {}
 		void DrawOpenEdges(FPrimitiveDrawInterface* /*PDI*/ = nullptr) const {}
-		void DrawPointNormals(FPrimitiveDrawInterface* /*PDI*/ = nullptr) const {}
+		void DrawPointNormals(FPrimitiveDrawInterface* /*PDI*/ = nullptr, const FReal /*Length*/ = 20.) const {}
 		void DrawPointVelocities(FPrimitiveDrawInterface* /*PDI*/ = nullptr) const {}
 		void DrawCollision(FPrimitiveDrawInterface* /*PDI*/ = nullptr) const {}
 		void DrawBackstops(FPrimitiveDrawInterface* /*PDI*/ = nullptr) const {}
@@ -89,9 +96,6 @@ namespace Chaos
 #if WITH_EDITOR && CHAOS_DEBUG_DRAW
 		// Editor only functions
 		CHAOSCLOTH_API void DrawPhysMeshShaded(FPrimitiveDrawInterface* PDI) const;
-		CHAOSCLOTH_API void DrawParticleIndices(FCanvas* Canvas, const FSceneView* SceneView) const;
-		CHAOSCLOTH_API void DrawElementIndices(FCanvas* Canvas, const FSceneView* SceneView) const;
-		CHAOSCLOTH_API void DrawMaxDistanceValues(FCanvas* Canvas, const FSceneView* SceneView) const;
 		CHAOSCLOTH_API void DrawWeightMap(FPrimitiveDrawInterface* PDI = nullptr) const;
 		CHAOSCLOTH_API void DrawSelfCollisionLayers(FPrimitiveDrawInterface* PDI = nullptr) const;
 		CHAOSCLOTH_API void DrawInpaintWeightsMatched(FPrimitiveDrawInterface* PDI = nullptr) const;
@@ -106,9 +110,6 @@ namespace Chaos
 
 #else  // #if WITH_EDITOR && CHAOS_DEBUG_DRAW
 		void DrawPhysMeshShaded(FPrimitiveDrawInterface* /*PDI*/) const {}
-		void DrawParticleIndices(FCanvas* /*Canvas*/, const FSceneView* /*SceneView*/) const {}
-		void DrawElementIndices(FCanvas* /*Canvas*/, const FSceneView* /*SceneView*/) const {}
-		void DrawMaxDistanceValues(FCanvas* /*Canvas*/, const FSceneView* /*SceneView*/) const {}
 		CHAOSCLOTH_API void DrawKinematicColliderShaded(FPrimitiveDrawInterface* /*PDI*/) const {}
 #endif  // #if WITH_EDITOR && CHAOS_DEBUG_DRAW
 

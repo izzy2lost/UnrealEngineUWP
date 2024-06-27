@@ -5,6 +5,7 @@
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Containers/ContainersFwd.h"
 #include "ClothVertBoneData.h"
+#include "EngineDefines.h"
 
 struct FMeshToMeshVertData;
 struct FClothVertBoneData;
@@ -37,6 +38,14 @@ namespace Chaos
 #else
 		const FString& GetDebugName() const { return FText::GetEmpty().ToString(); }
 #endif
+		FName GetReferenceBoneName() const
+		{
+#if UE_ENABLE_DEBUG_DRAWING
+			return ReferenceBoneName;
+#else
+			return NAME_None;
+#endif
+		}
 
 		/* Return the number of LODs on this mesh. */
 		virtual int32 GetNumLODs() const = 0;
@@ -163,6 +172,10 @@ namespace Chaos
 #if !UE_BUILD_SHIPPING
 		/** Debug name of the source component. */
 		FString DebugName;
+#endif
+	protected:
+#if UE_ENABLE_DEBUG_DRAWING
+		FName ReferenceBoneName = NAME_None;
 #endif
 	};
 } // namespace Chaos

@@ -5,6 +5,7 @@
 #include "ChaosWeightMapTarget.h"
 #include "ClothingAsset.h"
 #include "ClothingSimulation.h"
+#include "Engine/SkeletalMesh.h"
 
 namespace Chaos
 {
@@ -15,6 +16,14 @@ namespace Chaos
 		, Asset(InAsset)
 		, SkeletalMeshComponent(InSkeletalMeshComponent)
 	{
+#if CHAOS_DEBUG_DRAW
+		const FReferenceSkeleton* const ReferenceSkeleton = &CastChecked<USkeletalMesh>(Asset->GetOuter())->GetRefSkeleton();
+		const int32 ReferenceBoneIndex = GetReferenceBoneIndex();
+		if (ReferenceSkeleton && ReferenceBoneIndex >= 0 && ReferenceBoneIndex < ReferenceSkeleton->GetNum())
+		{
+			ReferenceBoneName = ReferenceSkeleton->GetBoneName(ReferenceBoneIndex);
+		}
+#endif
 	}
 
 	int32 FClothingSimulationSkeletalMesh::GetNumLODs() const

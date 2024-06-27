@@ -5,6 +5,7 @@
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/ClothSimulationContext.h"
 #include "ClothSimulationMesh.h"
+#include "ReferenceSkeleton.h"
 
 namespace UE::Chaos::ClothAsset
 {
@@ -13,6 +14,14 @@ namespace UE::Chaos::ClothAsset
 		, ClothSimulationModel(InClothSimulationModel)
 		, ClothSimulationContext(InClothSimulationContext)
 	{
+#if CHAOS_DEBUG_DRAW
+		const int32 ReferenceBoneIndex = GetReferenceBoneIndex();
+		const int32 UsedBoneNameIndex = ClothSimulationModel.UsedBoneIndices.Find(ReferenceBoneIndex);
+		if (ClothSimulationModel.UsedBoneNames.IsValidIndex(UsedBoneNameIndex))
+		{
+			ReferenceBoneName = ClothSimulationModel.UsedBoneNames[UsedBoneNameIndex];
+		}
+#endif
 	}
 
 	int32 FClothSimulationMesh::GetNumLODs() const

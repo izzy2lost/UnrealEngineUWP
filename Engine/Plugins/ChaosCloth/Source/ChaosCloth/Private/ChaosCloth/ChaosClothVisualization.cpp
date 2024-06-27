@@ -91,6 +91,9 @@ static FAutoConsoleVariableRef CVarClothVizAnisoSpringDrawMode(TEXT("p.ChaosClot
 static FString WeightMapName = "";
 static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisualization.WeightMapName"), WeightMapName, TEXT("Weight map name to be visualized"));
 
+static bool bDrawInForeground = true;
+static FAutoConsoleVariableRef CVarClothVizDrawInForeground(TEXT("p.ChaosClothVisualization.DrawInForeground"), bDrawInForeground, TEXT("Draw in foreground when outside the cloth/SKM editor"));
+
 // copied from ClothEditorMode
 FLinearColor PseudoRandomColor(int32 NumColorRotations)
 {
@@ -102,6 +105,13 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		Seed += Spread;
 	}
 	return FLinearColor::MakeFromHSV8(Seed, 180, 140);
+}
+
+static uint8 GetDepthPriority()
+{
+	// set depth to SDPG_MAX not SDPG_Foreground when drawing in foreground.
+	// SDPG_Foreground does not draw when PIE is paused (its buffer is flushed).
+	return bDrawInForeground ? SDPG_MAX : SDPG_World; 
 }
 }// namespace Private
 
@@ -122,6 +132,27 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 	void FClothVisualization::SetSolver(const ::Chaos::FClothingSimulationSolver* InSolver)
 	{
 		Solver = InSolver;
+	}
+
+	static void DrawText(FCanvas* Canvas, const FSceneView* SceneView, const FVector& Pos, const FText& Text, const FLinearColor& Color, const float Scale = 1.f)
+	{
+#if WITH_EDITOR
+		if (Canvas && SceneView)
+		{
+			FVector2D PixelLocation;
+			if (SceneView->WorldToPixel(Pos, PixelLocation))
+			{
+				FCanvasTextItem TextItem(PixelLocation, Text, GEngine->GetSmallFont(), Color);
+				TextItem.Scale = FVector2D::UnitVector  * Scale;
+				TextItem.EnableShadow(FLinearColor::Black);
+				TextItem.Draw(Canvas);
+			}
+		}
+		else
+#endif
+		{
+			FDebugDrawQueue::GetInstance().DrawDebugString(Pos, Text.ToString(), nullptr, Color.ToFColor(true), KINDA_SMALL_NUMBER, true, 0.75f * Scale);
+		}
 	}
 
 #if WITH_EDITOR
@@ -183,148 +214,6 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		FMatrix LocalSimSpaceToWorld(FMatrix::Identity);
 		LocalSimSpaceToWorld.SetOrigin(Solver->GetLocalSpaceLocation());
 		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, ClothMaterial->GetRenderProxy(), SDPG_World, false, false);
-	}
-
-	static void DrawText(FCanvas* Canvas, const FSceneView* SceneView, const FVector& Pos, const FText& Text, const FLinearColor& Color)
-	{
-		FVector2D PixelLocation;
-		if (SceneView->WorldToPixel(Pos, PixelLocation))
-		{
-			FCanvasTextItem TextItem(PixelLocation, Text, GEngine->GetSmallFont(), Color);
-			TextItem.Scale = FVector2D::UnitVector;
-			TextItem.EnableShadow(FLinearColor::Black);
-			TextItem.Draw(Canvas);
-		}
-	}
-
-	void FClothVisualization::DrawParticleIndices(FCanvas* Canvas, const FSceneView* SceneView) const
-	{
-		if (!Solver)
-		{
-			return;
-		}
-
-		static const FLinearColor DynamicColor = FColor::White;
-		static const FLinearColor KinematicColor = FColor::Purple;
-
-		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
-
-		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
-		{
-			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
-			if (ParticleRangeId == INDEX_NONE)
-			{
-				continue;
-			}
-			const int32 Offset = Solver->GetGlobalParticleOffset(ParticleRangeId);
-
-			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
-			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
-			check(InvMasses.Num() == Positions.Num());
-
-			for (int32 Index = 0; Index < Positions.Num(); ++Index)
-			{
-				const FVector Position = LocalSpaceLocation + FVector(Positions[Index]);
-
-				const FText Text = FText::AsNumber(Offset + Index);
-				DrawText(Canvas, SceneView, Position, Text, InvMasses[Index] == (Softs::FSolverReal)0. ? KinematicColor : DynamicColor);
-			}
-		}
-	}
-
-	void FClothVisualization::DrawElementIndices(FCanvas* Canvas, const FSceneView* SceneView) const
-	{
-		if (!Solver)
-		{
-			return;
-		}
-
-		static const FLinearColor DynamicColor = FColor::White;
-		static const FLinearColor KinematicColor = FColor::Purple;
-
-		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
-
-		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
-		{
-			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
-			if (ParticleRangeId == INDEX_NONE)
-			{
-				continue;
-			}
-			// Elements are local indexed for new solver
-			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
-
-			const TArray<TVec3<int32>>& Elements = Cloth->GetTriangleMesh(Solver).GetElements();
-			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
-			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
-			check(InvMasses.Num() == Positions.Num());
-
-			for (int32 Index = 0; Index < Elements.Num(); ++Index)
-			{
-				const TVec3<int32>& Element = Elements[Index];
-				const FVector Position = LocalSpaceLocation + (
-					FVector(Positions[Element[0] - Offset]) +
-					FVector(Positions[Element[1] - Offset]) +
-					FVector(Positions[Element[2] - Offset])) / (FReal)3.;
-
-				const bool bIsKinematic0 = (InvMasses[Element.X - Offset] == (Softs::FSolverReal)0.);
-				const bool bIsKinematic1 = (InvMasses[Element.Y - Offset] == (Softs::FSolverReal)0.);
-				const bool bIsKinematic2 = (InvMasses[Element.Z - Offset] == (Softs::FSolverReal)0.);
-				const FLinearColor& Color = (bIsKinematic0 && bIsKinematic1 && bIsKinematic2) ? KinematicColor : DynamicColor;
-				const FText Text = FText::AsNumber(Index);
-				DrawText(Canvas, SceneView, Position, Text, Color);
-			}
-		}
-	}
-
-	void FClothVisualization::DrawMaxDistanceValues(FCanvas* Canvas, const FSceneView* SceneView) const
-	{
-		if (!Solver)
-		{
-			return;
-		}
-
-		static const FLinearColor DynamicColor = FColor::White;
-		static const FLinearColor KinematicColor = FColor::Purple;
-
-		FNumberFormattingOptions NumberFormattingOptions;
-		NumberFormattingOptions.AlwaysSign = false;
-		NumberFormattingOptions.UseGrouping = false;
-		NumberFormattingOptions.RoundingMode = ERoundingMode::HalfFromZero;
-		NumberFormattingOptions.MinimumIntegralDigits = 1;
-		NumberFormattingOptions.MaximumIntegralDigits = 6;
-		NumberFormattingOptions.MinimumFractionalDigits = 2;
-		NumberFormattingOptions.MaximumFractionalDigits = 2;
-
-		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
-
-		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
-		{
-			if (Cloth->GetParticleRangeId(Solver) == INDEX_NONE)
-			{
-				continue;
-			}
-
-			const int32 NumParticles = Cloth->GetNumParticles(Solver);
-			const Softs::FPBDFlatWeightMapView MaxDistances(
-				Cloth->GetConfig()->GetProperties(Cloth->GetLODIndex(Solver)).GetWeightedFloatValue(TEXT("MaxDistance"), FVector2f(0.f, 1.f)),
-				Cloth->GetWeightMapByProperty(Solver, TEXT("MaxDistance")),
-				NumParticles);
-
-			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetAnimationPositions(Solver);
-			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
-			check(NumParticles == Positions.Num());
-			check(NumParticles == InvMasses.Num());
-
-			for (int32 Index = 0; Index < MaxDistances.Num(); ++Index)
-			{
-				const FReal MaxDistance = (FReal)MaxDistances.GetValue(Index);
-				const FVector Position = LocalSpaceLocation + FVector(Positions[Index]);
-
-				const FText Text = FText::AsNumber(MaxDistance, &NumberFormattingOptions);
-				DrawText(Canvas, SceneView, Position, Text, InvMasses[Index] == (Softs::FSolverReal)0. ? KinematicColor : DynamicColor);
-			}
-		}
 	}
 
 	void FClothVisualization::DrawWeightMapWithName(FPrimitiveDrawInterface* PDI, const FString& Name) const
@@ -456,11 +345,141 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 	}
 #endif  // #if WITH_EDITOR
 
+	void FClothVisualization::DrawParticleIndices(FCanvas* Canvas, const FSceneView* SceneView) const
+	{
+		if (!Solver)
+		{
+			return;
+		}
+
+		static const FLinearColor DynamicColor = FColor::White;
+		static const FLinearColor KinematicColor = FColor::Purple;
+
+		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+
+		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+		{
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
+			{
+				continue;
+			}
+			const int32 Offset = Solver->GetGlobalParticleOffset(ParticleRangeId);
+
+			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
+			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
+			check(InvMasses.Num() == Positions.Num());
+
+			for (int32 Index = 0; Index < Positions.Num(); ++Index)
+			{
+				const FVector Position = LocalSpaceLocation + FVector(Positions[Index]);
+
+				const FText Text = FText::AsNumber(Offset + Index);
+				DrawText(Canvas, SceneView, Position, Text, InvMasses[Index] == (Softs::FSolverReal)0. ? KinematicColor : DynamicColor);
+			}
+		}
+	}
+
+	void FClothVisualization::DrawElementIndices(FCanvas* Canvas, const FSceneView* SceneView) const
+	{
+		if (!Solver)
+		{
+			return;
+		}
+
+		static const FLinearColor DynamicColor = FColor::White;
+		static const FLinearColor KinematicColor = FColor::Purple;
+
+		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+
+		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+		{
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
+			{
+				continue;
+			}
+			// Elements are local indexed for new solver
+			const int32 Offset = Solver->IsLegacySolver() ? ParticleRangeId : 0;
+
+			const TArray<TVec3<int32>>& Elements = Cloth->GetTriangleMesh(Solver).GetElements();
+			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
+			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
+			check(InvMasses.Num() == Positions.Num());
+
+			for (int32 Index = 0; Index < Elements.Num(); ++Index)
+			{
+				const TVec3<int32>& Element = Elements[Index];
+				const FVector Position = LocalSpaceLocation + (
+					FVector(Positions[Element[0] - Offset]) +
+					FVector(Positions[Element[1] - Offset]) +
+					FVector(Positions[Element[2] - Offset])) / (FReal)3.;
+
+				const bool bIsKinematic0 = (InvMasses[Element.X - Offset] == (Softs::FSolverReal)0.);
+				const bool bIsKinematic1 = (InvMasses[Element.Y - Offset] == (Softs::FSolverReal)0.);
+				const bool bIsKinematic2 = (InvMasses[Element.Z - Offset] == (Softs::FSolverReal)0.);
+				const FLinearColor& Color = (bIsKinematic0 && bIsKinematic1 && bIsKinematic2) ? KinematicColor : DynamicColor;
+				const FText Text = FText::AsNumber(Index);
+				DrawText(Canvas, SceneView, Position, Text, Color);
+			}
+		}
+	}
+
+	void FClothVisualization::DrawMaxDistanceValues(FCanvas* Canvas, const FSceneView* SceneView) const
+	{
+		if (!Solver)
+		{
+			return;
+		}
+
+		static const FLinearColor DynamicColor = FColor::White;
+		static const FLinearColor KinematicColor = FColor::Purple;
+
+		FNumberFormattingOptions NumberFormattingOptions;
+		NumberFormattingOptions.AlwaysSign = false;
+		NumberFormattingOptions.UseGrouping = false;
+		NumberFormattingOptions.RoundingMode = ERoundingMode::HalfFromZero;
+		NumberFormattingOptions.MinimumIntegralDigits = 1;
+		NumberFormattingOptions.MaximumIntegralDigits = 6;
+		NumberFormattingOptions.MinimumFractionalDigits = 2;
+		NumberFormattingOptions.MaximumFractionalDigits = 2;
+
+		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+
+		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+		{
+			if (Cloth->GetParticleRangeId(Solver) == INDEX_NONE)
+			{
+				continue;
+			}
+
+			const int32 NumParticles = Cloth->GetNumParticles(Solver);
+			const Softs::FPBDFlatWeightMapView MaxDistances(
+				Cloth->GetConfig()->GetProperties(Cloth->GetLODIndex(Solver)).GetWeightedFloatValue(TEXT("MaxDistance"), FVector2f(0.f, 1.f)),
+				Cloth->GetWeightMapByProperty(Solver, TEXT("MaxDistance")),
+				NumParticles);
+
+			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetAnimationPositions(Solver);
+			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
+			check(NumParticles == Positions.Num());
+			check(NumParticles == InvMasses.Num());
+
+			for (int32 Index = 0; Index < MaxDistances.Num(); ++Index)
+			{
+				const FReal MaxDistance = (FReal)MaxDistances.GetValue(Index);
+				const FVector Position = LocalSpaceLocation + FVector(Positions[Index]);
+
+				const FText Text = FText::AsNumber(MaxDistance, &NumberFormattingOptions);
+				DrawText(Canvas, SceneView, Position, Text, InvMasses[Index] == (Softs::FSolverReal)0. ? KinematicColor : DynamicColor);
+			}
+		}
+	}
+
 	static void DrawPoint(FPrimitiveDrawInterface* PDI, const FVector& Pos, const FLinearColor& Color, const UMaterial* ClothMaterialVertex, const float Thickness = 1.f)  // Use color or material
 	{
 		if (!PDI)
 		{
-			FDebugDrawQueue::GetInstance().DrawDebugPoint(Pos, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, SDPG_Foreground, Thickness);
+			FDebugDrawQueue::GetInstance().DrawDebugPoint(Pos, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, Chaos::Private::GetDepthPriority(), Thickness);
 			return;
 		}
 #if WITH_EDITOR
@@ -482,7 +501,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 	{
 		if (!PDI)
 		{
-			FDebugDrawQueue::GetInstance().DrawDebugLine(Pos0, Pos1, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, SDPG_Foreground, 0.f);
+			FDebugDrawQueue::GetInstance().DrawDebugLine(Pos0, Pos1, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, Chaos::Private::GetDepthPriority(), 0.f);
 			return;
 		}
 #if WITH_EDITOR
@@ -512,7 +531,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		const FVec3 Center = Position + Rotation.RotateVector(Sphere.GetCenter());
 		if (!PDI)
 		{
-			FDebugDrawQueue::GetInstance().DrawDebugSphere(Center, Radius, 12, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, SDPG_Foreground, 0.f);
+			FDebugDrawQueue::GetInstance().DrawDebugSphere(Center, Radius, 12, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, Chaos::Private::GetDepthPriority(), 0.f);
 			return;
 		}
 #if WITH_EDITOR
@@ -526,7 +545,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		if (!PDI)
 		{
 			const FVec3 Center = Position + Rotation.RotateVector(Box.GetCenter());
-			FDebugDrawQueue::GetInstance().DrawDebugBox(Center, Box.Extents() * 0.5f, Rotation, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, SDPG_Foreground, 0.f);
+			FDebugDrawQueue::GetInstance().DrawDebugBox(Center, Box.Extents() * 0.5f, Rotation, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, Chaos::Private::GetDepthPriority(), 0.f);
 			return;
 		}
 #if WITH_EDITOR
@@ -543,7 +562,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		if (!PDI)
 		{
 			const FQuat Orientation = FQuat::FindBetweenNormals(FVec3::UpVector, Capsule.GetAxis());
-			FDebugDrawQueue::GetInstance().DrawDebugCapsule(Center, HalfHeight, Radius, Rotation * Orientation, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, SDPG_Foreground, 0.f);
+			FDebugDrawQueue::GetInstance().DrawDebugCapsule(Center, HalfHeight, Radius, Rotation * Orientation, Color.ToFColor(true), false, KINDA_SMALL_NUMBER, Chaos::Private::GetDepthPriority(), 0.f);
 			return;
 		}
 #if WITH_EDITOR
@@ -661,15 +680,15 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		}
 	}
 
-	static void DrawCoordinateSystem(FPrimitiveDrawInterface* PDI, const FQuat& Rotation, const FVector& Position)
+	static void DrawCoordinateSystem(FPrimitiveDrawInterface* PDI, const FQuat& Rotation, const FVector& Position, const float LengthScale = 10.f, const float ColorScale = 1.f)
 	{
-		const FVector X = Rotation.RotateVector(FVector::ForwardVector) * 10.f;
-		const FVector Y = Rotation.RotateVector(FVector::RightVector) * 10.f;
-		const FVector Z = Rotation.RotateVector(FVector::UpVector) * 10.f;
+		const FVector X = Rotation.RotateVector(FVector::ForwardVector) * LengthScale;
+		const FVector Y = Rotation.RotateVector(FVector::RightVector) * LengthScale;
+		const FVector Z = Rotation.RotateVector(FVector::UpVector) * LengthScale;
 
-		DrawLine(PDI, Position, Position + X, FLinearColor::Red);
-		DrawLine(PDI, Position, Position + Y, FLinearColor::Green);
-		DrawLine(PDI, Position, Position + Z, FLinearColor::Blue);
+		DrawLine(PDI, Position, Position + X, FLinearColor::Red * ColorScale);
+		DrawLine(PDI, Position, Position + Y, FLinearColor::Green * ColorScale);
+		DrawLine(PDI, Position, Position + Z, FLinearColor::Blue * ColorScale);
 	}
 
 	static void DrawLevelSet(FPrimitiveDrawInterface* PDI, const FTransform& Transform, const FMaterialRenderProxy* MaterialRenderProxy, const FLevelSet& LevelSet)
@@ -1115,7 +1134,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		}
 	}
 
-	void FClothVisualization::DrawAnimNormals(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualization::DrawAnimNormals(FPrimitiveDrawInterface* PDI, const FReal NormalLength) const
 	{
 		if (!Solver)
 		{
@@ -1123,7 +1142,6 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		}
 
 		static const FLinearColor KinematicColor = FColor::Magenta;
-		constexpr FReal NormalLength = (FReal)20.;
 
 		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
 
@@ -1148,7 +1166,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		}
 	}
 
-	void FClothVisualization::DrawPointNormals(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualization::DrawPointNormals(FPrimitiveDrawInterface* PDI, const FReal NormalLength) const
 	{
 		if (!Solver)
 		{
@@ -1157,7 +1175,6 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 
 		static const FLinearColor DynamicColor = FColor::White;
 		static const FLinearColor KinematicColor = FColor::Purple;
-		constexpr FReal NormalLength = (FReal)20.;
 
 		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
 
@@ -2248,7 +2265,7 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 		}
 
 		// Draw local space
-		DrawCoordinateSystem(PDI, FQuat::Identity, Solver->GetLocalSpaceLocation());
+		DrawCoordinateSystem(PDI, FQuat::Identity, Solver->GetLocalSpaceLocation(), 5.f, 0.25f);
 
 		// Draw reference spaces
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
@@ -2260,6 +2277,8 @@ FLinearColor PseudoRandomColor(int32 NumColorRotations)
 			}
 			const FRigidTransform3& ReferenceSpaceTransform = Cloth->GetReferenceSpaceTransform();
 			DrawCoordinateSystem(PDI, ReferenceSpaceTransform.GetRotation(), ReferenceSpaceTransform.GetLocation());
+			check(Cloth->GetMesh());
+			DrawText(nullptr, nullptr, ReferenceSpaceTransform.GetLocation() + FVec3(2.), FText::FromName(Cloth->GetMesh()->GetReferenceBoneName()), FLinearColor::White, 2.f);
 		}
 	}
 

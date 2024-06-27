@@ -10,6 +10,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Types/SlateEnums.h"
 
@@ -195,12 +196,17 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		LOCTEXT("ChaosVisName_ElementIndices", "Element Indices"), 
 		LOCTEXT("ChaosVisName_ElementIndices_ToolTip", "Draws the element's (triangle or other) indices as instantiated by the solver")),
 	FVisualizationOption(
-		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualization& Visualization, FPrimitiveDrawInterface* PDI)
+		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization& EditorVisualization, const ::Chaos::FClothVisualization& Visualization, FPrimitiveDrawInterface* PDI)
 		{
-			Visualization.DrawPointNormals(PDI);
+			Visualization.DrawPointNormals(PDI, EditorVisualization.GetPointNormalLength());
 		}),
 		LOCTEXT("ChaosVisName_PointNormals", "Physical Mesh Normals"), 
-		LOCTEXT("ChaosVisName_PointNormals_ToolTip", "Draws the current point normals for the simulation mesh")),
+		LOCTEXT("ChaosVisName_PointNormals_ToolTip", "Draws the current point normals for the simulation mesh"),
+		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false,
+		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+		{
+			EditorVisualization.ExtendViewportShowMenuPointNormalsLength(MenuBuilder);
+		})),
 	FVisualizationOption(
 		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualization& Visualization, FPrimitiveDrawInterface* PDI)
 		{
@@ -209,12 +215,17 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 		LOCTEXT("ChaosVisName_PointVelocities", "Point Velocities"), 
 		LOCTEXT("ChaosVisName_PointVelocities_ToolTip", "Draws the current point velocities for the simulation mesh")),
 	FVisualizationOption(
-		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualization& Visualization, FPrimitiveDrawInterface* PDI)
+		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization& EditorVisualization, const ::Chaos::FClothVisualization& Visualization, FPrimitiveDrawInterface* PDI)
 		{
-			Visualization.DrawAnimNormals(PDI);
+			Visualization.DrawAnimNormals(PDI, EditorVisualization.GetAnimatedNormalLength());
 		}),
 		LOCTEXT("ChaosVisName_AnimNormals", "Animated Mesh Normals"), 
-		LOCTEXT("ChaosVisName_AnimNormals_ToolTip", "Draws the current point normals for the animated mesh")),
+		LOCTEXT("ChaosVisName_AnimNormals_ToolTip", "Draws the current point normals for the animated mesh"),
+		/*bDisablesSimulation =*/false, /*bHidesClothSections=*/false,
+		FAdditionalMenus::CreateLambda([](FClothEditorSimulationVisualization& EditorVisualization, FMenuBuilder& MenuBuilder, TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient)
+		{
+			EditorVisualization.ExtendViewportShowMenuAnimatedNormalsLength(MenuBuilder);
+		})),
 	FVisualizationOption(
 		FClothVisualizationDebugDraw::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualization& Visualization, FPrimitiveDrawInterface* PDI)
 		{
@@ -455,6 +466,21 @@ void FClothEditorSimulationVisualization::ExtendViewportShowMenuWeightMapSelecto
 void FClothEditorSimulationVisualization::WeightMapSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
 {
 	CurrentlySelectedWeightMap = Selection;
+}
+
+void FClothEditorSimulationVisualization::ExtendViewportShowMenuSpinBox(FMenuBuilder& MenuBuilder, float& Value, const float MinValue, const float MaxValue, const float MinSliderValue, const float MaxSliderValue)
+{
+	TSharedRef<SWidget> SpinBox =
+		SNew(SSpinBox<float>)
+		.Value(Value)
+		.OnValueChanged_Lambda([&Value](float NewValue) { Value = NewValue; })
+		.MinValue(MinValue)
+		.MaxValue(MaxValue)
+		.MinSliderValue(MinSliderValue)
+		.MaxSliderValue(MaxSliderValue);
+
+	MenuBuilder.AddMenuEntry(FUIAction(), SpinBox,
+		NAME_None, LOCTEXT("SetNormalLength", "Set the normal display length."), EUserInterfaceActionType::None);
 }
 
 void FClothEditorSimulationVisualization::RefreshMenusForClothComponent(const UChaosClothComponent* ClothComponent)
