@@ -4640,11 +4640,11 @@ public:
 		GDynamicRHI->UnlockStagingBuffer_RenderThread(*this, StagingBuffer);
 	}
 
+	UE_DEPRECATED(5.5, "CopyBuffer is deprecated. Use CopyBufferRegion.")
 	FORCEINLINE void CopyBuffer(FRHIBuffer* SourceBuffer, FRHIBuffer* DestBuffer)
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_RHIMETHOD_CopyBuffer_Flush);
-		ImmediateFlush(EImmediateFlushType::FlushRHIThread);  
-		GDynamicRHI->RHICopyBuffer(SourceBuffer, DestBuffer);
+		uint64 Size = FMath::Min(SourceBuffer->GetSize(), DestBuffer->GetSize());
+		CopyBufferRegion(DestBuffer, 0, SourceBuffer, 0, Size);
 	}
 
 	FORCEINLINE bool GetTextureMemoryVisualizeData(FColor* TextureData,int32 SizeX,int32 SizeY,int32 Pitch,int32 PixelSize)

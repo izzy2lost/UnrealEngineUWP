@@ -125,11 +125,6 @@ public:
 		return new FRHIBuffer(Desc);
 	}
 
-	virtual void RHICopyBuffer(FRHIBuffer* SourceBuffer, FRHIBuffer* DestBuffer) final override
-	{
-
-	}
-
 	virtual void* LockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode) final override
 	{
 		return GetStaticBuffer(Buffer->GetSize());

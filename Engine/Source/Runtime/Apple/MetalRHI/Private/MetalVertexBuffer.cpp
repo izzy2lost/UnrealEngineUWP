@@ -627,35 +627,3 @@ void FMetalDynamicRHI::UnlockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList
     FMetalRHIBuffer* Buffer = ResourceCast(BufferRHI);
 	Buffer->Unlock();
 }
-
-void FMetalDynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* DestBufferRHI)
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
-    
-    FMetalRHIBuffer* SrcBuffer = ResourceCast(SourceBufferRHI);
-    FMetalRHIBuffer* DstBuffer = ResourceCast(DestBufferRHI);
-    
-    FMetalBufferPtr TheSrcBuffer = SrcBuffer->GetCurrentBuffer();
-    FMetalBufferPtr TheDstBuffer = DstBuffer->GetCurrentBuffer();
-
-    if (TheSrcBuffer && TheDstBuffer)
-    {
-        GetMetalDeviceContext().CopyFromBufferToBuffer(TheSrcBuffer, 0, TheDstBuffer, 0, FMath::Min(SrcBuffer->GetSize(), DstBuffer->GetSize()));
-    }
-    else if (TheDstBuffer)
-    {
-        FMetalPooledBufferArgs ArgsCPU(GetMetalDeviceContext().GetDevice(), SrcBuffer->GetSize(), BUF_Dynamic, MTL::StorageModeShared);
-        FMetalBufferPtr TempBuffer = GetMetalDeviceContext().CreatePooledBuffer(ArgsCPU);
-        FMemory::Memcpy(TempBuffer->Contents(), SrcBuffer->Data->Data, SrcBuffer->GetSize());
-        GetMetalDeviceContext().CopyFromBufferToBuffer(TempBuffer, 0, TheDstBuffer, 0, FMath::Min(SrcBuffer->GetSize(), DstBuffer->GetSize()));
-        SafeReleaseMetalBuffer(TempBuffer);
-    }
-    else
-    {
-        void const* SrcData = SrcBuffer->Lock(true, RLM_ReadOnly, 0);
-        void* DstData = DstBuffer->Lock(true, RLM_WriteOnly, 0);
-        FMemory::Memcpy(DstData, SrcData, FMath::Min(SrcBuffer->GetSize(), DstBuffer->GetSize()));
-        SrcBuffer->Unlock();
-        DstBuffer->Unlock();
-    }
-}

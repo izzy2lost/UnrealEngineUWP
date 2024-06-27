@@ -429,13 +429,6 @@ public:
 		return Buffer;
 	}
 
-	/** Copies the contents of one vertex buffer to another vertex buffer.  They must have identical sizes. */
-	// FlushType: Flush Immediate (seems dangerous)
-	virtual void RHICopyBuffer(FRHIBuffer* SourceBuffer, FRHIBuffer* DestBuffer) override final
-	{
-		RHI->RHICopyBuffer(SourceBuffer, DestBuffer);
-	}
-
 	// FlushType: Flush RHI Thread
 	virtual void* RHILockBuffer(class FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode) override final;
 	virtual void* RHILockBufferMGPU(class FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, uint32 GPUIndex, uint32 Offset, uint32 SizeRHI, EResourceLockMode LockMode) override final;

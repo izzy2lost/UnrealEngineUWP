@@ -337,10 +337,6 @@ public:
 
 	virtual void RHIUpdateUniformBuffer(FRHICommandListBase& RHICmdList, FRHIUniformBuffer* UniformBufferRHI, const void* Contents) = 0;
 
-	/** Copies the contents of one buffer to another buffer. They must have identical sizes. */
-	// FlushType: Flush Immediate (seems dangerous)
-	virtual void RHICopyBuffer(FRHIBuffer* SourceBuffer, FRHIBuffer* DestBuffer) = 0;
-
 	/**
 	 * Transfer metadata and underlying resource from src to dest and release any resource owned by dest.
 	 * @param DestBuffer - the buffer to update

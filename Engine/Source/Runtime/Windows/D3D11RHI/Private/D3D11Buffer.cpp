@@ -260,24 +260,6 @@ void FD3D11DynamicRHI::UnlockBuffer_BottomOfPipe(FRHICommandListBase& RHICmdList
 	}
 }
 
-void FD3D11DynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* DestBufferRHI)
-{
-	FD3D11Buffer* SourceBuffer = ResourceCast(SourceBufferRHI);
-	FD3D11Buffer* DestBuffer = ResourceCast(DestBufferRHI);
-
-	D3D11_BUFFER_DESC SourceBufferDesc;
-	SourceBuffer->Resource->GetDesc(&SourceBufferDesc);
-	
-	D3D11_BUFFER_DESC DestBufferDesc;
-	DestBuffer->Resource->GetDesc(&DestBufferDesc);
-
-	check(SourceBufferDesc.ByteWidth == DestBufferDesc.ByteWidth);
-
-	Direct3DDeviceIMContext->CopyResource(DestBuffer->Resource,SourceBuffer->Resource);
-
-	RegisterGPUWork(1);
-}
-
 void FD3D11DynamicRHI::RHIReplaceResources(FRHICommandListBase& RHICmdList, TArray<FRHIResourceReplaceInfo>&& ReplaceInfos)
 {
 	RHICmdList.EnqueueLambda(TEXT("FD3D11DynamicRHI::RHIReplaceResources"),

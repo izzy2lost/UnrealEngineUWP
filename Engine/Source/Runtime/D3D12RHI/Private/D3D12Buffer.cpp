@@ -696,52 +696,6 @@ void FD3D12DynamicRHI::RHIUnlockBufferMGPU(FRHICommandListBase& RHICmdList, FRHI
 	UnlockBuffer(RHICmdList, Buffer, Buffer->GetUsage());
 }
 
-void FD3D12DynamicRHI::RHICopyBuffer(FRHIBuffer* SourceBufferRHI, FRHIBuffer* DestBufferRHI)
-{
-	FD3D12Buffer* SrcBuffer = FD3D12DynamicRHI::ResourceCast(SourceBufferRHI);
-	FD3D12Buffer* DstBuffer = FD3D12DynamicRHI::ResourceCast(DestBufferRHI);
-	check(SrcBuffer->GetSize() == DstBuffer->GetSize());
-
-	FD3D12Buffer* SourceBuffer = SrcBuffer;
-	FD3D12Buffer* DestBuffer = DstBuffer;
-
-	for (FD3D12Buffer::FDualLinkedObjectIterator It(SourceBuffer, DestBuffer); It; ++It)
-	{
-		SourceBuffer = It.GetFirst();
-		DestBuffer = It.GetSecond();
-
-		FD3D12Device* Device = SourceBuffer->GetParentDevice();
-		check(Device == DestBuffer->GetParentDevice());
-
-		FD3D12Resource* pSourceResource = SourceBuffer->ResourceLocation.GetResource();
-		D3D12_RESOURCE_DESC const& SourceBufferDesc = pSourceResource->GetDesc();
-
-		FD3D12Resource* pDestResource = DestBuffer->ResourceLocation.GetResource();
-		D3D12_RESOURCE_DESC const& DestBufferDesc = pDestResource->GetDesc();
-
-		check(SourceBuffer->GetSize() == DestBuffer->GetSize());
-
-		FD3D12CommandContext& Context = Device->GetDefaultCommandContext();
-
-		// The underlying D3D12 buffer can be larger than the RHI buffer due to pooling.
-		Context.GraphicsCommandList()->CopyBufferRegion(
-			pDestResource->GetResource(), 
-			DestBuffer->ResourceLocation.GetOffsetFromBaseOfResource(), 
-			pSourceResource->GetResource(), 
-			SourceBuffer->ResourceLocation.GetOffsetFromBaseOfResource(), 
-			SourceBufferRHI->GetSize());
-
-		Context.UpdateResidency(pDestResource);
-		Context.UpdateResidency(pSourceResource);
-
-		Context.ConditionalSplitCommandList();
-
-		DEBUG_EXECUTE_COMMAND_CONTEXT(Context);
-
-		Device->RegisterGPUWork(1);
-	}
-}
-
 void FD3D12DynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, FRHIBuffer* BufferRHI, const TCHAR* Name)
 {
 	if (BufferRHI == nullptr || !GD3D12BindResourceLabels)
