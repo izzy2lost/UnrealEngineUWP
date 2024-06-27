@@ -190,6 +190,11 @@ public:
 	{
 		return Object != nullptr;
 	}
+	
+	/**
+	 * Use IsInitialized if needed
+	 */
+	explicit operator bool() const = delete;
 
 	////////////////////////////////////////////////////
 	// Start - intrusive TOptional<TNonNullPtr> state //
