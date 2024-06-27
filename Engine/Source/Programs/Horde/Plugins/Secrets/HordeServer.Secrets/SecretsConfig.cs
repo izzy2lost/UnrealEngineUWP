@@ -25,13 +25,13 @@ namespace HordeServer
 		private readonly Dictionary<SecretId, SecretConfig> _secretLookup = new Dictionary<SecretId, SecretConfig>();
 
 		/// <inheritdoc/>
-		public void PostLoad(AclConfig parentAcl)
+		public void PostLoad(PluginConfigOptions configOptions)
 		{
 			_secretLookup.Clear();
 			foreach (SecretConfig secret in Secrets)
 			{
 				_secretLookup.Add(secret.Id, secret);
-				secret.PostLoad(parentAcl);
+				secret.PostLoad(configOptions.ParentAcl);
 			}
 		}
 

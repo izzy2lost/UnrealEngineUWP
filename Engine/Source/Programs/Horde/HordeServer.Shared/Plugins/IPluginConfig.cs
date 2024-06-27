@@ -19,9 +19,14 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Called to fixup a plugin's configuration after deserialization
 		/// </summary>
-		/// <param name="parentAcl">The parent ACL scope</param>
-		void PostLoad(AclConfig parentAcl);
+		/// <param name="options">Options for configuring the plugin</param>
+		void PostLoad(PluginConfigOptions configOptions);
 	}
+
+	/// <summary>
+	/// Options passed to <see cref="IPluginConfig.PostLoad(AclConfig)"/>
+	/// </summary>
+	public record class PluginConfigOptions(ConfigVersion Version, AclConfig ParentAcl);
 
 	/// <summary>
 	/// Empty implementation of <see cref="IPluginConfig"/>
@@ -29,7 +34,7 @@ namespace HordeServer.Plugins
 	public sealed class EmptyPluginConfig : IPluginConfig
 	{
 		/// <inheritdoc/>
-		public void PostLoad(AclConfig parentAcl)
+		public void PostLoad(PluginConfigOptions configOptions)
 		{ }
 	}
 }

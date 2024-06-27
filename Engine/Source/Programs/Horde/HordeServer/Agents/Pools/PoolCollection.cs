@@ -284,7 +284,7 @@ namespace HordeServer.Agents.Pools
 
 			List<IPoolConfig> pools = new List<IPoolConfig>();
 			pools.AddRange(globalConfig.Pools);
-			if (globalConfig.VersionEnum < GlobalVersion.PoolsInConfigFiles)
+			if (globalConfig.VersionEnum < ConfigVersion.PoolsInConfigFiles)
 			{
 				pools.AddRange(await _poolsV1.Find(FilterDefinition<PoolDocumentV1>.Empty).ToListAsync(cancellationToken));
 			}
@@ -302,7 +302,7 @@ namespace HordeServer.Agents.Pools
 			{
 				poolConfig = globalPoolConfig;
 			}
-			else if (globalConfig.VersionEnum < GlobalVersion.PoolsInConfigFiles)
+			else if (globalConfig.VersionEnum < ConfigVersion.PoolsInConfigFiles)
 			{
 				poolConfig = await _poolsV1.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
 			}
@@ -338,7 +338,7 @@ namespace HordeServer.Agents.Pools
 			List<PoolId> pools = new List<PoolId>();
 			pools.AddRange(globalConfig.Pools.Select(x => x.Id));
 
-			if (globalConfig.VersionEnum < GlobalVersion.PoolsInConfigFiles)
+			if (globalConfig.VersionEnum < ConfigVersion.PoolsInConfigFiles)
 			{
 				ProjectionDefinition<PoolDocumentV1, BsonDocument> projection = Builders<PoolDocumentV1>.Projection.Include(x => x.Id);
 				List<BsonDocument> results = await _poolsV1.Find(FilterDefinition<PoolDocumentV1>.Empty).Project(projection).ToListAsync(cancellationToken);

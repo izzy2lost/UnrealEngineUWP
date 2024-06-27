@@ -30,15 +30,15 @@ namespace HordeServer
 		private AclConfig _parentAcl = null!;
 		private readonly Dictionary<TelemetryStoreId, TelemetryStoreConfig> _telemetryStoreLookup = new Dictionary<TelemetryStoreId, TelemetryStoreConfig>();
 
-		public void PostLoad(AclConfig parentAcl)
+		public void PostLoad(PluginConfigOptions configOptions)
 		{
-			_parentAcl = parentAcl;
+			_parentAcl = configOptions.ParentAcl;
 
 			_telemetryStoreLookup.Clear();
 			foreach (TelemetryStoreConfig telemetryStore in Stores)
 			{
 				_telemetryStoreLookup.Add(telemetryStore.Id, telemetryStore);
-				telemetryStore.PostLoad(parentAcl);
+				telemetryStore.PostLoad(configOptions.ParentAcl);
 			}
 		}
 

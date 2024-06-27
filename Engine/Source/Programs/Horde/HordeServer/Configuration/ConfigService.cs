@@ -593,19 +593,19 @@ namespace HordeServer.Configuration
 				CopyJsonNode(configObj, "Tools", "Plugins.Tools.Tools");
 
 				GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(configObj, _jsonOptions)!;
-				if (globalConfig.VersionEnum < GlobalVersion.Latest)
+				if (globalConfig.VersionEnum < ConfigVersion.Latest)
 				{
 					List<string> message = new List<string>();
 					message.Add($"Support for the following features will be removed in an upcoming release:");
 					message.Add("");
-					if (globalConfig.VersionEnum < GlobalVersion.PoolsInConfigFiles)
+					if (globalConfig.VersionEnum < ConfigVersion.PoolsInConfigFiles)
 					{
-						message.Add($"- v{(int)GlobalVersion.PoolsInConfigFiles}: Pools should now be configured through the globals.json file rather than REST API or database. The /api/v1/server/migrate/pool-config endpoint will transcribe your configured pools into JSON.");
+						message.Add($"- v{(int)ConfigVersion.PoolsInConfigFiles}: Pools should now be configured through the globals.json file rather than REST API or database. The /api/v1/server/migrate/pool-config endpoint will transcribe your configured pools into JSON.");
 					}
 					message.Add("");
-					message.Add($"Please migrate your installation and update the 'Version' property in globals.json to {(int)GlobalVersion.Latest}");
+					message.Add($"Please migrate your installation and update the 'Version' property in globals.json to {(int)ConfigVersion.Latest}");
 
-					_logger.LogWarning("Global config file is using old version number ({Version}<{LatestVersion})\n\n{DeprecatedFeaturesMessage}\n", globalConfig.Version, (int)GlobalVersion.Latest, String.Join("\n", message));
+					_logger.LogWarning("Global config file is using old version number ({Version}<{LatestVersion})\n\n{DeprecatedFeaturesMessage}\n", globalConfig.Version, (int)ConfigVersion.Latest, String.Join("\n", message));
 				}
 
 				// Serialize it back out to a byte array

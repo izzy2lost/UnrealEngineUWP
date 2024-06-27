@@ -46,42 +46,6 @@ namespace HordeServer.Server
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 
-#pragma warning disable CA1027 // Mark enums with FlagsAttribute
-#pragma warning disable CA1069 // Enum member 'Latest' has same value as ...
-	/// <summary>
-	/// Global version number for running the server. As new features are introduced that require data migrations, this version number indicates the backwards compatibility functionality that must be enabled.
-	/// When adding a new version here, also add a message to <see cref="ConfigService.CreateSnapshotAsync"/> describing the steps that need to be taken to upgrade the deployment.
-	/// </summary>
-	public enum GlobalVersion
-	{
-		/// <summary>
-		/// Not specified
-		/// </summary>
-		None,
-
-		/// <summary>
-		/// Initial version number
-		/// </summary>
-		Initial,
-
-		/// <summary>
-		/// Ability to add/remove pools via the REST API is removed. Pools should be configured through globals.json instead.
-		/// </summary>
-		PoolsInConfigFiles,
-
-		/// <summary>
-		/// One after the last defined version number
-		/// </summary>
-		LatestPlusOne,
-
-		/// <summary>
-		/// Latest version number
-		/// </summary>
-		Latest = (int)LatestPlusOne - 1,
-	}
-#pragma warning restore CA1069
-#pragma warning restore CA1027
-
 	/// <summary>
 	/// Configuration for an artifact
 	/// </summary>
@@ -135,7 +99,7 @@ namespace HordeServer.Server
 		public string Revision { get; set; } = String.Empty;
 
 		/// <summary>
-		/// Version number for the server. Values are indicated by the <see cref="GlobalVersion"/>.
+		/// Version number for the server. Values are indicated by the <see cref="ConfigVersion"/>.
 		/// </summary>
 		public int Version { get; set; }
 
@@ -143,7 +107,7 @@ namespace HordeServer.Server
 		/// Version number for the server, as an enum.
 		/// </summary>
 		[JsonIgnore]
-		public GlobalVersion VersionEnum => (GlobalVersion)Version;
+		public ConfigVersion VersionEnum => (ConfigVersion)Version;
 
 		/// <summary>
 		/// Other paths to include
@@ -326,9 +290,10 @@ namespace HordeServer.Server
 				}
 			}
 
+			PluginConfigOptions pluginConfigOptions = new PluginConfigOptions(VersionEnum, Acl);
 			foreach (IPluginConfig pluginConfig in Plugins.Values)
 			{
-				pluginConfig.PostLoad(Acl);
+				pluginConfig.PostLoad(pluginConfigOptions);
 			}
 
 			_aclLookup.Clear();

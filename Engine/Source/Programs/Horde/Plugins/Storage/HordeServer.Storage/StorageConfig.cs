@@ -87,7 +87,7 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Called after the config has been read from disk
 		/// </summary>
-		public void PostLoad(AclConfig parentAcl)
+		public void PostLoad(PluginConfigOptions configOptions)
 		{
 			// Create a lookup for backend configs, allowing later entries to override previous ones
 			_backendLookup.Clear();
@@ -127,7 +127,7 @@ namespace HordeServer.Storage
 					throw new StorageException($"Missing or invalid backend identifier for namespace {namespaceConfig.Id}");
 				}
 
-				namespaceConfig.PostLoad(parentAcl);
+				namespaceConfig.PostLoad(configOptions.ParentAcl);
 				_namespaceLookup[namespaceConfig.Id] = namespaceConfig;
 			}
 

@@ -22,13 +22,13 @@ namespace HordeServer.Tools
 		private readonly Dictionary<ToolId, ToolConfig> _toolLookup = new Dictionary<ToolId, ToolConfig>();
 
 		/// <inheritdoc/>
-		public void PostLoad(AclConfig parentAcl)
+		public void PostLoad(PluginConfigOptions configOptions)
 		{
 			_toolLookup.Clear();
 			foreach (ToolConfig tool in Tools)
 			{
 				_toolLookup.Add(tool.Id, tool);
-				tool.PostLoad(parentAcl);
+				tool.PostLoad(configOptions.ParentAcl);
 			}
 		}
 
