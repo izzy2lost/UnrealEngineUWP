@@ -173,10 +173,6 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = GraphAnimation, meta = (ShowOnlyInnerProperties))
 	FMetasoundAnalyzerAnimationSettings AnalyzerAnimationSettings;
 
-	/** Whether to show a small oscilloscope when hovering audio pins. */
-	UPROPERTY(EditAnywhere, config, DisplayName = "Show Oscilloscope On Audio Pin Mouse Over", Category = Visualization)
-	bool bShowOscilloscopeOnAudioPinMouseOver = false;
-
 	/** Determines which details view to show in Metasounds Editor */
 	UPROPERTY(Transient)
 	EMetasoundActiveDetailView DetailView = EMetasoundActiveDetailView::General;

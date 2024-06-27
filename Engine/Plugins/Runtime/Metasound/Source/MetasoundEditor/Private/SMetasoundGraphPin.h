@@ -496,29 +496,25 @@ namespace Metasound
 						});
 
 					// Audio Pin Inspector update
-					if (const UMetasoundEditorSettings* MetasoundSettings = GetDefault<UMetasoundEditorSettings>();
-					    MetasoundSettings && MetasoundSettings->bShowOscilloscopeOnAudioPinMouseOver)
+					FName DataType;
+					if (GraphPin->Direction == EGPD_Input)
 					{
-						FName DataType;
-						if (GraphPin->Direction == EGPD_Input)
-						{
-							const Metasound::Frontend::FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(GraphPin);
-							DataType = InputHandle->GetDataType();
-						}
-						else
-						{
-							const Metasound::Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(GraphPin);
-							DataType = OutputHandle->GetDataType();
-						}
+						const Metasound::Frontend::FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(GraphPin);
+						DataType = InputHandle->GetDataType();
+					}
+					else
+					{
+						const Metasound::Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(GraphPin);
+						DataType = OutputHandle->GetDataType();
+					}
 
-						if (DataType == GetMetasoundDataTypeName<FAudioBuffer>())
-						{
-							UpdatePinAudioInspector(*GraphPin, bIsHoveringPin, PinAudioInspector, ParentPinType::ValueInspectorTooltip,
-								[this](FVector2D& OutTooltipLocation)
-								{
-									ParentPinType::GetInteractiveTooltipLocation(OutTooltipLocation);
-								});
-						}
+					if (DataType == GetMetasoundDataTypeName<FAudioBuffer>())
+					{
+						UpdatePinAudioInspector(*GraphPin, bIsHoveringPin, PinAudioInspector, ParentPinType::ValueInspectorTooltip,
+							[this](FVector2D& OutTooltipLocation)
+							{
+								ParentPinType::GetInteractiveTooltipLocation(OutTooltipLocation);
+							});
 					}
 				}
 			}
