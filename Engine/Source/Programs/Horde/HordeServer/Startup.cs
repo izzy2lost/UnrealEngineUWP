@@ -381,7 +381,9 @@ namespace HordeServer
 			services.AddSingleton<IAgentCollection, AgentCollection>();
 			services.AddSingleton<IArtifactCollection, ArtifactCollection>();
 			services.AddSingleton<IGraphCollection, GraphCollection>();
-			services.AddSingleton<IIssueCollection, IssueCollection>();
+			services.AddSingleton<IssueCollection>();
+			services.AddSingleton<IIssueCollection>(sp => sp.GetRequiredService<IssueCollection>());
+			services.AddSingleton<ILogExtIssueProvider>(sp => sp.GetRequiredService<IssueCollection>());
 			services.AddSingleton<IJobCollection, JobCollection>();
 			services.AddSingleton<IJobStepRefCollection, JobStepRefCollection>();
 			services.AddSingleton<IJobTimingCollection, JobTimingCollection>();
@@ -458,6 +460,7 @@ namespace HordeServer
 			services.AddSingleton<IDowntimeService, DowntimeService>();
 			services.AddSingleton<IssueService>();
 			services.AddSingleton<JobService>();
+			services.AddSingleton<ILogExtAuthProvider>(sp => sp.GetRequiredService<JobService>());
 			services.AddSingleton<LifetimeService>();
 			services.AddHostedService(provider => provider.GetRequiredService<LifetimeService>());
 			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));

@@ -11,13 +11,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
-using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using HordeServer.Agents;
 using HordeServer.Agents.Sessions;
-using HordeServer.Issues;
-using HordeServer.Jobs;
 using HordeServer.Server;
 using HordeServer.Storage;
 using HordeServer.Utilities;
@@ -53,20 +50,20 @@ namespace HordeServer.Logs
 	public class LogsController : ControllerBase
 	{
 		private readonly ILogCollection _logCollection;
-		private readonly IIssueCollection _issueCollection;
-		private readonly JobService _jobService;
 		private readonly StorageService _storageService;
+		private readonly IEnumerable<ILogExtAuthProvider> _authProviders;
+		private readonly IEnumerable<ILogExtIssueProvider> _issueProviders;
 		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogsController(ILogCollection logCollection, IIssueCollection issueCollection, JobService jobService, StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public LogsController(ILogCollection logCollection, StorageService storageService, IEnumerable<ILogExtAuthProvider> authProviders, IEnumerable<ILogExtIssueProvider> issueProviders, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_logCollection = logCollection;
-			_issueCollection = issueCollection;
-			_jobService = jobService;
 			_storageService = storageService;
+			_authProviders = authProviders;
+			_issueProviders = issueProviders;
 			_globalConfig = globalConfig;
 		}
 
@@ -339,8 +336,10 @@ namespace HordeServer.Logs
 				int? issueId = null;
 				if (logEvent.SpanId != null && !spanIdToIssueId.TryGetValue(logEvent.SpanId.Value, out issueId))
 				{
-					IIssueSpan? span = await _issueCollection.GetSpanAsync(logEvent.SpanId.Value, cancellationToken);
-					issueId = span?.IssueId;
+					foreach (ILogExtIssueProvider issueProvider in _issueProviders)
+					{
+						issueId ??= await issueProvider.GetIssueIdAsync(logEvent.SpanId.Value, cancellationToken);
+					}
 					spanIdToIssueId[logEvent.SpanId.Value] = issueId;
 				}
 
@@ -390,13 +389,16 @@ namespace HordeServer.Logs
 			{
 				return true;
 			}
-			if (log.JobId != JobId.Empty && await _jobService.AuthorizeAsync(log.JobId, action, user, globalConfig, cancellationToken))
-			{
-				return true;
-			}
 			if (action == LogAclAction.ViewLog && log.SessionId != null && globalConfig.Authorize(SessionAclAction.ViewSession, user))
 			{
 				return true;
+			}
+			foreach (ILogExtAuthProvider authProvider in _authProviders)
+			{
+				if (await authProvider.AuthorizeAsync(log, action, user, cancellationToken))
+				{
+					return true;
+				}
 			}
 			if (globalConfig.Authorize(action, user))
 			{

@@ -20,6 +20,7 @@ using EpicGames.Redis.Utility;
 using HordeServer.Auditing;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
+using HordeServer.Logs;
 using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Telemetry;
@@ -36,7 +37,7 @@ using OpenTelemetry.Trace;
 
 namespace HordeServer.Issues
 {
-	class IssueCollection : IIssueCollection
+	class IssueCollection : IIssueCollection, ILogExtIssueProvider
 	{
 		[SingletonDocument("issue-ledger", "5e4c226440ce25fa3207a9af")]
 		class IssueLedger : SingletonBase
@@ -1697,6 +1698,13 @@ namespace HordeServer.Issues
 		public IAuditLogChannel<int> GetLogger(int issueId)
 		{
 			return _auditLog[issueId];
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask<int?> GetIssueIdAsync(ObjectId spanId, CancellationToken cancellationToken = default)
+		{
+			IIssueSpan? span = await GetSpanAsync(spanId, cancellationToken);
+			return span?.IssueId;
 		}
 	}
 }

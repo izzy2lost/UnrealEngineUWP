@@ -26,6 +26,7 @@ using HordeServer.Jobs.Bisect;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
 using HordeServer.Jobs.Timing;
+using HordeServer.Logs;
 using HordeServer.Notifications;
 using HordeServer.Perforce;
 using HordeServer.Server;
@@ -33,6 +34,7 @@ using HordeServer.Streams;
 using HordeServer.Users;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using OpenTelemetry.Trace;
 
@@ -73,7 +75,7 @@ namespace HordeServer.Jobs
 	/// <summary>
 	/// Wraps funtionality for manipulating jobs, jobsteps, and jobstep runs
 	/// </summary>
-	public class JobService
+	public class JobService : ILogExtAuthProvider
 	{
 		readonly IJobCollection _jobs;
 		readonly IGraphCollection _graphs;
@@ -88,6 +90,7 @@ namespace HordeServer.Jobs
 		readonly ITemplateCollection _templateCollection;
 		readonly IssueService? _issueService;
 		readonly IPerforceService _perforceService;
+		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
@@ -121,7 +124,7 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobService(IJobCollection jobs, IGraphCollection graphs, IAgentCollection agents, IJobStepRefCollection jobStepRefs, IBisectTaskCollection bisectTasks, IJobTimingCollection jobTimings, IUserCollection userCollection, INotificationTriggerCollection triggerCollection, JobTaskSource jobTaskSource, IStreamCollection streamCollection, ITemplateCollection templateCollection, IssueService issueService, IPerforceService perforceService, Tracer tracer, ILogger<JobService> logger)
+		public JobService(IJobCollection jobs, IGraphCollection graphs, IAgentCollection agents, IJobStepRefCollection jobStepRefs, IBisectTaskCollection bisectTasks, IJobTimingCollection jobTimings, IUserCollection userCollection, INotificationTriggerCollection triggerCollection, JobTaskSource jobTaskSource, IStreamCollection streamCollection, ITemplateCollection templateCollection, IssueService issueService, IPerforceService perforceService, Tracer tracer, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<JobService> logger)
 		{
 			_jobs = jobs;
 			_graphs = graphs;
@@ -136,6 +139,7 @@ namespace HordeServer.Jobs
 			_templateCollection = templateCollection;
 			_issueService = issueService;
 			_perforceService = perforceService;
+			_globalConfig = globalConfig;
 			_tracer = tracer;
 			_logger = logger;
 
@@ -1407,6 +1411,12 @@ namespace HordeServer.Jobs
 		{
 			IJob? job = await GetJobAsync(jobId, cancellationToken);
 			return globalConfig.Authorize(job, action, user);
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask<bool> AuthorizeAsync(ILog log, AclAction action, ClaimsPrincipal principal, CancellationToken cancellationToken)
+		{
+			return log.JobId != JobId.Empty && await AuthorizeAsync(log.JobId, action, principal, _globalConfig.CurrentValue, cancellationToken);
 		}
 
 		/// <summary>
