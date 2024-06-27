@@ -192,7 +192,6 @@ namespace UsdUtils
 #endif	  // USE_USD_SDK
 }	 // namespace UsdUtils
 
-#if USE_USD_SDK && WITH_EDITOR
 namespace UsdToUnreal
 {
 	struct FUsdSkeletonData
@@ -210,6 +209,7 @@ namespace UsdToUnreal
 		TArray<FBone> Bones;
 	};
 
+#if USE_USD_SDK && WITH_EDITOR
 	/**
 	 * Extracts skeleton data from UsdSkeletonQuery and places the results in ConvertedData.
 	 * @param UsdSkeletonQuery - SkeletonQuery with the data to convert
@@ -363,8 +363,11 @@ namespace UsdToUnreal
 		UsdUtils::FBlendShapeMap& InBlendShapesByPath,
 		USkeletalMesh* InOutSkeletalMesh
 	);
+
+#endif	  // #if USE_USD_SDK && WITH_EDITOR
 }	 // namespace UsdToUnreal
 
+#if USE_USD_SDK && WITH_EDITOR
 namespace UnrealToUsd
 {
 	/**
@@ -442,5 +445,4 @@ namespace UnrealToUsd
 		const UsdUtils::FBlendShapeMap* InBlendShapeMap = nullptr
 	);
 }
-
 #endif	  // #if USE_USD_SDK && WITH_EDITOR

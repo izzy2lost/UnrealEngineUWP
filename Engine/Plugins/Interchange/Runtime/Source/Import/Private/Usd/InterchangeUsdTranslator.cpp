@@ -1264,6 +1264,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		TArray<FString>& OutJointNames
 	)
 	{
+#if WITH_EDITOR
 		const FString& PrimPath = PayloadKey;
 		UE::FUsdPrim Prim = Impl.UsdStage.GetPrimAtPath(UE::FSdfPath{*PrimPath});
 		if (!Prim)
@@ -1339,6 +1340,9 @@ namespace UE::InterchangeUsdTranslator::Private
 		OutJointNames = *JointNames;
 
 		return true;
+#else
+		return false;
+#endif	  // WITH_EDITOR
 	}
 
 	bool GetMorphTargetPayloadData(
