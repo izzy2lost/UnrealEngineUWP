@@ -61,6 +61,9 @@ private:
 	float RenderSmoothingLagSeconds = 0.030f;
 
 	double RenderStartWallClockTimeSeconds = 0.0;
+	double LastRefreshWallClockTimeSeconds = 0.0;
+	double DeltaSecondsBetweenRefreshes = 0.0;
+
 	Metasound::FSampleCount RenderStartSampleCount {0};
 
 	static const int kFramesOfErrorHistory = 10;
@@ -83,8 +86,9 @@ private:
 	FDelegateHandle GeneratorIOUpdatedCallbackHandle;
 	FDelegateHandle GraphChangedCallbackHandle;
 
-	FMidiSongPos CalculateSongPosAtMsForLoopingOrMonotonicClock(float AbsoluteMs, float& PositionTick) const;
-	FMidiSongPos CalculateSongPosAtMsForOffsetClock(float PositionMs, float ClockTickOffsetFromDrivingClock, float& PositionTick) const;
+	FMidiSongPos CalculateSongPosAtMsForLoopingOrMonotonicClock(float AbsoluteMs, float& PositionTick, bool& SeekDetected, bool& LoopDetected) const;
+	FMidiSongPos CalculateSongPosAtMsForOffsetClock(float PositionMs, float ClockTickOffsetFromDrivingClock, float& PositionTick, bool& SeekDetected) const;
+	bool CheckForSeek(float FirstTick, float NextTick, float CurrentTempo, int32 TicksPerQuarter) const;
 
 	void UpdateCurrentTicksForOffsetClock(float SmoothedTick, float SmoothedTempoMapTick);
 	void UpdateCurrentTicksForLoopingOrMonotonicClock(float SmoothedTick, float SmoothedTempoMapTick);

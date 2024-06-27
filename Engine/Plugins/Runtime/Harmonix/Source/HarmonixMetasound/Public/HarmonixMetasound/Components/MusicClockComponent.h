@@ -32,10 +32,18 @@ enum class EMusicClockDriveMethod : uint8
 	MetaSound,
 };
 
+UENUM(BlueprintType)
+enum class EMusicTimeDiscontinuityType : uint8
+{
+	Loop,
+	Seek,
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FBeatEvent, int, BeatNumber, int, BeatInBar);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBarEvent, int, BarNumber);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FSectionEvent, const FString&, SectionName, float, SectionStartMs, float, SectionLengthMs);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FPlayStateEvent, EMusicClockState, State);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMusicTimeDiscontinuityEvent, EMusicTimeDiscontinuityType, Type, FMidiSongPos, PreviousPos, FMidiSongPos, NewPos);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMusicClockConnected);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMusicClockDisconnected);
@@ -205,10 +213,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
 	const FMidiSongPos& GetSongPos(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
+	UFUNCTION(BlueprintPure, Category = "MusicClock")
+	const FMidiSongPos& GetPreviousSongPos(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
 	/** Returns the remaining time until the end of the MIDI in milliseconds based on the timestamp corresponding to the passed Timebase */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
 	float GetSongRemainingMs(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
+	/** Returns true if there was a seek in the specified timebase */
+	// Note: Not const as it might cause the clock to update from its source.
+	UFUNCTION(BlueprintPure, Category = "MusicClock")
+	bool SeekedThisFrame(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
+	/** Returns true if there was a seek in the specified timebase */
+	// Note: Not const as it might cause the clock to update from its source.
+	UFUNCTION(BlueprintPure, Category = "MusicClock")
+	bool LoopedThisFrame(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	UFUNCTION(BlueprintPure, Category = "Count In")
 	float GetCountInSeconds() const;
@@ -281,6 +302,15 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
 	FMusicClockDisconnected MusicClockDisconnectedEvent;
 
+	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
+	FMusicTimeDiscontinuityEvent AudioRenderMusicTimeDiscontinuityEvent;
+
+	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
+	FMusicTimeDiscontinuityEvent PlayerExperienceMusicTimeDiscontinuityEvent;
+
+	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
+	FMusicTimeDiscontinuityEvent VideoRenderMusicTimeDiscontinuityEvent;
+
 private:
 	// Don't let C++ access these directly! They are a blueprint convenience and only work because 
 	// they specify getter functions!
@@ -299,10 +329,19 @@ public:
 	FMidiSongPos GetCurrentSmoothedAudioRenderSongPos() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetPreviousSmoothedAudioRenderSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
 	FMidiSongPos GetCurrentVideoRenderSongPos() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetPreviousVideoRenderSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
 	FMidiSongPos GetCurrentPlayerExperiencedSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetPreviousPlayerExperiencedSongPos() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
 	FMidiSongPos GetCurrentRawAudioRenderSongPos() const;
@@ -355,6 +394,13 @@ private:
 	int32 LastBroadcastBeat = -1;
 	FSongSection LastBroadcastSongSection;
 
+	bool AudioRenderSeekDetected = false;
+	bool AudioRenderLoopDetected = false;
+	bool PlayerExperiencedSeekDetected = false;
+	bool PlayerExperiencedLoopDetected = false;
+	bool VideoRenderSeekDetected = false;
+	bool VideoRenderLoopDetected = false;
+
 	FMidiSongPos PrevRawAudioRenderSongPos;
 	FMidiSongPos PrevAudioRenderSongPos;
 	FMidiSongPos PrevPlayerExperiencedSongPos;
@@ -364,9 +410,11 @@ private:
 
 	void CreateClockDriver();
 	void BroadcastSongPosChanges();
+	void BroadcastSeekLoopDetections();
 	void MakeDefaultSongMap();
 	bool ConnectToMetasound();
 	void ConnectToWallClock();
+	void DisconnectFromClockDriver();
 
 	// Ensures the clock will be updated once per frame.  Should only get called on the game thread.
 	void EnsureClockIsValidForGameFrame() const;// TODO: Cleanup task - UE-205069 - If we find we are able to use the new 
