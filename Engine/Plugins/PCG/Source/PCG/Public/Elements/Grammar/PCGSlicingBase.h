@@ -38,9 +38,38 @@ namespace PCGSlicingBaseConstants
 	const FName ModulesInfoPinLabel = TEXT("ModulesInfo");
 	const FName SymbolAttributeName = TEXT("Symbol");
 	const FName SizeAttributeName = TEXT("Size");
-	const FName ScalableAttributeName = TEXT("bScalable");
+	const FName ScalableAttributeName = TEXT("Scalable");
 	const FName DebugColorAttributeName = TEXT("DebugColor");
 }
+
+USTRUCT(BlueprintType)
+struct FPCGSlicingModuleAttributeNames
+{
+	GENERATED_BODY()
+
+public:
+	/** Mandatory. Expected type: FName. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "")
+	FName SymbolAttributeName = PCGSlicingBaseConstants::SymbolAttributeName;
+
+	/** Mandatory. Expected type: double. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "")
+	FName SizeAttributeName = PCGSlicingBaseConstants::SizeAttributeName;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "", meta = (InlineEditConditionToggle))
+	bool bProvideScalable = false;
+
+	/** Optional. Expected type: bool. If disabled, default value will be false. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "", meta = (EditCondition = "bProvideScalable"))
+	FName ScalableAttributeName = PCGSlicingBaseConstants::ScalableAttributeName;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "", meta = (InlineEditConditionToggle))
+	bool bProvideDebugColor = false;
+
+	/** Optional. Expected type: Vector4. If disabled, default value will be (1.0, 1.0, 1.0, 1.0). */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "", meta = (EditCondition = "bProvideDebugColor"))
+	FName DebugColorAttributeName = PCGSlicingBaseConstants::DebugColorAttributeName;
+};
 
 UCLASS(MinimalAPI, Abstract, ClassGroup = (Procedural))
 class UPCGSlicingBaseSettings : public UPCGSettings
@@ -55,7 +84,7 @@ public:
 	//~End UPCGSettings interface
 
 public:
-	/** Set it to true to pass the info as attribute set. Module info needs this structure (type + name): { FName Symbol, double Size, bool bScalable, FLinearColor DebugColor }. Types don't need to match exactly, must be able to be converted to the expected type. */
+	/** Set it to true to pass the info as attribute set. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bModuleInfoAsInput = false;
 
@@ -73,6 +102,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bModuleInfoAsInput", EditConditionHides, DisplayAfter = bModuleInfoAsInput))
 	TArray<FPCGSlicingModule> ModulesInfo;
 
+	/** Fixed array of modules used for the slicing. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bModuleInfoAsInput", EditConditionHides, DisplayAfter = bModuleInfoAsInput, DisplayName = "Attribute Names for Module Info"))
+	FPCGSlicingModuleAttributeNames ModulesInfoAttributeNames;
+
 	/** An encoded string that represents how to apply a set of rules to a series of defined modules. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bGrammarAsAttribute", EditConditionHides, DisplayAfter = bGrammarAsAttribute, PCG_Overridable))
 	FString Grammar;
@@ -82,32 +115,32 @@ public:
 	FPCGAttributePropertyInputSelector GrammarAttribute;
 
 	/** Do a match and set with the incoming module info, only if the module info is passed as input. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|ExtraAttributes", meta = (EditCondition = "bModuleInfoAsInput", PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (EditCondition = "bModuleInfoAsInput", EditConditionHides, PCG_Overridable))
 	bool bForwardAttributesFromModulesInfo = false;
 
 	/** Name of the Symbol output attribute name. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|ExtraAttributes", meta = (PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable))
 	FName SymbolAttributeName = PCGSlicingBaseConstants::SymbolAttributeName;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|ExtraAttributes", meta = (PCG_Overridable, InlineEditConditionToggle))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputSizeAttribute = true;
 
 	/** Name of the Size output attribute name, ignored if match and set from module info is true. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|ExtraAttributes", meta = (PCG_Overridable, EditCondition = "bOutputSizeAttribute"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputSizeAttribute"))
 	FName SizeAttributeName = PCGSlicingBaseConstants::SizeAttributeName;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|ExtraAttributes", meta = (PCG_Overridable, InlineEditConditionToggle))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputScalableAttribute = true;
 
 	/** Name of the Scalable output attribute name, ignored if match and set from module info is true. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|ExtraAttributes", meta = (PCG_Overridable, EditCondition = "bOutputScalableAttribute"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputScalableAttribute"))
 	FName ScalableAttributeName = PCGSlicingBaseConstants::ScalableAttributeName;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|ExtraAttributes", meta = (PCG_Overridable, InlineEditConditionToggle))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputDebugColorAttribute = false;
 
 	/** Name of the Debug Color output attribute name, ignored if match and set from module info is true. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|ExtraAttributes", meta = (PCG_Overridable, EditCondition = "bOutputDebugColorAttribute"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputDebugColorAttribute"))
 	FName DebugColorAttributeName = PCGSlicingBaseConstants::DebugColorAttributeName;
 };
 

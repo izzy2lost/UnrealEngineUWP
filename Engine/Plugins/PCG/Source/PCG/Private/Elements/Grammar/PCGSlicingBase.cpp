@@ -42,27 +42,15 @@ FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInf
 			return ModulesInfo;
 		}
 
-		static const FName SymbolAttributeName = PCGSlicingBaseConstants::SymbolAttributeName;
-		static const FName SizeAttributeName = GET_MEMBER_NAME_CHECKED(FPCGSlicingModule, Size);
-		static const FName ScalableAttributeName = GET_MEMBER_NAME_CHECKED(FPCGSlicingModule, bScalable);
-		static const FName DebugColorAttributeName = GET_MEMBER_NAME_CHECKED(FPCGSlicingModule, DebugColor);
-		static const FName ExtraScalableAttributeName = TEXT("Scalable"); // To also support the name without a "b".
+		const TUniquePtr<const IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateConstKeys(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(InSettings->ModulesInfoAttributeNames.SymbolAttributeName));
 
-		const TUniquePtr<const IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateConstKeys(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(SymbolAttributeName));
-
-		const TUniquePtr<const IPCGAttributeAccessor> SymbolAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(SymbolAttributeName));
-		const TUniquePtr<const IPCGAttributeAccessor> SizeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(SizeAttributeName));
-		TUniquePtr<const IPCGAttributeAccessor> ScalableAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(ScalableAttributeName));
-		const TUniquePtr<const IPCGAttributeAccessor> DebugColorAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(DebugColorAttributeName));
-
-		if (!ScalableAccessor.IsValid())
+		auto GetRange = [InContext, &Keys, ParamData]<typename T>(TArray<T>& OutValues, const FName AttributeName, const bool bProvided = true)
 		{
-			// Retry with Scalable without a b.
-			ScalableAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(ExtraScalableAttributeName));
-		}
+			if (!bProvided)
+			{
+				return true;
+			}
 
-		auto GetRange = [InContext, &Keys, ParamData]<typename T>(TArray<T>& OutValues, const FName AttributeName)
-		{
 			const TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(AttributeName));
 			if (!Accessor || !Keys)
 			{
@@ -86,10 +74,10 @@ FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInf
 		TArray<bool> Scalables;
 		TArray<FVector4> DebugColors;
 
-		if (!GetRange(Symbols, SymbolAttributeName)
-			|| !GetRange(Sizes, SizeAttributeName)
-			|| !GetRange(Scalables, ScalableAttributeName)
-			|| !GetRange(DebugColors, DebugColorAttributeName))
+		if (!GetRange(Symbols, InSettings->ModulesInfoAttributeNames.SymbolAttributeName)
+			|| !GetRange(Sizes, InSettings->ModulesInfoAttributeNames.SizeAttributeName)
+			|| !GetRange(Scalables, InSettings->ModulesInfoAttributeNames.ScalableAttributeName, InSettings->ModulesInfoAttributeNames.bProvideScalable)
+			|| !GetRange(DebugColors, InSettings->ModulesInfoAttributeNames.DebugColorAttributeName, InSettings->ModulesInfoAttributeNames.bProvideDebugColor))
 		{
 			return ModulesInfo;
 		}
@@ -108,8 +96,9 @@ FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInf
 			FPCGSlicingModule& Module = ModulesInfo.Emplace(Symbols[i]);
 			Module.Symbol = Symbols[i];
 			Module.Size = Sizes[i];
-			Module.bScalable = Scalables[i];
-			Module.DebugColor = DebugColors[i];
+
+			Module.bScalable = InSettings->ModulesInfoAttributeNames.bProvideScalable ? Scalables[i] : false;
+			Module.DebugColor = InSettings->ModulesInfoAttributeNames.bProvideDebugColor ? DebugColors[i] : FVector4::One();
 		}
 
 		OutModuleInfoParamData = ParamData;
