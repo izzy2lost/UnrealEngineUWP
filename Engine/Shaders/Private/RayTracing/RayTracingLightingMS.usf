@@ -65,7 +65,7 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 	Payload.IndirectIrradiance = (float3)0;
 
 	uint LightType = 0;
-	FDeferredLightData LightData = GetRayTracingDeferredLightData(LightIndex, LightType);
+	FDeferredLightData LightData = GetRayTracingDeferredLightData(LightIndex, PackedPayload.IsIndirectLightingRay(), LightType);
 
 	float4 LightAttenuation = 1.0f;
 
@@ -130,4 +130,3 @@ RAY_TRACING_ENTRY_MISS(RayTracingLightingMS, FPackedMaterialClosestHitPayload, P
 
 	PackedPayload.SetRadiance(AccumulatedRadiance);
 }
-

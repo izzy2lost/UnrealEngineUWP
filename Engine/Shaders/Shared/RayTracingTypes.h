@@ -33,7 +33,8 @@ struct FRTLightingData
 	float2 SpotAngles;
 	float  SourceLength;
 	float  SoftSourceRadius;
-	float2 DistanceFadeMAD;
+	uint   DistanceFadeMAD;
+	float  IndirectLightScale;
 	float  RectLightBarnCosAngle;
 	float  RectLightBarnLength;
 	float2 RectLightAtlasUVOffset;

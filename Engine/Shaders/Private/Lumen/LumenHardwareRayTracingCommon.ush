@@ -763,6 +763,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 
 			FPackedMaterialClosestHitPayload Payload = (FPackedMaterialClosestHitPayload)0;
 			Payload.SetLumenPayload();
+			Payload.SetIndirectLightingRay();
 
 		#if RECURSIVE_REFRACTION_TRACES
 			Context.InstanceMask |= RAY_TRACING_MASK_TRANSLUCENT;

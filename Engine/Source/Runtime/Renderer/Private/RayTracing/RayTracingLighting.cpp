@@ -311,10 +311,10 @@ TRDGUniformBufferRef<FRayTracingLightGrid> CreateRayTracingLightData(
 
 			// Ray tracing should compute fade parameters ignoring lightmaps
 			const FVector2D FadeParams = Light.LightSceneInfo->Proxy->GetDirectionalLightDistanceFadeParameters(View.GetFeatureLevel(), false, View.MaxShadowCascades);
-			const FVector2D DistanceFadeMAD = { FadeParams.Y, -FadeParams.X * FadeParams.Y };
-
+			
 			LightDataElement.SpotAngles = LightParameters.SpotAngles;
-			LightDataElement.DistanceFadeMAD = FVector2f(DistanceFadeMAD);
+			LightDataElement.DistanceFadeMAD = PackRG16(FadeParams.Y, -FadeParams.X * FadeParams.Y);
+			LightDataElement.IndirectLightScale = Light.LightSceneInfo->Proxy->GetIndirectLightingScale();
 
 			LightDataElement.InvRadius = LightParameters.InvRadius;
 			LightDataElement.DiffuseSpecularScale = PackRG16(LightParameters.DiffuseScale, LightParameters.SpecularScale);

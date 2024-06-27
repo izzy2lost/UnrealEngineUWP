@@ -22,6 +22,7 @@
 
 FDeferredLightData GetRayTracingDeferredLightData(
 	int LightIndex,
+	bool bIndirectLighting,
 	inout uint OutLightType,
 	inout uint OutLightMissShaderIndex)
 {
@@ -32,7 +33,7 @@ FDeferredLightData GetRayTracingDeferredLightData(
 
 	LightData.TranslatedWorldPosition = RayTracingLightData.TranslatedLightPosition;
 	LightData.InvRadius = RayTracingLightData.InvRadius;
-	LightData.Color = RayTracingLightData.LightColor;
+	LightData.Color = RayTracingLightData.LightColor * (bIndirectLighting ? RayTracingLightData.IndirectLightScale : 1.0f);
 	LightData.FalloffExponent = RayTracingLightData.FalloffExponent;
 	LightData.Direction = RayTracingLightData.Direction;
 	LightData.Tangent = RayTracingLightData.Tangent;
@@ -44,7 +45,7 @@ FDeferredLightData GetRayTracingDeferredLightData(
 	LightData.SpecularScale = UnpackFloat2FromUInt(RayTracingLightData.DiffuseSpecularScale).y;
 	LightData.RectLightData.BarnCosAngle = RayTracingLightData.RectLightBarnCosAngle;
 	LightData.RectLightData.BarnLength = RayTracingLightData.RectLightBarnLength;
-	LightData.DistanceFadeMAD = RayTracingLightData.DistanceFadeMAD;
+	LightData.DistanceFadeMAD = UnpackFloat2FromUInt(RayTracingLightData.DistanceFadeMAD);
 
 	LightData.ShadowMapChannelMask = float4(0, 0, 0, 0);
 	LightData.ShadowedBits = 0; // Not lit dynamic shadows 
@@ -80,10 +81,11 @@ FDeferredLightData GetRayTracingDeferredLightData(
 
 FDeferredLightData GetRayTracingDeferredLightData(
 	int LightIndex,
+	bool bIndirectLighting,
 	inout uint OutLightType)
 {
 	uint LightMissShaderIndex = 0;
-	return GetRayTracingDeferredLightData(LightIndex, OutLightType, LightMissShaderIndex);
+	return GetRayTracingDeferredLightData(LightIndex, bIndirectLighting, OutLightType, LightMissShaderIndex);
 }
 
 float3 GenerateReflectedRayDirection(
@@ -338,7 +340,7 @@ float3 ComputeDirectLighting(
 
 		uint LightType = 0;
 		uint LightMissShaderIndex = 0;
-		FDeferredLightData LightData = GetRayTracingDeferredLightData(LightIndex, LightType, LightMissShaderIndex);
+		FDeferredLightData LightData = GetRayTracingDeferredLightData(LightIndex, Payload.IsIndirectLightingRay(), LightType, LightMissShaderIndex);
 
 		float3 ShadowRayDirection;
 		// ToLight should not be normalized because its length is used to compute the shadow ray TMax 
