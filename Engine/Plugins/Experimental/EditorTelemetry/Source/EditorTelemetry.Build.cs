@@ -24,7 +24,6 @@ namespace UnrealBuildTool.Rules
 					"StudioTelemetry",
 					"DerivedDataCache",
 					"Zen",
-					"IoStoreOnDemand",
 					"ContentBrowser",
 					"ContentBrowserData",
 				}
