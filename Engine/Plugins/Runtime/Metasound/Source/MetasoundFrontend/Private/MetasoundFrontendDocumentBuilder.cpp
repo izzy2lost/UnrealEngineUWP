@@ -2117,7 +2117,7 @@ EMetasoundFrontendVertexAccessType FMetaSoundFrontendDocumentBuilder::GetNodeInp
 					{
 						if (Template->IsInputAccessTypeDynamic())
 						{
-							return Template->GetNodeInputAccessType(*this, InNodeID, InVertexID);
+							return Template->GetNodeInputAccessType(*this, PageID, InNodeID, InVertexID);
 						}
 					}
 				}
@@ -2246,7 +2246,7 @@ EMetasoundFrontendVertexAccessType FMetaSoundFrontendDocumentBuilder::GetNodeOut
 					{
 						if (Template->IsOutputAccessTypeDynamic())
 						{
-							return Template->GetNodeOutputAccessType(*this, InNodeID, InVertexID);
+							return Template->GetNodeOutputAccessType(*this, PageID, InNodeID, InVertexID);
 						}
 					}
 				}
@@ -2533,7 +2533,7 @@ bool FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes()
 
 	struct FTemplateTransformParams
 	{
-		const Metasound::Frontend::INodeTemplate* Template;
+		const Metasound::Frontend::INodeTemplate* Template = nullptr;
 		TArray<FGuid> NodeIDs;
 	};
 	using FTemplateTransformParamsMap = TSortedMap<FGuid, FTemplateTransformParams>;
@@ -2562,34 +2562,36 @@ bool FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes()
 	// which allows for addition/removal of nodes to/from original array container
 	// without template transform having to worry about mutation while iterating
 	TArray<FGuid> TemplateNodeIDs;
-	FMetasoundFrontendGraph& Graph = FindBuildGraphChecked();
-	for (const FMetasoundFrontendNode& Node : Graph.Nodes)
-	{
-		if (FTemplateTransformParams* Params = TemplateParams.Find(Node.ClassID))
-		{
-			Params->NodeIDs.Add(Node.GetID());
-		}
-	}
-
-	// 2. Transform nodes
 	bool bModified = false;
-	for (const TPair<FGuid, FTemplateTransformParams>& Pair : TemplateParams)
+	Document.RootGraph.IterateGraphPages([this, &Dependencies, &TemplateParams, &bModified](FMetasoundFrontendGraph& Graph)
 	{
-		const FTemplateTransformParams& Params = Pair.Value;
-		if (Params.Template)
+		for (const FMetasoundFrontendNode& Node : Graph.Nodes)
 		{
-			TUniquePtr<INodeTemplateTransform> NodeTransform = Params.Template->GenerateNodeTransform();
-			check(NodeTransform.IsValid());
-
-			for (const FGuid& NodeID : Params.NodeIDs)
+			if (FTemplateTransformParams* Params = TemplateParams.Find(Node.ClassID))
 			{
-				bModified = true;
-				NodeTransform->Transform(NodeID, *this);
+				Params->NodeIDs.Add(Node.GetID());
 			}
 		}
-	}
 
-	// 3. Remove template classes from dependency list
+		for (TPair<FGuid, FTemplateTransformParams>& Pair : TemplateParams)
+		{
+			FTemplateTransformParams& Params = Pair.Value;
+			if (Params.Template)
+			{
+				TUniquePtr<INodeTemplateTransform> NodeTransform = Params.Template->GenerateNodeTransform();
+				check(NodeTransform.IsValid());
+
+				for (const FGuid& NodeID : Params.NodeIDs)
+				{
+					bModified = true;
+					NodeTransform->Transform(Graph.PageID, NodeID, *this);
+				}
+			}
+			Params.NodeIDs.Reset();
+		}
+	});
+
+	// 2. Remove template classes from dependency list
 	for (int32 i = Dependencies.Num() - 1; i >= 0; --i)
 	{
 		const FMetasoundFrontendClass& Class = Dependencies[i];

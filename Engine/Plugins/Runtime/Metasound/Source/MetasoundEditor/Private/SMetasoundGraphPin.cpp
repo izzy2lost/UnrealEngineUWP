@@ -43,7 +43,8 @@ namespace Metasound
 				{
 					if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(FRerouteNodeTemplate::GetRegistryKey()))
 					{
-						bHasRequiredConnections = Template->HasRequiredConnections(GetBuilderChecked().GetConstBuilder(), OwningNode->GetNodeID());
+						const FMetaSoundFrontendDocumentBuilder& DocBuilder = GetBuilderChecked().GetConstBuilder();
+						bHasRequiredConnections = Template->HasRequiredConnections(DocBuilder, DocBuilder.GetBuildPageID(), OwningNode->GetNodeID());
 					}
 				}
 			}

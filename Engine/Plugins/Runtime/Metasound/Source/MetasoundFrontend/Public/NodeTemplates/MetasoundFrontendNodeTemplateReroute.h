@@ -29,7 +29,7 @@ namespace Metasound::Frontend
 		virtual const FMetasoundFrontendClassName& GetClassName() const override;
 
 #if WITH_EDITOR
-		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& DocumentInterface, const FGuid& InNodeID) const override;
+		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& DocumentInterface, const FGuid& InPageID, const FGuid& InNodeID) const override;
 #endif // WITH_EDITOR
 
 		UE_DEPRECATED(5.4, "Use version that does not require mutating a provided PreprocessedDocument")
@@ -38,8 +38,8 @@ namespace Metasound::Frontend
 		virtual FMetasoundFrontendNodeInterface GenerateNodeInterface(FNodeTemplateGenerateInterfaceParams InParams) const override;
 		virtual TUniquePtr<INodeTemplateTransform> GenerateNodeTransform() const override;
 		virtual const FMetasoundFrontendClass& GetFrontendClass() const override;
-		virtual EMetasoundFrontendVertexAccessType GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const override;
-		virtual EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const override;
+		virtual EMetasoundFrontendVertexAccessType GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const override;
+		virtual EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const override;
 		virtual const FMetasoundFrontendVersionNumber& GetVersionNumber() const override;
 		virtual bool IsInputAccessTypeDynamic() const override;
 		virtual bool IsInputConnectionUserModifiable() const override;
@@ -48,7 +48,7 @@ namespace Metasound::Frontend
 		virtual bool IsValidNodeInterface(const FMetasoundFrontendNodeInterface& InNodeInterface) const override;
 
 #if WITH_EDITOR
-		virtual bool HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage = nullptr) const override;
+		virtual bool HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FString* OutMessage = nullptr) const override;
 #endif // WITH_EDITOR
 	};
 } // namespace Metasound::Frontend

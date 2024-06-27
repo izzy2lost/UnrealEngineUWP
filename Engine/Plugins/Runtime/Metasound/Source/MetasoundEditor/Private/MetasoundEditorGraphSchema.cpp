@@ -1796,11 +1796,11 @@ FText UMetasoundEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) con
 			{
 				if (Pin->Direction == EGPD_Input)
 				{
-					return Template->GetInputVertexDisplayName(Builder, Node->GetID(), Pin->GetFName());
+					return Template->GetInputVertexDisplayName(Builder, Builder.GetBuildPageID(), Node->GetID(), Pin->GetFName());
 				}
 				else
 				{
-					return Template->GetOutputVertexDisplayName(Builder, Node->GetID(), Pin->GetFName());
+					return Template->GetOutputVertexDisplayName(Builder, Builder.GetBuildPageID(), Node->GetID(), Pin->GetFName());
 				}
 			}
 		}

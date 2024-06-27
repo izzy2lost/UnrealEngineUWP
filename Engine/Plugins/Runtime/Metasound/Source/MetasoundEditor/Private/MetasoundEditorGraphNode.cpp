@@ -1161,7 +1161,8 @@ void UMetasoundEditorGraphExternalNode::Validate(Metasound::Editor::FGraphNodeVa
 				{
 #if WITH_EDITOR
 					FString Message;
-					if (!Template->HasRequiredConnections(GetBuilderChecked().GetConstBuilder(), GetNodeID(), &Message))
+					const FMetaSoundFrontendDocumentBuilder& DocBuilder = GetBuilderChecked().GetConstBuilder();
+					if (!Template->HasRequiredConnections(DocBuilder, DocBuilder.GetBuildPageID(), GetNodeID(), &Message))
 					{
 						OutResult.SetMessage(EMessageSeverity::Warning, Message);
 					}

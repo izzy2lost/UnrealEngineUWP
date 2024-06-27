@@ -14,13 +14,13 @@ namespace Metasound::Frontend
 			FAudioAnalyzerNodeTemplateTransform() = default;
 			virtual ~FAudioAnalyzerNodeTemplateTransform() = default;
 
-			virtual bool Transform(const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const override;
+			virtual bool Transform(const FGuid& InPageID, const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const override;
 		};
 
-		bool FAudioAnalyzerNodeTemplateTransform::Transform(const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const
+		bool FAudioAnalyzerNodeTemplateTransform::Transform(const FGuid& InPageID, const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const
 		{
 			// Strip it out:
-			return OutBuilder.RemoveNode(InNodeID);
+			return OutBuilder.RemoveNode(InNodeID, &InPageID);
 		}
 	} // namespace AudioAnalyzerNodeTemplatePrivate
 
@@ -68,12 +68,12 @@ namespace Metasound::Frontend
 		return FrontendClass;
 	}
 	
-	EMetasoundFrontendVertexAccessType FAudioAnalyzerNodeTemplate::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
+	EMetasoundFrontendVertexAccessType FAudioAnalyzerNodeTemplate::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const
 	{
 		return EMetasoundFrontendVertexAccessType::Unset;
 	}
 
-	EMetasoundFrontendVertexAccessType FAudioAnalyzerNodeTemplate::GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
+	EMetasoundFrontendVertexAccessType FAudioAnalyzerNodeTemplate::GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const
 	{
 		return EMetasoundFrontendVertexAccessType::Unset;
 	}

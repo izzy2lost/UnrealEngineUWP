@@ -74,7 +74,7 @@ namespace Metasound::Frontend
 	}
 
 #if WITH_EDITOR
-	FText FInputNodeTemplate::GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InNodeID) const
+	FText FInputNodeTemplate::GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InPageID, const FGuid& InNodeID) const
 	{
 		return { };
 	}
@@ -124,10 +124,10 @@ namespace Metasound::Frontend
 		return RegistryKey;
 	}
 
-	EMetasoundFrontendVertexAccessType FInputNodeTemplate::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
+	EMetasoundFrontendVertexAccessType FInputNodeTemplate::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const
 	{
 		const FMetasoundFrontendNode* ConnectedInputNode = nullptr;
-		if (const FMetasoundFrontendVertex* ConnectedInputOutput = InBuilder.FindNodeOutputConnectedToNodeInput(InNodeID, InVertexID, &ConnectedInputNode))
+		if (const FMetasoundFrontendVertex* ConnectedInputOutput = InBuilder.FindNodeOutputConnectedToNodeInput(InNodeID, InVertexID, &ConnectedInputNode, &InPageID))
 		{
 			const FMetasoundFrontendClass* InputClass = InBuilder.FindDependency(ConnectedInputNode->ClassID);
 			check(InputClass);
@@ -137,28 +137,28 @@ namespace Metasound::Frontend
 		return EMetasoundFrontendVertexAccessType::Unset;
 	}
 
-	EMetasoundFrontendVertexAccessType FInputNodeTemplate::GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const
+	EMetasoundFrontendVertexAccessType FInputNodeTemplate::GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const
 	{
-		if (const FMetasoundFrontendNode* Node = InBuilder.FindNode(InNodeID))
+		if (const FMetasoundFrontendNode* Node = InBuilder.FindNode(InNodeID, &InPageID))
 		{
 			const FMetasoundFrontendVertex& Input = Node->Interface.Inputs.Last();
-			return GetNodeInputAccessType(InBuilder, InNodeID, Input.VertexID);
+			return GetNodeInputAccessType(InBuilder, InPageID, InNodeID, Input.VertexID);
 		}
 
 		return EMetasoundFrontendVertexAccessType::Unset;
 	}
 
 #if WITH_EDITOR
-	FText FInputNodeTemplate::GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName OutputName) const
+	FText FInputNodeTemplate::GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName OutputName) const
 	{
-		const FMetasoundFrontendNode* OwningNode = InBuilder.FindNode(InNodeID);
+		const FMetasoundFrontendNode* OwningNode = InBuilder.FindNode(InNodeID, &InPageID);
 		if (!OwningNode)
 		{
 			return FText::FromName(OutputName);
 		}
 
 		const FMetasoundFrontendNode* ConnectedInputNode = nullptr;
-		const FMetasoundFrontendVertex* ConnectedOutput = InBuilder.FindNodeOutputConnectedToNodeInput(InNodeID, OwningNode->Interface.Inputs.Last().VertexID, &ConnectedInputNode);
+		const FMetasoundFrontendVertex* ConnectedOutput = InBuilder.FindNodeOutputConnectedToNodeInput(InNodeID, OwningNode->Interface.Inputs.Last().VertexID, &ConnectedInputNode, &InPageID);
 		if (ensureMsgf(ConnectedInputNode, TEXT("Input template node should always be connected to associated input node's only output")))
 		{
 			FName NodeName = ConnectedInputNode->Name;
@@ -172,10 +172,10 @@ namespace Metasound::Frontend
 			return INodeTemplate::ResolveMemberDisplayName(NodeName, DisplayName, bIncludeNamespace);
 		}
 
-		return FRerouteNodeTemplate::GetOutputVertexDisplayName(InBuilder, InNodeID, OutputName);
+		return FRerouteNodeTemplate::GetOutputVertexDisplayName(InBuilder, InPageID, InNodeID, OutputName);
 	}
 
-	bool FInputNodeTemplate::HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage) const
+	bool FInputNodeTemplate::HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FString* OutMessage) const
 	{
 		return true;
 	}

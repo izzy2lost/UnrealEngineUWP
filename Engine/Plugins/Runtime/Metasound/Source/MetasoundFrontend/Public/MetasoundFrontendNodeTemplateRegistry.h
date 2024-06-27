@@ -42,7 +42,7 @@ namespace Metasound::Frontend
 		virtual ~INodeTemplateTransform() = default;
 
 		/** Return true if the builder was modified, false otherwise. */
-		virtual bool Transform(const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const = 0;
+		virtual bool Transform(const FGuid& InPageID, const FGuid& InNodeID, FMetaSoundFrontendDocumentBuilder& OutBuilder) const = 0;
 	};
 
 	/**
@@ -64,17 +64,17 @@ namespace Metasound::Frontend
 		virtual TUniquePtr<INodeTransform> GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const;
 
 #if WITH_EDITOR
-		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InNodeID) const = 0;
+		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InPageID, const FGuid& InNodeID) const = 0;
 
-		UE_DEPRECATED(5.5, "Use overload GetOutputVertexDisplayName with supplied builder instead")
+		UE_DEPRECATED(5.5, "Use overload GetOutputVertexDisplayName with supplied builder & pageID instead")
 		virtual FText GetInputPinDisplayName(const Frontend::IInputController& InInput) const { return FText(); }
 
-		virtual FText GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName InputName) const = 0;
+		virtual FText GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName InputName) const = 0;
 
-		UE_DEPRECATED(5.5, "Use overload GetOutputVertexDisplayName with supplied builder instead")
+		UE_DEPRECATED(5.5, "Use overload GetOutputVertexDisplayName with supplied builder & pageID instead")
 		virtual FText GetOutputPinDisplayName(const Frontend::IOutputController& InOutput) const { return FText(); };
 
-		virtual FText GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName OutputName) const = 0;
+		virtual FText GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName OutputName) const = 0;
 
 		static FText ResolveMemberDisplayName(FName VertexName, FText DisplayName, bool bIncludeNamespace);
 #endif // WITH_EDITOR
@@ -86,10 +86,10 @@ namespace Metasound::Frontend
 		virtual const FMetasoundFrontendClass& GetFrontendClass() const = 0;
 
 		// Returns access type of the given input within the provided builder's document
-		virtual EMetasoundFrontendVertexAccessType GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const = 0;
+		virtual EMetasoundFrontendVertexAccessType GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const = 0;
 
 		// Returns access type of the given output within the provided builder's document
-		virtual EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, const FGuid& InVertexID) const = 0;
+		virtual EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const = 0;
 
 		UE_DEPRECATED(5.4, "Use version number or classname instead")
 		virtual const FMetasoundFrontendVersion& GetVersion() const { const static FMetasoundFrontendVersion NullVersion; return NullVersion; }
@@ -98,12 +98,12 @@ namespace Metasound::Frontend
 		virtual const FMetasoundFrontendVersionNumber& GetVersionNumber() const = 0;
 
 #if WITH_EDITOR
-		UE_DEPRECATED(5.5, "Use version that takes a Frontend NodeID and builder instead")
+		UE_DEPRECATED(5.5, "Use version that takes a Frontend PageID, NodeID and builder instead")
 		virtual bool HasRequiredConnections(FConstNodeHandle InNodeHandle, FString* OutMessage = nullptr) const { return false; }
 
 		// Returns whether or not the given node template has the necessary
 		// required connections to be preprocessed (editor only).
-		virtual bool HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage = nullptr) const = 0;
+		virtual bool HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FString* OutMessage = nullptr) const = 0;
 #endif // WITH_EDITOR
 
 		// Returns whether template can dynamically assign a node's input access type (as opposed to it being assigned on the class input definition)
@@ -142,10 +142,10 @@ namespace Metasound::Frontend
 	{
 	public:
 #if WITH_EDITOR
-		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InNodeID) const override;
-		virtual FText GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName InputName) const override;
-		virtual FText GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FName OutputName) const override;
-		virtual bool HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InNodeID, FString* OutMessage = nullptr) const override;
+		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InPageID, const FGuid& InNodeID) const override;
+		virtual FText GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName InputName) const override;
+		virtual FText GetOutputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName OutputName) const override;
+		virtual bool HasRequiredConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FString* OutMessage = nullptr) const override;
 #endif // WITH_EDITOR
 	};
 
