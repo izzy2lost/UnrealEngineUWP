@@ -97,11 +97,6 @@ FChaosSolversModule::FChaosSolversModule()
 
 void FChaosSolversModule::StartupModule()
 {
-	// Load dependent modules if we can
-	if(FModuleManager::Get().ModuleExists(TEXT("FieldSystemEngine")))
-	{
-		FModuleManager::Get().LoadModule("FieldSystemEngine");
-	}
 	Initialize();
 }
 
