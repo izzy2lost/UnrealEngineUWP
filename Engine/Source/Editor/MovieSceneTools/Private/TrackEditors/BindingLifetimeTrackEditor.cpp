@@ -57,34 +57,99 @@ void FBindingLifetimeTrackEditor::CreateNewSection(UMovieSceneTrack* Track, bool
 		FScopedTransaction Transaction(LOCTEXT("CreateNewSectionTransactionText", "Add Section"));
 
 
-		UMovieSceneSection* NewSection = NewObject<UMovieSceneSection>(Track, UMovieSceneBindingLifetimeSection::StaticClass(), NAME_None, RF_Transactional);
-		check(NewSection);
+		UMovieSceneSection* NewSection = nullptr;
 
 		Track->Modify();
 
 		// first section by default should be infinite
 		if (Track->GetAllSections().Num() == 0)
 		{
+			NewSection = NewObject<UMovieSceneSection>(Track, UMovieSceneBindingLifetimeSection::StaticClass(), NAME_None, RF_Transactional);
 			NewSection->SetRange(TRange<FFrameNumber>::All());
+			Track->AddSection(*NewSection);
 		}
 		else
 		{
-			int32 Duration = 0;
-
-			if (CurrentTime.Time.FrameNumber < FocusedMovieScene->GetPlaybackRange().GetUpperBoundValue())
+			// If the start time overlaps an existing section, split that section at the start time
+			TArray<UMovieSceneSection*> ExistingSections = Track->GetAllSections();
+			for(UMovieSceneSection* Section : ExistingSections)
 			{
-				Duration = FocusedMovieScene->GetPlaybackRange().GetUpperBoundValue().Value - CurrentTime.Time.FrameNumber.Value;
-			}
-			else
-			{
-				const float DefaultLengthInSeconds = 5.f;
-				Duration = (DefaultLengthInSeconds * SequencerPtr->GetFocusedTickResolution()).FloorToFrame().Value;
+				TRange<FFrameNumber> SectionRange = Section->GetRange();
+				if (SectionRange.Contains(CurrentTime.Time.FrameNumber))
+				{
+					// Edge case- the section the start is overlapping we're just at the start of it (can happen when adding 2 sections back to back at the same time)
+					// In that case, push back the start of the other section
+					if (SectionRange.GetLowerBound().IsClosed() && SectionRange.GetLowerBoundValue() == CurrentTime.Time.FrameNumber)
+					{
+						FFrameNumber AdjustmentFrames = SequencerPtr->GetFocusedTickResolution().AsFrameNumber(1);
+						if (SectionRange.HasUpperBound())
+						{
+							AdjustmentFrames = (SectionRange.GetUpperBoundValue() - SectionRange.GetLowerBoundValue()) / 2;
+						}
+
+						SectionRange.SetLowerBoundValue(SectionRange.GetLowerBoundValue() + AdjustmentFrames);
+						Section->SetRange(SectionRange);
+
+						NewSection = NewObject<UMovieSceneSection>(Track, UMovieSceneBindingLifetimeSection::StaticClass(), NAME_None, RF_Transactional);
+						TRange<FFrameNumber> NewSectionRange;
+						NewSectionRange.SetLowerBound(TRangeBound<FFrameNumber>(CurrentTime.Time.FrameNumber));
+						TRangeBound<FFrameNumber> NewUpperBound(SectionRange.GetLowerBoundValue());
+						if (NewUpperBound.IsInclusive())
+						{
+							NewUpperBound = TRangeBound<FFrameNumber>::FlipInclusion(NewUpperBound);
+						}
+						NewSectionRange.SetUpperBound(NewUpperBound);
+						NewSection->SetRange(NewSectionRange);
+						Track->AddSection(*NewSection);
+					}
+					else
+					{
+						// Splitting adds the section to the track
+						NewSection = Section->SplitSection(CurrentTime, false);
+					}
+					break;
+				}
 			}
 
-			NewSection->InitialPlacement(Track->GetAllSections(), CurrentTime.Time.FrameNumber.Value, Duration, false);
+			// If we didn't overlap anything, add a new section starting at the frame time and ending either at the next section start, or if not existing, make the duration infinite
+			if (!NewSection)
+			{
+				NewSection = NewObject<UMovieSceneSection>(Track, UMovieSceneBindingLifetimeSection::StaticClass(), NAME_None, RF_Transactional);
+				TRange<FFrameNumber> NewSectionRange;
+				NewSectionRange.SetLowerBound(TRangeBound<FFrameNumber>(CurrentTime.Time.FrameNumber));
+				// By default, set the upper bound to open
+				NewSectionRange.SetUpperBound(TRangeBound<FFrameNumber>::Open());
+
+				UMovieSceneSection* NextSection = nullptr;
+				TRangeBound<FFrameNumber> NextSectionLowerBound = TRangeBound<FFrameNumber>::Open();
+				for (UMovieSceneSection* Section : ExistingSections)
+				{
+					if (Section->GetRange().HasLowerBound() && Section->GetRange().GetLowerBoundValue() > CurrentTime.Time.FrameNumber)
+					{
+						if (NextSectionLowerBound.IsOpen() || Section->GetRange().GetLowerBoundValue() < NextSectionLowerBound.GetValue())
+						{
+							NextSection = Section;
+							NextSectionLowerBound = Section->GetRange().GetLowerBound();
+						}
+					}
+				}
+
+				if (NextSection)
+				{
+					// We found an existing section with a lower bound greater than time, so cap our upper bound value to its lower bound
+					TRangeBound<FFrameNumber> NewUpperBound(NextSectionLowerBound.GetValue());
+					if (NewUpperBound.IsInclusive())
+					{
+						NewUpperBound = TRangeBound<FFrameNumber>::FlipInclusion(NewUpperBound);
+					}
+					NewSectionRange.SetUpperBound(NewUpperBound);
+				}
+
+				NewSection->SetRange(NewSectionRange);
+				Track->AddSection(*NewSection);
+			}
 		}
 
-		Track->AddSection(*NewSection);
 		Track->UpdateEasing();
 
 		if (bSelect)
