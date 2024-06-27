@@ -65,6 +65,8 @@ enum class ERepresentativeShader
 	UIInstancedVertexShader,
 	LastVertexShader = UIInstancedVertexShader,
 
+	NaniteMesh,
+
 	Num
 };
 

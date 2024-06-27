@@ -195,6 +195,10 @@ FString FMaterialStatsUtils::RepresentativeShaderTypeToString(const ERepresentat
 			return TEXT("Skinned Cloth");
 		break;
 
+		case ERepresentativeShader::NaniteMesh:
+			return TEXT("Nanite Mesh");
+		break;
+
 		case ERepresentativeShader::UIDefaultFragmentShader:
 			return TEXT("UI Pixel Shader");
 		break;
@@ -289,6 +293,7 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 	static const FName FLocalVertexFactoryName = FLocalVertexFactory::StaticType.GetFName();
 	static const FName FGPUFactoryName = TEXT("TGPUSkinVertexFactoryDefault");
 	static const FName FClothVertexFactoryName = TEXT("TGPUSkinAPEXClothVertexFactoryDefault");
+	static const FName FNaniteVertexFactoryName = TEXT("FNaniteVertexFactory");
 
 	if (TargetMaterial->IsUIMaterial())
 	{
@@ -348,6 +353,16 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 		{
 			ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
 				.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, TBasePassVSFNoLightMapPolicyName, TEXT("Base pass vertex shader")));
+		}
+
+		if (TargetMaterial->GetFeatureLevel() >= ERHIFeatureLevel::SM6)
+		{
+			if (TargetMaterial->IsUsedWithNanite())
+			{
+				static FName TBasePassCSFNoLightMapPolicyName = TEXT("TBasePassCSFNoLightMapPolicy");
+				ShaderTypeNamesAndDescriptions.FindOrAdd(FNaniteVertexFactoryName)
+					.Add(FRepresentativeShaderInfo(ERepresentativeShader::NaniteMesh, TBasePassCSFNoLightMapPolicyName, TEXT("Nanite Compute Shader")));
+			}
 		}
 
 		// Add the shader type with the most sampler usages so we can accurately report the worst case scenario.
