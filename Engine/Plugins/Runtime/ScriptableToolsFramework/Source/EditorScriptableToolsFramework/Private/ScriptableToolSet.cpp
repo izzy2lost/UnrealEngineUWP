@@ -4,18 +4,31 @@
 
 #include "ScriptableInteractiveTool.h"
 #include "ScriptableToolBuilder.h"
+#include "Tags/ScriptableToolGroupSet.h"
+#include "Engine/AssetManager.h" // Singleton access to StreamableManager
 
 
 #include "Modules/ModuleManager.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 
 
-void UScriptableToolSet::ReinitializeScriptableTools()
+void UScriptableToolSet::ReinitializeScriptableTools(FPreToolsLoadedDelegate PreDelegate, FToolsLoadedDelegate PostDelegate, FToolsLoadingUpdateDelegate UpdateDelegate, FScriptableToolGroupSet* TagsToFilter)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("UScriptableToolSet::ReinitializeScriptableTools"))
+
+	if (bActiveLoading)
+	{
+		AsyncLoadHandle->CancelHandle();
+	}
+
+	PreDelegate.ExecuteIfBound();
+
+	bActiveLoading = true;
+	Tools.Reset();
+	ToolBuilders.Reset();
+
 	UClass* ScriptableToolClass = UScriptableInteractiveTool::StaticClass();
 	UScriptableInteractiveTool* ScriptableToolCDO = ScriptableToolClass->GetDefaultObject<UScriptableInteractiveTool>();
-
-	TSet<UClass*> PotentialToolClasses;
 
 	// Iterate over Blueprint classes to try to find UScriptableInteractiveTool blueprints
 	// Note that this code may not be fully reliable, but it appears to work so far...
@@ -39,6 +52,7 @@ void UScriptableToolSet::ReinitializeScriptableTools()
 	TSet<FTopLevelAssetPath> DerivedClassPaths;
 	AssetRegistry.GetDerivedClassNames(BaseModeClasses, TSet<FTopLevelAssetPath>(), DerivedClassPaths);
 
+	TArray< FSoftObjectPath > ObjectPathsToLoad;
 	for (const FTopLevelAssetPath& ClassPath : DerivedClassPaths)
 	{
 		// don't include Base tools  (note this will also catch EditorScriptableToolsFramework)
@@ -47,7 +61,50 @@ void UScriptableToolSet::ReinitializeScriptableTools()
 			continue;
 		}
 
-		FSoftObjectPath ObjectPath(ClassPath.ToString());
+		ObjectPathsToLoad.Add(ClassPath.ToString());
+	}
+	
+	TSharedPtr<FScriptableToolGroupSet> TagsToFilterCopy;
+	if (TagsToFilter)
+	{
+		TagsToFilterCopy = MakeShared<FScriptableToolGroupSet>(*TagsToFilter);
+	}
+
+	AsyncLoadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(ObjectPathsToLoad, [this, PostDelegate, ObjectPathsToLoad, TagsToFilterCopy]() { PostToolLoad(PostDelegate, ObjectPathsToLoad, TagsToFilterCopy);  });
+
+	AsyncLoadHandle->BindUpdateDelegate(UpdateDelegate);
+}
+
+
+
+
+void UScriptableToolSet::ForEachScriptableTool(
+	TFunctionRef<void(UClass* ToolClass, UBaseScriptableToolBuilder* ToolBuilder)> ProcessToolFunc)
+{
+	if (bActiveLoading)
+	{
+		return;
+	}
+
+	for (FScriptableToolInfo& ToolInfo : Tools)
+	{
+		if (ToolInfo.ToolClass.IsValid() && ToolInfo.ToolBuilder.IsValid())
+		{
+			ProcessToolFunc(ToolInfo.ToolClass.Get(), ToolInfo.ToolBuilder.Get());
+		}
+	}
+}
+
+
+void UScriptableToolSet::PostToolLoad(FToolsLoadedDelegate Delegate, TArray< FSoftObjectPath > ObjectsLoaded, TSharedPtr<FScriptableToolGroupSet> TagsToFilter)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("UScriptableToolSet::PostToolLoad"))
+
+	TSet<UClass*> PotentialToolClasses;
+	UClass* ScriptableToolClass = UScriptableInteractiveTool::StaticClass();
+
+	for(FSoftObjectPath& ObjectPath : ObjectsLoaded)
+	{
 		TSoftClassPtr<UScriptableInteractiveTool> SoftClass = TSoftClassPtr<UScriptableInteractiveTool>(ObjectPath);
 		if (UClass* Class = SoftClass.LoadSynchronous())
 		{
@@ -56,12 +113,17 @@ void UScriptableToolSet::ReinitializeScriptableTools()
 				continue;
 			}
 
+			if (TagsToFilter)
+			{
+				if (!TagsToFilter->Matches(Cast<UScriptableInteractiveTool>(Class->GetDefaultObject())->GroupTags))
+				{
+					continue;
+				}
+			}
+
 			PotentialToolClasses.Add(Class);
 		}
 	}
-
-	Tools.Reset();
-	ToolBuilders.Reset();
 
 	// if the class is viable, create a ToolBuilder for it
 	for (UClass* Class : PotentialToolClasses)
@@ -86,22 +148,10 @@ void UScriptableToolSet::ReinitializeScriptableTools()
 		}
 	}
 
+	bActiveLoading = false;
+	Delegate.ExecuteIfBound();
 
-}
-
-
-
-
-void UScriptableToolSet::ForEachScriptableTool(
-	TFunctionRef<void(UClass* ToolClass, UBaseScriptableToolBuilder* ToolBuilder)> ProcessToolFunc)
-{
-	for (FScriptableToolInfo& ToolInfo : Tools)
-	{
-		if (ToolInfo.ToolClass.IsValid() && ToolInfo.ToolBuilder.IsValid())
-		{
-			ProcessToolFunc(ToolInfo.ToolClass.Get(), ToolInfo.ToolBuilder.Get());
-		}
-	}
+	AsyncLoadHandle.Reset();
 }
 
 

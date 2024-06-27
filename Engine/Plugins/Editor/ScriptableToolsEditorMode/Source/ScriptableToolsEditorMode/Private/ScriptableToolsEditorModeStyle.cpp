@@ -9,9 +9,11 @@
 #include "Interfaces/IPluginManager.h"
 #include "SlateOptMacros.h"
 #include "Styling/SlateStyle.h"
+#include "Styling/StyleColors.h"
 
 
 #define IMAGE_PLUGIN_BRUSH( RelativePath, ... ) FSlateImageBrush( FScriptableToolsEditorModeStyle::InContent( RelativePath, ".png" ), __VA_ARGS__ )
+#define IMAGE_BRUSH_SVG( RelativePath, ... ) FSlateVectorImageBrush(FScriptableToolsEditorModeStyle::InContent( RelativePath, ".svg"), __VA_ARGS__)
 
 // This is to fix the issue that SlateStyleMacros like IMAGE_BRUSH look for RootToContentDir but StyleSet->RootToContentDir is how this style is set up
 #define RootToContentDir StyleSet->RootToContentDir
@@ -68,6 +70,8 @@ void FScriptableToolsEditorModeStyle::Initialize()
 		StyleSet->Set("ScriptableToolsEditorModeToolCommands.DefaultToolIcon.Small", new IMAGE_PLUGIN_BRUSH("Icons/Tool_DefaultIcon_40px", Icon20x20));
 
 	}
+
+	StyleSet->Set("ToolPalette.MenuIndicator", new IMAGE_BRUSH_SVG("Icons/chevron-right", Icon20x20, FStyleColors::Foreground));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*StyleSet.Get());
 };

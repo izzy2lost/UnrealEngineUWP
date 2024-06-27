@@ -12,6 +12,7 @@
 #include "InteractiveToolManager.h"
 #include "ScriptableToolsEditorModeToolkit.h"
 #include "ScriptableToolsEditorModeManagerCommands.h"
+#include "ScriptableToolsEditorModeSettings.h"
 
 #include "BaseGizmos/TransformGizmoUtil.h"
 #include "Snapping/ModelingSceneSnappingManager.h"
@@ -30,6 +31,10 @@
 
 #include "Utility/ScriptableToolContextObjects.h"
 #include "ContextObjectStore.h"
+
+#include "Engine/StreamableManager.h"
+
+
 
 #define LOCTEXT_NAMESPACE "UScriptableToolsEditorMode"
 
@@ -166,16 +171,12 @@ void UScriptableToolsEditorMode::Enter()
 	// enable realtime viewport override
 	ConfigureRealTimeViewportsOverride(true);
 
-
 	ScriptableTools = NewObject<UScriptableToolSet>(this);
-	// find all the Tool Blueprints
-	ScriptableTools->ReinitializeScriptableTools();
-	// register each of them with ToolManager
-	ScriptableTools->ForEachScriptableTool([&](UClass* ToolClass, UInteractiveToolBuilder* ToolBuilder) 
+
+	UScriptableToolsModeCustomizationSettings* ModeSettings = GetMutableDefault<UScriptableToolsModeCustomizationSettings>();
+	ModeSettings->OnSettingChanged().AddLambda([this](UObject*, FPropertyChangedEvent&)
 	{
-		FString UseName;
-		ToolClass->GetClassPathName().ToString(UseName);
-		GetToolManager(EToolsContextScope::EdMode)->RegisterToolType(UseName, ToolBuilder);
+		RebuildScriptableToolSet();
 	});
 
 	// todoz
@@ -189,10 +190,78 @@ void UScriptableToolsEditorMode::Enter()
 	{
 		FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
 		ModeToolkit->InitializeAfterModeSetup();
-		ModeToolkit->ForceToolPaletteRebuild();
 	}
 
+	RebuildScriptableToolSet();
+
 	InitializeModeContexts();
+}
+
+void UScriptableToolsEditorMode::RebuildScriptableToolSet()
+{
+	UScriptableToolsModeCustomizationSettings* ModeSettings = GetMutableDefault<UScriptableToolsModeCustomizationSettings>();
+
+	auto UnregisterTools = [this]()
+	{
+		// unregister old tools from ToolManager
+		ScriptableTools->ForEachScriptableTool([&](UClass* ToolClass, UInteractiveToolBuilder* ToolBuilder)
+			{
+				FString UseName;
+				ToolClass->GetClassPathName().ToString(UseName);
+				GetToolManager(EToolsContextScope::EdMode)->UnregisterToolType(UseName);
+			});
+
+		if (Toolkit.IsValid())
+		{
+			FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
+			ModeToolkit->StartAsyncToolLoading();
+		};
+	};
+
+	auto RegisterTools = [this]()
+	{
+		// register each of them with ToolManager
+		ScriptableTools->ForEachScriptableTool([&](UClass* ToolClass, UInteractiveToolBuilder* ToolBuilder)
+		{
+			FString UseName;
+			ToolClass->GetClassPathName().ToString(UseName);
+			GetToolManager(EToolsContextScope::EdMode)->RegisterToolType(UseName, ToolBuilder);
+		});
+
+		if (Toolkit.IsValid())
+		{
+			FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
+			ModeToolkit->EndAsyncToolLoading();
+			ModeToolkit->ForceToolPaletteRebuild();
+		}
+	};
+
+	auto ToolLoadingUpdate = [this](TSharedPtr<FStreamableHandle> Handle)
+	{
+		if (Toolkit.IsValid())
+		{
+			FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
+			ModeToolkit->SetAsyncProgress(Handle->GetProgress());
+		}
+	};
+
+	// find all the Tool Blueprints
+	if (ModeSettings->RegisterAllTools())
+	{
+		ScriptableTools->ReinitializeScriptableTools(FToolsLoadedDelegate::CreateLambda(UnregisterTools),
+													 FToolsLoadedDelegate::CreateLambda(RegisterTools),
+			                                         FToolsLoadingUpdateDelegate::CreateLambda(ToolLoadingUpdate));
+	}
+	else
+	{
+		ScriptableTools->ReinitializeScriptableTools(FToolsLoadedDelegate::CreateLambda(UnregisterTools),
+												     FToolsLoadedDelegate::CreateLambda(RegisterTools),
+			                                         FToolsLoadingUpdateDelegate::CreateLambda(ToolLoadingUpdate),
+			                                         &ModeSettings->ToolRegistrationFilters);
+	}	
+
+
+
 }
 
 void UScriptableToolsEditorMode::InitializeModeContexts()
@@ -236,13 +305,7 @@ void UScriptableToolsEditorMode::OnBlueprintPreCompile(UBlueprint* Blueprint)
 
 void UScriptableToolsEditorMode::OnBlueprintCompiled()
 {
-	// Probably not necessary to always rebuild the palette here. But currently this lets us respond
-	// to changes in the tool name/setting/etc
-	if (Toolkit.IsValid())
-	{
-		FScriptableToolsEditorModeToolkit* ModeToolkit = (FScriptableToolsEditorModeToolkit*)Toolkit.Get();
-		ModeToolkit->ForceToolPaletteRebuild();
-	}
+	RebuildScriptableToolSet();
 }
 
 void UScriptableToolsEditorMode::Exit()

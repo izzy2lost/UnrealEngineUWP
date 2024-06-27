@@ -6,6 +6,8 @@
 #include "InteractiveGizmo.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "ScriptableToolBuilder.h"
+#include "Tags/ScriptableToolGroupTag.h"
+#include "Tags/ScriptableToolGroupSet.h"
 #include "ScriptableInteractiveTool.generated.h"
 
 class UWorld;
@@ -892,6 +894,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Widgets")
 	void ClearOverlayWidget();
 
+	// Tool Tagging Support
+
+
+	UPROPERTY(EditAnywhere, Transient, Category = "Scriptable Tool Settings")
+	FScriptableToolGroupSet GroupTags;
 };
 
 

@@ -91,6 +91,8 @@ protected:
 
 	void InitializeModeContexts();
 
+	void RebuildScriptableToolSet();
+
 private:
 
 	TArray<TWeakObjectPtr<UScriptableToolContextObject>> ContextsToUpdateOnToolEnd;

@@ -7,9 +7,12 @@
 
 class UScriptableInteractiveTool;
 class UBaseScriptableToolBuilder;
+struct FScriptableToolGroupSet;
 class UClass;
 
-
+DECLARE_DELEGATE(FPreToolsLoadedDelegate);
+DECLARE_DELEGATE(FToolsLoadedDelegate);
+DECLARE_DELEGATE_OneParam(FToolsLoadingUpdateDelegate, TSharedRef<struct FStreamableHandle>);
 /**
  * UScriptableToolSet represents a set of UScriptableInteractiveTool types.
  */
@@ -24,7 +27,7 @@ public:
 	 * Find all UScriptableInteractiveTool classes in the current project.
 	 * (Currently no support for filtering/etc)
 	 */
-	void ReinitializeScriptableTools();
+	void ReinitializeScriptableTools(FPreToolsLoadedDelegate PreDelegate, FToolsLoadedDelegate PostDelegate, FToolsLoadingUpdateDelegate UpdateDelegate, FScriptableToolGroupSet* TagsToFilter = nullptr);
 
 	/**
 	 * Allow external code to process each UScriptableInteractiveTool in the current ToolSet
@@ -33,6 +36,12 @@ public:
 		TFunctionRef<void(UClass* ToolClass, UBaseScriptableToolBuilder* ToolBuilder)> ProcessToolFunc);
 
 protected:
+
+	void PostToolLoad(FToolsLoadedDelegate Delegate, TArray< FSoftObjectPath > ObjectsLoaded, TSharedPtr<FScriptableToolGroupSet> TagsToFilter);
+
+	bool bActiveLoading = false;
+	TSharedPtr<FStreamableHandle> AsyncLoadHandle;
+
 	struct FScriptableToolInfo
 	{
 		TWeakObjectPtr<UClass> ToolClass = nullptr;

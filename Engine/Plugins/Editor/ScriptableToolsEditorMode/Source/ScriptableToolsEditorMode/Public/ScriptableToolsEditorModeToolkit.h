@@ -41,6 +41,13 @@ public:
 	virtual void PostWarning(const FText& Message);
 	virtual void ClearWarning();
 
+	// Async Tool Loading
+	void StartAsyncToolLoading();
+	void SetAsyncProgress(float PercentLoaded);
+	void EndAsyncToolLoading();
+	bool AreToolsLoading() const;
+	TOptional<float> GetToolPercentLoaded() const;
+
 	/** Returns the Mode specific tabs in the mode toolbar **/ 
 	virtual void GetToolPaletteNames(TArray<FName>& InPaletteName) const;
 	virtual FText GetToolPaletteDisplayName(FName PaletteName) const; 
@@ -65,6 +72,15 @@ public:
 
 	virtual void ForceToolPaletteRebuild();
 
+protected:
+
+	/** FModeToolkit interface */
+	virtual void RebuildModeToolBar() override;
+	virtual bool ShouldShowModeToolbar() const override;
+
+	void RebuildModeToolPaletteWidgets();
+
+
 private:
 	const static TArray<FName> PaletteNames_Standard;
 
@@ -85,6 +101,13 @@ private:
 	TSharedPtr<SButton> AcceptButton;
 	TSharedPtr<SButton> CancelButton;
 	TSharedPtr<SButton> CompletedButton;
+
+	// Palette
+	bool bAsyncLoadInProgress = false;
+	float AsyncLoadProgress;
+
+	TSharedPtr<SVerticalBox> ToolBoxVBox;
+	FDelegateHandle SettingsUpdateHandle;
 
 	bool bShowRealtimeWarning = false;
 	void UpdateShowWarnings();

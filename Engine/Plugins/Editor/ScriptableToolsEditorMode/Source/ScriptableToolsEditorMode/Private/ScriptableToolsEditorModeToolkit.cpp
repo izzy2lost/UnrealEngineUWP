@@ -6,6 +6,8 @@
 #include "ScriptableToolsEditorModeManagerCommands.h"
 #include "ScriptableToolsEditorModeStyle.h"
 
+#include "SSingleObjectDetailsPanel.h"
+
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IDetailsView.h"
 #include "Toolkits/AssetEditorModeUILayer.h"
@@ -15,13 +17,326 @@
 
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
+#include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SExpandableArea.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Notifications/SProgressBar.h"
 #include "SPrimaryButton.h"
+#include "SAssetDropTarget.h"
 
 #include "ScriptableInteractiveTool.h"
 #include "ScriptableToolSet.h"
+#include "ScriptableToolsEditorModeSettings.h"
+
+#include "UI/SScriptableToolGroupSetCombo.h"
+
+#include "Engine/Blueprint.h"
 
 #define LOCTEXT_NAMESPACE "FScriptableToolsEditorModeToolkit"
 
+
+class SToolPaletteLoadBar : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SToolPaletteLoadBar) {}
+	SLATE_END_ARGS()
+
+private:
+
+	FScriptableToolsEditorModeToolkit* Toolkit;
+
+	EVisibility IsVisible() const
+	{
+		if (Toolkit)
+		{
+			return Toolkit->AreToolsLoading() ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+		return EVisibility::Collapsed;
+	}
+
+	TOptional<float> GetPercentLoaded() const
+	{
+		if (Toolkit)
+		{
+			return Toolkit->GetToolPercentLoaded();
+		}
+		return TOptional<float>();
+	}
+
+public:
+
+	void Construct(const FArguments& InArgs, FScriptableToolsEditorModeToolkit* ToolkitIn)
+	{
+		Toolkit = ToolkitIn;
+
+		ChildSlot
+		[
+			SNew(SBox)
+			.Visibility(this, &SToolPaletteLoadBar::IsVisible)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.Padding(2.f, 6.f)
+					//.AutoWidth()
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("ScriptableToolsLoadingText", "Loading tools..."))
+					]
+				]
+				+SVerticalBox::Slot()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.Padding(2.f, 6.f)
+					//.AutoWidth()
+					[
+						SNew(SProgressBar)
+						.BorderPadding(FVector2D::ZeroVector)
+						.Percent(this, &SToolPaletteLoadBar::GetPercentLoaded)
+						.FillColorAndOpacity(FSlateColor(FLinearColor(0.0f, 1.0f, 1.0f)))
+					]
+				]
+			]
+
+		];
+
+	}
+
+};
+
+class SToolPaletteTagPanel : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SToolPaletteTagPanel) {}
+	SLATE_END_ARGS()
+
+private:
+	// Pointer back to owning sprite editor instance (the keeper of state)
+
+	UScriptableToolsModeCustomizationSettings* ModeSettings;
+	FScriptableToolsEditorModeToolkit* Toolkit;
+
+	TSharedPtr<SScriptableToolGroupSetCombo> TagCombo;
+	TSharedPtr<SComboButton> ToolMenuButton;
+
+	FDelegateHandle SettingsUpdateHandle;
+
+	void RefreshData(UObject*, FPropertyChangedEvent& )
+	{
+		if (TagCombo)
+		{
+			TagCombo->ForceUpdate();
+		}
+	}
+
+public:
+
+	virtual ~SToolPaletteTagPanel()
+	{
+		ModeSettings = GetMutableDefault<UScriptableToolsModeCustomizationSettings>();
+		ModeSettings->OnSettingChanged().Remove(SettingsUpdateHandle);
+	}
+
+	void Construct(const FArguments& InArgs, FScriptableToolsEditorModeToolkit* ToolkitIn)
+	{
+		ModeSettings = GetMutableDefault<UScriptableToolsModeCustomizationSettings>();
+		Toolkit = ToolkitIn;
+
+		SettingsUpdateHandle = ModeSettings->OnSettingChanged().AddSP(this, &SToolPaletteTagPanel::RefreshData);
+
+		ChildSlot
+		[
+			SAssignNew(ToolMenuButton, SComboButton)
+			.HasDownArrow(false)
+			.CollapseMenuOnParentFocus(false)
+			.MenuPlacement(EMenuPlacement::MenuPlacement_MenuRight)
+			.OnMenuOpenChanged_Lambda([this](bool bOpened)
+			{
+				FSlateThrottleManager::Get().DisableThrottle(bOpened);
+			})
+			.ButtonContent()
+			[
+				SNew(SAssetDropTarget)
+				.bSupportsMultiDrop(true)
+				.OnAreAssetsAcceptableForDropWithReason_Lambda([this](TArrayView<FAssetData> InAssets, FText& OutReason)
+				{
+					if (InAssets.Num() > 1)
+					{
+						OutReason = FText(LOCTEXT("ScriptableToolPaletteTagDropWarningPlural", "Assets must be Scriptable Tool Tags."));
+					}
+					else
+					{
+						OutReason = FText(LOCTEXT("ScriptableToolPaletteTagDropWarning", "Asset must be a Scriptable Tool Tag."));
+					}
+
+					for (FAssetData& Asset : InAssets)
+					{
+						UObject* AssetObject = Asset.GetAsset();
+
+						if (AssetObject == nullptr)
+						{
+							return false;
+						}
+
+						if (!AssetObject->IsA(UBlueprint::StaticClass()))
+						{
+							return false;
+						}
+
+						UBlueprint* BlueprintObject = Cast<UBlueprint>(AssetObject);
+
+						if (!BlueprintObject->GeneratedClass->IsChildOf(UScriptableToolGroupTag::StaticClass()))
+						{
+							return false;
+						}
+					}
+					return true;
+				})
+				.OnAssetsDropped_Lambda([this](const FDragDropEvent&, TArrayView<FAssetData> InAssets)
+					{
+						ModeSettings->PreEditChange(UScriptableToolsModeCustomizationSettings::StaticClass()->FindPropertyByName("bRegisterAllTools"));
+						ModeSettings->PreEditChange(UScriptableToolsModeCustomizationSettings::StaticClass()->FindPropertyByName("ToolRegistrationFilters"));
+						for (FAssetData& Asset : InAssets)
+						{
+							UObject* AssetObject = Asset.GetAsset();
+
+							UBlueprint* BlueprintObject = Cast<UBlueprint>(AssetObject);
+
+							UClass* BlueprintClass = BlueprintObject->GetBlueprintClass();							
+
+							if (BlueprintObject->GeneratedClass->IsChildOf(UScriptableToolGroupTag::StaticClass()))
+							{
+								TSubclassOf<UScriptableToolGroupTag> TagSubclass{ BlueprintObject->GeneratedClass };
+								ModeSettings->ToolRegistrationFilters.Groups.Add(TagSubclass);								
+							}
+						}
+						ModeSettings->PostEditChange();
+					})
+				[
+					SNew(SBorder)
+					.Visibility(EVisibility::SelfHitTestInvisible)
+					.Padding(FMargin(0.0f))
+					.BorderImage(FAppStyle::Get().GetBrush("ProjectBrowser.ProjectTile.DropShadow"))
+					[
+						SNew(SOverlay)
+						+ SOverlay::Slot()
+						[
+							SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.HAlign(HAlign_Center)
+							.VAlign(VAlign_Center)
+							[
+								SNew(SBox)
+								.HeightOverride(30)
+								[
+									SNew(SBorder)
+									.Padding(0)
+									.BorderImage(FStyleDefaults::GetNoBrush())
+									.HAlign(HAlign_Center)
+									.VAlign(VAlign_Center)									
+									[
+										SNew(STextBlock)
+										.Text_Lambda([this]() {
+											if(ModeSettings->RegisterAllTools())
+											{
+												return LOCTEXT("ScriptableToolsAllToolsLabel", "Showing all tools");
+											}
+											else
+											{
+
+												TArray<FText> GroupNames;
+
+												for (UClass* GroupClass : ModeSettings->ToolRegistrationFilters.Groups)
+												{
+													if (GroupClass)
+													{
+														UScriptableToolGroupTag* GroupTag = Cast<UScriptableToolGroupTag>(GroupClass->GetDefaultObject());
+
+														if (GroupTag)
+														{
+															GroupNames.Add(FText::FromString(GroupTag->Name));
+														}
+													}
+												}
+
+												if (ModeSettings->ToolRegistrationFilters.Groups.Num() == 1)
+												{
+													ensure(GroupNames.IsValidIndex(0));
+													return FText::Format(LOCTEXT("ScriptableToolsOneGroupLabel", "Showing tools from {0}"), GroupNames[0]);
+												}
+												else if (ModeSettings->ToolRegistrationFilters.Groups.Num() == 2)
+												{
+													ensure(GroupNames.IsValidIndex(1));
+													return FText::Format(LOCTEXT("ScriptableToolsTwoGroupLabel", "Showing tools from {0} and {1}"), GroupNames[0], GroupNames[1]);
+												}
+												else
+												{
+													ensure(GroupNames.IsValidIndex(1));
+													return FText::Format(LOCTEXT("ScriptableToolsManyGroupLabel", "Showing tools from {0}, {1} and more..."), GroupNames[0], GroupNames[1]);
+												}
+											}
+										})
+										.ToolTipText(LOCTEXT("ScriptableToolsGroupButtonTooltip", "Select tool groups or drag tool group asset here to filter displayed tools."))
+									]
+								]
+							]
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0)
+							[
+								SNew(SBox)
+								.HeightOverride(30)
+							]
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.HAlign(EHorizontalAlignment::HAlign_Right)
+							[
+								SNew(SImage)
+								.Image(FScriptableToolsEditorModeStyle::Get()->GetBrush("ToolPalette.MenuIndicator"))
+							]
+						]
+					]
+				]
+			]			
+			.MenuContent()
+			[
+				SNew(SBox)				
+				.WidthOverride(300)
+				[
+					SNew(SBorder)
+					.Padding(15)
+					.BorderImage(FStyleDefaults::GetNoBrush())
+					[
+
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.FillWidth(1.0)
+							[
+								SAssignNew(TagCombo, SScriptableToolGroupSetCombo)
+								.StructPtr(&ModeSettings->ToolRegistrationFilters)
+								.OnChanged_Lambda([this]() {
+									ModeSettings->PostEditChange();
+								})
+							]
+						]
+					]
+				]
+			]			
+		];
+	}
+
+	
+
+	// End of SSingleObjectDetailsPanel interface
+};
 
 
 FScriptableToolsEditorModeToolkit::FScriptableToolsEditorModeToolkit()
@@ -33,6 +348,9 @@ FScriptableToolsEditorModeToolkit::~FScriptableToolsEditorModeToolkit()
 {
 	GetScriptableEditorMode()->GetInteractiveToolsContext(EToolsContextScope::EdMode)->OnToolNotificationMessage.RemoveAll(this);
 	GetScriptableEditorMode()->GetInteractiveToolsContext(EToolsContextScope::EdMode)->OnToolWarningMessage.RemoveAll(this);
+
+	UScriptableToolsModeCustomizationSettings* ModeSettings = GetMutableDefault<UScriptableToolsModeCustomizationSettings>();
+	ModeSettings->OnSettingChanged().Remove(SettingsUpdateHandle);	
 }
 
 
@@ -466,7 +784,31 @@ void FScriptableToolsEditorModeToolkit::InvokeUI()
 void FScriptableToolsEditorModeToolkit::ForceToolPaletteRebuild()
 {
 	this->UpdateActiveToolCategories();
-	this->RebuildModeToolPalette();
+
+	if (ModeUILayer.IsValid() && HasIntegratedToolPalettes() == false)
+	{
+		if (TSharedPtr<FAssetEditorModeUILayer> ModeUILayerPtr = ModeUILayer.Pin())
+		{
+			TSharedPtr<FUICommandList> CommandList;
+			if (GetScriptableEditorMode().IsValid())
+			{
+				UEdMode* ScriptableMode = GetScriptableEditorMode().Get();
+				CommandList = GetToolkitCommands();
+				ActiveToolBarRows.Reset();
+
+				TArray<FName> PaletteNames;
+				GetToolPaletteNames(PaletteNames);
+				for (const FName& Palette : PaletteNames)
+				{
+					TSharedRef<SWidget> PaletteWidget = CreatePaletteWidget(CommandList, ScriptableMode->GetModeInfo().ToolbarCustomizationName, Palette);
+					ActiveToolBarRows.Emplace(ScriptableMode->GetID(), Palette, GetToolPaletteDisplayName(Palette), PaletteWidget);
+				}
+
+				RebuildModeToolPaletteWidgets();
+			}
+		}
+	}
+
 }
 
 
@@ -572,6 +914,140 @@ void FScriptableToolsEditorModeToolkit::UpdateShowWarnings()
 
 }
 
+void FScriptableToolsEditorModeToolkit::RebuildModeToolBar()
+{
+	TSharedPtr<SDockTab> ToolbarTabPtr = ModeToolbarTab.Pin();
+	if (ToolbarTabPtr && HasToolkitBuilder())
+	{
+		ToolbarTabPtr->SetParentDockTabStackTabWellHidden(true);
+	}
 
+	// If the tab or box is not valid the toolbar has not been opened or has been closed by the user
+	TSharedPtr<SVerticalBox> ModeToolbarBoxPinned = ModeToolbarBox.Pin();
+	if (ModeToolbarTab.IsValid() && ModeToolbarBoxPinned)
+	{
+		ModeToolbarBoxPinned->ClearChildren();
+		bool bExclusivePalettes = true;
+		ToolBoxVBox = SNew(SVerticalBox);
+
+		RebuildModeToolPaletteWidgets();
+
+		ModeToolbarBoxPinned->AddSlot()
+		.AutoHeight()
+		.Padding(1.f)
+		[
+			SNew(SBox)
+			[
+				SNew(SToolPaletteTagPanel, this)
+			]
+		];
+
+		ModeToolbarBoxPinned->AddSlot()
+		.AutoHeight()
+		.Padding(1.f)
+		[
+			SNew(SBox)
+			[
+				SNew(SToolPaletteLoadBar, this)
+			]
+		];
+
+		ModeToolbarBoxPinned->AddSlot()
+		[
+			SNew(SScrollBox)
+			.Visibility_Lambda([this]()
+			{
+				return AreToolsLoading() ? EVisibility::Collapsed : EVisibility::Visible;
+			})
+			+ SScrollBox::Slot()
+			[
+				ToolBoxVBox.ToSharedRef()
+			]
+		];
+		
+
+
+	}
+}
+
+void FScriptableToolsEditorModeToolkit::StartAsyncToolLoading()
+{
+	bAsyncLoadInProgress = true;
+	AsyncLoadProgress = 0.0;
+}
+
+void FScriptableToolsEditorModeToolkit::SetAsyncProgress(float PercentLoaded)
+{
+	ensure(bAsyncLoadInProgress == true);
+	AsyncLoadProgress = PercentLoaded;
+}
+
+void FScriptableToolsEditorModeToolkit::EndAsyncToolLoading()
+{
+	ensure(bAsyncLoadInProgress == true);
+	bAsyncLoadInProgress = false;
+	AsyncLoadProgress = 1.0;
+}
+
+bool FScriptableToolsEditorModeToolkit::AreToolsLoading() const
+{
+	return bAsyncLoadInProgress;
+}
+
+TOptional<float> FScriptableToolsEditorModeToolkit::GetToolPercentLoaded() const
+{
+	if (bAsyncLoadInProgress)
+	{
+		return TOptional<float>(AsyncLoadProgress);
+	}
+	return TOptional<float>();
+}
+
+bool FScriptableToolsEditorModeToolkit::ShouldShowModeToolbar() const
+{
+	// Always return true here, to ensure we render the toolbar even if no tools are loaded via group tags.
+	return true;
+}
+
+
+void FScriptableToolsEditorModeToolkit::RebuildModeToolPaletteWidgets()
+{
+	if (ToolBoxVBox)
+	{
+		ToolBoxVBox->ClearChildren();
+
+		int32 PaletteCount = ActiveToolBarRows.Num();
+		if (PaletteCount > 0)
+		{
+			for (int32 RowIdx = 0; RowIdx < PaletteCount; ++RowIdx)
+			{
+				const FEdModeToolbarRow& Row = ActiveToolBarRows[RowIdx];
+				if (ensure(Row.ToolbarWidget.IsValid()))
+				{
+					TSharedRef<SWidget> PaletteWidget = Row.ToolbarWidget.ToSharedRef();
+
+					ToolBoxVBox->AddSlot()
+						.AutoHeight()
+						.Padding(FMargin(2.0, 2.0))
+						[
+							SNew(SExpandableArea)
+							.AreaTitle(Row.DisplayName)
+						.AreaTitleFont(FAppStyle::Get().GetFontStyle("NormalFont"))
+						.BorderImage(FAppStyle::Get().GetBrush("PaletteToolbar.ExpandableAreaHeader"))
+						.BodyBorderImage(FAppStyle::Get().GetBrush("PaletteToolbar.ExpandableAreaBody"))
+						.HeaderPadding(FMargin(4.f))
+						.Padding(FMargin(4.0, 0.0))
+						.BodyContent()
+						[
+							PaletteWidget
+						]
+						];
+
+				}
+			}
+		}
+	}
+
+}
 
 #undef LOCTEXT_NAMESPACE
