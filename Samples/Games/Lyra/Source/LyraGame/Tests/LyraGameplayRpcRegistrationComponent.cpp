@@ -69,7 +69,7 @@ ALyraPlayerController* GetPlayerController()
 TSharedPtr<FJsonObject> ULyraGameplayRpcRegistrationComponent::GetJsonObjectFromRequestBody(TArray<uint8> InRequestBody)
 {
 	FUTF8ToTCHAR WByteBuffer(reinterpret_cast<const ANSICHAR*>(InRequestBody.GetData()), InRequestBody.Num());
-	const FString IncomingRequestBody =  FString(WByteBuffer.Length(), WByteBuffer.Get());
+	const FString IncomingRequestBody =  FString::ConstructFromPtrSize(WByteBuffer.Get(), WByteBuffer.Length());
 	TSharedPtr<FJsonObject> BodyObject = MakeShareable(new FJsonObject());
 	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(IncomingRequestBody);
 

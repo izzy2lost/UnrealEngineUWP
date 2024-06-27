@@ -369,7 +369,7 @@ UDMXMVRGeneralSceneDescription* FDMXLibraryFromMVRImporter::CreateGeneralSceneDe
 	// Content is NOT null-terminated; we need to specify lengths here.
 	const FUTF8ToTCHAR TCHARData(reinterpret_cast<const ANSICHAR*>(XMLData.GetData()), XMLData.Num());
 
-	const TSharedRef<FXmlFile> GeneralSceneDescriptionXml = MakeShared<FXmlFile>(FString(TCHARData.Length(), TCHARData.Get()), EConstructMethod::ConstructFromBuffer);
+	const TSharedRef<FXmlFile> GeneralSceneDescriptionXml = MakeShared<FXmlFile>(FString::ConstructFromPtrSize(TCHARData.Get(), TCHARData.Length()), EConstructMethod::ConstructFromBuffer);
 
 	UDMXMVRGeneralSceneDescription* NewGeneralSceneDescription = UDMXMVRGeneralSceneDescription::CreateFromXmlFile(GeneralSceneDescriptionXml, Outer, NAME_None);
 

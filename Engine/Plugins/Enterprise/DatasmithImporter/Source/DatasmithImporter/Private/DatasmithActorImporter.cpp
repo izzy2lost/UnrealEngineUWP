@@ -73,7 +73,7 @@ namespace UE::DatasmithActorImporter
 		const int32 KnownPathLength = Outer.GetFullName().Len() + ExpectedSuffixMaxLength + WarningtextLength + 1;
 		const int32 RemainingLength = FMath::Min(PreventiveMaximumLength - KnownPathLength, 100);
 
-		FString ComputedName(RemainingLength / 2, *DesiredName);
+		FString ComputedName = FString::ConstructFromPtrSize(*DesiredName, RemainingLength / 2);
 		ComputedName += TEXT("---NAME---TRUNCATED---");
 		ComputedName += DesiredName.Right(RemainingLength / 2);
 

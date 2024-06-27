@@ -356,7 +356,7 @@ FString UE::RenderGrid::Private::FRenderGridUtils::GetRemoteControlValueJsonFrom
 	TSharedPtr<FJsonValue> Value;
 	{
 		const FUTF16ToTCHAR ConvertedString(reinterpret_cast<UTF16CHAR*>(const_cast<uint8*>(ValueBytes.GetData())), ValueBytes.Num() / sizeof(UTF16CHAR));
-		const FString Json = FString(ConvertedString.Length(), ConvertedString.Get()).TrimStartAndEnd();
+		const FString Json = FString::ConstructFromPtrSize(ConvertedString.Get(), ConvertedString.Length()).TrimStartAndEnd();
 
 		const TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(Json);
 		TSharedPtr<FJsonObject> JsonObjectData;
@@ -385,7 +385,7 @@ TArray<uint8> UE::RenderGrid::Private::FRenderGridUtils::GetRemoteControlValueBy
 	FString OldValueKey;
 	{
 		const FUTF16ToTCHAR ConvertedString(reinterpret_cast<UTF16CHAR*>(const_cast<uint8*>(OldValueBytes.GetData())), OldValueBytes.Num() / sizeof(UTF16CHAR));
-		const FString Json = FString(ConvertedString.Length(), ConvertedString.Get());
+		const FString Json = FString::ConstructFromPtrSize(ConvertedString.Get(), ConvertedString.Length());
 
 		const TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(Json);
 		TSharedPtr<FJsonObject> JsonObjectData;
