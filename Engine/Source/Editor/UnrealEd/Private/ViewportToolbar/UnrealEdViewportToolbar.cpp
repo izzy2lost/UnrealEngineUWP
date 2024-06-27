@@ -18,8 +18,32 @@
 
 #define LOCTEXT_NAMESPACE "UnrealEdViewportToolbar"
 
+namespace UE::UnrealEd::Private
+{
+int32 CVarToolMenusViewportToolbarsValue = 0;
+}
+
+static FAutoConsoleVariableRef CVarToolMenusViewportToolbars(
+	TEXT("ToolMenusViewportToolbars"),
+	UE::UnrealEd::Private::CVarToolMenusViewportToolbarsValue,
+	TEXT("Control whether the new ToolMenus-based viewport toolbars are enabled across the editor. Set to 0 (default) "
+		 "to show only the old viewport toolbars. Set to 1 for side-by-side mode where both the old and new viewport "
+		 "toolbars are shown. Set to 2 to show only the new viewport toolbars."),
+	ECVF_Default
+);
+
 namespace UE::UnrealEd
 {
+
+bool ShowOldViewportToolbars()
+{
+	return Private::CVarToolMenusViewportToolbarsValue <= 1;
+}
+
+bool ShowNewViewportToolbars()
+{
+	return Private::CVarToolMenusViewportToolbarsValue >= 1;
+}
 
 FText GetViewModesSubmenuLabel(TWeakPtr<SEditorViewport> InViewport)
 {

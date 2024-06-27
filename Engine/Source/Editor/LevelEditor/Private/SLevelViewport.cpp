@@ -112,18 +112,6 @@ static const FName LevelEditorName("LevelEditor");
 static FAutoConsoleCommand EnableInViewportMenu(TEXT("Editor.EnableInViewportMenu"), TEXT("Enables the new in-viewport property menu"), FConsoleCommandDelegate::CreateStatic(&SLevelViewport::EnableInViewportMenu));
 bool SLevelViewport::bInViewportMenuEnabled = false;
 
-namespace UE::SLevelViewport::Private
-{
-	int32 CVarLevelEditorToolMenusViewportToolbarValue = 0;
-}
-
-static FAutoConsoleVariableRef CVarLevelEditorToolMenusViewportToolbar(
-	TEXT("LevelEditor.ToolMenusViewportToolbar"),
-	UE::SLevelViewport::Private::CVarLevelEditorToolMenusViewportToolbarValue,
-	TEXT("If set to 1, the new UToolMenus-based level editor viewport toolbar will be displayed below the current level editor viewport toolbar. If set to 2, the new will replace the current. If set to 0 (default), the current is shown but not the new."),
-	ECVF_Default
-);
-
 #define LOCTEXT_NAMESPACE "LevelViewport"
 
 // @todo Slate Hack: Disallow game UI to be used in play in viewport until GWorld problem is fixed
@@ -1906,19 +1894,21 @@ TSharedRef<FEditorViewportClient> SLevelViewport::MakeEditorViewportClient()
 
 TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 {
-	const TSharedRef<SLevelViewportToolBar> OldViewportToolbar = SNew(SLevelViewportToolBar)
-		.Viewport(SharedThis(this))
-		.Visibility_Lambda([this]() -> EVisibility
-		{
-			const bool bShowOldViewportToolbar = UE::SLevelViewport::Private::CVarLevelEditorToolMenusViewportToolbarValue != 2;
-			if (!bShowOldViewportToolbar)
-			{
-				return EVisibility::Collapsed;
-			}
+	const TSharedRef<SLevelViewportToolBar> OldViewportToolbar =
+		SNew(SLevelViewportToolBar)
+			.Viewport(SharedThis(this))
+			.Visibility_Lambda(
+				[this]() -> EVisibility
+				{
+					if (!UE::UnrealEd::ShowOldViewportToolbars())
+					{
+						return EVisibility::Collapsed;
+					}
 
-			return GetToolBarVisibility();
-		})
-		.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
+					return GetToolBarVisibility();
+				}
+			)
+			.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
 
 	// Register the viewport toolbar if another viewport hasn't already (it's shared).
 	{
@@ -2067,20 +2057,23 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 		}
 	}
 
+	// clang-format off
 	const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
-		.Visibility_Lambda([this]() -> EVisibility
-		{
-			const bool bShowNewViewportToolbar = UE::SLevelViewport::Private::CVarLevelEditorToolMenusViewportToolbarValue > 0;
-			if (!bShowNewViewportToolbar)
+		.Visibility_Lambda(
+			[this]() -> EVisibility
 			{
-				return EVisibility::Collapsed;
-			}
+				if (!UE::UnrealEd::ShowNewViewportToolbars())
+				{
+					return EVisibility::Collapsed;
+				}
 
-			return GetToolBarVisibility();
-		})
+				return GetToolBarVisibility();
+			}
+		)
 		[
 			UToolMenus::Get()->GenerateWidget("LevelEditor.ViewportToolbar", ViewportToolbarContext)
 		];
+	// clang-format on
 
 	return 
 		SNew(SVerticalBox)
