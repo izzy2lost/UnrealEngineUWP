@@ -95,7 +95,7 @@ struct TEXTUREGRAPHENGINE_API TextureHelper
 	static FLinearColor					GetPixelValueFromRaw(RawBufferPtr RawObj, int32 Width, int32 Height, int32 X, int32 Y);
 	static AsyncBool					ExportRaw(RawBufferPtr RawObj, const FString& CompletePath);
 	static bool							CanSupportTexture(UTexture* Tex);
-	static bool							CanSplitToTiles(UTexture* Texture, int TilesX, int TilesY);
+	static bool							CanSplitToTiles(int Width, int Height, int TilesX, int TilesY);
 	static size_t						RoundUpTo(size_t Size, size_t DesiredRounding);
 
 	//////////////////////////////////////////////////////////////////////////

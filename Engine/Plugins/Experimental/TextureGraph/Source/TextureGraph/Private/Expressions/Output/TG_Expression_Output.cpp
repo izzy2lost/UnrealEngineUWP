@@ -148,7 +148,7 @@ void UTG_Expression_Output::InitializeOutputSettings()
 	OutputSettings.Initialize(GetParentNode()->GetGraph()->GetPathName(),GetTitleName());
 
 	UTG_Pin* Settings = GetParentNode()->GetPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, OutputSettings));
-	Settings->SetValue(OutputSettings.ToString());
+	Settings->FromString(OutputSettings.ToString());
 }
 
 void UTG_Expression_Output::SetExport(bool bExport)

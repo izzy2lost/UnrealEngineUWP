@@ -776,37 +776,43 @@ RawBufferPtr TextureHelper::RawFromTexture(UTexture2D* Texture, const BufferDesc
 {
 	check(IsInRenderingThread());
 
+	uint8* RawData = nullptr;
+	size_t DataSize = 0;
+
 	//For editor we are using the source texture until we support the compressed Formats
 #if WITH_EDITOR
-	check(Texture->Source.IsValid());
-	uint8* RawData = nullptr;
-	// Possibly the data was stored in TextureSource rather than PlatformData
-	// The difference is the source data (residing in Utexture) is editor only and can be saved to disk
-	// This is mostly used for thumbnail, where thumbnail data can exist across sessions (e.g UAsset)
-	// platform data, as the name suggests, is used during cook to convert to platform specific texture. 
-	// This is legal because we might not be cooking our data.
-
-	TArray64<uint8> MipDataSrc;
-	Texture->Source.GetMipData(MipDataSrc, 0);
-	size_t DataSize = MipDataSrc.Num();
-	RawData = new uint8[DataSize];
-
-	FMemory::Memcpy(RawData, MipDataSrc.GetData(), DataSize);
-#else
-	const uint8* MipData = static_cast<uint8*>(Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
-	size_t DataSize = Texture->GetPlatformData()->Mips[0].BulkData.GetBulkDataSize();
-	uint8* RawData = nullptr;
-	if (DataSize != 0)
+	if (Texture->Source.IsValid())
 	{
-		size_t DescSize = Desc.Size();
-		check(DataSize == DescSize);
-		RawData = new uint8[DataSize];
+		// Possibly the data was stored in TextureSource rather than PlatformData
+		// The difference is the source data (residing in Utexture) is editor only and can be saved to disk
+		// This is mostly used for thumbnail, where thumbnail data can exist across sessions (e.g UAsset)
+		// platform data, as the name suggests, is used during cook to convert to platform specific texture. 
+		// This is legal because we might not be cooking our data.
 
-		// Bulk data was already allocated for the correct size when we called CreateTransient above
-		FMemory::Memcpy(RawData, MipData, DataSize);
-		Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+		TArray64<uint8> MipDataSrc;
+		Texture->Source.GetMipData(MipDataSrc, 0);
+		DataSize = MipDataSrc.Num();
+		RawData = new uint8[DataSize];
+		FMemory::Memcpy(RawData, MipDataSrc.GetData(), DataSize);
 	}
 #endif
+
+	if (!RawData)
+	{
+		const uint8* MipData = static_cast<uint8*>(Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
+		DataSize = Texture->GetPlatformData()->Mips[0].BulkData.GetBulkDataSize();
+
+		if (DataSize != 0)
+		{
+			size_t DescSize = Desc.Size();
+			check(DataSize == DescSize);
+			RawData = new uint8[DataSize];
+
+			// Bulk data was already allocated for the correct size when we called CreateTransient above
+			FMemory::Memcpy(RawData, MipData, DataSize);
+			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+		}
+	}
 	
 	return std::make_shared<RawBuffer>(RawData, DataSize, Desc);
 }
@@ -1450,23 +1456,15 @@ bool TextureHelper::CanSupportTexture(UTexture* Tex)
 	return CanSupport;
 }
 
-bool TextureHelper::CanSplitToTiles(UTexture* Texture, int TilesX, int TilesY)
+bool TextureHelper::CanSplitToTiles(int Width, int Height, int TilesX, int TilesY)
 {
 	bool bSplitToTiles = true;
 
-#if WITH_EDITOR
-	check(Texture->Source.IsValid());
-	int Width = Texture->Source.GetSizeX();
-	int Height = Texture->Source.GetSizeY();
-#else
-	int Width = Texture->GetSurfaceWidth();
-	int Height = Texture->GetSurfaceHeight();
-#endif
 	bool bSingleTile = (TilesX == 1 && TilesY == 1);
 	//Height and width both must be big enough to support tiling
 	bool bSizeNotBigEnough = (Width <= TilesX || Height <= TilesY);
-	
-	if(bSingleTile || bSizeNotBigEnough)
+
+	if (bSingleTile || bSizeNotBigEnough)
 	{
 		bSplitToTiles = false;
 	}

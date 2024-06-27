@@ -168,6 +168,7 @@ void FTG_Editor::OnTextureGraphPreSave(UObject* Object, FObjectPreSaveContext Sa
 	if (EditedTextureGraph == Object)
 		EditedTextureGraph->TriggerUpdate(false);
 }
+
 void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UTextureGraph* InTextureGraph)
 {
 	TG_Parameters = NewObject<UTG_Parameters>();
@@ -1588,6 +1589,14 @@ void FTG_Editor::OnClose()
 				
 	}
 	ITG_Editor::OnClose();
+
+	if (EditedTextureGraph)
+	{
+		/// We need to flush any invalidations coming for this graph. This is because if the user decided to save
+		/// graph on exit then this queues a mix update that never gets finished as the engine is being shutdown
+		/// and results in a cleanup assertion in Device.cpp
+		EditedTextureGraph->FlushInvalidations();
+	}
 }
 
 bool FTG_Editor::UpdateOriginalTextureGraph()

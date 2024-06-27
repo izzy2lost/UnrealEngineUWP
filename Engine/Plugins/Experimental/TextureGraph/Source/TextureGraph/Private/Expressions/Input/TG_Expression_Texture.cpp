@@ -6,29 +6,6 @@
 #include "2D/TextureHelper.h"
 #include "Model/StaticImageResource.h"
 
-
-
-FTG_SignaturePtr UTG_Expression_Texture::BuildInputParameterSignature() const
-{
-	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
-	return MakeShared<FTG_Signature>(SignatureInit);
-};
-
-FTG_SignaturePtr UTG_Expression_Texture::BuildInputConstantSignature() const
-{
-	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
-	for (auto& arg : SignatureInit.Arguments)
-	{	
-		// Turn the Input parameter TG_Texture entry into private so it s not exposed or used
-		// in the constant case, the expression only rely on the UTexture asset
-		if (arg.IsInput() && arg.IsParam())
-		{
-			arg.ArgumentType = FTG_ArgumentType(ETG_Access::Private);
-		}
-	}
-	return MakeShared<FTG_Signature>(SignatureInit);
-};
-
 void UTG_Expression_Texture::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);

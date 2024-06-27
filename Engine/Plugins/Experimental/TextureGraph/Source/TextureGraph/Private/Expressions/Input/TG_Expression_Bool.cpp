@@ -3,25 +3,6 @@
 #include "Expressions/Input/TG_Expression_Bool.h"
 
 
-FTG_SignaturePtr UTG_Expression_Bool::BuildInputParameterSignature() const
-{
-	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
-	return MakeShared<FTG_Signature>(SignatureInit);
-};
-
-FTG_SignaturePtr UTG_Expression_Bool::BuildInputConstantSignature() const
-{
-	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
-	for (auto& arg : SignatureInit.Arguments)
-	{
-		if (arg.IsInput() && arg.IsParam())
-		{
-			arg.ArgumentType = arg.ArgumentType.Unparamed();
-			arg.ArgumentType.SetNotConnectable();
-		}
-	}
-	return MakeShared<FTG_Signature>(SignatureInit);
-};
 
 void UTG_Expression_Bool::Evaluate(FTG_EvaluationContext* InContext)
 {

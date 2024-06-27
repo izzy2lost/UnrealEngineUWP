@@ -11,9 +11,12 @@
 #include "Expressions/Input/TG_Expression_Scalar.h"
 #include "Expressions/Input/TG_Expression_Vector.h"
 #include "Expressions/Input/TG_Expression_Color.h"
+#include "Expressions/Input/TG_Expression_Bool.h"
+#include "Expressions/Input/TG_Expression_String.h"
 #include "Expressions/Input/TG_Expression_OutputSettings.h"
 #include "TG_HelperFunctions.h"
 #include "Engine/Texture2D.h"
+#include "Job/Scheduler.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TG_BlueprintFunctionLibrary)
 
@@ -22,217 +25,146 @@
 
 #define LOCTEXT_NAMESPACE "TG_BlueprintFunctionLibrary"
 
-void UTG_BlueprintFunctionLibrary::SetTextureParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, UTexture* ParameterValue)
+UTG_Pin* GetParamPin(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
 {
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
-		auto bFoundParameter = false;
 		if (InTextureGraph)
 		{
-			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
-			if (PinParam)
-			{
-				auto ExpressionPtr = Cast<UTG_Expression_Texture>(PinParam->GetNodePtr()->GetExpression());
-				if (ExpressionPtr)
-				{
-					bFoundParameter = true;
-					UTexture2D* DupTexture = (UTexture2D*)StaticDuplicateObject(ParameterValue, GetTransientPackage(), NAME_None, ~RF_Standalone, UTexture2D::StaticClass());
-					ExpressionPtr->SetAsset(DupTexture);
-				}
-			}
+			return InTextureGraph->Graph()->FindParamPin(ParameterName);
 		}
+	}
 
-		if (!bFoundParameter)
-		{
-			AddParamWarning(ParameterName, InTextureGraph, "SetTextureParameterValue");
-		}
+	return nullptr;
+}
+
+template <typename T_Expr>
+T_Expr* GetParamExpression(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
+{
+	UTG_Pin* PinParam = GetParamPin(WorldContextObject, InTextureGraph, ParameterName);
+	if (PinParam)
+	{
+		return Cast<T_Expr>(PinParam->GetNodePtr()->GetExpression());
+	}
+
+	return nullptr;
+}
+
+template <typename T_Expr, typename T_Expr_Value>
+void SetParameterValue_Generic(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, T_Expr_Value ParameterValue, FString FunctionName)
+{
+	UTG_Pin* PinParam = GetParamPin(WorldContextObject, InTextureGraph, ParameterName);
+	if (PinParam)
+	{
+		PinParam->SetValue(ParameterValue);
+	}
+	else
+	{
+		UTG_BlueprintFunctionLibrary::AddParamWarning(ParameterName, InTextureGraph, FunctionName);
+	}
+}
+
+template <typename T_Expr_Value>
+T_Expr_Value GetParameterValue_Generic(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, FString FunctionName, T_Expr_Value& OutValue)
+{
+	UTG_Pin* PinParam = GetParamPin(WorldContextObject, InTextureGraph, ParameterName);
+
+	if (PinParam)
+	{
+		PinParam->GetValue(OutValue);
+	}
+	else
+	{
+		UTG_BlueprintFunctionLibrary::AddParamWarning(ParameterName, InTextureGraph, FunctionName);
+	}
+
+	return OutValue;
+}
+
+
+void UTG_BlueprintFunctionLibrary::SetTextureParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, UTexture* ParameterValue)
+{
+	UTG_Expression_Texture* ExpressionPtr = GetParamExpression<UTG_Expression_Texture>(WorldContextObject, InTextureGraph, ParameterName);
+	if (ExpressionPtr)
+	{
+		UTexture2D* DupTexture = (UTexture2D*)StaticDuplicateObject(ParameterValue, GetTransientPackage(), NAME_None, ~RF_Standalone, UTexture2D::StaticClass());
+		ExpressionPtr->SetAsset(DupTexture);
+	}
+	else
+	{
+		AddParamWarning(ParameterName, InTextureGraph, "SetTextureParameterValue");
 	}
 }
 
 UTexture* UTG_BlueprintFunctionLibrary::GetTextureParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
 {
-	UTexture* ParameterValue = nullptr;
-	
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
-	{
-		auto bFoundParameter = false;
-		if (InTextureGraph)
-		{
-			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
-			if (PinParam)
-			{
-				auto ExpressionPtr = Cast<UTG_Expression_Texture>(PinParam->GetNodePtr()->GetExpression());
-				if (ExpressionPtr)
-				{
-					bFoundParameter = true;
-					ParameterValue = ExpressionPtr->Source;
-				}
-			}
-		}
+	UTG_Expression_Texture* ExpressionPtr = GetParamExpression<UTG_Expression_Texture>(WorldContextObject, InTextureGraph, ParameterName);
 
-		if (!bFoundParameter)
-		{
-			AddParamWarning(ParameterName, InTextureGraph,"GetTextureParameterValue");
-		}
+	if (ExpressionPtr)
+	{
+		return ExpressionPtr->Source;
+	}
+	else
+	{
+		AddParamWarning(ParameterName, InTextureGraph, "SetTextureParameterValue");
 	}
 
-	return ParameterValue;
+	return nullptr;
 }
 
 void UTG_BlueprintFunctionLibrary::SetScalarParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, float ParameterValue)
 {
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
-	{
-		auto bFoundParameter = false;
-		if (InTextureGraph)
-		{
-			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
-			if (PinParam)
-			{
-				auto ExpressionPtr = Cast<UTG_Expression_Scalar>(PinParam->GetNodePtr()->GetExpression());
-				if (ExpressionPtr)
-				{
-					ExpressionPtr->Scalar = ParameterValue;
-					PinParam->SetValue(ParameterValue);
-					bFoundParameter = true;
-				}
-			}
-		}
-
-		if (!bFoundParameter)
-		{
-			AddParamWarning(ParameterName, InTextureGraph, "SetScalarParameterValue");
-		}
-	}
+	SetParameterValue_Generic<UTG_Expression_Scalar, float>(WorldContextObject, InTextureGraph, ParameterName, ParameterValue, "SetScalarParameterValue");
 }
 
 float UTG_BlueprintFunctionLibrary::GetScalarParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
 {
 	float ParameterValue = 0.0f;
-
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
-	{
-		auto bFoundParameter = false;
-		if (InTextureGraph)
-		{
-			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
-			if (PinParam)
-			{
-				bFoundParameter = PinParam->GetValue(ParameterValue);
-			}
-		}
-
-		if (!bFoundParameter)
-		{
-			AddParamWarning(ParameterName, InTextureGraph, "GetScalarParameterValue");
-		}
-	}
-
-	return ParameterValue;
+	return GetParameterValue_Generic<float>(WorldContextObject, InTextureGraph, ParameterName, "GetScalarParameterValue", ParameterValue);
 }
 
 void UTG_BlueprintFunctionLibrary::SetVectorParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, FVector4f ParameterValue)
 {
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
-	{
-		auto bFoundParameter = false;
-		if (InTextureGraph)
-		{
-			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
-			if (PinParam)
-			{
-				auto ExpressionPtr = Cast<UTG_Expression_Vector>(PinParam->GetNodePtr()->GetExpression());
-				if (ExpressionPtr)
-				{
-					ExpressionPtr->Vector = ParameterValue;
-					PinParam->SetValue(ParameterValue);
-					bFoundParameter = true;
-				}
-			}
-		}
-
-		if (!bFoundParameter)
-		{
-			AddParamWarning(ParameterName, InTextureGraph, "SetVectorParameterValue");
-		}
-	}
+	SetParameterValue_Generic<UTG_Expression_Vector, FVector4f>(WorldContextObject, InTextureGraph, ParameterName, ParameterValue, "SetVectorParameterValue");
 }
 
 FVector4f UTG_BlueprintFunctionLibrary::GetVectorParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
 {
 	FVector4f ParameterValue = FVector4f::Zero();
-
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
-	{
-		auto bFoundParameter = false;
-		if (InTextureGraph)
-		{
-			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
-			if (PinParam)
-			{
-				bFoundParameter = PinParam->GetValue(ParameterValue);
-			}
-		}
-
-		if (!bFoundParameter)
-		{
-			AddParamWarning(ParameterName, InTextureGraph, "GetVectorParameterValue");
-		}
-	}
-
-	return ParameterValue;
+	return GetParameterValue_Generic<FVector4f>(WorldContextObject, InTextureGraph, ParameterName, "GetVectorParameterValue", ParameterValue);
 }
 
 void UTG_BlueprintFunctionLibrary::SetColorParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, FLinearColor ParameterValue)
 {
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
-	{
-		auto bFoundParameter = false;
-		if (InTextureGraph)
-		{
-			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
-			if (PinParam)
-			{
-				auto ExpressionPtr = Cast<UTG_Expression_Color>(PinParam->GetNodePtr()->GetExpression());
-				if (ExpressionPtr)
-				{
-					ExpressionPtr->Color = ParameterValue;
-					PinParam->SetValue(ParameterValue);
-					bFoundParameter = true;
-				}
-			}
-		}
-
-		if (!bFoundParameter)
-		{
-			AddParamWarning(ParameterName, InTextureGraph, "SetColorParameterValue");
-		}
-	}
+	SetParameterValue_Generic<UTG_Expression_Color, FLinearColor>(WorldContextObject, InTextureGraph, ParameterName, ParameterValue, "SetColorParameterValue");
 }
 
 FLinearColor UTG_BlueprintFunctionLibrary::GetColorParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
 {
 	FLinearColor ParameterValue = FLinearColor::Black;
+	return GetParameterValue_Generic<FLinearColor>(WorldContextObject, InTextureGraph, ParameterName, "GetColorParameterValue", ParameterValue);
+}
 
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
-	{
-		auto bFoundParameter = false;
-		if (InTextureGraph)
-		{
-			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
-			if (PinParam)
-			{
-				bFoundParameter = PinParam->GetValue(ParameterValue);
-			}
-		}
+void UTG_BlueprintFunctionLibrary::SetBoolParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, bool bParameterValue)
+{
+	SetParameterValue_Generic<UTG_Expression_Bool, bool>(WorldContextObject, InTextureGraph, ParameterName, bParameterValue, "SetBoolParameterValue");
+}
 
-		if (!bFoundParameter)
-		{
-			AddParamWarning(ParameterName, InTextureGraph, "GetColorParameterValue");
-		}
-	}
+bool UTG_BlueprintFunctionLibrary::GetBoolParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
+{
+	bool bParameterValue = false;
+	return GetParameterValue_Generic<bool>(WorldContextObject, InTextureGraph, ParameterName, "GetBoolParameterValue", bParameterValue);
+}
 
-	return ParameterValue;
+void UTG_BlueprintFunctionLibrary::SetStringParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, FString ParameterValue)
+{
+	SetParameterValue_Generic<UTG_Expression_String, FString>(WorldContextObject, InTextureGraph, ParameterName, ParameterValue, "SetStringParameterValue");
+}
+
+FString UTG_BlueprintFunctionLibrary::GetStringParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
+{
+	FString ParameterValue;
+	return GetParameterValue_Generic<FString>(WorldContextObject, InTextureGraph, ParameterName, "GetStringParameterValue", ParameterValue);
 }
 
 void UTG_BlueprintFunctionLibrary::SetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, int Width, int Height, 
@@ -319,6 +251,41 @@ FTG_OutputSettings UTG_BlueprintFunctionLibrary::GetSettingsParameterValue(UObje
 
 	return ParameterValue;
 }
+
+#if 0 /// This requires a lot of additional work. Will attempt after summer break
+TArray<UTextureRenderTarget2D*> UTG_BlueprintFunctionLibrary::RenderTextureGraph(UObject* WorldContextObject, UTextureGraph* InTextureGraph)
+{
+	check(IsInGameThread());
+	TArray<UTextureRenderTarget2D*> Results;
+	UTextureGraph* TextureGraphPtr = (UTextureGraph*)StaticDuplicateObject(InTextureGraph, GetTransientPackage(), NAME_None, ~RF_Standalone, UTextureGraph::StaticClass());
+	FTG_HelperFunctions::InitTargets(TextureGraphPtr);
+
+	JobBatchPtr Batch = FTG_HelperFunctions::InitRenderBatch(TextureGraphPtr);
+	if (!Batch)
+		return Results;
+
+	/// Add to the scheduler
+	TextureGraphEngine::GetScheduler()->AddBatch(Batch);
+
+	std::atomic_bool* bIsMixRendered = new std::atomic_bool(false);
+	Batch->OnDone([=, &bIsMixRendered](JobBatch*) mutable
+	{
+		*bIsMixRendered = true;
+	});
+
+	while (!*bIsMixRendered)
+	{
+		if (!TextureGraphEngine::IsDestroying())
+			TextureGraphEngine::Update(0);
+	}
+
+	delete bIsMixRendered;
+
+	//FTG_HelperFunctions::RenderAsync(TextureGraphPtr);
+	//TextureGraphEngine::GetDeviceManager()->WaitForQueuedTasks(ENamedThreads::GameThread);
+	return Results;
+}
+#endif 
 
 void UTG_BlueprintFunctionLibrary::AddParamWarning(FName ParamName, UObject* ObjectPtr, FString FunctionName)
 {

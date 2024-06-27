@@ -151,6 +151,8 @@ public:
 	FName				GetCPPTypeName() const { return CPPTypeName; }
 
 	bool				IsScalar() const; // float or int
+	bool				IsBool() const; // boolean
+	bool				IsString() const; // string
 	bool				IsColor() const; // FlinearColor
 	bool				IsVector() const; // FLinearColor or ...
 	bool				IsTexture() const; // FTG_Texture or ...

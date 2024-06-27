@@ -12,7 +12,7 @@
 #if WITH_EDITOR
 void UTG_Graph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::PostEditChangeProperty."));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::PostEditChangeProperty."));
 }
 
 bool UTG_Graph::Modify(bool bAlwaysMarkDirty)
@@ -20,7 +20,7 @@ bool UTG_Graph::Modify(bool bAlwaysMarkDirty)
 	// Runtime state is about to get dirty
 	// And remember it as such for undo redo
 	bIsGraphTraversalDirty = true;
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Modify: Graph Modified."));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::Modify: Graph Modified."));
 
 	return Super::Modify(bAlwaysMarkDirty);
 }
@@ -28,7 +28,7 @@ bool UTG_Graph::Modify(bool bAlwaysMarkDirty)
 
 void UTG_Graph::PostEditUndo()
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::PostEditUndo."));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::PostEditUndo."));
 	UObject::PostEditUndo();
 }
 
@@ -56,7 +56,7 @@ void UTG_Graph::Serialize(FArchive& Ar)
 
 	int32 Version = Ar.CustomVer(FTG_CustomVersion::GUID);
 
-	UE_LOG(LogTextureGraph, Log, TEXT("  %s Graph: %s"),
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("  %s Graph: %s"),
 		(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")),
 		*Name);
 }
@@ -65,7 +65,7 @@ void UTG_Graph::PostLoad()
 {
 	Super::PostLoad();
 
-	UE_LOG(LogTextureGraph, Log, TEXT("  PostLoad Graph: %s"), *Name);
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("  PostLoad Graph: %s"), *Name);
 
 	// We have to reset the Transactional flag for the UTG_Graph and we do not know why...
 	// For the other UObject in the data structure (Script, Node, Expression) it is set
@@ -86,7 +86,7 @@ void UTG_Graph::PostLoad()
 			if (!PinsMatchSignature)
 			{
 				NodeRequiringRemap.Add(i);
-				UE_LOG(LogTextureGraph, Log, TEXT("Node %s serialized signature is different from expression"), *Node->GetId().ToString());
+				UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Node %s serialized signature is different from expression"), *Node->GetId().ToString());
 				Node->WarningStack.Add(FName(FString::Printf(TEXT("Node %s serialized signature is different from expression's signature, pins are regenerated"), *Node->GetId().ToString())));
 			}
 
@@ -126,7 +126,7 @@ void UTG_Graph::PostLoad()
 void UTG_Graph::PreSave(FObjectPreSaveContext SaveContext)
 {
 	Super::PreSave(SaveContext);
-	UE_LOG(LogTextureGraph, Log, TEXT("  PreSave Graph: %s"), *Name);
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("  PreSave Graph: %s"), *Name);
 }
 
 // Inner setup node calling allocation of pins and edges and var in cascade
@@ -655,13 +655,13 @@ bool UTG_Graph::RenameParam(FName OldName, FName NewName)
 
 void UTG_Graph::OnNodeChanged(UTG_Node* InNode, bool bIsTweaking)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Node Changed"))
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::Node Changed"))
 	NotifyGraphChanged(InNode, bIsTweaking);
 }
 
 void UTG_Graph::OnNodeSignatureChanged(UTG_Node* InNode)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Node Recreate"));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::Node Recreate"));
 	// recreate node with expression
 	RegenerateNode(InNode);
 
@@ -675,7 +675,7 @@ void UTG_Graph::OnNodeSignatureChanged(UTG_Node* InNode)
 
 void UTG_Graph::OnNodePinChanged(FTG_Id InPinId, UTG_Node* InNode)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Pin Changed"))
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::Pin Changed"))
 
 	// Commented this code
 	// Right now pin changed is being called only from renaming pin.
@@ -846,7 +846,7 @@ int UTG_Graph::GetAllOutputParamValues(TArray<FTG_Variant>& OutVariants, TArray<
 				}
 				else
 				{
-					UE_LOG(LogTextureGraph, Log, TEXT("Output {} variant failed to access"), *(Pin->GetAliasName().ToString()));
+					UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Output {} variant failed to access"), *(Pin->GetAliasName().ToString()));
 				}
 			}
 		}
@@ -1034,7 +1034,7 @@ void UTG_Graph::SetExtraEditorNodes(const TArray<TObjectPtr<const UObject>>& InN
 #endif
 const FTG_GraphTraversal& UTG_Graph::GetTraversal() const
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::GetTraversal: Dirty = %s"),
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Graph::GetTraversal: Dirty = %s"),
 	       bIsGraphTraversalDirty ? TEXT("true") : TEXT("false"));
 	if (bIsGraphTraversalDirty)
 	{
@@ -1081,7 +1081,7 @@ void UTG_Graph::Log()
 	LogMessage.ParseIntoArray(Lines, TEXT("\n"));
 	for (const FString& Line : Lines)
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("%s"), *Line);
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("%s"), *Line);
 	}
 }
 

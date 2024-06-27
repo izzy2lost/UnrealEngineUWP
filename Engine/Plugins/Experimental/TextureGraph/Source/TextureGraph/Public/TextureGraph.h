@@ -46,6 +46,7 @@ public:
 	void PostMeshLoad() override;
 
 	void TriggerUpdate(bool Tweaking);
+	void FlushInvalidations();
 
 	void UpdateGlobalTGSettings();
 

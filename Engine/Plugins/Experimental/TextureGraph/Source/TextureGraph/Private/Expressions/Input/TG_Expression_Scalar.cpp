@@ -3,26 +3,6 @@
 #include "expressions/Input/TG_Expression_Scalar.h"
 
 
-FTG_SignaturePtr UTG_Expression_Scalar::BuildInputParameterSignature() const
-{
-	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
-	return MakeShared<FTG_Signature>(SignatureInit);
-};
-
-FTG_SignaturePtr UTG_Expression_Scalar::BuildInputConstantSignature() const
-{
-	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
-	for (auto& arg : SignatureInit.Arguments)
-	{
-		if (arg.IsInput() && arg.IsParam())
-		{
-			arg.ArgumentType = arg.ArgumentType.Unparamed();
-			arg.ArgumentType.SetNotConnectable();
-		}
-	}
-	return MakeShared<FTG_Signature>(SignatureInit);
-};
-
 void UTG_Expression_Scalar::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);

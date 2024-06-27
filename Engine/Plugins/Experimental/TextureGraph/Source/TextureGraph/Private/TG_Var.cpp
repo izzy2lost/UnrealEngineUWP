@@ -304,7 +304,7 @@ void VarPropertySerializer_StructProperty(FTG_Var::VarPropertySerialInfo& Info)
 	if (!WriterIt)
 	{
 		/// TODO: Perhaps think about doing a simple memcpy?
-		UE_LOG(LogTextureGraph, Log, TEXT("Fails serialize Var %s - Property %s FPClass %s CPPType %s"),
+		UE_LOG(LogTextureGraph, Warning, TEXT("Fails serialize Var %s - Property %s FPClass %s CPPType %s"),
 			*Info.Var->LogHead(),
 			*Info.Arg.GetName().ToString(),
 			*TypeName.ToString(),
@@ -420,7 +420,7 @@ bool FTG_Var::CopyGeneric(UTG_Expression* Owner, const FTG_Argument& Arg, bool C
 
 			if (!SerializerIt)
 			{
-				UE_LOG(LogTextureGraph, Log, TEXT("Fails serialize Var %s - Property %s FPClass %s CPPType %s"),
+				UE_LOG(LogTextureGraph, Warning, TEXT("Fails serialize Var %s - Property %s FPClass %s CPPType %s"),
 					*LogHead(),
 					*Arg.GetName().ToString(),
 					*PropertyClassName.ToString(),
@@ -479,11 +479,11 @@ void Generic_Simple_ArSerializer(FTG_Var::VarArchiveSerialInfo& Info)
 		Info.Var->ResetAs<T_ValueType>();
 	}
 	if (Info.Ar.IsSaving())
-		UE_LOG(LogTextureGraph, Log, TEXT("        Save Var %s: %s"), *Info.Var->GetId().ToString(), *Info.Var->LogValue());
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("        Save Var %s: %s"), *Info.Var->GetId().ToString(), *Info.Var->LogValue());
 	T_ValueType& Value = Info.Var->EditAs<T_ValueType>();
 	Info.Ar << Value;
 	if (Info.Ar.IsLoading())
-		UE_LOG(LogTextureGraph, Log, TEXT("        Loaded Var %s: %s"), *Info.Var->GetId().ToString(), *Info.Var->LogValue());
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("        Loaded Var %s: %s"), *Info.Var->GetId().ToString(), *Info.Var->LogValue());
 
 }
 
@@ -563,7 +563,7 @@ void FTG_Var::Serialize(FArchive& Ar, FTG_Id InPinId, const FTG_Argument& InArgu
 		}
 		else
 		{
-			UE_LOG(LogTextureGraph, Log, TEXT("serialize Var %s: NOT FOUND for %s"), *LogHead(), *InArgument.GetCPPTypeName().ToString());
+			UE_LOG(LogTextureGraph, Warning, TEXT("serialize Var %s: NOT FOUND for %s"), *LogHead(), *InArgument.GetCPPTypeName().ToString());
 		}
 	}
 }

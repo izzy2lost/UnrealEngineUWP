@@ -39,6 +39,7 @@ FTG_Variant::FTG_Variant(FTG_Texture RHS)
 bool FTG_Variant::Serialize(FArchive& Ar)
 {
 	Ar << *this;
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("FTG_Variant::Serialize"));
 	return true;
 }
 

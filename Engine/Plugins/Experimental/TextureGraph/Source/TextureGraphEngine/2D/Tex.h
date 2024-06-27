@@ -140,8 +140,8 @@ public:
 	void							ReleaseTexture();
 	void							TransferTextureToRT(FRHICommandListImmediate& RHI, UTexture2D** PrevTexture, bool FreeAfterUse);
 	void							TransferVirtualTextureToRT(FRHICommandListImmediate& RHI, UTexture2D** TextureToTransfer, bool FreeAfterUse);
-	void							LoadAsset(FSoftObjectPath& SoftPath, const DesiredImageProperties* Props = nullptr);
-	AsyncActionResultPtr			LoadAsync(const FString& Filename, const DesiredImageProperties* Props = nullptr);
+	bool							LoadAsset(FSoftObjectPath& SoftPath, const DesiredImageProperties* Props = nullptr);
+	bool							LoadFile(const FString& Filename, const DesiredImageProperties* Props = nullptr);
 	AsyncActionResultPtr			LoadFlat();
 	AsyncTiledBlobRef				ToBlob(int32 XTiles, int32 YTiles, uint32 Width = 0, uint32 Height = 0, bool TransferToRT = false); ///There is a visual difference between having material transfer to RT or directly copy from Texture
 	AsyncTiledBlobRef				ToSingleBlob(CHashPtr Hash, bool TransferToRT = false, bool ResolveOnRenderThread = false, bool NoCache = false);

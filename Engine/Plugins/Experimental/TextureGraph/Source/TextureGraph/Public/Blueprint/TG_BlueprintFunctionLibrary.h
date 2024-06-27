@@ -33,6 +33,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "GetScalarParameterValue", WorldContext = "WorldContextObject"))
 	static float GetScalarParameterValue(UObject* WorldContextObject, UTextureGraph* TextureGraph, FName ParameterName);
 
+	/** Sets a boolean parameter value on the TextureGraph instance. Logs if ParameterName is invalid. */
+	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "SetBoolParameterValue", WorldContext = "WorldContextObject"))
+	static void SetBoolParameterValue(UObject* WorldContextObject, UTextureGraph* TextureGraph, FName ParameterName, bool ParameterValue);
+
+	/** Gets a string parameter value from the TextureGraph instance. Logs if ParameterName is invalid. */
+	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "GetBoolParameterValue", WorldContext = "WorldContextObject"))
+	static bool GetBoolParameterValue(UObject* WorldContextObject, UTextureGraph* TextureGraph, FName ParameterName);
+
+	/** Sets a string parameter value on the TextureGraph instance. Logs if ParameterName is invalid. */
+	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "SetBoolParameterValue", WorldContext = "WorldContextObject"))
+	static void SetStringParameterValue(UObject* WorldContextObject, UTextureGraph* TextureGraph, FName ParameterName, FString ParameterValue);
+
+	/** Gets a String parameter value from the TextureGraph instance. Logs if ParameterName is invalid. */
+	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "GetBoolParameterValue", WorldContext = "WorldContextObject"))
+	static FString GetStringParameterValue(UObject* WorldContextObject, UTextureGraph* TextureGraph, FName ParameterName);
+
 	/** Sets a Vector parameter value on the TextureGraph instance. Logs if ParameterName is invalid. */
 	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "SetVectorParameterValue", WorldContext = "WorldContextObject"))
 	static void SetVectorParameterValue(UObject* WorldContextObject, UTextureGraph* TextureGraph, FName ParameterName, FVector4f ParameterValue);
@@ -58,6 +74,12 @@ public:
 	/** Gets a FTG_OutputSettings parameter value from the TextureGraph instance. Logs if ParameterName is invalid. */
 	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "GetOutputSettingsParameterValue", WorldContext = "WorldContextObject"))
 	static FTG_OutputSettings GetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* TextureGraph, FName ParameterName , int& Width, int& Height);
+
+	/** Render the texture graph and return an array of texture render targets. */
+#if 0 /// This requires a lot of additional work. Will attempt after summer break
+	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "SetColorParameterValue", WorldContext = "WorldContextObject"))
+	static TArray<UTextureRenderTarget2D*> RenderTextureGraph(UObject* WorldContextObject, UTextureGraph* InTextureGraph);
+#endif 
 
 	static void AddParamWarning(FName ParamName, UObject* ObjectPtr, FString FunctionName);
 	static void AddError(UObject* ObjectPtr, FString FunctionName, FString Error);

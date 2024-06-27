@@ -107,7 +107,7 @@ void UTextureGraph::Serialize(FArchive& Ar)
 
 	int32 Version = Ar.CustomVer(FTG_CustomVersion::GUID);
 
-	UE_LOG(LogTextureGraph, Log, TEXT("%s TextureGraph: %s >>>> %s"),
+	UE_LOG(LogTextureGraph, Verbose, TEXT("%s TextureGraph: %s >>>> %s"),
 		(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")),
 		*GetName(),
 		*FString::FromInt(Version));
@@ -145,7 +145,7 @@ void UTextureGraph::PostLoad()
 void UTextureGraph::PreSave(FObjectPreSaveContext SaveContext)
 {
 	Super::PreSave(SaveContext);
-	UE_LOG(LogTextureGraph, Log, TEXT("PreSave Script: %s"), *GetName());
+	UE_LOG(LogTextureGraph, Verbose, TEXT("PreSave Script: %s"), *GetName());
 }
 
 void UTextureGraph::Update(MixUpdateCyclePtr InCycle)
@@ -186,6 +186,11 @@ void UTextureGraph::PostMeshLoad()
 {
 	FModelInvalidateInfo InvalidateInfo;
 	Invalidate(InvalidateInfo);
+}
+
+void UTextureGraph::FlushInvalidations()
+{
+	TextureGraphEngine::GetMixManager()->FlushMix(this);
 }
 
 void UTextureGraph::TriggerUpdate(bool Tweaking)

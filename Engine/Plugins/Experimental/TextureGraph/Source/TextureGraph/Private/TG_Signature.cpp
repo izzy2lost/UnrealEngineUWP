@@ -12,10 +12,24 @@ bool FTG_Argument::IsScalar() const
 {
 	return (CPPTypeName == TEXT("float")) || (CPPTypeName == TEXT("int32")) || (CPPTypeName == TEXT("uint32")) || CPPTypeName == FTG_Variant::GetArgNameFromType(ETG_VariantType::Scalar);
 }
+
+bool FTG_Argument::IsBool() const
+{
+	return CPPTypeName == TEXT("bool");
+}
+
+bool FTG_Argument::IsString() const
+{
+	return CPPTypeName == TEXT("FString") || 
+		CPPTypeName == TEXT("FName") || 
+		CPPTypeName == TEXT("FText");
+}
+
 bool FTG_Argument::IsColor() const
 {
 	return CPPTypeName == TEXT("FLinearColor") || CPPTypeName == FTG_Variant::GetArgNameFromType(ETG_VariantType::Color);
 }
+
 bool FTG_Argument::IsVector() const
 {
 	return (CPPTypeName == TEXT("FVector4f")) || CPPTypeName == FTG_Variant::GetArgNameFromType(ETG_VariantType::Vector);

@@ -8,14 +8,14 @@ void UTG_Expression_Material::PostEditChangeProperty(FPropertyChangedEvent& Prop
 	// First catch if Material changes
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Material, Material))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("Material Expression PostEditChangeProperty."));
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Material Expression PostEditChangeProperty."));
 		SetMaterialInternal(Material);
 		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Material, RenderedAttribute), RenderedAttribute);
 	}
 	// Second catch if AttributeName changes
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Material, RenderedAttribute))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("Material Expression PostEditChangeProperty."));
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Material Expression PostEditChangeProperty."));
 		SetRenderedAttribute(RenderedAttribute);
 	}
 

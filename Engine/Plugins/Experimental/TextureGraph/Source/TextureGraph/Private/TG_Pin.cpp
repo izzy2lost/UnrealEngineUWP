@@ -17,7 +17,7 @@ void UTG_Pin::Serialize(FArchive& Ar)
 	// Serialize the Var with the knowledge of the 
 	SelfVar.Serialize(Ar, GetId(), GetArgument());
 
-	UE_LOG(LogTextureGraph, Log, TEXT("      %s Pin: %s : %s"),
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("      %s Pin: %s : %s"),
 		(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")),
 		*GetId().ToString(),
 		*GetArgumentName().ToString());
@@ -272,7 +272,7 @@ FString UTG_Pin::GetEvaluatedVarValue() const
 	return CurrentValue;
 }
 
-void UTG_Pin::SetValue(const FString& InValueStr, bool bIsTweaking /*= false*/)
+void UTG_Pin::FromString(const FString& InValueStr, bool bIsTweaking /*= false*/)
 {
 	Modify();
 
@@ -396,6 +396,26 @@ bool UTG_Pin::GetValue(float& OutValue) const
 				OutValue = GetSelfVar()->GetAs<float>();
 			}
 		}
+		return true;
+	}
+	return false;
+}
+
+bool UTG_Pin::GetValue(bool& OutValue) const
+{
+	if (IsArgBool())
+	{
+		OutValue = GetSelfVar()->GetAs<bool>();
+		return true;
+	}
+	return false;
+}
+
+bool UTG_Pin::GetValue(FString& OutValue) const
+{
+	if (IsArgString())
+	{
+		OutValue = GetSelfVar()->GetAs<FString>();
 		return true;
 	}
 	return false;
@@ -589,6 +609,44 @@ bool UTG_Pin::SetValue(float Value)
 	return false;
 }
 
+bool UTG_Pin::SetValue(bool bValue)
+{
+	if (IsArgBool())
+	{
+		Modify();
+		EditSelfVar()->EditAs<bool>() = bValue;
+		NotifyPinSelfVarChanged();
+
+		return true;
+	}
+	return false;
+}
+
+bool UTG_Pin::SetValue(FString Value)
+{
+	if (IsArgString())
+	{
+		Modify();
+		EditSelfVar()->EditAs<FString>() = Value;
+		NotifyPinSelfVarChanged();
+
+		return true;
+	}
+	return false;
+}
+
+bool UTG_Pin::SetValue(FName Value)
+{
+	if (IsArgString())
+	{
+		Modify();
+		EditSelfVar()->EditAs<FString>() = Value.GetPlainNameString();
+		NotifyPinSelfVarChanged();
+
+		return true;
+	}
+	return false;
+}
 
 bool UTG_Pin::SetValue(const FLinearColor& Value)
 {

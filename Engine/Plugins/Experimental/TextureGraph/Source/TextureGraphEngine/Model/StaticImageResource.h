@@ -21,8 +21,8 @@ private:
 	
 	UPROPERTY()
 	FString 						AssetUUID;						/// Unique id for the asset within the entire system
-	
 	TiledBlobPtr					BlobObj;						/// The blob that represents the data for this source
+	bool							bIsFilesystem = false;			/// Is loading directly from the filesystem
 
 	virtual AsyncTiledBlobRef		Load(MixUpdateCyclePtr Cycle);
 	
@@ -36,5 +36,7 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	FORCEINLINE const FString&		GetAssetUUID() const { return AssetUUID; }
 	FORCEINLINE void				SetAssetUUID(const FString& UUID) { AssetUUID = UUID; }
+	FORCEINLINE void				SetIsFileSystem(bool bInIsFileSystem) { bIsFilesystem = bInIsFileSystem; }
+	FORCEINLINE bool				IsFileSystem() const { return bIsFilesystem; }
 };
 

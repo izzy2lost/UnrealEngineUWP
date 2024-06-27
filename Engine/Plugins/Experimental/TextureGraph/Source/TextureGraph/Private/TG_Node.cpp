@@ -34,7 +34,7 @@ FTG_Name UTG_Node::GetNodeName() const
 #if WITH_EDITOR
 void UTG_Node::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Node::PostEditChangeProperty."));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("UTG_Node::PostEditChangeProperty."));
 }
 
 void UTG_Node::PostEditUndo()
@@ -228,12 +228,12 @@ void UTG_Node::Serialize(FArchive& Ar)
 
 	if (!Expression)
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("    %s Node: NUll Expression???"),
+		UE_LOG(LogTextureGraph, Verbose, TEXT("    %s Node: NUll Expression???"),
 			(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")));
 		Expression = NewObject<UTG_Expression_Null>(this, UTG_Expression_Null::StaticClass(), NAME_None, RF_Transactional);
 	}
 
-	UE_LOG(LogTextureGraph, Log, TEXT("    %s Node: %s"),
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("    %s Node: %s"),
 		(Ar.IsSaving() ? TEXT("Saved") : TEXT("Loaded")),
 		*GetId().ToString());
 }

@@ -175,25 +175,83 @@ private:
 		virtual FString LogValue() = 0;
 		virtual void SetValueFromString(const FString& String) = 0;
 		virtual TSharedPtr<FConcept> Clone() = 0;
+
+		/// Array related
+		virtual int32 Count() const 
+		{ 
+			return 1; 
+		}
+
+		virtual bool IsArray() 
+		{ 
+			return Count() > 1; 
+		}
 	};
+
 	template <class T>
 	struct TEXTUREGRAPH_API FModel : public FConcept
 	{
 		T Value;
-		FString LogValue() override { return TG_Var_LogValue(Value); }
+		FString LogValue() override 
+		{ 
+			return TG_Var_LogValue(Value); 
+		}
 	
-		void SetValueFromString(const FString& StrValue) override { TG_Var_SetValueFromString(Value, StrValue); }
+		void SetValueFromString(const FString& StrValue) override 
+		{ 
+			TG_Var_SetValueFromString(Value, StrValue); 
+		}
 
-		TSharedPtr<FConcept> Clone() override {
+		TSharedPtr<FConcept> Clone() override 
+		{
 			auto Ptr = MakeShared<FModel<T>>();
 			Ptr->Value = Value;
 			return Ptr;
 		}
 	};
 
+	template <class T>
+	struct TEXTUREGRAPH_API FModelArray : public FModel<TArray<T> >
+	{
+		using FModelBase = FModel<TArray<T>>;
+		virtual int32 Count() const override
+		{ 
+			return FModelBase::Value.Num(); 
+		}
+		virtual bool IsArray() 
+		{ 
+			return true; 
+		}
+
+		FString LogValue() override 
+		{ 
+			FString Log = "[";
+			for (int32 Index = 0; Index < FModelBase::Value.Num() - 1; Index++)
+				Log += (TG_Var_LogValue<T>(FModelBase::Value[Index]) + TEXT(","));
+
+			if (!FModelBase::Value.IsEmpty()) {
+				Log += TG_Var_LogValue<T>(FModelBase::Value[FModelBase::Value.Num() - 1]);
+			}
+
+			Log += TEXT("]");
+
+			return Log; 
+		}
+
+		void SetValueFromString(const FString& StrValue) override 
+		{ 
+			TArray<FString> ArrayValues;
+			StrValue.ParseIntoArray(ArrayValues, TEXT(","));
+			FModelBase::Value.Empty();
+			FModelBase::Value.SetNum(ArrayValues.Num());
+
+			for (int32 Index = 0; Index < ArrayValues.Num(); Index++)
+				TG_Var_SetValueFromString<T>(FModelBase::Value[Index], ArrayValues[Index]);
+		}
+	};
+
 	mutable TSharedPtr<FConcept> Concept;
 };
-
 
 template <> FString TG_Var_LogValue(bool& Value);
 template <> FString TG_Var_LogValue(int& Value);

@@ -519,7 +519,7 @@ void UTG_EdGraphNode::PinDefaultValueChangedWithTweaking(UEdGraphPin* Pin, bool 
 	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GetSchema());
 	UTG_Pin* TGPin = Schema->GetTGPinFromEdPin(Pin);
 
-	TGPin->SetValue(Pin->DefaultValue, bIsTweaking);
+	TGPin->FromString(Pin->DefaultValue, bIsTweaking);
 
 	// This updates the UObject (Texture/Material) picker UI in the Node to get updated
 	FProperty* Property = TGPin->GetExpressionProperty();

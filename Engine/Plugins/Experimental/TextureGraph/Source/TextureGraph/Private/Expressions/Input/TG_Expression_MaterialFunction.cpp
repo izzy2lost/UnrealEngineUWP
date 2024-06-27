@@ -39,7 +39,7 @@ void UTG_Expression_MaterialFunction::PostEditChangeProperty(FPropertyChangedEve
 	// First catch if Material changes
 	if (PropertyChangedEvent.GetPropertyName() == FName(TEXT("MaterialFunction")) && !(PropertyChangedEvent.ChangeType == EPropertyChangeType::Unspecified))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("Material Function Expression PostEditChangeProperty."));
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Material Function Expression PostEditChangeProperty."));
 		SetMaterialFunctionInternal(MaterialFunction);
 	}
 

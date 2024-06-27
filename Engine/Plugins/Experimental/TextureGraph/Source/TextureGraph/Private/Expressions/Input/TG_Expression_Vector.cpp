@@ -2,26 +2,6 @@
 
 #include "Expressions/Input/TG_Expression_Vector.h"
 
-FTG_SignaturePtr UTG_Expression_Vector::BuildInputParameterSignature() const
-{
-	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
-	return MakeShared<FTG_Signature>(SignatureInit);
-};
-
-FTG_SignaturePtr UTG_Expression_Vector::BuildInputConstantSignature() const
-{
-	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
-	for (auto& arg : SignatureInit.Arguments)
-	{
-		if (arg.IsInput() && arg.IsParam())
-		{
-			arg.ArgumentType = arg.ArgumentType.Unparamed();
-			arg.ArgumentType.SetNotConnectable();
-		}
-	}
-	return MakeShared<FTG_Signature>(SignatureInit);
-};
-
 void UTG_Expression_Vector::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);

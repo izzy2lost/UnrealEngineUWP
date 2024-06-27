@@ -24,7 +24,7 @@ void UTG_Expression::Serialize(FArchive& Ar)
 	// in the case of Loading, let s check the expression version retreived and log if we detect an older version
 	if (Ar.IsLoading() && (InstanceExpressionClassVersion < this->GetExpressionClassVersion()))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("Detected an expression in a previous version"));
+		UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Detected an expression in a previous version"));
 	}
 }
 
@@ -133,7 +133,7 @@ void UTG_Expression::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	
-	UE_LOG(LogTextureGraph, Log, TEXT("Expression PostEditChangeProperty. ChangeType: %d"), (int32)PropertyChangedEvent.ChangeType);
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("Expression PostEditChangeProperty. ChangeType: %d"), (int32)PropertyChangedEvent.ChangeType);
 
 	NotifyExpressionChanged(PropertyChangedEvent);
 }
@@ -322,5 +322,5 @@ void UTG_Expression::LogEvaluation(FTG_EvaluationContext* InContext)
 	for (auto& VarMapEntry : InContext->Outputs.VarArguments)
 		OutVarIds.Emplace(VarMapEntry.Value.Var->GetId());
 
-	UE_LOG(LogTextureGraph, Log, TEXT("%-*s %s"), UTG_Graph::LogHeaderWidth, *GetDefaultName().ToString(), *UTG_Graph::LogCall(InVarIds, OutVarIds));
+	UE_LOG(LogTextureGraph, VeryVerbose, TEXT("%-*s %s"), UTG_Graph::LogHeaderWidth, *GetDefaultName().ToString(), *UTG_Graph::LogCall(InVarIds, OutVarIds));
 }
