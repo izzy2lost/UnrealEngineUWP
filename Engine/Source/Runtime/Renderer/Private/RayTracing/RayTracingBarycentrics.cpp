@@ -14,6 +14,7 @@
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingScene.h"
 #include "ScenePrivate.h"
+#include "RayTracing/RayTracing.h"
 
 #include "Rendering/NaniteStreamingManager.h"
 
@@ -38,6 +39,11 @@ class FRayTracingBarycentricsRGS : public FGlobalShader
 	{
 		return ERayTracingPayloadType::Default;
 	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
 };
 IMPLEMENT_GLOBAL_SHADER(FRayTracingBarycentricsRGS, "/Engine/Private/RayTracing/RayTracingBarycentrics.usf", "RayTracingBarycentricsMainRGS", SF_RayGen);
 
@@ -59,6 +65,11 @@ class FRayTracingBarycentricsCHS : public FGlobalShader
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::Default;
+	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 
 	FRayTracingBarycentricsCHS() = default;
@@ -145,6 +156,12 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Sc
 
 	FRayTracingPipelineStateInitializer Initializer;
 
+	const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(View.GetShaderPlatform());
+	if (ShaderBindingLayout)
+	{
+		Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+	}
+
 	FRHIRayTracingShader* RayGenShaderTable[] = { RayGenShader.GetRayTracingShader() };
 	Initializer.SetRayGenShaderTable(RayGenShaderTable);
 
@@ -174,15 +191,18 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Sc
 	RayGenParameters->Output = GraphBuilder.CreateUAV(SceneColor);
 
 	FIntRect ViewRect = View.ViewRect;
+	
+	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
 
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("Barycentrics"),
 		RayGenParameters,
 		ERDGPassFlags::Compute,
-		[RayGenParameters, RayGenShader, &View, SBT, Pipeline, ViewRect](FRHICommandList& RHICmdList)
+		[RayGenParameters, RayGenShader, &View, SceneUniformBuffer, SBT, Pipeline, ViewRect](FRHICommandList& RHICmdList)
 	{
 		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
+		TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 		// Dispatch rays using default shader binding table
 		RHICmdList.SetDefaultRayTracingHitGroup(SBT, Pipeline, 0);

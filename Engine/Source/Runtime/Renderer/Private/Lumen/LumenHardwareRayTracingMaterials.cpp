@@ -75,6 +75,11 @@ class FLumenHardwareRayTracingMaterialHitGroup : public FGlobalShader
 	{
 		return ERayTracingPayloadType::LumenMinimal;
 	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters) 
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FLumenHardwareRayTracingMaterialHitGroup, "/Engine/Private/Lumen/LumenHardwareRayTracingMaterials.usf", "closesthit=LumenHardwareRayTracingMaterialCHS anyhit=LumenHardwareRayTracingMaterialAHS", SF_RayHitGroup);
@@ -97,6 +102,11 @@ class FLumenHardwareRayTracingMaterialMS : public FGlobalShader
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::LumenMinimal;
+	}
+	
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters) 
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 
 	using FParameters = FEmptyShaderParameters;
@@ -182,6 +192,12 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 		FRHICommandList& RHICmdList = GraphBuilder.RHICmdList;
 
 		FRayTracingPipelineStateInitializer Initializer;
+
+		const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(ShaderPlatform);
+		if (ShaderBindingLayout)
+		{
+			Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+		}
 
 		Initializer.SetRayGenShaderTable(RayGenShaderTable);
 

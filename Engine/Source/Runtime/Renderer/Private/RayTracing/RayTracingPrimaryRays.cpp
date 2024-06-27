@@ -15,6 +15,7 @@
 #include "PostProcess/PostProcessing.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingLighting.h"
+#include "RayTracing/RayTracing.h"
 
 DECLARE_GPU_STAT(RayTracingPrimaryRays);
 
@@ -68,6 +69,11 @@ class FRayTracingPrimaryRaysRGS : public FGlobalShader
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::RayTracingMaterial;
+	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 };
 
@@ -175,19 +181,22 @@ void FDeferredShadingSceneRenderer::RenderRayTracingPrimaryRaysView(
 
 	ClearUnusedGraphResources(RayGenShader, PassParameters);
 
+	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
+
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingPrimaryRays);
 
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("RayTracingPrimaryRays %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, this, &View, RayGenShader, RayTracingResolution](FRHICommandList& RHICmdList)
+		[PassParameters, this, &View, SceneUniformBuffer, RayGenShader, RayTracingResolution](FRHICommandList& RHICmdList)
 	{
 		FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 		FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 
 		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
+		TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 	});

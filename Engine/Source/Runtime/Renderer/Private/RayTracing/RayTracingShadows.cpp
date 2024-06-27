@@ -202,6 +202,11 @@ class FOcclusionRGS : public FGlobalShader
 		return ERayTracingPayloadType::RayTracingMaterial;
 	}
 
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 		SHADER_PARAMETER(uint32, SamplesPerPixel)
@@ -521,14 +526,17 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 				Resolution = ScissorRect.Size();
 			}
 
+			FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
+
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("RayTracedShadow (spp=%d) %dx%d", RayTracingConfig.RayCountPerPixel, Resolution.X, Resolution.Y),
 				CommonPassParameters,
 				ERDGPassFlags::Compute,
-				[this, &View, RayGenerationShader, CommonPassParameters, Resolution, &RayTracingScene](FRHICommandList& RHICmdList)
+				[this, &View, SceneUniformBuffer, RayGenerationShader, CommonPassParameters, Resolution, &RayTracingScene](FRHICommandList& RHICmdList)
 				{
 					FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 					SetShaderParameters(GlobalResources, RayGenerationShader, *CommonPassParameters);
+					TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 					if (GRayTracingShadowsEnableMaterials)
 					{

@@ -17,6 +17,7 @@
 #include "Lumen/LumenHardwareRayTracingCommon.h"
 #include "RayTracingShadows.h"
 #include "Experimental/Containers/SherwoodHashTable.h"
+#include "RHIShaderBindingLayout.h"
 #include "Async/ParallelFor.h"
 #include <type_traits>
 
@@ -283,6 +284,66 @@ namespace RayTracing
 	FRelevantPrimitiveList* CreateRelevantPrimitiveList(FSceneRenderingBulkObjectAllocator& InAllocator)
 	{
 		return InAllocator.Create<FRelevantPrimitiveList>();
+	}	
+
+	class FRaytracingShaderBindingLayout : public FShaderBindingLayoutContainer
+	{
+	public:
+		static const FShaderBindingLayout& GetInstance(EBindingType BindingType)
+		{
+			static FRaytracingShaderBindingLayout Instance;
+			return Instance.GetLayout(BindingType);
+		}
+	private:
+
+		FRaytracingShaderBindingLayout()
+		{
+			// No special binding layout flags required
+			EShaderBindingLayoutFlags ShaderBindingLayoutFlags = EShaderBindingLayoutFlags::None;
+
+			// Add scene, view and nanite ray tracing as global/static uniform buffers
+			TArray<FShaderParametersMetadata*> StaticUniformBuffers;
+			StaticUniformBuffers.Add(FindUniformBufferStructByName(TEXT("Scene")));
+			StaticUniformBuffers.Add(FindUniformBufferStructByName(TEXT("View")));
+			StaticUniformBuffers.Add(FindUniformBufferStructByName(TEXT("NaniteRayTracing")));
+
+			BuildShaderBindingLayout(StaticUniformBuffers, ShaderBindingLayoutFlags, *this);
+		}
+	};
+
+	const FShaderBindingLayout* GetShaderBindingLayout(EShaderPlatform ShaderPlatform)
+	{
+		if (RHIGetStaticShaderBindingLayoutSupport(ShaderPlatform) != ERHIStaticShaderBindingLayoutSupport::Unsupported)
+		{
+			// Should support bindless for raytracing at least
+			check(RHIGetRuntimeBindlessResourcesConfiguration(ShaderPlatform) != ERHIBindlessConfiguration::Disabled);
+			check(RHIGetRuntimeBindlessSamplersConfiguration(ShaderPlatform) != ERHIBindlessConfiguration::Disabled);
+
+			// Retrieve the bindless shader binding table
+			return &FRaytracingShaderBindingLayout::GetInstance(FShaderBindingLayoutContainer::EBindingType::Bindless);
+		}
+
+		// No binding table supported
+		return nullptr;
+	}
+
+	TOptional<FScopedUniformBufferStaticBindings> BindStaticUniformBufferBindings(const FViewInfo& View, FRHIUniformBuffer* SceneUniformBuffer, FRHICommandList& RHICmdList)
+	{
+		TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope;
+
+		// Setup the static uniform buffers used by the RTPSO if enabled
+		const FShaderBindingLayout* ShaderBindingLayout = GetShaderBindingLayout(View.GetShaderPlatform());
+		if (ShaderBindingLayout)
+		{			
+			FUniformBufferStaticBindings StaticUniformBuffers(&ShaderBindingLayout->RHILayout);
+			StaticUniformBuffers.AddUniformBuffer(View.ViewUniformBuffer.GetReference());
+			StaticUniformBuffers.AddUniformBuffer(SceneUniformBuffer);
+			StaticUniformBuffers.AddUniformBuffer(Nanite::GRayTracingManager.GetUniformBuffer().GetReference());
+
+			StaticUniformBufferScope.Emplace(RHICmdList, StaticUniformBuffers);
+		}
+
+		return StaticUniformBufferScope;
 	}
 
 	void GatherRelevantPrimitives(FScene& Scene, const FViewInfo& View, FRelevantPrimitiveList& Result)

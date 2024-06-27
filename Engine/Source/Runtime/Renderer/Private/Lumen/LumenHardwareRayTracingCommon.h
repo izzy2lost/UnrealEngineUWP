@@ -6,6 +6,7 @@
 #include "GlobalShader.h"
 #include "Lumen/LumenTracingUtils.h"
 #include "RayTracing/RayTracingLighting.h"
+#include "RayTracing/RayTracing.h"
 #include "RayTracingPayloadType.h"
 #include "SceneTextureParameters.h"
 #include "Substrate/Substrate.h" 
@@ -42,7 +43,7 @@ namespace LumenHardwareRayTracing
 	float GetFarFieldBias();
 	bool UseSurfaceCacheAlphaMasking();	
 	EAvoidSelfIntersectionsMode GetAvoidSelfIntersectionsMode();
-	
+
 	// Hit Lighting
 	EHitLightingMode GetHitLightingMode(const FViewInfo& View, EDiffuseIndirectMethod DiffuseIndirectMethod);
 	uint32 GetHitLightingShadowMode();
@@ -185,14 +186,17 @@ static void AddLumenRayTraceDispatchPass(
 {
 	ClearUnusedGraphResources(RayGenerationShader, Parameters);
 
+	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
+
 	GraphBuilder.AddPass(
 		Forward<FRDGEventName>(PassName),
 		Parameters,
 		ERDGPassFlags::Compute,
-		[Parameters, &View, RayGenerationShader, bUseMinimalPayload, Resolution](FRHICommandList& RHICmdList)
+		[Parameters, &View, SceneUniformBuffer, RayGenerationShader, bUseMinimalPayload, Resolution](FRHICommandList& RHICmdList)
 		{
 			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
+			TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 			FRHIShaderBindingTable* SBT = View.RayTracingSBT;
@@ -221,18 +225,21 @@ static void AddLumenRayTraceDispatchIndirectPass(
 	bool bUseMinimalPayload)
 {
 	ClearUnusedGraphResources(RayGenerationShader, Parameters, { IndirectArgsBuffer });
+	
+	FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
 
 	GraphBuilder.AddPass(
 		Forward<FRDGEventName>(PassName),
 		Parameters,
 		ERDGPassFlags::Compute,
-		[Parameters, &View, RayGenerationShader, bUseMinimalPayload, IndirectArgsBuffer, IndirectArgsOffset](FRHICommandList& RHICmdList)
+		[Parameters, &View, SceneUniformBuffer, RayGenerationShader, bUseMinimalPayload, IndirectArgsBuffer, IndirectArgsOffset](FRHICommandList& RHICmdList)
 		{
 			IndirectArgsBuffer->MarkResourceAsUsed();
 
 			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
-
+			TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
+			
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 			FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 
@@ -279,6 +286,10 @@ static void AddLumenRayTraceDispatchIndirectPass(
 		{ \
 			TShaderRef<ShaderClass##RGS> RayGenerationShader = View.ShaderMap->GetShader<ShaderClass##RGS>(PermutationVector); \
 			AddLumenRayTraceDispatchPass(GraphBuilder, std::move(EventName), RayGenerationShader, PassParameters, DispatchResolution, View, bUseMinimalPayload); \
+		} \
+		static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters) \
+		{ \
+			return RayTracing::GetShaderBindingLayout(Parameters.Platform); \
 		} \
 	};
 	

@@ -16,6 +16,7 @@
 #include "LumenRadianceCache.h"
 #include "LumenScreenProbeGather.h"
 #include "LumenHardwareRayTracingCommon.h"
+#include "RayTracing/RayTracing.h"
 
 #if RHI_RAYTRACING
 #include "RayTracing/RaytracingOptions.h"
@@ -868,16 +869,19 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 		PermutationVector = FLumenVisualizeHardwareRayTracingRGS::RemapPermutation(PermutationVector);
 
 		TShaderRef<FLumenVisualizeHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenVisualizeHardwareRayTracingRGS>(PermutationVector);
+		
+		FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
 
 		FIntPoint DispatchResolution = FIntPoint(RayGenThreadCount, RayGenGroupCount);
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("VisualizeHardwareRayTracing[retrace for hit-lighting] %ux%u", DispatchResolution.X, DispatchResolution.Y),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[PassParameters, &View, RayGenerationShader, DispatchResolution](FRHICommandList& RHICmdList)
+			[PassParameters, &View, SceneUniformBuffer, RayGenerationShader, DispatchResolution](FRHICommandList& RHICmdList)
 			{
 				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
+				TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 				FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 				FRHIShaderBindingTable* SBT = View.RayTracingSBT;

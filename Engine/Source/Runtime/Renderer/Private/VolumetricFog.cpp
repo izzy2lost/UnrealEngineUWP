@@ -29,6 +29,7 @@ VolumetricFog.cpp
 #include "DataDrivenShaderPlatformInfo.h"
 #include "LightFunctionAtlas.h"
 #include "Math/UnrealMathUtility.h"
+#include "RayTracing/RayTracing.h"
 
 using namespace LightFunctionAtlas;
 
@@ -393,6 +394,11 @@ class FInjectShadowedLocalLightRGS : public FGlobalShader
 		return ERayTracingPayloadType::RayTracingMaterial;
 	}
 
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -427,6 +433,11 @@ class FRayTraceDirectionalLightVolumeShadowMapRGS : public FGlobalShader
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::RayTracingMaterial;
+	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -496,15 +507,18 @@ static void RenderRaytracedDirectionalShadowVolume(
 		TShaderRef<FRayTraceDirectionalLightVolumeShadowMapRGS> RayGenerationShader = View.ShaderMap->GetShader<FRayTraceDirectionalLightVolumeShadowMapRGS>();
 		ClearUnusedGraphResources(RayGenerationShader, PassParameters);
 
+		FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
+
 		const uint32 DispatchSize = VolumetricFogResourceGridSize.X * VolumetricFogResourceGridSize.Y * VolumetricFogResourceGridSize.Z;
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("RayTracedShadowedDirectionalLight"),
 			PassParameters,
 			ERDGPassFlags::Compute,
-			[&View, RayGenerationShader, PassParameters, DispatchSize](FRHICommandList& RHICmdList)
+			[&View, SceneUniformBuffer, RayGenerationShader, PassParameters, DispatchSize](FRHICommandList& RHICmdList)
 			{
 				FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
-				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
+				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);				
+				TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 				RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, DispatchSize, 1);
 			}
@@ -687,7 +701,7 @@ TGlobalResource<FCircleRasterizeIndexBuffer> GCircleRasterizeIndexBuffer;
 
 void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 	FRDGBuilder& GraphBuilder,
-	FViewInfo& View,
+	FViewInfo& View, 
 	bool bUseTemporalReprojection,
 	const FVolumetricFogIntegrationParameterData& IntegrationData,
 	const FExponentialHeightFogSceneInfo& FogInfo,
@@ -872,6 +886,8 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 
 				ClearUnusedGraphResources(RayGenerationShader, PassParameters);
 
+				FRHIUniformBuffer* SceneUniformBuffer = View.GetSceneUniforms().GetBufferRHI(GraphBuilder);
+
 				// TODO: better bounds
 				const int32 NumSlices = VolumeZBounds.Y - VolumeZBounds.X;
 				const uint32 DispatchSize = VolumeDesc.Extent.X * VolumeDesc.Extent.Y * NumSlices;
@@ -879,10 +895,11 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 					RDG_EVENT_NAME("RayTracedShadowedLights"),
 					PassParameters,
 					ERDGPassFlags::Compute,
-					[this, &View, RayGenerationShader, PassParameters, DispatchSize](FRHICommandList& RHICmdList)
+					[this, &View, SceneUniformBuffer, RayGenerationShader, PassParameters, DispatchSize](FRHICommandList& RHICmdList)
 					{
 						FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
-						SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
+						SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);						
+						TOptional<FScopedUniformBufferStaticBindings> StaticUniformBufferScope = RayTracing::BindStaticUniformBufferBindings(View, SceneUniformBuffer, RHICmdList);
 
 						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, DispatchSize, 1);
 					}
@@ -1357,9 +1374,9 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 
 		FLightSceneInfo* LightSceneInfo = LightSceneInfoCompact.LightSceneInfo;
 
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-		{
-			FViewInfo& View = Views[ViewIndex];
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		FViewInfo& View = Views[ViewIndex];
 			FLightsToInject& LightsToInject = LightsToInjectPerView[ViewIndex];
 
 			if (!LightSceneInfo->ShouldRenderLight(View))
@@ -1499,20 +1516,20 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 				AtmosphericDirectionalLightIndex = 1;
 			}
 		}
-
+		
 		if (LightsToInject.DirectionalLightFunction)
 		{
-			RenderLightFunctionForVolumetricFog(
-				GraphBuilder,
-				View,
-				SceneTextures,
-				VolumetricFogViewGridSize,
-				FogInfo.VolumetricFogDistance,
+		RenderLightFunctionForVolumetricFog(
+			GraphBuilder,
+			View,
+			SceneTextures,
+			VolumetricFogViewGridSize,
+			FogInfo.VolumetricFogDistance,
 				LightsToInject.DirectionalLightFunction,
-				DirectionalLightFunctionTranslatedWorldToShadow,
+			DirectionalLightFunctionTranslatedWorldToShadow,
 				DirectionalLightFunctionTexture);
 		}
-
+			
 		View.VolumetricFogResources.IntegratedLightScatteringTexture = nullptr;
 		TRDGUniformBufferRef<FFogUniformParameters> FogUniformBuffer = CreateFogUniformBuffer(GraphBuilder, View);
 

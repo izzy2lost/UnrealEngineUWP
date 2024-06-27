@@ -6,6 +6,7 @@
 #include "RenderGraphDefinitions.h"
 #include "RayTracingDefinitions.h"
 #include "RHIDefinitions.h"
+#include "ShaderCore.h"
 
 enum class EDiffuseIndirectMethod;
 enum class EReflectionsMethod;
@@ -41,6 +42,12 @@ namespace RayTracing
 
 	FRelevantPrimitiveList* CreateRelevantPrimitiveList(FSceneRenderingBulkObjectAllocator& InAllocator);
 
+	// Get shader resource table desc used for all raytracing shaders which is shared between all shaders in the RTPSO
+	const FShaderBindingLayout* GetShaderBindingLayout(EShaderPlatform ShaderPlatform);
+
+	// Setup the runtime static uniform buffer bindings on the command list if enabled
+	TOptional<FScopedUniformBufferStaticBindings> BindStaticUniformBufferBindings(const FViewInfo& View, FRHIUniformBuffer* SceneUniformBuffer, FRHICommandList& RHICmdList);
+	
 	// Iterates over Scene's PrimitiveSceneProxies and extracts ones that are relevant for ray tracing.
 	// This function can run on any thread.
 	void GatherRelevantPrimitives(FScene& Scene, const FViewInfo& View, FRelevantPrimitiveList& OutRelevantPrimitiveList);

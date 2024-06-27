@@ -14,6 +14,7 @@
 #include "RayTracingMeshDrawCommands.h"
 #include "RayTracingInstanceMask.h"
 #include "RayTracingPayloadType.h"
+#include "RayTracing/RayTracing.h"
 #include "ShaderParameterStruct.h"
 #include <type_traits>
 
@@ -134,6 +135,11 @@ class FHiddenMaterialHitGroup : public FGlobalShader
 		return ERayTracingPayloadType::RayTracingMaterial;
 	}
 
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
+
 	using FParameters = FEmptyShaderParameters;
 };
 
@@ -152,6 +158,11 @@ class FOpaqueShadowHitGroup : public FGlobalShader
 		return ERayTracingPayloadType::RayTracingMaterial;
 	}
 
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
+	}
+
 	using FParameters = FEmptyShaderParameters;
 };
 
@@ -168,6 +179,11 @@ class FDefaultCallableShader : public FGlobalShader
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
 	{
 		return ERayTracingPayloadType::Decals;
+	}
+
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters)
+	{
+		return RayTracing::GetShaderBindingLayout(Parameters.Platform);
 	}
 
 	using FParameters = FEmptyShaderParameters;
