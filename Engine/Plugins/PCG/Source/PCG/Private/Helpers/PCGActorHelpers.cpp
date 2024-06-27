@@ -17,6 +17,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGActorHelpers)
 
 #if WITH_EDITOR
+#include "Editor.h"
 #include "Engine/Level.h"
 #include "ScopedTransaction.h"
 #include "Subsystems/ActorEditorContextSubsystem.h"
@@ -357,7 +358,7 @@ bool UPCGActorHelpers::DeleteActors(UWorld* World, const TArray<TSoftObjectPtr<A
 		// the next GC to collect those packages
 		//
 		// The fix here is to create a dummy transaction so that the deleted actors are tracked but since we don't want to actually push a transaction, we cancel it after the DestroyActor calls
-		FScopedTransaction DummyTransaction(NSLOCTEXT("PCGActorHelpers", "DummyTransaction", "DummyTransaction"), World && !World->IsGameWorld());
+		FScopedTransaction DummyTransaction(NSLOCTEXT("PCGActorHelpers", "DummyTransaction", "DummyTransaction"), World && !World->IsGameWorld() && ActorsToDelete.Num() > 0 && !GEditor->IsTransactionActive());
 #endif
 
 		// Not in editor, really unlikely to happen but might be slow
