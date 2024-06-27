@@ -48,6 +48,9 @@ struct TMovieSceneCurveChannelImpl
 	static UE::MovieScene::Interpolation::FCachedInterpolation GetInterpolationForTime(const ChannelType* InChannel, FFrameTime InTime);
 	static UE::MovieScene::Interpolation::FCachedInterpolation GetInterpolationForTime(const ChannelType* InChannel, FTimeEvaluationCache* InOutEvaluationCache, FFrameTime InTime);
 
+	static UE::MovieScene::Interpolation::FCachedInterpolation GetInterpolationForKey(const ChannelType* InChannel, int32 KeyIndex, const UE::MovieScene::FCycleParams* Params = nullptr);
+	static UE::MovieScene::Interpolation::FCachedInterpolation GetInterpolationForKey(const ChannelType* InChannel, int32 KeyIndex1, int32 KeyIndex2, const UE::MovieScene::FCycleParams* Params = nullptr);
+
 	/** Evaluate this channel at provided FrameTime, using or populating cached time to frame-number(s) calculation */
 	static bool EvaluateWithCache(const ChannelType* InChannel, FTimeEvaluationCache* InOutEvaluationCache, FFrameTime InTime, CurveValueType& OutValue);
 	
@@ -109,6 +112,15 @@ struct TMovieSceneCurveChannelImpl
 	 * @return Interpolation mode to use at that frame
 	 */
 	static EMovieSceneKeyInterpolation GetInterpolationMode(ChannelType* InChannel, const FFrameNumber& InTime, EMovieSceneKeyInterpolation DefaultInterpolationMode);
+
+	/**
+	 * Evaluate this channel's extrapolation by populating a cachable structure. Assumes more than 1 key is present.
+	 *
+	 * @param InTime     The time to evaluate at
+	 * @param OutValue   A value to receive the result
+	 * @return true if the time was evaluated with extrapolation, false otherwise
+	 */
+	static bool CacheExtrapolation(const ChannelType* InChannel, FFrameTime InTime, UE::MovieScene::Interpolation::FCachedInterpolation& OutValue);
 	
 	/** Dilate channel data.*/
 	static void Dilate(ChannelType* InChannel, FFrameNumber Origin, float DilationFactor);
@@ -145,24 +157,6 @@ private:
 	static int32 InsertKeyInternal(ChannelType* InChannel, FFrameNumber InTime);
 
 	/**
-	 * Evaluate this channel's extrapolation. Assumes more than 1 key is present.
-	 *
-	 * @param InTime     The time to evaluate at
-	 * @param OutValue   A value to receive the result
-	 * @return true if the time was evaluated with extrapolation, false otherwise
-	 */
-	static bool EvaluateExtrapolation(const ChannelType* InChannel, FFrameTime InTime, CurveValueType& OutValue);
-
-	/**
-	 * Evaluate this channel's extrapolation by populating a cachable structure. Assumes more than 1 key is present.
-	 *
-	 * @param InTime     The time to evaluate at
-	 * @param OutValue   A value to receive the result
-	 * @return true if the time was evaluated with extrapolation, false otherwise
-	 */
-	static bool CacheExtrapolation(const ChannelType* InChannel, FFrameTime InTime, UE::MovieScene::Interpolation::FCachedInterpolation& OutValue);
-
-	/**
 	 * Adds median points between each of the supplied points if their evaluated value is significantly different than the linear interpolation of those points
 	 *
 	 * @param TickResolution        The tick resolution with which to interpret this channel's times
@@ -172,7 +166,6 @@ private:
 	 */
 	static void RefineCurvePoints(const ChannelType* InChannel, FFrameRate TickResolution, double TimeThreshold, CurveValueType ValueThreshold, TArray<TTuple<double, double>>& InOutPoints);
 
-	static bool EvaluateLegacy(const ChannelType* InChannel, FTimeEvaluationCache* InOutEvaluationCache, FFrameTime InTime, CurveValueType& OutValue);
 	static bool EvaluateCached(const ChannelType* InChannel, FTimeEvaluationCache* InOutEvaluationCache, FFrameTime InTime, CurveValueType& OutValue);
 };
 

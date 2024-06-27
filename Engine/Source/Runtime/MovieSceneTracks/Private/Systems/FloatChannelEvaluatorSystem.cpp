@@ -23,8 +23,6 @@ DECLARE_CYCLE_STAT(TEXT("MovieScene: Evaluate float channels"), MovieSceneEval_E
 namespace UE::MovieScene
 {
 
-MOVIESCENE_API extern bool GEnableCachedChannelEvaluation;
-
 struct FFloatChannelTypeAssociation
 {
 	TComponentTypeID<FSourceFloatChannel> ChannelType;
@@ -36,23 +34,6 @@ TArray<FFloatChannelTypeAssociation, TInlineAllocator<4>> GFloatChannelTypeAssoc
 
 // @todo: for multi-bindings we currently re-evaluate the float channel for each binding, even though the time is the same.
 // Do we need to optimize for this case using something like the code below, while pessimizing the common (non-multi-bind) codepath??
-
-/** Entity-component task that evaluates using the non-cached codepath for testing parity */
-struct FEvaluateFloatChannels_Uncached
-{
-	static void ForEachEntity(FSourceFloatChannel FloatChannel, FFrameTime FrameTime, double& OutResult)
-	{
-		float Result;
-		if (FloatChannel.Source->Evaluate(FrameTime, Result))
-		{
-			OutResult = Result;
-		}
-		else
-		{
-			OutResult = MIN_dbl;
-		}
-	}
-};
 
 /** Entity-component task that evaluates using a cached interpolation if possible */
 struct FEvaluateFloatChannels_Cached
@@ -184,33 +165,18 @@ void UFloatChannelEvaluatorSystem::OnSchedulePersistentTasks(UE::MovieScene::IEn
 	using namespace UE::MovieScene;
 
 	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
-	if (GEnableCachedChannelEvaluation)
+
+	for (const FFloatChannelTypeAssociation& ChannelType : GFloatChannelTypeAssociations)
 	{
-		for (const FFloatChannelTypeAssociation& ChannelType : GFloatChannelTypeAssociations)
-		{
-			// Evaluate float channels per instance and write the evaluated value into the output
-			FEntityTaskBuilder()
-			.Read(ChannelType.ChannelType)
-			.Read(BuiltInComponents->EvalTime)
-			.Write(ChannelType.CachedInterpolationType)
-			.Write(ChannelType.ResultType)
-			.FilterNone({ BuiltInComponents->Tags.Ignored })
-			.SetStat(GET_STATID(MovieSceneEval_EvaluateFloatChannelTask))
-			.Fork_PerEntity<FEvaluateFloatChannels_Cached>(&Linker->EntityManager, TaskScheduler);
-		}
-	}
-	else
-	{
-		for (const FFloatChannelTypeAssociation& ChannelType : GFloatChannelTypeAssociations)
-		{
-			FEntityTaskBuilder()
-			.Read(ChannelType.ChannelType)
-			.Read(BuiltInComponents->EvalTime)
-			.Write(ChannelType.ResultType)
-			.FilterNone({ BuiltInComponents->Tags.Ignored })
-			.SetStat(GET_STATID(MovieSceneEval_EvaluateFloatChannelTask))
-			.Fork_PerEntity<FEvaluateFloatChannels_Uncached>(&Linker->EntityManager, TaskScheduler);
-		}
+		// Evaluate float channels per instance and write the evaluated value into the output
+		FEntityTaskBuilder()
+		.Read(ChannelType.ChannelType)
+		.Read(BuiltInComponents->EvalTime)
+		.Write(ChannelType.CachedInterpolationType)
+		.Write(ChannelType.ResultType)
+		.FilterNone({ BuiltInComponents->Tags.Ignored })
+		.SetStat(GET_STATID(MovieSceneEval_EvaluateFloatChannelTask))
+		.Fork_PerEntity<FEvaluateFloatChannels_Cached>(&Linker->EntityManager, TaskScheduler);
 	}
 }
 
@@ -238,21 +204,6 @@ void UFloatChannelEvaluatorSystem::OnRun(FSystemTaskPrerequisites& InPrerequisit
 	}
 	else if (Runner->GetCurrentPhase() == ESystemPhase::Evaluation)
 	{
-		if (!GEnableCachedChannelEvaluation)
-		{
-			for (const FFloatChannelTypeAssociation& ChannelType : GFloatChannelTypeAssociations)
-			{
-				FEntityTaskBuilder()
-				.Read(ChannelType.ChannelType)
-				.Read(BuiltInComponents->EvalTime)
-				.Write(ChannelType.ResultType)
-				.FilterNone({ BuiltInComponents->Tags.Ignored })
-				.SetStat(GET_STATID(MovieSceneEval_EvaluateFloatChannelTask))
-				.Dispatch_PerEntity<FEvaluateFloatChannels_Uncached>(&Linker->EntityManager, InPrerequisites, &Subsequents);
-			}
-			return;
-		}
-
 		for (const FFloatChannelTypeAssociation& ChannelType : GFloatChannelTypeAssociations)
 		{
 			// Evaluate float channels per instance and write the evaluated value into the output
