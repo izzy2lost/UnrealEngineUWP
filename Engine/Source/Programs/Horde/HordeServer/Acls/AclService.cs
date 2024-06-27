@@ -2,16 +2,17 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Agents.Sessions;
 using HordeServer.Server;
 using HordeServer.Utilities;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 
@@ -23,13 +24,15 @@ namespace HordeServer.Acls
 	public class AclService : IAclService
 	{
 		private readonly GlobalsService _globalsService;
+		private readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AclService(GlobalsService globalsService)
+		public AclService(GlobalsService globalsService, IOptionsMonitor<GlobalConfig> globalConfig)
 		{
 			_globalsService = globalsService;
+			_globalConfig = globalConfig;
 		}
 
 		/// <summary>
@@ -77,5 +80,9 @@ namespace HordeServer.Acls
 				return new AgentId(claim.Value);
 			}
 		}
+
+		/// <inheritdoc/>
+		public bool TryGetAclScope(AclScopeName scopeName, [NotNullWhen(true)] out AclConfig? scopeConfig)
+			=> _globalConfig.CurrentValue.TryGetAclScope(scopeName, out scopeConfig);
 	}
 }

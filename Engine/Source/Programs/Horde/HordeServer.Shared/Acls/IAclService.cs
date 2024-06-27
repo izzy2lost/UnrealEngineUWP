@@ -2,9 +2,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using EpicGames.Horde.Acls;
 
 namespace HordeServer.Acls
 {
@@ -21,5 +24,27 @@ namespace HordeServer.Acls
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>JWT security token with a claim for creating new agents</returns>
 		ValueTask<string> IssueBearerTokenAsync(IEnumerable<AclClaimConfig> claims, TimeSpan? expiry, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Finds an ACL scope by name
+		/// </summary>
+		/// <param name="scopeName">Name of the scope to auth against</param>
+		/// <param name="scopeConfig">Configuration for the scope</param>
+		bool TryGetAclScope(AclScopeName scopeName, [NotNullWhen(true)] out AclConfig? scopeConfig);
+	}
+
+	/// <summary>
+	/// Extension methods for <see cref="IAclService"/>
+	/// </summary>
+	public static class AclServiceExtensions
+	{
+		/// <summary>
+		/// Authorizes a user to perform a given action
+		/// </summary>
+		/// <param name="scopeName">Name of the scope to auth against</param>
+		/// <param name="action">The action being performed</param>
+		/// <param name="user">The principal to validate</param>
+		public static bool Authorize(this IAclService aclService, AclScopeName scopeName, AclAction action, ClaimsPrincipal user)
+			=> aclService.TryGetAclScope(scopeName, out AclConfig? scopeConfig) && scopeConfig.Authorize(action, user);
 	}
 }

@@ -9,7 +9,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
-using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Server;
 using HordeServer.Utilities;
@@ -38,7 +37,7 @@ namespace HordeServer.Compute
 			_computeService = computeService;
 			_globalConfig = globalConfig;
 		}
-		
+
 		/// <summary>
 		/// Add tasks to be executed remotely and auto-select appropriate compute cluster to use
 		/// </summary>
@@ -54,7 +53,7 @@ namespace HordeServer.Compute
 			ClusterId clusterId = ComputeService.FindBestComputeClusterId(_globalConfig.Value, requesterIp);
 			return await AssignComputeResourceInClusterAsync(clusterId, request, cancellationToken);
 		}
-		
+
 		/// <summary>
 		/// Add tasks to be executed remotely
 		/// </summary>
