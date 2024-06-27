@@ -40,6 +40,7 @@ struct FPCGTableVisualizerInfo
 	TArray<FPCGTableVisualizerColumnInfo> ColumnInfos;
 	EPCGTableVisualizerColumnSortingMode SortingMode = EPCGTableVisualizerColumnSortingMode::Ascending;
 	FName SortingColumn = NAME_None;
+	TFunction<void(const UPCGData*, int)> DoubleClickCallback = nullptr;
 	TSharedPtr<const IPCGAttributeAccessorKeys> AccessorKeys;
 };
 

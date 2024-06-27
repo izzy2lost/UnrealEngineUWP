@@ -45,7 +45,7 @@ namespace PCGEditorGraphAttributeListView
 struct FPCGListViewItem
 {
 	int32 Index = INDEX_NONE;
-	TFunction<void(int)> DoubleClickCallback = nullptr;
+	TFunction<void(const UPCGData*, int)> DoubleClickCallback = nullptr;
 };
 
 struct FPCGColumnData

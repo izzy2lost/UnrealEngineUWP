@@ -303,6 +303,20 @@ FPCGTableVisualizerInfo IPCGSpatialDataVisualization::GetTableVisualizerInfo(con
 	// Column Sorting
 	Info.SortingColumn = NAME_Index;
 
+	// Double Click Behavior
+	Info.DoubleClickCallback = [](const UPCGData* Data, int Index)
+	{
+		if (const UPCGPointData* PointData = Cast<UPCGPointData>(Data))
+		{
+			const TArray<FPCGPoint>& Points = PointData->GetPoints();
+			check(Points.IsValidIndex(Index));
+
+			const FPCGPoint& Point = Points[Index];
+			const FBox BoundingBox = Point.GetLocalBounds().TransformBy(Point.Transform.ToMatrixWithScale());
+			GEditor->MoveViewportCamerasToBox(BoundingBox, /*bActiveViewportOnly=*/true, /*DrawDebugBoxTimeInSeconds=*/2.5f);
+		}
+	};
+
 	// Accessor Keys
 	Info.AccessorKeys = TSharedPtr<const IPCGAttributeAccessorKeys>(PCGAttributeAccessorHelpers::CreateConstKeys(PointData, FPCGAttributePropertyInputSelector()).Release());
 

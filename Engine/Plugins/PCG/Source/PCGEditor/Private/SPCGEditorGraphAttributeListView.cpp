@@ -682,17 +682,7 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 		{
 			PCGListviewItemPtr ListViewItem = MakeShared<FPCGListViewItem>();
 			ListViewItem->Index = Index;
-
-			// TODO: It would be preferable to have a custom override for double-click behavior instead of relying on collapsed point data.
-			ListViewItem->DoubleClickCallback = [DataPtr = DataStrongPtr.Get()](int Index)
-			{
-				if (const UPCGPointData* PointData = Cast<UPCGPointData>(DataPtr))
-				{
-					const FPCGPoint& Point = PointData->GetPoints()[Index];
-					const FBox BoundingBox = Point.GetLocalBounds().TransformBy(Point.Transform.ToMatrixWithScale());
-					GEditor->MoveViewportCamerasToBox(BoundingBox, true, 2.5f);
-				}
-			};
+			ListViewItem->DoubleClickCallback = TableVisualizerInfo.DoubleClickCallback;
 
 			ListViewItems.Add(ListViewItem);
 		}
@@ -980,7 +970,7 @@ void SPCGEditorGraphAttributeListView::OnItemDoubleClicked(PCGListviewItemPtr It
 
 	if (Item->DoubleClickCallback)
 	{
-		Item->DoubleClickCallback(Item->Index);
+		Item->DoubleClickCallback(DataStrongPtr.Get(), Item->Index);
 	}
 }
 
