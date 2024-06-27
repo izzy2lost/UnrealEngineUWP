@@ -381,7 +381,7 @@ LogPrintf(ELogLevel Level, const wchar_t* Str, ...)
 
 extern const char* HttpStatusToString(int32 Code);
 void
-LogError(const FError& E)
+LogError(const FError& E, std::wstring ExtraContext)
 {
 	const char* ErrorKindStr = nullptr;
 	const char* ErrorDescStr = nullptr;
@@ -403,25 +403,30 @@ LogError(const FError& E)
 			break;
 	}
 
-	const wchar_t* ContextStr = E.Context.empty() ? nullptr : E.Context.c_str();
+	const bool bHaveContext = !E.Context.empty();
+	const bool bHaveExtraContext = !ExtraContext.empty();
 
 	if (ErrorDescStr)
 	{
 		LogPrintf(ELogLevel::Error,
-				  L"%hs code: %d (%hs).%ls%ls\n",
+				  L"%ls%hs%hs code: %d (%hs).%ls%ls\n",
+				  bHaveExtraContext ? ExtraContext.c_str() : L"",
+				  bHaveExtraContext ? ": " : "",
 				  ErrorKindStr,
 				  E.Code,
 				  ErrorDescStr,
-				  ContextStr ? L" Context: " : L"",
+				  bHaveContext ? L" Context: " : L"",
 				  E.Context.empty() ? L"" : E.Context.c_str());
 	}
 	else
 	{
 		LogPrintf(ELogLevel::Error,
-				  L"%hs code: %d.%ls%ls\n",
+				  L"%ls%hs%hs code: %d.%ls%ls\n",
+				  bHaveExtraContext ? ExtraContext.c_str() : L"",
+				  bHaveExtraContext ? ": " : "",
 				  ErrorKindStr,
 				  E.Code,
-				  ContextStr ? L" Context: " : L"",
+				  bHaveContext ? L" Context: " : L"",
 				  E.Context.empty() ? L"" : E.Context.c_str());
 	}
 }

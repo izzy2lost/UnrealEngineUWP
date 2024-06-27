@@ -608,7 +608,7 @@ FHordeProtocolImpl::QueryListDirectory(FHttpConnection& Connection, const FAuthD
 			}
 			else
 			{
-				LogError(FormattedName.GetError());
+				LogError(FormattedName.GetError(), L"Failed to format Horde artifact name");
 				break;
 			}
 		}
@@ -862,7 +862,7 @@ void TestHordeManifestDecode()
 	TResult<FDirectoryManifest> Manifest = DecodeHordeManifestJson(GTestHordeManifestJson, "api/v2/artifacts/12345");
 	if (Manifest.IsError())
 	{
-		LogError(Manifest.GetError());
+		LogError(Manifest.GetError(), L"Failed to decode Horde manifest from JSON");
 	}
 }
 

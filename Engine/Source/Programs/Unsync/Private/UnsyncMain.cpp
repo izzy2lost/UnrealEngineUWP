@@ -672,8 +672,7 @@ InnerMain(int Argc, char** Argv)
 			TResult<FHordeArtifactQuery> Query = FHordeArtifactQuery::FromString(SourceFilenameUtf8);
 			if (Query.IsError())
 			{
-				UNSYNC_ERROR(L"Could not parse sync source path");
-				LogError(Query.GetError());
+				LogError(Query.GetError(), L"Could not parse sync source path");
 				return 1;
 			}
 
@@ -893,7 +892,8 @@ InnerMain(int Argc, char** Argv)
 
 	if (bShouldLogin)
 	{
-		RemoteDesc.PrimaryHost = RemoteDesc.Host;
+		RemoteDesc.PrimaryHost			   = RemoteDesc.Host;
+		RemoteDesc.bAuthenticationRequired = true;
 	}
 
 	FRemoteDesc RootRemoteDesc = RemoteDesc;

@@ -127,7 +127,7 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 	FMirrorInfoResult MirrorsResult = RunQueryMirrors(Options.Remote);
 	if (MirrorsResult.IsError())
 	{
-		LogError(MirrorsResult.GetError());
+		LogError(MirrorsResult.GetError(), L"Failed to get mirror list from the server");
 		return 1;
 	}
 
@@ -189,7 +189,7 @@ CmdQueryList(const FCmdQueryOptions& Options)
 
 	if (ListingResult.IsError())
 	{
-		LogError(ListingResult.GetError());
+		LogError(ListingResult.GetError(), L"Failed to list remote directory");
 		return -1;
 	}
 
@@ -313,7 +313,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 
 			if (DirectoryListingResult.IsError())
 			{
-				LogError(DirectoryListingResult.GetError());
+				LogError(DirectoryListingResult.GetError(), L"Failed to list remote directory");
 				return;
 			}
 
@@ -451,7 +451,7 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 
 	if (!AuthToken.IsOk())
 	{
-		LogError(AuthToken.GetError());
+		LogError(AuthToken.GetError(), L"Failed to authenticate");
 		return -1;
 	}
 
@@ -496,10 +496,96 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 	}
 	else
 	{
-		LogError(Response.GetError());
+		LogError(Response.GetError(), L"Failed to download file");
 	}
 
 	return 0;
+}
+
+int32
+CmdQueryHttpGet(const FCmdQueryOptions& Options)
+{
+	FHttpConnection HttpConnection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+
+	std::string BearerToken;
+
+	if (Options.Remote.bAuthenticationRequired)
+	{
+		TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(Options.Remote.Protocol, HttpConnection);
+		if (!HelloResponse.IsOk())
+		{
+			LogError(HelloResponse.GetError(), L"Failed to query basic server information");
+			return -1;
+		}
+
+		FAuthDesc			AuthDesc  = FAuthDesc::FromHelloResponse(*HelloResponse);
+		TResult<FAuthToken> AuthToken = Authenticate(AuthDesc);
+
+		if (!AuthToken.IsOk())
+		{
+			LogError(AuthToken.GetError(), L"Failed to authenticate with the server");
+			return -1;
+		}
+
+		BearerToken = AuthToken->Access;
+	}
+
+	// TODO: RequestPath should include leading slash
+	std::string RequestUrl = fmt::format("/{}", Options.Remote.RequestPath);
+
+	FHttpRequest Request;
+	Request.Method		= EHttpMethod::GET;
+	Request.BearerToken = BearerToken;
+	Request.Url			= RequestUrl;
+
+	FHttpResponse Response = HttpRequest(HttpConnection, Request);
+
+	if (!Response.Success())
+	{
+		LogError(HttpError(std::move(RequestUrl), Response.Code));
+	}
+
+	FPath OutputPath = Options.OutputPath;
+	if (OutputPath.empty())
+	{
+		if (Response.ContentType == EHttpContentType::Application_Json || Response.ContentType == EHttpContentType::Text_Plain ||
+			Response.ContentType == EHttpContentType::Text_Html)
+		{
+			Response.Buffer.PushBack('\n');
+			Response.Buffer.PushBack(0);
+			LogPrintf(ELogLevel::MachineReadable, L"%hs", (const char*)Response.Buffer.Data());
+			return 0;
+		}
+		else
+		{
+			UNSYNC_ERROR(L"Unexpected response content type. Only plain text or json are supported. Use `-o <filename>` command line argument to write response body to a file.");
+			return -1;
+		}
+	}
+	else
+	{
+		UNSYNC_LOG(L"Output file: '%ls'", OutputPath.wstring().c_str());
+		OutputPath = GetAbsoluteNormalPath(OutputPath);
+
+		if (EnsureDirectoryExists(OutputPath.parent_path()))
+		{
+			if (WriteBufferToFile(OutputPath, Response.Buffer))
+			{
+				UNSYNC_VERBOSE(L"Wrote bytes: %llu", llu(Response.Buffer.Size()));
+				return 0;
+			}
+			else
+			{
+				UNSYNC_ERROR(L"Failed to write output file '%ls'", OutputPath.wstring().c_str());
+			}
+		}
+		else
+		{
+			UNSYNC_ERROR(L"Failed to create output directory '%ls'", OutputPath.parent_path().wstring().c_str());
+		}
+
+		return -1;
+	}
 }
 
 int32
@@ -527,9 +613,13 @@ CmdQuery(const FCmdQueryOptions& Options)
 	{
 		return CmdQueryFile(Options);
 	}
+	if (Options.Query == "http-get")
+	{
+		return CmdQueryHttpGet(Options);
+	}
 	else
 	{
-		UNSYNC_ERROR(L"Unknown query command");
+		UNSYNC_ERROR(L"Unknown query command. Allowed options: mirrors, list, search, file, http-get");
 		return 1;
 	}
 }

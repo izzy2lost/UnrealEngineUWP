@@ -955,7 +955,7 @@ CopyFileIfPossiblyDifferent(FProxyFileSystem&	   FileSystem,
 		TResult<FBuffer> FileBuffer = FileSystem.ReadFile(ToString(Source.Path));
 		if (FileBuffer.IsError())
 		{
-			LogError(FileBuffer.GetError());
+			LogError(FileBuffer.GetError(), L"Failed to read source file");
 			return false;
 		}
 
@@ -1014,7 +1014,7 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 	TResult<FFoundManifest> FindManifestResult = FindUnsyncManifest(ProxyFileSystem);
 	if (FindManifestResult.IsError())
 	{
-		LogError(FindManifestResult.GetError());
+		LogError(FindManifestResult.GetError(), L"Failed to find remote manifest");
 		return false;
 	}
 
@@ -1058,7 +1058,7 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 			TResult<FBuffer> FileBuffer = ProxyFileSystem.ReadFile(ToString(IndexFileInfo.Path));
 			if (FileBuffer.IsError())
 			{
-				LogError(FileBuffer.GetError());
+				LogError(FileBuffer.GetError(), L"Failed to read remote file");
 				return false;
 			}
 
@@ -1367,7 +1367,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		}
 		else
 		{
-			LogError(DownloadResult.GetError());
+			LogError(DownloadResult.GetError(), L"Failed to download file");
 			UNSYNC_BREAK_ON_ERROR;
 			return false;
 		}

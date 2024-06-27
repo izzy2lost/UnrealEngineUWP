@@ -217,8 +217,7 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 			}
 			else
 			{
-				LogError(AuthTokenResult.GetError());
-				UNSYNC_ERROR(L"Server requires authentication, but access token could not be acquired");
+				LogError(AuthTokenResult.GetError(), L"Server requires authentication, but access token could not be acquired");
 				Invalidate();
 			}
 		}
@@ -1305,7 +1304,7 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthD
 
 		if (Response.IsError())
 		{
-			LogError(Response.GetError());
+			LogError(Response.GetError(), L"Failed to query basic server information");
 		}
 		else
 		{
@@ -1403,7 +1402,7 @@ FProxyPool::GetAccessToken()
 		}
 		else
 		{
-			LogError(AuthTokenResult.GetError());
+			LogError(AuthTokenResult.GetError(), L"Failed to authenticate");
 			UNSYNC_FATAL(L"Cannot proceed without a valid authentication token");
 		}
 	}

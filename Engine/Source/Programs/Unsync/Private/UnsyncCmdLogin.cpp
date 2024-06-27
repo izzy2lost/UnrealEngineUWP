@@ -79,7 +79,7 @@ CmdLogin(const FCmdLoginOptions& Options)
 			}
 			else
 			{
-				LogError(HttpError(Response.Code));
+				LogError(HttpError(Response.Code), L"Failed to authenticate");
 				return -1;
 			}
 		}
@@ -120,7 +120,7 @@ CmdLogin(const FCmdLoginOptions& Options)
 	}
 	else
 	{
-		LogError(AuthTokenResult.GetError());
+		LogError(AuthTokenResult.GetError(), L"Failed to authenticate");
 		return -1;
 	}
 }
