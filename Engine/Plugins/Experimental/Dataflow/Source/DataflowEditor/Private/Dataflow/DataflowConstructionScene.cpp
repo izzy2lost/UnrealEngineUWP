@@ -85,15 +85,11 @@ void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 		{
 			if (const UDataflow* Dataflow = EditorContent->GetDataflowAsset())
 			{
-				const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, DataflowContext.Get());
-				if (SystemTimestamp >= EditorContent->GetLastModifiedTimestamp() || EditorContent->IsConstructionDirty())
+				const Dataflow::FTimestamp SystemTimestamp = DataflowContext->GetTimestamp().Value;
+				if (LastRenderedTimestamp < SystemTimestamp || EditorContent->IsConstructionDirty())
 				{
-					EditorContent->SetLastModifiedTimestamp(SystemTimestamp.Value + 1);
-
-					if (EditorContent->IsConstructionDirty())
-					{
-						UpdateConstructionScene();
-					}
+					LastRenderedTimestamp = SystemTimestamp;
+					UpdateConstructionScene();
 				}
 			}
 		}

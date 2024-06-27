@@ -923,6 +923,8 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 				SelectComponentsInView(PrimarySelection);
 			}
 		}
+
+		EditorContent->SetConstructionDirty(true);
 	}
 
 	//

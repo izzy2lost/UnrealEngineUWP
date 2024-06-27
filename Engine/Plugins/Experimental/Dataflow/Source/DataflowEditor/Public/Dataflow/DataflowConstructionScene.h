@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Dataflow/DataflowEditorPreviewSceneBase.h"
+#include "Dataflow/DataflowNodeParameters.h"
 
 class UDataflowEditor;
 class USkeletalMeshComponent;
@@ -87,6 +88,9 @@ private:
 
 	/** Property objects (visible or not) that get ticked. [ticked] */
 	TArray<TObjectPtr<UInteractiveToolPropertySet>> PropertyObjectsToTick;
+
+	/** Last Rendered Timestamp */
+	Dataflow::FTimestamp LastRenderedTimestamp = Dataflow::FTimestamp::Invalid;
 
 	/** Show the wireframe on render */ 
 	bool bConstructionViewWireframe = true;
