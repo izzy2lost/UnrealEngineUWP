@@ -9,8 +9,7 @@
 #include "HistoryTestUtil.h"
 #include "RenameEditAndDeleteMapsFlow.h"
 #include "Util/ActivityBuilder.h"
-#include "Util/ScopedSessionDatabase.h"
-
+#include "Util/ScopedSessionDatabaseWithEndpoint.h"
 
 namespace UE::ConcertSyncTests::RenameEditAndDeleteMapsFlowTest
 {
@@ -44,7 +43,7 @@ namespace UE::ConcertSyncTests::RenameEditAndDeleteMapsFlowTest
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRenameEditAndDeleteMapsFlowTest, "Editor.Concert.History.BuildGraph.RenameEditAndDeleteMapsFlow", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FRenameEditAndDeleteMapsFlowTest::RunTest(const FString& Parameters)
 	{
-		FScopedSessionDatabase SessionDatabase(*this);
+		FScopedSessionDatabaseWithEndpoint SessionDatabase(*this);
 		const TTestActivityArray<int64> Activities = CreateActivityHistory(SessionDatabase, SessionDatabase.GetEndpoint());
 		
 		const ConcertSyncCore::FActivityDependencyGraph DependencyGraph = ConcertSyncCore::BuildDependencyGraphFrom(SessionDatabase);
@@ -180,7 +179,7 @@ namespace UE::ConcertSyncTests::DeletingAndRecreatingActorIsHardDependency
 		ActivityCount
 	};
 	
-	TArray<FActivityID> FillDatabase(FScopedSessionDatabase& Database);
+	TArray<FActivityID> FillDatabase(FScopedSessionDatabaseWithEndpoint& Database);
 	FConcertExportedObject CreateActorMetaData(FName OuterLevelPath);
 	
 	/**
@@ -195,7 +194,7 @@ namespace UE::ConcertSyncTests::DeletingAndRecreatingActorIsHardDependency
 	{
 		using namespace ConcertSyncCore;
 		
-		FScopedSessionDatabase SessionDatabase(*this);
+		FScopedSessionDatabaseWithEndpoint SessionDatabase(*this);
 		const TArray<FActivityID> TestActivities = FillDatabase(SessionDatabase);
 
 		const FActivityDependencyGraph DependencyGraph = BuildDependencyGraphFrom(SessionDatabase);
@@ -224,7 +223,7 @@ namespace UE::ConcertSyncTests::DeletingAndRecreatingActorIsHardDependency
 		return true;
 	}
 	
-	TArray<FActivityID> FillDatabase(FScopedSessionDatabase& SessionDatabase)
+	TArray<FActivityID> FillDatabase(FScopedSessionDatabaseWithEndpoint& SessionDatabase)
 	{
 		TArray<FActivityID> ActivityIDs;
 		ActivityIDs.SetNumUninitialized(ActivityCount);
@@ -346,7 +345,7 @@ namespace UE::ConcertSyncTests::PackageEditedDependencyTest
 		ActivityCount
 	};
 	
-	TArray<FActivityID> FillDatabase(FScopedSessionDatabase& SessionDatabase);
+	TArray<FActivityID> FillDatabase(FScopedSessionDatabaseWithEndpoint& SessionDatabase);
 	
 	/**
 	 * This tests that EActivityDependencyReason::PackageEdited dependencies are discovered correctly.
@@ -377,7 +376,7 @@ namespace UE::ConcertSyncTests::PackageEditedDependencyTest
 	{
 		using namespace ConcertSyncCore;
 		
-		FScopedSessionDatabase SessionDatabase(*this);
+		FScopedSessionDatabaseWithEndpoint SessionDatabase(*this);
 		TArray<FActivityID> Activities = FillDatabase(SessionDatabase);
 		
 		const FActivityDependencyGraph DependencyGraph = BuildDependencyGraphFrom(SessionDatabase);
@@ -465,7 +464,7 @@ namespace UE::ConcertSyncTests::PackageEditedDependencyTest
 		return true;
 	}
 
-	TArray<FActivityID> FillDatabase(FScopedSessionDatabase& SessionDatabase)
+	TArray<FActivityID> FillDatabase(FScopedSessionDatabaseWithEndpoint& SessionDatabase)
 	{
 		const FName FooLevel = TEXT("/Game/Foo");
 		const FName BarLevel = TEXT("/Game/Bar");
@@ -511,7 +510,7 @@ namespace UE::ConcertSyncTests::RenamingDependencyEdgeCases
 		ActivityCount
 	};
 	
-	TArray<FActivityID> FillDatabase(FScopedSessionDatabase& SessionDatabase);
+	TArray<FActivityID> FillDatabase(FScopedSessionDatabaseWithEndpoint& SessionDatabase);
 	
 	/**
 	 * This tests that renaming dependencies are correctly set in some edge cases.
@@ -532,7 +531,7 @@ namespace UE::ConcertSyncTests::RenamingDependencyEdgeCases
 	{
 		using namespace ConcertSyncCore;
 		
-		FScopedSessionDatabase SessionDatabase(*this);
+		FScopedSessionDatabaseWithEndpoint SessionDatabase(*this);
 		TArray<FActivityID> Activities = FillDatabase(SessionDatabase);
 		
 		const FActivityDependencyGraph DependencyGraph = BuildDependencyGraphFrom(SessionDatabase);
@@ -556,7 +555,7 @@ namespace UE::ConcertSyncTests::RenamingDependencyEdgeCases
 		return true;
 	}
 	
-	TArray<FActivityID> FillDatabase(FScopedSessionDatabase& SessionDatabase)
+	TArray<FActivityID> FillDatabase(FScopedSessionDatabaseWithEndpoint& SessionDatabase)
 	{
 		const FName FooLevel = TEXT("/Game/Foo");
 		const FName BarLevel = TEXT("/Game/Bar");
@@ -596,14 +595,14 @@ namespace UE::ConcertSyncTests::TransactionDependencyEdgeCases
 		ActivityCount
 	};
 	
-	TArray<FActivityID> FillDatabase(FScopedSessionDatabase& SessionDatabase);
+	TArray<FActivityID> FillDatabase(FScopedSessionDatabaseWithEndpoint& SessionDatabase);
 	
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTransactionDependencyEdgeCaseTests, "Editor.Concert.History.BuildGraph.TransactionDependencyEdgeCaseTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FTransactionDependencyEdgeCaseTests::RunTest(const FString& Parameters)
 	{
 		using namespace ConcertSyncCore;
 		
-		FScopedSessionDatabase SessionDatabase(*this);
+		FScopedSessionDatabaseWithEndpoint SessionDatabase(*this);
 		TArray<FActivityID> Activities = FillDatabase(SessionDatabase);
 		
 		const FActivityDependencyGraph DependencyGraph = BuildDependencyGraphFrom(SessionDatabase);
@@ -623,7 +622,7 @@ namespace UE::ConcertSyncTests::TransactionDependencyEdgeCases
 		return true;
 	}
 
-	TArray<FActivityID> FillDatabase(FScopedSessionDatabase& SessionDatabase)
+	TArray<FActivityID> FillDatabase(FScopedSessionDatabaseWithEndpoint& SessionDatabase)
 	{
 		const FName FooLevel = TEXT("/Game/Foo");
 		const FName BarLevel = TEXT("/Game/Bar");
