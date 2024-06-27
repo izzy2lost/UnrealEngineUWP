@@ -84,3 +84,9 @@ void SerializeForLog(FCbWriter& Writer, const FPackageId& Value)
 
 	Writer.EndObject();
 }
+
+FString LexToString(const FPackageId& PackageId)
+{
+	return FString::Printf(TEXT("%llX"), PackageId.Value());
+}
+

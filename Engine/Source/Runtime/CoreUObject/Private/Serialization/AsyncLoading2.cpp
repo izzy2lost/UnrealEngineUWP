@@ -356,11 +356,11 @@ if ((ELogVerbosity::Type(ELogVerbosity::Verbosity & ELogVerbosity::VerbosityMask
 	(GAsyncLoading2_VerboseLogFilter == 2) || \
 	(GAsyncLoading2_VerboseLogFilter == 1 && GAsyncLoading2_VerbosePackageIds.Contains((PackageDesc).UPackageId))) \
 { \
-	UE_LOG(LogStreaming, Verbosity, LogDesc TEXT(": %s (0x%llX) %s (0x%llX) - ") Format, \
+	UE_LOG(LogStreaming, Verbosity, LogDesc TEXT(": %s (0x%s) %s (0x%s) - ") Format, \
 		*(PackageDesc).UPackageName.ToString(), \
-		(PackageDesc).UPackageId.ValueForDebugging(), \
+		*LexToString((PackageDesc).UPackageId), \
 		*(PackageDesc).PackagePathToLoad.GetPackageFName().ToString(), \
-		(PackageDesc).PackageIdToLoad.ValueForDebugging(), \
+		*LexToString((PackageDesc).PackageIdToLoad), \
 		##__VA_ARGS__); \
 }
 
@@ -446,9 +446,9 @@ TRACE_DECLARE_ATOMIC_MEMORY_COUNTER(AsyncLoadingTotalLoaded, TEXT("AsyncLoading/
 FString FormatPackageId(FPackageId PackageId)
 {
 #if WITH_PACKAGEID_NAME_MAP
-	return FString::Printf(TEXT("0x%llX (%s)"), PackageId.ValueForDebugging(), *PackageId.GetName().ToString());
+	return FString::Printf(TEXT("0x%s (%s)"), *LexToString(PackageId), *PackageId.GetName().ToString());
 #else
-	return FString::Printf(TEXT("0x%llX"), PackageId.ValueForDebugging());
+	return FString::Printf(TEXT("0x%s"), *LexToString(PackageId));
 #endif
 }
 
@@ -980,8 +980,8 @@ public:
 	inline FLoadedPackageRef& FindPackageRefChecked(FPackageId PackageId, FName Name = FName())
 	{
 		FLoadedPackageRef* PackageRef = FindPackageRef(PackageId);
-		UE_CLOG(!PackageRef, LogStreaming, Fatal, TEXT("FindPackageRefChecked: Package %s (0x%llX) has been deleted"),
-			*Name.ToString(), PackageId.ValueForDebugging());
+		UE_CLOG(!PackageRef, LogStreaming, Fatal, TEXT("FindPackageRefChecked: Package %s (0x%s) has been deleted"),
+			*Name.ToString(), *LexToString(PackageId));
 		return *PackageRef;
 	}
 
@@ -1042,11 +1042,11 @@ public:
 						if (OldPackageRef)
 						{
 							UE_LOG(LogStreaming, Display,
-								TEXT("FGlobalImportStore:AddPackageRef: Dropping stale reference to package %s (0x%llX) that has been renamed to %s (0x%llX)"),
+								TEXT("FGlobalImportStore:AddPackageRef: Dropping stale reference to package %s (0x%s) that has been renamed to %s (0x%s)"),
 								*OldPackageRef->GetOriginalPackageName().ToString(),
-								OldPackageId.ValueForDebugging(),
+								*LexToString(OldPackageId),
 								*FoundPackage->GetName(),
-								PackageId.ValueForDebugging()
+								*LexToString(PackageId)
 							);
 							
 							check(OldPackageRef->GetRefCount() == 0);
@@ -1059,9 +1059,9 @@ public:
 					{
 						PackageRef.bIsMissing = false;
 						UE_LOG(LogStreaming, Warning,
-							TEXT("FGlobalImportStore:AddPackageRef: Found reference to previously missing package %s (0x%llX)"),
+							TEXT("FGlobalImportStore:AddPackageRef: Found reference to previously missing package %s (0x%s)"),
 							*FoundPackage->GetName(),
-							PackageId.ValueForDebugging()
+							*LexToString(PackageId)
 						);
 					}
 
@@ -1083,10 +1083,10 @@ public:
 				if (Package->IsUnreachable() || PackageRef.GetOriginalPackageName() != Package->GetFName())
 				{
 					UE_CLOG(!Package->IsUnreachable(), LogStreaming, Display,
-						TEXT("FGlobalImportStore:AddPackageRef: Dropping renamed package %s before reloading %s (0x%llX)"),
+						TEXT("FGlobalImportStore:AddPackageRef: Dropping renamed package %s before reloading %s (0x%s)"),
 						*Package->GetName(),
 						*PackageRef.GetOriginalPackageName().ToString(),
-						Package->GetPackageId().ValueForDebugging());
+						*LexToString(Package->GetPackageId()));
 
 					RemoveUnreferencedObsoletePackage(PackageRef);
 				}
@@ -1114,11 +1114,11 @@ public:
 
 #if DO_CHECK
 		ensureMsgf(!PackageRef.bHasBeenLoadedDebug || PackageRef.bAreAllPublicExportsLoaded || PackageRef.bIsMissing || PackageRef.bHasFailed,
-			TEXT("LoadedPackageRef from None (0x%llX) to %s (0x%llX) should not have been released when the package is not complete.")
+			TEXT("LoadedPackageRef from None (0x%s) to %s (0x%s) should not have been released when the package is not complete.")
 			TEXT("RefCount=%d, AreAllExportsLoaded=%d, IsMissing=%d, HasFailed=%d, HasBeenLoaded=%d"),
-			FromPackageId.ValueForDebugging(),
+			*LexToString(FromPackageId),
 			*PackageRef.GetOriginalPackageName().ToString(),
-			PackageId.Value(),
+			*LexToString(PackageId),
 			PackageRef.RefCount,
 			PackageRef.bAreAllPublicExportsLoaded,
 			PackageRef.bIsMissing,
@@ -1295,10 +1295,10 @@ public:
 		FPackageId PackageId = Package->GetPackageId();
 
 		UE_CLOG(PackageRef.GetRefCount() > 0, LogStreaming, Fatal,
-			TEXT("FGlobalImportStore::VerifyPackageForRemoval: %s (0x%llX) - ")
+			TEXT("FGlobalImportStore::VerifyPackageForRemoval: %s (0x%s) - ")
 			TEXT("Package removed while still being referenced, RefCount %d > 0."),
 			*Package->GetName(),
-			PackageId.ValueForDebugging(),
+			*LexToString(PackageId),
 			PackageRef.GetRefCount());
 
 		for (auto It = PackageRef.GetPublicExportObjectIndices(); It; ++It)
@@ -4337,7 +4337,7 @@ bool FAsyncLoadingThread2::CreateAsyncPackagesFromQueue(FAsyncLoadingThreadState
 		if (PendingPackageStatus == EPackageStoreEntryStatus::Ok)
 		{
 			SCOPED_CUSTOM_LOADTIMER(CreateAsyncPackage)
-				ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageId, PendingPackage->Desc.UPackageId.ValueForDebugging())
+				ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageId, PendingPackage->Desc.UPackageId.Value())
 				ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageName, *WriteToString<256>(PendingPackage->Desc.UPackageName));
 			InitializeAsyncPackageFromPackageStore(ThreadState, &IoBatch, PendingPackage, PackageEntry);
 			PendingPackage->StartLoading(ThreadState, IoBatch);
@@ -4480,7 +4480,7 @@ bool FAsyncLoadingThread2::CreateAsyncPackagesFromQueue(FAsyncLoadingThreadState
 					else
 					{
 						SCOPED_CUSTOM_LOADTIMER(CreateAsyncPackage)
-							ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageId, PackageDesc.UPackageId.ValueForDebugging())
+							ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageId, PackageDesc.UPackageId.Value())
 							ADD_CUSTOM_LOADTIMER_META(CreateAsyncPackage, PackageName, NameBuffer);
 
 						check(PackageStatus == EPackageStoreEntryStatus::Ok);
@@ -5077,7 +5077,7 @@ void FAsyncPackage2::ImportPackagesRecursiveInner(FAsyncLoadingThreadState2& Thr
 			UPackage* UncookedPackage = ImportedPackageRef.GetPackage();
 			if (!ImportedPackageRef.AreAllPublicExportsLoaded())
 			{
-				UE_ASYNC_PACKAGE_LOG(Verbose, Desc, TEXT("ImportPackages: LoadUncookedImport"), TEXT("Loading imported uncooked package '%s' '0x%llX'"), *ImportedPackageNameToLoad.ToString(), ImportedPackageId.ValueForDebugging());
+				UE_ASYNC_PACKAGE_LOG(Verbose, Desc, TEXT("ImportPackages: LoadUncookedImport"), TEXT("Loading imported uncooked package '%s' '0x%s'"), *ImportedPackageNameToLoad.ToString(), *LexToString(ImportedPackageId));
 				check(IsInGameThread());
 				IoBatch.Issue(); // The batch might already contain requests for packages being imported from the uncooked one we're going to load so make sure that those are started before blocking
 				int32 ImportRequestId = AsyncLoadingThread.UncookedPackageLoader->LoadPackage(ImportedPackagePath, NAME_None, FLoadPackageAsyncDelegate(), PKG_None, INDEX_NONE, 0, nullptr, LOAD_None);
@@ -5129,7 +5129,7 @@ void FAsyncPackage2::ImportPackagesRecursiveInner(FAsyncLoadingThreadState2& Thr
 			{
 				ImportedPackageRef.SetHasFailed();
 				UE_ASYNC_PACKAGE_LOG(Warning, Desc, TEXT("ImportPackages: SkipPackage"),
-					TEXT("Failed to load uncooked imported package with id '0x%llX' ('%s')"), ImportedPackageId.ValueForDebugging(), *ImportedPackageNameToLoad.ToString());
+					TEXT("Failed to load uncooked imported package with id '0x%s' ('%s')"), *LexToString(ImportedPackageId), *ImportedPackageNameToLoad.ToString());
 			}
 			continue;
 		}
@@ -5160,7 +5160,7 @@ void FAsyncPackage2::ImportPackagesRecursiveInner(FAsyncLoadingThreadState2& Thr
 			if (!ImportedPackageRef.HasPackage()) // If we found a package it's not actually missing but we can't load it anyway
 			{
 				UE_ASYNC_PACKAGE_CLOG(!ImportedPackageUPackageName.IsNone(), Display, Desc, TEXT("ImportPackages: SkipPackage"),
-					TEXT("Skipping non mounted imported package %s (0x%llX)"), *ImportedPackageNameToLoad.ToString(), ImportedPackageId.ValueForDebugging());
+					TEXT("Skipping non mounted imported package %s (0x%s)"), *ImportedPackageNameToLoad.ToString(), *LexToString(ImportedPackageId));
 				if (!ImportedPackageUPackageName.IsNone())
 				{
 					FName PackagePathToLoadName = Desc.PackagePathToLoad.GetPackageFName();
@@ -9084,8 +9084,8 @@ void FAsyncPackage2::CreateUPackage()
 		else if (ExistingPackage != LinkerRoot)
 		{
 			UE_ASYNC_PACKAGE_LOG(Warning, Desc, TEXT("CreateUPackage: ReplacePackage"),
-				TEXT("Replacing renamed package %s (0x%llX) while being referenced by the loader, RefCount=%d"),
-				*ExistingPackage->GetName(), ExistingPackage->GetPackageId().ValueForDebugging(),
+				TEXT("Replacing renamed package %s (0x%s) while being referenced by the loader, RefCount=%d"),
+				*ExistingPackage->GetName(), *LexToString(ExistingPackage->GetPackageId()),
 				PackageRef.GetRefCount());
 
 			AsyncLoadingThread.GlobalImportStore.ReplaceReferencedRenamedPackage(PackageRef, LinkerRoot);
@@ -9338,8 +9338,8 @@ void FAsyncLoadingThread2::QueueMissingPackage(FAsyncLoadingThreadState2& Thread
 	}
 
 	UE_CLOG(bIssueWarning, LogStreaming, Warning,
-		TEXT("LoadPackage: SkipPackage: %s (0x%llX) - The package to load does not exist on disk or in the loader"),
-		*FailedPackageName.ToString(), PackageDesc.PackageIdToLoad.ValueForDebugging());
+		TEXT("LoadPackage: SkipPackage: %s (0x%s) - The package to load does not exist on disk or in the loader"),
+		*FailedPackageName.ToString(), *LexToString(PackageDesc.PackageIdToLoad));
 
 	if (PackageProgressDelegate.IsValid())
 	{

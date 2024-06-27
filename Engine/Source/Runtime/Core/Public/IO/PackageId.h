@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 #include "Misc/AssertionMacros.h"
 #include "UObject/NameTypes.h"
@@ -38,10 +39,10 @@ public:
 
 	inline uint64 Value() const
 	{
-		check(Id != InvalidId);
 		return Id;
 	}
 
+	UE_DEPRECATED(5.5, "Use LexToString()")
 	inline uint64 ValueForDebugging() const
 	{
 		return Id;
@@ -77,3 +78,6 @@ public:
 	CORE_API FName GetName() const;
 #endif
 };
+
+CORE_API FString LexToString(const FPackageId& PackageId);
+

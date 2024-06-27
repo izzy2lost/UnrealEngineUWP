@@ -6599,7 +6599,7 @@ EAsyncPackageState::Type FAsyncPackage::LoadImports()
 					PackageLocation = FPackageName::DoesPackageExistEx(ImportedPackagePath, PackageLocation, false /* bMatchCaseOnDisk */, nullptr);
 					if (PackageLocation == FPackageName::EPackageLocationFilter::IoDispatcher)
 					{
-						UE_LOG(LogStreaming, Verbose, TEXT("FAsyncPackage::LoadImports for %s: Loading %s (0x%llX) using IoStore package loader"), *Desc.PackagePath.GetDebugName(), *ImportPackageName, FPackageId::FromName(ImportPackageFName).ValueForDebugging());
+						UE_LOG(LogStreaming, Verbose, TEXT("FAsyncPackage::LoadImports for %s: Loading %s (0x%s) using IoStore package loader"), *Desc.PackagePath.GetDebugName(), *ImportPackageName, *LexToString(FPackageId::FromName(ImportPackageFName)));
 						check(IsInGameThread());
 						FAsyncLoadingThread::LeaveAsyncLoadingTick(AsyncLoadingThread.GetThreadIndex()); // Fix thread check that triggers if we recurse back into the uncooked package loader from here
 						int32 ImportRequestId = IoStorePackageLoader->LoadPackage(ImportedPackagePath, NAME_None, FLoadPackageAsyncDelegate(), PKG_None, INDEX_NONE, 0, nullptr, LOAD_None);

@@ -1122,10 +1122,10 @@ public:
 	{
 		if (OutputArchive.IsValid())
 		{
-			OutputArchive->Logf(TEXT("%d, %s, 0x%llX, %s, %s, %s, %lld, %lld, %lld, %lld, 0x%s, %s, %s"),
+			OutputArchive->Logf(TEXT("%d, %s, 0x%s, %s, %s, %s, %lld, %lld, %lld, %lld, 0x%s, %s, %s"),
 				Index,
 				*LexToString(Info.Id),
-				PackageId.ValueForDebugging(),
+				*LexToString(PackageId),
 				*PackageName,
 				*Info.FileName,
 				*ContainerName,
@@ -6405,8 +6405,8 @@ bool ListContainerBulkData(
 				{
 					Sb.Reset();
 					LexToString(static_cast<EBulkDataFlags>(Entry.Flags), Sb);
-					CsvAr->Logf(TEXT("%s,%s,0x%llX,%lld,%lld,%s"),
-						*Container.Name, *Pkg.Filename, Pkg.Id.Value(), Entry.SerialOffset, Entry.SerialSize, Sb.ToString());
+					CsvAr->Logf(TEXT("%s,%s,0x%s,%lld,%lld,%s"),
+						*Container.Name, *Pkg.Filename, *LexToString(Pkg.Id), Entry.SerialOffset, Entry.SerialSize, Sb.ToString());
 				}
 			}
 		}
@@ -7317,7 +7317,8 @@ namespace DescribeUtils
 							Import.Export = ExportByKeyMap.FindRef(Key);
 							if (!Import.Export)
 							{
-								UE_LOG(LogIoStore, Warning, TEXT("Missing import: 0x%llX in package 0x%llX '%s'"), Import.GlobalImportIndex.Value(), PackageDesc->PackageId.ValueForDebugging(), *PackageDesc->PackageName.ToString());
+								UE_LOG(LogIoStore, Warning, TEXT("Missing import: 0x%llX in package 0x%s '%s'"),
+									Import.GlobalImportIndex.Value(), *LexToString(PackageDesc->PackageId), *PackageDesc->PackageName.ToString());
 							}
 							else
 							{
@@ -7333,7 +7334,7 @@ namespace DescribeUtils
 							}
 							else
 							{
-								UE_LOG(LogIoStore, Warning, TEXT("Missing Script Object for Import: 0x%llX in package 0x%llX '%s'"), Import.GlobalImportIndex.Value(), PackageDesc->PackageId.ValueForDebugging(), *PackageDesc->PackageName.ToString());
+								UE_LOG(LogIoStore, Warning, TEXT("Missing Script Object for Import: 0x%llX in package 0x%s '%s'"), Import.GlobalImportIndex.Value(), *LexToString(PackageDesc->PackageId), *PackageDesc->PackageName.ToString());
 							}
 						}
 					}
@@ -7550,7 +7551,7 @@ int32 Describe(
 						bNeedsHeader = false;
 					}
 					OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t*************************"));
-					OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t           Source: 0x%llX '%s'"), LocalizedPackage->PackageId.ValueForDebugging(), *LocalizedPackage->PackageName.ToString());
+					OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t           Source: 0x%s '%s'"), *LexToString(LocalizedPackage->PackageId), *LocalizedPackage->PackageName.ToString());
 				}
 			}
 
@@ -7571,8 +7572,8 @@ int32 Describe(
 						bNeedsHeader = false;
 					}
 					OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t*************************"));
-					OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t           Source: 0x%llX '%s'"), Redirect.Source->PackageId.ValueForDebugging(), *Redirect.Source->PackageName.ToString());
-					OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t           Target: 0x%llX '%s'"), Redirect.Target->PackageId.ValueForDebugging(), *Redirect.Target->PackageName.ToString());
+					OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t           Source: 0x%s '%s'"), *LexToString(Redirect.Source->PackageId), *Redirect.Source->PackageName.ToString());
+					OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t           Target: 0x%s '%s'"), *LexToString(Redirect.Target->PackageId), *Redirect.Target->PackageName.ToString());
 				}
 			}
 		}
@@ -7583,7 +7584,7 @@ int32 Describe(
 			OutputOverride->Logf(ELogVerbosity::Display, TEXT("Package '%s' Summary"), *PackageDesc->PackageName.ToString());
 			OutputOverride->Logf(ELogVerbosity::Display, TEXT("--------------------------------------------"));
 
-			OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t        PackageId: 0x%llX"), PackageDesc->PackageId.ValueForDebugging());
+			OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t        PackageId: 0x%s"), *LexToString(PackageDesc->PackageId));
 			OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t     PackageFlags: %X"), PackageDesc->PackageFlags);
 			OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t        NameCount: %d"), PackageDesc->NameCount);
 			OutputOverride->Logf(ELogVerbosity::Display, TEXT("\t\t      ImportCount: %d"), PackageDesc->Imports.Num());

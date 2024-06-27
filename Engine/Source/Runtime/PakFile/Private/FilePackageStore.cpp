@@ -361,7 +361,7 @@ bool FFilePackageStoreBackend::GetPackageRedirectInfo(FPackageId PackageId, FNam
 	{
 		OutSourcePackageName = FindRedirect->Get<0>();
 		OutRedirectedToPackageId = FindRedirect->Get<1>();
-		UE_LOG(LogFilePackageStore, Verbose, TEXT("Redirecting from %s to 0x%llx"), *OutSourcePackageName.ToString(), OutRedirectedToPackageId.Value());
+		UE_LOG(LogFilePackageStore, Verbose, TEXT("Redirecting from %s to 0x%s"), *OutSourcePackageName.ToString(), *LexToString(OutRedirectedToPackageId));
 		return true;
 	}
 	
@@ -376,7 +376,7 @@ bool FFilePackageStoreBackend::GetPackageRedirectInfo(FPackageId PackageId, FNam
 			{
 				OutSourcePackageName = *FindLocalizedPackageSourceName;
 				OutRedirectedToPackageId = LocalizedPackageId;
-				UE_LOG(LogFilePackageStore, Verbose, TEXT("Redirecting from localized package %s to 0x%llx"), *OutSourcePackageName.ToString(), OutRedirectedToPackageId.Value());
+				UE_LOG(LogFilePackageStore, Verbose, TEXT("Redirecting from localized package %s to 0x%s"), *OutSourcePackageName.ToString(), *LexToString(OutRedirectedToPackageId));
 				return true;
 			}
 		}
