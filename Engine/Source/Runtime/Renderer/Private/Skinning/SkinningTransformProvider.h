@@ -10,6 +10,7 @@
 #include "Matrix3x4.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Delegates/Delegate.h"
+#include "GameTime.h"
 
 class FSkinningTransformProvider : public ISceneExtension
 {
@@ -30,6 +31,7 @@ public:
 		FProviderContext(
 			const TConstArrayView<FPrimitiveSceneInfo*> InPrimitives,
 			const TConstArrayView<FUintVector2> InIndirections,
+			const FGameTime& InGameTime,
 			FRDGBuilder& InGraphBuilder,
 			FRDGBufferRef InTransformBuffer
 		)
@@ -37,6 +39,7 @@ public:
 		, Indirections(InIndirections)
 		, GraphBuilder(InGraphBuilder)
 		, TransformBuffer(InTransformBuffer)
+		, GameTime(InGameTime)
 		{
 		}
 
@@ -45,6 +48,8 @@ public:
 
 		FRDGBuilder& GraphBuilder;
 		FRDGBufferRef TransformBuffer;
+
+		FGameTime GameTime;
 	};
 
 	DECLARE_DELEGATE_OneParam(FOnProvideTransforms, FProviderContext&);

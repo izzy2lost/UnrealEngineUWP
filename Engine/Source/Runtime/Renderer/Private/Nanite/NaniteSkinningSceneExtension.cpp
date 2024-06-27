@@ -337,9 +337,12 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 			TConstArrayView<FPrimitiveSceneInfo*> PrimitivesView(Primitives, PrimitiveCount);
 			TConstArrayView<FUintVector2> IndiciesView(PrimitiveIndices, IndirectionCount);
 
+			const FGameTime GameTime = Scene->GetWorld()->GetTime();
+
 			FSkinningTransformProvider::FProviderContext Context(
 				PrimitivesView,
 				IndiciesView,
+				GameTime,
 				GraphBuilder,
 				TransformBuffer
 			);
