@@ -20,7 +20,7 @@ namespace HordeServer.Acls
 	/// <summary>
 	/// Wraps functionality for manipulating permissions
 	/// </summary>
-	public class AclService
+	public class AclService : IAclService
 	{
 		private readonly GlobalsService _globalsService;
 
@@ -76,57 +76,6 @@ namespace HordeServer.Acls
 			{
 				return new AgentId(claim.Value);
 			}
-		}
-	}
-
-	internal static class ClaimExtensions
-	{
-		public static bool HasAgentClaim(this ClaimsPrincipal user, AgentId agentId)
-		{
-			return user.HasClaim(HordeClaimTypes.Agent, agentId.ToString());
-		}
-
-		public static bool HasLeaseClaim(this ClaimsPrincipal user, LeaseId leaseId)
-		{
-			return user.HasClaim(HordeClaimTypes.Lease, leaseId.ToString());
-		}
-
-		public static bool HasSessionClaim(this ClaimsPrincipal user, SessionId sessionId)
-		{
-			return user.HasClaim(HordeClaimTypes.AgentSessionId, sessionId.ToString());
-		}
-
-		public static LeaseId? GetLeaseClaim(this ClaimsPrincipal user)
-		{
-			Claim? claim = user.FindFirst(HordeClaimTypes.Lease);
-			if (claim == null || !LeaseId.TryParse(claim.Value, out LeaseId leaseIdValue))
-			{
-				return null;
-			}
-			else
-			{
-				return leaseIdValue;
-			}
-		}
-
-		public static SessionId? GetSessionClaim(this ClaimsPrincipal user)
-		{
-			Claim? claim = user.FindFirst(HordeClaimTypes.AgentSessionId);
-			if (claim == null || !SessionId.TryParse(claim.Value, out SessionId sessionIdValue))
-			{
-				return null;
-			}
-			else
-			{
-				return sessionIdValue;
-			}
-		}
-
-		public static string GetSessionClaimsAsString(this ClaimsPrincipal user)
-		{
-			return String.Join(",", user.Claims
-				.Where(c => c.Type == HordeClaimTypes.AgentSessionId)
-				.Select(c => c.Value));
 		}
 	}
 }

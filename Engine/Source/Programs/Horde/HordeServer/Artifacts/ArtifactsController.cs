@@ -37,6 +37,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using EpicGames.Horde.Acls;
+using HordeServer.Agents;
 
 namespace HordeServer.Artifacts
 {

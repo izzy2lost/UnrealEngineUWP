@@ -260,28 +260,6 @@ public static class OpenTelemetrySpanExtensions
 		return span;
 	}
 
-	/// <summary>Set a key:value tag on the span</summary>
-	/// <returns>This span instance, for chaining</returns>
-	public static TelemetrySpan SetAttribute(this TelemetrySpan span, string key, int? value)
-	{
-		if (value != null)
-		{
-			span.SetAttribute(key, value.Value);
-		}
-		return span;
-	}
-
-	/// <summary>Set a key:value tag on the span</summary>
-	/// <returns>This span instance, for chaining</returns>
-	public static TelemetrySpan SetAttribute(this TelemetrySpan span, string key, DateTimeOffset? value)
-	{
-		if (value != null)
-		{
-			span.SetAttribute(key, value.ToString());
-		}
-		return span;
-	}
-
 	/// <inheritdoc cref="TelemetrySpan.SetAttribute(System.String, System.String)"/>
 	public static TelemetrySpan SetAttribute(this TelemetrySpan span, string key, StreamId? value) => span.SetAttribute(key, value?.ToString());
 

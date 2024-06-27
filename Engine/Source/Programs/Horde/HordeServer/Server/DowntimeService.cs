@@ -12,20 +12,6 @@ using Microsoft.Extensions.Options;
 namespace HordeServer.Server
 {
 	/// <summary>
-	/// Interface for a service which keeps track of whether we're during downtime
-	/// </summary>
-	public interface IDowntimeService
-	{
-		/// <summary>
-		/// Returns true if downtime is currently active
-		/// </summary>
-		public bool IsDowntimeActive
-		{
-			get;
-		}
-	}
-
-	/// <summary>
 	/// Service which manages the downtime schedule
 	/// </summary>
 	public sealed class DowntimeService : IDowntimeService, IHostedService, IAsyncDisposable

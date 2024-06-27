@@ -10,6 +10,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
 using HordeServer.Acls;
+using HordeServer.Agents;
 using HordeServer.Server;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;

@@ -10,7 +10,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Allows spawning async tasks that will run sequentially, and allows waiting for them to complete
 	/// </summary>
-	class AsyncTaskQueue : IAsyncDisposable
+	public sealed class AsyncTaskQueue : IAsyncDisposable
 	{
 		readonly object _lockObject = new object();
 		Task _task;

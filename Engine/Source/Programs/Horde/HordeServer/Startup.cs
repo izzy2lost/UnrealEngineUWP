@@ -442,6 +442,7 @@ namespace HordeServer
 			services.AddHostedService(provider => provider.GetRequiredService<AgentRelayService>());
 
 			services.AddSingleton<AclService>();
+			services.AddSingleton<IAclService>(sp => sp.GetRequiredService<AclService>());
 			services.AddSingleton<AgentService>();
 			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
 			services.AddHostedService<ArtifactExpirationService>();

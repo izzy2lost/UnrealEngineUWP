@@ -14,6 +14,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using HordeServer.Acls;
+using HordeServer.Agents;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 
