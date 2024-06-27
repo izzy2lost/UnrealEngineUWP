@@ -59,15 +59,6 @@ uint4 PassData;
 #if SUBSTRATE_FIRST_MRT_INDEX > 4
 	#error Substrate doesn't currently handle more than 4 base GBuffer MRTs
 #endif
-#if SUBSTRATE_FIRST_MRT_INDEX == 4
-	#define SUBSTRATE_TOP_LAYER_NAME ComputeShadingOutputs.OutTarget4
-#elif SUBSTRATE_FIRST_MRT_INDEX == 3
-	#define SUBSTRATE_TOP_LAYER_NAME ComputeShadingOutputs.OutTarget3
-#elif SUBSTRATE_FIRST_MRT_INDEX == 2
-	#define SUBSTRATE_TOP_LAYER_NAME ComputeShadingOutputs.OutTarget2
-#else
-	#define SUBSTRATE_TOP_LAYER_NAME ComputeShadingOutputs.OutTarget1
-#endif
 #else // SUBSTRATE_OPAQUE_DEFERRED
 
 #endif // SUBSTRATE_OPAQUE_DEFERRED
@@ -130,14 +121,14 @@ void ConditionalExport(bool Forced, uint2 PixelPos, FPixelShaderOut ShadedPixel,
 	}
 }
 
-void ConditionalExport(bool Forced, RWTexture2D<SUBSTRATE_TOP_LAYER_TYPE> OutTarget, uint2 PixelPos, SUBSTRATE_TOP_LAYER_TYPE TopLayerData)
+void ConditionalExport(bool Forced, uint2 PixelPos, SUBSTRATE_TOP_LAYER_TYPE TopLayerData)
 {
 #if CONDITIONAL_EXPORT
 	BRANCH
 	if (Forced || any(TopLayerData != 0))
 #endif
 	{
-		OutTarget[PixelPos] = TopLayerData;
+		ComputeShadingOutputs.OutTopLayerTarget[PixelPos] = TopLayerData;
 	}
 }
 
@@ -180,7 +171,7 @@ void ExportPixel(const uint2 PixelPos, FPixelShaderOut ShadedPixel)
 	ConditionalExport(true,  PixelPos, ShadedPixel, 0);
 	ConditionalExport(false, PixelPos, ShadedPixel, 1);
 	ConditionalExport(false, PixelPos, ShadedPixel, 2);
-	ConditionalExport(true, SUBSTRATE_TOP_LAYER_NAME, PixelPos, ShadedPixel.SubstrateTopLayerData);
+	ConditionalExport(true,  PixelPos, ShadedPixel.SubstrateTopLayerData);
 
 #else // SUBSTRATE_OPAQUE_DEFERRED
 

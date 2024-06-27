@@ -1030,10 +1030,12 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	if (Substrate::IsSubstrateEnabled())
 	{
 		ShadingOutputs->OutTargets = GraphBuilder.CreateUAV(SceneRenderer.Scene->SubstrateSceneData.MaterialTextureArray, OutTargetFlags);
+		ShadingOutputs->OutTopLayerTarget = GraphBuilder.CreateUAV(SceneRenderer.Scene->SubstrateSceneData.TopLayerTexture, OutTargetFlags);
 	}
 	else
 	{
 		ShadingOutputs->OutTargets = GetDummyUAV();
+		ShadingOutputs->OutTopLayerTarget = GetDummyUAV();
 	}
 
 	const bool bMaintainCompression = (GNaniteFastTileClear == 2) && RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform);
