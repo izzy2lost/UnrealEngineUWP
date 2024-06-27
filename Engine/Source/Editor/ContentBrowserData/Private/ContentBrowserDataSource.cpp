@@ -587,8 +587,14 @@ FContentBrowserItemData UContentBrowserDataSource::CreateVirtualFolderItem(const
 {
 	const FString FolderItemName = FPackageName::GetShortName(InFolderPath);
 
+	static const FName AllRootPath = "/All";
+
 	FText FolderDisplayNameOverride;
-	if (FolderItemName == TEXT("GameData"))
+	if (InFolderPath == AllRootPath)
+	{
+		FolderDisplayNameOverride = LOCTEXT("AllFolderDisplayName", "All");
+	}
+	else if (FolderItemName == TEXT("GameData"))
 	{
 		FolderDisplayNameOverride = LOCTEXT("GameDataFolderDisplayName", "Game Data");
 	}
