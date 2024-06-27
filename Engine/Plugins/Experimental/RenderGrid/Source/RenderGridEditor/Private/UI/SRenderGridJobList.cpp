@@ -28,6 +28,7 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SScaleBox.h"
+#include "LevelSequence.h"
 
 #define LOCTEXT_NAMESPACE "SRenderGridJobList"
 

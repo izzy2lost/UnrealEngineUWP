@@ -7,6 +7,7 @@
 #include "MediaPlayerProxyInterface.h"
 #include "MovieScene.h"
 #include "Misc/FrameRate.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneMediaSection)
 

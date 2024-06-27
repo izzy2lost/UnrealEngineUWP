@@ -14,6 +14,7 @@
 #include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
 #include "TrackInstances/MovieSceneCameraCutTrackInstance.h"
 #include "Tracks/MovieSceneCameraCutTrack.h"
+#include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 
 #include "ActorEditorUtils.h"
 #include "ActorTreeItem.h"
