@@ -26,7 +26,7 @@ namespace mx = MaterialX;
 //not a good solution to use semicolon because of drive disk on Windows
 const TCHAR FMaterialXManager::TexturePayloadSeparator = TEXT('{');
 
-#define MX_MATERIALFUNCTION(AssetName) TEXT("/Interchange/") + FString{bIsSubstrateEnabled ? TEXT("Substrate/") : TEXT("Functions/")} + TEXT(AssetName) TEXT(".") TEXT(AssetName)
+#define MX_MATERIALFUNCTION(AssetName) TEXT("/InterchangeAssets/") + FString{bIsSubstrateEnabled ? TEXT("Substrate/") : TEXT("Functions/")} + TEXT(AssetName) TEXT(".") TEXT(AssetName)
 
 FMaterialXManager::FMaterialXManager()
 	: MatchingInputNames {
@@ -242,9 +242,7 @@ FMaterialXManager::FMaterialXManager()
 			// Utility nodes
 			{mx::Category::ArtisticIOR,				FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Artistic_IOR.MX_Artistic_IOR")}},
 			{mx::Category::RoughnessAnisotropy,		FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy")}},
-			{mx::Category::RoughnessDual,			FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual")}},
-			// Math
-			{mx::Category::Place2D,					FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Place2D.MX_Place2D")}},
+			{mx::Category::RoughnessDual,			FMaterialXMaterialFunction{TInPlaceType<FString>{}, TEXT("/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual")}}
 		};
 
 		if(bIsSubstrateEnabled)
@@ -383,10 +381,10 @@ namespace UE::Interchange::MaterialX
 			return bAllLoaded;
 		};
 
-		static const bool bPackagesLoaded = ArePackagesLoaded({ TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions03/Procedurals/NormalFromHeightmap.NormalFromHeightmap'"),
-																TEXT("MaterialFunction'/Interchange/Functions/MX_Artistic_IOR.MX_Artistic_IOR'"),
-																TEXT("MaterialFunction'/Interchange/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy'"),
-																TEXT("MaterialFunction'/Interchange/Functions/MX_Roughness_Dual.MX_Roughness_Dual'"),
+		static const bool bPackagesLoaded =	ArePackagesLoaded({ TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions03/Procedurals/NormalFromHeightmap.NormalFromHeightmap'"),
+															    TEXT("MaterialFunction'/InterchangeAssets/Functions/MX_Artistic_IOR.MX_Artistic_IOR'"),
+															    TEXT("MaterialFunction'/InterchangeAssets/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy'"), 
+															    TEXT("MaterialFunction'/InterchangeAssets/Functions/MX_Roughness_Dual.MX_Roughness_Dual'"),
 																TEXT("MaterialFunction'/Interchange/Functions/MX_Place2D.MX_Place2D'"),
 															  });
 

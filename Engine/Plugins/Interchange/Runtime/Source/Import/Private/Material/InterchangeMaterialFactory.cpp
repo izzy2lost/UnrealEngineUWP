@@ -937,7 +937,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 	else if (const UInterchangeDecalMaterialFactoryNode* DecalMaterialFactoryNode = Cast<UInterchangeDecalMaterialFactoryNode>(MaterialFactoryNode))
 	{
 #if WITH_EDITOR
-		const FSoftObjectPath DecalMaterialParent(TEXT("/Interchange/Materials/DecalMaterial.DecalMaterial"));
+		const FSoftObjectPath DecalMaterialParent(TEXT("/InterchangeAssets/Materials/DecalMaterial.DecalMaterial"));
 		const FName DiffuseTextureParameterName(TEXT("DecalTexture"));
 		const FName NormalTextureParameterName(TEXT("NormalTexture"));
 		if (UMaterialInstanceConstant* MaterialInstanceConstant = Cast<UMaterialInstanceConstant>(Material))

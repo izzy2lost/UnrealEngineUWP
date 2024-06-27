@@ -130,7 +130,7 @@ namespace UE::Interchange::InterchangeGenericMaterialPipeline::Private
 			TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions01/Texturing/FlattenNormal.FlattenNormal'"),
 			TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions02/Utility/MakeFloat3.MakeFloat3'"),
 			TEXT("MaterialFunction'/Engine/Functions/Engine_MaterialFunctions02/Texturing/CustomRotator.CustomRotator'"),
-			TEXT("MaterialFunction'/Interchange/Functions/MF_PhongToMetalRoughness.MF_PhongToMetalRoughness'"),
+			TEXT("MaterialFunction'/InterchangeAssets/Functions/MF_PhongToMetalRoughness.MF_PhongToMetalRoughness'"),
 		};
 
 		static const bool bRequiredPackagesLoaded = ArePackagesLoaded(RequiredPackages);
@@ -1204,7 +1204,7 @@ bool UInterchangeGenericMaterialPipeline::HandlePhongModel(const UInterchangeSha
 	if (IsPhongModel(ShaderGraphNode))
 	{
 		// ConvertFromDiffSpec function call
-		const FString MaterialFunctionPath = TEXT("MaterialFunction'/Interchange/Functions/MF_PhongToMetalRoughness.MF_PhongToMetalRoughness'");
+		const FString MaterialFunctionPath = TEXT("MaterialFunction'/InterchangeAssets/Functions/MF_PhongToMetalRoughness.MF_PhongToMetalRoughness'");
 		UInterchangeMaterialExpressionFactoryNode* FunctionCallExpression = CreateExpressionWithMaterialFunction(BaseNodeContainer, MaterialFactoryNode, TEXT("DiffSpecFunc"), MaterialFunctionPath);
 
 		const FString FunctionCallExpressionUid = FunctionCallExpression->GetUniqueID();
@@ -3199,7 +3199,7 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 			ParentRootName = TEXT("PBRSurfaceMaterial_");
 		}
 
-		const FString ParentAssetPath = TEXT("/Interchange/Materials/") + ParentRootName + Model + TEXT(".") + ParentRootName + Model;
+		const FString ParentAssetPath = TEXT("/InterchangeAssets/Materials/") + ParentRootName + Model + TEXT(".") + ParentRootName + Model;
 		MaterialInstanceFactoryNode->SetCustomParent(ParentAssetPath);
 	};
 
@@ -3217,20 +3217,20 @@ UInterchangeMaterialInstanceFactoryNode* UInterchangeGenericMaterialPipeline::Cr
 	}
 	else if (IsPhongModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/PhongSurfaceMaterial.PhongSurfaceMaterial"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/InterchangeAssets/Materials/PhongSurfaceMaterial.PhongSurfaceMaterial"));
 	}
 	else if (IsLambertModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/LambertSurfaceMaterial.LambertSurfaceMaterial"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/InterchangeAssets/Materials/LambertSurfaceMaterial.LambertSurfaceMaterial"));
 	}
 	else if (IsUnlitModel(ShaderGraphNode))
 	{
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/UnlitMaterial.UnlitMaterial"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/InterchangeAssets/Materials/UnlitMaterial.UnlitMaterial"));
 	}
 	else
 	{
 		// Default to PBR
-		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/Interchange/Materials/PBRSurfaceMaterial.PBRSurfaceMaterial"));
+		MaterialInstanceFactoryNode->SetCustomParent(TEXT("/InterchangeAssets/Materials/PBRSurfaceMaterial.PBRSurfaceMaterial"));
 	}
 
 #if WITH_EDITOR

@@ -98,6 +98,10 @@
 		{
 			"Name": "VariantManager",
 			"Enabled": true
+		},
+		{
+			"Name": "InterchangeAssets",
+			"Enabled": true
 		}
 	],
 	"IsExperimentalVersion": false,

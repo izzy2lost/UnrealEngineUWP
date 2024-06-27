@@ -287,7 +287,7 @@ namespace GLTF
 		{
 			// We'll actually just convert it into MetalRoughness in the material graph
 			FMaterialExpressionFunctionCall* SpecGlossToMetalRough = MaterialElement.AddMaterialExpression<FMaterialExpressionFunctionCall>();
-			SpecGlossToMetalRough->SetFunctionPathName(TEXT("/Interchange/gltf/SpecGlossToMetalRoughness.SpecGlossToMetalRoughness"));
+			SpecGlossToMetalRough->SetFunctionPathName(TEXT("/InterchangeAssets/gltf/SpecGlossToMetalRoughness.SpecGlossToMetalRoughness"));
 			SpecGlossToMetalRough->ConnectExpression(*BaseColorInput, 0);
 
 			if (!GLTFMaterial.bIsUnlitShadingModel)
