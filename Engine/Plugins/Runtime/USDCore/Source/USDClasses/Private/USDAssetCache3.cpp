@@ -1107,14 +1107,14 @@ UUsdAssetCache3::UUsdAssetCache3()
 
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 	AssetRegistryModule.Get().OnAssetRenamed().AddUObject(this, &UUsdAssetCache3::OnRegistryAssetRenamed);
-
-	const bool bEmitWarning = false;
-	ForceValidAssetDirectoryInternal(bEmitWarning);
 }
 
 void UUsdAssetCache3::PostLoad()
 {
 	Super::PostLoad();
+
+	const bool bEmitWarning = false;
+	ForceValidAssetDirectoryInternal(bEmitWarning);
 
 	// There is nothing to load us whenever an asset is added to our AssetDirectory while we were unloaded, so let's
 	// make sure we do a new scan whenever we do get loaded to pick up on any new assets that may have been added.
