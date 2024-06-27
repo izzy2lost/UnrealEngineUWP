@@ -13,6 +13,7 @@
 
 #if WITH_EDITOR
 #include "Editor.h"
+#include "ScopedTransaction.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "CCR"
@@ -52,6 +53,7 @@ namespace
 		{
 			InRegion->Priority = HighestPriority + (HighestPriority == 0 ? 1 : FMath::Max(CVarCCRPriorityIncrement.GetValueOnAnyThread(), 1));
 #if WITH_EDITOR
+			const FScopedTransaction Transaction(LOCTEXT("NewPriorityAssigned", "New Priority Assigned to CC Actor."));
 			InRegion->Modify();
 #endif
 		}
@@ -307,13 +309,6 @@ void UColorCorrectRegionsSubsystem::OnDuplicateActorsEnd()
 {
 	bDuplicationStarted = false; 
 
-#if WITH_EDITOR
-	if (GEditor)
-	{
-		GEditor->BeginTransaction(LOCTEXT("PerActorCCActorAssigned", "Per actor CC Actor Assigned"));
-	}
-#endif
-
 	for (AActor* DuplicatedActor : DuplicatedActors)
 	{
 		if (AColorCorrectRegion* AsRegion = Cast<AColorCorrectRegion>(DuplicatedActor))
@@ -327,14 +322,6 @@ void UColorCorrectRegionsSubsystem::OnDuplicateActorsEnd()
 	}
 
 	DuplicatedActors.Empty();
-
-#if WITH_EDITOR
-	if (GEditor)
-	{
-		this->Modify(false);
-		GEditor->EndTransaction();
-	}
-#endif
 }
 
 void UColorCorrectRegionsSubsystem::AssignStencilIdsToPerActorCC(AColorCorrectRegion* Region, bool bIgnoreUserNotificaion, bool bSoftAssign)
