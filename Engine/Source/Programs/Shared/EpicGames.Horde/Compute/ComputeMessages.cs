@@ -108,7 +108,18 @@ namespace EpicGames.Horde.Compute
 	}
 
 	/// <summary>
-	/// Request a machine to execute compute requests
+	/// Response to a cluster lookup request
+	/// </summary>
+	public class GetClusterResponse
+	{
+		/// <summary>
+		/// Compute cluster ID
+		/// </summary>
+		public ClusterId ClusterId { get; set; }
+	}
+	
+	/// <summary>
+	/// Response to compute allocation request
 	/// </summary>
 	public class AssignComputeResponse
 	{
