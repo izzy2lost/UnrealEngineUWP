@@ -6,11 +6,14 @@
 #include "Insights/ViewModels/ITimingViewDrawHelper.h"
 #include "Styling/CoreStyle.h"
 
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/Common/TimeUtils.h"
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
+#include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ViewModels/TimingEvent.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/ViewModels/BaseTimingTrack.h"
 
 namespace UE { namespace RenderGraphInsights {
 
@@ -37,7 +40,7 @@ FRenderGraphTrackDrawStateBuilder::FRenderGraphTrackDrawStateBuilder(FRenderGrap
 void FRenderGraphTrackDrawStateBuilder::AppendDurationToEventName(FString& InOutEventName, const double InDuration)
 {
 	InOutEventName += TEXT(" (");
-	InOutEventName += TimeUtils::FormatTimeAuto(InDuration);
+	InOutEventName += UE::Insights::FormatTimeAuto(InDuration);
 	InOutEventName += TEXT(")");
 }
 

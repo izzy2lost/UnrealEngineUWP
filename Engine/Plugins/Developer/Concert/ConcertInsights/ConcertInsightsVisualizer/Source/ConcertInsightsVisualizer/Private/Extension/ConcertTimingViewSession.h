@@ -7,7 +7,7 @@
 
 class FMenuBuilder;
 
-namespace Insights { class ITimingViewSession; }
+namespace UE::Insights::Timing { class ITimingViewSession; }
 namespace TraceServices { class IAnalysisSession; }
 
 namespace UE::ConcertInsightsVisualizer
@@ -21,10 +21,10 @@ namespace UE::ConcertInsightsVisualizer
 	public:
 
 		// Mirrors the ITimingViewExtender interface - called by FConcertTimingViewExtender
-		void OnBeginSession(Insights::ITimingViewSession& InSession);
-		void OnEndSession(Insights::ITimingViewSession& InSession);
-		void Tick(Insights::ITimingViewSession& InTimingSession, const TraceServices::IAnalysisSession& InAnalysisSession);
-		void ExtendFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder);
+		void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession);
+		void OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession);
+		void Tick(UE::Insights::Timing::ITimingViewSession& InTimingSession, const TraceServices::IAnalysisSession& InAnalysisSession);
+		void ExtendFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder);
 
 	private:
 

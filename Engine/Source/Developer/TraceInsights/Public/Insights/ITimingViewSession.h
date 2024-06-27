@@ -190,14 +190,16 @@ public:
 namespace Insights
 {
 
-enum class ETimeChangedFlags : int32
+enum class UE_DEPRECATED(5.5, "ITimeMarker class was moved inside UE::Insights::Timing namespace") ETimeChangedFlags : int32
 {
 	None,
 	Interactive = (1 << 0)
 };
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 ENUM_CLASS_FLAGS(ETimeChangedFlags);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-class ITimeMarker
+class UE_DEPRECATED(5.5, "ITimeMarker class was moved inside UE::Insights::Timing namespace") ITimeMarker
 {
 public:
 	virtual ~ITimeMarker() = default;
@@ -206,6 +208,7 @@ public:
 	virtual void SetTime(const double  InTime) = 0;
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FSelectionChangedDelegate, ETimeChangedFlags /*InFlags*/, double /*StartTime*/, double /*EndTime*/);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FTimeMarkerChangedDelegate, ETimeChangedFlags /*InFlags*/, double /*TimeMarker*/);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FCustomTimeMarkerChangedDelegate, ETimeChangedFlags /*InFlags*/, TSharedRef<ITimeMarker> /*TimeMarker*/);
@@ -216,9 +219,9 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FSelectedEventChangedDelegate, const TShared
 DECLARE_MULTICAST_DELEGATE(FTrackVisibilityChangedDelegate);
 DECLARE_MULTICAST_DELEGATE_OneParam(FTrackAddedDelegate, const TSharedPtr<const FBaseTimingTrack> /*Track*/);
 DECLARE_MULTICAST_DELEGATE_OneParam(FTrackRemovedDelegate, const TSharedPtr<const FBaseTimingTrack> /*Track*/);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-//class UE_DEPRECATED(5.5, "ITimingViewSession class was moved inside UE::Insights::Timing namespace") ITimingViewSession;
-class ITimingViewSession
+class UE_DEPRECATED(5.5, "ITimingViewSession class was moved inside UE::Insights::Timing namespace") ITimingViewSession
 {
 public:
 	virtual ~ITimingViewSession() = default;

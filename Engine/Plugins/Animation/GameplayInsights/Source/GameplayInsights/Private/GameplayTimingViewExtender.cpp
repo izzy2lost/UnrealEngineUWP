@@ -19,7 +19,7 @@
 
 #define LOCTEXT_NAMESPACE "GameplayTimingViewExtender"
 
-void FGameplayTimingViewExtender::OnBeginSession(Insights::ITimingViewSession& InSession)
+void FGameplayTimingViewExtender::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if(PerSessionData == nullptr)
@@ -55,7 +55,7 @@ void FGameplayTimingViewExtender::OnBeginSession(Insights::ITimingViewSession& I
 	}
 }
 
-void FGameplayTimingViewExtender::OnEndSession(Insights::ITimingViewSession& InSession)
+void FGameplayTimingViewExtender::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if(PerSessionData != nullptr)
@@ -75,7 +75,7 @@ void FGameplayTimingViewExtender::OnEndSession(Insights::ITimingViewSession& InS
 	PerSessionDataMap.Remove(&InSession);
 }
 
-void FGameplayTimingViewExtender::Tick(Insights::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FGameplayTimingViewExtender::Tick(UE::Insights::Timing::ITimingViewSession& InSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if(PerSessionData != nullptr)
@@ -85,7 +85,7 @@ void FGameplayTimingViewExtender::Tick(Insights::ITimingViewSession& InSession, 
 	}
 }
 
-void FGameplayTimingViewExtender::ExtendFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
+void FGameplayTimingViewExtender::ExtendFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
 {
 	FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession);
 	if(PerSessionData != nullptr)

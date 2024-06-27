@@ -28,13 +28,13 @@ namespace UE::ConcertInsightsVisualizer
 	void FConcertInsightsVisualizerModule::RegisterInsightsExtensions()
 	{
 		IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &ConcertInsightsModule);
-		IModularFeatures::Get().RegisterModularFeature(Insights::TimingViewExtenderFeatureName, &TimingViewExtender);
+		IModularFeatures::Get().RegisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, &TimingViewExtender);
 	}
 
 	void FConcertInsightsVisualizerModule::UnregisterInsightsExtensions()
 	{
 		IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &ConcertInsightsModule);
-		IModularFeatures::Get().UnregisterModularFeature(Insights::TimingViewExtenderFeatureName, &TimingViewExtender);
+		IModularFeatures::Get().UnregisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, &TimingViewExtender);
 	}
 }
 

@@ -3,7 +3,7 @@
 #include "NetworkPredictionDrawHelpers.h"
 
 
-#include "Insights/Common/PaintUtils.h"
+#include "InsightsCore/Common/PaintUtils.h"
 
 
 void FNetworkPredictionDrawHelpers::DrawBackground(

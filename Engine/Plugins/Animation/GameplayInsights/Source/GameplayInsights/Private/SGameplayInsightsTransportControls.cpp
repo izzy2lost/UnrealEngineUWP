@@ -316,7 +316,7 @@ void SGameplayInsightsTransportControls::SetTimeMarker(double InTime, bool bInSc
 	bSettingMarker = false;
 }
 
-void SGameplayInsightsTransportControls::HandleTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker)
+void SGameplayInsightsTransportControls::HandleTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker)
 {
 	if(!bSettingMarker)
 	{
@@ -325,9 +325,9 @@ void SGameplayInsightsTransportControls::HandleTimeMarkerChanged(Insights::ETime
 	}
 }
 
-void SGameplayInsightsTransportControls::HandleSelectionRangeChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
+void SGameplayInsightsTransportControls::HandleSelectionRangeChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime)
 {
-	if(InFlags != Insights::ETimeChangedFlags::Interactive)
+	if(InFlags != UE::Insights::Timing::ETimeChangedFlags::Interactive)
 	{
 		bSelectionRangeValid = InStartTime != std::numeric_limits<double>::infinity() && InEndTime != std::numeric_limits<double>::infinity() && InEndTime > InStartTime;
 

@@ -5,8 +5,8 @@
 #include "Templates/SharedPointer.h"
 
 namespace TraceServices { class IAnalysisSession; }
-namespace Insights { class ITimingViewSession; }
-namespace Insights { enum class ETimeChangedFlags : int32; }
+namespace UE::Insights::Timing { class ITimingViewSession; }
+namespace UE::Insights::Timing { enum class ETimeChangedFlags : int32; }
 class FMenuBuilder;
 class SDockTab;
 
@@ -21,9 +21,9 @@ class FRenderGraphTimingViewSession
 public:
 	FRenderGraphTimingViewSession() = default;
 
-	void OnBeginSession(Insights::ITimingViewSession& InTimingViewSession);
-	void OnEndSession(Insights::ITimingViewSession& InTimingViewSession);
-	void Tick(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
+	void OnBeginSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession);
+	void OnEndSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession);
+	void Tick(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
 	void ExtendFilterMenu(FMenuBuilder& InMenuBuilder);
 
 	/** Get the last cached analysis session */
@@ -35,11 +35,11 @@ public:
 	/** Show/Hide the RenderGraph track */
 	void ToggleRenderGraphTrack();
 
-	Insights::ITimingViewSession* GetTimingViewSession() const { return TimingViewSession; }
+	UE::Insights::Timing::ITimingViewSession* GetTimingViewSession() const { return TimingViewSession; }
 
 private:
 	const TraceServices::IAnalysisSession* AnalysisSession = nullptr;
-	Insights::ITimingViewSession* TimingViewSession;
+	UE::Insights::Timing::ITimingViewSession* TimingViewSession;
 	TSharedPtr<FRenderGraphTrack> Track;
 	bool bTrackVisible = true;
 };

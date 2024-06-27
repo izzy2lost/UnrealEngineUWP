@@ -1,19 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GameplayTrack.h"
-#include "Insights/ViewModels/TimingEventsTrack.h"
+
 #include "Algo/Sort.h"
-#include "Framework/Application/SlateApplication.h"
 #include "Fonts/FontMeasure.h"
-#include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/ViewModels/ITimingViewDrawHelper.h"
-#include "GameplaySharedData.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameplayProvider.h"
-#include "TraceServices/Model/AnalysisSession.h"
+#include "GameplaySharedData.h"
 #include "IGameplayProvider.h"
+
+// TraceServices
+#include "TraceServices/Model/AnalysisSession.h"
 #include "TraceServices/Model/Frames.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
+
+// TraceInsights
+#include "Insights/ViewModels/ITimingViewDrawHelper.h"
+#include "Insights/ViewModels/TimingEventsTrack.h"
+#include "Insights/ViewModels/TimingTrackViewport.h"
 
 INSIGHTS_IMPLEMENT_RTTI(FGameplayTimingEventsTrack);
 

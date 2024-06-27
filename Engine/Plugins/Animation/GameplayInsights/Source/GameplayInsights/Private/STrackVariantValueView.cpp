@@ -1,13 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "STrackVariantValueView.h"
+
 #include "SVariantValueView.h"
-#include "Insights/ViewModels/BaseTimingTrack.h"
 #include "GameplayTrack.h"
 #include "GameplayGraphTrack.h"
+
+// TraceInsights
+#include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ITimingViewSession.h"
 
-void STrackVariantValueView::Construct(const FArguments& InArgs, const TSharedRef<FBaseTimingTrack>& InTimingTrack, Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void STrackVariantValueView::Construct(const FArguments& InArgs, const TSharedRef<FBaseTimingTrack>& InTimingTrack, UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	TimingTrack = InTimingTrack;
 	AnalysisSession = &InAnalysisSession;
@@ -44,7 +47,7 @@ void STrackVariantValueView::Construct(const FArguments& InArgs, const TSharedRe
 	}
 }
 
-void STrackVariantValueView::HandleTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker)
+void STrackVariantValueView::HandleTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker)
 {
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 

@@ -7,9 +7,9 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
 class FBaseTimingTrack;
-namespace Insights { class ITimingViewSession; }
 namespace TraceServices { class IAnalysisSession; }
-namespace Insights { enum class ETimeChangedFlags; }
+namespace UE::Insights::Timing { class ITimingViewSession; }
+namespace UE::Insights::Timing { enum class ETimeChangedFlags; }
 class SVariantValueView;
 
 // Wrapper for a variant value view for a track
@@ -20,13 +20,13 @@ public:
 
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const TSharedRef<FBaseTimingTrack>& InTimingTrack, Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
+	void Construct(const FArguments& InArgs, const TSharedRef<FBaseTimingTrack>& InTimingTrack, UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession);
 
 	TSharedPtr<FBaseTimingTrack> GetTimingTrack() const { return TimingTrack.Pin(); }
 
 private:
 	// Handle the time marker being scrubbed
-	void HandleTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker);
+	void HandleTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker);
 
 private:
 	TWeakPtr<FBaseTimingTrack> TimingTrack;

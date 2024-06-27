@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Insights/Common/SimpleRtti.h"
-#include "TraceServices/Model/AnalysisSession.h"
+#include "InsightsCore/Common/SimpleRtti.h"
 #include "Model/IntervalTimeline.h"
+#include "RenderGraphResources.h"
 #include "RHITransientResourceAllocator.h"
 #include "Trace/Analyzer.h"
-#include "RenderGraphResources.h"
+#include "TraceServices/Model/AnalysisSession.h"
 
 enum class ERHIPipeline : uint8;
 

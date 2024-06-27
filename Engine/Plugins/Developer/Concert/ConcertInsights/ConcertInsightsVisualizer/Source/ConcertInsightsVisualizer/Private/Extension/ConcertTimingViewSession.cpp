@@ -15,13 +15,13 @@
 
 namespace UE::ConcertInsightsVisualizer
 {
-	void FConcertTimingViewSession::OnBeginSession(Insights::ITimingViewSession& InSession)
+	void FConcertTimingViewSession::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 	{}
 
-	void FConcertTimingViewSession::OnEndSession(Insights::ITimingViewSession& InSession)
+	void FConcertTimingViewSession::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 	{}
 	
-	void FConcertTimingViewSession::Tick(Insights::ITimingViewSession& InTimingSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+	void FConcertTimingViewSession::Tick(UE::Insights::Timing::ITimingViewSession& InTimingSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 	{
 		const FProtocolMultiEndpointProvider* ProtocolProvider = InAnalysisSession.ReadProvider<FProtocolMultiEndpointProvider>(FProtocolMultiEndpointProvider::ProviderName);
 		if (!ensure(ProtocolProvider))
@@ -39,7 +39,7 @@ namespace UE::ConcertInsightsVisualizer
 		}
 	}
 
-	void FConcertTimingViewSession::ExtendFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
+	void FConcertTimingViewSession::ExtendFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
 	{
 		if (!ObjectTrack)
 		{

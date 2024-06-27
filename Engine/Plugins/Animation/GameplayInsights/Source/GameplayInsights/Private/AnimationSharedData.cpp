@@ -1,26 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimationSharedData.h"
-#include "TraceServices/Model/AnalysisSession.h"
-#include "GameplaySharedData.h"
-#include "ObjectEventsTrack.h"
-#include "SkeletalMeshPoseTrack.h"
-#include "SkeletalMeshCurvesTrack.h"
+
+#include "AnimationProvider.h"
 #include "AnimationTickRecordsTrack.h"
+#include "AnimNodesTrack.h"
+#include "AnimNotifiesTrack.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "GameplayInsightsModule.h"
+#include "GameplayProvider.h"
+#include "GameplaySharedData.h"
+#include "GameplayTimingViewExtender.h"
+#include "Modules/ModuleManager.h"
+#include "MontageTrack.h"
+#include "ObjectEventsTrack.h"
+#include "SAnimGraphSchematicView.h"
+#include "SkeletalMeshCurvesTrack.h"
+#include "SkeletalMeshPoseTrack.h"
+#include "STrackVariantValueView.h"
+#include "TraceServices/Model/AnalysisSession.h"
+#include "Widgets/Docking/SDockTab.h"
+
+// TraceInsights
 #include "Insights/ITimingViewSession.h"
 #include "Insights/ViewModels/TimingEvent.h"
-#include "AnimationProvider.h"
-#include "GameplayProvider.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "AnimNodesTrack.h"
-#include "GameplayTimingViewExtender.h"
-#include "SAnimGraphSchematicView.h"
-#include "GameplayInsightsModule.h"
-#include "Modules/ModuleManager.h"
-#include "Widgets/Docking/SDockTab.h"
-#include "AnimNotifiesTrack.h"
-#include "MontageTrack.h"
-#include "STrackVariantValueView.h"
 
 #if WITH_ENGINE
 #include "Animation/AnimTypes.h"
@@ -48,7 +51,7 @@ FAnimationSharedData::FAnimationSharedData(FGameplaySharedData& InGameplayShared
 {
 }
 
-void FAnimationSharedData::OnBeginSession(Insights::ITimingViewSession& InTimingViewSession)
+void FAnimationSharedData::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession)
 {
 	TimingViewSession = &InTimingViewSession;
 
@@ -58,7 +61,7 @@ void FAnimationSharedData::OnBeginSession(Insights::ITimingViewSession& InTiming
 	TimeMarkerChangedHandle = InTimingViewSession.OnTimeMarkerChanged().AddRaw(this, &FAnimationSharedData::OnTimeMarkerChanged);
 }
 
-void FAnimationSharedData::OnEndSession(Insights::ITimingViewSession& InTimingViewSession)
+void FAnimationSharedData::OnEndSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession)
 {
 	SkeletalMeshPoseTracks.Reset();
 	AnimationTickRecordsTracks.Reset();
@@ -68,7 +71,7 @@ void FAnimationSharedData::OnEndSession(Insights::ITimingViewSession& InTimingVi
 	TimingViewSession = nullptr;
 }
 
-void FAnimationSharedData::Tick(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FAnimationSharedData::Tick(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	AnalysisSession = &InAnalysisSession;
 
@@ -501,7 +504,7 @@ void FAnimationSharedData::ToggleMontageTracks()
 	}
 }
 
-void FAnimationSharedData::OnTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker)
+void FAnimationSharedData::OnTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker)
 {
 	bTimeMarkerValid = InTimeMarker != std::numeric_limits<double>::infinity();
 	MarkerTime = InTimeMarker;
@@ -672,7 +675,7 @@ void FAnimationSharedData::OpenAnimGraphTab(uint64 InAnimInstanceId) const
 		
 		TSharedPtr<SAnimGraphSchematicView> AnimGraphView = SNew(SAnimGraphSchematicView, InAnimInstanceId, TimingViewSession->GetTimeMarker(), *AnalysisSession);
 		TimingViewSession->OnTimeMarkerChanged().AddLambda(
-			[AnimGraphViewWeakPtr = TWeakPtr<SAnimGraphSchematicView>(AnimGraphView)](Insights::ETimeChangedFlags InFlags, double TimeMarker)
+			[AnimGraphViewWeakPtr = TWeakPtr<SAnimGraphSchematicView>(AnimGraphView)](UE::Insights::Timing::ETimeChangedFlags InFlags, double TimeMarker)
 			{
 				if (AnimGraphViewWeakPtr.IsValid())
 				{

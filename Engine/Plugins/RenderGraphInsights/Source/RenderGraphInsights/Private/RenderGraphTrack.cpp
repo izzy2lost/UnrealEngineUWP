@@ -2,19 +2,18 @@
 
 #include "RenderGraphTrack.h"
 
-#include "RenderGraphTimingViewSession.h"
-
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-
-#include "Insights/Common/PaintUtils.h"
-#include "Insights/ViewModels/TimingEvent.h"
-#include "Insights/ITimingViewSession.h"
-
+#include "RenderGraphTimingViewSession.h"
 #include "RenderGraphTrackDrawHelper.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Input/SSpinBox.h"
 
+// TraceInsightsCore
+#include "InsightsCore/Common/PaintUtils.h"
 
+// TraceInsights
+#include "Insights/ITimingViewSession.h"
+#include "Insights/ViewModels/TimingEvent.h"
 
 #define LOCTEXT_NAMESPACE "RenderGraphTrack"
 
@@ -1668,7 +1667,7 @@ void FRenderGraphTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 {
 	Super::BuildContextMenu(MenuBuilder);
 
-	Insights::ITimingViewSession* TimingViewSession = SharedData.GetTimingViewSession();
+	UE::Insights::Timing::ITimingViewSession* TimingViewSession = SharedData.GetTimingViewSession();
 
 	MenuBuilder.BeginSection("Visualizer", LOCTEXT("Visualizer", "Visualizer Mode"));
 	{

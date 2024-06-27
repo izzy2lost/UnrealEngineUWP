@@ -1,19 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNodesTrack.h"
-#include "Insights/ViewModels/ITimingViewDrawHelper.h"
-#include "GameplayProvider.h"
+
 #include "AnimationProvider.h"
-#include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/ViewModels/TimingEvent.h"
 #include "AnimationSharedData.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Insights/ViewModels/TimingEventSearch.h"
-#include "Insights/ViewModels/TooltipDrawState.h"
-#include "Insights/Common/TimeUtils.h"
-#include "TraceServices/Model/Frames.h"
-#include "SkeletalMeshPoseTrack.h"
+#include "GameplayProvider.h"
 #include "GameplayTimingViewExtender.h"
+#include "SkeletalMeshPoseTrack.h"
+
+// TraceServices
+#include "TraceServices/Model/Frames.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/TimeUtils.h"
+
+// TraceInsights
+#include "Insights/ViewModels/ITimingViewDrawHelper.h"
+#include "Insights/ViewModels/TimingEvent.h"
+#include "Insights/ViewModels/TimingEventSearch.h"
+#include "Insights/ViewModels/TimingTrackViewport.h"
+#include "Insights/ViewModels/TooltipDrawState.h"
 
 #if WITH_ENGINE
 #include "Animation/AnimTrace.h"
@@ -137,8 +144,8 @@ void FAnimNodesTrack::InitTooltip(FTooltipDrawState& Tooltip, const ITimingEvent
 
 		Tooltip.AddTitle(FText::Format(LOCTEXT("GraphPhaseFormat", "{0} Anim Graph"), FText::FromString(GetPhaseName(InMessage.Phase))).ToString());
 
-		Tooltip.AddNameValueTextLine(LOCTEXT("EventDuration", "Duration").ToString(), TimeUtils::FormatTimeAuto(InFoundEndTime - InFoundStartTime));
-		Tooltip.AddNameValueTextLine(LOCTEXT("EventTime", "Time").ToString(), TimeUtils::FormatTimeAuto(InFoundStartTime));
+		Tooltip.AddNameValueTextLine(LOCTEXT("EventDuration", "Duration").ToString(), UE::Insights::FormatTimeAuto(InFoundEndTime - InFoundStartTime));
+		Tooltip.AddNameValueTextLine(LOCTEXT("EventTime", "Time").ToString(), UE::Insights::FormatTimeAuto(InFoundStartTime));
 		Tooltip.AddNameValueTextLine(LOCTEXT("EventWorld", "World").ToString(), GetGameplayTrack().GetWorldName(SharedData.GetAnalysisSession()).ToString());
 
 		Tooltip.UpdateLayout();

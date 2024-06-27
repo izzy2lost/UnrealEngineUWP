@@ -12,7 +12,7 @@
 #include "ITransportControl.h"
 
 class FGameplaySharedData;
-namespace Insights { enum class ETimeChangedFlags; }
+namespace UE::Insights::Timing { enum class ETimeChangedFlags; }
 
 class SGameplayInsightsTransportControls : public SCompoundWidget
 {
@@ -44,9 +44,9 @@ private:
 
 	void SetTimeMarker(double InTime, bool bInScroll);
 
-	void HandleTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker);
+	void HandleTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker);
 
-	void HandleSelectionRangeChanged(Insights::ETimeChangedFlags InFlags, double InStartTime, double InEndTime);
+	void HandleSelectionRangeChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InStartTime, double InEndTime);
 
 private:
 	FGameplaySharedData* SharedData;

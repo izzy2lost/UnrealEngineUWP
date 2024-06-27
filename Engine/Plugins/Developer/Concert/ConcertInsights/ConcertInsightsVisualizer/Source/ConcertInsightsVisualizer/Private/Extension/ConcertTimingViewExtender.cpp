@@ -7,7 +7,7 @@
 
 namespace UE::ConcertInsightsVisualizer
 {
-	void FConcertTimingViewExtender::OnBeginSession(Insights::ITimingViewSession& InSession)
+	void FConcertTimingViewExtender::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InSession)
 	{
 		if (InSession.GetName() != FInsightsManagerTabs::TimingProfilerTabId)
 		{
@@ -28,7 +28,7 @@ namespace UE::ConcertInsightsVisualizer
 		}
 	}
 
-	void FConcertTimingViewExtender::OnEndSession(Insights::ITimingViewSession& InSession)
+	void FConcertTimingViewExtender::OnEndSession(UE::Insights::Timing::ITimingViewSession& InSession)
 	{
 		if (InSession.GetName() != FInsightsManagerTabs::TimingProfilerTabId)
 		{
@@ -44,7 +44,7 @@ namespace UE::ConcertInsightsVisualizer
 		PerSessionDataMap.Remove(&InSession);
 	}
 
-	void FConcertTimingViewExtender::Tick(Insights::ITimingViewSession& InTimingSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+	void FConcertTimingViewExtender::Tick(UE::Insights::Timing::ITimingViewSession& InTimingSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 	{
 		if (const FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InTimingSession))
 		{
@@ -52,7 +52,7 @@ namespace UE::ConcertInsightsVisualizer
 		}
 	}
 
-	void FConcertTimingViewExtender::ExtendFilterMenu(Insights::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
+	void FConcertTimingViewExtender::ExtendFilterMenu(UE::Insights::Timing::ITimingViewSession& InSession, FMenuBuilder& InMenuBuilder)
 	{
 		if (const FPerSessionData* PerSessionData = PerSessionDataMap.Find(&InSession))
 		{

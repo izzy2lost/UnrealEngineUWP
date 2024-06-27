@@ -62,9 +62,10 @@ public:
 namespace Insights
 {
 
+UE_DEPRECATED(5.5, "TimingViewExtenderFeatureName was moved inside UE::Insights::Timing namespace")
 extern TRACEINSIGHTS_API const FName TimingViewExtenderFeatureName;
 
-//class UE_DEPRECATED(5.5, "ITimingViewExtender class was moved inside UE::Insights::Timing namespace") ITimingViewExtender;
+class UE_DEPRECATED(5.5, "ITimingViewExtender class was moved inside UE::Insights::Timing namespace") ITimingViewExtender;
 class ITimingViewExtender : public IModularFeature
 {
 public:
@@ -87,9 +88,10 @@ public:
 namespace UE::Insights
 {
 
+UE_DEPRECATED(5.5, "TimingViewExtenderFeatureName was moved inside UE::Insights::Timing namespace")
 extern TRACEINSIGHTS_API const FName TimingViewExtenderFeatureName;
 
-//class UE_DEPRECATED(5.5, "ITimingViewExtender class was moved inside UE::Insights::Timing namespace") ITimingViewExtender;
+class UE_DEPRECATED(5.5, "ITimingViewExtender class was moved inside UE::Insights::Timing namespace") ITimingViewExtender;
 class ITimingViewExtender : public IModularFeature
 {
 public:

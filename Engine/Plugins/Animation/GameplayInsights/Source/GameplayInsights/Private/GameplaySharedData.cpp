@@ -1,18 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GameplaySharedData.h"
-#include "TraceServices/Model/AnalysisSession.h"
-#include "ObjectEventsTrack.h"
+
 #include "Algo/Sort.h"
-#include "GameplayProvider.h"
-#include "Insights/ITimingViewSession.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "SGameplayTrackTree.h"
-#include "GameplayInsightsModule.h"
-#include "STrackVariantValueView.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/Docking/SDockTab.h"
+
+// TraceServices
+#include "TraceServices/Model/AnalysisSession.h"
+
+// TraceInsights
+#include "Insights/ITimingViewSession.h"
+
+#include "GameplayInsightsModule.h"
+#include "GameplayProvider.h"
+#include "ObjectEventsTrack.h"
 #include "ObjectPropertiesTrack.h"
+#include "SGameplayTrackTree.h"
+#include "STrackVariantValueView.h"
 
 #define LOCTEXT_NAMESPACE "GameplaySharedData"
 
@@ -24,21 +30,21 @@ FGameplaySharedData::FGameplaySharedData()
 {
 }
 
-void FGameplaySharedData::OnBeginSession(Insights::ITimingViewSession& InTimingViewSession)
+void FGameplaySharedData::OnBeginSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession)
 {
 	TimingViewSession = &InTimingViewSession;
 
 	ObjectTracks.Reset();
 }
 
-void FGameplaySharedData::OnEndSession(Insights::ITimingViewSession& InTimingViewSession)
+void FGameplaySharedData::OnEndSession(UE::Insights::Timing::ITimingViewSession& InTimingViewSession)
 {
 	ObjectTracks.Reset();
 
 	TimingViewSession = nullptr;
 }
 
-TSharedRef<FObjectEventsTrack> FGameplaySharedData::GetObjectEventsTrackForId(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession, const FObjectInfo& InObjectInfo)
+TSharedRef<FObjectEventsTrack> FGameplaySharedData::GetObjectEventsTrackForId(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession, const FObjectInfo& InObjectInfo)
 {
 	const FGameplayProvider* GameplayProvider = InAnalysisSession.ReadProvider<FGameplayProvider>(FGameplayProvider::ProviderName);
 	check(GameplayProvider);
@@ -136,7 +142,7 @@ void FGameplaySharedData::MakeTrackAndAncestorsVisible(const TSharedRef<FObjectE
 	InvalidateObjectTracksOrder();
 }
 
-void FGameplaySharedData::Tick(Insights::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
+void FGameplaySharedData::Tick(UE::Insights::Timing::ITimingViewSession& InTimingViewSession, const TraceServices::IAnalysisSession& InAnalysisSession)
 {
 	AnalysisSession = &InAnalysisSession;
 

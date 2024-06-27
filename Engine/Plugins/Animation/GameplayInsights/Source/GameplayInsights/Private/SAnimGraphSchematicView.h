@@ -9,9 +9,9 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/STreeView.h"
 
-namespace Insights { class ITimingViewSession; }
-namespace Insights { enum class ETimeChangedFlags; }
 namespace TraceServices { class IAnalysisSession; }
+namespace UE::Insights::Timing { class ITimingViewSession; }
+namespace UE::Insights::Timing { enum class ETimeChangedFlags; }
 class FAnimationSharedData;
 class IInsightsManager;
 class FAnimGraphSchematicNode;
@@ -49,7 +49,7 @@ private:
 	void HandleGetPropertyChildren(TSharedRef<FAnimGraphSchematicPropertyNode> InItem, TArray<TSharedRef<FAnimGraphSchematicPropertyNode>>& OutChildren);
 
 	// Handle the time marker being scrubbed
-	void HandleTimeMarkerChanged(Insights::ETimeChangedFlags InFlags, double InTimeMarker);
+	void HandleTimeMarkerChanged(UE::Insights::Timing::ETimeChangedFlags InFlags, double InTimeMarker);
 
 	// Handle tree selection changing
 	void HandleSelectionChanged(TSharedPtr<FAnimGraphSchematicNode> InNode, ESelectInfo::Type InSelectInfo);
