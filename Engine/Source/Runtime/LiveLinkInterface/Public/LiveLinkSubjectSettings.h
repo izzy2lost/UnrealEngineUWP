@@ -55,7 +55,16 @@ public:
 	LIVELINKINTERFACE_API ULiveLinkSubjectSettings();
 
 	/** Initialize the settings. */
-	virtual void Initialize(FLiveLinkSubjectKey InSubjectKey) {}
+	virtual void Initialize(FLiveLinkSubjectKey InSubjectKey)
+	{
+		Key = MoveTemp(InSubjectKey);
+	}
+
+	/** Get the name that should be used when the subject is rebroadcasted. */
+	virtual FName GetRebroadcastName() const
+	{
+		return Key.SubjectName.Name;
+	}
 
 	/** List of available preprocessor the subject will use. */
 	UPROPERTY(EditAnywhere, Instanced, Category = "LiveLink", meta = (DisplayName = "Pre Processors"))
@@ -95,4 +104,9 @@ public:
 	LIVELINKINTERFACE_API virtual void PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject interface
+
+protected:
+	/** Key of the subject that owns this setting. */
+	UPROPERTY()
+	FLiveLinkSubjectKey Key;
 };

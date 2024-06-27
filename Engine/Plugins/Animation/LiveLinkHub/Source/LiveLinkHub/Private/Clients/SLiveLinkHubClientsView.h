@@ -163,7 +163,8 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			return ClientsModelPtr->IsSubjectEnabled(ClientId, LiveLinkSubjectKey);
+			FLiveLinkClient& LiveLinkClient = static_cast<FLiveLinkClient&>(IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+			return ClientsModelPtr->IsSubjectEnabled(ClientId, LiveLinkClient.GetRebroadcastName(LiveLinkSubjectKey));
 		}
 		return false;
 	}
@@ -182,7 +183,8 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			ClientsModelPtr->SetSubjectEnabled(ClientId, LiveLinkSubjectKey, bInEnabled);
+			FLiveLinkClient& LiveLinkClient = static_cast<FLiveLinkClient&>(IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+			ClientsModelPtr->SetSubjectEnabled(ClientId, LiveLinkClient.GetRebroadcastName(LiveLinkSubjectKey), bInEnabled);
 		}
 	}
 

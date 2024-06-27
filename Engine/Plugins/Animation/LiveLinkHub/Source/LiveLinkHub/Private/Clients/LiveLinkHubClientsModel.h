@@ -56,8 +56,8 @@ public:
 	virtual void SetClientEnabled(FLiveLinkHubClientId InClient, bool bInEnable) = 0;
 
 	/** Get whether a subject is enabled on a given client. */
-	virtual bool IsSubjectEnabled(FLiveLinkHubClientId InClient, const FLiveLinkSubjectKey& Subject) const = 0;
+	virtual bool IsSubjectEnabled(FLiveLinkHubClientId InClient, FName SubjectName) const = 0;
 
 	/** Set whether a subject should receive livelink data. */
-	virtual void SetSubjectEnabled(FLiveLinkHubClientId InClient, const FLiveLinkSubjectKey& Subject, bool bInEnable) = 0;
+	virtual void SetSubjectEnabled(FLiveLinkHubClientId InClient, FName SubjectName, bool bInEnable) = 0;
 };

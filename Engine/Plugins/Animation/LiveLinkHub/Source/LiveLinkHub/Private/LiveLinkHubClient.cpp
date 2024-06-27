@@ -41,7 +41,7 @@ void FLiveLinkHubClient::CacheSubjectSettings(const FLiveLinkSubjectKey& Subject
 		ULiveLinkSubjectSettings* SubjectSettings = Settings;
 
 		SubjectItem->GetLiveSubject()->CacheSettings(SourceSettings, SubjectSettings);
-
+		SubjectItem->GetLiveSubject()->SetStaticDataAsRebroadcasted(false);
 		BroadcastStaticDataUpdate(SubjectItem->GetLiveSubject(), SubjectItem->GetSubject()->GetRole(), SubjectItem->GetLiveSubject()->GetStaticData());
 	}
 }

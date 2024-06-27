@@ -19,7 +19,6 @@ ULiveLinkSubjectSettings::ULiveLinkSubjectSettings()
 }
 
 
-#if WITH_EDITOR
 DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkSubjectSettings, Warning, Warning);
 
 
@@ -79,6 +78,7 @@ bool ULiveLinkSubjectSettings::ValidateProcessors()
 	}
 }
 
+#if WITH_EDITOR
 void ULiveLinkSubjectSettings::PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(ULiveLinkSubjectSettings, PreProcessors)

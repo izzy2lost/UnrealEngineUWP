@@ -106,8 +106,8 @@ protected:
 	virtual bool IsClientEnabled(FLiveLinkHubClientId Client) const override;
 	virtual bool IsClientConnected(FLiveLinkHubClientId Client) const override;
 	virtual void SetClientEnabled(FLiveLinkHubClientId Client, bool bInEnable) override;
-	virtual bool IsSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject) const override;
-	virtual void SetSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject, bool bInEnable) override;
+	virtual bool IsSubjectEnabled(FLiveLinkHubClientId Client, FName SubjectName) const override;
+	virtual void SetSubjectEnabled(FLiveLinkHubClientId Client, FName SubjectName, bool bInEnable) override;
 	//~ End ILiveLinkHubClientsModel interface
 
 private:

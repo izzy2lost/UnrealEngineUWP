@@ -5,7 +5,6 @@
 #include "Algo/Transform.h"
 #include "Async/Async.h"
 #include "Clients/LiveLinkHubClientsModel.h"
-#include "Clients/LiveLinkHubProvider.h"
 #include "Clients/LiveLinkHubUEClientInfo.h"
 #include "Containers/ObservableArray.h"
 #include "CoreMinimal.h"
@@ -403,28 +402,28 @@ void FLiveLinkHubProvider::SetClientEnabled(FLiveLinkHubClientId Client, bool bI
 	}
 }
 
-bool FLiveLinkHubProvider::IsSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject) const
+bool FLiveLinkHubProvider::IsSubjectEnabled(FLiveLinkHubClientId Client, FName SubjectName) const
 {
 	FReadScopeLock Locker(ClientsMapLock);
 	if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
 	{
-		return !ClientInfoPtr->DisabledSubjects.Contains(Subject.SubjectName);
+		return !ClientInfoPtr->DisabledSubjects.Contains(SubjectName);
 	}
 	return false;
 }
 
-void FLiveLinkHubProvider::SetSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject, bool bInEnable)
+void FLiveLinkHubProvider::SetSubjectEnabled(FLiveLinkHubClientId Client, FName SubjectName, bool bInEnable)
 {
 	FWriteScopeLock Locker(ClientsMapLock);
 	if (FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
 	{
 		if (bInEnable)
 		{
-			ClientInfoPtr->DisabledSubjects.Remove(Subject.SubjectName);
+			ClientInfoPtr->DisabledSubjects.Remove(SubjectName);
 		}
 		else
 		{
-			ClientInfoPtr->DisabledSubjects.Add(Subject.SubjectName);
+			ClientInfoPtr->DisabledSubjects.Add(SubjectName);
 		}
 	}
 }

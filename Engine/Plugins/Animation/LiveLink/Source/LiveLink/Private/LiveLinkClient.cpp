@@ -282,7 +282,6 @@ void FLiveLinkClient::HandleSubjectRebroadcast(ILiveLinkSubject* InSubject, cons
 
 				if (bPreProcessRebroadcastedFrames)
 				{
-					FLiveLinkSubject* LiveSubject = static_cast<FLiveLinkSubject*>(InSubject);
 					InSubject->PreprocessFrame(FrameDataCopy);
 				}
 
@@ -306,14 +305,16 @@ void FLiveLinkClient::HandleSubjectRebroadcast(ILiveLinkSubject* InSubject, cons
 					}
 				}
 
+				const FName RebroadcastName = GetRebroadcastName(InSubject->GetSubjectKey());
+
 				if (!InSubject->HasStaticDataBeenRebroadcasted())
 				{
-					RebroadcastLiveLinkProvider->UpdateSubjectStaticData(InSubject->GetSubjectKey().SubjectName, SubjectRole, MoveTemp(StaticDataCopy));
+					RebroadcastLiveLinkProvider->UpdateSubjectStaticData(RebroadcastName, SubjectRole, MoveTemp(StaticDataCopy));
 					InSubject->SetStaticDataAsRebroadcasted(true);
 					RebroadcastedSubjects.Add(InSubject->GetSubjectKey());
 				}
 
-				RebroadcastLiveLinkProvider->UpdateSubjectFrameData(InSubject->GetSubjectKey().SubjectName, MoveTemp(FrameDataCopy));
+				RebroadcastLiveLinkProvider->UpdateSubjectFrameData(RebroadcastName, MoveTemp(FrameDataCopy));
 			}
 			else
 			{
@@ -337,9 +338,11 @@ void FLiveLinkClient::RemoveRebroadcastedSubject(FLiveLinkSubjectKey InSubjectKe
 {
 	if (RebroadcastLiveLinkProvider.IsValid())
 	{
+		const FName SubjectName = GetRebroadcastName(InSubjectKey);
+
 		if (RebroadcastedSubjects.Contains(InSubjectKey))
 		{
-			RebroadcastLiveLinkProvider->RemoveSubject(InSubjectKey.SubjectName);
+			RebroadcastLiveLinkProvider->RemoveSubject(SubjectName);
 			RebroadcastedSubjects.Remove(InSubjectKey);
 
 			if (RebroadcastedSubjects.Num() <= 0)
@@ -1515,6 +1518,16 @@ FLiveLinkSubjectTimeSyncData FLiveLinkClient::GetTimeSyncData(FLiveLinkSubjectNa
 	}
 
 	return FLiveLinkSubjectTimeSyncData();
+}
+
+FName FLiveLinkClient::GetRebroadcastName(const FLiveLinkSubjectKey& InSubjectKey) const
+{
+	if (ULiveLinkSubjectSettings* Settings = Cast<ULiveLinkSubjectSettings>(GetSubjectSettings(InSubjectKey)))
+	{
+		return Settings->GetRebroadcastName();
+	}
+
+	return InSubjectKey.SubjectName;
 }
 
 FText FLiveLinkClient::GetSourceType(FGuid InEntryGuid) const

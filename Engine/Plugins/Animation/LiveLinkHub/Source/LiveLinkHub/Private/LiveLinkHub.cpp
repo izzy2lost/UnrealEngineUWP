@@ -149,14 +149,6 @@ void FLiveLinkHub::OnStaticDataReceived_AnyThread(const FLiveLinkSubjectKey& InS
 	{
 		RecordingController->RecordStaticData(InSubjectKey, InRole, InStaticDataStruct);
 	}
-
-	FLiveLinkStaticDataStruct StaticDataCopy;
-	StaticDataCopy.InitializeWith(InStaticDataStruct);
-
-	UE_LOG(LogLiveLinkHub, Verbose, TEXT("Pushing static data for %s"), *InSubjectKey.SubjectName.ToString());
-
-	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
-	LiveLinkProvider->UpdateSubjectStaticData(OverridenName, InRole, MoveTemp(StaticDataCopy));
 }
 
 void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameDataStruct) const
@@ -165,15 +157,6 @@ void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSu
 	{
 		RecordingController->RecordFrameData(InSubjectKey, InFrameDataStruct);
 	}
-
-	FLiveLinkFrameDataStruct FrameDataCopy;
-	FrameDataCopy.InitializeWith(InFrameDataStruct);
-
-	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
-	if (LiveLinkHubClient->IsSubjectEnabled(InSubjectKey.SubjectName))
-	{
-		LiveLinkProvider->UpdateSubjectFrameData(OverridenName, MoveTemp(FrameDataCopy));
-	}
 }
 
 void FLiveLinkHub::OnSubjectMarkedPendingKill_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const
@@ -181,7 +164,7 @@ void FLiveLinkHub::OnSubjectMarkedPendingKill_AnyThread(const FLiveLinkSubjectKe
 	UE_LOG(LogLiveLinkHub, Verbose, TEXT("Removed subject %s"), *InSubjectKey.SubjectName.ToString());
 
 	// Send an update to connected clients as well.
-	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
+	const FName OverridenName = LiveLinkHubClient->GetRebroadcastName(InSubjectKey);
 
 	// Note: We send a RemoveSubject message to connected clients when the subject is marked pending kill in order to process this message in the right order.
 	// If we were to send a RemoveSubject message after the OnSubjectRemoved delegate, it could cause our RemoveSubject message to be sent out of order.
@@ -221,17 +204,6 @@ void FLiveLinkHub::SaveConfig()
 void FLiveLinkHub::OpenConfig()
 {
 	SessionManager->RestoreSession();
-}
-
-FName FLiveLinkHub::GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectKey) const
-{
-	ILiveLinkClient& Client = IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-	if (ULiveLinkHubSubjectSettings* Settings = Cast<ULiveLinkHubSubjectSettings>(Client.GetSubjectSettings(InSubjectKey)))
-	{
-		return *Settings->OutboundName;
-	}
-
-	return InSubjectKey.SubjectName;
 }
 
 void FLiveLinkHub::RegisterLiveLinkHubSettings()

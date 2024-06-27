@@ -16,8 +16,14 @@ class ULiveLinkHubSubjectSettings : public ULiveLinkSubjectSettings
 	GENERATED_BODY()
 public:
 
-	/** Initialize the settings. */
+	//~ Begin ULiveLinkSubjectSettings interface
 	virtual void Initialize(FLiveLinkSubjectKey InSubjectKey) override;
+
+	virtual FName GetRebroadcastName() const override
+	{
+		return *OutboundName;
+	}
+	//~ End ULiveLinkSubjectSettings interface
 
 	/** Notify connected clients that this subject's name has changed. */
 	void NotifyRename();
@@ -47,9 +53,6 @@ public:
 private:
 	/* Previous outbound name to be used for noticing clients to remove this entry from their subject list. */
 	FName PreviousOutboundName;
-
-	/** SubjectKey of this subject. */
-	FLiveLinkSubjectKey SubjectKey;
 
 	struct FNameChangeInfo
 	{
