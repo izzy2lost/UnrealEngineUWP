@@ -64,7 +64,8 @@ void UBlendStackAnimNodeLibrary::BlendTo(const FAnimUpdateContext& Context,
 					BlendStackNodePtr->bUseInertialBlend,
 					BlendParameters,
 					WantedPlayRate,
-					ActivationDelay);
+					ActivationDelay,
+					BlendStackNodePtr->GetGroupName(), BlendStackNodePtr->GetGroupRole(), BlendStackNodePtr->GetGroupMethod());
 			}
 			else
 			{

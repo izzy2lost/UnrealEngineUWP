@@ -264,8 +264,39 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bResetOnBecomingRelevant = true;
 
+	#if WITH_EDITORONLY_DATA
+    	// The group name that we synchronize with (NAME_None if it is not part of any group). Note that
+    	// this is the name of the group used to sync the output of this node - it will not force
+    	// syncing of animations contained by it.
+    	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+    	FName GroupName = NAME_None;
+    
+    	// The role this node can assume within the group (ignored if GroupName is not set). Note
+    	// that this is the role of the output of this node, not of animations contained by it.
+    	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+    	TEnumAsByte<EAnimGroupRole::Type> GroupRole = EAnimGroupRole::CanBeLeader;
+    
+    	// How this node will synchronize with other animations. Note that this determines how the output
+    	// of this node is used for synchronization, not of animations contained by it.
+    	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
+    	EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync;
+    
+    	// If true, "Relevant anim" nodes that look for the highest weighted animation in a state will ignore this node
+    	UPROPERTY(EditAnywhere, Category = Relevancy, meta = (FoldProperty, PinHiddenByDefault))
+    	bool bIgnoreForRelevancyTest = false;
+    #endif // WITH_EDITORONLY_DATA
+
 	// FAnimNode_Base interface
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
+	virtual FName GetGroupName() const override;
+	virtual EAnimGroupRole::Type GetGroupRole() const override;
+	virtual EAnimSyncMethod GetGroupMethod() const override;
+	virtual bool GetIgnoreForRelevancyTest() const override;
+	virtual bool IsLooping() const override;
+	virtual bool SetGroupName(FName InGroupName) override;
+	virtual bool SetGroupRole(EAnimGroupRole::Type InRole) override;
+	virtual bool SetGroupMethod(EAnimSyncMethod InMethod) override;
+	virtual bool SetIgnoreForRelevancyTest(bool bInIgnoreForRelevancyTest) override;
 	// End of FAnimNode_Base interface
 
 	// Force a blend on the next update, even if the anim sequence has not changed.
