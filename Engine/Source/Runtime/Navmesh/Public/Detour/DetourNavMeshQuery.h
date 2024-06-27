@@ -127,6 +127,9 @@ protected:
 	}
 
 public:
+	/// Returns true if it's a virtual filter.
+	bool getIsVirtual() const { return isVirtual; }
+	
 	/// Returns true if the polygon can be visited.  (I.e. Is traversable.)
 	///  @param[in]		ref		The reference id of the polygon test.
 	///  @param[in]		tile	The tile containing the polygon.
