@@ -1212,6 +1212,8 @@ namespace PCGSplineSamplerHelpers
 		{
 			NumDispatch = FMath::Min(Context->AsyncState.NumAvailableTasks, NumDispatch);
 		}
+		NumDispatch = FMath::Max(1, NumDispatch);
+
 		const int32 NumIterationsPerDispatch = NumIterations / NumDispatch;
 
 		TArray<TArray<TTuple<FTransform, FVector, float>>> InteriorSplinePointData;
