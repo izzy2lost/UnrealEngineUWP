@@ -973,7 +973,7 @@ EPackageFilterResult FConcertTakeRecorderManager::ShouldPackageBeFiltered(const 
 
 bool FConcertTakeRecorderManager::CanSkipHotReload(const FConcertPackageInfo& InPackageInfo)
 {
-	if (IsTakeSyncEnabled() && ensure(WeakSession.IsValid()) && CanRecord())
+	if (IsTakeSyncEnabled() && WeakSession.IsValid() && CanRecord())
 	{
 		FTakeRecorderProjectParameters Project = GetDefault<UTakeRecorderProjectSettings>()->Settings;
 		FString FullName = InPackageInfo.PackageName.ToString();
