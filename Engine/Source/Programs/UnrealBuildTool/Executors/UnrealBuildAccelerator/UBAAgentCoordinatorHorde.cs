@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
@@ -33,7 +34,7 @@ namespace UnrealBuildTool
 		readonly Guid _id = Guid.NewGuid();
 
 		const string ResourceLogicalCores = "LogicalCores";
-		readonly ClusterId _clusterId = new("default");
+		ClusterId? _clusterId;
 
 		readonly string? _pool;
 		readonly bool _allowWine;
@@ -225,7 +226,7 @@ namespace UnrealBuildTool
 		{
 			if (_client == null)
 			{
-				throw new InvalidOperationException("Call init first");
+				throw new InvalidOperationException($"Session not initialized. Call {nameof(InitAsync)} first");
 			}
 
 			PrefixLogger workerLogger = new($"[Worker{_workerId}]", _logger);
@@ -248,6 +249,8 @@ namespace UnrealBuildTool
 					Encryption = _encryption,
 					Ports = { { UbaPortName, UbaPort }, { UbaProxyPortName, UbaProxyPort } }
 				};
+				
+				await ResolveClusterIdAsync(hordeConfig, requirements, requestId, cmr, workerLogger, cancellationToken);
 				lease = await _client.TryAssignWorkerAsync(_clusterId, requirements, requestId, cmr, workerLogger, cancellationToken);
 				if (lease == null)
 				{
@@ -324,18 +327,43 @@ namespace UnrealBuildTool
 
 		async Task UpdateCpuCoreNeedAsync(int targetCoreCount, CancellationToken cancellationToken = default)
 		{
-			if (_client != null && _pool != null)
+			if (_client != null && _pool != null && _clusterId != null)
 			{
 				_logger.LogDebug("Setting CPU core need to {TargetCoreCount}", targetCoreCount);
 				Dictionary<string, int> resourceNeeds = new() { { ResourceLogicalCores, targetCoreCount } };
 				try
 				{
-					await _client.DeclareResourceNeedsAsync(_clusterId, _pool, resourceNeeds, cancellationToken);
+					await _client.DeclareResourceNeedsAsync(_clusterId.Value, _pool, resourceNeeds, cancellationToken);
 				}
 				catch (Exception e)
 				{
 					_logger.Log(_strict ? LogLevel.Error : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, e, "Failed updating resource need to {TargetCoreCount} cores", targetCoreCount);
 				}
+			}
+		}
+		
+		private async Task ResolveClusterIdAsync(UnrealBuildAcceleratorHordeConfig config, Requirements requirements, string requestId, ConnectionMetadataRequest cmr, ILogger logger, CancellationToken cancellationToken = default)
+		{
+			if (_client == null)
+			{
+				throw new InvalidOperationException($"Session not initialized. Call {nameof(InitAsync)} first");
+			}
+			
+			if (_clusterId == null)
+			{
+				if (config.HordeCluster == UnrealBuildAcceleratorHordeConfig.ClusterAuto)
+				{
+					_clusterId = await _client.GetClusterAsync(requirements, requestId, cmr, logger, cancellationToken);
+				}
+				else if (!String.IsNullOrEmpty(config.HordeCluster))
+				{
+					_clusterId = new ClusterId(config.HordeCluster);
+				}
+				else
+				{
+					_clusterId = new ClusterId(UnrealBuildAcceleratorHordeConfig.ClusterDefault);
+				}
+				_logger.LogInformation("Horde cluster resolved as {ClusterId}", _clusterId.ToString());
 			}
 		}
 
@@ -655,21 +683,7 @@ namespace UnrealBuildTool
 							break;
 						}
 
-						Requirements requirements = new()
-						{
-							Exclusive = true
-						};
-
-						if (!String.IsNullOrEmpty(HordeConfig.HordePool))
-						{
-							requirements.Pool = HordeConfig.HordePool;
-						}
-
-						if (HordeConfig.HordeCondition != null)
-						{
-							requirements.Condition = Condition.Parse(HordeConfig.HordeCondition);
-						}
-
+						Requirements requirements = GetRequirements(HordeConfig);
 						if (!await hordeSession.AddWorkerAsync(requirements, HordeConfig, _cancellationSource.Token))
 						{
 							_logger.LogDebug("No additional workers available");
@@ -738,6 +752,48 @@ namespace UnrealBuildTool
 				_timer?.Dispose();
 				_timer = null;
 			}
+		}
+		
+		private static Requirements GetRequirements(UnrealBuildAcceleratorHordeConfig config)
+		{
+			Requirements requirements = new() { Exclusive = true };
+			
+			if (config.HordeCluster == UnrealBuildAcceleratorHordeConfig.ClusterAuto)
+			{
+				string condition = "";
+				if (OperatingSystem.IsWindows())
+				{
+					condition = $"({KnownPropertyNames.OsFamily} == 'Windows' || {KnownPropertyNames.WineEnabled} == 'true')";
+				}
+				else if (OperatingSystem.IsMacOS())
+				{
+					condition = $"{KnownPropertyNames.OsFamily} == 'MacOS'";
+				}
+				else if (OperatingSystem.IsLinux())
+				{
+					condition = $"{KnownPropertyNames.OsFamily} == 'Linux'";
+				}
+				
+				if (config.HordeCondition != null)
+				{
+					condition = " " + config.HordeCondition;
+				}
+				requirements.Condition = Condition.Parse(condition);
+			}
+			else
+			{
+				if (!String.IsNullOrEmpty(config.HordePool))
+				{
+					requirements.Pool = config.HordePool;
+				}
+				
+				if (config.HordeCondition != null)
+				{
+					requirements.Condition = Condition.Parse(config.HordeCondition);
+				}
+			}
+			
+			return requirements;
 		}
 
 		readonly ILogger _logger;

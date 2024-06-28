@@ -107,6 +107,25 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde", Name = "Requirements")]
 		[CommandLine("-UBAHordeRequirements=")]
 		public string? HordeCondition { get; set; }
+		
+		/// <summary>
+		/// Default compute cluster ID if nothing is set
+		/// </summary>
+		public const string ClusterDefault = "default";
+		
+		/// <summary>
+		/// Compute cluster ID for automatically resolving the most suitable cluster
+		/// </summary>
+		public const string ClusterAuto = "_auto";
+		
+		/// <summary>
+		/// Compute cluster ID to use in Horde. Set to "_auto" to let Horde server resolve a suitable cluster.
+		/// In multi-region setups this is can simplify configuration of UBT/UBA a lot.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "Horde", "UbaCluster")]
+		[XmlConfigFile(Category = "Horde", Name = "Cluster")]
+		[CommandLine("-UBAHordeCluster=")]
+		public string? HordeCluster { get; set; }
 
 		/// <summary>
 		/// Which ip UBA server should give to agents. This will invert so host listens and agents connect

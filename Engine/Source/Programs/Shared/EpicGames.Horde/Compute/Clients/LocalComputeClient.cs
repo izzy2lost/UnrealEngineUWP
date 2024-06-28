@@ -16,8 +16,11 @@ namespace EpicGames.Horde.Compute.Clients
 	/// </summary>
 	public sealed class LocalComputeClient : IComputeClient
 	{
+		private static readonly ClusterId s_cluster = new ("_local");
+		
 		class LeaseImpl : IComputeLease
 		{
+			public ClusterId Cluster { get; } = s_cluster;
 			public IReadOnlyList<string> Properties { get; } = new List<string>();
 			public IReadOnlyDictionary<string, int> AssignedResources => new Dictionary<string, int>();
 			public RemoteComputeSocket Socket => _socket;
@@ -82,7 +85,13 @@ namespace EpicGames.Horde.Compute.Clients
 			await worker.RunAsync(socket, cancellationToken);
 			await socket.CloseAsync(cancellationToken);
 		}
-
+		
+		/// <inheritdoc/>
+		public Task<ClusterId> GetClusterAsync(Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default)
+		{
+			return Task.FromResult(s_cluster);
+		}
+		
 		/// <inheritdoc/>
 		public Task<IComputeLease?> TryAssignWorkerAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{

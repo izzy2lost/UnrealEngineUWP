@@ -14,6 +14,16 @@ namespace EpicGames.Horde.Compute
 	public interface IComputeClient : IAsyncDisposable
 	{
 		/// <summary>
+		/// Find the most suitable cluster to execute a given compute assignment request
+		/// </summary>
+		/// <param name="requirements">Requirements for the agent</param>
+		/// <param name="requestId">Optional ID identifying the request over multiple calls, such as retrying the same request</param>
+		/// <param name="connection">Optional preference of connection details</param>
+		/// <param name="logger">Logger for output from this worker</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public Task<ClusterId> GetClusterAsync(Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default);
+		
+		/// <summary>
 		/// Adds a new remote request
 		/// </summary>
 		/// <param name="clusterId">Optional cluster ID. If not set, cluster will automatically be resolved by server</param>

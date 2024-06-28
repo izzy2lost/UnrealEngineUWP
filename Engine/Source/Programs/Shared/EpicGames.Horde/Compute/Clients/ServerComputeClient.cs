@@ -115,6 +115,7 @@ namespace EpicGames.Horde.Compute.Clients
 		public const int NonceLength = 64;
 
 		record LeaseInfo(
+			ClusterId Cluster,
 			IReadOnlyList<string> Properties,
 			IReadOnlyDictionary<string, int> AssignedResources,
 			RemoteComputeSocket Socket,
@@ -124,6 +125,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 		class LeaseImpl : IComputeLease
 		{
+			public ClusterId Cluster => _source.Current.Cluster;
 			public IReadOnlyList<string> Properties => _source.Current.Properties;
 			public IReadOnlyDictionary<string, int> AssignedResources => _source.Current.AssignedResources;
 			public RemoteComputeSocket Socket => _source.Current.Socket;
@@ -216,7 +218,34 @@ namespace EpicGames.Horde.Compute.Clients
 		{
 			_cancellationSource.Dispose();
 		}
-
+		
+		/// <inheritdoc/>
+		public async Task<ClusterId> GetClusterAsync(Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken = default)
+		{
+			AssignComputeRequest request = new()
+			{
+				Requirements = requirements,
+				RequestId = requestId,
+				Connection = connection,
+				Protocol = (int)ComputeProtocol.Latest
+			};
+			
+			using HttpResponseMessage httpResponse = await HordeHttpClient.PostAsync(_httpClient, "api/v2/compute/_cluster", request, _cancellationSource.Token);
+			if (!httpResponse.IsSuccessStatusCode)
+			{
+				string body = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+				throw new ComputeClientException($"Unable to find suitable cluster. HTTP status code {httpResponse.StatusCode}: {body}");
+			}
+			
+			GetClusterResponse? response = await httpResponse.Content.ReadFromJsonAsync<GetClusterResponse>(HordeHttpClient.JsonSerializerOptions, cancellationToken);
+			if (response == null)
+			{
+				throw new InvalidOperationException();
+			}
+			
+			return response.ClusterId;
+		}
+		
 		/// <inheritdoc/>
 		public async Task<IComputeLease?> TryAssignWorkerAsync(ClusterId? clusterId, Requirements? requirements, string? requestId, ConnectionMetadataRequest? connection, ILogger logger, CancellationToken cancellationToken)
 		{
@@ -349,7 +378,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 			await using ComputeTransport transport = await CreateTransportAsync(socket, response, cancellationToken);
 			await using RemoteComputeSocket computeSocket = new(transport, (ComputeProtocol)response.Protocol, workerLogger);
-			yield return new LeaseInfo(response.Properties, response.AssignedResources, computeSocket, response.Ip, response.ConnectionMode, response.Ports);
+			yield return new LeaseInfo(response.ClusterId, response.Properties, response.AssignedResources, computeSocket, response.Ip, response.ConnectionMode, response.Ports);
 		}
 
 		private static async Task<ComputeTransport> CreateTransportAsync(Socket socket, AssignComputeResponse response, CancellationToken cancellationToken)
