@@ -44,12 +44,12 @@ namespace EpicGames.Horde.Issues.Handlers
 		/// <summary>
 		/// Callstack log type property
 		/// </summary>
-		static readonly Utf8String s_callstackLogType = new Utf8String("Callstack");
+		const string CallstackLogType = "Callstack";
 
 		/// <summary>
 		/// Summary log type property
 		/// </summary>
-		static readonly Utf8String s_summaryLogType = new Utf8String("Summary");
+		const string SummaryLogType = "Summary";
 
 		/// <summary>
 		/// Max Message Length to hash
@@ -117,6 +117,7 @@ namespace EpicGames.Horde.Issues.Handlers
 					key += $":{_context.StreamId}:{_context.NodeName}";
 				}
 				keys.Add(key, IssueKeyType.None);
+				metadata.Add("Hash", hash.ToString());
 			}
 			else
 			{
@@ -150,23 +151,41 @@ namespace EpicGames.Horde.Issues.Handlers
 
 		private static bool EventHasCallstackProperty(IssueEvent issueEvent)
 		{
-			return issueEvent.Lines.Any(x => FindNestedPropertyOfType(x, s_callstackLogType) != null);
+			return issueEvent.Lines.Any(x => FindNestedPropertyOfType(x, CallstackLogType) != null);
 		}
 
 		private static string? GetSummaryProperty(IssueEvent issueEvent)
 		{
+			StringBuilder? summary = null;
 			foreach (JsonLogEvent logEvent in issueEvent.Lines)
 			{
-				JsonProperty? property = FindNestedPropertyOfType(logEvent, s_summaryLogType);
+				JsonProperty? property = FindNestedPropertyOfType(logEvent, SummaryLogType);
 				if (property != null)
 				{
-					return property.Value.Value.GetString();
+					if (summary == null)
+					{
+						summary = new StringBuilder();
+					}
+					JsonElement value = property.Value.Value;
+					if (value.ValueKind == JsonValueKind.String
+						// handle LogValue type
+						|| (value.TryGetProperty(LogEventPropertyName.Text.Span, out value) && value.ValueKind == JsonValueKind.String))
+					{
+						summary.Append(value.GetString() + '\n');
+						continue;
+					}
+					summary.Append(value.ToString() + '\n');
+				}
+				else if (summary != null)
+				{
+					// when property is null but not summary, we early exit since we expect property split to be contiguous
+					return summary.ToString();
 				}
 			}
-			return null;
+			return summary?.ToString();
 		}
 
-		private static JsonProperty? FindNestedPropertyOfType(JsonLogEvent logEvent, Utf8String type)
+		private static JsonProperty? FindNestedPropertyOfType(JsonLogEvent logEvent, string searchType)
 		{
 			JsonElement line = JsonDocument.Parse(logEvent.Data).RootElement;
 			JsonElement properties;
@@ -174,8 +193,13 @@ namespace EpicGames.Horde.Issues.Handlers
 			{
 				foreach (JsonProperty property in properties.EnumerateObject())
 				{
-					if (property.NameEquals(type.Span))
+					if (property.Name.StartsWith(searchType, System.StringComparison.OrdinalIgnoreCase))
 					{
+						// if name is longer, check if it is a split property pattern: {name}${index}
+						if (property.Name.Length > searchType.Length && property.Name.Substring(searchType.Length, 1) != "$")
+						{
+							continue;
+						}
 						return property;
 					}
 				}
@@ -197,7 +221,8 @@ namespace EpicGames.Horde.Issues.Handlers
 				issue.Metadata.Add("GauntletType", gauntletType);
 				if (hasCallstack)
 				{
-					issue.Type = $"{issue.Type}:with-callstack";
+					string? hash = issue.Metadata.FindValues("Hash").FirstOrDefault();
+					issue.Type = $"{issue.Type}:with-callstack:{hash}";
 				}
 				_issues.Add(issue);
 
