@@ -145,7 +145,6 @@ protected:
 class FPCGCustomHLSLElement : public IPCGElement
 {
 protected:
-	// During compilation, custom HLSL nodes will be replaced with a compute graph element, and this should never actually execute.
-	// Left ensure here for validation.
-	virtual bool ExecuteInternal(FPCGContext* Context) const override { ensure(false); return true; }
+	// This will only be called if the custom HLSL node is not set up correctly (valid nodes are replaced with a compute graph element).
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
