@@ -11,14 +11,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using UnrealBuildBase;
 
-
 #pragma warning disable SYSLIB0014
 
 namespace AutomationTool.DeviceReservation
 {
 	/// <summary>
 	/// Co-operatively reserves remote devices for build automation.
-	/// 
+	///
 	/// The constructor blocks until the specified type and number of devices are available.
 	/// The reservation is automatically renewed for the lifetime of this object, and released
 	/// when the object is disposed or garbage collected.
@@ -71,6 +70,28 @@ namespace AutomationTool.DeviceReservation
 			// Resolve the device IPs
 			ReservedDevices = new List<Device>();
 			foreach (var DeviceName in ActiveReservation.DeviceNames)
+			{
+				ReservedDevices.Add(Device.Get(ReservationBaseUri, DeviceName));
+			}
+
+			RenewThread = new Thread(DoAutoRenew);
+			RenewThread.Start();
+		}
+
+		/// <summary>
+		/// Creates a device reservation for the specified type and number of devices.
+		/// Blocks until the devices are available.
+		/// </summary>
+		/// <param name="InReservationBaseUri">Working directory which contains the devices.xml and reservations.xml files. Usually a network share</param>
+		/// <param name="Reservation">Reservation to continually renew</param>
+		public DeviceReservationAutoRenew(string InReservationBaseUri, Reservation Reservation)
+		{
+			ReservationBaseUri = new Uri(InReservationBaseUri);
+			ActiveReservation = Reservation;
+
+			// Resolve the device IPs
+			ReservedDevices = new List<Device>();
+			foreach (string DeviceName in ActiveReservation.DeviceNames)
 			{
 				ReservedDevices.Add(Device.Get(ReservationBaseUri, DeviceName));
 			}
@@ -262,9 +283,10 @@ namespace AutomationTool.DeviceReservation
 			public string PoolId { get; set; }
 			public string JobId { get; set; }
 			public string StepId { get; set; }
+			public string DeviceName { get; set; }
 		}
 
-		public static Reservation Create(Uri BaseUri, string[] DeviceTypes, TimeSpan Duration, int RetryMax = 5, string PoolID = "")
+		public static Reservation Create(Uri BaseUri, string[] DeviceTypes, TimeSpan Duration, int RetryMax = 5, string PoolID = "", string DeviceName = "")
 		{
 			bool bFirst = true;
 			TimeSpan RetryTime = TimeSpan.FromMinutes(1);
@@ -293,7 +315,8 @@ namespace AutomationTool.DeviceReservation
 						ReservationDetails = ReservationDetails,
 						PoolId = PoolID,
 						JobId = Environment.GetEnvironmentVariable("UE_HORDE_JOBID"),
-						StepId = Environment.GetEnvironmentVariable("UE_HORDE_STEPID")
+						StepId = Environment.GetEnvironmentVariable("UE_HORDE_STEPID"),
+						DeviceName = DeviceName
 					});
 				}
 				catch (WebException WebEx)
