@@ -11,6 +11,7 @@
 #include "Widgets/Console/SSessionConsole.h"
 #include "Widgets/SSessionFrontend.h"
 #include "ISessionFrontendModule.h"
+#include "SessionFrontendStyle.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
@@ -57,16 +58,20 @@ public:
 	
 	virtual void StartupModule() override
 	{
+		FSessionFrontendStyle::Initialize();
+
 		auto& TabSpawnerEntry = FGlobalTabmanager::Get()->RegisterNomadTabSpawner(SessionFrontendTabName, FOnSpawnTab::CreateRaw(this, &FSessionFrontendModule::SpawnSessionFrontendTab))
 			.SetDisplayName(NSLOCTEXT("FSessionFrontendModule", "FrontendTabTitle", "Session Frontend"))
 			.SetTooltipText(NSLOCTEXT("FSessionFrontendModule", "FrontendTooltipText", "Open the Session Frontend tab."))
-			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "SessionFrontEnd.TabIcon"));
+			.SetIcon(FSlateIcon(FSessionFrontendStyle::GetStyleSetName(), "SessionFrontEnd.TabIcon"));
 
 		TabSpawnerEntry.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory());
 	}
 
 	virtual void ShutdownModule() override
 	{
+		FSessionFrontendStyle::Shutdown();
+
 		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(SessionFrontendTabName);
 	}
 
