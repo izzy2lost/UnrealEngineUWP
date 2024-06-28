@@ -15,6 +15,7 @@
 #include "IPixelStreamingModule.h"
 #include "IPixelStreamingInputModule.h"
 #include "IPixelStreamingEditorModule.h"
+#include "PixelStreamingDelegates.h"
 #include "PixelStreamingInputEnums.h"
 #include "PixelStreamingInputMessage.h"
 #include "PixelStreamingInputProtocol.h"
@@ -24,6 +25,9 @@
 #include "PixelStreamingVCamModule.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Math/Matrix.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include "Serialization/MemoryReader.h"
 #include "Slate/SceneViewport.h"
 #include "Widgets/SVirtualWindow.h"
@@ -39,8 +43,15 @@
 
 namespace UE::PixelStreamingVCam
 {
+	FVCamPixelStreamingSessionLogic::~FVCamPixelStreamingSessionLogic()
+	{
+		UnregisterPixelStreamingDelegates();
+	}
+
 	void FVCamPixelStreamingSessionLogic::OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
+		UnregisterPixelStreamingDelegates();
+
 		if (MediaOutput)
 		{
 			MediaOutput->ConditionalBeginDestroy();
@@ -113,6 +124,11 @@ namespace UE::PixelStreamingVCam
 			MediaOutput->StartStreaming();
 		}
 
+		if (UPixelStreamingDelegates* Delegates = UPixelStreamingDelegates::GetPixelStreamingDelegates())
+		{
+			Delegates->OnAllConnectionsClosedNative.AddRaw(this, &FVCamPixelStreamingSessionLogic::OnAllConnectionsClosed);
+		}
+
 		FPixelStreamingVCamModule::Get().AddActiveSession(WeakThisUObjectPtr);
 	}
 
@@ -136,6 +152,13 @@ namespace UE::PixelStreamingVCam
 		UEditorPerformanceSettings* Settings = GetMutableDefault<UEditorPerformanceSettings>();
 		Settings->bThrottleCPUWhenNotForeground = bOldThrottleCPUWhenNotForeground;
 		Settings->PostEditChange();
+
+		UnregisterPixelStreamingDelegates();
+		
+		for (TPair<int32, TPromise<FVCamStringPromptResponse>>& PromisePair : StringPromptPromises)
+		{
+			PromisePair.Value.EmplaceValue(FVCamStringPromptResponse(EVCamStringPromptResult::Disconnected));
+		}
 
 		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr = This;
 		FPixelStreamingVCamModule::Get().RemoveActiveSession(WeakThisPtr);
@@ -203,6 +226,35 @@ namespace UE::PixelStreamingVCam
 	{
 		Collector.AddReferencedObject(MediaOutput, &Args.GetOutputProvider());
 		Collector.AddReferencedObject(MediaCapture, &Args.GetOutputProvider());
+	}
+
+	TFuture<FVCamStringPromptResponse> FVCamPixelStreamingSessionLogic::PromptClientForString(DecoupledOutputProvider::IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request)
+	{
+		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
+
+		TSharedPtr<IPixelStreamingStreamer> Streamer = IPixelStreamingModule::Get().FindStreamer(This->StreamerId);
+		if (!Streamer)
+		{
+			return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
+		}
+
+		TPromise<FVCamStringPromptResponse>& ResponsePromise = StringPromptPromises.Emplace(NextStringRequestId);
+
+		TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject);
+		JsonObject->SetStringField(TEXT("command"), TEXT("stringPrompt"));
+		JsonObject->SetStringField(TEXT("defaultValue"), Request.DefaultValue);
+		JsonObject->SetStringField(TEXT("promptTitle"), Request.PromptTitle);
+		JsonObject->SetNumberField(TEXT("requestId"), NextStringRequestId);
+
+		++NextStringRequestId;
+
+		FString Descriptor;
+		TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> JsonWriter = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Descriptor);
+		FJsonSerializer::Serialize(JsonObject.ToSharedRef(), JsonWriter);
+
+		Streamer->SendPlayerMessage(FPixelStreamingInputProtocol::FromStreamerProtocol.Find("Command")->GetID(), Descriptor);
+
+		return ResponsePromise.GetFuture();
 	}
 
 #if WITH_EDITOR
@@ -436,10 +488,59 @@ namespace UE::PixelStreamingVCam
 				}
 			};
 
+			/*
+			 * ====================
+			 * String Prompt
+			 * ====================
+			 */
+			
+			FPixelStreamingInputMessage StringPromptMessage = FPixelStreamingInputMessage(101, { // Request ID
+																								EType::Int16,
+																								// Cancelled (bool)
+																								EType::Uint8,
+																								// User-provided string
+																								EType::String });
+
+			const IPixelStreamingInputHandler::MessageHandlerFn StringPromptHandler = [this, WeakThisUObjectPtr](FString PlayerId, FMemoryReader Ar)
+			{
+				if (!WeakThisUObjectPtr.IsValid())
+				{
+					return;
+				}
+
+				int16 RequestId;
+				Ar << RequestId;
+
+				uint8 CancelledUint;
+				Ar << CancelledUint;
+
+				uint16 EntryLength;
+				Ar << EntryLength;
+
+				FString Entry;
+				Entry.GetCharArray().SetNumUninitialized(EntryLength / 2 + 1); // wchar uses 2 bytes per char (plus null terminator)
+				Ar.Serialize(Entry.GetCharArray().GetData(), EntryLength);
+
+				if (TPromise<FVCamStringPromptResponse>* ResponsePromise = StringPromptPromises.Find(RequestId))
+				{
+					FVCamStringPromptResponse Response;
+					Response.Result = CancelledUint == 0 ? EVCamStringPromptResult::Submitted : EVCamStringPromptResult::Cancelled;
+					Response.Entry = Entry;
+
+					ResponsePromise->EmplaceValue(Response);
+
+					StringPromptPromises.Remove(RequestId);
+				}
+			};
+
+			// Register custom message protocols + handlers
 			FPixelStreamingInputProtocol::ToStreamerProtocol.Add("ARKitTransform", ARKitMessage);
+			FPixelStreamingInputProtocol::ToStreamerProtocol.Add("VCamStringPromptResponse", StringPromptMessage);
+			
 			if (TSharedPtr<IPixelStreamingInputHandler> InputHandler = MediaOutput->GetStreamer()->GetInputHandler().Pin())
 			{
 				InputHandler->RegisterMessageHandler("ARKitTransform", ARKitHandler);
+				InputHandler->RegisterMessageHandler("VCamStringPromptResponse", StringPromptHandler);
 			}
 		}
 		else
@@ -540,6 +641,24 @@ namespace UE::PixelStreamingVCam
 		if (GWorld)
 		{
 			GWorld->GetTimerManager().ClearTimer(ARKitResponseTimer);
+		}
+	}
+
+	void FVCamPixelStreamingSessionLogic::OnAllConnectionsClosed(FString StreamerId)
+	{
+		for (TPair<int32, TPromise<FVCamStringPromptResponse>>& PromisePair : StringPromptPromises)
+		{
+			PromisePair.Value.EmplaceValue(FVCamStringPromptResponse(EVCamStringPromptResult::Disconnected));
+		}
+
+		StringPromptPromises.Empty();
+	}
+
+	void FVCamPixelStreamingSessionLogic::UnregisterPixelStreamingDelegates()
+	{
+		if (UPixelStreamingDelegates* Delegates = UPixelStreamingDelegates::GetPixelStreamingDelegates())
+		{
+			Delegates->OnAllConnectionsClosedNative.RemoveAll(this);
 		}
 	}
 }

@@ -21,6 +21,8 @@ namespace UE::PixelStreamingVCam
 	{
 	public:
 
+		virtual ~FVCamPixelStreamingSessionLogic();
+
 		//~ Begin IOutputProviderLogic Interface
 		virtual void OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void OnActivate(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
@@ -28,6 +30,7 @@ namespace UE::PixelStreamingVCam
 		virtual VCamCore::EViewportChangeReply PreReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void PostReapplyViewport(DecoupledOutputProvider::IOutputProviderEvent& Args) override;
 		virtual void OnAddReferencedObjects(DecoupledOutputProvider::IOutputProviderEvent& Args, FReferenceCollector& Collector) override;
+		virtual TFuture<FVCamStringPromptResponse> PromptClientForString(DecoupledOutputProvider::IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request) override;
 #if WITH_EDITOR
 		virtual void OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -76,10 +79,22 @@ namespace UE::PixelStreamingVCam
 		void SetupARKitResponseTimer(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StopARKitResponseTimer();
 
+		/** Called when all pixel streaming connections to a streamer are closed */
+		void OnAllConnectionsClosed(FString StreamerId);
+
+		/** Unregister any handlers for pixel streaming delegates */
+		void UnregisterPixelStreamingDelegates();
+
 private:
 		/** Handle for ARKit stats timer */
 		FTimerHandle ARKitResponseTimer; 
 		size_t NumARKitEvents = 0;
+
+		/** The next ID to use for a string request */
+		int32 NextStringRequestId = 0;
+
+		/** A map from string request IDs to promises to fulfill when the corresponding request is completed */
+		TMap<int32, TPromise<FVCamStringPromptResponse>> StringPromptPromises;
 	};
 }
 

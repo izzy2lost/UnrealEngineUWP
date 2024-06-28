@@ -53,6 +53,10 @@ namespace UE::DecoupledOutputProvider
 		virtual void OnTick(IOutputProviderEvent& Args, const float DeltaTime) {}
 		virtual VCamCore::EViewportChangeReply PreReapplyViewport(IOutputProviderEvent& Args) { return VCamCore::EViewportChangeReply::Reinitialize; }
 		virtual void PostReapplyViewport(IOutputProviderEvent& Args) {}
+		virtual TFuture<FVCamStringPromptResponse> PromptClientForString(IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request)
+		{
+			return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
+		}
 
 		// UObject events
 		virtual void OnAddReferencedObjects(IOutputProviderEvent& Args, FReferenceCollector& Collector) {}

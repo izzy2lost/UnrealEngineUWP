@@ -7,6 +7,7 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+struct FVCamStringPromptRequest;
 class UClass;
 
 namespace UE::DecoupledOutputProvider
@@ -46,6 +47,7 @@ namespace UE::DecoupledOutputProvider
 		void OnBeginDestroy(IOutputProviderEvent& Args);
 		void OnSerialize(IOutputProviderEvent& Args, FArchive& Ar);
 		void OnPostLoad(IOutputProviderEvent& Args);
+		TFuture<FVCamStringPromptResponse> PromptClientForString(IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request);
 #if WITH_EDITOR
 		void OnPostEditChangeProperty(IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent);
 #endif

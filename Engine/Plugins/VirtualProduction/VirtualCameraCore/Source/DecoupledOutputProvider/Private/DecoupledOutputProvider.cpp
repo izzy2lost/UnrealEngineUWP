@@ -111,6 +111,20 @@ void UDecoupledOutputProvider::PostReapplyViewport()
 	SafeModuleCall([&](FDecoupledOutputProviderModule& Module){ Module.PostReapplyViewport(EventScope); });
 }
 
+TFuture<FVCamStringPromptResponse> UDecoupledOutputProvider::PromptClientForString(const FVCamStringPromptRequest& Request)
+{
+	using namespace UE::DecoupledOutputProvider;
+	const auto SuperFunc = [this, Request]() { Super::PromptClientForString(Request); };
+	FOutputProviderEvent EventScope(*this, SuperFunc);
+
+	if (FDecoupledOutputProviderModule::IsAvailable())
+	{
+		return FDecoupledOutputProviderModule::Get().PromptClientForString(EventScope, Request);
+	}
+
+	return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
+}
+
 void UDecoupledOutputProvider::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	using namespace UE::DecoupledOutputProvider;

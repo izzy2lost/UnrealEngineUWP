@@ -31,6 +31,7 @@ public:
 	virtual void OnDeactivate() override;
 	virtual UE::VCamCore::EViewportChangeReply PreReapplyViewport() override;
 	virtual void PostReapplyViewport() override;
+	virtual TFuture<FVCamStringPromptResponse> PromptClientForString(const FVCamStringPromptRequest& Request) override;
 	//~ End UVCamOutputProviderBase Interface
 
 	//~ Begin UObject Interface

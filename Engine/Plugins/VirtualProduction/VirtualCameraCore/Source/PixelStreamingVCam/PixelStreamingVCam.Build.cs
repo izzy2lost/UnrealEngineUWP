@@ -29,6 +29,7 @@ namespace UnrealBuildTool.Rules
 				"DiscoveryBeaconReceiver",
 				"Engine",
 				"InputCore",
+				"Json",
 				"LiveLinkInterface",
 				"Networking",
 				"RHI",

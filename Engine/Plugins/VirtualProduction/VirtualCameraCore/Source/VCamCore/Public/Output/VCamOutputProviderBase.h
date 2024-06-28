@@ -4,6 +4,8 @@
 
 #include "CineCameraComponent.h"
 #include "EVCamTargetViewportID.h"
+#include "Output/Data/EViewportChangeReply.h"
+#include "Output/Data/VCamStringPrompt.h"
 #include "UI/WidgetSnapshots.h"
 #include "Util/OutputProviderUtils.h"
 #include "Widgets/VPFullScreenUserWidget.h"
@@ -26,22 +28,6 @@ struct FSceneViewExtensionContext;
 class FLevelEditorViewportClient;
 class ISceneViewExtension;
 #endif
-
-namespace UE::VCamCore
-{
-	/** Result of UVCamOutputProviderBase::PreReapplyViewport */
-	enum class EViewportChangeReply : uint8
-	{
-		/**
-		 * Returned by PreReapplyViewport that the subclass wants the entire output provider to be reinitialized.
-		 * This could be returned e.g. because changing the viewport while outputting is not supported by this implementation.
-		 * Do not call PostReapplyViewport after reinitialization is performed.
-		 */
-		Reinitialize,
-		/** The viewport change will be processed by the implementation. Continue reapplying the output widget to the new target viewport and then call PostReapplyViewport.*/
-		ApplyViewportChange
-	};
-}
 
 /**
  * Output providers implement methods of overlaying a widget onto a target viewport. The composition of viewport and widget is then usually streamed
@@ -99,6 +85,15 @@ public:
 
 	/** @return Whether this output provider should require the viewport to be locked to the camera in order to function correctly. */
 	virtual bool NeedsForceLockToViewport() const;
+
+	/**
+	 * Request string input from the streaming client.
+	 * Returns true if the request was handled.
+	 */
+	virtual TFuture<FVCamStringPromptResponse> PromptClientForString(const FVCamStringPromptRequest& Request)
+	{
+		return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
+	}
 	
 	/** Temporarily disable the output.  Caller must eventually call RestoreOutput. */
 	void SuspendOutput();

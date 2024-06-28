@@ -3,6 +3,7 @@
 #include "DecoupledOutputProviderModule.h"
 
 #include "IOutputProviderLogic.h"
+#include "Output/VCamOutputProviderBase.h"
 
 #include "Engine/World.h"
 
@@ -135,6 +136,16 @@ namespace UE::DecoupledOutputProvider
 		{
 			Logic->OnPostLoad(Args);
 		}
+	}
+
+	TFuture<FVCamStringPromptResponse> FDecoupledOutputProviderModule::PromptClientForString(IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request)
+	{
+		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
+		{
+			return Logic->PromptClientForString(Args, Request);
+		}
+
+		return MakeFulfilledPromise<FVCamStringPromptResponse>(EVCamStringPromptResult::Unavailable).GetFuture();
 	}
 
 #if WITH_EDITOR
