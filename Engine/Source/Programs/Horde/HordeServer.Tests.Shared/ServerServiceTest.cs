@@ -29,7 +29,7 @@ namespace HordeServer.Tests
 		public FakeClock Clock => ServiceProvider.GetRequiredService<FakeClock>();
 		public IMemoryCache Cache => ServiceProvider.GetRequiredService<IMemoryCache>();
 
-		public AclService AclService => ServiceProvider.GetRequiredService<AclService>();
+		public IAclService AclService => ServiceProvider.GetRequiredService<IAclService>();
 		public IMongoService MongoService => ServiceProvider.GetRequiredService<IMongoService>();
 		public IDowntimeService DowntimeService => ServiceProvider.GetRequiredService<IDowntimeService>();
 		public LifetimeService LifetimeService => ServiceProvider.GetRequiredService<LifetimeService>();
@@ -119,8 +119,7 @@ namespace HordeServer.Tests
 			services.AddSingleton<IHostApplicationLifetime, AppLifetimeStub>();
 			services.AddSingleton<IHostEnvironment, WebHostEnvironmentStub>();
 
-			services.AddSingleton<AclService>();
-			services.AddSingleton<IAclService>(sp => sp.GetRequiredService<AclService>());
+			services.AddSingleton<IAclService, AclService>();
 			services.AddSingleton<IDowntimeService, DowntimeServiceStub>();
 			services.AddSingleton<LifetimeService>();
 

@@ -23,7 +23,7 @@ namespace HordeServer.Acls
 		/// <param name="expiry">Time that the token expires</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>JWT security token with a claim for creating new agents</returns>
-		ValueTask<string> IssueBearerTokenAsync(IEnumerable<AclClaimConfig> claims, TimeSpan? expiry, CancellationToken cancellationToken = default);
+		ValueTask<string> IssueBearerTokenAsync(IEnumerable<Claim> claims, TimeSpan? expiry, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds an ACL scope by name
@@ -46,5 +46,15 @@ namespace HordeServer.Acls
 		/// <param name="user">The principal to validate</param>
 		public static bool Authorize(this IAclService aclService, AclScopeName scopeName, AclAction action, ClaimsPrincipal user)
 			=> aclService.TryGetAclScope(scopeName, out AclConfig? scopeConfig) && scopeConfig.Authorize(action, user);
+
+		/// <summary>
+		/// Issues a bearer token with the given roles
+		/// </summary>
+		/// <param name="claims">List of claims to include</param>
+		/// <param name="expiry">Time that the token expires</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>JWT security token with a claim for creating new agents</returns>
+		public static async ValueTask<string> IssueBearerTokenAsync(this IAclService aclService, IEnumerable<AclClaimConfig> claims, TimeSpan? expiry, CancellationToken cancellationToken = default)
+			=> await aclService.IssueBearerTokenAsync(claims.Select(x => new Claim(x.Type, x.Value)), expiry, cancellationToken);
 	}
 }

@@ -52,7 +52,7 @@ namespace HordeServer.Artifacts
 		readonly StorageService _storageService;
 		readonly ILeaseCollection _leaseCollection;
 		readonly IJobCollection _jobCollection;
-		readonly AclService _aclService;
+		readonly IAclService _aclService;
 		readonly UnsyncCache _unsyncCache;
 		readonly IBlockCache _blockCache;
 		readonly GlobalConfig _globalConfig;
@@ -61,7 +61,7 @@ namespace HordeServer.Artifacts
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactsController(IArtifactCollection artifactCollection, StorageService storageService, ILeaseCollection leaseCollection, IJobCollection jobCollection, AclService aclService, UnsyncCache unsyncCache, IBlockCache blockCache, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<ArtifactsController> logger)
+		public ArtifactsController(IArtifactCollection artifactCollection, StorageService storageService, ILeaseCollection leaseCollection, IJobCollection jobCollection, IAclService aclService, UnsyncCache unsyncCache, IBlockCache blockCache, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<ArtifactsController> logger)
 		{
 			_artifactCollection = artifactCollection;
 			_storageService = storageService;

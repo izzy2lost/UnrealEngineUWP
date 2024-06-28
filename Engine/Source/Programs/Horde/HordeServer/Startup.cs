@@ -422,8 +422,7 @@ namespace HordeServer
 
 			services.AddSingleton<IPoolSizeStrategyFactory, JobQueueStrategyFactory>();
 
-			services.AddSingleton<AclService>();
-			services.AddSingleton<IAclService>(sp => sp.GetRequiredService<AclService>());
+			services.AddSingleton<IAclService, AclService>();
 			services.AddSingleton<AgentService>();
 			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
 			services.AddHostedService<ArtifactExpirationService>();

@@ -36,18 +36,6 @@ namespace HordeServer.Acls
 		}
 
 		/// <summary>
-		/// Issues a bearer token with the given roles
-		/// </summary>
-		/// <param name="claims">List of claims to include</param>
-		/// <param name="expiry">Time that the token expires</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>JWT security token with a claim for creating new agents</returns>
-		public async ValueTask<string> IssueBearerTokenAsync(IEnumerable<AclClaimConfig> claims, TimeSpan? expiry, CancellationToken cancellationToken = default)
-		{
-			return await IssueBearerTokenAsync(claims.Select(x => new Claim(x.Type, x.Value)), expiry, cancellationToken);
-		}
-
-		/// <summary>
 		/// Issues a bearer token with the given claims
 		/// </summary>
 		/// <param name="claims">List of claims to include</param>

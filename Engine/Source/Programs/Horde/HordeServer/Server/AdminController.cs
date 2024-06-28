@@ -54,14 +54,14 @@ namespace HordeServer.Server
 	[Route("[controller]")]
 	public class AdminController : HordeControllerBase
 	{
-		readonly AclService _aclService;
+		readonly IAclService _aclService;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly IOptions<ServerSettings> _serverSettings;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AdminController(AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, IOptions<ServerSettings> serverSettings)
+		public AdminController(IAclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, IOptions<ServerSettings> serverSettings)
 		{
 			_aclService = aclService;
 			_globalConfig = globalConfig;
