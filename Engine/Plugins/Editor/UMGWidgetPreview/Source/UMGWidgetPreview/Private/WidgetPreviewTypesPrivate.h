@@ -10,11 +10,11 @@ namespace UE::UMGWidgetPreview::Private
 {
 	struct FWidgetTypeTuple
 	{
-		explicit FWidgetTypeTuple(const UUserWidget* InUserWidget)
+		explicit FWidgetTypeTuple(const UUserWidget* InUserWidgetCDO)
 		{
-			check(InUserWidget);
+			check(InUserWidgetCDO);
 
-			ClassDefaultObject = InUserWidget;
+			ClassDefaultObject = InUserWidgetCDO;
 			BlueprintGeneratedClass = Cast<UWidgetBlueprintGeneratedClass>(ClassDefaultObject->GetClass());
 			Blueprint = Cast<UWidgetBlueprint>(BlueprintGeneratedClass->ClassGeneratedBy);
 		}

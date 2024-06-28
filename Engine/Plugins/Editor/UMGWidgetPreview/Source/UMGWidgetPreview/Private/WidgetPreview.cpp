@@ -5,28 +5,100 @@
 #include "Blueprint/UserWidget.h"
 #include "WidgetBlueprint.h"
 #include "WidgetPreviewTypesPrivate.h"
+#include "WidgetPreviewLog.h"
 
-const TArray<FName>& UWidgetPreview::GetLayoutSlotNames()
+FPreviewableWidgetVariant::FPreviewableWidgetVariant(const TSubclassOf<UUserWidget>& InWidgetType)
+	: ObjectPath(InWidgetType)
 {
-	if (!SlotNameCache.IsEmpty())
+	UpdateCachedWidget();
+}
+
+FPreviewableWidgetVariant::FPreviewableWidgetVariant(const UWidgetPreview* InWidgetPreview)
+	: ObjectPath(InWidgetPreview)
+{
+	UpdateCachedWidget();
+}
+
+void FPreviewableWidgetVariant::UpdateCachedWidget()
+{
+	CachedWidgetCDO.Reset();
+	CachedWidgetPreview.Reset();
+
+	if (UObject* ResolvedObject = ObjectPath.TryLoad())
+    {
+    	if (UWidgetPreview* WidgetPreview = Cast<UWidgetPreview>(ResolvedObject))
+    	{
+    		CachedWidgetPreview = WidgetPreview;
+    		CachedWidgetCDO = WidgetPreview->GetWidgetCDO();
+    	}
+		else if (const UWidgetBlueprint* AsBlueprint = Cast<UWidgetBlueprint>(ResolvedObject))
+		{
+			CachedWidgetCDO = Cast<UUserWidget>(AsBlueprint->GeneratedClass->GetDefaultObject<UUserWidget>());
+		}
+		else if (const UClass* AsClass = Cast<UClass>(ResolvedObject))
+		{
+			if (UUserWidget* UserWidget = AsClass->GetDefaultObject<UUserWidget>())
+			{
+				CachedWidgetCDO = UserWidget;
+			}
+		}
+    }
+}
+
+const UUserWidget* FPreviewableWidgetVariant::AsUserWidgetCDO() const
+{
+	if (ObjectPath.IsNull())
 	{
-		return SlotNameCache;
+		return nullptr;
 	}
 
-	if (!LayoutWidgetType.IsNull())
+	if (const UUserWidget* UserWidgetCDO = CachedWidgetCDO.Get())
 	{
-		if (INamedSlotInterface* WidgetWithSlots = Cast<INamedSlotInterface>(LayoutWidgetType.LoadSynchronous()->GetDefaultObject<UUserWidget>()))
-		{
-			TArray<FName> SlotNames;
-			WidgetWithSlots->GetSlotNames(SlotNames);
+		return UserWidgetCDO;
+	}
 
-			SlotNameCache = SlotNames;
-			return SlotNameCache;
+	if (UObject* ResolvedObject = ObjectPath.TryLoad())
+	{
+		if (const UClass* AsClass = Cast<UClass>(ResolvedObject))
+		{
+			if (UUserWidget* UserWidget = AsClass->GetDefaultObject<UUserWidget>())
+			{
+				UE_LOG(LogWidgetPreview, Warning, TEXT("Tried to get the object as a UserWidget (CDO), but it wasn't cached. Ensure you have called Refresh() first."));
+				return UserWidget;
+			}
 		}
 	}
 
-	static TArray<FName> Empty;
-	return Empty;
+	return nullptr;
+}
+
+UWidgetPreview* FPreviewableWidgetVariant::AsWidgetPreview() const
+{
+	if (ObjectPath.IsNull())
+	{
+		return nullptr;
+	}
+
+	if (UWidgetPreview* WidgetPreview = CachedWidgetPreview.Get())
+	{
+		return WidgetPreview;
+	}
+
+	if (UObject* ResolvedObject = ObjectPath.TryLoad())
+	{
+		if (UWidgetPreview* WidgetPreview = Cast<UWidgetPreview>(ResolvedObject))
+		{
+			UE_LOG(LogWidgetPreview, Warning, TEXT("Tried to get the object as a WidgetPreview, but it wasn't cached. Ensure you have called Refresh() first."));
+			return WidgetPreview;
+		}
+	}
+
+	return nullptr;
+}
+
+const TArray<FName>& UWidgetPreview::GetWidgetSlotNames() const
+{
+	return SlotNameCache;
 }
 
 UUserWidget* UWidgetPreview::GetOrCreateWidgetInstance(UWorld* InWorld, const bool bInForceRecreate)
@@ -52,7 +124,7 @@ UUserWidget* UWidgetPreview::GetOrCreateWidgetInstance(UWorld* InWorld, const bo
 		return nullptr;
 	}
 
-	if (UUserWidget* Widget = GetWidget())
+	if (const UUserWidget* Widget = GetWidgetCDO())
 	{
 		auto MakeWidget = [InWorld](UClass* InClass) -> UUserWidget*
 		{
@@ -65,17 +137,17 @@ UUserWidget* UWidgetPreview::GetOrCreateWidgetInstance(UWorld* InWorld, const bo
 
 		WidgetInstance = MakeWidget(Widget->GetClass());
 
-		if (!LayoutWidgetType.IsNull() && !SlotWidgets.IsEmpty())
+		if (!WidgetType.ObjectPath.IsNull() && !SlotWidgetTypes.IsEmpty())
 		{
 			TArray<FName> ValidSlotNames;
 			WidgetInstance->GetSlotNames(ValidSlotNames);
 
-			for (const TPair<FName, TSoftClassPtr<UUserWidget>>& SlotWidget : SlotWidgets)
+			for (TPair<FName, FPreviewableWidgetVariant>& SlotWidget : SlotWidgetTypes)
 			{
-				if (!SlotWidget.Value.IsNull()
+				if (!SlotWidget.Value.ObjectPath.IsNull()
 					&& ValidSlotNames.Contains(SlotWidget.Key))
 				{
-					WidgetInstance->SetContentForSlot(SlotWidget.Key, MakeWidget(SlotWidget.Value.LoadSynchronous()));
+					WidgetInstance->SetContentForSlot(SlotWidget.Key, MakeWidget(SlotWidget.Value.AsUserWidgetCDO()->GetClass()));
 				}
 			}
 		}
@@ -93,13 +165,18 @@ UUserWidget* UWidgetPreview::GetOrCreateWidgetInstance(UWorld* InWorld, const bo
 	return nullptr;
 }
 
-UUserWidget* UWidgetPreview::GetWidget() const
+UUserWidget* UWidgetPreview::GetWidgetInstance() const
+{
+	return WidgetInstance;
+}
+
+const UUserWidget* UWidgetPreview::GetWidgetCDO() const
 {
 	// If the LayoutWidget is in use, return it (as the root widget).
-	if (!LayoutWidgetType.IsNull())
+	if (!WidgetType.ObjectPath.IsNull())
 	{
-		UUserWidget* LayoutWidgetCDO = LayoutWidgetType.LoadSynchronous()->GetDefaultObject<UUserWidget>();
-		if (INamedSlotInterface* WidgetWithSlots = Cast<INamedSlotInterface>(LayoutWidgetCDO))
+		const UUserWidget* LayoutWidgetCDO = WidgetType.AsUserWidgetCDO();
+		if (const INamedSlotInterface* WidgetWithSlots = Cast<INamedSlotInterface>(LayoutWidgetCDO))
 		{
 			TArray<FName> SlotNames;
 			WidgetWithSlots->GetSlotNames(SlotNames);
@@ -110,21 +187,21 @@ UUserWidget* UWidgetPreview::GetWidget() const
 		}
 	}
 
-	if (!WidgetType.IsNull())
+	if (!WidgetType.ObjectPath.IsNull())
 	{
-		return WidgetType.LoadSynchronous()->GetDefaultObject<UUserWidget>();
+		return WidgetType.AsUserWidgetCDO();
 	}
 
 	return nullptr;
 }
 
-const UUserWidget* UWidgetPreview::GetWidgetForSlot(const FName InSlotName) const
+const UUserWidget* UWidgetPreview::GetWidgetCDOForSlot(const FName InSlotName) const
 {
-	if (const TSoftClassPtr<UUserWidget>* WidgetInSlot = SlotWidgets.Find(InSlotName))
+	if (const FPreviewableWidgetVariant* WidgetInSlot = SlotWidgetTypes.Find(InSlotName))
 	{
-		if (!WidgetInSlot->IsNull())
+		if (!WidgetInSlot->ObjectPath.IsNull())
 		{
-			return WidgetInSlot->LoadSynchronous()->GetDefaultObject<UUserWidget>();	
+			return WidgetInSlot->AsUserWidgetCDO();
 		}
 
 		UE_LOG(LogTemp, Warning, TEXT("Slot %s has invalid widget."), *InSlotName.ToString());
@@ -133,29 +210,30 @@ const UUserWidget* UWidgetPreview::GetWidgetForSlot(const FName InSlotName) cons
 	return nullptr;
 }
 
+void UWidgetPreview::BeginDestroy()
+{
+	UObject::BeginDestroy();
+
+	CleanupReferences();
+}
+
 bool UWidgetPreview::CanCallInitializedWithoutPlayerContext(const bool bInRecursive, TArray<const UUserWidget*>& OutFailedWidgets)
 {
 	bool bResult = true;
 
-	if (!LayoutWidgetType.IsNull())
+	if (!WidgetType.ObjectPath.IsNull())
 	{
-		const UUserWidget* LayoutWidgetCDO = LayoutWidgetType.LoadSynchronous()->GetDefaultObject<UUserWidget>();
-		bResult = bResult && CanCallInitializedWithoutPlayerContextOnWidget(LayoutWidgetCDO, bInRecursive, OutFailedWidgets);
+		const UUserWidget* WidgetCDO = WidgetType.AsUserWidgetCDO();
+		bResult = bResult && CanCallInitializedWithoutPlayerContextOnWidget(WidgetCDO, bInRecursive, OutFailedWidgets);
 
-		for (const TPair<FName, TSoftClassPtr<UUserWidget>>& SlotWidget : SlotWidgets)
+		for (const TPair<FName, FPreviewableWidgetVariant>& SlotWidget : SlotWidgetTypes)
 		{
-			if (!SlotWidget.Value.IsNull())
+			if (!SlotWidget.Value.ObjectPath.IsNull())
 			{
-				const UUserWidget* SlotWidgetCDO = SlotWidget.Value.LoadSynchronous()->GetDefaultObject<UUserWidget>();
+				const UUserWidget* SlotWidgetCDO = SlotWidget.Value.AsUserWidgetCDO();
 				bResult = bResult && CanCallInitializedWithoutPlayerContextOnWidget(SlotWidgetCDO, bInRecursive, OutFailedWidgets);
 			}
 		}
-	}
-
-	if (!WidgetType.IsNull())
-	{
-		const UUserWidget* WidgetCDO = WidgetType.LoadSynchronous()->GetDefaultObject<UUserWidget>();
-		bResult = bResult && CanCallInitializedWithoutPlayerContextOnWidget(WidgetCDO, bInRecursive, OutFailedWidgets);
 	}
 
 	// In case there are no widgets to display, we want to return true
@@ -211,12 +289,12 @@ bool UWidgetPreview::CanCallInitializedWithoutPlayerContextOnWidget(
 	return CanCallInitializedWithoutPlayerContextInternal(InUserWidget);
 }
 
-const TSoftClassPtr<UUserWidget>& UWidgetPreview::GetWidgetType() const
+const FPreviewableWidgetVariant& UWidgetPreview::GetWidgetType() const
 {
 	return WidgetType;
 }
 
-void UWidgetPreview::SetWidgetType(const TSoftClassPtr<UUserWidget>& InWidget)
+void UWidgetPreview::SetWidgetType(const FPreviewableWidgetVariant& InWidget)
 {
 	if (WidgetType != InWidget)
 	{
@@ -228,33 +306,16 @@ void UWidgetPreview::SetWidgetType(const TSoftClassPtr<UUserWidget>& InWidget)
 	}
 }
 
-const TSoftClassPtr<UUserWidget>& UWidgetPreview::GetLayoutWidgetType() const
+const TMap<FName, FPreviewableWidgetVariant>& UWidgetPreview::GetSlotWidgetTypes() const
 {
-	return LayoutWidgetType;
+	return SlotWidgetTypes;
 }
 
-void UWidgetPreview::SetLayoutWidgetType(const TSoftClassPtr<UUserWidget>& InWidget)
+void UWidgetPreview::SetSlotWidgetTypes(const TMap<FName, FPreviewableWidgetVariant>& InWidgets)
 {
-	if (LayoutWidgetType != InWidget)
+	if (!SlotWidgetTypes.OrderIndependentCompareEqual(InWidgets))
 	{
-		LayoutWidgetType = InWidget;
-		WidgetInstance = nullptr;
-		UpdateWidgets();
-
-		OnWidgetChanged().Broadcast(EWidgetPreviewWidgetChangeType::Assignment);
-	}
-}
-
-const TMap<FName, TSoftClassPtr<UUserWidget>>& UWidgetPreview::GetSlotWidgets() const
-{
-	return SlotWidgets;
-}
-
-void UWidgetPreview::SetSlotWidgets(const TMap<FName, TSoftClassPtr<UUserWidget>>& InWidgets)
-{
-	if (!SlotWidgets.OrderIndependentCompareEqual(InWidgets))
-	{
-		SlotWidgets = InWidgets;
+		SlotWidgetTypes = InWidgets;
 		WidgetInstance = nullptr;
 		UpdateWidgets();
 
@@ -273,10 +334,9 @@ void UWidgetPreview::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	FName PropertyName = PropertyChangedEvent.GetMemberPropertyName();
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UWidgetPreview, WidgetType)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UWidgetPreview, LayoutWidgetType)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UWidgetPreview, SlotWidgets)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UWidgetPreview, SlotWidgetTypes)
 		|| PropertyName.IsNone()) // None can be an Undo operation
 	{
 		WidgetInstance = nullptr;
@@ -285,49 +345,88 @@ void UWidgetPreview::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	}
 }
 
+void UWidgetPreview::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
+{
+	UObject::PostEditChangeChainProperty(PropertyChangedEvent);
+}
+
 void UWidgetPreview::OnWidgetBlueprintChanged(UBlueprint* InBlueprint)
 {
+	WidgetInstance = nullptr;
+	UpdateWidgets();
 	OnWidgetChanged().Broadcast(EWidgetPreviewWidgetChangeType::Structure);
 }
 
 void UWidgetPreview::UpdateWidgets()
 {
-	auto AddOnChanged = [this](const UUserWidget* InUserWidget)
+	auto AddOnChanged = [this](const UUserWidget* InUserWidgetCDO)
 	{
-		const UE::UMGWidgetPreview::Private::FWidgetTypeTuple WidgetTuple(InUserWidget);
+		const UE::UMGWidgetPreview::Private::FWidgetTypeTuple WidgetTuple(InUserWidgetCDO);
 		if (UWidgetBlueprint* BP = WidgetTuple.Blueprint)
 		{
 			BP->OnChanged().AddUObject(this, &UWidgetPreview::OnWidgetBlueprintChanged);
 		}
 	};
 
-	if (!LayoutWidgetType.IsNull())
+	CleanupReferences();
+
+	WidgetType.UpdateCachedWidget();
+	if (!WidgetType.ObjectPath.IsNull())
 	{
 		SlotNameCache.Reset();
-
-		AddOnChanged(LayoutWidgetType.LoadSynchronous()->GetDefaultObject<UUserWidget>());
-
-		for (const TPair<FName, TSoftClassPtr<UUserWidget>>& SlotWidget : SlotWidgets)
+		if (const UUserWidget* AsUserWidget = WidgetType.AsUserWidgetCDO())
 		{
-			if (!SlotWidget.Value.IsNull())
+			WidgetReferenceCache.Emplace(MakeWeakObjectPtr(AsUserWidget));
+			AddOnChanged(AsUserWidget);
+
+			if (const INamedSlotInterface* WidgetWithSlots = Cast<INamedSlotInterface>(AsUserWidget))
 			{
-				AddOnChanged(SlotWidget.Value.LoadSynchronous()->GetDefaultObject<UUserWidget>());
+				TArray<FName> SlotNames;
+				WidgetWithSlots->GetSlotNames(SlotNames);
+
+				SlotNameCache = SlotNames;
+			}
+		}
+
+		for (TPair<FName, FPreviewableWidgetVariant>& SlotWidget : SlotWidgetTypes)
+		{
+			SlotWidget.Value.UpdateCachedWidget();
+			if (!SlotWidget.Value.ObjectPath.IsNull())
+			{
+				if (const UUserWidget* AsUserWidget = WidgetType.AsUserWidgetCDO())
+				{
+					WidgetReferenceCache.Emplace(MakeWeakObjectPtr(AsUserWidget));
+					AddOnChanged(AsUserWidget);
+				}
 			}
 		}
 	}
-
-	if (!WidgetType.IsNull())
-	{
-		AddOnChanged(WidgetType.LoadSynchronous()->GetDefaultObject<UUserWidget>());
-	}
 }
 
-TArray<FName> UWidgetPreview::GetAvailableLayoutSlotNames()
+void UWidgetPreview::CleanupReferences()
 {
-	const TArray<FName> AllSlotNames = GetLayoutSlotNames();
+	// Clear previous references, required due to how Blueprints are handled when changed
+	TArray<TWeakObjectPtr<const UUserWidget>> WidgetsToDeinitialize = WidgetReferenceCache;
+	for (TWeakObjectPtr<const UUserWidget>& WeakUserWidget : WidgetsToDeinitialize)
+	{
+		if (const UUserWidget* UserWidget = WeakUserWidget.Get())
+		{
+			const UE::UMGWidgetPreview::Private::FWidgetTypeTuple WidgetTuple(UserWidget);
+			if (UWidgetBlueprint* BP = WidgetTuple.Blueprint)
+			{
+				BP->OnChanged().RemoveAll(this);
+			}
+		}
+	}
+	WidgetReferenceCache.Reset();
+}
+
+TArray<FName> UWidgetPreview::GetAvailableWidgetSlotNames()
+{
+	const TArray<FName> AllSlotNames = GetWidgetSlotNames();
 
 	TArray<FName> UsedSlotNamesArray;
-	SlotWidgets.GenerateKeyArray(UsedSlotNamesArray);
+	SlotWidgetTypes.GenerateKeyArray(UsedSlotNamesArray);
 
 	const TSet<FName> UsedSlotNames(UsedSlotNamesArray);
 
