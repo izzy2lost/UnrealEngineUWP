@@ -111,7 +111,13 @@ bool FChooserTrack::HandleDoubleClickInternal()
 		if (ChooserTable)
 		{
 			const FObjectInfo& OwnerObjectInfo  = GameplayProvider->GetObjectInfo(ObjectId);
-			ChooserTable->SetDebugTarget(OwnerObjectInfo.Name);
+			FString DebugName(OwnerObjectInfo.Name);
+			if (const FObjectInfo* ActorInfo = RewindDebugger->FindOwningActorInfo(GameplayProvider, ObjectId))
+			{
+				DebugName += " in " + FString(ActorInfo->Name);
+			}
+			
+			ChooserTable->SetDebugTarget(DebugName);
 			ChooserTable->SetEnableDebugTesting(true);
 		}
 		

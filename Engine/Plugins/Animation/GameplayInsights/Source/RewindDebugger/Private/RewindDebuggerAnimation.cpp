@@ -196,7 +196,7 @@ FRewindDebuggerAnimation::FSpawnedMeshComponentInfo* FRewindDebuggerAnimation::S
 
 		MeshComponentInfo->Actor = World->SpawnActor<AActor>(ActorSpawnParameters);
 
-		if(const FObjectInfo* ActorInfo = FRewindDebugger::FindOwningActorInfo(GameplayProvider, ObjectId))
+		if(const FObjectInfo* ActorInfo = RewindDebugger->FindOwningActorInfo(GameplayProvider, ObjectId))
 		{
 			MeshComponentInfo->Actor->SetActorLabel(FString(TEXT("RewindDebugger: ") + FString(ActorInfo->Name)));
 		}

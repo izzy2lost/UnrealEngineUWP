@@ -313,9 +313,15 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 		{
 			if (UObject* ContextObject = ObjectParam->Object)
 			{
-				RecentContextObjects.Add(ContextObject->GetName());
+				FString DebugName = ContextObject->GetName();
+				if (UObject* Outer = ContextObject->GetTypedOuter(AActor::StaticClass()))
+				{
+					DebugName += " in " + Outer->GetName();					
+				}
+				
+				RecentContextObjects.Add(DebugName);
 
-				if (ContextObject->GetName() == ContextOwner->GetDebugTargetName())
+				if (DebugName == ContextOwner->GetDebugTargetName())
 				{
 					bDebugTestValuesValid = true;
 					Context.DebuggingInfo.bCurrentDebugTarget = true;

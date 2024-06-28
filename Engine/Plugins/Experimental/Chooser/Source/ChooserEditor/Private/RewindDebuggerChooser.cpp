@@ -28,21 +28,27 @@ void FRewindDebuggerChooser::Update(float DeltaTime, IRewindDebugger* RewindDebu
 			double StartTime = RewindDebugger->GetScrubTime();
 			double EndTime = StartTime + Frame.EndTime - Frame.StartTime;
 			
-			ChooserEvaluationTimeline.EnumerateEvents(StartTime, EndTime, [GameplayProvider, ChooserProvider, StartTime, EndTime, OwnerId](double InStartTime, double InEndTime, uint32 InDepth, const FChooserEvaluationData& ChooserEvaluationData)  
+			ChooserEvaluationTimeline.EnumerateEvents(StartTime, EndTime, [RewindDebugger, GameplayProvider, ChooserProvider, StartTime, EndTime, OwnerId](double InStartTime, double InEndTime, uint32 InDepth, const FChooserEvaluationData& ChooserEvaluationData)  
 			{
 				const FObjectInfo& ChooserInfo = GameplayProvider->GetObjectInfo(ChooserEvaluationData.ChooserId);
 				
 				if (UChooserTable* Chooser = FindObject<UChooserTable>(nullptr, ChooserInfo.PathName))
 				{
 					const FObjectInfo& ContextObjectInfo = GameplayProvider->GetObjectInfo(OwnerId);
+					FString DebugName = ContextObjectInfo.Name;
+
+					if (const FObjectInfo* ActorInfo = RewindDebugger->FindOwningActorInfo(GameplayProvider, OwnerId))
+					{
+						DebugName += " in " + FString(ActorInfo->Name);
+					}
 					
 					// add to recent context objects list, so that this object is selectable as a target in the chooser editor
-                 	Chooser->AddRecentContextObject(ContextObjectInfo.Name);
+                 	Chooser->AddRecentContextObject(DebugName);
 					
 					UChooserTable* ContextOwner = Chooser->GetContextOwner();
 					if (ContextOwner->HasDebugTarget())
 					{
-						if (ContextOwner->GetDebugTargetName() == ContextObjectInfo.Name)
+						if (ContextOwner->GetDebugTargetName() == DebugName)
 						{
 							Chooser->SetDebugSelectedRow(ChooserEvaluationData.SelectedIndex);
 							Chooser->SetDebugTestValuesValid(true);
