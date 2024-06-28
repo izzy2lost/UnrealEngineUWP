@@ -22,7 +22,7 @@ TArray<FPCGPinProperties> UPCGSampleTextureSettings::InputPinProperties() const
 		/*bAllowMultipleData=*/true);
 
 	PinProperties.Emplace(PCGSampleTextureConstants::InputTextureLabel,
-		EPCGDataType::Texture,
+		EPCGDataType::BaseTexture,
 		/*bAllowMultipleConnections=*/false,
 		/*bAllowMultipleData=*/false);
 

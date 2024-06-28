@@ -307,12 +307,12 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 
 bool UPCGBaseTextureData::IsValid() const
 {
-	return Height > 0 && Width > 0;
+	return Height > 0 && Width > 0 && !ColorData.IsEmpty();
 }
 
 bool UPCGBaseTextureData::SamplePointLocal(const FVector2D& LocalPosition, FVector4& OutColor, float& OutDensity) const
 {
-	if (!ensure(Width > 0 && Height > 0))
+	if (!IsValid())
 	{
 		return false;
 	}

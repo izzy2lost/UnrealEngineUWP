@@ -919,6 +919,10 @@ FEdGraphPinType UPCGEditorGraphNodeBase::GetPinType(const UPCGPin* InPin)
 		{
 			EdPinType.PinSubCategory = FPCGEditorCommon::LandscapeDataType;
 		}
+		else if (CheckType(EPCGDataType::BaseTexture))
+		{
+			EdPinType.PinSubCategory = FPCGEditorCommon::BaseTextureDataType;
+		}
 		else if (CheckType(EPCGDataType::Texture))
 		{
 			EdPinType.PinSubCategory = FPCGEditorCommon::TextureDataType;

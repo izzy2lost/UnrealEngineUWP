@@ -35,6 +35,7 @@ UPCGEditorSettings::UPCGEditorSettings(const FObjectInitializer& ObjectInitializ
 	PolyLineDataPinColor = FLinearColor(0.05f, 0.75f, 0.82f);
 	SurfaceDataPinColor = FLinearColor(0.06f, 0.55f, 0.21f);
 	LandscapeDataPinColor = FLinearColor(0.66f, 0.66f, 0.07f);
+	BaseTextureDataPinColor = FLinearColor(0.81f, 0.28f, 0.22f);
 	TextureDataPinColor = FLinearColor(0.79f, 0.08f, 0.01f);
 	RenderTargetDataPinColor = FLinearColor(0.8f, 0.18f, 0.12f);
 	VolumeDataPinColor = FLinearColor(0.79f, 0.06f, 0.5f);
@@ -115,6 +116,10 @@ FLinearColor UPCGEditorSettings::GetPinColor(const FEdGraphPinType& PinType) con
 		else if (PinType.PinSubCategory == FPCGEditorCommon::LandscapeDataType)
 		{
 			return LandscapeDataPinColor;
+		}
+		else if (PinType.PinSubCategory == FPCGEditorCommon::BaseTextureDataType)
+		{
+			return BaseTextureDataPinColor;
 		}
 		else if (PinType.PinSubCategory == FPCGEditorCommon::TextureDataType)
 		{

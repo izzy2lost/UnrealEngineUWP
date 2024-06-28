@@ -121,6 +121,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor LandscapeDataPinColor;
 
+	/** Color used for data pins of type Base Texture */
+	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
+	FLinearColor BaseTextureDataPinColor;
+	
 	/** Color used for data pins of type Texture */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor TextureDataPinColor;

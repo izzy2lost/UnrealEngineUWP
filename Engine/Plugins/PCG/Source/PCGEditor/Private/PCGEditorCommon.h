@@ -40,6 +40,7 @@ namespace FPCGEditorCommon
 	const FName PolyLineDataType = FName(TEXT("Poly Line Data"));
 	const FName SurfaceDataType = FName(TEXT("Surface Data"));
 	const FName LandscapeDataType = FName(TEXT("Landscape Data"));
+	const FName BaseTextureDataType = FName(TEXT("Base Texture Data"));
 	const FName TextureDataType = FName(TEXT("Texture Data"));
 	const FName RenderTargetDataType = FName(TEXT("Render Target Data"));
 	const FName VolumeDataType = FName(TEXT("Volume Data"));
