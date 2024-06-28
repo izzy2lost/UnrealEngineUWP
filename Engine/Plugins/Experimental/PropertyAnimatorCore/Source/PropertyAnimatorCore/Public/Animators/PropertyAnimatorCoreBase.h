@@ -56,7 +56,7 @@ public:
 
 	PROPERTYANIMATORCORE_API AActor* GetAnimatorActor() const;
 
-	UPropertyAnimatorCoreComponent* GetAnimatorComponent() const;
+	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreComponent* GetAnimatorComponent() const;
 
 	/** Get the global animators magnitude */
 	float GetAnimatorComponentMagnitude() const;

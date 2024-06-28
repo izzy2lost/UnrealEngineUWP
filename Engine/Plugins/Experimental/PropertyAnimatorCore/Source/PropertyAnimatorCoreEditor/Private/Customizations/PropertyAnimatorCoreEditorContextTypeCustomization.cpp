@@ -77,13 +77,16 @@ void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeHeader(TShare
 
 void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& InBuilder, IPropertyTypeCustomizationUtils& InUtils)
 {
+	UObject* PropertyObject;
+	if (FPropertyAccess::Success != InPropertyHandle->GetValue(PropertyObject))
+	{
+		return;
+	}
+
 	static const TSet<FName> SkipProperties
 	{
 		GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreContext, bAnimated)
 	};
-
-	UObject* PropertyObject;
-	InPropertyHandle->GetValue(PropertyObject);
 
 	if (UPropertyAnimatorCoreContext* Options = Cast<UPropertyAnimatorCoreContext>(PropertyObject))
 	{

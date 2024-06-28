@@ -20,26 +20,25 @@ public:
 	UPropertyAnimatorCoreEditorStackCustomization();
 
 	//~ Begin UOperatorStackEditorStackCustomization
-	virtual bool TransformContextItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutTransformedItems) const override;
+	virtual bool GetRootItem(const FOperatorStackEditorContext& InContext, FOperatorStackEditorItemPtr& OutRootItem) const override;
+	virtual bool GetChildrenItem(const FOperatorStackEditorItemPtr& InItem, TArray<FOperatorStackEditorItemPtr>& OutChildrenItems) const override;
 	virtual void CustomizeStackHeader(const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorHeaderBuilder& InHeaderBuilder) override;
 	virtual void CustomizeItemHeader(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorHeaderBuilder& InHeaderBuilder) override;
 	virtual void CustomizeItemBody(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorBodyBuilder& InBodyBuilder) override;
 	virtual void CustomizeItemFooter(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorFooterBuilder& InFooterBuilder) override;
-	virtual bool OnIsItemDraggable(const FOperatorStackEditorItemPtr& InItem) override;
+	virtual bool OnIsItemSelectable(const FOperatorStackEditorItemPtr& InItem) override;
 	virtual const FSlateBrush* GetIcon() const override;
 	//~ End UOperatorStackEditorStackCustomization
 
 protected:
 	/** Remove animator menu action */
-	void RemoveControllerAction(UPropertyAnimatorCoreBase* InAnimator) const;
-	void RemoveControllersAction(UPropertyAnimatorCoreComponent* InComponent) const;
+	void RemoveAnimatorAction(FOperatorStackEditorItemPtr InItem) const;
 
 	/** Fill item action menus */
 	void FillAddAnimatorMenuSection(UToolMenu* InToolMenu) const;
-	void FillComponentHeaderActionMenu(UToolMenu* InToolMenu);
 	void FillAnimatorHeaderActionMenu(UToolMenu* InToolMenu);
 	void FillAnimatorContextActionMenu(UToolMenu* InToolMenu) const;
 
 	/** Create commands for animator */
-	TSharedRef<FUICommandList> CreateAnimatorCommands(UPropertyAnimatorCoreBase* InAnimator);
+	TSharedRef<FUICommandList> CreateAnimatorCommands(FOperatorStackEditorItemPtr InItem);
 };

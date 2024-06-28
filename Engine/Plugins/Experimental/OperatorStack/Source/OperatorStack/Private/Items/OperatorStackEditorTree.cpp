@@ -19,24 +19,26 @@ FOperatorStackEditorTree::FOperatorStackEditorTree(UOperatorStackEditorStackCust
 
 	ContextWeak = InContext;
 
-	// Build if context is valid
-	const TArray<FOperatorStackEditorItemPtr> ContextItems(InContext->GetItems());
-	BuildTree(ContextItems);
+	// Get root items
+	TSharedPtr<FOperatorStackEditorItem> RootItem;
+	if (InCustomization->GetRootItem(*InContext.Get(), RootItem))
+	{
+		check(InCustomization->IsCustomizationSupportedFor(RootItem))
+
+		Items.Empty(1);
+
+		BuildTreeInternal({RootItem}, INDEX_NONE);
+	}
 }
 
-TArray<FOperatorStackEditorItemPtr> FOperatorStackEditorTree::GetRootItems() const
+FOperatorStackEditorItemPtr FOperatorStackEditorTree::GetRootItem() const
 {
-	TArray<FOperatorStackEditorItemPtr> RootItems;
-	RootItems.Reserve(RootNodes.Num());
-
-	for (const FOperatorStackEditorTreeNodePtr& Node : RootNodes)
+	if (RootNode.IsValid() && Items.IsValidIndex(RootNode->ItemIndex))
 	{
-		check(Items.IsValidIndex(Node->ItemIndex))
-
-		RootItems.Add(Items[Node->ItemIndex]);
+		return Items[RootNode->ItemIndex];
 	}
 
-	return RootItems;
+	return nullptr;
 }
 
 TArray<FOperatorStackEditorItemPtr> FOperatorStackEditorTree::GetChildrenItems(FOperatorStackEditorItemPtr InItem) const
@@ -129,29 +131,6 @@ bool FOperatorStackEditorTree::Contains(FOperatorStackEditorItemPtr InItem) cons
 	});
 }
 
-void FOperatorStackEditorTree::GetSupportedItems(const TArray<FOperatorStackEditorItemPtr>& InItems, TArray<FOperatorStackEditorItemPtr>& OutSupportedItems) const
-{
-	const UOperatorStackEditorStackCustomization* StackCustomization = CustomizationWeak.Get();
-
-	// Gather supported items for this customization
-	for (const FOperatorStackEditorItemPtr& Item : InItems)
-	{
-		if (!Item.IsValid() || !Item->HasValue())
-		{
-			continue;
-		}
-
-		if (StackCustomization->IsCustomizationSupportedFor(Item))
-		{
-			OutSupportedItems.Add(Item);
-			continue;
-		}
-
-		// Item is not supported, let's transform it to something supported
-		OutSupportedItems.Append(GetSupportedChildrenItems(Item));
-	}
-}
-
 TArray<FOperatorStackEditorItemPtr> FOperatorStackEditorTree::GetSupportedChildrenItems(const FOperatorStackEditorItemPtr& InParentItem) const
 {
 	TArray<FOperatorStackEditorItemPtr> ChildrenPtr;
@@ -162,23 +141,14 @@ TArray<FOperatorStackEditorItemPtr> FOperatorStackEditorTree::GetSupportedChildr
 	}
 
 	const UOperatorStackEditorStackCustomization* StackCustomization = CustomizationWeak.Get();
-	StackCustomization->TransformContextItem(InParentItem, ChildrenPtr);
-	ChildrenPtr.RemoveAll([](const FOperatorStackEditorItemPtr& InItem)
+	StackCustomization->GetChildrenItem(InParentItem, ChildrenPtr);
+
+	ChildrenPtr.RemoveAll([StackCustomization](const FOperatorStackEditorItemPtr& InItem)
 	{
-		return !InItem.IsValid() || !InItem->HasValue();
+		return !InItem.IsValid() || !InItem->HasValue() || !StackCustomization->IsCustomizationSupportedFor(InItem);
 	});
 
 	return ChildrenPtr;
-}
-
-void FOperatorStackEditorTree::BuildTree(const TArray<FOperatorStackEditorItemPtr>& InSourceItems)
-{
-	TArray<FOperatorStackEditorItemPtr> SupportedItems;
-	GetSupportedItems(InSourceItems, SupportedItems);
-
-	Items.Empty(SupportedItems.Num());
-
-	BuildTreeInternal(SupportedItems, INDEX_NONE);
 }
 
 void FOperatorStackEditorTree::BuildTreeInternal(const TArray<FOperatorStackEditorItemPtr>& InSupportedItems, int32 InParentIndex)
@@ -200,7 +170,8 @@ void FOperatorStackEditorTree::BuildTreeInternal(const TArray<FOperatorStackEdit
 
 		if (InParentIndex == INDEX_NONE)
 		{
-			RootNodes.Add(Node);
+			check(!RootNode.IsValid())
+			RootNode = Node;
 		}
 		else
 		{

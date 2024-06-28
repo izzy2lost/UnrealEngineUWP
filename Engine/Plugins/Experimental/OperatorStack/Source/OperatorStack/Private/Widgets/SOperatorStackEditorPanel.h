@@ -50,9 +50,9 @@ public:
 
 	const FOperatorStackEditorTree& GetItemTree(UOperatorStackEditorStackCustomization* InCustomization);
 
-	void SaveItemExpansionState(const void* InItem, bool bInExpanded);
+	void SaveItemExpansionState(uint32 InItem, bool bInExpanded);
 
-	bool GetItemExpansionState(const void* InItem, bool& bOutExpanded);
+	bool GetItemExpansionState(uint32 InItem, bool& bOutExpanded);
 
 	virtual FOperatorStackEditorContextPtr GetContext() const override
 	{
@@ -127,5 +127,5 @@ private:
 	TMap<TWeakObjectPtr<UOperatorStackEditorStackCustomization>, FOperatorStackEditorTree> CustomizationTrees;
 
 	/** To check whether an item was expanded and restore it */
-	TMap<const void*, bool> ItemExpansionState;
+	TMap<uint32, bool> ItemExpansionState;
 };

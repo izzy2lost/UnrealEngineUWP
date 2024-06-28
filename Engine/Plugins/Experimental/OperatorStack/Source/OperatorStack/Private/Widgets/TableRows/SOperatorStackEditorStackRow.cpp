@@ -72,14 +72,22 @@ FReply SOperatorStackEditorStackRow::OnStackDragDetected(const FGeometry& InGeom
 {
 	const TSharedPtr<SOperatorStackEditorStack> OuterStack = OuterStackWeak.Pin();
 
-	if (OuterStack.IsValid() && OuterStack->ItemsListView.IsValid())
+	if (OuterStack.IsValid() && OuterStack->ItemsListView.IsValid() && OuterStack->ItemsListView->GetNumItemsSelected() > 0)
 	{
-		const TArray<TSharedPtr<FOperatorStackEditorItem>>& SelectedItems = OuterStack->ItemsListView->GetSelectedItems();
+		UOperatorStackEditorStackCustomization* Customization = OuterStack->GetStackCustomization();
+		TArray<TSharedPtr<FOperatorStackEditorItem>> SelectedItems;
+
+		for (FOperatorStackEditorItemPtr SelectedItem : OuterStack->ItemsListView->GetSelectedItems())
+		{
+			if (SelectedItem.IsValid() && Customization->OnIsItemDraggable(SelectedItem))
+			{
+				SelectedItems.Add(SelectedItem);
+			}
+		}
 
 		if (!SelectedItems.IsEmpty())
 		{
 			const TSharedRef<FOperatorStackEditorDragDropOp> StackDragDropOp = FOperatorStackEditorDragDropOp::New(SelectedItems);
-
 			return FReply::Handled().BeginDragDrop(StackDragDropOp);
 		}
 	}

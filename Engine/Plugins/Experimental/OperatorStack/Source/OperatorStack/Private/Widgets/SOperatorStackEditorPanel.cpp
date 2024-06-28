@@ -182,12 +182,12 @@ const FOperatorStackEditorTree& SOperatorStackEditorPanel::GetItemTree(UOperator
 	return *Tree;
 }
 
-void SOperatorStackEditorPanel::SaveItemExpansionState(const void* InItem, bool bInExpanded)
+void SOperatorStackEditorPanel::SaveItemExpansionState(uint32 InItem, bool bInExpanded)
 {
 	ItemExpansionState.Add(InItem, bInExpanded);
 }
 
-bool SOperatorStackEditorPanel::GetItemExpansionState(const void* InItem, bool& bOutExpanded)
+bool SOperatorStackEditorPanel::GetItemExpansionState(uint32 InItem, bool& bOutExpanded)
 {
 	if (const bool* bExpanded = ItemExpansionState.Find(InItem))
 	{
@@ -209,9 +209,6 @@ void SOperatorStackEditorPanel::AddSlot(const UOperatorStackEditorStackCustomiza
 	{
 		return;
 	}
-
-	static const FToolBarStyle& ToolBarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
-	static const FCheckBoxStyle* const CheckStyle = &ToolBarStyle.ToggleButton;
 
 	const FText& Label = InCustomizationStack->GetLabel();
 	const FName& Identifier = InCustomizationStack->GetIdentifier();
@@ -235,32 +232,35 @@ void SOperatorStackEditorPanel::AddSlot(const UOperatorStackEditorStackCustomiza
 	WidgetToolbar->AddSlot()
 		.Padding(SOperatorStackEditorStack::Padding)
 		[
-			SNew(SCheckBox)
-			.Style(CheckStyle)
-			.ForegroundColor(FLinearColor::White)
-			.OnCheckStateChanged(this, &SOperatorStackEditorPanel::OnToolbarButtonClicked, WidgetIdx)
-			.IsChecked(this, &SOperatorStackEditorPanel::IsToolbarButtonActive, WidgetIdx)
-			.Visibility(this, &SOperatorStackEditorPanel::GetToolbarButtonVisibility, WidgetIdx)
+			SNew(SBox)
+			.Padding(FMargin(0.0f))
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(2.f)
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
+				SNew(SCheckBox)
+				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
+				.OnCheckStateChanged(this, &SOperatorStackEditorPanel::OnToolbarButtonClicked, WidgetIdx)
+				.IsChecked(this, &SOperatorStackEditorPanel::IsToolbarButtonActive, WidgetIdx)
+				.Visibility(this, &SOperatorStackEditorPanel::GetToolbarButtonVisibility, WidgetIdx)
 				[
-					SNew(SImage)
-					.DesiredSizeOverride(FVector2D(12.f, 12.f))
-					.Image(Icon)
-				]
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.f)
-				.Padding(2.f)
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				[
-					SNew(STextBlock)
-					.Text(Label)
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(2.f)
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SImage)
+						.DesiredSizeOverride(FVector2D(12.f, 12.f))
+						.Image(Icon)
+					]
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.f)
+					.Padding(2.f)
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(Label)
+					]
 				]
 			]
 		];
@@ -279,7 +279,7 @@ void SOperatorStackEditorPanel::UpdateSlots()
 		{
 			UOperatorStackEditorStackCustomization* Customization = EditorSubsystem->GetCustomization(NamedSlot.Key);
 
-			check(Customization);
+			check(Customization)
 
 			CustomizationTrees.Add(Customization, FOperatorStackEditorTree(Customization, Context));
 

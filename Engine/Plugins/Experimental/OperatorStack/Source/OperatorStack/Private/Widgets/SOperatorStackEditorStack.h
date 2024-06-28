@@ -26,7 +26,7 @@ class SOperatorStackEditorStack : public SCompoundWidget
 	friend class SOperatorStackEditorStackRow;
 
 public:
-	static inline constexpr float Padding = 3.f;
+	static constexpr float Padding = 2.f;
 	static const TMap<EOperatorStackEditorMessageType, FLinearColor> MessageBoxColors;
 	static const TMap<EOperatorStackEditorMessageType, const FSlateBrush*> MessageBoxIcons;
 
@@ -65,7 +65,7 @@ protected:
 	/** List selection changed */
 	void OnSelectionChanged(FOperatorStackEditorItemPtr InItem, ESelectInfo::Type InSelect) const;
 
-	/** Is this item selectable in the list view, here check if item is draggable */
+	/** Is this item selectable in the list view */
 	bool IsSelectableRow(FOperatorStackEditorItemPtr InItem) const;
 
 	/** A stack widget consists of a header, body and footer */
@@ -85,6 +85,9 @@ protected:
 	FLinearColor GetMessageBoxBackgroundColor() const;
 	const FSlateBrush* GetMessageBoxIcon() const;
 	EVisibility GetMessageBoxIconVisibility() const;
+
+	/** The customization to use */
+	TWeakObjectPtr<UOperatorStackEditorStackCustomization> StackCustomizationWeak;
 
 	/** The main panel we are in */
 	TWeakPtr<SOperatorStackEditorPanel> MainPanelWeak;
@@ -106,9 +109,6 @@ protected:
 
 	/** Footer custom view for properties in footer */
 	TSharedPtr<ICustomDetailsView> FooterDetailsView;
-
-	/** The customization to use */
-	TWeakObjectPtr<UOperatorStackEditorStackCustomization> StackCustomizationWeak;
 
 	/** Children items widget created from this, used for search propagation */
 	TArray<TSharedPtr<SOperatorStackEditorStack>> ItemsWidgets;
