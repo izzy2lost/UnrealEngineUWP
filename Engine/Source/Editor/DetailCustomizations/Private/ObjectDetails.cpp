@@ -17,13 +17,13 @@
 #include "HAL/PlatformCrt.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
-#include "K2Node_CallFunction.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Layout/Margin.h"
 #include "Math/NumericLimits.h"
 #include "Misc/Attribute.h"
 #include "Misc/CString.h"
 #include "ObjectEditorUtils.h"
+#include "ObjectTools.h"
 #include "PropertyPermissionList.h"
 #include "Reflection/FunctionUtils.h"
 #include "Settings/BlueprintEditorProjectSettings.h"
@@ -244,7 +244,7 @@ void FObjectDetails::AddCallInEditorMethods(IDetailLayoutBuilder& DetailBuilder)
 			}
 			FCategoryEntry& CategoryEntry = CategoryList.Last();
 
-			const FText ButtonCaption = UK2Node_CallFunction::GetUserFacingFunctionName(Function);
+			const FText ButtonCaption = ObjectTools::GetUserFacingFunctionName(Function);
 			FText FunctionTooltip = Function->GetToolTipText();
 			if (FunctionTooltip.IsEmpty())
 			{

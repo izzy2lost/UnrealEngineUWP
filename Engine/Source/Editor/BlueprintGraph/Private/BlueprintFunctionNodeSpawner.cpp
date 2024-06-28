@@ -34,6 +34,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Misc/AssertionMacros.h"
 #include "ObjectEditorUtils.h"
+#include "ObjectTools.h"
 #include "SNodePanel.h"
 #include "Templates/Casts.h"
 #include "Textures/SlateIcon.h"
@@ -302,9 +303,9 @@ UBlueprintFunctionNodeSpawner* UBlueprintFunctionNodeSpawner::Create(TSubclassOf
 	}
 	else
 	{
-		MenuSignature.MenuName = UK2Node_CallFunction::GetUserFacingFunctionName(Function);
+		MenuSignature.MenuName = ObjectTools::GetUserFacingFunctionName(Function);
 		MenuSignature.Category = UK2Node_CallFunction::GetDefaultCategoryForFunction(Function, FText::GetEmpty());
-		MenuSignature.Tooltip = FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function));
+		MenuSignature.Tooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 		// add at least one character, so that PrimeDefaultUiSpec() doesn't attempt to query the template node
 		MenuSignature.Keywords = UK2Node_CallFunction::GetKeywordsForFunction(Function);
 	}

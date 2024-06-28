@@ -180,13 +180,15 @@ public:
 
 	virtual void PostParameterPinCreated(UEdGraphPin *Pin) {}
 
-	/** Gets the user-facing name for the function */
+	UE_DEPRECATED(5.5, "Moved to ObjectTools::GetUserFacingFunctionName.")
 	static FText GetUserFacingFunctionName(const UFunction* Function);
 
 	/** Set up a pins tooltip from a function's tooltip */
 	static void GeneratePinTooltipFromFunction(UEdGraphPin& Pin, const UFunction* Function);
-	/** Gets the non-specific tooltip for the function */
+
+	UE_DEPRECATED(5.5, "Moved to ObjectTools::GetDefaultTooltipForFunction.")
 	static FString GetDefaultTooltipForFunction(const UFunction* Function);
+
 	/** Get default category for this function in action menu */
 	static FText GetDefaultCategoryForFunction(const UFunction* Function, const FText& BaseCategory);
 	/** Get keywords for this function in the action menu */

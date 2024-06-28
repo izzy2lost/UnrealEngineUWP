@@ -23,6 +23,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
+#include "ObjectTools.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -288,7 +289,7 @@ void UK2Node_WebAPIOperation::AllocateDefaultPins()
 
 FText UK2Node_WebAPIOperation::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	const FText FunctionName = UK2Node_CallFunction::GetUserFacingFunctionName(GetFactoryFunction());
+	const FText FunctionName = ObjectTools::GetUserFacingFunctionName(GetFactoryFunction());
 	FText NamespaceName;
 	FText ServiceName;
 	
@@ -339,7 +340,7 @@ FText UK2Node_WebAPIOperation::GetTooltipText() const
 	}
 	else if (CachedTooltip.IsOutOfDate(this))
 	{
-		FText BaseTooltip = FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function));
+		FText BaseTooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 
 		FFormatNamedArguments Args;
 		Args.Add(TEXT("DefaultTooltip"), BaseTooltip);

@@ -101,6 +101,7 @@
 
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "BlueprintPaletteFavorites.h"
+#include "ObjectTools.h"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -967,7 +968,7 @@ bool UEdGraphSchema_K2::FunctionCanBeUsedInDelegate(const UFunction* InFunction)
 
 FText UEdGraphSchema_K2::GetFriendlySignatureName(const UFunction* Function)
 {
-	return UK2Node_CallFunction::GetUserFacingFunctionName( Function );
+	return ObjectTools::GetUserFacingFunctionName( Function );
 }
 
 void UEdGraphSchema_K2::GetAutoEmitTermParameters(const UFunction* Function, TArray<FString>& AutoEmitParameterNames)
@@ -5622,7 +5623,7 @@ void UEdGraphSchema_K2::GetGraphDisplayInformation(const UEdGraph& Graph, /*out*
 			if (Function)
 			{
 				DisplayInfo.PlainName = FText::FromString(Function->GetName());
-				DisplayInfo.Tooltip = FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function)); // grab its tooltip
+				DisplayInfo.Tooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function)); // grab its tooltip
 			}
 			else
 			{

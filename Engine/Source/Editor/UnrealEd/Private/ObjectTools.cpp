@@ -106,8 +106,12 @@
 #include "Logging/LogMacros.h"
 #include "UncontrolledChangelistsModule.h"
 #include "AssetCompilingManager.h"
+#include "ObjectEditorUtils.h"
+#include "Settings/EditorStyleSettings.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogObjectTools, Log, All);
+
+#define LOCTEXT_NAMESPACE "ObjectTools"
 
 static TAutoConsoleVariable<bool> CVarUseLegacyGetReferencersForDeletion(
 	TEXT("Editor.UseLegacyGetReferencersForDeletion"),
@@ -5026,6 +5030,75 @@ namespace ObjectTools
 			}
 		}
 	}
+
+	FText GetUserFacingFunctionName(const UFunction* Function)
+	{
+		FText ReturnDisplayName;
+
+		if (Function != nullptr)
+		{
+			if (GEditor && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames)
+			{
+				ReturnDisplayName = Function->GetDisplayNameText();
+			}
+			else
+			{
+				static const FString Namespace = TEXT("UObjectDisplayNames");
+				const FString Key = Function->GetFullGroupName(false);
+
+				ReturnDisplayName = Function->GetMetaDataText(TEXT("DisplayName"), Namespace, Key);
+			}
+		}
+
+		return ReturnDisplayName;
+	}
+
+	FString GetDefaultTooltipForFunction(const UFunction* Function)
+	{
+		FString Tooltip;
+
+		if (Function != nullptr)
+		{
+			Tooltip = Function->GetToolTipText().ToString();
+		}
+
+		if (!Tooltip.IsEmpty())
+		{
+			// Strip off the doxygen nastiness
+			static const FString DoxygenParam(TEXT("@param"));
+			static const FString DoxygenReturn(TEXT("@return"));
+			static const FString DoxygenSee(TEXT("@see"));
+			static const FString TooltipSee(TEXT("See:"));
+			static const FString DoxygenNote(TEXT("@note"));
+			static const FString TooltipNote(TEXT("Note:"));
+
+			Tooltip.Split(DoxygenParam, &Tooltip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart);
+			Tooltip.Split(DoxygenReturn, &Tooltip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart);
+
+			Tooltip.ReplaceInline(*DoxygenSee, *TooltipSee);
+			Tooltip.ReplaceInline(*DoxygenNote, *TooltipNote);
+
+			Tooltip.TrimStartAndEndInline();
+
+			UClass* CurrentSelfClass = (Function != nullptr) ? Function->GetOwnerClass() : nullptr;
+			UClass const* TrueSelfClass = CurrentSelfClass;
+			if (CurrentSelfClass && CurrentSelfClass->ClassGeneratedBy)
+			{
+				TrueSelfClass = CurrentSelfClass->GetAuthoritativeClass();
+			}
+
+			FText TargetDisplayText = (TrueSelfClass != nullptr) ? TrueSelfClass->GetDisplayNameText() : LOCTEXT("None", "None");
+
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("TargetName"), TargetDisplayText);
+			Args.Add(TEXT("Tooltip"), FText::FromString(Tooltip));
+			return FText::Format(LOCTEXT("CallFunction_Tooltip", "{Tooltip}\n\nTarget is {TargetName}"), Args).ToString();
+		}
+		else
+		{
+			return GetUserFacingFunctionName(Function).ToString();
+		}
+	}
 }
 
 
@@ -5831,4 +5904,6 @@ namespace ThumbnailTools
 
 		return false;
 	}
-		}
+}
+
+#undef LOCTEXT_NAMESPACE

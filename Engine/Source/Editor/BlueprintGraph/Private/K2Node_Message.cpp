@@ -27,6 +27,7 @@
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Misc/AssertionMacros.h"
+#include "ObjectTools.h"
 #include "Templates/Casts.h"
 #include "Templates/SubclassOf.h"
 #include "Trace/Detail/Channel.h"
@@ -50,7 +51,7 @@ FText UK2Node_Message::GetNodeTitle(ENodeTitleType::Type TitleType) const
 	{
 		if (!CachedNodeTitles.IsTitleCached(TitleType, this))
 		{
-			FText NodeNameText = UK2Node_CallFunction::GetUserFacingFunctionName(Function);
+			FText NodeNameText = ObjectTools::GetUserFacingFunctionName(Function);
 			if (TitleType == ENodeTitleType::MenuTitle)
 			{
 				// FText::Format() is slow, so we cache this to save on performance

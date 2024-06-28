@@ -73,6 +73,7 @@
 #include "Misc/CString.h"
 #include "Misc/Guid.h"
 #include "ObjectEditorUtils.h"
+#include "ObjectTools.h"
 #include "SBlueprintPalette.h"
 #include "SGraphActionMenu.h"
 #include "SKismetInspector.h"
@@ -1598,7 +1599,7 @@ void SMyBlueprint::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
 			 && Blueprint->AllowFunctionOverride(Function)
 		   )
 		{
-			FText FunctionTooltip = FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function));
+			FText FunctionTooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 			FText FunctionDesc = K2Schema->GetFriendlySignatureName(Function);
 			if ( FunctionDesc.IsEmpty() )
 			{

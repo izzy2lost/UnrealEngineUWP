@@ -14,6 +14,7 @@
 #include "Internationalization/Internationalization.h"
 #include "K2Node.h"
 #include "Misc/Guid.h"
+#include "ObjectTools.h"
 #include "Settings/EditorStyleSettings.h"
 #include "Templates/Casts.h"
 #include "UObject/Class.h"
@@ -34,7 +35,7 @@ FText UK2Node_CallParentFunction::GetNodeTitle(ENodeTitleType::Type TitleType) c
 
 	if (Function)
 	{
-		FunctionName = GetUserFacingFunctionName( Function );
+		FunctionName = ObjectTools::GetUserFacingFunctionName( Function );
 	}
 	else if ( GEditor && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames )
 	{

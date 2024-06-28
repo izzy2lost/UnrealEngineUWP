@@ -48,6 +48,7 @@
 #include "HAL/FileManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "BlueprintNodeStatics.h"
+#include "ObjectTools.h"
 #include "Settings/BlueprintEditorProjectSettings.h"
 #include "ToolMenu.h"
 
@@ -565,7 +566,7 @@ FEdGraphNodeDeprecationResponse UK2Node_CallFunction::GetDeprecationResponse(EEd
 			if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the target function cannot be resolved.")))
 			{
 				FString DetailedMessage = Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage);
-				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(GetUserFacingFunctionName(Function), FText::FromString(DetailedMessage));
+				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(ObjectTools::GetUserFacingFunctionName(Function), FText::FromString(DetailedMessage));
 			}
 		}
 	}
@@ -609,7 +610,7 @@ FText UK2Node_CallFunction::GetNodeTitle(ENodeTitleType::Type TitleType) const
 	if (UFunction* Function = GetTargetFunction())
 	{
 		RPCString = UK2Node_Event::GetLocalizedNetString(Function->FunctionFlags, true);
-		FunctionName = GetUserFacingFunctionName(Function);
+		FunctionName = ObjectTools::GetUserFacingFunctionName(Function);
 		ContextString = GetFunctionContextString();
 	}
 	else
@@ -1627,7 +1628,7 @@ FText UK2Node_CallFunction::GetTooltipText() const
 	}
 	else if (CachedTooltip.IsOutOfDate(this))
 	{
-		FText BaseTooltip = FText::FromString(GetDefaultTooltipForFunction(Function));
+		FText BaseTooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 
 		FFormatNamedArguments Args;
 		Args.Add(TEXT("DefaultTooltip"), BaseTooltip);
@@ -1797,70 +1798,12 @@ void UK2Node_CallFunction::GeneratePinTooltipFromFunction(UEdGraphPin& Pin, cons
 
 FText UK2Node_CallFunction::GetUserFacingFunctionName(const UFunction* Function)
 {
-	FText ReturnDisplayName;
-
-	if (Function != NULL)
-	{
-		if (GEditor && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames)
-		{
-			ReturnDisplayName = Function->GetDisplayNameText();
-		}
-		else
-		{
-			static const FString Namespace = TEXT("UObjectDisplayNames");
-			const FString Key = Function->GetFullGroupName(false);
-
-			ReturnDisplayName = Function->GetMetaDataText(TEXT("DisplayName"), Namespace, Key);
-		}
-	}
-	return ReturnDisplayName;
+	return ObjectTools::GetUserFacingFunctionName(Function);
 }
 
 FString UK2Node_CallFunction::GetDefaultTooltipForFunction(const UFunction* Function)
 {
-	FString Tooltip;
-
-	if (Function != NULL)
-	{
-		Tooltip = Function->GetToolTipText().ToString();
-	}
-
-	if (!Tooltip.IsEmpty())
-	{
-		// Strip off the doxygen nastiness
-		static const FString DoxygenParam(TEXT("@param"));
-		static const FString DoxygenReturn(TEXT("@return"));
-		static const FString DoxygenSee(TEXT("@see"));
-		static const FString TooltipSee(TEXT("See:"));
-		static const FString DoxygenNote(TEXT("@note"));
-		static const FString TooltipNote(TEXT("Note:"));
-
-		Tooltip.Split(DoxygenParam, &Tooltip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart);
-		Tooltip.Split(DoxygenReturn, &Tooltip, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromStart);
-
-		Tooltip.ReplaceInline(*DoxygenSee, *TooltipSee);
-		Tooltip.ReplaceInline(*DoxygenNote, *TooltipNote);
-
-		Tooltip.TrimStartAndEndInline();
-
-		UClass* CurrentSelfClass = (Function != NULL) ? Function->GetOwnerClass() : NULL;
-		UClass const* TrueSelfClass = CurrentSelfClass;
-		if (CurrentSelfClass && CurrentSelfClass->ClassGeneratedBy)
-		{
-			TrueSelfClass = CurrentSelfClass->GetAuthoritativeClass();
-		}
-
-		FText TargetDisplayText = (TrueSelfClass != NULL) ? TrueSelfClass->GetDisplayNameText() : LOCTEXT("None", "None");
-
-		FFormatNamedArguments Args;
-		Args.Add(TEXT("TargetName"), TargetDisplayText);
-		Args.Add(TEXT("Tooltip"), FText::FromString(Tooltip));
-		return FText::Format(LOCTEXT("CallFunction_Tooltip", "{Tooltip}\n\nTarget is {TargetName}"), Args).ToString();
-	}
-	else
-	{
-		return GetUserFacingFunctionName(Function).ToString();
-	}
+	return ObjectTools::GetDefaultTooltipForFunction(Function);
 }
 
 FText UK2Node_CallFunction::GetDefaultCategoryForFunction(const UFunction* Function, const FText& BaseCategory)

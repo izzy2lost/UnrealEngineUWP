@@ -674,6 +674,22 @@ namespace ObjectTools
 	 * @param	OutInstances	per InObjects array element, receives the list of objects which have the given object in its archetype chain
 	 */
 	UNREALED_API void BatchGetArchetypeInstances(TArrayView<UObject*> InObjects, TArray<TArray<UObject*>>& OutInstances);
+
+
+	/**
+	 * Gets the user-facing name for the given UFunction.
+	 * @param Function	the function to find the name for
+	 * @return the name as localized text
+	 */
+	UNREALED_API FText GetUserFacingFunctionName(const UFunction* Function);
+
+
+	/**
+	 * Gets the non-specific tooltip for the given UFunction.
+	 * @param Function the function to find the tooltip for
+	 * @return the tooltip as a string
+	 */
+	UNREALED_API FString GetDefaultTooltipForFunction(const UFunction* Function);
 }
 
 

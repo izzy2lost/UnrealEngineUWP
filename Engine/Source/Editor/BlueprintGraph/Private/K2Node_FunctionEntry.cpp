@@ -37,6 +37,7 @@
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Misc/AssertionMacros.h"
+#include "ObjectTools.h"
 #include "Serialization/Archive.h"
 #include "Templates/Casts.h"
 #include "Templates/SubclassOf.h"
@@ -684,7 +685,7 @@ FText UK2Node_FunctionEntry::GetTooltipText() const
 {
 	if (UFunction* const Function = FindSignatureFunction())
 	{
-		return FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function));
+		return FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 	}
 	return Super::GetTooltipText();
 }

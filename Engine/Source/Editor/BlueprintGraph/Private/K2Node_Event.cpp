@@ -29,6 +29,7 @@
 #include "Logging/LogCategory.h"
 #include "Logging/LogMacros.h"
 #include "Misc/AssertionMacros.h"
+#include "ObjectTools.h"
 #include "Serialization/Archive.h"
 #include "Styling/AppStyle.h"
 #include "Templates/Casts.h"
@@ -166,7 +167,7 @@ FText UK2Node_Event::GetTooltipText() const
 	UFunction* Function = EventReference.ResolveMember<UFunction>(GetBlueprintClassFromNode());
 	if (CachedTooltip.IsOutOfDate(this) && (Function != nullptr))
 	{
-		CachedTooltip.SetCachedText(FText::FromString(UK2Node_CallFunction::GetDefaultTooltipForFunction(Function)), this);
+		CachedTooltip.SetCachedText(FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function)), this);
 
 		if (bOverrideFunction || (CustomFunctionName == NAME_None))
 		{
