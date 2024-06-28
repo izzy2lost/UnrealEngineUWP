@@ -216,7 +216,7 @@ FBuildTargetSet::EBuildTargetFlags FBuildTargetSet::GetSupportedTargetsForNative
 				| EBuildTargetFlags::Editor;
 			break;
 		default:
-			ensureMsgf(false, TEXT("Encountered unexpected module type: %d"), ModuleDescriptor->Type);
+			ensureMsgf(false, TEXT("Encountered unexpected module type: %d in module %s"), ModuleDescriptor->Type, *ModuleDescriptor->Name.ToString());
 			break;
 		}
 	}
