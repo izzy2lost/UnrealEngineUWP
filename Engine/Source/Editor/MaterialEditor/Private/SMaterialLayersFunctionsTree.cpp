@@ -1786,6 +1786,16 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 	FOnClicked 	OnChildButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, ImplicitConv<UMaterialInterface*>(MaterialEditorInstance->SourceInstance), ImplicitConv<UObject*>(MaterialEditorInstance));
 	FOnClicked	OnSiblingButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, MaterialEditorInstance->SourceInstance->Parent, ImplicitConv<UObject*>(MaterialEditorInstance));
 
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	const float ThumbnailSize = 64.0f;
+	TSharedPtr<SBox> ThumbnailBox;
+	UObject* ThumbnailObject = MaterialEditorInstance->SourceInstance.Get();
+	const TSharedPtr<FAssetThumbnail> AssetThumbnail = MakeShareable(new FAssetThumbnail(ThumbnailObject, ThumbnailSize, ThumbnailSize, NestedTree->GetTreeThumbnailPool()));
+	TSharedRef<SWidget> ThumbnailWidget = AssetThumbnail->MakeThumbnailWidget();
+	FText MaterialName = FText::FromName(MaterialEditorInstance->SourceInstance->GetFName());
+	
+#endif
+	
 	if (LayerParameter != nullptr)
 	{
 #if ENABLE_MATERIAL_LAYER_PROTOTYPE
@@ -1798,9 +1808,51 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
-				.Padding(0.0f)
+				.Padding(FMargin(0.0f, 0.0f, 0.0f, 10.0f))
 				.AutoHeight()
 				[
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+					SAssignNew(HeaderBox, SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+							.HAlign(HAlign_Center)
+							.VAlign(VAlign_Center)
+							.Padding(4.0f)
+							.MaxWidth(ThumbnailSize)
+							[
+								SAssignNew(ThumbnailBox, SBox)
+								.MaxDesiredWidth(ThumbnailSize)
+								.MaxDesiredWidth(ThumbnailSize)
+								.MaxDesiredHeight(ThumbnailSize)
+								.MinDesiredHeight(ThumbnailSize)
+								[
+									ThumbnailWidget
+								]
+							]
+
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					.Padding(5.0f)
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(MaterialName)
+							.TextStyle(FAppStyle::Get(), "LargeText")
+						]
+
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("MaterialInstance", "Material Instance"))
+							.TextStyle(FAppStyle::Get(), "NormalText.Important")
+						]
+					]
+#else
 					SAssignNew(HeaderBox, SHorizontalBox)
 					+ SHorizontalBox::Slot()
 					.Padding(FMargin(4.0f, 0.0f))
@@ -1811,6 +1863,7 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 						SNew(STextBlock)
 						.Text(LOCTEXT("MaterialLayers", "Material Layers"))
 					]
+#endif
 				]
 				+ SVerticalBox::Slot()
 				.Padding(FMargin(0.0f))

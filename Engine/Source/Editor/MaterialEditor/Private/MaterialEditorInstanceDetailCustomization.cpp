@@ -69,6 +69,19 @@ FMaterialInstanceParameterDetails::FMaterialInstanceParameterDetails(UMaterialEd
 {
 }
 
+void FMaterialInstanceParameterDetails::CollectStackItemsRecursively(TSharedPtr<FSortedParamData> Item, TArray<TSharedPtr<FSortedParamData>>& OutGroupsContainer)
+{
+	for(TSharedPtr<FSortedParamData> Child : Item->Children)
+	{
+		if (Child->StackDataType == EStackDataType::Stack)
+		{
+			OutGroupsContainer.Add(Child);
+		}
+		
+		CollectStackItemsRecursively(Child, OutGroupsContainer);
+	}
+}
+
 TOptional<float> FMaterialInstanceParameterDetails::OnGetValue(TSharedRef<IPropertyHandle> PropertyHandle)
 {
 	float Value = 0.0f;
@@ -110,12 +123,26 @@ void FMaterialInstanceParameterDetails::CustomizeDetails(IDetailLayoutBuilder& D
 	if (MaterialLayersFunctionsInstance != nullptr && MaterialLayersFunctionsInstance->NestedTree->GetNumItemsSelected() > 0)
 	{
 		// for each selected FSortedParamData item (type stack)
-		for (TSharedPtr<FSortedParamData> SelectedItem : this->MaterialLayersFunctionsInstance->NestedTree->GetSelectedItems())
+		TSharedPtr<FSortedParamData> SelectedItem = MaterialLayersFunctionsInstance->NestedTree->GetSelectedItems().Last();
+		
+			// make sure we selected a stack item
+		check (SelectedItem->StackDataType == EStackDataType::Stack)
+
+		// we should now gather all sub-stack items to loop through all together
+		TArray<TSharedPtr<FSortedParamData>> StacksCollection;
+		CollectStackItemsRecursively(SelectedItem, StacksCollection);
+
+		if (StacksCollection.IsEmpty())
 		{
-			// we go through list of assets
-			for(TSharedPtr<FSortedParamData> ChildAsset : SelectedItem->Children)
+			// we add the selected item in this case, as this indicates an inner stack item was selected
+			StacksCollection.Add(SelectedItem);
+		}
+		
+		for (TSharedPtr<FSortedParamData> StackItem : StacksCollection)
+		{
+			// // we go through list of assets
+			for(TSharedPtr<FSortedParamData> ChildAsset : StackItem->Children)
 			{
-				// we look for parameter group children
 				for(TSharedPtr<FSortedParamData> GroupParamData : ChildAsset->Children)
 				{
 					if (GroupParamData->StackDataType == EStackDataType::Group)
@@ -125,21 +152,18 @@ void FMaterialInstanceParameterDetails::CustomizeDetails(IDetailLayoutBuilder& D
 								{
 									return Group.GroupName == GroupParamData->Group.GroupName;
 								});
-
-						if (GroupIdx >= 0) // Only if found valid group index
+						if (GroupIdx != INDEX_NONE)
 						{
-						
 							FEditorParameterGroup& ParameterGroup = GroupParamData->Group;
 							IDetailGroup& DetailGroup = GroupsCategory.AddGroup(ParameterGroup.GroupName, FText::FromName(ParameterGroup.GroupName), false, true);
-
 							TSharedPtr<IPropertyHandle> GroupPropertyHandle = ParameterGroupsProperty->GetChildHandle(GroupIdx);
-
+						
 							CreateSingleGroupWidget(ParameterGroup, GroupPropertyHandle, DetailGroup, GroupParamData->ParameterInfo.Index, true);
-
+						
 							FSimpleDelegate UpdateThumbnails = FSimpleDelegate::CreateLambda([=, this]()
-								{
-									this->MaterialLayersFunctionsInstance->NestedTree->UpdateThumbnailMaterial(ChildAsset->ParameterInfo.Association, ChildAsset->ParameterInfo.Index);
-								});
+							{
+								this->MaterialLayersFunctionsInstance->NestedTree->UpdateThumbnailMaterial(ChildAsset->ParameterInfo.Association, ChildAsset->ParameterInfo.Index);
+							});
 							GroupPropertyHandle->SetOnPropertyValueChanged(UpdateThumbnails);
 							GroupPropertyHandle->SetOnChildPropertyValueChanged(UpdateThumbnails);
 						}
@@ -147,6 +171,7 @@ void FMaterialInstanceParameterDetails::CustomizeDetails(IDetailLayoutBuilder& D
 				}
 			}
 		}
+		
 		DetailLayout.HideCategory("MaterialEditorInstanceConstant");
 		DetailLayout.HideProperty("Parent");
 		DetailLayout.HideProperty("PostProcessOverrides");

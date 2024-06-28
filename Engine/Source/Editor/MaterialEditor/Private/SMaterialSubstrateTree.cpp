@@ -26,6 +26,7 @@
 #include "Widgets/Views/STreeView.h"
 #include "IDetailTreeNode.h"
 #include "AssetThumbnail.h"
+#include "ContentBrowserModule.h"
 #include "MaterialEditorInstanceDetailCustomization.h"
 #include "MaterialPropertyHelpers.h"
 #include "DetailWidgetRow.h"
@@ -34,22 +35,27 @@
 #include "Widgets/Images/SImage.h"
 #include "MaterialEditor/MaterialEditorPreviewParameters.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "Materials/MaterialFunctionInstance.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Curves/CurveLinearColor.h"
 #include "Curves/CurveLinearColorAtlas.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Editor.h"
 #include "EditorFontGlyphs.h"
+#include "IContentBrowserSingleton.h"
 #include "SResetToDefaultPropertyEditor.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
 #include "MaterialEditorStyle.h"
+#include "DetailTreeNode.h"
+#include "Materials/MaterialFunctionMaterialLayerBlend.h"
 
 #define LOCTEXT_NAMESPACE "MaterialSubstrateTree"
 
@@ -175,6 +181,13 @@ FText SMaterialSubstrateTreeItem::GetLayerName() const
 {
 	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
 	return Tree->FunctionInstance->GetLayerName(LayerFuncIndex);
+}
+
+FText SMaterialSubstrateTreeItem::GetLayerDesc() const
+{
+	const FString LayerDescText[] = { TEXT("Material Evaluation"), TEXT("Material Instance Attributes") };
+	
+	return FText::FromString(LayerDescText[GetIndentLevel()]);
 }
 
 void SMaterialSubstrateTreeItem::OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo)
@@ -352,6 +365,21 @@ void  SMaterialSubstrateTreeItem::OnOverrideParameter(bool NewValue, TObjectPtr<
 
 void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView)
 {
+	
+	FOnTableRowDragEnter LayerDragDelegate = FOnTableRowDragEnter::CreateSP(this, &SMaterialSubstrateTreeItem::OnLayerDragEnter);
+	FOnTableRowDragLeave LayerDragLeaveDelegate = FOnTableRowDragLeave::CreateSP(this, &SMaterialSubstrateTreeItem::OnLayerDragLeave);
+
+	STableRow< TSharedPtr<FSortedParamData> >::ConstructInternal(
+		STableRow< TSharedPtr<FSortedParamData> >::FArguments()
+		.Style(FSubstrateMaterialEditorStyle::Get(), "LayerView.Row")
+		.ShowSelection(true)
+		.OnCanAcceptDrop(this, &SMaterialSubstrateTreeItem::CanAcceptDrop)
+		.OnAcceptDrop(this, &SMaterialSubstrateTreeItem::OnLayerDrop)
+		.OnDragEnter(LayerDragDelegate)
+		.OnDragLeave(LayerDragLeaveDelegate),
+		InOwnerTableView
+	);
+	
 	StackParameterData = InArgs._StackParameterData;
 	MaterialEditorInstance = InArgs._MaterialEditorInstance;
 	Tree = InArgs._InTree;
@@ -360,23 +388,28 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 	TSharedRef<SWidget> RightSideWidget = SNullWidget::NullWidget;
 	TSharedRef<SWidget> ResetWidget = SNullWidget::NullWidget;
 	FText NameOverride;
+	
+	TSharedPtr<SHorizontalBox> MainStack;
 	TSharedRef<SVerticalBox> WrapperWidget = SNew(SVerticalBox);
+
+	if (StackParameterData->StackDataType == EStackDataType::Stack)
+	{
+		WrapperWidget->AddSlot()
+		.Padding(10.0f)/*.AutoHeight()*/
+		[
+			SAssignNew(MainStack, SHorizontalBox)
+		];
+	}
+		
 	EHorizontalAlignment ValueAlignment = HAlign_Left;
 
 	bool bIsBackgroundItem = IsNodeKeyForBackgroundParameter(StackParameterData->NodeKey);
-	bool bCanAppendSubLayer = Tree->FunctionInstance->CanAppendLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
-	bool bCanRemoveLayer = Tree->FunctionInstance->CanRemoveLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
 	bool bCanReorderLayer = !(bIsBackgroundItem || StackParameterData->ParameterInfo.Index == 0);
-
+	bool bCanAppendSubLayer = Tree->FunctionInstance->CanAppendLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
+		
 // STACK --------------------------------------------------
 	if (StackParameterData->StackDataType == EStackDataType::Stack)
 	{
-		// WrapperWidget->AddSlot()
-		// 	.Padding(5.0f)
-		// 	.AutoHeight()
-		// 	[
-		// 		SNullWidget::NullWidget
-		// 	];
 #if WITH_EDITOR
 		int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
 		int32 BlendFuncIndex = Tree->FunctionInstance->GetBlendFuncIndex(StackParameterData->ParameterInfo.Index);
@@ -419,57 +452,113 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 						PreviewAssociation = EMaterialParameterAssociation::LayerParameter;
 						Tree->UpdateThumbnailMaterial(PreviewAssociation, PreviewIndex);
 						ThumbnailIndex = PreviewIndex;
+					
+						HeaderRowWidget->AddSlot()
+							.AutoWidth()
+							.HAlign(HAlign_Center)
+							.VAlign(VAlign_Center)
+							.Padding(4.0f)
+							.MaxWidth(ThumbnailSize)
+							[
+								SAssignNew(ThumbnailBox, SBox)
+								.MaxDesiredWidth(ThumbnailSize)
+								.MaxDesiredWidth(ThumbnailSize)
+								.MaxDesiredHeight(ThumbnailSize)
+								.MinDesiredHeight(ThumbnailSize)
+									[
+										Tree->CreateThumbnailWidget(PreviewAssociation, ThumbnailIndex, ThumbnailSize)
+									]
+							];
 					}
+
+					// if blend asset, we set it up in the Wrapper Widget at the bottom of the VerticalBox
 					if (Cast<UMaterialFunctionInterface>(AssetObject)->GetMaterialFunctionUsage() == EMaterialFunctionUsage::MaterialLayerBlend)
 					{
-						PreviewIndex = BlendFuncIndex;
-						PreviewAssociation = EMaterialParameterAssociation::BlendParameter;
-						Tree->UpdateThumbnailMaterial(PreviewAssociation, PreviewIndex);
-						ThumbnailIndex = PreviewIndex;
+						
+						 WrapperWidget->AddSlot()
+						 .Padding(2.0f)
+						 .AutoHeight()
+						 [
+						 	SNew(SSeparator)
+						 	.Thickness(2.0f) // Set the thickness of the separator
+						 ];
+						IDetailTreeNode& Node = *AssetChild->ParameterNode;
+						TSharedPtr<IDetailPropertyRow> GeneratedRow = StaticCastSharedPtr<IDetailPropertyRow>(Node.GetRow());
+						IDetailPropertyRow& Row = *GeneratedRow.Get();
+						
+						TSharedRef<SWidget> AssetPickerWidget = SNew(SObjectPropertyEntryBox)
+							.ObjectPath_Lambda([=, this]()
+							{
+								UObject* AssetObject = nullptr;
+								AssetChild->ParameterHandle->GetValue(AssetObject);
+								return AssetObject->GetPathName();
+							})
+							.OnObjectChanged_Lambda([=, this](const FAssetData& InAssetData)
+							{
+								FSoftObjectPath ObjPath = InAssetData.GetSoftObjectPath();
+								AssetChild->ParameterHandle->SetValue(ObjPath.TryLoad());
+							})
+							.AllowedClass(UMaterialFunctionMaterialLayerBlend::StaticClass())
+							.AllowClear(true)
+							.DisplayUseSelected(false)
+							.DisplayBrowse(false);
+						
+						 WrapperWidget->AddSlot()
+						 	.Padding(5.0f)
+						 	.AutoHeight()
+						 [
+						 	SNew(SHorizontalBox)
+						 	// + SHorizontalBox::Slot()
+							// .AutoWidth()
+							// .VAlign(VAlign_Center)
+							// [
+							// 	PropertyCustomizationHelpers::MakeVisibilityButton(VisibilityClickedDelegate, FText(), IsEnabledAttribute)
+							// ]
+							
+						 	+ SHorizontalBox::Slot()
+						 	.Padding(5.0f)
+						 	.HAlign(HAlign_Left)
+						 	.VAlign(VAlign_Center)
+						 	[
+						 		SNew(STextBlock)
+						 		.Justification(ETextJustify::Center)
+						 		.Text(LOCTEXT("BlendLabel", "Blend"))
+						 	]
+						 	+ SHorizontalBox::Slot()
+						 	.Padding(5.0f)
+						 	[
+						 		AssetPickerWidget
+						 		// AssetChild->ParameterHandle->CreatePropertyValueWidget(false)	
+						 	]
+						 ];
 					}
 				}
-				HeaderRowWidget->AddSlot()
-					.AutoWidth()
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					.Padding(4.0f)
-					.MaxWidth(ThumbnailSize)
-					[
-						SAssignNew(ThumbnailBox, SBox)
-							[
-								Tree->CreateThumbnailWidget(PreviewAssociation, ThumbnailIndex, ThumbnailSize)
-							]
-					];
-				ThumbnailBox->SetMaxDesiredHeight(ThumbnailSize);
-				ThumbnailBox->SetMinDesiredHeight(ThumbnailSize);
-				ThumbnailBox->SetMinDesiredWidth(ThumbnailSize);
-				ThumbnailBox->SetMaxDesiredWidth(ThumbnailSize);
 			}
 		}
 
-		
+		{
+			HeaderRowWidget->AddSlot()
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				.Padding(5.0f)
+				[
+					SNew(SVerticalBox)
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						SNew(STextBlock)
+						.Text(NameOverride)
+						.TextStyle(FSubstrateMaterialEditorStyle::Get(), "LayerView.Row.HeaderText")
+					]
 
-		if (StackParameterData->ParameterInfo.Index != 0)
-		{
-			HeaderRowWidget->AddSlot()
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				.Padding(5.0f)
-				[
-					SNew(SEditableTextBox)
-					.Text(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(this, &SMaterialSubstrateTreeItem::GetLayerName)))
-					.OnTextCommitted(FOnTextCommitted::CreateSP(this, &SMaterialSubstrateTreeItem::OnNameChanged))
-				];
-		}
-		else
-		{
-			HeaderRowWidget->AddSlot()
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				.Padding(5.0f)
-				[
-					SNew(STextBlock)
-					.Text(NameOverride)
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						SNew(STextBlock)
+						.Text(TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(this, &SMaterialSubstrateTreeItem::GetLayerDesc)))
+						.TextStyle(FSubstrateMaterialEditorStyle::Get(), "LayerView.Row.HeaderText.Small")
+					]
+				
 				];
 		}
 
@@ -494,29 +583,6 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 				.Visibility(this, &SMaterialSubstrateTreeItem::GetUnlinkLayerVisibility)
 			];
 
-		// Can only add sub layer up to a certain level
-		if (bCanAppendSubLayer)
-		{
-			HeaderRowWidget->AddSlot()
-				.HAlign(HAlign_Left)
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				[
-					PropertyCustomizationHelpers::MakeAddButton(FSimpleDelegate::CreateSP(InArgs._InTree, &SMaterialSubstrateTree::AddNodeLayer, StackParameterData->ParameterInfo.Index))
-				];
-		}
-
-		// Can only remove layers that aren't the base layer.
-		if (bCanRemoveLayer)
-		{
-			HeaderRowWidget->AddSlot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(0.0f, 0.0f, 5.0f, 0.0f)
-				[
-					PropertyCustomizationHelpers::MakeClearButton(FSimpleDelegate::CreateSP(InArgs._InTree, &SMaterialSubstrateTree::RemoveNodeLayer, StackParameterData->ParameterInfo.Index))
-				];
-		}
 		LeftSideWidget = HeaderRowWidget;
 	}
 // END STACK
@@ -525,16 +591,16 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 // FINAL WRAPPER
 	if (StackParameterData->StackDataType == EStackDataType::Stack)
 	{
-		TSharedPtr<SHorizontalBox> FinalStack;
-		WrapperWidget->AddSlot()
-			.Padding(15.0f)/*.AutoHeight()*/
+		MainStack->AddSlot()
+			.Padding(FMargin(2.0f))
+			.VAlign(VAlign_Center)
 			[
-				SAssignNew(FinalStack, SHorizontalBox)
+				LeftSideWidget
 			];
-
+		
 		if (bCanReorderLayer)
 		{
-			FinalStack->AddSlot()
+			MainStack->AddSlot()
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Padding(2.5f, 0)
@@ -546,7 +612,7 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 
 		if (bCanAppendSubLayer)
 		{
-			FinalStack->AddSlot()
+			MainStack->AddSlot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				.Padding(FMargin(2.0f))
@@ -554,54 +620,72 @@ void SMaterialSubstrateTreeItem::Construct(const FArguments& InArgs, const TShar
 					SNew(SExpanderArrow, SharedThis(this))
 				];
 		}
-
-		FinalStack->AddSlot()
-			.Padding(FMargin(2.0f))
-			.VAlign(VAlign_Center)
-			[
-				LeftSideWidget
-			];
 	}
 
 	this->ChildSlot
 		[
 			WrapperWidget
 		];
-
-	FOnTableRowDragEnter LayerDragDelegate = FOnTableRowDragEnter::CreateSP(this, &SMaterialSubstrateTreeItem::OnLayerDragEnter);
-	FOnTableRowDragLeave LayerDragLeaveDelegate = FOnTableRowDragLeave::CreateSP(this, &SMaterialSubstrateTreeItem::OnLayerDragLeave);
-
-	STableRow< TSharedPtr<FSortedParamData> >::ConstructInternal(
-		STableRow< TSharedPtr<FSortedParamData> >::FArguments()
-		.Padding(20.0f)
-		.OnPaintDropIndicator(this, &SMaterialSubstrateTreeItem::OnLayerItemPaintDropIndicator)
-		.Style(FSubstrateMaterialEditorStyle::Get(), "LayerView.Row")
-		.ShowSelection(true)
-		.OnCanAcceptDrop(this, &SMaterialSubstrateTreeItem::CanAcceptDrop)
-		.OnAcceptDrop(this, &SMaterialSubstrateTreeItem::OnLayerDrop)
-		.OnDragEnter(LayerDragDelegate)
-		.OnDragLeave(LayerDragLeaveDelegate),
-		InOwnerTableView
-	);
-
+	
+	this->SetDesiredSizeScale(FVector2d(1.0f, 1.2f));
 }
-int32 SMaterialSubstrateTreeItem::OnLayerItemPaintDropIndicator(EItemDropZone InItemDropZone, const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+
+int32 SMaterialSubstrateTreeItem::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	const FSlateBrush* DropIndicatorBrush = GetDropIndicatorBrush(InItemDropZone);
-	static float OffsetX = 10.0f;
-	FVector2D Offset(OffsetX * GetIndentLevel(), 0.0f);
+	const FSlateBrush* BackgroundBrushResource = Tree->BackgroundBrush.Get();
+	const int32 IndentLevel = GetIndentLevel();
+	// calculate children + self size
+	int NumStackChildren = 0;
+	for(TSharedPtr<FSortedParamData> Child : this->StackParameterData->Children)
+	{
+		if (Child->StackDataType == Stack)
+			NumStackChildren++;
+	}
+	float HeightAdjFactor = 1;
 
+	LayerId += IndentLevel;
+	if (IsItemExpanded())
+	{
+		HeightAdjFactor = NumStackChildren + 1;
+	}
+	
+	FVector2d OuterBorderSize = AllottedGeometry.GetLocalSize() * FVector2d(1, HeightAdjFactor);
+	static float OffsetX = 30.0f;
+	FVector2D Offset = FVector2D(OffsetX * (IndentLevel+1), 0.0f );
 	FSlateDrawElement::MakeBox(
-		OutDrawElements,
-		LayerId++,
-		AllottedGeometry.ToPaintGeometry(FVector2D(AllottedGeometry.GetLocalSize() - Offset), FSlateLayoutTransform(Offset)),
-		DropIndicatorBrush,
-		ESlateDrawEffect::None,
-		DropIndicatorBrush->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint()
+			OutDrawElements,
+			++LayerId,
+			AllottedGeometry.ToPaintGeometry(OuterBorderSize - Offset, FSlateLayoutTransform(Offset/2)),
+			BackgroundBrushResource,
+			ESlateDrawEffect::None,
+			FStyleColors::Black.GetSpecifiedColor() * InWidgetStyle.GetColorAndOpacityTint() 
 	);
-
-	return LayerId;
+	
+	// only need to draw gray part for first level
+	if (IndentLevel <= 0)
+	{
+		Offset = FVector2d(OffsetX, -5.0f);
+		FSlateDrawElement::MakeBox(
+				OutDrawElements,
+				++LayerId,
+				AllottedGeometry.ToPaintGeometry(OuterBorderSize - Offset, FSlateLayoutTransform(Offset/2)),
+				BackgroundBrushResource,
+				ESlateDrawEffect::None,
+				FStyleColors::Header.GetSpecifiedColor() * InWidgetStyle.GetColorAndOpacityTint() 
+		);
+	}
+	
+	
+	OffsetX = 20.0f;
+	const float ReductionFactorX = 50.0f;
+	const float ReductionFactorY = 15.0f;
+	Offset = FVector2d(OffsetX * IndentLevel + ReductionFactorX, ReductionFactorY);
+	FGeometry BorderGeom = AllottedGeometry.MakeChild(AllottedGeometry.GetLocalSize() - Offset, FSlateLayoutTransform(Offset/2));
+	
+	return STableRow<TSharedPtr<FSortedParamData>>::OnPaint(Args, BorderGeom, MyCullingRect, OutDrawElements, LayerId+1, InWidgetStyle, bParentEnabled);
 }
+
+
 FString SMaterialSubstrateTreeItem::GetInstancePath(SMaterialSubstrateTree* InTree) const
 {
 	int32 LayerFuncIndex = Tree->FunctionInstance->GetLayerFuncIndex(StackParameterData->ParameterInfo.Index);
@@ -617,6 +701,36 @@ FString SMaterialSubstrateTreeItem::GetInstancePath(SMaterialSubstrateTree* InTr
 		InstancePath = InTree->FunctionInstance->Layers[LayerFuncIndex]->GetPathName();
 	}
 	return InstancePath;
+}
+
+TSharedPtr<SWidget> SMaterialSubstrateTree::CreateContextMenu()
+{
+	const bool bCloseAfterSelection = true;
+	
+	FMenuBuilder MenuBuilder(bCloseAfterSelection, TSharedPtr<FUICommandList>());
+
+	TArray<FSortedParamDataPtr> SelectedItemsArray = GetSelectedItems();
+	if (SelectedItemsArray.Num() > 0)
+	{
+		FSortedParamDataPtr StackParameterData = SelectedItemsArray[0];
+		
+		bool bIsBackgroundItem = IsNodeKeyForBackgroundParameter(StackParameterData->NodeKey);
+		bool bCanAppendSubLayer = FunctionInstance->CanAppendLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
+		bool bCanRemoveLayer = FunctionInstance->CanRemoveLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
+	
+		if (bCanAppendSubLayer)
+		{
+			const FSlateIcon PlusIcon(FAppStyle::GetAppStyleSetName(), "Plus");
+			MenuBuilder.AddMenuEntry(LOCTEXT("MaterialSubstrateTree", "Add New Layer"), FText(), PlusIcon, FUIAction(FExecuteAction::CreateSP(this, &SMaterialSubstrateTree::AddNodeLayer, StackParameterData->ParameterInfo.Index)));
+		}
+
+		if (bCanRemoveLayer)
+		{
+			const FSlateIcon MinusIcon(FAppStyle::GetAppStyleSetName(), "Icons.Minus");
+			MenuBuilder.AddMenuEntry(LOCTEXT("MaterialSubstrateTree", "Remove Layer"), FText(), MinusIcon, FUIAction(FExecuteAction::CreateSP(this, &SMaterialSubstrateTree::RemoveNodeLayer, StackParameterData->ParameterInfo.Index)));
+		}
+	}
+	return MenuBuilder.MakeWidget();
 }
 
 void SMaterialSubstrateTree::Construct(const FArguments& InArgs)
@@ -654,6 +768,7 @@ void SMaterialSubstrateTree::Construct(const FArguments& InArgs)
 	STreeView<TSharedPtr<FSortedParamData>>::Construct(
 		STreeView::FArguments()
 		.TreeItemsSource(&LayerProperties)
+		.OnContextMenuOpening(this, &SMaterialSubstrateTree::CreateContextMenu)
 		.SelectionMode(ESelectionMode::Single)
 		.OnSelectionChanged(this, &SMaterialSubstrateTree::OnSelectionChangedMaterialSubstrateView)
 		.OnGenerateRow(this, &SMaterialSubstrateTree::OnGenerateRowMaterialLayersFunctionsTreeView)

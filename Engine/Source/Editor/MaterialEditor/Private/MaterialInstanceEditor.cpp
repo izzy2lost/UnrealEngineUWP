@@ -255,7 +255,12 @@ void FMaterialInstanceEditor::RegisterTabSpawners(const TSharedRef<class FTabMan
 	if (!bIsFunctionPreviewMaterial)
 	{
 		InTabManager->RegisterTabSpawner(LayerPropertiesTabId, FOnSpawnTab::CreateSP(this, &FMaterialInstanceEditor::SpawnTab_LayerProperties))
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE		
+			.SetDisplayName(LOCTEXT("LayerPropertiesTab", "Material Layers"))
+#else
 			.SetDisplayName(LOCTEXT("LayerPropertiesTab", "Layer Parameters"))
+#endif
+		
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Layers"));
 	}

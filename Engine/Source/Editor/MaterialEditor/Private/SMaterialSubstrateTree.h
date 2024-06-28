@@ -47,6 +47,7 @@ public:
 	void OnSelectionChangedMaterialSubstrateView(TSharedPtr<FSortedParamData> InSelectedItem, ESelectInfo::Type SelectInfo);
 	void SetParentsExpansionState();
 
+	TSharedPtr<SWidget> CreateContextMenu();
 	void ShowHiddenValues(bool& bShowHiddenParameters) { bShowHiddenParameters = true; }
 	TWeakObjectPtr<class UDEditorParameterValue> FunctionParameter;
 	struct FMaterialLayersFunctions* FunctionInstance;
@@ -143,6 +144,7 @@ public:
 	void FilterClicked(const ECheckBoxState NewCheckedState, SMaterialSubstrateTree* InTree, TSharedPtr<FSortedParamData> InStackData);
 	ECheckBoxState GetFilterChecked(SMaterialSubstrateTree* InTree, TSharedPtr<FSortedParamData> InStackData) const;
 	FText GetLayerName() const;
+	FText GetLayerDesc() const;
 	void OnNameChanged(const FText& InText, ETextCommit::Type CommitInfo);
 	
 	FReply ToggleLayerVisibility();
@@ -181,9 +183,9 @@ public:
 	* @param InArgs   A declaration from which to construct the widget
 	*/
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView);
-	int32 OnLayerItemPaintDropIndicator(EItemDropZone InItemDropZone, const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const;
-
+	int32 OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const override;
 	/** The node info to build the tree view row from. */
+	
 	FSortedParamDataPtr StackParameterData;
 
 	SMaterialSubstrateTree* Tree;

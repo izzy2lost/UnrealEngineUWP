@@ -146,8 +146,8 @@ TSharedRef<FSlateStyleSet> FSubstrateMaterialEditorStyle::Create()
 	Style->Set("Icons.Stage.ChainUnlinked.Vertical", new IMAGE_BRUSH_SVG("Icons/EditorIcons/ChainUnlinked_Vertical", Icon24x24));
 	
 	Style->Set("ImageBorder", new FSlateRoundedBoxBrush(
-		FLinearColor::Transparent, 10.0f, 
-		FStyleColors::Panel.GetSpecifiedColor(), 2.0f));
+		FLinearColor::Transparent, 0.0f, 
+		FStyleColors::Panel.GetSpecifiedColor(), 6.0f));
 	
 	Style->Set("Border.SinglePixel", new BORDER_BRUSH(TEXT("Images/Borders/Border_SinglePixel"), FMargin(1.0f / 4.0f)));
 	Style->Set("Border.LeftTopRight", new BORDER_BRUSH(TEXT("Images/Borders/Border_LeftTopRight"), FMargin(1.0f / 4.0f, 1.0f / 2.0f)));
@@ -199,27 +199,21 @@ TSharedRef<FSlateStyleSet> FSubstrateMaterialEditorStyle::Create()
 void FSubstrateMaterialEditorStyle::SetupLayerViewStyles(const TSharedRef<FSlateStyleSet>& Style)
 {
 	Style->Set("LayerView.Background", new FSlateRoundedBoxBrush(
-		FStyleColors::Panel.GetSpecifiedColor()/*FLinearColor(0, 0, 0, 0.25f)*/, 6.0f,
-		FStyleColors::Header.GetSpecifiedColor()/*FLinearColor(1, 1, 1, 0.2f)*/, 1.0f));
+		FStyleColors::Recessed/*FLinearColor(0, 0, 0, 0.25f)*/, 6.0f,
+		/*FStyleColors::Header.GetSpecifiedColor()*/FStyleColors::Recessed, 0.0f));
 
 	Style->Set("LayerView.Details.Background", new FSlateRoundedBoxBrush(
-		FStyleColors::Recessed.GetSpecifiedColor()/*FLinearColor(0, 0, 0, 0.25f)*/, 6.0f,
-		FStyleColors::Header.GetSpecifiedColor()/*FLinearColor(1, 1, 1, 0.2f)*/, 1.0f));
+		/*FStyleColors::Recessed.GetSpecifiedColor()*/FLinearColor(FColor::FromHex(TEXT("#575757"))), 6.0f,
+		FStyleColors::Header.GetSpecifiedColor()/*FLinearColor(1, 1, 1, 0.2f)*/, 20.0f));
 
-	/**
-	 * SListView and and FTableViewStyle have no support for adding padding between the background brush
-	 * and the SListView widget, so we are not using this style for the SDMSlotLayerView. Instead, we add a
-	 * SBorder around the SDMBLayerView and style that.
-	 */
 	Style->Set("LayerView", FTableViewStyle()
 		.SetBackgroundBrush(*Style->GetBrush("LayerView.Background"))
 	);
-
+	
 	const float LayerViewItemCornerRadius = 10.0f;
-	const float LayerViewItemBorderWidth = 5.0f;
-	const float LayerViewItemBorderWidthSelected = 1.0f;
+	const float LayerViewItemBorderWidth = 1.0f;
 
-	const FLinearColor LayerViewItemFillColor = FLinearColor::Transparent;
+	const FLinearColor LayerViewItemFillColor = FLinearColor(FColor::FromHex(TEXT("#383838")));//FLinearColor::Transparent;
 	constexpr FLinearColor LayerViewItemBorderColor = FLinearColor(0, 0, 0, 1.f);
 
 	const FLinearColor LayerItemHoverFillColor = FStyleColors::Recessed.GetSpecifiedColor();
@@ -228,33 +222,30 @@ void FSubstrateMaterialEditorStyle::SetupLayerViewStyles(const TSharedRef<FSlate
 	const FLinearColor LayerItemSelectFillColor = FStyleColors::Header.GetSpecifiedColor();
 	const FLinearColor LayerItemSelectBorderColor = ReplaceColorAlpha(FStyleColors::Select.GetSpecifiedColor(), 0.9f);
 
-	//constexpr FLinearColor LayerItemSelectHoverFillColor = FLinearColor(1, 1, 1, 0.25f);
-	//const FLinearColor LayerItemSelectHoverBorderColor = FStyleColors::Select.GetSpecifiedColor();
-
 	Style->Set("LayerView.Row.Item", new FSlateRoundedBoxBrush(
 		LayerViewItemFillColor, LayerViewItemCornerRadius,
 		LayerViewItemBorderColor, LayerViewItemBorderWidth));
 
 	Style->Set("LayerView.Row.Hovered", new FSlateRoundedBoxBrush(
 		LayerItemHoverFillColor, LayerViewItemCornerRadius,
-		LayerItemHoverBorderColor, LayerViewItemBorderWidthSelected));
+		LayerItemHoverBorderColor, LayerViewItemBorderWidth));
 
 	Style->Set("LayerView.Row.Selected", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
 
 	Style->Set("LayerView.Row.ActiveBrush", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
 	Style->Set("LayerView.Row.ActiveHoveredBrush", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
 	Style->Set("LayerView.Row.InactiveBrush", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
 	Style->Set("LayerView.Row.InactiveHoveredBrush", new FSlateRoundedBoxBrush(
 		LayerItemSelectFillColor, LayerViewItemCornerRadius,
-		LayerItemSelectBorderColor, LayerViewItemBorderWidthSelected));
+		LayerItemSelectBorderColor, LayerViewItemBorderWidth));
 
 	const float DropZoneMargin = 0.25f; 
 	Style->Set("LayerView.Row", FTableRowStyle()
@@ -269,13 +260,9 @@ void FSubstrateMaterialEditorStyle::SetupLayerViewStyles(const TSharedRef<FSlate
 		.SetActiveHoveredBrush(*Style->GetBrush(TEXT("LayerView.Row.ActiveHoveredBrush")))
 		.SetInactiveBrush(*Style->GetBrush(TEXT("LayerView.Row.InactiveBrush")))
 		.SetInactiveHoveredBrush(*Style->GetBrush(TEXT("LayerView.Row.InactiveHoveredBrush")))
-		//.SetSelectorFocusedBrush(BORDER_BRUSH("Common/Selector", FMargin(4.f / 16.f), Style->GetColor(TEXT("Color.Select.Hover"))))
-		//.SetSelectorFocusedBrush(BOX_BRUSH("Common/DropZoneIndicator_Onto", FMargin(4.f / 16.f), Style->GetColor(TEXT("Color.Select.Hover"))))
 		.SetDropIndicator_Onto(BOX_BRUSH("Common/DropZoneIndicator_Onto", FMargin(4.0f / 16.0f), Style->GetColor(TEXT("Color.Select.Hover"))))
-		//.SetDropIndicator_Above(BORDER_BRUSH("Common/DropZoneIndicatorDashed_Above", FMargin(DropZoneMargin, DropZoneMargin, 0.f, 0.f), Style->GetColor(TEXT("Color.Select.Hover"))))
-		.SetDropIndicator_Above(BOX_BRUSH("Common/VerticalBoxDropZoneIndicator_Above", FMargin(10.0f / 16.0f, 10.0f / 16.0f, 0, 0), Style->GetColor(TEXT("Color.Select.Hover"))))
-		// .SetDropIndicator_Below(BORDER_BRUSH("Common/DropZoneIndicatorDashed_Below", FMargin(DropZoneMargin, 0, 0, DropZoneMargin), Style->GetColor(TEXT("Color.Select.Hover"))))
-		 .SetDropIndicator_Below(BOX_BRUSH("Common/VerticalBoxDropZoneIndicator_Below",  FMargin(10.0f / 16.0f, 0, 0, 10.0f / 16.0f), Style->GetColor(TEXT("Color.Select.Hover"))))
+		.SetDropIndicator_Above(BORDER_BRUSH("Common/LayersDropZoneDashed_Above", FMargin(DropZoneMargin, DropZoneMargin, 0.f, 0.f), Style->GetColor(TEXT("Color.Select.Hover"))))
+		.SetDropIndicator_Below(BORDER_BRUSH("Common/LayersDropZoneDashed_Below", FMargin(DropZoneMargin, 0, 0, DropZoneMargin), Style->GetColor(TEXT("Color.Select.Hover"))))
 	);
 	Style->Set("LayerView.AddIcon", new IMAGE_BRUSH("Icons/EditorIcons/LayerAdd", Icon16x16));
 	Style->Set("LayerView.DuplicateIcon", new IMAGE_BRUSH("Icons/EditorIcons/Duplicate_40x", Icon40x40));
