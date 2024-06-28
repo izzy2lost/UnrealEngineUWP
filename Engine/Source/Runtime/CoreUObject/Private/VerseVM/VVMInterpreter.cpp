@@ -1699,6 +1699,7 @@ class FInterpreter
 					bSucceeded = Def(Field->Value.Get(), ValueOperand);
 					break;
 				case EFieldType::FProperty:
+					check(Field->UProperty->IsA<FVRestValueProperty>());
 					bSucceeded = Def(*Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Object->GetData(*EmergentType->CppClassInfo)), ValueOperand);
 					break;
 				default:
@@ -1717,8 +1718,8 @@ class FInterpreter
 			{
 				case EFieldType::FProperty:
 				{
-					FVRestValueProperty* FieldProperty = CastFieldChecked<FVRestValueProperty>(Field->UProperty);
-					VRestValue& Slot = *FieldProperty->ContainerPtrToValuePtr<VRestValue>(UeObject);
+					check(Field->UProperty->IsA<FVRestValueProperty>());
+					VRestValue& Slot = *Field->UProperty->ContainerPtrToValuePtr<VRestValue>(UeObject);
 					bSucceeded = Def(Slot, ValueOperand);
 					break;
 				}

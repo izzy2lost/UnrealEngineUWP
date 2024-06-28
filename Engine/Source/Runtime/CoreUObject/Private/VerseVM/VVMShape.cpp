@@ -93,6 +93,8 @@ VShape& VShape::CopyToMeltedShape(FAllocationContext Context)
 	NewFields.Reserve(Fields.Num());
 	for (auto It = Fields.CreateIterator(); It; ++It)
 	{
+		check(It->Value.Type != EFieldType::FProperty); // We don't support melting the shapes of native structs
+		// Replace constants with offsets so they can be mutated
 		NewFields.Add(It->Key, VEntry::Offset());
 	}
 	return *VShape::New(Context, MoveTemp(NewFields));

@@ -15,6 +15,12 @@ inline VValueObject& VValueObject::NewUninitialized(FAllocationContext Context, 
 	return *new (AllocateCell(Context, InEmergentType)) VValueObject(Context, InEmergentType);
 }
 
+inline std::byte* VValueObject::AllocateCell(FAllocationContext Context, VEmergentType& InEmergentType)
+{
+	const uint64 NumIndexedFields = InEmergentType.Shape->NumIndexedFields;
+	return Context.AllocateFastCell(DataOffset(*InEmergentType.CppClassInfo) + NumIndexedFields * sizeof(VRestValue));
+}
+
 inline VValueObject::VValueObject(FAllocationContext Context, VEmergentType& InEmergentType)
 	: VObject(Context, InEmergentType)
 {
@@ -27,12 +33,6 @@ inline VValueObject::VValueObject(FAllocationContext Context, VEmergentType& InE
 		// TODO SOL-4222: Pipe through proper split depth here.
 		new (&Data[Index]) VRestValue(0);
 	}
-}
-
-inline std::byte* VValueObject::AllocateCell(FAllocationContext Context, VEmergentType& InEmergentType)
-{
-	const uint64 NumIndexedFields = InEmergentType.Shape->NumIndexedFields;
-	return Context.AllocateFastCell(DataOffset(*InEmergentType.CppClassInfo) + NumIndexedFields * sizeof(VRestValue));
 }
 
 } // namespace Verse

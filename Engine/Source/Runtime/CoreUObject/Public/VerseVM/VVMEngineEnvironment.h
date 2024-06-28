@@ -7,7 +7,7 @@
 
 class FString;
 class UPackage;
-class UVerseVMClass;
+class UStruct;
 
 namespace uLang
 {
@@ -32,8 +32,8 @@ public:
 	// Given a UPackage name, adjust the name when the package stage is either DEAD or TEMP.
 	virtual const TCHAR* AdornPackageName(const TCHAR* PackageName, EPackageStage Stage, FString& ScratchSpace) = 0;
 
-	// Create a new UClass from an existing VClass
-	virtual UVerseVMClass* CreateUClass(FAllocationContext Context, VClass* Class) = 0;
+	// Create a new UClass/UScriptStruct from an existing VClass
+	virtual UStruct* CreateUStruct(FAllocationContext Context, VClass* Class) = 0;
 
 	// Collect property information
 	virtual void CollectPropertyInfo(FAllocationContext Context, const uLang::CTypeBase* Type, VPropertyType** OutPropertyType) = 0;

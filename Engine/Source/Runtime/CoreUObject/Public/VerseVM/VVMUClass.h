@@ -40,9 +40,15 @@ public:
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 namespace Verse
 {
-inline UClass* VClass::GetOrCreateUClass(FAllocationContext Context)
+template <class SubTypeOfUStruct>
+FORCEINLINE SubTypeOfUStruct* VClass::GetUStruct() const
 {
-	return AssociatedUClass ? CastChecked<UClass>(AssociatedUClass.Get().AsUObject()) : CreateUClass(Context);
+	return CastChecked<SubTypeOfUStruct>(AssociatedUStruct.Get().AsUObject());
+}
+template <class SubTypeOfUStruct>
+FORCEINLINE SubTypeOfUStruct* VClass::GetOrCreateUStruct(FAllocationContext Context)
+{
+	return AssociatedUStruct ? GetUStruct<SubTypeOfUStruct>() : CastChecked<SubTypeOfUStruct>(CreateUStruct(Context));
 }
 } // namespace Verse
 #endif

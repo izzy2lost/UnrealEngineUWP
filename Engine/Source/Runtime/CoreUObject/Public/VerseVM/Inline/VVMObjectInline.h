@@ -4,6 +4,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "UObject/UnrealType.h" // For FProperty
+#include "UObject/VerseValueProperty.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/VVMFunction.h"
 #include "VerseVM/VVMNativeFunction.h"
@@ -23,6 +24,7 @@ inline VValue VObject::LoadField(FAllocationContext Context, const VCppClassInfo
 		case EFieldType::Offset:
 			return GetFieldData(CppClassInfo)[Field->Index].Get(Context);
 		case EFieldType::FProperty:
+			check(Field->UProperty->IsA<FVRestValueProperty>());
 			return Field->UProperty->ContainerPtrToValuePtr<VRestValue>(GetData(CppClassInfo))->Get(Context);
 		case EFieldType::Constant:
 		{
@@ -52,17 +54,17 @@ inline VValue VObject::LoadField(FAllocationContext Context, const VUniqueString
 	return LoadField(Context, *EmergentType->CppClassInfo, EmergentType->Shape->GetField(Name));
 }
 
-inline VRestValue& VObject::GetFieldSlot(FAllocationContext Context, const VUniqueString& Name)
+inline void VObject::SetField(FAllocationContext Context, const VShape& Shape, const VUniqueString& Name, void* Data, VValue Value)
 {
-	const VEmergentType* EmergentType = GetEmergentType();
-	const VShape::VEntry* Field = EmergentType->Shape->GetField(Name);
+	const VShape::VEntry* Field = Shape.GetField(Name);
 	V_DIE_IF(Field == nullptr);
 	switch (Field->Type)
 	{
 		case EFieldType::Offset:
-			return GetFieldData(*EmergentType->CppClassInfo)[Field->Index];
+			return BitCast<VRestValue*>(Data)[Field->Index].Set(Context, Value);
 		case EFieldType::FProperty:
-			return *Field->UProperty->ContainerPtrToValuePtr<VRestValue>(GetData(*EmergentType->CppClassInfo));
+			check(Field->UProperty->IsA<FVRestValueProperty>());
+			return Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Data)->Set(Context, Value);
 		case EFieldType::Constant:
 		default:
 			VERSE_UNREACHABLE(); // This shouldn't happen since such field's data should be on the shape, not the object.
@@ -70,14 +72,16 @@ inline VRestValue& VObject::GetFieldSlot(FAllocationContext Context, const VUniq
 	}
 }
 
-inline void VObject::SetField(FAllocationContext Context, VUniqueString& Name, VValue Value)
+inline void VObject::SetField(FAllocationContext Context, const VUniqueString& Name, VValue Value)
 {
-	GetFieldSlot(Context, Name).Set(Context, Value);
+	const VEmergentType* EmergentType = GetEmergentType();
+	SetField(Context, *EmergentType->Shape, Name, GetData(*EmergentType->CppClassInfo), Value);
 }
 
 inline VObject::VObject(FAllocationContext Context, VEmergentType& InEmergentType)
 	: VHeapValue(Context, &InEmergentType)
 {
+	// Leave initialization of the data to the subclasses
 }
 
 FORCEINLINE size_t VObject::DataOffset(const VCppClassInfo& CppClassInfo)

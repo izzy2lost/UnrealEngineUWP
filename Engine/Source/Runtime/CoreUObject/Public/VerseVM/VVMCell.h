@@ -73,7 +73,7 @@ struct VCell
 	COREUOBJECT_API VValue Melt(FAllocationContext Context);
 	COREUOBJECT_API VValue Freeze(FAllocationContext Context);
 	COREUOBJECT_API bool Subsumes(FAllocationContext Context, VValue);
-	bool IsDeeplyMutable() { return Misc2 & DeeplyMutableTag; }
+	bool IsDeeplyMutable() const { return Misc2 & DeeplyMutableTag; }
 	bool SetIsDeeplyMutable() { return Misc2 |= DeeplyMutableTag; }
 
 private:

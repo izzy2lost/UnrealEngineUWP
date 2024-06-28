@@ -5,6 +5,7 @@
 #include "Templates/TypeHash.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
+#include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMValueObjectInline.h"
 #include "VerseVM/VVMCppClassInfo.h"

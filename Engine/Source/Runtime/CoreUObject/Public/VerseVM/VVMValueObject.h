@@ -19,9 +19,9 @@ struct VValueObject : VObject
 protected:
 	friend class FInterpreter;
 
-	VValueObject(FAllocationContext Context, VEmergentType& InEmergentType);
-
 	static std::byte* AllocateCell(FAllocationContext Context, VEmergentType& EmergentType);
+
+	VValueObject(FAllocationContext Context, VEmergentType& InEmergentType);
 
 	COREUOBJECT_API bool EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	COREUOBJECT_API uint32 GetTypeHashImpl();

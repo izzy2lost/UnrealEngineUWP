@@ -4,6 +4,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Templates/SharedPointer.h"
+#include "UObject/Class.h" // For UScriptStruct::ICppStructOps which can not be fwd-declared
 #include "VerseVM/VVMArray.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMProcedure.h"
@@ -19,6 +20,7 @@ namespace Verse
 {
 struct FAbstractVisitor;
 struct VObject;
+struct VNativeStruct;
 struct VProcedure;
 struct VPackage;
 struct VUniqueString;
@@ -177,10 +179,16 @@ struct VClass : VType
 	EKind GetKind() const { return Kind; }
 	bool IsStruct() const { return GetKind() == EKind::Struct; }
 	bool IsNative() const { return bNative; }
+	bool IsNativeStruct() const { return IsNative() && IsStruct(); }
+	UScriptStruct::ICppStructOps& GetCppStructOps() const;
 
-	/// Allocate a new VObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
+	/// Allocate a new VObject (either VValueObject or VNativeStruct). Also returns a sequence of VProcedures to invoke to finish the object's construction.
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
 	COREUOBJECT_API VObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
+
+	/// Allocate a new VNativeStruct and move an existing struct into it
+	template <class CppStructType>
+	VNativeStruct& NewNativeStruct(FAllocationContext Context, CppStructType&& Struct);
 
 	/// Allocate a new UObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
@@ -193,11 +201,12 @@ private:
 public:
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
 	COREUOBJECT_API VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo);
+	COREUOBJECT_API VEmergentType& GetOrCreateEmergentTypeForNativeStruct(FAllocationContext Context);
 
-	COREUOBJECT_API UClass* GetOrCreateUClass(FAllocationContext Context);
-
-	/// Creates an associated UClass for this VClass
-	COREUOBJECT_API UClass* CreateUClass(FAllocationContext Context);
+	template <class SubTypeOfUStruct>
+	COREUOBJECT_API SubTypeOfUStruct* GetUStruct() const; // Fails if it's not there
+	template <class SubTypeOfUStruct>
+	COREUOBJECT_API SubTypeOfUStruct* GetOrCreateUStruct(FAllocationContext Context);
 
 	/**
 	 * Creates a new class.
@@ -217,7 +226,13 @@ private:
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
 
-	bool SubsumesImpl(FAllocationContext, VValue);
+	/// Creates an associated UClass or UScriptStruct for this VClass
+	COREUOBJECT_API UStruct* CreateUStruct(FAllocationContext Context);
+
+	/// Initialize an instance using the constructor
+	COREUOBJECT_API void InitInstance(FAllocationContext Context, VShape& Shape, void* Data) const;
+
+	COREUOBJECT_API bool SubsumesImpl(FAllocationContext, VValue);
 
 	TWriteBarrier<VArray> ClassName;
 	TWriteBarrier<VArray> UEMangledName;
@@ -233,8 +248,8 @@ private:
 	/// Actual object construction may further override some elements of this sequence.
 	TWriteBarrier<VConstructor> Constructor;
 
-	/// An associated UClass allows this VClass to create UObject instances
-	TWriteBarrier<VValue> AssociatedUClass;
+	/// An associated UClass/UScriptStruct allows this VClass to create UObject/VNativeStruct instances
+	TWriteBarrier<VValue> AssociatedUStruct;
 
 	// Stored here to share alignment space with NumInherited
 	EKind Kind;

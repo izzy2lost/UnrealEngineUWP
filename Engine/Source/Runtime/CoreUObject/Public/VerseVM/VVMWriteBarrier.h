@@ -143,9 +143,13 @@ struct TWriteBarrier
 		{
 			return GetTypeHash(WriteBarrier.Get());
 		}
-		else
+		else if (WriteBarrier)
 		{
 			return GetTypeHash(*WriteBarrier.Get());
+		}
+		else
+		{
+			return 0;
 		}
 	}
 

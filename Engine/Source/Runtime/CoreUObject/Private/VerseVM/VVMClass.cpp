@@ -10,11 +10,14 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
+#include "VerseVM/Inline/VVMNativeStructInline.h"
+#include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/Inline/VVMValueObjectInline.h"
 #include "VerseVM/VVMEngineEnvironment.h"
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
+#include "VerseVM/VVMNativeStruct.h"
 #include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTypeCreator.h"
@@ -106,7 +109,7 @@ void VClass::VisitReferencesImpl(TVisitor& Visitor)
 	Visitor.Visit(UEMangledName, TEXT("UEMangledName"));
 	Visitor.Visit(Scope, TEXT("Scope"));
 	Visitor.Visit(Constructor, TEXT("Constructor"));
-	Visitor.Visit(AssociatedUClass, TEXT("AssociatedUClass"));
+	Visitor.Visit(AssociatedUStruct, TEXT("AssociatedUStruct"));
 
 	// Mark the inherited classes to ensure that they don't get swept during GC since we want to keep their information
 	// around when anything needs to query the class inheritance hierarchy.
@@ -148,31 +151,42 @@ void VClass::Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& 
 
 VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
 {
-	// Combine the class and archetype to determine which fields will live in the object.
-	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForArchetype(Context, ArchetypeFields, &VValueObject::StaticCppClassInfo);
-	VObject& NewObject = VValueObject::NewUninitialized(Context, NewEmergentType);
+	VObject* NewObject;
+	if (IsNativeStruct())
+	{
+		// Get or create the singleton emergent type for this native struct
+		VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForNativeStruct(Context);
+		NewObject = &VNativeStruct::NewUninitialized(Context, NewEmergentType);
+		InitInstance(Context, *NewEmergentType.Shape, NewObject->GetData(*NewEmergentType.CppClassInfo));
+	}
+	else
+	{
+		// Combine the class and archetype to determine which fields will live in the object.
+		VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForArchetype(Context, ArchetypeFields, &VValueObject::StaticCppClassInfo);
+		NewObject = &VValueObject::NewUninitialized(Context, NewEmergentType);
+	}
 
 	if (Kind == EKind::Struct)
 	{
-		NewObject.SetIsStruct();
+		NewObject->SetIsStruct();
 	}
 
 	// Initialize fields from the archetype.
 	// NOTE: This assumes that the order of values matches the IDs of the field set.
 	for (auto It = ArchetypeFields.begin(); It != ArchetypeFields.end(); ++It)
 	{
-		NewObject.SetField(Context, *It->Get(), ArchetypeValues[It.GetId().AsInteger()]);
+		NewObject->SetField(Context, *It->Get(), ArchetypeValues[It.GetId().AsInteger()]);
 	}
 
 	// Build the sequence of VProcedures to finish object construction.
 	GatherInitializers(ArchetypeFields, OutInitializers);
 
-	return NewObject;
+	return *NewObject;
 }
 
 UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
 {
-	UVerseVMClass* ObjectUClass = CastChecked<UVerseVMClass>(GetOrCreateUClass(Context));
+	UVerseVMClass* ObjectUClass = GetOrCreateUStruct<UVerseVMClass>(Context);
 
 	FStaticConstructObjectParameters Parameters(ObjectUClass);
 	// Note: Object will get a default name based on class name
@@ -185,7 +199,7 @@ UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& Archet
 	for (auto It = ArchetypeFields.begin(); It != ArchetypeFields.end(); ++It)
 	{
 		const VShape::VEntry* Field = ObjectUClass->Shape->GetField(*It->Get());
-		checkSlow(Field && Field->Type == EFieldType::FProperty);
+		checkSlow(Field && Field->Type == EFieldType::FProperty && Field->UProperty->IsA<FVRestValueProperty>());
 		VValue Value = ArchetypeValues[It.GetId().AsInteger()];
 		Field->UProperty->ContainerPtrToValuePtr<VRestValue>(NewObject)->Set(Context, Value);
 	}
@@ -226,7 +240,7 @@ void VClass::GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProce
 VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo)
 {
 	// Limit archetype instantiation to VObject-derived types for now
-	V_DIE_UNLESS(CppClassInfo->IsA(&VValueObject::StaticCppClassInfo));
+	V_DIE_UNLESS(!IsNativeStruct());
 
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
@@ -276,18 +290,58 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	return *NewEmergentType;
 }
 
-UClass* VClass::CreateUClass(FAllocationContext Context)
+VEmergentType& VClass::GetOrCreateEmergentTypeForNativeStruct(FAllocationContext Context)
 {
-	ensure(!AssociatedUClass && Kind != EKind::Interface); // Only an actual class should be associated with a UClass
+	V_DIE_UNLESS(IsNativeStruct());
 
-	// Create the new UClass object
+	const uint32 SingleHash = 0; // For native structs, we only ever store one emergent type, regardless of archetype
+	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(SingleHash, TWriteBarrier<VUniqueStringSet>{}))
+	{
+		return *ExistingEmergentType->Get();
+	}
+
+	UScriptStruct::ICppStructOps& CppStructOps = GetCppStructOps();
+	// Make sure alignment holds for this native struct
+	V_DIE_UNLESS(CppStructOps.GetAlignment() <= VObject::DataAlignment);
+
+	VEmergentType* ClassEmergentType = GetEmergentType();
+	// Check for shape stashed into our emergent type by CreateUStruct()
+	V_DIE_UNLESS(ClassEmergentType->Shape);
+	VEmergentType* NewEmergentType = VEmergentType::New(Context, ClassEmergentType->Shape.Get(), this, &VNativeStruct::StaticCppClassInfo);
+
+	// Keep alive in cache for future requests
+	EmergentTypesCache.AddByHash(SingleHash, {Context, nullptr}, {Context, NewEmergentType});
+
+	return *NewEmergentType;
+}
+
+UStruct* VClass::CreateUStruct(FAllocationContext Context)
+{
+	ensure(!AssociatedUStruct); // Caller must ensure that this is not already set
+
+	// Create the new UClass/UScriptStruct object
 
 	IEngineEnvironment* Environment = VerseVM::GetEngineEnvironment();
-	ensure(Environment);
-	UVerseVMClass* NewClass = Environment->CreateUClass(Context, this);
-	AssociatedUClass.Set(Context, NewClass);
+	check(Environment);
+	UStruct* NewStruct = Environment->CreateUStruct(Context, this);
+	AssociatedUStruct.Set(Context, NewStruct);
 
-	return NewClass;
+	return NewStruct;
+}
+
+void VClass::InitInstance(FAllocationContext Context, VShape& Shape, void* Data) const
+{
+	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
+	{
+		VConstructor::VEntry& Entry = Constructor->Entries[Index];
+		if (const VUniqueString* FieldName = Entry.Name.Get())
+		{
+			if (!Entry.bDynamic && !(Entry.Value.Get().IsCellOfType<VProcedure>() || Entry.Value.Get().IsCellOfType<VNativeFunction>()))
+			{
+				VObject::SetField(Context, Shape, *FieldName, Data, Entry.Value.Get());
+			}
+		}
+	}
 }
 
 bool VClass::SubsumesImpl(FAllocationContext Context, VValue Value)

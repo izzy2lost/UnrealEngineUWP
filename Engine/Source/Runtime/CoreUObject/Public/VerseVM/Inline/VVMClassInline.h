@@ -3,7 +3,9 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "Templates/Casts.h"
 #include "UObject/Class.h"
+#include "VerseVM/Inline/VVMNativeStructInline.h"
 #include "VerseVM/VVMCVars.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
@@ -35,6 +37,21 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
+inline UScriptStruct::ICppStructOps& VClass::GetCppStructOps() const
+{
+	return *CastChecked<UScriptStruct>(AssociatedUStruct.Get().AsUObject())->GetCppStructOps();
+}
+
+template <class CppStructType>
+inline VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, CppStructType&& Struct)
+{
+	V_DIE_UNLESS(IsNativeStruct());
+
+	// Get or create the singleton emergent type for this native struct
+	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForNativeStruct(Context);
+	return VNativeStruct::New(Context, NewEmergentType, MoveTemp(Struct));
+}
+
 inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass)
 {
 	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
@@ -52,7 +69,7 @@ inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InN
 {
 	if (InImportClass != nullptr)
 	{
-		AssociatedUClass.Set(Context, InImportClass);
+		AssociatedUStruct.Set(Context, InImportClass);
 	}
 
 	if (InInherited.IsEmpty())
@@ -66,7 +83,7 @@ inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InN
 		TArray<VConstructor::VEntry> Entries;
 		Entries.Reserve(InConstructor.NumEntries);
 		Extend(Fields, Entries, InConstructor);
-		for (uint32 Index = 0; Index < InInherited.Num(); ++Index)
+		for (int32 Index = 0; Index < InInherited.Num(); ++Index)
 		{
 			V_DIE_IF(Index != 0 && InInherited[Index]->Kind == EKind::Class);
 			Extend(Fields, Entries, *InInherited[Index]->Constructor.Get());

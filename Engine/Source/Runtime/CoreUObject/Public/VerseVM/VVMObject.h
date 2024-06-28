@@ -18,24 +18,22 @@ struct VObject : VHeapValue
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 
 	VValue LoadField(FAllocationContext Context, const VUniqueString& Name);
-
-	/// Use this when you are retrieving a `var` from an object and not what the `var` points to.
-	/// The data is retrieved from the object, rather than the shape.
-	VRestValue& GetFieldSlot(FAllocationContext Context, const VUniqueString& Name);
-
-	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
+	void SetField(FAllocationContext Context, const VUniqueString& Name, VValue Value);
 
 	bool IsStruct() { return IsDeeplyMutable(); };
 	void SetIsStruct() { SetIsDeeplyMutable(); };
 
 protected:
 	friend class FInterpreter;
+	friend struct VClass;
 
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
 
 	static constexpr const size_t DataAlignment = alignof(VRestValue);
 
 	VValue LoadField(FAllocationContext Context, const VCppClassInfo& CppClassInfo, const VShape::VEntry* Field);
+	static void SetField(FAllocationContext Context, const VShape& Shape, const VUniqueString& Name, void* Data, VValue Value);
+
 	static size_t DataOffset(const VCppClassInfo& CppClassInfo);
 
 	/*

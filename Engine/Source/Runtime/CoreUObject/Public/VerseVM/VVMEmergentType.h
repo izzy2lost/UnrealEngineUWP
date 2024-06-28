@@ -3,6 +3,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "UObject/Class.h" // For UScriptStruct::ICppStructOps which can not be fwd-declared
 #include "VVMCell.h"
 #include "VVMEmergentTypeCreator.h"
 #include "VVMGlobalHeapPtr.h"
@@ -31,6 +32,8 @@ struct VEmergentType final : VCell
 	{
 		return new (Context.AllocateEmergentType(sizeof(VEmergentType))) VEmergentType(Context, InShape, VEmergentTypeCreator::EmergentTypeForEmergentType.Get(), Type, CppClassInfo);
 	}
+
+	UScriptStruct::ICppStructOps& GetCppStructOps() const;
 
 	VEmergentType& GetOrCreateMeltTransition(FAllocationContext Context)
 	{
@@ -87,11 +90,11 @@ private:
 	{
 	}
 
-	VEmergentType(FAllocationContext Context, VShape* InShape, VEmergentType* EmergentType, VType* InType, VCppClassInfo* CppClassInfo)
+	VEmergentType(FAllocationContext Context, VShape* InShape, VEmergentType* EmergentType, VType* InType, VCppClassInfo* InCppClassInfo)
 		: VCell(Context, EmergentType)
 		, Shape(Context, InShape)
 		, Type(Context, InType)
-		, CppClassInfo(CppClassInfo)
+		, CppClassInfo(InCppClassInfo)
 	{
 	}
 };
