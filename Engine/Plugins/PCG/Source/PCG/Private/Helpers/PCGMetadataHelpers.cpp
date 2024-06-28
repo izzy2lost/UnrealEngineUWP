@@ -139,7 +139,6 @@ namespace PCGMetadataHelpers
 			}
 
 			// We need accessors if we have a multi entry source attribute or we have extractors
-			const bool bIsMultiEntries = SourceData->IsA<UPCGParamData>() && SourceMetadata->GetLocalItemCount() > 1;
 			const bool bInputHasAnyExtra = !InputSource.GetExtraNames().IsEmpty();
 			const bool bOutputHasAnyExtra = !OutputTarget.GetExtraNames().IsEmpty();
 			const bool bSourceIsAttribute = InputSource.GetSelection() == EPCGAttributePropertySelection::Attribute;
@@ -147,7 +146,7 @@ namespace PCGMetadataHelpers
 			// Cast is only required if it is on an output attribute that has no extra (that we will create)
 			const bool bOutputTypeCast = bTargetIsAttribute && !bOutputHasAnyExtra && (RequestedOutputType != EPCGMetadataTypes::Unknown);
 
-			const bool bNeedAccessors = bIsMultiEntries || bInputHasAnyExtra || bOutputHasAnyExtra || !bSourceIsAttribute || !bTargetIsAttribute || bOutputTypeCast;
+			const bool bNeedAccessors = bInputHasAnyExtra || bOutputHasAnyExtra || !bSourceIsAttribute || !bTargetIsAttribute || bOutputTypeCast;
 
 			// If no accessor, copy over the attribute
 			if (!bNeedAccessors)
@@ -162,10 +161,71 @@ namespace PCGMetadataHelpers
 				// Presence of attribute was already checked before, this should not return null
 				check(SourceAttribute);
 
-				if (FPCGMetadataAttributeBase* NewAttr = TargetMetadata->CopyAttribute(SourceAttribute, LocalDestinationAttribute, /*bKeepParent=*/false, /*bCopyEntries=*/true,/*bCopyValues=*/true))
+				if (FPCGMetadataAttributeBase* NewAttr = TargetMetadata->CopyAttribute(SourceAttribute, LocalDestinationAttribute, /*bKeepParent=*/false, /*bCopyEntries=*/bSameOrigin, /*bCopyValues=*/true))
 				{
 					// To keep the previous behavior for single value attributes, we force the copied attribute to have its default value set to the first entry (only done if there is just a single value).
-					NewAttr->SetDefaultValueToFirstEntry();
+					const bool bHasJustASingleEntryOrNoEntry = SourceAttribute->GetNumberOfEntriesWithParents() <= 1;
+					if (bHasJustASingleEntryOrNoEntry)
+					{
+						NewAttr->SetDefaultValueToFirstEntry();
+					}
+
+					// And finally, we create our source and target keys, to get all the metadata entry keys, to remap if we are not the same origin and that we have multiple entries.
+					if (!bSameOrigin && !bHasJustASingleEntryOrNoEntry)
+					{
+						TUniquePtr<const IPCGAttributeAccessorKeys> SourceKeys = PCGAttributeAccessorHelpers::CreateConstKeys(SourceData, InputSource);
+						TUniquePtr<IPCGAttributeAccessorKeys> TargetKeys = PCGAttributeAccessorHelpers::CreateKeys(TargetData, OutputTarget);
+
+						// They must exist, so we can check.
+						check(SourceKeys && TargetKeys);
+
+						if (SourceKeys->GetNum() > 0 && TargetKeys->GetNum() > 0)
+						{
+							TArray<const PCGMetadataEntryKey*> AllSourceEntryKeysPtr;
+							TArray<PCGMetadataEntryKey*> AllTargetEntryKeysPtr;
+
+							AllSourceEntryKeysPtr.SetNumUninitialized(FMath::Min(SourceKeys->GetNum(), TargetKeys->GetNum()));
+							AllTargetEntryKeysPtr.SetNumUninitialized(TargetKeys->GetNum());
+
+							if (SourceKeys->GetKeys<PCGMetadataEntryKey>(0, AllSourceEntryKeysPtr) && TargetKeys->GetKeys<PCGMetadataEntryKey>(0, AllTargetEntryKeysPtr))
+							{
+								// Gather all the value keys
+								TArray<PCGMetadataEntryKey> AllSourceEntryKeys;
+								Algo::Transform(AllSourceEntryKeysPtr, AllSourceEntryKeys, [](const PCGMetadataEntryKey* KeyPtr) { return *KeyPtr; });
+								TArray<PCGMetadataValueKey> ValueKeys;
+								ValueKeys.Reserve(AllTargetEntryKeysPtr.Num());
+								SourceAttribute->GetValueKeys(TArrayView<const PCGMetadataEntryKey>(AllSourceEntryKeys), ValueKeys);
+
+								// Extends values keys to match target entry keys size. It will loop on value keys.
+								const int32 ValueKeysSize = ValueKeys.Num();
+								for (int32 i = ValueKeysSize; i < AllTargetEntryKeysPtr.Num(); ++i)
+								{
+									ValueKeys.Add(ValueKeys[i % ValueKeysSize]);
+								}
+
+								// Make sure that the Target has some metadata entry
+								// Implementation note: this is a stripped down version of UPCGMetadata::InitializeOnSet
+								TArray<PCGMetadataEntryKey*> AllTargetEntryKeysPtrTemp;
+								AllTargetEntryKeysPtrTemp.Reserve(AllTargetEntryKeysPtr.Num());
+								for (int EntryIndex = 0; EntryIndex < AllTargetEntryKeysPtr.Num(); ++EntryIndex)
+								{
+									PCGMetadataEntryKey& EntryKey = *AllTargetEntryKeysPtr[EntryIndex];
+									if (EntryKey == PCGInvalidEntryKey || (EntryKey < TargetMetadata->GetItemKeyCountForParent()))
+									{
+										AllTargetEntryKeysPtrTemp.Add(&EntryKey);
+									}
+								}
+
+								if (!AllTargetEntryKeysPtrTemp.IsEmpty())
+								{
+									TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeAccessor::Prepare::AddEntriesInPlace);
+									TargetMetadata->AddEntriesInPlace(AllTargetEntryKeysPtrTemp);
+								}
+
+								NewAttr->SetValuesFromValueKeys(AllTargetEntryKeysPtr, ValueKeys, /*bResetValueOnDefaultValueKey=*/true);
+							}
+						}
+					}
 				}
 				else
 				{
