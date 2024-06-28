@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace HordeServer
@@ -25,13 +26,23 @@ namespace HordeServer
 		/// <inheritdoc/>
 		public DirectoryReference DataDir => ServerApp.DataDir;
 
+		/// <inheritdoc/>
+		public IConfiguration Configuration => _configuration;
+
+		/// <inheritdoc/>
+		public bool ReadOnlyMode => _serverSettings.Value.MongoReadOnlyMode;
+
+		readonly IConfiguration _configuration;
 		readonly IOptions<ServerSettings> _serverSettings;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ServerInfo(IOptions<ServerSettings> serverSettings)
-			=> _serverSettings = serverSettings;
+		public ServerInfo(IConfiguration configuration, IOptions<ServerSettings> serverSettings)
+		{
+			_configuration = configuration;
+			_serverSettings = serverSettings;
+		}
 
 		/// <inheritdoc/>
 		public bool IsRunModeActive(RunMode mode)

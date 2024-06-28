@@ -64,6 +64,16 @@ namespace HordeServer
 		DirectoryReference DataDir { get; }
 
 		/// <summary>
+		/// Global configuration settings
+		/// </summary>
+		IConfiguration Configuration { get; }
+
+		/// <summary>
+		/// Whether the server is running in read-only mode
+		/// </summary>
+		bool ReadOnlyMode { get; }
+
+		/// <summary>
 		/// Helper method to check if this process has activated the given mode
 		/// </summary>
 		/// <param name="mode">Run mode</param>

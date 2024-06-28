@@ -48,15 +48,15 @@ namespace HordeServer.Plugins
 			public LoadedPlugin(IPluginMetadata metadata)
 				=> _metadata = metadata;
 
-			public void ConfigureServices(IConfiguration config, IServiceCollection serviceCollection)
+			public void ConfigureServices(IConfiguration config, IServerInfo serverInfo, IServiceCollection serviceCollection)
 			{
 				serviceCollection.AddPluginConfig<TGlobalConfig>(Name);
 
-				TStartup startup = CreateStartup(config);
+				TStartup startup = CreateStartup(config, serverInfo);
 				startup.ConfigureServices(serviceCollection);
 			}
 
-			static TStartup CreateStartup(IConfiguration configuration)
+			static TStartup CreateStartup(IConfiguration configuration, IServerInfo serverInfo)
 			{
 				ConstructorInfo? chosenConstructor = null;
 				ParameterInfo[]? chosenConstructorParams = null;
@@ -86,7 +86,15 @@ namespace HordeServer.Plugins
 					for (int idx = 0; idx < chosenConstructorParams.Length; idx++)
 					{
 						ParameterInfo parameter = chosenConstructorParams[idx];
-						if (parameter.ParameterType == typeof(TServerConfig))
+						if (parameter.ParameterType == typeof(IConfiguration))
+						{
+							arguments[idx] = configuration;
+						}
+						else if (parameter.ParameterType == typeof(IServerInfo))
+						{
+							arguments[idx] = serverInfo;
+						}
+						else if (parameter.ParameterType == typeof(TServerConfig))
 						{
 							arguments[idx] = new TServerConfig();
 							configuration.Bind(arguments[idx]);
@@ -107,7 +115,8 @@ namespace HordeServer.Plugins
 			{
 				foreach (ParameterInfo parameter in parameters)
 				{
-					if (parameter.ParameterType != typeof(TServerConfig))
+					if (parameter.ParameterType != typeof(IServerInfo)
+						&& parameter.ParameterType != typeof(TServerConfig))
 					{
 						return false;
 					}

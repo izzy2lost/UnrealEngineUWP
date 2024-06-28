@@ -231,12 +231,13 @@ namespace HordeServer.Tests.Fleet
 		private FleetService GetFleetService(IFleetManager fleetManager, bool isDowntimeActive = false)
 		{
 			ILoggerFactory loggerFactory = ServiceProvider.GetRequiredService<ILoggerFactory>();
-			IOptions<ServerSettings> serverSettingsOpt = ServiceProvider.GetRequiredService<IOptions<ServerSettings>>();
+			IOptions<StaticComputeConfig> serverSettingsOpt = ServiceProvider.GetRequiredService<IOptions<StaticComputeConfig>>();
 			serverSettingsOpt.Value.FleetManagerV2 = FleetManagerType.AwsReuse;
 
+			IOptionsMonitor<ComputeConfig> computeConfig = ServiceProvider.GetRequiredService<IOptionsMonitor<ComputeConfig>>();
 			FleetService service = new(
 				AgentService, PoolCollection, new DowntimeServiceStub(isDowntimeActive), Meter,
-				new StubFleetManagerFactory(fleetManager), Clock, ServiceProvider.GetRequiredService<IEnumerable<IPoolSizeStrategyFactory>>(), serverSettingsOpt, GlobalConfig, Tracer, loggerFactory.CreateLogger<FleetService>());
+				new StubFleetManagerFactory(fleetManager), Clock, ServiceProvider.GetRequiredService<IEnumerable<IPoolSizeStrategyFactory>>(), serverSettingsOpt, computeConfig, Tracer, loggerFactory.CreateLogger<FleetService>());
 
 			return service;
 		}

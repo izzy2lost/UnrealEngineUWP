@@ -91,12 +91,12 @@
   </ItemGroup>
   
   <ItemGroup>
-    <Protobuf Include="..\..\HordeServer\Protos\horde\job_rpc.proto" ProtoRoot="..\..\HordeServer\Protos" GrpcServices="Client" Access="Public" AdditionalImportDirs="..\..\..\Shared\EpicGames.Horde\Protos"/>
-    <Protobuf Include="..\..\HordeServer\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\..\HordeServer\Protos\horde\job_rpc.proto" ProtoRoot="..\..\HordeServer\Protos" GrpcServices="Client" Access="Public" AdditionalImportDirs="..\..\..\Shared\EpicGames.Horde\Protos;..\..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\..\HordeServer\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" AdditionalImportDirs="..\..\Plugins\Compute\HordeServer.Compute\Protos" />
     <Protobuf Include="..\..\HordeServer\Protos\horde\common\label_change.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\..\HordeServer\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\..\HordeServer\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\..\HordeServer\Protos\horde\tasks\job_task.proto" ProtoRoot="..\..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" />
+    <Protobuf Include="..\..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" />
+    <Protobuf Include="..\..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\job_task.proto" ProtoRoot="..\..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" />
   </ItemGroup>
 
   <ItemGroup>

@@ -137,30 +137,30 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="..\HordeServer\Protos\horde\horde_rpc.proto" ProtoRoot="..\HordeServer\Protos" GrpcServices="Client" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\horde_rpc_messages.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\enrollment_rpc.proto" ProtoRoot="..\HordeServer\Protos" GrpcServices="Client" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\enrollment_rpc_messages.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\common\agent_status.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\horde_rpc.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" GrpcServices="Client" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos" />
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\horde_rpc_messages.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\enrollment_rpc.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" GrpcServices="Client" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\enrollment_rpc_messages.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\common\agent_status.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
     <Protobuf Include="..\HordeServer\Protos\horde\common\io_hash.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\common\lease_outcome.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\common\lease_state.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\common\lease_outcome.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\common\lease_state.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
     <Protobuf Include="..\HordeServer\Protos\horde\common\namespace_id.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\messages\agent_capabilities.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\messages\agent_requirements.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\messages\lease.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\messages\aws_lambda.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\tasks\compute_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\tasks\restart_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\tasks\shutdown_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\tasks\test_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\tasks\upgrade_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\agent_capabilities.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\agent_requirements.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\lease.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\aws_lambda.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\compute_task.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\restart_task.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\shutdown_task.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\test_task.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\upgrade_task.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos"/>
 
-    <Protobuf Include="..\HordeServer\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\common\label_change.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
-    <Protobuf Include="..\HordeServer\Protos\horde\tasks\job_task.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" />
+    <Protobuf Include="..\HordeServer\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos" />
+    <Protobuf Include="..\HordeServer\Protos\horde\common\label_change.proto" ProtoRoot="..\HordeServer\Protos" Access="Public" AdditionalImportDirs="..\Plugins\Compute\HordeServer.Compute\Protos" />
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" />
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" />
+    <Protobuf Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\job_task.proto" ProtoRoot="..\Plugins\Compute\HordeServer.Compute\Protos" Access="Public" />
   </ItemGroup>
 
   <ItemGroup>

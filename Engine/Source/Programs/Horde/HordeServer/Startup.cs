@@ -10,12 +10,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Amazon;
-using Amazon.AutoScaling;
-using Amazon.CloudWatch;
-using Amazon.EC2;
-using Amazon.Extensions.NETCore.Setup;
-using Amazon.SQS;
 using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
@@ -47,7 +41,6 @@ using HordeServer.Agents.Utilization;
 using HordeServer.Artifacts;
 using HordeServer.Auditing;
 using HordeServer.Authentication;
-using HordeServer.Aws;
 using HordeServer.Commits;
 using HordeServer.Compute;
 using HordeServer.Configuration;
@@ -292,7 +285,6 @@ namespace HordeServer
 		// This method gets called *multiple times* by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
-			services.AddSingleton<IServerInfo, ServerInfo>();
 			services.AddSingleton<JsonSchemaCache>();
 
 			// IOptionsMonitor pattern for live updating of configuration settings
@@ -308,9 +300,13 @@ namespace HordeServer
 			ServerSettings settings = new();
 			BindServerSettings(Configuration, settings);
 
+			ServerInfo serverInfo = new ServerInfo(Configuration, Options.Create(settings));
+			services.AddSingleton<IServerInfo>(serverInfo);
+
 			// Register the plugin collection
 			PluginCollection pluginCollection = new PluginCollection();
 			pluginCollection.Add<AnalyticsPlugin>();
+			pluginCollection.Add<ComputePlugin>();
 			pluginCollection.Add<StoragePlugin>();
 			pluginCollection.Add<DdcPlugin>();
 			pluginCollection.Add<SecretsPlugin>();
@@ -322,7 +318,7 @@ namespace HordeServer
 			foreach (ILoadedPlugin plugin in pluginCollection.LoadedPlugins)
 			{
 				IConfigurationSection pluginConfig = pluginsConfig.GetSection(plugin.Name.ToString());
-				plugin.ConfigureServices(pluginConfig, services);
+				plugin.ConfigureServices(pluginConfig, serverInfo, services);
 			}
 
 			OpenTelemetryHelper.Configure(services, settings.OpenTelemetry);
@@ -424,24 +420,7 @@ namespace HordeServer
 			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
 			services.AddSingleton(typeof(ISingletonDocument<>), typeof(SingletonDocument<>));
 
-			services.AddSingleton<AwsAutoScalingLifecycleService>();
-			services.AddSingleton<FleetService>();
-			services.AddSingleton<IFleetManagerFactory, FleetManagerFactory>();
-			services.AddSingleton<IPoolSizeStrategyFactory, NoOpPoolSizeStrategyFactory>();
 			services.AddSingleton<IPoolSizeStrategyFactory, JobQueueStrategyFactory>();
-			services.AddSingleton<IPoolSizeStrategyFactory, LeaseUtilizationStrategyFactory>();
-
-			// Associate IFleetManager interface with the default implementation from config for convenience
-			// Though most fleet managers are created on a per-pool basis
-			services.AddSingleton<IFleetManager>(ctx => ctx.GetRequiredService<IFleetManagerFactory>().CreateFleetManager(FleetManagerType.Default));
-
-			// Run the tunnel service for all run modes
-			services.AddSingleton<TunnelService>();
-			services.AddHostedService<TunnelService>(sp => sp.GetRequiredService<TunnelService>());
-
-			// Runs the agent relay service for all run modes to notify long-polling requests
-			services.AddSingleton<AgentRelayService>();
-			services.AddHostedService(provider => provider.GetRequiredService<AgentRelayService>());
 
 			services.AddSingleton<AclService>();
 			services.AddSingleton<IAclService>(sp => sp.GetRequiredService<AclService>());
@@ -514,26 +493,6 @@ namespace HordeServer
 			else
 			{
 				services.AddSingleton<IExternalIssueService, DefaultExternalIssueService>();
-			}
-
-			if (settings.WithAws)
-			{
-				AWSOptions awsOptions = Configuration.GetAWSOptions();
-				services.AddDefaultAWSOptions(awsOptions);
-				if (awsOptions.Region == null && Environment.GetEnvironmentVariable("AWS_REGION") == null)
-				{
-					awsOptions.Region = RegionEndpoint.USEast1;
-				}
-
-				services.AddAWSService<IAmazonCloudWatch>();
-				services.AddAWSService<IAmazonAutoScaling>();
-				services.AddAWSService<IAmazonSQS>();
-				services.AddAWSService<IAmazonEC2>();
-
-				services.AddSingleton<AwsCloudWatchMetricExporter>();
-
-				services.AddSingleton<IPoolSizeStrategyFactory, LeaseUtilizationAwsMetricStrategyFactory>();
-				services.AddSingleton<IPoolSizeStrategyFactory, ComputeQueueAwsMetricStrategyFactory>();
 			}
 
 			AuthenticationBuilder authBuilder = services.AddAuthentication(options =>
@@ -757,12 +716,6 @@ namespace HordeServer
 				{
 					services.AddHostedService(provider => provider.GetRequiredService<SlackNotificationSink>());
 				}
-
-				if (settings.WithAws)
-				{
-					services.AddHostedService(provider => provider.GetRequiredService<AwsAutoScalingLifecycleService>());
-					services.AddHostedService(provider => provider.GetRequiredService<AwsCloudWatchMetricExporter>());
-				}
 			}
 
 			services.AddHostedService(provider => provider.GetRequiredService<IExternalIssueService>());
@@ -777,12 +730,8 @@ namespace HordeServer
 				services.AddHostedService<ConformTaskSource>(provider => provider.GetRequiredService<ConformTaskSource>());
 				services.AddSingleton<ComputeTaskSource>();
 
-				services.AddSingleton<ITaskSource, UpgradeTaskSource>();
-				services.AddSingleton<ITaskSource, ShutdownTaskSource>();
-				services.AddSingleton<ITaskSource, RestartTaskSource>();
 				services.AddSingleton<ITaskSource, ConformTaskSource>(provider => provider.GetRequiredService<ConformTaskSource>());
 				services.AddSingleton<ITaskSource, JobTaskSource>(provider => provider.GetRequiredService<JobTaskSource>());
-				services.AddSingleton<ITaskSource, ComputeTaskSource>(provider => provider.GetRequiredService<ComputeTaskSource>());
 			}
 
 			// Allow longer to shutdown so we can debug missing cancellation tokens
@@ -980,18 +929,18 @@ namespace HordeServer
 		public sealed class AclActionBsonSerializer : SerializerBase<AclAction>
 		{
 			/// <inheritdoc/>
-			public override AclAction Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) 
+			public override AclAction Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
 				=> new AclAction(context.Reader.ReadString());
 
 			/// <inheritdoc/>
-			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AclAction value) 
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, AclAction value)
 				=> context.Writer.WriteString(value.Name);
 		}
 
 		public sealed class AclScopeNameBsonSerializer : SerializerBase<AclScopeName>
 		{
 			/// <inheritdoc/>
-			public override AclScopeName Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) 
+			public override AclScopeName Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
 				=> new AclScopeName(context.Reader.ReadString());
 
 			/// <inheritdoc/>
@@ -1004,11 +953,11 @@ namespace HordeServer
 			readonly TConverter _converter = new TConverter();
 
 			/// <inheritdoc/>
-			public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) 
+			public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
 				=> _converter.FromSubResourceId(new SubResourceId((ushort)context.Reader.ReadInt32()));
 
 			/// <inheritdoc/>
-			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TValue value) 
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TValue value)
 				=> context.Writer.WriteInt32(_converter.ToSubResourceId(value).Value);
 		}
 

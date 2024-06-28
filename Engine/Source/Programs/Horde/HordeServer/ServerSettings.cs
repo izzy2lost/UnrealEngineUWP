@@ -11,7 +11,6 @@ using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Perforce;
-using HordeServer.Agents.Fleet;
 using HordeServer.Server;
 
 namespace HordeServer
@@ -158,17 +157,6 @@ namespace HordeServer
 		public int Http2Port { get; set; } = 5002;
 
 		/// <summary>
-		/// Port to listen on for tunneling compute sockets to agents
-		/// </summary>
-		public int ComputeTunnelPort { get; set; }
-
-		/// <summary>
-		/// What address (host:port) clients should connect to for compute socket tunneling
-		/// Port may differ from <see cref="ComputeTunnelPort" /> if Horde server is behind a reverse proxy/firewall
-		/// </summary>
-		public string? ComputeTunnelAddress { get; set; }
-
-		/// <summary>
 		/// Connection string for the Mongo database
 		/// </summary>
 		public string? MongoConnectionString { get; set; }
@@ -245,11 +233,6 @@ namespace HordeServer
 		/// Issuer for tokens from the auth provider
 		/// </summary>
 		public AuthMethod AuthMethod { get; set; } = AuthMethod.Anonymous;
-
-		/// <summary>
-		/// Whether to automatically enroll agents in the farm
-		/// </summary>
-		public bool AutoEnrollAgents { get; set; }
 
 		/// <summary>
 		/// Optional profile name to report through the /api/v1/server/auth endpoint. Allows sharing auth tokens between providers configured through
@@ -453,22 +436,6 @@ namespace HordeServer
 		public bool LogSessionRequests { get; set; } = false;
 
 		/// <summary>
-		/// Default fleet manager to use (when not specified by pool)
-		/// </summary>
-		public FleetManagerType FleetManagerV2 { get; set; } = FleetManagerType.NoOp;
-
-		/// <summary>
-		/// Config for the fleet manager (serialized JSON)
-		/// </summary>
-		public string? FleetManagerV2Config { get; set; }
-
-		/// <summary>
-		/// AWS SQS queue URLs where lifecycle events from EC2 auto-scaling are received
-		/// <see cref="AwsAutoScalingLifecycleService" />
-		/// </summary>
-		public string[] AwsAutoScalingQueueUrls { get; set; } = Array.Empty<string>();
-
-		/// <summary>
 		/// Whether to run scheduled jobs.
 		/// </summary>
 		public bool DisableSchedules { get; set; }
@@ -579,21 +546,6 @@ namespace HordeServer
 		public string? DeviceReportChannel { get; set; }
 
 		/// <summary>
-		/// Default agent pool sizing strategy for pools that doesn't have one explicitly configured
-		/// </summary>
-		public PoolSizeStrategy DefaultAgentPoolSizeStrategy { get; set; } = PoolSizeStrategy.LeaseUtilization;
-
-		/// <summary>
-		/// Scale-out cooldown for auto-scaling agent pools (in seconds). Can be overridden by per-pool settings.
-		/// </summary>
-		public int AgentPoolScaleOutCooldownSeconds { get; set; } = 60; // 1 min
-
-		/// <summary>
-		/// Scale-in cooldown for auto-scaling agent pools (in seconds). Can be overridden by per-pool settings.
-		/// </summary>
-		public int AgentPoolScaleInCooldownSeconds { get; set; } = 1200; // 20 mins
-
-		/// <summary>
 		/// Set the minimum size of the global thread pool
 		/// This value has been found in need of tweaking to avoid timeouts with the Redis client during bursts
 		/// of traffic. Default is 16 for .NET Core CLR. The correct value is dependent on the traffic the Horde Server
@@ -605,11 +557,6 @@ namespace HordeServer
 		/// Whether to enable Datadog integration for tracing
 		/// </summary>
 		public bool WithDatadog { get; set; }
-
-		/// <summary>
-		/// Whether to enable Amazon Web Services (AWS) specific features
-		/// </summary>
-		public bool WithAws { get; set; } = false;
 
 		/// <summary>
 		/// Path to the root config file. Relative to the server.json file by default.
@@ -630,11 +577,6 @@ namespace HordeServer
 		/// Number of pooled perforce connections to keep
 		/// </summary>
 		public int PerforceConnectionPoolSize { get; set; } = 5;
-
-		/// <summary>
-		/// Whether to enable the upgrade task source.
-		/// </summary>
-		public bool EnableUpgradeTasks { get; set; } = true;
 
 		/// <summary>
 		/// Whether to enable the conform task source.

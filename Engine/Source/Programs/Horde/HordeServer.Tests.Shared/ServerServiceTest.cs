@@ -82,8 +82,6 @@ namespace HordeServer.Tests
 			{
 			}
 
-			settings.WithAws = true;
-
 			settings.ForceConfigUpdateOnStartup = true;
 		}
 
@@ -91,7 +89,15 @@ namespace HordeServer.Tests
 		{
 			base.ConfigureServices(services);
 
-			services.AddSingleton<IServerInfo, ServerInfo>();
+			IConfiguration configuration = new ConfigurationBuilder().Build();
+
+			ServerSettings settings = new ServerSettings();
+			ConfigureSettings(settings);
+
+			services.Configure<StaticComputeConfig>(x => x.WithAws = true);
+
+			ServerInfo serverInfo = new ServerInfo(configuration, Options.Create(settings));
+			services.AddSingleton<IServerInfo>(serverInfo);
 			services.AddSingleton<IPluginCollection>(_pluginCollection);
 
 			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
@@ -114,6 +120,7 @@ namespace HordeServer.Tests
 			services.AddSingleton<IHostEnvironment, WebHostEnvironmentStub>();
 
 			services.AddSingleton<AclService>();
+			services.AddSingleton<IAclService>(sp => sp.GetRequiredService<AclService>());
 			services.AddSingleton<IDowntimeService, DowntimeServiceStub>();
 			services.AddSingleton<LifetimeService>();
 
@@ -122,7 +129,7 @@ namespace HordeServer.Tests
 
 			foreach (ILoadedPlugin plugin in _pluginCollection.LoadedPlugins)
 			{
-				plugin.ConfigureServices(new ConfigurationBuilder().Build(), services);
+				plugin.ConfigureServices(configuration, serverInfo, services);
 			}
 		}
 

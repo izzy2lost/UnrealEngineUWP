@@ -125,7 +125,7 @@ namespace HordeServer.Tests.Configuration
 			Assert.IsTrue(!ReferenceEquals(file1, file3));
 		}
 
-		private static NetworkConfig? GetNetworkConfig(GlobalConfig gc, string ip)
+		private static NetworkConfig? GetNetworkConfig(ComputeConfig gc, string ip)
 		{
 			bool result = gc.TryGetNetworkConfig(IPAddress.Parse(ip), out NetworkConfig? networkConfig);
 			return result ? networkConfig : null;
@@ -134,7 +134,7 @@ namespace HordeServer.Tests.Configuration
 		[TestMethod]
 		public void NetworkConfig()
 		{
-			GlobalConfig gc = new()
+			ComputeConfig gc = new()
 			{
 				Networks = new List<NetworkConfig>()
 				{

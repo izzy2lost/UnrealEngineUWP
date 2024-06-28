@@ -587,10 +587,7 @@ namespace HordeServer.Configuration
 				ObjectConfigNode configNode = new ObjectConfigNode(typeof(GlobalConfig));
 
 				JsonObject configObj = await context.PreprocessFileAsync(GetGlobalConfigUri(), configNode, cancellationToken);
-				CopyJsonNode(configObj, "TelemetryStores", "Plugins.Analytics.Stores");
-				CopyJsonNode(configObj, "Secrets", "Plugins.Secrets.Secrets");
-				CopyJsonNode(configObj, "Storage", "Plugins.Storage");
-				CopyJsonNode(configObj, "Tools", "Plugins.Tools.Tools");
+				UpgradeConfig(configObj);
 
 				GlobalConfig globalConfig = JsonSerializer.Deserialize<GlobalConfig>(configObj, _jsonOptions)!;
 				if (globalConfig.VersionEnum < ConfigVersion.Latest)
@@ -627,19 +624,29 @@ namespace HordeServer.Configuration
 				throw new ConfigException(context, ex.Message, ex);
 			}
 		}
-		/*
-		static bool TryGetChildNode(JsonNode node, string name, [NotNullWhen(true)] out JsonNode? child)
+
+		static void UpgradeConfig(JsonObject rootObj)
 		{
-			child = node[name];
-			if (child != null)
-			{
-				JsonObject? parentObj = node as JsonObject;
-				parentObj
-				parentObj.TryGetPropertyValue(
-			}
-			return child != null;
+			// Analytics
+			CopyJsonNode(rootObj, "TelemetryStores", "Plugins.Analytics.Stores");
+
+			// Compute
+			CopyJsonNode(rootObj, "Rates", "Plugins.Compute.Rates");
+			CopyJsonNode(rootObj, "Compute", "Plugins.Compute.Clusters");
+			CopyJsonNode(rootObj, "Pools", "Plugins.Compute.Pools");
+			CopyJsonNode(rootObj, "Software", "Plugins.Compute.Software");
+			CopyJsonNode(rootObj, "Networks", "Plugins.Compute.Network");
+
+			// Secrets
+			CopyJsonNode(rootObj, "Secrets", "Plugins.Secrets.Secrets");
+
+			// Storage
+			CopyJsonNode(rootObj, "Storage", "Plugins.Storage");
+
+			// Tools
+			CopyJsonNode(rootObj, "Tools", "Plugins.Tools.Tools");
 		}
-		*/
+
 		static void CopyJsonNode(JsonObject rootObj, string sourcePath, string targetPath)
 		{
 			JsonNode? sourceNode = rootObj;

@@ -115,6 +115,7 @@ namespace HordeServer.Tests
 		public TestSetup()
 		{
 			AddPlugin<AnalyticsPlugin>();
+			AddPlugin<ComputePlugin>();
 			AddPlugin<StoragePlugin>();
 		}
 

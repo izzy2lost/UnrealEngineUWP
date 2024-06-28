@@ -9,11 +9,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
+using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Compute;
 using HordeServer.Plugins;
-using HordeServer.Server;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OpenTelemetry.Trace;
 
@@ -180,7 +182,8 @@ namespace HordeServer.Tests.Compute
 		[TestMethod]
 		public async Task PoolNameTemplatingAsync()
 		{
-			GlobalConfig.CurrentValue.Networks = new List<NetworkConfig>
+			IOptionsMonitor<ComputeConfig> computeConfig = ServiceProvider.GetRequiredService<IOptionsMonitor<ComputeConfig>>();
+			computeConfig.CurrentValue.Networks = new List<NetworkConfig>
 			{
 				new() { CidrBlock = "12.0.0.0/16", Id = "myNetworkId", ComputeId = "myComputeId" }
 			};
@@ -219,14 +222,14 @@ namespace HordeServer.Tests.Compute
 			}
 
 			IAgent agent = await CreateAgentAsync(new PoolId("foo"), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
-			
+
 			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.1"), CancellationToken.None);
 			Assert.IsNull(resource1);
-			
+
 			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.2"), CancellationToken.None);
 			Assert.AreEqual(agent.Id, resource2!.AgentId);
 		}
-		
+
 		[TestMethod]
 		public async Task Assignment_PoolInRequirementsAsync()
 		{
@@ -237,25 +240,26 @@ namespace HordeServer.Tests.Compute
 
 			IAgent agent1 = await CreateAgentAsync(new PoolId("foo"), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
 			IAgent agent2 = await CreateAgentAsync(new PoolId("bar"), properties: ["ComputeIp=11.0.0.2", "ComputePort=5000"]);
-			
+
 			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync(CreateParams("foo"), CancellationToken.None);
 			Assert.AreEqual(agent1.Id, resource1!.AgentId);
-			
+
 			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync(CreateParams("bar"), CancellationToken.None);
 			Assert.AreEqual(agent2.Id, resource2!.AgentId);
-			
+
 			Assert.IsNull(await ComputeService.TryAllocateResourceAsync(CreateParams("does-not-exist"), CancellationToken.None));
 		}
-		
+
 		[TestMethod]
 		public async Task Assignment_ComputeClusterMemberConditionAsync()
 		{
 			ClusterId cluster1 = new("cluster1");
 			ClusterId cluster2 = new("cluster2");
-			PoolId poolFoo = new ("foo");
-			PoolId poolBar = new ("bar");
+			PoolId poolFoo = new("foo");
+			PoolId poolBar = new("bar");
 
-			GlobalConfig.CurrentValue.Compute = new List<ComputeClusterConfig>
+			IOptionsMonitor<ComputeConfig> computeConfig = ServiceProvider.GetRequiredService<IOptionsMonitor<ComputeConfig>>();
+			computeConfig.CurrentValue.Clusters = new List<ComputeClusterConfig>
 			{
 				new() { Id = cluster1, Condition = $"pool == '{poolFoo.ToString()}'" },
 				new() { Id = cluster2, Condition = $"pool == '{poolBar.ToString()}'" }
@@ -265,24 +269,24 @@ namespace HordeServer.Tests.Compute
 			List<string> props = ["ComputeIp=11.0.0.1", "ComputePort=5000"];
 			IAgent agent1 = await CreateAgentAsync(new PoolId("foo"), properties: props);
 			IAgent agent2 = await CreateAgentAsync(new PoolId("bar"), properties: props);
-			
+
 			{
 				AllocateResourceParams arpFoo = new(cluster1, ComputeProtocol.Latest, new Requirements { Pool = poolFoo.ToString() });
 				Assert.AreEqual(agent1.Id, (await ComputeService.TryAllocateResourceAsync(arpFoo, CancellationToken.None))!.AgentId);
-				
+
 				AllocateResourceParams arpBar = new(cluster1, ComputeProtocol.Latest, new Requirements { Pool = poolBar.ToString() });
 				Assert.IsNull(await ComputeService.TryAllocateResourceAsync(arpBar, CancellationToken.None));
 			}
-			
+
 			{
 				AllocateResourceParams arpFoo = new(cluster2, ComputeProtocol.Latest, new Requirements { Pool = poolFoo.ToString() });
 				Assert.IsNull(await ComputeService.TryAllocateResourceAsync(arpFoo, CancellationToken.None));
-				
+
 				AllocateResourceParams arpBar = new(cluster2, ComputeProtocol.Latest, new Requirements { Pool = poolBar.ToString() });
 				Assert.AreEqual(agent2.Id, (await ComputeService.TryAllocateResourceAsync(arpBar, CancellationToken.None))!.AgentId);
 			}
 		}
-		
+
 		[TestMethod]
 		[DataRow("11.0.0.1", "11.0.0.1", null, false)]
 		[DataRow("11.0.0.1", "11.0.0.1", "200.20.20.20", false)]
@@ -293,24 +297,30 @@ namespace HordeServer.Tests.Compute
 		{
 			Assert.AreEqual(IPAddress.Parse(expectIp), ComputeService.ResolveRequesterIp(internalIp == null ? null : IPAddress.Parse(internalIp), usePublicIp, publicIp));
 		}
-		
+
 		[TestMethod]
 		public void Cluster_FindBest()
 		{
-			GlobalConfig globalConfig = new () { Networks = [
+			ComputeConfig computeConfig = new()
+			{
+				Networks = [
 				new NetworkConfig { CidrBlock = "11.0.0.0/16", Id = "network1", ComputeId = "compute1" },
 				new NetworkConfig { CidrBlock = "12.0.0.0/16", Id = "network2", ComputeId = "compute2" },
-			] };
-			globalConfig.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
-			Assert.AreEqual(new ClusterId("compute1"), ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("11.0.0.1")));
-			Assert.AreEqual(new ClusterId("compute2"), ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("12.0.1.1")));
-			Assert.ThrowsException<ComputeServiceException>(() => ComputeService.FindBestComputeClusterId(globalConfig, IPAddress.Parse("123.123.123.123")));
-			
-			GlobalConfig globalConfigCatchAll = new ()
+			]
+			};
+
+			PluginConfigOptions configOptions = new PluginConfigOptions(ConfigVersion.Latest, new HordeServer.Acls.AclConfig());
+			computeConfig.PostLoad(configOptions);
+
+			Assert.AreEqual(new ClusterId("compute1"), ComputeService.FindBestComputeClusterId(computeConfig, IPAddress.Parse("11.0.0.1")));
+			Assert.AreEqual(new ClusterId("compute2"), ComputeService.FindBestComputeClusterId(computeConfig, IPAddress.Parse("12.0.1.1")));
+			Assert.ThrowsException<ComputeServiceException>(() => ComputeService.FindBestComputeClusterId(computeConfig, IPAddress.Parse("123.123.123.123")));
+
+			ComputeConfig globalConfigCatchAll = new()
 			{
 				Networks = [new NetworkConfig { CidrBlock = "0.0.0.0/0", Id = "catchAll", ComputeId = "catchAll" }]
 			};
-			globalConfigCatchAll.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
+			globalConfigCatchAll.PostLoad(configOptions);
 			Assert.AreEqual(new ClusterId("catchAll"), ComputeService.FindBestComputeClusterId(globalConfigCatchAll, IPAddress.Parse("123.123.123.123")));
 		}
 
@@ -374,13 +384,14 @@ namespace HordeServer.Tests.Compute
 
 		private async Task<ComputeService> CreateComputeServiceAsync(string? tunnelAddress, string pool, ComputeClusterConfig ccc)
 		{
-			ServerSettings ss = new() { ComputeTunnelAddress = tunnelAddress };
+			IOptionsMonitor<ComputeConfig> computeConfig = ServiceProvider.GetRequiredService<IOptionsMonitor<ComputeConfig>>();
+			StaticComputeConfig ss = new() { ComputeTunnelAddress = tunnelAddress };
 			ComputeService cs = new(AgentCollection, LogCollection, AgentService, AgentRelayService, GetRedisServiceSingleton(),
-				new TestOptionsMonitor<ServerSettings>(ss), GlobalConfig, Clock, Tracer, Meter,
+				new TestOptionsMonitor<StaticComputeConfig>(ss), computeConfig, Clock, Tracer, Meter,
 				NullLogger<ComputeService>.Instance);
 			await CreateAgentAsync(new PoolId(pool), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
-			GlobalConfig.CurrentValue.Compute = [ccc];
-			GlobalConfig.CurrentValue.PostLoad(ss, new List<ILoadedPlugin>());
+			computeConfig.CurrentValue.Clusters = [ccc];
+			computeConfig.CurrentValue.PostLoad(new PluginConfigOptions(ConfigVersion.Latest, new AclConfig()));
 			return cs;
 		}
 
@@ -392,8 +403,8 @@ namespace HordeServer.Tests.Compute
 			string? tunnelAddress = null,
 			string pool = "myPool")
 		{
-			await using ComputeService cs = await CreateComputeServiceAsync(tunnelAddress, pool, new ComputeClusterConfig { Id = _cluster1});
-			AllocateResourceParams arp = new(_cluster1, ComputeProtocol.Latest, new Requirements() { Pool = pool})
+			await using ComputeService cs = await CreateComputeServiceAsync(tunnelAddress, pool, new ComputeClusterConfig { Id = _cluster1 });
+			AllocateResourceParams arp = new(_cluster1, ComputeProtocol.Latest, new Requirements() { Pool = pool })
 			{
 				ConnectionMode = connectionMode,
 				Ports = ports ?? new Dictionary<string, int>(),

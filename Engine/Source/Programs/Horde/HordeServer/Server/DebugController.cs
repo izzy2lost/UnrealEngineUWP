@@ -200,27 +200,6 @@ namespace HordeServer.Server
 		}
 
 		/// <summary>
-		/// Get the network ID for a given IP address
-		/// </summary>
-		[HttpGet]
-		[Route("/api/v1/debug/network-id")]
-		public ActionResult<object> GetNetworkId([FromQuery] string? ipAddress = null)
-		{
-			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
-			{
-				return Forbid(ServerAclAction.Debug);
-			}
-
-			if (ipAddress == null || !IPAddress.TryParse(ipAddress, out IPAddress? ip))
-			{
-				return BadRequest("Unable to read or convert query parameter 'ipAddress'");
-			}
-
-			_globalConfig.Value.TryGetNetworkConfig(ip, out NetworkConfig? networkConfig);
-			return networkConfig == null ? StatusCode(StatusCodes.Status500InternalServerError, "Unable to find a network config for the IP") : Ok(networkConfig);
-		}
-
-		/// <summary>
 		/// Add a port mapping for agent relay
 		/// </summary>
 		[HttpGet]

@@ -33,6 +33,7 @@ public class ToolsControllerTests
 
 		PluginCollection pluginCollection = new PluginCollection();
 		pluginCollection.Add<AnalyticsPlugin>();
+		pluginCollection.Add<ComputePlugin>();
 		pluginCollection.Add<StoragePlugin>();
 
 		StorageConfig storageConfig = new StorageConfig();

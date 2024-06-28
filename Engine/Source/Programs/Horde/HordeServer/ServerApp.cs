@@ -216,6 +216,19 @@ namespace HordeServer
 		/// </summary>
 		static readonly KeyValuePair<string, string>[] s_renamedConfigKeys = new[]
 		{
+			// Compute plugin
+			KeyValuePair.Create("Horde:EnableUpgradeTasks", "Horde:Plugins:Compute:EnableUpgradeTasks"),
+			KeyValuePair.Create("Horde:FleetManagerV2", "Horde:Plugins:Compute:FleetManagerV2"),
+			KeyValuePair.Create("Horde:FleetManagerV2Config", "Horde:Plugins:Compute:FleetManagerV2Config"),
+			KeyValuePair.Create("Horde:AwsAutoScalingQueueUrls", "Horde:Plugins:Compute:AwsAutoScalingQueueUrls"),
+			KeyValuePair.Create("Horde:AutoEnrollAgents", "Horde:Plugins:Compute:AutoEnrollAgents"),
+			KeyValuePair.Create("Horde:DefaultAgentPoolSizeStrategy", "Horde:Plugins:Compute:DefaultAgentPoolSizeStrategy"),
+			KeyValuePair.Create("Horde:AgentPoolScaleOutCooldownSeconds", "Horde:Plugins:Compute:AgentPoolScaleOutCooldownSeconds"),
+			KeyValuePair.Create("Horde:AgentPoolScaleInCooldownSeconds", "Horde:Plugins:Compute:AgentPoolScaleInCooldownSeconds"),
+			KeyValuePair.Create("Horde:ComputeTunnelPort", "Horde:Plugins:Compute:ComputeTunnelPort"),
+			KeyValuePair.Create("Horde:ComputeTunnelAddress", "Horde:Plugins:Compute:ComputeTunnelAddress"),
+			KeyValuePair.Create("Horde:WithAws", "Horde:Plugins:Compute:WithAws"),
+
 			// Storage plugin
 			KeyValuePair.Create("Horde:BundleCacheDir", "Horde:Plugins:Storage:BundleCacheDir"),
 			KeyValuePair.Create("Horde:BundleCacheSize", "Horde:Plugins:Storage:BundleCacheSize"),

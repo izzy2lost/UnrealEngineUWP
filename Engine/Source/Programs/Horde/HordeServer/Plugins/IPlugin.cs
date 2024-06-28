@@ -52,8 +52,9 @@ namespace HordeServer.Plugins
 		/// Configure services for the plugin
 		/// </summary>
 		/// <param name="configuration">Static configuration data</param>
+		/// <param name="serverInfo">Information about the server</param>
 		/// <param name="serviceCollection">Service collection instance</param>
-		void ConfigureServices(IConfiguration configuration, IServiceCollection serviceCollection);
+		void ConfigureServices(IConfiguration configuration, IServerInfo serverInfo, IServiceCollection serviceCollection);
 	}
 
 	/// <summary>
@@ -64,7 +65,7 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Adds a plugin's services to a service collection
 		/// </summary>
-		public static void AddPlugin(this IServiceCollection serviceCollection, ILoadedPlugin plugin, IConfiguration configuration)
-			=> plugin.ConfigureServices(configuration, serviceCollection);
+		public static void AddPlugin(this IServiceCollection serviceCollection, IServerInfo serverInfo, ILoadedPlugin plugin, IConfiguration configuration)
+			=> plugin.ConfigureServices(configuration, serverInfo, serviceCollection);
 	}
 }
