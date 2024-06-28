@@ -109,6 +109,7 @@ namespace HordeServer.Tests
 			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
 
 			services.AddSingleton<ConfigService>();
+			services.AddSingleton<IConfigService>(sp => sp.GetRequiredService<ConfigService>());
 			services.AddSingleton<IOptionsFactory<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
 			services.AddSingleton<IOptionsChangeTokenSource<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
 

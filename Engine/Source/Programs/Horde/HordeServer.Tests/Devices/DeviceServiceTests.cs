@@ -158,7 +158,7 @@ namespace HordeServer.Tests.Devices
 				devices.Platforms.Add(platform);
 			}
 
-			UpdateConfig(x => x.Devices = devices);
+			UpdateConfig(x => x.Plugins.GetBuildConfig().Devices = devices);
 
 			for (int i = 1; i < 4; i++)
 			{

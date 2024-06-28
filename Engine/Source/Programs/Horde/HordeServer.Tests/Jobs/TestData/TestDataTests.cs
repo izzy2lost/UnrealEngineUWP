@@ -91,8 +91,11 @@ namespace HordeServer.Tests.Jobs.TestData
 			projectConfig.Streams.Add(CreateStream(_mainStreamId, MainStreamName));
 			projectConfig.Streams.Add(CreateStream(_releaseStreamId, ReleaseStreamName));
 
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects.Add(projectConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Projects.Add(projectConfig);
+			globalConfig.Plugins.AddBuildConfig(buildConfig);
 
 			SetConfig(globalConfig);
 

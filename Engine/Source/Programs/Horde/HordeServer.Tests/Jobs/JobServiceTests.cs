@@ -48,8 +48,11 @@ namespace HordeServer.Tests.Jobs
 			ProjectConfig projectConfig = new ProjectConfig { Id = projectId };
 			projectConfig.Streams.Add(streamConfig);
 
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects.Add(projectConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Projects.Add(projectConfig);
+			globalConfig.Plugins.AddBuildConfig(buildConfig);
 
 			SetConfig(globalConfig);
 
@@ -89,7 +92,12 @@ namespace HordeServer.Tests.Jobs
 			ProjectId projectId = new ProjectId("ue5");
 			ProjectConfig projectConfig = new ProjectConfig { Id = projectId, Name = "UE4", Streams = new List<StreamConfig> { streamConfig } };
 
-			SetConfig(new GlobalConfig { Projects = new List<ProjectConfig> { projectConfig } });
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects = new List<ProjectConfig> { projectConfig };
+
+			GlobalConfig config = new GlobalConfig();
+			config.Plugins.AddBuildConfig(buildConfig);
+			SetConfig(config);
 
 			IUser user = await UserCollection.FindOrAddUserByLoginAsync("Bob");
 
@@ -234,7 +242,12 @@ namespace HordeServer.Tests.Jobs
 			ProjectId projectId = new ProjectId("ue5");
 			ProjectConfig projectConfig = new ProjectConfig { Id = projectId, Name = "UE5", Streams = new List<StreamConfig> { streamConfig } };
 
-			SetConfig(new GlobalConfig { Projects = new List<ProjectConfig> { projectConfig } });
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects = new List<ProjectConfig> { projectConfig };
+
+			GlobalConfig globalConfig = new();
+			globalConfig.Plugins.AddBuildConfig(buildConfig);
+			SetConfig(globalConfig);
 
 			// ----
 

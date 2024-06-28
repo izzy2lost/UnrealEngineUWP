@@ -142,7 +142,7 @@ namespace HordeServer.Server
 			byte[] data = _configService.Serialize(_globalConfig.Value);
 			GlobalConfig config = _configService.Deserialize(data)!;
 
-			foreach (ProjectConfig project in config.Projects)
+			foreach (ProjectConfig project in config.Plugins.GetBuildConfig().Projects)
 			{
 				project.Logo = null;
 			}

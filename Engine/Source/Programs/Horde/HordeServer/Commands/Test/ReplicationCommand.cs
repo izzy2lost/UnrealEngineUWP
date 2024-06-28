@@ -54,7 +54,7 @@ namespace HordeServer.Commands.Test
 			IStreamCollection streamCollection = serviceProvider.GetRequiredService<IStreamCollection>();
 
 			StreamConfig? streamConfig;
-			if (!globalConfig.TryGetStream(new StreamId(StreamId), out streamConfig))
+			if (!globalConfig.Plugins.GetBuildConfig().TryGetStream(new StreamId(StreamId), out streamConfig))
 			{
 				throw new FatalErrorException($"Stream '{StreamId}' not found");
 			}
@@ -79,7 +79,7 @@ namespace HordeServer.Commands.Test
 			}
 
 			PerforceReplicationOptions options = new PerforceReplicationOptions();
-			await perforceReplicator.RunOnceAsync(replicator, globalConfig, streamConfig, options, default);
+			await perforceReplicator.RunOnceAsync(replicator, globalConfig.Plugins.GetBuildConfig(), streamConfig, options, default);
 
 			return 0;
 		}

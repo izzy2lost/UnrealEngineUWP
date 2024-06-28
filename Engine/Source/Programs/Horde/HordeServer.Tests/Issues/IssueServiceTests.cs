@@ -24,7 +24,6 @@ using HordeServer.Issues;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
-using HordeServer.Plugins;
 using HordeServer.Projects;
 using HordeServer.Server;
 using HordeServer.Storage;
@@ -155,9 +154,12 @@ namespace HordeServer.Tests.Issues
 			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
 			storageConfig.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("horde-logs"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
 
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects.Add(projectConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Projects.Add(projectConfig);
-			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
+			globalConfig.Plugins.AddBuildConfig(buildConfig);
+			globalConfig.Plugins.AddStorageConfig(storageConfig);
 			SetConfig(globalConfig);
 
 			static StreamConfig CreateStream(StreamId streamId, string streamName)
@@ -419,7 +421,7 @@ namespace HordeServer.Tests.Issues
 			// Scenario: Stream is deleted
 			// Expected: Issue is closed
 			{
-				UpdateConfig(x => x.Projects.Clear());
+				UpdateConfig(x => x.Plugins.GetBuildConfig().Projects.Clear());
 				await Clock.AdvanceAsync(TimeSpan.FromHours(1.0));
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
@@ -772,7 +774,7 @@ namespace HordeServer.Tests.Issues
 			Assert.AreEqual(issue2.Fingerprints.Count, 1);
 			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("ThreadSanitizer", StringComparison.OrdinalIgnoreCase));
 			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("data race", StringComparison.OrdinalIgnoreCase));
-			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("Paths.cpp", StringComparison.OrdinalIgnoreCase)); 
+			Assert.IsTrue(issue2.Fingerprints[0].Type.Contains("Paths.cpp", StringComparison.OrdinalIgnoreCase));
 		}
 
 		[TestMethod]
@@ -1957,7 +1959,7 @@ namespace HordeServer.Tests.Issues
 		static private IEnumerable<JsonLogEvent> MultilineLogEvent(LogLevel level, EventId eventId, string format, Dictionary<string, object> properties)
 		{
 			DateTime time = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
-			string message = MessageTemplate.Render(format, properties);
+			string message = MessageTemplate.Render(format, properties!);
 			LogEvent baseEvent = new LogEvent(time, level, eventId, message, format, properties, null);
 			JsonLogEvent jsonLogEvent = new JsonLogEvent(baseEvent);
 			ServerLogPacketBuilder writer = new ServerLogPacketBuilder();

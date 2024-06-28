@@ -78,7 +78,11 @@ namespace HordeServer.Tests
 			ProjectId projectId = new ProjectId("ue5");
 			ProjectConfig projectConfig = new ProjectConfig { Id = projectId, Name = "UE5", Streams = new List<StreamConfig> { streamConfig } };
 
-			GlobalConfig globalConfig = new GlobalConfig { Projects = new List<ProjectConfig> { projectConfig } };
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects = new List<ProjectConfig> { projectConfig };
+
+			GlobalConfig globalConfig = new GlobalConfig();
+			globalConfig.Plugins.AddBuildConfig(buildConfig);
 			globalConfig.PostLoad(serverSettings, pluginCollection.LoadedPlugins);
 			configService.OverrideConfig(globalConfig);
 

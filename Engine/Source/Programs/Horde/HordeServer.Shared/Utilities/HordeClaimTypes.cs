@@ -3,6 +3,8 @@
 using System.Security.Claims;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Users;
+using HordeServer.Acls;
+using HordeServer.Server;
 using HordeServer.Users;
 
 namespace HordeServer.Utilities
@@ -124,7 +126,26 @@ namespace HordeServer.Utilities
 			string? idValue = principal.FindFirstValue(HordeClaimTypes.UserId);
 			return idValue == null ? null : UserId.Parse(idValue);
 		}
-		
+
+		/// <summary>
+		/// Determines whether the given user can masquerade as a given user
+		/// </summary>
+		/// <param name="user"></param>
+		/// <param name="userId"></param>
+		/// <returns></returns>
+		public static bool AuthorizeAsUser(this AclConfig aclConfig, ClaimsPrincipal user, UserId userId)
+		{
+			UserId? currentUserId = user.GetUserId();
+			if (currentUserId != null && currentUserId.Value == userId)
+			{
+				return true;
+			}
+			else
+			{
+				return aclConfig.Authorize(ServerAclAction.Impersonate, user);
+			}
+		}
+
 		/// <summary>
 		/// Gets the Horde username from a principal
 		/// </summary>

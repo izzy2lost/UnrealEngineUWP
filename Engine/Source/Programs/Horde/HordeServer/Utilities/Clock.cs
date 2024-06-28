@@ -16,40 +16,6 @@ using TimeZoneConverter;
 namespace HordeCommon
 {
 	/// <summary>
-	/// Placeholder interface for ITicker
-	/// </summary>
-	public sealed class NullTicker : ITicker
-	{
-		/// <inheritdoc/>
-		public ValueTask DisposeAsync() => new ValueTask();
-
-		/// <inheritdoc/>
-		public Task StartAsync() => Task.CompletedTask;
-
-		/// <inheritdoc/>
-		public Task StopAsync() => Task.CompletedTask;
-	}
-
-	/// <summary>
-	/// Extension methods for <see cref="IClock"/>
-	/// </summary>
-	public static class ClockExtensions
-	{
-		/// <summary>
-		/// Gets the start of the day for the given datetime in UTC, respecting the configured timezone.
-		/// </summary>
-		/// <param name="timeZone">Time zone to adjust for</param>
-		/// <param name="time">Time to convert</param>
-		/// <returns>UTC datetime for the start of the day</returns>
-		public static DateTime GetStartOfDayUtc(this TimeZoneInfo timeZone, DateTime time)
-		{
-			DateTime currentTimeLocal = TimeZoneInfo.ConvertTime(time, timeZone);
-			DateTime startOfDayLocal = currentTimeLocal - currentTimeLocal.TimeOfDay;
-			return TimeZoneInfo.ConvertTime(startOfDayLocal, timeZone, TimeZoneInfo.Utc);
-		}
-	}
-
-	/// <summary>
 	/// Implementation of <see cref="IClock"/> which returns the current time
 	/// </summary>
 	public sealed class Clock : IClock, IAsyncDisposable

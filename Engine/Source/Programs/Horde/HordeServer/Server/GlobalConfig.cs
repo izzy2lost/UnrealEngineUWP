@@ -11,14 +11,8 @@ using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Projects;
-using EpicGames.Horde.Streams;
-using EpicGames.Horde.Users;
-using EpicGames.Perforce;
 using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Pools;
@@ -42,37 +36,6 @@ using HordeServer.Utilities;
 namespace HordeServer.Server
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
-
-	/// <summary>
-	/// Configuration for an artifact
-	/// </summary>
-	public class ArtifactTypeConfig
-	{
-		/// <summary>
-		/// Name of the artifact type
-		/// </summary>
-		public ArtifactType Type { get; set; }
-
-		/// <summary>
-		/// Legacy 'Name' property
-		/// </summary>
-		[Obsolete("Use Type instead")]
-		public ArtifactType Name
-		{
-			get => Type;
-			set => Type = value;
-		}
-
-		/// <summary>
-		/// Number of artifacts to retain
-		/// </summary>
-		public int? KeepCount { get; set; }
-
-		/// <summary>
-		/// Number of days to retain artifacts of this type
-		/// </summary>
-		public int? KeepDays { get; set; }
-	}
 
 	/// <summary>
 	/// Global configuration
@@ -122,40 +85,9 @@ namespace HordeServer.Server
 		public DashboardConfig Dashboard { get; set; } = new DashboardConfig();
 
 		/// <summary>
-		/// List of projects
-		/// </summary>
-		public List<ProjectConfig> Projects { get; set; } = new List<ProjectConfig>();
-
-		/// <summary>
 		/// List of scheduled downtime
 		/// </summary>
 		public List<ScheduledDowntime> Downtime { get; set; } = new List<ScheduledDowntime>();
-
-		/// <summary>
-		/// List of Perforce clusters
-		/// </summary>
-		public List<PerforceCluster> PerforceClusters { get; set; } = new List<PerforceCluster>();
-
-		/// <summary>
-		/// Device configuration
-		/// </summary>
-		public DeviceConfig? Devices { get; set; }
-
-		/// <summary>
-		/// Maximum number of conforms to run at once
-		/// </summary>
-		public int MaxConformCount { get; set; }
-
-		/// <summary>
-		/// Time to wait before shutting down an agent that has been disabled
-		/// Used if no value is set on the actual pool.
-		/// </summary>
-		public TimeSpan? AgentShutdownIfDisabledGracePeriod { get; set; } = null;
-
-		/// <summary>
-		/// Configuration for different artifact types
-		/// </summary>
-		public List<ArtifactTypeConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeConfig>();
 
 		/// <summary>
 		/// Metrics to aggregate on the Horde server
@@ -179,26 +111,12 @@ namespace HordeServer.Server
 		public AclConfig Acl { get; set; } = new AclConfig();
 
 		/// <summary>
-		/// Commit tag to use for marking issues as fixed
-		/// </summary>
-		public string IssueFixedTag { get; set; } = "#horde";
-
-		/// <summary>
 		/// Accessor for the ACL scope lookup
 		/// </summary>
 		[JsonIgnore]
 		public IReadOnlyDictionary<AclScopeName, AclConfig> AclScopes => _aclLookup;
 
-		/// <summary>
-		/// Enumerates all the streams
-		/// </summary>
-		[JsonIgnore]
-		public IReadOnlyList<StreamConfig> Streams { get; private set; } = null!;
-
-		private readonly Dictionary<ProjectId, ProjectConfig> _projectLookup = new Dictionary<ProjectId, ProjectConfig>();
-		private readonly Dictionary<StreamId, StreamConfig> _streamLookup = new Dictionary<StreamId, StreamConfig>();
 		private readonly Dictionary<AclScopeName, AclConfig> _aclLookup = new Dictionary<AclScopeName, AclConfig>();
-		private readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
 
 		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
 		public bool Authorize(AclAction action, ClaimsPrincipal user)
@@ -213,27 +131,6 @@ namespace HordeServer.Server
 
 			AclConfig defaultAcl = CreateRootAcl();
 			Acl.PostLoad(defaultAcl, defaultAcl.ScopeName);
-
-			Streams = Projects.SelectMany(x => x.Streams).ToList();
-
-			_projectLookup.Clear();
-			_streamLookup.Clear();
-			foreach (ProjectConfig project in Projects)
-			{
-				_projectLookup.Add(project.Id, project);
-				project.PostLoad(project.Id, Acl);
-
-				foreach (StreamConfig stream in project.Streams)
-				{
-					_streamLookup.Add(stream.Id, stream);
-				}
-			}
-
-			_artifactTypeLookup.Clear();
-			foreach (ArtifactTypeConfig artifactType in ArtifactTypes)
-			{
-				_artifactTypeLookup.Add(artifactType.Type, artifactType);
-			}
 
 			// Ensure that all plugins have an entry in the global config so they can register their ACLs
 			foreach (ILoadedPlugin loadedPlugin in loadedPlugins)
@@ -256,20 +153,24 @@ namespace HordeServer.Server
 			_aclLookup.Clear();
 			BuildAclScopeLookup(Acl, _aclLookup);
 
-			foreach (ProjectConfig project in Projects)
+			BuildConfig? buildConfig;
+			if (Plugins.TryGetBuildConfig(out buildConfig))
 			{
-				AclScopeName legacyProjectScopeName = Acl.ScopeName.Append($"p:{project.Id}");
-				_aclLookup.Add(legacyProjectScopeName, project.Acl);
-
-				foreach (StreamConfig stream in project.Streams)
+				foreach (ProjectConfig project in buildConfig.Projects)
 				{
-					AclScopeName legacyStreamScopeName = Acl.ScopeName.Append($"s:{stream.Id}");
-					_aclLookup.Add(legacyStreamScopeName, stream.Acl);
+					AclScopeName legacyProjectScopeName = Acl.ScopeName.Append($"p:{project.Id}");
+					_aclLookup.Add(legacyProjectScopeName, project.Acl);
 
-					foreach (TemplateRefConfig template in stream.Templates)
+					foreach (StreamConfig stream in project.Streams)
 					{
-						AclScopeName legacyTemplateScopeName = legacyStreamScopeName.Append($"t:{template.Id}");
-						_aclLookup.Add(legacyTemplateScopeName, template.Acl);
+						AclScopeName legacyStreamScopeName = Acl.ScopeName.Append($"s:{stream.Id}");
+						_aclLookup.Add(legacyStreamScopeName, stream.Acl);
+
+						foreach (TemplateRefConfig template in stream.Templates)
+						{
+							AclScopeName legacyTemplateScopeName = legacyStreamScopeName.Append($"t:{template.Id}");
+							_aclLookup.Add(legacyTemplateScopeName, template.Acl);
+						}
 					}
 				}
 			}
@@ -359,12 +260,18 @@ namespace HordeServer.Server
 				return;
 			}
 
+			BuildConfig? buildConfig;
+			if (!Plugins.TryGetValue(new PluginName("build"), out buildConfig))
+			{
+				return;
+			}
+
 			// Lookup table of pool id to workspaces
 			Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();
 			Dictionary<PoolId, List<AgentWorkspaceInfo>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspaceInfo>>();
 
 			// Populate the workspace list from the current stream
-			foreach (StreamConfig streamConfig in Streams)
+			foreach (StreamConfig streamConfig in buildConfig.Streams)
 			{
 				foreach (KeyValuePair<string, AgentConfig> agentTypePair in streamConfig.AgentTypes)
 				{
@@ -419,47 +326,6 @@ namespace HordeServer.Server
 		}
 
 		/// <summary>
-		/// Attempts to get configuration for a specific artifact type
-		/// </summary>
-		/// <param name="type">The artifact type name</param>
-		/// <param name="config">Configuration for the stream</param>
-		/// <returns>True if the stream configuration was found</returns>
-		public bool TryGetArtifactType(ArtifactType type, [NotNullWhen(true)] out ArtifactTypeConfig? config) => _artifactTypeLookup.TryGetValue(type, out config);
-
-		/// <summary>
-		/// Attempts to get configuration for a project from this object
-		/// </summary>
-		/// <param name="projectId">The stream identifier</param>
-		/// <param name="config">Configuration for the stream</param>
-		/// <returns>True if the stream configuration was found</returns>
-		public bool TryGetProject(ProjectId projectId, [NotNullWhen(true)] out ProjectConfig? config) => _projectLookup.TryGetValue(projectId, out config);
-
-		/// <summary>
-		/// Attempts to get configuration for a stream from this object
-		/// </summary>
-		/// <param name="streamId">The stream identifier</param>
-		/// <param name="config">Configuration for the stream</param>
-		/// <returns>True if the stream configuration was found</returns>
-		public bool TryGetStream(StreamId streamId, [NotNullWhen(true)] out StreamConfig? config) => _streamLookup.TryGetValue(streamId, out config);
-
-		/// <summary>
-		/// Attempts to get configuration for a stream from this object
-		/// </summary>
-		/// <param name="streamId">The stream identifier</param>
-		/// <param name="templateId">Template identifier</param>
-		/// <param name="config">Configuration for the template</param>
-		/// <returns>True if the template configuration was found</returns>
-		public bool TryGetTemplate(StreamId streamId, TemplateId templateId, [NotNullWhen(true)] out TemplateRefConfig? config)
-		{
-			if (!_streamLookup.TryGetValue(streamId, out StreamConfig? streamConfig))
-			{
-				config = null;
-				return false;
-			}
-			return streamConfig.TryGetTemplate(templateId, out config);
-		}
-
-		/// <summary>
 		/// Authorizes a user to perform a given action
 		/// </summary>
 		/// <param name="scopeName">Name of the scope to auth against</param>
@@ -475,86 +341,6 @@ namespace HordeServer.Server
 		/// <param name="user">The principal to validate</param>
 		public bool Authorize(AclScopeName scopeName, AclAction action, ClaimsPrincipal user)
 			=> _aclLookup.TryGetValue(scopeName, out AclConfig? scopeConfig) && scopeConfig.Authorize(action, user);
-
-		/// <summary>
-		/// Determines whether the given user can masquerade as a given user
-		/// </summary>
-		/// <param name="user"></param>
-		/// <param name="userId"></param>
-		/// <returns></returns>
-		public bool AuthorizeAsUser(ClaimsPrincipal user, UserId userId)
-		{
-			UserId? currentUserId = user.GetUserId();
-			if (currentUserId != null && currentUserId.Value == userId)
-			{
-				return true;
-			}
-			else
-			{
-				return this.Authorize(ServerAclAction.Impersonate, user);
-			}
-		}
-
-		/// <summary>
-		/// Finds a perforce cluster with the given name or that contains the provided server
-		/// </summary>
-		/// <param name="name">Name of the cluster</param>
-		/// <param name="serverAndPort">Find cluster which contains server</param>
-		/// <returns></returns>
-		public PerforceCluster GetPerforceCluster(string? name, string? serverAndPort = null)
-		{
-			PerforceCluster? cluster = FindPerforceCluster(name, serverAndPort);
-			if (cluster == null)
-			{
-				throw new Exception($"Unknown Perforce cluster '{name}'");
-			}
-			return cluster;
-		}
-
-		/// <summary>
-		/// Finds a perforce cluster with the given name or that contains the provided server
-		/// </summary>
-		/// <param name="name">Name of the cluster</param>
-		/// <param name="serverAndPort">Find cluster which contains server</param>
-		/// <returns></returns>
-		public PerforceCluster? FindPerforceCluster(string? name, string? serverAndPort = null)
-		{
-			List<PerforceCluster> clusters = PerforceClusters;
-
-			if (serverAndPort != null)
-			{
-				return clusters.FirstOrDefault(x => x.Servers.FirstOrDefault(server => String.Equals(server.ServerAndPort, serverAndPort, StringComparison.OrdinalIgnoreCase)) != null);
-			}
-
-			if (clusters.Count == 0)
-			{
-				clusters = DefaultClusters;
-			}
-
-			if (name == null)
-			{
-				return clusters.FirstOrDefault();
-			}
-			else
-			{
-				return clusters.FirstOrDefault(x => String.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
-			}
-		}
-
-		static List<PerforceCluster> DefaultClusters { get; } = GetDefaultClusters();
-
-		static List<PerforceCluster> GetDefaultClusters()
-		{
-			PerforceServer server = new PerforceServer();
-			server.ServerAndPort = PerforceSettings.Default.ServerAndPort;
-
-			PerforceCluster cluster = new PerforceCluster();
-			cluster.Name = "Default";
-			cluster.CanImpersonate = false;
-			cluster.Servers.Add(server);
-
-			return new List<PerforceCluster> { cluster };
-		}
 
 		IReadOnlyList<string>? _cachedGroupClaims;
 

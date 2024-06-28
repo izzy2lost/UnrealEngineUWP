@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -214,8 +215,36 @@ namespace HordeServer
 		/// <summary>
 		/// List of config settings to rename to new locations
 		/// </summary>
-		static readonly KeyValuePair<string, string>[] s_renamedConfigKeys = new[]
+		static readonly KeyValuePair<string, string>[] s_renamedConfigValues = new[]
 		{
+			// Build plugin
+			KeyValuePair.Create("Horde:UseLocalPerforceEnv", "Horde:Plugins:Build:UseLocalPerforceEnv"),
+			KeyValuePair.Create("Horde:PerforceConnectionPoolSize", "Horde:Plugins:Build:PerforceConnectionPoolSize"),
+			KeyValuePair.Create("Horde:EnableConformTasks", "Horde:Plugins:Build:EnableConformTasks"),
+			KeyValuePair.Create("Horde:P4SwarmUrl", "Horde:Plugins:Build:P4SwarmUrl"),
+			KeyValuePair.Create("Horde:JiraUsername", "Horde:Plugins:Build:JiraUsername"),
+			KeyValuePair.Create("Horde:JiraApiToken", "Horde:Plugins:Build:JiraApiToken"),
+			KeyValuePair.Create("Horde:JiraUrl", "Horde:Plugins:Build:JiraUrl"),
+			KeyValuePair.Create("Horde:SharedDeviceCheckoutDays", "Horde:Plugins:Build:SharedDeviceCheckoutDays"),
+			KeyValuePair.Create("Horde:DeviceProblemCooldownMinutes", "Horde:Plugins:Build:DeviceProblemCooldownMinutes"),
+			KeyValuePair.Create("Horde:DeviceReportChannel", "Horde:Plugins:Build:DeviceReportChannel"),
+			KeyValuePair.Create("Horde:DisableSchedules", "Horde:Plugins:Build:DisableSchedules"),
+			KeyValuePair.Create("Horde:SlackToken", "Horde:Plugins:Build:SlackToken"),
+			KeyValuePair.Create("Horde:SlackSocketToken", "Horde:Plugins:Build:SlackSocketToken"),
+			KeyValuePair.Create("Horde:SlackAdminToken", "Horde:Plugins:Build:SlackAdminToken"),
+			KeyValuePair.Create("Horde:SlackUsers", "Horde:Plugins:Build:SlackUsers"),
+			KeyValuePair.Create("Horde:SlackErrorPrefix", "Horde:Plugins:Build:SlackErrorPrefix"),
+			KeyValuePair.Create("Horde:SlackWarningPrefix", "Horde:Plugins:Build:SlackWarningPrefix"),
+			KeyValuePair.Create("Horde:ConfigNotificationChannel", "Horde:Plugins:Build:ConfigNotificationChannel"),
+			KeyValuePair.Create("Horde:UpdateStreamsNotificationChannel", "Horde:Plugins:Build:UpdateStreamsNotificationChannel"),
+			KeyValuePair.Create("Horde:JobNotificationChannel", "Horde:Plugins:Build:JobNotificationChannel"),
+			KeyValuePair.Create("Horde:AgentNotificationChannel", "Horde:Plugins:Build:AgentNotificationChannel"),
+			KeyValuePair.Create("Horde:TestDataRetainMonths", "Horde:Plugins:Build:TestDataRetainMonths"),
+			KeyValuePair.Create("Horde:BlockCacheDir", "Horde:Plugins:Build:BlockCacheDir"),
+			KeyValuePair.Create("Horde:BlockCacheSize", "Horde:Plugins:Build:BlockCacheSize"),
+			KeyValuePair.Create("Horde:Perforce:", "Horde:Plugins:Build:Perforce:"),
+			KeyValuePair.Create("Horde:Commits:", "Horde:Plugins:Build:Commits:"),
+
 			// Compute plugin
 			KeyValuePair.Create("Horde:EnableUpgradeTasks", "Horde:Plugins:Compute:EnableUpgradeTasks"),
 			KeyValuePair.Create("Horde:FleetManagerV2", "Horde:Plugins:Compute:FleetManagerV2"),
@@ -232,10 +261,10 @@ namespace HordeServer
 			// Storage plugin
 			KeyValuePair.Create("Horde:BundleCacheDir", "Horde:Plugins:Storage:BundleCacheDir"),
 			KeyValuePair.Create("Horde:BundleCacheSize", "Horde:Plugins:Storage:BundleCacheSize"),
-			KeyValuePair.Create("Horde:Backends", "Horde:Plugins:Storage:Backends"),
+			KeyValuePair.Create("Horde:Backends:", "Horde:Plugins:Storage:Backends:"),
 	
 			// Tools plugin
-			KeyValuePair.Create("Horde:BundledTools", "Horde:Plugins:Tools:BundledTools")
+			KeyValuePair.Create("Horde:BundledTools:", "Horde:Plugins:Tools:BundledTools:")
 		};
 
 		/// <summary>
@@ -267,12 +296,25 @@ namespace HordeServer
 			IConfiguration configuration = builder.Build();
 
 			List<KeyValuePair<string, string?>> remappedValues = new List<KeyValuePair<string, string?>>();
-			foreach ((string source, string target) in s_renamedConfigKeys)
+			foreach ((string source, string target) in s_renamedConfigValues)
 			{
-				string? value = configuration[source];
-				if (value != null && configuration[target] == null)
+				if (source.EndsWith(':'))
 				{
-					remappedValues.Add(new KeyValuePair<string, string?>(target, value));
+					foreach (KeyValuePair<string, string?> pair in configuration.AsEnumerable().Where(x => x.Key.StartsWith(source, StringComparison.OrdinalIgnoreCase)))
+					{
+						if (pair.Value != null)
+						{
+							remappedValues.Add(new KeyValuePair<string, string?>(target + pair.Key.Substring(source.Length), pair.Value));
+						}
+					}
+				}
+				else
+				{
+					string? value = configuration[source];
+					if (value != null && configuration[target] == null)
+					{
+						remappedValues.Add(new KeyValuePair<string, string?>(target, value));
+					}
 				}
 			}
 

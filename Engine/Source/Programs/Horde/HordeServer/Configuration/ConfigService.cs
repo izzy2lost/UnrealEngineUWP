@@ -33,7 +33,7 @@ namespace HordeServer.Configuration
 	/// <summary>
 	/// Service which processes runtime configuration data.
 	/// </summary>
-	public sealed class ConfigService : IOptionsFactory<GlobalConfig>, IOptionsChangeTokenSource<GlobalConfig>, IHostedService, IAsyncDisposable
+	public sealed class ConfigService : IConfigService, IOptionsFactory<GlobalConfig>, IOptionsChangeTokenSource<GlobalConfig>, IHostedService, IAsyncDisposable
 	{
 		// Index to all current config files 
 		[ProtoContract]
@@ -629,6 +629,15 @@ namespace HordeServer.Configuration
 		{
 			// Analytics
 			CopyJsonNode(rootObj, "TelemetryStores", "Plugins.Analytics.Stores");
+
+			// Build
+			CopyJsonNode(rootObj, "PerforceClusters", "Plugins.Build.PerforceClusters");
+			CopyJsonNode(rootObj, "Devices", "Plugins.Build.Devices");
+			CopyJsonNode(rootObj, "MaxConformCount", "Plugins.Build.MaxConformCount");
+			CopyJsonNode(rootObj, "AgentShutdownIfDisabledGracePeriod", "Plugins.Build.AgentShutdownIfDisabledGracePeriod");
+			CopyJsonNode(rootObj, "ArtifactTypes", "Plugins.Build.ArtifactTypes");
+			CopyJsonNode(rootObj, "Projects", "Plugins.Build.Projects");
+			CopyJsonNode(rootObj, "IssueFixedTag", "Plugins.Build.IssueFixedTag");
 
 			// Compute
 			CopyJsonNode(rootObj, "Rates", "Plugins.Compute.Rates");

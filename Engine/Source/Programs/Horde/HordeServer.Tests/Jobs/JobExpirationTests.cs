@@ -32,8 +32,11 @@ namespace HordeServer.Tests.Jobs
 			ProjectConfig projectConfig = new ProjectConfig { Id = projectId };
 			projectConfig.Streams.Add(streamConfig);
 
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects.Add(projectConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Projects.Add(projectConfig);
+			globalConfig.Plugins.AddBuildConfig(buildConfig);
 
 			SetConfig(globalConfig);
 

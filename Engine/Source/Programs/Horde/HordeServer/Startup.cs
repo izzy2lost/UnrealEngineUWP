@@ -41,7 +41,6 @@ using HordeServer.Agents.Utilization;
 using HordeServer.Artifacts;
 using HordeServer.Auditing;
 using HordeServer.Authentication;
-using HordeServer.Commits;
 using HordeServer.Compute;
 using HordeServer.Configuration;
 using HordeServer.Dashboard;
@@ -49,25 +48,17 @@ using HordeServer.Devices;
 using HordeServer.Issues;
 using HordeServer.Issues.External;
 using HordeServer.Jobs;
-using HordeServer.Jobs.Bisect;
-using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Schedules;
-using HordeServer.Jobs.Templates;
 using HordeServer.Jobs.TestData;
-using HordeServer.Jobs.Timing;
 using HordeServer.Logs;
 using HordeServer.Notifications;
-using HordeServer.Notifications.Sinks;
 using HordeServer.Perforce;
 using HordeServer.Plugins;
-using HordeServer.Replicators;
 using HordeServer.Server;
 using HordeServer.Server.Notices;
 using HordeServer.ServiceAccounts;
 using HordeServer.Storage;
-using HordeServer.Streams;
 using HordeServer.Tasks;
-using HordeServer.Ugs;
 using HordeServer.Users;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authentication;
@@ -306,10 +297,11 @@ namespace HordeServer
 			// Register the plugin collection
 			PluginCollection pluginCollection = new PluginCollection();
 			pluginCollection.Add<AnalyticsPlugin>();
+			pluginCollection.Add<BuildPlugin>();
 			pluginCollection.Add<ComputePlugin>();
-			pluginCollection.Add<StoragePlugin>();
 			pluginCollection.Add<DdcPlugin>();
 			pluginCollection.Add<SecretsPlugin>();
+			pluginCollection.Add<StoragePlugin>();
 			pluginCollection.Add<ToolsPlugin>();
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
@@ -375,29 +367,12 @@ namespace HordeServer
 
 			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IAgentCollection, AgentCollection>();
-			services.AddSingleton<IArtifactCollection, ArtifactCollection>();
-			services.AddSingleton<IGraphCollection, GraphCollection>();
-			services.AddSingleton<IssueCollection>();
-			services.AddSingleton<IIssueCollection>(sp => sp.GetRequiredService<IssueCollection>());
-			services.AddSingleton<ILogExtIssueProvider>(sp => sp.GetRequiredService<IssueCollection>());
-			services.AddSingleton<IJobCollection, JobCollection>();
-			services.AddSingleton<IJobStepRefCollection, JobStepRefCollection>();
-			services.AddSingleton<IJobTimingCollection, JobTimingCollection>();
 			services.AddSingleton<ILeaseCollection, LeaseCollection>();
 			services.AddSingleton<ILogCollection, LogCollection>();
 			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
 			services.AddSingleton<IPoolCollection, PoolCollection>();
-			services.AddSingleton<IBisectTaskCollection, BisectTaskCollection>();
-			services.AddSingleton<IReplicatorCollection, ReplicatorCollection>();
 			services.AddSingleton<IServiceAccountCollection, ServiceAccountCollection>();
 			services.AddSingleton<ISessionCollection, SessionCollection>();
-			services.AddSingleton<ISubscriptionCollection, SubscriptionCollection>();
-			services.AddSingleton<IStreamCollection, StreamCollection>();
-			services.AddSingleton<ITemplateCollection, TemplateCollection>();
-			services.AddSingleton<ITestDataCollection, TestDataCollection>();
-			services.AddSingleton<IUtilizationDataCollection, UtilizationDataCollection>();
-			services.AddSingleton<ITemplateCollection, TemplateCollection>();
-			services.AddSingleton<IUgsMetadataCollection, UgsMetadataCollection>();
 			services.AddSingleton<IUserCollection, UserCollectionV2>();
 			services.AddSingleton<IDeviceCollection, DeviceCollection>();
 			services.AddSingleton<INoticeCollection, NoticeCollection>();
@@ -408,6 +383,7 @@ namespace HordeServer
 			services.AddSingleton<IConfigSource, PerforceConfigSource>();
 
 			services.AddSingleton<ConfigService>();
+			services.AddSingleton<IConfigService>(sp => sp.GetRequiredService<ConfigService>());
 			services.AddSingleton<IOptionsFactory<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
 			services.AddSingleton<IOptionsChangeTokenSource<GlobalConfig>>(sp => sp.GetRequiredService<ConfigService>());
 
@@ -420,12 +396,9 @@ namespace HordeServer
 			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
 			services.AddSingleton(typeof(ISingletonDocument<>), typeof(SingletonDocument<>));
 
-			services.AddSingleton<IPoolSizeStrategyFactory, JobQueueStrategyFactory>();
-
 			services.AddSingleton<IAclService, AclService>();
 			services.AddSingleton<AgentService>();
 			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
-			services.AddHostedService<ArtifactExpirationService>();
 			services.AddSingleton<ConsistencyService>();
 			services.AddSingleton<RequestTrackerService>();
 			services.AddSingleton<ComputeService>();
@@ -433,7 +406,6 @@ namespace HordeServer
 			services.AddSingleton<MongoService>();
 			services.AddSingleton<IMongoService>(sp => sp.GetRequiredService<MongoService>());
 			services.AddSingleton<GlobalsService>();
-			services.AddSingleton<ICommitService, CommitService>();
 			services.AddSingleton<IClock, Clock>();
 			services.AddSingleton<IDowntimeService, DowntimeService>();
 			services.AddSingleton<IssueService>();
@@ -450,49 +422,12 @@ namespace HordeServer
 			services.AddSingleton<INotificationService, NotificationService>();
 			services.AddSingleton<UnsyncCache>();
 
-			if (settings.Commits.ReplicateMetadata)
-			{
-				services.AddSingleton<PerforceServiceCache>();
-				services.AddSingleton<IPerforceService>(sp => sp.GetRequiredService<PerforceServiceCache>());
-			}
-			else
-			{
-				services.AddSingleton<PerforceService>();
-				services.AddSingleton<IPerforceService>(sp => sp.GetRequiredService<PerforceService>());
-			}
-			services.AddSingleton<PerforceReplicator>();
-
-			services.AddSingleton<PerforceLoadBalancer>();
 			services.AddSingleton<PoolService>();
-			services.AddSingleton<ReplicationService>();
 			services.AddSingleton<ScheduleService>();
-
-			if (settings.SlackToken != null)
-			{
-				services.AddSingleton<SlackNotificationSink>();
-				services.AddSingleton<IAvatarService, SlackNotificationSink>(sp => sp.GetRequiredService<SlackNotificationSink>());
-				services.AddSingleton<INotificationSink, SlackNotificationSink>(sp => sp.GetRequiredService<SlackNotificationSink>());
-			}
-			else
-			{
-				services.AddSingleton<IAvatarService, NullAvatarService>();
-			}
 
 			services.AddScoped<OAuthControllerFilter>();
 
-			services.AddSingleton<DeviceService>();
 			services.AddSingleton<NoticeService>();
-			services.AddSingleton<IBlockCache>(sp => CreateBlockCache(sp));
-			services.AddSingleton<TestDataService>();
-
-			if (settings.JiraUrl != null)
-			{
-				services.AddSingleton<IExternalIssueService, JiraService>();
-			}
-			else
-			{
-				services.AddSingleton<IExternalIssueService, DefaultExternalIssueService>();
-			}
 
 			AuthenticationBuilder authBuilder = services.AddAuthentication(options =>
 				{
@@ -678,7 +613,6 @@ namespace HordeServer
 			if (settings.IsRunModeActive(RunMode.Worker) && !settings.MongoReadOnlyMode)
 			{
 				services.AddHostedService<AgentReportService>();
-				services.AddHostedService<BisectService>();
 				services.AddHostedService(provider => provider.GetRequiredService<FleetService>());
 				services.AddHostedService(provider => provider.GetRequiredService<ConsistencyService>());
 				services.AddHostedService(provider => provider.GetRequiredService<IssueService>());
@@ -695,26 +629,6 @@ namespace HordeServer
 				services.AddHostedService(provider => provider.GetRequiredService<ComputeService>());
 				services.AddHostedService(provider => provider.GetRequiredService<EnrollmentService>());
 				services.AddHostedService(provider => provider.GetRequiredService<StorageService>());
-
-				if (settings.Commits.ReplicateMetadata)
-				{
-					services.AddHostedService(provider => provider.GetRequiredService<PerforceServiceCache>());
-				}
-
-				if (settings.Commits.ReplicateContent)
-				{
-					services.AddHostedService(provider => provider.GetRequiredService<ReplicationService>());
-				}
-
-				if (!settings.DisableSchedules)
-				{
-					services.AddHostedService(provider => provider.GetRequiredService<ScheduleService>());
-				}
-
-				if (settings.SlackToken != null)
-				{
-					services.AddHostedService(provider => provider.GetRequiredService<SlackNotificationSink>());
-				}
 			}
 
 			services.AddHostedService(provider => provider.GetRequiredService<IExternalIssueService>());
@@ -823,13 +737,6 @@ namespace HordeServer
 			ConfigureFormatters();
 
 			OnAddHealthChecks(services);
-		}
-
-		static BlockCache CreateBlockCache(IServiceProvider serviceProvider)
-		{
-			ServerSettings serverSettings = serviceProvider.GetRequiredService<IOptions<ServerSettings>>().Value;
-			DirectoryReference cacheDir = DirectoryReference.Combine(ServerApp.DataDir, String.IsNullOrEmpty(serverSettings.BlockCacheDir) ? "BlockCache" : serverSettings.BlockCacheDir);
-			return BlockCache.Create(cacheDir, (int)(serverSettings.BlockCacheSizeBytes / (1024 * 1024 * 1024)));
 		}
 
 		public static void ConfigureFormatters()

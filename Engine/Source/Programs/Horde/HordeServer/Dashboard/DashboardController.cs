@@ -37,6 +37,7 @@ namespace HordeServer.Dashboard
 		/// Server settings
 		/// </summary>
 		readonly ServerSettings _settings;
+		readonly StaticBuildConfig _staticBuildConfig;
 
 		readonly IDashboardPreviewCollection _previewCollection;
 
@@ -47,16 +48,13 @@ namespace HordeServer.Dashboard
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="previewCollection" />
-		/// <param name="hordeAccounts" />
-		/// <param name="serverSettings">Server settings</param>
-		/// <param name="globalConfig" />
-		public DashboardController(IDashboardPreviewCollection previewCollection, IAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public DashboardController(IDashboardPreviewCollection previewCollection, IAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptions<StaticBuildConfig> staticBuildConfig, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_authenticationScheme = AccountController.GetAuthScheme(serverSettings.CurrentValue.AuthMethod);
 			_previewCollection = previewCollection;
 			_hordeAccounts = hordeAccounts;
 			_settings = serverSettings.CurrentValue;
+			_staticBuildConfig = staticBuildConfig.Value;
 			_globalConfig = globalConfig;
 		}
 
@@ -157,21 +155,21 @@ namespace HordeServer.Dashboard
 
 			dashboardConfigResponse.AuthMethod = _settings.AuthMethod;
 
-			if (_settings.JiraUrl != null)
+			if (_staticBuildConfig.JiraUrl != null)
 			{
 				dashboardConfigResponse.ExternalIssueServiceName = "Jira";
-				dashboardConfigResponse.ExternalIssueServiceUrl = _settings.JiraUrl.ToString().TrimEnd('/');
+				dashboardConfigResponse.ExternalIssueServiceUrl = _staticBuildConfig.JiraUrl.ToString().TrimEnd('/');
 			}
 
-			if (_settings.P4SwarmUrl != null)
+			if (_staticBuildConfig.P4SwarmUrl != null)
 			{
-				dashboardConfigResponse.PerforceSwarmUrl = _settings.P4SwarmUrl.ToString().TrimEnd('/');
+				dashboardConfigResponse.PerforceSwarmUrl = _staticBuildConfig.P4SwarmUrl.ToString().TrimEnd('/');
 			}
 
 			dashboardConfigResponse.HelpEmailAddress = _settings.HelpEmailAddress;
 			dashboardConfigResponse.HelpSlackChannel = _settings.HelpSlackChannel;
 
-			dashboardConfigResponse.DeviceProblemCooldownMinutes = _settings.DeviceProblemCooldownMinutes;
+			dashboardConfigResponse.DeviceProblemCooldownMinutes = _staticBuildConfig.DeviceProblemCooldownMinutes;
 
 			foreach (DashboardAgentCategoryConfig category in _globalConfig.Value.Dashboard.AgentCategories)
 			{

@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using EpicGames.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -34,6 +35,12 @@ namespace HordeServer
 
 		/// <inheritdoc/>
 		public bool ReadOnlyMode => _serverSettings.Value.MongoReadOnlyMode;
+
+		/// <inheritdoc/>
+		public Uri ServerUrl => _serverSettings.Value.ServerUrl;
+
+		/// <inheritdoc/>
+		public Uri DashboardUrl => _serverSettings.Value.DashboardUrl;
 
 		readonly IConfiguration _configuration;
 		readonly IOptions<ServerSettings> _serverSettings;

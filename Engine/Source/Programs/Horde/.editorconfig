@@ -388,13 +388,13 @@ dotnet_diagnostic.CA1051.severity = warning
 dotnet_diagnostic.CA1052.severity = warning
 
 # CA1054: URI-like parameters should not be strings
-dotnet_diagnostic.CA1054.severity = warning
+dotnet_diagnostic.CA1054.severity = none
 
 # CA1055: URI-like return values should not be strings
-dotnet_diagnostic.CA1055.severity = warning
+dotnet_diagnostic.CA1055.severity = none
 
 # CA1056: URI-like properties should not be strings
-dotnet_diagnostic.CA1056.severity = warning
+dotnet_diagnostic.CA1056.severity = none
 
 # CA1058: Types should not extend certain base types
 dotnet_diagnostic.CA1058.severity = warning
@@ -517,7 +517,7 @@ dotnet_diagnostic.CA1713.severity = warning
 dotnet_diagnostic.CA1715.severity = warning
 
 # CA1716: Identifiers should not match keywords
-dotnet_diagnostic.CA1716.severity = warning
+dotnet_diagnostic.CA1716.severity = none
 
 # CA1720: Identifier contains type name
 dotnet_diagnostic.CA1720.severity = none
@@ -754,7 +754,7 @@ dotnet_diagnostic.CA2225.severity = none
 dotnet_diagnostic.CA2226.severity = warning
 
 # CA2227: Collection properties should be read only
-dotnet_diagnostic.CA2227.severity = warning
+dotnet_diagnostic.CA2227.severity = none
 
 # CA2229: Implement serialization constructors
 dotnet_diagnostic.CA2229.severity = warning

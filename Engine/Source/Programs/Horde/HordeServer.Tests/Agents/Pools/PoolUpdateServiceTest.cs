@@ -8,7 +8,9 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using HordeServer.Agents;
 using HordeServer.Agents.Pools;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Agents.Pools;
@@ -25,7 +27,7 @@ public class PoolUpdateServiceTest : TestSetup
 	public PoolUpdateServiceTest()
 	{
 		UpdateConfig(x => x.Plugins.GetComputeConfig().Pools.Clear());
-		_pus = new PoolUpdateService(AgentService, PoolCollection, Clock, GlobalConfig, Tracer, new NullLogger<PoolUpdateService>());
+		_pus = new PoolUpdateService(AgentService, PoolCollection, Clock, ServiceProvider.GetRequiredService<IOptionsMonitor<BuildConfig>>(), Tracer, new NullLogger<PoolUpdateService>());
 	}
 
 	[TestInitialize]
@@ -69,7 +71,7 @@ public class PoolUpdateServiceTest : TestSetup
 	public async Task ShutdownDisabledAgents_WithGlobalGracePeriod_RequestsShutdownAsync()
 	{
 		// Arrange
-		UpdateConfig(config => config.AgentShutdownIfDisabledGracePeriod = TimeSpan.FromHours(3.0));
+		UpdateConfig(config => config.Plugins.GetBuildConfig().AgentShutdownIfDisabledGracePeriod = TimeSpan.FromHours(3.0));
 		
 		// Act
 		await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);

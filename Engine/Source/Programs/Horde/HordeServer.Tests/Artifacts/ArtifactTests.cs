@@ -10,7 +10,6 @@ using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Streams;
 using HordeCommon;
 using HordeServer.Artifacts;
-using HordeServer.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -52,7 +51,7 @@ namespace HordeServer.Tests.Artifacts
 			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
 
 			ArtifactType type = new ArtifactType("my-artifact");
-			UpdateConfig(config => config.ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepDays = 1 }));
+			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepDays = 1 }));
 
 			await expirationService.StartAsync(CancellationToken.None);
 
@@ -81,7 +80,7 @@ namespace HordeServer.Tests.Artifacts
 			DateTime startTime = Clock.UtcNow;
 
 			ArtifactType type = new ArtifactType("my-artifact");
-			UpdateConfig(config => config.ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepDays = 1 }));
+			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepDays = 1 }));
 
 			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
 
@@ -98,7 +97,7 @@ namespace HordeServer.Tests.Artifacts
 				Assert.AreEqual(artifact.Id, artifacts[0].Id);
 			}
 
-			UpdateConfig(config => config.ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 4 } });
+			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 4 } });
 			await Clock.AdvanceAsync(TimeSpan.FromDays(2.0));
 
 			{
@@ -106,7 +105,7 @@ namespace HordeServer.Tests.Artifacts
 				Assert.AreEqual(1, artifacts.Count);
 			}
 
-			UpdateConfig(config => config.ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 1 } });
+			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 1 } });
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
 			{
@@ -121,7 +120,7 @@ namespace HordeServer.Tests.Artifacts
 			DateTime startTime = Clock.UtcNow;
 
 			ArtifactType type = new ArtifactType("my-artifact");
-			UpdateConfig(config => config.ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepCount = 4 }));
+			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepCount = 4 }));
 
 			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
 
@@ -161,7 +160,7 @@ namespace HordeServer.Tests.Artifacts
 				}
 			}
 
-			UpdateConfig(config => config.ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 1 } });
+			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes = new List<ArtifactTypeConfig> { new ArtifactTypeConfig { Type = type, KeepDays = 1 } });
 			await Clock.AdvanceAsync(TimeSpan.FromDays(2.0));
 
 			{

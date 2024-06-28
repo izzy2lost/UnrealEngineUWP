@@ -172,16 +172,19 @@ namespace HordeServer.Tests.Configuration
 		[TestMethod]
 		public void WorkspaceConfig()
 		{
-			GlobalConfig gc = new();
 			Dictionary<string, WorkspaceConfig> inputWorkspaces = new();
 			inputWorkspaces["base"] = new WorkspaceConfig { Identifier = "base", Cluster = "myCluster", MinScratchSpace = 111 };
 			inputWorkspaces["subType"] = new WorkspaceConfig { Base = "base", Identifier = "subType", ConformDiskFreeSpace = 222 };
 			inputWorkspaces["subSubType"] = new WorkspaceConfig { Base = "subType", Identifier = "subSubType" };
-			
-			gc.Projects.Add(new ProjectConfig { Streams = [new StreamConfig { WorkspaceTypes = inputWorkspaces }]});
+
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects.Add(new ProjectConfig { Streams = [new StreamConfig { WorkspaceTypes = inputWorkspaces }]});
+
+			GlobalConfig gc = new();
+			gc.Plugins.AddBuildConfig(buildConfig);
 			gc.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
 
-			Dictionary<string,WorkspaceConfig> workspaces = gc.Projects[0].Streams[0].WorkspaceTypes;
+			Dictionary<string,WorkspaceConfig> workspaces = gc.Plugins.GetBuildConfig().Projects[0].Streams[0].WorkspaceTypes;
 			Assert.AreEqual(3, workspaces.Count);
 			Assert.AreEqual(111, workspaces["subType"].MinScratchSpace);
 			Assert.AreEqual(111, workspaces["subSubType"].MinScratchSpace);
@@ -191,10 +194,10 @@ namespace HordeServer.Tests.Configuration
 		[TestMethod]
 		public void WorkspaceInheritFromProjectConfig()
 		{
-			GlobalConfig gc = new();
-			
 			List<string> autoSdkViews = ["foo", "bar"];
-			gc.Projects.Add(new ProjectConfig
+
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects.Add(new ProjectConfig
 			{
 				WorkspaceTypes =
 				{
@@ -210,10 +213,12 @@ namespace HordeServer.Tests.Configuration
 					}}
 				]
 			});
-			
+
+			GlobalConfig gc = new();
+			gc.Plugins.AddBuildConfig(buildConfig);
 			gc.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
 
-			Dictionary<string, WorkspaceConfig> workspaces = gc.Projects[0].Streams[0].WorkspaceTypes;
+			Dictionary<string, WorkspaceConfig> workspaces = gc.Plugins.GetBuildConfig().Projects[0].Streams[0].WorkspaceTypes;
 			Assert.AreEqual(4, workspaces.Count);
 			
 			// Project-defined streams

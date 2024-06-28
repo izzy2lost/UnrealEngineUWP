@@ -174,6 +174,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeServer.Compute", "Plug
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeServer.Compute.Tests", "Plugins\Compute\HordeServer.Compute.Tests\HordeServer.Compute.Tests.csproj", "{DC670759-D699-4334-83D3-60B74B76FC1A}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{A3FAA4A0-5DDA-4065-B8E5-6141980DFBB4}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HordeServer.Build", "Plugins\Build\HordeServer.Build\HordeServer.Build.csproj", "{57042495-19BF-4A8F-957A-AA3C6C2529BF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Analyze|Any CPU = Analyze|Any CPU
@@ -916,6 +920,18 @@ Global
 		{DC670759-D699-4334-83D3-60B74B76FC1A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{DC670759-D699-4334-83D3-60B74B76FC1A}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
 		{DC670759-D699-4334-83D3-60B74B76FC1A}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.Analyze|Any CPU.ActiveCfg = Debug|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.Analyze|Any CPU.Build.0 = Debug|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.DebugAutoUpdate|Any CPU.ActiveCfg = Debug|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.DebugAutoUpdate|Any CPU.Build.0 = Debug|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.Development|Any CPU.ActiveCfg = Debug|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.Development|Any CPU.Build.0 = Debug|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -983,6 +999,8 @@ Global
 		{A557FA20-4587-443E-B98F-6206A9C6EE85} = {C0214E80-0A85-4432-834D-9DC48104AD26}
 		{418961DE-A56B-4755-8D3E-6A699AFA95F4} = {A557FA20-4587-443E-B98F-6206A9C6EE85}
 		{DC670759-D699-4334-83D3-60B74B76FC1A} = {A557FA20-4587-443E-B98F-6206A9C6EE85}
+		{A3FAA4A0-5DDA-4065-B8E5-6141980DFBB4} = {C0214E80-0A85-4432-834D-9DC48104AD26}
+		{57042495-19BF-4A8F-957A-AA3C6C2529BF} = {A3FAA4A0-5DDA-4065-B8E5-6141980DFBB4}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F06D2583-1509-4254-BEE6-5921340022BF}

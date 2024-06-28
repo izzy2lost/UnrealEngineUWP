@@ -79,6 +79,16 @@ namespace HordeServer
 		bool EnableDebugEndpoints { get; }
 
 		/// <summary>
+		/// Url to use for generating links back to the server
+		/// </summary>
+		Uri ServerUrl { get; }
+
+		/// <summary>
+		/// Url to use for generating links back to the dashboard.
+		/// </summary>
+		Uri DashboardUrl { get; }
+
+		/// <summary>
 		/// Helper method to check if this process has activated the given mode
 		/// </summary>
 		/// <param name="mode">Run mode</param>

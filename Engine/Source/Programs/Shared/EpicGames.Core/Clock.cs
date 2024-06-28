@@ -62,6 +62,21 @@ public interface IClock
 }
 
 /// <summary>
+/// Placeholder interface for ITicker
+/// </summary>
+public sealed class NullTicker : ITicker
+{
+	/// <inheritdoc/>
+	public ValueTask DisposeAsync() => new ValueTask();
+
+	/// <inheritdoc/>
+	public Task StartAsync() => Task.CompletedTask;
+
+	/// <inheritdoc/>
+	public Task StopAsync() => Task.CompletedTask;
+}
+
+/// <summary>
 /// A default implementation of IClock for normal production use
 /// </summary>
 public class DefaultClock : IClock

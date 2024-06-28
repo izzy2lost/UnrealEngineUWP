@@ -142,7 +142,7 @@ namespace HordeServer.Tests.Jobs.Bisect
 			project.Id = new ProjectId("ue4");
 			project.Streams.Add(new StreamConfig { Id = StreamId, Templates = new List<TemplateRefConfig> { new TemplateRefConfig { Id = TemplateId } } });
 
-			UpdateConfig(x => x.Projects.Add(project));
+			UpdateConfig(x => x.Plugins.GetBuildConfig().Projects.Add(project));
 
 			// Create the graph
 			List<NewNode> nodes = new List<NewNode>();

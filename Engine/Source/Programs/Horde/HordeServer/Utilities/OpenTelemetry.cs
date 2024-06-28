@@ -7,10 +7,6 @@ using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
-using EpicGames.Core;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Jobs.Templates;
-using EpicGames.Horde.Streams;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -89,18 +85,18 @@ public static class OpenTelemetryHelper
 		void DatadogAspNetRequestEnricher(Activity activity, HttpRequest request)
 		{
 			activity.DisplayName = $"{request.Method} {request.Headers.Host}{request.Path}";
-			
+
 			// From https://docs.datadoghq.com/standard-attributes/
 			activity.SetTag("service.name", settings.ServiceName);
 			activity.SetTag("operation.name", "http.request");
-			
+
 			// Resolve client's IP via headers or actual TCP/IP remote IP
 			string? forwardedForHeader = request.HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
 			string? clientIp = String.IsNullOrEmpty(forwardedForHeader)
 				? request.HttpContext.Connection.RemoteIpAddress?.ToString()
 				: forwardedForHeader;
 			activity.SetTag("http.client_ip", clientIp);
-			
+
 			// Header sent by the dashboard to indicate how long a user has been inactive for a particular browser page (in seconds)
 			if (request.Headers.TryGetValue("X-Horde-LastUserActivity", out StringValues values))
 			{
@@ -111,7 +107,7 @@ public static class OpenTelemetryHelper
 				}
 			}
 		}
-		
+
 		void DatadogAspNetResponseEnricher(Activity activity, HttpResponse response)
 		{
 			// The request hook above is executed too early in the middleware chain so user related information must be read here
@@ -244,31 +240,6 @@ public static class OpenTelemetryHelper
 /// </summary>
 public static class OpenTelemetrySpanExtensions
 {
-	/// <summary>Set a key:value tag on the span</summary>
-	/// <returns>This span instance, for chaining</returns>
-	public static TelemetrySpan SetAttribute(this TelemetrySpan span, string key, ContentHash value)
-	{
-		span.SetAttribute(key, value.ToString());
-		return span;
-	}
-
-	/// <summary>Set a key:value tag on the span</summary>
-	/// <returns>This span instance, for chaining</returns>
-	public static TelemetrySpan SetAttribute(this TelemetrySpan span, string key, SubResourceId value)
-	{
-		span.SetAttribute(key, value.ToString());
-		return span;
-	}
-
-	/// <inheritdoc cref="TelemetrySpan.SetAttribute(System.String, System.String)"/>
-	public static TelemetrySpan SetAttribute(this TelemetrySpan span, string key, StreamId? value) => span.SetAttribute(key, value?.ToString());
-
-	/// <inheritdoc cref="TelemetrySpan.SetAttribute(System.String, System.String)"/>
-	public static TelemetrySpan SetAttribute(this TelemetrySpan span, string key, TemplateId? value) => span.SetAttribute(key, value?.ToString());
-
-	/// <inheritdoc cref="TelemetrySpan.SetAttribute(System.String, System.String)"/>
-	public static TelemetrySpan SetAttribute(this TelemetrySpan span, string key, TemplateId[]? values) => span.SetAttribute(key, values != null ? String.Join(',', values.Select(x => x.Id.ToString())) : null);
-
 	/// <summary>
 	/// Start a MongoDB-based tracing span
 	/// </summary>

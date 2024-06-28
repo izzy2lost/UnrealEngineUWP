@@ -37,8 +37,12 @@ namespace HordeServer.Tests.Jobs.Schedules
 		{
 			IUser bob = UserCollection.FindOrAddUserByLoginAsync("Bob").Result;
 
+			BuildConfig buildConfig = new BuildConfig();
+			buildConfig.Projects.Add(new ProjectConfig { Id = ProjectId, Name = "UE4" });
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Projects.Add(new ProjectConfig { Id = ProjectId, Name = "UE4" });
+			globalConfig.Plugins.AddBuildConfig(buildConfig);
+			
 			SetConfig(globalConfig);
 
 			_template = TemplateCollection.GetOrAddAsync(new TemplateConfig { Name = "Test template" }).Result;
@@ -61,7 +65,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 			streamConfig.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateId } });
 			streamConfig.Templates.Add(new TemplateRefConfig { Id = TemplateId, Name = "Test", Schedule = schedule });
 
-			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { streamConfig });
+			UpdateConfig(x => x.Plugins.GetBuildConfig().Projects[0].Streams = new List<StreamConfig> { streamConfig });
 
 			return await StreamCollection.GetAsync(streamConfig);
 		}
@@ -248,7 +252,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 			Assert.AreEqual(100, jobs2[0].CodeChange);
 
 			StreamConfig? streamConfig;
-			GlobalConfig.CurrentValue.TryGetStream(StreamId, out streamConfig);
+			GlobalConfig.CurrentValue.Plugins.GetBuildConfig().TryGetStream(StreamId, out streamConfig);
 
 			IStream stream2 = (await StreamCollection.GetAsync(streamConfig!))!;
 			ITemplateSchedule schedule2 = stream2.Templates.First().Value.Schedule!;
@@ -435,7 +439,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 			config.Name = "//UE5/Main";
 			config.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { newTemplateRefId1, newTemplateRefId2 } });
 			config.Templates = new() { new TemplateRefConfig { Id = newTemplateRefId1 }, new TemplateRefConfig { Id = newTemplateRefId2 } };
-			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { config });
+			UpdateConfig(x => x.Plugins.GetBuildConfig().Projects[0].Streams = new List<StreamConfig> { config });
 
 			IStream stream = await StreamCollection.GetAsync(config);
 
@@ -527,7 +531,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 			config.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { newTemplateRefId1, newTemplateRefId2 } });
 			config.Templates.Add(newTemplate1);
 			config.Templates.Add(newTemplate2);
-			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { config });
+			UpdateConfig(x => x.Plugins.GetBuildConfig().Projects[0].Streams = new List<StreamConfig> { config });
 
 			IStream stream = await StreamCollection.GetAsync(config);
 
@@ -598,7 +602,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 			Assert.AreEqual(100, jobs1[0].CodeChange);
 
 			// Make sure the job is registered
-			IStream? stream1 = await StreamCollection.GetAsync(GlobalConfig.CurrentValue.Streams[0]);
+			IStream? stream1 = await StreamCollection.GetAsync(GlobalConfig.CurrentValue.Plugins.GetBuildConfig().Streams[0]);
 			ITemplateRef templateRef1 = stream1!.Templates.First().Value;
 			Assert.AreEqual(1, templateRef1.Schedule!.ActiveJobs.Count);
 			Assert.AreEqual(jobs1[0].Id, templateRef1.Schedule!.ActiveJobs[0]);
@@ -607,7 +611,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 			await SetScheduleAsync(schedule);
 
 			// Make sure the job is still registered
-			IStream? stream2 = await StreamCollection.GetAsync(GlobalConfig.CurrentValue.Streams[0]);
+			IStream? stream2 = await StreamCollection.GetAsync(GlobalConfig.CurrentValue.Plugins.GetBuildConfig().Streams[0]);
 			ITemplateRef templateRef2 = stream2!.Templates.First().Value;
 			Assert.AreEqual(1, templateRef2.Schedule!.ActiveJobs.Count);
 			Assert.AreEqual(jobs1[0].Id, templateRef2.Schedule!.ActiveJobs[0]);
@@ -691,7 +695,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 			streamConfig.Name = "//UE5/Main";
 			streamConfig.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateId } });
 			streamConfig.Templates.Add(templateConfig);
-			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { streamConfig });
+			UpdateConfig(x => x.Plugins.GetBuildConfig().Projects[0].Streams = new List<StreamConfig> { streamConfig });
 
 			// Make sure we don't have any jobs to start with
 			await ScheduleService.TickForTestingAsync();

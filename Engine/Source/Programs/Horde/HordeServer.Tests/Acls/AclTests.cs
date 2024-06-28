@@ -44,7 +44,7 @@ namespace HordeServer.Tests.Acls
 						ExcludeActions = new List<AclAction>{ JobAclAction.RetryJobStep }
 					},
 				};
-				globalConfig.Projects.Add(projectConfig);
+				globalConfig.Plugins.GetBuildConfig().Projects.Add(projectConfig);
 
 				StreamConfig streamConfig = new StreamConfig();
 				streamConfig.Id = new StreamId("ue5-main");
@@ -68,7 +68,7 @@ namespace HordeServer.Tests.Acls
 			});
 
 			GlobalConfig globalConfig = GlobalConfig.CurrentValue;
-			globalConfig.TryGetStream(new StreamId("ue5-main"), out StreamConfig? streamConfig);
+			globalConfig.Plugins.GetBuildConfig().TryGetStream(new StreamId("ue5-main"), out StreamConfig? streamConfig);
 
 			ClaimsIdentity identity = new ClaimsIdentity(null, new[] { new Claim("foo", "bar") });
 			ClaimsPrincipal principal = new ClaimsPrincipal(identity);
@@ -86,7 +86,7 @@ namespace HordeServer.Tests.Acls
 			{
 				ProjectConfig projectConfig = new ProjectConfig();
 				projectConfig.Id = new ProjectId("ue5");
-				globalConfig.Projects.Add(projectConfig);
+				globalConfig.Plugins.GetBuildConfig().Projects.Add(projectConfig);
 
 				StreamConfig streamConfig = new StreamConfig();
 				streamConfig.Id = new StreamId("ue5-main");
@@ -102,7 +102,7 @@ namespace HordeServer.Tests.Acls
 			});
 
 			GlobalConfig globalConfig = GlobalConfig.CurrentValue;
-			globalConfig.TryGetStream(new StreamId("ue5-main"), out StreamConfig? streamConfig);
+			globalConfig.Plugins.GetBuildConfig().TryGetStream(new StreamId("ue5-main"), out StreamConfig? streamConfig);
 
 			{
 				ClaimsIdentity identity = new ClaimsIdentity(null, new[] { new Claim("foo", "bar") });

@@ -1,23 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Server;
 using HordeServer.Agents;
-using HordeServer.Agents.Pools;
 using HordeServer.Tools;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace HordeServer.Server
@@ -30,7 +24,6 @@ namespace HordeServer.Server
 	[Route("[controller]")]
 	public class ServerController : HordeControllerBase
 	{
-		readonly IServiceProvider _serviceProvider;
 		readonly IToolCollection _toolCollection;
 		readonly IClock _clock;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
@@ -38,9 +31,8 @@ namespace HordeServer.Server
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ServerController(IServiceProvider serviceProvider, IToolCollection toolCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public ServerController(IToolCollection toolCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
-			_serviceProvider = serviceProvider;
 			_toolCollection = toolCollection;
 			_clock = clock;
 			_globalConfig = globalConfig;

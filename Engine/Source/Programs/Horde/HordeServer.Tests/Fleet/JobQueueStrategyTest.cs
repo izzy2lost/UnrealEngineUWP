@@ -17,6 +17,8 @@ using HordeServer.Jobs.Graphs;
 using HordeServer.Projects;
 using HordeServer.Server;
 using HordeServer.Streams;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Fleet
@@ -138,7 +140,7 @@ namespace HordeServer.Tests.Fleet
 			projectConfig.Id = new ProjectId("ue5");
 			projectConfig.Streams.Add(streamConfig);
 
-			UpdateConfig(config => config.Projects = new List<ProjectConfig> { projectConfig });
+			UpdateConfig(config => config.Plugins.GetBuildConfig().Projects = new List<ProjectConfig> { projectConfig });
 
 			string nodeForAgentType1 = "bogusNodeOnAgentType" + ++s_uniqueId;
 			IGraph graph = await GraphCollection.AppendAsync(null, new()
@@ -161,7 +163,7 @@ namespace HordeServer.Tests.Fleet
 				await job.TryUpdateBatchAsync(job.Batches[0].Id, null, JobStepBatchState.Ready, null);
 			}
 
-			return (new(JobCollection, GraphCollection, StreamCollection, Clock, Cache, isDowntimeActive, GlobalConfig), poolSize, pool, agents);
+			return (new JobQueueStrategy(JobCollection, GraphCollection, StreamCollection, Clock, Cache, isDowntimeActive, ServiceProvider.GetRequiredService<IOptionsMonitor<BuildConfig>>()), poolSize, pool, agents);
 		}
 
 		private async Task<IJob> AddPlaceholderJobAsync(IGraph graph, StreamId streamId, string nodeNameToExecute)
