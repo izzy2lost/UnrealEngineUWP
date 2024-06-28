@@ -33,6 +33,7 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"NetCore",
+					"StructUtils"
 				}
 				);
 
