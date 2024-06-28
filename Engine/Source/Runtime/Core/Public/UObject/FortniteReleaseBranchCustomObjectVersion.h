@@ -51,6 +51,9 @@ struct FFortniteReleaseBranchCustomObjectVersion
 		// UPCGPoint custom serialization
 		PCGPointStructuredSerializer,
 
+		// Deprecation of Nav Movement Properties and moving them to a new struct
+		NavMovementComponentMovingPropertiesToStruct,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

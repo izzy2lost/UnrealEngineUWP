@@ -3,6 +3,7 @@
 #include "GameFramework/NavMovementComponent.h"
 #include "AI/NavigationSystemBase.h"
 #include "Components/CapsuleComponent.h"
+#include "UObject/FortniteReleaseBranchCustomObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NavMovementComponent)
 
@@ -13,11 +14,11 @@
 UNavMovementComponent::UNavMovementComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	, FixedPathBrakingDistance(0.0f)
-	, bUpdateNavAgentWithOwnersCollision(true)
-	, bUseAccelerationForPaths(false)
-	, bUseFixedBrakingDistanceForPaths(false)
-	, bStopMovementAbortPaths(true)
+	, FixedPathBrakingDistance_DEPRECATED(0.0f)
+	, bUpdateNavAgentWithOwnersCollision_DEPRECATED(true)
+	, bUseAccelerationForPaths_DEPRECATED(false)
+	, bUseFixedBrakingDistanceForPaths_DEPRECATED(false)
+	, bStopMovementAbortPaths_DEPRECATED(true)
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 	bComponentShouldUpdatePhysicsVolume = true;
@@ -28,45 +29,23 @@ FBasedPosition UNavMovementComponent::GetActorFeetLocationBased() const
 	return FBasedPosition(NULL, GetActorFeetLocation());
 }
 
-void UNavMovementComponent::PostLoad()
+void UNavMovementComponent::Serialize(FArchive& Ar)
 {
-	Super::PostLoad();
+	Super::Serialize(Ar);
 
-#if WITH_EDITORONLY_DATA
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	
-	// copying over any default values to the new struct that houses the properties
-	if (FixedPathBrakingDistance != 0) 
+#if WITH_EDITOR
+	if (Ar.IsLoading() && GetLinkerCustomVersion(FFortniteReleaseBranchCustomObjectVersion::GUID) < FFortniteReleaseBranchCustomObjectVersion::NavMovementComponentMovingPropertiesToStruct)
 	{
-		NavMovementProperties.FixedPathBrakingDistance = FixedPathBrakingDistance;
-		FixedPathBrakingDistance = 0;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+		NavMovementProperties.FixedPathBrakingDistance = FixedPathBrakingDistance_DEPRECATED;
+		NavMovementProperties.bUpdateNavAgentWithOwnersCollision = bUpdateNavAgentWithOwnersCollision_DEPRECATED;
+		NavMovementProperties.bUseAccelerationForPaths = bUseAccelerationForPaths_DEPRECATED;
+		NavMovementProperties.bUseFixedBrakingDistanceForPaths = bUseFixedBrakingDistanceForPaths_DEPRECATED;
+		NavMovementProperties.bStopMovementAbortPaths = bStopMovementAbortPaths_DEPRECATED;
+
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-	
-	if (!bUpdateNavAgentWithOwnersCollision)
-	{
-		NavMovementProperties.bUpdateNavAgentWithOwnersCollision = bUpdateNavAgentWithOwnersCollision;
-		bUpdateNavAgentWithOwnersCollision = true;
-	}
-	
-	if (bUseAccelerationForPaths)
-    {
-    	NavMovementProperties.bUseAccelerationForPaths = bUseAccelerationForPaths;
-    	bUseAccelerationForPaths = false;
-    }
-	
-	if (bUseFixedBrakingDistanceForPaths)
-    {
-    	NavMovementProperties.bUseFixedBrakingDistanceForPaths = bUseFixedBrakingDistanceForPaths;
-    	bUseFixedBrakingDistanceForPaths = false;
-    }
-    
-    if (!bStopMovementAbortPaths)
-    {
-    	NavMovementProperties.bStopMovementAbortPaths = bStopMovementAbortPaths;
-    	bStopMovementAbortPaths = true;
-    }
-	
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITORONLY_DATA	
 }
 

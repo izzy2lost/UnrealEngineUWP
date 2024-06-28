@@ -31,26 +31,26 @@ protected:
 	/** Braking distance override used with acceleration driven path following (bUseAccelerationForPaths) */
 	UE_DEPRECATED(5.5, "FixedPathBrakingDistance is deprecated, please use NavMovementProperties.FixedPathBrakingDistance instead.")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "FixedPathBrakingDistance is deprecated, please use NavMovementProperties.FixedPathBrakingDistance instead."))
-	float FixedPathBrakingDistance;
+	float FixedPathBrakingDistance_DEPRECATED;
 
 	/** If set to true NavAgentProps' radius and height will be updated with Owner's collision capsule size */
 	UE_DEPRECATED(5.5, "bUpdateNavAgentWithOwnersCollision is deprecated, please use NavMovementProperties.bUpdateNavAgentWithOwnersCollision instead.")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "bUpdateNavAgentWithOwnersCollision is deprecated, please use NavMovementProperties.bUpdateNavAgentWithOwnersCollision instead."))
-	uint8 bUpdateNavAgentWithOwnersCollision:1;
+	uint8 bUpdateNavAgentWithOwnersCollision_DEPRECATED:1;
 
 	/** If set, pathfollowing will control character movement via acceleration values. If false, it will set velocities directly. */
 	UE_DEPRECATED(5.5, "bUseAccelerationForPaths is deprecated, please use NavMovementProperties.bUseAccelerationForPaths instead.")
 	UPROPERTY(GlobalConfig, meta = (DeprecatedProperty, DeprecationMessage = "bUseAccelerationForPaths is deprecated, please use NavMovementProperties.bUseAccelerationForPaths instead."))
-	uint8 bUseAccelerationForPaths : 1;
+	uint8 bUseAccelerationForPaths_DEPRECATED : 1;
 
 	/** If set, FixedPathBrakingDistance will be used for path following deceleration */
 	UE_DEPRECATED(5.5, "bUseFixedBrakingDistanceForPaths is deprecated, please use NavMovementProperties.bUseFixedBrakingDistanceForPaths instead.")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "bUseFixedBrakingDistanceForPaths is deprecated, please use NavMovementProperties.bUseFixedBrakingDistanceForPaths instead."))
-	uint8 bUseFixedBrakingDistanceForPaths : 1;
+	uint8 bUseFixedBrakingDistanceForPaths_DEPRECATED : 1;
 
 	/** If set, StopActiveMovement call will abort current path following request */
 	UE_DEPRECATED(5.5, "bStopMovementAbortPaths is deprecated, please use NavMovementProperties.bStopMovementAbortPaths instead.")
-	uint8 bStopMovementAbortPaths:1;
+	uint8 bStopMovementAbortPaths_DEPRECATED:1;
 	
 	UPROPERTY(EditAnywhere, Category = NavMovement)
 	FNavMovementProperties NavMovementProperties;
@@ -116,7 +116,7 @@ public:
 	/** Returns based location of controlled actor */
 	ENGINE_API virtual FBasedPosition GetFeetLocationBased() const override { return GetActorFeetLocationBased(); };
 	
-	ENGINE_API virtual void PostLoad() override;
+	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 
 	/** Set nav agent properties from an object */
 	ENGINE_API virtual void UpdateNavAgent(const UObject& ObjectToUpdateFrom) override;
