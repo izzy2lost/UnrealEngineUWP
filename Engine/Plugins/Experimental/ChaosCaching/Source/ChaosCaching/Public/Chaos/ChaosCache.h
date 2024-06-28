@@ -7,8 +7,10 @@
 #include "Containers/Queue.h"
 #include "Curves/RichCurve.h"
 
+#include "Chaos/ChaosCacheInterpolationMode.h"
 
 #include "ChaosCache.generated.h"
+
 
 USTRUCT()
 struct FParticleTransformTrack
@@ -43,7 +45,7 @@ struct FParticleTransformTrack
 	 * @param InCacheTime Absolute time from the beginning of the entire owning cache to evaluate.
 	 * @param MassToLocal if not null, the will be premultiplied to transform before interpolation
 	 */
-	FTransform Evaluate(float InCacheTime, const FTransform* MassToLocal) const;
+	FTransform Evaluate(float InCacheTime, const FTransform* MassToLocal, EChaosCacheInterpolationMode InterpolationMode =  EChaosCacheInterpolationMode::QuatInterp) const;
 
 	/**
 	 * Find the index the key where timestamp is directly above InCacheTime
@@ -393,6 +395,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category = "Caching")
 	uint32 NumRecordedFrames;
+
+	UPROPERTY(VisibleAnywhere, Category = "Caching")
+	EChaosCacheInterpolationMode InterpolationMode = EChaosCacheInterpolationMode::QuatInterp;
 
 	/** Maps a track index in the cache to the original particle index specified when recording */
 	UPROPERTY()

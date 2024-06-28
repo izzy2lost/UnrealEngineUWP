@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Chaos/ChaosCacheInterpolationMode.h"
+
 #include "CacheCollection.generated.h"
 
 class UChaosCache;
@@ -16,6 +18,7 @@ public:
 	CHAOSCACHING_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	CHAOSCACHING_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	CHAOSCACHING_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
 	//~ End UObject Interface
 	
 	CHAOSCACHING_API UChaosCache* FindCache(const FName& CacheName) const;
@@ -31,6 +34,15 @@ public:
 	/** Return the max number of frames of all the caches stored in the collection */
 	CHAOSCACHING_API uint32 GetMaxNumFrames() const;
 
+	/** Set the interpolation mode on this cache collection */
+	CHAOSCACHING_API void SetInterpolationMode(EChaosCacheInterpolationMode Mode);
+
+	CHAOSCACHING_API EChaosCacheInterpolationMode GetInterpolationMode() const { return InterpolationMode; }
+
 	UPROPERTY(EditAnywhere, Instanced, Category="Caching", meta=(EditFixedOrder))
 	TArray<TObjectPtr<UChaosCache>> Caches;
+
+private:
+	UPROPERTY(EditAnywhere, Category = "Caching")
+	EChaosCacheInterpolationMode InterpolationMode;
 };

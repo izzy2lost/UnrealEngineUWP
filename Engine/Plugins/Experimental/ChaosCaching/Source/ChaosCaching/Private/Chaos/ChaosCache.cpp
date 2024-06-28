@@ -7,6 +7,7 @@
 #include "UObject/Package.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
+#include "Math/DualQuat.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosCache)
 
@@ -734,7 +735,7 @@ FCacheEvaluationResult UChaosCache::Evaluate(const FCacheEvaluationContext& InCo
 		Result.NamedTransforms.Reset();
 		for (const TPair<FName, FNamedTransformTrack>& NamedTransform : NamedTransformTracks)
 		{
-			Result.NamedTransforms.Add(NamedTransform.Key, NamedTransform.Value.Evaluate(InContext.TickRecord.GetTime(), nullptr));
+			Result.NamedTransforms.Add(NamedTransform.Key, NamedTransform.Value.Evaluate(InContext.TickRecord.GetTime(), nullptr, InterpolationMode));
 		}
 	}
 
@@ -793,7 +794,7 @@ void UChaosCache::EvaluateSingle(int32 InIndex, FPlaybackTickRecord& InTickRecor
 
 void UChaosCache::EvaluateTransform(const FPerParticleCacheData& InData, float InTime, const FTransform* MassToLocal, FTransform& OutTransform)
 {
-	OutTransform = InData.TransformData.Evaluate(InTime, MassToLocal);
+	OutTransform = InData.TransformData.Evaluate(InTime, MassToLocal, InterpolationMode);
 }
 
 void UChaosCache::EvaluateCurves(const FPerParticleCacheData& InData, float InTime, TMap<FName, float>& OutCurves)
@@ -861,7 +862,7 @@ void UChaosCache::CompressChannelsData(float ErrorThreshold, float SampleRate)
 	ChannelsTracks.Reset();
 }
 
-FTransform FParticleTransformTrack::Evaluate(float InCacheTime, const FTransform* MassToLocal) const
+FTransform FParticleTransformTrack::Evaluate(float InCacheTime, const FTransform* MassToLocal, EChaosCacheInterpolationMode InterpolationMode) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(QSTAT_EvalParticleTransformTrack);
 	const int32 NumKeys = GetNumKeys();
@@ -886,7 +887,29 @@ FTransform FParticleTransformTrack::Evaluate(float InCacheTime, const FTransform
 
 		if (bChaosCacheUseInterpolation)
 		{
-			Result.Blend(TransformA, TransformB, Alpha);
+			if (InterpolationMode == EChaosCacheInterpolationMode::QuatInterp)
+			{
+				Result.Blend(TransformA, TransformB, Alpha);
+			}
+			else if (InterpolationMode == EChaosCacheInterpolationMode::EulerInterp)
+			{
+				Result.SetTranslation(FMath::Lerp(TransformA.GetTranslation(), TransformB.GetTranslation(), Alpha));
+				Result.SetScale3D(FMath::Lerp(TransformA.GetScale3D(), TransformB.GetScale3D(), Alpha));
+
+				const FRotator RotatorA = TransformA.Rotator();
+				const FRotator RotatorB = TransformB.Rotator();
+				const FRotator DeltaRotator = RotatorB - RotatorA;
+				Result.SetRotation(FQuat(RotatorA + Alpha * DeltaRotator));
+			}
+			else // (InterpolationMode == EChaosCacheInterpolationMode::DualQuatInterp)
+			{
+				FTransform AdjustedTransformB(TransformB);
+				if ((TransformB.GetRotation() | TransformA.GetRotation()) < 0.0f)
+				{
+					AdjustedTransformB.SetRotation(TransformB.GetRotation() * -1.0f);
+				}
+				Result = (FDualQuat(TransformA) * (1 - Alpha) + FDualQuat(AdjustedTransformB) * Alpha).Normalized().AsFTransform(FMath::Lerp(TransformA.GetScale3D(), AdjustedTransformB.GetScale3D(), Alpha));
+			}
 		}
 		else
 		{

@@ -137,3 +137,30 @@ uint32 UChaosCacheCollection::GetMaxNumFrames() const
 	}
 	return MaxFramesCount;
 }
+
+#if WITH_EDITOR
+void UChaosCacheCollection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UChaosCacheCollection, InterpolationMode))
+	{
+		SetInterpolationMode(InterpolationMode);
+	}
+}
+#endif
+
+void UChaosCacheCollection::SetInterpolationMode(EChaosCacheInterpolationMode Mode)
+{
+	InterpolationMode = Mode;
+	for (UChaosCache* CacheInstance : Caches)
+	{
+		if (CacheInstance)
+		{
+			CacheInstance->InterpolationMode = Mode;
+		}
+	}
+}
+
+
