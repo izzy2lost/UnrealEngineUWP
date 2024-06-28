@@ -160,8 +160,6 @@ private:
 
 	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
 
-	const FPCGDataCollection* GetInspectionData() const;
-
 	void RefreshAttributeList();
 	void RefreshPinComboBox();
 	void RefreshDataComboBox();
@@ -182,12 +180,16 @@ private:
 		bool bIsOutputPin = true;
 	};
 
+	const FPCGDataCollection* GetInspectionData(const TSharedPtr<FPinComboBoxItem>& EditorPin) const;
+	const FPCGDataCollection* GetInspectionData() const;
+
 	FText OnGenerateSelectedPinText() const;
 	void OnSelectionChangedPin(TSharedPtr<FPinComboBoxItem> InItem, ESelectInfo::Type InSelectInfo);
 	TSharedRef<SWidget> OnGeneratePinWidget(TSharedPtr<FPinComboBoxItem> InItem) const;
 
 	const FSlateBrush* GetFilterBadgeIcon() const;
 	TSharedRef<SWidget> OnGenerateFilterMenu();
+	TSharedRef<SWidget> OnGenerateAdditionalOperationsMenu();
 	TSharedRef<SWidget> OnGenerateDataWidget(TSharedPtr<FName> InItem) const;
 	void OnSelectionChanged(TSharedPtr<FName> Item, ESelectInfo::Type SelectInfo);
 	FText OnGenerateSelectedDataText() const;
@@ -197,6 +199,8 @@ private:
 	void ToggleAttribute(FName InAttributeName);
 	ECheckBoxState GetAnyAttributeEnabledState() const;
 	bool IsAttributeEnabled(FName InAttributeName) const;
+
+	void SaveData(bool bUsePinIndex, bool bUseDataIndex);
 
 	TSharedRef<ITableRow> OnGenerateRow(PCGListviewItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable);
 	void OnItemDoubleClicked(PCGListviewItemPtr Item) const;
@@ -249,8 +253,6 @@ private:
 
 	TSharedPtr<STextBlock> NodeNameTextBlock;
 	TSharedPtr<STextBlock> InfoTextBlock;
-	TSharedPtr<SComboButton> FilterButton;
-	TSharedPtr<SButton> LockButton;
 
 	TArray<FName> HiddenAttributes;
 

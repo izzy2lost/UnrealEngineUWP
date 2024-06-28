@@ -2,6 +2,7 @@
 
 #include "SPCGEditorGraphAttributeListView.h"
 
+#include "PCGAssetExporterUtils.h"
 #include "PCGComponent.h"
 #include "PCGData.h"
 #include "PCGDataVisualization.h"
@@ -11,6 +12,7 @@
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
 #include "Data/PCGSpatialData.h"
+#include "Elements/IO/PCGSaveAssetElement.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessor.h"
@@ -326,7 +328,7 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 
 	FilterImage->AddLayer(TAttribute<const FSlateBrush*>(this, &SPCGEditorGraphAttributeListView::GetFilterBadgeIcon));
 
-	SAssignNew(LockButton, SButton)
+	TSharedPtr<SButton> LockButton = SNew(SButton)
 		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 		.OnClicked(this, &SPCGEditorGraphAttributeListView::OnLockClick)
 		.ContentPadding(FMargin(4, 2))
@@ -339,7 +341,7 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 				.Image(this, &SPCGEditorGraphAttributeListView::OnGetLockButtonImageResource)
 		];
 
-	SAssignNew(FilterButton, SComboButton)
+	TSharedPtr<SComboButton> FilterButton = SNew(SComboButton)
 		.ForegroundColor(FSlateColor::UseStyle())
 		.HasDownArrow(false)
 		.OnGetMenuContent(this, &SPCGEditorGraphAttributeListView::OnGenerateFilterMenu)
@@ -347,6 +349,18 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 		.ButtonContent()
 		[
 			FilterImage.ToSharedRef()
+		];
+
+	TSharedPtr<SComboButton> AdditionalOperationsButton = SNew(SComboButton)
+		.ForegroundColor(FSlateColor::UseStyle())
+		.HasDownArrow(false)
+		.OnGetMenuContent(this, &SPCGEditorGraphAttributeListView::OnGenerateAdditionalOperationsMenu)
+		.ContentPadding(1)
+		.ButtonContent()
+		[
+			SNew(SImage)
+			.Image(FAppStyle::GetBrush("EditorViewportToolBar.OptionsDropdown"))
+			.ColorAndOpacity(FSlateColor::UseForeground())
 		];
 
 	SAssignNew(SearchBoxWidget, SSearchBox)
@@ -408,6 +422,13 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 					.Text(PCGEditorGraphAttributeListView::NoNodeInspectedText)
 					.ToolTipText(PCGEditorGraphAttributeListView::NoNodeInspectedToolTip)
 				]
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(EVerticalAlignment::VAlign_Center)
+			.Padding(1.0f, 0.0f)
+			[
+				AdditionalOperationsButton->AsShared()
 			]
 			+SHorizontalBox::Slot()
 			.FillWidth(1.0f)
@@ -568,7 +589,7 @@ void SPCGEditorGraphAttributeListView::OnGenerateUpdated(UPCGComponent* /*InPCGC
 	RequestRefresh();
 }
 
-const FPCGDataCollection* SPCGEditorGraphAttributeListView::GetInspectionData() const
+const FPCGDataCollection* SPCGEditorGraphAttributeListView::GetInspectionData(const TSharedPtr<FPinComboBoxItem>& EditorPin) const
 {
 	if (!PCGComponent.IsValid())
 	{
@@ -582,12 +603,12 @@ const FPCGDataCollection* SPCGEditorGraphAttributeListView::GetInspectionData() 
 	}
 
 	const UPCGPin* Pin = nullptr;
-	if (const TSharedPtr<FPinComboBoxItem> SelectedPin = PinComboBox->GetSelectedItem())
+	if (EditorPin)
 	{
-		const TArray<TObjectPtr<UPCGPin>>& Pins = SelectedPin->bIsOutputPin ? PCGNode->GetOutputPins() : PCGNode->GetInputPins();
-		if (Pins.IsValidIndex(SelectedPin->PinIndex))
+		const TArray<TObjectPtr<UPCGPin>>& Pins = EditorPin->bIsOutputPin ? PCGNode->GetOutputPins() : PCGNode->GetInputPins();
+		if (Pins.IsValidIndex(EditorPin->PinIndex))
 		{
-			Pin = Pins[SelectedPin->PinIndex];
+			Pin = Pins[EditorPin->PinIndex];
 		}
 	}
 
@@ -618,6 +639,11 @@ const FPCGDataCollection* SPCGEditorGraphAttributeListView::GetInspectionData() 
 	StackFrames.Emplace(Pin);
 
 	return PCGComponent->GetInspectionData(Stack);
+}
+
+const FPCGDataCollection* SPCGEditorGraphAttributeListView::GetInspectionData() const
+{
+	return GetInspectionData(PinComboBox->GetSelectedItem());
 }
 
 void SPCGEditorGraphAttributeListView::RefreshAttributeList()
@@ -837,6 +863,84 @@ TSharedRef<SWidget> SPCGEditorGraphAttributeListView::OnGenerateFilterMenu()
 	}
 
 	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> SPCGEditorGraphAttributeListView::OnGenerateAdditionalOperationsMenu()
+{
+	FMenuBuilder MenuBuilder(false, nullptr);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("SaveThisData", "Save this data"),
+		LOCTEXT("SaveThisDataTooltip", "Saves this data to a PCG Data Asset."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Download"),
+		FUIAction(FExecuteAction::CreateSP(this, &SPCGEditorGraphAttributeListView::SaveData, true, true)),
+		NAME_None,
+		EUserInterfaceActionType::Button);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("SaveThisPinData", "Save pin data"),
+		LOCTEXT("SaveThisPinDataTooltip", "Saves all data from the selected pin to a PCG Data Asset."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Download"),
+		FUIAction(FExecuteAction::CreateSP(this, &SPCGEditorGraphAttributeListView::SaveData, true, false)),
+		NAME_None,
+		EUserInterfaceActionType::Button);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("SaveAllData", "Save all"),
+		LOCTEXT("SaveAllDataTooltip", "Saves all the input or output data to a PCG Data Asset."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Download"),
+		FUIAction(FExecuteAction::CreateSP(this, &SPCGEditorGraphAttributeListView::SaveData, false, false)),
+		NAME_None,
+		EUserInterfaceActionType::Button);
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SPCGEditorGraphAttributeListView::SaveData(bool bUsePinComboIndex, bool bUseDataComboIndex)
+{
+	// Can't save N'th data on all pins, as it makes no sense
+	check(!bUseDataComboIndex || bUsePinComboIndex);
+
+	// Build a data collection from the indices we're given.
+	FPCGDataCollection Collection;
+
+	if (!bUsePinComboIndex)
+	{
+		for (const auto& PinComboBoxItem : PinComboBoxItems)
+		{
+			const FPCGDataCollection* PinInspectionData = GetInspectionData(PinComboBoxItem);
+			if (PinInspectionData)
+			{
+				Collection.TaggedData.Append(PinInspectionData->TaggedData);
+			}
+		}
+	}
+	else
+	{
+		if (const FPCGDataCollection* PinInspectionData = GetInspectionData())
+		{
+			if (!bUseDataComboIndex)
+			{
+				Collection = *PinInspectionData;
+			}
+			else
+			{
+
+				Collection.TaggedData.Add(PinInspectionData->TaggedData[GetSelectedDataIndex()]);
+			}
+		}
+	}
+
+	if (Collection.TaggedData.IsEmpty())
+	{
+		return;
+	}
+
+	UPCGDataCollectionExporter* Exporter = NewObject<UPCGDataCollectionExporter>();
+	Exporter->Data = Collection;
+
+	FPCGAssetExporterParameters Parameters;
+	UPCGAssetExporterUtils::CreateAsset(Exporter, Parameters);
 }
 
 FText SPCGEditorGraphAttributeListView::OnGenerateSelectedPinText() const

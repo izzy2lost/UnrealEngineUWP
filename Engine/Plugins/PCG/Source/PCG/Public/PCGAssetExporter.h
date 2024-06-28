@@ -27,6 +27,7 @@ struct PCG_API FPCGAssetExporterParameters
 	FString AssetPath;
 
 	/** Controls whether the assets will be saved at the end of the process or not. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bSaveOnExportEnded = true;
 };
 

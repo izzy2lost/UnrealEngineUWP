@@ -161,6 +161,14 @@ void UPCGAssetExporter::DuplicateAndReOuterData(UPCGDataAsset* Asset)
 			UPCGData* DuplicatedData = TaggedData.Data->DuplicateData(nullptr);
 			DuplicatedData->Rename(nullptr, Asset);
 
+			DuplicatedData->VisitDataNetwork([Asset](const UPCGData* InData)
+			{
+				if (InData && InData->GetOuter() == Asset)
+				{
+					const_cast<UPCGData*>(InData)->Flatten();
+				}
+			});
+
 			TaggedData.Data = DuplicatedData;
 		}
 	}
