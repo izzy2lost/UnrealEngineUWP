@@ -6,8 +6,10 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Elements/Actor/ActorElementData.h"
 #include "GameFramework/Actor.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/Blueprint.h"
 
-TArray<FAssetData> UActorElementEditorAssetDataInterface::GetAllReferencedAssetDatas(const FTypedElementHandle& InElementHandle)
+TArray<FAssetData> UActorElementEditorAssetDataInterface::GetAllReferencedAssetDatas(const FTypedElementHandle& InElementHandle, const FTypedElementAssetDataReferencedOptions& InOptions)
 {
 	TArray<FAssetData> AssetDatas;
 
@@ -15,28 +17,49 @@ TArray<FAssetData> UActorElementEditorAssetDataInterface::GetAllReferencedAssetD
 	{
 		TArray<UObject*> ReferencedContentObjects;
 		RawActorPtr->GetReferencedContentObjects(ReferencedContentObjects);
-		for (const UObject* ContentObject : ReferencedContentObjects)
+
+		if (InOptions.OnlyTopLevelAsset())
 		{
-			FAssetData ObjectAssetData = FAssetData(ContentObject);
-			if (ObjectAssetData.IsValid())
+			UObject** BPObject = ReferencedContentObjects.FindByPredicate([](const UObject* InObject)
 			{
-				AssetDatas.Emplace(ObjectAssetData);
+				if (InObject && (InObject->IsA<UBlueprint>() || InObject->IsA<UBlueprintGeneratedClass>()))
+				{
+					return true;
+				}
+				return false;
+			});
+			
+			if (BPObject)
+			{
+				AssetDatas.Add(FAssetData(*BPObject, FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering));
 			}
 		}
 
-		TArray<FSoftObjectPath> SoftObjects;
-		RawActorPtr->GetSoftReferencedContentObjects(SoftObjects);
-		if (SoftObjects.Num())
+		if (AssetDatas.IsEmpty())
 		{
-			IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
-
-			for (const FSoftObjectPath& SoftObject : SoftObjects)
+			for (const UObject* ContentObject : ReferencedContentObjects)
 			{
-				FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(SoftObject);
-
-				if (AssetData.IsValid())
+				FAssetData ObjectAssetData = FAssetData(ContentObject, FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering);
+				if (ObjectAssetData.IsValid())
 				{
-					AssetDatas.Add(AssetData);
+					AssetDatas.Emplace(ObjectAssetData);
+				}
+			}
+
+			TArray<FSoftObjectPath> SoftObjects;
+			RawActorPtr->GetSoftReferencedContentObjects(SoftObjects);
+			if (SoftObjects.Num())
+			{
+				IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
+
+				for (const FSoftObjectPath& SoftObject : SoftObjects)
+				{
+					FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(SoftObject);
+
+					if (AssetData.IsValid())
+					{
+						AssetDatas.Add(AssetData);
+					}
 				}
 			}
 		}
