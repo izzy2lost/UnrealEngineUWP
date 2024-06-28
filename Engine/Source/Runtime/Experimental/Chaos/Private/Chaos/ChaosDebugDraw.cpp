@@ -1606,6 +1606,43 @@ namespace Chaos
 			}
 		}
 
+		void DrawParticleDensityImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* InParticle, const FChaosDebugDrawSettings& Settings)
+		{
+			if (ShouldIgnoreParticle(InParticle))
+			{
+				return;
+			}
+
+			if (const auto RigidParticle = InParticle->CastToRigidParticle())
+			{
+				if (RigidParticle->Disabled())
+				{
+					return;
+				}
+
+				const FColor Color = RigidParticle->IsDynamic() ? FColor::Yellow : FColor::Cyan;
+
+				const FVec3 PCOM = SpaceTransform.TransformPosition(FParticleUtilities::GetCoMWorldPosition(RigidParticle));
+
+				// density is per material so it is set per shape
+				for (const TUniquePtr<FPerShapeData>& Shape: RigidParticle->ShapesArray())
+				{
+					if (Shape && Shape->NumMaterials() > 0)
+					{
+						// use the first one for now
+						if (const Chaos::FChaosPhysicsMaterial* ChaosMaterial = Shape->GetMaterial(0).Get())
+						{
+							const double Density = ChaosMaterial->Density;
+							auto FormatString = TEXT("{0}");
+							const FString DensityStr = FString::Format(FormatString, { FString::SanitizeFloat(Density, 1) });
+							FDebugDrawQueue::GetInstance().DrawDebugString(PCOM, DensityStr, nullptr, Color, UE_KINDA_SMALL_NUMBER, false, Settings.FontScale);
+
+						}
+					}
+				}
+			}
+		}
+
 		void DrawJointConstraintImpl(const FRigidTransform3& SpaceTransform, const FPBDJointConstraintHandle* ConstraintHandle, Chaos::FRealSingle ColorScale, const FChaosDebugDrawJointFeatures& FeatureMask, const FChaosDebugDrawSettings& Settings)
 		{
 			if (!ConstraintHandle->IsEnabled())
@@ -2310,6 +2347,28 @@ namespace Chaos
 				for (auto& Particle : ParticlesView)
 				{
 					DrawParticleMassImpl(SpaceTransform, GetHandleHelper(&Particle), GetChaosDebugDrawSettings(Settings));
+				}
+			}
+		}
+
+		void DrawParticleDensity(const FRigidTransform3& SpaceTransform, const TParticleView<FKinematicGeometryParticles>& ParticlesView, const FChaosDebugDrawSettings* Settings)
+		{
+			if (FDebugDrawQueue::IsDebugDrawingEnabled())
+			{
+				for (auto& Particle : ParticlesView)
+				{
+					DrawParticleDensityImpl(SpaceTransform, GetHandleHelper(&Particle), GetChaosDebugDrawSettings(Settings));
+				}
+			}
+		}
+
+		void DrawParticleDensity(const FRigidTransform3& SpaceTransform, const TParticleView<FPBDRigidParticles>& ParticlesView, const FChaosDebugDrawSettings* Settings)
+		{
+			if (FDebugDrawQueue::IsDebugDrawingEnabled())
+			{
+				for (auto& Particle : ParticlesView)
+				{
+					DrawParticleDensityImpl(SpaceTransform, GetHandleHelper(&Particle), GetChaosDebugDrawSettings(Settings));
 				}
 			}
 		}
