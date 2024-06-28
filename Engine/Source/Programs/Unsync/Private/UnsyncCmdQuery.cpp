@@ -543,12 +543,17 @@ CmdQueryHttpGet(const FCmdQueryOptions& Options)
 	if (!Response.Success())
 	{
 		LogError(HttpError(std::move(RequestUrl), Response.Code));
+		return -1;
 	}
 
 	FPath OutputPath = Options.OutputPath;
 	if (OutputPath.empty())
 	{
-		if (Response.ContentType == EHttpContentType::Application_Json || Response.ContentType == EHttpContentType::Text_Plain ||
+		if (Response.Buffer.Empty())
+		{
+			return 0;
+		}
+		else if (Response.ContentType == EHttpContentType::Application_Json || Response.ContentType == EHttpContentType::Text_Plain ||
 			Response.ContentType == EHttpContentType::Text_Html)
 		{
 			Response.Buffer.PushBack('\n');
