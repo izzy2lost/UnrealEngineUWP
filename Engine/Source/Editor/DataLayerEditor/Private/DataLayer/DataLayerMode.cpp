@@ -1573,13 +1573,14 @@ void FDataLayerMode::RegisterContextMenu()
 					Section.AddSubMenu("MoveSelectedDataLayersTo", LOCTEXT("MoveSelectedDataLayersTo", "Move Selected Data Layer(s) To"), FText(),
 						FNewToolMenuDelegate::CreateLambda([Mode, SelectedDataLayers](UToolMenu* InSubMenu)
 						{
+							const bool bShowRoot = Algo::AllOf(SelectedDataLayers, [](const UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->CanBeChildOf(nullptr); });
 							CreateDataLayerPicker(InSubMenu,
 								FOnDataLayerInstancePicked::CreateLambda([Mode, SelectedDataLayers](UDataLayerInstance* TargetDataLayerInstance)
 								{
 									TArray<UDataLayerInstance*> DataLayerInstances;
 									for (UDataLayerInstance* DataLayerInstance : SelectedDataLayers)
 									{
-										if (ensure(DataLayerInstance->CanBeChildOf(TargetDataLayerInstance)))
+										if (DataLayerInstance->CanBeChildOf(TargetDataLayerInstance))
 										{
 											DataLayerInstances.Add(DataLayerInstance);
 										}
@@ -1598,7 +1599,7 @@ void FDataLayerMode::RegisterContextMenu()
 									}
 									return false;
 								}),
-								/*bShowRoot*/true);
+								bShowRoot);
 						}));
 				}
 

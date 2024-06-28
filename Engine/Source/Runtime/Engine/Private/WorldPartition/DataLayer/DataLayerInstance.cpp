@@ -409,6 +409,19 @@ bool UDataLayerInstance::CanBeChildOf(const UDataLayerInstance* InParent, FText*
 		return false;
 	}
 
+	// Check if root External Data Layer is the same for the parent
+	if (const UExternalDataLayerInstance* ExternalDataLayerInstance = GetRootExternalDataLayerInstance())
+	{
+		if (!InParent || (InParent->GetRootExternalDataLayerInstance() != ExternalDataLayerInstance))
+		{
+			if (OutReason)
+			{
+				*OutReason = LOCTEXT("ParentHasDifferentRootExternalDataLayer", "Can't reparent Data Layer in a different root External Data Layer");
+			}
+			return false;
+		}
+	}
+
 	if (InParent == nullptr)
 	{
 		// nullptr is considered a valid parent
