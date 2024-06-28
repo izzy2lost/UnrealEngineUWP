@@ -55,17 +55,17 @@ public:
 protected:
 
 	/** The specific color we use for all the "Branched" icons */
-	FLinearColor BranchedColor;
+	FSlateColor BranchedColor;
 
 	/** The specific colors we use for all the "Status" icons */
-	FLinearColor StatusCheckedOutColor;
-	FLinearColor StatusCheckedOutByOtherUserColor;
-	FLinearColor StatusNotAtHeadRevisionColor;
+	FSlateColor StatusCheckedOutColor;
+	FSlateColor StatusCheckedOutByOtherUserColor;
+	FSlateColor StatusNotAtHeadRevisionColor;
 
 	/** The specific colors we use for all the "Snapshot History" state icons */
-	FLinearColor SnapshotHistoryAdded;
-	FLinearColor SnapshotHistoryModified;
-	FLinearColor SnapshotHistoryRemoved;
+	FSlateColor SnapshotHistoryAdded;
+	FSlateColor SnapshotHistoryModified;
+	FSlateColor SnapshotHistoryRemoved;
 	
 private:
 	static FName StyleName;
