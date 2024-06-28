@@ -15,7 +15,7 @@ namespace HordeServer.Tests.Agents.Pools
 	{
 		public PoolsControllerTest()
 		{
-			UpdateConfig(x => x.Pools.Clear());
+			UpdateConfig(x => x.Plugins.GetComputeConfig().Pools.Clear());
 		}
 
 		[TestMethod]
@@ -30,8 +30,9 @@ namespace HordeServer.Tests.Agents.Pools
 
 			UpdateConfig(config =>
 			{
-				config.Pools.Clear();
-				config.Pools.Add(poolConfig);
+				ComputeConfig computeConfig = config.Plugins.GetComputeConfig();
+				computeConfig.Pools.Clear();
+				computeConfig.Pools.Add(poolConfig);
 			});
 
 			ActionResult<List<object>> rawResult = await PoolsController.GetPoolsAsync();
@@ -59,8 +60,9 @@ namespace HordeServer.Tests.Agents.Pools
 
 			UpdateConfig(config =>
 			{
-				config.Pools.Clear();
-				config.Pools.Add(poolConfig);
+				ComputeConfig computeConfig = config.Plugins.GetComputeConfig();
+				computeConfig.Pools.Clear();
+				computeConfig.Pools.Add(poolConfig);
 			});
 
 			IPool? pool = await PoolService.GetPoolAsync(poolConfig.Id);

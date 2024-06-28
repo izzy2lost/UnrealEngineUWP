@@ -372,7 +372,7 @@ namespace HordeServer.Tests
 
 		protected async Task<IPool> CreatePoolAsync(PoolConfig poolConfig)
 		{
-			UpdateConfig(config => config.Pools.Add(poolConfig));
+			UpdateConfig(config => config.Plugins.GetComputeConfig().Pools.Add(poolConfig));
 			return await PoolCollection.GetAsync(poolConfig.Id) ?? throw new NotImplementedException();
 		}
 	}

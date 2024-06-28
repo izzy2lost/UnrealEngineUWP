@@ -273,7 +273,7 @@ namespace HordeServer.Tests.Server
 
 		public RpcServiceTest()
 		{
-			UpdateConfig(x => x.Pools.Clear());
+			UpdateConfig(x => x.Plugins.GetComputeConfig().Pools.Clear());
 		}
 
 		[TestMethod]

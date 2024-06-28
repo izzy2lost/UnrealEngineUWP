@@ -93,4 +93,19 @@ namespace HordeServer
 			}
 		}
 	}
+
+	/// <summary>
+	/// Helper methods for compute config
+	/// </summary>
+	public static class ComputePluginExtensions
+	{
+		/// <summary>
+		/// Get the compute plugin config
+		/// </summary>
+		public static ComputeConfig GetComputeConfig(this IDictionary<PluginName, IPluginConfig> plugins)
+		{
+			IPluginConfig pluginConfig = plugins[new PluginName("compute")];
+			return (ComputeConfig)pluginConfig;
+		}
+	}
 }

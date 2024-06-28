@@ -127,11 +127,6 @@ namespace HordeServer.Server
 		public List<ProjectConfig> Projects { get; set; } = new List<ProjectConfig>();
 
 		/// <summary>
-		/// List of pools
-		/// </summary>
-		public List<PoolConfig> Pools => (Plugins.Values.OfType<ComputeConfig>().FirstOrDefault() ?? new ComputeConfig()).Pools;
-
-		/// <summary>
 		/// List of scheduled downtime
 		/// </summary>
 		public List<ScheduledDowntime> Downtime { get; set; } = new List<ScheduledDowntime>();
@@ -240,8 +235,6 @@ namespace HordeServer.Server
 				_artifactTypeLookup.Add(artifactType.Type, artifactType);
 			}
 
-			UpdateWorkspacesForPools();
-
 			// Ensure that all plugins have an entry in the global config so they can register their ACLs
 			foreach (ILoadedPlugin loadedPlugin in loadedPlugins)
 			{
@@ -257,6 +250,8 @@ namespace HordeServer.Server
 			{
 				pluginConfig.PostLoad(pluginConfigOptions);
 			}
+
+			UpdateWorkspacesForPools();
 
 			_aclLookup.Clear();
 			BuildAclScopeLookup(Acl, _aclLookup);
@@ -395,7 +390,8 @@ namespace HordeServer.Server
 			}
 
 			// Update the list of workspaces for each pool
-			foreach (PoolConfig pool in Pools)
+			ComputeConfig computeConfig = Plugins.GetComputeConfig();
+			foreach (PoolConfig pool in computeConfig.Pools)
 			{
 				// Get the new list of workspaces for this pool
 				List<AgentWorkspaceInfo>? newWorkspaces;

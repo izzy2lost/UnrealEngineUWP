@@ -24,7 +24,7 @@ public class PoolUpdateServiceTest : TestSetup
 
 	public PoolUpdateServiceTest()
 	{
-		UpdateConfig(x => x.Pools.Clear());
+		UpdateConfig(x => x.Plugins.GetComputeConfig().Pools.Clear());
 		_pus = new PoolUpdateService(AgentService, PoolCollection, Clock, GlobalConfig, Tracer, new NullLogger<PoolUpdateService>());
 	}
 
@@ -86,7 +86,7 @@ public class PoolUpdateServiceTest : TestSetup
 	{
 		// Arrange
 		// Explicitly set the grace period for the pool to be longer than the default of 8 hours
-		UpdateConfig(config => config.Pools[0].ShutdownIfDisabledGracePeriod = TimeSpan.FromHours(24.0));
+		UpdateConfig(config => config.Plugins.GetComputeConfig().Pools[0].ShutdownIfDisabledGracePeriod = TimeSpan.FromHours(24.0));
 
 		// Act
 		await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
@@ -102,7 +102,7 @@ public class PoolUpdateServiceTest : TestSetup
 	public async Task ShutdownDisabledAgents_WithAutoScalingOff_DoesNotRequestShutdownAsync()
 	{
 		// Arrange
-		UpdateConfig(config => config.Pools[0].EnableAutoscaling = false);
+		UpdateConfig(config => config.Plugins.GetComputeConfig().Pools[0].EnableAutoscaling = false);
 
 		// Act
 		await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);

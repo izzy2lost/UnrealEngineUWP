@@ -1,19 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
-using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
-using EpicGames.Horde.Server;
 using HordeServer.Agents;
 using HordeServer.Agents.Pools;
-using HordeServer.Tools;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,125 +12,23 @@ using Microsoft.Extensions.Options;
 namespace HordeServer.Server
 {
 	/// <summary>
-	/// Controller managing account status
+	/// Controller managing pools-related server commands
 	/// </summary>
 	[ApiController]
 	[Authorize]
 	[Route("[controller]")]
-	public class ServerController : HordeControllerBase
+	public class PoolsServerController : HordeControllerBase
 	{
 		readonly IServiceProvider _serviceProvider;
-		readonly IToolCollection _toolCollection;
-		readonly IClock _clock;
-		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly IOptionsSnapshot<ComputeConfig> _computeConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ServerController(IServiceProvider serviceProvider, IToolCollection toolCollection, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public PoolsServerController(IServiceProvider serviceProvider, IOptionsSnapshot<ComputeConfig> computeConfig)
 		{
 			_serviceProvider = serviceProvider;
-			_toolCollection = toolCollection;
-			_clock = clock;
-			_globalConfig = globalConfig;
-		}
-
-		/// <summary>
-		/// Get server version
-		/// </summary>
-		[HttpGet]
-		[AllowAnonymous]
-		[Route("/api/v1/server/version")]
-		public ActionResult GetVersion()
-		{
-			FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
-			return Ok(fileVersionInfo.ProductVersion);
-		}
-
-		/// <summary>
-		/// Get server information
-		/// </summary>
-		[HttpGet]
-		[AllowAnonymous]
-		[Route("/api/v1/server/info")]
-		[ProducesResponseType(typeof(GetServerInfoResponse), 200)]
-		public async Task<ActionResult<GetServerInfoResponse>> GetServerInfoAsync()
-		{
-			GetServerInfoResponse response = new GetServerInfoResponse();
-			response.ApiVersion = HordeApiVersion.Latest;
-
-			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
-			response.ServerVersion = versionInfo.ProductVersion ?? String.Empty;
-
-			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, HttpContext.RequestAborted);
-			if (tool != null)
-			{
-				IToolDeployment? deployment = tool.GetCurrentDeployment(1.0, _clock.UtcNow);
-				if (deployment != null)
-				{
-					response.AgentVersion = deployment.Version;
-				}
-			}
-
-			return response;
-		}
-
-		/// <summary>
-		/// Gets connection information
-		/// </summary>
-		[HttpGet]
-		[AllowAnonymous]
-		[Route("/api/v1/server/connection")]
-		public ActionResult<GetConnectionResponse> GetConnection()
-		{
-			GetConnectionResponse response = new GetConnectionResponse();
-			response.Ip = HttpContext.Connection.RemoteIpAddress?.ToString();
-			response.Port = HttpContext.Connection.RemotePort;
-			return response;
-		}
-
-		/// <summary>
-		/// Gets ports used by the server
-		/// </summary>
-		[HttpGet]
-		[AllowAnonymous]
-		[Route("/api/v1/server/ports")]
-		public ActionResult<GetPortsResponse> GetPorts()
-		{
-			ServerSettings serverSettings = _globalConfig.Value.ServerSettings;
-
-			GetPortsResponse response = new GetPortsResponse();
-			response.Http = serverSettings.HttpPort;
-			response.Https = serverSettings.HttpsPort;
-			response.UnencryptedHttp2 = serverSettings.Http2Port;
-			return response;
-		}
-
-		/// <summary>
-		/// Returns settings for automating auth against this server
-		/// </summary>
-		[HttpGet]
-		[AllowAnonymous]
-		[Route("/api/v1/server/auth")]
-		public ActionResult<GetAuthConfigResponse> GetAuthConfig()
-		{
-			ServerSettings settings = _globalConfig.Value.ServerSettings;
-
-			GetAuthConfigResponse response = new GetAuthConfigResponse();
-			response.Method = settings.AuthMethod;
-			response.ProfileName = settings.OidcProfileName;
-			if (settings.AuthMethod == AuthMethod.Horde)
-			{
-				response.ServerUrl = new Uri(_globalConfig.Value.ServerSettings.ServerUrl, "api/v1/oauth2").ToString();
-				response.ClientId = "default";
-			}
-			else
-			{
-				response.ServerUrl = settings.OidcAuthority;
-				response.ClientId = settings.OidcClientId;
-			}
-			response.LocalRedirectUrls = settings.OidcLocalRedirectUrls;
-			return response;
+			_computeConfig = computeConfig;
 		}
 
 		/// <summary>
@@ -151,14 +38,14 @@ namespace HordeServer.Server
 		[Route("/api/v1/server/migrate/pool-config")]
 		public async Task<ActionResult<object>> MigratePoolsAsync([FromQuery] int? minAgents = null, [FromQuery] int? maxAgents = null, CancellationToken cancellationToken = default)
 		{
-			if (!_globalConfig.Value.Authorize(PoolAclAction.ListPools, User))
+			if (!_computeConfig.Value.Authorize(PoolAclAction.ListPools, User))
 			{
 				return Forbid(PoolAclAction.ListPools);
 			}
 
 			IPoolCollection poolCollection = _serviceProvider.GetRequiredService<IPoolCollection>();
 			List<IPoolConfig> poolConfigs = (await poolCollection.GetConfigsAsync(cancellationToken)).ToList();
-			HashSet<PoolId> removePoolIds = _globalConfig.Value.Plugins.GetComputeConfig().Pools.Select(x => x.Id).ToHashSet();
+			HashSet<PoolId> removePoolIds = _computeConfig.Value.Pools.Select(x => x.Id).ToHashSet();
 			poolConfigs.RemoveAll(x => removePoolIds.Contains(x.Id));
 
 			if (minAgents != null || maxAgents != null)

@@ -102,7 +102,7 @@ namespace HordeServer.Tests.Fleet
 
 		public FleetServiceTest()
 		{
-			UpdateConfig(x => x.Pools.Clear());
+			UpdateConfig(x => x.Plugins.GetComputeConfig().Pools.Clear());
 		}
 
 		[TestMethod]
