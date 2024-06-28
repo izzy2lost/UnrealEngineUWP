@@ -27,6 +27,7 @@ public class AudioInsights : ModuleRules
 				"CoreUObject",
 				"InputCore",
 				"OutputLog",
+				"SessionServices",
 				"Slate",
 				"SlateCore",
 				"TraceAnalysis",
