@@ -130,10 +130,12 @@ struct OIDNState
 				AlbedoFilter = OIDNDevice.newFilter("RT");
 				AlbedoFilter.setImage("albedo", RawAlbedo.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
 				AlbedoFilter.setImage("output", RawAlbedo.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
+				AlbedoFilter.set("quality", oidn::Quality::High);
 				AlbedoFilter.commit();
 				NormalFilter = OIDNDevice.newFilter("RT");
 				NormalFilter.setImage("normal", RawNormal.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
 				NormalFilter.setImage("output", RawNormal.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
+				NormalFilter.set("quality", oidn::Quality::High);
 				NormalFilter.commit();
 			}
 			else
@@ -155,6 +157,7 @@ struct OIDNState
 			{
 				// +cleanAux
 				PixelsFilter.set("cleanAux", true);
+				PixelsFilter.set("quality", oidn::Quality::High);
 			}
 			PixelsFilter.set("hdr", true);
 			PixelsFilter.commit();

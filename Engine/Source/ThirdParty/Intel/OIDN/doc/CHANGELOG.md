@@ -1,6 +1,54 @@
 Version History
 ---------------
 
+### Changes in v2.3.0:
+
+-   Significantly improved image quality of the `RT` filter in *high* quality
+    mode for HDR denoising with prefiltering, i.e., the following combinations
+    of input features and parameters:
+        -   HDR color + albedo + normal + `cleanAux`
+        -   albedo
+        -   normal
+    In these cases a much more complex filter is used, which results in lower
+    performance than before (about 2x). To revert to the previous performance
+    behavior, please switch to the *balanced* quality mode.
+-   Added *fast* quality mode (`OIDN_QUALITY_FAST`) for even higher performance
+    (about 1.5-2x) interactive/real-time previews and lower default memory usage
+    at the cost of somewhat lower image quality. Currently this is implemented
+    for the `RT` filter except prefiltering (albedo, normal). In other cases
+    denoising implicitly falls back to *balanced* mode.
+-   Added Intel Arrow Lake, Lunar Lake, and Battlemage GPU support
+-   Execute `Async` functions asynchronously on CPU devices as well
+-   Load/initialize device modules lazily (improves stability)
+-   Added `oidnIsCPUDeviceSupported`, `oidnIsSYCLDeviceSupported`,
+    `oidnIsCUDADeviceSupported`, `oidnIsHIPDeviceSupported`,
+    and `oidnIsMetalDeviceSupported` API functions for checking whether a
+    physical device of a particular type is supported
+-   Release the CUDA primary context when destroying the device object if using
+    the CUDA driver API
+-   Added `OIDN_LIBRARY_NAME` CMake option for setting the base name of the Open
+    Image Denoise library files
+-   Fixed device creation error with `oidnNewDevice` when the default device of
+    the specified type (e.g. CUDA) is not supported but there are other
+    supported non-default devices of that type in the system
+-   Fixed CMake error when building with Metal support using non-Apple Clang
+-   Fixed iOS build errors
+-   Added support for building with ROCm 6.x
+-   `oidnNewCUDADevice` and `oidnNewHIPDevice` no longer accept negative device
+    IDs. If the goal is to use the current device, its actual ID needs to be
+    passed.
+-   Upgraded to oneTBB 2021.12.0 in the official binaries
+-   Training:
+    -   Improved training performance on CUDA and MPS devices, added `--compile`
+        option
+    -   Added `--quality` option (`high`, `balanced`, `fast`) for selecting the
+        size of the model to train, changed the default from `balanced` to `high`
+    -   Added new models to the `--model` option (`unet_small`, `unet_large`,
+        `unet_xl`)
+    -   Added support for training with prefiltered auxiliary features by
+        passing `--aux_results` to `preprocess.py` and `train.py`
+    -   Added experimental support for depth (`z`)
+
 ### Changes in v2.2.2:
 
 -   Fully fixed GPU memory leak when releasing SYCL, CUDA and HIP device objects
@@ -82,8 +130,8 @@ Version History
     for querying memory allocations supported by the device
 -   Added `externalMemoryTypes` device parameter for querying the supported
     external memory handle types
--   Added `quality` filter parameter for setting the filtering quality mode (high
-    or balanced quality)
+-   Added `quality` filter parameter for setting the filtering quality mode (*high*
+    or *balanced* quality)
 -   Minor API changes with backward compatibility:
     -   Added `oidn(Get|Set)(Device|Filter)(Bool|Int|Float)` functions and
         deprecated `oidn(Get|Set)(Device|Filter)(1b|1i|1f)` functions
