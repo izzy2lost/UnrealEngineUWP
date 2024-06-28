@@ -2346,8 +2346,6 @@ class DeviceUnreal(Device):
             f"{self.name}: Program with id {puuid} exited with "
             f"returncode {returncode}")
 
-        self._update_widget_classes()
-
         try:
             program_name = self.program_start_queue.on_program_ended(
                 puuid=puuid, unreal_client=self.unreal_client)
@@ -2355,6 +2353,11 @@ class DeviceUnreal(Device):
             LOGGER.error(
                 f"{self.name}: on_program_ended with unknown id {puuid}")
             return
+
+        # Update the widget classes (e.g. open button icon) once the
+        # program_start_queue has been updated, since the status of the
+        # queue may affect the widget classes.
+        self._update_widget_classes()
 
         # Check if there are remaining programs named the same but with
         # different ids, which is not normal.

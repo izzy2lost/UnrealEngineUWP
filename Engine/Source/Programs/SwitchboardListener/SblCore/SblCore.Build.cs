@@ -65,14 +65,16 @@ public class SblCore : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(ModuleDirectory, "NvmlWrapper", "Lib", "Windows", "NvmlWrapper.lib"));
-
-			PublicIncludePaths.AddRange(
-				new string[]
-				{
-				Path.Combine(ModuleDirectory, "NvmlWrapper", "Public"),
-				}
-			);
 		}
+		else if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			PublicAdditionalLibraries.Add(Path.Combine(ModuleDirectory, "NvmlWrapper", "Lib", "Linux", "libNvmlWrapper.a"));
+		}
+
+		PublicIncludePaths.AddRange(new string[] 
+		{
+			Path.Combine(ModuleDirectory, "NvmlWrapper", "Public"),
+		});
 
 	}
 }

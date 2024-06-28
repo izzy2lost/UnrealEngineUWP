@@ -84,7 +84,7 @@ FScopedNvApi::FScopedNvApi()
 
 	if (Statics::InstanceCount == 1)
 	{
-		UE_LOG(LogSwitchboard, Verbose, TEXT("FScopedNvApi InstanceCount incremented to 1"));
+		UE_LOG(LogSwitchboard, VeryVerbose, TEXT("FScopedNvApi InstanceCount incremented to 1"));
 	}
 
 	// Let others know that a new instance of this class was instantiated.
@@ -104,7 +104,7 @@ FScopedNvApi::~FScopedNvApi()
 	// a future instance tries to get a gpu count or read gpu stats.
 	if (!Statics::InstanceCount)
 	{
-		UE_LOG(LogSwitchboard, Verbose, TEXT("FScopedNvApi InstanceCount decremented to 0"));
+		UE_LOG(LogSwitchboard, VeryVerbose, TEXT("FScopedNvApi InstanceCount decremented to 0"));
 		Statics::PhysicalGpuHandles.Reset(); // Keep the memory.
 	}
 

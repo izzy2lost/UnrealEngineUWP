@@ -3,7 +3,7 @@
 #include "SwitchboardListener.h"
 
 #include "CpuUtilizationMonitor.h"
-#include "SBLHelperClient.h"
+#include "GpuClockerManager.h"
 #include "SwitchboardAuth.h"
 #include "SwitchboardListenerApp.h"
 #include "SwitchboardMessageFuture.h"
@@ -50,7 +50,7 @@
 #endif
 
 
-#define QUIC_ENSURE(X)		ensure(QUIC_SUCCEEDED(X))
+#define QUIC_ENSURE(X) ensure(QUIC_SUCCEEDED(X))
 
 
 const FIPv4Endpoint FSwitchboardListener::InvalidEndpoint(FIPv4Address::LanBroadcast, 0);
@@ -370,7 +370,7 @@ FString FSwitchboardCommandLineOptions::ToString(bool bIncludeRedeploy /* = fals
 FSwitchboardListener::FSwitchboardListener(const FSwitchboardCommandLineOptions& InOptions)
 	: Options(InOptions)
 	, CpuMonitor(MakeShared<FCpuUtilizationMonitor>())
-	, SBLHelper(MakeShared<FSBLHelperClient>())
+	, GpuClockerManager(MakeShared<FGpuClockerManager>())
 	, CachedMosaicToposLock(MakeShared<FRWLock>())
 	, CachedMosaicTopos(MakeShared<TArray<FMosaicTopo>>())
 {
@@ -619,7 +619,7 @@ void FSwitchboardListener::Tick()
 	HandleRunningProcesses(RunningProcesses, true);
 	HandleRunningProcesses(FlipModeMonitors, false);
 	SendMessageFutures();
-	SBLHelper->Tick();
+	GpuClockerManager->Tick();
 
 #if PLATFORM_WINDOWS
 	FWorkaroundForHitchingAfterHours::Get().Tick();
@@ -1042,58 +1042,9 @@ bool FSwitchboardListener::Task_StartProcess(const FSwitchboardStartTask& InRunT
 	}
 
 	// Lock Gpu Clocks for the lifetime of this PID, if requested
-	if (InRunTask.bLockGpuClock && SBLHelper.IsValid())
+	if (InRunTask.bLockGpuClock && GpuClockerManager.IsValid())
 	{
-		// Try to connect to the SBLHelper server if we haven't already
-		if (!SBLHelper->IsConnected())
-		{
-			FSBLHelperClient::FConnectionParams ConnectionParams;
-
-			uint16 Port = 8010; // Default tcp port
-
-			// Apply command line port number override, if present
-			{
-				static uint16 CmdLinePortOverride = 0;
-				static bool bCmdLinePortOverrideParsed = false;
-				static bool bCmdLinePortOverrideValid = false;
-
-				if (!bCmdLinePortOverrideParsed)
-				{
-					bCmdLinePortOverrideParsed = true;
-
-					bCmdLinePortOverrideValid = FParse::Value(FCommandLine::Get(), TEXT("sblhport="), CmdLinePortOverride);
-				}
-
-				if (bCmdLinePortOverrideValid)
-				{
-					Port = CmdLinePortOverride;
-				}
-			}
-
-			const FString HostName = FString::Printf(TEXT("localhost:%d"), Port);
-			FIPv4Endpoint::FromHostAndPort(*HostName, ConnectionParams.Endpoint);
-
-			SBLHelper->Connect(ConnectionParams);
-		}
-
-		if (SBLHelper->IsConnected())
-		{
-			const bool bSentMessage = SBLHelper->LockGpuClock(NewProcess->PID);
-
-			if (!bSentMessage)
-			{
-				UE_LOG(LogSwitchboard, Error, TEXT("Failed to send message to SBLHelper server to request gpu clock locking"));
-			}
-
-			// We disconnect right away because launches happen only far and in between.
-			SBLHelper->Disconnect();
-		}
-		else
-		{
-			UE_LOG(LogSwitchboard, Warning, TEXT("Lock Gpu clocks was requested but could not connect to SwitchboardListenerHelper process. "
-				"Please verify that it is running as admin (elevated privileges are required to lock Gpu clocks). "
-			    "If locking Gpu clocks is not desired, this option can be disabled in Switchboard."));
-		}
+		GpuClockerManager->LockGpuClocksForPid(NewProcess->PID);
 	}
 
 	UE_LOG(LogSwitchboard, Display, TEXT("Started process %d: %s %s"), NewProcess->PID, *InRunTask.Command, *InRunTask.Arguments);
@@ -2527,6 +2478,12 @@ void FSwitchboardListener::HandleRunningProcesses(TArray<TSharedPtr<FRunningProc
 				{
 					FUTF8ToTCHAR StdoutConv(reinterpret_cast<const ANSICHAR*>(Process->Output.GetData()), Process->Output.Num());
 					UE_LOG(LogSwitchboard, Display, TEXT("Output:\n%.*s"), StdoutConv.Length(), StdoutConv.Get());
+				}
+
+				// Let the clock manager know that the Pid ended.
+				if (GpuClockerManager.IsValid())
+				{
+					GpuClockerManager->PidEnded(Process->PID);
 				}
 
 				// Notify remote client, which implies that this is a program managed by it.
