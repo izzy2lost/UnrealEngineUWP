@@ -50,6 +50,7 @@ namespace HordeServer.Plugins
 
 			public void ConfigureServices(IConfiguration config, IServerInfo serverInfo, IServiceCollection serviceCollection)
 			{
+				serviceCollection.Configure<TServerConfig>(config);
 				serviceCollection.AddPluginConfig<TGlobalConfig>(Name);
 
 				TStartup startup = CreateStartup(config, serverInfo);
