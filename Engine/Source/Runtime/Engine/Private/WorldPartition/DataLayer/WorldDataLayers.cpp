@@ -1131,7 +1131,6 @@ void AWorldDataLayers::InitializeExternalPackageDataLayerInstances()
 void AWorldDataLayers::OnDataLayerManagerInitialized()
 {
 #if WITH_EDITOR
-	ConditionalPostLoad();
 	// At this point, LoadedExternalPackageDataLayerInstances are fully loaded, transfer them to the DataLayerInstances list.
 	if (IsUsingExternalPackageDataLayerInstances())
 	{
