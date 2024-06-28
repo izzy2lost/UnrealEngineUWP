@@ -3305,7 +3305,7 @@ void UEditorEngine::GetAssetsToSyncToContentBrowser(TArray<FAssetData>& Assets, 
 
 				if (TTypedElement<ITypedElementAssetDataInterface> AssetDataInterface = UTypedElementRegistry::GetInstance()->GetElement<ITypedElementAssetDataInterface>(SelectedHandle))
 				{
-					Assets.Append(AssetDataInterface.GetAllReferencedAssetDatas());
+					Assets.Append(AssetDataInterface.GetAllReferencedAssetDatas(FTypedElementAssetDataReferencedOptions().SetOnlyTopLevelAsset(true)));
 				}
 
 				return true;
