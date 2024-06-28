@@ -410,6 +410,7 @@ namespace HordeServer
 			services.AddSingleton<JobService>();
 			services.AddSingleton<ILogExtAuthProvider>(sp => sp.GetRequiredService<JobService>());
 			services.AddSingleton<LifetimeService>();
+			services.AddSingleton<ILifetimeService>(sp => sp.GetRequiredService<LifetimeService>());
 			services.AddHostedService(provider => provider.GetRequiredService<LifetimeService>());
 			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
 			services.AddSingleton<ServerStatusService>();

@@ -259,6 +259,7 @@ namespace HordeServer.Streams
 			ProjectConfig = projectConfig;
 
 			Acl.PostLoad(projectConfig.Acl, $"stream:{Id}");
+			Acl.LegacyScopeNames = projectConfig.Acl.LegacyScopeNames?.Select(x => x.Append($"s:{Id}")).ToArray();
 
 			JobOptions.MergeDefaults(projectConfig.JobOptions);
 
@@ -872,6 +873,7 @@ namespace HordeServer.Streams
 			}
 
 			Acl.PostLoad(streamConfig.Acl, $"template:{Id}");
+			Acl.LegacyScopeNames = streamConfig.Acl.LegacyScopeNames?.Select(x => x.Append($"t:{Id}")).ToArray();
 		}
 	}
 

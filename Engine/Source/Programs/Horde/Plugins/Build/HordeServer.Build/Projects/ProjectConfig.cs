@@ -121,6 +121,7 @@ namespace HordeServer.Projects
 		{
 			Id = id;
 			Acl.PostLoad(parentAcl, $"project:{Id}");
+			Acl.LegacyScopeNames = new AclScopeName[] { parentAcl.ScopeName.Append($"p:{Id}") };
 
 			foreach (StreamConfig stream in Streams)
 			{

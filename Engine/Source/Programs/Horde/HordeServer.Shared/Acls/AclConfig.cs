@@ -32,6 +32,12 @@ namespace HordeServer.Acls
 		public AclScopeName ScopeName { get; set; }
 
 		/// <summary>
+		/// Legacy aliases for this scope
+		/// </summary>
+		[JsonIgnore]
+		public AclScopeName[]? LegacyScopeNames { get; set; }
+
+		/// <summary>
 		/// ACLs which are parented to this
 		/// </summary>
 		[JsonIgnore]
