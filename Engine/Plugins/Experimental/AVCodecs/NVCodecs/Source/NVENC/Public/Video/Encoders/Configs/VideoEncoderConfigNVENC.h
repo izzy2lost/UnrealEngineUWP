@@ -31,8 +31,8 @@ public:
 		enablePTD = 1;
 		reportSliceOffsets = 0;
 		enableSubFrameWrite = 0;
-		maxEncodeWidth = 4096;
-		maxEncodeHeight = 4096;
+		maxEncodeWidth = 0;
+		maxEncodeHeight = 0;
 
 		Config.version = NV_ENC_CONFIG_VER;
 		encodeConfig = &Config;
