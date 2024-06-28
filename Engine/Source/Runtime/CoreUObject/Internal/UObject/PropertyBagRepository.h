@@ -181,6 +181,13 @@ public:
 		return Cast<UClass>(CreatePropertyBagPlaceholderType(Outer, Class, Name, Flags, T::StaticClass()));
 	}
 
+	/**
+	 * Remove a placeholder type object from the internal registry.
+	 * 
+	 * @param PlaceholderType	Placeholder type object to remove.
+	 */
+	static COREUOBJECT_API void RemovePropertyBagPlaceholderType(UStruct* PlaceholderType);
+
 private:
 	void Lock() const { CriticalSection.Lock(); }
 	void Unlock() const { CriticalSection.Unlock(); }

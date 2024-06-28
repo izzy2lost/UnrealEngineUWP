@@ -181,7 +181,7 @@ void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& 
 			}
 			OldBagData.Destroy();
 		}
-		else if (UStruct* TypeObject = Cast<UStruct>(Pair.Value))
+		else if (UStruct* TypeObject = Cast<UStruct>(Pair.Key))
 		{
 			if (IsPropertyBagPlaceholderType(TypeObject))
 			{
@@ -1052,6 +1052,9 @@ UStruct* FPropertyBagRepository::CreatePropertyBagPlaceholderType(UObject* Outer
 
 		// This class is for internal use and should not be exposed for selection or instancing in the editor.
 		PlaceholderTypeAsClass->ClassFlags |= CLASS_Hidden | CLASS_HideDropDown;
+
+		// Required by garbage collection for class types.
+		PlaceholderTypeAsClass->AssembleReferenceTokenStream();
 	}
 
 	// Use the property bag repository for now to manage property bag placeholder types (e.g. object lifetime).
@@ -1059,6 +1062,12 @@ UStruct* FPropertyBagRepository::CreatePropertyBagPlaceholderType(UObject* Outer
 	FPropertyBagPlaceholderTypeRegistry::Get().Add(PlaceholderType);
 
 	return PlaceholderType;
+}
+
+void FPropertyBagRepository::RemovePropertyBagPlaceholderType(UStruct* PlaceholderType)
+{
+	ensure(IsPropertyBagPlaceholderType(PlaceholderType));
+	FPropertyBagPlaceholderTypeRegistry::Get().Remove(PlaceholderType);
 }
 
 } // UE

@@ -2971,6 +2971,12 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 			
 			OldToNewInstanceMap.Add(OldToNew.Key, OldToNew.Value);
 			SourceObjects.Add(OldToNew.Key);
+
+			// Remove references to placeholder types before they get replaced below.
+			if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderType(OldToNew.Key))
+			{
+				UE::FPropertyBagRepository::RemovePropertyBagPlaceholderType(OldToNew.Key);
+			}
 		}
 	}
 
