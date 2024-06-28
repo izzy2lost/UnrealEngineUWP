@@ -70,8 +70,16 @@ public:
 	TLazyObjectPtr<AActor> SourceActor;
 
 	/** Source object asset to read sockets from, the transsform for these would be in relation to the Niagara system. */
-	UPROPERTY(EditAnywhere, Category = "SocketReader", meta = (EditConditionHides, EditCondition = "SourceMode == ENDISocketReaderSourceMode::Default || SourceMode == ENDISocketReaderSourceMode::SourceOnly", AllowedClasses= "/Script/Engine.StaticMesh,/Script/Engine.SkeletalMesh"))
+	UPROPERTY(EditAnywhere, Category = "SocketReader", meta = (EditConditionHides, EditCondition = "SourceMode == ENDISocketReaderSourceMode::Default || SourceMode == ENDISocketReaderSourceMode::SourceOnly", AllowedClasses="/Script/Engine.StaticMesh,/Script/Engine.SkeletalMesh"))
 	TObjectPtr<UObject> SourceAsset;
+
+	/** When looking for an attached parent component only accept this type of component. */
+	UPROPERTY(EditAnywhere, Category = "SocketReader", meta = (EditConditionHides, EditCondition = "SourceMode == ENDISocketReaderSourceMode::Default || SourceMode == ENDISocketReaderSourceMode::AttachedParentOnly", AllowedClasses="/Script/Engine.SceneComponent"))
+	TObjectPtr<UClass> AttachComponentClass;
+
+	/** When looking for an attached parent component it must have this tag to be considered. */
+	UPROPERTY(EditAnywhere, Category = "SocketReader", meta = (EditConditionHides, EditCondition = "SourceMode == ENDISocketReaderSourceMode::Default || SourceMode == ENDISocketReaderSourceMode::AttachedParentOnly", AllowedClasses = "/Script/Engine.SceneComponent"))
+	FName AttachComponentTag;
 
 	/**
 	Source object parameter binding.

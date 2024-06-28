@@ -231,12 +231,27 @@ namespace NDISocketReaderLocal
 		// Resolve Attached Parent?
 		if (bTryAttachedParent && !ResolvedObject)
 		{
-			USceneComponent* Component = SystemInstance->GetAttachComponent();
-			if (Component->IsA<UNiagaraComponent>())
+			USceneComponent* AttachComponent = SystemInstance->GetAttachComponent();
+			if (AttachComponent->IsA<UNiagaraComponent>())
 			{
-				ResolvedObject = Component->GetAttachParent();
-				//-TODO: Do we need to add tags or look until we find sockets?
+				AttachComponent = AttachComponent->GetAttachParent();
 			}
+
+			// Look for the first viable component that satisfies the class and tag
+			if (SocketDI->AttachComponentClass || !SocketDI->AttachComponentTag.IsNone())
+			{
+				while (AttachComponent)
+				{
+					if ((!SocketDI->AttachComponentClass || AttachComponent->IsA(SocketDI->AttachComponentClass)) &&
+						(!SocketDI->AttachComponentTag.IsNone() && AttachComponent->ComponentHasTag(SocketDI->AttachComponentTag)) )
+					{
+						break;
+					}
+					AttachComponent = AttachComponent->GetAttachParent();
+				}
+			}
+
+			ResolvedObject = AttachComponent;
 		}
 
 		// Resolve Source
@@ -810,6 +825,8 @@ bool UNiagaraDataInterfaceSocketReader::Equals(const UNiagaraDataInterface* Othe
 	#endif
 		&& OtherTyped->SourceActor == SourceActor
 		&& OtherTyped->SourceAsset == SourceAsset
+		&& OtherTyped->AttachComponentClass == AttachComponentClass
+		&& OtherTyped->AttachComponentTag == AttachComponentTag
 		&& OtherTyped->ObjectParameterBinding == ObjectParameterBinding
 		&& OtherTyped->bUpdateSocketsPerFrame == bUpdateSocketsPerFrame
 		&& OtherTyped->bRequireCurrentFrameData == bRequireCurrentFrameData;
@@ -830,6 +847,8 @@ bool UNiagaraDataInterfaceSocketReader::CopyToInternal(UNiagaraDataInterface* De
 #endif
 	OtherTyped->SourceActor = SourceActor;
 	OtherTyped->SourceAsset = SourceAsset;
+	OtherTyped->AttachComponentClass = AttachComponentClass;
+	OtherTyped->AttachComponentTag = AttachComponentTag;
 	OtherTyped->ObjectParameterBinding = ObjectParameterBinding;
 	OtherTyped->bUpdateSocketsPerFrame = bUpdateSocketsPerFrame;
 	OtherTyped->bRequireCurrentFrameData = bRequireCurrentFrameData;
