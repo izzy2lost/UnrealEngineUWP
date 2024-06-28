@@ -18,8 +18,8 @@ namespace HordeServer.Utilities
 		/// <inheritdoc />
 		public void OnActionExecuting(ActionExecutingContext context)
 		{
-			IOptionsMonitor<ServerSettings> settings = context.HttpContext.RequestServices.GetRequiredService<IOptionsMonitor<ServerSettings>>();
-			if (!settings.CurrentValue.EnableDebugEndpoints)
+			IServerInfo serverInfo = context.HttpContext.RequestServices.GetRequiredService<IServerInfo>();
+			if (!serverInfo.EnableDebugEndpoints)
 			{
 				context.Result = new ForbidResult();
 			}

@@ -74,6 +74,11 @@ namespace HordeServer
 		bool ReadOnlyMode { get; }
 
 		/// <summary>
+		/// Whether to enable endpoints which are for debugging purposes
+		/// </summary>
+		bool EnableDebugEndpoints { get; }
+
+		/// <summary>
 		/// Helper method to check if this process has activated the given mode
 		/// </summary>
 		/// <param name="mode">Run mode</param>

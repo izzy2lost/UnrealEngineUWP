@@ -30,6 +30,9 @@ namespace HordeServer
 		public IConfiguration Configuration => _configuration;
 
 		/// <inheritdoc/>
+		public bool EnableDebugEndpoints => _serverSettings.Value.EnableDebugEndpoints;
+
+		/// <inheritdoc/>
 		public bool ReadOnlyMode => _serverSettings.Value.MongoReadOnlyMode;
 
 		readonly IConfiguration _configuration;
