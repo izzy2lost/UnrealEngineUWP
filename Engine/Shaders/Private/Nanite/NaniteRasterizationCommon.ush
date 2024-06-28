@@ -394,13 +394,13 @@ struct FMaterialShader
 	#endif
 	}
 
+#if NANITE_PIXEL_PROGRAMMABLE && NUM_TEX_COORD_INTERPOLATORS > 0
 	void GetCustomizedUVs(inout float2 OutCustomizedUVs[NUM_TEX_COORD_INTERPOLATORS])
 	{
-	#if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
 		GetMaterialCustomizedUVs(VertexParameters, OutCustomizedUVs);
 		GetCustomInterpolators(VertexParameters, OutCustomizedUVs);
-	#endif
 	}
+#endif
 
 	float3 EvaluateWorldPositionOffset()
 	{
