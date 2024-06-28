@@ -5,6 +5,7 @@
 #include "Containers/ArrayView.h"
 #include "InstancedActorsTypes.h"
 #include "InstancedActorsIndex.h"
+#include "MassEntityQuery.h"
 #include "ActorPartition/PartitionActor.h"
 #include "Containers/BitArray.h"
 #include "Templates/SharedPointer.h"
@@ -349,6 +350,8 @@ protected:
 	/** Class to be spawned to represent individual actor class instances. */
 	UPROPERTY(EditAnywhere, Category=InstancedActor)
 	TSubclassOf<UInstancedActorsData> InstancedActorsDataClass;
+
+	mutable FMassEntityQuery InstancedActorLocationQuery;
 
 private:
 #if WITH_EDITORONLY_DATA

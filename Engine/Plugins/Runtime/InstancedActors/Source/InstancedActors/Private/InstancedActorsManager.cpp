@@ -243,6 +243,12 @@ void AInstancedActorsManager::InitializeModifyAndSpawnEntities()
 {
 	check(IsValid(InstancedActorSubsystem));
 
+	if (InstancedActorLocationQuery.IsEmpty())
+	{
+		InstancedActorLocationQuery.AddRequirement<FInstancedActorsFragment>(EMassFragmentAccess::ReadOnly);
+		InstancedActorLocationQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	}
+
 	// Debug draw managers as they load
 #if WITH_INSTANCEDACTORS_DEBUG
 	UE::InstancedActors::Debug::DebugDrawManager(UE::InstancedActors::Debug::CVars::DebugManagerLoading, *this);
@@ -797,10 +803,6 @@ bool AInstancedActorsManager::ForEachInstance(FInstanceOperationFunc Operation, 
 	if (HasSpawnedEntities())
 	{
 		check(MassEntityManager.IsValid());
-
-		FMassEntityQuery InstancedActorLocationQuery;
-		InstancedActorLocationQuery.AddRequirement<FInstancedActorsFragment>(EMassFragmentAccess::ReadOnly);
-		InstancedActorLocationQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 
 		for (TObjectPtr<UInstancedActorsData> InstanceData : PerActorClassInstanceData)
 		{

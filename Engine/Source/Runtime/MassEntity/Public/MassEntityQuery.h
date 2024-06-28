@@ -88,6 +88,8 @@ public:
 
 	void RequireMutatingWorldAccess() { bRequiresMutatingWorldAccess = true; }
 
+	bool IsEmpty() const { return FMassFragmentRequirements::IsEmpty() && FMassSubsystemRequirements::IsEmpty(); }
+
 	const TArray<FMassArchetypeHandle>& GetArchetypes() const
 	{ 
 		return ValidArchetypes; 
