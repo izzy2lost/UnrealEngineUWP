@@ -120,6 +120,11 @@ EPCGDataType UPCGCopyAttributesSettings::GetCurrentPinTypes(const UPCGPin* InPin
 	return OutputType != EPCGDataType::None ? OutputType : EPCGDataType::Any;
 }
 
+TArray<FText> UPCGCopyAttributesSettings::GetNodeTitleAliases() const
+{
+	return { LOCTEXT("CopyAttributesAliasTransfer", "Transfer Attributes") };
+}
+
 #endif // WITH_EDITOR
 
 TArray<FPCGPinProperties> UPCGCopyAttributesSettings::InputPinProperties() const
