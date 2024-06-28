@@ -353,7 +353,7 @@ namespace Metasound::Engine
 		{
 			const FGuid& TargetPageID = Settings->GetTargetPageID();
 			const TArray<FMetaSoundPageSettings>& PageSettingsArray = Settings->GetPageSettings();
-			bImplementsPages = Settings->GetPageSettings().IsEmpty();
+			bImplementsPages = !Settings->GetPageSettings().IsEmpty();
 
 			bool bFoundMatch = false;
 			for (int32 Index = PageSettingsArray.Num() - 1; Index >= 0; --Index)
@@ -399,7 +399,7 @@ namespace Metasound::Engine
 
 			UE_LOG(LogMetaSound, Error,
 				TEXT("'%s' failed to resolve executable page ID:  \nMetaSound 'Page Settings' does not provide a valid fallback page for execution"
-					"on the desired platform, which can result in undefined behavior. Registering asset's page with ID '%s'."),
+					" on the desired platform, which can result in undefined behavior. Registering asset's page with ID '%s'."),
 				*AssetPath.ToString(),
 				*PageIdentifier);
 		}
