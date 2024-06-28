@@ -25,7 +25,7 @@ struct FOptimusAnimAttributeBufferDescription
 	UPROPERTY(EditAnywhere, Category = "Data Interface")
 	FString Name;
 
-	UPROPERTY(EditAnywhere, Category = "Data Interface", meta=(UseInAnimAttribute))
+	UPROPERTY(EditAnywhere, Category = "Data Interface", meta=(UseInPerBoneAnimAttribute))
 	FOptimusDataTypeRef DataType;
 
 	// Default value if the animation attribute is not found

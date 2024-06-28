@@ -275,7 +275,7 @@ EOptimusDataTypeUsageFlags UOptimusNode_CustomComputeKernel::GetTypeUsageFlags(c
 		return EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput;
 	}
 
-	return EOptimusDataTypeUsageFlags::Resource;
+	return EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute;
 }
 
 

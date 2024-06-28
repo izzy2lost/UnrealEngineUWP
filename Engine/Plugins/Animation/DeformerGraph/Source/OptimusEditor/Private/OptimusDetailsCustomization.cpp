@@ -86,6 +86,10 @@ void FOptimusDataTypeRefCustomization::CustomizeHeader(
 		{
 			UsageMask |= EOptimusDataTypeUsageFlags::AnimAttributes;
 		}
+		if (InPropertyHandle->HasMetaData(FName(TEXT("UseInPerBoneAnimAttribute"))))
+		{
+			UsageMask |= EOptimusDataTypeUsageFlags::PerBoneAnimAttribute;
+		}
 
 		return UsageMask;
 	};

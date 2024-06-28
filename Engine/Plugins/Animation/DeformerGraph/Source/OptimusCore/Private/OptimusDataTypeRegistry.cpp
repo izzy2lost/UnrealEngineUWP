@@ -271,7 +271,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    },
 		ConvertPropertyValuePOD<int32, int32>,
 		FName(TEXT("int")), {}, 
-	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType);
+	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute);
 
 	// FIntPoint -> int2
 	Registry.RegisterType(
@@ -359,7 +359,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    },
 		ConvertPropertyValuePOD<float, float>,
 		FName(TEXT("real")), {}, 
-	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType);
+	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute);
 
 	// double -> float 
 	Registry.RegisterType(
@@ -397,7 +397,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 		FShaderValueType::Get(EShaderFundamentalType::Float, 3),
 		{},
 		bShowElements,
-	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType);
+	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute);
 
 	// FVector4 -> float4
 	Registry.RegisterType(
@@ -422,7 +422,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 		FShaderValueType::Get(EShaderFundamentalType::Float, 4),
 		{},
 		bShowElements,
-		EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType);
+		EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute);
 
 	// FRotator -> float3x3
 	Registry.RegisterType(
@@ -430,7 +430,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    FShaderValueType::Get(EShaderFundamentalType::Float, 3, 3),
 	    {},
 	    bShowElements,
-	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType);
+	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute);
 
 	// FTransform -> float4x4
 	Registry.RegisterType(
@@ -452,7 +452,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 	    },
 	    {},
 	    bHideElements,
-	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType);
+	    EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute);
 
 	// HLSL types
 	Registry.RegisterType(
@@ -947,7 +947,7 @@ bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHan
 		ArrayDataType->DisplayName = FText::FromString(InElementDataType->DisplayName.ToString() + TEXT(" Array"));
 		ArrayDataType->ShaderValueType = FShaderValueType::MakeDynamicArrayType(InnerDataTypeForStructuredBuffer->ShaderValueType);
 		
-		EnumRemoveFlags(ArrayDataType->UsageFlags, EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::AnimAttributes);
+		EnumRemoveFlags(ArrayDataType->UsageFlags, EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::PerBoneAnimAttribute);
 		
 		// Unused field
 		ArrayDataType->ShaderValueSize = 0;	
