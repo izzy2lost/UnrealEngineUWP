@@ -167,15 +167,22 @@ void AInstancedActorsManager::BeginReplication()
 
 void AInstancedActorsManager::BeginPlay()
 {
+	UWorld* World = GetWorld();
+	check(World);
+
+#if WITH_EDITORONLY_DATA
+	if (bIsEditorOnlyActor && World && World->IsPlayInEditor())
+	{
+		Destroy();
+		return;
+	}
+#endif
+
 	Super::BeginPlay();
 
 	TRACE_CPUPROFILER_EVENT_SCOPE("AInstancedActorsManager::BeginPlay");
 
 	UE_LOG(LogInstancedActors, Verbose, TEXT("%s (%d instances) BeginPlay"), *GetPathName(), GetNumValidInstances());
-
-	UWorld* World = GetWorld();
-	check(World);
-
 	UMassEntitySubsystem* EntitySubsystem = World->GetSubsystem<UMassEntitySubsystem>();
 	if (!ensure(EntitySubsystem))
 	{
