@@ -337,8 +337,7 @@ void ExportRasterBin(uint RasterBin, FNaniteMaterialFlags BinMaterialFlags, uint
 	if (!BinMaterialFlags.bNoDerivativeOps)
 	{
 		// Materials requiring finite differences must run the HW path (SW lanes are processing random triangles)
-		// TODO: Temporarily disabled until bNoDerivativeOps is correctly set in all cases
-		//bSoftware = false;
+		bSoftware = false;
 	}
 
 #if FORCE_BATCHING

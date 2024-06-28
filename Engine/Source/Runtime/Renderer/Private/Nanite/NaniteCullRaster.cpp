@@ -1666,6 +1666,8 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 			OutEnvironment.SetDefine(TEXT("VIRTUAL_TEXTURE_FORCE_BILINEAR_FILTERING"), 1);
 		}
 
+		OutEnvironment.CompilerFlags.Add(CFLAG_CheckForDerivativeOps);
+
 		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);
 	}
 
@@ -2152,7 +2154,7 @@ struct FRasterizerPass
 	uint32 IndirectOffset = 0u;
 	uint32 RasterBin = ~uint32(0u);
 
-	uint32 CalcSortKey() const
+	inline uint32 CalcSortKey() const
 	{
 		uint32 Hash = PointerHash(RasterPixelShader.GetPixelShader());
 		Hash = PointerHash(RasterVertexShader.GetVertexShader(), Hash);
@@ -2166,6 +2168,25 @@ struct FRasterizerPass
 		// Make sure z-testing shaders are last
 		SortKey |= bPixelProgrammable ? (1u << 31) : 0;
 		return SortKey;
+	}
+
+	inline bool HasDerivativeOps() const
+	{
+		bool bHasDerivativeOps = false;
+
+		if (ClusterComputeShader.IsValid())
+		{
+			FRHIComputeShader* ClusterCS = ClusterComputeShader.GetComputeShader();
+			bHasDerivativeOps |= ClusterCS ? !ClusterCS->HasNoDerivativeOps() : false;
+		}
+
+		if (PatchComputeShader.IsValid())
+		{
+			FRHIComputeShader* PatchCS = PatchComputeShader.GetComputeShader();
+			bHasDerivativeOps |= PatchCS ? !PatchCS->HasNoDerivativeOps() : false;
+		}
+
+		return bHasDerivativeOps;
 	}
 };
 
@@ -4674,6 +4695,15 @@ void FRenderer::PrepareRasterizerPasses(
 			else
 			{
 				FillFixedMaterialShaders(RasterizerPass);
+			}
+
+			// Patch in the no derivative ops flags into the meta data buffer - this does not need to be present in the setup cache key
+			// We just need it on the GPU for raster binning to force shaders with finite differences down the HW path.
+			if (!RasterizerPass.HasDerivativeOps())
+			{
+				FNaniteMaterialFlags Unpacked = UnpackNaniteMaterialFlags(MaterialBitFlags);
+				Unpacked.bNoDerivativeOps = true;
+				MaterialBitFlags = PackNaniteMaterialBitFlags(Unpacked);
 			}
 		};
 
