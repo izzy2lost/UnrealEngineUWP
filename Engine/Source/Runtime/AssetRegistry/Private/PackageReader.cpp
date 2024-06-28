@@ -549,7 +549,7 @@ bool FPackageReader::ReadLinkerObjects(TMap<FSoftObjectPath, FObjectData>& OutEx
 	{
 		FObjectData Data;
 		const FObjectImport& Import = ImportMap[Index];
-		Data.ClassPath = FSoftObjectPath(Import.ClassPackage, Import.ClassName, FString());
+		Data.ClassPath = FSoftObjectPath::ConstructFromPackageAsset(Import.ClassPackage, Import.ClassName);
 		Data.bUsedInGame = ImportUsedInGame[Index];
 		OutImports.Add(ImportsPaths[Index], MoveTemp(Data));
 	}
@@ -1490,16 +1490,16 @@ void FPackageReader::ConvertLinkerTableToPaths(FName InPackageName, TArray<FObje
 			{
 				if (Index.IsExport())
 				{
-					Result = FSoftObjectPath(InPackageName, ObjectName, FString());
+					Result = FSoftObjectPath::ConstructFromPackageAsset(InPackageName, ObjectName);
 				}
 				else
 				{
-					Result = FSoftObjectPath(ObjectName, NAME_None, FString());
+					Result = FSoftObjectPath::ConstructFromPackageAsset(ObjectName, NAME_None);
 				}
 			}
 			else if (ParentPath.GetAssetFName().IsNone())
 			{
-				Result = FSoftObjectPath(ParentPath.GetLongPackageFName(), ObjectName, FString());
+				Result = FSoftObjectPath::ConstructFromPackageAsset(ParentPath.GetLongPackageFName(), ObjectName);
 			}
 			else if (ParentPath.GetSubPathString().IsEmpty())
 			{

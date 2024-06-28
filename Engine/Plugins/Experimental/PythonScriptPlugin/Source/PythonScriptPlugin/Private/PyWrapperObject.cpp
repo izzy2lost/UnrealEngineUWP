@@ -1947,7 +1947,7 @@ void UPythonGeneratedClass::PostRename(UObject* OldOuter, const FName OldName)
 
 	if (PyType)
 	{
-		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(FSoftObjectPath(OldOuter->GetFName(), OldName, FString()), PyType, false);
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedClassType(FSoftObjectPath::ConstructFromPackageAsset(OldOuter->GetFName(), OldName), PyType, false);
 		FPyWrapperTypeRegistry::Get().RegisterWrappedClassType(this, PyType, false);
 	}
 }

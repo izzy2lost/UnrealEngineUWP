@@ -1632,7 +1632,7 @@ void UPythonGeneratedStruct::PostRename(UObject* OldOuter, const FName OldName)
 
 	if (PyType)
 	{
-		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(FSoftObjectPath(OldOuter->GetFName(), OldName, FString()), PyType, false);
+		FPyWrapperTypeRegistry::Get().UnregisterWrappedStructType(FSoftObjectPath::ConstructFromPackageAsset(OldOuter->GetFName(), OldName), PyType, false);
 		FPyWrapperTypeRegistry::Get().RegisterWrappedStructType(this, PyType, false);
 	}
 }

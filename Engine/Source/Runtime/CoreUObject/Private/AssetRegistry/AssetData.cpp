@@ -384,7 +384,7 @@ FSoftObjectPath FAssetData::GetSoftObjectPath() const
 {
 	if (IsTopLevelAsset())
 	{
-		return FSoftObjectPath(PackageName, AssetName, FString());
+		return FSoftObjectPath::ConstructFromPackageAsset(PackageName, AssetName);
 	}
 	else
 	{

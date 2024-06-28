@@ -114,7 +114,7 @@ void FRedirectCollector::CollectSavedSoftPackageReferences(FName ReferencingPack
 	TArray<FSoftObjectPathProperty, TInlineAllocator<4>> SoftObjectPathArray;
 	Algo::Transform(PackageNames, SoftObjectPathArray, [ReferencingPackage, bEditorOnlyReferences](const FName& PackageName)
 		{
-			return FSoftObjectPathProperty(FSoftObjectPath(PackageName, NAME_None, FString()), NAME_None, bEditorOnlyReferences);
+			return FSoftObjectPathProperty(FSoftObjectPath::ConstructFromPackageAsset(PackageName, NAME_None), NAME_None, bEditorOnlyReferences);
 		});
 
 	FScopeLock ScopeLock(&CriticalSection);

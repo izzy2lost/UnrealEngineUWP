@@ -43,6 +43,13 @@ FSoftObjectPath FSoftObjectPath::ConstructFromAssetPath(FTopLevelAssetPath InAss
 	return FSoftObjectPath(InAssetPath);
 }
 
+FSoftObjectPath FSoftObjectPath::ConstructFromStringPath(FString&& InPath)
+{
+	FSoftObjectPath Tmp;
+	Tmp.SetPath(FStringView(InPath));
+	return Tmp;
+}
+
 FSoftObjectPath FSoftObjectPath::ConstructFromStringPath(FStringView InPath)
 {
 	FSoftObjectPath Tmp;
@@ -554,7 +561,7 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 		if (IsSubobject())
 		{
 			// For subobjects, it's not safe to call LoadObject directly, so we want to load the parent object and then resolve again
-			FSoftObjectPath TopLevelPath = FSoftObjectPath(AssetPath, FString());
+			FSoftObjectPath TopLevelPath = FSoftObjectPath::ConstructFromAssetPath(AssetPath);
 			UObject* TopLevelObject = TopLevelPath.TryLoad(InLoadContext);
 
 			// This probably loaded the top-level object, so re-resolve ourselves
@@ -676,7 +683,7 @@ UObject* FSoftObjectPath::ResolveObjectInternal(const TCHAR* PathString) const
 	if (!FoundObject && IsSubobject())
 	{
 		// Try to resolve through the top level object
-		FSoftObjectPath TopLevelPath = FSoftObjectPath(AssetPath, FString());
+		FSoftObjectPath TopLevelPath(AssetPath);
 		UObject* TopLevelObject = TopLevelPath.ResolveObject();
 
 		// If the the top-level object exists but we can't find the object, defer the resolving to the top-level container object in case

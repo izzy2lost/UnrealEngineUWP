@@ -2521,7 +2521,7 @@ void EnumerateMemoryAssetsHelper(const FARCompiledFilter& InFilter, TSet<FName>&
 		}
 
 		// Asset Path
-		FilterData.ObjectPath = FSoftObjectPath(Obj);
+		FilterData.ObjectPath = FSoftObjectPath::ConstructFromObject(Obj);
 		if (InFilter.SoftObjectPaths.Num() > 0)
 		{
 			if (!InFilter.SoftObjectPaths.Contains(FilterData.ObjectPath))
@@ -2668,7 +2668,7 @@ void EnumerateMemoryAssets(const FARCompiledFilter& InFilter, TSet<FName>& OutPa
 				// Our contract for on-disk versus in-memory tags is that in-memory tags override on-disk tags, but we
 				// keep any on-disk tags that do not exist in the in-memory tags because they may be extended tags.
 				UE::AssetRegistry::FInterfaceReadScopeLock InterfaceScopeLock(InterfaceLock);
-				const FAssetData* OnDiskAssetData = GuardedDataState.GetAssetByObjectPath(FSoftObjectPath(Object));
+				const FAssetData* OnDiskAssetData = GuardedDataState.GetAssetByObjectPath(FSoftObjectPath::ConstructFromObject(Object));
 				if (OnDiskAssetData)
 				{
 					TOptional<FAssetDataTagMap> ModifiedTags = Utils::AddNonOverlappingTags(PartialAssetData, *OnDiskAssetData);
@@ -3265,7 +3265,7 @@ FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPat
 	UObject* Asset = ObjectPath.ResolveObject();
 	if (Asset)
 	{
-		RedirectedPath = FSoftObjectPath(Asset);
+		RedirectedPath = FSoftObjectPath::ConstructFromObject(Asset);
 		UObjectRedirector* Redirector = Cast<UObjectRedirector>(Asset);
 		if (!Redirector || !Redirector->DestinationObject)
 		{
@@ -3284,7 +3284,7 @@ FSoftObjectPath FAssetRegistryImpl::GetRedirectedObjectPath(const FSoftObjectPat
 		{
 			// If we found no Asset because it is a subobject, then look for its toplevelobject's Asset
 			SubPathString = RedirectedPath.GetSubPathString();
-			RedirectedPath = FSoftObjectPath(RedirectedPath.GetAssetPath(), FString());
+			RedirectedPath = FSoftObjectPath::ConstructFromAssetPath(RedirectedPath.GetAssetPath());
 			AssetData = State.GetAssetByObjectPath(RedirectedPath);
 		}
 		return AssetData;
@@ -4249,7 +4249,7 @@ void UAssetRegistryImpl::AssetDeleted(UObject* DeletedAsset)
 
 		{
 			// Need to remove from GRedirectCollector
-			GRedirectCollector.RemoveAssetPathRedirection(FSoftObjectPath(DeletedAsset));
+			GRedirectCollector.RemoveAssetPathRedirection(FSoftObjectPath::ConstructFromObject(DeletedAsset));
 		}
 #endif
 
@@ -6117,7 +6117,7 @@ bool FAssetRegistryImpl::TryPostLoadAssetRegistryTags(FAssetData* AssetData)
 		{
 			FTopLevelAssetPath LastAssetClassPath = AssetClassPath;
 			// Maybe it's a redirector
-			FSoftObjectPath RedirectedPath = GRedirectCollector.GetAssetPathRedirection(FSoftObjectPath(AssetClassPath));
+			FSoftObjectPath RedirectedPath = GRedirectCollector.GetAssetPathRedirection(FSoftObjectPath::ConstructFromAssetPath(AssetClassPath));
 			if (RedirectedPath.IsValid())
 			{
 				AssetClassPath = RedirectedPath.GetAssetPath();
@@ -8182,7 +8182,7 @@ void UAssetRegistryImpl::OnGetExtraObjectTags(FAssetRegistryTagsContext Context)
 	if (bAddMetaDataTagsToOnGetExtraObjectTags)
 	{
 		// It is critical that bIncludeOnlyOnDiskAssets=true otherwise this will cause an infinite loop
-		const FAssetData AssetData = GetAssetByObjectPath(FSoftObjectPath(Context.GetObject()), /*bIncludeOnlyOnDiskAssets=*/true);
+		const FAssetData AssetData = GetAssetByObjectPath(FSoftObjectPath::ConstructFromObject(Context.GetObject()), /*bIncludeOnlyOnDiskAssets=*/true);
 		// Adding metadata tags from disk is only necessary for cooked assets; uncooked assets still have the metadata and add them elsewhere
 		// in UObject::GetAssetRegistryTags. Adding the tags from disk into uncooked assets would make the tags impossible to remove when
 		// the uncooked assets are resaved.

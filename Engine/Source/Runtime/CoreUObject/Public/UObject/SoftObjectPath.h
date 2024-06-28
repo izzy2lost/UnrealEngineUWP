@@ -105,6 +105,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	COREUOBJECT_API static FSoftObjectPath ConstructFromPackageAssetSubpath(FName InPackageName, FName InAssetName, FString&& InSubPathString);
 	COREUOBJECT_API static FSoftObjectPath ConstructFromPackageAsset(FName InPackageName, FName InAssetName);
 	COREUOBJECT_API static FSoftObjectPath ConstructFromAssetPath(FTopLevelAssetPath InAssetPath);
+	COREUOBJECT_API static FSoftObjectPath ConstructFromStringPath(FString&& InPath);
 	COREUOBJECT_API static FSoftObjectPath ConstructFromStringPath(FStringView InPath);
 	COREUOBJECT_API static FSoftObjectPath ConstructFromStringPath(FUtf8StringView InPath);
 	COREUOBJECT_API static FSoftObjectPath ConstructFromObject(const UObject* InObject);
