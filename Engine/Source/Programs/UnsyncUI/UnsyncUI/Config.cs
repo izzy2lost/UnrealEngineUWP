@@ -222,9 +222,34 @@ namespace UnsyncUI
 
 		internal string loggedInUser;
 
-		public Config(string filename, string DefaultUnsyncPath = null)
+		internal void ApplyVariables(XElement rootNode, Dictionary<string, string> Variables)
+		{
+			foreach (XElement node in rootNode.Elements())
+			{
+				foreach (XAttribute attrib in node.Attributes())
+				{
+					if (attrib.Value.Contains("$("))
+					{
+						foreach (KeyValuePair<string, string> KV in Variables)
+						{
+							string resolved = attrib.Value.Replace($"$({KV.Key})", KV.Value);
+							attrib.SetValue(resolved);
+						}
+					}
+				}
+
+				ApplyVariables(node, Variables);
+			}
+		}
+
+		public Config(string filename, string DefaultUnsyncPath = null, Dictionary<string, string> Variables = null)
 		{
 			var rootNode = XDocument.Load(filename).Root;
+
+			if (Variables != null)
+			{
+				ApplyVariables(rootNode, Variables);
+			}
 
 			UnsyncPath = rootNode.Attribute("path")?.Value;
 			if (UnsyncPath == null)

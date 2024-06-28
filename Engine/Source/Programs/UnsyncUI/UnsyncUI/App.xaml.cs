@@ -32,6 +32,8 @@ namespace UnsyncUI
 		internal bool EnableExperimentalFeatures = false;
 		internal bool EnableUserAuthentication = false;
 
+		internal Dictionary<string, string> Variables = new Dictionary<string, string>();
+
 		internal string ApplicationLog { get; private set; } = "";
 
 		internal void ClearApplicationLog()
@@ -76,6 +78,8 @@ namespace UnsyncUI
 		{
 			string configFile = e.Args.Length > 0 ? e.Args[0] : "unsyncui.xml";
 
+			List<string> VariableKeys = new List<string> { "ProjectFile", "ProjectName", "ProjectDir" };
+
 			for (int i=1; i<e.Args.Length; ++i)
 			{
 				bool isLast = i + 1 == e.Args.Length;
@@ -88,6 +92,42 @@ namespace UnsyncUI
 				else if (arg == "--experimental")
 				{
 					EnableExperimentalFeatures = true;
+				}
+				else
+				{
+					string argLower = arg.ToLower();
+					foreach (string key in VariableKeys)
+					{
+						string keyLower = key.ToLower();
+						if ((argLower == $"--{keyLower}" || argLower == $"-{keyLower}") && !isLast)
+						{
+							string value = e.Args[i + 1];
+							Variables.Add(key, value);
+							++i;
+						}
+					}
+				}
+			}
+
+			// Derive project name from project file if one is not specified explicitly
+			if (!Variables.ContainsKey("ProjectName") && Variables.ContainsKey("ProjectFile"))
+			{
+				string ProjectFile = Variables["ProjectFile"];
+				string ProjectName = Path.GetFileNameWithoutExtension(ProjectFile);
+				if (!string.IsNullOrWhiteSpace(ProjectName))
+				{
+					Variables["ProjectName"] = ProjectName;
+				}
+			}
+
+			// Derive project directory from project file if one is not specified explicitly
+			if (!Variables.ContainsKey("ProjectDir") && Variables.ContainsKey("ProjectFile"))
+			{
+				string ProjectFile = Variables["ProjectFile"];
+				string ProjectDir = Path.GetDirectoryName(ProjectFile);
+				if (!string.IsNullOrWhiteSpace(ProjectDir))
+				{
+					Variables["ProjectDir"] = ProjectDir;
 				}
 			}
 
@@ -124,7 +164,7 @@ namespace UnsyncUI
 
 				try
 				{
-					Config = new Config(configFile, UnsyncPath);
+					Config = new Config(configFile, UnsyncPath, Variables);
 				}
 				catch (Exception ex)
 				{
