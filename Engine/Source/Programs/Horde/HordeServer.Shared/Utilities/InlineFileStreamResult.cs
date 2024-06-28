@@ -9,13 +9,16 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Class to return a file stream without the "content-disposition: attachment" header
 	/// </summary>
-	class InlineFileStreamResult : FileStreamResult
+	public class InlineFileStreamResult : FileStreamResult
 	{
 		/// <summary>
 		/// The suggested download filename
 		/// </summary>
 		readonly string _fileName;
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public InlineFileStreamResult(System.IO.Stream stream, string mimeType, string fileName)
 			: base(stream, mimeType)
 		{
