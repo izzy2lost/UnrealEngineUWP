@@ -185,10 +185,7 @@ void UDMMaterialStageInputSlot::SetSlot(UDMMaterialSlot* InSlot)
 
 	UpdateOutputConnectors();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageInputSlot::SetMaterialProperty(EDMMaterialPropertyType InMaterialProperty)
@@ -207,10 +204,7 @@ void UDMMaterialStageInputSlot::SetMaterialProperty(EDMMaterialPropertyType InMa
 
 	UpdateOutputConnectors();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageInputSlot::OnComponentRemoved()

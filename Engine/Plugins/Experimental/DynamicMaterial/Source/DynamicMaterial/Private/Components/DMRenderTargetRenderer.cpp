@@ -78,6 +78,11 @@ bool UDMRenderTargetRenderer::JsonDeserialize(const TSharedPtr<FJsonValue>& InJs
 
 void UDMRenderTargetRenderer::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;

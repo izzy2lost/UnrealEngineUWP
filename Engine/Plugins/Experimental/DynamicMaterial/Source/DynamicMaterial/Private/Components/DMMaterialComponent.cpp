@@ -75,6 +75,11 @@ UDMMaterialComponent* UDMMaterialComponent::GetSubComponentByPath(FDMComponentPa
 
 void UDMMaterialComponent::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 #if WITH_EDITOR
 	OnUpdate.Broadcast(this, InUpdateType);
 #endif

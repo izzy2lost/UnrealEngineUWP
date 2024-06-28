@@ -208,6 +208,11 @@ bool UDMMaterialStageExpressionMathBase::CanInputAcceptType(int32 InInputIndex, 
 
 void UDMMaterialStageExpressionMathBase::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (HasComponentBeenRemoved())
 	{
 		return;

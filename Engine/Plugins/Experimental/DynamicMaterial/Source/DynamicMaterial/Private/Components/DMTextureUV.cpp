@@ -371,6 +371,11 @@ bool UDMTextureUV::Modify(bool bInAlwaysMarkDirty)
 
 void UDMTextureUV::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;
@@ -537,17 +542,14 @@ void UDMTextureUV::OnTextureUVChanged(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(InUpdateType);
+	Update(InUpdateType);
 
 #if WITH_EDITOR
-		if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::AllowParentUpdate) && ParentComponent)
-		{
-			ParentComponent->Update(InUpdateType);
-		}
-#endif
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::AllowParentUpdate) && ParentComponent)
+	{
+		ParentComponent->Update(InUpdateType);
 	}
+#endif
 }
 
 #if WITH_EDITOR

@@ -389,6 +389,11 @@ FText UDMMaterialEffectStack::GetComponentDescription() const
 
 void UDMMaterialEffectStack::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;

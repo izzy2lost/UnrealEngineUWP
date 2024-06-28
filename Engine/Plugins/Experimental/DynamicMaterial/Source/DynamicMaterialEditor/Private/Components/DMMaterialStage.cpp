@@ -379,22 +379,19 @@ void UDMMaterialStage::SetSource(UDMMaterialStageSource* InSource)
 
 	Source = InSource;
 
-	if (FDMUpdateGuard::CanUpdate())
+	ResetInputConnectionMap();
+
+	if (IsComponentAdded())
 	{
-		ResetInputConnectionMap();
-
-		if (IsComponentAdded())
+		if (GUndo)
 		{
-			if (GUndo)
-			{
-				Source->Modify();
-			}
-
-			Source->SetComponentState(EDMComponentLifetimeState::Added);
+			Source->Modify();
 		}
 
-		Update(EDMUpdateType::Structure);
+		Source->SetComponentState(EDMComponentLifetimeState::Added);
 	}
+
+	Update(EDMUpdateType::Structure);
 }
 
 FText UDMMaterialStage::GetComponentDescription() const
@@ -462,6 +459,11 @@ bool UDMMaterialStage::IsInputMapped(int32 InputIndex) const
 
 void UDMMaterialStage::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;
@@ -951,10 +953,7 @@ void UDMMaterialStage::UpdateInputMap(int32 InInputIdx, int32 InSourceIndex, int
 
 	RemoveUnusedInputs();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Source->Update(EDMUpdateType::Structure);
-	}
+	Source->Update(EDMUpdateType::Structure);
 }
 
 int32 UDMMaterialStage::FindIndex() const

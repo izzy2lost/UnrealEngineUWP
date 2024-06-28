@@ -14,6 +14,11 @@ const FString UDMMaterialStageInput::StageInputPrefixStr = FString(TEXT("DMMater
 
 void UDMMaterialStageInput::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;

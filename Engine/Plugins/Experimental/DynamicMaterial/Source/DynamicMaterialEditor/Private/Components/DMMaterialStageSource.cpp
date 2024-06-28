@@ -33,6 +33,11 @@ UDMMaterialStage* UDMMaterialStageSource::GetStage() const
 
 void UDMMaterialStageSource::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;
@@ -65,10 +70,7 @@ void UDMMaterialStageSource::OnComponentAdded()
 
 	Super::OnComponentAdded();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageSource::GetMaskAlphaBlendNode(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const

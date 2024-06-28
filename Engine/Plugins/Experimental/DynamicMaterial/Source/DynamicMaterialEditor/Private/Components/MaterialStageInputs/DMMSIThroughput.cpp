@@ -59,10 +59,7 @@ void UDMMaterialStageInputThroughput::SetMaterialStageThroughputClass(TSubclassO
 		}
 	}
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(EDMUpdateType::Structure);
 }
 
 UDMMaterialStageThroughput* UDMMaterialStageInputThroughput::GetMaterialStageThroughput() const
@@ -294,7 +291,7 @@ void UDMMaterialStageInputThroughput::OnSubStageUpdated(UDMMaterialComponent* In
 		return;
 	}
 
-	if (InComponent == SubStage && FDMUpdateGuard::CanUpdate())
+	if (InComponent == SubStage)
 	{
 		Update(InUpdateType);
 	}

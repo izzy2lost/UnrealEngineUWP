@@ -572,6 +572,11 @@ void UDMMaterialProperty::AddOutputProcessor(const TSharedRef<FDMMaterialBuildSt
 
 void UDMMaterialProperty::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;

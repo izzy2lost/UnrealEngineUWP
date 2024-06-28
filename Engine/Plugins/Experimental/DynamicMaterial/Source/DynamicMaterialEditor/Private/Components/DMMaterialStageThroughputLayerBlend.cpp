@@ -179,6 +179,11 @@ void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
 		return;
 	}
 
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;

@@ -789,6 +789,11 @@ FText UDMMaterialLayerObject::GetComponentDescription() const
 
 void UDMMaterialLayerObject::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;

@@ -288,10 +288,7 @@ void UDMMaterialStageFunction::OnMaterialFunctionChanged()
 	DeinitFunction();
 	InitFunction();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(EDMUpdateType::Structure);
 }
 
 bool UDMMaterialStageFunction::NeedsFunctionInit() const

@@ -462,10 +462,7 @@ void UDMMaterialStageInputValue::SetValue(UDMMaterialValue* InValue)
 
 	UpdateOutputConnectors();
 
-	if (FDMUpdateGuard::CanUpdate())
-	{
-		Update(EDMUpdateType::Structure);
-	}
+	Update(EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageInputValue::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const

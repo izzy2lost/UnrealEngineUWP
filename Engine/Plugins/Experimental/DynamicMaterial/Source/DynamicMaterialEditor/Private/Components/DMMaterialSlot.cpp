@@ -182,6 +182,11 @@ UDMMaterialLayerObject* UDMMaterialSlot::GetLastLayerForMaterialProperty(EDMMate
 
 void UDMMaterialSlot::Update(EDMUpdateType InUpdateType)
 {
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
 	if (!IsComponentValid())
 	{
 		return;
@@ -555,7 +560,45 @@ bool UDMMaterialSlot::PasteLayer(UDMMaterialLayerObject* InLayer)
 		return false;
 	}
 
-	UDynamicMaterialModel* MaterialModel = ModelEditorOnlyData->GetMaterialModel();
+	EDMMaterialPropertyType NewPropertyType = EDMMaterialPropertyType::None;
+
+	if (!LayerObjects.IsEmpty())
+	{
+		for (UDMMaterialLayerObject* CurrentLayer : UE::Core::Private::TReverseIterationAdapter(LayerObjects))
+		{
+			if (CurrentLayer->IsEnabled())
+			{
+				NewPropertyType = CurrentLayer->GetMaterialProperty();
+				break;
+			}
+		}
+
+		if (NewPropertyType == EDMMaterialPropertyType::None)
+		{
+			for (UDMMaterialLayerObject* CurrentLayer : UE::Core::Private::TReverseIterationAdapter(LayerObjects))
+			{
+				NewPropertyType = CurrentLayer->GetMaterialProperty();
+				break;
+			}
+		}
+	}
+
+	if (NewPropertyType == EDMMaterialPropertyType::None)
+	{
+		TArray<EDMMaterialPropertyType> SlotProperties = ModelEditorOnlyData->GetMaterialPropertiesForSlot(this);
+
+		if (SlotProperties.IsEmpty())
+		{
+			return false;
+		}
+
+		NewPropertyType = SlotProperties[0];
+	}
+
+	{
+		const FDMUpdateGuard Guard;
+		InLayer->SetMaterialProperty(NewPropertyType);
+	}
 
 	LayerObjects.Add(InLayer);
 
