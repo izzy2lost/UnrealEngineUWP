@@ -22,7 +22,7 @@ void BindVFunction(Verse::VPackage* Package, FUtf8StringView VerseScopePath, con
 {
 	// Function names are decorated twice: Once with the scope path they are defined in,
 	// and once with the scope path of their base definition (usually these two are the same)
-	TUtf8StringBuilder<32> FullFunctionName = WriteToUtf8String<32>("(", VerseScopePath, ":)", DecoratedFunctionName);;
+	TUtf8StringBuilder<32> FullFunctionName = WriteToUtf8String<32>("(", VerseScopePath, ":)", DecoratedFunctionName);
 	Verse::VNativeFunction* Function = Package->LookupDefinition<Verse::VNativeFunction>(FullFunctionName);
 	if (!ensure(Function))
 	{
