@@ -62,6 +62,16 @@ bool FSoftDataRegistryOrTable::SerializeFromMismatchedTag(const FPropertyTag& Ta
 
 		return true;
 	}
+	else if (Tag.Type == NAME_ObjectProperty)
+	{
+		TObjectPtr<UDataTable> OldTable;
+		Slot << OldTable;
+
+		Table = OldTable;
+		bUseDataRegistry = false;
+
+		return true;
+	}
 
 	return false;
 }
@@ -142,6 +152,25 @@ const UDataRegistry* FSoftDataRegistryOrTable::GetDataRegistry() const
 	}
 
 	return RegistrySystem->GetRegistryForType(RegistryType);
+}
+
+bool FDataRegistryOrTableRow::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	static const FLazyName DataTableRowHandleName("DataTableRowHandle");
+	if (Tag.GetType().IsStruct(DataTableRowHandleName))
+	{
+		// Serialize the DataTableRowHandle
+		FDataTableRowHandle OldHandle;
+		FDataTableRowHandle::StaticStruct()->SerializeItem(Slot, &OldHandle, nullptr);
+
+		// copy into new struct
+		bUseDataRegistryId = false;
+		DataTableRow = OldHandle;
+
+		return true;
+	}
+
+	return false;
 }
 
 FDataRegistryOrTableRow::FDataRegistryOrTableRow()

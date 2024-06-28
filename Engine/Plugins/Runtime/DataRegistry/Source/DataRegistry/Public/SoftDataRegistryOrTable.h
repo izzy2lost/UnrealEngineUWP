@@ -193,6 +193,9 @@ struct DATAREGISTRY_API FDataRegistryOrTableRow
 	FDataRegistryOrTableRow(const FDataTableRowHandle& RowHandle);
 	FDataRegistryOrTableRow(const FDataRegistryId& RegistryId);
 
+	/** Used to upgrade a FDataTableHandle to a FDataRegistryOrTableRow */
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+
 	/* Method to get the Data Registry for the given registry id */
 	const UDataRegistry* GetDataRegistry() const;
 
@@ -228,3 +231,13 @@ struct DATAREGISTRY_API FDataRegistryOrTableRow
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = DataRegistryOrTable, meta = (EditCondition = "bUseDataRegistryId", EditConditionHides))
 	FDataRegistryId DataRegistryId;
 };
+
+template<>
+struct TStructOpsTypeTraits<FDataRegistryOrTableRow> : public TStructOpsTypeTraitsBase2<FDataRegistryOrTableRow>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true,
+	};
+};
+
