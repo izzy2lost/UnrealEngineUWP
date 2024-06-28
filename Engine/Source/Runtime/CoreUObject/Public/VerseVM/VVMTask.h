@@ -24,7 +24,7 @@ struct VTask : VValueObject
 	, TIntrusiveTree<VTask>
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VValueObject);
-	COREUOBJECT_API static TGlobalDefaultedObjectEmergentTypePtr<&StaticCppClassInfo> EmergentType;
+	COREUOBJECT_API static TGlobalHeapPtr<VEmergentType> EmergentType;
 
 	// A task is "running" when it is associated with a frame on the native stack.
 	// This includes a running interpreter (even if it is just on the `YieldTask` chain), and native
@@ -66,9 +66,12 @@ struct VTask : VValueObject
 	TWriteBarrier<VTask> PrevTask;
 	TWriteBarrier<VTask> NextTask;
 
+	COREUOBJECT_API static void BindStruct(FAllocationContext Context, VClass& TaskClass);
+	COREUOBJECT_API static void BindStructTrivial(FAllocationContext Context);
+
 	static VTask& New(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VTask* Parent)
 	{
-		VEmergentType& TaskEmergentType = EmergentType.Get(Context);
+		VEmergentType& TaskEmergentType = *EmergentType;
 		return *new (AllocateCell(Context, TaskEmergentType)) VTask(Context, TaskEmergentType, YieldPC, YieldFrame, YieldTask, Parent);
 	}
 

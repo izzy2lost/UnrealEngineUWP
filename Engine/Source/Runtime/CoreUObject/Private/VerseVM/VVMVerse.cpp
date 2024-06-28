@@ -8,6 +8,7 @@
 #include "VerseVM/VVMFalse.h"
 #include "VerseVM/VVMGlobalProgram.h"
 #include "VerseVM/VVMHeap.h"
+#include "VerseVM/VVMTask.h"
 
 namespace Verse
 {
@@ -24,6 +25,7 @@ void VerseVM::Startup()
 
 	Verse::VEmergentTypeCreator::Initialize(Context);
 	Verse::VFalse::InitializeGlobals(Context);
+	Verse::VTask::BindStructTrivial(Context);
 
 	// VerseVM requires RTFM enabled
 #if UE_AUTORTFM || defined(__INTELLISENSE__)

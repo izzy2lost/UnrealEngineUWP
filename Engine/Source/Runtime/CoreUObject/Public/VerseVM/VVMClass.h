@@ -218,10 +218,12 @@ public:
 	 * @param Inherited     An array of base classes in order of inheritance.
 	 * @param Constructor   The sequence of fields and blocks in the class body.
 	 */
-	COREUOBJECT_API static VClass& New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass);
+	COREUOBJECT_API static VClass& New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UClass* ImportClass, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor);
 
 private:
-	VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass);
+	friend class ::FVerseVMEngineEnvironment;
+
+	VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UClass* InImportClass, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
@@ -234,32 +236,30 @@ private:
 
 	COREUOBJECT_API bool SubsumesImpl(FAllocationContext, VValue);
 
-	TWriteBarrier<VArray> ClassName;
-	TWriteBarrier<VArray> UEMangledName;
-
 	/// The package this class is in
 	TWriteBarrier<VPackage> Scope;
 
-	// TODO: (yiliang.siew) This should be a weak map when we can support it in the GC. https://jira.it.epicgames.com/browse/SOL-5312
-	/// This is a cache that allows for fast vending of emergent types based on the fields being overridden.
-	TMap<TWriteBarrier<VUniqueStringSet>, TWriteBarrier<VEmergentType>, FDefaultSetAllocator, FEmergentTypesCacheKeyFuncs> EmergentTypesCache;
+	TWriteBarrier<VArray> ClassName;
+
+	TWriteBarrier<VArray> UEMangledName;
+	/// An associated UClass/UScriptStruct allows this VClass to create UObject/VNativeStruct instances
+	TWriteBarrier<VValue> AssociatedUStruct;
+	bool bNative;
+
+	EKind Kind;
+
+	// Super classes and interfaces. The single superclass is always first.
+	uint32 NumInherited;
 
 	/// The combined sequence of initializers and blocks in this class and its superclasses, in execution order.
 	/// Actual object construction may further override some elements of this sequence.
 	TWriteBarrier<VConstructor> Constructor;
 
-	/// An associated UClass/UScriptStruct allows this VClass to create UObject/VNativeStruct instances
-	TWriteBarrier<VValue> AssociatedUStruct;
+	// TODO: (yiliang.siew) This should be a weak map when we can support it in the GC. https://jira.it.epicgames.com/browse/SOL-5312
+	/// This is a cache that allows for fast vending of emergent types based on the fields being overridden.
+	TMap<TWriteBarrier<VUniqueStringSet>, TWriteBarrier<VEmergentType>, FDefaultSetAllocator, FEmergentTypesCacheKeyFuncs> EmergentTypesCache;
 
-	// Stored here to share alignment space with NumInherited
-	EKind Kind;
-	bool bNative;
-
-	// Super classes and interfaces. The single superclass is always first.
-	uint32 NumInherited;
 	TWriteBarrier<VClass> Inherited[];
-
-	friend class ::FVerseVMEngineEnvironment;
 };
 };     // namespace Verse
 #endif // WITH_VERSE_VM

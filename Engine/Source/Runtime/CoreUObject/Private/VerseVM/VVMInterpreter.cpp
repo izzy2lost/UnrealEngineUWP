@@ -1598,7 +1598,7 @@ class FInterpreter
 		}
 		VConstructor* Constructor = Op.Constructor.Get();
 		UClass* ImportClass = Op.ImportClass.Get() ? CastChecked<UClass>(Op.ImportClass.Get().AsUObject()) : nullptr;
-		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.UEMangledName.Get(), Op.ClassKind, Op.bNative, InheritedClasses, *Constructor, ImportClass);
+		VClass& NewClass = VClass::New(Context, Op.Package.Get(), Op.Name.Get(), Op.UEMangledName.Get(), ImportClass, Op.bNative, Op.ClassKind, InheritedClasses, *Constructor);
 		DEF(Op.Dest, NewClass);
 		return {FOpResult::Return};
 	}

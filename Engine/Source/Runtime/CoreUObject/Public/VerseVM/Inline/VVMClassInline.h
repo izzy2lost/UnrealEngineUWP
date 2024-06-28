@@ -52,19 +52,19 @@ inline VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, CppStr
 	return VNativeStruct::New(Context, NewEmergentType, MoveTemp(Struct));
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, EKind Kind, bool bNative, const TArray<VClass*>& Inherited, VConstructor& Constructor, UClass* ImportClass)
+inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UClass* ImportClass, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor)
 {
 	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
-	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, Kind, bNative, Inherited, Constructor, ImportClass);
+	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, ImportClass, bNative, Kind, Inherited, Constructor);
 }
 
-inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, EKind InKind, bool bInNative, const TArray<VClass*>& InInherited, VConstructor& InConstructor, UClass* InImportClass)
+inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UClass* InImportClass, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor)
 	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
+	, Scope(Context, InScope)
 	, ClassName(Context, InName)
 	, UEMangledName(Context, InUEMangledName)
-	, Scope(Context, InScope)
-	, Kind(InKind)
 	, bNative(bInNative)
+	, Kind(InKind)
 	, NumInherited(InInherited.Num())
 {
 	if (InImportClass != nullptr)

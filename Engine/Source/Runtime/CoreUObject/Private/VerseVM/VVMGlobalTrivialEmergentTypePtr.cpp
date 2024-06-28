@@ -4,8 +4,6 @@
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
-#include "VerseVM/VVMShape.h"
-#include "VerseVM/VVMType.h"
 
 namespace Verse
 {
@@ -26,7 +24,7 @@ void FGlobalTrivialEmergentTypePtrRoot::VisitImpl(TVisitor& Visitor)
 	Visitor.Visit(EmergentType, TEXT("EmergentType"));
 }
 
-VEmergentType& FGlobalTrivialEmergentTypePtr::Create(FAllocationContext Context, VCppClassInfo* ClassInfo, FGlobalTrivialEmergentTypePtrRoot*& Root, bool bWithShape)
+VEmergentType& FGlobalTrivialEmergentTypePtr::Create(FAllocationContext Context, VCppClassInfo* ClassInfo)
 {
 	VEmergentType* Object = VEmergentType::New(Context, VTrivialType::Singleton.Get(), ClassInfo);
 	VEmergentType* Expected = nullptr;
@@ -39,11 +37,7 @@ VEmergentType& FGlobalTrivialEmergentTypePtr::Create(FAllocationContext Context,
 	else
 	{
 		Result = Object;
-		if (bWithShape)
-		{
-			Result->Shape.Set(Context, VShape::New(Context, {}));
-		}
-		Root = new FGlobalTrivialEmergentTypePtrRoot(Context, Object);
+		new FGlobalTrivialEmergentTypePtrRoot(Context, Object);
 	}
 	V_DIE_UNLESS(EmergentType.load() == Result);
 	return *Result;

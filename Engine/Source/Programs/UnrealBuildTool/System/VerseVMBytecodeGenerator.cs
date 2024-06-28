@@ -963,11 +963,11 @@ namespace UnrealBuildTool
 				.Arg("Package", Role.Immediate, Arity.Fixed, "VPackage")
 				.Arg("Name", Role.Immediate, Arity.Fixed, "VArray")
 				.Arg("UEMangledName", Role.Immediate, Arity.Fixed, "VArray")
-				.Const("ClassKind", CppType.ClassKind)
+				.Arg("ImportClass", Role.Immediate, Arity.Optional, "VValue")
 				.Const("bNative", CppType.Bool)
+				.Const("ClassKind", CppType.ClassKind)
 				.Arg("Inherited", Role.Use, Arity.Variadic)
 				.Arg("Constructor", Role.Immediate, Arity.Fixed, "VConstructor")
-				.Arg("ImportClass", Role.Immediate, Arity.Optional, "VValue")
 				.Suspends();
 
 			Inst("NewObject")

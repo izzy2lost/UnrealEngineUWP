@@ -35,7 +35,7 @@ struct FGlobalTrivialEmergentTypePtr
 	FGlobalTrivialEmergentTypePtr() = default;
 
 protected:
-	VEmergentType& Get(FAllocationContext Context, VCppClassInfo* ClassInfo, FGlobalTrivialEmergentTypePtrRoot*& Root, bool bWithShape)
+	VEmergentType& Get(FAllocationContext Context, VCppClassInfo* ClassInfo)
 	{
 		VEmergentType* Result = EmergentType.load(std::memory_order_relaxed);
 		std::atomic_signal_fence(std::memory_order_seq_cst);
@@ -45,11 +45,11 @@ protected:
 		}
 		else
 		{
-			return Create(Context, ClassInfo, Root, bWithShape);
+			return Create(Context, ClassInfo);
 		}
 	}
 
-	COREUOBJECT_API VEmergentType& Create(FAllocationContext Context, VCppClassInfo* ClassInfo, FGlobalTrivialEmergentTypePtrRoot*& Root, bool bWithShape);
+	COREUOBJECT_API VEmergentType& Create(FAllocationContext Context, VCppClassInfo* ClassInfo);
 
 	std::atomic<VEmergentType*> EmergentType = nullptr;
 };
@@ -61,34 +61,8 @@ struct TGlobalTrivialEmergentTypePtr : public FGlobalTrivialEmergentTypePtr
 
 	VEmergentType& Get(FAllocationContext Context)
 	{
-		FGlobalTrivialEmergentTypePtrRoot* Root = nullptr;
-		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo, Root, false);
+		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo);
 	}
-};
-
-template <VCppClassInfo* ClassInfo>
-struct TGlobalDefaultedObjectEmergentTypePtr : public FGlobalTrivialEmergentTypePtr
-{
-	TGlobalDefaultedObjectEmergentTypePtr() = default;
-
-	VEmergentType& Get(FAllocationContext Context)
-	{
-		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo, Root, true);
-	}
-
-	// The caller is responsible for keeping NewEmergentType alive.
-	void Set(FAllocationContext Context, VEmergentType& NewEmergentType)
-	{
-		EmergentType.store(&NewEmergentType, std::memory_order_seq_cst);
-	}
-
-	void Reset()
-	{
-		VEmergentType* OldEmergentType = Root ? Root->EmergentType.Get() : nullptr;
-		EmergentType.store(OldEmergentType, std::memory_order_seq_cst);
-	}
-
-	FGlobalTrivialEmergentTypePtrRoot* Root = nullptr;
 };
 
 } // namespace Verse
