@@ -41,24 +41,24 @@ namespace HordeServer.Server
 		internal TimeSpan _longPollTimeout = TimeSpan.FromMinutes(9);
 
 		readonly AgentService _agentService;
-		readonly LifetimeService _lifetimeService;
+		readonly ILifetimeService _lifetimeService;
 		readonly IToolCollection _toolCollection;
 		readonly IAgentTelemetryCollection _agentTelemetryCollection;
 		readonly IAclService _aclService;
-		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly IOptionsSnapshot<ComputeConfig> _computeConfig;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RpcService(AgentService agentService, LifetimeService lifetimeService, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, IAclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
+		public RpcService(AgentService agentService, ILifetimeService lifetimeService, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, IAclService aclService, IOptionsSnapshot<ComputeConfig> computeConfig, ILogger<RpcService> logger)
 		{
 			_agentService = agentService;
 			_lifetimeService = lifetimeService;
 			_toolCollection = toolCollection;
 			_agentTelemetryCollection = agentTelemetryCollection;
 			_aclService = aclService;
-			_globalConfig = globalConfig;
+			_computeConfig = computeConfig;
 			_logger = logger;
 		}
 
@@ -205,7 +205,7 @@ namespace HordeServer.Server
 		{
 			using IDisposable? scope = _logger.BeginScope("CreateAgent({AgentId})", request.Name.ToString());
 
-			if (!_globalConfig.Value.Authorize(AgentAclAction.CreateAgent, context.GetHttpContext().User))
+			if (!_computeConfig.Value.Authorize(AgentAclAction.CreateAgent, context.GetHttpContext().User))
 			{
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create new agents");
 			}
@@ -238,13 +238,13 @@ namespace HordeServer.Server
 			AgentId agentId = new AgentId(request.Id);
 			using IDisposable? scope = _logger.BeginScope("CreateSession({AgentId})", agentId.ToString());
 
-			GlobalConfig globalConfig = _globalConfig.Value;
+			ComputeConfig computeConfig = _computeConfig.Value;
 
 			// Find the agent
 			IAgent? agent = await _agentService.GetAgentAsync(agentId);
 			if (agent == null)
 			{
-				if (!globalConfig.Authorize(AgentAclAction.CreateAgent, context.GetHttpContext().User))
+				if (!computeConfig.Authorize(AgentAclAction.CreateAgent, context.GetHttpContext().User))
 				{
 					throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create new agents");
 				}
@@ -262,7 +262,7 @@ namespace HordeServer.Server
 
 			// Make sure we're allowed to create sessions on this agent
 			ClaimsPrincipal user = context.GetHttpContext().User;
-			if (!globalConfig.Authorize(SessionAclAction.CreateSession, user) && !user.HasAgentClaim(agentId))
+			if (!computeConfig.Authorize(SessionAclAction.CreateSession, user) && !user.HasAgentClaim(agentId))
 			{
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create session for {AgentId}", agentId);
 			}

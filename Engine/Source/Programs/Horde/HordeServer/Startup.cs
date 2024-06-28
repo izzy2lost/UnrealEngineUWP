@@ -399,9 +399,7 @@ namespace HordeServer
 			services.AddSingleton<IAclService, AclService>();
 			services.AddSingleton<AgentService>();
 			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
-			services.AddSingleton<ConsistencyService>();
 			services.AddSingleton<RequestTrackerService>();
-			services.AddSingleton<ComputeService>();
 			services.AddSingleton<MongoCommandTracer>();
 			services.AddSingleton<MongoService>();
 			services.AddSingleton<IMongoService>(sp => sp.GetRequiredService<MongoService>());
@@ -414,15 +412,11 @@ namespace HordeServer
 			services.AddSingleton<LifetimeService>();
 			services.AddHostedService(provider => provider.GetRequiredService<LifetimeService>());
 			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
-			services.AddSingleton<EnrollmentService>();
 			services.AddSingleton<ServerStatusService>();
 			services.AddHostedService(provider => provider.GetRequiredService<ServerStatusService>());
-			services.AddSingleton<LogTailService>();
-			services.AddHostedService(provider => provider.GetRequiredService<LogTailService>()); // NB: Runs even on workers, to receive tail notifications.
 			services.AddSingleton<INotificationService, NotificationService>();
 			services.AddSingleton<UnsyncCache>();
 
-			services.AddSingleton<PoolService>();
 			services.AddSingleton<ScheduleService>();
 
 			services.AddScoped<OAuthControllerFilter>();
@@ -604,17 +598,12 @@ namespace HordeServer
 			// Hosted service that needs to run no matter the run mode of the process (server vs worker)
 			services.AddHostedService(provider => (DowntimeService)provider.GetRequiredService<IDowntimeService>());
 
-			// Always run agent service too; need to be able to listen to Redis for events on any server.
-			services.AddHostedService(provider => provider.GetRequiredService<AgentService>());
-
 			// Notifications can be triggered from any instance, so always make sure we're ticking the background task.
 			services.AddHostedService(provider => (NotificationService)provider.GetRequiredService<INotificationService>());
 
 			if (settings.IsRunModeActive(RunMode.Worker) && !settings.MongoReadOnlyMode)
 			{
 				services.AddHostedService<AgentReportService>();
-				services.AddHostedService(provider => provider.GetRequiredService<FleetService>());
-				services.AddHostedService(provider => provider.GetRequiredService<ConsistencyService>());
 				services.AddHostedService(provider => provider.GetRequiredService<IssueService>());
 				services.AddHostedService<IssueReportService>();
 				services.AddHostedService<IssueTagService>();

@@ -6,11 +6,16 @@ using Amazon.CloudWatch;
 using Amazon.EC2;
 using Amazon.Extensions.NETCore.Setup;
 using Amazon.SQS;
+using HordeServer.Agents;
+using HordeServer.Agents.Enrollment;
 using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Pools;
 using HordeServer.Agents.Relay;
 using HordeServer.Aws;
 using HordeServer.Compute;
+using HordeServer.Logs;
 using HordeServer.Plugins;
+using HordeServer.Server;
 using HordeServer.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,6 +61,18 @@ namespace HordeServer
 			services.AddSingleton<AgentRelayService>();
 			services.AddHostedService(provider => provider.GetRequiredService<AgentRelayService>());
 
+			services.AddSingleton<ConsistencyService>();
+			services.AddSingleton<ComputeService>();
+			services.AddSingleton<EnrollmentService>();
+			services.AddSingleton<LogTailService>();
+			services.AddSingleton<PoolService>();
+
+			// Always run tail service on workers, to receive tail notifications.
+			services.AddHostedService(provider => provider.GetRequiredService<LogTailService>());
+
+			// Always run agent service too; need to be able to listen to Redis for events on any server.
+			services.AddHostedService(provider => provider.GetRequiredService<AgentService>());
+
 			if (!_serverInfo.ReadOnlyMode)
 			{
 				services.AddSingleton<ComputeTaskSource>();
@@ -64,6 +81,12 @@ namespace HordeServer
 				services.AddSingleton<ITaskSource, UpgradeTaskSource>();
 				services.AddSingleton<ITaskSource, ShutdownTaskSource>();
 				services.AddSingleton<ITaskSource, RestartTaskSource>();
+
+				if (_serverInfo.IsRunModeActive(RunMode.Worker))
+				{
+					services.AddHostedService(provider => provider.GetRequiredService<FleetService>());
+					services.AddHostedService(provider => provider.GetRequiredService<ConsistencyService>());
+				}
 			}
 
 			if (_staticComputeConfig.WithAws)

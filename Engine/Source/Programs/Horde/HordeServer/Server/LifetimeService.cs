@@ -14,7 +14,7 @@ namespace HordeServer.Server
 	/// <summary>
 	/// Service containing an async task that allows long polling operations to complete early if the server is shutting down
 	/// </summary>
-	public sealed class LifetimeService : IHostedService, IAsyncDisposable
+	public sealed class LifetimeService : ILifetimeService, IHostedService, IAsyncDisposable
 	{
 		/// <summary>
 		/// Writer for log output
