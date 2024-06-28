@@ -93,13 +93,27 @@ public:
 
 	FD3D12Device*       const Device;
 	ED3D12QueueType     const QueueType;
+
+private:
 	FD3D12ResidencySet* const ResidencySet;
 
+public:
 	// Get the state of a resource on this command lists.
 	// This is only used for resources that require state tracking.
 	CResourceState& GetResourceState_OnCommandList(FD3D12Resource* pResource);
 
-	void UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles);
+	// Indicate that a resource must be made resident before execution on GPU.
+	// Either immediately adds residency handle for this resource to the residency set
+	// or defers it until submission time (residency handles may not be known until then).
+	void UpdateResidency(const FD3D12Resource* Resource);
+
+#if ENABLE_RESIDENCY_MANAGEMENT
+	// Immediately add residency handles to the residency set for this command list.
+	void AddToResidencySet(TConstArrayView<FD3D12ResidencyHandle*> Handles);
+
+	// Closes and returns the residency set. Used only during submission.
+	FD3D12ResidencySet* CloseResidencySet();
+#endif // ENABLE_RESIDENCY_MANAGEMENT
 
 private:
 	struct FInterfaces
@@ -274,6 +288,10 @@ private:
 		TArray<FD3D12QueryLocation> TimestampQueries;
 		TArray<FD3D12QueryLocation> OcclusionQueries;
 		TArray<FD3D12QueryLocation> PipelineStatsQueries;
+
+		// Resources whose residency must be updated on the submission thread, as their residency handles are not known during translation.
+		// This includes reserved resources that may refer to different heaps at different points on the submission timeline.
+		TSet<const FD3D12Resource*> DeferredResidencyUpdateSet;
 
 		uint32 NumCommands = 0;
 

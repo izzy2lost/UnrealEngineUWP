@@ -516,9 +516,9 @@ void FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD3D12CommandLis
 	FD3D12ResourceBarrierBatcher BatcherForGraphicsToAsync;
 
 #if ENABLE_RESIDENCY_MANAGEMENT
-	TArray<FD3D12ResidencyHandle*> ResidencyHandles;
-	ResidencyHandles.Reserve(SourceCommandList->State.PendingResourceBarriers.Num());
-#endif
+	TArray<FD3D12Resource*> ResourcesToMakeResident;
+	ResourcesToMakeResident.Reserve(SourceCommandList->State.PendingResourceBarriers.Num());
+#endif // ENABLE_RESIDENCY_MANAGEMENT
 
 	bool bHasGraphicStates = false;
 	for (const FD3D12PendingResourceBarrier& PRB : SourceCommandList->State.PendingResourceBarriers)
@@ -590,12 +590,9 @@ void FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD3D12CommandLis
 			}
 		}
 
-#if ENABLE_RESIDENCY_MANAGEMENT
-		for (FD3D12ResidencyHandle* Handle : PRB.Resource->GetResidencyHandles())
-		{
-			ResidencyHandles.Add(Handle);
-		}
-#endif // ENABLE_RESIDENCY_MANAGEMENT
+	#if ENABLE_RESIDENCY_MANAGEMENT
+		ResourcesToMakeResident.Add(PRB.Resource);
+	#endif // ENABLE_RESIDENCY_MANAGEMENT
 	}
 
 	// Update the tracked resource states with the final states from the command list
@@ -645,8 +642,11 @@ void FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD3D12CommandLis
 		FD3D12CommandList* BarrierCommandList = Queue.Device->ObtainCommandList(Queue.BarrierAllocator, &Queue.BarrierTimestamps, nullptr);
 
 	#if ENABLE_RESIDENCY_MANAGEMENT
-		BarrierCommandList->UpdateResidency(ResidencyHandles);
-	#endif
+		for (FD3D12Resource* Resource : ResourcesToMakeResident)
+		{
+			BarrierCommandList->UpdateResidency(Resource);
+		}
+	#endif // ENABLE_RESIDENCY_MANAGEMENT
 
 		Batcher.FlushIntoCommandList(*BarrierCommandList, Queue.BarrierTimestamps);
 		BarrierCommandList->Close();
@@ -748,7 +748,7 @@ uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal, TArray<FD3D12Payload*,
 						TArray<FD3D12ResidencyHandle*, TInlineAllocator<2>> ResidencyHandles;
 						ResidencyHandles.Add(&Heap->GetHeapResidencyHandle());
 						ResidencyHandles.Append(Heap->GetResultBuffer()->GetResidencyHandles());
-						GetResolveCommandList()->UpdateResidency(ResidencyHandles);
+						GetResolveCommandList()->AddToResidencySet(ResidencyHandles);
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 					}
 
@@ -899,7 +899,7 @@ void FD3D12DynamicRHI::FlushBatchedPayloads(TArray<FD3D12Payload*, TInlineAlloca
 				D3DCommandLists.Add(CommandList->Interfaces.CommandList);
 
 #if ENABLE_RESIDENCY_MANAGEMENT
-				ResidencySets.Add(CommandList->ResidencySet);
+				ResidencySets.Add(CommandList->CloseResidencySet());
 #endif
 			}
 			CommandLists.Append(MoveTemp(Payload->CommandListsToExecute));

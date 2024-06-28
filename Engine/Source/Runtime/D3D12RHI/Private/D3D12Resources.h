@@ -342,11 +342,21 @@ public:
 	inline FD3D12Heap* GetHeap() const { return Heap; };
 	inline bool IsDepthStencilResource() const { return bDepthStencil; }
 
+	inline bool NeedsDeferredResidencyUpdate() const { return IsReservedResource(); }
+
 	void StartTrackingForResidency();
 
 	bool IsResident() const
 	{
 #if ENABLE_RESIDENCY_MANAGEMENT
+
+		if (NeedsDeferredResidencyUpdate())
+		{
+			// We don't know the state because the set of residency handles is only known on the 
+			// RHI Submission Thread and may change throughout the frame.
+			return true;
+		}
+
 		TConstArrayView<FD3D12ResidencyHandle*> ResidencyHandles = GetResidencyHandles();
 		if (ResidencyHandles.IsEmpty())
 		{

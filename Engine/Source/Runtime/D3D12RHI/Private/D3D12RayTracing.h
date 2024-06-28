@@ -128,7 +128,8 @@ public:
 
 	// Scene keeps track of child acceleration structure buffers to ensure
 	// they are resident when any ray tracing work is dispatched.
-	TArray<FD3D12ResidencyHandle*> GeometryResidencyHandles[MAX_NUM_GPUS];
+	// Resources that share residency handles are deduplicated.
+	TArray<const FD3D12Resource*> ResourcesToMakeResident[MAX_NUM_GPUS];
 
 	void UpdateResidency(FD3D12CommandContext& CommandContext) const;
 

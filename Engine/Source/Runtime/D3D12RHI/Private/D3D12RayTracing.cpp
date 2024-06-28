@@ -3557,27 +3557,45 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 		CommandContext.UpdateResidency(InstanceBuffer->GetResource());
 
 		{
-			TArray<FD3D12ResidencyHandle*>& GeometryResidencyHandlesForThisGPU = GeometryResidencyHandles[GPUIndex];
+			TArray<const FD3D12Resource*>& ResourcesToMakeResidentForThisGPU = ResourcesToMakeResident[GPUIndex];
 
-			GeometryResidencyHandlesForThisGPU.Reset(0);
+			ResourcesToMakeResidentForThisGPU.Reset(0);
 
 			Experimental::TSherwoodSet<FD3D12ResidencyHandle*> UniqueResidencyHandles;
 
-			auto AddResidencyHandleForResource = [&UniqueResidencyHandles, &GeometryResidencyHandlesForThisGPU] (FD3D12Resource* Resource)
+			auto AddResidencyHandleForResource = [&UniqueResidencyHandles, &ResourcesToMakeResidentForThisGPU] (FD3D12Resource* Resource)
 			{
 			#if ENABLE_RESIDENCY_MANAGEMENT
-				for (FD3D12ResidencyHandle* ResidencyHandle : Resource->GetResidencyHandles())
+
+				bool bShouldTrackResidency = false;
+
+				if (Resource->NeedsDeferredResidencyUpdate())
 				{
-					if (D3DX12Residency::IsInitialized(ResidencyHandle))
+					// Resources whose residency handles might change dynamically must always be tracked
+					bShouldTrackResidency = true;
+				}
+				else
+				{
+					// Resources that share *all* residency handles with what's already tracked don't need to be added to be tracked separately
+					for (FD3D12ResidencyHandle* ResidencyHandle : Resource->GetResidencyHandles())
 					{
-						bool bIsAlreadyInSet = false;
-						UniqueResidencyHandles.Add(ResidencyHandle, &bIsAlreadyInSet);
-						if (!bIsAlreadyInSet)
+						if (D3DX12Residency::IsInitialized(ResidencyHandle))
 						{
-							GeometryResidencyHandlesForThisGPU.Add(ResidencyHandle);
+							bool bIsAlreadyInSet = false;
+							UniqueResidencyHandles.Add(ResidencyHandle, &bIsAlreadyInSet);
+							if (!bIsAlreadyInSet)
+							{
+								bShouldTrackResidency = true;
+							}
 						}
 					}
 				}
+
+				if (bShouldTrackResidency)
+				{
+					ResourcesToMakeResidentForThisGPU.Add(Resource);
+				}
+
 			#endif // ENABLE_RESIDENCY_MANAGEMENT
 			};
 
@@ -3733,7 +3751,10 @@ void FD3D12RayTracingScene::UpdateResidency(FD3D12CommandContext& CommandContext
 #if ENABLE_RESIDENCY_MANAGEMENT
 	const uint32 GPUIndex = CommandContext.GetGPUIndex();
 	CommandContext.UpdateResidency(AccelerationStructureBuffers[GPUIndex]->GetResource());
-	CommandContext.UpdateResidency(GeometryResidencyHandles[GPUIndex]);
+	for (const FD3D12Resource* Resource : ResourcesToMakeResident[GPUIndex])
+	{
+		CommandContext.UpdateResidency(Resource);
+	}
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 }
 

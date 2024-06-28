@@ -19,10 +19,35 @@ static FAutoConsoleVariableRef CVarD3D12ExtraDepthTransitions(
 
 int64 FD3D12CommandList::FState::NextCommandListID = 0;
 
-void FD3D12CommandList::UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles)
+void FD3D12CommandList::UpdateResidency(const FD3D12Resource* Resource)
 {
 #if ENABLE_RESIDENCY_MANAGEMENT
-	for (FD3D12ResidencyHandle* Handle : Handles)
+	if (Resource->NeedsDeferredResidencyUpdate())
+	{
+		State.DeferredResidencyUpdateSet.Add(Resource);
+	}
+	else
+	{
+		AddToResidencySet(Resource->GetResidencyHandles());
+	}
+#endif // ENABLE_RESIDENCY_MANAGEMENT
+}
+
+#if ENABLE_RESIDENCY_MANAGEMENT
+FD3D12ResidencySet* FD3D12CommandList::CloseResidencySet()
+{
+	for (const FD3D12Resource* Resource : State.DeferredResidencyUpdateSet)
+	{
+		AddToResidencySet(Resource->GetResidencyHandles());
+	}
+
+	D3DX12Residency::Close(ResidencySet);
+	return ResidencySet;
+}
+
+void FD3D12CommandList::AddToResidencySet(TConstArrayView<FD3D12ResidencyHandle*> ResidencyHandles)
+{
+	for (FD3D12ResidencyHandle* Handle : ResidencyHandles)
 	{
 		if (D3DX12Residency::IsInitialized(Handle))
 		{
@@ -30,8 +55,8 @@ void FD3D12CommandList::UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> 
 			D3DX12Residency::Insert(*ResidencySet, *Handle);
 		}
 	}
-#endif
 }
+#endif // ENABLE_RESIDENCY_MANAGEMENT
 
 void FD3D12ContextCommon::AddPendingResourceBarrier(FD3D12Resource* Resource, D3D12_RESOURCE_STATES After, uint32 SubResource, CResourceState& ResourceState_OnCommandList)
 {
@@ -278,7 +303,7 @@ void FD3D12CommandList::Close()
 	{
 		VERIFYD3D12RESULT(Interfaces.GraphicsCommandList->Close());
 	}
-	D3DX12Residency::Close(ResidencySet);
+
 	State.IsClosed = true;
 }
 

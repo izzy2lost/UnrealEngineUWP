@@ -392,15 +392,9 @@ public:
 	void EndQuery  (FD3D12QueryLocation const& Location) { GetCommandList().EndQuery  (Location); }
 
 #if ENABLE_RESIDENCY_MANAGEMENT
-	void UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles) { GetCommandList().UpdateResidency(Handles); }
-	void UpdateResidency(FD3D12ResidencyHandle& Handle                  ) { GetCommandList().UpdateResidency({ &Handle }); }
-	void UpdateResidency(FD3D12ResidencyHandle* Handle                  ) { check(Handle  ); GetCommandList().UpdateResidency({ Handle }); }
-	void UpdateResidency(FD3D12Resource* Resource                       ) { check(Resource); GetCommandList().UpdateResidency(Resource->GetResidencyHandles()); }
+	void UpdateResidency(const FD3D12Resource* Resource) { check(Resource); GetCommandList().UpdateResidency(Resource); }
 #else
-	void UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles) { }
-	void UpdateResidency(FD3D12ResidencyHandle& Handle                  ) { }
-	void UpdateResidency(FD3D12ResidencyHandle* Handle                  ) { }
-	void UpdateResidency(FD3D12Resource* Resource                       ) { }
+	void UpdateResidency(const FD3D12Resource* Resource) { }
 #endif
 
 	// Pending resource barriers are resolved by a dedicated barrier command list, generated during command list submission.
