@@ -225,7 +225,6 @@ public:
 	// ~End UPCGSettingsInterface interface
 
 	//~Begin UObject interface
-	virtual bool IsPostLoadThreadSafe() const override final { return true; }
 	virtual void PostLoad() override;
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext) override;
