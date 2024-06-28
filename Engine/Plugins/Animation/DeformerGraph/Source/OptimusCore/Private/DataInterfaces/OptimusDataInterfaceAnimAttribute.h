@@ -128,7 +128,7 @@ public:
 	
 	void Initialize() override;
 	bool CanPinDefinitionChange() override {return true;};
-	void RegisterDynamicPinDelegatesForOwningNode(UOptimusNode_DataInterface* InNode) override;
+	void RegisterPropertyChangeDelegatesForOwningNode(UOptimusNode_DataInterface* InNode) override;
 	
 	//~ End UOptimusComputeDataInterface Interface
 	

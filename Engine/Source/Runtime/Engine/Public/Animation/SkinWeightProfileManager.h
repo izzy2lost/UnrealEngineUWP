@@ -121,12 +121,12 @@ protected:
 public: 
 	static void OnStartup();
 	static void OnShutdown();
-	static FSkinWeightProfileManager* Get(UWorld* World);
+	static ENGINE_API FSkinWeightProfileManager* Get(UWorld* World);
 
 	FSkinWeightProfileManager(UWorld* InWorld);
 	virtual ~FSkinWeightProfileManager() {}
 
-	void RequestSkinWeightProfile(FName InProfileName, USkinnedAsset* SkinnedAsset, UObject* Requester, FRequestFinished& Callback, int32 LODIndex = INDEX_NONE);
+	void ENGINE_API RequestSkinWeightProfile(FName InProfileName, USkinnedAsset* SkinnedAsset, UObject* Requester, FRequestFinished& Callback, int32 LODIndex = INDEX_NONE);
 	void CancelSkinWeightProfileRequest(UObject* Requester);
 	
 	void DoTick(float DeltaTime, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);

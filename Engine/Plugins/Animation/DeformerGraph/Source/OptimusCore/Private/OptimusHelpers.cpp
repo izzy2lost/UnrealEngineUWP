@@ -2,6 +2,7 @@
 
 #include "OptimusHelpers.h"
 
+#include "Matrix3x4.h"
 #include "OptimusDataTypeRegistry.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 #include "ShaderParameterMetadataBuilder.h"
@@ -64,6 +65,36 @@ FName Optimus::GetSanitizedNameForHlsl(FName InName)
 	}
 
 	return *Name;
+}
+
+const void Optimus::ConvertFTransformToFMatrix3x4(const FTransform& InTransform, FShaderValueContainerView OutShaderValue)
+{
+	// Code taken from FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData
+	if (ensure(OutShaderValue.ShaderValue.Num() == FShaderValueType::Get(EShaderFundamentalType::Float, 3, 4)->GetResourceElementSize()))
+	{
+		uint8* ShaderValuePtr = OutShaderValue.ShaderValue.GetData();
+
+		FMatrix3x4& ShaderMat = *((FMatrix3x4*)(ShaderValuePtr));
+		const FMatrix44f& Matrix = ConvertFTransformToFMatrix44f(InTransform);
+		// Explicit SIMD implementation seems to be faster than standard implementation
+#if PLATFORM_ENABLE_VECTORINTRINSICS
+		VectorRegister4Float InRow0 = VectorLoadAligned(&(Matrix.M[0][0]));
+		VectorRegister4Float InRow1 = VectorLoadAligned(&(Matrix.M[1][0]));
+		VectorRegister4Float InRow2 = VectorLoadAligned(&(Matrix.M[2][0]));
+		VectorRegister4Float InRow3 = VectorLoadAligned(&(Matrix.M[3][0]));
+
+		VectorRegister4Float Temp0 = VectorShuffle(InRow0, InRow1, 0, 1, 0, 1);
+		VectorRegister4Float Temp1 = VectorShuffle(InRow2, InRow3, 0, 1, 0, 1);
+		VectorRegister4Float Temp2 = VectorShuffle(InRow0, InRow1, 2, 3, 2, 3);
+		VectorRegister4Float Temp3 = VectorShuffle(InRow2, InRow3, 2, 3, 2, 3);
+
+		VectorStoreAligned(VectorShuffle(Temp0, Temp1, 0, 2, 0, 2), &(ShaderMat.M[0][0]));
+		VectorStoreAligned(VectorShuffle(Temp0, Temp1, 1, 3, 1, 3), &(ShaderMat.M[1][0]));
+		VectorStoreAligned(VectorShuffle(Temp2, Temp3, 0, 2, 0, 2), &(ShaderMat.M[2][0]));
+#else
+		Matrix.To3x4MatrixTranspose((float*)ShaderMat.M);
+#endif
+	}
 }
 
 bool Optimus::RenameObject(UObject* InObjectToRename, const TCHAR* InNewName, UObject* InNewOuter)

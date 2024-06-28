@@ -155,9 +155,9 @@ public:
 	/// Whether the data interface allow users to add / remove pins
 	virtual bool CanPinDefinitionChange() { return false; };
 
-	/// Register delegates for data interface node to update its pins when the data interface changes
-	virtual void RegisterDynamicPinDelegatesForOwningNode(UOptimusNode_DataInterface* InNode) {};
-
+	/// Register delegates for data interface node to update when the data interface changes
+	virtual void RegisterPropertyChangeDelegatesForOwningNode(UOptimusNode_DataInterface* InNode) {};
+	
 	/**
 	 * @return Returns the component type that this data interface operates on.
 	 */

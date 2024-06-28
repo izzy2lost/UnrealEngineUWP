@@ -18,6 +18,8 @@
 
 #include "UObject/UnrealType.h"
 
+const TCHAR* FOptimusDataTypeRegistry::Matrix34TypeName = TEXT("3x4 float");
+
 static const TMap<FName, UScriptStruct*>& GetBuiltInAttributeTypes()
 {
 	static const TMap<FName, UScriptStruct*> BuiltInAttributeTypes =
@@ -454,7 +456,7 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 
 	// HLSL types
 	Registry.RegisterType(
-		FName("3x4 Float"),
+		Matrix34TypeName,
 		FText::FromString(TEXT("Matrix 3x4")),
 		FShaderValueType::Get(EShaderFundamentalType::Float, 3, 4),
 		FName("float3x4"),
@@ -1200,7 +1202,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 			}
 		}
 
-		const FName TypeName(*FString::Printf(TEXT("F%s"), *InStructType->GetName()));
+		const FName TypeName = Optimus::GetTypeName(InStructType, true);
 
 		PropertyCreateFuncT PropertyCreateFunc;
 		const int32 ExpectedShaderValueSize = InShaderValueType->GetResourceElementSize();
@@ -1258,7 +1260,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 {
 	if (ensure(InStructType))
 	{
-		const FName TypeName(*FString::Printf(TEXT("F%s"), *InStructType->GetName()));
+		const FName TypeName = Optimus::GetTypeName(InStructType, true);
 
 		PropertyCreateFuncT PropertyCreateFunc;
 		if (EnumHasAnyFlags(InUsageFlags, EOptimusDataTypeUsageFlags::Variable))

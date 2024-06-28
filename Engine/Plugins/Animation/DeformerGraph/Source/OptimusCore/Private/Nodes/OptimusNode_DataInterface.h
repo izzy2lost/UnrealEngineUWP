@@ -33,6 +33,7 @@ public:
 
 	void RecreatePinsFromPinDefinitions();
 	void RenamePinFromPinDefinition(FName InOld, FName InNew);
+	void UpdateDisplayNameFromDataInterface();
 
 	// -- UOptimusNode overrides
 	FName GetNodeCategory() const override 

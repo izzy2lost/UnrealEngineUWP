@@ -13,7 +13,7 @@ class FShaderParametersMetadata;
  * This structure tracks the allocations, and should be released only after we are
  * done with the associated FShaderParametersMetadata.
  */
-struct FShaderParametersMetadataAllocations
+struct COMPUTEFRAMEWORK_API FShaderParametersMetadataAllocations
 {
 	/** Allocated metadata. Should include the parent metadata allocation. */
 	TArray<FShaderParametersMetadata*> ShaderParameterMetadatas;

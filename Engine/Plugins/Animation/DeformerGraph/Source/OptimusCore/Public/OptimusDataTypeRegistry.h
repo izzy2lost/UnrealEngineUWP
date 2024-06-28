@@ -36,6 +36,9 @@ public:
 		int32 ElementShaderValueSize;
 		int32 ShaderValueOffset;
 	};
+
+	static const TCHAR* Matrix34TypeName;
+
 	
 	virtual ~FOptimusDataTypeRegistry() override;
 

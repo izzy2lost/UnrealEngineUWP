@@ -11,6 +11,7 @@
 #include "UObject/Package.h"
 #include "UObject/Class.h"
 
+struct FShaderValueContainerView;
 class FShaderParametersMetadata;
 class FShaderParametersMetadataBuilder;
 struct FShaderValueTypeHandle;
@@ -91,7 +92,9 @@ namespace Optimus
 	{
 		return TransformConverter<FMatrix44f>::Convert<FMatrix44d>(InTransform.ToMatrixWithScale());	
 	};
-
+	
+	const void ConvertFTransformToFMatrix3x4(const FTransform& InTransform, FShaderValueContainerView OutShaderValue);
+	
 	bool RenameObject(UObject* InObjectToRename, const TCHAR* InNewName, UObject* InNewOuter);
 
 	/** Use this function to remove objects during postload safely */

@@ -112,7 +112,7 @@ void UOptimusAnimAttributeDataInterface::PostEditChangeChainProperty(FPropertyCh
 				{
 					ChangedAttribute.Name = TEXT("EmptyName");
 				}
-				
+
 				for (int32 Index = 0; Index < AttributeArray.Num(); Index++)
 				{
 					const FOptimusAnimAttributeDescription& Attribute = AttributeArray[Index];
@@ -233,7 +233,7 @@ void UOptimusAnimAttributeDataInterface::Initialize()
 			FOptimusDataTypeRegistry::Get().FindType(*FFloatProperty::StaticClass()) );
 }
 
-void UOptimusAnimAttributeDataInterface::RegisterDynamicPinDelegatesForOwningNode(UOptimusNode_DataInterface* InNode)
+void UOptimusAnimAttributeDataInterface::RegisterPropertyChangeDelegatesForOwningNode(UOptimusNode_DataInterface* InNode)
 {
 	OnPinDefinitionChangedDelegate.BindUObject(InNode, &UOptimusNode_DataInterface::RecreatePinsFromPinDefinitions);
 	OnPinDefinitionRenamedDelegate.BindUObject(InNode, &UOptimusNode_DataInterface::RenamePinFromPinDefinition);

@@ -187,6 +187,14 @@ void UOptimusNode_DataInterface::RenamePinFromPinDefinition(FName InOld, FName I
 	SetPinName(Pin, InNew);
 }
 
+void UOptimusNode_DataInterface::UpdateDisplayNameFromDataInterface()
+{
+	if (ensure(DataInterfaceData))
+	{
+		SetDisplayName(FText::FromString(DataInterfaceData->GetDisplayName()));
+	}
+}
+
 void UOptimusNode_DataInterface::InitializeTransientData()
 {
 	if (ensure(DataInterfaceData))
@@ -194,8 +202,9 @@ void UOptimusNode_DataInterface::InitializeTransientData()
 		if (DataInterfaceData->CanPinDefinitionChange())
 		{
 			EnableDynamicPins();
-			DataInterfaceData->RegisterDynamicPinDelegatesForOwningNode(this);
 		}
+		
+		DataInterfaceData->RegisterPropertyChangeDelegatesForOwningNode(this);
 	}
 }
 
