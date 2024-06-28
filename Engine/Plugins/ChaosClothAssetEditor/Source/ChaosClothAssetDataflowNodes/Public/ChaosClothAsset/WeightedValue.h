@@ -30,10 +30,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	};
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 USTRUCT()
 struct FChaosClothAssetWeightedValue
 {
 	GENERATED_BODY()
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Whether the property can ever be updated/animated in real time.
@@ -89,10 +91,12 @@ struct FChaosClothAssetWeightedValue
 	bool bBuildFabricMaps = false;
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 USTRUCT()
 struct FChaosClothAssetWeightedValueNonAnimatable
 {
 	GENERATED_BODY()
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	static constexpr bool bIsAnimatable = false;
 
@@ -143,10 +147,12 @@ struct FChaosClothAssetWeightedValueNonAnimatable
 	bool bBuildFabricMaps = false;
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 USTRUCT()
 struct FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange
 {
 	GENERATED_BODY()
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** The name of the weight map for this property. */
 	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DataflowInput))
