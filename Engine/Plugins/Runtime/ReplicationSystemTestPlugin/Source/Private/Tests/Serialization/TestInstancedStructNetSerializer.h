@@ -3,7 +3,7 @@
 #pragma once
 
 #include "UObject/ObjectMacros.h"
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Tests/ReplicationSystem/ReplicatedTestObject.h"
 #include "TestInstancedStructNetSerializer.generated.h"
 

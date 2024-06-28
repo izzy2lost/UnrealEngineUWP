@@ -5,7 +5,7 @@
 
 #if UE_WITH_IRIS
 
-#include "InstancedStruct.h"
+#include "StructUtils/InstancedStruct.h"
 #include "HAL/IConsoleManager.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/NetObjectReference.h"
