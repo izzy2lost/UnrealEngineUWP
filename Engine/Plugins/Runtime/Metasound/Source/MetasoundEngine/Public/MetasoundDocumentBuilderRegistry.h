@@ -8,11 +8,22 @@
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundLog.h"
+#include "Misc/Optional.h"
 #include "Misc/ScopeLock.h"
 
 
 namespace Metasound::Engine
 {
+#if WITH_EDITOR
+	struct FPreviewPageInfo
+	{
+		FName PlatformName;
+		TOptional<FGuid> PageID;
+	};
+
+	DECLARE_DELEGATE_RetVal_OneParam(FPreviewPageInfo, FOnResolvePreviewPageInfo, const FMetasoundFrontendDocument& /* Document */);
+#endif // WITH_EDITOR
+
 	class METASOUNDENGINE_API FDocumentBuilderRegistry : public Frontend::IDocumentBuilderRegistry
 	{
 		mutable TMultiMap<FMetasoundFrontendClassName, TWeakObjectPtr<UMetaSoundBuilderBase>> Builders;
@@ -119,10 +130,14 @@ namespace Metasound::Engine
 		// Returns all builder objects registered and active associated with the given ClassName.
 		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& InClassName) const;
 
-		// Given the provided document, returns the valid page ID to be executed.
-		virtual FGuid ResolveExecutablePageID(const TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface) const;
+#if WITH_EDITOR
+		FOnResolvePreviewPageInfo& GetOnResolvePreviewPageInfoDelegate();
+#endif // WITH_EDITOR
 
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
+
+		// Given the provided document and its respective pages, returns the PageID to be used for runtime IGraph and proxy generation.
+		virtual FGuid ResolveTargetPageID(const FMetasoundFrontendDocument& Document, const FTopLevelAssetPath& AssetPath) const override;
 
 		void SetEventLogVerbosity(ELogEvent Event, ELogVerbosity::Type Verbosity);
 
@@ -130,6 +145,10 @@ namespace Metasound::Engine
 		void AddBuilderInternal(const FMetasoundFrontendClassName& InClassName, UMetaSoundBuilderBase* NewBuilder) const;
 		bool CanPostEventLog(ELogEvent Event, ELogVerbosity::Type Verbosity) const;
 		void FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const;
+
+#if WITH_EDITOR
+		FOnResolvePreviewPageInfo OnResolvePreviewPageInfo;
+#endif // WITH_EDITOR
 
 		TSortedMap<ELogEvent, ELogVerbosity::Type> EventLogVerbosity;
 	};

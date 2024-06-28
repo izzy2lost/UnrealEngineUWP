@@ -121,7 +121,7 @@ private:
 	const UMetaSoundSource& GetMetaSoundSource() const;
 	UMetaSoundSource& GetMetaSoundSource();
 
-	void InitExecutablePageDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates);
+	void InitTargetPageDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates);
 
 	void OnEdgeAdded(int32 EdgeIndex) const;
 	void OnInputAdded(int32 InputIndex);
@@ -266,6 +266,9 @@ public:
 	// Adds builder to subsystem's registry to make it persistent and easily accessible by multiple systems or Blueprints
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	void RegisterSourceBuilder(FName BuilderName, UMetaSoundSourceBuilder* Builder);
+
+	UFUNCTION(BlueprintCallable, Category = "MetaSounds|Pages")
+	UPARAM(DisplayName = "TargetPageChanged") bool SetTargetPage(FName PageName);
 
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	UPARAM(DisplayName = "Unregistered") bool UnregisterBuilder(FName BuilderName);

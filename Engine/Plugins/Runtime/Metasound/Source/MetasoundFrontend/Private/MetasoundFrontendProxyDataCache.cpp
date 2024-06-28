@@ -7,6 +7,7 @@
 #include "Containers/Map.h"
 #include "CoreGlobals.h"
 #include "IAudioProxyInitializer.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendLiteral.h"
@@ -21,59 +22,59 @@ namespace Metasound
 	{
 		namespace MetasoundFrontendProxyDataCachePrivate
 		{
-			template<typename DocElementType>
-			void CreateAndCacheProxies(FProxyDataCache& InCache, const DocElementType& InDocElement)
+			template<typename DocElementType, typename ...Args>
+			void CreateAndCacheProxies(FProxyDataCache& InCache, const DocElementType& InDocElement, Args&&... InArgs)
 			{
 				checkf(IsInGameThread() || IsInAudioThread(), TEXT("Proxies should only be created in the game thread or audio thread"));
 				IDataTypeRegistry& DataRegistry = IDataTypeRegistry::Get();
 				TArray<UObject*> UObjectArray;
 
-				ForEachLiteral(InDocElement, [&InCache, &DataRegistry, &UObjectArray](const FName& InDataType, const FMetasoundFrontendLiteral& InLiteral)
+				auto CreateProxies = [&InCache, &DataRegistry, &UObjectArray](const FName& InDataType, const FMetasoundFrontendLiteral& InLiteral)
+				{
+					EMetasoundFrontendLiteralType LiteralType = InLiteral.GetType();
+					if (LiteralType == EMetasoundFrontendLiteralType::UObject)
 					{
-						EMetasoundFrontendLiteralType LiteralType = InLiteral.GetType();
-						if (LiteralType == EMetasoundFrontendLiteralType::UObject)
+						UObject* Object = nullptr;
+						InLiteral.TryGet(Object);
+						if (Object)
 						{
-							UObject* Object = nullptr;
-							InLiteral.TryGet(Object);
+							if (!InCache.Contains(Object))
+							{
+								InCache.CacheProxy(Object, DataRegistry.CreateProxyFromUObject(InDataType, Object));
+							}
+						}
+					}
+					else if (LiteralType == EMetasoundFrontendLiteralType::UObjectArray)
+					{
+						FName ElementDataTypeName = CreateElementTypeNameFromArrayTypeName(InDataType);
+						UObjectArray.Reset();
+						InLiteral.TryGet(UObjectArray);
+						for (UObject* Object : UObjectArray)
+						{
 							if (Object)
 							{
 								if (!InCache.Contains(Object))
 								{
-									InCache.CacheProxy(Object, DataRegistry.CreateProxyFromUObject(InDataType, Object));
-								}
-							}
-						}
-						else if (LiteralType == EMetasoundFrontendLiteralType::UObjectArray)
-						{
-							FName ElementDataTypeName = CreateElementTypeNameFromArrayTypeName(InDataType);
-							UObjectArray.Reset();
-							InLiteral.TryGet(UObjectArray);
-							for (UObject* Object : UObjectArray)
-							{
-								if (Object)
-								{
-									if (!InCache.Contains(Object))
-									{
-										InCache.CacheProxy(Object, DataRegistry.CreateProxyFromUObject(ElementDataTypeName, Object));
-									}
+									InCache.CacheProxy(Object, DataRegistry.CreateProxyFromUObject(ElementDataTypeName, Object));
 								}
 							}
 						}
 					}
-				);
+				};
+				ForEachLiteral(InDocElement, CreateProxies, Forward<Args>(InArgs)...);
 			}
 		}
 
-		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendDocument& InDocument)
+		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendDocument& InDocument, const FGuid& InPageID)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_Document)	
-			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InDocument);
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_Document)
+			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InDocument, InPageID);
 		}
 
-		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendGraphClass& InGraphClass)
+		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendGraphClass& InGraphClass, const FGuid& InPageID)
 		{
-			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_GraphClass)	
-			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InGraphClass);
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_GraphClass)
+			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InGraphClass, InPageID);
 		}
 
 		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendClass& InClass)

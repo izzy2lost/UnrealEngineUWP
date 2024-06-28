@@ -987,15 +987,8 @@ namespace Metasound
 			 */
 			virtual FNodeHandle CreateEmptySubgraph(const FMetasoundFrontendClassMetadata& InInfo) = 0;
 
-			/** Creates a runtime operator for the given graph. Does not support input value manipulation via transmission.
-			 *
-			 * @param InSettings - Settings to use when creating operators.
-			 * @param InEnvironment - Environment variables available during creation.
-			 * @param OutResults - Results pertaining to operator build process & resulting IOperator instance.
-			 *
-			 * @return On success, a valid pointer to a Metasound operator. An invalid pointer on failure.
-			 */
-			virtual TUniquePtr<IOperator> BuildOperator(const FOperatorSettings& InSettings, const FMetasoundEnvironment& InEnvironment, FBuildResults& OutResults) const = 0;
+			UE_DEPRECATED(5.5, "Building graph operator is implemented internally and now supports pages")
+			virtual TUniquePtr<IOperator> BuildOperator(const FOperatorSettings& InSettings, const FMetasoundEnvironment& InEnvironment, FBuildResults& OutResults) const { return { }; }
 
 			/** Returns a handle to the document owning this graph. */
 			virtual FDocumentHandle GetOwningDocument() = 0;

@@ -1,6 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetasoundDocumentInterface.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
+#include "MetasoundFrontendGraph.h"
+#include "MetasoundFrontendProxyDataCache.h"
+#include "MetasoundOperatorBuilder.h"
+#include "MetasoundOperatorBuilderSettings.h"
 
 
 namespace Metasound::Frontend

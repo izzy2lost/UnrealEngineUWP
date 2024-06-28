@@ -131,7 +131,7 @@ public:
 	TArray<FDirectoryPath> DirectoriesToRegister;
 		
 	UPROPERTY(Transient)
-	int32 DenyListCacheChangeID = 0;	
+	int32 DenyListCacheChangeID = 0;
 
 private:
 #if WITH_EDITORONLY_DATA
@@ -139,7 +139,16 @@ private:
 	Metasound::Engine::FOnPageSettingsUpdated OnPageSettingsUpdated;
 #endif //WITH_EDITORONLY_DATA
 
-	/** Array of possible page settings that can be added to a MetaSound object. */
+	/** PageID to target when attempting to execute MetaSound. If target page is not implemented for the set
+	  *  platform, uses order of cooked pages (see 'Page Settings' for order) falling back to lower index-ordered page
+	  * implemented in MetaSound asset. */
+	UPROPERTY(EditAnywhere, config, Category = Pages)
+	FName TargetPageName = Metasound::Frontend::DefaultGraphPageName;
+
+	/** Array of possible page settings that can be added to a MetaSound object. Order
+	  * defines default fallback logic whereby a higher index-ordered page
+	  * implemented in a MetaSound asset is higher priority (see 'Target Page').
+	  */
 	UPROPERTY(EditAnywhere, config, Category = Pages)
 	TArray<FMetaSoundPageSettings> PageSettings;
 
@@ -148,11 +157,25 @@ private:
 	TArray<FMetaSoundQualitySettings> QualitySettings;
 
 public:
+	// Returns the page settings with the provided name. If there are multiple settings
+	// with the same name, selection within the duplicates is undefined.
 	const FMetaSoundPageSettings* FindPageSettings(FName Name) const;
+
+	// Returns the page settings with the unique ID given.
 	const FMetaSoundPageSettings* FindPageSettings(const FGuid& InPageID) const;
 
+	// Returns the quality settings with the provided name. If there are multiple settings
+	// with the same name, selection within the duplicates is undefined.
 	const FMetaSoundQualitySettings* FindQualitySettings(FName Name) const;
+
+	// Returns the quality settings with the unique ID given.
 	const FMetaSoundQualitySettings* FindQualitySettings(const FGuid& InQualityID) const;
+
+	// Returns the target page name.
+	const FName& GetTargetPageName() const { return TargetPageName; }
+
+	// Returns the target page ID.
+	const FGuid& GetTargetPageID() const;
 
 	const TArray<FMetaSoundPageSettings>& GetPageSettings() const { return PageSettings; }
 	const TArray<FMetaSoundQualitySettings>& GetQualitySettings() const { return QualitySettings; }
@@ -164,6 +187,10 @@ public:
 	static FName GetPageSettingPropertyName();
 	static FName GetQualitySettingPropertyName();
 #endif // WITH_EDITORONLY_DATA
+
+	// Sets the target page to the given name. Returns true if associated page settings were found
+	// and target set, false if not found and not set.
+	bool SetTargetPage(FName PageName);
 
 #if WITH_EDITOR
 private:

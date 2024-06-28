@@ -135,10 +135,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult", AdvancedDisplay = "3"))
 	UPARAM(DisplayName = "Input Handle") FMetaSoundBuilderNodeInputHandle AddGraphOutputNode(FName Name, FName DataType, FMetasoundFrontendLiteral DefaultValue, EMetaSoundBuilderResult& OutResult, bool bIsConstructorOutput = false);
 
+#if WITH_EDITORONLY_DATA
 	// Adds a graph page to the given builder's document. Fails if the page is not a valid page registered with MetaSoundSettings
 	// or if the document already contains a page with the given name. No check is done here to determine cook eligibility (i.e.
 	// pages can be added even if set to be stripped for the active platform).
 	void AddGraphPage(FName PageName, bool bDuplicateLastGraph, bool bSetAsBuildGraph, EMetaSoundBuilderResult& OutResult);
+#endif // WITH_EDITORONLY_DATA
 
 	// Adds an interface registered with the given name to the graph, adding associated input and output nodes.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
@@ -347,9 +349,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void RemoveGraphOutput(FName Name, EMetaSoundBuilderResult& OutResult);
 
+#if WITH_EDITORONLY_DATA
 	// Removes a graph page with the given name, setting result to failed if the name was not found, was invalid,
 	// or was the default (which cannot be removed).
 	void RemoveGraphPage(FName Name, EMetaSoundBuilderResult& OutResult);
+#endif // WITH_EDITORONLY_DATA
 
 	// Removes the interface with the given name from the builder's MetaSound. Removes any graph inputs
 	// and outputs associated with the given interface and their respective connections (if any).

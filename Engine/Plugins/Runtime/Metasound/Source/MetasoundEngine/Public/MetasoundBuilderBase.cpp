@@ -152,6 +152,7 @@ FMetaSoundBuilderNodeInputHandle UMetaSoundBuilderBase::AddGraphOutputNode(FName
 	return NewHandle;
 }
 
+#if WITH_EDITORONLY_DATA
 void UMetaSoundBuilderBase::AddGraphPage(FName PageName, bool bDuplicateLastGraph, bool bSetAsBuildGraph, EMetaSoundBuilderResult& OutResult)
 {
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
@@ -166,6 +167,7 @@ void UMetaSoundBuilderBase::AddGraphPage(FName PageName, bool bDuplicateLastGrap
 
 	OutResult = EMetaSoundBuilderResult::Failed;
 }
+#endif // WITH_EDITORONLY_DATA
 
 void UMetaSoundBuilderBase::AddInterface(FName InterfaceName, EMetaSoundBuilderResult& OutResult)
 {
@@ -941,6 +943,7 @@ void UMetaSoundBuilderBase::ReloadCache(bool bPrimeCache)
 void UMetaSoundBuilderBase::RemoveAllGraphPages()
 {
 	Builder.RemoveAllGraphPages();
+	Builder.RemoveUnusedDependencies();
 }
 
 #if WITH_EDITOR
@@ -962,6 +965,7 @@ void UMetaSoundBuilderBase::RemoveGraphOutput(FName Name, EMetaSoundBuilderResul
 	OutResult = bRemoved ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
 }
 
+#if WITH_EDITORONLY_DATA
 void UMetaSoundBuilderBase::RemoveGraphPage(FName Name, EMetaSoundBuilderResult& OutResult)
 {
 	const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
@@ -975,6 +979,7 @@ void UMetaSoundBuilderBase::RemoveGraphPage(FName Name, EMetaSoundBuilderResult&
 
 	OutResult = EMetaSoundBuilderResult::Failed;
 }
+#endif // WITH_EDITORONLY_DATA
 
 void UMetaSoundBuilderBase::RemoveInterface(FName InterfaceName, EMetaSoundBuilderResult& OutResult)
 {

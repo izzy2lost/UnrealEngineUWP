@@ -32,10 +32,10 @@ namespace Metasound
 		{
 		public:
 			/** Create and cache all proxies found in a document. */
-			void CreateAndCacheProxies(const FMetasoundFrontendDocument& InDocument);
+			void CreateAndCacheProxies(const FMetasoundFrontendDocument& InDocument, const FGuid& InPageID);
 
 			/** Create and cache all proxies found in a graph class. */
-			void CreateAndCacheProxies(const FMetasoundFrontendGraphClass& InGraphClass);
+			void CreateAndCacheProxies(const FMetasoundFrontendGraphClass& InGraphClass, const FGuid& InPageID);
 
 			/** Create and cache all proxies found in a frontend class class. */
 			void CreateAndCacheProxies(const FMetasoundFrontendClass& InClass);

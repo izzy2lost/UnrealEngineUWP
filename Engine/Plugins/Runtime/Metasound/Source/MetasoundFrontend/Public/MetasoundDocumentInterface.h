@@ -2,8 +2,11 @@
 #pragma once
 
 #include "UObject/Interface.h"
+#include "MetasoundBuilderInterface.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentModifyDelegates.h"
+#include "MetasoundOperatorInterface.h"
+#include "MetasoundOperatorSettings.h"
 #include "Templates/Function.h"
 #include "UObject/TopLevelAssetPath.h"
 
@@ -102,6 +105,9 @@ namespace Metasound::Frontend
 		// Reloads the given builder, maintaining all modify delegate subscriptions. Returns true if builder was found and reloaded,
 		// false if not found.
 		virtual bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const = 0;
+
+		// Given the provided document and its respective pages, returns the PageID to be used for runtime IGraph and proxy generation.
+		virtual FGuid ResolveTargetPageID(const FMetasoundFrontendDocument& Document, const FTopLevelAssetPath& AssetPath) const = 0;
 
 		static IDocumentBuilderRegistry* Get();
 		static IDocumentBuilderRegistry& GetChecked();

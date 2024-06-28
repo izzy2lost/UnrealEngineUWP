@@ -154,7 +154,7 @@ public:
 	UE_DEPRECATED(5.5, "Direct mutation of the document is no longer supported via AssetBase.")
 	void SetDocument(FMetasoundFrontendDocument InDocument, bool bMarkDirty = true);
 
-	const FMetasoundFrontendDocument& GetConstDocumentChecked() const;
+	virtual const FMetasoundFrontendDocument& GetConstDocumentChecked() const;
 
 	// Soft deprecated.  Document layer should not be directly mutated via asset base in anticipation
 	// of moving all mutable document calls to the Frontend/Subsystem Document Builder API.

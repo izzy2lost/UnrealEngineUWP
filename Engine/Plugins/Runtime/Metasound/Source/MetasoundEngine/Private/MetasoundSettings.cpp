@@ -196,6 +196,21 @@ const FMetaSoundQualitySettings* UMetaSoundSettings::FindQualitySettings(const F
 	return Metasound::SettingsPrivate::FindSettingsStruct(QualitySettings, InQualityID);
 }
 
+const FGuid& UMetaSoundSettings::GetTargetPageID() const
+{
+	if (const FMetaSoundPageSettings* TargetSettings = FindPageSettings(TargetPageName))
+	{
+		return TargetSettings->UniqueId;
+	}
+
+	if (PageSettings.IsEmpty())
+	{
+		return Metasound::Frontend::DefaultGraphPageID;
+	}
+
+	return PageSettings.Last().UniqueId;
+}
+
 #if WITH_EDITOR
 void UMetaSoundSettings::PostEditChangeChainProperty(FPropertyChangedChainEvent& PostEditChangeChainProperty)
 {
@@ -230,6 +245,20 @@ void UMetaSoundSettings::PostInitProperties()
 	Super::PostInitProperties();
 }
 #endif // WITH_EDITOR
+
+bool UMetaSoundSettings::SetTargetPage(FName PageName)
+{
+	if (const FMetaSoundPageSettings* PageSetting = FindPageSettings(PageName))
+	{
+		if (TargetPageName != PageSetting->Name)
+		{
+			TargetPageName = PageSetting->Name;
+			return true;
+		}
+	}
+
+	return false;
+}
 
 #if WITH_EDITORONLY_DATA
 Metasound::Engine::FOnSettingsDefaultConformed& UMetaSoundSettings::GetOnDefaultConformedDelegate()

@@ -2,6 +2,7 @@
 
 #include "MetasoundDocumentBuilderRegistry.h"
 
+#include "HAL/PlatformProperties.h"
 #include "MetasoundAssetManager.h"
 #include "MetasoundGlobals.h"
 #include "MetasoundSettings.h"
@@ -233,12 +234,6 @@ namespace Metasound::Engine
 		return FoundBuilders;
 	}
 
-	FGuid FDocumentBuilderRegistry::ResolveExecutablePageID(const TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface) const
-	{
-		// TODO: implement selection logic.  For now default to 0 guid, which is always valid on an asset.
-		return FGuid();
-	}
-
 	FMetaSoundFrontendDocumentBuilder* FDocumentBuilderRegistry::FindOutermostBuilder(const UObject& InSubObject) const
 	{
 		using namespace Metasound::Frontend;
@@ -309,6 +304,13 @@ namespace Metasound::Engine
 		}
 	}
 
+#if WITH_EDITOR
+	FOnResolvePreviewPageInfo& FDocumentBuilderRegistry::GetOnResolvePreviewPageInfoDelegate()
+	{
+		return OnResolvePreviewPageInfo;
+	}
+#endif // WITH_EDITOR
+
 	bool FDocumentBuilderRegistry::ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const
 	{
 		bool bReloaded = false;
@@ -320,6 +322,90 @@ namespace Metasound::Engine
 		}
 
 		return bReloaded;
+	}
+
+	FGuid FDocumentBuilderRegistry::ResolveTargetPageID(const FMetasoundFrontendDocument& Document, const FTopLevelAssetPath& AssetPath) const
+	{
+		FName PlatformName = FPlatformProperties::IniPlatformName();
+
+#if WITH_EDITOR
+		if (OnResolvePreviewPageInfo.IsBound())
+		{
+			FPreviewPageInfo PreviewInfo = OnResolvePreviewPageInfo.Execute(Document);
+			if (PreviewInfo.PageID.IsSet())
+			{
+				return PreviewInfo.PageID.GetValue();
+			}
+
+			PlatformName = PreviewInfo.PlatformName;
+		}
+#endif // WITH_EDITOR
+
+		TSet<FGuid> DocPageIds;
+		Document.RootGraph.IterateGraphPages([&DocPageIds](const FMetasoundFrontendGraph& PageGraph)
+		{
+			DocPageIds.Add(PageGraph.PageID);
+		});
+
+		bool bImplementsPages = false;
+		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+		if (Settings)
+		{
+			const FGuid& TargetPageID = Settings->GetTargetPageID();
+			const TArray<FMetaSoundPageSettings>& PageSettingsArray = Settings->GetPageSettings();
+			bImplementsPages = Settings->GetPageSettings().IsEmpty();
+
+			bool bFoundMatch = false;
+			for (int32 Index = PageSettingsArray.Num() - 1; Index >= 0; --Index)
+			{
+				const FMetaSoundPageSettings& PageSettings = PageSettingsArray[Index];
+				bFoundMatch |= PageSettings.UniqueId == TargetPageID;
+				const bool bAssetImplementsPage = DocPageIds.Contains(PageSettings.UniqueId);
+				if (bFoundMatch && bAssetImplementsPage)
+				{
+#if WITH_EDITOR
+					const bool bIsCooked = PageSettings.IsCooked.GetValueForPlatform(PlatformName);
+					if (bIsCooked)
+					{
+						return PageSettings.UniqueId;
+					}
+#else // !WITH_EDITOR
+					return PageSettings.UniqueId;
+#endif // !WITH_EDITOR
+				}
+			}
+		}
+
+		// Set to arbitrary ID so the default is prioritized when iterating implemented
+		// asset pages. All documents are guaranteed to implement at least one page.
+		FGuid PageID = FGuid::NewGuid();
+		Document.RootGraph.IterateGraphPages([&PageID](const FMetasoundFrontendGraph& Graph)
+		{
+			if (PageID.IsValid())
+			{
+				PageID = Graph.PageID;
+			}
+		});
+
+#if !NO_LOGGING
+		// Log error if page settings exist, but could not resolve ID with the given document
+		if (bImplementsPages)
+		{
+			FString PageIdentifier = PageID.ToString();
+			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageID))
+			{
+				PageIdentifier = PageSettings->Name.ToString();
+			}
+
+			UE_LOG(LogMetaSound, Error,
+				TEXT("'%s' failed to resolve executable page ID:  \nMetaSound 'Page Settings' does not provide a valid fallback page for execution"
+					"on the desired platform, which can result in undefined behavior. Registering asset's page with ID '%s'."),
+				*AssetPath.ToString(),
+				*PageIdentifier);
+		}
+#endif // !NO_LOGGING
+
+		return PageID;
 	}
 
 	void FDocumentBuilderRegistry::SetEventLogVerbosity(ELogEvent Event, ELogVerbosity::Type Verbosity)

@@ -1127,10 +1127,27 @@ namespace Metasound::Frontend
 	void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral)
 	{
 		ForEachLiteral(InDoc.RootGraph, OnLiteral);
+
 		for (const FMetasoundFrontendGraphClass& GraphClass : InDoc.Subgraphs)
 		{
 			ForEachLiteral(GraphClass, OnLiteral);
 		}
+
+		for (const FMetasoundFrontendClass& Dependency : InDoc.Dependencies)
+		{
+			ForEachLiteral(Dependency, OnLiteral);
+		}
+	}
+
+	void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral, const FGuid& InPageID)
+	{
+		ForEachLiteral(InDoc.RootGraph, OnLiteral, InPageID);
+
+		for (const FMetasoundFrontendGraphClass& GraphClass : InDoc.Subgraphs)
+		{
+			ForEachLiteral(GraphClass, OnLiteral, InPageID);
+		}
+
 		for (const FMetasoundFrontendClass& Dependency : InDoc.Dependencies)
 		{
 			ForEachLiteral(Dependency, OnLiteral);
@@ -1141,12 +1158,31 @@ namespace Metasound::Frontend
 	{
 		ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
 
-		for (const FMetasoundFrontendNode& Node : InGraphClass.GetConstDefaultGraph().Nodes)
+		InGraphClass.IterateGraphPages([&OnLiteral](const FMetasoundFrontendGraph& Graph)
+		{
+			for (const FMetasoundFrontendNode& Node : Graph.Nodes)
+			{
+				ForEachLiteral(Node, OnLiteral);
+			}
+
+			for (const FMetasoundFrontendVariable& Variable : Graph.Variables)
+			{
+				OnLiteral(Variable.TypeName, Variable.Literal);
+			}
+		});
+	}
+
+	void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral, const FGuid& InPageID)
+	{
+		ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
+
+		const FMetasoundFrontendGraph& Graph = InGraphClass.FindConstGraphChecked(InPageID);
+		for (const FMetasoundFrontendNode& Node : Graph.Nodes)
 		{
 			ForEachLiteral(Node, OnLiteral);
 		}
 
-		for (const FMetasoundFrontendVariable& Variable : InGraphClass.GetConstDefaultGraph().Variables)
+		for (const FMetasoundFrontendVariable& Variable : Graph.Variables)
 		{
 			OnLiteral(Variable.TypeName, Variable.Literal);
 		}
