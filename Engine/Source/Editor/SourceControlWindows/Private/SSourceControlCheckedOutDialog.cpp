@@ -19,6 +19,7 @@
 #include "Algo/Count.h"
 #include "ActorFolder.h"
 #include "ActorFolderDesc.h"
+#include "AssetDefinitionRegistry.h"
 
 #define LOCTEXT_NAMESPACE "SSourceControlConflict"
 
@@ -44,7 +45,25 @@ void SSourceControlCheckedOutDialog::Construct(const FArguments& InArgs)
 	TSharedPtr<SHeaderRow> HeaderRowWidget;
 	HeaderRowWidget = SNew(SHeaderRow);
 
-	if (InArgs._ShowColumnAssetName)
+	bool bShowColumnAssetName = InArgs._ShowColumnAssetName;
+	bool bShowColumnAssetClass = InArgs._ShowColumnAssetClass;
+	bool bShowColumnUserName = InArgs._ShowColumnUserName;
+
+	if (bShowColumnUserName)
+	{
+		bool bAnyCheckedOut = false;
+		for (auto& Item : ListViewItems)
+		{
+			if (!Item->GetCheckedOutByUser().IsEmpty())
+			{
+				bAnyCheckedOut = true;
+				break;
+			}
+		}
+		bShowColumnUserName = bAnyCheckedOut;
+	}
+
+	if (bShowColumnAssetName)
 	{
 		HeaderRowWidget->AddColumn(
 			SHeaderRow::Column(SSourceControlConflictWarningWidgetDefs::ColumnID_AssetLabel)
@@ -55,7 +74,7 @@ void SSourceControlCheckedOutDialog::Construct(const FArguments& InArgs)
 		);
 	}
 
-	if (InArgs._ShowColumnAssetClass)
+	if (bShowColumnAssetName)
 	{
 		HeaderRowWidget->AddColumn(
 			SHeaderRow::Column(SSourceControlConflictWarningWidgetDefs::ColumnID_AssetClassLabel)
@@ -64,7 +83,7 @@ void SSourceControlCheckedOutDialog::Construct(const FArguments& InArgs)
 		);
 	}
 
-	if (InArgs._ShowColumnUserName)
+	if (bShowColumnUserName)
 	{
 		HeaderRowWidget->AddColumn(
 			SHeaderRow::Column(SSourceControlConflictWarningWidgetDefs::ColumnID_UserNameLabel)
@@ -293,7 +312,7 @@ TSharedRef<SWidget> SSourceControlCheckedOutDialogListRow::GenerateWidgetForColu
 			.VAlign(VAlign_Center)
 			[
 				SNew(STextBlock)
-				.Text(Item->GetAssetType())
+				.Text(Item->GetAssetTypeName())
 				.ToolTipText(Item->GetAssetType())
 			];
 	}

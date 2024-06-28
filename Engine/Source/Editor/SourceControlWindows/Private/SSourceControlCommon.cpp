@@ -8,6 +8,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "ActorFolder.h"
 #include "ActorFolderDesc.h"
+#include "AssetDefinitionRegistry.h"
 #include "AssetToolsModule.h"
 #include "Styling/AppStyle.h"
 #include "ISourceControlModule.h"
@@ -105,13 +106,28 @@ static FString RetrieveAssetPath(const FAssetData& InAssetData)
 	return Path;
 }
 
-static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, const FString& InFilename, FString& OutAssetName, FString& OutAssetPath, FString& OutAssetType, FText& OutPackageName, FColor& OutAssetTypeColor)
+static FString RetrieveAssetTypeName(const FAssetData& InAssetData)
+{
+	if (UAssetDefinitionRegistry* AssetDefinitionRegistry = UAssetDefinitionRegistry::Get())
+	{
+		const UAssetDefinition* AssetDefinition = AssetDefinitionRegistry->GetAssetDefinitionForAsset(InAssetData);
+		if (AssetDefinition)
+		{
+			return AssetDefinition->GetAssetDisplayName().ToString();
+		}
+	}
+
+	return InAssetData.AssetClassPath.ToString();
+}
+
+static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, const FString& InFilename, FString& OutAssetName, FString& OutAssetPath, FString& OutAssetType, FString& OutAssetTypeName, FText& OutPackageName, FColor& OutAssetTypeColor)
 {
 	// Initialize display-related members
 	FString Filename = InFilename;
 	FString TempAssetName = SSourceControlCommon::GetDefaultAssetName().ToString();
 	FString TempAssetPath = Filename;
 	FString TempAssetType = SSourceControlCommon::GetDefaultAssetType().ToString();
+	FString TempAssetTypeName = SSourceControlCommon::GetDefaultAssetType().ToString();
 	FString TempPackageName = Filename;
 	FColor TempAssetColor = FColor(		// Copied from ContentBrowserCLR.cpp
 		127 + FColor::Red.R / 2,	// Desaturate the colors a bit (GB colors were too.. much)
@@ -131,6 +147,7 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 			TempAssetName = RetrieveAssetName(AssetData);
 			TempAssetPath = RetrieveAssetPath(AssetData);
 			TempAssetType = AssetData.AssetClassPath.ToString();
+			TempAssetTypeName = RetrieveAssetTypeName(AssetData);
 
 			const FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
 			const TSharedPtr<IAssetTypeActions> AssetTypeActions = AssetToolsModule.Get().GetAssetTypeActionsForClass(AssetData.GetClass()).Pin();
@@ -148,6 +165,7 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 		{
 			TempAssetName = RetrieveAssetName(Assets[0]);
 			TempAssetPath = RetrieveAssetPath(Assets[0]);
+			TempAssetTypeName = RetrieveAssetTypeName(Assets[0]);
 
 			for (int32 i = 1; i < Assets.Num(); ++i)
 			{
@@ -178,12 +196,14 @@ static void RefreshAssetInformationInternal(const TArray<FAssetData>& Assets, co
 		TempAssetName = FPaths::GetCleanFilename(Filename);
 		TempPackageName = Filename; // put back original package name if the try failed
 		TempAssetType = FText::Format(SSourceControlCommon::GetDefaultUnknownAssetType(), FText::FromString(FPaths::GetExtension(Filename).ToUpper())).ToString();
+		TempAssetTypeName = TempAssetType;
 	}
 
 	// Finally, assign the temp variables to the member variables
 	OutAssetName = TempAssetName;
 	OutAssetPath = TempAssetPath;
 	OutAssetType = TempAssetType;
+	OutAssetTypeName = TempAssetTypeName;
 	OutAssetTypeColor = TempAssetColor;
 	OutPackageName = FText::FromString(TempPackageName);
 }
@@ -269,10 +289,11 @@ void FFileTreeItem::RefreshAssetInformation()
 {
 	// Initialize display-related members
 	static TArray<FAssetData> NoAssets;
-	RefreshAssetInformationInternal(Assets.IsValid() ? *Assets : NoAssets, FileState->GetFilename(), AssetNameStr, AssetPathStr, AssetTypeStr, PackageName, AssetTypeColor);
+	RefreshAssetInformationInternal(Assets.IsValid() ? *Assets : NoAssets, FileState->GetFilename(), AssetNameStr, AssetPathStr, AssetTypeStr, AssetTypeNameStr, PackageName, AssetTypeColor);
 	AssetName = FText::FromString(AssetNameStr);
 	AssetPath = FText::FromString(AssetPathStr);
 	AssetType = FText::FromString(AssetTypeStr);
+	AssetTypeName = FText::FromString(AssetTypeNameStr);
 }
 
 FText FFileTreeItem::GetAssetName() const
@@ -327,10 +348,11 @@ FOfflineFileTreeItem::FOfflineFileTreeItem(const FString& InFilename)
 
 void FOfflineFileTreeItem::RefreshAssetInformation()
 {
-	RefreshAssetInformationInternal(Assets, Filename, AssetNameStr, AssetPathStr, AssetTypeStr, PackageName, AssetTypeColor);
+	RefreshAssetInformationInternal(Assets, Filename, AssetNameStr, AssetPathStr, AssetTypeStr, AssetTypeNameStr, PackageName, AssetTypeColor);
 	AssetName = FText::FromString(AssetNameStr);
 	AssetPath = FText::FromString(AssetPathStr);
 	AssetType = FText::FromString(AssetTypeStr);
+	AssetTypeName = FText::FromString(AssetTypeNameStr);
 }
 
 //////////////////////////////////////////////////////////////////////////
