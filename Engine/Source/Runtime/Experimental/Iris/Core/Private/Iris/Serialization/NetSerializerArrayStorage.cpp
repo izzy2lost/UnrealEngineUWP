@@ -38,7 +38,10 @@ void FNetSerializerAlignedStorage::AdjustSize(FNetSerializationContext& Context,
 		void* NewData = Context.GetInternalContext()->Alloc(InNum, InAlignment);
 		FMemory::Memzero(NewData, InNum);
 		// Copy old data
-		FMemory::Memcpy(NewData, Data, StorageNum);
+		if (StorageNum > 0)
+		{
+			FMemory::Memcpy(NewData, Data, StorageNum);
+		}
 		Context.GetInternalContext()->Free(Data);
 
 		Data = static_cast<uint8*>(NewData);
