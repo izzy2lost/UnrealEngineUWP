@@ -679,7 +679,38 @@ void ARecastNavMesh::PostLoad()
 			UNavigationSystemBase::OnNavigationInitStartStaticDelegate().AddUObject(this, &ARecastNavMesh::CheckToDiscardSubLevelNavData);
 		}
 	}
-	
+
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// If needed, initialize from deprecated value.
+	if (NavMeshVersion < NAVMESHVER_TILE_RESOLUTIONS)
+	{
+		for (int i = 0; i < (uint8)ENavigationDataResolution::MAX; ++i)
+		{
+			SetCellSize((ENavigationDataResolution)i, CellSize);
+		}
+	}
+
+	// If needed, initialize CellHeight from the deprecated value.
+	if (NavMeshVersion < NAVMESHVER_TILE_RESOLUTIONS_CELLHEIGHT)
+	{
+		for (int i = 0; i < (uint8)ENavigationDataResolution::MAX; ++i)
+		{
+			SetCellHeight((ENavigationDataResolution)i, CellHeight);
+		}
+	}
+
+	// If needed, initialize AgentMaxStepHeight from the deprecated value.
+	if (NavMeshVersion < NAVMESHVER_TILE_RESOLUTIONS_AGENTMAXSTEPHEIGHT)
+	{
+		for (int i = 0; i < (uint8)ENavigationDataResolution::MAX; ++i)
+		{
+			SetAgentMaxStepHeight((ENavigationDataResolution)i, AgentMaxStepHeight);
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+
 	for (uint8 Index = 0; Index < (uint8)ENavigationDataResolution::MAX; Index++)
 	{
 		UE_CLOG(TileSizeUU < GetCellSize((ENavigationDataResolution)Index), LogNavigation, Error, TEXT("%s: TileSizeUU (%f) being less than CellSize (%f) is an invalid case and will cause navmesh generation issues.")

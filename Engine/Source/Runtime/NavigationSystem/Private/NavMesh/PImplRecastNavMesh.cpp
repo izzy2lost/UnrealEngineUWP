@@ -606,6 +606,19 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 		// assumes tiles are rectangular
 		
 		float DefaultCellSize = NavMeshOwner->GetCellSize(ENavigationDataResolution::Default);
+
+#if WITH_EDITORONLY_DATA
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		if (NavMeshVersion < NAVMESHVER_TILE_RESOLUTIONS)
+		{
+			// For backward compatibility, read original CellSize value.
+			// In ARecastNavMesh::PostLoad(), cell sizes for the different resolutions are set to the old CellSize value but it occurs later (PostLoad).
+			// This why we explicitly need to read CellSize for older versions here.
+			DefaultCellSize = NavMeshOwner->CellSize;
+		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+
 		const FVector::FReal ActorsTileSize = static_cast<FVector::FReal>(FMath::TruncToInt(NavMeshOwner->TileSizeUU / DefaultCellSize)) * DefaultCellSize;
 
 		if (ActorsTileSize != Params.tileWidth)
