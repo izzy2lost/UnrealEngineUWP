@@ -221,7 +221,7 @@ namespace HordeServer.Server
 			foreach (ProjectConfig project in Projects)
 			{
 				_projectLookup.Add(project.Id, project);
-				project.PostLoad(project.Id, this);
+				project.PostLoad(project.Id, Acl);
 
 				foreach (StreamConfig stream in project.Streams)
 				{

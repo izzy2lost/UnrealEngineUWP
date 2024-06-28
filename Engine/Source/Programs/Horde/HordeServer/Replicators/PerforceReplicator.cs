@@ -308,7 +308,7 @@ namespace HordeServer.Replicators
 		/// <summary>
 		/// Runs a replication loop for a stream
 		/// </summary>
-		public async Task RunAsync(ReplicatorId replicatorId, StreamConfig streamConfig, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
+		public async Task RunAsync(ReplicatorId replicatorId, GlobalConfig globalConfig, StreamConfig streamConfig, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
 		{
 			_logger.LogInformation("Starting replication background task for {ReplicatorId}", replicatorId);
 
@@ -321,14 +321,14 @@ namespace HordeServer.Replicators
 
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				replicator = await RunOnceAsync(replicator, streamConfig, options, cancellationToken);
+				replicator = await RunOnceAsync(replicator, globalConfig, streamConfig, options, cancellationToken);
 			}
 		}
 
 		/// <summary>
 		/// Runs the replicator for a single change
 		/// </summary>
-		public async Task<IReplicator> RunOnceAsync(IReplicator replicator, StreamConfig streamConfig, PerforceReplicationOptions replicatorOptions, CancellationToken cancellationToken)
+		public async Task<IReplicator> RunOnceAsync(IReplicator replicator, GlobalConfig globalConfig, StreamConfig streamConfig, PerforceReplicationOptions replicatorOptions, CancellationToken cancellationToken)
 		{
 			RefName refName = GetRefName(replicator.Id);
 			RefName incRefName = GetIncrementalRefName(replicator.Id);
@@ -384,7 +384,7 @@ namespace HordeServer.Replicators
 			BlobSerializerOptions blobOptions = new BlobSerializerOptions();
 			try
 			{
-				replicator = await WriteInternalAsync(replicator, change, streamConfig, replicatorOptions, blobOptions, cancellationToken);
+				replicator = await WriteInternalAsync(replicator, change, globalConfig, streamConfig, replicatorOptions, blobOptions, cancellationToken);
 				return replicator;
 			}
 			catch (OperationCanceledException ex)
@@ -410,7 +410,7 @@ namespace HordeServer.Replicators
 			}
 		}
 
-		async Task<IReplicator> WriteInternalAsync(IReplicator replicator, int change, StreamConfig streamConfig, PerforceReplicationOptions options, BlobSerializerOptions blobOptions, CancellationToken cancellationToken = default)
+		async Task<IReplicator> WriteInternalAsync(IReplicator replicator, int change, GlobalConfig globalConfig, StreamConfig streamConfig, PerforceReplicationOptions options, BlobSerializerOptions blobOptions, CancellationToken cancellationToken = default)
 		{
 			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
@@ -478,7 +478,7 @@ namespace HordeServer.Replicators
 			}
 
 			// Create a client to replicate from this stream
-			ReplicationClient clientInfo = await FindOrAddReplicationClientAsync(streamConfig, cancellationToken);
+			ReplicationClient clientInfo = await FindOrAddReplicationClientAsync(globalConfig, streamConfig, cancellationToken);
 
 			// Connect to the server and flush the workspace
 			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(clientInfo.Settings, _logger);
@@ -893,7 +893,7 @@ namespace HordeServer.Replicators
 			return clientInfo;
 		}
 
-		async Task<ReplicationClient> FindOrAddReplicationClientAsync(StreamConfig streamConfig, CancellationToken cancellationToken = default)
+		async Task<ReplicationClient> FindOrAddReplicationClientAsync(GlobalConfig globalConfig, StreamConfig streamConfig, CancellationToken cancellationToken = default)
 		{
 			ReplicationClient? clientInfo = await FindReplicationClientAsync(streamConfig, cancellationToken);
 			if (clientInfo == null)
@@ -906,7 +906,6 @@ namespace HordeServer.Replicators
 
 				InfoRecord serverInfo = await perforce.GetInfoAsync(InfoOptions.ShortOutput, cancellationToken);
 
-				GlobalConfig globalConfig = streamConfig.ProjectConfig.GlobalConfig;
 				PerforceCluster cluster = globalConfig.GetPerforceCluster(streamConfig.ClusterName);
 				bool partitioned = cluster.SupportsPartitionedWorkspaces;
 

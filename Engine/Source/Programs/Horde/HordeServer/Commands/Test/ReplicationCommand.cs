@@ -79,7 +79,7 @@ namespace HordeServer.Commands.Test
 			}
 
 			PerforceReplicationOptions options = new PerforceReplicationOptions();
-			await perforceReplicator.RunOnceAsync(replicator, streamConfig, options, default);
+			await perforceReplicator.RunOnceAsync(replicator, globalConfig, streamConfig, options, default);
 
 			return 0;
 		}

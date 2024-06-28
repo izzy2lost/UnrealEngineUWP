@@ -30,12 +30,6 @@ namespace HordeServer.Projects
 	public class ProjectConfig
 	{
 		/// <summary>
-		/// Accessor for the global config owning this project
-		/// </summary>
-		[JsonIgnore]
-		public GlobalConfig GlobalConfig { get; private set; } = null!;
-
-		/// <summary>
 		/// The project id
 		/// </summary>
 		public ProjectId Id { get; set; }
@@ -120,13 +114,11 @@ namespace HordeServer.Projects
 		/// Callback after this configuration has been read
 		/// </summary>
 		/// <param name="id">Id of this project</param>
-		/// <param name="globalConfig">The owning global config object</param>
-		public void PostLoad(ProjectId id, GlobalConfig globalConfig)
+		/// <param name="parentAcl">The owning global config object</param>
+		public void PostLoad(ProjectId id, AclConfig parentAcl)
 		{
 			Id = id;
-			GlobalConfig = globalConfig;
-
-			Acl.PostLoad(globalConfig.Acl, $"project:{Id}");
+			Acl.PostLoad(parentAcl, $"project:{Id}");
 
 			foreach (StreamConfig stream in Streams)
 			{
