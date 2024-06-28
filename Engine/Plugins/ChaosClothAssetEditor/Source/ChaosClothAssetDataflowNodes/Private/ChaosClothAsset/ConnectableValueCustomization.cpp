@@ -12,7 +12,6 @@
 #include "Widgets/Input/SEditableTextBox.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
-//#include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetWeightedValueCustomization"
 
