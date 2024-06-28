@@ -364,6 +364,11 @@ void UTestReplicatedIrisLifetimeConditionalsPropertyState::GetLifetimeReplicated
 	DOREPLIFETIME_CONDITION(ThisClass, NeverInt, COND_Never);
 	DOREPLIFETIME_CONDITION(ThisClass, SkipReplayInt, COND_SkipReplay);
 	DOREPLIFETIME_CONDITION(ThisClass, ReplayOnlyInt, COND_ReplayOnly);
+
+	DOREPLIFETIME_CONDITION(ThisClass, SimulatedOnlyIntArray, COND_SimulatedOnly);
+	DOREPLIFETIME_CONDITION(ThisClass, AutonomousOnlyIntArray, COND_AutonomousOnly);
+	DOREPLIFETIME_CONDITION(ThisClass, SimulatedOrPhysicsIntArray, COND_SimulatedOrPhysics);
+	DOREPLIFETIME_CONDITION(ThisClass, OwnerOnlyIntArray, COND_OwnerOnly);
 }
 
 //////////////////////////////////////////////////////////////////////////

@@ -18,7 +18,6 @@ namespace UE::Net
 	typedef uint32 FNetObjectFilterHandle;
 	namespace Private
 	{
-		class FDeltaCompressionBaselineInvalidationTracker;
 		class FNetRefHandleManager;
 		class FNetObjectGroups;
 		class FReplicationConnections;
@@ -43,10 +42,9 @@ private:
 
 struct FReplicationFilteringInitParams
 {
-	TObjectPtr<UReplicationSystem> ReplicationSystem;
+	TObjectPtr<UReplicationSystem> ReplicationSystem = nullptr;
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	FNetObjectGroups* Groups = nullptr;
-	FDeltaCompressionBaselineInvalidationTracker* BaselineInvalidationTracker = nullptr;
 	FReplicationConnections* Connections = nullptr;
 	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 MaxGroupCount = 0;
@@ -267,8 +265,6 @@ private:
 	void NotifyFiltersOfDirtyObjects();
 	void BatchNotifyFiltersOfDirtyObjects(FUpdateDirtyObjectsBatchHelper& BatchHelper, const uint32* ObjectIndices, uint32 ObjectCount);
 
-	void InvalidateBaselinesForObject(uint32 ObjectIndex, uint32 NewOwningConnectionId, uint32 PrevOwningConnectionId);
-
 	/** Returns all the filtering infos. */
 	TArrayView<FNetObjectFilteringInfo> GetNetObjectFilteringInfos();
 
@@ -317,9 +313,6 @@ private:
 
 	// Groups
 	FNetObjectGroups* Groups = nullptr;
-
-	// Baseline invalidation tracker
-	FDeltaCompressionBaselineInvalidationTracker* BaselineInvalidationTracker = nullptr;
 
 	// Connection specifics
 	FReplicationConnections* Connections = nullptr;

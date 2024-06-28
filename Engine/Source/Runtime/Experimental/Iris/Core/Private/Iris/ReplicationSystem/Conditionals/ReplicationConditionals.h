@@ -136,6 +136,9 @@ private:
 	void MarkRemoteRoleDirty(FInternalNetRefIndex ObjectIndex);
 	uint16 GetRemoteRoleRepIndex(const FReplicationProtocol* Protocol);
 
+	// Invalidates baselines for root object and subobjects with lifetime conditionals.
+	void InvalidateBaselinesForObjectHierarchy(uint32 ObjectIndex, const TConstArrayView<uint32>& ConnectionsToInvalidate);
+
 private:
 	static constexpr uint16 InvalidRepIndex = 65535U;
 

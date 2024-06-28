@@ -120,25 +120,40 @@ bool FReplicationConditionals::SetConditionConnectionFilter(FInternalNetRefIndex
 		const uint32 ConnIdForBaselineInvalidation = (bEnable ? ConnectionId : ObjectInfo->AutonomousConnectionId);
 		ObjectInfo->AutonomousConnectionId = uint16(AutonomousConnectionId);
 
-		// TODO: Make sure we also invalidate baselines for subobjects
-		BaselineInvalidationTracker->InvalidateBaselines(ObjectIndex, ConnIdForBaselineInvalidation);
-
 		MarkRemoteRoleDirty(ObjectIndex);
 		// Mark object as having dirty global conditional that should be evaluated before next send
 		ObjectsWithDirtyLifetimeConditionals.SetBit(ObjectIndex);
+
+		InvalidateBaselinesForObjectHierarchy(ObjectIndex, TConstArrayView<uint32>(&ConnIdForBaselineInvalidation, 1));
 	}
 
 	return true;
 }
 
-void FReplicationConditionals::SetOwningConnection(FInternalNetRefIndex ObjectIndex, uint32 ConnectionId)
+void FReplicationConditionals::SetOwningConnection(FInternalNetRefIndex ObjectIndex, uint32 OwningConnectionId)
 {
-	if (ReplicationFiltering->GetOwningConnection(ObjectIndex) != ConnectionId)
+	const uint32 OldOwningConnectionId = ReplicationFiltering->GetOwningConnection(ObjectIndex);
+	if (OldOwningConnectionId != OwningConnectionId && (OwningConnectionId == InvalidConnectionId || ReplicationConnections->IsValidConnection(OwningConnectionId)))
 	{
-		UE_LOG(LogIrisConditionals, Verbose, TEXT("SetOwningConnection on object %u. Connection: %u"), ObjectIndex, ConnectionId);
+		UE_LOG(LogIrisConditionals, Verbose, TEXT("SetOwningConnection on object %u. Connection: %u"), ObjectIndex, OwningConnectionId);
 
 		// Mark object as having dirty global conditional that should be evaluated before next send
 		ObjectsWithDirtyLifetimeConditionals.SetBit(ObjectIndex);
+
+		// Invalidate baselines for connections affected by the owner change.
+		{
+			const uint32 ConnectionIdToInvalidateCandidates[] = {OldOwningConnectionId, OwningConnectionId};
+			uint32 ConnectionIdsToInvalidate[UE_ARRAY_COUNT(ConnectionIdToInvalidateCandidates)];
+			uint32 ConnectionIdCount = 0;
+			for (uint32 ConnectionId : ConnectionIdToInvalidateCandidates)
+			{
+				if (ConnectionId != InvalidConnectionId)
+				{
+					ConnectionIdsToInvalidate[ConnectionIdCount++] = ConnectionId;
+				}
+			}
+			InvalidateBaselinesForObjectHierarchy(ObjectIndex, TConstArrayView<uint32>(ConnectionIdsToInvalidate, ConnectionIdCount));
+		}
 	}
 }
 
@@ -172,8 +187,8 @@ bool FReplicationConditionals::SetCondition(FInternalNetRefIndex ObjectIndex, ER
 			UE_LOG(LogIrisConditionals, Verbose, TEXT("SetCondition object %s. EReplicationCondition::ReplicatePhysics: %u"), *NetRefHandleManager->PrintObjectFromIndex(ObjectIndex), bEnable ? 1U : 0U);
 
 			// We only care to track this change if the condition is enabled.
-			// TODO: Make sure we also invalidate baselines for subobjects
-			BaselineInvalidationTracker->InvalidateBaselines(ObjectIndex, BaselineInvalidationTracker->InvalidateBaselineForAllConnections);
+			const uint32 ConnIdForBaselineInvalidation = BaselineInvalidationTracker->InvalidateBaselineForAllConnections;
+			InvalidateBaselinesForObjectHierarchy(ObjectIndex, TConstArrayView<uint32>(&ConnIdForBaselineInvalidation, 1));
 
 			// Mark object as having dirty global conditional that should be evaluated before next send
 			ObjectsWithDirtyLifetimeConditionals.SetBit(ObjectIndex);
@@ -296,7 +311,6 @@ bool FReplicationConditionals::SetPropertyCustomCondition(FInternalNetRefIndex O
 		}
 
 		const FReplicationStateMemberChangeMaskDescriptor& ChangeMaskDescriptor = StateDescriptor->MemberChangeMaskDescriptors[RepIndexToMemberIndexDescriptor.MemberIndex];
-		checkSlow(ChangeMaskDescriptor.BitCount == 1);
 		FNetBitArrayView ConditionalChangeMask = UE::Net::Private::GetMemberConditionalChangeMask(Fragment.ExternalSrcBuffer, StateDescriptor);
 
 		if (bIsActive)
@@ -1063,6 +1077,37 @@ void FReplicationConditionals::MarkPropertyDirty(FInternalNetRefIndex ObjectInde
 	}
 
 	UE_LOG(LogIris, Warning, TEXT("Trying to mark non-existing property with RepIndex %u in protocol %s as dirty"), RepIndex, ToCStr(Protocol->DebugName));
+}
+
+void FReplicationConditionals::InvalidateBaselinesForObjectHierarchy(uint32 ObjectIndex, const TConstArrayView<uint32>& ConnectionsToInvalidate)
+{
+	// Invalidate baselines for root object
+	{
+		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex);
+		if (EnumHasAnyFlags(ObjectData.Protocol->ProtocolTraits, EReplicationProtocolTraits::HasLifetimeConditionals))
+		{
+			for (const uint32 ConnId : ConnectionsToInvalidate)
+			{
+				BaselineInvalidationTracker->InvalidateBaselines(ObjectIndex, ConnId);
+			}
+		}
+	}
+
+	// Invalidate baselines for subobjects
+	for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
+	{
+		const FNetRefHandleManager::FReplicatedObjectData& SubObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(SubObjectIndex);
+		if (SubObjectData.IsSubObject())
+		{
+			if (EnumHasAnyFlags(SubObjectData.Protocol->ProtocolTraits, EReplicationProtocolTraits::HasLifetimeConditionals))
+			{
+				for (const uint32 ConnId : ConnectionsToInvalidate)
+				{
+					BaselineInvalidationTracker->InvalidateBaselines(SubObjectIndex, ConnId);
+				}
+			}
+		}
+	}
 }
 
 }

@@ -15,7 +15,6 @@
 #include "Iris/ReplicationSystem/ReplicationProtocol.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
-#include "Iris/ReplicationSystem/DeltaCompression/DeltaCompressionBaselineInvalidationTracker.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectGroups.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilterDefinitions.h"
 #include "Iris/ReplicationSystem/Filtering/ReplicationFilteringConfig.h"
@@ -194,7 +193,6 @@ void FReplicationFiltering::Init(FReplicationFilteringInitParams& Params)
 
 	Connections = Params.Connections;
 	NetRefHandleManager = Params.NetRefHandleManager;
-	BaselineInvalidationTracker = Params.BaselineInvalidationTracker;
 	Groups = Params.Groups;
 
 	MaxInternalNetRefIndex = Params.MaxInternalNetRefIndex;
@@ -439,8 +437,6 @@ void FReplicationFiltering::SetOwningConnection(FInternalNetRefIndex ObjectIndex
 			bHasDirtyConnectionFilter = 1;
 			ObjectsWithDirtyConnectionFilter.SetBit(ObjectIndex);
 		}
-
-		InvalidateBaselinesForObject(ObjectIndex, ConnectionId, OldConnectionId);
 	}
 }
 
@@ -2693,42 +2689,6 @@ void FReplicationFiltering::RemoveFromDynamicFilter(uint32 ObjectIndex, uint32 F
 	HysteresisState.ClearFromHysteresis(ObjectIndex);
 }
 
-void FReplicationFiltering::InvalidateBaselinesForObject(uint32 ObjectIndex, uint32 NewOwningConnectionId, uint32 PrevOwningConnectionId)
-{
-	{
-		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectIndex);
-		// $IRIS TODO Only invalidate baselines if the object has conditions based on owner/non-owner.
-		if (EnumHasAnyFlags(ObjectData.Protocol->ProtocolTraits, EReplicationProtocolTraits::HasLifetimeConditionals))
-		{
-			for (const uint32 ConnId : {NewOwningConnectionId, PrevOwningConnectionId})
-			{
-				if (ConnId)
-				{
-					BaselineInvalidationTracker->InvalidateBaselines(ObjectIndex, ConnId);
-				}
-			}
-		}
-	}
-
-	// Invalidate baselines for subobjects
-	for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
-	{
-		const FNetRefHandleManager::FReplicatedObjectData& SubObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(SubObjectIndex);
-		if (SubObjectData.IsSubObject())
-		{
-			if (EnumHasAnyFlags(SubObjectData.Protocol->ProtocolTraits, EReplicationProtocolTraits::HasLifetimeConditionals))
-			{
-				for (const uint32 ConnId : {NewOwningConnectionId, PrevOwningConnectionId})
-				{
-					if (ConnId)
-					{
-						BaselineInvalidationTracker->InvalidateBaselines(ObjectIndex, ConnId);
-					}
-				}
-			}
-		}
-	}
-}
 
 TArrayView<FNetObjectFilteringInfo> FReplicationFiltering::GetNetObjectFilteringInfos()
 {

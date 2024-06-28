@@ -211,7 +211,6 @@ public:
 			InitParams.Connections = &ReplicationSystemInternal.GetConnections();
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
 			InitParams.Groups = &ReplicationSystemInternal.GetGroups();
-			InitParams.BaselineInvalidationTracker = &ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
 			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxGroupCount = Params.MaxNetObjectGroupCount;
 			ReplicationFiltering.Init(InitParams);

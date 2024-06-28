@@ -258,6 +258,16 @@ public:
 	UPROPERTY(Replicated, Transient)
 	int32 ReplayOnlyInt = 0;
 
+	// Arrays
+	UPROPERTY(Replicated, Transient)
+	TArray<int32> SimulatedOnlyIntArray;
+	UPROPERTY(Replicated, Transient)
+	TArray<int32> AutonomousOnlyIntArray;
+	UPROPERTY(Replicated, Transient)
+	TArray<int32> SimulatedOrPhysicsIntArray;
+	UPROPERTY(Replicated, Transient)
+	TArray<int32> OwnerOnlyIntArray;
+ 
 	// Network data only for test
 	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;
 };
