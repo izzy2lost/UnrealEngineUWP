@@ -1567,6 +1567,8 @@ bool UMetasoundEditorGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGrap
 		return false;
 	}
 
+	const FScopedTransaction Transaction(LOCTEXT("MetasoundConnect", "Connect Pins"));
+
 	FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(InputPin);
 	FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(OutputPin);
 	FConnectability Connectability = InputHandle->CanConnectTo(*OutputHandle);
@@ -1574,6 +1576,8 @@ bool UMetasoundEditorGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGrap
 	{
 		UMetasoundEditorGraph* MetaSoundGraph = CastChecked<UMetasoundEditorGraph>(InputPin->GetOwningNode()->GetGraph());
 		UObject& ParentMetaSound = MetaSoundGraph->GetMetasoundChecked();
+
+		ParentMetaSound.Modify();
 
 		if (Connectability.PossibleConverterNodeClasses.Num() == 0)
 		{
