@@ -12,9 +12,9 @@
 #include "IDatasmithSceneElements.h"
 #include "MeshDescriptionHelper.h"
 
-#include "CADKernel/Core/Session.h"
-#include "CADKernel/Topo/Model.h"
-#include "CADKernel/Topo/Topomaker.h"
+#include "Core/Session.h"
+#include "Topo/Model.h"
+#include "Topo/Topomaker.h"
 
 struct FDatasmithMeshElementPayload;
 struct FDatasmithTessellationOptions;

@@ -9,8 +9,8 @@
 
 #include "CADModelToCADKernelConverterBase.h"
 
-#include "CADKernel/Core/Session.h"
-#include "CADKernel/Core/Types.h"
+#include "Core/Session.h"
+#include "Core/Types.h"
 
 class AlDagNode;
 class AlShell;

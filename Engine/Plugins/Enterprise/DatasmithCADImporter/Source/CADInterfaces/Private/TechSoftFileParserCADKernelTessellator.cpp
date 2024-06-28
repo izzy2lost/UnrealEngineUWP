@@ -10,17 +10,17 @@
 #include "TechSoftBridge.h"
 #include "TUniqueTechSoftObj.h"
 
-#include "CADKernel/Core/CADEntity.h"
-#include "CADKernel/Core/Session.h"
-#include "CADKernel/Core/Types.h"
+#include "Core/CADEntity.h"
+#include "Core/Session.h"
+#include "Core/Types.h"
 
-#include "CADKernel/Mesh/Meshers/Mesher.h"
-#include "CADKernel/Mesh/Structure/ModelMesh.h"
+#include "Mesh/Meshers/Mesher.h"
+#include "Mesh/Structure/ModelMesh.h"
 
-#include "CADKernel/Topo/Body.h"
-#include "CADKernel/Topo/Model.h"
-#include "CADKernel/Topo/TopologicalShapeEntity.h"
-#include "CADKernel/Topo/Topomaker.h"
+#include "Topo/Body.h"
+#include "Topo/Model.h"
+#include "Topo/TopologicalShapeEntity.h"
+#include "Topo/Topomaker.h"
 
 #include "HAL/PlatformTime.h"
 

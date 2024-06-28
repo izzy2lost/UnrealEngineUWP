@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
-#include "CADKernel/Core/Types.h"
+#include "Core/Types.h"
 
 #ifdef USE_TECHSOFT_SDK
 
-#include "CADKernel/Geo/GeoEnum.h"
-#include "CADKernel/Math/MatrixH.h"
+#include "Geo/GeoEnum.h"
+#include "Math/MatrixH.h"
 #include "CADOptions.h"
 
 #include "TechSoftInterface.h"

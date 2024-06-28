@@ -12,22 +12,22 @@
 
 #include "CADKernelTools.h"
 
-#include "CADKernel/Core/Session.h"
-#include "CADKernel/Geo/Curves/Curve.h"
-#include "CADKernel/Geo/Curves/NURBSCurveData.h"
-#include "CADKernel/Geo/Surfaces/Surface.h"
-#include "CADKernel/Geo/Surfaces/NurbsSurfaceData.h"
+#include "Core/Session.h"
+#include "Geo/Curves/Curve.h"
+#include "Geo/Curves/NURBSCurveData.h"
+#include "Geo/Surfaces/Surface.h"
+#include "Geo/Surfaces/NurbsSurfaceData.h"
 
-#include "CADKernel/Math/Boundary.h"
-#include "CADKernel/Math/Point.h"
-#include "CADKernel/Mesh/Structure/ModelMesh.h"
+#include "Math/Boundary.h"
+#include "Math/Point.h"
+#include "Mesh/Structure/ModelMesh.h"
 
-#include "CADKernel/Topo/Body.h"
-#include "CADKernel/Topo/Model.h"
-#include "CADKernel/Topo/Shell.h"
-#include "CADKernel/Topo/TopologicalEdge.h"
-#include "CADKernel/Topo/TopologicalFace.h"
-#include "CADKernel/Topo/TopologicalLoop.h"
+#include "Topo/Body.h"
+#include "Topo/Model.h"
+#include "Topo/Shell.h"
+#include "Topo/TopologicalEdge.h"
+#include "Topo/TopologicalFace.h"
+#include "Topo/TopologicalLoop.h"
 
 
 namespace OpenNurbsBRepConverterTool

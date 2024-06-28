@@ -13,13 +13,13 @@
 #include "StaticMeshAttributes.h"
 #include "UObject/EnterpriseObjectVersion.h"
 
-#include "CADKernel/Core/CADKernelArchive.h"
-#include "CADKernel/Core/CADEntity.h"
-#include "CADKernel/Core/Session.h"
-#include "CADKernel/Core/Types.h"
-#include "CADKernel/Mesh/Structure/ModelMesh.h"
-#include "CADKernel/Topo/Model.h"
-#include "CADKernel/Topo/Body.h"
+#include "Core/CADKernelArchive.h"
+#include "Core/CADEntity.h"
+#include "Core/Session.h"
+#include "Core/Types.h"
+#include "Mesh/Structure/ModelMesh.h"
+#include "Topo/Model.h"
+#include "Topo/Body.h"
 
 void UCADKernelParametricSurfaceData::Serialize(FArchive& Ar)
 {

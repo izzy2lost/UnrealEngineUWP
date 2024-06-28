@@ -2,7 +2,7 @@
 #pragma once
 
 #ifdef CADKERNEL_DEV
-#include "CADKernel/Core/Types.h"
+#include "Core/Types.h"
 #else
 #include "CoreMinimal.h"
 #endif
