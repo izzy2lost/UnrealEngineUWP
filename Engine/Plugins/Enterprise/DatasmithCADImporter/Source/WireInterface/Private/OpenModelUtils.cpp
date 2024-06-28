@@ -11,8 +11,6 @@
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 
-DEFINE_LOG_CATEGORY(LogWireInterface);
-
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif
@@ -45,6 +43,8 @@ DEFINE_LOG_CATEGORY(LogWireInterface);
 
 namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 {
+	DEFINE_LOG_CATEGORY(LogWireInterface);
+
 	bool FPatchMesh::Initialize()
 	{
 		if (MeshNodes.IsEmpty())
