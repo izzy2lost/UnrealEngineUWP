@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -399,6 +400,14 @@ namespace HordeServer.Configuration
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		public ObjectConfigNode(bool isIncludeRoot, bool isMacroScope)
+			: this(isIncludeRoot, isMacroScope, Array.Empty<KeyValuePair<string, ConfigNode>>())
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public ObjectConfigNode(bool isIncludeRoot, bool isMacroScope, IEnumerable<KeyValuePair<string, ConfigNode>> properties)
 		{
 			IncludeRoot = isIncludeRoot;
@@ -628,6 +637,56 @@ namespace HordeServer.Configuration
 					await property.ParseIncludesAsync(propertyNode, includes, context, cancellationToken);
 				}
 			}
+		}
+
+		/// <summary>
+		/// Adds a new node at a given path
+		/// </summary>
+		/// <param name="path">Path to the node to add</param>
+		/// <param name="node">The node to add the requested path</param>
+		public void AddChildNode(string path, ConfigNode node)
+		{
+			int nextDotIdx = path.IndexOf('.', StringComparison.Ordinal);
+			if (nextDotIdx == -1)
+			{
+				Properties[path] = node;
+			}
+			else
+			{
+				string nextName = path.Substring(0, nextDotIdx);
+
+				ConfigNode? nextNode;
+				if (!Properties.TryGetValue(nextName, out nextNode))
+				{
+					nextNode = new ObjectConfigNode(false, false);
+					Properties.Add(nextName, nextNode);
+				}
+
+				ObjectConfigNode nextObj = (ObjectConfigNode)nextNode;
+				nextObj.AddChildNode(path.Substring(nextDotIdx + 1), node);
+			}
+		}
+
+		/// <summary>
+		/// Tries to get a node by path
+		/// </summary>
+		/// <param name="path">Path to the node to find</param>
+		/// <param name="node">The node at the requested path</param>
+		public bool TryGetChildNode(string path, [NotNullWhen(true)] out ConfigNode? node)
+		{
+			int nextDotIdx = path.IndexOf('.', StringComparison.Ordinal);
+			if (nextDotIdx == -1)
+			{
+				return Properties.TryGetValue(path, out node);
+			}
+
+			if (Properties.TryGetValue(path.Substring(0, nextDotIdx), out ConfigNode? nextNode) && nextNode is ObjectConfigNode nextObj)
+			{
+				return nextObj.TryGetChildNode(path.Substring(nextDotIdx + 1), out node);
+			}
+
+			node = null;
+			return false;
 		}
 	}
 }

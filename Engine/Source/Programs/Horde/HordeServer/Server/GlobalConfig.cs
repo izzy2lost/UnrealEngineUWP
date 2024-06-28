@@ -90,18 +90,6 @@ namespace HordeServer.Server
 		public List<ScheduledDowntime> Downtime { get; set; } = new List<ScheduledDowntime>();
 
 		/// <summary>
-		/// Metrics to aggregate on the Horde server
-		/// </summary>
-		[Obsolete("Use Plugins.Build.Projects instead")]
-		public List<LegacyProjectConfig> Projects { get; set; } = new List<LegacyProjectConfig>();
-
-		/// <summary>
-		/// Metrics to aggregate on the Horde server
-		/// </summary>
-		[Obsolete("Use Plugins.Analytics.Stores instead")]
-		public List<LegacyTelemetryStoreConfig> TelemetryStores { get; set; } = new List<LegacyTelemetryStoreConfig>();
-
-		/// <summary>
 		/// Plugin config objects
 		/// </summary>
 		public PluginConfigCollection Plugins { get; set; } = new PluginConfigCollection();
@@ -386,29 +374,6 @@ namespace HordeServer.Server
 			}
 		}
 	}
-
-#pragma warning disable
-	public class LegacyProjectConfig
-	{
-		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
-		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
-		public List<LegacyStreamConfig> Streams { get; set; } = new List<LegacyStreamConfig>();
-		public ConfigResource? Logo { get; set; }
-		public ConfigResource? LogoDarkTheme { get; set; }
-	}
-
-	public class LegacyStreamConfig
-	{
-		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
-		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
-	}
-
-	public class LegacyTelemetryStoreConfig
-	{
-		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
-		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
-	}
-#pragma warning restore
 
 	/// <summary>
 	/// Profile for executing compute requests
