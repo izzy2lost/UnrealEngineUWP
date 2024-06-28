@@ -28,6 +28,15 @@ struct FTraceObjectInfo
 	}
 };
 
+struct FTraceStats
+{
+	FTraceStatus::FStats StandardStats;
+
+	//Computed stats
+	uint64 BytesSentPerSecond = 0;
+	uint64 BytesTracedPerSecond = 0;
+};
+
 /** Filtering service, representing the state and data for a specific TraceServices::IAnalysisSession */
 class ISessionTraceFilterService : public TSharedFromThis<ISessionTraceFilterService>
 {
@@ -58,8 +67,8 @@ public:
 	/** Returns true if stats are available for the selected session. */
 	virtual bool HasStats() const = 0;
 
-	/** Get the settings of the selected session */
-	virtual const FTraceStatus::FStats& GetStats() const = 0;
+	/** Get the stats of the selected session */
+	virtual const FTraceStats& GetStats() const = 0;
 };
 
 } // namespace UE::TraceTools

@@ -33,6 +33,8 @@ private:
 	FText GetSettingsOnOffText(bool InValue) const;
 	FText GetSettingsMemoryValueText(uint64 InValue) const;
 	FText GetStatsMemoryValueText(uint64 InValue) const;
+	FText GetStatsBandwidthText(uint64 InValue) const;
+	FText GetStatsCacheText() const;
 
 private:
 	TSharedPtr<ISessionTraceFilterService> SessionFilterService;

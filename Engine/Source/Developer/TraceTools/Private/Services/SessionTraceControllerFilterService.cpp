@@ -104,6 +104,7 @@ void FSessionTraceControllerFilterService::DisableAllChannels()
 
 void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands)
 {
+	double DeltaTimeSeconds = (FDateTime::Now() - TimeStamp).GetTotalSeconds();
 	if (!TraceController->HasAvailableSelectedInstance())
 	{
 		TimeStamp = FDateTime::Now();
@@ -124,7 +125,19 @@ void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStat
 
 	if (EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::Status))
 	{
-		Stats = InStatus.Stats;
+		Stats.BytesSentPerSecond = 0;
+		Stats.BytesTracedPerSecond = 0;
+
+		if (DeltaTimeSeconds > 0.0f)
+		{
+			Stats.BytesSentPerSecond = FMath::Max(0ull, InStatus.Stats.BytesSent - Stats.StandardStats.BytesSent);
+			Stats.BytesSentPerSecond = (uint64) ((double)Stats.BytesSentPerSecond / DeltaTimeSeconds);
+
+			Stats.BytesTracedPerSecond = FMath::Max(0ull, InStatus.Stats.BytesTraced - Stats.StandardStats.BytesTraced);
+			Stats.BytesTracedPerSecond = (uint64) ((double)Stats.BytesTracedPerSecond / DeltaTimeSeconds);
+		}
+
+		Stats.StandardStats = InStatus.Stats;
 		bHasStats = true;
 	}
 }
@@ -186,7 +199,7 @@ bool FSessionTraceControllerFilterService::HasStats() const
 	return bHasStats;
 }
 
-const FTraceStatus::FStats& FSessionTraceControllerFilterService::GetStats() const
+const FTraceStats& FSessionTraceControllerFilterService::GetStats() const
 {
 	return Stats;
 }

@@ -35,7 +35,7 @@ public:
 	virtual const FTraceStatus::FSettings& GetSettings() const override;
 
 	virtual bool HasStats() const override;
-	virtual const FTraceStatus::FStats& GetStats() const override;
+	virtual const FTraceStats& GetStats() const override;
 	/** End ISessionTraceFilterService overrides */
 
 protected:
@@ -69,7 +69,7 @@ protected:
 	FTraceStatus::FSettings Settings;
 	bool bHasSettings = false;
 
-	FTraceStatus::FStats Stats;
+	FTraceStats Stats;
 	bool bHasStats = false;
 };
 

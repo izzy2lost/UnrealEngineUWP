@@ -45,6 +45,7 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 				SNew(SHorizontalBox)
 
 				+ SHorizontalBox::Slot()
+				.AutoWidth()
 				[
 					SNew(SVerticalBox)
 
@@ -71,6 +72,7 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+							.ToolTipText(LOCTEXT("ImportantEventsTooltip", "The state of the Important Events cache."))
 							.Text(LOCTEXT("ImportantCache", "Important Events Cache:"))
 						]
 
@@ -96,6 +98,7 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+							.ToolTipText(LOCTEXT("UseWorkerThreadTooltip", "If trace uses a worker thread. If not, TraceLog is pumped on end frame."))
 							.Text(LOCTEXT("WorkerThread", "Worker Thread:"))
 						]
 
@@ -121,7 +124,8 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.Text(LOCTEXT("Tail Size", "Tail Size:"))
+							.ToolTipText(LOCTEXT("TailSizeTooltip", "Size of the tail buffer where the last seconds of trace data are stored."))
+							.Text(LOCTEXT("TailSize", "Tail Size:"))
 						]
 
 						+ SHorizontalBox::Slot()
@@ -136,6 +140,7 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 				]
 
 				+ SHorizontalBox::Slot()
+				.AutoWidth()
 				.Padding(30.0f, 0.0f, 0.0f, 0.0f)
 				[
 					SNew(SVerticalBox)
@@ -161,15 +166,26 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.Text(LOCTEXT("Bytes Sent", "Bytes Sent:"))
+							.ToolTipText(LOCTEXT("BytesSentTooltip", "Number of bytes sent to server or file."))
+							.Text(LOCTEXT("BytesSent", "Bytes Sent:"))
 						]
 
 						+ SHorizontalBox::Slot()
+						.AutoWidth()
 						.Padding(2.0f, 2.0, 0.0f, 0.0f)
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().BytesSent); })
+							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.BytesSent); })
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.Padding(4.0f, 2.0, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+							.Text_Lambda([this]() { return this->GetStatsBandwidthText(SessionFilterService->GetStats().BytesSentPerSecond); })
 						]
 					]
 
@@ -183,19 +199,29 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.Text(LOCTEXT("Bytes Traced", "Bytes Traced:"))
+							.ToolTipText(LOCTEXT("BytesTracedTooltip", "Number of (uncompressed) bytes traced from process."))
+							.Text(LOCTEXT("BytesTraced", "Bytes Traced:"))
 						]
 
 						+ SHorizontalBox::Slot()
+						.AutoWidth()
 						.Padding(2.0f, 2.0, 0.0f, 0.0f)
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().BytesTraced); })
+							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.BytesTraced); })
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.Padding(2.0f, 2.0, 0.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+							.Text_Lambda([this]() { return this->GetStatsBandwidthText(SessionFilterService->GetStats().BytesTracedPerSecond); })
 						]
 					]
-
-								
+		
 					+ SVerticalBox::Slot()
 					[
 						SNew(SHorizontalBox)
@@ -206,7 +232,8 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.Text(LOCTEXT("Memory Used", "Memory Used:"))
+							.ToolTipText(LOCTEXT("MemoryUsedTooltip", "Total memory used by TraceLog."))
+							.Text(LOCTEXT("MemoryUsed", "Memory Used:"))
 						]
 
 						+ SHorizontalBox::Slot()
@@ -214,51 +241,7 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().MemoryUsed); })
-						]
-					]
-
-					+ SVerticalBox::Slot()
-					[
-						SNew(SHorizontalBox)
-							
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.Text(LOCTEXT("Cache Allocated", "Cache Allocated:"))
-						]
-
-						+ SHorizontalBox::Slot()
-						.Padding(2.0f, 2.0, 0.0f, 0.0f)
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().CacheAllocated); })
-						]
-					]
-
-					+ SVerticalBox::Slot()
-					[
-						SNew(SHorizontalBox)
-							
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.Text(LOCTEXT("Cache Used", "Cache Used:"))
-						]
-
-						+ SHorizontalBox::Slot()
-						.Padding(2.0f, 2.0, 0.0f, 0.0f)
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().CacheUsed); })
+							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.MemoryUsed); })
 						]
 					]
 
@@ -272,15 +255,17 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.Text(LOCTEXT("Cache Waste", "Cache Waste:"))
+							.ToolTipText(LOCTEXT("ImportantEventsTooltip", "Memory for important events."))
+							.Text(LOCTEXT("ImportantEventsCache:", "Cache:"))
 						]
 
 						+ SHorizontalBox::Slot()
+						.AutoWidth()
 						.Padding(2.0f, 2.0, 0.0f, 0.0f)
 						[
 							SNew(STextBlock)
 							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().CacheWaste); })
+							.Text_Lambda([this]() { return this->GetStatsCacheText(); })
 						]
 					]
 				]
@@ -312,7 +297,12 @@ FText STraceStatistics::GetSettingsMemoryValueText(uint64 InValue) const
 		return LOCTEXT("N/A", "N/A");
 	}
 
-	return FText::AsMemory(InValue);
+	FNumberFormattingOptions FormattingOptionsMem;
+	FormattingOptionsMem.MaximumFractionalDigits = 2;
+	FormattingOptionsMem.MinimumFractionalDigits = 2;
+	FormattingOptionsMem.MinimumIntegralDigits = 1;
+
+	return FText::AsMemory(InValue, &FormattingOptionsMem);
 }
 
 FText STraceStatistics::GetStatsMemoryValueText(uint64 InValue) const
@@ -322,7 +312,50 @@ FText STraceStatistics::GetStatsMemoryValueText(uint64 InValue) const
 		return LOCTEXT("N/A", "N/A");
 	}
 
-	return FText::AsMemory(InValue);
+	FNumberFormattingOptions FormattingOptionsMem;
+	FormattingOptionsMem.MaximumFractionalDigits = 2;
+	FormattingOptionsMem.MinimumFractionalDigits = 2;
+	FormattingOptionsMem.MinimumIntegralDigits = 1;
+
+	return FText::AsMemory(InValue, &FormattingOptionsMem);
+}
+
+FText STraceStatistics::GetStatsBandwidthText(uint64 InValue) const
+{
+	if (!SessionFilterService->HasStats())
+	{
+		return FText();
+	}
+
+	FNumberFormattingOptions FormattingOptionsMem;
+	FormattingOptionsMem.MaximumFractionalDigits = 2;
+	FormattingOptionsMem.MinimumFractionalDigits = 2;
+	FormattingOptionsMem.MinimumIntegralDigits = 1;
+
+	FText Result = FText::AsMemory(InValue, &FormattingOptionsMem);
+
+	return FText::Format(LOCTEXT("TraceStatBandwidthFormat", "({0}/s)"), Result);
+}
+
+FText STraceStatistics::GetStatsCacheText() const
+{
+	if (!SessionFilterService->HasStats())
+	{
+		return FText();
+	}
+
+	FNumberFormattingOptions FormattingOptionsMem;
+	FormattingOptionsMem.MaximumFractionalDigits = 2;
+	FormattingOptionsMem.MinimumFractionalDigits = 2;
+	FormattingOptionsMem.MinimumIntegralDigits = 1;
+
+	const FTraceStatus::FStats& Stats = SessionFilterService->GetStats().StandardStats;
+	FText CacheAllocated = FText::AsMemory(Stats.CacheAllocated, &FormattingOptionsMem);
+	FText CacheUsed = FText::AsMemory(Stats.CacheUsed, &FormattingOptionsMem);
+	FText CacheUnused = FText::AsMemory(Stats.CacheAllocated - Stats.CacheUsed, &FormattingOptionsMem);
+	FText CacheWasted = FText::AsMemory(Stats.CacheWaste, &FormattingOptionsMem);
+
+	return FText::Format(LOCTEXT("TraceCacheTextFormat", "{0} ({1} used + {2} unused | {3} waste)"), CacheAllocated, CacheUsed, CacheUnused, CacheWasted);
 }
 
 } // namespace UE::TraceTools
