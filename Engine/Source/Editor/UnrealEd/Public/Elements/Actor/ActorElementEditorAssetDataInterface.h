@@ -19,5 +19,5 @@ class UActorElementEditorAssetDataInterface : public UActorElementAssetDataInter
 	GENERATED_BODY()
 
 public:
-	UNREALED_API virtual TArray<FAssetData> GetAllReferencedAssetDatas(const FTypedElementHandle& InElementHandle, const FTypedElementAssetDataReferencedOptions& InOptions) override;
+	UNREALED_API virtual TArray<FAssetData> GetAllReferencedAssetDatas(const FTypedElementHandle& InElementHandle) override;
 };

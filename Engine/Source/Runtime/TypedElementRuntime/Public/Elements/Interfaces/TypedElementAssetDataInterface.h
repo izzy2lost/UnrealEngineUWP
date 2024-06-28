@@ -14,20 +14,6 @@
 class UObject;
 struct FFrame;
 
-USTRUCT(BlueprintType)
-struct FTypedElementAssetDataReferencedOptions
-{
-	GENERATED_BODY()
-
-public:
-	FTypedElementAssetDataReferencedOptions& SetOnlyTopLevelAsset(const bool InTopLevelAsset) { bOnlyTopLevelAsset = InTopLevelAsset; return *this; }
-	bool OnlyTopLevelAsset() const { return bOnlyTopLevelAsset; }
-
-private:
-	UPROPERTY(BlueprintReadWrite, Category = "TypedElementInterfaces|AssetData|GetReferencedOptions", meta = (AllowPrivateAccess = true))
-	bool bOnlyTopLevelAsset = false;
-};
-
 UINTERFACE(MinimalAPI, BlueprintType, meta = (CannotImplementInterfaceInBlueprint))
 class UTypedElementAssetDataInterface : public UInterface
 {
@@ -45,7 +31,7 @@ public:
 	 *
 	 * @returns An array of valid asset datas.
 	 */
-	TYPEDELEMENTRUNTIME_API virtual TArray<FAssetData> GetAllReferencedAssetDatas(const FTypedElementHandle& InElementHandle, const FTypedElementAssetDataReferencedOptions& InOptions = FTypedElementAssetDataReferencedOptions());
+	TYPEDELEMENTRUNTIME_API virtual TArray<FAssetData> GetAllReferencedAssetDatas(const FTypedElementHandle& InElementHandle);
 
 	/**
 	 * Returns the asset data for the given handle, if it exists.
@@ -75,6 +61,6 @@ public:
 template <>
 struct TTypedElement<ITypedElementAssetDataInterface> : public TTypedElementBase<ITypedElementAssetDataInterface>
 {
-	TArray<FAssetData> GetAllReferencedAssetDatas(const FTypedElementAssetDataReferencedOptions& InOptions = FTypedElementAssetDataReferencedOptions()) const { return InterfacePtr->GetAllReferencedAssetDatas(*this, InOptions); }
+	TArray<FAssetData> GetAllReferencedAssetDatas() const { return InterfacePtr->GetAllReferencedAssetDatas(*this); }
 	FAssetData GetAssetData() const { return InterfacePtr->GetAssetData(*this); }
 };
