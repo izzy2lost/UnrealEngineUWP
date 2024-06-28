@@ -586,6 +586,10 @@ public:
 	/** If checked, generates a new GDTF instead of exporting the imported GDTF. This adopts changes in editor but in most cases will result in data loss and is not recommended. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Fixture Settings", Meta = (DisplayName = "Generate GDTF (not recommended)"))
 	bool bExportGeneratedGDTF = false;
+
+	/** If true only shows latest GDTF mode revisions in editor */
+	UPROPERTY()
+	bool bShowOnlyLatestGDTFModeRevisions = true;
 #endif
 
 	//////////////////////////////////////////////////

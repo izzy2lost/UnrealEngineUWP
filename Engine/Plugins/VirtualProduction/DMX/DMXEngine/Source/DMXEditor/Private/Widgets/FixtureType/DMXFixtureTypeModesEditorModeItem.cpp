@@ -6,8 +6,8 @@
 #include "DMXFixtureTypeSharedData.h"
 #include "DMXRuntimeUtils.h"
 #include "Library/DMXEntityFixtureType.h"
-
 #include "ScopedTransaction.h"
+#include "Internationalization/Regex.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXFixtureTypeModesEditorModeItem"
@@ -18,7 +18,20 @@ FDMXFixtureTypeModesEditorModeItem::FDMXFixtureTypeModesEditorModeItem(const TSh
 	, SharedData(InDMXEditor->GetFixtureTypeSharedData())
 	, WeakDMXEditor(InDMXEditor)
 {
-	ensureMsgf(FixtureType.IsValid() && FixtureType->Modes.IsValidIndex(ModeIndex), TEXT("Invalid Fixture Type or Mode in FDMXFixtureTypeModesEditorModeItem."));
+	if (!ensureMsgf(FixtureType.IsValid() && FixtureType->Modes.IsValidIndex(ModeIndex), TEXT("Invalid Fixture Type or Mode in FDMXFixtureTypeModesEditorModeItem.")))
+	{
+		return;
+	}
+
+	if (!FixtureType->GDTFSource.IsNull())
+	{
+		const FRegexPattern ModeNumberRegexPattern(TEXT("mode (\\d+)"), ERegexPatternFlags::CaseInsensitive);
+		FRegexMatcher ModeNumberRegexMatcher(ModeNumberRegexPattern, FixtureType->Modes[ModeIndex].ModeName);
+		if (ModeNumberRegexMatcher.FindNext())
+		{
+			LexTryParseString(GDTFModeNumber, *ModeNumberRegexMatcher.GetCaptureGroup(1));
+		}
+	}
 }
 
 int32 FDMXFixtureTypeModesEditorModeItem::GetModeIndex() const
