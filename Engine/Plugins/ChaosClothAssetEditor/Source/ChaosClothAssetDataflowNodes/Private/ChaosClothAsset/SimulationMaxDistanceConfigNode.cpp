@@ -41,7 +41,6 @@ void FChaosClothAssetSimulationMaxDistanceConfigNode::EvaluateClothCollection(Da
 	using namespace UE::Chaos::ClothAsset;
 	const FName MaxDistanceString(GetValue<FString>(Context, &MaxDistance.WeightMap)); //  Override for this is already set by AddProperties
 	const FName InputKinematicString(GetValue<FString>(Context, &InKinematic.StringValue));
-	InKinematic.StringValue_Override = GetValue<FString>(Context, &InKinematic.StringValue, FWeightMapTools::NotOverridden);
 
 	FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
 	SelectionFacade.DefineSchema();

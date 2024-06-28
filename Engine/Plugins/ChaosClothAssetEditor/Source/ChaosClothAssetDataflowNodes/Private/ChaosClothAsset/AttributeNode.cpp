@@ -22,8 +22,6 @@ FChaosClothAssetAttributeNode_V2::FChaosClothAssetAttributeNode_V2(const Dataflo
 
 void FChaosClothAssetAttributeNode_V2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	Name.StringValue_Override = GetValue<FString>(Context, &Name.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
-
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
 		using namespace UE::Chaos::ClothAsset;

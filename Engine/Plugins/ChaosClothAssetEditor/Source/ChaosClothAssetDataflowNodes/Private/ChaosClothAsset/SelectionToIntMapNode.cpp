@@ -33,9 +33,7 @@ void FChaosClothAssetSelectionToIntMapNode::Evaluate(Dataflow::FContext& Context
 
 		const FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
 		const FName InSelectionName(*GetValue<FString>(Context, &SelectionName.StringValue));
-		SelectionName.StringValue_Override = GetValue<FString>(Context, &SelectionName.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 		const FString& InIntMapNameString = GetValue<FString>(Context, &IntMapName.StringValue);
-		IntMapName.StringValue_Override = GetValue<FString>(Context, &IntMapName.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 		const FName InIntMapName = InIntMapNameString.IsEmpty() ? InSelectionName : FName(*InIntMapNameString);
 		if (SelectionFacade.IsValid() && ClothFacade.IsValid() && InSelectionName != NAME_None && InIntMapName != NAME_None)
 		{

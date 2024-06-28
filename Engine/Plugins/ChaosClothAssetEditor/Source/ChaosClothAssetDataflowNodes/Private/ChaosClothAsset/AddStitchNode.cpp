@@ -34,7 +34,6 @@ void FChaosClothAssetAddStitchNode::Evaluate(Dataflow::FContext& Context, const 
 		FCollectionClothFacade Cloth(ClothCollection);
 		FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection);
 		const FName InSelectionName(*GetValue<FString>(Context, &MergeToSingleVertexSelection.StringValue));
-		MergeToSingleVertexSelection.StringValue_Override = GetValue<FString>(Context, &MergeToSingleVertexSelection.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 
 		if (Cloth.IsValid() && SelectionFacade.IsValid() && InSelectionName != NAME_None)
 		{

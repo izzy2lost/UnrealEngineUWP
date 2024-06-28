@@ -290,7 +290,6 @@ void FChaosClothAssetDeleteElementNode::Evaluate(Dataflow::FContext& Context, co
 			// Selection set
 			FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
 			const FName InSelectionName(*GetValue<FString>(Context, &SelectionName.StringValue));
-			SelectionName.StringValue_Override = GetValue<FString>(Context, &SelectionName.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 
 			FName SelectionGroup;
 			TSet<int32> SelectedElements;

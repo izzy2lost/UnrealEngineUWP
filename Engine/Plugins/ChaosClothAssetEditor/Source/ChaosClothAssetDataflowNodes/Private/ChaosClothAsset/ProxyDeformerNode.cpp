@@ -415,13 +415,6 @@ void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context,
 	{
 		using namespace UE::Chaos::ClothAsset;
 
-		// Update the selection names override
-		SimVertexSelection.StringValue_Override = GetValue<FString>(Context, &SimVertexSelection.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
-		for (int32 FilterSetIndex = 0; FilterSetIndex < SelectionFilterSets.Num(); ++FilterSetIndex)
-		{
-			SelectionFilterSets[FilterSetIndex].RenderSelection.StringValue_Override = GetValue<FString>(Context, GetRenderConnectionReference(FilterSetIndex), UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
-			SelectionFilterSets[FilterSetIndex].SimSelection.StringValue_Override = GetValue<FString>(Context, GetSimConnectionReference(FilterSetIndex), UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
-		}
 
 		// Evaluate in collection
 		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
@@ -595,14 +588,10 @@ void FChaosClothAssetProxyDeformerNode::Evaluate(Dataflow::FContext& Context, co
 	{
 		using namespace UE::Chaos::ClothAsset;
 
-		// Update the selection names override
-		SimVertexSelection.StringValue_Override = GetValue<FString>(Context, &SimVertexSelection.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
-		SelectionFilterSet0.StringValue_Override = GetValue<FString>(Context, &SelectionFilterSet0.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 		const TArray<const FChaosClothAssetConnectableStringValue*> Non0SelectionFilterSets = Get1To9SelectionFilterSets();
 		for (int32 FilterSetIndex = 1; FilterSetIndex < NumFilterSets; ++FilterSetIndex)
 		{
 			const FChaosClothAssetConnectableStringValue& SelectionFilterSet = *Non0SelectionFilterSets[FilterSetIndex - 1];
-			SelectionFilterSet.StringValue_Override = GetValue<FString>(Context, &SelectionFilterSet.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
 		}
 
 		// Evaluate in collection

@@ -121,7 +121,7 @@ protected:
 		template<typename T UE_REQUIRES(std::is_base_of_v<FChaosClothAssetSimulationBaseConfigNode, T>)>
 		inline FName FindPropertyNameByAddress(const T* ConfigStruct, const void* PropertyAddress);
 		
-		int32 SetPropertyWeighted(const FName& PropertyName, const bool bIsAnimatable, const float& PropertyLow, const float& PropertyHigh, const FString& WeightMap, FString& MapOverride, const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags) const;
+		int32 SetPropertyWeighted(const FName& PropertyName, const bool bIsAnimatable, const float& PropertyLow, const float& PropertyHigh, const FString& WeightMap, const TArray<FName>& SimilarPropertyNames, ECollectionPropertyFlags PropertyFlags) const;
 
 		const FChaosClothAssetSimulationBaseConfigNode& ConfigNode;
 		Dataflow::FContext& Context;

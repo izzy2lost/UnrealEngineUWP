@@ -11,6 +11,7 @@ struct FMeshDescription;
 struct FDataflowNode;
 class FSkeletalMeshLODModel;
 class FString;
+class IPropertyHandle;
 
 namespace UE::Chaos::ClothAsset
 {
@@ -34,6 +35,17 @@ namespace UE::Chaos::ClothAsset
 		static void MakeCollectionName(FString& InOutString);
 
 		static bool BuildSkeletalMeshModelFromMeshDescription(const FMeshDescription* const InMeshDescription, const FMeshBuildSettings& InBuildSettings, FSkeletalMeshLODModel& SkeletalMeshModel);
+
+		/** Return the Dataflow node owning by this property, and cast it to the desired node type. */
+		template<typename T = FDataflowNode>
+		static T* GetPropertyOwnerDataflowNode(const TSharedPtr<IPropertyHandle>& PropertyHandle)
+		{
+			return static_cast<FDataflowNode*>(GetPropertyOwnerDataflowNode(PropertyHandle, T::StaticStruct()));
+		}
+
+	private:
+		/** Return the Dataflow node owning by this property. */
+		static FDataflowNode* GetPropertyOwnerDataflowNode(const TSharedPtr<IPropertyHandle>& PropertyHandle, const UStruct* DataflowNodeStruct);
 	};
 }  // End namespace UE::Chaos::ClothAsset
 

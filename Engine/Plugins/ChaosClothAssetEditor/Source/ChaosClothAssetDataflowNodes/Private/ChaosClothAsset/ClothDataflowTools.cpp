@@ -12,6 +12,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "MeshDescriptionToDynamicMesh.h"
 #include "MeshUtilities.h"
+#include "PropertyHandle.h"
 #include "ReferenceSkeleton.h"
 #include "SkeletalMeshAttributes.h"
 #include "ToDynamicMesh.h"
@@ -539,4 +540,23 @@ namespace UE::Chaos::ClothAsset
 		}
 		return true;
 	}
+
+	FDataflowNode* FClothDataflowTools::GetPropertyOwnerDataflowNode(const TSharedPtr<IPropertyHandle>& PropertyHandle, const UStruct* DataflowNodeStruct)
+	{
+		for (TSharedPtr<IPropertyHandle> OwnerHandle = PropertyHandle->GetParentHandle(); OwnerHandle; OwnerHandle = OwnerHandle->GetParentHandle())
+		{
+			if (const TSharedPtr<IPropertyHandleStruct> OwnerHandleStruct = OwnerHandle->AsStruct())
+			{
+				if (TSharedPtr<FStructOnScope> StructOnScope = OwnerHandleStruct->GetStructData())
+				{
+					if (StructOnScope->GetStruct()->IsChildOf(DataflowNodeStruct))
+					{
+						return reinterpret_cast<FDataflowNode*>(StructOnScope->GetStructMemory());
+					}
+				}
+			}
+		}
+		return nullptr;
+	}
+
 }  // End namespace UE::Chaos::ClothAsset

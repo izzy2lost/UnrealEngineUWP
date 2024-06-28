@@ -9,11 +9,10 @@ namespace UE::Chaos::ClothAsset
 {
 	struct FWeightMapTools
 	{
-		/**
-		 * String code used to disable the override field in the UI.
-		 * Uses a character that is removed from the names made by MakeWeightMapName to avoid conflicts.
-		 */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		UE_DEPRECATED(5.5, "Override properties are no longer used.")
 		inline static const FString NotOverridden = TEXT("#");
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		/**
 		 * Modifies a string to make it suitable as a weight map name.
@@ -73,9 +72,9 @@ struct FChaosClothAssetWeightedValue
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
 	bool bCouldUseFabrics = false;
 
-	/** The weight map override value for when the WeightMap has a connection that replaces the provided weight map value. */
-	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
-	mutable FString WeightMap_Override = UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
+	UE_DEPRECATED(5.5, "Override properties are no longer used.")
+	UPROPERTY(Transient)
+	mutable FString WeightMap_Override;
 	
 	/**
 	 * Whether the property can use the fabric bounds (low/high) values imported from USD
@@ -127,10 +126,10 @@ struct FChaosClothAssetWeightedValueNonAnimatable
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
 	bool bCouldUseFabrics = false;
 	
-	/** The weight map override value for when the WeightMap has a connection that replaces the provided weight map value. */
-	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
-	mutable FString WeightMap_Override = UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
-	
+	UE_DEPRECATED(5.5, "Override properties are no longer used.")
+	UPROPERTY(Transient)
+	mutable FString WeightMap_Override;
+
 	/**
 	 * Whether the property can use the fabric bounds (low/high) values imported from USD
 	 */
@@ -153,9 +152,9 @@ struct FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange
 	UPROPERTY(EditAnywhere, Category = "Weighted Value", Meta = (DataflowInput))
 	FString WeightMap = TEXT("WeightMap");
 
-	/** The weight map override value for when the WeightMap has a connection that replaces the provided weight map value. */
-	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
-	mutable FString WeightMap_Override = UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
+	UE_DEPRECATED(5.5, "Override properties are no longer used.")
+	UPROPERTY(Transient)
+	mutable FString WeightMap_Override;
 };
 
 USTRUCT()

@@ -366,13 +366,10 @@ void FChaosClothAssetSelectionNode::Evaluate(Dataflow::FContext& Context, const 
 		}
 	};
 
-
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
 		// Evaluate InputName
 		const FName InInputName = GetInputName(Context);
-		InputName.StringValue_Override = GetValue<FString>(Context, &InputName.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
-
 		const FName SelectionName(Name.IsEmpty() ? InInputName : FName(Name));
 
 		if (SelectionName == NAME_None || Group.Name.IsEmpty())

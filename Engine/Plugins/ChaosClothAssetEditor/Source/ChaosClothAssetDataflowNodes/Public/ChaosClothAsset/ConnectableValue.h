@@ -14,9 +14,9 @@ struct FChaosClothAssetConnectableStringValue
 	UPROPERTY(EditAnywhere, Category = "Value")
 	FString StringValue;
 
-	/** The string value override value for when the StringValue has a connection that replaces the provided string value. */
-	UPROPERTY(VisibleAnywhere, Category = "Value", Transient)
-	mutable FString StringValue_Override;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
+	UE_DEPRECATED(5.5, "Override properties are no longer used.")
+	UPROPERTY(Transient)
+	mutable FString StringValue_Override;
 };
 
 USTRUCT()
@@ -34,9 +34,9 @@ struct FChaosClothAssetConnectableIStringValue
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Value")
 	bool bCouldUseFabrics = false;
 
-	/** The string value override value for when the StringValue has a connection that replaces the provided string value. */
-	UPROPERTY(VisibleAnywhere, Category = "Value", Transient)
-	mutable FString StringValue_Override;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
+	UE_DEPRECATED(5.5, "Override properties are no longer used.")
+	UPROPERTY(Transient)
+	mutable FString StringValue_Override;
 	
 	/**
 	 * Whether the property can override the weight map based on the imported fabrics
@@ -54,7 +54,7 @@ struct FChaosClothAssetConnectableIOStringValue
 	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "StringValue"))
 	FString StringValue;
 
-	/** The string value override value for when the StringValue has a connection that replaces the provided string value. */
-	UPROPERTY(VisibleAnywhere, Category = "Value", Transient)
-	mutable FString StringValue_Override;  // _Override has a special meaning to the property customization, mutable because this property is set while getting the original value
+	UE_DEPRECATED(5.5, "Override properties are no longer used.")
+	UPROPERTY(Transient)
+	mutable FString StringValue_Override;
 };

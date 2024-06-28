@@ -766,9 +766,6 @@ void FChaosClothAssetTransferSkinWeightsNode::Evaluate(Dataflow::FContext& Conte
 
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
-		// Update the weight map override
-		InpaintMask.WeightMap_Override = GetValue<FString>(Context, &InpaintMask.WeightMap, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
-
 		// Evaluate inputs
 		FManagedArrayCollection InputCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
 
