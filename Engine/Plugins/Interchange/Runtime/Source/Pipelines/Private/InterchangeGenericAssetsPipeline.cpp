@@ -375,8 +375,19 @@ void UInterchangeGenericAssetsPipeline::FilterPropertiesFromTranslatedData(UInte
 	}
 }
 
-bool UInterchangeGenericAssetsPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+bool UInterchangeGenericAssetsPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
 {
+	static const TSet<FName> NeedRefreshProperties =
+	{
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericAssetsPipeline, bUseSourceNameForAsset),
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericAssetsPipeline, AssetName)
+	};
+
+	if (NeedRefreshProperties.Contains(PropertyChangedEvent.GetPropertyName()))
+	{
+		return true;
+	}
+
 	if ((CommonMeshesProperties && CommonMeshesProperties->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
 		|| (CommonSkeletalMeshesAndAnimationsProperties && CommonSkeletalMeshesAndAnimationsProperties->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
 		|| (MeshPipeline && MeshPipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
@@ -386,6 +397,22 @@ bool UInterchangeGenericAssetsPipeline::IsPropertyChangeNeedRefresh(const FPrope
 		return true;
 	}
 	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
+void UInterchangeGenericAssetsPipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	if (MeshPipeline)
+	{
+		MeshPipeline->GetSupportAssetClasses(PipelineSupportAssetClasses);
+	}
+	if (MaterialPipeline)
+	{
+		MaterialPipeline->GetSupportAssetClasses(PipelineSupportAssetClasses);
+	}
+	if (AnimationPipeline)
+	{
+		AnimationPipeline->GetSupportAssetClasses(PipelineSupportAssetClasses);
+	}
 }
 
 bool UInterchangeGenericAssetsPipeline::GetPropertyPossibleValues(const FName PropertyPath, TArray<FString>& PossibleValues)

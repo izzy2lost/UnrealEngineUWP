@@ -144,6 +144,15 @@ void UInterchangeGenericTexturePipeline::AdjustSettingsForContext(const FInterch
 
 #if WITH_EDITOR
 
+bool UInterchangeGenericTexturePipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericTexturePipeline, bImportTextures))
+	{
+		return true;
+	}
+	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
 void UInterchangeGenericTexturePipeline::FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer)
 {
 	Super::FilterPropertiesFromTranslatedData(InBaseNodeContainer);
@@ -159,6 +168,11 @@ void UInterchangeGenericTexturePipeline::FilterPropertiesFromTranslatedData(UInt
 			HidePropertiesOfCategory(OuterMostPipeline, this, UInterchangeGenericTexturePipeline::GetPipelineCategory(nullptr));
 		}
 	}
+}
+
+void UInterchangeGenericTexturePipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	PipelineSupportAssetClasses.Add(UTexture::StaticClass());
 }
 
 #endif //WITH_EDITOR

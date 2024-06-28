@@ -697,13 +697,29 @@ void UInterchangeGenericMaterialPipeline::FilterPropertiesFromTranslatedData(UIn
 	}
 }
 
-bool UInterchangeGenericMaterialPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+bool UInterchangeGenericMaterialPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
 {
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, bImportMaterials))
+	{
+		return true;
+	}
+
 	if (TexturePipeline && TexturePipeline->IsPropertyChangeNeedRefresh(PropertyChangedEvent))
 	{
 		return true;
 	}
 	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
+void UInterchangeGenericMaterialPipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	if (TexturePipeline)
+	{
+		TexturePipeline->GetSupportAssetClasses(PipelineSupportAssetClasses);
+	}
+
+	PipelineSupportAssetClasses.Add(UMaterial::StaticClass());
+	PipelineSupportAssetClasses.Add(UMaterialInstance::StaticClass());
 }
 
 #endif //WITH_EDITOR

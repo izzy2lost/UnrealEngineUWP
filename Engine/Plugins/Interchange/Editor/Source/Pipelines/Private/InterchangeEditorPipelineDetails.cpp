@@ -392,7 +392,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 
 	const bool bAllowPropertyStatesEdition = InterchangePipeline->CanEditPropertiesStates();
 	const bool bIsReimportContext = InterchangePipeline->IsReimportContext();
-	const bool bIsBasicLayout = InterchangePipeline->IsBasicLayout();
+	const bool bIsShowEssentials = InterchangePipeline->IsShowEssentials();
 
 	TArray<FName> AllCategoryNames;
 	CachedDetailBuilder->GetCategoryNames(AllCategoryNames);
@@ -509,7 +509,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 				bool IsLocked = false;
 				if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipeline->GetPropertyStates(PropertyPath))
 				{
-					if (!PropertyStates->IsPropertyVisible(bIsReimportContext, bIsBasicLayout))
+					if (!PropertyStates->IsPropertyVisible(bIsReimportContext, bIsShowEssentials))
 					{
 						continue;
 					}
@@ -665,7 +665,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						SNew(STextBlock)
 						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::Visible)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.Text(LOCTEXT("ShowWhenBasicLayoutText", "Basic Layout"))
+						.Text(LOCTEXT("ShowWhenShowEssentialsText", "Essential Layout"))
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
@@ -679,7 +679,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.UncheckedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
 						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Visible"))
 						.UncheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
-						.ToolTipText(LOCTEXT("VisibleTooltipBasicLayout", "If true this property will be visible when displaying the interchange import dialog with basic layout."))
+						.ToolTipText(LOCTEXT("VisibleTooltipShowEssentials", "If true this property will be visible when displaying the interchange import dialog with basic layout."))
 						.OnCheckStateChanged_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath](ECheckBoxState CheckType)
 						{
 							if (!ensure(InterchangePipelinePtr.IsValid()))
@@ -688,7 +688,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 							}
 							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionvisibilityPropertiesToggleImport", "Toggle property visibility at import"), !GIsTransacting);
 							InterchangePipelinePtr->Modify();
-							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyBasicLayoutVisibility((CheckType != ECheckBoxState::Checked));
+							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyShowEssentialsVisibility((CheckType != ECheckBoxState::Checked));
 							InterchangePipelinePtr->PostEditChange();
 						})
 						.IsChecked_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath]()
@@ -699,7 +699,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 							}
 							if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipelinePtr->GetPropertyStates(PropertyPath))
 							{
-								return PropertyStates->IsPropertyVisibleInBasicLayout() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+								return PropertyStates->IsPropertyVisibleInShowEssentials() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
 							}
 							return ECheckBoxState::Unchecked;
 						})
@@ -741,14 +741,14 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.IsChecked_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath]()
 						{
 							constexpr bool bIsReimportContextLocal = false;
-							constexpr bool bIsBasicLayoutLocal = false;
+							constexpr bool bIsShowEssentialsLocal = false;
 							if (!InterchangePipelinePtr.IsValid())
 							{
 								return ECheckBoxState::Unchecked;
 							}
 							if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipelinePtr->GetPropertyStates(PropertyPath))
 							{
-								return PropertyStates->IsPropertyVisible(bIsReimportContextLocal, bIsBasicLayoutLocal) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+								return PropertyStates->IsPropertyVisible(bIsReimportContextLocal, bIsShowEssentialsLocal) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
 							}
 							return ECheckBoxState::Unchecked;
 						})
@@ -790,14 +790,14 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.IsChecked_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath]()
 						{
 							constexpr bool bIsReimportContextLocal = true;
-							constexpr bool bIsBasicLayoutLocal = false;
+							constexpr bool bIsShowEssentialsLocal = false;
 							if (!InterchangePipelinePtr.IsValid())
 							{
 								return ECheckBoxState::Unchecked;
 							}
 							if (const FInterchangePipelinePropertyStates* PropertyStates = InterchangePipelinePtr->GetPropertyStates(PropertyPath))
 							{
-								return PropertyStates->IsPropertyVisible(bIsReimportContextLocal, bIsBasicLayoutLocal) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+								return PropertyStates->IsPropertyVisible(bIsReimportContextLocal, bIsShowEssentialsLocal) ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
 							}
 							return ECheckBoxState::Unchecked;
 						})
@@ -824,7 +824,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 		}
 	}
 
-	if (!bIsBasicLayout)
+	if (!bIsShowEssentials)
 	{
 		AddExtraInformationSection();
 	}

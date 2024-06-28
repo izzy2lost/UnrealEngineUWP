@@ -224,9 +224,18 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(const FInterchang
 
 #if WITH_EDITOR
 
-bool UInterchangeGenericMeshPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+bool UInterchangeGenericMeshPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
 {
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, SkeletalMeshImportContentType))
+	static const TSet<FName> NeedRefreshProperties =
+	{
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, SkeletalMeshImportContentType),
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, bImportStaticMeshes),
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, bImportSkeletalMeshes),
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, bCreatePhysicsAsset),
+		GET_MEMBER_NAME_CHECKED(UInterchangeGenericMeshPipeline, bCombineStaticMeshes)
+	};
+	
+	if (NeedRefreshProperties.Contains(PropertyChangedEvent.GetPropertyName()))
 	{
 		return true;
 	}
@@ -266,6 +275,16 @@ bool UInterchangeGenericMeshPipeline::GetPropertyPossibleValues(const FName Prop
 	}
 	//If we did not find any property call the super implementation
 	return Super::GetPropertyPossibleValues(PropertyPath, PossibleValues);
+}
+
+void UInterchangeGenericMeshPipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	PipelineSupportAssetClasses.Add(UStaticMesh::StaticClass());
+	PipelineSupportAssetClasses.Add(USkeletalMesh::StaticClass());
+	if (bCreatePhysicsAsset && !PhysicsAsset.IsValid())
+	{
+		PipelineSupportAssetClasses.Add(UPhysicsAsset::StaticClass());
+	}
 }
 
 #endif

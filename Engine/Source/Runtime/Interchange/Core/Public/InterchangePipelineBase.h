@@ -106,18 +106,18 @@ struct FInterchangePipelinePropertyStates
 
 
 	/** Return true if the property is visible for the specified context. */
-	bool IsPropertyVisibleInBasicLayout() const
+	bool IsPropertyVisibleInShowEssentials() const
 	{
 		return BasicLayoutStates.bVisible;
 	}
 
 	/** Return true if the property is visible for the specified context. */
-	bool IsPropertyVisible(const bool bIsReimportContext, const bool bIsBasicLayout) const
+	bool IsPropertyVisible(const bool bIsReimportContext, const bool bIsShowEssentials) const
 	{
 		bool bVisible = bIsReimportContext ? ReimportStates.bVisible : ImportStates.bVisible;
 		if (bVisible)
 		{
-			bVisible = bIsBasicLayout ? BasicLayoutStates.bVisible : true;
+			bVisible = bIsShowEssentials ? BasicLayoutStates.bVisible : true;
 		}
 		return bVisible;
 	}
@@ -132,7 +132,7 @@ struct FInterchangePipelinePropertyStates
 		ReimportStates.bVisible = bVisibleValue;
 	}
 
-	void SetPropertyBasicLayoutVisibility(const bool bVisibleValue)
+	void SetPropertyShowEssentialsVisibility(const bool bVisibleValue)
 	{
 		BasicLayoutStates.bVisible = bVisibleValue;
 	}
@@ -334,9 +334,9 @@ public:
 	/** Transfer the source pipeline adjust settings to this pipeline. */
 	INTERCHANGECORE_API void TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline);
 
-	INTERCHANGECORE_API void SetBasicLayoutMode(bool bBasicLayoutModeValue)
+	INTERCHANGECORE_API void SetShowEssentialsMode(bool bShowEssentialsModeValue)
 	{
-		bIsBasicLayout = bBasicLayoutModeValue;
+		bIsShowEssentials = bShowEssentialsModeValue;
 	}
 
 	/*
@@ -350,7 +350,7 @@ public:
 	/*
 	 * Return true if the pipeline was created for a re-import or an override pipelines stack
 	 */
-	INTERCHANGECORE_API bool IsFromReimportOrOverride()
+	INTERCHANGECORE_API bool IsFromReimportOrOverride() const
 	{
 		return bFromReimportOrOverride;
 	}
@@ -383,9 +383,15 @@ public:
 	 * The import dialog will call this function when the user changes a specific property. Return true if the pipeline UI should be refreshed.
 	 * A refresh will call the FilterPropertiesFromTranslatedData function.
 	 */
-	INTERCHANGECORE_API virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
+	INTERCHANGECORE_API virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
 	{
 		return false;
+	}
+
+	/** Fill the list of all asset this pipeline can create */
+	INTERCHANGECORE_API virtual void GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+	{
+		return;
 	}
 
 #endif //WITH_EDITOR
@@ -459,7 +465,7 @@ public:
 
 	bool CanEditPropertiesStates() { return bAllowPropertyStatesEdition; }
 	bool IsReimportContext() { return bIsReimportContext; }
-	bool IsBasicLayout() { return bIsBasicLayout; }
+	bool IsShowEssentials() { return bIsShowEssentials; }
 
 #if WITH_EDITOR
 	/*
@@ -579,12 +585,12 @@ protected:
 	bool bIsReimportContext = false;
 
 	/**
-	 * If true, this pipeline instance is use for basic layout.
+	 * If true, this pipeline instance is use for essentials settings layout.
 	 * If false, this pipeline instance is use for normal layout.
 	 *
 	 * Note: This layout must be set by the owner instancing this pipeline. This layout will be use to hide or not some properties.
 	 */
-	bool bIsBasicLayout = false;
+	bool bIsShowEssentials = false;
 
 	/*
 	 * If true, this pipeline was create to re-import an asset or override the project settings pipelines.

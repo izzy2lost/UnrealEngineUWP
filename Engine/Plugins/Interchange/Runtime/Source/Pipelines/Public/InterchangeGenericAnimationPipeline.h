@@ -121,7 +121,15 @@ public:
 	FString SourceAnimationName;
 
 	virtual void AdjustSettingsForContext(const FInterchangePipelineContextParams& ContextParams) override;
+
+#if WITH_EDITOR
 	
+	virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const override;
+	
+	virtual void GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const override;
+
+#endif //WITH_EDITOR
+
 protected:
 
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath) override;

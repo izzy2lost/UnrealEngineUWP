@@ -2,6 +2,7 @@
 #include "InterchangeGenericAnimationPipeline.h"
 
 #include "Animation/AnimationSettings.h"
+#include "Animation/AnimSequence.h"
 #include "CoreMinimal.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
@@ -17,6 +18,7 @@
 #include "InterchangeSkeletonFactoryNode.h"
 #include "InterchangeSkeletonHelper.h"
 #include "InterchangeSourceData.h"
+#include "LevelSequence.h"
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Nodes/InterchangeSourceNode.h"
@@ -160,6 +162,26 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(const FInter
 	}
 #endif //WITH_EDITOR
 }
+
+#if WITH_EDITOR
+
+bool UInterchangeGenericAnimationPipeline::IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent) const
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericAnimationPipeline, bImportAnimations))
+	{
+		return true;
+	}
+	return Super::IsPropertyChangeNeedRefresh(PropertyChangedEvent);
+}
+
+
+void UInterchangeGenericAnimationPipeline::GetSupportAssetClasses(TArray<UClass*>& PipelineSupportAssetClasses) const
+{
+	PipelineSupportAssetClasses.Add(UAnimSequence::StaticClass());
+	PipelineSupportAssetClasses.Add(ULevelSequence::StaticClass());
+}
+
+#endif //WITH_EDITOR
 
 void UInterchangeGenericAnimationPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath)
 {
