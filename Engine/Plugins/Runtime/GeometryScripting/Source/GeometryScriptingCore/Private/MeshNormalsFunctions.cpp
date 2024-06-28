@@ -171,7 +171,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshNormalsFunctions::RecomputeNormalsForMe
 			return;
 		}
 		
-		if (Selection.GetSelectionType() == EGeometryScriptMeshSelectionType::Vertices)
+		EGeometryScriptMeshSelectionType SelectionType = Selection.GetSelectionType();
+		if (SelectionType == EGeometryScriptMeshSelectionType::Vertices || SelectionType == EGeometryScriptMeshSelectionType::Edges)
 		{
 			FDynamicMeshNormalOverlay* Normals = EditMesh.Attributes()->PrimaryNormals();
 			TSet<int32> Elements;

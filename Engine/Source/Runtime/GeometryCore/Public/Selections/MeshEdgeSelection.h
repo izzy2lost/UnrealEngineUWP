@@ -154,6 +154,154 @@ public:
 		}
 	}
 
+private:
+	template<bool bHasFilter, typename ExpandContainerType>
+	void ExpandToOneRingNeighbors_FindNeighborsHelper(const ExpandContainerType& ToExpand, TArray<int32>& ToAdd, TFunctionRef<bool(int)> FilterF)
+	{
+		for (int EID : ToExpand)
+		{
+			FIndex2i EdgeV = Mesh->GetEdgeV(EID);
+			for (int32 SubIdx = 0; SubIdx < 2; ++SubIdx)
+			{
+				for (int32 NbrEID : Mesh->VtxEdgesItr(EdgeV[SubIdx]))
+				{
+					if constexpr (bHasFilter)
+					{
+						if (!FilterF(NbrEID))
+						{
+							continue;
+						}
+					}
+					if (!IsSelected(NbrEID))
+					{
+						ToAdd.Add(NbrEID);
+					}
+				}
+			}
+		}
+	}
+
+	template<bool bHasFilter>
+	void ExpandToOneRingNeighbors_Helper(int32 NumRings, TFunctionRef<bool(int)> FilterF)
+	{
+		if (NumRings <= 0)
+		{
+			return;
+		}
+
+		// ToAdd can have the same edge multiple times, so to avoid accumulating duplicates
+		// this will clean up the extra copies as it add to the selection
+		auto AddToSelectionAndRemoveRedundant = [this](TArray<int32>& ToAdd)
+		{
+			for (int32 Idx = 0; Idx < ToAdd.Num(); ++Idx)
+			{
+				bool bAlreadyInSet;
+				Selected.Add(ToAdd[Idx], &bAlreadyInSet);
+				if (bAlreadyInSet)
+				{
+					ToAdd.RemoveAtSwap(Idx, EAllowShrinking::No);
+					--Idx;
+				}
+			}
+		};
+
+		TArray<int32> ToAdd;
+		ExpandToOneRingNeighbors_FindNeighborsHelper<bHasFilter>(Selected, ToAdd, FilterF);
+		if (NumRings == 1)
+		{
+			// In the one ring case, no need to clean duplicates from ToAdd since we'll never use it again
+			// (note: could also do this on the final iteration for the NumRings > 1 case ...)
+			for (int32 ID : ToAdd)
+			{
+				add(ID);
+			}
+			return;
+		}
+		else
+		{
+			AddToSelectionAndRemoveRedundant(ToAdd);
+			TArray<int32> ToExpand;
+			for (int32 Iter = 1; Iter < NumRings; ++Iter)
+			{
+				Swap(ToAdd, ToExpand);
+				ToAdd.Reset();
+				ExpandToOneRingNeighbors_FindNeighborsHelper<bHasFilter>(ToExpand, ToAdd, FilterF);
+				AddToSelectionAndRemoveRedundant(ToAdd);
+			}
+		}
+	}
+
+public:
+
+	/**
+	 *  Add all one-ring neighbors of current selection to set.
+	 *  On a large mesh this is quite expensive as we don't know the boundary,
+	 *  so we have to iterate over all selected triangles.
+	 *
+	 *  Return false from FilterF to prevent vertices from being included.
+	 */
+	void ExpandToOneRingNeighbors(TFunctionRef<bool(int32)> FilterF)
+	{
+		ExpandToOneRingNeighbors_Helper<true>(1, FilterF);
+	}
+
+	void ExpandToOneRingNeighbors()
+	{
+		ExpandToOneRingNeighbors_Helper<false>(1, [](int32) {return true;});
+	}
+
+	void ExpandToOneRingNeighbors(int NumRings, TFunctionRef<bool(int32)> FilterF)
+	{
+		ExpandToOneRingNeighbors_Helper<true>(NumRings, FilterF);
+	}
+	
+	void ExpandToOneRingNeighbors(int NumRings)
+	{
+		ExpandToOneRingNeighbors_Helper<false>(NumRings, [](int32) {return true;});
+	}
+
+
+	/**
+	 * For each contraction, remove edges in current selection set that have 
+	 * any unselected edge neighboring either of the edge's vertices
+	 */
+	void ContractByBorderEdges(int32 nRings = 1)
+	{
+		// find set of boundary edges
+		TArray<int> BorderEdges;
+		for (int32 k = 0; k < nRings; ++k)
+		{
+			BorderEdges.Reset();
+
+			for (int EID : Selected)
+			{
+				FIndex2i EdgeV = Mesh->GetEdgeV(EID);
+				bool bEitherSideBoundary = false;
+				for (int32 SubIdx = 0; SubIdx < 2; ++SubIdx)
+				{
+					bool bIsBoundary = false;
+					for (int32 NbrEID : Mesh->VtxEdgesItr(EdgeV[SubIdx]))
+					{
+						if (NbrEID != EID && !IsSelected(NbrEID))
+						{
+							bIsBoundary = true;
+						}
+					}
+					if (bIsBoundary)
+					{
+						bEitherSideBoundary = true;
+						break;
+					}
+				}
+				if (bEitherSideBoundary)
+				{
+					BorderEdges.Add(EID);
+				}
+			}
+			Deselect(BorderEdges);
+		}
+	}
+
 
 	GEOMETRYCORE_API void SelectBoundaryTriEdges(const FMeshFaceSelection& Triangles);
 

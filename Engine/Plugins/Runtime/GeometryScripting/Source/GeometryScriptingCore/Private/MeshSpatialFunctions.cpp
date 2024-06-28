@@ -350,6 +350,31 @@ UDynamicMesh* UGeometryScriptLibrary_MeshSpatial::SelectMeshElementsInBoxWithBVH
 						};
 						QueryBVH.Spatial->DoTraversal(Traversal, QueryOptions);
 					}
+					else if (SelectionType == EGeometryScriptMeshSelectionType::Edges)
+					{
+						int32 UseMinNumEdgePoints = FMath::Clamp(MinNumTrianglePoints, 1, 2);
+						GeoSelection.InitializeTypes(EGeometryElementType::Edge, EGeometryTopologyType::Triangle);
+						FDynamicMeshAABBTree3::FTreeTraversal Traversal;
+						Traversal.NextBoxF = [QueryBounds](const FAxisAlignedBox3d& Box, int Depth) { return Box.Intersects(QueryBounds); };
+						Traversal.NextTriangleF = [&ReadMesh, &GeoSelection, QueryBounds, UseMinNumEdgePoints](int TriangleID)
+						{
+							FIndex3i Tri = ReadMesh.GetTriangle(TriangleID);
+							bool ContainsV[3]{};
+							for (int32 k = 0; k < 3; ++k)
+							{
+								ContainsV[k] = QueryBounds.Contains(ReadMesh.GetVertex(Tri[k]));
+							}
+							for (int32 Idx = 0, PrevIdx = 2; Idx < 3; PrevIdx = Idx++)
+							{
+								int32 ContainCount = (int32)ContainsV[Idx] + (int32)ContainsV[PrevIdx];
+								if (ContainCount >= UseMinNumEdgePoints)
+								{
+									GeoSelection.Selection.Add(FMeshTriEdgeID(TriangleID, PrevIdx).Encoded());
+								}
+							}
+						};
+						QueryBVH.Spatial->DoTraversal(Traversal, QueryOptions);
+					}
 					else if (SelectionType == EGeometryScriptMeshSelectionType::Polygroups)
 					{
 						TArray<int32> UniqueGroups;

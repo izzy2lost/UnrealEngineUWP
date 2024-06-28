@@ -154,8 +154,10 @@ public:
 
 	/**
 	* Create Mesh Selection of mesh elements in TargetMesh contained by QueryBox, using QueryBVH to accellerate the computation.
-	* Triangles are selected if MinNumTrianglePoints or more vertices are inside the box. 
+	* Triangles and Edges are selected if Min Element Vertices (clamped to a 1-3 or 1-2 range, for triangles or edges respectively) or more are inside the box. 
 	* PolyGroups are selected if any of their triangles are inside the box
+	* 
+	* Note that this method cannot select mesh elements that cut through the query box without having any vertices in the query box.
 	* 
 	* @param QueryBVH is an acceleration structure previously built with TargetMesh.
 	* @param QueryPoint the point in the mesh's 3D local space.
@@ -170,9 +172,7 @@ public:
 		FGeometryScriptSpatialQueryOptions Options,
 		FGeometryScriptMeshSelection& Selection,
 		EGeometryScriptMeshSelectionType SelectionType = EGeometryScriptMeshSelectionType::Vertices,
-		int MinNumTrianglePoints = 3,
+		UPARAM(DisplayName = "Min Element Vertices") int MinNumTrianglePoints = 3,
 		UGeometryScriptDebug* Debug = nullptr );
-
-
 
 };
