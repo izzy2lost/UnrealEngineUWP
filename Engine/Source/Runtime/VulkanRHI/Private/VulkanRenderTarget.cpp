@@ -1125,11 +1125,27 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		// happen from UNDEFINED anyhow.
 		if (CurrentDepthLayout == VK_IMAGE_LAYOUT_UNDEFINED)
 		{
+			// Unused image aspects with a LoadOp but undefined layout should just remain untouched
+			if (!RPInfo.DepthStencilRenderTarget.ExclusiveDepthStencil.IsUsingDepth() &&
+				InDevice.GetOptionalExtensions().HasEXTLoadStoreOpNone &&
+				(CurrDesc.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD))
+			{
+				CurrDesc.loadOp = VK_ATTACHMENT_LOAD_OP_NONE_KHR;
+			}
+
 			check(CurrDesc.storeOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
 			CurrDesc.finalLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
 		}
 		if (CurrentStencilLayout == VK_IMAGE_LAYOUT_UNDEFINED)
 		{
+			// Unused image aspects with a LoadOp but undefined layout should just remain untouched
+			if (!RPInfo.DepthStencilRenderTarget.ExclusiveDepthStencil.IsUsingStencil() &&
+				InDevice.GetOptionalExtensions().HasEXTLoadStoreOpNone &&
+				(CurrDesc.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_LOAD))
+			{
+				CurrDesc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_NONE_KHR;
+			}
+
 			check(CurrDesc.stencilStoreOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
 			StencilDesc.stencilFinalLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
 		}
