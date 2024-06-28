@@ -10,6 +10,7 @@
 #include "HAL/FileManager.h"
 #include "Logging/LogMacros.h"
 #include "Misc/CommandLine.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/OutputDeviceHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -287,6 +288,15 @@ FIterativeValidatePackageWriter::FIterativeValidatePackageWriter(UCookOnTheFlySe
 
 	Indent = FCString::Spc(FOutputDeviceHelper::FormatLogLine(ELogVerbosity::Warning,
 		LogIterativeValidate.GetCategoryName(), TEXT(""), GPrintLogTimes).Len());
+
+	TArray<FString> IterativeValidatePackageIgnoreList;
+	GConfig->GetArray(TEXT("TargetDomain"), TEXT("IterativeValidatePackageIgnoreList"),
+		IterativeValidatePackageIgnoreList, GEditorIni);
+	PackageIgnoreList.Reserve(IterativeValidatePackageIgnoreList.Num());
+	for (const FString& PackageName : IterativeValidatePackageIgnoreList)
+	{
+		PackageIgnoreList.Add(FName(FStringView(PackageName)));
+	}
 }
 
 void FIterativeValidatePackageWriter::BeginPackage(const FBeginPackageInfo& Info)
@@ -322,7 +332,8 @@ void FIterativeValidatePackageWriter::BeginPackage(const FBeginPackageInfo& Info
 	case EPhase::Phase2:
 		{
 			EPackageStatus PackageStatus = GetPackageStatus(Info.PackageName);
-			if (PackageStatus == EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified)
+			if (PackageStatus == EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified ||
+				PackageStatus == EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList)
 			{
 				// Already saved in Phase 1; no need to diff it or save it now
 				SaveAction = ESaveAction::IgnoreResults;
@@ -613,14 +624,19 @@ void FIterativeValidatePackageWriter::UpdatePackageModificationStatus(FName Pack
 		}
 		break;
 	case EPhase::Phase2:
+	{
 		// Ignore the Unmodified flag from this cook phase. Skip the packages that were found to 
 		// be IterativeValidated from Phase1. Save the packages that phase1 found modified; this phase
 		// is responsible for getting those resaved. Reexecute save for the packages that were IterativeFailed
 		// from phase1, so we can test whether they are indeterministic. Always save generators so we can
 		// test their generated packages.
-		bInOutShouldIterativelySkip = (GetPackageStatus(PackageName) == EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified) 
-										&& !bKnownGenerator;
+		EPackageStatus PackageStatus = GetPackageStatus(PackageName);
+		bInOutShouldIterativelySkip =
+			(PackageStatus == EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified
+				|| PackageStatus == EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList)
+			&& !bKnownGenerator;
 		break;
+	}
 	default:
 		checkNoEntry();
 		break;
@@ -700,13 +716,15 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 	case EPhase::AllInOnePhase:
 	{
 		int32 DetectedUnmodified = StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
-			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive];
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList];
 		UE_CLOG(COTFS.GetCookMode() != ECookMode::CookWorker,
 			LogIterativeValidate, Display,
 			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. IterativeSkipFalsePositive: %d."),
 			StatusCounts[EPackageStatus::DeclaredModified_WillNotVerify], 
 			DetectedUnmodified,
-			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified],
+			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList],
 			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]);
 		FString Message = FString::Printf(TEXT("Packages Iteratively Skipped: %d: IterativeSkipFalsePositive: %d."),
 			DetectedUnmodified,
@@ -715,6 +733,14 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 		{
 			UE_CLOG(COTFS.GetCookMode() != ECookMode::CookWorker,
 				LogIterativeValidate, Error, TEXT("%s"), *Message);
+		}
+		else if (StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList] > 0)
+		{
+			Message = FString::Printf(TEXT("Packages Iteratively Skipped: %d: IterativeSkipFalsePositive (Ignored): %d."),
+				DetectedUnmodified,
+				StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList]);
+			UE_CLOG(COTFS.GetCookMode() != ECookMode::CookWorker,
+				LogIterativeValidate, Warning, TEXT("%s"), *Message);
 		}
 		else
 		{
@@ -726,13 +752,15 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 	case EPhase::Phase1:
 	{
 		int32 DetectedUnmodified = StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
-			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive];
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList];
 		UE_CLOG(COTFS.GetCookMode() != ECookMode::CookWorker,
 			LogIterativeValidate, Display,
 			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. IterativeSkipFalsePositiveOrIndeterminism: %d."),
 			StatusCounts[EPackageStatus::DeclaredModified_WillNotVerify],
 			DetectedUnmodified,
-			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified],
+			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList],
 			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive]);
 		Save();
 		break;
@@ -742,13 +770,15 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 		int32 DetectedUnmodified = StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
 			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive]
 			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_Indeterminism]
-			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive];
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList];
 		UE_CLOG(COTFS.GetCookMode() != ECookMode::CookWorker,
 			LogIterativeValidate, Display,
 			TEXT("Modified: %d. DetectedUnmodified: %d. ValidatedUnmodified: %d. Indeterminism: %d. IterativeSkipFalsePositive: %d."),
 			StatusCounts[EPackageStatus::DeclaredModified_WillNotVerify],
 			DetectedUnmodified,
-			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified],
+			StatusCounts[EPackageStatus::DeclaredUnmodified_ConfirmedUnmodified]
+			+ StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList],
 			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_Indeterminism],
 			StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]
 			);
@@ -759,6 +789,14 @@ void FIterativeValidatePackageWriter::EndCook(const FCookInfo& Info)
 		{
 			UE_CLOG(COTFS.GetCookMode() != ECookMode::CookWorker,
 				LogIterativeValidate, Error, TEXT("%s"), *Message);
+		}
+		else if (StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList] > 0)
+		{
+			Message = FString::Printf(TEXT("Packages Iteratively Skipped: %d: IterativeSkipFalsePositive (Ignored): %d."),
+				DetectedUnmodified,
+				StatusCounts[EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive]);
+			UE_CLOG(COTFS.GetCookMode() != ECookMode::CookWorker,
+				LogIterativeValidate, Warning, TEXT("%s"), *Message);
 		}
 		else
 		{
@@ -834,7 +872,14 @@ bool FIterativeValidatePackageWriter::IsAnotherSaveNeeded(FSavePackageResultStru
 
 			if (bIsDifferent && !bNewPackage)
 			{
-				SetPackageStatus(BeginInfo.PackageName, EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive);
+				if (!PackageIgnoreList.Contains(BeginInfo.PackageName))
+				{
+					SetPackageStatus(BeginInfo.PackageName, EPackageStatus::DeclaredUnmodified_FoundModified_FalsePositive);
+				}
+				else
+				{
+					SetPackageStatus(BeginInfo.PackageName, EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList);
+				}
 			}
 			else if (!bNewPackage)
 			{
@@ -875,9 +920,16 @@ bool FIterativeValidatePackageWriter::IsAnotherSaveNeeded(FSavePackageResultStru
 			Inner->BeginPackage(BeginInfo);
 			SaveAction = ESaveAction::SaveToInner;
 
-			// Mark that the iterative validation failed if it was not already marked by log or warning messages.
-			// We need to record it for an indeterminism test
-			SetPackageStatus(BeginInfo.PackageName, EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive);
+			if (!PackageIgnoreList.Contains(BeginInfo.PackageName))
+			{
+				// Mark that the iterative validation failed if it was not already marked by log or warning messages.
+				// We need to record it for an indeterminism test
+				SetPackageStatus(BeginInfo.PackageName, EPackageStatus::DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive);
+			}
+			else
+			{
+				SetPackageStatus(BeginInfo.PackageName, EPackageStatus::DeclaredUnmodified_FoundModified_OnIgnoreList);
+			}
 
 			return true;
 		}

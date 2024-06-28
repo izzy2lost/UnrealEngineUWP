@@ -54,15 +54,6 @@ public:
 protected:
 	enum class EPackageStatus : uint8;
 
-	virtual void OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message) override;
-	void LogIterativeDifferences();
-	void Save();
-	void Load();
-	void Serialize(FArchive& Ar);
-	FString GetIterativeValidatePath() const;
-	EPackageStatus GetPackageStatus(FName PackageName) const;
-	void SetPackageStatus(FName PackageName, EPackageStatus NewStatus);
-
 	enum class ESaveAction : uint8
 	{
 		CheckForDiffs,
@@ -77,6 +68,7 @@ protected:
 		DeclaredUnmodified_FoundModified_IndeterminismOrFalsePositive,
 		DeclaredUnmodified_FoundModified_Indeterminism,
 		DeclaredUnmodified_FoundModified_FalsePositive,
+		DeclaredUnmodified_FoundModified_OnIgnoreList,
 		DeclaredUnmodified_NotYetProcessed,
 		DeclaredModified_WillNotVerify,
 		Count
@@ -88,9 +80,6 @@ protected:
 		ELogVerbosity::Type Verbosity;
 	};
 	friend FArchive& operator<<(FArchive& Ar, FMessage& Message);
-
-	TMap<FName, EPackageStatus> PackageStatusMap;
-	TMap<FName, TArray<FMessage>> PackageMessageMap;
 
 	struct FStatusCounts
 	{
@@ -108,8 +97,21 @@ protected:
 		TStaticArray<uint32, (uint32)EPackageStatus::Count> Data;
 	};
 
+protected:
+	virtual void OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message) override;
+	void LogIterativeDifferences();
+	void Save();
+	void Load();
+	void Serialize(FArchive& Ar);
+	FString GetIterativeValidatePath() const;
+	EPackageStatus GetPackageStatus(FName PackageName) const;
+	void SetPackageStatus(FName PackageName, EPackageStatus NewStatus);
 	FStatusCounts CountPackagesByStatus();
 
+protected:
+	TMap<FName, EPackageStatus> PackageStatusMap;
+	TMap<FName, TArray<FMessage>> PackageMessageMap;
+	TSet<FName> PackageIgnoreList;
 	FString MetadataPath;
 	UCookOnTheFlyServer& COTFS;
 	EPhase Phase = EPhase::AllInOnePhase;

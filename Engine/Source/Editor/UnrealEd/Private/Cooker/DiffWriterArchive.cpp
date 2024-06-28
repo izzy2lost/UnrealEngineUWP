@@ -1356,6 +1356,14 @@ void FAccumulator::GenerateDiffMap()
 
 	bIdentical = bHeaderIdentical && bExportsIdentical;
 	bHasDifferences = !bIdentical;
+	static bool bForceDiff = []()
+		{
+			return FParse::Param(FCommandLine::Get(), TEXT("cookforcediff"));
+		}();
+	if (bForceDiff)
+	{
+		bHasDifferences = true;
+	}
 }
 
 FLinkerLoad* CreateLinkerForPackage(FUObjectSerializeContext* LoadContext, const FString& InPackageName, const FString& InFilename, const FPackageData& PackageData)
