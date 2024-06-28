@@ -149,6 +149,11 @@
 		
 		<!-- Source code and demos for container images -->
 		Engine/Extras/Containers/...
+
+		<!-- Additional documentation -->
+		Engine/Plugins/Runtime/NetworkPrediction/readme.txt
+		Engine/Plugins/Experimental/Mover/README.md
+
 	</Property>
 	
 	<!-- Files which can exist under any engine or engine-platform directory -->
