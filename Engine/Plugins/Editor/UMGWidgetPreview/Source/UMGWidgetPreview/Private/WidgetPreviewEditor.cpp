@@ -99,7 +99,7 @@ UWidgetPreview* UWidgetPreviewEditor::CreatePreviewForWidget(const UUserWidget* 
 			nullptr,
 			GWarn));
 
-	NewWidgetPreview->SetWidgetType(InUserWidget->GetClass());
+	NewWidgetPreview->SetWidgetType({ InUserWidget->GetClass() });
 	NewWidgetPreview->MarkPackageDirty();
 
 	return NewWidgetPreview;
