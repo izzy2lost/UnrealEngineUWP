@@ -4,4 +4,4 @@
 
 #include "Logging/LogMacros.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogAvaMask, VeryVerbose, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogAvaMask, Log, All);

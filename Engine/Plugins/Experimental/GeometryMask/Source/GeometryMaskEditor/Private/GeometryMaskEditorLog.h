@@ -4,4 +4,4 @@
 
 #include "Logging/LogMacros.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogGeometryMaskEditor, VeryVerbose, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogGeometryMaskEditor, Log, All);
