@@ -906,6 +906,9 @@ protected:
 
 #if WITH_EDITOR
 	ENGINE_API FIoHash CreateDerivedDataKeyHash(const ITargetPlatform* TargetPlatform);
+private:
+	FString CreateDerivedDataKeyString(const ITargetPlatform* TargetPlatform);
+protected:
 	ENGINE_API FIoHash BeginCacheDerivedData(const ITargetPlatform* TargetPlatform);
 	ENGINE_API bool PollCacheDerivedData(const FIoHash& KeyHash) const;
 	ENGINE_API void EndCacheDerivedData(const FIoHash& KeyHash);
