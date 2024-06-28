@@ -270,8 +270,13 @@ void PrintStats()
 	Newline(Context);
 
 	Context.Pos.x = ItemX;
-	Print(Context, TEXT("     Empty"), FontYellow);
-	PrintLeftAlign(Context, InStatsBuffer[0].NumEmptyRasterBins);
+	Print(Context, TEXT("  SW Empty"), FontYellow);
+	PrintLeftAlign(Context, InStatsBuffer[0].NumEmptySWRasterBins);
+	Newline(Context);
+
+	Context.Pos.x = ItemX;
+	Print(Context, TEXT("  HW Empty"), FontYellow);
+	PrintLeftAlign(Context, InStatsBuffer[0].NumEmptyHWRasterBins);
 	Newline(Context);
 
 	Context.Pos.x = ItemX;
@@ -363,7 +368,9 @@ void CalculateRasterStats()
 	OutStatsBuffer[0].NumPostVisitedNodes		= QueueState[0].PassState[1].NodeWriteOffset;
 	OutStatsBuffer[0].NumPostCandidateClusters	= QueueState[0].PassState[1].ClusterWriteOffset;
 
-	uint NumEmptyRasterBins = 0;
+	uint NumEmptySWRasterBins = 0;
+	uint NumEmptyHWRasterBins = 0;
+
 	uint NumTotalRasterBins = NumMainPassRasterBins;
 	uint NumMainPassIndirections = 0;
 	uint NumPostPassIndirections = 0;
@@ -374,13 +381,18 @@ void CalculateRasterStats()
 		const uint BinSWCount = MainPassRasterBinMeta[RasterBinIndex].BinSWCount;
 		const uint BinHWCount = MainPassRasterBinMeta[RasterBinIndex].BinHWCount;
 
-		const uint BinIndirections = BinSWCount + BinHWCount;
-
-		if (BinIndirections == 0)
+		if (BinSWCount == 0)
 		{
-			++NumEmptyRasterBins;
+			++NumEmptySWRasterBins;
 		}
-		else
+
+		if (BinHWCount == 0)
+		{
+			++NumEmptyHWRasterBins;
+		}
+		
+		const uint BinIndirections = BinSWCount + BinHWCount;
+		if (BinIndirections > 0)
 		{
 			NumMainPassIndirections += BinIndirections;
 		}
@@ -395,13 +407,18 @@ void CalculateRasterStats()
 		const uint BinSWCount = PostPassRasterBinMeta[RasterBinIndex].BinSWCount;
 		const uint BinHWCount = PostPassRasterBinMeta[RasterBinIndex].BinHWCount;
 
-		const uint BinIndirections = BinSWCount + BinHWCount;
-
-		if (BinIndirections == 0)
+		if (BinSWCount == 0)
 		{
-			++NumEmptyRasterBins;
+			++NumEmptySWRasterBins;
 		}
-		else
+
+		if (BinHWCount == 0)
+		{
+			++NumEmptyHWRasterBins;
+		}
+
+		const uint BinIndirections = BinSWCount + BinHWCount;
+		if (BinIndirections > 0)
 		{
 			NumPostPassIndirections += BinIndirections;
 		}
@@ -409,7 +426,8 @@ void CalculateRasterStats()
 #endif
 
 	OutStatsBuffer[0].NumTotalRasterBins		= NumTotalRasterBins;
-	OutStatsBuffer[0].NumEmptyRasterBins		= NumEmptyRasterBins;
+	OutStatsBuffer[0].NumEmptySWRasterBins		= NumEmptySWRasterBins;
+	OutStatsBuffer[0].NumEmptyHWRasterBins		= NumEmptyHWRasterBins;
 	OutStatsBuffer[0].NumTotalShadingBins		= 0;
 	OutStatsBuffer[0].NumEmptyShadingBins		= 0;
 	OutStatsBuffer[0].NumShadedQuads			= 0;

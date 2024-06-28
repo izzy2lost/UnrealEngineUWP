@@ -428,7 +428,8 @@ struct FNaniteStats
 	UINT_TYPE NumPrimaryViews;
 	UINT_TYPE NumTotalViews;
 	UINT_TYPE NumTotalRasterBins;
-	UINT_TYPE NumEmptyRasterBins;
+	UINT_TYPE NumEmptySWRasterBins;
+	UINT_TYPE NumEmptyHWRasterBins;
 	UINT_TYPE NumTotalShadingBins;
 	UINT_TYPE NumEmptyShadingBins;
 	UINT_TYPE NumNanitePixels;

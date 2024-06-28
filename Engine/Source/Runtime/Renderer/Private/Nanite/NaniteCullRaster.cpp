@@ -4156,7 +4156,15 @@ FBinningData FRenderer::AddPass_Binning(
 
 	if (BinningData.BinCount > 0)
 	{
-		BinningData.MetaBuffer = DispatchContext.MetaBuffer;
+		if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u && StatsBuffer != nullptr)
+		{
+			BinningData.MetaBuffer = GraphBuilder.CreateBuffer(DispatchContext.MetaBuffer->Desc, DispatchContext.MetaBuffer->Name);
+			AddCopyBufferPass(GraphBuilder, BinningData.MetaBuffer, DispatchContext.MetaBuffer);
+		}
+		else
+		{
+			BinningData.MetaBuffer = DispatchContext.MetaBuffer;
+		}
 
 		// Initialize Bin Ranges
 		{
