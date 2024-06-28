@@ -594,7 +594,7 @@ bool LoadBasePassPipeline(
 	ELightMapPolicyType LightMapPolicyType = ELightMapPolicyType::LMP_NO_LIGHTMAP;
 
 	FLightCacheInterface* LightCacheInterface = nullptr;
-	if (bAllowStaticLighting && SceneProxy->HasStaticLighting())
+	if (bAllowStaticLighting)
 	{
 		FPrimitiveSceneProxy::FLCIArray LCIs;
 		SceneProxy->GetLCIs(LCIs);
