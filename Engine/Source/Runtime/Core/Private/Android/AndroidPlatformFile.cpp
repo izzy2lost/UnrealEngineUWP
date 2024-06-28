@@ -1785,17 +1785,19 @@ public:
 
 	virtual IFileHandle* OpenRead(const TCHAR* Filename, bool bAllowWrite = false) override
 	{
-		return OpenRead(Filename, false, bAllowWrite);
+		const bool bAllowLocal = false;
+
+		return OpenReadInternal(Filename, bAllowLocal, bAllowWrite);
 	}
 
-	IFileHandle* OpenRead(const TCHAR* Filename, bool AllowLocal, bool bAllowWrite)
+	IFileHandle* OpenReadInternal(const TCHAR* Filename, bool bAllowLocal, bool bAllowWrite)
 	{
 #if LOG_ANDROID_FILE
 		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("FAndroidPlatformFile::OpenRead('%s')"), Filename);
 #endif
 		FString LocalPath;
 		FString AssetPath;
-		PathToAndroidPaths(LocalPath, AssetPath, Filename, AllowLocal);
+		PathToAndroidPaths(LocalPath, AssetPath, Filename, bAllowLocal);
 
 		if (IsLocal(LocalPath))
 		{
@@ -2379,12 +2381,13 @@ private:
 
 	void MountOBB(const TCHAR* Filename)
 	{
-		FFileHandleAndroid* File
-			= static_cast<FFileHandleAndroid*>(OpenRead(Filename, true, false));
+		const bool bAllowLocal = true;
+		const bool bAllowWrite = false;
+
+		FFileHandleAndroid* File = static_cast<FFileHandleAndroid*>(OpenReadInternal(Filename, bAllowLocal, bAllowWrite));
 		check(nullptr != File);
 		ZipResource.AddPatchFile(MakeShareable(File));
-		FPlatformMisc::LowLevelOutputDebugStringf(
-			TEXT("Mounted OBB '%s'"), Filename);
+		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Mounted OBB '%s'"), Filename);
 	}
 
 	AAssetManager* AssetMgr;
