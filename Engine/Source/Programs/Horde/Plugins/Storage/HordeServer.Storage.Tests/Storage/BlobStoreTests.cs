@@ -15,7 +15,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Storage
 {
 	[TestClass]
-	public class BlobStoreTests : ServerServiceTest
+	public class BlobStoreTests : ServerTestSetup
 	{
 		static readonly BlobType s_blobType = new BlobType("{AFDF76A7-4DEE-5333-F5B5-37B8451251CA}", 1);
 

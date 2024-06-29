@@ -13,7 +13,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Server
 {
 	[TestClass]
-	public class ServerStatusServiceTest : TestSetup
+	public class ServerStatusServiceTest : ServerTestSetup
 	{
 		[TestMethod]
 		public async Task UpdatesAreStoredNewToOldAsync()

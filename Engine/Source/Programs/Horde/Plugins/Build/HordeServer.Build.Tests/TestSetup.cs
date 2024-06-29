@@ -62,7 +62,7 @@ namespace HordeServer.Tests
 	///
 	/// Easier to pass all these things around in a single object.
 	/// </summary>
-	public class TestSetup : ServerServiceTest
+	public class TestSetup : ServerTestSetup
 	{
 		public IGraphCollection GraphCollection => ServiceProvider.GetRequiredService<IGraphCollection>();
 		public INotificationTriggerCollection NotificationTriggerCollection => ServiceProvider.GetRequiredService<INotificationTriggerCollection>();
@@ -156,9 +156,7 @@ namespace HordeServer.Tests
 			services.AddSingleton<ITemplateCollection, TemplateCollection>();
 			services.AddSingleton<IToolCollection, ToolCollection>();
 			services.AddSingleton<IUgsMetadataCollection, UgsMetadataCollection>();
-			services.AddSingleton<IUserCollection, UserCollectionV2>();
 			services.AddSingleton<IDeviceCollection, DeviceCollection>();
-			services.AddSingleton<IDashboardPreviewCollection, DashboardPreviewCollection>();
 
 			// Empty mocked object to satisfy basic test runs
 			services.AddSingleton<IAmazonEC2>(sp => new Mock<IAmazonEC2>().Object);
@@ -340,35 +338,6 @@ namespace HordeServer.Tests
 
 			Clock.UtcNow = now;
 			return agent;
-		}
-
-		/// <summary>
-		/// Find an available TCP/IP port
-		/// </summary>
-		/// <returns>Port number available</returns>
-		public static int GetAvailablePort()
-		{
-			using TcpListener listener = new(IPAddress.Loopback, 0);
-			listener.Start();
-			int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-			listener.Stop();
-			return port;
-		}
-
-		/// <summary>
-		/// Create a console logger for tests
-		/// </summary>
-		/// <typeparam name="T">Type to instantiate</typeparam>
-		/// <returns>A logger</returns>
-		public static ILogger<T> CreateConsoleLogger<T>()
-		{
-			using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
-			{
-				builder.SetMinimumLevel(LogLevel.Debug);
-				builder.AddSimpleConsole(options => { options.SingleLine = true; });
-			});
-
-			return loggerFactory.CreateLogger<T>();
 		}
 
 		protected async Task<IPool> CreatePoolAsync(PoolConfig poolConfig)

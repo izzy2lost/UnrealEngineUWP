@@ -19,7 +19,7 @@ using HordeServer.Plugins;
 namespace HordeServer.Tests.Tools
 {
 	[TestClass]
-	public class ToolTests : ServerServiceTest
+	public class ToolTests : ServerTestSetup
 	{
 		readonly ToolId _toolId = new ToolId("ugs");
 

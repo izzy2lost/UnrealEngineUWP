@@ -15,7 +15,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Storage
 {
 	[TestClass]
-	public sealed class GcServiceTests : ServerServiceTest
+	public sealed class GcServiceTests : ServerTestSetup
 	{
 		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
 

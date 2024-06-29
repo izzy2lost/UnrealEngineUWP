@@ -12,8 +12,10 @@ using HordeCommon;
 using HordeServer.Acls;
 using HordeServer.Auditing;
 using HordeServer.Configuration;
+using HordeServer.Dashboard;
 using HordeServer.Plugins;
 using HordeServer.Server;
+using HordeServer.Users;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,7 +26,7 @@ using OpenTelemetry.Trace;
 
 namespace HordeServer.Tests
 {
-	public class ServerServiceTest : DatabaseIntegrationTest
+	public class ServerTestSetup : DatabaseIntegrationTest
 	{
 		public FakeClock Clock => ServiceProvider.GetRequiredService<FakeClock>();
 		public IMemoryCache Cache => ServiceProvider.GetRequiredService<IMemoryCache>();
@@ -50,7 +52,7 @@ namespace HordeServer.Tests
 
 		readonly PluginCollection _pluginCollection;
 
-		public ServerServiceTest()
+		public ServerTestSetup()
 		{
 			_pluginCollection = new PluginCollection();
 
@@ -115,6 +117,9 @@ namespace HordeServer.Tests
 
 			services.AddSingleton<IConfigSource, FileConfigSource>();
 
+			services.AddSingleton<IUserCollection, UserCollectionV2>();
+			services.AddSingleton<IDashboardPreviewCollection, DashboardPreviewCollection>();
+
 			services.AddSingleton<FakeClock>();
 			services.AddSingleton<IClock>(sp => sp.GetRequiredService<FakeClock>());
 			services.AddSingleton<IHostApplicationLifetime, AppLifetimeStub>();
@@ -137,6 +142,22 @@ namespace HordeServer.Tests
 		protected void AddPlugin<T>() where T : class, IPluginStartup
 		{
 			_pluginCollection.Add<T>();
+		}
+
+		/// <summary>
+		/// Create a console logger for tests
+		/// </summary>
+		/// <typeparam name="T">Type to instantiate</typeparam>
+		/// <returns>A logger</returns>
+		public static ILogger<T> CreateConsoleLogger<T>()
+		{
+			using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+			{
+				builder.SetMinimumLevel(LogLevel.Debug);
+				builder.AddSimpleConsole(options => { options.SingleLine = true; });
+			});
+
+			return loggerFactory.CreateLogger<T>();
 		}
 
 		/// <summary>

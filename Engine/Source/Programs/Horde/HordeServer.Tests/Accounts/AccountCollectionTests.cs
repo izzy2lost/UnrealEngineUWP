@@ -9,7 +9,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Accounts
 {
 	[TestClass]
-	public class AccountCollectionTests : TestSetup
+	public class AccountCollectionTests : ServerTestSetup
 	{
 		[TestMethod]
 		public async Task CaseInsensitiveAsync()

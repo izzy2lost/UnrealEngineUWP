@@ -11,7 +11,7 @@ using EpicGames.Horde.Compute;
 using Grpc.Core;
 using Horde.Common.Rpc;
 using HordeServer.Agents.Relay;
-using HordeServer.Tests.Server;
+//using HordeServer.Tests.Server;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

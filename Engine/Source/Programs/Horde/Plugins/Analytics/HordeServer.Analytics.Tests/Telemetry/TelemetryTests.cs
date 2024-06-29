@@ -21,7 +21,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Analytics.Tests.Telemetry
 {
 	[TestClass]
-	public class TelemetryTests : ServerServiceTest
+	public class TelemetryTests : ServerTestSetup
 	{
 		static readonly TelemetryRecordMeta s_metadata = new TelemetryRecordMeta();
 
