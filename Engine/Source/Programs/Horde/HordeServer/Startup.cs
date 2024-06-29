@@ -365,14 +365,9 @@ namespace HordeServer
 			services.AddGrpcReflection();
 
 			services.AddSingleton<IAccountCollection, AccountCollection>();
-			services.AddSingleton<IAgentCollection, AgentCollection>();
-			services.AddSingleton<ILeaseCollection, LeaseCollection>();
-			services.AddSingleton<ILogCollection, LogCollection>();
-			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
-			services.AddSingleton<IPoolCollection, PoolCollection>();
 			services.AddSingleton<IServiceAccountCollection, ServiceAccountCollection>();
-			services.AddSingleton<ISessionCollection, SessionCollection>();
 			services.AddSingleton<IUserCollection, UserCollectionV2>();
+			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
 			services.AddSingleton<IDeviceCollection, DeviceCollection>();
 			services.AddSingleton<INoticeCollection, NoticeCollection>();
 			services.AddSingleton<IDashboardPreviewCollection, DashboardPreviewCollection>();
@@ -396,8 +391,6 @@ namespace HordeServer
 			services.AddSingleton(typeof(ISingletonDocument<>), typeof(SingletonDocument<>));
 
 			services.AddSingleton<IAclService, AclService>();
-			services.AddSingleton<AgentService>();
-			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
 			services.AddSingleton<RequestTrackerService>();
 			services.AddSingleton<MongoCommandTracer>();
 			services.AddSingleton<MongoService>();
@@ -405,19 +398,12 @@ namespace HordeServer
 			services.AddSingleton<GlobalsService>();
 			services.AddSingleton<IClock, Clock>();
 			services.AddSingleton<IDowntimeService, DowntimeService>();
-			services.AddSingleton<IssueService>();
-			services.AddSingleton<JobService>();
-			services.AddSingleton<ILogExtAuthProvider>(sp => sp.GetRequiredService<JobService>());
 			services.AddSingleton<LifetimeService>();
 			services.AddSingleton<ILifetimeService>(sp => sp.GetRequiredService<LifetimeService>());
 			services.AddHostedService(provider => provider.GetRequiredService<LifetimeService>());
 			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
 			services.AddSingleton<ServerStatusService>();
 			services.AddHostedService(provider => provider.GetRequiredService<ServerStatusService>());
-			services.AddSingleton<INotificationService, NotificationService>();
-			services.AddSingleton<UnsyncCache>();
-
-			services.AddSingleton<ScheduleService>();
 
 			services.AddScoped<OAuthControllerFilter>();
 
@@ -590,50 +576,13 @@ namespace HordeServer
 						.Build();
 				});
 
-			// Create the agent telemetry collection, and register the hosted service so we can flush from any server.
-			services.AddSingleton<AgentTelemetryCollection>();
-			services.AddSingleton<IAgentTelemetryCollection>(sp => sp.GetRequiredService<AgentTelemetryCollection>());
-			services.AddHostedService(provider => provider.GetRequiredService<AgentTelemetryCollection>());
-
 			// Hosted service that needs to run no matter the run mode of the process (server vs worker)
 			services.AddHostedService(provider => (DowntimeService)provider.GetRequiredService<IDowntimeService>());
 
-			// Notifications can be triggered from any instance, so always make sure we're ticking the background task.
-			services.AddHostedService(provider => (NotificationService)provider.GetRequiredService<INotificationService>());
 
 			if (settings.IsRunModeActive(RunMode.Worker) && !settings.MongoReadOnlyMode)
 			{
-				services.AddHostedService<AgentReportService>();
-				services.AddHostedService(provider => provider.GetRequiredService<IssueService>());
-				services.AddHostedService<IssueReportService>();
-				services.AddHostedService<IssueTagService>();
-				services.AddHostedService<JobExpirationService>();
 				services.AddHostedService<MetricService>();
-				services.AddHostedService(provider => provider.GetRequiredService<PerforceLoadBalancer>());
-				services.AddHostedService<PoolUpdateService>();
-				services.AddHostedService<UtilizationDataService>();
-				services.AddHostedService(provider => provider.GetRequiredService<DeviceService>());
-				services.AddHostedService<DeviceReportService>();
-				services.AddHostedService(provider => provider.GetRequiredService<TestDataService>());
-				services.AddHostedService(provider => provider.GetRequiredService<ComputeService>());
-				services.AddHostedService(provider => provider.GetRequiredService<EnrollmentService>());
-				services.AddHostedService(provider => provider.GetRequiredService<StorageService>());
-			}
-
-			services.AddHostedService(provider => provider.GetRequiredService<IExternalIssueService>());
-
-			// Task sources. Order of registration is important here; it dictates the priority in which sources are served.
-			services.AddSingleton<JobTaskSource>();
-
-			if (!settings.MongoReadOnlyMode)
-			{
-				services.AddHostedService<JobTaskSource>(provider => provider.GetRequiredService<JobTaskSource>());
-				services.AddSingleton<ConformTaskSource>();
-				services.AddHostedService<ConformTaskSource>(provider => provider.GetRequiredService<ConformTaskSource>());
-				services.AddSingleton<ComputeTaskSource>();
-
-				services.AddSingleton<ITaskSource, ConformTaskSource>(provider => provider.GetRequiredService<ConformTaskSource>());
-				services.AddSingleton<ITaskSource, JobTaskSource>(provider => provider.GetRequiredService<JobTaskSource>());
 			}
 
 			// Allow longer to shutdown so we can debug missing cancellation tokens

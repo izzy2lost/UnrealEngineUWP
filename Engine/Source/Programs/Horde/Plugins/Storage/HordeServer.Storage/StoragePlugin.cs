@@ -23,10 +23,12 @@ namespace HordeServer.Storage
 	[Plugin("Storage", GlobalConfigType = typeof(StorageConfig), ServerConfigType = typeof(StaticStorageConfig))]
 	public class StoragePlugin : IPluginStartup
 	{
+		readonly IServerInfo _serverInfo;
 		readonly StaticStorageConfig _staticConfig;
 
-		public StoragePlugin(StaticStorageConfig staticConfig)
+		public StoragePlugin(IServerInfo serverInfo, StaticStorageConfig staticConfig)
 		{
+			_serverInfo = serverInfo;
 			_staticConfig = staticConfig;
 		}
 
@@ -43,6 +45,11 @@ namespace HordeServer.Storage
 
 			services.AddSingleton<BundleCache>();
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
+
+			if (_serverInfo.IsRunModeActive(RunMode.Worker) && !_serverInfo.ReadOnlyMode)
+			{
+				services.AddHostedService(provider => provider.GetRequiredService<StorageService>());
+			}
 		}
 
 		StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)

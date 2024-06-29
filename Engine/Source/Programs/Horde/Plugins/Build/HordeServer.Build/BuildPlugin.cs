@@ -30,6 +30,7 @@ using HordeServer.Perforce;
 using HordeServer.Plugins;
 using HordeServer.Replicators;
 using HordeServer.Streams;
+using HordeServer.Tasks;
 using HordeServer.Ugs;
 using HordeServer.Users;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,6 +80,47 @@ namespace HordeServer
 			services.AddSingleton<DeviceService>();
 			services.AddSingleton<IBlockCache>(sp => CreateBlockCache(sp));
 			services.AddSingleton<TestDataService>();
+
+			services.AddSingleton<IssueService>();
+			services.AddSingleton<JobService>();
+			services.AddSingleton<ILogExtAuthProvider>(sp => sp.GetRequiredService<JobService>());
+			services.AddSingleton<INotificationService, NotificationService>();
+			services.AddSingleton<UnsyncCache>();
+
+			services.AddSingleton<ScheduleService>();
+
+			// Notifications can be triggered from any instance, so always make sure we're ticking the background task.
+			services.AddHostedService(provider => (NotificationService)provider.GetRequiredService<INotificationService>());
+
+			if (_serverInfo.IsRunModeActive(RunMode.Worker) && !_serverInfo.ReadOnlyMode)
+			{
+				services.AddHostedService<AgentReportService>();
+				services.AddHostedService(provider => provider.GetRequiredService<IssueService>());
+				services.AddHostedService<IssueReportService>();
+				services.AddHostedService<IssueTagService>();
+				services.AddHostedService<JobExpirationService>();
+				services.AddHostedService(provider => provider.GetRequiredService<PerforceLoadBalancer>());
+				services.AddHostedService<PoolUpdateService>();
+				services.AddHostedService<UtilizationDataService>();
+				services.AddHostedService(provider => provider.GetRequiredService<DeviceService>());
+				services.AddHostedService<DeviceReportService>();
+				services.AddHostedService(provider => provider.GetRequiredService<TestDataService>());
+			}
+
+			services.AddHostedService(provider => provider.GetRequiredService<IExternalIssueService>());
+
+			// Task sources. Order of registration is important here; it dictates the priority in which sources are served.
+			services.AddSingleton<JobTaskSource>();
+
+			if (!_serverInfo.ReadOnlyMode)
+			{
+				services.AddHostedService<JobTaskSource>(provider => provider.GetRequiredService<JobTaskSource>());
+				services.AddSingleton<ConformTaskSource>();
+				services.AddHostedService<ConformTaskSource>(provider => provider.GetRequiredService<ConformTaskSource>());
+
+				services.AddSingleton<ITaskSource, ConformTaskSource>(provider => provider.GetRequiredService<ConformTaskSource>());
+				services.AddSingleton<ITaskSource, JobTaskSource>(provider => provider.GetRequiredService<JobTaskSource>());
+			}
 
 			if (_staticConfig.Commits.ReplicateMetadata)
 			{

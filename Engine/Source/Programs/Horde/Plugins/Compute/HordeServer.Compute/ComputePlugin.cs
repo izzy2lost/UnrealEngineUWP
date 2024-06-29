@@ -9,8 +9,11 @@ using Amazon.SQS;
 using HordeServer.Agents;
 using HordeServer.Agents.Enrollment;
 using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Leases;
 using HordeServer.Agents.Pools;
 using HordeServer.Agents.Relay;
+using HordeServer.Agents.Sessions;
+using HordeServer.Agents.Telemetry;
 using HordeServer.Aws;
 using HordeServer.Compute;
 using HordeServer.Logs;
@@ -43,6 +46,15 @@ namespace HordeServer
 		/// <inheritdoc/>
 		public void ConfigureServices(IServiceCollection services)
 		{
+			services.AddSingleton<IAgentCollection, AgentCollection>();
+			services.AddSingleton<ILeaseCollection, LeaseCollection>();
+			services.AddSingleton<ILogCollection, LogCollection>();
+			services.AddSingleton<IPoolCollection, PoolCollection>();
+			services.AddSingleton<ISessionCollection, SessionCollection>();
+
+			services.AddSingleton<AgentService>();
+			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
+
 			services.AddSingleton<AwsAutoScalingLifecycleService>();
 			services.AddSingleton<FleetService>();
 			services.AddSingleton<IFleetManagerFactory, FleetManagerFactory>();
@@ -73,6 +85,13 @@ namespace HordeServer
 			// Always run agent service too; need to be able to listen to Redis for events on any server.
 			services.AddHostedService(provider => provider.GetRequiredService<AgentService>());
 
+			// Create the agent telemetry collection, and register the hosted service so we can flush from any server.
+			services.AddSingleton<AgentTelemetryCollection>();
+			services.AddSingleton<IAgentTelemetryCollection>(sp => sp.GetRequiredService<AgentTelemetryCollection>());
+			services.AddHostedService(provider => provider.GetRequiredService<AgentTelemetryCollection>());
+
+
+
 			if (!_serverInfo.ReadOnlyMode)
 			{
 				services.AddSingleton<ComputeTaskSource>();
@@ -86,6 +105,8 @@ namespace HordeServer
 				{
 					services.AddHostedService(provider => provider.GetRequiredService<FleetService>());
 					services.AddHostedService(provider => provider.GetRequiredService<ConsistencyService>());
+					services.AddHostedService(provider => provider.GetRequiredService<ComputeService>());
+					services.AddHostedService(provider => provider.GetRequiredService<EnrollmentService>());
 				}
 			}
 
