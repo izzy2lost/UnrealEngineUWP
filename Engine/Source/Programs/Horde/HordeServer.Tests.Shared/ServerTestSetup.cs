@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using HordeCommon;
+using HordeServer.Accounts;
 using HordeServer.Acls;
 using HordeServer.Auditing;
 using HordeServer.Configuration;
@@ -101,6 +102,8 @@ namespace HordeServer.Tests
 			ServerInfo serverInfo = new ServerInfo(configuration, Options.Create(settings));
 			services.AddSingleton<IServerInfo>(serverInfo);
 			services.AddSingleton<IPluginCollection>(_pluginCollection);
+
+			services.AddSingleton<IAccountCollection, AccountCollection>();
 
 			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });
 			services.AddSingleton<IMemoryCache>(sp => new MemoryCache(new MemoryCacheOptions { }));

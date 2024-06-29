@@ -16,7 +16,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Acls
 {
 	[TestClass]
-	public class AclTests : ServerTestSetup
+	public class AclTests : TestSetup
 	{
 		[TestMethod]
 		public void TestCustomProfile()
