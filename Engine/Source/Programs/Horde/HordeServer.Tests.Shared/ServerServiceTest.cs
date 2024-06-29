@@ -123,6 +123,7 @@ namespace HordeServer.Tests
 			services.AddSingleton<IAclService, AclService>();
 			services.AddSingleton<IDowntimeService, DowntimeServiceStub>();
 			services.AddSingleton<LifetimeService>();
+			services.AddSingleton<ILifetimeService>(sp => sp.GetRequiredService<LifetimeService>());
 
 			services.AddSingleton(typeof(IHealthMonitor<>), typeof(HealthMonitor<>));
 			services.AddSingleton<ServerStatusService>();
