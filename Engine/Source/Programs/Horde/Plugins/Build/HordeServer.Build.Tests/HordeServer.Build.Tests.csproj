@@ -23,7 +23,6 @@
   <ItemGroup>
     <ProjectReference Include="..\HordeServer.Build\HordeServer.Build.csproj" />
     <ProjectReference Include="..\..\Compute\HordeServer.Compute\HordeServer.Compute.csproj" />
-    <ProjectReference Include="..\..\..\HordeAgent.Tests\HordeAgent.Tests.csproj" />
     <ProjectReference Include="..\..\..\HordeServer.Tests.Shared\HordeServer.Tests.Shared.csproj" />
     <ProjectReference Include="..\..\..\HordeAgent\HordeAgent.csproj">
       <Aliases>HordeAgent</Aliases>
