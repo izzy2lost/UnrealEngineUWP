@@ -336,14 +336,17 @@ namespace HordeServer.Artifacts
 			while (!_freeBlocks.TryDequeue(out blockIdx))
 			{
 				PriorityQueue<(IoHash, BlockState), long> priorityQueue = new PriorityQueue<(IoHash, BlockState), long>(NumEvictionSamples);
-				for (int sampleIdx = 0; sampleIdx < NumEvictionSamples; sampleIdx++)
+				lock (_rng)
 				{
-					blockIdx = _rng.Next(_numBlocks);
-
-					BlockHeader header = GetBlockHeader(blockIdx);
-					if (_lookup.TryGetValue(header.Key, out BlockState? state))
+					for (int sampleIdx = 0; sampleIdx < NumEvictionSamples; sampleIdx++)
 					{
-						priorityQueue.Enqueue((header.Key, state), state.LastAccessTicks);
+						blockIdx = _rng.Next(_numBlocks);
+
+						BlockHeader header = GetBlockHeader(blockIdx);
+						if (_lookup.TryGetValue(header.Key, out BlockState? state))
+						{
+							priorityQueue.Enqueue((header.Key, state), state.LastAccessTicks);
+						}
 					}
 				}
 

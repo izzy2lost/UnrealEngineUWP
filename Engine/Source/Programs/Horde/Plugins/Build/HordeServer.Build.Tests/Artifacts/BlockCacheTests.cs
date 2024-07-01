@@ -83,10 +83,10 @@ namespace HordeServer.Tests.Artifacts
 			}
 
 			using BlockCache blockCache = BlockCache.CreateInMemory(5, 16, 4096);
-			Parallel.For(0, 4, threadIdx =>
+			Parallel.For(0, 16, threadIdx =>
 			{
 				Random rng = new Random(threadIdx);
-				for (int idx = 0; idx < 10000; idx++)
+				for (int idx = 0; idx < 40000; idx++)
 				{
 					int itemIdx = rng.Next(items.Count);
 					(string name, byte[] data) = items[itemIdx];
