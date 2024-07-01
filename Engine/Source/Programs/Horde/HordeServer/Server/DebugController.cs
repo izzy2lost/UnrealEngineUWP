@@ -27,6 +27,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -471,7 +472,7 @@ namespace HordeServer.Server
 		/// <summary>
 		/// Writes stats for the storage backend cache
 		/// </summary>
-		[HttpGet]
+		[HttpPost]
 		[Route("/api/v1/debug/writecacherefstats")]
 		public ActionResult WriteCacheRefStats()
 		{
