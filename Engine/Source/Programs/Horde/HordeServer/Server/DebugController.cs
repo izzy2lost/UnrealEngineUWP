@@ -14,6 +14,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Storage;
 using Google.Protobuf;
 using Horde.Common.Rpc;
 using HordeServer.Agents.Relay;
@@ -45,6 +46,7 @@ namespace HordeServer.Server
 		private static readonly Random s_random = new();
 
 		private readonly IMongoService _mongoService;
+		private readonly IServiceProvider _serviceProvider;
 		private readonly ConfigService _configService;
 		private readonly AgentRelayService _agentRelayService;
 		private readonly ILogCollection _logCollection;
@@ -56,6 +58,7 @@ namespace HordeServer.Server
 		/// </summary>
 		public DebugController(
 			IMongoService mongoService,
+			IServiceProvider serviceProvider,
 			ConfigService configService,
 			AgentRelayService agentRelayService,
 			ILogCollection logCollection,
@@ -63,6 +66,7 @@ namespace HordeServer.Server
 			ILogger<DebugController> logger)
 		{
 			_mongoService = mongoService;
+			_serviceProvider = serviceProvider;
 			_configService = configService;
 			_agentRelayService = agentRelayService;
 			_logCollection = logCollection;
@@ -462,6 +466,28 @@ namespace HordeServer.Server
 			int numberArg = 42;
 			string stringArg = "hello";
 			throw new Exception($"Message: numberArg:{numberArg}, stringArg:{stringArg}");
+		}
+
+		/// <summary>
+		/// Writes stats for the storage backend cache
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/debug/writecacherefstats")]
+		public ActionResult WriteCacheRefStats()
+		{
+			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
+			{
+				return Forbid(ServerAclAction.Debug);
+			}
+
+			StorageBackendCache? storageBackendCache = _serviceProvider.GetService(typeof(StorageBackendCache)) as StorageBackendCache;
+			if (storageBackendCache == null)
+			{
+				return NotFound();
+			}
+
+			storageBackendCache.WriteRefStats(_logger);
+			return Ok();
 		}
 	}
 }

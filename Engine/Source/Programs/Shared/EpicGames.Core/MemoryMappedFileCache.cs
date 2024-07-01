@@ -4,7 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.Linq;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Core
 {
@@ -283,6 +285,28 @@ namespace EpicGames.Core
 					listNode.Value.Release();
 				}
 				listNode = nextListNode;
+			}
+		}
+
+		/// <summary>
+		/// Prints stats about the number of outstanding references to items in the cache
+		/// </summary>
+		public void WriteRefStats(ILogger logger)
+		{
+			lock (_lockObject)
+			{
+				logger.LogInformation("Memory mapped file cache using {NumEntries:n0}/{MaxEntries:n0} ({Size:n0}mb/{MaxSize:n0}mb)", _mappedFiles.Count, _maxMappedCount, _mappedSize, _maxMappedSize);
+
+				int referencedCount = 0;
+				ulong referencedSize = 0;
+				foreach (MappedFile mappedFile in _mappedFiles.OrderByDescending(x => x.RefCount).ThenBy(x => x.Key).TakeWhile(x => x.RefCount > 1))
+				{
+					logger.LogInformation("Mapped file {File} has {NumRefs} references", mappedFile.Key, mappedFile.RefCount);
+					referencedCount++;
+					referencedSize += mappedFile.MappedSize;
+				}
+
+				logger.LogInformation("{NumFiles:n0} files have more than one reference count ({SizeMb:n1}mb)", referencedCount, referencedSize / (1024.0 * 1024.0));
 			}
 		}
 	}

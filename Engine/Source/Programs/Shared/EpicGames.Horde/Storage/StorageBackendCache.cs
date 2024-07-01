@@ -379,5 +379,9 @@ namespace EpicGames.Horde.Storage
 			stats.Add("backend.cache.write_time_ms", (_writeTimeTicks * 1000) / Stopwatch.Frequency);
 			stats.Add("backend.cache.fetch_bytes", _fetchBytes);
 		}
+
+		/// <inheritdoc cref="MemoryMappedFileCache.WriteRefStats(ILogger)"/>
+		public void WriteRefStats(ILogger logger)
+			=> _memoryMappedFileCache.WriteRefStats(logger);
 	}
 }
