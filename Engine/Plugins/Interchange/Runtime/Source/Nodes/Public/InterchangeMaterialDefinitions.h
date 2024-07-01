@@ -626,6 +626,17 @@ namespace Interchange
 				const FName Displacement = TEXT("displacement");
 				const FName Occlusion = TEXT("occlusion");
 			}
+
+			// These outputs are only used for Substrate
+			namespace SubstrateMaterial
+			{
+				namespace Outputs
+				{
+					const FName FrontMaterial = TEXT("Substrate UsdPreviewSurface");
+					const FName Displacement = TEXT("Displacement");
+					const FName Occlusion = TEXT("Occlusion");
+				}
+			}
 		}
 
 		namespace Unlit

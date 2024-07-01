@@ -1599,6 +1599,10 @@ UInterchangeShaderNode* FMaterialXSurfaceShaderAbstract::Translate(EInterchangeM
 		{
 			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), GetValue<FVector4f>(mx::fromValueString<mx::Vector4>(DefaultValue->getValueString())), bInputInTangentSpace);
 		}
+		else if(DefaultValue->getTypeString() == mx::Type::Integer)
+		{
+			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), mx::fromValueString<int32>(DefaultValue->getValueString()));
+		}
 	}
 
 	return FunctionCallShaderNode;

@@ -135,7 +135,8 @@ protected:
 			if(!bIsConnected)
 			{
 				// only handle float, linear color and vector here, for other types, the child should handle them as it is most likely not an input but a parameter to set in Interchange
-				if constexpr(std::is_same_v<decltype(DefaultValue), float>)
+				// handle integers as scalars
+				if constexpr(std::is_same_v<decltype(DefaultValue), float> || std::is_same_v<decltype(DefaultValue), int32>)
 				{
 					bIsConnected = AddFloatAttribute(Input, InputShaderName, ShaderNode, DefaultValue);
 				}
