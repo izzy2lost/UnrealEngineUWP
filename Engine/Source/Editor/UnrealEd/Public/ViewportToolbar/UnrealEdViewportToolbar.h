@@ -5,12 +5,15 @@
 #include "Delegates/DelegateCombinations.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Templates/SharedPointerFwd.h"
+#include "ToolMenuDelegates.h"
 #include "UnrealEdViewportToolbarContext.h"
 
 class FText;
 class SEditorViewport;
 class UToolMenu;
+struct FNewToolMenuChoice;
 struct FToolMenuEntry;
+enum ERotationGridMode : int;
 
 namespace UE::UnrealEd
 {
@@ -24,6 +27,8 @@ UNREALED_API bool ShowNewViewportToolbars();
 UNREALED_API FToolMenuEntry CreateViewportToolbarTransformsSection();
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarSelectionSection();
+
+UNREALED_API FToolMenuEntry CreateViewportToolbarSnappingSubmenu();
 
 UNREALED_API FText GetViewModesSubmenuLabel(TWeakPtr<SEditorViewport> InViewport);
 
@@ -39,5 +44,59 @@ UNREALED_API void PopulateViewModesMenu(UToolMenu* InMenu,
 	IsViewModeSupportedDelegate InIsViewModeSupported = IsViewModeSupportedDelegate());
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarViewModesSubmenu();
+
+DECLARE_DELEGATE_TwoParams(FRotationGridCheckboxListExecuteActionDelegate, int, ERotationGridMode);
+DECLARE_DELEGATE_RetVal_TwoParams(bool, FRotationGridCheckboxListIsCheckedDelegate, int, ERotationGridMode);
+
+DECLARE_DELEGATE_OneParam(FLocationGridCheckboxListExecuteActionDelegate, int);
+DECLARE_DELEGATE_RetVal_OneParam(bool, FLocationGridCheckboxListIsCheckedDelegate, int);
+
+DECLARE_DELEGATE_OneParam(FScaleGridCheckboxListExecuteActionDelegate, int);
+DECLARE_DELEGATE_RetVal_OneParam(bool, FScaleGridCheckboxListIsCheckedDelegate, int);
+
+UNREALED_API TSharedRef<SWidget> BuildRotationGridCheckBoxList(
+	FName InExtentionHook,
+	const FText& InHeading,
+	const TArray<float>& InGridSizes,
+	ERotationGridMode InGridMode,
+	const FRotationGridCheckboxListExecuteActionDelegate& InExecuteAction,
+	const FRotationGridCheckboxListIsCheckedDelegate& InIsActionChecked,
+	const TSharedPtr<FUICommandList>& InCommandList = {}
+);
+
+UNREALED_API TSharedRef<SWidget> CreateRotationGridSnapMenu(
+	const FRotationGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
+	const FRotationGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
+	const TAttribute<bool>& InIsEnabledDelegate = TAttribute<bool>(true),
+	const TSharedPtr<FUICommandList>& InCommandList = {}
+);
+
+UNREALED_API TSharedRef<SWidget> CreateLocationGridSnapMenu(
+	const FLocationGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
+	const FLocationGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
+	const TArray<float>& InGridSizes,
+	const TAttribute<bool>& InIsEnabledDelegate = TAttribute<bool>(true),
+	const TSharedPtr<FUICommandList>& InCommandList = {}
+);
+
+UNREALED_API TSharedRef<SWidget> CreateScaleGridSnapMenu(
+	const FScaleGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
+	const FScaleGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
+	const TArray<float>& InGridSizes,
+	const TAttribute<bool>& InIsEnabledDelegate = TAttribute<bool>(true),
+	const TSharedPtr<FUICommandList>& InCommandList = {},
+	const TAttribute<bool>& ShowPreserveNonUniformScaleOption = TAttribute<bool>(false),
+	const FUIAction& PreserveNonUniformScaleUIAction = FUIAction()
+);
+
+UNREALED_API FToolMenuEntry CreateCheckboxSubmenu(
+	const FName InName,
+	const TAttribute<FText>& InLabel,
+	const TAttribute<FText>& InToolTip,
+	const FToolMenuExecuteAction& InCheckboxExecuteAction,
+	const FToolMenuCanExecuteAction& InCheckboxCanExecuteAction,
+	const FToolMenuGetActionCheckState& InCheckboxActionCheckState,
+	const FNewToolMenuChoice& InMakeMenu
+);
 
 } // namespace UE::UnrealEd

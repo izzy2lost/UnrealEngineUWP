@@ -93,12 +93,11 @@ private:
 	float OnGetFOVValue() const;
 	/** Called when the FOV slider is adjusted in the perspective viewport */
 	void OnFOVValueChanged(float NewValue) const;
-	
+
 	ECheckBoxState IsRotationGridSnapChecked() const;
 	void HandleToggleRotationGridSnap(ECheckBoxState InState);
 	FText GetRotationGridLabel() const;
 	TSharedRef<SWidget> FillRotationGridSnapMenu();
-	TSharedRef<SWidget> BuildRotationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<float>& InGridSizes, ERotationGridMode InGridMode) const;
 
 	/** Callback for drop-down menu with FOV and high resolution screenshot options currently */
 	FReply OnMenuClicked();

@@ -18,13 +18,494 @@
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
 #include "ViewportToolbar/UnrealEdViewportToolbarContext.h"
+#include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SSpinBox.h"
+#include "Widgets/Layout/SUniformGridPanel.h"
+#include "Widgets/SToolTip.h"
 
 #define LOCTEXT_NAMESPACE "UnrealEdViewportToolbar"
 
 namespace UE::UnrealEd::Private
 {
 int32 CVarToolMenusViewportToolbarsValue = 0;
+
+FToolUIAction DisabledAction()
+{
+	static FToolUIAction Action;
+	Action.CanExecuteAction = FToolMenuCanExecuteAction::CreateLambda(
+		[](const FToolMenuContext&)
+		{
+			return false;
+		}
+	);
+
+	return Action;
+}
+
+// TODO: Maybe export CreateSurfaceSnapOffsetEntry function, so that it can be used elsewhere, e.g. STransformViewportToolbar.cpp
+FToolMenuEntry CreateSurfaceSnapOffsetEntry()
+{
+	FText Label = LOCTEXT("SurfaceOffsetLabel", "Surface Offset");
+	FText Tooltip = LOCTEXT("SurfaceOffsetTooltip", "The amount of offset to apply when snapping to surfaces");
+
+	const FMargin WidgetsMargin(2.0f, 0.0f, 3.0f, 0.0f);
+
+	FToolMenuEntry SurfaceOffset = FToolMenuEntry::InitMenuEntry(
+		"SurfaceOffset",
+		FUIAction(
+			FExecuteAction(),
+			FCanExecuteAction::CreateLambda(
+				[]()
+				{
+					return GetDefault<ULevelEditorViewportSettings>()->SnapToSurface.bEnabled;
+				}
+			)
+		),
+		// clang-format off
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Left)
+		.Padding(WidgetsMargin)
+		.AutoWidth()
+		[
+			SNew(STextBlock)
+			.Text(Label)
+		]
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.Padding(WidgetsMargin)
+		.AutoWidth()
+		[
+			SNew(SBox)
+			.Padding(WidgetsMargin)
+			.MinDesiredWidth(100.0f)
+			[
+				// Min/Max/Slider values taken from STransformViewportToolbar.cpp
+				SNew(SNumericEntryBox<float>)
+				.ToolTipText(Tooltip)
+				.MinValue(0.0f)
+				.MaxValue(static_cast<float>(HALF_WORLD_MAX))
+				.MaxSliderValue(1000.0f)
+				.AllowSpin(true)
+				.MaxFractionalDigits(2)
+				.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+				.OnValueChanged_Lambda([](float InNewValue)
+				{
+					ULevelEditorViewportSettings* Settings =
+						GetMutableDefault<ULevelEditorViewportSettings>();
+					Settings->SnapToSurface.SnapOffsetExtent = InNewValue;
+				})
+				.Value_Lambda([]()
+				{
+					return GetDefault<ULevelEditorViewportSettings>()->SnapToSurface.SnapOffsetExtent;
+				})
+			]
+		]
+		// clang-format on
+	);
+
+	return SurfaceOffset;
+}
+
+FToolMenuEntry CreateSurfaceSnapCheckboxMenu()
+{
+	FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda(
+		[](UToolMenu* Submenu)
+		{
+			FToolMenuSection& SurfaceSnappingSection =
+				Submenu->FindOrAddSection("SurfaceSnapping", LOCTEXT("SurfaceSnappingLabel", "Surface Snapping"));
+
+			// Add "Rotate to surface normal" checkbox.
+			{
+				FToolMenuEntry RotateToSurfaceNormalSnapping =
+					FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RotateToSurfaceNormal);
+				SurfaceSnappingSection.AddEntry(RotateToSurfaceNormalSnapping);
+			}
+
+			// Add "Surface offset" widget.
+			{
+				SurfaceSnappingSection.AddEntry(CreateSurfaceSnapOffsetEntry());
+			}
+		}
+	);
+
+	return UnrealEd::CreateCheckboxSubmenu(
+		"SurfaceSnapping",
+		LOCTEXT("SurfaceSnapLabel", "Surface"),
+		FEditorViewportCommands::Get().SurfaceSnapping->MakeTooltip()->GetTextTooltip(),
+		FToolMenuExecuteAction::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				ULevelEditorViewportSettings* Settings = GetMutableDefault<ULevelEditorViewportSettings>();
+				Settings->SnapToSurface.bEnabled = !Settings->SnapToSurface.bEnabled;
+			}
+		),
+		FToolMenuCanExecuteAction(),
+		FToolMenuGetActionCheckState::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				return GetDefault<ULevelEditorViewportSettings>()->SnapToSurface.bEnabled ? ECheckBoxState::Checked
+																						  : ECheckBoxState::Unchecked;
+			}
+		),
+		MakeMenuDelegate
+	);
+}
+
+FToolMenuEntry CreateActorSnapDistanceEntry()
+{
+	const FText Label = LOCTEXT("ActorSnapDistanceLabel", "Snap Distance");
+	const FText Tooltip = LOCTEXT("ActorSnapDistanceTooltip", "The amount of offset to apply when snapping to surfaces");
+
+	const FMargin WidgetsMargin(2.0f, 0.0f, 3.0f, 0.0f);
+
+	FToolMenuEntry SnapDistance = FToolMenuEntry::InitMenuEntry(
+		"ActorSnapDistance",
+		FUIAction(
+			FExecuteAction(),
+			FCanExecuteAction::CreateLambda(
+				[]()
+				{
+					return !!GetDefault<ULevelEditorViewportSettings>()->bEnableActorSnap;
+				}
+			)
+		),
+		// clang-format off
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.Padding(WidgetsMargin)
+		.AutoWidth()
+		[
+			SNew(STextBlock)
+			.Text(Label)
+		]
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.Padding(WidgetsMargin)
+		.AutoWidth()
+		[
+			SNew(SBox).Padding(WidgetsMargin).MinDesiredWidth(100.0f)
+			[
+				// TODO: Check how to improve performance for this widget OnValueChanged.
+				// Same functionality in LevelEditorToolBar.cpp seems to have better performance
+				SNew(SNumericEntryBox<float>)
+				.ToolTipText(Tooltip)
+				.MinValue(0.0f)
+				.MaxValue(1.0f)
+				.MaxSliderValue(1.0f)
+				.AllowSpin(true)
+				.MaxFractionalDigits(1)
+				.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+				.OnValueChanged_Static(&FLevelEditorActionCallbacks::SetActorSnapSetting)
+				.Value_Lambda([]()
+				{
+					return FLevelEditorActionCallbacks::GetActorSnapSetting();
+				})
+			]
+		]
+		// clang-format on
+	);
+
+	return SnapDistance;
+}
+
+FToolMenuEntry CreateActorSnapCheckboxMenu()
+{
+	FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda(
+		[](UToolMenu* Submenu)
+		{
+			// Add "Actor snapping" widget.
+			{
+				FToolMenuSection& ActorSnappingSection =
+					Submenu->FindOrAddSection("ActorSnapping", LOCTEXT("ActorSnappingLabel", "Actor Snapping"));
+				ActorSnappingSection.AddEntry(CreateActorSnapDistanceEntry());
+			}
+		}
+	);
+
+	FToolUIAction CheckboxMenuAction;
+	{
+		CheckboxMenuAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				if (ULevelEditorViewportSettings* Settings = GetMutableDefault<ULevelEditorViewportSettings>())
+				{
+					Settings->bEnableActorSnap = !Settings->bEnableActorSnap;
+				}
+			}
+		);
+		CheckboxMenuAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				return GetDefault<ULevelEditorViewportSettings>()->bEnableActorSnap ? ECheckBoxState::Checked
+																					: ECheckBoxState::Unchecked;
+			}
+		);
+	}
+
+	FToolMenuEntry ActorSnapping = FToolMenuEntry::InitSubMenu(
+		"ActorSnapping",
+		LOCTEXT("ActorSnapLabel", "Actor"),
+		FLevelEditorCommands::Get().EnableActorSnap->MakeTooltip()->GetTextTooltip(),
+		MakeMenuDelegate,
+		CheckboxMenuAction,
+		EUserInterfaceActionType::ToggleButton
+	);
+
+	return ActorSnapping;
+}
+
+FToolMenuEntry CreateLocationSnapCheckboxMenu()
+{
+	const FName LocationSnapName = "LocationSnap";
+	const FText LocationSnapLabel = LOCTEXT("LocationSnapLabel", "Location");
+
+	if (!GEditor)
+	{
+		return FToolMenuEntry::InitMenuEntry(
+			LocationSnapName, LocationSnapLabel, FText(), FSlateIcon(), UnrealEd::Private::DisabledAction()
+		);
+	}
+
+	FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda(
+		[LocationSnapName](UToolMenu* InToolMenu)
+		{
+			UnrealEd::FLocationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+				UnrealEd::FLocationGridCheckboxListExecuteActionDelegate::CreateUObject(GEditor, &UEditorEngine::SetGridSize);
+
+			UnrealEd::FLocationGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+				UnrealEd::FLocationGridCheckboxListIsCheckedDelegate::CreateLambda(
+					[](int CurrGridSizeIndex)
+					{
+						const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+						return ViewportSettings->CurrentPosGridSize == CurrGridSizeIndex;
+					}
+				);
+
+			const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+			TArray<float> GridSizes = ViewportSettings->bUsePowerOf2SnapSize ? ViewportSettings->Pow2GridSizes
+																			 : ViewportSettings->DecimalGridSizes;
+
+			InToolMenu->AddMenuEntry(
+				LocationSnapName,
+				FToolMenuEntry::InitWidget(
+					LocationSnapName,
+					UnrealEd::CreateLocationGridSnapMenu(
+						ExecuteDelegate,
+						IsCheckedDelegate,
+						GridSizes,
+						TAttribute<bool>::CreateLambda(
+							[]()
+							{
+								return FLevelEditorActionCallbacks::LocationGridSnap_IsChecked();
+							}
+						)
+					),
+					FText()
+				)
+			);
+		}
+	);
+
+	return UnrealEd::CreateCheckboxSubmenu(
+		"GridSnapping",
+		LocationSnapLabel,
+		FEditorViewportCommands::Get().SurfaceSnapping->MakeTooltip()->GetTextTooltip(),
+		FToolMenuExecuteAction::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				FLevelEditorActionCallbacks::LocationGridSnap_Clicked();
+			}
+		),
+		FToolMenuCanExecuteAction(),
+		FToolMenuGetActionCheckState::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				return FLevelEditorActionCallbacks::LocationGridSnap_IsChecked() ? ECheckBoxState::Checked
+																				 : ECheckBoxState::Unchecked;
+			}
+		),
+		MakeMenuDelegate
+	);
+}
+
+FToolMenuEntry CreateRotationSnapCheckboxMenu()
+{
+	const FName RotationSnapName = "RotationSnap";
+	const FText RotationSnapLabel = LOCTEXT("RotationSnapLabel", "Rotation");
+
+	if (!GEditor)
+	{
+		return FToolMenuEntry::InitMenuEntry(
+			RotationSnapName, RotationSnapLabel, FText(), FSlateIcon(), UnrealEd::Private::DisabledAction()
+		);
+	}
+
+	FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda(
+		[RotationSnapName](UToolMenu* InToolMenu)
+		{
+			const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+			TArray<float> GridSizes = ViewportSettings->bUsePowerOf2SnapSize ? ViewportSettings->Pow2GridSizes
+																			 : ViewportSettings->DecimalGridSizes;
+
+			UnrealEd::FRotationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+				UnrealEd::FRotationGridCheckboxListExecuteActionDelegate::CreateUObject(
+					GEditor, &UEditorEngine::SetRotGridSize
+				);
+
+			UnrealEd::FRotationGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+				UnrealEd::FRotationGridCheckboxListIsCheckedDelegate::CreateLambda(
+					[](int CurrGridAngleIndex, ERotationGridMode InGridMode)
+					{
+						const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+						return ViewportSettings->CurrentRotGridSize == CurrGridAngleIndex
+							&& ViewportSettings->CurrentRotGridMode == InGridMode;
+					}
+				);
+
+			InToolMenu->AddMenuEntry(
+				RotationSnapName,
+				FToolMenuEntry::InitWidget(
+					RotationSnapName,
+					UnrealEd::CreateRotationGridSnapMenu(
+						ExecuteDelegate,
+						IsCheckedDelegate,
+						TAttribute<bool>::CreateLambda(
+							[]()
+							{
+								return FLevelEditorActionCallbacks::RotationGridSnap_IsChecked();
+							}
+						)
+					),
+					FText()
+				)
+			);
+		}
+	);
+
+	return UnrealEd::CreateCheckboxSubmenu(
+		"RotationSnapping",
+		RotationSnapLabel,
+		FEditorViewportCommands::Get().SurfaceSnapping->MakeTooltip()->GetTextTooltip(),
+		FToolMenuExecuteAction::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				FLevelEditorActionCallbacks::RotationGridSnap_Clicked();
+			}
+		),
+		FToolMenuCanExecuteAction(),
+		FToolMenuGetActionCheckState::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				return FLevelEditorActionCallbacks::RotationGridSnap_IsChecked() ? ECheckBoxState::Checked
+																				 : ECheckBoxState::Unchecked;
+			}
+		),
+		MakeMenuDelegate
+	);
+}
+
+FToolMenuEntry CreateScaleSnapCheckboxMenu()
+{
+	const FName ScaleSnapName = "ScaleSnap";
+	const FText ScaleSnapLabel = LOCTEXT("ScaleSnapLabel", "Scale");
+
+	if (!GEditor)
+	{
+		return FToolMenuEntry::InitMenuEntry(
+			ScaleSnapName, ScaleSnapLabel, FText(), FSlateIcon(), UnrealEd::Private::DisabledAction()
+		);
+	}
+
+	FNewToolMenuDelegate MakeMenuDelegate = FNewToolMenuDelegate::CreateLambda(
+		[ScaleSnapName](UToolMenu* InToolMenu)
+		{
+			FCanExecuteAction CanExecuteScaleSnapping = FCanExecuteAction::CreateLambda(
+				[]()
+				{
+					return FLevelEditorActionCallbacks::ScaleGridSnap_IsChecked();
+				}
+			);
+
+			const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+			TArray<float> GridSizes = ViewportSettings->ScalingGridSizes;
+
+			UnrealEd::FScaleGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+				UnrealEd::FScaleGridCheckboxListExecuteActionDelegate::CreateUObject(GEditor, &UEditorEngine::SetScaleGridSize);
+
+			UnrealEd::FScaleGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+				UnrealEd::FScaleGridCheckboxListIsCheckedDelegate::CreateLambda(
+					[](int CurrGridSizeIndex)
+					{
+						const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+						return ViewportSettings->CurrentScalingGridSize == CurrGridSizeIndex;
+					}
+				);
+
+			InToolMenu->AddMenuEntry(
+				ScaleSnapName,
+				FToolMenuEntry::InitWidget(
+					ScaleSnapName,
+					UnrealEd::CreateScaleGridSnapMenu(
+						ExecuteDelegate,
+						IsCheckedDelegate,
+						GridSizes,
+						TAttribute<bool>::CreateLambda(
+							[]()
+							{
+								return FLevelEditorActionCallbacks::ScaleGridSnap_IsChecked();
+							}
+						),
+						{},
+						true,
+						FUIAction(
+							FExecuteAction::CreateLambda(
+								[]()
+								{
+									ULevelEditorViewportSettings* Settings =
+										GetMutableDefault<ULevelEditorViewportSettings>();
+									Settings->PreserveNonUniformScale = !Settings->PreserveNonUniformScale;
+								}
+							),
+							CanExecuteScaleSnapping,
+							FIsActionChecked::CreateLambda(
+								[]()
+								{
+									return GetDefault<ULevelEditorViewportSettings>()->PreserveNonUniformScale;
+								}
+							)
+						)
+					),
+					FText()
+				)
+			);
+		}
+	);
+
+	return UnrealEd::CreateCheckboxSubmenu(
+		"ScaleSnapping",
+		ScaleSnapLabel,
+		FEditorViewportCommands::Get().SurfaceSnapping->MakeTooltip()->GetTextTooltip(),
+		FToolMenuExecuteAction::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				FLevelEditorActionCallbacks::ScaleGridSnap_Clicked();
+			}
+		),
+		FToolMenuCanExecuteAction(),
+		FToolMenuGetActionCheckState::CreateLambda(
+			[](const FToolMenuContext& InContext)
+			{
+				return FLevelEditorActionCallbacks::ScaleGridSnap_IsChecked() ? ECheckBoxState::Checked
+																			  : ECheckBoxState::Unchecked;
+			}
+		),
+		MakeMenuDelegate
+	);
+}
+
 }
 
 static FAutoConsoleVariableRef CVarToolMenusViewportToolbars(
@@ -203,6 +684,41 @@ FToolMenuEntry CreateViewportToolbarSelectionSection()
 
 					OptionsSection.AddMenuEntry(FLevelEditorCommands::Get().AllowTranslucentSelection);
 				}
+			}
+		)
+	);
+}
+
+FToolMenuEntry CreateViewportToolbarSnappingSubmenu()
+{
+	return FToolMenuEntry::InitSubMenu(
+		"Snapping",
+		LOCTEXT("SnappingSubmenuLabel", "Snapping"),
+		LOCTEXT("SnappingSubmenuTooltip", "Viewport-related snapping settings"),
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* Submenu) -> void
+			{
+				FToolMenuSection& SnappingSection =
+					Submenu->FindOrAddSection("Snapping", LOCTEXT("SnappingLabel", "Snapping"));
+
+				SnappingSection.AddEntry(Private::CreateSurfaceSnapCheckboxMenu());
+				SnappingSection.AddEntry(Private::CreateLocationSnapCheckboxMenu()).SetShowInToolbarTopLevel(true);
+				SnappingSection.AddEntry(Private::CreateRotationSnapCheckboxMenu());
+				SnappingSection.AddEntry(Private::CreateScaleSnapCheckboxMenu());
+				SnappingSection.AddEntry(Private::CreateActorSnapCheckboxMenu());
+
+				FToolMenuEntry SocketSnapping =
+					FToolMenuEntry::InitMenuEntry(FLevelEditorCommands::Get().ToggleSocketSnapping);
+				SocketSnapping.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+				SocketSnapping.Label = LOCTEXT("SocketSnapLabel", "Socket");
+				SnappingSection.AddEntry(SocketSnapping);
+
+				FToolMenuEntry VertexSnapping = FToolMenuEntry::InitMenuEntry(FLevelEditorCommands::Get().EnableVertexSnap);
+				VertexSnapping.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+				VertexSnapping.Label = LOCTEXT("VertexSnapLabel", "Vertex");
+				SnappingSection.AddEntry(VertexSnapping);
+
+				// TODO: add Planar Snapping
 			}
 		)
 	);
@@ -553,6 +1069,254 @@ FToolMenuEntry CreateViewportToolbarViewModesSubmenu()
 			}
 		)
 	);
+}
+
+TSharedRef<SWidget> BuildRotationGridCheckBoxList(
+	FName InExtentionHook,
+	const FText& InHeading,
+	const TArray<float>& InGridSizes,
+	ERotationGridMode InGridMode,
+	const FRotationGridCheckboxListExecuteActionDelegate& InExecuteAction,
+	const FRotationGridCheckboxListIsCheckedDelegate& InIsActionChecked,
+	const TSharedPtr<FUICommandList>& InCommandList
+)
+{
+	constexpr bool bShouldCloseWindowAfterMenuSelection = true;
+	FMenuBuilder RotationGridMenuBuilder(bShouldCloseWindowAfterMenuSelection, InCommandList);
+
+	RotationGridMenuBuilder.BeginSection(InExtentionHook, InHeading);
+	for (int32 CurrGridAngleIndex = 0; CurrGridAngleIndex < InGridSizes.Num(); ++CurrGridAngleIndex)
+	{
+		const float CurrGridAngle = InGridSizes[CurrGridAngleIndex];
+
+		FText MenuName =
+			FText::Format(LOCTEXT("RotationGridAngle", "{0}\u00b0"), FText::AsNumber(CurrGridAngle)); /*degree symbol*/
+		FText ToolTipText = FText::Format(
+			LOCTEXT("RotationGridAngle_ToolTip", "Sets rotation grid angle to {0}"), MenuName
+		); /*degree symbol*/
+
+		RotationGridMenuBuilder.AddMenuEntry(
+			MenuName,
+			ToolTipText,
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda(
+					[CurrGridAngleIndex, InGridMode, InExecuteAction]()
+					{
+						InExecuteAction.Execute(CurrGridAngleIndex, InGridMode);
+					}
+				),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda(
+					[CurrGridAngleIndex, InGridMode, InIsActionChecked]()
+					{
+						return InIsActionChecked.Execute(CurrGridAngleIndex, InGridMode);
+					}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::RadioButton
+		);
+	}
+	RotationGridMenuBuilder.EndSection();
+
+	return RotationGridMenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> CreateRotationGridSnapMenu(
+	const FRotationGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
+	const FRotationGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
+	const TAttribute<bool>& InIsEnabledDelegate,
+	const TSharedPtr<FUICommandList>& InCommandList
+)
+{
+	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+	TArray<float> GridSizes = ViewportSettings->bUsePowerOf2SnapSize ? ViewportSettings->Pow2GridSizes
+																	 : ViewportSettings->DecimalGridSizes;
+
+	// clang-format off
+	return SNew(SUniformGridPanel)
+		.IsEnabled(InIsEnabledDelegate)
+		+ SUniformGridPanel::Slot(0, 0)
+		[
+			UnrealEd::BuildRotationGridCheckBoxList("Common",LOCTEXT("RotationCommonText", "Rotation Increment")
+				, ViewportSettings->CommonRotGridSizes, GridMode_Common,
+				InExecuteDelegate,
+				InIsCheckedDelegate,
+				InCommandList
+			)
+		]
+		+ SUniformGridPanel::Slot(1, 0)
+		[
+			UnrealEd::BuildRotationGridCheckBoxList("Div360",LOCTEXT("RotationDivisions360DegreesText", "Divisions of 360\u00b0")
+				, ViewportSettings->DivisionsOf360RotGridSizes, GridMode_DivisionsOf360,
+				InExecuteDelegate,
+				InIsCheckedDelegate,
+				InCommandList
+			)
+		];
+	// clang-format on
+}
+
+TSharedRef<SWidget> CreateLocationGridSnapMenu(
+	const FLocationGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
+	const FLocationGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
+	const TArray<float>& InGridSizes,
+	const TAttribute<bool>& InIsEnabledDelegate,
+	const TSharedPtr<FUICommandList>& InCommandList
+)
+{
+	constexpr bool bShouldCloseWindowAfterMenuSelection = true;
+	FMenuBuilder LocationGridMenuBuilder(bShouldCloseWindowAfterMenuSelection, InCommandList);
+
+	LocationGridMenuBuilder.BeginSection("Snap", LOCTEXT("LocationSnapText", "Snap Sizes"));
+	for (int32 CurrGridSizeIndex = 0; CurrGridSizeIndex < InGridSizes.Num(); ++CurrGridSizeIndex)
+	{
+		const float CurGridSize = InGridSizes[CurrGridSizeIndex];
+
+		LocationGridMenuBuilder.AddMenuEntry(
+			FText::AsNumber(CurGridSize),
+			FText::Format(LOCTEXT("LocationGridSize_ToolTip", "Sets grid size to {0}"), FText::AsNumber(CurGridSize)),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda(
+					[CurrGridSizeIndex, InExecuteDelegate]()
+					{
+						InExecuteDelegate.Execute(CurrGridSizeIndex);
+					}
+				),
+				FCanExecuteAction::CreateLambda(
+					[InIsEnabledDelegate]()
+					{
+						return InIsEnabledDelegate.Get();
+					}
+				),
+				FIsActionChecked::CreateLambda(
+					[CurrGridSizeIndex, InIsCheckedDelegate]()
+					{
+						return InIsCheckedDelegate.Execute(CurrGridSizeIndex);
+					}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::RadioButton
+		);
+	}
+	LocationGridMenuBuilder.EndSection();
+
+	return LocationGridMenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> CreateScaleGridSnapMenu(
+	const FScaleGridCheckboxListExecuteActionDelegate& InExecuteDelegate,
+	const FScaleGridCheckboxListIsCheckedDelegate& InIsCheckedDelegate,
+	const TArray<float>& InGridSizes,
+	const TAttribute<bool>& InIsEnabledDelegate,
+	const TSharedPtr<FUICommandList>& InCommandList,
+	const TAttribute<bool>& ShowPreserveNonUniformScaleOption,
+	const FUIAction& PreserveNonUniformScaleUIAction
+)
+{
+	FNumberFormattingOptions NumberFormattingOptions;
+	NumberFormattingOptions.MaximumFractionalDigits = 5;
+
+	constexpr bool bShouldCloseWindowAfterMenuSelection = true;
+	FMenuBuilder ScaleGridMenuBuilder(bShouldCloseWindowAfterMenuSelection, InCommandList);
+
+	ScaleGridMenuBuilder.BeginSection("ScaleSnapOptions", LOCTEXT("ScaleSnapOptions", "Scale Snap"));
+
+	for (int32 CurrGridAmountIndex = 0; CurrGridAmountIndex < InGridSizes.Num(); ++CurrGridAmountIndex)
+	{
+		const float CurGridAmount = InGridSizes[CurrGridAmountIndex];
+
+		FText MenuText;
+		FText ToolTipText;
+
+		if (GEditor->UsePercentageBasedScaling())
+		{
+			MenuText = FText::AsPercent(CurGridAmount / 100.0f, &NumberFormattingOptions);
+			ToolTipText = FText::Format(LOCTEXT("ScaleGridAmountOld_ToolTip", "Snaps scale values to {0}"), MenuText);
+		}
+		else
+		{
+			MenuText = FText::AsNumber(CurGridAmount, &NumberFormattingOptions);
+			ToolTipText =
+				FText::Format(LOCTEXT("ScaleGridAmount_ToolTip", "Snaps scale values to increments of {0}"), MenuText);
+		}
+
+		ScaleGridMenuBuilder.AddMenuEntry(
+			MenuText,
+			ToolTipText,
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda(
+					[CurrGridAmountIndex, InExecuteDelegate]()
+					{
+						InExecuteDelegate.Execute(CurrGridAmountIndex);
+					}
+				),
+				FCanExecuteAction::CreateLambda(
+					[InIsEnabledDelegate]()
+					{
+						return InIsEnabledDelegate.Get();
+					}
+				),
+				FIsActionChecked::CreateLambda(
+					[CurrGridAmountIndex, InIsCheckedDelegate]()
+					{
+						return InIsCheckedDelegate.Execute(CurrGridAmountIndex);
+					}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::RadioButton
+		);
+	}
+	ScaleGridMenuBuilder.EndSection();
+
+	if (!GEditor->UsePercentageBasedScaling() && ShowPreserveNonUniformScaleOption.Get())
+	{
+		ScaleGridMenuBuilder.BeginSection("ScaleGeneralOptions", LOCTEXT("ScaleOptions", "Scaling Options"));
+
+		ScaleGridMenuBuilder.AddMenuEntry(
+			LOCTEXT("ScaleGridPreserveNonUniformScale", "Preserve Non-Uniform Scale"),
+			LOCTEXT(
+				"ScaleGridPreserveNonUniformScale_ToolTip", "When this option is checked, scaling objects that have a non-uniform scale will preserve the ratios between each axis, snapping the axis with the largest value."
+			),
+			FSlateIcon(),
+			PreserveNonUniformScaleUIAction,
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+
+		ScaleGridMenuBuilder.EndSection();
+	}
+
+	return ScaleGridMenuBuilder.MakeWidget();
+}
+
+FToolMenuEntry CreateCheckboxSubmenu(
+	const FName InName,
+	const TAttribute<FText>& InLabel,
+	const TAttribute<FText>& InToolTip,
+	const FToolMenuExecuteAction& InCheckboxExecuteAction,
+	const FToolMenuCanExecuteAction& InCheckboxCanExecuteAction,
+	const FToolMenuGetActionCheckState& InCheckboxActionCheckState,
+	const FNewToolMenuChoice& InMakeMenu
+)
+{
+	FToolUIAction CheckboxMenuAction;
+	{
+		CheckboxMenuAction.ExecuteAction = InCheckboxExecuteAction;
+		CheckboxMenuAction.CanExecuteAction = InCheckboxCanExecuteAction;
+		CheckboxMenuAction.GetActionCheckState = InCheckboxActionCheckState;
+	}
+
+	FToolMenuEntry CheckBoxSubmenu = FToolMenuEntry::InitSubMenu(
+		InName, InLabel, InToolTip, InMakeMenu, CheckboxMenuAction, EUserInterfaceActionType::ToggleButton
+	);
+
+	return CheckBoxSubmenu;
 }
 
 } // namespace UE::UnrealEd

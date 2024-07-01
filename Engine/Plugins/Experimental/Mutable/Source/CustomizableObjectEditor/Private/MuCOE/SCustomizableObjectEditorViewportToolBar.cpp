@@ -26,6 +26,7 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/Input/SSpinBox.h"
@@ -499,50 +500,18 @@ FText SCustomizableObjectEditorViewportToolBar::GetRotationGridLabel() const
 
 TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::FillRotationGridSnapMenu()
 {
-	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
+	UE::UnrealEd::FRotationGridCheckboxListExecuteActionDelegate ExecuteDelegate =
+		UE::UnrealEd::FRotationGridCheckboxListExecuteActionDelegate::CreateStatic(
+			&SCustomizableObjectEditorViewportTabBody::SetRotationGridSize
+		);
 
-	return SNew(SUniformGridPanel)
+	UE::UnrealEd::FRotationGridCheckboxListIsCheckedDelegate IsCheckedDelegate =
+		UE::UnrealEd::FRotationGridCheckboxListIsCheckedDelegate::CreateStatic(
+			&SCustomizableObjectEditorViewportTabBody::IsRotationGridSizeChecked
+		);
 
-		+ SUniformGridPanel::Slot(0, 0)
-		[
-			BuildRotationGridCheckBoxList("Common", LOCTEXT("RotationCommonText", "Common"), ViewportSettings->CommonRotGridSizes, GridMode_Common)
-		]
-
-		+ SUniformGridPanel::Slot(1, 0)
-		[
-			BuildRotationGridCheckBoxList("Div360", LOCTEXT("RotationDivisions360DegreesText", "Divisions of 360\u00b0"), ViewportSettings->DivisionsOf360RotGridSizes, GridMode_DivisionsOf360)
-		];
+	return UE::UnrealEd::CreateRotationGridSnapMenu(ExecuteDelegate, IsCheckedDelegate, Viewport.Pin()->GetCommandList());
 }
-
-
-TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::BuildRotationGridCheckBoxList(FName InExtentionHook, const FText& InHeading, const TArray<float>& InGridSizes, ERotationGridMode InGridMode) const
-{
-	const bool bShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder RotationGridMenuBuilder(bShouldCloseWindowAfterMenuSelection, Viewport.Pin()->GetCommandList());
-
-	RotationGridMenuBuilder.BeginSection(InExtentionHook, InHeading);
-	for (int32 CurGridAngleIndex = 0; CurGridAngleIndex < InGridSizes.Num(); ++CurGridAngleIndex)
-	{
-		const float CurGridAngle = InGridSizes[CurGridAngleIndex];
-
-		FText MenuName = FText::Format(LOCTEXT("RotationGridAngle", "{0}\u00b0"), FText::AsNumber(CurGridAngle)); /*degree symbol*/
-		FText ToolTipText = FText::Format(LOCTEXT("RotationGridAngle_ToolTip", "Sets rotation grid angle to {0}"), MenuName); /*degree symbol*/
-
-		RotationGridMenuBuilder.AddMenuEntry(
-			MenuName,
-			ToolTipText,
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateStatic(&SCustomizableObjectEditorViewportTabBody::SetRotationGridSize, CurGridAngleIndex, InGridMode),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateStatic(&SCustomizableObjectEditorViewportTabBody::IsRotationGridSizeChecked, CurGridAngleIndex, InGridMode)),
-			NAME_None,
-			EUserInterfaceActionType::RadioButton);
-	}
-	RotationGridMenuBuilder.EndSection();
-
-	return RotationGridMenuBuilder.MakeWidget();
-}
-
 
 FReply SCustomizableObjectEditorViewportToolBar::OnMenuClicked()
 {
