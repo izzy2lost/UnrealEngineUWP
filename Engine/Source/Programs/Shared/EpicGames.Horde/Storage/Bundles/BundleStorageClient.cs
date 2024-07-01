@@ -103,7 +103,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// </summary>
 		public async Task<IEnumerable<BlobLocator>> ReadBundleReferencesAsync(BlobLocator locator, CancellationToken cancellationToken)
 		{
-			IReadOnlyMemoryOwner<byte> data = await Backend.ReadBlobAsync(locator, 0, 32 * 1024 * 1024, cancellationToken);
+			using IReadOnlyMemoryOwner<byte> data = await Backend.ReadBlobAsync(locator, 0, 32 * 1024 * 1024, cancellationToken);
 			return ReadBundleReferences(data.Memory);
 		}
 

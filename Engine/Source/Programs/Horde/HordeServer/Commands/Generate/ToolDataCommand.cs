@@ -143,7 +143,7 @@ namespace HordeServer.Commands.Generate
 				IBlobRef? blobRef = await client.TryReadRefAsync(refName, cancellationToken: cancellationToken);
 				if (blobRef != null)
 				{
-					BlobData blobData = await blobRef.ReadBlobDataAsync(cancellationToken);
+					using BlobData blobData = await blobRef.ReadBlobDataAsync(cancellationToken);
 					if (blobData.Type.Guid == DirectoryNode.BlobTypeGuid)
 					{
 						IBlobRef<DirectoryNode> directoryRef = BlobRef.Create<DirectoryNode>(blobRef);
