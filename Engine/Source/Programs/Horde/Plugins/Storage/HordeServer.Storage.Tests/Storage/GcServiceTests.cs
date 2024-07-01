@@ -80,7 +80,7 @@ namespace HordeServer.Tests.Storage
 				BlobLocator locator = root.GetLocator();
 				if (nodes.Add(locator))
 				{
-					BlobData data = await root.ReadBlobDataAsync();
+					using BlobData data = await root.ReadBlobDataAsync();
 					await FindNodesAsync(store, data.Imports, nodes);
 				}
 			}
