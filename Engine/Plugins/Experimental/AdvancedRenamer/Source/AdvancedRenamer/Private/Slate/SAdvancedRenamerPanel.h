@@ -4,13 +4,13 @@
 
 #include "Input/Reply.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Widgets/Views/SHeaderRow.h"
 #include "Templates/SharedPointerFwd.h"
 
 class FUICommandList;
 class IAdvancedRenamer;
 class ITableRow;
 class SBox;
-class SHeaderRow;
 template <typename InItemType>
 class SListView;
 class STableViewBase;
@@ -62,6 +62,12 @@ private:
 	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	//~ End SWidget Interface
 
+	/** Get the current Column SortMode */
+	EColumnSortMode::Type GetColumnSortMode() const;
+
+	/** Called when the SortMode change */
+	void OnColumnSortModeChanged(EColumnSortPriority::Type InSortPriority, const FName& InName, EColumnSortMode::Type InSortMode);
+	
 	/** Callback to generate ListBoxRows */
 	TSharedRef<ITableRow> OnGenerateRowForList(TSharedPtr<FAdvancedRenamerPreview> InItem, const TSharedRef<STableViewBase>& InOwnerTable);
 
@@ -86,6 +92,12 @@ private:
 private:
 	/** Min update frequency, used in the tick to avoid updating the renamer too often */
 	static constexpr double MinUpdateFrequency = 0.1f;
+
+	/** Current SortMode for the List */
+	EColumnSortMode::Type SortMode;
+
+	/** Preview list used for the ListView */
+	TArray<TSharedPtr<FAdvancedRenamerPreview>> PreviewList;
 
 	/** Renamer instance */
 	TSharedPtr<IAdvancedRenamer> Renamer;

@@ -94,10 +94,11 @@ TSharedRef<SWidget> FAdvancedRenamerNumberingSection::GetWidget()
 				+ SHorizontalBox::Slot()
 				.Padding(LastWidgetPadding)
 				.VAlign(VAlign_Center)
-				.FillWidth(0.5f)
+				.HAlign(HAlign_Right)
 				[
 					SNew(SBox)
 					.HeightOverride(25.f)
+					.MinDesiredWidth(160.f)
 					[
 						SNew(SSegmentedControl<EAdvancedRenamerNumberingType>)
 						.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))

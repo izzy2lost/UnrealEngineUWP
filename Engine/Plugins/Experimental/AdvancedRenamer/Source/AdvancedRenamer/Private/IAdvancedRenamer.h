@@ -13,12 +13,20 @@ struct FAdvancedRenamerPreview
 		: Hash(InHash)
 		, OriginalName(InOriginalName)
 		, NewName(TEXT(""))
+		, OriginalNameForSort(InOriginalName)
 	{
 	}
 
+	/** Get the OriginalName FName for sort purposes */
+	FName GetNameForSort() const { return OriginalNameForSort; }
+	
+public:
 	int32 Hash;
 	const FString OriginalName;
 	FString NewName;
+
+private:
+	const FName OriginalNameForSort;
 };
 
 /**

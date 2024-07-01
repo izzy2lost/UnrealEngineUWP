@@ -94,6 +94,9 @@ void SAdvancedRenamerPanel::Construct(const FArguments& InArgs, const TSharedRef
 {
 	Renamer = InRenamer;
 
+	SortMode = EColumnSortMode::None;
+	PreviewList = InRenamer->GetPreviews();
+
 	CommandList = MakeShared<FUICommandList>();
 	CommandList->MapAction(
 		FGenericCommands::Get().Delete,
@@ -323,7 +326,7 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateRenamePreview()
 				[
 					SAssignNew(RenamePreviewList, SListView<TSharedPtr<FAdvancedRenamerPreview>>)
 					.ListViewStyle(&FAdvancedRenamerStyle::Get().GetWidgetStyle<FTableViewStyle>("AdvancedRenamer.Style.ListView"))
-					.ListItemsSource(&Renamer->GetPreviews())
+					.ListItemsSource(&PreviewList)
 					.OnGenerateRow(this, &SAdvancedRenamerPanel::OnGenerateRowForList)
 					.HeaderRow(
 
@@ -333,6 +336,8 @@ TSharedRef<SWidget> SAdvancedRenamerPanel::CreateRenamePreview()
 						+ SHeaderRow::Column(OriginalNameColumnName)
 						.HeaderContentPadding(FMargin(8.f, 2.f))
 						.DefaultLabel(LOCTEXT("AR_Old", "Old"))
+						.SortMode(this, &SAdvancedRenamerPanel::GetColumnSortMode)
+						.OnSort(this, &SAdvancedRenamerPanel::OnColumnSortModeChanged)
 						.FillWidth(0.5f)
 
 						+ SHeaderRow::Column(NewNameColumnName)
@@ -442,8 +447,46 @@ void SAdvancedRenamerPanel::Tick(const FGeometry& InAllottedGeometry, const doub
 	}
 }
 
-TSharedRef<ITableRow> SAdvancedRenamerPanel::OnGenerateRowForList(TSharedPtr<FAdvancedRenamerPreview> InItem, 
-	const TSharedRef<STableViewBase>& InOwnerTable)
+EColumnSortMode::Type SAdvancedRenamerPanel::GetColumnSortMode() const
+{
+	return SortMode;
+}
+
+void SAdvancedRenamerPanel::OnColumnSortModeChanged(EColumnSortPriority::Type InSortPriority, const FName& InName, EColumnSortMode::Type InSortMode)
+{
+	if (SortMode == EColumnSortMode::Descending && InSortMode == EColumnSortMode::Ascending)
+	{
+		SortMode = EColumnSortMode::None;
+	}
+	else
+	{
+		SortMode = InSortMode;
+	}
+
+	if (Renamer.IsValid())
+	{
+		PreviewList = Renamer->GetPreviews();
+		if (SortMode != EColumnSortMode::None)
+		{
+			EColumnSortMode::Type TempSortMode = SortMode;
+			auto ComparePreviewList = [TempSortMode](const TSharedPtr<FAdvancedRenamerPreview>& A, const TSharedPtr<FAdvancedRenamerPreview>& B)
+			{
+				if (!A.IsValid() || !B.IsValid())
+				{
+					return false;
+				}
+
+				const bool CompareResult = A->GetNameForSort().Compare(B->GetNameForSort()) <= 0;
+				return TempSortMode == EColumnSortMode::Ascending ? CompareResult : !CompareResult;
+			};
+
+			PreviewList.Sort(ComparePreviewList);
+		}
+		RenamePreviewList->RequestListRefresh();
+	}
+}
+
+TSharedRef<ITableRow> SAdvancedRenamerPanel::OnGenerateRowForList(TSharedPtr<FAdvancedRenamerPreview> InItem, const TSharedRef<STableViewBase>& InOwnerTable)
 {
 	return SNew(SAdvancedRenamerPreviewListRow, SharedThis(this), InOwnerTable, InItem);
 }
