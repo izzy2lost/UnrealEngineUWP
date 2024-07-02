@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "Misc/Optional.h"
 #include "Templates/UniquePtr.h"
 
 #if USE_USD_SDK
@@ -58,6 +59,14 @@ namespace UE
 		bool IsValid() const;
 
 		UE::FUsdPrim GetPrim() const;
+
+		bool ComputeBlendShapeWeights(TArray<float>& Weights, TOptional<double> TimeCode = {}) const;
+
+		bool GetJointTransformTimeSamples(TArray<double>& TimeCodes) const;
+		bool GetBlendShapeWeightTimeSamples(TArray<double>& TimeCodes) const;
+
+		TArray<FString> GetJointOrder() const;
+		TArray<FString> GetBlendShapeOrder() const;
 
 	private:
 		TUniquePtr<Internal::FUsdSkelAnimQueryImpl> Impl;

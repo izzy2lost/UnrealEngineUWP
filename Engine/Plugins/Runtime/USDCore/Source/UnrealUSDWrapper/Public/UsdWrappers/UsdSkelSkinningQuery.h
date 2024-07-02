@@ -21,6 +21,7 @@ PXR_NAMESPACE_CLOSE_SCOPE
 namespace UE
 {
 	class FUsdPrim;
+	class FUsdRelationship;
 
 	namespace Internal
 	{
@@ -58,6 +59,10 @@ namespace UE
 		bool IsValid() const;
 
 		UE::FUsdPrim GetPrim() const;
+
+		UE::FUsdRelationship GetBlendShapeTargetsRel() const;
+
+		bool GetBlendShapeOrder(TArray<FString>& BlendShapes) const;
 
 	private:
 		TUniquePtr<Internal::FUsdSkelSkinningQueryImpl> Impl;

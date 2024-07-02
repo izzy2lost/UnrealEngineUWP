@@ -425,49 +425,6 @@ namespace UsdSkelSkeletonTranslatorImpl
 		return OutHash;
 	}
 
-	void SetMorphTargetWeight(USkeletalMeshComponent& SkeletalMeshComponent, const FString& MorphTargetName, float Weight)
-	{
-		USkeletalMesh* SkeletalMesh = SkeletalMeshComponent.GetSkeletalMeshAsset();
-
-		// We try keeping a perfect correspondence between SkeletalMesh->GetMorphTargets() and SkeletalMeshComponent.ActiveMorphTargets
-		int32 IndexInSkeletalMesh = INDEX_NONE;
-		SkeletalMeshComponent.GetSkeletalMeshAsset()->FindMorphTargetAndIndex(*MorphTargetName, IndexInSkeletalMesh);
-		if (IndexInSkeletalMesh == INDEX_NONE)
-		{
-			return;
-		}
-
-		const UMorphTarget* MorphTarget = SkeletalMeshComponent.GetSkeletalMeshAsset()->GetMorphTargets()[IndexInSkeletalMesh];
-		if (!MorphTarget)
-		{
-			return;
-		}
-
-		int32 WeightIndex = INDEX_NONE;
-		if (SkeletalMeshComponent.ActiveMorphTargets.Contains(MorphTarget))
-		{
-			WeightIndex = SkeletalMeshComponent.ActiveMorphTargets[MorphTarget];
-		}
-
-		// Morph target is not at expected location (i.e. after CreateComponents, duplicate for PIE or undo/redo) --> Rebuild ActiveMorphTargets
-		// This may lead to one frame of glitchiness, as we'll reset all weights to zero...
-		if (WeightIndex == INDEX_NONE)
-		{
-			SkeletalMeshComponent.ActiveMorphTargets.Reset();
-			SkeletalMeshComponent.MorphTargetWeights.Reset();
-			TArray<TObjectPtr<UMorphTarget>>& MorphTargets = SkeletalMesh->GetMorphTargets();
-			for (int32 MorphTargetIndex = 0; MorphTargetIndex < MorphTargets.Num(); ++MorphTargetIndex)
-			{
-				SkeletalMeshComponent.ActiveMorphTargets.Add(MorphTargets[MorphTargetIndex], MorphTargetIndex);
-				SkeletalMeshComponent.MorphTargetWeights.Add(0.0f);	   // We'll update these right afterwards when we call UpdateComponents
-			}
-
-			WeightIndex = IndexInSkeletalMesh;
-		}
-
-		SkeletalMeshComponent.MorphTargetWeights[WeightIndex] = Weight;
-	}
-
 	bool LoadAllSkeletalData(
 		const pxr::UsdSkelBinding& InSkeletonBinding,
 		const pxr::UsdSkelCache& InSkelCache,

@@ -65,6 +65,8 @@ namespace UE
 		UE::FUsdPrim GetSkeleton() const;
 		UE::FUsdSkelAnimQuery GetAnimQuery() const;
 
+		bool ComputeJointLocalTransforms(TArray<FTransform>& UsdSpaceTransforms, double TimeCode, bool bAtRest = false) const;
+
 	private:
 		TUniquePtr<Internal::FUsdSkelSkeletonQueryImpl> Impl;
 	};

@@ -2,10 +2,12 @@
 
 #include "UsdWrappers/UsdSkelSkeletonQuery.h"
 
+#include "UnrealUSDWrapper.h"
 #include "USDMemory.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdSkelAnimQuery.h"
 #include "UsdWrappers/UsdSkelSkeletonQuery.h"
+#include "UsdWrappers/UsdStage.h"
 
 #if USE_USD_SDK
 #include "USDIncludesStart.h"
@@ -164,5 +166,34 @@ namespace UE
 #else
 		return {};
 #endif	  // #if USE_USD_SDK
+	}
+
+	bool FUsdSkelSkeletonQuery::ComputeJointLocalTransforms(TArray<FTransform>& UESpaceTransforms, double TimeCode, bool bAtRest) const
+	{
+		bool bResult = false;
+
+#if USE_USD_SDK
+		TUsdStore<pxr::VtArray<pxr::GfMatrix4d>> UsdTransforms;
+		bResult = Impl->PxrUsdSkelSkeletonQuery.Get().ComputeJointLocalTransforms(&UsdTransforms.Get(), TimeCode, bAtRest);
+		if (!bResult)
+		{
+			return false;
+		}
+
+		UESpaceTransforms.Reset(UsdTransforms.Get().size());
+		for (const pxr::GfMatrix4d& Matrix : UsdTransforms.Get())
+		{
+			// Copy-pasting from UsdToUnreal::ConvertMatrix since we UnrealUSDWrapper can't depend on USDUtilities
+			FMatrix UnrealMatrix(
+				FPlane(Matrix[0][0], Matrix[0][1], Matrix[0][2], Matrix[0][3]),
+				FPlane(Matrix[1][0], Matrix[1][1], Matrix[1][2], Matrix[1][3]),
+				FPlane(Matrix[2][0], Matrix[2][1], Matrix[2][2], Matrix[2][3]),
+				FPlane(Matrix[3][0], Matrix[3][1], Matrix[3][2], Matrix[3][3])
+			);
+			UESpaceTransforms.Emplace(UnrealMatrix);
+		}
+#endif	  // #if USE_USD_SDK
+
+		return bResult;
 	}
 }	 // namespace UE

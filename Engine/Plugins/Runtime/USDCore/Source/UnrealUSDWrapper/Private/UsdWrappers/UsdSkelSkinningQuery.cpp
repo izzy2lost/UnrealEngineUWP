@@ -4,6 +4,7 @@
 
 #include "USDMemory.h"
 #include "UsdWrappers/UsdPrim.h"
+#include "UsdWrappers/UsdRelationship.h"
 #include "UsdWrappers/UsdSkelSkinningQuery.h"
 
 #if USE_USD_SDK
@@ -137,10 +138,44 @@ namespace UE
 	FUsdPrim FUsdSkelSkinningQuery::GetPrim() const
 	{
 #if USE_USD_SDK
-		FScopedUsdAllocs Allocs;
 		return FUsdPrim{Impl->PxrUsdSkelSkinningQuery.Get().GetPrim()};
 #else
 		return {};
 #endif	  // #if USE_USD_SDK
 	}
+
+	UE::FUsdRelationship FUsdSkelSkinningQuery::GetBlendShapeTargetsRel() const
+	{
+#if USE_USD_SDK
+		return UE::FUsdRelationship{Impl->PxrUsdSkelSkinningQuery.Get().GetBlendShapeTargetsRel()};
+#else
+		return {};
+#endif	  // #if USE_USD_SDK
+	}
+
+	bool FUsdSkelSkinningQuery::GetBlendShapeOrder(TArray<FString>& BlendShapes) const
+	{
+		bool bResult = false;
+
+#if USE_USD_SDK
+		pxr::VtArray<pxr::TfToken> UsdOrder;
+		{
+			FScopedUsdAllocs Allocs;
+			bResult = Impl->PxrUsdSkelSkinningQuery.Get().GetBlendShapeOrder(&UsdOrder);
+			if (!bResult)
+			{
+				return bResult;
+			}
+		}
+
+		BlendShapes.Reset(UsdOrder.size());
+		for (const pxr::TfToken& BlendShape : UsdOrder)
+		{
+			BlendShapes.Add(UTF8_TO_TCHAR(BlendShape.GetString().c_str()));
+		}
+#endif
+
+		return bResult;
+	}
+
 }	 // namespace UE

@@ -142,4 +142,97 @@ namespace UE
 		return {};
 #endif	  // #if USE_USD_SDK
 	}
+
+	bool FUsdSkelAnimQuery::ComputeBlendShapeWeights(TArray<float>& Weights, TOptional<double> TimeCode) const
+	{
+		bool bResult = false;
+
+#if USE_USD_SDK
+		pxr::UsdTimeCode UsdTimeCode = TimeCode.IsSet() ? TimeCode.GetValue() : pxr::UsdTimeCode::Default();
+
+		TUsdStore<pxr::VtArray<float>> UsdWeights;
+		bResult = Impl->PxrUsdSkelAnimQuery.Get().ComputeBlendShapeWeights(&UsdWeights.Get(), UsdTimeCode);
+		if (!bResult)
+		{
+			return bResult;
+		}
+
+		Weights.SetNumUninitialized(UsdWeights.Get().size());
+		FMemory::Memcpy(Weights.GetData(), UsdWeights.Get().cdata(), UsdWeights.Get().size() * sizeof(float));
+#endif	  // #if USE_USD_SDK
+
+		return bResult;
+	}
+
+	bool FUsdSkelAnimQuery::GetJointTransformTimeSamples(TArray<double>& TimeCodes) const
+	{
+		bool bResult = false;
+
+#if USE_USD_SDK
+		TUsdStore<std::vector<double>> UsdTimes;
+		bResult = Impl->PxrUsdSkelAnimQuery.Get().GetJointTransformTimeSamples(&UsdTimes.Get());
+		if (!bResult)
+		{
+			return bResult;
+		}
+
+		TimeCodes.SetNumUninitialized(UsdTimes.Get().size());
+		FMemory::Memcpy(TimeCodes.GetData(), UsdTimes.Get().data(), UsdTimes.Get().size() * sizeof(double));
+#endif	  // #if USE_USD_SDK
+
+		return bResult;
+	}
+
+	bool FUsdSkelAnimQuery::GetBlendShapeWeightTimeSamples(TArray<double>& TimeCodes) const
+	{
+		bool bResult = false;
+
+#if USE_USD_SDK
+		TUsdStore<std::vector<double>> UsdTimes;
+		bResult = Impl->PxrUsdSkelAnimQuery.Get().GetBlendShapeWeightTimeSamples(&UsdTimes.Get());
+		if (!bResult)
+		{
+			return bResult;
+		}
+
+		TimeCodes.SetNumUninitialized(UsdTimes.Get().size());
+		FMemory::Memcpy(TimeCodes.GetData(), UsdTimes.Get().data(), UsdTimes.Get().size() * sizeof(double));
+#endif	  // #if USE_USD_SDK
+
+		return bResult;
+	}
+
+	TArray<FString> FUsdSkelAnimQuery::GetJointOrder() const
+	{
+		TArray<FString> Result;
+
+#if USE_USD_SDK
+		TUsdStore<pxr::VtArray<pxr::TfToken>> UsdJointOrder = Impl->PxrUsdSkelAnimQuery.Get().GetJointOrder();
+		Result.Reserve(UsdJointOrder.Get().size());
+
+		for (const pxr::TfToken& UsdToken : UsdJointOrder.Get())
+		{
+			Result.Add(UTF8_TO_TCHAR(UsdToken.GetString().c_str()));
+		}
+#endif
+
+		return Result;
+	}
+
+	TArray<FString> FUsdSkelAnimQuery::GetBlendShapeOrder() const
+	{
+		TArray<FString> Result;
+
+#if USE_USD_SDK
+		TUsdStore<pxr::VtArray<pxr::TfToken>> UsdJointOrder = Impl->PxrUsdSkelAnimQuery.Get().GetBlendShapeOrder();
+		Result.Reserve(UsdJointOrder.Get().size());
+
+		for (const pxr::TfToken& UsdToken : UsdJointOrder.Get())
+		{
+			Result.Add(UTF8_TO_TCHAR(UsdToken.GetString().c_str()));
+		}
+#endif
+
+		return Result;
+	}
 }	 // namespace UE
