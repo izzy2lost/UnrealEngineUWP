@@ -76,18 +76,15 @@ void FAvaTransitionBehaviorInstance::SetTransitionType(EAvaTransitionType InTran
 
 bool FAvaTransitionBehaviorInstance::Setup()
 {
-	RunStatus = EStateTreeRunStatus::Unset;
+	// Mark Run Status as running on setup so that on start all the nodes are on this status,
+	// even if their state tree hasn't started yet
+	RunStatus = EStateTreeRunStatus::Running;
 	TOptional<FAvaTransitionExecutionContext> Context = UpdateContext();
 	return Context.IsSet();
 }
 
 void FAvaTransitionBehaviorInstance::Start()
 {
-	if (RunStatus != EStateTreeRunStatus::Unset)
-	{
-		return;
-	}
-
 	// If this Instance is not Enabled for Transition, finish immediately
 	if (!IsEnabled())
 	{

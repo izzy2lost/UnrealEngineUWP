@@ -13,11 +13,14 @@
 DEFINE_LOG_CATEGORY_STATIC(LogAvaTransitionExecutor, Log, All);
 
 FAvaTransitionExecutor::FAvaTransitionExecutor(FAvaTransitionExecutorBuilder& InBuilder)
-	: Instances(MoveTemp(InBuilder.Instances))
-	, NullInstance(MoveTemp(InBuilder.NullInstance))
+	: NullInstance(MoveTemp(InBuilder.NullInstance))
 	, ContextName(MoveTemp(InBuilder.ContextName))
 	, OnFinished(MoveTemp(InBuilder.OnFinished))
 {
+	// Add Exit then Enter instances to keep a consistent order of execution
+	Instances.Reserve(InBuilder.ExitInstances.Num() + InBuilder.EnterInstances.Num());
+	Instances.Append(MoveTemp(InBuilder.ExitInstances));
+	Instances.Append(MoveTemp(InBuilder.EnterInstances));
 }
 
 FAvaTransitionExecutor::~FAvaTransitionExecutor()

@@ -38,7 +38,9 @@ public:
 	[[nodiscard]] TSharedRef<IAvaTransitionExecutor> Build(UAvaTransitionSubsystem& InTransitionSubsystem);
 
 private:
-	TArray<FAvaTransitionBehaviorInstance> Instances;
+	TArray<FAvaTransitionBehaviorInstance> EnterInstances;
+
+	TArray<FAvaTransitionBehaviorInstance> ExitInstances;
 
 	FAvaTransitionBehaviorInstance NullInstance;
 
