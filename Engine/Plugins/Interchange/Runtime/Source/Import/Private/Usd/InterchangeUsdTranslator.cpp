@@ -2149,7 +2149,9 @@ namespace UE::InterchangeUsdTranslator::Private
 				}
 
 				const FString MorphTargetName = BlendShapeName + TEXT("_") + Inbetween.GetAttr().GetName().ToString();
-				ParsedInbetweens.Emplace(MorphTargetName, Position);
+				FInbetweenAndPosition& NewEntry = ParsedInbetweens.Emplace_GetRef();
+				NewEntry.Name = MorphTargetName;
+				NewEntry.Position = Position;
 			}
 
 			ParsedInbetweens.Sort(
