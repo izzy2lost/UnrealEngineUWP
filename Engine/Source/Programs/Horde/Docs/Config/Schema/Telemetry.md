@@ -2,15 +2,13 @@
 
 # *.telemetry.json
 
-Config for metrics
-
 Name | Description
 ---- | -----------
-`id` | `string`<br>Identifier for this store
-`acl` | [`AclConfig`](#aclconfig)<br>Permissions for this store
-`metrics` | [`MetricConfig`](#metricconfig)`[]`<br>Metrics to aggregate on the Horde server
-`include` | [`ConfigInclude`](#configinclude)`[]`<br>Includes for other configuration files
-`macros` | [`ConfigMacro`](#configmacro)`[]`<br>Macros within this configuration
+`id` | `string`<br>
+`acl` | [`AclConfig`](#aclconfig)<br>
+`metrics` | [`MetricConfig`](#metricconfig)`[]`<br>
+`include` | [`ConfigInclude`](#configinclude)`[]`<br>
+`macros` | [`ConfigMacro`](#configmacro)`[]`<br>
 
 ## AclConfig
 
@@ -47,30 +45,26 @@ Name | Description
 
 ## MetricConfig
 
-Configures a metric to aggregate on the server
-
 Name | Description
 ---- | -----------
-`id` | `string`<br>Identifier for this metric
-`filter` | `string`<br>Filter expression to evaluate to determine which events to include. This query is evaluated against an array.
-`property` | `string`<br>Property to aggregate
-`groupBy` | `string`<br>Property to group by. Specified as a comma-separated list of JSON path expressions.
-`function` | [`AggregationFunction`](#aggregationfunction-enum)<br>How to aggregate samples for this metric
-`percentile` | `integer`<br>For the percentile function, specifies the percentile to measure
-`interval` | `string`<br>Interval for each metric. Supports times such as "2d", "1h", "1h30m", "20s".
+`id` | `string`<br>
+`filter` | `string`<br>
+`property` | `string`<br>
+`groupBy` | `string`<br>
+`function` | [`AggregationFunction`](#aggregationfunction-enum)<br>
+`percentile` | `integer`<br>
+`interval` | `string`<br>
 
 ## AggregationFunction (Enum)
 
-Method for aggregating samples into a metric
-
 Name | Description
 ---- | -----------
-`Count` | Count the number of matching elements
-`Min` | Take the minimum value of all samples
-`Max` | Take the maximum value of all samples
-`Sum` | Sum all the reported values
-`Average` | Average all the samples
-`Percentile` | Estimates the value at a certain percentile
+`Count` | 
+`Min` | 
+`Max` | 
+`Sum` | 
+`Average` | 
+`Percentile` | 
 
 ## ConfigInclude
 
