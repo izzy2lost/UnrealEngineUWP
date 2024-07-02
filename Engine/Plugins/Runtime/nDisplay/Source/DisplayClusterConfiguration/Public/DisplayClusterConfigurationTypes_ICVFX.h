@@ -520,6 +520,16 @@ public:
 public:
 	/** Propagates general render related settings to the view info. */
 	void SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const;
+
+	/** Custom serialization to skip Media on instances */
+	bool Serialize(FArchive& Ar);
+};
+
+/** Makes the given struct use the custom serializer */
+template<> struct TStructOpsTypeTraits<FDisplayClusterConfigurationICVFX_CameraRenderSettings> 
+	: public TStructOpsTypeTraitsBase2<FDisplayClusterConfigurationICVFX_CameraRenderSettings>
+{
+	enum { WithSerializer = true };
 };
 
 USTRUCT(BlueprintType)

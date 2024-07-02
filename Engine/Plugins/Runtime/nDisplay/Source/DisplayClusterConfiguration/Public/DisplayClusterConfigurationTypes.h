@@ -306,6 +306,7 @@ public:
 	//~ Begin UObject interface
 public:
 	virtual void PostLoad() override;
+	virtual void Serialize(FArchive& Ar) override;
 
 #if WITH_EDITOR
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;

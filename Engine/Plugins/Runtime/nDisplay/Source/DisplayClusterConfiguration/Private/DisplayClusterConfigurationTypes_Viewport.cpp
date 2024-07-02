@@ -2,6 +2,7 @@
 
 #include "DisplayClusterConfigurationTypes_Viewport.h"
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
+#include "DisplayClusterPropertySkipperArchive.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterConfigurationViewport_ICVFX
@@ -92,3 +93,19 @@ EDisplayClusterViewportICVFXFlags FDisplayClusterConfigurationViewport_ICVFX::Ge
 
 	return OutFlags;
 }
+
+
+bool FDisplayClusterConfigurationViewport_RenderSettings::Serialize(FArchive& Ar)
+{
+	// Use our custom archive to skip serializing Media except for archetypes.
+
+	UScriptStruct& Struct = *StaticStruct();
+
+	FDisplayClusterPropertySkipperArchive PropertySkipperAr = FDisplayClusterPropertySkipperArchive(Ar);
+	check(PropertySkipperAr.AddPropertyToSkip(&Struct, GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationViewport_RenderSettings, Media)));
+
+	Struct.SerializeTaggedProperties(PropertySkipperAr, (uint8*)this, &Struct, nullptr);
+
+	return true;
+}
+

@@ -2,14 +2,14 @@
 
 #include "DisplayClusterConfigurationTypes.h"
 
+#include "DisplayClusterConfigurationLog.h"
+#include "DisplayClusterConfigurationStrings.h"
 #include "DisplayClusterConfigurationTypes_Base.h"
 #include "DisplayClusterConfigurationTypes_Viewport.h"
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterConfigurationTypes_PostRender.h"
-
-#include "DisplayClusterConfigurationLog.h"
-#include "DisplayClusterConfigurationStrings.h"
 #include "DisplayClusterProjectionStrings.h"
+#include "DisplayClusterPropertySkipperArchive.h"
 
 #include "Engine/StaticMesh.h"
 #include "UObject/Package.h"
@@ -30,7 +30,7 @@
 
 #define SAVE_MAP(Map) \
 	SAVE_MAP_TO_ARRAY(Map, OutObjects); \
-	
+
 
 FIntRect FDisplayClusterReplaceTextureCropRectangle::ToRect() const
 {
@@ -181,7 +181,6 @@ FDisplayClusterConfigurationProjection::FDisplayClusterConfigurationProjection()
 {
 	Type = TEXT("simple");
 }
-
 
 constexpr float UDisplayClusterConfigurationViewport::ViewportMinimumSize = 1.0f;
 constexpr float UDisplayClusterConfigurationViewport::ViewportMaximumSize = 15360.0f;
@@ -335,6 +334,16 @@ void UDisplayClusterConfigurationClusterNode::PostLoad()
 		}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITOR
+}
+
+void UDisplayClusterConfigurationClusterNode::Serialize(FArchive& Ar)
+{
+	// Use our custom archive to skip serializing Media except for archetypes.
+
+	FDisplayClusterPropertySkipperArchive PropertySkipperAr = FDisplayClusterPropertySkipperArchive(Ar);
+	check(PropertySkipperAr.AddPropertyToSkip(StaticClass(), GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationClusterNode, MediaSettings)));
+
+	return Super::Serialize(PropertySkipperAr);
 }
 
 UDisplayClusterConfigurationClusterNode::UDisplayClusterConfigurationClusterNode()

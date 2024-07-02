@@ -12,13 +12,9 @@
 #include "DisplayClusterRootActor.h"
 #include "DisplayClusterConfigurationTypes.h"
 
-#include "Blueprints/DisplayClusterBlueprint.h"
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 #include "Config/IDisplayClusterConfigManager.h"
 #include "Cluster/IDisplayClusterClusterManager.h"
-#include "Engine/Blueprint.h"
-#include "Engine/SCS_Node.h"
-#include "Engine/SimpleConstructionScript.h"
 #include "Game/IDisplayClusterGameManager.h"
 
 #include "Capture/DisplayClusterMediaCaptureCamera.h"
@@ -54,16 +50,7 @@ void FDisplayClusterMediaModule::OnPreSubmitViewFamilies(TArray<FSceneViewFamily
 	// Unsubscribe after first call. Currently, media initialization is a one time procedure. No need to receive any further callbacks.
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPreSubmitViewFamilies().RemoveAll(this);
 
-#if WITH_EDITORONLY_DATA
-	// UE-211513
-	// This is a temporary workaround that allows to initialize media based on the blueprint data instead of 
-	// the instance data. There is an issue with the propagation of instanced object changes from the parent
-	// blueprints to its instances. To avoid any potential issues, we get media settings for the original nDisplay
-	// blueprint. Once the propagation issue is fixed, we'll be able to safely return to the original InitializeMedia().
-	InitializeMediaFromCDO();
-#else
 	InitializeMedia();
-#endif
 
 	StartCapture();
 	PlayMedia();
@@ -140,134 +127,6 @@ void FDisplayClusterMediaModule::InitializeMedia()
 		}
 	}
 }
-
-#if WITH_EDITORONLY_DATA
-void FDisplayClusterMediaModule::InitializeMediaFromCDO()
-{
-	// Runtime only for now
-	if (IDisplayCluster::Get().GetOperationMode() != EDisplayClusterOperationMode::Cluster)
-	{
-		UE_LOG(LogDisplayClusterMedia, Warning, TEXT("DisplayClusterMedia is available in 'cluster' operation mode only"));
-		return;
-	}
-
-	// Check if media enabled
-	if (!CVarMediaEnabled.GetValueOnGameThread())
-	{
-		UE_LOG(LogDisplayClusterMedia, Log, TEXT("nDisplay media subsytem is disabled by a cvar"));
-		return;
-	}
-
-	// Instantiate latency queue
-	FrameQueue.Init();
-
-	// Get active DCRA instance
-	const ADisplayClusterRootActor* const RootActor = IDisplayCluster::Get().GetGameMgr()->GetRootActor();
-	if (!IsValid(RootActor))
-	{
-		UE_LOG(LogDisplayClusterMedia, Warning, TEXT("Invalid DCRA object"));
-		return;
-	}
-
-	// Get original (parent) blueprint of this DCRA instance
-	const UDisplayClusterBlueprint* DCBP = nullptr;
-	if (const UBlueprint* BP = UBlueprint::GetBlueprintFromClass(RootActor->GetClass()))
-	{
-		DCBP = Cast<UDisplayClusterBlueprint>(BP);
-	}
-
-	// Aux data for media initialization
-	const FString ClusterNodeId = IDisplayCluster::Get().GetClusterMgr()->GetNodeId();
-	const FString RootActorName = RootActor->GetName();
-
-	// It's possible that we have DCBP==nullptr. For example, when running with portable configs, a pure DCRA
-	// actor gets spawned. There is no blueprint available in this case. But we don't expect any media in this
-	// case so stop initialization procedure.
-	// !DCBP is to prevent C6011 warning (potential dereferencing nullptr)
-	if (!IsValid(DCBP) || !DCBP)
-	{
-		UE_LOG(LogDisplayClusterMedia, Log, TEXT("Skipping media initialization for a pure DCRA instance '%s'"), *RootActorName);
-		return;
-	}
-
-	// Now we need to get the configuration data.
-	const UDisplayClusterConfigurationData* const ConfigData = DCBP->GetConfig();
-	if (!IsValid(ConfigData) || !IsValid(ConfigData->Cluster))
-	{
-		UE_LOG(LogDisplayClusterMedia, Warning, TEXT("Couldn't obtain the cluster configuration data"));
-		return;
-	}
-
-	// Find a proper cluster node configuration
-	const UDisplayClusterConfigurationClusterNode* const ClusterNodeCfg = ConfigData->Cluster->GetNode(ClusterNodeId);
-	if (!IsValid(ClusterNodeCfg))
-	{
-		UE_LOG(LogDisplayClusterMedia, Warning, TEXT("Couldn't obtain any configuration data for node '%s'"), *ClusterNodeId);
-		return;
-	}
-
-	// Node backbuffer media setup
-	{
-		InitializeBackbufferOutput(ClusterNodeCfg, RootActorName, ClusterNodeId);
-	}
-
-	// Viewports media setup
-	for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& ViewportIt : ClusterNodeCfg->Viewports)
-	{
-		InitializeViewportInput(ViewportIt.Value, ViewportIt.Key, RootActorName, ClusterNodeId);
-		InitializeViewportOutput(ViewportIt.Value, ViewportIt.Key, RootActorName, ClusterNodeId);
-	}
-
-	// ICVFX media setup
-	{
-		// Get all ICVFX camera components
-		TArray<UDisplayClusterICVFXCameraComponent*> ICVFXCameraComponents;
-		RootActor->GetComponents(ICVFXCameraComponents);
-
-		for (const UDisplayClusterICVFXCameraComponent* const ICVFXCameraInstanceComponent : ICVFXCameraComponents)
-		{
-			const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent = nullptr;
-			const FDisplayClusterConfigurationMediaICVFX* MediaSettings = nullptr;
-
-			const FString CameraName = ICVFXCameraInstanceComponent->GetName();
-
-			// Let's see if this camera comes from the blueprint. If so, we'll be using its media settings. Otherwise
-			// the camera instance will be used.
-			const USCS_Node* const CameraSCSNode = DCBP->SimpleConstructionScript->FindSCSNode(*CameraName);
-			if (IsValid(CameraSCSNode))
-			{
-				ICVFXCameraComponent = Cast<UDisplayClusterICVFXCameraComponent>(CameraSCSNode->ComponentTemplate);
-			}
-			else
-			{
-				ICVFXCameraComponent = ICVFXCameraInstanceComponent;
-			}
-
-			// Get media settings
-			if (IsValid(ICVFXCameraComponent))
-			{
-				MediaSettings = &ICVFXCameraComponent->CameraSettings.RenderSettings.Media;
-			}
-
-			if (MediaSettings)
-			{
-				// Full frame
-				if (MediaSettings->SplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame)
-				{
-					InitializeICVFXCameraFullFrameInput(ICVFXCameraComponent, RootActorName, ClusterNodeId, CameraName);
-					InitializeICVFXCameraFullFrameOutput(ICVFXCameraComponent, RootActorName, ClusterNodeId, CameraName);
-				}
-				// Uniform tiles
-				else if (MediaSettings->SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles)
-				{
-					InitializeICVFXCameraUniformTilesInput(ICVFXCameraComponent, RootActorName, ClusterNodeId, CameraName);
-					InitializeICVFXCameraUniformTilesOutput(ICVFXCameraComponent, RootActorName, ClusterNodeId, CameraName);
-				}
-			}
-		}
-	}
-}
-#endif // WITH_EDITORONLY_DATA
 
 void FDisplayClusterMediaModule::ReleaseMedia()
 {

@@ -33,11 +33,6 @@ protected:
 	/** Initialize all media internals (from instance) */
 	void InitializeMedia();
 
-#if WITH_EDITORONLY_DATA
-	/** Initialize all media internals (from CDO) */
-	void InitializeMediaFromCDO();
-#endif // WITH_EDITORONLY_DATA
-
 	/** Release all media internals */
 	void ReleaseMedia();
 

@@ -9,28 +9,18 @@
 #include "Components/DisplayClusterSceneComponentSyncParent.h"
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterStageGeometryComponent.h"
-#include "Components/MeshComponent.h"
-#include "Components/SceneComponent.h"
-
+#include "Components/DisplayClusterStageIsosphereComponent.h"
 #include "Config/IPDisplayClusterConfigManager.h"
 #include "DisplayClusterConfigurationStrings.h"
-
 #include "DisplayClusterConfigurationTypes.h"
+#include "DisplayClusterPlayerInput.h"
 #include "DisplayClusterProjectionStrings.h"
 #include "IDisplayClusterConfiguration.h"
-
-#include "DisplayClusterPlayerInput.h"
-
-#include "Engine/Engine.h"
-#include "Engine/World.h"
-#include "GameFramework/PlayerController.h"
-
 #include "Misc/DisplayClusterGlobals.h"
 #include "Misc/DisplayClusterHelpers.h"
 #include "Misc/DisplayClusterLog.h"
 #include "Misc/DisplayClusterStrings.h"
-
-#include "Misc/TransactionObjectEvent.h"
+#include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/DisplayClusterViewportStrings.h"
 #include "Render/Viewport/IDisplayClusterViewport.h"
 #include "Render/Viewport/IDisplayClusterViewportManager.h"
@@ -38,13 +28,19 @@
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrame.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 
+#include "Components/MeshComponent.h"
+#include "Components/SceneComponent.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/Engine.h"
 #include "Engine/TextureRenderTarget2D.h"
-
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "Materials/Material.h"
-#include "Render/Viewport/DisplayClusterViewportManager.h"
-#include "Render/Viewport/IDisplayClusterViewport.h"
+#include "Misc/TransactionObjectEvent.h"
 #include "TextureResource.h"
-#include "Components/DisplayClusterStageIsosphereComponent.h"
+#include "UObject/UnrealType.h"
+
+
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // IN-EDITOR STUFF
@@ -258,7 +254,172 @@ namespace UE::DisplayCluster::RootActor_Editor
 			PropagateDefaultMapToInstancedMap_Editor(ViewportsMapProperty, ClusterKeyVal.Value, DestinationValue);
 		}
 	}
+
+
+	/**
+	 * Syncs default media settings to instance.
+	 *
+	 * @param InstanceDCRA An instance of the nDisplay root actor.
+	 */
+	static void PropagateMediaSettingsFromDefault_Editor(ADisplayClusterRootActor* InstanceDCRA)
+	{
+		if (!InstanceDCRA)
+		{
+			return;
+		}
+
+		// Propagate ICVFX Camera Component Media property
+		//
+		{
+			TArray<UDisplayClusterICVFXCameraComponent*> InstanceCameras;
+			InstanceDCRA->GetComponents<UDisplayClusterICVFXCameraComponent>(InstanceCameras);
+
+			for (UDisplayClusterICVFXCameraComponent* InstanceCamera : InstanceCameras)
+			{
+				if (!InstanceCamera)
+				{
+					continue;
+				}
+
+				const UDisplayClusterICVFXCameraComponent* CameraArchetype = Cast<UDisplayClusterICVFXCameraComponent>(InstanceCamera->GetArchetype());
+
+				if (!CameraArchetype)
+				{
+					continue;
+				}
+
+				// We do not expect to ever pass an archetype instance to this function.
+				check(InstanceCamera != CameraArchetype);
+
+				// Deep-copy the media settings from the ICVFX Camera archetype to the instance.
+
+				const FProperty* MediaProperty = FindFProperty<FProperty>(
+					FDisplayClusterConfigurationICVFX_CameraRenderSettings::StaticStruct(), 
+					GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationICVFX_CameraRenderSettings, Media)
+				);
+
+				check(MediaProperty);
+
+				void* MediaInstancePtr = &InstanceCamera->CameraSettings.RenderSettings.Media;
+				const void* MediaArchetypePtr = &CameraArchetype->CameraSettings.RenderSettings.Media;
+
+				// Perform a deep copy of the Media property
+				MediaProperty->CopyCompleteValue(MediaInstancePtr /*Dest*/, MediaArchetypePtr /*Src*/);
+			}
+		}
+
+		// Propagate Backbuffer and Viewports MediaSettings property
+		//
+
+		const UDisplayClusterBlueprint* DCBP = Cast<UDisplayClusterBlueprint>(UBlueprint::GetBlueprintFromClass(InstanceDCRA->GetClass()));
+
+		if (!DCBP)
+		{
+			return;
+		}
+
+		const UDisplayClusterConfigurationData* const ArchetypeConfig = DCBP->GetConfig();
+		const UDisplayClusterConfigurationData* const InstanceConfig = InstanceDCRA->GetConfigData();
+
+		if (!IsValid(ArchetypeConfig)
+			|| !IsValid(InstanceConfig)
+			|| !IsValid(ArchetypeConfig->Cluster)
+			|| !IsValid(InstanceConfig->Cluster))
+		{
+			return;
+		}
+
+		// Iterate over instance nodes, find the archetype, and deep-copy the Media setting.
+		for (auto ItNode = InstanceConfig->Cluster->Nodes.CreateIterator(); ItNode; ++ItNode)
+		{
+			const FString& NodeName = ItNode.Key();
+			TObjectPtr<UDisplayClusterConfigurationClusterNode> InstanceNode = ItNode.Value();
+
+			if (!InstanceNode)
+			{
+				continue;
+			}
+
+			TObjectPtr<UDisplayClusterConfigurationClusterNode>* ArchetypeNodePtr = ArchetypeConfig->Cluster->Nodes.Find(NodeName);
+
+			if (!ArchetypeNodePtr)
+			{
+				continue;
+			}
+
+			TObjectPtr<UDisplayClusterConfigurationClusterNode> ArchetypeNode = *ArchetypeNodePtr;
+
+			if (!ArchetypeNode)
+			{
+				continue;
+			}
+
+			// Get the property so that we can use its CopyCompleteValue function for the deep copy.
+
+			const FProperty* NodeMediaProperty = FindFProperty<FProperty>(
+				UDisplayClusterConfigurationClusterNode::StaticClass(),
+				GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationClusterNode, MediaSettings)
+			);
+
+			check(NodeMediaProperty);
+
+			// Get the pointers to the property values on instance and archetype
+			void* NodeMediaInstancePtr = &InstanceNode->MediaSettings;
+			const void* NodeMediaArchetypePtr = &ArchetypeNode->MediaSettings;
+
+			// Perform a deep copy of the Media property
+			NodeMediaProperty->CopyCompleteValue(NodeMediaInstancePtr /*Dest*/, NodeMediaArchetypePtr /*Src*/);
+
+			// Viewports Media property
+			//
+
+			// Iterate over instance viewports, find the archetype, and deep-copy the Media setting.
+			for (auto ItViewport = InstanceNode->Viewports.CreateIterator(); ItViewport; ++ItViewport)
+			{
+				const FString& ViewportName = ItViewport.Key();
+				TObjectPtr<UDisplayClusterConfigurationViewport> InstanceViewport = ItViewport.Value();
+
+				if (!InstanceViewport)
+				{
+					continue;
+				}
+
+				TObjectPtr<UDisplayClusterConfigurationViewport>* ArchetypeViewportPtr = ArchetypeNode->Viewports.Find(ViewportName);
+
+				if (!ArchetypeViewportPtr)
+				{
+					continue;
+				}
+
+				TObjectPtr<UDisplayClusterConfigurationViewport> ArchetypeViewport = *ArchetypeViewportPtr;
+
+				if (!ArchetypeViewport)
+				{
+					continue;
+				}
+				
+				// Get the property so that we can use its CopyCompleteValue function for the deep copy.
+				
+				const FProperty* ViewportMediaProperty = FindFProperty<FProperty>(
+					FDisplayClusterConfigurationViewport_RenderSettings::StaticStruct(),
+					GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationViewport_RenderSettings, Media)
+				);
+
+				check(ViewportMediaProperty);
+
+				// Get the pointers to the property values on instance and archetype
+				void* ViewportMediaInstancePtr = &InstanceViewport->RenderSettings.Media;
+				const void* ViewportMediaArchetypePtr = &ArchetypeViewport->RenderSettings.Media;
+
+				// Perform a deep copy of the Media property
+				ViewportMediaProperty->CopyCompleteValue(ViewportMediaInstancePtr /*Dest*/, ViewportMediaArchetypePtr /*Src*/);
+			}
+		}
+
+	}
 };
+
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 // ADisplayClusterRootActor
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -282,6 +443,12 @@ void ADisplayClusterRootActor::RerunConstructionScripts()
 				UDisplayClusterConfigurationData* DefaultData = CDO->GetConfigData();
 				PropagateDataFromDefaultConfig_Editor(DefaultData, CurrentData);
 			}
+
+			// We propagate the media settings to the instances to keep them in sync.
+			// This is not strictly necessary since the custom serializers make sure the intances always
+			// load archetype defaults but this makes it so they are always in sync even when
+			// the archetype is being edited, since the instances get reconstructed but not re-deserialized.
+			PropagateMediaSettingsFromDefault_Editor(this);
 		}
 		RerunConstructionScripts_Editor();
 	}

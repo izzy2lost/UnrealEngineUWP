@@ -2,6 +2,7 @@
 
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterConfigurationTypes.h"
+#include "DisplayClusterPropertySkipperArchive.h"
 #include "IDisplayCluster.h"
 #include "Camera/CameraTypes.h"
 #include "CineCameraComponent.h"
@@ -20,6 +21,7 @@ namespace UE::DisplayClusterConfiguration::ICVFX
 		return FMath::Clamp(InValue, -InMax, InMax);
 	}
 };
+
 using namespace UE::DisplayClusterConfiguration::ICVFX;
 
 int32 GDisplayClusterICVFXCameraAdoptResolution = 1;
@@ -57,6 +59,21 @@ void FDisplayClusterConfigurationICVFX_CameraRenderSettings::SetupViewInfo(const
 		InOutViewInfo.PostProcessSettings = FPostProcessSettings();
 		InOutViewInfo.PostProcessBlendWeight = 0.0f;
 	}
+}
+
+
+bool FDisplayClusterConfigurationICVFX_CameraRenderSettings::Serialize(FArchive& Ar)
+{	
+	// Use our custom archive to skip serializing Media except for archetypes.
+
+	UScriptStruct& Struct = *StaticStruct();
+
+	FDisplayClusterPropertySkipperArchive PropertySkipperAr = FDisplayClusterPropertySkipperArchive(Ar);
+	check(PropertySkipperAr.AddPropertyToSkip(&Struct, GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationICVFX_CameraRenderSettings, Media)));
+
+	Struct.SerializeTaggedProperties(PropertySkipperAr, (uint8*)this, &Struct, nullptr);
+
+	return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////

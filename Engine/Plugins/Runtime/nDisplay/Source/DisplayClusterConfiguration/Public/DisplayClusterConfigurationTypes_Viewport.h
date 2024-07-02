@@ -112,7 +112,20 @@ public:
 	// [not implemented yet]
 	UPROPERTY()
 	int RenderFamilyGroup = -1;
+
+public:
+	/** Custom serialization to skip Media on instances */
+	bool Serialize(FArchive& Ar);
 };
+
+
+/** Makes the given struct use the custom serializer */
+template<> struct TStructOpsTypeTraits<FDisplayClusterConfigurationViewport_RenderSettings>
+: public TStructOpsTypeTraitsBase2<FDisplayClusterConfigurationViewport_RenderSettings>
+{
+	enum { WithSerializer = true };
+};
+
 
 UCLASS(Blueprintable)
 class DISPLAYCLUSTERCONFIGURATION_API UDisplayClusterConfigurationViewport
