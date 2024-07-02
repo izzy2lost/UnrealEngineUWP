@@ -318,7 +318,7 @@ namespace UE::ConcertSyncServer::Replication
 			const auto[AffectingParent, ParentMuteState] = FindAffectingParentState(ObjectToUnmute);
 			// ParentMuteState can either be:
 			//	- EMuteState::ExplicitlyMuted: all children should be muted
-			//	- EMuteState::ExplicitlyUnmuted: by invariant, there must be a parent that is ExplicitlyMuted with EConcertReplicationMuteFlags::IncludeSubobjects.
+			//	- EMuteState::ExplicitlyUnmuted: by invariant, there must be a parent that is ExplicitlyMuted with EConcertReplicationMuteFlags::ObjectAndSubobjects.
 			// Hence in both cases, children need to be updated to be marked as implicitly muted.
 			if (ParentMuteState)
 			{

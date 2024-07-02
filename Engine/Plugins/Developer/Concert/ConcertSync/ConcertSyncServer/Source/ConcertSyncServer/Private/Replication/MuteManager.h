@@ -86,12 +86,12 @@ namespace UE::ConcertSyncServer::Replication
 		{
 			/** Object is muted */
 			ExplicitlyMuted,
-			/** A parent object is ExplicitlyMuted and has EConcertReplicationMuteFlags::IncludeSubobjects set but is object and its children are supposed to be implicitly unmuted.  */
+			/** A parent object is ExplicitlyMuted and has EConcertReplicationMuteFlags::ObjectAndSubobjects set but is object and its children are supposed to be implicitly unmuted.  */
 			ExplicitlyUnmuted,
 			
-			/** Object is muted because one of its parent objects is ExplicitlyMuted and EConcertReplicationMuteFlags::IncludeSubobjects set. */
+			/** Object is muted because one of its parent objects is ExplicitlyMuted and EConcertReplicationMuteFlags::ObjectAndSubobjects set. */
 			ImplicitlyMuted,
-			/** Object is unmuted because one of its parent objects is ExplicitlyUnmuted and has EConcertReplicationMuteFlags::IncludeSubobjects set. */
+			/** Object is unmuted because one of its parent objects is ExplicitlyUnmuted and has EConcertReplicationMuteFlags::ObjectAndSubobjects set. */
 			ImplicitlyUnmuted,
 		};
 		
@@ -116,7 +116,7 @@ namespace UE::ConcertSyncServer::Replication
 		 */
 		TMap<FSoftObjectPath, FMuteData> MuteState;
 		
-		/** For each added object, checks whether it is a subobject of an object that is muted with the EConcertReplicationMuteFlags::IncludeSubobjects setting. */
+		/** For each added object, checks whether it is a subobject of an object that is muted with the EConcertReplicationMuteFlags::ObjectAndSubobjects setting. */
 		void TrackAddedSubobjectsForImplicitMuting(TConstArrayView<FConcertObjectInStreamID> AddedObjects);
 		/** Calls RemoveMuteState on every object that is unreferenced by client streams (directly or indirectly via a subobject). */
 		void UnmuteObjectsIfUnreferenced(TConstArrayView<FConcertObjectInStreamID> RemovedObjects);
@@ -139,10 +139,10 @@ namespace UE::ConcertSyncServer::Replication
 		void RemoveMuteState(const FSoftObjectPath& Object, TCallback&& OnRemoved);
 		void RemoveMuteState(const FSoftObjectPath& Object) { RemoveMuteState(Object, [](const FSoftObjectPath&){}); } 
 		
-		/** Sets the mute state of all subobjects of Parent until reaching a subobject that also has EConcertReplicationMuteFlags::IncludeSubobjects set. */
+		/** Sets the mute state of all subobjects of Parent until reaching a subobject that also has EConcertReplicationMuteFlags::ObjectAndSubobjects set. */
 		void UpdateImplicitStateUnder(const FSoftObjectPath& Parent, EMuteState NewImplicitState);
 		
-		/** Removes all subobject mute state affected by Parent's mute state assuming that ParentObject has no parents with the EConcertReplicationMuteFlags::IncludeSubobjects. */
+		/** Removes all subobject mute state affected by Parent's mute state assuming that ParentObject has no parents with the EConcertReplicationMuteFlags::ObjectAndSubobjects. */
 		template<CObjectProcessable TCallback>
 		void ClearAllChildStateUnder(const FSoftObjectPath& ParentObject, TCallback&& OnRemoved);
 		void ClearAllChildStateUnder(const FSoftObjectPath& ParentObject) { ClearAllChildStateUnder(ParentObject, [](const FSoftObjectPath&){}); }

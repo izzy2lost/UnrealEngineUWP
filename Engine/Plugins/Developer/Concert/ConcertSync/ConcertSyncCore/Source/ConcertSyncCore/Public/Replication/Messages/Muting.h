@@ -73,12 +73,12 @@ struct FConcertReplication_ChangeMuteState_Request
 	/**
 	 * The objects to explicitly unmute.
 	 * 
-	 * If a specified object is implicitly muted, i.e. one of its outers is muted with the EConcertReplicationMuteFlags::IncludeSubobjects flag,
-	 * this will allow it to replicate again. If you specify the EConcertReplicationMuteFlags::IncludeSubobjects flag, then its subobjects will
+	 * If a specified object is implicitly muted, i.e. one of its outers is muted with the EConcertReplicationMuteFlags::ObjectAndSubobjects flag,
+	 * this will allow it to replicate again. If you specify the EConcertReplicationMuteFlags::ObjectAndSubobjects flag, then its subobjects will
 	 * also be allowed to be replicated again.
 	 *
 	 * If a specified object is explicitly muted, then it and all the subobjects that were implicitly muted because of it are unmuted;
-	 * in this case, it does not matter whether EConcertReplicationMuteFlags::IncludeSubobjects flag is set.
+	 * in this case, it does not matter whether EConcertReplicationMuteFlags::ObjectAndSubobjects flag is set.
 	 */
 	UPROPERTY()
 	TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting> ObjectsToUnmute;
@@ -158,19 +158,19 @@ struct FConcertReplication_QueryMuteState_Response
 	TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting> ExplicitlyMutedObjects;
 
 	/**
-	 * After an outer object is muted with EConcertReplicationMuteFlags::IncludeSubobjects, this contains the objects that were explicitly unmuted,
+	 * After an outer object is muted with EConcertReplicationMuteFlags::ObjectAndSubobjects, this contains the objects that were explicitly unmuted,
 	 * i.e. specified with FConcertReplication_ChangeMuteState_Request::ObjectsToUnmute.
 	 */
 	UPROPERTY()
 	TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting> ExplicitlyUnmutedObjects;
 
 	/**
-	 * Objects that were implicitly muted, i.e. some their outers are explicitly muted with EConcertReplicationMuteFlags::IncludeSubobjects.
+	 * Objects that were implicitly muted, i.e. some their outers are explicitly muted with EConcertReplicationMuteFlags::ObjectAndSubobjects.
 	 */
 	UPROPERTY()
 	TSet<FSoftObjectPath> ImplicitlyMutedObjects;
 
-	/** Objects that were implicitly unmuted, i.e. 1. a parent is muted and 2. a child of parent is unmuted with EConcertReplicationMuteFlags::IncludeSubobjects */
+	/** Objects that were implicitly unmuted, i.e. 1. a parent is muted and 2. a child of parent is unmuted with EConcertReplicationMuteFlags::ObjectAndSubobjects */
 	UPROPERTY()
 	TSet<FSoftObjectPath> ImplicitlyUnmutedObjects;
 

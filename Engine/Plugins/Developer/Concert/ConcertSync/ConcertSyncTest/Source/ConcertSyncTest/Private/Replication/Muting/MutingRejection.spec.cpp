@@ -69,7 +69,7 @@ namespace UE::ConcertSyncTests::Replication
 					});
 			});
 
-			It("Reject: Explicitly muting unreferenced object (EConcertReplicationMuteFlags::IncludeSubobjects) without subobject", [this]()
+			It("Reject: Explicitly muting unreferenced object (EConcertReplicationMuteFlags::ObjectAndSubobjects) without subobject", [this]()
 			{
 				Sender->JoinReplication();
 				Sender->GetClientReplicationManager()
@@ -80,7 +80,7 @@ namespace UE::ConcertSyncTests::Replication
 					});
 			});
 
-			It("Reject: Explicitly unmuting unreferenced object (EConcertReplicationMuteFlags::IncludeSubobjects) without subobject", [this]()
+			It("Reject: Explicitly unmuting unreferenced object (EConcertReplicationMuteFlags::ObjectAndSubobjects) without subobject", [this]()
 			{
 				Sender->JoinReplication();
 				Sender->GetClientReplicationManager()
@@ -91,7 +91,7 @@ namespace UE::ConcertSyncTests::Replication
 					});
 			});
 			
-			It("Allow: Explicitly muting unreferenced object (EConcertReplicationMuteFlags::IncludeSubobjects) with subobject", [this]()
+			It("Allow: Explicitly muting unreferenced object (EConcertReplicationMuteFlags::ObjectAndSubobjects) with subobject", [this]()
 			{
 				Sender->JoinReplication(Replicator_FooSubobject->CreateSenderArgs());
 				Sender->GetClientReplicationManager()
@@ -116,13 +116,13 @@ namespace UE::ConcertSyncTests::Replication
 					});
 			});
 			
-			It("Allow: Explicitly unmuting unreferenced object (EConcertReplicationMuteFlags::IncludeSubobjects) with subobject", [this]()
+			It("Allow: Explicitly unmuting unreferenced object (EConcertReplicationMuteFlags::ObjectAndSubobjects) with subobject", [this]()
 			{
 				Sender->JoinReplication(Replicator_FooSubobject->CreateSenderArgs());
 
 				// Check nothing is muted if ...
 				Sender->GetClientReplicationManager().MuteObjects({ ObjectReplicator_Foo->TestObject}, EConcertReplicationMuteOption::ObjectAndSubobjects);
-				// ... we unmute with EConcertReplicationMuteFlags::IncludeSubobjects flag
+				// ... we unmute with EConcertReplicationMuteFlags::ObjectAndSubobjects flag
 				Sender->GetClientReplicationManager().UnmuteObjects({ ObjectReplicator_Foo->TestObject}, EConcertReplicationMuteOption::ObjectAndSubobjects);
 				Sender->GetClientReplicationManager()
 					.QueryMuteState()
