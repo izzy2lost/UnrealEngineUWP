@@ -8,6 +8,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
@@ -48,74 +49,22 @@ namespace HordeServer.Commands
 			logger.LogInformation("Data directory: {DataDir}", ServerApp.DataDir);
 			logger.LogInformation("Server config: {ConfigFile}", ServerApp.ServerConfigFile);
 
-			using (X509Certificate2? grpcCertificate = ReadGrpcCertificate(_hordeSettings))
-			{
-				using IHost host = CreateHostBuilderWithCert(_args, _config, _hordeSettings, grpcCertificate).Build();
+			using X509Certificate2? grpcCertificate = ReadGrpcCertificate(_hordeSettings);
 
-				await host.RunAsync();
-				return 0;
-			}
-		}
-
-		static IHostBuilder CreateHostBuilderWithCert(string[] args, IConfiguration config, ServerSettings serverSettings, X509Certificate2? sslCert)
-		{
 			AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
-			IHostBuilder hostBuilder = Host.CreateDefaultBuilder(args)
+			WebApplicationOptions appOptions = new WebApplicationOptions
+			{
+				WebRootPath = "DashboardApp",
+				Args = _args
+			};
+
+			WebApplicationBuilder appBuilder = WebApplication.CreateBuilder(appOptions);
+
+			appBuilder.Host
 				.UseSerilog()
 				.ConfigureHostOptions(options => options.ShutdownTimeout = TimeSpan.FromSeconds(30.0))
-				.ConfigureAppConfiguration(builder => builder.AddConfiguration(config))
-				.ConfigureWebHostDefaults(webBuilder =>
-				{
-					webBuilder.UseShutdownTimeout(TimeSpan.FromSeconds(30.0));
-
-					webBuilder.UseUrls(); // Disable default URLs; we will configure each port directly.
-
-					webBuilder.UseWebRoot("DashboardApp");
-
-					webBuilder.ConfigureKestrel(options =>
-					{
-						options.Limits.MaxRequestBodySize = 256 * 1024 * 1024;
-
-						// When agents are saturated with work (CPU or I/O), slow sending of gRPC data can happen.
-						// Kestrel protects against this behavior by default as it's commonly used for malicious attacks.
-						// Setting a more generous data rate should prevent incoming HTTP connections from being closed prematurely.
-						options.Limits.MinRequestBodyDataRate = new MinDataRate(10, TimeSpan.FromSeconds(60));
-
-						options.Limits.KeepAliveTimeout = TimeSpan.FromSeconds(220); // 10 seconds more than agent's timeout
-
-						int httpPort = serverSettings.HttpPort;
-						if (httpPort != 0)
-						{
-							options.ListenAnyIP(httpPort, configure => { configure.Protocols = HttpProtocols.Http1; });
-						}
-
-						int httpsPort = serverSettings.HttpsPort;
-						if (httpsPort != 0)
-						{
-							options.ListenAnyIP(httpsPort, configure =>
-							{
-								if (sslCert != null)
-								{
-									configure.UseHttps(sslCert);
-								}
-								else
-								{
-									configure.UseHttps();
-								}
-							});
-						}
-
-						// To serve HTTP/2 with gRPC *without* TLS enabled, a separate port for HTTP/2 must be used.
-						// This is useful when having a load balancer in front that terminates TLS.
-						int http2Port = serverSettings.Http2Port;
-						if (http2Port != 0)
-						{
-							options.ListenAnyIP(http2Port, configure => { configure.Protocols = HttpProtocols.Http2; });
-						}
-					});
-					webBuilder.UseStartup<Startup>();
-				});
+				.ConfigureAppConfiguration(builder => builder.AddConfiguration(_config));
 
 			if (OperatingSystem.IsWindows() && WindowsServiceHelpers.IsWindowsService())
 			{
@@ -124,17 +73,14 @@ namespace HordeServer.Commands
 				try
 				{
 					// Register the default WindowsServiceLifetime
-					hostBuilder = hostBuilder.UseWindowsService();
+					appBuilder.Host.UseWindowsService();
 
 #pragma warning disable CA1416
 					// Replace the default WindowsServiceLifetime (if there is one; we may not be running as a service) with a custom one
 					// that waits for all application startup before the service enters the running state. See https://github.com/dotnet/runtime/issues/50019
-					hostBuilder = hostBuilder.ConfigureServices(services =>
-					{
-						ServiceDescriptor descriptor = services.First(x => x.ImplementationType == typeof(WindowsServiceLifetime));
-						services.Remove(descriptor);
-						services.AddSingleton<IHostLifetime, CustomWindowsServiceLifetime>();
-					});
+					ServiceDescriptor descriptor = appBuilder.Services.First(x => x.ImplementationType == typeof(WindowsServiceLifetime));
+					appBuilder.Services.Remove(descriptor);
+					appBuilder.Services.AddSingleton<IHostLifetime, CustomWindowsServiceLifetime>();
 #pragma warning restore CA1416
 				}
 				catch (InvalidOperationException)
@@ -142,7 +88,61 @@ namespace HordeServer.Commands
 				}
 			}
 
-			return hostBuilder;
+			appBuilder.WebHost.UseShutdownTimeout(TimeSpan.FromSeconds(30.0));
+
+			appBuilder.WebHost.UseUrls(); // Disable default URLs; we will configure each port directly.
+
+			appBuilder.WebHost.ConfigureKestrel(options =>
+			{
+				options.Limits.MaxRequestBodySize = 256 * 1024 * 1024;
+
+				// When agents are saturated with work (CPU or I/O), slow sending of gRPC data can happen.
+				// Kestrel protects against this behavior by default as it's commonly used for malicious attacks.
+				// Setting a more generous data rate should prevent incoming HTTP connections from being closed prematurely.
+				options.Limits.MinRequestBodyDataRate = new MinDataRate(10, TimeSpan.FromSeconds(60));
+
+				options.Limits.KeepAliveTimeout = TimeSpan.FromSeconds(220); // 10 seconds more than agent's timeout
+
+				int httpPort = _hordeSettings.HttpPort;
+				if (httpPort != 0)
+				{
+					options.ListenAnyIP(httpPort, configure => { configure.Protocols = HttpProtocols.Http1; });
+				}
+
+				int httpsPort = _hordeSettings.HttpsPort;
+				if (httpsPort != 0)
+				{
+					options.ListenAnyIP(httpsPort, configure =>
+					{
+						if (grpcCertificate != null)
+						{
+							configure.UseHttps(grpcCertificate);
+						}
+						else
+						{
+							configure.UseHttps();
+						}
+					});
+				}
+
+				// To serve HTTP/2 with gRPC *without* TLS enabled, a separate port for HTTP/2 must be used.
+				// This is useful when having a load balancer in front that terminates TLS.
+				int http2Port = _hordeSettings.Http2Port;
+				if (http2Port != 0)
+				{
+					options.ListenAnyIP(http2Port, configure => { configure.Protocols = HttpProtocols.Http2; });
+				}
+			});
+
+			Startup.ConfigureServices(appBuilder.Configuration, appBuilder.Services);
+
+			using (WebApplication app = appBuilder.Build())
+			{
+				Startup.Configure(app, app.Environment, app.Lifetime, app.Services.GetRequiredService<IOptions<ServerSettings>>());
+				await app.RunAsync();
+			}
+
+			return 0;
 		}
 
 		// Custom service lifetime to wait for startup before continuing
@@ -224,12 +224,6 @@ namespace HordeServer.Commands
 
 				return new X509Certificate2(FileReference.ReadAllBytes(serverPrivateCert));
 			}
-		}
-
-		public static IHostBuilder CreateHostBuilderForTesting(string[] args)
-		{
-			ServerSettings hordeSettings = new ServerSettings();
-			return CreateHostBuilderWithCert(args, new ConfigurationBuilder().Build(), hordeSettings, null);
 		}
 	}
 }
