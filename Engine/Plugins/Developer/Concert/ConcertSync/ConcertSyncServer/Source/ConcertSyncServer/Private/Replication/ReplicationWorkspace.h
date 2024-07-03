@@ -37,6 +37,7 @@ namespace UE::ConcertSyncServer
 
 		//~ Begin IReplicationWorkspace Interface
 		virtual TOptional<int64> ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData) override;
+		virtual TOptional<int64> ProduceClientMuteReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_Mute& EventData) override;
 		virtual bool GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override;
 		virtual bool GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override;
 		//~ End IReplicationWorkspace Interface
@@ -51,6 +52,9 @@ namespace UE::ConcertSyncServer
 		const FShouldIgnoreClientActivityOnRestore ShouldIgnoreClientActivityOnRestoreDelegate;
 		
 		FOnAddReplicationActivity OnAddReplicationActivityDelegate;
+
+		template<typename TPayload>
+		TOptional<int64> ProduceActivity(const FGuid& EndpointId, const TPayload& EventData);
 	};
 }
 

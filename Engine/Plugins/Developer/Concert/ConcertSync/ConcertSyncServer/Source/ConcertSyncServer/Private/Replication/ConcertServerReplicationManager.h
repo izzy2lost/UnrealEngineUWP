@@ -21,7 +21,6 @@
 #include "Templates/Tuple.h"
 #include "Templates/UnrealTemplate.h"
 
-struct FConcertSyncReplicationPayload_LeaveReplication;
 class FConcertServerWorkspace;
 class IConcertClientReplicationBridge;
 class IConcertServerSession;
@@ -29,10 +28,12 @@ class IConcertServerSession;
 enum class EConcertSyncSessionFlags : uint32;
 enum class EConcertQueryClientStreamFlags : uint8;
 
+struct FConcertAuthorityClientInfo;
+struct FConcertReplication_ChangeMuteState_Request;
 struct FConcertReplication_ChangeStream_Response;
 struct FConcertReplication_QueryReplicationInfo_Response;
 struct FConcertReplication_QueryReplicationInfo_Request;
-struct FConcertAuthorityClientInfo;
+struct FConcertSyncReplicationPayload_LeaveReplication;
 
 namespace UE::ConcertSyncCore
 {
@@ -57,7 +58,7 @@ namespace UE::ConcertSyncServer::Replication
 		, public FNoncopyable
 	{
 	public:
-
+		
 		explicit FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession, IReplicationWorkspace& InServerWorkspace UE_LIFETIMEBOUND, EConcertSyncSessionFlags InSessionFlags);
 		virtual ~FConcertServerReplicationManager() override;
 
@@ -144,6 +145,9 @@ namespace UE::ConcertSyncServer::Replication
 		void OnClientLeftReplication(const FGuid& EndpointId);
 		/** Calls FConcertServerWorkspace::AddReplicationActivity with the current client state so it can be restored upon re-joining. */
 		void ProduceClientLeftActivity(const FConcertReplicationClient& Client) const;
+
+		/** Generates an activity for a mute request */
+		void GenerateMuteActivity(const FGuid& EndpointId, const FConcertReplication_ChangeMuteState_Request& Request) const;
 		
 		/**
 		 * Ticks all clients which causes clients to process pending data and send it to the corresponding endpoints.

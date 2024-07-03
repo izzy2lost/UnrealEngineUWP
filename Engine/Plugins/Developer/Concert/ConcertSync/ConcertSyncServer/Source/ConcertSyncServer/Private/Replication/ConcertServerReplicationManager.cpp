@@ -50,6 +50,8 @@ namespace UE::ConcertSyncServer::Replication
 		
 		Session->OnSessionClientChanged().AddRaw(this, &FConcertServerReplicationManager::OnConnectionChanged);
 		Session->OnTick().AddRaw(this, &FConcertServerReplicationManager::Tick);
+
+		MuteManager.OnMuteRequestApplied().AddRaw(this, &FConcertServerReplicationManager::GenerateMuteActivity);
 	}
 
 	FConcertServerReplicationManager::~FConcertServerReplicationManager()
@@ -293,6 +295,15 @@ namespace UE::ConcertSyncServer::Replication
 			LeaveReplication.Streams = Client.GetStreamDescriptions();
 			LeaveReplication.OwnedObjects = AuthorityManager.GetOwnedObjects(EndpointId);
 			ServerWorkspace.ProduceClientLeaveReplicationActivity(EndpointId, LeaveReplication);
+		}
+	}
+
+	void FConcertServerReplicationManager::GenerateMuteActivity(const FGuid& EndpointId, const FConcertReplication_ChangeMuteState_Request& Request) const
+	{
+		if (EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::ShouldEnableReplicationActivities))
+		{
+			const FConcertSyncReplicationPayload_Mute MutePayload { Request };
+			ServerWorkspace.ProduceClientMuteReplicationActivity(EndpointId, MutePayload);
 		}
 	}
 

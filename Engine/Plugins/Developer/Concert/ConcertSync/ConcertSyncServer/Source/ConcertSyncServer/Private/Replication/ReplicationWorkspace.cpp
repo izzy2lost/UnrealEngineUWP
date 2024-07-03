@@ -21,19 +21,12 @@ namespace UE::ConcertSyncServer
 
 	TOptional<int64> FReplicationWorkspace::ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData)
 	{
-		FConcertSyncReplicationActivity Activity;
-		Activity.EndpointId = EndpointId;
-		Activity.EventData.SetPayload(EventData);
-		Activity.EventSummary.SetTypedPayload(FConcertSyncReplicationActivitySummary::CreateSummaryForEvent(Activity.EventData));
-		Activity.bIgnored = ShouldIgnoreClientActivityOnRestoreDelegate.Execute(EndpointId);
-		
-		int64 ActivityId = 0;
-		int64 EventId = 0;
-		const bool bSuccess = Database.AddReplicationActivity(Activity, ActivityId, EventId);
-		// This allows FConcertServerWorkspace to send the activity to other clients
-		OnAddReplicationActivityDelegate.Broadcast(ActivityId, bSuccess);
+		return ProduceActivity(EndpointId, EventData);
+	}
 
-		return bSuccess ? ActivityId : TOptional<int64>{};
+	TOptional<int64> FReplicationWorkspace::ProduceClientMuteReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_Mute& EventData)
+	{
+		return ProduceActivity(EndpointId, EventData);
 	}
 
 	bool FReplicationWorkspace::GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const
@@ -80,5 +73,23 @@ namespace UE::ConcertSyncServer
 		FConcertSyncReplicationEvent Event;
 		const bool bGotEventData = Database.GetReplicationEvent(ActivityId, Event);
 		return bGotEventData && Event.ActivityType == EConcertSyncReplicationActivityType::LeaveReplication && Event.GetPayload(OutLeaveReplication);
+	}
+	
+	template <typename TPayload>
+	TOptional<int64> FReplicationWorkspace::ProduceActivity(const FGuid& EndpointId, const TPayload& EventData)
+	{
+		FConcertSyncReplicationActivity Activity;
+		Activity.EndpointId = EndpointId;
+		Activity.EventData.SetPayload(EventData);
+		Activity.EventSummary.SetTypedPayload(FConcertSyncReplicationActivitySummary::CreateSummaryForEvent(Activity.EventData));
+		Activity.bIgnored = ShouldIgnoreClientActivityOnRestoreDelegate.Execute(EndpointId);
+		
+		int64 ActivityId = 0;
+		int64 EventId = 0;
+		const bool bSuccess = Database.AddReplicationActivity(Activity, ActivityId, EventId);
+		// This allows FConcertServerWorkspace to send the activity to other clients
+		OnAddReplicationActivityDelegate.Broadcast(ActivityId, bSuccess);
+
+		return bSuccess ? ActivityId : TOptional<int64>{};
 	}
 }

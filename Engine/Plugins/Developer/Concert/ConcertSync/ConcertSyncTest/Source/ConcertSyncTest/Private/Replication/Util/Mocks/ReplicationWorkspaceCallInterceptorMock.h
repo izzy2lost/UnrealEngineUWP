@@ -17,6 +17,8 @@ namespace UE::ConcertSyncTests::Replication
 
 		/** Arguments of last ProduceClientLeaveReplicationActivity call. */
 		TOptional<TTuple<FGuid, FConcertSyncReplicationPayload_LeaveReplication>> LastCall_ProduceClientLeaveReplicationActivity;
+		/** Arguments of last ProduceClientMuteReplicationActivity call. */
+		TOptional<TTuple<FGuid, FConcertSyncReplicationPayload_Mute>> LastCall_ProduceClientMuteReplicationActivity;
 		/** Arguments of last GetLastLeaveReplicationActivityByClient call. */
 		mutable TOptional<TTuple<FConcertSessionClientInfo>> LastCall_GetLastLeaveReplicationActivityByClient;
 		/** Arguments of last GetLastLeaveReplicationActivityByClient call. */
@@ -24,6 +26,8 @@ namespace UE::ConcertSyncTests::Replication
 
 		/** The result to return in ProduceClientLeaveReplicationActivity. */
 		TOptional<int64> ReturnResult_ProduceClientLeaveReplicationActivity = 0;
+		/** The result to return in ProduceClientLeaveReplicationActivity. */
+		TOptional<int64> ReturnResult_ProduceClientMuteReplicationActivity = 0;
 		/** The result to return in GetLastLeaveReplicationActivityByClient. */
 		TOptional<FConcertSyncReplicationPayload_LeaveReplication> ReturnResult_GetLastLeaveReplicationActivityByClient;
 		/** The result to return in GetLastLeaveReplicationActivityByClient. */
@@ -35,6 +39,12 @@ namespace UE::ConcertSyncTests::Replication
 			LastCall_ProduceClientLeaveReplicationActivity = MakeTuple(EndpointId, EventData);
 			return ReturnResult_ProduceClientLeaveReplicationActivity;
 		}
+		virtual TOptional<int64> ProduceClientMuteReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_Mute& EventData) override
+		{
+			LastCall_ProduceClientMuteReplicationActivity = MakeTuple(EndpointId, EventData);
+			return ReturnResult_ProduceClientMuteReplicationActivity;
+		}
+
 		virtual bool GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override
 		{
 			LastCall_GetLastLeaveReplicationActivityByClient = MakeTuple(InClientInfo);

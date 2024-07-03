@@ -43,6 +43,9 @@ namespace UE::ConcertSyncServer::Replication
 		DECLARE_DELEGATE_OneParam(FOnMuteStateChangedByClient, const FGuid& ClientId);
 		/** Updates sync control for all clients, sends an update to all clients but ClientId, and returns the sync control to embed into the mute response. */
 		DECLARE_DELEGATE_RetVal_OneParam(FConcertReplication_ChangeSyncControl, FGenerateSyncControlForMuteChange, const FGuid& ClientId);
+		
+		/** Notifies manager about applied event. Generates mute activity. */
+		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMuteRequestApplied, const FGuid& ClientId, const FConcertReplication_ChangeMuteState_Request& Request);
 
 		FMuteManager(
 			IConcertSession& InSession UE_LIFETIMEBOUND,
@@ -61,6 +64,8 @@ namespace UE::ConcertSyncServer::Replication
 
 		FOnMuteStateChangedByClient& OnUpdateSyncControlForIndirectMuteChange() { return OnMuteStateChangedDelegate; }
 		FGenerateSyncControlForMuteChange& OnGenerateSyncControlForMuteChange() { return OnGenerateSyncControlForMuteChangeDelegate; }
+		
+		FOnMuteRequestApplied& OnMuteRequestApplied() { return OnMuteRequestAppliedDelegate; }
 		
 	private:
 
@@ -81,6 +86,9 @@ namespace UE::ConcertSyncServer::Replication
 		 * The sync control will only contain RestrictToObjects.
 		 */
 		FGenerateSyncControlForMuteChange OnGenerateSyncControlForMuteChangeDelegate;
+		
+		/** Broadcasts after a mute request has been applied. */
+		FOnMuteRequestApplied OnMuteRequestAppliedDelegate;
 
 		enum class EMuteState : uint8
 		{

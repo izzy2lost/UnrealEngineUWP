@@ -83,6 +83,12 @@ struct FConcertReplication_ChangeMuteState_Request
 	UPROPERTY()
 	TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting> ObjectsToUnmute;
 
+	friend bool operator==(const FConcertReplication_ChangeMuteState_Request& Left, const FConcertReplication_ChangeMuteState_Request& Right)
+	{
+		return Left.ObjectsToMute.OrderIndependentCompareEqual(Right.ObjectsToMute) && Left.ObjectsToUnmute.OrderIndependentCompareEqual(Right.ObjectsToUnmute);
+	}
+	friend bool operator!=(const FConcertReplication_ChangeMuteState_Request&, const FConcertReplication_ChangeMuteState_Request&) = default;
+
 	/** @return Whether this requests makes no changes */
 	bool IsEmpty() const { return ObjectsToMute.IsEmpty() && ObjectsToUnmute.IsEmpty(); }
 };

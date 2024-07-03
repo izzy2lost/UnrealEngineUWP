@@ -75,6 +75,8 @@ namespace UE::ConcertSyncTests::Replication
 		AfterEach([this]
 		{
 			Server.Reset();
+			ObjectReplicator.Reset();
+			WorkspaceMock.Reset();
 		});
 		
 		It("When leaving replication, an activity is produced", [this]
@@ -88,10 +90,69 @@ namespace UE::ConcertSyncTests::Replication
 			ValidateLeaveActivity();
 		});
 	}
+
+
+	BEGIN_DEFINE_SPEC(FMuteReplicationActivitySpec, "Editor.Concert.Replication.RestoreContent.Activity", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+		/** Detects calls into the workspace */
+		TSharedPtr<FReplicationWorkspaceCallInterceptorMock> WorkspaceMock;
+	
+		TUniquePtr<FObjectTestReplicator> ObjectReplicator;
+		TUniquePtr<FReplicationServer> Server;
+		FReplicationClient* Client = nullptr;
+	
+		FGuid SenderStreamId = FGuid::NewGuid();
+	END_DEFINE_SPEC(FMuteReplicationActivitySpec);
+
+	/** This tests that when a client leaves replication, an activity containing their registered streams and authority is produced. */
+	void FMuteReplicationActivitySpec::Define()
+	{
+		BeforeEach([this]
+		{
+			WorkspaceMock = MakeShared<FReplicationWorkspaceCallInterceptorMock>();
+			ObjectReplicator = MakeUnique<FObjectTestReplicator>();
+			Server = MakeUnique<FReplicationServer>(*this, EConcertSyncSessionFlags::Default_MultiUserSession, WorkspaceMock.ToSharedRef());
+			Client = &Server->ConnectClient();
+			
+			Client->JoinReplication(ObjectReplicator->CreateSenderArgs(SenderStreamId));
+			Client->GetClientReplicationManager().TakeAuthorityOver({ ObjectReplicator->TestObject });
+		});
+		AfterEach([this]
+		{
+			Server.Reset();
+			ObjectReplicator.Reset();
+			WorkspaceMock.Reset();
+		});
+		
+		It("When muting replication, an activity is produced", [this]
+		{
+			bool bMuteSuccess = false;
+			Client->GetClientReplicationManager()
+				.MuteObjects({ ObjectReplicator->TestObject })
+				.Next([&bMuteSuccess](FConcertReplication_ChangeMuteState_Response&& Response)
+				{
+					bMuteSuccess = Response.IsSuccess();
+				});
+			
+			TestTrue(TEXT("Mute success"), bMuteSuccess);
+			if (!WorkspaceMock->LastCall_ProduceClientMuteReplicationActivity)
+			{
+				AddError(TEXT("No activity produced"));
+				return;
+			}
+			
+			const auto[EndpointId, EventData] = *WorkspaceMock->LastCall_ProduceClientMuteReplicationActivity;
+			const FConcertReplication_ChangeMuteState_Request& Request = EventData.Request;
+			TestEqual(TEXT("EndpointId"), EndpointId, Client->GetEndpointId());
+			TestEqual(TEXT("ObjectsToMute.Num()"), Request.ObjectsToMute.Num(), 1);
+			TestEqual(TEXT("ObjectsToUnmute.Num()"), Request.ObjectsToUnmute.Num(), 0);
+			TestTrue(TEXT("ObjectsToMute.Contains(TestObject)"), Request.ObjectsToMute.Contains(ObjectReplicator->TestObject));
+		});
+	}
 	
 	BEGIN_DEFINE_SPEC(FNoReplicationActivitiesSpec, "Editor.Concert.Replication.RestoreContent.Activity", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 		/** Detects calls into the workspace */
 		TSharedPtr<FReplicationWorkspaceCallInterceptorMock> WorkspaceMock;
+		TUniquePtr<FObjectTestReplicator> ObjectReplicator;
 	
 		TUniquePtr<FReplicationServer> Server;
 		FReplicationClient* Client = nullptr;
@@ -103,14 +164,16 @@ namespace UE::ConcertSyncTests::Replication
 		BeforeEach([this]
 		{
 			WorkspaceMock = MakeShared<FReplicationWorkspaceCallInterceptorMock>();
+			ObjectReplicator = MakeUnique<FObjectTestReplicator>();
 			Server = MakeUnique<FReplicationServer>(*this, EConcertSyncSessionFlags::Default_MultiUserSession & ~EConcertSyncSessionFlags::ShouldEnableReplicationActivities, WorkspaceMock.ToSharedRef());
 			Client = &Server->ConnectClient();
 
-			Client->JoinReplicationAsListener({});
+			Client->JoinReplication(ObjectReplicator->CreateSenderArgs());
 		});
 		AfterEach([this]
 		{
 			Server.Reset();
+			ObjectReplicator.Reset();
 			WorkspaceMock.Reset();
 		});
 		
@@ -118,6 +181,19 @@ namespace UE::ConcertSyncTests::Replication
 		{
 			Client->LeaveReplication();
 			TestFalse(TEXT("Activity produced"), WorkspaceMock->LastCall_ProduceClientLeaveReplicationActivity.IsSet());
+		});
+		It("When muting, no activity is produced", [this]
+		{
+			bool bMuteSuccess = false;
+			Client->GetClientReplicationManager()
+				.MuteObjects({ ObjectReplicator->TestObject })
+				.Next([&bMuteSuccess](FConcertReplication_ChangeMuteState_Response&& Response)
+				{
+					bMuteSuccess = Response.IsSuccess();
+				});
+			
+			TestTrue(TEXT("Mute success"), bMuteSuccess);
+			TestFalse(TEXT("Activity produced"), WorkspaceMock->LastCall_ProduceClientMuteReplicationActivity.IsSet());
 		});
 	}
 }

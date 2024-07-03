@@ -59,7 +59,7 @@ FText UE::ConcertSharedSlate::Private::GetOperationName(const FConcertSessionAct
 
 	if (const FConcertSyncReplicationActivitySummary* ActivitySummary = Activity.ActivitySummary.Cast<FConcertSyncReplicationActivitySummary>())
 	{
-		return LOCTEXT("LeftReplication", "Left Replication");
+		return ActivitySummary->ToDisplayTitle();
 	}
 
 	return FText::GetEmpty();

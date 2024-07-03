@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ConcertSyncSessionTypes.h"
+#include "Muting.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 #include "Replication/Data/ObjectIds.h"
@@ -19,6 +20,9 @@ enum class EConcertSyncReplicationActivityType : uint8
 	
 	/** Client left the replication session (either because they left the MU session or because they sent a FConcertReplication_LeaveEvent). */
 	LeaveReplication,
+
+	/** Client muted or unmuted some objects. */
+	Mute,
 
 	// ADD NEW ENTRIES ABOVE
 	Count
@@ -55,13 +59,40 @@ struct FConcertSyncReplicationSummary_LeaveReplication
 	TArray<FConcertObjectInStreamID> OwnedObjects;
 };
 
+/** Stores objects that were muted / unmuted */
+USTRUCT()
+struct FConcertSyncReplicationPayload_Mute
+{
+	GENERATED_BODY()
+
+	/** The request that changed mute state */
+	UPROPERTY()
+	FConcertReplication_ChangeMuteState_Request Request;
+	
+	friend bool operator==(const FConcertSyncReplicationPayload_Mute&, const FConcertSyncReplicationPayload_Mute&) = default;
+	friend bool operator!=(const FConcertSyncReplicationPayload_Mute&, const FConcertSyncReplicationPayload_Mute&) = default;
+};
+
+/** Info displayed in the UI. */
+USTRUCT()
+struct FConcertSyncReplicationSummary_Mute
+{
+	GENERATED_BODY()
+	
+	/** The request that changed mute state */
+	UPROPERTY()
+	FConcertReplication_ChangeMuteState_Request Request;
+};
+
 namespace UE::ConcertSyncCore
 {
 	inline FString GetReplicationActivityPayloadTypePathName(EConcertSyncReplicationActivityType Type)
 	{
+		static_assert(static_cast<int32>(EConcertSyncReplicationActivityType::Count) == 3, "If you added an EConcertSyncReplicationActivityType entry, update this switch");
 		switch (Type)
 		{
 		case EConcertSyncReplicationActivityType::LeaveReplication: return FConcertSyncReplicationPayload_LeaveReplication::StaticStruct()->GetPathName();
+		case EConcertSyncReplicationActivityType::Mute: return FConcertSyncReplicationPayload_Mute::StaticStruct()->GetPathName();
 		default: ensureMsgf(false, TEXT("Unknown replication activity type (%u)"), static_cast<uint8>(Type)); return TEXT("");
 		}
 	}
@@ -99,10 +130,20 @@ struct FConcertSyncReplicationEvent
 		ActivityType = EConcertSyncReplicationActivityType::LeaveReplication;
 		Payload.SetTypedPayload(Data);
 	}
+	void SetPayload(const FConcertSyncReplicationPayload_Mute& Data)
+	{
+		ActivityType = EConcertSyncReplicationActivityType::Mute;
+		Payload.SetTypedPayload(Data);
+	}
 	
 	bool GetPayload(FConcertSyncReplicationPayload_LeaveReplication& Result) const
 	{
 		check(ActivityType == EConcertSyncReplicationActivityType::LeaveReplication);
+		return Payload.GetTypedPayload(Result);
+	}
+	bool GetPayload(FConcertSyncReplicationPayload_Mute& Result) const
+	{
+		check(ActivityType == EConcertSyncReplicationActivityType::Mute);
 		return Payload.GetTypedPayload(Result);
 	}
 
@@ -151,9 +192,17 @@ struct CONCERTSYNCCORE_API FConcertSyncReplicationActivitySummary : public FConc
 		check(ActivityType == EConcertSyncReplicationActivityType::LeaveReplication);
 		return Payload.GetTypedPayload(Data);
 	}
+	bool GetSummaryData(FConcertSyncReplicationSummary_Mute& Data) const
+	{
+		check(ActivityType == EConcertSyncReplicationActivityType::Mute);
+		return Payload.GetTypedPayload(Data);
+	}
 
 	/** Create this summary from a replication event */
 	static FConcertSyncReplicationActivitySummary CreateSummaryForEvent(const FConcertSyncReplicationEvent& InEvent);
+
+	/** Gets the title for this summary */
+	FText ToDisplayTitle() const;
 
 protected:
 	

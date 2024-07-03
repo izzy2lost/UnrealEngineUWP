@@ -221,7 +221,8 @@ namespace UE::ConcertSyncServer::Replication
 #if UE_BUILD_DEBUG // In debug builds so we don't tank performance
 		checkf(!Response.SyncControl.DoesAtLeastOneObjectLoseSyncControl(), TEXT("Clients are supposed to infer that objects lose sync control. We only tell them which objects gained sync control."));
 #endif
-		
+
+		OnMuteRequestAppliedDelegate.Broadcast(Context.SourceEndpointId, Request);
 		return EConcertSessionResponseCode::Success;
 	}
 

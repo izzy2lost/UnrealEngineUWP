@@ -5,6 +5,7 @@
 #include "HAL/Platform.h"
 #include "Misc/Optional.h"
 
+struct FConcertSyncReplicationPayload_Mute;
 struct FConcertSessionClientInfo;
 struct FConcertSyncReplicationPayload_LeaveReplication;
 struct FGuid;
@@ -20,10 +21,16 @@ namespace UE::ConcertSyncServer::Replication
 	public:
 		
 		/**
-		 * Creates a replication activity for the client leaving replication if the session has the EConcertSyncSessionFlags::ShouldEnableReplicationActivities flag.
+		 * Creates a replication activity for the client leaving replication
 		 * @return The identifier of the produced activity. Unset if activity insertion failed.
 		 */
 		virtual TOptional<int64> ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData) = 0;
+
+		/**
+		 * Creates a replication activity for the client (un)muting objects in the session.
+		 * @return The identifier of the produced activity. Unset if activity insertion failed.
+		 */
+		virtual TOptional<int64> ProduceClientMuteReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_Mute& EventData) = 0;
 
 		/**
 		 * Gets the last replication leave activity associated for a given client.
