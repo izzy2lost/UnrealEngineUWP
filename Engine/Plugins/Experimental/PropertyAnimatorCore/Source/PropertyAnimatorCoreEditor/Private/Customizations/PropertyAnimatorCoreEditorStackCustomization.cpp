@@ -258,6 +258,7 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FO
 		else
 		{
 			HeaderLabel = Animator->GetAnimatorOriginalName().ToString();
+			HeaderLabel += TEXT(" (") + FString::FromInt(InItem->GetValueCount()) + TEXT(")");
 		}
 
 		static const FLinearColor AnimatorColor = FLinearColor(FColor::Orange).Desaturate(0.25);
@@ -396,7 +397,7 @@ void UPropertyAnimatorCoreEditorStackCustomization::FillAddAnimatorMenuSection(U
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext(ContextObjects, {});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::New});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::NewSimple});
 	AnimatorEditorSubsystem->FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
 }
 

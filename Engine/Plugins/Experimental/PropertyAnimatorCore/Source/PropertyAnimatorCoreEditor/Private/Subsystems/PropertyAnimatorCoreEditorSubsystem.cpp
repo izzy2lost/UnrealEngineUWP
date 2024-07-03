@@ -85,14 +85,30 @@ bool UPropertyAnimatorCoreEditorSubsystem::FillAnimatorMenu(UToolMenu* InMenu, c
 		}
 	}
 
-	if (InOptions.IsMenuType(EPropertyAnimatorCoreEditorMenuType::New) && InContext.ContainsAnyActor())
+	if (InOptions.IsMenuType(EPropertyAnimatorCoreEditorMenuType::NewSimple) && InContext.ContainsAnyActor())
 	{
 		if (InOptions.ShouldCreateSubMenu())
 		{
 			AnimatorSection->AddSubMenu(
-				TEXT("NewAnimatorMenu"),
-				LOCTEXT("NewAnimatorMenu.Label", "Add Animators"),
-				LOCTEXT("NewAnimatorMenu.Tooltip", "Add animators to the selection"),
+				TEXT("NewSimpleAnimatorMenu"),
+				LOCTEXT("NewSimpleAnimatorMenu.Label", "Add Animators"),
+				LOCTEXT("NewSimpleAnimatorMenu.Tooltip", "Add animators to the selection"),
+				FNewToolMenuDelegate::CreateLambda(&UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection, LastMenuData.ToSharedRef()));
+		}
+		else
+		{
+			UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection(InMenu, LastMenuData.ToSharedRef());
+		}
+	}
+
+	if (InOptions.IsMenuType(EPropertyAnimatorCoreEditorMenuType::NewAdvanced) && InContext.ContainsAnyActor())
+	{
+		if (InOptions.ShouldCreateSubMenu())
+		{
+			AnimatorSection->AddSubMenu(
+				TEXT("NewAdvancedAnimatorMenu"),
+				LOCTEXT("NewAdvancedAnimatorMenu.Label", "Add Animators"),
+				LOCTEXT("NewAdvancedAnimatorMenu.Tooltip", "Add animators to the selection"),
 				FNewToolMenuDelegate::CreateLambda(&UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection, LastMenuData.ToSharedRef()));
 		}
 		else
@@ -394,7 +410,7 @@ void UPropertyAnimatorCoreEditorSubsystem::FillAnimatorExtensionSection(UToolMen
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext({}, {Context->GetPropertyData()});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::Edit, EPropertyAnimatorCoreEditorMenuType::New, EPropertyAnimatorCoreEditorMenuType::Existing});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::Edit, EPropertyAnimatorCoreEditorMenuType::NewAdvanced, EPropertyAnimatorCoreEditorMenuType::Existing});
 	FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
 }
 
@@ -421,7 +437,7 @@ void UPropertyAnimatorCoreEditorSubsystem::FillAnimatorRowContextSection(UToolMe
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext({}, {PropertyData.GetValue()});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::Edit, EPropertyAnimatorCoreEditorMenuType::New, EPropertyAnimatorCoreEditorMenuType::Existing});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::Edit, EPropertyAnimatorCoreEditorMenuType::NewAdvanced, EPropertyAnimatorCoreEditorMenuType::Existing});
 	FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
 }
 

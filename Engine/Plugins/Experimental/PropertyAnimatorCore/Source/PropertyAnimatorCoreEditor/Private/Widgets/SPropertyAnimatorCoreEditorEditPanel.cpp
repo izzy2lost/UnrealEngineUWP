@@ -298,7 +298,7 @@ void SPropertyAnimatorCoreEditorEditPanel::FillAnimatorContextSection(UToolMenu*
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext({}, {Context->GetPropertyData()});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::New});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::NewAdvanced});
 	EditorSubsystem->FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
 }
 

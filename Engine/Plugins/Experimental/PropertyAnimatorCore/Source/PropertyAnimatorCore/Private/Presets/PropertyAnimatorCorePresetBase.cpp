@@ -13,6 +13,7 @@ void UPropertyAnimatorCorePresetBase::GetSupportedPresetProperties(const AActor*
 {
 	TSet<FPropertyAnimatorCoreData> PresetProperties;
 	GetPresetProperties(InActor, InAnimator, PresetProperties);
+	OutProperties.Empty(PresetProperties.Num());
 
 	if (PresetProperties.IsEmpty())
 	{
@@ -104,4 +105,26 @@ bool UPropertyAnimatorCorePresetBase::UnapplyPreset(UPropertyAnimatorCoreBase* I
 	}
 
 	return true;
+}
+
+void UPropertyAnimatorCorePresetBase::GetAppliedPresetProperties(const UPropertyAnimatorCoreBase* InAnimator, TSet<FPropertyAnimatorCoreData>& OutSupportedProperties, TSet<FPropertyAnimatorCoreData>& OutAppliedProperties)
+{
+	OutSupportedProperties.Empty();
+	OutAppliedProperties.Empty();
+
+	if (!IsValid(InAnimator) || InAnimator->IsTemplate())
+	{
+		return;
+	}
+
+	GetSupportedPresetProperties(InAnimator->GetAnimatorActor(), InAnimator, OutSupportedProperties);
+	OutAppliedProperties.Reserve(OutSupportedProperties.Num());
+
+	for (const FPropertyAnimatorCoreData& Property : OutSupportedProperties)
+	{
+		if (InAnimator->IsPropertyLinked(Property))
+		{
+			OutAppliedProperties.Add(Property);
+		}
+	}
 }

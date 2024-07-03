@@ -39,7 +39,7 @@ void FAvaPropertyAnimatorEditorOutlinerContextMenu::OnExtendOutlinerContextMenu(
 	FPropertyAnimatorCoreEditorMenuOptions MenuOptions(
 		{
 			EPropertyAnimatorCoreEditorMenuType::Edit
-			, EPropertyAnimatorCoreEditorMenuType::New
+			, EPropertyAnimatorCoreEditorMenuType::NewAdvanced
 			, EPropertyAnimatorCoreEditorMenuType::Enable
 			, EPropertyAnimatorCoreEditorMenuType::Disable
 			, EPropertyAnimatorCoreEditorMenuType::Delete
