@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/IReplicationWorkspace.h"
+#include "Templates/Function.h"
 
 namespace UE::ConcertSyncTests::Replication
 {
@@ -15,6 +16,7 @@ namespace UE::ConcertSyncTests::Replication
 		virtual TOptional<int64> ProduceClientMuteReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_Mute& EventData) override { return {}; }
 		virtual bool GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override { return false; }
 		virtual bool GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override { return false; }
+		virtual void EnumerateMuteActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const override {}
 		//~ End IReplicationWorkspace Interface
 	};
 }

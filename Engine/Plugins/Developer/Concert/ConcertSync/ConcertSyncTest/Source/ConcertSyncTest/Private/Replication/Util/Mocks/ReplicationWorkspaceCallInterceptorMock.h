@@ -7,6 +7,7 @@
 
 #include "Misc/Optional.h"
 #include "Misc/Guid.h"
+#include "Templates/Function.h"
 #include "Templates/Tuple.h"
 
 namespace UE::ConcertSyncTests::Replication
@@ -32,6 +33,8 @@ namespace UE::ConcertSyncTests::Replication
 		TOptional<FConcertSyncReplicationPayload_LeaveReplication> ReturnResult_GetLastLeaveReplicationActivityByClient;
 		/** The result to return in GetLastLeaveReplicationActivityByClient. */
 		TOptional<FConcertSyncReplicationPayload_LeaveReplication> ReturnResult_GetLeaveReplicationActivityById;
+		/** The values to enumerate in EnumerateMuteActivities. */
+		TOptional<TArray<FConcertSyncReplicationActivity>> ReturnResult_EnumerateMuteActivities;
 		
 		//~ Begin IReplicationWorkspace Interface
 		virtual TOptional<int64> ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData) override
@@ -62,6 +65,21 @@ namespace UE::ConcertSyncTests::Replication
 				OutLeaveReplication = *ReturnResult_GetLeaveReplicationActivityById;
 			}
 			return ReturnResult_GetLeaveReplicationActivityById.IsSet();
+		}
+		virtual void EnumerateMuteActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const override
+		{
+			if (!ReturnResult_EnumerateMuteActivities)
+			{
+				return;
+			}
+			
+			for (const FConcertSyncReplicationActivity& Activity : *ReturnResult_EnumerateMuteActivities)
+			{
+				if (Callback(Activity) == EBreakBehavior::Break)
+				{
+					break;
+				}
+			}
 		}
 		//~ End IReplicationWorkspace Interface
 	};

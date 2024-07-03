@@ -74,7 +74,16 @@ namespace UE::ConcertSyncServer
 		const bool bGotEventData = Database.GetReplicationEvent(ActivityId, Event);
 		return bGotEventData && Event.ActivityType == EConcertSyncReplicationActivityType::LeaveReplication && Event.GetPayload(OutLeaveReplication);
 	}
-	
+
+	void FReplicationWorkspace::EnumerateMuteActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const
+	{
+		Database.EnumerateReplicationActivities([&Callback](FConcertSyncReplicationActivity&& Activity)
+		{
+			return Activity.EventData.ActivityType != EConcertSyncReplicationActivityType::Mute
+				|| Callback(Activity) == EBreakBehavior::Continue;
+		});
+	}
+
 	template <typename TPayload>
 	TOptional<int64> FReplicationWorkspace::ProduceActivity(const FGuid& EndpointId, const TPayload& EventData)
 	{

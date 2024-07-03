@@ -4,7 +4,11 @@
 
 #include "HAL/Platform.h"
 #include "Misc/Optional.h"
+#include "Templates/FunctionFwd.h"
 
+enum class EBreakBehavior : uint8;
+
+struct FConcertSyncReplicationActivity;
 struct FConcertSyncReplicationPayload_Mute;
 struct FConcertSessionClientInfo;
 struct FConcertSyncReplicationPayload_LeaveReplication;
@@ -45,6 +49,9 @@ namespace UE::ConcertSyncServer::Replication
 		virtual bool GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const = 0;
 		/** Gets the replication leave activity with ActivityId. */
 		virtual bool GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const = 0;
+
+		/** Enumerates all mute activities. */
+		virtual void EnumerateMuteActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const = 0;
 
 		virtual ~IReplicationWorkspace() = default;
 	};

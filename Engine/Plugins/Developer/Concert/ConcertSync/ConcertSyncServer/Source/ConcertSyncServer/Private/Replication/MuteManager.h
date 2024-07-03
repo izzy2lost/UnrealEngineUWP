@@ -6,6 +6,8 @@
 #include "ConcertSyncSessionFlags.h"
 #include "IConcertSessionHandler.h"
 #include "Replication/Messages/Muting.h"
+
+#include "Misc/Optional.h"
 #include "Templates/UnrealTemplate.h"
 
 #include <type_traits>
@@ -46,6 +48,19 @@ namespace UE::ConcertSyncServer::Replication
 		
 		/** Notifies manager about applied event. Generates mute activity. */
 		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMuteRequestApplied, const FGuid& ClientId, const FConcertReplication_ChangeMuteState_Request& Request);
+		
+		enum class EMuteState : uint8
+		{
+			/** Object is muted */
+			ExplicitlyMuted,
+			/** A parent object is ExplicitlyMuted and has EConcertReplicationMuteFlags::ObjectAndSubobjects set but is object and its children are supposed to be implicitly unmuted.  */
+			ExplicitlyUnmuted,
+			
+			/** Object is muted because one of its parent objects is ExplicitlyMuted and EConcertReplicationMuteFlags::ObjectAndSubobjects set. */
+			ImplicitlyMuted,
+			/** Object is unmuted because one of its parent objects is ExplicitlyUnmuted and has EConcertReplicationMuteFlags::ObjectAndSubobjects set. */
+			ImplicitlyUnmuted,
+		};
 
 		FMuteManager(
 			IConcertSession& InSession UE_LIFETIMEBOUND,
@@ -56,6 +71,17 @@ namespace UE::ConcertSyncServer::Replication
 
 		/** @return Whether the object is globally muted. */
 		bool IsMuted(const FSoftObjectPath& Object) const;
+
+		/** @return The mute state of Object. If it was not explicitly muted and no parent object affects this subobject, then the optional is unset. */
+		TOptional<EMuteState> GetMuteState(const FSoftObjectPath& Object) const;
+		/** @return The mute setting of Object, if it is explicitly set (i.e. not affected by a parent object). */
+		TOptional<FConcertReplication_ObjectMuteSetting> GetExplicitMuteSetting(const FSoftObjectPath& Object) const;
+
+		/**
+		 * Applies Request as if it was sent by EndpointId.
+		 * @return The sync control that the client identified by EndpointId has gained. Does NOT include the sync control they lost.
+		 */
+		FConcertReplication_ChangeSyncControl ApplyManualRequest(const FGuid& EndpointId, const FConcertReplication_ChangeMuteState_Request& Request);
 		
 		/** Called right after objects have been unregistered from ClientId's streams. */
 		void PostApplyStreamChange(const FGuid& ClientId, TConstArrayView<FConcertObjectInStreamID> AddedObjects, TConstArrayView<FConcertObjectInStreamID> RemovedObjects);
@@ -89,19 +115,6 @@ namespace UE::ConcertSyncServer::Replication
 		
 		/** Broadcasts after a mute request has been applied. */
 		FOnMuteRequestApplied OnMuteRequestAppliedDelegate;
-
-		enum class EMuteState : uint8
-		{
-			/** Object is muted */
-			ExplicitlyMuted,
-			/** A parent object is ExplicitlyMuted and has EConcertReplicationMuteFlags::ObjectAndSubobjects set but is object and its children are supposed to be implicitly unmuted.  */
-			ExplicitlyUnmuted,
-			
-			/** Object is muted because one of its parent objects is ExplicitlyMuted and EConcertReplicationMuteFlags::ObjectAndSubobjects set. */
-			ImplicitlyMuted,
-			/** Object is unmuted because one of its parent objects is ExplicitlyUnmuted and has EConcertReplicationMuteFlags::ObjectAndSubobjects set. */
-			ImplicitlyUnmuted,
-		};
 		
 		struct FMuteData
 		{

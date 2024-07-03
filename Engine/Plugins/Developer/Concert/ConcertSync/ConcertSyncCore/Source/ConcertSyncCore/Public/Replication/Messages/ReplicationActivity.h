@@ -168,7 +168,7 @@ struct FConcertSyncReplicationActivity : public FConcertSyncActivity
 		EventType = EConcertSyncActivityEventType::Replication;
 	}
 
-	/** The transaction event data associated with this activity */
+	/** The replication event data associated with this activity */
 	UPROPERTY()
 	FConcertSyncReplicationEvent EventData;
 };

@@ -47,6 +47,28 @@ namespace UE::ConcertSyncServer::Replication
 			&& (ObjectMuteState->State == EMuteState::ExplicitlyMuted || ObjectMuteState->State == EMuteState::ImplicitlyMuted);
 	}
 
+	TOptional<FMuteManager::EMuteState> FMuteManager::GetMuteState(const FSoftObjectPath& Object) const
+	{
+		const FMuteData* ObjectMuteState = MuteState.Find(Object);
+		return ObjectMuteState
+			? ObjectMuteState->State
+			: TOptional<EMuteState>{};
+	}
+
+	TOptional<FConcertReplication_ObjectMuteSetting> FMuteManager::GetExplicitMuteSetting(const FSoftObjectPath& Object) const
+	{
+		const FMuteData* ObjectMuteState = MuteState.Find(Object);
+		return ObjectMuteState
+			? ObjectMuteState->MuteSetting
+			: TOptional<FConcertReplication_ObjectMuteSetting>{};
+	}
+
+	FConcertReplication_ChangeSyncControl FMuteManager::ApplyManualRequest(const FGuid& EndpointId, const FConcertReplication_ChangeMuteState_Request& Request)
+	{
+		ApplyRequest(Request);
+		return OnGenerateSyncControlForMuteChangeDelegate.Execute(EndpointId);
+	}
+
 	void FMuteManager::PostApplyStreamChange(const FGuid& ClientId, TConstArrayView<FConcertObjectInStreamID> AddedObjects, TConstArrayView<FConcertObjectInStreamID> RemovedObjects)
 	{
 		// If Request adds new subobjects that should be muted implicitly by existing rules, update MuteState.
@@ -213,8 +235,8 @@ namespace UE::ConcertSyncServer::Replication
 		Response.ErrorCode = EConcertReplicationMuteErrorCode::Accepted;
 		ApplyRequest(Request);
 		
-		// Sync control will now 1. generate a response we can embed in the response, and 2. send a network event to all other clients.
-		// The embedded response will contain only those objects which changed sync control
+		// Sync control will now 1. generate a sync control we can embed in the response, and 2. send a network event to all other clients.
+		// The embedded sync control will contain only those objects which changed sync control
 		// Fyi, the new sync control may contain more objects than were specified in the request since parent objects can also cause their subobjects' mute state to change.
 		check(OnGenerateSyncControlForMuteChangeDelegate.IsBound());
 		Response.SyncControl = OnGenerateSyncControlForMuteChangeDelegate.Execute(Context.SourceEndpointId);

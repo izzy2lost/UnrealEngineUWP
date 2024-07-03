@@ -28,7 +28,11 @@ enum class EConcertReplicationRestoreContentFlags : uint8
 	/** The response should include the new stream and authority state. */
 	SendNewState = 1 << 3,
 
-	StreamsAndAuthority = RestoreAuthority
+	/** Also restore the mute states of the objects. This is done by going through the activity history and replaying the mute & unmute actions. */
+	RestoreMute = 1 << 4,
+
+	StreamsAndAuthority = RestoreAuthority,
+	All = StreamsAndAuthority | RestoreMute
 };
 ENUM_CLASS_FLAGS(EConcertReplicationRestoreContentFlags);
 

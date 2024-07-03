@@ -7,6 +7,7 @@
 #include "Delegates/Delegate.h"
 #include "HAL/Platform.h"
 #include "Misc/Optional.h"
+#include "Templates/Function.h"
 
 class FConcertSyncSessionDatabase;
 
@@ -40,6 +41,7 @@ namespace UE::ConcertSyncServer
 		virtual TOptional<int64> ProduceClientMuteReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_Mute& EventData) override;
 		virtual bool GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override;
 		virtual bool GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override;
+		virtual void EnumerateMuteActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const override;
 		//~ End IReplicationWorkspace Interface
 
 	private:

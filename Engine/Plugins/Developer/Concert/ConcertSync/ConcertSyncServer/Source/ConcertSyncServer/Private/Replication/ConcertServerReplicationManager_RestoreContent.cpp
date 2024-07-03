@@ -4,6 +4,7 @@
 #include "ConcertServerReplicationManager.h"
 #include "ConcertServer/Private/ConcertServerSession.h"
 #include "Replication/IReplicationWorkspace.h"
+#include "Replication/MuteUtils.h"
 #include "Replication/Messages/ChangeAuthority.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ReplicationActivity.h"
@@ -271,13 +272,18 @@ namespace UE::ConcertSyncServer::Replication
 	{
 		FConcertReplicationClient& Client = *Clients[RequestingEndpointId];
 		
-		// After this first step, SyncControl will hold only the objects that were removed thus far.
+		// After this first step, SyncControl hold the objects that the client had sync control over before but that are removed by this request.
 		RestoreStreamContent(Request, DataToApply, Client, ChangedSyncControl);
 		
 		if (EnumHasAnyFlags(Request.Flags, EConcertReplicationRestoreContentFlags::RestoreAuthority))
 		{
 			// This adds the objects the client receives sync control for
 			RestoreAuthority(DataToApply, Client, ChangedSyncControl);
+		}
+
+		if (EnumHasAnyFlags(Request.Flags, EConcertReplicationRestoreContentFlags::RestoreMute))
+		{
+			RestoreMuteState(Client, ChangedSyncControl);
 		}
 	}
 	
@@ -347,5 +353,100 @@ namespace UE::ConcertSyncServer::Replication
 		TMap<FSoftObjectPath, FConcertStreamArray> RejectedObjects;
 		AuthorityManager.ApplyChangeAuthorityRequest(Client.GetClientEndpointId(), Request, RejectedObjects, OutChangedSyncControl);
 		check(RejectedObjects.IsEmpty());
+	}
+
+	void FConcertServerReplicationManager::RestoreMuteState(const FConcertReplicationClient& Client, FConcertReplication_ChangeSyncControl& OutChangedSyncControl)
+	{
+		class FMuteStateGroundTruth : public ConcertSyncCore::Replication::MuteUtils::IMuteStateGroundTruth
+		{
+			const FMuteManager& MuteManager;
+			const ConcertSyncCore::FReplicatedObjectHierarchyCache& ServerObjectCache;
+		public:
+			
+			FMuteStateGroundTruth(
+				const FMuteManager& MuteManager UE_LIFETIMEBOUND,
+				const ConcertSyncCore::FReplicatedObjectHierarchyCache& ServerObjectCache UE_LIFETIMEBOUND
+				)
+				: MuteManager(MuteManager)
+				, ServerObjectCache(ServerObjectCache)
+			{}
+
+			virtual ConcertSyncCore::Replication::MuteUtils::EMuteState GetMuteState(const FSoftObjectPath& Object) const override
+			{
+				using namespace ConcertSyncCore::Replication::MuteUtils;
+				
+				const TOptional<FMuteManager::EMuteState> MuteState = MuteManager.GetMuteState(Object);
+				if (!MuteState)
+				{
+					return EMuteState::None;
+				}
+
+				switch (*MuteState)
+				{
+				case FMuteManager::EMuteState::ExplicitlyMuted: return EMuteState::ExplicitlyMuted;
+				case FMuteManager::EMuteState::ExplicitlyUnmuted: return EMuteState::ExplicitlyUnmuted;
+				case FMuteManager::EMuteState::ImplicitlyMuted: return EMuteState::ImplicitlyMuted;
+				case FMuteManager::EMuteState::ImplicitlyUnmuted: return EMuteState::ImplicitlyUnmuted;
+				default: checkNoEntry(); return EMuteState::None;
+				}
+			}
+			
+			virtual TOptional<FConcertReplication_ObjectMuteSetting> GetExplicitSetting(const FSoftObjectPath& Object) const override
+			{
+				return MuteManager.GetExplicitMuteSetting(Object);
+			}
+			
+			virtual bool IsObjectKnown(const FSoftObjectPath& Object) const override
+			{
+				return ServerObjectCache.IsInHierarchy(Object).IsSet();
+			}
+		} GroundTruth(MuteManager, ServerObjectCache);
+
+		// We'll effectively replay all mute actions that have occured so far by combining them into Request. 
+		FConcertReplication_ChangeMuteState_Request AggregatedRequest;
+		ServerWorkspace.EnumerateMuteActivities([&GroundTruth, &AggregatedRequest](const FConcertSyncReplicationActivity& Activity)
+		{
+			FConcertSyncReplicationPayload_Mute MuteData;
+			if (!ensure(Activity.EventData.ActivityType == EConcertSyncReplicationActivityType::Mute)
+				|| !Activity.EventData.GetPayload(MuteData))
+			{
+				return EBreakBehavior::Continue;
+			}
+
+			// This skips changes that are already in effect or that are invalid to do (e.g. due to unknown object)
+			CombineMuteRequests(AggregatedRequest, MuteData.Request, GroundTruth);
+			return EBreakBehavior::Continue;
+		});
+
+		if (!AggregatedRequest.IsEmpty())
+		{
+			ApplyRestoringMuteRequest(Client, AggregatedRequest, OutChangedSyncControl);
+		}
+	}
+	void FConcertServerReplicationManager::ApplyRestoringMuteRequest(
+		const FConcertReplicationClient& Client,
+		const FConcertReplication_ChangeMuteState_Request& AggregatedRequest,
+		FConcertReplication_ChangeSyncControl& OutChangedSyncControl
+		)
+	{
+		const FGuid& ClientId = Client.GetClientEndpointId();
+		const FConcertReplication_ChangeSyncControl GainedSyncControl = MuteManager.ApplyManualRequest(ClientId, AggregatedRequest);
+
+		// ApplyManualRequest may have removed sync control but GainedSyncControl does not contain the removed objects...
+		for (TPair<FConcertObjectInStreamID, bool>& ResultControl : OutChangedSyncControl.NewControlStates)
+		{
+			const FConcertReplicatedObjectId ReplicatedObjectId { { ResultControl.Key }, ClientId };
+			// ... so simply go through everything and check whether it lost control
+			if (!SyncControlManager.HasSyncControl(ReplicatedObjectId))
+			{
+				ResultControl.Value = false;
+			}
+		}
+
+		// And all the things that have now gained the control will be put into OutChangedSyncControl afterwards.
+		for (const TPair<FConcertObjectInStreamID, bool>& GainedControl : GainedSyncControl.NewControlStates)
+		{
+			OutChangedSyncControl.NewControlStates.Add(GainedControl.Key, GainedControl.Value);
+		}
 	}
 }

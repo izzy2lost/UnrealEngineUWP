@@ -113,7 +113,7 @@ namespace UE::MultiUserClient
 	{
 		Client->GetReplicationManager()->RestoreContent(
 			{
-				.Flags = EConcertReplicationRestoreContentFlags::StreamsAndAuthority | EConcertReplicationRestoreContentFlags::ValidateUniqueClient
+				.Flags = EConcertReplicationRestoreContentFlags::All | EConcertReplicationRestoreContentFlags::ValidateUniqueClient
 			}
 		)
 		.Next([ClientInfo = Client->GetConcertClient()->GetClientInfo()](FConcertReplication_RestoreContent_Response&& Response)
