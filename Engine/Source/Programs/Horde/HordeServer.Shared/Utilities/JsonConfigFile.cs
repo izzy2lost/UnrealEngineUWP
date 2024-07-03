@@ -15,7 +15,7 @@ namespace HordeServer.Utilities
 	/// <summary>
 	/// Allows manipulating JSON config files without fully deserializing them
 	/// </summary>
-	class JsonConfigFile
+	public class JsonConfigFile
 	{
 		public JsonObject Root { get; }
 

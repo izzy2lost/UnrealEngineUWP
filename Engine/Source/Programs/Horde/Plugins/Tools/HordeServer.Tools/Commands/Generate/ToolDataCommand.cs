@@ -59,7 +59,12 @@ namespace HordeServer.Commands.Generate
 
 		[CommandLine]
 		[Description("Directory containing the server to modify")]
-		public DirectoryReference ServerDir { get; set; } = ServerApp.AppDir;
+		public DirectoryReference ServerDir { get; set; }
+
+		public ToolDataCommand(IServerInfo serverInfo)
+		{
+			ServerDir = serverInfo.AppDir;
+		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{

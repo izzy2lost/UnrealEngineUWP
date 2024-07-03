@@ -44,7 +44,6 @@ using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Server.Notices;
 using HordeServer.ServiceAccounts;
-using HordeServer.Storage;
 using HordeServer.Users;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authentication;
@@ -281,14 +280,7 @@ namespace HordeServer
 			services.AddSingleton<IServerInfo>(serverInfo);
 
 			// Register the plugin collection
-			PluginCollection pluginCollection = new PluginCollection();
-			pluginCollection.Add<AnalyticsPlugin>();
-			pluginCollection.Add<BuildPlugin>();
-			pluginCollection.Add<ComputePlugin>();
-			pluginCollection.Add<DdcPlugin>();
-			pluginCollection.Add<SecretsPlugin>();
-			pluginCollection.Add<StoragePlugin>();
-			pluginCollection.Add<ToolsPlugin>();
+			IPluginCollection pluginCollection = ServerApp.ConfigurePlugins();
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin services

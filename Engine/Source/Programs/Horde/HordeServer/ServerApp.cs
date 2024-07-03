@@ -11,11 +11,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using HordeServer.Commands;
+using HordeServer.Plugins;
+using HordeServer.Storage;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.Win32;
 using Serilog;
 using Serilog.Configuration;
@@ -178,12 +181,34 @@ namespace HordeServer
 			services.AddSingleton<ServerSettings>(serverSettings);
 			services.Configure<ServerSettings>(x => Startup.BindServerSettings(config, x));
 
+			ServerInfo serverInfo = new ServerInfo(config, Options.Create(serverSettings));
+			services.AddSingleton<IServerInfo>(serverInfo);
+
+			IPluginCollection pluginCollection = ConfigurePlugins();
+			foreach (Assembly pluginAssembly in pluginCollection.LoadedPlugins.Select(x => x.Assembly).Distinct())
+			{
+				services.AddCommandsFromAssembly(pluginAssembly);
+			}
+
 #pragma warning disable ASP0000 // Do not call 'IServiceCollection.BuildServiceProvider' in 'ConfigureServices'
 			await using (ServiceProvider serviceProvider = services.BuildServiceProvider())
 			{
 				return await CommandHost.RunAsync(arguments, serviceProvider, typeof(ServerCommand));
 			}
 #pragma warning restore ASP0000 // Do not call 'IServiceCollection.BuildServiceProvider' in 'ConfigureServices'
+		}
+
+		public static IPluginCollection ConfigurePlugins()
+		{
+			PluginCollection pluginCollection = new PluginCollection();
+			pluginCollection.Add<AnalyticsPlugin>();
+			pluginCollection.Add<BuildPlugin>();
+			pluginCollection.Add<ComputePlugin>();
+			pluginCollection.Add<DdcPlugin>();
+			pluginCollection.Add<SecretsPlugin>();
+			pluginCollection.Add<StoragePlugin>();
+			pluginCollection.Add<ToolsPlugin>();
+			return pluginCollection;
 		}
 
 		// Used by WebApplicationFactory in controller tests. Uses reflection to call this exact function signature.

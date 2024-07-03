@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Reflection;
+using EpicGames.Core;
 using HordeServer.Plugins;
 using HordeServer.Tools;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +18,7 @@ namespace HordeServer
 		public void ConfigureServices(IServiceCollection services)
 		{
 			services.AddSingleton<IToolCollection, ToolCollection>();
+			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
 		}
 	}
 
