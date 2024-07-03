@@ -81,6 +81,7 @@ namespace HordeServer.Streams
 	/// </summary>
 	[JsonSchema("https://unrealengine.com/horde/stream")]
 	[JsonSchemaCatalog("Horde Stream", "Horde stream configuration file", new[] { "*.stream.json", "Streams/*.json" })]
+	[ConfigDoc("*.stream.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Streams.md")]
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
 	[DebuggerDisplay("{Id}")]

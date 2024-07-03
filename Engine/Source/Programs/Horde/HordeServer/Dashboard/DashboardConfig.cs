@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Common;
 using HordeServer.Configuration;
+using HordeServer.Utilities;
 
 namespace HordeServer.Dashboard
 {
@@ -12,6 +13,7 @@ namespace HordeServer.Dashboard
 	/// </summary>
 	[JsonSchema("https://unrealengine.com/horde/dashboard")]
 	[JsonSchemaCatalog("Horde Dashboard", "Horde dashboard configuration file", new[] { "*.dashboard.json", "Dashboard/*.json" })]
+	[ConfigDoc("*.dashboard.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Dashboard.md")]
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
 	public class DashboardConfig

@@ -38,6 +38,7 @@ namespace HordeServer.Server
 	/// </summary>
 	[JsonSchema("https://unrealengine.com/horde/global")]
 	[JsonSchemaCatalog("Horde Globals", "Horde global configuration file", new[] { "globals.json", "*.global.json" })]
+	[ConfigDoc("Globals.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Globals.md")]
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
 	public class GlobalConfig

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using EpicGames.Core;
 using EpicGames.Horde.Server;
+using HordeServer.Utilities;
 
 namespace HordeServer
 {
@@ -85,6 +86,9 @@ namespace HordeServer
 	/// <summary>
 	/// Global settings for the application
 	/// </summary>
+	[ConfigDoc("Server.json", "[Horde](../../README.md) > [Deployment](../Deployment.md) > [Server](Server.md)", "Deployment/ServerSettings.md", 
+		Introduction = "All Horde-specific settings are stored in a root object called `Horde`. Other .NET functionality may be configured using properties in the root of this file."
+	)]
 	public class ServerSettings
 	{
 		/// <summary>

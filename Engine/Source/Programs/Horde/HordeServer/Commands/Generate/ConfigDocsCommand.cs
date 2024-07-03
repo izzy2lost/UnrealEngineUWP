@@ -12,13 +12,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
-using HordeServer.Dashboard;
 using HordeServer.Plugins;
-using HordeServer.Projects;
-using HordeServer.Server;
-using HordeServer.Storage;
-using HordeServer.Streams;
-using HordeServer.Telemetry.Metrics;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
 
@@ -37,39 +31,20 @@ namespace HordeServer.Commands.Generate
 
 		record class PageInfo(string Title, string LinkRail, string FileName, string? Introduction = null);
 
-		const string AppSettingsIntro = "All Horde-specific settings are stored in a root object called `Horde`. Other .NET functionality may be configured using properties in the root of this file.";
+		readonly IPluginCollection _pluginCollection;
+
+		public DocsCommand(IPluginCollection pluginCollection)
+			=> _pluginCollection = pluginCollection;
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			DirectoryReference.CreateDirectory(OutputDir);
 
-			PluginCollection pluginCollection = new PluginCollection();
-			pluginCollection.Add<AnalyticsPlugin>();
-			pluginCollection.Add<BuildPlugin>();
-			pluginCollection.Add<ComputePlugin>();
-			pluginCollection.Add<DdcPlugin>();
-			pluginCollection.Add<SecretsPlugin>();
-			pluginCollection.Add<StoragePlugin>();
-			pluginCollection.Add<ToolsPlugin>();
+			JsonSchemaCache schemaCache = new JsonSchemaCache(_pluginCollection);
 
-			JsonSchemaCache schemaCache = new JsonSchemaCache(pluginCollection);
-
-			JsonSchema serverSchema = schemaCache.CreateSchema(typeof(ServerSettings));
-			JsonSchema globalSchema = schemaCache.CreateSchema(typeof(GlobalConfig));
-			JsonSchema projectSchema = schemaCache.CreateSchema(typeof(ProjectConfig));
-			JsonSchema streamSchema = schemaCache.CreateSchema(typeof(StreamConfig));
-			JsonSchema telemetryConfigSchema = schemaCache.CreateSchema(typeof(TelemetryStoreConfig));
-			JsonSchema dashboardConfigSchema = schemaCache.CreateSchema(typeof(DashboardConfig));
-
-			Dictionary<JsonSchemaType, PageInfo> typeToPageInfo = new Dictionary<JsonSchemaType, PageInfo>
-			{
-				[serverSchema.RootType] = new PageInfo("Server.json", "[Horde](../../README.md) > [Deployment](../Deployment.md) > [Server](Server.md)", "Deployment/ServerSettings.md", AppSettingsIntro),
-				[globalSchema.RootType] = new PageInfo("Globals.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Globals.md"),
-				[projectSchema.RootType] = new PageInfo("*.project.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Projects.md"),
-				[streamSchema.RootType] = new PageInfo("*.stream.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Streams.md"),
-				[telemetryConfigSchema.RootType] = new PageInfo("*.telemetry.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Telemetry.md"),
-				[dashboardConfigSchema.RootType] = new PageInfo("*.dashboard.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Dashboard.md"),
-			};
+			HashSet<Assembly> assemblies = new HashSet<Assembly>();
+			assemblies.Add(Assembly.GetExecutingAssembly());
+			assemblies.UnionWith(_pluginCollection.LoadedPlugins.Select(x => x.Assembly));
 
 			if (Agent == null)
 			{
@@ -77,11 +52,18 @@ namespace HordeServer.Commands.Generate
 			}
 			else
 			{
-				Assembly agentAssembly = Assembly.LoadFile(Agent.FullName);
-				Type agentSettingsType = agentAssembly.GetType("HordeAgent.AgentSettings")!;
+				assemblies.Add(Assembly.LoadFile(Agent.FullName));
+			}
 
-				JsonSchema agentSchema = schemaCache.CreateSchema(agentSettingsType);
-				await WriteDocAsync(agentSchema.RootType, "Agent.json (Agent)", "Deployment/AgentSettings.md", "[Horde](../../README.md) > [Deployment](../Deployment.md) > [Agent](Agent.md)", AppSettingsIntro, new Dictionary<string, string>(), logger);
+			Dictionary<JsonSchemaType, PageInfo> typeToPageInfo = new Dictionary<JsonSchemaType, PageInfo>();
+			foreach (Type type in assemblies.SelectMany(x => x.GetExportedTypes()))
+			{
+				ConfigDocAttribute? attribute = type.GetCustomAttribute<ConfigDocAttribute>();
+				if (attribute != null)
+				{
+					JsonSchema schema = schemaCache.CreateSchema(type);
+					typeToPageInfo.Add(schema.RootType, new PageInfo(attribute.Title, attribute.LinkRail, attribute.FileName, attribute.Introduction));
+				}
 			}
 
 			Dictionary<string, string> typeNameToLink = typeToPageInfo.ToDictionary(x => x.Key.Name!, x => Path.GetFileName(x.Value.FileName), StringComparer.Ordinal);
@@ -90,7 +72,7 @@ namespace HordeServer.Commands.Generate
 				await WriteDocAsync(type, pageInfo.Title, pageInfo.FileName, pageInfo.LinkRail, pageInfo.Introduction, typeNameToLink, logger);
 			}
 
-			await WriteAclDocAsync(Assembly.GetExecutingAssembly(), logger);
+			await WriteAclDocAsync(assemblies, logger);
 			return 0;
 		}
 
@@ -335,7 +317,7 @@ namespace HordeServer.Commands.Generate
 			return "#" + anchor.Trim('-');
 		}
 
-		async Task WriteAclDocAsync(Assembly assembly, ILogger logger)
+		async Task WriteAclDocAsync(IEnumerable<Assembly> assemblies, ILogger logger)
 		{
 			FileReference file = FileReference.Combine(OutputDir, "Config/Schema/AclActions.md");
 			DirectoryReference.CreateDirectory(file.Directory);
@@ -351,70 +333,73 @@ namespace HordeServer.Commands.Generate
 					Dictionary<string, List<PropertyInfo>> categoryToProperties = new Dictionary<string, List<PropertyInfo>>();
 
 					List<PropertyInfo> newProperties = new List<PropertyInfo>();
-					foreach (Type type in assembly.GetTypes())
+					foreach (Assembly assembly in assemblies)
 					{
-						if (type.IsClass)
+						foreach (Type type in assembly.GetTypes())
 						{
-							foreach (PropertyInfo propertyInfo in type.GetProperties(BindingFlags.Static | BindingFlags.Public))
+							if (type.IsClass)
 							{
-								if (propertyInfo.PropertyType == typeof(AclAction))
+								foreach (PropertyInfo propertyInfo in type.GetProperties(BindingFlags.Static | BindingFlags.Public))
 								{
-									newProperties.Add(propertyInfo);
+									if (propertyInfo.PropertyType == typeof(AclAction))
+									{
+										newProperties.Add(propertyInfo);
+									}
 								}
-							}
-							if (newProperties.Count > 0)
-							{
-								string category = type.Namespace ?? "Default";
+								if (newProperties.Count > 0)
+								{
+									string category = type.Namespace ?? "Default";
 
-								int topNamespaceIdx = category.LastIndexOf('.');
-								if (topNamespaceIdx != -1)
-								{
-									category = category.Substring(topNamespaceIdx + 1);
-								}
+									int topNamespaceIdx = category.LastIndexOf('.');
+									if (topNamespaceIdx != -1)
+									{
+										category = category.Substring(topNamespaceIdx + 1);
+									}
 
-								List<PropertyInfo>? existingProperties;
-								if (categoryToProperties.TryGetValue(category, out existingProperties))
-								{
-									existingProperties.AddRange(newProperties);
-									newProperties.Clear();
-								}
-								else
-								{
-									categoryToProperties.Add(category, newProperties);
-									newProperties = new List<PropertyInfo>();
+									List<PropertyInfo>? existingProperties;
+									if (categoryToProperties.TryGetValue(category, out existingProperties))
+									{
+										existingProperties.AddRange(newProperties);
+										newProperties.Clear();
+									}
+									else
+									{
+										categoryToProperties.Add(category, newProperties);
+										newProperties = new List<PropertyInfo>();
+									}
 								}
 							}
 						}
-					}
 
-					XmlDocument documentation = new XmlDocument();
+						XmlDocument documentation = new XmlDocument();
 
-					FileReference inputDocumentationFile = new FileReference(assembly.Location).ChangeExtension(".xml");
-					if (FileReference.Exists(inputDocumentationFile))
-					{
-						documentation.Load(inputDocumentationFile.FullName);
-					}
-
-					foreach ((string category, List<PropertyInfo> properties) in categoryToProperties.OrderBy(x => x.Key))
-					{
-						await writer.WriteLineAsync();
-						await writer.WriteLineAsync($"## {category}");
-						await writer.WriteLineAsync();
-						await writer.WriteLineAsync("| Name | Description |");
-						await writer.WriteLineAsync("| ---- | ----------- |");
-						foreach (PropertyInfo property in properties)
+						FileReference inputDocumentationFile = new FileReference(assembly.Location).ChangeExtension(".xml");
+						if (FileReference.Exists(inputDocumentationFile))
 						{
-							AclAction action = (AclAction)property.GetValue(null)!;
-							string description = String.Empty;
+							documentation.Load(inputDocumentationFile.FullName);
+						}
 
-							string selector = $"//member[@name='P:{property.DeclaringType!.FullName}.{property.Name}']/summary";
-							XmlNode? node = documentation.SelectSingleNode(selector);
-							if (node != null)
+						foreach ((string category, List<PropertyInfo> properties) in categoryToProperties.OrderBy(x => x.Key))
+						{
+							await writer.WriteLineAsync();
+							await writer.WriteLineAsync($"## {category}");
+							await writer.WriteLineAsync();
+							await writer.WriteLineAsync("| Name | Description |");
+							await writer.WriteLineAsync("| ---- | ----------- |");
+							foreach (PropertyInfo property in properties)
 							{
-								description = node.InnerText.Trim().Replace("\r\n", "\n", StringComparison.Ordinal);
-							}
+								AclAction action = (AclAction)property.GetValue(null)!;
+								string description = String.Empty;
 
-							await writer.WriteLineAsync($"| `{action.Name}` | {description} |");
+								string selector = $"//member[@name='P:{property.DeclaringType!.FullName}.{property.Name}']/summary";
+								XmlNode? node = documentation.SelectSingleNode(selector);
+								if (node != null)
+								{
+									description = node.InnerText.Trim().Replace("\r\n", "\n", StringComparison.Ordinal);
+								}
+
+								await writer.WriteLineAsync($"| `{action.Name}` | {description} |");
+							}
 						}
 					}
 				}

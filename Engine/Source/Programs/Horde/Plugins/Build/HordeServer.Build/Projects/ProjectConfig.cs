@@ -16,6 +16,7 @@ using HordeServer.Agents.Pools;
 using HordeServer.Configuration;
 using HordeServer.Server;
 using HordeServer.Streams;
+using HordeServer.Utilities;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
 
@@ -26,6 +27,7 @@ namespace HordeServer.Projects
 	/// </summary>
 	[JsonSchema("https://unrealengine.com/horde/project")]
 	[JsonSchemaCatalog("Horde Project", "Horde project configuration file", new[] { "*.project.json", "Projects/*.json" })]
+	[ConfigDoc("*.project.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Projects.md")]
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
 	[DebuggerDisplay("{Id}")]

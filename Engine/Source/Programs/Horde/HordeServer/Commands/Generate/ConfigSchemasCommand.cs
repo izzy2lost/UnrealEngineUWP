@@ -18,11 +18,16 @@ namespace HordeServer.Commands.Generate
 		[Description("Output directory to write schemas to. Defaults to the 'Schemas' subfolder of the application directory.")]
 		DirectoryReference? _outputDir = null!;
 
+		readonly IPluginCollection _pluginCollection;
+
+		public SchemasCommand(IPluginCollection pluginCollection)
+			=> _pluginCollection = pluginCollection;
+
 		public override Task<int> ExecuteAsync(ILogger logger)
 		{
 			_outputDir ??= DirectoryReference.Combine(ServerApp.AppDir, "Schemas");
 
-			JsonSchemaCache schemaCache = new JsonSchemaCache(new PluginCollection());
+			JsonSchemaCache schemaCache = new JsonSchemaCache(_pluginCollection);
 
 			DirectoryReference.CreateDirectory(_outputDir);
 			foreach (Type schemaType in SchemaController.ConfigSchemas)

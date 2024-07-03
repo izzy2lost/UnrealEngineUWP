@@ -3,6 +3,7 @@
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using EpicGames.Horde;
+using HordeServer.Utilities;
 using Microsoft.Extensions.Configuration;
 
 namespace HordeAgent
@@ -82,6 +83,8 @@ namespace HordeAgent
 	/// <summary>
 	/// Global settings for the agent
 	/// </summary>
+	[ConfigDoc("Agent.json (Agent)", "Deployment/AgentSettings.md", "[Horde](../../README.md) > [Deployment](../Deployment.md) > [Agent](Agent.md)",
+		Introduction = "All Horde-specific settings are stored in a root object called `Horde`. Other .NET functionality may be configured using properties in the root of this file.")]
 	public class AgentSettings
 	{
 		/// <summary>

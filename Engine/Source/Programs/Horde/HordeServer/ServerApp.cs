@@ -185,6 +185,8 @@ namespace HordeServer
 			services.AddSingleton<IServerInfo>(serverInfo);
 
 			IPluginCollection pluginCollection = ConfigurePlugins();
+			services.AddSingleton<IPluginCollection>(pluginCollection);
+
 			foreach (Assembly pluginAssembly in pluginCollection.LoadedPlugins.Select(x => x.Assembly).Distinct())
 			{
 				services.AddCommandsFromAssembly(pluginAssembly);

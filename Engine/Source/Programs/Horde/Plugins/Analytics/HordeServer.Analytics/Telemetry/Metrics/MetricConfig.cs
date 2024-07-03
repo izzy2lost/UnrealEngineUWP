@@ -128,6 +128,7 @@ namespace HordeServer.Telemetry.Metrics
 	/// </summary>
 	[JsonSchema("https://unrealengine.com/horde/telemetry")]
 	[JsonSchemaCatalog("Horde Telemetry", "Horde telemetry configuration file", new[] { "*.telemetry.json", "*.metrics.json", "Metrics/*.json" })]
+	[ConfigDoc("*.telemetry.json", "[Horde](../../../README.md) > [Configuration](../../Config.md)", "Config/Schema/Telemetry.md")]
 	[ConfigIncludeRoot]
 	[ConfigMacroScope]
 	public class TelemetryStoreConfig
