@@ -215,6 +215,13 @@ namespace HordeServer
 			}
 		}
 
+		public Startup(IConfiguration configuration)
+		{
+			Configuration = configuration;
+		}
+
+		public IConfiguration Configuration { get; }
+
 		public static void BindServerSettings(IConfiguration configuration, ServerSettings settings)
 		{
 			IConfigurationSection hordeSection = configuration.GetSection("Horde");
@@ -252,12 +259,13 @@ namespace HordeServer
 			}
 		}
 
-		public static void ConfigureServices(IConfiguration configuration, IServiceCollection services)
+		// This method gets called *multiple times* by the runtime. Use this method to add services to the container.
+		public void ConfigureServices(IServiceCollection services)
 		{
 			services.AddSingleton<JsonSchemaCache>();
 
 			// IOptionsMonitor pattern for live updating of configuration settings
-			services.Configure<ServerSettings>(x => BindServerSettings(configuration, x));
+			services.Configure<ServerSettings>(x => BindServerSettings(Configuration, x));
 
 			// We may upload a large number of references with posts to storage endpoints. Increase the max number of form values to allow this (the default is 1024).
 			services.Configure<FormOptions>(options =>
@@ -267,9 +275,9 @@ namespace HordeServer
 
 			// Bind the settings again for local variable access in this method
 			ServerSettings settings = new();
-			BindServerSettings(configuration, settings);
+			BindServerSettings(Configuration, settings);
 
-			ServerInfo serverInfo = new ServerInfo(configuration, Options.Create(settings));
+			ServerInfo serverInfo = new ServerInfo(Configuration, Options.Create(settings));
 			services.AddSingleton<IServerInfo>(serverInfo);
 
 			// Register the plugin collection
@@ -284,7 +292,7 @@ namespace HordeServer
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin services
-			IConfigurationSection pluginsConfig = configuration.GetSection("Horde").GetSection("Plugins");
+			IConfigurationSection pluginsConfig = Configuration.GetSection("Horde").GetSection("Plugins");
 			foreach (ILoadedPlugin plugin in pluginCollection.LoadedPlugins)
 			{
 				IConfigurationSection pluginConfig = pluginsConfig.GetSection(plugin.Name.ToString());
@@ -1072,7 +1080,8 @@ namespace HordeServer
 
 		public static void AddServices(IServiceCollection serviceCollection, IConfiguration configuration)
 		{
-			Startup.ConfigureServices(configuration, serviceCollection);
+			Startup startup = new Startup(configuration);
+			startup.ConfigureServices(serviceCollection);
 			serviceCollection.AddSingleton<IHostApplicationLifetime, HostApplicationLifetime>();
 		}
 
