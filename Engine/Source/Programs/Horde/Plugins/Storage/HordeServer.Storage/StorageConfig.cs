@@ -56,6 +56,12 @@ namespace HordeServer.Storage
 	public class StorageConfig : IPluginConfig
 	{
 		/// <summary>
+		/// ACL for the storage system
+		/// </summary>
+		[JsonIgnore]
+		public AclConfig Acl { get; set; } = null!;
+
+		/// <summary>
 		/// Hash of the current object revision to allow detecting changes
 		/// </summary>
 		[JsonIgnore]
@@ -89,6 +95,8 @@ namespace HordeServer.Storage
 		/// </summary>
 		public void PostLoad(PluginConfigOptions configOptions)
 		{
+			Acl = configOptions.ParentAcl;
+
 			// Create a lookup for backend configs, allowing later entries to override previous ones
 			_backendLookup.Clear();
 			foreach (BackendConfig backendConfig in Backends)
