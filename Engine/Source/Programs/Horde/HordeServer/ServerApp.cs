@@ -180,6 +180,7 @@ namespace HordeServer
 			services.AddSingleton<IConfiguration>(config);
 			services.AddSingleton<ServerSettings>(serverSettings);
 			services.Configure<ServerSettings>(x => Startup.BindServerSettings(config, x));
+			services.AddTransient<IServerStartup, Startup>();
 
 			ServerInfo serverInfo = new ServerInfo(config, Options.Create(serverSettings));
 			services.AddSingleton<IServerInfo>(serverInfo);

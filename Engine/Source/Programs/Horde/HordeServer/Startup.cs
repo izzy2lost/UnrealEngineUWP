@@ -90,7 +90,7 @@ namespace HordeServer
 	using ContentHash = EpicGames.Core.ContentHash;
 	using ILogger = Microsoft.Extensions.Logging.ILogger;
 
-	class Startup
+	class Startup : IServerStartup
 	{
 		static Startup()
 		{

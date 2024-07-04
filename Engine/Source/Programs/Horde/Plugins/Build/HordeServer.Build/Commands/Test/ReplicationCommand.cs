@@ -12,6 +12,7 @@ using HordeServer.Streams;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace HordeServer.Commands.Test
 {
@@ -34,27 +35,32 @@ namespace HordeServer.Commands.Test
 		public bool Clean { get; set; }
 
 		readonly IConfiguration _configuration;
+		readonly IServerStartup _serverStartup;
 		readonly ILoggerProvider _loggerProvider;
 
-		public TestReplicationCommand(IConfiguration configuration, ILoggerProvider loggerProvider)
+		public TestReplicationCommand(IConfiguration configuration, IServerStartup serverStartup, ILoggerProvider loggerProvider)
 		{
 			_configuration = configuration;
+			_serverStartup = serverStartup;
 			_loggerProvider = loggerProvider;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			ServiceCollection serviceCollection = Startup.CreateServiceCollection(_configuration, _loggerProvider);
+			ServiceCollection serviceCollection = new ServiceCollection();
+			serviceCollection.AddSingleton(_configuration);
+			serviceCollection.AddSingleton(_loggerProvider);
+			_serverStartup.ConfigureServices(serviceCollection);
+
 			await using ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider();
 
-			ConfigService configService = serviceProvider.GetRequiredService<ConfigService>();
-			GlobalConfig globalConfig = await configService.WaitForInitialConfigAsync();
+			BuildConfig buildConfig = serviceProvider.GetRequiredService<IOptionsMonitor<BuildConfig>>().CurrentValue;
 
 			PerforceReplicator perforceReplicator = serviceProvider.GetRequiredService<PerforceReplicator>();
 			IStreamCollection streamCollection = serviceProvider.GetRequiredService<IStreamCollection>();
 
 			StreamConfig? streamConfig;
-			if (!globalConfig.Plugins.GetBuildConfig().TryGetStream(new StreamId(StreamId), out streamConfig))
+			if (!buildConfig.TryGetStream(new StreamId(StreamId), out streamConfig))
 			{
 				throw new FatalErrorException($"Stream '{StreamId}' not found");
 			}
@@ -79,7 +85,7 @@ namespace HordeServer.Commands.Test
 			}
 
 			PerforceReplicationOptions options = new PerforceReplicationOptions();
-			await perforceReplicator.RunOnceAsync(replicator, globalConfig.Plugins.GetBuildConfig(), streamConfig, options, default);
+			await perforceReplicator.RunOnceAsync(replicator, buildConfig, streamConfig, options, default);
 
 			return 0;
 		}
