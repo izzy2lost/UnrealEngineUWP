@@ -52,6 +52,8 @@ namespace HordeServer
 			services.AddSingleton<IPoolCollection, PoolCollection>();
 			services.AddSingleton<ISessionCollection, SessionCollection>();
 
+			services.AddSingleton<IAgentVersionProvider, AgentVersionProvider>();
+
 			services.AddSingleton<AgentService>();
 			services.AddSingleton(provider => new Lazy<AgentService>(provider.GetRequiredService<AgentService>));
 
