@@ -29,9 +29,5 @@ public:
 	/** Returns delegate to build the default Transition Tree */
 	virtual FOnBuildDefaultTransitionTree& GetOnBuildDefaultTransitionTree() = 0;
 
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnCompileTransitionTree, UAvaTransitionTreeEditorData&);
-	/** Returns multicast delegate to extend Transition Tree Compilation. Only called when compiling in non-Advanced mode */
-	virtual FOnCompileTransitionTree& GetOnCompileTransitionTree() = 0;
-
 	virtual void GenerateTransitionTreeOptionsMenu(UToolMenu* InMenu, IAvaTransitionBehavior* InTransitionBehavior) = 0;
 };

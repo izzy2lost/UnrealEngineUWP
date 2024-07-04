@@ -59,11 +59,6 @@ IAvaTransitionEditorModule::FOnBuildDefaultTransitionTree& FAvaTransitionEditorM
 	return OnBuildDefaultTransitionTree;
 }
 
-IAvaTransitionEditorModule::FOnCompileTransitionTree& FAvaTransitionEditorModule::GetOnCompileTransitionTree()
-{
-	return OnCompileTransitionTree;
-}
-
 void FAvaTransitionEditorModule::GenerateTransitionTreeOptionsMenu(UToolMenu* InMenu, IAvaTransitionBehavior* InTransitionBehavior)
 {
 	if (!InMenu || !InTransitionBehavior)

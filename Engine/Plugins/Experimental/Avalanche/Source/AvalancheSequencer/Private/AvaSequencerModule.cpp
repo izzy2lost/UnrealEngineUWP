@@ -32,7 +32,6 @@
 #include "SequencerCustomizationManager.h"
 #include "SequencerSettings.h"
 #include "Settings/AvaSequencerSettings.h"
-#include "Transition/AvaSequenceTransitionCompiler.h"
 
 #define LOCTEXT_NAMESPACE "AvaSequencerModule"
 
@@ -57,8 +56,6 @@ void FAvaSequencerModule::StartupModule()
 	RegisterCustomLayouts();
 	RegisterDirectorCompiler();
 
-	FAvaSequenceTransitionCompiler::Get().Register();
-
 	EditorInitializedDelegate = FEditorDelegates::OnEditorInitialized.AddRaw(this, &FAvaSequencerModule::OnEditorInitialized);
 }
 
@@ -82,8 +79,6 @@ void FAvaSequencerModule::ShutdownModule()
 
 	UnregisterOutlinerItems();
 	UnregisterCustomLayouts();
-
-	FAvaSequenceTransitionCompiler::Get().Unregister();
 
 	FEditorDelegates::OnEditorInitialized.Remove(EditorInitializedDelegate);
 }

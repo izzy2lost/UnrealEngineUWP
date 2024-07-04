@@ -100,6 +100,8 @@ private:
 
 	void UnbindDelegates();
 
+	void OnPostCompile(const UStateTree& InStateTree);
+
 	void OnIdentifierChanged(const UStateTree& InStateTree);
 
 	void OnSchemaChanged(const UStateTree& InStateTree);

@@ -188,6 +188,8 @@ void FAvaTransitionEditorViewModel::OnInitialize()
 	{
 		ViewModelSharedData->SetReadOnly(Editor->IsReadOnly());
 	}
+
+	UE::StateTree::Delegates::OnPostCompile.AddSP(This, &FAvaTransitionEditorViewModel::OnPostCompile);
 }
 
 void FAvaTransitionEditorViewModel::PostRefresh()
@@ -268,6 +270,15 @@ void FAvaTransitionEditorViewModel::UnbindDelegates()
 
 	UE::StateTree::Delegates::OnIdentifierChanged.RemoveAll(this);
 	UE::StateTree::Delegates::OnSchemaChanged.RemoveAll(this);
+}
+
+void FAvaTransitionEditorViewModel::OnPostCompile(const UStateTree& InStateTree)
+{
+	if (&InStateTree == GetTransitionTree())
+	{
+		// Full refresh on compile
+		Refresh();
+	}
 }
 
 void FAvaTransitionEditorViewModel::OnIdentifierChanged(const UStateTree& InStateTree)

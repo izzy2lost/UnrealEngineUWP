@@ -16,7 +16,6 @@ class FAvaTransitionEditorModule : public IAvaTransitionEditorModule
 
 	//~ Begin IAvaTransitionEditorModule
 	virtual FOnBuildDefaultTransitionTree& GetOnBuildDefaultTransitionTree() override;
-	virtual FOnCompileTransitionTree& GetOnCompileTransitionTree() override;
 	virtual void GenerateTransitionTreeOptionsMenu(UToolMenu* InMenu, IAvaTransitionBehavior* InTransitionBehavior) override;
 	//~ End IAvaTransitionEditorModule
 
@@ -25,8 +24,6 @@ class FAvaTransitionEditorModule : public IAvaTransitionEditorModule
 	void OnPostCompile(const UStateTree& InStateTree);
 
 	FOnBuildDefaultTransitionTree OnBuildDefaultTransitionTree;
-
-	FOnCompileTransitionTree OnCompileTransitionTree;
 
 	FDelegateHandle OnPostCompileHandle;
 };
