@@ -69,6 +69,7 @@ namespace UE::ConcertSharedSlate
 						InArgs._LeftOfObjectSearchBar.Widget
 					]
 				]
+				.RightOfObjectSearchBar() [ InArgs._RightOfObjectSearchBar.Widget ]
 				.GetHoveredRowContent(this, &SBaseReplicationStreamEditor::MakeHoveredRowContent)
 				.NoOutlinerObjects(LOCTEXT("NoObjects", "Add objects to replicate"))
 		];
