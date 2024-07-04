@@ -127,5 +127,8 @@ namespace uba
 		Timer m_decryptTimer;
 
 		friend NetworkMessage;
+
+		NetworkClient(const NetworkClient&) = delete;
+		NetworkClient& operator=(const NetworkClient&) = delete;
 	};
 }

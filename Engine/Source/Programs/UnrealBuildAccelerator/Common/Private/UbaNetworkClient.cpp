@@ -183,9 +183,9 @@ namespace uba
 		SCOPED_WRITE_LOCK(m_onConnectedFunctionsLock, lock);
 		for (auto& f : m_onConnectedFunctions)
 			f();
+		m_isConnected.Set();
 		lock.Leave();
 
-		m_isConnected.Set();
 		return true;
 	}
 
@@ -358,7 +358,7 @@ namespace uba
 	{
 		SCOPED_WRITE_LOCK(m_onConnectedFunctionsLock, lock);
 		m_onConnectedFunctions.push_back(function);
-		if (m_connectionCount.load() == 0)
+		if (!m_isConnected.IsSet(0))
 			return;
 		lock.Leave();
 		function();
