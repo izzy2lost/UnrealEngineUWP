@@ -441,7 +441,12 @@ namespace uba
 		SCOPED_WRITE_LOCK(m_connectionsItLock, connectionItLock);
 		if (m_connectionsIt == m_connections.end())
 		{
-			message.m_error = 6;
+			if (m_isDisconnecting)
+				message.m_error = 11;
+			else if (!m_connections.empty())
+				message.m_error = 12; // should never happen
+			else
+				message.m_error = 6;
 			return false;
 		}
 
