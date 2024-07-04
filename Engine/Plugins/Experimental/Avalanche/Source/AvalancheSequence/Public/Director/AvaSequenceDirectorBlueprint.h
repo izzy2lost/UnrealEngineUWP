@@ -16,11 +16,9 @@ class UAvaSequenceDirectorBlueprint : public UBlueprint
 public:
 	AVALANCHESEQUENCE_API TConstArrayView<FAvaSequenceInfo> GetSequenceInfos();
 
-#if WITH_EDITOR
-	bool OnOuterWorldRenamed(const TCHAR* InName, UObject* InNewOuter, ERenameFlags InRenameFlags);
-
 protected:
 	//~ Begin UBlueprint
+#if WITH_EDITOR
 	virtual UClass* GetBlueprintClass() const override;
 	virtual void GetReparentingRules(TSet<const UClass*>& OutAllowedChildrenOfClasses, TSet<const UClass*>& OutDisallowedChildrenOfClasses) const override;
 #endif

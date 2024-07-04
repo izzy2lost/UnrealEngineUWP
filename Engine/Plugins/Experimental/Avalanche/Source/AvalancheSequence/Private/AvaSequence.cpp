@@ -622,17 +622,11 @@ FGuid UAvaSequence::FindGuidFromObject(UObject* InObject)
 }
 
 #if WITH_EDITOR
-void UAvaSequence::OnOuterWorldRenamed(const TCHAR* InName, UObject* InNewOuter, ERenameFlags InFlags, bool& bOutShouldFailRename)
+void UAvaSequence::OnOuterWorldRenamed(UObject* InNewOuter)
 {
-	if (!DirectorBlueprint)
+	if (DirectorBlueprint)
 	{
-		return;
-	}
-
-	UAvaSequenceDirectorBlueprint* Director = CastChecked<UAvaSequenceDirectorBlueprint>(DirectorBlueprint);
-	if (!Director->OnOuterWorldRenamed(InName, InNewOuter, InFlags))
-	{
-		bOutShouldFailRename = true;
+		DirectorBlueprint->Rename(*GetDirectorBlueprintName(), InNewOuter, REN_DontCreateRedirectors);
 	}
 }
 #endif

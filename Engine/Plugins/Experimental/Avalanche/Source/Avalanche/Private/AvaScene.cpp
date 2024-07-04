@@ -81,7 +81,7 @@ AAvaScene::AAvaScene()
 #if WITH_EDITOR
 	if (!HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
 	{
-		PreWorldRenameDelegate = FWorldDelegates::OnPreWorldRename.AddUObject(this, &AAvaScene::OnWorldRenamed);
+		PreWorldRenameDelegate = FWorldDelegates::OnPostWorldRename.AddUObject(this, &AAvaScene::OnWorldRenamed);
 		WorldTagGetterDelegate = UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.AddUObject(this, &AAvaScene::OnGetWorldTags);
 	}
 #endif
@@ -113,7 +113,7 @@ IAvaSequencePlaybackObject* AAvaScene::GetScenePlayback() const
 }
 
 #if WITH_EDITOR
-void AAvaScene::OnWorldRenamed(UWorld* InWorld, const TCHAR* InName, UObject* InNewOuter, ERenameFlags InFlags, bool& bOutShouldFailRename)
+void AAvaScene::OnWorldRenamed(UWorld* InWorld)
 {
 	if (FUObjectThreadContext::Get().IsRoutingPostLoad || InWorld != GetWorld())
 	{
@@ -124,7 +124,7 @@ void AAvaScene::OnWorldRenamed(UWorld* InWorld, const TCHAR* InName, UObject* In
 	{
 		if (Sequence)
 		{
-			Sequence->OnOuterWorldRenamed(InName, InNewOuter, InFlags, bOutShouldFailRename);
+			Sequence->OnOuterWorldRenamed(this);
 		}
 	}
 }

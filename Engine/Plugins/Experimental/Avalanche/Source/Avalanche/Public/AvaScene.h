@@ -39,7 +39,7 @@ public:
 #if WITH_EDITOR
 	TArray<uint8>& GetOutlinerData() { return OutlinerData; }
 
-	void OnWorldRenamed(UWorld* InWorld, const TCHAR* InName, UObject* InNewOuter, ERenameFlags InFlags, bool& bOutShouldFailRename);
+	void OnWorldRenamed(UWorld* InWorld);
 
 	void OnGetWorldTags(FAssetRegistryTagsContext Context) const;
 #endif

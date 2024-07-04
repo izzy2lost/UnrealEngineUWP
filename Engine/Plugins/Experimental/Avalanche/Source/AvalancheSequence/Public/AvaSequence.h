@@ -139,7 +139,7 @@ public:
 	FGuid FindGuidFromObject(UObject* InObject);
 
 #if WITH_EDITOR
-	void OnOuterWorldRenamed(const TCHAR* InName, UObject* InNewOuter, ERenameFlags InFlags, bool& bOutShouldFailRename);
+	void OnOuterWorldRenamed(UObject* InNewOuter);
 #endif
 
 	void OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources);

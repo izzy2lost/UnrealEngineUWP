@@ -11,39 +11,6 @@ TConstArrayView<FAvaSequenceInfo> UAvaSequenceDirectorBlueprint::GetSequenceInfo
 }
 
 #if WITH_EDITOR
-bool UAvaSequenceDirectorBlueprint::OnOuterWorldRenamed(const TCHAR* InName, UObject* InNewOuter, ERenameFlags InRenameFlags)
-{
-	const bool bIsRenameTest = (InRenameFlags & REN_Test);
-
-	TArray<UObject*> LastEditedDocumentsObjects;
-	if (!bIsRenameTest)
-	{
-		LastEditedDocumentsObjects.Reserve(LastEditedDocuments.Num());
-		for (const FEditedDocumentInfo& LastEditedDocument : LastEditedDocuments)
-		{
-			LastEditedDocumentsObjects.Add(LastEditedDocument.EditedObjectPath.ResolveObject());
-		}
-	}
-
-	if (!RenameGeneratedClasses(InName, InNewOuter, InRenameFlags))
-	{
-		return false;
-	}
-
-	if (!bIsRenameTest)
-	{
-		for (int32 DocumentIndex = 0; DocumentIndex < LastEditedDocuments.Num(); ++DocumentIndex)
-		{
-			if (LastEditedDocumentsObjects[DocumentIndex])
-			{
-				LastEditedDocuments[DocumentIndex].EditedObjectPath = LastEditedDocumentsObjects[DocumentIndex];
-			}
-		}
-	}
-
-	return true;
-}
-
 UClass* UAvaSequenceDirectorBlueprint::GetBlueprintClass() const
 {
 	return UAvaSequenceDirectorGeneratedClass::StaticClass();
