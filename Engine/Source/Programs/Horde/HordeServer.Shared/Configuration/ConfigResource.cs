@@ -29,8 +29,23 @@ namespace HordeServer.Configuration
 	/// <summary>
 	/// Serializer for <see cref="ConfigResource"/> objects
 	/// </summary>
-	class ConfigResourceSerializer : JsonConverter<ConfigResource>
+	public class ConfigResourceSerializer : JsonConverter<ConfigResource>
 	{
+		readonly bool _withData;
+
+		/// <summary>
+		/// Explicit default constructor (cannot use default argument with JsonSerializer)
+		/// </summary>
+		public ConfigResourceSerializer()
+			: this(true) { }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="withData">Whether to include data in serialized resource objects</param>
+		public ConfigResourceSerializer(bool withData)
+			=> _withData = withData;
+
 		/// <inheritdoc/>
 		public override ConfigResource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 		{
@@ -50,7 +65,7 @@ namespace HordeServer.Configuration
 							reader.Read();
 							resource.Path = reader.GetString();
 						}
-						else if (reader.ValueTextEquals(nameof(ConfigResource.Data)))
+						else if (reader.ValueTextEquals(nameof(ConfigResource.Data)) && _withData)
 						{
 							reader.Read();
 							resource.Data = reader.GetBytesFromBase64();
@@ -68,7 +83,7 @@ namespace HordeServer.Configuration
 		/// <inheritdoc/>
 		public override void Write(Utf8JsonWriter writer, ConfigResource resource, JsonSerializerOptions options)
 		{
-			if (resource.Data.Length == 0)
+			if (resource.Data.Length == 0 || !_withData)
 			{
 				writer.WriteStringValue(resource.Path);
 			}

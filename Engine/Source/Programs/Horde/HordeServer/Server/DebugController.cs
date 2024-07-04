@@ -20,7 +20,6 @@ using Horde.Common.Rpc;
 using HordeServer.Agents.Relay;
 using HordeServer.Configuration;
 using HordeServer.Logs;
-using HordeServer.Projects;
 using HordeServer.Utilities;
 using JetBrains.Profiler.SelfApi;
 using Microsoft.AspNetCore.Authorization;
@@ -145,13 +144,7 @@ namespace HordeServer.Server
 
 			// Duplicate the config, so we can redact stuff that we don't want to return through the browser
 			byte[] data = _configService.Serialize(_globalConfig.Value);
-			GlobalConfig config = _configService.Deserialize(data)!;
-
-			foreach (ProjectConfig project in config.Plugins.GetBuildConfig().Projects)
-			{
-				project.Logo = null;
-			}
-
+			GlobalConfig config = _configService.Deserialize(data, false)!;
 			return config;
 		}
 

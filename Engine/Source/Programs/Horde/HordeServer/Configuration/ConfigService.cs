@@ -723,9 +723,12 @@ namespace HordeServer.Configuration
 			return JsonSerializer.SerializeToUtf8Bytes(config, _jsonOptions);
 		}
 
-		internal GlobalConfig? Deserialize(byte[] data)
+		internal GlobalConfig? Deserialize(byte[] data, bool withData)
 		{
-			return JsonSerializer.Deserialize<GlobalConfig>(data, _jsonOptions);
+			JsonSerializerOptions options = new JsonSerializerOptions(_jsonOptions);
+			options.Converters.Add(new ConfigResourceSerializer(withData));
+
+			return JsonSerializer.Deserialize<GlobalConfig>(data, options);
 		}
 
 		/// <summary>
