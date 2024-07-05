@@ -20,6 +20,7 @@ namespace HordeServer.Server
 	/// </summary>
 	[ApiController]
 	[Authorize]
+	[CppApi]
 	[Route("[controller]")]
 	public class ServerController : HordeControllerBase
 	{

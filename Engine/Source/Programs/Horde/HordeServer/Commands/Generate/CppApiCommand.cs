@@ -4,14 +4,15 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
-using HordeServer.Projects;
-using HordeServer.Server;
+using HordeServer.Plugins;
+using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -24,12 +25,6 @@ namespace HordeServer.Commands.Generate
 		record class ApiTypeInfo(string Name, Type Type, string Description, List<ApiPropertyInfo> Properties);
 		record class ApiGroupInfo(string Name, Dictionary<Type, ApiTypeInfo> Types);
 
-		static readonly Type[] s_controllerTypes = new Type[]
-		{
-			typeof(ServerController),
-			typeof(ProjectsController)
-		};
-
 		static readonly string[] s_boilerplateLines = new[]
 		{
 			"// ---------------------------------------------------------------------------------------------------",
@@ -41,6 +36,13 @@ namespace HordeServer.Commands.Generate
 		[CommandLine("-OutputDir=")]
 		[Description("Specifies the output directory for generated files.")]
 		public DirectoryReference? OutputDir { get; set; }
+
+		readonly IPluginCollection _pluginCollection;
+
+		public CppApiCommand(IPluginCollection pluginCollection)
+		{
+			_pluginCollection = pluginCollection;
+		}
 
 		public override Task<int> ExecuteAsync(ILogger logger)
 		{
@@ -58,11 +60,22 @@ namespace HordeServer.Commands.Generate
 				OutputDir = defaultHordeDir;
 			}
 
+			// Find all the assemblies containing potential controller types
+			HashSet<Assembly> inputAssemblies = new HashSet<Assembly>();
+			inputAssemblies.Add(Assembly.GetExecutingAssembly());
+			inputAssemblies.UnionWith(_pluginCollection.LoadedPlugins.Select(x => x.Assembly));
+
 			// Find all the referenced types from each controller
 			HashSet<Type> inputTypes = new HashSet<Type>();
-			foreach (Type controllerType in s_controllerTypes)
+			foreach (Assembly inputAssembly in inputAssemblies)
 			{
-				FindTypesFromController(controllerType, inputTypes);
+				foreach (Type exportedType in inputAssembly.GetExportedTypes())
+				{
+					if (exportedType.GetCustomAttribute<CppApiAttribute>() != null)
+					{
+						FindTypesFromController(exportedType, inputTypes);
+					}
+				}
 			}
 
 			// Create all the types 
