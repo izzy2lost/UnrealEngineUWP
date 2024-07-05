@@ -21,6 +21,7 @@ using HordeServer.Logs;
 using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Tasks;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -42,6 +43,18 @@ namespace HordeServer
 		{
 			_serverInfo = serverInfo;
 			_staticComputeConfig = staticComputeConfig;
+		}
+
+		/// <inheritdoc/>
+		public void Configure(IApplicationBuilder app)
+		{
+			app.UseEndpoints(endpoints =>
+			{
+				endpoints.MapGrpcService<RpcService>();
+				endpoints.MapGrpcService<LogRpcService>();
+				endpoints.MapGrpcService<AgentRelayService>();
+				endpoints.MapGrpcService<EnrollmentRpc>();
+			});
 		}
 
 		/// <inheritdoc/>

@@ -5,6 +5,7 @@ using EpicGames.Core;
 using HordeServer.Acls;
 using HordeServer.Plugins;
 using HordeServer.Tools;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HordeServer
@@ -15,6 +16,10 @@ namespace HordeServer
 	[Plugin("Tools", GlobalConfigType = typeof(ToolsConfig), ServerConfigType = typeof(ToolsServerConfig))]
 	public class ToolsPlugin : IPluginStartup
 	{
+		/// <inheritdoc/>
+		public void Configure(IApplicationBuilder app)
+		{ }
+
 		/// <inheritdoc/>
 		public void ConfigureServices(IServiceCollection services)
 		{

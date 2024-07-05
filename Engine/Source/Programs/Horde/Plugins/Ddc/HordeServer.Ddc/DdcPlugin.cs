@@ -2,6 +2,7 @@
 
 using HordeServer.Ddc;
 using HordeServer.Plugins;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HordeServer
@@ -12,6 +13,10 @@ namespace HordeServer
 	[Plugin("Ddc")]
 	public class DdcPlugin : IPluginStartup
 	{
+		/// <inheritdoc/>
+		public void Configure(IApplicationBuilder app)
+		{ }
+
 		/// <inheritdoc/>
 		public void ConfigureServices(IServiceCollection services)
 		{

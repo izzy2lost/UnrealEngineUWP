@@ -11,6 +11,7 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.ObjectStores;
 using HordeServer.Plugins;
 using HordeServer.Storage.ObjectStores;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -31,6 +32,10 @@ namespace HordeServer.Storage
 			_serverInfo = serverInfo;
 			_staticConfig = staticConfig;
 		}
+
+		/// <inheritdoc/>
+		public void Configure(IApplicationBuilder app)
+		{ }
 
 		/// <inheritdoc/>
 		public void ConfigureServices(IServiceCollection services)

@@ -3,6 +3,7 @@
 using HordeServer.Plugins;
 using HordeServer.Secrets;
 using HordeServer.Secrets.Providers;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HordeServer
@@ -13,6 +14,10 @@ namespace HordeServer
 	[Plugin("Secrets", GlobalConfigType = typeof(SecretsConfig))]
 	public class SecretsPlugin : IPluginStartup
 	{
+		/// <inheritdoc/>
+		public void Configure(IApplicationBuilder app)
+		{ }
+
 		/// <inheritdoc/>
 		public void ConfigureServices(IServiceCollection services)
 		{

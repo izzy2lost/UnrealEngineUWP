@@ -14,6 +14,7 @@ using HordeServer.Agents.Pools;
 using HordeServer.Agents.Utilization;
 using HordeServer.Artifacts;
 using HordeServer.Commits;
+using HordeServer.Configuration;
 using HordeServer.Devices;
 using HordeServer.Issues;
 using HordeServer.Issues.External;
@@ -34,6 +35,7 @@ using HordeServer.Streams;
 using HordeServer.Tasks;
 using HordeServer.Ugs;
 using HordeServer.Users;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HordeServer
@@ -51,6 +53,15 @@ namespace HordeServer
 		{
 			_serverInfo = serverInfo;
 			_staticConfig = staticConfig;
+		}
+
+		/// <inheritdoc/>
+		public void Configure(IApplicationBuilder app)
+		{
+			app.UseEndpoints(endpoints =>
+			{
+				endpoints.MapGrpcService<JobRpcService>();
+			});
 		}
 
 		/// <inheritdoc/>
@@ -91,6 +102,11 @@ namespace HordeServer
 			services.AddSingleton<UnsyncCache>();
 
 			services.AddSingleton<ScheduleService>();
+
+			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
+			services.AddSingleton<IDeviceCollection, DeviceCollection>();
+
+			services.AddSingleton<IConfigSource, PerforceConfigSource>();
 
 			// Notifications can be triggered from any instance, so always make sure we're ticking the background task.
 			services.AddHostedService(provider => (NotificationService)provider.GetRequiredService<INotificationService>());

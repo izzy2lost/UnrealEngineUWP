@@ -9,6 +9,7 @@ using HordeServer.Plugins;
 using HordeServer.Telemetry;
 using HordeServer.Telemetry.Metrics;
 using HordeServer.Telemetry.Sinks;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,6 +21,10 @@ namespace HordeServer
 	[Plugin("Analytics", GlobalConfigType = typeof(AnalyticsConfig), ServerConfigType = typeof(AnalyticsServerConfig))]
 	public class AnalyticsPlugin : IPluginStartup
 	{
+		/// <inheritdoc/>
+		public void Configure(IApplicationBuilder app)
+		{ }
+
 		/// <inheritdoc/>
 		public void ConfigureServices(IServiceCollection services)
 		{

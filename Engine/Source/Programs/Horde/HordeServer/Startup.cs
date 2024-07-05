@@ -29,17 +29,10 @@ using Grpc.Core.Interceptors;
 using HordeCommon;
 using HordeServer.Accounts;
 using HordeServer.Acls;
-using HordeServer.Agents.Enrollment;
-using HordeServer.Agents.Relay;
 using HordeServer.Auditing;
 using HordeServer.Authentication;
 using HordeServer.Configuration;
 using HordeServer.Dashboard;
-using HordeServer.Devices;
-using HordeServer.Jobs;
-using HordeServer.Logs;
-using HordeServer.Notifications;
-using HordeServer.Perforce;
 using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Server.Notices;
@@ -346,14 +339,11 @@ namespace HordeServer
 			services.AddSingleton<IAccountCollection, AccountCollection>();
 			services.AddSingleton<IServiceAccountCollection, ServiceAccountCollection>();
 			services.AddSingleton<IUserCollection, UserCollectionV2>();
-			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
-			services.AddSingleton<IDeviceCollection, DeviceCollection>();
 			services.AddSingleton<INoticeCollection, NoticeCollection>();
 			services.AddSingleton<IDashboardPreviewCollection, DashboardPreviewCollection>();
 
 			services.AddSingleton<IConfigSource, InMemoryConfigSource>();
 			services.AddSingleton<IConfigSource, FileConfigSource>();
-			services.AddSingleton<IConfigSource, PerforceConfigSource>();
 
 			services.AddSingleton<ConfigService>();
 			services.AddSingleton<IConfigService>(sp => sp.GetRequiredService<ConfigService>());
@@ -957,11 +947,6 @@ namespace HordeServer
 			app.UseEndpoints(endpoints =>
 			{
 				endpoints.MapGrpcService<HealthService>();
-				endpoints.MapGrpcService<RpcService>();
-				endpoints.MapGrpcService<JobRpcService>();
-				endpoints.MapGrpcService<LogRpcService>();
-				endpoints.MapGrpcService<AgentRelayService>();
-				endpoints.MapGrpcService<EnrollmentRpc>();
 
 				endpoints.MapGrpcReflectionService();
 
@@ -973,6 +958,11 @@ namespace HordeServer
 			if (DirectoryReference.Exists(dashboardDir))
 			{
 				app.MapWhen(IsSpaRequest, builder => builder.UseSpa(spa => spa.Options.SourcePath = "DashboardApp"));
+			}
+
+			foreach (IPluginStartup pluginStartup in app.ApplicationServices.GetRequiredService<IEnumerable<IPluginStartup>>())
+			{
+				pluginStartup.Configure(app);
 			}
 
 			if (settings.Value.OpenBrowser && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
