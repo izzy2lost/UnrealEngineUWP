@@ -86,14 +86,11 @@ UWidgetPreview* UWidgetPreviewEditor::CreatePreviewForWidget(const UUserWidget* 
 	FString PackageName;
 	AssetToolsModule.Get().CreateUniqueAssetName(DesiredPackagePath, DefaultSuffix, PackageName, AssetName);
 
-	UPackage* Package = CreatePackage(*PackageName);
-	Package->SetPackageFlags(PKG_NewlyCreated);
-
 	EObjectFlags Flags = RF_Public | RF_Standalone;
 	UWidgetPreview* NewWidgetPreview = CastChecked<UWidgetPreview>(
 		Factory->FactoryCreateNew(
 			UWidgetPreview::StaticClass(),
-			Package,
+			GetTransientPackage(),
 			*AssetName,
 			Flags,
 			nullptr,

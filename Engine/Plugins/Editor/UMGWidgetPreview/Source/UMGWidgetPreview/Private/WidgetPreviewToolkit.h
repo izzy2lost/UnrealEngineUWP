@@ -34,7 +34,7 @@ namespace UE::UMGWidgetPreview::Private
 
 	/** Encapsulates the state needed to run the preview world. */
 	class FWidgetPreviewScene
-	: public FTickableEditorObject
+		: public FTickableEditorObject
 	{
 	public:
 		explicit FWidgetPreviewScene(const TSharedRef<FWidgetPreviewToolkit>& InPreviewToolkit);
@@ -88,6 +88,9 @@ namespace UE::UMGWidgetPreview::Private
 	struct FWidgetPreviewToolkitBackgroundState : FWidgetPreviewToolkitPausedState
 	{
 		FWidgetPreviewToolkitBackgroundState();
+
+		virtual void OnEnter(const FWidgetPreviewToolkitStateBase* InFromState) override;
+		virtual void OnExit(const FWidgetPreviewToolkitStateBase* InToState) override;
 	};
 
 	struct FWidgetPreviewToolkitUnsupportedWidgetState : FWidgetPreviewToolkitPausedState
@@ -122,9 +125,9 @@ namespace UE::UMGWidgetPreview::Private
 	};
 
 	class FWidgetPreviewToolkit
-	: public FBaseAssetToolkit
-	  , public FGCObject
-	  , public IWidgetPreviewToolkit
+		: public FBaseAssetToolkit
+		, public FGCObject
+		, public IWidgetPreviewToolkit
 	{
 	public:
 		explicit FWidgetPreviewToolkit(UWidgetPreviewEditor* InOwningEditor);
@@ -139,6 +142,11 @@ namespace UE::UMGWidgetPreview::Private
 		virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
 		virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager) override;
 		virtual void PostInitAssetEditor() override;
+		virtual bool CanSaveAsset() const override;
+		virtual void SaveAsset_Execute() override;
+		virtual bool IsSaveAssetAsVisible() const override;
+		virtual void SaveAssetAs_Execute() override;
+		virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
 		//~ End FAssetEditorToolkit
 
 		//~ Begin IToolkit
@@ -160,7 +168,6 @@ namespace UE::UMGWidgetPreview::Private
 		virtual FOnStateChanged& OnStateChanged() override;
 		//~ End IWidgetPreviewToolkit
 
-		TSharedPtr<FWidgetBlueprintEditor> GetEditor() const;
 		TSharedPtr<FWidgetPreviewScene> GetPreviewScene();
 		UWorld* GetPreviewWorld();
 
@@ -192,7 +199,6 @@ namespace UE::UMGWidgetPreview::Private
 		TSharedRef<SDockTab> SpawnTab_MessageLog(const FSpawnTabArgs& Args);
 
 	private:
-		TWeakPtr<FWidgetBlueprintEditor> WeakEditor;
 		TObjectPtr<UWidgetPreview> Preview;
 
 		TSharedPtr<FWidgetPreviewScene> PreviewScene;

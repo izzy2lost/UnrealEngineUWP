@@ -3,6 +3,7 @@
 #include "WidgetPreviewToolkit.h"
 
 #include "DataValidationFixers.h"
+#include "FileHelpers.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "MessageLogModule.h"
@@ -177,6 +178,16 @@ namespace UE::UMGWidgetPreview::Private
 		StatusMessage = FTokenizedMessage::Create(EMessageSeverity::Info, LOCTEXT("WidgetPreviewToolkitBackgroundState_Message", "The widget preview is paused while the window is in the background. Re-focus to unpause."));
 	}
 
+	void FWidgetPreviewToolkitBackgroundState::OnEnter(const FWidgetPreviewToolkitStateBase* InFromState)
+	{
+		FWidgetPreviewToolkitPausedState::OnEnter(InFromState);
+	}
+
+	void FWidgetPreviewToolkitBackgroundState::OnExit(const FWidgetPreviewToolkitStateBase* InToState)
+	{
+		FWidgetPreviewToolkitPausedState::OnExit(InToState);
+	}
+
 	FWidgetPreviewToolkitUnsupportedWidgetState::FWidgetPreviewToolkitUnsupportedWidgetState()
 	{
 		Id = TEXT("UnsupportedWidget");
@@ -305,18 +316,22 @@ namespace UE::UMGWidgetPreview::Private
 
 	void FWidgetPreviewToolkit::RegisterToolbar()
 	{
+		FToolMenuOwnerScoped ToolMenuOwnerScope(this);
+
 		FName ParentName;
 		const FName MenuName = GetToolMenuToolbarName(ParentName);
 		UToolMenus* ToolMenus = UToolMenus::Get();
+		UToolMenu* ToolbarMenu = ToolMenus->ExtendMenu(MenuName);
 		if (!ToolMenus->IsMenuRegistered(MenuName))
 		{
-			FToolMenuOwnerScoped ToolMenuOwnerScope(this);
+			ToolbarMenu = ToolMenus->RegisterMenu(MenuName, ParentName, EMultiBoxType::ToolBar);
+		}
 
-			UToolMenu* ToolbarMenu = ToolMenus->RegisterMenu(MenuName, ParentName, EMultiBoxType::ToolBar);
+		FToolMenuInsert InsertAfterAssetSection("Asset", EToolMenuInsertType::After);
+		const FWidgetPreviewCommands& Commands = FWidgetPreviewCommands::Get();
 
-			FToolMenuInsert InsertAfterAssetSection("Asset", EToolMenuInsertType::After);
-			const FWidgetPreviewCommands& Commands = FWidgetPreviewCommands::Get();
-
+		// Preview Section
+		{
 			FToolMenuSection& PreviewSection = ToolbarMenu->FindOrAddSection(
 				"Preview",
 				{},
@@ -383,6 +398,146 @@ namespace UE::UMGWidgetPreview::Private
 		ResolveState();
 	}
 
+	bool FWidgetPreviewToolkit::CanSaveAsset() const
+	{
+		// We use the same logic here - if the outer package is transient, the only option is "SaveAs"
+		return IsSaveAssetVisible();
+	}
+
+	void FWidgetPreviewToolkit::SaveAsset_Execute()
+	{
+		TArray<UObject*> ObjectsToSave;
+		GetSaveableObjects(ObjectsToSave);
+
+		if (ObjectsToSave.Num() == 0)
+		{
+			return;
+		}
+
+		TArray<UObject*> SavedObjects;
+		SavedObjects.Reserve(ObjectsToSave.Num());
+
+		TArray<UPackage*> PackagesToSave;
+		bool bHasNewlyCreatedPackage = false;
+
+		TArray<UPackage*> PackagesToSaveAs;
+
+		for (UObject* Object : ObjectsToSave)
+		{
+			if (Object == nullptr)
+			{
+				// Log an invalid object but don't try to save it
+				UE_LOG(LogWidgetPreview, Log, TEXT("Invalid preview to save: %s"), (Object != nullptr) ? *Object->GetFullName() : TEXT("Null Object"));
+			}
+			else
+			{
+				SavedObjects.Add(Object);
+			}
+		}
+
+		FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, bCheckDirtyOnAssetSave, /*bPromptToSave=*/ bHasNewlyCreatedPackage);
+
+		OnAssetsSaved(SavedObjects);
+	}
+
+	bool FWidgetPreviewToolkit::IsSaveAssetAsVisible() const
+	{
+		// @note: usually this wouldn't appear when the asset belongs to the transient package
+		// We allow this so that the user has the option of saving it to an asset (non-transient package)
+		return true;
+	}
+
+	void FWidgetPreviewToolkit::SaveAssetAs_Execute()
+	{
+		TSharedPtr<IToolkitHost> MyToolkitHost = ToolkitHost.Pin();
+		if (!MyToolkitHost.IsValid())
+		{
+			return;
+		}
+
+		TArray<UObject*> ObjectsToSave;
+		GetSaveableObjects(ObjectsToSave);
+
+		if (ObjectsToSave.Num() == 0)
+		{
+			return;
+		}
+
+		TArray<UObject*> ObjectsToSaveWithoutPackage;
+		ObjectsToSaveWithoutPackage.Reserve(ObjectsToSave.Num());
+
+		// Temporarily set to Transient objects, so SaveAssetsAs will auto-populate the default path
+		for (UObject* Object : ObjectsToSave)
+		{
+			UPackage* Package = Object->GetPackage();
+			if (!Package || Package == GetTransientPackage())
+			{
+				Object->SetFlags(Object->GetFlags() | RF_Transient);
+				ObjectsToSaveWithoutPackage.Emplace(Object);
+			}
+		}
+
+		TArray<UObject*> SavedObjects;
+		FEditorFileUtils::SaveAssetsAs(ObjectsToSave, SavedObjects);
+
+		if (SavedObjects.Num() == 0)
+		{
+			// Error saving, or user closed the dialog. Restore objects to non-transient
+			for (UObject* Object : ObjectsToSaveWithoutPackage)
+            {
+				Object->ClearFlags(EObjectFlags::RF_Transient);
+            }
+
+			return;
+		}
+
+		// close existing asset editors for resaved assets
+		UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+
+		TArray<UObject*> ObjectsBeingEdited = GetEditingObjects();
+
+		// hack @see: FAssetEditorToolkit::SaveAssetAs_Execute()
+		TArray<UObject*> ObjectsToReopen;
+		for (UObject* Object : ObjectsBeingEdited)
+		{
+			if (Object->IsAsset() && !ObjectsToSave.Contains(Object))
+			{
+				ObjectsToReopen.Add(Object);
+			}
+		}
+
+		for (UObject* Object : SavedObjects)
+		{
+			if (ShouldReopenEditorForSavedAsset(Object))
+			{
+				ObjectsToReopen.AddUnique(Object);
+			}
+		}
+
+		for (UObject* Object : ObjectsBeingEdited)
+		{
+			AssetEditorSubsystem->CloseAllEditorsForAsset(Object);
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->NotifyAssetClosed(Object, this);
+		}
+
+		AssetEditorSubsystem->OpenEditorForAssets_Advanced(ObjectsToReopen, ToolkitMode, MyToolkitHost.ToSharedRef());
+		// end hack
+
+		OnAssetsSavedAs(SavedObjects);
+	}
+
+	void FWidgetPreviewToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) const
+	{
+		FBaseAssetToolkit::GetSaveableObjects(OutObjects);
+
+		TArray<UObject*> ObjectsBeingEdited = GetEditingObjects();
+		for (const TObjectPtr<UObject>& Object : ObjectsBeingEdited)
+		{
+			// We override this to allow Transient objects to be saved
+			OutObjects.Add(Object);
+		}
+	}
+
 	FText FWidgetPreviewToolkit::GetToolkitName() const
 	{
 		const TArray<UObject*>* Objects = GetObjectsCurrentlyBeingEdited();
@@ -409,7 +564,7 @@ namespace UE::UMGWidgetPreview::Private
 
 	FString FWidgetPreviewToolkit::GetWorldCentricTabPrefix() const
 	{
-		return LOCTEXT("WorldCentricTabPrefix", "WidgetPreviw").ToString();
+		return LOCTEXT("WorldCentricTabPrefix", "WidgetPreview").ToString();
 	}
 
 	FLinearColor FWidgetPreviewToolkit::GetWorldCentricTabColorScale() const
@@ -440,16 +595,6 @@ namespace UE::UMGWidgetPreview::Private
 	IWidgetPreviewToolkit::FOnStateChanged& FWidgetPreviewToolkit::OnStateChanged()
 	{
 		return OnStateChangedDelegate;
-	}
-
-	TSharedPtr<FWidgetBlueprintEditor> FWidgetPreviewToolkit::GetEditor() const
-	{
-		if (TSharedPtr<FWidgetBlueprintEditor> Editor = WeakEditor.Pin())
-		{
-			return Editor;
-		}
-
-		return nullptr;
 	}
 
 	TSharedPtr<FWidgetPreviewScene> FWidgetPreviewToolkit::GetPreviewScene()
