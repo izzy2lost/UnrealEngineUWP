@@ -163,6 +163,12 @@ namespace HordeServer
 	public static class ComputePluginExtensions
 	{
 		/// <summary>
+		/// Configures the compute plugin
+		/// </summary>
+		public static void AddComputeConfig(this IDictionary<PluginName, IPluginConfig> dictionary, ComputeConfig computeConfig)
+			=> dictionary[new PluginName("Compute")] = computeConfig;
+
+		/// <summary>
 		/// Get the compute plugin config
 		/// </summary>
 		public static ComputeConfig GetComputeConfig(this IDictionary<PluginName, IPluginConfig> plugins)

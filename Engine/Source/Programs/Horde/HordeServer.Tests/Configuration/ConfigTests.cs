@@ -182,6 +182,7 @@ namespace HordeServer.Tests.Configuration
 			buildConfig.Projects.Add(new ProjectConfig { Streams = [new StreamConfig { WorkspaceTypes = inputWorkspaces }]});
 
 			GlobalConfig gc = new();
+			gc.Plugins.AddComputeConfig(new ComputeConfig());
 			gc.Plugins.AddBuildConfig(buildConfig);
 			gc.PostLoad(new ServerSettings(), Array.Empty<ILoadedPlugin>(), Array.Empty<IDefaultAclModifier>());
 
@@ -216,6 +217,7 @@ namespace HordeServer.Tests.Configuration
 			});
 
 			GlobalConfig gc = new();
+			gc.Plugins.AddComputeConfig(new ComputeConfig());
 			gc.Plugins.AddBuildConfig(buildConfig);
 			gc.PostLoad(new ServerSettings(), Array.Empty<ILoadedPlugin>(), Array.Empty<IDefaultAclModifier>());
 

@@ -222,19 +222,19 @@ namespace HordeServer
 	public static class BuildPluginExtensions
 	{
 		/// <summary>
-		/// Configures the storage plugin
+		/// Configures the build plugin
 		/// </summary>
 		public static void AddBuildConfig(this IDictionary<PluginName, IPluginConfig> dictionary, BuildConfig buildConfig)
 			=> dictionary[new PluginName("Build")] = buildConfig;
 
 		/// <summary>
-		/// Configures the storage plugin
+		/// Gets configuration for the build plugin
 		/// </summary>
 		public static BuildConfig GetBuildConfig(this IDictionary<PluginName, IPluginConfig> dictionary)
 			=> (BuildConfig)dictionary[new PluginName("Build")];
 
 		/// <summary>
-		/// Configures the storage plugin
+		/// Gets configuration for the build plugin
 		/// </summary>
 		public static bool TryGetBuildConfig(this IDictionary<PluginName, IPluginConfig> dictionary, [NotNullWhen(true)] out BuildConfig? buildConfig)
 		{
