@@ -16,8 +16,6 @@ namespace UE::ContentBrowser::Private
 
 		virtual const FName& GetStyleSetName() const override;
 
-		static bool IsNewStyleEnabled();
-
 	private:
 		FContentBrowserStyle();
 		virtual ~FContentBrowserStyle() override;

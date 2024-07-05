@@ -11,13 +11,6 @@
 
 namespace UE::ContentBrowser::Private
 {
-	static bool bEnableNewStyle = false;
-	static FAutoConsoleVariableRef CVarEnableNewStyle(
-		TEXT("ContentBrowser.EnableNewStyle"),
-		bEnableNewStyle,
-		TEXT("Whether or not to enable the Content Browser restyle (UE 5.5+).")
-	);
-
 	FName FContentBrowserStyle::StyleName("ContentBrowser");
 
 	FContentBrowserStyle& FContentBrowserStyle::Get()
@@ -29,11 +22,6 @@ namespace UE::ContentBrowser::Private
 	const FName& FContentBrowserStyle::GetStyleSetName() const
 	{
 		return StyleName;
-	}
-
-	bool FContentBrowserStyle::IsNewStyleEnabled()
-	{
-		return bEnableNewStyle;
 	}
 
 	FContentBrowserStyle::FContentBrowserStyle()
