@@ -8,15 +8,10 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
-using EpicGames.Horde.Agents.Pools;
 using HordeServer.Acls;
-using HordeServer.Agents;
-using HordeServer.Agents.Pools;
 using HordeServer.Configuration;
 using HordeServer.Dashboard;
-using HordeServer.Perforce;
 using HordeServer.Plugins;
-using HordeServer.Streams;
 using HordeServer.Utilities;
 
 namespace HordeServer.Server
@@ -123,13 +118,11 @@ namespace HordeServer.Server
 				}
 			}
 
-			PluginConfigOptions pluginConfigOptions = new PluginConfigOptions(VersionEnum, Acl);
+			PluginConfigOptions pluginConfigOptions = new PluginConfigOptions(VersionEnum, Plugins.Values, Acl);
 			foreach (IPluginConfig pluginConfig in Plugins.Values)
 			{
 				pluginConfig.PostLoad(pluginConfigOptions);
 			}
-
-			UpdateWorkspacesForPools();
 
 			_aclLookup.Clear();
 			BuildAclScopeLookup(Acl, _aclLookup);
@@ -170,80 +163,6 @@ namespace HordeServer.Server
 				{
 					BuildAclScopeLookup(childAcl, aclLookup);
 				}
-			}
-		}
-
-		void UpdateWorkspacesForPools()
-		{
-			// Try to get the compute config, and skip if it isn't configured
-			ComputeConfig? computeConfig;
-			if (!Plugins.TryGetValue(new PluginName("compute"), out computeConfig))
-			{
-				return;
-			}
-
-			BuildConfig? buildConfig;
-			if (!Plugins.TryGetValue(new PluginName("build"), out buildConfig))
-			{
-				return;
-			}
-
-			// Lookup table of pool id to workspaces
-			Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();
-			Dictionary<PoolId, List<AgentWorkspaceInfo>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspaceInfo>>();
-
-			// Populate the workspace list from the current stream
-			foreach (StreamConfig streamConfig in buildConfig.Streams)
-			{
-				foreach (KeyValuePair<string, AgentConfig> agentTypePair in streamConfig.AgentTypes)
-				{
-					// Create the new agent workspace
-					if (streamConfig.TryGetAgentWorkspace(agentTypePair.Value, out AgentWorkspaceInfo? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
-					{
-						AgentConfig agentType = agentTypePair.Value;
-
-						// Find or add a list of workspaces for this pool
-						List<AgentWorkspaceInfo>? agentWorkspaces;
-						if (!poolToAgentWorkspaces.TryGetValue(agentType.Pool, out agentWorkspaces))
-						{
-							agentWorkspaces = new List<AgentWorkspaceInfo>();
-							poolToAgentWorkspaces.Add(agentType.Pool, agentWorkspaces);
-						}
-
-						// Add it to the list
-						if (!agentWorkspaces.Contains(agentWorkspace))
-						{
-							agentWorkspaces.Add(agentWorkspace);
-						}
-						if (autoSdkConfig != null)
-						{
-							AutoSdkConfig? existingAutoSdkConfig;
-							poolToAutoSdkView.TryGetValue(agentType.Pool, out existingAutoSdkConfig);
-							poolToAutoSdkView[agentType.Pool] = AutoSdkConfig.Merge(autoSdkConfig, existingAutoSdkConfig);
-						}
-					}
-				}
-			}
-
-			// Update the list of workspaces for each pool
-			foreach (PoolConfig pool in computeConfig.Pools)
-			{
-				// Get the new list of workspaces for this pool
-				List<AgentWorkspaceInfo>? newWorkspaces;
-				if (!poolToAgentWorkspaces.TryGetValue(pool.Id, out newWorkspaces))
-				{
-					newWorkspaces = new List<AgentWorkspaceInfo>();
-				}
-
-				// Get the autosdk view
-				AutoSdkConfig? newAutoSdkConfig;
-				if (!poolToAutoSdkView.TryGetValue(pool.Id, out newAutoSdkConfig))
-				{
-					newAutoSdkConfig = AutoSdkConfig.None;
-				}
-
-				pool.Workspaces = newWorkspaces;
-				pool.AutoSdkConfig = newAutoSdkConfig;
 			}
 		}
 

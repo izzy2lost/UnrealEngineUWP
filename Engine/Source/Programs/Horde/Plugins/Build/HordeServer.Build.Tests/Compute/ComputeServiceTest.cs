@@ -309,7 +309,7 @@ namespace HordeServer.Tests.Compute
 			]
 			};
 
-			PluginConfigOptions configOptions = new PluginConfigOptions(ConfigVersion.Latest, new HordeServer.Acls.AclConfig());
+			PluginConfigOptions configOptions = new PluginConfigOptions(ConfigVersion.Latest, Enumerable.Empty<IPluginConfig>(), new HordeServer.Acls.AclConfig());
 			computeConfig.PostLoad(configOptions);
 
 			Assert.AreEqual(new ClusterId("compute1"), ComputeService.FindBestComputeClusterId(computeConfig, IPAddress.Parse("11.0.0.1")));
@@ -391,7 +391,7 @@ namespace HordeServer.Tests.Compute
 				NullLogger<ComputeService>.Instance);
 			await CreateAgentAsync(new PoolId(pool), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
 			computeConfig.CurrentValue.Clusters = [ccc];
-			computeConfig.CurrentValue.PostLoad(new PluginConfigOptions(ConfigVersion.Latest, new AclConfig()));
+			computeConfig.CurrentValue.PostLoad(new PluginConfigOptions(ConfigVersion.Latest, Enumerable.Empty<IPluginConfig>(), new AclConfig()));
 			return cs;
 		}
 

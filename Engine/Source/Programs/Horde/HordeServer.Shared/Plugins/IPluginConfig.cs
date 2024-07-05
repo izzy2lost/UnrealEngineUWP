@@ -26,7 +26,7 @@ namespace HordeServer.Plugins
 	/// <summary>
 	/// Options passed to <see cref="IPluginConfig.PostLoad(AclConfig)"/>
 	/// </summary>
-	public record class PluginConfigOptions(ConfigVersion Version, AclConfig ParentAcl);
+	public record class PluginConfigOptions(ConfigVersion Version, IEnumerable<IPluginConfig> Plugins, AclConfig ParentAcl);
 
 	/// <summary>
 	/// Empty implementation of <see cref="IPluginConfig"/>
