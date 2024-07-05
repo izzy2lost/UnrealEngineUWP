@@ -279,7 +279,7 @@ int Detoured_fputs(const char* str, FILE* stream)
 int Detoured__wspawnl(int mode, const wchar_t* cmdname, const wchar_t* arg0, const wchar_t* arg1, ...)
 {
 	DETOURED_CALL(_wspawnl);
-	StringBuffer<> cmdLine;
+	StringBuffer<32*1024> cmdLine; // Need long commandline for cmake/ninja
 
 	if (cmdname == nullptr)
 		cmdname = arg0;
@@ -293,7 +293,8 @@ int Detoured__wspawnl(int mode, const wchar_t* cmdname, const wchar_t* arg0, con
 		cmdname = cmdNameTemp.data;
 	}
 
-	cmdLine.Append(L"dummy "); // Just because CreateProcess expects first arg to be name of application
+	// TODO: Not sure what the rule is here.. very confusing with CreateProcess having application in two places
+	cmdLine.Append('\"').Append(cmdname).Append('\"');
 
 	//wcscpy_s(cmdLine, 1024, arg0);
 	//wcscat_s(cmdLine, 1024, L" ");

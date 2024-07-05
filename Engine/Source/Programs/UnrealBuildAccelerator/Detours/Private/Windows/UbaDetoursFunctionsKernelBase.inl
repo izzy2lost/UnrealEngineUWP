@@ -2682,6 +2682,16 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	}
 
 	bool isChild = true;
+	// We don't care about tracking mspdbsrv or vctip.. they are services just spawned by this process
+	if (Contains(originalCmd, L"mspdbsrv.exe") || Contains(originalCmd, L"vctip.exe") || Contains(originalCmd, L"git.exe"))
+	{
+		if (!g_runningRemote)
+		{
+			SuppressDetourScope _;
+			return True_CreateProcessW(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
+		}
+		isChild = false;
+	}
 
 	StringBuffer<> application;
 	if (lpApplicationName)
@@ -2864,10 +2874,16 @@ BOOL Detoured_TerminateProcess(HANDLE hProcess, UINT uExitCode)
 BOOL Detoured_GetExitCodeProcess(HANDLE hProcess, LPDWORD lpExitCode)
 {
 	DETOURED_CALL(GetExitCodeProcess);
+	HANDLE trueHandle = hProcess;
 	if (isDetouredHandle(hProcess))
-		hProcess = asDetouredHandle(hProcess).trueHandle;
-	BOOL res = True_GetExitCodeProcess(hProcess, lpExitCode);
-	DEBUG_LOG_DETOURED(L"GetExitCodeProcess", L"%llu Exit code: %u -> %ls", uintptr_t(hProcess), *lpExitCode, ToString(res));
+		trueHandle = asDetouredHandle(hProcess).trueHandle;
+	BOOL res = True_GetExitCodeProcess(trueHandle, lpExitCode);
+
+	DEBUG_LOG_DETOURED(L"GetExitCodeProcess", L"%llu Exit code: %u -> %ls", uintptr_t(trueHandle), *lpExitCode, ToString(res));
+
+	if (res != STILL_ACTIVE)
+		Rpc_UpdateTables();
+
 	return res;
 }
 
