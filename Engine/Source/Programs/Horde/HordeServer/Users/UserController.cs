@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -8,8 +10,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Users;
 using HordeServer.Accounts;
-using HordeServer.Agents;
-using HordeServer.Agents.Pools;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Server.Notices;
 using HordeServer.Utilities;
@@ -29,16 +30,18 @@ namespace HordeServer.Users
 	{
 		readonly IUserCollection _userCollection;
 		readonly IAvatarService? _avatarService;
+		readonly IEnumerable<IPluginResponseFilter> _responseFilters;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly IOptionsMonitor<ServerSettings> _settings;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public UserController(IUserCollection userCollection, IAvatarService? avatarService, IOptionsSnapshot<GlobalConfig> globalConfig, IOptionsMonitor<ServerSettings> settings)
+		public UserController(IUserCollection userCollection, IAvatarService? avatarService, IEnumerable<IPluginResponseFilter> responseFilters, IOptionsSnapshot<GlobalConfig> globalConfig, IOptionsMonitor<ServerSettings> settings)
 		{
 			_userCollection = userCollection;
 			_avatarService = avatarService;
+			_responseFilters = responseFilters;
 			_globalConfig = globalConfig;
 			_settings = settings;
 		}
@@ -68,7 +71,7 @@ namespace HordeServer.Users
 			return PropertyFilter.Apply(response, filter);
 		}
 
-		static GetDashboardFeaturesResponse GetDashboardFeatures(GlobalConfig globalConfig, ServerSettings settings, ClaimsPrincipal principal)
+		GetDashboardFeaturesResponse GetDashboardFeatures(GlobalConfig globalConfig, ServerSettings settings, ClaimsPrincipal principal)
 		{
 			GetDashboardFeaturesResponse response = new GetDashboardFeaturesResponse();
 			response.ShowLandingPage = globalConfig.Dashboard.ShowLandingPage;
@@ -79,9 +82,13 @@ namespace HordeServer.Users
 			response.ShowDeviceManager = globalConfig.Dashboard.ShowDeviceManager;
 			response.ShowTests = globalConfig.Dashboard.ShowTests;
 			response.ShowNoticeEditor = globalConfig.Authorize(NoticeAclAction.CreateNotice, principal) || globalConfig.Authorize(NoticeAclAction.UpdateNotice, principal);
-			response.ShowPoolEditor = globalConfig.VersionEnum < ConfigVersion.PoolsInConfigFiles && (globalConfig.Authorize(PoolAclAction.CreatePool, principal) || globalConfig.Authorize(PoolAclAction.UpdatePool, principal));
-			response.ShowRemoteDesktop = globalConfig.Authorize(AgentAclAction.UpdateAgent, principal);
 			response.ShowAccounts = settings.AuthMethod == EpicGames.Horde.Server.AuthMethod.Horde && globalConfig.Authorize(AccountAclAction.UpdateAccount, principal);
+
+			foreach (IPluginResponseFilter responseFilter in _responseFilters)
+			{
+				responseFilter.Apply(HttpContext, response);
+			}
+
 			return response;
 		}
 

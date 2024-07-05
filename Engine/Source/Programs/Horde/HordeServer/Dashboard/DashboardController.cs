@@ -10,6 +10,7 @@ using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Dashboard;
 using EpicGames.Horde.Server;
 using HordeServer.Accounts;
+using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Telemetry;
 using HordeServer.Utilities;
@@ -28,33 +29,23 @@ namespace HordeServer.Dashboard
 	[Route("[controller]")]
 	public class DashboardController : Controller
 	{
-		/// <summary>
-		/// Authentication scheme in use
-		/// </summary>
 		readonly string _authenticationScheme;
-
-		/// <summary>
-		/// Server settings
-		/// </summary>
 		readonly ServerSettings _settings;
-		readonly StaticBuildConfig _staticBuildConfig;
-
 		readonly IDashboardPreviewCollection _previewCollection;
-
 		readonly IAccountCollection _hordeAccounts;
-
+		readonly IEnumerable<IPluginResponseFilter> _responseFilters;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DashboardController(IDashboardPreviewCollection previewCollection, IAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptions<StaticBuildConfig> staticBuildConfig, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public DashboardController(IDashboardPreviewCollection previewCollection, IAccountCollection hordeAccounts, IEnumerable<IPluginResponseFilter> responseFilters, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_authenticationScheme = AccountController.GetAuthScheme(serverSettings.CurrentValue.AuthMethod);
 			_previewCollection = previewCollection;
 			_hordeAccounts = hordeAccounts;
+			_responseFilters = responseFilters;
 			_settings = serverSettings.CurrentValue;
-			_staticBuildConfig = staticBuildConfig.Value;
 			_globalConfig = globalConfig;
 		}
 
@@ -155,21 +146,8 @@ namespace HordeServer.Dashboard
 
 			dashboardConfigResponse.AuthMethod = _settings.AuthMethod;
 
-			if (_staticBuildConfig.JiraUrl != null)
-			{
-				dashboardConfigResponse.ExternalIssueServiceName = "Jira";
-				dashboardConfigResponse.ExternalIssueServiceUrl = _staticBuildConfig.JiraUrl.ToString().TrimEnd('/');
-			}
-
-			if (_staticBuildConfig.P4SwarmUrl != null)
-			{
-				dashboardConfigResponse.PerforceSwarmUrl = _staticBuildConfig.P4SwarmUrl.ToString().TrimEnd('/');
-			}
-
 			dashboardConfigResponse.HelpEmailAddress = _settings.HelpEmailAddress;
 			dashboardConfigResponse.HelpSlackChannel = _settings.HelpSlackChannel;
-
-			dashboardConfigResponse.DeviceProblemCooldownMinutes = _staticBuildConfig.DeviceProblemCooldownMinutes;
 
 			foreach (DashboardAgentCategoryConfig category in _globalConfig.Value.Dashboard.AgentCategories)
 			{
@@ -216,6 +194,11 @@ namespace HordeServer.Dashboard
 
 					dashboardConfigResponse.TelemetryViews.Add(rview);
 				}
+			}
+
+			foreach (IPluginResponseFilter responseFilter in _responseFilters)
+			{
+				responseFilter.Apply(HttpContext, dashboardConfigResponse);
 			}
 
 			return dashboardConfigResponse;

@@ -61,6 +61,7 @@ namespace HordeServer
 		public void ConfigureServices(IServiceCollection services)
 		{
 			services.AddSingleton<IDefaultAclModifier, ComputeAclModifier>();
+			services.AddSingleton<IPluginResponseFilter, ComputeResponseFilter>();
 
 			services.AddSingleton<IAgentCollection, AgentCollection>();
 			services.AddSingleton<ILeaseCollection, LeaseCollection>();
