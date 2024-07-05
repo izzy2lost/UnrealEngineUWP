@@ -35,6 +35,7 @@ namespace uba
 		UBA_PROCESS_MESSAGE(GetNextProcess) \
 		UBA_PROCESS_MESSAGE(Custom) \
 		UBA_PROCESS_MESSAGE(SHGetKnownFolderPath) \
+		UBA_PROCESS_MESSAGE(RpcCommunication) \
 
 	enum MessageType : u8
 	{

@@ -1180,6 +1180,12 @@ namespace uba
 		return true;
 	}
 
+	bool ProcessImpl::HandleRpcCommunication(BinaryReader& reader, BinaryWriter& writer)
+	{
+		//m_session.RpcCommunication(*this, reader, writer);
+		return true;
+	}
+
 	bool ProcessImpl::CreateTempFile(BinaryReader& reader, ProcHandle nativeProcessHandle, const tchar* application)
 	{
 		StringKey key = reader.ReadStringKey();

@@ -474,6 +474,7 @@ thread_local const wchar_t* t_createFileFileName;
 #include "UbaDetoursFunctionsImagehlp.inl"
 #include "UbaDetoursFunctionsDbgHelp.inl"
 #include "UbaDetoursFunctionsShell32.inl"
+#include "UbaDetoursFunctionsRpcrt4.inl"
 
 extern u32 g_consoleStringIndex;
 
@@ -566,7 +567,14 @@ int DetourAttachFunctions(bool runningRemote)
 		DETOURED_FUNCTIONS_SHLWAPI
 	}
 
-	#undef DETOURED_FUNCTION
+	#if UBA_SUPPORT_MSPDBSRV
+	if (HMODULE moduleHandle = GetModuleHandleW(L"rpcrt4.dll"))
+	{
+		DETOURED_FUNCTIONS_RPCRT4
+	}
+	#endif
+
+#undef DETOURED_FUNCTION
 
 	// Can't attach to these when running through debugger with some vs extensions (Microsoft child process debugging)
 #if UBA_DEBUG
@@ -595,6 +603,10 @@ int DetourAttachFunctions(bool runningRemote)
 		printf("Error detouring: %ld\n", error);
 		ExitProcess(1343);
 	}
+
+	#if UBA_SUPPORT_MSPDBSRV
+	True2_NdrClientCall2 = True_NdrClientCall2;
+	#endif
 
 	return 0;
 }
@@ -935,7 +947,7 @@ void Deinit(u64 startTime)
 	#endif
 
 	DWORD exitCode = STILL_ACTIVE;
-	if (!GetExitCodeProcess(GetCurrentProcess(), &exitCode))
+	if (!True_GetExitCodeProcess(GetCurrentProcess(), &exitCode))
 		exitCode = STILL_ACTIVE;
 
 	if (!g_exitMessageSent)

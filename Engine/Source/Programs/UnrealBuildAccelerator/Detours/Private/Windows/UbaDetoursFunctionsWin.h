@@ -26,6 +26,7 @@
 	DETOURED_FUNCTIONS_NTDLL \
 	DETOURED_FUNCTIONS_SHLWAPI \
 	DETOURED_FUNCTIONS_UCRTBASE \
+	DETOURED_FUNCTIONS_RPCRT4 \
 
 #define DETOURED_FUNCTIONS_KERNELBASE \
 	DETOURED_FUNCTION(GetCommandLineW) \
@@ -153,6 +154,17 @@
 	DETOURED_FUNCTION(fputs) \
 	DETOURED_FUNCTION(_wsplitpath_s) \
 	DETOURED_FUNCTIONS_UCRTBASE_DEBUG \
+
+#if UBA_SUPPORT_MSPDBSRV
+#define DETOURED_FUNCTIONS_RPCRT4 \
+	DETOURED_FUNCTION(RpcStringBindingComposeW) \
+	DETOURED_FUNCTION(RpcBindingSetAuthInfoExW) \
+	DETOURED_FUNCTION(RpcBindingFromStringBindingW) \
+	DETOURED_FUNCTION(NdrClientCall2) \
+
+#else
+#define DETOURED_FUNCTIONS_RPCRT4
+#endif
 
 #if UBA_USE_MIMALLOC
 #define DETOURED_FUNCTIONS_MEMORY \
@@ -293,6 +305,11 @@
 	DETOURED_FUNCTION(NtQueryFullAttributesFile) \
 	DETOURED_FUNCTION(NtFlushBuffersFileEx) \
 	DETOURED_FUNCTION(NtReadFile) \
+	DETOURED_FUNCTION(NtAlpcCreatePort) \
+	DETOURED_FUNCTION(NtAlpcConnectPort) \
+	DETOURED_FUNCTION(NtAlpcCreatePortSection) \
+	DETOURED_FUNCTION(NtAlpcSendWaitReceivePort) \
+	DETOURED_FUNCTION(NtAlpcDisconnectPort) \
 	DETOURED_FUNCTION(ZwSetInformationFile) \
 	DETOURED_FUNCTION(ZwQueryDirectoryFile) \
 	//DETOURED_FUNCTION(ZwCreateFile) \
@@ -334,6 +351,9 @@
 #endif
 
 extern "C" {
+	using PALPC_PORT_ATTRIBUTES = void*;
+	using PALPC_MESSAGE_ATTRIBUTES = void*;
+	using PPORT_MESSAGE = void*;
 	enum FS_INFORMATION_CLASS {};
 	NTSTATUS NTAPI NtQueryVolumeInformationFile(HANDLE FileHandle, PIO_STATUS_BLOCK IoStatusBlock, PVOID FsInformation, ULONG Length, FS_INFORMATION_CLASS FsInformationClass);
 	NTSTATUS NTAPI NtQueryFullAttributesFile(POBJECT_ATTRIBUTES ObjectAttributes, PVOID Attributes);
@@ -347,6 +367,11 @@ extern "C" {
 	NTSTATUS NTAPI NtSetInformationObject(HANDLE ObjectHandle, OBJECT_INFORMATION_CLASS ObjectInformationClass, PVOID ObjectInformation, ULONG Length);
 	NTSTATUS NTAPI NtCreateSection(PHANDLE SectionHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, PLARGE_INTEGER MaximumSize, ULONG SectionPageProtection, ULONG AllocationAttributes, HANDLE FileHandle);
 	NTSTATUS NTAPI NtCreateIoCompletion(PHANDLE IoCompletionHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, ULONG Count);
+	NTSTATUS NTAPI NtAlpcCreatePort(PHANDLE PortHandle, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes);
+	NTSTATUS NTAPI NtAlpcConnectPort(PHANDLE PortHandle, PUNICODE_STRING PortName, POBJECT_ATTRIBUTES ObjectAttributes, PALPC_PORT_ATTRIBUTES PortAttributes, DWORD ConnectionFlags, PSID RequiredServerSid, PPORT_MESSAGE ConnectionMessage, PSIZE_T ConnectMessageSize, PALPC_MESSAGE_ATTRIBUTES OutMessageAttributes, PALPC_MESSAGE_ATTRIBUTES InMessageAttributes, PLARGE_INTEGER Timeout);
+	NTSTATUS NTAPI NtAlpcCreatePortSection(HANDLE PortHandle, ULONG Flags, HANDLE SectionHandle, SIZE_T SectionSize, PHANDLE AlpcSectionHandle, PSIZE_T ActualSectionSize);
+	NTSTATUS NTAPI NtAlpcSendWaitReceivePort(HANDLE PortHandle, DWORD Flags, PPORT_MESSAGE SendMessage_, PALPC_MESSAGE_ATTRIBUTES SendMessageAttributes, PPORT_MESSAGE ReceiveMessage, PSIZE_T BufferLength, PALPC_MESSAGE_ATTRIBUTES ReceiveMessageAttributes, PLARGE_INTEGER Timeout);
+	NTSTATUS NTAPI NtAlpcDisconnectPort(HANDLE PortHandle, ULONG Flags);
 	NTSTATUS NTAPI ZwCreateFile(PHANDLE FileHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, PIO_STATUS_BLOCK IoStatusBlock, PLARGE_INTEGER AllocationSize, ULONG FileAttributes, ULONG ShareAccess, ULONG CreateDisposition, ULONG CreateOptions, PVOID EaBuffer, ULONG EaLength);
 	NTSTATUS NTAPI ZwOpenFile(PHANDLE FileHandle, ACCESS_MASK DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes, PIO_STATUS_BLOCK IoStatusBlock, ULONG ShareAccess, ULONG OpenOptions);
 	NTSTATUS NTAPI ZwQueryDirectoryFile(HANDLE FileHandle, HANDLE Event, PIO_APC_ROUTINE ApcRoutine, PVOID ApcContext, PIO_STATUS_BLOCK IoStatusBlock, PVOID FileInformation, ULONG Length, FILE_INFORMATION_CLASS FileInformationClass, BOOLEAN ReturnSingleEntry, PUNICODE_STRING FileName, BOOLEAN RestartScan);

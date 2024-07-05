@@ -100,6 +100,7 @@ namespace uba
 		bool HandleGetNextProcess(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleCustom(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleSHGetKnownFolderPath(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleRpcCommunication(BinaryReader& reader, BinaryWriter& writer);
 
 		void LogLine(bool printInSession, TString&& line, LogEntryType logType);
 		bool CreateTempFile(BinaryReader& reader, ProcHandle nativeProcessHandle, const tchar* application);
