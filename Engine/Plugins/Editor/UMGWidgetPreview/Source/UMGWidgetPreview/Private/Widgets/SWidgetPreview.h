@@ -14,6 +14,7 @@ class SRetainerWidget;
 
 namespace UE::UMGWidgetPreview::Private
 {
+	struct FWidgetPreviewToolkitStateBase;
 	class FWidgetPreviewToolkit;
 
 	class SWidgetPreview
@@ -25,11 +26,14 @@ namespace UE::UMGWidgetPreview::Private
 		SLATE_BEGIN_ARGS(SWidgetPreview) {}
 		SLATE_END_ARGS()
 
-		virtual ~SWidgetPreview() override;
-
 		void Construct(const FArguments& Args, const TSharedRef<FWidgetPreviewToolkit>& InToolkit);
 
+		virtual ~SWidgetPreview() override;
+
+		virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
+
 	private:
+		void OnStateChanged(FWidgetPreviewToolkitStateBase* InOldState, FWidgetPreviewToolkitStateBase* InNewState);
 		void OnWidgetChanged(const EWidgetPreviewWidgetChangeType InChangeType);
 
 		/** Convenience method to get world from the associated viewport. */
@@ -42,6 +46,10 @@ namespace UE::UMGWidgetPreview::Private
 		TSharedPtr<SBorder> ContainerWidget;
 		TSharedPtr<SWidget> CreatedSlateWidget;
 
+		bool bClearWidgetOnNextPaint = false;
+		bool bIsRetainedRender = false;
+
+		FDelegateHandle OnStateChangedHandle;
 		FDelegateHandle OnWidgetChangedHandle;
 	};
 }
