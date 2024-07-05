@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using HordeServer.Acls;
 using HordeServer.Configuration;
 using HordeServer.Plugins;
 using HordeServer.Projects;
@@ -182,7 +183,7 @@ namespace HordeServer.Tests.Configuration
 
 			GlobalConfig gc = new();
 			gc.Plugins.AddBuildConfig(buildConfig);
-			gc.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
+			gc.PostLoad(new ServerSettings(), Array.Empty<ILoadedPlugin>(), Array.Empty<IDefaultAclModifier>());
 
 			Dictionary<string,WorkspaceConfig> workspaces = gc.Plugins.GetBuildConfig().Projects[0].Streams[0].WorkspaceTypes;
 			Assert.AreEqual(3, workspaces.Count);
@@ -216,7 +217,7 @@ namespace HordeServer.Tests.Configuration
 
 			GlobalConfig gc = new();
 			gc.Plugins.AddBuildConfig(buildConfig);
-			gc.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
+			gc.PostLoad(new ServerSettings(), Array.Empty<ILoadedPlugin>(), Array.Empty<IDefaultAclModifier>());
 
 			Dictionary<string, WorkspaceConfig> workspaces = gc.Plugins.GetBuildConfig().Projects[0].Streams[0].WorkspaceTypes;
 			Assert.AreEqual(4, workspaces.Count);

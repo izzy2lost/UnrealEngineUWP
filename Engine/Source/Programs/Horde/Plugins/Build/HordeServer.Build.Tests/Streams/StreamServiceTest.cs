@@ -9,7 +9,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Streams
 {
 	[TestClass]
-	public class StreamServiceTests : TestSetup
+	public class StreamServiceTests : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task PausingAsync()

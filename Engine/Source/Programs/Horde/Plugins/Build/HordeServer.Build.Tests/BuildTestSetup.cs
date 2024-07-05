@@ -12,6 +12,7 @@ using Amazon.EC2;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using HordeServer.Accounts;
+using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Enrollment;
 using HordeServer.Agents.Fleet;
@@ -62,7 +63,7 @@ namespace HordeServer.Tests
 	///
 	/// Easier to pass all these things around in a single object.
 	/// </summary>
-	public class TestSetup : ServerTestSetup
+	public class BuildTestSetup : ServerTestSetup
 	{
 		public IGraphCollection GraphCollection => ServiceProvider.GetRequiredService<IGraphCollection>();
 		public INotificationTriggerCollection NotificationTriggerCollection => ServiceProvider.GetRequiredService<INotificationTriggerCollection>();
@@ -112,7 +113,7 @@ namespace HordeServer.Tests
 		public TestDataController TestDataController => GetTestDataController();
 		public BisectTasksController BisectTasksController => GetBisectTasksController();
 
-		public TestSetup()
+		public BuildTestSetup()
 		{
 			AddPlugin<AnalyticsPlugin>();
 			AddPlugin<BuildPlugin>();
@@ -196,6 +197,8 @@ namespace HordeServer.Tests
 
 			services.AddSingleton<ConformTaskSource>();
 			services.AddSingleton<ICommitService, CommitService>();
+
+			services.AddSingleton<IDefaultAclModifier, BuildAclModifier>();
 		}
 
 		public Task<Fixture> CreateFixtureAsync()

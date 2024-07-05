@@ -28,7 +28,7 @@ namespace HordeServer.Tests.Devices
 	/// Tests for the device service
 	/// </summary>
 	[TestClass]
-	public class DeviceServiceTest : TestSetup
+	public class DeviceServiceTest : BuildTestSetup
 	{
 		private DevicesController? _deviceController;
 

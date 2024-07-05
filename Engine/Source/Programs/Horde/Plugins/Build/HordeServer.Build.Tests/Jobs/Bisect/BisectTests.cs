@@ -29,7 +29,7 @@ using Moq;
 namespace HordeServer.Tests.Jobs.Bisect
 {
 	[TestClass]
-	public class BisectTests : TestSetup
+	public class BisectTests : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task TestStatesAsync()

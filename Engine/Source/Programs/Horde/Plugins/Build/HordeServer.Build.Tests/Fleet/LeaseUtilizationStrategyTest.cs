@@ -18,7 +18,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Fleet
 {
 	[TestClass]
-	public class LeaseUtilizationStrategyTest : TestSetup
+	public class LeaseUtilizationStrategyTest : BuildTestSetup
 	{
 		private IAgent _agent1 = null!;
 		private IAgent _agent2 = null!;

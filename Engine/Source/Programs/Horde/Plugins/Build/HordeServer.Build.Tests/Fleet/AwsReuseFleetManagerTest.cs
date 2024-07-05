@@ -16,7 +16,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Fleet
 {
 	[TestClass]
-	public class AwsReuseFleetManagerTest : TestSetup
+	public class AwsReuseFleetManagerTest : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task ExpandOneAgentAsync()

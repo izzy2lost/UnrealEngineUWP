@@ -24,7 +24,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Jobs.Schedules
 {
 	[TestClass]
-	public class SchedulerTests : TestSetup
+	public class SchedulerTests : BuildTestSetup
 	{
 		ProjectId ProjectId { get; } = new ProjectId("ue5");
 		StreamId StreamId { get; } = new StreamId("ue5-main");

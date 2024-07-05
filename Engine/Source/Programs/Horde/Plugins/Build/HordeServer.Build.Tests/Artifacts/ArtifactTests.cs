@@ -16,7 +16,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Artifacts
 {
 	[TestClass]
-	public class ArtifactTests : TestSetup
+	public class ArtifactTests : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task CreateArtifactAsync()

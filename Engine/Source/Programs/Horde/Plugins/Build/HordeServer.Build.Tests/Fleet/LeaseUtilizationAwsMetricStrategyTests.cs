@@ -22,7 +22,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Fleet
 {
 	[TestClass]
-	public class LeaseUtilizationAwsMetricStrategyTest : TestSetup
+	public class LeaseUtilizationAwsMetricStrategyTest : BuildTestSetup
 	{
 		private readonly IPool _pool;
 		private readonly LeaseUtilizationAwsMetricSettings _settings = new(60, "myNamespace");

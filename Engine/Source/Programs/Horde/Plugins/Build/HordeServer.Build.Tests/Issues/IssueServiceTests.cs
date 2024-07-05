@@ -41,7 +41,7 @@ using Moq;
 namespace HordeServer.Tests.Issues
 {
 	[TestClass]
-	public class IssueServiceTests : TestSetup
+	public class IssueServiceTests : BuildTestSetup
 	{
 		class TestJsonLogger : ILogger, IAsyncDisposable
 		{

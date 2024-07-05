@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using HordeServer.Acls;
 using HordeServer.Compute;
 using HordeServer.Logs;
 using HordeServer.Storage;
@@ -28,6 +29,8 @@ namespace HordeServer.Tests
 		protected override void ConfigureServices(IServiceCollection services)
 		{
 			base.ConfigureServices(services);
+
+			services.AddSingleton<IDefaultAclModifier, ComputeAclModifier>();
 		}
 	}
 }

@@ -39,7 +39,7 @@ public class FakeHealthMonitor<T> : IHealthMonitor<T>
 }
 
 [TestClass]
-public class PerforceLoadBalancerTests : TestSetup
+public class PerforceLoadBalancerTests : BuildTestSetup
 {
 	private const string PerforceHostname = "";
 

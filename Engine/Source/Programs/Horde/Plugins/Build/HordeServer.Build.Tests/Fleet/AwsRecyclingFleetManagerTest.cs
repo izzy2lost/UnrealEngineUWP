@@ -19,7 +19,7 @@ using JsonSerializer = System.Text.Json.JsonSerializer;
 namespace HordeServer.Tests.Fleet
 {
 	[TestClass]
-	public class AwsRecyclingFleetManagerTest : TestSetup
+	public class AwsRecyclingFleetManagerTest : BuildTestSetup
 	{
 		private readonly FakeClock _clock = new();
 

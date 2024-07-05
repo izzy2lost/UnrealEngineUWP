@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Users;
 using EpicGames.Redis;
+using HordeServer.Acls;
 using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Users;
@@ -118,6 +119,7 @@ namespace HordeServer.Configuration
 		readonly IPluginCollection _pluginCollection;
 		readonly JsonSerializerOptions _jsonOptions;
 		readonly RedisKey _snapshotKey = "config";
+		readonly IEnumerable<IDefaultAclModifier> _defaultAclModifiers;
 		readonly IHealthMonitor _health;
 		readonly ILogger _logger;
 
@@ -141,11 +143,12 @@ namespace HordeServer.Configuration
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConfigService(IRedisService redisService, IOptions<ServerSettings> serverSettings, IEnumerable<IConfigSource> sources, IPluginCollection pluginCollection, IClock clock, IHealthMonitor<ConfigService> health, ILogger<ConfigService> logger)
+		public ConfigService(IRedisService redisService, IOptions<ServerSettings> serverSettings, IEnumerable<IConfigSource> sources, IPluginCollection pluginCollection, IEnumerable<IDefaultAclModifier> aclModifiers, IClock clock, IHealthMonitor<ConfigService> health, ILogger<ConfigService> logger)
 		{
 			_redisService = redisService;
 			_serverSettings = serverSettings.Value;
 			_sources = sources.ToDictionary(x => x.Scheme, x => x, StringComparer.OrdinalIgnoreCase);
+			_defaultAclModifiers = aclModifiers;
 			_pluginCollection = pluginCollection;
 			_health = health;
 			_health.SetName("GlobalConfig");
@@ -279,8 +282,9 @@ namespace HordeServer.Configuration
 			try
 			{
 				Uri globalConfigUri = GetGlobalConfigUri();
+
 				GlobalConfig globalConfig = await context.ReadAsync<GlobalConfig>(globalConfigUri, cancellationToken);
-				globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins);
+				globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins, _defaultAclModifiers);
 
 				foreach (OverrideConfigFile file in overrideFiles.Values)
 				{
@@ -643,7 +647,7 @@ namespace HordeServer.Configuration
 				}
 
 				// Execute a PostLoad before returning so we can validate that everything is valid
-				globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins);
+				globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins, _defaultAclModifiers);
 
 				return snapshot;
 			}
@@ -851,7 +855,7 @@ namespace HordeServer.Configuration
 			globalConfig.Revision = IoHash.Compute(data.Span).ToString();
 
 			// Run the postload callbacks on all the config objects
-			globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins);
+			globalConfig.PostLoad(_serverSettings, _pluginCollection.LoadedPlugins, _defaultAclModifiers);
 			return globalConfig;
 		}
 	}

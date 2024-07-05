@@ -17,7 +17,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Jobs
 {
 	[TestClass]
-	public class JobExpirationTests : TestSetup
+	public class JobExpirationTests : BuildTestSetup
 	{
 		async Task<IJob> CreateJobAsync()
 		{

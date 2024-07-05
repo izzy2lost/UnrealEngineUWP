@@ -11,7 +11,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Agents.Pools
 {
 	[TestClass]
-	public class PoolsControllerTest : TestSetup
+	public class PoolsControllerTest : BuildTestSetup
 	{
 		public PoolsControllerTest()
 		{

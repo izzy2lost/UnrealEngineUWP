@@ -24,7 +24,7 @@ namespace HordeServer.Tests.Agents;
 ///     Testing the agent service
 /// </summary>
 [TestClass]
-public class AgentServiceTest : TestSetup
+public class AgentServiceTest : BuildTestSetup
 {
 	[TestMethod]
 	public async Task GetJobsAsync()

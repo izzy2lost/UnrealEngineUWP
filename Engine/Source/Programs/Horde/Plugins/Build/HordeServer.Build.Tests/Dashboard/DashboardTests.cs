@@ -12,7 +12,7 @@ namespace HordeServer.Tests.Dashboard
 	/// Tests for the dashboard
 	/// </summary>
 	[TestClass]
-	public class DashboardTest : TestSetup
+	public class DashboardTest : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task TestPreviewsAsync()

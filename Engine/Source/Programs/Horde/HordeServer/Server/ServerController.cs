@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Server;
 using HordeServer.Utilities;
@@ -25,16 +24,14 @@ namespace HordeServer.Server
 	public class ServerController : HordeControllerBase
 	{
 		readonly IAgentVersionProvider? _agentVersionProvider;
-		readonly IClock _clock;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ServerController(IEnumerable<IAgentVersionProvider> agentVersionProviders, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public ServerController(IEnumerable<IAgentVersionProvider> agentVersionProviders, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_agentVersionProvider = agentVersionProviders.FirstOrDefault();
-			_clock = clock;
 			_globalConfig = globalConfig;
 		}
 

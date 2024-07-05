@@ -9,7 +9,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Agents;
 
 [TestClass]
-public class AgentControllerDbTest : TestSetup
+public class AgentControllerDbTest : BuildTestSetup
 {
 	[TestMethod]
 	public async Task UpdateAgentAsync()

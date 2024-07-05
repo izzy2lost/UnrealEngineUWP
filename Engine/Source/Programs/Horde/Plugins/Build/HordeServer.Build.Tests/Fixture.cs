@@ -8,6 +8,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
+using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Configuration;
 using HordeServer.Jobs;
@@ -83,7 +84,7 @@ namespace HordeServer.Tests
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Plugins.AddBuildConfig(buildConfig);
-			globalConfig.PostLoad(serverSettings, pluginCollection.LoadedPlugins);
+			globalConfig.PostLoad(serverSettings, pluginCollection.LoadedPlugins, Array.Empty<IDefaultAclModifier>());
 			configService.OverrideConfig(globalConfig);
 
 			StreamId = streamId;

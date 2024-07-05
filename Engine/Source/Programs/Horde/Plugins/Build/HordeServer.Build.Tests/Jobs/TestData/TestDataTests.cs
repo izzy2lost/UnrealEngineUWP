@@ -34,7 +34,7 @@ namespace HordeServer.Tests.Jobs.TestData
 	/// Tests for the device service
 	/// </summary>
 	[TestClass]
-	public class TestDataTests : TestSetup
+	public class TestDataTests : BuildTestSetup
 	{
 		const string MainStreamName = "//UE5/Main";
 		readonly StreamId _mainStreamId = new StreamId(StringId.Sanitize(MainStreamName));

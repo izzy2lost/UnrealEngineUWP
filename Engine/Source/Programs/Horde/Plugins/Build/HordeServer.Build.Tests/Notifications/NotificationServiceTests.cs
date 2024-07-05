@@ -50,7 +50,7 @@ namespace HordeServer.Tests.Notifications
 	}
 
 	[TestClass]
-	public class NotificationServiceTests : TestSetup
+	public class NotificationServiceTests : BuildTestSetup
 	{
 		protected override void ConfigureServices(IServiceCollection services)
 		{

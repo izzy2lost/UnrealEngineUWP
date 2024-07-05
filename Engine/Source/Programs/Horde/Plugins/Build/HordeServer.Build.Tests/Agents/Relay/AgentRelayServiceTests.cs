@@ -19,7 +19,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Agents.Relay;
 
 [TestClass]
-public class AgentRelayServiceTests : TestSetup
+public class AgentRelayServiceTests : BuildTestSetup
 {
 	private readonly AgentRelayService _service;
 	private readonly GetPortMappingsRequest _request = new() { ClusterId = "cluster1", AgentId = "agent1", IpAddresses = { "192.168.1.1" } };

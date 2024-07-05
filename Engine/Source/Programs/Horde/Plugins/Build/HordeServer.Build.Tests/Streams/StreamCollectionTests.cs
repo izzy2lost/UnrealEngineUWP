@@ -9,7 +9,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Streams
 {
 	[TestClass]
-	public class StreamCollectionTests : TestSetup
+	public class StreamCollectionTests : BuildTestSetup
 	{
 		private readonly StreamId _streamId = new("bogusStreamId");
 

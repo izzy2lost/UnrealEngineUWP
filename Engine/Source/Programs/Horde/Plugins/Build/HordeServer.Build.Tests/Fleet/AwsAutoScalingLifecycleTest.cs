@@ -23,7 +23,7 @@ using Moq;
 namespace HordeServer.Tests.Fleet;
 
 [TestClass]
-public class AwsAutoScalingLifecycleServiceTest : TestSetup
+public class AwsAutoScalingLifecycleServiceTest : BuildTestSetup
 {
 	private AwsAutoScalingLifecycleService _asgLifecycleService = default!;
 	private Mock<IAmazonAutoScaling> _asgMock = default!;

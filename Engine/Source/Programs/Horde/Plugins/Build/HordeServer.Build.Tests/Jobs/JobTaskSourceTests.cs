@@ -20,7 +20,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Jobs
 {
 	[TestClass]
-	public class JobTaskSourceTests : TestSetup
+	public class JobTaskSourceTests : BuildTestSetup
 	{
 		private bool _eventReceived;
 		private bool? _eventPoolHasAgentsOnline;

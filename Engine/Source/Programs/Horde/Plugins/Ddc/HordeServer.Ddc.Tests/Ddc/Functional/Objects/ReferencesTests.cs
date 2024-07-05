@@ -18,6 +18,7 @@ using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
+using HordeServer.Acls;
 using HordeServer.Configuration;
 using HordeServer.Ddc;
 using HordeServer.Plugins;
@@ -63,7 +64,7 @@ namespace HordeServer.Tests.Ddc.FunctionalTests.References
 
 			GlobalConfig globalConfig = ServiceProvider.GetRequiredService<IOptions<GlobalConfig>>().Value;
 			globalConfig.Plugins.AddStorageConfig(storageConfig);
-			globalConfig.PostLoad(serverSettings, new List<ILoadedPlugin>());
+			globalConfig.PostLoad(serverSettings, Array.Empty<ILoadedPlugin>(), Array.Empty<IDefaultAclModifier>());
 
 			ConfigService configService = ServiceProvider.GetRequiredService<ConfigService>();
 			configService.OverrideConfig(globalConfig);

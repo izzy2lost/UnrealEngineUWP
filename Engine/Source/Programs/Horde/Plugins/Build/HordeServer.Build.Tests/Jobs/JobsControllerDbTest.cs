@@ -15,7 +15,7 @@ namespace HordeServer.Tests.Jobs
 	/// the entire ASP.NET chain.
 	/// </summary>
 	[TestClass]
-	public class JobsControllerDbTest : TestSetup
+	public class JobsControllerDbTest : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task GetJobsAsync()

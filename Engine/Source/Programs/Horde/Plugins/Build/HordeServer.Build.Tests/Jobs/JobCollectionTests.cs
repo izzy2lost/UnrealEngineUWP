@@ -27,7 +27,7 @@ using Moq;
 namespace HordeServer.Tests.Jobs
 {
 	[TestClass]
-	public class JobCollectionTests : TestSetup
+	public class JobCollectionTests : BuildTestSetup
 	{
 		static NewGroup AddGroup(List<NewGroup> groups)
 		{

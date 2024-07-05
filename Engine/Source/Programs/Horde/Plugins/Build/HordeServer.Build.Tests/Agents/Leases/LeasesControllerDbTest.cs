@@ -18,7 +18,7 @@ namespace HordeServer.Tests.Agents.Leases
 	/// Database-only integration test for LeasesController
 	/// </summary>
 	[TestClass]
-	public class LeasesControllerDbTest : TestSetup
+	public class LeasesControllerDbTest : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task FindLeasesAsync()

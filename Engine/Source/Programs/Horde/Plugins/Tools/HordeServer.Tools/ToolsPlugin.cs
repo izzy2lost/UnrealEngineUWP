@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using EpicGames.Core;
+using HordeServer.Acls;
 using HordeServer.Plugins;
 using HordeServer.Tools;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,8 @@ namespace HordeServer
 		/// <inheritdoc/>
 		public void ConfigureServices(IServiceCollection services)
 		{
+			services.AddSingleton<IDefaultAclModifier, ToolsAclModifier>();
+
 			services.AddSingleton<IToolCollection, ToolCollection>();
 			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
 		}

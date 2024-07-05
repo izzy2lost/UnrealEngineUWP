@@ -96,7 +96,7 @@ namespace HordeServer.Tests.Fleet
 	}
 
 	[TestClass]
-	public class FleetServiceTest : TestSetup
+	public class FleetServiceTest : BuildTestSetup
 	{
 		readonly FleetManagerSpy _fleetManagerSpy = new();
 
@@ -244,7 +244,7 @@ namespace HordeServer.Tests.Fleet
 	}
 
 	[TestClass]
-	public class PoolSizeStrategyFactoryTest : TestSetup
+	public class PoolSizeStrategyFactoryTest : BuildTestSetup
 	{
 		private static int s_poolCount;
 
@@ -433,7 +433,7 @@ namespace HordeServer.Tests.Fleet
 	}
 
 	[TestClass]
-	public class FleetManagerFactoryTest : TestSetup
+	public class FleetManagerFactoryTest : BuildTestSetup
 	{
 		private static int s_poolCount;
 

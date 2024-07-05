@@ -22,7 +22,7 @@ using OpenTelemetry.Trace;
 namespace HordeServer.Tests.Compute
 {
 	[TestClass]
-	public class ComputeServiceTest : TestSetup
+	public class ComputeServiceTest : BuildTestSetup
 	{
 		private readonly ClusterId _cluster1 = new("cluster1");
 
@@ -264,7 +264,7 @@ namespace HordeServer.Tests.Compute
 				new() { Id = cluster1, Condition = $"pool == '{poolFoo.ToString()}'" },
 				new() { Id = cluster2, Condition = $"pool == '{poolBar.ToString()}'" }
 			};
-			GlobalConfig.CurrentValue.PostLoad(new ServerSettings(), new List<ILoadedPlugin>());
+			GlobalConfig.CurrentValue.PostLoad(new ServerSettings(), Array.Empty<ILoadedPlugin>(), Array.Empty<IDefaultAclModifier>());
 
 			List<string> props = ["ComputeIp=11.0.0.1", "ComputePort=5000"];
 			IAgent agent1 = await CreateAgentAsync(new PoolId("foo"), properties: props);

@@ -13,7 +13,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Agents.Registration
 {
 	[TestClass]
-	public class RegistrationServiceTests : TestSetup
+	public class RegistrationServiceTests : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task ApproveAgentAsync()

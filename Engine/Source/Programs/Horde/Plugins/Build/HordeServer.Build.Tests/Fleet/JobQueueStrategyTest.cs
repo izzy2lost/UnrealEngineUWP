@@ -24,7 +24,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Fleet
 {
 	[TestClass]
-	public class JobQueueStrategyTest : TestSetup
+	public class JobQueueStrategyTest : BuildTestSetup
 	{
 		[TestMethod]
 		[Ignore("Flaky test when run through CI / Horde")]

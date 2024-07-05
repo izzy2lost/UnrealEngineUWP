@@ -30,7 +30,7 @@ namespace HordeServer.Tests.Jobs
 	using ProjectId = EpicGames.Horde.Projects.ProjectId;
 
 	[TestClass]
-	public class JobServiceTests : TestSetup
+	public class JobServiceTests : BuildTestSetup
 	{
 		[TestMethod]
 		public async Task TestChainedJobsAsync()

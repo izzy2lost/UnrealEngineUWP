@@ -48,6 +48,7 @@ namespace HordeServer.Tests
 		public IOptionsSnapshot<GlobalConfig> GlobalConfigSnapshot => ServiceProvider.GetRequiredService<IOptionsSnapshot<GlobalConfig>>();
 
 		public IPluginCollection PluginCollection => ServiceProvider.GetRequiredService<IPluginCollection>();
+		public IEnumerable<IDefaultAclModifier> DefaultAclModifiers => ServiceProvider.GetRequiredService<IEnumerable<IDefaultAclModifier>>();
 
 		private static bool s_datadogWriterPatched;
 
@@ -62,7 +63,7 @@ namespace HordeServer.Tests
 
 		protected void SetConfig(GlobalConfig globalConfig)
 		{
-			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins);
+			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins, DefaultAclModifiers);
 			ConfigService.OverrideConfig(globalConfig);
 		}
 
@@ -70,7 +71,7 @@ namespace HordeServer.Tests
 		{
 			GlobalConfig globalConfig = GlobalConfig.CurrentValue;
 			action(globalConfig);
-			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins);
+			globalConfig.PostLoad(ServerSettings, _pluginCollection.LoadedPlugins, DefaultAclModifiers);
 			ConfigService.OverrideConfig(globalConfig);
 		}
 

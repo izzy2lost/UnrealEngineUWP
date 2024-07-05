@@ -16,7 +16,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Agents.Pools;
 
 [TestClass]
-public class PoolUpdateServiceTest : TestSetup
+public class PoolUpdateServiceTest : BuildTestSetup
 {
 	private readonly PoolUpdateService _pus;
 	private IPool _pool = default!;

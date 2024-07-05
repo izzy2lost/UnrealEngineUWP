@@ -13,7 +13,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace HordeServer.Tests.Agents;
 
 [TestClass]
-public class AgentCollectionTests : TestSetup
+public class AgentCollectionTests : BuildTestSetup
 {
 	private IAgent _agent;
 	private readonly AgentLease _lease1;

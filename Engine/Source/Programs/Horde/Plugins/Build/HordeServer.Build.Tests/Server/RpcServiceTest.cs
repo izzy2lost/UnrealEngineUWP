@@ -123,7 +123,7 @@ namespace HordeServer.Tests.Server
 	}
 
 	[TestClass]
-	public class RpcServiceTest : TestSetup
+	public class RpcServiceTest : BuildTestSetup
 	{
 		private readonly ServerCallContext _adminContext = new ServerCallContextStub(HordeClaims.AdminClaim.ToClaim());
 
