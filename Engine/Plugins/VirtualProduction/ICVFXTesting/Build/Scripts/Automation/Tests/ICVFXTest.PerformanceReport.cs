@@ -504,7 +504,7 @@ namespace ICVFXTest
 
 						// Create the import batch
 						Logger.LogInformation("Importing entries to {DataSourceName}", DataSourceName);
-						Importer.Import(ImportEntries);
+						//Importer.Import(ImportEntries);
 					}
 
 					// Cleanup the temp dir
