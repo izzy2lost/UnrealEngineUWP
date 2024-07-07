@@ -1452,7 +1452,7 @@ namespace uba
 			SendLogFileToServer(*(ProcessImpl*)child.m_process);
 	}
 
-	void SessionClient::GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments)
+	void SessionClient::GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments, u32 processId)
 	{
 		out.Append(m_sessionLogDir.data);
 		if (logFile && *logFile)
@@ -1463,7 +1463,7 @@ namespace uba
 		}
 		else
 		{
-			GetNameFromArguments(out, arguments, true);
+			GenerateNameForProcess(out, arguments, processId);
 			out.Append(TC(".log"));
 		}
 	}
@@ -1636,7 +1636,7 @@ namespace uba
 					StringBuffer<> logFile;
 					if (m_logToFile)
 					{
-						GetLogFileName(logFile, startInfo.logFile, startInfo.arguments);
+						GetLogFileName(logFile, startInfo.logFile, startInfo.arguments, startInfo.processId);
 						startInfo.logFile = logFile.data;
 					}
 
@@ -1898,7 +1898,7 @@ namespace uba
 			if (m_logToFile)
 			{
 				StringBuffer<512> logFile;
-				GetLogFileName(logFile, outNextProcess.logFile.c_str(), outNextProcess.arguments.c_str());
+				GetLogFileName(logFile, outNextProcess.logFile.c_str(), outNextProcess.arguments.c_str(), process.GetId());
 				outNextProcess.logFile = logFile.data;
 			}
 		}

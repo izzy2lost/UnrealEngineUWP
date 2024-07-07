@@ -192,7 +192,6 @@ namespace uba
 
 		u64 m_keepOutputFileMemoryMapsThreshold;
 
-		u32 m_uid;
 		Atomic<u32> m_processIdCounter;
 
 		MemoryBlock m_directoryTableMemory;
@@ -265,7 +264,7 @@ namespace uba
 		friend class ProcessImpl;
 	};
 
-	void GetNameFromArguments(StringBufferBase& out, const tchar* arguments, bool addCounterSuffix);
+	void GenerateNameForProcess(StringBufferBase& out, const tchar* arguments, u32 counterSuffix);
 
 	using FileAccess = u8;
 

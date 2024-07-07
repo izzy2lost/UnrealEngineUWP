@@ -131,9 +131,11 @@ int wmain(int argc, wchar_t* argv[])
 			if (fh == INVALID_HANDLE_VALUE)
 				return LogError(L"Failed to create file File");
 			CloseHandle(fh);
-			MoveFile(L"FileW", L"FileW2");
+			if (!MoveFile(L"FileW", L"FileW2"))
+				return LogError(L"Failed to move file from FileW to FileW2");
 
-			CopyFile(L"FileW2", L"FileWF", false);
+			if (!CopyFile(L"FileW2", L"FileWF", false))
+				return LogError(L"Failed to copy file from FileW2 to FileWF");
 		}
 
 		{

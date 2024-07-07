@@ -952,7 +952,7 @@ namespace uba
 				if (!desc.empty())
 					name.Append(desc);
 				else
-					GetNameFromArguments(name, process.GetStartInfo().arguments, false);
+					GenerateNameForProcess(name, process.GetStartInfo().arguments, 0);
 				LogEntryType entryType = LogEntryType_Info;
 				if (errorCode)
 				{

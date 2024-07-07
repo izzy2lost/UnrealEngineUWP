@@ -84,6 +84,7 @@ namespace uba
 			table->GetValueAsBool(enableProcessReuse, TC("EnableProcessReuse"));
 			table->GetValueAsBool(forceRemote, TC("ForceRemote"));
 			table->GetValueAsBool(forceNative, TC("ForceNative"));
+			table->GetValueAsU32(maxLocalProcessors, TC("MaxLocalProcessors"));
 		}
 	}
 
@@ -626,7 +627,8 @@ namespace uba
 				StringBuffer<> logFile;
 				if (true)
 				{
-					GetNameFromArguments(logFile, si.arguments, true);
+					static u32 processId = 1; // TODO: This should be done in a better way.. or not at all?
+					GenerateNameForProcess(logFile, si.arguments, ++processId);
 					logFile.Append(TC(".log"));
 					si.logFile = logFile.data;
 				};

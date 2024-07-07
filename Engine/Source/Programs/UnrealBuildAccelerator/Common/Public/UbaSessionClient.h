@@ -91,7 +91,7 @@ namespace uba
 		bool SendProcessFinished(ProcessImpl& process, u32 exitCode);
 		void SendPing(u64 memAvail, u64 memTotal);
 		void SendLogFileToServer(ProcessImpl& pi);
-		void GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments);
+		void GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments, u32 processId);
 		u32 CountLogLines(ProcessImpl& process);
 		void WriteLogLines(BinaryWriter& writer, ProcessImpl& process);
 

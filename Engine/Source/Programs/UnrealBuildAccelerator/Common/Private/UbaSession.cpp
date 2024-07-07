@@ -1000,7 +1000,6 @@ namespace uba
 		UBA_ASSERTF(info.rootDir && *info.rootDir, TC("No root dir set when creating session"));
 		m_rootDir.count = GetFullPathNameW(info.rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
 		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
-		m_uid = u32(HashString()(m_rootDir.data));
 
 		m_runningRemote = runningRemote;
 		m_disableCustomAllocator = info.disableCustomAllocator;
@@ -1240,6 +1239,8 @@ namespace uba
 		si.useCustomAllocator &= !m_disableCustomAllocator;
 		const tchar* originalLogFile = si.logFile;
 		
+		u32 processId = CreateProcessId();
+
 		StringBuffer<> logFile;
 		if (si.logFile && *si.logFile)
 		{
@@ -1252,7 +1253,7 @@ namespace uba
 		else if (m_logToFile)
 		{
 			logFile.Append(m_sessionLogDir);
-			GetNameFromArguments(logFile, startInfo.arguments, true);
+			GenerateNameForProcess(logFile, startInfo.arguments, processId);
 			logFile.Append(TC(".log"));
 			si.logFile = logFile.data;
 		}
@@ -1261,8 +1262,7 @@ namespace uba
 			si.rules = GetRules(si);
 
 		void* env = GetProcessEnvironmentVariables();
-		u32 id = CreateProcessId();
-		auto process = new ProcessImpl(*this, id, parent);
+		auto process = new ProcessImpl(*this, processId, parent);
 		ProcessHandle h(process);
 		if (!process->Start(startInfo, m_runningRemote, env, async, enableDetour))
 			return {};
@@ -2816,7 +2816,7 @@ namespace uba
 	{
 	}
 
-	void GetNameFromArguments(StringBufferBase& out, const tchar* arguments, bool addCounterSuffix)
+	void GenerateNameForProcess(StringBufferBase& out, const tchar* arguments, u32 counterSuffix)
 	{
 		const tchar* start = arguments;
 		const tchar* it = arguments;
@@ -2847,8 +2847,7 @@ namespace uba
 		if (out.IsEmpty())
 			out.Append(TC("NoGoodName"));
 
-		static Atomic<u32> counter;
-		if (addCounterSuffix)
-			out.Appendf(TC("_%03u"), counter++);
+		if (counterSuffix)
+			out.Appendf(TC("_%03u"), counterSuffix);
 	}
 }
