@@ -304,6 +304,15 @@ namespace uba
 		#endif
 	}
 
+	bool SetEnvironmentVariableW(const tchar* name, const tchar* value)
+	{
+		#if PLATFORM_WINDOWS
+		return ::SetEnvironmentVariableW(name, value);
+		#else
+		return setenv(name, value, 1) == 0;
+		#endif
+	}
+
 	u32 ExpandEnvironmentStringsW(const tchar* lpSrc, tchar* lpDst, u32 nSize)
 	{
 		#if PLATFORM_WINDOWS

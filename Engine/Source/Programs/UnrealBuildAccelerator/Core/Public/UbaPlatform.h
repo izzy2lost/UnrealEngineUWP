@@ -97,6 +97,7 @@ namespace uba
 	ProcHandle GetCurrentProcessHandle();
 
 	u32 GetEnvironmentVariableW(const tchar* name, tchar* buffer, u32 nSize);
+	bool SetEnvironmentVariableW(const tchar* name, const tchar* value);
 	u32 ExpandEnvironmentStringsW(const tchar* lpSrc, tchar* lpDst, u32 nSize);
 	u32 GetLogicalProcessorCount();
 	u32 GetProcessorGroupCount();
