@@ -112,8 +112,8 @@ int g_uiLanguage;
 
 StringBuffer<256> g_exeDir;
 
-const wchar_t* g_commandLine;
-wchar_t* g_virtualCommandLine;
+wchar_t* g_virtualCommandLineW;
+char* g_virtualCommandLineA;
 
 constexpr u32 TrackInputsMemCapacity = 512 * 1024;
 u8* g_trackInputsMem;
@@ -857,20 +857,28 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	const wchar_t* cmdLine = True_GetCommandLineW();
 
 	const wchar_t* exePos;
-	if (Contains(cmdLine, g_exeDir.data, true, &exePos))
+	if (g_runningRemote && Contains(cmdLine, g_exeDir.data, true, &exePos))
 	{
 		StringBuffer<> buf;
 		buf.Append(cmdLine, exePos - cmdLine);
 		buf.Append(g_virtualApplicationDir);
 		TString realCmdLine(buf.data);
 		realCmdLine += (cmdLine + g_exeDir.count);
-		g_virtualCommandLine = g_memoryBlock.Strdup(realCmdLine.c_str());
+		g_virtualCommandLineW = g_memoryBlock.Strdup(realCmdLine.c_str());
+		}
+	//else
+	//	g_virtualCommandLineW = g_memoryBlock.Strdup(cmdLine);
+
+	if (g_virtualCommandLineW)
+	{
+		g_virtualCommandLineA = (char*)g_memoryBlock.Allocate(realCmdLine.size() + 1, 1, L"");
+		size_t res;
+		wcstombs_s(&res, g_virtualCommandLineA, realCmdLine.size() + 1, g_virtualCommandLineW, realCmdLine.size());
 	}
 
 	#if UBA_DEBUG_LOG_ENABLED
 	if (isLogging())
 	{
-		g_commandLine = cmdLine;
 		u64 cmdLineLen = wcslen(cmdLine);
 		wchar_t temp[LogBufSize - 10];
 		if (cmdLineLen > sizeof_array(temp))

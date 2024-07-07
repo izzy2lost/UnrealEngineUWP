@@ -411,4 +411,11 @@ errno_t Detoured__wmakepath_s(wchar_t* path, size_t sizeInWords, const wchar_t* 
 	DEBUG_LOG_TRUE(L"_wmakepath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
 	return res;
 }
+char* Detoured__getcwd(char* buffer, int maxlen)
+{
+	DETOURED_CALL(_getcwd);
+	UBA_ASSERT(!g_virtualCommandLineA);
+	return True__getcwd(buffer, maxlen);
+}
+
 #endif // defined(DETOURED_INCLUDE_DEBUG)

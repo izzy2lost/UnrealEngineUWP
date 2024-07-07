@@ -18,6 +18,9 @@
 #define DETOURED_INCLUDE_DEBUG
 #endif
 
+#if defined(DETOURED_INCLUDE_DEBUG)
+#include <direct.h>
+#endif
 
 
 #define DETOURED_FUNCTIONS \
@@ -203,6 +206,7 @@
 #if defined(DETOURED_INCLUDE_DEBUG)
 
 #define DETOURED_FUNCTIONS_KERNELBASE_DEBUG \
+	DETOURED_FUNCTION(GetCommandLineA) \
 	DETOURED_FUNCTION(FreeLibrary) \
 	DETOURED_FUNCTION(RegOpenKeyExW) \
 	DETOURED_FUNCTION(SetLastError) \
@@ -331,6 +335,7 @@
 	DETOURED_FUNCTION(getenv) \
 	DETOURED_FUNCTION(getenv_s) \
 	DETOURED_FUNCTION(_wmakepath_s) \
+	DETOURED_FUNCTION(_getcwd) \
 	//DETOURED_FUNCTION(_wsopen_s) \
 	//DETOURED_FUNCTION(_fileno) \
 

@@ -59,6 +59,8 @@ DWORD Local_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWORD c
 		}
 
 		SetLastError(errorCode);
+
+		DEBUG_LOG_DETOURED(L"GetLongPathNameW", L"%ls", lpszShortPath);
 	}
 	else
 	{
@@ -79,14 +81,14 @@ DWORD Local_GetLongPathNameW(LPCWSTR lpszShortPath, LPWSTR lpszLongPath, DWORD c
 LPWSTR Detoured_GetCommandLineW()
 {
 	DETOURED_CALL(GetCommandLineW);
-	if (!g_runningRemote)
+	if (!g_virtualCommandLineW)
 	{
 		LPWSTR str = True_GetCommandLineW();
 		DEBUG_LOG_TRUE(L"GetCommandLineW", L"");// str);
 		return str;
 	}
-	DEBUG_LOG_DETOURED(L"GetCommandLineW", L"");// g_virtualCommandLine);
-	return g_virtualCommandLine;
+	DEBUG_LOG_DETOURED(L"GetCommandLineW", L"");
+	return g_virtualCommandLineW;
 }
 
 DWORD Detoured_GetCurrentDirectoryW(DWORD nBufferLength, LPWSTR lpBuffer)
@@ -3633,6 +3635,19 @@ BOOL Detoured_IsProcessorFeaturePresent(DWORD ProcessorFeature)
 //	UBA_ASSERT(!isDetouredHandle(hFile));
 //	return True_CreateFileMappingNumaW(hFile, lpFileMappingAttributes, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName, nndPreferred);
 //}
+
+LPSTR Detoured_GetCommandLineA()
+{
+	DETOURED_CALL(GetCommandLineA);
+	if (!g_virtualCommandLineA)
+	{
+		auto str = True_GetCommandLineA();
+		DEBUG_LOG_TRUE(L"GetCommandLineA", L"");// str);
+		return str;
+	}
+	DEBUG_LOG_DETOURED(L"GetCommandLineA", L"");
+	return g_virtualCommandLineA;
+}
 
 BOOL Detoured_FreeLibrary(HMODULE hModule)
 {
