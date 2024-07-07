@@ -37,6 +37,7 @@ namespace uba
 		L"iphlpapi.dll",
 		L"kernel32.dll",
 		L"kernelbase.dll",
+		L"mscoree.dll",
 		L"msvcp_win.dll",
 		L"msvcrt.dll",
 		L"mswsock.dll",
