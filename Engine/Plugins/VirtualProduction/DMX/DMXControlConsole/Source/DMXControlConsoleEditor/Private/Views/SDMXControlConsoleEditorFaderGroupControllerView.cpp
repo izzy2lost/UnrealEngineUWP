@@ -45,6 +45,7 @@ namespace UE::DMX::Private
 		{
 			constexpr float CollapsedViewModeHeight = 280.f;
 			constexpr float ExpandedViewModeHeight = 360.f;
+			constexpr float PhysicalValueTypeHeight = 380.f;
 		}
 	}
 
@@ -535,14 +536,24 @@ namespace UE::DMX::Private
 	FOptionalSize SDMXControlConsoleEditorFaderGroupControllerView::GetFaderGroupControllerViewHeightByFadersViewMode() const
 	{
 		using namespace DMXControlConsoleEditorFaderGroupControllerView::Private;
-		const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
-		if (EditorData)
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		if (!ControlConsoleEditorData)
 		{
-			const EDMXControlConsoleEditorViewMode FadersViewMode = EditorData->GetFadersViewMode();
-			return FadersViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+			return CollapsedViewModeHeight;
 		}
 
-		return CollapsedViewModeHeight;
+		if (ControlConsoleEditorData->GetFadersViewMode() == EDMXControlConsoleEditorViewMode::Collapsed)
+		{
+			return CollapsedViewModeHeight;
+		}
+		else if (ControlConsoleEditorData->GetValueType() == EDMXControlConsoleEditorValueType::Physical)
+		{
+			return PhysicalValueTypeHeight;
+		}
+		else
+		{
+			return ExpandedViewModeHeight;
+		}
 	}
 
 	FSlateColor SDMXControlConsoleEditorFaderGroupControllerView::GetFaderGroupControllerViewBorderColor() const

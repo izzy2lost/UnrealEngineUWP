@@ -19,6 +19,7 @@ public class DMXControlConsole : ModuleRules
 			new string[]
 			{
 				"CoreUObject",
+				"DMXGDTF",
 				"DMXProtocol",
 				"DMXRuntime",
 				"Engine",

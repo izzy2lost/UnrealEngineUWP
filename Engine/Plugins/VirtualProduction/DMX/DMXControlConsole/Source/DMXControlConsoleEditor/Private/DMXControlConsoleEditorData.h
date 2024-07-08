@@ -31,8 +31,9 @@ enum class EDMXControlConsoleEditorViewMode : uint8
 UENUM()
 enum class EDMXControlConsoleEditorValueType : uint8
 {
-	Byte,
-	Normalized
+	DMX,
+	Normalized,
+	Physical
 };
 
 /** Struct which describes a User Filter */
@@ -206,7 +207,7 @@ private:
 	
 	/** Current value type for Faders widgets */
 	UPROPERTY()
-	EDMXControlConsoleEditorValueType ValueType = EDMXControlConsoleEditorValueType::Byte;
+	EDMXControlConsoleEditorValueType ValueType = EDMXControlConsoleEditorValueType::DMX;
 
 	UPROPERTY()
 	/** True if the Fader Groups from activated Fixture Patches must be grouped by default */

@@ -33,6 +33,7 @@ namespace UE::DMX::Private
 		{
 			constexpr float CollapsedViewModeHeight = 230.f;
 			constexpr float ExpandedViewModeHeight = 310.f;
+			constexpr float PhysicalValueTypeHeight = 330.f;
 		}
 	}
 
@@ -320,14 +321,24 @@ namespace UE::DMX::Private
 	FOptionalSize SDMXControlConsoleEditorMatrixCellControllerView::GetMatrixCellControllerHeightByFadersViewMode() const
 	{
 		using namespace DMXControlConsoleEditorMatrixCellControllerView::Private;
-		const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
-		if (EditorData)
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		if (!ControlConsoleEditorData)
 		{
-			const EDMXControlConsoleEditorViewMode ViewMode = EditorData->GetFadersViewMode();
-			return ViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+			return CollapsedViewModeHeight;
 		}
-
-		return CollapsedViewModeHeight;
+		
+		if (ControlConsoleEditorData->GetFadersViewMode() == EDMXControlConsoleEditorViewMode::Collapsed)
+		{
+			return CollapsedViewModeHeight;
+		}
+		else if (ControlConsoleEditorData->GetValueType() == EDMXControlConsoleEditorValueType::Physical)
+		{
+			return PhysicalValueTypeHeight;
+		}
+		else
+		{
+			return ExpandedViewModeHeight;
+		}
 	}
 
 	FText SDMXControlConsoleEditorMatrixCellControllerView::GetMatrixCellLabelText() const

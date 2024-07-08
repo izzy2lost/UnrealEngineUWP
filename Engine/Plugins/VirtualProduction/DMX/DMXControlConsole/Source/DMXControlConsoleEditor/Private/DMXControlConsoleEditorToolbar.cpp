@@ -396,12 +396,12 @@ namespace UE::DMX::Private
 					);
 				};
 
-			// Add a button to select byte value type
+			// Add a button to select dmx value type
 			AddValueTypeMenuEntryLambda
 			(
-				LOCTEXT("ByteValueTypeRadioButtonLabel", "Byte"),
-				LOCTEXT("ByteValueTypeRadioButton_ToolTip", "Values are displayed as 8bit multiples."),
-				EDMXControlConsoleEditorValueType::Byte
+				LOCTEXT("DMXValueTypeRadioButtonLabel", "DMX"),
+				LOCTEXT("DMXValueTypeRadioButton_ToolTip", "Values are displayed as 8bit multiples."),
+				EDMXControlConsoleEditorValueType::DMX
 			);
 
 			// Add a button to select normalized value type
@@ -410,6 +410,14 @@ namespace UE::DMX::Private
 				LOCTEXT("NormalizedValueTypeRadioButtonLabel", "Normalized"),
 				LOCTEXT("NormalizedValueTypeRadioButton_ToolTip", "Values are displayed in a 0 to 1 range."),
 				EDMXControlConsoleEditorValueType::Normalized
+			);
+
+			// Add a button to select physical value type
+			AddValueTypeMenuEntryLambda
+			(
+				LOCTEXT("PhysicalValueTypeRadioButtonLabel", "Physical"),
+				LOCTEXT("PhysicalValueTypeRadioButton_ToolTip", "Values are displayed according to specified physical unit."),
+				EDMXControlConsoleEditorValueType::Physical
 			);
 
 			MenuBuilder.AddSeparator();

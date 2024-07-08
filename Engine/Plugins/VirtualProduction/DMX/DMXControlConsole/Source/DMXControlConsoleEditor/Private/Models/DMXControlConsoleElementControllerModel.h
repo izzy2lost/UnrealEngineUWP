@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "GDTF/AttributeDefinitions/DMXGDTFPhysicalUnit.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
@@ -46,11 +47,26 @@ namespace UE::DMX::Private
 		/** Gets the max value of the Element Controller, relative to the contained Elements */
 		float GetRelativeMaxValue() const;
 
+		/** Gets the physical unit of the Element Controller, relative to the contained Elements */
+		EDMXGDTFPhysicalUnit GetPhysicalUnit() const;
+
+		/** Gets the physical value of the Element Controller, relative to the contained Elements */
+		double GetPhysicalValue() const;
+
+		/** Gets the physical from value of the Element Controller, relative to the contained Elements */
+		double GetPhysicalFrom() const;
+
+		/** Gets the physical to value of the Element Controller, relative to the contained Elements */
+		double GetPhysicalTo() const;
+
 		/** True if the Controller has just one Element */
 		bool HasSingleElement() const;
 
 		/** True if the Controller has Elements with the same data type */
 		bool HasUniformDataType() const;
+
+		/** True if the Controller has Elements with the same physical unit */
+		bool HasUniformPhysicalUnit() const;
 
 		/** True if the Controller has Elements with the same value */
 		bool HasUniformValue() const;

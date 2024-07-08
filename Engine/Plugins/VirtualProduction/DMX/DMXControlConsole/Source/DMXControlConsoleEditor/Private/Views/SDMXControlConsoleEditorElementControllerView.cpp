@@ -8,6 +8,8 @@
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
+#include "DMXControlConsolePhysicalUnitToUnitNameLabel.h"
+#include "DMXConversions.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layout/WidgetPath.h"
@@ -39,6 +41,7 @@ namespace UE::DMX::Private
 		{
 			constexpr float CollapsedViewModeHeight = 230.f;
 			constexpr float ExpandedViewModeHeight = 310.f;
+			constexpr float PhysicalValueTypeHeight = 330.f;
 		}
 	}
 
@@ -168,10 +171,22 @@ namespace UE::DMX::Private
 								.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorElementControllerView::GetExpandedViewModeVisibility))
 							]
 
+							// Physical Unit label 
+							+ SVerticalBox::Slot()
+							.HAlign(HAlign_Center)
+							.Padding(4.f)
+							.AutoHeight()
+							[
+								SNew(STextBlock)
+								.Text(this, &SDMXControlConsoleEditorElementControllerView::GetPhysicalUnitNameLabelText)
+								.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+								.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorElementControllerView::GetPhysicalUnitLabelVisibility))
+							]
+
 							// Element Controller Min Value
 							+ SVerticalBox::Slot()
 							.HAlign(HAlign_Center)
-							.Padding(6.f, 4.f)
+							.Padding(6.f, 2.f)
 							.AutoHeight()
 							[
 								SNew(SEditableTextBox)
@@ -486,13 +501,17 @@ namespace UE::DMX::Private
 
 		float Value = 0.f;
 		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
-		if (ValueType == EDMXControlConsoleEditorValueType::Byte)
+		if (ValueType == EDMXControlConsoleEditorValueType::DMX)
 		{
 			Value = ElementControllerModel->GetRelativeValue();
 			if (ElementControllerModel->HasUniformDataType())
 			{
 				return FText::FromString(FString::FromInt(Value));
 			}
+		}
+		else if (ValueType == EDMXControlConsoleEditorValueType::Physical)
+		{
+			Value = ElementControllerModel->GetPhysicalValue();
 		}
 		else
 		{
@@ -504,37 +523,51 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorElementControllerView::OnValueTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo)
 	{
+		if (CommitInfo != ETextCommit::OnEnter)
+		{
+			return;
+		}
+
 		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		const UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
-		if (!ControlConsoleEditorData || !ElementController || NewText.IsEmpty())
+		if (!ControlConsoleEditorData || !ElementController || NewText.IsEmpty() || !SpinBoxControllerWidget.IsValid())
 		{
 			return;
 		}
 
-		float NewValue = -1.f;
-		if (!LexTryParseString(NewValue, *NewText.ToString()) || NewValue < 0.f)
+		double NewValue = TNumericLimits<double>::Min();
+		if (!LexTryParseString(NewValue, *NewText.ToString()))
 		{
 			return;
 		}
 
+		const UDMXControlConsoleFaderBase* FirstFader = ElementControllerModel->GetFirstAvailableFader();
+		if (!FirstFader)
+		{
+			return;
+		}
+
+		// Normalize the input value
+		double ValueRange = 1.0;
 		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
-		if (ValueType == EDMXControlConsoleEditorValueType::Byte &&
-			ElementControllerModel->HasUniformDataType())
+		if (ValueType == EDMXControlConsoleEditorValueType::DMX && ElementControllerModel->HasUniformDataType())
 		{
-			// Normalize the input value
-			const UDMXControlConsoleFaderBase* FirstFader = ElementControllerModel->GetFirstAvailableFader();
-			if (ElementControllerModel->HasUniformDataType() && FirstFader)
-			{
-				const uint8 NumBytes = static_cast<uint8>(FirstFader->GetDataType()) + 1;
-				const float ValueRange = FMath::Pow(2.f, 8.f * NumBytes) - 1;
-				NewValue /= ValueRange;
-			}
+			ValueRange = FDMXConversions::GetSignalFormatMaxValue(FirstFader->GetDataType());
+			NewValue /= ValueRange;
+		}
+		else if (ValueType == EDMXControlConsoleEditorValueType::Physical && ElementControllerModel->HasUniformPhysicalUnit())
+		{
+			const double PhysicalFrom = ElementControllerModel->GetPhysicalFrom();
+			const double PhysicalTo = ElementControllerModel->GetPhysicalTo();
+
+			ValueRange = PhysicalTo > PhysicalFrom ? PhysicalTo - PhysicalFrom : PhysicalFrom - PhysicalTo;
+			const double RelativeValue = NewValue > PhysicalFrom ? NewValue - PhysicalFrom : PhysicalFrom - NewValue;
+
+			NewValue = FMath::IsNearlyZero(ValueRange) ? 0.0 : RelativeValue / ValueRange;
 		}
 
-		if (SpinBoxControllerWidget.IsValid())
-		{
-			SpinBoxControllerWidget->CommitValue(NewValue);
-		}
+		NewValue = FMath::Clamp(NewValue, 0.f, 1.f);
+		SpinBoxControllerWidget->CommitValue(NewValue);
 	}
 
 	TOptional<float> SDMXControlConsoleEditorElementControllerView::GetMinValue() const
@@ -564,13 +597,17 @@ namespace UE::DMX::Private
 
 		float MinValue = 0.f;
 		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
-		if (ValueType == EDMXControlConsoleEditorValueType::Byte)
+		if (ValueType == EDMXControlConsoleEditorValueType::DMX)
 		{
 			MinValue = ElementControllerModel->GetRelativeMinValue();
 			if (ElementControllerModel->HasUniformDataType())
 			{
 				return FText::FromString(FString::FromInt(MinValue));
 			}
+		}
+		else if (ValueType == EDMXControlConsoleEditorValueType::Physical)
+		{
+			MinValue = ElementControllerModel->GetPhysicalFrom();
 		}
 		else
 		{
@@ -582,6 +619,11 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorElementControllerView::OnMinValueTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo)
 	{
+		if (CommitInfo != ETextCommit::OnEnter)
+		{
+			return;
+		}
+
 		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
 		if (!ControlConsoleEditorData || !ElementController || NewText.IsEmpty())
@@ -589,24 +631,35 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		float NewValue = -1.f;
-		if (!LexTryParseString(NewValue, *NewText.ToString()) || NewValue < 0.f)
+		double NewValue = TNumericLimits<double>::Min();
+		if (!LexTryParseString(NewValue, *NewText.ToString()))
 		{
 			return;
 		}
 
-		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
-		if (ValueType == EDMXControlConsoleEditorValueType::Byte &&
-			ElementControllerModel->HasUniformDataType())
+		const UDMXControlConsoleFaderBase* FirstFader = ElementControllerModel->GetFirstAvailableFader();
+		if (!FirstFader)
 		{
-			// Normalize the input value
-			const UDMXControlConsoleFaderBase* FirstFader = ElementControllerModel->GetFirstAvailableFader();
-			if (ElementControllerModel->HasUniformDataType() && FirstFader)
-			{
-				const uint8 NumBytes = static_cast<uint8>(FirstFader->GetDataType()) + 1;
-				const float ValueRange = FMath::Pow(2.f, 8.f * NumBytes) - 1;
-				NewValue /= ValueRange;
-			}
+			return;
+		}
+
+		// Normalize the input value
+		double ValueRange = 1.0;
+		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
+		if (ValueType == EDMXControlConsoleEditorValueType::DMX && ElementControllerModel->HasUniformDataType())
+		{
+			ValueRange = FDMXConversions::GetSignalFormatMaxValue(FirstFader->GetDataType());
+			NewValue /= ValueRange;
+		}
+		else if (ValueType == EDMXControlConsoleEditorValueType::Physical && ElementControllerModel->HasUniformPhysicalUnit())
+		{
+			const double PhysicalFrom = ElementControllerModel->GetPhysicalFrom();
+			const double PhysicalTo = ElementControllerModel->GetPhysicalTo();
+
+			ValueRange = PhysicalTo > PhysicalFrom ? PhysicalTo - PhysicalFrom : PhysicalFrom - PhysicalTo;
+			const double RelativeValue = NewValue > PhysicalFrom ? NewValue - PhysicalFrom : PhysicalFrom - NewValue;
+
+			NewValue = FMath::IsNearlyZero(ValueRange) ? 0.0 : RelativeValue / ValueRange;
 		}
 
 		const FScopedTransaction ElementControllerMinValueEditedTransaction(LOCTEXT("ElementControllerMinValueEditedTransaction", "Edit Min Value"));
@@ -619,6 +672,7 @@ namespace UE::DMX::Private
 			}
 		}
 		
+		NewValue = FMath::Clamp(NewValue, 0.f, 1.f);
 		ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetMinValuePropertyName()));
 		ElementController->SetMinValue(NewValue);
 		ElementController->PostEditChange();
@@ -651,13 +705,17 @@ namespace UE::DMX::Private
 
 		float MaxValue = 0.f;
 		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
-		if (ValueType == EDMXControlConsoleEditorValueType::Byte)
+		if (ValueType == EDMXControlConsoleEditorValueType::DMX)
 		{
 			MaxValue = ElementControllerModel->GetRelativeMaxValue();
 			if (ElementControllerModel->HasUniformDataType())
 			{
 				return FText::FromString(FString::FromInt(MaxValue));
 			}
+		}
+		else if (ValueType == EDMXControlConsoleEditorValueType::Physical)
+		{
+			MaxValue = ElementControllerModel->GetPhysicalTo();
 		}
 		else
 		{
@@ -669,6 +727,11 @@ namespace UE::DMX::Private
 
 	void SDMXControlConsoleEditorElementControllerView::OnMaxValueTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo)
 	{
+		if (CommitInfo != ETextCommit::OnEnter)
+		{
+			return;
+		}
+
 		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
 		if (!ControlConsoleEditorData || !ElementController || NewText.IsEmpty())
@@ -676,24 +739,35 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		float NewValue = -1.f;
-		if (!LexTryParseString(NewValue, *NewText.ToString()) || NewValue < 0.f)
+		double NewValue = TNumericLimits<double>::Min();
+		if (!LexTryParseString(NewValue, *NewText.ToString()))
 		{
 			return;
 		}
 
-		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
-		if (ValueType == EDMXControlConsoleEditorValueType::Byte &&
-			ElementControllerModel->HasUniformDataType())
+		const UDMXControlConsoleFaderBase* FirstFader = ElementControllerModel->GetFirstAvailableFader();
+		if (!FirstFader)
 		{
-			// Normalize the input value
-			const UDMXControlConsoleFaderBase* FirstFader = ElementControllerModel->GetFirstAvailableFader();
-			if (ElementControllerModel->HasUniformDataType() && FirstFader)
-			{
-				const uint8 NumBytes = static_cast<uint8>(FirstFader->GetDataType()) + 1;
-				const float ValueRange = FMath::Pow(2.f, 8.f * NumBytes) - 1;
-				NewValue /= ValueRange;
-			}
+			return;
+		}
+
+		// Normalize the input value
+		double ValueRange = 1.0;
+		const EDMXControlConsoleEditorValueType ValueType = ControlConsoleEditorData->GetValueType();
+		if (ValueType == EDMXControlConsoleEditorValueType::DMX && ElementControllerModel->HasUniformDataType())
+		{
+			ValueRange = FDMXConversions::GetSignalFormatMaxValue(FirstFader->GetDataType());
+			NewValue /= ValueRange;
+		}
+		else if (ValueType == EDMXControlConsoleEditorValueType::Physical && ElementControllerModel->HasUniformPhysicalUnit())
+		{
+			const double PhysicalFrom = ElementControllerModel->GetPhysicalFrom();
+			const double PhysicalTo = ElementControllerModel->GetPhysicalTo();
+
+			ValueRange = PhysicalTo > PhysicalFrom ? PhysicalTo - PhysicalFrom : PhysicalFrom - PhysicalTo;
+			const double RelativeValue = NewValue > PhysicalFrom ? NewValue - PhysicalFrom : PhysicalFrom - NewValue;
+
+			NewValue = FMath::IsNearlyZero(ValueRange) ? 0.0 : RelativeValue / ValueRange;
 		}
 
 		const FScopedTransaction ElementControllerMinValueEditedTransaction(LOCTEXT("ElementControllerMinValueEditedTransaction", "Edit Min Value"));
@@ -707,9 +781,22 @@ namespace UE::DMX::Private
 			}
 		}
 		
+		NewValue = FMath::Clamp(NewValue, 0.f, 1.f);
 		ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetMaxValuePropertyName()));
 		ElementController->SetMaxValue(NewValue);
 		ElementController->PostEditChange();
+	}
+
+	FText SDMXControlConsoleEditorElementControllerView::GetPhysicalUnitNameLabelText() const
+	{
+		if (!ElementControllerModel.IsValid())
+		{
+			return FText::GetEmpty();
+		}
+
+		const EDMXGDTFPhysicalUnit PhysicalUnit = ElementControllerModel->GetPhysicalUnit();
+		const FName& PhysicalUnitNamelLabel = FDMXControlConsolePhysicalUnitToUnitNameLabel::GetNameLabel(PhysicalUnit);
+		return FText::FromName(PhysicalUnitNamelLabel);
 	}
 
 	void SDMXControlConsoleEditorElementControllerView::OnEnableElementController(bool bEnable) const
@@ -900,14 +987,24 @@ namespace UE::DMX::Private
 	FOptionalSize SDMXControlConsoleEditorElementControllerView::GetElementControllerHeightByViewMode() const
 	{
 		using namespace DMXControlConsoleEditorElementControllerView::Private;
-		const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
-		if (EditorData)
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		if (!ControlConsoleEditorData)
 		{
-			const EDMXControlConsoleEditorViewMode ViewMode = EditorData->GetFadersViewMode();
-			return ViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+			return CollapsedViewModeHeight;
 		}
 
-		return CollapsedViewModeHeight;
+		if (ControlConsoleEditorData->GetFadersViewMode() == EDMXControlConsoleEditorViewMode::Collapsed)
+		{
+			return CollapsedViewModeHeight;
+		}
+		else if (ControlConsoleEditorData->GetValueType() == EDMXControlConsoleEditorValueType::Physical)
+		{
+			return PhysicalValueTypeHeight;
+		}
+		else
+		{
+			return ExpandedViewModeHeight;
+		}
 	}
 
 	FSlateColor SDMXControlConsoleEditorElementControllerView::GetLockButtonColor() const
@@ -922,12 +1019,11 @@ namespace UE::DMX::Private
 
 	EVisibility SDMXControlConsoleEditorElementControllerView::GetExpandedViewModeVisibility() const
 	{
-		const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 
 		const bool bIsVisible =
-			ElementControllerModel.IsValid() &&
-			EditorData &&
-			EditorData->GetFadersViewMode() == EDMXControlConsoleEditorViewMode::Expanded;
+			ControlConsoleEditorData &&
+			ControlConsoleEditorData->GetFadersViewMode() == EDMXControlConsoleEditorViewMode::Expanded;
 
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}
@@ -935,6 +1031,18 @@ namespace UE::DMX::Private
 	EVisibility SDMXControlConsoleEditorElementControllerView::GetLockButtonVisibility() const
 	{
 		const bool bIsVisible = ElementControllerModel.IsValid() && ElementControllerModel->IsLocked();
+		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
+	EVisibility SDMXControlConsoleEditorElementControllerView::GetPhysicalUnitLabelVisibility() const
+	{
+		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		
+		const bool bIsVisible =
+			ControlConsoleEditorData &&
+			ControlConsoleEditorData->GetFadersViewMode() == EDMXControlConsoleEditorViewMode::Expanded &&
+			ControlConsoleEditorData->GetValueType() == EDMXControlConsoleEditorValueType::Physical;
+
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 

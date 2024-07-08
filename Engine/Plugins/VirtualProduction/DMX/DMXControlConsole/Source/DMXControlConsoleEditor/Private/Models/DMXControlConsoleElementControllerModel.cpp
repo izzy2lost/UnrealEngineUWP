@@ -216,6 +216,70 @@ namespace UE::DMX::Private
 		return static_cast<float>(FirstFader->GetMaxValue());
 	}
 
+	EDMXGDTFPhysicalUnit FDMXControlConsoleElementControllerModel::GetPhysicalUnit() const
+	{
+		if (!HasUniformPhysicalUnit())
+		{
+			return EDMXGDTFPhysicalUnit::None;
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(GetFirstAvailableFader());
+		if (!FirstFader)
+		{
+			return EDMXGDTFPhysicalUnit::None;
+		}
+
+		return FirstFader->GetPhysicalUnit();
+	}
+
+	double FDMXControlConsoleElementControllerModel::GetPhysicalValue() const
+	{
+		if (!HasUniformPhysicalUnit())
+		{
+			return GetRelativeValue();
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(GetFirstAvailableFader());
+		if (!FirstFader)
+		{
+			return GetRelativeValue();
+		}
+
+		return FirstFader->GetPhysicalValue();
+	}
+
+	double FDMXControlConsoleElementControllerModel::GetPhysicalFrom() const
+	{
+		if (!HasUniformPhysicalUnit())
+		{
+			return GetRelativeValue();
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(GetFirstAvailableFader());
+		if (!FirstFader)
+		{
+			return GetRelativeValue();
+		}
+
+		return FirstFader->GetPhysicalFrom();
+	}
+
+	double FDMXControlConsoleElementControllerModel::GetPhysicalTo() const
+	{
+		if (!HasUniformPhysicalUnit())
+		{
+			return GetRelativeValue();
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(GetFirstAvailableFader());
+		if (!FirstFader)
+		{
+			return GetRelativeValue();
+		}
+
+		return FirstFader->GetPhysicalTo();
+	}
+
 	bool FDMXControlConsoleElementControllerModel::HasSingleElement() const
 	{
 		return WeakElementController.IsValid() && WeakElementController->GetElements().Num() == 1;
@@ -242,6 +306,35 @@ namespace UE::DMX::Private
 			});
 
 		return bHasUniformDataType;
+	}
+
+	bool FDMXControlConsoleElementControllerModel::HasUniformPhysicalUnit() const
+	{
+		if (!WeakElementController.IsValid() || WeakElementController->GetElements().IsEmpty())
+		{
+			return false;
+		}
+
+		const TArray<UDMXControlConsoleFaderBase*> Faders = WeakElementController->GetFaders();
+		if (Faders.IsEmpty())
+		{
+			return false;
+		}
+
+		const UDMXControlConsoleFixturePatchFunctionFader* FirstFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(Faders[0]);
+		if (!FirstFader)
+		{
+			return false;
+		}
+
+		const bool bHasUniformPhysicalUnit = Algo::AllOf(Faders,
+			[FirstFader](const UDMXControlConsoleFaderBase* Fader)
+			{
+				const UDMXControlConsoleFixturePatchFunctionFader* FunctionFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(Fader);
+				return FunctionFader && FunctionFader->GetPhysicalUnit() == FirstFader->GetPhysicalUnit();
+			});
+
+		return bHasUniformPhysicalUnit;
 	}
 
 	bool FDMXControlConsoleElementControllerModel::HasUniformValue() const
