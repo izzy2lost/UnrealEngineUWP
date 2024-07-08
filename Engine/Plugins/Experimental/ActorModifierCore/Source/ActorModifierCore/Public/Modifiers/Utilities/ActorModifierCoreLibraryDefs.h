@@ -37,7 +37,7 @@ struct FActorModifierCoreCloneOperation
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* CloneModifier;
+	UActorModifierCoreBase* CloneModifier = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
 	EActorModifierCoreStackPosition ClonePosition = EActorModifierCoreStackPosition::Before;
@@ -52,7 +52,7 @@ struct FActorModifierCoreMoveOperation
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* MoveModifier;
+	UActorModifierCoreBase* MoveModifier = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
 	EActorModifierCoreStackPosition MovePosition = EActorModifierCoreStackPosition::Before;
@@ -67,7 +67,7 @@ struct FActorModifierCoreRemoveOperation
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* RemoveModifier;
+	UActorModifierCoreBase* RemoveModifier = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
 	bool bRemoveDependencies = false;
