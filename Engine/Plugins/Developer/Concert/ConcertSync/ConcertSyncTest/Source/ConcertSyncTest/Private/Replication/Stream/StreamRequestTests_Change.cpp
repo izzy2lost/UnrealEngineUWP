@@ -4,9 +4,9 @@
 
 #include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationManager.h"
-#include "TestReflectionObject.h"
-#include "Util/ChangeStreamsTestBase.h"
-#include "Util/SendReceiveObjectTestBase.h"
+#include "Replication/Util/ChangeStreamsTestBase.h"
+#include "Replication/Util/SendReceiveObjectTestBase.h"
+#include "Replication/TestReflectionObject.h"
 
 #include "Misc/AutomationTest.h"
 #include "UObject/UObjectGlobals.h"
