@@ -55,8 +55,8 @@ namespace UE::ConcertSyncClient::Replication
 		void AddReplicatedObjectStreams(const FSoftObjectPath& Object, TArrayView<const FGuid> AddedStreams);
 		/**
 		 * Indicates that certain properties of an object should no longer be replicated.
-		 * @param Object The object that should start replicating
-		 * @param RemovedStreams The streams determine which properties are to be replicated
+		 * @param Object The object that should is affected by the stream change
+		 * @param RemovedStreams The properties in these streams will no longer be replicated
 		 */
 		void RemoveReplicatedObjectStreams(const FSoftObjectPath& Object, TArrayView<const FGuid> RemovedStreams);
 		/**

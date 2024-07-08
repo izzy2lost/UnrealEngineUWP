@@ -223,13 +223,13 @@ namespace UE::ConcertSyncClient::Replication
 		
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
 		// At that point, it will log errors for receiving replication data from a client without authority.
-		HandleRemovingReplicatedObjects(Args);
+		TMap<FSoftObjectPath, TArray<FGuid>> PredictedChange = HandleRemovingReplicatedObjects(Args);
 		// We don't need worry about updating sync control until it is processed below - the local client will not attempt to replicate the object
 		// because we just locally updated the replication cache.
 		
 		Private::LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
-			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeStream_Response&& Response)
+			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args, PredictedChange = MoveTemp(PredictedChange)](FConcertReplication_ChangeStream_Response&& Response)
 			{
 				Private::LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Response);
 
@@ -242,7 +242,7 @@ namespace UE::ConcertSyncClient::Replication
 				else if (ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Timeout)
 				{
 					// HandleRemovingReplicatedObjects caused Request.ObjectsToRemove to stop being replicated. Revert.
-					ThisPin->RevertRemovingReplicatedObjects(Args);
+					ThisPin->RevertRemovingReplicatedObjects(PredictedChange);
 				}
 				
 				return FConcertReplication_ChangeStream_Response { MoveTemp(Response) };
@@ -415,32 +415,44 @@ namespace UE::ConcertSyncClient::Replication
 	{
 		static void ForEachObjectRemovedFromStreams(const FConcertReplication_ChangeStream_Request& Request, TFunctionRef<void(const FSoftObjectPath& ObjectPath, const TArray<FGuid>& Streams)> Callback)
 		{
-			TMap<FSoftObjectPath, TArray<FGuid>> BundledRemovedObjects;
-			for (const FConcertObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
-			{
-				BundledRemovedObjects.FindOrAdd(RemovedObject.Object).Add(RemovedObject.StreamId);
-			}
-			for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : BundledRemovedObjects)
-			{
-				Callback(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
-			}
+			
 		}
 	}
 
-	void FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request)
+	TMap<FSoftObjectPath, TArray<FGuid>> FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request)
 	{
-		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
+		TMap<FSoftObjectPath, TArray<FGuid>> BundledRemovedObjects;
+		for (const FConcertObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
 		{
-			ReplicationDataSource.RemoveReplicatedObjectStreams(Object, RemovedStreams);
-		});
+			BundledRemovedObjects.FindOrAdd(RemovedObject.Object).AddUnique(RemovedObject.StreamId);
+		}
+		for (const FConcertReplicationStream& Stream : RegisteredStreams)
+		{
+			const FGuid& StreamId = Stream.BaseDescription.Identifier;
+			if (!Request.StreamsToRemove.Contains(StreamId))
+			{
+				continue;
+			}
+
+			for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& Pair : Stream.BaseDescription.ReplicationMap.ReplicatedObjects)
+			{
+				BundledRemovedObjects.FindOrAdd(Pair.Key).AddUnique(StreamId);
+			}
+		}
+		
+		for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : BundledRemovedObjects)
+		{
+			ReplicationDataSource.RemoveReplicatedObjectStreams(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
+		}
+		return BundledRemovedObjects;
 	}
 
-	void FReplicationManagerState_Connected::RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request)
+	void FReplicationManagerState_Connected::RevertRemovingReplicatedObjects(const TMap<FSoftObjectPath, TArray<FGuid>>& PredictedChange)
 	{
-		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
+		for (const TPair<FSoftObjectPath, TArray<FGuid>>& RemovedObjectInfo : PredictedChange)
 		{
-			ReplicationDataSource.AddReplicatedObjectStreams(Object, RemovedStreams);
-		});
+			ReplicationDataSource.AddReplicatedObjectStreams(RemovedObjectInfo.Key, RemovedObjectInfo.Value);
+		}
 	}
 
 	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response)
