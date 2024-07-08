@@ -4,6 +4,7 @@
 
 #include "Blueprint/UserWidget.h"
 #include "ContentBrowserMenuContexts.h"
+#include "Customizations/PreviewableWidgetCustomization.h"
 #include "Editor.h"
 #include "Framework/Commands/UIAction.h"
 #include "Logging/LogMacros.h"
@@ -43,11 +44,23 @@ namespace UE::UMGWidgetPreview::Private
 		// Menus need to be registered in a callback to make sure the system is ready for them.
 		UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FUMGWidgetPreviewModule::RegisterMenus));
+
+		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		{
+			PropertyModule.RegisterCustomPropertyTypeLayout(
+				FPreviewableWidgetVariant::StaticStruct()->GetFName(),
+				FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPreviewableWidgetCustomization::MakeInstance));
+		}
 	}
 
 	void FUMGWidgetPreviewModule::ShutdownModule()
 	{
 		UToolMenus::UnRegisterStartupCallback(this);
+
+		if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+		{
+			PropertyModule->UnregisterCustomPropertyTypeLayout(FPreviewableWidgetVariant::StaticStruct()->GetFName());
+		}
 
 		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 		MessageLogModule.UnregisterLogListing(MessageLogName);
@@ -98,6 +111,7 @@ namespace UE::UMGWidgetPreview::Private
 													{
 														UWidgetPreview* PreviewForWidget = UWidgetPreviewEditor::CreatePreviewForWidget(
 															Cast<UUserWidget>(AsWidgetBlueprint->GeneratedClass->GetDefaultObject<UUserWidget>()));
+
 														GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(PreviewForWidget);
 													}
 												}
@@ -110,7 +124,7 @@ namespace UE::UMGWidgetPreview::Private
 							Section.AddMenuEntryWithCommandList(
 								FWidgetPreviewCommands::Get().OpenEditor,
 								CommandListToBind,
-								TAttribute<FText>(),
+								LOCTEXT("WidgetContextMenuPreviewLabel", "Preview"), // Just use "Preview" here, the context means it's already a "Widget" so we can omit the prefix
 								ToolTipOverride,
 								FSlateIcon(FWidgetPreviewStyle::Get().GetStyleSetName(), "WidgetPreview.OpenEditor"));
 						}
