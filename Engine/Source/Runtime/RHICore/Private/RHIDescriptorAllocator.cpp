@@ -33,6 +33,38 @@ void FRHIDescriptorAllocator::Shutdown()
 	Capacity = 0;
 }
 
+FRHIDescriptorHandle FRHIDescriptorAllocator::ResizeGrowAndAllocate(uint32 InNewNumDescriptors, ERHIDescriptorHeapType InType)
+{
+	check(Capacity < InNewNumDescriptors);
+	
+	FScopeLock Lock(&CriticalSection);
+	
+	bool bAddEndRange = true;
+	if (Ranges.Num() > 0)
+	{
+		// Check if it can be merged with the last range
+		FRHIDescriptorAllocatorRange& LastRange = Ranges[Ranges.Num() - 1];
+		const uint32 VeryLastIndex = GetCapacity() - 1;
+		if (LastRange.Last == VeryLastIndex)
+		{
+			LastRange.Last = InNewNumDescriptors - 1;
+			bAddEndRange = false;
+		}
+	}
+
+	// Add a new range at the end
+	if (bAddEndRange)
+	{
+		Ranges.Emplace(Capacity, InNewNumDescriptors - 1);
+	}
+
+	Capacity = InNewNumDescriptors;
+
+	uint32 Index{};
+	verify(Allocate(1, Index))
+	return FRHIDescriptorHandle(InType, Index);
+}
+
 FRHIDescriptorHandle FRHIDescriptorAllocator::Allocate(ERHIDescriptorHeapType InType)
 {
 	uint32 Index{};
@@ -54,7 +86,11 @@ void FRHIDescriptorAllocator::Free(FRHIDescriptorHandle InHandle)
 bool FRHIDescriptorAllocator::Allocate(uint32 NumDescriptors, uint32& OutSlot)
 {
 	FScopeLock Lock(&CriticalSection);
+	return AllocateInternal(NumDescriptors, OutSlot);
+}
 
+bool FRHIDescriptorAllocator::AllocateInternal(uint32 NumDescriptors, uint32& OutSlot)
+{
 	if (const uint32 NumRanges = Ranges.Num(); NumRanges > 0)
 	{
 		uint32 Index = 0;

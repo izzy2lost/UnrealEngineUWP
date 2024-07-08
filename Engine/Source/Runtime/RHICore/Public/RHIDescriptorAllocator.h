@@ -25,6 +25,8 @@ public:
 	RHICORE_API void Init(uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
 	RHICORE_API void Shutdown();
 
+	RHICORE_API FRHIDescriptorHandle ResizeGrowAndAllocate(uint32 InNewNumDescriptors, ERHIDescriptorHeapType InType);
+
 	RHICORE_API FRHIDescriptorHandle Allocate(ERHIDescriptorHeapType InType);
 	RHICORE_API void Free(FRHIDescriptorHandle InHandle);
 
@@ -37,6 +39,9 @@ public:
 	uint32 GetCapacity() const { return Capacity; }
 
 private:
+
+	RHICORE_API bool AllocateInternal(uint32 NumDescriptors, uint32& OutSlot);
+
 	void RecordAlloc(uint32 Count)
 	{
 #if STATS
@@ -81,8 +86,9 @@ public:
 	RHICORE_API void Free(uint32 Slot, uint32 NumDescriptors);
 
 	using FRHIDescriptorAllocator::GetAllocatedRange;
-
 	using FRHIDescriptorAllocator::GetCapacity;
+	using FRHIDescriptorAllocator::ResizeGrowAndAllocate;
+
 	inline ERHIDescriptorHeapType GetType() const { return Type; }
 
 	inline bool HandlesAllocation(ERHIDescriptorHeapType InType) const { return GetType() == InType; }

@@ -137,6 +137,10 @@ FD3D12BindlessResourceManager::FD3D12BindlessResourceManager(FD3D12Device* InDev
 FRHIDescriptorHandle FD3D12BindlessResourceManager::Allocate()
 {
 	FRHIDescriptorHandle Result = Allocator.Allocate();
+	if (!Result.IsValid())
+	{
+		Result = ResizeGrowAndAllocate();
+	}
 	check(Result.IsValid());
 	return Result;
 }
@@ -149,6 +153,28 @@ void FD3D12BindlessResourceManager::Free(FRHIDescriptorHandle InHandle)
 	}
 }
 
+FRHIDescriptorHandle FD3D12BindlessResourceManager::ResizeGrowAndAllocate()
+{	
+	TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::ResizeGrow");
+
+	FScopeLock ScopeLock(&HeapsCS);
+
+	// Grow the descriptor handle allocator
+	uint32 CurrentNumDescriptors = Allocator.GetCapacity();
+	uint32 NewNumDescriptors = CurrentNumDescriptors * 2;
+	FRHIDescriptorHandle Result = Allocator.ResizeGrowAndAllocate(NewNumDescriptors, Allocator.GetType());
+
+	// Allocate new cpu heap & copy over the content
+	FD3D12DescriptorHeapPtr NewCpuHeap = UE::D3D12BindlessDescriptors::CreateCpuHeap(GetParentDevice(), ERHIDescriptorHeapType::Standard, NewNumDescriptors);
+	UE::D3D12Descriptors::CopyDescriptors(GetParentDevice(), NewCpuHeap, CpuHeap, 0, CurrentNumDescriptors);
+	CpuHeap = NewCpuHeap;
+
+	bRequestNewActiveGpuHeap = true;
+	bCPUHeapResized = true;
+
+	return Result;
+}
+
 void FD3D12BindlessResourceManager::CleanupResources()
 {
 	CpuHeap.SafeRelease();
@@ -158,7 +184,6 @@ void FD3D12BindlessResourceManager::CleanupResources()
 
 void FD3D12BindlessResourceManager::ReleaseGPUHeaps()
 {
-	if (ActiveGpuHeapIndex >= 0)
 	{		
 		for (FGpuHeapData& GpuHeap : ActiveGpuHeaps)
 		{
@@ -187,6 +212,7 @@ void FD3D12BindlessResourceManager::ReleaseGPUHeaps()
 
 		ActiveGpuHeapIndex = -1;
 		InUseGPUHeaps = 0;
+		bRequestNewActiveGpuHeap = false;
 	}
 }
 
@@ -237,7 +263,7 @@ void FD3D12BindlessResourceManager::UpdateInUseGPUHeaps(bool bInUse)
 
 void FD3D12BindlessResourceManager::GarbageCollect()
 {
-	FScopeLock ScopeLock(&GpuHeapsCS);
+	FScopeLock ScopeLock(&HeapsCS);
 		
 	// Release all GPU heaps when bindless heaps have not been used for certain amount of time with bindless for RayTracing only (assume RayTracing disabled)
 	if (GetConfiguration() == ERHIBindlessConfiguration::RayTracingShaders && (LastUsedExplicitHeapCycle + GBindlessResourceDescriptorGarbageCollectLatency < GarbageCollectCycle))
@@ -311,7 +337,7 @@ void FD3D12BindlessResourceManager::GarbageCollect()
 
 void FD3D12BindlessResourceManager::Recycle(FD3D12DescriptorHeap* DescriptorHeap)
 {
-	FScopeLock ScopeLock(&GpuHeapsCS);
+	FScopeLock ScopeLock(&HeapsCS);
 
 	bool bFound = false;
 	for (FGpuHeapData& GpuHeap : ActiveGpuHeaps)
@@ -334,16 +360,15 @@ void FD3D12BindlessResourceManager::InitializeDescriptor(FRHIDescriptorHandle Ds
 	if (DstHandle.IsValid())
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::InitializeDescriptor");
+		
+		FScopeLock ScopeLock(&HeapsCS);
 
 		// Update both CPU and active GPU heap since it's initialization and we know the handle isn't currently in use by the GPU
 		FD3D12OfflineDescriptor OfflineCpuHandle = View->GetOfflineCpuHandle();	
 		UE::D3D12Descriptors::CopyDescriptor(GetParentDevice(), CpuHeap, DstHandle, OfflineCpuHandle);
 
 		// Copy descriptor to active gpu heaps and to dirty list (needs lock because active gpu heap could be changed on RHI thread)
-		// (performing ActiveGpuHeapIndex without lock is twice as fast (10 micros instead of 20 in regular FN frame), but not 100% thread safe because it
-		//  could be missing an initialization of the copy from cpu has happened before above copy was done).
-		FScopeLock ScopeLock(&GpuHeapsCS);
-		if (ActiveGpuHeapIndex >= 0)
+		if (ActiveGpuHeapIndex >= 0 && !bCPUHeapResized)
 		{
 			UE::D3D12Descriptors::CopyDescriptor(GetParentDevice(), ActiveGpuHeaps[ActiveGpuHeapIndex].GpuHeap, DstHandle, OfflineCpuHandle);
 			ActiveGpuHeaps[ActiveGpuHeapIndex].UpdatedHandles.Add(DstHandle);
@@ -361,12 +386,12 @@ void FD3D12BindlessResourceManager::UpdateDescriptor(FD3D12ContextArray const& C
 
 		check(IsInRHIThread() || GRHICommandList.Bypass());
 	
+		FScopeLock ScopeLock(&HeapsCS);
+
 		// Update the shared CPU heap
 		UE::D3D12Descriptors::CopyDescriptor(GetParentDevice(), CpuHeap, DstHandle, View->GetOfflineCpuHandle());
 
 		// Add to update list so it's updated for the next heap
-		// (see not on lock in InitializeDescriptor)
-		FScopeLock ScopeLock(&GpuHeapsCS);
 		if (ActiveGpuHeapIndex >= 0)
 		{
 			// Request allocation of new heap because current GPU heap is used by GPU and can't modify handles in use
@@ -396,7 +421,7 @@ bool FD3D12BindlessResourceManager::FlushPendingDescriptorUpdates(FD3D12CommandC
 	FD3D12ContextBindlessState& State = Context.GetBindlessState();
 
 	// Create a new heap because there have been descriptor updates?
-	if (State.bRequestNewGpuHeap)
+	if (State.bRequestNewGpuHeap || bRequestNewActiveGpuHeap)
 	{
 		// First finalize the previous heap if it was set.
 		FinalizeHeapOnState(State);
@@ -472,7 +497,7 @@ FD3D12DescriptorHeap* FD3D12BindlessResourceManager::GetExplicitHeapForContext(F
 	// Assign GPU heap when it's still unassigned (can happen when RT only and not been used yet - will get full copy of updated CPU state)
 	if (State.CurrentGpuHeap == nullptr && GetConfiguration() == ERHIBindlessConfiguration::RayTracingShaders)
 	{
-		FScopeLock ScopeLock(&GpuHeapsCS);
+		FScopeLock ScopeLock(&HeapsCS);
 		ActiveGpuHeapIndex = AddActiveGPUHeap();
 		State.CurrentGpuHeap = ActiveGpuHeaps[ActiveGpuHeapIndex].GpuHeap;
 	}
@@ -499,7 +524,7 @@ void FD3D12BindlessResourceManager::AssignHeapToState(FD3D12ContextBindlessState
 {
 	checkf(State.CurrentGpuHeap == nullptr, TEXT("FinalizeHeapOnState was not called before AssignHeapToState"));
 
-	FScopeLock ScopeLock(&GpuHeapsCS);
+	FScopeLock ScopeLock(&HeapsCS);
 
 	// Do we have a heap allocated, then assign
 	if (ActiveGpuHeapIndex >= 0)
@@ -533,41 +558,49 @@ void FD3D12BindlessResourceManager::CheckRequestNewActiveGPUHeap()
 
 	TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::RequestNewActiveGPUHeap");
 
-	FScopeLock ScopeLock(&GpuHeapsCS);
+	FScopeLock ScopeLock(&HeapsCS);
 
 	if (!bRequestNewActiveGpuHeap)
 	{
 		return;
 	}
-
-	// Update the the last used garbage collect cycle before moving over to a new heap
-	ActiveGpuHeaps[ActiveGpuHeapIndex].LastUsedGarbageCollectCycle = GarbageCollectCycle;
-
-	// Queue the heap for recycle when the GPU is done using it
-	UE::D3D12BindlessDescriptors::DeferredFreeHeap(GetParentDevice(), ActiveGpuHeaps[ActiveGpuHeapIndex].GpuHeap);
-
-	int32 NumGpuHeaps = ActiveGpuHeaps.Num();
-
-	// Copy over dirty handles to all other heaps so they are updated when reused as well
-	for (int32 GpuHeapIndex = 0; GpuHeapIndex < NumGpuHeaps; ++GpuHeapIndex)
-	{
-		if (GpuHeapIndex != ActiveGpuHeapIndex)
-		{
-			ActiveGpuHeaps[GpuHeapIndex].UpdatedHandles.Append(ActiveGpuHeaps[ActiveGpuHeapIndex].UpdatedHandles);
-		}
-	}
-
-	// Try and reuse a pooled heap (incremented from last used to reduce the possible spike on reuse of lots of heap and dirty handle increase)
+	
 	int32 NewActiveGpuHeapIndex = -1;
-	for (int32 NextIndex = 1; NextIndex < NumGpuHeaps; ++NextIndex)
+	if (bCPUHeapResized)
 	{
-		int32 GpuHeapIndex = (ActiveGpuHeapIndex + NextIndex) % NumGpuHeaps;
+		// Resizing the heap size then free all current allocated GPU heaps
+		ReleaseGPUHeaps();
+	}
+	else
+	{
+		// Update the the last used garbage collect cycle before moving over to a new heap
+		ActiveGpuHeaps[ActiveGpuHeapIndex].LastUsedGarbageCollectCycle = GarbageCollectCycle;
+		
+		// Queue the heap for recycle when the GPU is done using it
+		UE::D3D12BindlessDescriptors::DeferredFreeHeap(GetParentDevice(), ActiveGpuHeaps[ActiveGpuHeapIndex].GpuHeap);
 
-		// Not used by the GPU anymore and not the current one
-		if (GpuHeapIndex != ActiveGpuHeapIndex && !ActiveGpuHeaps[GpuHeapIndex].bInUse)
+		int32 NumGpuHeaps = ActiveGpuHeaps.Num();
+
+		// Copy over dirty handles to all other heaps so they are updated when reused as well
+		for (int32 GpuHeapIndex = 0; GpuHeapIndex < NumGpuHeaps; ++GpuHeapIndex)
 		{
-			NewActiveGpuHeapIndex = GpuHeapIndex;
-			break;
+			if (GpuHeapIndex != ActiveGpuHeapIndex)
+			{
+				ActiveGpuHeaps[GpuHeapIndex].UpdatedHandles.Append(ActiveGpuHeaps[ActiveGpuHeapIndex].UpdatedHandles);
+			}
+		}
+
+		// Try and reuse a pooled heap (incremented from last used to reduce the possible spike on reuse of lots of heap and dirty handle increase)
+		for (int32 NextIndex = 1; NextIndex < NumGpuHeaps; ++NextIndex)
+		{
+			int32 GpuHeapIndex = (ActiveGpuHeapIndex + NextIndex) % NumGpuHeaps;
+
+			// Not used by the GPU anymore and not the current one
+			if (GpuHeapIndex != ActiveGpuHeapIndex && !ActiveGpuHeaps[GpuHeapIndex].bInUse)
+			{
+				NewActiveGpuHeapIndex = GpuHeapIndex;
+				break;
+			}
 		}
 	}
 
@@ -594,6 +627,7 @@ void FD3D12BindlessResourceManager::CheckRequestNewActiveGPUHeap()
 
 	// clear the request
 	bRequestNewActiveGpuHeap = false;
+	bCPUHeapResized = false;
 
 	// Update the active gpu index
 	ActiveGpuHeapIndex = NewActiveGpuHeapIndex;

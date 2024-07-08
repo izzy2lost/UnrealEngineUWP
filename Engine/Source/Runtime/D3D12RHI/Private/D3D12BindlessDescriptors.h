@@ -155,6 +155,9 @@ private:
 	void ReleaseGPUHeaps();
 	void UpdateInUseGPUHeaps(bool bInUse);
 
+	FRHIDescriptorHandle ResizeGrowAndAllocate();
+	
+	FCriticalSection				HeapsCS;
 	FD3D12DescriptorHeapPtr         CpuHeap;
 	FRHIHeapDescriptorAllocator     Allocator;
 	const ERHIBindlessConfiguration Configuration;
@@ -163,6 +166,7 @@ private:
 	uint64							LastUsedExplicitHeapCycle = 0;
 
 	bool							bRequestNewActiveGpuHeap = false;
+	bool							bCPUHeapResized = false;
 
 	uint32							InUseGPUHeaps = 0;
 	uint32							MaxInUseGPUHeaps = 0;
@@ -175,8 +179,7 @@ private:
 		bool                         bInUse = true;
 		uint64						 LastUsedGarbageCollectCycle = 0;
 	};		
-
-	FCriticalSection				GpuHeapsCS;
+		
 	int32							ActiveGpuHeapIndex = -1;
 	TArray<FGpuHeapData>			ActiveGpuHeaps;
 	TArray<FGpuHeapData>			PooledGpuHeaps;
