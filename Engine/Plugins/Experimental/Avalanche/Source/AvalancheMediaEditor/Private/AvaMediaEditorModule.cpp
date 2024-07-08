@@ -3,8 +3,10 @@
 #include "AvaMediaEditorModule.h"
 
 #include "AvaMediaEditorStyle.h"
+#include "AvaMediaSettings.h"
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "Broadcast/OutputDevices/AvaBroadcastMediaIOOutputConfigurationCustomization.h"
+#include "Customization/AvaPlaybackServerLoggingEntryCustomization.h"
 #include "Customization/AvaSynchronizedEventsFeatureSelectionCustomization.h"
 #include "Editor.h"
 #include "Engine/GameViewportClient.h"
@@ -272,6 +274,7 @@ void FAvaMediaEditorModule::RegisterCustomizations() const
 	PropertyModule.RegisterCustomPropertyTypeLayout(FAvaRundownMacroCommand::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaRundownMacroCommandCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FAvaRundownMacroKeyBinding::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaRundownMacroKeyBindingCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FAvaSynchronizedEventsFeatureSelection::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaSynchronizedEventsFeatureSelectionCustomization::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout(FAvaPlaybackServerLoggingEntry::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAvaPlaybackServerLoggingEntryCustomization::MakeInstance));
 }
 
 void FAvaMediaEditorModule::UnregisterCustomizations() const
@@ -281,6 +284,7 @@ void FAvaMediaEditorModule::UnregisterCustomizations() const
 	PropertyModule.UnregisterCustomPropertyTypeLayout(FAvaRundownMacroCommand::StaticStruct()->GetFName());
 	PropertyModule.UnregisterCustomPropertyTypeLayout(FAvaRundownMacroKeyBinding::StaticStruct()->GetFName());
 	PropertyModule.UnregisterCustomPropertyTypeLayout(FAvaSynchronizedEventsFeatureSelection::StaticStruct()->GetFName());
+	PropertyModule.UnregisterCustomPropertyTypeLayout(FAvaPlaybackServerLoggingEntry::StaticStruct()->GetFName());
 }
 
 void FAvaMediaEditorModule::PostEngineInit()
