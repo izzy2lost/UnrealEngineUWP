@@ -66,6 +66,7 @@ public class UbaCoordinatorHordeTarget : TargetRules
 		GlobalDefinitions.Add("ENABLE_STATNAMEDEVENTS=0");
 		GlobalDefinitions.Add("ALLOW_HITCH_DETECTION=0");
 		GlobalDefinitions.Add("UE_USE_MALLOC_FILL_BYTES=0");
+		GlobalDefinitions.Add("DISABLE_CWD_CHANGES=1");
 
 		GlobalDefinitions.Add("UBA_COORDINATOR_HORDE_DLL");
 	}

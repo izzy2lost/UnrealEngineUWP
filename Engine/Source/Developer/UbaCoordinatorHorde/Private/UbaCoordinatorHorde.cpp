@@ -4,6 +4,7 @@
 
 #if defined(UBA_COORDINATOR_HORDE_DLL)
 
+#include "DesktopPlatformModule.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HttpManager.h"
@@ -12,6 +13,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/OutputDeviceConsole.h"
 #include "Misc/OutputDeviceRedirector.h"
+#include "SocketSubsystem.h"
 #include "UbaCoordinator.h"
 #include "UbaHordeAgentManager.h"
 
@@ -66,6 +68,14 @@ extern "C"
 			GLog->TryStartDedicatedPrimaryThread();
 			GLog->AddOutputDevice(GLogConsole);
 		}
+
+		GGameThreadId = FPlatformTLS::GetCurrentThreadId();
+		GIsGameThreadIdInitialized = true;
+
+		// Since we are not setting CWD we need to manually call these systems from this thread (if not called from game thread LoadModule uses CWD which is not set)
+		ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+		FHttpModule::Get();
+		FDesktopPlatformModule::TryGet();
 
 		auto coordinator = new CoordinatorHorde(info.workDir, info.binariesDir);
 		auto& m = coordinator->m_manager;

@@ -5,6 +5,7 @@
 #include "UbaCoordinator.h"
 #include "UbaFile.h"
 #include "UbaNetworkServer.h"
+#include "UbaScheduler.h"
 #include "UbaStringBuffer.h"
 
 #if !PLATFORM_WINDOWS
@@ -22,7 +23,7 @@ namespace uba
 	class CoordinatorWrapper
 	{
 	public:
-		bool Create(Logger& logger, const tchar* coordinatorType, const CoordinatorCreateInfo& info, NetworkBackend& networkBackend, NetworkServer& networkServer)
+		bool Create(Logger& logger, const tchar* coordinatorType, const CoordinatorCreateInfo& info, NetworkBackend& networkBackend, NetworkServer& networkServer, Scheduler* scheduler = nullptr)
 		{
 			UbaCreateCoordinatorFunc* createCoordinator = nullptr;
 
@@ -58,24 +59,30 @@ namespace uba
 			m_loopCoordinator.Create(true);
 			m_networkBackend = &networkBackend;
 			m_networkServer = &networkServer;
+			m_scheduler = scheduler;
 
-			m_coordinatorThread.Start([this, nb = &networkBackend, ns = &networkServer, tc = info.maxCoreCount]()
-			{
-				m_coordinator->SetAddClientCallback([](void* userData, const tchar* ip, u16 port)
-					{
-						auto& cw = *(CoordinatorWrapper*)userData;
-						return cw.m_networkServer->AddClient(*cw.m_networkBackend, ip, port);
-					}, this);
+			m_coordinatorThread.Start([this, mcc = info.maxCoreCount]() { ThreadUpdate(mcc); return 0; });
 
-				do
-				{
-					m_coordinator->SetTargetCoreCount(tc);
-				}
-				while (!m_loopCoordinator.IsSet(3000));
-
-				return 0;
-			});
 			return true;
+		}
+
+		void ThreadUpdate(u32 maxCoreCount)
+		{
+			m_coordinator->SetAddClientCallback([](void* userData, const tchar* ip, u16 port)
+				{
+					auto& cw = *(CoordinatorWrapper*)userData;
+					return cw.m_networkServer->AddClient(*cw.m_networkBackend, ip, port);
+				}, this);
+
+			do
+			{
+				u32 coreCount = maxCoreCount;
+				if (m_scheduler)
+					coreCount = Min(m_scheduler->GetProcessCountThatCanRunRemotelyNow(), maxCoreCount);
+
+				m_coordinator->SetTargetCoreCount(coreCount);
+			}
+			while (!m_loopCoordinator.IsSet(3000));
 		}
 
 		void Destroy()
@@ -91,6 +98,7 @@ namespace uba
 		Coordinator* m_coordinator = nullptr;
 		NetworkBackend* m_networkBackend = nullptr;
 		NetworkServer* m_networkServer = nullptr;
+		Scheduler* m_scheduler = nullptr;
 		UbaDestroyCoordinatorFunc* m_destroyCoordinator = nullptr;
 		Event m_loopCoordinator;
 		Thread m_coordinatorThread;

@@ -71,6 +71,8 @@ namespace uba
 
 		SessionServer& GetSession() { return m_session; }
 		
+		u32 GetProcessCountThatCanRunRemotelyNow();
+
 	private:
 		struct ExitProcessInfo;
 		struct ProcessStartInfo2;

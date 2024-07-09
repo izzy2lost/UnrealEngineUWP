@@ -217,6 +217,24 @@ namespace uba
 		m_processFinished = processFinished;
 	}
 
+	u32 Scheduler::GetProcessCountThatCanRunRemotelyNow()
+	{
+		u32 count = 0;
+		SCOPED_READ_LOCK(m_processEntriesLock, lock);
+		for (auto& entry : m_processEntries)
+		{
+			if (!entry.canExecuteRemotely)
+				continue;
+			if (entry.status != ProcessStatus_QueuedForRun)
+				continue;
+			++count;
+		}
+
+		count += m_activeRemoteProcesses;
+
+		return count;
+	}
+
 	void Scheduler::ThreadLoop()
 	{
 		while (m_loop)
