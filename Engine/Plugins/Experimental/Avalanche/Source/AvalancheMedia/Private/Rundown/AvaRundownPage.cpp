@@ -205,6 +205,7 @@ bool FAvaRundownPage::UpdateTransitionLogic()
 			const UAvaTransitionTree* TransitionTree = FAvaRundownPageAssetUtils::FindTransitionTree(SceneInterface);
 			bHasTransitionLogic = TransitionTree ? TransitionTree->IsEnabled() : false;
 			TransitionLayerTag = FAvaRundownPageAssetUtils::GetTransitionLayerTag(TransitionTree);
+			TransitionMode = TransitionTree ? TransitionTree->GetInstancingMode() : EAvaTransitionInstancingMode::New;
 		}
 	}
 	return false;
@@ -245,6 +246,31 @@ TArray<FAvaTagHandle> FAvaRundownPage::GetTransitionLayers(const UAvaRundown* In
 	}
 
 	return TransitionLayers;
+}
+
+EAvaTransitionInstancingMode FAvaRundownPage::GetTransitionMode( const UAvaRundown* InRundown, int32 InTemplateIndex) const
+{
+	const FAvaRundownPage& Template = GetTemplate(InRundown, InTemplateIndex);
+	return Template.IsValidPage() ?  Template.TransitionMode : TransitionMode;
+}
+
+TArray<EAvaTransitionInstancingMode> FAvaRundownPage::GetTransitionModes(const UAvaRundown* InRundown) const
+{
+	TArray<EAvaTransitionInstancingMode> TransitionModes;
+
+	const int32 NumTemplates = GetNumTemplates(InRundown);
+	TransitionModes.Reserve(NumTemplates);
+
+	for(int32 TemplateIndex = 0; TemplateIndex < NumTemplates; ++TemplateIndex)
+	{
+		const FAvaRundownPage& Template = GetTemplate(InRundown, TemplateIndex);
+		if (Template.IsValidPage())
+		{
+			TransitionModes.Add(Template.TransitionMode);
+		}
+	}
+
+	return TransitionModes;
 }
 
 int32 FAvaRundownPage::AppendPageProgramStatuses(const UAvaRundown* InParentRundown, TArray<FAvaRundownChannelPageStatus>& OutPageStatuses) const

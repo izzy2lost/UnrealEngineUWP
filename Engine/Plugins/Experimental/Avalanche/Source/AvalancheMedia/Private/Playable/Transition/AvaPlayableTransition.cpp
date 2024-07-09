@@ -111,6 +111,12 @@ TSharedPtr<FAvaPlayableRemoteControlValues> UAvaPlayableTransition::GetValuesFor
 
 void UAvaPlayableTransition::MarkPlayableAsDiscard(UAvaPlayable* InPlayable)
 {
+	// Hack: Intercept "in-place" playable, don't mark them for discard.
+	if (IsEnterPlayable(InPlayable) && IsPlayingPlayable(InPlayable))
+	{
+		return;
+	}
+	
 	DiscardPlayablesWeak.AddUnique(InPlayable);
 	UAvaPlayable::OnTransitionEvent().Broadcast(InPlayable, this, EAvaPlayableTransitionEventFlags::MarkPlayableDiscard);
 }
@@ -186,9 +192,9 @@ void FAvaPlayableTransitionBuilder::AddEnterPlayableValues(const TSharedPtr<FAva
 	EnterPlayableValues.Add(InValues);
 }
 
-bool FAvaPlayableTransitionBuilder::AddEnterPlayable(UAvaPlayable* InPlayable)
+bool FAvaPlayableTransitionBuilder::AddEnterPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd)
 {
-	if (ExitPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && ExitPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -197,7 +203,7 @@ bool FAvaPlayableTransitionBuilder::AddEnterPlayable(UAvaPlayable* InPlayable)
 		return false;
 	}
 
-	if (PlayingPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && PlayingPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -210,9 +216,9 @@ bool FAvaPlayableTransitionBuilder::AddEnterPlayable(UAvaPlayable* InPlayable)
 	return true;
 }
 
-bool FAvaPlayableTransitionBuilder::AddPlayingPlayable(UAvaPlayable* InPlayable)
+bool FAvaPlayableTransitionBuilder::AddPlayingPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd)
 {
-	if (EnterPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && EnterPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -221,7 +227,7 @@ bool FAvaPlayableTransitionBuilder::AddPlayingPlayable(UAvaPlayable* InPlayable)
 		return false;
 	}
 
-	if (ExitPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && ExitPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -235,9 +241,9 @@ bool FAvaPlayableTransitionBuilder::AddPlayingPlayable(UAvaPlayable* InPlayable)
 	return true;
 }
 
-bool FAvaPlayableTransitionBuilder::AddExitPlayable(UAvaPlayable* InPlayable)
+bool FAvaPlayableTransitionBuilder::AddExitPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd)
 {
-	if (EnterPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && EnterPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,
@@ -246,7 +252,7 @@ bool FAvaPlayableTransitionBuilder::AddExitPlayable(UAvaPlayable* InPlayable)
 		return false;
 	}
 
-	if (PlayingPlayablesWeak.Contains(InPlayable))
+	if (!bInAllowMultipleAdd && PlayingPlayablesWeak.Contains(InPlayable))
 	{
 		using namespace UE::AvaPlayableTransition::Private;
 		UE_LOG(LogAvaPlayable, Error,

@@ -4,6 +4,7 @@
 
 #include "AvaMediaDefines.h"
 #include "AvaTagHandle.h"
+#include "AvaTransitionEnums.h"
 #include "Playable/AvaPlayableRemoteControlValues.h"
 #include "AvaRundownPage.generated.h"
 
@@ -114,6 +115,9 @@ public:
 	
 	FAvaTagHandle GetTransitionLayer(const UAvaRundown* InRundown, int32 InTemplateIndex = 0) const;
 	TArray<FAvaTagHandle> GetTransitionLayers(const UAvaRundown* InRundown) const;
+
+	EAvaTransitionInstancingMode GetTransitionMode( const UAvaRundown* InRundown, int32 InTemplateIndex = 0) const;
+	TArray<EAvaTransitionInstancingMode> GetTransitionModes(const UAvaRundown* InRundown) const;
 	
 	/**
 	 * Appends the page's program status(es).
@@ -280,4 +284,7 @@ protected:
 	/** Transition Layer Tag cached from the transition tree. Cached for fast display in page/template list. */
 	UPROPERTY(VisibleAnywhere, Category = "Motion Design")
 	FAvaTagHandle TransitionLayerTag;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Motion Design")
+	EAvaTransitionInstancingMode TransitionMode = EAvaTransitionInstancingMode::New;
 };

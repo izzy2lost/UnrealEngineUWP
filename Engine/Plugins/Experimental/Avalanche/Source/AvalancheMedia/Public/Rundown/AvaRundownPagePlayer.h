@@ -49,7 +49,7 @@ public:
 
 	void SetPagePlayer(UAvaRundownPagePlayer* InPagePlayer);
 
-public:	
+public:
 	UPROPERTY()
 	FAvaTagHandle TransitionLayer;
 
@@ -180,10 +180,6 @@ public:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UAvaRundownPlaybackInstancePlayer>> InstancePlayers;
-
-	/** Instances that should bypass the next transition. */
-	UPROPERTY(Transient)
-	TSet<FGuid> InstancesBypassingTransition;
 
 protected:
 	TWeakObjectPtr<UAvaRundown> RundownWeak;

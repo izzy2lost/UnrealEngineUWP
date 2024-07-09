@@ -509,7 +509,8 @@ void UAvaPlaybackServerTransition::MakePlayableTransition()
 	
 	FAvaPlayableTransitionBuilder TransitionBuilder;
 
-	auto AddInstancesToBuilder = [&TransitionBuilder, this](const TArray<TWeakPtr<FAvaPlaybackInstance>>& InPlaybackInstancesWeak, const TCHAR* InCategory, EAvaPlayableTransitionEntryRole InEntryRole)
+	auto AddInstancesToBuilder = [&TransitionBuilder, this](const TArray<TWeakPtr<FAvaPlaybackInstance>>& InPlaybackInstancesWeak,
+		const TCHAR* InCategory, EAvaPlayableTransitionEntryRole InEntryRole, bool bInAllowMultipleAdd)
 	{
 		using namespace UE::AvaPlaybackServerTransition::Private;
 		int32 ArrayIndex = 0;
@@ -519,7 +520,7 @@ void UAvaPlaybackServerTransition::MakePlayableTransition()
 			{
 				if (UAvaPlayable* Playable = GetPlayable(Instance.Get()))
 				{
-					const bool bPlayableAdded = TransitionBuilder.AddPlayable(Playable, InEntryRole);
+					const bool bPlayableAdded = TransitionBuilder.AddPlayable(Playable, InEntryRole, bInAllowMultipleAdd);
 					if (InEntryRole == EAvaPlayableTransitionEntryRole::Enter && bPlayableAdded)
 					{
 						TransitionBuilder.AddEnterPlayableValues(EnterValues.IsValidIndex(ArrayIndex) ? EnterValues[ArrayIndex] : nullptr);	
@@ -536,10 +537,14 @@ void UAvaPlaybackServerTransition::MakePlayableTransition()
 			++ArrayIndex;
 		}
 	};
+
+	constexpr bool bAllowMultipleAddEnter = false;
+	const bool bAllowMultipleAddPlaying = EnumHasAnyFlags(TransitionFlags, EAvaPlayableTransitionFlags::HasReusedPlayables);
+	constexpr bool bAllowMultipleAddExit = false;
  
-	AddInstancesToBuilder(EnterPlaybackInstancesWeak, TEXT("Enter"), EAvaPlayableTransitionEntryRole::Enter);
-	AddInstancesToBuilder(PlayingPlaybackInstancesWeak, TEXT("Playing"), EAvaPlayableTransitionEntryRole::Playing);
-	AddInstancesToBuilder(ExitPlaybackInstancesWeak, TEXT("Exit"), EAvaPlayableTransitionEntryRole::Exit);
+	AddInstancesToBuilder(EnterPlaybackInstancesWeak, TEXT("Enter"), EAvaPlayableTransitionEntryRole::Enter, bAllowMultipleAddEnter);
+	AddInstancesToBuilder(PlayingPlaybackInstancesWeak, TEXT("Playing"), EAvaPlayableTransitionEntryRole::Playing,  bAllowMultipleAddPlaying);
+	AddInstancesToBuilder(ExitPlaybackInstancesWeak, TEXT("Exit"), EAvaPlayableTransitionEntryRole::Exit,  bAllowMultipleAddExit);
 	PlayableTransition = TransitionBuilder.MakeTransition(this, TransitionId);
 
 	if (PlayableTransition)

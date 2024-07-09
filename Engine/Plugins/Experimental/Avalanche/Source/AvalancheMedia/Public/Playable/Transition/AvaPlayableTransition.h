@@ -82,20 +82,20 @@ public:
 
 	void AddEnterPlayableValues(const TSharedPtr<FAvaPlayableRemoteControlValues>& InValues);
 	
-	bool AddEnterPlayable(UAvaPlayable* InPlayable);
-	bool AddPlayingPlayable(UAvaPlayable* InPlayable);
-	bool AddExitPlayable(UAvaPlayable* InPlayable);
+	bool AddEnterPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd = false);
+	bool AddPlayingPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd = false);
+	bool AddExitPlayable(UAvaPlayable* InPlayable, bool bInAllowMultipleAdd = false);
 	
-	bool AddPlayable(UAvaPlayable* InPlayable, EAvaPlayableTransitionEntryRole InPlayableRole)
+	bool AddPlayable(UAvaPlayable* InPlayable, EAvaPlayableTransitionEntryRole InPlayableRole, bool bInAllowMultipleAdd = false)
 	{
 		switch (InPlayableRole)
 		{
 			case EAvaPlayableTransitionEntryRole::Enter:
-				return AddEnterPlayable(InPlayable);
+				return AddEnterPlayable(InPlayable, bInAllowMultipleAdd);
 			case EAvaPlayableTransitionEntryRole::Playing:
-				return AddPlayingPlayable(InPlayable);
+				return AddPlayingPlayable(InPlayable, bInAllowMultipleAdd);
 			case EAvaPlayableTransitionEntryRole::Exit:
-				return AddExitPlayable(InPlayable);
+				return AddExitPlayable(InPlayable, bInAllowMultipleAdd);
 		}
 		return false;
 	}

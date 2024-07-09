@@ -1789,8 +1789,24 @@ namespace UE::AvaMedia::Rundown::Private
 		return true;
 	}
 
+	bool ArePageRCValuesEqualForSubTemplate(const FAvaRundownPage& InSubTemplate, const FAvaRundownPage& InPage, const UAvaRundownPlaybackInstancePlayer* InInstancePlayer)
+	{
+		if (InInstancePlayer && InInstancePlayer->GetPagePlayer())
+		{
+			if (UAvaRundown* Rundown = InInstancePlayer->GetPagePlayer()->GetRundown())
+			{
+				const FAvaRundownPage PlayingPage = Rundown->GetPage(InInstancePlayer->GetPagePlayer()->PageId);
+				if (PlayingPage.IsValidPage())
+				{
+					return ArePageRCValuesEqualForSubTemplate(InSubTemplate, InPage, PlayingPage);
+				}
+			}
+		}
+		return false;
+	}
+
 	/**
-	 * @brief For special template transition logic, search for an existing instance player with same RC values.
+	 * @brief Search for an existing instance player for the given template and sub-template.
 	 * @param InRundown Rundown
 	 * @param InPageToPlay New Page to be played.
 	 * @param InTemplate Template to be played. Should be direct template of the page.
@@ -1817,17 +1833,17 @@ namespace UE::AvaMedia::Rundown::Private
 				continue;
 			}
 			
-			const FAvaRundownPage& OtherPage = InRundown->GetPage(PagePlayer->PageId);
+			const FAvaRundownPage& PlayingPage = InRundown->GetPage(PagePlayer->PageId);
 
 			// Check if same template.
-			if (!OtherPage.IsValidPage() || OtherPage.GetTemplateId() != InTemplate.GetPageId())
+			if (!PlayingPage.IsValidPage() || PlayingPage.GetTemplateId() != InTemplate.GetPageId())
 			{
 				continue;
 			}
 			
-			// Check if same RC values (of the sub-template).
+			// Find Instance Player for the given sub-template.
 			const FAvaRundownPage& SubTemplate = InTemplate.GetTemplate(InRundown, InSubPageIndex);
-			if (SubTemplate.IsValidPage() && ArePageRCValuesEqualForSubTemplate(SubTemplate, InPageToPlay, OtherPage))
+			if (SubTemplate.IsValidPage())
 			{
 				return PagePlayer->FindInstancePlayerByAssetPath(SubTemplate.GetAssetPath(InRundown));
 			}
@@ -1885,38 +1901,54 @@ bool UAvaRundown::PlayPageWithTransition(FAvaRundownPageTransitionBuilder& InBui
 	const int32 NumTemplates = InPage.GetNumTemplates(this);
 	NewPagePlayer->InstancePlayers.Reserve(NumTemplates);
 
-	const FAvaRundownPage& DirectTemplate = InPage.ResolveTemplate(this);
+	const FAvaRundownPage& Template = InPage.ResolveTemplate(this);
 
+	const UAvaMediaSettings& AvaMediaSettings = UAvaMediaSettings::Get();
+	const bool bBypassTransitionOnSameValues = Template.IsComboTemplate()
+		? AvaMediaSettings.bEnableComboTemplateSpecialLogic
+		: AvaMediaSettings.bEnableSingleTemplateSpecialLogic;
+
+	TSet<FGuid> InstancesBypassingTransition;
+	TSet<FGuid> ReusedInstances;
+	
 	for (int32 SubPageIndex = 0; SubPageIndex < NumTemplates; ++SubPageIndex)
 	{
-		bool bFoundExistingInstancePlayer = false;
+		bool bUsingExistingInstancePlayer = false;
 
-		const UAvaMediaSettings& AvaMediaSettings = UAvaMediaSettings::Get();
-		const bool bUseSpecialTransitionLogic = DirectTemplate.IsComboTemplate()
-			? AvaMediaSettings.bEnableComboTemplateSpecialLogic
-			: AvaMediaSettings.bEnableSingleTemplateSpecialLogic;
-		
-		// -- Special Transition Logic --
-		if (bUseSpecialTransitionLogic)
+		const FAvaRundownPage& SubTemplate = Template.GetTemplate(this, SubPageIndex);
+
+		// -- Logic for Instance Player Reuse --
+		if (bBypassTransitionOnSameValues || SubTemplate.GetTransitionMode(this) == EAvaTransitionInstancingMode::Reuse)
 		{
-			// Try to find an existing instance player of the same combo template, sub-template and RC values.
+			// Try to find an existing instance player for this template.
 			UAvaRundownPlaybackInstancePlayer* InstancePlayer =
-				FindExistingInstancePlayer(this, InPage, DirectTemplate, SubPageIndex, bInIsPreview, InPreviewChannelName);
+				FindExistingInstancePlayer(this, InPage, Template, SubPageIndex, bInIsPreview, InPreviewChannelName);
 			
 			if (InstancePlayer && InstancePlayer->PlaybackInstance)
 			{
-				NewPagePlayer->AddInstancePlayer(InstancePlayer);
+				if (bBypassTransitionOnSameValues && ArePageRCValuesEqualForSubTemplate(SubTemplate, InPage, InstancePlayer))
+				{
+					// Mark this instance as "bypassing" the next playable transition.
+					InstancesBypassingTransition.Add(InstancePlayer->GetPlaybackInstanceId());
+					bUsingExistingInstancePlayer = true;
+				}
+				else if (SubTemplate.GetTransitionMode(this) == EAvaTransitionInstancingMode::Reuse)
+				{
+					ReusedInstances.Add(InstancePlayer->GetPlaybackInstanceId());
+					bUsingExistingInstancePlayer = true;
+				}
 
-				// Setup user instance data to be able to track this page.
-				UAvaRundownPagePlayer::SetInstanceUserDataFromPage(*InstancePlayer->PlaybackInstance, InPage);
-				
-				// Mark this instance as "bypassing" the next playable transition.
-				NewPagePlayer->InstancesBypassingTransition.Add(InstancePlayer->GetPlaybackInstanceId());
-				bFoundExistingInstancePlayer = true;
+				if (bUsingExistingInstancePlayer)
+				{
+					NewPagePlayer->AddInstancePlayer(InstancePlayer);
+
+					// Setup user instance data to be able to track this page.
+					UAvaRundownPagePlayer::SetInstanceUserDataFromPage(*InstancePlayer->PlaybackInstance, InPage);
+				}
 			}
 		}
 
-		if (!bFoundExistingInstancePlayer)
+		if (!bUsingExistingInstancePlayer)
 		{
 			NewPagePlayer->LoadInstancePlayer(SubPageIndex, FGuid());
 		}
@@ -1928,6 +1960,9 @@ bool UAvaRundown::PlayPageWithTransition(FAvaRundownPageTransitionBuilder& InBui
 		{
 			if (PageTransition->AddEnterPage(NewPagePlayer))
 			{
+				PageTransition->InstancesBypassingTransition.Append(InstancesBypassingTransition);
+				PageTransition->ReusedInstances.Append(ReusedInstances);
+
 				AddPagePlayer(NewPagePlayer);
 
 				// Start the playback, will only actually start on next tick.

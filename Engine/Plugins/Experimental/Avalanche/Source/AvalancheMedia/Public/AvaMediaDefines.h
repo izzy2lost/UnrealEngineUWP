@@ -126,6 +126,8 @@ enum class EAvaPlayableTransitionFlags : uint8
 	None = 0,
 	/** Playing playables will be treated as exit playables. */
 	TreatPlayingAsExiting = 1 << 0,
+	/** Transition contains some reused playables (i.e. both enter and playing). */
+	HasReusedPlayables = 1 << 1,
 };
 ENUM_CLASS_FLAGS(EAvaPlayableTransitionFlags);
 

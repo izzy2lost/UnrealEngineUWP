@@ -273,7 +273,6 @@ void UAvaRundownPageTransition::Stop()
 	{
 		if (UAvaRundownPagePlayer* PagePlayer = PagePlayerWeak.Get())
 		{
-			PagePlayer->InstancesBypassingTransition.Reset();
 			UnregisterEnterPagePlayerEvents(PagePlayer);
 		}
 	}
@@ -467,13 +466,9 @@ void UAvaRundownPageTransition::AddPlayersToBuilder(
 {
 	for (const TWeakObjectPtr<UAvaRundownPagePlayer>& PlayerWeak : InPlayersWeak)
 	{
-		if (UAvaRundownPagePlayer* Player = PlayerWeak.Get())
+		if (const UAvaRundownPagePlayer* Player = PlayerWeak.Get())
 		{
 			AddPlayablesToBuilder(InOutBuilder, Player, InCategory, InEntryRole);
-			
-			// Bypassed instances are only for current transition.
-			// Todo: Ideally, it would be stored in the transition itself to avoid the clean up.
-			Player->InstancesBypassingTransition.Reset();
 		}
 	}
 }
@@ -487,7 +482,7 @@ void UAvaRundownPageTransition::AddPlayablesToBuilder(FAvaPlayableTransitionBuil
 		EAvaPlayableTransitionEntryRole EntryRole = InEntryRole;
 
 		// -- Special Transition Logic --
-		if (InPlayer->InstancesBypassingTransition.Contains(InstancePlayer->GetPlaybackInstanceId()))
+		if (InstancesBypassingTransition.Contains(InstancePlayer->GetPlaybackInstanceId()))
 		{
 			if (EntryRole != EAvaPlayableTransitionEntryRole::Enter)
 			{
@@ -504,6 +499,12 @@ void UAvaRundownPageTransition::AddPlayablesToBuilder(FAvaPlayableTransitionBuil
 			if (EntryRole == EAvaPlayableTransitionEntryRole::Enter && bPlayableAdded)
 			{
 				InOutBuilder.AddEnterPlayableValues(GetRemoteControlValues(InPlayer));
+
+				// For reused instances, we add them again in the playing role.
+				if (ReusedInstances.Contains(InstancePlayer->GetPlaybackInstanceId()))
+				{
+					InOutBuilder.AddPlayable(Playable, EAvaPlayableTransitionEntryRole::Playing, /*bInAllowMultipleAdd*/true);
+				}
 			}
 		}
 		else
@@ -524,10 +525,22 @@ void UAvaRundownPageTransition::MakePlayableTransition()
 	AddPlayersToBuilder(TransitionBuilder, ExitPlayersWeak, TEXT("Exit"), EAvaPlayableTransitionEntryRole::Exit);
 	PlayableTransition = TransitionBuilder.MakeTransition(this, TransitionId);
 
-	// For non-TL enter pages, we need to kick out the playing pages too. 
-	if (PlayableTransition && HasEnterPagesWithNoTransitionLogic())
+	if (PlayableTransition)
 	{
-		PlayableTransition->SetTransitionFlags(EAvaPlayableTransitionFlags::TreatPlayingAsExiting);
+		EAvaPlayableTransitionFlags TransitionFlags = EAvaPlayableTransitionFlags::None;
+
+		// For non-TL enter pages, we need to kick out the playing pages too. 
+		if (HasEnterPagesWithNoTransitionLogic())
+		{
+			TransitionFlags |= EAvaPlayableTransitionFlags::TreatPlayingAsExiting;
+		}
+
+		// Server-side validation needs to know about transitions with in-place playables.
+		if (!ReusedInstances.IsEmpty())
+		{
+			TransitionFlags |= EAvaPlayableTransitionFlags::HasReusedPlayables;
+		}
+		PlayableTransition->SetTransitionFlags(TransitionFlags);
 	}
 }
 

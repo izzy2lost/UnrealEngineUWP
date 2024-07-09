@@ -57,6 +57,14 @@ public:
 
 	UAvaRundown* GetRundown() const;
 
+	/** Instances will not be added to the playable transition. */
+	UPROPERTY(Transient)
+	TSet<FGuid> InstancesBypassingTransition;
+
+	/** Reused existing instance player. Will be added both as "entering" and "playing" in the playable transition. */
+	UPROPERTY(Transient)
+	TSet<FGuid> ReusedInstances;
+
 protected:
 	UAvaRundownPlaybackInstancePlayer* FindInstancePlayerForPlayable(const UAvaPlayable* InPlayable) const;
 	UAvaRundownPagePlayer* FindPagePlayerForPlayable(const UAvaPlayable* InPlayable) const;
