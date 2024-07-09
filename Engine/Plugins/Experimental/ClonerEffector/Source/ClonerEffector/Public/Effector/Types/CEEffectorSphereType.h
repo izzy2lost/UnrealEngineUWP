@@ -54,11 +54,11 @@ protected:
 	//~ End UObject
 
 	/** Inner radius of sphere, all clones inside will be affected with a maximum weight */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
 	float InnerRadius = 50.f;
 
 	/** Outer radius of sphere, all clones outside will not be affected */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
 	float OuterRadius = 200.f;
 
 private:

@@ -58,15 +58,15 @@ protected:
 	//~ End UObject
 
 	/** Offset applied on affected clones */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode")
 	FVector Offset = FVector::ZeroVector;
 
 	/** Rotation applied on affected clones */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode")
 	FRotator Rotation = FRotator::ZeroRotator;
 
 	/** Scale applied on affected clones */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.01"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.01"))
 	FVector Scale = FVector::OneVector;
 
 private:

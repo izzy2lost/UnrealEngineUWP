@@ -45,7 +45,7 @@ protected:
 	//~ End UObject
 
 	/** Plane spacing, everything inside this zone will be affected */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
 	float PlaneSpacing = 200.f;
 
 private:

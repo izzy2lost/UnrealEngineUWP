@@ -52,10 +52,10 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Cloner", meta=(DisplayName="SetDefaultMeshes"))
-	CLONEREFFECTOR_API void BP_SetDefaultMeshes(const TArray<UStaticMesh*>& InMeshes);
+	CLONEREFFECTOR_API void SetDefaultMeshes(const TArray<UStaticMesh*>& InMeshes);
 
 	UFUNCTION(BlueprintPure, Category="Cloner", meta=(DisplayName="GetDefaultMeshes"))
-	CLONEREFFECTOR_API TArray<UStaticMesh*> BP_GetDefaultMeshes() const;
+	CLONEREFFECTOR_API void GetDefaultMeshes(TArray<UStaticMesh*>& OutMeshes) const;
 
 	UFUNCTION(BlueprintCallable, Category="Cloner")
 	CLONEREFFECTOR_API void SetVisualizeEffectors(bool bInVisualize);
@@ -105,31 +105,31 @@ protected:
 	void OnOverrideMaterialOptionsChanged();
 
 	/** Indicates how we select the mesh to render on each clones */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetMeshRenderMode", Getter="GetMeshRenderMode", Category="Renderer")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Renderer")
 	ECEClonerMeshRenderMode MeshRenderMode = ECEClonerMeshRenderMode::Iterate;
 
 	/** Mode to indicate how clones facing is determined */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetMeshFacingMode", Getter="GetMeshFacingMode", Category="Renderer")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Renderer")
 	ENiagaraMeshFacingMode MeshFacingMode = ENiagaraMeshFacingMode::Default;
 
 	/** Whether clones cast shadow, disabling will result in better performance */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetMeshCastShadows", Getter="GetMeshCastShadows", Category="Renderer")
+	UPROPERTY(EditInstanceOnly, Setter="SetMeshCastShadows", Getter="GetMeshCastShadows", Category="Renderer")
 	bool bMeshCastShadows = true;
 
 	/** When nothing is attached to the cloner, these meshes are used as default */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDefaultMeshes", Getter="GetDefaultMeshes", BlueprintSetter="BP_SetDefaultMeshes", BlueprintGetter="BP_GetDefaultMeshes", Category="Renderer")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Renderer")
 	TArray<TObjectPtr<UStaticMesh>> DefaultMeshes;
 
 	/** Override materials to show effectors applied on this cloner based on their color property */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetVisualizeEffectors", Getter="GetVisualizeEffectors", Category="Renderer")
+	UPROPERTY(EditInstanceOnly, Setter="SetVisualizeEffectors", Getter="GetVisualizeEffectors", Category="Renderer")
 	bool bVisualizeEffectors = false;
 
 	/** Whether to override meshes materials with another material */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetUseOverrideMaterial", Getter="GetUseOverrideMaterial", Category="Renderer")
+	UPROPERTY(EditInstanceOnly, Setter="SetUseOverrideMaterial", Getter="GetUseOverrideMaterial", Category="Renderer")
 	bool bUseOverrideMaterial = false;
 
 	/** The override materials that will be set instead of meshes materials, bVisualizeEffectors must be disabled */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Renderer", meta=(EditCondition="bUseOverrideMaterial", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Renderer", meta=(EditCondition="bUseOverrideMaterial", EditConditionHides))
 	TObjectPtr<UMaterialInterface> OverrideMaterial;
 
 private:

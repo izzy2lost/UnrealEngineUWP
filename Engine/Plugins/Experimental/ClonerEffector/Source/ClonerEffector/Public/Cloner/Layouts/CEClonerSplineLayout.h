@@ -85,13 +85,13 @@ protected:
 	void OnSampleSplineTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType);
 	void OnSampleSplineRenderStateUpdated(UActorComponent& InComponent);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCount", Getter="GetCount", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 Count = 3 * 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSplineActorWeak", Getter="GetSplineActorWeak", DisplayName="SampleActor", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="SampleActor", Category="Layout")
 	TWeakObjectPtr<AActor> SplineActorWeak;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetOrientMesh", Getter="GetOrientMesh", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter="SetOrientMesh", Getter="GetOrientMesh", Category="Layout")
     bool bOrientMesh = false;
 
 private:

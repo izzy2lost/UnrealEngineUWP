@@ -53,11 +53,11 @@ protected:
 	//~ End UObject
 
 	/** Invert the type effect, instead of affecting the inside of a zone, will affect the outside */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetInvertType", Getter="GetInvertType", Category="Shape")
+	UPROPERTY(EditInstanceOnly, Setter="SetInvertType", Getter="GetInvertType", Category="Shape")
 	bool bInvertType = false;
 
 	/** Weight easing function applied to lerp transforms */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape")
 	ECEClonerEasing Easing = ECEClonerEasing::Linear;
 
 private:

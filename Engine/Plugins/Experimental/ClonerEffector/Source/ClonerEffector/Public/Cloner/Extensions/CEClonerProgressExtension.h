@@ -50,11 +50,11 @@ protected:
 	//~ End UCEClonerExtensionBase
 
 	/** Invert progress behaviour */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetInvertProgress", Getter="GetInvertProgress", Category="Progress")
+	UPROPERTY(EditInstanceOnly, Setter="SetInvertProgress", Getter="GetInvertProgress", Category="Progress")
 	bool bInvertProgress = false;
 
 	/** Changes visibility of instances based on the total count, 1.f = 100% = all instances visible */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Progress", meta=(ClampMin="0", ClampMax="1"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Progress", meta=(ClampMin="0", ClampMax="1"))
 	float Progress = 1.f;
 
 private:

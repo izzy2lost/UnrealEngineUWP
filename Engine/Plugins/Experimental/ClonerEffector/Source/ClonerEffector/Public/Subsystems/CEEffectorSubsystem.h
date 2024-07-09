@@ -16,18 +16,22 @@ class UCEEffectorSubsystem : public UEngineSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
 
+	DECLARE_MULTICAST_DELEGATE(FOnSubsystemInitialized)
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEffectorIdentifierChanged, UCEEffectorComponent* /** InEffector */, int32 /** OldIdentifier */, int32 /** NewIdentifier */)
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEffectorSetEnabled, const UWorld* /** InWorld */, bool /** bInEnabled */, bool /** bInTransact */)
+
 public:
-	static TMulticastDelegateRegistration<void()>& OnSubsystemInitialized()
+	static FOnSubsystemInitialized::RegistrationType& OnSubsystemInitialized()
 	{
 		return OnSubsystemInitializedDelegate;
 	}
 
-	static TMulticastDelegateRegistration<void(UCEEffectorComponent*, int32, int32)>& OnEffectorIdentifierChanged()
+	static FOnEffectorIdentifierChanged::RegistrationType& OnEffectorIdentifierChanged()
 	{
 		return OnEffectorIdentifierChangedDelegate;
 	}
 
-	static TMulticastDelegateRegistration<void(const UWorld*, bool, bool)>& OnEffectorSetEnabled()
+	static FOnEffectorSetEnabled::RegistrationType& OnEffectorSetEnabled()
 	{
 		return OnEffectorSetEnabledDelegate;
 	}
@@ -51,12 +55,20 @@ public:
 	bool IsExtensionClassRegistered(UClass* InClass) const;
 
 	template<typename InExtensionClass>
-	TArray<FName> GetExtensionNames() const
+	TSet<FName> GetExtensionNames() const
 	{
 		return GetExtensionNames(InExtensionClass::StaticClass());
 	}
 
-	TArray<FName> GetExtensionNames(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const;
+	TSet<FName> GetExtensionNames(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const;
+
+	template<typename InExtensionClass>
+	TSet<TSubclassOf<UCEEffectorExtensionBase>> GetExtensionClasses() const
+	{
+		return GetExtensionClasses(InExtensionClass::StaticClass());
+	}
+
+	TSet<TSubclassOf<UCEEffectorExtensionBase>> GetExtensionClasses(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const;
 
 	/** Based on a extension class, find extension name */
 	FName FindExtensionName(TSubclassOf<UCEEffectorExtensionBase> InClass) const;
@@ -74,15 +86,12 @@ protected:
 	static constexpr TCHAR DataChannelAssetPath[] = TEXT("/Script/Niagara.NiagaraDataChannelAsset'/ClonerEffector/Channels/NDC_Effector.NDC_Effector'");
 
 	/** Broadcasted when this subsystem is initialized */
-	DECLARE_MULTICAST_DELEGATE(FOnSubsystemInitialized)
 	static FOnSubsystemInitialized OnSubsystemInitializedDelegate;
 
 	/** Broadcasted when this effector identifier changed to update linked cloners */
-	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEffectorIdentifierChanged, UCEEffectorComponent* /** InEffector */, int32 /** OldIdentifier */, int32 /** NewIdentifier */)
 	static FOnEffectorIdentifierChanged OnEffectorIdentifierChangedDelegate;
 
 	/** Delegate to change state of effectors in a world */
-	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEffectorSetEnabled, const UWorld* /** InWorld */, bool /** bInEnabled */, bool /** bInTransact */)
 	static FOnEffectorSetEnabled OnEffectorSetEnabledDelegate;
 
 	//~ Begin USubsystem

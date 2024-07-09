@@ -1126,6 +1126,29 @@ void UCEClonerComponent::SetLayoutName(FName InLayoutName)
 	OnLayoutNameChanged();
 }
 
+void UCEClonerComponent::SetLayoutClass(TSubclassOf<UCEClonerLayoutBase> InLayoutClass)
+{
+	if (!InLayoutClass.Get())
+	{
+		return;
+	}
+
+	if (const UCEClonerSubsystem* ClonerSubsystem = UCEClonerSubsystem::Get())
+	{
+		const FName NewLayoutName = ClonerSubsystem->FindLayoutName(InLayoutClass);
+
+		if (!NewLayoutName.IsNone())
+		{
+			SetLayoutName(NewLayoutName);
+		}
+	}
+}
+
+TSubclassOf<UCEClonerLayoutBase> UCEClonerComponent::GetLayoutClass() const
+{
+	return ActiveLayout ? ActiveLayout->GetClass() : nullptr;
+}
+
 #if WITH_EDITOR
 void UCEClonerComponent::SetVisualizerSpriteVisible(bool bInVisible)
 {
@@ -1646,7 +1669,7 @@ TArray<FName> UCEClonerComponent::GetClonerLayoutNames() const
 
 	if (const UCEClonerSubsystem* Subsystem = UCEClonerSubsystem::Get())
 	{
-		LayoutNames = Subsystem->GetLayoutNames();
+		LayoutNames = Subsystem->GetLayoutNames().Array();
 	}
 
 	return LayoutNames;

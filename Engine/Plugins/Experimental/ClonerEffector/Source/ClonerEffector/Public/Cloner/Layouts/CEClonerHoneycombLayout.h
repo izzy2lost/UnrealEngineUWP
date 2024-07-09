@@ -116,31 +116,31 @@ protected:
 	virtual void OnLayoutParametersChanged(UCEClonerComponent* InComponent) override;
 	//~ End UCEClonerLayoutBase
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetPlane", Getter="GetPlane", Category="Layout", meta=(InvalidEnumValues="Custom"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
 	ECEClonerPlane Plane = ECEClonerPlane::XY;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetWidthCount", Getter="GetWidthCount", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 WidthCount = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHeightCount", Getter="GetHeightCount", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 HeightCount = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetWidthOffset", Getter="GetWidthOffset", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float WidthOffset = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHeightOffset", Getter="GetHeightOffset", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float HeightOffset = 0.5f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetWidthSpacing", Getter="GetWidthSpacing", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float WidthSpacing = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHeightSpacing", Getter="GetHeightSpacing", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float HeightSpacing = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(UIMin="0", UIMax="100"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(UIMin="0", UIMax="100"))
 	float TwistFactor = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
 	ECEClonerAxis TwistAxis = ECEClonerAxis::Y;
 
 private:

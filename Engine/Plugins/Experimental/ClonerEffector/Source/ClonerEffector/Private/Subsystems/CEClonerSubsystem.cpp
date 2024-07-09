@@ -437,11 +437,18 @@ AActor* UCEClonerSubsystem::CreateClonerWithActors(UWorld* InWorld, const TSet<A
 	return NewClonerActor;
 }
 
-TArray<FName> UCEClonerSubsystem::GetLayoutNames() const
+TSet<FName> UCEClonerSubsystem::GetLayoutNames() const
 {
 	TArray<FName> LayoutNames;
 	LayoutClasses.GenerateKeyArray(LayoutNames);
-	return LayoutNames;
+	return TSet<FName>(LayoutNames);
+}
+
+TSet<TSubclassOf<UCEClonerLayoutBase>> UCEClonerSubsystem::GetLayoutClasses() const
+{
+	TArray<TSubclassOf<UCEClonerLayoutBase>> Layouts;
+	LayoutClasses.GenerateValueArray(Layouts);
+	return TSet<TSubclassOf<UCEClonerLayoutBase>>(Layouts);
 }
 
 FName UCEClonerSubsystem::FindLayoutName(TSubclassOf<UCEClonerLayoutBase> InLayoutClass) const

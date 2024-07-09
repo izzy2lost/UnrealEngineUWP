@@ -102,6 +102,29 @@ void UCEEffectorComponent::SetTypeName(FName InTypeName)
 	OnTypeNameChanged();
 }
 
+void UCEEffectorComponent::SetTypeClass(TSubclassOf<UCEEffectorTypeBase> InTypeClass)
+{
+	if (!InTypeClass.Get())
+	{
+		return;
+	}
+
+	if (const UCEEffectorSubsystem* EffectorSubsystem = UCEEffectorSubsystem::Get())
+	{
+		const FName ExtensionName = EffectorSubsystem->FindExtensionName(InTypeClass);
+
+		if (!ExtensionName.IsNone())
+		{
+			SetTypeName(ExtensionName);
+		}
+	}
+}
+
+TSubclassOf<UCEEffectorTypeBase> UCEEffectorComponent::GetTypeClass() const
+{
+	return ActiveType ? ActiveType->GetClass() : nullptr;
+}
+
 void UCEEffectorComponent::SetModeName(FName InModeName)
 {
 	if (ModeName.IsEqual(InModeName))
@@ -116,6 +139,29 @@ void UCEEffectorComponent::SetModeName(FName InModeName)
 
 	ModeName = InModeName;
 	OnModeNameChanged();
+}
+
+void UCEEffectorComponent::SetModeClass(TSubclassOf<UCEEffectorModeBase> InModeClass)
+{
+	if (!InModeClass.Get())
+	{
+		return;
+	}
+
+	if (const UCEEffectorSubsystem* EffectorSubsystem = UCEEffectorSubsystem::Get())
+	{
+		const FName ExtensionName = EffectorSubsystem->FindExtensionName(InModeClass);
+
+		if (!ExtensionName.IsNone())
+		{
+			SetModeName(ExtensionName);
+		}
+	}
+}
+
+TSubclassOf<UCEEffectorModeBase> UCEEffectorComponent::GetModeClass() const
+{
+	return ActiveMode ? ActiveMode->GetClass() : nullptr;
 }
 
 TConstArrayView<TWeakObjectPtr<UCEClonerEffectorExtension>> UCEEffectorComponent::GetClonerExtensionsWeak() const
@@ -169,6 +215,43 @@ void UCEEffectorComponent::OnClonerUnlinked(UCEClonerEffectorExtension* InCloner
 	}
 
 	ClonerExtensionsWeak.Remove(InCloner);
+}
+
+void UCEEffectorComponent::GetActiveExtensions(TArray<UCEEffectorExtensionBase*>& OutExtensions) const
+{
+	OutExtensions = ActiveExtensions;
+}
+
+UCEEffectorExtensionBase* UCEEffectorComponent::GetExtension(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const
+{
+	const UCEEffectorSubsystem* Subsystem = UCEEffectorSubsystem::Get();
+
+	if (!Subsystem)
+	{
+		return nullptr;
+	}
+
+	const FName ExtensionName = Subsystem->FindExtensionName(InExtensionClass.Get());
+
+	if (ExtensionName.IsNone())
+	{
+		return nullptr;
+	}
+
+	return GetExtension(ExtensionName);
+}
+
+UCEEffectorExtensionBase* UCEEffectorComponent::GetExtension(FName InExtensionName) const
+{
+	for (const TObjectPtr<UCEEffectorExtensionBase>& ExtensionInstance : ExtensionInstances)
+	{
+		if (ExtensionInstance && ExtensionInstance->GetExtensionName() == InExtensionName)
+		{
+			return ExtensionInstance;
+		}
+	}
+
+	return nullptr;
 }
 
 void UCEEffectorComponent::RequestClonerUpdate(bool bInImmediate)
@@ -669,7 +752,7 @@ TArray<FName> UCEEffectorComponent::GetEffectorTypeNames() const
 
 	if (const UCEEffectorSubsystem* EffectorSubsystem = UCEEffectorSubsystem::Get())
 	{
-		TypeNames = EffectorSubsystem->GetExtensionNames<UCEEffectorTypeBase>();
+		TypeNames = EffectorSubsystem->GetExtensionNames<UCEEffectorTypeBase>().Array();
 	}
 
 	return TypeNames;
@@ -681,7 +764,7 @@ TArray<FName> UCEEffectorComponent::GetEffectorModeNames() const
 
 	if (const UCEEffectorSubsystem* EffectorSubsystem = UCEEffectorSubsystem::Get())
 	{
-		ModeNames = EffectorSubsystem->GetExtensionNames<UCEEffectorModeBase>();
+		ModeNames = EffectorSubsystem->GetExtensionNames<UCEEffectorModeBase>().Array();
 	}
 
 	return ModeNames;

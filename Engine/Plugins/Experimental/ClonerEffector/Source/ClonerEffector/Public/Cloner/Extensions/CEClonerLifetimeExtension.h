@@ -7,6 +7,7 @@
 #include "Curves/RichCurve.h"
 #include "CEClonerLifetimeExtension.generated.h"
 
+class UCurveFloat;
 class UNiagaraDataInterfaceCurve;
 
 /** Extension dealing with clones lifetime options */
@@ -54,10 +55,11 @@ public:
 		return bLifetimeScaleEnabled;
 	}
 
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	void SetLifetimeScaleCurve(UCurveFloat* InCurve);
+
 	CLONEREFFECTOR_API void SetLifetimeScaleCurve(const FRichCurve& InCurve);
 
-	UFUNCTION()
 	const FRichCurve& GetLifetimeScaleCurve() const
 	{
 		return LifetimeScaleCurve;
@@ -82,19 +84,19 @@ protected:
 	void OnLifetimeScaleCurveChanged();
 
 	/** Do we destroy the clones after a specific duration */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetLifetimeEnabled", Getter="GetLifetimeEnabled", DisplayName="Enabled", Category="Lifetime")
+	UPROPERTY(EditInstanceOnly, Setter="SetLifetimeEnabled", Getter="GetLifetimeEnabled", DisplayName="Enabled", Category="Lifetime")
 	bool bLifetimeEnabled = false;
 
 	/** Minimum lifetime for a clone */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetLifetimeMin", Getter="GetLifetimeMin", DisplayName="Min", Category="Lifetime", meta=(ClampMin="0", EditCondition="bLifetimeEnabled", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Min", Category="Lifetime", meta=(ClampMin="0", EditCondition="bLifetimeEnabled", EditConditionHides))
 	float LifetimeMin = 0.25f;
 
 	/** Maximum lifetime for a clone */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetLifetimeMax", Getter="GetLifetimeMax", DisplayName="Max", Category="Lifetime", meta=(ClampMin="0", EditCondition="bLifetimeEnabled", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Max", Category="Lifetime", meta=(ClampMin="0", EditCondition="bLifetimeEnabled", EditConditionHides))
 	float LifetimeMax = 1.5f;
 
 	/** Enable scale by lifetime */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetLifetimeScaleEnabled", Getter="GetLifetimeScaleEnabled", DisplayName="ScaleEnabled", Category="Lifetime", meta=(EditCondition="bLifetimeEnabled", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter="SetLifetimeScaleEnabled", Getter="GetLifetimeScaleEnabled", DisplayName="ScaleEnabled", Category="Lifetime", meta=(EditCondition="bLifetimeEnabled", EditConditionHides))
 	bool bLifetimeScaleEnabled = false;
 
 	/** Used to expose the scale curve editor in details panel */
@@ -102,7 +104,7 @@ protected:
 	TWeakObjectPtr<UNiagaraDataInterfaceCurve> LifetimeScaleCurveDIWeak;
 
 	/** Rich curve used in the data interface for the lifetime */
-	UPROPERTY(Setter="SetLifetimeScaleCurve", Getter="GetLifetimeScaleCurve")
+	UPROPERTY(Setter, Getter)
 	FRichCurve LifetimeScaleCurve;
 
 private:

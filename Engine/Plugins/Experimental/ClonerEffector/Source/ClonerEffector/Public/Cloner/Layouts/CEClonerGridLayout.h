@@ -134,28 +134,28 @@ protected:
 	virtual void OnLayoutParametersChanged(UCEClonerComponent* InComponent) override;
 	//~ End UCEClonerLayoutBase
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCountX", Getter="GetCountX", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 CountX = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCountY", Getter="GetCountY", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 CountY = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCountZ", Getter="GetCountZ", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 CountZ = 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSpacingX", Getter="GetSpacingX", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float SpacingX = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSpacingY", Getter="GetSpacingY", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float SpacingY = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSpacingZ", Getter="GetSpacingZ", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float SpacingZ = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(UIMin="0", UIMax="100"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(UIMin="0", UIMax="100"))
 	float TwistFactor = 0.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(InvalidEnumValues="Custom"))
 	ECEClonerAxis TwistAxis = ECEClonerAxis::Y;
 
 private:

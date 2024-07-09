@@ -60,25 +60,25 @@ void UCEClonerMeshRendererExtension::SetDefaultMeshes(const TArray<TObjectPtr<US
 	OnOverrideMaterialOptionsChanged();
 }
 
-void UCEClonerMeshRendererExtension::BP_SetDefaultMeshes(const TArray<UStaticMesh*>& InMeshes)
+void UCEClonerMeshRendererExtension::SetDefaultMeshes(const TArray<UStaticMesh*>& InMeshes)
 {
 	DefaultMeshes.Empty(InMeshes.Num());
+
 	Algo::Transform(InMeshes, DefaultMeshes, [](UStaticMesh* InMesh)->TObjectPtr<UStaticMesh>
 	{
 		return InMesh;
 	});
+
 	OnOverrideMaterialOptionsChanged();
 }
 
-TArray<UStaticMesh*> UCEClonerMeshRendererExtension::BP_GetDefaultMeshes() const
+void UCEClonerMeshRendererExtension::GetDefaultMeshes(TArray<UStaticMesh*>& OutMeshes) const
 {
-	TArray<UStaticMesh*> Meshes;
-	Meshes.Reserve(DefaultMeshes.Num());
-	Algo::Transform(DefaultMeshes, Meshes, [](const TObjectPtr<UStaticMesh>& InMesh)->UStaticMesh*
+	OutMeshes.Empty(DefaultMeshes.Num());
+	Algo::Transform(DefaultMeshes, OutMeshes, [](const TObjectPtr<UStaticMesh>& InMesh)->UStaticMesh*
 	{
 		return InMesh;
 	});
-	return Meshes;
 }
 
 void UCEClonerMeshRendererExtension::SetVisualizeEffectors(bool bInVisualize)

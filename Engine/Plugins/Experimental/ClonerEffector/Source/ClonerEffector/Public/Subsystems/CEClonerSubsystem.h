@@ -15,13 +15,16 @@ class UCEClonerSubsystem : public UEngineSubsystem
 {
 	GENERATED_BODY()
 
+	DECLARE_MULTICAST_DELEGATE(FOnSubsystemInitialized)
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnClonerSetEnabled, const UWorld* /** InWorld */, bool /** bInEnabled */, bool /** bInTransact */)
+
 public:
-	static TMulticastDelegateRegistration<void()>& OnSubsystemInitialized()
+	static FOnSubsystemInitialized::RegistrationType& OnSubsystemInitialized()
 	{
 		return OnSubsystemInitializedDelegate;
 	}
 
-	static TMulticastDelegateRegistration<void(const UWorld*, bool, bool)>& OnClonerSetEnabled()
+	static FOnClonerSetEnabled::RegistrationType& OnClonerSetEnabled()
 	{
 		return OnClonerSetEnabledDelegate;
 	}
@@ -36,7 +39,10 @@ public:
 	CLONEREFFECTOR_API bool IsLayoutClassRegistered(UClass* InClonerLayoutClass);
 
 	/** Get available cloner layout names to use in dropdown */
-	TArray<FName> GetLayoutNames() const;
+	TSet<FName> GetLayoutNames() const;
+
+	/** Get available cloner layout classes */
+	TSet<TSubclassOf<UCEClonerLayoutBase>> GetLayoutClasses() const;
 
 	/** Based on a layout class, find layout name */
 	FName FindLayoutName(TSubclassOf<UCEClonerLayoutBase> InLayoutClass) const;
@@ -87,11 +93,9 @@ public:
 	CLONEREFFECTOR_API AActor* CreateClonerWithActors(UWorld* InWorld, const TSet<AActor*>& InActors, bool bInShouldTransact);
 
 protected:
-	DECLARE_MULTICAST_DELEGATE(FOnSubsystemInitialized)
 	CLONEREFFECTOR_API static FOnSubsystemInitialized OnSubsystemInitializedDelegate;
 
 	/** Delegate to change state of cloners in a world */
-	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnClonerSetEnabled, const UWorld* /** InWorld */, bool /** bInEnabled */, bool /** bInTransact */)
 	static FOnClonerSetEnabled OnClonerSetEnabledDelegate;
 
 	//~ Begin USubsystem

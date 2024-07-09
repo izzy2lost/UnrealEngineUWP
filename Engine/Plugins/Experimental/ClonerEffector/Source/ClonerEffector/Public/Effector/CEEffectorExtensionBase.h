@@ -25,6 +25,7 @@ public:
 		: ExtensionName(InExtensionName)
 	{}
 
+	UFUNCTION(BlueprintPure, Category="Effector")
 	FName GetExtensionName() const
 	{
 		return ExtensionName;
@@ -46,6 +47,7 @@ public:
 	/** Disable this extension */
 	void DeactivateExtension();
 
+	UFUNCTION(BlueprintPure, Category="Effector")
 	bool IsExtensionActive() const
 	{
 		return bExtensionActive;

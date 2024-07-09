@@ -4,6 +4,7 @@
 
 #include "Cloner/CEClonerComponent.h"
 #include "Cloner/Layouts/CEClonerLayoutBase.h"
+#include "Curves/CurveFloat.h"
 #include "NiagaraDataInterfaceCurve.h"
 #include "NiagaraSystem.h"
 #include "NiagaraUserRedirectionParameterStore.h"
@@ -70,6 +71,16 @@ void UCEClonerLifetimeExtension::SetLifetimeScaleEnabled(bool bInEnabled)
 
 	bLifetimeScaleEnabled = bInEnabled;
 	MarkExtensionDirty();
+}
+
+void UCEClonerLifetimeExtension::SetLifetimeScaleCurve(UCurveFloat* InCurve)
+{
+	if (!IsValid(InCurve))
+	{
+		return;
+	}
+
+	SetLifetimeScaleCurve(InCurve->FloatCurve);
 }
 
 void UCEClonerLifetimeExtension::SetLifetimeScaleCurve(const FRichCurve& InCurve)

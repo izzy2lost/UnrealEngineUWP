@@ -30,6 +30,7 @@ public:
 		, ExtensionPriority(InExtensionPriority)
 	{}
 
+	UFUNCTION(BlueprintPure, Category="Cloner")
 	FName GetExtensionName() const
 	{
 		return ExtensionName;
@@ -59,6 +60,7 @@ public:
 	/** Disable this extension */
 	void DeactivateExtension();
 
+	UFUNCTION(BlueprintPure, Category="Cloner")
 	bool IsExtensionActive() const
 	{
 		return bExtensionActive;

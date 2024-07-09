@@ -78,19 +78,19 @@ protected:
 	virtual void OnLayoutParametersChanged(UCEClonerComponent* InComponent) override;
 	//~ End UCEClonerLayoutBase
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetCount", Getter="GetCount", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
     int32 Count = 10;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSpacing", Getter="GetSpacing", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	float Spacing = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetAxis", Getter="GetAxis", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	ECEClonerAxis Axis = ECEClonerAxis::Y;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDirection", Getter="GetDirection", Category="Layout", meta=(ClampMin="0", ClampMax="1", EditCondition="Axis == ECEClonerAxis::Custom", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(ClampMin="0", ClampMax="1", EditCondition="Axis == ECEClonerAxis::Custom", EditConditionHides))
 	FVector Direction = FVector::YAxisVector;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetRotation", Getter="GetRotation", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	FRotator Rotation = FRotator(0.f);
 
 private:

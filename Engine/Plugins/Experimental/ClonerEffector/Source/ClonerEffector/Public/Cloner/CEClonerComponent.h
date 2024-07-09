@@ -26,6 +26,10 @@ class UCEClonerComponent : public UNiagaraComponent
 
 	friend class ACEClonerActor;
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerMeshUpdated, UCEClonerComponent* /** ClonerComponent */)
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerLayoutLoaded, UCEClonerComponent* /** ClonerComponent */, UCEClonerLayoutBase* /** InLayout */)
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerInitialized, UCEClonerComponent* /** ClonerComponent */)
+
 public:
 	/** Only materials transient or part of the content folder can be dirtied, engine or plugins cannot */
 	static bool IsMaterialDirtyable(const UMaterialInterface* InMaterial);
@@ -44,17 +48,17 @@ public:
 	static CLONEREFFECTOR_API FName GetLayoutNamePropertyName();
 #endif
 
-	static TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerMeshUpdated()
+	static FOnClonerMeshUpdated::RegistrationType& OnClonerMeshUpdated()
 	{
 		return OnClonerMeshUpdatedDelegate;
 	}
 
-	static TMulticastDelegateRegistration<void(UCEClonerComponent*, UCEClonerLayoutBase*)>& OnClonerLayoutLoaded()
+	static FOnClonerLayoutLoaded::RegistrationType& OnClonerLayoutLoaded()
 	{
 		return OnClonerLayoutLoadedDelegate;
 	}
 
-	static TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerInitialized()
+	static FOnClonerInitialized::RegistrationType& OnClonerInitialized()
 	{
 		return OnClonerInitializedDelegate;
 	}
@@ -105,6 +109,12 @@ public:
 	{
 		return LayoutName;
 	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	void SetLayoutClass(TSubclassOf<UCEClonerLayoutBase> InLayoutClass);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	TSubclassOf<UCEClonerLayoutBase> GetLayoutClass() const;
 
 	UFUNCTION(BlueprintPure, Category="Cloner")
 	UCEClonerLayoutBase* GetActiveLayout() const
@@ -185,11 +195,6 @@ public:
 	/** Will force a system update to refresh user parameters */
 	void RequestClonerUpdate(bool bInImmediate = false);
 
-	UCEClonerLayoutBase* GetClonerActiveLayout() const
-	{
-		return ActiveLayout;
-	}
-
 	/** Forces a refresh of the meshes used */
 	void RefreshClonerMeshes();
 
@@ -200,6 +205,7 @@ public:
 		return Cast<InExtensionClass>(GetExtension(InExtensionClass::StaticClass()));
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Cloner")
 	UCEClonerExtensionBase* GetExtension(TSubclassOf<UCEClonerExtensionBase> InExtensionClass) const;
 
 	UCEClonerExtensionBase* GetExtension(FName InExtensionName) const;
@@ -209,17 +215,24 @@ public:
 		return ActiveExtensions;
 	}
 
+	/**
+	 * Retrieves all active extensions on this cloner
+	 * @param OutExtensions [Out] Active extensions
+	 */
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	void GetActiveExtensions(TArray<UCEClonerExtensionBase*>& OutExtensions) const
+	{
+		OutExtensions = ActiveExtensions;
+	}
+
 protected:
 	/** Called when meshes have been updated */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerMeshUpdated, UCEClonerComponent* /** ClonerComponent */)
 	CLONEREFFECTOR_API static FOnClonerMeshUpdated OnClonerMeshUpdatedDelegate;
 
 	/** Called when new cloner layout is loaded */
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerLayoutLoaded, UCEClonerComponent* /** ClonerComponent */, UCEClonerLayoutBase* /** InLayout */)
 	CLONEREFFECTOR_API static FOnClonerLayoutLoaded OnClonerLayoutLoadedDelegate;
 
 	/** Called when cloner is initialized */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerInitialized, UCEClonerComponent* /** ClonerComponent */)
 	CLONEREFFECTOR_API static FOnClonerInitialized OnClonerInitializedDelegate;
 
 	//~ Begin UObject
@@ -276,23 +289,23 @@ protected:
 	void OnActiveLayoutChanged();
 
 	/** Is this cloner enabled/disabled */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetEnabled", Getter="GetEnabled", Category="Cloner")
+	UPROPERTY(EditInstanceOnly, Setter="SetEnabled", Getter="GetEnabled", Category="Cloner")
 	bool bEnabled = true;
 
 	/** Interval to update the attachment tree and update the cloner meshes, 0 means each tick */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Cloner", AdvancedDisplay, meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Cloner", AdvancedDisplay, meta=(ClampMin="0"))
 	float TreeUpdateInterval = 0.2f;
 
 	/** Cloner instance seed for random deterministic patterns */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Cloner")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Cloner")
 	int32 Seed = 0;
 
 	/** Cloner color when unaffected by effectors, color will be passed down to the material (ParticleColor) */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Cloner")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Cloner")
 	FLinearColor Color = FLinearColor::White;
 
 	/** Name of the layout to use */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(GetOptions="GetClonerLayoutNames"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(GetOptions="GetClonerLayoutNames"))
 	FName LayoutName = NAME_None;
 
 	/** Active layout used */
@@ -313,7 +326,7 @@ protected:
 
 #if WITH_EDITORONLY_DATA
 	/** Toggle the sprite to visualize and click on this cloner */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, AdvancedDisplay, Category="Cloner", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, AdvancedDisplay, Category="Cloner", meta=(AllowPrivateAccess="true"))
 	bool bVisualizerSpriteVisible = true;
 #endif
 

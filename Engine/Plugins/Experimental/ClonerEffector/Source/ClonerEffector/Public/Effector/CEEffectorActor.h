@@ -29,6 +29,7 @@ public:
 
 	ACEEffectorActor();
 
+	UFUNCTION(BlueprintPure, Category="Effector")
 	UCEEffectorComponent* GetEffectorComponent() const
 	{
 		return EffectorComponent;

@@ -75,6 +75,12 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetTypeClass(TSubclassOf<UCEEffectorTypeBase> InTypeClass);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	CLONEREFFECTOR_API TSubclassOf<UCEEffectorTypeBase> GetTypeClass() const;
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetModeName(FName InModeName);
 
 	UFUNCTION(BlueprintPure, Category="Effector")
@@ -82,6 +88,12 @@ public:
 	{
 		return ModeName;
 	}
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	CLONEREFFECTOR_API void SetModeClass(TSubclassOf<UCEEffectorModeBase> InModeClass);
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	CLONEREFFECTOR_API TSubclassOf<UCEEffectorModeBase> GetModeClass() const;
 
 #if WITH_EDITOR
 	UFUNCTION(BlueprintCallable, Category="Effector")
@@ -115,6 +127,7 @@ public:
 	FCEClonerEffectorChannelData& GetChannelData();
 
 	/** Get the effector channel identifier */
+	UFUNCTION(BlueprintPure, Category="Effector")
 	int32 GetChannelIdentifier() const;
 
 	void OnClonerLinked(UCEClonerEffectorExtension* InClonerExtension);
@@ -128,6 +141,7 @@ public:
 		return Cast<InTypeClass>(GetActiveType());
 	}
 
+	UFUNCTION(BlueprintPure, Category="Effector")
 	UCEEffectorTypeBase* GetActiveType() const
 	{
 		return ActiveType;
@@ -141,6 +155,7 @@ public:
 		return Cast<InModeClass>(GetActiveMode());
 	}
 
+	UFUNCTION(BlueprintPure, Category="Effector")
 	UCEEffectorModeBase* GetActiveMode() const
 	{
 		return ActiveMode;
@@ -150,6 +165,14 @@ public:
 	{
 		return ActiveExtensions;
 	}
+
+	UFUNCTION(BlueprintPure, Category="Effector")
+	void GetActiveExtensions(TArray<UCEEffectorExtensionBase*>& OutExtensions) const;
+
+	UFUNCTION(BlueprintCallable, Category="Effector")
+	UCEEffectorExtensionBase* GetExtension(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const;
+
+	UCEEffectorExtensionBase* GetExtension(FName InExtensionName) const;
 
 	void RequestClonerUpdate(bool bInImmediate);
 
@@ -175,19 +198,19 @@ protected:
 #endif
 
 	/** Is this effector enabled/disabled on linked cloners */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetEnabled", Getter="GetEnabled", Category="Effector")
+	UPROPERTY(EditInstanceOnly, Setter="SetEnabled", Getter="GetEnabled", Category="Effector")
 	bool bEnabled = true;
 
 	/** The ratio effect of the effector on clones */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Effector", meta=(ClampMin="0", ClampMax="1"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Effector", meta=(ClampMin="0", ClampMax="1"))
 	float Magnitude = 1.f;
 
 	/** Affected clones color passed over to material */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Effector")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Effector")
 	FLinearColor Color = FLinearColor::Red;
 
 	/** Name of the shape type to use */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(GetOptions="GetEffectorTypeNames"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(GetOptions="GetEffectorTypeNames"))
 	FName TypeName = NAME_None;
 
 	/** Cached active type used for faster access */
@@ -195,7 +218,7 @@ protected:
 	TObjectPtr<UCEEffectorTypeBase> ActiveType;
 
 	/** Name of the shape type to use */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(GetOptions="GetEffectorModeNames"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode", meta=(GetOptions="GetEffectorModeNames"))
 	FName ModeName = NAME_None;
 
 	/** Cached active mode used for faster access */
@@ -208,11 +231,11 @@ protected:
 
 #if WITH_EDITORONLY_DATA
 	/** Visibility of the components visualizer */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, AdvancedDisplay, Category="Effector")
+	UPROPERTY(EditInstanceOnly, AdvancedDisplay, Category="Effector")
 	bool bVisualizerComponentVisible = true;
 
 	/** Toggle the sprite to visualize and click on this effector */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, AdvancedDisplay, Category="Effector")
+	UPROPERTY(EditInstanceOnly, AdvancedDisplay, Category="Effector")
 	bool bVisualizerSpriteVisible = true;
 #endif
 

@@ -30,6 +30,7 @@ public:
 
 	ACEClonerActor();
 
+	UFUNCTION(BlueprintPure, Category="Cloner")
 	UCEClonerComponent* GetClonerComponent() const
 	{
 		return ClonerComponent;

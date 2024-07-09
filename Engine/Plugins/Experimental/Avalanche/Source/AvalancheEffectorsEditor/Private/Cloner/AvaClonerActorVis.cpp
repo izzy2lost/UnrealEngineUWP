@@ -747,9 +747,9 @@ UActorComponent* FAvaClonerActorVisualizer::GetEditedComponent() const
 
 TMap<UObject*, TArray<FProperty*>> FAvaClonerActorVisualizer::GatherEditableProperties(UObject* InObject) const
 {
-	if (UCEClonerComponent* ClonerComponent = Cast<UCEClonerComponent>(InObject))
+	if (const UCEClonerComponent* ClonerComponent = Cast<UCEClonerComponent>(InObject))
 	{
-		if (UCEClonerLayoutBase* Layout = ClonerComponent->GetClonerActiveLayout())
+		if (UCEClonerLayoutBase* Layout = ClonerComponent->GetActiveLayout())
 		{
 			TArray<FName> PropertyNames;
 

@@ -63,15 +63,15 @@ protected:
 	//~ End UObject
 
 	/** Radial angle in degree, everything within the angle will be affected */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", ClampMax="360"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0", ClampMax="360"))
 	float RadialAngle = 180.f;
 
 	/** Minimum radius for the radial effect to be applied on clones, below clones will not be affected */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
 	float RadialMinRadius = 0.f;
 
 	/** Maximum radius for the radial effect to be applied on clones, above clones will not be affected */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
 	float RadialMaxRadius = 1000.f;
 
 private:

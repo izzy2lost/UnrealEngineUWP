@@ -63,15 +63,15 @@ protected:
 	//~ End UObject
 
 	/** Main torus radius from center to the edge where inner and outer tube will be revolved */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
 	float TorusRadius = 250.f;
 
 	/** Minimum revolved radius for the torus effect, clones contained inside will be affected with a maximum weight */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
 	float TorusInnerRadius = 50.f;
 
 	/** Maximum revolved radius for the torus effect, clones outside of it will not be affected */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(ClampMin="0"))
 	float TorusOuterRadius = 200.f;
 
 private:

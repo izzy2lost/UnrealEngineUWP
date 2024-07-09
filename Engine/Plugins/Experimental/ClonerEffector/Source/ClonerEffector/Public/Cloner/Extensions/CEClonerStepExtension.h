@@ -68,20 +68,20 @@ protected:
 	//~ End UCEClonerExtensionBase
 
 	/** Enable steps to add delta variation on each clone instance */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDeltaStepEnabled", Getter="GetDeltaStepEnabled", DisplayName="Enabled", Category="Step")
+	UPROPERTY(EditInstanceOnly, Setter="SetDeltaStepEnabled", Getter="GetDeltaStepEnabled", DisplayName="Enabled", Category="Step")
 	bool bDeltaStepEnabled = false;
 
 	/** Amount of position difference between one step and the next one */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDeltaStepPosition", Getter="GetDeltaStepPosition", DisplayName="Position", Category="Step", meta=(EditCondition="bDeltaStepEnabled", EditConditionHides))
-	FVector DeltaStepPosition = FVector(0.f);
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Position", Category="Step", meta=(EditCondition="bDeltaStepEnabled", EditConditionHides))
+	FVector DeltaStepPosition = FVector::ZeroVector;
 
 	/** Amount of rotation difference between one step and the next one */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDeltaStepRotation", Getter="GetDeltaStepRotation", DisplayName="Rotation", Category="Step", meta=(EditCondition="bDeltaStepEnabled", EditConditionHides))
-	FRotator DeltaStepRotation = FRotator(0.f);
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Rotation", Category="Step", meta=(EditCondition="bDeltaStepEnabled", EditConditionHides))
+	FRotator DeltaStepRotation = FRotator::ZeroRotator;
 
 	/** Amount of scale difference between one step and the next one */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDeltaStepScale", Getter="GetDeltaStepScale", DisplayName="Scale", Category="Step", meta=(MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.0001", EditCondition="bDeltaStepEnabled", EditConditionHides))
-	FVector DeltaStepScale = FVector(0.f);
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Scale", Category="Step", meta=(MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.0001", EditCondition="bDeltaStepEnabled", EditConditionHides))
+	FVector DeltaStepScale = FVector::ZeroVector;
 
 private:
 #if WITH_EDITOR

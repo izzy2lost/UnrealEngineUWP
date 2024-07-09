@@ -76,23 +76,23 @@ protected:
 	//~ End UObject
 
 	/** Amplitude of the noise field for location */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode")
 	FVector LocationStrength = FVector::ZeroVector;
 
 	/** Amplitude of the noise field for rotation */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode")
 	FRotator RotationStrength = FRotator::ZeroRotator;
 
 	/** Amplitude of the noise field for scale */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.01"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.01"))
 	FVector ScaleStrength = FVector::OneVector;
 
 	/** Panning to offset the noise field sampling */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode")
 	FVector Pan = FVector::ZeroVector;
 
 	/** Intensity of the noise field */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode", meta=(ClampMin="0"))
 	float Frequency = 0.5f;
 
 private:

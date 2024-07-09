@@ -58,15 +58,15 @@ protected:
 	//~ End UCEEffectorNoiseMode
 
 	/** Interpolates from 0 to this position offset based on the particle index and particle count */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, DisplayName="Position", Category="Mode")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Position", Category="Mode")
 	FVector StepPosition = FVector::ZeroVector;
 
 	/** Interpolates from 0 to this rotation based on the particle index and particle count */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, DisplayName="Rotation", Category="Mode")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Rotation", Category="Mode")
 	FRotator StepRotation = FRotator::ZeroRotator;
 
 	/** Interpolates from 1 to this scale based on the particle index and particle count */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, DisplayName="Scale", Category="Mode", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Scale", Category="Mode", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ"))
 	FVector StepScale = FVector::OneVector;
 
 private:

@@ -50,7 +50,7 @@ protected:
 	//~ End UObject
 
 	/** The actor to track when mode is set to target */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(DisplayName="TargetActor"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode", meta=(DisplayName="TargetActor"))
 	TWeakObjectPtr<AActor> TargetActorWeak = nullptr;
 
 	UPROPERTY()

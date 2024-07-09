@@ -89,16 +89,16 @@ protected:
 
 	void OnSampleMeshTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType);
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	ECEClonerMeshAsset Asset = ECEClonerMeshAsset::StaticMesh;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, DisplayName="Sample Actor", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Sample Actor", Category="Layout")
 	TWeakObjectPtr<AActor> SampleActorWeak;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	int32 Count = 3 * 3 * 3;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	ECEClonerMeshSampleData SampleData = ECEClonerMeshSampleData::Vertices;
 
 private:

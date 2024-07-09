@@ -49,11 +49,11 @@ protected:
 	//~ End UObject
 
 	/** Strength of the push effect */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(MotionDesignVectorWidget, AllowPreserveRatio="XYZ"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode", meta=(MotionDesignVectorWidget, AllowPreserveRatio="XYZ"))
 	FVector PushStrength = FVector(100.f);
 
 	/** Relative direction computed for the push effect on each clone */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode")
 	ECEClonerEffectorPushDirection PushDirection = ECEClonerEffectorPushDirection::Forward;
 
 private:

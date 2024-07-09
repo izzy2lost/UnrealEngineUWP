@@ -25,6 +25,8 @@ class UCEClonerLayoutBase : public UObject
 {
 	GENERATED_BODY()
 
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerLayoutLoaded, UCEClonerLayoutBase* /** InLayout */, bool /** bInSuccess */)
+
 public:
 	static constexpr TCHAR LayoutBaseAssetPath[] = TEXT("/Script/Niagara.NiagaraSystem'/ClonerEffector/Systems/NS_ClonerBase.NS_ClonerBase'");
 
@@ -37,7 +39,7 @@ public:
 		, LayoutAssetPath(InLayoutAssetPath)
 	{}
 
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
+	UFUNCTION(BlueprintPure, Category="Cloner")
 	FName GetLayoutName() const
 	{
 		return LayoutName;
@@ -58,13 +60,12 @@ public:
 		return MeshRenderer;
 	}
 
-	TMulticastDelegateRegistration<void(UCEClonerLayoutBase*, bool)>& OnLayoutLoadedDelegate()
+	FOnClonerLayoutLoaded::RegistrationType& OnLayoutLoadedDelegate()
 	{
 		return OnClonerLayoutLoadedDelegate;
 	}
 
 	/** Get the cloner component using this layout */
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
 	UCEClonerComponent* GetClonerComponent() const;
 
 	/** Get the actor using this layout */
@@ -77,8 +78,7 @@ public:
 	bool IsLayoutValid() const;
 
 	/** Is this layout system cached and ready to be used */
-	UFUNCTION(BlueprintPure, Category="Cloner|Layout")
-	CLONEREFFECTOR_API bool IsLayoutLoaded() const;
+	bool IsLayoutLoaded() const;
 
 	/** Load this layout system if not already loaded */
 	void LoadLayout();
@@ -137,7 +137,6 @@ protected:
 	void OnLayoutPropertyChanged();
 
 private:
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerLayoutLoaded, UCEClonerLayoutBase* /** InLayout */, bool /** bInSuccess */)
 	FOnClonerLayoutLoaded OnClonerLayoutLoadedDelegate;
 
 	void OnSystemPackageLoaded(const FName& InName, UPackage* InPackage, EAsyncLoadingResult::Type InResult);
@@ -146,6 +145,7 @@ private:
 	void BindCleanupDelegates();
 	void UnbindCleanupDelegates() const;
 
+	/** When level is unloaded or world cleaned up, deactivate and unload layout */
 	void OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources);
 	void OnLevelCleanup();
 

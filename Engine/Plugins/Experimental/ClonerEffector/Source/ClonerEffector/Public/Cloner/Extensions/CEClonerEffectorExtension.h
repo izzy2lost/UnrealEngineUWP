@@ -34,12 +34,15 @@ public:
 	CLONEREFFECTOR_API int32 GetEffectorCount() const;
 
 	/** Links new actor effectors to apply transformation on clones */
+	UFUNCTION(BlueprintCallable, Category="Cloner")
 	CLONEREFFECTOR_API bool LinkEffector(AActor* InEffectorActor);
 
 	/** Unlinks the effector actor and reset the cloner simulation */
+	UFUNCTION(BlueprintCallable, Category="Cloner")
 	CLONEREFFECTOR_API bool UnlinkEffector(AActor* InEffectorActor);
 
 	/** Checks if an effector is linked with this cloner */
+	UFUNCTION(BlueprintPure, Category="Cloner")
 	CLONEREFFECTOR_API bool IsEffectorLinked(const AActor* InEffectorActor) const;
 
 #if WITH_EDITOR

@@ -192,9 +192,9 @@ bool UCEEffectorSubsystem::IsExtensionClassRegistered(UClass* InClass) const
 	return !!ExtensionClasses.FindKey(ExtensionClass);
 }
 
-TArray<FName> UCEEffectorSubsystem::GetExtensionNames(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const
+TSet<FName> UCEEffectorSubsystem::GetExtensionNames(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const
 {
-	TArray<FName> ExtensionNames;
+	TSet<FName> ExtensionNames;
 
 	const FName ExtensionName = FindExtensionName(InExtensionClass);
 
@@ -214,6 +214,30 @@ TArray<FName> UCEEffectorSubsystem::GetExtensionNames(TSubclassOf<UCEEffectorExt
 	}
 
 	return ExtensionNames;
+}
+
+TSet<TSubclassOf<UCEEffectorExtensionBase>> UCEEffectorSubsystem::GetExtensionClasses(TSubclassOf<UCEEffectorExtensionBase> InExtensionClass) const
+{
+	TSet<TSubclassOf<UCEEffectorExtensionBase>> Extensions;
+
+	if (!InExtensionClass.Get())
+	{
+		return Extensions;
+	}
+
+	Extensions.Empty(ExtensionClasses.Num());
+
+	for (const TPair<FName, TSubclassOf<UCEEffectorExtensionBase>>& ExtensionPair : ExtensionClasses)
+	{
+		if (ExtensionPair.Value
+			&& (ExtensionPair.Value == InExtensionClass
+				|| ExtensionPair.Value->IsChildOf(InExtensionClass)))
+		{
+			Extensions.Add(ExtensionPair.Value);
+		}
+	}
+
+	return Extensions;
 }
 
 FName UCEEffectorSubsystem::FindExtensionName(TSubclassOf<UCEEffectorExtensionBase> InClass) const
