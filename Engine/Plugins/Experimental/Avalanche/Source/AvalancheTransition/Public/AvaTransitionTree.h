@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AvaTagHandle.h"
+#include "AvaTransitionEnums.h"
 #include "StateTree.h"
 #include "AvaTransitionTree.generated.h"
 
@@ -24,6 +25,16 @@ public:
 
 	void SetEnabled(bool bInEnabled);
 
+	void SetInstancingMode(EAvaTransitionInstancingMode InInstancingMode)
+	{
+		InstancingMode = InInstancingMode;
+	}
+
+	EAvaTransitionInstancingMode GetInstancingMode() const
+	{
+		return InstancingMode;
+	}
+
 	static FName GetEnabledPropertyName()
 	{
 		return GET_MEMBER_NAME_CHECKED(UAvaTransitionTree, bEnabled);
@@ -40,4 +51,7 @@ private:
 	 */
 	UPROPERTY()
 	bool bEnabled = true;
+
+	UPROPERTY()
+	EAvaTransitionInstancingMode InstancingMode = EAvaTransitionInstancingMode::New;
 };

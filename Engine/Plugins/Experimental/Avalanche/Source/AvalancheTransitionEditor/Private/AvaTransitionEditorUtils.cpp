@@ -10,6 +10,7 @@
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "ISinglePropertyView.h"
+#include "Menu/Widgets/SAvaTransitionTreeInstancingModeSelector.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
@@ -17,6 +18,7 @@
 #include "StateTreeTaskBase.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScaleBox.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionEditorUtils"
 
@@ -76,6 +78,29 @@ TSharedPtr<SWidget> CreateTransitionLayerPicker(UAvaTransitionTreeEditorData* In
 			];
 	}
 	return nullptr;
+}
+
+TSharedPtr<SWidget> CreateTransitionInstancingModeSelector(UAvaTransitionTree* InTransitionTree)
+{
+	const FMargin PropertyPadding(2.0f, 0.0f, 2.0f, 0.0f);
+	
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.Padding(PropertyPadding)
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Center)
+		.AutoWidth()
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("TransitionInstancingModeLabel", "Mode"))
+		]
+		+ SHorizontalBox::Slot()
+		.Padding(PropertyPadding)
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SAvaTransitionTreeInstancingModeSelector, InTransitionTree)
+		];
 }
 
 void ValidateTree(UAvaTransitionTree& InTransitionTree)

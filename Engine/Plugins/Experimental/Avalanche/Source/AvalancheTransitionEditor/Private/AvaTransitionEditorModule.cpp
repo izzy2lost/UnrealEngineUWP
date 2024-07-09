@@ -85,6 +85,19 @@ void FAvaTransitionEditorModule::GenerateTransitionTreeOptionsMenu(UToolMenu* In
 			, FIsActionChecked::CreateStatic(&UE::AvaTransitionEditor::IsTransitionTreeEnabled, TransitionTreeWeak))
 		, EUserInterfaceActionType::ToggleButton);
 
+	if (const TSharedPtr<SWidget> ModeSelector = UE::AvaTransitionEditor::CreateTransitionInstancingModeSelector(TransitionTree))
+	{
+		GeneralSection.AddEntry(FToolMenuEntry::InitWidget(TEXT("TransitionModeSelector")
+			, SNew(SBox)
+				[
+					ModeSelector.ToSharedRef()
+				]
+			, FText::GetEmpty()
+			, /*bNoIndent*/true
+			, /*bSearchable*/false
+			, /*bNoPadding*/true));
+	}
+
 	if (TSharedPtr<SWidget> LayerPicker = UE::AvaTransitionEditor::CreateTransitionLayerPicker(Cast<UAvaTransitionTreeEditorData>(TransitionTree->EditorData), /*bInCompileOnLayerPicked*/true))
 	{
 		FToolMenuSection& LayerSection = InMenu->FindOrAddSection(TEXT("LayerSection"), LOCTEXT("LayerSectionLabel", "Layer"));

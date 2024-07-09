@@ -59,3 +59,12 @@ enum class EAvaTransitionLayerCompareType : uint8
 	MatchingTag,
 	Any,
 };
+
+UENUM(BlueprintType, DisplayName="Motion Design Transition Instancing Mode")
+enum class EAvaTransitionInstancingMode : uint8
+{
+	/** A new scene instance is added to the parent world and exit instance is discarded. */
+	New,
+	/** If previous instance exists, reuse it for the entering behavior. */
+	Reuse
+};
