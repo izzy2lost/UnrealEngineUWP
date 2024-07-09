@@ -2430,10 +2430,22 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		GetPhysicallyInstalledSystemMemory(&totalMemoryInKilobytes);
 
-		Vector<PROCESSOR_POWER_INFORMATION> procInfos;
-		procInfos.resize(cpuCount);
-		if (CallNtPowerInformation(ProcessorInformation, NULL, 0, procInfos.data(), cpuCount*sizeof(PROCESSOR_POWER_INFORMATION)) == STATUS_SUCCESS)
-			hzStr.Appendf(TC(" @ %.1fGHz"), float(procInfos[0].MaxMhz) / 1000.0f);
+		{
+			u32 maxMHz = 0;
+			DWORD valueSize = 4;
+			const tchar* key = TC("HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0");
+			LSTATUS res = RegGetValueW(HKEY_LOCAL_MACHINE, key, TC("~MHz"), RRF_RT_REG_DWORD, NULL, &maxMHz, &valueSize);
+			if (res != ERROR_SUCCESS)
+			{
+				// This will not always be the same and since we use the system info as part of key for client uniqueness it is annoying to get multiple sessions for same instance
+				Vector<PROCESSOR_POWER_INFORMATION> procInfos;
+				procInfos.resize(cpuCount);
+				if (CallNtPowerInformation(ProcessorInformation, NULL, 0, procInfos.data(), cpuCount*sizeof(PROCESSOR_POWER_INFORMATION)) == STATUS_SUCCESS)
+					maxMHz = procInfos[0].MaxMhz;
+			}
+			hzStr.Appendf(TC(" @ %.1fGHz"), float(maxMHz) / 1000.0f);
+		}
+
 		#else
 		u64 throwAway;
 		GetMemoryInfo(throwAway, totalMemoryInKilobytes);

@@ -303,20 +303,19 @@ namespace uba
 			for (u32 i = 0; i != out.sessions.size(); ++i)
 			{
 				auto& oldSession = out.sessions[i];
-				if (oldSession.name == sessionName.data)
-				{
-					if (oldSession.disconnectTime == ~u64(0))
-						break;
-					oldSession.isReset = true;
-					oldSession.disconnectTime = ~u64(0);
-					oldSession.proxyName.clear();
-					oldSession.proxyCreated = false;
-					oldSession.notification.clear();
-					//oldSession.fetchedFiles.clear();
-					//oldSession.storedFiles.clear();
-					virtualSessionIndex = i;
+				if (oldSession.name != sessionName.data)
+					continue;
+				if (oldSession.disconnectTime == ~u64(0))
 					break;
-				}
+				oldSession.isReset = true;
+				oldSession.disconnectTime = ~u64(0);
+				oldSession.proxyName.clear();
+				oldSession.proxyCreated = false;
+				oldSession.notification.clear();
+				//oldSession.fetchedFiles.clear();
+				//oldSession.storedFiles.clear();
+				virtualSessionIndex = i;
+				break;
 			}
 
 
