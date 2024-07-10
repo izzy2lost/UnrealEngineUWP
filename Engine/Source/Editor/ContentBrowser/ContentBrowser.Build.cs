@@ -6,6 +6,8 @@ public class ContentBrowser : ModuleRules
 {
 	public ContentBrowser(ReadOnlyTargetRules Target) : base(Target)
 	{
+		PublicDefinitions.Add("UE_CONTENTBROWSER_NEW_STYLE=0");
+
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 
 		PrivateIncludePathModuleNames.AddRange(

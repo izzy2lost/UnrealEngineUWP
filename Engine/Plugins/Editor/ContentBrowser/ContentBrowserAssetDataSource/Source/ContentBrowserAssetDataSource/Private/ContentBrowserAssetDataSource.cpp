@@ -42,6 +42,9 @@
 #include "ToolMenuSection.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#if UE_CONTENTBROWSER_NEW_STYLE
+#include "SActionButton.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ContentBrowserAssetDataSource)
 
@@ -3543,7 +3546,16 @@ void UContentBrowserAssetDataSource::PopulateContentBrowserToolBar(UToolMenu* In
 	const UContentBrowserToolbarMenuContext* ContextObject = InMenu->FindContext<UContentBrowserToolbarMenuContext>();
 	checkf(ContextObject, TEXT("Required context UContentBrowserToolbarMenuContext was missing!"));
 
-	TSharedRef<SWidget> ImportButton = 
+#if UE_CONTENTBROWSER_NEW_STYLE
+	TSharedRef<SWidget> ImportButton =
+		SNew(SActionButton)
+		.ToolTipText(LOCTEXT("ImportTooltip", "Import assets from files to the currently selected folder"))
+		.OnClicked_UObject(this, &UContentBrowserAssetDataSource::OnImportClicked, ContextObject)
+		.IsEnabled_UObject(this, &UContentBrowserAssetDataSource::IsImportEnabled, ContextObject)
+		.Icon(FAppStyle::Get().GetBrush("Icons.Import"))
+		.Text(LOCTEXT("Import", "Import"));
+#else
+	TSharedRef<SWidget> ImportButton =
 		SNew(SButton)
 		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 		.ToolTipText(LOCTEXT("ImportTooltip", "Import assets from files to the currently selected folder"))
@@ -3571,6 +3583,7 @@ void UContentBrowserAssetDataSource::PopulateContentBrowserToolBar(UToolMenu* In
 				.Text(LOCTEXT("Import", "Import"))
 			]
 		];
+#endif
 
 	FToolMenuSection& Section = InMenu->FindOrAddSection("New");
 
