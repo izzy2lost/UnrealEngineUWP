@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaVisualizer.h"
+#include "UbaConfig.h"
 #include "UbaNetworkBackendTcp.h"
 #include "UbaVersion.h"
 
@@ -68,8 +69,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	StringBuffer<> channel;
 	u32 port = DefaultPort;
 	u32 replay = 0;
-	bool useDark = false;
-	bool isThemeSet = false;
 
 	int argc;
 	auto argv = CommandLineToArgvW(GetCommandLine(), &argc);
@@ -135,14 +134,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			if (!value.IsEmpty())
 				value.Parse(replay);
 		}
-		else if (name.Equals(TC("-theme")))
-		{
-			isThemeSet = true;
-			if (value.Equals(TC("dark")))
-				useDark = true;
-			else if (!value.Equals(TC("light")))
-				return PrintHelp(TC("Invalid value for -theme. Must be 'light' or 'dark'"));
-		}
 		else
 		{
 			StringBuffer<> msg;
@@ -159,13 +150,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	MessageBoxLogWriter logWriter;
 	LoggerWithWriter logger(logWriter);
 
+	StringBuffer<> configPath;
+	configPath.count = ExpandEnvironmentStringsW(L"%PROGRAMDATA%", configPath.data, configPath.capacity) - 1;
+	configPath.Append(L"\\Epic\\UbaVisualizer\\UbaVisualizer.toml");
+
+	VisualizerConfig visualizerConfig(configPath.data);
+	visualizerConfig.Load(logger);
+
 	NetworkBackendTcp networkBackend(logWriter);
-	Visualizer visualizer(logger);
+	Visualizer visualizer(visualizerConfig, logger);
 	logWriter.m_visualizer = &visualizer;
-
-	if (isThemeSet)
-		visualizer.SetTheme(useDark);
-
 
 	if (channel.count)
 	{

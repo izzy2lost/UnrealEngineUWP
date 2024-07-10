@@ -8,13 +8,51 @@
 
 namespace uba
 {
+	class Config;
+
+	#define UBA_VISUALIZER_FLAGS1 \
+		UBA_VISUALIZER_FLAG(NetworkStats, true, L"network stats") \
+		UBA_VISUALIZER_FLAG(CpuMemStats, true, L"cpu/mem stats") \
+		UBA_VISUALIZER_FLAG(ProcessBars, true, L"process bars") \
+		UBA_VISUALIZER_FLAG(Timeline, true, L"timeline") \
+		UBA_VISUALIZER_FLAG(DetailedData, false, L"detailed data (use -UbaDetailedTrace for even more)") \
+		UBA_VISUALIZER_FLAG(Workers, false, L"workers (threads on host taking care of requests from helpers)") \
+		UBA_VISUALIZER_FLAG(CursorLine, false, L"cursor (vertical line)") \
+
+	#define UBA_VISUALIZER_FLAGS2 \
+		UBA_VISUALIZER_FLAG(ShowProcessText, true, L"Show text in process bars") \
+		UBA_VISUALIZER_FLAG(ShowReadWriteColors, true, L"Show colors for read/write times in process bars") \
+		UBA_VISUALIZER_FLAG(ScaleHorizontalWithScrollWheel, false, L"Use scroll wheel to scale horizontally") \
+		UBA_VISUALIZER_FLAG(DarkMode, false, L"Use dark mode to draw visualizer") \
+
+	struct VisualizerConfig
+	{
+		VisualizerConfig(const tchar* filename);
+
+		bool Load(Logger& logger);
+		bool Save(Logger& logger);
+
+		TString filename;
+
+		int x = 100;
+		int y = 100;
+		int width = 1500;
+		int height = 1500;
+
+		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) bool show##name = defaultValue;
+		UBA_VISUALIZER_FLAGS1
+		#undef UBA_VISUALIZER_FLAG
+
+		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) bool name = defaultValue;
+		UBA_VISUALIZER_FLAGS2
+		#undef UBA_VISUALIZER_FLAG
+	};
+
 	class Visualizer
 	{
 	public:
-		Visualizer(Logger& logger);
+		Visualizer(VisualizerConfig& config, Logger& logger);
 		~Visualizer();
-
-		void SetTheme(bool dark);
 
 		bool ShowUsingListener(const wchar_t* channelName);
 		bool ShowUsingNamedTrace(const wchar_t* namedTrace);
@@ -67,10 +105,13 @@ namespace uba
 		bool UpdateSelection();
 		void UpdateScrollbars(bool redraw);
 		void GetTitlePrefix(StringBufferBase& out);
+		void InitBrushes();
 		void ThreadLoop();
 		void Pause(bool pause);
 		void StartDragToScroll(const POINT& anchor);
 		void StopDragToScroll();
+		void SaveSettings();
+		void DirtyBitmaps();
 
 		StringBuffer<256> m_namedTrace;
 		StringBuffer<256> m_fileName;
@@ -114,12 +155,9 @@ namespace uba
 		HFONT m_font = 0;
 		HFONT m_popupFont = 0;
 		int m_popupFontHeight = 0;
-		bool m_useDarkMode = true;
-		bool m_isThemeSet = false;
-		bool m_showText = true;
-		bool m_showCreateWriteColors = true;
 
 		Logger& m_logger;
+		VisualizerConfig m_config;
 		NetworkClient* m_client = nullptr;
 		TraceReader m_trace;
 		TraceView m_traceView;
@@ -160,19 +198,6 @@ namespace uba
 		
 		bool m_mouseOverWindow = false;
 		bool m_showPopup = false;
-
-		enum ComponentType
-		{
-			ComponentType_SendRecv,
-			ComponentType_CpuMem,
-			ComponentType_Bars,
-			ComponentType_Timeline,
-			ComponentType_DetailedData,
-			ComponentType_Workers,
-			ComponentType_Cursor,
-			ComponentType_Count
-		};
-		bool m_visibleComponents[ComponentType_Count];
 
 		HBITMAP m_cachedBitmap = 0;
 		RECT m_cachedBitmapRect = { INT_MIN, INT_MIN, INT_MIN, INT_MIN };

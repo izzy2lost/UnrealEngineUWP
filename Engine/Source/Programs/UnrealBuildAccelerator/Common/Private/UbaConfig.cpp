@@ -23,6 +23,15 @@ namespace uba
 		return buf.Parse(out);
 	}
 
+	bool ConfigTable::GetValueAsInt(int& out, const tchar* key) const
+	{
+		auto findIt = m_values.find(key);
+		if (findIt == m_values.end())
+			return m_parent ? m_parent->GetValueAsInt(out, key) : false;
+		out = (int)wcstol(findIt->second.c_str(), 0, 10);
+		return true;
+	}
+
 	bool ConfigTable::GetValueAsBool(bool& out, const tchar* key) const
 	{
 		auto findIt = m_values.find(key);
@@ -49,6 +58,18 @@ namespace uba
 		if (findIt == m_tables.end())
 			return nullptr;
 		return &findIt->second;
+	}
+
+	void ConfigTable::AddValue(const tchar* key, int value)
+	{
+		tchar buf[256];
+		TSprintf_s(buf, sizeof_array(buf), TC("%i"), value);
+		m_values[key] = buf;
+	}
+
+	void ConfigTable::AddValue(const tchar* key, bool value)
+	{
+		m_values[key] = value ? TC("true") : TC("false");
 	}
 
 	bool Config::LoadFromFile(Logger& logger, const tchar* configFile)
@@ -194,5 +215,24 @@ namespace uba
 	bool Config::IsLoaded() const
 	{
 		return m_isLoaded;
+	}
+
+	bool Config::SaveToFile(Logger& logger, const tchar* configFile)
+	{
+		UBA_ASSERT(m_tables.empty()); // TODO
+
+		FileAccessor fa(logger, configFile);
+		if (!fa.CreateWrite())
+			return false;
+
+		for (auto& kv : m_values)
+		{
+			char line[1024];
+			int written = sprintf_s(line, sizeof_array(line), "%S = %S\r\n", kv.first.c_str(), kv.second.c_str());
+			if (!fa.Write(line, written))
+				return false;
+		}
+		
+		return fa.Close();
 	}
 }
