@@ -20,6 +20,9 @@ TSharedPtr<SWidget> FDMStageDragDropOperation::GetDefaultDecorator() const
 	TSharedPtr<SDMStage> StageWidget = StageWidgetWeak.Pin();
 	check(StageWidget.IsValid());
 
+	TSharedPtr<SDMSlot> SlotWidget = StageWidget->GetSlotWidget();
+	check(SlotWidget.IsValid());
+
 	UDMMaterialStage* const Stage = StageWidget->GetStage();
 	check(Stage);
 
@@ -29,7 +32,7 @@ TSharedPtr<SWidget> FDMStageDragDropOperation::GetDefaultDecorator() const
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Fill)
 		[
-			SNew(SDMStage, Stage)
+			SNew(SDMStage, SlotWidget.ToSharedRef(), Stage)
 			.DesiredSize(StageWidget->GetPreviewSize())
 		]
 		+ SOverlay::Slot()

@@ -17,7 +17,6 @@ class SDMPropertyEditFloat3RPYValue : public SDMPropertyEdit
 public:
 	static TSharedPtr<SWidget> CreateEditWidget(const TSharedPtr<SDMComponentEdit>& InComponentEditWidget, UDMMaterialValue* InFloat3RPYValue);
 
-	SDMPropertyEditFloat3RPYValue() = default;
 	virtual ~SDMPropertyEditFloat3RPYValue() override = default;
 
 	void Construct(const FArguments& InArgs, UDMMaterialValueFloat3RPY* InFloat3RPYValue);

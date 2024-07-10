@@ -152,21 +152,21 @@ const FDMValueDefinition& UDMValueDefinitionLibrary::GetTypeForFloatCount(int32 
 	return GetTypeForFloatCount(static_cast<uint8>(Enum));
 }
 
-bool UDMValueDefinitionLibrary::AreTypesCompatible(EDMValueType A, EDMValueType B, int32 AChannel, int32 BChannel)
+bool UDMValueDefinitionLibrary::AreTypesCompatible(EDMValueType InA, EDMValueType InB, int32 InAChannel, int32 BChannel)
 {
 	using namespace UE::MaterialDesigner::Private;
 
 	// While all floats are compatible with all over floats, this may change in the future.
-	const FDMValueDefinition* TypeA = &TypeDefinitions[A];
-	const FDMValueDefinition* TypeB = &TypeDefinitions[B];
+	const FDMValueDefinition* TypeA = &TypeDefinitions[InA];
+	const FDMValueDefinition* TypeB = &TypeDefinitions[InB];
 
-	if (AChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
+	if (InAChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
 	{
 		const int32 Count =
-			!!(AChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL)
-			+ !!(AChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL)
-			+ !!(AChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL)
-			+ !!(AChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
+			!!(InAChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL)
+			+ !!(InAChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL)
+			+ !!(InAChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL)
+			+ !!(InAChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
 
 		switch (Count)
 		{
@@ -257,11 +257,6 @@ const FText& FDMValueDefinition::GetChannelName(int32 InChannel) const
 
 	static const FText Error = LOCTEXT("Error", "Error");
 	return Error;
-}
-
-TSubclassOf<UDMMaterialValue> FDMValueDefinition::GetValueClass() const
-{
-	return ValueClass;
 }
 
 const TArray<EDMValueType>& UDMValueDefinitionLibrary::GetValueTypes()

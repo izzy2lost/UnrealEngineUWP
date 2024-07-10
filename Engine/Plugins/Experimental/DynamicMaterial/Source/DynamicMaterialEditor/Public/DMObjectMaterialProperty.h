@@ -11,6 +11,7 @@
 class FProperty;
 class UDynamicMaterialInstance;
 class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 class UObject;
 class UPrimitiveComponent;
 
@@ -18,17 +19,17 @@ class UPrimitiveComponent;
  * Defines a material property slot that can be a Material Designer Instance.
  */
 USTRUCT(BlueprintType)
-struct DYNAMICMATERIALEDITOR_API FDMObjectMaterialProperty
+struct FDMObjectMaterialProperty
 {
 	GENERATED_BODY()
 
 	FDMObjectMaterialProperty();
 
-	// UPrimitiveComponent Material Index
-	FDMObjectMaterialProperty(UPrimitiveComponent* InOuter, int32 InIndex);
+	/** UPrimitiveComponent Material Index */
+	DYNAMICMATERIALEDITOR_API FDMObjectMaterialProperty(UPrimitiveComponent* InOuter, int32 InIndex);
 
-	// Class Property (including potential array index)
-	FDMObjectMaterialProperty(UObject* InOuter, FProperty* InProperty, int32 InIndex = INDEX_NONE);
+	/** Class Property (including potential array index) */
+	DYNAMICMATERIALEDITOR_API FDMObjectMaterialProperty(UObject* InOuter, FProperty* InProperty, int32 InIndex = INDEX_NONE);
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material")
 	TWeakObjectPtr<UObject> OuterWeak;
@@ -44,16 +45,17 @@ struct DYNAMICMATERIALEDITOR_API FDMObjectMaterialProperty
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material")
 	int32 Index;
 
-	UDynamicMaterialModel* GetMaterialModel() const;
+	DYNAMICMATERIALEDITOR_API UDynamicMaterialModelBase* GetMaterialModelBase() const;
 
-	UDynamicMaterialInstance* GetMaterial() const;
-	void SetMaterial(UDynamicMaterialInstance* DynamicMaterial);
+	DYNAMICMATERIALEDITOR_API UDynamicMaterialInstance* GetMaterial() const;
 
-	bool IsValid() const;
+	DYNAMICMATERIALEDITOR_API void SetMaterial(UDynamicMaterialInstance* DynamicMaterial);
 
-	FText GetPropertyName(bool bInIgnoreNewStatus) const;
+	DYNAMICMATERIALEDITOR_API bool IsValid() const;
 
-	void Reset();
+	DYNAMICMATERIALEDITOR_API FText GetPropertyName(bool bInIgnoreNewStatus) const;
+
+	DYNAMICMATERIALEDITOR_API void Reset();
 
 	template<typename InClass>
 	InClass* GetTypedOuter() const

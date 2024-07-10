@@ -12,7 +12,7 @@ class FJsonValue;
 class UClass;
 class UTexture;
 
-/** Offers custom serialization options for class */
+/** Offers custom serialization options for class. */
 UINTERFACE(MinimalAPI, Blueprintable, BlueprintType)
 class UDMJsonSerializable : public UInterface
 {
@@ -29,18 +29,19 @@ public:
 };
 
 #if WITH_EDITOR
-class DYNAMICMATERIAL_API FDMJsonUtils
+/** Wrapper library to allow quicker (de)serialization to JSON. */
+class FDMJsonUtils
 {
 public:
-	static TSharedPtr<FJsonValue> Serialize(bool bInValue);
-	static TSharedPtr<FJsonValue> Serialize(const FString& InString);
-	static TSharedPtr<FJsonValue> Serialize(const FText& InText);
-	static TSharedPtr<FJsonValue> Serialize(const FName& InName);
-	static TSharedPtr<FJsonValue> Serialize(const UClass* InClass);
-	static TSharedPtr<FJsonValue> Serialize(const UScriptStruct* InScriptStruct, const void* InData);
-	static TSharedPtr<FJsonValue> Serialize(const UObject* InObject);
-	static TSharedPtr<FJsonValue> Serialize(const FObjectPtr& InObject);
-	static TSharedPtr<FJsonValue> Serialize(const TMap<FString, TSharedPtr<FJsonValue>>& InMap);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(bool bInValue);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(const FString& InString);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(const FText& InText);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(const FName& InName);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(const UClass* InClass);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(const UScriptStruct* InScriptStruct, const void* InData);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(const UObject* InObject);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(const FObjectPtr& InObject);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> Serialize(const TMap<FString, TSharedPtr<FJsonValue>>& InMap);
 
 	template<typename InArithmeticType
 		UE_REQUIRES(TIsArithmetic<InArithmeticType>::Value)>
@@ -70,16 +71,16 @@ public:
 		return Serialize(InClass.Get());
 	}
 
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, bool& bOutValue);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, FString& OutString);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, FText& OutText);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, FName& OutName);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, UClass*& OutClass);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, const UScriptStruct* InScriptStruct, void* OutData);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, const UEnum* InEnum, int64& OutValue);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, UObject*& OutObject, UObject* InOuter = nullptr);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, FObjectPtr& OutObject, UObject* InOuter = nullptr);
-	static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, TMap<FString, TSharedPtr<FJsonValue>>& OutMap);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, bool& bOutValue);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, FString& OutString);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, FText& OutText);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, FName& OutName);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, UClass*& OutClass);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, const UScriptStruct* InScriptStruct, void* OutData);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, const UEnum* InEnum, int64& OutValue);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, UObject*& OutObject, UObject* InOuter = nullptr);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, FObjectPtr& OutObject, UObject* InOuter = nullptr);
+	DYNAMICMATERIAL_API static bool Deserialize(const TSharedPtr<FJsonValue>& InJsonValue, TMap<FString, TSharedPtr<FJsonValue>>& OutMap);
 
 	template<typename InArithmeticType
 		UE_REQUIRES(TIsArithmetic<InArithmeticType>::Value)>
@@ -162,7 +163,7 @@ public:
 	}
 
 private:
-	static TSharedPtr<FJsonValue> SerializeNumber(double InNumber);
-	static bool DeserializeNumber(const TSharedPtr<FJsonValue>& InJsonValue, double& OutNumber);
+	DYNAMICMATERIAL_API static TSharedPtr<FJsonValue> SerializeNumber(double InNumber);
+	DYNAMICMATERIAL_API static bool DeserializeNumber(const TSharedPtr<FJsonValue>& InJsonValue, double& OutNumber);
 };
 #endif

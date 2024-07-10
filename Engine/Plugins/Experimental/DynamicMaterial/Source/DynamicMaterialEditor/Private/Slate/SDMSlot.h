@@ -91,6 +91,7 @@ public:
 
 protected:
 	TWeakPtr<SDMEditor> EditorWidgetWeak;
+	bool bIsDynamic;
 
 	TAttribute<int32> SlotPreviewSize;
 	TAttribute<int32> LayerPreviewSize;

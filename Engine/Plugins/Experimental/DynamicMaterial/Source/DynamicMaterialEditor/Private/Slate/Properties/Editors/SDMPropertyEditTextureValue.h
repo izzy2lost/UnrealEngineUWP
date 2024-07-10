@@ -19,7 +19,6 @@ class SDMPropertyEditTextureValue : public SDMPropertyEdit
 public:
 	static TSharedPtr<SWidget> CreateEditWidget(const TSharedPtr<SDMComponentEdit>& InComponentEditWidget, UDMMaterialValue* InTextureValue);
 
-	SDMPropertyEditTextureValue() = default;
 	virtual ~SDMPropertyEditTextureValue() override = default;
 
 	void Construct(const FArguments& InArgs, UDMMaterialValueTexture* InTextureValue);

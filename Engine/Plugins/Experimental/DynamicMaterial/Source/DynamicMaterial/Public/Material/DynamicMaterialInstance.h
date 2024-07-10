@@ -6,40 +6,47 @@
 #include "DynamicMaterialInstance.generated.h"
 
 class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 
 #if WITH_EDITOR
 class UDMMaterialStageInputTextureUV;
 class UDMMaterialValue;
 #endif
 
-class UMaterial;
-
-UCLASS(ClassGroup = "Material Designer", DefaultToInstanced, BlueprintType, meta = (DisplayThumbnail = "true"))
-class DYNAMICMATERIAL_API UDynamicMaterialInstance : public UMaterialInstanceDynamic
+/** A Material Instance Dynamic with its own integrated Material Designer Model that generates the based Material. */
+UCLASS(MinimalAPI, ClassGroup = "Material Designer", DefaultToInstanced, BlueprintType, meta = (DisplayThumbnail = "true"))
+class UDynamicMaterialInstance : public UMaterialInstanceDynamic
 {
 	GENERATED_BODY()
 
 public:
 	UDynamicMaterialInstance();
 
-	UDynamicMaterialModel* GetMaterialModel() { return MaterialModel; }
+	/** Returns the Material Model associated with this Material Designer Instance. */
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIAL_API UDynamicMaterialModelBase* GetMaterialModelBase();
+
+	/** Resolves the base Material Model used with this Instance and returns it. */
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIAL_API UDynamicMaterialModel* GetMaterialModel();
 
 #if WITH_EDITOR
-	void SetMaterialModel(UDynamicMaterialModel* InMaterialModel) { MaterialModel = InMaterialModel; }
+	/** Sets the Material Model used for this Instance. */
+	DYNAMICMATERIAL_API void SetMaterialModel(UDynamicMaterialModelBase* InMaterialModel);
 
-	void OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel);
-	void InitializeMIDPublic();
+	/** Event called when the base material is build. */
+	DYNAMICMATERIAL_API void OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModel);
+
+	/** Initialises the base MID object with the current Material Model's generated material.*/
+	DYNAMICMATERIAL_API void InitializeMIDPublic();
 
 	//~ Begin UObject
-	virtual void PostDuplicate(bool bDuplicateForPIE) override;
-	virtual void PostEditImport() override;
+	DYNAMICMATERIAL_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	DYNAMICMATERIAL_API virtual void PostEditImport() override;
 	//~ End UObject
 #endif
 
 protected:
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, DuplicateTransient, TextExportTransient, Category = "Material Designer")
-	TObjectPtr<UMaterial> BaseMaterial;
-
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
-	TObjectPtr<UDynamicMaterialModel> MaterialModel;
+	TObjectPtr<UDynamicMaterialModelBase> MaterialModelBase;
 };

@@ -12,14 +12,14 @@
 class AActor;
 class IDetailKeyframeHandler;
 class UDynamicMaterialInstance;
-class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 struct FDMObjectMaterialProperty;
 
-DECLARE_DELEGATE_RetVal(UDynamicMaterialModel*, FDMGetMaterialModelDelegate)
-DECLARE_DELEGATE_OneParam(FDMSetMaterialModelDelegate, UDynamicMaterialModel*)
+DECLARE_DELEGATE_RetVal(UDynamicMaterialModelBase*, FDMGetMaterialModelDelegate)
+DECLARE_DELEGATE_OneParam(FDMSetMaterialModelDelegate, UDynamicMaterialModelBase*)
 DECLARE_DELEGATE_OneParam(FDMSetMaterialObjectPropertyDelegate, const FDMObjectMaterialProperty&)
 DECLARE_DELEGATE_OneParam(FDMSetMaterialActorDelegate, AActor*)
-DECLARE_DELEGATE_RetVal_OneParam(bool, FDMIsValidDelegate, UDynamicMaterialModel*)
+DECLARE_DELEGATE_RetVal_OneParam(bool, FDMIsValidDelegate, UDynamicMaterialModelBase*)
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FDMSetMaterialValueDelegate, const FDMObjectMaterialProperty&, UDynamicMaterialInstance*)
 DECLARE_DELEGATE(FDMInvokeTabDelegate)
 
@@ -47,7 +47,7 @@ public:
 		return CustomModelEditorGetDelegate;
 	}
 
-	UDynamicMaterialModel* ExecuteGetCustomEditorModelDelegate();
+	UDynamicMaterialModelBase* ExecuteGetCustomEditorModelDelegate();
 
 	/** Sets material in a custom editor tab. */
 	FDMSetMaterialModelDelegate::RegistrationType& GetSetCustomEditorModelDelegate() const
@@ -55,7 +55,7 @@ public:
 		return CustomModelEditorSetDelegate;
 	}
 
-	void ExecuteSetCustomEditorModelDelegate(UDynamicMaterialModel* InMaterialModel);
+	void ExecuteSetCustomEditorModelDelegate(UDynamicMaterialModelBase* InMaterialModel);
 
 	/** Sets the object property in custom editor tab. */
 	FDMSetMaterialObjectPropertyDelegate::RegistrationType& GetCustomObjectPropertyEditorDelegate() const
@@ -79,7 +79,7 @@ public:
 		return IsValidDelegate;
 	}
 
-	bool ExecuteIsValidDelegate(UDynamicMaterialModel* InMaterialModel);
+	bool ExecuteIsValidDelegate(UDynamicMaterialModelBase* InMaterialModel);
 
 	/** Used to redirect SetMaterial to different objects/paths. */
 	FDMSetMaterialValueDelegate::RegistrationType& GetMaterialValueSetterDelegate() const

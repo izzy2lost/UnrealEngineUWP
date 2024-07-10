@@ -9,7 +9,6 @@ class FDMInputThroughputPropertyRowGenerator : public FDMThroughputPropertyRowGe
 public:
 	static const TSharedRef<FDMInputThroughputPropertyRowGenerator>& Get();
 
-	FDMInputThroughputPropertyRowGenerator() = default;
 	virtual ~FDMInputThroughputPropertyRowGenerator() override = default;
 
 	virtual void AddComponentProperties(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent,

@@ -3,7 +3,7 @@
 #include "SDMMaterialProperty.h"
 #include "Components/DMMaterialProperty.h"
 #include "DynamicMaterialEditorStyle.h"
-#include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelBase.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Slate/SDMEditor.h"
 #include "Slate/SDMSlot.h"
@@ -21,11 +21,11 @@ void SDMMaterialProperty::Construct(const FArguments& InArgs, const TSharedRef<S
 
 	if (ensure(MaterialEditor.IsValid()))
 	{
-		UDynamicMaterialModel* MaterialModel = MaterialEditor->GetMaterialModel();
+		UDynamicMaterialModelBase* MaterialModelBase = MaterialEditor->GetMaterialModelBase();
 
-		if (ensure(IsValid(MaterialModel)))
+		if (ensure(IsValid(MaterialModelBase)))
 		{
-			UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+			UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBase);
 
 			if (ensure(IsValid(ModelEditorOnlyData)))
 			{

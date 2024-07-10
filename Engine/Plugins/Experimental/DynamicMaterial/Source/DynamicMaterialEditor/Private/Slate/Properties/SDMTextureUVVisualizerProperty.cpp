@@ -4,6 +4,7 @@
 
 #include "Components/DMMaterialStage.h"
 #include "Components/DMTextureUV.h"
+#include "Components/DMTextureUVDynamic.h"
 #include "DetailLayoutBuilder.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "Slate/Properties/SDMTextureUVVisualizer.h"
@@ -16,10 +17,10 @@
 
 #define LOCTEXT_NAMESPACE "SDMTextureUVVisualizerProperty"
 
-void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV)
+void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage)
 {
 	check(InMaterialStage);
-	check(InTextureUV);
+	check(InArgs._TextureUV || InArgs._TextureUVDynamic);
 
 	ChildSlot
 	[
@@ -65,7 +66,9 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 			.MinAspectRatio(1)
 			.MaxAspectRatio(1)
 			[
-				SAssignNew(Visualizer, SDMTextureUVVisualizer, InMaterialStage, InTextureUV)
+				SAssignNew(Visualizer, SDMTextureUVVisualizer, InEditorWidget, InMaterialStage)
+				.TextureUV(InArgs._TextureUV)
+				.TextureUVDynamic(InArgs._TextureUVDynamic)
 				.IsPopout(false)
 			]			
 		]
@@ -113,7 +116,6 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 	];
 }
 
-
 FReply SDMTextureUVVisualizerProperty::OnToggleVisualizerClicked()
 {
 	if (UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>())
@@ -143,14 +145,28 @@ FReply SDMTextureUVVisualizerProperty::OnOpenPopoutClicked()
 	}
 
 	UDMMaterialStage* Stage = Visualizer->GetStage();
-	UDMTextureUV* TextureUV = Visualizer->GetTextureUV();
+	UDMMaterialComponent* TextureUVComponent = Visualizer->GetTextureUVComponent();
 
-	if (!IsValid(Stage) || !IsValid(TextureUV))
+	if (!IsValid(Stage) || !IsValid(TextureUVComponent))
 	{
 		return FReply::Handled();
 	}
 
-	SDMTextureUVVisualizerPopout::CreatePopout(Stage, TextureUV);
+	TSharedPtr<SDMEditor> EditorWidget = Visualizer->GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	if (UDMTextureUV* TextureUV = Cast<UDMTextureUV>(TextureUVComponent))
+	{
+		SDMTextureUVVisualizerPopout::CreatePopout(EditorWidget.ToSharedRef(), Stage, TextureUV);
+	}
+	else if (UDMTextureUVDynamic* TextureUVDynamic = Cast<UDMTextureUVDynamic>(TextureUVComponent))
+	{
+		SDMTextureUVVisualizerPopout::CreatePopout(EditorWidget.ToSharedRef(), Stage, TextureUVDynamic);
+	}
 
 	return FReply::Handled();
 }

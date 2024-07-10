@@ -6,10 +6,10 @@
 #include "DMMaterialSubStage.generated.h"
 
 /**
- * A stage that is a subobject of another stage.
+ * A stage that is a subobject of another stage, such as when an input throughput has its own inputs.
  */
-UCLASS(BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Sub Stage"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialSubStage : public UDMMaterialStage
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Sub Stage"))
+class UDMMaterialSubStage : public UDMMaterialStage
 {
 	GENERATED_BODY()
 
@@ -17,24 +17,30 @@ class DYNAMICMATERIALEDITOR_API UDMMaterialSubStage : public UDMMaterialStage
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialSubStage* CreateMaterialSubStage(UDMMaterialStage* InParentStage);
+	static DYNAMICMATERIALEDITOR_API UDMMaterialSubStage* CreateMaterialSubStage(UDMMaterialStage* InParentStage);
 
-	UDMMaterialStage* GetParentStage() const;
-	UDMMaterialStage* GetParentMostStage() const;
+	/** Returns the parent stage of this stage, which is probably not its direct parent. */
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetParentStage() const;
+
+	/** Recursively calls GetParentStage() to find the outer stage. */
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API UDMMaterialStage* GetParentMostStage() const;
+
+	/** Sets which object directly owns this component in the hierarchy. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API void SetParentComponent(UDMMaterialComponent* InParentComponent);
 
 	//~ Begin UDMMaterialStage
-	virtual bool IsCompatibleWithPreviousStage(const UDMMaterialStage* PreviousStage) const override;
-	virtual bool IsCompatibleWithNextStage(const UDMMaterialStage* NextStage) const override;
-	virtual bool IsRootStage() const override;
+	DYNAMICMATERIALEDITOR_API virtual bool IsCompatibleWithPreviousStage(const UDMMaterialStage* PreviousStage) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool IsCompatibleWithNextStage(const UDMMaterialStage* NextStage) const override;
 	//~ End UDMMaterialStage
 
 	//~ Begin UDMMaterialComponent
-	virtual FString GetComponentPathComponent() const override;
-	virtual UDMMaterialComponent* GetParentComponent() const override;
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetParentComponent() const override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
-
-	void SetParentComponent(UDMMaterialComponent* InParentComponent);
 
 protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
@@ -48,10 +54,4 @@ protected:
 		, ParentComponent(nullptr)
 	{
 	}
-
-	//~ Begin UDMMaterialStage
-	// Sub stages don't need these bound.
-	virtual void AddDelegates() override {}
-	virtual void RemoveDelegates() override {}
-	//~ End UDMMaterialStage
 };

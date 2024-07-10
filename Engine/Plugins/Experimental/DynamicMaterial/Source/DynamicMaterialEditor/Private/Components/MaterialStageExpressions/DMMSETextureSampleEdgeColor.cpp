@@ -77,13 +77,13 @@ void UDMMaterialStageExpressionTextureSampleEdgeColor::AddDefaultInput(int32 InI
 	return Super::AddDefaultInput(InInputIndex);
 }
 
-void UDMMaterialStageExpressionTextureSampleEdgeColor::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+void UDMMaterialStageExpressionTextureSampleEdgeColor::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
 	static const FName EdgeLocationName = GET_MEMBER_NAME_CHECKED(UDMMaterialStageExpressionTextureSampleEdgeColor, EdgeLocation);
 
-	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetFName() == EdgeLocationName)
+	if (InPropertyChangedEvent.MemberProperty && InPropertyChangedEvent.MemberProperty->GetFName() == EdgeLocationName)
 	{
 		OnEdgeLocationChanged();
 	}

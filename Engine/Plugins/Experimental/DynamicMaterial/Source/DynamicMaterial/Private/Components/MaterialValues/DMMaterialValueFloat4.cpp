@@ -4,6 +4,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueFloat4Dynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
@@ -37,7 +38,12 @@ void UDMMaterialValueFloat4::GenerateExpression(const TSharedRef<IDMMaterialBuil
 		return;
 	}
  
-	UMaterialExpressionVectorParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionVectorParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(),
+		UE_DM_NodeComment_Default
+	);
+
 	check(NewExpression);
  
 	NewExpression->DefaultValue = Value;
@@ -63,6 +69,19 @@ void UDMMaterialValueFloat4::ResetDefaultValue()
 	DefaultValue = FLinearColor(0, 0, 0, 1);
 }
 
+UDMMaterialValueDynamic* UDMMaterialValueFloat4::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueFloat4Dynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueFloat4Dynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueFloat4::GetComponentPathComponent() const
+{
+	return TEXT("RGBA");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueFloat4::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);
@@ -81,7 +100,7 @@ bool UDMMaterialValueFloat4::JsonDeserialize(const TSharedPtr<FJsonValue>& InJso
 	return false;
 }
 
-void UDMMaterialValueFloat4::SetDefaultValue(FLinearColor InDefaultValue)
+void UDMMaterialValueFloat4::SetDefaultValue(const FLinearColor& InDefaultValue)
 {
 	DefaultValue = InDefaultValue;
 }

@@ -8,12 +8,14 @@
 #include "UObject/WeakObjectPtr.h"
 
 class FScopedTransaction;
-class SImage;
+class SDMComponentPreview;
+class SDMEditor;
 class SWidget;
 class UDMMaterialComponent;
 class UDMMaterialStage;
 class UDMTextureUV;
-class UMaterialInterface;
+class UDMTextureUVDynamic;
+class UMaterial;
 enum class EDMUpdateType : uint8;
 
 /**
@@ -42,15 +44,21 @@ public:
 	};
 
 	SLATE_BEGIN_ARGS(SDMTextureUVVisualizer)
-		: _IsPopout(false)
+		: _TextureUV(nullptr)
+		, _TextureUVDynamic(nullptr)
+		, _IsPopout(false)
 		{}
+		SLATE_ARGUMENT(UDMTextureUV*, TextureUV)
+		SLATE_ARGUMENT(UDMTextureUVDynamic*, TextureUVDynamic)
 		SLATE_ARGUMENT(bool, IsPopout)
 	SLATE_END_ARGS()
 
 	SDMTextureUVVisualizer();
 
 	/** The TextureUV should be a sub-property of the stage */
-	void Construct(const FArguments& InArgs, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV);
+	void Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage);
+
+	TSharedPtr<SDMEditor> GetEditorWidget() const { return EditorWidgetWeak.Pin(); }
 
 	EScrubbingMode GetScrubbingMode() const;
 
@@ -62,7 +70,23 @@ public:
 
 	UDMMaterialStage* GetStage() const;
 
+	UDMMaterialComponent* GetTextureUVComponent() const;
+
 	UDMTextureUV* GetTextureUV() const;
+
+	UDMTextureUVDynamic* GetTextureUVDynamic() const;
+
+	const FVector2D& GetOffset() const;
+	bool SetOffset(const FVector2D& InOffset);
+
+	float GetRotation() const;
+	bool SetRotation(float InRotation);
+
+	const FVector2D& GetTiling() const;
+	bool SetTiling(const FVector2D& InTiling);
+
+	const FVector2D& GetPivot() const;
+	bool SetPivot(const FVector2D& InPivot);
 
 	//~ Begin SWidget
 	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -73,11 +97,10 @@ public:
 	//~ End SWidget
 
 protected:
+	TWeakPtr<SDMEditor> EditorWidgetWeak;
 	TWeakObjectPtr<UDMMaterialStage> StageWeak;
-	TWeakObjectPtr<UDMTextureUV> TextureUVWeak;
-	TSharedPtr<SImage> StageImage;
-	TWeakObjectPtr<UMaterialInterface> PreviewMaterialWeak;
-	FSlateMaterialBrush Brush;
+	TWeakObjectPtr<UDMMaterialComponent> TextureUVComponentWeak;
+	TSharedPtr<SDMComponentPreview> StagePreview;
 	bool bIsPopout;
 	bool bPivotEditMode;
 	FVector2f CurrentAbsoluteSize;
@@ -89,8 +112,6 @@ protected:
 	FVector2D ValueStart;
 	bool bInvertTiling;
 	TSharedPtr<FScopedTransaction> ScrubbingTransaction;
-
-	void OnStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
 	bool HasValidGeometry() const;
 
@@ -124,6 +145,8 @@ protected:
 	FVector2f ToPopoutLocation(const FVector2f& InSize, FVector2f&& InLocation) const;
 
 	FVector2f FromPopoutLocation(const FVector2f& InSize, FVector2f&& InLocation) const;
+
+	void ModifyTextureUVComponent();
 
 	void UpdateScrub();
 	void UpdateScrub_Offset();

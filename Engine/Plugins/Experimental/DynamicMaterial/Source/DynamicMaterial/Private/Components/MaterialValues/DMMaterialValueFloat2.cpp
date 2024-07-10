@@ -4,6 +4,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueFloat2Dynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
@@ -38,7 +39,12 @@ void UDMMaterialValueFloat2::GenerateExpression(const TSharedRef<IDMMaterialBuil
 		return;
 	}
  
-	UMaterialExpressionVectorParameter* ValueExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionVectorParameter* ValueExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(),
+		UE_DM_NodeComment_Default
+	);
+
 	check(ValueExpression);
  
 	ValueExpression->DefaultValue = FLinearColor(Value.X, Value.Y, 0, 0);
@@ -65,6 +71,19 @@ void UDMMaterialValueFloat2::ResetDefaultValue()
 	DefaultValue = FVector2D::ZeroVector;
 }
 
+UDMMaterialValueDynamic* UDMMaterialValueFloat2::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueFloat2Dynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueFloat2Dynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueFloat2::GetComponentPathComponent() const
+{
+	return TEXT("Vector2D");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueFloat2::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);
@@ -83,7 +102,7 @@ bool UDMMaterialValueFloat2::JsonDeserialize(const TSharedPtr<FJsonValue>& InJso
 	return false;
 }
 
-void UDMMaterialValueFloat2::SetDefaultValue(FVector2D InDefaultValue)
+void UDMMaterialValueFloat2::SetDefaultValue(const FVector2D& InDefaultValue)
 {
 	DefaultValue = InDefaultValue;
 }

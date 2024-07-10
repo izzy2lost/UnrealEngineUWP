@@ -24,16 +24,20 @@ DECLARE_DELEGATE_RetVal_OneParam(TScriptInterface<IDynamicMaterialModelEditorOnl
 /**
  * Material Designer - Build your own materials in a slimline editor!
  */
-class DYNAMICMATERIAL_API FDynamicMaterialModule : public IModuleInterface
+class FDynamicMaterialModule : public IModuleInterface
 {
 public:
-	static FDynamicMaterialModule& Get();
-	static bool AreUObjectsSafe();
-	static bool IsMaterialExportEnabled();
+	DYNAMICMATERIAL_API static FDynamicMaterialModule& Get();
+
+	/** Returns true if UObjects are currently safe to use. */
+	DYNAMICMATERIAL_API static bool AreUObjectsSafe();
+
+	/** Returns true if the material export flag has been enabled. @See DM.ExportMaterials */
+	DYNAMICMATERIAL_API static bool IsMaterialExportEnabled();
 
 #if WITH_EDITOR
-	static TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> CreateEditorOnlyData(UDynamicMaterialModel* InMaterialModel);
-	static FDMCreateEditorOnlyDataDelegate& GetCreateEditorOnlyDataDelegate() { return CreateEditorOnlyDataDelegate; }
+	DYNAMICMATERIAL_API static TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> CreateEditorOnlyData(UDynamicMaterialModel* InMaterialModel);
+	static FDMCreateEditorOnlyDataDelegate::RegistrationType& GetCreateEditorOnlyDataDelegate() { return CreateEditorOnlyDataDelegate; }
 #endif
 
 	//~ Begin IDynamicMaterialModule
@@ -45,7 +49,7 @@ protected:
 	static bool bIsEngineExiting;
 
 #if WITH_EDITOR
-	static FDMCreateEditorOnlyDataDelegate CreateEditorOnlyDataDelegate;
+	DYNAMICMATERIAL_API static FDMCreateEditorOnlyDataDelegate CreateEditorOnlyDataDelegate;
 #endif
 	
 	static void HandleEnginePreExit();

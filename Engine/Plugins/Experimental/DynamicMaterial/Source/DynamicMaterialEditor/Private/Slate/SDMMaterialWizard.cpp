@@ -267,7 +267,7 @@ FReply SDMMaterialWizard::Accept_OnClick()
 				}
 				else
 				{
-					Editor->SetMaterialModel(MaterialModel);
+					Editor->SetMaterialModelBase(MaterialModel);
 				}
 
 				Editor->SetMaterialActor(MaterialActor);

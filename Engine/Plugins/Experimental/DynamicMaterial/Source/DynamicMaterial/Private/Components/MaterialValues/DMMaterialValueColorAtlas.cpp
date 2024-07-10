@@ -5,6 +5,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueColorAtlasDynamic.h"
 #include "Curves/CurveLinearColor.h"
 #include "Curves/CurveLinearColorAtlas.h"
 #include "Materials/Material.h"
@@ -109,7 +110,12 @@ void UDMMaterialValueColorAtlas::GenerateExpression(const TSharedRef<IDMMaterial
 		return;
 	}
 
-	UMaterialExpressionScalarParameter* AlphaParameter = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionScalarParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionScalarParameter* AlphaParameter = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionScalarParameter>(
+		GetMaterialParameterName(), 
+		GetParameterGroup(), 
+		UE_DM_NodeComment_Default
+	);
+
 	check(AlphaParameter);
 
 	// This is a parameter, but we're treating it as a standard node.
@@ -135,6 +141,19 @@ void UDMMaterialValueColorAtlas::ApplyDefaultValue()
 void UDMMaterialValueColorAtlas::ResetDefaultValue()
 {
 	DefaultValue = 0.f;
+}
+
+UDMMaterialValueDynamic* UDMMaterialValueColorAtlas::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueColorAtlasDynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueColorAtlasDynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueColorAtlas::GetComponentPathComponent() const
+{
+	return TEXT("ColorAtlasAlpha");
 }
 
 TSharedPtr<FJsonValue> UDMMaterialValueColorAtlas::JsonSerialize() const

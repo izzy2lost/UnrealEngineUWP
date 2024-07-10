@@ -213,7 +213,7 @@ FReply SAvaDynamicMaterialWidget::OpenDynamicMaterialInstanceTab()
 
 	if (Outers.Num() == 0)
 	{
-		MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModel(), nullptr, bInvokeTab);
+		MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModelBase(), nullptr, bInvokeTab);
 		return FReply::Handled();
 	}
 
@@ -229,7 +229,7 @@ FReply SAvaDynamicMaterialWidget::OpenDynamicMaterialInstanceTab()
 
 		if (!PrimitiveComponent)
 		{
-			MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModel(), nullptr, bInvokeTab);
+			MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModelBase(), nullptr, bInvokeTab);
 			return FReply::Handled();
 		}
 	}
@@ -245,7 +245,7 @@ FReply SAvaDynamicMaterialWidget::OpenDynamicMaterialInstanceTab()
 		}
 	}
 
-	MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModel(), OuterWorld, bInvokeTab);
+	MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModelBase(), OuterWorld, bInvokeTab);
 	return FReply::Handled();
 }
 

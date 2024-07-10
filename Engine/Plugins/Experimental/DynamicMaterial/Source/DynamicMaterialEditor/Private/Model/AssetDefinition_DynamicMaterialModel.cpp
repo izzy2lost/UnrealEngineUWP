@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AssetDefinition_DynamicMaterialModel.h"
+#include "Model/AssetDefinition_DynamicMaterialModel.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Engine/World.h"
 #include "Model/DynamicMaterialModel.h"
@@ -15,7 +15,7 @@ FText UAssetDefinition_DynamicMaterialModel::GetAssetDisplayName() const
 
 FText UAssetDefinition_DynamicMaterialModel::GetAssetDisplayName(const FAssetData& InAssetData) const
 {
-	return LOCTEXT("MaterialDesignerModel", "Material Designer Model");
+	return GetAssetDisplayName();
 }
 
 TSoftClassPtr<> UAssetDefinition_DynamicMaterialModel::GetAssetClass() const

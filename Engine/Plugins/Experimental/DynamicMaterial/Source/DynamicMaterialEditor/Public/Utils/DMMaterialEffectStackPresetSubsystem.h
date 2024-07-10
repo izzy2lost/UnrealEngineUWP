@@ -11,23 +11,23 @@ class UDMMaterialEffect;
 class UDMMaterialEffectStack;
 struct FDMMaterialEffectStackJson;
 
-UCLASS(BlueprintType)
+UCLASS(MinimalAPI, BlueprintType)
 class UDMMaterialEffectStackPresetSubsystem : public UEditorSubsystem
 {
 	GENERATED_BODY()
 
 public:
-	static UDMMaterialEffectStackPresetSubsystem* Get();
+	DYNAMICMATERIALEDITOR_API static UDMMaterialEffectStackPresetSubsystem* Get();
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SavePreset(const FString& InPresetName, const FDMMaterialEffectStackJson& InPreset) const;
+	DYNAMICMATERIALEDITOR_API bool SavePreset(const FString& InPresetName, const FDMMaterialEffectStackJson& InPreset) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool LoadPreset(const FString& InPresetName, FDMMaterialEffectStackJson& OutPreset) const;
+	DYNAMICMATERIALEDITOR_API bool LoadPreset(const FString& InPresetName, FDMMaterialEffectStackJson& OutPreset) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool RemovePreset(const FString& InPresetName) const;
+	DYNAMICMATERIALEDITOR_API bool RemovePreset(const FString& InPresetName) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	TArray<FString> GetPresetNames() const;
+	DYNAMICMATERIALEDITOR_API TArray<FString> GetPresetNames() const;
 };

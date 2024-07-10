@@ -4,6 +4,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueFloat3RPYDynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
@@ -37,7 +38,12 @@ void UDMMaterialValueFloat3RPY::GenerateExpression(const TSharedRef<IDMMaterialB
 		return;
 	}
  
-	UMaterialExpressionVectorParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionVectorParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionVectorParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(),
+		UE_DM_NodeComment_Default
+	);
+
 	check(NewExpression);
  
 	NewExpression->DefaultValue = FLinearColor(Value.Roll, Value.Yaw, Value.Pitch, 0);
@@ -62,6 +68,19 @@ void UDMMaterialValueFloat3RPY::ResetDefaultValue()
 	DefaultValue = FRotator::ZeroRotator;
 }
 
+UDMMaterialValueDynamic* UDMMaterialValueFloat3RPY::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueFloat3RPYDynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueFloat3RPYDynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueFloat3RPY::GetComponentPathComponent() const
+{
+	return TEXT("Rotator");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueFloat3RPY::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);
@@ -80,7 +99,7 @@ bool UDMMaterialValueFloat3RPY::JsonDeserialize(const TSharedPtr<FJsonValue>& In
 	return false;
 }
 
-void UDMMaterialValueFloat3RPY::SetDefaultValue(FRotator InDefaultValue)
+void UDMMaterialValueFloat3RPY::SetDefaultValue(const FRotator& InDefaultValue)
 {
 	DefaultValue = InDefaultValue;
 }

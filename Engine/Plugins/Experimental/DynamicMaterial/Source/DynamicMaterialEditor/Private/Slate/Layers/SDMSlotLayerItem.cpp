@@ -23,6 +23,7 @@
 #include "Slate/SDMSlot.h"
 #include "Slate/SDMStage.h"
 #include "SlateOptMacros.h"
+#include "Model/DynamicMaterialModel.h"
 #include "Styling/StyleColors.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Images/SImage.h"
@@ -50,6 +51,16 @@ void SDMSlotLayerItem::Construct(const FArguments& InArgs, const TSharedPtr<SDMS
 	PreviewSize = InArgs._PreviewSize;
 	OnStageSelected = InArgs._OnStageSelected;
 	OnLayerLinkToggled = InArgs._OnLayerLinkToggled;
+
+	bIsDynamic = false;
+
+	if (TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin())
+	{
+		if (TSharedPtr<SDMEditor> EditorWidget = SlotWidget->GetEditorWidget())
+		{
+			bIsDynamic = !Cast<UDynamicMaterialModel>(EditorWidget->GetMaterialModelBase());
+		}
+	}
 
 	STableRow<TSharedPtr<FDMMaterialLayerReference>>::Construct(
 		STableRow<TSharedPtr<FDMMaterialLayerReference>>::FArguments()
@@ -269,8 +280,15 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateStageBaseWidget(const bool bInteract
 		return SNullWidget::NullWidget;
 	}
 
+	TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin();
+
+	if (!SlotWidget.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
+
 	return 
-		SAssignNew(BaseStageWidget, SDMStage, Layer->GetStage(EDMMaterialLayerStage::Base))
+		SAssignNew(BaseStageWidget, SDMStage, SlotWidget.ToSharedRef(), Layer->GetStage(EDMMaterialLayerStage::Base))
 		.Interactable(bInteractable)
 		.StageEnabled(StageBaseEnabled)
 		.StageSelected(StageBaseSelected)
@@ -299,8 +317,15 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateStageMaskWidget(const bool bInteract
 		return SNullWidget::NullWidget;
 	}
 
+	TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin();
+
+	if (!SlotWidget.IsValid())
+	{
+		return SNullWidget::NullWidget;
+	}
+
 	return
-		SAssignNew(MaskStageWidget, SDMStage, Layer->GetStage(EDMMaterialLayerStage::Mask))
+		SAssignNew(MaskStageWidget, SDMStage, SlotWidget.ToSharedRef(), Layer->GetStage(EDMMaterialLayerStage::Mask))
 		.Interactable(bInteractable)
 		.StageEnabled(StageMaskEnabled)
 		.StageSelected(StageMaskSelected)
@@ -321,7 +346,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateHandleWidget()
 		SNew(SBox)
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Fill)
-		.Cursor(EMouseCursor::GrabHand)
+		.Cursor(bIsDynamic ? EMouseCursor::Default : EMouseCursor::GrabHand)
 		.ToolTipText(this, &SDMSlotLayerItem::GetToolTipText)
 		[
 			SNew(SBorder)
@@ -353,6 +378,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerBypassButton()
 {
 	return 
 		SNew(SButton)
+		.IsEnabled(!bIsDynamic)
 		.ContentPadding(4.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("LayerBypassTooltip", "Toggle the bypassing of this layer."))
@@ -396,6 +422,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerBaseToggleButton()
 {
 	return
 		SNew(SButton)
+		.IsEnabled(!bIsDynamic)
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("MaterialLayerBaseToggleTooltip", "Toggle the layer base on and off.\n\n"
@@ -412,6 +439,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerMaskToggleButton()
 {
 	return
 		SNew(SButton)
+		.IsEnabled(!bIsDynamic)
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("MaterialLayerMaskToggleTooltip", "Toggle the layer mask on and off."))
@@ -426,6 +454,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerLinkToggleButton()
 {
 	return 
 		SNew(SButton)
+		.IsEnabled(!bIsDynamic)
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("MaterialStageLinkTooltip", "Click to toggle UV Link on and off."))
@@ -632,6 +661,11 @@ void SDMSlotLayerItem::OnLayerItemDragLeave(const FDragDropEvent& InDragDropEven
 
 FReply SDMSlotLayerItem::OnLayerItemDragDetected(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
+	if (bIsDynamic)
+	{
+		return FReply::Handled();
+	}
+
 	const bool bShouldDuplicate = InMouseEvent.IsAltDown();
 
 	TSharedRef<FDMSlotLayerDragDropOperation> SlotLayerDragDropOp = MakeShared<FDMSlotLayerDragDropOperation>(SharedThis(this), bShouldDuplicate);
@@ -1230,20 +1264,23 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerHeaderText() const
 		.TextStyle(FDynamicMaterialEditorStyle::Get(), "SmallFont")
 		.Text(this, &SDMSlotLayerItem::GetLayerHeaderText);
 
-	TextBlock->SetOnMouseButtonDown(FPointerEventHandler::CreateSPLambda(
-		this,
-		[this](const FGeometry& InGeometry, const FPointerEvent& InPointerEvent)
-		{
-			if (LayerHeaderTextContainer.IsValid())
+	if (!bIsDynamic)
+	{
+		TextBlock->SetOnMouseButtonDown(FPointerEventHandler::CreateSPLambda(
+			this,
+			[this](const FGeometry& InGeometry, const FPointerEvent& InPointerEvent)
 			{
-				TSharedRef<SWidget> EditableContent = CreateLayerHeaderEditableText();
-				LayerHeaderTextContainer->SetContent(EditableContent);
-				FSlateApplication::Get().SetKeyboardFocus(EditableContent);
-			}
+				if (LayerHeaderTextContainer.IsValid())
+				{
+					TSharedRef<SWidget> EditableContent = CreateLayerHeaderEditableText();
+					LayerHeaderTextContainer->SetContent(EditableContent);
+					FSlateApplication::Get().SetKeyboardFocus(EditableContent);
+				}
 
-			return FReply::Handled();
-		}
-	));
+				return FReply::Handled();
+			}
+		));
+	}
 
 	return TextBlock;
 }

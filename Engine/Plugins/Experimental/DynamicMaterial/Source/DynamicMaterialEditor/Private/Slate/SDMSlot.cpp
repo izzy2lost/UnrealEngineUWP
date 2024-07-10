@@ -97,6 +97,8 @@ void SDMSlot::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& I
 		return;
 	}
 
+	bIsDynamic = !Cast<UDynamicMaterialModel>(InEditor->GetMaterialModelBase());
+
 	InSlot->GetOnPropertiesUpdateDelegate().AddSP(this, &SDMSlot::OnSlotPropertiesUpdated);
 	InSlot->GetOnLayersUpdateDelegate().AddSP(this, &SDMSlot::OnSlotLayersUpdated);
 
@@ -436,13 +438,13 @@ TSharedRef<SWidget> SDMSlot::CreateHeaderPropertyListWidget()
 		return SNullWidget::NullWidget;
 	}
 
-	UDynamicMaterialModel* MaterialModel = MaterialEditor->GetMaterialModel();
-	if (!ensure(IsValid(MaterialModel)))
+	UDynamicMaterialModelBase* MaterialModelBase = MaterialEditor->GetMaterialModelBase();
+	if (!ensure(IsValid(MaterialModelBase)))
 	{
 		return SNullWidget::NullWidget;
 	}
 
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBase);
 	if (!ensure(IsValid(ModelEditorOnlyData)))
 	{
 		return SNullWidget::NullWidget;
@@ -511,6 +513,7 @@ TSharedRef<SWidget> SDMSlot::CreateLayerButtonsRowWidget()
 {
 	return 
 		SNew(SHorizontalBox)
+		.IsEnabled(!bIsDynamic)
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.HAlign(HAlign_Left)
@@ -651,6 +654,7 @@ TSharedRef<SWidget> SDMSlot::CreateSlotSettingsRow()
 		.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 		[
 			SNew(SHorizontalBox)
+			.IsEnabled(!bIsDynamic)
 			.ToolTipText(LOCTEXT("MaterialDesignerInstanceBlendModeTooltip", "Change the Blend Mode for this Material Designer Instance."))
 			+ SHorizontalBox::Slot()
 			.AutoWidth()

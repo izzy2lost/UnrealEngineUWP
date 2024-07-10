@@ -9,20 +9,25 @@ enum class EDMMaterialPropertyType : uint8;
 enum class EDMTextureSetMaterialProperty : uint8;
 enum EMaterialProperty : int;
 
-struct DYNAMICMATERIAL_API FDMUtils
+/** General utilities for use with the Material Designer. */
+struct FDMUtils
 {
 #if WITH_EDITOR
 	/** Designed to be used with preprocessor macros. */
-	static FString CreateNodeComment(const ANSICHAR* InFile, int InLine, const ANSICHAR* InFunction, const FString* InComment = nullptr);
+	DYNAMICMATERIAL_API static FString CreateNodeComment(const ANSICHAR* InFile, int InLine, const ANSICHAR* InFunction, const FString* InComment = nullptr);
 #endif
 
-	static EDMTextureSetMaterialProperty MaterialPropertyTypeToTextureSetMaterialProperty(EDMMaterialPropertyType InPropertyType);
+	/** Converts EDMMaterialPropertyType to EDMTextureSetMaterialProperty. */
+	DYNAMICMATERIAL_API static EDMTextureSetMaterialProperty MaterialPropertyTypeToTextureSetMaterialProperty(EDMMaterialPropertyType InPropertyType);
 
-	static EDMMaterialPropertyType TextureSetMaterialPropertyToMaterialPropertyType(EDMTextureSetMaterialProperty InPropertyType);
+	/** Converts EDMTextureSetMaterialProperty to EDMMaterialPropertyType. */
+	DYNAMICMATERIAL_API static EDMMaterialPropertyType TextureSetMaterialPropertyToMaterialPropertyType(EDMTextureSetMaterialProperty InPropertyType);
 
-	static EMaterialProperty MaterialPropertyTypeToMaterialProperty(EDMMaterialPropertyType InPropertyType);
+	/** Converts EDMMaterialPropertyType to EMaterialProperty. */
+	DYNAMICMATERIAL_API static EMaterialProperty MaterialPropertyTypeToMaterialProperty(EDMMaterialPropertyType InPropertyType);
 
-	static EDMMaterialPropertyType MaterialPropertyToMaterialPropertyType(EMaterialProperty InPropertyType);
+	/** Converts EMaterialProperty to EDMMaterialPropertyType. */
+	DYNAMICMATERIAL_API static EDMMaterialPropertyType MaterialPropertyToMaterialPropertyType(EMaterialProperty InPropertyType);
 };
 
 #if WITH_EDITOR

@@ -7,53 +7,54 @@
 
 class UMaterialFunctionInterface;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Effect Function"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialEffectFunction : public UDMMaterialEffect
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", Meta = (DisplayName = "Material Designer Effect Function"))
+class UDMMaterialEffectFunction : public UDMMaterialEffect
 {
 	GENERATED_BODY()
 
 public:
-	static const FString InputsPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString InputsPathToken;
 
-	UDMMaterialEffectFunction();
+	DYNAMICMATERIALEDITOR_API UDMMaterialEffectFunction();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UMaterialFunctionInterface* GetMaterialFunction() const;
+	DYNAMICMATERIALEDITOR_API UMaterialFunctionInterface* GetMaterialFunction() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetMaterialFunction(UMaterialFunctionInterface* InFunction);
+	DYNAMICMATERIALEDITOR_API bool SetMaterialFunction(UMaterialFunctionInterface* InFunction);
 
+	/** Returns the value used as the function input. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialValue* GetInputValue(int32 InIndex) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialValue* GetInputValue(int32 InIndex) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer", Meta = (DisplayName = "Get Input Values"))
-	TArray<UDMMaterialValue*> BP_GetInputValues() const;
+	DYNAMICMATERIALEDITOR_API TArray<UDMMaterialValue*> BP_GetInputValues() const;
 
-	const TArray<TObjectPtr<UDMMaterialValue>>& GetInputValues() const;
+	DYNAMICMATERIALEDITOR_API const TArray<TObjectPtr<UDMMaterialValue>>& GetInputValues() const;
 
 #if WITH_EDITOR
 	//~ Begin IDMJsonSerializable
-	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
-	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	DYNAMICMATERIALEDITOR_API virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	DYNAMICMATERIALEDITOR_API virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
 	//~ End IDMJsonSerializable
 #endif
 
 	//~ Begin UDMMaterialEffect
-	virtual FText GetEffectName() const override;
-	virtual FText GetEffectDescription() const override;
-	virtual bool IsCompatibleWith(UDMMaterialEffect* InEffect) const override;
-	virtual void ApplyTo(const TSharedRef<FDMMaterialBuildState>& InBuildState, TArray<UMaterialExpression*>& InOutExpressions,
+	DYNAMICMATERIALEDITOR_API virtual FText GetEffectName() const override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetEffectDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual bool IsCompatibleWith(UDMMaterialEffect* InEffect) const override;
+	DYNAMICMATERIALEDITOR_API virtual void ApplyTo(const TSharedRef<FDMMaterialBuildState>& InBuildState, TArray<UMaterialExpression*>& InOutExpressions,
 		int32& InOutLastExpressionOutputChannel, int32& InOutLastExpressionOutputIndex) const override;
 	//~ End UDMMaterialEffect
 
 	//~ Begin UDMMaterialComponent
-	virtual FText GetComponentDescription() const override;
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject
-	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
-	virtual void PostLoad() override;
+	DYNAMICMATERIALEDITOR_API virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostLoad() override;
 	//~ End UObject
 
 protected:
@@ -63,17 +64,21 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TArray<TObjectPtr<UDMMaterialValue>> InputValues;
 
+	/** Re-inits the function. */
 	void OnMaterialFunctionChanged();
 
+	/** Adds required inputs. */
 	void InitFunction();
 
+	/** Removes inputs. */
 	void DeinitFunction();
 
+	/** Returns true if the input values do not match the function's input pins. */
 	bool NeedsFunctionInit() const;
 
 	//~ Begin UDMMaterialComponent
-	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentRemoved() override;
 	//~ End UDMMaterialComponent
 };

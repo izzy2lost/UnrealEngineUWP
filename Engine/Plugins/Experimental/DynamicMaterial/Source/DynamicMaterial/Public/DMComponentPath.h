@@ -7,41 +7,41 @@
 struct FDMComponentPathSegment;
 
 /** A path such as Name.Component.Component[2].Value */
-struct DYNAMICMATERIAL_API FDMComponentPath
+struct FDMComponentPath
 {
 	static constexpr TCHAR Separator = '.';
 	static constexpr TCHAR ParameterOpen = '[';
 	static constexpr TCHAR ParameterClose = ']';
 
 	FDMComponentPath() = delete;
-	FDMComponentPath(FStringView InPath);
-	FDMComponentPath(const FString& InPathString);
+	DYNAMICMATERIAL_API FDMComponentPath(FStringView InPath);
+	DYNAMICMATERIAL_API FDMComponentPath(const FString& InPathString);
 
-	bool IsLeaf() const;
+	DYNAMICMATERIAL_API bool IsLeaf() const;
 
 	/**
 	 * Extracts the first component and removes it from the path
 	 */
-	FDMComponentPathSegment GetFirstSegment();
+	DYNAMICMATERIAL_API FDMComponentPathSegment GetFirstSegment();
 
 protected:
 	FStringView Path;
 };
 
 /** Represents a single part of a component path */
-struct DYNAMICMATERIAL_API FDMComponentPathSegment
+struct FDMComponentPathSegment
 {
 	friend struct FDMComponentPath;
 
-	FDMComponentPathSegment(FStringView InToken, FStringView InParameter);
+	DYNAMICMATERIAL_API FDMComponentPathSegment(FStringView InToken, FStringView InParameter);
 
 	FStringView GetToken() const { return Token; }
 
-	bool HasParameter() const;
+	DYNAMICMATERIAL_API bool HasParameter() const;
 
-	bool GetParameter(int32& OutParameter) const;
+	DYNAMICMATERIAL_API bool GetParameter(int32& OutParameter) const;
 
-	bool GetParameter(FString& OutParameter) const;
+	DYNAMICMATERIAL_API bool GetParameter(FString& OutParameter) const;
 
 protected:
 	FStringView Token;

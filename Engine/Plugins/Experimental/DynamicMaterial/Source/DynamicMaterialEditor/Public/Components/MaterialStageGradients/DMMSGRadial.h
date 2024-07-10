@@ -8,13 +8,15 @@
 struct FDMMaterialBuildState;
 class UMaterialExpression;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageGradientRadial : public UDMMaterialStageGradient
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageGradientRadial : public UDMMaterialStageGradient
 {
 	GENERATED_BODY()
 
 public:
 	UDMMaterialStageGradientRadial();
 
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	//~ Begin UDMMaterialStageSource
+	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	//~ End UDMMaterialStageSource
 };

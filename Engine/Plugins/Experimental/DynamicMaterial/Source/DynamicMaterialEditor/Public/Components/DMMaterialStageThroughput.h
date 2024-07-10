@@ -18,7 +18,7 @@ struct FDMExpressionInput
 	int32 OutputIndex = INDEX_NONE;
 	int32 OutputChannel = INDEX_NONE;
 
-	bool IsValid()
+	bool IsValid() const
 	{
 		return OutputExpressions.IsEmpty() == false && OutputIndex != INDEX_NONE && OutputChannel != INDEX_NONE;
 	}
@@ -27,22 +27,24 @@ struct FDMExpressionInput
 /**
  * A node which take one or more inputs and produces an output (e.g. Multiply)
  */
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Throughput"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageThroughput : public UDMMaterialStageSource
+UCLASS(MinimalAPI, Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Throughput"))
+class UDMMaterialStageThroughput : public UDMMaterialStageSource
 {
 	GENERATED_BODY()
 
 public:
 	static const TArray<TStrongObjectPtr<UClass>>& GetAvailableThroughputs();
 
-	virtual FText GetComponentDescription() const override { return GetDescription(); }
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageThroughput();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	const FText& GetDescription() const { return Name; }
 
+	/** Returns true if input is required to successfully compile this node. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	bool IsInputRequired() const { return bInputRequired; }
 
+	/** Returns true if this node's inputs can have their own inputs. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	bool AllowsNestedInputs() const { return bAllowNestedInputs; }
 
@@ -50,61 +52,86 @@ public:
 	const TArray<FDMMaterialStageConnector>& GetInputConnectors() const { return InputConnectors; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	virtual bool CanInputAcceptType(int32 InThroughputInputIndex, EDMValueType InValueType) const;
+	DYNAMICMATERIALEDITOR_API virtual bool CanInputAcceptType(int32 InThroughputInputIndex, EDMValueType InValueType) const;
 
+	/**
+	 * Whether the given output connector can connect to this node.
+	 * @param bInCheckSingleFloat If the initial compatibility check fails, it will again check against a single float.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	virtual bool CanInputConnectTo(int32 InThroughputInputIndex, const FDMMaterialStageConnector& InOutputConnector, int32 InOutputChannel,
-		bool bInCheckSingleFloat = false);
+	DYNAMICMATERIALEDITOR_API virtual bool CanInputConnectTo(int32 InThroughputInputIndex, const FDMMaterialStageConnector& InOutputConnector, 
+		int32 InOutputChannel, bool bInCheckSingleFloat = false);
 
-	virtual bool CanChangeInput(int32 InThroughputInputIndex) const;
-	virtual bool CanChangeInputType(int32 InThroughputInputIndex) const;
+	/** Whether the value of the given input change. */
+	DYNAMICMATERIALEDITOR_API virtual bool CanChangeInput(int32 InThroughputInputIndex) const;
 
-	virtual bool IsInputVisible(int32 InThroughputInputIndex) const;
+	/** Whether you can change the type of the given input. */
+	DYNAMICMATERIALEDITOR_API virtual bool CanChangeInputType(int32 InThroughputInputIndex) const;
 
-	virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, int32 InExpressionInputIndex,
-		UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel);
+	/** Whether this input will show up in the Material Designer editor. */
+	DYNAMICMATERIALEDITOR_API virtual bool IsInputVisible(int32 InThroughputInputIndex) const;
+
+	/**
+	 * Connect the output of a node to the given input of this node.
+	 * @param InExpressionInputIndex The input index of this node.
+	 * @param InSourceExpression The node to take the input from.
+	 * @param InSourceOutputIndex The output index of the source expression.
+	 * @param InSourceOutputChannel The channel of the output (RGBA).
+	 */
+	DYNAMICMATERIALEDITOR_API virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, 
+		int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel);
 
 	/** Returns true if the layer and mask can have their Texture UV linked. */
 	virtual bool SupportsLayerMaskTextureUVLink() const { return false; }
 
 	/** Returns the input index for the default implementation of the below method. */
-	virtual int32 GetLayerMaskTextureUVLinkInputIndex() const;
+	DYNAMICMATERIALEDITOR_API virtual int32 GetLayerMaskTextureUVLinkInputIndex() const;
 
 	/** 
 	 * Returns all the material nodes requires to create this node's Texture UV input. 
 	 * If you override this method, you do not need to override GetLayerMaskTextureUVLinkInputIndex.
 	 */
-	virtual FDMExpressionInput GetLayerMaskLinkTextureUVInputExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+	DYNAMICMATERIALEDITOR_API virtual FDMExpressionInput GetLayerMaskLinkTextureUVInputExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
 
 	/**
 	 * Override this to redirect inputs to other nodes.
 	 * Returns the first node in the array by default
 	 * --> In [ ]-[ ]-[ ] Out -->
 	 */
-	virtual UMaterialExpression* GetExpressionForInput(const TArray<UMaterialExpression*>& InStageSourceExpressions, int32 InThroughputInputIndex, 
-		int32 InExpressionInputIndex);
+	DYNAMICMATERIALEDITOR_API virtual UMaterialExpression* GetExpressionForInput(const TArray<UMaterialExpression*>& InStageSourceExpressions, 
+		int32 InThroughputInputIndex, int32 InExpressionInputIndex);
 
-	virtual void AddDefaultInput(int32 InInputIndex) const;
+	/** When the node is instantiated, this method adds default input values based on type. */
+	DYNAMICMATERIALEDITOR_API virtual void AddDefaultInput(int32 InInputIndex) const;
 
-	/** Returns the actual output index of the material expression */
-	virtual int32 ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, FDMMaterialStageConnectorChannel& OutChannel,
-		TArray<UMaterialExpression*>& OutExpressions) const;
-
-	virtual int32 ResolveLayerMaskTextureUVLinkInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, 
+	/**
+	 * Generates (or retrieves) expressions that produce this input for the node.
+	 * @return the actual output index of the material expression
+	 */
+	DYNAMICMATERIALEDITOR_API virtual int32 ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, 
 		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const;
 
-	virtual void InputUpdated(int32 InThroughputInputIndex, EDMUpdateType InUpdateType) { }
+	/** If this is on a Mask stage and it is the UV input index, this method is used to retrieve the base stage's UV input. */
+	DYNAMICMATERIALEDITOR_API virtual int32 ResolveLayerMaskTextureUVLinkInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, 
+		int32 InThroughputInputIndex, FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const;
+
+	/** This is called when the input value of this node's stage is updated. */
+	virtual void InputUpdated(int32 InThroughputInputIndex, EDMUpdateType InUpdateType) {}
+
+	//~ Begin UDMMaterialComponent
+	virtual FText GetComponentDescription() const override { return GetDescription(); }
+	//~ End UDMMaterialComponent
 
 protected:
 	static TArray<TStrongObjectPtr<UClass>> Throughputs;
 
 	static void GenerateThroughputList();
 
-	static int32 ResolveLayerMaskTextureUVLinkInputImpl(const TSharedRef<FDMMaterialBuildState>& InBuildState, const UDMMaterialStageSource* InStageSource,
-		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions);
+	/** @See ResolveLayerMaskTextureUVLinkInput */
+	DYNAMICMATERIALEDITOR_API static int32 ResolveLayerMaskTextureUVLinkInputImpl(const TSharedRef<FDMMaterialBuildState>& InBuildState, 
+		const UDMMaterialStageSource* InStageSource, FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions);
 
-	UDMMaterialStageThroughput();
-	UDMMaterialStageThroughput(const FText& InName);
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageThroughput(const FText& InName);
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	FText Name;
@@ -118,17 +145,21 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TArray<FDMMaterialStageConnector> InputConnectors;
 
-	virtual bool ShouldKeepInput(int32 InThroughputInputIndex);
+	/** When the stage's source is changed, whether the given of input from the previous source should be kept. */
+	DYNAMICMATERIALEDITOR_API virtual bool ShouldKeepInput(int32 InThroughputInputIndex);
 
-	void ConnectOutputToInput_Internal(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression* InTargetExpression,
+	/** @See ConnectOutputToInput */
+	DYNAMICMATERIALEDITOR_API void ConnectOutputToInput_Internal(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression* InTargetExpression,
 		int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel) const;
 
-	virtual int32 ResolveInputChannel(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex, int32 InChannelIndex, 
-		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const;
+	/** Finds the input for the individual channel. @see ResolveInput */
+	DYNAMICMATERIALEDITOR_API virtual int32 ResolveInputChannel(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InThroughputInputIndex,
+		int32 InChannelIndex, FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const;
 
-	virtual void UpdatePreviewMaterial(UMaterial* InPreviewMaterial = nullptr);
+	/** Generates a material based on the output of just this node. */
+	DYNAMICMATERIALEDITOR_API virtual void GeneratePreviewMaterial(UMaterial* InPreviewMaterial);
 
 	//~ Begin UDMMaterialComponent
-	virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
 	//~ End UDMMaterialComponent
 };

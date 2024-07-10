@@ -9,7 +9,6 @@ class FDMMaterialEffectFunctionPropertyRowGenerator : public FDMComponentPropert
 public:
 	static const TSharedRef<FDMMaterialEffectFunctionPropertyRowGenerator>& Get();
 
-	FDMMaterialEffectFunctionPropertyRowGenerator() = default;
 	virtual ~FDMMaterialEffectFunctionPropertyRowGenerator() override = default;
 
 	virtual void AddComponentProperties(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent,

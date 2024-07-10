@@ -17,7 +17,6 @@ class IPropertyHandle;
 class IPropertyRowGenerator;
 class IStructureDetailsView;
 class SBox;
-class SDMMaterialParameters;
 class SDMPropertyEdit;
 class SDMSlot;
 class SDMToolBar;
@@ -30,6 +29,9 @@ class UDMMaterialStage;
 class UDMMaterialStageExpression;
 class UDMMaterialValueFloat1;
 class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
+class UMaterial;
+class UMaterialInstanceDynamic;
 enum class ECheckBoxState : uint8;
 enum class EDMExpressionMenu : uint8;
 enum EMaterialDomain : int;
@@ -54,12 +56,16 @@ public:
 
 	static void ClearPropertyHandles(const SWidget* InOwningWidget);
 
-	void Construct(const FArguments& InArgs, TWeakObjectPtr<UDynamicMaterialModel> InModelWeak);
+	void Construct(const FArguments& InArgs);
 
 	virtual ~SDMEditor() override;
 
-	UDynamicMaterialModel* GetMaterialModel() const { return MaterialModelWeak.Get(); }
-	void SetMaterialModel(UDynamicMaterialModel* InMaterialModel);
+	UDynamicMaterialModelBase* GetMaterialModelBase() const { return MaterialModelBaseWeak.Get(); }
+	void SetMaterialModelBase(UDynamicMaterialModelBase* InMaterialModelBase);
+
+	UDynamicMaterialModel* GetMaterialModel() const;
+
+	bool IsDynamicModel() const;
 
 	const FDMObjectMaterialProperty& GetMaterialObjectProperty() const { return ObjectProperty; }
 	void SetMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty);
@@ -67,7 +73,7 @@ public:
 	AActor* GetMaterialActor() const;
 	void SetMaterialActor(AActor* InActor);
 
-	void OnMaterialModelSelected(UDynamicMaterialModel* InMaterialModel);
+	void OnMaterialModelSelected(UDynamicMaterialModelBase* InMaterialModelBase);
 
 	void OnMaterialInstanceSelected(UDynamicMaterialInstance* InMaterialInstance);
 
@@ -75,7 +81,6 @@ public:
 
 	TSharedPtr<SDMSlot> GetActiveSlotWidget() const;
 
-	void RefreshParametersList();
 	void RefreshSlotPickerList();
 	void RefreshSlotWidget();
 	void RefreshComponentEditWidget();
@@ -85,11 +90,6 @@ public:
 	UDMMaterialComponent* GetEditedComponent() const;
 
 	void SetEditedComponent(UDMMaterialComponent* InComponent);
-
-	//~ Begin SWidget
-	virtual bool SupportsKeyboardFocus() const override { return true; }
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	//~ End SWidget
 
 	void ClearEditor();
 
@@ -121,7 +121,15 @@ public:
 	bool CanDeleteSelectedLayer() const;
 	void DeleteSelectedLayer();
 
+	UMaterial* CreatePreviewMaterial(UObject* InPreviewing);
+	void FreePreviewMaterial(UObject* InPreviewing);
+
+	UMaterialInstanceDynamic* CreateMID(UMaterial* InMaterialBase);
+	void FreeMID(UMaterial* InMaterialBase);
+
 	//~ Begin SWidget
+	virtual bool SupportsKeyboardFocus() const override { return true; }
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 	//~ End SWidget
 
@@ -161,7 +169,6 @@ protected:
 
 	TSharedPtr<SBox> Container;
 	TSharedPtr<SDMToolBar> Toolbar;
-	TSharedPtr<SDMMaterialParameters> ParametersWidget;
 	TSharedPtr<SBox> SlotPickerContainer;
 	TSharedPtr<SSplitter> SplitterContainer;
 	TSharedPtr<SScrollBox> SlotContainer;
@@ -173,15 +180,17 @@ protected:
 
 	TSharedPtr<FUICommandList> CommandList;
 	int32 ActiveSlotIndex;
-	TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak;
+	TWeakObjectPtr<UDynamicMaterialModelBase> MaterialModelBaseWeak;
 	FDMObjectMaterialProperty ObjectProperty;
 	TWeakObjectPtr<UDMMaterialComponent> EditedComponent;
 	bool bInvalidateComponentEditWidget;
 
+	TMap<FObjectKey, TStrongObjectPtr<UMaterial>> PreviewMaterials;
+	TMap<FObjectKey, TStrongObjectPtr<UMaterialInstanceDynamic>> PreviewMaterialDynamics;
+
 	void BindCommands();
 
 	TSharedRef<SWidget> CreateMainLayout();
-	TSharedRef<SWidget> CreateParametersArea();
 	TSharedRef<SWidget> CreateSlotPickerWidget();
 	TSharedRef<SWidget> CreateSlotWidget();
 	TSharedRef<SWidget> CreateComponentEditWidget();
@@ -192,9 +201,9 @@ protected:
 
 	TSharedRef<SWidget> CreateActorMaterialSlotSelector(AActor* InActor);
 
-	void OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel);
-	void OnValuesUpdated(UDynamicMaterialModel* InMaterialModel);
-	void OnSlotsUpdated(UDynamicMaterialModel* InMaterialModel);
+	void OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModelBase);
+	void OnValuesUpdated(UDynamicMaterialModelBase* InMaterialModelBase);
+	void OnSlotsUpdated(UDynamicMaterialModelBase* InMaterialModelBase);
 
 	bool IsPropertyValidForModel(EDMMaterialPropertyType InProperty) const;
 	ECheckBoxState GetSlotCheckState(EDMMaterialPropertyType InProperty) const;

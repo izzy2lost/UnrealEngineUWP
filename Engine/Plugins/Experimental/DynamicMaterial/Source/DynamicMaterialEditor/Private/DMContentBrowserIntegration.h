@@ -4,9 +4,13 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "Containers/ContainersFwd.h"
+#include "Material/DynamicMaterialInstance.h"
 
+class FExtender;
 class FMenuBuilder;
 class UDMTextureSet;
+class UDynamicMaterialInstance;
+class UDynamicMaterialModel;
 struct FAssetData;
 
 class FDMContentBrowserIntegration
@@ -19,6 +23,9 @@ public:
 	static void UpdateMaterialDesignerInstanceFromTextureSet(TArray<FAssetData> InSelectedAssets, bool bInReplace);
 
 protected:
+	static FDelegateHandle TextureSetPopulateHandle;
+	static FDelegateHandle ContentBrowserAssetHandle;
+
 	static void ExtendMenu(FMenuBuilder& InMenuBuilder, const TArray<FAssetData>& InSelectedAssets);
 
 	static void CreateMaterialDesignerInstanceFromTextureSet(TArray<FAssetData> InSelectedAssets);
@@ -27,5 +34,11 @@ protected:
 
 	static void OnUpdateMaterialDesignerInstanceFromTextureSetComplete(UDMTextureSet* InTextureSet, bool bInAccepted, bool bInReplace);
 
-	static FDelegateHandle PopulateHandle;
+	static TSharedRef<FExtender> OnExtendContentBrowserAssetSelectionMenu(const TArray<FAssetData>& InSelectedAssets);
+
+	static void CreateDynamic(TArray<FAssetData> InSelectedAssets);
+
+	static void CreateModelDynamic(UDynamicMaterialModel* InModel);
+
+	static void CreateInstanceDynamic(UDynamicMaterialInstance* InInstance);
 };

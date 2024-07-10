@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,7 +9,7 @@
 #include "AvaMaskDesignedMaterialHandle.generated.h"
 
 #if WITH_EDITOR
-class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 #endif
 
 class UDynamicMaterialInstance;
@@ -70,7 +70,7 @@ protected:
 	virtual UMaterialInstanceDynamic* GetMaterialInstance() override;
 
 #if WITH_EDITOR
-	void OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel);
+	void OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModel);
 	
 	UMaterialFunctionInterface* GetOutputProcessor();
 	void SetOutputProcessor(UMaterialFunctionInterface* InMaterialFunction);

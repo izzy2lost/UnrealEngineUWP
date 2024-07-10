@@ -11,11 +11,11 @@ class UDynamicMaterialInstanceFactory : public UFactory
 	GENERATED_BODY()
 
 public:
-	UDynamicMaterialInstanceFactory();
+	DYNAMICMATERIALEDITOR_API UDynamicMaterialInstanceFactory();
 
 	//~ Begin UFactory
-	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
-	virtual FText GetDisplayName() const override;
-	virtual FText GetToolTip() const override;
+	DYNAMICMATERIALEDITOR_API virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetDisplayName() const override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetToolTip() const override;
 	//~ End UFactory
 };

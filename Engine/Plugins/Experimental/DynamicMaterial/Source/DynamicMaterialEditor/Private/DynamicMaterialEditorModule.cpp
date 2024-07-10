@@ -6,7 +6,9 @@
 #include "Components/DMMaterialComponent.h"
 #include "Components/DMMaterialEffectFunction.h"
 #include "Components/DMMaterialStageThroughput.h"
+#include "Components/DMMaterialValueDynamic.h"
 #include "Components/DMTextureUV.h"
+#include "Components/DMTextureUVDynamic.h"
 #include "Components/MaterialStageInputs/DMMSIFunction.h"
 #include "Components/MaterialStageInputs/DMMSIThroughput.h"
 #include "Components/MaterialValues/DMMaterialValueBool.h"
@@ -51,12 +53,13 @@
 #include "Slate/Properties/Generators/DMInputThroughputPropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMMaterialEffectFunctionPropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMMaterialStageFunctionPropertyRowGenerator.h"
+#include "Slate/Properties/Generators/DMMaterialValueDynamicPropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMMaterialValuePropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMStagePropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMTextureUVPropertyRowGenerator.h"
+#include "Slate/Properties/Generators/DMTextureUVDynamicPropertyRowGenerator.h"
 #include "Slate/Properties/Generators/DMThroughputPropertyRowGenerator.h"
 #include "Slate/SDMEditor.h"
-#include "Utils/DMMaterialFunctionLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogDynamicMaterialEditor);
 
@@ -291,7 +294,9 @@ void FDynamicMaterialEditorModule::StartupModule()
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialComponent,            FDMComponentPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStage,                FDMStagePropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialValue,                FDMMaterialValuePropertyRowGenerator>();
+	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialValueDynamic,         FDMMaterialValueDynamicPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMTextureUV,                    FDMTextureUVPropertyRowGenerator>();
+	RegisterComponentPropertyRowGeneratorDelegate<UDMTextureUVDynamic,             FDMTextureUVDynamicPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStageThroughput,      FDMThroughputPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStageInputThroughput, FDMInputThroughputPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialEffectFunction,       FDMMaterialEffectFunctionPropertyRowGenerator>();
@@ -345,7 +350,7 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	FDMValueDetailsRowExtensions::Get().UnregisterRowExtensions();
 }
 
-void FDynamicMaterialEditorModule::OpenMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const
+void FDynamicMaterialEditorModule::OpenMaterialModel(UDynamicMaterialModelBase* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
@@ -356,7 +361,7 @@ void FDynamicMaterialEditorModule::OpenMaterialModel(UDynamicMaterialModel* InMa
 			FDMLevelEditorIntegration::InvokeTabForWorld(InWorld);
 		}
 
-		Editor->SetMaterialModel(InMaterialModel);
+		Editor->SetMaterialModelBase(InMaterialModel);
 	}
 	else if (IsValid(InWorld))
 	{
@@ -444,9 +449,10 @@ void FDynamicMaterialEditorModule::ClearDynamicMaterialModel(UWorld* InWorld) co
 	OpenMaterialModel(nullptr, InWorld, /* Invoke tab */ false);
 }
 
-TSharedRef<SWidget> FDynamicMaterialEditorModule::CreateEditor(UDynamicMaterialModel* InMaterialModel, UWorld* InAssetEditorWorld)
+TSharedRef<SWidget> FDynamicMaterialEditorModule::CreateEditor(UDynamicMaterialModelBase* InMaterialModelBase, UWorld* InAssetEditorWorld)
 {
-	TSharedRef<SDMEditor> NewEditor = SNew(SDMEditor, InMaterialModel);
+	TSharedRef<SDMEditor> NewEditor = SNew(SDMEditor);
+	NewEditor->SetMaterialModelBase(InMaterialModelBase);
 
 	if (IsValid(InAssetEditorWorld))
 	{
@@ -454,8 +460,8 @@ TSharedRef<SWidget> FDynamicMaterialEditorModule::CreateEditor(UDynamicMaterialM
 
 		if (IsValid(WorldSubsystem))
 		{
-			WorldSubsystem->GetGetCustomEditorModelDelegate().BindSP(NewEditor, &SDMEditor::GetMaterialModel);
-			WorldSubsystem->GetSetCustomEditorModelDelegate().BindSP(NewEditor, &SDMEditor::SetMaterialModel);
+			WorldSubsystem->GetGetCustomEditorModelDelegate().BindSP(NewEditor, &SDMEditor::GetMaterialModelBase);
+			WorldSubsystem->GetSetCustomEditorModelDelegate().BindSP(NewEditor, &SDMEditor::SetMaterialModelBase);
 			WorldSubsystem->GetCustomObjectPropertyEditorDelegate().BindSP(NewEditor, &SDMEditor::SetMaterialObjectProperty);
 			WorldSubsystem->GetSetCustomEditorActorDelegate().BindSP(NewEditor, &SDMEditor::OnActorSelected);
 		}
@@ -556,11 +562,11 @@ void FDynamicMaterialEditorModule::OpenEditor(UWorld* InWorld) const
 	}
 }
 
-UDynamicMaterialModel* FDynamicMaterialEditorModule::GetOpenedMaterialModel(UWorld* InWorld) const
+UDynamicMaterialModelBase* FDynamicMaterialEditorModule::GetOpenedMaterialModel(UWorld* InWorld) const
 {
 	if (TSharedPtr<SDMEditor> Editor = FDMLevelEditorIntegration::GetEditorForWorld(InWorld))
 	{
-		return Editor->GetMaterialModel();
+		return Editor->GetMaterialModelBase();
 	}
 
 	if (IsValid(InWorld))

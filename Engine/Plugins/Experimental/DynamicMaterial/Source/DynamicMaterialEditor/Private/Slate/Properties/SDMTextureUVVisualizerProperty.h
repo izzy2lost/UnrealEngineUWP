@@ -4,10 +4,12 @@
 
 #include "Widgets/SCompoundWidget.h"
 
+class SDMEditor;
 class SDMTextureUVVisualizer;
 class SDMTextureUVVisualizerPopout;
 class UDMMaterialStage;
 class UDMTextureUV;
+class UDMTextureUVDynamic;
 enum class ECheckBoxState : uint8;
 
 /**
@@ -18,12 +20,16 @@ enum class ECheckBoxState : uint8;
 class SDMTextureUVVisualizerProperty : public SCompoundWidget
 {
 public:
-
-	SLATE_BEGIN_ARGS(SDMTextureUVVisualizerProperty) {}
+	SLATE_BEGIN_ARGS(SDMTextureUVVisualizerProperty)
+		: _TextureUV(nullptr)
+		, _TextureUVDynamic(nullptr)
+		{}
+		SLATE_ARGUMENT(UDMTextureUV*, TextureUV)
+		SLATE_ARGUMENT(UDMTextureUVDynamic*, TextureUVDynamic)
 	SLATE_END_ARGS()
 
 	/** The TextureUV should be a sub-property of the stage */
-	void Construct(const FArguments& InArgs, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV);
+	void Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage);
 
 protected:
 	TSharedPtr<SDMTextureUVVisualizer> Visualizer;

@@ -4,6 +4,7 @@
 
 #include "Widgets/SCompoundWidget.h"
 
+class SDMSlot;
 class FAssetDragDropOp;
 class FDMStageDragDropOperation;
 class UDMMaterialStage;
@@ -35,7 +36,7 @@ public:
 		, _DesiredSize(FVector2D(48.0f))
 		, _MinUniformSize(32)
 		, _MaxUniformSize(128)
-	{}
+		{}
 		SLATE_ATTRIBUTE(bool, StageEnabled)
 		SLATE_ATTRIBUTE(bool, StageSelected)
 		SLATE_ARGUMENT(bool, StageIsMask)
@@ -71,7 +72,9 @@ public:
 
 	virtual ~SDMStage() override;
 
-	void Construct(const FArguments& InArgs, UDMMaterialStage* InStage);
+	void Construct(const FArguments& InArgs, const TSharedRef<SDMSlot> InSlotWidget, UDMMaterialStage* InStage);
+
+	TSharedPtr<SDMSlot> GetSlotWidget() const { return SlotWidgetWeak.Pin(); }
 
 	FORCEINLINE UDMMaterialStage* GetStage() const { return StageWeak.Get(); }
 
@@ -96,6 +99,7 @@ public:
 	//~ End SWidget
 
 protected:
+	TWeakPtr<SDMSlot> SlotWidgetWeak;
 	TWeakObjectPtr<UDMMaterialStage> StageWeak;
 
 	TAttribute<bool> bStageEnabled;

@@ -44,8 +44,8 @@ struct FDMDefaultMaterialPropertySlotValue
 	FDMDefaultMaterialPropertySlotValue();
 	FDMDefaultMaterialPropertySlotValue(const TSoftObjectPtr<UTexture>& InTexture);
 	FDMDefaultMaterialPropertySlotValue(const FLinearColor& InColor);
-	FDMDefaultMaterialPropertySlotValue(EDMDefaultMaterialPropertySlotValueType InDefaultType, const TSoftObjectPtr<UTexture>& InTexture,
-		const FLinearColor& InColor);
+	FDMDefaultMaterialPropertySlotValue(EDMDefaultMaterialPropertySlotValueType InDefaultType, 
+		const TSoftObjectPtr<UTexture>& InTexture, const FLinearColor& InColor);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer")
 	EDMDefaultMaterialPropertySlotValueType DefaultType;

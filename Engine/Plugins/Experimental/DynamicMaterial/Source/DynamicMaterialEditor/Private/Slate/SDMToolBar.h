@@ -9,6 +9,7 @@
 class AActor;
 class SBox;
 class SDMEditor;
+class STextBlock;
 class SWidget;
 class UDMMaterialStageExpression;
 class UDynamicMaterialModel;
@@ -28,8 +29,6 @@ class SDMToolBar : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SDMToolBar) {}
-		SLATE_ARGUMENT(TWeakObjectPtr<AActor>, MaterialActor)
-		SLATE_ARGUMENT(TWeakObjectPtr<UDynamicMaterialModel>, MaterialModel)
 		SLATE_EVENT(FDMOnActorMaterailSlotChanged, OnSlotChanged)
 		SLATE_EVENT(FOnGetContent, OnGetSettingsMenu)
 	SLATE_END_ARGS()
@@ -44,8 +43,9 @@ public:
 	AActor* GetMaterialActor() const { return MaterialActorWeak.Get(); }
 	void SetMaterialActor(AActor* InActor, const int32 InActiveSlotIndex = 0);
 
-	UDynamicMaterialModel* GetMaterialModel() const { return MaterialModelWeak.Get(); }
-	void SetMaterialModel(UDynamicMaterialModel* InModel);
+	UDynamicMaterialModelBase* GetMaterialModelBase() const;
+
+	void OnMaterialModelChanged();
 
 	FText GetActorName() const;
 
@@ -54,7 +54,6 @@ protected:
 
 	TWeakPtr<SDMEditor> EditorWeak;
 	TWeakObjectPtr<AActor> MaterialActorWeak;
-	TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak;
 	FDMOnActorMaterailSlotChanged OnSlotChanged;
 	FOnGetContent OnGetSettingsMenu;
 
@@ -62,9 +61,13 @@ protected:
 	int32 SelectedMaterialSlotIndex;
 
 	TSharedPtr<SBox> SlotSelectorContainer;
-	TSharedPtr<SWidget> SaveButton;
-	TSharedPtr<SWidget> BrowseButton;
-	TSharedPtr<SWidget> UseButton;
+	TSharedPtr<SWidget> SaveButtonWidget;
+	TSharedPtr<SWidget> ActorRowWidget;
+	TSharedPtr<SWidget> AssetRowWidget;
+	TSharedPtr<STextBlock> ActorNameWidget;
+	TSharedPtr<STextBlock> AssetNameWidget;
+	TSharedPtr<SWidget> OpenParentButton;
+	TSharedPtr<SWidget> ConvertToEditableButton;
 
 	TSharedRef<SWidget> CreateToolBarEntries();
 
@@ -82,22 +85,15 @@ protected:
 	const FMargin GetLargeIconToolBarButtonContentPadding() const { return FMargin(4.0f); }
 	const FVector2D GetLargeIconToolBarButtonSize() const { return FVector2D(16.0f); }
 
-	EVisibility GetSlotsComboBoxWidgetVisibiltiy() const;
-
 	const FSlateBrush* GetFollowSelectionBrush() const;
 	FSlateColor GetFollowSelectionColor() const;
 	FReply OnFollowSelectionButtonClicked();
 
-	EVisibility GetExportMaterialInstanceButtonVisibility() const;
 	FReply OnExportMaterialInstanceButtonClicked();
 
 	FReply OnBrowseClicked();
 
 	FReply OnUseClicked();
-
-	EVisibility GetActorVisibility() const;
-
-	EVisibility GetAssetVisibility() const;
 
 	FText GetAssetName() const;
 
@@ -108,4 +104,8 @@ protected:
 	const FSlateBrush* GetSaveIcon() const;
 
 	FReply OnSaveClicked();
+
+	FReply OnOpenParentClicked();
+
+	FReply OnConvertToEditableClicked();
 };

@@ -1,13 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/Generators/DMMaterialValuePropertyRowGenerator.h"
+
 #include "DynamicMaterialEditorModule.h"
-#include "IDetailPropertyRow.h"
 #include "Components/DMMaterialComponent.h"
 #include "Components/DMMaterialValue.h"
-#include "Components/MaterialValues/DMMaterialValueFloat1.h"
-#include "Slate/SDMEditor.h"
+#include "Components/DMMaterialValueDynamic.h"
+#include "IDetailPropertyRow.h"
+#include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelBase.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "Slate/SDMComponentEdit.h"
+#include "Slate/SDMEditor.h"
 
 const TSharedRef<FDMMaterialValuePropertyRowGenerator>& FDMMaterialValuePropertyRowGenerator::Get()
 {
@@ -43,6 +47,22 @@ void FDMMaterialValuePropertyRowGenerator::AddComponentProperties(const TSharedR
 
 	InOutProcessedObjects.Add(InComponent);
 
+	if (TSharedPtr<SDMEditor> EditorWidget = InComponentEditWidget->GetEditorWidget())
+	{
+		if (UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase())
+		{
+			if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBase))
+			{
+				if (UDMMaterialComponentDynamic* ComponentDynamic = MaterialModelDynamic->GetComponentDynamic(Value->GetFName()))
+				{
+					FDynamicMaterialEditorModule::Get().GeneratorComponentPropertyRows(InComponentEditWidget, ComponentDynamic, InOutPropertyRows, InOutProcessedObjects);
+				}
+
+				return;
+			}
+		}
+	}
+
 	if (Value->AllowEditValue())
 	{
 		FDMPropertyHandle Handle = SDMEditor::GetPropertyHandle(&*InComponentEditWidget, Value, UDMMaterialValue::ValueName);
@@ -51,6 +71,8 @@ void FDMMaterialValuePropertyRowGenerator::AddComponentProperties(const TSharedR
 			FIsResetToDefaultVisible::CreateUObject(Value, &UDMMaterialValue::CanResetToDefault),
 			FResetToDefaultHandler::CreateUObject(Value, &UDMMaterialValue::ResetToDefault)
 		);
+
+		Handle.bEnabled = true;
 
 		InOutPropertyRows.Add(Handle);
 	}

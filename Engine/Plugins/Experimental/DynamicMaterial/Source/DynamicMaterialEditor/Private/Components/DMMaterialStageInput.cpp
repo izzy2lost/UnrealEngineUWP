@@ -50,26 +50,11 @@ void UDMMaterialStageInput::Update(EDMUpdateType InUpdateType)
 	Super::Update(InUpdateType);
 }
 
-void UDMMaterialStageInput::UpdatePreviewMaterial(UMaterial* InPreviewMaterial /*= nullptr*/)
+void UDMMaterialStageInput::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
 	if (!IsComponentValid())
 	{
 		return;
-	}
-
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
-
-		InPreviewMaterial = PreviewMaterial;
-
-		if (!PreviewMaterial)
-		{
-			return;
-		}
 	}
 
 	UDMMaterialStage* Stage = GetStage();

@@ -6,7 +6,7 @@
 #include "Templates/SharedPointer.h"
 
 class IPropertyHandle;
-class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 
 class SDMDetailsPanelTabSpawner : public SCompoundWidget
 {
@@ -19,8 +19,8 @@ public:
 protected:
 	TSharedPtr<IPropertyHandle> PropertyHandle;
 
-	UDynamicMaterialModel* GetMaterialModel() const;
-	void SetMaterialModel(UDynamicMaterialModel* InNewModel);
+	UDynamicMaterialModelBase* GetMaterialModelBase() const;
+	void SetMaterialModelBase(UDynamicMaterialModelBase* InNewModel);
 
 	FReply OnButtonClicked();
 	FReply CreateDynamicMaterialModel();

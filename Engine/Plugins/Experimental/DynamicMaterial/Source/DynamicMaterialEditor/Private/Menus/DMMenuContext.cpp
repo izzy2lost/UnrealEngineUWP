@@ -110,6 +110,16 @@ UDMMaterialSlot* UDMMenuContext::GetSlot() const
 	return nullptr;;
 }
 
+UDynamicMaterialModelBase* UDMMenuContext::GetModelBase() const
+{
+	if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())
+	{
+		return EditorWidget->GetMaterialModelBase();
+	}
+
+	return nullptr;
+}
+
 UDynamicMaterialModel* UDMMenuContext::GetModel() const
 {
 	if (TSharedPtr<SDMEditor> EditorWidget = EditorWidgetWeak.Pin())

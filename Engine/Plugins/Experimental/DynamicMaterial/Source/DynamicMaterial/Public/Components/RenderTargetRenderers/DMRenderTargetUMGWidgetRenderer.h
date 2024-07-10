@@ -8,28 +8,28 @@
 class FWidgetRenderer;
 class UWidget;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Widget Renderer"))
-class DYNAMICMATERIAL_API UDMRenderTargetUMGWidgetRenderer : public UDMRenderTargetWidgetRendererBase
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Widget Renderer"))
+class UDMRenderTargetUMGWidgetRenderer : public UDMRenderTargetWidgetRendererBase
 {
 	GENERATED_BODY()
 
 public:
-	UDMRenderTargetUMGWidgetRenderer();
+	DYNAMICMATERIAL_API UDMRenderTargetUMGWidgetRenderer();
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	TSubclassOf<UWidget> GetWidgetClass() const { return WidgetClass; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetWidgetClass(TSubclassOf<UWidget> InWidgetClass);
+	DYNAMICMATERIAL_API void SetWidgetClass(TSubclassOf<UWidget> InWidgetClass);
 
 #if WITH_EDITOR
 	//~ Begin IDMJsonSerializable
-	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
-	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	DYNAMICMATERIAL_API virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	DYNAMICMATERIAL_API virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
 	//~ End IDMJsonSerializable
 
 	//~ Begin UObject
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+	DYNAMICMATERIAL_API virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject
 #endif
 
@@ -42,6 +42,6 @@ protected:
 	TObjectPtr<UWidget> WidgetInstance;
 
 	//~ Begin UDMRenderTargetWidgetRendererBase
-	virtual void CreateWidgetInstance() override;
+	DYNAMICMATERIAL_API virtual void CreateWidgetInstance() override;
 	//~ End UDMRenderTargetWidgetRendererBase
 };

@@ -474,46 +474,6 @@ const TMap<const UDMMaterialValue*, TArray<UMaterialExpression*>>& FDMMaterialBu
 }
 
 ///////////////////////////////////////
-/// Callbacks
-
-bool FDMMaterialBuildState::HasCallback(const UDMMaterialStageSource* InCallback) const
-{
-	return Callbacks.Contains(InCallback);
-}
-
-const TArray<UDMMaterialStageSource*>& FDMMaterialBuildState::GetCallbackExpressions(const UDMMaterialStageSource* InCallback) const
-{
-	const TArray<UDMMaterialStageSource*>* CallbackSources = Callbacks.Find(InCallback);
-
-	if (ensure(CallbackSources))
-	{
-		return *CallbackSources;
-	}
-
-	return UE::DynamicMaterialEditor::Private::EmptySourceSet;
-}
-
-void FDMMaterialBuildState::AddCallbackExpressions(const UDMMaterialStageSource* InCallback, const TArray<UDMMaterialStageSource*>& InCallbackExpressions)
-{
-	if (ensure(!HasCallback(InCallback)))
-	{
-		Callbacks.Emplace(InCallback, InCallbackExpressions);
-	}
-}
-
-TArray<const UDMMaterialStageSource*> FDMMaterialBuildState::GetCallbacks() const
-{
-	TArray<const UDMMaterialStageSource*> Keys;
-	Callbacks.GetKeys(Keys);
-	return Keys;
-}
-
-const TMap<const UDMMaterialStageSource*, TArray<UDMMaterialStageSource*>>& FDMMaterialBuildState::GetCallbackMap() const
-{
-	return Callbacks;
-}
-
-///////////////////////////////////////
 /// Other expression
 
 void FDMMaterialBuildState::AddOtherExpressions(const TArray<UMaterialExpression*>& InOtherExpressions)

@@ -78,11 +78,6 @@ bool UDMMaterialSubStage::IsCompatibleWithNextStage(const UDMMaterialStage* Next
 	return false;
 }
 
-bool UDMMaterialSubStage::IsRootStage() const
-{
-	return false;
-}
-
 FString UDMMaterialSubStage::GetComponentPathComponent() const
 {
 	// Skip stage renaming

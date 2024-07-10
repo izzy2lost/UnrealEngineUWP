@@ -16,21 +16,23 @@ enum class ELinearGradientTileType : uint8
 	TileAndMirror
 };
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageGradientLinear : public UDMMaterialStageGradient
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageGradientLinear : public UDMMaterialStageGradient
 {
 	GENERATED_BODY()
 
 public:
 	UDMMaterialStageGradientLinear();
 
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	virtual ELinearGradientTileType GetTilingType() const { return Tiling; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	virtual void SetTilingType(ELinearGradientTileType InType);
+	DYNAMICMATERIALEDITOR_API virtual void SetTilingType(ELinearGradientTileType InType);
+
+	//~ Begin UDMMaterialStageSource
+	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	//~ End UDMMaterialStageSource
 
 protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetTilingType, Setter=SetTilingType, BlueprintSetter = SetTilingType, 

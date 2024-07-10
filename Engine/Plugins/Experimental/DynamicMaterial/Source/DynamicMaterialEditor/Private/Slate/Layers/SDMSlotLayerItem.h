@@ -73,6 +73,7 @@ protected:
 	TWeakPtr<SDMSlot> SlotWidgetWeak;
 	TWeakPtr<STableViewBase> LayerViewWeak;
 	TSharedPtr<FDMMaterialLayerReference> LayerItem;
+	bool bIsDynamic;
 
 	TAttribute<bool> StageBaseEnabled;
 	TAttribute<bool> StageBaseSelected;

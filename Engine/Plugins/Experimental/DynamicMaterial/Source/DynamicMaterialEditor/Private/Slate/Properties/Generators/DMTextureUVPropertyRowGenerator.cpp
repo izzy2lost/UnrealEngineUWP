@@ -4,15 +4,15 @@
 #include "Components/DMMaterialComponent.h"
 #include "Components/DMTextureUV.h"
 #include "DMEDefs.h"
+#include "DynamicMaterialEditorModule.h"
+#include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
-#include "Slate/Properties/Editors/SDMPropertyEditVector.h"
 #include "Slate/Properties/SDMTextureUVVisualizerProperty.h"
 #include "Slate/SDMComponentEdit.h"
 #include "Slate/SDMEditor.h"
-#include "Styling/SlateIconFinder.h"
-#include "Utils/DMPrivate.h"
 #include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "DMTextureUVPropertyRowGenerator"
@@ -25,10 +25,10 @@ const TSharedRef<FDMTextureUVPropertyRowGenerator>& FDMTextureUVPropertyRowGener
 
 namespace UE::DynamicMaterialEditor::Private
 {
-	void AddPropertyRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, FName InProperty, 
+	void AddTextureUVPropertyRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, FName InProperty, 
 		TArray<FDMPropertyHandle>& InOutPropertyRows);
 
-	void AddVisualizerRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, 
+	void AddTextureUVVisualizerRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, 
 		TArray<FDMPropertyHandle>& InOutPropertyRows);
 
 	bool CanResetTextureUVPropertyToDefault(TSharedPtr<IPropertyHandle> InPropertyHandle);
@@ -58,15 +58,31 @@ void FDMTextureUVPropertyRowGenerator::AddComponentProperties(const TSharedRef<S
 
 	InOutProcessedObjects.Add(InComponent);
 
+	if (TSharedPtr<SDMEditor> EditorWidget = InComponentEditWidget->GetEditorWidget())
+	{
+		if (UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase())
+		{
+			if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBase))
+			{
+				if (UDMMaterialComponentDynamic* ComponentDynamic = MaterialModelDynamic->GetComponentDynamic(TextureUV->GetFName()))
+				{
+					FDynamicMaterialEditorModule::Get().GeneratorComponentPropertyRows(InComponentEditWidget, ComponentDynamic, InOutPropertyRows, InOutProcessedObjects);
+				}
+
+				return;
+			}
+		}
+	}
+
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Offset, InOutPropertyRows);
-	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Rotation, InOutPropertyRows);
-	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Tiling, InOutPropertyRows);
-	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Pivot, InOutPropertyRows);
-	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnX, InOutPropertyRows);
-	AddPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnY, InOutPropertyRows);
-	AddVisualizerRow(InComponentEditWidget, TextureUV, InOutPropertyRows);
+	AddTextureUVPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Offset, InOutPropertyRows);
+	AddTextureUVPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Rotation, InOutPropertyRows);
+	AddTextureUVPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Tiling, InOutPropertyRows);
+	AddTextureUVPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_Pivot, InOutPropertyRows);
+	AddTextureUVPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnX, InOutPropertyRows);
+	AddTextureUVPropertyRow(InComponentEditWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnY, InOutPropertyRows);
+	AddTextureUVVisualizerRow(InComponentEditWidget, TextureUV, InOutPropertyRows);
 }
 
 void FDMTextureUVPropertyRowGenerator::AddPopoutComponentProperties(const TSharedRef<SWidget>& InParentWidget, UDMMaterialComponent* InComponent, 
@@ -86,12 +102,12 @@ void FDMTextureUVPropertyRowGenerator::AddPopoutComponentProperties(const TShare
 
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Offset, InOutPropertyRows);
-	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Rotation, InOutPropertyRows);
-	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Tiling, InOutPropertyRows);
-	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Pivot, InOutPropertyRows);
-	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnX, InOutPropertyRows);
-	AddPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnY, InOutPropertyRows);
+	AddTextureUVPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Offset, InOutPropertyRows);
+	AddTextureUVPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Rotation, InOutPropertyRows);
+	AddTextureUVPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Tiling, InOutPropertyRows);
+	AddTextureUVPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_Pivot, InOutPropertyRows);
+	AddTextureUVPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnX, InOutPropertyRows);
+	AddTextureUVPropertyRow(InParentWidget, TextureUV, UDMTextureUV::NAME_bMirrorOnY, InOutPropertyRows);
 }
 
 bool FDMTextureUVPropertyRowGenerator::AllowKeyframeButton(UDMMaterialComponent* InComponent, FProperty* InProperty)
@@ -109,7 +125,7 @@ bool FDMTextureUVPropertyRowGenerator::AllowKeyframeButton(UDMMaterialComponent*
 	return FDMComponentPropertyRowGenerator::AllowKeyframeButton(InComponent, InProperty);
 }
 
-void UE::DynamicMaterialEditor::Private::AddPropertyRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, 
+void UE::DynamicMaterialEditor::Private::AddTextureUVPropertyRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, 
 	FName InProperty, TArray<FDMPropertyHandle>& InOutPropertyRows)
 {
 	FDMPropertyHandle& NewHandle = InOutPropertyRows.Add_GetRef(SDMEditor::GetPropertyHandle(&*InComponentEditWidget, InTextureUV, InProperty));
@@ -118,9 +134,11 @@ void UE::DynamicMaterialEditor::Private::AddPropertyRow(const TSharedRef<SWidget
 		FIsResetToDefaultVisible::CreateStatic(&UE::DynamicMaterialEditor::Private::CanResetTextureUVPropertyToDefault),
 		FResetToDefaultHandler::CreateStatic(&UE::DynamicMaterialEditor::Private::ResetTextureUVPropertyToDefault)
 	);
+
+	NewHandle.bEnabled = true;
 }
 
-void UE::DynamicMaterialEditor::Private::AddVisualizerRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, 
+void UE::DynamicMaterialEditor::Private::AddTextureUVVisualizerRow(const TSharedRef<SWidget>& InComponentEditWidget, UDMTextureUV* InTextureUV, 
 	TArray<FDMPropertyHandle>& InOutPropertyRows)
 {
 	// Make sure we don't get a substage
@@ -131,12 +149,25 @@ void UE::DynamicMaterialEditor::Private::AddVisualizerRow(const TSharedRef<SWidg
 		return;
 	}
 
+	if (InComponentEditWidget->GetWidgetClass().GetWidgetType() != SDMComponentEdit::StaticWidgetClass().GetWidgetType())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMEditor> EditorWidget = StaticCastSharedRef<SDMComponentEdit>(InComponentEditWidget)->GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
 	FDMPropertyHandle VisualizerHandle;
 	VisualizerHandle.NameOverride = LOCTEXT("Visualizer", "UV Visualizer");
 	VisualizerHandle.NameToolTipOverride = LOCTEXT("VisualizerToolTip", "A graphical Texture UV editor.\n\n- Offset Mode: Change the Texture UV offset.\n- Pivot Mode: Change the Texture UV pivot, rotation and tiling.\n\nControl+click to reset values to default.");
 	VisualizerHandle.ValueName = FName(*InTextureUV->GetComponentPath());
-	VisualizerHandle.ValueWidget = SNew(SDMTextureUVVisualizerProperty, Stage, InTextureUV);
+	VisualizerHandle.ValueWidget = SNew(SDMTextureUVVisualizerProperty, EditorWidget.ToSharedRef(), Stage).TextureUV(InTextureUV);
 	VisualizerHandle.CategoryOverrideName = TEXT("Texture UV");
+	VisualizerHandle.bEnabled = true;
 	InOutPropertyRows.Add(VisualizerHandle);
 }
 
@@ -150,9 +181,9 @@ bool UE::DynamicMaterialEditor::Private::CanResetTextureUVPropertyToDefault(TSha
 		return false;
 	}
 
-	FName PropertyName = Property->GetFName();
+	const FName PropertyName = Property->GetFName();
 
-	if (PropertyName == NAME_None)
+	if (PropertyName.IsNone())
 	{
 		return false;
 	}

@@ -5,6 +5,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueTextureDynamic.h"
 #include "DMDefs.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureCube.h"
@@ -60,16 +61,12 @@ FDMGetDefaultRGBTexture UDMMaterialValueTexture::GetDefaultRGBTexture;
 
 UDMMaterialValueTexture::UDMMaterialValueTexture()
 	: UDMMaterialValue(EDMValueType::VT_Texture)
+	, Value(nullptr)
 #if WITH_EDITORONLY_DATA
+	, DefaultValue(nullptr)
 	, OldValue(nullptr)
 #endif
 {
-#if WITH_EDITOR
-	ResetDefaultValue();
-	Value = DefaultValue;
-#else
-	Value = nullptr;
-#endif
 }
 
 #if WITH_EDITOR
@@ -85,17 +82,23 @@ void UDMMaterialValueTexture::GenerateExpression(const TSharedRef<IDMMaterialBui
 		return;
 	}
 
-	UMaterialExpressionTextureObjectParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionTextureObjectParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default, Value);
+	UMaterialExpressionTextureObjectParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionTextureObjectParameter>(
+		GetMaterialParameterName(), 
+		GetParameterGroup(), 
+		UE_DM_NodeComment_Default, 
+		Value
+	);
+
 	check(NewExpression);
 
 	InBuildState->AddValueExpressions(this, {NewExpression});
 }
  
-UDMMaterialValueTexture* UDMMaterialValueTexture::CreateMaterialValueTexture(UObject* Outer, UTexture* InTexture)
+UDMMaterialValueTexture* UDMMaterialValueTexture::CreateMaterialValueTexture(UObject* InOuter, UTexture* InTexture)
 {
 	check(InTexture);
  
-	UDMMaterialValueTexture* TextureValue = NewObject<UDMMaterialValueTexture>(Outer, NAME_None, RF_Transactional);
+	UDMMaterialValueTexture* TextureValue = NewObject<UDMMaterialValueTexture>(InOuter, NAME_None, RF_Transactional);
 	TextureValue->SetValue(InTexture);
 	return TextureValue;
 }
@@ -130,9 +133,9 @@ void UDMMaterialValueTexture::PostEditChangeProperty(FPropertyChangedEvent& InPr
 		return;
 	}
 
-	FName MemberPropertyName = InPropertyChangedEvent.GetMemberPropertyName();
+	const FName MemberPropertyName = InPropertyChangedEvent.GetMemberPropertyName();
 
-	if (MemberPropertyName == NAME_None)
+	if (MemberPropertyName.IsNone())
 	{
 		return;
 	}
@@ -182,6 +185,19 @@ void UDMMaterialValueTexture::ResetDefaultValue()
 	{
 		DefaultValue = GetDefaultRGBTexture.Execute();
 	}
+}
+
+UDMMaterialValueDynamic* UDMMaterialValueTexture::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueTextureDynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueTextureDynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueTexture::GetComponentPathComponent() const
+{
+	return TEXT("Texture");
 }
 
 TSharedPtr<FJsonValue> UDMMaterialValueTexture::JsonSerialize() const

@@ -1,30 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialStageSource.h"
-#include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "DynamicMaterialEditorModule.h"
-#include "DynamicMaterialModule.h"
-#include "Factories/MaterialFactoryNew.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "MaterialValueType.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
-#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectIterator.h"
 
 TArray<TStrongObjectPtr<UClass>> UDMMaterialStageSource::SourceClasses = TArray<TStrongObjectPtr<UClass>>();
-
-UDMMaterialStageSource::UDMMaterialStageSource()
-{
-	PreviewMaterial = nullptr;
-}
 
 UDMMaterialStage* UDMMaterialStageSource::GetStage() const
 {
@@ -110,101 +101,11 @@ void UDMMaterialStageSource::GenerateClassList()
 	}
 }
 
-UMaterial* UDMMaterialStageSource::GetPreviewMaterial()
-{
-	if (!PreviewMaterial)
-	{
-		CreatePreviewMaterial();
-
-		if (PreviewMaterial)
-		{
-			MarkComponentDirty();
-		}
-	}
-
-	return PreviewMaterial;
-}
-
-void UDMMaterialStageSource::UpdateOntoPreviewMaterial(UMaterial* ExternalPreviewMaterial)
+void UDMMaterialStageSource::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
 	if (!IsComponentValid())
 	{
 		return;
-	}
-
-	if (!ExternalPreviewMaterial)
-	{
-		return;
-	}
-
-	UpdatePreviewMaterial(ExternalPreviewMaterial);
-}
-
-void UDMMaterialStageSource::CreatePreviewMaterial()
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	if (FDynamicMaterialModule::IsMaterialExportEnabled() == false)
-	{
-		UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
-		check(MaterialFactory);
-
-		PreviewMaterial = Cast<UMaterial>(MaterialFactory->FactoryCreateNew(
-			UMaterial::StaticClass(),
-			GetTransientPackage(),
-			NAME_None,
-			RF_Transient,
-			nullptr,
-			GWarn
-		));
-
-		PreviewMaterial->bIsPreviewMaterial = true;
-	}
-	else
-	{
-		FString MaterialBaseName = GetName() + "-" + FGuid::NewGuid().ToString();
-		const FString FullName = "/Game/DynamicMaterials/" + MaterialBaseName;
-		UPackage* Package = CreatePackage(*FullName);
-
-		UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
-		check(MaterialFactory);
-
-		PreviewMaterial = Cast<UMaterial>(MaterialFactory->FactoryCreateNew(
-			UMaterial::StaticClass(),
-			Package,
-			*MaterialBaseName,
-			RF_Standalone | RF_Public,
-			nullptr,
-			GWarn
-		));
-
-		FAssetRegistryModule::AssetCreated(PreviewMaterial);
-	}
-}
-
-void UDMMaterialStageSource::UpdatePreviewMaterial(UMaterial* InPreviewMaterial)
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
-
-		InPreviewMaterial = PreviewMaterial;
-
-		if (!PreviewMaterial)
-		{
-			return;
-		}
 	}
 
 	UE_LOG(LogDynamicMaterialEditor, Display, TEXT("Building Material Designer Source Preview (%s)..."), *GetName());
@@ -235,7 +136,7 @@ int32 UDMMaterialStageSource::GetInnateMaskOutput(int32 OutputIndex, int32 Outpu
 	return INDEX_NONE;
 }
 
-bool UDMMaterialStageSource::UpdateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
+bool UDMMaterialStageSource::GenerateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
 	UMaterialExpression*& OutMaterialExpression, int32& OutputIndex)
 {
 	check(InStage);
@@ -348,25 +249,7 @@ void UDMMaterialStageSource::PostEditUndo()
 	Update(EDMUpdateType::Structure);
 }
 
-void UDMMaterialStageSource::DoClean()
-{
-	if (IsComponentValid())
-	{
-		// Stage Source preview images are currently disabled.
-		//UpdatePreviewMaterial();
-	}
-
-	Super::DoClean();
-}
-
 UDMMaterialComponent* UDMMaterialStageSource::GetParentComponent() const
 {
 	return GetStage();
-}
-
-void UDMMaterialStageSource::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
-{
-	Super::PostEditorDuplicate(InMaterialModel, InParent);
-
-	PreviewMaterial = nullptr;
 }

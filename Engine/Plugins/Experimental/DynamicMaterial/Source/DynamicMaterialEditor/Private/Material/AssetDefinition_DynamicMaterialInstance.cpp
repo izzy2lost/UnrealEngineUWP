@@ -47,14 +47,14 @@ EAssetCommandResult UAssetDefinition_DynamicMaterialInstance::OpenAssets(const F
 			continue;
 		}
 
-		UDynamicMaterialModel* MaterialModel = Instance->GetMaterialModel();
+		UDynamicMaterialModelBase* MaterialModelBase = Instance->GetMaterialModelBase();
 
-		if (!MaterialModel)
+		if (!MaterialModelBase)
 		{
 			continue;
 		}
 
-		MaterialModels.Add(MaterialModel);
+		MaterialModels.Add(MaterialModelBase);
 	}
 
 	if (MaterialModels.IsEmpty())

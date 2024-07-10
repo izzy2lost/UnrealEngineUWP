@@ -4,44 +4,66 @@
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "ContentBrowserModule.h"
 #include "CoreGlobals.h"
 #include "DMTextureSet.h"
 #include "DMTextureSetBlueprintFunctionLibrary.h"
 #include "DMTextureSetContentBrowserIntegration.h"
 #include "Engine/Texture.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "IContentBrowserSingleton.h"
 #include "IDynamicMaterialEditorModule.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "Materials/Material.h"
+#include "Misc/MessageDialog.h"
+#include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "PackageTools.h"
 #include "ScopedTransaction.h"
 #include "Styling/SlateIconFinder.h"
 
 #define LOCTEXT_NAMESPACE "FDMContentBrowserIntegration"
 
-FDelegateHandle FDMContentBrowserIntegration::PopulateHandle;
+FDelegateHandle FDMContentBrowserIntegration::TextureSetPopulateHandle;
+FDelegateHandle FDMContentBrowserIntegration::ContentBrowserAssetHandle;
 
 void FDMContentBrowserIntegration::Integrate()
 {
-	if (PopulateHandle.IsValid())
-	{
-		Disintegrate();
-	}
+	Disintegrate();
 
-	PopulateHandle = FDMTextureSetContentBrowserIntegration::GetPopulateExtenderDelegate().AddStatic(&FDMContentBrowserIntegration::ExtendMenu);
+	TextureSetPopulateHandle = FDMTextureSetContentBrowserIntegration::GetPopulateExtenderDelegate().AddStatic(&FDMContentBrowserIntegration::ExtendMenu);
+
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	TArray<FContentBrowserMenuExtender_SelectedAssets>& CBMenuExtenderDelegates = ContentBrowserModule.GetAllAssetViewContextMenuExtenders();
+	CBMenuExtenderDelegates.Add(FContentBrowserMenuExtender_SelectedAssets::CreateStatic(&FDMContentBrowserIntegration::OnExtendContentBrowserAssetSelectionMenu));
+	ContentBrowserAssetHandle = CBMenuExtenderDelegates.Last().GetHandle();
 }
 
 void FDMContentBrowserIntegration::Disintegrate()
 {
-	if (!PopulateHandle.IsValid())
+	if (TextureSetPopulateHandle.IsValid())
 	{
-		return;
+		FDMTextureSetContentBrowserIntegration::GetPopulateExtenderDelegate().Remove(TextureSetPopulateHandle);
+		TextureSetPopulateHandle.Reset();
 	}
 
-	FDMTextureSetContentBrowserIntegration::GetPopulateExtenderDelegate().Remove(PopulateHandle);
+	if (ContentBrowserAssetHandle.IsValid())
+	{
+		if (FContentBrowserModule* ContentBrowserModule = FModuleManager::GetModulePtr<FContentBrowserModule>("ContentBrowser"))
+		{
+			TArray<FContentBrowserMenuExtender_SelectedAssets>& CBMenuExtenderDelegates = ContentBrowserModule->GetAllAssetViewContextMenuExtenders();
 
-	PopulateHandle.Reset();
+			CBMenuExtenderDelegates.RemoveAll(
+				[](const FContentBrowserMenuExtender_SelectedAssets& InElement)
+				{
+					return InElement.GetHandle() == ContentBrowserAssetHandle;
+				});
+
+			ContentBrowserAssetHandle.Reset();
+		}
+	}
 }
 
 void FDMContentBrowserIntegration::ExtendMenu(FMenuBuilder& InMenuBuilder, const TArray<FAssetData>& InSelectedAssets)
@@ -167,7 +189,7 @@ void FDMContentBrowserIntegration::OnUpdateMaterialDesignerInstanceFromTextureSe
 
 	IDynamicMaterialEditorModule& DynamicMaterialEditorModule = IDynamicMaterialEditorModule::Get();
 
-	UDynamicMaterialModel* Model = DynamicMaterialEditorModule.GetOpenedMaterialModel(nullptr);
+	UDynamicMaterialModelBase* Model = DynamicMaterialEditorModule.GetOpenedMaterialModel(nullptr);
 
 	if (!Model)
 	{
@@ -190,6 +212,259 @@ void FDMContentBrowserIntegration::OnUpdateMaterialDesignerInstanceFromTextureSe
 	{
 		Transaction.Cancel();
 	}
+}
+
+TSharedRef<FExtender> FDMContentBrowserIntegration::OnExtendContentBrowserAssetSelectionMenu(const TArray<FAssetData>& InSelectedAssets)
+{
+	TSharedRef<FExtender> Extender = MakeShared<FExtender>();
+	bool bHasMaterialDesignerAsset = false;
+
+	for (const FAssetData& SelectedAsset : InSelectedAssets)
+	{
+		if (UClass* AssetClass = SelectedAsset.GetClass(EResolveClass::Yes))
+		{
+			if (AssetClass->IsChildOf<UDynamicMaterialInstance>() || AssetClass->IsChildOf<UDynamicMaterialModel>())
+			{
+				bHasMaterialDesignerAsset = true;
+				break;
+			}
+		}
+	}
+
+	if (!bHasMaterialDesignerAsset)
+	{
+		return Extender;
+	}
+
+	Extender->AddMenuExtension(
+		"GetAssetActions",
+		EExtensionHook::After,
+		nullptr,
+		FMenuExtensionDelegate::CreateLambda(
+			[InSelectedAssets](FMenuBuilder& InMenuBuilder)
+			{
+				InMenuBuilder.AddMenuEntry(
+					LOCTEXT("CreateDynamic", "Create Material Designer Dynamic"),
+					LOCTEXT("CreateDynamicooltip", "Create a dynamic instance from a Material Designer Instance or Model."),
+					FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()),
+					FUIAction(FExecuteAction::CreateStatic(&FDMContentBrowserIntegration::CreateDynamic, InSelectedAssets))
+				);
+			}
+		)
+	);
+
+	return Extender;
+}
+
+void FDMContentBrowserIntegration::CreateDynamic(TArray<FAssetData> InSelectedAssets)
+{
+	for (const FAssetData& SelectedAsset : InSelectedAssets)
+	{
+		if (UClass* AssetClass = SelectedAsset.GetClass(EResolveClass::Yes))
+		{
+			if (AssetClass->IsChildOf<UDynamicMaterialModel>())
+			{
+				CreateModelDynamic(Cast<UDynamicMaterialModel>(SelectedAsset.GetAsset()));
+				break;
+			}
+
+			if (AssetClass->IsChildOf<UDynamicMaterialInstance>())
+			{
+				CreateInstanceDynamic(Cast<UDynamicMaterialInstance>(SelectedAsset.GetAsset()));
+				break;
+			}
+		}
+	}
+}
+
+void FDMContentBrowserIntegration::CreateModelDynamic(UDynamicMaterialModel* InModel)
+{
+	if (!InModel)
+	{
+		return;
+	}
+
+	UMaterial* ParentMaterial = InModel->GetGeneratedMaterial();
+
+	if (!ParentMaterial)
+	{
+		return;
+	}
+
+	if (!ParentMaterial->HasAnyFlags(RF_Public))
+	{
+		const EAppReturnType::Type Result = FMessageDialog::Open(
+			EAppMsgType::YesNo,
+			LOCTEXT("ExportMaterialFromModel", 
+				"Generating a Material Designer Dynamic requires that the generated material be exported from its package.\n\n"
+				"The package containing the material will be saved. This may be a level.\n\n"
+				"Continue?")
+		);
+
+		switch (Result)
+		{
+			case EAppReturnType::Yes:
+				ParentMaterial->Modify(/* Always Mark Dirty */ true);
+				ParentMaterial->SetFlags(RF_Public);
+				UPackageTools::SavePackagesForObjects({InModel});
+				break;
+
+			default:
+				return;
+		}
+	}
+
+	UDynamicMaterialModelDynamic* ModelDynamic = UDynamicMaterialModelDynamic::Create(GetTransientPackage(), InModel);
+
+	if (!ModelDynamic)
+	{
+		return;
+	}
+
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	FString PackageName, AssetName;
+	AssetTools.CreateUniqueAssetName(InModel->GetName(), TEXT(""), PackageName, AssetName);
+
+	IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
+	const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
+	const FString PathStr = CurrentPath.HasInternalPath() ? CurrentPath.GetInternalPathString() : "/Game";
+
+	FSaveAssetDialogConfig SaveAssetDialogConfig;
+	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
+	SaveAssetDialogConfig.DefaultPath = PathStr;
+	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+	SaveAssetDialogConfig.DefaultAssetName = AssetName;
+
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
+
+	if (SaveObjectPath.IsEmpty())
+	{
+		return;
+	}
+
+	PackageName = FPaths::GetBaseFilename(*SaveObjectPath, false);
+
+	UPackage* Package = CreatePackage(*PackageName);
+
+	if (!Package)
+	{
+		return;
+	}
+
+	AssetName = FPaths::GetBaseFilename(*SaveObjectPath, true);
+
+	ModelDynamic->SetFlags(RF_Standalone | RF_Public);
+	ModelDynamic->Rename(*AssetName, Package, REN_DontCreateRedirectors);
+
+	FAssetRegistryModule::AssetCreated(ModelDynamic);
+}
+
+void FDMContentBrowserIntegration::CreateInstanceDynamic(UDynamicMaterialInstance* InInstance)
+{
+	if (!InInstance)
+	{
+		return;
+	}
+
+	UDynamicMaterialModel* Model = InInstance->GetMaterialModel();
+
+	if (!Model)
+	{
+		return;
+	}
+
+	UMaterial* ParentMaterial = Model->GetGeneratedMaterial();
+
+	if (!ParentMaterial)
+	{
+		return;
+	}
+
+	if (!ParentMaterial->HasAnyFlags(RF_Public) || !Model->HasAnyFlags(RF_Public))
+	{
+		const EAppReturnType::Type Result = FMessageDialog::Open(
+			EAppMsgType::YesNo,
+			LOCTEXT("ExportMaterialFromInstance",
+				"Generating a Material Designer Dynamic requires that the generated material and material model be exported from this package.\n\n"
+				"The package containing the material will be saved. This may be a level.\n\n"
+				"Continue?")
+		);
+
+		switch (Result)
+		{
+			case EAppReturnType::Yes:
+				Model->Modify(/* Always Mark Dirty */ true);
+				Model->SetFlags(RF_Public);
+				ParentMaterial->Modify(/* Always Mark Dirty */ true);
+				ParentMaterial->SetFlags(RF_Public);
+				UPackageTools::SavePackagesForObjects({InInstance});
+				break;
+
+			default:
+				return;
+		}
+	}
+
+	UDynamicMaterialModelDynamic* ModelDynamic = UDynamicMaterialModelDynamic::Create(GetTransientPackage(), Model);
+
+	if (!ModelDynamic)
+	{
+		return;
+	}
+
+	UDynamicMaterialInstance* Instance = NewObject<UDynamicMaterialInstance>(GetTransientPackage());
+
+	if (!Instance)
+	{
+		return;
+	}
+
+	Instance->SetMaterialModel(ModelDynamic);
+	ModelDynamic->SetDynamicMaterialInstance(Instance);
+	Instance->InitializeMIDPublic();
+
+	FString CurrentName = InInstance->GetName();
+	CurrentName = CurrentName.StartsWith(TEXT("MDI_"))
+		? (TEXT("MDD_") + CurrentName.RightChop(4))
+		: (TEXT("MDD_") + CurrentName);
+
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	FString PackageName, AssetName;
+	AssetTools.CreateUniqueAssetName(CurrentName, TEXT(""), PackageName, AssetName);
+
+	IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
+	const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
+	const FString PathStr = CurrentPath.HasInternalPath() ? CurrentPath.GetInternalPathString() : "/Game";
+
+	FSaveAssetDialogConfig SaveAssetDialogConfig;
+	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
+	SaveAssetDialogConfig.DefaultPath = PathStr;
+	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+	SaveAssetDialogConfig.DefaultAssetName = AssetName;
+
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
+
+	if (SaveObjectPath.IsEmpty())
+	{
+		return;
+	}
+
+	PackageName = FPaths::GetBaseFilename(*SaveObjectPath, false);
+	UPackage* Package = CreatePackage(*PackageName);
+
+	if (!Package)
+	{
+		return;
+	}
+
+	AssetName = FPaths::GetBaseFilename(*SaveObjectPath, true);
+
+	Instance->SetFlags(RF_Standalone | RF_Public | RF_Transactional);
+	Instance->Rename(*AssetName, Package, REN_DontCreateRedirectors);
+
+	FAssetRegistryModule::AssetCreated(Instance);
 }
 
 #undef LOCTEXT_NAMESPACE

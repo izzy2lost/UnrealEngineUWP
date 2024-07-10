@@ -52,10 +52,31 @@
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
 
+const FString UDynamicMaterialModelEditorOnlyData::SlotsPathToken               = FString(TEXT("Slots"));
+const FString UDynamicMaterialModelEditorOnlyData::BaseColorSlotPathToken       = FString(TEXT("BaseColor"));
+const FString UDynamicMaterialModelEditorOnlyData::EmissiveSlotPathToken        = FString(TEXT("Emissive"));
+const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken         = FString(TEXT("Opacity"));
+const FString UDynamicMaterialModelEditorOnlyData::RoughnessPathToken           = FString(TEXT("Roughness"));
+const FString UDynamicMaterialModelEditorOnlyData::SpecularPathToken            = FString(TEXT("Specular"));
+const FString UDynamicMaterialModelEditorOnlyData::MetallicPathToken            = FString(TEXT("Metallic"));
+const FString UDynamicMaterialModelEditorOnlyData::NormalPathToken              = FString(TEXT("Normal"));
+const FString UDynamicMaterialModelEditorOnlyData::PixelDepthOffsetPathToken    = FString(TEXT("PDO"));
+const FString UDynamicMaterialModelEditorOnlyData::WorldPositionOffsetPathToken = FString(TEXT("WPO"));
+const FString UDynamicMaterialModelEditorOnlyData::AmbientOcclusionPathToken    = FString(TEXT("AO"));
+const FString UDynamicMaterialModelEditorOnlyData::AnisotropyPathToken          = FString(TEXT("Anisotropy"));
+const FString UDynamicMaterialModelEditorOnlyData::RefractionPathToken          = FString(TEXT("Refraction"));
+const FString UDynamicMaterialModelEditorOnlyData::TangentPathToken             = FString(TEXT("Tangent"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom1PathToken             = FString(TEXT("Custom1"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom2PathToken             = FString(TEXT("Custom2"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom3PathToken             = FString(TEXT("Custom3"));
+const FString UDynamicMaterialModelEditorOnlyData::Custom4PathToken             = FString(TEXT("Custom4"));
+const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken          = FString(TEXT("Properties"));
+
 namespace UE::DynamicMaterialEditor::Private
 {
 	const TMap<FString, EDMMaterialPropertyType> TokenToPropertyMap = {
-		{UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken,             EDMMaterialPropertyType::BaseColor},
+		{UDynamicMaterialModelEditorOnlyData::BaseColorSlotPathToken,       EDMMaterialPropertyType::BaseColor},
+		{UDynamicMaterialModelEditorOnlyData::EmissiveSlotPathToken,        EDMMaterialPropertyType::EmissiveColor},
 		{UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken,         EDMMaterialPropertyType::Opacity},
 		{UDynamicMaterialModelEditorOnlyData::RoughnessPathToken,           EDMMaterialPropertyType::Roughness},
 		{UDynamicMaterialModelEditorOnlyData::SpecularPathToken,            EDMMaterialPropertyType::Specular},
@@ -73,25 +94,6 @@ namespace UE::DynamicMaterialEditor::Private
 		{UDynamicMaterialModelEditorOnlyData::Custom4PathToken,             EDMMaterialPropertyType::Custom4}
 	};
 }
-
-const FString UDynamicMaterialModelEditorOnlyData::SlotsPathToken               = FString(TEXT("Slots"));
-const FString UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken             = FString(TEXT("RGBSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken         = FString(TEXT("OpacitySlot"));
-const FString UDynamicMaterialModelEditorOnlyData::RoughnessPathToken           = FString(TEXT("RoughnessSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::SpecularPathToken            = FString(TEXT("SpecularSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::MetallicPathToken            = FString(TEXT("MetallicSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::NormalPathToken              = FString(TEXT("NormalSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::PixelDepthOffsetPathToken    = FString(TEXT("PixelDepthOffsetSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::WorldPositionOffsetPathToken = FString(TEXT("WorldPositionOffsetSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::AmbientOcclusionPathToken    = FString(TEXT("AmbientOcclusionSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::AnisotropyPathToken          = FString(TEXT("AnisotropySlot"));
-const FString UDynamicMaterialModelEditorOnlyData::RefractionPathToken          = FString(TEXT("RefractionSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::TangentPathToken             = FString(TEXT("TangentSlot"));
-const FString UDynamicMaterialModelEditorOnlyData::Custom1PathToken             = FString(TEXT("Custom1Slot"));
-const FString UDynamicMaterialModelEditorOnlyData::Custom2PathToken             = FString(TEXT("Custom2Slot"));
-const FString UDynamicMaterialModelEditorOnlyData::Custom3PathToken             = FString(TEXT("Custom3Slot"));
-const FString UDynamicMaterialModelEditorOnlyData::Custom4PathToken             = FString(TEXT("Custom4Slot"));
-const FString UDynamicMaterialModelEditorOnlyData::PropertiesPathToken          = FString(TEXT("Properties"));
 
 const FName UDynamicMaterialModelEditorOnlyData::AlphaValueName = TEXT("AlphaValue");
 
@@ -111,6 +113,21 @@ const TArray<EBlendMode> UDynamicMaterialModelEditorOnlyData::SupportedBlendMode
 	EBlendMode::BLEND_Modulate
 };
 
+UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UDynamicMaterialModelBase* InModelBase)
+{
+	if (InModelBase)
+	{
+		return Get(InModelBase->ResolveMaterialModel());
+	}
+
+	return nullptr;
+}
+
+UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(const TWeakObjectPtr<UDynamicMaterialModelBase>& InModelBaseWeak)
+{
+	return Get(InModelBaseWeak.Get());
+}
+
 UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UDynamicMaterialModel* InModel)
 {
 	if (InModel)
@@ -121,7 +138,7 @@ UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UD
 	return nullptr;
 }
 
-UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(TWeakObjectPtr<UDynamicMaterialModel> InModelWeak)
+UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(const TWeakObjectPtr<UDynamicMaterialModel>& InModelWeak)
 {
 	return Get(InModelWeak.Get());
 }
@@ -360,20 +377,6 @@ UMaterial* UDynamicMaterialModelEditorOnlyData::GetGeneratedMaterial() const
 	return IsValid(MaterialModel) ? MaterialModel->DynamicMaterial : nullptr;
 }
 
-void UDynamicMaterialModelEditorOnlyData::ResetData()
-{
-	if (GUndo)
-	{
-		Modify();
-	}
-
-	BlendMode = EBlendMode::BLEND_Translucent;
-	ShadingModel = EDMMaterialShadingModel::Unlit;
-	Slots.Empty();
-	PropertySlotMap.Empty();
-	Expressions.Empty();
-}
-
 void UDynamicMaterialModelEditorOnlyData::CreateMaterial()
 {
 	if (!IsValid(MaterialModel))
@@ -390,7 +393,7 @@ void UDynamicMaterialModelEditorOnlyData::CreateMaterial()
 			UMaterial::StaticClass(),
 			MaterialModel,
 			NAME_None,
-			RF_DuplicateTransient | RF_TextExportTransient,
+			RF_DuplicateTransient | RF_TextExportTransient | RF_Public,
 			nullptr,
 			GWarn
 		));
@@ -904,7 +907,7 @@ bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTexture
 
 bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const
 {
-	return ChannelListPreset == NAME_None;
+	return ChannelListPreset.IsNone();
 }
 
 void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
@@ -1363,7 +1366,7 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::RemoveSlotForMaterialPrope
 	return nullptr;
 }
 
-TArray<EDMMaterialPropertyType> UDynamicMaterialModelEditorOnlyData::GetMaterialPropertiesForSlot(UDMMaterialSlot* Slot) const
+TArray<EDMMaterialPropertyType> UDynamicMaterialModelEditorOnlyData::GetMaterialPropertiesForSlot(const UDMMaterialSlot* Slot) const
 {
 	TArray<EDMMaterialPropertyType> OutProperties;
 
@@ -1390,7 +1393,7 @@ void UDynamicMaterialModelEditorOnlyData::AssignMaterialPropertyToSlot(EDMMateri
 
 	PropertySlotMap.FindOrAdd(Property) = Slot;
 	Properties[Property]->ResetInputConnectionMap();
-	Slot->GetOnPropertiesUpdateDelegate().Broadcast(Slot);
+	Slot->OnPropertiesUpdated();
 
 	RequestMaterialBuild();
 }
@@ -1405,12 +1408,12 @@ void UDynamicMaterialModelEditorOnlyData::UnassignMaterialProperty(EDMMaterialPr
 	}
 
 	PropertySlotMap.Remove(Property);
-	(*SlotPtr)->GetOnPropertiesUpdateDelegate().Broadcast(*SlotPtr);
+	(*SlotPtr)->OnPropertiesUpdated();
 
 	RequestMaterialBuild();
 }
 
-void UDynamicMaterialModelEditorOnlyData::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, class FEditPropertyChain* PropertyThatChanged)
+void UDynamicMaterialModelEditorOnlyData::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* PropertyThatChanged)
 {
 	RequestMaterialBuild();
 }
@@ -1507,7 +1510,7 @@ void UDynamicMaterialModelEditorOnlyData::Serialize(FArchive& Ar)
 	// transparent channel, let's set it back to translucent.
 	if (Version < FDynamicMaterialModelEditorOnlyDataVersion::GlobalValueRename)
 	{
-		if (ChannelListPreset == NAME_None)
+		if (ChannelListPreset.IsNone())
 		{
 			// Try to guess from the available slots.
 			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity))

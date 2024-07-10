@@ -10,18 +10,19 @@
 class UDMMaterialLayerObject;
 class UDMMaterialStageExpression;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageInputExpression : public UDMMaterialStageInputThroughput
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageInputExpression : public UDMMaterialStageInputThroughput
 {
 	GENERATED_BODY()
 
 public:
-	static UDMMaterialStage* CreateStage(TSubclassOf<UDMMaterialStageExpression> InMaterialStageExpressionClass, UDMMaterialLayerObject* InLayer = nullptr);
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStage* CreateStage(TSubclassOf<UDMMaterialStageExpression> InMaterialStageExpressionClass, UDMMaterialLayerObject* InLayer = nullptr);
 
 	static const TArray<TStrongObjectPtr<UClass>>& GetAvailableInputExpressions();
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputExpression* ChangeStageSource_Expression(UDMMaterialStage* InStage, 
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputExpression* ChangeStageSource_Expression(UDMMaterialStage* InStage,
 		TSubclassOf<UDMMaterialStageExpression> InExpressionClass);
 
 	template<typename InExpressionClass>
@@ -30,8 +31,15 @@ public:
 		return ChangeStageSource_Expression(InStage, InExpressionClass::StaticClass());
 	}
 
+	/**
+	 * Change the input type of an input on a stage to an expression.
+	 * @param InInputIdx Index of the source input.
+	 * @param InInputChannel The channel of the input that the input connects to.
+	 * @param InOutputIdx The output index of the new input.
+	 * @param InOutputChannel The channel of the output to connect.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputExpression* ChangeStageInput_Expression(UDMMaterialStage* InStage, 
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputExpression* ChangeStageInput_Expression(UDMMaterialStage* InStage,
 		TSubclassOf<UDMMaterialStageExpression> InExpressionClass, int32 InInputIdx, int32 InInputChannel, int32 InOutputIdx,
 		int32 InOutputChannel);
 
@@ -44,18 +52,16 @@ public:
 	}
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	TSubclassOf<UDMMaterialStageExpression> GetMaterialStageExpressionClass() const;
+	DYNAMICMATERIALEDITOR_API TSubclassOf<UDMMaterialStageExpression> GetMaterialStageExpressionClass() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetMaterialStageExpressionClass(TSubclassOf<UDMMaterialStageExpression> InMaterialStageExpressionClass);
+	DYNAMICMATERIALEDITOR_API void SetMaterialStageExpressionClass(TSubclassOf<UDMMaterialStageExpression> InMaterialStageExpressionClass);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialStageExpression* GetMaterialStageExpression() const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageExpression* GetMaterialStageExpression() const;
 
 protected:
 	static TArray<TStrongObjectPtr<UClass>> InputExpressions;
 
 	static void GenerateExpressionList();
-
-	UDMMaterialStageInputExpression() = default;
 };

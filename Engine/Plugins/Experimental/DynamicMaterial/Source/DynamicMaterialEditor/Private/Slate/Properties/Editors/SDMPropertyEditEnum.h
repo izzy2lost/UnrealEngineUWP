@@ -17,7 +17,6 @@ class SDMPropertyEditEnum : public SDMPropertyEdit
 	SLATE_END_ARGS()
 
 public:
-	SDMPropertyEditEnum() = default;
 	virtual ~SDMPropertyEditEnum() override = default;
 
 	void Construct(const FArguments& InArgs, const TSharedPtr<IPropertyHandle>& InPropertyHandle);

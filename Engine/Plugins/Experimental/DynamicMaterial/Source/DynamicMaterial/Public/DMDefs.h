@@ -95,7 +95,7 @@ enum class EDMLocationType : uint8
  * An individual component of a connector (e.g. G from RGB.)
  */
 USTRUCT(BlueprintType, Category = "Material Designer", meta = (DisplayName = "Material Designer Stage Connector Channel"))
-struct DYNAMICMATERIAL_API FDMMaterialStageConnectorChannel
+struct FDMMaterialStageConnectorChannel
 {
 	GENERATED_BODY()
 
@@ -134,23 +134,24 @@ struct DYNAMICMATERIAL_API FDMMaterialStageConnectorChannel
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	int32 OutputChannel = WHOLE_CHANNEL;
 
-	bool operator==(const FDMMaterialStageConnectorChannel& Other) const
+	bool operator==(const FDMMaterialStageConnectorChannel& InOther) const
 	{
-		return MaterialProperty == Other.MaterialProperty
-			&& SourceIndex == Other.SourceIndex
-			&& OutputIndex == Other.OutputIndex
-			&& OutputChannel == Other.OutputChannel;
+		return MaterialProperty == InOther.MaterialProperty
+			&& SourceIndex == InOther.SourceIndex
+			&& OutputIndex == InOther.OutputIndex
+			&& OutputChannel == InOther.OutputChannel;
 	}
 };
 
-struct DYNAMICMATERIAL_API FDMUpdateGuard
+/** Used to prevent Update from running during batch operations. */
+struct FDMUpdateGuard
 {
 	FDMUpdateGuard()
 	{
 		++GuardCount;
 	}
 
-	virtual ~FDMUpdateGuard()
+	~FDMUpdateGuard()
 	{
 		--GuardCount;
 	}
@@ -161,17 +162,31 @@ struct DYNAMICMATERIAL_API FDMUpdateGuard
 	}
 
 private:
-	static int32 GuardCount;
+	DYNAMICMATERIAL_API static int32 GuardCount;
 };
 
-struct DYNAMICMATERIAL_API FDMInitializationGuard
+/** Used to prevent initialization from running during batch operations. */
+struct FDMInitializationGuard
 {
-public:
-	static bool IsInitializing();
+	static bool IsInitializing()
+	{
+		return GuardCount > 0;
+	}
 
-	FDMInitializationGuard();
-	virtual ~FDMInitializationGuard();
+	FDMInitializationGuard()
+	{
+		// Used the struct name to make it clear it's a static variable.
+		++GuardCount;
+	}
+
+	~FDMInitializationGuard()
+	{
+		if (FDMInitializationGuard::GuardCount > 0)
+		{
+			--GuardCount;
+		}
+	}
 
 private:
-	static uint32 GuardCount;
+	DYNAMICMATERIAL_API static uint32 GuardCount;
 };

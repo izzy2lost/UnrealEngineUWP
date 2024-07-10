@@ -14,18 +14,19 @@ struct FDMMaterialBuildState;
 /**
  * A node which represents UV-based gradient.
  */
-UCLASS(Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Gradient"))
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageGradient : public UDMMaterialStageThroughput
+UCLASS(MinimalAPI, Abstract, BlueprintType, Blueprintable, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Stage Gradient"))
+class UDMMaterialStageGradient : public UDMMaterialStageThroughput
 {
 	GENERATED_BODY()
 
 public:
-	static UDMMaterialStage* CreateStage(TSubclassOf<UDMMaterialStageGradient> InMaterialStageGradientClass, UDMMaterialLayerObject* InLayer = nullptr);
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStage* CreateStage(TSubclassOf<UDMMaterialStageGradient> InMaterialStageGradientClass, UDMMaterialLayerObject* InLayer = nullptr);
 
 	static const TArray<TStrongObjectPtr<UClass>>& GetAvailableGradients();
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageGradient* ChangeStageSource_Gradient(UDMMaterialStage* InStage,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageGradient* ChangeStageSource_Gradient(UDMMaterialStage* InStage,
 		TSubclassOf<UDMMaterialStageGradient> InGradientClass);
 
 	template<typename InGradientClass>
@@ -34,8 +35,10 @@ public:
 		return ChangeStageSource_Gradient(InStage, InGradientClass::StaticClass());
 	}
 
+	UDMMaterialStageGradient();
+
 	//~ Begin UDMMaterialStageThroughput
-	virtual bool CanChangeInputType(int32 InputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool CanChangeInputType(int32 InputIndex) const override;
 	//~ End UDMMaterialStageThroughput
 	
 	//~ Begin UDMMaterialStageSource
@@ -48,7 +51,5 @@ protected:
 
 	static void GenerateGradientList();
 
-	UDMMaterialStageGradient();
-	UDMMaterialStageGradient(const FText& InName);
-
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageGradient(const FText& InName);
 };

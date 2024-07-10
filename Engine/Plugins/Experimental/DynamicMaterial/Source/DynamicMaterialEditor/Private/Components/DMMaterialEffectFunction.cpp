@@ -662,7 +662,14 @@ void UDMMaterialEffectFunction::InitFunction()
 				return;
 		}
 
-		UDMMaterialValue* Value = UDMMaterialValue::CreateMaterialValue(MaterialModel, TEXT(""), ValueType, /* bInLocal */ true);
+		UDMMaterialValue* Value = UDMMaterialValue::CreateMaterialValue(
+			MaterialModel, 
+			TEXT(""), 
+			UDMValueDefinitionLibrary::GetValueDefinition(ValueType).GetValueClass(), 
+			/* bInLocal */ true
+		);
+		check(Value);
+
 		InputValues.Add(Value);
 
 		if (FunctionInput->bUsePreviewValueAsDefault)

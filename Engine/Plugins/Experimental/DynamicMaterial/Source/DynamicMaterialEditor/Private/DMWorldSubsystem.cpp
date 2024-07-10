@@ -13,7 +13,7 @@ UDMWorldSubsystem::UDMWorldSubsystem()
 	InvokeTabDelegate.BindWeakLambda(this, [this]() { FDMLevelEditorIntegration::InvokeTabForWorld(GetWorld()); });
 }
 
-UDynamicMaterialModel* UDMWorldSubsystem::ExecuteGetCustomEditorModelDelegate()
+UDynamicMaterialModelBase* UDMWorldSubsystem::ExecuteGetCustomEditorModelDelegate()
 {
 	if (CustomModelEditorGetDelegate.IsBound())
 	{
@@ -24,7 +24,7 @@ UDynamicMaterialModel* UDMWorldSubsystem::ExecuteGetCustomEditorModelDelegate()
 	return nullptr;
 }
 
-void UDMWorldSubsystem::ExecuteSetCustomEditorModelDelegate(UDynamicMaterialModel* InMaterialModel)
+void UDMWorldSubsystem::ExecuteSetCustomEditorModelDelegate(UDynamicMaterialModelBase* InMaterialModel)
 {
 	if (!InMaterialModel || IsValid(InMaterialModel))
 	{
@@ -45,7 +45,7 @@ void UDMWorldSubsystem::ExecuteSetCustomEditorActorDelegate(AActor* InActor)
 	}
 }
 
-bool UDMWorldSubsystem::ExecuteIsValidDelegate(UDynamicMaterialModel* InMaterialModel)
+bool UDMWorldSubsystem::ExecuteIsValidDelegate(UDynamicMaterialModelBase* InMaterialModel)
 {
 	if (!IsValid(InMaterialModel))
 	{

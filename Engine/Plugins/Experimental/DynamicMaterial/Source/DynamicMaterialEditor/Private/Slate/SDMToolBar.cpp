@@ -1,8 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/SDMToolBar.h"
+
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetToolsModule.h"
 #include "ContentBrowserModule.h"
 #include "DMWorldSubsystem.h"
+#include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "Editor.h"
@@ -11,7 +15,9 @@
 #include "GameFramework/Actor.h"
 #include "IContentBrowserSingleton.h"
 #include "Material/DynamicMaterialInstance.h"
+#include "Material/DynamicMaterialInstanceFactory.h"
 #include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "PackageTools.h"
 #include "SDMEditor.h"
 #include "Selection.h"
@@ -37,8 +43,6 @@ void SDMToolBar::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>
 	SetCanTick(true);
 
 	EditorWeak = InEditor;
-	MaterialActorWeak = InArgs._MaterialActor;
-	MaterialModelWeak = InArgs._MaterialModel;
 	OnSlotChanged = InArgs._OnSlotChanged;
 	OnGetSettingsMenu = InArgs._OnGetSettingsMenu;
 	
@@ -56,7 +60,7 @@ void SDMToolBar::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>
 		]
 	];
 
-	SetMaterialModel(MaterialModelWeak.Get());
+	OnMaterialModelChanged();
 	SetMaterialActor(MaterialActorWeak.Get());
 }
 
@@ -82,14 +86,13 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SNew(SHorizontalBox)
-				.Visibility(this, &SDMToolBar::GetActorVisibility)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 				.VAlign(EVerticalAlignment::VAlign_Center)
 				[
-					SAssignNew(SaveButton, SButton)
-					.IsEnabled(this, &SDMToolBar::CanSave)
+					SAssignNew(SaveButtonWidget, SButton)
+					.IsEnabled(false)
 					.ContentPadding(GetLargeIconToolBarButtonContentPadding())
 					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 					.ToolTipText(LOCTEXT("MaterialDesignerSaveTooltip", "Save the Material Designer asset\n\nCaution: If this asset lives inside an actor, the actor/level will be saved."))
@@ -109,7 +112,6 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 					.ContentPadding(GetLargeIconToolBarButtonContentPadding())
 					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 					.ToolTipText(LOCTEXT("ExportMaterialInstance", "Save As"))
-					.Visibility(this, &SDMToolBar::GetExportMaterialInstanceButtonVisibility)
 					.OnClicked(this, &SDMToolBar::OnExportMaterialInstanceButtonClicked)
 					[
 						SNew(SImage)
@@ -117,58 +119,37 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 						.DesiredSizeOverride(GetLargeIconToolBarButtonSize())
 					]
 				]
-			]
-
-			+ SWrapBox::Slot()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
-			[
-				SNew(SHorizontalBox)
-				.Visibility(this, &SDMToolBar::GetActorVisibility)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
-				.Padding(0.f, 0.f, 5.f, 0.f)
-				.VAlign(EVerticalAlignment::VAlign_Center)
-				[
-					SNew(SImage)
-					.Image(FAppStyle::GetBrush("ClassIcon.Actor"))
-					.DesiredSizeOverride(GetLargeIconToolBarButtonSize())
-				]
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
+				.VAlign(VAlign_Center)
 				.Padding(0.f, 0.f, 0.f, 0.f)
-				.VAlign(EVerticalAlignment::VAlign_Center)
 				[
-					SNew(STextBlock)
-					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
-					.Text(this, &SDMToolBar::GetActorName)
-				]	
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(EVerticalAlignment::VAlign_Center)
-				.Padding(5.0f, 0.0f, 0.0f, 0.0f)
-				[
-					SAssignNew(SlotSelectorContainer, SBox)
-					.Visibility(this, &SDMToolBar::GetActorVisibility)
-					[
-						CreateSlotsComboBoxWidget()
-					]
-				]	
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(EVerticalAlignment::VAlign_Center)
-				.Padding(5.0f, 0.0f, 0.0f, 0.0f)
-				[
-					SAssignNew(UseButton, SButton)
+					SAssignNew(OpenParentButton, SButton)
 					.Visibility(EVisibility::Collapsed)
 					.ContentPadding(GetLargeIconToolBarButtonContentPadding())
 					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
-					.ToolTipText(LOCTEXT("MaterialDesignerUseTooltip", "Replace the material in this slot with the one selected in the content browser."))
-					.OnClicked(this, &SDMToolBar::OnUseClicked)
+					.ToolTipText(LOCTEXT("MaterialDesignerOpenParentTooltip", "Open the parent of this Material Designer Dynamic."))
+					.OnClicked(this, &SDMToolBar::OnOpenParentClicked)
 					[
 						SNew(SImage)
-						.Image(FAppStyle::GetBrush(TEXT("Icons.Use")))
+						.Image(FAppStyle::GetBrush(TEXT("Icons.Blueprints")))
+						.DesiredSizeOverride(GetLargeIconToolBarButtonSize())
+					]
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(0.f, 0.f, 0.f, 0.f)
+				[
+					SAssignNew(ConvertToEditableButton, SButton)
+					.Visibility(EVisibility::Collapsed)
+					.ContentPadding(GetLargeIconToolBarButtonContentPadding())
+					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
+					.ToolTipText(LOCTEXT("MaterialDesignerConvertToEditableTooltip", "Convert this Material Designer Dyanmic to a fully editable material (and create a new shader)."))
+					.OnClicked(this, &SDMToolBar::OnConvertToEditableClicked)
+					[
+						SNew(SImage)
+						.Image(FAppStyle::GetBrush(TEXT("Icons.Edit")))
 						.DesiredSizeOverride(GetLargeIconToolBarButtonSize())
 					]
 				]
@@ -179,15 +160,13 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 			.VAlign(VAlign_Center)
 			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 			[
-				SNew(SHorizontalBox)
-				.Visibility(this, &SDMToolBar::GetAssetVisibility)
+				SAssignNew(AssetRowWidget, SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
 				.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 				[
-					SAssignNew(BrowseButton, SButton)
-					.Visibility(EVisibility::Collapsed)
+					SNew(SButton)
 					.ContentPadding(GetLargeIconToolBarButtonContentPadding())
 					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 					.ToolTipText(LOCTEXT("MaterialDesignerBrowseTooltip", "Browse to the selected asset in the content browser."))
@@ -203,10 +182,60 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 				.VAlign(VAlign_Center)
 				.Padding(0.f, 0.f, 0.f, 0.f)
 				[
-					SNew(STextBlock)
+					SAssignNew(AssetNameWidget, STextBlock)
 					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
-					.Text(this, &SDMToolBar::GetAssetName)
-					.ToolTipText(this, &SDMToolBar::GetAssetToolTip)
+				]
+			]
+
+			+ SWrapBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SAssignNew(ActorRowWidget, SHorizontalBox)
+				.Visibility(EVisibility::Collapsed)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(0.f, 0.f, 5.f, 0.f)
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush("ClassIcon.Actor"))
+					.DesiredSizeOverride(GetLargeIconToolBarButtonSize())
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(0.f, 0.f, 0.f, 0.f)
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				[
+					SAssignNew(ActorNameWidget, STextBlock)
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "ActorName")
+				]	
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+				[
+					SAssignNew(SlotSelectorContainer, SBox)
+					[
+						CreateSlotsComboBoxWidget()
+					]
+				]	
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+				[
+					SNew(SButton)
+					.ContentPadding(GetLargeIconToolBarButtonContentPadding())
+					.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
+					.ToolTipText(LOCTEXT("MaterialDesignerUseTooltip", "Replace the material in this slot with the one selected in the content browser."))
+					.OnClicked(this, &SDMToolBar::OnUseClicked)
+					[
+						SNew(SImage)
+						.Image(FAppStyle::GetBrush(TEXT("Icons.Use")))
+						.DesiredSizeOverride(GetLargeIconToolBarButtonSize())
+					]
 				]
 			]
 		]
@@ -269,7 +298,9 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarButton(TAttribute<const FSlateBrush
 
 TSharedRef<SWidget> SDMToolBar::CreateSlotsComboBoxWidget()
 {
-	if (!MaterialActorWeak.IsValid() || !MaterialModelWeak.IsValid())
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
+
+	if (!MaterialActorWeak.IsValid() || !IsValid(MaterialModelBase))
 	{
 		return SNullWidget::NullWidget;
 	}
@@ -325,11 +356,11 @@ void SDMToolBar::OnMaterialSlotChanged(TSharedPtr<FDMObjectMaterialProperty> InS
 		return;
 	}
 
-	UDynamicMaterialModel* SelectedMaterialModel = InSelectedSlot->GetMaterialModel();
+	UDynamicMaterialModelBase* SelectedMaterialModelBase = InSelectedSlot->GetMaterialModelBase();
 
-	if (IsValid(SelectedMaterialModel))
+	if (IsValid(SelectedMaterialModelBase))
 	{
-		SetMaterialModel(SelectedMaterialModel);
+		OnMaterialModelChanged();
 	}
 	else if (InSelectedSlot->OuterWeak.IsValid())
 	{
@@ -346,44 +377,65 @@ void SDMToolBar::OnMaterialSlotChanged(TSharedPtr<FDMObjectMaterialProperty> InS
 	OnSlotChanged.ExecuteIfBound(InSelectedSlot);
 }
 
-EVisibility SDMToolBar::GetSlotsComboBoxWidgetVisibiltiy() const
-{
-	return ActorMaterialProperties.Num() > 1 ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
 void SDMToolBar::SetMaterialProperties(const TArray<TSharedPtr<FDMObjectMaterialProperty>>& InActorMaterialProperties)
 {
 	ActorMaterialProperties = InActorMaterialProperties;
 	SelectedMaterialSlotIndex = 0;
 }
 
-void SDMToolBar::SetMaterialModel(UDynamicMaterialModel* InModel)
+void SDMToolBar::OnMaterialModelChanged()
 {
-	if (!IsValid(InModel))
-	{
-		return;
-	}
-
-	MaterialModelWeak = InModel;
-
 	bool bIsAsset = false;
+	bool bIsDynamic = false;
 
-	if (InModel->IsAsset())
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
+
+	if (IsValid(MaterialModelBase))
 	{
-		bIsAsset = true;
-	}
-	else if (UDynamicMaterialInstance* MaterialInstance = InModel->GetDynamicMaterialInstance())
-	{
-		if (MaterialInstance->IsAsset())
+		if (MaterialModelBase->IsAsset())
 		{
 			bIsAsset = true;
 		}
+		else if (UDynamicMaterialInstance* MaterialInstance = MaterialModelBase->GetDynamicMaterialInstance())
+		{
+			if (MaterialInstance->IsAsset())
+			{
+				bIsAsset = true;
+			}
+		}
+
+		bIsDynamic = !MaterialModelBase->IsA<UDynamicMaterialModel>();
 	}
 
-	BrowseButton->SetVisibility(bIsAsset ? EVisibility::Visible : EVisibility::Collapsed);
+	SaveButtonWidget->SetEnabled(CanSave());
 
-	// If this is a valid actor material slot, this will be updated by a SetMaterialActor call.
-	UseButton->SetVisibility(EVisibility::Collapsed);
+	if (bIsAsset)
+	{
+		AssetNameWidget->SetText(GetAssetName());
+		AssetNameWidget->SetToolTipText(GetAssetToolTip());
+		AssetNameWidget->SetVisibility(EVisibility::Visible);
+
+		AssetRowWidget->SetVisibility(EVisibility::Visible);
+	}
+	else
+	{
+		AssetNameWidget->SetText(FText::GetEmpty());
+		AssetNameWidget->SetToolTipText(FText::GetEmpty());
+		AssetNameWidget->SetVisibility(EVisibility::Collapsed);
+
+		AssetRowWidget->SetVisibility(EVisibility::Collapsed);
+	}
+
+	if (bIsDynamic)
+	{
+		OpenParentButton->SetVisibility(EVisibility::Visible);
+		ConvertToEditableButton->SetVisibility(EVisibility::Visible);
+	}
+	else
+	{
+		OpenParentButton->SetVisibility(EVisibility::Collapsed);
+		ConvertToEditableButton->SetVisibility(EVisibility::Collapsed);
+	}
 
 	ActorMaterialProperties.Empty(0);
 	SelectedMaterialSlotIndex = INDEX_NONE;
@@ -395,12 +447,13 @@ void SDMToolBar::SetMaterialActor(AActor* InActor, const int32 InActiveSlotIndex
 	ActorMaterialProperties.Empty();
 	SelectedMaterialSlotIndex = 0;
 
-	UseButton->SetVisibility(MaterialActorWeak.IsValid() ? EVisibility::Visible : EVisibility::Collapsed);
-
 	if (IsValid(InActor))
 	{
+		ActorNameWidget->SetText(GetActorName());
+		ActorRowWidget->SetVisibility(EVisibility::Visible);
+
 		TArray<FDMObjectMaterialProperty> ActorProperties = UDMBlueprintFunctionLibrary::GetActorMaterialProperties(InActor);
-		UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
+		UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
 		for (int32 MaterialPropertyIdx = 0; MaterialPropertyIdx < ActorProperties.Num(); ++MaterialPropertyIdx)
 		{
@@ -408,14 +461,29 @@ void SDMToolBar::SetMaterialActor(AActor* InActor, const int32 InActiveSlotIndex
 
 			ActorMaterialProperties.Add(MakeShared<FDMObjectMaterialProperty>(MaterialProperty));
 
-			if (MaterialProperty.GetMaterialModel() == MaterialModel)
+			if (MaterialProperty.GetMaterialModelBase() == MaterialModelBase)
 			{
 				SelectedMaterialSlotIndex = MaterialPropertyIdx;
 			}
 		}
 	}
+	else
+	{
+		ActorNameWidget->SetText(FText::GetEmpty());
+		ActorRowWidget->SetVisibility(EVisibility::Collapsed);
+	}
 
 	SlotSelectorContainer->SetContent(CreateSlotsComboBoxWidget());
+}
+
+UDynamicMaterialModelBase* SDMToolBar::GetMaterialModelBase() const
+{
+	if (TSharedPtr<SDMEditor> Editor = EditorWeak.Pin())
+	{
+		return Editor->GetMaterialModelBase();
+	}
+
+	return nullptr;
 }
 
 const FSlateBrush* SDMToolBar::GetFollowSelectionBrush() const
@@ -462,57 +530,56 @@ FReply SDMToolBar::OnFollowSelectionButtonClicked()
 	return FReply::Handled();
 }
 
-EVisibility SDMToolBar::GetExportMaterialInstanceButtonVisibility() const
-{
-	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
-
-	if (!MaterialModel)
-	{
-		return EVisibility::Collapsed;
-	}
-
-	UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance();
-
-	if (!MaterialInstance)
-	{
-		return EVisibility::Collapsed;
-	}
-
-	return EVisibility::Visible;
-}
-
 FReply SDMToolBar::OnExportMaterialInstanceButtonClicked()
 {
-	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
-	if (!MaterialModel)
+	if (!MaterialModelBase)
 	{
 		return FReply::Handled();
 	}
 
-	UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance();
+	UDynamicMaterialInstance* MaterialInstance = MaterialModelBase->GetDynamicMaterialInstance();
 
 	if (!MaterialInstance)
 	{
 		return FReply::Handled();
 	}
+	
+	FString CurrentName = MaterialInstance->GetName();
 
-	IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
-	const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
+	if (MaterialModelBase->IsA<UDynamicMaterialModel>())
+	{
+		CurrentName = CurrentName.StartsWith(TEXT("MDI_"))
+			? CurrentName
+			: (TEXT("MDI_") + CurrentName);
+	}
+	else
+	{
+		CurrentName = CurrentName.StartsWith(TEXT("MDD_"))
+			? CurrentName
+			: (TEXT("MDD_") + CurrentName);
+	}
+
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	FString PackageName, AssetName;
+	AssetTools.CreateUniqueAssetName(CurrentName, TEXT(""), PackageName, AssetName);
+
+	IContentBrowserSingleton& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
+	const FContentBrowserItemPath CurrentPath = ContentBrowserModule.GetCurrentPath();
 	const FString PathStr = CurrentPath.HasInternalPath() ? CurrentPath.GetInternalPathString() : "/Game";
 
 	FSaveAssetDialogConfig SaveAssetDialogConfig;
 	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
 	SaveAssetDialogConfig.DefaultPath = PathStr;
-	SaveAssetDialogConfig.DefaultAssetName = MaterialInstance->GetName();
-	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
+	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+	SaveAssetDialogConfig.DefaultAssetName = AssetName;
 
-	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-	FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
+	const FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
 
 	if (!SaveObjectPath.IsEmpty())
 	{
-		UDMBlueprintFunctionLibrary::ExportMaterialInstance(MaterialInstance->GetMaterialModel(), SaveObjectPath);
+		UDMBlueprintFunctionLibrary::ExportMaterialInstance(MaterialInstance->GetMaterialModelBase(), SaveObjectPath);
 
 		if (FEngineAnalytics::IsAvailable())
 		{
@@ -525,20 +592,20 @@ FReply SDMToolBar::OnExportMaterialInstanceButtonClicked()
 
 FReply SDMToolBar::OnBrowseClicked()
 {
-	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
-	if (!IsValid(MaterialModel))
+	if (!IsValid(MaterialModelBase))
 	{
 		return FReply::Handled();
 	}
 
 	UObject* Asset = nullptr;
 
-	if (MaterialModelWeak->IsAsset())
+	if (MaterialModelBase->IsAsset())
 	{
-		Asset = MaterialModel;
+		Asset = MaterialModelBase;
 	}
-	else if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+	else if (UDynamicMaterialInstance* MaterialInstance = MaterialModelBase->GetDynamicMaterialInstance())
 	{
 		if (MaterialInstance->IsAsset())
 		{
@@ -565,10 +632,10 @@ FReply SDMToolBar::OnUseClicked()
 		return FReply::Handled();
 	}
 
-	UDynamicMaterialModel* CurrentModel = MaterialModelWeak.Get();
+	UDynamicMaterialModelBase* CurrentModelBase = GetMaterialModelBase();
 	UDMWorldSubsystem* DMSubsystem = nullptr;
 
-	if (CurrentModel)
+	if (CurrentModelBase)
 	{
 		AActor* Actor = MaterialActorWeak.Get();
 
@@ -626,7 +693,7 @@ FReply SDMToolBar::OnUseClicked()
 
 	if (DMSubsystem && DMSubsystem->GetMaterialValueSetterDelegate().IsBound())
 	{
-		if (!DMSubsystem->ExecuteIsValidDelegate(CurrentModel))
+		if (!DMSubsystem->ExecuteIsValidDelegate(CurrentModelBase))
 		{
 			return FReply::Handled();
 		}
@@ -673,47 +740,20 @@ FText SDMToolBar::GetActorName() const
 	return FText::GetEmpty();
 }
 
-EVisibility SDMToolBar::GetActorVisibility() const
-{
-	return GetMaterialActor()
-		? EVisibility::Visible
-		: EVisibility::Collapsed;
-}
-
-EVisibility SDMToolBar::GetAssetVisibility() const
-{
-	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
-	{
-		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
-		{
-			if (MaterialInstance->IsAsset())
-			{
-				return EVisibility::Visible;
-			}
-		}
-		else if (MaterialModel->IsAsset())
-		{
-			return EVisibility::Visible;
-		}
-	}
-
-	return EVisibility::Collapsed;
-}
-
 FText SDMToolBar::GetAssetName() const
 {
-	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+	if (UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase())
 	{
-		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModelBase->GetDynamicMaterialInstance())
 		{
 			if (MaterialInstance->IsAsset())
 			{
 				return FText::FromString(MaterialInstance->GetName());
 			}
 		}
-		else if (MaterialModel->IsAsset())
+		else if (MaterialModelBase->IsAsset())
 		{
-			return FText::FromString(MaterialModel->GetName());
+			return FText::FromString(MaterialModelBase->GetName());
 		}
 	}
 
@@ -722,18 +762,18 @@ FText SDMToolBar::GetAssetName() const
 
 FText SDMToolBar::GetAssetToolTip() const
 {
-	if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+	if (UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase())
 	{
-		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModelBase->GetDynamicMaterialInstance())
 		{
 			if (MaterialInstance->IsAsset())
 			{
 				return FText::FromString(MaterialInstance->GetPathName());
 			}
 		}
-		else if (MaterialModel->IsAsset())
+		else if (MaterialModelBase->IsAsset())
 		{
-			return FText::FromString(MaterialModel->GetPathName());
+			return FText::FromString(MaterialModelBase->GetPathName());
 		}
 	}
 
@@ -742,12 +782,12 @@ FText SDMToolBar::GetAssetToolTip() const
 
 bool SDMToolBar::CanSave() const
 {
-	return !!GetSaveablePackage(GetMaterialModel());
+	return !!GetSaveablePackage(GetMaterialModelBase());
 }
 
 const FSlateBrush* SDMToolBar::GetSaveIcon() const
 {
-	if (UPackage* Package = GetSaveablePackage(GetMaterialModel()))
+	if (UPackage* Package = GetSaveablePackage(GetMaterialModelBase()))
 	{
 		if (Package->IsDirty())
 		{
@@ -760,13 +800,203 @@ const FSlateBrush* SDMToolBar::GetSaveIcon() const
 
 FReply SDMToolBar::OnSaveClicked()
 {
-	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	if (UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase())
 	{
-		if (UPackage* Package = GetSaveablePackage(MaterialModel))
+		if (UPackage* Package = GetSaveablePackage(MaterialModelBase))
 		{
-			TArray<UObject*> TexturesToSaveArray;
-			TexturesToSaveArray.Add(MaterialModel);
-			UPackageTools::SavePackagesForObjects(TexturesToSaveArray);
+			TArray<UObject*> AssetsToSave;
+			AssetsToSave.Add(MaterialModelBase);
+			UPackageTools::SavePackagesForObjects(AssetsToSave);
+		}
+	}
+
+	return FReply::Handled();
+}
+
+FReply SDMToolBar::OnOpenParentClicked()
+{
+	if (TSharedPtr<SDMEditor> Editor = EditorWeak.Pin())
+	{
+		if (UDynamicMaterialModelDynamic* DynamicMaterialModel = Cast<UDynamicMaterialModelDynamic>(Editor->GetMaterialModelBase()))
+		{
+			if (UDynamicMaterialModel* ParentModel = DynamicMaterialModel->ResolveMaterialModel())
+			{
+				Editor->SetMaterialActor(nullptr);
+				Editor->SetMaterialModelBase(ParentModel);
+			}
+		}
+	}
+
+	return FReply::Handled();
+}
+
+FReply SDMToolBar::OnConvertToEditableClicked()
+{
+	UDynamicMaterialModelDynamic* CurrentModelDynamic = Cast<UDynamicMaterialModelDynamic>(GetMaterialModelBase());
+
+	if (!CurrentModelDynamic)
+	{
+		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Tried to convert a null or non-dynamic model to editable."));
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialModel* ParentModel = CurrentModelDynamic->GetParentModel();
+
+	if (!ParentModel)
+	{
+		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to find parent model."));
+		return FReply::Handled();
+	}
+
+	bool bIsAsset = false;
+
+	if (CurrentModelDynamic->IsAsset())
+	{
+		bIsAsset = true;
+	}
+	else if (UDynamicMaterialInstance* MaterialInstance = CurrentModelDynamic->GetDynamicMaterialInstance())
+	{
+		if (MaterialInstance->IsAsset())
+		{
+			bIsAsset = true;
+		}
+	}
+
+	UDMWorldSubsystem* DMSubsystem = nullptr;
+	AActor* Actor = MaterialActorWeak.Get();
+	TSharedPtr<FDMObjectMaterialProperty> CurrentActorProperty = nullptr;
+
+	if (Actor && ActorMaterialProperties.IsValidIndex(SelectedMaterialSlotIndex) && ActorMaterialProperties[SelectedMaterialSlotIndex].IsValid())
+	{
+		UWorld* World = Actor->GetWorld();
+
+		if (IsValid(World))
+		{
+			DMSubsystem = World->GetSubsystem<UDMWorldSubsystem>();
+		}
+
+		CurrentActorProperty = ActorMaterialProperties[SelectedMaterialSlotIndex];
+	}
+
+	// In-actor models/instance must have a world subsystem to query.
+	if (!bIsAsset && !DMSubsystem)
+	{
+		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Cannot create a new asset for embedded instances without an active world subsystem."));
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialInstance* OldInstance = CurrentModelDynamic->GetDynamicMaterialInstance();
+
+	// Where should we save it? (Always export to CB)
+	FString CurrentName = OldInstance ? OldInstance->GetName() : CurrentModelDynamic->GetName();
+
+	CurrentName = CurrentName.StartsWith(TEXT("MDD_"))
+		? (TEXT("MDI_") + CurrentName.RightChop(4))
+		: (TEXT("MDI_") + CurrentName);
+
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	FString PackageName, AssetName;
+	AssetTools.CreateUniqueAssetName(CurrentName, TEXT(""), PackageName, AssetName);
+
+	IContentBrowserSingleton& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
+	const FContentBrowserItemPath CurrentPath = ContentBrowserModule.GetCurrentPath();
+	const FString PathStr = CurrentPath.HasInternalPath() ? CurrentPath.GetInternalPathString() : "/Game";
+
+	FSaveAssetDialogConfig SaveAssetDialogConfig;
+	SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
+	SaveAssetDialogConfig.DefaultPath = PathStr;
+	SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+	SaveAssetDialogConfig.DefaultAssetName = AssetName;
+
+	const FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
+
+	if (SaveObjectPath.IsEmpty())
+	{
+		UE_LOG(LogDynamicMaterialEditor, Warning, TEXT("No path was chosen for saving the new editable asset, cancelling."));
+		return FReply::Handled();
+	}
+
+	// Create new model
+	UDynamicMaterialModel* NewModel = CurrentModelDynamic->ToEditable(GetTransientPackage());
+
+	if (!NewModel)
+	{
+		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to convert dynamic asset to editable."));
+		return FReply::Handled();
+	}
+
+	// Create a package for it
+	PackageName = FPaths::GetBaseFilename(*SaveObjectPath, false);
+	UPackage* Package = CreatePackage(*PackageName);
+
+	if (!Package)
+	{
+		UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Failed to create new package for editable asset."));
+		return FReply::Handled();
+	}
+
+	AssetName = FPaths::GetBaseFilename(*SaveObjectPath, true);
+
+	// Do we need an instance to? Or just a model?
+	UDynamicMaterialInstance* NewInstance = nullptr;
+
+	if (OldInstance)
+	{
+		NewInstance = Cast<UDynamicMaterialInstance>(GetMutableDefault<UDynamicMaterialInstanceFactory>()->FactoryCreateNew(
+			UDynamicMaterialInstance::StaticClass(),
+			Package,
+			*AssetName,
+			RF_Transactional | RF_Public | RF_Standalone,
+			NewModel,
+			nullptr
+		));
+	}
+	else
+	{
+		NewModel->Rename(*AssetName, Package, UE::DynamicMaterial::RenameFlags);
+	}
+
+	FAssetRegistryModule::AssetCreated(NewModel);
+
+	// If it was in an actor, set it on the actor
+	if (NewInstance)
+	{
+		if (CurrentActorProperty.IsValid())
+		{
+			if (DMSubsystem && DMSubsystem->GetMaterialValueSetterDelegate().IsBound())
+			{
+				if (DMSubsystem->ExecuteIsValidDelegate(CurrentModelDynamic))
+				{
+					DMSubsystem->ExecuteMaterialValueSetterDelegate(*CurrentActorProperty, NewInstance);
+				}
+				else
+				{
+					UE_LOG(LogDynamicMaterialEditor, Error, TEXT("Asset is not valid for current world, not assigning to actor."));
+				}
+			}
+			else
+			{
+				ActorMaterialProperties[SelectedMaterialSlotIndex]->SetMaterial(NewInstance);
+			}
+
+			if (TSharedPtr<SDMEditor> Editor = EditorWeak.Pin())
+			{
+				Editor->SetMaterialObjectProperty(*CurrentActorProperty);
+			}
+		}
+		else
+		{
+			if (TSharedPtr<SDMEditor> Editor = EditorWeak.Pin())
+			{
+				Editor->SetMaterialModelBase(NewModel);
+			}
+		}
+	}
+	else
+	{
+		if (TSharedPtr<SDMEditor> Editor = EditorWeak.Pin())
+		{
+			Editor->SetMaterialModelBase(NewModel);
 		}
 	}
 

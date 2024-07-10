@@ -29,7 +29,11 @@ namespace UE::DynamicMaterialEditor::Private
 	const FText ParameterNameMenuEntry = LOCTEXT("ParameterName", "Parameter Name");
 	const FText ParameterNameMenuEntryX = LOCTEXT("ParameterNameX", "Parameter Name X");
 	const FText ParameterNameMenuEntryY = LOCTEXT("ParameterNameY", "Parameter Name Y");
+	const FText ParameterExposeMenuEntry = LOCTEXT("ParameterExpose", "Expose Parameter");
+	const FText ParameterExposeMenuEntryX = LOCTEXT("ParameterExposeX", "Expose Parameter X");
+	const FText ParameterExposeMenuEntryY = LOCTEXT("ParameterExposeY", "Expose Parameter Y");
 	const FText SetParameterNameToolTip = LOCTEXT("SetParameterNameToolTip", "Set the name of the parameter this property is exposed as within the generated material.");
+	const FText ExposeParameterToolTip = LOCTEXT("ExposeParameterToolTip", "When unchecked, parameter will appear in the \"99 - Uncategorized\" category.");
 }
 
 FDMValueDetailsRowExtensions& FDMValueDetailsRowExtensions::Get()
@@ -157,7 +161,52 @@ void FDMValueDetailsRowExtensions::FillPropertyRightClickMenu_TextureUV(FToolMen
 
 	TWeakObjectPtr<UDMTextureUV> TextureUVWeak = InTextureUV;
 
-	auto CreateMenuEntry = [&InSection, &TextureUVWeak, &InPropertyName](const FText& InMenuText, int32 InComponent)
+	auto CreateParameterExposeMenuEntry = [&InSection, &TextureUVWeak, &InPropertyName](const FText& InMenuText, int32 InComponent)
+		{
+			FUIAction ExposeTextureUVXAction;
+			ExposeTextureUVXAction.ExecuteAction = FExecuteAction::CreateLambda(
+				[TextureUVWeak, InPropertyName, InComponent]()
+				{
+					if (UDMTextureUV* TextureUV = TextureUVWeak.Get())
+					{
+						TextureUV->SetShouldExposeParameter(InPropertyName, InComponent, !TextureUV->GetShouldExposeParameter(InPropertyName, InComponent));
+					}
+				});
+
+			ExposeTextureUVXAction.CanExecuteAction = FCanExecuteAction::CreateLambda(
+				[TextureUVWeak]()
+				{
+					return TextureUVWeak.IsValid();
+				});
+
+			ExposeTextureUVXAction.GetActionCheckState = FGetActionCheckState::CreateLambda(
+				[TextureUVWeak, InPropertyName, InComponent]()
+				{
+					if (UDMTextureUV* TextureUV = TextureUVWeak.Get())
+					{
+						if (TextureUV->GetShouldExposeParameter(InPropertyName, InComponent))
+						{
+							return ECheckBoxState::Checked;
+						}
+					}
+
+					return ECheckBoxState::Unchecked;
+				});
+
+			const FName MenuNameBase = *(InPropertyName.ToString() + TEXT("Expose"));
+			const FName MenuName = FName(MenuNameBase, InComponent);
+
+			InSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+				MenuName,
+				InMenuText,
+				ExposeParameterToolTip,
+				TAttribute<FSlateIcon>(),
+				FToolUIActionChoice(ExposeTextureUVXAction),
+				EUserInterfaceActionType::ToggleButton
+			));
+		};
+
+	auto CreateParameterNameMenuEntry = [&InSection, &TextureUVWeak, &InPropertyName](const FText& InMenuText, int32 InComponent)
 		{
 			FNewToolMenuChoice RenameChoice(FOnGetContent::CreateLambda(
 				[TextureUVWeak, InPropertyName, InComponent]() -> TSharedRef<SWidget>
@@ -201,7 +250,8 @@ void FDMValueDetailsRowExtensions::FillPropertyRightClickMenu_TextureUV(FToolMen
 							});
 				}));
 
-			FName MenuName = FName(InPropertyName, InComponent);
+			const FName MenuNameBase = *(InPropertyName.ToString() + TEXT("Name"));
+			const FName MenuName = FName(MenuNameBase, InComponent);
 
 			InSection.AddSubMenu(
 				MenuName,
@@ -216,15 +266,18 @@ void FDMValueDetailsRowExtensions::FillPropertyRightClickMenu_TextureUV(FToolMen
 
 	if (InPropertyName == UDMTextureUV::NAME_Rotation)
 	{
-		CreateMenuEntry(ParameterNameMenuEntry, ComponentX);
+		CreateParameterExposeMenuEntry(ParameterExposeMenuEntry, ComponentX);
+		CreateParameterNameMenuEntry(ParameterNameMenuEntry, ComponentX);
 	}
 
 	if (InPropertyName == UDMTextureUV::NAME_Offset 
 		|| InPropertyName == UDMTextureUV::NAME_Pivot
 		|| InPropertyName == UDMTextureUV::NAME_Tiling)
 	{
-		CreateMenuEntry(ParameterNameMenuEntryX, ComponentX);
-		CreateMenuEntry(ParameterNameMenuEntryY, ComponentY);
+		CreateParameterExposeMenuEntry(ParameterExposeMenuEntryX, ComponentX);
+		CreateParameterExposeMenuEntry(ParameterExposeMenuEntryY, ComponentY);
+		CreateParameterNameMenuEntry(ParameterNameMenuEntryX, ComponentX);
+		CreateParameterNameMenuEntry(ParameterNameMenuEntryY, ComponentY);
 	}
 }
 
@@ -233,6 +286,45 @@ void FDMValueDetailsRowExtensions::FillPropertyRightClickMenu_Value(FToolMenuSec
 	using namespace UE::DynamicMaterialEditor::Private;
 
 	TWeakObjectPtr<UDMMaterialValue> ValueWeak = InValue;
+
+	FUIAction ExposeValueAction;
+	ExposeValueAction.ExecuteAction = FExecuteAction::CreateLambda(
+		[ValueWeak]()
+		{
+			if (UDMMaterialValue* Value = ValueWeak.Get())
+			{
+				Value->SetShouldExposeParameter(!Value->GetShouldExposeParameter());
+			}
+		});
+
+	ExposeValueAction.CanExecuteAction = FCanExecuteAction::CreateLambda(
+		[ValueWeak]()
+		{
+			return ValueWeak.IsValid();
+		});
+
+	ExposeValueAction.GetActionCheckState = FGetActionCheckState::CreateLambda(
+		[ValueWeak]()
+		{
+			if (UDMMaterialValue* Value = ValueWeak.Get())
+			{
+				if (Value->GetShouldExposeParameter())
+				{
+					return ECheckBoxState::Checked;
+				}
+			}
+
+			return ECheckBoxState::Unchecked;
+		});
+
+	InSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+		"ExposeParameter",
+		LOCTEXT("ExposeParameter", "Expose Parameter"),
+		ExposeParameterToolTip,
+		TAttribute<FSlateIcon>(),
+		FToolUIActionChoice(ExposeValueAction),
+		EUserInterfaceActionType::ToggleButton
+	));
 
 	FNewToolMenuChoice RenameChoice(FOnGetContent::CreateLambda(
 		[ValueWeak]() -> TSharedRef<SWidget>
@@ -277,7 +369,7 @@ void FDMValueDetailsRowExtensions::FillPropertyRightClickMenu_Value(FToolMenuSec
 		}));
 
 	InSection.AddSubMenu(
-		UDMMaterialValue::ValueName,
+		"RenameParameter",
 		ParameterNameMenuEntry,
 		SetParameterNameToolTip,
 		RenameChoice,
@@ -298,7 +390,7 @@ void FDMValueDetailsRowExtensions::SetValueParameterName(TWeakObjectPtr<UDMMater
 		return;
 	}
 
-	if (InName == NAME_None)
+	if (InName.IsNone())
 	{
 		return;
 	}
@@ -329,7 +421,7 @@ void FDMValueDetailsRowExtensions::SetTextureUVParameterName(TWeakObjectPtr<UDMT
 		return;
 	}
 
-	if (InName == NAME_None)
+	if (InName.IsNone())
 	{
 		return;
 	}

@@ -11,7 +11,6 @@
 #include "DMComponentPath.h"
 #include "DMDefs.h"
 #include "DynamicMaterialEditorModule.h"
-#include "Factories/MaterialFactoryNew.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialExpressionMax.h"
@@ -23,7 +22,6 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
-#include "Utils/DMPrivate.h"
 #include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStage"
@@ -366,8 +364,6 @@ void UDMMaterialSlot::UpdateMaterialProperties()
 UDMMaterialSlot::UDMMaterialSlot()
 	: Index(INDEX_NONE)
 	, bIsEditingLayers(true)
-	, BasePreviewMaterial(nullptr)
-	, MaskPreviewMaterial(nullptr)
 {
 }
 
@@ -705,6 +701,11 @@ bool UDMMaterialSlot::RemoveLayer(UDMMaterialLayerObject* InLayer)
 	return true;
 }
 
+void UDMMaterialSlot::OnPropertiesUpdated()
+{
+	OnPropertiesUpdateDelegate.Broadcast(this);
+}
+
 void UDMMaterialSlot::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {
 	if (!IsComponentValid() || !IsComponentAdded())
@@ -815,50 +816,7 @@ bool UDMMaterialSlot::UnreferencedBySlot(UDMMaterialSlot* InOtherSlot)
 	}
 }
 
-UMaterial* UDMMaterialSlot::GetPreviewMaterial(EDMMaterialLayerStage InLayerStage)
-{
-	check(InLayerStage == EDMMaterialLayerStage::Base || InLayerStage == EDMMaterialLayerStage::Mask);
-	TObjectPtr<UMaterial>& PreviewMaterial = (InLayerStage == EDMMaterialLayerStage::Base ? BasePreviewMaterial : MaskPreviewMaterial);
-
-	if (!PreviewMaterial)
-	{
-		CreatePreviewMaterial(InLayerStage);
-
-		if (PreviewMaterial)
-		{
-			MarkComponentDirty();
-		}
-	}
-
-	return PreviewMaterial;
-}
-
-void UDMMaterialSlot::CreatePreviewMaterial(EDMMaterialLayerStage InLayerStage)
-{
-	if (!IsComponentValid())
-	{
-		return;
-	}
-
-	check(InLayerStage == EDMMaterialLayerStage::Base || InLayerStage == EDMMaterialLayerStage::Mask);
-	TObjectPtr<UMaterial>& PreviewMaterial = (InLayerStage == EDMMaterialLayerStage::Base ? BasePreviewMaterial : MaskPreviewMaterial);
-
-	UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();
-	check(MaterialFactory);
-
-	PreviewMaterial = (UMaterial*)MaterialFactory->FactoryCreateNew(
-		UMaterial::StaticClass(),
-		GetTransientPackage(),
-		NAME_None,
-		RF_Transient,
-		nullptr,
-		GWarn
-	);
-
-	PreviewMaterial->bIsPreviewMaterial = true;
-}
-
-void UDMMaterialSlot::UpdatePreviewMaterial(EDMMaterialLayerStage InLayerStage)
+void UDMMaterialSlot::GeneralPreviewMaterial(UMaterial* InPreviewMaterial, EDMMaterialLayerStage InLayerStage)
 {
 	if (!IsComponentValid())
 	{
@@ -887,24 +845,13 @@ void UDMMaterialSlot::UpdatePreviewMaterial(EDMMaterialLayerStage InLayerStage)
 	}
 
 	check(InLayerStage == EDMMaterialLayerStage::Base || InLayerStage == EDMMaterialLayerStage::Mask);
-	TObjectPtr<UMaterial>& PreviewMaterial = (InLayerStage == EDMMaterialLayerStage::Base ? BasePreviewMaterial : MaskPreviewMaterial);
-
-	if (!PreviewMaterial)
-	{
-		CreatePreviewMaterial(InLayerStage);
-
-		if (!PreviewMaterial)
-		{
-			return;
-		}
-	}
 
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
 	check(ModelEditorOnlyData);
 
 	if (InLayerStage == EDMMaterialLayerStage::Base)
 	{
-		TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(BasePreviewMaterial);
+		TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
 		BuildState->SetPreviewMaterial();
 
 		GenerateExpressions(BuildState);
@@ -912,7 +859,7 @@ void UDMMaterialSlot::UpdatePreviewMaterial(EDMMaterialLayerStage InLayerStage)
 	}
 	else
 	{
-		TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(MaskPreviewMaterial);
+		TSharedRef<FDMMaterialBuildState> BuildState = ModelEditorOnlyData->CreateBuildState(InPreviewMaterial);
 		BuildState->SetPreviewMaterial();
 
 		GenerateExpressions(BuildState);
@@ -929,8 +876,10 @@ void UDMMaterialSlot::UpdateBasePreviewMaterial(const TSharedRef<FDMMaterialBuil
 
 	UE_LOG(LogDynamicMaterialEditor, Display, TEXT("Building Material Designer Slot Base Preview (%s)..."), *GetName());
 
-	BasePreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = nullptr;
-	BasePreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = 0;
+	UMaterial* PreviewMaterial = InBuildState->GetDynamicMaterial();
+
+	PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = nullptr;
+	PreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = 0;
 
 	const TMap<EDMMaterialPropertyType, TArray<UMaterialExpression*>>& SlotPropertyExpressions = InBuildState->GetSlotPropertyExpressions(this);
 
@@ -950,7 +899,7 @@ void UDMMaterialSlot::UpdateBasePreviewMaterial(const TSharedRef<FDMMaterialBuil
 
 void UDMMaterialSlot::UpdateBasePreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InBaseProperty)
 {
-	UpdatePreviewMaterialProperty(InBuildState, BasePreviewMaterial, InBaseProperty);
+	UpdatePreviewMaterialProperty(InBuildState, InBaseProperty);
 }
 
 void UDMMaterialSlot::UpdateBasePreviewMaterialFull(const TSharedRef<FDMMaterialBuildState>& InBuildState)
@@ -959,6 +908,8 @@ void UDMMaterialSlot::UpdateBasePreviewMaterialFull(const TSharedRef<FDMMaterial
 	{
 		return;
 	}
+
+	UMaterial* PreviewMaterial = InBuildState->GetDynamicMaterial();
 
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
 	check(ModelEditorOnlyData);
@@ -1014,8 +965,10 @@ void UDMMaterialSlot::UpdateMaskPreviewMaterial(const TSharedRef<FDMMaterialBuil
 
 	UE_LOG(LogDynamicMaterialEditor, Display, TEXT("Building Material Designer Slot Mask Preview (%s)..."), *GetName());
 
-	MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = nullptr;
-	MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = 0;
+	UMaterial* PreviewMaterial = InBuildState->GetDynamicMaterial();
+
+	PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = nullptr;
+	PreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = 0;
 
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
 	check(ModelEditorOnlyData);
@@ -1049,16 +1002,17 @@ void UDMMaterialSlot::UpdateMaskPreviewMaterial(const TSharedRef<FDMMaterialBuil
 
 void UDMMaterialSlot::UpdateMaskPreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InMaskProperty)
 {
-	UpdatePreviewMaterialProperty(InBuildState, MaskPreviewMaterial, InMaskProperty);
+	UpdatePreviewMaterialProperty(InBuildState, InMaskProperty);
 }
 
-void UDMMaterialSlot::UpdateMaskPreviewMaterialMaskCombination(const TSharedRef<FDMMaterialBuildState>& InBuildState, 
-	EDMMaterialPropertyType InMaskProperty)
+void UDMMaterialSlot::UpdateMaskPreviewMaterialMaskCombination(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InMaskProperty)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
+
+	UMaterial* PreviewMaterial = InBuildState->GetDynamicMaterial();
 
 	int32 OutOutputChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
 
@@ -1139,12 +1093,12 @@ void UDMMaterialSlot::UpdateMaskPreviewMaterialMaskCombination(const TSharedRef<
 			}
 		}
 
-		if (MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression == nullptr)
+		if (PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression == nullptr)
 		{
-			MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = MaskOutputExpression;
+			PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = MaskOutputExpression;
 
 			// The first output will use the node's output info.
-			MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = MaskOutputIndex;
+			PreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = MaskOutputIndex;
 			OutOutputChannel = MaskOutputChannel;
 			continue;
 		}
@@ -1152,8 +1106,8 @@ void UDMMaterialSlot::UpdateMaskPreviewMaterialMaskCombination(const TSharedRef<
 		UMaterialExpressionMax* Max = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionMax>(UE_DM_NodeComment_Default);
 		check(Max);
 
-		Max->A.Expression = MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression;
-		Max->A.OutputIndex = MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex;
+		Max->A.Expression = PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression;
+		Max->A.OutputIndex = PreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex;
 		Max->A.Mask = 0;
 
 		if (OutOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
@@ -1178,32 +1132,33 @@ void UDMMaterialSlot::UpdateMaskPreviewMaterialMaskCombination(const TSharedRef<
 			Max->B.MaskA = !!(MaskOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
 		}
 
-		MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = Max;
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = Max;
 
 		// If we have to combine, it will use the Max node's output info
-		MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = 0;
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = 0;
 		OutOutputChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
 	}
 
-	MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.Mask = 0;
+	PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Mask = 0;
 
 	if (OutOutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
 	{
-		MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.Mask = 1;
-		MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.MaskR = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
-		MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.MaskG = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
-		MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.MaskB = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
-		MaskPreviewMaterial->GetEditorOnlyData()->EmissiveColor.MaskA = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Mask = 1;
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.MaskR = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.MaskG = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.MaskB = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.MaskA = !!(OutOutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
 	}
 }
 
-void UDMMaterialSlot::UpdatePreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterial* InPreviewMaterial, 
-	EDMMaterialPropertyType InProperty)
+void UDMMaterialSlot::UpdatePreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InProperty)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
+
+	UMaterial* PreviewMaterial = InBuildState->GetDynamicMaterial();
 
 	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
 	check(ModelEditorOnlyData);
@@ -1265,8 +1220,8 @@ void UDMMaterialSlot::UpdatePreviewMaterialProperty(const TSharedRef<FDMMaterial
 
 	if (BestMatch != INDEX_NONE)
 	{
-		BasePreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = LastExpression;
-		BasePreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = BestMatch;
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.Expression = LastExpression;
+		PreviewMaterial->GetEditorOnlyData()->EmissiveColor.OutputIndex = BestMatch;
 	}
 }
 
@@ -1410,37 +1365,36 @@ bool UDMMaterialSlot::ChangeMaterialProperty(EDMMaterialPropertyType InPropertyF
 	return true;
 }
 
-void UDMMaterialSlot::DoClean()
-{
-	if (IsComponentValid())
-	{
-		UpdatePreviewMaterial(EDMMaterialLayerStage::Base);
-		UpdatePreviewMaterial(EDMMaterialLayerStage::Mask);
-	}
-
-	Super::DoClean();
-}
-
 FString UDMMaterialSlot::GetComponentPathComponent() const
 {
-	// @TODO These will probably need to change when other slot types are opened up.
-	switch (Index)
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = GetMaterialModelEditorOnlyData())
 	{
-		case 0:
-			return UDynamicMaterialModelEditorOnlyData::RGBSlotPathToken;
+		TArray<EDMMaterialPropertyType> SlotProperties = EditorOnlyData->GetMaterialPropertiesForSlot(this);
 
-		case 1:
-			return UDynamicMaterialModelEditorOnlyData::OpacitySlotPathToken;
+		if (SlotProperties.Num() == 1)
+		{
+			UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
+			constexpr const TCHAR* ShortNameName = TEXT("ShortName");
+			const FString ShortName = MaterialPropertyEnum->GetMetaData(ShortNameName, MaterialPropertyEnum->GetIndexByValue(static_cast<int64>(SlotProperties[0])));
+			const FString Token = !ShortName.IsEmpty() ? ShortName : MaterialPropertyEnum->GetNameStringByValue(static_cast<int64>(SlotProperties[0]));
 
-		default:
 			return FString::Printf(
-				TEXT("%s%hc%i%hc"), 
+				TEXT("%s%hc%s%hc"),
 				*UDynamicMaterialModelEditorOnlyData::SlotsPathToken,
 				FDMComponentPath::ParameterOpen,
-				Index, 
+				*Token,
 				FDMComponentPath::ParameterClose
 			);
+		}
 	}
+
+	return FString::Printf(
+		TEXT("%s%hc%i%hc"),
+		*UDynamicMaterialModelEditorOnlyData::SlotsPathToken,
+		FDMComponentPath::ParameterOpen,
+		Index,
+		FDMComponentPath::ParameterClose
+	);
 }
 
 UDMMaterialComponent* UDMMaterialSlot::GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const

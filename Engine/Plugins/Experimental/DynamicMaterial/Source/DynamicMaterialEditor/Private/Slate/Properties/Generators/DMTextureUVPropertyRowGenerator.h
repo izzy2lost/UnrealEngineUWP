@@ -11,7 +11,6 @@ class FDMTextureUVPropertyRowGenerator : public FDMComponentPropertyRowGenerator
 public:
 	static const TSharedRef<FDMTextureUVPropertyRowGenerator>& Get();
 
-	FDMTextureUVPropertyRowGenerator() = default;
 	virtual ~FDMTextureUVPropertyRowGenerator() override = default;
 
 	virtual void AddComponentProperties(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent,

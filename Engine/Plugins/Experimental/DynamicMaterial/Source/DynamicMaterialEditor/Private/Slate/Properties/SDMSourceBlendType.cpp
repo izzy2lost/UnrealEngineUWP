@@ -182,7 +182,7 @@ void SDMSourceBlendType::EnsureBlendMap()
 			const FText BlendClassText = StageBlendCDO->GetDescription();
 			const TSubclassOf<UDMMaterialStageBlend> BlendClassObject = TSubclassOf<UDMMaterialStageBlend>(BlendClass.Get());
 
-			if (BlendClassName != NAME_None && !BlendClassText.IsEmpty())
+			if (!BlendClassName.IsNone() && !BlendClassText.IsEmpty())
 			{
 				BlendMap.Emplace(BlendClassName, {BlendClassText, BlendClassObject});
 			}

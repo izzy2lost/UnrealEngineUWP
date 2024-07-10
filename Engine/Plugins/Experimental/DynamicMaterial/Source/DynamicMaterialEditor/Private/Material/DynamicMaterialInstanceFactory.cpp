@@ -35,19 +35,27 @@ UObject* UDynamicMaterialInstanceFactory::FactoryCreateNew(UClass* Class, UObjec
 	UDynamicMaterialModelFactory* EditorFactory = NewObject<UDynamicMaterialModelFactory>();
 	check(EditorFactory);
 
-	UDynamicMaterialModel* NewModel = Cast<UDynamicMaterialModel>(EditorFactory->FactoryCreateNew(
-		UDynamicMaterialModel::StaticClass(), NewInstance, NAME_None, RF_Transactional, nullptr, GWarn));
-	check(NewModel);
+	UDynamicMaterialModelBase* ModelBase = Cast<UDynamicMaterialModelBase>(Context);
+
+	if (!ModelBase)
+	{
+		ModelBase = Cast<UDynamicMaterialModel>(EditorFactory->FactoryCreateNew(
+			UDynamicMaterialModel::StaticClass(), NewInstance, NAME_None, RF_Transactional | RF_Public, nullptr, GWarn));
+		check(ModelBase);
+	}
 
 	const FDMInitializationGuard InitGuard;
 
-	NewInstance->SetMaterialModel(NewModel);
+	NewInstance->SetMaterialModel(ModelBase);
 
-	NewModel->SetDynamicMaterialInstance(NewInstance);
+	ModelBase->SetDynamicMaterialInstance(NewInstance);
 
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = NewModel->GetEditorOnlyData())
+	if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(ModelBase))
 	{
-		ModelEditorOnlyData->RequestMaterialBuild();
+		if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = MaterialModel->GetEditorOnlyData())
+		{
+			ModelEditorOnlyData->RequestMaterialBuild();
+		}
 	}
 
 	NewInstance->InitializeMIDPublic();

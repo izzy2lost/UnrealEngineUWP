@@ -5,7 +5,7 @@
 #include "IAvaEditorExtension.h"
 
 class UDynamicMaterialInstance;
-class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 struct FDMObjectMaterialProperty;
 
 class FAvaMaterialDesignerExtension : public FAvaEditorExtension
@@ -21,7 +21,7 @@ public:
 	//~ End IAvaEditorExtension
 
 private:
-	bool IsDynamicMaterialModelValid(UDynamicMaterialModel* InMaterialModel);
+	bool IsDynamicMaterialModelValid(UDynamicMaterialModelBase* InMaterialModel);
 
 	bool SetDynamicMaterialValue(const FDMObjectMaterialProperty& InObjectMaterialProperty, UDynamicMaterialInstance* InMaterial);
 

@@ -13,6 +13,7 @@ class UDMMaterialStage;
 class UDMMaterialStageBlend;
 class UDMMaterialStageSource;
 class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 class UToolMenu;
 
 UCLASS()
@@ -35,6 +36,8 @@ public:
 	const TSharedPtr<SDMStage> GetStageWidget() const { return StageWidgetWeak.Pin(); }
 
 	UDMMaterialSlot* GetSlot() const;
+
+	UDynamicMaterialModelBase* GetModelBase() const;
 
 	UDynamicMaterialModel* GetModel() const;
 

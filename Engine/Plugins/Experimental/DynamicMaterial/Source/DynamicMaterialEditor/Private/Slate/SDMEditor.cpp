@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SDMEditor.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetThumbnail.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
@@ -8,7 +9,6 @@
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialValues/DMMaterialValueFloat.h"
 #include "Components/PrimitiveComponent.h"
-#include "DetailLayoutBuilder.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorCommands.h"
 #include "DynamicMaterialEditorModule.h"
@@ -16,24 +16,26 @@
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
 #include "Engine/World.h"
+#include "Factories/MaterialFactoryNew.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/InputChord.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "IDetailTreeNode.h"
 #include "IPropertyRowGenerator.h"
+#include "Material/DynamicMaterialInstance.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "Menus/DMToolBarMenus.h"
 #include "Misc/CoreDelegates.h"
 #include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "PropertyHandle.h"
-#include "Slate/Properties/SDMMaterialParameters.h"
 #include "Slate/SDMComponentEdit.h"
 #include "Slate/SDMMaterialWizard.h"
 #include "Slate/SDMSlot.h"
 #include "Slate/SDMToolBar.h"
 #include "SlateOptMacros.h"
-#include "Material/DynamicMaterialInstance.h"
 #include "Styling/StyleColors.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "Utils/DMBlueprintFunctionLibrary.h"
@@ -190,32 +192,32 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
-	bool CheckMaterialModelValidity(UDynamicMaterialModel* InMaterialModel)
+	bool CheckMaterialModelValidity(UDynamicMaterialModelBase* InMaterialModelBase)
 		{
-			if (UWorld* World = InMaterialModel->GetWorld())
+			if (UWorld* World = InMaterialModelBase->GetWorld())
 			{
 				if (UDMWorldSubsystem* WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
 				{
-					if (!WorldSubsystem->ExecuteIsValidDelegate(InMaterialModel))
+					if (!WorldSubsystem->ExecuteIsValidDelegate(InMaterialModelBase))
 					{
 						return false;
 					}
 				}
 			}
 
-			UActorComponent* ComponentOuter = InMaterialModel->GetTypedOuter<UActorComponent>();
+			UActorComponent* ComponentOuter = InMaterialModelBase->GetTypedOuter<UActorComponent>();
 			if (ComponentOuter && !IsValid(ComponentOuter))
 			{
 				return false;
 			}
 
-			AActor* ActorOuter = InMaterialModel->GetTypedOuter<AActor>();
+			AActor* ActorOuter = InMaterialModelBase->GetTypedOuter<AActor>();
 			if (ActorOuter && !IsValid(ActorOuter))
 			{
 				return false;
 			}
 
-			UPackage* PackageOuter = InMaterialModel->GetPackage();
+			UPackage* PackageOuter = InMaterialModelBase->GetPackage();
 			if (PackageOuter && !IsValid(PackageOuter))
 			{
 				return false;
@@ -248,7 +250,7 @@ TSharedRef<FAssetThumbnailPool> SDMEditor::GetThumbnailPool()
 	return ThumbnailPool.ToSharedRef();
 }
 
-void SDMEditor::Construct(const FArguments& InArgs, TWeakObjectPtr<UDynamicMaterialModel> InModelWeak)
+void SDMEditor::Construct(const FArguments& InArgs)
 {
 	SetCanTick(true);
 
@@ -268,7 +270,7 @@ void SDMEditor::Construct(const FArguments& InArgs, TWeakObjectPtr<UDynamicMater
 
 	SetEmptyLayout();
 
-	SetMaterialModel(InModelWeak.Get());
+	SetMaterialModelBase(nullptr);
 
 	UDynamicMaterialEditorSettings::Get()->OnSettingsChanged.AddSP(this, &SDMEditor::OnSettingsChanged);
 
@@ -295,21 +297,28 @@ SDMEditor::~SDMEditor()
 {
 	if (FDynamicMaterialModule::AreUObjectsSafe())
 	{
-		if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
+		if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak))
 		{
-			if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
-			{
-				ModelEditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
-				ModelEditorOnlyData->GetOnValueListUpdateDelegate().RemoveAll(this);
-				ModelEditorOnlyData->GetOnSlotListUpdateDelegate().RemoveAll(this);
-			}
+			ModelEditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
+			ModelEditorOnlyData->GetOnValueListUpdateDelegate().RemoveAll(this);
+			ModelEditorOnlyData->GetOnSlotListUpdateDelegate().RemoveAll(this);
 		}
 	}
 }
 
+UDynamicMaterialModel* SDMEditor::GetMaterialModel() const
+{
+	if (UDynamicMaterialModelBase* MaterialModelBase = MaterialModelBaseWeak.Get())
+	{
+		return MaterialModelBase->ResolveMaterialModel();
+	}
+
+	return nullptr;
+}
+
 void SDMEditor::ClearEditor()
 {
-	MaterialModelWeak.Reset();
+	MaterialModelBaseWeak.Reset();
 	ObjectProperty.Reset();
 
 	SlotPickerContainer.Reset();
@@ -319,6 +328,9 @@ void SDMEditor::ClearEditor()
 	SplitterContainer.Reset();
 
 	bInvalidateComponentEditWidget = false;
+
+	PreviewMaterials.Empty();
+	PreviewMaterialDynamics.Empty();
 }
 
 void SDMEditor::ResetEditor()
@@ -339,7 +351,7 @@ void SDMEditor::SetActiveSlotIndex(int InSlotIndex)
 	}
 	else if (InSlotIndex != ActiveSlotIndex)
 	{
-		if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
+		if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak))
 		{
 			if (ModelEditorOnlyData->GetSlots().IsValidIndex(InSlotIndex))
 			{
@@ -437,27 +449,32 @@ FDMPropertyHandle SDMEditor::CreatePropertyHandle(const void* InOwningWidget, UO
 	return PropertyHandle;
 }
 
-void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
+void SDMEditor::SetMaterialModelBase(UDynamicMaterialModelBase* InMaterialModelBase)
 {
-	if (InMaterialModel && !UE::DynamicMaterialEditor::Private::CheckMaterialModelValidity(InMaterialModel))
-	{
-		InMaterialModel = nullptr;
-	}
-
-	if (MaterialModelWeak.Get() == InMaterialModel)
+	if (GetMaterialModelBase() == InMaterialModelBase)
 	{
 		return;
 	}
 
+	if (InMaterialModelBase && !UE::DynamicMaterialEditor::Private::CheckMaterialModelValidity(InMaterialModelBase))
+	{
+		InMaterialModelBase = nullptr;
+	}
+
 	ClearEditor();
 
-	MaterialModelWeak = InMaterialModel;
+	MaterialModelBaseWeak = InMaterialModelBase;
 
-	Toolbar->SetMaterialModel(InMaterialModel);
+	if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(InMaterialModelBase))
+	{
+		MaterialModelDynamic->EnsureComponents();
+	}
+
+	Toolbar->OnMaterialModelChanged();
 
 	SetEditedComponent(nullptr);
 
-	if (!InMaterialModel)
+	if (!InMaterialModelBase)
 	{
 		SetEmptyLayout();
 		return;
@@ -465,7 +482,7 @@ void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 
 	bHasActiveLayout = true;
 
-	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel);
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModelBase);
 
 	if (EditorOnlyData && EditorOnlyData->NeedsWizard())
 	{
@@ -484,6 +501,16 @@ void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 	}
 }
 
+bool SDMEditor::IsDynamicModel() const
+{
+	if (UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase())
+	{
+		return !MaterialModelBase->IsA<UDynamicMaterialModel>();
+	}
+
+	return false;
+}
+
 void SDMEditor::SetMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty)
 {
 	if (!InObjectProperty.IsValid())
@@ -492,15 +519,15 @@ void SDMEditor::SetMaterialObjectProperty(const FDMObjectMaterialProperty& InObj
 		return;
 	}
 
-	UDynamicMaterialModel* MaterialModel = InObjectProperty.GetMaterialModel();
+	UDynamicMaterialModelBase* MaterialModelBase = InObjectProperty.GetMaterialModelBase();
 
-	if (!IsValid(MaterialModel))
+	if (!IsValid(MaterialModelBase))
 	{
 		ResetEditor();
 		return;
 	}
 
-	SetMaterialModel(MaterialModel);
+	SetMaterialModelBase(MaterialModelBase);
 	ObjectProperty = InObjectProperty;
 
 	if (AActor* Actor = ObjectProperty.GetTypedOuter<AActor>())
@@ -526,7 +553,7 @@ void SDMEditor::SetMaterialActor(AActor* InActor)
 		return;
 	}
 
-	if (!GetMaterialModel())
+	if (!GetMaterialModelBase())
 	{
 		Container->SetContent(
 			SNew(SBox)
@@ -545,17 +572,19 @@ void SDMEditor::SetEmptyLayout()
 {
 	bHasActiveLayout = false;
 	Container->SetContent(SDMEditor::GetEmptyContent());
+	PreviewMaterials.Empty();
+	PreviewMaterialDynamics.Empty();
 }
 
-void SDMEditor::OnMaterialModelSelected(UDynamicMaterialModel* InMaterialModel)
+void SDMEditor::OnMaterialModelSelected(UDynamicMaterialModelBase* InMaterialModelBase)
 {
-	if (!IsValid(InMaterialModel))
+	if (!IsValid(InMaterialModelBase))
 	{
 		return;
 	}
 
 	// Only check this setting if we have an active material model.
-	if (GetMaterialModel())
+	if (GetMaterialModelBase())
 	{
 		UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
 
@@ -565,7 +594,7 @@ void SDMEditor::OnMaterialModelSelected(UDynamicMaterialModel* InMaterialModel)
 		}
 	}
 
-	SetMaterialModel(InMaterialModel);
+	SetMaterialModelBase(InMaterialModelBase);
 }
 
 void SDMEditor::OnMaterialInstanceSelected(UDynamicMaterialInstance* InMaterialInstance)
@@ -581,7 +610,7 @@ void SDMEditor::OnMaterialInstanceSelected(UDynamicMaterialInstance* InMaterialI
 void SDMEditor::OnActorSelected(AActor* InActor)
 {
 	// Only check this setting if we have an active material model.
-	if (GetMaterialModel())
+	if (GetMaterialModelBase())
 	{
 		UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
 
@@ -610,14 +639,14 @@ void SDMEditor::OnActorSelected(AActor* InActor)
 	{
 		const FDMObjectMaterialProperty& MaterialProperty = ActorProperties[MaterialPropertyIdx];
 
-		if (MaterialProperty.GetMaterialModel())
+		if (MaterialProperty.GetMaterialModelBase())
 		{
 			SetMaterialObjectProperty(MaterialProperty);
 			break;
 		}
 	}
 
-	if (!ActorProperties.IsEmpty() && !GetMaterialModel())
+	if (!ActorProperties.IsEmpty() && !GetMaterialModelBase())
 	{
 		SetMaterialObjectProperty(ActorProperties[0]);
 	}
@@ -835,16 +864,8 @@ TSharedRef<SWidget> SDMEditor::CreateMainLayout()
 		.VAlign(VAlign_Top)
 		[
 			SAssignNew(Toolbar, SDMToolBar, SharedThis(this))
-			.MaterialModel(MaterialModelWeak.Get())
 			.OnSlotChanged(this, &SDMEditor::OnToolBarPropertyChanged)
 			.OnGetSettingsMenu(this, &SDMEditor::MakeToolBarSettingsMenu)
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			UE::DynamicMaterialEditor::bGlobalValuesEnabled && MaterialModelWeak.IsValid()
-				? CreateParametersArea()
-				: SNullWidget::NullWidget
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -916,28 +937,6 @@ TSharedRef<SWidget> SDMEditor::CreateMainLayout()
 		];
 }
 
-TSharedRef<SWidget> SDMEditor::CreateParametersArea()
-{
-	return 
-		SNew(SExpandableArea)
-		.InitiallyCollapsed(false)
-		.HeaderPadding(FMargin(3.0f, 5.0f, 3.0f, 5.0f))
-		.HeaderContent()
-		[
-			SNew(SBox)
-			.VAlign(EVerticalAlignment::VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Text(LOCTEXT("MaterialParameters", "Material Parameters"))
-			]
-		]
-		.BodyContent()
-		[
-			SAssignNew(ParametersWidget, SDMMaterialParameters, MaterialModelWeak)
-		];
-}
-
 TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 {
 	TSharedRef<SWrapBox> SlotSelector = SNew(SWrapBox)
@@ -945,7 +944,7 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 		.InnerSlotPadding(FVector2D(5, 5))
 		.Orientation(EOrientation::Orient_Horizontal);
 
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak);
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak);
 
 	if (!ModelEditorOnlyData)
 	{
@@ -1021,14 +1020,6 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 	return SlotSelector;
 }
 
-void SDMEditor::RefreshParametersList()
-{
-	if (ParametersWidget.IsValid())
-	{
-		ParametersWidget->RefreshWidgets();
-	}
-}
-
 void SDMEditor::RefreshSlotPickerList()
 {
 	if (SlotPickerContainer.IsValid())
@@ -1060,9 +1051,9 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 		return;
 	}
 
-	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
-	if (!IsValid(MaterialModel))
+	if (!IsValid(MaterialModelBase))
 	{
 		if (bHasActiveLayout)
 		{
@@ -1079,16 +1070,16 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 
 	if (ObjectProperty.IsValid())
 	{
-		UDynamicMaterialModel* MaterialModelProperty = ObjectProperty.GetMaterialModel();
+		UDynamicMaterialModelBase* MaterialModelBaseProperty = ObjectProperty.GetMaterialModelBase();
 
-		if (!IsValid(MaterialModelProperty))
+		if (!IsValid(MaterialModelBaseProperty))
 		{
-			MaterialModelProperty = nullptr;
+			MaterialModelBaseProperty = nullptr;
 		}
 
-		if (MaterialModel != MaterialModelProperty)
+		if (MaterialModelBase != MaterialModelBaseProperty)
 		{
-			if (MaterialModelProperty)
+			if (MaterialModelBaseProperty)
 			{
 				// Re-set the property
 				SetMaterialObjectProperty(ObjectProperty);
@@ -1101,7 +1092,7 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 			}
 		}
 	}
-	else if (!UE::DynamicMaterialEditor::Private::CheckMaterialModelValidity(MaterialModel))
+	else if (!UE::DynamicMaterialEditor::Private::CheckMaterialModelValidity(MaterialModelBase))
 	{
 		ResetEditor();
 		return;
@@ -1109,11 +1100,13 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 
 	if (Toolbar.IsValid())
 	{
+		/*
 		UDynamicMaterialModel* ToolbarMaterialModel = Toolbar->GetMaterialModel();
 		if (ToolbarMaterialModel != MaterialModel)
 		{
-			Toolbar->SetMaterialModel(MaterialModel);
+			Toolbar->OnMaterialModelChanged(GetMaterialModel());
 		}
+		*/
 
 		if (ObjectProperty.IsValid())
 		{
@@ -1126,13 +1119,13 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 		}
 		else if (Toolbar->GetMaterialActor())
 		{
-			if (!ToolbarMaterialModel)
+			if (!MaterialModelBase)
 			{
 				Toolbar->SetMaterialActor(nullptr);
 			}
 			else
 			{
-				AActor* Actor = ToolbarMaterialModel->GetTypedOuter<AActor>();
+				AActor* Actor = MaterialModelBase->GetTypedOuter<AActor>();
 
 				if (Actor != Toolbar->GetMaterialActor())
 				{
@@ -1153,32 +1146,24 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 	}
 }
 
-void SDMEditor::OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel)
+void SDMEditor::OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModelBase)
 {
 	RefreshSlotPickerList();
 	RefreshComponentEditWidget();
 }
 
-void SDMEditor::OnValuesUpdated(UDynamicMaterialModel* InMaterialModel)
+void SDMEditor::OnValuesUpdated(UDynamicMaterialModelBase* InMaterialModelBase)
 {
-	RefreshParametersList();
 }
 
-void SDMEditor::OnSlotsUpdated(UDynamicMaterialModel* InMaterialModel)
+void SDMEditor::OnSlotsUpdated(UDynamicMaterialModelBase* InMaterialModelBase)
 {
 	RefreshSlotWidget();
 }
 
 bool SDMEditor::IsPropertyValidForModel(EDMMaterialPropertyType InProperty) const
 {
-	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
-
-	if (!MaterialModel)
-	{
-		return false;
-	}
-
-	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak);
 
 	if (!EditorOnlyData)
 	{
@@ -1218,7 +1203,7 @@ ECheckBoxState SDMEditor::GetSlotCheckState(EDMMaterialPropertyType InProperty) 
 		return ECheckBoxState::Unchecked;
 	}
 
-	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak);
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak);
 
 	if (!EditorOnlyData)
 	{
@@ -1260,7 +1245,7 @@ void SDMEditor::OnSlotCheckStateChanged(ECheckBoxState InCheckState, EDMMaterial
 		return;
 	}
 
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak);
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak);
 
 	if (!ModelEditorOnlyData)
 	{
@@ -1299,7 +1284,7 @@ FReply SDMEditor::OnCreateMaterialButtonClicked(FDMObjectMaterialProperty InMate
 	{
 		if (Toolbar.IsValid())
 		{
-			Toolbar->SetMaterialModel(NewModel);
+			Toolbar->OnMaterialModelChanged();
 		}
 
 		if (AActor* Actor = InMaterialProperty.GetTypedOuter<AActor>())
@@ -1326,13 +1311,14 @@ TSharedRef<SWidget> SDMEditor::MakeToolBarSettingsMenu()
 
 void SDMEditor::OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent)
 {
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 	ClearEditor();
-	SetMaterialModel(MaterialModelWeak.Get());
+	SetMaterialModelBase(MaterialModelBase);
 }
 
 bool SDMEditor::CanAddNewLayer() const
 {
-	return ActiveSlotWidget.IsValid() && !!UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak);
+	return ActiveSlotWidget.IsValid() && !!UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak);
 }
 
 void SDMEditor::AddNewLayer()
@@ -1352,7 +1338,7 @@ bool SDMEditor::CanInsertNewLayer() const
 {
 	return ActiveSlotWidget.IsValid()
 		&& ActiveSlotWidget->GetSelectedLayerIndices().Num() == 1
-		&& MaterialModelWeak.IsValid();
+		&& MaterialModelBaseWeak.IsValid();
 }
 
 void SDMEditor::InsertNewLayer()
@@ -1384,7 +1370,7 @@ bool SDMEditor::CanCopySelectedLayer() const
 {
 	return ActiveSlotWidget.IsValid()
 		&& ActiveSlotWidget->GetSelectedLayerIndices().Num() == 1
-		&& MaterialModelWeak.IsValid();
+		&& MaterialModelBaseWeak.IsValid();
 }
 
 void SDMEditor::CopySelectedLayer()
@@ -1411,7 +1397,7 @@ void SDMEditor::CutSelectedLayer()
 
 bool SDMEditor::CanPasteLayer() const
 {
-	if (!MaterialModelWeak.IsValid())
+	if (!MaterialModelBaseWeak.IsValid())
 	{
 		return false;
 	}
@@ -1424,7 +1410,7 @@ bool SDMEditor::CanPasteLayer() const
 
 void SDMEditor::PasteLayer()
 {
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
+	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak))
 	{
 		if (UDMMaterialSlot* Slot = ModelEditorOnlyData->GetSlot(ActiveSlotIndex))
 		{
@@ -1479,6 +1465,77 @@ void SDMEditor::DeleteSelectedLayer()
 	{
 		ActiveSlotWidget->OnLayerRowButtonsRemoveClicked();
 	}
+}
+
+UMaterial* SDMEditor::CreatePreviewMaterial(UObject* InPreviewing)
+{
+	UMaterial* PreviewMaterial = nullptr;
+
+	if (FDynamicMaterialModule::IsMaterialExportEnabled() == false)
+	{
+		PreviewMaterial = Cast<UMaterial>(GetMutableDefault<UMaterialFactoryNew>()->FactoryCreateNew(
+			UMaterial::StaticClass(),
+			GetTransientPackage(),
+			NAME_None,
+			RF_Transient,
+			nullptr,
+			GWarn
+		));
+
+		PreviewMaterial->bIsPreviewMaterial = true;
+	}
+	else
+	{
+		FString MaterialBaseName = InPreviewing->GetName() + "-" + FGuid::NewGuid().ToString();
+		const FString FullName = "/Game/MaterialDesignerMaterials/" + MaterialBaseName;
+		UPackage* Package = CreatePackage(*FullName);
+
+		PreviewMaterial = Cast<UMaterial>(GetMutableDefault<UMaterialFactoryNew>()->FactoryCreateNew(
+			UMaterial::StaticClass(),
+			Package,
+			*MaterialBaseName,
+			RF_Standalone | RF_Public,
+			nullptr,
+			GWarn
+		));
+
+		FAssetRegistryModule::AssetCreated(PreviewMaterial);
+	}
+
+	PreviewMaterials.FindOrAdd(InPreviewing).Reset(PreviewMaterial);
+
+	return PreviewMaterial;
+}
+
+void SDMEditor::FreePreviewMaterial(UObject* InPreviewing)
+{
+	 if (TStrongObjectPtr<UMaterial>* PreviewMaterial = PreviewMaterials.Find(InPreviewing))
+	 {
+		if (UMaterial* Material = PreviewMaterial->Get())
+		{
+			FreeMID(Material);
+		}
+
+		PreviewMaterials.Remove(InPreviewing);
+	 }
+}
+
+UMaterialInstanceDynamic* SDMEditor::CreateMID(UMaterial* InMaterialBase)
+{
+	if (!InMaterialBase)
+	{
+		return nullptr;
+	}
+
+	UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(InMaterialBase, GetTransientPackage());
+	PreviewMaterialDynamics.FindOrAdd(InMaterialBase).Reset(MID);
+
+	return MID;
+}
+
+void SDMEditor::FreeMID(UMaterial* InMaterialBase)
+{
+	PreviewMaterialDynamics.Remove(InMaterialBase);
 }
 
 bool SDMEditor::GetExpansionState(UObject* InOwner, FName InName, bool& bOutExpanded)
@@ -1561,7 +1618,7 @@ TSharedRef<SWidget> SDMEditor::CreateSlotWidget()
 		return CreateEmptySlotsContent();
 	}
 	
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak);
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak);
 
 	if (!ModelEditorOnlyData)
 	{
@@ -1585,14 +1642,14 @@ TSharedRef<SWidget> SDMEditor::CreateSlotWidget()
 
 void SDMEditor::OnUndo()
 {
-	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
+	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
 
 	if (!IsValid(MaterialModel))
 	{
 		return;
 	}
 
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
+	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak))
 	{
 		if (ModelEditorOnlyData->GetBlendMode() == BLEND_Opaque)
 		{
@@ -1603,7 +1660,7 @@ void SDMEditor::OnUndo()
 
 UDMMaterialSlot* SDMEditor::GetSlotForMaterialProperty(EDMMaterialPropertyType InProperty) const
 {
-	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak);
+	UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak);
 
 	if (!ModelEditorOnlyData)
 	{

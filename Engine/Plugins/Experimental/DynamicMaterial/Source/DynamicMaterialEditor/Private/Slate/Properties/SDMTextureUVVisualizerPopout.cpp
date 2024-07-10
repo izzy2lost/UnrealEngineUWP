@@ -3,13 +3,15 @@
 #include "Slate/Properties/SDMTextureUVVisualizerPopout.h"
 
 #include "Components/DMMaterialStage.h"
+#include "Components/DMMaterialValueDynamic.h"
 #include "Components/DMTextureUV.h"
+#include "Components/DMTextureUVDynamic.h"
 #include "CustomDetailsViewArgs.h"
 #include "CustomDetailsViewModule.h"
 #include "DetailLayoutBuilder.h"
 #include "DMWorldSubsystem.h"
-#include "DynamicMaterialEditorStyle.h"
 #include "Engine/World.h"
+#include "Generators/DMTextureUVDynamicPropertyRowGenerator.h"
 #include "Generators/DMTextureUVPropertyRowGenerator.h"
 #include "ICustomDetailsView.h"
 #include "Items/ICustomDetailsViewCustomItem.h"
@@ -29,33 +31,41 @@
 
 const FName SDMTextureUVVisualizerPopout::TabId = TEXT("SDMTextureUVVisualizerPopout");
 
-void SDMTextureUVVisualizerPopout::CreatePopout(UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV)
+namespace UE::DynamicMaterialEditor::Private
+{
+	TSharedPtr<SDockTab> GetVisualizerTab(FName InTabId)
+	{
+		if (!FGlobalTabmanager::Get()->HasTabSpawner(InTabId))
+		{
+			FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
+				InTabId,
+				FOnSpawnTab::CreateLambda(
+					[InTabId](const FSpawnTabArgs& InArgs)
+					{
+						TSharedRef<SDockTab> DockTab = SNew(SDockTab)
+							.Label(FText::FromName(InTabId))
+							.LabelSuffix(LOCTEXT("TabSuffix", "[UV Vis]"));
+
+						DockTab->SetTabIcon(FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()).GetIcon());
+
+						return DockTab;
+					}
+				)
+			);
+		}
+
+		return FGlobalTabmanager::Get()->TryInvokeTab(InTabId);
+	}
+}
+
+void SDMTextureUVVisualizerPopout::CreatePopout(const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV)
 {
 	if (!IsValid(InMaterialStage) || !IsValid(InTextureUV))
 	{
 		return;
 	}
 
-	if (!FGlobalTabmanager::Get()->HasTabSpawner(TabId))
-	{
-		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
-			TabId,
-			FOnSpawnTab::CreateLambda(
-				[](const FSpawnTabArgs& InArgs)
-				{
-					TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-						.Label(FText::FromName(TabId))
-						.LabelSuffix(LOCTEXT("TabSuffix", "[UV Vis]"));
-
-					DockTab->SetTabIcon(FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()).GetIcon());
-
-					return DockTab;
-				}
-			)
-		);
-	}
-
-	TSharedPtr<SDockTab> Tab = FGlobalTabmanager::Get()->TryInvokeTab(TabId);
+	TSharedPtr<SDockTab> Tab = UE::DynamicMaterialEditor::Private::GetVisualizerTab(TabId);
 
 	if (!Tab.IsValid())
 	{
@@ -64,13 +74,32 @@ void SDMTextureUVVisualizerPopout::CreatePopout(UDMMaterialStage* InMaterialStag
 
 	Tab->ActivateInParent(ETabActivationCause::SetDirectly);
 	Tab->SetLabel(FText::FromString(InTextureUV->GetPathName()));
-	Tab->SetContent(SNew(SDMTextureUVVisualizerPopout, InMaterialStage, InTextureUV));
+	Tab->SetContent(SNew(SDMTextureUVVisualizerPopout, InEditorWidget, InMaterialStage).TextureUV(InTextureUV));
 }
 
-void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV)
+void SDMTextureUVVisualizerPopout::CreatePopout(const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage, UDMTextureUVDynamic* InTextureUVDynamic)
+{
+	if (!IsValid(InMaterialStage) || !IsValid(InTextureUVDynamic))
+	{
+		return;
+	}
+
+	TSharedPtr<SDockTab> Tab = UE::DynamicMaterialEditor::Private::GetVisualizerTab(TabId);
+
+	if (!Tab.IsValid())
+	{
+		return;
+	}
+
+	Tab->ActivateInParent(ETabActivationCause::SetDirectly);
+	Tab->SetLabel(FText::FromString(InTextureUVDynamic->GetPathName()));
+	Tab->SetContent(SNew(SDMTextureUVVisualizerPopout, InEditorWidget, InMaterialStage).TextureUVDynamic(InTextureUVDynamic));
+}
+
+void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage)
 {
 	check(InMaterialStage);
-	check(InTextureUV);
+	check(InArgs._TextureUV || InArgs._TextureUVDynamic);
 
 	ChildSlot
 	[
@@ -83,7 +112,9 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMateri
 			SNew(SOverlay)
 			+ SOverlay::Slot()
 			[
-				SAssignNew(Visualizer, SDMTextureUVVisualizer, InMaterialStage, InTextureUV)
+				SAssignNew(Visualizer, SDMTextureUVVisualizer, InEditorWidget, InMaterialStage)
+				.TextureUV(InArgs._TextureUV)
+				.TextureUVDynamic(InArgs._TextureUVDynamic)
 				.IsPopout(true)
 			]
 			+ SOverlay::Slot()
@@ -145,7 +176,11 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, UDMMateri
 			.HAlign(EHorizontalAlignment::HAlign_Fill)
 			.VAlign(EVerticalAlignment::VAlign_Top)
 			[
-				CreatePropertyWidget(InTextureUV)
+				CreatePropertyWidget(
+					InArgs._TextureUV 
+						? static_cast<UDMMaterialComponent*>(InArgs._TextureUV)
+						: static_cast<UDMMaterialComponent*>(InArgs._TextureUVDynamic)
+				)
 			]
 		]
 	];
@@ -201,9 +236,16 @@ FVector2D SDMTextureUVVisualizerPopout::GetSideBlockSize() const
 	return FVector2D::UnitVector;
 }
 
-TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextureUV* InTextureUV)
+TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMMaterialComponent* InComponent)
 {
 	SDMEditor::ClearPropertyHandles(this);
+
+	if (!InComponent)
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	const bool bIsDynamic = InComponent && InComponent->IsA<UDMTextureUVDynamic>();
 
 	FCustomDetailsViewArgs Args;
 	Args.KeyframeHandler = nullptr;
@@ -211,7 +253,7 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 	Args.bAllowResetToDefault = true;
 	Args.bShowCategories = false;
 
-	if (UWorld* World = InTextureUV->GetWorld())
+	if (UWorld* World = InComponent->GetWorld())
 	{
 		if (UDMWorldSubsystem* WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
 		{
@@ -223,7 +265,15 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 	const FCustomDetailsViewItemId RootId = DetailsView->GetRootItem()->GetItemId();
 
 	TArray<FDMPropertyHandle> TextureUVPropertyRows;
-	FDMTextureUVPropertyRowGenerator::AddPopoutComponentProperties(SharedThis(this), InTextureUV, TextureUVPropertyRows);
+
+	if (bIsDynamic)
+	{
+		FDMTextureUVDynamicPropertyRowGenerator::AddPopoutComponentProperties(SharedThis(this), InComponent, TextureUVPropertyRows);
+	}
+	else
+	{
+		FDMTextureUVPropertyRowGenerator::AddPopoutComponentProperties(SharedThis(this), InComponent, TextureUVPropertyRows);
+	}
 
 	FDMPropertyHandle EditModeButtonRow;
 	EditModeButtonRow.ValueName = TEXT("EditMode");
@@ -302,6 +352,11 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 				continue;
 			}
 
+			if (!EditRow.bEnabled)
+			{
+				Item->AsItem()->SetEnabledOverride(false);
+			}
+
 			Item->SetValueWidget(EditRow.ValueWidget.ToSharedRef());
 			DetailsView->ExtendTree(RootId, Position, Item->AsItem());
 			continue;
@@ -323,6 +378,11 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 					.Text(EditRow.NameOverride.GetValue())
 					.ToolTipText(EditRow.NameToolTipOverride.Get(FText::GetEmpty()))
 			);
+		}
+
+		if (!EditRow.bEnabled)
+		{
+			Item->SetEnabledOverride(false);
 		}
 
 		if (EditRow.PropertyHandle->HasMetaData("NotKeyframeable"))

@@ -37,11 +37,11 @@ FDMObjectMaterialProperty::FDMObjectMaterialProperty(UObject* InOuter, FProperty
 {
 }
 
-UDynamicMaterialModel* FDMObjectMaterialProperty::GetMaterialModel() const
+UDynamicMaterialModelBase* FDMObjectMaterialProperty::GetMaterialModelBase() const
 {
 	if (UDynamicMaterialInstance* Instance = GetMaterial())
 	{
-		return Instance->GetMaterialModel();
+		return Instance->GetMaterialModelBase();
 	}
 
 	return nullptr;
@@ -213,7 +213,7 @@ FText FDMObjectMaterialProperty::GetPropertyName(bool bInIgnoreNewStatus) const
 		return FText::GetEmpty();
 	}
 
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
 	if (Property != nullptr)
 	{
@@ -228,7 +228,7 @@ FText FDMObjectMaterialProperty::GetPropertyName(bool bInIgnoreNewStatus) const
 			);
 		}
 
-		if (MaterialModel || bInIgnoreNewStatus)
+		if (MaterialModelBase || bInIgnoreNewStatus)
 		{
 			return FText::Format(
 				LOCTEXT("PropertyNameFormat", "{0}"),
@@ -249,7 +249,7 @@ FText FDMObjectMaterialProperty::GetPropertyName(bool bInIgnoreNewStatus) const
 		{
 			if (Index >= 0 && Index <= Component->GetNumMaterials())
 			{
-				if (MaterialModel || bInIgnoreNewStatus)
+				if (MaterialModelBase || bInIgnoreNewStatus)
 				{
 					return FText::Format(
 						LOCTEXT("MaterialListNameFormat", "Element {0}"),

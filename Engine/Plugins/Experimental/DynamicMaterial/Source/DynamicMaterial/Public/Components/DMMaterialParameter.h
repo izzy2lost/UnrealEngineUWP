@@ -10,30 +10,34 @@ class UDynamicMaterialModel;
 /**
  * A parameter on a Material Designer Instance.
  */
-UCLASS(BlueprintType, meta = (DisplayName = "Material Designer Parameter"))
-class DYNAMICMATERIAL_API UDMMaterialParameter : public UDMMaterialLinkedComponent
+UCLASS(MinimalAPI, BlueprintType, meta = (DisplayName = "Material Designer Parameter"))
+class UDMMaterialParameter : public UDMMaterialLinkedComponent
 {
 	GENERATED_BODY()
 
-public:
 	friend class UDynamicMaterialModel;
 
+public:
+	DYNAMICMATERIAL_API UDMMaterialParameter();
+
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDynamicMaterialModel* GetMaterialModel() const;
+	DYNAMICMATERIAL_API UDynamicMaterialModel* GetMaterialModel() const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	FName GetParameterName() const { return ParameterName; }
 
 #if WITH_EDITOR
+	/** Changes the parameter name registered with the Model. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void RenameParameter(FName InBaseParameterName);
+	DYNAMICMATERIAL_API void RenameParameter(FName InBaseParameterName);
 
 	//~ Begin UObject
-	virtual void BeginDestroy() override;
+	/** Unregisters the parameter name with the model. */
+	DYNAMICMATERIAL_API virtual void BeginDestroy() override;
 	//~ End UObject
 
 	//~ Begin UDMMaterialComponent
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIAL_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
 #endif
 
@@ -42,11 +46,10 @@ protected:
 	FName ParameterName;
 
 private:
-	UDMMaterialParameter();
-
 	#if WITH_EDITOR
 	//~ Begin UDMMaterialComponent
-	virtual void OnComponentRemoved() override;
+	/** Unregisters the parameter name with the model. */
+	DYNAMICMATERIAL_API virtual void OnComponentRemoved() override;
 	//~ End UDMMaterialComponent
 #endif
 };

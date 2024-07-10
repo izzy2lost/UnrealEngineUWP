@@ -19,8 +19,7 @@
 #include "DynamicMaterialEditorStyle.h"
 #include "Engine/Texture.h"
 #include "SDMEditor.h"
-#include "Slate/Previews/SDMStagePreview.h"
-#include "Slate/SMaterialToolTip.h"
+#include "Slate/Previews/SDMComponentPreview.h"
 #include "SlateOptMacros.h"
 #include "Styling/CoreStyle.h"
 #include "Utils/DMPrivate.h"
@@ -38,9 +37,16 @@ SDMStage::~SDMStage()
 	SDMEditor::ClearPropertyHandles(this);
 }
 
-void SDMStage::Construct(const FArguments& InArgs, UDMMaterialStage* InStage)
+void SDMStage::Construct(const FArguments& InArgs, const TSharedRef<SDMSlot> InSlotWidget, UDMMaterialStage* InStage)
 {
 	ensure(IsValid(InStage));
+
+	if (!ensure(InSlotWidget->GetEditorWidget().IsValid()))
+	{
+		return;
+	}
+
+	SlotWidgetWeak = InSlotWidget;
 	StageWeak = InStage;
 
 	bStageEnabled = InArgs._StageEnabled;
@@ -74,11 +80,8 @@ void SDMStage::Construct(const FArguments& InArgs, UDMMaterialStage* InStage)
 		.IsInteractive(false)
 		.BorderImage(FCoreStyle::Get().GetBrush("ToolTip.Background"))
 		[
-			SNew(SMaterialToolTip)
-			.Material(StageWeak->GetPreviewMaterial())
-			.Text(ToolTipText)
-			.MaterialSize_Lambda([]() { return FVector2D(UDynamicMaterialEditorSettings::Get()->TooltipTextureSize); })
-			.ShowMaterial(this, &SDMStage::IsToolTipInteractable)
+			SNew(SDMComponentPreview, InSlotWidget->GetEditorWidget().ToSharedRef(), StageWeak.Get())
+			.PreviewSize(FVector2D(256.f))
 		]
 	);
 
@@ -106,7 +109,7 @@ void SDMStage::Construct(const FArguments& InArgs, UDMMaterialStage* InStage)
 					.WidthOverride(this, &SDMStage::GetStagePreviewDesiredWidth)
 					.HeightOverride(this, &SDMStage::GetStagePreviewDesiredHeight)
 					[
-						SNew(SDMStagePreview, StageWeak.Get())
+						SNew(SDMComponentPreview, InSlotWidget->GetEditorWidget().ToSharedRef(), StageWeak.Get())
 						.PreviewSize(DesiredSize)
 					]
 				]

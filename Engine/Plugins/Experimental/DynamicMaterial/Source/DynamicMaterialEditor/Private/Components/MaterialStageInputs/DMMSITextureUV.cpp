@@ -304,9 +304,15 @@ void UDMMaterialStageInputTextureUV::OnTextureUVUpdated(UDMMaterialComponent* In
 	}
 }
 
-UMaterialExpressionScalarParameter* UDMMaterialStageInputTextureUV::CreateScalarParameter(const TSharedRef<FDMMaterialBuildState>& InBuildState, FName InParamName, float InValue)
+UMaterialExpressionScalarParameter* UDMMaterialStageInputTextureUV::CreateScalarParameter(const TSharedRef<FDMMaterialBuildState>& InBuildState, 
+	FName InParamName, EDMMaterialParameterGroup InParameterGroup, float InValue)
 {
-	UMaterialExpressionScalarParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionScalarParameter>(InParamName, UE_DM_NodeComment_Default);
+	UMaterialExpressionScalarParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionScalarParameter>(
+		InParamName, 
+		InParameterGroup,
+		UE_DM_NodeComment_Default
+	);
+
 	check(NewExpression);
 
 	NewExpression->DefaultValue = InValue;
@@ -383,7 +389,6 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 
 	// Output nodes
 	TArray<UMaterialExpression*> Nodes;
-	InTextureUV->MaterialNodesCreated.Empty();
 
 	// UV Source
 	static const FName UVInputName = TEXT("UV");
@@ -425,33 +430,26 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 	Nodes.Last()->ConnectExpression(TextureUVFunc->GetInput(NameToInputIndex[UVInputName]), 0);
 
 	auto CreateParameterExpression = [InTextureUV, &InBuildState, &NameToInputIndex, TextureUVFunc, &Nodes]
-		(int32 ParamGroupId, int32 ParamId, FName InputName, float DefaultValue)
+		(FName InPropertyName, int32 InComponent, FName InInputName, float InDefaultValue)
 		{
-			check(InTextureUV->MaterialParameters.Contains(ParamId));
+			UMaterialExpressionScalarParameter* ParamNode = CreateScalarParameter(
+				InBuildState, 
+				InTextureUV->GetMaterialParameterName(InPropertyName, InComponent),
+				InTextureUV->GetParameterGroup(InPropertyName, InComponent)
+			);
 
-			if (!NameToInputIndex.Contains(InputName))
-			{
-				return;
-			}
-
-			check(NameToInputIndex.Contains(InputName));
-
-			UMaterialExpressionScalarParameter* ParamNode = CreateScalarParameter(InBuildState, InTextureUV->MaterialParameters[ParamId]->GetParameterName());
-			InTextureUV->MaterialNodesCreated.FindOrAdd(ParamGroupId, true);
-
-			ParamNode->DefaultValue = DefaultValue;
-			ParamNode->ConnectExpression(TextureUVFunc->GetInput(NameToInputIndex[InputName]), 0);
+			ParamNode->DefaultValue = InDefaultValue;
+			ParamNode->ConnectExpression(TextureUVFunc->GetInput(NameToInputIndex[InInputName]), 0);
 
 			Nodes.Add(ParamNode);
 		};
-
-	CreateParameterExpression(ParamID::Offset,   ParamID::OffsetX,  TEXT("OffsetX"),  InTextureUV->GetOffset().X);
-	CreateParameterExpression(ParamID::Offset,   ParamID::OffsetY,  TEXT("OffsetY"),  InTextureUV->GetOffset().Y);
-	CreateParameterExpression(ParamID::Pivot,    ParamID::PivotX,   TEXT("PivotX"),   InTextureUV->GetPivot().X);
-	CreateParameterExpression(ParamID::Pivot,    ParamID::PivotY,   TEXT("PivotY"),   InTextureUV->GetPivot().Y);
-	CreateParameterExpression(ParamID::Rotation, ParamID::Rotation, TEXT("Rotation"), InTextureUV->GetRotation());
-	CreateParameterExpression(ParamID::Tiling,    ParamID::TilingX,   TEXT("TilingX"),   InTextureUV->GetTiling().X);
-	CreateParameterExpression(ParamID::Tiling,    ParamID::TilingY,   TEXT("TilingY"),   InTextureUV->GetTiling().Y);
+	CreateParameterExpression(UDMTextureUV::NAME_Offset,   0, TEXT("OffsetX"),  InTextureUV->GetOffset().X);
+	CreateParameterExpression(UDMTextureUV::NAME_Offset,   1, TEXT("OffsetY"),  InTextureUV->GetOffset().Y);
+	CreateParameterExpression(UDMTextureUV::NAME_Pivot,    0, TEXT("PivotX"),   InTextureUV->GetPivot().X);
+	CreateParameterExpression(UDMTextureUV::NAME_Pivot,    1, TEXT("PivotY"),   InTextureUV->GetPivot().Y);
+	CreateParameterExpression(UDMTextureUV::NAME_Rotation, 0, TEXT("Rotation"), InTextureUV->GetRotation());
+	CreateParameterExpression(UDMTextureUV::NAME_Tiling,   0, TEXT("TilingX"),  InTextureUV->GetTiling().X);
+	CreateParameterExpression(UDMTextureUV::NAME_Tiling,   1, TEXT("TilingY"),  InTextureUV->GetTiling().Y);
 
 	if (UMaterialExpression* GlobalOffset = InBuildState->GetGlobalExpression(UDynamicMaterialModel::GlobalOffsetValueName))
 	{

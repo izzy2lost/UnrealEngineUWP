@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "UObject/Object.h"
+#include "Model/DynamicMaterialModelBase.h"
 #include "Containers/Array.h"
 #include "Containers/Set.h"
 #include "Templates/SubclassOf.h"
@@ -17,174 +17,188 @@ class UDMMaterialComponent;
 class UDMMaterialParameter;
 class UDMMaterialValue;
 class UDMMaterialValueFloat1;
-class UDMMaterialValueFloat2;
 class UDMTextureUV;
-class UDynamicMaterialInstance;
+class UMaterialExpression;
+class UMaterialInstanceDynamic;
 enum class EDMMaterialPropertyType : uint8;
 enum class EDMMaterialShadingModel : uint8;
 enum class EDMUpdateType : uint8;
-enum class EDMValueType : uint8;
 struct FDMComponentPath;
 
 #if WITH_EDITORONLY_DATA
 class IDynamicMaterialModelEditorOnlyDataInterface;
-class UDMMaterialProperty;
-class UDMMaterialSlot;
 class UMaterial;
-class UMaterialExpression;
 enum EBlendMode : int;
 #endif
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FDMOnValueUpdated, UDynamicMaterialModel*, UDMMaterialValue*);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FDMOnTextureUVUpdated, UDynamicMaterialModel*, UDMTextureUV*);
 
-UCLASS(ClassGroup = "Material Designer", DefaultToInstanced, BlueprintType, meta = (DisplayThumbnail = "true"))
-class DYNAMICMATERIAL_API UDynamicMaterialModel : public UObject
+UCLASS(MinimalAPI, ClassGroup = "Material Designer", DefaultToInstanced, BlueprintType, meta = (DisplayThumbnail = "true"))
+class UDynamicMaterialModel : public UDynamicMaterialModelBase
 {
 	GENERATED_BODY()
 
 public:
-	static const FString ValuesPathToken;
-	static const FString ParametersPathToken;
-	static const FLazyName GlobalOpacityValueName;
-	static const FLazyName GlobalOpacityParameterName;
-	static const FLazyName GlobalMetallicValueName;
-	static const FLazyName GlobalMetallicParameterName;
-	static const FLazyName GlobalRoughnessValueName;
-	static const FLazyName GlobalRoughnessParameterName;
-	static const FLazyName GlobalNormalValueName;
-	static const FLazyName GlobalNormalParameterName;
-	static const FLazyName GlobalSpecularValueName;
-	static const FLazyName GlobalSpecularParameterName;
-	static const FLazyName GlobalAnisotropyValueName;
-	static const FLazyName GlobalAnisotropyParameterName;
-	static const FLazyName GlobalWorldPositionOffsetValueName;
-	static const FLazyName GlobalWorldPositionOffsetParameterName;
-	static const FLazyName GlobalAmbientOcclusionValueName;
-	static const FLazyName GlobalAmbientOcclusionParameterName;
-	static const FLazyName GlobalRefractionValueName;
-	static const FLazyName GlobalRefractionParameterName;
-	static const FLazyName GlobalPixelDepthOffsetValueName;
-	static const FLazyName GlobalPixelDepthOffsetParameterName;
-	static const FLazyName GlobalOffsetValueName;
-	static const FLazyName GlobalOffsetParameterName;
-	static const FLazyName GlobalTilingValueName;
-	static const FLazyName GlobalTilingParameterName;
-	static const FLazyName GlobalRotationValueName;
-	static const FLazyName GlobalRotationParameterName;
+	/** Tokens used for Components. */
+	DYNAMICMATERIAL_API static const FString ValuesPathToken;
+	DYNAMICMATERIAL_API static const FString ParametersPathToken;
+
+	/** FNames for global parameters values. */
+	DYNAMICMATERIAL_API static const FLazyName GlobalOpacityValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalOpacityParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalMetallicValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalMetallicParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalRoughnessValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalRoughnessParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalNormalValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalNormalParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalSpecularValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalSpecularParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalAnisotropyValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalAnisotropyParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalWorldPositionOffsetValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalWorldPositionOffsetParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalAmbientOcclusionValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalAmbientOcclusionParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalRefractionValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalRefractionParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalPixelDepthOffsetValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalPixelDepthOffsetParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalOffsetValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalOffsetParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalTilingValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalTilingParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalRotationValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalRotationParameterName;
 
 	UDynamicMaterialModel();
 
-	bool IsModelValid() const;
-
-	UDynamicMaterialInstance* GetDynamicMaterialInstance() const { return DynamicMaterialInstance; }
-	void SetDynamicMaterialInstance(UDynamicMaterialInstance* InDynamicMaterialInstance);
-
+	/** Returns this if this is IsValid() and isn't isn't being destroyed. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UMaterial* GetGeneratedMaterial() const { return DynamicMaterial; }
+	DYNAMICMATERIAL_API bool IsModelValid() const;
 
-	UE_DEPRECATED(5.5, "Added to GlobalParameterValues map.")
+	/** Returns the map of global parameter values (such as global opacity). */
+	DYNAMICMATERIAL_API const TMap<FName, TObjectPtr<UDMMaterialValue>>& GetGlobalParameterValues() const;
+
+	/** Returns a specific global parameter value (such as global opacity) of the given object name (see global parameter FNames) or nullptr. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialValueFloat1* GetGlobalOpacityValue() const;
+	DYNAMICMATERIAL_API UDMMaterialValue* GetGlobalParameterValue(FName InName) const;
 
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialValue* GetGlobalParameterValue(FName InName) const;
-
+	/** Returns a Cast version of a specific global value (such as global opacity) or nullptr. */
 	template<typename InValueClass>
 	InValueClass* GetTypedGlobalParameterValue(FName InName) const
 	{
 		return Cast<InValueClass>(GetGlobalParameterValue(InName));
 	}
 
+	/** Searches the model for a specific component based on a path. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialComponent* GetComponentByPath(const FString& InPath) const;
+	DYNAMICMATERIAL_API UDMMaterialComponent* GetComponentByPath(const FString& InPath) const;
 
-	UDMMaterialComponent* GetComponentByPath(FDMComponentPath& InPath) const;
+	/** Searches the model for a specific component based on a path. */
+	DYNAMICMATERIAL_API UDMMaterialComponent* GetComponentByPath(FDMComponentPath& InPath) const;
 
+	/** Searches the model for a specific component based on a path and Casts it to the given type. */
 	template<typename InComponentClass>
-	UDMMaterialComponent* GetComponentByPath(FDMComponentPath& InPath) const
+	InComponentClass* GetComponentByPath(FDMComponentPath& InPath) const
 	{
 		return Cast<InComponentClass>(GetComponentByPath(InPath));
 	}
+
+	/** Returns an array of the (non-global parameter) values used in this Model. */
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	const TArray<UDMMaterialValue*>& GetValues() const { return Values; }
+
+	/** Returns a specific (non-global parameter) value of the given object name. */
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIAL_API UDMMaterialValue* GetValueByName(FName InName) const;
+
+	/** Returns a set of components that require a runtime reference, such as texture uvs. */
+	const TSet<TObjectPtr<UDMMaterialComponent>>& GetRuntimeComponents() const { return RuntimeComponents; }
 
 #if WITH_EDITOR
 	friend class UDynamicMaterialModelEditorOnlyData;
 	friend class UDynamicMaterialModelFactory;
 
+	/** Returns the editor only data for this model. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer", Meta = (DisplayName = "Get Editor Only Data"))
 	TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> BP_GetEditorOnlyData() const { return EditorOnlyDataSI; }
 
-	IDynamicMaterialModelEditorOnlyDataInterface* GetEditorOnlyData() const;
+	/** Returns the editor only data for this model. */
+	DYNAMICMATERIAL_API IDynamicMaterialModelEditorOnlyDataInterface* GetEditorOnlyData() const;
 
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const TArray<UDMMaterialValue*>& GetValues() const { return Values; }
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialValue* GetValueByName(FName InName) const;
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMMaterialValue* GetValueByIndex(int32 Index) const;
-
-	UDMMaterialValue* AddValue(EDMValueType InValueType);
-
+	/** Creates a new value of the given class and returns it. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	UDMMaterialValue* AddValue(TSubclassOf<UDMMaterialValue> InValueClass);
+	DYNAMICMATERIAL_API UDMMaterialValue* AddValue(TSubclassOf<UDMMaterialValue> InValueClass);
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	/** Adds a reference to a component so they don't get garbage collected at runtime. */
 	void AddRuntimeComponentReference(UDMMaterialComponent* InValue);
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	/** Removes a reference to a component. */
 	void RemoveRuntimeComponentReference(UDMMaterialComponent* InValue);
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void RemoveValueByName(FName InName);
+	/** Removes a value based on its parameter name. */
+	void RemoveValueByParameterName(FName InName);
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void RemoveValueByIndex(int32 Index);
-
+	/**
+	 * Returns true if a parameter has with the given name exists on this Model.
+	 * Will not include automatically generated component parameter names.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool HasParameterName(FName InParameterName) const;
+	DYNAMICMATERIAL_API bool HasParameterName(FName InParameterName) const;
 
 	/** Creates a new parameter and assigns it a unique name. */
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	UDMMaterialParameter* CreateUniqueParameter(FName InBaseName);
 
 	/** Updates the name on an existing parameter. */
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void RenameParameter(UDMMaterialParameter* InParameter, FName InBaseName);
 
 	/** Removes parameter by the name assigned to this parameter object. */
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	void FreeParameter(UDMMaterialParameter* InParameter);
 
 	/**
 	 * Removes this specific object from the parameter map if the name is in use by a different parameter.
 	 * Returns true if, after this call, the object is not in the parameter map.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	bool ConditionalFreeParameter(UDMMaterialParameter* InParameter);
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void ResetData();
 #endif
 
-	virtual void OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType);
+	/** Called by the value when it updates. Updates Material Designer Instance and triggers the delegate. */
+	void OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType);
 
-	virtual void OnTextureUVUpdated(UDMTextureUV* InTextureUV);
+	/** Called by the texture uv when it updates. Updates Material Designer Instance and triggers the delegate. */
+	void OnTextureUVUpdated(UDMTextureUV* InTextureUV);
 
+	/** Returns the value update delegate to (un)subscribe. */
 	FDMOnValueUpdated::RegistrationType& GetOnValueUpdateDelegate() { return OnValueUpdateDelegate; }
+
+	/** Returns the texture uv update delegate to (un)subscribe. */
 	FDMOnTextureUVUpdated::RegistrationType& GetOnTextureUVUpdateDelegate() { return OnTextureUVUpdateDelegate; }
 
+	//~ Begin UDynamicMaterialModelBase
+	virtual UDynamicMaterialModel* ResolveMaterialModel() override { return this; }
+	virtual UDynamicMaterialInstance* GetDynamicMaterialInstance() const override { return DynamicMaterialInstance; }
+	virtual void SetDynamicMaterialInstance(UDynamicMaterialInstance* InDynamicMaterialInstance) override;
+	virtual UMaterial* GetGeneratedMaterial() const override { return DynamicMaterial; }
+	DYNAMICMATERIAL_API virtual void ApplyComponents(UMaterialInstanceDynamic* InMID) override;
+	//~ End UDynamicMaterialModelBase
+
 	//~ Begin UObject
-	virtual void PostLoad() override;
+	DYNAMICMATERIAL_API virtual void PostLoad() override;
 #if WITH_EDITOR
-	virtual void PostEditUndo() override;
-	virtual void PostEditImport() override;
-	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	DYNAMICMATERIAL_API virtual void PostEditUndo() override;
+	DYNAMICMATERIAL_API virtual void PostEditImport() override;
+	DYNAMICMATERIAL_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	//~ End UObject
 
+	/** Called to ensure that the object hierarchy is correct. */
 	void PostEditorDuplicate();
 #endif
+
+	UE_DEPRECATED(5.5, "Added to GlobalParameterValues map.")
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	UDMMaterialValueFloat1* GetGlobalOpacityValue() const;
 
 protected:
 	/** Global values */
@@ -195,24 +209,32 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TSet<TObjectPtr<UDMMaterialComponent>> RuntimeComponents;
 
+	/** Map of the global parameter values, such as global opacity. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TMap<FName, TObjectPtr<UDMMaterialValue>> GlobalParameterValues;
 
-	UPROPERTY(VisibleInstanceOnly, DuplicateTransient, TextExportTransient, Category = "Material Designer")
+	/** Map of parameter names to the objects representing that parameter. */
+	UPROPERTY(VisibleInstanceOnly, TextExportTransient, Category = "Material Designer")
 	TMap<FName, TWeakObjectPtr<UDMMaterialParameter>> ParameterMap;
 
-	UPROPERTY(VisibleInstanceOnly, Instanced, BlueprintReadOnly, DuplicateTransient, TextExportTransient, Category = "Material Designer")
+	/** Material generated by the Model. */
+	UPROPERTY(VisibleInstanceOnly, Instanced, BlueprintReadOnly, TextExportTransient, Category = "Material Designer")
 	TObjectPtr<UMaterial> DynamicMaterial = nullptr;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, DuplicateTransient, TextExportTransient, Category = "Material Designer")
+	/** Material Designer Instance representing the MID for this Model. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, TextExportTransient, Category = "Material Designer")
 	TObjectPtr<UDynamicMaterialInstance> DynamicMaterialInstance;
 
 #if WITH_EDITORONLY_DATA
+	/** Object holding the editor-only data used by this model. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> EditorOnlyDataSI;
 #endif
 
+	/** Delegate called when a value is updated. @See GetOnValueUpdateDelegate. */
 	FDMOnValueUpdated OnValueUpdateDelegate;
+
+	/** Delegate called when a value is updated. @See GetOnValueUpdateDelegate. */
 	FDMOnTextureUVUpdated OnTextureUVUpdateDelegate;
 
 	/**
@@ -222,10 +244,13 @@ protected:
 	void FixGlobalParameterValues();
 
 #if WITH_EDITOR
+	/** Checks the current parameters and returns the first parameter name that is not in used (BaseName1, 2, etc, etc.) */
 	FName CreateUniqueParameterName(FName InBaseName);
 
+	/** Called to ensure that all components are correctly initialized. Also calls the editor only data version, if applicable. */
 	void ReinitComponents();
 
+	/* Makes sure the global parameter values have the correct name. */
 	void FixGlobalVars();
 #endif
 

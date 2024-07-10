@@ -15,57 +15,60 @@ class UDMTextureUV;
 class UDynamicMaterialModel;
 class UMaterialExpressionScalarParameter;
 class UMaterialInstanceDynamic;
+enum class EDMMaterialParameterGroup : uint8;
 struct FDMMaterialBuildState;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageInputTextureUV : public UDMMaterialStageInput
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageInputTextureUV : public UDMMaterialStageInput
 {
 	GENERATED_BODY()
 
 public:
-	static const FString TextureUVPathToken;
-
-	static UDMMaterialStage* CreateStage(UDynamicMaterialModel* InMaterialModel, UDMMaterialLayerObject* InLayer = nullptr);
+	DYNAMICMATERIALEDITOR_API static const FString TextureUVPathToken;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputTextureUV* ChangeStageSource_UV(UDMMaterialStage* InStage, bool bInDoUpdate);
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStage* CreateStage(UDynamicMaterialModel* InMaterialModel, UDMMaterialLayerObject* InLayer = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputTextureUV* ChangeStageInput_UV(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel, 
-		int32 InOutputChannel);
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputTextureUV* ChangeStageSource_UV(UDMMaterialStage* InStage, bool bInDoUpdate);
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputTextureUV* ChangeStageInput_UV(UDMMaterialStage* InStage, int32 InInputIdx, 
+		int32 InInputChannel, int32 InOutputChannel);
+
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageInputTextureUV();
 
 	virtual ~UDMMaterialStageInputTextureUV() override = default;
-
-	virtual FText GetComponentDescription() const override;
-	virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;
 
 	void Init(UDynamicMaterialModel* InMaterialModel);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDMTextureUV* GetTextureUV() { return TextureUV; }
 
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-
-	//~ Begin UObject
-	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
-	virtual void PostLoad() override;
-	virtual void PostEditImport() override;
-	//~ End UObject
+	//~ Start UDMMaterialStageInput
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;
+	//~ End UDMMaterialStageInput
 
 	//~ Start UDMMaterialComponent
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
 
+	//~ Begin UObject
+	DYNAMICMATERIALEDITOR_API virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostLoad() override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditImport() override;
+	//~ End UObject
+
 protected:
-	static UMaterialExpressionScalarParameter* CreateScalarParameter(const TSharedRef<FDMMaterialBuildState>& InBuildState, FName InParamName, float InValue = 0.f);
+	DYNAMICMATERIALEDITOR_API static UMaterialExpressionScalarParameter* CreateScalarParameter(const TSharedRef<FDMMaterialBuildState>& InBuildState, FName InParamName,
+		EDMMaterialParameterGroup InParameterGroup, float InValue = 0.f);
+
 	static TArray<UMaterialExpression*> CreateTextureUVExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState, UDMTextureUV* InTextureUV);
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMTextureUV> TextureUV;
-
-	UDMMaterialStageInputTextureUV();
-
-	virtual void UpdateOutputConnectors() override;
 
 	void OnTextureUVUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
@@ -73,9 +76,13 @@ protected:
 
 	void AddEffects(const TSharedRef<FDMMaterialBuildState>& InBuildState, TArray<UMaterialExpression*>& InOutExpressions) const;
 
+	//~ Start UDMMaterialStageInput
+	DYNAMICMATERIALEDITOR_API virtual void UpdateOutputConnectors() override;
+	//~ End UDMMaterialStageInput
+
 	//~ Begin UDMMaterialComponent
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
-	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentRemoved() override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
 	//~ End UDMMaterialComponent
 };

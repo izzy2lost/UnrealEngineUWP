@@ -555,7 +555,7 @@ FText UDMMaterialStageThroughputLayerBlend::GetStageDescription() const
 	return Super::GetComponentDescription();
 }
 
-bool UDMMaterialStageThroughputLayerBlend::UpdateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
+bool UDMMaterialStageThroughputLayerBlend::GenerateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
 	UMaterialExpression*& OutMaterialExpression, int32& OutputIndex)
 {
 	check(InStage);
@@ -889,26 +889,11 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FD
 	return OutChannel.OutputIndex;
 }
  
-void UDMMaterialStageThroughputLayerBlend::UpdatePreviewMaterial(UMaterial* InPreviewMaterial /*= nullptr*/)
+void UDMMaterialStageThroughputLayerBlend::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
 	if (!IsComponentValid())
 	{
 		return;
-	}
-
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
- 
-		InPreviewMaterial = PreviewMaterial;
- 
-		if (!InPreviewMaterial)
-		{
-			return;
-		}
 	}
  
 	UDMMaterialStage* Stage = GetStage();

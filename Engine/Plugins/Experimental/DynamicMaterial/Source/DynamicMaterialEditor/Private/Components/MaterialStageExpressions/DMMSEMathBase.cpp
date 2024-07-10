@@ -296,10 +296,10 @@ void UDMMaterialStageExpressionMathBase::AddDefaultInput(int32 InInputIndex) con
 	Super::AddDefaultInput(InInputIndex);
 }
 
-bool UDMMaterialStageExpressionMathBase::UpdateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
+bool UDMMaterialStageExpressionMathBase::GenerateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
 	UMaterialExpression*& OutMaterialExpression, int32& OutputIndex)
 {
-	UpdateOntoPreviewMaterial(InPreviewMaterial);
+	GeneratePreviewMaterial(InPreviewMaterial);
 	return true;
 }
 
@@ -335,23 +335,8 @@ void UDMMaterialStageExpressionMathBase::SetupInputs(int32 InCount)
 	}
 }
 
-void UDMMaterialStageExpressionMathBase::UpdatePreviewMaterial(UMaterial* InPreviewMaterial)
+void UDMMaterialStageExpressionMathBase::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
-
-		InPreviewMaterial = PreviewMaterial;
-
-		if (!InPreviewMaterial)
-		{
-			return;
-		}
-	}
-
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
 

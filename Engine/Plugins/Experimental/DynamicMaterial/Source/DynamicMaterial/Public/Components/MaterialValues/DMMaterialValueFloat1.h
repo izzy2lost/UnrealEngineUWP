@@ -5,45 +5,57 @@
 #include "DMMaterialValueFloat.h"
 #include "DMMaterialValueFloat1.generated.h"
  
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIAL_API UDMMaterialValueFloat1 : public UDMMaterialValueFloat
+/**
+ * Component representing a float/scalar value. Manages its own parameter.
+ */
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialValueFloat1 : public UDMMaterialValueFloat
 {
 	GENERATED_BODY()
  
 public:
+	UDMMaterialValueFloat1();
+
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	float GetValue() const { return Value; }
  
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetValue(float InValue);
+	DYNAMICMATERIAL_API void SetValue(float InValue);
  
 #if WITH_EDITOR
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	float GetDefaultValue() const { return DefaultValue; }
  
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetDefaultValue(float InDefaultValue);
+	DYNAMICMATERIAL_API void SetDefaultValue(float InDefaultValue);
 #endif
 
 #if WITH_EDITOR
 	//~ Begin IDMJsonSerializable
-	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
-	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	DYNAMICMATERIAL_API virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	DYNAMICMATERIAL_API virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
 	//~ End IDMJsonSerializable
 #endif
  
 	//~ Begin UDMMaterialValue
-	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
+	DYNAMICMATERIAL_API virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
 #if WITH_EDITOR
-	virtual void GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const override;
-	virtual bool IsDefaultValue() const override;
-	virtual void ApplyDefaultValue() override;
-	virtual void ResetDefaultValue() override;
+	DYNAMICMATERIAL_API virtual void GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const override;
+	DYNAMICMATERIAL_API virtual bool IsDefaultValue() const override;
+	DYNAMICMATERIAL_API virtual void ApplyDefaultValue() override;
+	DYNAMICMATERIAL_API virtual void ResetDefaultValue() override;
+	DYNAMICMATERIAL_API virtual UDMMaterialValueDynamic* ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic) override;
 #endif
 	// ~End UDMMaterialValue
+
+	//~ Begin UDMMaterialComponent
+#if WITH_EDITOR
+	DYNAMICMATERIAL_API virtual FString GetComponentPathComponent() const override;
+#endif
+	//~ End UDMMaterialComponent
  
 protected:
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetValue, Setter = SetValue, BlueprintSetter = SetValue, Category = "Material Designer",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter, Setter, BlueprintSetter = SetValue, Category = "Material Designer",
 		meta = (AllowPrivateAccess = "true"), DisplayName = "Float")
 	float Value;
  
@@ -52,6 +64,4 @@ protected:
 		meta = (AllowPrivateAccess = "true"))
 	float DefaultValue;
 #endif
- 
-	UDMMaterialValueFloat1();
 };

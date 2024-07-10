@@ -9,13 +9,16 @@ class FWidgetRenderer;
 class SWidget;
 class UWidget;
 
-UCLASS(Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Widget Renderer"))
-class DYNAMICMATERIAL_API UDMRenderTargetWidgetRendererBase : public UDMRenderTargetRenderer
+/**
+ * Renderer that renders UWidgets to render targets.
+ */
+UCLASS(MinimalAPI, Abstract, BlueprintType, ClassGroup = "Material Designer", meta = (DisplayName = "Material Designer Render Target Widget Renderer"))
+class UDMRenderTargetWidgetRendererBase : public UDMRenderTargetRenderer
 {
 	GENERATED_BODY()
 
 public:
-	UDMRenderTargetWidgetRendererBase();
+	DYNAMICMATERIAL_API UDMRenderTargetWidgetRendererBase();
 
 protected:
 	TSharedPtr<SWidget> Widget;
@@ -24,6 +27,6 @@ protected:
 	virtual void CreateWidgetInstance() PURE_VIRTUAL(UDMRenderTargetUMGWidgetRenderer::CreateWidgetInstance);
 
 	//~ Begin UDMRenderTargetRenderer
-	virtual void UpdateRenderTarget_Internal() override;
+	DYNAMICMATERIAL_API virtual void UpdateRenderTarget_Internal() override;
 	//~ End UDMRenderTargetRenderer
 };

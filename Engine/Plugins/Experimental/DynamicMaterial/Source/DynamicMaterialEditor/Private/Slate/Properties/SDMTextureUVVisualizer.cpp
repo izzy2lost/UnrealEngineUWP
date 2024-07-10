@@ -5,11 +5,13 @@
 #include "Brushes/SlateColorBrush.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMTextureUV.h"
+#include "Components/DMTextureUVDynamic.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Materials/MaterialInterface.h"
 #include "ScopedTransaction.h"
+#include "Slate/Previews/SDMComponentPreview.h"
+#include "Slate/SDMEditor.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -42,8 +44,7 @@ namespace UE::DynamicMaterialEditor::Private
 }
 
 SDMTextureUVVisualizer::SDMTextureUVVisualizer()
-	: Brush(FSlateMaterialBrush(UE::DynamicMaterialEditor::Private::TextureUVVisualizerImageSize))
-	, bIsPopout(false)
+	: bIsPopout(false)
 	, bPivotEditMode(false)
 	, CurrentAbsoluteSize(FVector2f::ZeroVector)
 	, CurrentAbsoluteCenter(FVector2f::ZeroVector)
@@ -54,20 +55,21 @@ SDMTextureUVVisualizer::SDMTextureUVVisualizer()
 	, ValueStart(FVector2D::ZeroVector)
 	, bInvertTiling(false)
 {
-	Brush.SetUVRegion(FBox2f(FVector2f(0, 0), FVector2f(1, 1)));
 }
 
-void SDMTextureUVVisualizer::Construct(const FArguments& InArgs, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV)
+void SDMTextureUVVisualizer::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage)
 {
 	check(InMaterialStage);
-	check(InTextureUV);
+	check(InArgs._TextureUV || InArgs._TextureUVDynamic);
 
+	EditorWidgetWeak = InEditorWidget;
 	StageWeak = InMaterialStage;
-	TextureUVWeak = InTextureUV;
-	bIsPopout = InArgs._IsPopout;
 
-	InMaterialStage->GetOnUpdate().AddSP(this, &SDMTextureUVVisualizer::OnStageUpdated);
-	OnStageUpdated(InMaterialStage, EDMUpdateType::Structure);
+	TextureUVComponentWeak = InArgs._TextureUV
+		? static_cast<UDMMaterialComponent*>(InArgs._TextureUV)
+		: static_cast<UDMMaterialComponent*>(InArgs._TextureUVDynamic);
+
+	bIsPopout = InArgs._IsPopout;
 
 	SetCanTick(true);
 
@@ -75,9 +77,8 @@ void SDMTextureUVVisualizer::Construct(const FArguments& InArgs, UDMMaterialStag
 
 	ChildSlot
 	[
-		SAssignNew(StageImage, SImage)
-		.Image(&Brush)
-		.DesiredSizeOverride(bIsPopout ? TextureUVVisualizerPopoutImageSize : TextureUVVisualizerImageSize)
+		SAssignNew(StagePreview, SDMComponentPreview, InEditorWidget, InMaterialStage)
+		.PreviewSize(bIsPopout ? TextureUVVisualizerPopoutImageSize : TextureUVVisualizerImageSize)
 	];
 }
 
@@ -106,34 +107,155 @@ UDMMaterialStage* SDMTextureUVVisualizer::GetStage() const
 	return StageWeak.Get();
 }
 
+UDMMaterialComponent* SDMTextureUVVisualizer::GetTextureUVComponent() const
+{
+	return TextureUVComponentWeak.Get();
+}
+
 UDMTextureUV* SDMTextureUVVisualizer::GetTextureUV() const
 {
-	return TextureUVWeak.Get();
+	return Cast<UDMTextureUV>(GetTextureUVComponent());
+}
+
+UDMTextureUVDynamic* SDMTextureUVVisualizer::GetTextureUVDynamic() const
+{
+	return Cast<UDMTextureUVDynamic>(GetTextureUVComponent());
+}
+
+const FVector2D& SDMTextureUVVisualizer::GetOffset() const
+{
+	if (UDMTextureUVDynamic* TextureUVDynamic = GetTextureUVDynamic())
+	{
+		return TextureUVDynamic->GetOffset();
+	}
+
+	if (UDMTextureUV* TextureUV = GetTextureUV())
+	{
+		return TextureUV->GetOffset();
+	}
+
+	return GetDefault<UDMTextureUV>()->GetOffset();
+}
+
+bool SDMTextureUVVisualizer::SetOffset(const FVector2D& InOffset)
+{
+	if (UDMTextureUVDynamic* TextureUVDynamic = GetTextureUVDynamic())
+	{
+		TextureUVDynamic->SetOffset(InOffset);
+		return true;
+	}
+
+	if (UDMTextureUV* TextureUV = GetTextureUV())
+	{
+		TextureUV->SetOffset(InOffset);
+		return true;
+	}
+
+	return false;
+}
+
+float SDMTextureUVVisualizer::GetRotation() const
+{
+	if (UDMTextureUVDynamic* TextureUVDynamic = GetTextureUVDynamic())
+	{
+		return TextureUVDynamic->GetRotation();
+	}
+
+	if (UDMTextureUV* TextureUV = GetTextureUV())
+	{
+		return TextureUV->GetRotation();
+	}
+
+	return GetDefault<UDMTextureUV>()->GetRotation();
+}
+
+bool SDMTextureUVVisualizer::SetRotation(float InRotation)
+{
+	if (UDMTextureUVDynamic* TextureUVDynamic = GetTextureUVDynamic())
+	{
+		TextureUVDynamic->SetRotation(InRotation);
+		return true;
+	}
+
+	if (UDMTextureUV* TextureUV = GetTextureUV())
+	{
+		TextureUV->SetRotation(InRotation);
+		return true;
+	}
+
+	return false;
+}
+
+const FVector2D& SDMTextureUVVisualizer::GetTiling() const
+{
+	if (UDMTextureUVDynamic* TextureUVDynamic = GetTextureUVDynamic())
+	{
+		return TextureUVDynamic->GetTiling();
+	}
+
+	if (UDMTextureUV* TextureUV = GetTextureUV())
+	{
+		return TextureUV->GetTiling();
+	}
+
+	return GetDefault<UDMTextureUV>()->GetTiling();
+}
+
+bool SDMTextureUVVisualizer::SetTiling(const FVector2D& InTiling)
+{
+	if (UDMTextureUVDynamic* TextureUVDynamic = GetTextureUVDynamic())
+	{
+		TextureUVDynamic->SetTiling(InTiling);
+		return true;
+	}
+
+	if (UDMTextureUV* TextureUV = GetTextureUV())
+	{
+		TextureUV->SetTiling(InTiling);
+		return true;
+	}
+
+	return false;
+}
+
+const FVector2D& SDMTextureUVVisualizer::GetPivot() const
+{
+	if (UDMTextureUVDynamic* TextureUVDynamic = GetTextureUVDynamic())
+	{
+		return TextureUVDynamic->GetPivot();
+	}
+
+	if (UDMTextureUV* TextureUV = GetTextureUV())
+	{
+		return TextureUV->GetPivot();
+	}
+
+	return GetDefault<UDMTextureUV>()->GetPivot();
+}
+
+bool SDMTextureUVVisualizer::SetPivot(const FVector2D& InPivot)
+{
+	if (UDMTextureUVDynamic* TextureUVDynamic = GetTextureUVDynamic())
+	{
+		TextureUVDynamic->SetPivot(InPivot);
+		return true;
+	}
+
+	if (UDMTextureUV* TextureUV = GetTextureUV())
+	{
+		TextureUV->SetPivot(InPivot);
+		return true;
+	}
+
+	return false;
 }
 
 void SDMTextureUVVisualizer::Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(InAllottedGeometry, InCurrentTime, InDeltaTime);
 
-	if (!PreviewMaterialWeak.IsValid())
-	{
-		Brush.SetMaterial(nullptr);
-	}
-
-	if (UDMMaterialComponent::CanClean())
-	{
-		if (UDMMaterialStage* Stage = StageWeak.Get())
-		{
-			if (Stage->IsComponentValid() && Stage->NeedsClean())
-			{
-				Stage->DoClean();
-				OnStageUpdated(StageWeak.Get(), EDMUpdateType::Structure);
-			}
-		}
-	}
-
-	CurrentAbsoluteSize = StageImage->GetTickSpaceGeometry().GetAbsoluteSize();
-	CurrentAbsoluteCenter = StageImage->GetTickSpaceGeometry().GetAbsolutePosition() + (CurrentAbsoluteSize * 0.5f);
+	CurrentAbsoluteSize = StagePreview->GetTickSpaceGeometry().GetAbsoluteSize();
+	CurrentAbsoluteCenter = StagePreview->GetTickSpaceGeometry().GetAbsolutePosition() + (CurrentAbsoluteSize * 0.5f);
 
 	if (ScrubbingMode != EScrubbingMode::None)
 	{
@@ -193,7 +315,7 @@ FCursorReply SDMTextureUVVisualizer::OnCursorQuery(const FGeometry& InGeometry, 
 	const FVector2f MousePosition = FSlateApplication::Get().GetCursorPos();
 
 	// If the UV image isn't under the mouse, we don't need to do anything.
-	if (!StageImage->GetTickSpaceGeometry().IsUnderLocation(MousePosition))
+	if (!StagePreview->GetTickSpaceGeometry().IsUnderLocation(MousePosition))
 	{
 		return SCompoundWidget::OnCursorQuery(InGeometry, InCursorEvent);
 	}
@@ -234,13 +356,12 @@ FCursorReply SDMTextureUVVisualizer::OnCursorQuery(const FGeometry& InGeometry, 
 	return SCompoundWidget::OnCursorQuery(InGeometry, InCursorEvent);
 }
 
-int32 SDMTextureUVVisualizer::OnPaint(const FPaintArgs& InArgs, const FGeometry& InAllottedGeometry, const FSlateRect& InMyCullingRect, FSlateWindowElementList& OutDrawElements, int32 InLayerId, const FWidgetStyle& InWidgetStyle, bool bInParentEnabled) const
+int32 SDMTextureUVVisualizer::OnPaint(const FPaintArgs& InArgs, const FGeometry& InAllottedGeometry, const FSlateRect& InMyCullingRect, 
+	FSlateWindowElementList& OutDrawElements, int32 InLayerId, const FWidgetStyle& InWidgetStyle, bool bInParentEnabled) const
 {
 	InLayerId = SCompoundWidget::OnPaint(InArgs, InAllottedGeometry, InMyCullingRect, OutDrawElements, InLayerId, InWidgetStyle, bInParentEnabled);
 
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
-
-	if (!IsValid(TextureUV))
+	if (!GetTextureUVComponent())
 	{
 		return InLayerId;
 	}
@@ -254,7 +375,7 @@ int32 SDMTextureUVVisualizer::OnPaint(const FPaintArgs& InArgs, const FGeometry&
 	static const FLinearColor NormalColor = FLinearColor(1.f, 1.f, 1.f, 0.25f);
 	static const FLinearColor HighlightColor = FStyleColors::Primary.GetSpecifiedColor();
 
-	const float Rotation = TextureUV->GetRotation();
+	const float Rotation = GetRotation();
 	const float RotationRadians = FMath::DegreesToRadians(Rotation);
 	const FVector2f LocalCenterOffset = GetOffsetLocation(InAllottedGeometry.GetLocalSize());
 	const FVector2f LocalPivotOffset = GetPivotLocation(InAllottedGeometry.GetLocalSize());
@@ -421,23 +542,6 @@ int32 SDMTextureUVVisualizer::OnPaint(const FPaintArgs& InArgs, const FGeometry&
 	return InLayerId;
 }
 
-void SDMTextureUVVisualizer::OnStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
-{
-	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent))
-	{
-		if (Stage == StageWeak.Get() && IsValid(Stage) && Stage->IsComponentValid())
-		{
-			UMaterialInterface* PreviewMaterial = Stage->GetPreviewMaterial();
-
-			if (Brush.GetResourceObject() != PreviewMaterial)
-			{
-				Brush.SetMaterial(PreviewMaterial);
-				PreviewMaterialWeak = PreviewMaterial;
-			}
-		}
-	}
-}
-
 bool SDMTextureUVVisualizer::HasValidGeometry() const
 {
 	// The chances of the center being at anywhere near 0,0 is remote...
@@ -449,7 +553,7 @@ float SDMTextureUVVisualizer::GetCircleHandleBaseRadius() const
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	const FVector2f ImageSize = Brush.GetImageSize();
+	const FVector2f ImageSize = StagePreview->GetBrush().GetImageSize();
 	const float CircleHandleRadius = FMath::Min(ImageSize.X, ImageSize.Y) * TextureUVVisualizerCircleHandleBaseRadiusMultiplier;
 
 	return FMath::Clamp(CircleHandleRadius, 10, 50.f);
@@ -457,19 +561,12 @@ float SDMTextureUVVisualizer::GetCircleHandleBaseRadius() const
 
 FVector2f SDMTextureUVVisualizer::ApplyTextureUVTransform(const FVector2f& InUV) const
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
-
-	if (!IsValid(TextureUV))
-	{
-		return InUV;
-	}
-
-	FVector2f Offset = static_cast<FVector2f>(TextureUV->GetOffset());
+	FVector2f Offset = static_cast<FVector2f>(GetOffset());
 	Offset.Y *= -1.f;
 
-	const float Rotation = TextureUV->GetRotation();
-	const FVector2f& Tiling = static_cast<FVector2f>(TextureUV->GetTiling());
-	const FVector2f& Pivot = static_cast<FVector2f>(TextureUV->GetPivot());
+	const float Rotation = GetRotation();
+	const FVector2f& Tiling = static_cast<FVector2f>(GetTiling());
+	const FVector2f& Pivot = static_cast<FVector2f>(GetPivot());
 
 	FVector2f TransformedUV = InUV;
 	TransformedUV -= Pivot;
@@ -508,19 +605,12 @@ FVector2f SDMTextureUVVisualizer::GetOffsetLocation(const FVector2f& InSize) con
 
 FVector2f SDMTextureUVVisualizer::GetPivotLocation(const FVector2f& InSize) const
 {
-	if (UDMTextureUV* TextureUV = TextureUVWeak.Get())
+	if (bIsPopout)
 	{
-		if (bIsPopout)
-		{
-			return ToPopoutLocation(FVector2f::UnitVector, static_cast<FVector2f>(TextureUV->GetPivot())) * InSize;
-		}
-
-		return static_cast<FVector2f>(TextureUV->GetPivot()) * InSize;
+		return ToPopoutLocation(FVector2f::UnitVector, static_cast<FVector2f>(GetPivot())) * InSize;
 	}
 
-	static const FVector2f Center = {0.5f, 0.5f};
-
-	return Center * InSize;
+	return static_cast<FVector2f>(GetPivot()) * InSize;
 }
 
 FVector2f SDMTextureUVVisualizer::GetAbsoluteOffsetLocation() const
@@ -536,14 +626,13 @@ FVector2f SDMTextureUVVisualizer::GetAbsolutePivotLocation() const
 float SDMTextureUVVisualizer::GetCircleHandleRadiusAtAngle(float InAngle) const
 {
 	const float BaseDistance = GetCircleHandleBaseRadius();
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
 
-	if (!IsValid(TextureUV))
+	if (!IsValid(GetTextureUVComponent()))
 	{
 		return BaseDistance;
 	}
 
-	const FVector2D& Tiling = TextureUV->GetTiling();
+	const FVector2D& Tiling = GetTiling();
 
 	if (FMath::IsNearlyEqual(Tiling.X, Tiling.Y))
 	{
@@ -569,9 +658,7 @@ SDMTextureUVVisualizer::EHandleAxis SDMTextureUVVisualizer::GetCenterHandleAxis(
 		return EHandleAxis::None;
 	}
 
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
-
-	if (!IsValid(TextureUV))
+	if (!IsValid(GetTextureUVComponent()))
 	{
 		return EHandleAxis::None;
 	}
@@ -583,7 +670,7 @@ SDMTextureUVVisualizer::EHandleAxis SDMTextureUVVisualizer::GetCenterHandleAxis(
 		
 	if (!bPivotEditMode)
 	{
-		const float Rotation = TextureUV->GetRotation();
+		const float Rotation = GetRotation();
 
 		if (!FMath::IsNearlyZero(Rotation))
 		{
@@ -621,9 +708,7 @@ SDMTextureUVVisualizer::EHandleAxis SDMTextureUVVisualizer::GetCenterHandleAxis(
 
 SDMTextureUVVisualizer::EHandleAxis SDMTextureUVVisualizer::GetCircleHandleAxis(const FVector2f& InAbsolutePosition) const
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
-
-	if (!IsValid(TextureUV))
+	if (!IsValid(GetTextureUVComponent()))
 	{
 		return EHandleAxis::None;
 	}
@@ -632,9 +717,9 @@ SDMTextureUVVisualizer::EHandleAxis SDMTextureUVVisualizer::GetCircleHandleAxis(
 
 	const FVector2f HandleOffset = InAbsolutePosition - GetAbsolutePivotLocation();
 	const float DistanceFromHandle = HandleOffset.Size();
-	const FVector2D& Tiling2D = TextureUV->GetTiling();
+	const FVector2D& Tiling2D = GetTiling();
 	// We manage angle clockwise from +Y axis. Atan2 handles it anti-clockwise from +X axis.
-	float Angle = 90.f - FMath::RadiansToDegrees(FMath::Atan2(HandleOffset.Y, HandleOffset.X)) + TextureUV->GetRotation();
+	float Angle = 90.f - FMath::RadiansToDegrees(FMath::Atan2(HandleOffset.Y, HandleOffset.X)) + GetRotation();
 	float DistanceFromCircleHandle;
 
 	if (FMath::IsNearlyEqual(Tiling2D.X, Tiling2D.Y))
@@ -705,9 +790,7 @@ SDMTextureUVVisualizer::EHandleAxis SDMTextureUVVisualizer::GetCircleHandleAxis(
 
 bool SDMTextureUVVisualizer::TryClickCenterHandle(const FVector2f& InMousePosition, bool bInResetToDefault)
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
-
-	if (!IsValid(TextureUV))
+	if (!IsValid(GetTextureUVComponent()))
 	{
 		return false;
 	}
@@ -730,8 +813,8 @@ bool SDMTextureUVVisualizer::TryClickCenterHandle(const FVector2f& InMousePositi
 		else
 		{
 			FScopedTransaction Transaction(LOCTEXT("ResetOffset", "Reset Offset to Default."));
-			TextureUV->Modify();
-			FVector2D NewOffset = TextureUV->GetOffset();
+			ModifyTextureUVComponent();
+			FVector2D NewOffset = GetOffset();
 
 			if (Axis == EHandleAxis::X)
 			{
@@ -746,7 +829,7 @@ bool SDMTextureUVVisualizer::TryClickCenterHandle(const FVector2f& InMousePositi
 				NewOffset = FVector2D::ZeroVector;
 			}
 
-			TextureUV->SetOffset(NewOffset);
+			SetOffset(NewOffset);
 		}
 	}
 	// Pivot handle
@@ -759,8 +842,8 @@ bool SDMTextureUVVisualizer::TryClickCenterHandle(const FVector2f& InMousePositi
 		else
 		{
 			FScopedTransaction Transaction(LOCTEXT("ResetPivot", "Reset Pivot to Default."));
-			TextureUV->Modify();
-			FVector2D NewPivot = TextureUV->GetOffset();
+			ModifyTextureUVComponent();
+			FVector2D NewPivot = GetOffset();
 
 			if (Axis == EHandleAxis::X)
 			{
@@ -775,7 +858,7 @@ bool SDMTextureUVVisualizer::TryClickCenterHandle(const FVector2f& InMousePositi
 				NewPivot = FVector2D(0.5, 0.5);
 			}
 
-			TextureUV->SetPivot(NewPivot);
+			SetPivot(NewPivot);
 		}
 	}
 
@@ -784,14 +867,12 @@ bool SDMTextureUVVisualizer::TryClickCenterHandle(const FVector2f& InMousePositi
 
 bool SDMTextureUVVisualizer::TryClickCircleHandle(const FVector2f& InMousePosition, bool bInResetToDefault)
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
-
-	if (!IsValid(TextureUV))
+	if (!IsValid(GetTextureUVComponent()))
 	{
 		return false;
 	}
 
-	const float Rotation = TextureUV->GetRotation();
+	const float Rotation = GetRotation();
 	const FVector2f AbsolutePivotLocation = GetAbsolutePivotLocation();
 
 	// When the uv is rotated, do the opposite action
@@ -815,8 +896,8 @@ bool SDMTextureUVVisualizer::TryClickCircleHandle(const FVector2f& InMousePositi
 			else
 			{
 				FScopedTransaction Transaction(LOCTEXT("ResetRotation", "Reset Rotation to Default."));
-				TextureUV->Modify();
-				TextureUV->SetRotation(0.f);
+				ModifyTextureUVComponent();
+				SetRotation(0.f);
 			}
 
 			break;
@@ -832,10 +913,10 @@ bool SDMTextureUVVisualizer::TryClickCircleHandle(const FVector2f& InMousePositi
 			else
 			{
 				FScopedTransaction Transaction(LOCTEXT("ResetTilingeX", "Reset Tiling X to Default."));
-				TextureUV->Modify();
-				FVector2D NewTiling = TextureUV->GetTiling();
+				ModifyTextureUVComponent();
+				FVector2D NewTiling = GetTiling();
 				NewTiling.X = 1.0;
-				TextureUV->SetTiling(NewTiling);
+				SetTiling(NewTiling);
 			}
 
 			break;
@@ -851,10 +932,10 @@ bool SDMTextureUVVisualizer::TryClickCircleHandle(const FVector2f& InMousePositi
 			else
 			{
 				FScopedTransaction Transaction(LOCTEXT("ResetTilingY", "Reset Tiling Y to Default."));
-				TextureUV->Modify();
-				FVector2D NewTiling = TextureUV->GetTiling();
+				ModifyTextureUVComponent();
+				FVector2D NewTiling = GetTiling();
 				NewTiling.Y = 1.0;
-				TextureUV->SetTiling(NewTiling);
+				SetTiling(NewTiling);
 			}
 
 			break;
@@ -884,14 +965,14 @@ void SDMTextureUVVisualizer::UpdatePopoutUVs()
 		}
 	}
 
-	Brush.SetUVRegion(UVRegion);
+	StagePreview->GetBrush().SetUVRegion(UVRegion);
 }
 
 void SDMTextureUVVisualizer::SetScrubbingMode(EScrubbingMode InMode, EHandleAxis InAxis)
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
+	UDMMaterialComponent* TextureUVComponent = GetTextureUVComponent();
 
-	if (InMode != EScrubbingMode::None && (InAxis == EHandleAxis::None || !IsValid(TextureUV) || !HasValidGeometry()))
+	if (InMode != EScrubbingMode::None && (InAxis == EHandleAxis::None || !IsValid(TextureUVComponent) || !HasValidGeometry()))
 	{
 		InMode = EScrubbingMode::None;
 	}
@@ -912,14 +993,14 @@ void SDMTextureUVVisualizer::SetScrubbingMode(EScrubbingMode InMode, EHandleAxis
 	switch (ScrubbingMode)
 	{
 		case EScrubbingMode::Offset:
-			ValueStart = TextureUV->GetOffset();
+			ValueStart = GetOffset();
 			TextureProperty = UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Offset);
 			UE_LOG(LogDynamicMaterialEditor, Verbose, TEXT("Started Offset mode"));
 			break;
 
 		case EScrubbingMode::Rotation:
 		{
-			ValueStart.X = TextureUV->GetRotation();
+			ValueStart.X = GetRotation();
 
 			/** Store the original mouse angle */
 			const FVector2f MouseOffset = ScrubbingStartAbsoluteMouse - GetAbsolutePivotLocation();
@@ -932,13 +1013,13 @@ void SDMTextureUVVisualizer::SetScrubbingMode(EScrubbingMode InMode, EHandleAxis
 		}
 
 		case EScrubbingMode::Tiling:
-			ValueStart = TextureUV->GetTiling();
+			ValueStart = GetTiling();
 			TextureProperty = UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Tiling);
 			UE_LOG(LogDynamicMaterialEditor, Verbose, TEXT("Started Tiling mode"));
 			break;
 
 		case EScrubbingMode::Pivot:
-			ValueStart = TextureUV->GetPivot();
+			ValueStart = GetPivot();
 			TextureProperty = UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Pivot);
 			UE_LOG(LogDynamicMaterialEditor, Verbose, TEXT("Started Pivot mode"));
 			break;
@@ -948,14 +1029,14 @@ void SDMTextureUVVisualizer::SetScrubbingMode(EScrubbingMode InMode, EHandleAxis
 	}
 
 	ScrubbingTransaction = MakeShared<FScopedTransaction>(LOCTEXT("VisualizerUVScrubbingTransaction", "UV Visualizer Scrub"));
-	TextureUV->Modify();
+	ModifyTextureUVComponent();
 
-	TextureUV->PreEditChange(TextureProperty);
+	TextureUVComponent->PreEditChange(TextureProperty);
 }
 
 FVector2f SDMTextureUVVisualizer::ToPopoutLocation(const FVector2f& InSize, FVector2f&& InLocation) const
 {
-	const FBox2d BrushUV = Brush.GetUVRegion();
+	const FBox2d BrushUV = StagePreview->GetBrush().GetUVRegion();
 
 	InLocation.X = FMath::GetMappedRangeValueUnclamped<float, float>(
 		FVector2f(BrushUV.Min.X, BrushUV.Max.X),
@@ -974,7 +1055,7 @@ FVector2f SDMTextureUVVisualizer::ToPopoutLocation(const FVector2f& InSize, FVec
 
 FVector2f SDMTextureUVVisualizer::FromPopoutLocation(const FVector2f& InSize, FVector2f&& InLocation) const
 {
-	const FBox2d BrushUV = Brush.GetUVRegion();
+	const FBox2d BrushUV = StagePreview->GetBrush().GetUVRegion();
 
 	InLocation.X = FMath::GetMappedRangeValueUnclamped<float, float>(
 		{0, 1},
@@ -989,6 +1070,14 @@ FVector2f SDMTextureUVVisualizer::FromPopoutLocation(const FVector2f& InSize, FV
 	) * InSize.Y;
 
 	return InLocation;
+}
+
+void SDMTextureUVVisualizer::ModifyTextureUVComponent()
+{
+	if (UDMMaterialComponent* TextureUVComponent = GetTextureUVComponent())
+	{
+		TextureUVComponent->Modify();
+	}
 }
 
 void SDMTextureUVVisualizer::UpdateScrub()
@@ -1023,28 +1112,28 @@ void SDMTextureUVVisualizer::UpdateScrub()
 
 void SDMTextureUVVisualizer::UpdateScrub_Offset()
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
+	UDMMaterialComponent* TextureUVComponent = GetTextureUVComponent();
 
-	if (!IsValid(TextureUV))
+	if (!IsValid(TextureUVComponent))
 	{
 		return;
 	}
 
 	const FVector2f MouseOffset = FSlateApplication::Get().GetCursorPos() - ScrubbingStartAbsoluteMouse;
-	const FBox2d BrushUV = Brush.GetUVRegion();
+	const FBox2d BrushUV = StagePreview->GetBrush().GetUVRegion();
 
 	FVector2D OffsetChange = static_cast<FVector2D>(MouseOffset / CurrentAbsoluteSize);
 	OffsetChange.X *= (BrushUV.Max.X - BrushUV.Min.X);
 	OffsetChange.Y *= (BrushUV.Max.Y - BrushUV.Min.Y);
 
-	const float Rotation = TextureUV->GetRotation();
+	const float Rotation = GetRotation();
 
 	if (!FMath::IsNearlyZero(Rotation))
 	{
 		OffsetChange = OffsetChange.GetRotated(-Rotation);
 	}
 
-	OffsetChange *= TextureUV->GetTiling();
+	OffsetChange *= GetTiling();
 
 	if (HandleAxis == EHandleAxis::X)
 	{
@@ -1060,22 +1149,22 @@ void SDMTextureUVVisualizer::UpdateScrub_Offset()
 		OffsetChange.X = 0;
 	}
 
-	TextureUV->SetOffset(ValueStart + OffsetChange);
+	SetOffset(ValueStart + OffsetChange);
 
 	FPropertyChangedEvent ChangedEvent(
 		UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Offset),
 		EPropertyChangeType::Interactive,
-		{TextureUV}
+		{TextureUVComponent}
 	);
 
-	TextureUV->PostEditChangeProperty(ChangedEvent);
+	TextureUVComponent->PostEditChangeProperty(ChangedEvent);
 }
 
 void SDMTextureUVVisualizer::UpdateScrub_Rotation()
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
+	UDMMaterialComponent* TextureUVComponent = GetTextureUVComponent();
 
-	if (!IsValid(TextureUV))
+	if (!IsValid(TextureUVComponent))
 	{
 		return;
 	}
@@ -1085,40 +1174,40 @@ void SDMTextureUVVisualizer::UpdateScrub_Rotation()
 	const float Angle = FMath::RadiansToDegrees(FMath::Atan2(CurrentMouseOffset.Y, CurrentMouseOffset.X));
 	const float NewValue = UE::Math::TRotator<float>::ClampAxis(ValueStart.X + Angle - ValueStart.Y);
 
-	TextureUV->SetRotation(NewValue);
+	SetRotation(NewValue);
 
 	FPropertyChangedEvent ChangedEvent(
 		UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Rotation),
 		EPropertyChangeType::Interactive,
-		{TextureUV}
+		{TextureUVComponent}
 	);
 
-	TextureUV->PostEditChangeProperty(ChangedEvent);
+	TextureUVComponent->PostEditChangeProperty(ChangedEvent);
 }
 
 void SDMTextureUVVisualizer::UpdateScrub_Tiling()
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
+	UDMMaterialComponent* TextureUVComponent = GetTextureUVComponent();
 
-	if (!IsValid(TextureUV))
+	if (!IsValid(TextureUVComponent))
 	{
 		return;
 	}
 
 	const FVector2f MouseOffset = FSlateApplication::Get().GetCursorPos() - ScrubbingStartAbsoluteMouse;
-	const FBox2d BrushUV = Brush.GetUVRegion();
+	const FBox2d BrushUV = StagePreview->GetBrush().GetUVRegion();
 
 	FVector2D TilingChange = static_cast<FVector2D>(MouseOffset / CurrentAbsoluteSize);
 	TilingChange.X *= (BrushUV.Max.X - BrushUV.Min.X);
 	TilingChange.Y *= (BrushUV.Max.Y - BrushUV.Min.Y);
-	TilingChange /= TextureUV->GetTiling();
+	TilingChange /= GetTiling();
 
 	if (!bInvertTiling)
 	{
 		TilingChange *= -1.f;
 	}
 
-	const float Rotation = TextureUV->GetRotation();
+	const float Rotation = GetRotation();
 
 	if (!FMath::IsNearlyZero(Rotation))
 	{
@@ -1164,28 +1253,28 @@ void SDMTextureUVVisualizer::UpdateScrub_Tiling()
 		}
 	}
 
-	TextureUV->SetTiling(NewTiling);
+	SetTiling(NewTiling);
 
 	FPropertyChangedEvent ChangedEvent(
 		UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Tiling),
 		EPropertyChangeType::Interactive,
-		{TextureUV}
+		{TextureUVComponent}
 	);
 
-	TextureUV->PostEditChangeProperty(ChangedEvent);
+	TextureUVComponent->PostEditChangeProperty(ChangedEvent);
 }
 
 void SDMTextureUVVisualizer::UpdateScrub_Pivot()
 {
-	UDMTextureUV* TextureUV = TextureUVWeak.Get();
+	UDMMaterialComponent* TextureUVComponent = GetTextureUVComponent();
 
-	if (!IsValid(TextureUV))
+	if (!IsValid(TextureUVComponent))
 	{
 		return;
 	}
 
 	const FVector2f MouseOffset = FSlateApplication::Get().GetCursorPos() - ScrubbingStartAbsoluteMouse;
-	const FBox2d BrushUV = Brush.GetUVRegion();
+	const FBox2d BrushUV = StagePreview->GetBrush().GetUVRegion();
 
 	FVector2D PivotChange = static_cast<FVector2D>(MouseOffset / CurrentAbsoluteSize);
 	PivotChange.X *= (BrushUV.Max.X - BrushUV.Min.X);
@@ -1200,15 +1289,15 @@ void SDMTextureUVVisualizer::UpdateScrub_Pivot()
 		PivotChange.X = 0;
 	}
 
-	TextureUV->SetPivot(ValueStart + PivotChange);
+	SetPivot(ValueStart + PivotChange);
 
 	FPropertyChangedEvent ChangedEvent(
 		UDMTextureUV::StaticClass()->FindPropertyByName(UDMTextureUV::NAME_Pivot),
 		EPropertyChangeType::Interactive,
-		{TextureUV}
+		{TextureUVComponent}
 	);
 
-	TextureUV->PostEditChangeProperty(ChangedEvent);
+	TextureUVComponent->PostEditChangeProperty(ChangedEvent);
 }
 
 #undef LOCTEXT_NAMESPACE

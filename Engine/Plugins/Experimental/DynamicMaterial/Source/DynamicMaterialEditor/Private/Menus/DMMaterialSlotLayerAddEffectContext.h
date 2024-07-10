@@ -18,8 +18,6 @@ class UDMMaterialSlotLayerAddEffectContext : public UObject
 	GENERATED_BODY()
 
 public:
-	UDMMaterialSlotLayerAddEffectContext() = default;
-
 	void SetEditorWidget(const TSharedPtr<SDMEditor>& InEditor) { EditorWidgetWeak = InEditor; }
 
 	TSharedPtr<SDMEditor> GetEditorWidget() const { return EditorWidgetWeak.Pin(); }

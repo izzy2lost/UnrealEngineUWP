@@ -18,7 +18,6 @@ class SDMPropertyEditFloat : public SDMPropertyEdit
 	SLATE_END_ARGS()
 
 public:
-	SDMPropertyEditFloat() = default;
 	virtual ~SDMPropertyEditFloat() override = default;
 
 	void Construct(const FArguments& InArgs, const TSharedPtr<IPropertyHandle>& InPropertyHandle);

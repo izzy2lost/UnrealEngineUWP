@@ -6,10 +6,13 @@
 #include "Widgets/SCompoundWidget.h"
 
 class ICustomDetailsView;
+class SDMEditor;
 class SDMTextureUVVisualizer;
 class SDockTab;
+class UDMMaterialComponent;
 class UDMMaterialStage;
 class UDMTextureUV;
+class UDMTextureUVDynamic;
 enum class ECheckBoxState : uint8;
 
 /**
@@ -25,13 +28,20 @@ class SDMTextureUVVisualizerPopout : public SCompoundWidget
 public:
 	static const FName TabId;
 
-	static void CreatePopout(UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV);
+	static void CreatePopout(const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV);
 
-	SLATE_BEGIN_ARGS(SDMTextureUVVisualizerPopout) {}
+	static void CreatePopout(const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage, UDMTextureUVDynamic* InTextureUVDynamic);
+
+	SLATE_BEGIN_ARGS(SDMTextureUVVisualizerPopout)
+		: _TextureUV(nullptr)
+		, _TextureUVDynamic(nullptr)
+		{}
+		SLATE_ARGUMENT(UDMTextureUV*, TextureUV)
+		SLATE_ARGUMENT(UDMTextureUVDynamic*, TextureUVDynamic)
 	SLATE_END_ARGS()
 
 	/** The TextureUV should be a sub-property of the stage */
-	void Construct(const FArguments& InArgs, UDMMaterialStage* InMaterialStage, UDMTextureUV* InTextureUV);
+	void Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditorWidget, UDMMaterialStage* InMaterialStage);
 
 protected:
 	TSharedPtr<SDMTextureUVVisualizer> Visualizer;
@@ -42,7 +52,7 @@ protected:
 
 	FVector2D GetSideBlockSize() const;
 
-	TSharedRef<SWidget> CreatePropertyWidget(UDMTextureUV* InTextureUV);
+	TSharedRef<SWidget> CreatePropertyWidget(UDMMaterialComponent* InComponent);
 
 	ECheckBoxState GetModeCheckBoxState(bool bInIsPivot) const;
 

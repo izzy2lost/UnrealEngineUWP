@@ -5,6 +5,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 #if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueFloat1Dynamic.h"
 #include "DMDefs.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpression.h"
@@ -38,7 +39,12 @@ void UDMMaterialValueFloat1::GenerateExpression(const TSharedRef<IDMMaterialBuil
 		return;
 	}
  
-	UMaterialExpressionScalarParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionScalarParameter>(GetMaterialParameterName(), UE_DM_NodeComment_Default);
+	UMaterialExpressionScalarParameter* NewExpression = InBuildState->GetBuildUtils().CreateExpressionParameter<UMaterialExpressionScalarParameter>(
+		GetMaterialParameterName(),
+		GetParameterGroup(), 
+		UE_DM_NodeComment_Default
+	);
+
 	check(NewExpression);
  
 	NewExpression->DefaultValue = Value;
@@ -54,6 +60,19 @@ void UDMMaterialValueFloat1::ApplyDefaultValue()
 void UDMMaterialValueFloat1::ResetDefaultValue()
 {
 	DefaultValue = 0.f;
+}
+
+UDMMaterialValueDynamic* UDMMaterialValueFloat1::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	UDMMaterialValueFloat1Dynamic* ValueDynamic = UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueFloat1Dynamic>(InMaterialModelDynamic, this);
+	ValueDynamic->SetValue(Value);
+
+	return ValueDynamic;
+}
+
+FString UDMMaterialValueFloat1::GetComponentPathComponent() const
+{
+	return TEXT("Scalar");
 }
 
 TSharedPtr<FJsonValue> UDMMaterialValueFloat1::JsonSerialize() const

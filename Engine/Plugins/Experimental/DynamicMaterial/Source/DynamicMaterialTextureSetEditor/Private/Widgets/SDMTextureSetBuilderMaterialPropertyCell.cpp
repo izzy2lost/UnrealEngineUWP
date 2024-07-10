@@ -156,9 +156,9 @@ bool SDMTextureSetBuilderMaterialPropertyCell::GetPropertyEnabled() const
 	return Texture.IsValid();
 }
 
-void SDMTextureSetBuilderMaterialPropertyCell::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged)
+void SDMTextureSetBuilderMaterialPropertyCell::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FProperty* InPropertyThatChanged)
 {
-	if (PropertyThatChanged && PropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(FDMTextureSetBuilderEntry, ChannelMask))
+	if (InPropertyThatChanged && InPropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(FDMTextureSetBuilderEntry, ChannelMask))
 	{
 		SetMaterialForChannelMask();
 	}

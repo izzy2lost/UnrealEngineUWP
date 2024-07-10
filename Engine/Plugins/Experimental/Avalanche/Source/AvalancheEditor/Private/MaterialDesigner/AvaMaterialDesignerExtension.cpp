@@ -40,7 +40,7 @@ void FAvaMaterialDesignerExtension::ExtendToolbarMenu(UToolMenu& InMenu)
 	Entry.StyleNameOverride = "CalloutToolbar";
 }
 
-bool FAvaMaterialDesignerExtension::IsDynamicMaterialModelValid(UDynamicMaterialModel* InMaterialModel)
+bool FAvaMaterialDesignerExtension::IsDynamicMaterialModelValid(UDynamicMaterialModelBase* InMaterialModel)
 {
 	if (!IsValid(InMaterialModel))
 	{

@@ -372,7 +372,7 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		UDynamicMaterialModel* MaterialModel = MenuContext->GetModel();
+		UDynamicMaterialModelBase* MaterialModel = MenuContext->GetModelBase();
 		if (!MaterialModel)
 		{
 			return;
@@ -499,14 +499,14 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		UDynamicMaterialModel* MaterialModel = MenuContext->GetModel();
-		if (!MaterialModel)
+		UDynamicMaterialModelBase* MaterialModelBase = MenuContext->GetModelBase();
+		if (!MaterialModelBase)
 		{
 			return;
 		}
 
-		UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
-		if (!MaterialModel)
+		UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBase);
+		if (!MaterialModelBase)
 		{
 			return;
 		}

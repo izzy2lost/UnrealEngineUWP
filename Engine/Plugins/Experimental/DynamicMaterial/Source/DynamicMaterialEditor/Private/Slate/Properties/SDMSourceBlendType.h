@@ -18,8 +18,6 @@ class UDMSourceBlendTypeContextObject : public UObject
 	GENERATED_BODY()
 	
 public:
-	UDMSourceBlendTypeContextObject() = default;
-	
 	TSharedPtr<SDMSourceBlendType> GetBlendTypeWidget() const { return BlendTypeWidgetWeak.Pin(); }
 	void SetBlendTypeWidget(const TSharedPtr<SDMSourceBlendType>& InBlendTypeWidget) { BlendTypeWidgetWeak = InBlendTypeWidget; }
 	

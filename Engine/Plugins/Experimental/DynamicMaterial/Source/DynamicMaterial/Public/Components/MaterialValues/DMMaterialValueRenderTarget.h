@@ -11,44 +11,47 @@ class UTextureRenderTarget2D;
 enum ETextureRenderTargetFormat : int;
 struct FLinearColor;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIAL_API UDMMaterialValueRenderTarget : public UDMMaterialValueTexture
+/**
+ * Component representing a render target texture value. Manages its own parameter.
+ */
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialValueRenderTarget : public UDMMaterialValueTexture
 {
 	GENERATED_BODY()
 
 public:
-	static const FString RendererPathToken;
+	DYNAMICMATERIAL_API static const FString RendererPathToken;
 
 	UDMMaterialValueRenderTarget();
 
 	virtual ~UDMMaterialValueRenderTarget() override;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UTextureRenderTarget2D* GetRenderTarget() const;
+	DYNAMICMATERIAL_API UTextureRenderTarget2D* GetRenderTarget() const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FIntPoint& GetTextureSize() const;
+	DYNAMICMATERIAL_API const FIntPoint& GetTextureSize() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetTextureSize(const FIntPoint& InTextureSize);
+	DYNAMICMATERIAL_API void SetTextureSize(const FIntPoint& InTextureSize);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	ETextureRenderTargetFormat GetTextureFormat() const;
+	DYNAMICMATERIAL_API ETextureRenderTargetFormat GetTextureFormat() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetTextureFormat(ETextureRenderTargetFormat InTextureFormat);
+	DYNAMICMATERIAL_API void SetTextureFormat(ETextureRenderTargetFormat InTextureFormat);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	const FLinearColor& GetClearColor() const;
+	DYNAMICMATERIAL_API const FLinearColor& GetClearColor() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetClearColor(const FLinearColor& InClearColor);
+	DYNAMICMATERIAL_API void SetClearColor(const FLinearColor& InClearColor);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	UDMRenderTargetRenderer* GetRenderer() const;
+	DYNAMICMATERIAL_API UDMRenderTargetRenderer* GetRenderer() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetRenderer(UDMRenderTargetRenderer* InRenderer);
+	DYNAMICMATERIAL_API void SetRenderer(UDMRenderTargetRenderer* InRenderer);
 
 	/**
 	 * Allows outside objects to ensure our render target is valid.
@@ -61,33 +64,33 @@ public:
 
 #if WITH_EDITOR
 	//~ Begin IDMJsonSerializable
-	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
-	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	DYNAMICMATERIAL_API virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	DYNAMICMATERIAL_API virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
 	//~ End IDMJsonSerializable
 
 	//~ Begin UDMMaterialValue
 	/** Render target is handled internally. */
 	virtual bool AllowEditValue() const override { return false; }
+	DYNAMICMATERIAL_API virtual UDMMaterialValueDynamic* ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic) override;
 	//~ End UDMMaterialValue
 #endif
 
 	//~ Begin UDMMaterialComponent
-	virtual void Update(EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIAL_API virtual void Update(EDMUpdateType InUpdateType) override;
 #if WITH_EDITOR
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIAL_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIAL_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 #endif
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject
 #if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+	DYNAMICMATERIAL_API virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
-	virtual void PostLoad() override;
+	DYNAMICMATERIAL_API virtual void PostLoad() override;
 	//~ End UObject
 
 protected:
-	FDelegateHandle EndOfFrameDelegateHandle;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter = SetTextureSize, BlueprintSetter = SetTextureSize, Category = "Material Designer|Render Target",
 		meta = (AllowPrivateAccess = "true", NotKeyframeable))
 	FIntPoint TextureSize;
@@ -104,6 +107,9 @@ protected:
 		meta = (AllowPrivateAccess = "true", NotKeyframeable, NoCreate))
 	TObjectPtr<UDMRenderTargetRenderer> Renderer;
 
+	/** Used to asynchronously update the render target. */
+	FDelegateHandle EndOfFrameDelegateHandle;
+
 	void AsyncCreateRenderTarget();
 
 	void CreateRenderTarget();
@@ -111,10 +117,10 @@ protected:
 	void UpdateRenderTarget();
 
 	//~ Begin UDMMaterialComponent
-	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	DYNAMICMATERIAL_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
 #if WITH_EDITOR
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
+	DYNAMICMATERIAL_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIAL_API virtual void OnComponentRemoved() override;
 #endif
 	//~ End UDMMaterialComponent
 };

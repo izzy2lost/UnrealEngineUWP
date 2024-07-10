@@ -21,7 +21,7 @@ class SWidget;
 class UDMMaterialComponent;
 class UDMMaterialStageSource;
 class UDynamicMaterialInstance;
-class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 struct FDMBuildRequestList;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDynamicMaterialEditor, Log, All);
@@ -65,7 +65,7 @@ class FDynamicMaterialEditorModule : public IDynamicMaterialEditorModule, public
 {
 public:
 	static const FName TabId;
-	static FDMOnUIValueUpdate& GetOnUIValueUpdate() { return OnUIValueUpdate; }
+	static FDMOnUIValueUpdate::RegistrationType& GetOnUIValueUpdate() { return OnUIValueUpdate; }
 
 	static FDynamicMaterialEditorModule& Get();
 
@@ -83,7 +83,7 @@ public:
 	static FDMGetObjectMaterialPropertiesDelegate GetCustomMaterialPropertyGenerator(UClass* InClass);
 
 	/** With a provided world, the editor will bind to the MD world subsystem to receive model changes. */
-	static TSharedRef<SWidget> CreateEditor(UDynamicMaterialModel* InMaterialModel, UWorld* InAssetEditorWorld);
+	static TSharedRef<SWidget> CreateEditor(UDynamicMaterialModelBase* InMaterialModelBase, UWorld* InAssetEditorWorld);
 	static TSharedRef<SWidget> CreateEmptyTabContent();
 
 	FDynamicMaterialEditorModule();
@@ -93,8 +93,8 @@ public:
 	virtual void RegisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback)  override;
 	virtual void UnregisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback) override;
 	virtual void OpenEditor(UWorld* InWorld) const override;
-	virtual UDynamicMaterialModel* GetOpenedMaterialModel(UWorld* InWorld) const override;
-	virtual void OpenMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const override;
+	virtual UDynamicMaterialModelBase* GetOpenedMaterialModel(UWorld* InWorld) const override;
+	virtual void OpenMaterialModel(UDynamicMaterialModelBase* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const override;
 	virtual void OpenMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty, UWorld* InWorld, bool bInInvokeTab) const override;
 	virtual void OpenMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, bool bInInvokeTab) const override;
 	virtual void OnActorSelected(AActor* InActor, UWorld* InWorld, bool bInInvokeTab) const override;

@@ -376,24 +376,10 @@ FText UDMMaterialStageInputValue::GetChannelDescription(const FDMMaterialStageCo
 		return LOCTEXT("LocalValue", "Local Value");
 	}
 
-	if (Value->GetParameter())
-	{
-		static const FText FormatTemplateNamed = LOCTEXT("ChannelDescriptionGlobalNamed", "{0} (Global)");
-
-		return FText::Format(
-			FormatTemplateNamed,
-			FText::FromName(Value->GetParameter()->GetParameterName())
-		);
-	}
-	else
-	{
-		static const FText FormatTemplate = LOCTEXT("ChannelDescriptionGlobal", "Value {0} (Global)");
-
-		return FText::Format(
-			FormatTemplate,
-			FText::AsNumber(Value->FindIndexSafe())
-		);
-	}
+	return FText::Format(
+		LOCTEXT("ChannelDescriptionGlobal", "Value {0} (Global)"),
+		FText::FromName(Value->GetMaterialParameterName())
+	);
 }
 
 void UDMMaterialStageInputValue::SetValue(UDMMaterialValue* InValue)

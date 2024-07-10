@@ -17,7 +17,6 @@ class SDMPropertyEditColor : public SDMPropertyEdit
 	SLATE_END_ARGS()
 
 public:
-	SDMPropertyEditColor() = default;
 	virtual ~SDMPropertyEditColor() override = default;
 
 	void Construct(const FArguments& InArgs, const TSharedPtr<IPropertyHandle>& InPropertyHandle);

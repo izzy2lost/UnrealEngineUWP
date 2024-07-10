@@ -130,6 +130,7 @@ struct FDMPropertyHandle
 	FName ValueName = NAME_None;
 	FName CategoryOverrideName = NAME_None;
 	TOptional<float> MaxWidth;
+	bool bEnabled = true;
 };
 
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))

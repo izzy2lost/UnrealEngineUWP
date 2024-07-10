@@ -49,9 +49,9 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		UDynamicMaterialModel* MaterialModel = Editor->GetMaterialModel();
+		UDynamicMaterialModelBase* MaterialModelBase = Editor->GetMaterialModelBase();
 
-		if (!MaterialModel)
+		if (!MaterialModelBase)
 		{
 			return;
 		}
@@ -60,7 +60,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 		const FString WorldPath = InWorld->GetPathName();
 		const int WorldPathLength = WorldPath.Len();
-		const FString ModelPath = MaterialModel->GetPathName();
+		const FString ModelPath = MaterialModelBase->GetPathName();
 
 		if (ModelPath.Len() > WorldPathLength && ModelPath.StartsWith(WorldPath))
 		{
@@ -105,7 +105,7 @@ namespace UE::DynamicMaterialEditor::Private
 		{
 			if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(Object))
 			{
-				Editor->SetMaterialModel(MaterialModel);
+				Editor->SetMaterialModelBase(MaterialModel);
 
 				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 				{

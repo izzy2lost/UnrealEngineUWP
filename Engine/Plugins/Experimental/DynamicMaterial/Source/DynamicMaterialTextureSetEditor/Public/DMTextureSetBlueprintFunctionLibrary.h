@@ -15,7 +15,7 @@ DECLARE_DELEGATE_TwoParams(FDMTextureSetBuilderOnComplete, UDMTextureSet*, /* Wa
 /**
  * Material Designer Texture Set Blueprint Function Library
  */
-UCLASS()
+UCLASS(BlueprintType)
 class UDMTextureSetBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()

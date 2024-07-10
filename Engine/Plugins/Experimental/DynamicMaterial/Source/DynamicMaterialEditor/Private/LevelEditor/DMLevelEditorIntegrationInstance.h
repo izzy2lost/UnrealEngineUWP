@@ -12,7 +12,6 @@ class AActor;
 class ILevelEditor;
 class SDMEditor;
 class SDockTab;
-class UDynamicMaterialModel;
 class UTypedElementSelectionSet;
 class UWorld;
 

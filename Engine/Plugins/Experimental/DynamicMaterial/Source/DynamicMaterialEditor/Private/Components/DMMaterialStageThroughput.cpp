@@ -48,7 +48,8 @@ bool UDMMaterialStageThroughput::CanInputAcceptType(int32 InThroughputInputIndex
 	return InputConnectors[InThroughputInputIndex].IsCompatibleWith(InValueType);
 }
 
-bool UDMMaterialStageThroughput::CanInputConnectTo(int32 InThroughputInputIndex, const FDMMaterialStageConnector& InOutputConnector, int32 InOutputChannel, bool bInCheckSingleFloat)
+bool UDMMaterialStageThroughput::CanInputConnectTo(int32 InThroughputInputIndex, const FDMMaterialStageConnector& InOutputConnector, 
+	int32 InOutputChannel, bool bInCheckSingleFloat)
 {
 	if (InOutputChannel == FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
 	{
@@ -849,26 +850,11 @@ int32 UDMMaterialStageThroughput::ResolveInputChannel(const TSharedRef<FDMMateri
 	return NodeOutputIndex;
 }
 
-void UDMMaterialStageThroughput::UpdatePreviewMaterial(UMaterial* InPreviewMaterial /*= nullptr*/)
+void UDMMaterialStageThroughput::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
 	if (!IsComponentValid())
 	{
 		return;
-	}
-
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
-
-		InPreviewMaterial = PreviewMaterial;
-
-		if (!InPreviewMaterial)
-		{
-			return;
-		}
 	}
 
 	UDMMaterialStage* Stage = GetStage();

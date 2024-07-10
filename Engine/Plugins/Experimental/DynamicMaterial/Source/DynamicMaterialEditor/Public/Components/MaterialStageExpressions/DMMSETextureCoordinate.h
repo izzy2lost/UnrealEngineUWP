@@ -5,15 +5,17 @@
 #include "Components/DMMaterialStageExpression.h"
 #include "DMMSETextureCoordinate.generated.h"
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageExpressionTextureCoordinate : public UDMMaterialStageExpression
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageExpressionTextureCoordinate : public UDMMaterialStageExpression
 {
 	GENERATED_BODY()
 
 public:
 	UDMMaterialStageExpressionTextureCoordinate();
 
-	virtual void AddExpressionProperties(const TArray<UMaterialExpression*>& InExpressions) const override;
+	//~ Begin UDMMaterialStageSource
+	DYNAMICMATERIALEDITOR_API virtual void AddExpressionProperties(const TArray<UMaterialExpression*>& InExpressions) const override;
+	//~ End UDMMaterialStageSource
 
 protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")

@@ -6,6 +6,7 @@
 #include "DynamicMaterialEditorStyle.h"
 #include "IAssetTools.h"
 #include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelBase.h"
 #include "Model/DynamicMaterialModelFactory.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
@@ -29,8 +30,6 @@ void SDMDetailsPanelTabSpawner::Construct(const FArguments& InArgs, const TShare
 	UObject* Value = nullptr;
 	InPropertyHandle->GetValue(Value);
 
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
-
 	// @formatter:off
 	ChildSlot
 	[
@@ -43,7 +42,7 @@ void SDMDetailsPanelTabSpawner::Construct(const FArguments& InArgs, const TShare
 		[
 			SNew(SObjectPropertyEntryBox)
 			.AllowClear(true)
-			.AllowedClass(UDynamicMaterialModel::StaticClass())
+			.AllowedClass(UDynamicMaterialModelBase::StaticClass())
 			.DisplayBrowse(true)
 			.DisplayThumbnail(false)
 			.DisplayCompactSize(true)
@@ -71,7 +70,7 @@ void SDMDetailsPanelTabSpawner::Construct(const FArguments& InArgs, const TShare
 	// @formatter:on
 }
 
-UDynamicMaterialModel* SDMDetailsPanelTabSpawner::GetMaterialModel() const
+UDynamicMaterialModelBase* SDMDetailsPanelTabSpawner::GetMaterialModelBase() const
 {
 	TArray<UObject*> OuterObjects;
 	PropertyHandle->GetOuterObjects(OuterObjects);
@@ -84,10 +83,10 @@ UDynamicMaterialModel* SDMDetailsPanelTabSpawner::GetMaterialModel() const
 	UObject* Value = nullptr;
 	PropertyHandle->GetValue(Value);
 
-	return Cast<UDynamicMaterialModel>(Value);
+	return Cast<UDynamicMaterialModelBase>(Value);
 }
 
-void SDMDetailsPanelTabSpawner::SetMaterialModel(UDynamicMaterialModel* InNewModel)
+void SDMDetailsPanelTabSpawner::SetMaterialModelBase(UDynamicMaterialModelBase* InNewModel)
 {
 	TArray<UObject*> OuterObjects;
 	PropertyHandle->GetOuterObjects(OuterObjects);
@@ -102,7 +101,7 @@ void SDMDetailsPanelTabSpawner::SetMaterialModel(UDynamicMaterialModel* InNewMod
 
 FText SDMDetailsPanelTabSpawner::GetButtonText() const
 {
-	if (GetMaterialModel())
+	if (GetMaterialModelBase())
 	{
 		return LOCTEXT("OpenMaterialDesignerModel", "Edit with Material Designer");
 	}
@@ -112,7 +111,7 @@ FText SDMDetailsPanelTabSpawner::GetButtonText() const
 
 FReply SDMDetailsPanelTabSpawner::OnButtonClicked()
 {
-	if (GetMaterialModel())
+	if (GetMaterialModelBase())
 	{
 		return OpenDynamicMaterialModelTab();
 	}
@@ -122,10 +121,10 @@ FReply SDMDetailsPanelTabSpawner::OnButtonClicked()
 
 FReply SDMDetailsPanelTabSpawner::CreateDynamicMaterialModel()
 {
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
 	// We already have a builder, so we don't need to create one
-	if (MaterialModel)
+	if (MaterialModelBase)
 	{
 		return FReply::Unhandled();
 	}
@@ -154,7 +153,7 @@ FReply SDMDetailsPanelTabSpawner::CreateDynamicMaterialModel()
 	check(DynamicMaterialModelFactory);
 
 	UDynamicMaterialModel* NewModel = Cast<UDynamicMaterialModel>(DynamicMaterialModelFactory->FactoryCreateNew(
-		UDynamicMaterialModel::StaticClass(),
+		UDynamicMaterialModelBase::StaticClass(),
 		Package,
 		*AssetName,
 		RF_Standalone | RF_Public,
@@ -171,46 +170,45 @@ FReply SDMDetailsPanelTabSpawner::CreateDynamicMaterialModel()
 
 FReply SDMDetailsPanelTabSpawner::ClearDynamicMaterialModel()
 {
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
 	// We don't have a builder, so we don't need to clear it
-	if (!MaterialModel)
+	if (!MaterialModelBase)
 	{
 		return FReply::Unhandled();
 	}
 
-	MaterialModel->ResetData();
-	SetMaterialModel(nullptr);
+	SetMaterialModelBase(nullptr);
 
 	return FReply::Handled();
 }
 
 FReply SDMDetailsPanelTabSpawner::OpenDynamicMaterialModelTab()
 {
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
 	// We don't have a builder, so we can't open it
-	if (!MaterialModel)
+	if (!MaterialModelBase)
 	{
 		return FReply::Unhandled();
 	}
 
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	AssetTools.OpenEditorForAssets({MaterialModel});
+	AssetTools.OpenEditorForAssets({MaterialModelBase});
 
 	return FReply::Handled();
 }
 
 FString SDMDetailsPanelTabSpawner::GetEditorPath() const
 {
-	UDynamicMaterialModel* MaterialModel = GetMaterialModel();
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
 
-	return MaterialModel ? MaterialModel->GetPathName() : "";
+	return MaterialModelBase ? MaterialModelBase->GetPathName() : "";
 }
 
 void SDMDetailsPanelTabSpawner::OnEditorChanged(const FAssetData& InAssetData)
 {
-	SetMaterialModel(Cast<UDynamicMaterialModel>(InAssetData.GetAsset()));
+	SetMaterialModelBase(Cast<UDynamicMaterialModelBase>(InAssetData.GetAsset()));
 }
 
 #undef LOCTEXT_NAMESPACE

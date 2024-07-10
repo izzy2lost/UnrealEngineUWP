@@ -17,7 +17,6 @@ class SDMPropertyEditBool : public SDMPropertyEdit
 	SLATE_END_ARGS()
 
 public:
-	SDMPropertyEditBool() = default;
 	virtual ~SDMPropertyEditBool() override = default;
 
 	void Construct(const FArguments& InArgs, const TSharedPtr<IPropertyHandle>& InPropertyHandle);

@@ -57,6 +57,7 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 	auto AddFloatParameter = [this](FName InPropertyName, FName InParameterName, float InDefaultValue = 1.f)
 		{
 			UDMMaterialValueFloat1* Property = CreateDefaultSubobject<UDMMaterialValueFloat1>(InPropertyName);
+			Property->CachedParameterName = InParameterName;
 			GlobalParameterValues.Add(InPropertyName, Property);
 
 #if WITH_EDITOR
@@ -74,6 +75,7 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 	auto AddVector2Parameter = [this](FName InPropertyName, FName InParameterName, const FVector2D& InDefaultValue)
 		{
 			UDMMaterialValueFloat2* Property = CreateDefaultSubobject<UDMMaterialValueFloat2>(InPropertyName);
+			Property->CachedParameterName = InParameterName;
 			GlobalParameterValues.Add(InPropertyName, Property);
 
 #if WITH_EDITOR
@@ -107,7 +109,17 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 
 void UDynamicMaterialModel::SetDynamicMaterialInstance(UDynamicMaterialInstance* InDynamicMaterialInstance)
 {
+	if (DynamicMaterialInstance == InDynamicMaterialInstance)
+	{
+		return;
+	}
+
 	DynamicMaterialInstance = InDynamicMaterialInstance;
+
+	if (InDynamicMaterialInstance)
+	{
+		ApplyComponents(InDynamicMaterialInstance);
+	}
 
 #if WITH_EDITOR
 	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
@@ -120,6 +132,11 @@ void UDynamicMaterialModel::SetDynamicMaterialInstance(UDynamicMaterialInstance*
 UDMMaterialValueFloat1* UDynamicMaterialModel::GetGlobalOpacityValue() const
 {
 	return GetTypedGlobalParameterValue<UDMMaterialValueFloat1>(GlobalOpacityValueName);
+}
+
+const TMap<FName, TObjectPtr<UDMMaterialValue>>& UDynamicMaterialModel::GetGlobalParameterValues() const
+{
+	return GlobalParameterValues;
 }
 
 UDMMaterialValue* UDynamicMaterialModel::GetGlobalParameterValue(FName InName) const
@@ -194,17 +211,6 @@ UDMMaterialComponent* UDynamicMaterialModel::GetComponentByPath(FDMComponentPath
 	return nullptr;
 }
 
-#if WITH_EDITOR
-IDynamicMaterialModelEditorOnlyDataInterface* UDynamicMaterialModel::GetEditorOnlyData() const
-{
-	if (IsValid(EditorOnlyDataSI.GetObject()))
-	{
-		return EditorOnlyDataSI.GetInterface();
-	}
-
-	return nullptr;
-}
-
 UDMMaterialValue* UDynamicMaterialModel::GetValueByName(FName InName) const
 {
 	for (UDMMaterialValue* Value : Values)
@@ -218,19 +224,15 @@ UDMMaterialValue* UDynamicMaterialModel::GetValueByName(FName InName) const
 	return nullptr;
 }
 
-UDMMaterialValue* UDynamicMaterialModel::GetValueByIndex(int32 Index) const
+#if WITH_EDITOR
+IDynamicMaterialModelEditorOnlyDataInterface* UDynamicMaterialModel::GetEditorOnlyData() const
 {
-	if (Values.IsValidIndex(Index))
+	if (IsValid(EditorOnlyDataSI.GetObject()))
 	{
-		return Values[Index];
+		return EditorOnlyDataSI.GetInterface();
 	}
 
 	return nullptr;
-}
-
-UDMMaterialValue* UDynamicMaterialModel::AddValue(EDMValueType InValueType)
-{
-	return AddValue(UDMValueDefinitionLibrary::GetValueDefinition(InValueType).GetValueClass());
 }
 
 UDMMaterialValue* UDynamicMaterialModel::AddValue(TSubclassOf<UDMMaterialValue> InValueClass)
@@ -256,7 +258,7 @@ void UDynamicMaterialModel::RemoveRuntimeComponentReference(UDMMaterialComponent
 	RuntimeComponents.Remove(InValue);
 }
 
-void UDynamicMaterialModel::RemoveValueByName(FName InName)
+void UDynamicMaterialModel::RemoveValueByParameterName(FName InName)
 {
 	int32 FoundIndex = Values.IndexOfByPredicate([InName](UDMMaterialValue* Value)
 		{
@@ -274,20 +276,6 @@ void UDynamicMaterialModel::RemoveValueByName(FName InName)
 	{
 		ModelEditorOnlyData->RequestMaterialBuild();
 		ModelEditorOnlyData->OnValueListUpdate();
-	}
-}
-
-void UDynamicMaterialModel::RemoveValueByIndex(int32 Index)
-{
-	if (Values.IsValidIndex(Index))
-	{
-		Values.RemoveAt(Index);
-
-		if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
-		{
-			ModelEditorOnlyData->RequestMaterialBuild();
-			ModelEditorOnlyData->OnValueListUpdate();
-		}
 	}
 }
 
@@ -366,11 +354,13 @@ void UDynamicMaterialModel::FreeParameter(UDMMaterialParameter* InParameter)
 		return;
 	}
 
+	const FName ParameterName = InParameter->GetParameterName();
+
 	for (TMap<FName, TWeakObjectPtr<UDMMaterialParameter>>::TIterator It(ParameterMap); It; ++It)
 	{
-		const TWeakObjectPtr<UDMMaterialParameter>& ParameterWeak = It->Value;
+		UDMMaterialParameter* Parameter = It->Value.Get();
 
-		if (ParameterWeak.IsValid() == false || ParameterWeak->GetParameterName() == InParameter->GetParameterName())
+		if (!Parameter || Parameter->GetParameterName() == ParameterName)
 		{
 			It.RemoveCurrent();
 		}
@@ -405,16 +395,6 @@ bool UDynamicMaterialModel::ConditionalFreeParameter(UDMMaterialParameter* InPar
 
 	// We're in the map at the given name.
 	return false;
-}
-
-void UDynamicMaterialModel::ResetData()
-{
-	Values.Empty();
-
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
-	{
-		ModelEditorOnlyData->ResetData();
-	}
 }
 #endif
 
@@ -464,6 +444,45 @@ void UDynamicMaterialModel::OnTextureUVUpdated(UDMTextureUV* InTextureUV)
 		EditorOnlyData->OnTextureUVUpdated(InTextureUV);
 	}
 #endif
+}
+
+void UDynamicMaterialModel::ApplyComponents(UMaterialInstanceDynamic* InMID)
+{
+	for (const TPair<FName, TObjectPtr<UDMMaterialValue>>& GlobalParameterPair : GlobalParameterValues)
+	{
+#if WITH_EDITOR
+		if (GlobalParameterPair.Value->IsComponentCreated())
+		{
+			GlobalParameterPair.Value->SetComponentState(EDMComponentLifetimeState::Added);
+		}
+#endif
+
+		GlobalParameterPair.Value->SetMIDParameter(InMID);
+	}
+
+	for (UDMMaterialValue* Value : Values)
+	{
+#if WITH_EDITOR
+		if (Value->IsComponentCreated())
+		{
+			Value->SetComponentState(EDMComponentLifetimeState::Added);
+		}
+#endif
+
+		Value->SetMIDParameter(InMID);
+	}
+
+	for (const TObjectPtr<UDMMaterialComponent>& RuntimeComponent : RuntimeComponents)
+	{
+		if (UDMMaterialValue* Value = Cast<UDMMaterialValue>(RuntimeComponent))
+		{
+			Value->SetMIDParameter(InMID);
+		}
+		else if (UDMTextureUV* TextureUV = Cast<UDMTextureUV>(RuntimeComponent))
+		{
+			TextureUV->SetMIDParameters(InMID);
+		}
+	}
 }
 
 void UDynamicMaterialModel::PostLoad()
@@ -610,7 +629,7 @@ void UDynamicMaterialModel::FixGlobalParameterValues()
 
 		const FName Name = ParameterPair.Value->GetFName();
 
-		UDMMaterialValue* Local = FindObjectFast<UDMMaterialValue>(this, Name, /* Exact class */ false);
+		UDMMaterialValue* Local = FindObjectFast<UDMMaterialValue>(this, Name);
 
 		if (!Local)
 		{
@@ -625,15 +644,17 @@ void UDynamicMaterialModel::FixGlobalParameterValues()
 #if WITH_EDITOR
 void UDynamicMaterialModel::ReinitComponents()
 {
-	if (IsValid(DynamicMaterial))
+	if (IsValid(DynamicMaterial) && !DynamicMaterial->HasAnyFlags(RF_DuplicateTransient))
 	{
 		if (GUndo)
 		{
 			DynamicMaterial->Modify();
 		}
 
-		DynamicMaterial->AtomicallySetFlags(RF_DuplicateTransient);
+		DynamicMaterial->SetFlags(RF_DuplicateTransient);
 	}
+
+	FixGlobalVars();
 
 	// Clean up old parameters
 	ParameterMap.Empty();
@@ -661,8 +682,6 @@ void UDynamicMaterialModel::ReinitComponents()
 		}
 	}
 
-	FixGlobalVars();
-
 	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
 	{
 		ModelEditorOnlyData->ReinitComponents();
@@ -673,58 +692,26 @@ void UDynamicMaterialModel::FixGlobalVars()
 {
 	auto FixGlobalVar = [this](FName InValueName, FName InParameterName)
 		{
-			UDMMaterialValue* Property = GetGlobalParameterValue(InValueName);
+			UDMMaterialValue* GlobalVar = GetGlobalParameterValue(InValueName);
 
-			if (!Property)
+			if (!GlobalVar)
 			{
 				return;
 			}
 
-			UDMMaterialParameter* Parameter = Property->GetParameter();
+			GlobalVar->CachedParameterName = InParameterName;
 
-			if (!Parameter || Parameter->GetParameterName() != InParameterName)
+			UDMMaterialParameter* Parameter = GlobalVar->GetParameter();
+
+			if (!Parameter)
 			{
-				if (Property->SetParameterName(InParameterName))
-				{
-					return;
-				}
-
-				Parameter = Property->GetParameter();
-
-				if (!Parameter)
-				{
-					return;
-				}
-			}
-	
-			if (const TWeakObjectPtr<UDMMaterialParameter>* FoundParameterPtr = ParameterMap.Find(InParameterName))
-			{
-				UDMMaterialParameter* FoundParameter = FoundParameterPtr->Get();
-
-				if (!FoundParameter || FoundParameter->HasAnyFlags(RF_ArchetypeObject)
-					|| (Parameter && FoundParameter != Parameter))
-				{
-					if (Parameter)
-					{
-						ParameterMap[InParameterName] = Parameter;
-					}
-					else
-					{
-						ParameterMap.Remove(InParameterName);
-					}
-				}
+				GlobalVar->Parameter = NewObject<UDMMaterialParameter>(this, NAME_None, RF_Transactional);
+				Parameter = GlobalVar->Parameter;
 			}
 
-			if (Property && Parameter != Property->Parameter)
+			if (Parameter->GetParameterName() != InParameterName)
 			{
-				if (GUndo)
-				{
-					Parameter->Modify();
-					Property->Modify();
-				}
-
 				Parameter->ParameterName = InParameterName;
-				Property->Parameter = Parameter;
 			}
 		};
 

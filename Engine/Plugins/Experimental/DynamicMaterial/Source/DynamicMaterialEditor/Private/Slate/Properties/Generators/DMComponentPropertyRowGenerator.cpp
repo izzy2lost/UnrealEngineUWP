@@ -1,11 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/Generators/DMComponentPropertyRowGenerator.h"
-#include "DynamicMaterialEditorModule.h"
 #include "Components/DMMaterialComponent.h"
+#include "DynamicMaterialEditorModule.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "Runtime/Launch/Resources/Version.h"
-#include "Slate/SDMEditor.h"
 #include "Slate/SDMComponentEdit.h"
+#include "Slate/SDMEditor.h"
 
 const TSharedRef<FDMComponentPropertyRowGenerator>& FDMComponentPropertyRowGenerator::Get()
 {
@@ -96,10 +97,24 @@ void FDMComponentPropertyRowGenerator::AddPropertyEditRows(const TSharedRef<SDMC
 		}
 	}
 
-	InOutPropertyRows.Add(SDMEditor::GetPropertyHandle(&*InComponentEditWidget, InComponent, InProperty->GetFName()));
+	FDMPropertyHandle& Handle = InOutPropertyRows.Add_GetRef(SDMEditor::GetPropertyHandle(&*InComponentEditWidget, InComponent, InProperty->GetFName()));
+	Handle.bEnabled = !IsDynamic(InComponentEditWidget);
 }
 
 bool FDMComponentPropertyRowGenerator::AllowKeyframeButton(UDMMaterialComponent* InComponent, FProperty* InProperty)
 {
+	return false;
+}
+
+bool FDMComponentPropertyRowGenerator::IsDynamic(const TSharedRef<SDMComponentEdit>& InComponentEditWidget)
+{
+	if (TSharedPtr<SDMEditor> EditorWidget = InComponentEditWidget->GetEditorWidget())
+	{
+		if (UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase())
+		{
+			return !!Cast<UDynamicMaterialModelDynamic>(MaterialModelBase);
+		}
+	}
+
 	return false;
 }

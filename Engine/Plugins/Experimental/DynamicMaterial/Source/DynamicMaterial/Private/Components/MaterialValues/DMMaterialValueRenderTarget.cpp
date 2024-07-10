@@ -6,6 +6,10 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Misc/CoreDelegates.h"
 
+#if WITH_EDITOR
+#include "Components/MaterialValuesDynamic/DMMaterialValueRenderTargetDynamic.h"
+#endif
+
 const FString UDMMaterialValueRenderTarget::RendererPathToken = "Renderer";
 
 UDMMaterialValueRenderTarget::UDMMaterialValueRenderTarget()
@@ -158,6 +162,16 @@ void UDMMaterialValueRenderTarget::Update(EDMUpdateType InUpdateType)
 }
 
 #if WITH_EDITOR
+UDMMaterialValueDynamic* UDMMaterialValueRenderTarget::ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic)
+{
+	return UDMMaterialValueDynamic::CreateValueDynamic<UDMMaterialValueRenderTargetDynamic>(InMaterialModelDynamic, this);
+}
+
+FString UDMMaterialValueRenderTarget::GetComponentPathComponent() const
+{
+	return TEXT("RenderTarget");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueRenderTarget::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize({

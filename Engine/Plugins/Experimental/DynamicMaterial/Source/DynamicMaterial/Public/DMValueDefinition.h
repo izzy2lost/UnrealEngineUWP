@@ -10,8 +10,11 @@
 
 class UDMMaterialValue;
 
+/**
+ * Stores information about basic value types, such as EDMValueType::Float1.
+ */
 USTRUCT(BlueprintType)
-struct DYNAMICMATERIAL_API FDMValueDefinition
+struct FDMValueDefinition
 {
 	GENERATED_BODY()
 
@@ -42,20 +45,22 @@ struct DYNAMICMATERIAL_API FDMValueDefinition
 
 	EDMValueType GetType() const { return Type; }
 
+	/** Will return 0 for non-float/any-float types. */
 	uint8 GetFloatCount() const { return FloatCount; }
 
 	const FText& GetDisplayName() const { return DisplayName; }
 
 	const TArray<FText>& GetChannelNames() const { return ChannelNames; }
 
-	bool IsFloatType() const;
+	/** Returns the base class of this type. */
+	TSubclassOf<UDMMaterialValue> GetValueClass() const { return ValueClass; }
 
-	bool IsFloat3Type() const;
+	DYNAMICMATERIAL_API bool IsFloatType() const;
+
+	DYNAMICMATERIAL_API bool IsFloat3Type() const;
 
 	/** To be consistent without OutputChannel, 1 is the first channel, not 0. */
-	const FText& GetChannelName(int32 InChannel) const;
-
-	TSubclassOf<UDMMaterialValue> GetValueClass() const;
+	DYNAMICMATERIAL_API const FText& GetChannelName(int32 InChannel) const;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Material Designer")
@@ -74,32 +79,36 @@ protected:
 	TSubclassOf<UDMMaterialValue> ValueClass;
 };
 
-UCLASS(BlueprintType)
-class DYNAMICMATERIAL_API UDMValueDefinitionLibrary : public UBlueprintFunctionLibrary
+UCLASS(MinimalAPI, BlueprintType)
+class UDMValueDefinitionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
 public:
+	/** Returns the array of available Value Types, excluding generics like None or Max. */
 	UFUNCTION(BlueprintPure, CallInEditor, Category = "Material Designer")
-	static const TArray<EDMValueType>& GetValueTypes();
+	static DYNAMICMATERIAL_API const TArray<EDMValueType>& GetValueTypes();
 
+	/** Returns a value definition for the given value type. */
 	UFUNCTION(BlueprintPure, CallInEditor, Category = "Material Designer")
-	static const FDMValueDefinition& GetValueDefinition(EDMValueType InValueType);
+	static DYNAMICMATERIAL_API const FDMValueDefinition& GetValueDefinition(EDMValueType InValueType);
 
+	/** Returns whether the given types can be connected together as input/output. */
 	UFUNCTION(BlueprintPure, CallInEditor, Category = "Material Designer", meta = (DisplayName = "Are Types Compatible"))
 	static bool BP_AreTypesCompatible(EDMValueType A, EDMValueType B, int32 AChannel, int32 BChannel)
 	{
 		return AreTypesCompatible(A, B, AChannel, BChannel);
 	}
 
-	static bool AreTypesCompatible(EDMValueType A, EDMValueType B,
-		int32 AChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		int32 BChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
+	/** Returns whether the given types can be connected together as input/output. */
+	DYNAMICMATERIAL_API static bool AreTypesCompatible(EDMValueType InA, EDMValueType InB,
+		int32 InAChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		int32 InBChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL);
 
 	/** Converts a number of floats into the value type */
-	static const FDMValueDefinition& GetTypeForFloatCount(uint8 FloatCount);
+	DYNAMICMATERIAL_API static const FDMValueDefinition& GetTypeForFloatCount(uint8 InFloatCount);
 
 	/** Converts a number of floats into the value type */
 	UFUNCTION(BlueprintPure, CallInEditor, Category = "Material Designer")
-	static const FDMValueDefinition& GetTypeForFloatCount(int32 FloatCount);
+	static DYNAMICMATERIAL_API const FDMValueDefinition& GetTypeForFloatCount(int32 InFloatCount);
 };

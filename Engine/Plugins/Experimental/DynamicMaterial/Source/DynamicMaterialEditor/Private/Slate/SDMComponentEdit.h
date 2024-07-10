@@ -32,6 +32,7 @@ class UDMMaterialStageSource;
 class UDMMaterialStageThroughput;
 class UDMMaterialValueFloat1;
 class UDMTextureUV;
+class UDynamicMaterialModelBase;
 class UDynamicMaterialModelEditorOnlyData;
 class UMaterial;
 enum class ECheckBoxState : uint8;
@@ -49,11 +50,12 @@ public:
 	static TSharedRef<SWidget> CreateExtensionButtons(const TSharedPtr<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent,
 		const FName& InPropertyName, bool bInAllowKeyframe);
 
+	SLATE_DECLARE_WIDGET(SDMComponentEdit, SCompoundWidget)
+
 	SLATE_BEGIN_ARGS(SDMComponentEdit)
 		{}
 	SLATE_END_ARGS()
 
-	SDMComponentEdit() = default;
 	virtual ~SDMComponentEdit() override;
 
 	void Construct(const FArguments& InArgs, UDMMaterialComponent* InComponent, const TWeakPtr<SDMEditor>& InEditorWidget);
@@ -69,8 +71,8 @@ public:
 	//~ End FUndoClient
 
 protected:
-	static void GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModel* InMaterialModel, 
-		TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects);
+	static void GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModelBase* InMaterialModelBase, 
+		bool bInDynamic, TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects);
 
 	TWeakObjectPtr<UDMMaterialComponent> ComponentWeak;
 	TWeakPtr<SDMEditor> EditorWidgetWeak;

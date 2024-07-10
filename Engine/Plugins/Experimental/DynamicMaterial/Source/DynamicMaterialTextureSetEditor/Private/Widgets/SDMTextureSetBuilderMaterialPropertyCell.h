@@ -31,7 +31,7 @@ public:
 	//~ End SDMTextureSetBuilderCellBase
 
 	//~ Begin FNotifyHook
-	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
+	virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FProperty* InPropertyThatChanged) override;
 	//~ End FNotifyHook
 
 protected:

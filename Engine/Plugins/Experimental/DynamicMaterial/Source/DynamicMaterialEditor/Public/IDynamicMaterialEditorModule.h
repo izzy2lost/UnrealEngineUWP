@@ -11,7 +11,7 @@
 class AActor;
 class UClass;
 class UDynamicMaterialInstance;
-class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 class UObject;
 struct FDMObjectMaterialProperty;
 struct IDMOnWizardCompleteCallback;
@@ -52,9 +52,9 @@ public:
 
 	virtual void OpenEditor(UWorld* InWorld) const = 0;
 
-	virtual UDynamicMaterialModel* GetOpenedMaterialModel(UWorld* InWorld) const = 0;
+	virtual UDynamicMaterialModelBase* GetOpenedMaterialModel(UWorld* InWorld) const = 0;
 
-	virtual void OpenMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const = 0;
+	virtual void OpenMaterialModel(UDynamicMaterialModelBase* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const = 0;
 
 	virtual void OpenMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty, UWorld* InWorld, bool bInInvokeTab) const = 0;
 

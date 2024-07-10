@@ -1,0 +1,88 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Slate/Properties/Generators/DMMaterialValueDynamicPropertyRowGenerator.h"
+#include "IDetailPropertyRow.h"
+#include "Components/DMMaterialComponent.h"
+#include "Components/DMMaterialValue.h"
+#include "Components/DMMaterialValueDynamic.h"
+#include "Slate/SDMEditor.h"
+#include "Slate/SDMComponentEdit.h"
+
+const TSharedRef<FDMMaterialValueDynamicPropertyRowGenerator>& FDMMaterialValueDynamicPropertyRowGenerator::Get()
+{
+	static TSharedRef<FDMMaterialValueDynamicPropertyRowGenerator> Generator = MakeShared<FDMMaterialValueDynamicPropertyRowGenerator>();
+	return Generator;
+}
+
+void FDMMaterialValueDynamicPropertyRowGenerator::AddComponentProperties(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent,
+	TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects)
+{
+	if (!IsValid(InComponent))
+	{
+		return;
+	}
+
+	if (InOutProcessedObjects.Contains(InComponent))
+	{
+		return;
+	}
+
+	UDMMaterialValueDynamic* ValueDynamic = Cast<UDMMaterialValueDynamic>(InComponent);
+
+	if (!ValueDynamic)
+	{
+		return;
+	}
+
+	// The base material value class is abstract and not allowed.
+	if (ValueDynamic->GetClass() == UDMMaterialValueDynamic::StaticClass())
+	{
+		return;
+	}
+
+	UDMMaterialValue* ParentValue = ValueDynamic->GetParentValue();
+
+	if (!ParentValue)
+	{
+		return;
+	}
+
+	InOutProcessedObjects.Add(InComponent);
+
+	if (ParentValue->AllowEditValue())
+	{
+		FDMPropertyHandle Handle = SDMEditor::GetPropertyHandle(&*InComponentEditWidget, ValueDynamic, UDMMaterialValue::ValueName);
+
+		Handle.ResetToDefaultOverride = FResetToDefaultOverride::Create(
+			FIsResetToDefaultVisible::CreateUObject(ValueDynamic, &UDMMaterialValueDynamic::CanResetToDefault),
+			FResetToDefaultHandler::CreateUObject(ValueDynamic, &UDMMaterialValueDynamic::ResetToDefault)
+		);
+
+		Handle.bEnabled = true;
+
+		InOutPropertyRows.Add(Handle);
+	}
+
+	const TArray<FName>& Properties = ParentValue->GetEditableProperties();
+	const int32 StartRow = InOutPropertyRows.Num();
+
+	for (const FName& Property : Properties)
+	{
+		if (Property == UDMMaterialValue::ValueName)
+		{
+			continue;
+		}
+			
+		if (InComponent->IsPropertyVisible(Property))
+		{
+			AddPropertyEditRows(InComponentEditWidget, InComponent, Property, InOutPropertyRows, InOutProcessedObjects);
+		}
+	}
+
+	const int32 EndRow = InOutPropertyRows.Num();
+
+	for (int32 RowIndex = StartRow; RowIndex < EndRow; ++RowIndex)
+	{
+		InOutPropertyRows[RowIndex].bEnabled = false;
+	}
+}

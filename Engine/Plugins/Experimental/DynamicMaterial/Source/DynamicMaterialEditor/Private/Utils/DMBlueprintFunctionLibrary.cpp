@@ -32,6 +32,7 @@
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "Materials/Material.h"
 #include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 #include "UObject/Package.h"
@@ -247,7 +248,7 @@ UDynamicMaterialModel* UDMBlueprintFunctionLibrary::CreateDynamicMaterialInObjec
 	return nullptr;
 }
 
-bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* InMaterialModel, const FString& InSavePath)
+bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModelBase* InMaterialModel, const FString& InSavePath)
 {
 	if (!IsValid(InMaterialModel))
 	{
@@ -294,12 +295,19 @@ bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* 
 
 	if (UDynamicMaterialInstance* NewInstance = Cast<UDynamicMaterialInstance>(NewAsset))
 	{
-		if (UDynamicMaterialModel* NewModel = NewInstance->GetMaterialModel())
+		if (InMaterialModel->IsA<UDynamicMaterialModel>())
 		{
-			if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = NewModel->GetEditorOnlyData())
+			if (UDynamicMaterialModel* NewModel = NewInstance->GetMaterialModel())
 			{
-				ModelEditorOnlyData->RequestMaterialBuild();
+				if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = NewModel->GetEditorOnlyData())
+				{
+					ModelEditorOnlyData->RequestMaterialBuild();
+				}
 			}
+		}
+		else if (InMaterialModel->IsA<UDynamicMaterialModelDynamic>())
+		{
+			NewInstance->InitializeMIDPublic();
 		}
 	}
 
@@ -308,7 +316,7 @@ bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* 
 	return true;
 }
 
-bool UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(UDynamicMaterialModel* InMaterialModel, const FString& InSavePath)
+bool UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(UDynamicMaterialModelBase* InMaterialModel, const FString& InSavePath)
 {
 	if (!IsValid(InMaterialModel))
 	{

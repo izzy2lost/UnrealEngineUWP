@@ -56,12 +56,12 @@ struct FDMMaterialModelCreatedCallbackDelegate : public FDMMaterialModelCreatedC
 {
 	DECLARE_DELEGATE_OneParam(FOnModelCreated, const FDMOnWizardCompleteCallbackParams&)
 
-	FDMMaterialModelCreatedCallbackDelegate(uint32 InPriority, const FOnModelCreated& InOnModelCreatedDelegate);
+	DYNAMICMATERIALEDITOR_API FDMMaterialModelCreatedCallbackDelegate(uint32 InPriority, const FOnModelCreated& InOnModelCreatedDelegate);
 
 	virtual ~FDMMaterialModelCreatedCallbackDelegate() override = default;
 
 	//~ Begin IDMMaterialModelCreatedCallback
-	virtual void OnModelCreated(const FDMOnWizardCompleteCallbackParams& InParams) override;
+	DYNAMICMATERIALEDITOR_API virtual void OnModelCreated(const FDMOnWizardCompleteCallbackParams& InParams) override;
 	//~ End IDMMaterialModelCreatedCallback
 
 protected:

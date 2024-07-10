@@ -20,7 +20,6 @@ class SDMPropertyEditBoolValue : public SDMPropertyEdit
 public:
 	static TSharedPtr<SWidget> CreateEditWidget(const TSharedPtr<SDMComponentEdit>& InComponentEditWidget, UDMMaterialValue* InBoolValue);
 
-	SDMPropertyEditBoolValue() = default;
 	virtual ~SDMPropertyEditBoolValue() override = default;
 
 	void Construct(const FArguments& InArgs, UDMMaterialValueBool* InBoolValue);

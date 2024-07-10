@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DMToolBarMenus.h"
+
+#include "AssetToolsModule.h"
 #include "ContentBrowserModule.h"
 #include "DesktopPlatformModule.h"
 #include "DynamicMaterialEditorModule.h"
@@ -55,18 +57,26 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		if (UDynamicMaterialInstance* MaterialInstance = InMaterialInstanceWeak.Get())
 		{
+			IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+			FString PackageName, AssetName;
+			AssetTools.CreateUniqueAssetName(MaterialInstance->GetName(), TEXT(""), PackageName, AssetName);
+
+			IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
+			const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
+			const FString PathStr = CurrentPath.HasInternalPath() ? CurrentPath.GetInternalPathString() : "/Game";
+
 			FSaveAssetDialogConfig SaveAssetDialogConfig;
 			SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
-			SaveAssetDialogConfig.DefaultPath = "/Game";
-			SaveAssetDialogConfig.DefaultAssetName = MaterialInstance->GetName();
-			SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
+			SaveAssetDialogConfig.DefaultPath = PathStr;
+			SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+			SaveAssetDialogConfig.DefaultAssetName = AssetName;
 
 			FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 			FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
 
 			if (!SaveObjectPath.IsEmpty())
 			{
-				UDMBlueprintFunctionLibrary::ExportMaterialInstance(MaterialInstance->GetMaterialModel(), SaveObjectPath);
+				UDMBlueprintFunctionLibrary::ExportMaterialInstance(MaterialInstance->GetMaterialModelBase(), SaveObjectPath);
 
 				if (FEngineAnalytics::IsAvailable())
 				{
@@ -76,53 +86,61 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
-	void ExportMaterialModelFromModel(TWeakObjectPtr<UDynamicMaterialModel> InMaterialModelWeak)
+	void ExportMaterialModelFromModel(TWeakObjectPtr<UDynamicMaterialModelBase> InMaterialModelBaseWeak)
 	{
-		if (UDynamicMaterialModel* MaterialModel = InMaterialModelWeak.Get())
-		{
-			UMaterial* GeneratedMaterial = MaterialModel->GetGeneratedMaterial();
+		UDynamicMaterialModelBase* MaterialModelBase = InMaterialModelBaseWeak.Get();
 
-			if (!GeneratedMaterial)
-			{
-				UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a generated material to export."), true, MaterialModel);
-				return;
-			}
-
-			FSaveAssetDialogConfig SaveAssetDialogConfig;
-			SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
-			SaveAssetDialogConfig.DefaultPath = "/Game";
-			SaveAssetDialogConfig.DefaultAssetName = GeneratedMaterial->GetName();
-			SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
-
-			FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-			const FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
-
-			if (SaveObjectPath.Len() == 0)
-			{
-				return;
-			}
-
-			UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(MaterialModel, SaveObjectPath);
-
-			if (FEngineAnalytics::IsAvailable())
-			{
-				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportedGeneratedMaterial"));
-			}
-		}
-	}
-
-	void SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModel> InMaterialModelWeak, FIntPoint InTextureSize)
-	{
-		UDynamicMaterialModel* MaterialModel = InMaterialModelWeak.Get();
-
-		if (!IsValid(MaterialModel))
+		if (!MaterialModelBase)
 		{
 			return;
 		}
 
-		UMaterialInterface* Material = MaterialModel->GetGeneratedMaterial();
+		UMaterial* GeneratedMaterial = MaterialModelBase->GetGeneratedMaterial();
 
-		if (UDynamicMaterialInstance* MaterialInstance = MaterialModel->GetDynamicMaterialInstance())
+		if (!GeneratedMaterial)
+		{
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Failed to find a generated material to export."), true, MaterialModelBase);
+			return;
+		}
+
+		IContentBrowserSingleton& ContentBrowser = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser").Get();
+		const FContentBrowserItemPath CurrentPath = ContentBrowser.GetCurrentPath();
+		const FString PathStr = CurrentPath.HasInternalPath() ? CurrentPath.GetInternalPathString() : "/Game";
+
+		FSaveAssetDialogConfig SaveAssetDialogConfig;
+		SaveAssetDialogConfig.DialogTitleOverride = LOCTEXT("SaveAssetDialogTitle", "Save Asset As");
+		SaveAssetDialogConfig.DefaultPath = PathStr;
+		SaveAssetDialogConfig.DefaultAssetName = GeneratedMaterial->GetName();
+		SaveAssetDialogConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::Disallow;
+
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+		const FString SaveObjectPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveAssetDialogConfig);
+
+		if (SaveObjectPath.Len() == 0)
+		{
+			return;
+		}
+
+		UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(MaterialModelBase, SaveObjectPath);
+
+		if (FEngineAnalytics::IsAvailable())
+		{
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.MaterialDesigner.ExportedGeneratedMaterial"));
+		}
+	}
+
+	void SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModelBase> InMaterialModelBaseWeak, FIntPoint InTextureSize)
+	{
+		UDynamicMaterialModelBase* MaterialModelBase = InMaterialModelBaseWeak.Get();
+
+		if (!IsValid(MaterialModelBase))
+		{
+			return;
+		}
+
+		UMaterialInterface* Material = MaterialModelBase->GetGeneratedMaterial();
+
+		if (UDynamicMaterialInstance* MaterialInstance = MaterialModelBase->GetDynamicMaterialInstance())
 		{
 			if (!IsValid(MaterialInstance->Parent.Get()))
 			{
@@ -234,14 +252,14 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		UDynamicMaterialModel* const MaterialModel = MenuContext->GetModel();
+		UDynamicMaterialModelBase* const MaterialModelBase = MenuContext->GetModelBase();
 
-		if (!MaterialModel)
+		if (!MaterialModelBase)
 		{
 			return;
 		}
 
-		TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak = MaterialModel;
+		TWeakObjectPtr<UDynamicMaterialModelBase> MaterialModelWeak = MaterialModelBase;
 		FToolMenuSection& NewSection = InMenu->AddSection("SnapshotMaterial", LOCTEXT("SnapshotMaterial", "Snapshop Material"));
 
 		NewSection.AddMenuEntry(
@@ -307,14 +325,14 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		UDynamicMaterialModel* const MaterialModel = MenuContext->GetModel();
+		UDynamicMaterialModelBase* const MaterialModelBase = MenuContext->GetModelBase();
 
-		if (!MaterialModel)
+		if (!MaterialModelBase)
 		{
 			return;
 		}
 
-		UDynamicMaterialInstance* Instance = MaterialModel->GetDynamicMaterialInstance();
+		UDynamicMaterialInstance* Instance = MaterialModelBase->GetDynamicMaterialInstance();
 
 		if (!Instance)
 		{
@@ -322,7 +340,7 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 
 		const bool bAllowInstanceExport = IsValid(Instance->GetOuter()) && !Instance->GetOuter()->IsA<UPackage>();
-		const bool bAllowMaterialExport = IsValid(MaterialModel->GetGeneratedMaterial());
+		const bool bAllowMaterialExport = IsValid(MaterialModelBase->GetGeneratedMaterial());
 
 		if (!bAllowInstanceExport && !bAllowMaterialExport)
 		{
@@ -362,7 +380,7 @@ namespace UE::DynamicMaterialEditor::Private
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateStatic(
 					&UE::DynamicMaterialEditor::Private::ExportMaterialModelFromModel,
-					TWeakObjectPtr<UDynamicMaterialModel>(MaterialModel)
+					TWeakObjectPtr<UDynamicMaterialModelBase>(MaterialModelBase)
 				))
 			);
 		}

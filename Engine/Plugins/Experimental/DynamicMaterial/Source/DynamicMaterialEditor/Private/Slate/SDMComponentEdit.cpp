@@ -34,6 +34,7 @@
 #include "Menus/DMMaterialStageSourceMenus.h"
 #include "Misc/CoreDelegates.h"
 #include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
@@ -49,6 +50,7 @@
 #include "Styling/SlateTypes.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "Model/DynamicMaterialModelDynamic.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBox.h"
@@ -255,7 +257,7 @@ void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent*
 	{
 		if (TSharedPtr<SDMEditor> EditorWidget = InEditorWidget.Pin())
 		{
-			WorldContext = EditorWidget->GetMaterialModel();
+			WorldContext = EditorWidget->GetMaterialModelBase();
 		}
 	}
 
@@ -286,6 +288,10 @@ void SDMComponentEdit::Construct(const FArguments& InArgs, UDMMaterialComponent*
 		];
 }
 
+void SDMComponentEdit::PrivateRegisterAttributes(struct FSlateAttributeDescriptor::FInitializer&)
+{
+}
+
 TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 {
 	SDMEditor::ClearPropertyHandles(this);
@@ -293,6 +299,16 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 	constexpr bool bDefaultCategoryExpansionState = true;
 
 	UDMMaterialComponent* Component = ComponentWeak.Get();
+
+	bool bIsDynamic = false;
+
+	if (TSharedPtr<SDMEditor> EditorWidget = GetEditorWidget())
+	{
+		if (UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase())
+		{
+			bIsDynamic = !MaterialModelBase->IsA<UDynamicMaterialModel>();
+		}
+	}
 
 	FCustomDetailsViewArgs Args;
 	Args.KeyframeHandler = KeyframeHandler;
@@ -338,6 +354,11 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 		{
 			TypeSelectorItem->SetValueWidget(CreateSourceTypeEditWidget());
 
+			if (bIsDynamic)
+			{
+				TypeSelectorItem->AsItem()->SetEnabledOverride(false);
+			}
+
 			DetailsView->ExtendTree(
 				GetDefaultCategory()->GetItemId(),
 				ECustomDetailsTreeInsertPosition::FirstChild,
@@ -373,7 +394,7 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 
 		FName CategoryName = EditRow.CategoryOverrideName;
 
-		if (CategoryName == NAME_None && EditRow.PropertyHandle.IsValid())
+		if (CategoryName.IsNone() && EditRow.PropertyHandle.IsValid())
 		{
 			// Sub category (possibly)
 			if (TSharedPtr<IPropertyHandle> SubCategoryProperty = EditRow.PropertyHandle->GetParentHandle())
@@ -394,7 +415,7 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 
 		TSharedPtr<ICustomDetailsViewItem> CategoryItem;
 
-		if (CategoryName == NAME_None)
+		if (CategoryName.IsNone())
 		{
 			CategoryItem = GetDefaultCategory();
 		}
@@ -432,6 +453,14 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 
 			Item->SetValueWidget(EditRow.ValueWidget.ToSharedRef());
 
+			if (!EditRow.bEnabled)
+			{
+				Item->AsItem()->SetEnabledOverride(false);
+
+				// Disable the expansion widgets (SNullWidget is treated as removing the override).
+				Item->SetExpansionWidget(SNew(SBox));
+			}
+
 			if (EditRow.MaxWidth.IsSet())
 			{
 				Item->AsItem()->SetValueWidgetWidthOverride(EditRow.MaxWidth);
@@ -465,6 +494,14 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 					.Text(EditRow.NameOverride.GetValue())
 					.ToolTipText(EditRow.NameToolTipOverride.Get(FText::GetEmpty()))
 			);
+		}
+
+		if (!EditRow.bEnabled)
+		{
+			Item->SetEnabledOverride(false);
+
+			// Disable the expansion widgets (SNullWidget is treated as removing the override).
+			Item->SetOverrideWidget(ECustomDetailsViewWidgetType::Extensions, SNew(SBox));
 		}
 
 		if (EditRow.PropertyHandle.IsValid() && EditRow.PropertyHandle->HasMetaData("NotKeyframeable"))
@@ -510,9 +547,11 @@ TArray<FDMPropertyHandle> SDMComponentEdit::GetEditRows()
 	{
 		if (TSharedPtr<SDMEditor> EditorWidget = GetEditorWidget())
 		{
-			if (UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel())
+			if (UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase())
 			{
-				GenerateMaterialModelPropertyRows(EditorWidget.ToSharedRef(), MaterialModel, PropertyRows, ProcessedObjects);
+				bool bIsDynamic = !MaterialModelBase->IsA<UDynamicMaterialModel>();
+
+				GenerateMaterialModelPropertyRows(EditorWidget.ToSharedRef(), MaterialModelBase, bIsDynamic, PropertyRows, ProcessedObjects);
 			}
 		}
 	}
@@ -886,37 +925,66 @@ void SDMComponentEdit::OnExpansionStateChanged(const TSharedRef<ICustomDetailsVi
 	EditorWidget->SetExpansionState(ComponentWeak.Get(), *ItemId.GetItemName(), bInExpansionState);
 }
 
-void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModel* InMaterialModel,
-	TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects)
+void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEditor> InEditorWidget, UDynamicMaterialModelBase* InMaterialModelBase,
+	bool bInDynamic, TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects)
 {
+	UDynamicMaterialModel* MaterialModel = InMaterialModelBase->ResolveMaterialModel();
+
+	if (!MaterialModel)
+	{
+		return;
+	}
+
 	const FName MaterialSettingsCategory = FName("Material Settings");
 
-	auto AddGlobalValue = [InEditorWidget, &InOutPropertyRows, &InOutProcessedObjects, &MaterialSettingsCategory]
-		(UDMMaterialValue* InValue, const FText& InNameOverride)
+	auto AddGlobalValue = [InEditorWidget, &InOutPropertyRows, &InOutProcessedObjects, &MaterialSettingsCategory, InMaterialModelBase]
+		(UDMMaterialComponent* InComponent, const FText& InNameOverride)
 		{
-			FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
-				InValue, UDMMaterialValue::ValueName));
+			if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(InMaterialModelBase))
+			{
+				InComponent = MaterialModelDynamic->GetComponentDynamic(InComponent->GetFName());
 
-			ValueHandle.CategoryOverrideName = MaterialSettingsCategory;
-			ValueHandle.NameOverride = InNameOverride;
-			ValueHandle.ResetToDefaultOverride = FResetToDefaultOverride::Create(
-				FIsResetToDefaultVisible::CreateUObject(InValue, &UDMMaterialValue::CanResetToDefault),
-				FResetToDefaultHandler::CreateUObject(InValue, &UDMMaterialValue::ResetToDefault),
-				/* Propagate to children */ false
-			);
+				if (!InComponent)
+				{
+					return;
+				}
+			}
 
-			InOutProcessedObjects.Add(InValue);
+			FDMPropertyHandle& ComponentHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
+				InComponent, UDMMaterialValue::ValueName));
+
+			ComponentHandle.CategoryOverrideName = MaterialSettingsCategory;
+			ComponentHandle.NameOverride = InNameOverride;
+
+			if (UDMMaterialValue* MaterialValue = Cast<UDMMaterialValue>(InComponent))
+			{
+				ComponentHandle.ResetToDefaultOverride = FResetToDefaultOverride::Create(
+					FIsResetToDefaultVisible::CreateUObject(MaterialValue, &UDMMaterialValue::CanResetToDefault),
+					FResetToDefaultHandler::CreateUObject(MaterialValue, &UDMMaterialValue::ResetToDefault),
+					/* Propagate to children */ false
+				);
+			}
+			else if (UDMMaterialValueDynamic* MaterialValueDynamic = Cast<UDMMaterialValueDynamic>(InComponent))
+			{
+				ComponentHandle.ResetToDefaultOverride = FResetToDefaultOverride::Create(
+					FIsResetToDefaultVisible::CreateUObject(MaterialValueDynamic, &UDMMaterialValueDynamic::CanResetToDefault),
+					FResetToDefaultHandler::CreateUObject(MaterialValueDynamic, &UDMMaterialValueDynamic::ResetToDefault),
+					/* Propagate to children */ false
+				);
+			}
+
+			InOutProcessedObjects.Add(InComponent);
 		};
 
-	AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOffsetValueName), LOCTEXT("GlobalOffset", "Global Offset"));
-	AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTilingValueName), LOCTEXT("GlobalTiling", "Global Tiling"));
-	AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRotationValueName), LOCTEXT("GlobalRotation", "Global Rotation"));
+	AddGlobalValue(MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOffsetValueName), LOCTEXT("GlobalOffset", "Global Offset"));
+	AddGlobalValue(MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTilingValueName), LOCTEXT("GlobalTiling", "Global Tiling"));
+	AddGlobalValue(MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRotationValueName), LOCTEXT("GlobalRotation", "Global Rotation"));
 
-	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModelBase))
 	{
 		if (EditorOnlyData->GetBlendMode() != BLEND_Opaque)
 		{
-			AddGlobalValue(InMaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName), LOCTEXT("GlobalOpacity", "Global Opacity"));
+			AddGlobalValue(MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName), LOCTEXT("GlobalOpacity", "Global Opacity"));
 		}
 
 		const FText PropertyFormat = LOCTEXT("PropertyFormat", "Global {0}");
@@ -953,15 +1021,16 @@ void SDMComponentEdit::GenerateMaterialModelPropertyRows(const TSharedRef<SDMEdi
 	}
 
 	const FName MaterialTypeCategory = FName("Material Type");
-	auto AddVariable = [InEditorWidget, &InOutPropertyRows, &MaterialTypeCategory](UObject* InObject, FName InPropertyName)
+	auto AddVariable = [InEditorWidget, &InOutPropertyRows, &MaterialTypeCategory, bInDynamic](UObject* InObject, FName InPropertyName)
 		{
 			FDMPropertyHandle& ValueHandle = InOutPropertyRows.Add_GetRef(InEditorWidget->GetPropertyHandle(&*InEditorWidget,
 				InObject, InPropertyName));
 
 			ValueHandle.CategoryOverrideName = MaterialTypeCategory;
+			ValueHandle.bEnabled = !bInDynamic;
 		};
 
-	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModelBase))
 	{
 		AddVariable(EditorOnlyData, GET_MEMBER_NAME_CHECKED(UDynamicMaterialModelEditorOnlyData, ChannelListPreset));
 		AddVariable(EditorOnlyData, GET_MEMBER_NAME_CHECKED(UDynamicMaterialModelEditorOnlyData, Domain));

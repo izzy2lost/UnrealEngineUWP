@@ -10,72 +10,83 @@ class UTexture;
 #if WITH_EDITOR
 namespace UE::DynamicMaterial::Private
 {
+	/** Return true if the texture has an alpha channel. */
 	bool DYNAMICMATERIAL_API HasAlpha(UTexture* InTexture);
 }
 
 DECLARE_DELEGATE_RetVal(UTexture*, FDMGetDefaultRGBTexture);
 #endif
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIAL_API UDMMaterialValueTexture : public UDMMaterialValue
+/**
+ * Component representing a texture value. Manages its own parameter.
+ */
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialValueTexture : public UDMMaterialValue
 {
 	GENERATED_BODY()
  
 public:
+	UDMMaterialValueTexture();
+
 #if WITH_EDITOR
-	static FDMGetDefaultRGBTexture GetDefaultRGBTexture;
+	DYNAMICMATERIAL_API static FDMGetDefaultRGBTexture GetDefaultRGBTexture;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	static UDMMaterialValueTexture* CreateMaterialValueTexture(UObject* Outer, UTexture* InTexture);
+	static DYNAMICMATERIAL_API UDMMaterialValueTexture* CreateMaterialValueTexture(UObject* InOuter, UTexture* InTexture);
 #endif
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UTexture* GetValue() const { return Value; }
  
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetValue(UTexture* InValue);
+	DYNAMICMATERIAL_API void SetValue(UTexture* InValue);
 
 #if WITH_EDITOR
+	/** Return true if the texture value has an alpha channel. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool HasAlpha() const;
+	DYNAMICMATERIAL_API bool HasAlpha() const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UTexture* GetDefaultValue() const { return DefaultValue; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetDefaultValue(UTexture* InDefaultValue);
+	DYNAMICMATERIAL_API void SetDefaultValue(UTexture* InDefaultValue);
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR
 	//~ Begin IDMJsonSerializable
-	virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
-	virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
+	DYNAMICMATERIAL_API virtual TSharedPtr<FJsonValue> JsonSerialize() const override;
+	DYNAMICMATERIAL_API virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
 	//~ End IDMJsonSerializable
 #endif
 
 	//~ Begin UDMMaterialValue
-	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
+	DYNAMICMATERIAL_API virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const override;
 #if WITH_EDITOR
-	virtual FName GetMainPropertyName() const override { return ValueName; }
-	virtual void GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const override;
-	virtual bool IsDefaultValue() const override;
-	virtual void ApplyDefaultValue() override;
-	virtual void ResetDefaultValue() override;
+	DYNAMICMATERIAL_API virtual void GenerateExpression(const TSharedRef<IDMMaterialBuildStateInterface>& InBuildState) const override;
+	DYNAMICMATERIAL_API virtual bool IsDefaultValue() const override;
+	DYNAMICMATERIAL_API virtual void ApplyDefaultValue() override;
+	DYNAMICMATERIAL_API virtual void ResetDefaultValue() override;
+	DYNAMICMATERIAL_API virtual UDMMaterialValueDynamic* ToDynamic(UDynamicMaterialModelDynamic* InMaterialModelDynamic) override;
 #endif
 	//~ End UDMMaterialValue
 
+	//~ Begin UDMMaterialComponent
+#if WITH_EDITOR
+	DYNAMICMATERIAL_API virtual FString GetComponentPathComponent() const override;
+#endif
+	//~ End UDMMaterialComponent
+
 	//~ Begin UObject
 #if WITH_EDITOR
-	virtual void PreEditChange(FProperty* InPropertyAboutToChange) override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+	DYNAMICMATERIAL_API virtual void PreEditChange(FProperty* InPropertyAboutToChange) override;
+	DYNAMICMATERIAL_API virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
-	virtual void PostLoad() override;
+	DYNAMICMATERIAL_API virtual void PostLoad() override;
 	//~ End UObject
 
 protected:
-	UDMMaterialValueTexture();
- 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, NoClear, Getter = GetValue, Setter = SetValue, BlueprintSetter = SetValue, Category = "Material Designer",
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, NoClear, Getter, Setter, BlueprintSetter = SetValue, Category = "Material Designer",
 		meta = (DisplayThumbnail = true, DisplayName = "Texture", AllowPrivateAccess = "true", HighPriority, NoCreate))
 	TObjectPtr<UTexture> Value;
 
@@ -84,6 +95,7 @@ protected:
 		meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UTexture> DefaultValue;
 
+	/** Used for PostEditChangeProperty */
 	UPROPERTY()
 	TObjectPtr<UTexture> OldValue;
 #endif

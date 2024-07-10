@@ -316,7 +316,7 @@ void UDMMaterialStageBlend::GetMaskAlphaBlendNode(const TSharedRef<FDMMaterialBu
 	OutExpression = Expressions.Last();
 }
 
-bool UDMMaterialStageBlend::UpdateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
+bool UDMMaterialStageBlend::GenerateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
 	UMaterialExpression*& OutMaterialExpression, int32& OutputIndex)
 {
 	check(InStage);
@@ -624,26 +624,11 @@ FDMExpressionInput UDMMaterialStageBlend::GetLayerMaskLinkTextureUVInputExpressi
 	return ExpressionInput;
 }
  
-void UDMMaterialStageBlend::UpdatePreviewMaterial(UMaterial* InPreviewMaterial)
+void UDMMaterialStageBlend::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
 {
 	if (!IsComponentValid())
 	{
 		return;
-	}
-
-	if (!InPreviewMaterial)
-	{
-		if (!PreviewMaterial)
-		{
-			CreatePreviewMaterial();
-		}
- 
-		InPreviewMaterial = PreviewMaterial;
- 
-		if (!InPreviewMaterial)
-		{
-			return;
-		}
 	}
  
 	UDMMaterialStage* Stage = GetStage();

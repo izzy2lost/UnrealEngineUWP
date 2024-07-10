@@ -248,9 +248,9 @@ void UDMMaterialStageFunction::PreEditChange(FEditPropertyChain& PropertyAboutTo
 	MaterialFunction_PreEdit = MaterialFunction;
 }
 
-void UDMMaterialStageFunction::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UDMMaterialStageFunction::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
 	if (MaterialFunction != MaterialFunction_PreEdit)
 	{
@@ -577,7 +577,7 @@ void UDMMaterialStageFunction::InitFunction()
 		InputConnectors[InputIndex].Index = InputIndex;
 		InputConnectors[InputIndex].Type = ValueType;
 
-		if (Inputs[InputIndex].ExpressionInput->InputName == NAME_None)
+		if (Inputs[InputIndex].ExpressionInput->InputName.IsNone())
 		{
 			static const FText InputNameFormat = LOCTEXT("InputFormat", "Input {0}");
 			InputConnectors[InputIndex].Name = FText::Format(InputNameFormat, FText::AsNumber(InputIndex + 1));

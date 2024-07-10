@@ -10,95 +10,102 @@ class UDMMaterialLayerObject;
 class UDMMaterialStage;
 class UDynamicMaterialModel;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue : public UDMMaterialStageInput
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageInputValue : public UDMMaterialStageInput
 {
 	GENERATED_BODY()
 		
 public:
-	static const FString ValuePathToken;
+	DYNAMICMATERIALEDITOR_API static const FString ValuePathToken;
 
 	static FName GetValuePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMMaterialStageInputValue, Value); }
 
-	static UDMMaterialStage* CreateStage(UDMMaterialValue* InValue, UDMMaterialLayerObject* InLayer = nullptr);
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStage* CreateStage(UDMMaterialValue* InValue, UDMMaterialLayerObject* InLayer = nullptr);
 
 	static UDMMaterialStageInputValue* ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, EDMValueType InValueType);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputValue* ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, TSubclassOf<UDMMaterialValue> InValueClass);
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue* ChangeStageSource_NewLocalValue(UDMMaterialStage* InStage, TSubclassOf<UDMMaterialValue> InValueClass);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputValue* ChangeStageSource_Value(UDMMaterialStage* InStage, UDMMaterialValue* InValue);
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue* ChangeStageSource_Value(UDMMaterialStage* InStage, UDMMaterialValue* InValue);
 
 	static UDMMaterialStageInputValue* ChangeStageSource_NewValue(UDMMaterialStage* InStage, EDMValueType InValueType);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputValue* ChangeStageSource_NewValue(UDMMaterialStage* InStage, TSubclassOf<UDMMaterialValue> InValueClass);
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue* ChangeStageSource_NewValue(UDMMaterialStage* InStage, TSubclassOf<UDMMaterialValue> InValueClass);
 
-	static UDMMaterialStageInputValue* ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue* ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
 		EDMValueType InValueType, int32 InOutputChannel);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputValue* ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue* ChangeStageInput_NewLocalValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
 		TSubclassOf<UDMMaterialValue> InValueClass, int32 InOutputChannel);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputValue* ChangeStageInput_Value(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue* ChangeStageInput_Value(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
 		UDMMaterialValue* InValue, int32 InOutputChannel);
 
 	static UDMMaterialStageInputValue* ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
 		EDMValueType InValueType, int32 InOutputChannel);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	static UDMMaterialStageInputValue* ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue* ChangeStageInput_NewValue(UDMMaterialStage* InStage, int32 InInputIdx, int32 InInputChannel,
 		TSubclassOf<UDMMaterialValue> InValueClass, int32 InOutputChannel);
 
-	virtual FText GetComponentDescription() const override;
-	virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageInputValue();
+
+	virtual ~UDMMaterialStageInputValue() override = default;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	UDMMaterialValue* GetValue() const { return Value; }
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetValue(UDMMaterialValue* InValue);
+	DYNAMICMATERIALEDITOR_API void SetValue(UDMMaterialValue* InValue);
 
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	DYNAMICMATERIALEDITOR_API void ApplyDefaultLayerSettings();
 
-	virtual int32 GetInnateMaskOutput(int32 OutputIndex, int32 OutputChannels) const override;
+	//~ Start UDMMaterialStageInput
+	DYNAMICMATERIALEDITOR_API virtual FText GetChannelDescription(const FDMMaterialStageConnectorChannel& Channel) override;
+	//~ End UDMMaterialStageInput
 
-	void ApplyDefaultLayerSettings();
-
-	//~ Begin UObject
-	virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
-	virtual void PostLoad() override;
-	virtual void PostEditImport() override;
-	//~ End UObject
+	//~ Start UDMMaterialStageSource
+	DYNAMICMATERIALEDITOR_API virtual int32 GetInnateMaskOutput(int32 OutputIndex, int32 OutputChannels) const override;
+	//~ Start UDMMaterialStageSource
 
 	//~ Start UDMMaterialComponent
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetComponentDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 	//~ End UDMMaterialComponent
 
-protected:
-	UDMMaterialStageInputValue();
-	virtual ~UDMMaterialStageInputValue() override = default;
+	//~ Begin UObject
+	DYNAMICMATERIALEDITOR_API virtual bool Modify(bool bInAlwaysMarkDirty = true) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostLoad() override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditImport() override;
+	//~ End UObject
 
+protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialValue> Value;
 
 	void OnValueUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
-	virtual void UpdateOutputConnectors() override;
-
 	void InitInputValue();
 	void DeinitInputValue();
-
-	//~ Begin UDMMaterialStageSource
-	virtual void OnComponentAdded() override;
-	virtual void OnComponentRemoved() override;
-	virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
-	//~ End UDMMaterialStageSource
 
 	bool IsSharedStageValue() const;
 
 	void ApplyWholeLayerValue();
+
+	//~ Start UDMMaterialStageInput
+	DYNAMICMATERIALEDITOR_API virtual void UpdateOutputConnectors() override;
+	//~ End UDMMaterialStageInput
+
+	//~ Begin UDMMaterialStageSource
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentRemoved() override;
+	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const override;
+	//~ End UDMMaterialStageSource
 };

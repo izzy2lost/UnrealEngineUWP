@@ -160,9 +160,9 @@ bool UDMMaterialComponent::CanClean()
 	return (FPlatformTime::Seconds() >= MinCleanTime);
 }
 
-void UDMMaterialComponent::PreventClean(double DelayFor)
+void UDMMaterialComponent::PreventClean(double InDelayFor)
 {
-	MinCleanTime = FMath::Max(MinCleanTime, FPlatformTime::Seconds() + DelayFor);
+	MinCleanTime = FMath::Max(MinCleanTime, FPlatformTime::Seconds() + InDelayFor);
 }
 
 bool UDMMaterialComponent::NeedsClean()
@@ -190,9 +190,9 @@ void UDMMaterialComponent::DoClean()
 	PreventClean(VeryShortTime);
 }
 
-void UDMMaterialComponent::SetComponentState(EDMComponentLifetimeState NewState)
+void UDMMaterialComponent::SetComponentState(EDMComponentLifetimeState InNewState)
 {
-	if (ComponentState == NewState)
+	if (ComponentState == InNewState)
 	{
 		return;
 	}
@@ -202,8 +202,8 @@ void UDMMaterialComponent::SetComponentState(EDMComponentLifetimeState NewState)
 		return;
 	}
 
-	ComponentState = NewState;
-	OnComponentStateChange(NewState);
+	ComponentState = InNewState;
+	OnComponentStateChange(InNewState);
 }
 
 void UDMMaterialComponent::PostLoad()
@@ -232,14 +232,14 @@ bool UDMMaterialComponent::Modify(bool bInAlwaysMarkDirty /*= true*/)
 	return bSaved;
 }
 
-void UDMMaterialComponent::OnComponentStateChange(EDMComponentLifetimeState NewState)
+void UDMMaterialComponent::OnComponentStateChange(EDMComponentLifetimeState InNewState)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	switch (NewState)
+	switch (InNewState)
 	{
 		case EDMComponentLifetimeState::Added:
 			OnComponentAdded();

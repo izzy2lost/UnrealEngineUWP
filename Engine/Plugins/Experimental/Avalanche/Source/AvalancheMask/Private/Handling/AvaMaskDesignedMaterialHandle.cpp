@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Handling/AvaMaskDesignedMaterialHandle.h"
 
@@ -265,7 +265,7 @@ UMaterialInstanceDynamic* FAvaMaskDesignedMaterialHandle::GetMaterialInstance()
 }
 
 #if WITH_EDITOR
-void FAvaMaskDesignedMaterialHandle::OnMaterialBuilt(UDynamicMaterialModel* InMaterialModel)
+void FAvaMaskDesignedMaterialHandle::OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModel)
 {
 	check(InMaterialModel);
 	

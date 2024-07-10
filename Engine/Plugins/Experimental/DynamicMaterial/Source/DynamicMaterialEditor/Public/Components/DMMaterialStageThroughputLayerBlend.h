@@ -10,8 +10,9 @@ class UMaterial;
 class UMaterialExpression;
 enum class EAvaColorChannel : uint8;
 
-UCLASS(BlueprintType, ClassGroup = "Material Designer")
-class DYNAMICMATERIALEDITOR_API UDMMaterialStageThroughputLayerBlend : public UDMMaterialStageThroughput
+/** Used as the source for mask stages. */
+UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
+class UDMMaterialStageThroughputLayerBlend : public UDMMaterialStageThroughput
 {
 	GENERATED_BODY()
 
@@ -20,57 +21,65 @@ public:
 	static constexpr int32 InputBaseStage = 1;
 	static constexpr int32 InputMaskSource = 2;
 
-	static UDMMaterialStage* CreateStage(UDMMaterialLayerObject* InLayer = nullptr);
-
-	UDMMaterialStageThroughputLayerBlend();
-
-	UDMMaterialStageInput* GetInputMask() const;
-
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	EAvaColorChannel GetMaskChannelOverride() const;
+	static DYNAMICMATERIALEDITOR_API UDMMaterialStage* CreateStage(UDMMaterialLayerObject* InLayer = nullptr);
 
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageThroughputLayerBlend();
+
+	/** Returns the input connected to the Mask input. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API UDMMaterialStageInput* GetInputMask() const;
+
+	/** Filters the output of the mask input node with the given channel. */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API EAvaColorChannel GetMaskChannelOverride() const;
+
+	/** Filters the output of the mask input node with the given channel. */
 	UFUNCTION(BlueprintCallable, Category="Material Designer")
-	void SetMaskChannelOverride(EAvaColorChannel InMaskChannel);
+	DYNAMICMATERIALEDITOR_API void SetMaskChannelOverride(EAvaColorChannel InMaskChannel);
 
 	//~ Begin UDMMaterialComponent
-	virtual void OnComponentAdded() override;
-	virtual void Update(EDMUpdateType InUpdateType) override;
-	virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-	virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
-	virtual bool IsPropertyVisible(FName InProperty) const override;
+	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
+	DYNAMICMATERIALEDITOR_API virtual void Update(EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
+	DYNAMICMATERIALEDITOR_API virtual bool IsPropertyVisible(FName InProperty) const override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UDMMaterialStageSource
-	virtual FText GetStageDescription() const override;
-	virtual bool UpdateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, UMaterialExpression*& OutMaterialExpression,
-		int32& OutputIndex) override;
+	DYNAMICMATERIALEDITOR_API virtual FText GetStageDescription() const override;
+	DYNAMICMATERIALEDITOR_API virtual bool GenerateStagePreviewMaterial(UDMMaterialStage* InStage, UMaterial* InPreviewMaterial, 
+		UMaterialExpression*& OutMaterialExpression, int32& OutputIndex) override;
 	//~ End UDMMaterialStageSource
 
 	//~ Begin FNotifyHook
-	virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* InPropertyThatChanged) override;
+	DYNAMICMATERIALEDITOR_API virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* InPropertyThatChanged) override;
 	//~ End FNotifyHook
 
 	//~ Begin UDMMaterialStageThroughput
-	virtual void AddDefaultInput(int32 InInputIndex) const override;
-	virtual bool CanChangeInput(int32 InputIndex) const override;
-	virtual bool IsInputVisible(int32 InputIndex) const override;
-	virtual int32 ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, FDMMaterialStageConnectorChannel& OutChannel,
-		TArray<UMaterialExpression*>& OutExpressions) const override;
-	virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIdx, int32 InExpressionInputIndex,
-		UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel) override;
+	DYNAMICMATERIALEDITOR_API virtual void AddDefaultInput(int32 InInputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool CanChangeInput(int32 InputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual bool IsInputVisible(int32 InputIndex) const override;
+	DYNAMICMATERIALEDITOR_API virtual int32 ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, 
+		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const override;
+	DYNAMICMATERIALEDITOR_API virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIdx, 
+		int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel) override;
 	//~ End UDMMaterialStageThroughput
 
-	void GetMaskOutput(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const;
+	/** Resolves the Mask input. */
+	DYNAMICMATERIALEDITOR_API void GetMaskOutput(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const;
 
+	/* When true, the base stage's output will be multiplied by this stage (darkening it where it is translucent). */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	bool UsePremultiplyAlpha() const { return bPremultiplyAlpha; }
 
+	/* When true, the base stage's output will be multiplied by this stage (darkening it where it is translucent). */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetPremultiplyAlpha(bool bInValue);
+	DYNAMICMATERIALEDITOR_API void SetPremultiplyAlpha(bool bInValue);
 
 	//~ Begin UObject
-	virtual void PostLoad() override;
-	virtual void PostEditImport() override;
+	DYNAMICMATERIALEDITOR_API virtual void PostLoad() override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditImport() override;
 	//~ End UObject
 
 protected:
@@ -87,36 +96,45 @@ protected:
 		meta=(NotKeyframeable))
 	bool bIsAlphaOnlyBlend;
 
+	/** When doing an update, this will prevent recursive calls. */
 	bool bBlockUpdate;
 
-	virtual int32 ResolveMaskInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, FDMMaterialStageConnectorChannel& OutChannel,
-		TArray<UMaterialExpression*>& OutExpressions) const;
-	
-	virtual void UpdatePreviewMaterial(UMaterial* InPreviewMaterial = nullptr) override;
+	DYNAMICMATERIALEDITOR_API virtual int32 ResolveMaskInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, 
+		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const;
 
-	virtual void UpdateAlphaOnlyMaskStatus();
-	virtual void OnStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
-	virtual void UpdateAlphaOnlyMasks(EDMUpdateType InUpdateType);
+	/** Updates the value of bIsAlphaOnlyBlend based on current conditions. */
+	DYNAMICMATERIALEDITOR_API virtual void UpdateAlphaOnlyMaskStatus();
 
-	void InitBlendStage();
+	/** Called when the owning stage is updated. */
+	DYNAMICMATERIALEDITOR_API virtual void OnStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
-	void GenerateMainExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
-	void GeneratePreviewExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+	/** Update this and all parent layer mask stages that are only-only (no based). */
+	DYNAMICMATERIALEDITOR_API virtual void UpdateAlphaOnlyMasks(EDMUpdateType InUpdateType);
 
-	void UpdateLinkedInputStage(EDMUpdateType InUpdateType);
+	DYNAMICMATERIALEDITOR_API void InitBlendStage();
+
+	DYNAMICMATERIALEDITOR_API void GenerateMainExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+	DYNAMICMATERIALEDITOR_API void GeneratePreviewExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+
+	/** If this shades any inputs with the base stage, update the base stage. */
+	DYNAMICMATERIALEDITOR_API void UpdateLinkedInputStage(EDMUpdateType InUpdateType);
 
 	/* Returns true if there are any outputs on the mask input that have more than 1 channel. */
-	bool CanUseMaskChannelOverride() const;
+	DYNAMICMATERIALEDITOR_API bool CanUseMaskChannelOverride() const;
 
 	/* Returns the first output on the mask input that has more than 1 channel. */
-	int32 GetDefaultMaskChannelOverrideOutputIndex() const;
+	DYNAMICMATERIALEDITOR_API int32 GetDefaultMaskChannelOverrideOutputIndex() const;
 
 	/* Returns true if the given mask output supports more than 1 channel. */
-	bool IsValidMaskChannelOverrideOutputIndex(int32 InIndex) const;
+	DYNAMICMATERIALEDITOR_API bool IsValidMaskChannelOverrideOutputIndex(int32 InIndex) const;
 
 	/* Reads the current output setting from the input map. */
 	void PullMaskChannelOverride() const;
 
 	/* Takes the override setting and applies it to the input map. */
 	void PushMaskChannelOverride();
+
+	//~ Begin UDMMaterialStageThroughput
+	DYNAMICMATERIALEDITOR_API virtual void GeneratePreviewMaterial(UMaterial* InPreviewMaterial) override;
+	//~ End UDMMaterialStageThroughput
 };
