@@ -116,16 +116,34 @@ public:
 	DYNAMICMATERIALEDITOR_API void SetShadingModel(EDMMaterialShadingModel InShadingModel);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API bool IsPixelAnimationFlagSet() const;
+	DYNAMICMATERIALEDITOR_API bool GetHasPixelAnimation() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API void SetPixelAnimationFlag(bool bInFlagValue);
+	DYNAMICMATERIALEDITOR_API void SetHasPixelAnimation(bool bInHasAnimation);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API bool IsTwoSidedFlagSet() const;
+	DYNAMICMATERIALEDITOR_API bool GetIsTwoSided() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API void SetTwoSidedFlag(bool bInFlagValue);
+	DYNAMICMATERIALEDITOR_API void SetIsTwoSided(bool bInEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool IsOutputTranslucentVelocityEnabled() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API void SetOutputTranslucentVelocityEnabled(bool bInEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool IsNaniteTessellationEnabled() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API void SetNaniteTessellationEnabled(bool bInEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API bool IsResponsiveAAEnabled() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API void SetResponsiveAAEnabled(bool bInEnabled);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API FName GetChannelListPreset() const;
@@ -248,15 +266,35 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", meta = (ValidEnumValues = "Unlit,DefaultLit"))
 	EDMMaterialShadingModel ShadingModel;
 
+	/**
+	 * Whether the opaque material has any pixel animations happening, that isn't included in the geometric velocities.
+	 * This allows to disable renderer's heuristics that assumes animation is fully described with motion vector, such as TSR's anti-flickering heuristic.
+	 */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	bool bPixelAnimationFlag;
+	bool bHasPixelAnimation;
 
+	/** Indicates that the material should be rendered without backface culling and the normal should be flipped for backfaces. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	bool bTwoSidedFlag;
+	bool bTwoSided;
 
+	/** When true, translucent materials will output motion vectors and write to depth buffer in velocity pass. */
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", meta = (DisplayName = "Output Translucent Velocity"))
+	bool bOutputTranslucentVelocityEnabled;
+
+	/** Whether tessellation is enabled on the material. NOTE: Required for displacement to work. */
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", meta = (DisplayName = "Nanite Tessellation"))
+	bool bNaniteTessellationEnabled;
+
+	/**
+	 * Indicates that the material should be rendered using responsive anti-aliasing. Improves sharpness of small moving particles such as sparks.
+	 * Only use for small moving features because it will cause aliasing of the background.
+	 */
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", meta = (DisplayName = "Responsive AA"))
+	bool bResponsiveAAEnabled;
+
+	/** Sets the available channels and default material properties. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", 
-		meta = (GetOptions = GetPresetOptions, NoResetToDefault, DisplayName = "Material Type Preset",
-			ToolTip = "Sets the available channels and default material properties."))
+		meta = (GetOptions = GetPresetOptions, NoResetToDefault, DisplayName = "Material Type Preset"))
 	FName ChannelListPreset;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
@@ -308,8 +346,7 @@ protected:
 	void OnDomainChanged();
 	void OnBlendModeChanged();
 	void OnShadingModelChanged();
-	void OnPixelAnimationFlagChanged();
-	void OnTwoSidedFlagChanged();
+	void OnMaterialFlagChanged();
 
 	//~ Begin IDynamicMaterialModelEditorOnlyDataInterface
 	virtual void ReinitComponents() override;

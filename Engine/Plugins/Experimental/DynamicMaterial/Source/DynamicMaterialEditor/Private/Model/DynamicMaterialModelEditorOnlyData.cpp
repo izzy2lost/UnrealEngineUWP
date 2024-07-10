@@ -168,8 +168,11 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	, Domain(EMaterialDomain::MD_Surface)
 	, BlendMode(EBlendMode::BLEND_Opaque)
 	, ShadingModel(EDMMaterialShadingModel::DefaultLit)
-	, bPixelAnimationFlag(false)
-	, bTwoSidedFlag(true)
+	, bHasPixelAnimation(false)
+	, bTwoSided(true)
+	, bOutputTranslucentVelocityEnabled(true)
+	, bNaniteTessellationEnabled(true)
+	, bResponsiveAAEnabled(true)
 	, ChannelListPreset(NAME_None)
 {
 	Properties.Emplace(EDMMaterialPropertyType::BaseColor,           CreateDefaultSubobject<UDMMaterialPropertyBaseColor>(          "MaterialProperty_BaseColor"));
@@ -246,8 +249,8 @@ void UDynamicMaterialModelEditorOnlyData::OnChannelListPresetChanged()
 
 	SetBlendMode(Preset->DefaultBlendMode);
 	SetShadingModel(Preset->DefaultShadingModel);
-	SetPixelAnimationFlag(Preset->bDefaultAnimated);
-	SetTwoSidedFlag(Preset->bDefaultTwoSided);
+	SetHasPixelAnimation(Preset->bDefaultAnimated);
+	SetIsTwoSided(Preset->bDefaultTwoSided);
 }
 
 void UDynamicMaterialModelEditorOnlyData::EnsurePresetSlots()
@@ -324,13 +327,13 @@ void UDynamicMaterialModelEditorOnlyData::OnBlendModeChanged()
 	switch (BlendMode)
 	{
 		case EBlendMode::BLEND_Opaque:
-			SetPixelAnimationFlag(false);
+			SetHasPixelAnimation(false);
 			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::Opacity);
 			RemoveSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask);
 			break;
 
 		case EBlendMode::BLEND_Masked:
-			SetPixelAnimationFlag(false);
+			SetHasPixelAnimation(false);
 			EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::Opacity, EDMMaterialPropertyType::OpacityMask);
 			break;
 
@@ -349,12 +352,7 @@ void UDynamicMaterialModelEditorOnlyData::OnShadingModelChanged()
 	RequestMaterialBuild();
 }
 
-void UDynamicMaterialModelEditorOnlyData::OnPixelAnimationFlagChanged()
-{
-	RequestMaterialBuild();
-}
-
-void UDynamicMaterialModelEditorOnlyData::OnTwoSidedFlagChanged()
+void UDynamicMaterialModelEditorOnlyData::OnMaterialFlagChanged()
 {
 	RequestMaterialBuild();
 }
@@ -418,13 +416,6 @@ void UDynamicMaterialModelEditorOnlyData::CreateMaterial()
 
 		FAssetRegistryModule::AssetCreated(MaterialModel->DynamicMaterial);
 	}
-
-	MaterialModel->DynamicMaterial->bOutputTranslucentVelocity = true;
-	MaterialModel->DynamicMaterial->bEnableResponsiveAA = true;
-
-	// Not setting this to true can cause the level associated with this material to dirty itself when it
-	// is used with Niagara. It doesn't negatively affect the material in any meaningful way.
-	MaterialModel->DynamicMaterial->bUsedWithNiagaraMeshParticles = true;
 }
 
 void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
@@ -451,8 +442,15 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	Expressions.Empty();
 	MaterialModel->DynamicMaterial->MaterialDomain = Domain;
 	MaterialModel->DynamicMaterial->BlendMode = BlendMode;
-	MaterialModel->DynamicMaterial->bHasPixelAnimation = bPixelAnimationFlag;
-	MaterialModel->DynamicMaterial->TwoSided = bTwoSidedFlag;
+	MaterialModel->DynamicMaterial->bHasPixelAnimation = bHasPixelAnimation;
+	MaterialModel->DynamicMaterial->TwoSided = bTwoSided;
+	MaterialModel->DynamicMaterial->bOutputTranslucentVelocity = bOutputTranslucentVelocityEnabled;
+	MaterialModel->DynamicMaterial->bEnableTessellation = bNaniteTessellationEnabled;
+	MaterialModel->DynamicMaterial->bEnableResponsiveAA = bResponsiveAAEnabled;
+
+	// Not setting this to true can cause the level associated with this material to dirty itself when it
+	// is used with Niagara. It doesn't negatively affect the material in any meaningful way.
+	MaterialModel->DynamicMaterial->bUsedWithNiagaraMeshParticles = true;
 
 	switch (ShadingModel)
 	{
@@ -1109,38 +1107,89 @@ void UDynamicMaterialModelEditorOnlyData::SetShadingModel(EDMMaterialShadingMode
 	OnShadingModelChanged();
 }
 
-bool UDynamicMaterialModelEditorOnlyData::IsPixelAnimationFlagSet() const
+bool UDynamicMaterialModelEditorOnlyData::GetHasPixelAnimation() const
 {
-	return bPixelAnimationFlag;
+	return bHasPixelAnimation;
 }
 
-void UDynamicMaterialModelEditorOnlyData::SetPixelAnimationFlag(bool bInFlagValue)
+void UDynamicMaterialModelEditorOnlyData::SetHasPixelAnimation(bool bInHasAnimation)
 {
-	if (bPixelAnimationFlag == bInFlagValue)
+	if (bHasPixelAnimation == bInHasAnimation)
 	{
 		return;
 	}
 
-	bPixelAnimationFlag = bInFlagValue;
+	bHasPixelAnimation = bInHasAnimation;
 
-	OnPixelAnimationFlagChanged();
+	OnMaterialFlagChanged();
 }
 
-bool UDynamicMaterialModelEditorOnlyData::IsTwoSidedFlagSet() const
+bool UDynamicMaterialModelEditorOnlyData::GetIsTwoSided() const
 {
-	return bTwoSidedFlag;
+	return bTwoSided;
 }
 
-void UDynamicMaterialModelEditorOnlyData::SetTwoSidedFlag(bool bInFlagValue)
+void UDynamicMaterialModelEditorOnlyData::SetIsTwoSided(bool bInEnabled)
 {
-	if (bTwoSidedFlag == bInFlagValue)
+	if (bTwoSided == bInEnabled)
 	{
 		return;
 	}
 
-	bTwoSidedFlag = bInFlagValue;
+	bTwoSided = bInEnabled;
 
-	OnTwoSidedFlagChanged();
+	OnMaterialFlagChanged();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::IsOutputTranslucentVelocityEnabled() const
+{
+	return bOutputTranslucentVelocityEnabled;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetOutputTranslucentVelocityEnabled(bool bInEnabled)
+{
+	if (bOutputTranslucentVelocityEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bOutputTranslucentVelocityEnabled = bInEnabled;
+
+	OnMaterialFlagChanged();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::IsNaniteTessellationEnabled() const
+{
+	return bNaniteTessellationEnabled;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetNaniteTessellationEnabled(bool bInEnabled)
+{
+	if (bNaniteTessellationEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bNaniteTessellationEnabled = bInEnabled;
+
+	OnMaterialFlagChanged();
+}
+
+bool UDynamicMaterialModelEditorOnlyData::IsResponsiveAAEnabled() const
+{
+	return bResponsiveAAEnabled;
+}
+
+void UDynamicMaterialModelEditorOnlyData::SetResponsiveAAEnabled(bool bInEnabled)
+{
+	if (bResponsiveAAEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bResponsiveAAEnabled = bInEnabled;
+
+	OnMaterialFlagChanged();
 }
 
 FName UDynamicMaterialModelEditorOnlyData::GetChannelListPreset() const
@@ -1488,13 +1537,13 @@ void UDynamicMaterialModelEditorOnlyData::PostEditChangeChainProperty(FPropertyC
 	{
 		OnShadingModelChanged();
 	}
-	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, bPixelAnimationFlag))
+	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, bHasPixelAnimation)
+		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bTwoSided)
+		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bOutputTranslucentVelocityEnabled)
+		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bNaniteTessellationEnabled)
+		|| Property == GET_MEMBER_NAME_CHECKED(ThisClass, bResponsiveAAEnabled))
 	{
-		OnPixelAnimationFlagChanged();
-	}
-	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, bTwoSidedFlag))
-	{
-		OnTwoSidedFlagChanged();
+		OnMaterialFlagChanged();
 	}
 }
 
