@@ -14,8 +14,13 @@ namespace UE::PixelStreamingHMD::Settings
 	// Begin CVars
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingEnableHMD;
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingHMDMatchAspectRatio;
+	extern TAutoConsoleVariable<bool> CVarPixelStreamingHMDApplyEyePosition;
+	extern TAutoConsoleVariable<bool> CVarPixelStreamingHMDApplyEyeRotation;
 	extern TAutoConsoleVariable<float> CVarPixelStreamingHMDHFOV;
 	extern TAutoConsoleVariable<float> CVarPixelStreamingHMDVFOV;
+	extern TAutoConsoleVariable<float> CVarPixelStreamingHMDIPD;
+	extern TAutoConsoleVariable<float> CVarPixelStreamingHMDProjectionOffsetX;
+	extern TAutoConsoleVariable<float> CVarPixelStreamingHMDProjectionOffsetY;
 	// End CVars
 
 } // namespace UE::PixelStreamingHMD::Settings

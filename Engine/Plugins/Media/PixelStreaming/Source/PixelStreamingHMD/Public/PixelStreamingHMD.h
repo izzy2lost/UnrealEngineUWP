@@ -28,6 +28,9 @@ public:
 	}
 
 	int32 GetXRSystemFlags() const { return EXRSystemFlags::IsHeadMounted; }
+	virtual bool GetRelativeEyePose(int32 DeviceId, int32 ViewIndex, FQuat& OutOrientation, FVector& OutPosition) override;
+	virtual void SetBasePosition(const FVector& InBasePosition) override { BasePosition = InBasePosition; };
+	virtual FVector GetBasePosition() const override { return BasePosition; }
 
 	virtual bool EnumerateTrackedDevices(TArray<int32>& OutDevices, EXRTrackedDeviceType Type = EXRTrackedDeviceType::Any) override;
 
@@ -54,8 +57,7 @@ public:
 
 	protected :
 		/** FXRTrackingSystemBase protected interface */
-		virtual float
-		GetWorldToMetersScale() const override;
+		virtual float GetWorldToMetersScale() const override;
 
 public:
 	/** IHeadMountedDisplay interface */
@@ -98,14 +100,15 @@ public:
 	bool IsInitialized() const { return true; }
 
 	void SetTransform(FTransform Transform) { CurHmdTransform = Transform; }
-	void SetEyeViews(FTransform Left, FMatrix LeftProj, FTransform Right, FMatrix RightProj);
+	void SetEyeViews(FTransform Left, FMatrix LeftProj, FTransform Right, FMatrix RightProj, FTransform HMD);
 
 private:
+	FVector BasePosition = FVector::ZeroVector;
 	FTransform CurHmdTransform;
-	FTransform CurLeftEyeTransform;
-	FTransform CurRightEyeTransform;
-	FMatrix CurLeftEyeProjMatrix;
-	FMatrix CurRightEyeProjMatrix;
+	FVector LeftEyePosOffset;
+	FVector RightEyePosOffset;
+	FQuat LeftEyeRotOffset;
+	FQuat RightEyeRotOffset;
 	float WorldToMeters;
 	float InterpupillaryDistance;
 	float HFoVRads = FMath::DegreesToRadians(90.0f);
