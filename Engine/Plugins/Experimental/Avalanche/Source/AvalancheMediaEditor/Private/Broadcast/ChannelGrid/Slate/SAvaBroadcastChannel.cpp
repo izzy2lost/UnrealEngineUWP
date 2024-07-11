@@ -403,7 +403,7 @@ TSharedRef<SWidget> SAvaBroadcastChannel::GetChannelStatusOptions()
 				if (Channel.GetState() != State && State != EAvaBroadcastChannelState::Offline)
 				{
 					Builder.AddMenuEntry(StaticEnum<EAvaBroadcastChannelState>()->GetDisplayNameTextByIndex(Index)
-						, FText()
+						, FText::GetEmpty()
 						, FSlateIcon()
 						, FUIAction(FExecuteAction::CreateSP(this, &SAvaBroadcastChannel::OnChannelStatusSelected, State)));	
 				}

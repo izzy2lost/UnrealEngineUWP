@@ -278,7 +278,7 @@ void SAvaRundownPagePreview::AddResolutionMenuEntry(FMenuBuilder& InOutMenuBuild
 {
 	InOutMenuBuilder.AddMenuEntry(
 			Label,
-			FText(),
+			FText::GetEmpty(),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &SAvaRundownPagePreview::SetPreviewResolution, InResolution),

@@ -57,7 +57,7 @@ FName FAvaBroadcastDeviceProviderRegistry::GetDeviceProviderName(const UClass* I
 	return FName();
 }
 
-FText FAvaBroadcastDeviceProviderRegistry::GetOutputClassDisplayText(const UClass* InMediaOutputClass) const
+const FText& FAvaBroadcastDeviceProviderRegistry::GetOutputClassDisplayText(const UClass* InMediaOutputClass) const
 {
 	if (InMediaOutputClass)
 	{
@@ -66,7 +66,7 @@ FText FAvaBroadcastDeviceProviderRegistry::GetOutputClassDisplayText(const UClas
 			return *FoundText;
 		}
 	}
-	return FText();
+	return FText::GetEmpty();
 }
 
 

@@ -29,7 +29,7 @@ public:
 
 	bool HasDeviceProviderName(const UClass* InMediaOutputClass) const;
 	FName GetDeviceProviderName(const UClass* InMediaOutputClass) const;
-	FText GetOutputClassDisplayText(const UClass* InMediaOutputClass) const;
+	const FText& GetOutputClassDisplayText(const UClass* InMediaOutputClass) const;
 
 protected:
 	FAvaBroadcastDeviceProviderRegistry();

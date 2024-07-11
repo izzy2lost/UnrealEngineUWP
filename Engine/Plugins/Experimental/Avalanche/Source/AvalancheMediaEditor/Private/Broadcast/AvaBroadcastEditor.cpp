@@ -451,7 +451,7 @@ TSharedRef<SWidget> FAvaBroadcastEditor::MakeProfileComboButton()
 	MenuBuilder.BeginSection(TEXT("AddProfile"));
 	{
 		MenuBuilder.AddMenuEntry(LOCTEXT("AddProfile_Label", "New Profile...")
-			, FText()
+			, FText::GetEmpty()
 			, FSlateIcon()
 			, FUIAction(FExecuteAction::CreateSP(this, &FAvaBroadcastEditor::CreateNewProfile)));
 	}	
