@@ -19,6 +19,7 @@
 #include "Rundown/Pages/Columns/AvaRundownPageStatusColumn.h"
 #include "Rundown/Pages/Columns/AvaRundownPageTemplateNameColumn.h"
 #include "Rundown/Pages/PageViews/AvaRundownInstancedPageViewImpl.h"
+#include "Rundown/TabFactories/AvaRundownSubListDocumentTabFactory.h"
 #include "SAvaRundownPageList.h"
 #include "ScopedTransaction.h"
 #include "Styling/StyleColors.h"
@@ -45,6 +46,7 @@ void SAvaRundownInstancedPageList::Construct(const FArguments& InArgs, TSharedPt
 	check(InPageListReference.Type == EAvaRundownPageListType::Instance || Rundown->IsValidSubList(PageListReference));
 
 	Rundown->GetOnPageListChanged().AddSP(this, &SAvaRundownInstancedPageList::OnPageListChanged);
+	Rundown->GetOnActiveListChanged().AddSP(this, &SAvaRundownInstancedPageList::OnActiveListChanged);
 
 	if (Rundown->IsValidSubList(PageListReference))
 	{
@@ -67,6 +69,23 @@ void SAvaRundownInstancedPageList::Construct(const FArguments& InArgs, TSharedPt
 				.OnTextCommitted(this, &SAvaRundownInstancedPageList::OnPageViewNameCommitted)
 				.Text(this, &SAvaRundownInstancedPageList::GetPageViewName)
 				.MinDesiredWidth(150.f)
+			];
+
+		SearchBar->InsertSlot(2)
+			.AutoWidth()
+			.VAlign(EVerticalAlignment::VAlign_Center)
+			.Padding(5.f, 0.f)
+			[
+				SNew(SButton)
+				.IsFocusable(false)
+				.ToolTipText(LOCTEXT("PageViewDeleteToolTip", "Delete Current Page View"))
+				.OnClicked(this, &SAvaRundownInstancedPageList::OnDeletePageView)
+				.Content()
+				[
+					SNew(SImage)
+					.Image(FAppStyle::Get().GetBrush("Icons.Delete"))
+					.ColorAndOpacity(FSlateColor::UseForeground())
+				]
 			];
 	}
 
@@ -107,6 +126,7 @@ SAvaRundownInstancedPageList::~SAvaRundownInstancedPageList()
 	if (UAvaRundown* const Rundown = GetValidRundown())
 	{
 		Rundown->GetOnPageListChanged().RemoveAll(this);
+		Rundown->GetOnActiveListChanged().RemoveAll(this);
 	}
 }
 
@@ -133,7 +153,7 @@ void SAvaRundownInstancedPageList::Refresh()
 		}
 		else if (Rundown->IsValidSubList(PageListReference))
 		{
-			const FAvaRundownSubList& SubList = Rundown->GetSubList(PageListReference.SubListIndex);
+			const FAvaRundownSubList& SubList = Rundown->GetSubList(PageListReference);
 			PageViews.Reset(SubList.PageIds.Num());
 			
 			for (const int32 PageId : SubList.PageIds)
@@ -143,7 +163,7 @@ void SAvaRundownInstancedPageList::Refresh()
 					PageViews.Emplace(MakeShared<FAvaRundownInstancedPageViewImpl>(PageId, Rundown, SharedThis(this)));
 				}
 			}
-		}	
+		}
 
 		PageListView->RequestListRefresh();
 	}
@@ -349,7 +369,7 @@ bool SAvaRundownInstancedPageList::HandleDropAssets(const TArray<FSoftObjectPath
 
 		if (PageListReference.Type == EAvaRundownPageListType::View)
 		{
-			Rundown->AddPageToSubList(PageListReference.SubListIndex, NewInstanceId, InsertAt);
+			Rundown->AddPageToSubList(PageListReference, NewInstanceId, InsertAt);
 		}
 
 		InsertAt.ConditionalUpdateAdjacentId(NewInstanceId);
@@ -478,7 +498,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIds(const FAvaRundownPageListRe
 		}
 		else if (bFromSubList)
 		{
-			bDidSomething = HandleDropPageIdsOnSubListFromSubList(InPageListReference.SubListIndex, InPageIds, InDropZone, InItem);
+			bDidSomething = HandleDropPageIdsOnSubListFromSubList(InPageListReference, InPageIds, InDropZone, InItem);
 		}
 	}
 
@@ -750,7 +770,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromTemplates(const
 	if (InsertAt.IsValid())
 	{
 		// Make sure the sublist has the dropped on item. (It should)
-		const FAvaRundownSubList& ToSubList = Rundown->GetSubList(PageListReference.SubListIndex);
+		const FAvaRundownSubList& ToSubList = Rundown->GetSubList(PageListReference);
 		if (!ToSubList.PageIds.Contains(InsertAt.AdjacentId))
 		{
 			InsertAt.AdjacentId = FAvaRundownPage::InvalidPageId;
@@ -783,7 +803,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromTemplates(const
 
 	for (const int32 PageId : NewPageIds)
 	{
-		if (Rundown->AddPageToSubList(PageListReference.SubListIndex, PageId, InsertAt))
+		if (Rundown->AddPageToSubList(PageListReference, PageId, InsertAt))
 		{
 			InsertAt.ConditionalUpdateAdjacentId(PageId);
 		}
@@ -814,7 +834,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromMainList(const 
 		return false;
 	}
 
-	FAvaRundownSubList& ToSubList = Rundown->GetSubList(PageListReference.SubListIndex);
+	FAvaRundownSubList& ToSubList = Rundown->GetSubList(PageListReference);
 
 	FAvaRundownPageInsertPosition InsertAt = MakeInsertPosition(InDropZone, InItem);
 	
@@ -896,7 +916,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromMainList(const 
 
 	for (const int32 PageId : ActualPageIds)
 	{
-		Rundown->AddPageToSubList(PageListReference.SubListIndex, PageId, InsertAt);
+		Rundown->AddPageToSubList(PageListReference, PageId, InsertAt);
 		InsertAt.ConditionalUpdateAdjacentId(PageId);
 	}
 
@@ -905,7 +925,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromMainList(const 
 	return true;
 }
 
-bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromSubList(int32 InFromList, const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem)
+bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromSubList(const FAvaRundownPageListReference& InFromList, const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem)
 {
 	if (PageListReference.Type != EAvaRundownPageListType::View)
 	{
@@ -913,12 +933,12 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromSubList(int32 I
 	}
 
 	UAvaRundown* Rundown = GetValidRundown();
-	if (!Rundown || !Rundown->IsValidSubList(PageListReference) || !Rundown->IsValidSubListIndex(InFromList))
+	if (!Rundown || !Rundown->IsValidSubList(PageListReference) || !Rundown->IsValidSubList(InFromList))
 	{
 		return false;
 	}
 
-	if (PageListReference.SubListIndex == InFromList)
+	if (PageListReference == InFromList)
 	{
 		if (!Rundown->CanChangePageOrder())
 		{
@@ -933,7 +953,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromSubList(int32 I
 		}
 	}
 
-	FAvaRundownSubList& ToSubList = Rundown->GetSubList(PageListReference.SubListIndex);
+	FAvaRundownSubList& ToSubList = Rundown->GetSubList(PageListReference);
 
 	FAvaRundownPageInsertPosition InsertAt = MakeInsertPosition(InDropZone, InItem);
 	
@@ -953,7 +973,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromSubList(int32 I
 	ActualPageIds.Reserve(InPageIds.Num());
 
 	// Nothing to do
-	if (PageListReference.SubListIndex == InFromList)
+	if (PageListReference == InFromList)
 	{
 		if (ToSubList.PageIds.Num() <= 1)
 		{
@@ -1038,7 +1058,7 @@ bool SAvaRundownInstancedPageList::HandleDropPageIdsOnSubListFromSubList(int32 I
 
 	for (const int32 PageId : ActualPageIds)
 	{
-		Rundown->AddPageToSubList(PageListReference.SubListIndex, PageId, InsertAt);
+		Rundown->AddPageToSubList(PageListReference, PageId, InsertAt);
 		InsertAt.ConditionalUpdateAdjacentId(PageId);
 	}
 
@@ -1146,9 +1166,54 @@ void SAvaRundownInstancedPageList::OnPageListChanged(const FAvaRundownPageListCh
 	{
 		return;
 	}
-	
+
+	if (PageListReference.Type == EAvaRundownPageListType::View)
+	{
+		if (const UAvaRundown* Rundown = GetValidRundown())
+		{
+			// If the sublist has been removed, close the tab.
+			if (!Rundown->IsValidSubList(PageListReference))
+			{
+				RequestCloseTab();
+				return;
+			}
+			
+			if (EnumHasAnyFlags(InParams.ChangeType, EAvaRundownPageListChange::SubListRenamed))
+			{
+				if (const TSharedPtr<SDockTab> MyTab = MyTabWeak.Pin())
+				{
+					// Note: Handling undo or renaming to empty -> use factory naming scheme.
+					MyTab->SetLabel(FAvaRundownSubListDocumentTabFactory::GetTabLabel(PageListReference, Rundown));
+				}
+			}
+		}
+	}
+
 	RefreshPagesVisibility();
 	Refresh();
+}
+
+void SAvaRundownInstancedPageList::OnActiveListChanged()
+{
+	// If the sublist has been removed, close the tab.
+	if (PageListReference.Type == EAvaRundownPageListType::View)
+	{
+		if (const UAvaRundown* Rundown = GetValidRundown())
+		{
+			if (!Rundown->IsValidSubList(PageListReference))
+			{
+				RequestCloseTab();
+			}
+		}
+	}
+}
+
+void SAvaRundownInstancedPageList::RequestCloseTab()
+{
+	if (const TSharedPtr<SDockTab> MyTab = MyTabWeak.Pin())
+	{
+		MyTab->RequestCloseTab();
+	}
 }
 
 FReply SAvaRundownInstancedPageList::MakeActive()
@@ -1193,14 +1258,14 @@ FSlateColor SAvaRundownInstancedPageList::GetMakeActiveButtonColor() const
 
 FText SAvaRundownInstancedPageList::GetPageViewName() const
 {
-	if (UAvaRundown* const Rundown = GetValidRundown())
+	if (const UAvaRundown* const Rundown = GetValidRundown())
 	{
-		if (Rundown->IsValidSubList(PageListReference))
+		const FAvaRundownSubList& SubList = Rundown->GetSubList(PageListReference);		
+		if (SubList.IsValid())
 		{
-			return Rundown->GetSubList(PageListReference.SubListIndex).Name;
+			return SubList.Name;
 		}
 	}
-
 	return FText::GetEmpty();
 }
 
@@ -1215,15 +1280,30 @@ void SAvaRundownInstancedPageList::OnPageViewNameCommitted(const FText& InNewTex
 	{
 		if (Rundown->IsValidSubList(PageListReference))
 		{
-			Rundown->GetSubList(PageListReference.SubListIndex).Name = InNewText;
-			Rundown->GetOnPageListChanged().Broadcast({Rundown, PageListReference, EAvaRundownPageListChange::RenamedPageView, {}});
-
-			if (TSharedPtr<SDockTab> MyTab = MyTabWeak.Pin())
-			{
-				MyTab->SetLabel(InNewText);
-			}
+			FScopedTransaction Transaction(LOCTEXT("RenamePageView", "Rename Page View"));
+			Rundown->Modify();
+			Rundown->RenameSubList(PageListReference, InNewText);
 		}
 	}
+}
+
+FReply SAvaRundownInstancedPageList::OnDeletePageView()
+{
+	if (UAvaRundown* const Rundown = GetValidRundown())
+	{
+		if (Rundown->IsValidSubList(PageListReference))
+		{
+			FScopedTransaction Transaction(LOCTEXT("DeletePageView", "Delete Page View"));
+			Rundown->Modify();
+			if (Rundown->RemoveSubList(PageListReference))
+			{
+				return FReply::Handled();
+			}
+
+			Transaction.Cancel();
+		}
+	}
+	return FReply::Unhandled();
 }
 
 TArray<int32> SAvaRundownInstancedPageList::AddPastedPages(const TArray<FAvaRundownPage>& InPages)

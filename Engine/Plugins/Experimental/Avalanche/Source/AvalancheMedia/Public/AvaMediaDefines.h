@@ -207,13 +207,14 @@ enum class EAvaRundownPageListChange : uint8
 {
 	None = 0,
 
-	AddedPages        = 1 << 0,
-	RemovedPages      = 1 << 1,
-	RenumberedPageId  = 1 << 2,
-	RenamedPageView   = 1 << 3,
-	ReorderedPageView = 1 << 4,
+	AddedPages            = 1 << 0,
+	RemovedPages          = 1 << 1,
+	RenumberedPageId      = 1 << 2,
+	SubListAddedOrRemoved = 1 << 3,
+	SubListRenamed        = 1 << 4,
+	ReorderedPageView     = 1 << 5,
 
-	All              = 0xFF,
+	All                   = 0xFF,
 };
 ENUM_CLASS_FLAGS(EAvaRundownPageListChange);
 
@@ -307,7 +308,7 @@ struct FAvaRundownPageListReference
 	EAvaRundownPageListType Type = EAvaRundownPageListType::Instance;
 
 	UPROPERTY()
-	int32 SubListIndex = INDEX_NONE;
+	FGuid SubListId;
 
 	bool operator==(const FAvaRundownPageListReference& InOther) const
 	{
@@ -316,7 +317,7 @@ struct FAvaRundownPageListReference
 			return false;
 		}
 
-		if (Type == EAvaRundownPageListType::View && SubListIndex != InOther.SubListIndex)
+		if (Type == EAvaRundownPageListType::View && SubListId != InOther.SubListId)
 		{
 			return false;
 		}

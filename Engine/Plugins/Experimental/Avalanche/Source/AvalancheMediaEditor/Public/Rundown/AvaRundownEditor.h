@@ -103,6 +103,8 @@ public:
 	bool CanRemoveSelectedPages() const;
 	void RemoveSelectedPages();
 
+	void RefreshSubListTabs();
+
 protected:
 	void RegisterApplicationModes();
 
@@ -159,18 +161,18 @@ protected:
 	};
 	TUniquePtr<FAutoPlayTicker> AutoPlayTicker;
 
-	TSharedPtr<SDockTab> CreateSubListTab(int32 InSubListIndex);
-	void CreateSubListTabs();
+	TSharedPtr<SDockTab> CreateSubListTab(const FAvaRundownPageListReference& InSubListReference);
 
-	void OnActiveSubListChanged();
+	void RefreshSubListTab(const FAvaRundownPageListReference& InSubListReference, bool bInSetActive = false);
+
+	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	void OnActiveListChanged();
 	void HandleOnPagePlayerAdded(UAvaRundown* InRundown, UAvaRundownPagePlayer* InPagePlayer);
 	void OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const;
 
 	TWeakObjectPtr<UAvaRundown> AvaRundown;
 
 	FOnPageEvent OnPageEvent;
-
-	TMap<FName, TWeakPtr<SDockTab>> SubListTabs;
 
 private:
 	TSharedPtr<SAvaRundownReadPage> ReadPageWidget;

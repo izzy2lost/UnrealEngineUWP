@@ -35,7 +35,7 @@ public:
 	bool HandleDropPageIdsOnMainListFromMainList(const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
 	bool HandleDropPageIdsOnSubListFromTemplates(const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
 	bool HandleDropPageIdsOnSubListFromMainList(const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
-	bool HandleDropPageIdsOnSubListFromSubList(int32 InFromList, const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
+	bool HandleDropPageIdsOnSubListFromSubList(const FAvaRundownPageListReference& InFromList, const TArray<int32>& InPageIds, EItemDropZone InDropZone, const FAvaRundownPageViewPtr& InItem);
 
 	void OnTabActivated(TSharedRef<SDockTab> InDockTab, ETabActivationCause InActivationCause);
 
@@ -70,6 +70,7 @@ public:
 	
 private:
 	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	void OnActiveListChanged();
 
 	TArray<int32> FilterPlayingPages(FFilterPageFunctionRef InFilterPageFunction) const;
 	TArray<int32> FilterSelectedOrPlayingPages(FFilterPageFunctionRef InFilterPageFunction, const bool bInAllowFallback) const;
@@ -84,12 +85,15 @@ private:
 protected:
 	TWeakPtr<SDockTab> MyTabWeak;
 
+	void RequestCloseTab();
+	
 	FReply MakeActive();
 	bool CanMakeActive() const;
 	FSlateColor GetMakeActiveButtonColor() const;
 
 	FText GetPageViewName() const;
 	void OnPageViewNameCommitted(const FText& InNewText, ETextCommit::Type InCommitType);
+	FReply OnDeletePageView();
 
 	void PlayNextPageNoReturn() const { PlayNextPage(); }
 

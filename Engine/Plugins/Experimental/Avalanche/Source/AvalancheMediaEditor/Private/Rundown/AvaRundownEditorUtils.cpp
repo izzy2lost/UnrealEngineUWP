@@ -526,7 +526,7 @@ TArray<int32> UE::AvaRundownEditor::Utils::ImportInstancedPages(
 		check(InstancedPageId != FAvaRundownPage::InvalidPageId);
 
 		// Now we have our instance page reference, add it to the sublist
-		if (InRundown->AddPageToSubList(InPageListReference.SubListIndex, InstancedPageId))
+		if (InRundown->AddPageToSubList(InPageListReference, InstancedPageId))
 		{
 			OutPageIds.Add(InstancedPageId);
 		}

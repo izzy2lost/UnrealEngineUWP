@@ -603,7 +603,7 @@ struct FAvaRundownPageListChanged : public FAvaRundownMsgBase
 	EAvaRundownPageListType ListType = EAvaRundownPageListType::Instance;
 
 	UPROPERTY()
-	int32 SubListIndex = INDEX_NONE;
+	FGuid SubListId;
 	
 	/** See EAvaPageListChange flags. */
 	UPROPERTY()

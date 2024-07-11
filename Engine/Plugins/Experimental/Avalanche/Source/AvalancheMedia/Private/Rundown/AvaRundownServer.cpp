@@ -482,7 +482,7 @@ void FAvaRundownServer::OnPageListChanged(const FAvaRundownPageListChangeParams&
 	FAvaRundownPageListChanged* ReplyMessage = FMessageEndpoint::MakeMessage<FAvaRundownPageListChanged>();
 	ReplyMessage->Rundown = FSoftObjectPath(InParams.Rundown).ToString();
 	ReplyMessage->ListType = InParams.PageListReference.Type;
-	ReplyMessage->SubListIndex = InParams.PageListReference.SubListIndex;
+	ReplyMessage->SubListId = InParams.PageListReference.SubListId;
 	ReplyMessage->ChangeType = static_cast<uint8>(InParams.ChangeType);
 	ReplyMessage->AffectedPages = InParams.AffectedPages;
 	

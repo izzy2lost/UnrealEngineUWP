@@ -24,7 +24,6 @@
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
-#include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageList.h"
 #include "ScopedTransaction.h"
@@ -191,6 +190,7 @@ FAvaRundownEditor::~FAvaRundownEditor()
 	if (IsValid(Rundown))
 	{
 		Rundown->GetOnActiveListChanged().RemoveAll(this);
+		Rundown->GetOnPageListChanged().RemoveAll(this);
 		Rundown->GetOnPagePlayerAdded().RemoveAll(this);
 		Rundown->GetOnCanClosePlaybackContext().RemoveAll(this);
 
@@ -234,7 +234,8 @@ void FAvaRundownEditor::InitRundownEditor(const EToolkitMode::Type InMode
 
 	if (IsValid(InRundown))
 	{
-		InRundown->GetOnActiveListChanged().AddSP(this, &FAvaRundownEditor::OnActiveSubListChanged);
+		InRundown->GetOnActiveListChanged().AddSP(this, &FAvaRundownEditor::OnActiveListChanged);
+		InRundown->GetOnPageListChanged().AddSP(this, &FAvaRundownEditor::OnPageListChanged);
 		InRundown->GetOnPagePlayerAdded().AddSP(this, &FAvaRundownEditor::HandleOnPagePlayerAdded);
 		InRundown->GetOnCanClosePlaybackContext().AddSP(this, &FAvaRundownEditor::OnCanClosePlaybackContext);
 		InRundown->InitializePlaybackContext();
@@ -255,7 +256,7 @@ void FAvaRundownEditor::InitRundownEditor(const EToolkitMode::Type InMode
 	RegisterApplicationModes();
 	FSharedConsoleCommands::RegisterEditor(SharedThis(this));
 
-	CreateSubListTabs();
+	RefreshSubListTabs();
 }
 
 bool FAvaRundownEditor::IsKeyRelevant(const FKeyEvent& InKeyEvent) const
@@ -328,7 +329,7 @@ TSharedPtr<SAvaRundownPageList> FAvaRundownEditor::GetListWidget(const FAvaRundo
 		return GetListWidget(FAvaRundownInstancedPageListTabFactory::TabID);
 	}
 
-	return GetListWidget(FAvaRundownSubListDocumentTabFactory::GetTabId(InPageListReference.SubListIndex));
+	return GetListWidget(FAvaRundownSubListDocumentTabFactory::GetTabId(InPageListReference));
 }
 
 TSharedPtr<SAvaRundownPageList> FAvaRundownEditor::GetListWidget(const FName& InTabId) const
@@ -377,7 +378,7 @@ TSharedPtr<SAvaRundownInstancedPageList> FAvaRundownEditor::GetActiveListWidget(
 	}
 	else if (ActiveList.Type == EAvaRundownPageListType::View)
 	{
-		PageList = GetListWidget(FAvaRundownSubListDocumentTabFactory::GetTabId(ActiveList.SubListIndex));
+		PageList = GetListWidget(FAvaRundownSubListDocumentTabFactory::GetTabId(ActiveList));
 	}
 
 	if (PageList.IsValid() && PageList->GetWidgetClass().GetWidgetType() == SAvaRundownInstancedPageList::StaticWidgetClass().GetWidgetType())
@@ -446,13 +447,11 @@ TConstArrayView<int32> FAvaRundownEditor::GetSelectedPagesOnFocusedWidget() cons
 
 bool FAvaRundownEditor::CanAddTemplate() const
 {
-	UAvaRundown* Rundown = AvaRundown.Get();
-
+	const UAvaRundown* Rundown = AvaRundown.Get();
 	if (IsValid(Rundown))
 	{
 		return Rundown->CanAddPage();
 	}
-
 	return false;
 }
 
@@ -752,7 +751,7 @@ void FAvaRundownEditor::CreateInstancesFromSelectedTemplates()
 
 		if (PageListWidget.IsValid() && PageListWidget->GetPageListReference().Type == EAvaRundownPageListType::View)
 		{
-			Rundown->AddPagesToSubList(PageListWidget->GetPageListReference().SubListIndex, AddedPages);
+			Rundown->AddPagesToSubList(PageListWidget->GetPageListReference(), AddedPages);
 		}
 	}
 	else
@@ -796,6 +795,18 @@ void FAvaRundownEditor::RemoveSelectedPages()
 		if (RemovedCount == 0)
 		{
 			Transaction.Cancel();
+		}
+	}
+}
+
+void FAvaRundownEditor::RefreshSubListTabs()
+{
+	const UAvaRundown* Rundown = AvaRundown.Get();
+	if (IsValid(Rundown))
+	{
+		for (const FAvaRundownSubList& SubList : Rundown->GetSubLists())
+		{
+			RefreshSubListTab(UAvaRundown::CreateSubListReference(SubList), /*bInSetActive*/false);
 		}
 	}
 }
@@ -921,36 +932,22 @@ void FAvaRundownEditor::MarkAsModified()
 	}
 }
 
-void FAvaRundownEditor::OnActiveSubListChanged()
+void FAvaRundownEditor::OnPageListChanged(const FAvaRundownPageListChangeParams& InParams)
 {
-	UAvaRundown* Rundown = AvaRundown.Get();
+	// Undo Support - Create missing Page View Tabs.
+	RefreshSubListTab(InParams.PageListReference);
+}
 
+void FAvaRundownEditor::OnActiveListChanged()
+{
+	const UAvaRundown* Rundown = AvaRundown.Get();
 	if (!IsValid(Rundown))
 	{
 		return;
 	}
 
 	const FAvaRundownPageListReference& ActiveList = Rundown->GetActivePageListReference();
-
-	if (ActiveList.Type != EAvaRundownPageListType::View)
-	{
-		return;
-	}
-
-	const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(ActiveList.SubListIndex);
-
-	TSharedPtr<SDockTab> SubListTab = TabManager->FindExistingLiveTab(TabId);
-
-	if (!SubListTab.IsValid())
-	{
-		SubListTab = CreateSubListTab(ActiveList.SubListIndex);
-	}
-
-	if (SubListTab.IsValid())
-	{
-		SubListTab->ActivateInParent(ETabActivationCause::SetDirectly);
-		SubListTab->DrawAttention();
-	}
+	RefreshSubListTab(ActiveList, /*bInSetActive*/true);
 }
 
 void FAvaRundownEditor::HandleOnPagePlayerAdded(UAvaRundown* InRundown, UAvaRundownPagePlayer* InPagePlayer)
@@ -979,26 +976,26 @@ void FAvaRundownEditor::OnCanClosePlaybackContext(const UAvaRundown* InRundown, 
 	}
 }
 
-TSharedPtr<SDockTab> FAvaRundownEditor::CreateSubListTab(int32 InSubListIndex)
+TSharedPtr<SDockTab> FAvaRundownEditor::CreateSubListTab(const FAvaRundownPageListReference& InSubListReference)
 {
-	TSharedPtr<FApplicationMode> AppMode = GetCurrentModePtr();
+	const TSharedPtr<FApplicationMode> AppMode = GetCurrentModePtr();
 
 	if (AppMode.IsValid())
 	{
-		const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(InSubListIndex);
-		TSharedRef<FAvaRundownAppMode> RundownAppMode = StaticCastSharedRef<FAvaRundownAppMode>(AppMode.ToSharedRef());
-		TSharedPtr<FDocumentTabFactory> DocTabFactory = RundownAppMode->GetDocumentTabFactory(FAvaRundownSubListDocumentTabFactory::FactoryId);
+		const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(InSubListReference);
+		const TSharedRef<FAvaRundownAppMode> RundownAppMode = StaticCastSharedRef<FAvaRundownAppMode>(AppMode.ToSharedRef());
+		const TSharedPtr<FDocumentTabFactory> DocTabFactory = RundownAppMode->GetDocumentTabFactory(FAvaRundownSubListDocumentTabFactory::FactoryId);
 
 		if (DocTabFactory.IsValid())
 		{
-			TSharedRef<FAvaRundownSubListDocumentTabFactory> SubListTabFactory = StaticCastSharedRef<FAvaRundownSubListDocumentTabFactory>(DocTabFactory.ToSharedRef());
+			const TSharedRef<FAvaRundownSubListDocumentTabFactory> SubListTabFactory = StaticCastSharedRef<FAvaRundownSubListDocumentTabFactory>(DocTabFactory.ToSharedRef());
 
 			FWorkflowTabSpawnInfo Info;
 			Info.TabManager = TabManager;
 			Info.Payload = nullptr;
 			Info.TabInfo = nullptr;
 
-			TSharedPtr<SDockTab> SubListTab = SubListTabFactory->SpawnSubListTab(Info, InSubListIndex);
+			TSharedPtr<SDockTab> SubListTab = SubListTabFactory->SpawnSubListTab(Info, InSubListReference);
 
 			if (SubListTab.IsValid())
 			{
@@ -1011,18 +1008,42 @@ TSharedPtr<SDockTab> FAvaRundownEditor::CreateSubListTab(int32 InSubListIndex)
 	return nullptr;
 }
 
-void FAvaRundownEditor::CreateSubListTabs()
+void FAvaRundownEditor::RefreshSubListTab(const FAvaRundownPageListReference& InSubListReference, bool bInSetActive)
 {
-	UAvaRundown* Rundown = AvaRundown.Get();
+	if (InSubListReference.Type != EAvaRundownPageListType::View)
+	{
+		return;
+	}
 
+	const UAvaRundown* Rundown = AvaRundown.Get();
 	if (!IsValid(Rundown))
 	{
 		return;
 	}
 
-	for (int32 SubListIndex = 0; SubListIndex < Rundown->GetSubLists().Num(); ++SubListIndex)
+	const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(InSubListReference);
+
+	TSharedPtr<SDockTab> SubListTab = TabManager->FindExistingLiveTab(TabId);
+
+	if (Rundown->IsValidSubList(InSubListReference))
 	{
-		CreateSubListTab(SubListIndex);
+		if (!SubListTab.IsValid())
+		{
+			SubListTab = CreateSubListTab(InSubListReference);
+		}
+
+		if (SubListTab.IsValid() && bInSetActive)
+		{
+			SubListTab->ActivateInParent(ETabActivationCause::SetDirectly);
+			SubListTab->DrawAttention();
+		}
+	}
+	else
+	{
+		if (SubListTab.IsValid())
+		{
+			SubListTab->RequestCloseTab();
+		}
 	}
 }
 
@@ -1127,7 +1148,7 @@ TSharedRef<SWidget> FAvaRundownEditor::MakeProfileComboButton()
 	for (FName ProfileName : ProfileNames)
 	{
 		MenuBuilder.AddMenuEntry(FText::FromName(ProfileName)
-			, FText()
+			, FText::GetEmpty()
 			, FSlateIcon()
 			, FUIAction(FExecuteAction::CreateLambda([ProfileName](){ UAvaBroadcast::Get().SetCurrentProfile(ProfileName);}))
 		);

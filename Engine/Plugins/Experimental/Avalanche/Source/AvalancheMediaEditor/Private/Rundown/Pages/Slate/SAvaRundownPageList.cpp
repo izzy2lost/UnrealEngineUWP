@@ -607,7 +607,7 @@ void SAvaRundownPageList::RemoveSelectedPages()
 			}
 			else if (Rundown->IsValidSubList(PageListReference))
 			{
-				RemovedCount = Rundown->RemovePagesFromSubList(PageListReference.SubListIndex, SelectedPageIds);
+				RemovedCount = Rundown->RemovePagesFromSubList(PageListReference, SelectedPageIds);
 			}
 
 			if (RemovedCount == 0)
@@ -1164,7 +1164,7 @@ void SAvaRundownPageList::RefreshPagesVisibility()
 
 	if (Rundown->IsValidSubList(PageListReference))
 	{
-		const FAvaRundownSubList& SubList = Rundown->GetSubList(PageListReference.SubListIndex);
+		const FAvaRundownSubList& SubList = Rundown->GetSubList(PageListReference);
 		for (const int32 PageId : SubList.PageIds)
 		{
 			const FAvaRundownPage& Page = Rundown->GetPage(PageId);
@@ -1240,7 +1240,7 @@ void SAvaRundownPageList::OnSearchBoxSuggestionFilter(const FText& InSearchText,
 
 			if (Rundown->IsValidSubList(PageListReference))
 			{
-				for (const int32 PageId : Rundown->GetSubList(PageListReference.SubListIndex).PageIds)
+				for (const int32 PageId : Rundown->GetSubList(PageListReference).PageIds)
 				{
 					for (const TSharedPtr<IAvaRundownFilterSuggestionFactory>& ComplexSuggestion : AvaMediaEditorModule.GetComplexSuggestions(PageListType))
 					{
