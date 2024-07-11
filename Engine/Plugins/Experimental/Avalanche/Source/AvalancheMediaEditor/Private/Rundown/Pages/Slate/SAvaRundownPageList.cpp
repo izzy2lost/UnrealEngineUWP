@@ -20,6 +20,7 @@
 #include "Rundown/AvaRundownSerializationUtils.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Factories/Filters/IAvaRundownFilterSuggestionFactory.h"
+#include "Rundown/Filters/AvaRundownPageTextFilter.h"
 #include "Rundown/Pages/AvaRundownPageContext.h"
 #include "Rundown/Pages/AvaRundownPageContextMenu.h"
 #include "Rundown/Pages/PageViews/AvaRundownPageViewImpl.h"
@@ -120,6 +121,28 @@ namespace UE::AvaRundown::Private
 			}
 		}
 	}
+
+	const FAvaRundownPageCollection& GetPageCollection(const UAvaRundown* InRundown, EAvaRundownPageListType InPageListType)
+	{
+		check(InRundown);
+		return InPageListType == EAvaRundownPageListType::Template ? InRundown->GetTemplatePages() : InRundown->GetInstancedPages();
+	}
+	
+	EAvaRundownSearchListType GetPageSearchListType(EAvaRundownPageListType InPageListType)
+	{
+		switch(InPageListType)
+		{
+		case EAvaRundownPageListType::Instance:
+		case EAvaRundownPageListType::View:
+			return EAvaRundownSearchListType::Instanced;
+			
+		case EAvaRundownPageListType::Template:
+			return EAvaRundownSearchListType::Template;
+			
+		default:
+			return EAvaRundownSearchListType::None;
+		}
+	}
 }
 
 void SAvaRundownPageList::PrivateRegisterAttributes(struct FSlateAttributeDescriptor::FInitializer&)
@@ -127,7 +150,7 @@ void SAvaRundownPageList::PrivateRegisterAttributes(struct FSlateAttributeDescri
 
 }
 
-void SAvaRundownPageList::Construct(const FArguments& InArgs, TSharedPtr<FAvaRundownEditor> InRundownEditor, const FAvaRundownPageListReference& InPageListReference, EAvaRundownSearchListType InPageListType)
+void SAvaRundownPageList::Construct(const FArguments& InArgs, TSharedPtr<FAvaRundownEditor> InRundownEditor, const FAvaRundownPageListReference& InPageListReference)
 {
 	RundownEditorWeak = InRundownEditor;
 	check(InRundownEditor.IsValid());
@@ -135,10 +158,13 @@ void SAvaRundownPageList::Construct(const FArguments& InArgs, TSharedPtr<FAvaRun
 	PageContextMenu = MakeShared<FAvaRundownPageContextMenu>();
 
 	PageListReference = InPageListReference;
-	PageListType = InPageListType;
 	CommandList = MakeShared<FUICommandList>();
 	BindCommands();
 
+	PageTextFilter = MakeShared<FAvaRundownPageTextFilter>();
+	PageTextFilter->OnChanged().AddSP(this, &SAvaRundownPageList::OnPageTextFilterChanged);
+	RefreshPagesVisibility();
+	
 	UAvaRundown* const Rundown = InRundownEditor->GetRundown();
 	check(Rundown);
 
@@ -1108,6 +1134,56 @@ FReply SAvaRundownPageList::OnKeyDown(const FGeometry& InMyGeometry, const FKeyE
 	return FReply::Unhandled();
 }
 
+void SAvaRundownPageList::RefreshPagesVisibility()
+{
+	VisiblePageIds.Reset();
+
+	const UAvaRundown* Rundown = GetValidRundown();
+	if (!Rundown)
+	{
+		return;
+	}
+
+	const EAvaRundownSearchListType PageSearchListType = UE::AvaRundown::Private::GetPageSearchListType(PageListReference.Type);
+
+	auto FilterPage = [this, Rundown, PageSearchListType](const FAvaRundownPage& InPage)
+	{
+		if (PageTextFilter)
+		{
+			PageTextFilter->SetItem(InPage, Rundown, PageSearchListType);
+			if (PageTextFilter->PassesFilter(InPage))
+			{
+				VisiblePageIds.Add(InPage.GetPageId());
+			}
+		}
+		else
+		{
+			VisiblePageIds.Add(InPage.GetPageId());
+		}
+	};
+
+	if (Rundown->IsValidSubList(PageListReference))
+	{
+		const FAvaRundownSubList& SubList = Rundown->GetSubList(PageListReference.SubListIndex);
+		for (const int32 PageId : SubList.PageIds)
+		{
+			const FAvaRundownPage& Page = Rundown->GetPage(PageId);
+			if (Page.IsValidPage())
+			{
+				FilterPage(Page);
+			}
+		}
+	}
+	else
+	{
+		const FAvaRundownPageCollection& Collection = UE::AvaRundown::Private::GetPageCollection(Rundown, PageListReference.Type);
+		for (const FAvaRundownPage& Page : Collection.Pages)
+		{
+			FilterPage(Page);
+		}
+	}
+}
+
 FText SAvaRundownPageList::OnAssetSearchBoxSuggestionChosen(const FText& InSearchText, const FString& InSuggestion)
 {
 	int32 SuggestionInsertionIndex = 0;
@@ -1121,17 +1197,17 @@ FText SAvaRundownPageList::OnAssetSearchBoxSuggestionChosen(const FText& InSearc
 
 void SAvaRundownPageList::OnSearchTextChanged(const FText& FilterText)
 {
-	if (TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
+	if (PageTextFilter)
 	{
-		RundownEditor->SetSearchText(FilterText, PageListType);
+		PageTextFilter->SetFilterText(FilterText);
 	}
 }
 
 void SAvaRundownPageList::OnSearchTextCommitted(const FText& FilterText, ETextCommit::Type CommitType)
 {
-	if (TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
+	if (PageTextFilter)
 	{
-		RundownEditor->SetSearchText(FilterText, PageListType);
+		PageTextFilter->SetFilterText(FilterText);
 	}
 }
 
@@ -1145,6 +1221,7 @@ void SAvaRundownPageList::OnSearchBoxSuggestionFilter(const FText& InSearchText,
 	UE::AvaRundown::Private::ExtractAssetSearchFilterTerms(InSearchText, &FilterKey, &FilterValue, nullptr);
 
 	const IAvaMediaEditorModule& AvaMediaEditorModule = IAvaMediaEditorModule::Get();
+	const EAvaRundownSearchListType PageListType = UE::AvaRundown::Private::GetPageSearchListType(PageListReference.Type);
 
 	TSet<FString> FilterCache;
 	const TSharedRef<FAvaRundownFilterSuggestionPayload> SimplePayload =
@@ -1161,12 +1238,27 @@ void SAvaRundownPageList::OnSearchBoxSuggestionFilter(const FText& InSearchText,
 			const TSharedRef<FAvaRundownFilterSuggestionPayload> ComplexPayload =
 				MakeShared<FAvaRundownFilterSuggestionPayload>(FAvaRundownFilterSuggestionPayload{ OutPossibleSuggestions, FilterValue, FAvaRundownPage::InvalidPageId, Rundown, FilterCache });
 
-			for (const FAvaRundownPage& Page : GetPagesByType(PageListType))
+			if (Rundown->IsValidSubList(PageListReference))
 			{
-				for (const TSharedPtr<IAvaRundownFilterSuggestionFactory>& ComplexSuggestion : AvaMediaEditorModule.GetComplexSuggestions(PageListType))
+				for (const int32 PageId : Rundown->GetSubList(PageListReference.SubListIndex).PageIds)
 				{
-					ComplexPayload->ItemPageId = Page.GetPageId();
-					ComplexSuggestion->AddSuggestion(ComplexPayload);
+					for (const TSharedPtr<IAvaRundownFilterSuggestionFactory>& ComplexSuggestion : AvaMediaEditorModule.GetComplexSuggestions(PageListType))
+					{
+						ComplexPayload->ItemPageId = PageId;
+						ComplexSuggestion->AddSuggestion(ComplexPayload);
+					}
+				}
+			}
+			else
+			{
+				using namespace UE::AvaRundown::Private;
+				for (const FAvaRundownPage& Page : GetPageCollection(Rundown, PageListReference.Type).Pages)
+				{
+					for (const TSharedPtr<IAvaRundownFilterSuggestionFactory>& ComplexSuggestion : AvaMediaEditorModule.GetComplexSuggestions(PageListType))
+					{
+						ComplexPayload->ItemPageId = Page.GetPageId();
+						ComplexSuggestion->AddSuggestion(ComplexPayload);
+					}
 				}
 			}
 		}
@@ -1174,32 +1266,10 @@ void SAvaRundownPageList::OnSearchBoxSuggestionFilter(const FText& InSearchText,
 	OutSuggestionHighlightText = FText::FromString(FilterValue);
 }
 
-TArray<FAvaRundownPage> SAvaRundownPageList::GetPagesByType(EAvaRundownSearchListType InRundownSearchListType) const
+void SAvaRundownPageList::OnPageTextFilterChanged()
 {
-	TArray<FAvaRundownPage> Pages = TArray<FAvaRundownPage>();
-
-	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
-	{
-		if (const UAvaRundown* Rundown = RundownEditor->GetRundown())
-		{
-			switch (InRundownSearchListType)
-			{
-			case EAvaRundownSearchListType::Template:
-				Pages = Rundown->GetTemplatePages().Pages;
-				break;
-
-			case EAvaRundownSearchListType::Instanced:
-				Pages = Rundown->GetInstancedPages().Pages;
-				break;
-
-			case EAvaRundownSearchListType::None:
-			default:
-				break;
-			}
-		}
-	}
-
-	return Pages;
+	RefreshPagesVisibility();
+	Refresh();
 }
 
 TArray<int32> SAvaRundownPageList::FilterSelectedPages(FFilterPageFunctionRef InFilterPageFunction) const

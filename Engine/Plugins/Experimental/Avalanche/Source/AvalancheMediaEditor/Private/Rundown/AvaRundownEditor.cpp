@@ -25,7 +25,6 @@
 #include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
-#include "Rundown/Filters/AvaRundownPageTextFilter.h"
 #include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
 #include "Rundown/Pages/Slate/SAvaRundownPageList.h"
 #include "ScopedTransaction.h"
@@ -183,8 +182,6 @@ private:
 };
 
 FAvaRundownEditor::FAvaRundownEditor()
-	: TextFilterTemplatePage(MakeShared<FAvaRundownPageTextFilter>())
-	, TextFilterInstancedPage(MakeShared<FAvaRundownPageTextFilter>())
 {}
 
 FAvaRundownEditor::~FAvaRundownEditor()
@@ -232,12 +229,6 @@ void FAvaRundownEditor::InitRundownEditor(const EToolkitMode::Type InMode
 	}
 
 	AvaRundown = InRundown;
-
-	InitVisibilityTemplatePages();
-	InitVisibilityInstancedPages();
-
-	TextFilterTemplatePage->OnChanged().AddSP(this, &FAvaRundownEditor::OnTemplateFilterChanged);
-	TextFilterInstancedPage->OnChanged().AddSP(this, &FAvaRundownEditor::OnInstancedFilterChanged);
 
 	CreateRundownCommands();
 
@@ -806,67 +797,6 @@ void FAvaRundownEditor::RemoveSelectedPages()
 		{
 			Transaction.Cancel();
 		}
-	}
-}
-
-void FAvaRundownEditor::RefreshTemplateVisibility()
-{
-	VisibleTemplatePageIds.Reset();
-
-	if (AvaRundown.IsValid())
-	{
-		for (const FAvaRundownPage& Page : AvaRundown->GetTemplatePages().Pages)
-		{
-			TextFilterTemplatePage->SetItem(Page, AvaRundown.Get(), EAvaRundownSearchListType::Template);
-			if (TextFilterTemplatePage->PassesFilter(Page))
-			{
-				VisibleTemplatePageIds.Add(Page.GetPageId());
-			}
-		}
-	}
-}
-
-void FAvaRundownEditor::RefreshInstancedVisibility()
-{
-	VisibleInstancedPageIds.Reset();
-
-	if (AvaRundown.IsValid())
-	{
-		for (const FAvaRundownPage& Page : AvaRundown->GetInstancedPages().Pages)
-		{
-			TextFilterInstancedPage->SetItem(Page, AvaRundown.Get(), EAvaRundownSearchListType::Instanced);
-			if (TextFilterInstancedPage->PassesFilter(Page))
-			{
-				VisibleInstancedPageIds.Add(Page.GetPageId());
-			}
-		}
-	}
-}
-
-bool FAvaRundownEditor::IsTemplatePageVisible(const FAvaRundownPage& InPage) const
-{
-	return VisibleTemplatePageIds.Contains(InPage.GetPageId());
-}
-
-bool FAvaRundownEditor::IsInstancedPageVisible(const FAvaRundownPage& InPage) const
-{
-	return VisibleInstancedPageIds.Contains(InPage.GetPageId());
-}
-
-void FAvaRundownEditor::SetSearchText(const FText& InText, EAvaRundownSearchListType& InPageListType)
-{
-	switch (InPageListType)
-	{
-	case EAvaRundownSearchListType::Template:
-		SetTemplateSearchText(InText);
-		break;
-	case EAvaRundownSearchListType::Instanced:
-		SetInstancedSearchText(InText);
-		break;
-
-	case EAvaRundownSearchListType::None:
-	default:
-		break;
 	}
 }
 
@@ -1548,58 +1478,6 @@ const FAvaRundownEditor::FBindableMacroCommands& FAvaRundownEditor::GetBindableM
 		BindableMacroCommands.Add(GetName(EAvaRundownEditorMacroCommand::StopChannel), [this](const TArray<FString>& InArgs){StopChannelCommand(InArgs);});
 	}
 	return BindableMacroCommands;
-}
-
-void FAvaRundownEditor::SetTemplateSearchText(const FText& InText)
-{
-	TextFilterTemplatePage->SetFilterText(InText);
-}
-
-void FAvaRundownEditor::SetInstancedSearchText(const FText& InText)
-{
-	TextFilterInstancedPage->SetFilterText(InText);
-}
-
-void FAvaRundownEditor::OnTemplateFilterChanged()
-{
-	RefreshTemplateVisibility();
-
-	if (GetTemplateListWidget().IsValid())
-	{
-		GetTemplateListWidget()->Refresh();
-	}
-}
-
-void FAvaRundownEditor::OnInstancedFilterChanged()
-{
-	RefreshInstancedVisibility();
-
-	if (GetInstanceListWidget().IsValid())
-	{
-		GetInstanceListWidget()->Refresh();
-	}
-}
-
-void FAvaRundownEditor::InitVisibilityTemplatePages()
-{
-	if (const UAvaRundown* Rundown = GetRundown())
-	{
-		for (const FAvaRundownPage& Page : Rundown->GetTemplatePages().Pages)
-		{
-			VisibleTemplatePageIds.Add(Page.GetPageId());
-		}
-	}
-}
-
-void FAvaRundownEditor::InitVisibilityInstancedPages()
-{
-	if (const UAvaRundown* Rundown = GetRundown())
-	{
-		for (const FAvaRundownPage& Page : Rundown->GetInstancedPages().Pages)
-		{
-			VisibleInstancedPageIds.Add(Page.GetPageId());
-		}
-	}
 }
 
 FAvaRundownEditor::FAutoPlayTicker::FAutoPlayTicker(TWeakPtr<FAvaRundownEditor> InRundownEditorWeak, double InTickInterval)

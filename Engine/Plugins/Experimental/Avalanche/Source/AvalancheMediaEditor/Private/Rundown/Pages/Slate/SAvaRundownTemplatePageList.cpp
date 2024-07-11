@@ -2,15 +2,12 @@
 
 #include "SAvaRundownTemplatePageList.h"
 
-#include "IAvaMediaEditorModule.h"
-#include "IAvaMediaModule.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownCommands.h"
 #include "Rundown/AvaRundownEditor.h"
 #include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPage.h"
-#include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Pages/Columns/AvaRundownPageAssetSelectorColumn.h"
 #include "Rundown/Pages/Columns/AvaRundownPageIdColumn.h"
 #include "Rundown/Pages/Columns/AvaRundownPageNameColumn.h"
@@ -31,7 +28,7 @@ void SAvaRundownTemplatePageList::PrivateRegisterAttributes(struct FSlateAttribu
 
 void SAvaRundownTemplatePageList::Construct(const FArguments& InArgs, TSharedPtr<FAvaRundownEditor> InRundownEditor)
 {
-	SAvaRundownPageList::Construct(SAvaRundownPageList::FArguments(), InRundownEditor, UAvaRundown::TemplatePageList, EAvaRundownSearchListType::Template);
+	SAvaRundownPageList::Construct(SAvaRundownPageList::FArguments(), InRundownEditor, UAvaRundown::TemplatePageList);
 
 	RundownEditorWeak = InRundownEditor;
 	check(InRundownEditor.IsValid());
@@ -67,7 +64,7 @@ void SAvaRundownTemplatePageList::Refresh()
 
 		for (const FAvaRundownPage& Page : PageCollection.Pages)
 		{
-			if (RundownEditor->IsTemplatePageVisible(Page))
+			if (IsPageVisible(Page))
 			{
 				PageViews.Emplace(MakeShared<FAvaRundownTemplatePageViewImpl>(Page.GetPageId(), Rundown, SharedThis(this)));
 			}
@@ -505,10 +502,7 @@ void SAvaRundownTemplatePageList::OnPageListChanged(const FAvaRundownPageListCha
 		return;
 	}
 
-	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
-	{
-		RundownEditor->RefreshTemplateVisibility();
-	}
+	RefreshPagesVisibility();
 	Refresh();
 }
 

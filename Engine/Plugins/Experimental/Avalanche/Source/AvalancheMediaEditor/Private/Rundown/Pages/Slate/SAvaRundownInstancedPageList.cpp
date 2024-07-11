@@ -11,7 +11,6 @@
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
 #include "Rundown/AvaRundownSerializationUtils.h"
-#include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Pages/Columns/AvaRundownPageAssetNameColumn.h"
 #include "Rundown/Pages/Columns/AvaRundownPageChannelSelectorColumn.h"
 #include "Rundown/Pages/Columns/AvaRundownPageEnabledColumn.h"
@@ -38,7 +37,7 @@ void SAvaRundownInstancedPageList::PrivateRegisterAttributes(struct FSlateAttrib
 
 void SAvaRundownInstancedPageList::Construct(const FArguments& InArgs, TSharedPtr<FAvaRundownEditor> InRundownEditor, const FAvaRundownPageListReference& InPageListReference)
 {
-	SAvaRundownPageList::Construct(SAvaRundownPageList::FArguments(), InRundownEditor, InPageListReference, EAvaRundownSearchListType::Instanced);
+	SAvaRundownPageList::Construct(SAvaRundownPageList::FArguments(), InRundownEditor, InPageListReference);
 
 	UAvaRundown* const Rundown = InRundownEditor->GetRundown();
 	check(Rundown);
@@ -118,30 +117,33 @@ void SAvaRundownInstancedPageList::Refresh()
 		UAvaRundown* const Rundown = RundownEditor->GetRundown();
 		check(Rundown);
 
-		TArray<FAvaRundownPage> Pages = Rundown->GetInstancedPages().Pages;
-
-		if (Rundown->IsValidSubList(PageListReference))
+		if (PageListReference.Type == EAvaRundownPageListType::Instance)
 		{
-			Pages.Empty();
+			const TArray<FAvaRundownPage>& Pages = Rundown->GetInstancedPages().Pages;
+			
+			PageViews.Reset(Pages.Num());
 
-			for (const int32 PageId : Rundown->GetSubList(PageListReference.SubListIndex).PageIds)
+			for (const FAvaRundownPage& Page : Pages)
 			{
-				if (const int32* Index = Rundown->GetInstancedPages().PageIndices.Find(PageId))
+				if (IsPageVisible(Page))
 				{
-					Pages.Add(Rundown->GetInstancedPages().Pages[*Index]);
+					PageViews.Emplace(MakeShared<FAvaRundownInstancedPageViewImpl>(Page.GetPageId(), Rundown, SharedThis(this)));
 				}
 			}
 		}
-
-		PageViews.Reset(Pages.Num());
-
-		for (const FAvaRundownPage& Page : Pages)
+		else if (Rundown->IsValidSubList(PageListReference))
 		{
-			if (RundownEditor->IsInstancedPageVisible(Page))
+			const FAvaRundownSubList& SubList = Rundown->GetSubList(PageListReference.SubListIndex);
+			PageViews.Reset(SubList.PageIds.Num());
+			
+			for (const int32 PageId : SubList.PageIds)
 			{
-				PageViews.Emplace(MakeShared<FAvaRundownInstancedPageViewImpl>(Page.GetPageId(), Rundown, SharedThis(this)));
+				if (IsPageVisible(PageId))
+				{
+					PageViews.Emplace(MakeShared<FAvaRundownInstancedPageViewImpl>(PageId, Rundown, SharedThis(this)));
+				}
 			}
-		}
+		}	
 
 		PageListView->RequestListRefresh();
 	}
@@ -1145,10 +1147,7 @@ void SAvaRundownInstancedPageList::OnPageListChanged(const FAvaRundownPageListCh
 		return;
 	}
 	
-	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin())
-	{
-		RundownEditor->RefreshInstancedVisibility();
-	}
+	RefreshPagesVisibility();
 	Refresh();
 }
 

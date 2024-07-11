@@ -9,7 +9,6 @@
 
 class FAvaRundownEditorInputProcessor;
 class FAvaRundownManagedInstance;
-class FAvaRundownPageTextFilter;
 class SAvaRundownInstancedPageList;
 class SAvaRundownPageList;
 class SAvaRundownReadPage;
@@ -104,14 +103,6 @@ public:
 	bool CanRemoveSelectedPages() const;
 	void RemoveSelectedPages();
 
-	void RefreshTemplateVisibility();
-	void RefreshInstancedVisibility();
-
-	bool IsTemplatePageVisible(const FAvaRundownPage& InPage) const;
-	bool IsInstancedPageVisible(const FAvaRundownPage& InPage) const;
-
-	void SetSearchText(const FText& InText, EAvaRundownSearchListType& InPageListType);
-
 protected:
 	void RegisterApplicationModes();
 
@@ -140,19 +131,6 @@ protected:
 	using FMacroCommandFunction = TFunction<void(const TArray<FString>& InArgs)>;
 	using FBindableMacroCommands = TMap<FName, FMacroCommandFunction>;
 	const FBindableMacroCommands& GetBindableMacroCommands();
-
-private:
-	void SetTemplateSearchText(const FText& InText);
-
-	void SetInstancedSearchText(const FText& InText);
-
-	void OnTemplateFilterChanged();
-
-	void OnInstancedFilterChanged();
-
-	void InitVisibilityTemplatePages();
-
-	void InitVisibilityInstancedPages();
 
 protected:
 	/**
@@ -198,12 +176,6 @@ private:
 	TSharedPtr<SAvaRundownReadPage> ReadPageWidget;
 
 	TSharedPtr<FAvaRundownEditorInputProcessor> InputProcessor;
-
-	TSharedRef<FAvaRundownPageTextFilter> TextFilterTemplatePage;
-	TArray<int32> VisibleTemplatePageIds;
-
-	TSharedRef<FAvaRundownPageTextFilter> TextFilterInstancedPage;
-	TArray<int32> VisibleInstancedPageIds;
 
 	/**
 	 * All rundown editor instances share the same command handlers.
