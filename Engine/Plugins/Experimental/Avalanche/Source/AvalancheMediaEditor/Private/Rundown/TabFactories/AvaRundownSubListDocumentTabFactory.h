@@ -7,6 +7,7 @@
 
 class FAvaRundownEditor;
 class UAvaRundown;
+struct FAvaRundownPageListChangeParams;
 
 /** Base class for all Tab Factories in Ava SubListDocument Editor */
 class FAvaRundownSubListDocumentTabFactory : public FDocumentTabFactory
@@ -20,15 +21,24 @@ public:
 	static FText GetTabDescription(const FAvaRundownPageListReference& InSubListReference, const UAvaRundown* InRundown);
 	static FText GetTabTooltip(const FAvaRundownPageListReference& InSubListReference, const UAvaRundown* InRundown);
 
-	FAvaRundownSubListDocumentTabFactory(const TSharedPtr<FAvaRundownEditor>& InSubListDocumentEditor);
+	FAvaRundownSubListDocumentTabFactory(const FAvaRundownPageListReference& InSubListReference, const TSharedPtr<FAvaRundownEditor>& InSubListDocumentEditor);
 
+	virtual ~FAvaRundownSubListDocumentTabFactory() override;
+
+	//~ Begin FWorkflowTabFactory
 	virtual TSharedRef<SWidget> CreateTabBody(const FWorkflowTabSpawnInfo& InInfo) const override;
+	virtual FTabSpawnerEntry& RegisterTabSpawner(TSharedRef<FTabManager> InTabManager, const FApplicationMode* InCurrentApplicationMode) const override;
+protected:
+	virtual TSharedRef<SDockTab> OnSpawnTab(const FSpawnTabArgs& InSpawnArgs, TWeakPtr<FTabManager> InTabManagerWeak) const override;
+	//~ End FWorkflowTabFactory
 
-	TSharedRef<SDockTab> SpawnSubListTab(const FWorkflowTabSpawnInfo& InInfo, const FAvaRundownPageListReference& InSubListReference);
+protected:
+	FText GetTabTitle() const;
 
+	void OnPageListChanged(const FAvaRundownPageListChangeParams& InParams);
+	
 protected:
 	TWeakPtr<FAvaRundownEditor> RundownEditorWeak;
 	FAvaRundownPageListReference SubListReference;
-	FText SubListDisplayName;
 };
 

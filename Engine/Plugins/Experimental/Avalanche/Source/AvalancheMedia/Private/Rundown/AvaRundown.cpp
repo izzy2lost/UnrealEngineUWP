@@ -1346,7 +1346,7 @@ bool UAvaRundown::RemoveSubList(const FAvaRundownPageListReference& InPageListRe
 			if (SubLists.IsValidIndex(*SubListIndex))
 			{
 				SubLists.RemoveAt(*SubListIndex);
-				SubListIndices.Remove(InPageListReference.SubListId);
+				RefreshSubListIndices();
 				GetOnPageListChanged().Broadcast({this, InPageListReference, EAvaRundownPageListChange::SubListAddedOrRemoved, {}});
 				return true;
 			}

@@ -16,8 +16,8 @@ FAvaRundownAppMode::FAvaRundownAppMode(const TSharedPtr<FAvaRundownEditor>& InRu
 
 void FAvaRundownAppMode::RegisterTabFactories(TSharedPtr<FTabManager> InTabManager)
 {
-	TSharedPtr<FAvaRundownEditor> PlaybackEditor = RundownEditorWeak.Pin();
-	PlaybackEditor->PushTabFactories(TabFactories);
+	const TSharedPtr<FAvaRundownEditor> RundownEditor = RundownEditorWeak.Pin();
+	RundownEditor->PushTabFactories(TabFactories);
 	FApplicationMode::RegisterTabFactories(InTabManager);
 }
 
@@ -27,8 +27,50 @@ TSharedPtr<FDocumentTabFactory> FAvaRundownAppMode::GetDocumentTabFactory(const 
 	{
 		return *DocFactory;
 	}
-
 	return nullptr;
+}
+
+void FAvaRundownAppMode::RegisterDocumentTabFactory(const TSharedPtr<FDocumentTabFactory>& InDocumentTabFactory, const TSharedPtr<FTabManager>& InTabManager)
+{
+	if (!InDocumentTabFactory)
+	{
+		return;
+	}
+	
+	// Keep track of this "document" factory so we don't add it again.
+	DocumentTabFactories.Add(InDocumentTabFactory->GetIdentifier(), InDocumentTabFactory.ToSharedRef());
+
+	// Add to the tab manager as a tab spawner.
+	if (InTabManager)
+	{
+		if (InTabManager->HasTabSpawner(InDocumentTabFactory->GetIdentifier()))
+		{
+			InTabManager->UnregisterTabSpawner(InDocumentTabFactory->GetIdentifier());
+		}
+		
+		InDocumentTabFactory->RegisterTabSpawner(InTabManager.ToSharedRef(), this);
+	}
+
+	// Update "Allowed" tab factories. (May not be necessary)
+	if (!TabFactories.GetFactory(InDocumentTabFactory->GetIdentifier()).IsValid())
+	{
+		TabFactories.RegisterFactory(InDocumentTabFactory);
+	}
+}
+
+void FAvaRundownAppMode::UnregisterDocumentTabFactory(const FName& InTabId, const TSharedPtr<FTabManager>& InTabManager)
+{
+	if (InTabManager && InTabManager->HasTabSpawner(InTabId))
+	{
+		InTabManager->UnregisterTabSpawner(InTabId);
+	}
+
+	if (TabFactories.GetFactory(InTabId).IsValid())
+	{
+		TabFactories.UnregisterFactory(InTabId);
+	}
+
+	DocumentTabFactories.Remove(InTabId);
 }
 
 FText FAvaRundownAppMode::GetLocalizedMode(const FName InMode)

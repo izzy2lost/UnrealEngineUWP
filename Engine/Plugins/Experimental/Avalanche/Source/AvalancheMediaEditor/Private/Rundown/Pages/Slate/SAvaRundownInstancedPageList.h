@@ -39,9 +39,6 @@ public:
 
 	void OnTabActivated(TSharedRef<SDockTab> InDockTab, ETabActivationCause InActivationCause);
 
-	TSharedPtr<SDockTab> GetMyTab() const { return MyTabWeak.Pin(); }
-	void SetMyTab(TSharedRef<SDockTab> InTab) { MyTabWeak = InTab; }
-
 	/** Plays the currently selected page. */
 	void PlaySelectedPage() const;
 	bool CanPlaySelectedPage() const;
@@ -83,8 +80,6 @@ private:
 	int32 GetPageIdToTakeNext() const;
 
 protected:
-	TWeakPtr<SDockTab> MyTabWeak;
-
 	void RequestCloseTab();
 	
 	FReply MakeActive();

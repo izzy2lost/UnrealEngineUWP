@@ -105,6 +105,10 @@ public:
 
 	void RefreshSubListTabs();
 
+	bool RequestCloseDocumentTab(const FName& InDocumentTabId);
+
+	void UnregisterDocumentTabFactory(const FName& InDocumentTabId);
+
 protected:
 	void RegisterApplicationModes();
 

@@ -255,8 +255,6 @@ void FAvaRundownEditor::InitRundownEditor(const EToolkitMode::Type InMode
 
 	RegisterApplicationModes();
 	FSharedConsoleCommands::RegisterEditor(SharedThis(this));
-
-	RefreshSubListTabs();
 }
 
 bool FAvaRundownEditor::IsKeyRelevant(const FKeyEvent& InKeyEvent) const
@@ -811,6 +809,28 @@ void FAvaRundownEditor::RefreshSubListTabs()
 	}
 }
 
+bool FAvaRundownEditor::RequestCloseDocumentTab(const FName& InDocumentTabId)
+{
+	if (TabManager)
+	{
+		if (const TSharedPtr<SDockTab> DocumentTab = TabManager->FindExistingLiveTab(InDocumentTabId))
+		{
+			return DocumentTab->RequestCloseTab();
+		}
+	}
+	return false;
+}
+
+void FAvaRundownEditor::UnregisterDocumentTabFactory(const FName& InDocumentTabId)
+{
+	const TSharedPtr<FApplicationMode> AppMode = GetCurrentModePtr();
+	if (AppMode.IsValid())
+	{
+		const TSharedRef<FAvaRundownAppMode> RundownAppMode = StaticCastSharedRef<FAvaRundownAppMode>(AppMode.ToSharedRef());
+		RundownAppMode->UnregisterDocumentTabFactory(InDocumentTabId, TabManager);
+	}
+}
+
 FName FAvaRundownEditor::GetToolkitFName() const
 {
 	return TEXT("AvaRundownEditor");
@@ -984,25 +1004,15 @@ TSharedPtr<SDockTab> FAvaRundownEditor::CreateSubListTab(const FAvaRundownPageLi
 	{
 		const FName TabId = FAvaRundownSubListDocumentTabFactory::GetTabId(InSubListReference);
 		const TSharedRef<FAvaRundownAppMode> RundownAppMode = StaticCastSharedRef<FAvaRundownAppMode>(AppMode.ToSharedRef());
-		const TSharedPtr<FDocumentTabFactory> DocTabFactory = RundownAppMode->GetDocumentTabFactory(FAvaRundownSubListDocumentTabFactory::FactoryId);
+		TSharedPtr<FDocumentTabFactory> DocTabFactory = RundownAppMode->GetDocumentTabFactory(TabId);
 
-		if (DocTabFactory.IsValid())
+		if (!DocTabFactory.IsValid())
 		{
-			const TSharedRef<FAvaRundownSubListDocumentTabFactory> SubListTabFactory = StaticCastSharedRef<FAvaRundownSubListDocumentTabFactory>(DocTabFactory.ToSharedRef());
-
-			FWorkflowTabSpawnInfo Info;
-			Info.TabManager = TabManager;
-			Info.Payload = nullptr;
-			Info.TabInfo = nullptr;
-
-			TSharedPtr<SDockTab> SubListTab = SubListTabFactory->SpawnSubListTab(Info, InSubListReference);
-
-			if (SubListTab.IsValid())
-			{
-				TabManager->InsertNewDocumentTab(FAvaRundownSubListTabFactory::TabID, TabId, FTabManager::FLiveTabSearch(TabId), SubListTab.ToSharedRef());
-				return SubListTab;
-			}
+			DocTabFactory = MakeShared<FAvaRundownSubListDocumentTabFactory>(InSubListReference, SharedThis(this));
+			RundownAppMode->RegisterDocumentTabFactory(DocTabFactory, TabManager);
 		}
+
+		return TabManager->TryInvokeTab(TabId);
 	}
 
 	return nullptr;
@@ -1043,6 +1053,7 @@ void FAvaRundownEditor::RefreshSubListTab(const FAvaRundownPageListReference& In
 		if (SubListTab.IsValid())
 		{
 			SubListTab->RequestCloseTab();
+			UnregisterDocumentTabFactory(TabId);
 		}
 	}
 }

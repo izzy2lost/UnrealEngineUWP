@@ -121,7 +121,17 @@ FAvaRundownDefaultMode::FAvaRundownDefaultMode(const TSharedPtr<FAvaRundownEdito
 	TabFactories.RegisterFactory(MakeShared<FAvaRundownChannelStatusListTabFactory>(InRundownEditor));
 	TabFactories.RegisterFactory(MakeShared<FAvaRundownChannelLayerStatusListTabFactory>(InRundownEditor));
 
-	DocumentTabFactories.Emplace(FAvaRundownSubListDocumentTabFactory::FactoryId, MakeShared<FAvaRundownSubListDocumentTabFactory>(InRundownEditor));
+	// Document factories for existing "documents" within the rundown.
+	if (const UAvaRundown* Rundown = InRundownEditor->GetRundown())
+	{
+		for (const FAvaRundownSubList& SubList : Rundown->GetSubLists())
+		{
+			TSharedPtr<FAvaRundownSubListDocumentTabFactory> PageViewDocumentFactory =
+				MakeShared<FAvaRundownSubListDocumentTabFactory>(UAvaRundown::CreateSubListReference(SubList), InRundownEditor);
+
+			RegisterDocumentTabFactory(PageViewDocumentFactory);
+		}
+	}
 
 	// Make sure we start with our existing list of extenders instead of creating a new one
 	IAvaMediaEditorModule& AvaMediaEditorModule = IAvaMediaEditorModule::Get();

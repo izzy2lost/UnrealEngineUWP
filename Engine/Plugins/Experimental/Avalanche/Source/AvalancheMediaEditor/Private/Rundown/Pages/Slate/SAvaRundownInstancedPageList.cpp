@@ -1177,15 +1177,6 @@ void SAvaRundownInstancedPageList::OnPageListChanged(const FAvaRundownPageListCh
 				RequestCloseTab();
 				return;
 			}
-			
-			if (EnumHasAnyFlags(InParams.ChangeType, EAvaRundownPageListChange::SubListRenamed))
-			{
-				if (const TSharedPtr<SDockTab> MyTab = MyTabWeak.Pin())
-				{
-					// Note: Handling undo or renaming to empty -> use factory naming scheme.
-					MyTab->SetLabel(FAvaRundownSubListDocumentTabFactory::GetTabLabel(PageListReference, Rundown));
-				}
-			}
 		}
 	}
 
@@ -1210,9 +1201,11 @@ void SAvaRundownInstancedPageList::OnActiveListChanged()
 
 void SAvaRundownInstancedPageList::RequestCloseTab()
 {
-	if (const TSharedPtr<SDockTab> MyTab = MyTabWeak.Pin())
+	if (const TSharedPtr<FAvaRundownEditor> RundownEditor = GetRundownEditor())
 	{
-		MyTab->RequestCloseTab();
+		const FName DocumentTabId = FAvaRundownSubListDocumentTabFactory::GetTabId(PageListReference);
+		RundownEditor->RequestCloseDocumentTab(DocumentTabId);
+		RundownEditor->UnregisterDocumentTabFactory(DocumentTabId);
 	}
 }
 
