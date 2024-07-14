@@ -440,7 +440,7 @@ void UAvaPlayableLevelStreaming::SetupView(FSceneViewFamily& InViewFamily, FScen
 	const ELevelStreamingState StreamingState = LevelStreaming->GetLevelStreamingState();
 	const bool bIsVisible = StreamingState == ELevelStreamingState::MakingVisible || StreamingState == ELevelStreamingState::LoadedVisible;
 	
-	if (bIsVisible && bShouldBeHidden)
+	if (bIsVisible && (bShouldBeHidden || bWaitingForShowPlayable))
 	{
 		TSet<FPrimitiveComponentId> HiddenPrimitives;	// Todo(opt): cache this?
 
@@ -501,7 +501,7 @@ void UAvaPlayableLevelStreaming::HandleTransitionEvent(UAvaPlayable* InPlayable,
 {
 	if (InPlayable == this && EnumHasAnyFlags(InTransitionFlags, EAvaPlayableTransitionEventFlags::ShowPlayable))
 	{
-		bShouldBeHidden = false;
+		bWaitingForShowPlayable = false;
 	}
 }
 

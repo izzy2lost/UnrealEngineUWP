@@ -8,6 +8,7 @@
 #include "Playable/AvaPlayable.h"
 #include "Playable/AvaPlayableAssetUserData.h"
 #include "Playable/AvaPlayableGroup.h"
+#include "Playable/Playables/AvaPlayableLevelStreaming.h"
 #include "Playable/Transition/AvaPlayableTransition.h"
 
 namespace UE::AvaPlayableLibrary::Private
@@ -98,3 +99,20 @@ bool UAvaPlayableLibrary::UpdateRemoteControlValues(const UObject* InWorldContex
 	}
 	return false;
 }
+
+bool UAvaPlayableLibrary::GetShouldBeHidden(const UObject* InWorldContextObject)
+{
+	const UAvaPlayableLevelStreaming* LevelStreamingPlayable = Cast<UAvaPlayableLevelStreaming>(GetPlayable(InWorldContextObject));
+	return LevelStreamingPlayable ? LevelStreamingPlayable->GetShouldBeHidden() : false;
+}
+
+bool UAvaPlayableLibrary::SetShouldBeHidden(const UObject* InWorldContextObject, bool bInShouldBeHidden)
+{
+	if (UAvaPlayableLevelStreaming* LevelStreamingPlayable = Cast<UAvaPlayableLevelStreaming>(GetPlayable(InWorldContextObject)))
+	{
+		LevelStreamingPlayable->SetShouldBeHidden(bInShouldBeHidden);
+		return true;
+	}
+	return false;
+}
+

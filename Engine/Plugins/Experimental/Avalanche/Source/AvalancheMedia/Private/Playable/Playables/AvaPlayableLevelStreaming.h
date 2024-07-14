@@ -43,6 +43,9 @@ protected:
 public:
 	ULevelStreamingDynamic* GetLevelStreaming() const { return LevelStreaming; }
 
+	void SetShouldBeHidden(bool bInShouldBeHidden) { bShouldBeHidden = bInShouldBeHidden; }
+	bool GetShouldBeHidden() const { return bShouldBeHidden; }
+
 protected:
 	bool LoadLevel(const TSoftObjectPtr<UWorld>& InSourceLevel, bool bInInitiallyVisible);
 
@@ -118,5 +121,8 @@ protected:
 	bool bOnPlayQueued = false;
 	
 	/** Enter Playables should be hidden until the transition has started. */
-	bool bShouldBeHidden = true;
+	bool bWaitingForShowPlayable = true;
+
+	/** If true, all primitives from the playable will hidden. */
+	bool bShouldBeHidden = false;
 };
