@@ -27,7 +27,7 @@ public:
 	 * @return true if the values have been injected, false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Playable", meta=(WorldContext = "InWorldContextObject"))
-	static AVALANCHEMEDIA_API bool UpdateRemoteControlValues(const UObject* InWorldContextObject);
+	static AVALANCHEMEDIA_API bool UpdatePlayableRemoteControlValues(const UObject* InWorldContextObject);
 
 	/**
 	 * Returns the current hidden state of this playable.
@@ -35,7 +35,7 @@ public:
 	 * @return true if the hidden state is set, false otherwise or if not managed by a playable.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Playable", meta=(WorldContext = "InWorldContextObject"))
-	static AVALANCHEMEDIA_API bool GetShouldBeHidden(const UObject* InWorldContextObject);
+	static AVALANCHEMEDIA_API bool IsPlayableHidden(const UObject* InWorldContextObject);
 
 	/**
 	 * Sets the hidden state of all primitives under this playable. Hidden primitives will not be rendered.
@@ -43,5 +43,5 @@ public:
 	 * @return true if the value was set, false otherwise (if not managed by a playable).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design|Playable", meta=(WorldContext = "InWorldContextObject"))
-	static AVALANCHEMEDIA_API bool SetShouldBeHidden(const UObject* InWorldContextObject, bool bInShouldBeHidden);
+	static AVALANCHEMEDIA_API bool SetPlayableHidden(const UObject* InWorldContextObject, bool bInShouldBeHidden);
 };

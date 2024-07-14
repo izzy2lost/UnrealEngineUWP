@@ -82,7 +82,7 @@ UAvaPlayableTransition* UAvaPlayableLibrary::GetPlayableTransition(const UAvaPla
 	return FoundTransition;
 }
 
-bool UAvaPlayableLibrary::UpdateRemoteControlValues(const UObject* InWorldContextObject)
+bool UAvaPlayableLibrary::UpdatePlayableRemoteControlValues(const UObject* InWorldContextObject)
 {
 	if (UAvaPlayable* Playable = GetPlayable(InWorldContextObject))
 	{
@@ -100,13 +100,13 @@ bool UAvaPlayableLibrary::UpdateRemoteControlValues(const UObject* InWorldContex
 	return false;
 }
 
-bool UAvaPlayableLibrary::GetShouldBeHidden(const UObject* InWorldContextObject)
+bool UAvaPlayableLibrary::IsPlayableHidden(const UObject* InWorldContextObject)
 {
 	const UAvaPlayableLevelStreaming* LevelStreamingPlayable = Cast<UAvaPlayableLevelStreaming>(GetPlayable(InWorldContextObject));
 	return LevelStreamingPlayable ? LevelStreamingPlayable->GetShouldBeHidden() : false;
 }
 
-bool UAvaPlayableLibrary::SetShouldBeHidden(const UObject* InWorldContextObject, bool bInShouldBeHidden)
+bool UAvaPlayableLibrary::SetPlayableHidden(const UObject* InWorldContextObject, bool bInShouldBeHidden)
 {
 	if (UAvaPlayableLevelStreaming* LevelStreamingPlayable = Cast<UAvaPlayableLevelStreaming>(GetPlayable(InWorldContextObject)))
 	{
