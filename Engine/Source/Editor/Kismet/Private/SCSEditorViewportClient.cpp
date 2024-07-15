@@ -1232,7 +1232,7 @@ void FSCSEditorViewportClient::UpdateHoverFromHitProxy(HHitProxy* const InHitPro
 		else if (InHitProxy->IsA(HActor::StaticGetType()))
 		{
 			const HActor* const ActorHitProxy = static_cast<HActor*>(InHitProxy);
-			if (ActorHitProxy && IsValid(ActorHitProxy->PrimComponent))
+			if (ActorHitProxy && IsValid(ActorHitProxy->Actor))
 			{
 				if (bIsViewportSelectionLimited)
 				{
@@ -1252,8 +1252,6 @@ void FSCSEditorViewportClient::UpdateHoverFromHitProxy(HHitProxy* const InHitPro
 		});
 
 	// Set mouse cursor after hovered primitive component list has been updated
-	MouseCursor.Reset();
-
 	if (bIsGizmoHit)
 	{
 		MouseCursor = EMouseCursor::CardinalCross;
@@ -1265,5 +1263,9 @@ void FSCSEditorViewportClient::UpdateHoverFromHitProxy(HHitProxy* const InHitPro
 	else if (bIsViewportSelectionLimited)
 	{
 		MouseCursor = EMouseCursor::SlashedCircle;
+	}
+	else
+	{
+		MouseCursor.Reset();
 	}
 }

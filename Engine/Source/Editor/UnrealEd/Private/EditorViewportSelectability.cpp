@@ -266,10 +266,14 @@ bool FEditorViewportSelectability::SelectActorsByPredicate(const bool bInSelect
 
 	if (InActors.IsEmpty())
 	{
-		for (FActorIterator Iter(ActorSelection->GetWorld()); Iter; ++Iter)
+		const UWorld* const World = ActorSelection->GetWorld();
+		if (IsValid(World))
 		{
-			AActor* const Actor = *Iter;
-			SelectIfPossible(Actor);
+			for (FActorIterator Iter(World); Iter; ++Iter)
+			{
+				AActor* const Actor = *Iter;
+				SelectIfPossible(Actor);
+			}
 		}
 	}
 	else
@@ -400,7 +404,7 @@ void FEditorViewportSelectability::UpdateHoverFromHitProxy(HHitProxy* const InHi
 		else if (InHitProxy->IsA(HActor::StaticGetType()))
 		{
 			const HActor* const ActorHitProxy = static_cast<HActor*>(InHitProxy);
-			if (ActorHitProxy && IsValid(ActorHitProxy->PrimComponent))
+			if (ActorHitProxy && IsValid(ActorHitProxy->Actor))
 			{
 				if (bSelectionLimited)
 				{
@@ -414,8 +418,6 @@ void FEditorViewportSelectability::UpdateHoverFromHitProxy(HHitProxy* const InHi
 	UpdateHoveredActorPrimitives(Actor);
 
 	// Set mouse cursor after hovered primitive component list has been updated
-	MouseCursor.Reset();
-
 	if (bIsGizmoHit)
 	{
 		MouseCursor = EMouseCursor::CardinalCross;
@@ -428,6 +430,10 @@ void FEditorViewportSelectability::UpdateHoverFromHitProxy(HHitProxy* const InHi
 	{
 		MouseCursor = EMouseCursor::SlashedCircle;
 	}
+	else
+	{
+		MouseCursor.Reset();
+	}
 }
 
 bool FEditorViewportSelectability::HandleClick(FEditorViewportClient* const InViewportClient, HHitProxy* const InHitProxy, const FViewportClick& InClick)
@@ -435,25 +441,21 @@ bool FEditorViewportSelectability::HandleClick(FEditorViewportClient* const InVi
 	// Disable actor selection when sequencer is limiting selection
 	const int32 HitX = InViewportClient->Viewport->GetMouseX();
 	const int32 HitY = InViewportClient->Viewport->GetMouseY();
-
 	HHitProxy* const HitResult = InViewportClient->Viewport->GetHitProxy(HitX, HitY);
 	if (!HitResult)
 	{
 		return false;
 	}
 
-	if (HitResult->IsA(HActor::StaticGetType()))
+	if (HitResult->IsA(HWidgetAxis::StaticGetType()) || !HitResult->IsA(HActor::StaticGetType()))
 	{
-		const HActor* const ActorHitProxy = static_cast<HActor*>(HitResult);
-		if (ActorHitProxy
-			&& IsValid(ActorHitProxy->Actor)
-			&& !IsObjectSelectableInViewport(ActorHitProxy->Actor))
-		{
-			return true;
-		}
+		return false;
 	}
 
-	return false;
+	const HActor* const ActorHitProxy = static_cast<HActor*>(HitResult);
+	return ActorHitProxy
+		&& IsValid(ActorHitProxy->Actor)
+		&& !IsObjectSelectableInViewport(ActorHitProxy->Actor);
 }
 
 bool FEditorViewportSelectability::BoxSelectWorldActors(FBox& InBox, FEditorViewportClient* const InEditorViewportClient, const bool bInSelect)
