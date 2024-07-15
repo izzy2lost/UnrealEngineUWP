@@ -538,6 +538,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = ListView)
 	UMG_API void SetScrollOffset(const float InScrollOffset);
 
+	/** Stops the scroll inertia */
+	UFUNCTION(BlueprintCallable, Category = ListView)
+	UMG_API void EndInertialScrolling();
+
 	UFUNCTION(BlueprintCallable, Category = ListViewBase)
 	UMG_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
 

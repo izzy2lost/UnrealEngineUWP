@@ -73,6 +73,14 @@ void UListViewBase::SetScrollOffset(const float InScrollOffset)
 	}
 }
 
+void UListViewBase::EndInertialScrolling() 
+{
+	if (MyTableViewBase.IsValid())
+	{
+		MyTableViewBase->EndInertialScrolling();
+	}
+}
+
 void UListViewBase::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
 {
 	WheelScrollMultiplier = NewWheelScrollMultiplier;
