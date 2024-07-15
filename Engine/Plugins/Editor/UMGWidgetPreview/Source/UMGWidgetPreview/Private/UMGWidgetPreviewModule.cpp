@@ -5,6 +5,7 @@
 #include "Blueprint/UserWidget.h"
 #include "ContentBrowserMenuContexts.h"
 #include "Customizations/PreviewableWidgetCustomization.h"
+#include "Customizations/WidgetPreviewCustomization.h"
 #include "Editor.h"
 #include "Framework/Commands/UIAction.h"
 #include "Logging/LogMacros.h"
@@ -50,6 +51,10 @@ namespace UE::UMGWidgetPreview::Private
 			PropertyModule.RegisterCustomPropertyTypeLayout(
 				FPreviewableWidgetVariant::StaticStruct()->GetFName(),
 				FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPreviewableWidgetCustomization::MakeInstance));
+
+			PropertyModule.RegisterCustomClassLayout(
+				UWidgetPreview::StaticClass()->GetFName(),
+				FOnGetDetailCustomizationInstance::CreateStatic(&FWidgetPreviewCustomization::MakeInstance));
 		}
 	}
 
@@ -59,6 +64,7 @@ namespace UE::UMGWidgetPreview::Private
 
 		if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 		{
+			PropertyModule->UnregisterCustomClassLayout(UWidgetPreview::StaticClass()->GetFName());
 			PropertyModule->UnregisterCustomPropertyTypeLayout(FPreviewableWidgetVariant::StaticStruct()->GetFName());
 		}
 
