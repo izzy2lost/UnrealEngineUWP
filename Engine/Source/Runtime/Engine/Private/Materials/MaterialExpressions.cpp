@@ -29940,21 +29940,16 @@ void UMaterialExpressionSubstrateSetAttributes::PostEditChangeProperty(FProperty
 int32 UMaterialExpressionSubstrateSetAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int32 Ret = INDEX_NONE;
-	UMaterialExpression* Expression = nullptr;
+	FExpressionInput* Expression = nullptr;
 
-	EMaterialProperty Property = FMaterialAttributeDefinitionMap::GetProperty(Compiler->GetMaterialAttribute());
-	if (Property == MP_FrontMaterial)
+	FGuid AttributeId = Compiler->GetMaterialAttribute();
+	if (AttributeId == FMaterialAttributeDefinitionMap::GetID(MP_FrontMaterial))
 	{
-		Expression = FrontMaterial.Expression;
+		Ret = FrontMaterial.Compile(Compiler);
 	}
 	else
 	{
-		Expression = NonSubstrateAttributes.Expression;
-	}
-
-	if (Expression)
-	{
-		Ret = Expression->Compile(Compiler, OutputIndex);
+		Ret = NonSubstrateAttributes.CompileWithDefault(Compiler, AttributeId);
 	}
 
 	return Ret;
