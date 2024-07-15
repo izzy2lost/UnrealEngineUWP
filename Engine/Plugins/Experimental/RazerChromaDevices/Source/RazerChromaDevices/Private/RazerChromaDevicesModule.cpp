@@ -100,7 +100,7 @@ namespace UE::RazerChroma
 			TitleBuilder.Append(TEXT("_"));
 			TitleBuilder.Append(LexToString(FApp::GetBuildTargetType()));
 
-			FCString::Strncpy(AppInfo.Title, TitleBuilder.GetData(), 256);
+			FCString::Strncpy(AppInfo.Title, TitleBuilder.ToString(), 256);
 
 	#else
 
