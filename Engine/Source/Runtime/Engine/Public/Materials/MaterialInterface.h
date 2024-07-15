@@ -63,6 +63,7 @@ struct FParameterChannelNames;
 enum EShaderPlatform : uint16;
 struct FSubstrateCompilationConfig;
 class UMaterialExpressionCustomOutput;
+struct FMaterialInsights;
 
 typedef TArray<FMaterialResource*> FMaterialResourceDeferredDeletionArray;
 
@@ -1182,6 +1183,11 @@ public:
 
 	/** Filter out ShadingModels field to a shader platform settings */
 	static void FilterOutPlatformShadingModels(EShaderPlatform Platform, FMaterialShadingModelField& ShadingModels);
+	
+#if WITH_EDITOR
+	TUniquePtr<FMaterialInsights> MaterialInsight;
+#endif // WITH_EDITOR
+
 protected:
 	/** Returns a bitfield indicating which feature levels should be compiled for rendering. GMaxRHIFeatureLevel is always present */
 	ENGINE_API uint32 GetFeatureLevelsToCompileForRendering() const;
@@ -1201,6 +1207,7 @@ protected:
 #if WITH_EDITOR
 	TUniquePtr<FMaterialCachedHLSLTree> CachedHLSLTree;
 #endif // WITH_EDITOR
+
 private:
 	/**
 	 * Post loads all default materials.

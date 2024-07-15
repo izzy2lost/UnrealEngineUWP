@@ -45,6 +45,9 @@ struct FType
 
 	// Returns the this type name spelling (e.g. float4x4).
 	FStringView GetSpelling() const;
+
+	// Converts this type to a UE::Shader::EValueType.
+	UE::Shader::EValueType ToValueType() const;
 };
 
 enum EScalarKind

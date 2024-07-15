@@ -255,7 +255,7 @@ namespace IR = UE::MIR;
 
 void UMaterialExpression::Build(IR::FEmitter& Emitter)
 {
-	Emitter.Error(TEXT("Node does not support expressions"));
+	Emitter.Error(TEXT("Unsupported material expression."));
 }
 
 void UMaterialExpressionConstant::Build(IR::FEmitter& Emitter)

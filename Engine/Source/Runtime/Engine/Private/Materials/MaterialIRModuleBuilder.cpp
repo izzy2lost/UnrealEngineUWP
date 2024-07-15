@@ -14,6 +14,7 @@
 #include "MaterialExpressionIO.h"
 #include "MaterialShared.h"
 #include "Materials/MaterialExpression.h"
+#include "Materials/MaterialInsights.h"
 #include "Async/ParallelFor.h"
 
 namespace IR = UE::MIR;
@@ -21,8 +22,7 @@ namespace IR = UE::MIR;
 struct FMaterialIRModuleBuilder::FPrivate
 {
 	FMaterialIRModuleBuilder& Builder;
-	UMaterial& Material;
-	FMaterialIRTargetParams Params;
+	FMaterialIRModuleBuildParams Params;
 	FMaterialIRModule& Module;
 	IR::FEmitter& Emitter;
 	TArray<UMaterialExpression*> ExpressionAnalysisStack;
@@ -32,7 +32,7 @@ struct FMaterialIRModuleBuilder::FPrivate
 	{
 		// Prepare the array of FSetMaterialOutputInstr outputs from the material attributes inputs.
 		FMaterialInputDescription Input;
-		for (int32 Index = 0; UE::Utility::NextMaterialAttributeInput(&Material, Index, Input); ++Index)
+		for (int32 Index = 0; UE::Utility::NextMaterialAttributeInput(Params.Material, Index, Input); ++Index)
 		{
 			EMaterialProperty Property = (EMaterialProperty)Index;
 
@@ -44,7 +44,7 @@ struct FMaterialIRModuleBuilder::FPrivate
 			}
 			else if (!Input.Input->IsConnected())
 			{
-				Output->Arg = UE::Utility::CreateMaterialAttributeDefaultValue(Emitter, &Material, Property);
+				Output->Arg = UE::Utility::CreateMaterialAttributeDefaultValue(Emitter, Params.Material, Property);
 			}
 			else
 			{
@@ -109,23 +109,64 @@ struct FMaterialIRModuleBuilder::FPrivate
 			// Invoke the expression build function. This will perform semantic analysis, error reporting and
 			// emit IR values for its outputs (which will flow into connected expressions inputs).
 			Emitter.Expression->Build(Emitter);
+
+			// Populate the insight information about this expression pins.
+			if (Params.TargetInsight)
+			{
+				AddExpressionConnectionInsights(Emitter.Expression);
+			}
 		}
 	}
 
-	void Build_LinkMaterialOutputsToIncomingValues()
+	void AddExpressionConnectionInsights(UMaterialExpression* Expression)
 	{
-		FMaterialInputDescription Input;
-		for (IR::FSetMaterialOutput* Output : Module.Outputs)
+		// Update expression inputs insight.
+		for (FExpressionInputIterator It{ Expression}; It; ++It)
 		{
-			if (Output->Arg || !ensure(Material.GetExpressionInputDescription(Output->Property, Input))) {
+			if (!It->IsConnected())
+			{
 				continue;
 			}
 
-			IR::FValue** ValuePtr = Builder.OutputValues.Find(Input.Input->Expression->GetOutput(0));
-			check(ValuePtr);
-
-			Output->Arg = *ValuePtr;
+			IR::FValue** Value = Builder.InputValues.Find(It.Input);
+			PushConnectionInsight(Expression, It.Index, It->Expression, It->OutputIndex, Value ? (*Value)->Type : nullptr);
 		}
+	}
+	
+	void Build_LinkMaterialOutputsToIncomingValues()
+	{
+		for (IR::FSetMaterialOutput* Output : Module.Outputs)
+		{
+			FMaterialInputDescription Input;
+			ensure(Params.Material->GetExpressionInputDescription(Output->Property, Input));
+
+			if (!Output->Arg)
+			{
+				IR::FValue** ValuePtr = Builder.OutputValues.Find(Input.Input->Expression->GetOutput(0));
+				check(ValuePtr);
+
+				Builder.InputValues.Add(Input.Input, *ValuePtr);
+				Output->Arg = *ValuePtr;
+			}
+
+			if (Params.TargetInsight)
+			{
+				check(Output->Arg);
+				PushConnectionInsight(Params.Material, (int)Output->Property, Input.Input->Expression, Input.Input->OutputIndex, Output->Arg->Type);
+			}
+		}
+	}
+
+	void PushConnectionInsight(const UObject* InputObject, int InputIndex, const UMaterialExpression* OutputExpression, int OutputIndex, IR::FTypePtr Type)
+	{
+		FMaterialInsights::FConnectionInsight Insight;
+		Insight.InputObject = InputObject,
+		Insight.OutputExpression = OutputExpression,
+		Insight.InputIndex = InputIndex,
+		Insight.OutputIndex = OutputIndex,
+		Insight.ValueType = Type ? Type->ToValueType() : UE::Shader::EValueType::Any,
+		
+		Params.TargetInsight->ConnectionInsights.Push(Insight);
 	}
 
 	void Build_FinalizeValueGraph()
@@ -212,7 +253,7 @@ struct FMaterialIRModuleBuilder::FPrivate
 			}
 		}
 	}
-	
+
     static IR::FBlock* FindCommonParentBlock(IR::FBlock* A, IR::FBlock* B)
     {
         if (A == B) {
@@ -236,14 +277,14 @@ struct FMaterialIRModuleBuilder::FPrivate
     }
 };
 
-bool FMaterialIRModuleBuilder::Build(UMaterial* InMaterial, const FMaterialIRTargetParams& TargetParams, FMaterialIRModule* TargetModule)
+bool FMaterialIRModuleBuilder::Build(const FMaterialIRModuleBuildParams& Params, FMaterialIRModule* TargetModule)
 {
 	TargetModule->Empty();
-	TargetModule->ShaderPlatform = TargetParams.ShaderPlatform;
+	TargetModule->ShaderPlatform = Params.ShaderPlatform;
 
-	IR::FEmitter Emitter{ this, InMaterial, TargetModule };
+	IR::FEmitter Emitter{ this, Params.Material, TargetModule };
 
-	FPrivate Private{ *this, *InMaterial, TargetParams, *TargetModule, Emitter };
+	FPrivate Private{ *this, Params, *TargetModule, Emitter };
 
 	Private.Build_GenerateOutputInstructions();
 	Private.Build_AnalyzeExpressionGraph();

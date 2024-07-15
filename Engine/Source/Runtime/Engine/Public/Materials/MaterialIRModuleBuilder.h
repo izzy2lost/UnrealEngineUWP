@@ -5,18 +5,20 @@
 
 #if WITH_EDITOR
 
-struct FMaterialIRTargetParams
+struct FMaterialIRModuleBuildParams
 {
+	UMaterial* Material;
 	EShaderPlatform ShaderPlatform;
 	const ITargetPlatform* TargetPlatform;
 	const FStaticParameterSet& StaticParameters;
+	FMaterialInsights* TargetInsight{};
 };
 
 //
 class FMaterialIRModuleBuilder
 {
 public:
-	bool Build(UMaterial* InMaterial, const FMaterialIRTargetParams& TargetParams, FMaterialIRModule* TargetModule);
+	bool Build(const FMaterialIRModuleBuildParams& Params, FMaterialIRModule* TargetModule);
 
 private:
 	TMap<const FExpressionInput*, UE::MIR::FValue*> InputValues;

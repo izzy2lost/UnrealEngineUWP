@@ -445,6 +445,12 @@ FValue* FEmitter::TryEmitSwizzle(FValue* Value, FSwizzleMask Mask)
 		}
 	}
 
+	// If only one component is requested, we can use EmitSubscript() to return the single component.
+	if (Mask.NumComponents == 1)
+	{
+		return EmitSubscript(Value, (int)Mask.Components[0]);
+	}
+
 	// If the requested number of components is the same as Value and the order in which the components
 	// are specified in the mask is sequential (e.g. x, y, z) then this is a no op, simply return Value as is.
 	if (Mask.NumComponents == ArithmeticType->GetNumComponents())
@@ -463,12 +469,6 @@ FValue* FEmitter::TryEmitSwizzle(FValue* Value, FSwizzleMask Mask)
 		{
 			return Value;
 		}
-	}
-	
-	// If only one component is requested, we can use EmitSubscript() to return the single component.
-	if (Mask.NumComponents == 1)
-	{
-		return EmitSubscript(Value, (int)Mask.Components[0]);
 	}
 	
 	// Make the result vector type.

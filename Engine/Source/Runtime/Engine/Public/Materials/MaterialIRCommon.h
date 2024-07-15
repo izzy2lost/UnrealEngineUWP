@@ -29,6 +29,7 @@ struct FExpressionOutput;
 struct FShaderCompilerEnvironment;
 struct FStaticParameterSet;
 struct FMaterialInputDescription;
+struct FMaterialInsights;
 
 namespace UE::MIR
 {

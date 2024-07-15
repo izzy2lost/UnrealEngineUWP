@@ -25,6 +25,7 @@
 #include "Materials/MaterialExpressionExecBegin.h"
 #include "Materials/MaterialExpressionExecEnd.h"
 #include "Materials/MaterialFunction.h"
+#include "Materials/MaterialInsights.h"
 
 #include "MaterialCachedHLSLTree.h"
 #include "HLSLTree/HLSLTreeEmit.h"
@@ -149,16 +150,11 @@ UMaterialGraphNode_Base* FindGraphNodeForObject(const UObject* Object)
 }
 } // namespace Private
 
-void UMaterialGraph::UpdatePinTypes()
+static void UpdatePinTypes_Old(UMaterialGraph* Graph, UMaterial* Material)
 {
 	using namespace UE::HLSLTree;
 
-	if (!Material->IsUsingNewHLSLGenerator() || Material->IsUsingNewTranslatorPrototype())
-	{
-		return;
-	}
-
-	for (UEdGraphNode* Node : Nodes)
+	for (UEdGraphNode* Node :Graph->Nodes)
 	{
 		for (UEdGraphPin* Pin : Node->Pins)
 		{
@@ -224,6 +220,58 @@ void UMaterialGraph::UpdatePinTypes()
 				}
 			}
 		}
+	}
+}
+
+void UMaterialGraph::UpdatePinTypes()
+{
+	if (Material->IsUsingNewTranslatorPrototype())
+	{
+		const FMaterialInsights* Insight = Material->MaterialInsight.Get();
+		if (!Insight)
+		{
+			return;
+		}
+
+		// Reset all pins to void category.
+		for (UEdGraphNode* Node :Nodes)
+		{
+			for (UEdGraphPin* Pin : Node->Pins)
+			{
+				if (Pin->PinType.PinCategory != UMaterialGraphSchema::PC_Exec)
+				{
+					Pin->PinType.PinCategory = UMaterialGraphSchema::PC_Void;
+				}
+			}
+		}
+		
+		for (const FMaterialInsights::FConnectionInsight& ConnectionInsight : Insight->ConnectionInsights)
+		{
+			if (UMaterialGraphNode_Base* InputNode = ::Private::FindGraphNodeForObject(ConnectionInsight.InputObject))
+			{
+				const int32 InputIndex = InputNode->GetSourceIndexForInputIndex(ConnectionInsight.InputIndex);
+				if (UEdGraphPin* InputPin = InputNode->GetInputPin(InputIndex))
+				{
+					const UE::Shader::FValueTypeDescription InputTypeDesc = UE::Shader::GetValueTypeDescription(ConnectionInsight.ValueType);
+					InputPin->PinType.PinCategory = UMaterialGraphSchema::PC_ValueType;
+					InputPin->PinType.PinSubCategory = InputTypeDesc.Name;
+				}
+			}
+
+			if (UMaterialGraphNode_Base* OutputNode = ::Private::FindGraphNodeForObject(ConnectionInsight.OutputExpression))
+			{
+				if (UEdGraphPin* OutputPin = OutputNode->GetOutputPin(ConnectionInsight.OutputIndex))
+				{
+					const UE::Shader::FValueTypeDescription InputTypeDesc = UE::Shader::GetValueTypeDescription(ConnectionInsight.ValueType);
+					OutputPin->PinType.PinCategory = UMaterialGraphSchema::PC_ValueType;
+					OutputPin->PinType.PinSubCategory = InputTypeDesc.Name;
+				}
+			}
+		}
+	}
+	else if (Material->IsUsingNewHLSLGenerator())
+	{
+		UpdatePinTypes_Old(this, Material);
 	}
 }
 

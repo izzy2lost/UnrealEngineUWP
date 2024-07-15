@@ -68,6 +68,7 @@
 #include "Materials/MaterialIRModuleBuilder.h"
 #include "Materials/MaterialIRToHLSLTranslator.h"
 #include "Materials/MaterialSourceTemplate.h"
+#include "Materials/MaterialInsights.h"
 
 #define LOCTEXT_NAMESPACE "MaterialShared"
 
@@ -3408,15 +3409,19 @@ bool FMaterial::Translate_New(const FMaterialShaderMapId& InShaderMapId,
 
 	FMaterialIRModule Module;
 
-	FMaterialIRTargetParams TargetParams{
+	GetMaterialInterface()->MaterialInsight.Reset(new FMaterialInsights);
+
+	FMaterialIRModuleBuildParams TargetParams{
+		.Material = GetMaterialInterface()->GetMaterial(),
 		.ShaderPlatform = InShaderPlatform,
 		.TargetPlatform = InTargetPlatform,
 		.StaticParameters = InStaticParameters,
+		.TargetInsight = GetMaterialInterface()->MaterialInsight.Get(),
 	};
 
 	// Build the material
 	FMaterialIRModuleBuilder Builder;
-	if (!Builder.Build(GetMaterialInterface()->GetMaterial(), TargetParams, &Module))
+	if (!Builder.Build(TargetParams, &Module))
 	{
 		for (const FMaterialIRModule::FError& Error : Module.GetErrors())
 		{

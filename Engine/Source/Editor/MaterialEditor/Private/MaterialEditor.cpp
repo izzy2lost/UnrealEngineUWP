@@ -225,7 +225,7 @@ FMatExpressionPreview::FMatExpressionPreview(UMaterialExpression* InExpression)
 	SetQualityLevelProperties(GMaxRHIFeatureLevel);
 
 	UMaterial* BaseMaterial = InExpression->Material;
-	if (BaseMaterial->IsUsingNewHLSLGenerator())
+	if (BaseMaterial->IsUsingNewHLSLGenerator() && !IsUsingNewMaterialTranslatorPrototype())
 	{
 		FMaterialCachedHLSLTree* LocalTree = new FMaterialCachedHLSLTree();
 		LocalTree->GenerateTree(BaseMaterial, nullptr, InExpression);

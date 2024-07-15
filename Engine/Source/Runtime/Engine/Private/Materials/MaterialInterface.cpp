@@ -44,6 +44,7 @@
 #include "UObject/ArchiveCookContext.h"
 #include "UObject/Package.h"
 #include "ShaderCompiler.h"
+#include "Materials/MaterialInsights.h"
 
 #if WITH_EDITOR
 #include "ObjectCacheEventSink.h"
@@ -52,7 +53,7 @@
 
 #define LOCTEXT_NAMESPACE "MaterialInterface"
 
-/**
+/** 
  * This is used to deprecate data that has been built with older versions.
  * To regenerate the data, commands like "BUILDMATERIALTEXTURESTREAMINGDATA" can be used in the editor.
  * Ideally the data would be stored the DDC instead of the asset, but this is not yet  possible because it requires the GPU.

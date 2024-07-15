@@ -363,10 +363,11 @@ class UMaterialExpression : public UObject
 
 	/** Counts the number of inputs this expression has. Default implementation has O(n) complexity. */
 	ENGINE_API virtual int32 CountInputs() const;
+
 	/**
 	 * Returns the output at specified index is valid
 	 */
-	ENGINE_API FExpressionOutput* GetOutput(int32 OutputIndex) { return &Outputs[OutputIndex]; }
+	ENGINE_API FExpressionOutput* GetOutput(int32 OutputIndex) { return Outputs.IsValidIndex(OutputIndex) ? &Outputs[OutputIndex] : nullptr; }
 
 	/**
 	 * Returns the input at index InputIndex if valid, nullptr otherwise.
@@ -693,6 +694,59 @@ struct FExpressionInputIterator
     FExpressionInput* operator->()
     {
         return Input;
+    }
+};
+
+/**
+* @brief An iterator for traversing the outputs of a UMaterialExpression.
+*
+* This struct provides a way to iterate over the outputs of a given
+* UMaterialExpression. It starts from the first output and advances
+* through subsequent outputs until all are iterated through.
+*
+* Usage:
+*
+* @code
+* UMaterialExpression* MyExpression = ...;
+* for (FExpressionOutputIterator It{ MyExpression }; It; ++It)
+* {
+*     // Process the output, e.g. It->Output->IsConnected();
+* }
+* @endcode
+*/
+struct FExpressionOutputIterator
+{
+	/** The expression whose outputs to iterate through. */
+    UMaterialExpression* Expression;
+
+	/** Current output. */
+    FExpressionOutput* Output;
+
+	/** Current output index. */
+	int Index;
+
+    FExpressionOutputIterator(UMaterialExpression* InExpression)
+    : Expression{ InExpression }
+    , Output{ InExpression->GetOutput(0) }
+    , Index{ 0 }
+    {
+    }
+
+    operator bool() const
+    {
+        return Output != nullptr;
+    }
+
+    FExpressionOutputIterator& operator++()
+    {
+		Index += 1;
+		Output = Expression->GetOutput(Index);
+        return *this;
+    }
+
+    FExpressionOutput* operator->()
+    {
+        return Output;
     }
 };
 

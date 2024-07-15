@@ -66,6 +66,43 @@ FStringView FType::GetSpelling() const
 	UE_MIR_UNREACHABLE();
 }
 
+UE::Shader::EValueType FType::ToValueType() const
+{
+	using namespace UE::Shader;
+
+	if (FArithmeticTypePtr ArithmeticType = AsArithmetic())
+	{
+		if (ArithmeticType->IsMatrix())
+		{
+			if (ArithmeticType->NumRows == 4 && ArithmeticType->NumColumns == 4)
+			{
+				if (ArithmeticType->ScalarKind == SK_Float)
+				{
+					return EValueType::Float4x4;
+				}
+				else
+				{
+					return EValueType::Numeric4x4;
+				}
+			}
+
+			return EValueType::Any;
+		}
+
+		check(ArithmeticType->NumColumns == 1 && ArithmeticType->NumRows <= 4);
+
+		switch (ArithmeticType->ScalarKind)
+		{
+			case SK_Bool: 	return (EValueType)((int)EValueType::Bool1 + ArithmeticType->NumRows - 1); break;
+			case SK_Int: 	return (EValueType)((int)EValueType::Int1 + ArithmeticType->NumRows - 1); break;
+			case SK_Float: 	return (EValueType)((int)EValueType::Float1 + ArithmeticType->NumRows - 1); break;
+			default: UE_MIR_UNREACHABLE();
+		}
+	}
+	
+	UE_MIR_UNREACHABLE();
+}
+
 bool FType::IsBool1() const
 {
 	return this == FArithmeticType::GetBool1();
