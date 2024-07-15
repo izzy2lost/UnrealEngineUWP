@@ -172,6 +172,38 @@ const FNiagaraEmitterHandle* FNiagaraDataInterfaceEmitterBinding::ResolveHandle(
 	return nullptr;
 }
 
+const FNiagaraEmitterHandle* FNiagaraDataInterfaceEmitterBinding::ResolveHandle(const UNiagaraSystem* OwnerSystem, const FNiagaraEmitterHandle* OwnerEmitter) const
+{
+	check(OwnerSystem);
+
+	if (BindingMode == ENiagaraDataInterfaceEmitterBindingMode::Self)
+	{
+		return OwnerEmitter;
+	}
+	else if (BindingMode == ENiagaraDataInterfaceEmitterBindingMode::Other)
+	{
+		if (!EmitterName.IsNone())
+		{
+			FNameBuilder EmitterNameString;
+			EmitterName.ToString(EmitterNameString);
+			FStringView EmitterNameStringView = EmitterNameString.ToView();
+
+			for (const FNiagaraEmitterHandle& EmitterHandle : OwnerSystem->GetEmitterHandles())
+			{
+				if (UNiagaraEmitter* NiagaraEmitter = EmitterHandle.GetInstance().Emitter)
+				{
+					//-TODO: UniqueEmitterName should probably be a FName?
+					if (EmitterNameStringView.Equals(NiagaraEmitter->GetUniqueEmitterName(), ESearchCase::IgnoreCase))
+					{
+						return &EmitterHandle;
+					}
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
 UNiagaraEmitter* FNiagaraDataInterfaceEmitterBinding::Resolve(const UNiagaraDataInterface* DataInterface) const
 {
 	const FNiagaraEmitterHandle* EmitterHandle = ResolveHandle(DataInterface);

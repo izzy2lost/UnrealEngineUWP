@@ -12,6 +12,7 @@
 #include "INiagaraMergeManager.h"
 #include "NiagaraAssetTagDefinitions.h"
 #include "NiagaraEffectType.h"
+#include "NiagaraDataInterfaceEmitterBinding.h"
 #include "NiagaraDataSetAccessor.h"
 #include "NiagaraBoundsCalculator.h"
 #include "NiagaraRendererProperties.h"
@@ -342,6 +343,14 @@ struct FVersionedNiagaraEmitterData
 	*/
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Emitter", meta = (EditCondition = "AllocationMode != EParticleAllocationMode::AutomaticEstimate", EditConditionHides))
 	int32 PreAllocationCount = 0;
+
+	/**
+	List of emitter dependencies to use when calculating the execution order for emitter particle scripts.
+	This is generally only required when you are using advanced features, such as reading / writing to a data interface in different emitters
+	and need to ensure the emitters can not run concurrently with one another, either on the CPU or the GPU.
+	**/
+	UPROPERTY(EditAnywhere, Category = "Emitter")
+	TArray<FNiagaraDataInterfaceEmitterBinding> EmitterDependencies;
 
 	UPROPERTY()
 	FNiagaraEmitterScriptProperties UpdateScriptProps;

@@ -2036,6 +2036,7 @@ void UNiagaraSystem::ComputeEmittersExecutionOrder()
 		const FNiagaraEmitterHandle& EmitterHandle = EmitterHandles[EmitterIdx];
 		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
 
+		EmitterExecutionOrder[EmitterIdx].bStartNewOverlapGroup = false;
 		EmitterExecutionOrder[EmitterIdx].EmitterIndex = EmitterIdx;
 		EmitterPriorities[EmitterIdx] = -1;
 
@@ -2050,6 +2051,15 @@ void UNiagaraSystem::ComputeEmittersExecutionOrder()
 		}
 
 		EmitterDependencies.SetNum(0, EAllowShrinking::No);
+
+		for (const FNiagaraDataInterfaceEmitterBinding& EmitterBinding : EmitterData->EmitterDependencies)
+		{
+			const FNiagaraEmitterHandle* ResolvedHandle = EmitterBinding.ResolveHandle(this, &EmitterHandle);
+			if (ResolvedHandle)
+			{
+				EmitterDependencies.Add(ResolvedHandle->GetInstance());
+			}
+		}
 
 		if (EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim && EmitterData->GetGPUComputeScript())
 		{

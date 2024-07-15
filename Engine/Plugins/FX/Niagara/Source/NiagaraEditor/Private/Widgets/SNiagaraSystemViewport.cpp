@@ -423,6 +423,11 @@ void FNiagaraSystemViewportClient::DrawEmitterExecutionOrder(UNiagaraComponent* 
 			const FNiagaraEmitterHandle& EmitterHandle = NiagaraSystem->GetEmitterHandle(EmitterExecIndex.EmitterIndex);
 			if (FVersionedNiagaraEmitterData* NiagaraEmitter = EmitterHandle.GetEmitterData())
 			{
+				if (EmitterExecIndex.bStartNewOverlapGroup)
+				{
+					Canvas->DrawShadowedString(CurrentX, CurrentY, TEXT("<Overlap Barrier>"), Font, FLinearColor::White);
+					CurrentY += FontHeight;
+				}
 				Canvas->DrawShadowedString(CurrentX, CurrentY, *FString::Printf(TEXT("%d - %s"), ++DisplayIndex, NiagaraEmitter->GetDebugSimName()), Font, FLinearColor::White);
 				CurrentY += FontHeight;
 			}
