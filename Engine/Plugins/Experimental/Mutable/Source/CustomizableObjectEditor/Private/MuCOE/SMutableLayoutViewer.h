@@ -17,7 +17,7 @@ public:
 
 	SLATE_BEGIN_ARGS(SMutableLayoutViewer) {}
 		SLATE_ATTRIBUTE(FIntPoint, GridSize)
-		SLATE_ARGUMENT(mu::Ptr<const mu::Layout>, Layout)
+		SLATE_ARGUMENT(mu::LayoutPtrConst, Layout)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -28,7 +28,7 @@ public:
 	// Own interface
 
 	/** Set the image to show in the widget. */
-	void SetLayout(const mu::Ptr<const mu::Layout>& Image );
+	void SetLayout(const mu::LayoutPtrConst& Image );
 
 private:
 
@@ -36,7 +36,7 @@ private:
 	TSharedPtr<SCustomizableObjectLayoutGrid> LayoutViewer;
 
 	/** Mutable Layout object being previewed */
-	mu::Ptr<const mu::Layout> MutableLayout;
+	mu::LayoutPtrConst MutableLayout;
 
 	/** Is true, the image or the visible LOD have changed and we need to update. */
 	bool bIsPendingUpdate = false;

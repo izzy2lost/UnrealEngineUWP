@@ -30,12 +30,7 @@ namespace mu
 	inline void ImageRasterMesh( const Mesh* pMesh, Image* pImage, int32 LayoutIndex, uint64 BlockId,
 		UE::Math::TIntVector2<uint16> CropMin, UE::Math::TIntVector2<uint16> UncroppedSize )
 	{
-		MUTABLE_CPUPROFILER_SCOPE(ImageRasterMesh);
-
-		if (pMesh->GetVertexCount() == 0)
-		{
-			return;
-		}
+		MUTABLE_CPUPROFILER_SCOPE(ImageRasterMesh)
 
 		check( pImage->GetFormat()== EImageFormat::IF_L_UBYTE );
 
@@ -91,7 +86,7 @@ namespace mu
 
         UntypedMeshBufferIteratorConst bloIt( pMesh->GetVertexBuffers(), MBS_LAYOUTBLOCK, LayoutIndex );
 
-        if (BlockId== FLayoutBlock::InvalidBlockId || bloIt.GetElementSize()==0 )
+        if (BlockId==Layout::InvalidBlockId || bloIt.GetElementSize()==0 )
 		{
 			// Raster all the faces
             WhitePixelProcessor pixelProc;

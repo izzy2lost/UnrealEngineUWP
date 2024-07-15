@@ -59,7 +59,7 @@ struct FMutableConstantStringElement : public FMutableConstantElement
 */
 struct FMutableConstantLayoutElement : public FMutableConstantElement
 {
-	mu::Ptr<const mu::Layout> Layout = nullptr;
+	mu::LayoutPtrConst Layout = nullptr;
 };
 
 /**

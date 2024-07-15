@@ -11,7 +11,7 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMutableGraphGenerationContext& GenerationContext, bool bLinkedToExtendMaterial)
+mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext, bool bLinkedToExtendMaterial)
 {
 	check(Pin)
 	RETURN_ON_CYCLE(*Pin, GenerationContext)
@@ -52,12 +52,45 @@ mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMu
 			}
 		}
 
-		bool bWasEmpty = false;
-		Result = CreateMutableLayoutNode(GenerationContext, TypedNodeBlocks->Layout, bLinkedToExtendMaterial,bWasEmpty);
-		if (bWasEmpty)
+		mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout;
+		Result = LayoutNode;
+
+		LayoutNode->Layout->SetGridSize(TypedNodeBlocks->Layout->GetGridSize().X, TypedNodeBlocks->Layout->GetGridSize().Y);
+		LayoutNode->Layout->SetMaxGridSize(TypedNodeBlocks->Layout->GetMaxGridSize().X, TypedNodeBlocks->Layout->GetMaxGridSize().Y);
+		LayoutNode->Layout->SetBlockCount(TypedNodeBlocks->Layout->Blocks.Num() ? TypedNodeBlocks->Layout->Blocks.Num() : 1);
+
+		mu::EPackStrategy PackStrategy = ConvertLayoutStrategy(TypedNodeBlocks->Layout->GetPackingStrategy());
+		LayoutNode->Layout->SetLayoutPackingStrategy(PackStrategy);
+
+		LayoutNode->Layout->ReductionMethod = (TypedNodeBlocks->Layout->GetBlockReductionMethod() == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::HALVE_REDUCTION : mu::EReductionMethod::UNITARY_REDUCTION);
+
+		if (bLinkedToExtendMaterial)
+		{
+			// Layout warnings can be safely ignored in this case. Vertices that do not belong to any layout block will be removed (Extend Materials only)
+			LayoutNode->FirstLODToIgnoreWarnings = 0;
+		}
+		else
+		{
+			LayoutNode->FirstLODToIgnoreWarnings = TypedNodeBlocks->Layout->GetIgnoreVertexLayoutWarnings() ? TypedNodeBlocks->Layout->GetFirstLODToIgnoreWarnings() : -1;
+		}
+
+		if (TypedNodeBlocks->Layout->Blocks.Num())
+		{
+			for (int BlockIndex = 0; BlockIndex < TypedNodeBlocks->Layout->Blocks.Num(); ++BlockIndex)
+			{
+				LayoutNode->Layout->Blocks[BlockIndex]= ToMutable(TypedNodeBlocks->Layout->Blocks[BlockIndex]);
+			}
+		}
+		else
 		{
 			FString msg = "Layout without any block found. A grid sized block will be used instead.";
 			GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
+
+			LayoutNode->Layout->Blocks[0].Min = { 0,0 };
+			LayoutNode->Layout->Blocks[0].Size = { uint16(TypedNodeBlocks->Layout->GetGridSize().X), uint16(TypedNodeBlocks->Layout->GetGridSize().Y) };
+			LayoutNode->Layout->Blocks[0].Priority = 0;
+			LayoutNode->Layout->Blocks[0].bReduceBothAxes = false;
+			LayoutNode->Layout->Blocks[0].bReduceByTwo = false;
 		}
 	}
 	
@@ -77,88 +110,6 @@ mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMu
 
 	return Result;
 }
-
-
-mu::Ptr<mu::NodeLayout> CreateMutableLayoutNode(FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectLayout* UnrealLayout, bool bLinkedToExtendMaterial, bool& bWasEmpty )
-{
-	bWasEmpty = false;
-	mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout;
-
-	LayoutNode->Size = UE::Math::TIntVector2<uint16>(UnrealLayout->GetGridSize().X, UnrealLayout->GetGridSize().Y);
-	LayoutNode->MaxSize = UE::Math::TIntVector2<uint16>(UnrealLayout->GetMaxGridSize().X, UnrealLayout->GetMaxGridSize().Y);
-	LayoutNode->Blocks.SetNum(UnrealLayout->Blocks.Num() ? UnrealLayout->Blocks.Num() : 1);
-
-	mu::EPackStrategy PackStrategy = ConvertLayoutStrategy(UnrealLayout->GetPackingStrategy());
-	LayoutNode->Strategy = PackStrategy;
-
-	LayoutNode->ReductionMethod = (UnrealLayout->GetBlockReductionMethod() == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::HALVE_REDUCTION : mu::EReductionMethod::UNITARY_REDUCTION);
-
-	if (bLinkedToExtendMaterial)
-	{
-		// Layout warnings can be safely ignored in this case. Vertices that do not belong to any layout block will be removed (Extend Materials only)
-		LayoutNode->FirstLODToIgnoreWarnings = 0;
-	}
-	else
-	{
-		LayoutNode->FirstLODToIgnoreWarnings = UnrealLayout->GetIgnoreVertexLayoutWarnings() ? UnrealLayout->GetFirstLODToIgnoreWarnings() : -1;
-	}
-
-	if (UnrealLayout->Blocks.Num())
-	{
-		for (int BlockIndex = 0; BlockIndex < UnrealLayout->Blocks.Num(); ++BlockIndex)
-		{
-			LayoutNode->Blocks[BlockIndex] = ToMutable(GenerationContext, UnrealLayout->Blocks[BlockIndex]);
-		}
-	}
-	else
-	{
-		bWasEmpty = true;
-		LayoutNode->Blocks[0].Min = { 0,0 };
-		LayoutNode->Blocks[0].Size = { uint16(UnrealLayout->GetGridSize().X), uint16(UnrealLayout->GetGridSize().Y) };
-		LayoutNode->Blocks[0].Priority = 0;
-		LayoutNode->Blocks[0].bReduceBothAxes = false;
-		LayoutNode->Blocks[0].bReduceByTwo = false;
-	}
-
-	return LayoutNode;
-}
-
-
-mu::FSourceLayoutBlock ToMutable(FMutableGraphGenerationContext& GenerationContext, const FCustomizableObjectLayoutBlock& UnrealBlock)
-{
-	mu::FSourceLayoutBlock MutableBlock;
-
-	MutableBlock.Min = { uint16(UnrealBlock.Min.X), uint16(UnrealBlock.Min.Y) };
-	FIntPoint Size = UnrealBlock.Max - UnrealBlock.Min;
-	MutableBlock.Size = { uint16(Size.X), uint16(Size.Y) };
-
-	MutableBlock.Priority = UnrealBlock.Priority;
-	MutableBlock.bReduceBothAxes = UnrealBlock.bReduceBothAxes;
-	MutableBlock.bReduceByTwo = UnrealBlock.bReduceByTwo;
-
-	if (UnrealBlock.Mask)
-	{
-		GenerationContext.AddParticipatingObject(*UnrealBlock.Mask);
-
-		// In the editor the src data can be directly accessed
-		mu::Ptr<mu::Image> MaskImage = new mu::Image();
-
-		FMutableSourceTextureData Tex(*UnrealBlock.Mask);
-		EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(MaskImage.get(), Tex, 0);
-		if (Error != EUnrealToMutableConversionError::Success)
-		{
-			// This should never happen, so details are not necessary.
-			UE_LOG(LogMutable, Warning, TEXT("Failed to convert layout block mask texture."));
-		}
-		else
-		{
-			MutableBlock.Mask = MaskImage;
-		}
-	}
-
-	return MutableBlock;
-}
-
 
 #undef LOCTEXT_NAMESPACE
 

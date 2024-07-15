@@ -113,7 +113,6 @@ void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout(UCustomizableOb
 			.OnSetBlockPriority(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockPriority)
 			.OnSetReduceBlockSymmetrically(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionSymmetry)
 			.OnSetReduceBlockByTwo(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionByTwo)
-			.OnSetBlockMask(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockMask)
 		]
 	];	
 }
@@ -337,29 +336,6 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockReductionByTwo(bool bI
 				if (SelectedBlocks.Contains(Block.Id))
 				{
 					Block.bReduceByTwo = bInValue;
-				}
-			}
-		}
-	}
-}
-
-
-void SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockMask(UTexture2D* InValue)
-{
-	if (CurrentLayout)
-	{
-		const FScopedTransaction Transaction(LOCTEXT("OnSetBlockMask", "Change Block Mask"));
-		CurrentLayout->Modify();
-
-		if (LayoutGridWidget.IsValid())
-		{
-			const TArray<FGuid>& SelectedBlocks = LayoutGridWidget->GetSelectedBlocks();
-
-			for (FCustomizableObjectLayoutBlock& Block : CurrentLayout->Blocks)
-			{
-				if (SelectedBlocks.Contains(Block.Id))
-				{
-					Block.Mask = InValue;
 				}
 			}
 		}

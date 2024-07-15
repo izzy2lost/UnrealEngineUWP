@@ -145,11 +145,11 @@ namespace mu
 	{
 		Ptr<Layout> pResult = pA->Clone();
 
-		for ( const FLayoutBlock& Block: pB->Blocks )
+		for ( const Layout::FBlock& block: pB->Blocks )
 		{
-			if ( pResult->FindBlock(Block.Id)<0 )
+			if ( pResult->FindBlock(block.Id)<0 )
 			{
-				pResult->Blocks.Add(Block);
+				pResult->Blocks.Add(block);
 			}
 		}
 

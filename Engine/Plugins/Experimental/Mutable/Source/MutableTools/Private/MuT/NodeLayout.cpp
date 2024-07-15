@@ -16,7 +16,13 @@ namespace mu
 	FNodeType NodeLayout::StaticType = FNodeType(Node::EType::Layout, Node::GetStaticType() );
 
 
-	Ptr<NodeLayout> NodeLayout::GenerateLayoutBlocks(const Ptr<Mesh>& pMesh, int32 layoutIndex, int32 gridSizeX, int32 gridSizeY)
+	NodeLayout::NodeLayout()
+	{
+		Layout = new mu::Layout();
+	}
+
+
+	Ptr<NodeLayout> NodeLayout::GenerateLayoutBlocks(const Ptr<Mesh> pMesh, int32 layoutIndex, int32 gridSizeX, int32 gridSizeY)
 	{
 		Ptr<NodeLayout> LayoutNode = nullptr;
 
@@ -69,9 +75,9 @@ namespace mu
 			}
 
 			LayoutNode = new NodeLayout;
-			LayoutNode->Size = { uint16(gridSizeX), uint16(gridSizeY) };
-			LayoutNode->MaxSize = { uint16(gridSizeX), uint16(gridSizeY) };
-			LayoutNode->Strategy = EPackStrategy::RESIZABLE_LAYOUT;
+			LayoutNode->Layout->SetGridSize(gridSizeX, gridSizeY);
+			LayoutNode->Layout->SetMaxGridSize(gridSizeX, gridSizeY);
+			LayoutNode->Layout->SetLayoutPackingStrategy(EPackStrategy::RESIZABLE_LAYOUT);
 			
 			TArray<box<FIntVector2>> blocks;
 			
@@ -203,12 +209,12 @@ namespace mu
 			//Generating layout blocks
 			if (NumBlocks > 0)
 			{
-				LayoutNode->Blocks.SetNum(NumBlocks);
+				LayoutNode->Layout->SetBlockCount(NumBlocks);
 			
 				for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
 				{
-					LayoutNode->Blocks[BlockIndex].Min = UE::Math::TIntVector2<uint16>(blocks[BlockIndex].min);
-					LayoutNode->Blocks[BlockIndex].Size = UE::Math::TIntVector2<uint16>(blocks[BlockIndex].size);
+					LayoutNode->Layout->Blocks[BlockIndex].Min = UE::Math::TIntVector2<uint16>(blocks[BlockIndex].min);
+					LayoutNode->Layout->Blocks[BlockIndex].Size = UE::Math::TIntVector2<uint16>(blocks[BlockIndex].size);
 				}
 			}
 		}

@@ -2613,7 +2613,7 @@ void SMutableCodeViewer::Tick(const FGeometry& AllottedGeometry, const double In
 	case mu::DT_LAYOUT:
 	{
 		check(PreviewLayoutViewer);
-		mu::Ptr<const mu::Layout> MutableLayout = System->GetPrivate()->BuildLayout(MutableModel, PreviewParameters.get(), SelectedOperationAddress);
+		mu::LayoutPtrConst MutableLayout = System->GetPrivate()->BuildLayout(MutableModel, PreviewParameters.get(), SelectedOperationAddress);
 		PreviewLayoutViewer->SetLayout(MutableLayout);
 		break;
 	}
@@ -2780,7 +2780,7 @@ void SMutableCodeViewer::PreviewMutableMesh(mu::MeshPtrConst InMeshPtr)
 }
 
 
-void SMutableCodeViewer::PreviewMutableLayout(mu::Ptr<const mu::Layout> Layout)
+void SMutableCodeViewer::PreviewMutableLayout(mu::LayoutPtrConst Layout)
 {
 	PrepareLayoutViewer();
 	PreviewLayoutViewer->SetLayout(Layout);

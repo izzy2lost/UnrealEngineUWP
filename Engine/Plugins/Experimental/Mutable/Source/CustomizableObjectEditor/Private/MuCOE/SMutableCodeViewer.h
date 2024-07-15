@@ -789,7 +789,7 @@ private:
 public:
 	void PreviewMutableImage (mu::ImagePtrConst InImagePtr);
 	void PreviewMutableMesh (mu::MeshPtrConst InMeshPtr);
-	void PreviewMutableLayout(mu::Ptr<const mu::Layout> Layout);
+	void PreviewMutableLayout(mu::LayoutPtrConst Layout);
 	void PreviewMutableSkeleton(mu::SkeletonPtrConst Skeleton);
 	void PreviewMutableString(const FString& InString);
 	void PreviewMutableProjector(const mu::FProjector* Projector);
