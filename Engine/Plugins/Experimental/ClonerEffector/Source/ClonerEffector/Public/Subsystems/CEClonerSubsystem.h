@@ -47,6 +47,9 @@ public:
 	/** Based on a layout class, find layout name */
 	FName FindLayoutName(TSubclassOf<UCEClonerLayoutBase> InLayoutClass) const;
 
+	/** Based on a layout name, find layout class */
+	TSubclassOf<UCEClonerLayoutBase> FindLayoutClass(FName InLayoutName) const;
+
 	/** Creates a new layout instance for a cloner */
 	UCEClonerLayoutBase* CreateNewLayout(FName InLayoutName, UCEClonerComponent* InCloner);
 

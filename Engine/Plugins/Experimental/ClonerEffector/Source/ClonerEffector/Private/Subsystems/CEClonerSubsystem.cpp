@@ -461,6 +461,16 @@ FName UCEClonerSubsystem::FindLayoutName(TSubclassOf<UCEClonerLayoutBase> InLayo
 	return NAME_None;
 }
 
+TSubclassOf<UCEClonerLayoutBase> UCEClonerSubsystem::FindLayoutClass(FName InLayoutName) const
+{
+	if (const TSubclassOf<UCEClonerLayoutBase>* Value = LayoutClasses.Find(InLayoutName))
+	{
+		return *Value;
+	}
+
+	return TSubclassOf<UCEClonerLayoutBase>();
+}
+
 UCEClonerLayoutBase* UCEClonerSubsystem::CreateNewLayout(FName InLayoutName, UCEClonerComponent* InCloner)
 {
 	if (!IsValid(InCloner))
