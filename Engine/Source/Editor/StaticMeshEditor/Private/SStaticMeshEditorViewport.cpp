@@ -82,7 +82,7 @@ void SStaticMeshEditorViewport::PopulateViewportOverlays(TSharedRef<SOverlay> Ov
 	Overlay->AddSlot()
 		.VAlign(VAlign_Top)
 		.HAlign(HAlign_Left)
-		.Padding(FMargin(6.0f, 36.0f, 6.0f, 6.0f))
+		.Padding(TAttribute<FMargin>(this, &SStaticMeshEditorViewport::GetOverlayMargin))
 		[
 			SNew(SBorder)
 			.BorderImage( FAppStyle::Get().GetBrush( "FloatingBorder" ) )
@@ -249,6 +249,13 @@ bool SStaticMeshEditorViewport::IsShowDistanceFieldChecked() const
 bool SStaticMeshEditorViewport::IsShowDistanceFieldVisible() const
 {
 	return true;
+}
+
+FMargin SStaticMeshEditorViewport::GetOverlayMargin() const
+{
+	return UE::UnrealEd::ShowNewViewportToolbars() && UE::UnrealEd::ShowOldViewportToolbars()
+			 ? FMargin(6.0f, 72.0f, 6.0f, 6.0f)
+			 : FMargin(6.0f, 36.0f, 6.0f, 6.0f);
 }
 
 void SStaticMeshEditorViewport::UpdatePreviewSocketMeshes()
@@ -582,6 +589,27 @@ TSharedPtr<SWidget> SStaticMeshEditorViewport::MakeViewportToolbar()
 		// Add the left-aligned part of the viewport toolbar.
 		{
 			FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
+
+			// Add the "Transforms" sub menu.
+			{
+				FToolMenuEntry TransformsSubmenu = UE::UnrealEd::CreateViewportToolbarTransformsSection();
+				TransformsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(TransformsSubmenu);
+			}
+
+			// Add the "Selection" sub menu.
+			{
+				FToolMenuEntry SelectionSubmenu = UE::UnrealEd::CreateViewportToolbarSelectionSection();
+				SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(SelectionSubmenu);
+			}
+
+			// Add the "Snapping" sub menu.
+			{
+				FToolMenuEntry SnappingSubmenu = UE::UnrealEd::CreateViewportToolbarSnappingSubmenu();
+				SnappingSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(SnappingSubmenu);
+			}
 		}
 
 		// Add the right-aligned part of the viewport toolbar.

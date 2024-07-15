@@ -339,13 +339,12 @@ TSharedPtr<SWidget> SSCSEditorViewport::MakeViewportToolbar()
 				LeftSection.AddEntry(SelectionSubmenu);
 			}
 
-			// TODO: Add this.
-			// // Add the "Snapping" sub menu.
-			// {
-			// 	FToolMenuEntry SnappingSubmenu = UE::LevelEditor::CreateViewportToolbarSnappingSubmenu();
-			// 	SnappingSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
-			// 	LeftSection.AddEntry(SnappingSubmenu);
-			// }
+			// Add the "Snapping" sub menu.
+			{
+				FToolMenuEntry SnappingSubmenu = UE::UnrealEd::CreateViewportToolbarSnappingSubmenu();
+				SnappingSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				LeftSection.AddEntry(SnappingSubmenu);
+			}
 		}
 
 		// Add the right-aligned part of the viewport toolbar.

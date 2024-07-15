@@ -193,6 +193,9 @@ private:
 	bool IsShowDistanceFieldChecked() const;
 
 	bool IsShowDistanceFieldVisible() const;
+
+	/** Returns the appropriate margin for the overlay, based on the current viewport toolbar configuration */
+	FMargin GetOverlayMargin() const;
 private:
 	
 	/** The parent tab where this viewport resides */
