@@ -14,11 +14,19 @@ public:
 	/** Used to track new unique virtual pins created on generated compute graph elements. */
 	using FNodePin = TTuple<FPCGTaskId, /*Pin label*/FName, /*Pin is input*/bool>;
 	using FOriginalToVirtualPin = TMap<FNodePin, /*Virtual pin label*/FName>;
-	
+	using FTaskToSuccessors = TMap<FPCGTaskId, TArray<FPCGTaskId>>;
+
+	/** Identifies connected sets of GPU nodes, giving each a non - zero ID value. */
+	static void LabelConnectedGPUNodeIslands(
+		const TArray<FPCGGraphTask>& InCompiledTasks,
+		const TSet<FPCGTaskId>& InGPUCompatibleTaskIds,
+		const FTaskToSuccessors& InTaskSuccessors,
+		TArray<uint32>& OutIslandIDs);
+
 	/** Outputs sets of task IDs, where each set is GPU nodes that can be compiled into a compute graph and dispatched together. */
 	static void CollectGPUNodeSubsets(
 		const TArray<FPCGGraphTask>& InCompiledTasks,
-		const TMap<FPCGTaskId, TArray<FPCGTaskId>>& InTaskSuccessors,
+		const FTaskToSuccessors& InTaskSuccessors,
 		const TSet<FPCGTaskId>& InGPUCompatibleTaskIds,
 		TArray<TSet<FPCGTaskId>>& OutNodeSubsetsToConvertToCFGraph);
 	
@@ -43,7 +51,7 @@ public:
 		UPCGGraph* InGraph,
 		FPCGTaskId InGPUGraphTaskId,
 		const TSet<FPCGTaskId>& InCollapsedTasks,
-		const TMap<FPCGTaskId, TArray<FPCGTaskId>>& InTaskSuccessors,
+		const FTaskToSuccessors& InTaskSuccessors,
 		TArray<FPCGGraphTask>& InOutCompiledTasks,
 		const FOriginalToVirtualPin& InOriginalToVirtualPin,
 		const TMap<const UPCGPin*, FName>& InOutputCPUPinToVirtualPin);
