@@ -202,7 +202,9 @@ void FDataLayersBroadcast::Initialize()
 				}
 			}
 			return FLinearColor::Gray;
-		});
+		},
+		[]() {},
+		LOCTEXT("CurrentDataLayerColor_ToolTip", "Colorize actor using its Data Layer Debug Color only if the Data Layer is in the Actor Editor Context. White means multiple values, the rest is Gray.") );
 
 		auto GetActorExternalDataLayerInstance = [](AActor* InActor) -> const UDataLayerInstance*
 		{
@@ -250,14 +252,18 @@ void FDataLayersBroadcast::Initialize()
 				}
 			}
 			return FLinearColor::Gray;
-		});
+		},
+		[]() {},
+		LOCTEXT("RuntimeDataLayerColor_ToolTip", "Colorize actor using its Data Layer Debug Color only if the Data Layer is in the Actor Editor Context. White means multiple values, the rest is Gray."));
 
 		// Colorize actor using its External Data Layer Debug Color (Use gray if none)
 		FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(NAME_ExternalDataLayerColor, LOCTEXT("ExternalDataLayerColor", "External Data Layer Color"), [&GetActorExternalDataLayerInstance](const UPrimitiveComponent* InPrimitiveComponent) -> FLinearColor
 		{
 			const UDataLayerInstance* ExternalDataLayerInstance = GetActorExternalDataLayerInstance(InPrimitiveComponent->GetOwner());
 			return ExternalDataLayerInstance ? ExternalDataLayerInstance->GetDebugColor() : FLinearColor::Gray;
-		});
+		},
+		[]() {},
+		LOCTEXT("ExternalDataLayerColor_ToolTip", "Colorize actor using its External Data Layer Debug Color (Use Gray if none)."));
 #endif
 	}
 }

@@ -44,7 +44,9 @@ void UContentBundleEditingSubmodule::DoInitialize()
 			}
 		}
 		return FLinearColor::Gray;
-	});
+	},
+	[](){}, 
+	LOCTEXT("ContentBundleColor_ToolTip", "Colorize actor using a random color per content bundle, the rest is Gray.") );
 #endif
 }
 

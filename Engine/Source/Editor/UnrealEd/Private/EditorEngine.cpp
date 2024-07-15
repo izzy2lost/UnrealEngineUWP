@@ -609,12 +609,12 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 			{
 				const FString EmptyString;
 				SetPropertyColorationTarget(GWorld, EmptyString, nullptr, nullptr, nullptr);
-			});
+			},
+			LOCTEXT("PropertyColor_ToopTip", "Colorize actor if property matches. Red means a property match, otherwise the color is White."));
 
 		for (const FPropertyColorCustomProperty& PropertyColorCustomProperty : GetDefault<UPropertyColorSettings>()->CustomProperties)
 		{
-			FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(PropertyColorCustomProperty.Name, 
-				FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*PropertyColorCustomProperty.Text, TEXT("PropertyColor"), *PropertyColorCustomProperty.Name.ToString()),
+			FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(PropertyColorCustomProperty.Name, PropertyColorCustomProperty.Text,
 				[this, PropertyColorCustomProperty](const UPrimitiveComponent* InPrimitiveComponent)
 				{
 					if (AActor* Actor = InPrimitiveComponent->GetOwner())
@@ -657,7 +657,8 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 							SetPropertyColorationTarget(GWorld, PropertyColorCustomProperty.PropertyValue, PropertyChain->GetTail()->GetValue(), AActor::StaticClass(), &PropertyChain);
 						}
 					}
-				});
+				},
+				PropertyColorCustomProperty.TextToolTip);
 		}
 	}
 #endif

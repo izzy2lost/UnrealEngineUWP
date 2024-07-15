@@ -1431,6 +1431,26 @@ public:
 	UNREALED_API FText GetCurrentVirtualShadowMapVisualizationModeDisplayName() const;
 
 	/**
+	* Changes the actor coloration visualization mode for this viewport.
+	*
+	* @param InName	The ID of the required visualization mode
+	*/
+	UNREALED_API void ChangeActorColorationVisualizationMode(FName InName);
+
+	/**
+	* Checks if an actor coloration visualization mode is selected.
+	*
+	* @param InName	The ID of the required visualization mode
+	* @return	true if the supplied actor coloration visualization mode is checked
+	*/
+	UNREALED_API bool IsActorColorationVisualizationModeSelected(FName InName) const;
+
+	/**
+	* Returns the FText display name associated with current actor coloration visualization mode.
+	*/
+	UNREALED_API FText GetCurrentActorColorationVisualizationModeDisplayName() const;
+
+	/**
 	* Returns whether visualize debug material is enabled.
 	*/
 	UNREALED_API bool IsVisualizeCalibrationMaterialEnabled() const;

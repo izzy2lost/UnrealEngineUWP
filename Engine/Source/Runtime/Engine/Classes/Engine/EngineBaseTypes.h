@@ -928,11 +928,13 @@ enum EViewModeIndex : int
 	/** Visualize Groom debug views */
 	VMI_VisualizeGroom = 35 UMETA(DisplayName = "Groom Visualization"),
 
-
 	VMI_LWCComplexity = 36 UMETA(DisplayName = "Material LWC Function Usage"),
 	
 	/** Lit Wireframe. */
 	VMI_Lit_Wireframe = 37 UMETA(DisplayName = "Lit Wireframe"),
+
+	/** Visualize Actor Coloration. */
+	VMI_VisualizeActorColoration = 38 UMETA(DisplayName = "Actor Coloration Visualization"),
 
 	VMI_Max UMETA(Hidden),
 

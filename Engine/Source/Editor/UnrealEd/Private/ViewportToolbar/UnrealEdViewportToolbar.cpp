@@ -1010,6 +1010,10 @@ FText GetViewModesSubmenuLabel(TWeakPtr<SEditorViewport> InViewport)
 		{
 			Label = ViewportClient->GetCurrentVirtualShadowMapVisualizationModeDisplayName();
 		}
+		else if (ViewMode == VMI_VisualizeActorColoration)
+		{
+			Label = ViewportClient->GetCurrentActorColorationVisualizationModeDisplayName();
+		}
 		else if (ViewMode == VMI_VisualizeGPUSkinCache)
 		{
 			Label = ViewportClient->GetCurrentGPUSkinCacheVisualizationModeDisplayName();

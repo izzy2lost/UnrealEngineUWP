@@ -16,7 +16,10 @@ struct FPropertyColorCustomProperty
 	FName Name;
 
 	UPROPERTY(Config)
-	FString Text;
+	FText Text;
+
+	UPROPERTY(Config)
+	FText TextToolTip;
 
 	UPROPERTY(Config)
 	FString PropertyChain;

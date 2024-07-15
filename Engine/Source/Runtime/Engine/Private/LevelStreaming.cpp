@@ -424,7 +424,9 @@ ULevelStreaming::ULevelStreaming(const FObjectInitializer& ObjectInitializer)
 				}
 			}
 			return FLinearColor::White;
-		});
+		},
+		[]() {},
+		LOCTEXT("LevelColor_ToopTip", "Colorize actor with its level color, otherwise the color is White."));
 	}
 #endif
 }

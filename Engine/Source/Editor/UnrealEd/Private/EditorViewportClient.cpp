@@ -2803,6 +2803,23 @@ FText FEditorViewportClient::GetCurrentVirtualShadowMapVisualizationModeDisplayN
 	return GetVirtualShadowMapVisualizationData().GetModeDisplayName(CurrentVirtualShadowMapVisualizationMode);
 }
 
+void FEditorViewportClient::ChangeActorColorationVisualizationMode(FName InName)
+{
+	SetViewMode(VMI_VisualizeActorColoration);
+	FActorPrimitiveColorHandler::Get().SetActivePrimitiveColorHandler(InName, GWorld);
+}
+
+bool FEditorViewportClient::IsActorColorationVisualizationModeSelected(FName InName) const
+{
+	return IsViewModeEnabled(VMI_VisualizeActorColoration) && FActorPrimitiveColorHandler::Get().GetActivePrimitiveColorHandler() == InName;
+}
+
+FText FEditorViewportClient::GetCurrentActorColorationVisualizationModeDisplayName() const
+{
+	checkf(IsViewModeEnabled(VMI_VisualizeActorColoration), TEXT("In order to call GetCurrentActorColorationVisualizationModeDisplayName(), first you must set ViewMode to VMI_VisualizeActorColoration."));
+	return FActorPrimitiveColorHandler::Get().GetActivePrimitiveColorHandlerDisplayName();
+}
+
 void FEditorViewportClient::ChangeSubstrateVisualizationMode(FName InName)
 {
 	SetViewMode(VMI_VisualizeSubstrate);

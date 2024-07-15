@@ -3177,7 +3177,9 @@ void ULevelInstanceSubsystem::RegisterPrimitiveColorHandler()
 				return Actor->HasLevelInstancePropertyOverrides() ? FLinearColor::Green : FLinearColor::Red;
 			}
 			return FLinearColor::White;
-		});
+		},
+		[]() {},
+		LOCTEXT("LevelInstancePropertyOverride_ToolTip", "Colorize actor with his level instance color, Green means the level has some property overrides, otherwise it will be Red. Rest is White."));
 		bPrimitiveColorHandlerRegistered = true;
 	}
 #endif

@@ -53,7 +53,9 @@ UWorldPartitionHLODEditorSubsystem::UWorldPartitionHLODEditorSubsystem()
 				}
 			}
 			return FLinearColor::Red;
-		});
+		},
+		[]() {},
+		LOCTEXT("HLODRelevantColor_ToolTip", "Colorize actor if relevant to the HLOD system. Green means relevant, otherwise the color is Red."));
 	}
 #endif
 

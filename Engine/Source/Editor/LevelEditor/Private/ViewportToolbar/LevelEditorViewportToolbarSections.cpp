@@ -335,7 +335,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				SubMenuSection.AddMenuEntry(
 					NAME_None,
 					PrimitiveColorHandler.HandlerText,
-					FText(),
+					PrimitiveColorHandler.HandlerToolTipText,
 					FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateLambda(
@@ -343,33 +343,8 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 							{
 								if (TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
 								{
-									const bool bActorColorationEnabled =
-										Viewport->GetLevelViewportClient().HandleIsShowFlagEnabled(
-											FEngineShowFlags::EShowFlag::SF_ActorColoration
-										);
-
-									if (PrimitiveColorHandler.HandlerName.IsNone())
-									{
-										if (bActorColorationEnabled)
-										{
-											Viewport->GetLevelViewportClient().HandleToggleShowFlag(
-												FEngineShowFlags::EShowFlag::SF_ActorColoration
-											);
-										}
-									}
-									else
-									{
-										if (!bActorColorationEnabled)
-										{
-											Viewport->GetLevelViewportClient().HandleToggleShowFlag(
-												FEngineShowFlags::EShowFlag::SF_ActorColoration
-											);
-										}
-
-										FActorPrimitiveColorHandler::Get().SetActivePrimitiveColorHandler(
-											PrimitiveColorHandler.HandlerName, GWorld
-										);
-									}
+									FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+									ViewportClient.ChangeActorColorationVisualizationMode(PrimitiveColorHandler.HandlerName);
 								}
 							}
 						),
@@ -388,26 +363,8 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 							{
 								if (TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
 								{
-									const bool bActorColorationEnabled =
-										Viewport->GetLevelViewportClient().HandleIsShowFlagEnabled(
-											FEngineShowFlags::EShowFlag::SF_ActorColoration
-										);
-
-									if (PrimitiveColorHandler.HandlerName.IsNone())
-									{
-										return bActorColorationEnabled ? ECheckBoxState::Unchecked
-																	   : ECheckBoxState::Checked;
-									}
-									else
-									{
-										if (bActorColorationEnabled)
-										{
-											return FActorPrimitiveColorHandler::Get().GetActivePrimitiveColorHandler()
-														== PrimitiveColorHandler.HandlerName
-													 ? ECheckBoxState::Checked
-													 : ECheckBoxState::Unchecked;
-										}
-									}
+									FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+									return ViewportClient.IsActorColorationVisualizationModeSelected(PrimitiveColorHandler.HandlerName) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 								}
 
 								return ECheckBoxState::Unchecked;
@@ -421,9 +378,9 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 
 		FToolMenuSection& Section = InMenu->FindOrAddSection("ViewMode");
 		Section.AddSubMenu(
-			"ActorColoration",
-			LOCTEXT("ActorColorationDisplayName", "Actor Coloration"),
-			LOCTEXT("ActorColorationMenu_ToolTip", "Override Actor Coloration mode"),
+			"VisualizeActorColorationViewMode",
+			LOCTEXT("VisualizeActorColorationViewModeDisplayName", "Actor Coloration"),
+			LOCTEXT("ActorColorationVisualizationMenu_ToolTip", "Select a mode for actor coloration visualization."),
 			FNewToolMenuDelegate::CreateLambda(BuildActorColorationMenu),
 			FUIAction(
 				FExecuteAction(),
@@ -431,19 +388,16 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				FIsActionChecked::CreateLambda(
 					[WeakViewport = InViewport.ToWeakPtr()]()
 					{
-						if (const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin())
-						{
-							return Viewport->GetLevelViewportClient().HandleIsShowFlagEnabled(
-								FEngineShowFlags::EShowFlag::SF_ActorColoration
-							);
-						}
-						return false;
+						const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
+						check(Viewport.IsValid());
+						FLevelEditorViewportClient& ViewportClient = Viewport->GetLevelViewportClient();
+						return ViewportClient.IsViewModeEnabled(VMI_VisualizeActorColoration);
 					}
 				)
 			),
 			EUserInterfaceActionType::RadioButton,
-			/*bInOpenSubMenuOnClick=*/false,
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LODColorationMode")
+			/* bInOpenSubMenuOnClick = */ false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.VisualizeActorColorationMode")
 		);
 	}
 

@@ -182,6 +182,11 @@ TArray<FText> FillViewModeDisplayNames()
 			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_VisualizeVirtualShadowMap", "Virtual Shadow Map Visualization"));
 		}
 
+		else if (ViewModeIndex == VMI_VisualizeActorColoration)
+		{
+			ViewModeDisplayNames.Emplace(LOCTEXT("UViewModeUtils_VMI_VisualizeActorColoration", "Actor Coloration Visualization"));
+		}
+
 		// VMI_Max
 		else if (ViewModeIndex == VMI_Max)
 		{
@@ -207,7 +212,7 @@ const static TArray<FText> GViewModeDisplayNames = FillViewModeDisplayNames();
 FText UViewModeUtils::GetViewModeDisplayName(const EViewModeIndex ViewModeIndex)
 {
 	const FText ViewModeName = GViewModeDisplayNames[ViewModeIndex];
-	ensureMsgf(!ViewModeName.IsEmpty(), TEXT("Used an unknown value of EViewModeIndex (with value %d). Consider adding this new value in UViewModeUtils::GetViewModeName"), ViewModeIndex);
+	ensureMsgf(!ViewModeName.IsEmpty(), TEXT("Used an unknown value of EViewModeIndex (with value %d). Consider adding this new value in FillViewModeDisplayNames()"), ViewModeIndex);
 	return ViewModeName;
 }
 
@@ -394,6 +399,12 @@ TArray<const FSlateBrush*> FillViewModeDisplayIcons()
 		else if (ViewModeIndex == VMI_VirtualTexturePendingMips)
 		{
 			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.VirtualTexturePendingMipsMode"));
+		}
+
+		// Actor Coloration
+		else if (ViewModeIndex == VMI_VisualizeActorColoration)
+		{
+			ViewModeDisplayIcons.Emplace(FAppStyle::Get().GetBrush("EditorViewport.VisualizeActorColorationMode"));
 		}
 
 		// VMI_Max
