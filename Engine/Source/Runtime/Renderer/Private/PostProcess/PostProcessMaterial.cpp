@@ -985,7 +985,7 @@ FPostProcessMaterialChain GetPostProcessMaterialChain(const FViewInfo& View, EBl
 
 		if (Material && (Material->BlendableLocation == Location || Location == EBlendableLocation::BL_MAX))
 		{
-			Nodes.Add(FPostProcessMaterialNode(Material, VisMaterial->GetBlendableLocation(Material), VisMaterial->GetBlendablePriority(Material), Material->bIsBlendable));
+			Nodes.Add(FPostProcessMaterialNode(VisMaterial, VisMaterial->GetBlendableLocation(Material), VisMaterial->GetBlendablePriority(Material), Material->bIsBlendable));
 		}
 	}
 
