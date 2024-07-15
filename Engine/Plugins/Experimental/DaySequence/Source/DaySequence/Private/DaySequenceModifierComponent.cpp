@@ -1338,7 +1338,7 @@ bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_GetBlendPosition);
 	
 #if WITH_EDITOR
-	if (!GetWorld()->IsGameWorld())
+	if (const UWorld* World = GetWorld(); World && !World->IsGameWorld())
 	{
 		InPosition = UE::DaySequence::GVolumePreviewLocation;
 		return true;

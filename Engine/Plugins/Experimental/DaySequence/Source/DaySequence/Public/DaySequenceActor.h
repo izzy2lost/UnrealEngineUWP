@@ -323,6 +323,10 @@ public:
 
 	/* Called to register InFunction as a callback for instances matching InConditions with a lifetime equivalent to LifetimeObject. */
 	void BindToConditionCallbacks(UObject* LifetimeObject, const FDaySequenceConditionSet::FConditionValueMap& InConditions, const TFunction<void(void)>& InFunction);
+
+#if WITH_EDITOR
+	void HandleConditionReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& OldToNewInstanceMap);
+#endif
 	
 protected:
 	//~ Begin UObject interface

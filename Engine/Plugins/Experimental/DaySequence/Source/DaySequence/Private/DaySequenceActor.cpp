@@ -167,6 +167,10 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 		AHUD::OnShowDebugInfo.AddUObject(this, &ADaySequenceActor::OnShowDebugInfo);
 	}
 #endif
+
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &ADaySequenceActor::HandleConditionReinstanced);
+#endif
 }
 
 void ADaySequenceActor::PostInitializeComponents()
@@ -285,6 +289,10 @@ void ADaySequenceActor::PostLoad()
 	// hierarchy for editing binding overrides. This is only necessary for editor, since the
 	// root sequence will be initialized in PostInitializeComponents()/InitializePlayer() for runtime.
 	InitializeRootSequence();
+
+	SubSections.Empty();
+
+	bUpdateRootSequenceOnTick = true;
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -434,6 +442,9 @@ void ADaySequenceActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	{
 		SetTimePerCycle(GetTimePerCycle());
 
+		RootSequence = nullptr;
+		SubSections.Empty();
+		
 		// Update our root sequence with the new asset.
 		UpdateRootSequence();
 	}
@@ -1637,3 +1648,25 @@ void ADaySequenceActor::BindToConditionCallbacks(UObject* LifetimeObject, const 
 		}
 	}
 }
+
+#if WITH_EDITOR
+void ADaySequenceActor::HandleConditionReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& OldToNewInstanceMap)
+{
+	for (const TPair<UObject*, UObject*>& Pair : OldToNewInstanceMap)
+	{
+		if (Pair.Key->IsTemplate())
+		{
+			continue;
+		}
+
+		// Casting too much here? Second one might be unnecessary
+		if (UDaySequenceConditionTag* OldTag = Cast<UDaySequenceConditionTag>(Pair.Key))
+		{
+			if (UDaySequenceConditionTag* NewTag = Cast<UDaySequenceConditionTag>(Pair.Value))
+			{
+				NewTag->GetOnConditionValueChanged() = OldTag->GetOnConditionValueChanged();
+			}
+		}
+	}
+}
+#endif
