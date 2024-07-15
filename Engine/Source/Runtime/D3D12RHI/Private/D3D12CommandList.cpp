@@ -41,7 +41,11 @@ FD3D12ResidencySet* FD3D12CommandList::CloseResidencySet()
 		AddToResidencySet(Resource->GetResidencyHandles());
 	}
 
-	D3DX12Residency::Close(ResidencySet);
+	if (State.DeferredResidencyUpdateSet.Num() > 0)
+	{
+		D3DX12Residency::Close(ResidencySet);
+	}
+
 	return ResidencySet;
 }
 
@@ -302,6 +306,11 @@ void FD3D12CommandList::Close()
 	else
 	{
 		VERIFYD3D12RESULT(Interfaces.GraphicsCommandList->Close());
+	}
+
+	if (State.DeferredResidencyUpdateSet.Num() == 0)
+	{
+		D3DX12Residency::Close(ResidencySet);
 	}
 
 	State.IsClosed = true;
