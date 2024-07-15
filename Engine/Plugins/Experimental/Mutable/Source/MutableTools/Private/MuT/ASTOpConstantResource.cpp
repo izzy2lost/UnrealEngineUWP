@@ -691,17 +691,22 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	void ASTOpConstantResource::SetValue(const Ptr<const RefCounted>& v, FProxyFileContext* DiskCacheContext)
 	{
+		MUTABLE_CPUPROFILER_SCOPE(ASTOpConstantResource_SetValue);
+
 		switch (Type)
 		{
 		case OP_TYPE::IM_CONSTANT:
 		{
 			Ptr<const Image> r = static_cast<const Image*>(v.get());
 
-			OutputMemoryStream stream(r->GetDataSize() + 1024);
-			OutputArchive arch(&stream);
-			Image::Serialise(r.get(), arch);
+			OutputHashStream stream;
+			{
+				MUTABLE_CPUPROFILER_SCOPE(Serialize);
+				OutputArchive arch(&stream);
+				Image::Serialise(r.get(), arch);
+			}
 
-			ValueHash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
+			ValueHash = stream.GetHash();
 
 			if (DiskCacheContext)
 			{
@@ -716,13 +721,16 @@ namespace mu
 
 		case OP_TYPE::ME_CONSTANT:
 		{
-			OutputMemoryStream stream;
-			OutputArchive arch(&stream);
-
 			Ptr<const Mesh> r = static_cast<const Mesh*>(v.get());
-			Mesh::Serialise(r.get(), arch);
 
-			ValueHash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
+			OutputHashStream stream;
+			{
+				MUTABLE_CPUPROFILER_SCOPE(Serialize);
+				OutputArchive arch(&stream);
+				Mesh::Serialise(r.get(), arch);
+			}
+
+			ValueHash = stream.GetHash();
 
 			LoadedValue = v;
 			break;
@@ -730,13 +738,16 @@ namespace mu
 
 		case OP_TYPE::LA_CONSTANT:
 		{
-			OutputMemoryStream stream;
-			OutputArchive arch(&stream);
-
 			Ptr<const Layout> r = static_cast<const Layout*>(v.get());
-			Layout::Serialise(r.get(), arch);
 
-			ValueHash = CityHash64(static_cast<const char*>(stream.GetBuffer()), stream.GetBufferSize());
+			OutputHashStream stream;
+			{
+				MUTABLE_CPUPROFILER_SCOPE(Serialize);
+				OutputArchive arch(&stream);
+				Layout::Serialise(r.get(), arch);
+			}
+
+			ValueHash = stream.GetHash();
 
 			LoadedValue = v;
 			break;

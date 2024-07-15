@@ -305,33 +305,42 @@ namespace mu
     };
 
 
-	//! This stream doesn't store any data, it just counts the amount of data serialised.
+	/** This stream doesn't store any data: it just counts the amount of data serialised. */
 	class MUTABLERUNTIME_API OutputSizeStream : public OutputStream
 	{
 	public:
 
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		//!
-		OutputSizeStream();
-
-		//-----------------------------------------------------------------------------------------
 		// OutputStream interface
-		//-----------------------------------------------------------------------------------------
 		void Write(const void* pData, uint64 size) override;
 
-		//-----------------------------------------------------------------------------------------
 		// Own interface
-		//-----------------------------------------------------------------------------------------
 
-		//! Get the amount of data serialised, in bytes.
+		/** Get the amount of data serialised, in bytes. */
 		uint64 GetBufferSize() const;
 
 	private:
 
-		uint64 WrittenBytes;
+		uint64 WrittenBytes = 0;
+
+	};
+
+
+	/** This stream doesn't store any data: it just calculates of a hash of the data as it receives it. */
+	class MUTABLERUNTIME_API OutputHashStream : public OutputStream
+	{
+	public:
+
+		// OutputStream interface
+		void Write(const void* pData, uint64 size) override;
+
+		// Own interface
+
+		/** Return the hash of the data written so far. */
+		uint64 GetHash() const;
+
+	private:
+
+		uint64 Hash = 0;
 
 	};
 

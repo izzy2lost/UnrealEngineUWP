@@ -7,6 +7,7 @@
 #include "HAL/PlatformCrt.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AssertionMacros.h"
+#include "Hash/CityHash.h"
 #include "MuR/Image.h"
 #include "MuR/SerialisationPrivate.h"
 
@@ -186,24 +187,28 @@ namespace mu
     //-------------------------------------------------------------------------------------------------
     //-------------------------------------------------------------------------------------------------
     //-------------------------------------------------------------------------------------------------
-    OutputSizeStream::OutputSizeStream()
-    {
-        WrittenBytes = 0;
-    }
-
-
-    //-------------------------------------------------------------------------------------------------
     void OutputSizeStream::Write( const void*, uint64 size )
     {
         WrittenBytes += size;
     }
 
-
-    //-------------------------------------------------------------------------------------------------
 	uint64 OutputSizeStream::GetBufferSize() const
     {
         return WrittenBytes;
     }
+
+
+	//-------------------------------------------------------------------------------------------------
+	void OutputHashStream::Write(const void* Data, uint64 size)
+	{
+		Hash = CityHash64WithSeed(reinterpret_cast<const char*>(Data), size, Hash);
+	}
+
+
+	uint64 OutputHashStream::GetHash() const
+	{
+		return Hash;
+	}
 
 
     //---------------------------------------------------------------------------------------------

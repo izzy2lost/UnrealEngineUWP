@@ -120,6 +120,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 											if (!AnimInstance.IsNull())
 											{
+												// TODO: We only need it to add it to participating objects. We should probably skip fully loading it.
 												if (UClass* Anim = AnimInstance.LoadSynchronous())
 												{
 													GenerationContext.AddParticipatingObject(*Anim);													
@@ -881,6 +882,8 @@ TArray<FName> GetRowsToCompile(const UDataTable& DataTable, const UCustomizableO
 bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UEdGraphPin* Pin, mu::TablePtr MutableTable, const FString& DataTableColumnName, const FProperty* ColumnProperty,
 	const int32 LODIndexConnected, const int32 SectionIndexConnected, const int32 LODIndex, const int32 SectionIndex, const bool bOnlyConnectedLOD, FMutableGraphGenerationContext& GenerationContext)
 {
+	MUTABLE_CPUPROFILER_SCOPE(GenerateTableColumn);
+
 	SCOPED_PIN_DATA(GenerationContext, Pin)
 
 	if (!TableNode)
@@ -899,6 +902,31 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
 
 	// Getting names of the rows to access the information
 	TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
+
+	// Pre-pass to request async loading of all data. This seems to be slightly faster because it avoids the sync after every separate load.
+	{
+		TArray<int32> LoadRequests;
+		LoadRequests.Reserve(RowNames.Num());
+
+		MUTABLE_CPUPROFILER_SCOPE(Preload);
+		for (int32 RowIndex = 0; RowIndex < RowNames.Num(); ++RowIndex)
+		{
+			if (uint8* CellData = GetCellData(RowNames[RowIndex], *DataTable, *ColumnProperty))
+			{
+				// Getting property type
+				if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(ColumnProperty))
+				{
+					const FSoftObjectPtr& Path = SoftObjectProperty->GetPropertyValue(CellData);
+					LoadRequests.Add( LoadPackageAsync(Path.GetLongPackageName()) );
+				}
+			}
+		}
+
+		{
+			MUTABLE_CPUPROFILER_SCOPE(Flush);
+			FlushAsyncLoading(LoadRequests);
+		}
+	}
 
 	for (int32 RowIndex = 0; RowIndex < RowNames.Num(); ++RowIndex)
 	{
