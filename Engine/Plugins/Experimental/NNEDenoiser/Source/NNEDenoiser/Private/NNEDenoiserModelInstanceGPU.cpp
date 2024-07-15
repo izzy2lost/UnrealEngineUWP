@@ -108,7 +108,7 @@ namespace UE::NNEDenoiser::Private
 		}
 		for (const NNE::FTensorBindingRDG& Binding : Outputs)
 		{
-			DenoiserParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopySrc);
+			DenoiserParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopyDest);
 		}
 
 		RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.ModelInstanceGPU");

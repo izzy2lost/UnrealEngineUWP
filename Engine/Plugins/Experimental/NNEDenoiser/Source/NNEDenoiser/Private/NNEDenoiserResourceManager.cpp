@@ -52,6 +52,10 @@ void FResourceManager::AddTexture(EResourceName Name, FRDGTextureRef Current, in
 	// note: Always create intermediate texture for now.
 	const bool bNeedIntermediateTexture = true;
 
+#if UE_BUILD_DEBUG
+	static TSet<FString> DebugNames;
+#endif
+
 	if (bNeedIntermediateTexture)
 	{
 		check(!IntermediateTextureMap.Contains(Name));
@@ -63,7 +67,23 @@ void FResourceManager::AddTexture(EResourceName Name, FRDGTextureRef Current, in
 
 		for (int32 I = 0; I < IntermediateTextures.Num(); I++)
 		{
+#if UE_BUILD_DEBUG
+			const FString ResourceName = UEnum::GetValueAsName<EResourceName>(Name).ToString();
+			const FString FrameNumberText = FString::FromInt(I);
+			const FString TextureDebugName = FString(TEXT("NNEDenoiser.IntermediateTexture_")) + ResourceName + FrameNumberText;
+
+			const TCHAR* DebugNamePtr = nullptr;
+			if (!DebugNames.Contains(TextureDebugName))
+			{
+				DebugNames.Add(TextureDebugName);
+			}
+
+			DebugNamePtr = **DebugNames.Find(TextureDebugName);
+
+			IntermediateTextures[I] = GraphBuilder.CreateTexture(Desc, DebugNamePtr);
+#else
 			IntermediateTextures[I] = GraphBuilder.CreateTexture(Desc, TEXT("NNEDenoiser.IntermediateTexture"));
+#endif
 		}
 	}
 }

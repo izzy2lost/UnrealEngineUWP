@@ -4,11 +4,6 @@
 
 namespace UE::NNEDenoiserShaders::Internal
 {
-	void FAutoExposureCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("MAX_FLT"), MAX_FLT);
-	}
 
 	void FAutoExposureDownsampleCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -31,11 +26,6 @@ namespace UE::NNEDenoiserShaders::Internal
 		OutEnvironment.SetDefine(TEXT("KEY"), FAutoExposureReduceConstants::KEY);
 	}
 
-	bool FAutoExposureCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
-	}
-
 	bool FAutoExposureDownsampleCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
@@ -51,7 +41,6 @@ namespace UE::NNEDenoiserShaders::Internal
 		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
 	}
 
-	IMPLEMENT_GLOBAL_SHADER(FAutoExposureCS, "/NNEDenoiserShaders/NNEDenoiserShadersAutoExposure.usf", "AutoExposure", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(FAutoExposureDownsampleCS, "/NNEDenoiserShaders/NNEDenoiserShadersAutoExposureDownsample.usf", "Downsample", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(FAutoExposureReduceCS, "/NNEDenoiserShaders/NNEDenoiserShadersAutoExposureReduce.usf", "Reduce", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(FAutoExposureReduceFinalCS, "/NNEDenoiserShaders/NNEDenoiserShadersAutoExposureReduceFinal.usf", "ReduceFinal", SF_Compute);

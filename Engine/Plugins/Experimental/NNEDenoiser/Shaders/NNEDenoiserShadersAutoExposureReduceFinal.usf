@@ -4,8 +4,8 @@
 #include "/Engine/Private/Common.ush"
 
 int InputSize;
-RWBuffer<float> InputSums;
-RWBuffer<int> InputCounts;
+Buffer<float> InputSums;
+Buffer<int> InputCounts;
 RWBuffer<float> OutputBuffer; // 0: Result, 1: 1.0 / Result
 
 groupshared float Sums[THREAD_GROUP_SIZE];

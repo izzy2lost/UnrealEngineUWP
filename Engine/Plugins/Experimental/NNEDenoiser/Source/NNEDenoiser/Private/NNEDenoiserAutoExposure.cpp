@@ -130,7 +130,7 @@ void FAutoExposure::EnqueueRDG(FRDGBuilder& GraphBuilder, FRDGTextureRef InputTe
 	{
 		FAutoExposureReduceCS::FParameters *ShaderParameters = GraphBuilder.AllocParameters<FAutoExposureReduceCS::FParameters>();
 		ShaderParameters->InputSize = NumBins;
-		ShaderParameters->InputBins = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OutputBins, EPixelFormat::PF_R32_FLOAT));
+		ShaderParameters->InputBins = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(OutputBins, EPixelFormat::PF_R32_FLOAT));
 		ShaderParameters->OutputSums = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OutputSums, EPixelFormat::PF_R32_FLOAT));
 		ShaderParameters->OutputCounts = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OutputCounts, EPixelFormat::PF_R32_SINT));
 		ShaderParameters->NumThreads = NumReduceGroups * FAutoExposureDownsampleConstants::MAX_BIN_SIZE;
@@ -153,8 +153,8 @@ void FAutoExposure::EnqueueRDG(FRDGBuilder& GraphBuilder, FRDGTextureRef InputTe
 	{
 		FAutoExposureReduceFinalCS::FParameters *ShaderParameters = GraphBuilder.AllocParameters<FAutoExposureReduceFinalCS::FParameters>();
 		ShaderParameters->InputSize = NumReduceGroups;
-		ShaderParameters->InputSums = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OutputSums, EPixelFormat::PF_R32_FLOAT));
-		ShaderParameters->InputCounts = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OutputCounts, EPixelFormat::PF_R32_SINT));
+		ShaderParameters->InputSums = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(OutputSums, EPixelFormat::PF_R32_FLOAT));
+		ShaderParameters->InputCounts = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(OutputCounts, EPixelFormat::PF_R32_SINT));
 		ShaderParameters->OutputBuffer = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OutputBuffer, EPixelFormat::PF_R32_FLOAT));
 
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);

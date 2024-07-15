@@ -61,26 +61,24 @@ void ApplyTransferFunction(
 {
 	using namespace UE::NNEDenoiserShaders::Internal;
 
-	const FIntVector InputTextureSize = InputTexture->Desc.GetSize();
-	const FIntVector OutputTextureSize = OutputTexture->Desc.GetSize();
+	const FIntVector Size = InputTexture->Desc.GetSize();
+	check(Size == OutputTexture->Desc.GetSize());
 
 	FTransferFunctionOidnCS::FParameters *ShaderParameters = GraphBuilder.AllocParameters<FTransferFunctionOidnCS::FParameters>();
-	ShaderParameters->InputTextureWidth = InputTextureSize.X;
-	ShaderParameters->InputTextureHeight = InputTextureSize.Y;
+	ShaderParameters->Width = Size.X;
+	ShaderParameters->Height = Size.Y;
 	ShaderParameters->InputTexture = InputTexture;
-	ShaderParameters->OutputTextureWidth = OutputTextureSize.X;
-	ShaderParameters->OutputTextureHeight = OutputTextureSize.Y;
-	ShaderParameters->OutputTexture = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(OutputTexture));
-	ShaderParameters->InputScaleBuffer = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(InputScaleBuffer, EPixelFormat::PF_R32_FLOAT));
+	ShaderParameters->InputScaleBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(InputScaleBuffer, EPixelFormat::PF_R32_FLOAT));
 	ShaderParameters->NormScale = NormScale;
 	ShaderParameters->InvNormScale = InvNormScale;
+	ShaderParameters->OutputTexture = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(OutputTexture));
 
 	FTransferFunctionOidnCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FTransferFunctionOidnCS::FTransferFunctionOidnMode>(Forward ? ETransferFunctionOidnMode::Forwward : ETransferFunctionOidnMode::Inverse);
 
 	FIntVector ThreadGroupCount = FIntVector(
-		FMath::DivideAndRoundUp(OutputTextureSize.X, FTransferFunctionOidnConstants::THREAD_GROUP_SIZE),
-		FMath::DivideAndRoundUp(OutputTextureSize.Y, FTransferFunctionOidnConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(Size.X, FTransferFunctionOidnConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(Size.Y, FTransferFunctionOidnConstants::THREAD_GROUP_SIZE),
 		1);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);

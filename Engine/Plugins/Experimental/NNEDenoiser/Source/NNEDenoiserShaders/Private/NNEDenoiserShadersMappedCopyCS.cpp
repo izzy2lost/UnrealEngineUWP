@@ -11,58 +11,54 @@ namespace UE::NNEDenoiserShaders::Internal
 		OutEnvironment.SetDefine(TEXT("MAX_NUM_MAPPED_CHANNELS"), FMappedCopyConstants::MAX_NUM_MAPPED_CHANNELS);
 	}
 
-	void FNNEDenoiserTextureBufferMappedCopyCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+	template<class GlobalShaderType>
+	bool CommonShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		if (!ShouldCompileRayTracingShadersForProject(Parameters.Platform))
+		{
+			return false;
+		}
+
+		typename GlobalShaderType::FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.template Get<typename GlobalShaderType::FInputDataType>() != EDataType::Half &&
+			PermutationVector.template Get<typename GlobalShaderType::FInputDataType>() != EDataType::Float)
+		{
+			return false;
+		}
+		if (PermutationVector.template Get<typename GlobalShaderType::FOutputDataType>() != EDataType::Half &&
+			PermutationVector.template Get<typename GlobalShaderType::FOutputDataType>() != EDataType::Float)
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	void FTextureBufferMappedCopyCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		CommonModifyCompilationEnvironment(InParameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("INPUT_TYPE"), 0);
-		OutEnvironment.SetDefine(TEXT("OUTPUT_TYPE"), 1);
+		OutEnvironment.SetDefine(TEXT("INTRINSIC_INPUT_TYPE"), 0);
+		OutEnvironment.SetDefine(TEXT("INTRINSIC_OUTPUT_TYPE"), 1);
 	}
 
-	void FNNEDenoiserBufferMappedCopyCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+	void FBufferTextureMappedCopyCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		CommonModifyCompilationEnvironment(InParameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("INPUT_TYPE"), 1);
-		OutEnvironment.SetDefine(TEXT("OUTPUT_TYPE"), 1);
+		OutEnvironment.SetDefine(TEXT("INTRINSIC_INPUT_TYPE"), 1);
+		OutEnvironment.SetDefine(TEXT("INTRINSIC_OUTPUT_TYPE"), 0);
 	}
 
-	void FNNEDenoiserBufferTextureMappedCopyCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+	bool FTextureBufferMappedCopyCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		CommonModifyCompilationEnvironment(InParameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("INPUT_TYPE"), 1);
-		OutEnvironment.SetDefine(TEXT("OUTPUT_TYPE"), 0);
+		return CommonShouldCompilePermutation<FTextureBufferMappedCopyCS>(Parameters);
 	}
 
-	void FNNEDenoiserTextureMappedCopyCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
+	bool FBufferTextureMappedCopyCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		CommonModifyCompilationEnvironment(InParameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("INPUT_TYPE"), 0);
-		OutEnvironment.SetDefine(TEXT("OUTPUT_TYPE"), 0);
+		return CommonShouldCompilePermutation<FBufferTextureMappedCopyCS>(Parameters);
 	}
 
-	bool FNNEDenoiserTextureBufferMappedCopyCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
-	}
-
-	bool FNNEDenoiserBufferMappedCopyCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
-	}
-
-	bool FNNEDenoiserBufferTextureMappedCopyCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
-	}
-
-	bool FNNEDenoiserTextureMappedCopyCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return ShouldCompileRayTracingShadersForProject(Parameters.Platform);
-	}
-
-	IMPLEMENT_GLOBAL_SHADER(FNNEDenoiserTextureBufferMappedCopyCS, "/NNEDenoiserShaders/NNEDenoiserShadersMappedCopy.usf", "MappedCopy", SF_Compute);
-	IMPLEMENT_GLOBAL_SHADER(FNNEDenoiserBufferMappedCopyCS, "/NNEDenoiserShaders/NNEDenoiserShadersMappedCopy.usf", "MappedCopy", SF_Compute);
-
-	IMPLEMENT_GLOBAL_SHADER(FNNEDenoiserBufferTextureMappedCopyCS, "/NNEDenoiserShaders/NNEDenoiserShadersMappedCopy.usf", "MappedCopy", SF_Compute);
-	IMPLEMENT_GLOBAL_SHADER(FNNEDenoiserTextureMappedCopyCS, "/NNEDenoiserShaders/NNEDenoiserShadersMappedCopy.usf", "MappedCopy", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FTextureBufferMappedCopyCS, "/NNEDenoiserShaders/NNEDenoiserShadersMappedCopy.usf", "MappedCopy", SF_Compute);
+	IMPLEMENT_GLOBAL_SHADER(FBufferTextureMappedCopyCS, "/NNEDenoiserShaders/NNEDenoiserShadersMappedCopy.usf", "MappedCopy", SF_Compute);
 
 } // UE::NNEDenoiser::Private

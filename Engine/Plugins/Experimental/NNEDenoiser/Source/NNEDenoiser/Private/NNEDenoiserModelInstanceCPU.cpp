@@ -105,7 +105,7 @@ namespace UE::NNEDenoiser::Private
 		}
 		for (const NNE::FTensorBindingRDG& Binding : Outputs)
 		{
-			DenoiserParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopySrc);
+			DenoiserParameters->OutputBuffers.Emplace(Binding.Buffer, ERHIAccess::CopyDest);
 		}
 		
 		GraphBuilder.AddPass(RDG_EVENT_NAME("NNEDenoiser.DenoiseCPU"), DenoiserParameters, ERDGPassFlags::Readback,

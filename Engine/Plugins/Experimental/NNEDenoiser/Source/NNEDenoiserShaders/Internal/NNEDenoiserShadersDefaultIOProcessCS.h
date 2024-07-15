@@ -36,11 +36,9 @@ namespace UE::NNEDenoiserShaders::Internal
 	public:
 
 		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-			SHADER_PARAMETER(int32, InputTextureWidth)
-			SHADER_PARAMETER(int32, InputTextureHeight)
+			SHADER_PARAMETER(int32, Width)
+			SHADER_PARAMETER(int32, Height)
 			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
-			SHADER_PARAMETER(int32, OutputTextureWidth)
-			SHADER_PARAMETER(int32, OutputTextureHeight)
 			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutputTexture)
 		END_SHADER_PARAMETER_STRUCT()
 

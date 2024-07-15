@@ -9,24 +9,6 @@
 namespace UE::NNEDenoiserShaders::Internal
 {
 	
-	class NNEDENOISERSHADERS_API FAutoExposureCS : public FGlobalShader
-	{
-		DECLARE_GLOBAL_SHADER(FAutoExposureCS);
-		SHADER_USE_PARAMETER_STRUCT(FAutoExposureCS, FGlobalShader)
-
-	public:
-
-		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-			SHADER_PARAMETER(int32, InputTextureWidth)
-			SHADER_PARAMETER(int32, InputTextureHeight)
-			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
-			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutputBuffer)
-		END_SHADER_PARAMETER_STRUCT()
-
-		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
-		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
-	};
-
 	class FAutoExposureDownsampleConstants
 	{
 	public:
@@ -71,7 +53,7 @@ namespace UE::NNEDenoiserShaders::Internal
 
 		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 			SHADER_PARAMETER(int32, InputSize)
-			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, InputBins)
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InputBins)
 			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutputSums)
 			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutputCounts)
 			SHADER_PARAMETER(int32, NumThreads)
@@ -90,8 +72,8 @@ namespace UE::NNEDenoiserShaders::Internal
 
 		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 			SHADER_PARAMETER(int32, InputSize)
-			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, InputSums)
-			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, InputCounts)
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InputSums)
+			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, InputCounts)
 			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutputBuffer)
 		END_SHADER_PARAMETER_STRUCT()
 

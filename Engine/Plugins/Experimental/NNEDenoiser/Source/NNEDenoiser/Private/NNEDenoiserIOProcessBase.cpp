@@ -48,23 +48,21 @@ void AddPreOrPostProcess(
 {
 	using namespace UE::NNEDenoiserShaders::Internal;
 
-	const FIntVector InputTextureSize = InputTexture->Desc.GetSize();
-	const FIntVector OutputTextureSize = OutputTexture->Desc.GetSize();
+	const FIntVector Size = InputTexture->Desc.GetSize();
+	check(Size == OutputTexture->Desc.GetSize());
 
 	FDefaultIOProcessCS::FParameters *ShaderParameters = GraphBuilder.AllocParameters<FDefaultIOProcessCS::FParameters>();
-	ShaderParameters->InputTextureWidth = InputTextureSize.X;
-	ShaderParameters->InputTextureHeight = InputTextureSize.Y;
+	ShaderParameters->Width = Size.X;
+	ShaderParameters->Height = Size.Y;
 	ShaderParameters->InputTexture = InputTexture;
-	ShaderParameters->OutputTextureWidth = OutputTextureSize.X;
-	ShaderParameters->OutputTextureHeight = OutputTextureSize.Y;
 	ShaderParameters->OutputTexture = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(OutputTexture));
 
 	FDefaultIOProcessCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FDefaultIOProcessCS::FDefaultIOProcessInputKind>(GetInputKind(TensorName));
 
 	FIntVector ThreadGroupCount = FIntVector(
-		FMath::DivideAndRoundUp(OutputTextureSize.X, FDefaultIOProcessConstants::THREAD_GROUP_SIZE),
-		FMath::DivideAndRoundUp(OutputTextureSize.Y, FDefaultIOProcessConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(Size.X, FDefaultIOProcessConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(Size.Y, FDefaultIOProcessConstants::THREAD_GROUP_SIZE),
 		1);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
@@ -85,9 +83,7 @@ void AddPreOrPostProcess(
 void AddReadInputPass(
 	FRDGBuilder& GraphBuilder,
 	FRDGTextureRef InputTexture,
-	FRDGBufferUAVRef InputBufferUAV,
-	FIntPoint InputBufferSize,
-	UE::NNEDenoiserShaders::Internal::ENNEDenoiserDataType DataType,
+	FRDGBufferUAVRef OutputBufferUAV,
 	const TArray<FIntPoint>& ChannelMapping)
 {
 	using namespace UE::NNEDenoiserShaders::Internal;
@@ -104,29 +100,33 @@ void AddReadInputPass(
 		return;
 	}
 
-	const FIntVector InputTextureSize = InputTexture->Desc.GetSize();
+	const FIntVector Size = InputTexture->Desc.GetSize();
 
-	FNNEDenoiserTextureBufferMappedCopyCS::FParameters *ReadInputParameters = GraphBuilder.AllocParameters<FNNEDenoiserTextureBufferMappedCopyCS::FParameters>();
-	ReadInputParameters->Width = InputBufferSize.X;
-	ReadInputParameters->Height = InputBufferSize.Y;
+	FTextureBufferMappedCopyCS::FParameters *ReadInputParameters = GraphBuilder.AllocParameters<FTextureBufferMappedCopyCS::FParameters>();
+	ReadInputParameters->Width = Size.X;
+	ReadInputParameters->Height = Size.Y;
 	ReadInputParameters->InputTexture = InputTexture;
-	ReadInputParameters->OutputBuffer = InputBufferUAV;
+	ReadInputParameters->OutputBuffer = OutputBufferUAV;
 	for (int32 Idx = 0; Idx < ChannelMapping.Num(); Idx++)
 	{
 		ReadInputParameters->OutputChannel_InputChannel_Unused_Unused[Idx] = { ChannelMapping[Idx].X, ChannelMapping[Idx].Y, 0, 0 };
 	}
 
-	FNNEDenoiserTextureBufferMappedCopyCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FNNEDenoiserTextureBufferMappedCopyCS::FNNEDenoiserDataType>(DataType);
-	PermutationVector.Set<FNNEDenoiserTextureBufferMappedCopyCS::FNNEDenoiserNumMappedChannels>(ChannelMapping.Num());
+	const EDataType InputDataType = GetDenoiserShaderDataType(InputTexture->Desc.Format);
+	const EDataType OutputDataType = GetDenoiserShaderDataType(OutputBufferUAV->Desc.Format);
+
+	FTextureBufferMappedCopyCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FTextureBufferMappedCopyCS::FInputDataType>(InputDataType);
+	PermutationVector.Set<FTextureBufferMappedCopyCS::FOutputDataType>(OutputDataType);
+	PermutationVector.Set<FTextureBufferMappedCopyCS::FNumMappedChannels>(ChannelMapping.Num());
 
 	FIntVector ReadInputThreadGroupCount = FIntVector(
-		FMath::DivideAndRoundUp(InputBufferSize.X, FMappedCopyConstants::THREAD_GROUP_SIZE),
-		FMath::DivideAndRoundUp(InputBufferSize.Y, FMappedCopyConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(Size.X, FMappedCopyConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(Size.Y, FMappedCopyConstants::THREAD_GROUP_SIZE),
 		1);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
-	TShaderMapRef<FNNEDenoiserTextureBufferMappedCopyCS> ReadInputShader(GlobalShaderMap, PermutationVector);
+	TShaderMapRef<FTextureBufferMappedCopyCS> ReadInputShader(GlobalShaderMap, PermutationVector);
 
 	RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.ReadInput");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEDenoiserReadInput);
@@ -142,37 +142,41 @@ void AddReadInputPass(
 
 void AddWriteOutputPass(
 	FRDGBuilder& GraphBuilder,
-	FRDGBufferUAVRef OutputBufferUAV,
-	FIntPoint OutputBufferSize,
-	FRDGTextureUAVRef OutputTextureUAV,
-	UE::NNEDenoiserShaders::Internal::ENNEDenoiserDataType DataType,
+	FRDGBufferRef InputBuffer,
+	EPixelFormat BufferFormat,
+	FRDGTextureRef OutputTexture,
+	UE::NNEDenoiserShaders::Internal::EDataType DataType,
 	const TArray<FIntPoint>& ChannelMapping)
 {
 	using namespace UE::NNEDenoiserShaders::Internal;
 
-	const FIntVector OutputTextureSize = OutputTextureUAV->Desc.Texture->Desc.GetSize();
+	const FIntVector Size = OutputTexture->Desc.GetSize();
 
-	FNNEDenoiserBufferTextureMappedCopyCS::FParameters *WriteOutputParameters = GraphBuilder.AllocParameters<FNNEDenoiserBufferTextureMappedCopyCS::FParameters>();
-	WriteOutputParameters->Width = OutputBufferSize.X;
-	WriteOutputParameters->Height = OutputBufferSize.Y;
-	WriteOutputParameters->InputBuffer = OutputBufferUAV;
-	WriteOutputParameters->OutputTexture = OutputTextureUAV;
+	FBufferTextureMappedCopyCS::FParameters *WriteOutputParameters = GraphBuilder.AllocParameters<FBufferTextureMappedCopyCS::FParameters>();
+	WriteOutputParameters->Width = Size.X;
+	WriteOutputParameters->Height = Size.Y;
+	WriteOutputParameters->InputBuffer = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(InputBuffer, BufferFormat));
+	WriteOutputParameters->OutputTexture = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(OutputTexture));
 	for (int32 Idx = 0; Idx < ChannelMapping.Num(); Idx++)
 	{
 		WriteOutputParameters->OutputChannel_InputChannel_Unused_Unused[Idx] = { ChannelMapping[Idx].Y, ChannelMapping[Idx].X, 0, 0 };
 	}
 
-	FNNEDenoiserBufferTextureMappedCopyCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FNNEDenoiserBufferTextureMappedCopyCS::FNNEDenoiserDataType>(DataType);
-	PermutationVector.Set<FNNEDenoiserBufferTextureMappedCopyCS::FNNEDenoiserNumMappedChannels>(ChannelMapping.Num());
+	const EDataType InputDataType = GetDenoiserShaderDataType(BufferFormat);
+	const EDataType OutputDataType = GetDenoiserShaderDataType(OutputTexture->Desc.Format);
+
+	FBufferTextureMappedCopyCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FBufferTextureMappedCopyCS::FInputDataType>(InputDataType);
+	PermutationVector.Set<FBufferTextureMappedCopyCS::FOutputDataType>(OutputDataType);
+	PermutationVector.Set<FBufferTextureMappedCopyCS::FNumMappedChannels>(ChannelMapping.Num());
 
 	FIntVector WriteOutputThreadGroupCount = FIntVector(
-		FMath::DivideAndRoundUp(OutputTextureSize.X, FMappedCopyConstants::THREAD_GROUP_SIZE),
-		FMath::DivideAndRoundUp(OutputTextureSize.Y, FMappedCopyConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(Size.X, FMappedCopyConstants::THREAD_GROUP_SIZE),
+		FMath::DivideAndRoundUp(Size.Y, FMappedCopyConstants::THREAD_GROUP_SIZE),
 		1);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
-	TShaderMapRef<FNNEDenoiserBufferTextureMappedCopyCS> WriteOutputShader(GlobalShaderMap, PermutationVector);
+	TShaderMapRef<FBufferTextureMappedCopyCS> WriteOutputShader(GlobalShaderMap, PermutationVector);
 
 	RDG_EVENT_SCOPE(GraphBuilder, "NNEDenoiser.WriteOutput");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEDenoiserWriteOutput);
@@ -189,8 +193,6 @@ void AddWriteOutputPass(
 void AddReadInputPassForKind(
 	FRDGBuilder& GraphBuilder,
 	const IResourceAccess& ResourceAccess,
-	FIntPoint BufferSize,
-	NNEDenoiserShaders::Internal::ENNEDenoiserDataType DataType,
 	EResourceName TensorName,
 	const FResourceMapping& ResourceMapping,
 	FRDGBufferUAVRef BufferUAV)
@@ -200,7 +202,7 @@ void AddReadInputPassForKind(
 		const int32 FrameIdx = -ChannelMappingKeyValue.Key;
 		FRDGTextureRef InputTexture = ResourceAccess.GetTexture(TensorName, FrameIdx);
 
-		AddReadInputPass(GraphBuilder, InputTexture, BufferUAV, BufferSize, DataType, ChannelMappingKeyValue.Value);
+		AddReadInputPass(GraphBuilder, InputTexture, BufferUAV, ChannelMappingKeyValue.Value);
 	}
 };
 
@@ -381,16 +383,14 @@ void FInputProcessBase::WriteInputBuffer(
 	FRDGBufferRef Buffer) const
 {
 	const ENNETensorDataType TensorDataType = TensorDesc.GetDataType();
-	const NNEDenoiserShaders::Internal::ENNEDenoiserDataType DataType = GetDenoiserShaderDataType(TensorDataType);
-	const FIntPoint BufferSize(TensorShape.GetData()[3], TensorShape.GetData()[2]);
 
 	FRDGBufferUAVRef BufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Buffer, GetBufferFormat(TensorDataType)));
 
-	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, BufferSize, DataType, EResourceName::Color, ResourceMapping, BufferUAV);
-	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, BufferSize, DataType, EResourceName::Albedo, ResourceMapping, BufferUAV);
-	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, BufferSize, DataType, EResourceName::Normal, ResourceMapping, BufferUAV);
-	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, BufferSize, DataType, EResourceName::Flow, ResourceMapping, BufferUAV);
-	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, BufferSize, DataType, EResourceName::Output, ResourceMapping, BufferUAV);
+	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, EResourceName::Color, ResourceMapping, BufferUAV);
+	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, EResourceName::Albedo, ResourceMapping, BufferUAV);
+	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, EResourceName::Normal, ResourceMapping, BufferUAV);
+	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, EResourceName::Flow, ResourceMapping, BufferUAV);
+	IOProcessBaseHelper::AddReadInputPassForKind(GraphBuilder, ResourceAccess, EResourceName::Output, ResourceMapping, BufferUAV);
 }
 
 bool FOutputProcessBase::Validate(const IModelInstance& ModelInstance, FIntPoint Extent) const
@@ -495,17 +495,16 @@ void FOutputProcessBase::ReadOutputBuffer(
 	FRDGTextureRef Texture) const
 {
 	const ENNETensorDataType TensorDataType = TensorDesc.GetDataType();
-	const NNEDenoiserShaders::Internal::ENNEDenoiserDataType DataType = GetDenoiserShaderDataType(TensorDataType);
+	const NNEDenoiserShaders::Internal::EDataType DataType = GetDenoiserShaderDataType(TensorDataType);
 	const FIntPoint BufferSize(TensorShape.GetData()[3], TensorShape.GetData()[2]);
 		
 	TMap<int32, TArray<FIntPoint>> ChannelMappingPerFrame = ResourceMapping.GetChannelMappingPerFrame(EResourceName::Output);
 	checkf(ChannelMappingPerFrame.Num() == 1, TEXT("Invalid output mapping"));
 	const TArray<FIntPoint>& ChannelMapping = ChannelMappingPerFrame.CreateConstIterator().Value();
 
-	FRDGBufferUAVRef BufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Buffer, GetBufferFormat(TensorDataType)));
-	FRDGTextureUAVRef TextureUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(Texture));
+	const EPixelFormat BufferFormat = GetBufferFormat(TensorDataType);
 
-	IOProcessBaseHelper::AddWriteOutputPass(GraphBuilder, BufferUAV, BufferSize, TextureUAV, DataType, ChannelMapping);
+	IOProcessBaseHelper::AddWriteOutputPass(GraphBuilder, Buffer, BufferFormat, Texture, DataType, ChannelMapping);
 }
 
 void FOutputProcessBase::PostprocessOutput(
