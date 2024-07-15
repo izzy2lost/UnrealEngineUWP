@@ -147,6 +147,10 @@ FLightingHistory GetLightingHistory(float2 ScreenPosition, uint ClosureIndex, fl
 			HistoryBilinearWeights.y * HistoryBilinearWeights.x);
 
 		float4 HistorySampleSceneDepth4 = SceneDepthHistory.GatherRed(GlobalPointClampedSampler, HistoryGatherUV.xy).wzxy;
+		HistorySampleSceneDepth4.x = ConvertFromDeviceZ(HistorySampleSceneDepth4.x);
+		HistorySampleSceneDepth4.y = ConvertFromDeviceZ(HistorySampleSceneDepth4.y);
+		HistorySampleSceneDepth4.z = ConvertFromDeviceZ(HistorySampleSceneDepth4.z);
+		HistorySampleSceneDepth4.w = ConvertFromDeviceZ(HistorySampleSceneDepth4.w);
 
 		float ReprojectedSceneDepth = ConvertFromDeviceZ(HistoryScreenPosition.z);
 		float DisocclusionDistanceThreshold = HistoryDistanceThreshold * lerp(0.5f, 1.5f, Noise);

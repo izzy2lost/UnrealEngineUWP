@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 class FSceneViewFamily;
+struct FGlobalShaderPermutationParameters;
 
 namespace ECastRayTracedShadow
 {
@@ -23,4 +24,5 @@ namespace ManyLights
 	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow);
 	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily);
+	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters);
 };

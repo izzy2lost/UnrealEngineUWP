@@ -22,7 +22,7 @@ class FRayTracedLightingStoreSceneHistoryCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return DoesPlatformSupportLumenGI(Parameters.Platform);
+		return DoesPlatformSupportLumenGI(Parameters.Platform) || ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static int32 GetGroupSize()
