@@ -418,9 +418,11 @@ private:
 	struct FClothSimSettingsCache
 	{
 		int32 NumSubSteps;
+		float DynamicSubstepDeltaTime;
 	};
 
-	TMap<TWeakObjectPtr<class UClothingSimulationInteractor>, FClothSimSettingsCache> ClothSimCache;
+	/** Simulation settings cache per cloth interactor object. Needs one per LOD, hence the array. */
+	TMap<TWeakObjectPtr<UObject>, TArray<FClothSimSettingsCache>> ClothSimCache;
 
 	struct FRenderTimeStatistics
 	{

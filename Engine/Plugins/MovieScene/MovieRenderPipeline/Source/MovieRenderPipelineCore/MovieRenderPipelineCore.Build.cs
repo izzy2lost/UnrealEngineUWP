@@ -25,6 +25,7 @@ public class MovieRenderPipelineCore : ModuleRules
 				"Slate",
 				"OpenColorIOWrapper",
 				"ImageCore",
+				"ChaosClothAssetEngine",
 			}
 		);
 
