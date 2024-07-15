@@ -49,6 +49,7 @@ EDataValidationResult UPhysicsDrivenFlyingMode::IsDataValid(FDataValidationConte
 
 void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
 {
+	const UMoverComponent* MoverComp = GetMoverComponent();
 	const FMoverTickStartData& StartState = Params.StartState;
 	USceneComponent* UpdatedComponent = Params.MovingComps.UpdatedComponent.Get();
 	UPrimitiveComponent* UpdatedPrimitive = Params.MovingComps.UpdatedPrimitive.Get();
@@ -60,11 +61,11 @@ void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Par
 	FMoverDefaultSyncState& OutputSyncState = OutputState.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
-	const FVector UpDir = GetMoverComponent()->GetUpDirection();
+	const FVector UpDir = MoverComp->GetUpDirection();
 
 	// Don't need a floor query - just invalidate the blackboard to ensure we don't use an old result elsewhere
 
-	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
+	if (UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable())
 	{
 		SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
 		SimBlackboard->Invalidate(CommonBlackboard::LastWaterResult);

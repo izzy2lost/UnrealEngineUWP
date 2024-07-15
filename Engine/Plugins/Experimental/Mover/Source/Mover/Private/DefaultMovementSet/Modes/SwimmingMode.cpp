@@ -29,7 +29,7 @@ void USwimmingMode::OnGenerateMove(const FMoverTickStartData& StartState, const 
 	
 	const float DeltaSeconds = TimeStep.StepMs * 0.001f;
 	
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 	FWaterCheckResult LastWaterResult;
 	
 	const float CapsuleHalfHeight = MoverComp->GetOwner()->GetSimpleCollisionHalfHeight();

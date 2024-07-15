@@ -58,13 +58,6 @@ public:
 		return CastChecked<T>(GetOuter());
 	}
 
-	UFUNCTION(BlueprintCallable, Category=Mover, meta=(DisplayName="Get Blackboard"))
-	const UMoverBlackboard* GetBlackboard() const;
-
-	UFUNCTION(BlueprintCallable, Category=Mover, meta=(DisplayName="Get Blackboard"))
-	UMoverBlackboard* GetBlackboard_Mutable() const;
-
-
 #if WITH_EDITOR
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
 #endif // WITH_EDITOR

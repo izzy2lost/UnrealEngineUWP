@@ -95,24 +95,6 @@ UMoverComponent* UBaseMovementMode::GetMoverComponent() const
 	return CastChecked<UMoverComponent>(GetOuter());
 }
 
-
-const UMoverBlackboard* UBaseMovementMode::GetBlackboard() const
-{
-	return GetBlackboard_Mutable();
-}
-
-
-UMoverBlackboard* UBaseMovementMode::GetBlackboard_Mutable() const
-{
-	if (UMoverComponent* OwnerComponent = GetMoverComponent())
-	{
-		return OwnerComponent->SimBlackboard.Get();
-	}
-
-	return nullptr;
-}
-
-
 #if WITH_EDITOR
 EDataValidationResult UBaseMovementMode::IsDataValid(FDataValidationContext& Context) const
 {

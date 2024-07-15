@@ -36,7 +36,7 @@ void UWalkingMode::OnGenerateMove(const FMoverTickStartData& StartState, const F
 	FFloorCheckResult LastFloorResult;
 	FVector MovementNormal;
 
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	// Try to use the floor as the basis for the intended move direction (i.e. try to walk along slopes, rather than into them)
 	if (SimBlackboard && SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, LastFloorResult) && LastFloorResult.IsWalkableFloor())
@@ -137,7 +137,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	MoveRecord.SetDeltaSeconds(DeltaSeconds);
 
 	FFloorCheckResult CurrentFloor;
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	// If we don't have cached floor information, we need to search for it again
 	if (!SimBlackboard->TryGet(CommonBlackboard::LastFloorResult, CurrentFloor))
@@ -331,7 +331,8 @@ void UWalkingMode::CaptureFinalState(USceneComponent* UpdatedComponent, bool bDi
 {
 	FRelativeBaseInfo PriorBaseInfo;
 
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	const UMoverComponent* MoverComp = GetMoverComponent();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	const bool bHasPriorBaseInfo = SimBlackboard->TryGet(CommonBlackboard::LastFoundDynamicMovementBase, PriorBaseInfo);
 
@@ -375,7 +376,8 @@ FRelativeBaseInfo UWalkingMode::UpdateFloorAndBaseInfo(const FFloorCheckResult& 
 {
 	FRelativeBaseInfo ReturnBaseInfo;
 
-	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
+	const UMoverComponent* MoverComp = GetMoverComponent();
+	UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable();
 
 	SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
 
