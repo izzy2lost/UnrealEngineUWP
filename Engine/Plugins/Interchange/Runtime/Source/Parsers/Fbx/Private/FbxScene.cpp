@@ -217,34 +217,50 @@ namespace UE
 					//Add the joint specialized type
 					UnrealNode->AddSpecializedType(FSceneNodeStaticData::GetJointSpecializeTypeString());
 					//Get the bind pose transform for this joint
-					FbxAMatrix GlobalBindPoseJointMatrix;
-					if (FFbxMesh::GetGlobalJointBindPoseTransform(&Parser, SDKScene, Node, GlobalBindPoseJointMatrix, bBadBindPoseMessageDisplay))
+					FbxAMatrix GlobalBindPoseJointMatrix = SDKScene->GetAnimationEvaluator()->GetNodeGlobalTransform(Node, 0);
+					TMap<FString, FMatrix> MeshIdToGlobalBindPoseReferenceMap;
+
+					FFbxMesh::GetGlobalJointBindPoseTransform(&Parser, SDKScene, Node, GlobalBindPoseJointMatrix, MeshIdToGlobalBindPoseReferenceMap, bBadBindPoseMessageDisplay); //if false it would use the previously calculated
+
+					FTransform GlobalBindPoseJointTransform = GetConvertedTransform(GlobalBindPoseJointMatrix);
+					UnrealNode->SetGlobalBindPoseReferenceForMeshUIDs(MeshIdToGlobalBindPoseReferenceMap);
+
+					FbxNode* ParentNode = Node->GetParent();
+					
+					if (ParentNode != nullptr)
 					{
-						FTransform GlobalBindPoseJointTransform = GetConvertedTransform(GlobalBindPoseJointMatrix);
-						//We grab the fbx parent node to compute the local transform
-						if (FbxNode* ParentNode = Node->GetParent())
-						{
-							FbxAMatrix GlobalFbxParentMatrix = ParentNode->EvaluateGlobalTransform();
-							FFbxMesh::GetGlobalJointBindPoseTransform(&Parser, SDKScene, ParentNode, GlobalFbxParentMatrix, bBadBindPoseMessageDisplay);
-							FbxAMatrix	LocalFbxMatrix = GlobalFbxParentMatrix.Inverse() * GlobalBindPoseJointMatrix;
-							FTransform LocalBindPoseJointTransform = GetConvertedTransform(LocalFbxMatrix);
-							UnrealNode->SetCustomBindPoseLocalTransform(&NodeContainer, LocalBindPoseJointTransform, bResetCache);
-						}
-						else
-						{
-							//No parent, set the same matrix has the global
-							UnrealNode->SetCustomBindPoseLocalTransform(&NodeContainer, GlobalBindPoseJointTransform, bResetCache);
-						}
+						FbxAMatrix GlobalFbxParentMatrix = SDKScene->GetAnimationEvaluator()->GetNodeGlobalTransform(ParentNode, 0);
+						TMap<FString, FMatrix> ParentMeshIdToGlobalBindPoseReferenceMap;
+						FFbxMesh::GetGlobalJointBindPoseTransform(&Parser, SDKScene, ParentNode, GlobalFbxParentMatrix, ParentMeshIdToGlobalBindPoseReferenceMap, bBadBindPoseMessageDisplay);
+						
+						FbxAMatrix LocalFbxMatrix = GlobalFbxParentMatrix.Inverse() * GlobalBindPoseJointMatrix;
+						FTransform LocalBindPoseJointTransform = GetConvertedTransform(LocalFbxMatrix);
+
+						UnrealNode->SetCustomBindPoseLocalTransform(&NodeContainer, LocalBindPoseJointTransform, bResetCache);
+					}
+					else
+					{
+						//No parent, set the same matrix has the global
+						UnrealNode->SetCustomBindPoseLocalTransform(&NodeContainer, GlobalBindPoseJointTransform, bResetCache);
 					}
 
 					//Get time Zero transform for this joint
 					{
+						//NOTE:
+						// Legacy FBX uses the following Matrix calculation for moving Vertices to T0:
+						//		VertexTransformMatrix = ((TransformMatrix * BindPose.Inverse()) * (T0 * GlobalMeshTransformMatrix.Inverse()));
+						//					TransformMatrix				:= GlobalBindPoseReferenceForMeshUIDs (this is joint and Mesh dependent) => seems very FBX specific
+						//					BindPose					:= GlobalBindPose
+						//					T0							:= TimeZero
+						//					GlobalMeshTransformMatrix	:= Mesh's Node's GlobalTransform * GeometricTransform (Interchange.SceneNodeTransform)
+
 						//Set the global node transform
-						FbxAMatrix GlobalFbxMatrix = Node->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
+						FbxAMatrix GlobalFbxMatrix = SDKScene->GetAnimationEvaluator()->GetNodeGlobalTransform(Node, 0);
 						FTransform GlobalTransform = GetConvertedTransform(GlobalFbxMatrix);
-						if (FbxNode* ParentNode = Node->GetParent())
+
+						if (ParentNode != nullptr)
 						{
-							FbxAMatrix GlobalFbxParentMatrix = ParentNode->EvaluateGlobalTransform(FBXSDK_TIME_ZERO);
+							FbxAMatrix GlobalFbxParentMatrix = SDKScene->GetAnimationEvaluator()->GetNodeGlobalTransform(ParentNode, 0);
 							FbxAMatrix	LocalFbxMatrix = GlobalFbxParentMatrix.Inverse() * GlobalFbxMatrix;
 							FTransform LocalTransform = GetConvertedTransform(LocalFbxMatrix);
 							UnrealNode->SetCustomTimeZeroLocalTransform(&NodeContainer, LocalTransform, bResetCache);
@@ -321,6 +337,7 @@ namespace UE
 							Geometry.SetT(Translation);
 							Geometry.SetR(Rotation);
 							Geometry.SetS(Scaling);
+
 							FTransform GeometricTransform = GetConvertedTransform(Geometry);
 
 							//Get the pivot geometry offset 

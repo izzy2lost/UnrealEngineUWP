@@ -328,10 +328,13 @@ namespace UE
 				return nullptr;
 			}
 
+			//We assume normalize weight method in this bind pose conversion
 			void SkinVertexPositionToTimeZero(UE::Interchange::FMeshPayloadData& LodMeshPayload
 				, const UInterchangeBaseNodeContainer* NodeContainer
 				, const FString& RootJointNodeId
-				, const FTransform& MeshGlobalTransform)
+				, const UInterchangeMeshNode* MeshNode
+				, const UInterchangeSceneNode* SceneNode
+				, const FTransform& SceneNodeTransform)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(SkinVertexPositionToTimeZero)
 				FMeshDescription& MeshDescription = LodMeshPayload.MeshDescription;
@@ -364,9 +367,6 @@ namespace UE
 					CommonPipelineDataFactoryNode->GetCustomGlobalOffsetTransform(GlobalOffsetTransform);
 				}
 
-				//We assume normalize weight method in this bind pose conversion
-
-				const FTransform MeshGlobalTransformInverse = MeshGlobalTransform.Inverse();
 				const int32 JointCount = JointNames.Num();
 				for (int32 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
 				{
@@ -377,26 +377,29 @@ namespace UE
 					{
 						continue;
 					}
-					
-					FTransform JointBindPoseGlobalTransform;
-					if (!ensure(JointNode->GetCustomBindPoseGlobalTransform(NodeContainer, GlobalOffsetTransform, JointBindPoseGlobalTransform)))
+
+					FTransform BindPose;
+					if (!ensure(JointNode->GetCustomBindPoseGlobalTransform(NodeContainer, FTransform::Identity, BindPose)))
 					{
 						//BindPose will fall back on LocalTransform in case its not present.
 						//If neither is present: No Value to convert from, skip this joint.
 						continue;
 					}
 
-					FTransform JointTimeZeroGlobalTransform;
-					if (!JointNode->GetCustomTimeZeroGlobalTransform(NodeContainer, GlobalOffsetTransform, JointTimeZeroGlobalTransform))
+					FTransform T0;
+					if (!JointNode->GetCustomTimeZeroGlobalTransform(NodeContainer, FTransform::Identity, T0))
 					{
 						//If there is no time zero global transform we cannot set the bind pose to time zero.
 						//We must skip this joint.
 						continue;
 					}
 
-					//JointBindPoseGlobalTransform Contains the GlobalTransform as the GlobalTransform calculation fallsback onto Transform (from BindPoseTransform or T0Transforms if they are not present)
-					//Multiply both transform to get a matrix that will transform the mesh vertices from the bind pose skinning to the time zero skinning
-					const FMatrix VertexTransformMatrix = (JointBindPoseGlobalTransform.Inverse() * JointTimeZeroGlobalTransform).ToMatrixWithScale();
+					FMatrix TransformMatrix = FMatrix::Identity;
+					JointNode->GetGlobalBindPoseReferenceForMeshUID(MeshNode->GetUniqueID(), TransformMatrix);
+					FTransform TransformMatrixTransform;
+					TransformMatrixTransform.SetFromMatrix(TransformMatrix);
+
+					FMatrix VertexTransformMatrix = (SceneNodeTransform.Inverse() * ((TransformMatrixTransform * BindPose.Inverse()) * (T0 * SceneNodeTransform.Inverse()))).ToMatrixWithScale();
 
 					//Iterate all bone vertices
 					for (FVertexID VertexID : MeshDescription.Vertices().GetElementIDs())
@@ -443,7 +446,7 @@ namespace UE
 						//Normalized, in case the weight is different then 1
 						lDstVertex /= Weight;
 						//Set the new vertex position in the mesh description
-						VertexPositions[VertexID] = lDstVertex;
+						VertexPositions[VertexID] = FVector3f(FVector4f(SceneNodeTransform.TransformFVector4(FVector(lDstVertex))));
 					}
 				}
 			}
@@ -546,12 +549,7 @@ namespace UE
 					{
 						//We need to rebind the mesh at time 0. Skeleton joint have the time zero transform, so we need to apply the skinning to the mesh
 						//With the skeleton transform at time zero
-						FTransform MeshGlobalTransform = FTransform::Identity;
-						if (MeshNodeContext.SceneGlobalTransform.IsSet())
-						{
-							MeshGlobalTransform = MeshNodeContext.SceneGlobalTransform.GetValue();
-						}
-						SkinVertexPositionToTimeZero(LodMeshPayload.GetValue(), NodeContainer, RootJointNodeId, MeshGlobalTransform);
+						SkinVertexPositionToTimeZero(LodMeshPayload.GetValue(), NodeContainer, RootJointNodeId, MeshNodeContext.MeshNode, MeshNodeContext.SceneNode, MeshNodeContext.SceneGlobalTransform.Get(FTransform::Identity));
 					}
 
 					const int32 RefBoneCount = RefBonesBinary.Num();

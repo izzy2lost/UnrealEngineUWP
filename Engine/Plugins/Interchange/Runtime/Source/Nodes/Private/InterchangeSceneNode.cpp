@@ -47,6 +47,14 @@ namespace UE
 			return SlotMaterialDependenciesString;
 		}
 
+		const FString& FSceneNodeStaticData::GetMeshToGlobalBindPoseReferencesString()
+		{
+			static FString MeshToGlobalBindPoseReferncesString(TEXT("__MeshToGlobalBindPoseReferences__"));
+			return MeshToGlobalBindPoseReferncesString;
+		}
+
+		
+
 		const FString& FSceneNodeStaticData::GetMorphTargetCurveWeightsKey()
 		{
 			static FString MorphTargetCurvesKey(TEXT("__MorphTargetCurveWeights__Key"));
@@ -58,6 +66,7 @@ namespace UE
 UInterchangeSceneNode::UInterchangeSceneNode()
 {
 	NodeSpecializeTypes.Initialize(Attributes, UE::Interchange::FSceneNodeStaticData::GetNodeSpecializeTypeBaseKey().ToString());
+	MeshToGlobalBindPoseReferences.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetMeshToGlobalBindPoseReferencesString());
 	SlotMaterialDependencies.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetSlotMaterialDependenciesString());
 	MorphTargetCurveWeights.Initialize(Attributes.ToSharedRef(), UE::Interchange::FSceneNodeStaticData::GetMorphTargetCurveWeightsKey());
 }
@@ -416,4 +425,17 @@ bool UInterchangeSceneNode::SetCustomAnimationAssetUidToPlay(const FString& Attr
 bool UInterchangeSceneNode::GetCustomAnimationAssetUidToPlay(FString& AttributeValue) const
 {
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(AnimationAssetUidToPlay, FString);
+}
+
+bool UInterchangeSceneNode::GetGlobalBindPoseReferenceForMeshUID(const FString& MeshUID, FMatrix& GlobalBindPoseReference) const
+{
+	return MeshToGlobalBindPoseReferences.GetValue(MeshUID, GlobalBindPoseReference);
+}
+
+void UInterchangeSceneNode::SetGlobalBindPoseReferenceForMeshUIDs(const TMap<FString, FMatrix>& GlobalBindPoseReferenceForMeshUIDs)
+{
+	for (const TPair<FString, FMatrix>& Entry: GlobalBindPoseReferenceForMeshUIDs)
+	{
+		MeshToGlobalBindPoseReferences.SetKeyValue(Entry.Key, Entry.Value);
+	}
 }

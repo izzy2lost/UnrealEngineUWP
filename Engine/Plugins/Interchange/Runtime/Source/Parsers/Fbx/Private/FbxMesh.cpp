@@ -1991,7 +1991,7 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 	} // for GeometryCount
 }
 
-bool FFbxMesh::GetGlobalJointBindPoseTransform(FFbxParser* Parser, FbxScene* SDKScene, FbxNode* Joint, FbxAMatrix& GlobalBindPoseJointMatrix, bool& bBadBindPoseMessageDisplay)
+bool FFbxMesh::GetGlobalJointBindPoseTransform(FFbxParser* Parser, FbxScene* SDKScene, FbxNode* Joint, FbxAMatrix& GlobalBindPoseJointMatrix, TMap<FString, FMatrix>& MeshIdToGlobalBindPoseReferenceMap, bool& bBadBindPoseMessageDisplay)
 {
 	FbxManager* SDKManager = SDKScene->GetFbxManager();
 	//First look for Cluster and then look in the bind pose if no cluster was found
@@ -2001,11 +2001,13 @@ bool FFbxMesh::GetGlobalJointBindPoseTransform(FFbxParser* Parser, FbxScene* SDK
 	const int32 GeometryCount = SDKScene->GetGeometryCount();
 	for (int32 GeometryIndex = 0; GeometryIndex < GeometryCount; ++GeometryIndex)
 	{
-		const FbxGeometry* Geometry = SDKScene->GetGeometry(GeometryIndex);
+		FbxGeometry* Geometry = SDKScene->GetGeometry(GeometryIndex);
 		if (!ensure(Geometry))
 		{
 			continue;
 		}
+		FString MeshUniqueID = Parser->GetFbxHelper()->GetMeshUniqueID(Geometry);
+
 		const int32 GeometryDeformerCount = Geometry->GetDeformerCount(FbxDeformer::eSkin);
 		for (int32 GeometryDeformerIndex = 0; GeometryDeformerIndex < GeometryDeformerCount; ++GeometryDeformerIndex)
 		{
@@ -2027,11 +2029,25 @@ bool FFbxMesh::GetGlobalJointBindPoseTransform(FFbxParser* Parser, FbxScene* SDK
 				}
 				if (Joint == Cluster->GetLink())
 				{
+					uint64 ClusterId = Cluster->GetUniqueID();
+					uint64 MeshId = Geometry->GetUniqueID();
+
 					Cluster->GetTransformLinkMatrix(GlobalBindPoseJointMatrix);
-					return true;
+
+					FbxAMatrix GlobalBindPoseReferenceMatrix;
+					Cluster->GetTransformMatrix(GlobalBindPoseReferenceMatrix);
+					
+					MeshIdToGlobalBindPoseReferenceMap.Add(MeshUniqueID, FFbxConvert::ConvertMatrix<FMatrix>(GlobalBindPoseReferenceMatrix));
+
+					//Presumes only 1 cluster per geometry that matches criteria:
+					break;
 				}
 			}
 		}
+	}
+	if (MeshIdToGlobalBindPoseReferenceMap.Num() > 0)
+	{
+		return true;
 	}
 
 	auto AcquireBindPoseMatrix = [](FbxPose* CurrentPose, FbxAMatrix& GlobalBindPoseJointMatrix, FbxNode* Joint)

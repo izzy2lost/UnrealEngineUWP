@@ -22,6 +22,7 @@ namespace UE
 			static const FString& GetTransformSpecializeTypeString();
 			static const FString& GetJointSpecializeTypeString();
 			static const FString& GetLodGroupSpecializeTypeString();
+			static const FString& GetMeshToGlobalBindPoseReferencesString();
 			static const FString& GetSlotMaterialDependenciesString();
 			static const FString& GetMorphTargetCurveWeightsKey();
 		};
@@ -221,6 +222,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | SkeletalMesh")
 	bool GetCustomAnimationAssetUidToPlay(FString& AttributeValue) const;
 
+	/** Set the Global Bind Pose Referenced for MeshUIDs. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
+	void SetGlobalBindPoseReferenceForMeshUIDs(const TMap<FString, FMatrix>& GlobalBindPoseReferenceForMeshUIDs);
+
+	/** Get the Global Bind Pose Reference for given MeshUID. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
+	bool GetGlobalBindPoseReferenceForMeshUID(const FString& MeshUID, FMatrix& GlobalBindPoseReference) const;
+
+
+
 private:
 
 	bool GetGlobalTransformInternal(const UE::Interchange::FAttributeKey LocalTransformKey
@@ -247,7 +258,7 @@ private:
 
 	//A scene node can reference an asset. Asset can be Mesh, Light, camera...
 	const UE::Interchange::FAttributeKey Macro_CustomAssetInstanceUidKey = UE::Interchange::FAttributeKey(TEXT("AssetInstanceUid"));
-	
+
 	//A scene node can represent many special types
 	UE::Interchange::TArrayAttributeHelper<FString> NodeSpecializeTypes;
 
@@ -256,6 +267,9 @@ private:
 
 	//A scene node can have different MorphTarget curve settings:
 	UE::Interchange::TMapAttributeHelper<FString, float> MorphTargetCurveWeights;
+
+	//BindPose References per Mesh for a JointNode.
+	UE::Interchange::TMapAttributeHelper<FString, FMatrix> MeshToGlobalBindPoseReferences;
 
 	//A scene node can reference an animation asset on top of base asset:
 	const UE::Interchange::FAttributeKey Macro_CustomAnimationAssetUidToPlayKey = UE::Interchange::FAttributeKey(TEXT("AnimationAssetUidToPlay"));
