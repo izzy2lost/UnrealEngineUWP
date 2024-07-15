@@ -24,13 +24,8 @@ struct FCachedLegacyConversionFrameRate
 	FCachedLegacyConversionFrameRate()
 		: FrameRate(60000, 1)
 	{
-		DelegateHandle = IConsoleManager::Get().RegisterConsoleVariableSink_Handle(FConsoleCommandDelegate::CreateRaw(this, &FCachedLegacyConversionFrameRate::OnChanged));
-
+		IConsoleManager::Get().RegisterConsoleVariableSink_Handle(FConsoleCommandDelegate::CreateRaw(this, &FCachedLegacyConversionFrameRate::OnChanged));
 		OnChanged();
-	}
-	~FCachedLegacyConversionFrameRate()
-	{
-		IConsoleManager::Get().UnregisterConsoleVariableSink_Handle(DelegateHandle);
 	}
 
 	void OnChanged()
@@ -39,7 +34,6 @@ struct FCachedLegacyConversionFrameRate
 	}
 
 	FFrameRate FrameRate;
-	FConsoleVariableSinkHandle DelegateHandle;
 };
 
 FFrameRate GetLegacyConversionFrameRate()
