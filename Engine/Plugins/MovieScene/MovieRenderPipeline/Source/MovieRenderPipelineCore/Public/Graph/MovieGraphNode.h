@@ -429,6 +429,14 @@ public:
 	 * identifier.
 	 */
 	virtual FString GetNodeInstanceName() const { return FString(); }
+
+	/**
+	 * In some very rare cases, a node needs to be "primed" from the node that the flattening is starting from before it's actually put through the
+	 * flattening process.
+	 *
+	 * The need for this should be exceedingly uncommon, so only use if absolutely necessary.
+	 */
+	virtual void PrepareForFlattening(const UMovieGraphSettingNode* InSourceNode) { }
 	
 	/*
 	* This is called either on the CDO, or on a "flattened" instance of the node every frame when

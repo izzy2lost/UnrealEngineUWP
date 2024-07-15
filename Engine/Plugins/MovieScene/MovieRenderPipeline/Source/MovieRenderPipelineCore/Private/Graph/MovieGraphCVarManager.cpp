@@ -81,6 +81,12 @@ void FMovieGraphCVarManager::AddEvaluatedGraph(const UMovieGraphEvaluatedConfig*
 		else if (const UMovieGraphApplyCVarPresetNode* ApplyPresetNode = Cast<UMovieGraphApplyCVarPresetNode>(Node))
 		{
 			AddPreset(ApplyPresetNode->ConsoleVariablePreset);
+
+			// Preset nodes can optionally have overrides on top of the preset via promoted pins (and variables connected to them)
+			for (const TPair<FString, float>& CvarOverride : ApplyPresetNode->GetConsoleVariableOverrides())
+			{
+				AddCVar(CvarOverride.Key, CvarOverride.Value);
+			}
 		}
 	}
 }

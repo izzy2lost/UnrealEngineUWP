@@ -120,6 +120,10 @@ protected:
 				DetailBuilder.ForceRefreshDetails();
 			}));
 
+			// Don't show the dynamic properties (which hold values for cvars which are exposed via pins). For some reason hiding the individual
+			// property doesn't work, so the entire category is hidden instead.
+			DetailBuilder.HideCategory("Properties");
+
 			// Hide the default preset property since we'll be making a group that contains it instead (and the group's rows will be the individual
 			// console variables within the preset)
 			ConsoleVariablePresetHandle->MarkHiddenByCustomization();

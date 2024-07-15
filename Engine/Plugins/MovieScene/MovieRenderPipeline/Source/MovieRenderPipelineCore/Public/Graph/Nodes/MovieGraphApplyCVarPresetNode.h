@@ -19,6 +19,16 @@ public:
 
 	virtual FString GetNodeInstanceName() const override;
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
+	virtual TArray<FMovieGraphPropertyInfo> GetOverrideablePropertyInfo() const override;
+	virtual TArray<FPropertyBagPropertyDesc> GetDynamicPropertyDescriptions() const override;
+	virtual void TogglePromotePropertyToPin(const FName& PropertyName) override;
+	virtual void PrepareForFlattening(const UMovieGraphSettingNode* InSourceNode) override;
+
+	/**
+	 * Gets the name and resolved value of any cvars that were overridden via promoted pins. This method only makes sense to call on a
+	 * flattened (resolved) node.
+	 */
+	TArray<TPair<FString, float>> GetConsoleVariableOverrides() const;
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
