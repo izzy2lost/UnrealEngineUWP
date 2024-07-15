@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "MuR/OpLayoutPack.h"
 #include "MuR/MutableMath.h"
 #include "MuR/MutableTrace.h"
