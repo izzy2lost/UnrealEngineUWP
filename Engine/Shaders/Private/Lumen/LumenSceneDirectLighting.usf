@@ -32,7 +32,7 @@ float3 GetIrradianceForLight(
 	FLumenSurfaceCacheData SurfaceCacheData,
 	float3 PreViewTranslation, // LUMEN_LWC_TODO
 	float Exposure,
-	float ShadowFactor)
+	float3 ShadowFactor)
 {
 	FDeferredLightData LightData = GetLumenDirectLightingLightData(LightIndex, PreViewTranslation, Exposure);
 	float3 TranslatedWorldPosition = SurfaceCacheData.WorldPosition + PreViewTranslation;
@@ -93,7 +93,7 @@ void LumenCardBatchDirectLightingCS(
 			ReadShadowMaskRay(LightTile.ShadowMaskIndex, TexelCoordInTile, ShadowMaskRay);
 		}
 
-		if (ShadowMaskRay.ShadowFactor > 0.0f)
+		if (any(ShadowMaskRay.ShadowFactor > 0.0f))
 		{
 			uint ViewIndex = HAS_MULTIPLE_VIEWS ? LightTile.ViewIndex : 0;
 			Irradiance += GetIrradianceForLight(LightTile.LightIndex, SurfaceCacheData, PreViewTranslation[ViewIndex].xyz, ViewExposure[ViewIndex], ShadowMaskRay.ShadowFactor);

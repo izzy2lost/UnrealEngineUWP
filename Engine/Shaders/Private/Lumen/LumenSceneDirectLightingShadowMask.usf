@@ -128,32 +128,32 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 			ShadowMaskRay.bShadowFactorComplete = false;
 
 			#if USE_LIGHT_FUNCTION_ATLAS
-			if (ShadowMaskRay.ShadowFactor > 0.01f && DeferredLightUniforms.LightFunctionAtlasLightIndex > 0)
+			if (any(ShadowMaskRay.ShadowFactor > 0.01f) && DeferredLightUniforms.LightFunctionAtlasLightIndex > 0)
 			{
 				ShadowMaskRay.ShadowFactor *= GetLocalLightFunctionCommon(TranslatedWorldPosition, DeferredLightUniforms.LightFunctionAtlasLightIndex);
-				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || ShadowMaskRay.ShadowFactor < 0.01f;
+				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || any(ShadowMaskRay.ShadowFactor > 0.01f);
 			}
 			#elif LIGHT_FUNCTION
-			if (ShadowMaskRay.ShadowFactor > 0.01f)
+			if (any(ShadowMaskRay.ShadowFactor > 0.01f))
 			{
 				ShadowMaskRay.ShadowFactor *= GetLumenLightFunction(TranslatedWorldPosition);
-				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || ShadowMaskRay.ShadowFactor < 0.01f;
+				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || any(ShadowMaskRay.ShadowFactor > 0.01f);
 			}
 			#endif
 
 			#if USE_CLOUD_TRANSMITTANCE
-			if (ShadowMaskRay.ShadowFactor > 0.01f)
+			if (any(ShadowMaskRay.ShadowFactor > 0.01f))
 			{
 				float OutOpticalDepth = 0.0f;
 				ShadowMaskRay.ShadowFactor *= lerp(1.0f, GetCloudVolumetricShadow(TranslatedWorldPosition, CloudShadowmapTranslatedWorldToLightClipMatrix, CloudShadowmapFarDepthKm, CloudShadowmapTexture, CloudShadowmapSampler, OutOpticalDepth), CloudShadowmapStrength);
-				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || ShadowMaskRay.ShadowFactor < 0.01f;
+				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || any(ShadowMaskRay.ShadowFactor > 0.01f);
 			}
 			#endif
 
-			if (ShadowMaskRay.ShadowFactor > 0.01f && DeferredLightUniforms.IESAtlasIndex >= 0)
+			if (any(ShadowMaskRay.ShadowFactor > 0.01f) && DeferredLightUniforms.IESAtlasIndex >= 0)
 			{
 				ShadowMaskRay.ShadowFactor *= ComputeLightProfileMultiplier(TranslatedWorldPosition, DeferredLightUniforms.TranslatedWorldPosition, -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
-				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || ShadowMaskRay.ShadowFactor < 0.01f;
+				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || any(ShadowMaskRay.ShadowFactor > 0.01f);
 			}
 
 			const bool bCastShadows = LightData.ShadowedBits >= 3;

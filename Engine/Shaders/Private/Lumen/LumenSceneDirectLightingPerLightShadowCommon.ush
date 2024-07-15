@@ -31,13 +31,21 @@ void ReadSharedShadowMaskRay(uint2 CoordInCardTile, inout FShadowMaskRay ShadowM
 	uint ShadowMask = SharedShadowMask[BitOffset / 32];
 	ShadowMask = ShadowMask >> (BitOffset % 32);
 
+#if LUMEN_COLORED_LIGHT_FUNCTION_ATLAS
+	ShadowMaskRay.ShadowFactor = GetColoredShadowFactorFromMask(ShadowMask);
+#else
 	ShadowMaskRay.ShadowFactor = float(ShadowMask & SHADOW_FACTOR_BITS_MASK) / SHADOW_FACTOR_BITS_MASK;
+#endif
 	ShadowMaskRay.bShadowFactorComplete = (ShadowMask & SHADOW_FACTOR_COMPLETE_BITS_MASK) != 0;
 }
 
 void WriteSharedShadowMaskRay(FShadowMaskRay Ray, uint2 CoordInCardTile, const bool bClearExistingMask)
 {
+#if LUMEN_COLORED_LIGHT_FUNCTION_ATLAS
+	uint Mask = GetMaskFromColoredShadowFactor(Ray.ShadowFactor);
+#else
 	uint Mask = uint(Ray.ShadowFactor * SHADOW_FACTOR_BITS_MASK);
+#endif
 
 	if (Ray.bShadowFactorComplete)
 	{

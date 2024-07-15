@@ -2026,8 +2026,9 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 		FLumenCardTileUpdateContext CardTileUpdateContext;
 		CullDirectLightingTiles(GraphBuilder, Views, FrameTemporaries, CardUpdateContext, LumenCardSceneUniformBuffer, GatheredLights, LumenPackedLights, CullContext, CardTileUpdateContext, ComputePassFlags);
 
-		// 8 bits per shadow mask texel
-		const uint32 ShadowMaskTilesSize = FMath::Max(16 * CullContext.MaxCulledCardTiles, 1024u);
+		// 8 bits per shadow mask texel. But if colored light function atlas is used, then 16bits per shadow mask texel.
+		const uint32 ShadowMaskTilesSizeFactor = GetLightFunctionAtlasFormat() > 0 ? 2 : 1;
+		const uint32 ShadowMaskTilesSize = FMath::Max(ShadowMaskTilesSizeFactor * 16 * CullContext.MaxCulledCardTiles, 1024u);
 		FRDGBufferRef ShadowMaskTiles = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), ShadowMaskTilesSize), TEXT("Lumen.DirectLighting.ShadowMaskTiles"));
 
 		// 1 uint per packed shadow trace
@@ -2042,7 +2043,7 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadowTraceAllocator), 0);
 		}
 
-		// Compute shadow mask basd on light attenuation (IES/LightFunction/Distance fall) to reduce need for shadow tracing done after.
+		// Compute shadow mask based on light attenuation (IES/LightFunction/Distance fall) to reduce need for shadow tracing done after.
 		{
 			SCOPED_NAMED_EVENT_TEXT("Light Attenuation ShadowMask ", FColor::Green);
 			RDG_EVENT_SCOPE_FINAL(GraphBuilder, "Light Attenuation ShadowMask");
