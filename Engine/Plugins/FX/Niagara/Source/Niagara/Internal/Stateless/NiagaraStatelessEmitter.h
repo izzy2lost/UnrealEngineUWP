@@ -5,7 +5,7 @@
 #include "NiagaraStatelessCommon.h"
 #include "NiagaraStatelessSpawnInfo.h"
 #include "NiagaraDataSet.h"
-#include "NiagaraEFfectType.h"
+#include "NiagaraEffectType.h"
 #include "NiagaraRendererProperties.h"
 #include "NiagaraSystemEmitterState.h"
 #include "Stateless/NiagaraStatelessEmitterTemplate.h"
