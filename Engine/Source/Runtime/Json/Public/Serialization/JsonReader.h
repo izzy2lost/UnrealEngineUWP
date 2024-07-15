@@ -537,6 +537,13 @@ private:
 							return true;
 						}
 
+						if (Test.Compare(TEXT("NaN"), ESearchCase::IgnoreCase) == 0)
+						{
+							NumberValue = std::numeric_limits<double>::quiet_NaN();
+							OutToken = EJsonToken::Number;
+							return true;
+						}
+
 						SetErrorMessage( TEXT("Invalid Json Token. Check that your member names have quotes around them!") );
 						return false;
 					}
