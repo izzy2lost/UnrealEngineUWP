@@ -88,21 +88,48 @@ struct FNiagaraEmitterStateData
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
 	FNiagaraDistributionRangeFloat LoopDuration = FNiagaraDistributionRangeFloat(1.0f);
 
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
-	bool bRecalculateDurationEachLoop = false;
-
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
 	FNiagaraDistributionRangeFloat LoopDelay = FNiagaraDistributionRangeFloat(0.0f);
 
+	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides, DisplayAfter = "LoopDuration"))
+	uint32 bRecalculateDurationEachLoop : 1 = false;
+
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
-	bool bDelayFirstLoopOnly = false;
+	uint32 bDelayFirstLoopOnly : 1 = false;
 
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once && !bDelayFirstLoopOnly", EditConditionHides))
-	bool bRecalculateDelayEachLoop = false;
+	uint32 bRecalculateDelayEachLoop : 1 = false;
 
-	//UPROPERTY(EditAnywhere, Category="Emitter State")
-	//ENiagaraStatelessEmitterState_SelfSystem Scalability = ENiagaraStatelessEmitterState_SelfSystem::Self;
-	//Enable Distance Culling
-	//Enable Visibility Culling
-	//Reset Age On Awaken
+	UPROPERTY(EditAnywhere, Category = "Scalability")
+	uint32 bEnableDistanceCulling : 1 = false;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (DisplayAfter = "MaxDistanceReaction"))
+	uint32 bEnableVisibilityCulling : 1 = false;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling", EditConditionHides))
+	uint32 bMinDistanceEnabled : 1 = false;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling", EditConditionHides))
+	uint32 bMaxDistanceEnabled : 1 = false;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (DisplayAfter = "VisibilityCullDelay"))
+	uint32 bResetAgeOnAwaken : 1 = false;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling && bMinDistanceEnabled", EditConditionHides))
+	float MinDistance = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling && bMinDistanceEnabled", EditConditionHides))
+	ENiagaraExecutionStateManagement MinDistanceReaction = ENiagaraExecutionStateManagement::Awaken;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling && bMaxDistanceEnabled", EditConditionHides))
+	float MaxDistance = 5000.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableDistanceCulling && bMaxDistanceEnabled", EditConditionHides))
+	ENiagaraExecutionStateManagement MaxDistanceReaction = ENiagaraExecutionStateManagement::SleepAndLetParticlesFinish;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableVisibilityCulling", EditConditionHides))
+	ENiagaraExecutionStateManagement VisibilityCullReaction = ENiagaraExecutionStateManagement::SleepAndLetParticlesFinish;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (EditCondition = "bEnableVisibilityCulling", EditConditionHides))
+	float VisibilityCullDelay = 1.0f;
 };

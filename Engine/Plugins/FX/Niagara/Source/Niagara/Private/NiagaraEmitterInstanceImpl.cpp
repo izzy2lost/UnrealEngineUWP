@@ -1051,6 +1051,11 @@ void FNiagaraEmitterInstanceImpl::TickRapidIterationParameters()
 }
 #endif
 
+bool FNiagaraEmitterInstanceImpl::ShouldTick() const
+{
+	return ExecutionState == ENiagaraExecutionState::Active || GetNumParticles() > 0;
+}
+
 /** 
   * PreTick - handles killing dead particles, emitter death, and buffer swaps
   */

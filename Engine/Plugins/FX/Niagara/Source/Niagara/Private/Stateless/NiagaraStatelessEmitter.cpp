@@ -269,6 +269,11 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 	// Setup emitter state
 	StatelessEmitterData->EmitterState = EmitterState;
 
+	if (StatelessEmitterData->EmitterState.bEnableDistanceCulling)
+	{
+		StatelessEmitterData->EmitterState.bEnableDistanceCulling = StatelessEmitterData->EmitterState.bMinDistanceEnabled | StatelessEmitterData->EmitterState.bMaxDistanceEnabled;
+	}
+
 	StatelessEmitterData->EmitterState.LoopDuration.Min = FMath::Max(StatelessEmitterData->EmitterState.LoopDuration.Min, UE_KINDA_SMALL_NUMBER);
 	StatelessEmitterData->EmitterState.LoopDuration.Max = FMath::Max(StatelessEmitterData->EmitterState.LoopDuration.Max, UE_KINDA_SMALL_NUMBER);
 

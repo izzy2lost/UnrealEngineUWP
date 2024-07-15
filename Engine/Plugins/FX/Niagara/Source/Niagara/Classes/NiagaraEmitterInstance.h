@@ -39,7 +39,8 @@ public:
 	virtual void BindParameters(bool bExternalOnly) = 0;
 	virtual void UnbindParameters(bool bExternalOnly) = 0;
 
-	virtual void PreTick() {};
+	virtual bool ShouldTick() const = 0;
+	virtual void PreTick() {}
 	virtual void Tick(float DeltaSeconds) = 0;
 	//~End: Define Emitter Interface
 
@@ -64,8 +65,6 @@ public:
 	bool IsDisabled() const { return ExecutionState == ENiagaraExecutionState::Disabled; }
 	bool IsInactive() const { return ExecutionState == ENiagaraExecutionState::Inactive; }
 	bool IsComplete() const { return ExecutionState == ENiagaraExecutionState::Complete || ExecutionState == ENiagaraExecutionState::Disabled; }
-
-	FORCEINLINE bool ShouldTick() const { return ExecutionState == ENiagaraExecutionState::Active || GetNumParticles() > 0; }
 
 	//-TODO:Stateless: Does this need to be virtual?  Can we cache the value after ticking / allocating the data / have a cache value somewhere instead?
 	NIAGARA_API virtual int32 GetNumParticles() const;

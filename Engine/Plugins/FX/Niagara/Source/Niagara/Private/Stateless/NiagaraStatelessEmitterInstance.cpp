@@ -97,7 +97,7 @@ void FNiagaraStatelessEmitterInstance::Init(int32 InEmitterIndex)
 	GPUDataBufferInterfaces = RenderThreadDataPtr.Get();
 
 	InitEmitterState();
-	InitSpawnInfos();
+	InitSpawnInfos(0.0f);
 }
 
 void FNiagaraStatelessEmitterInstance::ResetSimulation(bool bKillExisting)
@@ -129,9 +129,10 @@ void FNiagaraStatelessEmitterInstance::ResetSimulation(bool bKillExisting)
 	bEmitterEnabled_CNC = bEmitterEnabled_GT;
 
 	InitEmitterState();
-	InitSpawnInfos();
+	InitSpawnInfos(0.0f);
 
 	ExecutionState = ENiagaraExecutionState::Active;
+	ScalabilityState = ENiagaraExecutionStateManagement::Awaken;
 	if (NiagaraStateless::FEmitterInstance_RT* RenderThreadData = RenderThreadDataPtr.Get())
 	{
 		ENQUEUE_RENDER_COMMAND(UpdateStatelessAge)(
@@ -174,7 +175,7 @@ bool FNiagaraStatelessEmitterInstance::HandleCompletion(bool bForce)
 
 int32 FNiagaraStatelessEmitterInstance::GetNumParticles() const
 {
-	return bCanEverExecute ? EmitterData->CalculateActiveParticles(RandomSeed, SpawnInfos, Age) : 0;
+	return bCanEverExecute && (SpawnInfos.Num() > 0) ? EmitterData->CalculateActiveParticles(RandomSeed, SpawnInfos, Age) : 0;
 }
 
 TConstArrayView<UNiagaraRendererProperties*> FNiagaraStatelessEmitterInstance::GetRenderers() const
@@ -220,6 +221,11 @@ void FNiagaraStatelessEmitterInstance::UnbindParameters(bool bExternalOnly)
 	}
 }
 
+bool FNiagaraStatelessEmitterInstance::ShouldTick() const
+{
+	return ExecutionState <= ENiagaraExecutionState::Inactive;
+}
+
 void FNiagaraStatelessEmitterInstance::Tick(float DeltaSeconds)
 {
 	Age += DeltaSeconds;
@@ -242,65 +248,140 @@ void FNiagaraStatelessEmitterInstance::InitEmitterState()
 
 void FNiagaraStatelessEmitterInstance::TickEmitterState()
 {
-	if (ParentSystemInstance)
+	// Update execution state based on the parent which be told to go inactive / complete
 	{
-		const ENiagaraExecutionState ParentExecutionState = ParentSystemInstance->GetActualExecutionState();
+		const ENiagaraExecutionState ParentExecutionState = ParentSystemInstance ? ParentSystemInstance->GetActualExecutionState() : ENiagaraExecutionState::Complete;
 		if (ParentExecutionState > ExecutionState)
 		{
 			SetExecutionStateInternal(ParentExecutionState);
 		}
 	}
 
-	if (ExecutionState == ENiagaraExecutionState::Active)
+	// If we are going inactive and we hit zero particles we are now complete
+	if (ExecutionState == ENiagaraExecutionState::Inactive)
 	{
-		if (Age < CurrentLoopAgeEnd)
-		{
-			return;
-		}
-
-		const FNiagaraEmitterStateData& EmitterState = EmitterData->EmitterState;
-		if (EmitterState.LoopBehavior == ENiagaraLoopBehavior::Once)
-		{
-			SetExecutionStateInternal(ENiagaraExecutionState::Inactive);
-			return;
-		}
-
-		// Keep looping until we find out which loop we are in as a small loop age + large DT could result in crossing multiple loops
-		do
-		{
-			++LoopCount;
-			if (EmitterState.LoopBehavior == ENiagaraLoopBehavior::Multiple && LoopCount >= EmitterState.LoopCount)
-			{
-				SetExecutionStateInternal(ENiagaraExecutionState::Inactive);
-				return;
-			}
-
-			if (EmitterState.bRecalculateDurationEachLoop)
-			{
-				CurrentLoopDuration = RandomStream.FRandRange(EmitterState.LoopDuration.Min, EmitterState.LoopDuration.Max);
-			}
-
-			if (EmitterState.bDelayFirstLoopOnly)
-			{
-				CurrentLoopDelay	= 0.0f;
-			}
-			else if ( EmitterState.bRecalculateDelayEachLoop )
-			{
-				CurrentLoopDelay	= RandomStream.FRandRange(EmitterState.LoopDelay.Min, EmitterState.LoopDelay.Max);
-			}
-
-			CurrentLoopAgeStart	= CurrentLoopAgeEnd;
-			CurrentLoopAgeEnd	= CurrentLoopAgeStart + CurrentLoopDelay + CurrentLoopDuration;
-			InitSpawnInfosForLoop();
-		} while ( Age >= CurrentLoopAgeEnd );
-	}
-	else if (ExecutionState == ENiagaraExecutionState::Inactive)
-	{
-		if (SpawnInfos.Num() == 0 || GetNumParticles() == 0)
+		if (GetNumParticles() == 0)
 		{
 			SetExecutionStateInternal(ENiagaraExecutionState::Complete);
 		}
+	}
+
+	// If we are not active we don't need to evaluate loops / scalability anymore
+	if ( ExecutionState != ENiagaraExecutionState::Active )
+	{
 		return;
+	}
+
+	const FNiagaraEmitterStateData& EmitterState = EmitterData->EmitterState;
+
+	// Evaluate scalability state
+	{
+		ENiagaraExecutionStateManagement RequestedScalabilityState = ENiagaraExecutionStateManagement::Awaken;
+		if (EmitterState.bEnableVisibilityCulling)
+		{
+			const FNiagaraSystemParameters& SystemParameters = ParentSystemInstance->GetSystemParameters();
+			if (SystemParameters.EngineTimeSinceRendered > EmitterState.VisibilityCullDelay)
+			{
+				RequestedScalabilityState = EmitterState.VisibilityCullReaction;
+			}
+		}
+
+		if (EmitterState.bEnableDistanceCulling)
+		{
+			const float LODDistance = ParentSystemInstance->GetLODDistance();
+
+			if (LODDistance > EmitterState.MaxDistance)
+			{
+				RequestedScalabilityState = EmitterState.MaxDistanceReaction;
+			}
+			else if (LODDistance < EmitterState.MinDistance)
+			{
+				RequestedScalabilityState = EmitterState.MinDistanceReaction;
+			}
+		}
+
+		// We need to transition the state
+		if (RequestedScalabilityState != ScalabilityState)
+		{
+			ScalabilityState = RequestedScalabilityState;
+			switch (RequestedScalabilityState)
+			{
+				case ENiagaraExecutionStateManagement::Awaken:
+					if (EmitterState.bResetAgeOnAwaken)
+					{
+						ResetSimulation(false);
+					}
+					break;
+
+				case ENiagaraExecutionStateManagement::SleepAndLetParticlesFinish:
+				case ENiagaraExecutionStateManagement::KillAfterParticlesFinish:
+					CropSpawnInfos();
+					break;
+
+				case ENiagaraExecutionStateManagement::SleepAndClearParticles:
+					KillSpawnInfos();
+					break;
+
+				case ENiagaraExecutionStateManagement::KillImmediately:
+					SetExecutionStateInternal(ENiagaraExecutionState::Complete);
+					return;
+			}
+		}
+
+		// Perform any per frame operations for scalability state
+		switch (ScalabilityState)
+		{
+			case ENiagaraExecutionStateManagement::KillAfterParticlesFinish:
+				if ( GetNumParticles() == 0 )
+				{
+					SetExecutionStateInternal(ENiagaraExecutionState::Complete);
+					return;
+				}
+				break;
+		}
+	}
+
+	// Evaluate emitter state
+	if ( Age >= CurrentLoopAgeEnd )
+	{
+		// Do we only execute a single loop?
+		if (EmitterState.LoopBehavior == ENiagaraLoopBehavior::Once)
+		{
+			SetExecutionStateInternal(ENiagaraExecutionState::Inactive);
+		}
+		// Multi-loop inject our new spawn infos
+		else
+		{
+			// Keep looping until we find out which loop we are in as a small loop age + large DT could result in crossing multiple loops
+			do
+			{
+				++LoopCount;
+				if (EmitterState.LoopBehavior == ENiagaraLoopBehavior::Multiple && LoopCount >= EmitterState.LoopCount)
+				{
+					SetExecutionStateInternal(ENiagaraExecutionState::Inactive);
+					break;
+				}
+
+				if (EmitterState.bRecalculateDurationEachLoop)
+				{
+					CurrentLoopDuration = RandomStream.FRandRange(EmitterState.LoopDuration.Min, EmitterState.LoopDuration.Max);
+				}
+
+				if (EmitterState.bDelayFirstLoopOnly)
+				{
+					CurrentLoopDelay = 0.0f;
+				}
+				else if (EmitterState.bRecalculateDelayEachLoop)
+				{
+					CurrentLoopDelay = RandomStream.FRandRange(EmitterState.LoopDelay.Min, EmitterState.LoopDelay.Max);
+				}
+
+				CurrentLoopAgeStart = CurrentLoopAgeEnd;
+				CurrentLoopAgeEnd = CurrentLoopAgeStart + CurrentLoopDelay + CurrentLoopDuration;
+
+				InitSpawnInfosForLoop(CurrentLoopAgeStart);
+			} while (Age >= CurrentLoopAgeEnd);
+		}
 	}
 }
 
@@ -391,33 +472,35 @@ void FNiagaraStatelessEmitterInstance::SendRenderData()
 	);
 }
 
-void FNiagaraStatelessEmitterInstance::InitSpawnInfos()
+void FNiagaraStatelessEmitterInstance::InitSpawnInfos(float InitializationAge)
 {
-	UniqueIndexOffset = 0;
-
-	if (bEmitterEnabled_CNC)
+	// If we are not enabled, or not awake from scalability skip adding
+	if (!bEmitterEnabled_GT || (ScalabilityState != ENiagaraExecutionStateManagement::Awaken))
 	{
-		for (const FNiagaraStatelessSpawnInfo& SpawnInfo : EmitterData->SpawnInfos)
+		return;
+	}
+
+	for (const FNiagaraStatelessSpawnInfo& SpawnInfo : EmitterData->SpawnInfos)
+	{
+		if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
 		{
-			if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
+			const float SpawnRate = RandomStream.FRandRange(SpawnInfo.Rate.Min, SpawnInfo.Rate.Max) * EmitterData->SpawnCountScale;
+			if (SpawnRate > 0.0f)
 			{
-				const float SpawnRate = RandomStream.FRandRange(SpawnInfo.Rate.Min, SpawnInfo.Rate.Max) * EmitterData->SpawnCountScale;
-				if (SpawnRate > 0.0f)
-				{
-					FActiveSpawnRate& ActiveSpawnRate = ActiveSpawnRates.AddDefaulted_GetRef();
-					ActiveSpawnRate.Rate = SpawnRate;
-					ActiveSpawnRate.SpawnTime = CurrentLoopDelay;
-				}
+				FActiveSpawnRate& ActiveSpawnRate = ActiveSpawnRates.AddDefaulted_GetRef();
+				ActiveSpawnRate.Rate = SpawnRate;
+				ActiveSpawnRate.SpawnTime = CurrentLoopDelay;
 			}
 		}
-
-		InitSpawnInfosForLoop();
 	}
+
+	InitSpawnInfosForLoop(InitializationAge);
 }
 
-void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop()
+void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop(float InitializationAge)
 {
-	if (bEmitterEnabled_CNC == false)
+	// If we are not enabled, or not awake from scalability skip adding
+	if (!bEmitterEnabled_GT || (ScalabilityState != ENiagaraExecutionStateManagement::Awaken))
 	{
 		return;
 	}
@@ -425,7 +508,7 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop()
 	// Add the next chunk for any active spawn rates
 	for (const FActiveSpawnRate& SpawnInfo : ActiveSpawnRates)
 	{
-		float SpawnTime = FMath::Max(CurrentLoopAgeStart - SpawnInfo.SpawnTime, 0.0f);
+		float SpawnTime = FMath::Max(InitializationAge - SpawnInfo.SpawnTime, 0.0f);
 		SpawnTime = FMath::CeilToFloat(SpawnTime * SpawnInfo.Rate) / SpawnInfo.Rate;
 		SpawnTime += SpawnInfo.SpawnTime;
 		if (SpawnTime >= CurrentLoopAgeEnd)
@@ -489,11 +572,17 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop()
 			continue;
 		}
 
+		const float SpawnTime = CurrentLoopAgeStart + CurrentLoopDelay + SpawnInfo.SpawnTime;
+		if (SpawnTime < InitializationAge)
+		{
+			continue;
+		}
+
 		FNiagaraStatelessRuntimeSpawnInfo& NewSpawnInfo = SpawnInfos.AddDefaulted_GetRef();
 		NewSpawnInfo.Type			= ENiagaraStatelessSpawnInfoType::Burst;
 		NewSpawnInfo.UniqueOffset	= UniqueIndexOffset;
-		NewSpawnInfo.SpawnTimeStart	= CurrentLoopAgeStart + CurrentLoopDelay + SpawnInfo.SpawnTime;
-		NewSpawnInfo.SpawnTimeEnd	= NewSpawnInfo.SpawnTimeStart;
+		NewSpawnInfo.SpawnTimeStart	= SpawnTime;
+		NewSpawnInfo.SpawnTimeEnd	= SpawnTime;
 		NewSpawnInfo.Amount			= SpawnAmount;
 
 		UniqueIndexOffset += SpawnAmount;
@@ -503,54 +592,19 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop()
 
 void FNiagaraStatelessEmitterInstance::TickSpawnInfos()
 {
-	if (bEmitterEnabled_CNC != bEmitterEnabled_GT)
+	const bool bNewEmitterEnabled = bEmitterEnabled_GT && (ScalabilityState == ENiagaraExecutionStateManagement::Awaken);
+
+	if (bEmitterEnabled_CNC != bNewEmitterEnabled)
 	{
-		bEmitterEnabled_CNC = bEmitterEnabled_GT;
+		bEmitterEnabled_CNC = bNewEmitterEnabled;
 
 		if (bEmitterEnabled_CNC)
 		{
-			if ( ActiveSpawnRates.Num() > 0 )
-			{
-				for (const FActiveSpawnRate& SpawnInfo : ActiveSpawnRates)
-				{
-					float SpawnTime = FMath::Max(Age - SpawnInfo.SpawnTime, 0.0f);
-					SpawnTime = FMath::CeilToFloat(SpawnTime * SpawnInfo.Rate) / SpawnInfo.Rate;
-					SpawnTime += SpawnInfo.SpawnTime;
-					if (SpawnTime >= CurrentLoopAgeEnd)
-					{
-						continue;
-					}
-
-					FNiagaraStatelessRuntimeSpawnInfo& NewSpawnInfo = SpawnInfos.AddDefaulted_GetRef();
-					NewSpawnInfo.Type = ENiagaraStatelessSpawnInfoType::Rate;
-					NewSpawnInfo.UniqueOffset = UniqueIndexOffset;
-					NewSpawnInfo.SpawnTimeStart = SpawnTime;
-					NewSpawnInfo.SpawnTimeEnd = CurrentLoopAgeEnd;
-					NewSpawnInfo.Rate = SpawnInfo.Rate;
-
-					const float ActiveDuration = CurrentLoopAgeEnd - SpawnTime;
-					const int32 NumSpawned = FMath::FloorToInt(ActiveDuration * SpawnInfo.Rate);
-
-					UniqueIndexOffset += NumSpawned;
-					bSpawnInfosDirty = true;
-				}
-			}
+			RestartSpawnInfos();
 		}
 		else
 		{
-			for (auto SpawnInfoIt=SpawnInfos.CreateIterator(); SpawnInfoIt; ++SpawnInfoIt)
-			{
-				FNiagaraStatelessRuntimeSpawnInfo& SpawnInfo = *SpawnInfoIt;
-				if (SpawnInfo.SpawnTimeStart > Age)
-				{
-					SpawnInfoIt.RemoveCurrent();
-				}
-				else
-				{
-					SpawnInfo.SpawnTimeEnd = FMath::Min(SpawnInfo.SpawnTimeEnd, Age);
-				}
-			}
-			bSpawnInfosDirty = true;
+			CropSpawnInfos();
 		}
 	}
 
@@ -561,6 +615,49 @@ void FNiagaraStatelessEmitterInstance::TickSpawnInfos()
 			return Age >= SpawnInfo.SpawnTimeEnd + MaxLifetime;
 		}
 	);
+}
+
+void FNiagaraStatelessEmitterInstance::CropSpawnInfos()
+{
+	if (!SpawnInfos.Num() && !ActiveSpawnRates.Num())
+	{
+		return;
+	}
+
+	ActiveSpawnRates.Empty(SpawnInfos.Num());
+
+	const float MaxLifetime = EmitterData->LifetimeRange.Max;
+	for (auto it = SpawnInfos.CreateIterator(); it; ++it)
+	{
+		FNiagaraStatelessRuntimeSpawnInfo& SpawnInfo = *it;
+		if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
+		{
+			SpawnInfo.SpawnTimeEnd = FMath::Min(SpawnInfo.SpawnTimeEnd, Age);
+		}
+		if (Age < SpawnInfo.SpawnTimeStart || Age >= SpawnInfo.SpawnTimeEnd + MaxLifetime)
+		{
+			it.RemoveCurrent();
+		}
+	}
+
+	bSpawnInfosDirty = true;
+}
+
+void FNiagaraStatelessEmitterInstance::KillSpawnInfos()
+{
+	if (!SpawnInfos.Num() && !ActiveSpawnRates.Num())
+	{
+		return;
+	}
+
+	SpawnInfos.Empty();
+	ActiveSpawnRates.Empty();
+	bSpawnInfosDirty = true;
+}
+
+void FNiagaraStatelessEmitterInstance::RestartSpawnInfos()
+{
+	InitSpawnInfos(Age);
 }
 
 void FNiagaraStatelessEmitterInstance::SetExecutionStateInternal(ENiagaraExecutionState RequestedExecutionState)
@@ -579,46 +676,23 @@ void FNiagaraStatelessEmitterInstance::SetExecutionStateInternal(ENiagaraExecuti
 		case ENiagaraExecutionState::Inactive:
 			if (EmitterData->EmitterState.InactiveResponse != ENiagaraEmitterInactiveResponse::Kill)
 			{
-				ActiveSpawnRates.Empty();
-
-				// Crop & Remove Spawn Infos
-				const float MaxLifetime = EmitterData->LifetimeRange.Max;
-				for (auto it=SpawnInfos.CreateIterator(); it; ++it)
-				{
-					FNiagaraStatelessRuntimeSpawnInfo& SpawnInfo = *it;
-					if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
-					{
-						SpawnInfo.SpawnTimeEnd = FMath::Min(SpawnInfo.SpawnTimeEnd, Age);
-					}
-					if (Age < SpawnInfo.SpawnTimeStart || Age >= SpawnInfo.SpawnTimeEnd + MaxLifetime)
-					{
-						it.RemoveCurrent();
-					}
-				}
-
-				if (SpawnInfos.Num() > 0)
-				{
-					//-TODO: Better way to send data to renderer
-					if (NiagaraStateless::FEmitterInstance_RT* RenderThreadData = RenderThreadDataPtr.Get())
-					{
-						ENQUEUE_RENDER_COMMAND(FInitStatelessEmitter)(
-							[RenderThreadData=RenderThreadDataPtr.Get(), SpawnInfos_RT=SpawnInfos](FRHICommandListImmediate& RHICmdList) mutable
-							{
-								RenderThreadData->SpawnInfos = MoveTemp(SpawnInfos_RT);
-							}
-						);
-					}
-
-					ExecutionState = ENiagaraExecutionState::Inactive;
-					break;
-				}
+				CropSpawnInfos();
 			}
-			// Intentional fall through as we are complete
+
+			if (SpawnInfos.Num() > 0)
+			{
+				ExecutionState = ENiagaraExecutionState::Inactive;
+			}
+			else
+			{
+				KillSpawnInfos();
+				ExecutionState = ENiagaraExecutionState::Complete;
+			}
+			break;
 
 		case ENiagaraExecutionState::InactiveClear:
 		case ENiagaraExecutionState::Complete:
-			SpawnInfos.Empty();
-			ActiveSpawnRates.Empty();
+			KillSpawnInfos();
 			ExecutionState = ENiagaraExecutionState::Complete;
 			break;
 	}

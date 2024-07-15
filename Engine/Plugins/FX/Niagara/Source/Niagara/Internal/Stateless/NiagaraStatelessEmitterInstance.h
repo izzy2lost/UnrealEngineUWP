@@ -65,6 +65,7 @@ public:
 	virtual TConstArrayView<UNiagaraRendererProperties*> GetRenderers() const override;
 	virtual void BindParameters(bool bExternalOnly) override;
 	virtual void UnbindParameters(bool bExternalOnly) override;
+	virtual bool ShouldTick() const override;
 	virtual void Tick(float DeltaSeconds) override;
 	// FNiagaraEmitterInstance Impl
 
@@ -82,9 +83,12 @@ private:
 	void CalculateBounds();
 	void SendRenderData();
 
-	void InitSpawnInfos();
-	void InitSpawnInfosForLoop();
+	void InitSpawnInfos(float InitializationAge);
+	void InitSpawnInfosForLoop(float InitializationAge);
 	void TickSpawnInfos();
+	void CropSpawnInfos();
+	void KillSpawnInfos();
+	void RestartSpawnInfos();
 
 	//-TODO: This can be shared perhaps?
 	void SetExecutionStateInternal(ENiagaraExecutionState InExecutionState);
@@ -107,6 +111,7 @@ private:
 	TArray<FNiagaraStatelessRuntimeSpawnInfo>	SpawnInfos;
 	TArray<FActiveSpawnRate>					ActiveSpawnRates;
 
+	ENiagaraExecutionStateManagement			ScalabilityState = ENiagaraExecutionStateManagement::Awaken;
 	int32										LoopCount = 0;
 	float										CurrentLoopDuration = 0.0f;
 	float										CurrentLoopDelay = 0.0f;
