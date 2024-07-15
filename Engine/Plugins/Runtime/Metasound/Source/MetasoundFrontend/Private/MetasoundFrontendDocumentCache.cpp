@@ -335,6 +335,7 @@ namespace Metasound::Frontend
 		++TransactionCount;
 	}
 
+#if WITH_EDITORONLY_DATA
 	void FDocumentCache::SetBuildPageID(const FGuid& InPageID)
 	{
 		if (InPageID != BuildPageID)
@@ -343,6 +344,7 @@ namespace Metasound::Frontend
 			BuildPageID = InPageID;
 		}
 	}
+#endif // WITH_EDITORONLY_DATA
 
 	FDocumentGraphInterfaceCache::FDocumentGraphInterfaceCache(TSharedRef<const FDocumentCache> ParentCache)
 		: Parent(ParentCache)

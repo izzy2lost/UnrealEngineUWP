@@ -338,8 +338,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void ConvertToPreset(const TScriptInterface<IMetaSoundDocumentInterface>& ReferencedNodeClass, EMetaSoundBuilderResult& OutResult);
 
+
+#if WITH_EDITORONLY_DATA
 	// Removes all graph pages, leaving just the default.
 	void RemoveAllGraphPages();
+#endif // WITH_EDITORONLY_DATA
 
 	// Removes graph input if it exists; sets result to succeeded if it was removed and failed if it was not.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))

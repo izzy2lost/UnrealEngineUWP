@@ -1676,6 +1676,7 @@ public:
 	FMetasoundFrontendGraphClassPresetOptions PresetOptions;
 
 public:
+#if WITH_EDITORONLY_DATA
 	const FMetasoundFrontendGraph& AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph = true, bool bSetAsBuildGraph = true);
 	void RemoveAllGraphPages();
 
@@ -1683,6 +1684,7 @@ public:
 	// If provided an "AdjacentPageID," sets the value at the given pointer to a page ID adjacent to
 	// the removed page. If last page was removed, returns the default graph ID.
 	bool RemoveGraphPage(const FGuid& InPageID, FGuid* OutAdjacentPageID = nullptr);
+#endif // WITH_EDITORONLY_DATA
 
 	bool ContainsGraphPage(const FGuid& InPageID) const;
 	void IterateGraphPages(TFunctionRef<void(FMetasoundFrontendGraph&)> IterFunc);

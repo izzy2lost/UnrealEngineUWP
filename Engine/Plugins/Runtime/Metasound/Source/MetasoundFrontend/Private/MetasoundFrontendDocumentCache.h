@@ -180,7 +180,9 @@ namespace Metasound::Frontend
 		virtual const IDocumentGraphNodeCache& GetNodeCache(const FGuid& InPageID) const override;
 		virtual const IDocumentGraphInterfaceCache& GetInterfaceCache() const override;
 
+#if WITH_EDITORONLY_DATA
 		virtual void SetBuildPageID(const FGuid& InPageID) override;
+#endif // WITH_EDITORONLY_DATA
 
 		int32 GetTransactionCount() const;
 		int32 GetTransactionCount(const FGuid& InPageID) const;

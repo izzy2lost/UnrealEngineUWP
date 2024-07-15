@@ -885,6 +885,7 @@ FMetasoundFrontendGraphClass::FMetasoundFrontendGraphClass()
 	Metadata.SetType(EMetasoundFrontendClassType::Graph);
 }
 
+#if WITH_EDITORONLY_DATA
 const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph, bool bSetAsBuildGraph)
 {
 	checkf(InPageID != Metasound::Frontend::DefaultGraphPageID, TEXT("Cannot add graph with DefaultPageID"))
@@ -906,6 +907,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	NewGraph->PageID = InPageID;
 	return *NewGraph;
 }
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetasoundFrontendGraphClass::ContainsGraphPage(const FGuid& InPageID) const
 {
@@ -920,6 +922,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return PagedGraphs.ContainsByPredicate(MatchesPageID);
 }
 
+#if WITH_EDITORONLY_DATA
 void FMetasoundFrontendGraphClass::RemoveAllGraphPages()
 {
 	PagedGraphs.Empty();
@@ -956,6 +959,7 @@ bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID, FGuid*
 
 	return false;
 }
+#endif // WITH_EDITORONLY_DATA
 
 FMetasoundFrontendGraph* FMetasoundFrontendGraphClass::FindGraph(const FGuid& InPageID)
 {

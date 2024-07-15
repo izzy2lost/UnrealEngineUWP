@@ -1304,6 +1304,7 @@ FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddNodeInternal(const
 	return nullptr;
 }
 
+#if WITH_EDITORONLY_DATA
 const FMetasoundFrontendGraph& FMetaSoundFrontendDocumentBuilder::AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph, bool bSetAsBuildGraph)
 {
 	using namespace Metasound::Frontend;
@@ -1316,6 +1317,7 @@ const FMetasoundFrontendGraph& FMetaSoundFrontendDocumentBuilder::AddGraphPage(c
 	}
 	return ToReturn;
 }
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::CanAddEdge(const FMetasoundFrontendEdge& InEdge, const FGuid* InPageID) const
 {
@@ -1349,14 +1351,23 @@ void FMetaSoundFrontendDocumentBuilder::ClearDocument(TSharedRef<Metasound::Fron
 	GraphClass.PresetOptions.InputsInheritingDefault.Reset();
 	GraphClass.PresetOptions.bIsPreset = false;
 
+	// Removing graph pages is not necessary when editor only data is not available as graph mutation
+	// is only supported in builds with editor data loaded. Otherwise, anything calling ClearDocument
+	// should only be a transient, non serialized asset graph which does not support page mutation.
+#if WITH_EDITORONLY_DATA
 	RemoveAllGraphPages();
+#else // !WITH_EDITORONLY_DATA
+	UObject& DocObject = CastDocumentObjectChecked<UObject>();
+	checkf(!DocObject.IsAsset(), TEXT("Cannot call clear document on asset '%s': builder API does not support document mutation on serialized objects without editor data loaded"), *GetDebugName());
+#endif // !WITH_EDITORONLY_DATA
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FMetasoundFrontendGraph& Graph = GraphClass.GetDefaultGraph();
-	Graph.Variables.Empty();
-	Graph.Nodes.Empty();
-	Graph.Edges.Empty();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	// Empty implementation for single remaining graph.
+	GraphClass.IterateGraphPages([](FMetasoundFrontendGraph& Graph)
+	{
+		Graph.Variables.Empty();
+		Graph.Nodes.Empty();
+		Graph.Edges.Empty();
+	});
 
 	Doc.Interfaces.Empty();
 	Doc.Dependencies.Empty();
@@ -2651,6 +2662,7 @@ void FMetaSoundFrontendDocumentBuilder::FinishBuilding()
 	DocumentCache.Reset();
 }
 
+#if WITH_EDITORONLY_DATA
 void FMetaSoundFrontendDocumentBuilder::RemoveAllGraphPages()
 {
 	using namespace Metasound;
@@ -2667,6 +2679,7 @@ void FMetaSoundFrontendDocumentBuilder::RemoveAllGraphPages()
 	RootGraph.RemoveAllGraphPages();
 	SetBuildPageID(Frontend::DefaultGraphPageID);
 }
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(const FGuid& InClassID)
 {
@@ -3128,6 +3141,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveGraphOutput(FName InOutputName)
 	return false;
 }
 
+#if WITH_EDITORONLY_DATA
 bool FMetaSoundFrontendDocumentBuilder::RemoveGraphPage(const FGuid& InPageID)
 {
 	using namespace Metasound::Frontend;
@@ -3152,6 +3166,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveGraphPage(const FGuid& InPageID)
 
 	return bPageRemoved;
 }
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::RemoveInterface(FName InterfaceName)
 {
@@ -3309,6 +3324,7 @@ void FMetaSoundFrontendDocumentBuilder::SetAuthor(const FString& InAuthor)
 }
 #endif // WITH_EDITOR
 
+#if WITH_EDITORONLY_DATA
 bool FMetaSoundFrontendDocumentBuilder::SetBuildPageID(const FGuid& InBuildPageID)
 {
 	using namespace Metasound::Frontend;
@@ -3329,6 +3345,7 @@ bool FMetaSoundFrontendDocumentBuilder::SetBuildPageID(const FGuid& InBuildPageI
 
 	return false;
 }
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::SetGraphInputAccessType(FName InputName, EMetasoundFrontendVertexAccessType AccessType)
 {

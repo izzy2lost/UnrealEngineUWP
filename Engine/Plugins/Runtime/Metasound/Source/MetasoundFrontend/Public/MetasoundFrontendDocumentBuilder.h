@@ -159,8 +159,17 @@ public:
 	bool AddEdgesByNodeClassInterfaceBindings(const FGuid& InFromNodeID, const FGuid& InToNodeID, bool bReplaceExistingConnections = true, const FGuid* InPageID = nullptr);
 	bool AddEdgesFromMatchingInterfaceNodeOutputsToGraphOutputs(const FGuid& InNodeID, TArray<const FMetasoundFrontendEdge*>& OutEdgesCreated, bool bReplaceExistingConnections = true, const FGuid* InPageID = nullptr);
 	bool AddEdgesFromMatchingInterfaceNodeInputsToGraphInputs(const FGuid& InNodeID, TArray<const FMetasoundFrontendEdge*>& OutEdgesCreated, bool bReplaceExistingConnections = true, const FGuid* InPageID = nullptr);
+
+	// Adds Graph Input to document, which in turn adds a referencing input node to ALL pages.  If valid PageID is provided, returns associated page's node pointer.
+	// If none provided, returns node pointer to node for the builder's currently set build page ID (see 'GetBuildPageID').
 	const FMetasoundFrontendNode* AddGraphInput(const FMetasoundFrontendClassInput& InClassInput, const FGuid* InPageID = nullptr);
+
+	// Adds node to document to the page associated with the given PageID.  If no valid PageID is provided, adds and returns node pointer to node for the builder's
+	// currently set build page ID (see 'GetBuildPageID').
 	const FMetasoundFrontendNode* AddGraphNode(const FMetasoundFrontendGraphClass& InClass, FGuid InNodeID = FGuid::NewGuid(), const FGuid* InPageID = nullptr);
+
+	// Adds Graph Output to document, which in turn adds a referencing output node to ALL pages.  If valid PageID is provided, returns associated page's node pointer.
+	// If none provided, returns node pointer to node for the builder's currently set build page ID (see 'GetBuildPageID').
 	const FMetasoundFrontendNode* AddGraphOutput(const FMetasoundFrontendClassOutput& InClassOutput, const FGuid* InPageID = nullptr);
 
 	bool AddInterface(FName InterfaceName);
@@ -168,8 +177,10 @@ public:
 	const FMetasoundFrontendNode* AddNodeByClassName(const FMetasoundFrontendClassName& InClassName, int32 InMajorVersion = 1, FGuid InNodeID = FGuid::NewGuid(), const FGuid* InPageID = nullptr);
 	const FMetasoundFrontendNode* AddNodeByTemplate(const Metasound::Frontend::INodeTemplate& InTemplate, Metasound::Frontend::FNodeTemplateGenerateInterfaceParams Params, FGuid InNodeID = FGuid::NewGuid(), const FGuid* InPageID = nullptr);
 
+#if WITH_EDITORONLY_DATA
 	// Adds a graph page to the given builder's document
 	const FMetasoundFrontendGraph& AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph = true, bool bSetAsBuildGraph = true);
+#endif // WITH_EDITORONLY_DATA
 
 	// Returns whether or not the given edge can be added, which requires that its input
 	// is not already connected and the edge is valid (see function 'IsValidEdge').
@@ -178,7 +189,7 @@ public:
 	// Clears document completely of all graph page data (nodes, edges, & member metadata), dependencies,
 	// interfaces, member metadata, preset state, etc. Leaves ClassMetadata intact. Reloads the builder state,
 	// so external delegates must be relinked if desired.
-	void ClearDocument(TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> ModifyDelegates = { });
+	void ClearDocument(TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> ModifyDelegates);
 
 	UE_DEPRECATED(5.5, "Use ClearDocument instead")
 	void ClearGraph() {  }
@@ -306,7 +317,9 @@ public:
 
 	bool ModifyInterfaces(Metasound::Frontend::FModifyInterfaceOptions&& InOptions);
 
+#if WITH_EDITORONLY_DATA
 	void RemoveAllGraphPages();
+#endif // WITH_EDITORONLY_DATA
 
 	UE_DEPRECATED(5.5,
 		"Cache invalidation may require new copy of delegates. In addition, re-priming is discouraged. "
@@ -330,7 +343,11 @@ public:
 
 	bool RemoveGraphInput(FName InInputName);
 	bool RemoveGraphOutput(FName InOutputName);
+
+#if WITH_EDITORONLY_DATA
 	bool RemoveGraphPage(const FGuid& InPageID);
+#endif // WITH_EDITORONLY_DATA
+
 	bool RemoveInterface(FName InName);
 	bool RemoveNamedEdges(const TSet<Metasound::Frontend::FNamedEdge>& InNamedEdgesToRemove, TArray<FMetasoundFrontendEdge>* OutRemovedEdges = nullptr, const FGuid* InPageID = nullptr);
 	bool RemoveNode(const FGuid& InNodeID, const FGuid* InPageID = nullptr);
@@ -352,12 +369,14 @@ public:
 
 #endif // WITH_EDITOR
 
+#if WITH_EDITORONLY_DATA
 	// Sets the builder's targeted paged graph ID to the given ID if it exists.
 	// Returns true if the builder is already targeting the given ID or if it successfully
 	// found a page implementation with the given ID and was able to switch to it, false if not.
 	// Swapping the targeted build graph ID clears the local cache, so swapping frequently can
 	// induce cash thrashing.
 	bool SetBuildPageID(const FGuid& InBuildPageID);
+#endif // WITH_EDITORONLY_DATA
 
 	// Sets the given graph input's access type. If connected to other nodes and access type is not compatible,
 	// associated edges/connections are removed.  Returns true if either DataType was successfully set to new

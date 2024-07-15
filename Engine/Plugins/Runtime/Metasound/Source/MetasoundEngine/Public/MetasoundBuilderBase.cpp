@@ -940,11 +940,13 @@ void UMetaSoundBuilderBase::ReloadCache(bool bPrimeCache)
 	Reload({ }, bPrimeCache);
 }
 
+#if WITH_EDITORONLY_DATA
 void UMetaSoundBuilderBase::RemoveAllGraphPages()
 {
 	Builder.RemoveAllGraphPages();
 	Builder.RemoveUnusedDependencies();
 }
+#endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
 bool UMetaSoundBuilderBase::RemoveGraphComment(const FGuid& InCommentID)

@@ -123,8 +123,10 @@ namespace Metasound::Frontend
 		// Returns InterfaceCache for the given document
 		virtual const IDocumentGraphInterfaceCache& GetInterfaceCache() const = 0;
 
+#if WITH_EDITORONLY_DATA
 		// Sets the default BuildPageID for the given document
 		virtual void SetBuildPageID(const FGuid& InPageID) = 0;
+#endif // WITH_EDITORONLY_DATA
 	};
 
 } // namespace Metasound::Frontend
