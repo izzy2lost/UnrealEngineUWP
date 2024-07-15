@@ -550,9 +550,9 @@ protected:
 	// stamp
 	float CalculateBrushFalloff(float Distance) const;
 	void CalculateVertexROI(
-		const FBrushStampData& Stamp,
-		TArray<VertexIndex>& VertexIDs,
-		TArray<float>& VertexFalloffs);
+		const FBrushStampData& InStamp,
+		TArray<VertexIndex>& OutVertexIDs,
+		TArray<float>& OutVertexFalloffs);
 	float CalculateBrushStrengthToUse(EWeightEditOperation EditMode) const;
 	bool bInvertStroke = false;
 	FBrushStampData StartStamp;
