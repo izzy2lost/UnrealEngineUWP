@@ -73,7 +73,9 @@ FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectCPUSkin(USkinnedMeshComponent* In
 	}
 
 	InitResources(InMeshComponent);
-	bSupportsStaticRelevance = true;
+
+	// This must be disabled since mesh caching doesn't support recreating the vertex factory on demand.
+	bSupportsStaticRelevance = false;
 }
 
 
