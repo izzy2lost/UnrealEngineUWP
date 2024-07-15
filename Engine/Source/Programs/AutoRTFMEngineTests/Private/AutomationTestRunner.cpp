@@ -40,18 +40,20 @@ FAutomationTestRunner::RunTests(const TCHAR* TestFilter)
 	for (int TestIt = 0; TestIt != TestCount; ++TestIt)
 	{
 		const FAutomationTestInfo& TestInfo = TestInfos[TestIt];
-		const FString& TestCommand = TestInfo.GetTestName();
+		const FString& TestFullPath = TestInfo.GetFullTestPath();
 
-		if (!TestCommand.Contains("AutoRTFM"))
+		if (!TestFullPath.Contains("AutoRTFM"))
+		{
 			continue;
+		}
 
-		if (TestFilter && !TestCommand.Contains(TestFilter))
+		if (TestFilter && !TestFullPath.Contains(TestFilter))
 		{
 			continue;
 		}
 
 		constexpr int32 RoleIndex = 0;
-		TestFramework.StartTestByName(TestCommand, RoleIndex);
+		TestFramework.StartTestByName(TestInfo.GetTestName(), RoleIndex);
 		FAutomationTestExecutionInfo ExecutionInfo;
 
 		if (!TestFramework.StopTest(ExecutionInfo))
@@ -60,7 +62,7 @@ FAutomationTestRunner::RunTests(const TCHAR* TestFilter)
 			{
 				UE_LOG(LogAutoRTFMEngineTests, Display, TEXT("%s"), *Entry.Event.Message);
 			}
-			
+
 			AllPassed = false;
 		}
 	}
