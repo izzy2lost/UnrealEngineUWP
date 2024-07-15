@@ -970,10 +970,10 @@ namespace AutoRTFM::Private
 #define UE_AUTORTFM_ONCOMMIT_IMPL(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS ::AutoRTFM::OnCommit([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
 #define UE_AUTORTFM_TRANSACT_IMPL(...) ::AutoRTFM::Transact([&]() { __VA_ARGS__ })
 
-#define UE_AUTORTFM_OPEN_IMPL2 AutoRTFM::Private::FOpenHelper{} + [&]()
-#define UE_AUTORTFM_ONABORT_IMPL2(...) AutoRTFM::Private::FOnAbortHelper{} + [__VA_ARGS__]()
-#define UE_AUTORTFM_ONCOMMIT_IMPL2(...) AutoRTFM::Private::FOnCommitHelper{} + [__VA_ARGS__]()
-#define UE_AUTORTFM_TRANSACT_IMPL2 AutoRTFM::Private::FTransactHelper{} + [&]() { __VA_ARGS__ })
+#define UE_AUTORTFM_OPEN_IMPL2 ::AutoRTFM::Private::FOpenHelper{} + [&]()
+#define UE_AUTORTFM_ONABORT_IMPL2(...) ::AutoRTFM::Private::FOnAbortHelper{} + [__VA_ARGS__]()
+#define UE_AUTORTFM_ONCOMMIT_IMPL2(...) ::AutoRTFM::Private::FOnCommitHelper{} + [__VA_ARGS__]()
+#define UE_AUTORTFM_TRANSACT_IMPL2 ::AutoRTFM::Private::FTransactHelper{} + [&]() { __VA_ARGS__ })
 #else
 
 // Older macros where the code is passed as a macro argument. These should be phased out as they make debugging more difficult
@@ -983,7 +983,7 @@ namespace AutoRTFM::Private
 #define UE_AUTORTFM_TRANSACT_IMPL(...) do { __VA_ARGS__ } while (false)
 
 // Do nothing, these should be followed by blocks that should be either executed or not executed
-#define UE_AUTORTFM_OPEN_IMPL2 
+#define UE_AUTORTFM_OPEN_IMPL2
 #define UE_AUTORTFM_ONABORT_IMPL2(...) while (false)
 #define UE_AUTORTFM_ONCOMMIT_IMPL2(...)
 #define UE_AUTORTFM_TRANSACT_IMPL2
@@ -991,7 +991,7 @@ namespace AutoRTFM::Private
 
 // Runs a block of code in the open, non-transactionally. Anything performed in the open will not be undone if a transaction fails.
 #define UE_AUTORTFM_OPEN(...) UE_AUTORTFM_OPEN_IMPL(__VA_ARGS__)
-// This new version is used like UE_AUTORTFM_OPEN2 { ... code ... }; 
+// This new version is used like UE_AUTORTFM_OPEN2 { ... code ... };
 #define UE_AUTORTFM_OPEN2 UE_AUTORTFM_OPEN_IMPL2
 
 // Runs a block of code if a transaction aborts.

@@ -8,6 +8,7 @@
 #include "Materials/Material.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "AutoRTFMTestEngine.h"
+#include "UObject/CoreRedirects.h"
 
 #if WITH_AUTOMATION_WORKER
 namespace UE::AutoRTFM
@@ -39,7 +40,7 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 
 #if !(defined(PLATFORM_XBOXONE) && PLATFORM_XBOXONE)
 	// Parse original cmdline if there is one
-	OriginalCmdLine = FCommandLine::BuildFromArgV(nullptr, ArgC, ArgV, nullptr);	
+	OriginalCmdLine = FCommandLine::BuildFromArgV(nullptr, ArgC, ArgV, nullptr);
 #endif
 
 	// Due to some code not respecting nullrhi etc.
@@ -58,7 +59,7 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 	PreInit();
 	LoadModules();
 	PostInit();
-	
+
 	GEngine = NewObject<UAutoRTFMTestEngine>(GetTransientPackage());
 	GEngine->DefaultPhysMaterial = NewObject<UPhysicalMaterial>();
 
@@ -79,7 +80,7 @@ INT32_MAIN_INT32_ARGC_TCHAR_ARGV()
 		{
 			TestsPassed = Runner->RunTests();
 		}
-		
+
 	}
 
 	TearDown();
@@ -118,8 +119,53 @@ static void TearDown()
 	FTraceAuxiliary::Shutdown();
 }
 
+// Adds redirects to a non-existent file for all the Engine .uasset files that
+// will be automatically loaded by the various engine systems. This is done to
+// prevent attempted deserialization of assets that can only be loaded when
+// the project is built with WITH_EDITORONLY_DATA. Unfortunately turning this
+// flag on also requires WITH_EDITOR which is currently extremely difficult to
+// build outside of the editor.
+// HACK: SOL-6723
+static void PreventLoadingOfEditorOnlyData()
+{
+	const TCHAR* const IncompatiblePackages[] = {
+		TEXT("/Engine/EngineResources/DefaultTexture"),
+		TEXT("/Engine/EngineResources/DefaultTextureCube"),
+		TEXT("/Engine/EngineResources/DefaultVolumeTexture"),
+		TEXT("/Engine/EngineFonts/RobotoDistanceField"),
+		TEXT("/Engine/EngineMaterials/DefaultTextMaterialOpaque"),
+		TEXT("/Engine/EngineDamageTypes/DmgTypeBP_Environmental"),
+		TEXT("/Engine/EngineSky/VolumetricClouds/m_SimpleVolumetricCloud_Inst"),
+		TEXT("/Engine/EngineMeshes/Sphere"),
+		TEXT("/Engine/EngineResources/WhiteSquareTexture"),
+		TEXT("/Engine/EngineResources/GradientTexture0"),
+		TEXT("/Engine/EngineResources/Black"),
+		TEXT("/Engine/EngineDebugMaterials/VolumeToRender"),
+		TEXT("/Engine/EngineDebugMaterials/M_VolumeRenderSphereTracePP"),
+		TEXT("/Engine/EngineFonts/Roboto"),
+		TEXT("/Engine/EngineMaterials/Widget3DPassThrough_Translucent"),
+		TEXT("/Engine/EngineMaterials/Widget3DPassThrough_Translucent_OneSided"),
+		TEXT("/Engine/EngineMaterials/Widget3DPassThrough_Opaque"),
+		TEXT("/Engine/EngineMaterials/Widget3DPassThrough_Opaque_OneSided"),
+		TEXT("/Engine/EngineMaterials/Widget3DPassThrough_Masked"),
+		TEXT("/Engine/EngineMaterials/Widget3DPassThrough_Masked_OneSided")
+	};
+	FCoreRedirectObjectName InvalidName(NAME_None, NAME_None, TEXT("/Engine/DoesNotExist"));
+	TArray<FCoreRedirect> NewRedirects;
+	for (const TCHAR* PackageName : IncompatiblePackages)
+	{
+		NewRedirects.Emplace(ECoreRedirectFlags::Type_Package,
+			FCoreRedirectObjectName(NAME_None, NAME_None, PackageName),
+			InvalidName);
+	}
+	FCoreRedirects::AddRedirectList(NewRedirects, TEXT("AutoRTFMEngineTests.PreventLoadingOfEditorOnlyData"));
+	FCoreRedirects::AddKnownMissing(ECoreRedirectFlags::Type_Package, InvalidName);
+}
+
 static void PreInit()
 {
+	PreventLoadingOfEditorOnlyData();
+
 	// We enable the AutoRTFM runtime as the tests depend on it.
 	AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::AutoRTFM_Enabled);
 
