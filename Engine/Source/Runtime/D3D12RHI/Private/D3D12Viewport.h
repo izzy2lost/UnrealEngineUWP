@@ -19,52 +19,6 @@ class FD3D12UnorderedAccessView_RHI;
 class FD3D12SyncPoint;
 using FD3D12SyncPointRef = TRefCountPtr<FD3D12SyncPoint>;
 
-#define ALTERNATE_TIMESTAMP_METRIC 0
-
-#if WITH_MGPU
-class FD3D12FramePacing : public FRunnable, public FD3D12AdapterChild
-{
-public:
-	explicit FD3D12FramePacing(FD3D12Adapter* Parent);
-	~FD3D12FramePacing();
-	bool Init() override;
-	void Stop() override;
-	void Exit() override;
-	uint32 Run() override;
-
-	void PrePresentQueued(ID3D12CommandQueue* Queue);
-
-private:
-	static const uint32 MaxFrames = MAX_NUM_GPUS + 1;
-
-	TRefCountPtr<ID3D12Fence> Fence;
-	uint64 NextIndex = 0;
-	uint64 CurIndex = 0;
-	uint32 SleepTimes[MaxFrames];
-	HANDLE Semaphore;
-	bool bKeepRunning;
-
-	float AvgFrameTimeMs;
-	uint64 LastFrameTimeMs;
-
-	// ======== Some knobs for tweaking the algorithm ========
-	// How long to average the GPU time over, in seconds.
-	// - Higher = Smoother when framerate is steady, less smooth when frametime drops.
-	// - Lower = Quicker to smooth out after frametime drops, less smooth from incremental changes.
-	const float FramePacingAvgTimePeriod = 0.25f;
-	// What percentage of average GPU time to wait for on the pacing thread.
-	// - Higher = More consistent pacing, potential to starve the GPU in order to maintain pacing.
-	// - Lower = More allowable deviation between frame times, depending on GPU workload.
-#if ALTERNATE_TIMESTAMP_METRIC
-	const float FramePacingPercentage = 1.15f;
-#else
-	const float FramePacingPercentage = 1.05f;
-#endif
-
-	FRunnableThread* Thread;
-};
-#endif //WITH_MGPU
-
 class FD3D12Viewport : public FRHIViewport, public FD3D12AdapterChild
 {
 public:
@@ -92,7 +46,7 @@ public:
 	/** Presents the swap chain.
 	 * Returns true if Present was done by Engine.
 	 */
-	bool Present(IRHICommandContext& RHICmdContext, bool bLockToVsync);
+	bool Present(class FD3D12CommandContextBase& Context, bool bLockToVsync);
 
 	// Accessors.
 	FIntPoint GetSizeXY() const
@@ -301,10 +255,6 @@ private:
 
 	// Can very rarely be modified on the RHI thread as well if present is skipped
 	mutable FCriticalSection ExpectedBackBufferIndexLock;
-
-	FD3D12SyncPointRef LastFrameSyncPoint;
-
-	FD3D12FramePacing* FramePacerRunnable = nullptr;
 #endif
 };
 
