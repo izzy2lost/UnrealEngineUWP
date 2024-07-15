@@ -161,43 +161,43 @@ private:
 	 */
 	struct FCellIndexCacheEntry
 	{
-		static constexpr int32 InstanceCountNumBits = 12;
-		static constexpr int32 InstanceCountMax = (1 << InstanceCountNumBits);
-		static constexpr int32 CellIndexMax = 1 << (32 - InstanceCountNumBits);
+		static constexpr uint32 SingleInstanceMask = 1u << 31;
+		static constexpr uint32 CellIndexMask = (1u << 31) - 1u;
+		static constexpr uint32 CellIndexMax = 1u << 31;
+
 		struct FItem
 		{
-			uint32 NumInstances : InstanceCountNumBits;
-			uint32 CellIndex : 32 - InstanceCountNumBits;
+			int32 NumInstances;
+			int32 CellIndex;
 		};
 
 		inline void Add(int32 CellIndex, int32 NumInstances)
 		{
-			check(CellIndex < CellIndexMax);
-			
-			FItem Item;
-			Item.CellIndex = CellIndex;
-			// break into blocks...
-			while (NumInstances >= InstanceCountMax)
-			{
-				Item.NumInstances = InstanceCountMax - 1;
-				NumInstances -= InstanceCountMax - 1;
-				Items.Add(Item);
-			}
+			check(uint32(CellIndex) < CellIndexMax);
+			check(!bSingleInstanceOnly || NumInstances == 1);
 
-			check(NumInstances < InstanceCountMax);
-			Item.NumInstances = NumInstances;
-			Items.Add(Item);
+			if (NumInstances > 1)
+			{
+				// Add RLE entry
+				Items.Add(CellIndex);
+				Items.Add(NumInstances);
+			}
+			else
+			{
+				// Mark as single-istance
+				Items.Add(uint32(CellIndex) | SingleInstanceMask);
+			}
 		}
 
-		inline void Set(int32 Index, int32 CellIndex, int32 NumInstances)
+		/**
+		 * Only possible if there is one single instance items in the list, otherwise we don't have a 1:1 mapping.
+		 */
+		inline void Set(int32 Index, int32 CellIndex)
 		{
-			check(CellIndex < CellIndexMax);
-			check(NumInstances < InstanceCountMax);
+			check(bSingleInstanceOnly);
+			check(uint32(CellIndex) < CellIndexMax);
 
-			FItem Item;
-			Item.CellIndex = CellIndex;
-			Item.NumInstances = NumInstances;
-			Items[Index] = Item;
+			Items[Index] = uint32(CellIndex) | SingleInstanceMask;
 		}
 
 		FORCEINLINE void Reset() 
@@ -205,7 +205,25 @@ private:
 			Items.Reset();
 		}
 
-		TArray<FItem> Items;
+
+		/**
+		 * Load and unpack an item at a given ItemIndex. NOTE: advances ItemIndex if the item is RLE'd
+		 */
+		FItem LoadAndStepItem(int32 &InOutItemIndex) const
+		{
+			FItem Result; 
+			uint32 PackedCellIndex = Items[InOutItemIndex];
+			Result.CellIndex = int32(PackedCellIndex & FCellIndexCacheEntry::CellIndexMask);
+			Result.NumInstances = 1;
+			if ((PackedCellIndex & FCellIndexCacheEntry::SingleInstanceMask) == 0u)
+			{
+				Result.NumInstances = int32(Items[++InOutItemIndex]);
+			}
+			return Result;
+		}
+
+		bool bSingleInstanceOnly = false;
+		TArray<uint32> Items;
 	};
 
 	/** 
