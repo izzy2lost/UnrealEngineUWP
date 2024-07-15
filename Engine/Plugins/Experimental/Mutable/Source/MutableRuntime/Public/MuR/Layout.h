@@ -13,12 +13,6 @@
 namespace mu
 {
 
-	// Forward references
-	class Layout;
-
-	typedef Ptr<Layout> LayoutPtr;
-	typedef Ptr<const Layout> LayoutPtrConst;
-
 	//! Types of layout packing strategies 
 	enum class EPackStrategy : uint32
 	{
@@ -34,6 +28,58 @@ namespace mu
 		UNITARY_REDUCTION	// Reduces 1 block the axis 
 	};
 
+	/** */
+	struct FLayoutBlock
+	{
+		static constexpr uint64 InvalidBlockId = TNumericLimits<uint64>::Max();
+
+		UE::Math::TIntVector2<uint16> Min = { 0, 0 };
+		UE::Math::TIntVector2<uint16> Size = { 0, 0 };
+
+		//! Absolute id used to control merging of various layouts
+		uint64 Id;
+
+		//! Priority value to control the shrink texture layout strategy
+		int32 Priority;
+
+		//! Value to control the method to reduce the block
+		uint32 bReduceBothAxes : 1;
+
+		//! Value to control if a block has to be reduced by two in an unitary reduction strategy
+		uint32 bReduceByTwo : 1;
+
+		/** Explicit padding to prevent uninitialized memory in this POD. */
+		uint32 UnusedPadding : 30;
+
+		/** */
+		FLayoutBlock(UE::Math::TIntVector2<uint16> InMin = {}, UE::Math::TIntVector2<uint16> InSize = {})
+		{
+			Min = InMin;
+			Size = InSize;
+			Id = InvalidBlockId;
+			Priority = 0;
+			bReduceBothAxes = false;
+			bReduceByTwo = false;
+			UnusedPadding = 0;
+		}
+
+		//!
+		inline bool operator==(const FLayoutBlock& o) const
+		{
+			return (Id == o.Id) && IsSimilar(o);
+		}
+
+		inline bool IsSimilar(const FLayoutBlock& o) const
+		{
+			// All but ids
+			return (Min == o.Min) &&
+				(Size == o.Size) &&
+				(Priority == o.Priority) &&
+				(bReduceBothAxes == o.bReduceBothAxes) &&
+				(bReduceByTwo == o.bReduceByTwo);
+		}
+	};
+
 
     //! \brief Image block layout class.
     //!
@@ -45,7 +91,21 @@ namespace mu
 	{
 	public:
 
-		static constexpr uint64 InvalidBlockId = TNumericLimits<uint64>::Max();
+		//!
+		UE::Math::TIntVector2<uint16> Size = UE::Math::TIntVector2<uint16>(0, 0);
+
+		/** Maximum size in layout blocks that this layout can grow to. From there on, blocks will shrink to fit. 
+		* If 0,0 then no maximum size applies.
+		*/
+		UE::Math::TIntVector2<uint16> MaxSize = UE::Math::TIntVector2<uint16>(0, 0);
+
+		//!
+		TArray<FLayoutBlock> Blocks;
+
+		//! Packing strategy
+		EPackStrategy Strategy = EPackStrategy::RESIZABLE_LAYOUT;
+
+		EReductionMethod ReductionMethod = EReductionMethod::HALVE_REDUCTION;
 
 	public:
 
@@ -113,74 +173,6 @@ namespace mu
 
 	public:
 
-		struct FBlock
-		{
-			FBlock(UE::Math::TIntVector2<uint16> InMin = UE::Math::TIntVector2<uint16>(), UE::Math::TIntVector2<uint16> InSize = UE::Math::TIntVector2<uint16>())
-			{
-				Min = InMin;
-				Size = InSize;
-				Id = Layout::InvalidBlockId;
-				Priority = 0;
-				bReduceBothAxes = false;
-				bReduceByTwo = false;
-				UnusedPadding = 0;
-			}
-
-			UE::Math::TIntVector2<uint16> Min = UE::Math::TIntVector2<uint16>(0,0);
-			UE::Math::TIntVector2<uint16> Size = UE::Math::TIntVector2<uint16>(0, 0);
-
-			//! Absolute id used to control merging of various layouts
-			uint64 Id;
-
-			//! Priority value to control the shrink texture layout strategy
-			int32 Priority;
-
-			//! Value to control the method to reduce the block
-			uint32 bReduceBothAxes : 1;
-
-			//! Value to control if a block has to be reduced by two in an unitary reduction strategy
-			uint32 bReduceByTwo : 1;
-
-			/** Explicit padding to prevent uninitialized memory in this POD. */
-			uint32 UnusedPadding : 30;
-
-
-			//!
-			inline bool operator==(const FBlock& o) const
-			{
-				return (Min == o.Min) &&
-					(Size == o.Size) &&
-					(Id == o.Id) &&
-					(Priority == o.Priority) &&
-					(bReduceBothAxes == o.bReduceBothAxes) &&
-					(bReduceByTwo == o.bReduceByTwo);
-			}
-
-			inline bool IsSimilar(const FBlock& o) const
-			{
-				// All but ids
-				return (Min == o.Min) &&
-					(Size == o.Size) &&
-					(Priority == o.Priority) &&
-					(bReduceBothAxes == o.bReduceBothAxes) &&
-					(bReduceByTwo == o.bReduceByTwo);
-			}
-		};
-
-
-		//!
-		UE::Math::TIntVector2<uint16> Size = UE::Math::TIntVector2<uint16>(0, 0);
-
-		UE::Math::TIntVector2<uint16> MaxSize = UE::Math::TIntVector2<uint16>(0, 0);
-
-		//!
-		TArray<FBlock> Blocks;
-
-		//! Packing strategy
-		EPackStrategy Strategy = EPackStrategy::RESIZABLE_LAYOUT;
-		 
-		EReductionMethod ReductionMethod = EReductionMethod::HALVE_REDUCTION;
-
 
 		//!
 		void Serialise(OutputArchive& arch) const;
@@ -198,8 +190,8 @@ namespace mu
 		bool IsSingleBlockAndFull() const;
 	};
 
-	MUTABLE_DEFINE_POD_SERIALISABLE(Layout::FBlock);
-	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(Layout::FBlock);
+	MUTABLE_DEFINE_POD_SERIALISABLE(FLayoutBlock);
+	MUTABLE_DEFINE_POD_VECTOR_SERIALISABLE(FLayoutBlock);
 
 }
 

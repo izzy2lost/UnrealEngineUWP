@@ -5866,7 +5866,7 @@ namespace mu
 			OP::ResourceConstantArgs args = Program.GetOpArgs<OP::ResourceConstantArgs>(item.At);
             check( args.value < (uint32)pModel->GetPrivate()->m_program.m_constantLayouts.Num() );
 
-            LayoutPtrConst pResult = Program.m_constantLayouts
+            Ptr<const Layout> pResult = Program.m_constantLayouts
                     [ args.value ];
             StoreLayout( item, pResult );
             break;
@@ -5888,7 +5888,7 @@ namespace mu
                 Ptr<const Layout> pA = LoadLayout( FCacheAddress(args.Base,item) );
                 Ptr<const Layout> pB = LoadLayout( FCacheAddress(args.Added,item) );
 
-                LayoutPtrConst pResult;
+                Ptr<const Layout> pResult;
 
                 if (pA && pB)
                 {
@@ -5928,26 +5928,16 @@ namespace mu
             {
                 Ptr<const Layout> Source = LoadLayout( FCacheAddress(args.Source,item) );
 
-				LayoutPtr pResult;
+				Ptr<Layout> Result;
 
 				if (Source)
 				{
-					pResult = Source->Clone();
+					Result = Source->Clone();
 
-					SCRATCH_LAYOUT_PACK scratch;
-					int32 BlockCount = Source->GetBlockCount();
-					scratch.blocks.SetNum(BlockCount);
-					scratch.sorted.SetNum(BlockCount);
-					scratch.positions.SetNum(BlockCount);
-					scratch.priorities.SetNum(BlockCount);
-					scratch.reductions.SetNum(BlockCount);
-					scratch.ReduceBothAxes.SetNum(BlockCount);
-					scratch.ReduceByTwo.SetNum(BlockCount);
-
-					LayoutPack3(pResult.get(), Source.get(), &scratch);
+					LayoutPack3(Result.get(), Source.get() );
 				}
 
-                StoreLayout( item, pResult );
+                StoreLayout( item, Result );
                 break;
             }
 

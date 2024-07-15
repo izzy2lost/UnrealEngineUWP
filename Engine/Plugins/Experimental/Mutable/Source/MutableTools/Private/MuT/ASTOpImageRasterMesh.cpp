@@ -26,7 +26,7 @@ namespace mu
 		, mask(this)
 		, projector(this)
 	{
-		BlockId = Layout::InvalidBlockId;
+		BlockId = FLayoutBlock::InvalidBlockId;
 		LayoutIndex = -1;
 		SizeX = SizeY = 0;
 		SourceSizeX = SourceSizeY = 0;

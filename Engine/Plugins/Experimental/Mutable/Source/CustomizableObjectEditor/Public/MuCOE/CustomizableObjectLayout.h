@@ -68,6 +68,10 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectLayoutBlock
 	/** Block will be reduced by two in an Unitary Layout reduction. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	bool bReduceByTwo = false;
+
+	/** Block mask to use to filter the UVs when assigning them to the block. */
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	TObjectPtr<class UTexture2D> Mask = nullptr;
 };
 
 UCLASS()
@@ -99,7 +103,7 @@ public:
 	FIntPoint GetMaxGridSize() const { return MaxGridSize; }
 	ECustomizableObjectTextureLayoutPackingStrategy GetPackingStrategy() const { return PackingStrategy; }
 	bool GetIgnoreVertexLayoutWarnings() const { return bIgnoreUnassignedVertexWarning; };
-	int32 GetFirstLODToIgnoreWarnings() { return FirstLODToIgnore; };
+	int32 GetFirstLODToIgnoreWarnings() const { return FirstLODToIgnore; };
 	ECustomizableObjectLayoutBlockReductionMethod GetBlockReductionMethod()const { return BlockReductionMethod; }
 
 	void GetUVChannel(TArray<FVector2f>& UVs, int32 UVChannelIndex = 0) const;

@@ -120,7 +120,7 @@ void SMutableLayoutViewer::Tick(const FGeometry& AllottedGeometry, const double 
 }
 
 
-void SMutableLayoutViewer::SetLayout(const mu::LayoutPtrConst& InMutableLayout)
+void SMutableLayoutViewer::SetLayout(const mu::Ptr<const mu::Layout>& InMutableLayout)
 {
 	MutableLayout = InMutableLayout;
 	bIsPendingUpdate = true;

@@ -2,18 +2,21 @@
 
 #include "MuCOE/SCustomizableObjectLayoutGrid.h"
 
+#include "MuCOE/SStandAloneAssetPicker.h"
+#include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "BatchedElements.h"
 #include "CanvasTypes.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layout/WidgetPath.h"
-// Required for engine branch preprocessor defines.
-#include "MuCO/UnrealPortabilityHelpers.h"
-#include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "Rendering/SlateRenderer.h"
 #include "RenderingThread.h"
 #include "Styling/SlateTypes.h"
 #include "UnrealClient.h"
 #include "Widgets/Input/SNumericEntryBox.h"
+#include "ThumbnailRendering/ThumbnailManager.h"
+#include "Engine/Texture2D.h"
+#include "TextureResource.h"
+
 
 class FExtender;
 class FPaintArgs;
@@ -97,7 +100,7 @@ private:
 	virtual void Draw_RenderThread(FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params) override;
 
 	/** Basic function to draw a block in the canvas */
-	void DrawBlock(FBatchedElements* BatchedElements, const FHitProxyId HitProxyId, const FRect2D& BlockRect, FColor Color);
+	void DrawBlock(FBatchedElements* BatchedElements, const FHitProxyId HitProxyId, const FRect2D& BlockRect, FColor Color, UTexture2D* Mask = nullptr);
 
 	/** SlateElement initialized, can Draw during the DrawRenderThread call. */
 	bool Initialized = false;
@@ -124,6 +127,10 @@ private:
 	ELayoutGridMode LayoutMode = ELGM_Show;
 
 	FSlateCanvasRenderTarget* RenderTarget = new FSlateCanvasRenderTarget();
+
+	/** Default colors. */
+	FColor SelectedBlockColor = FColor(75, 106, 230, 155);
+	FColor UnselectedBlockColor = FColor(230, 199, 75, 155);
 };
 
 
@@ -142,7 +149,8 @@ void SCustomizableObjectLayoutGrid::Construct( const FArguments& InArgs )
 	OnSetBlockPriority = InArgs._OnSetBlockPriority;
 	OnSetReduceBlockSymmetrically = InArgs._OnSetReduceBlockSymmetrically;
 	OnSetReduceBlockByTwo = InArgs._OnSetReduceBlockByTwo;
-	
+	OnSetBlockMask = InArgs._OnSetBlockMask;
+
 	UVCanvasDrawer = TSharedPtr<FUVCanvasDrawer>(new FUVCanvasDrawer());
 	UVCanvasDrawer->SetLayoutMode(Mode);
 }
@@ -396,7 +404,7 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonDown( const FGeometry& MyGeom
 			const bool CloseAfterSelection = true;
 			FMenuBuilder MenuBuilder(CloseAfterSelection, NULL, TSharedPtr<FExtender>(), false, &FCoreStyle::Get(), false);
 
-			MenuBuilder.BeginSection("Block Management", LOCTEXT("GridActionsTitle", "Grid Actions"));
+			MenuBuilder.BeginSection("Block Management", LOCTEXT("BlockActionsTitle", "Block Actions"));
 			{
 				if (SelectedBlocks.Num())
 				{
@@ -414,7 +422,7 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonDown( const FGeometry& MyGeom
 			}
 			MenuBuilder.EndSection();
 
-			MenuBuilder.BeginSection("Fixed Layout Strategy", LOCTEXT("BlockActionsTitle", "Fixed Layout Actions"));
+			MenuBuilder.BeginSection("Block Properties for Fixed Layout", LOCTEXT("BlockPropertiesFixedTitle", "Block Properties for Fixed Layout"));
 			{
 				if (SelectedBlocks.Num())
 				{
@@ -460,6 +468,28 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonDown( const FGeometry& MyGeom
 			}
 			MenuBuilder.EndSection();
 
+
+			MenuBuilder.BeginSection("Block Properties for Masks", LOCTEXT("BlockPropertiesMaskTitle", "Block Mask"));
+			{
+				if (SelectedBlocks.Num())
+				{
+					MenuBuilder.AddWidget(
+						SNew(SBox)
+						.WidthOverride(125.0f)
+						.ToolTipText(LOCTEXT("SetBlockMask_Tooltip", "Sets the UV mask texture for the block."))
+						[
+							SNew(SStandAloneAssetPicker)
+								.OnAssetSelected(this, &SCustomizableObjectLayoutGrid::OnMaskAssetSelected)
+								.OnGetAllowedClasses(FOnGetAllowedClasses::CreateLambda([](TArray<const UClass*>& OutClasses) {OutClasses.Add(UTexture2D::StaticClass()); }))
+								.InitialAsset( GetBlockMaskValue() )
+						]
+						, FText::FromString("Block Mask"), true);
+
+					// TODO: Additional properties: color used for preview?
+				}
+			}
+			MenuBuilder.EndSection();
+
 			FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
 			FSlateApplication::Get().PushMenu(AsShared(), WidgetPath, MenuBuilder.MakeWidget(), FSlateApplication::Get().GetCursorPos(), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
 		}
@@ -474,6 +504,59 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonDown( const FGeometry& MyGeom
 	}
 
 	return SCompoundWidget::OnMouseButtonDown( MyGeometry, MouseEvent );
+}
+
+
+void SCustomizableObjectLayoutGrid::CloseMenu()
+{
+	FSlateApplication::Get().DismissAllMenus();
+}
+
+
+void SCustomizableObjectLayoutGrid::OnMaskAssetSelected(const FAssetData& AssetData)
+{
+	UTexture2D* Mask = Cast<UTexture2D>(AssetData.GetAsset());
+	if (SelectedBlocks.Num())
+	{
+		OnSetBlockMask.ExecuteIfBound(Mask);
+	}
+}
+
+
+
+UTexture2D* SCustomizableObjectLayoutGrid::GetBlockMaskValue() const
+{
+	if (SelectedBlocks.Num())
+	{
+		TArray<FCustomizableObjectLayoutBlock> CurrentSelectedBlocks;
+
+		for (const FCustomizableObjectLayoutBlock& Block : Blocks.Get())
+		{
+			if (SelectedBlocks.Contains(Block.Id))
+			{
+				CurrentSelectedBlocks.Add(Block);
+			}
+		}
+
+		UTexture2D* BlockMask = CurrentSelectedBlocks[0].Mask;
+		bool bSameMask = true;
+
+		for (const FCustomizableObjectLayoutBlock& Block : CurrentSelectedBlocks)
+		{
+			if (Block.Mask != BlockMask)
+			{
+				bSameMask = false;
+				break;
+			}
+		}
+
+		if (bSameMask)
+		{
+			return BlockMask;
+		}
+	}
+
+	return nullptr;
 }
 
 
@@ -1299,7 +1382,7 @@ void FUVCanvasDrawer::Draw_RenderThread(class FRHICommandListImmediate& RHICmdLi
 		// Drawing Blocks
 		for (const FCustomizableObjectLayoutBlock& Block : Blocks)
 		{
-			const FColor SelectionBlockColor = SelectedBlocks.Contains(Block.Id) ? FColor(75, 106, 230, 155) : FColor(230, 199, 75, 155);
+			const FColor SelectionBlockColor = SelectedBlocks.Contains(Block.Id) ? SelectedBlockColor : UnselectedBlockColor;
 
 			const FVector2f BlockMin(Block.Min);
 			const FVector2f BlockMax(Block.Max);
@@ -1309,7 +1392,7 @@ void FUVCanvasDrawer::Draw_RenderThread(class FRHICommandListImmediate& RHICmdLi
 			SelectionBlock.Min = FVector2f(Origin) + BlockMin * CellSize + CellSize * 0.1f;
 			SelectionBlock.Size = (BlockMax - BlockMin) * CellSize - CellSize * 0.2f;
 
-			DrawBlock(BatchedElements, HitProxyId, SelectionBlock, SelectionBlockColor);
+			DrawBlock(BatchedElements, HitProxyId, SelectionBlock, SelectionBlockColor, Block.Mask.Get());
 
 			if (LayoutMode == ELayoutGridMode::ELGM_Edit)
 			{
@@ -1331,7 +1414,7 @@ void FUVCanvasDrawer::Draw_RenderThread(class FRHICommandListImmediate& RHICmdLi
 }
 
 
-void FUVCanvasDrawer::DrawBlock(FBatchedElements* BatchedElements, const FHitProxyId HitProxyId, const FRect2D& BlockRect, FColor Color)
+void FUVCanvasDrawer::DrawBlock(FBatchedElements* BatchedElements, const FHitProxyId HitProxyId, const FRect2D& BlockRect, FColor Color, UTexture2D* Mask)
 {
 	// Vertex positions
 	FVector4 Vert0(BlockRect.Min.X, BlockRect.Min.Y, 0, 1);
@@ -1339,24 +1422,34 @@ void FUVCanvasDrawer::DrawBlock(FBatchedElements* BatchedElements, const FHitPro
 	FVector4 Vert2(BlockRect.Min.X + BlockRect.Size.X, BlockRect.Min.Y, 0, 1);
 	FVector4 Vert3(BlockRect.Min.X + BlockRect.Size.X, BlockRect.Min.Y + BlockRect.Size.Y, 0, 1);
 
+	auto VertexToMaskUVs = [this](const FVector4& V)
+		{
+			return ( FVector2D(V.X,V.Y) - Origin ) / (FVector2D(CellSize) * FVector2D(GridSize.X, GridSize.X));
+		};
+
 	// Brush Paint triangle
 	{
-		int32 V0 = BatchedElements->AddVertex(Vert0, FVector2d(0.0f, 0.0f), Color, HitProxyId);
-		int32 V1 = BatchedElements->AddVertex(Vert1, FVector2d(0.0f, 1.0f), Color, HitProxyId);
-		int32 V2 = BatchedElements->AddVertex(Vert2, FVector2d(1.0f, 0.0f), Color, HitProxyId);
-		int32 V3 = BatchedElements->AddVertex(Vert3, FVector2d(1.0f, 1.0f), Color, HitProxyId);
+		int32 V0 = BatchedElements->AddVertex(Vert0, VertexToMaskUVs(Vert0), Color, HitProxyId);
+		int32 V1 = BatchedElements->AddVertex(Vert1, VertexToMaskUVs(Vert1), Color, HitProxyId);
+		int32 V2 = BatchedElements->AddVertex(Vert2, VertexToMaskUVs(Vert2), Color, HitProxyId);
+		int32 V3 = BatchedElements->AddVertex(Vert3, VertexToMaskUVs(Vert3), Color, HitProxyId);
 
-		BatchedElements->AddTriangle(V0, V1, V2, GWhiteTexture, EBlendMode::BLEND_Translucent);
-		BatchedElements->AddTriangle(V1, V3, V2, GWhiteTexture, EBlendMode::BLEND_Translucent);
+		FTexture* Texture = GWhiteTexture;
+		if (Mask)
+		{
+			Texture = Mask->GetResource();
+		}
+		BatchedElements->AddTriangle(V0, V1, V2, Texture, EBlendMode::BLEND_Translucent);
+		BatchedElements->AddTriangle(V1, V3, V2, Texture, EBlendMode::BLEND_Translucent);
 	}
 
 	// Drawing Outline to selected Blocks
-	if (Color == FColor(75, 106, 230, 155))
+	if (Color == SelectedBlockColor)
 	{
-		BatchedElements->AddLine(Vert0, Vert1, FColor(230, 199, 75, 155), HitProxyId, 4.0f);
-		BatchedElements->AddLine(Vert1, Vert3, FColor(230, 199, 75, 155), HitProxyId, 4.0f);
-		BatchedElements->AddLine(Vert3, Vert2, FColor(230, 199, 75, 155), HitProxyId, 4.0f);
-		BatchedElements->AddLine(Vert2, Vert0, FColor(230, 199, 75, 155), HitProxyId, 4.0f);
+		BatchedElements->AddLine(Vert0, Vert1, UnselectedBlockColor, HitProxyId, 4.0f);
+		BatchedElements->AddLine(Vert1, Vert3, UnselectedBlockColor, HitProxyId, 4.0f);
+		BatchedElements->AddLine(Vert3, Vert2, UnselectedBlockColor, HitProxyId, 4.0f);
+		BatchedElements->AddLine(Vert2, Vert0, UnselectedBlockColor, HitProxyId, 4.0f);
 	}
 }
 

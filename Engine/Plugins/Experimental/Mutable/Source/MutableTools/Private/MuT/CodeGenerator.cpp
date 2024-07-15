@@ -384,11 +384,8 @@ namespace mu
 	}
 
 
-	Ptr<const Layout> CodeGenerator::AddLayout(Ptr<const Layout> SourceLayout, uint32 MeshIDPrefix)
+	Ptr<const Layout> CodeGenerator::AddLayout(Ptr<const NodeLayout> SourceLayout, uint32 MeshIDPrefix)
 	{
-		// The layout we are adding must be a source layout, without block ids yet.
-		check(SourceLayout->Blocks.IsEmpty() || SourceLayout->Blocks[0].Id == Layout::InvalidBlockId);
-
 		Ptr<const Layout>* it = GeneratedLayouts.Find(SourceLayout.get());
 
 		if (it)
@@ -396,18 +393,33 @@ namespace mu
 			return *it;
 		}
 
-		// Assign unique ids to each layout block
-		Ptr<Layout> ClonedLayout = SourceLayout->Clone();
-		for (int32 b = 0; b < ClonedLayout->Blocks.Num(); ++b)
-		{
-			uint64 Id = uint64(MeshIDPrefix) << 32 | uint64(b);
-			ClonedLayout->Blocks[b].Id = Id;
-		}
-		check(SourceLayout->Blocks.Num() == ClonedLayout->Blocks.Num());
-		check(ClonedLayout->Blocks.IsEmpty() || ClonedLayout->Blocks[0].Id != Layout::InvalidBlockId);
-		GeneratedLayouts.Add(SourceLayout.get(), ClonedLayout);
+		Ptr<Layout> GeneratedLayout = new Layout;
+		GeneratedLayout->Size = SourceLayout->Size;
+		GeneratedLayout->MaxSize = SourceLayout->MaxSize;
+		GeneratedLayout->Strategy = SourceLayout->Strategy;
+		GeneratedLayout->ReductionMethod = SourceLayout->ReductionMethod;
 
-		return ClonedLayout;
+		const int32 BlockCount = SourceLayout->Blocks.Num();
+		GeneratedLayout->Blocks.SetNum(BlockCount);
+		for (int32 BlockIndex = 0; BlockIndex < BlockCount; ++BlockIndex)
+		{
+			const FSourceLayoutBlock& From = SourceLayout->Blocks[BlockIndex];
+			FLayoutBlock& To = GeneratedLayout->Blocks[BlockIndex];
+			To.Min = From.Min;
+			To.Size = From.Size;
+			To.Priority = From.Priority;
+			To.bReduceBothAxes = From.bReduceBothAxes;
+			To.bReduceByTwo = From.bReduceByTwo;
+
+			// Assign unique ids to each layout block
+			uint64 Id = uint64(MeshIDPrefix) << 32 | uint64(BlockIndex);
+			To.Id = Id;
+		}
+
+		check(GeneratedLayout->Blocks.IsEmpty() || GeneratedLayout->Blocks[0].Id != FLayoutBlock::InvalidBlockId);
+		GeneratedLayouts.Add(SourceLayout.get(), GeneratedLayout);
+
+		return GeneratedLayout;
 	}
 
 
@@ -1356,7 +1368,7 @@ namespace mu
 								composeOp->BlockImage = blockAd;
 
 								// Set the absolute block index.
-								check(pLayout->Blocks[BlockIndex].Id != Layout::InvalidBlockId);
+								check(pLayout->Blocks[BlockIndex].Id != FLayoutBlock::InvalidBlockId);
 								composeOp->BlockId = pLayout->Blocks[BlockIndex].Id;
 
 								imageAd = composeOp;
@@ -1434,7 +1446,7 @@ namespace mu
 												composeOp->BlockImage = fragmentAd;
 
 												// Set the absolute block index.
-												check(pExtendLayout->Blocks[b].Id != Layout::InvalidBlockId);
+												check(pExtendLayout->Blocks[b].Id != FLayoutBlock::InvalidBlockId);
 												composeOp->BlockId = pExtendLayout->Blocks[b].Id;
 
 												lastBase = composeOp;
@@ -2179,7 +2191,7 @@ namespace mu
 				// Parameters
 				FImageGenerationOptions ClipOptions;
 				ClipOptions.ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
-				ClipOptions.LayoutBlockId = Layout::InvalidBlockId;
+				ClipOptions.LayoutBlockId = FLayoutBlock::InvalidBlockId;
 				ClipOptions.State = Options.State;
 
 				FImageGenerationResult ClipMaskResult;

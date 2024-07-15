@@ -9,21 +9,8 @@ class UEdGraphPin;
 struct FMutableGraphGenerationContext;
 
 
-mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext, bool bLinkedToExtendMaterial = false);
+extern mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin*, FMutableGraphGenerationContext&, bool bLinkedToExtendMaterial = false);
 
+extern mu::Ptr<mu::NodeLayout> CreateMutableLayoutNode(FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectLayout*, bool bLinkedToExtendMaterial, bool& bWasEmpty);
 
-/** */
-inline mu::Layout::FBlock ToMutable(const FCustomizableObjectLayoutBlock& UnrealBlock)
-{
-	mu::Layout::FBlock MutableBlock;
-
-	MutableBlock.Min = { uint16(UnrealBlock.Min.X), uint16(UnrealBlock.Min.Y) };
-	FIntPoint Size = UnrealBlock.Max - UnrealBlock.Min;
-	MutableBlock.Size = { uint16(Size.X), uint16(Size.Y) };
-
-	MutableBlock.Priority = UnrealBlock.Priority;
-	MutableBlock.bReduceBothAxes = UnrealBlock.bReduceBothAxes;
-	MutableBlock.bReduceByTwo = UnrealBlock.bReduceByTwo;
-
-	return MutableBlock;
-}
+extern mu::FSourceLayoutBlock ToMutable(FMutableGraphGenerationContext& GenerationContext, const FCustomizableObjectLayoutBlock&);

@@ -9,6 +9,7 @@ class FPaintArgs;
 class FSlateRect;
 class FSlateWindowElementList;
 class FWidgetStyle;
+class UTexture2D;
 struct FGeometry;
 struct FGuid;
 struct FKeyEvent;
@@ -54,15 +55,16 @@ public:
 	DECLARE_DELEGATE_OneParam(FSetBlockPriority, int32);
 	DECLARE_DELEGATE_OneParam(FSetReduceBlockSymmetrically, bool);
 	DECLARE_DELEGATE_OneParam(FSetReduceBlockByTwo, bool);
+	DECLARE_DELEGATE_OneParam(FSetBlockMask, UTexture2D*);
 
 	SLATE_BEGIN_ARGS( SCustomizableObjectLayoutGrid ){}
 
 		SLATE_ATTRIBUTE( FIntPoint, GridSize )
 		SLATE_ATTRIBUTE( TArray<FCustomizableObjectLayoutBlock>, Blocks )
-		SLATE_ARGUMENT( TArray<FVector2f>, UVLayout  )
+		SLATE_ARGUMENT( TArray<FVector2f>, UVLayout )
 		SLATE_ARGUMENT( TArray<FVector2f>, UnassignedUVLayoutVertices )
-		SLATE_ARGUMENT( ELayoutGridMode, Mode  )
-		SLATE_ARGUMENT( FColor, SelectionColor  )
+		SLATE_ARGUMENT( ELayoutGridMode, Mode )
+		SLATE_ARGUMENT( FColor, SelectionColor )
 		SLATE_EVENT( FBlockChangedDelegate, OnBlockChanged )
 		SLATE_EVENT( FBlockSelectionChangedDelegate, OnSelectionChanged )
 		SLATE_EVENT(FDeleteBlockDelegate, OnDeleteBlocks)
@@ -70,6 +72,7 @@ public:
 		SLATE_EVENT(FSetBlockPriority, OnSetBlockPriority)
 		SLATE_EVENT(FSetReduceBlockSymmetrically, OnSetReduceBlockSymmetrically)
 		SLATE_EVENT(FSetReduceBlockByTwo, OnSetReduceBlockByTwo)
+		SLATE_EVENT(FSetBlockMask, OnSetBlockMask)
 
 	SLATE_END_ARGS()
 
@@ -119,6 +122,9 @@ public:
 	/** Set the grid and blocks to show in the widget. */
 	void SetBlocks( const FIntPoint& GridSize, const TArray<FCustomizableObjectLayoutBlock>& Blocks);
 
+
+private:
+
 	/** Gets the priority value of the selected blocks */
 	TOptional<int32> GetBlockPriorityValue() const;
 
@@ -134,9 +140,15 @@ public:
 	/** Gets block reduction value of the selected blocks */
 	ECheckBoxState GetReductionMethodBoolValue(EFixedReductionOptions Option) const;
 
-private:
-
 	bool MouseOnBlock(FGuid BlockId, FVector2D MousePosition, bool CheckResizeBlock = false) const;
+
+	/** Callback for an asset selection popup menu close. */
+	void CloseMenu();
+
+	/** Callback for an actual mask asset selection in the context menu. */
+	void OnMaskAssetSelected(const FAssetData& AssetData);
+
+	UTexture2D* GetBlockMaskValue() const;
 
 private:
 
@@ -148,6 +160,7 @@ private:
 	FSetBlockPriority OnSetBlockPriority;
 	FSetReduceBlockSymmetrically OnSetReduceBlockSymmetrically;
 	FSetReduceBlockByTwo OnSetReduceBlockByTwo;
+	FSetBlockMask OnSetBlockMask;
 
 	/** Size of the grid in blocks */
 	TAttribute<FIntPoint> GridSize;

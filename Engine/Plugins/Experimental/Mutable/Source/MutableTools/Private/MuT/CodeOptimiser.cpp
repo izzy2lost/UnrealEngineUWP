@@ -84,7 +84,7 @@ namespace mu
 
 		struct custom_layout_equal
 		{
-			bool operator()( const LayoutPtrConst& a, const LayoutPtrConst& b ) const
+			bool operator()( const Ptr<const Layout>& a, const Ptr<const Layout>& b ) const
 			{
 				return a==b || *a==*b;
 			}
