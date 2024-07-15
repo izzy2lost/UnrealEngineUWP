@@ -33,6 +33,32 @@ FODSCRequestPayload::FODSCRequestPayload(
 
 }
 
+FArchive& operator<<(FArchive& Ar, FODSCRequestPayload& Payload)
+{
+	int32 iShaderPlatform = static_cast<int32>(Payload.ShaderPlatform);
+	int32 iFeatureLevel = static_cast<int32>(Payload.FeatureLevel);
+	int32 iQualityLevel = static_cast<int32>(Payload.QualityLevel);
+
+	Ar << iShaderPlatform;
+	Ar << iFeatureLevel;
+	Ar << iQualityLevel;
+	Ar << Payload.MaterialName;
+	Ar << Payload.VertexFactoryName;
+	Ar << Payload.PipelineName;
+	Ar << Payload.ShaderTypeNames;
+	Ar << Payload.PermutationId;
+	Ar << Payload.RequestHash;
+
+	if (Ar.IsLoading())
+	{
+		Payload.ShaderPlatform = static_cast<EShaderPlatform>(iShaderPlatform);
+		Payload.FeatureLevel = static_cast<ERHIFeatureLevel::Type>(iFeatureLevel);
+		Payload.QualityLevel = static_cast<EMaterialQualityLevel::Type>(iQualityLevel);
+	}
+
+	return Ar;
+}
+
 FODSCMessageHandler::FODSCMessageHandler(EShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel, EMaterialQualityLevel::Type InQualityLevel, ODSCRecompileCommand InRecompileCommandType)
 :	ShaderPlatform(InShaderPlatform),
 	FeatureLevel(InFeatureLevel),
