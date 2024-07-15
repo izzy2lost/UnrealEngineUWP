@@ -5,7 +5,9 @@ import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArtifactContextType, JobState, JobStepOutcome, JobStepState, StepData } from '../../backend/Api';
+import { getSiteConfig } from '../../backend/Config';
 import dashboard from '../../backend/Dashboard';
+import { getHordeStyling } from '../../styles/Styles';
 import { EditJobModal } from '../EditJobModal';
 import { useQuery } from '../JobDetailCommon';
 import { NewBuild } from '../NewBuild';
@@ -13,12 +15,10 @@ import { NotificationDropdown } from '../NotificationDropdown';
 import { PauseStepModal } from '../StepPauseModal';
 import { JobArtifactsModal } from '../artifacts/ArtifactsModal';
 import { BisectionCreateModal } from '../bisection/CreateModal';
+import { NewBuildV2 } from '../build/NewBuildV2';
 import { AbortJobModal } from './AbortJobModal';
 import { JobDetailsV2 } from './JobDetailsViewCommon';
 import { RetryStepsModal, StepRetryModal, StepRetryType } from './StepRetryModal';
-import { getSiteConfig } from '../../backend/Config';
-import { getHordeStyling } from '../../styles/Styles';
-import { NewBuildV2 } from '../build/NewBuildV2';
 
 enum ParameterState {
    Hidden,
@@ -233,10 +233,9 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
    const navigate = useNavigate();
 
    const query = useQuery();
-   const artifactContext = !!query.get("artifactContext") ? query.get("artifactContext")! as ArtifactContextType : undefined;
+   let artifactContext = !!query.get("artifactContext") ? query.get("artifactContext")! as ArtifactContextType : undefined;
    const artifactPath = !!query.get("artifactPath") ? query.get("artifactPath")! : undefined;
-
-   const jobData = jobDetails.jobData;
+   const artifactId = !!query.get("artifactId") ? query.get("artifactId")! : undefined;
 
    // subscribe
    if (dashboard.updated) { }
@@ -258,6 +257,11 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
       atypes.set(a.type, c);
    });
 
+   let artifact = stepArtifacts?.find(a => a.id === artifactId);
+   if (!artifactContext && artifact) {
+      artifactContext = artifact.type;
+   }
+   
    const opsList: IContextualMenuItem[] = [];
 
    const baseUrl = window.location.pathname + window.location.search;

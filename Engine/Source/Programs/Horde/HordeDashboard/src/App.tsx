@@ -42,6 +42,7 @@ import { StepIssueReportTest } from './components/test/IssueStepReport';
 import { preloadFonts } from './styles/Styles';
 import { darkTheme } from './styles/darkTheme';
 import { lightTheme } from './styles/lightTheme';
+import { ArtifactRedirector } from './components/artifacts/ArtifactsRedirector';
 
 let router: any;
 
@@ -123,6 +124,7 @@ const Main: React.FC = () => {
                { path: "stream/:streamId", element: <StreamView /> },
                { path: "agents", element: <AgentView /> },
                { path: "agents/registration", element: <AgentRequestsView /> },
+               { path: "artifact/:artifactId", element: <ArtifactRedirector /> },
                { path: "admin/token", element: <AdminToken /> },
                { path: "reports/utilization", element: <UtilizationReportView /> },
                { path: "preflight", element: <PreflightRedirector /> },
