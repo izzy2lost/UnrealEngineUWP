@@ -35,18 +35,6 @@ const FString FJsonSerializable::ToJson(bool bPrettyPrint/*=true*/)
 	return JsonStr;
 }
 
-void FJsonSerializable::ToJson(TSharedRef<TJsonWriter<> >& JsonWriter, bool bFlatObject) const
-{
-	FJsonSerializerWriter<> Serializer(JsonWriter);
-	((FJsonSerializable*)this)->Serialize(Serializer, bFlatObject);
-}
-
-void FJsonSerializable::ToJson(TSharedRef< TJsonWriter< TCHAR, TCondensedJsonPrintPolicy< TCHAR > > >& JsonWriter, bool bFlatObject) const
-{
-	FJsonSerializerWriter<TCHAR, TCondensedJsonPrintPolicy< TCHAR >> Serializer(JsonWriter);
-	((FJsonSerializable*)this)->Serialize(Serializer, bFlatObject);
-}
-
 bool FJsonSerializable::FromJson(const FString& Json)
 {
 	return FromJsonStringView(FStringView(Json));
