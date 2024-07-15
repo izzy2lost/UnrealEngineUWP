@@ -99,7 +99,9 @@ void FD3D12Buffer::UploadResourceData(FRHICommandListBase& InRHICmdList, FRHIGPU
 			for (uint32 GPUIndex : EffectiveMask)
 			{
 				FD3D12CommandContext& CommandContext = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
-				UploadResourceData(CommandContext, InDestinationState, this->ResourceLocation, SrcResourceLoc, GetSize());
+				FD3D12Buffer* DeviceBuffer = CommandContext.RetrieveObject<FD3D12Buffer>(this, GPUIndex);
+
+				UploadResourceData(CommandContext, InDestinationState, DeviceBuffer->ResourceLocation, SrcResourceLoc, GetSize());
 			}
 		});
 }
