@@ -701,7 +701,7 @@ bool USkeletalMeshComponent::NeedToSpawnPostPhysicsInstance(bool bForceReinit) c
 	if(GetSkeletalMeshAsset())
 	{
 		const UClass* MainInstanceClass = *AnimClass;
-		const UClass* ClassToUse = *GetSkeletalMeshAsset()->GetPostProcessAnimBlueprint();
+		const UClass* ClassToUse = *GetPostProcessAnimBPClassToBeUsed();
 		const UClass* CurrentClass = PostProcessAnimInstance ? PostProcessAnimInstance->GetClass() : nullptr;
 
 		const IAnimClassInterface* AnimClassInterface = IAnimClassInterface::GetFromClass(ClassToUse);
@@ -1093,7 +1093,7 @@ bool USkeletalMeshComponent::InitializeAnimScriptInstance(bool bForceReinit, boo
 		}
 
 		// May need to clear out the post physics instance
-		UClass* NewMeshInstanceClass = *SkelMesh->GetPostProcessAnimBlueprint();
+		UClass* NewMeshInstanceClass = *GetPostProcessAnimBPClassToBeUsed();
 		if(!NewMeshInstanceClass || NewMeshInstanceClass == *AnimClass || (PostProcessAnimInstance && PostProcessAnimInstance->CurrentSkeleton != GetSkeletalMeshAsset()->GetSkeleton()) || !GetSkeletalMeshAsset()->GetSkeleton())
 		{
 			PostProcessAnimInstance = nullptr;
@@ -1101,7 +1101,7 @@ bool USkeletalMeshComponent::InitializeAnimScriptInstance(bool bForceReinit, boo
 
 		if(NeedToSpawnPostPhysicsInstance(bForceReinit))
 		{
-			PostProcessAnimInstance = NewObject<UAnimInstance>(this, *SkelMesh->GetPostProcessAnimBlueprint());
+			PostProcessAnimInstance = NewObject<UAnimInstance>(this, *GetPostProcessAnimBPClassToBeUsed());
 
 			if(PostProcessAnimInstance)
 			{
@@ -1125,7 +1125,7 @@ bool USkeletalMeshComponent::InitializeAnimScriptInstance(bool bForceReinit, boo
 				bInitializedPostInstance = true;
 			}
 		}
-		else if (!SkelMesh->GetPostProcessAnimBlueprint().Get())
+		else if (!GetPostProcessAnimBPClassToBeUsed())
 		{
 			PostProcessAnimInstance = nullptr;
 		}
@@ -1264,12 +1264,12 @@ void USkeletalMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Prope
 			if(PostProcessAnimInstance)
 			{
 				UClass* CurrentClass = PostProcessAnimInstance->GetClass();
-				UClass* MeshClass = SkelMesh ? *SkelMesh->GetPostProcessAnimBlueprint() : nullptr;
+				UClass* MeshClass = SkelMesh ? *GetPostProcessAnimBPClassToBeUsed() : nullptr;
 				if(CurrentClass != MeshClass)
 				{
 					if(MeshClass)
 					{
-						PostProcessAnimInstance = NewObject<UAnimInstance>(this, *SkelMesh->GetPostProcessAnimBlueprint());
+						PostProcessAnimInstance = NewObject<UAnimInstance>(this, *GetPostProcessAnimBPClassToBeUsed());
 						PostProcessAnimInstance->InitializeAnimation();
 
 						if(HasBegunPlay())
@@ -4389,13 +4389,41 @@ bool USkeletalMeshComponent::ShouldPostUpdatePostProcessInstance() const
 	return PostProcessAnimInstance && PostProcessAnimInstance->NeedsUpdate() && !bDisablePostProcessBlueprint;
 }
 
-bool USkeletalMeshComponent::ShouldEvaluatePostProcessInstance() const
+void USkeletalMeshComponent::SetOverridePostProcessAnimBP(TSubclassOf<UAnimInstance> InPostProcessAnimBlueprint, bool ReinitAnimInstances)
 {
+	OverridePostProcessAnimBP = InPostProcessAnimBlueprint;
+
+	if (ReinitAnimInstances)
+	{
+		InitializeAnimScriptInstance();
+	}
+}
+
+TSubclassOf<UAnimInstance> USkeletalMeshComponent::GetPostProcessAnimBPClassToBeUsed() const
+{
+	if (OverridePostProcessAnimBP)
+	{
+		return OverridePostProcessAnimBP;
+	}
+
 	if (USkeletalMesh* SkelMesh = GetSkeletalMeshAsset())
 	{
-		if (!SkelMesh->ShouldEvaluatePostProcessAnimBP(GetPredictedLODLevel()))
+		return SkelMesh->GetPostProcessAnimBlueprint();
+	}
+
+	return nullptr;
+}
+
+bool USkeletalMeshComponent::ShouldEvaluatePostProcessInstance() const
+{
+	if (!OverridePostProcessAnimBP)
+	{
+		if (USkeletalMesh* SkelMesh = GetSkeletalMeshAsset())
 		{
-			return false;
+			if (!SkelMesh->ShouldEvaluatePostProcessAnimBP(GetPredictedLODLevel()))
+			{
+				return false;
+			}
 		}
 	}
 

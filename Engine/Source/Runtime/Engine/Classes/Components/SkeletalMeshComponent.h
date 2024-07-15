@@ -358,6 +358,17 @@ public:
 	TArray<TObjectPtr<UAnimInstance>> SubInstances;
 #endif
 
+	/** Post-processing AnimBP to use for the given skeletal mesh component, overriding the one set in the skeletal mesh asset. */
+	UPROPERTY(transient)
+	TSubclassOf<UAnimInstance> OverridePostProcessAnimBP;
+
+	/**
+	 * Get the post-processing AnimBP to be used for this skeletal mesh component.
+	 * In case an override post-processing AnimBP is set, it will always return the AnimBP class of that.
+	 * Otherwise the one set in skeletal mesh asset will be returned.
+	 */
+	ENGINE_API TSubclassOf<UAnimInstance> GetPostProcessAnimBPClassToBeUsed() const;
+
 	/** An instance created from the PostPhysicsBlueprint property of the skeletal mesh we're using,
 	 *  Runs after (and receives pose from) the main anim instance.
 	 */
@@ -365,6 +376,14 @@ public:
 	TObjectPtr<UAnimInstance> PostProcessAnimInstance;
 
 public:
+	/**
+	 * Set the post-processing AnimBP to be used for this skeletal mesh component.
+	 * In case an override post-processing AnimBP is set, the one set in skeletal mesh asset will be ignored and not used.
+	 * @param ReinitAnimInstances Can be false when called e.g. from the construction script in a Blueprint. True when this is called while
+	 *							  the game is running and the anim instances need to be re-initialized.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkeletalMesh")
+	ENGINE_API void SetOverridePostProcessAnimBP(TSubclassOf<UAnimInstance> InPostProcessAnimBlueprint, bool ReinitAnimInstances = true);
 
 	/** Toggles whether the post process blueprint will run for this component */
 	UFUNCTION(BlueprintCallable, Category="Components|SkeletalMesh")
