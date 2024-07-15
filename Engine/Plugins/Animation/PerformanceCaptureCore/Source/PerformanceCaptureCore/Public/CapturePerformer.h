@@ -12,7 +12,7 @@ class ULiveLinkInstance;
 class UPerformerComponent;
 
 UCLASS(Blueprintable, Category="Performance Capture")
-class ACapturePerformer : public ASkeletalMeshActor
+class PERFORMANCECAPTURECORE_API ACapturePerformer : public ASkeletalMeshActor
 {
 	GENERATED_BODY()
 

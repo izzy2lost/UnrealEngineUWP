@@ -12,7 +12,7 @@ class URetargetComponent;
 class UIKRetargeter;
 
 UCLASS(Blueprintable, ClassGroup ="Performance Capture", Category = "Performance Capture",  HideCategories = ("Mesh", "Rendering", "Animation", "LOD", "Misc", "Physics", "Streaming"))
-class ACaptureCharacter : public ASkeletalMeshActor
+class PERFORMANCECAPTURECORE_API ACaptureCharacter : public ASkeletalMeshActor
 {
 	GENERATED_BODY()
 

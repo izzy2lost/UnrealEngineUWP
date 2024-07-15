@@ -11,7 +11,7 @@
 class ULiveLinkInstance;
 
 UCLASS(BlueprintType, DisplayName="Performer Component",  ClassGroup=("Performance Capture"), meta=(BlueprintSpawnableComponent))
-class UPerformerComponent : public UActorComponent
+class PERFORMANCECAPTURECORE_API UPerformerComponent : public UActorComponent
 {
 	GENERATED_BODY()
 

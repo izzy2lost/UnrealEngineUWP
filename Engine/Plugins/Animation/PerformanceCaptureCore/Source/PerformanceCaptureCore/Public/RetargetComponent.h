@@ -12,7 +12,7 @@
 class UIKRetargeter;
 
 UCLASS(BlueprintType, ClassGroup=("Performance Capture"), meta=(BlueprintSpawnableComponent), DisplayName = "Retarget Component")
-class URetargetComponent : public UActorComponent
+class PERFORMANCECAPTURECORE_API URetargetComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
