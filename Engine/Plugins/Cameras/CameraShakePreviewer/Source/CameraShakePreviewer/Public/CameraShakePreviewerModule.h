@@ -5,6 +5,7 @@
 #include "Modules/ModuleInterface.h"
 
 class FExtender;
+class FMenuBuilder;
 class FUICommandList;
 class FLevelEditorViewportClient;
 class FSpawnTabArgs;
@@ -49,6 +50,8 @@ private:
 
 	TSharedRef<FExtender> OnExtendLevelViewportOptionMenu(const TSharedRef<FUICommandList> CommandList);
 	void OnLevelViewportClientListChanged();
+
+	void CreateCameraShakeToggleOption(FMenuBuilder& InMenuBuilder);
 
 private:
 	FDelegateHandle LevelEditorTabManagerChangedHandle;
