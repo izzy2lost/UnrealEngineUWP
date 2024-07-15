@@ -362,15 +362,27 @@ void UUserToolboxSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 	OnFileLoadHandle=AssetRegistry.OnFilesLoaded().AddLambda([this](){RegisterTabData();});
+
+	AssetRegistry.OnAssetAdded().AddUObject(this, &UUserToolboxSubsystem::OnAssetChanged);
+	AssetRegistry.OnAssetRemoved().AddUObject(this, &UUserToolboxSubsystem::OnAssetChanged);
+	AssetRegistry.OnAssetUpdatedOnDisk().AddUObject(this, &UUserToolboxSubsystem::OnAssetChanged);
+
 	FUserToolBoxStyle::Initialize();
 	FUTBEditorCommands::Register();
 }
+
 void UUserToolboxSubsystem::Deinitialize()
 {
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+	AssetRegistry.OnAssetAdded().RemoveAll(this);
+	AssetRegistry.OnAssetRemoved().RemoveAll(this);
+	AssetRegistry.OnAssetUpdatedOnDisk().RemoveAll(this);
+
 	if (OnFileLoadHandle.IsValid())
 	{
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+		
 		AssetRegistry.OnFilesLoaded().Remove(OnFileLoadHandle);
 	}
 	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
@@ -596,3 +608,16 @@ void UUserToolboxSubsystem::UpdateLevelViewportWidget()
 	}
 }
 
+void UUserToolboxSubsystem::OnAssetChanged(const FAssetData& InAssetData)
+{
+	if (InAssetData.AssetClassPath != UIconsTracker::StaticClass()->GetClassPathName())
+	{
+		return;
+	}
+
+	UIconsTracker* Asset = Cast<UIconsTracker>(InAssetData.GetAsset());
+	if (IsValid(Asset))
+	{
+		RefreshIcons();
+	}
+}

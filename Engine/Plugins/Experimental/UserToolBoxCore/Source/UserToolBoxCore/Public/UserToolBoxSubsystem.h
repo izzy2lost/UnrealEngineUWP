@@ -65,6 +65,8 @@ public:
 	void UpdateLevelViewportWidget();
 private:
 
+	void OnAssetChanged(const FAssetData& InAssetData);
+
 	// Delegate handle
 	FDelegateHandle OnFileLoadHandle;
 
