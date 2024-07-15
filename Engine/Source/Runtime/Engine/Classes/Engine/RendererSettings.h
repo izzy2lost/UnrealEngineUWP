@@ -691,7 +691,7 @@ class URendererSettings : public UDeveloperSettings
 
 	UPROPERTY(config, EditAnywhere, Category=Translucency, meta=(
 		ConsoleVariable="r.LocalFogVolume.ApplyOnTranslucent",
-		ToolTip="Allow translucency to be rendered to a separate render targeted and composited after depth of field. Prevents translucency from appearing out of focus."))
+		ToolTip="Allow local fog volumes to be combined and rendered over translucent meshes. Only per vertex evaluation is supported as of today. It requires r.SupportLocalFogVolumes to be true"))
 	uint32 bLocalFogVolumeApplyOnTranslucent:1;
 
 	UPROPERTY(config, EditAnywhere, Category = VR, meta = (
@@ -958,13 +958,9 @@ class URendererSettings : public UDeveloperSettings
 		ConfigRestartRequired = true))
 		uint32 bSupportExpFogMatchesVolumetricFog : 1;
 
-	/**
-	"Local fog volume components can will need to be applied on translucent, and opaque in forward, so resources will need to be bound to apply aerial perspective on transparent surfaces (and all surfaces on mobile via per vertex evaluation)."
-	"It requires r.SupportLocalFogVolumes to be true."
-	*/
 	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (
 		ConsoleVariable = "r.SupportLocalFogVolumes", DisplayName = "Support Local Fog Volumes",
-		ToolTip = "Local fog volume components can will need to be applied on translucent, and opaque in forward, so resources will need to be bound to apply aerial perspective on transparent surfaces (and all surfaces on mobile via per vertex evaluation). It requires r.SupportLocalFogVolumes to be true.",
+		ToolTip = "Enable local fog volume components rendering support. Disable that setting if local fog volumes are not used in a project for increased performance.",
 		ConfigRestartRequired = true))
 		uint32 bSupportLocalFogVolumes : 1;
 

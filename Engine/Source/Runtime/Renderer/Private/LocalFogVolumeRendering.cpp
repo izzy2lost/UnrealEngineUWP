@@ -12,7 +12,7 @@
 // The runtime ON/OFF toggle
 static TAutoConsoleVariable<int32> CVarLocalFogVolume(
 	TEXT("r.LocalFogVolume"), 1,
-	TEXT("LocalFogVolume components are rendered when this is not 0, otherwise ignored."),
+	TEXT("Project settings enabling the rendering of Local Fog Volumes."),
 	ECVF_RenderThreadSafe);
 
 // The project setting (disable runtime and shader code)
@@ -29,7 +29,7 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolumeRenderDuringHeightFogPass(
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeRenderIntoVolumetricFog(
 	TEXT("r.LocalFogVolume.RenderIntoVolumetricFog"), 1,
-	TEXT("LocalFogVolume are going to be voxelised into the volumetric fog when this is not 0, otherwise it will remain isolated."),
+	TEXT("Enables the voxelization of local fog volumes into the volumetric fog rendering system. Otherwise, local fog volumes will remain isolated."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<float> CVarLocalFogVolumeMaxDensityIntoVolumetricFog(
@@ -49,12 +49,12 @@ static TAutoConsoleVariable<int32> CVarLocalFogVolumeTilePixelSize(
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileMaxInstanceCount(
 	TEXT("r.LocalFogVolume.TileMaxInstanceCount"), 32,
-	TEXT("Maximum number of local fog volume to account for per view (and per tile or consistency)."),
+	TEXT("Maximum number of local fog volumes to account for per view (and per tile or consistency)."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileCullingUseAsync(
 	TEXT("r.LocalFogVolume.TileCullingUseAsync"), 1,
-	TEXT("True if we want to try and use culling on the async pipe."),
+	TEXT("Enables running the culling process on the async compute pipe."),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeTileDebug(
@@ -69,12 +69,12 @@ static TAutoConsoleVariable<float> CVarLocalFogVolumeGlobalStartDistance(
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeUseHZB(
 	TEXT("r.LocalFogVolume.UseHZB"), 1,
-	TEXT("Use the HZB to cull loca lfog volume away.\n"),
+	TEXT("Enables the use of the HZB to cull local fog volumes away.\n"),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLocalFogVolumeHalfResolution(
 	TEXT("r.LocalFogVolume.HalfResolution"), 0,
-	TEXT("Set to one to render local fog volumes at half resoltuion with an upsampling to full resolution later. Only work for the mobile path for now.\n"),
+	TEXT("Enables half resolution rendering of local fog volumes with an upsampling to full resolution later. Only works for the mobile path for now.\n"),
 	ECVF_RenderThreadSafe);
 
 // Example of tile setup
