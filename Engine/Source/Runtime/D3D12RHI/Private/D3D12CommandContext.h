@@ -1112,6 +1112,16 @@ public:
 		ContextRedirect(RHIBindAccelerationStructureMemory(Scene, Buffer, BufferOffset));
 	}
 
+	virtual void RHICommitShaderBindingTable(FRHIShaderBindingTable* SBT) final override
+	{
+		ContextRedirect(RHICommitShaderBindingTable(SBT));
+	}
+
+	virtual void RHICommitRayTracingBindings(FRHIRayTracingScene* Scene) final override
+	{
+		ContextRedirect(RHICommitRayTracingBindings(Scene));
+	}
+
 #endif // D3D12_RHI_RAYTRACING
 
 	virtual void RHISetGPUMask(FRHIGPUMask InGPUMask) final override
