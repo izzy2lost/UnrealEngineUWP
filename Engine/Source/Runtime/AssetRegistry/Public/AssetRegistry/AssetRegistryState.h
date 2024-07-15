@@ -38,21 +38,19 @@ namespace UE::AssetRegistry
 
 struct FAssetRegistryHeader;
 
-/** Load/Save options used to modify how the cache is serialized. These are read out of the AssetRegistry section of Engine.ini and can be changed per platform. */
+/**
+ * Load/Save options used to modify how the cache is serialized.
+ * These are read out of the AssetRegistry section of Engine.ini and can be changed per platform.
+ */
 struct FAssetRegistrySerializationOptions
 {
-	FAssetRegistrySerializationOptions(UE::AssetRegistry::ESerializationTarget Target = UE::AssetRegistry::ESerializationTarget::ForGame)
-	{
-		if (Target == UE::AssetRegistry::ESerializationTarget::ForDevelopment)
-		{
-			InitForDevelopment();
-		}
-	}
+	FAssetRegistrySerializationOptions(
+		UE::AssetRegistry::ESerializationTarget Target = UE::AssetRegistry::ESerializationTarget::ForGame);
 
 	/** True rather to load/save registry at all */
 	bool bSerializeAssetRegistry = false;
 
-	/** True rather to load/save dependency info. If true this will handle hard and soft package references */
+	/** True rather to load/save dependency info. If true this will handle hard and soft package references. */
 	bool bSerializeDependencies = false;
 
 	/** True rather to load/save dependency info for Name references,  */
@@ -67,53 +65,50 @@ struct FAssetRegistrySerializationOptions
 	/** True if CookFilterlistTagsByClass is an allow list. False if it is a deny list. */
 	bool bUseAssetRegistryTagsAllowListInsteadOfDenyList = false;
 
-	/** True if we want to only write out asset data if it has valid tags. This saves memory by not saving data for things like textures */
+	/**
+	 * True if we want to only write out asset data if it has valid tags.
+	 * This saves memory by not saving data for things like textures.
+	 */
 	bool bFilterAssetDataWithNoTags = false;
 
-	/** True if we also want to filter out dependency data for assets that have no tags. Only filters if bFilterAssetDataWithNoTags is also true */
+	/**
+	 * True if we also want to filter out dependency data for assets that have no tags.
+	 * Only filters if bFilterAssetDataWithNoTags is also true.
+	 */
 	bool bFilterDependenciesWithNoTags = false;
 
 	/** Filter out searchable names from dependency data */
 	bool bFilterSearchableNames = false;
 
 	/**
-	 * Keep tags intended for the cooker's output DevelopmentAssetRegistry. this flag defaults to false and is set to
+	 * Keep tags intended for the cooker's output DevelopmentAssetRegistry. This flag defaults to false and is set to
 	 * true only by the cooker.
 	 */
 	bool bKeepDevelopmentAssetRegistryTags = false;
 
-	/** The map of class pathname to tag set of tags that are allowed in cooked builds. This is either an allow list or deny list depending on bUseAssetRegistryTagsAllowListInsteadOfDenyList */
+	/**
+	 * The map of class pathname to tag set of tags that are allowed in cooked builds.
+	 * This is either an allow list or deny list depending on bUseAssetRegistryTagsAllowListInsteadOfDenyList.
+	 */
 	TMap<FTopLevelAssetPath, TSet<FName>> CookFilterlistTagsByClass;
 
-	/** Tag keys whose values should be stored as FName in cooked builds */
+	/** Tag keys whose values should be stored as FName in cooked builds. */
 	TSet<FName> CookTagsAsName;
 
-	/** Tag keys whose values should be stored as FRegistryExportPath in cooked builds */
+	/** Tag keys whose values should be stored as FRegistryExportPath in cooked builds. */
 	TSet<FName> CookTagsAsPath;
 
 	/** Disable all filters */
-	void DisableFilters()
-	{
-		bFilterAssetDataWithNoTags = false;
-		bFilterDependenciesWithNoTags = false;
-		bFilterSearchableNames = false;
-	}
+	void DisableFilters();
 
 private:
-	void InitForDevelopment()
-	{
-		bSerializeAssetRegistry = bSerializeDependencies = bSerializeSearchableNameDependencies = bSerializeManageDependencies = bSerializePackageData = true;
-		DisableFilters();
-	}
+	void InitForDevelopment();
 };
 
 struct FAssetRegistryLoadOptions
 {
 	FAssetRegistryLoadOptions() = default;
-	explicit FAssetRegistryLoadOptions(const FAssetRegistrySerializationOptions& Options)
-		: bLoadDependencies(Options.bSerializeDependencies)
-		, bLoadPackageData(Options.bSerializePackageData)
-	{}
+	explicit FAssetRegistryLoadOptions(const FAssetRegistrySerializationOptions& Options);
 
 	bool bLoadDependencies = true;
 	bool bLoadPackageData = true;
@@ -136,69 +131,75 @@ struct FAssetRegistryPruneOptions
 
 namespace UE::AssetRegistry::Private
 {
-	/* 
-	* Key type for TSet<FAssetData*> in the asset registry.
-	* Top level assets are searched for by their asset path as two names (e.g. '/Path/ToPackageName' + 'AssetName')
-	* Other assets (e.g. external actors) are searched for by their full path with the whole outer chain as a single name. 
-	* (e.g. '/Path/To/Package.TopLevel:Subobject' + 'DeeperSubobject')
-	*/
-	struct FCachedAssetKey
+
+/* 
+* Key type for TSet<FAssetData*> in the asset registry.
+* Top level assets are searched for by their asset path as two names (e.g. '/Path/ToPackageName' + 'AssetName')
+* Other assets (e.g. external actors) are searched for by their full path with the whole outer chain as a single name. 
+* (e.g. '/Path/To/Package.TopLevel:Subobject' + 'DeeperSubobject')
+*/
+struct FCachedAssetKey
+{
+	explicit FCachedAssetKey(const FAssetData* InAssetData);
+	explicit FCachedAssetKey(const FAssetData& InAssetData);
+	explicit FCachedAssetKey(FTopLevelAssetPath InAssetPath);
+	explicit FCachedAssetKey(const FSoftObjectPath& InObjectPath);
+
+	FString ToString() const;
+	int32 Compare(const FCachedAssetKey& Other) const;	// Order asset keys with fast non-lexical comparison
+	void AppendString(FStringBuilderBase& Builder) const;
+
+	FName OuterPath = NAME_None;
+	FName ObjectName = NAME_None;
+};
+
+inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FCachedAssetKey& Key);
+inline bool operator==(const FCachedAssetKey& A, const FCachedAssetKey& B);
+inline bool operator!=(const FCachedAssetKey& A, const FCachedAssetKey& B);
+inline uint32 GetTypeHash(const FCachedAssetKey& A);
+
+/* 
+* Policy type for TSet<FAssetData*> to use FCachedAssetKey for hashing/equality.
+* This allows is to store just FAssetData* in the map without storing an extra copy of the key fields to save memory.
+*/
+struct FCachedAssetKeyFuncs
+{
+	using KeyInitType = FCachedAssetKey;
+	using ElementInitType = void; // TSet doesn't actually use this type 
+
+	enum { bAllowDuplicateKeys = false };
+
+	static FORCEINLINE KeyInitType GetSetKey(const FAssetData* Element)
 	{
-		explicit FCachedAssetKey(const FAssetData* InAssetData);
-		explicit FCachedAssetKey(const FAssetData& InAssetData);
-		explicit FCachedAssetKey(FTopLevelAssetPath InAssetPath);
-		explicit FCachedAssetKey(const FSoftObjectPath& InObjectPath);
+		return FCachedAssetKey(*Element);
+	}
 
-		FString ToString() const;
-		int32 Compare(const FCachedAssetKey& Other) const;	// Order asset keys with fast non-lexical comparison
-		void AppendString(FStringBuilderBase& Builder) const;
-
-		FName OuterPath = NAME_None;
-		FName ObjectName = NAME_None;
-	};
-
-	inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FCachedAssetKey& Key);
-	inline bool operator==(const FCachedAssetKey& A, const FCachedAssetKey& B);
-	inline bool operator!=(const FCachedAssetKey& A, const FCachedAssetKey& B);
-	inline uint32 GetTypeHash(const FCachedAssetKey& A);
-
-	/* 
-	* Policy type for TSet<FAssetData*> to use FCachedAssetKey for hashing/equality.
-	* This allows is to store just FAssetData* in the map without storing an extra copy of the key fields to save memory.
-	*/
-	struct FCachedAssetKeyFuncs
+	static FORCEINLINE bool Matches(KeyInitType A, KeyInitType B)
 	{
-		using KeyInitType = FCachedAssetKey;
-		using ElementInitType = void; // TSet doesn't actually use this type 
+		return A == B;
+	}
 
-		enum { bAllowDuplicateKeys = false };
+	static FORCEINLINE uint32 GetKeyHash(KeyInitType Key)
+	{
+		return GetTypeHash(Key);
+	}
+};
 
-		static FORCEINLINE KeyInitType GetSetKey(const FAssetData* Element)
-		{
-			return FCachedAssetKey(*Element);
-		}
+using FAssetDataMap = TSet<FAssetData*, FCachedAssetKeyFuncs>;
+using FConstAssetDataMap = TSet<const FAssetData*, FCachedAssetKeyFuncs>;
 
-		static FORCEINLINE bool Matches(KeyInitType A, KeyInitType B)
-		{
-			return A == B;
-		}
+} // namespace UE::AssetRegistry::Private
 
-		static FORCEINLINE uint32 GetKeyHash(KeyInitType Key)
-		{
-			return GetTypeHash(Key);
-		}
-	};
-
-	using FAssetDataMap = TSet<FAssetData*, FCachedAssetKeyFuncs>;
-	using FConstAssetDataMap = TSet<const FAssetData*, FCachedAssetKeyFuncs>;
-}
-
-/** The state of an asset registry, this is used internally by IAssetRegistry to represent the disk cache, and is also accessed directly to save/load cooked caches */
+/**
+ * The state of an asset registry, this is used internally by IAssetRegistry to represent the disk cache,
+ * and is also accessed directly to save/load cooked caches.
+ */
 class FAssetRegistryState
 {
 	using FCachedAssetKey = UE::AssetRegistry::Private::FCachedAssetKey;
 public:
-	// These types are an implementation detail and they and the functions which take/return them are subject to change without deprecation warnings.
+	// These types are an implementation detail and they and the functions which take/return them are subject to change
+	// without deprecation warnings.
 	using FAssetDataMap = UE::AssetRegistry::Private::FAssetDataMap;
 	using FConstAssetDataMap = UE::AssetRegistry::Private::FConstAssetDataMap;
 
@@ -236,9 +237,11 @@ public:
 	 * @param Filter filter to apply to the assets in the AssetRegistry
 	 * @param PackageNamesToSkip explicit list of packages to skip, because they were already added
 	 * @param OutAssetData the list of assets in this path
-	 * @param bSkipARFilteredAssets If true, skip assets that are skipped by UE::AssetRegistry::FFiltering (false by default)
+	 * @param bSkipARFilteredAssets If true, skip assets that are skipped by UE::AssetRegistry::FFiltering
+	          (false by default)
 	 */
-	ASSETREGISTRY_API bool GetAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip, TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets = false) const;
+	ASSETREGISTRY_API bool GetAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip,
+		TArray<FAssetData>& OutAssetData, bool bSkipARFilteredAssets = false) const;
 
 	/**
 	 * Enumerate asset data for all assets that match the filter.
@@ -251,8 +254,10 @@ public:
 	 * @param bARFiltering Whether to apply filtering from UE::AssetRegistry::FFiltering (false by default)
 	 */
 	UE_DEPRECATED(5.5, "Use EnumerateAssets with InEnumerateFlags instead.")
-	ASSETREGISTRY_API bool EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback, bool bARFiltering) const;
-	ASSETREGISTRY_API bool EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback) const;
+	ASSETREGISTRY_API bool EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip,
+		TFunctionRef<bool(const FAssetData&)> Callback, bool bARFiltering) const;
+	ASSETREGISTRY_API bool EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip,
+		TFunctionRef<bool(const FAssetData&)> Callback) const;
 
 	/**
 	 * Enumerate asset data for all assets that match the filter.
@@ -265,7 +270,9 @@ public:
 	 * @param InEnumerateFlags flags to control enumeration and filtering.
 	 *        @see EEnumerateAssetsFlags.
 	 */
-	ASSETREGISTRY_API bool EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const;
+	ASSETREGISTRY_API bool EnumerateAssets(const FARCompiledFilter& Filter, const TSet<FName>& PackageNamesToSkip, 
+		TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const;
 
 	/**
 	 * Gets asset data for all assets in the registry state.
@@ -274,7 +281,8 @@ public:
 	 * @param OutAssetData the list of assets
 	 * @param bARFiltering Whether to apply filtering from UE::AssetRegistry::FFiltering (false by default)
 	 */
-	ASSETREGISTRY_API bool GetAllAssets(const TSet<FName>& PackageNamesToSkip, TArray<FAssetData>& OutAssetData, bool bARFiltering = false) const;
+	ASSETREGISTRY_API bool GetAllAssets(const TSet<FName>& PackageNamesToSkip, TArray<FAssetData>& OutAssetData,
+		bool bARFiltering = false) const;
 
 	/**
 	 * Enumerates asset data for all assets in the registry state.
@@ -284,9 +292,11 @@ public:
 	 * @param bARFiltering Whether to apply filtering from UE::AssetRegistry::FFiltering (false by default)
 	 */
 	UE_DEPRECATED(5.5, "Use EnumerateAllAssets with InEnumerateFlags instead.")
-	ASSETREGISTRY_API bool EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback, bool bARFiltering) const;
+	ASSETREGISTRY_API bool EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip,
+		TFunctionRef<bool(const FAssetData&)> Callback, bool bARFiltering) const;
 	ASSETREGISTRY_API void EnumerateAllAssets(TFunctionRef<void(const FAssetData&)> Callback) const;
-	ASSETREGISTRY_API bool EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback) const;
+	ASSETREGISTRY_API bool EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip,
+		TFunctionRef<bool(const FAssetData&)> Callback) const;
 
 	/**
 	 * Enumerates asset data for all assets in the registry state.
@@ -296,7 +306,9 @@ public:
 	 * @param InEnumerateFlags flags to control enumeration and filtering.
 	 *        @see EEnumerateAssetsFlags.
 	 */
-	ASSETREGISTRY_API bool EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip, TFunctionRef<bool(const FAssetData&)> Callback, UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const;
+	ASSETREGISTRY_API bool EnumerateAllAssets(const TSet<FName>& PackageNamesToSkip,
+		TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const;
 	
 
 	/**
@@ -326,26 +338,46 @@ public:
 	ASSETREGISTRY_API FName GetFirstPackageByName(FStringView PackageName) const;
 
 	/**
-	 * Appends a list of packages and searchable names that are referenced by the supplied package or name. (On disk references ONLY)
+	 * Appends a list of packages and searchable names that are referenced by the supplied package or name.
+	 * (On disk references ONLY)
 	 *
 	 * @param AssetIdentifier	the name of the package/name for which to gather dependencies
 	 * @param OutDependencies	a list of things that are referenced by AssetIdentifier
-	 * @param Category	which category(ies) of dependencies to include in the output list. Dependencies matching ANY of the OR'd categories will be returned.
-	 * @param Flags	which flags are required present or not present on the dependencies. Dependencies matching ALL required and NONE excluded bits will be returned. For each potentially returned dependency, flags not applicable to their category are ignored.
+	 * @param Category	which category(ies) of dependencies to include in the output list.
+	 *        Dependencies matching ANY of the OR'd categories will be returned.
+	 * @param Flags	which flags are required present or not present on the dependencies.
+	 *        Dependencies matching ALL required and NONE excluded bits will be returned.
+	 *        For each potentially returned dependency, flags not applicable to their category are ignored.
 	 */
-	ASSETREGISTRY_API bool GetDependencies(const FAssetIdentifier& AssetIdentifier, TArray<FAssetIdentifier>& OutDependencies, UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All, const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const;
-	ASSETREGISTRY_API bool GetDependencies(const FAssetIdentifier& AssetIdentifier, TArray<FAssetDependency>& OutDependencies, UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All, const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const;
+	ASSETREGISTRY_API bool GetDependencies(const FAssetIdentifier& AssetIdentifier,
+		TArray<FAssetIdentifier>& OutDependencies,
+		UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All,
+		const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const;
+	ASSETREGISTRY_API bool GetDependencies(const FAssetIdentifier& AssetIdentifier,
+		TArray<FAssetDependency>& OutDependencies,
+		UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All,
+		const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const;
 
 	/**
-	 * Appends a list of packages and searchable names that reference the supplied package or name. (On disk references ONLY)
+	 * Appends a list of packages and searchable names that reference the supplied package or name.
+	 * (On disk references ONLY)
 	 *
 	 * @param AssetIdentifier	the name of the package/name for which to gather dependencies
 	 * @param OutReferencers	a list of things that reference AssetIdentifier
-	 * @param Category	which category(ies) of dependencies to include in the output list. Dependencies matching ANY of the OR'd categories will be returned.
-	 * @param Flags	which flags are required present or not present on the dependencies. Dependencies matching ALL required and NONE excluded bits will be returned. For each potentially returned dependency, flags not applicable to their category are ignored.
+	 * @param Category	which category(ies) of dependencies to include in the output list.
+	 *        Dependencies matching ANY of the OR'd categories will be returned.
+	 * @param Flags	which flags are required present or not present on the dependencies.
+	 *        Dependencies matching ALL required and NONE excluded bits will be returned.
+	 *        For each potentially returned dependency, flags not applicable to their category are ignored.
 	 */
-	ASSETREGISTRY_API bool GetReferencers(const FAssetIdentifier& AssetIdentifier, TArray<FAssetIdentifier>& OutReferencers, UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All, const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const;
-	ASSETREGISTRY_API bool GetReferencers(const FAssetIdentifier& AssetIdentifier, TArray<FAssetDependency>& OutReferencers, UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All, const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const;
+	ASSETREGISTRY_API bool GetReferencers(const FAssetIdentifier& AssetIdentifier,
+		TArray<FAssetIdentifier>& OutReferencers,
+		UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All,
+		const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const;
+	ASSETREGISTRY_API bool GetReferencers(const FAssetIdentifier& AssetIdentifier,
+		TArray<FAssetDependency>& OutReferencers,
+		UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All,
+		const UE::AssetRegistry::FDependencyQuery& Flags = UE::AssetRegistry::FDependencyQuery()) const;
 
 	/**
 	 * Gets the asset data for the specified object path
@@ -354,10 +386,7 @@ public:
 	 * @return the assets data, null if not found
 	 */
 	UE_DEPRECATED(5.1, "Asset path FNames have been deprecated, use FSoftObjectPath instead.")
-	const FAssetData* GetAssetByObjectPath(const FName ObjectPath) const
-	{
-		return GetAssetByObjectPath(FSoftObjectPath(ObjectPath.ToString()));
-	}
+	const FAssetData* GetAssetByObjectPath(const FName ObjectPath) const;
 
 	/**
 	 * Gets the asset data for the specified object path
@@ -365,17 +394,7 @@ public:
 	 * @param ObjectPath the path of the object to be looked up
 	 * @return the assets data, null if not found
 	 */
-	const FAssetData* GetAssetByObjectPath(const FSoftObjectPath& ObjectPath) const 
-	{
-		FCachedAssetKey Key(ObjectPath);
-		FAssetData* const* FoundAsset = CachedAssets.Find(Key);
-		if (FoundAsset)
-		{
-			return *FoundAsset;
-		}
-
-		return nullptr;
-	}
+	const FAssetData* GetAssetByObjectPath(const FSoftObjectPath& ObjectPath) const;
 
 	/**
 	 * Gets the asset data for the specified package name
@@ -383,15 +402,7 @@ public:
 	 * @param PackageName the path of the package to be looked up
 	 * @return an array of AssetData*, empty if nothing found
 	 */
-	TArrayView<FAssetData const* const> GetAssetsByPackageName(const FName PackageName) const
-	{
-		if (const TArray<FAssetData*, TInlineAllocator<1>>* FoundAssetArray = CachedAssetsByPackageName.Find(PackageName))
-		{
-			return MakeArrayView(*FoundAssetArray);
-		}
-
-		return TArrayView<FAssetData* const>();
-	}
+	TArrayView<FAssetData const* const> GetAssetsByPackageName(const FName PackageName) const;
 
 	/**
 	 * Gets the asset data for the specified asset class
@@ -408,39 +419,17 @@ public:
 	 * @param ClassPathName the class path name of the assets to look for
 	 * @return An array of AssetData*, empty if nothing found
 	 */
-	const TArray<const FAssetData*>& GetAssetsByClassPathName(const FTopLevelAssetPath ClassPathName) const
-	{
-		static TArray<const FAssetData*> InvalidArray;
-		const TArray<FAssetData*>* FoundAssetArray = CachedAssetsByClass.Find(ClassPathName);
-		if (FoundAssetArray)
-		{
-			return reinterpret_cast<const TArray<const FAssetData*>&>(*FoundAssetArray);
-		}
-
-		return InvalidArray;
-	}
+	const TArray<const FAssetData*>& GetAssetsByClassPathName(const FTopLevelAssetPath ClassPathName) const;
 
 	/**
 	 * Enumerates all tags of any asset in the AssetRegistry
 	 *
 	 * @param Callback the function for each tag
 	 */
-	void EnumerateTags(TFunctionRef<bool(FName TagName)> Callback) const
-	{
-		for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
-		{
-			if (!Callback(Pair.Key))
-			{
-				break;
-			}
-		}
-	}
+	void EnumerateTags(TFunctionRef<bool(FName TagName)> Callback) const;
 
 	/** Return whether the given TagName occurs in the tags of any asset in the AssetRegistry */
-	bool ContainsTag(FName TagName) const
-	{
-		return CachedAssetsByTag.Contains(TagName);
-	}
+	bool ContainsTag(FName TagName) const;
 
 	/**
 	 * Gets the asset data for the specified asset tag
@@ -449,12 +438,7 @@ public:
 	 * @return An array of AssetData*, empty if nothing found
 	 */
 	UE_DEPRECATED(5.5, "GetAssetsByTagName has been deprecated. Please use EnumerateAssetsByTagName")
-	const TArray<const FAssetData*>& GetAssetsByTagName(const FName TagName) const
-	{
-		ensureMsgf(false, TEXT("GetAssetsByTagName has been deprecated. Please use EnumerateAssetsByTagName"));
-		static TArray<const FAssetData*> InvalidArray;
-		return InvalidArray;
-	}
+	const TArray<const FAssetData*>& GetAssetsByTagName(const FName TagName) const;
 
 	/**
 	 * Enumerates the asset data for the specified asset tag
@@ -462,88 +446,38 @@ public:
 	 * @param TagName the tag name to search for
 	 * @param Callback the function called for each asset data
 	 */
-	void EnumerateAssetsByTagName(const FName TagName, TFunctionRef<bool(const FAssetData* AssetData)> Callback) const
-	{
-		const TSet<FAssetData*>* FoundAssets = CachedAssetsByTag.Find(TagName);
-		if (FoundAssets)
-		{
-			for (const FAssetData* AssetData : *FoundAssets)
-			{
-				if (!Callback(AssetData))
-				{
-					break;
-				}
-			}
-		}
-	}
+	void EnumerateAssetsByTagName(const FName TagName, TFunctionRef<bool(const FAssetData* AssetData)> Callback) const;
 
 	/**
-	 * Enumerates all tags of any asset in the AssetRegistry including function that can be called to enumerate assets for each tag
+	 * Enumerates all tags of any asset in the AssetRegistry including function that can be called to enumerate
+	 * assets for each tag
 	 *
 	 * @param Callback the function for each tag pair
 	 */
-	void EnumerateTagToAssetDatas(TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const
-	{
-		for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
-		{
-			const bool bKeepEnumerating = Callback(Pair.Key, [&Pair](IAssetRegistry::FAssetDataFunc AssetCallback)
-				{
-					for (const FAssetData* AssetData : Pair.Value)
-					{
-						if (!AssetCallback(AssetData))
-						{
-							return false;
-						}
-					}
-
-					return true;
-				});
-
-			if (!bKeepEnumerating)
-			{
-				break;
-			}
-		}
-	}
+	void EnumerateTagToAssetDatas(
+		TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const;
 
 	/** Returns const version of internal ObjectPath->AssetData map for fast iteration */
-	const FConstAssetDataMap& GetAssetDataMap() const
-	{
-		return reinterpret_cast<const FConstAssetDataMap&>(CachedAssets);
-	}
+	const FConstAssetDataMap& GetAssetDataMap() const;
 
 	/** Returns const version of internal Tag->AssetDatas map for fast iteration */
 	UE_DEPRECATED(5.5, "GetTagToAssetDatasMap has been deprecated. Please use EnumerateTags or EnumerateTagToAssetDatas")
-	const TMap<FName, const TArray<const FAssetData*>> GetTagToAssetDatasMap() const
-	{
-		ensureMsgf(false, TEXT("GetTagToAssetDatasMap has been deprecated. Please use EnumerateTags or EnumerateTagToAssetDatas"));
-		static TMap<FName, const TArray<const FAssetData*>> InvalidMap;
-		return InvalidMap;
-	}
+	const TMap<FName, const TArray<const FAssetData*>> GetTagToAssetDatasMap() const;
 
 	/** Returns const version of internal PackageName->PackageData map for fast iteration */
-	const TMap<FName, const FAssetPackageData*>& GetAssetPackageDataMap() const
-	{
-		return reinterpret_cast<const TMap<FName, const FAssetPackageData*>&>(CachedPackageData);
-	}
+	const TMap<FName, const FAssetPackageData*>& GetAssetPackageDataMap() const;
 
 	/** Get the set of primary assets contained in this state */
 	ASSETREGISTRY_API void GetPrimaryAssetsIds(TSet<FPrimaryAssetId>& OutPrimaryAssets) const;
 
 	/** Returns pointer to the asset package data */
 	ASSETREGISTRY_API const FAssetPackageData* GetAssetPackageData(FName PackageName) const;
-	ASSETREGISTRY_API const FAssetPackageData* GetAssetPackageData(FName PackageName, FName& OutCorrectCasePackageName) const;
+	ASSETREGISTRY_API const FAssetPackageData* GetAssetPackageData(FName PackageName,
+		FName& OutCorrectCasePackageName) const;
 	ASSETREGISTRY_API FAssetPackageData* GetAssetPackageData(FName PackageName);
 
 	/** Returns all package names */
-	void GetPackageNames(TArray<FName>& OutPackageNames) const
-	{
-		OutPackageNames.Reserve(CachedAssetsByPackageName.Num());
-		for (auto It = CachedAssetsByPackageName.CreateConstIterator(); It; ++It)
-		{
-			OutPackageNames.Add(It.Key());
-		}
-	}
+	void GetPackageNames(TArray<FName>& OutPackageNames) const;
 
 	/** Finds an existing package data, or creates a new one to modify */
 	ASSETREGISTRY_API FAssetPackageData* CreateOrGetAssetPackageData(FName PackageName);
@@ -562,8 +496,10 @@ public:
 	ASSETREGISTRY_API void UpdateAssetData(FAssetData&& NewAssetData, bool bCreateIfNotExists = false);
 
 	/** Updates an existing asset data with the new value and updates lookup maps */
-	ASSETREGISTRY_API void UpdateAssetData(FAssetData* AssetData, const FAssetData& NewAssetData, bool* bOutModified = nullptr);
-	ASSETREGISTRY_API void UpdateAssetData(FAssetData* AssetData, FAssetData&& NewAssetData, bool* bOutModified = nullptr);
+	ASSETREGISTRY_API void UpdateAssetData(FAssetData* AssetData, const FAssetData& NewAssetData,
+		bool* bOutModified = nullptr);
+	ASSETREGISTRY_API void UpdateAssetData(FAssetData* AssetData, FAssetData&& NewAssetData,
+		bool* bOutModified = nullptr);
 
 	/**
 	 * Updates all asset data package flags in the specified package
@@ -584,66 +520,84 @@ public:
 	 * Clear all dependencies of the given category from the given AssetIdentifier (e.g. package).
 	 * Also clears the referencer link from each of the dependencies.
 	 */
-	ASSETREGISTRY_API void ClearDependencies(const FAssetIdentifier& AssetIdentifier, UE::AssetRegistry::EDependencyCategory Category);
+	ASSETREGISTRY_API void ClearDependencies(const FAssetIdentifier& AssetIdentifier,
+		UE::AssetRegistry::EDependencyCategory Category);
 	/**
 	 * Add the given dependencies to the given AssetIdentifier (e.g. package).
 	 * Also adds a referencer link on each of the dependencies.
 	 */
-	ASSETREGISTRY_API void AddDependencies(const FAssetIdentifier& AssetIdentifier, TConstArrayView<FAssetDependency> Dependencies);
+	ASSETREGISTRY_API void AddDependencies(const FAssetIdentifier& AssetIdentifier,
+		TConstArrayView<FAssetDependency> Dependencies);
 	/**
 	 * Clears existing dependencies of the given Category(s) and assigns the input Dependencies. Gives an error if 
 	 * any elements of Dependencies are outside of the Category(s).
 	 */
-	ASSETREGISTRY_API void SetDependencies(const FAssetIdentifier& AssetIdentifier, TConstArrayView<FAssetDependency> Dependencies,
+	ASSETREGISTRY_API void SetDependencies(const FAssetIdentifier& AssetIdentifier,
+		TConstArrayView<FAssetDependency> Dependencies,
 		UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All);
 	/**
 	 * Clear all referencers of the given category from the given AssetIdentifier (e.g. package).
 	 * Also clears the dependency link from each of the referencers.
 	 */
-	ASSETREGISTRY_API void ClearReferencers(const FAssetIdentifier& AssetIdentifier, UE::AssetRegistry::EDependencyCategory Category);
+	ASSETREGISTRY_API void ClearReferencers(const FAssetIdentifier& AssetIdentifier,
+		UE::AssetRegistry::EDependencyCategory Category);
 	/**
 	 * Add a dependency on the given AssetIdentifier (e.g. package) from each of the Referencers.
 	 * Also adds a referencer link to each referencer on the AssetIdentifer's node.
 	 */
-	ASSETREGISTRY_API void AddReferencers(const FAssetIdentifier& AssetIdentifier, TConstArrayView<FAssetDependency> Referencers);
+	ASSETREGISTRY_API void AddReferencers(const FAssetIdentifier& AssetIdentifier,
+		TConstArrayView<FAssetDependency> Referencers);
 	/**
 	 * Clears existing referencers of the given Category(s) and assigns the input Referencers. Gives an error if
 	 * any elements of Referencers are outside of the Category(s).
 	 */
-	ASSETREGISTRY_API void SetReferencers(const FAssetIdentifier& AssetIdentifier, TConstArrayView<FAssetDependency> Referencers,
+	ASSETREGISTRY_API void SetReferencers(const FAssetIdentifier& AssetIdentifier,
+		TConstArrayView<FAssetDependency> Referencers,
 		UE::AssetRegistry::EDependencyCategory Category = UE::AssetRegistry::EDependencyCategory::All);
 
 	/** Resets to default state */
 	ASSETREGISTRY_API void Reset();
 
 	/** Initializes cache from existing set of asset data and depends nodes */
-	ASSETREGISTRY_API void InitializeFromExisting(const FAssetDataMap& AssetDataMap, const TMap<FAssetIdentifier, FDependsNode*>& DependsNodeMap, const TMap<FName, FAssetPackageData*>& AssetPackageDataMap, const FAssetRegistrySerializationOptions& Options, EInitializationMode InitializationMode = EInitializationMode::Rebuild);
-	void InitializeFromExisting(const FAssetRegistryState& Existing, const FAssetRegistrySerializationOptions& Options, EInitializationMode InitializationMode = EInitializationMode::Rebuild)
-	{
-		InitializeFromExisting(Existing.CachedAssets, Existing.CachedDependsNodes, Existing.CachedPackageData, Options, InitializationMode);
-	}
+	ASSETREGISTRY_API void InitializeFromExisting(const FAssetDataMap& AssetDataMap,
+		const TMap<FAssetIdentifier, FDependsNode*>& DependsNodeMap,
+		const TMap<FName, FAssetPackageData*>& AssetPackageDataMap,
+		const FAssetRegistrySerializationOptions& Options,
+		EInitializationMode InitializationMode = EInitializationMode::Rebuild);
+	void InitializeFromExisting(const FAssetRegistryState& Existing, const FAssetRegistrySerializationOptions& Options,
+		EInitializationMode InitializationMode = EInitializationMode::Rebuild);
 
 	/** 
 	 * Prunes an asset cache, this removes asset data, nodes, and package data that isn't needed. 
-	 * @param RequiredPackages If set, only these packages will be maintained. If empty it will keep all unless filtered by other parameters
+	 * @param RequiredPackages If set, only these packages will be maintained. If empty it will keep all
+	 *        unless filtered by other parameters
 	 * @param RemovePackages These packages will be removed from the current set
-	 * @param ChunksToKeep The list of chunks that are allowed to remain. Any assets in other chunks are pruned. If empty, all assets are kept regardless of chunk
+	 * @param ChunksToKeep The list of chunks that are allowed to remain. Any assets in other chunks are pruned.
+	 *        If empty, all assets are kept regardless of chunk
 	 * @param Options Serialization options to read filter info from
 	 */
-	ASSETREGISTRY_API void PruneAssetData(const TSet<FName>& RequiredPackages, const TSet<FName>& RemovePackages, const TSet<int32> ChunksToKeep, const FAssetRegistrySerializationOptions& Options);
-	ASSETREGISTRY_API void PruneAssetData(const TSet<FName>& RequiredPackages, const TSet<FName>& RemovePackages, const FAssetRegistrySerializationOptions& Options);
+	ASSETREGISTRY_API void PruneAssetData(const TSet<FName>& RequiredPackages, const TSet<FName>& RemovePackages,
+		const TSet<int32> ChunksToKeep, const FAssetRegistrySerializationOptions& Options);
+	ASSETREGISTRY_API void PruneAssetData(const TSet<FName>& RequiredPackages, const TSet<FName>& RemovePackages,
+		const FAssetRegistrySerializationOptions& Options);
 	ASSETREGISTRY_API void Prune(const FAssetRegistryPruneOptions& PruneOptions);
 
 	
 	/**
-	 * Initializes a cache from an existing using a set of filters. This is more efficient than calling InitalizeFromExisting and then PruneAssetData.
+	 * Initializes a cache from an existing using a set of filters.
+	 * This is more efficient than calling InitalizeFromExisting and then PruneAssetData.
+	 *
 	 * @param ExistingState State to use initialize from
-	 * @param RequiredPackages If set, only these packages will be maintained. If empty it will keep all unless filtered by other parameters
+	 * @param RequiredPackages If set, only these packages will be maintained.
+	 *        If empty it will keep all unless filtered by other parameters.
 	 * @param RemovePackages These packages will be removed from the current set
-	 * @param ChunksToKeep The list of chunks that are allowed to remain. Any assets in other chunks are pruned. If empty, all assets are kept regardless of chunk
+	 * @param ChunksToKeep The list of chunks that are allowed to remain. Any assets in other chunks are pruned.
+	 *        If empty, all assets are kept regardless of chunk
 	 * @param Options Serialization options to read filter info from
 	 */
-	ASSETREGISTRY_API void InitializeFromExistingAndPrune(const FAssetRegistryState& ExistingState, const TSet<FName>& RequiredPackages, const TSet<FName>& RemovePackages, const TSet<int32> ChunksToKeep, const FAssetRegistrySerializationOptions& Options);
+	ASSETREGISTRY_API void InitializeFromExistingAndPrune(const FAssetRegistryState& ExistingState,
+		const TSet<FName>& RequiredPackages, const TSet<FName>& RemovePackages, const TSet<int32> ChunksToKeep,
+		const FAssetRegistrySerializationOptions& Options);
 
 	/** Edit every AssetData's Tags to remove Tags that are filtered out by the filtering rules in Options */
 	ASSETREGISTRY_API void FilterTags(const FAssetRegistrySerializationOptions& Options);
@@ -654,14 +608,17 @@ public:
 
 	/** Save without editor-only data */
 	ASSETREGISTRY_API bool Save(FArchive& Ar, const FAssetRegistrySerializationOptions& Options);
-	ASSETREGISTRY_API bool Load(FArchive& Ar, const FAssetRegistryLoadOptions& Options = FAssetRegistryLoadOptions(), FAssetRegistryVersion::Type* OutVersion = nullptr);
+	ASSETREGISTRY_API bool Load(FArchive& Ar,
+		const FAssetRegistryLoadOptions& Options = FAssetRegistryLoadOptions(),
+		FAssetRegistryVersion::Type* OutVersion = nullptr);
 
 	/** 
 	* Example Usage:
-	*	FAssetRegistryState AssetRegistry;
-	*	bool bSucceeded = FAssetRegistryState::LoadFromDisk(TEXT("Path/To/AR"), FAssetRegistryLoadOptions(), AssetRegistry);
+	*	FAssetRegistryState AR;
+	*	bool bSucceeded = FAssetRegistryState::LoadFromDisk(TEXT("Path/To/AR"), FAssetRegistryLoadOptions(), AR);
 	*/
-	static ASSETREGISTRY_API bool LoadFromDisk(const TCHAR* InPath, const FAssetRegistryLoadOptions& InOptions, FAssetRegistryState& OutState, FAssetRegistryVersion::Type* OutVersion = nullptr);
+	static ASSETREGISTRY_API bool LoadFromDisk(const TCHAR* InPath, const FAssetRegistryLoadOptions& InOptions,
+		FAssetRegistryState& OutState, FAssetRegistryVersion::Type* OutVersion = nullptr);
 
 	/** Returns memory size of entire registry, optionally logging sizes */
 	ASSETREGISTRY_API SIZE_T GetAllocatedSize(bool bLogDetailed = false) const;
@@ -678,12 +635,18 @@ public:
 #if ASSET_REGISTRY_STATE_DUMPING_ENABLED
 	/**
 	 * Writes out the state in textual form. Use arguments to control which segments to emit.
-	 * @param Arguments List of segments to emit. Possible values: 'ObjectPath', 'PackageName', 'Path', 'Class', 'Tag', 'Dependencies' and 'PackageData'
-	 * @param OutPages Textual representation will be written to this array; each entry will have LinesPerPage lines of the full dump.
-	 * @param LinesPerPage - how many lines should be combined into each string element of OutPages, for e.g. breaking up the dump into separate files.
-	 *        To facilitate diffing between similar-but-different registries, the actual number of lines per page will be slightly less than LinesPerPage; we introduce partially deterministic pagebreaks near the end of each page.
+	 * @param Arguments List of segments to emit.
+	 *        Possible values: 'ObjectPath', 'PackageName', 'Path', 'Class', 'Tag', 'Dependencies' and 'PackageData'.
+	 * @param OutPages Textual representation will be written to this array;
+	 *        each entry will have LinesPerPage lines of the full dump.
+	 * @param LinesPerPage - how many lines should be combined into each string element of OutPages,
+	 *        for e.g. breaking up the dump into separate files.
+	 *        To facilitate diffing between similar-but-different registries, the actual number of lines per page will
+	 *        be slightly less than LinesPerPage; we introduce partially deterministic pagebreaks near the end of
+	 *        each page.
 	 */
-	ASSETREGISTRY_API void Dump(const TArray<FString>& Arguments, TArray<FString>& OutPages, int32 LinesPerPage=1) const;
+	ASSETREGISTRY_API void Dump(const TArray<FString>& Arguments, TArray<FString>& OutPages,
+		int32 LinesPerPage=1) const;
 #endif
 
 private:
@@ -694,7 +657,8 @@ private:
 	void SetAssetDatas(TArrayView<FAssetData> AssetDatas, const FAssetRegistryLoadOptions& Options);
 
 	/** Find the first non-redirector dependency node starting from InDependency. */
-	FDependsNode* ResolveRedirector(FDependsNode* InDependency, const FAssetDataMap& InAllowedAssets, TMap<FDependsNode*, FDependsNode*>& InCache);
+	FDependsNode* ResolveRedirector(FDependsNode* InDependency, const FAssetDataMap& InAllowedAssets,
+		TMap<FDependsNode*, FDependsNode*>& InCache);
 
 	/** Finds an existing node for the given package and returns it, or returns null if one isn't found */
 	FDependsNode* FindDependsNode(const FAssetIdentifier& Identifier) const;
@@ -706,7 +670,8 @@ private:
 	bool RemoveDependsNode(const FAssetIdentifier& Identifier);
 
 	/** Filter a set of tags and output a copy of the filtered set. */
-	static void FilterTags(const FAssetDataTagMapSharedView& InTagsAndValues, FAssetDataTagMap& OutTagsAndValues, const TSet<FName>* ClassSpecificFilterList, const FAssetRegistrySerializationOptions & Options);
+	static void FilterTags(const FAssetDataTagMapSharedView& InTagsAndValues, FAssetDataTagMap& OutTagsAndValues,
+		const TSet<FName>* ClassSpecificFilterList, const FAssetRegistrySerializationOptions & Options);
 
 	void LoadDependencies(FArchive& Ar);
 	void LoadDependencies_BeforeFlags(FArchive& Ar, bool bSerializeDependencies, FAssetRegistryVersion::Type Version);
@@ -719,12 +684,17 @@ private:
 		bool& bOutRemovedAssetData, bool& bOutRemovedPackageData);
 
 	/**
-	 * Returns true if the given package should be filtered from the results because the package belongs to an unmounted content path.
-	 * This can only happen when loading a cooked asset registry (@see bCookedGlobalAssetRegistryState), as it may contain state for plugins that are not currently loaded.
+	 * Returns true if the given package should be filtered from the results because the package belongs
+	 * to an unmounted content path.
+	 * This can only happen when loading a cooked asset registry (@see bCookedGlobalAssetRegistryState),
+	 * as it may contain state for plugins that are not currently loaded.
 	 */
 	bool IsPackageUnmountedAndFiltered(const FName PackageName) const;
 
-	/** Set of asset data for assets saved to disk. Searched via path name types, implicitly converted to FCachedAssetKey. */
+	/**
+	 * Set of asset data for assets saved to disk. Searched via path name types,
+	 * implicitly converted to FCachedAssetKey.
+	 */
 	FAssetDataMap CachedAssets;
 
 	/** The map of package names to asset data for assets saved to disk */
@@ -745,12 +715,18 @@ private:
 	/** A map of Package Names to Package Data */
 	TMap<FName, FAssetPackageData*> CachedPackageData;
 
-	/** When loading a registry from disk, we can allocate all the FAssetData objects in one chunk, to save on 10s of thousands of heap allocations */
+	/**
+	 * When loading a registry from disk, we can allocate all the FAssetData objects in one chunk,
+	 * to save on 10s of thousands of heap allocations.
+	 */
 	TArray<FAssetData*> PreallocatedAssetDataBuffers;
 	TArray<FDependsNode*> PreallocatedDependsNodeDataBuffers;
 	TArray<FAssetPackageData*> PreallocatedPackageDataBuffers;
 
-	/** Counters for asset/depends data memory allocation to ensure that every FAssetData and FDependsNode created is deleted */
+	/**
+	 * Counters for asset/depends data memory allocation to ensure that every FAssetData and
+	 * FDependsNode created is deleted.
+	 */
 	int32 NumAssets = 0;
 	int32 NumDependsNodes = 0;
 	int32 NumPackageData = 0;
@@ -764,113 +740,292 @@ private:
 
 namespace UE::AssetRegistry::Private
 {
-	FORCEINLINE uint32 HashCombineQuick(uint32 A, uint32 B)
-	{
-		return A ^ (B + 0x9e3779b9 + (A << 6) + (A >> 2));
-	}
 
-	inline FCachedAssetKey::FCachedAssetKey(const FAssetData* InAssetData)
+FORCEINLINE uint32 HashCombineQuick(uint32 A, uint32 B)
+{
+	return A ^ (B + 0x9e3779b9 + (A << 6) + (A >> 2));
+}
+
+inline FCachedAssetKey::FCachedAssetKey(const FAssetData* InAssetData)
+{
+	if (!InAssetData)
 	{
-		if (!InAssetData)
-		{
-			return;
-		}
+		return;
+	}
 
 #if WITH_EDITORONLY_DATA
-		if (!InAssetData->GetOptionalOuterPathName().IsNone())
-		{
-			OuterPath = InAssetData->GetOptionalOuterPathName();
-		}
-		else
+	if (!InAssetData->GetOptionalOuterPathName().IsNone())
+	{
+		OuterPath = InAssetData->GetOptionalOuterPathName();
+	}
+	else
 #endif
-		{
-			OuterPath = InAssetData->PackageName;
-		}
-		ObjectName = InAssetData->AssetName;
-	}
-
-	inline FCachedAssetKey::FCachedAssetKey(const FAssetData& InAssetData)
-		: FCachedAssetKey(&InAssetData)
 	{
+		OuterPath = InAssetData->PackageName;
 	}
+	ObjectName = InAssetData->AssetName;
+}
 
-	inline FCachedAssetKey::FCachedAssetKey(FTopLevelAssetPath InAssetPath)
-		: OuterPath(InAssetPath.GetPackageName())
-		, ObjectName(InAssetPath.GetAssetName())
+inline FCachedAssetKey::FCachedAssetKey(const FAssetData& InAssetData)
+	: FCachedAssetKey(&InAssetData)
+{
+}
+
+inline FCachedAssetKey::FCachedAssetKey(FTopLevelAssetPath InAssetPath)
+	: OuterPath(InAssetPath.GetPackageName())
+	, ObjectName(InAssetPath.GetAssetName())
+{
+}
+
+inline FCachedAssetKey::FCachedAssetKey(const FSoftObjectPath& InObjectPath)
+{
+	if (InObjectPath.GetAssetFName().IsNone())
 	{
+		// Packages themselves never appear in the asset registry
+		return;
 	}
-
-	inline FCachedAssetKey::FCachedAssetKey(const FSoftObjectPath& InObjectPath)
+	else if (InObjectPath.GetSubPathString().IsEmpty())
 	{
-		if (InObjectPath.GetAssetFName().IsNone())
-		{
-			// Packages themselves never appear in the asset registry
-			return;
-		}
-		else if (InObjectPath.GetSubPathString().IsEmpty())
-		{
-			// If InObjectPath represents a top-level asset we can just take the existing FNames.
-			OuterPath = InObjectPath.GetLongPackageFName();
-			ObjectName = InObjectPath.GetAssetFName();
-		}
-		else
-		{
-			// If InObjectPath represents a subobject we need to split the path into the path of the outer and the name of the innermost object.
-			TStringBuilder<FName::StringBufferSize> Builder;
-			InObjectPath.ToString(Builder);
-
-			const FAssetPathParts Parts = SplitIntoOuterPathAndAssetName(Builder);
-
-			// This should be impossible as at bare minimum concatenating the package name and asset name should add a separator
-			check(!Parts.OuterPath.IsEmpty() && !Parts.InnermostName.IsEmpty()); 
-
-			// Don't create FNames for this query struct. If the AssetData exists to find, the FName will already exist due to OptionalOuterPath on FAssetData.
-			OuterPath = FName(Parts.OuterPath, FNAME_Find); 
-			ObjectName = FName(Parts.InnermostName);
-		}
+		// If InObjectPath represents a top-level asset we can just take the existing FNames.
+		OuterPath = InObjectPath.GetLongPackageFName();
+		ObjectName = InObjectPath.GetAssetFName();
 	}
-	inline FString FCachedAssetKey::ToString() const
+	else
 	{
+		// If InObjectPath represents a subobject we need to split the path into the path of the outer and the name of the innermost object.
 		TStringBuilder<FName::StringBufferSize> Builder;
-		AppendString(Builder);
-		return FString(Builder);
+		InObjectPath.ToString(Builder);
+
+		const FAssetPathParts Parts = SplitIntoOuterPathAndAssetName(Builder);
+
+		// This should be impossible as at bare minimum concatenating the package name and asset name should add a separator
+		check(!Parts.OuterPath.IsEmpty() && !Parts.InnermostName.IsEmpty()); 
+
+		// Don't create FNames for this query struct. If the AssetData exists to find, the FName will already exist due to OptionalOuterPath on FAssetData.
+		OuterPath = FName(Parts.OuterPath, FNAME_Find); 
+		ObjectName = FName(Parts.InnermostName);
+	}
+}
+inline FString FCachedAssetKey::ToString() const
+{
+	TStringBuilder<FName::StringBufferSize> Builder;
+	AppendString(Builder);
+	return FString(Builder);
+}
+
+inline int32 FCachedAssetKey::Compare(const FCachedAssetKey& Other) const
+{
+	if (OuterPath == Other.OuterPath)
+	{
+		return ObjectName.CompareIndexes(Other.ObjectName);
+	}
+	else
+	{
+		return OuterPath.CompareIndexes(Other.OuterPath);
+	}
+}
+
+inline void FCachedAssetKey::AppendString(FStringBuilderBase& Builder) const
+{
+	ConcatenateOuterPathAndObjectName(Builder, OuterPath, ObjectName);
+}
+
+inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FCachedAssetKey& Key)
+{
+	Key.AppendString(Builder);
+	return Builder;
+}
+
+inline bool operator==(const FCachedAssetKey& A, const FCachedAssetKey& B)
+{
+	return A.OuterPath == B.OuterPath && A.ObjectName == B.ObjectName;
+}
+
+inline bool operator!=(const FCachedAssetKey& A, const FCachedAssetKey& B)
+{
+	return A.OuterPath != B.OuterPath || A.ObjectName != B.ObjectName;
+}
+
+inline uint32 GetTypeHash(const FCachedAssetKey& A)
+{
+	return HashCombineQuick(GetTypeHash(A.OuterPath), GetTypeHash(A.ObjectName));
+}
+
+} // namespace UE::AssetRegistry::Private
+
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+
+inline FAssetRegistrySerializationOptions::FAssetRegistrySerializationOptions(
+	UE::AssetRegistry::ESerializationTarget Target)
+{
+	if (Target == UE::AssetRegistry::ESerializationTarget::ForDevelopment)
+	{
+		InitForDevelopment();
+	}
+}
+
+inline void FAssetRegistrySerializationOptions::DisableFilters()
+{
+	bFilterAssetDataWithNoTags = false;
+	bFilterDependenciesWithNoTags = false;
+	bFilterSearchableNames = false;
+}
+
+inline void FAssetRegistrySerializationOptions::InitForDevelopment()
+{
+	bSerializeAssetRegistry = true;
+	bSerializeDependencies = true;
+	bSerializeSearchableNameDependencies = true;
+	bSerializeManageDependencies = true;
+	bSerializePackageData = true;
+	DisableFilters();
+}
+
+inline FAssetRegistryLoadOptions::FAssetRegistryLoadOptions(const FAssetRegistrySerializationOptions& Options)
+	: bLoadDependencies(Options.bSerializeDependencies)
+	, bLoadPackageData(Options.bSerializePackageData)
+{
+}
+
+inline const FAssetData* FAssetRegistryState::GetAssetByObjectPath(const FName ObjectPath) const
+{
+	return GetAssetByObjectPath(FSoftObjectPath(ObjectPath.ToString()));
+}
+
+inline const FAssetData* FAssetRegistryState::GetAssetByObjectPath(const FSoftObjectPath& ObjectPath) const
+{
+	FCachedAssetKey Key(ObjectPath);
+	FAssetData* const* FoundAsset = CachedAssets.Find(Key);
+	if (FoundAsset)
+	{
+		return *FoundAsset;
 	}
 
-	inline int32 FCachedAssetKey::Compare(const FCachedAssetKey& Other) const
+	return nullptr;
+}
+
+inline TArrayView<FAssetData const* const> FAssetRegistryState::GetAssetsByPackageName(const FName PackageName) const
+{
+	if (const TArray<FAssetData*, TInlineAllocator<1>>*FoundAssetArray = CachedAssetsByPackageName.Find(PackageName))
 	{
-		if (OuterPath == Other.OuterPath)
+		return MakeArrayView(*FoundAssetArray);
+	}
+
+	return TArrayView<FAssetData* const>();
+}
+
+inline const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByClassPathName(
+	const FTopLevelAssetPath ClassPathName) const
+{
+	static TArray<const FAssetData*> InvalidArray;
+	const TArray<FAssetData*>* FoundAssetArray = CachedAssetsByClass.Find(ClassPathName);
+	if (FoundAssetArray)
+	{
+		return reinterpret_cast<const TArray<const FAssetData*>&>(*FoundAssetArray);
+	}
+
+	return InvalidArray;
+}
+
+inline void FAssetRegistryState::EnumerateTags(TFunctionRef<bool(FName TagName)> Callback) const
+{
+	for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
+	{
+		if (!Callback(Pair.Key))
 		{
-			return ObjectName.CompareIndexes(Other.ObjectName);
+			break;
 		}
-		else
+	}
+}
+
+inline bool FAssetRegistryState::ContainsTag(FName TagName) const
+{
+	return CachedAssetsByTag.Contains(TagName);
+}
+
+inline const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByTagName(const FName TagName) const
+{
+	ensureMsgf(false, TEXT("GetAssetsByTagName has been deprecated. Please use EnumerateAssetsByTagName"));
+	static TArray<const FAssetData*> InvalidArray;
+	return InvalidArray;
+}
+
+inline void FAssetRegistryState::EnumerateAssetsByTagName(const FName TagName,
+	TFunctionRef<bool(const FAssetData* AssetData)> Callback) const
+{
+	const TSet<FAssetData*>* FoundAssets = CachedAssetsByTag.Find(TagName);
+	if (FoundAssets)
+	{
+		for (const FAssetData* AssetData : *FoundAssets)
 		{
-			return OuterPath.CompareIndexes(Other.OuterPath);
+			if (!Callback(AssetData))
+			{
+				break;
+			}
 		}
 	}
+}
 
-	inline void FCachedAssetKey::AppendString(FStringBuilderBase& Builder) const
+inline void FAssetRegistryState::EnumerateTagToAssetDatas(
+	TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const
+{
+	for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
 	{
-		ConcatenateOuterPathAndObjectName(Builder, OuterPath, ObjectName);
-	}
+		const bool bKeepEnumerating = Callback(Pair.Key, [&Pair](IAssetRegistry::FAssetDataFunc AssetCallback)
+			{
+				for (const FAssetData* AssetData : Pair.Value)
+				{
+					if (!AssetCallback(AssetData))
+					{
+						return false;
+					}
+				}
 
-	inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FCachedAssetKey& Key)
-	{
-		Key.AppendString(Builder);
-		return Builder;
-	}
+				return true;
+			});
 
-	inline bool operator==(const FCachedAssetKey& A, const FCachedAssetKey& B)
-	{
-		return A.OuterPath == B.OuterPath && A.ObjectName == B.ObjectName;
+		if (!bKeepEnumerating)
+		{
+			break;
+		}
 	}
+}
 
-	inline bool operator!=(const FCachedAssetKey& A, const FCachedAssetKey& B)
-	{
-		return A.OuterPath != B.OuterPath || A.ObjectName != B.ObjectName;
-	}
+inline const FAssetRegistryState::FConstAssetDataMap& FAssetRegistryState::GetAssetDataMap() const
+{
+	return reinterpret_cast<const FConstAssetDataMap&>(CachedAssets);
+}
 
-	inline uint32 GetTypeHash(const FCachedAssetKey& A)
+inline const TMap<FName, const TArray<const FAssetData*>> FAssetRegistryState::GetTagToAssetDatasMap() const
+{
+	ensureMsgf(false,
+		TEXT("GetTagToAssetDatasMap has been deprecated. Please use EnumerateTags or EnumerateTagToAssetDatas"));
+	static TMap<FName, const TArray<const FAssetData*>> InvalidMap;
+	return InvalidMap;
+}
+
+inline const TMap<FName, const FAssetPackageData*>& FAssetRegistryState::GetAssetPackageDataMap() const
+{
+	return reinterpret_cast<const TMap<FName, const FAssetPackageData*>&>(CachedPackageData);
+}
+
+inline void FAssetRegistryState::GetPackageNames(TArray<FName>& OutPackageNames) const
+{
+	OutPackageNames.Reserve(CachedAssetsByPackageName.Num());
+	for (auto It = CachedAssetsByPackageName.CreateConstIterator(); It; ++It)
 	{
-		return HashCombineQuick(GetTypeHash(A.OuterPath), GetTypeHash(A.ObjectName));
+		OutPackageNames.Add(It.Key());
 	}
+}
+
+inline void FAssetRegistryState::InitializeFromExisting(const FAssetRegistryState& Existing,
+	const FAssetRegistrySerializationOptions& Options,
+	EInitializationMode InitializationMode)
+{
+	InitializeFromExisting(Existing.CachedAssets, Existing.CachedDependsNodes,
+		Existing.CachedPackageData, Options, InitializationMode);
 }

@@ -72,7 +72,7 @@ private:
 	FEvent* Consumed = nullptr;
 };
 
-}
+} // namespace UE::AssetRegistry::Premade
 
 namespace UE::AssetRegistry
 {
@@ -103,7 +103,7 @@ namespace Private
 	};
 
 	using FInterfaceRWLock = FRWLockWithPriority;
-}
+} // namespace Private within namespace UE::AssetRegistry
 
 namespace Impl
 {
@@ -196,8 +196,8 @@ namespace Impl
 		// True if we ran out of time, EarlyExitCallback returned true, or RequestEarlyExit() was called
 		bool OutInterrupted = false;
 	};
-}
-}
+} // namespace Impl within namespace UE::AssetRegistry
+} // namespace UE::AssetRegistry
 
 /** Returns true if ANY work remains to be done. This work might require the game thread. */
 FORCEINLINE bool IsTickActive(UE::AssetRegistry::Impl::EGatherStatus Status) 
@@ -758,7 +758,7 @@ struct FTickContext
 	bool bHandleDeferred = false;
 };
 
-}
+} // namespace Impl within namespace UE::AssetRegistry
 
 namespace Utils
 {
@@ -837,6 +837,6 @@ void EnumerateMemoryAssets(const FARCompiledFilter& InFilter, TSet<FName>& OutPa
 	bool& bOutStopIteration, UE::AssetRegistry::Private::FInterfaceRWLock& InterfaceLock, const FAssetRegistryState& GuardedDataState,
 	TFunctionRef<bool(FAssetData&&)> Callback, bool bSkipARFilteredAssets);
 
-}
+} // namespace Utils within namespace UE::AssetRegistry
 
-}
+} // namespace UE::AssetRegistry
