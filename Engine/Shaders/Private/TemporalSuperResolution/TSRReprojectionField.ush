@@ -148,6 +148,6 @@ tsr_half ComputeReprojectionUpscaleFactorFromJacobian(tsr_half2x2 ReprojectionJa
 	tsr_half2 VectorOffsetE = tsr_half2(1.0, 0.0) + ReprojectionJacobian[0];
 	tsr_half2 VectorOffsetS = tsr_half2(0.0, 1.0) + ReprojectionJacobian[1];
 
-	tsr_half ReprojectionUpscaleFactor = max(length(VectorOffsetE), length(VectorOffsetS));
+	tsr_half ReprojectionUpscaleFactor = sqrt(max(dot(VectorOffsetE, VectorOffsetE), tsr_half(1.0)) * max(dot(VectorOffsetS, VectorOffsetS), tsr_half(1.0)));
 	return ReprojectionUpscaleFactor;
 }

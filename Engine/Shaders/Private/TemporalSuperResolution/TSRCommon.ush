@@ -71,17 +71,9 @@
 #define SPATIAL_ANTI_ALIASING_OFFSET_RANGE 0.5
 #define SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL 4
 
-#define COMPRESS_PREV_USE_COUNT 1
-#if COMPRESS_PREV_USE_COUNT
-	// COMPRESS_PREV_USE_COUNT compress the use count in 8bit, so need to sum of a 2x2 to not overflow these 8bits
-	#define PREV_USE_COUNT_QUANTIZATION 63
-#else
-	#define PREV_USE_COUNT_QUANTIZATION 255
-#endif
+#define MAX_DEVICE_Z_ERROR 16.0
 
 #define PARALLAX_REJECTION_MASK_THRESHOLD 0.5
-
-#define MAX_PARALLAX_FACTOR 8.0
 
 // Minimum number of sample of each texel when reprojecting the high frequency history.
 // Value too low causes area of low sample count to have pixel dominating too much in reprojection causing input res aliasing on texture details
@@ -666,74 +658,6 @@ tsr_half ComputeLowFrequencyContribution(tsr_half HistoryValidity)
 	return dpv_lo(ComputeLowFrequencyContribution(dpv_interleave_mono_registers(HistoryValidity)));
 }
 
-CALL_SITE_DEBUGLOC
-tsr_half3x2 RGBToYCoCg(tsr_half3x2 RGB)
-{
-    tsr_half2 R = RGB[0];
-    tsr_half2 G = RGB[1];
-    tsr_half2 B = RGB[2];       
-
-    tsr_half2 RplusB = R + B;
-    tsr_half2 Y = 2.0 * G + RplusB;
-    tsr_half2 Cg = 2.0 * G - RplusB;
-    tsr_half2 Co = 2.0 * (R - B);
-    tsr_half3x2 YCoCg = tsr_half3x2(Y, Co, Cg);
-
-    return YCoCg;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3x2 YCoCgToRGB(tsr_half3x2 YCoCg)
-{
-	tsr_half2 Y =  YCoCg[0] * tsr_half(0.25);
-	tsr_half2 Co = YCoCg[1] * tsr_half(0.25);
-	tsr_half2 Cg = YCoCg[2] * tsr_half(0.25);
-
-	tsr_half2 R = Y + Co - Cg;
-	tsr_half2 G = Y + Cg;
-	tsr_half2 B = Y - Co - Cg;
-
-	tsr_half3x2 RGB = tsr_half3x2(R, G, B);
-	return RGB;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half4x2 RGBToYCoCg(tsr_half4x2 RGBA)
-{
-	return tsr_half4x2(RGBToYCoCg(tsr_half3x2(RGBA[0], RGBA[1], RGBA[2])), RGBA[3]);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half4x2 YCoCgToRGB(tsr_half4x2 YCoCgA)
-{
-	return tsr_half4x2(YCoCgToRGB(tsr_half3x2(YCoCgA[0], YCoCgA[1], YCoCgA[2])), YCoCgA[3]);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3 RGBToYCoCg(tsr_half3 RGB)
-{
-	return dpv_lo(RGBToYCoCg(dpv_interleave_mono_registers(RGB)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3 YCoCgToRGB(tsr_half3 YCoCg)
-{
-	return dpv_lo(YCoCgToRGB(dpv_interleave_mono_registers(YCoCg)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half4 RGBToYCoCg(tsr_half4 RGBA)
-{
-	return dpv_lo(RGBToYCoCg(dpv_interleave_mono_registers(RGBA)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half4 YCoCgToRGB(tsr_half4 YCoCgA)
-{
-	return dpv_lo(YCoCgToRGB(dpv_interleave_mono_registers(YCoCgA)));
-}
-
-
 // Some bright pixel can cause HdrWeight to get nullified under fp16 representation. So clamping this to a value close to the minimum float float positive value (0.000061).
 #define HDR_WEIGHT_SAFE_MIN_VALUE 0.0001
 
@@ -878,16 +802,6 @@ tsr_half ComputePredictionCompleteness(tsr_half SampleHistoryValidity)
 }
 
 CALL_SITE_DEBUGLOC
-bool IsOffScreen(uint bCameraCut, float2 ScreenPos, tsr_half ParallaxRejectionMask)
-{
-	bool bIsCameraCut = bCameraCut != 0;
-	bool bIsOutOfBounds = max(abs(ScreenPos.x), abs(ScreenPos.y)) >= 1.0;
-	bool bIsParallaxRejected = ParallaxRejectionMask < tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD);
-
-	return (bIsCameraCut || bIsOutOfBounds || bIsParallaxRejected);
-}
-
-CALL_SITE_DEBUGLOC
 void IsOffScreenOrDisoccluded(uint bCameraCut, float2x2 ScreenPos, bool2 bIsParallaxRejected, out bool2 bIsOffScreen, out bool2 bIsDisoccluded)
 {
 	bool bIsCameraCut = bCameraCut != 0;
@@ -914,57 +828,6 @@ tsr_half2 MeasureBackbufferLDRQuantizationErrorFromHDRLuma(tsr_half2 Luma)
 tsr_half MeasureBackbufferLDRQuantizationErrorFromHDRLuma(tsr_half Luma)
 {
 	return dpv_lo(MeasureBackbufferLDRQuantizationErrorFromHDRLuma(dpv_interleave_mono_registers(Luma)));
-}
-
-tsr_half2 MeasureRejectionFactor(
-	tsr_halfCx2 PrevYCoCg,
-	tsr_halfCx2 ClampedPrevYCoCg,
-	tsr_halfCx2 InputCenterYCoCg,
-	tsr_halfCx2 InputMinYCoCg, tsr_halfCx2 InputMaxYCoCg,
-	tsr_half2 BackbufferQuantizationError)
-{
-	const tsr_halfC Null = tsr_half(0.0);
-	
-	#if CONFIG_SCENE_COLOR_ALPHA
-		tsr_halfCx2 BackbufferQuantizationErrorVector = tsr_half4x2(BackbufferQuantizationError, BackbufferQuantizationError, BackbufferQuantizationError, BackbufferQuantizationError);
-	#else
-		tsr_halfCx2 BackbufferQuantizationErrorVector = tsr_half3x2(BackbufferQuantizationError, BackbufferQuantizationError, BackbufferQuantizationError);
-	#endif
-
-	tsr_halfCx2 BoxSize = InputMaxYCoCg - InputMinYCoCg;
-
-	tsr_halfCx2 ClampedEnergy = abs(ClampedPrevYCoCg - PrevYCoCg);
-	tsr_halfCx2 Delta = abs(InputCenterYCoCg - PrevYCoCg);
-
-	tsr_halfCx2 ClampError = max(
-		BoxSize * tsr_half(0.25),
-		BackbufferQuantizationErrorVector);
-
-	tsr_halfCx2 Factor = tsr_half(1.0) - saturate(max(ClampedEnergy - ClampError, dpv_interleave_mono_registers(Null)) * rcp(max(Delta, BoxSize)));
-
-	tsr_half2 Rejection = min3(Factor[0], Factor[1], Factor[2]);
-	
-	#if CONFIG_SCENE_COLOR_ALPHA
-		Rejection = min(Rejection, Factor[3]);
-	#endif
-
-	return Rejection;
-}
-
-tsr_half MeasureRejectionFactor(
-	tsr_halfC PrevYCoCg,
-	tsr_halfC ClampedPrevYCoCg,
-	tsr_halfC InputCenterYCoCg,
-	tsr_halfC InputMinYCoCg, tsr_halfC InputMaxYCoCg,
-	tsr_half BackbufferQuantizationError)
-{
-	return dpv_lo(MeasureRejectionFactor(
-		dpv_interleave_mono_registers(PrevYCoCg), 
-		dpv_interleave_mono_registers(ClampedPrevYCoCg), 
-		dpv_interleave_mono_registers(InputCenterYCoCg), 
-		dpv_interleave_mono_registers(InputMinYCoCg), 
-		dpv_interleave_mono_registers(InputMaxYCoCg), 
-		dpv_interleave_mono_registers(BackbufferQuantizationError)));
 }
 
 CALL_SITE_DEBUGLOC
@@ -1008,23 +871,6 @@ tsr_half3 QuantizeForFloatRenderTarget(tsr_half3 Color, tsr_half E, const float3
 {
 	return dpv_lo(QuantizeForFloatRenderTarget(dpv_interleave_mono_registers(Color), E, QuantizationError));
 }
-
-
-#if COMPRESS_PREV_USE_COUNT
-
-// encode 4 use count that are 8bits shifted in the PF_R32_UINT
-void ComputeCompressedUseCountPixelCoordinates(uint2 PixelPos, out uint2 CompressedUseCountPixelPos, out uint Shift)
-{
-	// Overlap 2x2 consecutive blocks of 8x8 pixel to reduce atomic contention in the scattering pass
-	const uint kTileSize = 8;
-
-	uint2 PixelPosOffset = PixelPos - InputInfo_ViewportMin;
-
-	CompressedUseCountPixelPos = ((PixelPosOffset % kTileSize) | ((PixelPosOffset >> 1) & ~(kTileSize - 1))) + InputInfo_ViewportMin;
-	Shift = ((PixelPosOffset.x / kTileSize) % 2) | (((PixelPosOffset.y / kTileSize) % 2) << 1);
-}
-	
-#endif
 
 CALL_SITE_DEBUGLOC
 uint2 EncodeSpatialAntiAliasingOffset(tsr_half2x2 TexelOffset)
@@ -1268,3 +1114,30 @@ FCatmullRomSamples GetBicubic2DCatmullRomSamples_Stubbe(float2 UV, float2 Size, 
 	return Samples;
 }
 
+/** Compute the devize Z error due to the size of a pixel in world space at that given depth. */
+float ComputePixelDeviceZError(float DeviceZ)
+{
+	float Depth = ConvertFromDeviceZ(DeviceZ);
+	float ErrorCorrectedDeviceZ = ConvertToDeviceZ(GetDepthPixelRadiusForProjectionType(Depth) * 2.0f + Depth);
+	float DeviceZError = abs(ErrorCorrectedDeviceZ - DeviceZ);
+	return DeviceZError;
+}
+
+/** Encode the devize Z error relatively to the closest depth to squeeze to 8bit per pixel */
+uint EncodeDeviceZError(float PrevClosestDeviceZ, float ParallaxDepthError)
+{
+	float PixelDeviceZError = float(MAX_DEVICE_Z_ERROR) * ComputePixelDeviceZError(PrevClosestDeviceZ);
+	float RelativeZError = ParallaxDepthError / PixelDeviceZError;
+	
+	uint EncodedDeviceZError = uint(ceil(saturate(RelativeZError) * 255.0));
+	return EncodedDeviceZError;
+}
+
+/** Inverse of EncodeDeviceZError() */
+float DecodeDeviceZError(float PrevClosestDeviceZ, uint EncodedDeviceZError)
+{
+	float PixelDeviceZError = ComputePixelDeviceZError(PrevClosestDeviceZ);
+	float RelativeZError = float(EncodedDeviceZError) * (float(MAX_DEVICE_Z_ERROR) / 255.0);
+	float ParallaxDepthError = PixelDeviceZError * RelativeZError;
+	return ParallaxDepthError;
+}

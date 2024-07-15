@@ -57,6 +57,7 @@ Texture2D<uint>      ReprojectionBoundaryTexture;
 Texture2D<uint>      ReprojectionJacobianTexture;
 Texture2D<uint>      ReprojectionVectorTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
+Texture2D<tsr_half2> DecimateMaskTexture;
 Texture2D<tsr_half4> HistoryRejectionTexture;
 Texture2D<tsr_half4> MoireHistoryTexture;
 Texture2D<tsr_ushort> AntiAliasMaskTexture;
@@ -150,6 +151,30 @@ FReprojectionFieldSample SampleReprojectionField(FContext Ctx)
 	return Reprojection;
 }
 
+struct FDecimateMaskSample
+{
+	bool bIsOffScreen;
+	bool bIsParallaxDisocclusion;
+	bool bIsDisoccluded;
+	bool bHasPixelAnimation;
+	bool bReprojectionHollFill;
+};
+
+FDecimateMaskSample SampleDecimateMask(FContext Ctx)
+{
+	FDecimateMaskSample Decimate;
+
+	tsr_half2 DecimateMask = DecimateMaskTexture[Ctx.InputPixelPos];
+	
+	tsr_ushort BitMask = tsr_ushort(DecimateMask.r * tsr_half(255.0));
+	Decimate.bIsOffScreen            = (BitMask & tsr_ushort(0x1)) != tsr_ushort(0);
+	Decimate.bIsParallaxDisocclusion = (BitMask & tsr_ushort(0x2)) != tsr_ushort(0);
+	Decimate.bIsDisoccluded          = (BitMask & tsr_ushort(0x3)) != tsr_ushort(0);
+	Decimate.bHasPixelAnimation      = (BitMask & tsr_ushort(0x4)) != tsr_ushort(0);
+	Decimate.bReprojectionHollFill   = (BitMask & tsr_ushort(0x8)) != tsr_ushort(0);
+	return Decimate;
+}
+
 
 //------------------------------------------------------- ENTRY POINT
 
@@ -202,11 +227,12 @@ tsr_half3 DisplayHistoryClamp(FContext Ctx)
 
 tsr_half3 DisplayParallaxDisocclusionMask(FContext Ctx)
 {
-	bool ParallaxDisocclusionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x1)) != tsr_ushort(0x0);
+	FDecimateMaskSample Decimate = SampleDecimateMask(Ctx);
 	
-	tsr_half3 Color = kWhite;
-	Color = select(bCameraCut == 0, Color, kPink);
-	Color = select(ParallaxDisocclusionMask, Color, kRed);
+	tsr_half3 Color;
+	Color = select(Decimate.bReprojectionHollFill && Decimate.bIsParallaxDisocclusion, kOrange, kWhite);
+	Color = select(!Decimate.bReprojectionHollFill && Decimate.bIsParallaxDisocclusion, kRed, Color);
+	Color = select(Decimate.bIsOffScreen, kPink, Color);
 	return SampleTSROutputGray(Ctx) * Color;
 }
 

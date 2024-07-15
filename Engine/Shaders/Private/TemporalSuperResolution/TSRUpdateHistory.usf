@@ -225,12 +225,6 @@ tsr_ushort2x2 Map8x8Tile2x2LaneDPV(uint GroupThreadIndex)
 }
 
 CALL_SITE_DEBUGLOC 
-tsr_halfCx2 TransformColorForClampingBox(tsr_halfCx2 Color)
-{
-	return RGBToYCoCg(Color);
-}
-
-CALL_SITE_DEBUGLOC 
 tsr_half3x2 GetColorChannel(tsr_half4x2 Color)
 {
 	return dpv_interleave_registers(
