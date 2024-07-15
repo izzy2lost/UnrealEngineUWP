@@ -410,7 +410,7 @@ BOOL Detoured_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead
 BOOL Detoured_WriteConsoleA(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved)
 {
 	DETOURED_CALL(WriteConsoleA);
-	//DEBUG_LOG_TRUE_AND_DETOURED(L"WriteConsoleA (%hs)", (char*)lpBuffer);
+	//DEBUG_LOG_DETOURED(L"WriteConsoleA", L"(%hs)", (char*)lpBuffer); // Too much spam
 	Shared_WriteConsole((const char*)lpBuffer, nNumberOfCharsToWrite, false);
 	if (lpNumberOfCharsWritten)
 		*lpNumberOfCharsWritten = nNumberOfCharsToWrite;
@@ -420,7 +420,7 @@ BOOL Detoured_WriteConsoleA(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD n
 BOOL Detoured_WriteConsoleW(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD nNumberOfCharsToWrite, LPDWORD lpNumberOfCharsWritten, LPVOID lpReserved)
 {
 	DETOURED_CALL(WriteConsoleW);
-	//DEBUG_LOG_DETOURED(L"WriteConsoleW", L""); // Too much spam
+	//DEBUG_LOG_DETOURED(L"WriteConsoleW", L"(%s)", (const wchar_t*)lpBuffer); // Too much spam
 	Shared_WriteConsole((const wchar_t*)lpBuffer, nNumberOfCharsToWrite, false);
 	if (lpNumberOfCharsWritten)
 		*lpNumberOfCharsWritten = nNumberOfCharsToWrite;
@@ -637,6 +637,7 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 
 		if (dh.type == HandleType_Std)
 		{
+			//DEBUG_LOG_DETOURED(L"WriteStdFile1", L"%llu", uintptr_t(hFile));
 			WriteStdFile(lpBuffer, nNumberOfBytesToWrite, hFile == g_stdHandle[0]);
 			*lpNumberOfBytesWritten = nNumberOfBytesToWrite;
 			SetLastError(ERROR_SUCCESS);
@@ -663,6 +664,7 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 	}
 	else if (hFile == g_stdHandle[1] || hFile == g_stdHandle[0])
 	{
+		//DEBUG_LOG_DETOURED(L"WriteStdFile2", L"%llu", uintptr_t(hFile));
 		WriteStdFile(lpBuffer, nNumberOfBytesToWrite, hFile == g_stdHandle[0]);
 		*lpNumberOfBytesWritten = nNumberOfBytesToWrite;
 		SetLastError(ERROR_SUCCESS);
@@ -954,14 +956,17 @@ DWORD Detoured_GetFileType(HANDLE hFile)
 		DetouredHandle& dh = asDetouredHandle(hFile);
 		SetLastError(ERROR_SUCCESS);
 		if (dh.type == HandleType_Std)
+		{
+			DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> FILE_TYPE_CHAR", uintptr_t(hFile), HandleToName(hFile));
 			return FILE_TYPE_CHAR;
+		}
 		UBA_ASSERT(dh.type == HandleType_File);
-		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> %u", uintptr_t(hFile), HandleToName(hFile), FILE_TYPE_DISK);
+		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> FILE_TYPE_DISK", uintptr_t(hFile), HandleToName(hFile));
 		return FILE_TYPE_DISK;
 	}
 	if (isListDirectoryHandle(hFile))
 	{
-		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> %u", uintptr_t(hFile), HandleToName(hFile), FILE_TYPE_DISK);
+		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> FILE_TYPE_DISK", uintptr_t(hFile), HandleToName(hFile));
 		SetLastError(ERROR_SUCCESS);
 		return FILE_TYPE_DISK;
 	}

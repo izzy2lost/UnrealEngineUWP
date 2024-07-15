@@ -784,19 +784,28 @@ void Init(const DetoursPayload& payload, u64 startTime)
 
 	DetourAttachFunctions(g_runningRemote);
 
+	if (!g_isDetachedProcess)
+	{
+		// If GetStdHandle returns 0 it is likely that there is a parent process and that one has detached process set (which means now conhost is created)
+		// .. solve this by detaching this process too
+		HANDLE stdoutHandle = True_GetStdHandle(STD_OUTPUT_HANDLE);
+		if (stdoutHandle == 0)
+		{
+			g_isDetachedProcess = true;
+		}
+		else
+		{
+			HANDLE stderrHandle = True_GetStdHandle(STD_ERROR_HANDLE);
+			g_stdHandle[0] = GetFileType(stderrHandle) == FILE_TYPE_CHAR ? stderrHandle : 0;
+			g_stdHandle[1] = GetFileType(stdoutHandle) == FILE_TYPE_CHAR ? stdoutHandle : 0;
+		}
+	}
+
 	if (g_isDetachedProcess)
 	{
 		g_stdHandle[0] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_ERR
 		g_stdHandle[1] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_OUT
 		g_stdHandle[2] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_IN
-	}
-	else
-	{
-		HANDLE stderrHandle = True_GetStdHandle(STD_ERROR_HANDLE);
-		g_stdHandle[0] = GetFileType(stderrHandle) == FILE_TYPE_CHAR ? stderrHandle : 0;
-		
-		HANDLE stdoutHandle = True_GetStdHandle(STD_OUTPUT_HANDLE);
-		g_stdHandle[1] = GetFileType(stdoutHandle) == FILE_TYPE_CHAR ? stdoutHandle : 0;
 	}
 
 	if (payload.trackInputs)
