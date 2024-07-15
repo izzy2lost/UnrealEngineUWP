@@ -256,6 +256,11 @@ namespace HordeServer.Storage
 		/// </summary>
 		public BackendId Base { get; set; }
 
+		/// <summary>
+		/// Specifies another backend to read from if an object is not found in this one. Can be used when migrating data from one backend to another.
+		/// </summary>
+		public BackendId Secondary { get; set; }
+
 		/// <inheritdoc/>
 		public StorageBackendType? Type { get; set; }
 

@@ -17,6 +17,7 @@ using EpicGames.Horde.Storage.ObjectStores;
 using EpicGames.Redis;
 using EpicGames.Redis.Utility;
 using HordeServer.Server;
+using HordeServer.Storage.Storage.ObjectStores;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -538,16 +539,7 @@ namespace HordeServer.Storage
 						NamespaceId namespaceId = namespaceConfig.Id;
 						try
 						{
-							BackendId backendId = namespaceConfig.Backend;
-
-							BackendConfig? backendConfig = _staticStorageConfig.Value.Backends.FirstOrDefault(x => x.Id == namespaceConfig.Backend);
-							if (backendConfig == null && !storageConfig.TryGetBackend(namespaceConfig.Backend, out backendConfig))
-							{
-								throw new StorageException($"Missing or invalid backend identifier for namespace {namespaceConfig.Id}");
-							}
-
-							IObjectStore objectStore = _objectStoreFactory.CreateObjectStore(backendConfig);
-
+							IObjectStore objectStore = CreateObjectStore(storageConfig, namespaceConfig.Backend);
 							if (!String.IsNullOrEmpty(namespaceConfig.Prefix))
 							{
 								objectStore = new PrefixedObjectStore(namespaceConfig.Prefix, objectStore);
@@ -569,6 +561,24 @@ namespace HordeServer.Storage
 				}
 				return _lastState;
 			}
+		}
+
+		IObjectStore CreateObjectStore(StorageConfig storageConfig, BackendId backendId)
+		{
+			BackendConfig? backendConfig = _staticStorageConfig.Value.Backends.FirstOrDefault(x => x.Id == backendId);
+			if (backendConfig == null && !storageConfig.TryGetBackend(backendId, out backendConfig))
+			{
+				throw new StorageException($"Missing or invalid backend identifier '{backendId}');");
+			}
+
+			IObjectStore objectStore = _objectStoreFactory.CreateObjectStore(backendConfig);
+			if (!backendConfig.Secondary.IsEmpty)
+			{
+				IObjectStore secondaryObjectStore = CreateObjectStore(storageConfig, backendConfig.Secondary);
+				objectStore = new ChainedObjectStore(objectStore, secondaryObjectStore);
+			}
+
+			return objectStore;
 		}
 
 		#endregion
