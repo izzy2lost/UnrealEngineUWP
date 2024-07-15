@@ -11,11 +11,14 @@ namespace uba
 	class Config;
 
 	#define UBA_VISUALIZER_FLAGS1 \
+		UBA_VISUALIZER_FLAG(Progress, true, L"progress") \
+		UBA_VISUALIZER_FLAG(ActiveProcesses, false, L"active processes") \
+		UBA_VISUALIZER_FLAG(TitleBars, true, L"title bars") \
+		UBA_VISUALIZER_FLAG(DetailedData, false, L"detailed data (use -UbaDetailedTrace for even more)") \
 		UBA_VISUALIZER_FLAG(NetworkStats, true, L"network stats") \
 		UBA_VISUALIZER_FLAG(CpuMemStats, true, L"cpu/mem stats") \
 		UBA_VISUALIZER_FLAG(ProcessBars, true, L"process bars") \
 		UBA_VISUALIZER_FLAG(Timeline, true, L"timeline") \
-		UBA_VISUALIZER_FLAG(DetailedData, false, L"detailed data (use -UbaDetailedTrace for even more)") \
 		UBA_VISUALIZER_FLAG(Workers, false, L"workers (threads on host taking care of requests from helpers)") \
 		UBA_VISUALIZER_FLAG(CursorLine, false, L"cursor (vertical line)") \
 
@@ -24,6 +27,7 @@ namespace uba
 		UBA_VISUALIZER_FLAG(ShowReadWriteColors, true, L"Show colors for read/write times in process bars") \
 		UBA_VISUALIZER_FLAG(ScaleHorizontalWithScrollWheel, false, L"Use scroll wheel to scale horizontally") \
 		UBA_VISUALIZER_FLAG(DarkMode, false, L"Use dark mode to draw visualizer") \
+		UBA_VISUALIZER_FLAG(AutoSaveSettings, true, L"Auto save Position/Settings on close") \
 
 	struct VisualizerConfig
 	{
@@ -36,8 +40,11 @@ namespace uba
 
 		int x = 100;
 		int y = 100;
-		int width = 1500;
-		int height = 1500;
+		u32 width = 1500;
+		u32 height = 1500;
+		u32 fontSize = 13;
+		TString fontName;
+		u32 maxActiveVisible = 5;
 
 		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) bool show##name = defaultValue;
 		UBA_VISUALIZER_FLAGS1
@@ -95,6 +102,7 @@ namespace uba
 			bool workSelected = false;
 			u32 workTrack = ~0u;
 			u32 workIndex = ~0u;
+			TString hyperLink;
 		};
 		void HitTest(HitTestResult& outResult, const POINT& pos);
 
@@ -112,6 +120,9 @@ namespace uba
 		void StopDragToScroll();
 		void SaveSettings();
 		void DirtyBitmaps();
+		void UpdateFont();
+		void ChangeFontSize(int offset);
+		void Redraw();
 
 		StringBuffer<256> m_namedTrace;
 		StringBuffer<256> m_fileName;
@@ -153,6 +164,10 @@ namespace uba
 		HPEN m_processUpdatePen = 0;
 		HPEN m_checkboxPen = 0;
 		HFONT m_font = 0;
+		HFONT m_fontUnderlined = 0;
+		int m_fontHeight = 0;
+		int m_rawBoxHeight = 0;
+		int m_sessionStepY = 0;
 		HFONT m_popupFont = 0;
 		int m_popupFontHeight = 0;
 
@@ -191,6 +206,7 @@ namespace uba
 		u32 m_buttonSelected = ~0u;
 		float m_timelineSelected = 0;
 		u32 m_fetchedFilesSelected = ~0u;
+		TString m_hyperLinkSelected;
 
 		bool m_workSelected = false;
 		u32 m_workTrack = ~0u;
@@ -211,6 +227,7 @@ namespace uba
 
 		Thread m_thread;
 
+		void PostNewTrace(u32 replay, bool paused);
 		LRESULT WinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 		static LRESULT CALLBACK StaticWinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 	};

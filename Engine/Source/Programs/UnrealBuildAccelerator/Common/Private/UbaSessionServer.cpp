@@ -346,6 +346,7 @@ namespace uba
 		if (m_remoteExecutionEnabled)
 			m_logger.Info(TC("Disable remote execution (remote sessions will finish current processes)"));
 		m_remoteExecutionEnabled = false;
+		m_trace.RemoteExecutionDisabled();
 	}
 
 	void SessionServer::SetCustomCasKeyFromTrackedInputs(const tchar* fileName_, const tchar* workingDir_, const u8* trackedInputs, u32 trackedInputsBytes)
@@ -478,9 +479,14 @@ namespace uba
 		m_trace.ProcessExited(id, exitCode, statsWriter.GetData(), statsWriter.GetPosition(), Vector<ProcessLogLine>());
 	}
 
-	void SessionServer::UpdateStatus(u32 statusIndex, u32 statusNameIndent, const tchar* statusName, u32 statusTextIndent, const tchar* statusText, LogEntryType statusType)
+	void SessionServer::UpdateProgress(u32 processesTotal, u32 processesDone, u32 errorCount)
 	{
-		m_trace.StatusUpdate(statusIndex, statusNameIndent, statusName, statusTextIndent, statusText, statusType);
+		m_trace.ProgressUpdate(processesTotal, processesDone, errorCount);
+	}
+
+	void SessionServer::UpdateStatus(u32 statusRow, u32 statusColumn, const tchar* statusText, LogEntryType statusType, const tchar* statusLink)
+	{
+		m_trace.StatusUpdate(statusRow, statusColumn, statusText, statusType, statusLink);
 	}
 
 	NetworkServer& SessionServer::GetServer()

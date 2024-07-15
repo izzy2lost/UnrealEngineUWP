@@ -2818,9 +2818,9 @@ namespace uba
 	{
 		while (true)
 		{
+			TraceSessionUpdate();
 			if (m_traceThreadEvent.IsSet(500))
 				break;
-			TraceSessionUpdate();
 		}
 	}
 

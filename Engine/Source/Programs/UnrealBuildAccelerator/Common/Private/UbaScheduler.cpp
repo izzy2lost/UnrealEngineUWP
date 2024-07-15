@@ -599,7 +599,7 @@ namespace uba
 	void Scheduler::UpdateQueueCounter(int offset)
 	{
 		m_queuedProcesses += u32(offset);
-		m_session.UpdateStatus(1, 1, TC("Queue"), 4, StringBuffer<32>().Appendf(TC("%u"), m_queuedProcesses.load()).data, LogEntryType_Info);
+		m_session.UpdateProgress(m_queuedProcesses + m_activeLocalProcesses + m_activeRemoteProcesses + m_finishedProcesses, m_finishedProcesses, 0);
 	}
 
 	void Scheduler::UpdateActiveProcessCounter(bool isLocal, int offset)
@@ -608,7 +608,6 @@ namespace uba
 			m_activeLocalProcesses += u32(offset);
 		else
 			m_activeRemoteProcesses += u32(offset);
-		m_session.UpdateStatus(2, 1, TC("Active"), 4, StringBuffer<32>().Appendf(TC("Local %u Remote %u"), m_activeLocalProcesses.load(), m_activeRemoteProcesses.load()).data, LogEntryType_Info);
 	}
 
 	void Scheduler::FinishProcess(const ProcessHandle& handle)
@@ -616,7 +615,7 @@ namespace uba
 		++m_finishedProcesses;
 		if (m_processFinished)
 			m_processFinished(handle);
-		m_session.UpdateStatus(3, 1, TC("Finished"), 4, StringBuffer<32>().Appendf(TC("%u"), m_finishedProcesses.load()).data, LogEntryType_Info);
+		m_session.UpdateProgress(m_queuedProcesses + m_activeLocalProcesses + m_activeRemoteProcesses + m_finishedProcesses, m_finishedProcesses, 0);
 	}
 
 	bool Scheduler::EnqueueFromFile(const tchar* yamlFilename)

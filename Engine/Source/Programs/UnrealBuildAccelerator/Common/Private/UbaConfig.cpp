@@ -10,7 +10,16 @@ namespace uba
 		auto findIt = m_values.find(key);
 		if (findIt == m_values.end())
 			return m_parent ? m_parent->GetValueAsString(out, key) : false;
-		out = findIt->second.c_str();
+		out = findIt->second.string.c_str();
+		return true;
+	}
+
+	bool ConfigTable::GetValueAsString(TString& out, const tchar* key) const
+	{
+		const tchar* str;
+		if (!GetValueAsString(str, key))
+			return false;
+		out = str;
 		return true;
 	}
 
@@ -19,7 +28,7 @@ namespace uba
 		auto findIt = m_values.find(key);
 		if (findIt == m_values.end())
 			return m_parent ? m_parent->GetValueAsU32(out, key) : false;
-		StringBuffer<> buf(findIt->second);
+		StringBuffer<> buf(findIt->second.string);
 		return buf.Parse(out);
 	}
 
@@ -29,9 +38,9 @@ namespace uba
 		if (findIt == m_values.end())
 			return m_parent ? m_parent->GetValueAsInt(out, key) : false;
 		#if PLATFORM_WINDOWS
-		out = (int)wcstol(findIt->second.c_str(), 0, 10);
+		out = (int)wcstol(findIt->second.string.c_str(), 0, 10);
 		#else
-		out = atoi(findIt->second.c_str());
+		out = atoi(findIt->second.string.c_str());
 		#endif
 		return true;
 	}
@@ -41,7 +50,7 @@ namespace uba
 		auto findIt = m_values.find(key);
 		if (findIt == m_values.end())
 			return m_parent ? m_parent->GetValueAsBool(out, key) : false;
-		const tchar* value = findIt->second.c_str();
+		const tchar* value = findIt->second.string.c_str();
 		if (Equals(value, TC("true")) || Equals(value, TC("1")))
 		{
 			out = true;
@@ -68,12 +77,24 @@ namespace uba
 	{
 		tchar buf[256];
 		TSprintf_s(buf, sizeof_array(buf), TC("%i"), value);
-		m_values[key] = buf;
+		m_values[key] = Value{ValueType_Value, buf};
+	}
+
+	void ConfigTable::AddValue(const tchar* key, u32 value)
+	{
+		tchar buf[256];
+		TSprintf_s(buf, sizeof_array(buf), TC("%u"), value);
+		m_values[key] = Value{ValueType_Value, buf};
 	}
 
 	void ConfigTable::AddValue(const tchar* key, bool value)
 	{
-		m_values[key] = value ? TC("true") : TC("false");
+		m_values[key] = Value{ValueType_Value, value ? TC("true") : TC("false")};
+	}
+
+	void ConfigTable::AddValue(const tchar* key, const tchar* str)
+	{
+		m_values[key] = Value{ValueType_String, str};
 	}
 
 	bool Config::LoadFromFile(Logger& logger, const tchar* configFile)
@@ -195,18 +216,20 @@ namespace uba
 				++i;
 				token = consumeEmpty();
 
+				ValueType type = ValueType_Value;
 				StringBuffer<1024> value;
 				if (token == '\"')
 				{
 					++i;
 					token = consumeLine(value, '\"');
+					type = ValueType_String;
 				}
 				else
 				{
 					token = consumeLine(value, ' ');
 				}
 
-				activeTable->m_values[key.data] = value.data;
+				activeTable->m_values[key.data] = Value{type, value.data};
 				if (token == 0)
 					break;
 				++i;
@@ -232,10 +255,11 @@ namespace uba
 		for (auto& kv : m_values)
 		{
 			char line[1024];
+			const char* quote = kv.second.type == ValueType_String ? "\"" : "";
 			#if PLATFORM_WINDOWS
-			int written = sprintf_s(line, sizeof_array(line), "%S = %S\r\n", kv.first.c_str(), kv.second.c_str());
+			int written = sprintf_s(line, sizeof_array(line), "%S = %s%S%s\r\n", kv.first.c_str(), quote, kv.second.string.c_str(), quote);
 			#else
-			int written = snprintf(line, sizeof_array(line), "%s = %s\r\n", kv.first.c_str(), kv.second.c_str());
+			int written = snprintf(line, sizeof_array(line), "%s = %s%s%s\r\n", kv.first.c_str(), quote, kv.second.string.c_str(), quote);
 			#endif
 			if (!fa.Write(line, written))
 				return false;

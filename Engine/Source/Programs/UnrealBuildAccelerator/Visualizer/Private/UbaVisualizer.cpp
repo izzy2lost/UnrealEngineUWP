@@ -27,13 +27,18 @@ namespace uba
 		UBA_VISUALIZER_FLAGS2
 		#undef UBA_VISUALIZER_FLAG
 
+		Popup_IncreaseFontSize,
+		Popup_DecreaseFontSize,
+
 		Popup_SaveAs,
 		Popup_SaveSettings,
+		Popup_OpenSettings,
 		Popup_Quit,
 	};
 
 	VisualizerConfig::VisualizerConfig(const tchar* fn) : filename(fn)
 	{
+		fontName = TC("Arial");
 	}
 
 	bool VisualizerConfig::Load(Logger& logger)
@@ -50,8 +55,11 @@ namespace uba
 		}
 		config.GetValueAsInt(x, L"X");
 		config.GetValueAsInt(y, L"Y");
-		config.GetValueAsInt(width, L"Width");
-		config.GetValueAsInt(height, L"Height");
+		config.GetValueAsU32(width, L"Width");
+		config.GetValueAsU32(height, L"Height");
+		config.GetValueAsU32(fontSize, L"FontSize");
+		config.GetValueAsString(fontName, L"FontName");
+		config.GetValueAsU32(maxActiveVisible, L"MaxActiveVisible");
 		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) config.GetValueAsBool(show##name, L"Show" #name);
 		UBA_VISUALIZER_FLAGS1
 		#undef UBA_VISUALIZER_FLAG
@@ -68,6 +76,9 @@ namespace uba
 		config.AddValue(L"Y", y);
 		config.AddValue(L"Width", width);
 		config.AddValue(L"Height", height);
+		config.AddValue(L"FontSize", fontSize);
+		config.AddValue(L"FontName", fontName.c_str());
+		config.AddValue(L"MaxActiveVisible", maxActiveVisible);
 		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) config.AddValue(L"Show" #name, show##name);
 		UBA_VISUALIZER_FLAGS1
 		#undef UBA_VISUALIZER_FLAG
@@ -136,7 +147,7 @@ namespace uba
 			GetClientRect(hwnd, &clientRect);
 
 			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
+				OffsetRect(&r, -width - 15, 0);
 			if (r.bottom > clientRect.bottom)
 			{
 				OffsetRect(&r, 0, clientRect.bottom - r.bottom);
@@ -252,7 +263,7 @@ namespace uba
 				if (!traceName.Equals(m_newTraceName.data))
 				{
 					m_newTraceName.Clear().Append(traceName);
-					PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+					PostNewTrace(0, false);
 				}
 			}
 			else
@@ -270,7 +281,7 @@ namespace uba
 		if (!StartHwndThread())
 			return true;
 		m_newTraceName.Append(namedTrace);
-		PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+		PostNewTrace(0, false);
 		return true;
 	}
 
@@ -304,7 +315,7 @@ namespace uba
 			if (!m_client->Connect(backend, host, port))
 				continue;
 
-			PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+			PostNewTrace(0, false);
 
 			while (m_hwnd && m_client->IsConnected())
 				Sleep(1000);
@@ -324,8 +335,7 @@ namespace uba
 		if (!StartHwndThread())
 			return true;
 		m_fileName.Append(fileName);
-		m_replay = replay;
-		PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+		PostNewTrace(replay, 0);
 		return true;
 	}
 
@@ -359,7 +369,7 @@ namespace uba
 
 	bool Visualizer::Unselect()
 	{
-		if (m_processSelected || m_sessionSelectedIndex != ~0u || m_statsSelected || m_timelineSelected || m_fetchedFilesSelected != ~0u || m_workSelected)
+		if (m_processSelected || m_sessionSelectedIndex != ~0u || m_statsSelected || m_timelineSelected || m_fetchedFilesSelected != ~0u || m_workSelected || !m_hyperLinkSelected.empty())
 		{
 			m_processSelected = false;
 			m_sessionSelectedIndex = ~0u;
@@ -368,6 +378,7 @@ namespace uba
 			m_timelineSelected = 0;
 			m_fetchedFilesSelected = ~0u;
 			m_workSelected = false;
+			m_hyperLinkSelected.clear();
 			return true;
 		}
 		return false;
@@ -383,14 +394,12 @@ namespace uba
 		m_textBitmaps.clear();
 		m_lastBitmap = 0;
 		m_lastBitmapOffset = BitmapCacheHeight;
-		m_traceView.Clear();
 		m_autoScroll = true;
 		m_scrollPosX = 0;
 		m_scrollPosY = 0;
 		//m_zoomValue = 0.75f;
 		//m_horizontalScaleValue = 1.0f;
 
-		//m_replay = 0;
 		m_startTime = GetTime();
 		m_pauseTime = 0;
 
@@ -500,17 +509,13 @@ namespace uba
 		wndClassEx.style = CS_HREDRAW | CS_VREDRAW;
 		wndClassEx.lpfnWndProc = &StaticWinProc;
 		wndClassEx.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(123));
-		wndClassEx.hCursor = LoadCursor(NULL, IDC_ARROW);
+		wndClassEx.hCursor = 0;
 		wndClassEx.hInstance = hInstance;
 		wndClassEx.hbrBackground = NULL;
 		wndClassEx.lpszClassName = TEXT("UbaVisualizer");
 		ATOM wndClassAtom = RegisterClassEx(&wndClassEx);
 
-		NONCLIENTMETRICS nonClientMetrics;
-		nonClientMetrics.cbSize = sizeof(nonClientMetrics);
-		SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(nonClientMetrics), &nonClientMetrics, 0);
-		//m_font = (HFONT)CreateFontIndirect(&nonClientMetrics.lfMessageFont);
-		m_font = (HFONT)CreateFontW(-9, 0, 0, 0, FW_NORMAL, false, false, false, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Arial");
+		UpdateFont();
 
 		const TCHAR* fontName = TEXT("Consolas");
 		m_popupFont = (HFONT)CreateFontW(-12, 0, 0, 0, FW_NORMAL, false, false, false, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 0, FIXED_PITCH | FF_MODERN, fontName);
@@ -567,7 +572,11 @@ namespace uba
 				if (!m_looping || msg.message == WM_QUIT || msg.message == WM_DESTROY || msg.message == WM_CLOSE)
 				{
 					if (m_hwnd)
+					{
+						if (m_config.AutoSaveSettings)
+							SaveSettings();
 						DestroyWindow(m_hwnd);
+					}
 					DeleteObject(m_font);
 					UnregisterClass(windowClassName, hInstance);
 					m_hwnd = 0;
@@ -610,6 +619,7 @@ namespace uba
 			m_timelineSelected = 0;
 			m_fetchedFilesSelected = ~0u;
 			m_workSelected = false;
+			m_hyperLinkSelected.clear();
 			m_autoScroll = false;
 			m_mouseAnchor = { anchor.x, anchor.y };
 			m_scrollAtAnchorX = m_scrollPosX;
@@ -652,6 +662,38 @@ namespace uba
 						process.bitmapDirty = true;
 	}
 
+	void Visualizer::UpdateFont()
+	{
+		//NONCLIENTMETRICS nonClientMetrics;
+		//nonClientMetrics.cbSize = sizeof(nonClientMetrics);
+		//SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(nonClientMetrics), &nonClientMetrics, 0);
+		//m_font = (HFONT)CreateFontIndirect(&nonClientMetrics.lfMessageFont);
+		if (m_font)
+			DeleteObject(m_font);
+		if (m_fontUnderlined)
+			DeleteObject(m_fontUnderlined);
+		m_fontHeight = m_config.fontSize;
+		m_font = (HFONT)CreateFontW(4 - m_fontHeight, 0, 0, 0, FW_NORMAL, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, m_config.fontName.c_str());
+		m_fontUnderlined = (HFONT)CreateFontW(4 - m_fontHeight, 0, 0, 0, FW_NORMAL, 0, 1, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, m_config.fontName.c_str());
+
+		m_rawBoxHeight = m_fontHeight + 2;
+		m_sessionStepY = m_rawBoxHeight + 2;
+	}
+
+	void Visualizer::ChangeFontSize(int offset)
+	{
+		m_config.fontSize += offset;
+		m_config.fontSize = Max(m_config.fontSize, 10u);
+		UpdateFont();
+		DirtyBitmaps();
+		Redraw();
+	}
+
+	void Visualizer::Redraw()
+	{
+		RedrawWindow(m_hwnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+	}
+
 	void Visualizer::PaintClient(const Function<void(HDC hdc, HDC memDC, RECT& clientRect)>& paintFunc)
 	{
 		HDC hdc = GetDC(m_hwnd);
@@ -680,9 +722,6 @@ namespace uba
 
 	constexpr int ProgressRectLeft = 30;
 	constexpr int GraphHeight = 30;
-	constexpr int RawBoxHeight = 15;
-	constexpr int SessionStepY = RawBoxHeight + 2;
-	constexpr int FontHeight = 13;
 
 	struct SessionRec
 	{
@@ -711,12 +750,14 @@ namespace uba
 	void Visualizer::PaintAll(HDC hdc, const RECT& clientRect)
 	{
 		u64 currentTime = m_paused ? m_pauseStart : GetTime();
-		u64 playTime = currentTime - m_traceView.startTime - m_pauseTime;
+		u64 playTime = 0;
+		if (m_traceView.startTime)
+			playTime = currentTime - m_traceView.startTime - m_pauseTime;
 		if (m_replay)
 			playTime *= m_replay;
 
 		int posY = int(m_scrollPosY);
-		float boxHeight = float(RawBoxHeight)*m_zoomValue;
+		float boxHeight = float(m_rawBoxHeight)*m_zoomValue;
 		int stepY = int(boxHeight) + 2;
 		float scaleX = 50.0f*m_zoomValue*m_horizontalScaleValue;
 
@@ -747,33 +788,124 @@ namespace uba
 
 		u64 lastStop = 0;
 
+		auto drawStatusText = [&](const StringView& text, LogEntryType type, int indent, bool moveY, bool underlined = false)
+			{
+				RECT rect;
+				rect.left = 5 + indent*m_fontHeight;
+				rect.right = clientRect.right;
+				rect.top = posY;
+				rect.bottom = posY + m_fontHeight + 2;
+				SetTextColor(hdc, type == LogEntryType_Info ? m_textColor : (type == LogEntryType_Error ? m_textErrorColor : m_textWarningColor));
+
+				if (underlined)
+					SelectObject(hdc, m_fontUnderlined);
+				ExtTextOutW(hdc, rect.left, posY, ETO_CLIPPED, &rect, text.data, text.count, NULL);
+				if (underlined)
+					SelectObject(hdc, m_font);
+				if (moveY)
+					posY = rect.bottom;
+			};
+
+		if (m_config.showProgress && m_traceView.progressProcessesTotal)
+		{
+			drawStatusText(ToView(L"Progress"), LogEntryType_Info, 1, false);
+
+			float progress = float(m_traceView.progressProcessesDone) / m_traceView.progressProcessesTotal;
+			u32 width = m_fontHeight * 18;
+			RECT rect;
+			rect.left = 3 + 6*m_fontHeight;
+			rect.right = rect.left + width;
+			rect.top = posY;
+			rect.bottom = posY + m_fontHeight;
+			FillRect(hdc, &rect, m_processBrushes[0].inProgress);
+
+			rect.right = rect.left + int(progress*width);//durationMs/100;
+			FillRect(hdc, &rect, m_traceView.progressErrorCount ? m_processBrushes[0].error : m_processBrushes[0].success);
+
+			const tchar* remoteDisabled = m_traceView.remoteExecutionDisabled ? TC(" (Remote spawn disabled)") : TC("");
+			StringBuffer<> str;
+			str.Appendf(L"%u%% (%u/%u) %s", u32(progress*100.0f), m_traceView.progressProcessesDone, m_traceView.progressProcessesTotal, remoteDisabled);
+			drawStatusText(str, LogEntryType_Info, 6, true);
+		}
+
 		if (!m_traceView.statusMap.empty())
 		{
 			posY += 4;
-
-			auto drawStatusText = [&](const TString& text, LogEntryType type, int left, bool moveY)
-				{
-					RECT rect;
-					rect.left = left;
-					rect.right = clientRect.right;
-					rect.top = posY;
-					rect.bottom = posY + FontHeight + 2;
-					SetTextColor(hdc, type == LogEntryType_Info ? m_textColor : (type == LogEntryType_Error ? m_textErrorColor : m_textWarningColor));
-					ExtTextOutW(hdc, left, posY, ETO_CLIPPED, &rect, text.c_str(), u32(text.size()), NULL);
-					if (moveY)
-						posY = rect.bottom;
-				};
-
+			u32 lastRow = ~0u;
+			u32 row = ~0u;
 			for (auto& kv : m_traceView.statusMap)
 			{
 				auto& status = kv.second;
-				if (status.name.empty() && status.text.empty())
+				if (status.text.empty())
 					continue;
-				drawStatusText(status.name, status.type, 5 + status.nameIndent*15, false);
-				drawStatusText(status.text, status.type, 5 + status.textIndent*15, true);
+				row = u32(kv.first >> 32);
+				if (lastRow != ~0u && lastRow != row)
+					posY += m_fontHeight + 2;
+				lastRow = row;
+				u32 column = u32(kv.first & ~0u);
+				drawStatusText(status.text, status.type, column, false, !status.link.empty());
 			}
+			if (row != ~0u)
+				posY += m_fontHeight + 2;
+
 			SetTextColor(hdc, m_textColor);
 			posY += 4;
+		}
+
+		if (m_config.showActiveProcesses && !m_trace.m_activeProcesses.empty())
+		{
+			Map<u64, TraceView::Process*> activeProcesses;
+			u32 remoteCount = 0;
+			for (auto& pair : m_trace.m_activeProcesses)
+			{
+				auto& active = pair.second;
+				TraceView::Process& process = m_trace.GetSession(m_traceView, active.sessionIndex).processors[active.processorIndex].processes[active.processIndex];
+				activeProcesses.try_emplace(~0llu - process.start, &process);
+				if (process.isRemote)
+					++remoteCount;
+			}
+
+			drawStatusText(ToView(L"Active"), LogEntryType_Info, 1, false);
+			StringBuffer<> str;
+			str.Appendf(L"%u", u32(activeProcesses.size()) - remoteCount);
+			if (remoteCount)
+				str.Appendf(L" local %u remote", remoteCount);
+			str.Append(L" process");
+			if (activeProcesses.size() > 1)
+				str.Append(L"es");
+			drawStatusText(str, LogEntryType_Info, 6, true);
+
+			u32 index = 0;
+			for (auto& kv : activeProcesses)
+			{
+				if (index++ == m_config.maxActiveVisible)
+					break;
+				
+				u32 durationMs = u32(TimeToMs(playTime - kv.second->start));
+				RECT rect;
+				rect.left = 3 + 6*m_fontHeight;
+				rect.right = rect.left + durationMs/100;
+				rect.top = posY;
+				rect.bottom = posY + m_fontHeight;
+				FillRect(hdc, &rect, m_processBrushes[0].inProgress);
+
+				str.Clear();
+				auto firstPar = kv.second->description.find_first_of('(');
+				if (firstPar != -1 && *kv.second->description.rbegin() == ')')
+				{
+					str.Append(kv.second->description.c_str() + firstPar + 1).Resize(str.count-1);
+					str.Append(L"  ").Append(kv.second->description.c_str(), firstPar);
+				}
+				else
+					str.Append(kv.second->description);
+
+				if (kv.second->isRemote)
+					str.Append(L" (remote)");
+				if (durationMs > 1000)
+					str.Appendf(L" - %us", durationMs/1000);
+				drawStatusText(str, LogEntryType_Info, 6, true);
+			}
+			posY += 3;
 		}
 
 		TraceView::WorkRecord selectedWork;
@@ -784,50 +916,52 @@ namespace uba
 		TraceView::ProcessLocation processLocation { 0, 0, 0 };
 		for (u64 i = 0, e = m_traceView.sessions.size(); i != e; ++i)
 		{
+			bool isFirst = i == 0;
 			auto& session = *sortedSessions[i].session;
 			bool hasUpdates = !session.updates.empty();
-			if (!hasUpdates && session.processors.empty())
+			if (!isFirst && !hasUpdates && session.processors.empty())
 				continue;
 
 			processLocation.sessionIndex = sortedSessions[i].index;
-			bool isFirst = i == 0;
 			if (!isFirst)
 				posY += 3;
 
-			if (posY + stepY >= progressRect.top && posY <= progressRect.bottom)
+			if (m_config.showTitleBars)
 			{
-				SelectObject(hdc, m_separatorPen);
-				MoveToEx(hdc, 0, posY, NULL);
-				LineTo(hdc, clientRect.right, posY);
-
-				StringBuffer<> text;
-				text.Append(session.name);
-
-				if (hasUpdates && session.disconnectTime == ~u64(0))
+				if (posY + stepY >= progressRect.top && posY <= progressRect.bottom)
 				{
-					u64 ping = session.updates.back().ping;
-					u64 memAvail = session.updates.back().memAvail;
-					float cpuLoad = session.updates.back().cpuLoad;
+					SelectObject(hdc, m_separatorPen);
+					MoveToEx(hdc, 0, posY, NULL);
+					LineTo(hdc, clientRect.right, posY);
 
-					text.Appendf(L" - Cpu: %.1f%%", cpuLoad * 100.0f);
-					if (memAvail)
-						text.Appendf(L" Mem: %ls/%ls", BytesToText(session.memTotal - memAvail).str, BytesToText(session.memTotal).str);
-					if (ping)
-						text.Appendf(L" Ping: %ls", TimeToText(ping, false, m_traceView.frequency).str);
-					if (!session.notification.empty())
-						text.Append(L" - ").Append(session.notification);
-				}
-				else
-				{
-					text.Append(L" - Disconnected");
-					if (!session.notification.empty())
-						text.Append(L" (").Append(session.notification).Append(')');
-				}
+					StringBuffer<> text;
+					text.Append(session.name);
 
-				bool selected = m_sessionSelectedIndex == processLocation.sessionIndex;
+					if (hasUpdates && session.disconnectTime == ~u64(0))
+					{
+						u64 ping = session.updates.back().ping;
+						u64 memAvail = session.updates.back().memAvail;
+						float cpuLoad = session.updates.back().cpuLoad;
 
-				int textBottom = Min(posY + SessionStepY, int(progressRect.bottom));
-				{
+						text.Appendf(L" - Cpu: %.1f%%", cpuLoad * 100.0f);
+						if (memAvail)
+							text.Appendf(L" Mem: %ls/%ls", BytesToText(session.memTotal - memAvail).str, BytesToText(session.memTotal).str);
+						if (ping)
+							text.Appendf(L" Ping: %ls", TimeToText(ping, false, m_traceView.frequency).str);
+						if (!session.notification.empty())
+							text.Append(L" - ").Append(session.notification);
+					}
+					else if (!isFirst)
+					{
+						text.Append(L" - Disconnected");
+						if (!session.notification.empty())
+							text.Append(L" (").Append(session.notification).Append(')');
+					}
+
+					bool selected = m_sessionSelectedIndex == processLocation.sessionIndex;
+
+					int textBottom = Min(posY + m_sessionStepY, int(progressRect.bottom));
+
 					RECT rect;
 					rect.left = 5;
 					rect.right = clientRect.right;
@@ -840,8 +974,8 @@ namespace uba
 					if (selected)
 						SetBkMode(hdc, TRANSPARENT);
 				}
+				posY += m_sessionStepY;
 			}
-			posY += SessionStepY;
 
 			bool showGraph = m_config.showNetworkStats || m_config.showCpuMemStats;
 			if (showGraph && hasUpdates)
@@ -946,7 +1080,7 @@ namespace uba
 				processLocation.processorIndex = 0;
 				for (auto& processor : session.processors)
 				{
-					if (posY + SessionStepY >= progressRect.top && posY < progressRect.bottom)
+					if (posY + m_sessionStepY >= progressRect.top && posY < progressRect.bottom)
 					{
 						float barHeight = boxHeight;
 						int textOffsetY = 0;
@@ -959,7 +1093,7 @@ namespace uba
 
 						const int textHeight = int(barHeight);
 						const int rectBottom = posY + textHeight;
-						const int offsetY = (textHeight - FontHeight + textOffsetY) / 2;
+						const int offsetY = (textHeight - m_fontHeight + textOffsetY) / 2;
 
 						if (shouldDrawText)
 						{
@@ -1030,7 +1164,7 @@ namespace uba
 										}
 										process.bitmap = m_lastBitmap;
 										process.bitmapOffset = m_lastBitmapOffset;
-										m_lastBitmapOffset += FontHeight;
+										m_lastBitmapOffset += m_fontHeight;
 									}
 									if (lastSelectedBitmap != process.bitmap)
 									{
@@ -1038,8 +1172,8 @@ namespace uba
 										lastSelectedBitmap = process.bitmap;
 									}
 
-									RECT rect2{ 0, int(process.bitmapOffset), 256, int(process.bitmapOffset) + FontHeight };
-									RECT rect3{ 0, int(process.bitmapOffset), processWidth, int(process.bitmapOffset) + FontHeight };
+									RECT rect2{ 0, int(process.bitmapOffset), 256, int(process.bitmapOffset) + m_fontHeight };
+									RECT rect3{ 0, int(process.bitmapOffset), processWidth, int(process.bitmapOffset) + m_fontHeight };
 									if (!done)
 										rect3.right = 256;
 
@@ -1078,7 +1212,7 @@ namespace uba
 									bitmapOffsetY -= bltOffsetY;
 									bltOffsetY = 0;
 								}
-								int height = Min(textHeight, FontHeight);
+								int height = Min(textHeight, m_fontHeight);
 								if (bltOffsetY + height > textHeight)
 									height = textHeight - bltOffsetY;
 
@@ -1118,7 +1252,7 @@ namespace uba
 				u32 trackIndex = 0;
 				for (auto& workTrack : m_traceView.workTracks)
 				{
-					if (posY + SessionStepY >= progressRect.top && posY <= progressRect.bottom)
+					if (posY + m_sessionStepY >= progressRect.top && posY <= progressRect.bottom)
 					{
 						int textOffsetY = 0;
 						float barHeight = boxHeight;
@@ -1131,7 +1265,7 @@ namespace uba
 
 						const int textHeight = int(barHeight);
 						const int rectBottom = posY + textHeight;
-						const int offsetY = (textHeight - FontHeight + textOffsetY) / 2;
+						const int offsetY = (textHeight - m_fontHeight + textOffsetY) / 2;
 
 						if (shouldDrawText)
 						{
@@ -1236,13 +1370,13 @@ namespace uba
 									}
 									SelectObject(textDC, m_lastBitmap);
 
-									RECT rect2{ 0,m_lastBitmapOffset,256, m_lastBitmapOffset + FontHeight };
+									RECT rect2{ 0,m_lastBitmapOffset,256, m_lastBitmapOffset + m_fontHeight };
 
 									FillRect(textDC, &rect2, m_workBrush);
 									ExtTextOutW(textDC, rect2.left, rect2.top, ETO_CLIPPED, &rect2, work.description, int(wcslen(work.description)), NULL);
 									work.bitmap = m_lastBitmap;
 									work.bitmapOffset = m_lastBitmapOffset;
-									m_lastBitmapOffset += FontHeight;
+									m_lastBitmapOffset += m_fontHeight;
 								}
 
 								if (lastSelectedBitmap != work.bitmap)
@@ -1259,7 +1393,7 @@ namespace uba
 									bitmapOffsetY -= bltOffsetY;
 									bltOffsetY = 0;
 								}
-								int height = Min(textHeight, FontHeight);
+								int height = Min(textHeight, m_fontHeight);
 								if (bltOffsetY + height > textHeight)
 									height = textHeight - bltOffsetY;
 
@@ -1290,7 +1424,7 @@ namespace uba
 		DeleteObject(nullBmp);
 		DeleteDC(textDC);
 
-		m_contentWidth = ProgressRectLeft + int(TimeToS(lastStop != ~u64(0) ? lastStop : playTime) * scaleX);
+		m_contentWidth = ProgressRectLeft + int(TimeToS((lastStop != 0 && lastStop != ~u64(0)) ? lastStop : playTime) * scaleX);
 		m_contentHeight = posY - int(m_scrollPosY) + stepY + 14;
 
 		float timelineSelected = m_timelineSelected;
@@ -1356,11 +1490,13 @@ namespace uba
 		}
 
 		{
+			int boxSide = 8;
+			int boxStride = boxSide + 2;
 			int top = 5;
-			int bottom = SessionStepY - 3;
-			int left = progressRect.right - 16;
+			int bottom = top + boxSide;
+			int left = progressRect.right - 7 - boxSide;
 			int right = progressRect.right - 7;
-			bool* values = &m_config.showNetworkStats;
+			bool* values = &m_config.showProgress;
 			for (int i = VisualizerFlag_Count - 1; i >= 0; --i)
 			{
 				SelectObject(hdc, m_buttonSelected == u32(i) ? m_textPen : m_checkboxPen);
@@ -1375,8 +1511,8 @@ namespace uba
 					LineTo(hdc, left + 1, bottom - 2);
 				}
 
-				left -= 14;
-				right -= 14;
+				left -= boxStride;
+				right -= boxStride;
 			}
 
 			top -= 2;
@@ -1628,8 +1764,6 @@ namespace uba
 		}
 		else if (m_buttonSelected != ~0u)
 		{
-			bool* values = &m_config.showNetworkStats;
-
 			const wchar_t* tooltip[] =
 			{
 				#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) desc,
@@ -1637,10 +1771,9 @@ namespace uba
 				#undef UBA_VISUALIZER_FLAG
 			};
 
-			bool vis = values[m_buttonSelected];
 			SelectObject(hdc, m_popupFont);
 			DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
-			logger.Info(L"%ls %ls", vis ? L"Hide" : L"Show", tooltip[m_buttonSelected]);
+			logger.Info(L"%ls %ls", L"Show", tooltip[m_buttonSelected]);
 			logger.DrawAtCursor();
 		}
 		else if (m_fetchedFilesSelected != ~0u)
@@ -1655,12 +1788,12 @@ namespace uba
 				int height = Min(int(clientRect.bottom), int(fetchedFiles.size() * m_popupFontHeight));
 
 				SelectObject(hdc, m_font);
-				DrawTextLogger logger(m_hwnd, hdc, r, FontHeight, m_tooltipBackgroundBrush);
+				DrawTextLogger logger(m_hwnd, hdc, r, m_fontHeight, m_tooltipBackgroundBrush);
 				for (auto& f : fetchedFiles)
 				{
 					if (f.hint == TC("KnownInput"))
 						continue;
-					if (logger.rect.top >= r.bottom - FontHeight)
+					if (logger.rect.top >= r.bottom - m_fontHeight)
 					{
 						if (logger.rect.left + colWidth >= r.right)
 						{
@@ -1763,10 +1896,10 @@ namespace uba
 
 	void Visualizer::PaintTimeline(HDC hdc, const RECT& clientRect)
 	{
-		float boxHeight = float(RawBoxHeight) * m_zoomValue;
+		float boxHeight = float(m_rawBoxHeight) * m_zoomValue;
 		int posY = m_contentHeight - int(boxHeight) - 14;
 		float timeScale = (m_horizontalScaleValue*m_zoomValue)*50.0f;
-		int top = Min(posY, int(clientRect.bottom - SessionStepY - 10));
+		int top = Min(posY, int(clientRect.bottom - m_sessionStepY - 10));
 			
 		float startOffset = ((m_scrollPosX/timeScale) - int(m_scrollPosX/timeScale)) * timeScale;
 		int index = -int(startOffset/timeScale);
@@ -1857,7 +1990,7 @@ namespace uba
 
 	void Visualizer::PaintDetailedStats(int& posY, const RECT& progressRect, TraceView::Session& session, bool isRemote, u64 playTime, const DrawTextFunc& drawTextFunc)
 	{
-		int stepY = FontHeight;
+		int stepY = m_fontHeight;
 		int startPosY = posY;
 		int posX = progressRect.left + 5;
 		RECT textRect;
@@ -1971,7 +2104,9 @@ namespace uba
 	void Visualizer::HitTest(HitTestResult& outResult, const POINT& pos)
 	{
 		u64 currentTime = m_paused ? m_pauseStart : GetTime();
-		u64 playTime = currentTime - m_traceView.startTime - m_pauseTime;
+		u64 playTime = 0;
+		if (m_traceView.startTime)
+			playTime = currentTime - m_traceView.startTime - m_pauseTime;
 		if (m_replay)
 			playTime *= m_replay;
 
@@ -1979,7 +2114,7 @@ namespace uba
 		GetClientRect(m_hwnd, &clientRect);
 
 		int posY = int(m_scrollPosY);
-		float boxHeight = float(RawBoxHeight)*m_zoomValue;
+		float boxHeight = float(m_rawBoxHeight)*m_zoomValue;
 		int stepY = int(boxHeight) + 2;
 		float scaleX = 50.0f*m_zoomValue*m_horizontalScaleValue;
 
@@ -1988,9 +2123,11 @@ namespace uba
 		progressRect.bottom -= 30;
 
 		{
+			int boxSide = 8;
+			int boxStride = boxSide + 2;
 			int top = 5;
-			int bottom = SessionStepY - 3;
-			int left = progressRect.right - 16;
+			int bottom = top + boxSide;
+			int left = progressRect.right - 7 - boxSide;
 			int right = progressRect.right - 7;
 			for (int i = VisualizerFlag_Count - 1; i >= 0; --i)
 			{
@@ -1999,21 +2136,49 @@ namespace uba
 					outResult.buttonSelected = i;
 					return;
 				}
-				left -= 14;
-				right -= 14;
+				left -= boxStride;
+				right -= boxStride;
 			}
 		}
 
 		u64 lastStop = 0;
 
+		if (m_config.showProgress && m_traceView.progressProcessesTotal)
+			posY += m_fontHeight + 2;
+
 		if (!m_traceView.statusMap.empty())
 		{
 			posY += 4;
-			auto drawStatusText = [&]() { posY = posY + FontHeight + 2; };
+			u32 lastRow = ~0u;
+			u32 row = ~0u;
 			for (auto& kv : m_traceView.statusMap)
-				if (!kv.second.name.empty() || !kv.second.text.empty())
-					drawStatusText();
+			{
+				if (kv.second.text.empty())
+					continue;
+
+				if (!kv.second.link.empty())
+				{
+					if (pos.y >= posY && pos.y < posY + m_fontHeight && pos.x > 20 && pos.x < 80) // TODO: x is just hard coded to fit horde for now
+					{
+						outResult.hyperLink = kv.second.link;
+						return;
+					}
+				}
+
+				row = u32(kv.first >> 32);
+				if (lastRow != ~0u && lastRow != row)
+					posY += m_fontHeight + 2;
+				lastRow = row;
+			}
+			if (row != ~0u)
+				posY += m_fontHeight + 2;
 			posY += 4;
+		}
+
+		if (m_config.showActiveProcesses && !m_trace.m_activeProcesses.empty())
+		{
+			u32 lines = 1 + Min(u32(m_trace.m_activeProcesses.size()), m_config.maxActiveVisible);
+			posY += (m_fontHeight + 2)*lines;
 		}
 
 		TraceView::ProcessLocation& outLocation = outResult.processLocation;
@@ -2023,27 +2188,29 @@ namespace uba
 
 		for (u64 i = 0, e = m_traceView.sessions.size(); i != e; ++i)
 		{
+			bool isFirst = i == 0;
 			auto& session = *sortedSessions[i].session;
-
 			bool hasUpdates = !session.updates.empty();
-			if (!hasUpdates && session.processors.empty())
+			if (!isFirst && !hasUpdates && session.processors.empty())
 				continue;
 
 			u32 sessionIndex = sortedSessions[i].index;
-			bool isFirst = i == 0;
 			if (!isFirst)
 				posY += 3;
 
-			if (pos.y >= posY && pos.y < posY + SessionStepY)
+			if (m_config.showTitleBars)
 			{
-				if (pos.x < 500)
+				if (pos.y >= posY && pos.y < posY + m_sessionStepY)
 				{
-					outResult.sessionSelectedIndex = sessionIndex;
-					return;
+					if (pos.x < 500)
+					{
+						outResult.sessionSelectedIndex = sessionIndex;
+						return;
+					}
 				}
-			}
 
-			posY += SessionStepY;
+				posY += m_sessionStepY;
+			}
 
 			bool showGraph = m_config.showNetworkStats || m_config.showCpuMemStats;
 			if (showGraph && !session.updates.empty())
@@ -2235,7 +2402,7 @@ namespace uba
 
 		}
 
-		m_contentWidth = ProgressRectLeft + int(TimeToS(lastStop != ~u64(0) ? lastStop : playTime) * scaleX);
+		m_contentWidth = ProgressRectLeft + int(TimeToS((lastStop != 0 && lastStop != ~u64(0)) ? lastStop : playTime) * scaleX);
 		m_contentHeight = posY - int(m_scrollPosY) + stepY + 14;
 	}
 
@@ -2331,8 +2498,9 @@ namespace uba
 		RECT rect;
 		GetClientRect(m_hwnd, &rect);
 		float timeS = TimeToS(playTime);
+		float oldScrollPosX = m_scrollPosX;
 		m_scrollPosX = Min(0.0f, (float)rect.right - timeS*50.0f*m_horizontalScaleValue*m_zoomValue - ProgressRectLeft);
-		return true;
+		return oldScrollPosX != m_scrollPosX;
 	}
 
 	bool Visualizer::UpdateSelection()
@@ -2350,7 +2518,8 @@ namespace uba
 			res.statsSelected == m_statsSelected && memcmp(&res.stats, &m_stats, sizeof(Stats)) == 0 &&
 			res.buttonSelected == m_buttonSelected && res.timelineSelected == m_timelineSelected &&
 			res.fetchedFilesSelected == m_fetchedFilesSelected &&
-			res.workSelected == m_workSelected && res.workTrack == m_workTrack && res.workIndex == m_workIndex)
+			res.workSelected == m_workSelected && res.workTrack == m_workTrack && res.workIndex == m_workIndex &&
+			res.hyperLink == m_hyperLinkSelected)
 			return false;
 		m_processSelected = res.processSelected;
 		m_processSelectedLocation = res.processLocation;
@@ -2363,6 +2532,7 @@ namespace uba
 		m_workSelected = res.workSelected;
 		m_workTrack = res.workTrack;
 		m_workIndex = res.workIndex;
+		m_hyperLinkSelected = res.hyperLink;
 		return true;
 	}
 
@@ -2373,7 +2543,7 @@ namespace uba
 
 		SCROLLINFO si;
 		si.cbSize = sizeof(SCROLLINFO);
-		si.fMask = SIF_ALL;
+		si.fMask = SIF_ALL | SIF_DISABLENOSCROLL;
 		si.nMin = 0;
 		si.nMax = m_contentHeight;
 		si.nPage = rect.bottom;
@@ -2387,14 +2557,20 @@ namespace uba
 		SetScrollInfo(m_hwnd, SB_HORZ, &si, redraw);
 	}
 
+	void Visualizer::PostNewTrace(u32 replay, bool paused)
+	{
+		KillTimer(m_hwnd, 0);
+		PostMessage(m_hwnd, WM_NEWTRACE, replay, paused);
+	}
+
 	LRESULT Visualizer::WinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 	{
 		switch (Msg)
 		{
 		case WM_NEWTRACE:
 		{
-			if (!m_traceView.finished)
-				return 0;
+			m_replay = u32(wParam);
+			m_paused = lParam;
 			Reset();
 			StringBuffer<> title;
 			GetTitlePrefix(title);
@@ -2416,17 +2592,17 @@ namespace uba
 			else if (!m_fileName.IsEmpty())
 			{
 				m_trace.ReadFile(m_traceView, m_fileName.data, m_replay != 0);
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+				Redraw();
 				title.Append(m_fileName);
 				m_traceView.finished = m_replay == 0;
 			}
 			else
 			{
-				if (!m_trace.StartReadNamed(m_traceView, m_newTraceName.data, true))
+				if (!m_trace.StartReadNamed(m_traceView, m_newTraceName.data, true, m_replay != 0))
 					return false;
 				m_namedTrace.Clear().Append(m_newTraceName);
-				title.Appendf(L"%s (Listening for new sessions on channel '%s')", m_namedTrace.data, m_listenChannel.data);
 				m_traceView.finished = false;
+				title.Appendf(L"%s (Listening for new sessions on channel '%s')", m_namedTrace.data, m_listenChannel.data);
 			}
 
 			SetWindowTextW(m_hwnd, title.data);
@@ -2479,15 +2655,18 @@ namespace uba
 			if (!m_paused)
 			{
 				u64 timeOffset = (GetTime() - m_startTime - m_pauseTime) * m_replay;
-				if (!m_namedTrace.IsEmpty())
+				if (!m_fileName.IsEmpty())
 				{
-					if (!m_trace.UpdateReadNamed(m_traceView, changed))
-						m_listenTimeout.Set();
+					if (m_replay)
+						m_trace.UpdateReadFile(m_traceView, timeOffset, changed);
 				}
-				else if (!m_fileName.IsEmpty() && m_replay)
-					m_trace.UpdateReadFile(m_traceView, timeOffset, changed);
 				else if (m_client)
 					m_trace.UpdateReadClient(m_traceView, *m_client, changed);
+				else
+				{
+					if (!m_trace.UpdateReadNamed(m_traceView, m_replay ? timeOffset : ~u64(0), changed))
+						m_listenTimeout.Set();
+				}
 			}
 
 			if (m_traceView.finished)
@@ -2669,7 +2848,7 @@ namespace uba
 		{
 			if (m_buttonSelected != ~0u)
 			{
-				bool* values = &m_config.showNetworkStats;
+				bool* values = &m_config.showProgress;
 				values[m_buttonSelected] = !values[m_buttonSelected];
 				HitTestResult res;
 				HitTest(res, { -1, -1 });
@@ -2678,33 +2857,54 @@ namespace uba
 			}
 			else if (m_timelineSelected)
 			{
-				if (!m_fileName.IsEmpty()) // Only works for files right now
+				if (!m_client) // Does not work for network streams
 				{
-					float timelineSelected = m_timelineSelected;
+					float timelineSelected = Max(m_timelineSelected, 0.0f);
 					Reset();
-					if (!m_trace.ReadFile(m_traceView, m_fileName.data, true))
-						return false;
+					if (!m_fileName.IsEmpty())
+					{
+						if (!m_trace.ReadFile(m_traceView, m_fileName.data, true))
+							return false;
+					}
+					else
+					{
+						if (!m_trace.StartReadNamed(m_traceView, nullptr, true, true))
+							return false;
+					}
+
 					bool changed;
 					u64 time = MsToTime(u64(timelineSelected * 1000.0));
+
+					if (m_traceView.realStartTime + time > m_startTime)
+						time = m_startTime - m_traceView.realStartTime;
+
 					m_traceView.finished = false;
-					m_trace.UpdateReadFile(m_traceView, time, changed);
+					if (!m_fileName.IsEmpty())
+						m_trace.UpdateReadFile(m_traceView, time, changed);
+					else
+						m_trace.UpdateReadNamed(m_traceView, time, changed);
+
 					m_pauseStart = m_startTime + time;
 					if (m_paused || !m_replay)
 					{
 						m_pauseTime = 0;
-						m_paused = true;
 						m_replay = 1;
 					}
 					else
 					{
-						m_pauseTime = GetTime() - m_pauseStart;
+						m_pauseTime = m_startTime - m_pauseStart;
+						SetTimer(m_hwnd, 0, 200, NULL);
 					}
 
 					HitTestResult res;
 					HitTest(res, { -1, -1 });
 					UpdateScrollbars(true);
-					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+					Redraw();
 				}
+			}
+			else if (!m_hyperLinkSelected.empty())
+			{
+				ShellExecuteW(NULL, L"open", m_hyperLinkSelected.c_str(), NULL, NULL, SW_SHOW);
 			}
 			else
 			{
@@ -2714,6 +2914,16 @@ namespace uba
 			break;
 		}
 
+		case WM_SETCURSOR:
+		{
+			static HCURSOR arrow = LoadCursorW(NULL, IDC_ARROW);
+			static HCURSOR hand = LoadCursorW(NULL, IDC_HAND);
+			if (!m_hyperLinkSelected.empty())
+				SetCursor(hand);
+			else
+				SetCursor(arrow);
+			break;
+		}
 		case WM_LBUTTONUP:
 		{
 			if (!(m_buttonSelected != ~0u || m_timelineSelected))
@@ -2737,6 +2947,9 @@ namespace uba
 			UBA_VISUALIZER_FLAGS2
 			#undef UBA_VISUALIZER_FLAG
 
+			AppendMenuW(hMenu, MF_STRING, Popup_IncreaseFontSize, L"&Increase Font Size");
+			AppendMenuW(hMenu, MF_STRING, Popup_DecreaseFontSize, L"&Decrease Font Size");
+
 			AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 
 			if (m_sessionSelectedIndex != ~0u)
@@ -2753,25 +2966,31 @@ namespace uba
 					AppendMenuW(hMenu, MF_STRING, Popup_CopyProcessLog, L"Copy Process &Log");
 				AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 			}
-			if (m_fileName.data)
+
+			if (!m_traceView.sessions.empty())
 			{
-				if (!m_replay)
-					AppendMenuW(hMenu, MF_STRING, Popup_Replay, L"&Replay Trace");
-				else
+				if (!m_client)
 				{
-					if (m_paused)
-						AppendMenuW(hMenu, MF_STRING, Popup_Play, L"&Play");
+					if (!m_replay || m_traceView.finished)
+						AppendMenuW(hMenu, MF_STRING, Popup_Replay, L"&Replay Trace");
 					else
-						AppendMenuW(hMenu, MF_STRING, Popup_Pause, L"&Pause");
-					AppendMenuW(hMenu, MF_STRING, Popup_JumpToEnd, L"&Jump To End");
+					{
+						if (m_paused)
+							AppendMenuW(hMenu, MF_STRING, Popup_Play, L"&Play");
+						else
+							AppendMenuW(hMenu, MF_STRING, Popup_Pause, L"&Pause");
+						AppendMenuW(hMenu, MF_STRING, Popup_JumpToEnd, L"&Jump To End");
+					}
 				}
+
+				if (m_fileName.IsEmpty())
+					AppendMenuW(hMenu, MF_STRING, Popup_SaveAs, L"&Save Trace");
+
+				AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 			}
 
-			if (m_fileName.IsEmpty()) {
-				AppendMenuW(hMenu, MF_STRING, Popup_SaveAs, L"&Save Trace");
-			}
-			AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 			AppendMenuW(hMenu, MF_STRING, Popup_SaveSettings, L"Save Position/Settings");
+			AppendMenuW(hMenu, MF_STRING, Popup_OpenSettings, L"Open Settings file");
 			AppendMenuW(hMenu, MF_STRING, Popup_Quit, L"&Quit");
 			m_showPopup = true;
 			switch (TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON, point.x, point.y, 0, hWnd, NULL))
@@ -2800,12 +3019,12 @@ namespace uba
 			}
 			case Popup_ShowProcessText:
 				m_config.ShowProcessText = !m_config.ShowProcessText;
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+				Redraw();
 				break;
 			case Popup_ShowReadWriteColors:
 				m_config.ShowReadWriteColors = !m_config.ShowReadWriteColors;
 				DirtyBitmaps();
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+				Redraw();
 				break;
 			case Popup_ScaleHorizontalWithScrollWheel:
 				m_config.ScaleHorizontalWithScrollWheel = !m_config.ScaleHorizontalWithScrollWheel;
@@ -2820,13 +3039,15 @@ namespace uba
 				BOOL useDarkMode = m_config.DarkMode;
 				u32 attribute = 20; // DWMWA_USE_IMMERSIVE_DARK_MODE
 				DwmSetWindowAttribute(m_hwnd, attribute, &useDarkMode, sizeof(useDarkMode));
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+				Redraw();
 				break;
 			}
+			case Popup_AutoSaveSettings:
+				m_config.AutoSaveSettings = !m_config.AutoSaveSettings;
+				break;
+
 			case Popup_Replay:
-				m_replay = 1;
-				m_paused = false;
-				PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+				PostNewTrace(1, false);
 				break;
 
 			case Popup_Play:
@@ -2839,16 +3060,26 @@ namespace uba
 
 			case Popup_JumpToEnd:
 				m_traceView.finished = true;
-				m_replay = 0;
-				PostMessage(m_hwnd, WM_NEWTRACE, 0, 0);
+				PostNewTrace(0, false);
 				break;
 
 			case Popup_SaveSettings:
 				SaveSettings();
 				break;
 
+			case Popup_OpenSettings:
+				ShellExecuteW(NULL, L"open", m_config.filename.c_str(), NULL, NULL, SW_SHOW);
+				break;
+
 			case Popup_Quit: // Quit
 				m_looping = false;
+				break;
+
+			case Popup_IncreaseFontSize:
+				ChangeFontSize(1);
+				break;
+			case Popup_DecreaseFontSize:
+				ChangeFontSize(-1);
 				break;
 
 			case Popup_CopySessionInfo:
@@ -2904,6 +3135,10 @@ namespace uba
 		{
 			if (wParam == VK_SPACE)
 				Pause(!m_paused);
+			if (wParam == VK_ADD)
+				ChangeFontSize(1);
+			if (wParam == VK_SUBTRACT)
+				ChangeFontSize(-1);
 			break;
 		}
 		case WM_VSCROLL:

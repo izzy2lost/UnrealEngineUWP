@@ -74,11 +74,9 @@ namespace uba
 
 		struct StatusUpdate
 		{
-			TString name;
 			TString text;
-			u32 nameIndent;
-			u32 textIndent;
 			LogEntryType type;
+			TString link;
 		};
 
 		struct Session
@@ -127,20 +125,25 @@ namespace uba
 			bool success = false;
 		};
 
-		Process* GetProcess(const ProcessLocation& loc) { return &(sessions[loc.sessionIndex].processors[loc.processorIndex].processes[loc.processIndex]); }
-		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); statusMap.clear(); cacheWrites.clear(); startTime = 0; finished = true; totalProcessActiveCount = 0; totalProcessExitedCount = 0; activeSessionCount = 0; };
+		Process* GetProcess(const ProcessLocation& loc);
+		void Clear();
 
 		Vector<Session> sessions;
 		Vector<WorkTrack> workTracks;
 		Vector<TString> strings;
-		Map<u32, StatusUpdate> statusMap;
+		Map<u64, StatusUpdate> statusMap;
 		Map<u32, CacheWrite> cacheWrites;
+		u64 realStartTime = 0;
 		u64 startTime = 0;
 		u64 frequency = 0;
 		u32 totalProcessActiveCount = 0;
 		u32 totalProcessExitedCount = 0;
 		u32 activeSessionCount = 0;
 		u32 version = 0;
+		u32 progressProcessesTotal = 0;
+		u32 progressProcessesDone = 0;
+		u32 progressErrorCount = 0;
+		bool remoteExecutionDisabled = false;
 		bool finished = true;
 	};
 
@@ -162,13 +165,13 @@ namespace uba
 		bool UpdateReadClient(TraceView& out, NetworkClient& client, bool& outChanged);
 
 		// Use for local
-		bool StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail = false);
-		bool UpdateReadNamed(TraceView& out, bool& outChanged);
+		bool StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail = false, bool replay = false);
+		bool UpdateReadNamed(TraceView& out, u64 maxTime, bool& outChanged);
 
-		bool ReadMemory(TraceView& out, bool trackHost);
+		bool ReadMemory(TraceView& out, bool trackHost, u64 maxTime);
 		bool ReadTrace(TraceView& out, BinaryReader& reader, u64 maxTime);
 		void StopAllActive(TraceView& out, u64 stopTime);
-		void Reset();
+		void Reset(TraceView& out);
 		void Unmap();
 
 		bool SaveAs(const tchar* fileName);
@@ -193,10 +196,10 @@ namespace uba
 		TraceChannel m_channel;
 		ReaderWriterLock m_memoryLock;
 		FileMappingHandle m_memoryHandle;
+		TString m_namedTrace;
 		u8* m_memoryBegin = nullptr;
 		u8* m_memoryPos = nullptr;
 		u8* m_memoryEnd = nullptr;
-		u64 m_startTime = ~u64(0);
 		HANDLE m_hostProcess = NULL;
 	};
 }

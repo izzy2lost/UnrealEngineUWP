@@ -8,6 +8,30 @@
 
 namespace uba
 {
+	TraceView::Process* TraceView::GetProcess(const ProcessLocation& loc)
+	{
+		return &(sessions[loc.sessionIndex].processors[loc.processorIndex].processes[loc.processIndex]);
+	}
+
+	void TraceView::Clear()
+	{
+		sessions.clear();
+		workTracks.clear();
+		strings.clear();
+		statusMap.clear();
+		cacheWrites.clear();
+		startTime = 0;
+		totalProcessActiveCount = 0;
+		totalProcessExitedCount = 0;
+		activeSessionCount = 0;
+		progressProcessesTotal = 0;
+		progressProcessesDone = 0;
+		progressErrorCount = 0;
+		remoteExecutionDisabled = false;
+		finished = true;
+	};
+
+
 	TraceReader::TraceReader(Logger& logger)
 	:	m_logger(logger)
 	,	m_channel(logger)
@@ -28,7 +52,7 @@ namespace uba
 
 	bool TraceReader::ReadFile(TraceView& out, const tchar* fileName, bool replay)
 	{
-		Reset();
+		Reset(out);
 
 		FileHandle readHandle;
 		if (!OpenFileSequentialRead(m_logger, fileName, readHandle))
@@ -68,8 +92,9 @@ namespace uba
 		else
 			out.frequency = GetFrequency();
 
-		out.startTime = reader.Read7BitEncoded();
+		out.realStartTime = reader.Read7BitEncoded();
 
+		out.startTime = out.realStartTime;
 		if (replay)
 			out.startTime = GetTime();
 		else if (traceSystemStartTimeUs)
@@ -116,7 +141,7 @@ namespace uba
 
 	bool TraceReader::StartReadClient(TraceView& out, NetworkClient& client)
 	{
-		Reset();
+		Reset(out);
 
 		u32 traceMemSize = 128 * 1024 * 1024;
 		m_memoryHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE, traceMemSize);
@@ -171,49 +196,70 @@ namespace uba
 				break;
 		}
 		outChanged = !m_activeProcesses.empty() || m_memoryPos != m_memoryEnd;
-		return ReadMemory(out, false);
+		return ReadMemory(out, false, ~u64(0));
 	}
 
-	bool TraceReader::StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail)
+	bool TraceReader::StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail, bool replay)
 	{
-		Reset();
+		Reset(out);
 
-		m_memoryHandle.handle = ::OpenFileMappingW(PAGE_READWRITE, false, namedTrace);
-		if (!m_memoryHandle.IsValid())
+		if (namedTrace && m_namedTrace != namedTrace)
 		{
-			if (!silentFail)
-				m_logger.Error(L"OpenFileMappingW - Failed to open file mapping %ls (%ls)", namedTrace, LastErrorToText().data);
-			return false;
+			m_memoryHandle.handle = ::OpenFileMappingW(PAGE_READWRITE, false, namedTrace);
+			if (!m_memoryHandle.IsValid())
+			{
+				if (!silentFail)
+					m_logger.Error(L"OpenFileMappingW - Failed to open file mapping %ls (%ls)", namedTrace, LastErrorToText().data);
+				return false;
+			}
+			m_memoryBegin = MapViewOfFile(m_memoryHandle, FILE_MAP_READ, 0, 0);
+			if (!m_memoryBegin)
+				return false;
 		}
-		m_memoryBegin = MapViewOfFile(m_memoryHandle, FILE_MAP_READ, 0, 0);
-		if (!m_memoryBegin)
-			return false;
+
 		m_memoryPos = m_memoryBegin;
 		m_memoryEnd = m_memoryBegin;
-		m_hostProcess = 0;
 		out.finished = false;
 		out.sessions.emplace_back();
 		out.sessions.back().name = L"LOCAL";
 		bool changed;
-		return UpdateReadNamed(out, changed);
+		return UpdateReadNamed(out, replay ? 0ull : ~u64(0), changed);
 	}
 
-	bool TraceReader::UpdateReadNamed(TraceView& out, bool& outChanged)
+	bool TraceReader::UpdateReadNamed(TraceView& out, u64 maxTime, bool& outChanged)
 	{
 		outChanged = false;
 		if (!m_memoryBegin)
 			return true;
 		m_memoryEnd = m_memoryBegin + *(u32*)m_memoryBegin;
 		outChanged = !m_activeProcesses.empty() || m_memoryPos != m_memoryEnd;
-		bool res = ReadMemory(out, true);
-		if (m_hostProcess  && WaitForSingleObject(m_hostProcess, 0) != WAIT_TIMEOUT)
-			StopAllActive(out, GetTime() - m_startTime);
-		if (!res)
-			Unmap();
+		bool res = ReadMemory(out, true, maxTime);
+		if (m_hostProcess && WaitForSingleObject(m_hostProcess, 0) != WAIT_TIMEOUT)
+			StopAllActive(out, GetTime() - out.realStartTime);
+
+		if (res || m_namedTrace.empty())
+			return true;
+
+		// Move memory to local mapping in case we want to replay
+		u64 traceMemSize = m_memoryEnd - m_memoryBegin;
+		u8* memoryBegin = nullptr;
+		FileMappingHandle memoryHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE, traceMemSize);
+		if (memoryHandle.IsValid())
+			if ((memoryBegin = MapViewOfFile(memoryHandle, FILE_MAP_ALL_ACCESS, 0, traceMemSize)) != nullptr)
+				memcpy(memoryBegin, m_memoryBegin, traceMemSize);
+
+		u64 pos = m_memoryPos - m_memoryBegin;
+		u64 end = m_memoryEnd - m_memoryBegin;
+		Unmap();
+		m_memoryHandle = memoryHandle;
+		m_memoryPos = memoryBegin + pos;
+		m_memoryEnd = memoryBegin + end;
+		m_memoryBegin = memoryBegin;
+
 		return res;
 	}
 
-	bool TraceReader::ReadMemory(TraceView& out, bool trackHost)
+	bool TraceReader::ReadMemory(TraceView& out, bool trackHost, u64 maxTime)
 	{
 		if (m_memoryEnd == m_memoryPos)
 			return true;
@@ -232,9 +278,12 @@ namespace uba
 				m_logger.Error(L"Incompatible trace version (%u). Current executable supports version %u to %u.", version, TraceReadCompatibilityVersion, TraceVersion);
 				return false;
 			}
+			bool replay = maxTime != ~u64(0);
+
 			out.version = version;
 			u32 hostProcessId = traceReader.ReadU32();
-			if (trackHost)
+			m_hostProcess = 0;
+			if (trackHost && !replay)
 				m_hostProcess = OpenProcess(SYNCHRONIZE, FALSE, hostProcessId);
 			u64 traceSystemStartTimeUs = 0;
 			if (version >= 18)
@@ -244,19 +293,27 @@ namespace uba
 			else
 				out.frequency = GetFrequency();
 
-			out.startTime = traceReader.Read7BitEncoded();
+			out.realStartTime = traceReader.Read7BitEncoded();
 			if (traceSystemStartTimeUs)
-				out.startTime = GetTime() - UsToTime(GetSystemTimeUs() - traceSystemStartTimeUs);
-			m_startTime = out.startTime;
+				out.realStartTime = GetTime() - UsToTime(GetSystemTimeUs() - traceSystemStartTimeUs);
+
+			out.startTime = out.realStartTime;
+			if (replay)
+				out.startTime = GetTime();
 		}
 
-		while (traceReader.GetPosition() != toRead)
+		u64 lastPos = traceReader.GetPosition();
+		while (lastPos != toRead)
 		{
-			UBA_ASSERT(traceReader.GetPosition() < toRead);
-			if (!ReadTrace(out, traceReader, ~u64(0)))
+			if (!ReadTrace(out, traceReader, maxTime))
 				return false;
+			u64 pos = traceReader.GetPosition();
+			if (pos == lastPos)
+				break;
+			UBA_ASSERT(pos <= toRead);
+			lastPos = pos;
 		}
-		m_memoryPos += toRead;
+		m_memoryPos += lastPos;
 		return true;
 	}
 
@@ -503,7 +560,8 @@ namespace uba
 			const u8* dataStart = reader.GetPositionData();
 			processStats.Read(reader, out.version);
 
-			process.isRemote = sessionIndex != 0;
+			UBA_ASSERT(process.isRemote == (sessionIndex != 0));
+
 			if (process.isRemote)
 			{
 				if (out.version >= 7)
@@ -584,6 +642,7 @@ namespace uba
 			process.exitCode = 0u;
 			process.stop = time;
 			process.bitmapDirty = true;
+			bool isRemote = process.isRemote;
 
 			processes.emplace_back();
 			auto& process2 = processes.back();
@@ -593,6 +652,7 @@ namespace uba
 			process2.start = time;
 			process2.stop = ~u64(0);
 			process2.exitCode = ~0u;
+			process2.isRemote = isRemote;
 
 			++session.processExitedCount;
 			++out.totalProcessExitedCount;
@@ -881,15 +941,40 @@ namespace uba
 				record.stop = time;
 			break;
 		}
+		case TraceType_ProgressUpdate:
+		{
+			out.progressProcessesTotal = u32(reader.Read7BitEncoded());
+			out.progressProcessesDone = u32(reader.Read7BitEncoded());
+			out.progressErrorCount = u32(reader.Read7BitEncoded());
+			break;
+		}
 		case TraceType_StatusUpdate:
 		{
-			u32 statusIndex = u32(reader.Read7BitEncoded());
-			auto& status = out.statusMap[statusIndex];
-			status.nameIndent = u32(reader.Read7BitEncoded());
-			status.name = reader.ReadString();
-			status.textIndent = u32(reader.Read7BitEncoded());
-			status.text = reader.ReadString();
-			status.type = (LogEntryType)reader.ReadByte();
+			if (out.version < 32)
+			{
+				reader.Read7BitEncoded();
+				reader.Read7BitEncoded();
+				reader.ReadString();
+				reader.Read7BitEncoded();
+				reader.ReadString();
+				reader.ReadByte();
+			}
+			else
+			{
+				u64 row = reader.Read7BitEncoded();
+				u64 column = reader.Read7BitEncoded();
+				u64 key = (row << 32) | column;
+				auto& status = out.statusMap[key];
+				status.text = reader.ReadString();
+				status.type = (LogEntryType)reader.ReadByte();
+				status.link = reader.ReadString();
+			}
+
+			break;
+		}
+		case TraceType_RemoteExecutionDisabled:
+		{
+			out.remoteExecutionDisabled = true;
 			break;
 		}
 		case TraceType_String:
@@ -963,8 +1048,9 @@ namespace uba
 		out.finished = true;
 	}
 
-	void TraceReader::Reset()
+	void TraceReader::Reset(TraceView& out)
 	{
+		out.Clear();
 		m_activeProcesses.clear();
 		m_activeWorkRecords.clear();
 		m_sessionIndexToSession.clear();
@@ -981,6 +1067,7 @@ namespace uba
 		if (m_memoryHandle.IsValid())
 			CloseFileMapping(m_memoryHandle);
 		m_memoryHandle = {};
+		m_namedTrace.clear();
 	}
 
 	bool TraceReader::SaveAs(const tchar* fileName)
@@ -1058,6 +1145,7 @@ namespace uba
 		process.start = time;
 		process.stop = ~u64(0);
 		process.exitCode = ~0u;
+		process.isRemote = sessionIndex != 0;
 		return &process;
 	}
 
