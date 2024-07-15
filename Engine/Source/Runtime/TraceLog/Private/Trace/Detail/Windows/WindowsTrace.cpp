@@ -18,6 +18,8 @@ namespace UE {
 namespace Trace {
 namespace Private {
 
+extern volatile bool GIsUsingSocket;
+
 struct FSetLastErrorScope
 {
 	FSetLastErrorScope(DWORD InError)
@@ -233,12 +235,29 @@ bool TcpSocketHasData(UPTRINT Socket)
 ////////////////////////////////////////////////////////////////////////////////
 bool IoWrite(UPTRINT Handle, const void* Data, uint32 Size)
 {
-	HANDLE Inner = HANDLE(Handle - 1);
-
 	DWORD BytesWritten = 0;
-	if (!WriteFile(Inner, (const char*)Data, Size, &BytesWritten, nullptr))
+
+	//Temporary workaround to differentiate between a file and a socket due to some emulation platforms issues
+	//WriteFile is deadlocking inside the function call while WSASend is working as expected, we can revert using WriteFile once the underlying issue is fixed
+	if (GIsUsingSocket)
 	{
-		return false;
+		SOCKET InnerSocket = (SOCKET)(Handle - 1);
+		WSABUF Buffer;
+		Buffer.buf = (CHAR*)Data;
+		Buffer.len = Size;
+		int ret = WSASend(InnerSocket, &Buffer, 1, &BytesWritten, 0, nullptr, nullptr);
+		if (ret != 0)
+		{
+			return false;
+		}
+	}
+	else
+	{
+		HANDLE Inner = HANDLE(Handle - 1);
+		if (!WriteFile(Inner, (const char*)Data, Size, &BytesWritten, nullptr))
+		{
+			return false;
+		}
 	}
 
 	return (BytesWritten == Size);

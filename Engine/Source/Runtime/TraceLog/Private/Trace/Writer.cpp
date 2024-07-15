@@ -80,6 +80,8 @@ UE_TRACE_EVENT_END()
 
 ////////////////////////////////////////////////////////////////////////////////
 static volatile bool			GInitialized;		// = false;
+//Temporary workaround to differentiate between a file and a socket due to some emulation platforms issues
+volatile bool					GIsUsingSocket 		   = false;
 FStatistics						GTraceStatistics;	// = {};
 TRACELOG_API uint64				GStartCycle;		// = 0;
 TRACELOG_API uint32 volatile	GLogSerial;			// = 0;
@@ -938,6 +940,8 @@ bool Writer_SendTo(const ANSICHAR* Host, uint32 Flags, uint32 Port)
 		return false;
 	}
 
+	GIsUsingSocket = true;
+
 	DataHandle = Writer_PackSendFlags(DataHandle, Flags);
 	if (!DataHandle)
 	{
@@ -971,6 +975,8 @@ bool Writer_WriteTo(const ANSICHAR* Path, uint32 Flags)
 	{
 		return false;
 	}
+
+	GIsUsingSocket = false;
 
 	AtomicStoreRelaxed(&GPendingDataHandle, DataHandle);
 	return true;
