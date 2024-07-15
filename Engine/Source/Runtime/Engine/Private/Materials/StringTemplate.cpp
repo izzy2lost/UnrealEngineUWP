@@ -116,10 +116,15 @@ bool FStringTemplate::Load(FString TemplateStringArg, FErrorInfo& OutErrorinfo)
 				PushChunk(true);
 				NumNamedParameters += 1;
 			}
+			else if (Accept('%')) // e.g. %%
+			{
+				ChunkLength -= 1; // take one '%'
+				NewChunks.Add({ TEXT("%"), false });
+			}
 			else
 			{
-				Accept('%'); // e.g. %%
-				NewChunks.Add({ TEXT("%"), false });
+				OutErrorinfo.Message = TEXT("unrecognized % sequence. Are you missing an additional '%' for the modulo sequence?");
+				return false;
 			}
 		}
 		else
