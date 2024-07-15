@@ -4,7 +4,7 @@
 
 #include "UnsyncCommon.h"
 
-#define UNSYNC_VERSION_STR "1.0.82"
+#define UNSYNC_VERSION_STR "1.0.83"
 
 namespace unsync {
 

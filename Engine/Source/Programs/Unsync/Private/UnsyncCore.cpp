@@ -1386,30 +1386,6 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	}
 	else
 	{
-		std::unique_ptr<FProxyFileSystem> ProxyFileSystem;
-		if (bServerSource)
-		{
-			const FRemoteProtocolFeatures& RemoteFeatures = ProxyPool.GetFeatures();
-
-			if (!RemoteFeatures.bDirectoryListing)
-			{
-				UNSYNC_ERROR(L"Remote server does not support directory listing");
-				return false;
-			}
-
-			if (!RemoteFeatures.bFileDownload)
-			{
-				UNSYNC_ERROR(L"Remote server does not support direct file downloads");
-				return false;
-			}
-
-			ProxyFileSystem = std::make_unique<FRemoteFileSystem>(ToString(SyncOptions.Source), ProxyPool);
-		}
-		else
-		{
-			ProxyFileSystem = std::make_unique<FPhysicalFileSystem>(SyncOptions.Source);
-		}
-
 		std::vector<FPath> AllSources;
 		AllSources.push_back(SourcePath);
 		for (const FPath& OverlayPath : SyncOptions.Overlays)
@@ -1419,6 +1395,30 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 		for (const FPath& ThisSourcePath : AllSources)
 		{
+			std::unique_ptr<FProxyFileSystem> ProxyFileSystem;
+			if (bServerSource)
+			{
+				const FRemoteProtocolFeatures& RemoteFeatures = ProxyPool.GetFeatures();
+
+				if (!RemoteFeatures.bDirectoryListing)
+				{
+					UNSYNC_ERROR(L"Remote server does not support directory listing");
+					return false;
+				}
+
+				if (!RemoteFeatures.bFileDownload)
+				{
+					UNSYNC_ERROR(L"Remote server does not support direct file downloads");
+					return false;
+				}
+
+				ProxyFileSystem = std::make_unique<FRemoteFileSystem>(ToString(ThisSourcePath), ProxyPool);
+			}
+			else
+			{
+				ProxyFileSystem = std::make_unique<FPhysicalFileSystem>(ThisSourcePath);
+			}
+
 			if (!LoadAndMergeSourceManifest(SourceDirectoryManifest,
 											PackIndexFiles,
 											*ProxyFileSystem,
