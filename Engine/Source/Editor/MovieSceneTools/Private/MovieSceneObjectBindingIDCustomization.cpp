@@ -30,6 +30,9 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "PropertyCustomizationHelpers.h"
+#include "EditorClassUtils.h"
+
 
 struct FGeometry;
 
@@ -60,6 +63,17 @@ void FMovieSceneObjectBindingIDCustomization::CustomizeHeader(TSharedRef<IProper
 	using namespace UE::Sequencer;
 
 	StructProperty = PropertyHandle;
+
+	const FString& MetaClassName = PropertyHandle->GetMetaData("MetaClass");
+	const FString& MustImplementName = PropertyHandle->GetMetaData("MustImplement");
+
+	AllowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(PropertyHandle->GetMetaData("AllowedClasses"));
+	DisallowedClassFilters = PropertyCustomizationHelpers::GetClassesFromMetadataString(PropertyHandle->GetMetaData("DisallowedClasses"));
+
+	ClassPropertyMetaClass = !MetaClassName.IsEmpty()
+		? FEditorClassUtils::GetClassFromString(MetaClassName)
+		: UObject::StaticClass();
+	InterfaceThatMustBeImplemented = FEditorClassUtils::GetClassFromString(MustImplementName);
 
 	Initialize();
 

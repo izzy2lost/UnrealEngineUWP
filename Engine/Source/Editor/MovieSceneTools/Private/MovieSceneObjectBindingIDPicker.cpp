@@ -34,6 +34,9 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
+#include "EditorClassUtils.h"
+#include "MovieScene.h"
+#include "MovieSceneCommonHelpers.h"
 
 struct FMovieSceneSequenceHierarchy;
 
@@ -68,7 +71,7 @@ void FMovieSceneObjectBindingIDPicker::OnGetMenuContent(FMenuBuilder& MenuBuilde
 
 	bool bHadAnyEntries = false;
 
-	if (Node->BindingID.Guid.IsValid())
+	if (Node->BindingID.Guid.IsValid() && IsClassAllowed(Node))
 	{
 		bHadAnyEntries = true;
 		MenuBuilder.AddMenuEntry(
@@ -100,7 +103,7 @@ void FMovieSceneObjectBindingIDPicker::OnGetMenuContent(FMenuBuilder& MenuBuilde
 					);
 			}
 		}
-		else
+		else if (IsClassAllowed(Child))
 		{
 			bHadAnyEntries = true;
 			MenuBuilder.AddMenuEntry(
@@ -208,6 +211,42 @@ FReply FMovieSceneObjectBindingIDPicker::AttemptBindingFixup()
 {
 	SetCurrentValueFromFixed(GetCurrentValueAsFixed());
 	return FReply::Handled();
+}
+
+bool FMovieSceneObjectBindingIDPicker::IsClassAllowed(const TSharedPtr<FSequenceBindingNode>& Node) const
+{
+	const UClass* InClass = nullptr;
+	auto BindingID = Node->BindingID;
+	UMovieSceneSequence* BindSequence = WeakSequencer.Pin()->State.FindSequence(BindingID.SequenceID);
+	UMovieScene* BindMovieScene = BindSequence->GetMovieScene();
+
+	InClass = MovieSceneHelpers::GetBoundObjectClass(BindSequence, BindingID.Guid);
+
+	if (InClass == nullptr)
+	{
+		return true;
+	}
+
+	// Abstract types and deprecations are excluded
+	bool bMatchesFlags = !InClass->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated);
+
+	if (bMatchesFlags && InClass->IsChildOf(ClassPropertyMetaClass)
+		&& (!InterfaceThatMustBeImplemented || InClass->ImplementsInterface(InterfaceThatMustBeImplemented)))
+	{
+		auto PredicateFn = [InClass](const UClass* Class)
+		{
+			return InClass->IsChildOf(Class);
+		};
+
+		if (DisallowedClassFilters.FindByPredicate(PredicateFn) == nullptr &&
+			(AllowedClassFilters.Num() == 0 || AllowedClassFilters.FindByPredicate(PredicateFn) != nullptr))
+		{
+			return true;
+		}
+	}
+
+	return false;
+
 }
 
 void FMovieSceneObjectBindingIDPicker::SetBindingId(UE::MovieScene::FFixedObjectBindingID InBindingId)

@@ -133,6 +133,9 @@ private:
 	/** Get the visibility for the warning/fixup button */
 	FReply AttemptBindingFixup();
 
+	/** Checks if a class is allowed by this binding */
+	bool IsClassAllowed(const TSharedPtr<FSequenceBindingNode>& Node) const;
+
 	/** Cached current text and tooltips */
 	FText CurrentText, ToolTipText;
 
@@ -147,4 +150,17 @@ private:
 
 	/** Weak ptr to a widget used to dismiss menus to */
 	TWeakPtr<SWidget> DismissWidget;
+
+protected:
+	/** The meta class for the property that classes must be a child-of. */
+	const UClass* ClassPropertyMetaClass = UObject::StaticClass();
+
+	/** The interface that must be implemented. */
+	const UClass* InterfaceThatMustBeImplemented = nullptr;
+
+	/** Classes that can be picked */
+	TArray<const UClass*> AllowedClassFilters;
+
+	/** Classes that can't be picked */
+	TArray<const UClass*> DisallowedClassFilters;
 };
