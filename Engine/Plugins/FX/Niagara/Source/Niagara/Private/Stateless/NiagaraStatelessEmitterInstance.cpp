@@ -401,7 +401,7 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfos()
 		{
 			if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
 			{
-				const float SpawnRate = RandomStream.FRandRange(SpawnInfo.Rate.Min, SpawnInfo.Rate.Max);
+				const float SpawnRate = RandomStream.FRandRange(SpawnInfo.Rate.Min, SpawnInfo.Rate.Max) * EmitterData->SpawnCountScale;
 				if (SpawnRate > 0.0f)
 				{
 					FActiveSpawnRate& ActiveSpawnRate = ActiveSpawnRates.AddDefaulted_GetRef();
@@ -482,7 +482,8 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop()
 			continue;
 		}
 
-		const int32 SpawnAmount = RandomStream.RandRange(SpawnInfo.Amount.Min, SpawnInfo.Amount.Max);
+		const int32 UnscaledSpawnAmount = RandomStream.RandRange(SpawnInfo.Amount.Min, SpawnInfo.Amount.Max);
+		const int32 SpawnAmount = FMath::FloorToInt(float(UnscaledSpawnAmount) * EmitterData->SpawnCountScale);
 		if (SpawnAmount <= 0)
 		{
 			continue;

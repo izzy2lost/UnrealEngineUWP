@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SNiagaraSystemResolvedScalabilitySettings.h"
+#include "Stateless/NiagaraStatelessEmitter.h"
 
 #include "IDetailTreeNode.h"
 #include "IPropertyRowGenerator.h"
@@ -155,6 +156,16 @@ TSharedRef<SWidget> SScalabilityResolvedRow::GenerateWidgetForColumn(const FName
 		for(FNiagaraEmitterScalabilityOverride& EmitterScalabilityOverride : Emitter->GetEmitterData(ScalabilityRowData->OwningObjectVersion)->ScalabilityOverrides.Overrides)
 		{
 			if(ParentWidget.Pin()->GetSystemViewModel()->GetScalabilityViewModel()->IsPlatformActive(EmitterScalabilityOverride.Platforms))
+			{
+				CurrentEmitterOverride = &EmitterScalabilityOverride;
+			}
+		}
+	}
+	else if (UNiagaraStatelessEmitter* StatelessEmitter = Cast<UNiagaraStatelessEmitter>(ScalabilityRowData->OwningObject))
+	{
+		for (FNiagaraEmitterScalabilityOverride& EmitterScalabilityOverride : StatelessEmitter->GetScalabilityOverrides().Overrides)
+		{
+			if (ParentWidget.Pin()->GetSystemViewModel()->GetScalabilityViewModel()->IsPlatformActive(EmitterScalabilityOverride.Platforms))
 			{
 				CurrentEmitterOverride = &EmitterScalabilityOverride;
 			}

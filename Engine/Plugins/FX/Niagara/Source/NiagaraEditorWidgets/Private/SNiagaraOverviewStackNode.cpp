@@ -890,6 +890,7 @@ EVisibility SNiagaraOverviewStackNode::GetScalabilityIndicatorVisibility() const
 			if (UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle->GetStatelessEmitter())
 			{
 				EmitterPlatformSet = &StatelessEmitter->GetPlatformSet();
+				EmitterScalabilityOverrides = &StatelessEmitter->GetScalabilityOverrides();
 			}
 		}
 

@@ -334,6 +334,9 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 		}
 	}
 
+	// Resolve scalability settings
+	ResolveScalabilitySettings();
+
 	// Build buffers that are shared across all instances
 	//-OPT: We should be able to build and serialize this data as part of the UNiagaraStatelessEmitter, potentially all of this data even since it's immutable and does not change at runtime
 	if (StatelessEmitterData->bCanEverExecute)
@@ -468,6 +471,35 @@ void UNiagaraStatelessEmitter::BuildCompiledDataSet()
 #endif
 	StatelessEmitterData->ParticleDataSetCompiledData = ParticleDataSetCompiledData;
 	StatelessEmitterData->ComponentOffsets = ComponentOffsets;
+}
+
+void UNiagaraStatelessEmitter::ResolveScalabilitySettings()
+{
+	const float DefaultSpawnCountScale = 1.0f;
+	StatelessEmitterData->SpawnCountScale = DefaultSpawnCountScale;
+
+	if (UNiagaraSystem* OwnerSystem = GetTypedOuter<UNiagaraSystem>())
+	{
+		if (UNiagaraEffectType* ActualEffectType = OwnerSystem->GetEffectType())
+		{
+			const FNiagaraEmitterScalabilitySettings& ScalabilitySettings = ActualEffectType->GetActiveEmitterScalabilitySettings();
+			if (ScalabilitySettings.bScaleSpawnCount)
+			{
+				StatelessEmitterData->SpawnCountScale = ScalabilitySettings.SpawnCountScale;
+			}
+		}
+	}
+
+	for (FNiagaraEmitterScalabilityOverride& Override : ScalabilityOverrides.Overrides)
+	{
+		if (Override.Platforms.IsActive())
+		{
+			if (Override.bOverrideSpawnCountScale)
+			{
+				StatelessEmitterData->SpawnCountScale = Override.bScaleSpawnCount ? Override.SpawnCountScale : DefaultSpawnCountScale;
+			}
+		}
+	}	
 }
 
 bool UNiagaraStatelessEmitter::SetUniqueEmitterName(const FString& InName)

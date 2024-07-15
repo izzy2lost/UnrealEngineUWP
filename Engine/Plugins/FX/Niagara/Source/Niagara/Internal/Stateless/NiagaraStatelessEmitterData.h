@@ -44,6 +44,7 @@ struct FNiagaraStatelessEmitterData
 
 	FNiagaraEmitterStateData						EmitterState;
 	TArray<FNiagaraStatelessSpawnInfo>				SpawnInfos;
+	float											SpawnCountScale = 1.0f;
 
 	TArray<TObjectPtr<UNiagaraRendererProperties>>	RendererProperties;
 	TArray<TObjectPtr<UNiagaraParameterCollection>>	BoundParameterCollections;

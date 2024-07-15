@@ -5,6 +5,7 @@
 #include "NiagaraStatelessCommon.h"
 #include "NiagaraStatelessSpawnInfo.h"
 #include "NiagaraDataSet.h"
+#include "NiagaraEFfectType.h"
 #include "NiagaraRendererProperties.h"
 #include "NiagaraSystemEmitterState.h"
 #include "Stateless/NiagaraStatelessEmitterTemplate.h"
@@ -56,6 +57,7 @@ public:
 	void CacheFromCompiledData();
 protected:
 	void BuildCompiledDataSet();
+	void ResolveScalabilitySettings();
 
 public:
 	template<typename TAction>
@@ -118,6 +120,7 @@ public:
 	NIAGARA_API UNiagaraStatelessModule* GetModule(UClass* Class) const;
 
 	NIAGARA_API FNiagaraPlatformSet& GetPlatformSet() { return Platforms; }
+	NIAGARA_API FNiagaraEmitterScalabilityOverrides& GetScalabilityOverrides() { return ScalabilityOverrides; }
 
 	UNiagaraStatelessEmitter* CreateAsDuplicate(FName InDuplicateName, UNiagaraSystem& InDuplicateOwnerSystem) const;
 
@@ -159,6 +162,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (DisplayInScalabilityContext))
 	FNiagaraPlatformSet Platforms;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability", meta = (DisplayInScalabilityContext))
+	FNiagaraEmitterScalabilityOverrides ScalabilityOverrides;
 
 	UPROPERTY()
 	FNiagaraDataSetCompiledData ParticleDataSetCompiledData;
