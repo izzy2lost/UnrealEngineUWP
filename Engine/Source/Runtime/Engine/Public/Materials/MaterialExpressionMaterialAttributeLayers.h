@@ -75,6 +75,9 @@ class UMaterialExpressionMaterialAttributeLayers : public UMaterialExpression
 	int32 NumActiveBlendCallers;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UMaterialExpressionMaterialFunctionCall> OutputCaller;
+
+	UPROPERTY(Transient)
 	bool bIsLayerGraphBuilt;
 
 	//~ Begin UObject Interface

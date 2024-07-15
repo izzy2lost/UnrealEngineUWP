@@ -74,7 +74,7 @@ public:
 	/** Builds the custom parameter groups category */
 	void CreateGroupsWidget();
 	using FNodeId = int32;
-	void RecursiveCreateWidgets(struct FRecursiveCreateWidgetsContext* Context, FNodeId InNodeId, TArray<TSharedPtr<FSortedParamData>>& InParentContainer, bool GenerateChildren, bool IsBackgroundItem);
+	void RecursiveCreateWidgets(struct FRecursiveCreateWidgetsContext* Context, FNodeId InNodeId, TArray<TSharedPtr<FSortedParamData>>& InParentContainer, bool GenerateChildren);
 
 
 	SMaterialLayersFunctionsInstanceWrapper* GetWrapper() { return Wrapper; }

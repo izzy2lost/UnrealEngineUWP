@@ -518,18 +518,24 @@ struct FMaterialLayersFunctions : public FMaterialLayersFunctionsRuntimeData
 
 	void ToggleBlendedLayerVisibility(int32 Index)
 	{
+		if (Index < 0)
+			return;
 		check(EditorOnly.LayerStates.IsValidIndex(Index));
 		EditorOnly.LayerStates[Index] = !EditorOnly.LayerStates[Index];
 	}
 
 	void SetBlendedLayerVisibility(int32 Index, bool InNewVisibility)
 	{
+		if (Index < 0)
+			return;
 		check(EditorOnly.LayerStates.IsValidIndex(Index));
 		EditorOnly.LayerStates[Index] = InNewVisibility;
 	}
 
 	bool GetLayerVisibility(int32 Index) const
 	{
+		if (Index < 0)
+			return true;
 		check(EditorOnly.LayerStates.IsValidIndex(Index));
 		return EditorOnly.LayerStates[Index];
 	}

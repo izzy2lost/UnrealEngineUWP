@@ -142,7 +142,11 @@ void FMaterialPropertyHelpers::OnMaterialLayerAssetChanged(const struct FAssetDa
 			if (InMaterialFunction->Blends[Index] != LayerFunction)
 			{
 				InMaterialFunction->Blends[Index] = LayerFunction;
+#ifdef ENABLE_MATERIAL_LAYER_PROTOTYPE
+				InMaterialFunction->UnlinkLayerFromParent(Index); // 
+#else
 				InMaterialFunction->UnlinkLayerFromParent(Index + 1); // Blend indices are offset by 1, no blend for base layer
+#endif
 			}
 			break;
 		default:

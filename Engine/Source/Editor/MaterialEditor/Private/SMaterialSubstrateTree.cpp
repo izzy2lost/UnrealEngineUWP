@@ -205,8 +205,63 @@ TOptional<EItemDropZone> SMaterialSubstrateTreeItem::CanAcceptDrop(const FDragDr
 {
 	TSharedPtr<FLayerDragDropOp> LayerDragDropOperation = DragDropEvent.GetOperationAs<FLayerDragDropOp>();
 	TSharedPtr<FAssetDragDropOp> AssetDragDropOperation = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
-	if (LayerDragDropOperation.IsValid() || AssetDragDropOperation.IsValid())
+	if (LayerDragDropOperation.IsValid())
 	{
+		// PREVENT LAYER DRAG FOR NOW
+		//return DropZone;
+	}
+	else if (AssetDragDropOperation.IsValid())
+	{
+
+		// Identify the type of asset
+		bool HasLayerFuncAsset = false;
+		bool HasBlendFuncAsset = false;
+		for (const FAssetData& AssetData : AssetDragDropOperation->GetAssets())
+		{
+			if (AssetData.AssetClassPath.GetAssetName() == TEXT("MaterialFunctionMaterialLayer"))
+			{
+				HasLayerFuncAsset = true;
+			}
+			else if (AssetData.AssetClassPath.GetAssetName() == TEXT("MaterialFunctionMaterialLayerBlend"))
+			{
+				HasBlendFuncAsset = true;
+			}
+		}
+
+		// Drop above or below could CREATE a new layer node:
+		int32 TargetNodeId = StackParameterData->ParameterInfo.Index;
+		int32 ParentNodeId = Tree->FunctionInstance->GetNodeParent(TargetNodeId);
+		auto ChildrenNodeId = Tree->FunctionInstance->GetNodeChildren(ParentNodeId);
+		int32 SiblingIdx = -1;
+		bool FoundTarget = ChildrenNodeId.Find(TargetNodeId, SiblingIdx);
+
+		switch (DropZone)
+		{
+		case EItemDropZone::AboveItem:
+			if (!HasLayerFuncAsset) // Can only add above if drop a new layer function
+			{
+				return TOptional<EItemDropZone>();
+			}
+			break;
+
+		case EItemDropZone::BelowItem:
+			if (!HasLayerFuncAsset  // Can only add under if drop a new layer function
+				|| (SiblingIdx == 0)) // Can't add BEFORE the first layer or sub layer
+			{
+				return TOptional<EItemDropZone>();
+			}
+			break;
+		case EItemDropZone::OntoItem:
+			if (!(HasLayerFuncAsset || HasBlendFuncAsset) // Can only drop valid assets
+				|| (!HasLayerFuncAsset && HasBlendFuncAsset && (SiblingIdx == 0))) // Or just a blendfunc on the first layer
+			{
+				return TOptional<EItemDropZone>();
+			}
+			break;
+		default:
+			break;
+		}
+
 		return DropZone;
 	}
 	return TOptional<EItemDropZone>();
@@ -234,31 +289,64 @@ FReply SMaterialSubstrateTreeItem::OnLayerDrop(const FDragDropEvent& DragDropEve
 
 		if (AssetDropOp.IsValid())
 		{
-			bool bIsBackgroundItem = IsNodeKeyForBackgroundParameter(StackParameterData->NodeKey);
+			// Identify the type of asset
+			bool HasLayerFuncAsset = false;
+			bool HasBlendFuncAsset = false;
+			for (const FAssetData& AssetData : AssetDropOp->GetAssets())
+			{
+				if (AssetData.AssetClassPath.GetAssetName() == TEXT("MaterialFunctionMaterialLayer"))
+				{
+					HasLayerFuncAsset = true;
+				}
+				else if (AssetData.AssetClassPath.GetAssetName() == TEXT("MaterialFunctionMaterialLayerBlend"))
+				{
+					HasBlendFuncAsset = true;
+				}
+			}
 
 			// Drop above or below could CREATE a new layer node:
 			int32 TargetNodeId = StackParameterData->ParameterInfo.Index;
-			int32 ParentNodeId = (bIsBackgroundItem ? TargetNodeId : Tree->FunctionInstance->GetNodeParent(TargetNodeId));
+			int32 TargetNodeDepth = Tree->FunctionInstance->GetNodeDepth(TargetNodeId);
+			int32 ParentNodeId = Tree->FunctionInstance->GetNodeParent(TargetNodeId);
 			auto ChildrenNodeId = Tree->FunctionInstance->GetNodeChildren(ParentNodeId);
 			int32 SiblingIdx = -1;
 			bool FoundTarget = ChildrenNodeId.Find(TargetNodeId, SiblingIdx);
 
+			bool DidModifyTree = false;
+
 			switch (DropZone)
 			{
-			// NOTE: the Sibling Idx should be swaped when we will disoplay the items from bottom up
+			// NOTE: The drop cases Above and Below take into account the fact that the list is displayed bottom up!
 			case EItemDropZone::AboveItem:
-				TargetNodeId = Tree->FunctionInstance->AppendLayerNode(ParentNodeId, SiblingIdx);
+				check(HasLayerFuncAsset); // Only add with a valid new LayerFunc asset
+				TargetNodeId = Tree->FunctionInstance->AppendLayerNode(ParentNodeId, SiblingIdx + 1); // Above means insert after
+				DidModifyTree = true;
 				break;
 
 			case EItemDropZone::BelowItem:
-				TargetNodeId = Tree->FunctionInstance->AppendLayerNode(ParentNodeId, SiblingIdx + 1);
+				check(HasLayerFuncAsset); // Only add with a valid new LayerFunc asset
+				TargetNodeId = Tree->FunctionInstance->AppendLayerNode(ParentNodeId, SiblingIdx); // Under means insert at
+				DidModifyTree = true;
+				break;
+
+			case EItemDropZone::OntoItem:
+				// Dropping LayerFunc asset (with blendfunc too maybe) on a top level layer means a NEW sub layer is created
+				if (HasLayerFuncAsset && (TargetNodeDepth <= 1)) // Top level Layers
+				{
+					// add a new layer in this target node last on the stack
+					TargetNodeId = Tree->FunctionInstance->AppendLayerNode(TargetNodeId, -1);
+					DidModifyTree = true;
+				}
+				else
+				{
+					// Assign the new asset(s) to this particular target node
+				}
 				break;
 			default:
 				break;
 			}
 
 			// Then drop
-			bool DidModifyTree = false;
 			for (const FAssetData& AssetData : AssetDropOp->GetAssets())
 			{
 				EMaterialParameterAssociation InAssociation = EMaterialParameterAssociation::GlobalParameter;
@@ -714,9 +802,8 @@ TSharedPtr<SWidget> SMaterialSubstrateTree::CreateContextMenu()
 	{
 		FSortedParamDataPtr StackParameterData = SelectedItemsArray[0];
 		
-		bool bIsBackgroundItem = IsNodeKeyForBackgroundParameter(StackParameterData->NodeKey);
-		bool bCanAppendSubLayer = FunctionInstance->CanAppendLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
-		bool bCanRemoveLayer = FunctionInstance->CanRemoveLayerNode(StackParameterData->ParameterInfo.Index) && !bIsBackgroundItem;
+		bool bCanAppendSubLayer = FunctionInstance->CanAppendLayerNode(StackParameterData->ParameterInfo.Index);
+		bool bCanRemoveLayer = FunctionInstance->CanRemoveLayerNode(StackParameterData->ParameterInfo.Index);
 	
 		if (bCanAppendSubLayer)
 		{
@@ -1006,10 +1093,9 @@ struct FRecursiveCreateWidgetsContext
 	TSharedPtr<IPropertyHandle>	BlendHandle;
 };
 
-void SMaterialSubstrateTree::RecursiveCreateWidgets(FRecursiveCreateWidgetsContext* InContext, FNodeId InNodeId, TArray<TSharedPtr<FSortedParamData>>& InParentContainer, bool GenerateChildren, bool bIsBackgroundItem)
+void SMaterialSubstrateTree::RecursiveCreateWidgets(FRecursiveCreateWidgetsContext* InContext, FNodeId InNodeId, TArray<TSharedPtr<FSortedParamData>>& InParentContainer, bool GenerateChildren)
 {
 	auto Payload = FunctionInstance->Tree.Payloads[InNodeId];
-
 
 	TSharedRef<FSortedParamData> StackProperty = MakeShared<FSortedParamData>();
 	StackProperty->StackDataType = EStackDataType::Stack;
@@ -1017,22 +1103,15 @@ void SMaterialSubstrateTree::RecursiveCreateWidgets(FRecursiveCreateWidgetsConte
 	StackProperty->ParameterInfo.Index = InNodeId;
 	StackProperty->NodeKey = FString::FromInt(StackProperty->ParameterInfo.Index);
 
-	if (bIsBackgroundItem)
-	{
-		StackProperty->NodeKey = CreateNodeKeyForBackgroundParameter(StackProperty->NodeKey);
-	}
-
-
 	if (GenerateChildren)
 	{
-		// Create the default background sub item representing the layer and blend func stored in the layer item
-		RecursiveCreateWidgets(InContext, InNodeId, StackProperty->Children, false, true);
-
 		// Sub layers
 		auto RootChildren = FunctionInstance->GetNodeChildren(InNodeId);
 		for (int i = 0; i < RootChildren.Num(); ++i)
 		{
-			RecursiveCreateWidgets(InContext, RootChildren[i], StackProperty->Children, false, false);
+			int Index = i;
+			Index = RootChildren.Num() - 1 - i; // Reverse the order to display the layers bottom up
+			RecursiveCreateWidgets(InContext, RootChildren[Index], StackProperty->Children, false);
 		}
 	}
 
@@ -1069,7 +1148,7 @@ void SMaterialSubstrateTree::RecursiveCreateWidgets(FRecursiveCreateWidgetsConte
 
 	}
 
-	if (!bIsBackgroundItem && Payload.Blend != -1)
+	if (Payload.Blend != -1)
 	{
 		TSharedRef<FSortedParamData> ChildProperty = MakeShared<FSortedParamData>();
 		ChildProperty->StackDataType = EStackDataType::Asset;
@@ -1242,7 +1321,9 @@ void SMaterialSubstrateTree::CreateGroupsWidget()
 			auto RootChildren = FunctionInstance->GetNodeChildren(-1);
 			for (int i = 0; i < RootChildren.Num(); ++i)
 			{
-				RecursiveCreateWidgets(&Context, RootChildren[i], LayerProperties, true, false);
+				int Index = i;
+				Index = RootChildren.Num() - 1 - i; // Reverse the order to display the layers bottom up
+				RecursiveCreateWidgets(&Context, RootChildren[Index], LayerProperties, true);
 			}
 		}
 #endif // ENABLE_MATERIAL_LAYER_PROTOTYPE
@@ -1294,11 +1375,11 @@ void SMaterialSubstrateTree::UpdateThumbnailMaterial(TEnumAsByte<EMaterialParame
 		}
 		MaterialToUpdate = MaterialEditorInstance->StoredBlendPreviews[ParameterIndex];
 	}
-
+	return;
 	if (MaterialToUpdate != nullptr)
 	{
 		// Need to invert index b/c layer properties is generated in reverse order
-	/*	TArray<TSharedPtr<FSortedParamData>> AssetChildren = LayerProperties[LayerProperties.Num() - 1 - InIndex]->Children;
+		TArray<TSharedPtr<FSortedParamData>> AssetChildren = LayerProperties[LayerProperties.Num() - 1 - InIndex]->Children;
 
 		TArray<FEditorParameterGroup> ParameterGroups;
 		for (TSharedPtr<FSortedParamData> AssetChild : AssetChildren)
@@ -1327,7 +1408,6 @@ void SMaterialSubstrateTree::UpdateThumbnailMaterial(TEnumAsByte<EMaterialParame
 		}
 
 		FMaterialPropertyHelpers::TransitionAndCopyParameters(MaterialToUpdate, ParameterGroups, true);
-*/
 	}
 }
 
