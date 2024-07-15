@@ -49,6 +49,13 @@ FChannelCurveModel<ChannelType, ChannelValue, KeyType>::FChannelCurveModel(TMovi
 }
 
 template <class ChannelType, class ChannelValue, class KeyType>
+FChannelCurveModel<ChannelType, ChannelValue, KeyType>::FChannelCurveModel(TMovieSceneChannelHandle<ChannelType> InChannel, UMovieSceneSection* InOwningSection, UObject* InOwningObject, TWeakPtr<ISequencer> InWeakSequencer)
+	: FChannelCurveModel(InChannel, InOwningSection, InWeakSequencer)
+{
+	WeakOwningObject = InOwningObject;
+}
+
+template <class ChannelType, class ChannelValue, class KeyType>
 FChannelCurveModel<ChannelType, ChannelValue, KeyType>::~FChannelCurveModel()
 {
 	if (FMovieSceneChannelProxy* ChannelProxy = ChannelHandle.GetChannelProxy())
@@ -56,6 +63,27 @@ FChannelCurveModel<ChannelType, ChannelValue, KeyType>::~FChannelCurveModel()
 		ChannelProxy->OnDestroy.Remove(OnDestroyHandle);
 	}
 }
+
+template <class ChannelType, class ChannelValue, class KeyType>
+FTransform2d FChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetCurveTransform() const
+{
+	FTransform2d Transform;
+
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+	const UMovieSceneSection*         Section  = WeakSection.Get();
+
+	if (MetaData && Section)
+	{
+		FFrameNumber Offset = MetaData->GetOffsetTime(Section);
+		if (Offset != 0)
+		{
+			FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
+			Transform = Concatenate(Transform, FVector2d(-Offset / TickResolution, 0.0));
+		}
+	}
+	return Transform;
+}
+
 
 template <class ChannelType, class ChannelValue, class KeyType>
 const void* FChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetCurve() const
@@ -66,9 +94,9 @@ const void* FChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetCurve() c
 template <class ChannelType, class ChannelValue, class KeyType>
 void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::Modify()
 {
-	if (UMovieSceneSection* Section = WeakSection.Get())
+	if (UObject* Object = GetOwningObject())
 	{
-		Section->Modify();
+		Object->Modify();
 	}
 	LastSignature.Invalidate();
 }
@@ -218,10 +246,19 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::GetKeyPositions(TAr
 template <class ChannelType, class ChannelValue, class KeyType>
 void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::SetKeyPositions(TArrayView<const FKeyHandle> InKeys, TArrayView<const FKeyPosition> InKeyPositions, EPropertyChangeType::Type ChangeType)
 {
+	UE::MovieScene::FScopedSignedObjectModifyDefer Defer(true);
+
 	ChannelType* Channel = ChannelHandle.Get();
 	UMovieSceneSection* Section = WeakSection.Get();
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
 
-	if (Channel && Section && !IsReadOnly())
+	UMovieSceneSignedObject* SignedOwner = Cast<UMovieSceneSignedObject>(WeakOwningObject.Get());
+	if (!SignedOwner)
+	{
+		SignedOwner = WeakSection.Get();
+	}
+
+	if (Channel && MetaData && Section && !IsReadOnly())
 	{
 		TMovieSceneChannelData<ChannelValue> ChannelData = Channel->GetData();
 		const TArrayView<const FFrameNumber> Times = ChannelData.GetTimes();
@@ -229,53 +266,64 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::SetKeyPositions(TAr
 		{
 			return;
 		}
-		
+
 		Section->MarkAsChanged();
 
-		FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
+		FFrameRate   TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
+		FFrameNumber KeyOffset      = 0;
 
 		const int32 LastIndex = Times.Num()-1;
 		const FFrameNumber FirstTime = Times[0];
 		const FFrameNumber LastTime = Times[LastIndex];
-		
-		FFrameNumber Min = TNumericLimits<FFrameNumber>::Max();
-		FFrameNumber Max = TNumericLimits<FFrameNumber>::Lowest();
-		
+
+		// Expand to frame first, then offset
+		if (InKeyPositions.Num() > 0)
+		{
+			double Min = TNumericLimits<double>::Max();
+			double Max = TNumericLimits<double>::Lowest();
+
+			for (const FKeyPosition& Value : InKeyPositions)
+			{
+				Min = FMath::Min(Min, Value.InputValue);
+				Max = FMath::Max(Max, Value.InputValue);
+			}
+
+			FFrameNumber Offset  = MetaData->GetOffsetTime(Section);
+			FFrameNumber MinTime = (Min * TickResolution).RoundToFrame() + Offset;
+			FFrameNumber MaxTime = (Max * TickResolution).RoundToFrame() + Offset;
+
+			if (!Section->GetRange().Contains(MinTime))
+			{
+				Section->ExpandToFrame(MinTime);
+				KeyOffset += MetaData->GetOffsetTime(Section) - Offset;
+			}
+
+			if (Min != Max && !Section->GetRange().Contains(MaxTime))
+			{
+				Section->ExpandToFrame(MaxTime);
+			}
+		}
+
 		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
 		{
 			int32 KeyIndex = ChannelData.GetIndex(InKeys[Index]);
 			if (KeyIndex != INDEX_NONE)
 			{
-				FFrameNumber NewTime = (InKeyPositions[Index].InputValue * TickResolution).RoundToFrame();
+				FFrameNumber NewTime = (InKeyPositions[Index].InputValue * TickResolution).RoundToFrame() - KeyOffset;
 
 				KeyIndex = ChannelData.MoveKey(KeyIndex, NewTime);
 				SetKeyValue(KeyIndex, InKeyPositions[Index].OutputValue);
-
-				if ((KeyIndex == 0 && NewTime != FirstTime) || (KeyIndex == LastIndex && NewTime != LastTime))
-				{
-					Min = FMath::Min(Min, NewTime);
-					Max = FMath::Max(Max, NewTime);
-				}
-			}
-		}
-
-		// update range if needed
-		if (Min != TNumericLimits<FFrameNumber>::Max())
-		{
-			Section->ExpandToFrame(Min);
-			if (Max != Min)
-			{
-				Section->ExpandToFrame(Max);
 			}
 		}
 		
 		Channel->PostEditChange();
 		if(WeakSequencer.IsValid())
 		{ 
-			const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
 			WeakSequencer.Pin()->OnChannelChanged().Broadcast(MetaData, Section);
 		}
 		CurveModifiedDelegate.Broadcast();
+
+		SignedOwner->MarkAsChanged();
 	}
 }
 
@@ -413,9 +461,17 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::AddKeys(TArrayView<
 
 	ChannelType* Channel = ChannelHandle.Get();
 	UMovieSceneSection* Section = WeakSection.Get();
-	if (Channel && Section && !IsReadOnly())
+	const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
+
+	UMovieSceneSignedObject* SignedOwner = Cast<UMovieSceneSignedObject>(WeakOwningObject.Get());
+	if (!SignedOwner)
 	{
-		Section->Modify();
+		SignedOwner = WeakSection.Get();
+	}
+
+	if (Channel && MetaData && Section && !IsReadOnly())
+	{
+		SignedOwner->Modify();
 
 		TMovieSceneChannelData<ChannelValue> ChannelData = Channel->GetData();
 		FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
@@ -449,8 +505,8 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::AddKeys(TArrayView<
 
 		if (InKeyPositions.Num() > 0)
 		{
-			Section->ExpandToFrame(MinFrame);
-			Section->ExpandToFrame(MaxFrame);
+			FFrameNumber Offset = MetaData->GetOffsetTime(Section);
+			Section->ExpandToFrame(MinFrame + Offset);
 		}
 
 		// We reuse SetKeyAttributes here as there is complex logic determining which parts of the attributes are valid to set.
@@ -459,7 +515,6 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::AddKeys(TArrayView<
 		Channel->PostEditChange();
 		if (WeakSequencer.IsValid())
 		{
-			const FMovieSceneChannelMetaData* MetaData = ChannelHandle.GetMetaData();
 			WeakSequencer.Pin()->OnChannelChanged().Broadcast(MetaData, Section);
 		}
 		CurveModifiedDelegate.Broadcast();
@@ -471,9 +526,15 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::RemoveKeys(TArrayVi
 {
 	ChannelType* Channel = ChannelHandle.Get();
 	UMovieSceneSection* Section = WeakSection.Get();
+	UMovieSceneSignedObject* SignedOwner = Cast<UMovieSceneSignedObject>(WeakOwningObject.Get());
+	if (!SignedOwner)
+	{
+		SignedOwner = WeakSection.Get();
+	}
+
 	if (Channel && Section && !IsReadOnly())
 	{
-		Section->Modify();
+		SignedOwner->Modify();
 
 		TMovieSceneChannelData<ChannelValue> ChannelData = Channel->GetData();
 
@@ -513,7 +574,7 @@ void FChannelCurveModel<ChannelType, ChannelValue, KeyType>::FixupCurve()
 	if (UMovieSceneSection* Section = WeakSection.Get())
 	{
 		FMovieSceneChannelProxy* NewChannelProxy = &Section->GetChannelProxy();
-		ChannelHandle = NewChannelProxy->MakeHandle<ChannelType>(ChannelHandle.GetChannelIndex());
+		ChannelHandle = NewChannelProxy->CopyHandle(ChannelHandle);
 		OnDestroyHandle = NewChannelProxy->OnDestroy.AddRaw(this, &FChannelCurveModel<ChannelType, ChannelValue, KeyType>::FixupCurve);
 	}
 }

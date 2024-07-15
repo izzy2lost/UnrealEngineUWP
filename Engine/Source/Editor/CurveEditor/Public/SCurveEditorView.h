@@ -25,7 +25,72 @@ class FSlateRect;
 class FText;
 class SCurveEditorPanel;
 class FCurveModel;
+class FCurveEditorAxis;
 class SRetainerWidget;
+class SCurveEditorView;
+
+enum class ECurveEditorAxisOrientation : uint8;
+
+
+/**
+ * Identifier for a specific axis on a view. These identifiers are transient and should not be stored externally.
+ */
+struct FCurveEditorViewAxisID
+{
+	FCurveEditorViewAxisID()
+		: Index(std::numeric_limits<uint8>::max())
+	{}
+	explicit FCurveEditorViewAxisID(uint8 InIndex)
+		: Index(InIndex)
+	{
+		check(InIndex < std::numeric_limits<uint8>::max());
+	}
+
+	explicit operator bool() const
+	{
+		return Index != std::numeric_limits<uint8>::max();
+	}
+
+	friend uint32 GetTypeHash(FCurveEditorViewAxisID In)
+	{
+		return GetTypeHash(In.Index);
+	}
+
+	friend bool operator==(FCurveEditorViewAxisID A, FCurveEditorViewAxisID B)
+	{
+		return A.Index == B.Index;
+	}
+
+	friend bool operator!=(FCurveEditorViewAxisID A, FCurveEditorViewAxisID B)
+	{
+		return A.Index != B.Index;
+	}
+
+	friend bool operator<(FCurveEditorViewAxisID A, FCurveEditorViewAxisID B)
+	{
+		return A.Index < B.Index;
+	}
+
+private:
+
+	operator int32() const
+	{
+		check(Index != std::numeric_limits<uint8>::max());
+		return Index;
+	}
+
+	FCurveEditorViewAxisID& operator=(int32 InIndex)
+	{
+		check(InIndex >= 0 && InIndex < 255);
+		Index = static_cast<uint8>(InIndex);
+		return *this;
+	}
+
+	friend SCurveEditorView;
+	uint8 Index;
+};
+
+
 
 /**
  * This is the base widget type for all views that exist on a curve editor panel. A view may contain 0 or more curves (stored in CurveInfoByID).
@@ -57,20 +122,43 @@ public:
 	 * Default constructor
 	 */
 	SCurveEditorView();
+	~SCurveEditorView();
 
 	/**
-	 * Get the screen space ultility that defines this view's input, output and pixel metrics
+	 * Get the default screen space ultility that defines this view's input, output and pixel metrics
 	 */
 	FCurveEditorScreenSpace GetViewSpace() const;
+
+	/**
+	 * Get the screen space ultility that defines this view's input, output and pixel metrics for the specified axis combination
+	 */
+	FCurveEditorScreenSpace GetViewSpace(const FName& InHorizontalAxis, const FName& InVerticalAxis) const;
 
 	/**
 	 * Get the screen space ultility that defines the specified curves's input, output and pixel metrics.
 	 * The resulting struct defines the transformation from this view's widget pixel space to the curve input/output space
 	 */
-	FCurveEditorScreenSpace GetCurveSpace(FCurveModelID CurveID) const
-	{
-		return GetViewSpace().ToCurveSpace(CurveInfoByID.FindRef(CurveID).ViewToCurveTransform);
-	}
+	FCurveEditorScreenSpace GetCurveSpace(FCurveModelID CurveID) const;
+
+	/**
+	 * Retrieve the horizontal screen-space information for the specified axis
+	 */
+	FCurveEditorScreenSpaceH GetHorizontalAxisSpace(FCurveEditorViewAxisID ID) const;
+
+	/**
+	 * Retrieve the vertical screen-space information for the specified axis
+	 */
+	FCurveEditorScreenSpaceV GetVerticalAxisSpace(FCurveEditorViewAxisID ID) const;
+
+	/**
+	 * Retrueve the axis ID assigned to the specified curve and orientation
+	 */
+	FCurveEditorViewAxisID GetAxisForCurve(FCurveModelID CurveID, ECurveEditorAxisOrientation AxisOrientation) const;
+
+	/**
+	 * Retrueve the axis associated with the specified ID and orientation
+	 */
+	TSharedPtr<FCurveEditorAxis> GetAxis(FCurveEditorViewAxisID ID, ECurveEditorAxisOrientation AxisOrientation) const;
 
 	/**
 	 * Check whether this view should auto size to fit its FixedHeight or child slot content
@@ -128,7 +216,12 @@ public:
 	/**
 	 * Set this view's output bounds
 	 */
-	void SetOutputBounds(double InOutputMin, double InOutputMax);
+	void SetOutputBounds(double InOutputMin, double InOutputMax, FCurveEditorViewAxisID AxisID = FCurveEditorViewAxisID());
+
+	/**
+	 * Set this view's input bounds
+	 */
+	void SetInputBounds(double InInputMin, double InInputMax, FCurveEditorViewAxisID AxisID = FCurveEditorViewAxisID());
 
 	/**
 	 * Zoom this view in or out around its center point
@@ -156,7 +249,11 @@ public:
 	virtual void UpdateViewToTransformCurves(double InputMin, double InputMax) {};
 
 	/** Frame the view vertially by the input and output bounds, peformaing any custom clipping as needed */
-	virtual void FrameVertical(double InOutputMin, double InOutputMax);
+	virtual void FrameVertical(double InOutputMin, double InOutputMax, FCurveEditorViewAxisID AxisID = FCurveEditorViewAxisID());
+
+	/** Frame the view horizontall by the input and output bounds, peformaing any custom clipping as needed */
+	virtual void FrameHorizontal(double InInputMin, double InInputMax, FCurveEditorViewAxisID AxisID = FCurveEditorViewAxisID());
+
 public:
 
 	/**
@@ -222,14 +319,17 @@ protected:
 	void GetCurveDrawParams(TArray<FCurveDrawParams>& OutDrawParams);
 
 	/** Get it for just one curve*/
-	void GetCurveDrawParam(TSharedPtr<FCurveEditor>& CurveEditor, const FCurveModelID& ModelID, FCurveModel* CurveModel,
-		double InputMin, double InputMax, FCurveDrawParams& OutDrawParam) const;
+	void GetCurveDrawParam(TSharedPtr<FCurveEditor>& CurveEditor, const FCurveModelID& ModelID, FCurveModel* CurveModel, FCurveDrawParams& OutDrawParam) const;
 
 	/** Request a new render from the retainer widget */
 	void RefreshRetainer();
 
+	/** Update all the curve view transforms from curve models */
+	void UpdateCurveViewTransformsFromModels();
+
 	// ~SWidget interface
 	virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 private:
 
@@ -241,6 +341,9 @@ private:
 
 	/** Add a curve from this view */
 	void RemoveCurve(FCurveModelID CurveID);
+
+	/** Update the custom axes if necessary */
+	void UpdateCustomAxes();
 
 public:
 
@@ -254,6 +357,14 @@ public:
 	uint8 bAutoSize : 1;
 	/** (Default: false) Defines whether this view should remain on the panel UI even if it does not represent any curves. */
 	uint8 bAllowEmpty : 1;
+	/** (Default: false) When true, custom axes need to be rebuilt before use. */
+	uint8 bAllowModelViewTransforms : 1;
+	/** (Default: false) When true, custom axes need to be rebuilt before use. */
+	uint8 bUpdateModelViewTransforms : 1;
+	/** (Default: true) When true, this view has models that need the default grid lines drawing. */
+	uint8 bNeedsDefaultGridLinesH : 1;
+	/** (Default: true) When true, this view has models that need the default grid lines drawing. */
+	uint8 bNeedsDefaultGridLinesV : 1;
 
 	/** (Default: 0) Should be assigned on Construction of derived types. Defines a custom sort bias to use when sorting the stack of views (before sorting by pinned/unpinned state) */
 	int8 SortBias = 0;
@@ -285,12 +396,37 @@ protected:
 	{
 		/** The linear index of the curve within this view determined by the order curves were added. */
 		int32 CurveIndex;
-		FTransform2D ViewToCurveTransform;
+		FTransform2d ViewToCurveTransform;
+		FCurveEditorViewAxisID HorizontalAxis;
+		FCurveEditorViewAxisID VerticalAxis;
 	};
+
 	/** Map from curve identifier to specific info pertaining to that curve for this view.
 	 * @note: Should only be added to or removed from in AddCurve/RemoveCurve. Derived types must only change the FCurveInfo contained within this map.
 	 */
 	TSortedMap<FCurveModelID, FCurveInfo, TInlineAllocator<1>> CurveInfoByID;
+
+	struct FAxisInfo
+	{
+		TSharedPtr<FCurveEditorAxis> Axis;
+		double Min = 0.0;
+		double Max = 1.0;
+		int32 UseCount = 0;
+	};
+
+	TArray<FAxisInfo> CustomHorizontalAxes;
+	TArray<FAxisInfo> CustomVerticalAxes;
+
+	FAxisInfo& GetHorizontalAxisInfo(FCurveEditorViewAxisID ID)
+	{
+		check(ID);
+		return CustomHorizontalAxes[ID];
+	}
+	FAxisInfo& GetVerticalAxisInfo(FCurveEditorViewAxisID ID)
+	{
+		check(ID);
+		return CustomVerticalAxes[ID];
+	}
 
 	/** Flag enum signifying how the curve cache has changed since it was last generated
 	Note for a data change it may only effect certain data(curves) not every drawn curve*/

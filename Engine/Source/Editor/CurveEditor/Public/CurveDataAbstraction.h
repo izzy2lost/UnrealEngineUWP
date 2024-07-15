@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "CurveEditorTypes.h"
 #include "Curves/RichCurve.h"
+#include "Math/TransformCalculus2D.h"
 #include "CurveDataAbstraction.generated.h"
 
 struct FSlateBrush;
@@ -24,6 +25,13 @@ struct FKeyPosition
 	FKeyPosition(double Input, double Output)
 		: InputValue(Input), OutputValue(Output)
 	{}
+
+	FKeyPosition Transform(const FTransform2d& InTransform) const
+	{
+		FVector2d Point(InputValue, OutputValue);
+		Point = InTransform.TransformPoint(Point);
+		return FKeyPosition(Point.X, Point.Y);
+	}
 
 	/** The key's input (x-axis) position (i.e. it's time) */
 	UPROPERTY()

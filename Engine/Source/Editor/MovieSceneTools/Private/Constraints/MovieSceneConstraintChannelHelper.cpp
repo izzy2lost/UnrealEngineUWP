@@ -3,6 +3,7 @@
 #include "Constraints/MovieSceneConstraintChannelHelper.inl"
 
 #include "ISequencer.h"
+#include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 
 #include "TransformableHandle.h"
 #include "LevelSequence.h"
@@ -88,12 +89,20 @@ void FCompensationEvaluator::ComputeLocalTransforms(
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
 	static constexpr bool bSorted = true;
 	const TArray<ConstraintPtr> AllConstraints = Controller.GetAllConstraints(bSorted);
-	FMovieSceneSequenceTransform RootToLocalTransform = InSequencer->GetFocusedMovieSceneSequenceTransform();
+
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = InSequencer->GetFocusedMovieSceneSequenceTransform().Inverse();
 
 	for (int32 Index = 0; Index < NumFrames + 1; ++Index)
 	{
 		FFrameNumber FrameNumber = (Index == 0) ? InFrames[0] - 1 : InFrames[Index - 1];
-		FrameNumber = (FFrameTime(FrameNumber) * RootToLocalTransform.InverseNoLooping()).GetFrame();
+		TOptional<FFrameTime> RootTime = LocalToRootTransform.TryTransformTime(FrameNumber);
+		if (!RootTime)
+		{
+			continue;
+		}
+
+		FrameNumber = RootTime->GetFrame();
+
 		// evaluate animation
 		const FMovieSceneEvaluationRange EvaluationRange = FMovieSceneEvaluationRange(FFrameTime(FrameNumber), TickResolution);
 		const FMovieSceneContext Context = FMovieSceneContext(EvaluationRange, PlaybackStatus).SetHasJumped(true);
@@ -253,11 +262,17 @@ void FCompensationEvaluator::ComputeLocalTransformsForBaking(UWorld* InWorld, co
 			BakeHelper->StartBaking(MovieScene);
 		}
 	}
-	FMovieSceneSequenceTransform RootToLocalTransform = InSequencer->GetFocusedMovieSceneSequenceTransform();
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = InSequencer->GetFocusedMovieSceneSequenceTransform().Inverse();
 
 	for (int32 Index = 0; Index < NumFrames; ++Index)
 	{
-		const FFrameNumber& FrameNumber = (FFrameTime(InFrames[Index]) * RootToLocalTransform.InverseNoLooping()).GetFrame();
+		TOptional<FFrameTime> RootTime = LocalToRootTransform.TryTransformTime(InFrames[Index]);
+		if (!RootTime)
+		{
+			continue;
+		}
+
+		FFrameNumber FrameNumber = RootTime->GetFrame();
 
 		// evaluate animation
 		const FMovieSceneEvaluationRange EvaluationRange = FMovieSceneEvaluationRange(FFrameTime(FrameNumber), TickResolution);
@@ -378,11 +393,17 @@ void FCompensationEvaluator::ComputeLocalTransformsBeforeDeletion(
 			BakeHelper->StartBaking(MovieScene);
 		}
 	}
-	FMovieSceneSequenceTransform RootToLocalTransform = InSequencer->GetFocusedMovieSceneSequenceTransform();
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = InSequencer->GetFocusedMovieSceneSequenceTransform().Inverse();
 
 	for (int32 Index = 0; Index < NumFrames; ++Index)
 	{
-		const FFrameNumber& FrameNumber = (FFrameTime(InFrames[Index]) * RootToLocalTransform.InverseNoLooping()).GetFrame();
+		TOptional<FFrameTime> RootTime = LocalToRootTransform.TryTransformTime(InFrames[Index]);
+		if (!RootTime)
+		{
+			continue;
+		}
+
+		FFrameNumber FrameNumber = RootTime->GetFrame();
 
 		// evaluate animation
 		const FMovieSceneEvaluationRange EvaluationRange = FMovieSceneEvaluationRange(FFrameTime(FrameNumber), TickResolution);
@@ -478,11 +499,18 @@ void FCompensationEvaluator::ComputeCompensation(UWorld* InWorld, const TSharedP
 			BakeHelper->StartBaking(MovieScene);
 		}
 	}
-	
-	auto EvaluateAt = [Handle = this->Handle, InSequencer, &AllConstraints, &BakeHelpers](FFrameNumber InFrame)
+
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = InSequencer->GetFocusedMovieSceneSequenceTransform().Inverse();
+
+	auto EvaluateAt = [Handle = this->Handle, InSequencer, &AllConstraints, &BakeHelpers, &LocalToRootTransform](FFrameNumber InFrame)
 	{
-		FMovieSceneSequenceTransform RootToLocalTransform = InSequencer->GetFocusedMovieSceneSequenceTransform();
-		InFrame = (FFrameTime(InFrame) * RootToLocalTransform.InverseNoLooping()).GetFrame();
+		TOptional<FFrameTime> RootTime = LocalToRootTransform.TryTransformTime(InFrame);
+		if (!RootTime)
+		{
+			return;
+		}
+
+		InFrame = RootTime->GetFrame();
 
 		UMovieScene* MovieScene = InSequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
 		const FFrameRate TickResolution = MovieScene->GetTickResolution();
@@ -580,9 +608,9 @@ void FCompensationEvaluator::CacheTransforms(UWorld* InWorld, const TSharedPtr<I
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
 	static constexpr bool bSorted = true;
 	const TArray<ConstraintPtr> AllConstraints = Controller.GetAllConstraints(bSorted);
-	
+
 	UMovieScene* MovieScene = InSequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
-	const FFrameRate TickResolution = MovieScene->GetTickResolution();
+	const FFrameRate TickResolution = InSequencer->GetRootMovieSceneSequence()->GetMovieScene()->GetTickResolution();
 	const EMovieScenePlayerStatus::Type PlaybackStatus = InSequencer->GetPlaybackStatus();
 
 	const int32 NumFrames = InTime.Num();
@@ -592,13 +620,19 @@ void FCompensationEvaluator::CacheTransforms(UWorld* InWorld, const TSharedPtr<I
 	SpaceGlobals.SetNum(NumFrames);
 
 	const TArray<IMovieSceneToolsAnimationBakeHelper*>& BakeHelpers = FMovieSceneToolsModule::Get().GetAnimationBakeHelpers();
-	
+
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = InSequencer->GetFocusedMovieSceneSequenceTransform().Inverse();
+
 	auto EvaluateAt = [&](FFrameNumber InFrame)
 	{
-		const FMovieSceneEvaluationRange EvaluationRange = FMovieSceneEvaluationRange(FFrameTime(InFrame), TickResolution);
+		TOptional<FFrameTime> RootTime = LocalToRootTransform.TryTransformTime(InFrame);
+		if (!RootTime)
+		{
+			return;
+		}
+
+		const FMovieSceneEvaluationRange EvaluationRange = FMovieSceneEvaluationRange(RootTime.GetValue(), TickResolution);
 		const FMovieSceneContext Context = FMovieSceneContext(EvaluationRange, PlaybackStatus).SetHasJumped(true);
-		FMovieSceneSequenceTransform RootToLocalTransform = InSequencer->GetFocusedMovieSceneSequenceTransform();
-		InFrame = (FFrameTime(InFrame) * RootToLocalTransform.InverseNoLooping()).GetFrame();
 
 		for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
 		{

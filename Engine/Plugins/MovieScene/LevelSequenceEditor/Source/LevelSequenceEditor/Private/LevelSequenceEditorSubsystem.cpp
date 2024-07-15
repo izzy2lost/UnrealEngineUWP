@@ -1639,16 +1639,20 @@ bool ULevelSequenceEditorSubsystem::BakeTransformWithSettings(const TArray<FMovi
 	}
 	CalculateFramesPerGuid(Sequencer, SettingsInTick, BakeDataMap, TotalFrameMap);
 
-	FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = Sequencer->GetFocusedMovieSceneSequenceTransform().Inverse();
 	
 	TArray<FFrameNumber> AllFrames;
 	TotalFrameMap.GenerateKeyArray(AllFrames);
 
 	for (FFrameNumber KeyTime: AllFrames)
 	{
-		FMovieSceneEvaluationRange Range(KeyTime * RootToLocalTransform.InverseNoLooping(), TickResolution);
+		TOptional<FFrameTime> NewGlobalTime = LocalToRootTransform.TryTransformTime(KeyTime);
+		if (!NewGlobalTime)
+		{
+			continue;
+		}
 
-		Sequencer->SetGlobalTime(Range.GetTime());
+		Sequencer->SetGlobalTime(NewGlobalTime.GetValue());
 
 		for (const FMovieSceneBindingProxy& ObjectBinding : ObjectBindings)
 		{

@@ -28,6 +28,7 @@
 #include "SequencerSectionPainter.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Editor.h"
+#include "ISequencerChannelInterface.h"
 #include "Editor/UnrealEdEngine.h"
 #include "UnrealEdGlobals.h"
 #include "ClassViewerModule.h"
@@ -977,6 +978,8 @@ FReply SBakeToAnimAndControlRigOptionsWindow::OnResetToDefaultClick() const
 
 void FControlRigParameterTrackEditor::SmartReduce(TSharedPtr<ISequencer>& InSequencer, const FSmartReduceParams& InParams, UMovieSceneControlRigParameterSection * ParamSection)
 {
+	using namespace UE::Sequencer;
+
 	if (ParamSection)
 	{
 		ISequencerModule& SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
@@ -992,7 +995,9 @@ void FControlRigParameterTrackEditor::SmartReduce(TSharedPtr<ISequencer>& InSequ
 			{
 				FMovieSceneChannelHandle ChannelHandle = ChannelProxy.MakeHandle(ChannelTypeName, Index);
 				ISequencerChannelInterface* EditorInterface = SequencerModule.FindChannelEditorInterface(ChannelHandle.GetChannelTypeName());
-				if (TUniquePtr<FCurveModel> CurveModel = EditorInterface->CreateCurveEditorModel_Raw(ChannelHandle, ParamSection, InSequencer.ToSharedRef()))
+
+				FCreateCurveEditorModelParams CurveModelParams{ ParamSection, ParamSection, InSequencer.ToSharedRef() };
+				if (TUniquePtr<FCurveModel> CurveModel = EditorInterface->CreateCurveEditorModel_Raw(ChannelHandle, CurveModelParams))
 				{
 					FKeyHandleSet OutHandleSet;
 					UCurveEditorSmartReduceFilter::SmartReduce(CurveModel.Get(), InParams, KeyHandleSet, bNeedToTestExisting, OutHandleSet);
@@ -4813,13 +4818,14 @@ bool FControlRigParameterTrackEditor::CollapseAllLayers(TSharedPtr<ISequencer>&S
 						ControlLocalTransforms.Add(NameTransforms);
 					}
 
+					FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
+
 					//get all of the local 
 					int32 Index = 0;
 					for (Index = 0; Index < Frames.Num(); ++Index)
 					{
 						const FFrameNumber& FrameNumber = Frames[Index];
-						FFrameTime GlobalTime(FrameNumber);
-						GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+						FFrameTime GlobalTime = LocalToRootTransform.TryTransformTime(FrameNumber).Get(FrameNumber);
 
 						FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), SequencerPtr->GetPlaybackStatus()).SetHasJumped(true);
 

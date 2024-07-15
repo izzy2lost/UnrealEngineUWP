@@ -4426,9 +4426,8 @@ static void GetSequencerActorWorldTransforms(IMovieScenePlayer* Player, FMovieSc
 
 			for (int32 Index = 0; Index < Frames.Num(); ++Index)
 			{
-				const FFrameNumber& FrameNumber = Frames[Index];
-				FFrameTime GlobalTime(FrameNumber);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping(); //player evals in root time so need to go back to it.
+				FFrameNumber FrameNumber = Frames[Index];
+				FFrameTime GlobalTime = RootToLocalTransform.Inverse().TryTransformTime(FrameNumber).Get(FrameNumber); //player evals in root time so need to go back to it.
 
 				for (IMovieSceneToolsAnimationBakeHelper* BakeHelper : BakeHelpers)
 				{

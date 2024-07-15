@@ -55,6 +55,8 @@ void FCurveEditorDragOperation_MoveKeys::OnBeginDrag(FVector2D InitialPosition, 
 
 			KeyData.StartKeyPositions.SetNumZeroed(KeyData.Handles.Num());
 			Curve->GetKeyPositions(KeyData.Handles, KeyData.StartKeyPositions);
+
+			KeyData.InitialDragTransform = Curve->GetCurveTransform();
 			KeyData.LastDraggedKeyPositions = KeyData.StartKeyPositions;
 		}
 	}
@@ -92,6 +94,10 @@ void FCurveEditorDragOperation_MoveKeys::OnDrag(FVector2D InitialPosition, FVect
 
 		FCurveSnapMetrics SnapMetrics = CurveEditor->GetCurveSnapMetrics(KeyData.CurveID);
 
+		// Transform by the inverse curve transform to put the start positions in view space
+		FTransform2d CurveTransform               = Curve->GetCurveTransform();
+		FTransform2d InverseInitialCurveTransform = KeyData.InitialDragTransform.Inverse();
+
 		if (CardinalPoint.IsSet())
 		{
 			for (int KeyIndex = 0; KeyIndex < KeyData.StartKeyPositions.Num(); ++KeyIndex)
@@ -99,7 +105,7 @@ void FCurveEditorDragOperation_MoveKeys::OnDrag(FVector2D InitialPosition, FVect
 				FKeyHandle KeyHandle = KeyData.Handles[KeyIndex];
 				if (CardinalPoint->KeyHandle == KeyHandle)
 				{
-					FKeyPosition StartPosition = KeyData.StartKeyPositions[KeyIndex];
+					FKeyPosition StartPosition = KeyData.StartKeyPositions[KeyIndex].Transform(InverseInitialCurveTransform);
 
 					if (View->IsTimeSnapEnabled())
 					{
@@ -111,13 +117,16 @@ void FCurveEditorDragOperation_MoveKeys::OnDrag(FVector2D InitialPosition, FVect
 					{
 						DeltaOutput = SnapMetrics.SnapOutput(StartPosition.OutputValue + DeltaOutput) - StartPosition.OutputValue;
 					}
+
+					break;
 				}
 			}
 		}
-
 		for (FKeyPosition StartPosition : KeyData.StartKeyPositions)
 		{
-			StartPosition.InputValue  += DeltaInput;
+			StartPosition = StartPosition.Transform(InverseInitialCurveTransform);
+
+			StartPosition.InputValue += DeltaInput;
 			StartPosition.OutputValue += DeltaOutput;
 
 			StartPosition.InputValue = View->IsTimeSnapEnabled() ? SnapMetrics.SnapInputSeconds(StartPosition.InputValue) : StartPosition.InputValue;
@@ -127,8 +136,8 @@ void FCurveEditorDragOperation_MoveKeys::OnDrag(FVector2D InitialPosition, FVect
 			{
 				StartPosition.OutputValue = View->IsValueSnapEnabled() ? SnapMetrics.SnapOutput(StartPosition.OutputValue) : StartPosition.OutputValue;
 			}
-			
-			NewKeyPositionScratch.Add(StartPosition);
+
+			NewKeyPositionScratch.Add(StartPosition.Transform(CurveTransform));
 		}
 
 		Curve->SetKeyPositions(KeyData.Handles, NewKeyPositionScratch, EPropertyChangeType::Interactive);
@@ -142,10 +151,16 @@ void FCurveEditorDragOperation_MoveKeys::OnCancelDrag()
 {
 	ICurveEditorKeyDragOperation::OnCancelDrag();
 
-	for (const FKeyData& KeyData : KeysByCurve)
+	for (FKeyData& KeyData : KeysByCurve)
 	{
 		if (FCurveModel* Curve = CurveEditor->FindCurve(KeyData.CurveID))
 		{
+			FTransform2d InverseInitialDragTransform = KeyData.InitialDragTransform.Inverse();
+			for (FKeyPosition& Position : KeyData.StartKeyPositions)
+			{
+				Position = Position.Transform(InverseInitialDragTransform);
+			}
+
 			Curve->SetKeyPositions(KeyData.Handles, KeyData.StartKeyPositions, EPropertyChangeType::ValueSet);
 		}
 	}

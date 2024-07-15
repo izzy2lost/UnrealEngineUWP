@@ -352,17 +352,12 @@ bool CanCreateKeyEditor(const FMovieSceneConstraintChannel* InChannel)
 	return false;
 }
 
-TSharedRef<SWidget> CreateKeyEditor(
-	const TMovieSceneChannelHandle<FMovieSceneConstraintChannel>& InChannel,
-	UMovieSceneSection* InSection,
-	const FGuid& InObjectBindingID,
-	TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings,
-	TWeakPtr<ISequencer> InSequencer)
+TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneConstraintChannel>& InChannel, const UE::Sequencer::FCreateKeyEditorParams& Params)
 {
 	return SNullWidget::NullWidget;
 }
 
-TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneConstraintChannel>& ChannelHandle, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer)
+TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneConstraintChannel>& ChannelHandle, const UE::Sequencer::FCreateCurveEditorModelParams& Params)
 {
 	if (FMovieSceneConstraintChannel* Channel = ChannelHandle.Get())
 	{
@@ -371,7 +366,7 @@ TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FM
 			const UCurveEditorSettings* Settings = GetDefault<UCurveEditorSettings>();
 			if (Settings == nullptr || Settings->GetShowBars())
 			{
-				return MakeUnique<FConstraintChannelCurveModel>(ChannelHandle, OwningSection, InSequencer);
+				return MakeUnique<FConstraintChannelCurveModel>(ChannelHandle, Params.OwningSection, Params.Sequencer);
 			}
 		}
 	}

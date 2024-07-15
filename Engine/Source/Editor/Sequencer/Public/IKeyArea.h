@@ -126,6 +126,15 @@ public:
 	 */
 	UMovieSceneSection* GetOwningSection() const;
 
+
+	/**
+	 * Access object that owns the channel this key area represents.
+	 * @note: this may return the same as GetOwningSection (the common case)
+	 *
+	 * @return The owning object, or nullptr if it has been destroyed
+	 */
+	UObject* GetOwningObject() const;
+
 	/**
 	 * Access section editor interface
 	 *

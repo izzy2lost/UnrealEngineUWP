@@ -91,7 +91,7 @@ void FIntegerChannelCurveModel::CreateKeyProxies(TArrayView<const FKeyHandle> In
 	{
 		UIntegerChannelKeyProxy* NewProxy = NewObject<UIntegerChannelKeyProxy>(GetTransientPackage(), NAME_None);
 
-		NewProxy->Initialize(InKeyHandles[Index], GetChannelHandle(), Cast<UMovieSceneSection>(GetOwningObject()));
+		NewProxy->Initialize(InKeyHandles[Index], GetChannelHandle(), this->GetOwningObjectOrOuter<UMovieSceneSection>());
 		OutObjects[Index] = NewProxy;
 	}
 }
@@ -117,7 +117,7 @@ TUniquePtr<IBufferedCurveModel> FIntegerChannelCurveModel::CreateBufferedCurveCo
 		double ValueMin = 0.f, ValueMax = 1.f;
 		GetValueRange(ValueMin, ValueMax);
 
-		return MakeUnique<FIntegerChannelBufferedCurveModel>(Channel, Cast<UMovieSceneSection>(GetOwningObject()), MoveTemp(KeyPositions), MoveTemp(KeyAttributes), GetLongDisplayName().ToString(), ValueMin, ValueMax);
+		return MakeUnique<FIntegerChannelBufferedCurveModel>(Channel, this->GetOwningObjectOrOuter<UMovieSceneSection>(), MoveTemp(KeyPositions), MoveTemp(KeyAttributes), GetLongDisplayName().ToString(), ValueMin, ValueMax);
 	}
 	return nullptr;
 }
@@ -135,7 +135,7 @@ void FIntegerChannelCurveModel::GetCurveAttributes(FCurveAttributes& OutCurveAtt
 void FIntegerChannelCurveModel::SetCurveAttributes(const FCurveAttributes& InCurveAttributes)
 {
 	FMovieSceneIntegerChannel* Channel = GetChannelHandle().Get();
-	UMovieSceneSection* Section = Cast<UMovieSceneSection>(GetOwningObject());
+	UMovieSceneSection* Section = this->GetOwningObjectOrOuter<UMovieSceneSection>();
 	if (Channel && Section && !IsReadOnly())
 	{
 		Section->MarkAsChanged();

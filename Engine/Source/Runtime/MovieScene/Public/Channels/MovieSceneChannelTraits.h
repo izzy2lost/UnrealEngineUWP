@@ -8,6 +8,8 @@
 #include "Misc/FrameRate.h"
 #include "Misc/Optional.h"
 #include "MovieSceneChannelEditorData.h"
+#include "MovieSceneSection.h"
+
 
 enum class EMovieSceneKeyInterpolation : uint8;
 

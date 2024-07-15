@@ -255,7 +255,7 @@ bool ExportFBXInternal(const FSequencerExportFBXParams& InParams, UMovieSceneSeq
 	if (SubSequenceData)
 	{
 		RootToLocalTransform = SubSequenceData->RootToSequenceTransform;
-		StartTime = UE::MovieScene::DiscreteInclusiveLower(SubSequenceData->PlayRange.Value) * RootToLocalTransform.InverseNoLooping();
+		StartTime = RootToLocalTransform.Inverse().TryTransformTime(UE::MovieScene::DiscreteInclusiveLower(SubSequenceData->PlayRange.Value)).Get(StartTime);
 	}
 
 	bool bDidExport = false;

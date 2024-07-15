@@ -72,6 +72,9 @@ public:
 	/** Returns the section object that owns the associated channel */
 	UMovieSceneSection* GetSection() const;
 
+	/** Returns the object that owns the associated channel. May return the same as GetSection(). */
+	UObject* GetOwningObject() const;
+
 	/** Returns the associated channel object */
 	FMovieSceneChannel* GetChannel() const;
 
@@ -83,9 +86,6 @@ public:
 
 	/** Returns the key area for the channel */
 	TSharedPtr<IKeyArea> GetKeyArea() const { return KeyArea; }
-
-	/** Create the curve editor model for the associated channel */
-	void CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutCurveModels);
 
 	/** Returns the desired sizing for the track area row */
 	FOutlinerSizing GetDesiredSizing() const;

@@ -6,6 +6,7 @@
 #include "Channels/MovieSceneChannelData.h"
 #include "Channels/MovieSceneChannelHandle.h"
 #include "Channels/MovieSceneDoubleChannel.h"
+#include "Channels/MovieSceneInterpolation.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 #include "CurveDataAbstraction.h"
@@ -73,13 +74,64 @@ FDoubleChannelCurveModel::FDoubleChannelCurveModel(TMovieSceneChannelHandle<FMov
 {
 }
 
+FDoubleChannelCurveModel::FDoubleChannelCurveModel(TMovieSceneChannelHandle<FMovieSceneDoubleChannel> InChannel, UMovieSceneSection* OwningSection, UObject* InOwningObject, TWeakPtr<ISequencer> InWeakSequencer)
+	: FBezierChannelCurveModel<FMovieSceneDoubleChannel, FMovieSceneDoubleValue, double>(InChannel, OwningSection, InOwningObject, InWeakSequencer)
+{
+}
+
+void FDoubleChannelCurveModel::GetValueRange(double& MinValue, double& MaxValue) const
+{
+	FMovieSceneDoubleChannel* Channel = GetChannelHandle().Get();
+	UMovieSceneSection* Section = WeakSection.Get();
+
+	if (Channel && Section)
+	{
+		TArrayView<const FFrameNumber> Times = Channel->GetData().GetTimes();
+		FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
+
+		if (Times.Num() > 0)
+		{
+			UE::MovieScene::Interpolation::FInterpolationExtents Extents =
+				Channel->ComputeExtents(Times[0].Value, Times.Last().Value);
+			MinValue = Extents.MinValue;
+			MaxValue = Extents.MaxValue;
+		}
+		else
+		{
+			UE::MovieScene::Interpolation::FInterpolationExtents Extents =
+				Channel->ComputeExtents(0, 1);
+			MinValue = Extents.MinValue;
+			MaxValue = Extents.MaxValue;
+		}
+	}
+}
+
+void FDoubleChannelCurveModel::GetValueRange(double InMinTime, double InMaxTime, double& MinValue, double& MaxValue) const
+{
+	FMovieSceneDoubleChannel* Channel = GetChannelHandle().Get();
+	UMovieSceneSection* Section = WeakSection.Get();
+
+	if (Channel && Section)
+	{
+		TArrayView<const FFrameNumber> Times = Channel->GetData().GetTimes();
+
+		FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
+
+		UE::MovieScene::Interpolation::FInterpolationExtents Extents =
+			Channel->ComputeExtents(InMinTime * TickResolution, InMaxTime * TickResolution);
+
+		MinValue = Extents.MinValue;
+		MaxValue = Extents.MaxValue;
+	}
+}
+
 void FDoubleChannelCurveModel::CreateKeyProxies(TArrayView<const FKeyHandle> InKeyHandles, TArrayView<UObject*> OutObjects)
 {
 	for (int32 Index = 0; Index < InKeyHandles.Num(); ++Index)
 	{
 		UDoubleChannelKeyProxy* NewProxy = NewObject<UDoubleChannelKeyProxy>(GetTransientPackage(), NAME_None);
 
-		NewProxy->Initialize(InKeyHandles[Index], GetChannelHandle(), Cast<UMovieSceneSection>(GetOwningObject()));
+		NewProxy->Initialize(InKeyHandles[Index], GetChannelHandle(), this->GetOwningObjectOrOuter<UMovieSceneSignedObject>());
 		OutObjects[Index] = NewProxy;
 	}
 }
@@ -105,7 +157,7 @@ TUniquePtr<IBufferedCurveModel> FDoubleChannelCurveModel::CreateBufferedCurveCop
 		double ValueMin = 0.f, ValueMax = 1.f;
 		GetValueRange(ValueMin, ValueMax);
 
-		return MakeUnique<FDoubleChannelBufferedCurveModel>(Channel, Cast<UMovieSceneSection>(GetOwningObject()), MoveTemp(KeyPositions), MoveTemp(KeyAttributes), GetLongDisplayName().ToString(), ValueMin, ValueMax);
+		return MakeUnique<FDoubleChannelBufferedCurveModel>(Channel, this->GetOwningObjectOrOuter<UMovieSceneSection>(), MoveTemp(KeyPositions), MoveTemp(KeyAttributes), GetLongDisplayName().ToString(), ValueMin, ValueMax);
 	}
 	return nullptr;
 }

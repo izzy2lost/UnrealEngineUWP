@@ -89,7 +89,13 @@ static typename ChannelType::CurveValueType
 
 FCycleParams CycleTime(FFrameNumber MinFrame, FFrameNumber MaxFrame, FFrameTime InTime)
 {
-	FCycleParams Params(InTime, MaxFrame.Value - MinFrame.Value);
+	int64 Duration = int64(MaxFrame.Value) - int64(MinFrame.Value);
+	if (Duration > MAX_int32)
+	{
+		return FCycleParams(InTime, 0);
+	}
+
+	FCycleParams Params(InTime, static_cast<int32>(Duration));
 	if (Params.Duration == 0)
 	{
 		Params.Time = MaxFrame;
@@ -97,17 +103,19 @@ FCycleParams CycleTime(FFrameNumber MinFrame, FFrameNumber MaxFrame, FFrameTime 
 	}
 	else if (InTime < MinFrame)
 	{
-		const int32 CycleCount = ((MaxFrame - InTime) / Params.Duration).FloorToFrame().Value;
+		const int64 CycleCount = (int64(MaxFrame.Value) - int64(InTime.FrameNumber.Value)) / Params.Duration;
 
-		Params.CycleCount = -CycleCount;
-		Params.Time = InTime + FFrameTime(Params.Duration * CycleCount);
+		Params.CycleCount = static_cast<int32>(-CycleCount);
+		Params.Time = InTime;
+		Params.Time.FrameNumber.Value = static_cast<int32>(int64(Params.Time.FrameNumber.Value) + int64(Params.Duration)*CycleCount);
 	}
 	else if (InTime > MaxFrame)
 	{
-		const int32 CycleCount = ((InTime - MinFrame) / Params.Duration).FloorToFrame().Value;
+		const int64 CycleCount = (int64(InTime.FrameNumber.Value) - int64(MinFrame.Value)) / Params.Duration;
 
-		Params.CycleCount = CycleCount;
-		Params.Time = InTime - FFrameTime(Params.Duration * CycleCount);
+		Params.CycleCount = static_cast<int32>(CycleCount);
+		Params.Time = InTime;
+		Params.Time.FrameNumber.Value = static_cast<int32>(int64(Params.Time.FrameNumber.Value) - int64(Params.Duration) * CycleCount);
 	}
 
 	return Params;
@@ -206,7 +214,7 @@ bool TMovieSceneCurveChannelImpl<ChannelType>::CacheExtrapolation(const ChannelT
 
 		if (InChannel->PreInfinityExtrap == RCCE_Constant)
 		{
-			OutValue = FCachedInterpolation(Range, FConstantValue(InChannel->Values[0].Value));
+			OutValue = FCachedInterpolation(Range, FConstantValue(InChannel->Times[0], InChannel->Values[0].Value));
 			return true;
 		}
 
@@ -216,7 +224,7 @@ bool TMovieSceneCurveChannelImpl<ChannelType>::CacheExtrapolation(const ChannelT
 
 			if (FirstValue.InterpMode == RCIM_Constant)
 			{
-				OutValue = FCachedInterpolation(Range, FConstantValue(FirstValue.Value));
+				OutValue = FCachedInterpolation(Range, FConstantValue(InChannel->Times[0], FirstValue.Value));
 			}
 			else if(FirstValue.InterpMode == RCIM_Cubic)
 			{
@@ -246,7 +254,7 @@ bool TMovieSceneCurveChannelImpl<ChannelType>::CacheExtrapolation(const ChannelT
 
 		if (InChannel->PostInfinityExtrap == RCCE_Constant)
 		{
-			OutValue = FCachedInterpolation(Range, FConstantValue(InChannel->Values.Last().Value));
+			OutValue = FCachedInterpolation(Range, FConstantValue(InChannel->Times.Last(), InChannel->Values.Last().Value));
 			return true;
 		}
 
@@ -256,7 +264,7 @@ bool TMovieSceneCurveChannelImpl<ChannelType>::CacheExtrapolation(const ChannelT
 
 			if (LastValue.InterpMode == RCIM_Constant)
 			{
-				OutValue = FCachedInterpolation(Range, FConstantValue(LastValue.Value));
+				OutValue = FCachedInterpolation(Range, FConstantValue(InChannel->Times.Last(), LastValue.Value));
 			}
 			else if(LastValue.InterpMode == RCIM_Cubic)
 			{
@@ -300,7 +308,7 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 	{
 		if (InChannel->bHasDefaultValue)
 		{
-			return FCachedInterpolation(FCachedInterpolationRange::Infinite(), FConstantValue(InChannel->DefaultValue));
+			return FCachedInterpolation(FCachedInterpolationRange::Infinite(), FConstantValue(0, InChannel->DefaultValue));
 		}
 
 		return FCachedInterpolation();
@@ -309,7 +317,7 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 	// For single keys, we can only ever return that value
 	if (NumKeys == 1)
 	{
-		return FCachedInterpolation(FCachedInterpolationRange::Infinite(), FConstantValue(InChannel->Values[0].Value));
+		return FCachedInterpolation(FCachedInterpolationRange::Infinite(), FConstantValue(InChannel->Times[0], InChannel->Values[0].Value));
 	}
 
 	// Cache extrapolation if we're outside the bounds of the curve
@@ -381,14 +389,14 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 		// No starting key - we are probably evaluating directly on the first or last key
 		//   we explicitly only cache this for the current time to ensure that subsequent caches can cache the correct pair
 		FCachedInterpolationRange Range = FCachedInterpolationRange::Only(Params.Time.GetFrame());
-		return FCachedInterpolation(Range, FConstantValue(Params.ValueOffset + InChannel->Values[Index2].Value));
+		return FCachedInterpolation(Range, FConstantValue(InChannel->Times[Index2], Params.ValueOffset + InChannel->Values[Index2].Value));
 	}
 	else if (Index2 == INDEX_NONE)
 	{
 		// No ending key - we are probably evaluating directly on the first or last key
 		//   we explicitly only cache this for the current time to ensure that subsequent caches can cache the correct pair
 		FCachedInterpolationRange Range = FCachedInterpolationRange::Only(Params.Time.GetFrame());
-		return FCachedInterpolation(Range, FConstantValue(Params.ValueOffset + InChannel->Values[Index1].Value));
+		return FCachedInterpolation(Range, FConstantValue(InChannel->Times[Index1], Params.ValueOffset + InChannel->Values[Index1].Value));
 	}
 	else
 	{
@@ -405,7 +413,7 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 	if (Index == InChannel->Times.Num() - 1)
 	{
 		FCachedInterpolationRange Range = FCachedInterpolationRange::Only(InChannel->Times.Last());
-		return FCachedInterpolation(Range, FConstantValue(InChannel->Values.Last().Value));
+		return FCachedInterpolation(Range, FConstantValue(Range.Start, InChannel->Values.Last().Value));
 	}
 
 	return GetInterpolationForKey(InChannel, Index, Index+1, Params);
@@ -495,7 +503,7 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 		{
 			if (V1 == V2)
 			{
-				return FCachedInterpolation(Range, FConstantValue(V1));
+				return FCachedInterpolation(Range, FConstantValue(Time1, V1));
 			}
 			// Weighted if either control point has weight on their tangent
 			else if (bIsWeighted1 || bIsWeighted2)
@@ -508,7 +516,7 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 			}
 			else
 			{
-				return FCachedInterpolation(Range, FCubicInterpolation(Time1, DX, V1, V2, T1, T2));
+				return FCachedInterpolation(Range, FCubicBezierInterpolation(Time1, DX, V1, V2, T1, T2));
 			}
 		}
 		break;
@@ -518,7 +526,7 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 			const double DY = V2 - V1;
 			if (DY == 0.0)
 			{
-				return FCachedInterpolation(Range, FConstantValue(V1));
+				return FCachedInterpolation(Range, FConstantValue(Time1, V1));
 			}
 			else
 			{
@@ -527,7 +535,7 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 		}
 
 	default:
-		return FCachedInterpolation(Range, FConstantValue(V1));
+		return FCachedInterpolation(Range, FConstantValue(Time1, V1));
 	}
 }
 

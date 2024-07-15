@@ -2321,6 +2321,8 @@ bool UnrealToUsd::ConvertAudioSection(
 	pxr::UsdAttribute EndAttr = SpatialAudio.CreateEndTimeAttr();
 	if (StartAttr && EndAttr)
 	{
+		FMovieSceneInverseSequenceTransform InverseSequenceTransform = SequenceTransform.Inverse();
+
 		UsdUtils::NotifyIfOverriddenOpinion(StartAttr);
 		UsdUtils::NotifyIfOverriddenOpinion(EndAttr);
 
@@ -2333,8 +2335,8 @@ bool UnrealToUsd::ConvertAudioSection(
 
 		FFrameTime UsdStartTickTime = FFrameRate::Snap(StartTick, Resolution, DisplayRate).FloorToFrame();
 		FFrameTime UsdEndTickTime = FFrameRate::Snap(EndTick, Resolution, DisplayRate).FloorToFrame();
-		UsdStartTickTime *= SequenceTransform.InverseNoLooping();
-		UsdEndTickTime *= SequenceTransform.InverseNoLooping();
+		UsdStartTickTime = InverseSequenceTransform.TryTransformTime(UsdStartTickTime).Get(UsdStartTickTime);
+		UsdEndTickTime = InverseSequenceTransform.TryTransformTime(UsdEndTickTime).Get(UsdEndTickTime);
 		double UsdStartTimeCode = FFrameRate::TransformTime(UsdStartTickTime, Resolution, StageFrameRate).AsDecimal();
 		double UsdEndTimeCode = FFrameRate::TransformTime(UsdEndTickTime, Resolution, StageFrameRate).AsDecimal();
 
@@ -2478,6 +2480,8 @@ bool UnrealToUsd::ConvertBoolTrack(
 	const double StageTimeCodesPerSecond = Stage.GetTimeCodesPerSecond();
 	const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceTransform.Inverse();
+
 	auto EvaluateChannel = [&Resolution,
 							&DisplayRate](const FMovieSceneBoolChannel& Channel, bool InDefaultValue) -> TArray<TPair<FFrameNumber, bool>>
 	{
@@ -2508,13 +2512,15 @@ bool UnrealToUsd::ConvertBoolTrack(
 		{
 			for (const TPair<FFrameNumber, bool>& Pair : EvaluateChannel(BoolSection->GetChannel(), false))
 			{
-				FFrameTime TransformedBakedKeyTime{Pair.Key};
-				TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
-				FFrameTime UsdFrameTime = FFrameRate::TransformTime(TransformedBakedKeyTime, Resolution, StageFrameRate);
+				TOptional<FFrameTime> RootTime = SequenceToRootTransform.TryTransformTime(Pair.Key);
+				if (RootTime)
+				{
+					// @todo: Resolution here is actually the local tick res - this is incorrect and should be converted to use the root resolution
+					FFrameTime UsdFrameTime = FFrameRate::TransformTime(RootTime.GetValue(), Resolution, StageFrameRate);
+					bool UEValue = Pair.Value;
 
-				bool UEValue = Pair.Value;
-
-				WriterFunc(UEValue, UsdFrameTime.AsDecimal());
+					WriterFunc(UEValue, UsdFrameTime.AsDecimal());
+				}
 			}
 		}
 	}
@@ -2602,15 +2608,19 @@ bool UnrealToUsd::ConvertFloatChannel(
 		return Values;
 	};
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceTransform.Inverse();
+
 	for (const TPair<FFrameNumber, float>& Pair : EvaluateChannel(MovieSceneChannel, 0.0f))
 	{
-		FFrameTime TransformedBakedKeyTime{Pair.Key};
-		TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
-		FFrameTime UsdFrameTime = FFrameRate::TransformTime(TransformedBakedKeyTime, Resolution, StageFrameRate);
+		TOptional<FFrameTime> RootTime = SequenceToRootTransform.TryTransformTime(Pair.Key);
+		if (RootTime)
+		{
+			// @todo: Resolution here is actually the local tick res - this is incorrect and should be converted to use the root resolution
+			FFrameTime UsdFrameTime = FFrameRate::TransformTime(RootTime.GetValue(), Resolution, StageFrameRate);
+			float UEValue = Pair.Value;
 
-		float UEValue = Pair.Value;
-
-		WriterFunc(UEValue, UsdFrameTime.AsDecimal());
+			WriterFunc(UEValue, UsdFrameTime.AsDecimal());
+		}
 	}
 	return true;
 }
@@ -2710,6 +2720,8 @@ bool UnrealToUsd::ConvertColorTrack(
 		}
 	};
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceTransform.Inverse();
+
 	for (UMovieSceneSection* Section : MovieSceneTrack.GetAllSections())
 	{
 		if (UMovieSceneColorSection* ColorSection = Cast<UMovieSceneColorSection>(Section))
@@ -2733,6 +2745,12 @@ bool UnrealToUsd::ConvertColorTrack(
 			// Sample all channels at the union of bake times, construct the value and write it out
 			for (const FFrameNumber UntransformedBakeTime : BakeTimeUnion)
 			{
+				TOptional<FFrameTime> RootTime = SequenceToRootTransform.TryTransformTime(UntransformedBakeTime);
+				if (!RootTime)
+				{
+					continue;
+				}
+
 				float RedValue = 0.0f;
 				float GreenValue = 0.0f;
 				float BlueValue = 0.0f;
@@ -2745,9 +2763,7 @@ bool UnrealToUsd::ConvertColorTrack(
 
 				FLinearColor Color{RedValue, GreenValue, BlueValue, AlphaValue};
 
-				FFrameTime TransformedBakedKeyTime{UntransformedBakeTime};
-				TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
-				FFrameTime UsdFrameTime = FFrameRate::TransformTime(TransformedBakedKeyTime, Resolution, StageFrameRate);
+				FFrameTime UsdFrameTime = FFrameRate::TransformTime(RootTime.GetValue(), Resolution, StageFrameRate);
 
 				WriterFunc(Color, UsdFrameTime.AsDecimal());
 			}
@@ -2869,11 +2885,19 @@ bool UnrealToUsd::ConvertBoundsVectorTracks(
 	TArray<FFrameNumber> BakeTimeUnion = AllBakeTimes.Array();
 	BakeTimeUnion.Sort();
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceTransform.Inverse();
+
 	// Sample all channels at the union of bake times, construct the value and write it out
 	// This could be done more efficently, but in the general case we're only going to have one
 	// section per track anyway so it shouldn't matter much
 	for (const FFrameNumber UntransformedBakeTime : BakeTimeUnion)
 	{
+		TOptional<FFrameTime> RootTime = SequenceToRootTransform.TryTransformTime(UntransformedBakeTime);
+		if (!RootTime)
+		{
+			continue;
+		}
+
 		FVector MinValue{0};
 		for (const UMovieSceneSection* Section : MinSections)
 		{
@@ -2906,9 +2930,7 @@ bool UnrealToUsd::ConvertBoundsVectorTracks(
 			}
 		}
 
-		FFrameTime TransformedBakedKeyTime{UntransformedBakeTime};
-		TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
-		FFrameTime UsdFrameTime = FFrameRate::TransformTime(TransformedBakedKeyTime, Resolution, StageFrameRate);
+		FFrameTime UsdFrameTime = FFrameRate::TransformTime(RootTime.GetValue(), Resolution, StageFrameRate);
 
 		WriterFunc(MinValue, MaxValue, UsdFrameTime.AsDecimal());
 	}
@@ -2998,6 +3020,8 @@ bool UnrealToUsd::Convert3DTransformTrack(
 		return BakeTimes;
 	};
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceTransform.Inverse();
+
 	for (UMovieSceneSection* Section : MovieSceneTrack.GetAllSections())
 	{
 		if (UMovieScene3DTransformSection* TransformSection = Cast<UMovieScene3DTransformSection>(Section))
@@ -3056,6 +3080,12 @@ bool UnrealToUsd::Convert3DTransformTrack(
 			// Sample all channels at the union of bake times, construct the value and write it out
 			for (const FFrameNumber UntransformedBakeTime : BakeTimeUnion)
 			{
+				TOptional<FFrameTime> RootTime = SequenceToRootTransform.TryTransformTime(UntransformedBakeTime);
+				if (!RootTime)
+				{
+					continue;
+				}
+
 				double LocX = 0.0f;
 				double LocY = 0.0f;
 				double LocZ = 0.0f;
@@ -3115,9 +3145,7 @@ bool UnrealToUsd::Convert3DTransformTrack(
 				FVector Scale{(float)ScaleX, (float)ScaleY, (float)ScaleZ};
 				FTransform Transform{Rotation, Location, Scale};
 
-				FFrameTime TransformedBakedKeyTime{UntransformedBakeTime};
-				TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
-				FFrameTime UsdFrameTime = FFrameRate::TransformTime(TransformedBakedKeyTime, Resolution, StageFrameRate);
+				FFrameTime UsdFrameTime = FFrameRate::TransformTime(RootTime.GetValue(), Resolution, StageFrameRate);
 
 				WriterFunc(Transform, UsdFrameTime.AsDecimal());
 			}
@@ -5154,10 +5182,12 @@ bool UnrealToUsd::ConvertXformable(
 	const double StageTimeCodesPerSecond = UsdPrim.GetStage()->GetTimeCodesPerSecond();
 	const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceTransform.Inverse();
+
 	auto EvaluateChannel = [&PlaybackRange,
 							&Resolution,
 							&DisplayRate,
-							&SequenceTransform](const FMovieSceneDoubleChannel* Channel, double DefaultValue) -> TArray<TPair<FFrameNumber, float>>
+							&SequenceToRootTransform](const FMovieSceneDoubleChannel* Channel, double DefaultValue) -> TArray<TPair<FFrameNumber, float>>
 	{
 		TArray<TPair<FFrameNumber, float>> Values;
 
@@ -5171,6 +5201,12 @@ bool UnrealToUsd::ConvertXformable(
 			{
 				FFrameNumber KeyTime = FFrameRate::Snap(EvalTime, Resolution, DisplayRate).FloorToFrame();
 
+				TOptional<FFrameTime> RootTime = SequenceToRootTransform.TryTransformTime(KeyTime);
+				if (!RootTime)
+				{
+					continue;
+				}
+
 				double Result = DefaultValue;
 				if (Channel)
 				{
@@ -5178,10 +5214,7 @@ bool UnrealToUsd::ConvertXformable(
 					Channel->Evaluate(KeyTime, Result);
 				}
 
-				FFrameTime GlobalEvalTime(KeyTime);
-				GlobalEvalTime *= SequenceTransform.InverseNoLooping();
-
-				Values.Emplace(GlobalEvalTime.GetFrame(), Result);
+				Values.Emplace(RootTime->GetFrame(), Result);
 			}
 		}
 

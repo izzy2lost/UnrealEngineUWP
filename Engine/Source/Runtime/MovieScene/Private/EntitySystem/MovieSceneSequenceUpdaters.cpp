@@ -11,6 +11,7 @@
 #include "Containers/BitArray.h"
 #include "Containers/SortedMap.h"
 
+#include "MovieSceneTransformTypes.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequenceID.h"
 #include "Evaluation/MovieScenePlayback.h"
@@ -476,7 +477,7 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 		FMovieSceneEvaluationTreeRangeIterator SubSequenceIt = Hierarchy->GetTree().IterateFromLowerBound(TraversedRange.GetLowerBound());
 		for ( ; SubSequenceIt && SubSequenceIt.Range().Overlaps(TraversedRange); ++SubSequenceIt)
 		{
-			TRange<FFrameTime> RootClampRange = TRange<FFrameTime>::Intersection(ConvertRange<FFrameNumber, FFrameTime>(SubSequenceIt.Range()), Context.GetRange());
+			TRange<FFrameTime> RootClampRange = TRange<FFrameTime>::Intersection(ConvertToFrameTimeRange(SubSequenceIt.Range()), Context.GetRange());
 
 			// When Context.GetRange() does not fall on whole frame boundaries, we can sometimes end up with a range that clamps to being empty, even though the range overlapped
 			// the traversed range. ie if we evaluated range (1.5, 10], our traversed range would be [2, 11). If we have a sub sequence range of (10, 20), it would still be iterated here
@@ -501,17 +502,34 @@ void FSequenceUpdater_Hierarchical::DissectContext(TSharedRef<const FSharedPlayb
 				TArrayView<const FMovieSceneDeterminismFence> SubDeterminismFences = CompiledDataManager->GetEntryRef(SubDataID).DeterminismFences;
 				if (SubDeterminismFences.Num() > 0)
 				{
-					TRange<FFrameTime>   InnerRange           = SubData->RootToSequenceTransform.TransformRangeUnwarped(RootClampRange);
+					TRange<FFrameTime> InnerRange = SubData->RootToSequenceTransform.ComputeTraversedHull(RootClampRange);
 
-					TArrayView<const FMovieSceneDeterminismFence> TraversedFences  = GetFencesWithinRange(SubDeterminismFences, InnerRange);
+					// Time-warp can result in inside-out ranges
+					if (InnerRange.GetLowerBound().IsClosed() && InnerRange.GetUpperBound().IsClosed() && InnerRange.GetLowerBoundValue() > InnerRange.GetUpperBoundValue())
+					{
+						TRangeBound<FFrameTime> OldLower = InnerRange.GetLowerBound();
+						TRangeBound<FFrameTime> OldUpper = InnerRange.GetUpperBound();
+						InnerRange.SetLowerBound(OldUpper);
+						InnerRange.SetUpperBound(OldLower);
+					}
+
+					TArrayView<const FMovieSceneDeterminismFence> TraversedFences = GetFencesWithinRange(SubDeterminismFences, InnerRange);
 					if (TraversedFences.Num() > 0)
 					{
-						FMovieSceneWarpCounter WarpCounter;
-						FFrameTime Unused;
-						SubData->RootToSequenceTransform.TransformTime(RootClampRange.GetLowerBoundValue(), Unused, WarpCounter);
+						// Find the breadcrumbs for this range
+						FMovieSceneTransformBreadcrumbs Breadcrumbs;
+						SubData->RootToSequenceTransform.TransformTime(RootClampRange.GetLowerBoundValue(), FTransformTimeParams().HarvestBreadcrumbs(Breadcrumbs));
 
-						FMovieSceneSequenceTransform InverseTransform = SubData->RootToSequenceTransform.InverseFromLoop(WarpCounter);
-						Algo::Transform(TraversedFences, RootDissectionTimes, [InverseTransform](const FMovieSceneDeterminismFence& In){ return FMovieSceneDeterminismFenceWithSubframe{In.FrameNumber * InverseTransform, In.bInclusive }; });
+						FMovieSceneInverseSequenceTransform InverseTransform = SubData->RootToSequenceTransform.Inverse();
+
+						for (FMovieSceneDeterminismFence Fence : TraversedFences)
+						{
+							TOptional<FFrameTime> RootTime = InverseTransform.TryTransformTime(Fence.FrameNumber, Breadcrumbs);
+							if (RootTime)
+							{
+								RootDissectionTimes.Emplace(FMovieSceneDeterminismFenceWithSubframe{ RootTime.GetValue(), Fence.bInclusive });
+							}
+						}
 					}
 				}
 			}
@@ -615,6 +633,10 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 
 			ActiveSequences.Add(RootOverrideSequenceID);
 		}
+	}
+	else if (RootHierarchy && !RootHierarchy->GetRootTransform().IsIdentity())
+	{
+		RootContext = Context.Transform(RootHierarchy->GetRootTransform(), Context.GetFrameRate());
 	}
 
 	FFrameNumber ImportTime = RootContext.GetEvaluationFieldTime();
@@ -770,24 +792,36 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 					EntitiesScratch.Reset();
 
 					TRange<FFrameNumber> SubEntityRange = UpdateEntitiesForSequence(SubComponentField, SubSequenceTime, EntitiesScratch);
+					SubEntityRange = TRange<FFrameNumber>::Intersection(SubEntityRange, SubData->PlayRange.Value);
 
 					SubSequenceInstance.Ledger.UpdateEntities(Linker, Params, SubComponentField, EntitiesScratch);
 
-					// Clamp to the current warp loop if necessary
-					FMovieSceneWarpCounter WarpCounter;
-					FFrameTime Unused;
-					SubData->RootToSequenceTransform.TransformTime(ImportTime, Unused, WarpCounter);
+					// Convert sub entity range into root space
+					// 
+					// Sometimes the bounds can be unset if the lower bound does not map to any valid time in the root sequence.
+					//   If this happens, we rely in the intersection with SubSequenceIt.Range() to clamp to the bounds of the current sub sequence range
+					FMovieSceneInverseSequenceTransform Inv = SubContext.GetSequenceToRootSequenceTransform();
 
-					if (WarpCounter.WarpCounts.Num() > 0)
+					TRange<FFrameNumber> SubCachedRange = TRange<FFrameNumber>::All();
+					if (!SubEntityRange.GetLowerBound().IsOpen())
 					{
-						FMovieSceneSequenceTransform InverseTransform = SubData->RootToSequenceTransform.InverseFromLoop(WarpCounter);
-						CachedEntityRange = TRange<FFrameNumber>::Intersection(CachedEntityRange, InverseTransform.TransformRangeConstrained(SubData->PlayRange.Value));
+						TOptional<FFrameTime> LowerBoundRootSpace = Inv.TryTransformTime(SubEntityRange.GetLowerBoundValue(), SubContext.GetRootToSequenceWarpCounter());
+						if (LowerBoundRootSpace)
+						{
+							SubCachedRange.SetLowerBound(TRangeBound<FFrameNumber>::Inclusive(LowerBoundRootSpace.GetValue().CeilToFrame()));
+						}
 					}
 
-					const FMovieSceneSequenceTransform SequenceToRootOverrideTransform = SubContext.GetSequenceToRootSequenceTransform() * RootContext.GetRootToSequenceTransform();
-					SubEntityRange = SequenceToRootOverrideTransform.TransformRangeConstrained(SubEntityRange);
+					if (!SubEntityRange.GetUpperBound().IsOpen())
+					{
+						TOptional<FFrameTime> UpperBoundRootSpace = Inv.TryTransformTime(SubEntityRange.GetUpperBoundValue(), SubContext.GetRootToSequenceWarpCounter());
+						if (UpperBoundRootSpace)
+						{
+							SubCachedRange.SetUpperBound(TRangeBound<FFrameNumber>::Exclusive(UpperBoundRootSpace.GetValue().FloorToFrame()));
+						}
+					}
 
-					CachedEntityRange = TRange<FFrameNumber>::Intersection(CachedEntityRange, SubEntityRange);
+					CachedEntityRange = TRange<FFrameNumber>::Intersection(CachedEntityRange, SubCachedRange);
 				}
 
 				// Update any one-shot entities for the sub sequence

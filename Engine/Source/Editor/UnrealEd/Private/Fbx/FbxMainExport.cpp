@@ -1867,7 +1867,12 @@ int32 FLevelSequenceAnimTrackAdapter::GetStartFrame() const
 	TRange<FFrameNumber> Range = GetSequenceRange();
 	FFrameRate TickResolution = MovieScene->GetTickResolution();
 	FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-	return FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(Range) * RootToLocalTransform.InverseNoLooping()), TickResolution, DisplayRate).RoundToFrame().Value;
+	FFrameNumber StartFrame = UE::MovieScene::DiscreteInclusiveLower(Range);
+
+	FMovieSceneInverseSequenceTransform Inverse = RootToLocalTransform.Inverse();
+
+	TOptional<FFrameTime> RootTime = Inverse.TryTransformTime(StartFrame);
+	return FFrameRate::TransformTime(RootTime.Get(StartFrame), TickResolution, DisplayRate).RoundToFrame().Value;
 }
 
 int32 FLevelSequenceAnimTrackAdapter::GetLength() const
@@ -1875,6 +1880,7 @@ int32 FLevelSequenceAnimTrackAdapter::GetLength() const
 	TRange<FFrameNumber> Range = GetSequenceRange();
 	FFrameRate TickResolution = MovieScene->GetTickResolution();
 	FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+
 	return FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteSize(Range)), TickResolution, DisplayRate).RoundToFrame().Value;
 }
 
@@ -1884,11 +1890,13 @@ void FLevelSequenceAnimTrackAdapter::UpdateAnimation( int32 LocalFrame )
 	FFrameRate DisplayRate = MovieScene->GetDisplayRate();
 
 	FFrameTime LocalTime = FFrameRate::TransformTime(FFrameTime(LocalFrame), DisplayRate, TickResolution);
-	FFrameTime GlobalTime = LocalTime * RootToLocalTransform.InverseNoLooping();
+	TOptional<FFrameTime> GlobalTime = RootToLocalTransform.Inverse().TryTransformTime(LocalTime);
 
-	FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), MovieScenePlayer->GetPlaybackStatus()).SetHasJumped(true);
-
-	MovieScenePlayer->GetEvaluationTemplate().EvaluateSynchronousBlocking( Context );
+	if (GlobalTime)
+	{
+		FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime.GetValue(), TickResolution), MovieScenePlayer->GetPlaybackStatus()).SetHasJumped(true);
+		MovieScenePlayer->GetEvaluationTemplate().EvaluateSynchronousBlocking( Context );
+	}
 }
 
 double FLevelSequenceAnimTrackAdapter::GetFrameRate() const
@@ -2265,11 +2273,14 @@ void FFbxExporter::AddTimecodeAttributesAndSetKey(const UMovieSceneSection* InSe
 			if (FbxAnimCurve* AnimCurve = Property.GetCurve(BaseLayer, nullptr, true))
 			{
 				const float KeyValue = (float)TimecodeValues[i];
-					
+
 				AnimCurve->KeyModifyBegin();
-					
+
 				FbxTime FbxTime;
-				const double KeyTimeSeconds = GetExportOptions()->bExportLocalTime ? KeyTime / TickResolution : (KeyTime * RootToLocalTransform.InverseNoLooping()) / TickResolution;
+
+				TOptional<FFrameTime> GlobalKeyTime = RootToLocalTransform.Inverse().TryTransformTime(KeyTime);
+
+				const double KeyTimeSeconds = GetExportOptions()->bExportLocalTime ? KeyTime / TickResolution : GlobalKeyTime.Get(KeyTime) / TickResolution;
 
 				FbxTime.SetSecondDouble(KeyTimeSeconds);
 
@@ -2566,9 +2577,10 @@ void FFbxExporter::ExportTransformChannelsToFbxCurve(FbxNode* InFbxNode, TPair<F
 	FFrameRate TickResolution = Track->GetTypedOuter<UMovieScene>()->GetTickResolution();
 	FFrameRate DisplayRate = Track->GetTypedOuter<UMovieScene>()->GetDisplayRate();
 	TRange<FFrameNumber> PlaybackRange = Track->GetTypedOuter<UMovieScene>()->GetPlaybackRange();
-	
+
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = RootToLocalTransform.Inverse();
+
 	int32 LocalStartFrame = FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(PlaybackRange)), TickResolution, DisplayRate).RoundToFrame().Value;
-	int32 StartFrame = FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(PlaybackRange) * RootToLocalTransform.InverseNoLooping()), TickResolution, DisplayRate).RoundToFrame().Value;
 	int32 AnimationLength = FFrameRate::TransformTime(FFrameTime(FFrameNumber(UE::MovieScene::DiscreteSize(PlaybackRange))), TickResolution, DisplayRate).RoundToFrame().Value;
 
 	for (int32 FrameCount = 0; FrameCount <= AnimationLength; ++FrameCount)
@@ -2619,7 +2631,23 @@ void FFbxExporter::ExportTransformChannelsToFbxCurve(FbxNode* InFbxNode, TPair<F
 		}
 
 		FbxTime FbxTime;
-		FbxTime.SetSecondDouble(GetExportOptions()->bExportLocalTime ? DisplayRate.AsSeconds(LocalFrame) : DisplayRate.AsSeconds(StartFrame + FrameCount));
+
+		if (GetExportOptions()->bExportLocalTime)
+		{
+			FbxTime.SetSecondDouble(DisplayRate.AsSeconds(LocalFrame));
+		}
+		// @todo: This code does not handle the root sequence having a different tick resolution than the local space, but we do
+		//        not have that information here so we have to just assume they match. This should be improved so that we have
+		//        all the information we need to do the right thing
+		else if (TOptional<FFrameTime> GlobalKeyTime = SequenceToRootTransform.TryTransformTime(LocalTime))
+		{
+			FbxTime.SetSecondDouble(TickResolution.AsSeconds(GlobalKeyTime.GetValue()));
+		}
+		else
+		{
+			// Doesn't map to a root time
+			continue;
+		}
 
 		FbxCurveX->KeySet(FbxCurveX->KeyAdd(FbxTime), FbxTime, KeyVec[0]);
 		FbxCurveY->KeySet(FbxCurveY->KeyAdd(FbxTime), FbxTime, KeyVec[1]);
@@ -2971,11 +2999,12 @@ void FFbxExporter::ExportBezierChannelToFbxCurveBaked(FbxAnimCurve& InFbxCurve, 
 
 	InFbxCurve.KeyModifyBegin();
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = RootToLocalTransform.Inverse();
+
 	FFrameRate DisplayRate = Track->GetTypedOuter<UMovieScene>()->GetDisplayRate();
 	TRange<FFrameNumber> PlaybackRange = Track->GetTypedOuter<UMovieScene>()->GetPlaybackRange();
 
 	int32 LocalStartFrame = FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(PlaybackRange)), TickResolution, DisplayRate).RoundToFrame().Value;
-	int32 StartFrame = FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(PlaybackRange) * RootToLocalTransform.InverseNoLooping()), TickResolution, DisplayRate).RoundToFrame().Value;
 	int32 AnimationLength = FFrameRate::TransformTime(FFrameTime(FFrameNumber(UE::MovieScene::DiscreteSize(PlaybackRange))), TickResolution, DisplayRate).RoundToFrame().Value;
 
 	for (int32 FrameCount = 0; FrameCount <= AnimationLength; ++FrameCount)
@@ -2988,7 +3017,23 @@ void FFbxExporter::ExportBezierChannelToFbxCurveBaked(FbxAnimCurve& InFbxCurve, 
 		InChannel.Evaluate(LocalTime, Value);
 
 		FbxTime FbxTime;
-		FbxTime.SetSecondDouble(GetExportOptions()->bExportLocalTime ? DisplayRate.AsSeconds(LocalFrame) : DisplayRate.AsSeconds(StartFrame + FrameCount));
+
+		if (GetExportOptions()->bExportLocalTime)
+		{
+			FbxTime.SetSecondDouble(DisplayRate.AsSeconds(LocalFrame));
+		}
+		// @todo: This code does not handle the root sequence having a different tick resolution than the local space, but we do
+		//        not have that information here so we have to just assume they match. This should be improved so that we have
+		//        all the information we need to do the right thing
+		else if (TOptional<FFrameTime> GlobalKeyTime = SequenceToRootTransform.TryTransformTime(LocalTime))
+		{
+			FbxTime.SetSecondDouble(TickResolution.AsSeconds(GlobalKeyTime.GetValue()));
+		}
+		else
+		{
+			// Doesn't map to a root time
+			continue;
+		}
 
 		InFbxCurve.KeySet(InFbxCurve.KeyAdd(FbxTime), FbxTime, Value, FbxAnimCurveDef::eInterpolationLinear);
 	}
@@ -3005,6 +3050,8 @@ void FFbxExporter::ExportBezierChannelToFbxCurve(FbxAnimCurve& InFbxCurve, const
 	const float kOneThird = 1.f / 3.f;
 	InFbxCurve.KeyModifyBegin();
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = RootToLocalTransform.Inverse();
+
 	TArrayView<const FFrameNumber>          Times  = InChannel.GetTimes();
 	TArrayView<const ChannelValueType> Values = InChannel.GetValues();
 
@@ -3017,9 +3064,23 @@ void FFbxExporter::ExportBezierChannelToFbxCurve(FbxAnimCurve& InFbxCurve, const
 
 		FbxTime FbxTime;
 		FbxAnimCurveKey FbxKey;
-		const double KeyTimeSeconds = GetExportOptions()->bExportLocalTime ? KeyTime / TickResolution : (KeyTime * RootToLocalTransform.InverseNoLooping()) / TickResolution;
 
-		FbxTime.SetSecondDouble(KeyTimeSeconds);
+		if (GetExportOptions()->bExportLocalTime)
+		{
+			FbxTime.SetSecondDouble(TickResolution.AsSeconds(KeyTime));
+		}
+		// @todo: This code does not handle the root sequence having a different tick resolution than the local space, but we do
+		//        not have that information here so we have to just assume they match. This should be improved so that we have
+		//        all the information we need to do the right thing
+		else if (TOptional<FFrameTime> GlobalKeyTime = SequenceToRootTransform.TryTransformTime(KeyTime))
+		{
+			FbxTime.SetSecondDouble(TickResolution.AsSeconds(GlobalKeyTime.GetValue()));
+		}
+		else
+		{
+			// Doesn't map to a root time
+			continue;
+		}
 
 		const int FbxKeyIndex = InFbxCurve.KeyAdd(FbxTime);
 
@@ -3035,7 +3096,7 @@ void FFbxExporter::ExportBezierChannelToFbxCurve(FbxAnimCurve& InFbxCurve, const
 				float LeaveTangentWeight = kOneThird;
 				float NextArriveTangentWeight = kOneThird;
 				const double  NextTime = Times[Index + 1] / TickResolution;
-				const float TimeDiff = static_cast<float>(NextTime - KeyTimeSeconds);
+				const float TimeDiff = static_cast<float>(NextTime - FbxTime.GetSecondDouble());
 				
 				float LeaveTangent = KeyValue.Tangent.LeaveTangent * TickResolution.AsDecimal();
 				float NextArriveTangent = Values[Index + 1].Tangent.ArriveTangent * TickResolution.AsDecimal();
@@ -3107,15 +3168,31 @@ void FFbxExporter::ExportConstantChannelToFbxCurve(FbxAnimCurve& InFbxCurve, con
 	const TArrayView<const FFrameNumber> Times  = InChannel.GetTimes();
 	const TArrayView<const T> Values = InChannel.GetValues();
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = RootToLocalTransform.Inverse();
+
 	for (int32 Index = 0; Index < Times.Num(); ++Index)
 	{
 		const FFrameNumber KeyTime = Times[Index];
 		const T KeyValue = Values[Index];
 
 		FbxTime FbxTime;
-		const double KeyTimeSeconds = GetExportOptions()->bExportLocalTime ? KeyTime / TickResolution : (KeyTime * RootToLocalTransform.InverseNoLooping()) / TickResolution;
 
-		FbxTime.SetSecondDouble(KeyTimeSeconds);
+		if (GetExportOptions()->bExportLocalTime)
+		{
+			FbxTime.SetSecondDouble(TickResolution.AsSeconds(KeyTime));
+		}
+		// @todo: This code does not handle the root sequence having a different tick resolution than the local space, but we do
+		//        not have that information here so we have to just assume they match. This should be improved so that we have
+		//        all the information we need to do the right thing
+		else if (TOptional<FFrameTime> GlobalKeyTime = SequenceToRootTransform.TryTransformTime(KeyTime))
+		{
+			FbxTime.SetSecondDouble(TickResolution.AsSeconds(GlobalKeyTime.GetValue()));
+		}
+		else
+		{
+			// Doesn't map to a root time
+			continue;
+		}
 
 		const int FbxKeyIndex = InFbxCurve.KeyAdd(FbxTime);
 
@@ -3235,6 +3312,8 @@ void FFbxExporter::ExportLevelSequence3DTransformTrack(FbxNode* FbxNode, IMovieS
 		return;
 	}
 
+	FMovieSceneInverseSequenceTransform SequenceToRootTransform = RootToLocalTransform.Inverse();
+
 	FbxAnimLayer* BaseLayer = AnimStack->GetMember<FbxAnimLayer>(0);
 
 	AActor* BoundActor = Cast<AActor>(BoundObject);
@@ -3349,7 +3428,6 @@ void FFbxExporter::ExportLevelSequence3DTransformTrack(FbxNode* FbxNode, IMovieS
 		FbxCurveRotZ->KeyModifyBegin();
 
 		int32 LocalStartFrame = FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(InPlaybackRange)), TickResolution, DisplayRate).RoundToFrame().Value;
-		int32 StartFrame = FFrameRate::TransformTime(FFrameTime(UE::MovieScene::DiscreteInclusiveLower(InPlaybackRange) * RootToLocalTransform.InverseNoLooping()), TickResolution, DisplayRate).RoundToFrame().Value;
 		int32 AnimationLength = FFrameRate::TransformTime(FFrameTime(FFrameNumber(UE::MovieScene::DiscreteSize(InPlaybackRange))), TickResolution, DisplayRate).RoundToFrame().Value;
 
 		for (int32 FrameCount = 0; FrameCount <= AnimationLength; ++FrameCount)
@@ -3412,7 +3490,22 @@ void FFbxExporter::ExportLevelSequence3DTransformTrack(FbxNode* FbxNode, IMovieS
 			FbxVector4 KeyScale = Converter.ConvertToFbxScale(RelativeTransform.GetScale3D());
 
 			FbxTime FbxTime;
-			FbxTime.SetSecondDouble(GetExportOptions()->bExportLocalTime ? DisplayRate.AsSeconds(LocalFrame) : DisplayRate.AsSeconds(StartFrame + FrameCount));
+			if (GetExportOptions()->bExportLocalTime)
+			{
+				FbxTime.SetSecondDouble(DisplayRate.AsSeconds(LocalFrame));
+			}
+			// @todo: This code does not handle the root sequence having a different tick resolution than the local space, but we do
+			//        not have that information here so we have to just assume they match. This should be improved so that we have
+			//        all the information we need to do the right thing
+			else if (TOptional<FFrameTime> GlobalKeyTime = SequenceToRootTransform.TryTransformTime(LocalTime))
+			{
+				FbxTime.SetSecondDouble(TickResolution.AsSeconds(GlobalKeyTime.GetValue()));
+			}
+			else
+			{
+				// Doesn't map to a root time
+				continue;
+			}
 
 			FbxCurveRotX->KeySet(FbxCurveRotX->KeyAdd(FbxTime), FbxTime, KeyRot[0]);
 			FbxCurveRotY->KeySet(FbxCurveRotY->KeyAdd(FbxTime), FbxTime, KeyRot[1]);
@@ -3534,7 +3627,7 @@ void FFbxExporter::ExportLevelSequenceBaked3DTransformTrack(IAnimTrackAdapter& A
 		FbxCurveScaleZ->KeyModifyBegin();
 	}
 
-	FMovieSceneSequenceTransform LocalToRootTransform = RootToLocalTransform.InverseNoLooping();
+	FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
 
 	TArray<FTransform> RelativeTransforms;
 	int32 LocalStartFrame = FFrameRate::TransformTime(FFrameTime(DiscreteInclusiveLower(InPlaybackRange)), TickResolution, DisplayRate).RoundToFrame().Value;
@@ -3599,15 +3692,25 @@ void FFbxExporter::ExportLevelSequenceBaked3DTransformTrack(IAnimTrackAdapter& A
 		FbxVector4 KeyScale = Converter.ConvertToFbxScale(RelativeTransform.GetScale3D());
 
 		const int32 CurrentFrame = LocalStartFrame + TransformIndex;
+
+		const FFrameTime LocalTime = FFrameRate::TransformTime(CurrentFrame, DisplayRate, TickResolution);
+
 		FbxTime FbxTime;
 		if (GetExportOptions()->bExportLocalTime)
 		{
 			FbxTime.SetSecondDouble(DisplayRate.AsSeconds(CurrentFrame));
 		}
+		// @todo: This code does not handle the root sequence having a different tick resolution than the local space, but we do
+		//        not have that information here so we have to just assume they match. This should be improved so that we have
+		//        all the information we need to do the right thing
+		else if (TOptional<FFrameTime> GlobalKeyTime = LocalToRootTransform.TryTransformTime(LocalTime))
+		{
+			FbxTime.SetSecondDouble(TickResolution.AsSeconds(GlobalKeyTime.GetValue()));
+		}
 		else
 		{
-			FFrameTime CurrentTime = FFrameRate::TransformTime(CurrentFrame, DisplayRate, TickResolution) * LocalToRootTransform;
-			FbxTime.SetSecondDouble(DisplayRate.AsSeconds(FFrameRate::TransformTime(CurrentTime, TickResolution, DisplayRate)));
+			// Doesn't map to a root time
+			continue;
 		}
 
 		FbxCurveTransX->KeySet(FbxCurveTransX->KeyAdd(FbxTime), FbxTime, KeyTrans[0]);

@@ -19,6 +19,7 @@
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
 #include "UObject/Package.h"
+#include "Algo/Find.h"
 
 DECLARE_LOG_CATEGORY_CLASS(MovieSceneDMXLibrarySectionLog, Log, All);
 

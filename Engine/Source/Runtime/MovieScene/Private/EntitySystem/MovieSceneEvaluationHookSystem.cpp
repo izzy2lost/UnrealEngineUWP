@@ -43,11 +43,12 @@ struct FEvaluationHookUpdater
 			}
 
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandles[Index]);
+			FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceInstance.GetContext().GetRootToSequenceTransform().Inverse();
 
 			FMovieSceneEvaluationHookEvent NewEvent;
 			NewEvent.Hook          = Hooks[Index];
 			NewEvent.Type          = EEvaluationHookEvent::Update;
-			NewEvent.RootTime      = EvalTimes[Index] * SequenceInstance.GetContext().GetSequenceToRootSequenceTransform();
+			NewEvent.RootTime      = SequenceToRootTransform.TryTransformTime(EvalTimes[Index], SequenceInstance.GetContext().GetRootToSequenceWarpCounter()).Get(FFrameTime());
 			NewEvent.RootInstanceHandle = SequenceInstance.GetRootInstanceHandle();
 			NewEvent.SequenceID    = SequenceInstance.GetSequenceID();
 			NewEvent.bRestoreState = bRestoreState;
@@ -150,11 +151,12 @@ void UMovieSceneEvaluationHookSystem::UpdateHooks()
 		for (int32 Index = 0; Index < Num; ++Index)
 		{
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandles[Index]);
+			FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceInstance.GetContext().GetRootToSequenceTransform().Inverse();
 
 			FMovieSceneEvaluationHookEvent NewEvent;
 			NewEvent.Hook          = Hooks[Index];
 			NewEvent.Type          = EEvaluationHookEvent::Begin;
-			NewEvent.RootTime      = EvalTimes[Index] * SequenceInstance.GetContext().GetSequenceToRootSequenceTransform();
+			NewEvent.RootTime      = SequenceToRootTransform.TryTransformTime(EvalTimes[Index], SequenceInstance.GetContext().GetRootToSequenceWarpCounter()).Get(FFrameTime());
 			NewEvent.RootInstanceHandle = SequenceInstance.GetRootInstanceHandle();
 			NewEvent.SequenceID    = SequenceInstance.GetSequenceID();
 			NewEvent.bRestoreState = bRestoreState;
@@ -171,11 +173,12 @@ void UMovieSceneEvaluationHookSystem::UpdateHooks()
 		for (int32 Index = 0; Index < Num; ++Index)
 		{
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandles[Index]);
+			FMovieSceneInverseSequenceTransform SequenceToRootTransform = SequenceInstance.GetContext().GetRootToSequenceTransform().Inverse();
 
 			FMovieSceneEvaluationHookEvent NewEvent;
 			NewEvent.Hook          = Hooks[Index];
 			NewEvent.Type          = EEvaluationHookEvent::End;
-			NewEvent.RootTime      = EvalTimes[Index] * SequenceInstance.GetContext().GetSequenceToRootSequenceTransform();
+			NewEvent.RootTime      = SequenceToRootTransform.TryTransformTime(EvalTimes[Index], SequenceInstance.GetContext().GetRootToSequenceWarpCounter()).Get(FFrameTime());
 			NewEvent.RootInstanceHandle = SequenceInstance.GetRootInstanceHandle();
 			NewEvent.SequenceID    = SequenceInstance.GetSequenceID();
 			NewEvent.bRestoreState = bRestoreState;

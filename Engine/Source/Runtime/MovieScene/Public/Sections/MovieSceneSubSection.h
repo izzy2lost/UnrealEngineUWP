@@ -101,6 +101,16 @@ public:
 	MOVIESCENE_API FMovieSceneSequenceTransform OuterToInnerTransform() const;
 
 	/**
+	 * Gets the transform that converts time from this section's time-base to its inner sequence's
+	 */
+	MOVIESCENE_API FMovieSceneSequenceTransform OuterToInnerTransform_NoInnerTimeWarp() const;
+
+	/**
+	 * Gets the transform that converts time from this section's time-base to its inner sequence's
+	 */
+	MOVIESCENE_API void AppendInnerTimeWarpTransform(FMovieSceneSequenceTransform& OutTransform) const;
+
+	/**
 	 * Gets the playrange of the inner sequence, in the inner sequence's time space, trimmed with any start/end offsets,
 	 * and validated to make sure we get at least a 1-frame long playback range (e.g. in the case where excessive
 	 * trimming results in an invalid range).
@@ -143,6 +153,8 @@ public:
 		NetworkMask = (uint8)InNetworkMask;
 	}
 
+	MOVIESCENE_API void DeleteChannels(TArrayView<const FName> ChannelNames);
+
 public:
 
 	//~ UMovieSceneSection interface
@@ -158,6 +170,8 @@ protected:
 
 	MOVIESCENE_API virtual bool PopulateEvaluationFieldImpl(const TRange<FFrameNumber>& EffectiveRange, const FMovieSceneEvaluationFieldEntityMetaData& InMetaData, FMovieSceneEntityComponentFieldBuilder* OutFieldBuilder) override;
 	MOVIESCENE_API virtual void ImportEntityImpl(UMovieSceneEntitySystemLinker* EntityLinker, const FEntityImportParams& Params, FImportedEntity* OutImportedEntity) override;
+
+	MOVIESCENE_API virtual EMovieSceneChannelProxyType CacheChannelProxy();
 
 public:
 

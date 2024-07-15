@@ -263,13 +263,125 @@ inline TRange<FFrameTime> ConvertToFrameTimeRange(const TRange<FFrameNumber>& In
 	TRange<FFrameTime> Result;
 	if (InRange.HasLowerBound())
 	{
-		Result.SetLowerBound(TRangeBound<FFrameTime>(InRange.GetLowerBoundValue()));
+		if (InRange.GetLowerBound().IsInclusive())
+		{
+			Result.SetLowerBound(TRangeBound<FFrameTime>::Inclusive(InRange.GetLowerBoundValue()));
+		}
+		else
+		{
+			Result.SetLowerBound(TRangeBound<FFrameTime>::Exclusive(InRange.GetLowerBoundValue()));
+		}
 	}
 	if (InRange.HasUpperBound())
 	{
-		Result.SetUpperBound(TRangeBound<FFrameTime>(InRange.GetUpperBoundValue()));
+		if (InRange.GetUpperBound().IsInclusive())
+		{
+			Result.SetUpperBound(TRangeBound<FFrameTime>::Inclusive(InRange.GetUpperBoundValue()));
+		}
+		else
+		{
+			Result.SetUpperBound(TRangeBound<FFrameTime>::Exclusive(InRange.GetUpperBoundValue()));
+		}
 	}
 	return Result;
+}
+
+inline TRange<FFrameTime> ConvertToFrameTimeRange(const TRange<float>& InRange)
+{
+	TRange<FFrameTime> Result;
+	if (InRange.HasLowerBound())
+	{
+		if (InRange.GetLowerBound().IsInclusive())
+		{
+			Result.SetLowerBound(TRangeBound<FFrameTime>::Inclusive(FFrameTime::FromDecimal(InRange.GetLowerBoundValue())));
+		}
+		else
+		{
+			Result.SetLowerBound(TRangeBound<FFrameTime>::Exclusive(FFrameTime::FromDecimal(InRange.GetLowerBoundValue())));
+		}
+	}
+	if (InRange.HasUpperBound())
+	{
+		if (InRange.GetUpperBound().IsInclusive())
+		{
+			Result.SetUpperBound(TRangeBound<FFrameTime>::Inclusive(FFrameTime::FromDecimal(InRange.GetUpperBoundValue())));
+		}
+		else
+		{
+			Result.SetUpperBound(TRangeBound<FFrameTime>::Exclusive(FFrameTime::FromDecimal(InRange.GetUpperBoundValue())));
+		}
+	}
+	return Result;
+}
+
+inline TRange<FFrameNumber> ConvertToDiscreteRange(const TRange<FFrameTime>& InRange)
+{
+	TRange<FFrameNumber> Result;
+	if (InRange.HasLowerBound())
+	{
+		// A frame time of (10.5 does not include _all_ of frame 10, so we can't include that frame
+		FFrameTime LowerBound = InRange.GetLowerBoundValue();
+		if (InRange.GetLowerBound().IsInclusive() && LowerBound.GetSubFrame() == 0.f)
+		{
+			Result.SetLowerBound(TRangeBound<FFrameNumber>::Inclusive(LowerBound.GetFrame()));
+		}
+		else
+		{
+			Result.SetLowerBound(TRangeBound<FFrameNumber>::Inclusive(LowerBound.GetFrame()+1));
+		}
+	}
+	if (InRange.HasUpperBound())
+	{
+		FFrameTime UpperBound = InRange.GetUpperBoundValue();
+		Result.SetUpperBound(TRangeBound<FFrameNumber>::Exclusive(UpperBound.GetFrame()));
+	}
+	return Result;
+}
+
+
+/**
+ * Converts a range from one type of bounds to another. The output bounds type must be implicitly
+ * constructable from the input bounds type.
+ */
+template<typename InBoundType, typename OutBoundType>
+inline TRange<OutBoundType> ConvertRange(const TRange<InBoundType>& Range)
+{
+	const TRangeBound<InBoundType> SourceLower = Range.GetLowerBound();
+	TRangeBound<OutBoundType> DestLower = SourceLower.IsOpen() ?
+		TRangeBound<OutBoundType>() :
+		SourceLower.IsInclusive() ?
+			TRangeBound<OutBoundType>::Inclusive(SourceLower.GetValue()) :
+			TRangeBound<OutBoundType>::Exclusive(SourceLower.GetValue());
+
+	const TRangeBound<InBoundType> SourceUpper = Range.GetUpperBound();
+	TRangeBound<OutBoundType> DestUpper = SourceUpper.IsOpen() ?
+		TRangeBound<OutBoundType>() :
+		SourceUpper.IsInclusive() ?
+			TRangeBound<OutBoundType>::Inclusive(SourceUpper.GetValue()) :
+			TRangeBound<OutBoundType>::Exclusive(SourceUpper.GetValue());
+
+	return TRange<OutBoundType>(DestLower, DestUpper);
+}
+
+// Specialization of ConvertRange for round down FFrameTime to FFrameNumber.
+template<>
+inline TRange<FFrameNumber> ConvertRange(const TRange<FFrameTime>& Range)
+{
+	const TRangeBound<FFrameTime> SourceLower = Range.GetLowerBound();
+	TRangeBound<FFrameNumber> DestLower = SourceLower.IsOpen() ?
+		TRangeBound<FFrameNumber>() :
+		SourceLower.IsInclusive() ?
+			TRangeBound<FFrameNumber>::Inclusive(SourceLower.GetValue().FloorToFrame()) :
+			TRangeBound<FFrameNumber>::Exclusive(SourceLower.GetValue().FloorToFrame());
+
+	const TRangeBound<FFrameTime> SourceUpper = Range.GetUpperBound();
+	TRangeBound<FFrameNumber> DestUpper = SourceUpper.IsOpen() ?
+		TRangeBound<FFrameNumber>() :
+		SourceUpper.IsInclusive() ?
+			TRangeBound<FFrameNumber>::Inclusive(SourceUpper.GetValue().FloorToFrame()) :
+			TRangeBound<FFrameNumber>::Exclusive(SourceUpper.GetValue().FloorToFrame());
+
+	return TRange<FFrameNumber>(DestLower, DestUpper);
 }
 
 } // namespace MovieScene

@@ -80,11 +80,17 @@ void UMovieSceneEventTriggerSection::ImportEntityImpl(UMovieSceneEntitySystemLin
 		EventSystem = EntityLinker->LinkSystem<UMovieScenePostEvalEventSystem>();
 	}
 
+	TOptional<FFrameTime> RootTime = Context.GetSequenceToRootSequenceTransform().TryTransformTime(Times[EventIndex]);
+	if (!RootTime)
+	{
+		return;
+	}
+
 	FMovieSceneEventTriggerData TriggerData = {
 		Events[EventIndex].Ptrs,
 		Params.GetObjectBindingID(),
 		ThisInstance.GetSequenceID(),
-		Times[EventIndex] * Context.GetSequenceToRootSequenceTransform()
+		RootTime.GetValue()
 	};
 
 	EventSystem->AddEvent(ThisInstance.GetRootInstanceHandle(), TriggerData);

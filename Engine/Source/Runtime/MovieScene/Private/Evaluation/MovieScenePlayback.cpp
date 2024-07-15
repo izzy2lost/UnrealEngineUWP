@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Evaluation/MovieScenePlayback.h"
-
+#include "MovieSceneTransformTypes.h"
 #include "MovieScene.h"
 
 namespace 
@@ -140,6 +140,44 @@ TRange<FFrameTime> FMovieSceneEvaluationRange::NumberRangeToTimeRange(const TRan
 	}
 
 	return FrameTimeRange;
+}
+
+
+FMovieSceneContext FMovieSceneContext::Transform(const FMovieSceneSequenceTransform& InTransform, FFrameRate NewFrameRate) const
+{
+	using namespace UE::MovieScene;
+
+	FMovieSceneContext NewContext = *this;
+	NewContext.RootToSequenceTransform = NewContext.RootToSequenceTransform * InTransform;
+	NewContext.CurrentFrameRate = NewFrameRate;
+
+	NewContext.EvaluationRange = InTransform.ComputeTraversedHull(EvaluationRange);
+
+	if (NewContext.EvaluationRange.GetLowerBound().IsClosed() && NewContext.EvaluationRange.GetUpperBound().IsClosed() && NewContext.EvaluationRange.GetLowerBoundValue() > NewContext.EvaluationRange.GetUpperBoundValue())
+	{
+		TRangeBound<FFrameTime> OldLower = NewContext.EvaluationRange.GetLowerBound();
+		TRangeBound<FFrameTime> OldUpper = NewContext.EvaluationRange.GetUpperBound();
+		NewContext.EvaluationRange.SetLowerBound(OldUpper);
+		NewContext.EvaluationRange.SetUpperBound(OldLower);
+		NewContext.Direction = EPlayDirection::Backwards;
+	}
+
+	// Transform the current time so we get an idea in what loop(s) we are relative to the root sequence.
+	InTransform.TransformTime(GetTime(), FTransformTimeParams().AppendBreadcrumbs(NewContext.RootToSequenceWarpCounter));
+
+	return NewContext;
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FMovieSceneTimeTransform FMovieSceneContext::GetSequenceToRootTransform() const
+{
+	return RootToSequenceTransform.Inverse().AsLegacyLinearTimeTransform();
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+FMovieSceneInverseSequenceTransform FMovieSceneContext::GetSequenceToRootSequenceTransform() const
+{
+	return RootToSequenceTransform.Inverse();
 }
 
 void FMovieScenePlaybackPosition::CheckInvariants() const

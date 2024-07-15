@@ -33,7 +33,24 @@ namespace UE::Sequencer
 	class FChannelModel;
 	class STrackAreaLaneView;
 	struct FCreateTrackLaneViewParams;
-}
+
+	struct FCreateCurveEditorModelParams
+	{
+		UMovieSceneSection* OwningSection;
+		UObject* OwningObject;
+		TSharedRef<ISequencer> Sequencer;
+	};
+
+	struct FCreateKeyEditorParams
+	{
+		UMovieSceneSection* OwningSection;
+		UObject* OwningObject;
+		TSharedRef<ISequencer> Sequencer;
+		FGuid ObjectBindingID;
+		TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings;
+	};
+
+} // namespace UE::Sequencer
 
 /** Utility struct representing a number of selected keys on a single channel */
 struct FExtendKeyMenuParams
@@ -115,13 +132,10 @@ struct ISequencerChannelInterface
 	 * Create an editor on the sequencer node tree
 	 *
 	 * @param Channel               The channel handle to create a key editor for
-	 * @param Section               The section that owns this channel
-	 * @param InObjectBindingID     The ID of the object this key area's track is bound to
-	 * @param PropertyBindings      (Optional) Property bindings where this channel exists on a property track
-	 * @param Sequencer             The currently active sequencer
+	 * @param Params                Creation parameters containing all the necessary structures for creating the key editor
 	 * @return The editor widget to display on the node tree
 	 */
-	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* Section, const FGuid& InObjectBindingID, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings, TWeakPtr<ISequencer> Sequencer) const = 0;
+	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateKeyEditorParams& Params) const = 0;
 
 	/**
 	 * Extend the key context menu
@@ -171,7 +185,7 @@ struct ISequencerChannelInterface
 	 *
 	 * @return (Optional) A new model to be added to a curve editor
 	 */
-	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer) const = 0;
+	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateCurveEditorModelParams& Params) const = 0;
 
 	/**
 	 * Create a new channel model for this type of channel

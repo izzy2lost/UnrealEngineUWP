@@ -6,11 +6,11 @@
 
 struct FPropertyChangedEvent;
 
-void UDoubleChannelKeyProxy::Initialize(FKeyHandle InKeyHandle, TMovieSceneChannelHandle<FMovieSceneDoubleChannel> InChannelHandle, TWeakObjectPtr<UMovieSceneSection> InWeakSection)
+void UDoubleChannelKeyProxy::Initialize(FKeyHandle InKeyHandle, TMovieSceneChannelHandle<FMovieSceneDoubleChannel> InChannelHandle, TWeakObjectPtr<UMovieSceneSignedObject> InWeakSignedObject)
 {
-	KeyHandle     = InKeyHandle;
-	ChannelHandle = InChannelHandle;
-	WeakSection   = InWeakSection;
+	KeyHandle          = InKeyHandle;
+	ChannelHandle      = InChannelHandle;
+	WeakSignedObject   = InWeakSignedObject;
 }
 
 
@@ -18,7 +18,7 @@ void UDoubleChannelKeyProxy::PostEditChangeProperty(FPropertyChangedEvent& Prope
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	OnProxyValueChanged(ChannelHandle, WeakSection.Get(), KeyHandle, Value, Time);
+	OnProxyValueChanged(ChannelHandle, WeakSignedObject.Get(), KeyHandle, Value, Time);
 }
 
 void UDoubleChannelKeyProxy::UpdateValuesFromRawData()

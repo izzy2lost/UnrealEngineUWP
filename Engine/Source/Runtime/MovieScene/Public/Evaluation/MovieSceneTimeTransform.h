@@ -40,7 +40,9 @@ struct FMovieSceneTimeTransform
 	explicit FMovieSceneTimeTransform(FFrameTime InOffset, float InTimeScale = 1.f)
 		: TimeScale(InTimeScale)
 		, Offset(InOffset)
-	{}
+	{
+		checkf(!FMath::IsNearlyZero(TimeScale), TEXT("It is invalid to create a linear transformation with a zero timescale. This case should be handled externally by FMovieSceneTimeWarpVariant and FLAG_Zero."))
+	}
 
 	friend bool operator==(const FMovieSceneTimeTransform& A, const FMovieSceneTimeTransform& B)
 	{
@@ -121,56 +123,34 @@ inline FFrameTime& operator*=(FFrameTime& InTime, const FMovieSceneTimeTransform
 template<typename T>
 TRange<T> operator*(const TRange<T>& LHS, const FMovieSceneTimeTransform& RHS)
 {
-	//  Special case large (inf) timescale to return open range.
-	if (!FMath::IsFinite(RHS.TimeScale))
-		return TRange<T>(TRangeBound<T>::Open(), TRangeBound<T>::Open());
+	TRange<T> Result = LHS;
 
-	// Special case 0-timescale below. We force multiplies with zero timescale to always have inclusive boundaries to prevent no frames from being present.
-	TRangeBound<T> SourceLower = LHS.GetLowerBound();
-	TRangeBound<T> TransformedLower =
-		SourceLower.IsOpen() ? 
-			TRangeBound<T>() : 
-			SourceLower.IsInclusive() || FMath::IsNearlyZero(RHS.TimeScale)  ?
-				TRangeBound<T>::Inclusive(SourceLower.GetValue() * RHS) :
-				TRangeBound<T>::Exclusive(SourceLower.GetValue() * RHS);
+	if (!Result.GetLowerBound().IsOpen())
+	{
+		Result.SetLowerBoundValue(Result.GetLowerBoundValue() * RHS);
+	}
+	if (!Result.GetUpperBound().IsOpen())
+	{
+		Result.SetUpperBoundValue(Result.GetUpperBoundValue() * RHS);
+	}
 
-	TRangeBound<T> SourceUpper = LHS.GetUpperBound();
-	TRangeBound<T> TransformedUpper =
-		SourceUpper.IsOpen() ? 
-			TRangeBound<T>() : 
-			SourceUpper.IsInclusive() || FMath::IsNearlyZero(RHS.TimeScale) ?
-				TRangeBound<T>::Inclusive(SourceUpper.GetValue() * RHS) :
-				TRangeBound<T>::Exclusive(SourceUpper.GetValue() * RHS);
-
-	return TRange<T>(TransformedLower, TransformedUpper);
+	return Result;
 }
 
 inline TRange<FFrameNumber> operator*(const TRange<FFrameNumber>& LHS, const FMovieSceneTimeTransform& RHS)
 {
-	// Special case large (inf) timescale to return open range.
-	if (!FMath::IsFinite(RHS.TimeScale))
+	TRange<FFrameNumber> Result = LHS;
+
+	if (!Result.GetLowerBound().IsOpen())
 	{
-		return TRange<FFrameNumber>(TRangeBound<FFrameNumber>::Open(), TRangeBound<FFrameNumber>::Open());
+		Result.SetLowerBoundValue((Result.GetLowerBoundValue() * RHS).FloorToFrame());
 	}
-	
-	// Special case 0-timescale below. We force multiplies with zero timescale to always have inclusive boundaries to prevent no frames from being present.
-	TRangeBound<FFrameNumber> SourceLower = LHS.GetLowerBound();
-	TRangeBound<FFrameNumber> TransformedLower =
-		SourceLower.IsOpen() ? 
-			TRangeBound<FFrameNumber>() : 
-			SourceLower.IsInclusive() || FMath::IsNearlyZero(RHS.TimeScale) ?
-				TRangeBound<FFrameNumber>::Inclusive((SourceLower.GetValue() * RHS).FloorToFrame()) :
-				TRangeBound<FFrameNumber>::Exclusive((SourceLower.GetValue() * RHS).FloorToFrame());
+	if (!Result.GetUpperBound().IsOpen())
+	{
+		Result.SetUpperBoundValue((Result.GetUpperBoundValue() * RHS).FloorToFrame());
+	}
 
-	TRangeBound<FFrameNumber> SourceUpper = LHS.GetUpperBound();
-	TRangeBound<FFrameNumber> TransformedUpper =
-		SourceUpper.IsOpen() ? 
-			TRangeBound<FFrameNumber>() : 
-			SourceUpper.IsInclusive() || FMath::IsNearlyZero(RHS.TimeScale) ?
-				TRangeBound<FFrameNumber>::Inclusive((SourceUpper.GetValue() * RHS).FloorToFrame()) :
-				TRangeBound<FFrameNumber>::Exclusive((SourceUpper.GetValue() * RHS).FloorToFrame());
-
-	return TRange<FFrameNumber>(TransformedLower, TransformedUpper);
+	return Result;
 }
 
 /**

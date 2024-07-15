@@ -15,6 +15,26 @@
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 
+template<typename NumericType>
+struct INumericTypeInterface;
+
+template<typename ValueType>
+struct ISequencerKeyEditor
+{
+	virtual ~ISequencerKeyEditor(){}
+
+	virtual TSharedPtr<INumericTypeInterface<ValueType>> GetNumericTypeInterface() const = 0;
+	virtual TOptional<ValueType> GetExternalValue() const = 0;
+	virtual ValueType GetCurrentValue() const = 0;
+	virtual void SetValue(const ValueType& InValue) = 0;
+	virtual void SetValueWithNotify(const ValueType& InValue, EMovieSceneDataChangeType NotifyType = EMovieSceneDataChangeType::TrackValueChanged) = 0;
+	virtual const FGuid& GetObjectBindingID() const = 0;
+	virtual ISequencer* GetSequencer() const = 0;
+	virtual FTrackInstancePropertyBindings* GetPropertyBindings() const = 0;
+	virtual FString GetMetaData(const FName& Key) const = 0;
+	virtual bool GetEditingKeySelection() const = 0;
+};
+
 template<typename ChannelType, typename ValueType>
 struct TSequencerKeyEditor
 {
@@ -59,6 +79,21 @@ struct TSequencerKeyEditor
 		return TOptional<ValueType>();
 	}
 
+	void SetOwningObject(TWeakObjectPtr<UMovieSceneSignedObject> InWeakOwningObject)
+	{
+		WeakOwningObject = InWeakOwningObject;
+	}
+
+	void SetNumericTypeInterface(TSharedPtr<INumericTypeInterface<ValueType>> InNumericTypeInterface)
+	{
+		NumericTypeInterface = InNumericTypeInterface;
+	}
+
+	TSharedPtr<INumericTypeInterface<ValueType>> GetNumericTypeInterface() const
+	{
+		return NumericTypeInterface;
+	}
+
 	TOptional<ValueType> GetExternalValue() const
 	{
 		return Get(ObjectBindingID, WeakSequencer.Pin().Get(), WeakPropertyBindings.Pin().Get(), OnGetExternalValue);
@@ -71,12 +106,14 @@ struct TSequencerKeyEditor
 		ChannelType* Channel = ChannelHandle.Get();
 		ISequencer* Sequencer = WeakSequencer.Pin().Get();
 		UMovieSceneSection* OwningSection = WeakSection.Get();
+		const FMovieSceneChannelMetaData* ChannelMetaData = ChannelHandle.GetMetaData();
 
 		ValueType Result{};
 
-		if (Channel && Sequencer && OwningSection)
+		if (Channel && ChannelMetaData && Sequencer && OwningSection)
 		{
-			const FFrameTime CurrentTime = UE::MovieScene::ClampToDiscreteRange(Sequencer->GetLocalTime().Time, OwningSection->GetRange());
+			const FFrameTime CurrentTime = UE::MovieScene::ClampToDiscreteRange(Sequencer->GetLocalTime().Time, OwningSection->GetRange()) - ChannelMetaData->GetOffsetTime(OwningSection);
+
 			//If we have no keys and no default, key with the external value if it exists
 			if (!EvaluateChannel(OwningSection, Channel, CurrentTime, Result))
 			{
@@ -136,15 +173,23 @@ struct TSequencerKeyEditor
 			return;
 		}
 
-		OwningSection->SetFlags(RF_Transactional);
-
 		ChannelType* Channel = ChannelHandle.Get();
 		ISequencer* Sequencer = WeakSequencer.Pin().Get();
+		const FMovieSceneChannelMetaData* ChannelMetaData = ChannelHandle.GetMetaData();
 
-		if (!OwningSection->TryModify() || !Channel || !Sequencer)
+		if (OwningSection->IsReadOnly() || !Channel || !Sequencer || !ChannelMetaData)
 		{
 			return;
 		}
+
+		UMovieSceneSignedObject* Owner = WeakOwningObject.Get();
+		if (!Owner)
+		{
+			Owner = OwningSection;
+		}
+
+		Owner->Modify();
+		Owner->SetFlags(RF_Transactional);
 
 		const bool  bAutoSetTrackDefaults = Sequencer->GetAutoSetTrackDefaults();
 
@@ -169,7 +214,7 @@ struct TSequencerKeyEditor
 		}
 		else
 		{
-			const FFrameNumber CurrentTime = Sequencer->GetLocalTime().Time.FloorToFrame();
+			const FFrameNumber CurrentTime = Sequencer->GetLocalTime().Time.FloorToFrame() - ChannelMetaData->GetOffsetTime(OwningSection);
 
 			EMovieSceneKeyInterpolation Interpolation = GetInterpolationMode(Channel, CurrentTime, Sequencer->GetKeyInterpolation());
 
@@ -275,7 +320,65 @@ private:
 	FGuid ObjectBindingID;
 	TMovieSceneChannelHandle<ChannelType> ChannelHandle;
 	TWeakObjectPtr<UMovieSceneSection> WeakSection;
+	TWeakObjectPtr<UMovieSceneSignedObject> WeakOwningObject;
 	TWeakPtr<ISequencer> WeakSequencer;
 	TWeakPtr<FTrackInstancePropertyBindings> WeakPropertyBindings;
 	TFunction<TOptional<ValueType>(UObject&, FTrackInstancePropertyBindings*)> OnGetExternalValue;
+	TSharedPtr<INumericTypeInterface<ValueType>> NumericTypeInterface;
+};
+
+
+
+
+template<typename ChannelType, typename ValueType>
+struct TSequencerKeyEditorWrapper : ISequencerKeyEditor<ValueType>
+{
+	TSequencerKeyEditorWrapper(const TSequencerKeyEditor<ChannelType, ValueType>& InKeyEditor)
+		: Impl(InKeyEditor)
+	{}
+
+	TSharedPtr<INumericTypeInterface<ValueType>> GetNumericTypeInterface() const override
+	{
+		return Impl.GetNumericTypeInterface();
+	}
+	TOptional<ValueType> GetExternalValue() const override
+	{
+		return Impl.GetExternalValue();
+	}
+	ValueType GetCurrentValue() const override
+	{
+		return Impl.GetCurrentValue();
+	}
+	void SetValue(const ValueType& InValue) override
+	{
+		return Impl.SetValue(InValue);
+	}
+	void SetValueWithNotify(const ValueType& InValue, EMovieSceneDataChangeType NotifyType) override
+	{
+		return Impl.SetValueWithNotify(InValue, NotifyType);
+	}
+	const FGuid& GetObjectBindingID() const override
+	{
+		return Impl.GetObjectBindingID();
+	}
+	ISequencer* GetSequencer() const override
+	{
+		return Impl.GetSequencer();
+	}
+	FTrackInstancePropertyBindings* GetPropertyBindings() const override
+	{
+		return Impl.GetPropertyBindings();
+	}
+	FString GetMetaData(const FName& Key) const override
+	{
+		return Impl.GetMetaData(Key);
+	}
+	bool GetEditingKeySelection() const override
+	{
+		return Impl.GetEditingKeySelection();
+	}
+
+private:
+
+	TSequencerKeyEditor<ChannelType, ValueType> Impl;
 };

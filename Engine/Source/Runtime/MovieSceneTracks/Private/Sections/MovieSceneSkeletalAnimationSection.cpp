@@ -10,12 +10,15 @@
 #include "MovieSceneTimeHelpers.h"
 #include "Tracks/MovieSceneSkeletalAnimationTrack.h"
 #include "BoneContainer.h"
+#include "MovieSceneTransformTypes.h"
 #include "Animation/AnimationPoseData.h"
 #include "Animation/AnimSequenceDecompressionContext.h"
 #include "Animation/AttributesRuntime.h"
 #include "Misc/FrameRate.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "MovieSceneTracksComponentTypes.h"
+#include "Sections/MovieSceneSectionTimingParameters.h"
+#include "Variants/MovieSceneTimeWarpGetter.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSkeletalAnimationSection)
 
@@ -46,6 +49,32 @@ FMovieSceneSkeletalAnimationParams::FMovieSceneSkeletalAnimationParams()
 	SwapRootBone = ESwapRootBone::SwapRootBone_None;
 }
 
+FMovieSceneSequenceTransform FMovieSceneSkeletalAnimationParams::MakeTransform(const FFrameRate& OuterFrameRate, const TRange<FFrameNumber>& OuterRange) const
+{
+	if (!Animation)
+	{
+		return FMovieSceneSequenceTransform();
+	}
+
+	const double SequenceLength = GetSequenceLength();
+	const FFrameTime AnimationLength = SequenceLength * OuterFrameRate;
+	const int32 LengthInFrames = AnimationLength.FrameNumber.Value + (int)(AnimationLength.GetSubFrame() + 0.5f) + 1;
+
+	const bool bLooping = (UE::MovieScene::DiscreteSize(OuterRange) + StartFrameOffset + EndFrameOffset) > LengthInFrames;
+
+	FMovieSceneSectionTimingParametersSeconds TimingParams = {
+		PlayRate.ShallowCopy(),
+		StartFrameOffset / OuterFrameRate,
+		EndFrameOffset / OuterFrameRate,
+		FirstLoopStartFrameOffset / OuterFrameRate,
+		bLooping,
+		!bLooping,
+		bReverse
+	};
+
+	return TimingParams.MakeTransform(OuterFrameRate, OuterRange, SequenceLength, Animation->RateScale);
+}
+
 double FMovieSceneSkeletalAnimationParams::MapTimeToAnimation(const UMovieSceneSection* InSection, FFrameTime InPosition, FFrameRate InFrameRate) const
 {
 	const FFrameNumber SectionStartTime = InSection->GetInclusiveStartFrame();
@@ -55,47 +84,7 @@ double FMovieSceneSkeletalAnimationParams::MapTimeToAnimation(const UMovieSceneS
 
 double FMovieSceneSkeletalAnimationParams::MapTimeToAnimation(FFrameNumber InSectionStartTime, FFrameNumber InSectionEndTime, FFrameTime InPosition, FFrameRate InFrameRate) const
 {
-	// Get Animation Length and frame time
-	if (Animation)
-	{
-		const FFrameTime AnimationLength = GetSequenceLength() * InFrameRate;
-		const int32 LengthInFrames = AnimationLength.FrameNumber.Value + (int)(AnimationLength.GetSubFrame() + 0.5f) + 1;
-
-		// we only play end if we are not looping, and assuming we are looping if Length is greater than default length;
-		const bool bLooping = (InSectionEndTime.Value - InSectionStartTime.Value + StartFrameOffset + EndFrameOffset) > LengthInFrames;
-
-		// Make sure InPosition FrameTime doesn't underflow InSectionStartTime or overflow InSectionEndTime
-		InPosition = FMath::Clamp(InPosition, FFrameTime(InSectionStartTime), FFrameTime(InSectionEndTime - 1));
-
-		// Gather helper values
-		const float SectionPlayRate = PlayRate * Animation->RateScale;
-		const float AnimPlayRate = FMath::IsNearlyZero(SectionPlayRate) ? 1.0f : SectionPlayRate;
-		const double SeqLength = GetSequenceLength() - InFrameRate.AsSeconds(StartFrameOffset + EndFrameOffset);
-
-		// The Time from the beginning of InSectionStartTime to InPosition in seconds
-		double SecondsFromSectionStart = FFrameTime::FromDecimal((InPosition - InSectionStartTime).AsDecimal() * AnimPlayRate) / InFrameRate;
-
-		// Logic for reversed animation
-		if (bReverse)
-		{
-			// Duration of this section 
-			double SectionDuration = (((InSectionEndTime - InSectionStartTime) * AnimPlayRate) / InFrameRate);
-			SecondsFromSectionStart = SectionDuration - SecondsFromSectionStart;
-		}
-
-		SecondsFromSectionStart += InFrameRate.AsSeconds(FirstLoopStartFrameOffset);
-
-		// Make sure Seconds is in range
-		if (SeqLength > 0.0 && (bLooping || !FMath::IsNearlyEqual(SecondsFromSectionStart, SeqLength, 1e-4)))
-		{
-			SecondsFromSectionStart = FMath::Fmod(SecondsFromSectionStart, SeqLength);
-		}
-
-		// Add the StartFrameOffset to the current seconds in the section to get the right animation frame
-		SecondsFromSectionStart += InFrameRate.AsSeconds(StartFrameOffset);
-		return SecondsFromSectionStart;
-	}
-	return 0.0;
+	return MakeTransform(InFrameRate, TRange<FFrameNumber>(InSectionStartTime, InSectionEndTime)).TransformTime(InPosition).AsDecimal();
 }
 
 UMovieSceneSkeletalAnimationSection::UMovieSceneSkeletalAnimationSection( const FObjectInitializer& ObjectInitializer )
@@ -130,20 +119,59 @@ UMovieSceneSkeletalAnimationSection::UMovieSceneSkeletalAnimationSection( const 
 	bMatchRotationRoll = false;
 	bMatchRotationPitch = false;
 	bMatchIncludeZHeight = false;
+	bDebugForceTickPose = false;
+}
+
+EMovieSceneChannelProxyType UMovieSceneSkeletalAnimationSection::CacheChannelProxy()
+{
+	FMovieSceneChannelProxyData Channels;
+
+	if (Params.PlayRate.GetType() == EMovieSceneTimeWarpType::Custom)
+	{
+		UMovieSceneTimeWarpGetter* Custom = Params.PlayRate.AsCustom();
+		if (Custom)
+		{
+			Custom->PopulateChannelProxy(Channels, UMovieSceneTimeWarpGetter::EAllowTopLevelChannels::No);
+		}
+	}
+
 
 #if WITH_EDITOR
 
-	PreviousPlayRate = Params.PlayRate;
-
 	static FMovieSceneChannelMetaData MetaData("Weight", LOCTEXT("WeightChannelName", "Weight"));
 	MetaData.bCanCollapseToTrack = false;
-	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(Params.Weight, MetaData, TMovieSceneExternalValue<float>());
+
+	Channels.Add(Params.Weight, MetaData, TMovieSceneExternalValue<float>());
 
 #else
 
-	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(Params.Weight);
+	Channels.Add(Params.Weight);
 
 #endif
+
+	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(MoveTemp(Channels));
+	return EMovieSceneChannelProxyType::Dynamic;
+}
+
+void UMovieSceneSkeletalAnimationSection::DeleteChannels(TArrayView<const FName> ChannelNames)
+{
+	bool bDeletedAny = false;
+
+	if (Params.PlayRate.GetType() == EMovieSceneTimeWarpType::Custom && TryModify())
+	{
+		if (UMovieSceneTimeWarpGetter* Getter = Params.PlayRate.AsCustom())
+		{
+			for (FName ChannelName : ChannelNames)
+			{
+				bDeletedAny |= Getter->DeleteChannel(Params.PlayRate, ChannelName);
+			}
+		}
+	}
+
+	if (bDeletedAny)
+	{
+		ChannelProxy = nullptr;
+	}
 }
 
 TOptional<FFrameTime> UMovieSceneSkeletalAnimationSection::GetOffsetTime() const
@@ -274,14 +302,23 @@ void UMovieSceneSkeletalAnimationSection::PostLoad()
 
 TOptional<TRange<FFrameNumber> > UMovieSceneSkeletalAnimationSection::GetAutoSizeRange() const
 {
-	const FFrameRate FrameRate = GetTypedOuter<UMovieScene>()->GetTickResolution();
-	const float AnimPlayRate = FMath::IsNearlyZero(Params.PlayRate) || Params.Animation == nullptr ? 1.0f : Params.PlayRate * Params.Animation->RateScale;
+	if (UMovieScene* MovieScene = GetTypedOuter<UMovieScene>())
+	{
+		FFrameRate FrameRate = MovieScene->GetTickResolution();
+		FMovieSceneInverseSequenceTransform InnerToOuterTransform = Params.MakeTransform(FrameRate, GetRange()).Inverse();
 
-	const FFrameTime UnscaledAnimationLength = FMath::Max(Params.GetSequenceLength() * FrameRate - Params.FirstLoopStartFrameOffset - Params.StartFrameOffset - Params.EndFrameOffset, FFrameTime(1));
-	const FFrameTime AnimationLength = UnscaledAnimationLength / AnimPlayRate;
-	const int32 IFrameNumber = AnimationLength.FrameNumber.Value + (int)(AnimationLength.GetSubFrame() + 0.5f);
+		FFrameTime InnerStartTime = FFrameTime::FromDecimal((Params.StartFrameOffset + Params.FirstLoopStartFrameOffset) / FrameRate);
+		FFrameTime InnerEndTime   = FFrameTime::FromDecimal(Params.GetSequenceLength() - (Params.EndFrameOffset / FrameRate));
 
-	return TRange<FFrameNumber>(GetInclusiveStartFrame(), GetInclusiveStartFrame() + IFrameNumber + 1);
+		TOptional<FFrameTime> OuterStartTime = InnerToOuterTransform.TryTransformTime(InnerStartTime);
+		TOptional<FFrameTime> OuterEndTime   = InnerToOuterTransform.TryTransformTime(InnerEndTime);
+
+		if (OuterStartTime && OuterEndTime)
+		{
+			return TRange<FFrameNumber>(OuterStartTime.GetValue().FrameNumber, OuterEndTime.GetValue().FrameNumber + 1);
+		}
+	}
+	return TOptional<TRange<FFrameNumber>>();
 }
 
 
@@ -294,8 +331,10 @@ void UMovieSceneSkeletalAnimationSection::TrimSection(FQualifiedFrameTime TrimTi
 		if (bTrimLeft)
 		{
 			FFrameRate FrameRate = GetTypedOuter<UMovieScene>()->GetTickResolution();
+			FMovieSceneSequenceTransform OuterToInnerTransform = Params.MakeTransform(FrameRate, GetRange());
 
-			Params.FirstLoopStartFrameOffset = HasStartFrame() ? GetFirstLoopStartOffsetAtTrimTime(TrimTime, Params, GetInclusiveStartFrame(), FrameRate) : 0;
+			FFrameTime AnimationTimeInSeconds = OuterToInnerTransform.TransformTime(TrimTime.Time);
+			Params.FirstLoopStartFrameOffset = (AnimationTimeInSeconds.AsDecimal() * FrameRate).FrameNumber;
 		}
 
 		Super::TrimSection(TrimTime, bTrimLeft, bDeleteKeys);
@@ -334,8 +373,10 @@ UMovieSceneSection* UMovieSceneSkeletalAnimationSection::SplitSection(FQualified
 	const FFrameNumber InitialFirstLoopStartFrameOffset = Params.FirstLoopStartFrameOffset;
 
 	FFrameRate FrameRate = GetTypedOuter<UMovieScene>()->GetTickResolution();
+	FMovieSceneSequenceTransform OuterToInnerTransform = Params.MakeTransform(FrameRate, GetRange());
 
-	const FFrameNumber NewOffset = HasStartFrame() ? GetFirstLoopStartOffsetAtTrimTime(SplitTime, Params, GetInclusiveStartFrame(), FrameRate) : 0;
+	FFrameTime AnimationTimeInSeconds = OuterToInnerTransform.TransformTime(SplitTime.Time);
+	const FFrameNumber NewOffset = (AnimationTimeInSeconds.AsDecimal() * FrameRate).FrameNumber;
 
 	UMovieSceneSkeletalAnimationSection* NewSection = Cast<UMovieSceneSkeletalAnimationSection>(Super::SplitSection(SplitTime, bDeleteKeys));
 	if (NewSection != nullptr)
@@ -367,35 +408,36 @@ UMovieSceneSection* UMovieSceneSkeletalAnimationSection::SplitSection(FQualified
 
 void UMovieSceneSkeletalAnimationSection::GetSnapTimes(TArray<FFrameNumber>& OutSnapTimes, bool bGetSectionBorders) const
 {
+	using namespace UE::MovieScene;
+
 	Super::GetSnapTimes(OutSnapTimes, bGetSectionBorders);
 
-	const FFrameRate   FrameRate  = GetTypedOuter<UMovieScene>()->GetTickResolution();
+	const UMovieScene* MovieScene = GetTypedOuter<UMovieScene>();
 	const FFrameNumber StartFrame = GetInclusiveStartFrame();
-	const FFrameNumber EndFrame   = GetExclusiveEndFrame() - 1; // -1 because we don't need to add the end frame twice
+	const FFrameNumber EndFrame   = GetExclusiveEndFrame();
 
-	const float AnimPlayRate     = FMath::IsNearlyZero(Params.PlayRate) || Params.Animation == nullptr ? 1.0f : Params.PlayRate * Params.Animation->RateScale;
-	const float SeqLengthSeconds = Params.GetSequenceLength() - FrameRate.AsSeconds(Params.StartFrameOffset + Params.EndFrameOffset) / AnimPlayRate;
-	const float FirstLoopSeqLengthSeconds = SeqLengthSeconds - FrameRate.AsSeconds(Params.FirstLoopStartFrameOffset) / AnimPlayRate;
-
-	const FFrameTime SequenceFrameLength = SeqLengthSeconds * FrameRate;
-	const FFrameTime FirstLoopSequenceFrameLength = FirstLoopSeqLengthSeconds * FrameRate;
-	if (SequenceFrameLength.FrameNumber > 1)
+	if (!MovieScene)
 	{
-		// Snap to the repeat times
-		bool IsFirstLoop = true;
-		FFrameTime CurrentTime = StartFrame;
-		while (CurrentTime < EndFrame)
+		return;
+	}
+
+	auto VisitBoundary = [&OutSnapTimes](FFrameTime InTime)
+	{
+		OutSnapTimes.Add(InTime.RoundToFrame());
+		return true;
+	};
+
+	FMovieSceneSequenceTransform OuterToInnerTransform = Params.MakeTransform(MovieScene->GetTickResolution(), GetRange());
+
+	if (!OuterToInnerTransform.ExtractBoundariesWithinRange(StartFrame, EndFrame, VisitBoundary))
+	{
+		FMovieSceneInverseSequenceTransform InnerToOuterTransform = OuterToInnerTransform.Inverse();
+
+		TOptional<FFrameTime> AnimEnd   = InnerToOuterTransform.TryTransformTime(FFrameTime::FromDecimal(Params.GetSequenceLength()));
+
+		if (AnimEnd && AnimEnd.GetValue() < EndFrame)
 		{
-			OutSnapTimes.Add(CurrentTime.FrameNumber);
-			if (IsFirstLoop)
-			{
-				CurrentTime += FirstLoopSequenceFrameLength;
-				IsFirstLoop = false;
-			}
-			else
-			{
-				CurrentTime += SequenceFrameLength;
-			}
+			VisitBoundary(AnimEnd.GetValue());
 		}
 	}
 }
@@ -469,7 +511,10 @@ bool UMovieSceneSkeletalAnimationSection::Modify(bool bAlwaysMarkDirty)
 void UMovieSceneSkeletalAnimationSection::PreEditChange(FProperty* PropertyAboutToChange)
 {
 	// Store the current play rate so that we can compute the amount to compensate the section end time when the play rate changes
-	PreviousPlayRate = Params.PlayRate;
+	if (Params.PlayRate.GetType() == EMovieSceneTimeWarpType::FixedPlayRate)
+	{
+		PreviousPlayRate = Params.PlayRate.AsFixedPlayRateFloat();
+	}
 
 	Super::PreEditChange(PropertyAboutToChange);
 }
@@ -478,9 +523,10 @@ void UMovieSceneSkeletalAnimationSection::PostEditChangeProperty(FPropertyChange
 {
 	// Adjust the duration automatically if the play rate changes
 	if (PropertyChangedEvent.Property != nullptr &&
-		PropertyChangedEvent.Property->GetFName() == TEXT("PlayRate"))
+		PropertyChangedEvent.Property->GetFName() == TEXT("PlayRate") && 
+		Params.PlayRate.GetType() == EMovieSceneTimeWarpType::FixedPlayRate)
 	{
-		float NewPlayRate = Params.PlayRate;
+		float NewPlayRate = Params.PlayRate.AsFixedPlayRateFloat();
 
 		if (!FMath::IsNearlyZero(NewPlayRate))
 		{
@@ -490,6 +536,8 @@ void UMovieSceneSkeletalAnimationSection::PostEditChangeProperty(FPropertyChange
 
 			PreviousPlayRate = NewPlayRate;
 		}
+
+		ChannelProxy = nullptr;
 	}
 	if (GetRootMotionParams())
 	{

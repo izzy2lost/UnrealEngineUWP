@@ -81,6 +81,12 @@ struct FCurveDrawParams
 	/** Value defining how to draw keys of type ECurvePointType::LeaveTangent. */
 	FKeyDrawInfo LeaveTangentDrawInfo;
 
+	/** Thickness of this curve */
+	float Thickness = 2.f;
+
+	/** The color to draw this curve */
+	float DashLengthPx = 0.f;
+
 	/** Whether or not to draw keys on the curve. */
 	uint8 bKeyDrawEnabled : 1;
 

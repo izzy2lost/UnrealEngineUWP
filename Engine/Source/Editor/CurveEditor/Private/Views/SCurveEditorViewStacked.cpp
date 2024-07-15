@@ -40,6 +40,7 @@ struct FSlateBrush;
 void SCurveEditorViewStacked::Construct(const FArguments& InArgs, TWeakPtr<FCurveEditor> InCurveEditor)
 {
 	bFixedOutputBounds = true;
+	bAllowModelViewTransforms = false;
 	OutputMin = 0.0;
 	OutputMax = 1.0;
 
@@ -286,15 +287,15 @@ void SCurveEditorViewStacked::DrawLabels(const FGeometry& AllottedGeometry, cons
 	}
 }
 
-FTransform2D CalculateViewToCurveTransform(const double InCurveOutputMin, double const InCurveOutputMax, const double InValueOffset)
+FTransform2d CalculateViewToCurveTransform(const double InCurveOutputMin, double const InCurveOutputMax, const double InValueOffset)
 {
 	if (InCurveOutputMax > InCurveOutputMin)
 	{
-		return Concatenate(FVector2D(0.f, InValueOffset), Concatenate(FScale2D(1.f, (InCurveOutputMax - InCurveOutputMin)), FVector2D(0.f, InCurveOutputMin)));
+		return Concatenate(FVector2d(0.f, InValueOffset), Concatenate(FScale2d(1.f, (InCurveOutputMax - InCurveOutputMin)), FVector2d(0.f, InCurveOutputMin)));
 	}
 	else
 	{
-		return Concatenate(FVector2D(0.f, InValueOffset - 0.5), FVector2D(0.f, InCurveOutputMin));
+		return Concatenate(FVector2d(0.f, InValueOffset - 0.5), FVector2d(0.f, InCurveOutputMin));
 	}
 }
 
@@ -331,7 +332,7 @@ void SCurveEditorViewStacked::DrawBufferedCurves(const FGeometry& AllottedGeomet
 			continue;
 		}
 
-		FTransform2D ViewToBufferedCurveTransform;
+		FTransform2d ViewToBufferedCurveTransform;
 
 		const int32  CurveIndexFromBottom = CurveInfoByID.Num() - It->Value.CurveIndex - 1;
 		const double PaddingToBottomOfView = (CurveIndexFromBottom + 1)*ValueSpacePadding;

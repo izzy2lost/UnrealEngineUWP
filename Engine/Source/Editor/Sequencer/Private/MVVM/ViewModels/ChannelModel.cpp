@@ -97,6 +97,11 @@ UMovieSceneSection* FChannelModel::GetSection() const
 	return KeyArea->GetOwningSection();
 }
 
+UObject* FChannelModel::GetOwningObject() const
+{
+	return KeyArea->GetOwningObject();
+}
+
 FOutlinerSizing FChannelModel::GetDesiredSizing() const
 {
 	FOutlinerSizing Sizing(15.f);

@@ -395,6 +395,7 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 	{
 		const FMovieSceneTrackInstanceInput& Input = InputInfo.Input;
 		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(Input.InstanceHandle);
+		const FSequenceInstance& RootSequenceInstance = InstanceRegistry->GetInstance(SequenceInstance.GetRootInstanceHandle());
 		const FMovieSceneContext& Context = SequenceInstance.GetContext();
 
 		const UMovieSceneCameraCutSection* Section = Cast<const UMovieSceneCameraCutSection>(Input.Section);
@@ -420,7 +421,7 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 		else
 		{
 			const UMovieSceneCameraCutTrack* Track = Section->GetTypedOuter<UMovieSceneCameraCutTrack>();
-			const FMovieSceneSequenceTransform SequenceToRootTransform = Context.GetSequenceToRootSequenceTransform();
+			const FMovieSceneInverseSequenceTransform SequenceToRootTransform = Context.GetSequenceToRootSequenceTransform();
 
 			FBlendedCameraCut Params(Input, CameraBindingID, SequenceInstance.GetSequenceID());
 			Params.bCanBlend = Track->bCanBlend;
@@ -437,14 +438,29 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 			if (Section->HasStartFrame() && Section->Easing.GetEaseInDuration() > 0)
 			{
 				Params.LocalEaseInEndTime = Params.LocalStartTime + Section->Easing.GetEaseInDuration();
-				const float RootEaseInTime = SequenceToRootTransform.GetTimeScale() * Context.GetFrameRate().AsSeconds(FFrameNumber(Section->Easing.GetEaseInDuration()));
-				Params.EaseIn = FBlendedCameraCutEasingInfo(RootEaseInTime, Section->Easing.EaseIn);
+
+				TOptional<FFrameTime> RootStart = SequenceToRootTransform.TryTransformTime(Params.LocalStartTime);
+				TOptional<FFrameTime> RootEnd   = SequenceToRootTransform.TryTransformTime(Params.LocalEaseInEndTime);
+
+				if (RootStart && RootEnd)
+				{
+					const float RootEaseInTime = RootSequenceInstance.GetContext().GetFrameRate().AsSeconds(RootEnd.GetValue() - RootStart.GetValue());
+					Params.EaseIn = FBlendedCameraCutEasingInfo(RootEaseInTime, Section->Easing.EaseIn);
+				}
 			}
 			if (Section->HasEndFrame() && Section->Easing.GetEaseOutDuration() > 0)
 			{
 				Params.LocalEaseOutStartTime = Params.LocalEndTime - Section->Easing.GetEaseOutDuration();
-				const float RootEaseOutTime = SequenceToRootTransform.GetTimeScale() * Context.GetFrameRate().AsSeconds(FFrameNumber(Section->Easing.GetEaseOutDuration()));
-				Params.EaseOut = FBlendedCameraCutEasingInfo(RootEaseOutTime, Section->Easing.EaseOut);
+
+
+				TOptional<FFrameTime> RootStart = SequenceToRootTransform.TryTransformTime(Params.LocalEaseOutStartTime);
+				TOptional<FFrameTime> RootEnd   = SequenceToRootTransform.TryTransformTime(Params.LocalEndTime);
+
+				if (RootStart && RootEnd)
+				{
+					const float RootEaseOutTime = RootSequenceInstance.GetContext().GetFrameRate().AsSeconds(RootEnd.GetValue() - RootStart.GetValue());
+					Params.EaseOut = FBlendedCameraCutEasingInfo(RootEaseOutTime, Section->Easing.EaseOut);
+				}
 			}
 
 			// Remember locking option.

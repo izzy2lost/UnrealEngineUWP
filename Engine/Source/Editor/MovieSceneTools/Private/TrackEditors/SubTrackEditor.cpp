@@ -441,8 +441,11 @@ void FSubTrackEditor::Resize(float NewSize, UMovieSceneTrack* InTrack)
 	}
 }
 
-/* FSubTrackEditor
- *****************************************************************************/
+bool FSubTrackEditor::GetDefaultExpansionState(UMovieSceneTrack* InTrack) const
+{
+	return true;
+}
+
 
 void FSubTrackEditor::InsertSection(UMovieSceneTrack* Track)
 {
@@ -546,7 +549,6 @@ void FSubTrackEditor::CreateNewTake(UMovieSceneSubSection* Section)
 
 		TRange<FFrameNumber> NewSectionRange         = Section->GetRange();
 		FFrameNumber         NewSectionStartOffset   = Section->Parameters.StartFrameOffset;
-		float                NewSectionTimeScale     = Section->Parameters.TimeScale;
 		int32                NewSectionPrerollFrames = Section->GetPreRollFrames();
 		int32                NewRowIndex          = Section->GetRowIndex();
 		FFrameNumber         NewSectionStartTime     = NewSectionRange.GetLowerBound().IsClosed() ? UE::MovieScene::DiscreteInclusiveLower(NewSectionRange) : 0;
@@ -565,7 +567,7 @@ void FSubTrackEditor::CreateNewTake(UMovieSceneSubSection* Section)
 
 			NewSection->SetRange(NewSectionRange);
 			NewSection->Parameters.StartFrameOffset = NewSectionStartOffset;
-			NewSection->Parameters.TimeScale = NewSectionTimeScale;
+			NewSection->Parameters.TimeScale = Section->Parameters.TimeScale.DeepCopy(NewSection);
 			NewSection->SetPreRollFrames(NewSectionPrerollFrames);
 			NewSection->SetRowIndex(NewRowIndex);
 			NewSection->SetColorTint(NewSectionColorTint);
@@ -615,7 +617,6 @@ void FSubTrackEditor::ChangeTake(UMovieSceneSequence* Sequence)
 
 		TRange<FFrameNumber> NewSectionRange = Section->GetRange();
 		FFrameNumber		 NewSectionStartOffset = Section->Parameters.StartFrameOffset;
-		float                NewSectionTimeScale = Section->Parameters.TimeScale;
 		int32                NewSectionPrerollFrames = Section->GetPreRollFrames();
 		int32                NewRowIndex = Section->GetRowIndex();
 		FFrameNumber         NewSectionStartTime = NewSectionRange.GetLowerBound().IsClosed() ? UE::MovieScene::DiscreteInclusiveLower(NewSectionRange) : 0;
@@ -631,7 +632,7 @@ void FSubTrackEditor::ChangeTake(UMovieSceneSequence* Sequence)
 
 			NewSection->SetRange(NewSectionRange);
 			NewSection->Parameters.StartFrameOffset = NewSectionStartOffset;
-			NewSection->Parameters.TimeScale = NewSectionTimeScale;
+			NewSection->Parameters.TimeScale = Section->Parameters.TimeScale.DeepCopy(NewSection);
 			NewSection->SetPreRollFrames(NewSectionPrerollFrames);
 			NewSection->SetRowIndex(NewSectionRowIndex);
 			NewSection->SetColorTint(NewSectionColorTint);

@@ -171,7 +171,7 @@ bool CanCreateKeyEditor(const FMovieSceneControlRigSpaceChannel* Channel)
 {
 	return false; //mz todoo maybe change
 }
-TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneControlRigSpaceChannel>& Channel, UMovieSceneSection* Section, const FGuid& InObjectBindingID, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings, TWeakPtr<ISequencer> InSequencer)
+TSharedRef<SWidget> CreateKeyEditor(const TMovieSceneChannelHandle<FMovieSceneControlRigSpaceChannel>& Channel, const UE::Sequencer::FCreateKeyEditorParams& Params)
 {
 	return SNullWidget::NullWidget;
 }
@@ -339,7 +339,7 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 
 		//make sure to evaluate first frame
 		FFrameTime CurrentTime(Time);
-		CurrentTime = CurrentTime * RootToLocalTransform.InverseNoLooping();
+		CurrentTime = RootToLocalTransform.Inverse().TryTransformTime(CurrentTime).Get(CurrentTime);
 
 		FMovieSceneContext SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(CurrentTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 		Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -447,6 +447,8 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 			}
 		}
 
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
+
 		//do any compensation or previous key adding
 		FRigControlModifiedContext Context;
 		Context.SetKey = EControlRigSetKey::Always;
@@ -455,7 +457,7 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 		if (bSetPreviousKey)
 		{
 			FFrameTime GlobalTime(Time - 1);
-			GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+			GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 			SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 			Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -489,7 +491,7 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 		for (const FFrameNumber& Frame : Frames)
 		{
 			FFrameTime GlobalTime(Frame);
-			GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+			GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 			SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 			Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -699,12 +701,13 @@ void  FControlRigSpaceChannelHelpers::SequencerSpaceChannelKeyDeleted(UControlRi
 		Context.SetKey = EControlRigSetKey::Always;
 		FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
 		FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
+		FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
 
 		for (const FFrameNumber& Frame : Frames)
 		{
 			//evaluate sequencer
 			FFrameTime GlobalTime(Frame);
-			GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+			GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 			FMovieSceneContext SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 			Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -1094,6 +1097,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 			ControlRig->Evaluate_AnyThread();
 
 			FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
+			FMovieSceneInverseSequenceTransform LocalToRootTransform = RootToLocalTransform.Inverse();
 
 			for (int32 Index = 0; Index < Frames.Num(); ++Index)
 			{
@@ -1102,7 +1106,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 
 				//evaluate sequencer
 				FFrameTime GlobalTime(Frame);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+				GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 				FMovieSceneContext SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 				Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -1142,7 +1146,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 
 				//evaluate sequencer
 				FFrameTime GlobalTime(EndFrame);
-				GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
+				GlobalTime = LocalToRootTransform.TryTransformTime(GlobalTime).Get(GlobalTime);
 
 				FMovieSceneContext SceneContext = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), Sequencer->GetPlaybackStatus()).SetHasJumped(true);
 				Sequencer->GetEvaluationTemplate().EvaluateSynchronousBlocking(SceneContext);
@@ -1532,7 +1536,7 @@ FReply FControlRigSpaceChannelHelpers::OpenBakeDialog(ISequencer* Sequencer, FMo
 	return FReply::Unhandled();
 }
 
-TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneControlRigSpaceChannel>& ChannelHandle, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer)
+TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneControlRigSpaceChannel>& ChannelHandle, const UE::Sequencer::FCreateCurveEditorModelParams& Params)
 {
 	if (FMovieSceneControlRigSpaceChannel* Channel = ChannelHandle.Get())
 	{
@@ -1541,7 +1545,7 @@ TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FM
 			const UCurveEditorSettings* Settings = GetDefault<UCurveEditorSettings>();
 			if (Settings == nullptr || Settings->GetShowBars())
 			{
-				return MakeUnique<FControlRigSpaceChannelCurveModel>(ChannelHandle, OwningSection, InSequencer);
+				return MakeUnique<FControlRigSpaceChannelCurveModel>(ChannelHandle, Params.OwningSection, Params.Sequencer);
 			}
 		}
 	}

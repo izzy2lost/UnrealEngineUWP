@@ -224,8 +224,8 @@ protected:
 	/** Store the row each section starts on when we start dragging. */
 	TArray<FInitialRowIndex> InitialSectionRowIndicies;
 
-	/** Array of sections that we called Modify on because we're editing keys that belong to these sections, but not actually moving these sections. */
-	TArray<TWeakObjectPtr<UMovieSceneSection> > ModifiedNonSelectedSections;
+	/** Array of sections and owners that we called Modify on because we're editing keys that belong to these sections, but not actually moving these sections. */
+	TSet<UObject*> ModifiedNonSelectedObjects;
 
 	/** Optional snap field to use when dragging */
 	TOptional<FSequencerSnapField> SnapField;

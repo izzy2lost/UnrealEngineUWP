@@ -141,6 +141,7 @@ private:
 	FDelegateHandle CVarTrackCreateEditorHandle;
 	FDelegateHandle CustomPrimitiveDataTrackCreateEditorHandle;
 	FDelegateHandle BindingLifetimeTrackCreateEditorHandle;
+	FDelegateHandle TimeWarpTrackCreateEditorHandle;
 
 	FDelegateHandle CameraCutTrackModelHandle;
 	FDelegateHandle CinematicShotTrackModelHandle;

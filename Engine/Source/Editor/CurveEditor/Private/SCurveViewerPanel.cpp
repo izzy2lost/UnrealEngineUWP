@@ -67,18 +67,44 @@ void SCurveViewerPanel::DrawCurves(const FGeometry& AllottedGeometry, FSlateWind
 {
 	const FPaintGeometry PaintGeometry = AllottedGeometry.ToPaintGeometry();
 
+	float DashOffset = static_cast<float>(GetViewSpace().PixelsPerInput() * GetViewSpace().GetInputMin());
+
 	for (const FCurveDrawParams& Params : CachedDrawParams)
 	{
-		FSlateDrawElement::MakeLines(
-			OutDrawElements,
-			BaseLayerId + CurveViewConstants::ELayerOffset::Curves,
-			PaintGeometry,
-			Params.InterpolatingPoints,
-			DrawEffects,
-			Params.Color,
-			CurveViewerConstants::bAntiAliasCurves,
-			CurveThickness.Get()
-		);
+		if (Params.DashLengthPx > 0.f)
+		{
+			TArray<FVector2f> NewVector;
+			NewVector.Reserve(Params.InterpolatingPoints.Num());
+			for (FVector2d Vect : Params.InterpolatingPoints)
+			{
+				NewVector.Add(UE::Slate::CastToVector2f(Vect));
+			}
+
+			FSlateDrawElement::MakeDashedLines(
+				OutDrawElements,
+				BaseLayerId + CurveViewConstants::ELayerOffset::Curves,
+				PaintGeometry,
+				MoveTemp(NewVector),
+				DrawEffects,
+				Params.Color,
+				CurveThickness.Get(),
+				Params.DashLengthPx,
+				DashOffset
+			);
+		}
+		else
+		{
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				BaseLayerId + CurveViewConstants::ELayerOffset::Curves,
+				PaintGeometry,
+				Params.InterpolatingPoints,
+				DrawEffects,
+				Params.Color,
+				CurveViewerConstants::bAntiAliasCurves,
+				CurveThickness.Get()
+			);
+		}
 
 		if (Params.bKeyDrawEnabled)
 		{

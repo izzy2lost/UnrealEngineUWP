@@ -55,6 +55,7 @@
 #include "TrackEditors/CVarTrackEditor.h"
 #include "TrackEditors/CustomPrimitiveDataTrackEditor.h"
 #include "TrackEditors/BindingLifetimeTrackEditor.h"
+#include "TrackEditors/TimeWarpTrackEditor.h"
 
 #include "Channels/PerlinNoiseChannelInterface.h"
 
@@ -67,6 +68,7 @@
 #include "MovieSceneObjectBindingIDCustomization.h"
 #include "MovieSceneDynamicBindingCustomization.h"
 #include "MovieSceneEventCustomization.h"
+#include "MovieSceneTimeWarpVariantCustomization.h"
 #include "SequencerClipboardReconciler.h"
 #include "ClipboardTypes.h"
 #include "ISettingsModule.h"
@@ -81,6 +83,7 @@
 #include "Channels/MovieSceneByteChannel.h"
 #include "Channels/MovieSceneChannel.h"
 #include "Channels/MovieSceneEventChannel.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
 #include "Channels/MovieSceneObjectPathChannel.h"
 #include "Channels/MovieSceneCameraShakeSourceTriggerChannel.h"
 #include "Channels/MovieSceneStringChannel.h"
@@ -189,6 +192,7 @@ void FMovieSceneToolsModule::StartupModule()
 		CVarTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FCVarTrackEditor::CreateTrackEditor));
 		CustomPrimitiveDataTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FCustomPrimitiveDataTrackEditor::CreateTrackEditor));
 		BindingLifetimeTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FBindingLifetimeTrackEditor::CreateTrackEditor));
+		TimeWarpTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FTimeWarpTrackEditor::CreateTrackEditor));
 
 		// register track models
 		CameraCutTrackModelHandle = SequencerModule.RegisterTrackModel(FOnCreateTrackModel::CreateStatic(&FCameraCutTrackModel::CreateTrackModel));
@@ -208,6 +212,7 @@ void FMovieSceneToolsModule::StartupModule()
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneDynamicBinding", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDynamicBindingCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneEvent", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneEventCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneCVarOverrides", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&UE::MovieScene::FCVarOverridesPropertyTypeCustomization::MakeInstance));
+		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneTimeWarpVariant", FOnGetPropertyTypeCustomizationInstance::CreateLambda(&MakeShared<UE::MovieScene::FMovieSceneTimeWarpVariantCustomization>));
 
 		SequencerModule.RegisterChannelInterface<FMovieSceneBoolChannel>();
 		SequencerModule.RegisterChannelInterface<FMovieSceneByteChannel>();
@@ -219,6 +224,7 @@ void FMovieSceneToolsModule::StartupModule()
 		SequencerModule.RegisterChannelInterface<FMovieSceneActorReferenceData>();
 		SequencerModule.RegisterChannelInterface<FMovieSceneEventSectionData>();
 		SequencerModule.RegisterChannelInterface<FMovieSceneObjectPathChannel>();
+		SequencerModule.RegisterChannelInterface<FMovieSceneTimeWarpChannel>();
 
 		SequencerModule.RegisterChannelInterface<FMovieSceneAudioTriggerChannel>();
 
@@ -359,6 +365,7 @@ void FMovieSceneToolsModule::ShutdownModule()
 	SequencerModule.UnRegisterTrackEditor( CVarTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( CustomPrimitiveDataTrackCreateEditorHandle );
 	SequencerModule.UnRegisterTrackEditor( BindingLifetimeTrackCreateEditorHandle );
+	SequencerModule.UnRegisterTrackEditor( TimeWarpTrackCreateEditorHandle );
 
 	// unregister track models
 	SequencerModule.UnregisterTrackModel( CameraCutTrackModelHandle );

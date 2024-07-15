@@ -501,7 +501,7 @@ public:
 	bool IsPilotCamera() const;
 
 	/** Sets the new global time calculated from local time and the given warp counter, accounting for looping options */
-	void SetLocalTimeLooped(FFrameTime InTime, FMovieSceneWarpCounter WarpCounter=FMovieSceneWarpCounter());
+	void SetLocalTimeLooped(FFrameTime InTime, const FMovieSceneTransformBreadcrumbs& Breadcrumbs=FMovieSceneTransformBreadcrumbs());
 
 	ESequencerLoopMode GetLoopMode() const;
 
@@ -718,7 +718,7 @@ public:
 	virtual bool GetAutoSetTrackDefaults() const override;
 	virtual FQualifiedFrameTime GetLocalTime() const override;
 	virtual FQualifiedFrameTime GetGlobalTime() const override;
-	virtual uint32 GetLocalLoopIndex() const override;
+	virtual TOptional<int32> GetLocalLoopIndex() const override;
 	virtual void SetLocalTime(FFrameTime Time, ESnapTimeMode SnapTimeMode = ESnapTimeMode::STM_None, bool bEvaluate = true) override;
 	virtual void SetLocalTimeDirectly(FFrameTime NewTime, bool bEvaluate = true) override;
 	virtual FFrameTime GetLastEvaluatedLocalTime() const override;
@@ -844,7 +844,7 @@ public:
 
 
 	/**
-	 * Gets the time boundaries of the root movie scene in local space. If this is a looping subsequence, this will include all loops.
+	 * Gets the time boundaries of the root movie scene.
 	 */
 	TRange<FFrameNumber> GetRootTimeBounds() const;
 
@@ -1142,7 +1142,7 @@ private:
 
 	FGuid FindUnspawnedObjectGuid(UObject& InObject);
 	// Given the root sequence time, returns the local time and loop counter clamped to the maximum number of loops
-	void CalculateLocalTimeClamped(FFrameTime RootTime, const FMovieSceneSequenceTransform& RootToParentChainTransform, FFrameTime& OutTime, FMovieSceneWarpCounter& OutLoopCounter) const;
+	void CalculateLocalTimeClamped(FFrameTime RootTime, const FMovieSceneSequenceTransform& RootToParentChainTransform, FFrameTime& OutTime, FMovieSceneTransformBreadcrumbs& OutBreadcrumbs) const;
 
 public:
 
@@ -1243,9 +1243,14 @@ private:
 
 	/** Time transformation from the root sequence to the currently edited sequence. */
 	FMovieSceneSequenceTransform RootToLocalTransform;
+	FMovieSceneSequenceTransform RootTransform;
 
-	/** Current loop of the current sub-sequence, if we are in a looping sub-sequence. */
-	FMovieSceneWarpCounter RootToLocalLoopCounter;
+	/** Breadcrumbs to the current local time from the root sequence. */
+	FMovieSceneTransformBreadcrumbs CurrentTimeBreadcrumbs;
+	/** Breadcrumbs to the local time that scrubbing was started at. */
+	FMovieSceneTransformBreadcrumbs ScrubStartBreadcrumbs;
+	/** A linear offset to apply to time operations when scrubbing. Used for traversing loop boundaries etc. */
+	FFrameTime ScrubLinearOffset;
 
 	/** The time range target to be viewed */
 	TRange<double> TargetViewRange;
@@ -1299,15 +1304,6 @@ private:
 
 	/** Current play position */
 	FMovieScenePlaybackPosition PlayPosition;
-
-	/** Local loop index at the time we began scrubbing */
-	int32 LocalLoopIndexOnBeginScrubbing;
-
-	/** Local loop index to add for the purposes of displaying it in the UI */
-	int32 LocalLoopIndexOffsetDuringScrubbing;
-
-	/** MaxLocalLoopIndex as calculated in UpdateSubSequenceData. Used to ensure LocalTime is also clamped to the correct number of loops. */
-	int32 MaxLocalLoopIndex;
 
 	/** The playback speed */
 	float PlaybackSpeed;

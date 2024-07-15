@@ -91,7 +91,7 @@ void FBoolChannelCurveModel::CreateKeyProxies(TArrayView<const FKeyHandle> InKey
 	{
 		UBoolChannelKeyProxy* NewProxy = NewObject<UBoolChannelKeyProxy>(GetTransientPackage(), NAME_None);
 
-		NewProxy->Initialize(InKeyHandles[Index], GetChannelHandle(), Cast<UMovieSceneSection>(GetOwningObject()));
+		NewProxy->Initialize(InKeyHandles[Index], GetChannelHandle(), this->GetOwningObjectOrOuter<UMovieSceneSection>());
 		OutObjects[Index] = NewProxy;
 	}
 }
@@ -117,7 +117,7 @@ TUniquePtr<IBufferedCurveModel> FBoolChannelCurveModel::CreateBufferedCurveCopy(
 		double ValueMin = 0.f, ValueMax = 1.f;
 		GetValueRange(ValueMin, ValueMax);
 
-		return MakeUnique<FBoolChannelBufferedCurveModel>(Channel, Cast<UMovieSceneSection>(GetOwningObject()), MoveTemp(KeyPositions), MoveTemp(KeyAttributes), GetLongDisplayName().ToString(), ValueMin, ValueMax);
+		return MakeUnique<FBoolChannelBufferedCurveModel>(Channel, this->GetOwningObjectOrOuter<UMovieSceneSection>(), MoveTemp(KeyPositions), MoveTemp(KeyAttributes), GetLongDisplayName().ToString(), ValueMin, ValueMax);
 	}
 	return nullptr;
 }
@@ -135,7 +135,7 @@ void FBoolChannelCurveModel::GetCurveAttributes(FCurveAttributes& OutCurveAttrib
 void FBoolChannelCurveModel::SetCurveAttributes(const FCurveAttributes& InCurveAttributes)
 {
 	FMovieSceneBoolChannel* Channel = GetChannelHandle().Get();
-	UMovieSceneSection* Section = Cast<UMovieSceneSection>(GetOwningObject());
+	UMovieSceneSection* Section = this->GetOwningObjectOrOuter<UMovieSceneSection>();
 	if (Channel && Section && !IsReadOnly())
 	{
 		Section->MarkAsChanged();

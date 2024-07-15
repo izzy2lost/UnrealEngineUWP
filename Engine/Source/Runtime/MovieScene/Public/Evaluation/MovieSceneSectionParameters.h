@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Misc/EnumClassFlags.h"
+#include "Variants/MovieSceneTimeWarpVariant.h"
 #include "MovieSceneSectionParameters.generated.h"
 
 /**
@@ -88,7 +89,7 @@ public:
 
 	/** Playback time scaling factor. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Timing")
-	float TimeScale;
+	FMovieSceneTimeWarpVariant TimeScale;
 
 	/** Hierachical bias. Higher bias will take precedence. */
 	UPROPERTY(config, BlueprintReadWrite, EditAnywhere, Category="Sequence")

@@ -39,7 +39,7 @@ class UMovieScene;
 class UMovieSceneControlRigParameterSection;
 class USkeletalMesh;
 struct FUsdStageInfo;
-struct FMovieSceneSequenceTransform;
+struct FMovieSceneInverseSequenceTransform;
 
 namespace SkeletalMeshImportData
 {
@@ -436,7 +436,7 @@ namespace UnrealToUsd
 	 */
 	USDUTILITIES_API bool ConvertControlRigSection(
 		UMovieSceneControlRigParameterSection* InSection,
-		const FMovieSceneSequenceTransform& InTransform,
+		const FMovieSceneInverseSequenceTransform& InTransform,
 		UMovieScene* InMovieScene,
 		IMovieScenePlayer* InPlayer,
 		const FReferenceSkeleton& InRefSkeleton,

@@ -58,6 +58,7 @@ public:
 	virtual FReply OnDrop(const FDragDropEvent& DragDropEvent, const FSequencerDragDropParams& DragDropParams) override;
 	virtual bool IsResizable(UMovieSceneTrack* InTrack) const override;
 	virtual void Resize(float NewSize, UMovieSceneTrack* InTrack) override;
+	virtual bool GetDefaultExpansionState(UMovieSceneTrack* InTrack) const override;
 
 public:
 	

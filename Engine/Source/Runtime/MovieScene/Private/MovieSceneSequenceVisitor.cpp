@@ -5,6 +5,7 @@
 #include "MovieScene.h"
 #include "MovieSceneTrack.h"
 #include "MovieSceneSection.h"
+#include "MovieSceneTransformTypes.h"
 #include "Tracks/MovieSceneSubTrack.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Evaluation/MovieSceneRootOverridePath.h"
@@ -52,30 +53,43 @@ void VisitSubTrackImpl(const FSequenceVisitParams& InParams, UMovieSceneSubTrack
 			continue;
 		}
 
-		TRange<FFrameNumber> EffectiveRange = TRange<FFrameNumber>::Intersection(SubSequenceSpace->RootToSequenceTransform.InverseNoLooping().TransformRangeConstrained(Entry.Range), SubSequenceSpace->RootClampRange);
-		if (EffectiveRange.IsEmpty())
+		auto VisitRange = [&InOutRootPath, &InVisitor, &InParams, SubSection, &ObjectBinding, SubSequence, SubSequenceSpace](TRange<FFrameTime> Range)
 		{
-			continue;
-		}
+			TRange<FFrameNumber> EffectiveRange = ConvertToDiscreteRange(TRange<FFrameTime>::Intersection(Range, ConvertToFrameTimeRange(SubSequenceSpace->RootClampRange)));
+			if (!EffectiveRange.IsEmpty())
+			{
+				FMovieSceneSequenceTransform OuterToInnerTransform = SubSection->OuterToInnerTransform();
+				FMovieSceneSequenceID        LocalSequenceID       = SubSection->GetSequenceID();
+				const FMovieSceneSequenceID  SubSequenceID         = InOutRootPath->ResolveChildSequenceID(LocalSequenceID);
 
-		FMovieSceneSequenceTransform OuterToInnerTransform = SubSection->OuterToInnerTransform();
-		FMovieSceneSequenceID        LocalSequenceID       = SubSection->GetSequenceID();
-		const FMovieSceneSequenceID  SubSequenceID         = InOutRootPath->ResolveChildSequenceID(LocalSequenceID);
+				FSubSequenceSpace LocalSpace;
+				LocalSpace.RootToSequenceTransform = OuterToInnerTransform * SubSequenceSpace->RootToSequenceTransform;
+				LocalSpace.StartBreadcrumbs = SubSequenceSpace->StartBreadcrumbs;
+				LocalSpace.EndBreadcrumbs = SubSequenceSpace->EndBreadcrumbs;
+				LocalSpace.SequenceID = InOutRootPath->ResolveChildSequenceID(LocalSequenceID);
+				LocalSpace.RootClampRange = EffectiveRange;
+				LocalSpace.LocalClampRange = ConvertToDiscreteRange(LocalSpace.RootToSequenceTransform.ComputeTraversedHull(EffectiveRange));
+				LocalSpace.HierarchicalBias = SubSequenceSpace->HierarchicalBias + SubSection->Parameters.HierarchicalBias;
 
-		FSubSequenceSpace LocalSpace;
-		LocalSpace.RootToSequenceTransform = OuterToInnerTransform * SubSequenceSpace->RootToSequenceTransform;
-		LocalSpace.SequenceID = InOutRootPath->ResolveChildSequenceID(LocalSequenceID);
-		LocalSpace.RootClampRange = EffectiveRange;
-		LocalSpace.LocalClampRange = LocalSpace.RootToSequenceTransform.TransformRangeUnwarped(EffectiveRange);
-		LocalSpace.HierarchicalBias = SubSequenceSpace->HierarchicalBias + SubSection->Parameters.HierarchicalBias;
+				if (OuterToInnerTransform.NeedsBreadcrumbs())
+				{
+					OuterToInnerTransform.TransformTime(DiscreteInclusiveLower(EffectiveRange.GetLowerBoundValue()), FTransformTimeParams().AppendBreadcrumbs(LocalSpace.StartBreadcrumbs));
+					OuterToInnerTransform.TransformTime(DiscreteExclusiveUpper(EffectiveRange.GetUpperBoundValue()), FTransformTimeParams().AppendBreadcrumbs(LocalSpace.EndBreadcrumbs));
+				}
 
-		// Recurse into the sub sequence
-		InOutRootPath->PushGeneration(SubSequenceID, LocalSequenceID);
-		{
-			InVisitor.VisitSubSequence(SubSequence, ObjectBinding, LocalSpace);
-			VisitSequenceImpl(SubSequence, InParams, InVisitor, InOutRootPath, &LocalSpace);
-		}
-		InOutRootPath->PopGenerations(1);
+				// Recurse into the sub sequence
+				InOutRootPath->PushGeneration(SubSequenceID, LocalSequenceID);
+				{
+					InVisitor.VisitSubSequence(SubSequence, ObjectBinding, LocalSpace);
+					VisitSequenceImpl(SubSequence, InParams, InVisitor, InOutRootPath, &LocalSpace);
+				}
+				InOutRootPath->PopGenerations(1);
+			}
+			return true;
+		};
+
+		FMovieSceneInverseSequenceTransform SequenceToRootTransform = SubSequenceSpace->RootToSequenceTransform.Inverse();
+		SequenceToRootTransform.TransformFiniteRangeWithinRange(ConvertToFrameTimeRange(Entry.Range), VisitRange, SubSequenceSpace->StartBreadcrumbs, SubSequenceSpace->EndBreadcrumbs);
 	}
 
 }

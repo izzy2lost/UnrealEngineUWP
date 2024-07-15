@@ -773,6 +773,8 @@ void FMoveKeysAndSections::AddModel(TSharedPtr<UE::Sequencer::FViewModel> Model)
 
 void FMoveKeysAndSections::OnBeginDrag(const FPointerEvent& MouseEvent, FVector2D LocalMousePos, const UE::Sequencer::FVirtualTrackArea& VirtualTrackArea)
 {
+	using namespace UE::Sequencer;
+
 	// Early out if we've somehow started a drag operation without any sections or keys. This prevents an empty Undo/Redo Transaction from being created.
 	if (!Sections.Num() && !Keys.Num())
 	{
@@ -945,7 +947,7 @@ void FMoveKeysAndSections::OnEndDrag(const FPointerEvent& MouseEvent, FVector2D 
 	}
 
 	InitialSectionRowIndicies.Empty();
-	ModifiedNonSelectedSections.Empty();
+	ModifiedNonSelectedObjects.Empty();
 
 	// Tracks can tell us if the row indexes for any sections were changed during our drag/drop operation.
 	TSet<UMovieSceneTrack*> Tracks;
@@ -992,19 +994,29 @@ void FMoveKeysAndSections::OnEndDrag(const FPointerEvent& MouseEvent, FVector2D 
 
 void FMoveKeysAndSections::ModifyNonSelectedSections()
 {
+	using namespace UE::Sequencer;
+
 	for (const FSequencerSelectedKey& Key : Keys)
 	{
-		UMovieSceneSection* OwningSection = Key.Section;
-		const bool bHasBeenModified = ModifiedNonSelectedSections.Contains(OwningSection);
-		const bool bIsAlreadySelected = Sections.Contains(OwningSection);
-		if (!bHasBeenModified && !bIsAlreadySelected)
+		TSharedPtr<FChannelModel> Channel = Key.WeakChannel.Pin();
+		UObject* OwningObject = Channel ? Channel->GetOwningObject() : nullptr;
+
+		if (!OwningObject || ModifiedNonSelectedObjects.Contains(OwningObject))
 		{
-			OwningSection->SetFlags(RF_Transactional);
-			if (OwningSection->TryModify())
+			continue;
+		}
+
+		if (UMovieSceneSection* OwningSection = Cast<UMovieSceneSection>(OwningObject))
+		{
+			if (Sections.Contains(OwningSection) || OwningSection->IsReadOnly())
 			{
-				ModifiedNonSelectedSections.Add(OwningSection);
+				continue;
 			}
 		}
+
+		OwningObject->SetFlags(RF_Transactional);
+		OwningObject->Modify();
+		ModifiedNonSelectedObjects.Add(OwningObject);
 	}
 }
 
@@ -1466,7 +1478,7 @@ void FMoveKeysAndSections::HandleKeyMovement(TOptional<FFrameNumber> MaxDeltaX, 
 		FSequencerSelectedKey SelectedKey = KeysAsArray[Index];
 
 		UMovieSceneSection* Section = SelectedKey.Section;
-		if (ModifiedNonSelectedSections.Contains(Section))
+		if (ModifiedNonSelectedObjects.Contains(Section))
 		{
 			// If the key moves outside of the section resize the section to fit the key
 			// @todo Sequencer - Doesn't account for hitting other sections 
@@ -1498,12 +1510,12 @@ void FMoveKeysAndSections::HandleKeyMovement(TOptional<FFrameNumber> MaxDeltaX, 
 	}
 
 	// Explicitly mark everything as changed to ensure that the UI is responsive during a drag
-	for (TWeakObjectPtr<UMovieSceneSection> Section : ModifiedNonSelectedSections)
+	for (UObject* OwningObject : ModifiedNonSelectedObjects)
 	{
-		if (Section.Get())
+		if (UMovieSceneSignedObject* SignedObject = Cast<UMovieSceneSignedObject>(OwningObject))
 		{
-			Section.Get()->MarkAsChanged();
-			Section.Get()->BroadcastChanged();
+			SignedObject->MarkAsChanged();
+			SignedObject->BroadcastChanged();
 		}
 	}
 }

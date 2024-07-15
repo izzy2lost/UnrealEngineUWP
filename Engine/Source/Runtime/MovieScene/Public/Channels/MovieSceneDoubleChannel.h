@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Channels/MovieSceneChannelEditorData.h"
 #include "Channels/MovieSceneCurveChannelCommon.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
@@ -26,6 +25,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/Class.h"
 #include "UObject/ObjectMacros.h"
+#include "Misc/EnumClassFlags.h"
 
 #include "MovieSceneDoubleChannel.generated.h"
 
@@ -34,9 +34,15 @@ struct FPropertyTag;
 template<typename> struct TMovieSceneCurveChannelImpl;
 template <typename T> struct TIsPODType;
 
+namespace UE::MovieScene
+{
+	enum class EInverseEvaluateFlags : uint8;
+	struct FPiecewiseCurve;
+}
 namespace UE::MovieScene::Interpolation
 {
 	struct FCachedInterpolation;
+	struct FInterpolationExtents;
 }
 
 
@@ -130,6 +136,8 @@ struct FMovieSceneDoubleChannel : public FMovieSceneChannel
 #endif
 	{}
 
+	UE::MovieScene::FPiecewiseCurve AsPiecewiseCurve() const;
+
 	/**
 	 * Access a mutable interface for this channel's data
 	 *
@@ -186,6 +194,53 @@ struct FMovieSceneDoubleChannel : public FMovieSceneChannel
 	 */
 	MOVIESCENE_API UE::MovieScene::Interpolation::FCachedInterpolation GetInterpolationForTime(FFrameTime InTime) const;
 
+
+	/**
+	 * Compute the value extents of this curve within the specified limits
+	 * 
+	 * @param StartTime     The start of the range within which to compute extents
+	 * @param EndTime       The end of the range within which to compute extents
+	 * @return The extents of this channel
+	 */
+	MOVIESCENE_API UE::MovieScene::Interpolation::FInterpolationExtents ComputeExtents(FFrameTime StartTime, FFrameTime EndTime) const;
+
+
+	/**
+	 * Solve this curve for a given (y). Where more than one solution exists, TimeHint will be used to find the solution closest to the hint.
+	 * 
+	 * @param Value         The result to solve for
+	 * @param TimeHint      Predicate time to use for locating the most relevant solution
+	 * @param Flags         Flag structure used to control how to solve the curve
+	 * @return The solution if one exists, false otherwise
+	 */
+	MOVIESCENE_API TOptional<FFrameTime> InverseEvaluate(double Value, FFrameTime TimeHint, UE::MovieScene::EInverseEvaluateFlags Flags) const;
+
+
+	/**
+	 * Solve this curve for a given (y), only considering solutions that lie within a certain range.
+	 * 
+	 * @param Value         The result to solve for
+	 * @param StartTime     Start time before which solutions will not be considered
+	 * @param EndTime       End time after which solutions will not be considered
+	 * @param Visitor       Callback that is invoked for each solution. Returning true allows the algorithm to continue, false will terminate the algorithm.
+	 * @return False if any invocation of Visitor returned false, true otherwise.
+	 */
+	MOVIESCENE_API bool InverseEvaluateBetween(double Value, FFrameTime StartTime, FFrameTime EndTime, const TFunctionRef<bool(FFrameTime)>& Visitor) const;
+
+
+	/**
+	 * Retrieve the index of the cycle that the specified time falls within according to this channel's extrapolation modes.
+	 * @note Negative cycle counts are returned for cycles that lie before the first key
+	 */
+	MOVIESCENE_API int32 GetCycleCount(FFrameTime InTime) const;
+
+
+	/**
+	 * Retrieve the time range of a single cycle of this channel
+	 */
+	MOVIESCENE_API TRange<FFrameNumber> GetCycleRange(int32 InCycleCount) const;
+
+public:
 	/**
 	 * Set the channel's times and values to the requested values
 	 */

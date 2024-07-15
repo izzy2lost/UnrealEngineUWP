@@ -8,6 +8,44 @@
 #include "IKeyArea.h"
 #include "CurveModel.h"
 
+namespace Sequencer
+{
+
+/** Concept for detecting deprecated CreateCurveEditorModel signatures that will no longer be called in later versions */
+struct CLegacyCurveModelCreatable
+{
+	template<typename T>
+	auto Requires()
+		-> decltype(CreateCurveEditorModel(*((TMovieSceneChannelHandle<T>*)0), (UMovieSceneSection*)nullptr, TSharedPtr<ISequencer>().ToSharedRef()));
+};
+
+struct CLegacyKeyEditorCreatable
+{
+	template<typename T>
+	auto Requires()
+		-> decltype(CreateKeyEditor(
+			*((TMovieSceneChannelHandle<T>*)nullptr),
+			(UMovieSceneSection*)nullptr,
+			FGuid(),
+			TWeakPtr<FTrackInstancePropertyBindings>(),
+			TWeakPtr<ISequencer>()
+		));
+};
+
+template<typename T>
+UE_DEPRECATED(5.5, "CreateCurveEditorModel(const TMovieSceneChannelHandle<T>&, UMovieSceneSection*, TSharedRef<ISequencer>) has been deprecated. Please update your signature to use FCreateCurveEditorModelParams")
+void CreateCurveEditorModelDeprecatedSignature()
+{
+}
+
+template<typename T>
+UE_DEPRECATED(5.5, "CreateKeyEditor(const TMovieSceneChannelHandle<T>&, UMovieSceneSection*, const FGuid&, TWeakPtr<FTrackInstancePropertyBindings>, TWeakPtr<ISequencer>); has been deprecated. Please update your signature to use FCreateKeyEditorParams")
+void CreateKeyEditorDeprecatedSignature()
+{
+}
+
+} // namespace Sequencer
+
 /**
  * Templated channel interface that calls overloaded functions matching the necessary channel types.
  * Designed this way to allow for specific customization of key-channel behavior without having to reimplement swathes of boilerplate.
@@ -183,10 +221,22 @@ struct TSequencerChannelInterfaceCommon : ISequencerChannelInterface
 	 *
 	 * @return (Optional) A new model to be added to a curve editor
 	 */
-	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& InChannel, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer) const override
+	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& InChannel, const UE::Sequencer::FCreateCurveEditorModelParams& Params) const override
 	{
 		using namespace Sequencer;
-		return CreateCurveEditorModel(InChannel.Cast<ChannelType>(), OwningSection, InSequencer);
+
+		if constexpr (TModels_V<CLegacyCurveModelCreatable, ChannelType>)
+		{
+			// Emit deprecation warning
+			CreateCurveEditorModelDeprecatedSignature<ChannelType>();
+			TUniquePtr<FCurveModel> Result = CreateCurveEditorModel(InChannel.Cast<ChannelType>(), Params.OwningSection, Params.Sequencer);
+			if (Result)
+			{
+				return Result;
+			}
+		}
+
+		return CreateCurveEditorModel(InChannel.Cast<ChannelType>(), Params);
 	}
 
 	/**
@@ -220,16 +270,21 @@ struct TSequencerChannelInterfaceCommon : ISequencerChannelInterface
 	 * Create an editor on the sequencer node tree
 	 *
 	 * @param Channel               The channel to check
-	 * @param Section               The section that owns this channel
-	 * @param InObjectBindingID     The ID of the object this key area's track is bound to
-	 * @param PropertyBindings      (Optional) Property bindings where this channel exists on a property track
-	 * @param Sequencer             The currently active sequencer
+	 * @param Params                Creation parameters containing all the necessary structures for creating the key editor
 	 * @return The editor widget to display on the node tree
 	 */
-	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* Section, const FGuid& InObjectBindingID, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings, TWeakPtr<ISequencer> Sequencer) const override
+	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateKeyEditorParams& Params) const override
 	{
 		using namespace Sequencer;
-		return CreateKeyEditor(Channel.Cast<ChannelType>(), Section, InObjectBindingID, PropertyBindings, Sequencer);
+
+		if constexpr (TModels_V<CLegacyKeyEditorCreatable, ChannelType>)
+		{
+			// Emit deprecation warning
+			CreateKeyEditorDeprecatedSignature<ChannelType>();
+			return CreateKeyEditor(Channel.Cast<ChannelType>(), Params.OwningSection, Params.ObjectBindingID, Params.PropertyBindings, Params.Sequencer);
+		}
+
+		return CreateKeyEditor(Channel.Cast<ChannelType>(), Params);
 	}
 };
 

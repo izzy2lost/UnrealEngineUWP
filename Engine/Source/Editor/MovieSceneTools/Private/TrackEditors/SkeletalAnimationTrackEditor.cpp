@@ -13,6 +13,8 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/Layout/SBox.h"
 #include "SequencerSectionPainter.h"
+#include "Channels/MovieSceneTimeWarpChannel.h"
+#include "Variants/MovieSceneTimeWarpGetter.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Editor/UnrealEdEngine.h"
@@ -37,6 +39,7 @@
 #include "FrameNumberDisplayFormat.h"
 #include "FrameNumberNumericInterface.h"
 #include "AnimationBlueprintLibrary.h"
+#include "MovieSceneTransformTypes.h"
 #include "AnimationEditorUtils.h"
 #include "Factories/PoseAssetFactory.h"
 #include "Misc/MessageDialog.h"
@@ -599,19 +602,50 @@ private:
 FSkeletalAnimationSection::FSkeletalAnimationSection( UMovieSceneSection& InSection, TWeakPtr<ISequencer> InSequencer)
 	: Section(*CastChecked<UMovieSceneSkeletalAnimationSection>(&InSection))
 	, Sequencer(InSequencer)
-	, InitialFirstLoopStartOffsetDuringResize(0)
-	, InitialStartTimeDuringResize(0)
-{ 
+	, PreDilatePlayRate(1.0)
+{
+}
+
+FSkeletalAnimationSection::~FSkeletalAnimationSection()
+{
 }
 
 void FSkeletalAnimationSection::BeginDilateSection()
 {
-	Section.PreviousPlayRate = Section.Params.PlayRate; //make sure to cache the play rate
+	if (Section.Params.PlayRate.GetType() == EMovieSceneTimeWarpType::FixedPlayRate)
+	{
+		PreDilatePlayRate = Section.Params.PlayRate.AsFixedPlayRate(); //make sure to cache the play rate
+	}
+	else if (Section.Params.PlayRate.GetType() == EMovieSceneTimeWarpType::Custom)
+	{
+		FMovieSceneTimeWarpChannel* Channel = Section.GetChannelProxy().GetChannel<FMovieSceneTimeWarpChannel>(0);
+		if (Channel)
+		{
+			Section.Params.PlayRate.AsCustom()->Modify();
+			PreDilateChannel = MakeUnique<FMovieSceneTimeWarpChannel>(*Channel);
+		}
+	}
 }
 
 void FSkeletalAnimationSection::DilateSection(const TRange<FFrameNumber>& NewRange, float DilationFactor)
 {
-	Section.Params.PlayRate = Section.PreviousPlayRate / DilationFactor;
+	if (Section.Params.PlayRate.GetType() == EMovieSceneTimeWarpType::FixedPlayRate)
+	{
+		Section.Params.PlayRate.Set(PreDilatePlayRate / DilationFactor);
+	}
+	else if (Section.Params.PlayRate.GetType() == EMovieSceneTimeWarpType::Custom)
+	{
+		FMovieSceneTimeWarpChannel* Channel = Section.GetChannelProxy().GetChannel<FMovieSceneTimeWarpChannel>(0);
+		if (Channel)
+		{
+			*Channel = *PreDilateChannel;
+
+			// Dilate the times
+			Dilate(Channel, FFrameNumber(0), DilationFactor);
+
+			Section.Params.PlayRate.AsCustom()->MarkAsChanged();
+		}
+	}
 	Section.SetRange(NewRange);
 }
 
@@ -643,13 +677,19 @@ FText FSkeletalAnimationSection::GetSectionToolTip() const
 		UMovieScene* MovieScene = Section.GetTypedOuter<UMovieScene>();
 		FFrameRate TickResolution = MovieScene->GetTickResolution();
 
-		const float AnimPlayRate = FMath::IsNearlyZero(Section.Params.PlayRate) || Section.Params.Animation == nullptr ? 1.0f : Section.Params.PlayRate * Section.Params.Animation->RateScale;
-		const float StartOffset = TickResolution.AsSeconds(Section.Params.FirstLoopStartFrameOffset);
-		const float SectionLength = Section.GetRange().Size<FFrameTime>() / TickResolution;
+		FMovieSceneSequenceTransform Transform = Section.Params.MakeTransform(TickResolution, Section.GetRange());
 
-		if (!FMath::IsNearlyZero(SectionLength, KINDA_SMALL_NUMBER) && SectionLength > 0)
+		const double StartTime     = Transform.TransformTime(0).AsDecimal();
+		const float  SectionLength = Section.GetRange().Size<FFrameTime>() / TickResolution;
+
+		if (Section.Params.PlayRate.GetType() == EMovieSceneTimeWarpType::FixedPlayRate)
 		{
-			return FText::Format(LOCTEXT("ToolTipContentFormat", "Start: {0}s\nDuration: {1}s\nPlay Rate:{2}"), StartOffset, SectionLength, AnimPlayRate);
+			const double PlayRate = Section.Params.PlayRate.AsFixedPlayRate();
+			return FText::Format(LOCTEXT("ToolTipContentFormat_FixedPlayRate", "Start: {0}s\nDuration: {1}s\nPlay Rate: {2}x"), StartTime, SectionLength, PlayRate);
+		}
+		else if (Section.Params.PlayRate.GetType() == EMovieSceneTimeWarpType::Custom)
+		{
+			return FText::Format(LOCTEXT("ToolTipContentFormat_TimwWarp", "Start: {0}s\nDuration: {1}s\nPlay Rate: Variable"), StartTime, SectionLength);
 		}
 	}
 	return FText::GetEmpty();
@@ -733,13 +773,13 @@ FMargin FSkeletalAnimationSection::GetContentPadding() const
 
 int32 FSkeletalAnimationSection::OnPaintSection( FSequencerSectionPainter& Painter ) const
 {
+	using namespace UE::MovieScene;
+
 	const ESlateDrawEffect DrawEffects = Painter.bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
 	
 	const FTimeToPixel& TimeToPixelConverter = Painter.GetTimeConverter();
 
 	int32 LayerId = Painter.PaintSectionBackground();
-
-	static const FSlateBrush* GenericDivider = FAppStyle::GetBrush("Sequencer.GenericDivider");
 
 	if (!Section.HasStartFrame() || !Section.HasEndFrame())
 	{
@@ -748,34 +788,50 @@ int32 FSkeletalAnimationSection::OnPaintSection( FSequencerSectionPainter& Paint
 
 	FFrameRate TickResolution = TimeToPixelConverter.GetTickResolution();
 
-	// Add lines where the animation starts and ends/loops
-	const float AnimPlayRate = FMath::IsNearlyZero(Section.Params.PlayRate) || Section.Params.Animation == nullptr ? 1.0f : Section.Params.PlayRate * Section.Params.Animation->RateScale;
-	const float SeqLength = (Section.Params.GetSequenceLength() - TickResolution.AsSeconds(Section.Params.StartFrameOffset + Section.Params.EndFrameOffset)) / AnimPlayRate;
-	const float FirstLoopSeqLength = SeqLength - TickResolution.AsSeconds(Section.Params.FirstLoopStartFrameOffset) / AnimPlayRate;
+	const FFrameNumber StartFrame = Section.GetInclusiveStartFrame();
+	const FFrameNumber EndFrame   = Section.GetExclusiveEndFrame();
 
-	if (!FMath::IsNearlyZero(SeqLength, KINDA_SMALL_NUMBER) && SeqLength > 0)
+	if (UMovieScene* MovieScene = Section.GetTypedOuter<UMovieScene>())
 	{
-		float MaxOffset  = Section.GetRange().Size<FFrameTime>() / TickResolution;
-		float OffsetTime = FirstLoopSeqLength;
-		float StartTime  = Section.GetInclusiveStartFrame() / TickResolution;
+		FFrameRate FrameRate = MovieScene->GetTickResolution();
+		FMovieSceneSequenceTransform OuterToInnerTransform = Section.Params.MakeTransform(FrameRate, Section.GetRange());
 
-		while (OffsetTime < MaxOffset)
+		// As seconds represented as a FFrameTime
+		FFrameTime LoopStart = FFrameTime::FromDecimal(Section.Params.StartFrameOffset / FrameRate);
+
+		FLinearColor SectionTint = Painter.GetSectionColor().LinearRGBToHSV();
+		SectionTint.B *= 0.1f;
+		SectionTint = SectionTint.HSVToLinearRGB();
+
+		auto PaintTime = [&](FFrameTime Time)
 		{
-			float OffsetPixel = TimeToPixelConverter.SecondsToPixel(StartTime + OffsetTime) - TimeToPixelConverter.SecondsToPixel(StartTime);
+			float OffsetPixel = TimeToPixelConverter.FrameToPixel(Time);
 
-			FSlateDrawElement::MakeBox(
+			TArray<FVector2f> NewVector;
+			NewVector.Reserve(2);
+
+			NewVector.Add(FVector2f(OffsetPixel, 1.f));
+			NewVector.Add(FVector2f(OffsetPixel, Painter.SectionGeometry.Size.Y-2.f));
+
+			constexpr float Thickness = 1.f;
+			constexpr float DashLengthPx = 3.f;
+			FSlateDrawElement::MakeDashedLines(
 				Painter.DrawElements,
-				LayerId,
-				Painter.SectionGeometry.MakeChild(
-					FVector2D(2.f, Painter.SectionGeometry.Size.Y-2.f),
-					FSlateLayoutTransform(FVector2D(OffsetPixel, 1.f))
-				).ToPaintGeometry(),
-				GenericDivider,
-				DrawEffects
+				Painter.LayerId++,
+				Painter.SectionGeometry.ToPaintGeometry(),
+				MoveTemp(NewVector),
+				DrawEffects,
+				SectionTint,
+				Thickness,
+				DashLengthPx
 			);
+			return true;
+		};
 
-			OffsetTime += SeqLength;
-		}
+		OuterToInnerTransform.ExtractBoundariesWithinRange(StartFrame, EndFrame, [&PaintTime](FFrameTime StartTime){
+			PaintTime(StartTime);
+			return true;
+		});
 	}
 
 	return LayerId;
@@ -783,36 +839,16 @@ int32 FSkeletalAnimationSection::OnPaintSection( FSequencerSectionPainter& Paint
 
 void FSkeletalAnimationSection::BeginResizeSection()
 {
-	InitialFirstLoopStartOffsetDuringResize = Section.Params.FirstLoopStartFrameOffset;
-	InitialStartTimeDuringResize = Section.HasStartFrame() ? Section.GetInclusiveStartFrame() : 0;
+	const FFrameRate FrameRate = Section.GetTypedOuter<UMovieScene>()->GetTickResolution();
+	InitialDragTransform = MakeUnique<FMovieSceneSequenceTransform>(Section.Params.MakeTransform(FrameRate, Section.GetRange()));
 }
 
 void FSkeletalAnimationSection::ResizeSection(ESequencerSectionResizeMode ResizeMode, FFrameNumber ResizeTime)
 {
-	// Adjust the start offset when resizing from the beginning
-	if (ResizeMode == SSRM_LeadingEdge)
+	if (ResizeMode == SSRM_LeadingEdge && Section.Params.PlayRate.GetType() != EMovieSceneTimeWarpType::Custom)
 	{
-		// Get the effective animation length, in frames (rounded up), after taking into account start/end trimming.
 		const FFrameRate FrameRate = Section.GetTypedOuter<UMovieScene>()->GetTickResolution();
-		const FFrameNumber SeqLength = FrameRate.AsFrameTime(Section.Params.GetSequenceLength()).CeilToFrame() - Section.Params.StartFrameOffset - Section.Params.EndFrameOffset;
-
-		// Note that there is no scalar-multiplication support for frame numbers, so we need to multiply Value directly.
-		FFrameNumber ResizeAmount = (ResizeTime - InitialStartTimeDuringResize);
-		ResizeAmount.Value = (int32)FMath::Floor(ResizeAmount.Value * Section.Params.PlayRate);
-		FFrameNumber NewFirstLoopStartFrameOffset = InitialFirstLoopStartOffsetDuringResize + ResizeAmount;
-
-		// If the start offset exceeds the length of one loop, trim it back.
-		if (SeqLength > 0)
-		{
-			NewFirstLoopStartFrameOffset = NewFirstLoopStartFrameOffset % SeqLength;
-		}
-		// If the start offset is negative, add an extra loop at the beginning by making this start offset the complement.
-		if (NewFirstLoopStartFrameOffset < 0)
-		{
-			NewFirstLoopStartFrameOffset = SeqLength + NewFirstLoopStartFrameOffset;
-		}
-
-		Section.Params.FirstLoopStartFrameOffset = NewFirstLoopStartFrameOffset;
+		Section.Params.FirstLoopStartFrameOffset = (InitialDragTransform->TransformTime(ResizeTime).AsDecimal() * FrameRate).RoundToFrame();
 	}
 
 	ISequencerSection::ResizeSection(ResizeMode, ResizeTime);
@@ -825,30 +861,16 @@ void FSkeletalAnimationSection::BeginSlipSection()
 
 void FSkeletalAnimationSection::SlipSection(FFrameNumber SlipTime)
 {
-	FFrameRate FrameRate = Section.GetTypedOuter<UMovieScene>()->GetTickResolution();
-	FFrameNumber StartOffset = FrameRate.AsFrameNumber((SlipTime - InitialStartTimeDuringResize) / FrameRate * Section.Params.PlayRate);
-
-	StartOffset += InitialFirstLoopStartOffsetDuringResize;
-
-	if (StartOffset < 0)
-	{
-		// Ensure start offset is not less than 0 and adjust ResizeTime
-		SlipTime = SlipTime - StartOffset;
-
-		StartOffset = FFrameNumber(0);
-	}
-	else
-	{
-		// If the start offset exceeds the length of one loop, trim it back.
-		const FFrameNumber SeqLength = FrameRate.AsFrameNumber(Section.Params.GetSequenceLength()) - Section.Params.StartFrameOffset - Section.Params.EndFrameOffset;
-		StartOffset = StartOffset % SeqLength;
-	}
-
-	Section.Params.FirstLoopStartFrameOffset = StartOffset;
-
+	const FFrameRate FrameRate = Section.GetTypedOuter<UMovieScene>()->GetTickResolution();
+	Section.Params.FirstLoopStartFrameOffset = (InitialDragTransform->TransformTime(SlipTime).AsDecimal() * FrameRate).RoundToFrame();
 	ISequencerSection::SlipSection(SlipTime);
 }
 
+bool FSkeletalAnimationSection::RequestDeleteKeyArea(const TArray<FName>& KeyAreaNamePath)
+{
+	Section.DeleteChannels(KeyAreaNamePath);
+	return true;
+}
 
 void FSkeletalAnimationSection::CustomizePropertiesDetailsView(TSharedRef<IDetailsView> DetailsView, const FSequencerSectionPropertyDetailsViewCustomizationParams& InParams) const
 {

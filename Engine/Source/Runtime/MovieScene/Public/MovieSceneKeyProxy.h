@@ -47,7 +47,7 @@ protected:
 	 * @param InOutTime            Time to move the underlying key to. If the section is locked, this will receive the existing key's time without changing the underlying time.
 	 */
 	template<typename ChannelType, typename ValueType>
-	void OnProxyValueChanged(TMovieSceneChannelHandle<ChannelType> InChannelHandle, UMovieSceneSection* InSection, FKeyHandle InKeyHandle, ValueType& InOutValue, FFrameNumber& InOutTime);
+	void OnProxyValueChanged(TMovieSceneChannelHandle<ChannelType> InChannelHandle, UMovieSceneSignedObject* InSignedObject, FKeyHandle InKeyHandle, ValueType& InOutValue, FFrameNumber& InOutTime);
 
 	/**
 	 * Implementation function that retrieves the underlying key time/value and applies then to the specified value and time parameters. Normally called once per tick.
@@ -64,12 +64,18 @@ protected:
 
 
 template<typename ChannelType, typename ValueType>
-void IMovieSceneKeyProxy::OnProxyValueChanged(TMovieSceneChannelHandle<ChannelType> InChannelHandle, UMovieSceneSection* InSection, FKeyHandle InKeyHandle, ValueType& InOutValue, FFrameNumber& InOutTime)
+void IMovieSceneKeyProxy::OnProxyValueChanged(TMovieSceneChannelHandle<ChannelType> InChannelHandle, UMovieSceneSignedObject* InSignedObject, FKeyHandle InKeyHandle, ValueType& InOutValue, FFrameNumber& InOutTime)
 {
 	auto* Channel = InChannelHandle.Get();
-	if (!Channel || !InSection)
+	if (!Channel || !InSignedObject)
 	{
 		return;
+	}
+
+	UMovieSceneSection* Section = Cast<UMovieSceneSection>(InSignedObject);
+	if (!Section)
+	{
+		Section = InSignedObject->GetTypedOuter<UMovieSceneSection>();
 	}
 
 	auto ChannelData = Channel->GetData();
@@ -77,18 +83,24 @@ void IMovieSceneKeyProxy::OnProxyValueChanged(TMovieSceneChannelHandle<ChannelTy
 	int32 KeyIndex = ChannelData.GetIndex(InKeyHandle);
 	if (KeyIndex != INDEX_NONE)
 	{
-		// If we have no section, or it's locked, don't let the user change the value
-		if (!InSection || !InSection->TryModify())
+		// If we have no signed object, or it's locked, don't let the user change the value
+		if (!InSignedObject || (Section && !Section->TryModify()))
 		{
 			InOutTime  = ChannelData.GetTimes()[KeyIndex];
 			InOutValue = ChannelData.GetValues()[KeyIndex];
 		}
 		else
 		{
+			InSignedObject->Modify();
+
 			ChannelData.GetValues()[KeyIndex] = InOutValue;
 
 			ChannelData.MoveKey(KeyIndex, InOutTime);
-			InSection->ExpandToFrame(InOutTime);
+
+			if (Section)
+			{
+				Section->ExpandToFrame(InOutTime);
+			}
 		}
 		Channel->PostEditChange();
 	}

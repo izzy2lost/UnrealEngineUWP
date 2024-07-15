@@ -65,11 +65,8 @@ bool CanCreateKeyEditor(const FMovieSceneConstraintChannel* InChannel);
 
 TSharedRef<SWidget> CreateKeyEditor(
 	const TMovieSceneChannelHandle<FMovieSceneConstraintChannel>& InChannel,
-	UMovieSceneSection* InSection,
-	const FGuid& InObjectBindingID,
-	TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings,
-	TWeakPtr<ISequencer> Sequencer);
+	const UE::Sequencer::FCreateKeyEditorParams& Params);
 
 /** Curve editor models */
 inline bool SupportsCurveEditorModels(const TMovieSceneChannelHandle<FMovieSceneConstraintChannel>& Channel) { return true; }
-TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneConstraintChannel>& Channel, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer);
+TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneConstraintChannel>& Channel, const UE::Sequencer::FCreateCurveEditorModelParams& Params);

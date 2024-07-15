@@ -3972,7 +3972,7 @@ bool UnrealToUsd::ConvertAnimSequence(UAnimSequence* AnimSequence, pxr::UsdPrim&
 
 bool UnrealToUsd::ConvertControlRigSection(
 	UMovieSceneControlRigParameterSection* InSection,
-	const FMovieSceneSequenceTransform& InTransform,
+	const FMovieSceneInverseSequenceTransform& InTransform,
 	UMovieScene* InMovieScene,
 	IMovieScenePlayer* InPlayer,
 	const FReferenceSkeleton& InRefSkeleton,
@@ -4292,12 +4292,16 @@ bool UnrealToUsd::ConvertControlRigSection(
 	FFrameTime TickIncr = FFrameRate::TransformTime(1, DisplayRate, TickResolution);
 	for (FFrameTime FrameTickTime = StartInclTickFrame; FrameTickTime <= EndInclTickFrame; FrameTickTime += TickIncr)
 	{
-		FFrameTime TransformedFrameTickTime = FrameTickTime * InTransform;
+		TOptional<FFrameTime> TransformedFrameTickTime = InTransform.TryTransformTime(FrameTickTime);
+		if (!TransformedFrameTickTime)
+		{
+			continue;
+		}
 
-		double UsdTimeCode = FFrameRate::TransformTime(TransformedFrameTickTime, TickResolution, StageFrameRate).AsDecimal();
+		double UsdTimeCode = FFrameRate::TransformTime(TransformedFrameTickTime.GetValue(), TickResolution, StageFrameRate).AsDecimal();
 
 		FMovieSceneContext Context = FMovieSceneContext(
-										 FMovieSceneEvaluationRange(TransformedFrameTickTime, TickResolution),
+										 FMovieSceneEvaluationRange(TransformedFrameTickTime.GetValue(), TickResolution),
 										 InPlayer->GetPlaybackStatus()
 		)
 										 .SetHasJumped(true);

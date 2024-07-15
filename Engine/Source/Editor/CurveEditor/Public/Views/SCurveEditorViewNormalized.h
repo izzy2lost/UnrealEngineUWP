@@ -30,7 +30,7 @@ public:
 
 	virtual void UpdateViewToTransformCurves(double InputMin, double InputMax) override;
 
-	void FrameVertical(double InOutputMin, double InOutputMax) override;
+	void FrameVertical(double InOutputMin, double InOutputMax, FCurveEditorViewAxisID AxisID = FCurveEditorViewAxisID()) override;
 
 protected:
 

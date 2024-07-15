@@ -150,24 +150,13 @@ namespace Sequencer
 	 * Create a key editor widget for the specified channel with the channel's specialized editor data. Such widgets are placed on the sequencer node tree for a given key area node.
 	 *
 	 * @param InChannel          The channel to create a key editor for
-	 * @param InOwningSection    The section that owns the channel
-	 * @param InObjectBindingID  The object binding ID that this section's track is bound to
-	 * @param InPropertyBindings Optionally supplied helper for accessing an object's property pertaining to this channel
-	 * @param InSequencer        The sequencer currently active
+	 * @param Params             Creation parameters containing all the necessary structures for creating the key editor
 	 * @return The key editor widget
 	 */
-	inline TSharedRef<SWidget> CreateKeyEditor(
-		const FMovieSceneChannelHandle&          InChannel,
-		UMovieSceneSection*                      InOwningSection,
-		const FGuid&                             InObjectBindingID,
-		TWeakPtr<FTrackInstancePropertyBindings> InPropertyBindings,
-		TWeakPtr<ISequencer>                     InSequencer
-		)
+	inline TSharedRef<SWidget> CreateKeyEditor(const FMovieSceneChannelHandle& InChannel,const UE::Sequencer::FCreateKeyEditorParams& Params)
 	{
 		return SNullWidget::NullWidget;
 	}
-
-
 
 	/**
 	 * Add a key at the specified time (or update an existing key) with the channel's current value at that time
@@ -375,11 +364,6 @@ namespace Sequencer
 	template<typename ChannelType>
 	void PasteKeys(ChannelType* InChannel, UMovieSceneSection* Section, const FMovieSceneClipboardKeyTrack& KeyTrack, const FMovieSceneClipboardEnvironment& SrcEnvironment, const FSequencerPasteEnvironment& DstEnvironment, TArray<FKeyHandle>& OutPastedKeys)
 	{
-		if (!Section || !Section->TryModify())
-		{
-			return;
-		}
-
 		FFrameTime PasteAt = DstEnvironment.CardinalTime;
 
 		auto ChannelData = InChannel->GetData();
@@ -414,7 +398,7 @@ namespace Sequencer
 	 *
 	 * @return (Optional) A new model to be added to a curve editor
 	 */
-	SEQUENCER_API TUniquePtr<FCurveModel> CreateCurveEditorModel(const FMovieSceneChannelHandle& ChannelHandle, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer);
+	SEQUENCER_API TUniquePtr<FCurveModel> CreateCurveEditorModel(const FMovieSceneChannelHandle& ChannelHandle, const UE::Sequencer::FCreateCurveEditorModelParams& Params);
 
 	/**
 	 * Create a new channel model for this type of channel

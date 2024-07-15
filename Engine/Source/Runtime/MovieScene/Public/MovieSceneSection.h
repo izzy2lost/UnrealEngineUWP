@@ -294,7 +294,13 @@ public:
 	 */
 	void ExpandToFrame(FFrameNumber InFrame)
 	{
+		FFrameNumber StartOffset = HasStartFrame() ? FMath::Min(GetInclusiveStartFrame(), InFrame) - GetInclusiveStartFrame() : 0;
+
 		SetRange(TRange<FFrameNumber>::Hull(GetRange(), TRange<FFrameNumber>::Inclusive(InFrame, InFrame)));
+		if (StartOffset != 0)
+		{
+			FixupRelativeKeyframes(StartOffset);
+		}
 	}
 
 	/**
@@ -692,6 +698,8 @@ protected:
 
 	virtual void OnMoved(int32 DeltaTime) {}
 	virtual void OnDilated(float DilationFactor, FFrameNumber Origin) {}
+
+	MOVIESCENE_API void FixupRelativeKeyframes(FFrameNumber Offset);
 
 	MOVIESCENE_API bool ShouldUpgradeEntityData(FArchive& Ar, FMovieSceneEvaluationCustomVersion::Type UpgradeVersion) const;
 

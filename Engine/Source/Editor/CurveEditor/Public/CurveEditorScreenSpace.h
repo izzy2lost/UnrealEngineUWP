@@ -66,7 +66,7 @@ public:
 	/**
 	 * Transform this screen space into a curve space using the specified transform
 	 */
-	FCurveEditorScreenSpaceH ToCurveSpace(const FTransform2D& CurveTransform) const
+	FCurveEditorScreenSpaceH ToCurveSpace(const FTransform2d& CurveTransform) const
 	{
 		const FVector2D& T = CurveTransform.GetTranslation();
 
@@ -100,7 +100,7 @@ struct FCurveEditorScreenSpaceV
 	{
 		if (!ensure(OutputMax > OutputMin))
 		{
-			OutputMax = OutputMin + KINDA_SMALL_NUMBER;
+			OutputMax = OutputMin + 1.0;
 		}
 	}
 
@@ -141,7 +141,7 @@ public:
 	/**
 	 * Transform this screen space into a curve space using the specified transform
 	 */
-	FCurveEditorScreenSpaceV ToCurveSpace(const FTransform2D& CurveTransform) const
+	FCurveEditorScreenSpaceV ToCurveSpace(const FTransform2d& CurveTransform) const
 	{
 		const FVector2D& T = CurveTransform.GetTranslation();
 
@@ -183,7 +183,7 @@ public:
 	/**
 	 * Transform this screen space into a curve space using the specified transform
 	 */
-	FCurveEditorScreenSpace ToCurveSpace(const FTransform2D& CurveTransform) const
+	FCurveEditorScreenSpace ToCurveSpace(const FTransform2d& CurveTransform) const
 	{
 		FCurveEditorScreenSpace New = *this;
 		FCurveEditorScreenSpaceH& H = static_cast<FCurveEditorScreenSpaceH&>(New);

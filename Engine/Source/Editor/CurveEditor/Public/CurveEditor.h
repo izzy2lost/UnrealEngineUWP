@@ -215,7 +215,32 @@ public:
 	ICurveEditorToolExtension* GetCurrentTool() const;
 
 	FCurveEditorToolID AddTool(TUniquePtr<ICurveEditorToolExtension>&& InTool);
-	
+
+	/**
+	 * Adds a new axis to this curve editor with the specified name.
+	 * @note Calling this function with the same identifier as a previously registered axis will
+	 *       overwrite the axis with the new one.
+	 * 
+	 * @param InIdentifier      A unique identifer for this axis that can be subsequently used to look up this axis
+	 * @param InAxis            The axis definition
+	 */
+	void AddAxis(const FName& InIdentifier, TSharedPtr<FCurveEditorAxis> InAxis);
+
+	/**
+	 * Find an axis by its ID
+	 */
+	TSharedPtr<FCurveEditorAxis> FindAxis(const FName& InIdentifier) const;
+
+	/**
+	 * Remove the axis with the specified ID
+	 */
+	void RemoveAxis(const FName& InIdentifier);
+
+	/**
+	 * Remove all custom axes definitions
+	 */
+	void ClearAxes();
+
 	/** Nudge left or right*/
 	void TranslateSelectedKeys(double SecondsToAdd);
 	void TranslateSelectedKeysLeft();
@@ -607,6 +632,11 @@ protected:
 	TMap<FCurveModelID, TUniquePtr<FCurveModel>> CurveData;
 	/** Map from curve model ID to its originating tree item */
 	TMap<FCurveModelID, FCurveEditorTreeItemID> TreeIDByCurveID;
+	/** Map of child curves */
+	TMultiMap<FCurveModelID, FCurveModelID> ChildCurves;
+
+	/** Map of all axes */
+	TSortedMap<FName, TSharedPtr<FCurveEditorAxis>, FDefaultAllocator, FNameFastLess> CustomAxes;
 
 	/** Set of pinned curve models */
 	TSet<FCurveModelID> PinnedCurves;

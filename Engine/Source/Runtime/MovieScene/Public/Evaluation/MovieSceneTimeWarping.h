@@ -22,6 +22,7 @@
 USTRUCT()
 struct FMovieSceneTimeWarping
 {
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	MOVIESCENE_API static const uint32 InvalidWarpCount;
 
 	GENERATED_BODY()
@@ -41,16 +42,19 @@ struct FMovieSceneTimeWarping
 	/**
 	 * Returns the length of the warping.
 	 */
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	FFrameNumber Length() const { return End - Start; }
 
 	/**
 	 * Returns whether this warping transform is doing anything.
 	 */
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	bool IsValid() const { return End > Start; }
 
 	/**
 	 * Returns a range that encompasses the whole warping time span.
 	 */
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	TRange<FFrameTime> GetRange() const
 	{
 		const TRangeBound<FFrameTime> OutLower(TRangeBound<FFrameTime>::Inclusive(Start));
@@ -61,71 +65,27 @@ struct FMovieSceneTimeWarping
 	/**
 	 * Returns a transformation that takes us from a local time into a given loop back to the root time.
 	 */
-	FMovieSceneTimeTransform InverseFromWarp(uint32 WarpCount) const
-	{
-		check(IsValid() || WarpCount == InvalidWarpCount);
-
-		if (WarpCount == InvalidWarpCount || WarpCount == 0)
-		{
-			return FMovieSceneTimeTransform();
-		}
-		else
-		{
-			const FFrameNumber WarpLength = Length();
-			const FFrameNumber WarpsOffset = WarpLength * (float)WarpCount;
-			return FMovieSceneTimeTransform(WarpsOffset);
-		}
-	}
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
+	FMovieSceneTimeTransform InverseFromWarp(uint32 WarpCount) const;
 
 	/**
 	 * Transforms the given frame and returns the warped frame time along with the warp index we ended up in.
 	 */
-	void TransformFrame(FFrameNumber InFrame, FFrameNumber& OutFrame, uint32& OutWarpIndex) const
-	{
-		checkSlow(IsValid());
-		const FFrameNumber WarpLength = Length();
-		OutWarpIndex = 0;
-		FFrameNumber TempFrame = InFrame - Start;
-		while (TempFrame >= WarpLength)
-		{
-			TempFrame -= WarpLength;
-			++OutWarpIndex;
-		}
-		OutFrame = TempFrame + Start;
-	}
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
+	void TransformFrame(FFrameNumber InFrame, FFrameNumber& OutFrame, uint32& OutWarpIndex) const;
 
 	/**
 	 * Transforms the given time and returns the warped time along with the warp index we ended up in.
 	 */
-	void TransformTime(FFrameTime InTime, FFrameTime& OutTime, uint32& OutWarpIndex) const
-	{
-		checkSlow(IsValid());
-		const FFrameTime WarpLength = Length();
-		OutWarpIndex = 0;
-		FFrameTime TempTime = InTime - Start;
-		while (TempTime >= WarpLength)
-		{
-			TempTime = TempTime - WarpLength;
-			++OutWarpIndex;
-		}
-		OutTime = TempTime + Start;
-	}
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
+	void TransformTime(FFrameTime InTime, FFrameTime& OutTime, uint32& OutWarpIndex) const;
 
 	/**
 	 * Transforms the given time by warping it by a specific warp count, regardless of how many warps are
 	 * needed in theory to stay in the warping range.
 	 */
-	void TransformTimeSpecific(FFrameTime InTime, uint32 WarpCount, FFrameTime& OutTime) const
-	{
-		checkSlow(IsValid());
-		const FFrameTime WarpLength = Length();
-		FFrameTime TempTime = InTime - Start;
-		for (uint32 WarpIndex = 0; WarpIndex < WarpCount; ++WarpIndex)
-		{
-			TempTime = TempTime - WarpLength;
-		}
-		OutTime = TempTime + Start;
-	}
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
+	void TransformTimeSpecific(FFrameTime InTime, uint32 WarpCount, FFrameTime& OutTime) const;
 
 	/** 
 	 * Transforms the given range in a "naive" way, i.e. its lower and upper bounds are transformed
@@ -133,6 +93,7 @@ struct FMovieSceneTimeWarping
 	 * the output lower bound could be greater than the output upper bound, like, for instance, in the case
 	 * of the input range starting near the end of a loop, and ending near the beginning of another loop.
 	 */
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	TRange<FFrameTime> TransformRangePure(const TRange<FFrameTime>& Range) const;
 
 	/**
@@ -141,6 +102,7 @@ struct FMovieSceneTimeWarping
 	 * 3 loops, the output range will start in the middle of the first loop, and last 3 times as long as
 	 * the Length of this time warp.
 	 */
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	TRange<FFrameTime> TransformRangeUnwarped(const TRange<FFrameTime>& Range) const;
 
 	/**
@@ -150,13 +112,16 @@ struct FMovieSceneTimeWarping
 	 * If it didn't cover a full loop, return the transformed range, which should be a subset of the full
 	 * loop range mentioned above.
 	 */
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	TRange<FFrameTime> TransformRangeConstrained(const TRange<FFrameTime>& Range) const;
 
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	friend bool operator==(const FMovieSceneTimeWarping& A, const FMovieSceneTimeWarping& B)
 	{
 		return A.Start == B.Start && A.End == B.End;
 	}
 
+	UE_DEPRECATED(5.5, "Please update your code to the new FMovieSceneSequenceTransform API. The closest analogue is FMovieSceneTimeWarpLoop.")
 	friend bool operator!=(const FMovieSceneTimeWarping& A, const FMovieSceneTimeWarping& B)
 	{
 		return A.Start != B.Start || A.End != B.End;
@@ -168,6 +133,8 @@ struct FMovieSceneTimeWarping
 	UPROPERTY()
 	FFrameNumber End;
 };
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 inline FFrameNumber operator*(FFrameNumber InFrame, const FMovieSceneTimeWarping& RHS)
 {
@@ -193,6 +160,62 @@ inline FFrameTime& operator*=(FFrameTime& InTime, const FMovieSceneTimeWarping& 
 {
 	InTime = InTime * RHS;
 	return InTime;
+}
+
+inline FMovieSceneTimeTransform FMovieSceneTimeWarping::InverseFromWarp(uint32 WarpCount) const
+{
+	check(IsValid() || WarpCount == InvalidWarpCount);
+
+	if (WarpCount == InvalidWarpCount || WarpCount == 0)
+	{
+		return FMovieSceneTimeTransform();
+	}
+	else
+	{
+		const FFrameNumber WarpLength = Length();
+		const FFrameNumber WarpsOffset = WarpLength * (float)WarpCount;
+		return FMovieSceneTimeTransform(WarpsOffset);
+	}
+}
+
+inline void FMovieSceneTimeWarping::TransformFrame(FFrameNumber InFrame, FFrameNumber& OutFrame, uint32& OutWarpIndex) const
+{
+	checkSlow(IsValid());
+	const FFrameNumber WarpLength = Length();
+	OutWarpIndex = 0;
+	FFrameNumber TempFrame = InFrame - Start;
+	while (TempFrame >= WarpLength)
+	{
+		TempFrame -= WarpLength;
+		++OutWarpIndex;
+	}
+	OutFrame = TempFrame + Start;
+}
+
+inline void FMovieSceneTimeWarping::TransformTime(FFrameTime InTime, FFrameTime& OutTime, uint32& OutWarpIndex) const
+{
+	checkSlow(IsValid());
+	const FFrameTime WarpLength = Length();
+	OutWarpIndex = 0;
+	FFrameTime TempTime = InTime - Start;
+	while (TempTime >= WarpLength)
+	{
+		TempTime = TempTime - WarpLength;
+		++OutWarpIndex;
+	}
+	OutTime = TempTime + Start;
+}
+
+inline void FMovieSceneTimeWarping::TransformTimeSpecific(FFrameTime InTime, uint32 WarpCount, FFrameTime& OutTime) const
+{
+	checkSlow(IsValid());
+	const FFrameTime WarpLength = Length();
+	FFrameTime TempTime = InTime - Start;
+	for (uint32 WarpIndex = 0; WarpIndex < WarpCount; ++WarpIndex)
+	{
+		TempTime = TempTime - WarpLength;
+	}
+	OutTime = TempTime + Start;
 }
 
 inline TRange<FFrameTime> FMovieSceneTimeWarping::TransformRangePure(const TRange<FFrameTime>& Range) const
@@ -285,3 +308,5 @@ inline FString LexToString(const FMovieSceneTimeWarping& InWarping)
 {
 	return *FString::Printf(TEXT("[ %+i ⟳ %+i ]"), InWarping.Start.Value, InWarping.End.Value);
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

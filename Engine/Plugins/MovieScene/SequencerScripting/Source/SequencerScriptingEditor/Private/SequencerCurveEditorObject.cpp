@@ -87,7 +87,7 @@ TArray<FSequencerChannelProxy> USequencerCurveEditorObject::GetChannelsWithSelec
 		{
 			if (const FCurveModel* Curve = CurveEditor->FindCurve(Pair.Key))
 			{
-				if (UMovieSceneSection* Section = Cast<UMovieSceneSection>(Curve->GetOwningObject()))
+				if (UMovieSceneSection* Section = Curve->GetOwningObjectOrOuter<UMovieSceneSection>())
 				{
 					FName ChannelName = Curve->GetChannelName();
 					FSequencerChannelProxy ChannelProxy(ChannelName,Section);
@@ -112,7 +112,7 @@ TArray<int32> USequencerCurveEditorObject::GetSelectedKeys(const FSequencerChann
 		{
 			if (const FCurveModel* Curve = CurveEditor->FindCurve(Pair.Key))
 			{
-				if (UMovieSceneSection* Section = Cast<UMovieSceneSection>(Curve->GetOwningObject()))
+				if (UMovieSceneSection* Section = Curve->GetOwningObjectOrOuter<UMovieSceneSection>())
 				{
 					if (Section == ChannelProxy.Section)
 					{

@@ -31,12 +31,12 @@ struct TPropertyAnimatorEditorCurveChannelInterface : ISequencerChannelInterface
 	virtual void DrawKeys_Raw(FMovieSceneChannel*, TConstArrayView<FKeyHandle>, const UMovieSceneSection*, TArrayView<FKeyDrawParams>) const override {}
 	virtual bool ShouldShowCurve_Raw(const FMovieSceneChannel*, UMovieSceneSection*) const override { return true; }
 	virtual bool SupportsCurveEditorModels_Raw(const FMovieSceneChannelHandle&) const override { return false; }
-	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle&, UMovieSceneSection*, TSharedRef<ISequencer>) const override { return nullptr; }
+	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle&, const UE::Sequencer::FCreateCurveEditorModelParams& Params) const override { return nullptr; }
 	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle&, FName) const override { return nullptr; }
 	virtual TSharedPtr<UE::Sequencer::STrackAreaLaneView> CreateChannelView_Raw(const FMovieSceneChannelHandle&, TWeakPtr<UE::Sequencer::FChannelModel>, const UE::Sequencer::FCreateTrackLaneViewParams&) const override { return nullptr; }
 	virtual void ExtendSectionMenu_Raw(FMenuBuilder& InMenuBuilder, TSharedPtr<FExtender> InMenuExtender, TConstArrayView<FMovieSceneChannelHandle> InChannels, TConstArrayView<UMovieSceneSection*> InSections, TWeakPtr<ISequencer> InSequencer) const override;
 	virtual int32 DrawExtra_Raw(FMovieSceneChannel* InChannel, const UMovieSceneSection* InOwner, const FSequencerChannelPaintArgs& InPaintArgs, int32 InLayerId) const override;
-	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& InChannel, UMovieSceneSection* InSection, const FGuid& InObjectBindingID, TWeakPtr<FTrackInstancePropertyBindings> InPropertyBindings, TWeakPtr<ISequencer> InSequencer) const override;
+	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& InChannel, const UE::Sequencer::FCreateKeyEditorParams& Params) const override;
 	//~ End ISequencerChannelInterface
 };
 
@@ -100,10 +100,7 @@ int32 TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtensio
 
 template<typename InChannelType, typename InMenuExtensionType>
 TSharedRef<SWidget> TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtensionType>::CreateKeyEditor_Raw(const FMovieSceneChannelHandle& InChannel
-	, UMovieSceneSection* InSection
-	, const FGuid& InObjectBindingID
-	, TWeakPtr<FTrackInstancePropertyBindings> InPropertyBindings
-	, TWeakPtr<ISequencer> InSequencer) const
+	, const UE::Sequencer::FCreateKeyEditorParams& Params) const
 {
 	const TMovieSceneExternalValue<FCurveValueType>* ExternalValue = InChannel.Cast<FChannelType>().GetExtendedEditorData();
 	if (!ExternalValue)
@@ -111,10 +108,10 @@ TSharedRef<SWidget> TPropertyAnimatorEditorCurveChannelInterface<InChannelType, 
 		return SNullWidget::NullWidget;
 	}
 
-	return SNew(SKeyEditorWidget, FKeyEditor(InObjectBindingID
+	return SNew(SKeyEditorWidget, FKeyEditor(Params.ObjectBindingID
 		, InChannel.Cast<FChannelType>()
-		, InSection
-		, InSequencer
-		, InPropertyBindings
+		, Params.OwningSection
+		, Params.Sequencer
+		, Params.PropertyBindings
 		, ExternalValue->OnGetExternalValue));
 }

@@ -176,7 +176,12 @@ void FMovieSceneEventSectionTemplate::EvaluateSwept(const FMovieSceneEvaluationO
 	const int32 Last = bBackwards ? 0 : KeyTimes.Num() - 1;
 	const int32 Inc = bBackwards ? -1 : 1;
 
-	const float PositionInSeconds = Context.GetTime() * Context.GetRootToSequenceTransform().InverseNoLooping() / Context.GetFrameRate();
+
+	// @todo: this is technically incorrect because it is converting a root-space time to seconds using the local-space frame rate,
+	//        but this code only exists for legacy reasons so it has not been updated.
+	TOptional<FFrameTime> RootTime = Context.GetRootToSequenceTransform().Inverse().TryTransformTime(Context.GetTime());
+
+	const float PositionInSeconds = RootTime.Get(0) / Context.GetFrameRate();
 
 	if (bBackwards)
 	{

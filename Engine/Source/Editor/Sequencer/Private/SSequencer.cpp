@@ -755,8 +755,8 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 											SAssignNew(LoopIndexDisplay, STextBlock)
 											.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
 											.Text_Lambda([this]() -> FText {
-												uint32 LoopIndex = SequencerPtr.Pin()->GetLocalLoopIndex();
-												return (LoopIndex != FMovieSceneTimeWarping::InvalidWarpCount) ? FText::AsNumber(LoopIndex + 1) : FText();
+												TOptional<int32> LoopIndex = SequencerPtr.Pin()->GetLocalLoopIndex();
+												return LoopIndex ? FText::AsNumber(LoopIndex.GetValue()) : FText();
 											})
 										]
 									]

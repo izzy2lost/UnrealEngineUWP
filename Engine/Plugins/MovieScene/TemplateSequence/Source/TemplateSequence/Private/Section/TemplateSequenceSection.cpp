@@ -48,7 +48,7 @@ bool UTemplateSequenceSection::ShowCurveForChannel(const void *ChannelPtr) const
 void UTemplateSequenceSection::OnDilated(float DilationFactor, FFrameNumber Origin)
 {
 	// TODO-lchabant: shouldn't this be in the base class?
-	Parameters.TimeScale /= DilationFactor;
+	Parameters.TimeScale.ScaleBy(1.f / DilationFactor);
 }
 
 EMovieSceneChannelProxyType UTemplateSequenceSection::CacheChannelProxy()

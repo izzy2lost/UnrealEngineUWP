@@ -46,6 +46,8 @@ private:
 		TArray<FKeyPosition> StartKeyPositions;
 		/** Used in OnEndDrag to send final key updates */
 		TArray<FKeyPosition> LastDraggedKeyPositions;
+		/** Initial curve transform for this curve */
+		FTransform2d InitialDragTransform;
 	};
 
 	/** Key dragging data stored per-curve */

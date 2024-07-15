@@ -228,7 +228,22 @@ void UMovieSceneSection::MoveSectionImpl(FFrameNumber DeltaFrame)
 		{
 			SectionRange.Value.SetUpperBoundValue(SectionRange.Value.GetUpperBoundValue() + DeltaFrame);
 		}
+#if WITH_EDITOR
+		const bool bHasStartFrame = HasStartFrame();
 
+		for (const FMovieSceneChannelEntry& Entry : GetChannelProxy().GetAllEntries())
+		{
+			TArrayView<FMovieSceneChannel* const>        Channels = Entry.GetChannels();
+			TArrayView<const FMovieSceneChannelMetaData> MetaData = Entry.GetMetaData();
+			for (int32 Index = 0; Index < Channels.Num(); ++Index)
+			{
+				if (!MetaData[Index].bRelativeToSection || !bHasStartFrame)
+				{
+					Channels[Index]->Offset(DeltaFrame);
+				}
+			}
+		}
+#else
 		for (const FMovieSceneChannelEntry& Entry : GetChannelProxy().GetAllEntries())
 		{
 			for (FMovieSceneChannel* Channel : Entry.GetChannels())
@@ -236,7 +251,37 @@ void UMovieSceneSection::MoveSectionImpl(FFrameNumber DeltaFrame)
 				Channel->Offset(DeltaFrame);
 			}
 		}
+#endif
 	}
+}
+
+void UMovieSceneSection::FixupRelativeKeyframes(FFrameNumber Offset)
+{
+#if WITH_EDITOR
+	if (!TryModify() || !HasStartFrame())
+	{
+		return;
+	}
+
+	for (const FMovieSceneChannelEntry& Entry : GetChannelProxy().GetAllEntries())
+	{
+		TArrayView<FMovieSceneChannel* const>        Channels = Entry.GetChannels();
+		TArrayView<const FMovieSceneChannelMetaData> MetaData = Entry.GetMetaData();
+		for (int32 Index = 0; Index < Channels.Num(); ++Index)
+		{
+			if (MetaData[Index].bRelativeToSection)
+			{
+				UObject* OwningObject = MetaData[Index].WeakOwningObject.Get();
+				if (OwningObject && OwningObject != this)
+				{
+					OwningObject->Modify();
+				}
+
+				Channels[Index]->Offset(-Offset);
+			}
+		}
+	}
+#endif
 }
 
 void UMovieSceneSection::MoveSection(FFrameNumber DeltaFrame)

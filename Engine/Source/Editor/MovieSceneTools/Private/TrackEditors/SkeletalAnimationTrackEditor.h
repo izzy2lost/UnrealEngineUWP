@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/Guid.h"
 #include "Templates/SubclassOf.h"
+#include "Templates/UniquePtr.h"
 #include "Widgets/SWidget.h"
 #include "ISequencer.h"
 #include "MovieSceneTrack.h"
@@ -14,6 +15,8 @@
 #include "EditModes/SkeletalAnimationTrackEditMode.h"
 
 struct FAssetData;
+struct FMovieSceneTimeWarpChannel;
+struct FMovieSceneSequenceTransform;
 class FMenuBuilder;
 class FSequencerSectionPainter;
 class UMovieSceneSkeletalAnimationSection;
@@ -142,7 +145,7 @@ public:
 	FSkeletalAnimationSection( UMovieSceneSection& InSection, TWeakPtr<ISequencer> InSequencer);
 
 	/** Virtual destructor. */
-	virtual ~FSkeletalAnimationSection() { }
+	virtual ~FSkeletalAnimationSection();
 
 public:
 
@@ -163,6 +166,7 @@ public:
 	virtual void BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& InObjectBinding) override;
 	virtual void BeginDilateSection() override;
 	virtual void DilateSection(const TRange<FFrameNumber>& NewRange, float DilationFactor) override;
+	virtual bool RequestDeleteKeyArea(const TArray<FName>& KeyAreaNamePath) override;
 
 
 private:
@@ -175,9 +179,7 @@ private:
 	/** Used to draw animation frame, need selection state and local time*/
 	TWeakPtr<ISequencer> Sequencer;
 
-	/** Cached first loop start offset value valid only during resize */
-	FFrameNumber InitialFirstLoopStartOffsetDuringResize;
-
-	/** Cached start time valid only during resize */
-	FFrameNumber InitialStartTimeDuringResize;
+	TUniquePtr<FMovieSceneSequenceTransform> InitialDragTransform;
+	TUniquePtr<FMovieSceneTimeWarpChannel> PreDilateChannel;
+	double PreDilatePlayRate;
 };

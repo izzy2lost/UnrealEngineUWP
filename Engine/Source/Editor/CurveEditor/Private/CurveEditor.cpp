@@ -9,6 +9,7 @@
 #include "CurveEditorCopyBuffer.h"
 #include "CurveEditorSettings.h"
 #include "CurveEditorSnapMetrics.h"
+#include "CurveEditorAxis.h"
 #include "CurveModel.h"
 #include "Curves/KeyHandle.h"
 #include "Curves/RichCurve.h"
@@ -180,12 +181,42 @@ FCurveEditorToolID FCurveEditor::AddTool(TUniquePtr<ICurveEditorToolExtension>&&
 	return NewID;
 }
 
+void FCurveEditor::AddAxis(const FName& InIdentifier, TSharedPtr<FCurveEditorAxis> InAxis)
+{
+	// Allow overwrites
+	CustomAxes.Add(InIdentifier, InAxis);
+}
+
+TSharedPtr<FCurveEditorAxis> FCurveEditor::FindAxis(const FName& InIdentifier) const
+{
+	return CustomAxes.FindRef(InIdentifier);
+}
+
+void FCurveEditor::RemoveAxis(const FName& InIdentifier)
+{
+	CustomAxes.Remove(InIdentifier);
+}
+
+void FCurveEditor::ClearAxes()
+{
+	CustomAxes.Empty();
+}
+
 FCurveModelID FCurveEditor::AddCurve(TUniquePtr<FCurveModel>&& InCurve)
 {
 	FCurveModelID NewID = FCurveModelID::Unique();
 	FCurveModel *Curve = InCurve.Get();
 
 	CurveData.Add(NewID, MoveTemp(InCurve));
+
+	// Add child curves
+	TArray<TUniquePtr<FCurveModel>> ChildCurvesArray;
+	Curve->MakeChildCurves(ChildCurvesArray);
+	for (TUniquePtr<FCurveModel>& Child : ChildCurvesArray)
+	{
+		ChildCurves.Add(NewID, AddCurve(MoveTemp(Child)));
+	}
+
 	++ActiveCurvesSerialNumber;
 	if (IsBroadcasting())
 	{
@@ -204,21 +235,11 @@ void FCurveEditor::BroadcastCurveChanged(FCurveModel* InCurve)
 
 FCurveModelID FCurveEditor::AddCurveForTreeItem(TUniquePtr<FCurveModel>&& InCurve, FCurveEditorTreeItemID TreeItemID)
 {
-	FCurveModelID NewID = FCurveModelID::Unique();
-	FCurveModel *Curve = InCurve.Get();
-
-	if(IsBroadcasting())
-	{
-		OnCurveArrayChanged.Broadcast(InCurve.Get(), true, this);
-	}
-
-	CurveData.Add(NewID, MoveTemp(InCurve));
+	FCurveModelID NewID = AddCurve(MoveTemp(InCurve));
 	TreeIDByCurveID.Add(NewID, TreeItemID);
-
-	++ActiveCurvesSerialNumber;
-
 	return NewID;
 }
+
 void FCurveEditor::ResetMinMaxes()
 {
 	TSharedPtr<SCurveEditorPanel> Panel = WeakPanel.Pin();
@@ -229,6 +250,12 @@ void FCurveEditor::ResetMinMaxes()
 }
 void FCurveEditor::RemoveCurve(FCurveModelID InCurveID)
 {
+	for (auto ChildID = ChildCurves.CreateConstKeyIterator(InCurveID); ChildID; ++ChildID)
+	{
+		RemoveCurve(ChildID.Value());
+	}
+	ChildCurves.Remove(InCurveID);
+
 	TSharedPtr<SCurveEditorPanel> Panel = WeakPanel.Pin();
 	if (Panel.IsValid())
 	{
@@ -247,7 +274,6 @@ void FCurveEditor::RemoveCurve(FCurveModelID InCurveID)
 
 
 	++ActiveCurvesSerialNumber;
-
 }
 
 void FCurveEditor::RemoveAllCurves()
@@ -264,6 +290,7 @@ void FCurveEditor::RemoveAllCurves()
 	CurveData.Empty();
 	Selection.Clear();
 	PinnedCurves.Empty();
+	ChildCurves.Empty();
 
 	++ActiveCurvesSerialNumber;
 }
@@ -330,7 +357,7 @@ FCurveEditorTreeItemID FCurveEditor::GetTreeIDFromCurveID(FCurveModelID CurveID)
 {
 	if (TreeIDByCurveID.Contains(CurveID))
 	{
-		return TreeIDByCurveID[CurveID];	
+		return TreeIDByCurveID[CurveID];
 	}
 
 	return FCurveEditorTreeItemID();
@@ -591,9 +618,53 @@ void FCurveEditor::ZoomToFitInternal(EAxisList::Type Axes, const TMap<FCurveMode
 {
 	TArray<FKeyPosition> KeyPositionsScratch;
 
-	double InputMin = TNumericLimits<double>::Max(), InputMax = TNumericLimits<double>::Lowest();
+	TMap<TTuple<TSharedRef<SCurveEditorView>, FCurveEditorViewAxisID>, TTuple<double, double>> ViewAndAxisToInputBounds;
+	TMap<TTuple<TSharedRef<SCurveEditorView>, FCurveEditorViewAxisID>, TTuple<double, double>> ViewAndAxisToOutputBounds;
 
-	TMap<TSharedRef<SCurveEditorView>, TTuple<double, double>> ViewToOutputBounds;
+	auto TrackHorizontalBoundsForView = [&ViewAndAxisToInputBounds, Axes](const TSharedRef<SCurveEditorView>& View, FCurveModelID InCurveID, double InputMin, double InputMax)
+	{
+		if (Axes & EAxisList::X)
+		{
+			FCurveEditorViewAxisID HorizontalAxis = View->GetAxisForCurve(InCurveID, ECurveEditorAxisOrientation::Horizontal);
+			if (HorizontalAxis)  // Only track horizontal axis zoom for custom axes since every view is implicitly linked to the global curve editor bounds
+			{
+				TTuple<double, double>* ViewBounds = ViewAndAxisToInputBounds.Find(MakeTuple(View, HorizontalAxis));
+				if (ViewBounds)
+				{
+					ViewBounds->Get<0>() = FMath::Min(ViewBounds->Get<0>(), InputMin);
+					ViewBounds->Get<1>() = FMath::Max(ViewBounds->Get<1>(), InputMax);
+				}
+				else
+				{
+					ViewAndAxisToInputBounds.Add(MakeTuple(View, HorizontalAxis), MakeTuple(InputMin, InputMax));
+				}
+			}
+		}
+	};
+
+	auto TrackVerticalBoundsForView = [&ViewAndAxisToOutputBounds, Axes](const TSharedRef<SCurveEditorView>& View, FCurveModelID InCurveID, double OutputMin, double OutputMax)
+	{
+		if (Axes & EAxisList::Y)
+		{
+			FCurveEditorViewAxisID VerticalAxis = View->GetAxisForCurve(InCurveID, ECurveEditorAxisOrientation::Vertical);
+
+			TTuple<double, double>* ViewBounds = ViewAndAxisToOutputBounds.Find(MakeTuple(View, VerticalAxis));
+			if (ViewBounds)
+			{
+				ViewBounds->Get<0>() = FMath::Min(ViewBounds->Get<0>(), OutputMin);
+				ViewBounds->Get<1>() = FMath::Max(ViewBounds->Get<1>(), OutputMax);
+			}
+			else
+			{
+				ViewAndAxisToOutputBounds.Add(MakeTuple(View, VerticalAxis), MakeTuple(OutputMin, OutputMax));
+			}
+		}
+	};
+
+	double AllInputMin = TNumericLimits<double>::Max(), AllInputMax = TNumericLimits<double>::Lowest();
+
+	TSharedPtr<SCurveEditorPanel> Panel = WeakPanel.Pin();
+	TSharedPtr<SCurveEditorView>  View  = WeakView.Pin();
 
 	for (const TTuple<FCurveModelID, FKeyHandleSet>& Pair : CurveKeySet)
 	{
@@ -604,6 +675,7 @@ void FCurveEditor::ZoomToFitInternal(EAxisList::Type Axes, const TMap<FCurveMode
 			continue;
 		}
 
+		double InputMin  = TNumericLimits<double>::Max(), InputMax  = TNumericLimits<double>::Lowest();
 		double OutputMin = TNumericLimits<double>::Max(), OutputMax = TNumericLimits<double>::Lowest();
 
 		int32 NumKeys = Pair.Value.AsArray().Num();
@@ -639,110 +711,110 @@ void FCurveEditor::ZoomToFitInternal(EAxisList::Type Axes, const TMap<FCurveMode
 			}
 		}
 
-		if (Axes & EAxisList::Y)
+		AllInputMin = FMath::Min(InputMin, AllInputMin);
+		AllInputMax = FMath::Max(InputMax, AllInputMax);
+
+		if (Panel)
 		{
-			TSharedPtr<SCurveEditorPanel> Panel = WeakPanel.Pin();
-			TSharedPtr<SCurveEditorView> View = WeakView.Pin();
-			if (Panel.IsValid())
+			// Store the min max for each view
+			for (auto ViewIt = Panel->FindViews(CurveID); ViewIt; ++ViewIt)
 			{
-				// Store the min max for each view
-				for (auto ViewIt = Panel->FindViews(CurveID); ViewIt; ++ViewIt)
-				{
-					TTuple<double, double>* ViewBounds = ViewToOutputBounds.Find(ViewIt.Value());
-					if (ViewBounds)
-					{
-						ViewBounds->Get<0>() = FMath::Min(ViewBounds->Get<0>(), OutputMin);
-						ViewBounds->Get<1>() = FMath::Max(ViewBounds->Get<1>(), OutputMax);
-					}
-					else
-					{
-						ViewToOutputBounds.Add(ViewIt.Value(), MakeTuple(OutputMin, OutputMax));
-					}
-				}
+				TrackHorizontalBoundsForView(ViewIt.Value(), CurveID, InputMin, InputMax);
+				TrackVerticalBoundsForView(ViewIt.Value(), CurveID, OutputMin, OutputMax);
 			}
-			else if(View.IsValid())
-			{
-				TTuple<double, double>* ViewBounds = ViewToOutputBounds.Find(View.ToSharedRef());
-				if (ViewBounds)
-				{
-					ViewBounds->Get<0>() = FMath::Min(ViewBounds->Get<0>(), OutputMin);
-					ViewBounds->Get<1>() = FMath::Max(ViewBounds->Get<1>(), OutputMax);
-				}
-				else
-				{
-					ViewToOutputBounds.Add(View.ToSharedRef(), MakeTuple(OutputMin, OutputMax));
-				}
-			}
+		}
+		else if(View.IsValid())
+		{
+			TrackHorizontalBoundsForView(View.ToSharedRef(), CurveID, InputMin, InputMax);
+			TrackVerticalBoundsForView(View.ToSharedRef(), CurveID, OutputMin, OutputMax);
 		}
 	}
 
-	if (Axes & EAxisList::X && InputMin != TNumericLimits<double>::Max() && InputMax != TNumericLimits<double>::Lowest())
+	auto AdjustHorizontalBounds = [this, Panel, View](TSharedPtr<SCurveEditorView> InView, double CurrentInputMin, double CurrentInputMax, double& NewInputMin, double& NewInputMax)
 	{
 		// If zooming to the same (or invalid) min/max, keep the same zoom scale and center within the timeline
-		if (InputMin >= InputMax)
+		if (NewInputMin >= NewInputMax)
 		{
-			double CurrentInputMin = 0.0, CurrentInputMax = 1.0;
-			Bounds->GetInputBounds(CurrentInputMin, CurrentInputMax);
-
-			const double HalfInputScale = (CurrentInputMax - CurrentInputMin)*0.5;
-			InputMin -= HalfInputScale;
-			InputMax += HalfInputScale;
+			const double HalfInputScale = (CurrentInputMax - CurrentInputMin) * 0.5;
+			NewInputMin -= HalfInputScale;
+			NewInputMax += HalfInputScale;
 		}
 		else
 		{
-			TSharedPtr<SCurveEditorPanel> Panel = WeakPanel.Pin();
-			TSharedPtr<SCurveEditorView> View = WeakView.Pin();
-
-			double PanelWidth = 0;
-			if (Panel.IsValid())
+			double PanelHeight = 0;
+			if (Panel)
 			{
-				PanelWidth = WeakPanel.Pin()->GetViewContainerGeometry().GetLocalSize().X;
+				PanelHeight = Panel->GetViewContainerGeometry().GetLocalSize().Y;
 			}
-			else if (View.IsValid())
+			else
 			{
-				PanelWidth = View->GetViewSpace().GetPhysicalWidth();
+				PanelHeight = InView->GetViewSpace().GetPhysicalHeight();
 			}
-			
-			double InputPercentage = PanelWidth != 0 ? FMath::Min(Settings->GetFrameInputPadding() / PanelWidth, 0.5) : 0.1; // Cannot pad more than half the width
 
-			const double MinInputZoom = InputSnapEnabledAttribute.Get() ? InputSnapRateAttribute.Get().AsInterval() : 0.00001;
-			const double InputPadding = FMath::Max((InputMax - InputMin) * InputPercentage, MinInputZoom);
-			InputMax = FMath::Max(InputMin + MinInputZoom, InputMax);
+			double InputPercentage = PanelHeight != 0 ? FMath::Min(Settings->GetFrameInputPadding() / PanelHeight, 0.5) : 0.1; // Cannot pad more than half the height
 
-			InputMin -= InputPadding;
-			InputMax += InputPadding;
+			constexpr double MinInputZoom = 0.00001;
+			const double InputPadding = FMath::Max((NewInputMax - NewInputMin) * InputPercentage, MinInputZoom);
+
+			NewInputMin -= InputPadding;
+			NewInputMax = FMath::Max(NewInputMin + MinInputZoom, NewInputMax) + InputPadding;
 		}
+	};
 
-		Bounds->SetInputBounds(InputMin, InputMax);
+	// Perform per-view input zoom for custom axes
+	for (const TPair<TTuple<TSharedRef<SCurveEditorView>, FCurveEditorViewAxisID>, TTuple<double, double>>& ViewAndAxisToBounds : ViewAndAxisToInputBounds)
+	{
+		FCurveEditorViewAxisID       AxisID   = ViewAndAxisToBounds.Key.Value;
+		TSharedRef<SCurveEditorView> AxisView = ViewAndAxisToBounds.Key.Key;
+
+		check(AxisID);
+
+		FCurveEditorScreenSpaceH AxisSpace = AxisView->GetHorizontalAxisSpace(AxisID);
+
+		double InputMin = ViewAndAxisToBounds.Value.Get<0>();
+		double InputMax = ViewAndAxisToBounds.Value.Get<1>();
+
+		AdjustHorizontalBounds(AxisView, AxisSpace.GetInputMin(), AxisSpace.GetInputMax(), InputMin, InputMax);
+
+		AxisView->FrameHorizontal(InputMin, InputMax, AxisID);
+	}
+
+	if (Axes & EAxisList::X && AllInputMin != TNumericLimits<double>::Max() && AllInputMax != TNumericLimits<double>::Lowest())
+	{
+		double CurrentInputMin = 0.0, CurrentInputMax = 1.0;
+		Bounds->GetInputBounds(CurrentInputMin, CurrentInputMax);
+
+		AdjustHorizontalBounds(View, CurrentInputMin, CurrentInputMax, AllInputMin, AllInputMax);
+
+		Bounds->SetInputBounds(AllInputMin, AllInputMax);
 	}
 
 	// Perform per-view output zoom for any computed ranges
-	for (const TTuple<TSharedRef<SCurveEditorView>, TTuple<double, double>>& ViewAndBounds : ViewToOutputBounds)
+	for (const TPair<TTuple<TSharedRef<SCurveEditorView>, FCurveEditorViewAxisID>, TTuple<double, double>>& ViewAndAxisToBounds : ViewAndAxisToOutputBounds)
 	{
-		TSharedRef<SCurveEditorView> View = ViewAndBounds.Key;
+		FCurveEditorViewAxisID       AxisID   = ViewAndAxisToBounds.Key.Value;
+		TSharedRef<SCurveEditorView> AxisView = ViewAndAxisToBounds.Key.Key;
 
-		double OutputMin = ViewAndBounds.Value.Get<0>();
-		double OutputMax = ViewAndBounds.Value.Get<1>();
+		double OutputMin = ViewAndAxisToBounds.Value.Get<0>();
+		double OutputMax = ViewAndAxisToBounds.Value.Get<1>();
 
 		// If zooming to the same (or invalid) min/max, keep the same zoom scale and center within the timeline
 		if (OutputMin >= OutputMax)
 		{
-			const double HalfOutputScale = (View->GetOutputMax() - View->GetOutputMin()) * 0.5;
+			const double HalfOutputScale = (AxisView->GetOutputMax() - AxisView->GetOutputMin()) * 0.5;
 			OutputMin -= HalfOutputScale;
 			OutputMax += HalfOutputScale;
 		}
 		else
 		{
-			TSharedPtr<SCurveEditorPanel> Panel = WeakPanel.Pin();
-
 			double PanelHeight = 0;
-			if (Panel.IsValid())
+			if (Panel)
 			{
-				PanelHeight = WeakPanel.Pin()->GetViewContainerGeometry().GetLocalSize().Y;
+				PanelHeight = Panel->GetViewContainerGeometry().GetLocalSize().Y;
 			}
 			else
 			{
-				PanelHeight = View->GetViewSpace().GetPhysicalHeight();
+				PanelHeight = AxisView->GetViewSpace().GetPhysicalHeight();
 			}
 
 			double OutputPercentage = PanelHeight != 0 ? FMath::Min(Settings->GetFrameOutputPadding() / PanelHeight, 0.5) : 0.1; // Cannot pad more than half the height
@@ -753,7 +825,8 @@ void FCurveEditor::ZoomToFitInternal(EAxisList::Type Axes, const TMap<FCurveMode
 			OutputMin -= OutputPadding;
 			OutputMax = FMath::Max(OutputMin + MinOutputZoom, OutputMax) + OutputPadding;
 		}
-		View->FrameVertical(OutputMin, OutputMax);
+
+		AxisView->FrameVertical(OutputMin, OutputMax, AxisID);
 	}
 }
 

@@ -103,7 +103,7 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		return true;
 	}
 
-	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* Section, const FGuid& InObjectBindingID, TWeakPtr<FTrackInstancePropertyBindings> PropertyBindings, TWeakPtr<ISequencer> Sequencer) const override
+	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateKeyEditorParams& Params) const override
 	{
 		const TMovieSceneExternalValue<typename ChannelType::CurveValueType>* ExternalValue = Channel.Cast<ChannelType>().GetExtendedEditorData();
 		if (!ExternalValue)
@@ -112,8 +112,8 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		}
 
 		TSequencerKeyEditor<ChannelType, typename ChannelType::CurveValueType> KeyEditor(
-			InObjectBindingID, Channel.Cast<ChannelType>(),
-			Section, Sequencer, PropertyBindings, ExternalValue->OnGetExternalValue
+			Params.ObjectBindingID, Channel.Cast<ChannelType>(),
+			Params.OwningSection, Params.Sequencer, Params.PropertyBindings, ExternalValue->OnGetExternalValue
 			);
 
 		using KeyEditorType = SNumericTextBlockKeyEditor<ChannelType, typename ChannelType::CurveValueType>;
@@ -145,7 +145,7 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		return false;
 	}
 
-	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& Channel, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer) const override
+	virtual TUniquePtr<FCurveModel> CreateCurveEditorModel_Raw(const FMovieSceneChannelHandle& Channel, const UE::Sequencer::FCreateCurveEditorModelParams& Params) const override
 	{
 		return nullptr;
 	}

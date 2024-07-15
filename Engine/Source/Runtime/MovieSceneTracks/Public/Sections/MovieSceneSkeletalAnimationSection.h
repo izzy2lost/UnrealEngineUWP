@@ -23,7 +23,8 @@ struct FMovieSceneSkeletalAnimationParams
 	FMovieSceneSkeletalAnimationParams();
 
 	/** Gets the animation duration, modified by play rate */
-	float GetDuration() const { return FMath::IsNearlyZero(PlayRate) || Animation == nullptr ? 0.f : Animation->GetPlayLength() / PlayRate; }
+	UE_DEPRECATED(5.5, "Animation lengh no longer has a single, consistent length if there is timewarp.")
+	float GetDuration() const { return 0.f; }
 
 	/** Gets the animation sequence length, not modified by play rate */
 	float GetSequenceLength() const { return Animation != nullptr ? Animation->GetPlayLength() : 0.f; }
@@ -38,6 +39,11 @@ struct FMovieSceneSkeletalAnimationParams
 	 * As above, but with already computed section bounds.
 	 */
 	double MapTimeToAnimation(FFrameNumber InSectionStartTime, FFrameNumber InSectionEndTime, FFrameTime InPosition, FFrameRate InFrameRate) const;
+
+	/**
+	 * Make a transform structure from these animation parameters
+	 */
+	MOVIESCENETRACKS_API FMovieSceneSequenceTransform MakeTransform(const FFrameRate& OuterFrameRate, const TRange<FFrameNumber>& OuterRange) const;
 
 	/** The animation this section plays */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Animation", meta=(AllowedClasses = "/Script/Engine.AnimSequence,/Script/Engine.AnimComposite,/Script/Engine.AnimStreamable"))
@@ -57,7 +63,7 @@ struct FMovieSceneSkeletalAnimationParams
 
 	/** The playback rate of the animation clip */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Animation")
-	float PlayRate;
+	FMovieSceneTimeWarpVariant PlayRate;
 
 	/** Reverse the playback of the animation clip */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Animation")
@@ -113,9 +119,12 @@ public:
 	MOVIESCENETRACKS_API double MapTimeToAnimation(FFrameTime InPosition, FFrameRate InFrameRate) const;
 	
 	//~ UMovieSceneSection interface
+	virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
 	virtual void SetRange(const TRange<FFrameNumber>& NewRange) override;
 	virtual void SetStartFrame(TRangeBound<FFrameNumber> NewStartFrame) override;
 	virtual void SetEndFrame(TRangeBound<FFrameNumber> NewEndFrame)override;
+
+	MOVIESCENETRACKS_API void DeleteChannels(TArrayView<const FName> ChannelNames);
 
 	struct FRootMotionParams
 	{
@@ -192,9 +201,6 @@ public:
 	FRotator StartRotationOffset;
 
 	UPROPERTY()
-	bool bMatchWithPrevious;
-
-	UPROPERTY()
 	FName MatchedBoneName;
 
 	/* Location offset determined by matching*/
@@ -206,24 +212,30 @@ public:
 	FRotator MatchedRotationOffset;
 
 	UPROPERTY()
-	bool bMatchTranslation;
+	uint8 bMatchWithPrevious : 1;
 
 	UPROPERTY()
-	bool bMatchIncludeZHeight;
+	uint8 bMatchTranslation : 1;
 
 	UPROPERTY()
-	bool bMatchRotationYaw;
+	uint8 bMatchIncludeZHeight : 1;
 
 	UPROPERTY()
-	bool bMatchRotationPitch;
+	uint8 bMatchRotationYaw : 1;
 
 	UPROPERTY()
-	bool bMatchRotationRoll;
+	uint8 bMatchRotationPitch : 1;
+
+	UPROPERTY()
+	uint8 bMatchRotationRoll : 1;
+
+	UPROPERTY()
+	uint8 bDebugForceTickPose : 1;
 
 #if WITH_EDITORONLY_DATA
 	/** Whether to show the underlying skeleton for this section. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Root Motions")
-	bool bShowSkeleton;
+	uint8 bShowSkeleton : 1;
 #endif
 	//Previous transform used to specify the global OffsetTransform while calculting the root motions.
 	FTransform PreviousTransform;

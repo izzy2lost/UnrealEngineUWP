@@ -31,7 +31,6 @@ FCinematicShotSection::FCinematicSectionCache::FCinematicSectionCache(UMovieScen
 	: InnerFrameRate(1, 1)
 	, InnerFrameOffset(0)
 	, SectionStartFrame(0)
-	, TimeScale(1.f)
 {
 	if (Section)
 	{
@@ -230,14 +229,14 @@ int32 FCinematicShotSection::OnPaintSection(FSequencerSectionPainter& InPainter)
 
 	InPainter.LayerId = InPainter.PaintSectionBackground();
 
-	FVector2D LocalSectionSize = InPainter.SectionGeometry.GetLocalSize();
+	FVector2D LocalHeaderSize = InPainter.HeaderGeometry.GetLocalSize();
 	const UMovieSceneCinematicShotSection& SectionObject = GetSectionObjectAs<UMovieSceneCinematicShotSection>();
 
 	// Paint fancy-looking film border.
 	FSlateDrawElement::MakeBox(
 		InPainter.DrawElements,
 		InPainter.LayerId++,
-		InPainter.SectionGeometry.ToPaintGeometry(FVector2D(LocalSectionSize.X-2.f, 7.f), FSlateLayoutTransform(FVector2D(1.f, 4.f))),
+		InPainter.SectionGeometry.ToPaintGeometry(FVector2D(LocalHeaderSize.X-2.f, 7.f), FSlateLayoutTransform(FVector2D(1.f, 4.f))),
 		FilmBorder,
 		InPainter.bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect
 	);
@@ -245,7 +244,7 @@ int32 FCinematicShotSection::OnPaintSection(FSequencerSectionPainter& InPainter)
 	FSlateDrawElement::MakeBox(
 		InPainter.DrawElements,
 		InPainter.LayerId++,
-		InPainter.SectionGeometry.ToPaintGeometry(FVector2D(LocalSectionSize.X-2.f, 7.f), FSlateLayoutTransform(FVector2D(1.f, LocalSectionSize.Y - 11.f))),
+		InPainter.SectionGeometry.ToPaintGeometry(FVector2D(LocalHeaderSize.X-2.f, 7.f), FSlateLayoutTransform(FVector2D(1.f, LocalHeaderSize.Y - 11.f))),
 		FilmBorder,
 		InPainter.bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect
 	);

@@ -7,6 +7,9 @@
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameFramework/Actor.h"
+#include "ISequencer.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/ViewDensity.h"
 #include "Modules/ModuleManager.h"
 #include "Application/ThrottleManager.h"
 #include "Widgets/Layout/SBox.h"
@@ -218,20 +221,20 @@ int32 FThumbnailSection::OnPaintSection( FSequencerSectionPainter& InPainter ) c
 
 	int32 LayerId = InPainter.LayerId;
 
-	const FGeometry& SectionGeometry = InPainter.SectionGeometry;
+	const FGeometry& HeaderGeometry = InPainter.HeaderGeometry;
 
 	// @todo Sequencer: Need a way to visualize the key here
 
 	const TRange<double> VisibleRange = GetVisibleRange();
 	const TRange<double> GenerationRange = GetTotalRange();
 
-	const float TimePerPx = GenerationRange.Size<double>() / InPainter.SectionGeometry.GetLocalSize().X;
+	const float TimePerPx = GenerationRange.Size<double>() / HeaderGeometry.GetLocalSize().X;
 
 	const FFrameRate TickResolution = Section->GetTypedOuter<UMovieScene>()->GetTickResolution();
 	const double SectionEaseInDuration = TickResolution.AsSeconds(Section->Easing.GetEaseInDuration()) / TimePerPx;
 	const double SectionEaseOutDuration = TickResolution.AsSeconds(Section->Easing.GetEaseOutDuration()) / TimePerPx;
 
-	const FSlateRect ThumbnailClipRect = SectionGeometry.GetLayoutBoundingRect()
+	const FSlateRect ThumbnailClipRect = HeaderGeometry.GetLayoutBoundingRect()
 		.InsetBy(FMargin(SectionThumbnailPadding, 0.f))
 		.InsetBy(FMargin(SectionEaseInDuration, 0.f, SectionEaseOutDuration, 0.f))
 		.IntersectionWith(InPainter.SectionClippingRect);
@@ -259,9 +262,9 @@ int32 FThumbnailSection::OnPaintSection( FSequencerSectionPainter& InPainter ) c
 			? FMath::Max(float(VisibleRange.GetLowerBoundValue() - GenerationRange.GetLowerBoundValue()) / TimePerPx, 0.f) + SectionThumbnailPadding
 			: (Thumbnail->GetTimeRange().GetLowerBoundValue() - GenerationRange.GetLowerBoundValue()) / TimePerPx;
 
-		const float PositionY = (SectionGeometry.GetLocalSize().Y - ThumbnailCropSize.Y)*.5f;
+		const float PositionY = (HeaderGeometry.GetLocalSize().Y - ThumbnailCropSize.Y)*.5f;
 
-		FPaintGeometry PaintGeometry = SectionGeometry.ToPaintGeometry(
+		FPaintGeometry PaintGeometry = HeaderGeometry.ToPaintGeometry(
 			ThumbnailRTSize,
 			FSlateLayoutTransform(ThumbnailScale, FVector2D(PositionX-HorizontalCropOffset, PositionY))
 		);
@@ -282,7 +285,7 @@ int32 FThumbnailSection::OnPaintSection( FSequencerSectionPainter& InPainter ) c
 			DrawEffects |= ESlateDrawEffect::IgnoreTextureAlpha;
 		}
 
-		FGeometry ClipGeometry = SectionGeometry.MakeChild(
+		FGeometry ClipGeometry = HeaderGeometry.MakeChild(
 			ThumbnailCropSize,
 			FSlateLayoutTransform(
 				FVector2D(PositionX, PositionY)
@@ -349,12 +352,19 @@ TRange<double> FThumbnailSection::GetTotalRange() const
 
 void FThumbnailSection::Tick(const FGeometry& AllottedGeometry, const FGeometry& ParentGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	if (FSlateThrottleManager::Get().IsAllowingExpensiveTasks() && GetDefault<UMovieSceneUserThumbnailSettings>()->bDrawThumbnails)
+	using namespace UE::Sequencer;
+
+	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (Sequencer && FSlateThrottleManager::Get().IsAllowingExpensiveTasks() && GetDefault<UMovieSceneUserThumbnailSettings>()->bDrawThumbnails)
 	{
 		const UMovieSceneUserThumbnailSettings* Settings = GetDefault<UMovieSceneUserThumbnailSettings>();
 
+		FViewDensityInfo ViewDensity = Sequencer->GetViewModel()->GetViewDensity();
+		const float Height = GetSectionHeight(ViewDensity);
+
 		FIntPoint AllocatedSize = AllottedGeometry.GetLocalSize().IntPoint();
 		AllocatedSize.X = FMath::Max(AllocatedSize.X, 1);
+		AllocatedSize.Y = FMath::RoundToInt(Height);
 
 		ThumbnailCache.Update(GetTotalRange(), GetVisibleRange(), AllocatedSize, Settings->ThumbnailSize, Settings->Quality, InCurrentTime);
 	}

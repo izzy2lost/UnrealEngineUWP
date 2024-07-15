@@ -419,9 +419,10 @@ namespace UE::Interchange::Private
 
 		// Internally AddSequenceOnRow will automatically bump overlapping subsequences, so we can just add where it's ideal for us
 		UMovieSceneSubSection* NewSection = SubTrack->AddSequenceOnRow(TargetMovieSceneSequence, DstLowerBound, DstUpperBound.Value - DstLowerBound.Value, INDEX_NONE);
-		
-		NewSection->Parameters.TimeScale = 1.f;
-		InstanceNode.GetCustomTimeScale(NewSection->Parameters.TimeScale);
+
+		float TimeScale = 1.f;
+		InstanceNode.GetCustomTimeScale(TimeScale);
+		NewSection->Parameters.TimeScale.Set(TimeScale);
 		
 		int32 CompletionMode;
 		if (InstanceNode.GetCustomCompletionMode(CompletionMode))

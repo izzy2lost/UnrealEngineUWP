@@ -69,6 +69,8 @@ struct FSubSequenceSpace
 
 	/** Transform from the root time-space to the current sequence's time-space */
 	FMovieSceneSequenceTransform RootToSequenceTransform;
+	FMovieSceneTransformBreadcrumbs StartBreadcrumbs;
+	FMovieSceneTransformBreadcrumbs EndBreadcrumbs;
 	/** The ID of the sequence being compiled */
 	FMovieSceneSequenceID SequenceID;
 	/** A range to clamp the visited sequence to in the root's time-space */

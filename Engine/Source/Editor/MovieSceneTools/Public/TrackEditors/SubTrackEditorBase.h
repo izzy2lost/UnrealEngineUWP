@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Editor.h"
 #include "ISequencerSection.h"
+#include "Templates/UniquePtr.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Styling/AppStyle.h"
 #include "Framework/Application/SlateApplication.h"
@@ -20,6 +21,8 @@
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Tracks/MovieSceneSubTrack.h"
 
+struct FMovieSceneTimeWarpChannel;
+struct FMovieSceneSequenceTransform;
 class ISequencer;
 
 /**
@@ -57,8 +60,7 @@ public:
     static FSubSectionPainterResult PaintSection(TSharedPtr<const ISequencer> Sequencer, const UMovieSceneSubSection& SectionObject, FSequencerSectionPainter& InPainter, FSubSectionPainterParams Params);
 
 private:
-    static void DoPaintNonLoopingSection(const UMovieSceneSubSection& SectionObject, const UMovieSceneSequence& InnerSequence, FSequencerSectionPainter& InPainter, ESlateDrawEffect DrawEffects);
-    static void DoPaintLoopingSection(const UMovieSceneSubSection& SectionObject, const UMovieSceneSequence& InnerSequence, FSequencerSectionPainter& InPainter, ESlateDrawEffect DrawEffects);
+    static void PaintSectionBounds(const UMovieSceneSubSection& SectionObject, const UMovieSceneSequence& InnerSequence, FSequencerSectionPainter& InPainter, ESlateDrawEffect DrawEffects);
 };
 
 /**
@@ -68,6 +70,7 @@ class MOVIESCENETOOLS_API FSubSectionEditorUtil
 {
 public:
     FSubSectionEditorUtil(UMovieSceneSubSection& InSection);
+    ~FSubSectionEditorUtil();
 
     /** Starts a resize operation */
     void BeginResizeSection();
@@ -88,14 +91,12 @@ private:
     /** The section object this utility class is editing */
     UMovieSceneSubSection& SectionObject;
 
-    /** Cached start offset value valid only during resize */
-    FFrameNumber InitialStartOffsetDuringResize;
+	TUniquePtr<FMovieSceneSequenceTransform> InitialDragTransform;
 
-    /** Cached start time valid only during resize */
-    FFrameNumber InitialStartTimeDuringResize;
+	TUniquePtr<FMovieSceneTimeWarpChannel> PreDilateChannel;
 
 	/** Cached time scale valid only during dilate */
-	float PreviousTimeScale;
+	double PreDilateTimeScale;
 };
 
 class MOVIESCENETOOLS_API FSubTrackEditorUtil
@@ -147,6 +148,7 @@ public:
     virtual void SlipSection(FFrameNumber SlipTime) override;
 	virtual void BeginDilateSection() override;
 	virtual void DilateSection(const TRange<FFrameNumber>& NewRange, float DilationFactor) override;
+	virtual bool RequestDeleteKeyArea( const TArray<FName>& KeyAreaNamePath ) override;
 
 protected:
 	static const float TrackHeight;
@@ -376,3 +378,9 @@ void TSubSectionMixin<ParentSectionClass>::DilateSection(const TRange<FFrameNumb
     ParentSectionClass::DilateSection(NewRange, DilationFactor);
 }
 
+template<typename ParentSectionClass>
+bool TSubSectionMixin<ParentSectionClass>::RequestDeleteKeyArea( const TArray<FName>& KeyAreaNamePath )
+{
+	SubSectionObject.DeleteChannels(KeyAreaNamePath);
+	return true;
+}

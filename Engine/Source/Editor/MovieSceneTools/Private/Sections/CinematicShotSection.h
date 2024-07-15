@@ -63,7 +63,7 @@ private:
 		FFrameRate   InnerFrameRate;
 		FFrameNumber InnerFrameOffset;
 		FFrameNumber SectionStartFrame;
-		float        TimeScale;
+		FMovieSceneTimeWarpVariant TimeScale;
 	};
 
 	/** Cached section thumbnail data */

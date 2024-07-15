@@ -3519,8 +3519,12 @@ void FUsdLevelSequenceHelperImpl::UpdateUsdLayerOffsetFromSection(const UMovieSc
 	// This will obviously be quantized to frame intervals for now
 	double SubSectionStartTimeCode = TickResolution.AsSeconds(ModifiedStartFrame) * TimeCodesPerSecond;
 
+	const double FixedPlayRate = Section->Parameters.TimeScale.GetType() == EMovieSceneTimeWarpType::FixedPlayRate\
+		? Section->Parameters.TimeScale.AsFixedPlayRate()
+		: 1.f;
+
 	UE::FSdfLayerOffset NewLayerOffset;
-	NewLayerOffset.Scale = FMath::IsNearlyZero(Section->Parameters.TimeScale) ? 0.f : 1.f / Section->Parameters.TimeScale;
+	NewLayerOffset.Scale = FMath::IsNearlyZero(FixedPlayRate) ? 0.f : 1.f / FixedPlayRate;
 	NewLayerOffset.Offset = SubSectionStartTimeCode - SubStartTimeCode * NewLayerOffset.Scale;
 
 	if (FMath::IsNearlyZero(NewLayerOffset.Offset))
@@ -4267,7 +4271,7 @@ void FUsdLevelSequenceHelperImpl::HandleControlRigSectionChange(UMovieSceneContr
 	const UsdUtils::FBlendShapeMap& BlendShapeMap = StageActorValue->GetBlendShapeMap();
 	bool bBaked = UnrealToUsd::ConvertControlRigSection(
 		&Section,
-		SequenceTransform.InverseNoLooping(),
+		SequenceTransform.Inverse(),
 		MovieScene,
 		Player,
 		Skeleton->GetReferenceSkeleton(),

@@ -432,7 +432,7 @@ public:
 	 */
 	virtual FQualifiedFrameTime GetGlobalTime() const = 0;
 
-	virtual uint32 GetLocalLoopIndex() const = 0;
+	virtual TOptional<int32> GetLocalLoopIndex() const = 0;
 
 	/**
 	 * Sets the cursor position relative to the currently focused sequence
