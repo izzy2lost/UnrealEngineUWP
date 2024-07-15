@@ -164,7 +164,6 @@
 #include "Editor/TransBuffer.h"
 
 #include "EngineModule.h"
-#include "IViewportSelectableObject.h"
 #include "Tracks/MovieSceneBindingLifetimeTrack.h"
 #include "Sections/MovieSceneBindingLifetimeSection.h"
 #include "Bindings/MovieSceneSpawnableBinding.h"
@@ -12012,11 +12011,6 @@ bool FSequencer::IsObjectSelectableInViewport(UObject* const InObject)
 		return true;
 	}
 
-	if (const IViewportSelectableObject* const SelectableObject = Cast<IViewportSelectableObject>(InObject))
-	{
-		return SelectableObject->IsSelectable();
-	}
-
 	UMovieSceneSequence* const FocusedSequence = GetFocusedMovieSceneSequence();
 	if (!IsValid(FocusedSequence))
 	{
@@ -12024,14 +12018,19 @@ bool FSequencer::IsObjectSelectableInViewport(UObject* const InObject)
 	}
 
 	const TSharedRef<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = GetSharedPlaybackState();
+	const FMovieSceneEvaluationState* const EvaluationState = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>();
+	if (!EvaluationState)
+	{
+		return true;
+	}
 
 	const UMovieSceneSequence* OutSequence = nullptr;
 
 	// Early out on first sequence the object is found in
 	ForEachSubSequenceRecursively(FocusedSequence,
-		[this, InObject, &SharedPlaybackState, &OutSequence](UMovieSceneSequence* const InCurrentSequence)
+		[this, InObject, EvaluationState, &OutSequence](UMovieSceneSequence* const InCurrentSequence)
 		{
-			const FGuid ObjectGuid = InCurrentSequence->FindBindingFromObject(InObject, SharedPlaybackState);
+			const FGuid ObjectGuid = FindObjectId(*InObject, EvaluationState->FindSequenceId(InCurrentSequence));
 			if (ObjectGuid.IsValid())
 			{
 				OutSequence = InCurrentSequence;
