@@ -239,9 +239,6 @@ void FPCGComputeGraphElement::PostExecuteInternal(FPCGContext* InContext) const
 		}
 	}
 #endif
-
-	Context->DataBinding->MarkAsGarbage();
-	Context->DataBinding = nullptr;
 }
 
 void FPCGComputeGraphElement::AbortInternal(FPCGContext* InContext) const
