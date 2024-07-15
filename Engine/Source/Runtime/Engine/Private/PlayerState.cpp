@@ -24,7 +24,7 @@ APlayerState::APlayerState(const FObjectInitializer& ObjectInitializer)
 	bReplicates = true;
 	bAlwaysRelevant = true;
 	SetReplicatingMovement(false);
-	NetUpdateFrequency = 1;
+	SetNetUpdateFrequency(1);
 
 	// Note: this is very important to set to false. Though all replication infos are spawned at run time, during seamless travel
 	// they are held on to and brought over into the new world. In ULevel::InitializeActors, these PlayerStates may be treated as map/startup actors

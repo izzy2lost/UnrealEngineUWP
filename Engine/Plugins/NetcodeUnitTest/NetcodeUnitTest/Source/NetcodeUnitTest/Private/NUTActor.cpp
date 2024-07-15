@@ -35,7 +35,7 @@ ANUTActor::ANUTActor(const FObjectInitializer& ObjectInitializer)
 	bReplicates = true;
 	bAlwaysRelevant = true;
 	SetReplicatingMovement(false);
-	NetUpdateFrequency = 1;
+	SetNetUpdateFrequency(1);
 }
 
 void ANUTActor::PostActorCreated()

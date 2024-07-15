@@ -815,20 +815,23 @@ public:
 	UPROPERTY(DuplicateTransient)
 	TObjectPtr<class UInputComponent> InputComponent;
 
-	/** Square of the max distance from the client's viewpoint that this actor is relevant and will be replicated. */
-	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category=Replication)
-	float NetCullDistanceSquared;   
-
 	/** Internal - used by UNetDriver */
 	UPROPERTY(Transient)
 	int32 NetTag;
 
+	/** Square of the max distance from the client's viewpoint that this actor is relevant and will be replicated. */
+	UE_DEPRECATED(5.5, "Public access to NetCullDistanceSquared has been deprecated. Use SetNetCullDistanceSquared() and GetNetCullDistanceSquared() instead.")
+	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite, meta=(AllowPrivateAccess=true), BlueprintGetter=GetNetCullDistanceSquared, BlueprintSetter=SetNetCullDistanceSquared)
+	float NetCullDistanceSquared;   
+
 	/** How often (per second) this actor will be considered for replication, used to determine NetUpdateTime */
-	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite)
+	UE_DEPRECATED(5.5, "Public access to NetUpdateFrequency has been deprecated. Use SetNetUpdateFrequency() and GetNetUpdateFrequency() instead.")
+	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite, meta=(AllowPrivateAccess=true), BlueprintGetter=GetNetUpdateFrequency, BlueprintSetter=SetNetUpdateFrequency)
 	float NetUpdateFrequency;
 
 	/** Used to determine what rate to throttle down to when replicated properties are changing infrequently */
-	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite)
+	UE_DEPRECATED(5.5, "Public access MinNetUpdateFrequency has been deprecated. Use SetMinNetUpdateFrequency() and GetMinNetUpdateFrequency() instead.")
+	UPROPERTY(Category=Replication, EditDefaultsOnly, BlueprintReadWrite, meta=(AllowPrivateAccess=true), BlueprintGetter=GetMinNetUpdateFrequency, BlueprintSetter=SetMinNetUpdateFrequency)
 	float MinNetUpdateFrequency;
 
 	/** Priority for this actor when checking for replication in a low bandwidth or saturated situation, higher priority means it is more likely to replicate */
@@ -4465,6 +4468,42 @@ public:
 
 	/** Sets the value of ReplicatedMovement without causing other side effects to this instance. */
 	ENGINE_API void SetReplicatedMovement(const FRepMovement& InReplicatedMovement);
+
+	/**
+	 * Set the frequency at which this object will be considered for replication.
+	 */
+	UFUNCTION(BlueprintSetter)
+	ENGINE_API void SetNetUpdateFrequency(float Frequency);
+
+	/** 
+	 * Get the current frequency at which this object will be considered for replication.
+	 */
+	UFUNCTION(BlueprintGetter)
+	ENGINE_API float GetNetUpdateFrequency() const;
+
+	/**
+	 * Set the frequency to throttle down to when replicated properties are changing infrequently. 
+	 */
+	UFUNCTION(BlueprintSetter)
+	ENGINE_API void SetMinNetUpdateFrequency(float MinFrequency);
+
+	/**
+	 * Get the frequency to throttle down to when replicated properties are changing infrequently. 
+	 */
+	UFUNCTION(BlueprintGetter)
+	ENGINE_API float GetMinNetUpdateFrequency() const;
+
+	/** 
+	 * Set the square of the max distance from the client's viewpoint that this actor is relevant and will be replicated.
+	 */
+	UFUNCTION(BlueprintSetter)
+	ENGINE_API void SetNetCullDistanceSquared(float DistanceSq);
+
+	/** 
+	 * Get the square of the max distance from the client's viewpoint that this actor is relevant and will be replicated.
+	 */
+	UFUNCTION(BlueprintGetter)
+	ENGINE_API float GetNetCullDistanceSquared() const;
 
 	/**
 	 * Gets the property name for Instigator.

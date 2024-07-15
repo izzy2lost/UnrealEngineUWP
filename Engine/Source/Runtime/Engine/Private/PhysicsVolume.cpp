@@ -16,7 +16,7 @@ APhysicsVolume::APhysicsVolume(const FObjectInitializer& ObjectInitializer)
 	FluidFriction = UPhysicsSettings::Get()->DefaultFluidFriction;
 	TerminalVelocity = UPhysicsSettings::Get()->DefaultTerminalVelocity;
 	bAlwaysRelevant = true;
-	NetUpdateFrequency = 0.1f;
+	SetNetUpdateFrequency(0.1f);
 	SetReplicatingMovement(false);
 }
 

@@ -177,8 +177,8 @@ void AActor::InitializeDefaults()
 	bReplicateUsingRegisteredSubObjectList = GDefaultUseSubObjectReplicationList;
 	PhysicsReplicationMode = EPhysicsReplicationMode::Default;
 	NetPriority = 1.0f;
-	NetUpdateFrequency = 100.0f;
-	MinNetUpdateFrequency = 2.0f;
+	SetNetUpdateFrequency(100.0f);
+	SetMinNetUpdateFrequency(2.0f);
 	bNetLoadOnClient = true;
 #if WITH_EDITORONLY_DATA
 	bEditable = true;
@@ -194,7 +194,7 @@ void AActor::InitializeDefaults()
 	bForceExternalActorLevelReferenceForPIE = false;
 #endif // WITH_EDITORONLY_DATA
 	bEnableAutoLODGeneration = true;
-	NetCullDistanceSquared = 225000000.0f;
+	SetNetCullDistanceSquared(225000000.0f);
 	NetDriverName = NAME_GameNetDriver;
 	NetDormancy = DORM_Awake;
 	// will be updated in PostInitProperties
@@ -3302,9 +3302,9 @@ void AActor::ForceNetRelevant()
 	{
 		SetReplicates(true);
 		bAlwaysRelevant = true;
-		if (NetUpdateFrequency == 0.f)
+		if (GetNetUpdateFrequency() == 0.f)
 		{
-			NetUpdateFrequency = 0.1f;
+			SetNetUpdateFrequency(0.1f);
 		}
 	}
 	ForceNetUpdate();
@@ -6229,6 +6229,48 @@ void AActor::SetReplicatedMovement(const FRepMovement& InReplicatedMovement)
 	{
 		UpdateReplicatePhysicsCondition();
 	}
+}
+
+void AActor::SetNetUpdateFrequency(float Frequency)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	NetUpdateFrequency = Frequency;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+}
+
+float AActor::GetNetUpdateFrequency() const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return NetUpdateFrequency;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+}
+
+void AActor::SetMinNetUpdateFrequency(float MinFrequency)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+	MinNetUpdateFrequency = MinFrequency;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+}
+
+float AActor::GetMinNetUpdateFrequency() const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+	return MinNetUpdateFrequency;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+}
+
+void AActor::SetNetCullDistanceSquared(float DistanceSq)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+	NetCullDistanceSquared = DistanceSq;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+float AActor::GetNetCullDistanceSquared() const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return NetCullDistanceSquared;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void AActor::SetInstigator(APawn* InInstigator)

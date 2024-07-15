@@ -378,7 +378,7 @@ void AActor::SyncReplicatedPhysicsSimulation()
 
 bool AActor::IsWithinNetRelevancyDistance(const FVector& SrcLocation) const
 {
-	return FVector::DistSquared(SrcLocation, GetActorLocation()) < NetCullDistanceSquared;
+	return FVector::DistSquared(SrcLocation, GetActorLocation()) < GetNetCullDistanceSquared();
 }
 
 bool AActor::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const

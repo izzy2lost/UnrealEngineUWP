@@ -1094,7 +1094,7 @@ void APlayerController::ServerShortTimeout_Implementation()
 				float NetUpdateTimeOffset = (World->GetAuthGameMode()->GetNumPlayers() < 8) ? 0.2f : 0.5f;
 				auto ValidActorTest = [](const AActor* const Actor)
 				{
-					return (Actor->NetUpdateFrequency < 1) && !Actor->bOnlyRelevantToOwner;
+					return (Actor->GetNetUpdateFrequency() < 1) && !Actor->bOnlyRelevantToOwner;
 				};
 				World->GetNetDriver()->ForceAllActorsNetUpdateTime(NetUpdateTimeOffset, ValidActorTest);
 			}

@@ -40,7 +40,7 @@ void UBasicReplicationGraph::InitGlobalActorClassSettings()
 		FClassReplicationInfo ClassInfo;
 
 		// Replication Graph is frame based. Convert NetUpdateFrequency to ReplicationPeriodFrame based on Server MaxTickRate.
-		ClassInfo.ReplicationPeriodFrame = GetReplicationPeriodFrameForFrequency(ActorCDO->NetUpdateFrequency);
+		ClassInfo.ReplicationPeriodFrame = GetReplicationPeriodFrameForFrequency(ActorCDO->GetNetUpdateFrequency());
 		
 		if (ActorCDO->bAlwaysRelevant || ActorCDO->bOnlyRelevantToOwner)
 		{
@@ -48,7 +48,7 @@ void UBasicReplicationGraph::InitGlobalActorClassSettings()
 		}
 		else
 		{
-			ClassInfo.SetCullDistanceSquared(ActorCDO->NetCullDistanceSquared);
+			ClassInfo.SetCullDistanceSquared(ActorCDO->GetNetCullDistanceSquared());
 		}
 		
 		GlobalActorReplicationInfoMap.SetClassInfo( Class, ClassInfo );

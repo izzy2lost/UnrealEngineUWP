@@ -2278,7 +2278,7 @@ bool UDemoNetDriver::ReplicatePrioritizedActor(const FActorPriority& ActorPriori
 		}
 
 		// Use NetUpdateFrequency for this actor, but clamp it to RECORD_HZ.
-		const float ClampedNetUpdateFrequency = FMath::Clamp(Actor->NetUpdateFrequency, Params.MinRecordHz, Params.MaxRecordHz);
+		const float ClampedNetUpdateFrequency = FMath::Clamp(Actor->GetNetUpdateFrequency(), Params.MinRecordHz, Params.MaxRecordHz);
 		const double NetUpdateDelay = 1.0 / ClampedNetUpdateFrequency;
 
 		// Set defaults if this actor is replicating for first time
@@ -2292,7 +2292,7 @@ bool UDemoNetDriver::ReplicatePrioritizedActor(const FActorPriority& ActorPriori
 
 		// Calculate min delta (max rate actor will update), and max delta (slowest rate actor will update)
 		const float MinOptimalDelta = NetUpdateDelay;										// Don't go faster than NetUpdateFrequency
-		const float MinNetUpdateFrequency = (Actor->MinNetUpdateFrequency == 0.0f) ? 2.0f : Actor->MinNetUpdateFrequency;
+		const float MinNetUpdateFrequency = (Actor->GetMinNetUpdateFrequency() == 0.0f) ? 2.0f : Actor->GetMinNetUpdateFrequency();
 		const float MaxOptimalDelta = FMath::Max(1.0f / MinNetUpdateFrequency, MinOptimalDelta);	// Don't go slower than MinNetUpdateFrequency (or NetUpdateFrequency if it's slower)
 
 		const float ScaleDownStartTime = 2.0f;

@@ -800,7 +800,7 @@ void UActorFactoryEmitter::PostSpawnActor(UObject* Asset, AActor* NewActor)
 	{
 		NewEmitter->SetReplicates(true);
 		NewEmitter->bAlwaysRelevant = true;
-		NewEmitter->NetUpdateFrequency = 0.1f; // could also set bNetTemporary but LD might further trigger it or something
+		NewEmitter->SetNetUpdateFrequency(0.1f); // could also set bNetTemporary but LD might further trigger it or something
 		// call into gameplay code with template so it can set up replication
 		NewEmitter->SetTemplate(ParticleSystem);
 	}

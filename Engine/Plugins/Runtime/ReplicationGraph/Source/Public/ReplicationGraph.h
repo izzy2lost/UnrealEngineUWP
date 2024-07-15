@@ -1518,7 +1518,7 @@ public:
 	AReplicationGraphDebugActor()
 	{
 		bReplicates = true; // must be set for RPCs to be sent
-		NetUpdateFrequency = 10.0f;
+		SetNetUpdateFrequency(10.0f);
 	}
 
 	// To prevent demo netdriver from replicating.

@@ -1974,7 +1974,7 @@ void UActorFactoryNiagara::PostSpawnActor(UObject* Asset, AActor* NewActor)
 	{
 		NiagaraActor->SetReplicates(true);
 		NiagaraActor->bAlwaysRelevant = true;
-		NiagaraActor->NetUpdateFrequency = 0.1f; // could also set bNetTemporary but LD might further trigger it or something
+		NiagaraActor->SetNetUpdateFrequency(0.1f); // could also set bNetTemporary but LD might further trigger it or something
 	}
 
 	// Init Component

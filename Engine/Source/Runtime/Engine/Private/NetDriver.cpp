@@ -875,7 +875,7 @@ bool UNetDriver::IsNetworkActorUpdateFrequencyThrottled(const FNetworkObjectInfo
 		const AActor* Actor = InNetworkActor.Actor;
 		if (Actor && InNetworkActor.LastNetReplicateTime != 0)
 		{
-			const float ExpectedNetDelay = (1.0f / Actor->NetUpdateFrequency);
+			const float ExpectedNetDelay = (1.0f / Actor->GetNetUpdateFrequency());
 			if (InNetworkActor.OptimalNetUpdateDelta > ExpectedNetDelay)
 			{
 				bThrottled = true;
@@ -923,7 +923,7 @@ void UNetDriver::CancelAdaptiveReplication(FNetworkObjectInfo& InNetworkActor)
 		{
 			if (UWorld* ActorWorld = Actor->GetWorld())
 			{
-				const float ExpectedNetDelay = (1.0f / Actor->NetUpdateFrequency);
+				const float ExpectedNetDelay = (1.0f / Actor->GetNetUpdateFrequency());
 				const float NewUpdateTime = ActorWorld->GetTimeSeconds() + FMath::FRandRange(0.5f, 1.0f) * ExpectedNetDelay;
 
 				// Only allow the next update to be sooner than the current one
@@ -5093,7 +5093,7 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 		if ( ActorInfo->LastNetReplicateTime == 0 )
 		{
 			ActorInfo->LastNetReplicateTime = World->TimeSeconds;
-			ActorInfo->OptimalNetUpdateDelta = 1.0f / Actor->NetUpdateFrequency;
+			ActorInfo->OptimalNetUpdateDelta = 1.0f / Actor->GetNetUpdateFrequency();
 		}
 
 		const float ScaleDownStartTime = 2.0f;
@@ -5103,14 +5103,14 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 
 		if ( LastReplicateDelta > ScaleDownStartTime )
 		{
-			if ( Actor->MinNetUpdateFrequency == 0.0f )
+			if ( Actor->GetMinNetUpdateFrequency() == 0.0f )
 			{
-				Actor->MinNetUpdateFrequency = 2.0f;
+				Actor->SetMinNetUpdateFrequency(2.0f);
 			}
 
 			// Calculate min delta (max rate actor will update), and max delta (slowest rate actor will update)
-			const float MinOptimalDelta = 1.0f / Actor->NetUpdateFrequency;									  // Don't go faster than NetUpdateFrequency
-			const float MaxOptimalDelta = FMath::Max( 1.0f / Actor->MinNetUpdateFrequency, MinOptimalDelta ); // Don't go slower than MinNetUpdateFrequency (or NetUpdateFrequency if it's slower)
+			const float MinOptimalDelta = 1.0f / Actor->GetNetUpdateFrequency();									  // Don't go faster than NetUpdateFrequency
+			const float MaxOptimalDelta = FMath::Max( 1.0f / Actor->GetMinNetUpdateFrequency(), MinOptimalDelta ); // Don't go slower than MinNetUpdateFrequency (or NetUpdateFrequency if it's slower)
 
 			// Interpolate between MinOptimalDelta/MaxOptimalDelta based on how long it's been since this actor actually sent anything
 			const float Alpha = FMath::Clamp( ( LastReplicateDelta - ScaleDownStartTime ) / ScaleDownTimeRange, 0.0f, 1.0f );
@@ -5125,7 +5125,7 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 		{
 			UE_LOG( LogNetTraffic, Log, TEXT( "actor %s requesting new net update, time: %2.3f" ), *Actor->GetName(), World->TimeSeconds );
 
-			const float NextUpdateDelta = bUseAdapativeNetFrequency ? ActorInfo->OptimalNetUpdateDelta : 1.0f / Actor->NetUpdateFrequency;
+			const float NextUpdateDelta = bUseAdapativeNetFrequency ? ActorInfo->OptimalNetUpdateDelta : 1.0f / Actor->GetNetUpdateFrequency();
 
 			float RandDelay = GNetDisableRandomNetUpdateDelay ? 0.0f : UpdateDelayRandomStream.FRand() * ServerTickTime;
 
@@ -5334,7 +5334,7 @@ int32 UNetDriver::ServerReplicateActors_PrioritizeActors( UNetConnection* Connec
 			// NOTE - We use NetTag to make sure SentTemporaries didn't already mark this actor to be skipped
 			if ( Actor->NetTag != NetTag )
 			{
-				UE_LOG( LogNetTraffic, Log, TEXT( "Consider %s alwaysrelevant %d frequency %f " ), *Actor->GetName(), Actor->bAlwaysRelevant, Actor->NetUpdateFrequency );
+				UE_LOG( LogNetTraffic, Log, TEXT( "Consider %s alwaysrelevant %d frequency %f " ), *Actor->GetName(), Actor->bAlwaysRelevant, Actor->GetNetUpdateFrequency() );
 
 				Actor->NetTag = NetTag;
 
@@ -5494,7 +5494,7 @@ int32 UNetDriver::ServerReplicateActors_ProcessPrioritizedActorsRange( UNetConne
 						}
 					}
 					// if we couldn't replicate it for a reason that should be temporary, and this Actor is updated very infrequently, make sure we update it again soon
-					else if ( Actor->NetUpdateFrequency < 1.0f )
+					else if ( Actor->GetNetUpdateFrequency() < 1.0f )
 					{
 						UE_LOG( LogNetTraffic, Log, TEXT( "Unable to replicate %s" ), *Actor->GetName() );
 						ActorInfo->NextUpdateTime = World->TimeSeconds + 0.2f * FMath::FRand();
@@ -5543,8 +5543,8 @@ int32 UNetDriver::ServerReplicateActors_ProcessPrioritizedActorsRange( UNetConne
 #endif // NET_DEBUG_RELEVANT_ACTORS
 
 							// Calculate min delta (max rate actor will upate), and max delta (slowest rate actor will update)
-							const float MinOptimalDelta				= 1.0f / Actor->NetUpdateFrequency;
-							const float MaxOptimalDelta				= FMath::Max( 1.0f / Actor->MinNetUpdateFrequency, MinOptimalDelta );
+							const float MinOptimalDelta				= 1.0f / Actor->GetNetUpdateFrequency();
+							const float MaxOptimalDelta				= FMath::Max( 1.0f / Actor->GetMinNetUpdateFrequency(), MinOptimalDelta );
 							const float DeltaBetweenReplications	= ( World->TimeSeconds - ActorInfo->LastNetReplicateTime );
 
 							// Choose an optimal time, we choose 70% of the actual rate to allow frequency to go up if needed
@@ -6354,7 +6354,7 @@ void UNetDriver::DrawNetDriverDebug()
 				continue;
 			}
 
-			if (DistanceSquared > It->NetCullDistanceSquared)
+			if (DistanceSquared > It->GetNetCullDistanceSquared())
 			{
 				bWasCulled = true;
 				ExtraStateDrawColor = FColor::White;

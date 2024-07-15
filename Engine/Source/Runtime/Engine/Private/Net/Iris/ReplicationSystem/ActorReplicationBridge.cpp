@@ -85,7 +85,7 @@ void ActorReplicationBridgeGetActorWorldObjectInfo(FNetRefHandle /*Handle*/, con
 	if (const AActor* Actor = Cast<AActor>(Instance))
 	{
 		OutWorldLocation = Actor->GetActorLocation();
-		OutCullDistance = Actor->NetCullDistanceSquared > 0.0f ? FMath::Sqrt(Actor->NetCullDistanceSquared) : 0.0f;
+		OutCullDistance = Actor->GetNetCullDistanceSquared() > 0.0f ? FMath::Sqrt(Actor->GetNetCullDistanceSquared()) : 0.0f;
 	}
 }
 
@@ -264,7 +264,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 	CreateNetRefHandleParams.bNeedsWorldLocationUpdate = 1U;
 	CreateNetRefHandleParams.bIsDormant = Actor->NetDormancy > DORM_Awake;
 	CreateNetRefHandleParams.StaticPriority = (Actor->bAlwaysRelevant || Actor->bOnlyRelevantToOwner) ? Actor->NetPriority : 0.0f;
-	CreateNetRefHandleParams.PollFrequency = Actor->NetUpdateFrequency;
+	CreateNetRefHandleParams.PollFrequency = Actor->GetNetUpdateFrequency();
 
 #if !UE_BUILD_SHIPPING
 	ensureMsgf(!(Actor->bAlwaysRelevant || Actor->bOnlyRelevantToOwner) || CreateNetRefHandleParams.StaticPriority >= 1.0f, TEXT("Very low NetPriority %.02f for always relevant or owner relevant Actor %s. Set it to 1.0f or higher."), Actor->NetPriority, ToCStr(Actor->GetName()));
@@ -1212,7 +1212,7 @@ UActorReplicationBridge* UActorReplicationBridge::Create(UNetDriver* NetDriver)
 float UActorReplicationBridge::GetPollFrequencyOfRootObject(const UObject* ReplicatedObject) const
 {
 	const AActor* ReplicatedActor = CastChecked<AActor>(ReplicatedObject);
-	float PollFrequency = ReplicatedActor->NetUpdateFrequency;
+	float PollFrequency = ReplicatedActor->GetNetUpdateFrequency();
 	GetClassPollFrequency(ReplicatedActor->GetClass(), PollFrequency);
 	return PollFrequency;
 }

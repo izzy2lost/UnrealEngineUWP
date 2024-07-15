@@ -83,7 +83,7 @@ APawn::APawn(const FObjectInitializer& ObjectInitializer)
 	SetRemoteRoleForBackwardsCompat(ROLE_SimulatedProxy);
 	bReplicates = true;
 	NetPriority = 3.0f;
-	NetUpdateFrequency = 100.f;
+	SetNetUpdateFrequency(100.f);
 	SetReplicatingMovement(true);
 	BaseEyeHeight = 64.0f;
 	AllowedYawError = 10.99f;

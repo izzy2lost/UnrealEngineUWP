@@ -260,7 +260,7 @@ ARadialForceActor::ARadialForceActor(const FObjectInitializer& ObjectInitializer
 	SetRemoteRoleForBackwardsCompat(ROLE_SimulatedProxy);
 	bReplicates = true;
 	bAlwaysRelevant = true;
-	NetUpdateFrequency = 0.1f;
+	SetNetUpdateFrequency(0.1f);
 }
 
 #if WITH_EDITOR

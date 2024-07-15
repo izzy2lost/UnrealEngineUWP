@@ -1573,7 +1573,7 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 #endif // WITH_EDITORONLY_DATA
 {
 	bReplicates = false;
-	NetUpdateFrequency = 10.0f;
+	SetNetUpdateFrequency(10.0f);
 	SetHidden(false);
 	SetReplicatingMovement(false);
 	SetCanBeDamaged(false);
