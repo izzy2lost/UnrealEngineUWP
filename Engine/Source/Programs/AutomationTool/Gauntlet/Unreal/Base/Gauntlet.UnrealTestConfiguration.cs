@@ -288,7 +288,7 @@ namespace Gauntlet
 		/// <returns></returns>
 		public string GenerateFullCommandLine()
 		{
-			string FinalCommandline = string.Format("{0} {1} ", Project, GameMap);
+			string FinalCommandline = string.Format("\"{0}\" \"{1}\" ", Project, GameMap);
 			foreach (string Key in Params.Keys)
 			{
 				string CurrentArgument;
