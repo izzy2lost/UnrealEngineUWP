@@ -397,12 +397,13 @@ void UGatherTextFromAssetsCommandlet::PurgeGarbage(const bool bPurgeReferencedPa
 
 				// Keep any requested packages (and their RF_Standalone inners) alive during a call to PurgeGarbage
 				ObjectsToKeepAlive.Add(Package);
-				ForEachObjectWithOuter(Package, [this](UObject* InPackageInner)
+				ForEachObjectWithPackage(Package, [this](UObject* InPackageInner)
 				{
-					if (InPackageInner->HasAnyFlags(RF_Standalone))
+					if (InPackageInner->HasAnyFlags(RF_Standalone | RF_HasExternalPackage))
 					{
 						ObjectsToKeepAlive.Add(InPackageInner);
 					}
+					return true;
 				}, true, RF_NoFlags, EInternalObjectFlags::Garbage);
 			}
 		}
