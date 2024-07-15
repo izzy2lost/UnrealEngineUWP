@@ -464,8 +464,6 @@ UComputeDataProvider* UPCGDataCollectionDataInterface::CreateDataProvider(TObjec
 	UPCGDataCollectionDataProvider* Provider = NewObject<UPCGDataCollectionDataProvider>();
 	Provider->Binding = Binding;
 	Provider->PinDesc = ProducerSettings->ComputeOutputPinDataDesc(OutputPinLabel, Binding);
-	Provider->SizeBytes = Provider->PinDesc.ComputePackedSize();
-	check(Provider->SizeBytes >= 4);
 
 	return Provider;
 }
@@ -473,9 +471,6 @@ UComputeDataProvider* UPCGDataCollectionDataInterface::CreateDataProvider(TObjec
 FComputeDataProviderRenderProxy* UPCGDataCollectionDataProvider::GetRenderProxy()
 {
 	FPCGDataCollectionDataProviderProxy* Proxy = new FPCGDataCollectionDataProviderProxy(Binding, PinDesc);
-
-	check(SizeBytes > 0);
-	Proxy->SizeBytes = SizeBytes;
 
 	return Proxy;
 }
@@ -510,17 +505,15 @@ void FPCGDataCollectionDataProviderProxy::GatherDispatchData(FDispatchData const
 
 void FPCGDataCollectionDataProviderProxy::AllocateResources(FRDGBuilder& GraphBuilder, FAllocationData const& InAllocationData)
 {
-	check(SizeBytes > 0 && (SizeBytes % sizeof(uint32)) == 0);
-
-	FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), SizeBytes / sizeof(uint32));
-	Buffer = GraphBuilder.CreateBuffer(Desc, TEXT("PCGDataCollectionBuffer"));
-	BufferUAV = GraphBuilder.CreateUAV(Buffer);
-
 	// Initialize with an empty data collection. The kernel may not run, for example if indirect dispatch args end up being 0. Ensure
 	// there is something meaningful to readback.
 	// TODO could have a statically-allocated resource rather than allocating & uploading here.
 	TArray<uint32> PackedDataCollection;
-	PinDesc.PackDataCollection(/*InDataCollection=*/{}, /*InPin=*/NAME_None, PackedDataCollection);
+	PinDesc.PrepareBufferForKernelOutput(PackedDataCollection);
+
+	FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(PackedDataCollection.GetTypeSize(), PackedDataCollection.Num());
+	Buffer = GraphBuilder.CreateBuffer(Desc, TEXT("PCGDataCollectionBuffer"));
+	BufferUAV = GraphBuilder.CreateUAV(Buffer);
 
 	GraphBuilder.QueueBufferUpload(Buffer, PackedDataCollection.GetData(), PackedDataCollection.Num() * PackedDataCollection.GetTypeSize(), ERDGInitialDataFlags::None);
 }

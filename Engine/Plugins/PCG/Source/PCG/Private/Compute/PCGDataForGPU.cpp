@@ -702,6 +702,63 @@ void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InData
 	}
 }
 
+void FPCGDataCollectionDesc::PrepareBufferForKernelOutput(TArray<uint32>& OutPackedDataCollection)
+{
+	const uint32 NumData = DataDescs.Num();
+
+	TArray<uint32> DataAddresses;
+	const uint32 PackedDataCollectionSizeBytes = ComputePackedSize(&DataAddresses);
+
+	OutPackedDataCollection.SetNumZeroed(PackedDataCollectionSizeBytes / sizeof(uint32));
+	
+	// Num data - set to zero if writing kernel executes. If kernel doesn't execute, 0 means data collection is empty.
+	OutPackedDataCollection[0] = 0;
+
+	for (uint32 DataIndex = 0; DataIndex < NumData; ++DataIndex)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDesc::PackDataItem);
+
+		// Write the data addresses
+		const uint32 CurrentDataAddress = DataAddresses[DataIndex];
+		const uint32 CurrentDataIndex = CurrentDataAddress / sizeof(uint32);
+		OutPackedDataCollection[DataIndex + 1] = CurrentDataAddress;
+
+		// DataHeader: (TypeId, NumAttrs, AttrHeaderStartOffset, TypeInfo), Attr0 Header, Attr1 Header, ..., Attr255 Header
+		// Data: Attr0, Attr1, ...
+		if (DataDescs[DataIndex].Type == EPCGDataType::Point)
+		{
+			const uint32 NumElements = DataDescs[DataIndex].ElementCount;
+
+			const TArray<FPCGKernelAttributeDesc>& AttributeDescs = DataDescs[DataIndex].AttributeDescs;
+			const uint32 NumAttributes = AttributeDescs.Num();
+
+			OutPackedDataCollection[CurrentDataIndex + 0] = /*PointDataTypeId=*/POINT_DATA_TYPE_ID;
+			OutPackedDataCollection[CurrentDataIndex + 1] = NumAttributes;
+			OutPackedDataCollection[CurrentDataIndex + 2] = POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES;
+			OutPackedDataCollection[CurrentDataIndex + 3] = NumElements; // TypeInfo for PointData is just NumPoints
+
+			const uint32 BaseAttributeHeaderAddress = CurrentDataAddress + POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES;
+			uint32 CurrentAttributeAddress = CurrentDataAddress + POINT_DATA_HEADER_SIZE_BYTES;
+
+			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
+			{
+				const uint32 AttributeId = AttributeDesc.Index;
+				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
+				const uint32 AttributeNumComponents = AttributeStrideBytes / sizeof(uint32); // E.g. float3 has 3 components
+				const uint32 AttributeHeaderIndex = (BaseAttributeHeaderAddress + AttributeId * ATTRIBUTE_HEADER_SIZE_BYTES) / sizeof(uint32);
+
+				// Pack Position (24 bits for AttributeId, 8 bits for Stride)
+				const uint32 PackedIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
+				OutPackedDataCollection[AttributeHeaderIndex + 0] = PackedIdAndStride;
+
+				OutPackedDataCollection[AttributeHeaderIndex + 1] = CurrentAttributeAddress;
+				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
+			}
+		}
+		else { /* TODO: Support non-point data. */ }
+	}
+}
+
 void FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, FPCGDataCollection& OutDataCollection) const
 {
 	const void* PackedData = InPackedData.GetData();

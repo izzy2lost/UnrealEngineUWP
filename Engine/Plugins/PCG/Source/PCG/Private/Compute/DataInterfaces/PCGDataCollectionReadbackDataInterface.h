@@ -53,13 +53,15 @@ private:
 class FPCGDataProviderDataCollectionReadbackProxy : public FPCGDataCollectionDataProviderProxy
 {
 public:
-	FPCGDataProviderDataCollectionReadbackProxy(TWeakObjectPtr<UPCGDataBinding> InBinding, const FPCGDataCollectionDesc& InPinDesc, int InSizeBytes, FReadbackCallback InAsyncReadbackCallback_RenderThread);
+	FPCGDataProviderDataCollectionReadbackProxy(TWeakObjectPtr<UPCGDataBinding> InBinding, const FPCGDataCollectionDesc& InPinDesc, FReadbackCallback InAsyncReadbackCallback_RenderThread);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
 	bool IsValid(FValidationData const& InValidationData) const override;
 	void AllocateResources(FRDGBuilder& GraphBuilder, FAllocationData const& InAllocationData) override;
 	void GetReadbackData(TArray<FReadbackData>& OutReadbackData) const override;
 	//~ End FComputeDataProviderRenderProxy Interface
+
+	int SizeBytes = -1;
 
 private:
 	FReadbackCallback AsyncReadbackCallback_RenderThread;

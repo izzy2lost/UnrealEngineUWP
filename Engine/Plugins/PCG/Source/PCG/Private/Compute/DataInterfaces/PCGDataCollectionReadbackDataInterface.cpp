@@ -18,8 +18,6 @@ UComputeDataProvider* UPCGDataCollectionReadbackDataInterface::CreateDataProvide
 	Provider->PinDesc = ProducerSettings->ComputeOutputPinDataDesc(OutputPinLabel, Binding);
 	// Use the aliased label as this is the output from the compute graph.
 	Provider->OutputPinLabelAlias = OutputPinLabelAlias;
-	Provider->SizeBytes = Provider->PinDesc.ComputePackedSize();
-	check(Provider->SizeBytes >= 4);
 
 	return Provider;
 }
@@ -60,7 +58,7 @@ FComputeDataProviderRenderProxy* UPCGDataProviderDataCollectionReadback::GetRend
 		ThisDataProvider->OnReadbackComplete.Broadcast();
 	};
 
-	return new FPCGDataProviderDataCollectionReadbackProxy(Binding, PinDesc, SizeBytes, ProcessReadbackData_RenderThread);
+	return new FPCGDataProviderDataCollectionReadbackProxy(Binding, PinDesc, ProcessReadbackData_RenderThread);
 }
 
 bool UPCGDataProviderDataCollectionReadback::ProcessReadBackData()
@@ -91,11 +89,10 @@ bool UPCGDataProviderDataCollectionReadback::ProcessReadBackData()
 FPCGDataProviderDataCollectionReadbackProxy::FPCGDataProviderDataCollectionReadbackProxy(
 	TWeakObjectPtr<UPCGDataBinding> InBinding,
 	const FPCGDataCollectionDesc& InPinDesc,
-	int InSizeBytes,
 	FReadbackCallback InAsyncReadbackCallback_RenderThread)
 	: FPCGDataCollectionDataProviderProxy(InBinding, InPinDesc)
 {
-	SizeBytes = InSizeBytes;
+	SizeBytes = InPinDesc.ComputePackedSize();
 	AsyncReadbackCallback_RenderThread = InAsyncReadbackCallback_RenderThread;
 }
 
@@ -123,7 +120,7 @@ void FPCGDataProviderDataCollectionReadbackProxy::AllocateResources(FRDGBuilder&
 	// there is something meaningful to readback.
 	// TODO factor out to avoid doing this work each time.
 	TArray<uint32> PackedDataCollection;
-	PinDesc.PackDataCollection(/*InDataCollection=*/{}, /*InPin=*/NAME_None, PackedDataCollection);
+	PinDesc.PrepareBufferForKernelOutput(PackedDataCollection);
 
 	GraphBuilder.QueueBufferUpload(Buffer, PackedDataCollection.GetData(), PackedDataCollection.Num() * PackedDataCollection.GetTypeSize(), ERDGInitialDataFlags::None);
 }

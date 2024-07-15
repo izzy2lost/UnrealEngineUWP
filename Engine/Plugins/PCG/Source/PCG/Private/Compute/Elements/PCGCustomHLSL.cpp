@@ -943,39 +943,9 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 		HeaderWriters += FString::Format(TEXT(
 			"    if (ThreadIndex >= GetNumThreads()) return;\n"
 			"    \n"
-			"    // Copy data collection header from pin {0} to pin {1}\n"
-			"    {\n"
-			"        const uint NumData = {0}_GetNumData();\n"
-			"        {1}_WriteNumData(NumData);\n"
-			"        \n"
-			"        for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)\n"
-			"        {\n"
-			"            const uint DataAddress = {0}_ReadDataAddress(DataIndex);\n"
-			"            const uint Id = {0}_ReadDataId(DataAddress);\n"
-			"            const uint NumAttributes = {0}_ReadDataNumAttributes(DataAddress);\n"
-			"            const uint PreambleSizeBytes = {0}_ReadDataPreambleSize(DataAddress);\n"
-			"            const uint NumElements = {0}_ReadDataInfo(DataAddress);\n"
-			"            \n"
-			"            {1}_WriteDataAddress(DataIndex, DataAddress);\n"
-			"            {1}_WriteDataId(DataAddress, Id);\n"
-			"            {1}_WriteDataNumAttributes(DataAddress, NumAttributes);\n"
-			"            {1}_WriteDataPreambleSize(DataAddress, PreambleSizeBytes);\n"
-			"            {1}_WriteDataInfo(DataAddress, NumElements);\n"
-			"            \n"
-			"            const uint AttributeHeadersAddress = {0}_ReadDataAttributeHeadersAddress(DataAddress);\n"
-			"            const uint PCG_MAX_NUM_ATTRIBUTES = {2};\n"
-			"            \n"
-			"            for (uint AttributeIndex = 0; AttributeIndex < PCG_MAX_NUM_ATTRIBUTES; ++AttributeIndex)\n"
-			"            {\n"
-			"                const uint AttributeHeaderAddress = {0}_ReadAttributeHeaderAddress(AttributeHeadersAddress, AttributeIndex);\n"
-			"                const uint AttributeIdAndStride = {0}_ReadAttributeIdAndStride(AttributeHeaderAddress);\n"
-			"                const uint AttributeAddress = {0}_ReadAttributeAddress(AttributeHeaderAddress);\n"
-			"                \n"
-			"                {1}_WriteAttributeIdAndStride(AttributeHeaderAddress, AttributeIdAndStride);\n"
-			"                {1}_WriteAttributeAddress(AttributeHeaderAddress, AttributeAddress);\n"
-			"            }\n"
-			"        }\n"
-			"    }\n"),
+			"    // Signal kernel executed by copying data count from pin {0} to pin {1} from first thread. Rest of header was already set up by the CPU.\n"
+			"    if (GroupIndex == 0) {1}_WriteNumData({0}_GetNumData());\n"
+			"    AllMemoryBarrier();\n"),
 			{ InFromPin->Properties.Label.ToString(), InOutputPinProps.Label.ToString(), PCGComputeConstants::MAX_NUM_ATTRS });
 	};
 
@@ -1019,9 +989,10 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 				HeaderWriters += FString::Format(TEXT(
 					"    if (ThreadIndex >= GetNumThreads()) return;\n"
 					"    \n"
-					"    // Write data collection header for pin {0}\n"
-					"    {0}_WriteSinglePointDataCollectionHeader({1});\n"),
-					{ InOutputPinProps.Label.ToString(), InPointCount });
+					"    // Signal kernel executed by writing data count (1) for pin {0} from first thread. Rest of header was already set up by the CPU.\n"
+					"    if (GroupIndex == 0) {0}_WriteNumData(1);\n"
+					"    AllMemoryBarrier();\n"),
+					{ InOutputPinProps.Label.ToString() });
 			};
 
 			for (const UPCGPin* OutputPin : Node->GetOutputPins())
@@ -1077,7 +1048,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 				"    const uint {0}_DataAddress = {0}_ThreadInfo[1];\n"),
 				{ OutputPin->Properties.Label.ToString() });
 
-			// Automatically copy all attributes
+			// Automatically copy value of all attributes for this element.
 			KernelSpecificPreamble += FString::Format(TEXT(
 				"\n"
 				"    // Loop over all attribute headers, if the address is non-zero, then copy it from pin {0} to pin {1}.\n"

@@ -82,6 +82,9 @@ struct FPCGDataCollectionDesc
 	/** Pack a data collection into the GPU data format. DataDescs defines which attributes are packed. */
 	void PackDataCollection(const FPCGDataCollection& InDataCollection, FName InPin, TArray<uint32>& OutPackedDataCollection) const;
 
+	/** Allocates the correct size and sets up header. Initializes data count to 0, which kernel will then overwrite if it executes at least one thread. */
+	void PrepareBufferForKernelOutput(TArray<uint32>& OutPackedDataCollection);
+
 	/** Unpack a buffer of 8-bit uints to a data collection. */
 	void UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, FPCGDataCollection& OutDataCollection) const;
 

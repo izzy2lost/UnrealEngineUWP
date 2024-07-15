@@ -59,8 +59,6 @@ void FPCGDataProviderDataCollectionUploadProxy::AllocateResources(FRDGBuilder& G
 	check(!DownstreamInputPinLabels.IsEmpty());
 	PinDesc.PackDataCollection(Binding->DataForGPU.InputDataCollection, DownstreamInputPinLabels[0], PackedDataCollection);
 	
-	SizeBytes = PackedDataCollection.Num() * sizeof(uint32);
-
 	const FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), PackedDataCollection.Num());
 	Buffer = GraphBuilder.CreateBuffer(Desc, TEXT("PCGDataCollectionUploadBuffer"));
 	BufferUAV = GraphBuilder.CreateUAV(Buffer);

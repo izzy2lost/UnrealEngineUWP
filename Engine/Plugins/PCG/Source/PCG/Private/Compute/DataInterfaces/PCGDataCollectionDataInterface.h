@@ -57,7 +57,6 @@ public:
 
 	TWeakObjectPtr<UPCGDataBinding> Binding;
 	FPCGDataCollectionDesc PinDesc;
-	int SizeBytes = -1;
 };
 
 class FPCGDataCollectionDataProviderProxy : public FComputeDataProviderRenderProxy
@@ -73,8 +72,6 @@ public:
 	void GatherDispatchData(FDispatchData const& InDispatchData) override;
 	void AllocateResources(FRDGBuilder& GraphBuilder, FAllocationData const& InAllocationData) override;
 	//~ End FComputeDataProviderRenderProxy Interface
-
-	int SizeBytes = -1;
 
 protected:
 	using FParameters = FPCGDataCollectionDataInterfaceParameters;
