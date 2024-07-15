@@ -89,7 +89,7 @@ void SCinematicTransportRange::SetTime(const FGeometry& MyGeometry, const FPoint
 		// Clamp first, snap to frame last
 		if (Sequencer->GetSequencerSettings()->ShouldKeepCursorInPlayRangeWhileScrubbing())
 		{
-			TRange<FFrameNumber> PlaybackRange = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetPlaybackRange();
+			TRange<FFrameNumber> PlaybackRange = Sequencer->GetSubSequenceRange().Get(Sequencer->GetRootMovieSceneSequence()->GetMovieScene()->GetPlaybackRange());
 			ScrubTime = UE::MovieScene::ClampToDiscreteRange(ScrubTime, PlaybackRange);
 		}
 

@@ -3350,7 +3350,7 @@ void FSequencer::SnapSequencerTime(FFrameTime& ScrubTime)
 	// Clamp first, snap to frame last
 	if (GetSequencerSettings()->ShouldKeepCursorInPlayRangeWhileScrubbing())
 	{
-		TRange<FFrameNumber> PlaybackRange =GetFocusedMovieSceneSequence()->GetMovieScene()->GetPlaybackRange();
+		TRange<FFrameNumber> PlaybackRange = GetSubSequenceRange().Get(GetRootMovieSceneSequence()->GetMovieScene()->GetPlaybackRange());
 		ScrubTime = UE::MovieScene::ClampToDiscreteRange(ScrubTime, PlaybackRange);
 	}
 
