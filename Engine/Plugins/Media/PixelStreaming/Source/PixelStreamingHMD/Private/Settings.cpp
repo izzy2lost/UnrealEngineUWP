@@ -105,6 +105,7 @@ namespace UE::PixelStreamingHMD::Settings
 		CommandLineParseOption(TEXT("PixelStreamingEnableHMD"), CVarPixelStreamingEnableHMD);
 		CommandLineParseOption(TEXT("PixelStreamingHMDMatchAspectRatio"), CVarPixelStreamingHMDMatchAspectRatio);
 		CommandLineParseOption(TEXT("PixelStreamingHMDApplyEyeRotation"), CVarPixelStreamingHMDApplyEyeRotation);
+		CommandLineParseOption(TEXT("PixelStreamingHMDApplyEyePosition"), CVarPixelStreamingHMDApplyEyePosition);
 		CommandLineParseValue(TEXT("PixelStreamingHMDHFOV="), CVarPixelStreamingHMDHFOV);
 		CommandLineParseValue(TEXT("PixelStreamingHMDVFOV="), CVarPixelStreamingHMDVFOV);
 		CommandLineParseValue(TEXT("PixelStreamingHMDVIPD="), CVarPixelStreamingHMDIPD);
