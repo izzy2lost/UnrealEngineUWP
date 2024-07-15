@@ -1387,7 +1387,7 @@ static void GetTextureBuildSettings(
 
 		FVirtualTextureBuildSettings VirtualTextureBuildSettings;
 		Texture.GetVirtualTextureBuildSettings(VirtualTextureBuildSettings);
-		OutBuildSettings.VirtualTextureTileSize = FMath::RoundUpToPowerOfTwo(VirtualTextureBuildSettings.TileSize);
+		OutBuildSettings.VirtualTextureTileSize = FVirtualTextureBuildSettings::ClampAndAlignTileSize(VirtualTextureBuildSettings.TileSize);
 
 		// Apply any LOD group tile size bias here
 		const int32 TileSizeBias = TextureLODSettings.GetTextureLODGroup(Texture.LODGroup).VirtualTextureTileSizeBias;
@@ -1400,8 +1400,8 @@ static void GetTextureBuildSettings(
 		// 0 is a valid value for border size
 		// 1 would be OK in some cases, but breaks BC compressed formats, since it will result in physical tiles that aren't divisible by block size (4)
 		// Could allow border size of 1 for non BC compressed virtual textures, but somewhat complicated to get that correct, especially with multiple layers
-		// Doesn't seem worth the complexity for now, so clamp the size to be at least 2
-		OutBuildSettings.VirtualTextureBorderSize = (VirtualTextureBuildSettings.TileBorderSize > 0) ? FMath::RoundUpToPowerOfTwo(FMath::Max(VirtualTextureBuildSettings.TileBorderSize, 2)) : 0;
+		// Doesn't seem worth the complexity for now, so ensure we use multiple of 2
+		OutBuildSettings.VirtualTextureBorderSize = FVirtualTextureBuildSettings::ClampAndAlignTileBorderSize(VirtualTextureBuildSettings.TileBorderSize);
 	}
 	else
 	{

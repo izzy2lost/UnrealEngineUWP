@@ -1691,7 +1691,7 @@ void FVirtualTexture2DResource::InitializeEditorResources(IVirtualTexture* InVir
 		}
 		else
 		{
-			const bool bCopyUnwantedBordersForAlignment = VTData->TileBorderSize <= 2 && IsBlockCompressedFormat(PixelFormat);
+			const bool bCopyUnwantedBordersForAlignment = (VTData->TileBorderSize % 4 != 0) && IsBlockCompressedFormat(PixelFormat);
 			const uint32 MipScaleFactor = (1u << MipLevel);
 			const uint32 MipWidthInTiles = FMath::DivideAndRoundUp(GetNumTilesX(), MipScaleFactor);
 			const uint32 MipHeightInTiles = FMath::DivideAndRoundUp(GetNumTilesY(), MipScaleFactor);
@@ -1726,7 +1726,7 @@ void FVirtualTexture2DResource::InitializeEditorResources(IVirtualTexture* InVir
 			Texture2DRHI = RHICreateTexture(Desc);
 
 			// We want to strip borders when compositing tiles since we're just laying out tiles in a regular texture.
-			// But if we have block compressed formats with border less than 4 then doing this will lead to an unaligned copy. We keep the small unwanted borders in that case.
+			// But if we have block compressed formats with border not divisible by 4 then doing this will lead to an unaligned copy. We keep the small unwanted borders in that case.
 			const EVTProducePageFlags ProducePageFlags = bCopyUnwantedBordersForAlignment ? EVTProducePageFlags::None : EVTProducePageFlags::SkipPageBorders;
 
 			TArray<IVirtualTextureFinalizer*> Finalizers;
