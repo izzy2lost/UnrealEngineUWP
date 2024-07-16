@@ -40,6 +40,7 @@
 #include "Misc/Guid.h"
 #include "Misc/Optional.h"
 #include "Misc/OutputDevice.h"
+#include "Misc/TextFilterExpressionEvaluator.h"
 #include "Misc/Timespan.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
@@ -49,7 +50,10 @@
 #include <atomic>
 
 CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogLatentCommands, Log, All);
+CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogAutomationTestFramework, Log, All);
+
 class FAutomationTestBase;
+class FAutomationTestTags;
 
 #ifndef WITH_AUTOMATION_TESTS
 	#define WITH_AUTOMATION_TESTS (WITH_DEV_AUTOMATION_TESTS || WITH_PERF_AUTOMATION_TESTS)
@@ -272,14 +276,22 @@ public:
 	 * Constructor
 	 *
 	 * @param	InDisplayName - Name used in the UI
+	 * @param	InFullTestPath - Dot-separated pathname to hierarchically display in the UI, which should be unique
 	 * @param	InTestName - The test command string
-	 * @param	InTestFlag - Test flags
+	 * @param	InTestFlags - Test flags
+	 * @param	InNumParticipantsRequired - Number of workers to run test
 	 * @param	InParameterName - optional parameter. e.g. asset name
+	 * @param	InSourceFile - Filesystem path to the source file which defines the test
+	 * @param	InSourceFileLine - Line number in the source file which defines the test
+	 * @param	InAssetPath - Filesystem path to the UAsset file which defines the test
+	 * @param	InOpenCommand - An exec command to open the test
+	 * @param	InTestTags - Tag metadata concatenated into one string
 	 */
-	FAutomationTestInfo(const FString& InDisplayName, const FString& InFullTestPath, const FString& InTestName, const EAutomationTestFlags InTestFlags, const int32 InNumParticipantsRequired, const FString& InParameterName = FString(), const FString& InSourceFile = FString(), int32 InSourceFileLine = 0, const FString& InAssetPath = FString(), const FString& InOpenCommand = FString())
+	FAutomationTestInfo(const FString& InDisplayName, const FString& InFullTestPath, const FString& InTestName, const EAutomationTestFlags InTestFlags, const int32 InNumParticipantsRequired, const FString& InParameterName = FString(), const FString& InSourceFile = FString(), int32 InSourceFileLine = 0, const FString& InAssetPath = FString(), const FString& InOpenCommand = FString(),  const FString& InTestTags = FString())
 		: DisplayName( InDisplayName )
 		, FullTestPath( InFullTestPath )
 		, TestName( InTestName )
+		, TestTags( InTestTags )
 		, TestParameter( InParameterName )
 		, SourceFile( InSourceFile )
 		, SourceFileLine( InSourceFileLine )
@@ -331,6 +343,16 @@ public:
 	FString GetTestName() const
 	{
 		return TestName;
+	}
+
+	/**
+	 * Get the tags associated with this test.
+	 *
+	 * @return The concatenated test tags.
+	 */
+	FString GetTestTags() const
+	{
+		return TestTags;
 	}
 
 	/**
@@ -458,6 +480,9 @@ private:
 
 	/** Test name used to run the test */
 	FString TestName;
+
+	/** Tags defined on this test */
+	FString TestTags;
 
 	/** Parameter - e.g. an asset name or map name */
 	FString TestParameter;
@@ -982,6 +1007,47 @@ public:
 	CORE_API bool UnregisterAutomationTest( const FString& InTestNameToUnregister );
 
 	/**
+	 * Register tag metadata for a test into the framework.
+	 * 
+	 * @param	InTestNameToRegister	FullName of the test to associate with tags
+	 * @param	InTestTagsToRegister	Concatenated string of tags to register
+	 * 
+	 * @return	true if tags for the test successfully registered; false if tags were already registered for the test
+	 * @see FAutomationTestBase::GetTestFullName
+	 */
+	CORE_API bool RegisterAutomationTestTags(const FString& InTestNameToRegister, const FString& InTestTagsToRegister);
+
+	/**
+	 * Unregister tags for a automation test from the framework.
+	 * 
+	 * @param	InTestNameToUnregister	FullName of the test to remove tags from
+	 * 
+	 * @return true if test tags were successfully unregistered; false if tags for a test with that name was not found in the framework.
+	 * @see FAutomationTestBase::GetTestFullName
+	 */
+	CORE_API bool UnregisterAutomationTestTags(const FString& InTestNameToUnregister);
+
+	/**
+	 * Helper to register tags for a individual test enumerated by a Complex test
+	 *
+	 * @param	InTest					The Complex test to associate with
+	 * @param	InBeautifiedTestName	The name of the individual test
+	 * @param	InTestTagsToRegister	Concatenated string of tags to register
+	 *
+	 * @return true if test tags were successfully unregistered; false if tags for a test with that name was not found in the framework.
+	 */
+	CORE_API bool RegisterComplexAutomationTestTags(const FAutomationTestBase* InTest, const FString& InBeautifiedTestName, const FString& InTestTagsToRegister);
+
+	/**
+	 * Fetch the tags associated with a test
+	 * 
+	 * @param	InTestName	Name of the test to find tags for
+	 * 
+	 * @return	a string of all concatenated tags; empty string if test is not registered
+	 */
+	CORE_API FString GetTagsForAutomationTest(const FString& InTestName);
+
+	/**
 	 * Enqueues a latent command for execution on a subsequent frame
 	 *
 	 * @param NewCommand - The new command to enqueue for deferred execution
@@ -1071,6 +1137,17 @@ public:
 	 * @param	TestInfo	Array to populate with the test information
 	 */
 	CORE_API void GetValidTestNames( TArray<FAutomationTestInfo>& TestInfo ) const;
+
+	/**
+	 * Collects all registered tests with associated tags matching the pattern
+	 * 
+	 * @param	OutTestNames	Array that will be modified to contain only the set of matching tests
+	 * @param	TagPattern		An "Advanced Search Syntax" query to select matching tags from the registered tests
+	 * 
+	 * @see FTextFilterExpressionEvaluator
+	 * @see FAutomationTestBase::GetTestFullName
+	 */
+	CORE_API void GetTestFullNamesMatchingTagPattern(TArray<FString>& OutTestNames, const FString& TagPattern) const;
 
 	/**
 	 * Whether the testing framework should allow content to be tested or not.  Intended to block developer directories.
@@ -1355,6 +1432,9 @@ private:
 	/** Mapping of automation test names to their respective object instances */
 	TMap<FString, FAutomationTestBase*> AutomationTestClassNameToInstanceMap;
 
+	/** Mapping of full test names to their registered tags */
+	TMap<FString, FString> TestFullNameToTagDataMap;
+
 	/** Queue of deferred commands */
 	TQueue< TSharedPtr<IAutomationLatentCommand> > LatentCommands;
 
@@ -1398,6 +1478,49 @@ private:
 
 	TMap<FString, FOnTestSectionEvent> OnEnteringTestSectionEvent;
 	TMap<FString, FOnTestSectionEvent> OnLeavingTestSectionEvent;
+
+	/**
+	 * Evaluate whether a tag string matches the pattern string
+	 * 
+	 * @param	Tags		Concatenated string of all tags defined for a test
+	 * @param	TagPattern	A query pattern
+	 * @see FTextFilterExpressionEvaluator
+	 */
+	bool TagsMatchPattern(const FString& Tags, const FString& TagPattern) const;
+
+	/** Cached filter context */
+	TSharedPtr<FTextFilterExpressionEvaluator> TagFilter;
+};
+
+/** Wrapper class to simplify tag registration */
+class FAutomationTestTags
+{
+public:
+	/**
+	 * Register tags for test by its fully defined name, which will unregister when this object leaves scope
+	 * 
+	 * @param	InTestFullName	The unique path-name identifying this test
+	 * @param	InTags			A string defining all concatenated tags to register
+	 * @see FAutomationTestBase::GetTestFullName
+	 */
+	FAutomationTestTags(const FString& InTestFullName, const FString& InTags)
+	{
+		LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
+		TestFullName = InTestFullName;
+		bool Registered = FAutomationTestFramework::Get().RegisterAutomationTestTags( InTestFullName, InTags );
+		if (!Registered)
+		{
+			UE_LOG(LogAutomationTestFramework, Warning, TEXT("Tag registration already exists for test '%s', existing value was not overridden"), *TestFullName);
+		}
+	}
+
+	~FAutomationTestTags()
+	{
+		//ignore failure to unregister due to already being unregistered
+		FAutomationTestFramework::Get().UnregisterAutomationTestTags(TestFullName);
+	}
+private:
+	FString TestFullName;
 };
 
 /** Simple abstract base class for all automation tests */
@@ -3933,6 +4056,12 @@ public: \
 	protected: \
 		virtual FString GetBeautifiedTestName() const override { return PrettyName; } \
 		virtual void Define() override;
+
+#define REGISTER_SIMPLE_AUTOMATION_TEST_TAGS( TClass, PrettyName, TagsString ) \
+	namespace\
+	{\
+		FAutomationTestTags TClass##AutomationTagsInstance(PrettyName, TagsString);\
+	}
 
 #if WITH_AUTOMATION_WORKER
 	#define IMPLEMENT_SIMPLE_AUTOMATION_TEST( TClass, PrettyName, TFlags ) \

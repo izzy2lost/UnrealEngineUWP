@@ -2085,4 +2085,197 @@ bool FAutomationAttachment::RunTest(const FString& Parameters)
 	return false;
 }
 
+constexpr auto ExampleTag = "[TestExampleTag]";
+constexpr auto OtherTag = "[SomeOtherTag]";
+constexpr auto NegativeTag = "[DoNotWant]";
+constexpr auto NegativeAndExampleTags = "[TestExampleTag][DoNotWant]";
+constexpr auto NegativeAndExampleTagsReversed = "[TestExampleTag][DoNotWant]";
+
+constexpr auto FullTestNameTagsExist = "TestFramework.Tags.TagsExist";
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTagsExist, FullTestNameTagsExist, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+REGISTER_SIMPLE_AUTOMATION_TEST_TAGS(FAutomationTagsExist, FullTestNameTagsExist, ExampleTag) //Other tests expect ExampleTag to only be registered once, and only for this test
+bool FAutomationTagsExist::RunTest(const FString& Parameters)
+{
+	//registration above performs necessary setup
+	FString MyTags = FAutomationTestFramework::Get().GetTagsForAutomationTest(FullTestNameTagsExist);
+
+	TestEqual(TEXT("Tags statically register"), MyTags, ExampleTag);
+	return true;
+}
+
+constexpr auto FullTestNameSelect = "TestFramework.Tags.TagsAreSelectable";
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTagsSelect, FullTestNameSelect, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+REGISTER_SIMPLE_AUTOMATION_TEST_TAGS(FAutomationTagsSelect, FullTestNameSelect, NegativeAndExampleTags)
+bool FAutomationTagsSelect::RunTest(const FString& Parameters)
+{
+	TArray<FString> TestNames;
+	FString PositiveFilter("[TestExampleTag]");
+
+	FAutomationTestFramework::Get().GetTestFullNamesMatchingTagPattern(TestNames, PositiveFilter);
+
+	TestGreaterEqual("Tags get selected", TestNames.Num(), 1);
+	bool FoundThisTest = false;
+	for (FString Element : TestNames)
+	{
+		if (Element.Equals(FullTestNameSelect))
+		{
+			FoundThisTest = true;
+		}
+	}
+	TestTrue("Current test was selected", FoundThisTest);
+	return true;
+}
+
+constexpr auto FullTestNameUnion = "TestFramework.Tags.UnionSelection";
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTagsUnion, FullTestNameUnion, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+//The two tests above are used, no extra tags need to be registered
+bool FAutomationTagsUnion::RunTest(const FString& Parameters)
+{
+	TArray<FString> TestNames;
+	FString UnionFilter("[TestExampleTag] OR [SomeOtherTag]");
+
+	FAutomationTestFramework::Get().GetTestFullNamesMatchingTagPattern(TestNames, UnionFilter);
+
+	TestGreaterEqual("Tags get selected", TestNames.Num(), 1);
+	bool FoundExample = false;
+	bool FoundOther = false;
+	for (FString Element : TestNames)
+	{
+		if (Element.Equals(FullTestNameTagsExist))
+		{
+			FoundExample = true;
+		}
+		else {
+			if (Element.Equals(FullTestNameSelect))
+			{
+				FoundOther = true;
+			}
+		}
+	}
+	TestTrue("First test was selected", FoundExample);
+	TestTrue("Second test was selected", FoundOther);
+	return true;
+}
+
+constexpr auto FullTestNameNoBracket = "TestFramework.Tags.SelectWithoutBrackets";
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTagsFilterNoBrackets, FullTestNameNoBracket, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+REGISTER_SIMPLE_AUTOMATION_TEST_TAGS(FAutomationTagsFilterNoBrackets, FullTestNameNoBracket, OtherTag)
+bool FAutomationTagsFilterNoBrackets::RunTest(const FString& Parameters)
+{
+	TArray<FString> TestNames;
+	FString PositiveFilter("SomeOtherTag");
+
+	FAutomationTestFramework::Get().GetTestFullNamesMatchingTagPattern(TestNames, PositiveFilter);
+
+	TestGreaterEqual("Tags get selected", TestNames.Num(), 1);
+	bool FoundThisTest = false;
+	for (FString Element : TestNames)
+	{
+		if (Element.Equals(FullTestNameNoBracket))
+		{
+			FoundThisTest = true;
+		}
+	}
+	TestTrue("Current test was selected", FoundThisTest);
+	return true;
+}
+
+constexpr auto FullTestNameFilter = "TestFramework.Tags.TagsCanFilter";
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTagsFilter, FullTestNameFilter, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+REGISTER_SIMPLE_AUTOMATION_TEST_TAGS(FAutomationTagsFilter, FullTestNameFilter, NegativeAndExampleTags)
+bool FAutomationTagsFilter::RunTest(const FString& Parameters)
+{
+	TArray<FString> TestNames;
+	FString NegativeFilter("[TestExampleTag] AND NOT [DoNotWant]");
+
+	FAutomationTestFramework::Get().GetTestFullNamesMatchingTagPattern(TestNames, NegativeFilter);
+
+	TestEqual("One element", TestNames.Num(), 1 );
+	TestEqual("Current test is not selected", TestNames[0], FullTestNameTagsExist);
+	return true;
+}
+
+constexpr auto FullTestNameFilterReversePattern = "TestFramework.Tags.TagsFilterPatternOrderIndependent";
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTagsFilterPatternOrder, FullTestNameFilterReversePattern, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+REGISTER_SIMPLE_AUTOMATION_TEST_TAGS(FAutomationTagsFilterPatternOrder, FullTestNameFilterReversePattern, NegativeAndExampleTags)
+bool FAutomationTagsFilterPatternOrder::RunTest(const FString& Parameters)
+{
+	TArray<FString> TestNames;
+	FString NegativeFilter("NOT [DoNotWant] AND [TestExampleTag]");
+
+	FAutomationTestFramework::Get().GetTestFullNamesMatchingTagPattern(TestNames, NegativeFilter);
+
+	TestEqual("One element", TestNames.Num(), 1);
+	TestEqual("Current test is not selected", TestNames[0], FullTestNameTagsExist);
+	return true;
+}
+
+constexpr auto FullTestNameFilterReverseTags = "TestFramework.Tags.TagsFilterTagOrderIndependent";
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTagsFilterTagOrder, FullTestNameFilterReverseTags, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+REGISTER_SIMPLE_AUTOMATION_TEST_TAGS(FAutomationTagsFilterTagOrder, FullTestNameFilterReverseTags, NegativeAndExampleTagsReversed)
+bool FAutomationTagsFilterTagOrder::RunTest(const FString& Parameters)
+{
+	TArray<FString> TestNames;
+	FString NegativeFilter("[TestExampleTag] AND NOT [DoNotWant]");
+
+	FAutomationTestFramework::Get().GetTestFullNamesMatchingTagPattern(TestNames, NegativeFilter);
+
+	TestEqual("One element", TestNames.Num(), 1);
+	TestEqual("Current test is not selected", TestNames[0], FullTestNameTagsExist);
+	return true;
+}
+
+constexpr auto FullTestNameFilterReverseBoth = "TestFramework.Tags.TagsFilterReverseOrderIndependent";
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAutomationTagsFilterBothReverseOrder, FullTestNameFilterReverseBoth, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+REGISTER_SIMPLE_AUTOMATION_TEST_TAGS(FAutomationTagsFilterBothReverseOrder, FullTestNameFilterReverseBoth, NegativeAndExampleTagsReversed)
+bool FAutomationTagsFilterBothReverseOrder::RunTest(const FString& Parameters)
+{
+	TArray<FString> TestNames;
+	FString NegativeFilter("NOT [DoNotWant] AND [TestExampleTag]");
+
+	FAutomationTestFramework::Get().GetTestFullNamesMatchingTagPattern(TestNames, NegativeFilter);
+
+	TestEqual("One element", TestNames.Num(), 1);
+	TestEqual("Current test is not selected", TestNames[0], FullTestNameTagsExist);
+	return true;
+}
+
+constexpr auto ComplexTags1 = "[TestExampleTagComplex][FirstExample]";
+constexpr auto ComplexTags2 = "[TestExampleTagComplex][SecondExample]";
+constexpr auto ComplexTagTestPath = "TestFramework.Tags.Complex";
+IMPLEMENT_COMPLEX_AUTOMATION_TEST(FAutomationTagsForComplexSuite, ComplexTagTestPath, EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+void FAutomationTagsForComplexSuite::GetTests(TArray<FString>& OutBeautifiedNames, TArray<FString>& OutTestCommands) const
+{
+	FAutomationTestFramework& Framework = FAutomationTestFramework::Get();
+
+	OutBeautifiedNames.Add("First");
+	Framework.RegisterComplexAutomationTestTags(this, "First", ComplexTags1);
+
+	OutBeautifiedNames.Add("Second");
+	Framework.RegisterComplexAutomationTestTags(this, "Second", ComplexTags2);
+	
+	OutTestCommands = OutBeautifiedNames; //pass names as parameters
+}
+
+bool FAutomationTagsForComplexSuite::RunTest(const FString& Parameters)
+{
+	//registration in GetTests() performs necessary setup
+	FString MyName = GetTestFullName();
+	TestTrue(TEXT("Complex tests construct names as expected"), MyName.EndsWith(Parameters));
+
+	FString MyTags = FAutomationTestFramework::Get().GetTagsForAutomationTest(MyName);
+	TestFalse(TEXT("Tag is found"), MyTags.IsEmpty());
+
+	FString ExpectedTags;
+	if( Parameters.Equals("First"))
+	{
+		ExpectedTags = FString(ComplexTags1);
+	}
+	else {
+		ExpectedTags = FString(ComplexTags2);
+	}
+	TestEqual(TEXT("Tags dynamically registered for intended complex test"), MyTags, ExpectedTags);
+	return true;
+}
+
 #endif //WITH_DEV_AUTOMATION_TESTS

@@ -21,7 +21,8 @@
 #include "Misc/ScopeRWLock.h"
 #include "Modules/ModuleManager.h"
 
-DEFINE_LOG_CATEGORY(LogLatentCommands)
+DEFINE_LOG_CATEGORY(LogLatentCommands);
+DEFINE_LOG_CATEGORY(LogAutomationTestFramework);
 DEFINE_LOG_CATEGORY_STATIC(LogAutomationTestStateTrace, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogAutomationTest, Warning, All);
 
@@ -342,6 +343,43 @@ bool FAutomationTestFramework::UnregisterAutomationTest( const FString& InTestNa
 		AutomationTestClassNameToInstanceMap.Remove( InTestNameToUnregister );
 	}
 	return bRegistered;
+}
+
+bool FAutomationTestFramework::RegisterAutomationTestTags( const FString& InTestNameToRegister, const FString& InTestTagsToRegister )
+{
+	const bool bAlreadyRegistered = TestFullNameToTagDataMap.Contains( InTestNameToRegister );
+	if ( !bAlreadyRegistered )
+	{
+		LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
+		TestFullNameToTagDataMap.Add(InTestNameToRegister, InTestTagsToRegister);
+	}
+	return !bAlreadyRegistered;
+}
+
+bool FAutomationTestFramework::UnregisterAutomationTestTags(const FString& InTestNameToUnregister)
+{
+	const bool bRegistered = TestFullNameToTagDataMap.Contains(InTestNameToUnregister);
+	if (bRegistered)
+	{
+		TestFullNameToTagDataMap.Remove(InTestNameToUnregister);
+	}
+	return bRegistered;
+}
+
+bool FAutomationTestFramework::RegisterComplexAutomationTestTags(const FAutomationTestBase* InTest, const FString& InTestNameToRegister, const FString& InTestTagsToRegister)
+{
+	FString FullTestName = InTest->GetBeautifiedTestName().AppendChar('.').Append(InTestNameToRegister);
+	return RegisterAutomationTestTags(FullTestName, InTestTagsToRegister);
+}
+
+FString FAutomationTestFramework::GetTagsForAutomationTest(const FString& InTestName)
+{
+	FString * FindResult = TestFullNameToTagDataMap.Find(InTestName);
+	if (FindResult)
+	{
+		return *FindResult;
+	}
+	return FString();
 }
 
 void FAutomationTestFramework::EnqueueLatentCommand(TSharedPtr<IAutomationLatentCommand> NewCommand)
@@ -761,6 +799,28 @@ void FAutomationTestFramework::GetValidTestNames( TArray<FAutomationTestInfo>& T
 	}
 }
 
+bool FAutomationTestFramework::TagsMatchPattern(const FString& Tags, const FString& TagPattern) const
+{
+	check(TagFilter);
+	TagFilter->SetFilterText(FText::FromString(TagPattern));
+	return TagFilter->TestTextFilter(FBasicStringFilterExpressionContext(Tags));
+}
+
+void FAutomationTestFramework::GetTestFullNamesMatchingTagPattern(TArray<FString>& OutTestNames, const FString& TagPattern) const
+{
+	LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
+	OutTestNames.Empty();
+
+	for (TMap<FString, FString>::TConstIterator TestIter(TestFullNameToTagDataMap); TestIter; ++TestIter)
+	{
+		const FString CurTags = TestIter.Value();
+		if (TagsMatchPattern(CurTags, TagPattern))
+		{
+			OutTestNames.Add(TestIter.Key());
+		}
+	}
+}
+
 bool FAutomationTestFramework::ShouldTestContent(const FString& Path) const
 {
 	static TArray<FString> TestLevelFolders;
@@ -1138,6 +1198,7 @@ FAutomationTestFramework::FAutomationTestFramework()
 	, bForceSmokeTests(false)
 	, bCaptureStack(true)
 {
+	TagFilter = MakeShared<FTextFilterExpressionEvaluator>(ETextFilterExpressionEvaluatorMode::BasicString);
 }
 
 FAutomationTestFramework::~FAutomationTestFramework()
@@ -1616,6 +1677,7 @@ void FAutomationTestBase::GenerateTestNames(TArray<FAutomationTestInfo>& TestInf
 	TArray<FString> BeautifiedNames;
 	TArray<FString> ParameterNames;
 	GetTests(BeautifiedNames, ParameterNames);
+	FAutomationTestFramework& Framework = FAutomationTestFramework::Get();
 
 	FString BeautifiedTestName = GetBeautifiedTestName();
 
@@ -1641,7 +1703,8 @@ void FAutomationTestBase::GenerateTestNames(TArray<FAutomationTestInfo>& TestInf
 			GetTestSourceFileName(CompleteTestName),
 			GetTestSourceFileLine(CompleteTestName),
 			GetTestAssetPath(ParameterNames[ParameterIndex]),
-			GetTestOpenCommand(ParameterNames[ParameterIndex])
+			GetTestOpenCommand(ParameterNames[ParameterIndex]),
+			Framework.GetTagsForAutomationTest(TestName)
 		);
 		
 		TestInfo.Add( NewTestInfo );
