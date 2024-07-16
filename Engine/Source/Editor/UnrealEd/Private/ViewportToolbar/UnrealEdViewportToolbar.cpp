@@ -4,14 +4,19 @@
 
 #include "DataDrivenShaderPlatformInfo.h"
 #include "DebugViewModeHelpers.h"
+#include "Editor/EditorPerformanceSettings.h"
 #include "EditorViewportClient.h"
 #include "EditorViewportCommands.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "GPUSkinCache.h"
 #include "GPUSkinCacheVisualizationMenuCommands.h"
+#include "IPreviewProfileController.h"
 #include "LevelEditorActions.h"
+#include "PreviewProfileController.h"
 #include "RayTracingDebugVisualizationMenuCommands.h"
+#include "SAssetEditorViewport.h"
 #include "SEditorViewport.h"
+#include "Settings/EditorProjectSettings.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "Styling/SlateIconFinder.h"
 #include "Templates/SharedPointer.h"
@@ -23,6 +28,7 @@
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/SToolTip.h"
+#include "Widgets/Input/STextComboBox.h"
 
 #define LOCTEXT_NAMESPACE "UnrealEdViewportToolbar"
 
@@ -1630,6 +1636,526 @@ FToolMenuEntry CreateNumericEntry(
 	);
 
 	return NumericEntry;
+}
+
+TSharedRef<SWidget> CreateCameraMenuWidget(const TSharedRef<SEditorViewport>& InViewport)
+{
+	constexpr bool bInShouldCloseWindowAfterMenuSelection = true;
+	FMenuBuilder CameraMenuBuilder(bInShouldCloseWindowAfterMenuSelection, InViewport->GetCommandList());
+
+	// Camera types
+	CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Perspective);
+
+	CameraMenuBuilder.BeginSection("LevelViewportCameraType_Ortho", LOCTEXT("CameraTypeHeader_Ortho", "Orthographic"));
+	CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Top);
+	CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Bottom);
+	CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Left);
+	CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Right);
+	CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Front);
+	CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Back);
+	CameraMenuBuilder.EndSection();
+
+	return CameraMenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> CreateFOVMenuWidget(const TSharedRef<SEditorViewport>& InViewport)
+{
+	constexpr float FOVMin = 5.0f;
+	constexpr float FOVMax = 170.0f;
+
+	TSharedPtr<FEditorViewportClient> ViewportClient = InViewport->GetViewportClient();
+
+	return
+		// clang-format off
+		SNew(SBox)
+		.HAlign(HAlign_Right)
+		[
+			SNew(SBox)
+			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+			.WidthOverride(100.0f)
+			[
+				SNew(SBorder)
+				.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
+				.Padding(FMargin(1.0f))
+				[
+					SNew(SSpinBox<float>)
+					.Style(&FAppStyle::Get(), "Menu.SpinBox")
+					.Font( FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+					.MinValue(FOVMin)
+					.MaxValue(FOVMax)
+					.Value_Lambda([ViewportClient]()
+					{
+						return ViewportClient->ViewFOV;
+					})
+					.OnValueChanged_Lambda([ViewportClient](float InNewValue)
+					{
+						ViewportClient->FOVAngle = InNewValue;
+						ViewportClient->ViewFOV = InNewValue;
+						ViewportClient->Invalidate();
+					})
+				]
+			]
+		];
+	// clang-format on
+}
+
+TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewport>& InViewport)
+{
+	TSharedPtr<FEditorViewportClient> ViewportClient = InViewport->GetViewportClient();
+
+	return
+		// clang-format off
+		SNew(SBox)
+		.HAlign(HAlign_Right)
+		[
+			SNew(SBox)
+			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+			.WidthOverride(100.0f)
+			[
+				SNew(SBorder)
+				.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
+				.Padding(FMargin(1.0f))
+				[
+					SNew(SSpinBox<float>)
+					.Style(&FAppStyle::Get(), "Menu.SpinBox")
+					.ToolTipText(LOCTEXT("FarViewPlaneTooltip", "Distance to use as the far view plane, or zero to enable an infinite far view plane"))
+					.MinValue(0.0f)
+					.MaxValue(100000.0f)
+					.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+					.Value_Lambda([ViewportClient]()
+					{
+						return ViewportClient->GetFarClipPlaneOverride();
+					})
+					.OnValueChanged_Lambda([ViewportClient](float InNewValue)
+					{
+						ViewportClient->OverrideFarClipPlane(InNewValue);
+						ViewportClient->Invalidate();
+					})
+				]
+			]
+		];
+	// clang-format on
+}
+
+FToolMenuEntry CreateCameraSubmenu(TWeakPtr<SEditorViewport> InViewport)
+{
+	return FToolMenuEntry::InitSubMenu(
+		"Camera",
+		LOCTEXT("CameraSubmenuLabel", "Camera"),
+		LOCTEXT("CameraSubmenuTooltip", "Camera options"),
+		FNewToolMenuDelegate::CreateLambda(
+			[InViewport](UToolMenu* Submenu) -> void
+			{
+				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+
+				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
+					"CameraMenuItems", UE::UnrealEd::CreateCameraMenuWidget(InViewport.Pin().ToSharedRef()), FText(), true
+				));
+
+				UnnamedSection.AddSeparator("CameraSubmenuSeparator");
+
+				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
+					"CameraFOV",
+					UE::UnrealEd::CreateFOVMenuWidget(InViewport.Pin().ToSharedRef()),
+					LOCTEXT("CameraSubmenu_FieldOfViewLabel", "Field of View"),
+					true
+				));
+
+				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
+					"CameraFarViewPlane",
+					UE::UnrealEd::CreateFarViewPlaneMenuWidget(InViewport.Pin().ToSharedRef()),
+					LOCTEXT("CameraSubmenu_FarViewPlaneLabel", "Far View Plane"),
+					true
+				));
+			}
+		)
+	);
+}
+
+static FFormatNamedArguments GetScreenPercentageFormatArguments(const FEditorViewportClient& ViewportClient)
+{
+	static auto CVarEditorViewportDefaultScreenPercentageRealTimeMode =
+		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.RealTime"));
+	static auto CVarEditorViewportDefaultScreenPercentageMobileMode =
+		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.Mobile"));
+	static auto CVarEditorViewportDefaultScreenPercentageVRMode =
+		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.VR"));
+	static auto CVarEditorViewportDefaultScreenPercentagePathTracerMode =
+		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.PathTracer"));
+	static auto CVarEditorViewportDefaultScreenPercentageMode =
+		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.NonRealTime"));
+
+	const UEditorPerformanceProjectSettings* EditorProjectSettings = GetDefault<UEditorPerformanceProjectSettings>();
+	const UEditorPerformanceSettings* EditorUserSettings = GetDefault<UEditorPerformanceSettings>();
+	const FEngineShowFlags& EngineShowFlags = ViewportClient.EngineShowFlags;
+
+	const EViewStatusForScreenPercentage ViewportRenderingMode = ViewportClient.GetViewStatusForScreenPercentage();
+	const bool bViewModeSupportsScreenPercentage = ViewportClient.SupportsPreviewResolutionFraction();
+	const bool bIsPreviewScreenPercentage = ViewportClient.IsPreviewingScreenPercentage();
+
+	float DefaultScreenPercentage = FMath::Clamp(
+										ViewportClient.GetDefaultPrimaryResolutionFractionTarget(),
+										ISceneViewFamilyScreenPercentage::kMinTSRResolutionFraction,
+										ISceneViewFamilyScreenPercentage::kMaxTSRResolutionFraction
+									)
+								  * 100.0f;
+	float PreviewScreenPercentage = float(ViewportClient.GetPreviewScreenPercentage());
+	float FinalScreenPercentage = bIsPreviewScreenPercentage ? PreviewScreenPercentage : DefaultScreenPercentage;
+
+	FFormatNamedArguments FormatArguments;
+	FormatArguments.Add(TEXT("ViewportMode"), UEnum::GetDisplayValueAsText(ViewportRenderingMode));
+
+	EScreenPercentageMode ProjectSetting = EScreenPercentageMode::Manual;
+	EEditorUserScreenPercentageModeOverride UserPreference = EEditorUserScreenPercentageModeOverride::ProjectDefault;
+	IConsoleVariable* CVarDefaultScreenPercentage = nullptr;
+	if (ViewportRenderingMode == EViewStatusForScreenPercentage::PathTracer)
+	{
+		ProjectSetting = EditorProjectSettings->PathTracerScreenPercentageMode;
+		UserPreference = EditorUserSettings->PathTracerScreenPercentageMode;
+		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentagePathTracerMode;
+	}
+	else if (ViewportRenderingMode == EViewStatusForScreenPercentage::VR)
+	{
+		ProjectSetting = EditorProjectSettings->VRScreenPercentageMode;
+		UserPreference = EditorUserSettings->VRScreenPercentageMode;
+		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentageVRMode;
+	}
+	else if (ViewportRenderingMode == EViewStatusForScreenPercentage::Mobile)
+	{
+		ProjectSetting = EditorProjectSettings->MobileScreenPercentageMode;
+		UserPreference = EditorUserSettings->MobileScreenPercentageMode;
+		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentageMobileMode;
+	}
+	else if (ViewportRenderingMode == EViewStatusForScreenPercentage::Desktop)
+	{
+		ProjectSetting = EditorProjectSettings->RealtimeScreenPercentageMode;
+		UserPreference = EditorUserSettings->RealtimeScreenPercentageMode;
+		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentageRealTimeMode;
+	}
+	else if (ViewportRenderingMode == EViewStatusForScreenPercentage::NonRealtime)
+	{
+		ProjectSetting = EditorProjectSettings->NonRealtimeScreenPercentageMode;
+		UserPreference = EditorUserSettings->NonRealtimeScreenPercentageMode;
+		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentageMode;
+	}
+	else
+	{
+		unimplemented();
+	}
+
+	EScreenPercentageMode FinalScreenPercentageMode = EScreenPercentageMode::Manual;
+	if (!bViewModeSupportsScreenPercentage)
+	{
+		FormatArguments.Add(
+			TEXT("SettingSource"), LOCTEXT("ScreenPercentage_SettingSource_UnsupportedByViewMode", "Unsupported by View mode")
+		);
+		FinalScreenPercentageMode = EScreenPercentageMode::Manual;
+		FinalScreenPercentage = 100;
+	}
+	else if (bIsPreviewScreenPercentage)
+	{
+		FormatArguments.Add(
+			TEXT("SettingSource"), LOCTEXT("ScreenPercentage_SettingSource_ViewportOverride", "Viewport Override")
+		);
+		FinalScreenPercentageMode = EScreenPercentageMode::Manual;
+	}
+	else if ((CVarDefaultScreenPercentage->GetFlags() & ECVF_SetByMask) > ECVF_SetByProjectSetting)
+	{
+		FormatArguments.Add(TEXT("SettingSource"), LOCTEXT("ScreenPercentage_SettingSource_Cvar", "Console Variable"));
+		FinalScreenPercentageMode = EScreenPercentageMode(CVarDefaultScreenPercentage->GetInt());
+	}
+	else if (UserPreference == EEditorUserScreenPercentageModeOverride::ProjectDefault)
+	{
+		FormatArguments.Add(
+			TEXT("SettingSource"), LOCTEXT("ScreenPercentage_SettingSource_ProjectSettigns", "Project Settings")
+		);
+		FinalScreenPercentageMode = ProjectSetting;
+	}
+	else
+	{
+		FormatArguments.Add(
+			TEXT("SettingSource"), LOCTEXT("ScreenPercentage_SettingSource_EditorPreferences", "Editor Preferences")
+		);
+		if (UserPreference == EEditorUserScreenPercentageModeOverride::BasedOnDPIScale)
+		{
+			FinalScreenPercentageMode = EScreenPercentageMode::BasedOnDPIScale;
+		}
+		else if (UserPreference == EEditorUserScreenPercentageModeOverride::BasedOnDisplayResolution)
+		{
+			FinalScreenPercentageMode = EScreenPercentageMode::BasedOnDisplayResolution;
+		}
+		else
+		{
+			FinalScreenPercentageMode = EScreenPercentageMode::Manual;
+		}
+	}
+
+	if (FinalScreenPercentageMode == EScreenPercentageMode::BasedOnDPIScale)
+	{
+		FormatArguments.Add(TEXT("Setting"), LOCTEXT("ScreenPercentage_Setting_BasedOnDPIScale", "Based on OS's DPI scale"));
+	}
+	else if (FinalScreenPercentageMode == EScreenPercentageMode::BasedOnDisplayResolution)
+	{
+		FormatArguments.Add(
+			TEXT("Setting"), LOCTEXT("ScreenPercentage_Setting_BasedOnDisplayResolution", "Based on display resolution")
+		);
+	}
+	else
+	{
+		FormatArguments.Add(TEXT("Setting"), LOCTEXT("ScreenPercentage_Setting_Manual", "Manual"));
+	}
+
+	FormatArguments.Add(
+		TEXT("CurrentScreenPercentage"),
+		FText::FromString(FString::Printf(TEXT("%3.1f"), FMath::RoundToFloat(FinalScreenPercentage * 10.0f) / 10.0f))
+	);
+
+	{
+		float FinalResolutionFraction = (FinalScreenPercentage / 100.0f);
+		FIntPoint DisplayResolution = ViewportClient.Viewport->GetSizeXY();
+		FIntPoint RenderingResolution;
+		RenderingResolution.X = FMath::CeilToInt(DisplayResolution.X * FinalResolutionFraction);
+		RenderingResolution.Y = FMath::CeilToInt(DisplayResolution.Y * FinalResolutionFraction);
+
+		FormatArguments.Add(
+			TEXT("ResolutionFromTo"),
+			FText::FromString(FString::Printf(
+				TEXT("%dx%d -> %dx%d"),
+				RenderingResolution.X,
+				RenderingResolution.Y,
+				DisplayResolution.X,
+				DisplayResolution.Y
+			))
+		);
+	}
+
+	return FormatArguments;
+}
+
+static const FMargin ScreenPercentageMenuCommonPadding(26.0f, 3.0f);
+
+TSharedRef<SWidget> CreateCurrentPercentageWidget(FEditorViewportClient& InViewportClient)
+{
+	// clang-format off
+	return SNew(SBox)
+		.Padding(ScreenPercentageMenuCommonPadding)
+		[
+			SNew(STextBlock)
+			.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.Text_Lambda([&InViewportClient]()
+			{
+				FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(InViewportClient);
+				return FText::Format(LOCTEXT("ScreenPercentageCurrent_Display", "Current Screen Percentage: {CurrentScreenPercentage}"), FormatArguments);
+			})
+			.ToolTip(SNew(SToolTip).Text(LOCTEXT("ScreenPercentageCurrent_ToolTip", "Current Screen Percentage the viewport is rendered with. The primary screen percentage can either be a spatial or temporal upscaler based of your anti-aliasing settings.")))
+		];
+	// clang-format on
+}
+
+TSharedRef<SWidget> CreateResolutionsWidget(FEditorViewportClient& InViewportClient)
+{
+	// clang-format off
+	return SNew(SBox)
+	.Padding(ScreenPercentageMenuCommonPadding)
+	[
+		SNew(STextBlock)
+		.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+		.Text_Lambda([&InViewportClient]()
+		{
+			FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(InViewportClient);
+			return FText::Format(LOCTEXT("ScreenPercentageResolutions", "Resolution: {ResolutionFromTo}"), FormatArguments);
+		})
+	];
+	// clang-format on
+}
+
+TSharedRef<SWidget> CreateActiveViewportWidget(FEditorViewportClient& InViewPortClient)
+{
+	// clang-format off
+	return SNew(SBox)
+		.Padding(ScreenPercentageMenuCommonPadding)
+		[
+			SNew(STextBlock)
+			.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.Text_Lambda([&InViewPortClient]()
+			{
+				FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(InViewPortClient);
+				return FText::Format(LOCTEXT("ScreenPercentageActiveViewport", "Active Viewport: {ViewportMode}"), FormatArguments);
+			})
+		];
+	// clang-format on
+}
+
+TSharedRef<SWidget> CreateSetFromWidget(FEditorViewportClient& InViewPortClient)
+{
+	// clang-format off
+	return SNew(SBox)
+		.Padding(ScreenPercentageMenuCommonPadding)
+		[
+			SNew(STextBlock)
+			.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.Text_Lambda([&InViewPortClient]()
+			{
+				FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(InViewPortClient);
+				return FText::Format(LOCTEXT("ScreenPercentageSetFrom", "Set From: {SettingSource}"), FormatArguments);
+			})
+		];
+	// clang-format on
+}
+
+TSharedRef<SWidget> CreateCurrentScreenPercentageSettingWidget(FEditorViewportClient& InViewPortClient)
+{
+	// clang-format off
+	return SNew(SBox)
+		.Padding(ScreenPercentageMenuCommonPadding)
+		[
+			SNew(STextBlock)
+			.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.Text_Lambda([&InViewPortClient]()
+			{
+				FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(InViewPortClient);
+				return FText::Format(LOCTEXT("ScreenPercentageSetting", "Setting: {Setting}"), FormatArguments);
+			})
+		];
+	// clang-format on
+}
+
+TSharedRef<SWidget> CreateCurrentScreenPercentageWidget(FEditorViewportClient& InViewPortClient)
+{
+	constexpr int32 PreviewScreenPercentageMin = ISceneViewFamilyScreenPercentage::kMinTSRResolutionFraction * 100.0f;
+	constexpr int32 PreviewScreenPercentageMax = ISceneViewFamilyScreenPercentage::kMaxTSRResolutionFraction * 100.0f;
+
+	// clang-format off
+	return SNew(SBox)
+		.HAlign(HAlign_Right)
+		.IsEnabled_Lambda([&InViewPortClient]()
+		{
+			return InViewPortClient.IsPreviewingScreenPercentage() && InViewPortClient.SupportsPreviewResolutionFraction();
+		})
+		[
+			SNew(SBox)
+			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+			.WidthOverride(100.0f)
+			[
+				SNew(SBorder)
+				.Padding(FMargin(1.0f))
+				[
+					SNew(SSpinBox<int32>)
+					.Style(&FAppStyle::Get(), "Menu.SpinBox")
+					.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+					.MinSliderValue(PreviewScreenPercentageMin)
+					.MaxSliderValue(PreviewScreenPercentageMax)
+					.Value_Lambda([&InViewPortClient]()
+					{
+						return InViewPortClient.GetPreviewScreenPercentage();
+					})
+					.OnValueChanged_Lambda([&InViewPortClient](int32 NewValue)
+					{
+						InViewPortClient.SetPreviewScreenPercentage(NewValue);
+						InViewPortClient.Invalidate();
+					})
+				]
+			]
+		];
+	// clang-format on
+}
+
+static void ConstructScreenPercentageMenu(UToolMenu* InMenu, FEditorViewportClient* InViewportClient)
+{
+	FEditorViewportClient& ViewportClient = *InViewportClient;
+
+	const FEditorViewportCommands& BaseViewportCommands = FEditorViewportCommands::Get();
+
+	// Summary
+	{
+		FToolMenuSection& SummarySection = InMenu->FindOrAddSection("Summary", LOCTEXT("Summary", "Summary"));
+		SummarySection.AddEntry(FToolMenuEntry::InitWidget(
+			"ScreenPercentageCurrent", CreateCurrentPercentageWidget(ViewportClient), FText::GetEmpty()
+		));
+
+		SummarySection.AddEntry(FToolMenuEntry::InitWidget(
+			"ScreenPercentageResolutions", CreateResolutionsWidget(ViewportClient), FText::GetEmpty()
+		));
+
+		SummarySection.AddEntry(FToolMenuEntry::InitWidget(
+			"ScreenPercentageActiveViewport", CreateActiveViewportWidget(ViewportClient), FText::GetEmpty()
+		));
+
+		SummarySection.AddEntry(
+			FToolMenuEntry::InitWidget("ScreenPercentageSetFrom", CreateSetFromWidget(ViewportClient), FText::GetEmpty())
+		);
+
+		SummarySection.AddEntry(FToolMenuEntry::InitWidget(
+			"ScreenPercentageSetting", CreateCurrentScreenPercentageSettingWidget(ViewportClient), FText::GetEmpty()
+		));
+	}
+
+	// Screen Percentage
+	{
+		FToolMenuSection& ScreenPercentageSection =
+			InMenu->FindOrAddSection("ScreenPercentage", LOCTEXT("ScreenPercentage_ViewportOverride", "Viewport Override"));
+
+		ScreenPercentageSection.AddMenuEntry(BaseViewportCommands.ToggleOverrideViewportScreenPercentage);
+
+		ScreenPercentageSection.AddEntry(FToolMenuEntry::InitWidget(
+			"PreviewScreenPercentage",
+			CreateCurrentScreenPercentageWidget(ViewportClient),
+			LOCTEXT("ScreenPercentage", "Screen Percentage")
+		));
+	}
+
+	// Screen Percentage Settings
+	{
+		FToolMenuSection& ScreenPercentageSettingsSection = InMenu->FindOrAddSection(
+			"ScreenPercentageSettings", LOCTEXT("ScreenPercentage_ViewportSettings", "Viewport Settings")
+		);
+
+		ScreenPercentageSettingsSection.AddMenuEntry(
+			BaseViewportCommands.OpenEditorPerformanceProjectSettings,
+			/* InLabelOverride = */ TAttribute<FText>(),
+			/* InToolTipOverride = */ TAttribute<FText>(),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "ProjectSettings.TabIcon")
+		);
+
+		ScreenPercentageSettingsSection.AddMenuEntry(
+			BaseViewportCommands.OpenEditorPerformanceEditorPreferences,
+			/* InLabelOverride = */ TAttribute<FText>(),
+			/* InToolTipOverride = */ TAttribute<FText>(),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorPreferences.TabIcon")
+		);
+	}
+}
+
+UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu(TWeakPtr<SEditorViewport> InViewport)
+{
+	return FToolMenuEntry::InitSubMenu(
+		"PerformanceAndScalability",
+		LOCTEXT("PerformanceAndScalabilitySubmenuLabel", "Performance and Scalability"),
+		LOCTEXT("PerformanceAndScalabilitySubmenuTooltip", ""),
+		FNewToolMenuDelegate::CreateLambda(
+			[InViewport](UToolMenu* Submenu) -> void
+			{
+				TSharedPtr<SEditorViewport> Viewport = InViewport.Pin();
+				if (!Viewport)
+				{
+					return;
+				}
+
+				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+
+				UnnamedSection.AddMenuEntry(FEditorViewportCommands::Get().ToggleRealTime);
+
+				TSharedPtr<FEditorViewportClient> ViewportClient = Viewport->GetViewportClient();
+
+				UnnamedSection.AddSubMenu(
+					"ScreenPercentage",
+					LOCTEXT("ScreenPercentageSubMenu", "Screen Percentage"),
+					LOCTEXT("ScreenPercentageSubMenu_ToolTip", "Customize the viewport's screen percentage"),
+					FNewToolMenuDelegate::CreateStatic(&ConstructScreenPercentageMenu, ViewportClient.Get())
+				);
+			}
+		)
+	);
 }
 
 } // namespace UE::UnrealEd

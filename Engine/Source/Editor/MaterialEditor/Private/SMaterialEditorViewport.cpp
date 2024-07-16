@@ -44,6 +44,9 @@
 #include "ImageUtils.h"
 #include "ISettingsModule.h"
 #include "Framework/Layout/ScrollyZoomy.h"
+#include "MaterialEditorViewportToolbarSections.h"
+#include "ToolMenus.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "MaterialEditor"
 #include "UnrealWidget.h"
@@ -947,26 +950,160 @@ TSharedRef<FEditorViewportClient> SMaterialEditor3DPreviewViewport::MakeEditorVi
 
 void SMaterialEditor3DPreviewViewport::PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay)
 {
-	Overlay->AddSlot()
-		.VAlign(VAlign_Top)
+	const TSharedRef<SMaterialEditorViewportToolBar> OldViewportToolbar =
+		// clang-format off
+		SNew(SMaterialEditorViewportToolBar, SharedThis(this))
+			.Visibility_Lambda([this]() -> EVisibility
+			{
+				if (!UE::UnrealEd::ShowOldViewportToolbars())
+				{
+					return EVisibility::Collapsed;
+				}
+
+				return EVisibility::Visible;
+			});
+	// clang-format on
+
+	const FName MaterialEditorViewportToolbarName = "MaterialEditor.ViewportToolbar";
+
+	// Register the viewport toolbar if another viewport hasn't already (it's shared).
+	{
+		if (!UToolMenus::Get()->IsMenuRegistered(MaterialEditorViewportToolbarName))
+		{
+			UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
+				MaterialEditorViewportToolbarName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
+			);
+
+			// Add the Left-aligned part of the viewport toolbar.
+			{
+				// Adding it even if empty in order to keep proper toolbar layout
+				ViewportToolbarMenu->FindOrAddSection("Left");
+			}
+
+			// Add the right-aligned part of the viewport toolbar.
+			{
+				FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+				RightSection.Alignment = EToolMenuSectionAlign::Last;
+
+				// Add the "Camera" submenu.
+				{
+					FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateCameraSubmenu(SharedThis(this));
+					CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(CameraSubmenu);
+				}
+
+				// Add the View Modes submenu.
+				{
+					FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
+					ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(ViewModesSubmenu);
+				}
+
+				// Add the Show submenu.
+				{
+					FToolMenuEntry ShowSubmenu = UE::MaterialEditor::CreateShowSubmenu(SharedThis(this));
+					ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(ShowSubmenu);
+				}
+
+				// Add the Performance and Scalability submenu.
+				{
+					FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu(SharedThis(this));
+					PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
+				}
+
+				// Add the Settings submenu.
+				{
+					//CreatePerformanceAndScalabilitySubmenu
+					FToolMenuEntry SettingsSubmenu = FToolMenuEntry::InitSubMenu(
+						"Settings",
+						LOCTEXT("SettingsSubmenuLabel", "Settings"),
+						LOCTEXT("SettingsSubmenuTooltip", "Show flags related to the current viewport"),
+						FNewToolMenuDelegate::CreateLambda(
+							[](UToolMenu* InMenu) -> void
+							{
+								//TODO: fill submenu
+							}
+						)
+					);
+					SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(SettingsSubmenu);
+				}
+			}
+		}
+	}
+
+	FToolMenuContext ViewportToolbarContext;
+	{
+		ViewportToolbarContext.AppendCommandList(GetCommandList());
+
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
+			ContextObject->Viewport = SharedThis(this);
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
+	}
+		const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
+		// clang-format off
+		.Visibility_Lambda(
+			[this]() -> EVisibility
+			{
+				if (!UE::UnrealEd::ShowNewViewportToolbars())
+				{
+					return EVisibility::Collapsed;
+				}
+
+				return EVisibility::Visible;
+			}
+		)
 		[
-			SNew(SMaterialEditorViewportToolBar, SharedThis(this))
+			UToolMenus::Get()->GenerateWidget(MaterialEditorViewportToolbarName, ViewportToolbarContext)
 		];
+		// clang-format on
 
 	Overlay->AddSlot()
+		// clang-format off
+		.VAlign(VAlign_Top)
+		[
+			SNew(SVerticalBox)
+			.Visibility( EVisibility::SelfHitTestInvisible )
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 1.0f, 0.0f, 0.0f)
+			.VAlign(VAlign_Top)
+			[
+				OldViewportToolbar
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0.0f, 1.0f, 0.0f, 0.0f)
+			.VAlign(VAlign_Top)
+			[
+				NewViewportToolbar
+			]
+		];
+		// clang-format on
+
+	Overlay->AddSlot()
+		// clang-format off
 		.VAlign(VAlign_Bottom)
 		[
 			SNew(SMaterialEditorViewportPreviewShapeToolBar, SharedThis(this))
 		];
+		// clang-format on
 
 	// add the feature level display widget
 	Overlay->AddSlot()
+		// clang-format off
 		.VAlign(VAlign_Top)
 		.HAlign(HAlign_Right)
 		.Padding(5.0f)
 		[
 			BuildFeatureLevelWidget()
 		];
+		// clang-format on
 }
 
 EVisibility SMaterialEditor3DPreviewViewport::OnGetViewportContentVisibility() const

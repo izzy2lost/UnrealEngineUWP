@@ -10,7 +10,6 @@
 #include "Styling/AppStyle.h"
 
 #include "STransformViewportToolbar.h"
-#include "EditorShowFlags.h"
 #include "SEditorViewport.h"
 #include "EditorViewportCommands.h"
 #include "SEditorViewportToolBarMenu.h"
@@ -21,13 +20,11 @@
 #include "Scalability.h"
 #include "SceneView.h"
 #include "SScalabilitySettings.h"
-#include "AssetEditorViewportLayout.h"
 #include "SAssetEditorViewport.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
-#include "ToolMenuSection.h"
 #include "ShowFlagMenuCommands.h"
-
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "SCommonEditorViewportToolbarBase"
 
@@ -417,70 +414,24 @@ void SCommonEditorViewportToolbarBase::ConstructScreenPercentageMenu(FMenuBuilde
 	MenuBuilder.BeginSection("Summary", LOCTEXT("Summary", "Summary"));
 	{
 		MenuBuilder.AddWidget(
-			SNew(SBox)
-			.Padding(CommonPadding)
-			[
-				SNew(STextBlock)
-				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-				.Text_Lambda([&ViewportClient]() {
-					FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(ViewportClient);
-					return FText::Format(LOCTEXT("ScreenPercentageCurrent_Display", "Current Screen Percentage: {CurrentScreenPercentage}"), FormatArguments);
-				})
-				.ToolTip(SNew(SToolTip).Text(LOCTEXT("ScreenPercentageCurrent_ToolTip", "Current Screen Percentage the viewport is rendered with. The primary screen percentage can either be a spatial or temporal upscaler based of your anti-aliasing settings.")))
-			],
+			UE::UnrealEd::CreateCurrentPercentageWidget(ViewportClient),
 			FText::GetEmpty()
 		);
 
 		MenuBuilder.AddWidget(
-			SNew(SBox)
-			.Padding(CommonPadding)
-			[
-				SNew(STextBlock)
-				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-				.Text_Lambda([&ViewportClient]() {
-					FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(ViewportClient);
-					return FText::Format(LOCTEXT("ScreenPercentageResolutions", "Resolution: {ResolutionFromTo}"), FormatArguments);
-				})
-			],
+			UE::UnrealEd::CreateResolutionsWidget(ViewportClient),
 			FText::GetEmpty()
 		);
 		MenuBuilder.AddWidget(
-			SNew(SBox)
-			.Padding(CommonPadding)
-			[
-				SNew(STextBlock)
-				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-				.Text_Lambda([&ViewportClient]() {
-					FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(ViewportClient);
-					return FText::Format(LOCTEXT("ScreenPercentageActiveViewport", "Active Viewport: {ViewportMode}"), FormatArguments);
-				})
-			],
+			UE::UnrealEd::CreateActiveViewportWidget(ViewportClient),
 			FText::GetEmpty()
 		);
 		MenuBuilder.AddWidget(
-			SNew(SBox)
-			.Padding(CommonPadding)
-			[
-				SNew(STextBlock)
-				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-				.Text_Lambda([&ViewportClient]() {
-					FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(ViewportClient);
-					return FText::Format(LOCTEXT("ScreenPercentageSetFrom", "Set From: {SettingSource}"), FormatArguments);
-				})
-			],
+			UE::UnrealEd::CreateSetFromWidget(ViewportClient),
 			FText::GetEmpty()
 		);
 		MenuBuilder.AddWidget(
-			SNew(SBox)
-			.Padding(CommonPadding)
-			[
-				SNew(STextBlock)
-				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-				.Text_Lambda([&ViewportClient]() {
-					FFormatNamedArguments FormatArguments = GetScreenPercentageFormatArguments(ViewportClient);
-					return FText::Format(LOCTEXT("ScreenPercentageSetting", "Setting: {Setting}"), FormatArguments);
-				})
-			],
+			UE::UnrealEd::CreateCurrentScreenPercentageSettingWidget(ViewportClient),
 			FText::GetEmpty()
 		);
 	}
@@ -490,35 +441,7 @@ void SCommonEditorViewportToolbarBase::ConstructScreenPercentageMenu(FMenuBuilde
 	{
 		MenuBuilder.AddMenuEntry(BaseViewportCommands.ToggleOverrideViewportScreenPercentage);
 		MenuBuilder.AddWidget(
-			SNew(SBox)
-			.HAlign(HAlign_Right)
-			.IsEnabled_Lambda([&ViewportClient]() {
-				return ViewportClient.IsPreviewingScreenPercentage() && ViewportClient.SupportsPreviewResolutionFraction();
-			})
-			[
-				SNew(SBox)
-				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-				.WidthOverride(100.0f)
-				[
-					SNew(SBorder)
-					//.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
-					.Padding(FMargin(1.0f))
-					[
-						SNew(SSpinBox<int32>)
-						.Style(&FAppStyle::Get(), "Menu.SpinBox")
-						.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
-						.MinSliderValue(PreviewScreenPercentageMin)
-						.MaxSliderValue(PreviewScreenPercentageMax)
-						.Value_Lambda([&ViewportClient]() {
-							return ViewportClient.GetPreviewScreenPercentage();
-						})
-						.OnValueChanged_Lambda([&ViewportClient](int32 NewValue) {
-							ViewportClient.SetPreviewScreenPercentage(NewValue);
-							ViewportClient.Invalidate();
-						})
-					]
-				]
-			],
+			UE::UnrealEd::CreateCurrentScreenPercentageWidget(ViewportClient),
 			LOCTEXT("ScreenPercentage", "Screen Percentage")
 		);
 	}
@@ -587,8 +510,8 @@ TSharedRef<SWidget> SCommonEditorViewportToolbarBase::GenerateOptionsMenu() cons
 
 			if (bIsPerspective)
 			{
-				OptionsMenuBuilder.AddWidget( GenerateFOVMenu(), LOCTEXT("FOVAngle", "Field of View (H)") );
-				OptionsMenuBuilder.AddWidget( GenerateFarViewPlaneMenu(), LOCTEXT("FarViewPlane", "Far View Plane") );
+				OptionsMenuBuilder.AddWidget( UE::UnrealEd::CreateFOVMenuWidget(ViewportRef), LOCTEXT("FOVAngle", "Field of View (H)") );
+				OptionsMenuBuilder.AddWidget( UE::UnrealEd::CreateFarViewPlaneMenuWidget(ViewportRef), LOCTEXT("FarViewPlane", "Far View Plane") );
 			}
 
 			OptionsMenuBuilder.AddSubMenu(
@@ -622,22 +545,7 @@ TSharedRef<SWidget> SCommonEditorViewportToolbarBase::GenerateCameraMenu() const
 	GetInfoProvider().OnFloatingButtonClicked();
 	TSharedRef<SEditorViewport> ViewportRef = GetInfoProvider().GetViewportWidget();
 
-	const bool bInShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder CameraMenuBuilder( bInShouldCloseWindowAfterMenuSelection, ViewportRef->GetCommandList() );
-
-	// Camera types
-	CameraMenuBuilder.AddMenuEntry( FEditorViewportCommands::Get().Perspective );
-
-	CameraMenuBuilder.BeginSection("LevelViewportCameraType_Ortho", LOCTEXT("CameraTypeHeader_Ortho", "Orthographic") );
-		CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Top);
-		CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Bottom);
-		CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Left);
-		CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Right);
-		CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Front);
-		CameraMenuBuilder.AddMenuEntry(FEditorViewportCommands::Get().Back);
-		CameraMenuBuilder.EndSection();
-
-	return CameraMenuBuilder.MakeWidget();
+	return UE::UnrealEd::CreateCameraMenuWidget(ViewportRef);
 }
 
 TSharedRef<SWidget> SCommonEditorViewportToolbarBase::GenerateShowMenu() const

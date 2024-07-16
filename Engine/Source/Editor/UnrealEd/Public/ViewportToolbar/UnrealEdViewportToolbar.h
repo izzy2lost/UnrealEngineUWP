@@ -8,6 +8,8 @@
 #include "ToolMenuDelegates.h"
 #include "UnrealEdViewportToolbarContext.h"
 
+class IPreviewProfileController;
+class FEditorViewportClient;
 class FText;
 class SEditorViewport;
 class UToolMenu;
@@ -112,5 +114,22 @@ UNREALED_API FToolMenuEntry CreateNumericEntry(
 	float InMaxValue = 1.0f,
 	int32 InMaxFractionalDigits = 2
 );
+
+UNREALED_API FToolMenuEntry CreateCameraSubmenu(TWeakPtr<SEditorViewport> InViewport);
+
+UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu(TWeakPtr<SEditorViewport> InViewport);
+
+// Camera Menu Widgets
+TSharedRef<SWidget> CreateCameraMenuWidget(const TSharedRef<SEditorViewport>& InViewport);
+TSharedRef<SWidget> CreateFOVMenuWidget(const TSharedRef<SEditorViewport>& InViewport);
+TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewport>& InViewport);
+
+// Screen Percentage Submenu Widgets
+TSharedRef<SWidget> CreateCurrentPercentageWidget(FEditorViewportClient& InViewportClient);
+TSharedRef<SWidget> CreateResolutionsWidget(FEditorViewportClient& InViewportClient);
+TSharedRef<SWidget> CreateActiveViewportWidget(FEditorViewportClient& InViewportClient);
+TSharedRef<SWidget> CreateSetFromWidget(FEditorViewportClient& InViewportClient);
+TSharedRef<SWidget> CreateCurrentScreenPercentageSettingWidget(FEditorViewportClient& InViewportClient);
+TSharedRef<SWidget> CreateCurrentScreenPercentageWidget(FEditorViewportClient& InViewportClient);
 
 } // namespace UE::UnrealEd

@@ -25,7 +25,10 @@ public:
 	virtual TSharedRef<SWidget> GenerateShowMenu() const override;
 	// End of SCommonEditorViewportToolbarBase
 
-	virtual bool IsViewModeSupported(EViewModeIndex ViewModeIndex) const override; 
+	virtual bool IsViewModeSupported(EViewModeIndex ViewModeIndex) const override;
+
+private:
+	TSharedPtr<SMaterialEditor3DPreviewViewport> MaterialEditorViewportPtr;
 };
 
 ///////////////////////////////////////////////////////////
