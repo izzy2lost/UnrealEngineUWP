@@ -18,7 +18,25 @@ public:
 	void KeepClientPersistentData(const void* ConnectionPtr, const TArray<TStrongObjectPtr<UMaterialInterface>>& LoadedMaterialsToRecompile);
 	void FlushClientPersistentData(const void* ConnectionPtr);
 
+	static UMaterialInterface* FindMaterial(const FString& MaterialKey);
+
 private:
+	
+	static UMaterialInterface* TryFindWorldPartitionMaterial(const FSoftObjectPath& MaterialSoftPath);
+
+	static void ScanWorldPartitionAssets(const FString& AssetPath);
+	static void SetupClassExclusionList();
+
+	void CleanupWorldPartitionAssets();
+	struct FWorldPartitionAssets
+	{
+		FString PackageName;
+		TObjectPtr<UPackage> PackagePtr;
+	};
+
+	static TMap<FString, FWorldPartitionAssets> WorldPartitionAssets;
+	static TSet<FString> ScannedWorldPartitionPaths;
+	static TSet<FName> ExcludedPackageNames;
 
 	struct FODSCClientPersistentData
 	{

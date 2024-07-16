@@ -679,6 +679,7 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 
 				const void* ConnectionPtr = &Connection;
 				RecompileData.LoadedMaterialsToRecompile = &LoadedMaterialsToRecompile;
+				RecompileData.ODSCCustomLoadMaterial = &FODSCClientData::FindMaterial;
 
 				FEventRef RecompileCompletedEvent;
 				UE::Cook::FRecompileShaderCompletedCallback RecompileCompleted = [this, &RecompileCompletedEvent, ConnectionPtr, &LoadedMaterialsToRecompile, RecompileDataCommandType = RecompileData.CommandType]()
@@ -9502,6 +9503,8 @@ void UCookOnTheFlyServer::SaveGlobalShaderMapFiles(const TArrayView<const ITarge
 
 		TArray<uint8> GlobalShaderMap;
 		FShaderRecompileData RecompileData(PlatformName, SP_NumPlatforms, RecompileCommand, nullptr, nullptr, &GlobalShaderMap);
+		RecompileData.ODSCCustomLoadMaterial = &UE::Cook::FODSCClientData::FindMaterial;
+		
 		RecompileShadersForRemote(RecompileData, GetSandboxDirectory(PlatformName));
 	}
 }

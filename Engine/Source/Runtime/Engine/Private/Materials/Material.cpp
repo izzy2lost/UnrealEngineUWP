@@ -5699,7 +5699,8 @@ void UMaterial::CompileMaterialsForRemoteRecompile(
 	}
 }
 
-void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayload> ShadersToRecompile, TMap<FString, TArray<TRefCountPtr<class FMaterialShaderMap>>>& OutShaderMaps)
+void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayload> ShadersToRecompile, TMap<FString, TArray<TRefCountPtr<class FMaterialShaderMap>>>& OutShaderMaps, 
+													   TFunction<UMaterialInterface*(const FString&)> ODSCCustomLoadMaterial)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMaterial::CompileODSCMaterialsForRemoteRecompile);
 
@@ -5720,15 +5721,31 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 		TArray<const FVertexFactoryType*> VFTypes;
 		TArray<const FShaderPipelineType*> PipelineTypes;
 		TArray<const FShaderType*> ShaderTypes;
+		FString OriginalMaterialName;
 	};
 	TMap<UMaterialInterface*, FShadersToCompile> CoalescedShadersToCompile;
 
+	TSet<FString> MaterialsFailingToLoad;
 	for (const FODSCRequestPayload& payload : ShadersToRecompile)
 	{
-		UE_LOG(LogShaders, Display, TEXT(""));
-		UE_LOG(LogShaders, Display, TEXT("Material:    %s "), *payload.MaterialName);
+		UE_LOG(LogShaders, Verbose, TEXT(""));
+		UE_LOG(LogShaders, Verbose, TEXT("Material:    %s "), *payload.MaterialName);
 
-		UMaterialInterface* MaterialInterface = LoadObject<UMaterialInterface>(nullptr, *payload.MaterialName);
+		UMaterialInterface* MaterialInterface = nullptr;
+		if (ODSCCustomLoadMaterial)
+		{
+			MaterialInterface = ODSCCustomLoadMaterial(payload.MaterialName);
+		}
+		else
+		{
+			MaterialInterface = LoadObject<UMaterialInterface>(nullptr, *payload.MaterialName);
+		}
+
+		if (!MaterialInterface)
+		{
+			MaterialsFailingToLoad.Add(payload.MaterialName);
+		}
+
 		if (MaterialInterface)
 		{
 			FShadersToCompile& Shaders = CoalescedShadersToCompile.FindOrAdd(MaterialInterface);
@@ -5738,15 +5755,16 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 			Shaders.ShaderPlatform = payload.ShaderPlatform;
 			Shaders.FeatureLevel = payload.FeatureLevel;
 			Shaders.QualityLevel = payload.QualityLevel;
+			Shaders.OriginalMaterialName = payload.MaterialName;
 
 			if (VFType)
 			{
-				UE_LOG(LogShaders, Display, TEXT("VF Type:     %s "), *payload.VertexFactoryName);
+				UE_LOG(LogShaders, Verbose, TEXT("VF Type:     %s "), *payload.VertexFactoryName);
 			}
 
 			if (PipelineType)
 			{
-				UE_LOG(LogShaders, Display, TEXT("Pipeline Type: %s"), *payload.PipelineName);
+				UE_LOG(LogShaders, Verbose, TEXT("Pipeline Type: %s"), *payload.PipelineName);
 
 				Shaders.VFTypes.Add(VFType);
 				Shaders.PipelineTypes.Add(PipelineType);
@@ -5759,7 +5777,7 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 					const FShaderType* ShaderType = FShaderType::GetShaderTypeByName(*ShaderTypeName);
 					if (ShaderType)
 					{
-						UE_LOG(LogShaders, Display, TEXT("\tShader Type: %s"), *ShaderTypeName);
+						UE_LOG(LogShaders, Verbose, TEXT("\tShader Type: %s"), *ShaderTypeName);
 
 						Shaders.VFTypes.Add(VFType);
 						Shaders.PipelineTypes.Add(nullptr);
@@ -5784,7 +5802,7 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 		UMaterialInterface* MaterialInterface = Entry.Key;
 		const FShadersToCompile& Shaders = Entry.Value;
 
-		TArray<FMaterialResource*>& ResourceArray = CompilingResources.Add(MaterialInterface->GetPathName(), TArray<FMaterialResource*>());
+		TArray<FMaterialResource*>& ResourceArray = CompilingResources.Add(Shaders.OriginalMaterialName, TArray<FMaterialResource*>());
 		FMaterialResource* MaterialResource = MaterialInterface->GetMaterialResource(Shaders.FeatureLevel, Shaders.QualityLevel);
 		check(MaterialResource);
 		check(MaterialResource->GetFeatureLevel() == Shaders.FeatureLevel);
@@ -5808,6 +5826,12 @@ void UMaterial::CompileODSCMaterialsForRemoteRecompile(TArray<FODSCRequestPayloa
 			FMaterialResource* CurrentResource = ResourceArray[Index];
 			OutShaderMapArray.Add(CurrentResource->GetGameThreadShaderMap());
 		}
+	}
+
+	// Report errors last to ensure visibility: some messages may have been output during shader compilation
+	for (FString& MaterialFailingToLoad : MaterialsFailingToLoad)
+	{
+		UE_LOG(LogShaders, Warning, TEXT("Failed to load %s, skipping shader reloading"), *MaterialFailingToLoad);
 	}
 }
 #endif // WITH_EDITOR

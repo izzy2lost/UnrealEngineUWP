@@ -3727,7 +3727,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 	}
 
 #if WITH_ODSC
-	bool bShouldForceRecompile = FODSCManager::ShouldForceRecompile(ShaderMap, this) && !IsDefaultMaterial() && !IsUsedWithLandscape();
+	bool bShouldForceRecompile = FODSCManager::ShouldForceRecompile(ShaderMap, this) && !IsDefaultMaterial();
 #else
 	constexpr bool bShouldForceRecompile = false;
 #endif

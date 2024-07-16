@@ -1252,6 +1252,10 @@ struct FShaderRecompileData
 	/** Optional Array of the loaded materials  */
 	TArray<TStrongObjectPtr<UMaterialInterface>>* LoadedMaterialsToRecompile = nullptr;
 
+#if WITH_EDITOR
+	TFunction<UMaterialInterface*(const FString&)> ODSCCustomLoadMaterial;
+#endif
+
 	/** Default constructor. */
 	FShaderRecompileData() {};
 

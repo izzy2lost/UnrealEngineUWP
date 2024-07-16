@@ -369,16 +369,30 @@ void RecompileShadersForRemote(
 			// UMaterial::CompileODSCMaterialsForRemoteRecompile will call LoadObjects on the material names but doesn't keep them around. Add a GC guard to ensure we can still get them
 			// before they get unloaded, so that the whole chain UMaterial->FMaterial->FMaterialShaderMap is kept intact, and we can merge the next batch of ODSC requests
 			FGCScopeGuard NoGCScopeGuard;
-			UMaterial::CompileODSCMaterialsForRemoteRecompile(Args.ShadersToRecompile, CompiledShaderMaps);
+			UMaterial::CompileODSCMaterialsForRemoteRecompile(Args.ShadersToRecompile, CompiledShaderMaps, Args.ODSCCustomLoadMaterial);
 			if (Args.LoadedMaterialsToRecompile)
 			{
 				for (auto Iter : CompiledShaderMaps)
 				{
-					TStrongObjectPtr<UMaterialInterface> MaterialInterface = TStrongObjectPtr<UMaterialInterface>(FindObject<UMaterialInterface>(nullptr, *Iter.Key));
+					TStrongObjectPtr<UMaterialInterface> MaterialInterface;
+					
+					if (Args.ODSCCustomLoadMaterial)
+					{
+						MaterialInterface = TStrongObjectPtr<UMaterialInterface>(Args.ODSCCustomLoadMaterial(Iter.Key));
+					}
+					else
+					{
+						MaterialInterface = TStrongObjectPtr<UMaterialInterface>(FindObject<UMaterialInterface>(nullptr, *Iter.Key));
+					}
+
 					if (MaterialInterface)
 					{
 						ResetLoaders(MaterialInterface->GetPackage());
 						Args.LoadedMaterialsToRecompile->Add(MaterialInterface);
+					}
+					else
+					{
+						UE_LOG(LogShaders, Warning, TEXT("Failed to find Material %s. Reloading on the client will be skipped"), *Iter.Key);
 					}
 				}
 			}
