@@ -328,6 +328,20 @@ namespace EpicGames.Horde.Compute.Clients
 					}
 				}
 
+				if (httpResponse.StatusCode == HttpStatusCode.InternalServerError)
+				{
+					string? content;
+					try
+					{
+						content = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+					}
+					catch
+					{
+						content = "None";
+					}
+					throw new ComputeClientException($"InternalServerError requesting compute resources: \"{content}\"");
+				}
+
 				httpResponse.EnsureSuccessStatusCode();
 				response = await httpResponse.Content.ReadFromJsonAsync<AssignComputeResponse>(HordeHttpClient.JsonSerializerOptions, cancellationToken);
 				if (response == null)
