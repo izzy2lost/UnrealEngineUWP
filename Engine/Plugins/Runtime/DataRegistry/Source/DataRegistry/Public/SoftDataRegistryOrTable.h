@@ -217,6 +217,12 @@ struct DATAREGISTRY_API FDataRegistryOrTableRow
 		return DataTableRow.GetRow<T>(ContextString);
 	}
 
+	/**
+	 * Returns the script struct used for the data registry item or data table row. Only works for data registries that
+	 * are registered
+	 */
+	const UScriptStruct* GetStruct() const;
+
 	FString ToString() const;
 
 	// method to check validity of this row

@@ -173,6 +173,28 @@ bool FDataRegistryOrTableRow::SerializeFromMismatchedTag(const FPropertyTag& Tag
 	return false;
 }
 
+const UScriptStruct* FDataRegistryOrTableRow::GetStruct() const
+{
+	if (bUseDataRegistryId)
+	{
+		const UDataRegistry* EventRegistry = GetDataRegistry();
+		if (!EventRegistry)
+		{
+			UE_LOG(LogDataRegistry, Warning, TEXT("[%hs] No Registry found  Registry:%s"), __FUNCTION__, *DataRegistryId.RegistryType.GetName().ToString());
+			return nullptr;
+		}
+
+		return EventRegistry->GetItemStruct();
+	}
+
+	if (DataTableRow.DataTable)
+	{
+		return DataTableRow.DataTable->GetRowStruct();
+	}
+
+	return nullptr;
+}
+
 FDataRegistryOrTableRow::FDataRegistryOrTableRow()
 	: bUseDataRegistryId(false)
 {
