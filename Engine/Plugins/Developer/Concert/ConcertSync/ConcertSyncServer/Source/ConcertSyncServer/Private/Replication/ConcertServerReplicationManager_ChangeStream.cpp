@@ -73,12 +73,14 @@ namespace UE::ConcertSyncServer::Replication
 				// StreamsToAdd is invalid if there is already a stream with the same ID registered ...
 				const FGuid& NewStreamId = NewStream.BaseDescription.Identifier;
 				const bool bIdAlreadyExists = FindExistingStream(Client, NewStreamId) != nullptr;
+				const bool bIsStreamRemoved = Request.StreamsToRemove.Contains(NewStreamId);
 
 				// ... or StreamsToAdd contains the same ID multiple times
 				bool bIsDuplicateEntry = false;
 				DuplicateEntryDetection.FindOrAdd(NewStreamId, &bIsDuplicateEntry);
 				
-				if (bIdAlreadyExists || bIsDuplicateEntry)
+				if ((bIdAlreadyExists && !bIsStreamRemoved)
+					|| bIsDuplicateEntry)
 				{
 					UE_LOG(LogConcert, Log, TEXT("Duplicate stream entry %s"), *NewStreamId.ToString(EGuidFormats::Short));
 					OutResponse.FailedStreamCreation.Add(NewStreamId);

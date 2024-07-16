@@ -11,14 +11,14 @@
 
 namespace UE::ConcertSyncTests::Replication::RestoreContent
 {
-	BEGIN_DEFINE_SPEC(FChangeStreamSpec, "Editor.Concert.Replication.Stream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	BEGIN_DEFINE_SPEC(FStreamAuthorityInterplaySpec, "Editor.Concert.Replication.Stream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 		TUniquePtr<FObjectTestReplicator> ObjectReplicator;
 	
 		TUniquePtr<FReplicationServer> Server;
 		FReplicationClient* Client = nullptr;
 
 		const FGuid StreamId = FGuid::NewGuid();
-	END_DEFINE_SPEC(FChangeStreamSpec);
+	END_DEFINE_SPEC(FStreamAuthorityInterplaySpec);
 
 	/**
 	 * This tests that stream structure and authority correctly interact when issuing a FConcertReplication_ChangeStream_Request.
@@ -26,7 +26,7 @@ namespace UE::ConcertSyncTests::Replication::RestoreContent
 	 * Old tests are in StreamRequestTests_x.cpp files of the same folder.
 	 * In the future, we want to move those over to the spec test format, too.
 	 */
-	void FChangeStreamSpec::Define()
+	void FStreamAuthorityInterplaySpec::Define()
 	{
 		BeforeEach([this]
 		{
