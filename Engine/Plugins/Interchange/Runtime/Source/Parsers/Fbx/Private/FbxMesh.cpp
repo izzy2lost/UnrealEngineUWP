@@ -160,7 +160,7 @@ namespace UE::Interchange::Private
 		if(NamedVertexAttributes.Num() > 0)
 		{
 			FSkeletalMeshAttributes MeshAttributes(MeshDescription);
-			MeshAttributes.Register();
+			MeshAttributes.Register(true);
 			TVertexAttributesRef<FVector3f> VertexPositions = MeshAttributes.GetVertexPositions();
 
 			TMap<FString, FName> ValidAttributes;
