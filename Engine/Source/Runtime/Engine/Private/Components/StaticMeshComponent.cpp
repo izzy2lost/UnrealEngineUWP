@@ -1167,28 +1167,7 @@ FColor UStaticMeshComponent::GetWireframeColor() const
 	{
 		return WireframeColorOverride;
 	}
-	else
-	{
-		if(Mobility == EComponentMobility::Static)
-		{
-			return FColor(0, 255, 255, 255);
-		}
-		else if(Mobility == EComponentMobility::Stationary)
-		{
-			return FColor(128, 128, 255, 255);
-		}
-		else // Movable
-		{
-			if(BodyInstance.bSimulatePhysics)
-			{
-				return FColor(0, 255, 128, 255);
-			}
-			else
-			{
-				return FColor(255, 0, 255, 255);
-			}
-		}
-	}
+	return Super::GetWireframeColorForSceneProxy();
 }
 
 

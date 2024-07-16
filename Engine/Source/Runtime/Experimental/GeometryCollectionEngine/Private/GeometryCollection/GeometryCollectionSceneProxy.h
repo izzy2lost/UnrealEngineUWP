@@ -218,6 +218,9 @@ class FGeometryCollectionSceneProxy final : public FPrimitiveSceneProxy
 
 	int32 NumTransforms = 0;
 	TArray<FMatrix44f> RestTransforms;
+	TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollection;
+
+	FCollisionResponseContainer CollisionResponse;
 
 	FBoxSphereBounds PreSkinnedBounds;
 
@@ -321,6 +324,9 @@ protected:
 #if RHI_RAYTRACING
 	void UpdatingRayTracingGeometry_RenderingThread(TArray<FGeometryCollectionMeshElement> const& InSectionArray);
 #endif
+
+private:
+	bool ShowCollisionMeshes(const FEngineShowFlags& EngineShowFlags) const;
 };
 
 

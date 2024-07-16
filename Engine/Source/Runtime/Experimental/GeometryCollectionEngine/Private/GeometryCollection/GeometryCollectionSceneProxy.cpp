@@ -17,6 +17,7 @@
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "GeometryCollection/GeometryCollectionHitProxy.h"
+#include "GeometryCollection/GeometryCollectionDebugDraw.h"
 #include "RHIDefinitions.h"
 #include "ComponentReregisterContext.h"
 #include "ComponentRecreateRenderStateContext.h"
@@ -127,6 +128,11 @@ FGeometryCollectionSceneProxy::FGeometryCollectionSceneProxy(UGeometryCollection
 	, VertexFactoryDebugColor(GetScene().GetFeatureLevel())
 #endif
 {
+	if (Component->GetRestCollection())
+	{
+		GeometryCollection = Component->GetRestCollection()->GetGeometryCollection();
+	}
+
 	EnableGPUSceneSupportFlags();
 
 	Materials.Empty();
@@ -205,6 +211,9 @@ FGeometryCollectionSceneProxy::FGeometryCollectionSceneProxy(UGeometryCollection
 	bAlwaysHasVelocity = true;
 
 	DynamicData = Component->InitDynamicData(true);
+
+	SetWireframeColor(Component->GetWireframeColorForSceneProxy());
+	CollisionResponse = Component->GetCollisionResponseToChannels();
 }
 
 FGeometryCollectionSceneProxy::~FGeometryCollectionSceneProxy()
@@ -619,6 +628,26 @@ FVertexFactory const* FGeometryCollectionSceneProxy::GetVertexFactory() const
 #endif
 }
 
+bool FGeometryCollectionSceneProxy::ShowCollisionMeshes(const FEngineShowFlags& EngineShowFlags) const
+{
+	if (IsCollisionEnabled())
+	{
+		if (EngineShowFlags.CollisionPawn && CollisionResponse.GetResponse(ECC_Pawn) != ECR_Ignore)
+		{
+			return true;
+		}
+		if (EngineShowFlags.CollisionVisibility && CollisionResponse.GetResponse(ECC_Visibility) != ECR_Ignore)
+		{
+			return true;
+		}
+		if (EngineShowFlags.Collision)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_GeometryCollectionSceneProxy_GetDynamicMeshElements);
@@ -630,6 +659,8 @@ void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FS
 	const FEngineShowFlags& EngineShowFlags = ViewFamily.EngineShowFlags;
 	const bool bWireframe = AllowDebugViewmodes() && EngineShowFlags.Wireframe;
 	const bool bProxyIsSelected = IsSelected();
+	const bool bDrawOnlyCollisionMeshes = EngineShowFlags.CollisionPawn || EngineShowFlags.CollisionVisibility;
+	const bool bDrawWireframeCollision = EngineShowFlags.Collision && IsCollisionEnabled();
 
 	auto SetDebugMaterial = [this, &Collector, &EngineShowFlags, bProxyIsSelected](FMeshBatch& Mesh) -> void
 	{
@@ -672,7 +703,7 @@ void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FS
 			// but whole component selection seems ok for now
 			bool bSectionIsSelected = bProxyIsSelected;
 
-			auto VertexColorVisualizationMaterialInstance = new FColoredMaterialRenderProxy(
+			FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = new FColoredMaterialRenderProxy(
 				VertexColorVisualizationMaterial->GetRenderProxy(),
 				GetSelectionColor(FLinearColor::White, bSectionIsSelected, IsHovered())
 			);
@@ -685,96 +716,125 @@ void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FS
 #endif
 	};
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
-	{
-		if ((VisibilityMap & (1 << ViewIndex)) == 0) 
-		{
-			continue; 
-		}
+	const bool bDrawGeometryCollectionMesh = !bDrawOnlyCollisionMeshes;
 
-		// If not dynamic then use the section array with interior fracture surfaces removed.
-		bool bRemoveInternalFaces = DynamicData != nullptr && !DynamicData->IsDynamic && MeshDescription.SectionsNoInternal.Num();
+	if (bDrawGeometryCollectionMesh)
+	{
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		{
+			if ((VisibilityMap & (1 << ViewIndex)) == 0)
+			{
+				continue;
+			}
+
+			// If not dynamic then use the section array with interior fracture surfaces removed.
+			bool bRemoveInternalFaces = DynamicData != nullptr && !DynamicData->IsDynamic && MeshDescription.SectionsNoInternal.Num();
 
 #if WITH_EDITOR
-		// If hiding geometry in editor then we don't remove hidden faces.
-		bRemoveInternalFaces &= HiddenTransforms.Num() == 0;
+			// If hiding geometry in editor then we don't remove hidden faces.
+			bRemoveInternalFaces &= HiddenTransforms.Num() == 0;
 #endif
 
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
-		// If using subsections then use the subsection array. 
-		TArray<FGeometryCollectionMeshElement> const& SectionArray = bUsesSubSections 
-			? MeshDescription.SubSections 
-			: bRemoveInternalFaces ? MeshDescription.SectionsNoInternal : MeshDescription.Sections;
+			// If using subsections then use the subsection array. 
+			TArray<FGeometryCollectionMeshElement> const& SectionArray = bUsesSubSections
+				? MeshDescription.SubSections
+				: bRemoveInternalFaces ? MeshDescription.SectionsNoInternal : MeshDescription.Sections;
 #else
-		TArray<FGeometryCollectionMeshElement> const& SectionArray = bRemoveInternalFaces ? MeshDescription.SectionsNoInternal : MeshDescription.Sections;
+			TArray<FGeometryCollectionMeshElement> const& SectionArray = bRemoveInternalFaces ? MeshDescription.SectionsNoInternal : MeshDescription.Sections;
 #endif
 
-		// Grab the material proxies we'll be using for each section.
-		TArray<FMaterialRenderProxy*, TInlineAllocator<32>> MaterialProxies;
-		for (int32 SectionIndex = 0; SectionIndex < SectionArray.Num(); ++SectionIndex)
-		{
-			const FGeometryCollectionMeshElement& Section = SectionArray[SectionIndex];
-			FMaterialRenderProxy* MaterialProxy = GetMaterial(Collector, Section.MaterialIndex);
-			MaterialProxies.Add(MaterialProxy);
-		}
+			// Grab the material proxies we'll be using for each section.
+			TArray<FMaterialRenderProxy*, TInlineAllocator<32>> MaterialProxies;
+			for (int32 SectionIndex = 0; SectionIndex < SectionArray.Num(); ++SectionIndex)
+			{
+				const FGeometryCollectionMeshElement& Section = SectionArray[SectionIndex];
+				FMaterialRenderProxy* MaterialProxy = GetMaterial(Collector, Section.MaterialIndex);
+				MaterialProxies.Add(MaterialProxy);
+			}
 
-		// Draw the meshes.
-		for (int32 SectionIndex = 0; SectionIndex < SectionArray.Num(); ++SectionIndex)
-		{
-			const FGeometryCollectionMeshElement& Section = SectionArray[SectionIndex];
+			// Draw the meshes.
+			for (int32 SectionIndex = 0; SectionIndex < SectionArray.Num(); ++SectionIndex)
+			{
+				const FGeometryCollectionMeshElement& Section = SectionArray[SectionIndex];
 
-			FMeshBatch& Mesh = Collector.AllocateMesh();
-			Mesh.bWireframe = bWireframe;
-			Mesh.VertexFactory = GetVertexFactory();
-			Mesh.MaterialRenderProxy = MaterialProxies[SectionIndex];
-			Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
-			Mesh.Type = PT_TriangleList;
-			Mesh.DepthPriorityGroup = SDPG_World;
-			Mesh.bCanApplyViewModeOverrides = true;
-			SetDebugMaterial(Mesh);
+				FMeshBatch& Mesh = Collector.AllocateMesh();
+				Mesh.bWireframe = bWireframe;
+				Mesh.VertexFactory = GetVertexFactory();
+				Mesh.MaterialRenderProxy = MaterialProxies[SectionIndex];
+				Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
+				Mesh.Type = PT_TriangleList;
+				Mesh.DepthPriorityGroup = SDPG_World;
+				Mesh.bCanApplyViewModeOverrides = true;
+				SetDebugMaterial(Mesh);
 
-			FMeshBatchElement& BatchElement = Mesh.Elements[0];
-			BatchElement.IndexBuffer = &MeshResource.IndexBuffer;
-			BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
-			BatchElement.FirstIndex = Section.TriangleStart * 3;
-			BatchElement.NumPrimitives = Section.TriangleCount;
-			BatchElement.MinVertexIndex = Section.VertexStart;
-			BatchElement.MaxVertexIndex = Section.VertexEnd;
+				FMeshBatchElement& BatchElement = Mesh.Elements[0];
+				BatchElement.IndexBuffer = &MeshResource.IndexBuffer;
+				BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
+				BatchElement.FirstIndex = Section.TriangleStart * 3;
+				BatchElement.NumPrimitives = Section.TriangleCount;
+				BatchElement.MinVertexIndex = Section.VertexStart;
+				BatchElement.MaxVertexIndex = Section.VertexEnd;
 
-			Collector.AddMesh(ViewIndex, Mesh);
-		}
+				Collector.AddMesh(ViewIndex, Mesh);
+			}
 
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
-		// Highlight selected bone using specialized material.
-		// #note: This renders the geometry again but with the bone selection material.  Ideally we'd have one render pass and one material.
-		if (bEnableBoneSelection && !bSuppressSelectionMaterial && BoneSelectedMaterial)
-		{
-			FMaterialRenderProxy* MaterialRenderProxy = BoneSelectedMaterial->GetRenderProxy();
+			// Highlight selected bone using specialized material.
+			// #note: This renders the geometry again but with the bone selection material.  Ideally we'd have one render pass and one material.
+			if (bEnableBoneSelection && !bSuppressSelectionMaterial && BoneSelectedMaterial)
+			{
+				FMaterialRenderProxy* MaterialRenderProxy = BoneSelectedMaterial->GetRenderProxy();
 
-			FMeshBatch& Mesh = Collector.AllocateMesh();
-			Mesh.bWireframe = bWireframe;
-			Mesh.VertexFactory = &VertexFactoryDebugColor;
-			Mesh.MaterialRenderProxy = MaterialRenderProxy;
-			Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
-			Mesh.Type = PT_TriangleList;
-			Mesh.DepthPriorityGroup = SDPG_World;
-			Mesh.bCanApplyViewModeOverrides = false;
+				FMeshBatch& Mesh = Collector.AllocateMesh();
+				Mesh.bWireframe = bWireframe;
+				Mesh.VertexFactory = &VertexFactoryDebugColor;
+				Mesh.MaterialRenderProxy = MaterialRenderProxy;
+				Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
+				Mesh.Type = PT_TriangleList;
+				Mesh.DepthPriorityGroup = SDPG_World;
+				Mesh.bCanApplyViewModeOverrides = false;
 
-			FMeshBatchElement& BatchElement = Mesh.Elements[0];
-			BatchElement.IndexBuffer = &MeshResource.IndexBuffer;
-			BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
-			BatchElement.FirstIndex = 0;
-			BatchElement.NumPrimitives = MeshDescription.NumTriangles;
-			BatchElement.MinVertexIndex = 0;
-			BatchElement.MaxVertexIndex = MeshDescription.NumVertices;
+				FMeshBatchElement& BatchElement = Mesh.Elements[0];
+				BatchElement.IndexBuffer = &MeshResource.IndexBuffer;
+				BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
+				BatchElement.FirstIndex = 0;
+				BatchElement.NumPrimitives = MeshDescription.NumTriangles;
+				BatchElement.MinVertexIndex = 0;
+				BatchElement.MaxVertexIndex = MeshDescription.NumVertices;
 
-			Collector.AddMesh(ViewIndex, Mesh);
-		}
+				Collector.AddMesh(ViewIndex, Mesh);
+			}
 #endif // GEOMETRYCOLLECTION_EDITOR_SELECTION
+		}
+	}
 
+	// draw extra stuff ( collision , bounds ... )
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		if (VisibilityMap & (1 << ViewIndex))
+		{
+			// collision modes
+			if (ShowCollisionMeshes(EngineShowFlags) && GeometryCollection && AllowDebugViewmodes())
+			{
+				FTransform GeomTransform(GetLocalToWorld());
+				if (bDrawWireframeCollision)
+				{
+					GeometryCollectionDebugDraw::DrawWireframe(*GeometryCollection, GeomTransform, Collector, ViewIndex, GetWireframeColor().ToFColor(true));
+				}
+				else
+				{
+					FMaterialRenderProxy* CollisionMaterialInstance = new FColoredMaterialRenderProxy(GEngine->ShadedLevelColorationUnlitMaterial->GetRenderProxy(), GetWireframeColor());
+					Collector.RegisterOneFrameMaterialProxy(CollisionMaterialInstance);
+					GeometryCollectionDebugDraw::DrawSolid(*GeometryCollection, GeomTransform, Collector, ViewIndex, CollisionMaterialInstance);
+				}
+			}
+
+			// render bounds
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		RenderBounds(Collector.GetPDI(ViewIndex), ViewFamily.EngineShowFlags, GetBounds(), IsSelected());
+			RenderBounds(Collector.GetPDI(ViewIndex), ViewFamily.EngineShowFlags, GetBounds(), IsSelected());
 #endif
+		}
 	}
 }
 
@@ -1122,6 +1182,8 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 			}
 		}
 	}
+
+	SetWireframeColor(Component->GetWireframeColorForSceneProxy());
 
 	// Initialize to rest transforms.
 	TArray<FMatrix44f> RestTransforms;

@@ -144,6 +144,9 @@ public:
 	/** Generate streaming data for all materials. */
 	ENGINE_API void GetStreamingTextureInfoInner(FStreamingTextureLevelContext& LevelContext, const TArray<FStreamingTextureBuildInfo>* PreBuiltData, float ComponentScaling, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingTextures) const;
 
+	/** Returns the wireframe color to use for this component. */
+	ENGINE_API FColor GetWireframeColorForSceneProxy() const;
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/**
 	 * Output to the log which materials and textures are used by this component.
