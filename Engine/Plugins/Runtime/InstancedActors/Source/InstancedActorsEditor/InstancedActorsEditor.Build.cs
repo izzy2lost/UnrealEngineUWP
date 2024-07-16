@@ -24,6 +24,7 @@ namespace UnrealBuildTool.Rules
 					"Slate",
 					"LevelEditor",
 					"InstancedActors",
+					"MassEntity"
 				}
 			);
 		}
