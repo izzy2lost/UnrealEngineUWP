@@ -228,7 +228,7 @@ void FGlobalEditorCommonCommands::OnSummonedConsoleCommandBox()
 
 void FGlobalEditorCommonCommands::OnOpenContentBrowserDrawer()
 {
-	GEditor->GetEditorSubsystem<UStatusBarSubsystem>()->OpenContentBrowserDrawer();
+	GEditor->GetEditorSubsystem<UStatusBarSubsystem>()->ToggleContentBrowserDrawer();
 }
 
 void FGlobalEditorCommonCommands::OnOpenOutputLogDrawer()

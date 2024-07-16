@@ -2830,10 +2830,9 @@ FReply SContentBrowser::OnSearchKeyDown(const FGeometry& Geometry, const FKeyEve
 	{
 		FReply Reply = FReply::Handled().ClearUserFocus(EFocusCause::SetDirectly);
 		
-		// If we are a drawer, re-attempting to open will toggle. We must be open as we received input.
 		if (bIsDrawer)
 		{
-			GEditor->GetEditorSubsystem<UStatusBarSubsystem>()->OpenContentBrowserDrawer();
+			GEditor->GetEditorSubsystem<UStatusBarSubsystem>()->DismissContentBrowserDrawer();
 		}
 		return Reply;
 	}
