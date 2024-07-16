@@ -829,6 +829,12 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 	FRayTracingPipelineStateInitializer Initializer;
 	Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::RayTracingDebug);
 
+	const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(Scene->GetShaderPlatform());
+	if (ShaderBindingLayout)
+	{
+		Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+	}
+
 	FRHIRayTracingShader* RayGenShaderTable[] = { RayGenShader.GetRayTracingShader() };
 	Initializer.SetRayGenShaderTable(RayGenShaderTable);
 
@@ -1085,6 +1091,12 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 
 	FRayTracingPipelineStateInitializer Initializer;
 	Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::RayTracingDebug);
+	
+	const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(Scene->GetShaderPlatform());
+	if (ShaderBindingLayout)
+	{
+		Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+	}
 
 	FRHIRayTracingShader* RayGenShaderTable[] = { RayGenShader.GetRayTracingShader() };
 	Initializer.SetRayGenShaderTable(RayGenShaderTable);
@@ -1531,6 +1543,12 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 	{
 		FRayTracingPipelineStateInitializer Initializer;
 		Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::RayTracingDebug);
+		
+		const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(ShaderPlatform);
+		if (ShaderBindingLayout)
+		{
+			Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+		}
 
 		FRHIRayTracingShader* RayGenShaderTable[] = { RayGenShader.GetRayTracingShader() };
 		Initializer.SetRayGenShaderTable(RayGenShaderTable);

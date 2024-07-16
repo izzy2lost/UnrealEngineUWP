@@ -206,6 +206,13 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 			// Declare default pipeline
 			FRayTracingPipelineStateInitializer Initializer;
 			Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::RayTracingMaterial);
+			
+			const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(ShaderPlatform);
+			if (ShaderBindingLayout)
+			{
+				Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+			}
+
 			FRHIRayTracingShader* RayGenShaderTable[] = { RayGenerationShader.GetRayTracingShader() };
 			Initializer.SetRayGenShaderTable(RayGenShaderTable);
 

@@ -489,6 +489,13 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 			{
 				// Declare default pipeline
 				FRayTracingPipelineStateInitializer Initializer;
+
+				const FShaderBindingLayout* ShaderBindingLayout = RayTracing::GetShaderBindingLayout(ShaderPlatform);
+				if (ShaderBindingLayout)
+				{
+					Initializer.ShaderBindingLayout = &ShaderBindingLayout->RHILayout;
+				}
+
 				Initializer.MaxPayloadSizeInBytes = GetRayTracingPayloadTypeMaxSize(ERayTracingPayloadType::RayTracingMaterial);
 				FRHIRayTracingShader* RayGenShaderTable[] = { RayGenerationShader.GetRayTracingShader() };
 				Initializer.SetRayGenShaderTable(RayGenShaderTable);
