@@ -112,6 +112,8 @@ private:
 		uint32 StreamableDataOffset = 0;
 		uint32 StreamableDataSize = 0;
 
+		int16 StreamingRequestIndex = INDEX_NONE;
+
 		enum class FStatus : uint8
 		{
 			StreamedOut,
@@ -128,6 +130,21 @@ private:
 		FBulkDataBatchRequest Request;
 
 		RayTracingGeometryHandle GeometryHandle;
+
+		bool IsValid() const { return GeometryHandle != INDEX_NONE; }
+
+		void Reset()
+		{
+			GeometryHandle = INDEX_NONE;
+
+			if (Request.IsPending())
+			{
+				Request.Cancel();
+				Request.Wait(); // Even after calling Cancel(), we still need to Wait() before we can touch the RequestBuffer.
+			}
+			Request.Reset();
+			RequestBuffer = {};
+		}
 	};
 
 	TSparseArray<FRayTracingGeometryGroup> RegisteredGroups;

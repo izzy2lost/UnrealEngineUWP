@@ -281,6 +281,17 @@ void FRayTracingGeometryManager::ReleaseRayTracingGeometryHandle(RayTracingGeome
 
 	FRegisteredGeometry& RegisteredGeometry = RegisteredGeometries[Handle];
 
+	// Cancel associated streaming request if currently in-flight
+	if (RegisteredGeometry.StreamingRequestIndex != INDEX_NONE)
+	{
+		FStreamingRequest& StreamingRequest = StreamingRequests[RegisteredGeometry.StreamingRequestIndex];
+		check(StreamingRequest.GeometryHandle == Handle);
+
+		StreamingRequest.Reset();
+
+		RegisteredGeometry.StreamingRequestIndex = INDEX_NONE;
+	}
+
 	if (RegisteredGeometry.Geometry->GroupHandle != INDEX_NONE)
 	{
 		// if geometry was assigned to a group, clear the relevant entry so another geometry can be registered later
@@ -899,6 +910,8 @@ bool FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandLi
 			return false;
 		}
 
+		RegisteredGeometry.StreamingRequestIndex = NextStreamingRequestIndex;
+
 		FStreamingRequest& StreamingRequest = StreamingRequests[NextStreamingRequestIndex];
 		NextStreamingRequestIndex = (NextStreamingRequestIndex + 1) % GRayTracingStreamingMaxPendingRequests;
 		++NumStreamingRequests;
@@ -952,11 +965,19 @@ void FRayTracingGeometryManager::ProcessCompletedStreamingRequests(FRHICommandLi
 		const int32 PendingRequestIndex = (StartPendingRequestIndex + Index) % GRayTracingStreamingMaxPendingRequests;
 		FStreamingRequest& PendingRequest = StreamingRequests[PendingRequestIndex];
 
+		if (!PendingRequest.IsValid())
+		{
+			++NumCompletedRequests;
+			continue;
+		}
+
 		if (PendingRequest.Request.IsCompleted())
 		{
 			++NumCompletedRequests;
 
 			FRegisteredGeometry& RegisteredGeometry = RegisteredGeometries[PendingRequest.GeometryHandle];
+
+			RegisteredGeometry.StreamingRequestIndex = INDEX_NONE;
 
 			const FRayTracingGeometryGroup& Group = RegisteredGroups[RegisteredGeometry.Geometry->GroupHandle];
 
@@ -1016,6 +1037,8 @@ void FRayTracingGeometryManager::ProcessCompletedStreamingRequests(FRHICommandLi
 
 				RegisteredGeometry.Geometry->RequestBuildIfNeeded(RHICmdList, ERTAccelerationStructureBuildPriority::Normal);
 			}
+
+			PendingRequest.Reset();
 		}
 		else
 		{
