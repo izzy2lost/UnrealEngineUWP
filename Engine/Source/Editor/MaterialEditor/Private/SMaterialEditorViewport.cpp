@@ -126,7 +126,11 @@ void FMaterialEditorViewportClient::Tick(float DeltaSeconds)
 void FMaterialEditorViewportClient::Draw(FViewport* InViewport,FCanvas* Canvas)
 {
 	FEditorViewportClient::Draw(InViewport, Canvas);
-	MaterialEditorPtr.Pin()->DrawMessages(InViewport, Canvas);
+
+	if (MaterialEditorPtr.IsValid())
+	{
+		MaterialEditorPtr.Pin()->DrawMessages(InViewport, Canvas);
+	}
 }
 
 bool FMaterialEditorViewportClient::ShouldOrbitCamera() const
@@ -266,10 +270,13 @@ void SMaterialEditor3DPreviewViewport::Construct(const FArguments& InArgs)
 	PreviewMeshComponent = nullptr;
 	PostProcessVolumeActor = nullptr;
 
-	UMaterialInterface* Material = MaterialEditorPtr.Pin()->GetMaterialInterface();
-	if (Material)
+	if (MaterialEditorPtr.IsValid())
 	{
-		SetPreviewMaterial(Material);
+		UMaterialInterface* Material = MaterialEditorPtr.Pin()->GetMaterialInterface();
+		if (Material)
+		{
+			SetPreviewMaterial(Material);
+		}
 	}
 
 	SetPreviewAsset( GUnrealEd->GetThumbnailManager()->EditorSphere );
