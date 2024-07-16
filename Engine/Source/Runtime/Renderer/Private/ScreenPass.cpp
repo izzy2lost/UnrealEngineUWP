@@ -110,7 +110,7 @@ FScreenPassTexture FScreenPassTexture::CopyFromSlice(FRDGBuilder& GraphBuilder, 
 // static
 FScreenPassTextureSlice FScreenPassTextureSlice::CreateFromScreenPassTexture(FRDGBuilder& GraphBuilder, const FScreenPassTexture& ScreenTexture)
 {
-	if (!ScreenTexture.Texture)
+	if (!ScreenTexture.Texture || !EnumHasAnyFlags(ScreenTexture.Texture->Desc.Flags, ETextureCreateFlags::ShaderResource))
 	{
 		return FScreenPassTextureSlice(nullptr, ScreenTexture.ViewRect);
 	}
@@ -131,6 +131,24 @@ FScreenPassRenderTarget FScreenPassRenderTarget::CreateFromInput(
 
 	return FScreenPassRenderTarget(GraphBuilder.CreateTexture(OutputDesc, OutputName), Input.ViewRect, OutputLoadAction);
 }
+
+FScreenPassRenderTarget FScreenPassRenderTarget::CreateFromInput(
+	FRDGBuilder& GraphBuilder,
+	FRDGTexture* InputTexture,
+	FIntPoint Extent,
+	ERenderTargetLoadAction OutputLoadAction,
+	const TCHAR* OutputName)
+{
+	check(InputTexture);
+
+	FRDGTextureDesc OutputDesc = InputTexture->Desc;
+	OutputDesc.Reset();
+	EnumRemoveFlags(OutputDesc.Flags, ETextureCreateFlags::Presentable);
+	OutputDesc.Extent = Extent;
+
+	return FScreenPassRenderTarget(GraphBuilder.CreateTexture(OutputDesc, OutputName), OutputLoadAction);
+}
+
 
 FScreenPassRenderTarget FScreenPassRenderTarget::CreateViewFamilyOutput(FRDGTextureRef ViewFamilyTexture, const FViewInfo& View)
 {
@@ -267,7 +285,7 @@ void DrawScreenPass_PostSetup(
 
 void AddDrawTexturePass(
 	FRDGBuilder& GraphBuilder,
-	const FSceneView& View,
+	FScreenPassViewInfo ViewInfo,
 	FRDGTextureRef InputTexture,
 	FRDGTextureRef OutputTexture,
 	FIntPoint InputPosition,
@@ -298,19 +316,19 @@ void AddDrawTexturePass(
 	const FScreenPassTextureViewport InputViewport(InputDesc.Extent, FIntRect(InputPosition, InputPosition + InputSize));
 	const FScreenPassTextureViewport OutputViewport(OutputDesc.Extent, FIntRect(OutputPosition, OutputPosition + OutputSize));
 
-	TShaderMapRef<FCopyRectPS> PixelShader(static_cast<const FViewInfo&>(View).ShaderMap);
+	TShaderMapRef<FCopyRectPS> PixelShader(GetGlobalShaderMap(ViewInfo.FeatureLevel));
 
 	FCopyRectPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectPS::FParameters>();
 	Parameters->InputTexture = InputTexture;
 	Parameters->InputSampler = TStaticSamplerState<>::GetRHI();
 	Parameters->RenderTargets[0] = FRenderTargetBinding(OutputTexture, LoadAction);
 
-	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), View, OutputViewport, InputViewport, PixelShader, Parameters);
+	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), ViewInfo, OutputViewport, InputViewport, PixelShader, Parameters);
 }
 
 void AddDrawTexturePass(
 	FRDGBuilder& GraphBuilder,
-	const FSceneView& View,
+	FScreenPassViewInfo ViewInfo,
 	FRDGTextureRef InputTexture,
 	FRDGTextureRef OutputTexture,
 	FIntPoint InputPosition,
@@ -319,7 +337,7 @@ void AddDrawTexturePass(
 {
 	AddDrawTexturePass(
 		GraphBuilder,
-		View,
+		ViewInfo,
 		InputTexture,
 		OutputTexture,
 		InputPosition,
@@ -330,40 +348,40 @@ void AddDrawTexturePass(
 
 void AddDrawTexturePass(
 	FRDGBuilder& GraphBuilder,
-	const FSceneView& View,
+	FScreenPassViewInfo ViewInfo,
 	FScreenPassTexture Input,
 	FScreenPassRenderTarget Output)
 {
 	const FScreenPassTextureViewport InputViewport(Input);
 	const FScreenPassTextureViewport OutputViewport(Output);
 
-	TShaderMapRef<FCopyRectPS> PixelShader(static_cast<const FViewInfo&>(View).ShaderMap);
+	TShaderMapRef<FCopyRectPS> PixelShader(GetGlobalShaderMap(ViewInfo.FeatureLevel));
 
 	FCopyRectPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectPS::FParameters>();
 	Parameters->InputTexture = Input.Texture;
 	Parameters->InputSampler = TStaticSamplerState<>::GetRHI();
 	Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 
-	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), View, OutputViewport, InputViewport, PixelShader, Parameters);
+	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), ViewInfo, OutputViewport, InputViewport, PixelShader, Parameters);
 }
 
 void AddDrawTexturePass(
 	FRDGBuilder& GraphBuilder,
-	const FSceneView& View,
+	FScreenPassViewInfo ViewInfo,
 	FScreenPassTextureSlice Input,
 	FScreenPassRenderTarget Output)
 {
 	const FScreenPassTextureViewport InputViewport(Input);
 	const FScreenPassTextureViewport OutputViewport(Output);
 
-	TShaderMapRef<FCopyRectSrvPS> PixelShader(static_cast<const FViewInfo&>(View).ShaderMap);
+	TShaderMapRef<FCopyRectSrvPS> PixelShader(GetGlobalShaderMap(ViewInfo.FeatureLevel));
 
 	FCopyRectSrvPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectSrvPS::FParameters>();
 	Parameters->InputTexture = Input.TextureSRV;
 	Parameters->InputSampler = TStaticSamplerState<>::GetRHI();
 	Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 
-	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), View, OutputViewport, InputViewport, PixelShader, Parameters);
+	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), ViewInfo, OutputViewport, InputViewport, PixelShader, Parameters);
 }
 
 class FDownsampleDepthPS : public FGlobalShader

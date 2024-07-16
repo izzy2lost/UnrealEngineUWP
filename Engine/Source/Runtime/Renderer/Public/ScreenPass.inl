@@ -99,7 +99,7 @@ inline FScreenPassTexture::FScreenPassTexture(FRDGTextureRef InTexture, FIntRect
 }
 
 inline FScreenPassTexture::FScreenPassTexture(const FScreenPassTextureSlice& ScreenTexture)
-	: Texture(ScreenTexture.TextureSRV->Desc.Texture)
+	: Texture(ScreenTexture.TextureSRV ? ScreenTexture.TextureSRV->Desc.Texture : nullptr)
 	, ViewRect(ScreenTexture.ViewRect)
 {
 	if (Texture && Texture->Desc.IsTextureArray())
