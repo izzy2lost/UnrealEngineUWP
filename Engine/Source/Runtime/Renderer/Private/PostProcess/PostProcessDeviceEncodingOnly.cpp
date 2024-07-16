@@ -48,10 +48,6 @@ FDeviceEncodingOnlyOutputDeviceParameters GetDeviceEncodingOnlyOutputDeviceParam
 	{
 		OutputDeviceValue = EDisplayOutputFormat::HDR_LinearWithToneCurve;
 	}
-	else if (Family.bIsHDR)
-	{
-		OutputDeviceValue = EDisplayOutputFormat::HDR_ACES_1000nit_ST2084;
-	}
 	else
 	{
 		OutputDeviceValue = Family.RenderTarget->GetDisplayOutputFormat();
@@ -105,7 +101,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDeviceEncodingOnlyParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, ColorSampler)
 	SHADER_PARAMETER(float, EditorNITLevel)
-	SHADER_PARAMETER(uint32, bOutputInHDR)
 END_SHADER_PARAMETER_STRUCT()
 
 class FDeviceEncodingOnlyPS : public FGlobalShader
@@ -227,7 +222,6 @@ FScreenPassTexture AddDeviceEncodingOnlyPass(FRDGBuilder& GraphBuilder, const FV
 	CommonParameters.ColorTexture = Inputs.SceneColor.Texture;
 	CommonParameters.ColorSampler = BilinearClampSampler;
 	CommonParameters.EditorNITLevel = EditorNITLevel;
-	CommonParameters.bOutputInHDR = ViewFamily.bIsHDR;
 
 	// Generate permutation vector for the desktop tonemapper.
 	DeviceEncodingOnlyPermutation::FDesktopDomain DesktopPermutationVector;
