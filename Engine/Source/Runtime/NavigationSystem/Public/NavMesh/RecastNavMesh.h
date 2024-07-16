@@ -1078,6 +1078,7 @@ public:
 	NAVIGATIONSYSTEM_API virtual void PostInitProperties() override;
 	NAVIGATIONSYSTEM_API virtual void PostLoad() override;
 	NAVIGATIONSYSTEM_API virtual void PostRegisterAllComponents() override;
+	NAVIGATIONSYSTEM_API virtual void PostUnregisterAllComponents() override;
 	NAVIGATIONSYSTEM_API virtual void BeginDestroy() override;
 
 #if WITH_EDITOR

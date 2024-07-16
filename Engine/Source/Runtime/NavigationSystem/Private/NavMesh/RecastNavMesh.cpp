@@ -829,6 +829,14 @@ void ARecastNavMesh::PostRegisterAllComponents()
 	}
 }
 
+void ARecastNavMesh::PostUnregisterAllComponents()
+{
+	Super::PostUnregisterAllComponents();
+
+	UnregisterGeneratedLinksProxy();
+	NavLinkJumpDownConfig.LinkProxy = nullptr;
+}
+
 void ARecastNavMesh::PostInitProperties()
 {
 	if (HasAnyFlags(RF_ClassDefaultObject) == true)
