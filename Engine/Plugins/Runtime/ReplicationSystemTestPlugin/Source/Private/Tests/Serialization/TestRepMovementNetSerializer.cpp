@@ -11,8 +11,10 @@ UE::Net::FTestMessage& operator<<(UE::Net::FTestMessage& Message, const FRepMove
 		"AngularVelocity: " << Value.AngularVelocity << '\n' <<
 		"Location: " << Value.Location << '\n' <<
 		"Rotation: " << Value.Rotation.ToString() << '\n' <<
+		"Acceleration: " << Value.Acceleration << '\n' <<
 		"bSimulatedPhysicSleep: " << Value.bSimulatedPhysicSleep << '\n' <<
 		"bRepPhysics: " << Value.bRepPhysics << '\n' <<
+		"bRepAcceleration: " << Value.bRepAcceleration << '\n' <<
 		"ServerFrame: " << Value.ServerFrame << '\n' <<
 		"ServerPhysicsHandle: " << Value.ServerPhysicsHandle << '\n' <<
 		"LocationQuantizationLevel: " << (uint32)Value.LocationQuantizationLevel << '\n' <<
@@ -158,6 +160,26 @@ void FTestRepMovementNetSerializer::OneTimeClassInitialization()
 		ValueWithSimulatedPhysicSleep.bSimulatedPhysicSleep = true;
 		Values.Add(ValueWithSimulatedPhysicSleep);
 	}
+
+	// Values with location, velocities, rotation, acceleration, ServerFrame, and physics handle
+	{
+		FRepMovement& Value = Values.Emplace_GetRef();
+		Value.LinearVelocity = FVector(11.33, -50.23, 41.05);
+		Value.AngularVelocity = FVector(599.23, -2001.05, 4010.01);
+		Value.Location = FVector(100342.05, -190200.01, 298000.43);
+		Value.Rotation = FRotator(99.16, 10.75, 0.01);
+		Value.bRepAcceleration = true;
+		Value.Acceleration = FVector(1501.11, 1.33, 10.11);
+
+		FRepMovement ValueWithServerFrame = Value;
+		ValueWithServerFrame.ServerFrame = 1908246315;
+		Values.Add(ValueWithServerFrame);
+
+		FRepMovement ValueWithPhysicsHandle = Value;
+		ValueWithPhysicsHandle.ServerPhysicsHandle = 4718;
+		Values.Add(ValueWithPhysicsHandle);
+	}
+
 
 	bIsClassInitialized = true;
 }

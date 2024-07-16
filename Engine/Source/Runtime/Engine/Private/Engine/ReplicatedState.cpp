@@ -26,8 +26,10 @@ FRepMovement::FRepMovement()
 	, AngularVelocity(ForceInit)
 	, Location(ForceInit)
 	, Rotation(ForceInit)
+	, Acceleration(ForceInit)
 	, bSimulatedPhysicSleep(false)
 	, bRepPhysics(false)
+	, bRepAcceleration(false)
 	, ServerFrame(0)
 	, LocationQuantizationLevel(EVectorQuantization::RoundWholeNumber)
 	, VelocityQuantizationLevel(EVectorQuantization::RoundWholeNumber)
@@ -126,6 +128,27 @@ bool FRepMovement::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOut
 		uint32 uServerPhysicsHandle = (uint32)ServerPhysicsHandle;
 		Ar.SerializeIntPacked(uServerPhysicsHandle);
 		ServerPhysicsHandle = (int32)uServerPhysicsHandle;
+	}
+
+	if (Ar.EngineNetVer() >= FEngineNetworkCustomVersion::RepMoveOptionalAcceleration)
+	{
+		uint8 AccelFlags = (bRepAcceleration << 0);
+		Ar.SerializeBits(&AccelFlags, 1);
+		bRepAcceleration = (AccelFlags & (1 << 0)) ? 1 : 0;
+
+		if (bRepAcceleration)
+		{
+#if REP_MOVEMENT_DISABLE_QUANTIZATION
+			Ar << Acceleration;
+#else
+			// Note that we're using the same quantization as Velocity, since the units are commonly on the same order
+			bOutSuccess &= SerializeQuantizedVector(Ar, Acceleration, VelocityQuantizationLevel);
+#endif
+		}
+	}
+	else if (Ar.IsLoading())
+	{
+		bRepAcceleration = false;
 	}
 
 	return true;

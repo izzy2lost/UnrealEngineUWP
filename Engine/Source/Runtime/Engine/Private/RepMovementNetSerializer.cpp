@@ -31,6 +31,7 @@ struct FRepMovementNetSerializer
 		uint64 LinearVelocity[4];
 		uint64 Location[4];
 		uint16 Rotation[4];
+		uint64 Acceleration[4];
 		int32 ServerFrame;
 		int32 ServerPhysicsHandle;
 
@@ -38,7 +39,8 @@ struct FRepMovementNetSerializer
 		uint16 VelocityQuantizationLevel : 2;
 		uint16 LocationQuantizationLevel : 2;
 		uint16 RotationQuantizationLevel : 1;
-		uint16 Unused : 9;
+		uint16 RepAcceleration : 1;
+		uint16 Unused : 6;
 		uint16 Padding[3];
 	};
 
@@ -189,6 +191,23 @@ void FRepMovementNetSerializer::Serialize(FNetSerializationContext& Context, con
 	{
 		WritePackedInt32(Writer, Value.ServerPhysicsHandle);
 	}
+
+	// Optional acceleration
+	{
+		// FUTURE: Consider checking EngineNetVer >= FEngineNetworkCustomVersion::RepMoveOptionalAcceleration for backwards compatibility
+		if (Writer->WriteBool(Value.RepAcceleration))
+		{
+			UE_NET_TRACE_SCOPE(Acceleration, *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+			const FNetSerializer* Serializer = VectorNetQuantizeNetSerializers[Value.VelocityQuantizationLevel];	// Note that we're using the same quantization as Velocity, since the numbers are typically on the same order
+			const FNetSerializerConfig* SerializerConfig = VectorNetQuantizeNetSerializerConfigs[Value.VelocityQuantizationLevel];
+
+			FNetSerializeArgs MemberArgs = Args;
+			MemberArgs.NetSerializerConfig = NetSerializerConfigParam(SerializerConfig);
+			MemberArgs.Source = NetSerializerValuePointer(&Value.Acceleration[0]);
+			Serializer->Serialize(Context, MemberArgs);
+		}
+	}
+
 }
 
 void FRepMovementNetSerializer::Deserialize(FNetSerializationContext& Context, const FNetDeserializeArgs& Args)
@@ -281,6 +300,25 @@ void FRepMovementNetSerializer::Deserialize(FNetSerializationContext& Context, c
 	{
 		TempValue.ServerPhysicsHandle = INDEX_NONE;
 	}
+
+	// Optional acceleration
+	{
+		// FUTURE: Consider checking EngineNetVer >= FEngineNetworkCustomVersion::RepMoveOptionalAcceleration for backwards compatibility
+		TempValue.RepAcceleration = Reader->ReadBool();
+
+		if (TempValue.RepAcceleration)
+		{
+			UE_NET_TRACE_SCOPE(Acceleration, *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+			const FNetSerializer* Serializer = VectorNetQuantizeNetSerializers[TempValue.VelocityQuantizationLevel];	// Note that we're using the same quantization as Velocity, since the numbers are typically on the same order
+			const FNetSerializerConfig* SerializerConfig = VectorNetQuantizeNetSerializerConfigs[TempValue.VelocityQuantizationLevel];
+
+			FNetDeserializeArgs MemberArgs = Args;
+			MemberArgs.NetSerializerConfig = NetSerializerConfigParam(SerializerConfig);
+			MemberArgs.Target = NetSerializerValuePointer(&TempValue.Acceleration[0]);
+			Serializer->Deserialize(Context, MemberArgs);
+		}
+	}
+
 
 	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
 	Target = TempValue;
@@ -378,6 +416,33 @@ void FRepMovementNetSerializer::SerializeDelta(FNetSerializationContext& Context
 	if (Flags & Flag_ServerPhysicsHandleIsPresent)
 	{
 		SerializeIntDelta(*Writer, Value.ServerPhysicsHandle, PrevValue.ServerPhysicsHandle, DeltaBitCountTable, DeltaBitCountTableEntryCount, 32U);
+	}
+
+	// Optional acceleration
+	{
+		// FUTURE: Consider checking EngineNetVer >= FEngineNetworkCustomVersion::RepMoveOptionalAcceleration for backwards compatibility
+		Writer->WriteBool(Value.RepAcceleration);
+
+		if (Value.RepAcceleration)
+		{
+			UE_NET_TRACE_SCOPE(Acceleration, *Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+			const FNetSerializer* Serializer = VectorNetQuantizeNetSerializers[Value.VelocityQuantizationLevel];
+			const FNetSerializerConfig* SerializerConfig = VectorNetQuantizeNetSerializerConfigs[Value.VelocityQuantizationLevel];
+
+			FNetSerializeDeltaArgs MemberArgs = Args;
+			MemberArgs.NetSerializerConfig = NetSerializerConfigParam(SerializerConfig);
+			MemberArgs.Source = NetSerializerValuePointer(&Value.Acceleration[0]);
+			MemberArgs.Prev = NetSerializerValuePointer(&PrevValue.Acceleration[0]);
+
+			if (PrevValue.RepAcceleration)
+			{
+				Serializer->SerializeDelta(Context, MemberArgs);
+			}
+			else // since previously we have no acceleration data, fully serialize it
+			{
+				Serializer->Serialize(Context, MemberArgs);
+			}
+		}
 	}
 }
 
@@ -486,6 +551,35 @@ void FRepMovementNetSerializer::DeserializeDelta(FNetSerializationContext& Conte
 	FixedUpFlags |= (TempValue.ServerPhysicsHandle != INDEX_NONE ? Flag_ServerPhysicsHandleIsPresent : 0U);
 	TempValue.Flags = FixedUpFlags;
 
+	// Optional acceleration
+	{
+		// FUTURE: Consider checking EngineNetVer >= FEngineNetworkCustomVersion::RepMoveOptionalAcceleration for backwards compatibility
+		UE_NET_TRACE_SCOPE(Acceleration, *Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+		const FNetSerializer* Serializer = VectorNetQuantizeNetSerializers[TempValue.VelocityQuantizationLevel];
+		const FNetSerializerConfig* SerializerConfig = VectorNetQuantizeNetSerializerConfigs[TempValue.VelocityQuantizationLevel];
+
+		FNetDeserializeDeltaArgs MemberArgs = Args;
+		MemberArgs.NetSerializerConfig = NetSerializerConfigParam(SerializerConfig);
+		MemberArgs.Target = NetSerializerValuePointer(&TempValue.Acceleration[0]);
+		MemberArgs.Prev = NetSerializerValuePointer(&PrevValue.Acceleration[0]);
+
+		TempValue.RepAcceleration = Reader->ReadBool();
+
+		if (TempValue.RepAcceleration)
+		{
+			if (PrevValue.RepAcceleration)
+			{
+				Serializer->DeserializeDelta(Context, MemberArgs);
+			}
+			else
+			{
+				// No prior value, so we deserialize the whole value
+				Serializer->Deserialize(Context, MemberArgs);
+			}
+		}
+	}
+
+
 	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
 	Target = TempValue;
 }
@@ -503,6 +597,7 @@ void FRepMovementNetSerializer::Quantize(FNetSerializationContext& Context, cons
 	TempValue.RotationQuantizationLevel = uint8(Source.RotationQuantizationLevel);
 	TempValue.ServerFrame = Source.ServerFrame;
 	TempValue.ServerPhysicsHandle = Source.ServerPhysicsHandle;
+	TempValue.RepAcceleration = Source.bRepAcceleration;
 	
 	// Angular velocity. Do note that the quantized value is cleared if RepPhysics is false. Delta compression need to accommodate to this.
 	if (TempValue.Flags & Flag_RepPhysics)
@@ -553,6 +648,20 @@ void FRepMovementNetSerializer::Quantize(FNetSerializationContext& Context, cons
 		Serializer->Quantize(Context, MemberArgs);
 	}
 
+	// Optional acceleration
+	if (TempValue.RepAcceleration)
+	{
+		// Note that we're using the same quantization settings as linear velocity, since the values are typically on the same order
+		const FNetSerializer* Serializer = VectorNetQuantizeNetSerializers[TempValue.VelocityQuantizationLevel];
+		const FNetSerializerConfig* SerializerConfig = VectorNetQuantizeNetSerializerConfigs[TempValue.VelocityQuantizationLevel];
+
+		FNetQuantizeArgs MemberArgs = Args;
+		MemberArgs.NetSerializerConfig = NetSerializerConfigParam(SerializerConfig);
+		MemberArgs.Source = NetSerializerValuePointer(&Source.Acceleration);
+		MemberArgs.Target = NetSerializerValuePointer(&TempValue.Acceleration[0]);
+		Serializer->Quantize(Context, MemberArgs);
+	}
+
 	QuantizedType& Target = *reinterpret_cast<QuantizedType*>(Args.Target);
 	Target = TempValue;
 }
@@ -569,6 +678,7 @@ void FRepMovementNetSerializer::Dequantize(FNetSerializationContext& Context, co
 	Target.LocationQuantizationLevel = EVectorQuantization(Source.LocationQuantizationLevel);
 	Target.VelocityQuantizationLevel = EVectorQuantization(Source.VelocityQuantizationLevel);
 	Target.RotationQuantizationLevel = ERotatorQuantization(Source.RotationQuantizationLevel);
+	Target.bRepAcceleration = Source.RepAcceleration;
 
 	// There's no need to dequantize angular velocity unless we're replicating it.
 	if (Source.Flags & Flag_RepPhysics)
@@ -618,6 +728,20 @@ void FRepMovementNetSerializer::Dequantize(FNetSerializationContext& Context, co
 		MemberArgs.Target = NetSerializerValuePointer(&Target.Rotation);
 		Serializer->Dequantize(Context, MemberArgs);
 	}
+
+	// Optional acceleration - we do not need to dequantize it if it isn't replicated
+	if (Source.RepAcceleration)
+	{
+		const FNetSerializer* Serializer = VectorNetQuantizeNetSerializers[Source.VelocityQuantizationLevel];
+		const FNetSerializerConfig* SerializerConfig = VectorNetQuantizeNetSerializerConfigs[Source.VelocityQuantizationLevel];
+
+		FNetDequantizeArgs MemberArgs = Args;
+		MemberArgs.NetSerializerConfig = NetSerializerConfigParam(SerializerConfig);
+		MemberArgs.Source = NetSerializerValuePointer(&Source.Acceleration[0]);
+		MemberArgs.Target = NetSerializerValuePointer(&Target.Acceleration);
+		Serializer->Dequantize(Context, MemberArgs);
+	}
+
 }
 
 bool FRepMovementNetSerializer::IsEqual(FNetSerializationContext& Context, const FNetIsEqualArgs& Args)
@@ -680,6 +804,14 @@ bool FRepMovementNetSerializer::Validate(FNetSerializationContext& Context, cons
 		return false;
 	}
 
+	if (Value.bRepAcceleration)
+	{
+		if (Value.Acceleration.ContainsNaN())
+		{
+			return false;
+		}
+	}
+
 	// Grab an arbitrary RotatorNetSerializer for the rotation validation.
 	{
 		const FNetSerializer* Serializer = RotatorNetSerializers[0];
@@ -705,6 +837,8 @@ void FRepMovementNetSerializer::Apply(FNetSerializationContext& Context, const F
 	Target.bSimulatedPhysicSleep = Source.bSimulatedPhysicSleep;
 	Target.bRepPhysics = Source.bRepPhysics;
 	Target.ServerFrame = Source.ServerFrame;
+	Target.bRepAcceleration = Source.bRepAcceleration;
+
 	// FRepMovement::NetSerialize does not overwrite ServerPhysicsHandle if it wasn't replicated. Despite the member name we mimic the behavior.
 	if (Source.ServerPhysicsHandle != INDEX_NONE)
 	{
@@ -719,6 +853,12 @@ void FRepMovementNetSerializer::Apply(FNetSerializationContext& Context, const F
 	if (Source.bRepPhysics)
 	{
 		Target.AngularVelocity = Source.AngularVelocity;
+	}
+
+	// Explicitly do not overwrite Acceleration unless it was replicated.
+	if (Source.bRepAcceleration)
+	{	
+		Target.Acceleration = Source.Acceleration;
 	}
 
 	// Explicitly do not overwrite quantization levels.
@@ -767,6 +907,11 @@ bool FRepMovementNetSerializer::FNetSerializerRegistryDelegates::QuantizedTypeMe
 		{
 			return false;
 		}
+
+		if (!ensure(sizeof(QuantizedType::Acceleration) >= VectorNetSerializer.QuantizedTypeSize && alignof(decltype(QuantizedType::Acceleration)) >= VectorNetSerializer.QuantizedTypeAlignment))
+		{
+			return false;
+		}
 	}
 
 	// Check rotator serializer requirements.
@@ -786,7 +931,7 @@ bool FRepMovementNetSerializer::FNetSerializerRegistryDelegates::IsRepMovementLa
 {
 	const UStruct* RepMovementStruct = FRepMovement::StaticStruct();
 
-	constexpr int ExpectedPropertiesSize = 112;
+	constexpr int ExpectedPropertiesSize = 136;
 	if (!ensureMsgf(RepMovementStruct->GetPropertiesSize() == ExpectedPropertiesSize, TEXT("Unexpected FRepMovement properties size. %d != %d"), RepMovementStruct->GetPropertiesSize(), ExpectedPropertiesSize))
 	{
 		return false;
@@ -798,7 +943,7 @@ bool FRepMovementNetSerializer::FNetSerializerRegistryDelegates::IsRepMovementLa
 		{
 			"LinearVelocity", "AngularVelocity", "Location", "Rotation", "bSimulatedPhysicSleep", "bRepPhysics", 
 			"LocationQuantizationLevel", "VelocityQuantizationLevel", "RotationQuantizationLevel", 
-			"ServerFrame", "ServerPhysicsHandle", 
+			"ServerFrame", "ServerPhysicsHandle", "bRepAcceleration", "Acceleration"
 		};
 		constexpr SIZE_T FieldCount = sizeof(Fields)/sizeof(Fields[0]);
 

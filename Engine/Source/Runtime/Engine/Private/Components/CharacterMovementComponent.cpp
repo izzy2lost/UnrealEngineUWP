@@ -6702,9 +6702,19 @@ void UCharacterMovementComponent::MoveSmooth(const FVector& InVelocity, const fl
 
 void UCharacterMovementComponent::UpdateProxyAcceleration()
 {
-	// Not currently replicated for simulated movement, but make it non-zero for animations that may want it, based on velocity.
-	Acceleration = Velocity.GetSafeNormal();
-	AnalogInputModifier = 1.0f;
+	const FRepMovement& ReplicatedMovement = CharacterOwner->GetReplicatedMovement();
+	if (ReplicatedMovement.bRepAcceleration)
+	{
+		Acceleration = ReplicatedMovement.Acceleration;
+		AnalogInputModifier = ComputeAnalogInputModifier();
+	}
+	else
+	{
+		// If acceleration isn't replicated for simulated movement, make it non-zero for animations that may want it, based on velocity.
+		// Note that this represents Acceleration with units in the range [0, 1] instead of representing cm/s^2.
+		Acceleration = Velocity.GetSafeNormal();
+		AnalogInputModifier = 1.0f;
+	}
 }
 
 bool UCharacterMovementComponent::IsWalkable(const FHitResult& Hit) const

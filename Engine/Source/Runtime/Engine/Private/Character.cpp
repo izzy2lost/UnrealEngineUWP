@@ -32,6 +32,18 @@ FName ACharacter::MeshComponentName(TEXT("CharacterMesh0"));
 FName ACharacter::CharacterMovementComponentName(TEXT("CharMoveComp"));
 FName ACharacter::CapsuleComponentName(TEXT("CollisionCylinder"));
 
+
+// CVars
+namespace CharacterCVars
+{
+	// Allows characters to include acceleration in the data replicated to sim proxies
+	int32 EnableCharacterAccelerationReplication = 0;
+	static FAutoConsoleVariableRef CVarEnableCharacterAccelerationReplication(
+		TEXT("p.EnableCharacterAccelerationReplication"),
+		EnableCharacterAccelerationReplication,
+		TEXT("Whether to author acceleration data with character movement replication to sim proxies."));
+}
+
 ACharacter::ACharacter(const FObjectInitializer& ObjectInitializer)
 : Super(ObjectInitializer)
 {
@@ -1250,6 +1262,26 @@ void ACharacter::OnRep_ReplicatedBasedMovement()
 		CharacterMovement->bNetworkSmoothingComplete = false;
 		CharacterMovement->SmoothCorrection(OldLocation, OldRotation, NewLocation, NewRotation.Quaternion());
 		OnUpdateSimulatedPosition(OldLocation, OldRotation);
+	}
+}
+
+void ACharacter::GatherCurrentMovement()
+{
+	Super::GatherCurrentMovement();
+
+	if (IsReplicatingMovement())
+	{
+		FRepMovement& MutableRepMovement = GetReplicatedMovement_Mutable();
+
+		if (ShouldReplicateAcceleration()) 
+		{
+			MutableRepMovement.bRepAcceleration = true;
+			MutableRepMovement.Acceleration = CharacterMovement->GetCurrentAcceleration();
+		}
+		else
+		{
+			MutableRepMovement.bRepAcceleration = false;
+		}
 	}
 }
 

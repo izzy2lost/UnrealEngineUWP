@@ -35,6 +35,12 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FCharacterMovementUpdatedSignatur
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FCharacterReachedApexSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLandedSignature, const FHitResult&, Hit);
 
+// CVars
+namespace CharacterCVars
+{	
+	extern ENGINE_API int32 EnableCharacterAccelerationReplication;
+}
+
 /** Replicated data when playing a root motion montage. */
 USTRUCT()
 struct FRepRootMotionMontage
@@ -446,6 +452,9 @@ public:
 	ENGINE_API virtual void SetReplicateMovement(bool bInReplicateMovement) override;
 
 protected:
+	/** Whether this Character should include acceleration data in its replicated movement */
+	ENGINE_API virtual bool ShouldReplicateAcceleration() const { return CharacterCVars::EnableCharacterAccelerationReplication != 0; }
+
 	/** Saved translation offset of mesh. */
 	UPROPERTY()
 	FVector BaseTranslationOffset;
@@ -632,6 +641,7 @@ public:
 	ENGINE_API virtual void ClearCrossLevelReferences() override;
 	ENGINE_API virtual void PreNetReceive() override;
 	ENGINE_API virtual void PostNetReceive() override;
+	ENGINE_API virtual void GatherCurrentMovement() override;
 	ENGINE_API virtual void OnRep_ReplicatedMovement() override;
 	ENGINE_API virtual void PostNetReceiveLocationAndRotation() override;
 	ENGINE_API virtual void GetSimpleCollisionCylinder(float& CollisionRadius, float& CollisionHalfHeight) const override;

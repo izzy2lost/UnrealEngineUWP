@@ -123,7 +123,7 @@ struct FRepMovement
 	UPROPERTY(Transient)
 	FVector LinearVelocity;
 
-	/** Velocity of rotation for component */
+	/** Velocity of rotation for component (only valid if bRepPhysics is set) */
 	UPROPERTY(Transient)
 	FVector AngularVelocity;
 	
@@ -135,6 +135,10 @@ struct FRepMovement
 	UPROPERTY(Transient)
 	FRotator Rotation;
 
+	/** Acceleration of component in world space. Only valid if bRepAcceleration is set. */
+	UPROPERTY(Transient)
+	FVector Acceleration;
+
 	/** If set, RootComponent should be sleeping. */
 	UPROPERTY(Transient)
 	uint8 bSimulatedPhysicSleep : 1;
@@ -142,6 +146,10 @@ struct FRepMovement
 	/** If set, additional physic data (angular velocity) will be replicated. */
 	UPROPERTY(Transient)
 	uint8 bRepPhysics : 1;
+
+	/** If set, additional acceleration data will be replicated. */
+	UPROPERTY(Transient)
+	uint8 bRepAcceleration : 1;
 
 	/** Server physics step */
 	UPROPERTY(Transient)
@@ -214,12 +222,22 @@ struct FRepMovement
 			return false;
 		}
 
+		if (bRepAcceleration && (Acceleration != Other.Acceleration))
+		{
+			return false;
+		}
+
 		if ( bSimulatedPhysicSleep != Other.bSimulatedPhysicSleep )
 		{
 			return false;
 		}
 
 		if ( bRepPhysics != Other.bRepPhysics )
+		{
+			return false;
+		}
+
+		if ( bRepAcceleration != Other.bRepAcceleration )
 		{
 			return false;
 		}
