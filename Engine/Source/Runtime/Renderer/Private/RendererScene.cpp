@@ -1944,18 +1944,6 @@ void FScene::BatchAddPrimitivesInternal(TArrayView<T*> InPrimitives)
 		checkf(!Primitive->IsUnreachable(), TEXT("%s"), *Primitive->GetFullName());
 
 		const float WorldTime = GetWorld()->GetTimeSeconds();
-		// Save the world transform for next time the primitive is added to the scene
-		float DeltaTime = WorldTime - SceneData.LastSubmitTime;
-		if ( DeltaTime < -0.0001f ||SceneData.LastSubmitTime < 0.0001f )
-		{
-			// Time was reset?
-			SceneData.LastSubmitTime = WorldTime;
-		}
-		else if ( DeltaTime > 0.0001f )
-		{
-			// First call for the new frame?
-			SceneData.LastSubmitTime = WorldTime;
-		}
 
 		FPrimitiveSceneProxy* PrimitiveSceneProxy  = nullptr;
 
@@ -2103,27 +2091,13 @@ void FScene::UpdatePrimitiveTransform(FPrimitiveSceneDesc* Primitive)
 	UpdatePrimitiveTransformInternal(Primitive);	
 }
 
-template<class T> 	
+template<class T>
 void FScene::UpdatePrimitiveTransformInternal(T* Primitive)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveTransformGT);
 	SCOPED_NAMED_EVENT(FScene_UpdatePrimitiveTransform, FColor::Yellow);
 
 	FPrimitiveSceneInfoData& SceneData = Primitive->GetSceneData();
-
-	// Save the world transform for next time the primitive is added to the scene
-	const float WorldTime = GetWorld()->GetTimeSeconds();	
-	float DeltaTime = WorldTime - SceneData.LastSubmitTime;
-	if (DeltaTime < -0.0001f || SceneData.LastSubmitTime < 0.0001f)
-	{
-		// Time was reset?
-		SceneData.LastSubmitTime = WorldTime;
-	}
-	else if (DeltaTime > 0.0001f)
-	{
-		// First call for the new frame?
-		SceneData.LastSubmitTime = WorldTime;
-	}
 
 	if (Primitive->GetSceneProxy())
 	{
@@ -2484,8 +2458,6 @@ void FScene::UpdatePrimitiveDistanceFieldSceneData_GameThread(UPrimitiveComponen
 
 	if (Primitive->SceneProxy)
 	{
-		Primitive->GetSceneData().LastSubmitTime = GetWorld()->GetTimeSeconds();
-
 		ENQUEUE_RENDER_COMMAND(UpdatePrimDFSceneDataCmd)(
 			[this, PrimitiveSceneProxy = Primitive->SceneProxy] (FRHICommandListBase&)
 			{

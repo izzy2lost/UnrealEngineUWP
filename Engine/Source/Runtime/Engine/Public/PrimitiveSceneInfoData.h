@@ -16,8 +16,8 @@ struct FPrimitiveSceneInfoData
 	/** The primitive's scene info. */
 	FPrimitiveSceneProxy* SceneProxy = nullptr;
 
-	/** Last time the component was submitted for rendering (called FScene::AddPrimitive). */
-	float LastSubmitTime = -1000;
+	UE_DEPRECATED(5.5, "LastSubmitTime is no longer used")
+	float LastSubmitTime = -1000.0f;
 
 	/**
 	 * The value of WorldSettings->TimeSeconds for the frame when this component was last rendered.  This is written

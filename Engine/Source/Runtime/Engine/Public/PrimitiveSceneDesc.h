@@ -60,9 +60,12 @@ struct FPrimitiveSceneDesc
 
 	void SetLODParentId(FPrimitiveComponentId  Id) { LodParentComponentId = Id; }
 	void SetLightingAttachmentId(FPrimitiveComponentId  Id) { LightingAttachmentComponentId = Id; }
-	
-	double GetLastSubmitTime() { return PrimitiveSceneData->LastSubmitTime; }
-	void SetLastSubmitTime(double InSubmitTime) { PrimitiveSceneData->LastSubmitTime = InSubmitTime; }
+
+	UE_DEPRECATED(5.5, "GetLastSubmitTime is no longer used")
+	double GetLastSubmitTime() { return 0.0; }
+
+	UE_DEPRECATED(5.5, "SetLastSubmitTime is no longer used.")
+	void SetLastSubmitTime(double InSubmitTime) {}
 	
 	EComponentMobility::Type GetMobility() { return Mobility; }
 	FMatrix GetRenderMatrix() { return RenderMatrix; }
