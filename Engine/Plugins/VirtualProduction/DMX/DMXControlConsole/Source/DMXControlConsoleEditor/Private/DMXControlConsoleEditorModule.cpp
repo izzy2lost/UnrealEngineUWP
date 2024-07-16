@@ -86,6 +86,14 @@ void FDMXControlConsoleEditorModule::OpenControlConsole()
 		UObject* DMXControlConsoleObject = ControlConsoleFactory->CreateConsoleAssetFromData(AssetPath, UniqueAssetName, nullptr);
 		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(DMXControlConsoleObject);
 	}
+
+	const FDMXControlConsoleEditorModule& ThisModule = FModuleManager::GetModuleChecked<FDMXControlConsoleEditorModule>(TEXT("DMXControlConsoleEditor"));
+	const bool bFloatingWindow = ThisModule.CompactEditorTab.IsValid() && ThisModule.CompactEditorTab->GetParentWindow().IsValid();
+	if (bFloatingWindow)
+	{
+		// Close the compact editor tab if it is not docked
+		ThisModule.CompactEditorTab->RequestCloseTab();
+	}
 }
 
 void FDMXControlConsoleEditorModule::RegisterLevelEditorCommands()
