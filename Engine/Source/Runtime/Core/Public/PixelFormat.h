@@ -106,7 +106,8 @@ enum EPixelFormat : uint8
 	PF_ASTC_8x8_NORM_RG		=89,	
 	PF_ASTC_10x10_NORM_RG	=90,	
 	PF_ASTC_12x12_NORM_RG	=91,	
-	PF_MAX					=92,
+	PF_R16G16_SINT			=92,
+	PF_MAX					=93,
 };
 #define FOREACH_ENUM_EPIXELFORMAT(op) \
 	op(PF_Unknown) \
@@ -200,7 +201,8 @@ enum EPixelFormat : uint8
 	op(PF_ASTC_6x6_NORM_RG) \
 	op(PF_ASTC_8x8_NORM_RG) \
 	op(PF_ASTC_10x10_NORM_RG) \
-	op(PF_ASTC_12x12_NORM_RG)
+	op(PF_ASTC_12x12_NORM_RG) \
+	op(PF_R16G16_SINT)
 
 // Defines which channel is valid for each pixel format
 enum class EPixelFormatChannelFlags : uint8
@@ -344,6 +346,7 @@ FORCEINLINE bool IsInteger(EPixelFormat PixelFormat)
 	case PF_R32G32B32_SINT:
 	case PF_R8_SINT:
 	case PF_R64_UINT:
+	case PF_R16G16_SINT:
 		return true;
 	}
 	return false;
