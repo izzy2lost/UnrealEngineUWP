@@ -96,7 +96,7 @@ FMovieSceneSequenceTransform FMovieSceneSectionTimingParametersFrames::MakeTrans
 	FFrameNumber LoopOffset(bLoop ? FirstLoopStartOffset.Value : 0);
 
 	// Start offset
-	Result.Add(FMovieSceneTimeTransform(InnerStartOffset + LoopOffset));
+	Result.Add(FMovieSceneTimeTransform(StartTime + LoopOffset));
 
 	// ----------------------------------------------------------------------------
 	// Looping or clamping
