@@ -735,7 +735,7 @@ static FAutoConsoleVariableRef CVarMutableForceStreamMeshLODs(
 	ECVF_Default);
 
 
-bool bStreamMeshLODs = true;
+bool bStreamMeshLODs = false;
 
 static FAutoConsoleVariableRef CVarMutableStreamMeshLODsEnabled(
 	TEXT("Mutable.StreamMeshLODsEnabled"),
