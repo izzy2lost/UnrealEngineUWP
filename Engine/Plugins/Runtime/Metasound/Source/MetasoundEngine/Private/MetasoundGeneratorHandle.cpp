@@ -53,7 +53,7 @@ namespace Metasound
 
 			if (!Source.IsValid())
 			{
-				UE_LOG(LogMetaSound, Error, TEXT("Couldn't get the source for the audio component."));
+				UE_LOG(LogMetaSound, Error, TEXT("FMetaSoundGeneratorHandle missing source: %s."), *Handle->ToString());
 				return nullptr;
 			}
 			
@@ -204,6 +204,17 @@ namespace Metasound
 		}
 
 		return 0;
+	}
+
+	FString FMetasoundGeneratorHandle::ToString() const
+	{
+		if (!IsValid())
+		{
+			return FString::Printf(TEXT("Invalid Handle"));
+		}
+
+		check(AudioComponent.IsValid());
+		return FString::Printf(TEXT("%s [Id:%d] with owner %s"), *GetNameSafe(AudioComponent.Get()), AudioComponentId, *GetNameSafe(AudioComponent->GetOwner()));
 	}
 
 	void FMetasoundGeneratorHandle::SetGenerator(TWeakPtr<FMetasoundGenerator>&& InGenerator)

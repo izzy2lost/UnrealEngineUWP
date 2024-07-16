@@ -193,6 +193,11 @@ namespace Metasound
 		*/
 		double GetCPUCoreUtilization() const;
 
+		/**
+		* Returns a text representation of this generator handle, useful for logging
+		*/
+		FString ToString() const;
+
 	private:
 		void SetGenerator(TWeakPtr<FMetasoundGenerator>&& InGenerator);
 
