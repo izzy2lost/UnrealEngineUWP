@@ -638,7 +638,7 @@ TSharedPtr<SWidget> SStaticMeshEditorViewport::MakeViewportToolbar()
 				ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
 				RightSection.AddEntry(ViewModesSubmenu);
 
-				FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu(SharedThis(this));
+				FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
 				PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
 				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
 			}

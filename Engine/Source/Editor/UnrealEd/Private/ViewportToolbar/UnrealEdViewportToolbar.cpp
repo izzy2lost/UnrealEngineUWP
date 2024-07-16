@@ -1737,33 +1737,47 @@ TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewpor
 	// clang-format on
 }
 
-FToolMenuEntry CreateCameraSubmenu(TWeakPtr<SEditorViewport> InViewport)
+FToolMenuEntry CreateCameraSubmenu()
 {
 	return FToolMenuEntry::InitSubMenu(
 		"Camera",
 		LOCTEXT("CameraSubmenuLabel", "Camera"),
 		LOCTEXT("CameraSubmenuTooltip", "Camera options"),
 		FNewToolMenuDelegate::CreateLambda(
-			[InViewport](UToolMenu* Submenu) -> void
+			[](UToolMenu* Submenu) -> void
 			{
+				UUnrealEdViewportToolbarContext* const EditorViewportContext =
+					Submenu->FindContext<UUnrealEdViewportToolbarContext>();
+
+				if (!EditorViewportContext)
+				{
+					return;
+				}
+
+				const TSharedPtr<SEditorViewport> EditorViewport = EditorViewportContext->Viewport.Pin();
+				if (!EditorViewport)
+				{
+					return;
+				}
+
 				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
 
 				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
-					"CameraMenuItems", UE::UnrealEd::CreateCameraMenuWidget(InViewport.Pin().ToSharedRef()), FText(), true
+					"CameraMenuItems", UE::UnrealEd::CreateCameraMenuWidget(EditorViewport.ToSharedRef()), FText(), true
 				));
 
 				UnnamedSection.AddSeparator("CameraSubmenuSeparator");
 
 				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
 					"CameraFOV",
-					UE::UnrealEd::CreateFOVMenuWidget(InViewport.Pin().ToSharedRef()),
+					UE::UnrealEd::CreateFOVMenuWidget(EditorViewport.ToSharedRef()),
 					LOCTEXT("CameraSubmenu_FieldOfViewLabel", "Field of View"),
 					true
 				));
 
 				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
 					"CameraFarViewPlane",
-					UE::UnrealEd::CreateFarViewPlaneMenuWidget(InViewport.Pin().ToSharedRef()),
+					UE::UnrealEd::CreateFarViewPlaneMenuWidget(EditorViewport.ToSharedRef()),
 					LOCTEXT("CameraSubmenu_FarViewPlaneLabel", "Far View Plane"),
 					true
 				));
@@ -2049,9 +2063,21 @@ TSharedRef<SWidget> CreateCurrentScreenPercentageWidget(FEditorViewportClient& I
 	// clang-format on
 }
 
-static void ConstructScreenPercentageMenu(UToolMenu* InMenu, FEditorViewportClient* InViewportClient)
+static void ConstructScreenPercentageMenu(UToolMenu* InMenu)
 {
-	FEditorViewportClient& ViewportClient = *InViewportClient;
+	UUnrealEdViewportToolbarContext* const LevelViewportContext = InMenu->FindContext<UUnrealEdViewportToolbarContext>();
+	if (!LevelViewportContext)
+	{
+		return;
+	}
+
+	const TSharedPtr<SEditorViewport> LevelViewport = LevelViewportContext->Viewport.Pin();
+	if (!LevelViewport)
+	{
+		return;
+	}
+
+	FEditorViewportClient& ViewportClient = *LevelViewport->GetViewportClient();
 
 	const FEditorViewportCommands& BaseViewportCommands = FEditorViewportCommands::Get();
 
@@ -2115,33 +2141,124 @@ static void ConstructScreenPercentageMenu(UToolMenu* InMenu, FEditorViewportClie
 	}
 }
 
-UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu(TWeakPtr<SEditorViewport> InViewport)
+UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu()
 {
 	return FToolMenuEntry::InitSubMenu(
 		"PerformanceAndScalability",
 		LOCTEXT("PerformanceAndScalabilitySubmenuLabel", "Performance and Scalability"),
 		LOCTEXT("PerformanceAndScalabilitySubmenuTooltip", ""),
 		FNewToolMenuDelegate::CreateLambda(
-			[InViewport](UToolMenu* Submenu) -> void
+			[](UToolMenu* Submenu) -> void
 			{
-				TSharedPtr<SEditorViewport> Viewport = InViewport.Pin();
-				if (!Viewport)
-				{
-					return;
-				}
-
 				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
 
 				UnnamedSection.AddMenuEntry(FEditorViewportCommands::Get().ToggleRealTime);
-
-				TSharedPtr<FEditorViewportClient> ViewportClient = Viewport->GetViewportClient();
 
 				UnnamedSection.AddSubMenu(
 					"ScreenPercentage",
 					LOCTEXT("ScreenPercentageSubMenu", "Screen Percentage"),
 					LOCTEXT("ScreenPercentageSubMenu_ToolTip", "Customize the viewport's screen percentage"),
-					FNewToolMenuDelegate::CreateStatic(&ConstructScreenPercentageMenu, ViewportClient.Get())
+					FNewToolMenuDelegate::CreateStatic(&ConstructScreenPercentageMenu)
 				);
+			}
+		)
+	);
+}
+
+FToolMenuEntry CreateToggleRealtimeEntry()
+{
+	return FToolMenuEntry::InitDynamicEntry(
+		"ToggleRealtimeDynamicSection",
+		FNewToolMenuSectionDelegate::CreateLambda(
+			[](FToolMenuSection& InnerSection) -> void
+			{
+				UUnrealEdViewportToolbarContext* const EditorViewportContext =
+					InnerSection.FindContext<UUnrealEdViewportToolbarContext>();
+				if (!EditorViewportContext)
+				{
+					return;
+				}
+
+				FToolUIAction RealtimeToggleAction;
+				if (EditorViewportContext)
+				{
+					if (TSharedPtr<SEditorViewport> EditorViewport = EditorViewportContext->Viewport.Pin())
+					{
+						RealtimeToggleAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
+							[EditorViewport](const FToolMenuContext& Context) -> void
+							{
+								EditorViewport->OnToggleRealtime();
+							}
+						);
+
+						RealtimeToggleAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
+							[EditorViewport](const FToolMenuContext& Context) -> ECheckBoxState
+							{
+								return EditorViewport->IsRealtime() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+							}
+						);
+					}
+				}
+
+				TAttribute<FText> Tooltip;
+				{
+					const FText NonRealtimeTooltip = LOCTEXT(
+						"ToggleRealtimeTooltip_WarnRealtimeOff",
+						"This viewport is not updating in realtime.  Click to turn on realtime mode."
+					);
+					const FText RealtimeTooltip =
+						LOCTEXT("ToggleRealtimeTooltip", "Toggle realtime rendering of the viewport");
+
+					// If we can find a context with a viewport, use that to adjust the tooltip
+					// based on the viewport's realtime status.
+					if (EditorViewportContext)
+					{
+						Tooltip = TAttribute<FText>::CreateLambda(
+							[WeakViewport = EditorViewportContext->Viewport, NonRealtimeTooltip, RealtimeTooltip]() -> FText
+							{
+								bool bDisplayTopLevel = false;
+								if (const TSharedPtr<SEditorViewport> EditorViewport = WeakViewport.Pin())
+								{
+									bDisplayTopLevel = !EditorViewport->IsRealtime();
+								}
+
+								return bDisplayTopLevel ? NonRealtimeTooltip : RealtimeTooltip;
+							}
+						);
+					}
+					else
+					{
+						Tooltip = RealtimeTooltip;
+					}
+				}
+
+				FToolMenuEntry ToggleRealtime = FToolMenuEntry::InitMenuEntry(
+					"ToggleRealtime",
+					LOCTEXT("ToggleRealtimeLabel", "Realtime Viewport"),
+					Tooltip,
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.ToggleRealTime"),
+					RealtimeToggleAction,
+					EUserInterfaceActionType::ToggleButton
+				);
+
+				// If we can find a context with a viewport, bind the top-level status of the
+				// realtime button to the viewport's realtime state where we show the realtime
+				// toggle in the top-level if the viewport is NOT realtime.
+				if (EditorViewportContext)
+				{
+					ToggleRealtime.SetShowInToolbarTopLevel(TAttribute<bool>::CreateLambda(
+						[WeakViewport = EditorViewportContext->Viewport]() -> bool
+						{
+							if (const TSharedPtr<SEditorViewport> EditorViewport = WeakViewport.Pin())
+							{
+								return !EditorViewport->IsRealtime();
+							}
+							return false;
+						}
+					));
+				}
+
+				InnerSection.AddEntry(ToggleRealtime);
 			}
 		)
 	);

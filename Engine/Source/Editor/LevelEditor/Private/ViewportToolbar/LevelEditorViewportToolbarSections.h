@@ -15,19 +15,18 @@ struct FToolMenuSection;
 namespace UE::LevelEditor
 {
 void CreateCameraSpawnMenu(UToolMenu* InMenu);
-void CreateBookmarksMenu(UToolMenu* InMenu, TWeakPtr<SLevelViewport> InViewport);
-void CreateCameraSpeedMenu(UToolMenu* InMenu, const TWeakPtr<SLevelViewport>& InLevelViewportWeak);
+void CreateBookmarksMenu(UToolMenu* InMenu);
+void CreateCameraSpeedMenu(UToolMenu* InMenu);
 
 FToolMenuEntry CreateFOVMenu(TWeakPtr<SLevelViewport> InLevelViewportWeak);
-FToolMenuEntry CreateFarViewPlaneMenu(TWeakPtr<SLevelViewport> InInLevelViewportWeak);
-FToolMenuEntry CreateFarViewPlaneMenu(TWeakPtr<SLevelViewport> InInLevelViewportWeak);
+FToolMenuEntry CreateFarViewPlaneMenu(TWeakPtr<SLevelViewport> InLevelViewportWeak);
 FToolMenuEntry CreateCameraSpeedSlider(TWeakPtr<SLevelViewport> InLevelViewportWeak);
 FToolMenuEntry CreateCameraSpeedScalarSlider(TWeakPtr<SLevelViewport> InLevelViewportWeak);
 
 bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
 
 TSharedPtr<FExtender> GetViewModesLegacyExtenders();
-void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InViewport);
+void PopulateViewModesMenu(UToolMenu* InMenu);
 void ExtendViewModesSubmenu(FName InViewModesSubmenuName);
 
 FToolMenuEntry CreateShowFoliageSubmenu();
@@ -44,7 +43,7 @@ FToolMenuEntry CreateFeatureLevelPreviewSubmenu();
 FToolMenuEntry CreateMaterialQualityLevelSubmenu();
 FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu();
 
-void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport> InViewport);
+void GenerateViewportLayoutsMenu(UToolMenu* InMenu);
 TSharedRef<SWidget> BuildVolumeControlCustomWidget();
 FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu();
 

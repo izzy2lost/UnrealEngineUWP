@@ -534,7 +534,7 @@ void SLevelViewportToolBar::FillOptionsMenu(UToolMenu* Menu)
 					"Bookmark",
 					LOCTEXT("BookmarkSubMenu", "Bookmarks"),
 					LOCTEXT("BookmarkSubMenu_ToolTip", "Viewport location bookmarking"),
-					FNewToolMenuDelegate::CreateStatic(&UE::LevelEditor::CreateBookmarksMenu, Viewport),
+					FNewToolMenuDelegate::CreateStatic(&UE::LevelEditor::CreateBookmarksMenu),
 					false,
 					FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Bookmarks")
 				);
@@ -556,8 +556,10 @@ void SLevelViewportToolBar::FillOptionsMenu(UToolMenu* Menu)
 		{
 			FToolMenuSection& Section = Menu->AddSection("LevelViewportLayouts");
 			Section.AddSubMenu("Configs", LOCTEXT("ConfigsSubMenu", "Layouts"), FText::GetEmpty(),
-				FNewToolMenuDelegate::CreateLambda([WeakViewport = Viewport](UToolMenu* InMenu) {
-					UE::LevelEditor::GenerateViewportLayoutsMenu(InMenu, WeakViewport.Pin());
+				FNewToolMenuDelegate::CreateLambda(
+					[](UToolMenu* InMenu)
+					{
+						UE::LevelEditor::GenerateViewportLayoutsMenu(InMenu);
 				}),
 				false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Layout"));
 		}
@@ -982,10 +984,7 @@ TWeakObjectPtr<UWorld> SLevelViewportToolBar::GetWorld() const
 
 void SLevelViewportToolBar::FillViewMenu(UToolMenu* Menu)
 {
-	if (TSharedPtr<SLevelViewport> ViewportPinned = Viewport.Pin())
-	{
-		UE::LevelEditor::PopulateViewModesMenu(Menu, ViewportPinned.ToSharedRef());
-	}
+	UE::LevelEditor::PopulateViewModesMenu(Menu);
 }
 
 

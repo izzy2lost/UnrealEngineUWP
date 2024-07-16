@@ -115,9 +115,11 @@ UNREALED_API FToolMenuEntry CreateNumericEntry(
 	int32 InMaxFractionalDigits = 2
 );
 
-UNREALED_API FToolMenuEntry CreateCameraSubmenu(TWeakPtr<SEditorViewport> InViewport);
+UNREALED_API FToolMenuEntry CreateCameraSubmenu();
 
-UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu(TWeakPtr<SEditorViewport> InViewport);
+UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu();
+
+UNREALED_API FToolMenuEntry CreateToggleRealtimeEntry();
 
 // Camera Menu Widgets
 TSharedRef<SWidget> CreateCameraMenuWidget(const TSharedRef<SEditorViewport>& InViewport);

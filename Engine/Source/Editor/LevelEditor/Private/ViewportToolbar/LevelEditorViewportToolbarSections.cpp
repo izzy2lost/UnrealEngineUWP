@@ -298,9 +298,21 @@ TSharedPtr<FExtender> GetViewModesLegacyExtenders()
 	return LevelEditorModule.GetMenuExtensibilityManager()->GetAllExtenders();
 }
 
-void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InViewport)
+void PopulateViewModesMenu(UToolMenu* InMenu)
 {
 	FToolMenuInsert InsertPosition("ViewMode", EToolMenuInsertType::After);
+
+	ULevelViewportContext* const LevelViewportContext = InMenu->FindContext<ULevelViewportContext>();
+	if (!LevelViewportContext)
+	{
+		return;
+	}
+
+	const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin();
+	if (!LevelViewport)
+	{
+		return;
+	}
 
 	{
 		FToolMenuSection& Section = InMenu->AddSection(
@@ -319,7 +331,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				FExecuteAction(),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateLambda(
-					[WeakViewport = InViewport.ToWeakPtr()]()
+					[WeakViewport = LevelViewport.ToWeakPtr()]()
 					{
 						const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
 						check(Viewport.IsValid());
@@ -345,7 +357,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				FExecuteAction(),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateLambda(
-					[WeakViewport = InViewport.ToWeakPtr()]()
+					[WeakViewport = LevelViewport.ToWeakPtr()]()
 					{
 						const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
 						check(Viewport.IsValid());
@@ -371,7 +383,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				FExecuteAction(),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateLambda(
-					[WeakViewport = InViewport.ToWeakPtr()]()
+					[WeakViewport = LevelViewport.ToWeakPtr()]()
 					{
 						const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
 						check(Viewport.IsValid());
@@ -398,7 +410,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				FExecuteAction(),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateLambda(
-					[WeakViewport = InViewport.ToWeakPtr()]()
+					[WeakViewport = LevelViewport.ToWeakPtr()]()
 					{
 						const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
 						check(Viewport.IsValid());
@@ -425,7 +437,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				FExecuteAction(),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateLambda(
-					[WeakViewport = InViewport.ToWeakPtr()]()
+					[WeakViewport = LevelViewport.ToWeakPtr()]()
 					{
 						const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
 						check(Viewport.IsValid());
@@ -455,7 +467,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				FExecuteAction(),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateLambda(
-					[WeakViewport = InViewport.ToWeakPtr()]()
+					[WeakViewport = LevelViewport.ToWeakPtr()]()
 					{
 						const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
 						check(Viewport.IsValid());
@@ -471,7 +483,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 	}
 
 	{
-		auto BuildActorColorationMenu = [WeakViewport = InViewport.ToWeakPtr()](UToolMenu* InMenu)
+		auto BuildActorColorationMenu = [WeakViewport = LevelViewport.ToWeakPtr()](UToolMenu* InMenu)
 		{
 			FToolMenuSection& SubMenuSection =
 				InMenu->AddSection("LevelViewportActorColoration", LOCTEXT("ActorColorationHeader", "Actor Coloration"));
@@ -540,7 +552,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 				FExecuteAction(),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateLambda(
-					[WeakViewport = InViewport.ToWeakPtr()]()
+					[WeakViewport = LevelViewport.ToWeakPtr()]()
 					{
 						const TSharedPtr<::SLevelViewport> Viewport = WeakViewport.Pin();
 						check(Viewport.IsValid());
@@ -559,7 +571,7 @@ void PopulateViewModesMenu(UToolMenu* InMenu, TSharedRef<::SLevelViewport> InVie
 		FToolMenuSection& Section =
 			InMenu->AddSection("LevelViewportLandscape", LOCTEXT("LandscapeHeader", "Landscape"), InsertPosition);
 
-		auto BuildLandscapeLODMenu = [WeakViewport = InViewport.ToWeakPtr()](UToolMenu* InMenu)
+		auto BuildLandscapeLODMenu = [WeakViewport = LevelViewport.ToWeakPtr()](UToolMenu* InMenu)
 		{
 			FToolMenuSection& SubMenuSection =
 				InMenu->AddSection("LevelViewportLandScapeLOD", LOCTEXT("LandscapeLODHeader", "Landscape LOD"));
@@ -638,16 +650,7 @@ void ExtendViewModesSubmenu(FName InViewModesSubmenuName)
 		FNewToolMenuDelegate::CreateLambda(
 			[](UToolMenu* InDynamicMenu)
 			{
-				ULevelViewportContext* const LevelViewportContext = InDynamicMenu->FindContext<ULevelViewportContext>();
-				if (!LevelViewportContext)
-				{
-					return;
-				}
-
-				if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
-				{
-					PopulateViewModesMenu(InDynamicMenu, LevelViewport.ToSharedRef());
-				}
+				PopulateViewModesMenu(InDynamicMenu);
 			}
 		)
 	);
@@ -1531,9 +1534,20 @@ FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 	);
 }
 
-void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport> InViewport)
+void GenerateViewportLayoutsMenu(UToolMenu* InMenu)
 {
-	TSharedPtr<FUICommandList> CommandList = InViewport->GetCommandList();
+	ULevelViewportContext* const LevelViewportContext = InMenu->FindContext<ULevelViewportContext>();
+	if (!LevelViewportContext)
+	{
+		return;
+	}
+
+	const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin();
+	if (!LevelViewport)
+	{
+		return;
+	}
+	TSharedPtr<FUICommandList> CommandList = LevelViewport->GetCommandList();
 
 	// Disable searching in this menu because it only contains visual representations of
 	// viewport layouts without any searchable text.
@@ -1716,7 +1730,7 @@ FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu()
 								if (const TSharedPtr<::SLevelViewport> LevelViewport =
 										LevelViewportContext->LevelViewport.Pin())
 								{
-									GenerateViewportLayoutsMenu(InMenu, LevelViewport);
+									GenerateViewportLayoutsMenu(InMenu);
 								}
 							}
 						),
@@ -1812,11 +1826,23 @@ void CreateCameraSpawnMenu(UToolMenu* InMenu)
 	}
 }
 
-void CreateBookmarksMenu(UToolMenu* InMenu, TWeakPtr<::SLevelViewport> InViewport)
+void CreateBookmarksMenu(UToolMenu* InMenu)
 {
+	ULevelViewportContext* const LevelViewportContext = InMenu->FindContext<ULevelViewportContext>();
+	if (!LevelViewportContext)
+	{
+		return;
+	}
+
+	const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin();
+
+	if (!LevelViewport)
+	{
+		return;
+	}
+
 	// Add a menu entry for each bookmark
-	TSharedPtr<::SLevelViewport> SharedViewport = InViewport.Pin();
-	FLevelEditorViewportClient& ViewportClient = SharedViewport->GetLevelViewportClient();
+	FLevelEditorViewportClient& ViewportClient = LevelViewport->GetLevelViewportClient();
 
 	FToolMenuSection& ManageBookmarksSection =
 		InMenu->FindOrAddSection("ManageBookmarks", LOCTEXT("ManageBookmarkSectionName", "Manage Bookmarks"));
@@ -1825,7 +1851,7 @@ void CreateBookmarksMenu(UToolMenu* InMenu, TWeakPtr<::SLevelViewport> InViewpor
 
 	// Jump to Bookmark Section
 	{
-		bFoundBookmarks = Private::AddJumpToBookmarkMenu(InMenu, InViewport);
+		bFoundBookmarks = Private::AddJumpToBookmarkMenu(InMenu, LevelViewport);
 	}
 
 	// Manage Bookmarks Section
@@ -1874,7 +1900,7 @@ void CreateBookmarksMenu(UToolMenu* InMenu, TWeakPtr<::SLevelViewport> InViewpor
 					LOCTEXT("ManageBookmarksSubMenu", "Manage Bookmarks"),
 					LOCTEXT("ManageBookmarksSubMenu_ToolTip", "Bookmarks related actions"),
 					FNewToolMenuDelegate::CreateLambda(
-						[bFoundBookmarks, InViewport](UToolMenu* InMenu)
+						[bFoundBookmarks, LevelViewport](UToolMenu* InMenu)
 						{
 							if (!bFoundBookmarks)
 							{
@@ -1891,7 +1917,7 @@ void CreateBookmarksMenu(UToolMenu* InMenu, TWeakPtr<::SLevelViewport> InViewpor
 								"ClearBookmark",
 								LOCTEXT("ClearBookmarkSubMenu", "Clear Bookmark"),
 								LOCTEXT("ClearBookmarkSubMenu_ToolTip", "Clear viewport bookmarks"),
-								FNewToolMenuDelegate::CreateLambda(&Private::AddClearBookmarkMenu, InViewport),
+								FNewToolMenuDelegate::CreateLambda(&Private::AddClearBookmarkMenu, LevelViewport),
 								false,
 								FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Bookmarks")
 							);
@@ -1950,7 +1976,7 @@ FToolMenuEntry CreateFOVMenu(TWeakPtr<::SLevelViewport> InLevelViewportWeak)
 	);
 }
 
-FToolMenuEntry CreateFarViewPlaneMenu(TWeakPtr<::SLevelViewport> InInLevelViewportWeak)
+FToolMenuEntry CreateFarViewPlaneMenu(TWeakPtr<::SLevelViewport> InLevelViewportWeak)
 {
 	constexpr float FarMin = 0.0f;
 	constexpr float FarMax = 100000.0f;
@@ -1961,18 +1987,18 @@ FToolMenuEntry CreateFarViewPlaneMenu(TWeakPtr<::SLevelViewport> InInLevelViewpo
 		LOCTEXT("FarViewPlaneTooltip", "Far View Plane"),
 		FCanExecuteAction(),
 		UnrealEd::FNumericEntryExecuteActionDelegate::CreateLambda(
-			[InInLevelViewportWeak](float InValue)
+			[InLevelViewportWeak](float InValue)
 			{
-				if (TSharedPtr<::SLevelViewport> LevelViewport = InInLevelViewportWeak.Pin())
+				if (TSharedPtr<::SLevelViewport> LevelViewport = InLevelViewportWeak.Pin())
 				{
 					Private::SetFarViewPlaneValue(LevelViewport.ToSharedRef(), InValue);
 				}
 			}
 		),
 		TAttribute<float>::CreateLambda(
-			[InInLevelViewportWeak]()
+			[InLevelViewportWeak]()
 			{
-				if (TSharedPtr<::SLevelViewport> Viewport = InInLevelViewportWeak.Pin())
+				if (TSharedPtr<::SLevelViewport> Viewport = InLevelViewportWeak.Pin())
 				{
 					return Private::GetFarViewPlaneValue(Viewport.ToSharedRef());
 				}
@@ -2058,12 +2084,30 @@ FToolMenuEntry CreateCameraSpeedScalarSlider(TWeakPtr<::SLevelViewport> InLevelV
 	);
 }
 
-void CreateCameraSpeedMenu(UToolMenu* InMenu, const TWeakPtr<::SLevelViewport>& InLevelViewportWeak)
+void CreateCameraSpeedMenu(UToolMenu* InMenu)
 {
+	if (!InMenu)
+	{
+		return;
+	}
+
 	FToolMenuSection& Section = InMenu->AddSection("Section");
 
-	Section.AddEntry(CreateCameraSpeedSlider(InLevelViewportWeak));
-	Section.AddEntry(CreateCameraSpeedScalarSlider(InLevelViewportWeak));
+	ULevelViewportContext* const LevelViewportContext = InMenu->FindContext<ULevelViewportContext>();
+	if (!LevelViewportContext)
+	{
+		return;
+	}
+
+	const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin();
+
+	if (!LevelViewport)
+	{
+		return;
+	}
+
+	Section.AddEntry(CreateCameraSpeedSlider(LevelViewport));
+	Section.AddEntry(CreateCameraSpeedScalarSlider(LevelViewport));
 }
 
 FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu()
@@ -2133,9 +2177,9 @@ FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu()
 						LOCTEXT("BookmarksSubMenu", "Bookmarks"),
 						LOCTEXT("BookmarksSubMenu_ToolTip", "Bookmarks related actions"),
 						FNewToolMenuDelegate::CreateLambda(
-							[LevelViewportWeak](UToolMenu* InMenu)
+							[](UToolMenu* InMenu)
 							{
-								CreateBookmarksMenu(InMenu, LevelViewportWeak);
+								CreateBookmarksMenu(InMenu);
 							}
 						),
 						false,
@@ -2157,7 +2201,7 @@ FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu()
 							FNewToolMenuDelegate::CreateLambda(
 								[LevelViewportWeak](UToolMenu* InMenu)
 								{
-									CreateCameraSpeedMenu(InMenu, LevelViewportWeak);
+									CreateCameraSpeedMenu(InMenu);
 								}
 							),
 							false,

@@ -127,7 +127,7 @@ void FMaterialEditorViewportClient::Draw(FViewport* InViewport,FCanvas* Canvas)
 {
 	FEditorViewportClient::Draw(InViewport, Canvas);
 
-	if (MaterialEditorPtr.IsValid())
+	if (!MaterialEditorPtr.IsValid())
 	{
 		MaterialEditorPtr.Pin()->DrawMessages(InViewport, Canvas);
 	}
@@ -994,7 +994,7 @@ void SMaterialEditor3DPreviewViewport::PopulateViewportOverlays(TSharedRef<class
 
 				// Add the "Camera" submenu.
 				{
-					FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateCameraSubmenu(SharedThis(this));
+					FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateCameraSubmenu();
 					CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					RightSection.AddEntry(CameraSubmenu);
 				}
@@ -1015,7 +1015,8 @@ void SMaterialEditor3DPreviewViewport::PopulateViewportOverlays(TSharedRef<class
 
 				// Add the Performance and Scalability submenu.
 				{
-					FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu(SharedThis(this));
+					FToolMenuEntry PerformanceAndScalabilitySubmenu =
+						UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
 					PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
 				}
