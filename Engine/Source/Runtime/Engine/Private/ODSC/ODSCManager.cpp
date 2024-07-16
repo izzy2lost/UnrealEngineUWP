@@ -194,7 +194,7 @@ void FODSCManager::AddThreadedShaderPipelineRequest(
 	EShaderPlatform ShaderPlatform,
 	ERHIFeatureLevel::Type FeatureLevel,
 	EMaterialQualityLevel::Type QualityLevel,
-	const FString& MaterialName,
+	const FMaterial* Material,
 	const FString& VertexFactoryName,
 	const FString& PipelineName,
 	const TArray<FString>& ShaderTypeNames,
@@ -203,7 +203,7 @@ void FODSCManager::AddThreadedShaderPipelineRequest(
 {
 	if (IsHandlingRequests())
 	{
-		Thread->AddShaderPipelineRequest(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestShaderIds);
+		Thread->AddShaderPipelineRequest(ShaderPlatform, FeatureLevel, QualityLevel, Material, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestShaderIds);
 	}
 }
 
@@ -310,21 +310,38 @@ bool FODSCManager::ShouldForceRecompileInternal(const FMaterialShaderMap* Materi
 #endif
 }
 
-void FODSCManager::RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap)
-{
-	if (IsODSCActive())
-	{
-		GODSCManager->Thread->RegisterMaterialShaderMap(MaterialShaderMap);
-	}
-}
- 
-bool FODSCManager::CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const
+bool FODSCManager::CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FMaterial* Material) const
 {
 	if (Thread)
 	{
-		return Thread->CheckIfRequestAlreadySent(RequestShaderIds, MaterialName);
+		return Thread->CheckIfRequestAlreadySent(RequestShaderIds, Material);
 	}
 	return false;
+}
+
+void FODSCManager::UnregisterMaterialName(const FMaterial* Material)
+{
+	if (IsODSCActive())
+	{
+		GODSCManager->Thread->UnregisterMaterialName(Material);
+	}
+}
+
+void FODSCManager::RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps)
+{
+	if (IsODSCActive())
+	{
+		GODSCManager->Thread->RegisterMaterialShaderMaps(MaterialName, LoadedShaderMaps);
+	}
+}
+
+FMaterialShaderMap* FODSCManager::FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId)
+{
+	if (IsODSCActive())
+	{
+		return GODSCManager->Thread->FindMaterialShaderMap(MaterialName, ShaderMapId);
+	}
+	return nullptr;
 }
 
 void FODSCManager::TryLoadGlobalShaders(EShaderPlatform ShaderPlatform)

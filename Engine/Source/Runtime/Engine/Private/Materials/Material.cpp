@@ -91,6 +91,10 @@
 #include "BuildSettings.h"
 #include "LocalVertexFactory.h"
 
+#if WITH_ODSC
+#include "ODSC/ODSCManager.h"
+#endif
+
 #if WITH_EDITOR
 #include "Framework/Notifications/NotificationManager.h"
 #include "MaterialCachedHLSLTree.h"
@@ -867,6 +871,19 @@ void ProcessSerializedInlineShaderMaps(UMaterialInterface* Owner, TArray<FMateri
 
 			if (bIncludeShaderMap)
 			{
+#if WITH_ODSC
+				// Check if already have something from ODSC so that we avoid using this shadermap for a few frames and making the request to replace it by something we already have
+				// If some permutations are missing, we will still perform additional requests
+				if (FODSCManager::IsODSCActive())
+				{
+					FMaterialShaderMap* ExistingShaderMap = FODSCManager::FindMaterialShaderMap(Owner->GetPathName(), LoadedShaderMap->GetShaderMapId());
+					if (ExistingShaderMap)
+					{
+						LoadedShaderMap = ExistingShaderMap;
+					}
+				}
+#endif
+
 				FMaterialResource* CurrentResource = FindOrCreateMaterialResource(OutMaterialResourcesLoaded, OwnerMaterial, OwnerMaterialInstance, LoadedFeatureLevel, LoadedQualityLevel);
 				CurrentResource->SetInlineShaderMap(LoadedShaderMap);
 			}

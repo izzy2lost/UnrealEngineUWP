@@ -11,6 +11,7 @@
 class FODSCThread;
 class UMaterialInstance;
 class FMaterialShaderMap;
+class FMaterialShaderMapId;
 
 /**
  * Responsible for processing shader compile responses from the ODSC Thread.
@@ -73,7 +74,7 @@ public:
 		EShaderPlatform ShaderPlatform,
 		ERHIFeatureLevel::Type FeatureLevel,
 		EMaterialQualityLevel::Type QualityLevel,
-		const FString& MaterialName,
+		const FMaterial* Material,
 		const FString& VertexFactoryName,
 		const FString& PipelineName,
 		const TArray<FString>& ShaderTypeNames,
@@ -95,7 +96,6 @@ public:
 
 	/** Returns true if we would actually add a request when calling AddThreadedShaderPipelineRequest. */
 	inline bool IsHandlingRequests() const { return Thread != nullptr; }
-	static void RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap);
 
 	static void RegisterMaterialInstance(const UMaterialInstance* MI);
 	static void UnregisterMaterialInstance(const UMaterialInstance* MI);
@@ -109,7 +109,11 @@ public:
 
 	static void ReportODSCError(const FString& InErrorMessage);
 
-	bool CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const;
+	bool CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FMaterial* Material) const;
+
+	static void UnregisterMaterialName(const FMaterial* Material);
+	static void RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps);
+	static FMaterialShaderMap* FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId);
 
 private:
 

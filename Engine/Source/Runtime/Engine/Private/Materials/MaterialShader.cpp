@@ -2098,17 +2098,30 @@ void FMaterialShaderMap::LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform Sh
 
 			if (bIsValid)
 			{
-				FMaterialShaderMap* ShaderMap = new FMaterialShaderMap();
+				TRefCountPtr<FMaterialShaderMap> ShaderMap = new FMaterialShaderMap();
 
 				// serialize the id and the material shader map
 				ShaderMap->Serialize(Ar, false);
 
-				// Register in the global map
-				ShaderMap->RegisterForODSC(ShaderPlatform);
+				// If we already registered a material shadermap with the same ID, just re-use it. The material will do the same in FMaterial::CacheShaders anyway
+				TRefCountPtr<FMaterialShaderMap> ExistingShaderMap = FMaterialShaderMap::FindId(ShaderMap->GetShaderMapId(), ShaderPlatform);
+				if (ExistingShaderMap)
+				{
+					ShaderMap = ExistingShaderMap;
+				}
+				else
+				{
+					// Register in the global map
+					ShaderMap->RegisterForODSC(ShaderPlatform);
+				}
 
 				LoadedShaderMaps.Add(ShaderMap);
 			}
 		}
+
+#if WITH_ODSC
+		FODSCManager::RegisterMaterialShaderMaps(MaterialName, LoadedShaderMaps);
+#endif
 
 		UMaterialInterface* MatchingMaterial = FindObject<UMaterialInterface>(nullptr, *MaterialName);
 		if (!MatchingMaterial)
@@ -3399,7 +3412,6 @@ void FMaterialShaderMap::RegisterForODSC(EShaderPlatform InShaderPlatform)
 
 #if WITH_ODSC
 		bIsFromODSC = true;
-		FODSCManager::RegisterMaterialShaderMap(*this);
 #endif
 	}
 }

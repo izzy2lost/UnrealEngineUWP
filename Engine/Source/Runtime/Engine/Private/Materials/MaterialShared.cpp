@@ -2548,6 +2548,10 @@ void FMaterial::DeleteMaterialsOnRenderThread(TArray<TRefCountPtr<FMaterial>>& M
  */
 FMaterial::~FMaterial()
 {
+#if WITH_ODSC
+	FODSCManager::UnregisterMaterialName(this);
+#endif
+
 #if WITH_EDITOR
 	check(GameThreadCompilingShaderMapId == 0u);
 	check(RenderingThreadCompilingShaderMapId == 0u);
@@ -3791,18 +3795,16 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 #if WITH_ODSC
 		TArray<FShaderId> RequestShaderIds;
 		TArray<FString> ShaderStageNamesToCompile;
-		FString MaterialName;
         bool bODSCRequestAlreadySent = false;
 		if (bShouldForceRecompile)
 		{
-			MaterialName = GetFullPath();
 			for (auto* ShaderType : InTypes.PipelineType->GetStages())
 			{
 				ShaderStageNamesToCompile.Add(ShaderType->GetName());
 				RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, InTypes.PipelineType->GetHashedName(), InVertexFactoryType, kUniqueShaderPermutationId, ShaderPlatform));
 			}
 
-			bODSCRequestAlreadySent = GODSCManager->CheckIfRequestAlreadySent(RequestShaderIds, MaterialName);
+			bODSCRequestAlreadySent = GODSCManager->CheckIfRequestAlreadySent(RequestShaderIds, this);
 			if (bODSCRequestAlreadySent)
 			{
 				bShouldForceRecompile = false;
@@ -3839,7 +3841,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 					{
 						const FString VFTypeName(InVertexFactoryType ? InVertexFactoryType->GetName() : TEXT(""));
 						const FString PipelineName(InTypes.PipelineType->GetName());
-						GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), MaterialName, VFTypeName, PipelineName, 
+						GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), this, VFTypeName, PipelineName, 
 						                                               ShaderStageNamesToCompile, kUniqueShaderPermutationId, RequestShaderIds);
 					}
 				}
@@ -3912,14 +3914,12 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 #if WITH_ODSC
 
 				TArray<FShaderId> RequestShaderIds;
-				FString MaterialName;
                 bool bODSCRequestAlreadySent = false;
 				if (bShouldForceRecompile)
 				{
-					MaterialName = GetFullPath();
 					RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, FHashedName(), InVertexFactoryType, PermutationId, ShaderPlatform));
 
-					bODSCRequestAlreadySent = GODSCManager->CheckIfRequestAlreadySent(RequestShaderIds, MaterialName);
+					bODSCRequestAlreadySent = GODSCManager->CheckIfRequestAlreadySent(RequestShaderIds, this);
 					if (bODSCRequestAlreadySent)
 					{
 						bShouldForceRecompile = false;
@@ -3948,7 +3948,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 							TArray<FString> ShaderStageNamesToCompile;
 							ShaderStageNamesToCompile.Add(ShaderType->GetName());
 
-							GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), MaterialName, VFTypeName, PipelineName, 
+							GODSCManager->AddThreadedShaderPipelineRequest(ShaderPlatform, GetFeatureLevel(), GetQualityLevel(), this, VFTypeName, PipelineName, 
 							                                               ShaderStageNamesToCompile, PermutationId, RequestShaderIds);
 						}
 					}

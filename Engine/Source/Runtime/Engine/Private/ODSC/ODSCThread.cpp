@@ -241,32 +241,92 @@ void FODSCThread::ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel)
 }
 
 FODSCThread::FODSCShaderId::FODSCShaderId(const FShaderId& ShaderId)
-: MaterialShaderMapHash(ShaderId.MaterialShaderMapHash)
-, ShaderTypeHashedName(ShaderId.Type ? ShaderId.Type->GetHashedName() : 0)
+: ShaderTypeHashedName(ShaderId.Type ? ShaderId.Type->GetHashedName() : 0)
 , VFTypeHashedName(ShaderId.VFType ? ShaderId.VFType->GetHashedName() : 0)
 , ShaderPipelineName(ShaderId.ShaderPipelineName)
 , PermutationId(ShaderId.PermutationId)
 , Platform(ShaderId.Platform)
 {}
 
-bool FODSCThread::CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const
+bool FODSCThread::CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FMaterial* Material) const
 {
 	FReadScopeLock ReadLock(RequestHashesRWLock);
+	const FName* CachedMaterialName = ODSCPointerToNames.Find((UPTRINT)Material);
+	if (CachedMaterialName == nullptr)
+	{
+		return false;
+	}
+
+	const FODSCShaderMapData* ODSCShaderMapData = RequestHashes.Find(*CachedMaterialName);
+	if (ODSCShaderMapData == nullptr)
+	{
+		return false;
+	}
+
 	for (const FShaderId& ShaderId : RequestShaderIds)
 	{
-		const FMaterialRequestsHashes* MaterialRequestHashes = RequestHashes.Find(ShaderId);
-		if (MaterialRequestHashes == nullptr)
-		{
-			return false;
-		}
-			
-		if (!MaterialRequestHashes->RequestStrings.Contains(MaterialName))
+		if (!ODSCShaderMapData->CurrentRequests.Contains(ShaderId))
 		{
 			return false;
 		}
 	}
 
 	return true;
+}
+
+void FODSCThread::UnregisterMaterialName(const FMaterial* Material)
+{
+	FWriteScopeLock WriteLock(RequestHashesRWLock);
+	ODSCPointerToNames.Remove((UPTRINT)Material);
+}
+
+void FODSCThread::RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps)
+{
+	FWriteScopeLock WriteLock(RequestHashesRWLock);
+
+	FODSCShaderMapData& ODSCShaderMapData = RequestHashes.FindOrAdd(FName(MaterialName));
+
+	ODSCShaderMapData.MaterialShaderMaps = LoadedShaderMaps;
+
+	for (FMaterialShaderMap* MaterialShaderMap : LoadedShaderMaps)
+	{
+		TMap<FShaderId, TShaderRef<FShader>> ShadersInMap;
+		MaterialShaderMap->GetShaderList(ShadersInMap);
+		for (auto Iter : ShadersInMap)
+		{
+			// The shadermap we receive contains all the requests the client sent until now, so it's possible they already got removed
+			if (ODSCShaderMapData.CurrentRequests.Find(Iter.Key))
+			{
+				ODSCShaderMapData.CurrentRequests.Remove(Iter.Key);
+			}
+		}
+	}
+
+}
+
+FMaterialShaderMap* FODSCThread::FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId) const
+{
+	FReadScopeLock ReadLock(RequestHashesRWLock);
+	const FODSCShaderMapData* ODSCShaderMapData = RequestHashes.Find(FName(MaterialName));
+	if (ODSCShaderMapData == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (FMaterialShaderMap* MaterialShaderMap : ODSCShaderMapData->MaterialShaderMaps)
+	{
+		const FMaterialShaderMapId& ExistingShaderMapId = MaterialShaderMap->GetShaderMapId();
+		bool bFeatureLevelMatch = (ExistingShaderMapId.FeatureLevel == ShaderMapId.FeatureLevel);
+		bool bQualityLevelMatch = (ShaderMapId.QualityLevel == EMaterialQualityLevel::Num || ExistingShaderMapId.QualityLevel == EMaterialQualityLevel::Num
+								   || ShaderMapId.QualityLevel == ExistingShaderMapId.QualityLevel);
+
+		if (bFeatureLevelMatch && bQualityLevelMatch)
+		{
+			return MaterialShaderMap;
+		}
+	}
+
+	return nullptr;
 }
 
 void FODSCThread::AddRequest(const TArray<FString>& MaterialsToCompile, const FString& ShaderTypesToLoad, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel, EMaterialQualityLevel::Type QualityLevel, ODSCRecompileCommand RecompileCommandType)
@@ -278,7 +338,7 @@ void FODSCThread::AddShaderPipelineRequest(
 	EShaderPlatform ShaderPlatform,
 	ERHIFeatureLevel::Type FeatureLevel,
 	EMaterialQualityLevel::Type QualityLevel,
-	const FString& MaterialName,
+	const FMaterial* Material,
 	const FString& VertexFactoryName,
 	const FString& PipelineName,
 	const TArray<FString>& ShaderTypeNames,
@@ -290,11 +350,18 @@ void FODSCThread::AddShaderPipelineRequest(
 	{
 		FWriteScopeLock WriteLock(RequestHashesRWLock);
 
+		FName& CachedMaterialName = ODSCPointerToNames.FindOrAdd((UPTRINT)Material);
+		if (CachedMaterialName.IsNone())
+		{
+			CachedMaterialName = FName(Material->GetFullPath());
+		}
+		
+		FODSCShaderMapData& ODSCShaderMapData = RequestHashes.FindOrAdd(CachedMaterialName);
+
 		for (const FShaderId& ShaderId : RequestShaderIds)
 		{
-			FMaterialRequestsHashes& MaterialRequestHashes = RequestHashes.FindOrAdd(ShaderId);
 			bool bAlreadyInSet = false;
-			MaterialRequestHashes.RequestStrings.Add(MaterialName, &bAlreadyInSet);
+			ODSCShaderMapData.CurrentRequests.Add(ShaderId, &bAlreadyInSet);
 			if (!bAlreadyInSet)
 			{
 				bShouldAddRequest = true;
@@ -306,6 +373,7 @@ void FODSCThread::AddShaderPipelineRequest(
 	{
 		SCOPED_NAMED_EVENT(AddShaderPipelineRequest_AddRequest, FColor::Emerald);
 
+		FString MaterialName = Material->GetFullPath();
 		FString RequestString = (MaterialName + VertexFactoryName + PipelineName);
 		for (const auto& ShaderTypeName : ShaderTypeNames)
 		{
@@ -314,27 +382,6 @@ void FODSCThread::AddShaderPipelineRequest(
 		const FString RequestHash = FMD5::HashAnsiString(*RequestString);
 		PendingMeshMaterialThreadedRequests.Enqueue(FODSCRequestPayload(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestHash));
 	}
-}
-
-void FODSCThread::RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap)
-{
-	FWriteScopeLock WriteLock(RequestHashesRWLock);
-
-	TMap<FShaderId, TShaderRef<FShader>> ShadersInMap;
-	MaterialShaderMap.GetShaderList(ShadersInMap);
-	FSHAHash CookedShaderMapIdHash = MaterialShaderMap.GetShaderMapId().CookedShaderMapIdHash;
-	for (auto Iter : ShadersInMap)
-	{
-		// GetShaderList doesn't use the Cookedshadermap id
-		const FShaderId& ShaderIdSrc = Iter.Key;
-		FShaderId ShaderIdCopy(ShaderIdSrc.Type, CookedShaderMapIdHash, ShaderIdSrc.ShaderPipelineName, ShaderIdSrc.VFType, ShaderIdSrc.PermutationId, (EShaderPlatform)ShaderIdSrc.Platform);
-
-		// The shadermap we receive contains all the requests the client sent until now, so it's possible they got removed from RequestHashes already
-		if (RequestHashes.Find(ShaderIdCopy))
-		{
-			RequestHashes.Remove(ShaderIdCopy);
-		}
-    }
 }
 
 void FODSCThread::GetCompletedRequests(TArray<FODSCMessageHandler*>& OutCompletedRequests)

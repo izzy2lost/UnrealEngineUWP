@@ -13,6 +13,7 @@
 class FEvent;
 class FRunnableThread;
 class FMaterialShaderMap;
+class FMaterialShaderMapId;
 
 namespace UE
 {
@@ -139,7 +140,7 @@ public:
 		EShaderPlatform ShaderPlatform,
 		ERHIFeatureLevel::Type FeatureLevel,
 		EMaterialQualityLevel::Type QualityLevel,
-		const FString& MaterialName,
+		const FMaterial* Material,
 		const FString& VertexFactoryName,
 		const FString& PipelineName,
 		const TArray<FString>& ShaderTypeNames,
@@ -166,12 +167,14 @@ public:
 
 	bool GetPendingShaderData(bool& bOutIsConnectedToODSCServer, bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const;
 
-	void RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap);
-
 	void ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel);
 
-	bool CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const;
+	bool CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FMaterial* Material) const;
 	const FString& GetODSCHostIP() const { return ODSCHostIP; };
+
+	void UnregisterMaterialName(const FMaterial* Material);
+	void RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps);
+	FMaterialShaderMap* FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId) const;
 
 protected:
 
@@ -218,19 +221,12 @@ private:
 	mutable FRWLock RequestHashesRWLock;
 	FCriticalSection RequestHashCriticalSection;
 
-
-	struct FMaterialRequestsHashes
-	{
-		TSet<FString> RequestStrings;
-	};
-
 	struct FODSCShaderId
 	{
 	public:
 		inline FODSCShaderId() {}
 		FODSCShaderId(const FShaderId& ShaderId);
 
-		FSHAHash MaterialShaderMapHash;
 		FHashedName ShaderTypeHashedName = 0;
 		FHashedName VFTypeHashedName = 0;
 		FHashedName ShaderPipelineName = 0;
@@ -243,14 +239,12 @@ private:
 				GetTypeHash(Id.ShaderTypeHashedName),
 				HashCombine(GetTypeHash(Id.VFTypeHashedName),
 							HashCombine(GetTypeHash(Id.ShaderPipelineName),
-										HashCombine(GetTypeHash(Id.MaterialShaderMapHash),
-													HashCombine(GetTypeHash(Id.PermutationId), GetTypeHash(Id.Platform))))));
+										HashCombine(GetTypeHash(Id.PermutationId), GetTypeHash(Id.Platform)))));
 		}
 
 		friend bool operator==(const FODSCShaderId& X, const FODSCShaderId& Y)
 		{
 			return X.ShaderTypeHashedName == Y.ShaderTypeHashedName
-			&& X.MaterialShaderMapHash == Y.MaterialShaderMapHash
 			&& X.ShaderPipelineName == Y.ShaderPipelineName
 			&& X.VFTypeHashedName == Y.VFTypeHashedName
 			&& X.PermutationId == Y.PermutationId 
@@ -264,8 +258,19 @@ private:
 	};
 
 
-	/** Hashes for all Pending or Completed requests.  This is so we avoid making the same request multiple times. */
-	TMap<FODSCShaderId, FMaterialRequestsHashes> RequestHashes;
+	struct FODSCShaderMapData
+	{
+    	/** All the shadermaps owned by the material (quality level / feature level) */
+		TArray<TRefCountPtr<FMaterialShaderMap>> MaterialShaderMaps;
+    	/** Hashes for all Pending or Completed requests.  This is so we avoid making the same request multiple times. */
+		TSet<FODSCShaderId> CurrentRequests;
+	};
+
+    /** Requests seen for a given material name */
+	TMap<FName, FODSCShaderMapData> RequestHashes;
+
+    /** FMaterial* -> FName cache to avoid the expensive operation of calling FMaterialResource::GetFullPath and convert it to FName */
+	TMap<UPTRINT, FName> ODSCPointerToNames; 
 
 	/** Pointer to Runnable Thread */
 	FRunnableThread* Thread = nullptr;
