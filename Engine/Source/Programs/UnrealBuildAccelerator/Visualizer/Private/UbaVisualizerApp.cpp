@@ -4,6 +4,8 @@
 #include "UbaConfig.h"
 #include "UbaNetworkBackendTcp.h"
 #include "UbaVersion.h"
+#include <tlhelp32.h>
+#include <psapi.h>
 
 using namespace uba;
 
@@ -27,7 +29,7 @@ static int PrintHelp(const tchar* message = nullptr)
 	s.Appendf(TC("  -file=<name>         Name of file to parse\r\n"));
 	s.Appendf(TC("  -listen[=<channel>]  Listen for announcements of new sessions. Defaults to channel '%s'\r\n"), TC("Default"));
 	s.Appendf(TC("  -replay              Visualize the data as if it was running right now\r\n"));
-	s.Appendf(TC("  -theme=<dark/light>  Force dark/light theme\r\n"));
+	s.Appendf(TC("  -config=<file>       Specify config file to use\r\n"));
 	s.Appendf(TC("\r\n"));
 	MessageBox(NULL, s.data, TC("UbaVisualizer"), 0);
 	//wprintf(s.data);
@@ -63,10 +65,45 @@ struct MessageBoxLogWriter : public LogWriter
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR pCmdLine, _In_ int nShowCmd)
 {
+	{
+		HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		PROCESSENTRY32 pe = { 0 };
+		pe.dwSize = sizeof(PROCESSENTRY32);
+
+		UnorderedMap<u32, u32> pidToParent;
+		if (Process32First(h, &pe))
+		{
+			do
+			{
+				pidToParent[pe.th32ProcessID] = pe.th32ParentProcessID;
+			} while( Process32Next(h, &pe));
+		}
+
+		CloseHandle(h);
+
+		u32 pid = ::GetCurrentProcessId();
+		while (true)
+		{
+			auto findIt = pidToParent.find(pid);
+			if (findIt == pidToParent.end())
+				break;
+			pid = findIt->second;
+
+			HANDLE Handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+			TCHAR Buffer[MAX_PATH];
+			GetModuleFileNameExW(Handle, 0, Buffer, MAX_PATH);
+
+			CloseHandle(Handle);
+		}
+
+	}
+
+
 	StringBuffer<> host; // 192.168.86.49
 	StringBuffer<> named;
 	StringBuffer<> file;
 	StringBuffer<> channel;
+	StringBuffer<> configPath;
 	u32 port = DefaultPort;
 	u32 replay = 0;
 
@@ -134,6 +171,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			if (!value.IsEmpty())
 				value.Parse(replay);
 		}
+		else if (name.Equals(TC("-config")))
+		{
+			if (value.IsEmpty())
+				return PrintHelp(TC("-config needs a value"));
+			configPath.Append(value);
+		}
 		else
 		{
 			StringBuffer<> msg;
@@ -150,11 +193,23 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	MessageBoxLogWriter logWriter;
 	LoggerWithWriter logger(logWriter);
 
-	StringBuffer<> configPath;
-	configPath.count = ExpandEnvironmentStringsW(L"%PROGRAMDATA%", configPath.data, configPath.capacity) - 1;
-	configPath.Append(L"\\Epic\\UbaVisualizer\\UbaVisualizer.toml");
+	bool showAllTraces = true;
+	if (!configPath.count)
+	{
+		configPath.count = ExpandEnvironmentStringsW(L"%PROGRAMDATA%", configPath.data, configPath.capacity) - 1;
+		configPath.Append(L"\\Epic\\UbaVisualizer\\UbaVisualizer");
+
+		OwnerInfo ownerInfo = GetOwnerInfo();
+		if (ownerInfo.pid)
+		{
+			configPath.Append('_').Append(ownerInfo.id);
+			showAllTraces = false;
+		}
+		configPath.Append(L".toml");
+	}
 
 	VisualizerConfig visualizerConfig(configPath.data);
+	visualizerConfig.ShowAllTraces = showAllTraces;
 	visualizerConfig.Load(logger);
 
 	NetworkBackendTcp networkBackend(logWriter);

@@ -4,6 +4,11 @@
 #include "UbaFileAccessor.h"
 #include "UbaProcessHandle.h"
 
+#if PLATFORM_WINDOWS
+#include <tlhelp32.h>
+#include <psapi.h>
+#endif
+
 namespace uba
 {
 	constexpr u64 TraceMessageMaxSize = 256 * 1024;
@@ -489,5 +494,56 @@ namespace uba
 		ReleaseMutex((HANDLE)m_mutex);
 		#endif
 		return true;
+	}
+
+	static OwnerInfo InternalGetOwnerInfo()
+	{
+		static tchar buffer[MAX_PATH];
+		*buffer = 0;
+
+		OwnerInfo info { buffer, 0 };
+
+		#if PLATFORM_WINDOWS
+		HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		PROCESSENTRY32 pe = { 0 };
+		pe.dwSize = sizeof(PROCESSENTRY32);
+		UnorderedMap<u32, u32> pidToParent;
+		if (Process32First(h, &pe))
+		{
+			do
+			{
+				pidToParent[pe.th32ProcessID] = pe.th32ParentProcessID;
+			}
+			while (Process32Next(h, &pe));
+		}
+		CloseHandle(h);
+
+		u32 pid = ::GetCurrentProcessId();
+		while (true)
+		{
+			auto findIt = pidToParent.find(pid);
+			if (findIt == pidToParent.end())
+				break;
+			pid = findIt->second;
+
+			HANDLE Handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+			GetModuleFileNameExW(Handle, 0, buffer, MAX_PATH);
+			CloseHandle(Handle);
+			if (!Contains(buffer, L"devenv.exe"))
+				continue;
+			TStrcpy_s(buffer, MAX_PATH, L"vs");
+			info.pid = pid;
+			return info;
+		}
+		*buffer = 0;
+		#endif
+
+		return info;
+	}
+
+	const OwnerInfo& GetOwnerInfo()
+	{
+		static OwnerInfo info = InternalGetOwnerInfo();
+		return info;
 	}
 }

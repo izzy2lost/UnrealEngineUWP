@@ -203,7 +203,10 @@ namespace uba
 	{
 		Reset(out);
 
-		if (namedTrace && m_namedTrace != namedTrace)
+		if (!namedTrace)
+			namedTrace = TC("");
+
+		if (*namedTrace && m_namedTrace != namedTrace)
 		{
 			m_memoryHandle.handle = ::OpenFileMappingW(PAGE_READWRITE, false, namedTrace);
 			if (!m_memoryHandle.IsValid())
@@ -217,11 +220,12 @@ namespace uba
 				return false;
 		}
 
+		m_namedTrace = namedTrace;
+
 		m_memoryPos = m_memoryBegin;
 		m_memoryEnd = m_memoryBegin;
 		out.finished = false;
 		out.sessions.emplace_back();
-		out.sessions.back().name = L"LOCAL";
 		bool changed;
 		return UpdateReadNamed(out, replay ? 0ull : ~u64(0), changed);
 	}

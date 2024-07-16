@@ -260,7 +260,15 @@ namespace uba
 
 			if (traceName.count)
 			{
-				if (!traceName.Equals(m_newTraceName.data))
+				StringBuffer<128> filter;
+				if (!m_config.ShowAllTraces)
+				{
+					OwnerInfo ownerInfo = GetOwnerInfo();
+					if (ownerInfo.pid)
+						filter.Appendf(L"_%s%u", ownerInfo.id, ownerInfo.pid);
+				}
+
+				if (!traceName.Equals(m_newTraceName.data) && traceName.EndsWith(filter.data))
 				{
 					m_newTraceName.Clear().Append(traceName);
 					PostNewTrace(0, false);
@@ -394,9 +402,9 @@ namespace uba
 		m_textBitmaps.clear();
 		m_lastBitmap = 0;
 		m_lastBitmapOffset = BitmapCacheHeight;
-		m_autoScroll = true;
-		m_scrollPosX = 0;
-		m_scrollPosY = 0;
+		//m_autoScroll = true;
+		//m_scrollPosX = 0;
+		//m_scrollPosY = 0;
 		//m_zoomValue = 0.75f;
 		//m_horizontalScaleValue = 1.0f;
 
@@ -749,12 +757,7 @@ namespace uba
 
 	void Visualizer::PaintAll(HDC hdc, const RECT& clientRect)
 	{
-		u64 currentTime = m_paused ? m_pauseStart : GetTime();
-		u64 playTime = 0;
-		if (m_traceView.startTime)
-			playTime = currentTime - m_traceView.startTime - m_pauseTime;
-		if (m_replay)
-			playTime *= m_replay;
+		u64 playTime = GetPlayTime();
 
 		int posY = int(m_scrollPosY);
 		float boxHeight = float(m_rawBoxHeight)*m_zoomValue;
@@ -828,9 +831,8 @@ namespace uba
 			drawStatusText(str, LogEntryType_Info, 6, true);
 		}
 
-		if (!m_traceView.statusMap.empty())
+		if (m_config.showStatus && !m_traceView.statusMap.empty())
 		{
-			posY += 4;
 			u32 lastRow = ~0u;
 			u32 row = ~0u;
 			for (auto& kv : m_traceView.statusMap)
@@ -849,9 +851,9 @@ namespace uba
 				posY += m_fontHeight + 2;
 
 			SetTextColor(hdc, m_textColor);
-			posY += 4;
+			posY += 3;
 		}
-
+		
 		if (m_config.showActiveProcesses && !m_trace.m_activeProcesses.empty())
 		{
 			Map<u64, TraceView::Process*> activeProcesses;
@@ -903,7 +905,9 @@ namespace uba
 					str.Append(kv.second->description);
 
 				if (kv.second->isRemote)
-					str.Append(L" (remote)");
+					str.Append(L" [remote]");
+				else if (kv.second->cacheFetch)
+					str.Append(L" [cache]");
 				if (durationMs > 1000)
 					str.Appendf(L" - %us", durationMs/1000);
 				drawStatusText(str, LogEntryType_Info, 6, true);
@@ -1427,7 +1431,7 @@ namespace uba
 		DeleteObject(nullBmp);
 		DeleteDC(textDC);
 
-		m_contentWidth = ProgressRectLeft + int(TimeToS((lastStop != 0 && lastStop != ~u64(0)) ? lastStop : playTime) * scaleX);
+		m_contentWidth = ProgressRectLeft + Max(0, int(TimeToS((lastStop != 0 && lastStop != ~u64(0)) ? lastStop : playTime) * scaleX));
 		m_contentHeight = posY - int(m_scrollPosY) + stepY + 14;
 
 		float timelineSelected = m_timelineSelected;
@@ -2104,7 +2108,7 @@ namespace uba
 		}
 	}
 
-	void Visualizer::HitTest(HitTestResult& outResult, const POINT& pos)
+	u64 Visualizer::GetPlayTime()
 	{
 		u64 currentTime = m_paused ? m_pauseStart : GetTime();
 		u64 playTime = 0;
@@ -2112,6 +2116,12 @@ namespace uba
 			playTime = currentTime - m_traceView.startTime - m_pauseTime;
 		if (m_replay)
 			playTime *= m_replay;
+		return playTime;
+	}
+
+	void Visualizer::HitTest(HitTestResult& outResult, const POINT& pos)
+	{
+		u64 playTime = GetPlayTime();
 
 		RECT clientRect;
 		GetClientRect(m_hwnd, &clientRect);
@@ -2149,15 +2159,19 @@ namespace uba
 		if (m_config.showProgress && m_traceView.progressProcessesTotal)
 			posY += m_fontHeight + 2;
 
-		if (!m_traceView.statusMap.empty())
+		if (m_config.showStatus && !m_traceView.statusMap.empty())
 		{
-			posY += 4;
 			u32 lastRow = ~0u;
 			u32 row = ~0u;
 			for (auto& kv : m_traceView.statusMap)
 			{
 				if (kv.second.text.empty())
 					continue;
+
+				row = u32(kv.first >> 32);
+				if (lastRow != ~0u && lastRow != row)
+					posY += m_fontHeight + 2;
+				lastRow = row;
 
 				if (!kv.second.link.empty())
 				{
@@ -2167,15 +2181,10 @@ namespace uba
 						return;
 					}
 				}
-
-				row = u32(kv.first >> 32);
-				if (lastRow != ~0u && lastRow != row)
-					posY += m_fontHeight + 2;
-				lastRow = row;
 			}
 			if (row != ~0u)
 				posY += m_fontHeight + 2;
-			posY += 4;
+			posY += 3;
 		}
 
 		if (m_config.showActiveProcesses && !m_trace.m_activeProcesses.empty())
@@ -2405,7 +2414,7 @@ namespace uba
 
 		}
 
-		m_contentWidth = ProgressRectLeft + int(TimeToS((lastStop != 0 && lastStop != ~u64(0)) ? lastStop : playTime) * scaleX);
+		m_contentWidth = ProgressRectLeft + Max(0, int(TimeToS((lastStop != 0 && lastStop != ~u64(0)) ? lastStop : playTime) * scaleX));
 		m_contentHeight = posY - int(m_scrollPosY) + stepY + 14;
 	}
 
@@ -2493,10 +2502,7 @@ namespace uba
 		if (!m_autoScroll)
 			return false;
 
-		u64 currentTime = m_paused ? m_pauseStart : GetTime();
-		u64 playTime = currentTime - m_traceView.startTime - m_pauseTime;
-		if (m_replay)
-			playTime *= m_replay;
+		u64 playTime = GetPlayTime();
 
 		RECT rect;
 		GetClientRect(m_hwnd, &rect);
@@ -2574,6 +2580,9 @@ namespace uba
 		{
 			m_replay = u32(wParam);
 			m_paused = lParam;
+			m_autoScroll = true;
+			m_scrollPosX = 0;
+			m_scrollPosY = 0;
 			Reset();
 			StringBuffer<> title;
 			GetTitlePrefix(title);
@@ -2888,19 +2897,27 @@ namespace uba
 						m_trace.UpdateReadNamed(m_traceView, time, changed);
 
 					m_pauseStart = m_startTime + time;
-					if (m_paused || !m_replay)
+					m_pauseTime = m_startTime - m_pauseStart;
+
+					if (!m_paused)
 					{
-						m_pauseTime = 0;
+						m_autoScroll = true;
 						m_replay = 1;
+						SetTimer(m_hwnd, 0, 200, NULL);
 					}
 					else
 					{
-						m_pauseTime = m_startTime - m_pauseStart;
-						SetTimer(m_hwnd, 0, 200, NULL);
+						m_pauseTime = 0;
 					}
 
 					HitTestResult res;
 					HitTest(res, { -1, -1 });
+					
+					RECT r;
+					GetClientRect(hWnd, &r);
+					m_scrollPosX = Min(Max(m_scrollPosX, float(r.right - m_contentWidth)), 0.0f);
+					m_scrollPosY = Min(0.0f, Max(m_scrollPosY, float(r.bottom - m_contentHeight)));
+
 					UpdateScrollbars(true);
 					Redraw();
 				}
@@ -3031,6 +3048,9 @@ namespace uba
 				break;
 			case Popup_ScaleHorizontalWithScrollWheel:
 				m_config.ScaleHorizontalWithScrollWheel = !m_config.ScaleHorizontalWithScrollWheel;
+				break;
+			case Popup_ShowAllTraces:
+				m_config.ShowAllTraces = !m_config.ShowAllTraces;
 				break;
 			case Popup_DarkMode:
 			{

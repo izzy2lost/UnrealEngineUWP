@@ -12,6 +12,7 @@ namespace uba
 
 	#define UBA_VISUALIZER_FLAGS1 \
 		UBA_VISUALIZER_FLAG(Progress, true, L"progress") \
+		UBA_VISUALIZER_FLAG(Status, true, L"status") \
 		UBA_VISUALIZER_FLAG(ActiveProcesses, false, L"active processes") \
 		UBA_VISUALIZER_FLAG(TitleBars, true, L"title bars") \
 		UBA_VISUALIZER_FLAG(DetailedData, false, L"detailed data (use -UbaDetailedTrace for even more)") \
@@ -28,6 +29,7 @@ namespace uba
 		UBA_VISUALIZER_FLAG(ScaleHorizontalWithScrollWheel, false, L"Use scroll wheel to scale horizontally") \
 		UBA_VISUALIZER_FLAG(DarkMode, false, L"Use dark mode to draw visualizer") \
 		UBA_VISUALIZER_FLAG(AutoSaveSettings, true, L"Auto save Position/Settings on close") \
+		UBA_VISUALIZER_FLAG(ShowAllTraces, true, L"Show all traces started on channel") \
 
 	struct VisualizerConfig
 	{
@@ -104,6 +106,7 @@ namespace uba
 			u32 workIndex = ~0u;
 			TString hyperLink;
 		};
+		u64 GetPlayTime();
 		void HitTest(HitTestResult& outResult, const POINT& pos);
 
 		void WriteProcessStats(Logger& out, TraceView::Process& process);

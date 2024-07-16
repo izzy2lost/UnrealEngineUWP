@@ -135,4 +135,12 @@ namespace uba
 
 		friend class SessionServer;
 	};
+
+	struct OwnerInfo
+	{
+		const tchar* id;
+		u32 pid;
+	};
+
+	const OwnerInfo& GetOwnerInfo();
 }

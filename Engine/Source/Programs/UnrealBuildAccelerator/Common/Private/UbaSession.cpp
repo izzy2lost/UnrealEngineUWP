@@ -773,7 +773,7 @@ namespace uba
 		{
 			FileInformation info;
 			if (!GetFileInformation(info, m_logger, fileName.data))
-				return m_logger.Error(TC("Failed to get file information for %s while checking file added for write. This should not happen! (%s)"), fileName, LastErrorToText().data);
+				return m_logger.Error(TC("Failed to get file information for %s while checking file added for write. This should not happen! (%s)"), fileName.data, LastErrorToText().data);
 
 			attributes = info.attributes;
 			volumeSerial = info.volumeSerialNumber;
@@ -836,7 +836,7 @@ namespace uba
 		}
 
 		#if UBA_DEBUG_LOGGER
-		g_debugLogger.Info(TC("TRACKADD    %s (Size: %llu, Key: %s, Id: %llu)\n"), fileName, fileSize, KeyToString(fileNameKey).data, fileIndex);
+		g_debugLogger.Info(TC("TRACKADD    %s (Size: %llu, Key: %s, Id: %llu)\n"), fileName.data, fileSize, KeyToString(fileNameKey).data, fileIndex);
 		#endif
 
 
@@ -1121,7 +1121,13 @@ namespace uba
 		if (info.traceName && *info.traceName)
 			traceName.Append(info.traceName);
 		else if (info.launchVisualizer || !m_traceOutputFile.IsEmpty() || info.traceEnabled)
+		{
 			traceName.Append(m_id);
+
+			OwnerInfo ownerInfo = GetOwnerInfo();
+			if (ownerInfo.pid)
+				traceName.Appendf(L"_%s%u", ownerInfo.id, ownerInfo.pid);
+		}
 
 		if (!traceName.IsEmpty())
 			StartTrace(IsWindows ? traceName.data : nullptr); // non-windows named shared memory not implemented (only needed for UbaVisualizer which you can't run on linux either way)
