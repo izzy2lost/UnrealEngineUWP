@@ -27,6 +27,12 @@ namespace EpicGames.Horde.Server
 		/// The current agent version string
 		/// </summary>
 		public string? AgentVersion { get; set; }
+
+		/// <summary>
+		/// List of plugins
+		/// </summary>
+		public ServerPluginInfoResponse[] Plugins { get; set; } = Array.Empty<ServerPluginInfoResponse>();
+
 	}
 
 	/// <summary>
@@ -231,5 +237,15 @@ namespace EpicGames.Horde.Server
 		/// </summary>
 		public ServerStatusSubsystem[] Statuses { get; set; } = Array.Empty<ServerStatusSubsystem>();
 	}
+
+	/// <summary>
+	/// Information about a server plugin
+	/// </summary>
+	/// <param name="Name">Name of the plugin</param>
+	/// <param name="Description">Optional description of the plugin</param>
+	/// <param name="Loaded">Whether the plugin is loaded</param>
+	/// <param name="Version">The version of the plugin assembly</param>
+	public record ServerPluginInfoResponse(string Name, string? Description, bool Loaded, string? Version = null);
+
 }
 

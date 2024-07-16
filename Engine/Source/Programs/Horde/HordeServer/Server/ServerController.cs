@@ -6,12 +6,15 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Server;
+using HordeServer.Plugins;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 
 namespace HordeServer.Server
 {
@@ -25,14 +28,16 @@ namespace HordeServer.Server
 	public class ServerController : HordeControllerBase
 	{
 		readonly IAgentVersionProvider? _agentVersionProvider;
+		readonly IPluginCollection _pluginCollection;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ServerController(IEnumerable<IAgentVersionProvider> agentVersionProviders, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public ServerController(IEnumerable<IAgentVersionProvider> agentVersionProviders, IPluginCollection pluginCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_agentVersionProvider = agentVersionProviders.FirstOrDefault();
+			_pluginCollection = pluginCollection;
 			_globalConfig = globalConfig;
 		}
 
@@ -67,6 +72,11 @@ namespace HordeServer.Server
 			{
 				response.AgentVersion = await _agentVersionProvider.GetAsync(HttpContext.RequestAborted);
 			}
+
+			response.Plugins = _pluginCollection.LoadedPlugins.ConvertAll(plugin => {
+				FileVersionInfo pluginVersion = FileVersionInfo.GetVersionInfo(plugin.Assembly.Location);
+				return new ServerPluginInfoResponse(plugin.Metadata.Name.ToString(), plugin.Metadata.Description, true, pluginVersion.ProductVersion ?? String.Empty);
+			}).ToArray();
 
 			return response;
 		}
