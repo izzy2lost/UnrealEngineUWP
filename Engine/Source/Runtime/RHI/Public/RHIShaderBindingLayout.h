@@ -12,7 +12,7 @@
 */
 struct FRHIUniformBufferShaderBindingLayout
 {
-	uint32 LayoutHash;
+	FString LayoutName;
 	union
 	{
 		struct
@@ -26,24 +26,24 @@ struct FRHIUniformBufferShaderBindingLayout
 		uint32 Flags;
 	};
 
-	FRHIUniformBufferShaderBindingLayout() : LayoutHash(0), Flags(0) {}
+	FRHIUniformBufferShaderBindingLayout() : Flags(0) {}
 			
 	friend uint32 GetTypeHash(const FRHIUniformBufferShaderBindingLayout& Entry)
 	{
-		uint32 Hash = GetTypeHash(Entry.LayoutHash);
+		uint32 Hash = GetTypeHash(Entry.LayoutName);
 		Hash = HashCombineFast(Hash, GetTypeHash(Entry.Flags));
 		return Hash;
 	}
 	
 	bool operator==(const FRHIUniformBufferShaderBindingLayout& Other) const
 	{
-		return LayoutHash == Other.LayoutHash &&
+		return LayoutName == Other.LayoutName &&
 			Flags == Other.Flags;			
 	}
 
 	friend inline FArchive& operator << (FArchive& Ar, FRHIUniformBufferShaderBindingLayout& F)
 	{
-		Ar << F.LayoutHash;
+		Ar << F.LayoutName;
 		Ar << F.Flags;
 		return Ar;
 	}
@@ -70,7 +70,7 @@ ENUM_CLASS_FLAGS(EShaderBindingLayoutFlags)
 class FRHIShaderBindingLayout
 {
 public:
-
+		
 	FRHIShaderBindingLayout() = default;
 	
 	FRHIShaderBindingLayout(EShaderBindingLayoutFlags InFlags, TConstArrayView<FRHIUniformBufferShaderBindingLayout> InUniformBufferEntries) : Flags(InFlags)
@@ -90,11 +90,11 @@ public:
 	uint32 GetNumUniformBufferEntries() const { return NumUniformBufferEntries; }
 	const FRHIUniformBufferShaderBindingLayout& GetUniformBufferEntry(uint32 Index) const { check(Index < NumUniformBufferEntries); return UniformBufferEntries[Index]; }
 	   	
-	const FRHIUniformBufferShaderBindingLayout* FindEntry(uint32 LayoutHash) const
+	const FRHIUniformBufferShaderBindingLayout* FindEntry(const FString& LayoutName) const
 	{
 		for (const FRHIUniformBufferShaderBindingLayout& Entry : UniformBufferEntries)
 		{
-			if (Entry.LayoutHash == LayoutHash)
+			if (Entry.LayoutName == LayoutName)
 			{
 				return &Entry;
 			}

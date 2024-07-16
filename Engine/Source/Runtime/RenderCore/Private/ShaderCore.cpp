@@ -839,26 +839,22 @@ uint32 FShaderParameterMap::CountParametersOfType(EShaderParameterType InType) c
 FThreadSafeSharedAnsiStringPtr FShaderBindingLayout::GetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata) const
 {
 	// Does the binding layout contain a uniform buffer declaration for this shader paramaters
-	uint32 LayoutHash = ShaderParametersMetadata->GetLayout().GetHash();
-	const FRHIUniformBufferShaderBindingLayout* Entry = RHILayout.FindEntry(LayoutHash);
-	if (Entry)
+	FString UniformBufferName(ShaderParametersMetadata->GetShaderVariableName());
+	const FThreadSafeSharedAnsiStringPtr* UniformBufferDeclarationAnsi = UniformBufferMap.Find(UniformBufferName);
+	if (UniformBufferDeclarationAnsi)
 	{
-		uint8 UniformBufferIndex = Entry->CBVResourceIndex;
-		return UniformBufferData[UniformBufferIndex].UniformBufferDeclarationAnsi;
+		return *UniformBufferDeclarationAnsi;
 	}
 
 	// use the shared declaration from the metadata object itself (no fixed register or space defined)
 	return ShaderParametersMetadata->GetUniformBufferDeclarationAnsiPtr();
 }
 
-void FShaderBindingLayout::SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, const FString& UniformBufferName, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi)
+void FShaderBindingLayout::SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi)
 {
-	uint32 LayoutHash = ShaderParametersMetadata->GetLayout().GetHash();
-	const FRHIUniformBufferShaderBindingLayout* Entry = RHILayout.FindEntry(LayoutHash);
-	check(Entry);
-	UniformBufferData.SetNum(FMath::Max(UniformBufferData.Num(), int32(Entry->CBVResourceIndex + 1)));
-	UniformBufferData[Entry->CBVResourceIndex].UniformBufferName = UniformBufferName;
-	UniformBufferData[Entry->CBVResourceIndex].UniformBufferDeclarationAnsi = UniformBufferDeclarationAnsi;
+	FString UniformBufferName(ShaderParametersMetadata->GetShaderVariableName());
+	check(!UniformBufferMap.Contains(UniformBufferName));
+	UniformBufferMap.Add(UniformBufferName, UniformBufferDeclarationAnsi);
 }
 
 void FShaderBindingLayout::AddRequiredSymbols(TArray<FString>& RequiredSymbols) const
@@ -867,9 +863,9 @@ void FShaderBindingLayout::AddRequiredSymbols(TArray<FString>& RequiredSymbols) 
 	check(EnumHasAllFlags(RHILayout.GetFlags(), EShaderBindingLayoutFlags::BindlessResources | EShaderBindingLayoutFlags::BindlessSamplers));
 
 	// Don't remove unused uniform buffers defined in the fixed shader binding layout because they are required to be declared for certain platforms
-	for (const FUniformBufferData& Data : UniformBufferData)
+	for (auto Iter = UniformBufferMap.CreateConstIterator(); Iter; ++Iter)
 	{
-		RequiredSymbols.Add(Data.UniformBufferName);
+		RequiredSymbols.Add(Iter.Key());
 	}
 }
 

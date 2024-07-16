@@ -61,7 +61,7 @@ void FUniformBufferStaticBindings::AddUniformBuffer(FRHIUniformBuffer* UniformBu
 	// Only care about the static slots if no shader desc is used, otherwise the desc is used to validate that it contains the uniform buffer
 	if (ShaderBindingLayout)
 	{
-		const FRHIUniformBufferShaderBindingLayout* UniformBufferEntry = ShaderBindingLayout->FindEntry(Layout.GetHash());
+		const FRHIUniformBufferShaderBindingLayout* UniformBufferEntry = ShaderBindingLayout->FindEntry(Layout.Name);
 		checkf(UniformBufferEntry, TEXT("Attempted to set a static uniform buffer %s which is not defined in the ShaderBindingLayout provided."), *Layout.GetDebugName());
 		UniformBuffers[UniformBufferEntry->CBVResourceIndex] = UniformBuffer;
 	}

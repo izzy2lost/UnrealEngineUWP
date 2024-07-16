@@ -178,7 +178,7 @@ void BuildShaderBindingLayout(TConstArrayView<FShaderParametersMetadata*> Unifor
 		check(UniformBufferLayout.ConstantBufferSize > 0);
 
 		FRHIUniformBufferShaderBindingLayout& NewEntry = UniformBufferEntries.AddDefaulted_GetRef();
-		NewEntry.LayoutHash = UniformBufferLayout.GetHash();
+		NewEntry.LayoutName = UniformBufferLayout.Name;
 		NewEntry.RegisterSpace = UE_HLSL_SPACE_STATIC_SHADER_BINDINGS;
 		NewEntry.CBVResourceIndex = CurrentCBVResourceIndex;
 		NewEntry.BaseSRVResourceIndex = CurrentBaseSRVResourceIndex;
@@ -208,7 +208,8 @@ void BuildShaderBindingLayout(TConstArrayView<FShaderParametersMetadata*> Unifor
 	for (uint8 UniformBufferIndex = 0; UniformBufferIndex < UniformBuffers.Num(); ++UniformBufferIndex)	
 	{
 		FShaderParametersMetadata* ShaderParametersMetaData = UniformBuffers[UniformBufferIndex];
-		const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout = ShaderBindingLayout.RHILayout.FindEntry(ShaderParametersMetaData->GetLayout().GetHash());
+		const FString& LayoutName = ShaderParametersMetaData->GetLayout().Name;
+		const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout = ShaderBindingLayout.RHILayout.FindEntry(LayoutName);
 		check(UniformBufferSBLayout);
 
 		FString UniformBufferName(ShaderParametersMetaData->GetShaderVariableName());
@@ -220,7 +221,7 @@ void BuildShaderBindingLayout(TConstArrayView<FShaderParametersMetadata*> Unifor
 		ShaderConvertAndStripComments(NewDeclaration, *NewDeclarationAnsi);
 		FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi = MakeShareable(NewDeclarationAnsi);
 
-		ShaderBindingLayout.SetUniformBufferDeclarationAnsiPtr(ShaderParametersMetaData, UniformBufferName, UniformBufferDeclarationAnsi);
+		ShaderBindingLayout.SetUniformBufferDeclarationAnsiPtr(ShaderParametersMetaData, UniformBufferDeclarationAnsi);
 	}
 #endif //WITH_EDITOR
 

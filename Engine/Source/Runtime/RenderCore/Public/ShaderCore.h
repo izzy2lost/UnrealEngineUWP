@@ -453,18 +453,13 @@ public:
 
 #if WITH_EDITOR
 	FThreadSafeSharedAnsiStringPtr GetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata) const;
-	void SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, const FString& UniformBufferName, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi);
+	void SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi);
 
 	RENDERCORE_API void AddRequiredSymbols(TArray<FString>& RequiredSymbols) const;
 
 protected:
-	
-	struct FUniformBufferData
-	{
-		FString	UniformBufferName;
-		FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi;
-	};
-	TArray<FUniformBufferData> UniformBufferData;
+		
+	TMap<FString, FThreadSafeSharedAnsiStringPtr> UniformBufferMap;
 #endif
 };
 
