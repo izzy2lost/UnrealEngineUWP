@@ -46,12 +46,6 @@ public:
 	MOVIESCENETRACKS_API void SetFlushOnUnload(bool bFlushOnUnload);
 		
 	UFUNCTION(BlueprintPure, Category = "Sequencer|Section")
-	MOVIESCENETRACKS_API bool GetPerformGCOnUnload() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Sequencer|Section")
-	MOVIESCENETRACKS_API void SetPerformGCOnUnload(bool bPerformGCOnUnload);
-
-	UFUNCTION(BlueprintPure, Category = "Sequencer|Section")
 	const TArray<UDataLayerAsset*>& GetDataLayerAssets() const { return DataLayerAssets; }
 
 	UFUNCTION(BlueprintCallable, Category = "Sequencer|Section")
@@ -81,10 +75,6 @@ private:
 	/** Determine if we need to flush level streaming when the data layers unloads. */
 	UPROPERTY(EditAnywhere, Category=DataLayer, Meta=(EditCondition="DesiredState == EDataLayerRuntimeState::Unloaded", EditConditionHides))
 	bool bFlushOnUnload;
-
-	/** Determine if we need to perform a GC when the data layers unloads. */
-	UPROPERTY(EditAnywhere, Category=DataLayer, Meta=(EditCondition="DesiredState == EDataLayerRuntimeState::Unloaded", EditConditionHides, DisplayName="Perform GC On Unload"))
-	bool bPerformGCOnUnload;
 
 	UFUNCTION()
 	bool HasPreRoll() const { return GetPreRollFrames() > 0.0f; }
