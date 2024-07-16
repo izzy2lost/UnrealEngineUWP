@@ -22,6 +22,7 @@
 #include "Hlsl/NNERuntimeRDGConcat.h"
 #include "Hlsl/NNERuntimeRDGConvTranspose.h"
 #include "Hlsl/NNERuntimeRDGCumSum.h"
+#include "Hlsl/NNERuntimeRDGDepthToSpace.h"
 #include "Hlsl/NNERuntimeRDGDropout.h"
 #include "Hlsl/NNERuntimeRDGElementWiseBinary.h"
 #include "Hlsl/NNERuntimeRDGElementWiseUnary.h"
@@ -67,6 +68,7 @@ bool UNNERuntimeRDGHlslImpl::Init()
 	RegisterConcatOperator(*Registry);
 	RegisterConvTransposeOperator(*Registry);
 	RegisterCumSumOperator(*Registry);
+	RegisterDepthToSpaceOperator(*Registry);
 	RegisterDropoutOperator(*Registry);
 	RegisterElementWiseBinaryOperators(*Registry);
 	RegisterElementWiseUnaryOperators(*Registry);
