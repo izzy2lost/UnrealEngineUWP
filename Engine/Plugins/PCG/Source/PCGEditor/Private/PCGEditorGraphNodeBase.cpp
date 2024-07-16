@@ -21,6 +21,7 @@
 #include "PCGEditorSettings.h"
 #include "PCGEditorStyle.h"
 
+#include "CoreGlobals.h"
 #include "GraphEditorActions.h"
 #include "ScopedTransaction.h"
 #include "ToolMenu.h"
@@ -794,6 +795,13 @@ void UPCGEditorGraphNodeBase::ReconstructNode()
 	if (DeferredReconstructCounter > 0)
 	{
 		bDeferredReconstruct = true;
+		return;
+	}
+
+	// While in an Undo/Redo a call to ReconstructNode should not be needed as the transaction object records
+	// should be enough to serialize the nodes back into their proper state 
+	if (GIsTransacting)
+	{
 		return;
 	}
 	
