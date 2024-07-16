@@ -15,13 +15,15 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCustomKernelDataInterface)
 
-const TCHAR* UPCGCustomKernelDataInterface::NumThreadsReservedName = TEXT("NumThreads");
-
 void UPCGCustomKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
 	OutFunctions.AddDefaulted_GetRef()
-		.SetName(FString::Printf(TEXT("Get%s"), NumThreadsReservedName))
+		.SetName(TEXT("GetNumThreads"))
 		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Int));
+
+	OutFunctions.AddDefaulted_GetRef()
+		.SetName(TEXT("GetSeed"))
+		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Uint));
 
 	// A convenient way to serve component bounds to all kernels. Could be pulled out into a PCG context DI in the future.
 	OutFunctions.AddDefaulted_GetRef()
@@ -35,6 +37,7 @@ void UPCGCustomKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDef
 
 BEGIN_SHADER_PARAMETER_STRUCT(FPCGKernelDataInterfaceParameters, )
 	SHADER_PARAMETER(FIntVector3, NumThreads)
+	SHADER_PARAMETER(uint32, Seed)
 	SHADER_PARAMETER(FVector3f, ComponentBoundsMin)
 	SHADER_PARAMETER(FVector3f, ComponentBoundsMax)
 END_SHADER_PARAMETER_STRUCT()
@@ -44,52 +47,24 @@ void UPCGCustomKernelDataInterface::GetShaderParameters(TCHAR const* UID, FShade
 	InOutBuilder.AddNestedStruct<FPCGKernelDataInterfaceParameters>(UID);
 }
 
-void UPCGCustomKernelDataInterface::GetShaderHash(FString& InOutKey) const
-{
-	// UComputeGraph::BuildKernelSource hashes the result of GetHLSL()
-	// Only append additional hashes here if the HLSL contains any additional includes	
-}
-
 void UPCGCustomKernelDataInterface::GetHLSL(FString& OutHLSL, FString const& InDataInterfaceName) const
 {
-	const FString TypeName = FShaderValueType::Get(EShaderFundamentalType::Int, 3)->ToString();
-
-	if (ensure(!TypeName.IsEmpty()))
+	TMap<FString, FStringFormatArg> TemplateArgs =
 	{
-		TMap<FString, FStringFormatArg> TemplateArgs =
-		{
-			{ TEXT("DataInterfaceName"), InDataInterfaceName },
-		};
+		{ TEXT("DataInterfaceName"), InDataInterfaceName },
+	};
 
-		// Add uniforms.
-		OutHLSL += FString::Printf(TEXT("%s %s_%s;\n"), 
-			*TypeName, 
-			*InDataInterfaceName, 
-			NumThreadsReservedName);
-			
-		// Add function getters.
-		OutHLSL += FString::Printf(TEXT("%s Get%s_%s()\n{\n\treturn %s_%s;\n}\n"), 
-			*TypeName,
-			NumThreadsReservedName,
-			*InDataInterfaceName, 
-			*InDataInterfaceName, 
-			NumThreadsReservedName);
-
-		// Add helpers (e.g. GetComponentBounds())
-		OutHLSL += FString::Format(TEXT(
-			"float3 {DataInterfaceName}_ComponentBoundsMin;\n"
-			"float3 {DataInterfaceName}_ComponentBoundsMax;\n"
-			"\n"
-			"float3 GetComponentBoundsMin_{DataInterfaceName}()\n"
-			"{\n"
-			"	return {DataInterfaceName}_ComponentBoundsMin;\n"
-			"}\n"
-			"\n"
-			"float3 GetComponentBoundsMax_{DataInterfaceName}()\n"
-			"{\n"
-			"	return {DataInterfaceName}_ComponentBoundsMax;\n"
-			"}\n"), TemplateArgs);
-	}
+	OutHLSL += FString::Format(TEXT(
+		"int3 {DataInterfaceName}_NumThreads;\n"
+		"uint {DataInterfaceName}_Seed;\n"
+		"float3 {DataInterfaceName}_ComponentBoundsMin;\n"
+		"float3 {DataInterfaceName}_ComponentBoundsMax;\n"
+		"\n"
+		"int3 GetNumThreads_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_NumThreads;\n}\n\n"
+		"uint GetSeed_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_Seed;\n}\n\n"
+		"float3 GetComponentBoundsMin_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_ComponentBoundsMin;\n}\n\n"
+		"float3 GetComponentBoundsMax_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_ComponentBoundsMax;\n}\n\n"),
+		TemplateArgs);
 }
 
 UComputeDataProvider* UPCGCustomKernelDataInterface::CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const
@@ -99,11 +74,10 @@ UComputeDataProvider* UPCGCustomKernelDataInterface::CreateDataProvider(TObjectP
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);
 	check(Binding->SourceComponent.IsValid() && Binding->SourceComponent.Get());
 
-	const FBox ComponentBounds = Binding->SourceComponent.Get()->GetGridBounds();
-
 	UPCGCustomComputeKernelDataProvider* Provider = NewObject<UPCGCustomComputeKernelDataProvider>();
-	Provider->SourceComponentBounds = ComponentBounds;
 	Provider->ThreadCount = Settings->ComputeKernelThreadCount(Binding);
+	Provider->Seed = static_cast<uint32>(Settings->GetSeed(Binding->SourceComponent.Get()));
+	Provider->SourceComponentBounds = Binding->SourceComponent.Get()->GetGridBounds();
 
 	return Provider;
 }
@@ -118,7 +92,7 @@ FComputeDataProviderRenderProxy* UPCGCustomComputeKernelDataProvider::GetRenderP
 		InvocationCounts.Reset();
 	}
 
-	return new FPCGCustomComputeKernelDataProviderProxy(MoveTemp(InvocationCounts), TotalThreadCount, SourceComponentBounds);
+	return new FPCGCustomComputeKernelDataProviderProxy(MoveTemp(InvocationCounts), TotalThreadCount, Seed, SourceComponentBounds);
 }
 
 bool UPCGCustomComputeKernelDataProvider::GetInvocationThreadCounts(TArray<int32>& OutInvocationThreadCount, int32& OutTotalThreadCount) const
@@ -163,18 +137,14 @@ void FPCGCustomComputeKernelDataProviderProxy::GatherDispatchData(FDispatchData 
 	const TStridedView<FParameters> ParameterArray = MakeStridedParameterView<FParameters>(InDispatchData);
 	for (int32 InvocationIndex = 0; InvocationIndex < InDispatchData.NumInvocations; ++InvocationIndex)
 	{
-		int32 NumThreads;
-		if (InDispatchData.bUnifiedDispatch)
-		{
-			NumThreads = TotalThreadCount;
-		}
-		else
-		{
-			NumThreads = InvocationThreadCounts[InvocationIndex];
-		}
-
 		FParameters& Parameters = ParameterArray[InvocationIndex];
-		Parameters.NumThreads = FIntVector(NumThreads, 1, 1);
+
+		// Thread count
+		Parameters.NumThreads.X = InDispatchData.bUnifiedDispatch ? TotalThreadCount : InvocationThreadCounts[InvocationIndex];
+		Parameters.NumThreads.Y = Parameters.NumThreads.Z = 1;
+
+		// Seed for the node
+		Parameters.Seed = Seed;
 
 		// Set component bounds
 		Parameters.ComponentBoundsMin = (FVector3f)SourceComponentBounds.Min;

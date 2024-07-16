@@ -51,6 +51,11 @@ namespace PCGHLSLElement
 	}
 }
 
+UPCGCustomHLSLSettings::UPCGCustomHLSLSettings()
+{
+	bUseSeed = true;
+}
+
 #if WITH_EDITOR
 void UPCGCustomHLSLSettings::PostLoad()
 {
@@ -567,7 +572,7 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 		}
 
 		InputDeclarations += TEXT("uint ElementIndex;\n");
-		InputDeclarations += TEXT("uint GetNumThreads();");
+		InputDeclarations += TEXT("uint GetNumThreads();\n");
 	}
 
 	// Add debug category
@@ -575,9 +580,8 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 		if (bPrintShaderDebugValues)
 		{
 			InputDeclarations += FString::Format(
-				TEXT("\n\n")
-				TEXT("// Debug\n")
-				TEXT("void WriteDebugValue(uint Index, float Value); // Index in [0, {0}] (set from 'Debug Buffer Size' property)"),
+				TEXT("\n// Debug\n")
+				TEXT("void WriteDebugValue(uint Index, float Value); // Index in [0, {0}] (set from 'Debug Buffer Size' property)\n"),
 				{ DebugBufferSize - 1 });
 		}
 	}
@@ -616,33 +620,38 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 			}
 		}
 
-		InputDeclarations += TEXT("\n\n### HELPER FUNCTIONS ###\n\n");
-		InputDeclarations += TEXT("float3 GetComponentBoundsMin(); // World-space\n");
-		InputDeclarations += TEXT("float3 GetComponentBoundsMax();");
+		InputDeclarations += TEXT("\n### HELPER FUNCTIONS ###\n");
+		InputDeclarations += TEXT("\nfloat3 GetComponentBoundsMin(); // World-space\n");
+		InputDeclarations += TEXT("float3 GetComponentBoundsMax();\n");
+		InputDeclarations += TEXT("uint GetSeed();\n");
 
-		InputDeclarations += TEXT("\n\n");
-		InputDeclarations += TEXT("float3 CreateGrid2D(int ElementIndex, int NumPoints, float3 Min, float3 Max);\n");
+		InputDeclarations += TEXT("\nfloat FRand(inout uint Seed); // Returns random float between 0 and 1.\n");
+		InputDeclarations += TEXT("uint ComputeSeed(uint A, uint B);\n");
+		InputDeclarations += TEXT("uint ComputeSeed(uint A, uint B, uint C);\n");
+		InputDeclarations += TEXT("uint ComputeSeedFromPosition(float3 Position);\n");
+
+		InputDeclarations += TEXT("\nfloat3 CreateGrid2D(int ElementIndex, int NumPoints, float3 Min, float3 Max);\n");
 		InputDeclarations += TEXT("float3 CreateGrid2D(int ElementIndex, int NumPoints, int NumRows, float3 Min, float3 Max);\n");
 		InputDeclarations += TEXT("float3 CreateGrid3D(int ElementIndex, int NumPoints, float3 Min, float3 Max);\n");
-		InputDeclarations += TEXT("float3 CreateGrid3D(int ElementIndex, int NumPoints, int NumRows, int NumCols, float3 Min, float3 Max);");
+		InputDeclarations += TEXT("float3 CreateGrid3D(int ElementIndex, int NumPoints, int NumRows, int NumCols, float3 Min, float3 Max);\n");
 
 		if (!DataPins.IsEmpty())
 		{
-			InputDeclarations += TEXT("\n\n### DATA FUNCTIONS ###\n\n");
-			InputDeclarations += TEXT("// Valid pins: ") + FString::Join(DataPins, TEXT(", ")) + TEXT("\n");
+			InputDeclarations += TEXT("\n### DATA FUNCTIONS ###\n");
+			InputDeclarations += TEXT("\n// Valid pins: ") + FString::Join(DataPins, TEXT(", ")) + TEXT("\n");
 			InputDeclarations += TEXT("// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4)\n");
-			InputDeclarations += TEXT("\n");
-			InputDeclarations += TEXT("uint <pin>_GetNumData();\n");
+
+			InputDeclarations += TEXT("\nuint <pin>_GetNumData();\n");
 			InputDeclarations += TEXT("uint <pin>_GetNumElements();\n");
-			InputDeclarations += TEXT("<type> <pin>_Get<type>(uint DataIndex, uint AttributeId, uint ElementIndex);");
+			InputDeclarations += TEXT("<type> <pin>_Get<type>(uint DataIndex, uint AttributeId, uint ElementIndex);\n");
 		}
 
 		if (!PointDataPins.IsEmpty())
 		{
-			InputDeclarations += TEXT("\n\n### POINT DATA FUNCTIONS ###\n\n");
-			InputDeclarations += TEXT("// Valid pins: ") + FString::Join(PointDataPins, TEXT(", ")) + TEXT("\n");
-			InputDeclarations += TEXT("\n");
-			InputDeclarations += TEXT("uint <pin>_GetNumPoints(uint DataIndex);\n");
+			InputDeclarations += TEXT("\n### POINT DATA FUNCTIONS ###\n");
+			InputDeclarations += TEXT("\n// Valid pins: ") + FString::Join(PointDataPins, TEXT(", ")) + TEXT("\n");
+
+			InputDeclarations += TEXT("\nuint <pin>_GetNumPoints(uint DataIndex);\n");
 			InputDeclarations += TEXT("float3 <pin>_GetPosition(uint DataIndex, uint ElementIndex);\n");
 			InputDeclarations += TEXT("float4 <pin>_GetRotation(uint DataIndex, uint ElementIndex);\n");
 			InputDeclarations += TEXT("float3 <pin>_GetScale(uint DataIndex, uint ElementIndex);\n");
@@ -652,34 +661,34 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 			InputDeclarations += TEXT("float <pin>_GetDensity(uint DataIndex, uint ElementIndex);\n");
 			InputDeclarations += TEXT("int <pin>_GetSeed(uint DataIndex, uint ElementIndex);\n");
 			InputDeclarations += TEXT("float <pin>_GetSteepness(uint DataIndex, uint ElementIndex);\n");
-			InputDeclarations += TEXT("float4x4 <pin>_GetPointTransform(uint DataIndex, uint ElementIndex);");
+			InputDeclarations += TEXT("float4x4 <pin>_GetPointTransform(uint DataIndex, uint ElementIndex);\n");
 		}
 
 		if (!LandscapeDataPins.IsEmpty())
 		{
-			InputDeclarations += TEXT("\n\n### LANDSCAPE DATA FUNCTIONS ###\n\n");
-			InputDeclarations += TEXT("// Valid pins: ") + FString::Join(LandscapeDataPins, TEXT(", ")) + TEXT("\n");
-			InputDeclarations += TEXT("\n");
-			InputDeclarations += TEXT("float <pin>_GetHeight(float3 WorldPos);\n");
-			InputDeclarations += TEXT("float3 <pin>_GetNormal(float3 WorldPos);");
+			InputDeclarations += TEXT("\n### LANDSCAPE DATA FUNCTIONS ###\n");
+			InputDeclarations += TEXT("\n// Valid pins: ") + FString::Join(LandscapeDataPins, TEXT(", ")) + TEXT("\n");
+
+			InputDeclarations += TEXT("\nfloat <pin>_GetHeight(float3 WorldPos);\n");
+			InputDeclarations += TEXT("float3 <pin>_GetNormal(float3 WorldPos);\n");
 		}
 
 		if (!TextureDataPins.IsEmpty())
 		{
-			InputDeclarations += TEXT("\n\n### TEXTURE DATA FUNCTIONS ###\n\n");
-			InputDeclarations += TEXT("// Valid pins: ") + FString::Join(TextureDataPins, TEXT(", ")) + TEXT("\n");
-			InputDeclarations += TEXT("\n");
-			InputDeclarations += TEXT("float2 <pin>_GetTexCoords(float2 WorldPos, float2 Min, float2 Max);\n");
-			InputDeclarations += TEXT("float4 <pin>_Sample(float2 TexCoords);");
+			InputDeclarations += TEXT("\n### TEXTURE DATA FUNCTIONS ###\n");
+			InputDeclarations += TEXT("\n// Valid pins: ") + FString::Join(TextureDataPins, TEXT(", ")) + TEXT("\n");
+
+			InputDeclarations += TEXT("\nfloat2 <pin>_GetTexCoords(float2 WorldPos, float2 Min, float2 Max);\n");
+			InputDeclarations += TEXT("float4 <pin>_Sample(float2 TexCoords);\n");
 		}
 
 		if (!RawBufferDataPins.IsEmpty())
 		{
-			InputDeclarations += TEXT("\n\n### BYTE ADDRESS BUFFER DATA FUNCTIONS ###\n\n");
-			InputDeclarations += TEXT("// Valid pins: ") + FString::Join(RawBufferDataPins, TEXT(", ")) + TEXT("\n");
-			InputDeclarations += TEXT("\n");
-			InputDeclarations += TEXT("uint <pin>_ReadNumValues();\n");
-			InputDeclarations += TEXT("uint <pin>_ReadValue(uint Index);");
+			InputDeclarations += TEXT("\n### BYTE ADDRESS BUFFER DATA FUNCTIONS ###\n");
+			InputDeclarations += TEXT("\n// Valid pins: ") + FString::Join(RawBufferDataPins, TEXT(", ")) + TEXT("\n");
+
+			InputDeclarations += TEXT("\nuint <pin>_ReadNumValues();\n");
+			InputDeclarations += TEXT("uint <pin>_ReadValue(uint Index);\n");
 		}
 	}
 
@@ -707,19 +716,19 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 
 		if (!DataPins.IsEmpty())
 		{
-			OutputDeclarations += TEXT("### DATA FUNCTIONS ###\n\n");
-			OutputDeclarations += TEXT("// Valid pins: ") + FString::Join(DataPins, TEXT(", ")) + TEXT("\n");
+			OutputDeclarations += TEXT("### DATA FUNCTIONS ###\n");
+			OutputDeclarations += TEXT("\n// Valid pins: ") + FString::Join(DataPins, TEXT(", ")) + TEXT("\n");
 			OutputDeclarations += TEXT("// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4)\n");
-			OutputDeclarations += TEXT("\n");
-			OutputDeclarations += TEXT("void <pin>_Set<type>(uint DataIndex, uint AttributeId, uint ElementIndex, <type> Value);");
+
+			OutputDeclarations += TEXT("\nvoid <pin>_Set<type>(uint DataIndex, uint AttributeId, uint ElementIndex, <type> Value);\n");
 		}
 
 		if (!PointDataPins.IsEmpty())
 		{
-			OutputDeclarations += TEXT("\n\n### POINT DATA FUNCTIONS ###\n\n");
-			OutputDeclarations += TEXT("// Valid pins: ") + FString::Join(PointDataPins, TEXT(", ")) + TEXT("\n");
-			OutputDeclarations += TEXT("\n");
-			OutputDeclarations += TEXT("void <pin>_SetPosition(uint DataIndex, uint ElementIndex, float3 Position);\n");
+			OutputDeclarations += TEXT("\n### POINT DATA FUNCTIONS ###\n");
+			OutputDeclarations += TEXT("\n// Valid pins: ") + FString::Join(PointDataPins, TEXT(", ")) + TEXT("\n");
+
+			OutputDeclarations += TEXT("\nvoid <pin>_SetPosition(uint DataIndex, uint ElementIndex, float3 Position);\n");
 			OutputDeclarations += TEXT("void <pin>_SetRotation(uint DataIndex, uint ElementIndex, float4 Rotation);\n");
 			OutputDeclarations += TEXT("void <pin>_SetScale(uint DataIndex, uint ElementIndex, float3 Scale);\n");
 			OutputDeclarations += TEXT("void <pin>_SetBoundsMin(uint DataIndex, uint ElementIndex, float3 BoundsMin);\n");
@@ -729,16 +738,22 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 			OutputDeclarations += TEXT("void <pin>_SetSeed(uint DataIndex, uint ElementIndex, int Seed);\n");
 			OutputDeclarations += TEXT("void <pin>_SetSeedFromPosition(uint DataIndex, uint ElementIndex, float3 Position);\n");
 			OutputDeclarations += TEXT("void <pin>_SetSteepness(uint DataIndex, uint ElementIndex, float Steepness);\n");
-			OutputDeclarations += TEXT("void <pin>_SetPointTransform(uint DataIndex, uint ElementIndex, float4x4 Transform);");
+			OutputDeclarations += TEXT("void <pin>_SetPointTransform(uint DataIndex, uint ElementIndex, float4x4 Transform);\n");
 		}
 
 		if (!RawBufferDataPins.IsEmpty())
 		{
-			OutputDeclarations += TEXT("\n\n### BYTE ADDRESS BUFFER DATA FUNCTIONS ###\n\n");
+			OutputDeclarations += TEXT("\n### BYTE ADDRESS BUFFER DATA FUNCTIONS ###\n\n");
 			OutputDeclarations += TEXT("// Valid pins: ") + FString::Join(RawBufferDataPins, TEXT(", ")) + TEXT("\n");
-			OutputDeclarations += TEXT("\n");
-			OutputDeclarations += TEXT("uint <pin>_WriteValue(uint Index, uint Value);");
+
+			OutputDeclarations += TEXT("\nuint <pin>_WriteValue(uint Index, uint Value);\n");
 		}
+	}
+
+	if (!OutputDeclarations.IsEmpty())
+	{
+		// Remove final newline as a small UI improvement.
+		OutputDeclarations = OutputDeclarations.LeftChop(1);
 	}
 }
 

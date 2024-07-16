@@ -3,6 +3,32 @@
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Public/Platform.ush"
 
+uint ComputeSeed(uint A, uint B)
+{
+	return ((A * 196314165U) + 907633515U) ^ ((B * 73148459U) + 453816763U);
+}
+
+uint ComputeSeed(uint A, uint B, uint C)
+{
+	return ((A * 196314165U) + 907633515U) ^ ((B * 73148459U) + 453816763U) ^ ((C * 34731343U) + 453816743U);
+}
+
+uint ComputeSeedFromPosition(float3 InPosition)
+{
+	const int3 PosInt = (int3)InPosition;
+	const int Seed = ((PosInt.x * 196314165U) + 907633515U) ^ ((PosInt.y * 73148459U) + 453816763U) ^ ((PosInt.z * 34731343U) + 453816743U);
+	return (uint)Seed;
+}
+
+float FRand(inout uint InOutSeed)
+{
+	InOutSeed = (InOutSeed * 196314165U) + 907633515U;
+	
+	const float Result = asfloat(0x3F800000U | (InOutSeed >> 9));
+
+	return Result - 1.0f;
+}
+
 float3 CreateGrid2D(int ElementIndex, int NumPoints, int NumRows, float3 Min, float3 Max)
 {
     if (NumRows == 0)

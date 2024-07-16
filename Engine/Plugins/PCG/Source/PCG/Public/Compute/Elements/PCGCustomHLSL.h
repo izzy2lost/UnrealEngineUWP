@@ -37,6 +37,8 @@ class UPCGCustomHLSLSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
+	UPCGCustomHLSLSettings();
+
 	//~Begin UObject interface
 #if WITH_EDITOR
 	virtual void PostLoad() override;

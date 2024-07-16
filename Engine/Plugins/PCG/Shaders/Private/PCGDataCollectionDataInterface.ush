@@ -208,6 +208,12 @@ int GetInt_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementInd
 	return asint({DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4));
 }
 
+int GetUint_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	return {DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4);
+}
+
 float GetFloat_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex)
 {
 	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
@@ -256,6 +262,12 @@ void SetInt_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIn
 {
 	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
 	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, asuint(Value));
+}
+
+void SetUint_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, uint Value)
+{
+	const uint AttributeAddress = ComputeAddressHelper_{DataInterfaceName}(DataIndex, AttributeId, ElementIndex);
+	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, Value);
 }
 
 void SetFloat_{DataInterfaceName}(uint DataIndex, uint AttributeId, uint ElementIndex, float Value)
@@ -336,9 +348,9 @@ float GetSteepness_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
 	return GetFloat_{DataInterfaceName}(DataIndex, POINT_STEEPNESS_ID, ElementIndex);
 }
 
-int GetSeed_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
+uint GetSeed_{DataInterfaceName}(uint DataIndex, uint ElementIndex)
 {
-	return GetInt_{DataInterfaceName}(DataIndex, POINT_SEED_ID, ElementIndex);
+	return GetUint_{DataInterfaceName}(DataIndex, POINT_SEED_ID, ElementIndex);
 }
 
 float4x4 GetPointTransform_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
@@ -401,17 +413,9 @@ void SetSteepness_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float S
 	SetFloat_{DataInterfaceName}(DataIndex, POINT_STEEPNESS_ID, ElementIndex, Steepness);
 }
 
-void SetSeed_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int Seed)
+void SetSeed_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint Seed)
 {
-	SetInt_{DataInterfaceName}(DataIndex, POINT_SEED_ID, ElementIndex, Seed);
-}
-
-void SetSeedFromPosition_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float3 Position)
-{
-	const int3 PosInt = (int3)Position;
-	const int Seed = ((PosInt.x * 196314165U) + 907633515U) ^ ((PosInt.y * 73148459U) + 453816763U) ^ ((PosInt.z * 34731343U) + 453816743U);
-
-	SetInt_{DataInterfaceName}(DataIndex, POINT_SEED_ID, ElementIndex, Seed);
+	SetUint_{DataInterfaceName}(DataIndex, POINT_SEED_ID, ElementIndex, Seed);
 }
 
 void SetPointTransform_{DataInterfaceName}(uint InDataIndex, uint InElementIndex, float4x4 Transform)

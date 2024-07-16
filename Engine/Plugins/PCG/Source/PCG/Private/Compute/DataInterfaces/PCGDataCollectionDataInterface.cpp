@@ -395,12 +395,6 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Int);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("SetSeedFromPosition"))
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Uint)
-			.AddParam(EShaderFundamentalType::Float, 3);
-
-		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("SetSteepness"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint)

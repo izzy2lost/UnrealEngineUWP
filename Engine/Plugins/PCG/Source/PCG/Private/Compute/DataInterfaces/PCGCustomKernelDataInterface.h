@@ -25,7 +25,6 @@ public:
 	bool CanSupportUnifiedDispatch() const override { return true; }
 	void GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const override;
 	void GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const override;
-	void GetShaderHash(FString& InOutKey) const override;
 	void GetHLSL(FString& OutHLSL, FString const& InDataInterfaceName) const override;
 	UComputeDataProvider* CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const override;
 
@@ -48,7 +47,10 @@ public:
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
 	//~ End UComputeDataProvider Interface
 
-	int ThreadCount = -1;
+	int32 ThreadCount = -1;
+
+	uint32 Seed = 42;
+
 	FBox SourceComponentBounds;
 
 protected:
@@ -58,9 +60,10 @@ protected:
 class FPCGCustomComputeKernelDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FPCGCustomComputeKernelDataProviderProxy(TArray<int32>&& InInvocationThreadCounts, int32 InTotalThreadCount, const FBox& InSourceComponentBounds)
+	FPCGCustomComputeKernelDataProviderProxy(TArray<int32>&& InInvocationThreadCounts, int32 InTotalThreadCount, int32 InSeed, const FBox& InSourceComponentBounds)
 		: InvocationThreadCounts(MoveTemp(InInvocationThreadCounts))
 		, TotalThreadCount(InTotalThreadCount)
+		, Seed(InSeed)
 		, SourceComponentBounds(InSourceComponentBounds)
 	{}
 
@@ -75,5 +78,8 @@ protected:
 
 	TArray<int32> InvocationThreadCounts;
 	int32 TotalThreadCount;
+
+	uint32 Seed = 42;
+
 	FBox SourceComponentBounds;
 };
