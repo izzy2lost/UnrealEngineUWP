@@ -137,7 +137,7 @@ private:
 	{
 		TArray<uint8> OriginalValue;
 		FPropertyPath OriginalPath;
-		bool bWasTransient;
+		bool bHadSkipSerialization;
 		bool bWasHidden;
 	};
 
