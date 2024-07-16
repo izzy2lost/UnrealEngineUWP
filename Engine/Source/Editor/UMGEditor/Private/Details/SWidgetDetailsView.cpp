@@ -34,7 +34,20 @@
 #include "UMGEditorModule.h"
 #include "WidgetEditingProjectSettings.h"
 
+#include "Extensions/UIComponent.h"
+#include "Extensions/UIComponentContainer.h"
+#include "Kismet2/SClassPickerDialog.h"
+#include "SPositiveActionButton.h"
+#include "UIComponentUtils.h"
+
 #define LOCTEXT_NAMESPACE "UMG"
+
+static TAutoConsoleVariable<bool> CVarUMGExposeUIComponent(
+	TEXT("Widget.ExposeUIComponents"),
+	false,
+	TEXT("Allow adding ui components to widgets in UMG."),
+	ECVF_Default
+);
 
 void SWidgetDetailsView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBlueprintEditor> InBlueprintEditor)
 {
@@ -175,6 +188,23 @@ void SWidgetDetailsView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetB
 						SAssignNew(ClassLinkArea, SBox)
 					]
 				]
+				// Only if not the user widget
+				+ SVerticalBox::Slot()
+					.AutoHeight()
+					.HAlign(EHorizontalAlignment::HAlign_Left)
+					.Padding(4.0f, 0.0f)
+					[
+						CVarUMGExposeUIComponent->GetBool() ?
+						SNew(SPositiveActionButton)
+						.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+						.Text(LOCTEXT("AddNewRetargetOpLabel", "Add New Component"))
+						.ToolTipText(LOCTEXT("AddNewToolTip", "Add a new Component to this widget."))
+						.IsEnabled(this, &SWidgetDetailsView::IsWidgetNameFieldEnabled)
+						.OnClicked(this, &SWidgetDetailsView::OnAddComponentButtonClicked, InBlueprintEditor)
+						.Visibility(this, &SWidgetDetailsView::GetAddComponentAreaVisibility)
+						:
+						SNullWidget::NullWidget
+					]
 			]
 		]
 
@@ -407,6 +437,11 @@ EVisibility SWidgetDetailsView::GetCategoryAreaVisibility() const
 	return IsWidgetCDOSelected() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
+EVisibility SWidgetDetailsView::GetAddComponentAreaVisibility() const
+{
+	return IsWidgetCDOSelected() ? EVisibility::Collapsed : EVisibility::Visible;
+}
+
 void SWidgetDetailsView::HandleCategoryTextCommitted(const FText& Text, ETextCommit::Type CommitType)
 {
 	if ( SelectedObjects.Num() == 1 && !Text.IsEmptyOrWhitespace() )
@@ -614,6 +649,28 @@ void SWidgetDetailsView::HandleIsVariableChanged(ECheckBoxState CheckState)
 			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
 		}
 	}
+}
+
+FReply SWidgetDetailsView::OnAddComponentButtonClicked(TSharedPtr<FWidgetBlueprintEditor> InBlueprintEditor)
+{
+	UClass* ChosenClass = nullptr;
+	const FText TitleText = LOCTEXT("AddExtension", "Pick a component to add to the widget.");
+	const bool bPressedOk = SClassPickerDialog::PickClass(TitleText, FUIComponentUtils::CreateClassViewerInitializationOptions(), ChosenClass, UUIComponent::StaticClass());
+	UUserWidget* UserWidget = InBlueprintEditor->GetBlueprintObj()->GeneratedClass->GetDefaultObject<UUserWidget>();
+
+	if (ChosenClass)
+	{
+		if (UUIComponentContainer* ComponentsContainer = FUIComponentUtils::GetOrCreateComponentsContainerForUserWidget(UserWidget))
+		{
+			UUIComponent* Component = FUIComponentUtils::CreateUIComponent(ChosenClass, UserWidget);
+			UWidget* SelectedWidget = Cast<UWidget>(SelectedObjects[0].Get());
+
+			ComponentsContainer->Modify();
+			ComponentsContainer->AddComponent(SelectedWidget->GetFName(), Component);
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(InBlueprintEditor->GetBlueprintObj());
+		}
+	}
+	return FReply::Handled();
 }
 
 void SWidgetDetailsView::NotifyPreChange(FEditPropertyChain* PropertyAboutToChange)

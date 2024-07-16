@@ -41,11 +41,17 @@
 #include "Customizations/DynamicEntryBoxDetails.h"
 #include "Customizations/IBlueprintWidgetCustomizationExtender.h"
 #include "Customizations/ListViewBaseDetails.h"
+#include "Customizations/UIComponentCustomizationExtender.h"
 #include "WidgetBlueprintThumbnailRenderer.h"
 #include "Customizations/WidgetThumbnailCustomization.h"
 #include "Widgets/SBindWidgetView.h"
 #include "MovieSceneDynamicBindingUtils.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
+
+#include "Extensions/UIComponentContainer.h"
+#include "Extensions/UIComponentContainerDesignerExtension.h"
+#include "UIComponentUtils.h"
 
 #define LOCTEXT_NAMESPACE "UMG"
 
@@ -91,15 +97,21 @@ public:
 		DesignerExtensibilityManager = MakeShared<FDesignerExtensibilityManager>();
 
 		DesignerExtensibilityManager->AddDesignerExtensionFactory(SWidgetDesignerNavigation::MakeDesignerExtension());
+		DesignerExtensibilityManager->AddDesignerExtensionFactory(MakeShared<FUIComponentContainerDesignerExtensionFactory>());
 
 		PropertyBindingExtensibilityManager = MakeShared<FPropertyBindingExtensibilityManager>();
 		ClipboardExtensibilityManager = MakeShared<FClipboardExtensibilityManager>();
 		WidgetDragDropExtensibilityManager = MakeShared<FWidgetDragDropExtensibilityManager>();
 
+		UIComponentCustomizationExtender = FUIComponentCustomizationExtender::MakeInstance();
+		AddWidgetCustomizationExtender(UIComponentCustomizationExtender.ToSharedRef());
+
 		// Register widget blueprint compiler we do this no matter what.
 		IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
 		KismetCompilerModule.GetCompilers().Add(&WidgetBlueprintCompiler);
 		KismetCompilerModule.OverrideBPTypeForClass(UUserWidget::StaticClass(), UWidgetBlueprint::StaticClass());
+
+		FBlueprintEditorUtils::OnRenameVariableReferencesEvent.AddRaw(this, &FUMGEditorModule::HandleRenameVariableReferences);
 
 		// Add Customization for variable in Graph editor
 		if (FBlueprintEditorModule* BlueprintEditorModule = FModuleManager::GetModulePtr<FBlueprintEditorModule>("Kismet"))
@@ -159,6 +171,7 @@ public:
 
 		MenuExtensibilityManager.Reset();
 		ToolBarExtensibilityManager.Reset();
+		FBlueprintEditorUtils::OnRenameVariableReferencesEvent.RemoveAll(this);
 
 		if (IKismetCompilerInterface* KismetCompilerModule = FModuleManager::GetModulePtr<IKismetCompilerInterface>("KismetCompiler"))
 		{
@@ -212,6 +225,8 @@ public:
 		{
 			FEdGraphUtilities::UnregisterVisualPinFactory(GraphPanelPinFactory);
 		}
+
+		RemoveWidgetCustomizationExtender(UIComponentCustomizationExtender.ToSharedRef());
 
 		//// Unregister the setting
 		//ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
@@ -495,6 +510,13 @@ private:
 		}
 	}
 
+	void HandleRenameVariableReferences(UBlueprint* Blueprint, UClass* VariableClass, const FName& OldVarName, const FName& NewVarName)
+	{
+		if (UUIComponentContainer* ComponentsContainer = FUIComponentUtils::GetUIComponentContainerFromWidgetBlueprint(Cast<UWidgetBlueprint>(Blueprint)))
+		{
+			ComponentsContainer->RenameWidget(OldVarName, NewVarName);
+		}
+	}
 
 private:
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;
@@ -509,6 +531,8 @@ private:
 	FDelegateHandle MarginTrackEditorCreateTrackEditorHandle;
 	FDelegateHandle TransformTrackEditorCreateTrackEditorHandle;
 	FDelegateHandle WidgetMaterialTrackEditorCreateTrackEditorHandle;
+
+	TSharedPtr<FUIComponentCustomizationExtender> UIComponentCustomizationExtender;
 
 	/** All created asset type actions.  Cached here so that we can unregister it during shutdown. */
 	TArray< TSharedPtr<IAssetTypeActions> > CreatedAssetTypeActions;
