@@ -24,6 +24,7 @@ public class AutoRTFMEngineTests : ModuleRules
 				"MRMesh",
 				"MoviePlayer",
 				"MoviePlayerProxy",
+				"MovieScene",
 				"PreLoadScreen",
 				"ProfilerService",
 				"SessionServices",

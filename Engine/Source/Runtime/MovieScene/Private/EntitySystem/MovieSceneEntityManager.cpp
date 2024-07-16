@@ -9,6 +9,7 @@
 #include "Algo/Find.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Containers/SortedMap.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #include "HAL/PlatformProcess.h"
 #include "Misc/FeedbackContext.h"
@@ -1049,13 +1050,25 @@ void FEntityManager::AccumulateMask(const FEntityComponentFilter& InFilter, FCom
 
 void FEntityManager::EnterIteration() const
 {
-	++IterationCount;
+	UE_AUTORTFM_OPEN(
+	{
+		++IterationCount;
+	});
+
+	AutoRTFM::PushOnAbortHandler(this, [this](){ --(this->IterationCount); });
 }
 
 void FEntityManager::ExitIteration() const
 {
 	checkSlow(static_cast<uint16>(IterationCount) > 0);
-	--IterationCount;
+
+	// We only ever call the exit after an enter so we should not have to handle the case where exit is called first in order to ++ on the iterator
+	AutoRTFM::PopOnAbortHandler(this);
+
+	UE_AUTORTFM_OPEN(
+	{
+		--IterationCount;
+	});
 }
 
 FEntityAllocation* FEntityManager::CreateEntityAllocation(const FComponentMask& EntityComponentMask, uint16 InitialCapacity, uint16 MaxCapacity, FEntityAllocation* MigrateComponentDataFrom)
