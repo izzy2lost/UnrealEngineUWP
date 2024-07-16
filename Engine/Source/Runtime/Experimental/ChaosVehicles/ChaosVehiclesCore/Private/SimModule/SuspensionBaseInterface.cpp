@@ -19,11 +19,6 @@ bool FSuspensionBaseInterface::IsBehaviourType(eSimModuleTypeFlags InType) const
 	return (InType & Raycast); 
 }
 
-eSimType FSuspensionBaseInterface::GetSimType() const 
-{ 
-	return eSimType::Suspension; 
-}
-
 void FSuspensionBaseInterface::SetTargetPoint(const FVector& InTargetPoint, const FVector& InImpactNormal, float InHitDistance, bool InWheelInContact)
 {
 	TargetPos = InTargetPoint;

@@ -27,16 +27,15 @@ struct CHAOSVEHICLESCORE_API FSpringTrace
 };
 
 
-class CHAOSVEHICLESCORE_API FSuspensionBaseInterface : public ISimulationModuleBase
+class CHAOSVEHICLESCORE_API FSuspensionBaseInterface : public ISimulationModuleBase, public TSimulationModuleTypeable<FSuspensionBaseInterface>
 {
 public:
+	DEFINE_CHAOSSIMTYPENAME(FSuspensionBaseInterface);
 	FSuspensionBaseInterface();
 
 	virtual ~FSuspensionBaseInterface() {}
 
 	virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override;
-
-	virtual eSimType GetSimType() const override;
 
 	virtual float GetMaxSpringLength() const = 0;
 	virtual float GetSpringLength() const = 0;

@@ -70,9 +70,6 @@ void FChaosSimModuleManager::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded,
 	{
 		Manager->UnregisterCallbacks();
 	}
-
-	Chaos::FModuleFactoryRegister::Get().Reset();
-
 }
 
 void FChaosSimModuleManager::OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const FDebugDisplayInfo& DisplayInfo, float& YL, float& YPos)

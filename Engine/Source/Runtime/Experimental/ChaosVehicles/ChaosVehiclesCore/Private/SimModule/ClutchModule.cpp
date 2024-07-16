@@ -13,11 +13,6 @@ namespace Chaos
 	FClutchSimModule::FClutchSimModule(const FClutchSettings& Settings) : TSimModuleSettings<FClutchSettings>(Settings)
 		, ClutchValue(0.f)
 	{
-		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
-		{
-			static TSharedPtr<FSimFactoryModule<FClutchSimModuleData>> SharedFactory = MakeShared<FSimFactoryModule<FClutchSimModuleData>>(GetDebugName());
-			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
-		}
 	}
 
 	void FClutchSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)

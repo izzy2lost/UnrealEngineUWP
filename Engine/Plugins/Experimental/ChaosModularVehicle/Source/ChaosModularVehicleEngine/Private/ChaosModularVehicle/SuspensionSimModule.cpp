@@ -25,12 +25,6 @@ using namespace Chaos;
 		, SpringSpeed(0.f)
 	{
 		AccessSetup().MaxLength = FMath::Abs(Settings.MaxRaise + Settings.MaxDrop);
-
-		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
-		{
-			static TSharedPtr<FSuspensionFactory> SharedFactory = MakeShared<FSuspensionFactory>();
-			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
-		}
 	}
 	FSuspensionSimModule::~FSuspensionSimModule()
 	{
@@ -102,10 +96,10 @@ using namespace Chaos;
 			{
 				if (Chaos::ISimulationModuleBase* Module = SimModuleTree->AccessSimModule(WheelSimTreeIndex))
 				{
-					check(Module->GetSimType() == eSimType::Wheel);
-					Chaos::FWheelBaseInterface* Wheel = static_cast<Chaos::FWheelBaseInterface*>(Module);
-
-					Wheel->SetForceIntoSurface(ForceIntoSurface);
+					if(Chaos::FWheelBaseInterface* Wheel = Module->Cast<Chaos::FWheelBaseInterface>())
+					{
+						Wheel->SetForceIntoSurface(ForceIntoSurface);
+					}
 				}
 		
 			}
@@ -193,8 +187,7 @@ using namespace Chaos;
 
 	void FSuspensionSimModuleData::FillSimState(ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Suspension);
-		if (FSuspensionSimModule* Sim = static_cast<FSuspensionSimModule*>(SimModule))
+		if (FSuspensionSimModule* Sim = SimModule->Cast<FSuspensionSimModule>())
 		{
 			Sim->SpringDisplacement = SpringDisplacement;
 			Sim->LastDisplacement = LastDisplacement;
@@ -203,8 +196,7 @@ using namespace Chaos;
 
 	void FSuspensionSimModuleData::FillNetState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Suspension);
-		if (const FSuspensionSimModule* Sim = static_cast<const FSuspensionSimModule*>(SimModule))
+		if (const FSuspensionSimModule* Sim = SimModule->Cast<const FSuspensionSimModule>())
 		{
 			SpringDisplacement = Sim->SpringDisplacement;
 			LastDisplacement = Sim->LastDisplacement;
@@ -230,11 +222,9 @@ using namespace Chaos;
 
 	void FSuspensionOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Suspension);
-
 		FSimOutputData::FillOutputState(SimModule);
 
-		if (const FSuspensionSimModule* Sim = static_cast<const FSuspensionSimModule*>(SimModule))
+		if (const FSuspensionSimModule* Sim = SimModule->Cast<const FSuspensionSimModule>())
 		{
 			SpringDisplacement = Sim->SpringDisplacement;
 			SpringDisplacementVector = -Sim->Setup().SuspensionAxis * Sim->SpringDisplacement + Sim->GetAnimationOffset();

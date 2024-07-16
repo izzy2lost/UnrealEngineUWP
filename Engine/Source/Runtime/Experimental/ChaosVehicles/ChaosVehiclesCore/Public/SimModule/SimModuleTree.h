@@ -172,11 +172,12 @@ namespace Chaos
 			return VehicleState;
 		}
 
-		FSimModuleNode* LocateNodeByType(Chaos::eSimType InType)
+		template <typename T>
+		FSimModuleNode* LocateNodeByType()
 		{
 			for (FSimModuleNode& Node : SimulationModuleTree)
 			{
-				if (Node.SimModule && Node.SimModule->GetSimType() == InType)
+				if (Node.SimModule && Node.SimModule->IsSimType<T>())
 				{
 					return &Node;
 				}

@@ -7,18 +7,19 @@
 
 namespace Chaos
 {
+	class FTransmissionSimModule;
 	struct FAllInputs;
 	class FSimModuleTree;
 
-	struct CHAOSVEHICLESCORE_API FTransmissionSimModuleData : public FModuleNetData
+	struct CHAOSVEHICLESCORE_API FTransmissionSimModuleData
+		: public FModuleNetData
+		, public Chaos::TSimulationModuleTypeable<FTransmissionSimModule,FTransmissionSimModuleData>
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		FTransmissionSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
 #else
 		FTransmissionSimModuleData(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
 #endif
-
-		virtual eSimType GetType() override { return eSimType::Transmission; }
 
 		virtual void FillSimState(ISimulationModuleBase* SimModule) override;
 
@@ -42,12 +43,13 @@ namespace Chaos
 		float CurrentGearChangeTime = 0.0f;
 	};
 
-	struct CHAOSVEHICLESCORE_API FTransmissionOutputData : public FSimOutputData
+	struct CHAOSVEHICLESCORE_API FTransmissionOutputData
+		: public FSimOutputData
+		, public Chaos::TSimulationModuleTypeable<FTransmissionSimModule,FTransmissionOutputData>
 	{
 		virtual FSimOutputData* MakeNewData() override { return FTransmissionOutputData::MakeNew(); }
 		static FSimOutputData* MakeNew() { return new FTransmissionOutputData(); }
-
-		virtual eSimType GetType() override { return eSimType::Transmission; }
+		
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
 
@@ -98,16 +100,16 @@ namespace Chaos
 		bool AutoReverse;				// Arcade handling - holding Brake switches into reverse after vehicle has stopped
 	};
 
-	class CHAOSVEHICLESCORE_API FTransmissionSimModule : public FTorqueSimModule, public TSimModuleSettings<FTransmissionSettings>
+	class CHAOSVEHICLESCORE_API FTransmissionSimModule : public FTorqueSimModule, public TSimModuleSettings<FTransmissionSettings>, public TSimulationModuleTypeable<FTransmissionSimModule>
 	{
 		friend FTransmissionSimModuleData;
 		friend FTransmissionOutputData;
 
 	public:
-
+		DEFINE_CHAOSSIMTYPENAME(FTransmissionSimModule);
 		FTransmissionSimModule(const FTransmissionSettings& Settings);
 
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(const int32 SimArrayIndex) const override
 		{
 			return MakeShared<FTransmissionSimModuleData>(
 				SimArrayIndex
@@ -121,8 +123,6 @@ namespace Chaos
 		{
 			return FTransmissionOutputData::MakeNew();
 		}
-
-		virtual eSimType GetSimType() const { return eSimType::Transmission; }
 
 		virtual const FString GetDebugName() const { return TEXT("Transmission"); }
 
@@ -175,6 +175,16 @@ namespace Chaos
 
 		bool AllowedToChangeGear; // conditions are ok for an automatic gear change
 
+	};
+	
+	class CHAOSVEHICLESCORE_API FTransmissionSimFactory
+		: public FSimFactoryModule<FTransmissionSimModuleData>
+		, public TSimulationModuleTypeable<FTransmissionSimModule,FTransmissionSimFactory>
+		, public TSimFactoryAutoRegister<FTransmissionSimFactory>
+	
+	{
+	public:
+		FTransmissionSimFactory() : FSimFactoryModule(TEXT("TransmissionSimFactory")) {}
 	};
 
 

@@ -261,20 +261,26 @@ void FNetworkModularVehicleInputs::ApplyData(UActorComponent* NetworkComponent) 
 {
 	if (GSimModuleDebugParams.EnableNetworkStateData)
 	{
-		if (FModularVehicleSimulationCU* VehicleSimulation = Cast<UModularVehicleBaseComponent>(NetworkComponent)->VehicleSimulationPT.Get())
+		if (UModularVehicleBaseComponent* ModularBaseComponent = Cast<UModularVehicleBaseComponent>(NetworkComponent))
 		{
-			VehicleSimulation->VehicleInputs = VehicleInputs;
+			if (FModularVehicleSimulationCU* VehicleSimulation = ModularBaseComponent->VehicleSimulationPT.Get())
+			{
+				VehicleSimulation->VehicleInputs = VehicleInputs;
+			}
 		}
 	}
 }
 
 void FNetworkModularVehicleInputs::BuildData(const UActorComponent* NetworkComponent)
 {
-	if (GSimModuleDebugParams.EnableNetworkStateData && NetworkComponent)
+	if (GSimModuleDebugParams.EnableNetworkStateData)
 	{
-		if (const FModularVehicleSimulationCU* VehicleSimulation = Cast<const UModularVehicleBaseComponent>(NetworkComponent)->VehicleSimulationPT.Get())
+		if (const UModularVehicleBaseComponent* ModularBaseComponent = Cast<const UModularVehicleBaseComponent>(NetworkComponent))
 		{
-			VehicleInputs = VehicleSimulation->VehicleInputs;
+			if (const FModularVehicleSimulationCU* VehicleSimulation = ModularBaseComponent->VehicleSimulationPT.Get())
+			{
+				VehicleInputs = VehicleSimulation->VehicleInputs;
+			}
 		}
 	}
 }
@@ -303,34 +309,37 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 
 	int32 NumNetModules = ModuleData.Num();
 	Ar << NumNetModules;
-
+	if(Ar.IsLoading() && NumNetModules != ModuleData.Num())
+	{
+		ModuleData.Reserve(NumNetModules);
+	}
 	for (int I = 0; I < NumNetModules; I++)
 	{
 		if (Ar.IsLoading())
 		{
 			if (NumNetModules > 0)
 			{
-				int32 ModuleType = Chaos::eSimType::Undefined;
+				FName ModuleType = NAME_None;
 				int32 SimArrayIndex = 0;
 				Ar << ModuleType;
 				Ar << SimArrayIndex;
 
-				if (ModuleData.Num() != NumNetModules)
+				if (I >= ModuleData.Num())
 				{
-					ModuleData.Reserve(NumNetModules);
-
 					if (TSharedPtr<Chaos::FModuleNetData> Data = Chaos::FModuleFactoryRegister::Get().GenerateNetData(ModuleType, SimArrayIndex))
 					{
-						Data->Serialize(Ar);
 						ModuleData.Emplace(Data);
 					}
-
+				}
+				if(I <= ModuleData.Num() && ModuleData[I].IsValid())
+				{
+					ModuleData[I]->Serialize(Ar);
 				}
 			}
 		}
 		else
 		{
-			int32 ModuleType = (int32)ModuleData[I]->GetType();
+			FName ModuleType = ModuleData[I]->GetSimType();
 			Ar << ModuleType;
 			Ar << ModuleData[I]->SimArrayIndex;
 			ModuleData[I]->Serialize(Ar);
@@ -343,9 +352,12 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 
 void FNetworkModularVehicleStates::ApplyData(UActorComponent* NetworkComponent) const
 {
-	if (FModularVehicleSimulationCU* VehicleSimulation = Cast<UModularVehicleBaseComponent>(NetworkComponent)->VehicleSimulationPT.Get())
+	if (UModularVehicleBaseComponent* ModularBaseComponent = Cast<UModularVehicleBaseComponent>(NetworkComponent))
 	{
-		VehicleSimulation->AccessSimComponentTree()->SetSimState(ModuleData);
+		if (FModularVehicleSimulationCU* VehicleSimulation = ModularBaseComponent->VehicleSimulationPT.Get())
+		{
+			VehicleSimulation->AccessSimComponentTree()->SetSimState(ModuleData);
+		}
 	}
 }
 
@@ -370,8 +382,8 @@ void FNetworkModularVehicleStates::InterpolateData(const FNetworkPhysicsData& Mi
 	for (int I = 0; I < ModuleData.Num(); I++)
 	{
 		// if these don't match then something has gone terribly wrong
-		check(ModuleData[I]->GetType() == MinState.ModuleData[I]->GetType());
-		check(ModuleData[I]->GetType() == MaxState.ModuleData[I]->GetType());
+		check(ModuleData[I]->GetSimType() == MinState.ModuleData[I]->GetSimType());
+		check(ModuleData[I]->GetSimType() == MaxState.ModuleData[I]->GetSimType());
 
 		ModuleData[I]->Lerp(LerpFactor, *MinState.ModuleData[I].Get(), *MaxState.ModuleData[I].Get());
 	}

@@ -460,6 +460,7 @@ void UNetworkPhysicsComponent::InitPhysics()
 	* If the NetworkPhysicsComponent is added as a SubObject after the actor has processed bAutoActivate and bWantsInitializeComponent
 	* SetActive(true) and InitializeComponent() needs to be called manually for the component to function properly. */
 	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.TickGroup = TG_PostPhysics;
 	bAutoActivate = true;
 	bWantsInitializeComponent = true;
 	SetIsReplicatedByDefault(true);
@@ -525,6 +526,15 @@ void UNetworkPhysicsComponent::InitializeComponent()
 void UNetworkPhysicsComponent::UninitializeComponent()
 {
 	Super::UninitializeComponent();
+
+	if (NetworkPhysicsComponent_Internal)
+	{
+		if (FAsyncNetworkPhysicsComponentInput* AsyncInput = NetworkPhysicsComponent_Internal->GetProducerInputData_External())
+		{
+			AsyncInput->ActorComponent = nullptr;
+		}
+	}
+
 	if (UWorld* World = GetWorld())
 	{
 		if (FPhysScene* PhysScene = World->GetPhysicsScene())
@@ -1178,9 +1188,9 @@ void FAsyncNetworkPhysicsComponent::ConsumeAsyncInput()
 			if (AsyncInput->InputData && AsyncInput->InputData->HasDataInHistory())
 			{
 				// Validate data in the received inputs on the server
-				if (!ComponentSettings.GetValidateDataOnGameThread() && IsServer() && ActorComponent)
+				if (!ComponentSettings.GetValidateDataOnGameThread() && IsServer() && ActorComponent.IsValid() && ActorComponent.Get()->IsBeingDestroyed() == false)
 				{
-					AsyncInput->InputData->ValidateDataInHistory(ActorComponent);
+					AsyncInput->InputData->ValidateDataInHistory(ActorComponent.Get());
 				}
 				ReceiveHelper(InputHistory.Get(), AsyncInput->InputData.Get(), /*bImportant*/false, ComponentSettings.GetCompareInputToTriggerRewind());
 			}
@@ -1259,7 +1269,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 	}
 #endif
 
-	if (ActorComponent)
+	if (ActorComponent.IsValid() && ActorComponent.Get()->IsBeingDestroyed() == false)
 	{
 		// Apply replicated state on clients if we are resimulating
 		if (bIsSolverResim && StateHistory && StateData)
@@ -1269,7 +1279,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 			const bool bExactFrame = PhysicsReplicationCVars::ResimulationCVars::bAllowRewindToClosestState ? !bIsSolverReset : true;
 			if (StateHistory->ExtractData(PhysicsStep, bIsSolverReset, PhysicsData, bExactFrame) && PhysicsData->bReceivedData)
 			{
-				PhysicsData->ApplyData(ActorComponent);
+				PhysicsData->ApplyData(ActorComponent.Get());
 #if DEBUG_NETWORK_PHYSICS
 				UE_LOG(LogChaos, Log, TEXT("		Applying extracted state from history | bExactFrame = %d | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | Data: %s")
 					, bExactFrame, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, *PhysicsData->DebugData());
@@ -1300,7 +1310,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 					UE_LOG(LogChaos, Log, TEXT("	Reapplying multiple data due to receiving an important data that was previously missed. FromFrame: %d | ToFrame: %d | IsLocallyControlled = %d"), NewImportantInputFrame, (NextExpectedLocalFrame - 1), IsLocallyControlled());
 #endif
 					// Apply all inputs in range
-					InputHistory->ApplyDataRange(NewImportantInputFrame, NextExpectedLocalFrame - 1, ActorComponent, /*bOnlyImportant*/false);
+					InputHistory->ApplyDataRange(NewImportantInputFrame, NextExpectedLocalFrame - 1, ActorComponent.Get(), /*bOnlyImportant*/false);
 				}
 				else
 				{
@@ -1337,7 +1347,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 						{
 							if (InputHistory->ExtractData(NextExpectedLocalFrame, bIsSolverReset, PhysicsData, true) && NextExpectedLocalFrame < LastFrame)
 							{
-								PhysicsData->ApplyData(ActorComponent);
+								PhysicsData->ApplyData(ActorComponent.Get());
 							}
 						}
 					}
@@ -1366,7 +1376,7 @@ void FAsyncNetworkPhysicsComponent::OnPreProcessInputs_Internal(const int32 Phys
 					InputHistory->RecordData(PhysicsStep, PhysicsData);
 				}
 
-				PhysicsData->ApplyData(ActorComponent);
+				PhysicsData->ApplyData(ActorComponent.Get());
 
 #if DEBUG_NETWORK_PHYSICS
 				{
@@ -1407,7 +1417,7 @@ void FAsyncNetworkPhysicsComponent::OnPostProcessInputs_Internal(const int32 Phy
 	}
 #endif
 
-	if (ActorComponent)
+	if (ActorComponent.IsValid() && ActorComponent.Get()->IsBeingDestroyed() == false)
 	{
 		const bool bShouldCacheInputHistory = IsLocallyControlled() && !bIsSolverResim;
 		// For the inputs client local ones are ground truth otherwise use the replicated ones coming from the server
@@ -1418,7 +1428,7 @@ void FAsyncNetworkPhysicsComponent::OnPostProcessInputs_Internal(const int32 Phy
 			PhysicsData->PrepareFrame(PhysicsStep, bIsServer, GetNetworkPhysicsTickOffset());
 
 			// Gather input data from implementation
-			PhysicsData->BuildData(ActorComponent);
+			PhysicsData->BuildData(ActorComponent.Get());
 
 			// Record input in history
 			InputHistory->RecordData(PhysicsStep, PhysicsData);
@@ -1451,7 +1461,7 @@ void FAsyncNetworkPhysicsComponent::OnPostProcessInputs_Internal(const int32 Phy
 			PhysicsData->InputFrame = InputFrame;
 
 			// Gather input data from implementation
-			PhysicsData->BuildData(ActorComponent);
+			PhysicsData->BuildData(ActorComponent.Get());
 
 			// Record input in history
 			StateHistory->RecordData(PhysicsStep, PhysicsData);

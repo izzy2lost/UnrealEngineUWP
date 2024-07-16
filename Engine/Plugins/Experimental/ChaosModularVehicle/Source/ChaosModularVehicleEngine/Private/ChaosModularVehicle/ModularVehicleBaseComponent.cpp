@@ -658,12 +658,12 @@ void UModularVehicleBaseComponent::ParallelUpdate(float DeltaTime)
 					}
 
 					// extract/cache some generally useful values as we go as trying to locate this data later requires a search
-					if (PVehicleOutput->SimTreeOutputData[I]->GetType() == Chaos::eSimType::Transmission)
+					if (PVehicleOutput->SimTreeOutputData[I]->IsSimType<Chaos::FTransmissionSimModule>())
 					{
 						// if there is more than one transmission then the last one will inform us of the current gear
 						CurrentGear = static_cast<Chaos::FTransmissionOutputData*>(PVehicleOutput->SimTreeOutputData[I])->CurrentGear;
 					}
-					else if (PVehicleOutput->SimTreeOutputData[I]->GetType() == Chaos::eSimType::Engine)
+					else if (PVehicleOutput->SimTreeOutputData[I]->IsSimType<Chaos::FEngineSimModule>())
 					{
 						// if there is more than one engine then the last one will inform us of the engine RPM
 						Chaos::FEngineOutputData* Engine = static_cast<Chaos::FEngineOutputData*>(CurrentOutput->VehicleSimOutput.SimTreeOutputData[I]);
@@ -906,11 +906,12 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 		Chaos::FPBDRigidsSolver* Solver = Proxy->GetSolver<Chaos::FPBDRigidsSolver>();
 		Solver->EnqueueCommandImmediate([Proxy, this, LatestTreeUpdates = LatestTreeUpdates]() mutable
 			{
-
 				if (VehicleSimulationPT)
 				{
-					TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
-					SimModuleTree->AppendTreeUpdates(LatestTreeUpdates);
+					if(TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree())
+					{
+						SimModuleTree->AppendTreeUpdates(LatestTreeUpdates);
+					}
 				}
 			});
 

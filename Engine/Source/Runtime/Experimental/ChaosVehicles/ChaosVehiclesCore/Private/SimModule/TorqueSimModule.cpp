@@ -33,7 +33,7 @@ void FTorqueSimModule::TransmitTorque(const FSimModuleTree& ModuleTree, float Pu
 			}
 
 			ISimulationModuleBase* Module = ModuleTree.AccessSimModule(ChildIndex);
-			if (FTorqueSimModule* Interface = FTorqueSimModule::CastToTorqueInterface(Module))
+			if (FTorqueSimModule* Interface = Module->Cast<FTorqueSimModule>())
 			{
 				// push the torque value down to the children
 				// TODO: We are performing equal torque splitting here is that correct/desired?

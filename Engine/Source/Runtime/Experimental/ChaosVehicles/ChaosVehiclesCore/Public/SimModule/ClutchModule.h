@@ -22,7 +22,7 @@ namespace Chaos
 	};
 
 
-	struct CHAOSVEHICLESCORE_API FClutchSimModuleData : public FTorqueSimModuleData
+	struct CHAOSVEHICLESCORE_API FClutchSimModuleData : public FTorqueSimModuleData, public TSimulationModuleTypeable<class FClutchSimModule, FClutchSimModuleData>
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		FClutchSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleData(NodeArrayIndex, InDebugString) {}
@@ -30,17 +30,15 @@ namespace Chaos
 		FClutchSimModuleData(int NodeArrayIndex) : FTorqueSimModuleData(NodeArrayIndex) {}
 #endif
 
-		virtual eSimType GetType() override { return eSimType::Clutch; }
-
 		virtual void FillSimState(ISimulationModuleBase* SimModule) override
 		{
-			check(SimModule->GetSimType() == eSimType::Clutch);
+			check(SimModule->IsSimType<class FClutchSimModule>());
 			FTorqueSimModuleData::FillSimState(SimModule);
 		}
 
 		virtual void FillNetState(const ISimulationModuleBase* SimModule) override
 		{
-			check(SimModule->GetSimType() == eSimType::Clutch);
+			check(SimModule->IsSimType<class FClutchSimModule>());
 			FTorqueSimModuleData::FillNetState(SimModule);
 		}
 
@@ -56,13 +54,13 @@ namespace Chaos
 	/// Outputs - 
 	/// 
 	/// </summary>
-	class CHAOSVEHICLESCORE_API FClutchSimModule : public FTorqueSimModule, public TSimModuleSettings<FClutchSettings>
+	class CHAOSVEHICLESCORE_API FClutchSimModule : public FTorqueSimModule, public TSimModuleSettings<FClutchSettings>, public TSimulationModuleTypeable<FClutchSimModule>
 	{
 	public:
-
+		DEFINE_CHAOSSIMTYPENAME(FClutchSimModule);
 		FClutchSimModule(const FClutchSettings& Settings);
 
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(const int32 SimArrayIndex) const override
 		{
 			return MakeShared<FClutchSimModuleData>(
 				SimArrayIndex
@@ -71,8 +69,6 @@ namespace Chaos
 #endif			
 			);
 		}
-
-		virtual eSimType GetSimType() const { return eSimType::Clutch; }
 
 		virtual const FString GetDebugName() const { return TEXT("Clutch"); }
 
@@ -84,6 +80,15 @@ namespace Chaos
 
 		float ClutchValue;
 	};
-
+	
+	class CHAOSVEHICLESCORE_API FClutchSimFactory
+		: public FSimFactoryModule<FClutchSimModuleData>
+		, public TSimulationModuleTypeable<FClutchSimModule,FClutchSimFactory>
+		, public TSimFactoryAutoRegister<FClutchSimFactory>
+	
+	{
+	public:
+		FClutchSimFactory() : FSimFactoryModule(TEXT("ClutchFactory")) {}
+	};
 
 } // namespace Chaos

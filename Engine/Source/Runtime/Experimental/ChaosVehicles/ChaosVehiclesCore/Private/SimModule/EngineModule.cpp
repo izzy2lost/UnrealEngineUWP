@@ -15,12 +15,6 @@ namespace Chaos
 		, MaxEngineSpeed(RPMToOmega(Setup().MaxRPM))
 		, EngineStarted(true)
 	{
-		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
-		{
-			static TSharedPtr<FSimFactoryModule<FEngineSimModuleData>> SharedFactory = MakeShared<FSimFactoryModule<FEngineSimModuleData>>(GetDebugName());
-			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
-		}
-
 	}
 
 	void FEngineSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
@@ -90,7 +84,7 @@ namespace Chaos
 
 	void FEngineOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Engine);
+		check(SimModule->IsSimType<class FEngineSimModule>());
 
 		FSimOutputData::FillOutputState(SimModule);
 

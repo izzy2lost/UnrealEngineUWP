@@ -1189,7 +1189,7 @@ private:
 	static const FNetworkPhysicsSettingsNetworkPhysicsComponent SettingsNetworkPhysicsComponent_Default;
 
 	// Actor component that will be used to fill the histories
-	TObjectPtr<UActorComponent> ActorComponent;
+	TWeakObjectPtr<UActorComponent> ActorComponent;
 
 	// Root components physics object
 	Chaos::FPhysicsObjectHandle RootPhysicsObject;

@@ -18,11 +18,6 @@ namespace Chaos
 		, CurrentGearChangeTime(0.f)
 		, AllowedToChangeGear(true)
 	{
-		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
-		{
-			static TSharedPtr<FSimFactoryModule<FTransmissionSimModuleData>> SharedFactory = MakeShared<FSimFactoryModule<FTransmissionSimModuleData>>(GetDebugName());
-			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
-		}
 	}
 
 	void FTransmissionSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
@@ -170,8 +165,7 @@ namespace Chaos
 
 	void FTransmissionSimModuleData::FillSimState(ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Transmission);
-		if (FTransmissionSimModule* Sim = static_cast<FTransmissionSimModule*>(SimModule))
+		if (FTransmissionSimModule* Sim = SimModule->Cast<FTransmissionSimModule>())
 		{
 			Sim->CurrentGear = CurrentGear;
 			Sim->TargetGear = TargetGear;
@@ -181,8 +175,7 @@ namespace Chaos
 
 	void FTransmissionSimModuleData::FillNetState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Transmission);
-		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
+		if (const FTransmissionSimModule* Sim = SimModule->Cast<const FTransmissionSimModule>())
 		{
 			CurrentGear = Sim->CurrentGear;
 			TargetGear = Sim->TargetGear;
@@ -210,11 +203,9 @@ namespace Chaos
 
 	void FTransmissionOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Transmission);
-
 		FSimOutputData::FillOutputState(SimModule);
 
-		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
+		if (const FTransmissionSimModule* Sim = SimModule->Cast<const FTransmissionSimModule>())
 		{
 			CurrentGear = Sim->CurrentGear;
 		}

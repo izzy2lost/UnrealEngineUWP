@@ -17,11 +17,6 @@ namespace Chaos
 		, MassPerWheel(500.0f)
 		, SteerAngleDegrees(0.0f)
 	{
-		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
-		{
-			static TSharedPtr<FSimFactoryModule<FWheelSimModuleData>> SharedFactory = MakeShared<FSimFactoryModule<FWheelSimModuleData>>(GetDebugName());
-			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
-		}
 	}
 
 	void FWheelSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
@@ -239,7 +234,7 @@ namespace Chaos
 
 	inline void FWheelOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
-		check(SimModule->GetSimType() == eSimType::Wheel);
+		check(SimModule->IsSimType<class FWheelSimModule>());
 
 		FSimOutputData::FillOutputState(SimModule);
 

@@ -11,7 +11,9 @@ namespace Chaos
 	class FClusterUnionPhysicsProxy;
 	struct FModuleNetData;
 
-	struct CHAOSVEHICLESCORE_API FWheelSimModuleData : public FTorqueSimModuleData
+	struct CHAOSVEHICLESCORE_API FWheelSimModuleData
+		: public FTorqueSimModuleData
+		, public Chaos::TSimulationModuleTypeable<class FWheelSimModule,FWheelSimModuleData>
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		FWheelSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleData(NodeArrayIndex, InDebugString) {}
@@ -19,28 +21,27 @@ namespace Chaos
 		FWheelSimModuleData(int NodeArrayIndex) : FTorqueSimModuleData(NodeArrayIndex) {}
 #endif
 
-		virtual eSimType GetType() override { return eSimType::Wheel; }
-
 		virtual void FillSimState(ISimulationModuleBase* SimModule) override
 		{
-			check(SimModule->GetSimType() == eSimType::Wheel);
+			check(SimModule->IsSimType<class FWheelSimModule>());
 			FTorqueSimModuleData::FillSimState(SimModule);
 		}
 
 		virtual void FillNetState(const ISimulationModuleBase* SimModule) override
 		{
-			check(SimModule->GetSimType() == eSimType::Wheel);
+			check(SimModule->IsSimType<class FWheelSimModule>());
 			FTorqueSimModuleData::FillNetState(SimModule);
 		}
 
 	};
 
-	struct CHAOSVEHICLESCORE_API FWheelOutputData : public FSimOutputData
+	struct CHAOSVEHICLESCORE_API FWheelOutputData
+		: public FSimOutputData
+		, public Chaos::TSimulationModuleTypeable<class FWheelSimModule,FWheelOutputData>
 	{
 		virtual FSimOutputData* MakeNewData() override { return FWheelOutputData::MakeNew(); }
 		static FSimOutputData* MakeNew() { return new FWheelOutputData(); }
-
-		virtual eSimType GetType() override { return eSimType::Wheel; }
+		
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
 
@@ -115,15 +116,14 @@ namespace Chaos
 		bool ReverseDirection;
 	};
 
-	class CHAOSVEHICLESCORE_API FWheelSimModule : public FWheelBaseInterface, public TSimModuleSettings<FWheelSettings>
+	class CHAOSVEHICLESCORE_API FWheelSimModule : public FWheelBaseInterface, public TSimModuleSettings<FWheelSettings>, public TSimulationModuleTypeable<FWheelSimModule>
 	{
 		friend FWheelOutputData;
-
 	public:
-
+		DEFINE_CHAOSSIMTYPENAME(FWheelSimModule);
 		FWheelSimModule(const FWheelSettings& Settings);
 
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(const int32 SimArrayIndex) const override
 		{
 			return MakeShared<FWheelSimModuleData>(
 				SimArrayIndex
@@ -137,8 +137,6 @@ namespace Chaos
 		{
 			return FWheelOutputData::MakeNew();
 		}
-
-		virtual eSimType GetSimType() const { return eSimType::Wheel; }
 
 		virtual const FString GetDebugName() const { return TEXT("Wheel"); }
 
@@ -188,5 +186,15 @@ namespace Chaos
 		float SlipAngle;
 	};
 
+	
+	class CHAOSVEHICLESCORE_API FWheelSimFactory
+			: public FSimFactoryModule<FWheelSimModuleData>
+			, public TSimulationModuleTypeable<FWheelSimModule,FWheelSimFactory>
+			, public TSimFactoryAutoRegister<FWheelSimFactory>
+	
+	{
+	public:
+		FWheelSimFactory() : FSimFactoryModule(TEXT("WheelSimFactory")) {}
+	};
 
 } // namespace Chaos

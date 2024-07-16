@@ -11,6 +11,8 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSimulationModule, Warning, All);
 
+#define TSIMMODULETYPEABLE(clazz) Chaos::TSimulationModuleTypeableExt<clazz,&FName(#clazz)>
+
 struct CHAOSVEHICLESCORE_API FCoreModularVehicleDebugParams
 {
 	bool ShowMass = false;
@@ -101,42 +103,149 @@ namespace Chaos
 		Velocity = (1 << 3),	// requires velocity data
 	};
 
-	enum eSimType
-	{
-		Undefined = 0,
-		Chassis,		// linear/angular damping can be applied here
-		Thruster,		// applies force (can be steerable)
-		Aerofoil,		// applied drag and lift forces
-		Wheel,			// a wheel will simply roll if it has no power source
-		Suspension,		// associated with a wheel
-		Axle,			// connects more than one wheel
-		Transmission,	// gears - torque multiplier
-		Engine,			// (torque curve required) power source generates torque for wheel, axle, transmission, clutch
-		Motor,			// NOT USED YET (electric?, no torque curve required?) power source generates torque for wheel, axle, transmission, clutch
-		Clutch,			// limits the amount of torque transferred between source and destination allowing for different rotation speeds of connected axles
-		Wing,			// lift and controls aircraft roll
-		Rudder,			// controls aircraft yaw
-		Elevator,		// controls aircraft pitch
-		Propeller,		// generates thrust when connected to a motor/engine
-		TorqueSim,
-		Booster,		// applies continuous forward force to the center of mass
-		Jump,			// applies burst upward force
-	};
-
 	enum EWheelAxis
 	{
 		X,	// X forward
 		Y	// Y forward
 	};
 
+	//These two classes work in concert to provide typing information for any base classes that use ISimulationModuleBase for some base type security
+	// The FSimulationModuleTypeContainer must only be in the base class of a hierarchy.
+	// The TSimulationModuleTypeable<T> class uses multi-inheritance & CRTP to populate the FSimulationmoduleTypeContainer correctly.
+	// - All of the classes that want to be typeable/castable CRTP themselves into the chain.
+	// - All of the classes that store the shared typing information must be in the CRTP chain.
+	// Together they provide the ability to check and cast to any type within the inheritance chain.
+	
+	template<typename _To>
+	class TSimulationModuleTypeableBase
+	{
+	public:
+		TSimulationModuleTypeableBase()
+		{
+			static_cast<_To*>(this)->AddType(StaticSimTypeBase());
+		}
+		static FName StaticSimTypeBase()
+		{
+			return _To::_CHAOSTYPENAMERETRIVAL_();
+		}
+	};
+
+	template<typename _To, typename ..._Rest>
+	class TSimulationModuleTypeable;
+	
+	template<typename _To>
+	class TSimulationModuleTypeable<_To>
+	{
+	public:
+		TSimulationModuleTypeable()
+		{
+			static_cast<_To*>(this)->AddType(StaticSimType());
+		}
+		static FName StaticSimType()
+		{
+			return _To::_CHAOSTYPENAMERETRIVAL_();
+		}
+	};
+	
+	template<typename _To, typename _From>
+	class TSimulationModuleTypeable<_To,_From>
+	{
+	public:
+		TSimulationModuleTypeable()
+		{
+			static_cast<_From*>(this)->AddType(StaticSimType());
+		}
+		static FName StaticSimType()
+		{
+			return _To::_CHAOSTYPENAMERETRIVAL_();
+		}
+		static FName RecurseSimType()
+		{
+			return StaticSimType();
+		}
+	};
+
+	
+	template<class T, class = void>
+	struct TSimModuleTypeIsRecursive
+	: std::false_type
+	{};
+
+	template<class T>
+	struct TSimModuleTypeIsRecursive<T, std::enable_if_t<std::is_invocable_r<FName, decltype(T::RecurseSimType)>::value>>
+	: std::integral_constant<bool, true>
+	{};
+
+	template<class T>
+	constexpr bool TSimModuleTypeIsRecursive_v = TSimModuleTypeIsRecursive<T>::value;
+	
+	class FSimulationModuleTypeContainer
+	{
+	public:
+		TSet<FName> MyTypes;
+		FName MostRecentAdd = NAME_None;
+		void AddType(FName InType)
+		{
+			MyTypes.Emplace(InType);
+			MostRecentAdd = InType;
+		}
+		bool IsSimType(FName InType) const
+		{
+			return MostRecentAdd == InType || MyTypes.Contains(InType);
+		}
+		FName GetSimType() const
+		{
+			return MostRecentAdd;
+		}
+		template<typename U>
+		bool IsSimType() const
+		{
+			if constexpr (TSimModuleTypeIsRecursive_v<U>)
+			{
+				return IsSimType(U::RecurseSimType()); 
+			}
+			else
+			{
+				return IsSimType(TSimulationModuleTypeable<U>::StaticSimType()); 
+			}
+		}
+		template<typename U>
+		U* Cast()
+		{
+			if(IsSimType<std::remove_const_t<U>>())
+			{
+				return static_cast<U*>(this);
+			}
+			return nullptr;
+		}
+		template<typename U>
+		const U* Cast() const
+		{
+			if(IsSimType<std::remove_const_t<U>>())
+			{
+				return static_cast<const U*>(this);
+			}
+			return nullptr;
+		}
+	};
+	
+
+#define DEFINE_CHAOSSIMTYPENAME(cls) \
+	 static FName _CHAOSTYPENAMERETRIVAL_() { return FName(#cls); }
+	
+	//FName TSimulationModuleTypeName<class cls>::SimModuleTypeName = FName(#cls); 
+
+	
 	/**
 	 * Interface base class for all simulation module building blocks
 	 */
-	class CHAOSVEHICLESCORE_API ISimulationModuleBase
+	class CHAOSVEHICLESCORE_API ISimulationModuleBase : public FSimulationModuleTypeContainer, public TSimulationModuleTypeableBase<ISimulationModuleBase>
 	{
 	friend FSimOutputData;
-
+		
+		
 	public:
+		DEFINE_CHAOSSIMTYPENAME(ISimulationModuleBase);
 		const static int INVALID_IDX = -1;
 
 		ISimulationModuleBase()
@@ -159,7 +268,6 @@ namespace Chaos
 
 		const int GetGuid() { return Guid; }
 		void SetGuid(int GuidIn) { Guid = GuidIn; }
-
 		/**
 		* Get the friendly name for this module, primarily for logging & debugging module tree
 		 */
@@ -169,16 +277,6 @@ namespace Chaos
 		* Is Module of a specific behavioral data type
 		 */
 		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const = 0;
-
-		/**
-		 * The specific simulation type
-		 */
-		virtual eSimType GetSimType() const = 0;
-
-		/**
-		 * The specific simulation type
-		 */
-		virtual FName GetSimTypeName() const { return NAME_None; }
 
 		/**
 		 * Is Module active and simulating
@@ -331,7 +429,7 @@ namespace Chaos
 		const FVector& GetAppliedForce() { return AppliedForce; }
 
 		// this is the replication datas
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const = 0;
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(const int32 NodeArrayIndex) const = 0;
 
 		virtual FSimOutputData* GenerateOutputData() const { return nullptr; }
 
@@ -374,8 +472,9 @@ namespace Chaos
 	/**
 	* Interface base class for all module network serialization
 	*/
-	struct CHAOSVEHICLESCORE_API FModuleNetData
+	struct CHAOSVEHICLESCORE_API FModuleNetData :public FSimulationModuleTypeContainer, public TSimulationModuleTypeableBase<FModuleNetData>
 	{
+		DEFINE_CHAOSSIMTYPENAME(FModuleNetData);
 		FModuleNetData(int InSimArrayIndex, const FString& InDebugString = FString())
 			: SimArrayIndex(InSimArrayIndex)
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -385,8 +484,6 @@ namespace Chaos
 
 		virtual ~FModuleNetData() {}
 
-		virtual eSimType GetType() = 0;
-		virtual FName GetTypeName() const { return NAME_None; };
 		virtual void Serialize(FArchive& Ar) = 0;
 		virtual void FillNetState(const ISimulationModuleBase* SimModule) = 0;
 		virtual void FillSimState(ISimulationModuleBase* SimModule) = 0;
@@ -408,14 +505,13 @@ namespace Chaos
 		static uint16 AnimatePosition = 0x00000001;
 		static uint16 AnimateRotation = 0x00000002;
 	}
-
-	struct CHAOSVEHICLESCORE_API FSimOutputData
+	
+	struct CHAOSVEHICLESCORE_API FSimOutputData : public FSimulationModuleTypeContainer, public TSimulationModuleTypeableBase<FSimOutputData>
 	{
+		DEFINE_CHAOSSIMTYPENAME(FSimOutputData);
 		FSimOutputData() = default;
 		virtual ~FSimOutputData() {}
-
-		virtual eSimType GetType() = 0;
-		virtual FName GetTypeName() const { return NAME_None; };
+		
 		virtual bool IsEnabled() { return bEnabled; }
 		virtual FSimOutputData* MakeNewData() = 0;
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule);
@@ -433,16 +529,24 @@ namespace Chaos
 #endif
 	};
 
-	class CHAOSVEHICLESCORE_API IFactoryModule
+	class CHAOSVEHICLESCORE_API IFactoryModule : public FSimulationModuleTypeContainer, public TSimulationModuleTypeableBase<IFactoryModule>
 	{
 	public:
+		DEFINE_CHAOSSIMTYPENAME(IFactoryModule);
 		virtual ~IFactoryModule() {}
-		virtual TSharedPtr<Chaos::FModuleNetData> GenerateNetData(int32 SimArrayIndex) const = 0;
+		virtual TSharedPtr<Chaos::FModuleNetData> GenerateNetData(const int32 SimArrayIndex) const = 0;
 
 	};
 
+	template<typename _To>
+	class TSimFactoryAutoRegister
+	{
+	private:
+		inline static bool bSimFactoryRegistered = RegisterFactoryHelper<_To>();
+	};
+
 	template <typename T>
-	class CHAOSVEHICLESCORE_API FSimFactoryModule : public IFactoryModule
+	class FSimFactoryModule : public IFactoryModule
 	{
 	public:
 		FSimFactoryModule(const FString& DebugNameIn)
@@ -452,8 +556,7 @@ namespace Chaos
 #endif
 		}
 
-
-		TSharedPtr<Chaos::FModuleNetData> GenerateNetData(int32 SimArrayIndex) const
+		TSharedPtr<Chaos::FModuleNetData> GenerateNetData(const int32 SimArrayIndex) const override
 		{
 			return MakeShared<T>(
 				SimArrayIndex
@@ -468,5 +571,4 @@ namespace Chaos
 #endif
 
 	};
-
 } // namespace Chaos
