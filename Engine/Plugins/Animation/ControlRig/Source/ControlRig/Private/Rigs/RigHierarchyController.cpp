@@ -493,10 +493,12 @@ FRigElementKey URigHierarchyController::AddPhysicsElement(FName InName, FRigElem
 		return FRigElementKey();
 	}
 
+#if WITH_EDITOR
 	if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
 	{
 		return FRigElementKey();
 	}
+#endif
 
 	URigHierarchy* Hierarchy = GetHierarchy();
 

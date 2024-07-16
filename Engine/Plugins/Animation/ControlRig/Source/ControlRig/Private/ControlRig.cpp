@@ -3580,10 +3580,12 @@ const FRigPhysicsSolverDescription* UControlRig::FindPhysicsSolverByName(const F
 
 FRigPhysicsSolverID UControlRig::AddPhysicsSolver(FName InName, bool bSetupUndo, bool bPrintPythonCommand)
 {
+#if WITH_EDITOR
 	if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
 	{
 		return FRigPhysicsSolverID();
 	}
+#endif
 
 	if(InName.IsNone())
 	{
