@@ -433,7 +433,7 @@ bool FCanvasBatchedElementRenderItem::Render_RenderThread(FCanvasRenderContext& 
 
 		RenderContext.AddPass(
 			RDG_EVENT_NAME("CanvasBatchedElements"),
-			[LocalData = Data, DrawRenderState, Canvas](FRHICommandListImmediate& RHICmdList)
+			[LocalData = Data, DrawRenderState, Canvas](FRHICommandList& RHICmdList)
 		{
 			// current render target set for the canvas
 			const FRenderTarget* CanvasRenderTarget = Canvas->GetRenderTarget();

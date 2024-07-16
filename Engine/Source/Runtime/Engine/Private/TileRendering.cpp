@@ -71,6 +71,11 @@ FCanvasTileRendererItem::FRenderData::FRenderData(
 	, VertexFactory(&StaticMeshVertexBuffers, InFeatureLevel)
 {}
 
+FCanvasTileRendererItem::FRenderData::~FRenderData()
+{
+	ReleaseTileMesh();
+}
+
 uint32 FCanvasTileRendererItem::FRenderData::GetNumVertices() const
 {
 	return Tiles.Num() * CanvasTileVertexCount;
@@ -200,11 +205,6 @@ void FCanvasTileRendererItem::FRenderData::RenderTiles(
 	// Flush the final batch: 
 	check(CurrentMeshBatch != nullptr);
 	GetRendererModule().DrawTileMesh(RenderContext, DrawRenderState, View, *CurrentMeshBatch, bIsHitTesting, CurrentMeshBatch->BatchHitProxyId, bUse128bitRT);
-
-	AddPass(RenderContext.GraphBuilder, RDG_EVENT_NAME("ReleaseTileMesh"), [this](FRHICommandListImmediate&)
-	{
-		ReleaseTileMesh();
-	});
 }
 
 bool FCanvasTileRendererItem::Render_RenderThread(FCanvasRenderContext& RenderContext, FMeshPassProcessorRenderState& DrawRenderState, const FCanvas* Canvas)

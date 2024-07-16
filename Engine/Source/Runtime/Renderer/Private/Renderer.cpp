@@ -415,7 +415,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 				PassParameters->DebugViewMode = CreateDebugViewModePassUniformBuffer(GraphBuilder, View, nullptr);
 
 				RenderContext.AddPass(RDG_EVENT_NAME("OutputMaterialTextureScales"), PassParameters,
-					[Scene, &View, &Mesh](FRHICommandListImmediate& RHICmdList)
+					[Scene, &View, &Mesh](FRHICommandList& RHICmdList)
 				{
 					DrawDynamicMeshPass(View, RHICmdList, [&](FMeshPassDrawListContext* InDrawListContext)
 					{
@@ -439,7 +439,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 				PassParameters->TranslucentBasePass = CreateTranslucentBasePassUniformBuffer(GraphBuilder, Scene, View);
 
 				RenderContext.AddPass(RDG_EVENT_NAME("TranslucentDeferred"), PassParameters,
-					[Scene, &View, &Mesh, DrawRenderState, bUse128bitRT](FRHICommandListImmediate& RHICmdList)
+					[Scene, &View, &Mesh, DrawRenderState, bUse128bitRT](FRHICommandList& RHICmdList)
 				{
 					DrawDynamicMeshPass(View, RHICmdList, [&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 					{
@@ -463,7 +463,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 				PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Translucent, EMobileSceneTextureSetupMode::None);
 
 				RenderContext.AddPass(RDG_EVENT_NAME("TranslucentMobile"), PassParameters,
-					[Scene, &View, DrawRenderState, &Mesh](FRHICommandListImmediate& RHICmdList)
+					[Scene, &View, DrawRenderState, &Mesh](FRHICommandList& RHICmdList)
 				{
 					DrawDynamicMeshPass(View, RHICmdList, [&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 					{
@@ -495,7 +495,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 
 #if WITH_EDITOR
 				RenderContext.AddPass(RDG_EVENT_NAME("HitTesting"), PassParameters,
-					[Scene, &View, DrawRenderState, &Mesh](FRHICommandListImmediate& RHICmdList)
+					[Scene, &View, DrawRenderState, &Mesh](FRHICommandList& RHICmdList)
 				{
 					DrawDynamicMeshPass(View, RHICmdList, [&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 					{
@@ -519,7 +519,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 					PassParameters->OpaqueBasePass = CreateOpaqueBasePassUniformBuffer(GraphBuilder, View);
 
 					RenderContext.AddPass(RDG_EVENT_NAME("OpaqueDeferred"), PassParameters,
-						[Scene, &View, DrawRenderState, &Mesh, bUse128bitRT](FRHICommandListImmediate& RHICmdList)
+						[Scene, &View, DrawRenderState, &Mesh, bUse128bitRT](FRHICommandList& RHICmdList)
 					{
 						DrawDynamicMeshPass(View, RHICmdList,
 							[&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
@@ -543,7 +543,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 					PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Opaque, EMobileSceneTextureSetupMode::None);
 
 					RenderContext.AddPass(RDG_EVENT_NAME("OpaqueMobile"), PassParameters,
-						[Scene, &View, DrawRenderState, &Mesh](FRHICommandListImmediate& RHICmdList)
+						[Scene, &View, DrawRenderState, &Mesh](FRHICommandList& RHICmdList)
 					{
 						DrawDynamicMeshPass(View, RHICmdList, [&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
 						{

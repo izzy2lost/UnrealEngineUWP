@@ -36,6 +36,11 @@ void FCanvasTriangleRendererItem::FTriangleVertexFactory::InitResource(FRHIComma
 	FLocalVertexFactory::InitResource(RHICmdList);
 }
 
+FCanvasTriangleRendererItem::FRenderData::~FRenderData()
+{
+	ReleaseTriangleMesh();
+}
+
 FMeshBatch* FCanvasTriangleRendererItem::FRenderData::AllocTriangleMeshBatch(FCanvasRenderContext& InRenderContext, FHitProxyId InHitProxyId)
 {
 	FMeshBatch* MeshBatch = InRenderContext.Alloc<FMeshBatch>();
@@ -176,11 +181,6 @@ void FCanvasTriangleRendererItem::FRenderData::RenderTriangles(
 	// Flush the final batch: 
 	check(CurrentMeshBatch != nullptr);
 	GetRendererModule().DrawTileMesh(RenderContext, DrawRenderState, View, *CurrentMeshBatch, bIsHitTesting, CurrentMeshBatch->BatchHitProxyId);
-
-	AddPass(RenderContext.GraphBuilder, RDG_EVENT_NAME("ReleaseTriangleMesh"), [this](FRHICommandListImmediate&)
-	{
-		ReleaseTriangleMesh();
-	});
 }
 
 bool FCanvasTriangleRendererItem::Render_RenderThread(FCanvasRenderContext& RenderContext, FMeshPassProcessorRenderState& DrawRenderState, const FCanvas* Canvas)
