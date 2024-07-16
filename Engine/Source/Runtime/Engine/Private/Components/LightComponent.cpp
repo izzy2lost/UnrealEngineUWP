@@ -605,6 +605,11 @@ void ULightComponent::PostLoad()
 	}
 }
 
+bool ULightComponent::CanTraceDistanceFieldShadows() const
+{
+	return CastShadows && CastDynamicShadows && Mobility != EComponentMobility::Static && DoesProjectSupportDistanceFields();
+}
+
 #if WITH_EDITOR
 void ULightComponent::PreSave(const class ITargetPlatform* TargetPlatform)
 {
@@ -664,7 +669,7 @@ bool ULightComponent::CanEditChange(const FProperty* InProperty) const
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULightComponent, bUseRayTracedDistanceFieldShadows)
 			|| bIsRayStartOffset)
 		{
-			bool bCanEdit = CastShadows && CastDynamicShadows && Mobility != EComponentMobility::Static && DoesProjectSupportDistanceFields();
+			bool bCanEdit = CanTraceDistanceFieldShadows();
 
 			if (bIsRayStartOffset)
 			{
@@ -1267,6 +1272,19 @@ void ULightComponent::SetLightingChannels(bool bChannel0, bool bChannel1, bool b
 		LightingChannels.bChannel0 = bChannel0;
 		LightingChannels.bChannel1 = bChannel1;
 		LightingChannels.bChannel2 = bChannel2;
+		MarkRenderStateDirty();
+	}
+}
+
+void ULightComponent::SetUseRayTracedDistanceFieldShadows(bool bNewValue)
+{
+	// Never set to true if not supported.
+	bNewValue = bNewValue && CanTraceDistanceFieldShadows();
+
+	if (AreDynamicDataChangesAllowed() &&
+		bNewValue != bUseRayTracedDistanceFieldShadows)
+	{
+		bUseRayTracedDistanceFieldShadows = bNewValue;
 		MarkRenderStateDirty();
 	}
 }

@@ -274,6 +274,9 @@ class USkyLightComponent : public ULightComponentBase
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|SkyLight")
 	ENGINE_API void SetMinOcclusion(float InMinOcclusion);
 
+	UFUNCTION(BlueprintCallable, Category="Rendering|Components|SkyLight")
+	ENGINE_API void SetRealTimeCapture(bool bInRealTimeCapture);
+
 protected:
 	ENGINE_API virtual void OnVisibilityChanged() override;
 

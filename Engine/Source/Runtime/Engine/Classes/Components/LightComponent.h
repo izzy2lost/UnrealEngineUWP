@@ -332,6 +332,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Light")
 	ENGINE_API void SetLightingChannels(bool bChannel0, bool bChannel1, bool bChannel2);
 
+	UFUNCTION(BlueprintCallable, Category="Rendering|Components|Light")
+	ENGINE_API void SetUseRayTracedDistanceFieldShadows(bool bNewValue);
+
 public:
 	/** The light's scene info. */
 	class FLightSceneProxy* SceneProxy;
@@ -478,6 +481,10 @@ protected:
 	ENGINE_API virtual bool GetMaterialPropertyPath(int32 ElementIndex, UObject*& OutOwner, FString& OutPropertyPath, FProperty*& OutProperty) override;
 #endif // WITH_EDITOR
 	//~ End USceneComponent Interface
+
+private:
+
+	bool CanTraceDistanceFieldShadows() const;
 
 public:
 	ENGINE_API virtual void InvalidateLightingCacheDetailed(bool bInvalidateBuildEnqueuedLighting, bool bTranslationOnly) override;

@@ -1116,6 +1116,15 @@ void USkyLightComponent::SetMinOcclusion(float InMinOcclusion)
 	}
 }
 
+void USkyLightComponent::SetRealTimeCapture(bool bInRealTimeCapture)
+{
+	if (AreDynamicDataChangesAllowed()
+		&& bInRealTimeCapture != bRealTimeCapture)
+	{
+		SetRealTimeCaptureEnabled(bInRealTimeCapture);
+	}
+}
+
 bool USkyLightComponent::IsOcclusionSupported() const
 {
 	FSceneInterface* LocalScene = GetScene();
@@ -1141,6 +1150,7 @@ void USkyLightComponent::SetRealTimeCaptureEnabled(bool bNewRealTimeCaptureEnabl
 {
 	bRealTimeCapture = bNewRealTimeCaptureEnabled;
 	MarkRenderStateDirty();
+	SetCaptureIsDirty();
 }
 
 void USkyLightComponent::OnVisibilityChanged()
