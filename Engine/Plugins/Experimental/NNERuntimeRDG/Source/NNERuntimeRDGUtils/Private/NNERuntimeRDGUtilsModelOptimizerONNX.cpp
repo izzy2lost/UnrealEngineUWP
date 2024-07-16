@@ -2,6 +2,7 @@
 
 #include "NNERuntimeRDGUtilsModelOptimizerONNX.h"
 
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
@@ -38,6 +39,12 @@ public:
 		{
 			UE_LOG(LogNNE, Warning, TEXT("%s is expecting a model in ONNX format but received %u."), *(GetName()), Model.Format);
 			return false;
+		}
+
+		static const auto CVarHlslModelOptimization = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("nne.hlsl.ModelOptimization"));
+		if (CVarHlslModelOptimization && CVarHlslModelOptimization->GetValueOnAnyThread() == 0)
+		{
+			return true;
 		}
 
 		FString ProjIntermediateDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectIntermediateDir());
