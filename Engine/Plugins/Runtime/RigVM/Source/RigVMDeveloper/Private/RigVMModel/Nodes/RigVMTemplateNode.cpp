@@ -667,42 +667,39 @@ FString URigVMTemplateNode::GetInitialDefaultValueForPin(const FName& InRootPinN
 	return DefaultValue;
 }
 
-FName URigVMTemplateNode::GetDisplayNameForPin(const FName& InRootPinName,
-	const TArray<int32>& InPermutationIndices) const
+FName URigVMTemplateNode::GetDisplayNameForPin(const FString& InPinPath) const
 {
 #if WITH_EDITOR
 	if(const FRigVMTemplate* Template = GetTemplate())
 	{
-		const TArray<int32>* PermutationIndicesPtr = &InPermutationIndices;
-		TArray<int32> AllPermutations;
-		if(PermutationIndicesPtr->IsEmpty())
+		if(!InPinPath.Contains(TEXT(".")))
 		{
-			AllPermutations = GetResolvedPermutationIndices(false);
-			PermutationIndicesPtr = &AllPermutations;
-		}
+			const FName RootPinName = *InPinPath;
+			const TArray<int32> AllPermutations = GetResolvedPermutationIndices(false);
 
-		const FText DisplayNameText = Template->GetDisplayNameForArgument(InRootPinName, *PermutationIndicesPtr);
-		if(DisplayNameText.IsEmpty())
-		{
-			return NAME_None;
-		}
+			const FText DisplayNameText = Template->GetDisplayNameForArgument(RootPinName, AllPermutations);
+			if(DisplayNameText.IsEmpty())
+			{
+				return NAME_None;
+			}
 
-		FString DefaultDisplayName = InRootPinName.ToString();
-		FString Left, Right;
-		if(RigVMStringUtils::SplitPinPathAtEnd(DefaultDisplayName, Left, Right))
-		{
-			DefaultDisplayName = Right;
-		}
+			FString DefaultDisplayName = RootPinName.ToString();
+			FString Left, Right;
+			if(RigVMStringUtils::SplitPinPathAtEnd(DefaultDisplayName, Left, Right))
+			{
+				DefaultDisplayName = Right;
+			}
 
-		const FName DisplayName = *DisplayNameText.ToString();
-		if(DisplayName.IsEqual(*DefaultDisplayName))
-		{
-			return NAME_None;
+			const FName DisplayName = *DisplayNameText.ToString();
+			if(DisplayName.IsEqual(*DefaultDisplayName))
+			{
+				return NAME_None;
+			}
+			return DisplayName;
 		}
-		return DisplayName;
 	}
 #endif
-	return NAME_None;
+	return Super::GetDisplayNameForPin(InPinPath);
 }
 
 TRigVMTypeIndex URigVMTemplateNode::TryReduceTypesToSingle(const TArray<TRigVMTypeIndex>& InTypes, const TRigVMTypeIndex PreferredType) const

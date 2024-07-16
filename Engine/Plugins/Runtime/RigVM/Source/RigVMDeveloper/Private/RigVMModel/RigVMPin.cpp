@@ -224,6 +224,22 @@ FString URigVMPin::GetSubPinPath(const URigVMPin* InParentPin, bool bIncludePare
 	return GetName();
 }
 
+FString URigVMPin::GetCategory() const
+{
+	if (UserDefinedCategory.IsEmpty())
+	{
+		if(const URigVMNode* Node = GetNode())
+		{
+			const FString CategoryFromNode = Node->GetCategoryForPin(this->GetSegmentPath(true));
+			if(!CategoryFromNode.IsEmpty())
+			{
+				return CategoryFromNode;
+			}
+		}
+	}
+	return UserDefinedCategory;
+}
+
 FString URigVMPin::GetSegmentPath(bool bIncludeRootPin) const
 {
 	URigVMPin* ParentPin = GetParentPin();
@@ -366,12 +382,12 @@ FName URigVMPin::GetDisplayName() const
 {
 	if (DisplayName == NAME_None)
 	{
-		if(const URigVMTemplateNode* Node = Cast<URigVMTemplateNode>(GetNode()))
+		if(const URigVMNode* Node = GetNode())
 		{
-			const FName DisplayNameForArgument = Node->GetDisplayNameForPin(*this->GetSegmentPath(true));
-			if(!DisplayNameForArgument.IsNone())
+			const FName DisplayNameFromNode = Node->GetDisplayNameForPin(this->GetSegmentPath(true));
+			if(!DisplayNameFromNode.IsNone())
 			{
-				return DisplayNameForArgument;
+				return DisplayNameFromNode;
 			}
 		}
 		return GetFName();
@@ -1700,6 +1716,17 @@ URigVMPin* URigVMPin::GetOriginalPinFromInjectedNode() const
 const TArray<URigVMPin*>& URigVMPin::GetSubPins() const
 {
 	return SubPins;
+}
+
+TArray<URigVMPin*> URigVMPin::GetAllSubPinsRecursively() const
+{
+	TArray<URigVMPin*> AllSubPins;
+	AllSubPins.Append(SubPins);
+	for(const TObjectPtr<URigVMPin>& SubPin : SubPins)
+	{
+		AllSubPins.Append(SubPin->GetAllSubPinsRecursively());
+	}
+	return AllSubPins;
 }
 
 URigVMPin* URigVMPin::FindSubPin(const FString& InPinPath) const

@@ -54,6 +54,8 @@ enum class ERigVMGraphNotifType : uint8
 	LibraryTemplateChanged, // The definition of a library node's template has changed (Subject == URigVMLibraryNode)
 	FunctionAccessChanged, // The function has been made public/private (Subject == URigVMLibraryNode)
 	VariantTagsChanged, // The tags in the header of this function variant have changed (Subject == URigVMLibraryNode)
+	PinDisplayNameChanged, // The display name of a pin has changed - requiring a rebuild of the node user interface (Subject == URigVMPin) 
+	PinCategoryChanged, // The category of a pin has changed - requiring a rebuild of the node user interface (Subject == URigVMPin)
 	Invalid // The max for this enum (used for guarding)
 };
 

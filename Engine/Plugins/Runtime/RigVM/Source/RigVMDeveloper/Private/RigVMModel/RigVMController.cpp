@@ -26,6 +26,7 @@
 #include "Algo/Transform.h"
 #include "RigVMPythonUtils.h"
 #include "RigVMTypeUtils.h"
+#include "RigVMStringUtils.h"
 #include "StructUtils/UserDefinedStruct.h"
 #include "RigVMFunctions/RigVMDispatch_If.h"
 #include "RigVMFunctions/RigVMDispatch_Select.h"
@@ -1567,7 +1568,7 @@ URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, TSu
 	
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	FRigVMControllerCompileBracketScope CompileScope(this);
@@ -1917,7 +1918,7 @@ URigVMVariableNode* URigVMController::AddVariableNode(const FName& InVariableNam
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	FRigVMControllerCompileBracketScope CompileScope(this);
@@ -2954,7 +2955,7 @@ URigVMCommentNode* URigVMController::AddCommentNode(const FString& InCommentText
 	
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	FRigVMControllerCompileBracketScope CompileScope(this);
@@ -3142,7 +3143,7 @@ URigVMRerouteNode* URigVMController::AddRerouteNodeOnPin(const FString& InPinPat
 	
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bSetupUndoRedo)
@@ -3371,7 +3372,7 @@ URigVMInjectionInfo* URigVMController::AddInjectedNode(const FString& InPinPath,
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 	
 	if (bSetupUndoRedo)
@@ -3510,7 +3511,7 @@ bool URigVMController::RemoveInjectedNode(const FString& InPinPath, bool bAsInpu
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 	
 	if (bSetupUndoRedo)
@@ -3662,7 +3663,7 @@ URigVMInjectionInfo* URigVMController::InjectNodeIntoPin(URigVMPin* InPin, bool 
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bSetupUndoRedo)
@@ -3796,7 +3797,7 @@ URigVMNode* URigVMController::EjectNodeFromPin(URigVMPin* InPin, bool bSetupUndo
 		
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bSetupUndoRedo)
@@ -6781,7 +6782,7 @@ bool URigVMController::RemoveNodes(TArray<URigVMNode*> InNodes, bool bSetupUndoR
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bPrintPythonCommand)
@@ -7703,7 +7704,7 @@ bool URigVMController::RenameVariable(const FName& InOldName, const FName& InNew
 		Notify(ERigVMGraphNotifType::VariableRenamed, RenamedNode);
 		if (!bSuspendNotifications)
 		{
-			Graph->MarkPackageDirty();
+			(void)Graph->MarkPackageDirty();
 		}
 	}
 
@@ -7794,7 +7795,7 @@ bool URigVMController::SetPinExpansion(URigVMPin* InPin, bool bIsExpanded, bool 
 	Notify(ERigVMGraphNotifType::PinExpansionChanged, InPin);
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bSetupUndoRedo)
@@ -7869,7 +7870,214 @@ bool URigVMController::SetPinIsWatched(URigVMPin* InPin, bool bIsWatched, bool b
 	Notify(ERigVMGraphNotifType::PinWatchedChanged, InPin);
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
+	}
+
+	if (bSetupUndoRedo)
+	{
+		GetActionStack()->EndAction(Action);
+	}
+
+	return true;
+}
+
+bool URigVMController::SetPinDisplayName(const FString& InPinPath, const FString& InDisplayName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	const URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	URigVMPin* Pin = Graph->FindPin(InPinPath);
+	if (Pin == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find pin '%s'."), *InPinPath);
+		return false;
+	}
+
+	const bool bSuccess = SetPinDisplayName(Pin, InDisplayName, bSetupUndoRedo);
+	if (bSuccess && bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()),
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').set_pin_display_name('%s', '%s')"),
+			*GraphName,
+			*GetSchema()->GetSanitizedPinPath(InPinPath),
+			*InDisplayName));
+	}
+
+	return bSuccess;
+}
+
+bool URigVMController::SetPinDisplayName(URigVMPin* InPin, const FString& InDisplayName, bool bSetupUndoRedo)
+{
+	if(!IsValidPinForGraph(InPin))
+	{
+		return false;
+	}
+
+	const FName OldDisplayFName = InPin->GetDisplayName();
+	const FString OldDisplayName = OldDisplayFName.IsNone() ? FString() : OldDisplayFName.ToString();
+
+	if(InDisplayName.Equals(OldDisplayName, ESearchCase::CaseSensitive))
+	{
+		return false;
+	}
+
+	FRigVMControllerCompileBracketScope CompileScope(this);
+	FRigVMSetPinDisplayNameAction Action;
+	if (bSetupUndoRedo)
+	{
+		Action = FRigVMSetPinDisplayNameAction(this, InPin, InDisplayName);
+		Action.SetTitle(TEXT("Set Pin Display Name"));
+		GetActionStack()->BeginAction(Action);
+	}
+
+	InPin->DisplayName = InDisplayName.IsEmpty() ? FName(NAME_None) : FName(*InDisplayName);
+	Notify(ERigVMGraphNotifType::PinDisplayNameChanged, InPin);
+
+	if (!bSuspendNotifications)
+	{
+		const URigVMGraph* Graph = GetGraph();
+		check(Graph);
+		(void)Graph->MarkPackageDirty();
+	}
+
+	if (bSetupUndoRedo)
+	{
+		GetActionStack()->EndAction(Action);
+	}
+
+	return true;
+}
+
+bool URigVMController::SetPinCategory(const FString& InPinPath, const FString& InCategory, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	const URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	URigVMPin* Pin = Graph->FindPin(InPinPath);
+	if (Pin == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find pin '%s'."), *InPinPath);
+		return false;
+	}
+
+	const bool bSuccess = SetPinCategory(Pin, InCategory, bSetupUndoRedo);
+	if (bSuccess && bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()),
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').set_pin_category('%s', '%s')"),
+			*GraphName,
+			*GetSchema()->GetSanitizedPinPath(InPinPath),
+			*InCategory));
+	}
+
+	return bSuccess;
+}
+
+bool URigVMController::ClearPinCategory(const FString& InPinPath, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return SetPinCategory(InPinPath, FString(), bSetupUndoRedo, bPrintPythonCommand);
+}
+
+bool URigVMController::SetPinCategory(URigVMPin* InPin, const FString& InCategory, bool bSetupUndoRedo)
+{
+	if(!IsValidPinForGraph(InPin))
+	{
+		return false;
+	}
+
+	TArray<FString> Categories;
+	RigVMStringUtils::SplitNodePath(InCategory, Categories);
+
+	// trim each category name
+	for(FString& Category : Categories)
+	{
+		Category.TrimStartAndEndInline();
+	}
+
+	// remove empty categories
+	Categories.Remove(FString());
+
+	// re-join the category path
+	FString NewCategory;
+	if(!Categories.IsEmpty())
+	{
+		NewCategory = RigVMStringUtils::JoinNodePath(Categories);
+	}
+
+	if(NewCategory.Equals(InPin->UserDefinedCategory, ESearchCase::CaseSensitive))
+	{
+		return false;
+	}
+
+	// we only allow one category per pin path - so we need to check all parents and children for set categories
+	if(!NewCategory.IsEmpty())
+	{
+		TArray<URigVMPin*> PinsToCheck;
+		URigVMPin* ParentPin = InPin->GetParentPin();
+		while(ParentPin)
+		{
+			PinsToCheck.Add(ParentPin);
+			ParentPin = ParentPin->GetParentPin();
+		}
+		PinsToCheck.Append(InPin->GetAllSubPinsRecursively());
+
+		for(const URigVMPin* ParentOrSubPin : PinsToCheck)
+		{
+			if(!ParentOrSubPin->UserDefinedCategory.IsEmpty())
+			{
+				ReportErrorf(
+					TEXT("Cannot set category (%s) on pin '%s' since pin '%s' already has a category set (%s)."),
+					*NewCategory,
+					*InPin->GetPinPath(),
+					*ParentOrSubPin->GetPinPath(),
+					*ParentOrSubPin->UserDefinedCategory
+				);
+				return false;
+			}
+		}
+	}
+
+	FRigVMControllerCompileBracketScope CompileScope(this);
+	FRigVMSetPinCategoryAction Action;
+	if (bSetupUndoRedo)
+	{
+		Action = FRigVMSetPinCategoryAction(this, InPin, NewCategory);
+		Action.SetTitle(TEXT("Set Pin Category"));
+		GetActionStack()->BeginAction(Action);
+	}
+
+	InPin->UserDefinedCategory = NewCategory;
+	Notify(ERigVMGraphNotifType::PinCategoryChanged, InPin);
+
+	if (!bSuspendNotifications)
+	{
+		const URigVMGraph* Graph = GetGraph();
+		check(Graph);
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bSetupUndoRedo)
@@ -9070,7 +9278,7 @@ URigVMPin* URigVMController::InsertArrayPin(URigVMPin* ArrayPin, int32 InIndex, 
 	Notify(ERigVMGraphNotifType::PinArraySizeChanged, ArrayPin);
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bSetupUndoRedo)
@@ -9158,7 +9366,7 @@ bool URigVMController::RemoveArrayPin(const FString& InArrayElementPinPath, bool
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	// set the array pin's default value type based on the resulting array pin list
@@ -10191,7 +10399,7 @@ bool URigVMController::AddLink(URigVMPin* OutputPin, URigVMPin* InputPin, bool b
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 	Notify(ERigVMGraphNotifType::LinkAdded, Link);
 
@@ -10406,7 +10614,7 @@ bool URigVMController::BreakLink(URigVMPin* OutputPin, URigVMPin* InputPin, bool
 			
 			if (!bSuspendNotifications)
 			{
-				Graph->MarkPackageDirty();
+				(void)Graph->MarkPackageDirty();
 			}
 			Notify(ERigVMGraphNotifType::LinkRemoved, Link);
 
@@ -12149,7 +12357,7 @@ bool URigVMController::MarkFunctionAsPublic(const FName& InFunctionName, bool bI
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bPrintPythonCommand)
@@ -12599,7 +12807,7 @@ FRigVMGraphVariableDescription URigVMController::AddLocalVariable(const FName& I
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bPrintPythonCommand)
@@ -12754,7 +12962,7 @@ bool URigVMController::RemoveLocalVariable(const FName& InVariableName, bool bSe
 
 		if (!bSuspendNotifications)
 		{
-			Graph->MarkPackageDirty();
+			(void)Graph->MarkPackageDirty();
 		}
 
 		if (bSetupUndoRedo)
@@ -12824,7 +13032,7 @@ bool URigVMController::RenameLocalVariable(const FName& InVariableName, const FN
 	
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	FRigVMControllerCompileBracketScope CompileScope(this);
@@ -12858,7 +13066,7 @@ bool URigVMController::RenameLocalVariable(const FName& InVariableName, const FN
 		Notify(ERigVMGraphNotifType::VariableRenamed, RenamedNode);
 		if (!bSuspendNotifications)
 		{
-			Graph->MarkPackageDirty();
+			(void)Graph->MarkPackageDirty();
 		}
 	}
 
@@ -12910,7 +13118,7 @@ bool URigVMController::SetLocalVariableType(const FName& InVariableName, const F
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	FRigVMControllerCompileBracketScope CompileScope(this);
@@ -13045,7 +13253,7 @@ bool URigVMController::SetLocalVariableDefaultValue(const FName& InVariableName,
 	
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	if (bPrintPythonCommand)
@@ -14358,7 +14566,7 @@ URigVMInvokeEntryNode* URigVMController::AddInvokeEntryNode(const FName& InEntry
 
 	if (!bSuspendNotifications)
 	{
-		Graph->MarkPackageDirty();
+		(void)Graph->MarkPackageDirty();
 	}
 
 	FRigVMControllerCompileBracketScope CompileScope(this);
@@ -17290,7 +17498,7 @@ void URigVMController::ResolveTemplateNodeMetaData(URigVMTemplateNode* InNode, b
 
 	for(URigVMPin* Pin : InNode->GetPins())
 	{
-		const FName DisplayName = InNode->GetDisplayNameForPin(Pin->GetFName());
+		const FName DisplayName = InNode->GetDisplayNameForPin(Pin->GetName());
 		if(Pin->DisplayName != DisplayName)
 		{
 			Pin->DisplayName = DisplayName;

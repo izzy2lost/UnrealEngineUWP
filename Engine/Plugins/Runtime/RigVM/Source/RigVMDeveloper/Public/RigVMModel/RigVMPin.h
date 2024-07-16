@@ -168,6 +168,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
 	FString GetSubPinPath(const URigVMPin* InParentPin, bool bIncludeParentPinName = false) const;
 
+	// Returns the category on a pin. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	FString GetCategory() const;
+
 	// Returns a . separated path containing all names of the pin within its main
 	// memory owner / storage. This is typically used to create an offset pointer
 	// within memory (FRigVMRegisterOffset).
@@ -397,6 +402,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
 	const TArray<URigVMPin*>& GetSubPins() const;
 
+	// Returns all of the SubPins of this one including sub-sub-pins
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	TArray<URigVMPin*> GetAllSubPinsRecursively() const;
+
 	// Returns a SubPin given a name / path or nullptr.
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
 	URigVMPin* FindSubPin(const FString& InPinPath) const;
@@ -577,6 +586,9 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<URigVMInjectionInfo>> InjectionInfos;
 
+	UPROPERTY()
+	FString UserDefinedCategory;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FString BoundVariablePath_DEPRECATED;
@@ -592,6 +604,8 @@ private:
 	friend class URigVMNode;
 	friend class URigVMLink;
 	friend class FRigVMParserAST;
+	friend struct FRigVMSetPinDisplayNameAction;
+	friend struct FRigVMSetPinCategoryAction;
 };
 
 class RIGVMDEVELOPER_API FRigVMPinDefaultValueImportErrorContext : public FOutputDevice

@@ -1052,6 +1052,82 @@ bool FRigVMSetPinExpansionAction::Redo()
 	return FRigVMBaseAction::Redo();
 }
 
+FRigVMSetPinDisplayNameAction::FRigVMSetPinDisplayNameAction()
+: FRigVMBaseAction(nullptr)
+, PinPath()
+, OldDisplayName()
+, NewDisplayName()
+{
+}
+
+FRigVMSetPinDisplayNameAction::FRigVMSetPinDisplayNameAction(URigVMController* InController, URigVMPin* InPin, const FString& InNewDisplayName)
+: FRigVMBaseAction(InController)
+, PinPath(InPin->GetPinPath())
+, OldDisplayName(InPin->DisplayName.IsNone() ? FString() : InPin->DisplayName.ToString())
+, NewDisplayName(InNewDisplayName)
+{
+}
+
+bool FRigVMSetPinDisplayNameAction::Undo()
+{
+	if(!FRigVMBaseAction::Undo())
+	{
+		return false;
+	}
+	return GetController()->SetPinDisplayName(PinPath, OldDisplayName, false);
+}
+
+bool FRigVMSetPinDisplayNameAction::Redo()
+{
+	if(!CanUndoRedo())
+	{
+		return false;
+	}
+	if(!GetController()->SetPinDisplayName(PinPath, NewDisplayName, false))
+	{
+		return false;
+	}
+	return FRigVMBaseAction::Redo();
+}
+
+FRigVMSetPinCategoryAction::FRigVMSetPinCategoryAction()
+: FRigVMBaseAction(nullptr)
+, PinPath()
+, OldCategory()
+, NewCategory()
+{
+}
+
+FRigVMSetPinCategoryAction::FRigVMSetPinCategoryAction(URigVMController* InController, URigVMPin* InPin, const FString& InNewCategory)
+: FRigVMBaseAction(InController)
+, PinPath(InPin->GetPinPath())
+, OldCategory(InPin->UserDefinedCategory)
+, NewCategory(InNewCategory)
+{
+}
+
+bool FRigVMSetPinCategoryAction::Undo()
+{
+	if(!FRigVMBaseAction::Undo())
+	{
+		return false;
+	}
+	return GetController()->SetPinCategory(PinPath, OldCategory, false);
+}
+
+bool FRigVMSetPinCategoryAction::Redo()
+{
+	if(!CanUndoRedo())
+	{
+		return false;
+	}
+	if(!GetController()->SetPinCategory(PinPath, NewCategory, false))
+	{
+		return false;
+	}
+	return FRigVMBaseAction::Redo();
+}
+
 FRigVMSetPinWatchAction::FRigVMSetPinWatchAction()
 : FRigVMBaseAction(nullptr)
 , OldIsWatched(false)

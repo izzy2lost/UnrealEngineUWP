@@ -853,6 +853,60 @@ public:
 };
 
 /**
+ * An action setting a pin's display name in the graph.
+ */
+USTRUCT()
+struct FRigVMSetPinDisplayNameAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMSetPinDisplayNameAction();
+	FRigVMSetPinDisplayNameAction(URigVMController* InController, URigVMPin* InPin, const FString& InNewDisplayName);
+	virtual ~FRigVMSetPinDisplayNameAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinDisplayNameAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FString PinPath;
+
+	UPROPERTY()
+	FString OldDisplayName;
+
+	UPROPERTY()
+	FString NewDisplayName;
+};
+
+/**
+ * An action setting a pin's category in the graph.
+ */
+USTRUCT()
+struct FRigVMSetPinCategoryAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMSetPinCategoryAction();
+	FRigVMSetPinCategoryAction(URigVMController* InController, URigVMPin* InPin, const FString& InNewCategory);
+	virtual ~FRigVMSetPinCategoryAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinCategoryAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FString PinPath;
+
+	UPROPERTY()
+	FString OldCategory;
+
+	UPROPERTY()
+	FString NewCategory;
+};
+
+/**
  * An action setting a pin's default value in the graph.
  */
 USTRUCT()

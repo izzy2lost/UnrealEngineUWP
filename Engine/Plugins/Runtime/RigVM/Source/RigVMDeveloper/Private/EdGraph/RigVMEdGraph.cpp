@@ -591,6 +591,7 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 		case ERigVMGraphNotifType::PinDirectionChanged:
 		case ERigVMGraphNotifType::PinIndexChanged:
 		case ERigVMGraphNotifType::PinBoundVariableChanged:
+		case ERigVMGraphNotifType::PinCategoryChanged:
 		{
 			if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
 			{
@@ -602,6 +603,7 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 			break;
 		}
 		case ERigVMGraphNotifType::LibraryTemplateChanged:
+		case ERigVMGraphNotifType::PinDisplayNameChanged:
 		{
 			if (URigVMNode* LibraryNode = Cast<URigVMNode>(InSubject))
 			{

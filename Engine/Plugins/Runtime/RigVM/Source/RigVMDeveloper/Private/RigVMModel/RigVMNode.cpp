@@ -114,6 +114,42 @@ TArray<URigVMPin*> URigVMNode::GetAllPinsRecursively() const
 	return Result;
 }
 
+TArray<FString> URigVMNode::GetPinCategories() const
+{
+	const TArray<URigVMPin*> AllPins = GetAllPinsRecursively();
+
+	TArray<FString> PinCategories;
+	for(const URigVMPin* Pin : AllPins)
+	{
+		if(!Pin->UserDefinedCategory.IsEmpty())
+		{
+			PinCategories.Add(Pin->UserDefinedCategory);
+		}
+	}
+	return PinCategories;
+}
+
+TArray<URigVMPin*> URigVMNode::GetPinsForCategory(FString InCategory) const
+{
+	InCategory.TrimStartAndEndInline();
+	if(InCategory.IsEmpty())
+	{
+		return {};
+	}
+	
+	const TArray<URigVMPin*> AllPins = GetAllPinsRecursively();
+
+	TArray<URigVMPin*> PinsInCategory;
+	for(URigVMPin* Pin : AllPins)
+	{
+		if(Pin->GetCategory().Equals(InCategory))
+		{
+			PinsInCategory.Add(Pin);
+		}
+	}
+	return PinsInCategory;
+}
+
 FString URigVMNode::GetOriginalPinDefaultValue(const URigVMPin* InPin) const
 {
 	const FString CompleteSegmentPath = InPin->GetSegmentPath(true);
@@ -646,6 +682,16 @@ UScriptStruct* URigVMNode::GetTraitScriptStruct(const URigVMPin* InTraitPin) con
 	}
 
 	return nullptr;
+}
+
+FName URigVMNode::GetDisplayNameForPin(const FString& InPinPath) const
+{
+	return NAME_None;
+}
+
+FString URigVMNode::GetCategoryForPin(const FString& InPinPath) const
+{
+	return FString();
 }
 
 URigVMLibraryNode* URigVMNode::FindFunctionForNode() const  

@@ -68,6 +68,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
 	TArray<URigVMPin*> GetAllPinsRecursively() const;
 
+	// Returns all user defined categories on this node
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	TArray<FString> GetPinCategories() const;
+
+	// Returns all pins for a given category
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	TArray<URigVMPin*> GetPinsForCategory(FString InCategory) const;
+
 	// Returns the default value for a given pin
 	FString GetOriginalPinDefaultValue(const URigVMPin* InPin) const;
 
@@ -335,6 +343,12 @@ public:
 	{
 		return FString();
 	}
+
+	// returns the display name for a pin
+	virtual FName GetDisplayNameForPin(const FString& InPinPath) const;
+
+	// returns the category for a pin
+	virtual FString GetCategoryForPin(const FString& InPinPath) const;
 
 private:
 
