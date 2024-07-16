@@ -562,9 +562,10 @@ uint32 FD3D12DynamicRHI::RHIGetDeviceNodeMask(uint32 InIndex) const
 	return GetAdapter().GetDevice(InIndex)->GetGPUMask().GetNative();
 }
 
-ID3D12GraphicsCommandList* FD3D12DynamicRHI::RHIGetGraphicsCommandList(uint32 InDeviceIndex) const
+ID3D12GraphicsCommandList* FD3D12DynamicRHI::RHIGetGraphicsCommandList(FRHICommandListBase& ExecutingCmdList, uint32 InDeviceIndex) const
 {
-	return GetRHIDevice(InDeviceIndex)->GetDefaultCommandContext().GraphicsCommandList().Get();
+	FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, InDeviceIndex);
+	return Context.GraphicsCommandList().Get();
 }
 
 DXGI_FORMAT FD3D12DynamicRHI::RHIGetSwapChainFormat(EPixelFormat InFormat) const
@@ -627,14 +628,13 @@ D3D12_CPU_DESCRIPTOR_HANDLE FD3D12DynamicRHI::RHIGetRenderTargetView(FRHITexture
 	return RTV ? RTV->GetOfflineCpuHandle() : D3D12_CPU_DESCRIPTOR_HANDLE{};
 }
 
-void FD3D12DynamicRHI::RHIFinishExternalComputeWork(uint32 InDeviceIndex, ID3D12GraphicsCommandList* InCommandList)
+void FD3D12DynamicRHI::RHIFinishExternalComputeWork(FRHICommandListBase& ExecutingCmdList, uint32 InDeviceIndex, ID3D12GraphicsCommandList* InCommandList)
 {
-	FD3D12Device* Device = GetRHIDevice(InDeviceIndex);
+	FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, InDeviceIndex);
+	check(InCommandList == Context.GraphicsCommandList().GetNoRefCount());
 
-	check(InCommandList == Device->GetDefaultCommandContext().GraphicsCommandList().GetNoRefCount());
-
-	Device->GetDefaultCommandContext().StateCache.ForceSetComputeRootSignature();
-	Device->GetDefaultCommandContext().StateCache.GetDescriptorCache()->SetDescriptorHeaps(true);
+	Context.StateCache.ForceSetComputeRootSignature();
+	Context.StateCache.GetDescriptorCache()->SetDescriptorHeaps(true);
 }
 
 void FD3D12DynamicRHI::RHITransitionResource(FRHICommandList& RHICmdList, FRHITexture* InTexture, D3D12_RESOURCE_STATES InState, uint32 InSubResource)
