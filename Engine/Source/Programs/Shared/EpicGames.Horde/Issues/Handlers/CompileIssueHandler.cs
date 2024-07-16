@@ -9,7 +9,7 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class CompileIssueHandler : IssueHandler
 	{
 		/// <summary>
@@ -24,6 +24,9 @@ namespace EpicGames.Horde.Issues.Handlers
 
 		readonly IssueHandlerContext _context;
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
+
+		/// <inheritdoc/>
+		public override int Priority => 10;
 
 		/// <summary>
 		/// Constructor

@@ -152,7 +152,7 @@ namespace HordeServer.Issues
 			public ILogEventData EventData { get; }
 
 			public IssueEventInternal(ILogEvent logEvent, ILogEventData logEventData)
-				: base(logEvent.LineIndex, GetLogLevelFromSeverity(logEventData.Severity), logEventData.EventId, logEventData.Message, logEventData.Lines)
+				: base(logEvent.LineIndex, GetLogLevelFromSeverity(logEventData.Severity), logEventData.EventId, logEventData.Lines)
 			{
 				Event = logEvent;
 				EventData = logEventData;
@@ -285,7 +285,7 @@ namespace HordeServer.Issues
 					handlerTypes.Add((type, attribute));
 				}
 			}
-			_handlerTypes = handlerTypes.OrderByDescending(x => x.Attribute.Priority).ToArray();
+			_handlerTypes = handlerTypes.ToArray();
 		}
 
 		/// <inheritdoc/>
@@ -699,9 +699,10 @@ namespace HordeServer.Issues
 					handlers.Add((IssueHandler)ActivatorUtilities.CreateInstance(serviceProvider, type));
 				}
 			}
+			handlers.SortBy(x => -x.Priority);
 
 			// Create all the issue definitions by passing each log event to the handlers in order until one attaches it to an issue
-			List<ILogEvent> stepEvents = await log.GetEventsAsync(cancellationToken: cancellationToken);
+			List <ILogEvent> stepEvents = await log.GetEventsAsync(cancellationToken: cancellationToken);
 			foreach (ILogEvent stepEvent in stepEvents)
 			{
 				ILogEventData stepEventData = await stepEvent.GetDataAsync(cancellationToken);
@@ -754,7 +755,7 @@ namespace HordeServer.Issues
 				_logger.LogInformation("Group {Digest}: Type '{FingerprintType}', keys '{FingerprintKeys}', {NumEvents} events", eventGroup.Id.ToString(), eventGroup.Fingerprint.Type, String.Join(", ", eventGroup.Fingerprint.Keys), eventGroup.Events.Count);
 				foreach (IssueEvent eventItem in eventGroup.Events)
 				{
-					_logger.LogDebug("Group {Digest}: [{Line}] {Message}", eventGroup.Id.ToString(), eventItem.LineIndex, eventItem.Message);
+					_logger.LogDebug("Group {Digest}: [{Line}] {Message}", eventGroup.Id.ToString(), eventItem.LineIndex, eventItem.Render());
 				}
 			}
 

@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular compile error
 	/// </summary>
-	[IssueHandler(Priority = 1)]
+	[IssueHandler]
 	public class HashedIssueHandler : IssueHandler
 	{
 		readonly IssueHandlerContext _context;
@@ -39,6 +39,9 @@ namespace EpicGames.Horde.Issues.Handlers
 		}
 
 		/// <inheritdoc/>
+		public override int Priority => 1;
+
+		/// <inheritdoc/>
 		public override bool HandleEvent(IssueEvent logEvent)
 		{
 			_issueEvents.Add(logEvent);
@@ -58,7 +61,7 @@ namespace EpicGames.Horde.Issues.Handlers
 
 			foreach (IssueEvent stepEvent in _issueEvents)
 			{
-				string hashSource = stepEvent.Message;
+				string hashSource = stepEvent.Render();
 
 				if (!allGeneral && stepEvent.EventId != null)
 				{

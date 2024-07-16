@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
@@ -27,11 +31,6 @@ namespace EpicGames.Horde.Issues
 		public EventId? EventId { get; }
 
 		/// <summary>
-		/// The complete rendered message, in plaintext
-		/// </summary>
-		public string Message { get; }
-
-		/// <summary>
 		/// Gets this event data as a BSON document
 		/// </summary>
 		public IReadOnlyList<JsonLogEvent> Lines { get; }
@@ -39,17 +38,22 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueEvent(int lineIndex, LogLevel severity, EventId? eventId, string message, IReadOnlyList<JsonLogEvent> lines)
+		public IssueEvent(int lineIndex, LogLevel severity, EventId? eventId, IReadOnlyList<JsonLogEvent> lines)
 		{
 			LineIndex = lineIndex;
 			Severity = severity;
 			EventId = eventId;
-			Message = message;
 			Lines = lines;
 		}
 
+		/// <summary>
+		/// Renders the entire message of this event
+		/// </summary>
+		public string Render()
+			=> String.Join("\n", Lines.Select(x => x.GetRenderedMessage().ToString()));
+
 		/// <inheritdoc/>
-		public override string ToString() => $"[{LineIndex}] {Message}";
+		public override string ToString() => $"[{LineIndex}] {Render()}";
 	}
 
 	/// <summary>
@@ -80,6 +84,7 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Filter for changes that should be included in this issue
 		/// </summary>
+		[JsonConverter(typeof(ChangeFilterJsonConverter))]
 		public IReadOnlyList<string> ChangeFilter { get; set; }
 
 		/// <summary>
@@ -99,5 +104,16 @@ namespace EpicGames.Horde.Issues
 			SummaryTemplate = summaryTemplate;
 			ChangeFilter = changeFilter;
 		}
+	}
+
+	class ChangeFilterJsonConverter : JsonConverter<IReadOnlyList<string>>
+	{
+		/// <inheritdoc/>
+		public override IReadOnlyList<string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+			=> (reader.GetString() ?? String.Empty).Split(';');
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, IReadOnlyList<string> value, JsonSerializerOptions options)
+			=> writer.WriteStringValue(String.Join(";", value));
 	}
 }

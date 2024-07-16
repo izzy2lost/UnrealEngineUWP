@@ -13,15 +13,34 @@ namespace EpicGames.Horde.Issues
 	[AttributeUsage(AttributeTargets.Class)]
 	public sealed class IssueHandlerAttribute : Attribute
 	{
-		/// <summary> 
-		/// Priority of this handler
-		/// </summary>
-		public int Priority { get; set; }
-
 		/// <summary>
 		/// Class of handler which can be explicitly enabled via a workflow
 		/// </summary>
 		public string? Tag { get; set; }
+	}
+
+	/// <summary>
+	/// Interface for issue matchers
+	/// </summary>
+	public abstract class IssueHandler
+	{
+		/// <summary>
+		/// Priority value for this issue handler. Handlers are processed in order of decreasing priority.
+		/// </summary>
+		public abstract int Priority { get; }
+
+		/// <summary>
+		/// Attempts to assign a log event to an issue
+		/// </summary>
+		/// <param name="issueEvent">Events to process</param>
+		/// <returns>Issue definition for this log event</returns>
+		public abstract bool HandleEvent(IssueEvent issueEvent);
+
+		/// <summary>
+		/// Gets all the issues created by this handler
+		/// </summary>
+		/// <returns></returns>
+		public abstract IEnumerable<IssueEventGroup> GetIssues();
 	}
 
 	/// <summary>
@@ -59,24 +78,5 @@ namespace EpicGames.Horde.Issues
 			NodeName = nodeName;
 			NodeAnnotations = nodeAnnotations;
 		}
-	}
-
-	/// <summary>
-	/// Interface for issue matchers
-	/// </summary>
-	public abstract class IssueHandler
-	{
-		/// <summary>
-		/// Attempts to assign a log event to an issue
-		/// </summary>
-		/// <param name="issueEvent">Events to process</param>
-		/// <returns>Issue definition for this log event</returns>
-		public abstract bool HandleEvent(IssueEvent issueEvent);
-
-		/// <summary>
-		/// Gets all the issues created by this handler
-		/// </summary>
-		/// <returns></returns>
-		public abstract IEnumerable<IssueEventGroup> GetIssues();
 	}
 }

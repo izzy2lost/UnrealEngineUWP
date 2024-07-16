@@ -11,7 +11,7 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a specific Thread Sanitizer error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class SanitizerIssueHandler : IssueHandler
 	{
 		static readonly Utf8String s_summaryReasonAnnotation = new Utf8String("SummaryReason");
@@ -19,6 +19,8 @@ namespace EpicGames.Horde.Issues.Handlers
 		static readonly Utf8String s_sanitizerNameAnnotation = new Utf8String("SanitizerName");
 		readonly List<IssueEventGroup> _issues = new List<IssueEventGroup>();
 
+		/// <inheritdoc/>
+		public override int Priority => 10;
 		/// <summary>
 		/// Log value describing the thread sanitizer error summary reason
 		/// </summary>

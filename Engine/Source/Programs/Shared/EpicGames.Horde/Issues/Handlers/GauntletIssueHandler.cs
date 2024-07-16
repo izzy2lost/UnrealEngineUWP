@@ -13,7 +13,7 @@ namespace EpicGames.Horde.Issues.Handlers
 	/// <summary>
 	/// Instance of a particular Gauntlet error
 	/// </summary>
-	[IssueHandler(Priority = 10)]
+	[IssueHandler]
 	public class GauntletIssueHandler : IssueHandler
 	{
 		/// <summary>
@@ -71,6 +71,9 @@ namespace EpicGames.Horde.Issues.Handlers
 			{ KnownLogEvents.Gauntlet_BuildDropEvent, BuildDropPrefix},
 			{ KnownLogEvents.Gauntlet_FatalEvent, FatalPrefix}
 		};
+
+		/// <inheritdoc/>
+		public override int Priority => 10;
 
 		/// <summary>
 		/// Constructor
@@ -130,7 +133,7 @@ namespace EpicGames.Horde.Issues.Handlers
 		private static bool TryGetHash(IssueEvent issueEvent, out Md5Hash hash)
 		{
 			// Use only the summary if one is found instead of the full callstack
-			string sanitized = GetSummaryProperty(issueEvent) ?? issueEvent.Message;
+			string sanitized = GetSummaryProperty(issueEvent) ?? issueEvent.Render();
 			sanitized = sanitized.Length > MaxMessageLength ? sanitized.Substring(0, MaxMessageLength) : sanitized;
 			sanitized = sanitized.Trim().ToUpperInvariant();
 			sanitized = Regex.Replace(sanitized, @"(?<![A-Z])(?:[A-Z]:|/)[^ :]+[/\\]SYNC[/\\]", "{root}/"); // Redact things that look like workspace roots; may be different between agents
