@@ -487,26 +487,26 @@ void UOptimusNode::InitializeTransientData()
 }
 
 
-void UOptimusNode::SaveState(FArchive& Ar) const
+void UOptimusNode::ExportState(FArchive& Ar) const
 {
-	// Take a copy of the node's contents but not sub-data (like pins).
-	// Derived nodes may add additional data to the archive
+	// Take a copy of the node's core data that would allow the node to reconstruct itself during restore state
 	
-	// This fella does the heavy lifting of serializing object references. 
-	// FMemoryWriter and fam do not handle UObject* serialization on their own.
+	// We have to use the proxy archive because FMemoryWriter simply asserts when the object has object references.
+	// And even though we are serializing object references as strings. For things like pins we will recreate them anyway
 	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
-			Ar, /* bInLoadIfFindFails=*/ false);
+			Ar, /* bInLoadIfFindFails=*/false);
+
 	SerializeScriptProperties(NodeProxyArchive);
 }
 
-void UOptimusNode::RestoreState(FArchive& Ar)
+void UOptimusNode::ImportState(FArchive& Ar)
 {
-	// Currently a warning appears when it can't find objects like pins and data interface data
-	// that were present during SaveState. However, they are harmless since we recreate those objects.
-	// But ideally there should be a better way to specify what should be saved/restored and what can be skipped/recreated
+	// Don't try to load any object references, the referenced object is likely no longer valid for this node and have to be recreated (such as pins)
+	// For objects we can find, it is likely that the object is owned by some top level object and is still alive and safe to reference.
 	
 	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
-		Ar, /* bInLoadIfFindFails=*/true);
+		Ar, /* bInLoadIfFindFails=*/false);
+	
 	SerializeScriptProperties(NodeProxyArchive);
 }
 

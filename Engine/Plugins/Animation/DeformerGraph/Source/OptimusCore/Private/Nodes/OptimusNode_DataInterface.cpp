@@ -103,6 +103,7 @@ void UOptimusNode_DataInterface::PostLoadNodeSpecificData()
 	if (DataInterfaceClass && !DataInterfaceData)
 	{
 		DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+		DataInterfaceData->SetFlags(RF_Transactional);
 	}
 
 	// Add in the component pin.
@@ -119,25 +120,22 @@ void UOptimusNode_DataInterface::OnDataTypeChanged(FName InTypeName)
 	DataInterfaceData->OnDataTypeChanged(InTypeName);
 }
 
-void UOptimusNode_DataInterface::SaveState(FArchive& Ar) const
+void UOptimusNode_DataInterface::ExportState(FArchive& Ar) const
 {
-	Super::SaveState(Ar);
-	// This fella does the heavy lifting of serializing object references. 
-	// FMemoryWriter and fam do not handle UObject* serialization on their own.
-	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
-			Ar, /* bInLoadIfFindFails=*/ false);
-	DataInterfaceData->SerializeScriptProperties(NodeProxyArchive);	
+	Super::ExportState(Ar);
+
+	DataInterfaceData->ExportState(Ar);
+	
 }
 
-void UOptimusNode_DataInterface::RestoreState(FArchive& Ar)
+void UOptimusNode_DataInterface::ImportState(FArchive& Ar)
 {
-	Super::RestoreState(Ar);
+	Super::ImportState(Ar);
 
 	DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+	DataInterfaceData->SetFlags(RF_Transactional);
 	
-	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
-			Ar, /* bInLoadIfFindFails=*/true);
-	DataInterfaceData->SerializeScriptProperties(NodeProxyArchive);
+	DataInterfaceData->ImportState(Ar);
 }
 
 bool UOptimusNode_DataInterface::IsComponentSourceCompatible(const UOptimusComponentSource* InComponentSource) const
@@ -352,6 +350,7 @@ void UOptimusNode_DataInterface::ConstructNode()
 		if (!DataInterfaceData)
 		{
 			DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+			DataInterfaceData->SetFlags(RF_Transactional);
 		}
 		SetDisplayName(FText::FromString(DataInterfaceData->GetDisplayName()));
 		CreateComponentPin();
@@ -362,14 +361,8 @@ void UOptimusNode_DataInterface::ConstructNode()
 
 void UOptimusNode_DataInterface::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 {
-	// Currently duplication doesn't set the correct outer so fix here.
-	// We can remove this when duplication handles the outer correctly.
-	if (ensure(DataInterfaceData) && DataInterfaceData->GetOuter() != this)
-	{
-		FObjectDuplicationParameters DupParams = InitStaticDuplicateObjectParams(DataInterfaceData, this);
-		
-		DataInterfaceData = Cast<UOptimusComputeDataInterface>(StaticDuplicateObjectEx(DupParams));	
-	}
+	check(DataInterfaceData);
+	check(DataInterfaceData->GetOuter() == this);
 }
 
 

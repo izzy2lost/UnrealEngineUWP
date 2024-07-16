@@ -63,8 +63,8 @@ protected:
 	void PostLoadNodeSpecificData() override;
 	void OnDataTypeChanged(FName InTypeName) override;
 
-	void SaveState(FArchive& Ar) const override;
-	void RestoreState(FArchive& Ar) override;
+	void ExportState(FArchive& Ar) const override;
+	void ImportState(FArchive& Ar) override;
 
 	// -- UObject overrides
 	void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;

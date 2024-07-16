@@ -152,6 +152,9 @@ public:
 	/// Data interface can use this to set default values/pins
 	virtual void Initialize() {};
 
+	virtual void ExportState(FArchive& Ar);
+	virtual void ImportState(FArchive& Ar);
+	
 	/// Whether the data interface allow users to add / remove pins
 	virtual bool CanPinDefinitionChange() { return false; };
 
