@@ -293,7 +293,9 @@ bool FMaterialInstanceResource::GetParameterValue(EMaterialParameterType Type, c
 	// Check for hard-coded parameters
 	if (Type == EMaterialParameterType::Scalar && ParameterInfo.Name == GetSubsurfaceProfileParameterName())
 	{
+#if !ENABLE_MATERIAL_LAYER_PROTOTYPE
 		check(ParameterInfo.Association == EMaterialParameterAssociation::GlobalParameter);
+#endif
 		const USubsurfaceProfile* MySubsurfaceProfileRT = GetSubsurfaceProfileRT();
 		OutValue = GetSubsurfaceProfileId(MySubsurfaceProfileRT);
 		bResult = true;
@@ -304,7 +306,9 @@ bool FMaterialInstanceResource::GetParameterValue(EMaterialParameterType Type, c
 		{
 			if (ParameterInfo.Name == SpecularProfileAtlas::GetSpecularProfileParameterName(GetSpecularProfileRT(It)))
 			{
+#if !ENABLE_MATERIAL_LAYER_PROTOTYPE
 				check(ParameterInfo.Association == EMaterialParameterAssociation::GlobalParameter);
+#endif
 				OutValue = SpecularProfileAtlas::GetSpecularProfileId(GetSpecularProfileRT(It));
 				bResult = true;
 				break;
