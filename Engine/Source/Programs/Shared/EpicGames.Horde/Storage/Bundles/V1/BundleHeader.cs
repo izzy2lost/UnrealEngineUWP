@@ -427,6 +427,11 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		public BundleTypeCollection() : this(Array.Empty<BlobType>()) { }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public BundleTypeCollection(BlobType[] types) => _types = types;
 
 		/// <summary>
@@ -492,6 +497,11 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 		/// <inheritdoc/>
 		public int Count => _imports.Length;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BundleImportCollection() : this(Array.Empty<BlobLocator>()) { }
 
 		/// <summary>
 		/// Constructor
@@ -640,6 +650,11 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <inheritdoc/>
 		public int Count => _packets?.Length ?? 0;
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BundlePacketCollection() : this(Array.Empty<BundlePacket>()) { }
+	
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -797,6 +812,11 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 		/// <inheritdoc/>
 		public int Count => _exports.Length;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BundleExportCollection() : this(Array.Empty<BundleExport>()) { }
 
 		/// <summary>
 		/// Constructor
