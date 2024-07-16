@@ -305,9 +305,9 @@ namespace Metasound::Engine
 	}
 
 #if WITH_EDITOR
-	FOnResolvePreviewPageInfo& FDocumentBuilderRegistry::GetOnResolvePreviewPageInfoDelegate()
+	FOnResolveAuditionPageInfo& FDocumentBuilderRegistry::GetOnResolveAuditionPageInfoDelegate()
 	{
-		return OnResolvePreviewPageInfo;
+		return OnResolveAuditionPageInfo;
 	}
 #endif // WITH_EDITOR
 
@@ -329,9 +329,9 @@ namespace Metasound::Engine
 		FName PlatformName = FPlatformProperties::IniPlatformName();
 
 #if WITH_EDITOR
-		if (OnResolvePreviewPageInfo.IsBound())
+		if (OnResolveAuditionPageInfo.IsBound())
 		{
-			FPreviewPageInfo PreviewInfo = OnResolvePreviewPageInfo.Execute(Document);
+			FAuditionPageInfo PreviewInfo = OnResolveAuditionPageInfo.Execute(Document);
 			if (PreviewInfo.PageID.IsSet())
 			{
 				return PreviewInfo.PageID.GetValue();

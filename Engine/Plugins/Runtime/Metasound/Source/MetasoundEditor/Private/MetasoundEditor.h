@@ -382,6 +382,9 @@ namespace Metasound
 
 			void ExportNodesToText(FString& OutText) const;
 
+			// Sets the globally targeted audition page for execution to this editor's currently focused page
+			void SyncFocusedPage() const;
+
 			/** FNotifyHook interface */
 			virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 
@@ -397,8 +400,6 @@ namespace Metasound
 			FSlateIcon GetImportStatusImage() const;
 
 			FSlateIcon GetExportStatusImage() const;
-
-			FSlateIcon GetSettingsImage() const;
 
 			// TODO: Move import/export out of editor and into import/export asset actions
 			void Import();
@@ -421,6 +422,12 @@ namespace Metasound
 
 			/** Converts the MetaSound from a preset to a fully modifiable MetaSound. */
 			void ConvertFromPreset();
+
+			/** Creates audition menu options */
+			TSharedRef<SWidget> CreateAuditionMenuOptions() const;
+
+			/** Creates page menu options */
+			void CreateAuditionPageSubMenuOptions(FMenuBuilder& MenuBuilder) const;
 
 			/** Show the Metasound object's Source settings in the Details panel */
 			void EditSourceSettings();
@@ -521,6 +528,28 @@ namespace Metasound
 			TSharedPtr<SNotificationItem> NotificationPtr;
 
 			bool bMemberRenameRequested = false;
+
+			bool bRefreshGraph = false;
+
+			class FDocumentListener : public Frontend::IDocumentBuilderTransactionListener
+			{
+				TWeakPtr<FEditor> Parent;
+
+			public:
+				FDocumentListener() = default;
+				FDocumentListener(TSharedRef<FEditor> InParent)
+					: Parent(InParent)
+				{
+				}
+
+				virtual ~FDocumentListener() = default;
+
+			private:
+				virtual void OnBuilderReloaded(Frontend::FDocumentModifyDelegates& OutDelegates) override;
+				void OnPageSet(const Frontend::FDocumentMutatePageArgs& Args);
+			};
+
+			TSharedPtr<FDocumentListener> DocListener;
 		};
 	} // namespace Editor
 } // namespace Metasound

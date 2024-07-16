@@ -121,7 +121,7 @@ namespace Metasound
 				}
 			};
 
-			void SynchronizeGraphRecursively(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
+			void SynchronizeGraphRecursively(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph, bool bSkipIfModifyContextUnchanged)
 			{
 				using namespace Engine;
 				using namespace Frontend;
@@ -143,10 +143,10 @@ namespace Metasound
 
 					UMetasoundEditorGraph* Graph = nullptr;
 					FGraphBuilder::BindEditorGraph(RefBuilder, &Graph);
-					SynchronizeGraphRecursively(RefBuilder, *Graph);
+					SynchronizeGraphRecursively(RefBuilder, *Graph, bSkipIfModifyContextUnchanged);
 				}
 
-				if (!MetaSoundAsset->GetConstModifyContext().GetDocumentModified())
+				if (bSkipIfModifyContextUnchanged && !MetaSoundAsset->GetConstModifyContext().GetDocumentModified())
 				{
 					return;
 				}
@@ -492,12 +492,12 @@ namespace Metasound
 			FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&InMetaSound);
 			if (const FMetasoundFrontendNode* NewNode = Builder.AddNodeByClassName(InMetadata.GetClassName(), InMetadata.GetVersion().Major))
 			{
-				FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-				check(MetaSoundAsset);
-				MetaSoundAsset->GetDocumentChecked().Metadata.ModifyContext.AddNodeIDModified(NewNode->GetID());
 				const FMetasoundFrontendClass* Dependency = Builder.FindDependency(NewNode->ClassID);
 				if (ensure(Dependency))
 				{
+					FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+					check(MetaSoundAsset);
+					MetaSoundAsset->GetModifyContext().AddNodeIDModified(NewNode->GetID());
 					return AddExternalNode(InMetaSound, NewNode->GetID(), Dependency->Metadata, bInSelectNewNode);
 				}
 			}
@@ -2174,7 +2174,7 @@ namespace Metasound
 			return bIsGraphDirty;
 		}
 
-		bool FGraphBuilder::SynchronizeGraph(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
+		bool FGraphBuilder::SynchronizeGraph(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph, bool bSkipIfModifyContextUnchanged)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FGraphBuilder::SynchronizeGraph);
 
@@ -2184,7 +2184,7 @@ namespace Metasound
 			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound);
 			check(MetaSoundAsset);
 
-			if (RecurseGetDocumentModified(*MetaSoundAsset))
+			if (!bSkipIfModifyContextUnchanged || RecurseGetDocumentModified(*MetaSoundAsset))
 			{
 				TSet<FMetasoundAssetBase*> EditedReferencingMetaSounds;
 				if (GEditor)
@@ -2208,7 +2208,7 @@ namespace Metasound
 				if (EditedReferencingMetaSounds.IsEmpty())
 				{
 					MetaSoundAsset->CacheRegistryMetadata();
-					GraphBuilderPrivate::SynchronizeGraphRecursively(InBuilder, OutGraph);
+					GraphBuilderPrivate::SynchronizeGraphRecursively(InBuilder, OutGraph, bSkipIfModifyContextUnchanged);
 					GraphBuilderPrivate::RecurseClearDocumentModified(*MetaSoundAsset);
 				}
 				else
@@ -2219,7 +2219,7 @@ namespace Metasound
 						UObject* OwningMetaSound = EditedMetaSound->GetOwningAsset();
 						check(OwningMetaSound);
 						const FMetaSoundFrontendDocumentBuilder& EditedBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(OwningMetaSound);
-						SynchronizeGraph(EditedBuilder, *CastChecked<UMetasoundEditorGraph>(&EditedMetaSound->GetGraphChecked()));
+						SynchronizeGraph(EditedBuilder, *CastChecked<UMetasoundEditorGraph>(&EditedMetaSound->GetGraphChecked()), bSkipIfModifyContextUnchanged);
 					}
 				}
 

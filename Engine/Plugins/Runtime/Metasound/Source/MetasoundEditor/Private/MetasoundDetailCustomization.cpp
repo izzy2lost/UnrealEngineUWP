@@ -18,6 +18,7 @@
 #include "MetasoundEditor.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorSettings.h"
+#include "MetasoundEditorSubsystem.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendSearchEngine.h"
@@ -344,56 +345,6 @@ namespace Metasound::Editor
 	{
 	}
 
-	void FMetasoundPagesDetailCustomization::FPageListener::OnBuilderReloaded(Frontend::FDocumentModifyDelegates& OutDelegates)
-	{
-		OutDelegates.PageDelegates.OnPageAdded.AddSP(this, &FPageListener::OnPageAdded);
-		OutDelegates.PageDelegates.OnRemovingPage.AddSP(this, &FPageListener::OnRemovingPage);
-	}
-
-	void FMetasoundPagesDetailCustomization::FPageListener::OnPageAdded(const Frontend::FDocumentMutatePageArgs& Args)
-	{
-		if (TSharedPtr<FMetasoundPagesDetailCustomization> ParentPtr = Parent.Pin())
-		{
-			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-			check(Settings);
-			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Args.PageID))
-			{
-				if (PageSettings->Name != ParentPtr->BuildPageName)
-				{
-					ParentPtr->BuildPageName = PageSettings->Name;
-					FGraphBuilder::RegisterGraphWithFrontend(ParentPtr->GetMetaSound());
-				}
-
-				ParentPtr->AddableItems.RemoveAll([&PageSettings](const TSharedPtr<FString>& Item) { return Item->Compare(PageSettings->Name.ToString()) == 0; });
-				ParentPtr->ImplementedNames.Add(PageSettings->Name);
-				ParentPtr->ComboBox->RefreshOptions();
-				ParentPtr->RebuildImplemented();
-			}
-		}
-	}
-
-	void FMetasoundPagesDetailCustomization::FPageListener::OnRemovingPage(const Frontend::FDocumentMutatePageArgs& Args)
-	{
-		if (TSharedPtr<FMetasoundPagesDetailCustomization> ParentPtr = Parent.Pin())
-		{
-			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-			check(Settings);
-			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Args.PageID))
-			{
-				if (PageSettings->Name != ParentPtr->BuildPageName)
-				{
-					ParentPtr->BuildPageName = PageSettings->Name;
-					FGraphBuilder::RegisterGraphWithFrontend(ParentPtr->GetMetaSound());
-				}
-
-				ParentPtr->AddableItems.Add(MakeShared<FString>(PageSettings->Name.ToString()));
-				ParentPtr->ImplementedNames.Remove(PageSettings->Name);
-				ParentPtr->ComboBox->RefreshOptions();
-				ParentPtr->RebuildImplemented();
-			}
-		}
-	}
-
 	void FMetasoundPagesDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 	{
 		using namespace Engine;
@@ -408,15 +359,6 @@ namespace Metasound::Editor
 		{
 			return;
 		}
-		if (UMetasoundEditorViewBase* View = CastChecked<UMetasoundEditorViewBase>(Objects.Last()))
-		{
-			if (UObject* MetaSound = View->GetMetasound())
-			{
-				InitBuilder(*MetaSound);
-				PageListener = MakeShared<FPageListener>(StaticCastSharedRef<FMetasoundPagesDetailCustomization>(AsShared()));
-				Builder->AddTransactionListener(PageListener->AsShared());
-			}
-		}
 
 		if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
 		{
@@ -429,8 +371,6 @@ namespace Metasound::Editor
 				}
 			});
 		}
-
-		UpdateItemNames();
 
 		SAssignNew(ComboBox, SSearchableComboBox)
 			.OptionsSource(&AddableItems)
@@ -506,23 +446,22 @@ namespace Metasound::Editor
 		IDetailCategoryBuilder& Category = DetailLayout.EditCategory(FName(ItemName), HeaderName);
 		Category.AddCustomRow(HeaderName) [ Utilities ];
 
-		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-		check(Settings);
-		if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Builder->GetBuilder().GetBuildPageID()))
-		{
-			BuildPageName = PageSettings->Name;
-		}
-		else
-		{
-			BuildPageName = Metasound::Frontend::DefaultGraphPageName;
-		}
-
 		EntryWidgets = SNew(SVerticalBox);
-		RebuildImplemented();
 		Category.AddCustomRow(LOCTEXT("ImplementedPagesLabel", "Implemented Pages"))
 		[
 			EntryWidgets->AsShared()
 		];
+
+		// Registration of page listener instance calls OnReload which in turn causes RefreshView, so no need to call directly
+		if (UMetasoundEditorViewBase* View = CastChecked<UMetasoundEditorViewBase>(Objects.Last()))
+		{
+			if (UObject* MetaSound = View->GetMetasound())
+			{
+				InitBuilder(*MetaSound);
+				PageListener = MakeShared<FPageListener>(StaticCastSharedRef<FMetasoundPagesDetailCustomization>(AsShared()));
+				Builder->AddTransactionListener(PageListener->AsShared());
+			}
+		}
 	}
 
 	UObject& FMetasoundPagesDetailCustomization::GetMetaSound() const
@@ -540,19 +479,20 @@ namespace Metasound::Editor
 
 			TSharedRef<SWidget> SelectButtonWidget = PropertyCustomizationHelpers::MakeUseSelectedButton(FSimpleDelegate::CreateLambda([this, InName]()
 			{
-				using namespace Frontend;
-				const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-				check(Settings);
-				if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(InName))
+				EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
+				constexpr bool bFocusEditor = false; // Already focused by user action
+				UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(Builder.Get(), InName, bFocusEditor, Result);
+				if (Result == EMetaSoundBuilderResult::Succeeded)
 				{
-					if (Builder->GetBuilder().SetBuildPageID(PageSettings->UniqueId))
-					{
-						BuildPageName = InName;
-						FGraphBuilder::RegisterGraphWithFrontend(GetMetaSound());
-					}
+					BuildPageName = InName;
 				}
 			}),
-			LOCTEXT("SetPageTooltip", "Sets the actively displayed graph page of the MetaSound."),
+			TAttribute<FText>::Create([this, InName]()
+			{
+				return BuildPageName == InName
+					? LOCTEXT("FocusedPageTooltip", "Currently focused page.")
+					: LOCTEXT("SetFocusedPageTooltip", "Sets the actively focused graph page of the MetaSound.");
+			}),
 			TAttribute<bool>::Create([this, InName]()
 			{
 				return BuildPageName != InName;
@@ -587,10 +527,6 @@ namespace Metasound::Editor
 					{
 						UpdateItemNames();
 						ComboBox->RefreshOptions();
-						if (InName == BuildPageName)
-						{
-							FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
-						}
 					}
 				}), LOCTEXT("RemovePageTooltip2", "Removes the associated page from the MetaSound."));
 				EntryWidget->AddSlot()
@@ -627,6 +563,34 @@ namespace Metasound::Editor
 		}
 	}
 
+	void FMetasoundPagesDetailCustomization::RefreshView()
+	{
+		if (Builder.IsValid())
+		{
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
+			FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
+			const FGuid& PageID = DocBuilder.GetBuildPageID();
+			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageID))
+			{
+				BuildPageName = PageSettings->Name;
+			}
+			else
+			{
+				BuildPageName = Frontend::DefaultGraphPageName;
+				DocBuilder.SetBuildPageID(Frontend::DefaultGraphPageID);
+			}
+		}
+		else
+		{
+			BuildPageName = Frontend::DefaultGraphPageName;
+		}
+
+		UpdateItemNames();
+		ComboBox->RefreshOptions();
+		RebuildImplemented();
+	}
+
 	void FMetasoundPagesDetailCustomization::UpdateItemNames()
 	{
 		using namespace Frontend;
@@ -661,6 +625,77 @@ namespace Metasound::Editor
 		};
 
 		Algo::Transform(ImplementedGuids, ImplementedNames, GetPageName);
+	}
+
+	void FMetasoundPagesDetailCustomization::FPageListener::OnBuilderReloaded(Frontend::FDocumentModifyDelegates& OutDelegates)
+	{
+		if (TSharedPtr<FMetasoundPagesDetailCustomization> ParentPtr = Parent.Pin())
+		{
+			ParentPtr->RefreshView();
+		}
+
+		OutDelegates.PageDelegates.OnPageAdded.AddSP(this, &FPageListener::OnPageAdded);
+		OutDelegates.PageDelegates.OnPageSet.AddSP(this, &FPageListener::OnPageSet);
+		OutDelegates.PageDelegates.OnRemovingPage.AddSP(this, &FPageListener::OnRemovingPage);
+	}
+
+	void FMetasoundPagesDetailCustomization::FPageListener::OnPageAdded(const Frontend::FDocumentMutatePageArgs& Args)
+	{
+		if (TSharedPtr<FMetasoundPagesDetailCustomization> ParentPtr = Parent.Pin())
+		{
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
+			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Args.PageID))
+			{
+				if (PageSettings->Name != ParentPtr->BuildPageName)
+				{
+					ParentPtr->BuildPageName = PageSettings->Name;
+					FGraphBuilder::RegisterGraphWithFrontend(ParentPtr->GetMetaSound());
+				}
+
+				ParentPtr->AddableItems.RemoveAll([&PageSettings](const TSharedPtr<FString>& Item) { return Item->Compare(PageSettings->Name.ToString()) == 0; });
+				ParentPtr->ImplementedNames.Add(PageSettings->Name);
+				ParentPtr->ComboBox->RefreshOptions();
+				ParentPtr->RebuildImplemented();
+			}
+		}
+	}
+
+	void FMetasoundPagesDetailCustomization::FPageListener::OnPageSet(const Frontend::FDocumentMutatePageArgs& Args)
+	{
+		if (TSharedPtr<FMetasoundPagesDetailCustomization> ParentPtr = Parent.Pin())
+		{
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
+			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Args.PageID))
+			{
+				ParentPtr->BuildPageName = PageSettings->Name;
+				ParentPtr->ComboBox->RefreshOptions();
+				ParentPtr->RebuildImplemented();
+			}
+		}
+	}
+
+	void FMetasoundPagesDetailCustomization::FPageListener::OnRemovingPage(const Frontend::FDocumentMutatePageArgs& Args)
+	{
+		if (TSharedPtr<FMetasoundPagesDetailCustomization> ParentPtr = Parent.Pin())
+		{
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
+			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(Args.PageID))
+			{
+				if (PageSettings->Name != ParentPtr->BuildPageName)
+				{
+					ParentPtr->BuildPageName = PageSettings->Name;
+					FGraphBuilder::RegisterGraphWithFrontend(ParentPtr->GetMetaSound());
+				}
+
+				ParentPtr->AddableItems.Add(MakeShared<FString>(PageSettings->Name.ToString()));
+				ParentPtr->ImplementedNames.Remove(PageSettings->Name);
+				ParentPtr->ComboBox->RefreshOptions();
+				ParentPtr->RebuildImplemented();
+			}
+		}
 	}
 
 	void FMetasoundInterfacesDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)

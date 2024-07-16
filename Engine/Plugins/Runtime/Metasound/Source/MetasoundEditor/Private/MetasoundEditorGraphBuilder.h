@@ -260,9 +260,10 @@ namespace Metasound
 			// FMetasoundFrontendDocument model. Validates the graph (and those referenced recursively).
 			//
 			// @param InBuilder - Builder to synchronize ed graph with.
-			// @param OutGraph = Graph to mutate to conform to provided builder's selected build graph
+			// @param OutGraph - Graph to mutate to conform to provided builder's selected build graph
+			// @param bSkipIfModifyContextUnchanged - If true, recursively checks deprecated document modification for builder's document and all referenced documents, and skips EdGraph synchronization if no modifications are logged.
 			// @return whether or not EditorGraph synchronization was performed.
-			static bool SynchronizeGraph(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);
+			static bool SynchronizeGraph(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph, bool bSkipIfModifyContextUnchanged = true);
 
 			// Synchronizes editor nodes with frontend nodes, removing editor nodes that are not represented in the frontend, and adding editor nodes to represent missing frontend nodes.
 			static void SynchronizeNodes(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);

@@ -9,11 +9,19 @@
 
 #include "MetasoundEditorSettings.generated.h"
 
+// Forward Declarations
 class USlateWidgetStyleAsset;
 struct FAudioMaterialKnobStyle;
 struct FAudioMaterialButtonStyle;
 struct FAudioMaterialSliderStyle;
 struct FAudioMaterialMeterStyle;
+struct FMetasoundFrontendDocument;
+
+namespace Metasound::Engine
+{
+	struct FAuditionPageInfo;
+} // namespace Metasound::Engine
+
 
 UENUM()
 enum class EMetasoundActiveAnalyzerEnvelopeDirection : uint8
@@ -42,6 +50,13 @@ enum class EMetasoundActiveDetailView : uint8
 {
 	Metasound,
 	General
+};
+
+UENUM()
+enum class EAuditionPageMode : uint8
+{
+	Focused,
+	User
 };
 
 USTRUCT()
@@ -101,6 +116,23 @@ public:
 	  */
 	UPROPERTY(EditAnywhere, config, Category=General)
 	FString DefaultAuthor;
+
+	/* Currently set page audition mode. Set by the MetaSound Asset Editor. */
+	UPROPERTY(VisibleAnywhere, config, Category = Pages)
+	EAuditionPageMode AuditionPageMode = EAuditionPageMode::Focused;
+
+	/** Name of platform to mock when previewing playback. This will limit playback to only pages that are cooked for the given platform.
+	  * Set in the MetaSound Asset Editor.
+	  */
+	UPROPERTY(VisibleAnywhere, config, Category = Pages)
+	FName AuditionPlatform;
+
+	/** Name of the page to target when previewing playback in editor. If target page is not implemented for the set audition platform,
+	  *  uses order of cooked pages (see 'project MetaSound Settings --> Page Settings' for order) falling back to lower index-ordered page
+	  * implemented in MetaSound asset. Set in the MetaSound Asset Editor.
+	  */
+	UPROPERTY(VisibleAnywhere, config, Category = Pages)
+	FName AuditionTargetPage;
 
 	/** Maps Pin Category To Pin Color */
 	TMap<FName, FLinearColor> CustomPinTypeColors;
@@ -183,7 +215,7 @@ public:
 	
 	/**Override the Knob Style used in the Metasound Editor.*/
 	UPROPERTY(EditAnywhere, config, Category = WidgetStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Knob Style"))
-	FSoftObjectPath KnobStyleOverride;	
+	FSoftObjectPath KnobStyleOverride;
 	
 	/**Override the Slider Style used in the Metasound Editor.*/
 	UPROPERTY(EditAnywhere, config, Category = WidgetStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Slider Style"))
@@ -191,11 +223,11 @@ public:
 
 	/**Override the Button Style used in the Metasound Editor.*/
 	UPROPERTY(EditAnywhere, config, Category = WidgetStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Button Style"))
-	FSoftObjectPath ButtonStyleOverride;	
+	FSoftObjectPath ButtonStyleOverride;
 	
 	/**Override the Meter Style used in the Metasound Editor.*/
 	UPROPERTY(EditAnywhere, config, Category = WidgetStyling, meta = (AllowedClasses = "/Script/SlateCore.SlateWidgetStyleAsset", EditCondition = "bUseAudioMaterialWidgets", DisplayName = "Meter Style"))
-	FSoftObjectPath MeterStyleOverride;	
+	FSoftObjectPath MeterStyleOverride;
 
 	//UObject
 #if WITH_EDITOR
@@ -204,15 +236,16 @@ public:
 	//~UObject
 		
 	/** Get the AudioMaterialKnob Style. If KnobStyleOverride is not set, returns default style.*/
-	const FAudioMaterialKnobStyle* GetKnobStyle() const;	
+	const FAudioMaterialKnobStyle* GetKnobStyle() const;
 
 	/** Get the AudioMaterialSlider Style. If SliderStyleOverride is not set, returns default style.*/
-	const FAudioMaterialSliderStyle* GetSliderStyle() const;	
+	const FAudioMaterialSliderStyle* GetSliderStyle() const;
 	
 	/** Get the AudioMaterialButton Style. If ButtonStyleOverride is not set, returns default style.*/
-	const FAudioMaterialButtonStyle* GetButtonStyle() const;	
+	const FAudioMaterialButtonStyle* GetButtonStyle() const;
 	
 	/** Get the AudioMaterialMeter Style. If MeterStyleOverride is not set, returns default style.*/
 	const FAudioMaterialMeterStyle* GetMeterStyle() const;
 
+	Metasound::Engine::FAuditionPageInfo GetAuditionPageInfo(const FMetasoundFrontendDocument& InDocument) const;
 };

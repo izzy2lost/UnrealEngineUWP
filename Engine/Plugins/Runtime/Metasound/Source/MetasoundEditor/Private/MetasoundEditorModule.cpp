@@ -6,6 +6,7 @@
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphUtilities.h"
+#include "Editor.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "HAL/IConsoleManager.h"
 #include "IDetailCustomization.h"
@@ -159,6 +160,7 @@ namespace Metasound
 					Set("MetasoundEditor.Analyzers.BackgroundColor", FLinearColor(0.0075f, 0.0075f, 0.0075, 1.0f));
 
 					// Misc
+					Set("MetasoundEditor.Audition", new IMAGE_BRUSH_SVG(TEXT("Icons/metasound_page"), Icon16));
 					Set("MetasoundEditor.Speaker", new FSlateImageBrush(RootToContentDir(TEXT("/Icons/speaker_144x.png")), FVector2D(144.0f, 144.0f)));
 					Set("MetasoundEditor.Metasound.Icon", new IMAGE_BRUSH_SVG(TEXT("Icons/metasound_icon"), Icon16));
 
@@ -397,6 +399,50 @@ namespace Metasound
 
 			}
 
+			void RegisterSettingsDelegates()
+			{
+				using namespace Engine;
+
+				if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
+				{
+					Settings->GetOnDefaultConformedDelegate().AddLambda([]()
+					{
+						FNotificationInfo Info(LOCTEXT("MetaSoundSettings_CannotDeleteDefaultPage", "Cannot change name of nor delete 'Default' MetaSound Page"));
+						Info.bFireAndForget = true;
+						Info.ExpireDuration = 2.0f;
+						Info.bUseThrobber = true;
+						FSlateNotificationManager::Get().AddNotification(Info);
+					});
+				}
+
+				const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+				FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate().BindUObject(EditorSettings, &UMetasoundEditorSettings::GetAuditionPageInfo);
+
+				FEditorDelegates::PreBeginPIE.AddWeakLambda(EditorSettings, [](const bool /* bSimulating */)
+				{
+					if (const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>())
+					{
+						FOnResolveAuditionPageInfo& OnResolveAuditionPageInfo = FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate();
+						if (OnResolveAuditionPageInfo.IsBoundToObject(EdSettings))
+						{
+							OnResolveAuditionPageInfo.Unbind();
+						}
+					}
+				});
+				FEditorDelegates::EndPIE.AddWeakLambda(EditorSettings, [](const bool /* bSimulating */)
+				{
+					if (const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>())
+					{
+						FOnResolveAuditionPageInfo& OnResolveAuditionPageInfo = FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate();
+						if (!OnResolveAuditionPageInfo.IsBoundToObject(EdSettings))
+						{
+							OnResolveAuditionPageInfo.BindUObject(EdSettings, &UMetasoundEditorSettings::GetAuditionPageInfo);
+						}
+					}
+				});
+
+			}
+
 			virtual void PrimeAssetRegistryAsync() override {}
 
 			virtual EAssetPrimeStatus GetAssetRegistryPrimeStatus() const override
@@ -407,7 +453,7 @@ namespace Metasound
 			virtual EAssetScanStatus GetAssetRegistryScanStatus() const override
 			{
 				return EAssetScanStatus::NotRequested;
-			}			
+			}
 
 			virtual void RegisterExplicitProxyClass(const UClass& InClass) override
 			{
@@ -601,18 +647,7 @@ namespace Metasound
 				});
 
 				AssetTools.GetOnPackageMigration().AddRaw(this, &FModule::OnPackageMigration);
-
-				if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
-				{
-					Settings->GetOnDefaultConformedDelegate().AddLambda([]()
-					{
-						FNotificationInfo Info(LOCTEXT("MetaSoundSettings_CannotDeleteDefaultPage", "Cannot change name of nor delete 'Default' MetaSound Page"));
-						Info.bFireAndForget = true;
-						Info.ExpireDuration = 2.0f;
-						Info.bUseThrobber = true;
-						FSlateNotificationManager::Get().AddNotification(Info);
-					});
-				}
+				RegisterSettingsDelegates();
 			}
 
 			virtual void ShutdownModule() override

@@ -5,10 +5,14 @@
 #include "AudioWidgetsStyle.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Internationalization/Text.h"
+#include "MetasoundDocumentBuilderRegistry.h"
+#include "MetasoundFrontendDocument.h"
+#include "MetasoundSettings.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "UObject/UnrealType.h"
+
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundEditorSettings)
 
@@ -103,5 +107,54 @@ const FAudioMaterialMeterStyle* UMetasoundEditorSettings::GetMeterStyle() const
 	}
 
 	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style");
+}
+
+Metasound::Engine::FAuditionPageInfo UMetasoundEditorSettings::GetAuditionPageInfo(const FMetasoundFrontendDocument& InDocument) const
+{
+	using namespace Metasound::Engine;
+
+	FAuditionPageInfo PreviewInfo { .PlatformName = AuditionPlatform };
+
+	TSet<FGuid> DocPageIds;
+	InDocument.RootGraph.IterateGraphPages([&DocPageIds](const FMetasoundFrontendGraph& PageGraph)
+	{
+		DocPageIds.Add(PageGraph.PageID);
+	});
+
+	auto PageIsCooked = [&DocPageIds, &PreviewInfo](const FMetaSoundPageSettings& PageSettings)
+	{
+		if (DocPageIds.Contains(PageSettings.UniqueId))
+		{
+			return PageSettings.IsCooked.GetValueForPlatform(PreviewInfo.PlatformName);
+		}
+
+		return false;
+	};
+
+	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+	{
+		if (const FMetaSoundPageSettings* TargetPageSettings = Settings->FindPageSettings(AuditionTargetPage))
+		{
+			const FGuid& TargetPageID = TargetPageSettings->UniqueId;
+			const TArray<FMetaSoundPageSettings>& PageSettingsArray = Settings->GetPageSettings();
+			bool bFoundMatch = false;
+			for (int32 Index = PageSettingsArray.Num() - 1; Index >= 0; --Index)
+			{
+				const FMetaSoundPageSettings& PageSettings = PageSettingsArray[Index];
+				bFoundMatch |= PageSettings.UniqueId == TargetPageID;
+				if (bFoundMatch)
+				{
+					if (PageIsCooked(PageSettings))
+					{
+						PreviewInfo.PageID = PageSettings.UniqueId;
+						return PreviewInfo;
+					}
+				}
+			}
+		}
+	}
+
+	return PreviewInfo;
+
 }
 #undef LOCTEXT_NAMESPACE // "MetaSoundEditor"

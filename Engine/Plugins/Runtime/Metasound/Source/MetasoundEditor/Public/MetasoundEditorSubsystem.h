@@ -75,6 +75,12 @@ public:
 	// Register toolbar extender that will be displayed in the MetaSound Asset Editor.
 	void RegisterToolbarExtender(TSharedRef<FExtender> InExtender);
 
+	// If the given page name is implemented on the provided builder, sets the focused page of
+	// the provided builder to the given page name if and sets the audition target page to
+	// the provided name. If the given builder has an asset editor open, optionally opens or brings
+	// that editor's associated page into user focus.
+	void SetFocusedPage(UMetaSoundBuilderBase* InBuilder, FName InPageName, bool bFocusPageEditor, EMetaSoundBuilderResult& OutResult) const;
+
 	// Unregisters toolbar extender that is displayed in the MetaSound Asset Editor.
 	bool UnregisterToolbarExtender(TSharedRef<FExtender> InExtender);
 

@@ -15,13 +15,13 @@
 namespace Metasound::Engine
 {
 #if WITH_EDITOR
-	struct FPreviewPageInfo
+	struct FAuditionPageInfo
 	{
 		FName PlatformName;
 		TOptional<FGuid> PageID;
 	};
 
-	DECLARE_DELEGATE_RetVal_OneParam(FPreviewPageInfo, FOnResolvePreviewPageInfo, const FMetasoundFrontendDocument& /* Document */);
+	DECLARE_DELEGATE_RetVal_OneParam(FAuditionPageInfo, FOnResolveAuditionPageInfo, const FMetasoundFrontendDocument& /* Document */);
 #endif // WITH_EDITOR
 
 	class METASOUNDENGINE_API FDocumentBuilderRegistry : public Frontend::IDocumentBuilderRegistry
@@ -131,7 +131,7 @@ namespace Metasound::Engine
 		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& InClassName) const;
 
 #if WITH_EDITOR
-		FOnResolvePreviewPageInfo& GetOnResolvePreviewPageInfoDelegate();
+		FOnResolveAuditionPageInfo& GetOnResolveAuditionPageInfoDelegate();
 #endif // WITH_EDITOR
 
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
@@ -147,7 +147,7 @@ namespace Metasound::Engine
 		void FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const;
 
 #if WITH_EDITOR
-		FOnResolvePreviewPageInfo OnResolvePreviewPageInfo;
+		FOnResolveAuditionPageInfo OnResolveAuditionPageInfo;
 #endif // WITH_EDITOR
 
 		TSortedMap<ELogEvent, ELogVerbosity::Type> EventLogVerbosity;

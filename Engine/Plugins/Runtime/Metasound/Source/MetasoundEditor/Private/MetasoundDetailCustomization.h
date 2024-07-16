@@ -64,6 +64,7 @@ namespace Metasound
 		private:
 			UObject& GetMetaSound() const;
 			void RebuildImplemented();
+			void RefreshView();
 			void UpdateItemNames();
 
 			TArray<TSharedPtr<FString>> AddableItems;
@@ -90,6 +91,7 @@ namespace Metasound
 			private:
 				virtual void OnBuilderReloaded(Frontend::FDocumentModifyDelegates& OutDelegates) override;
 				void OnPageAdded(const Frontend::FDocumentMutatePageArgs& Args);
+				void OnPageSet(const Frontend::FDocumentMutatePageArgs& Args);
 				void OnRemovingPage(const Frontend::FDocumentMutatePageArgs& Args);
 			};
 			TSharedPtr<FPageListener> PageListener;

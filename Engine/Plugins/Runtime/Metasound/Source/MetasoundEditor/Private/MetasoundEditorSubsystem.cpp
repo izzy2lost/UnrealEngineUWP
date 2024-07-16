@@ -10,10 +10,13 @@
 #include "MetasoundEditorGraphSchema.h"
 #include "MetasoundEditorSettings.h"
 #include "MetasoundFactory.h"
+#include "MetasoundSettings.h"
 #include "MetasoundUObjectRegistry.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
+#include "ScopedTransaction.h"
 #include "Sound/SoundSourceBusSend.h"
 #include "Sound/SoundSubmixSend.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundEditorSubsystem)
 
@@ -244,6 +247,44 @@ void UMetaSoundEditorSubsystem::RegisterGraphWithFrontend(UObject& InMetaSound, 
 void UMetaSoundEditorSubsystem::RegisterToolbarExtender(TSharedRef<FExtender> InExtender)
 {
 	EditorToolbarExtenders.AddUnique(InExtender);
+}
+
+void UMetaSoundEditorSubsystem::SetFocusedPage(UMetaSoundBuilderBase* InBuilder, FName InPageName, bool bFocusPageEditor, EMetaSoundBuilderResult& OutResult) const
+{
+	using namespace Metasound::Frontend;
+	if (!InBuilder)
+	{
+		OutResult = EMetaSoundBuilderResult::Failed;
+		return;
+	}
+
+	const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+	check(Settings);
+	if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(InPageName))
+	{
+		const FScopedTransaction Transaction(FText::Format(LOCTEXT("SetFocusedBuildPageTransactionFormat", "Set Focused Builder Page '{0}'"), FText::FromName(InPageName)));
+		InBuilder->Modify();
+		if (InBuilder->GetBuilder().SetBuildPageID(PageSettings->UniqueId))
+		{
+			if (UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>())
+			{
+				EditorSettings->AuditionTargetPage = InPageName;
+			}
+
+			if (GEditor && bFocusPageEditor)
+			{
+				if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+				{
+					AssetEditorSubsystem->OpenEditorForAsset(&InBuilder->GetConstBuilder().CastDocumentObjectChecked<UObject>());
+				}
+			}
+
+			OutResult = EMetaSoundBuilderResult::Succeeded;
+			return;
+		}
+	};
+
+	OutResult = EMetaSoundBuilderResult::Failed;
 }
 
 bool UMetaSoundEditorSubsystem::UnregisterToolbarExtender(TSharedRef<FExtender> InExtender)
