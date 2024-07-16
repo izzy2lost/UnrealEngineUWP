@@ -168,6 +168,26 @@ bool FODSCThread::ConnectToODSCHost()
 	return CookOnTheFlyServerConnection != nullptr && CookOnTheFlyServerConnection->IsConnected();
 }
 
+bool FODSCThread::CheckODSCConnection()
+{
+	// If we have a default connection that already exists, send directly to that.
+	if ((CookOnTheFlyServerConnection == nullptr) || (!CookOnTheFlyServerConnection->IsConnected()))
+	{
+		// Losing connection when exit is requested is expected, do not try to reconnect
+		if (ExitRequest.GetValue())
+		{
+			return false;
+		}
+
+		UE_LOG(LogODSC, Display, TEXT("Detected that CookOnTheFlyServerConnection has been lost, trying again"));
+		if (!ConnectToODSCHost())
+		{
+			return false;
+		}
+	}
+	return CookOnTheFlyServerConnection != nullptr && CookOnTheFlyServerConnection->IsConnected();
+}
+
 void FODSCThread::StartThread()
 {
 	Thread = FRunnableThread::Create(this, TEXT("ODSCThread"), 128 * 1024, TPri_Normal);
@@ -368,33 +388,65 @@ void FODSCThread::Exit()
 
 void FODSCThread::Process()
 {
-	// cache all pending requests.
-	FODSCRequestPayload Payload;
-	TArray<FODSCRequestPayload> PayloadsToAggregate;
+	// cache all pending pipeline requests
 	{
+		TArray<FODSCRequestPayload> PayloadsToAggregate;
+		FODSCRequestPayload Payload;
 		while (PendingMeshMaterialThreadedRequests.Dequeue(Payload))
 		{
 			PayloadsToAggregate.Add(Payload);
 		}
+
+		if (PayloadsToAggregate.Num())
+		{
+			FODSCMessageHandler* RequestHandler = new FODSCMessageHandler(PayloadsToAggregate[0].ShaderPlatform, PayloadsToAggregate[0].FeatureLevel, PayloadsToAggregate[0].QualityLevel, ODSCRecompileCommand::Material);
+			for (const FODSCRequestPayload& payload : PayloadsToAggregate)
+			{
+				RequestHandler->AddPayload(payload);
+			}
+			PendingRequestsPipeline.Add(RequestHandler);
+		}
+	}
+
+	// cache all pending material/global requests
+	{
+		FODSCMessageHandler* Request = nullptr;
+		while (PendingMaterialThreadedRequests.Dequeue(Request))
+		{
+			PendingRequestsMaterialAndGlobal.Add(Request);
+		}
+	}
+
+	bIsConnectedToODSCServer = CheckODSCConnection();
+
+	ON_SCOPE_EXIT
+	{
+		// SendMessageToServer is synchronous, so when we're here, we know we've processed all the requests
+		WakeupEvent->Reset();
+		AllRequestsDoneEvent->Trigger();
+	};
+
+	// Early out to avoid trying to connect (and most likely fail) for every compilation request
+	if (!bIsConnectedToODSCServer)
+	{
+		return;
 	}
 
 	// cache material requests.
-	FODSCMessageHandler* Request = nullptr;
-	TArray<FODSCMessageHandler*> RequestsToStart;
+	TArray<FODSCMessageHandler*> RequestsToStart = MoveTemp(PendingRequestsMaterialAndGlobal);
 	bool bHasGlobalShaders = false;
 	uint32 NumMaterials = 0;
-	while (PendingMaterialThreadedRequests.Dequeue(Request))
+
+	for (FODSCMessageHandler* NextRequest : RequestsToStart)
 	{
-		if (Request->GetRecompileCommandType() != ODSCRecompileCommand::Material)
+		if (NextRequest->GetRecompileCommandType() != ODSCRecompileCommand::Material)
 		{
 			bHasGlobalShaders = true;
 		}
 		else
 		{
-			NumMaterials += Request->GetMaterialsToLoad().Num();
+			NumMaterials += NextRequest->GetMaterialsToLoad().Num();
 		}
-
-		RequestsToStart.Add(Request);
 	}
 
 	bHasPendingGlobalShaders.store(bHasGlobalShaders, std::memory_order_release);
@@ -404,61 +456,57 @@ void FODSCThread::Process()
 	for (FODSCMessageHandler* NextRequest : RequestsToStart)
 	{
 		// send the info, the handler will process the response (and update shaders, etc)
-		SendMessageToServer(NextRequest);
+		if (SendMessageToServer(NextRequest))
+		{
+			CompletedThreadedRequests.Enqueue(NextRequest);
+		}
+		else
+		{
+			PendingRequestsMaterialAndGlobal.Add(NextRequest);
+		}
 
-		CompletedThreadedRequests.Enqueue(NextRequest);
 	}
 
 	bHasPendingGlobalShaders.store(false, std::memory_order_release);
 	NumPendingMaterialsRecompile.store(0, std::memory_order_release);
-	NumPendingMaterialsShaders.store(PayloadsToAggregate.Num(), std::memory_order_release);
 
-	// process any specific mesh material shader requests.
-	if (PayloadsToAggregate.Num())
+	RequestsToStart = MoveTemp(PendingRequestsPipeline);
+
+	uint32 NumPipelines = 0;
+	for (FODSCMessageHandler* NextRequest : RequestsToStart)
 	{
-		FODSCMessageHandler* RequestHandler = new FODSCMessageHandler(PayloadsToAggregate[0].ShaderPlatform, PayloadsToAggregate[0].FeatureLevel, PayloadsToAggregate[0].QualityLevel, ODSCRecompileCommand::Material);
-		for (const FODSCRequestPayload& payload : PayloadsToAggregate)
-		{
-			RequestHandler->AddPayload(payload);
-		}
-
-		// send the info, the handler will process the response (and update shaders, etc)
-		SendMessageToServer(RequestHandler);
-
-		CompletedThreadedRequests.Enqueue(RequestHandler);
+		NumPipelines += NextRequest->NumPayloads();
 	}
 
-	NumPendingMaterialsShaders.store(0, std::memory_order_release);
+	NumPendingMaterialsShaders.store(NumPipelines, std::memory_order_release);
 
-	// SendMessageToServer is synchronous, so when we're here, we know we've processed all the requests
-	WakeupEvent->Reset();
-	AllRequestsDoneEvent->Trigger();
-}
-
-void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler)
-{
-	// If we have a default connection that already exists, send directly to that.
-	if ((CookOnTheFlyServerConnection == nullptr) || (!CookOnTheFlyServerConnection->IsConnected()))
+	// process any specific mesh material shader requests.
+	for (FODSCMessageHandler* NextRequest : RequestsToStart)
 	{
-		if (bHasDefaultConnection)
+		if (SendMessageToServer(NextRequest))
 		{
-			IFileManager::Get().SendMessageToServer(TEXT("RecompileShaders"), Handler);
-			return;
+			CompletedThreadedRequests.Enqueue(NextRequest);
 		}
 		else
 		{
-			// Losing connection when exit is requested is expected, do not try to reconnect
-			if (ExitRequest.GetValue())
-			{
-				return;
-			}
-
-			UE_LOG(LogODSC, Display, TEXT("Detected that CookOnTheFlyServerConnection has been lost, trying again"));
-			if (!ConnectToODSCHost())
-			{
-				return;
-			}
+			PendingRequestsPipeline.Add(NextRequest);
 		}
+	}
+
+	NumPendingMaterialsShaders.store(0, std::memory_order_release);
+}
+
+bool FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler)
+{
+	if (bHasDefaultConnection)
+	{
+		IFileManager::Get().SendMessageToServer(TEXT("RecompileShaders"), Handler);
+		return true;
+	}
+
+	if (!CheckODSCConnection())
+	{
+		return false;
 	}
 
 	// We don't have a default COTF connection so use our specific connection to send our command.
@@ -473,16 +521,19 @@ void FODSCThread::SendMessageToServer(IPlatformFile::IFileServerMessageHandler* 
 	{
 		TUniquePtr<FArchive> Ar = Response.ReadBody();
 		Handler->ProcessResponse(*Ar);
+		return true;
 	}
 	else
 	{
 		UE_LOG(LogODSC, Display, TEXT("Received error response from CookOnTheFlyServerConnection; disconnecting"));
 		CookOnTheFlyServerConnection.Reset();
+		return false;
 	}
 }
 
-bool FODSCThread::GetPendingShaderData(bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const
+bool FODSCThread::GetPendingShaderData(bool& bOutIsConnectedToODSCServer, bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const
 {
+	bOutIsConnectedToODSCServer = bIsConnectedToODSCServer.load(std::memory_order_acquire);
 	bOutHasPendingGlobalShaders = bHasPendingGlobalShaders.load(std::memory_order_acquire);
 	OutNumPendingMaterialsRecompile = NumPendingMaterialsRecompile.load(std::memory_order_acquire);
 	OutNumPendingMaterialsShaders = NumPendingMaterialsShaders.load(std::memory_order_acquire);

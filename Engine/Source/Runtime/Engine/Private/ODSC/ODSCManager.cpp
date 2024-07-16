@@ -59,10 +59,12 @@ FODSCManager::FODSCManager()
 						OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Error, FText::FromString(LocalErrorMessage));
 					}
 
+					bool bIsConnectedToODSCServer;
 					bool bHasPendingGlobalShaders;
 					uint32 NumPendingMaterialsRecompile;
 					uint32 NumPendingMaterialsShaders;
-					if (Thread->GetPendingShaderData(bHasPendingGlobalShaders, NumPendingMaterialsRecompile, NumPendingMaterialsShaders))
+					bool bHasShaderData = Thread->GetPendingShaderData(bIsConnectedToODSCServer, bHasPendingGlobalShaders, NumPendingMaterialsRecompile, NumPendingMaterialsShaders);
+					if (bIsConnectedToODSCServer && bHasShaderData)
 					{
 						FString Message = TEXT("Recompiling shaders (");
 						if (bHasPendingGlobalShaders)
@@ -82,6 +84,10 @@ FODSCManager::FODSCManager()
 
 						Message += ")";
 						OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, FText::FromString(Message));
+					}
+					else if (!bIsConnectedToODSCServer)
+					{
+						OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Error, FText::FromString(FString::Printf(TEXT("Not connected to %s"), *Thread->GetODSCHostIP())));
 					}
 				}
 			}

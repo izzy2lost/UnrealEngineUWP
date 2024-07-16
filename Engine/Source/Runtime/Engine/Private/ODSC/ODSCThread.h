@@ -48,6 +48,7 @@ public:
 	const TArray<uint8>& GetGlobalShaderMap() const;
 	bool ReloadGlobalShaders() const;
 	ODSCRecompileCommand GetRecompileCommandType() const { return RecompileCommandType; };
+	int32 NumPayloads() const { return RequestBatch.Num(); }
 
 private:
 	/** The time when this command was issued.  This isn't serialized to the cooking server. */
@@ -163,13 +164,14 @@ public:
 	*/
 	void WaitUntilAllRequestsDone();
 
-	bool GetPendingShaderData(bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const;
+	bool GetPendingShaderData(bool& bOutIsConnectedToODSCServer, bool& bOutHasPendingGlobalShaders, uint32& OutNumPendingMaterialsRecompile, uint32& OutNumPendingMaterialsShaders) const;
 
 	void RegisterMaterialShaderMap(const FMaterialShaderMap& MaterialShaderMap);
 
 	void ResetMaterialsODSCData(ERHIFeatureLevel::Type FeatureLevel);
 
 	bool CheckIfRequestAlreadySent(const TArray<FShaderId>& RequestShaderIds, const FString& MaterialName) const;
+	const FString& GetODSCHostIP() const { return ODSCHostIP; };
 
 protected:
 
@@ -192,6 +194,7 @@ private:
 	void Process();
 
 	bool ConnectToODSCHost();
+	bool CheckODSCConnection();
 
 	/**
 	 * Threaded requests that are waiting to be processed on the ODSC thread.
@@ -273,13 +276,17 @@ private:
 	/** Holds an event signaling when all the requests are processed*/
 	FEvent* AllRequestsDoneEvent;
 
-	void SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler);
+	bool SendMessageToServer(IPlatformFile::IFileServerMessageHandler* Handler);
+
+	TArray<FODSCMessageHandler*> PendingRequestsMaterialAndGlobal;
+	TArray<FODSCMessageHandler*> PendingRequestsPipeline;
 
 	/** Special connection to the cooking server.  This is only used to send recompileshaders commands on. */
 	TUniquePtr<UE::Cook::ICookOnTheFlyServerConnection> CookOnTheFlyServerConnection;
 
 	FString ODSCHostIP;
 
+	std::atomic<bool> bIsConnectedToODSCServer = false;
 	std::atomic<bool> bHasPendingGlobalShaders = false;
 	std::atomic<uint32> NumPendingMaterialsRecompile = 0;
 	std::atomic<uint32> NumPendingMaterialsShaders = 0;
