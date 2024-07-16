@@ -202,14 +202,18 @@ void Main(
 #endif
 	CenterViewportHDRColor.r *= ComplexityScale;
 
-	const int BorderX = 64;
-
 	// Legend
 	{
-		// left top of the border
+		const int OffsetFromLeft = 64;
+		const int OffsetFromBottom = 52;
 		const int Height = 18;
-		const int2 LeftTop = int2(BorderX, Input_ViewportMax.y - Height - 52);
-		const int2 Size = int2(Input_ViewportMax.x - Input_ViewportMin.x - BorderX * 2, Height);
+
+		const int2 Size = int2(Input_ViewportMax.x - Input_ViewportMin.x - OffsetFromLeft * 2, Height);
+
+		const int2 LeftTop = int2(
+			Input_ViewportMin.x + OffsetFromLeft,
+			Input_ViewportMax.y - OffsetFromBottom - Size.y);
+
 		const int OuterBorder = 1;
 
 		// (0, 0) .. (1, 1)
