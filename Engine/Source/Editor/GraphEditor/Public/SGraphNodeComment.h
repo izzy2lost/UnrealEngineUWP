@@ -55,6 +55,12 @@ public:
 	//~ Begin SGraphNode Interface
 	virtual bool IsNameReadOnly() const override;
 	virtual FSlateColor GetCommentColor() const override { return GetCommentBodyColor(); }
+	/** Requests a rename when the node was initially spawned */
+	virtual void RequestRenameOnSpawn() 
+	{ 
+		RequestRename(); 
+		ApplyRename(); 
+	}
 	//~ End SGraphNode Interface
 
 	void Construct( const FArguments& InArgs, UEdGraphNode_Comment* InNode );

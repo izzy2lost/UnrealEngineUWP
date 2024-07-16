@@ -142,6 +142,11 @@ void SDataflowGraphEditor::Construct(const FArguments& InArgs, UObject* InAssetO
 				FGenericCommands::Get().Paste,
 				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::PasteSelectedNodes)
 			);
+			GraphEditorCommands->MapAction(
+				FGenericCommands::Get().Rename,
+				FExecuteAction::CreateSP(this, &SDataflowGraphEditor::RenameNode),
+				FCanExecuteAction::CreateSP(this, &SDataflowGraphEditor::CanRenameNode)
+			);
 		}
 	}
 
@@ -219,6 +224,48 @@ void SDataflowGraphEditor::DeleteNode()
 			}
 		}
 	}
+}
+
+void SDataflowGraphEditor::RenameNode()
+{
+	if (UDataflow* Graph = DataflowAsset.Get())
+	{
+		const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor = SharedThis(this);
+		const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
+
+		if (SelectedNodes.Num() == 1)
+		{
+			if (CanRenameNode())
+			{
+				if (UDataflowEdNode* SelectedNode = Cast<UDataflowEdNode>(*SelectedNodes.CreateConstIterator()))
+				{
+					FDataflowEditorCommands::RenameNode(DataflowGraphEditor, SelectedNode);
+				}
+				else if (UEdGraphNode_Comment* SelectedCommentNode = Cast<UEdGraphNode_Comment>(*SelectedNodes.CreateConstIterator()))
+				{
+					FDataflowEditorCommands::RenameNode(DataflowGraphEditor, SelectedCommentNode);
+				}
+			}
+		}
+	}
+}
+
+bool SDataflowGraphEditor::CanRenameNode() const
+{
+	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+	if (SelectedNodes.Num() == 1)
+	{
+		if (UDataflowEdNode* SelectedNode = Cast<UDataflowEdNode>(*SelectedNodes.CreateConstIterator()))
+		{
+			return SelectedNode->bCanRenameNode;
+		}
+		else if (UEdGraphNode_Comment* SelectedCommentNode = Cast<UEdGraphNode_Comment>(*SelectedNodes.CreateConstIterator()))
+		{
+			return SelectedCommentNode->bCanRenameNode;
+		}
+	}
+
+	return false;
 }
 
 void SDataflowGraphEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)

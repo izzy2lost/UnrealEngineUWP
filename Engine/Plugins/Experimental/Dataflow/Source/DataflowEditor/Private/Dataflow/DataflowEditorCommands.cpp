@@ -415,6 +415,15 @@ void FDataflowEditorCommands::DeleteNodes(UDataflow* Graph, const FGraphPanelSel
 	}
 }
 
+void FDataflowEditorCommands::RenameNode(const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor, UEdGraphNode* EdNode)
+{
+	if (EdNode && DataflowGraphEditor.IsValid())
+	{
+		// GMelich: There is no direct rename function, this function can rename a node without recentering the selected node
+		DataflowGraphEditor->IsNodeTitleVisible(EdNode, /*bRequestRename*/true);
+	}
+}
+
 void FDataflowEditorCommands::OnSelectedNodesChanged(TSharedPtr<IStructureDetailsView> PropertiesEditor, UObject* Asset, UDataflow* Graph, const TSet<TObjectPtr<UObject> >& NewSelection)
 {
 	PropertiesEditor->SetStructureData(nullptr);

@@ -156,5 +156,10 @@ public:
 	*  PasteSelectedNodes
 	*/
 	static void PasteNodes(UDataflow* Graph, const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor);
+
+	/*
+	*  RenameNode
+	*/
+	static void RenameNode(const TSharedPtr<SDataflowGraphEditor>& DataflowGraphEditor, UEdGraphNode* EdNode);
 };
 

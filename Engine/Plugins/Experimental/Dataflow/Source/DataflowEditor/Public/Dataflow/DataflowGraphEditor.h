@@ -135,6 +135,10 @@ public:
 	/** */
 	void PasteSelectedNodes();
 
+	/** */
+	void RenameNode();
+	bool CanRenameNode() const;
+
 	SGraphEditor* GetGraphEditor() { return (SGraphEditor*)this; }
 
 	/** FGCObject interface */
