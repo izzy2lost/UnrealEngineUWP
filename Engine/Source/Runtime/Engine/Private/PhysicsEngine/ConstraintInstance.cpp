@@ -989,9 +989,18 @@ void FConstraintInstance::SetLinearDriveParams(const FVector& InSpring, const FV
 	ProfileInstance.LinearDrive.SetDriveParams(InSpring, InDamping, InForceLimit);
 
 	FPhysicsInterface::ExecuteOnUnbrokenConstraintReadWrite(ConstraintHandle, [this](const FPhysicsConstraintHandle& InUnbrokenConstraint)
-		{
-			FPhysicsInterface::UpdateLinearDrive_AssumesLocked(InUnbrokenConstraint, ProfileInstance.LinearDrive);
-		});
+	{
+		FPhysicsInterface::UpdateLinearDrive_AssumesLocked(InUnbrokenConstraint, ProfileInstance.LinearDrive);
+	});
+}
+
+void FConstraintInstance::SetLinearDriveAccelerationMode(const bool bAccelerationMode)
+{
+	ProfileInstance.LinearDrive.SetAccelerationMode(bAccelerationMode);
+	FPhysicsInterface::ExecuteOnUnbrokenConstraintReadWrite(ConstraintHandle, [this](const FPhysicsConstraintHandle& InUnbrokenConstraint)
+	{
+		FPhysicsInterface::UpdateLinearDrive_AssumesLocked(InUnbrokenConstraint, ProfileInstance.LinearDrive);
+	});
 }
 
 /** Get the linear drive's strength parameters */
@@ -1081,6 +1090,15 @@ void FConstraintInstance::SetAngularDriveParams(float InSpring, float InDamping,
 	ProfileInstance.AngularDrive.SetDriveParams(InSpring, InDamping, InForceLimit);
 
 	FPhysicsInterface::ExecuteOnUnbrokenConstraintReadWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& InUnbrokenConstraint)
+	{
+		FPhysicsInterface::UpdateAngularDrive_AssumesLocked(InUnbrokenConstraint, ProfileInstance.AngularDrive);
+	});
+}
+
+void FConstraintInstance::SetAngularDriveAccelerationMode(const bool bAccelerationMode)
+{
+	ProfileInstance.AngularDrive.SetAccelerationMode(bAccelerationMode);
+	FPhysicsInterface::ExecuteOnUnbrokenConstraintReadWrite(ConstraintHandle, [this](const FPhysicsConstraintHandle& InUnbrokenConstraint)
 	{
 		FPhysicsInterface::UpdateAngularDrive_AssumesLocked(InUnbrokenConstraint, ProfileInstance.AngularDrive);
 	});

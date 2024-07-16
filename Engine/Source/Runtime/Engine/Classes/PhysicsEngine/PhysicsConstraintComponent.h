@@ -190,6 +190,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Physics|Components|PhysicsConstraint")
 	ENGINE_API void SetAngularDriveMode(EAngularDriveMode::Type DriveMode);
 
+	/** Toggles the angular drive acceleration mode. When enabled, the acceleration of the angular drive is not affected by the inertia of the constrained objects around the drive axis. */
+	UFUNCTION(BlueprintCallable, Category = "Physics|Components|PhysicsConstraint")
+	ENGINE_API void SetAngularDriveAccelerationMode(bool bAccelerationMode);
+
 	/** Sets the target position for the linear drive. 
 	 *	@param InPosTarget		Target position
 	 */
@@ -209,6 +213,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Physics|Components|PhysicsConstraint")
 	ENGINE_API void SetLinearDriveParams(float PositionStrength, float VelocityStrength, float InForceLimit);
+
+	/** Toggles the linear drive acceleration mode. When enabled, the acceleration of the angular drive is not affected by the inertia of the constrained objects along the drive axis. */
+	UFUNCTION(BlueprintCallable, Category = "Physics|Components|PhysicsConstraint")
+	ENGINE_API void SetLinearDriveAccelerationMode(bool bAccelerationMode);
 
 	/** Sets the target orientation for the angular drive. 
 	 *	@param InPosTarget		Target orientation

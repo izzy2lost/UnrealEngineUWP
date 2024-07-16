@@ -386,7 +386,7 @@ void FPhysInterface_Chaos::UpdateLinearDrive_AssumesLocked(const FPhysicsConstra
 				Constraint->SetLinearDriveVelocityTarget(InDriveParams.VelocityTarget);
 			}
 
-			Constraint->SetLinearDriveForceMode(Chaos::EJointForceMode::Acceleration);
+			Constraint->SetLinearDriveForceMode(InDriveParams.bAccelerationMode ? Chaos::EJointForceMode::Acceleration : Chaos::EJointForceMode::Force);
 			Constraint->SetLinearDriveStiffness(Chaos::ConstraintSettings::LinearDriveStiffnessScale() * Chaos::FVec3(InDriveParams.XDrive.Stiffness, InDriveParams.YDrive.Stiffness, InDriveParams.ZDrive.Stiffness));
 			Constraint->SetLinearDriveDamping(Chaos::ConstraintSettings::LinearDriveDampingScale() * Chaos::FVec3(InDriveParams.XDrive.Damping, InDriveParams.YDrive.Damping, InDriveParams.ZDrive.Damping));
 			Constraint->SetLinearDriveMaxForce(Chaos::FVec3(InDriveParams.XDrive.MaxForce, InDriveParams.YDrive.MaxForce, InDriveParams.ZDrive.MaxForce));
@@ -455,7 +455,7 @@ void FPhysInterface_Chaos::UpdateAngularDrive_AssumesLocked(const FPhysicsConstr
 				}
 			}
 
-			Constraint->SetAngularDriveForceMode(Chaos::EJointForceMode::Acceleration);
+			Constraint->SetAngularDriveForceMode(InDriveParams.bAccelerationMode ? Chaos::EJointForceMode::Acceleration : Chaos::EJointForceMode::Force);
 			if (InDriveParams.AngularDriveMode == EAngularDriveMode::TwistAndSwing)
 			{
 				Constraint->SetAngularDriveStiffness(Chaos::ConstraintSettings::AngularDriveStiffnessScale() * Chaos::FVec3(InDriveParams.TwistDrive.Stiffness, InDriveParams.SwingDrive.Stiffness, InDriveParams.SwingDrive.Stiffness));

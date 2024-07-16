@@ -82,6 +82,9 @@ struct FLinearDriveConstraint
 
 	UPROPERTY(EditAnywhere, Category = LinearMotor)
 	FConstraintDrive ZDrive;
+	
+	UPROPERTY(EditAnywhere, Category = AngularMotor)
+	bool bAccelerationMode;
 
 #if WITH_EDITORONLY_DATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -112,6 +115,8 @@ private:
 	ENGINE_API void SetDriveParams(const FVector& InStiffness, const FVector& InDamping, const FVector& InForceLimit);
 	ENGINE_API void GetDriveParams(float& OutStiffness, float& OutDamping, float& OutForceLimit) const;
 	ENGINE_API void GetDriveParams(FVector& OutStiffness, FVector& OutDamping, FVector& OutForceLimit) const;
+	ENGINE_API void SetAccelerationMode(bool bAccelerationMode);
+	ENGINE_API bool GetAccelerationMode() const;
 };
 
 
@@ -144,6 +149,9 @@ struct FAngularDriveConstraint
 	/** Whether motors use SLERP (spherical lerp) or decompose into a Swing motor (cone constraints) and Twist motor (roll constraints). NOTE: SLERP will NOT work if any of the angular constraints are locked. */
 	UPROPERTY(EditAnywhere, Category = AngularMotor)
 	TEnumAsByte<enum EAngularDriveMode::Type> AngularDriveMode;
+
+	UPROPERTY(EditAnywhere, Category = AngularMotor)
+	bool bAccelerationMode;
 
 	ENGINE_API FAngularDriveConstraint();
 
@@ -192,4 +200,6 @@ private:
 	// Gets drive parameters in the order swing, twist, slerp
 	ENGINE_API void GetDriveParams(FVector& OutStiffness, FVector& OutDamping, FVector& OutForceLimit) const;
 	ENGINE_API void SetAngularDriveMode(EAngularDriveMode::Type DriveMode);
+	ENGINE_API void SetAccelerationMode(bool bAccelerationMode);
+	ENGINE_API bool GetAccelerationMode() const;
 };

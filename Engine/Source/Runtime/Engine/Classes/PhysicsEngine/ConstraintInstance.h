@@ -785,6 +785,9 @@ public:
 	/** Set the linear drive's strength parameters per-axis */
 	ENGINE_API void SetLinearDriveParams(const FVector& InPositionStrength, const FVector& InVelocityStrength, const FVector& InForceLimit);
 
+	/** Set the linear drive force-mode */
+	ENGINE_API void SetLinearDriveAccelerationMode(bool bAccelerationMode);
+
 	/** Get the linear drive's strength parameters. Assumes all axes are the same so only returns the X values */
 	ENGINE_API void GetLinearDriveParams(float& OutPositionStrength, float& OutVelocityStrength, float& OutForceLimit);
 
@@ -859,6 +862,9 @@ public:
 
 	/** Set the angular drive mode */
 	ENGINE_API void SetAngularDriveMode(EAngularDriveMode::Type DriveMode);
+
+	/** Set the angular drive force-mode */
+	ENGINE_API void SetAngularDriveAccelerationMode(bool bAccelerationMode);
 
 	/** Set the angular drive mode */
 	EAngularDriveMode::Type GetAngularDriveMode()

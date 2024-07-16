@@ -68,10 +68,12 @@ namespace Chaos
 		CHAOS_API void SetLinearDriveStiffness(const FVec3 Stiffness);
 		CHAOS_API void SetLinearDriveDamping(const FVec3 Damping);
 		CHAOS_API void SetLinearDriveMaxForce(const FVec3 MaxForce);
+		CHAOS_API void SetLinearDriveForceMode(EJointForceMode ForceMode);
 
 		CHAOS_API void SetAngularDriveStiffness(const FVec3 Stiffness);
 		CHAOS_API void SetAngularDriveDamping(const FVec3 Damping);
 		CHAOS_API void SetAngularDriveMaxTorque(const FVec3 MaxTorque);
+		CHAOS_API void SetAngularDriveForceMode(EJointForceMode ForceMode);
 
 		CHAOS_API void SetCollisionEnabled(const bool bCollisionEnabled);
 		CHAOS_API void SetParentInvMassScale(const FReal ParentInvMassScale);

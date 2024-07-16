@@ -100,6 +100,16 @@ void FLinearDriveConstraint::GetDriveParams(FVector& OutStiffness, FVector& OutD
 	OutForceLimit.Set(XDrive.MaxForce, YDrive.MaxForce, ZDrive.MaxForce);
 }
 
+void FLinearDriveConstraint::SetAccelerationMode(const bool bInAccelerationMode)
+{
+	bAccelerationMode = bInAccelerationMode;
+}
+
+bool FLinearDriveConstraint::GetAccelerationMode() const
+{
+	return bAccelerationMode;
+}
+
 void FAngularDriveConstraint::SetAngularDriveMode(EAngularDriveMode::Type DriveMode)
 {
 	AngularDriveMode = DriveMode;
@@ -134,3 +144,14 @@ void FAngularDriveConstraint::GetDriveParams(FVector& OutStiffness, FVector& Out
 	OutForceLimit.Set(SwingDrive.MaxForce, TwistDrive.Damping, TwistDrive.MaxForce);
 
 }
+
+void FAngularDriveConstraint::SetAccelerationMode(const bool bInAccelerationMode)
+{
+	bAccelerationMode = bInAccelerationMode;
+}
+
+bool FAngularDriveConstraint::GetAccelerationMode() const
+{
+	return bAccelerationMode;
+}
+

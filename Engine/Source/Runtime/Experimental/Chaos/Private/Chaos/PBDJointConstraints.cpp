@@ -200,6 +200,11 @@ namespace Chaos
 		GetConstraintSettingsInternal().LinearDriveMaxForce = MaxForce;
 	}
 
+	void FPBDJointConstraintHandle::SetLinearDriveForceMode(EJointForceMode ForceMode)
+	{
+		GetConstraintSettingsInternal().LinearDriveForceMode = ForceMode;
+	}
+
 	void FPBDJointConstraintHandle::SetAngularDriveStiffness(const FVec3 Stiffness)
 	{
 		GetConstraintSettingsInternal().AngularDriveStiffness = Stiffness;
@@ -213,6 +218,11 @@ namespace Chaos
 	void FPBDJointConstraintHandle::SetAngularDriveMaxTorque(const FVec3 MaxTorque)
 	{
 		GetConstraintSettingsInternal().AngularDriveMaxTorque = MaxTorque;
+	}
+
+	void FPBDJointConstraintHandle::SetAngularDriveForceMode(EJointForceMode ForceMode)
+	{
+		GetConstraintSettingsInternal().AngularDriveForceMode = ForceMode;
 	}
 
 	void FPBDJointConstraintHandle::SetCollisionEnabled(const bool bCollisionEnabled)
