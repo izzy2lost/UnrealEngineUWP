@@ -386,6 +386,7 @@ Name | Description
 ---- | -----------
 `id` | `string`<br>
 `base` | `string`<br>
+`secondary` | `string`<br>
 `type` | [`StorageBackendType`](#storagebackendtype-enum)<br>
 `baseDir` | `string`<br>
 `awsBucketName` | `string`<br>
