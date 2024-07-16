@@ -3265,7 +3265,10 @@ TSharedRef<SPIEViewport> UEditorEngine::GeneratePIEViewportWindow(const FRequest
 	
 	// VR Preview overrides window location.
 	const bool bVRPreview = InWorldContext.bIsPrimaryPIEInstance && InSessionParams.SessionPreviewTypeOverride.Get(EPlaySessionPreviewType::NoPreview) == EPlaySessionPreviewType::VRPreview;
-	bool bUseOSWndBorder = bVRPreview;
+
+	// Because we could switch primary PIE on the fly, we should make all PIE windows with the same UI style
+	bool bUseOSWndBorder = InSessionParams.SessionPreviewTypeOverride.Get(EPlaySessionPreviewType::NoPreview) == EPlaySessionPreviewType::VRPreview;
+
 	if (bVRPreview)
 	{
 		bCenterNewWindowOverride = true;

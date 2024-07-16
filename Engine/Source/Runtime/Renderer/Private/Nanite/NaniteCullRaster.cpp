@@ -328,6 +328,16 @@ TAutoConsoleVariable<int32> CVarNaniteTestPrecacheDrawSkipping(
 	ECVF_RenderThreadSafe
 );
 
+static bool UseRasterSetupCache()
+{
+	// The raster setup cache is disabled in the editor due to shader map invalidations.
+#if WITH_EDITOR
+	return false;
+#else
+	return CVarNaniteRasterSetupCache.GetValueOnRenderThread() > 0;
+#endif
+}
+
 static bool UseMeshShader(EShaderPlatform ShaderPlatform, Nanite::EPipeline Pipeline)
 {
 	if (!FDataDrivenShaderPlatformInfo::GetSupportsMeshShadersTier1(ShaderPlatform))
@@ -3825,7 +3835,7 @@ void FRenderer::PrepareRasterizerPasses(
 	// Threshold of active passes to launch an async task.
 	const int32 VisiblePassAsyncThreshold = 8;
 
-	const bool bUseSetupCache = CVarNaniteRasterSetupCache.GetValueOnRenderThread() > 0;
+	const bool bUseSetupCache = UseRasterSetupCache();
 
 	GraphBuilder.AddSetupTask(
 	[

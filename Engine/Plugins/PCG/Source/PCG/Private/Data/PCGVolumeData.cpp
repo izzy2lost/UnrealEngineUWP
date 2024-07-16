@@ -59,7 +59,9 @@ void UPCGVolumeData::Initialize(AVolume* InVolume)
 		FBodyInstance* BodyInstance = BrushComponent->GetBodyInstance();
 		UBodySetup* BodySetup = BrushComponent->GetBodySetup();
 
-		if (BodyInstance && BodySetup && !BodyInstance->IsDynamic())
+		// In some instances, non-collidable bodies will not be initialized, but it's not an issue for PCG so we can continue regardless.
+		// Otherwise, require that the body is not dynamic.
+		if (BodyInstance && BodySetup && (!FPhysicsInterface::IsValid(BodyInstance->ActorHandle) || !BodyInstance->IsDynamic()))
 		{
 			ReleaseInternalBodyInstance();
 

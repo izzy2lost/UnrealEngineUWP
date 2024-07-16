@@ -41,7 +41,7 @@ namespace UE::Anim::Private
 			// This function is used to set the initial transform, we explicitly set the scale to start at 1.
 			InitialTransform.SetScale3D(FVector::OneVector);
 		}
-		return InitialRootBoneTransform * InitialTransform;
+		return InitialRootBoneTransform.Inverse() * InitialTransform;
 	}
 }
 

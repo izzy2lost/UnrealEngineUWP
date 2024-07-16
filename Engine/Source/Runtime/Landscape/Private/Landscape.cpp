@@ -763,6 +763,14 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 		}
 	}
 
+#if WITH_EDITOR
+	// double check we never save an invalid cached local box to a cooked package (should always be recalculated in ALandscapeProxy::PreSave)
+	if (Ar.IsSaving() && Ar.IsCooking() && !Ar.IsSerializingDefaults())
+	{
+		check(CachedLocalBox.GetVolume() > 0);
+	}
+#endif // WITH_EDITOR
+
 	// Avoid the archiver in the PIE duplicate writer case because we want to share landscape textures & materials
 	if (Ar.GetPortFlags() & PPF_DuplicateForPIE)
 	{
@@ -875,6 +883,16 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 #endif // WITH_EDITOR
 	{
 		Super::Serialize(Ar);
+	}
+
+	// this is a sanity check, as ALandscapeProxy::PreSave() for cook should have ensured that the cached local box has non-zero volume
+	if (Ar.IsLoadingFromCookedPackage() && (CachedLocalBox.GetVolume() <= 0))
+	{
+		// we must set a conservative bounds as a last resort here -- if not we risk strobing flicker of landscape visibility
+		FVector MinBox(0, 0, LandscapeDataAccess::GetLocalHeight(0));
+		FVector MaxBox(ComponentSizeQuads + 1, ComponentSizeQuads + 1, LandscapeDataAccess::GetLocalHeight(UINT16_MAX));
+		CachedLocalBox = FBox(MinBox, MaxBox);
+		UE_LOG(LogLandscape, Error, TEXT("The component %s has an invalid CachedLocalBox. It has been set to a conservative bounds, that may result in reduced visibility culling performance"), *GetName());
 	}
 
 	if (Ar.IsLoading() && Ar.CustomVer(FRenderingObjectVersion::GUID) < FRenderingObjectVersion::MapBuildDataSeparatePackage)
@@ -3649,13 +3667,31 @@ void ALandscapeProxy::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		UpdateRenderingMethod();
 	}
 
-	// Warn if there are any active Physical Material Renders on this Proxy
-	// don.boogert todo: We should block or wait for this to complete within some timeout period.
 	for (ULandscapeComponent* LandscapeComponent : LandscapeComponents)
 	{
+		// Warn if there are any active Physical Material Renders on this Proxy
+		// don.boogert todo: We should block or wait for this to complete within some timeout period.
 		if (LandscapeComponent->PhysicalMaterialTask.IsInProgress())
 		{
 			UE_LOG(LogLandscape, Warning, TEXT("Physical material render on component: '%s' in progress."), *LandscapeComponent->GetFullName());
+		}
+
+		// Ensure the component's cached bounds are correct
+		FBox OldCachedLocalBox = LandscapeComponent->CachedLocalBox;
+		if (LandscapeComponent->UpdateCachedBoundsInternal(/* bInApproximateBounds= */ false))
+		{
+			// conservative bounds are true bounding boxes, just not as tight/optimal as they could be
+			// if it's not conservative, then visibility flashing issues can occur because of self-occlusion in culling
+			bool bOldBoxIsConservative = LandscapeComponent->CachedLocalBox.IsInsideOrOn(OldCachedLocalBox);
+			if (bOldBoxIsConservative)
+			{
+				UE_LOG(LogLandscape, Display, TEXT("The component %s had non-optimal bounds.  The bounds have been recalculated (old CachedLocalBox: %s, new CachedLocalBox: %s)"), *LandscapeComponent->GetPathName(), *OldCachedLocalBox.ToString(), *LandscapeComponent->CachedLocalBox.ToString());
+			}
+			else
+			{
+				UE_LOG(LogLandscape, Display, TEXT("The component %s had incorrect bounds.  The bounds have been recalculated (old CachedLocalBox: %s, new CachedLocalBox: %s)"), *LandscapeComponent->GetPathName(), *OldCachedLocalBox.ToString(), *LandscapeComponent->CachedLocalBox.ToString());
+			}
+			check(LandscapeComponent->CachedLocalBox.GetVolume() > 0.0);
 		}
 	}
 

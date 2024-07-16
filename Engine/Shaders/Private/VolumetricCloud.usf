@@ -5,6 +5,9 @@
  */  
 
 
+ // Change this to force recompilation of all volumetric cloud material shaders
+#pragma message("UESHADERMETADATA_VERSION BFF66DE1-56ED-4BFA-AE26-D7FCF6E790CE")
+
 
 #include "Common.ush"
 #include "ColorMap.ush"

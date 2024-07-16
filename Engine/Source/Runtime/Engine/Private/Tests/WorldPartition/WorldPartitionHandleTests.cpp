@@ -63,7 +63,7 @@ namespace WorldPartitionTests
 
 		TestTrue(TEXT("World type"), World->WorldType == EWorldType::None);
 
-		UActorDescContainerInstance* ActorDescContainerInstance = NewObject<UActorDescContainerInstance>(GetTransientPackage());
+		UActorDescContainerInstance* ActorDescContainerInstance = NewObject<UActorDescContainerInstance>(World);
 		ActorDescContainerInstance->Initialize({ TEXT("/Engine/WorldPartition/WorldPartitionUnitTest") });
 
 		FWorldPartitionHandle Handle = FWorldPartitionHandle(ActorDescContainerInstance, FGuid(TEXT("5D9F93BA407A811AFDDDAAB4F1CECC6A")));
@@ -294,7 +294,18 @@ namespace WorldPartitionTests
 			TestTrue(TEXT("Invalid container test"), Handle.IsValid());
 			TestTrue(TEXT("Invalid container test"), Reference.IsValid());
 
+			TestTrue(TEXT("Handle soft refcount"), FWorldPartitionActorDescUnitTestAcccessor::GetSoftRefCount(*Handle) == 1);
+			TestTrue(TEXT("Handle hard refcount"), FWorldPartitionActorDescUnitTestAcccessor::GetHardRefCount(*Handle) == 0);
+			TestTrue(TEXT("Reference soft refcount"), FWorldPartitionActorDescUnitTestAcccessor::GetSoftRefCount(*Reference) == 0);
+			TestTrue(TEXT("Reference hard refcount"), FWorldPartitionActorDescUnitTestAcccessor::GetHardRefCount(*Reference) == 1);
+
+			TWeakObjectPtr<AActor> LoadedActor = Reference->GetActor();
+			TestTrue(TEXT("Loaded actor"), LoadedActor.IsValid());
+			TestTrue(TEXT("Registered actor"), World->PersistentLevel->Actors.Find(LoadedActor.Get()) != INDEX_NONE);
+
 			ActorDescContainerInstance->Uninitialize();
+
+			TestTrue(TEXT("Registered actor"), World->PersistentLevel->Actors.Find(LoadedActor.Get()) == INDEX_NONE);
 
 			// Make sure to cleanup world before collecting garbage so it gets uninitialized
 			ScopedEditorWorld.Reset();

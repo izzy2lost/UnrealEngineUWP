@@ -227,7 +227,7 @@ bool FPCGCollapseSubgraphWithParams::RunTest(const FString& Parameters)
 	UPCGNode* GetParameter2Node = PCGCollapseSubgraphTests::AddGetGraphParameterNode(MainGraph, Param2Name);
 
 	MainGraph->AddLabeledEdge(GetParameter1Node, Param1Name, SurfaceSamplerNode, TEXT("Looseness"));
-	MainGraph->AddLabeledEdge(GetParameter2Node, Param2Name, SurfaceSamplerNode, TEXT("Point Extents"));
+	MainGraph->AddLabeledEdge(GetParameter2Node, Param2Name, SurfaceSamplerNode, TEXT("PointExtents"));
 
 	TArray<UPCGNode*> NodesToCollapse = { SurfaceSamplerNode, GetParameter1Node, GetParameter2Node };
 
@@ -251,7 +251,7 @@ bool FPCGCollapseSubgraphWithParams::RunTest(const FString& Parameters)
 	UTEST_EQUAL("Param2 has the right value", *Subgraph->GetUserParametersStruct()->GetValueStruct<FVector>(Param2Name).GetValue(), Param2Value);
 
 	VALIDATE_EDGE(UPCGUserParameterGetSettings, UPCGSurfaceSamplerSettings, Subgraph, NAME_None, TEXT("Looseness"))
-	VALIDATE_EDGE(UPCGUserParameterGetSettings, UPCGSurfaceSamplerSettings, Subgraph, NAME_None, TEXT("Point Extents"))
+	VALIDATE_EDGE(UPCGUserParameterGetSettings, UPCGSurfaceSamplerSettings, Subgraph, NAME_None, TEXT("PointExtents"))
 
 	return true;
 }

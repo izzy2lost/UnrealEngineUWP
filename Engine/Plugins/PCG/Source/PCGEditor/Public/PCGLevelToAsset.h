@@ -29,6 +29,12 @@ public:
 	UFUNCTION(BlueprintNativeEvent, meta = (DisplayName = "Export World", ForceAsFunction))
 	bool BP_ExportWorld(UWorld* World, const FString& PackageName, UPCGDataAsset* Asset);
 
+	UFUNCTION(BlueprintCallable, Category="PCG|IO")
+	void SetWorld(UWorld* World);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|IO")
+	UWorld* GetWorld() const;
+
 protected:
 	//~Being UPCGAssetExporter interface
 	virtual bool ExportAsset(const FString& PackageName, UPCGDataAsset* Asset) override;

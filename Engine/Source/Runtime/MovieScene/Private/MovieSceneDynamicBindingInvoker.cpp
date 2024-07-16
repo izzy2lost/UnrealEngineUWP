@@ -15,40 +15,12 @@
 
 FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FMovieScenePossessable& Possessable)
 {
-	FMovieSceneDynamicBindingResolveResult Result = ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, Possessable.GetGuid(), Possessable.DynamicBinding);
-	// Top-level possessables must be actors. Children possessables must be components.
-	if (Result.Object && !Possessable.GetParent().IsValid() && !Result.Object.IsA<AActor>())
-	{
-		UE_LOG(
-			LogMovieScene, Error, 
-			TEXT("Possessable '%s' ('%s') must be bound to an actor, but its dynamic binding resolved it to '%s' which is a '%s'. Aborting dynamic binding and falling back to defaults."),
-			*Possessable.GetName(), *LexToString(Possessable.GetGuid()), *Result.Object->GetName(), *Result.Object->GetClass()->GetName());
-		return FMovieSceneDynamicBindingResolveResult();
-	}
-	else if (Result.Object && Possessable.GetParent().IsValid() && !Result.Object.IsA<UActorComponent>())
-	{
-		UE_LOG(
-			LogMovieScene, Error, 
-			TEXT("Possessable '%s' ('%s') must be bound to a component, but its dynamic binding resolved it to '%s' which is a '%s'. Aborting dynamic binding and falling back to defaults."),
-			*Possessable.GetName(), *LexToString(Possessable.GetGuid()), *Result.Object->GetName(), *Result.Object->GetClass()->GetName());
-		return FMovieSceneDynamicBindingResolveResult();
-	}
-	return Result;
+	return ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, Possessable.GetGuid(), Possessable.DynamicBinding);
 }
 
 FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FMovieSceneSpawnable& Spawnable)
 {
-	FMovieSceneDynamicBindingResolveResult Result = ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, Spawnable.GetGuid(), Spawnable.DynamicBinding);
-	// Spawnables must be actors.
-	if (Result.Object && !Result.Object.IsA<AActor>())
-	{
-		UE_LOG(
-			LogMovieScene, Error, 
-			TEXT("Spawnable '%s' ('%s') must be bound to an actor, but its dynamic binding resolved it to '%s' which is a '%s'. Aborting dynamic binding and falling back to defaults."),
-			*Spawnable.GetName(), *LexToString(Spawnable.GetGuid()), *Result.Object->GetName(), *Result.Object->GetClass()->GetName());
-		return FMovieSceneDynamicBindingResolveResult();
-	}
-	return Result;
+	return ResolveDynamicBinding(SharedPlaybackState, Sequence, SequenceID, Spawnable.GetGuid(), Spawnable.DynamicBinding);
 }
 
 FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding)

@@ -420,3 +420,13 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 
 	return true;
 }
+
+void UPCGLevelToAsset::SetWorld(UWorld* World)
+{
+	WorldToExport = World;
+}
+
+UWorld* UPCGLevelToAsset::GetWorld() const
+{
+	return WorldToExport;
+}

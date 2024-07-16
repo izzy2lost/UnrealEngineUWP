@@ -407,7 +407,7 @@ namespace PCGSettingsHelpers
 					{
 						// If we have a clash, we will use the full path, so mark this param and the other that clashed to use the full path.
 						Res[CachedLabelIndex].bHasNameClash = true;
-						Res[CachedLabelIndex].Label = FName(Res[CachedLabelIndex].GetDisplayPropertyPath());
+						Res[CachedLabelIndex].Label = FName(Res[CachedLabelIndex].GetPropertyPath());
 						bHasNameClash = true;
 					}
 
@@ -427,7 +427,7 @@ namespace PCGSettingsHelpers
 					else
 					{
 #if WITH_EDITOR
-						Param.Label = FName(Param.GetDisplayPropertyPath());
+						Param.Label = FName(Param.GetPropertyPath());
 #endif // WITH_EDITOR
 						Param.bHasNameClash = true;
 					}
@@ -462,14 +462,13 @@ namespace PCGSettingsHelpers
 				FName Label = NAME_None;
 				bool bHasNameClash = false;
 #if WITH_EDITOR
-				// GetDisplayNameText is not available in non-editor build.
-				Label = *Property->GetDisplayNameText().ToString();
+				Label = *Property->GetAuthoredName();
 				const int32 CachedLabelIndex = LabelCache.IndexOfByKey(Label);
 				if (CachedLabelIndex != INDEX_NONE)
 				{
 					// If we have a clash, we will use the full path, so mark this param and the other that clashed to use the full path.
 					Res[CachedLabelIndex].bHasNameClash = true;
-					Res[CachedLabelIndex].Label = FName(Res[CachedLabelIndex].GetDisplayPropertyPath());
+					Res[CachedLabelIndex].Label = FName(Res[CachedLabelIndex].GetPropertyPath());
 					bHasNameClash = true;
 				}
 
@@ -482,7 +481,7 @@ namespace PCGSettingsHelpers
 				Param.PropertyClass = InClass;
 				Param.bHasNameClash = bHasNameClash;
 #if WITH_EDITOR
-				Param.Label = bHasNameClash ? FName(Param.GetDisplayPropertyPath()) : Label;
+				Param.Label = bHasNameClash ? FName(Param.GetPropertyPath()) : Label;
 				GatherAliases(Property, Param);
 #endif // WITH_EDITOR
 			}

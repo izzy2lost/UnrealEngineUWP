@@ -1016,6 +1016,16 @@ public:
 	LANDSCAPE_API void UpdateCachedBounds(bool bInApproximateBounds = false);
 
 	/**
+	 * Recalculate cached bounds using height values.  Returns true when the bounds were changed.
+	 */
+private:
+	// temporary private version for 5.4, to avoid changing the public API
+	bool UpdateCachedBoundsInternal(bool bInApproximateBounds = false);
+	friend class ALandscapeProxy;
+	
+public:
+
+	/**
 	 * Update the MaterialInstance parameters to match the layer and weightmaps for this component
 	 * Creates the MaterialInstance if it doesn't exist.
 	 */

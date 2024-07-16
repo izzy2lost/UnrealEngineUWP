@@ -77,9 +77,7 @@ void UDMXLibraryFromMVRImportOptions::ApplyOptions(UDMXLibrary* DMXLibrary)
 			ProtocolSettings->InputPortConfigs.Add(NewConfig);
 			ProtocolSettings->PostEditChange();
 		}
-		ProtocolSettings->SaveConfig();
-
-		FDMXPortManager::Get().UpdateFromProtocolSettings();
+		ProtocolSettings->TryUpdateDefaultConfigFile();
 	}
 
 	if (bUpdateOutputPort)
@@ -114,8 +112,8 @@ void UDMXLibraryFromMVRImportOptions::ApplyOptions(UDMXLibrary* DMXLibrary)
 			ProtocolSettings->OutputPortConfigs.Add(NewConfig);
 			ProtocolSettings->PostEditChange();
 		}
-		ProtocolSettings->SaveConfig();
-
-		FDMXPortManager::Get().UpdateFromProtocolSettings();
+		ProtocolSettings->TryUpdateDefaultConfigFile();
 	}
+
+	FDMXPortManager::Get().UpdateFromProtocolSettings();
 }

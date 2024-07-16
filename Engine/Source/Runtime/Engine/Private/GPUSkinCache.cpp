@@ -24,6 +24,7 @@ GPUSkinCache.cpp: Performs skinning on a compute shader into a buffer to avoid v
 #include "RenderingThread.h"
 #include "Stats/StatsTrace.h"
 #include "UObject/UObjectIterator.h"
+#include "Algo/Sort.h"
 
 DEFINE_STAT(STAT_GPUSkinCache_TotalNumChunks);
 DEFINE_STAT(STAT_GPUSkinCache_TotalNumVertices);
@@ -1252,11 +1253,23 @@ void FGPUSkinCache::MakeBufferTransitions(FRHICommandList& RHICmdList, TArray<FS
 {
 	if (Buffers.Num() > 0)
 	{
+		// The tangent accumulation buffers are shared between sections so they can end up in the list more than once. We
+		// need to make sure we don't issue multiple transitions for the same resource in a single call, the RHIs can't deal with that.
+		Algo::Sort(Buffers);
+
 		TArray<FRHITransitionInfo, SceneRenderingAllocator> UAVs;
 		UAVs.Reserve(Buffers.Num());
+		
+		FSkinCacheRWBuffer* LastBuffer = nullptr;
 		for (FSkinCacheRWBuffer* Buffer : Buffers)
 		{
-			if (Buffer->AccessState != ToState)
+			if (Buffer == LastBuffer)
+			{
+				continue;
+			}
+
+			LastBuffer = Buffer;
+			if ( EnumHasAnyFlags(ToState, ERHIAccess::UAVMask) || Buffer->AccessState != ToState)
 			{
 				UAVs.Add(Buffer->UpdateAccessState(ToState));
 			}

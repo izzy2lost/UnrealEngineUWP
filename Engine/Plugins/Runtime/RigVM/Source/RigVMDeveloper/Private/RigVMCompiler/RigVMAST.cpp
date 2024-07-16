@@ -224,6 +224,16 @@ FRigVMExprAST::FRigVMBlockArray FRigVMExprAST::GetBlocks(bool bSortByDepth) cons
 		Algo::Sort(Blocks, SortByDepth);
 	}
 
+	// remove the obsolete block to avoid combining expressions on
+	// a branch which are supposed to be obsolete.
+	if(const FRigVMParserAST* Parser = GetParser())
+	{
+		Blocks.RemoveAll([](const FRigVMBlockExprAST* Block) -> bool
+		{
+			return Block->IsObsolete();
+		});
+	}
+
 	return Blocks;
 }
 
@@ -253,6 +263,7 @@ TOptional<uint32> FRigVMExprAST::GetBlockCombinationHash() const
 	{
 		const FRigVMVarExprAST* VarExpr = To<FRigVMVarExprAST>();
 		check(VarExpr);
+		
 		if(const URigVMPin* Pin = VarExpr->GetPin())
 		{
 			if(const URigVMNode* Node = Pin->GetNode())
@@ -260,6 +271,19 @@ TOptional<uint32> FRigVMExprAST::GetBlockCombinationHash() const
 				if(Node->IsMutable())
 				{
 					return TOptional<uint32>();
+				}
+
+				// variable node output pins may be shared across many blocks,
+				// since they represent data which is not considered scoped.
+				if(Node->IsA<URigVMVariableNode>())
+				{
+					if(Pin->GetName() == URigVMVariableNode::ValueName)
+					{
+						if(Pin->GetDirection() == ERigVMPinDirection::Output)
+						{
+							return TOptional<uint32>();
+						}
+					}
 				}
 			}
 		}
@@ -662,6 +686,46 @@ bool FRigVMBlockExprAST::Contains(const FRigVMExprAST* InExpression, TMap<const 
 		ContainedExpressionsCache->Add(InExpression, false);
 	}
 	return false;
+}
+
+bool FRigVMBlockExprAST::IsObsolete() const
+{
+	if(bIsObsolete)
+	{
+		return true;
+	}
+
+	struct Local
+	{
+		static bool HasOnlyObsoleteParents(const FRigVMExprAST* InExpr)
+		{
+			for(int32 ParentIndex = 0; ParentIndex < InExpr->NumParents(); ParentIndex++)
+			{
+				const FRigVMExprAST* ParentExpr = InExpr->ParentAt(ParentIndex);
+				if(!IsObsoleteExpr(ParentExpr))
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		
+		static bool IsObsoleteExpr(const FRigVMExprAST* InExpr)
+		{
+			if(InExpr->IsA(EType::Block))
+			{
+				const FRigVMBlockExprAST* Block = InExpr->To<FRigVMBlockExprAST>();
+				if(!Block->bIsObsolete) // avoid further recursion here
+				{
+					return false;
+				}
+			}
+
+			return HasOnlyObsoleteParents(InExpr);
+		}
+	};
+
+	return Local::HasOnlyObsoleteParents(this);
 }
 
 bool FRigVMNodeExprAST::IsConstant() const

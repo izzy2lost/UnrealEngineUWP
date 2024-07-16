@@ -4495,7 +4495,6 @@ static void FinishCleanUp(FRHICommandListImmediate& RHICmdList)
 	GlobalDynamicBuffer::GarbageCollect();
 	GPrimitiveIdVertexBufferPool.DiscardAll();
 	FGraphicsMinimalPipelineStateId::ResetLocalPipelineIdTableSize();
-	FRDGBuilder::WaitForAsyncDeleteTask();
 }
 
 static void DeleteSceneRenderers(const TArray<FSceneRenderer*>& SceneRenderers)

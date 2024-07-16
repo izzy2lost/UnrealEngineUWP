@@ -43,7 +43,7 @@ public:
 			const int64 NewArrayCount = Bytes.Num() + NumBytesToAdd;
 			if constexpr (IndexSize < 64)
 			{
-				constexpr IndexSizeType MaxValue = std::numeric_limits<IndexSizeType>::max();
+				constexpr IndexSizeType MaxValue = TNumericLimits<IndexSizeType>::Max();
 				if (NewArrayCount >= MaxValue)
 				{
 					UE_LOG(LogSerialization, Fatal, TEXT("TMemoryWriter with IndexSize=%d does not support data larger than %d bytes. Archive name: %s."), IndexSize, MaxValue, *ArchiveName.ToString());

@@ -1070,7 +1070,7 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 		if (UPCGComponent* ThisComponent = ThisComponentWeakPtr.Get())
 		{
 #if WITH_EDITOR
-			if (UWorld* ThisWorld = ThisComponent->GetWorld())
+			if (UWorld* ThisWorld = ThisComponent->GetWorld(); ThisWorld && GEditor) // FActorFolders require the editor
 			{
 				// Look for a nested generated results subfolder and remove it if it exists
 				FString FolderPath;

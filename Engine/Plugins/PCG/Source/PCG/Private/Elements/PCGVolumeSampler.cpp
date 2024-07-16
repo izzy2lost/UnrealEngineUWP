@@ -11,6 +11,7 @@
 #include "Elements/PCGTimeSlicedElementBase.h"
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
+#include "Helpers/PCGSettingsHelpers.h"
 
 #include "HAL/UnrealMemory.h"
 
@@ -374,6 +375,31 @@ bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 
 		return bAsyncDone;
 	});
+}
+
+void FPCGVolumeSamplerElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const
+{
+	FPCGCrc Crc;
+	IPCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
+
+	if (const UPCGVolumeSamplerSettings* Settings = Cast<UPCGVolumeSamplerSettings>(InSettings))
+	{
+		bool bUnbounded;
+		PCGSettingsHelpers::GetOverrideValue(InInput, Settings, GET_MEMBER_NAME_CHECKED(UPCGVolumeSamplerSettings, bUnbounded), Settings->bUnbounded, bUnbounded);
+		const bool bBoundsConnected = InInput.GetInputsByPin(PCGVolumeSamplerConstants::BoundingShapeLabel).Num() > 0;
+
+		// If we're operating in bounded mode and there is no bounding shape connected then we'll use actor bounds, and therefore take
+		// dependency on actor data.
+		if (!bUnbounded && !bBoundsConnected && InComponent)
+		{
+			if (const UPCGData* Data = InComponent->GetActorPCGData())
+			{
+				Crc.Combine(Data->GetOrComputeCrc(/*bFullDataCrc=*/false));
+			}
+		}
+	}
+
+	OutCrc = Crc;
 }
 
 #if WITH_EDITOR

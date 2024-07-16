@@ -215,6 +215,8 @@ void UActorDescContainerInstance::OnUnregisterChildContainerInstance(const FGuid
 
 void UActorDescContainerInstance::Uninitialize()
 {
+	const UWorld* OuterWorld = GetTypedOuter<UWorld>();
+
 	bIsInitialized = false;
 
 	UnregisterDelegates();
@@ -223,6 +225,15 @@ void UActorDescContainerInstance::Uninitialize()
 	{
 		if (ActorDescInstancePtr.IsValid())
 		{
+			if (ActorDescInstancePtr->GetHardRefCount())
+			{
+				if (OuterWorld && !OuterWorld->IsBeingCleanedUp())
+				{
+					// Force actor unregistration when destroying the container instance without the world being destroyed to avoid dangling actors
+					FWorldPartitionReference LastReference(ActorDescInstancePtr.Get());
+				}
+			}			
+
 			RemoveActorDescInstance(&ActorDescInstancePtr);
 		}
 	}

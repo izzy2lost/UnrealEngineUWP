@@ -236,6 +236,8 @@ void FRayTracingGeometryManager::ForceBuildIfPending(FRHIComputeCommandList& InC
 	{
 		InCmdList.BuildAccelerationStructures(BuildParams);
 	}
+
+	BuildParams.Reset();
 }
 
 void FRayTracingGeometryManager::ProcessBuildRequests(FRHIComputeCommandList& InCmdList, bool bInBuildAll)

@@ -128,6 +128,8 @@ void FMetalRHICommandContext::RHIEndRenderPass()
 	{
 		RHIEndOcclusionQueryBatch();
 	}
+    
+    Context->EndRenderPass();
 
 	UE::RHICore::ResolveRenderPassTargets(RenderPassInfo, [this](UE::RHICore::FResolveTextureInfo Info)
 	{

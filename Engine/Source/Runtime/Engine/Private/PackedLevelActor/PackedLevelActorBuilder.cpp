@@ -481,6 +481,10 @@ bool FPackedLevelActorBuilder::CreateOrUpdateBlueprintFromPacked(APackedLevelAct
 		{
 			ISMComponent->bInheritPerInstanceData = true;
 		}
+		// Set bEditableWhenInherited to false to disable editing of properties on components.
+		// This was enabled in 5.4, but is not properly handled, so for now we are disabling it.
+		// @todo_ow: See https://jira.it.epicgames.com/browse/UE-216035
+		PackedComponent->bEditableWhenInherited = false;
 	}
 
 	FKismetEditorUtilities::AddComponentsToBlueprint(BP, PackedComponents, AddCompToBPParams);

@@ -348,7 +348,90 @@ public:
 		,	ChangelistNumber(0)
 		,	Files(InFiles)
 		,	P4Client(InP4Client)
+	{}
+
+	/** Called by P4API on "change" command. FileSys is a file pointer to the input contents that p4 change will use. This comes with a default template for the server (see p4 change)*/
+	virtual void Edit(FileSys* f1, Error* e) override
 	{
+		StrBuf ReadBuffer;
+		f1->ReadFile(&ReadBuffer, e);
+
+		FString TemplateContents = TO_TCHAR(ReadBuffer.Value(), IsUnicodeServer());
+		TArray<FString> Lines;
+		TemplateContents.ParseIntoArrayLines(Lines, false);
+
+		TStringBuilder<2048> FinalContents;
+		bool bFileSectionPresent= false;
+
+		for (size_t i = 0; i < Lines.Num(); ++i)
+		{
+			const FString& Line = Lines[i];
+
+			// Ignore comments in the template and keep everything else
+			if (!Line.StartsWith(TEXT("#")))
+			{
+				// When we find the Description, replace it with our own.
+				if (Line.StartsWith(TEXT("Description:")))
+				{
+					FinalContents << Line << TEXT("\n");
+
+					TArray<FString> DescLines;
+					Description.ToString().ParseIntoArray(DescLines, TEXT("\n"), false);
+					for (const FString& DescLine : DescLines)
+					{
+						FinalContents << TEXT("\t") << DescLine << TEXT("\n");
+					}
+
+					// Skip the next line after "Description:" which will be "<enter description here>"
+					++i;
+				}
+				// When we find the File section, remove it completely to create an empty CL
+				// Or replace them with our own files if we were provided any
+				else if (Line.StartsWith(TEXT("Files:")))
+				{
+					bFileSectionPresent = true;
+
+					if (Files.Num() != 0)
+					{
+						FinalContents << Line << TEXT("\n");
+
+						for (const FString& FileName : Files)
+						{
+							FinalContents << TEXT("\t") << FileName << TEXT("\n");
+						}
+
+						FinalContents << TEXT("\n");
+					}
+
+					// Skip the default files up to empty line
+					// Sections in the p4 change command are separated by empty lines
+					do
+					{
+						++i;
+					}
+					while (i < Lines.Num() && !Lines[i].IsEmpty());
+				}
+				else
+				{
+					FinalContents << Line << TEXT("\n");
+				}
+			}
+		}
+
+		if (!bFileSectionPresent && Files.Num() != 0)
+		{
+			FinalContents << TEXT("Files:\n");
+
+			for (const FString& FileName : Files)
+			{
+				FinalContents << TEXT("\t") << FileName << TEXT("\n");
+			}
+
+			FinalContents << TEXT("\n");
+		}
+
+		StrBuf WriteBuffer(FROM_TCHAR(*FinalContents, IsUnicodeServer()));
+		f1->WriteFile(&WriteBuffer, e);
 	}
 
 	/** Called by P4API when the changelist is created. */
@@ -370,43 +453,6 @@ public:
 
 		// Pass the message on as we will still want to record it
 		FP4ClientUser::Message(err);
-	}
-
-
-	/** Called by P4API on "change -i" command. OutBuffer is filled with changelist specification text. */
-	virtual void InputData(StrBuf* OutBuffer, Error* OutError) override
-	{
-		FString OutputDesc;
-		OutputDesc += TEXT("Change:\tnew\n\n");
-		OutputDesc += TEXT("Client:\t");
-		OutputDesc += TO_TCHAR(P4Client.GetClient().Text(), IsUnicodeServer());
-		OutputDesc += TEXT("\n\n");
-		OutputDesc += TEXT("User:\t");
-		OutputDesc += TO_TCHAR(P4Client.GetUser().Text(), IsUnicodeServer());
-		OutputDesc += TEXT("\n\n");
-		OutputDesc += TEXT("Status:\tnew\n\n");
-		OutputDesc += TEXT("Description:\n");
-		{
-			TArray<FString> DescLines;
-			Description.ToString().ParseIntoArray(DescLines, TEXT("\n"), false);
-			for (const FString& DescLine : DescLines)
-			{
-				OutputDesc += TEXT("\t");
-				OutputDesc += DescLine;
-				OutputDesc += TEXT("\n");
-			}
-		}
-		OutputDesc += TEXT("\n");
-		OutputDesc += TEXT("Files:\n");
-		for (const FString& FileName : Files)
-		{
-			OutputDesc += TEXT("\t");
-			OutputDesc += FileName;
-			OutputDesc += TEXT("\n");
-		}
-		OutputDesc += TEXT("\n");
-
-		OutBuffer->Append(FROM_TCHAR(*OutputDesc, IsUnicodeServer()));
 	}
 
 	FText Description;
@@ -1202,9 +1248,6 @@ int32 FPerforceConnection::CreatePendingChangelist(const FText &Description, con
 	TArray<FString> Params;
 	FP4RecordSet Records;
 	EP4ClientUserFlags Flags = bIsUnicode ? EP4ClientUserFlags::UnicodeServer : EP4ClientUserFlags::None;
-
-	const char *ArgV[] = { "-i" };
-	P4Client.SetArgv(1, const_cast<char*const*>(ArgV));
 
 	FP4KeepAlive KeepAlive(InIsCancelled);
 	P4Client.SetBreak(&KeepAlive);

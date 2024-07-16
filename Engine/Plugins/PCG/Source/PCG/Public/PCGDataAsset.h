@@ -20,7 +20,7 @@ public:
 	// TODO: additional embedded graph?
 
 	/** Contains direct data owned by this data asset */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Data, meta = (NoResetToDefault))
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = Data, meta = (NoResetToDefault))
 	FPCGDataCollection Data;
 
 	/** Alternative name (instead of asset name), can be left empty */
