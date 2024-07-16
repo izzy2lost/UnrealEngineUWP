@@ -157,7 +157,7 @@ namespace HordeServer.Tasks
 		/// <inheritdoc/>
 		public override async Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
 		{
-			if (!_settings.CurrentValue.EnableConformTasks)
+			if (!_settings.CurrentValue.EnableConformTasks || !_buildConfig.CurrentValue.EnableConformTasks)
 			{
 				return SkipAsync(cancellationToken);
 			}

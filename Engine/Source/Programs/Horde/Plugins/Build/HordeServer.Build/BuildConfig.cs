@@ -78,6 +78,11 @@ namespace HordeServer
 		public IReadOnlyList<StreamConfig> Streams { get; private set; } = null!;
 
 		/// <summary>
+		/// Whether to allow conform tasks to run
+		/// </summary>
+		public bool EnableConformTasks { get; set; } = true;
+
+		/// <summary>
 		/// Commit tag to use for marking issues as fixed
 		/// </summary>
 		public string IssueFixedTag { get; set; } = "#horde";
