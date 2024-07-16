@@ -2105,11 +2105,13 @@ void FMaterialShaderMap::LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform Sh
 
 				// If we already registered a material shadermap with the same ID, just re-use it. The material will do the same in FMaterial::CacheShaders anyway
 				TRefCountPtr<FMaterialShaderMap> ExistingShaderMap = FMaterialShaderMap::FindId(ShaderMap->GetShaderMapId(), ShaderPlatform);
-				if (ExistingShaderMap)
+#if WITH_ODSC
+				if (ExistingShaderMap && ExistingShaderMap->IsFromODSC())
 				{
 					ShaderMap = ExistingShaderMap;
 				}
 				else
+#endif
 				{
 					// Register in the global map
 					ShaderMap->RegisterForODSC(ShaderPlatform);
