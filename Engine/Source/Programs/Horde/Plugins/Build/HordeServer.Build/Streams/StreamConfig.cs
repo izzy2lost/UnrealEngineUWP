@@ -245,6 +245,11 @@ namespace HordeServer.Streams
 		/// </summary>
 		public List<TokenConfig> Tokens { get; set; } = new List<TokenConfig>();
 
+		/// <summary>
+		/// Permissions for artifact types
+		/// </summary>
+		public List<ArtifactTypeAclConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeAclConfig>();
+
 		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
 		public bool Authorize(AclAction action, ClaimsPrincipal user)
 			=> Acl.Authorize(action, user);

@@ -90,7 +90,13 @@ namespace HordeServer.Acls
 			return false;
 		}
 
-		bool? AuthorizeSingleScope(AclAction action, ClaimsPrincipal user)
+		/// <summary>
+		/// Tests whether a user is authorized to perform the given actions in this specific scope
+		/// </summary>
+		/// <param name="action">Action that is being performed. This should be a single flag.</param>
+		/// <param name="user">The principal to authorize</param>
+		/// <returns>True/false if the action is allowed or denied, null if there is no specific setting for this user</returns>
+		public bool? AuthorizeSingleScope(AclAction action, ClaimsPrincipal user)
 		{
 			// Check if there's a specific entry for this action
 			if (Entries != null)

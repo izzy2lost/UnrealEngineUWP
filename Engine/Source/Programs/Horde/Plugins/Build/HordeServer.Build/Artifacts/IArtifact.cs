@@ -68,10 +68,5 @@ namespace HordeServer.Artifacts
 		/// Time at which the artifact was created
 		/// </summary>
 		public DateTime CreatedAtUtc { get; }
-
-		/// <summary>
-		/// Permissions scope for this object
-		/// </summary>
-		public AclScopeName AclScope { get; }
 	}
 }

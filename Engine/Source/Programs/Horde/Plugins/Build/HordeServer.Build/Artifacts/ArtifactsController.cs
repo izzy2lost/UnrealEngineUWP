@@ -38,6 +38,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using EpicGames.Horde.Acls;
 using HordeServer.Agents;
+using System.Security.Claims;
+using HordeServer.Projects;
 
 namespace HordeServer.Artifacts
 {
@@ -203,7 +205,7 @@ namespace HordeServer.Artifacts
 			FindArtifactsResponse response = new FindArtifactsResponse();
 			await foreach (IArtifact artifact in _artifactCollection.FindAsync(streamId, minChange, maxChange, name, type, keys, maxResults, HttpContext.RequestAborted))
 			{
-				if (_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+				if (_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 				{
 					response.Artifacts.Add(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.StreamId, artifact.Change, artifact.Keys, artifact.Metadata, artifact.CreatedAtUtc));
 				}
@@ -228,9 +230,9 @@ namespace HordeServer.Artifacts
 			{
 				return NotFound(id);
 			}
-			if (!_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 			{
-				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
 			return PropertyFilter.Apply(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.StreamId, artifact.Change, artifact.Keys, artifact.Metadata, artifact.CreatedAtUtc), filter);
@@ -252,9 +254,9 @@ namespace HordeServer.Artifacts
 			{
 				return NotFound(id);
 			}
-			if (!_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 			{
-				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 			if (!locator.WithinFolder(artifact.RefName.Text))
 			{
@@ -280,9 +282,9 @@ namespace HordeServer.Artifacts
 			{
 				return NotFound(id);
 			}
-			if (!_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 			{
-				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
 			return await StorageController.ReadRefInternalAsync(_storageService, artifact.NamespaceId, artifact.RefName, Request.Headers, cancellationToken);
@@ -307,9 +309,9 @@ namespace HordeServer.Artifacts
 			{
 				return NotFound(id);
 			}
-			if (!_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 			{
-				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
 			using IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
@@ -474,9 +476,9 @@ namespace HordeServer.Artifacts
 			{
 				return NotFound(id);
 			}
-			if (!_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 			{
-				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
 			using IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
@@ -549,9 +551,9 @@ namespace HordeServer.Artifacts
 			{
 				return NotFound(id);
 			}
-			if (!_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 			{
-				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
 			switch (format ?? DownloadArtifactFormat.Zip)
@@ -641,9 +643,9 @@ namespace HordeServer.Artifacts
 			{
 				return NotFound(id);
 			}
-			if (!_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 			{
-				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
 			ReadOnlyMemory<byte> manifestData = await _unsyncCache.GetManifestDataAsync(artifact, cancellationToken);
@@ -674,9 +676,9 @@ namespace HordeServer.Artifacts
 			{
 				return NotFound(id);
 			}
-			if (!_aclService.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 			{
-				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
+				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
 			if (!String.Equals(request.HashStrong, "Blake3.160", StringComparison.OrdinalIgnoreCase))

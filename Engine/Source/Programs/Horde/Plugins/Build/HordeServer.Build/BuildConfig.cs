@@ -26,6 +26,7 @@ using HordeServer.Perforce;
 using HordeServer.Plugins;
 using HordeServer.Projects;
 using HordeServer.Streams;
+using HordeServer.Utilities;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
 
@@ -83,7 +84,6 @@ namespace HordeServer
 
 		private readonly Dictionary<ProjectId, ProjectConfig> _projectLookup = new Dictionary<ProjectId, ProjectConfig>();
 		private readonly Dictionary<StreamId, StreamConfig> _streamLookup = new Dictionary<StreamId, StreamConfig>();
-		private readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
 
 		/// <inheritdoc/>
 		public void PostLoad(PluginConfigOptions configOptions)
@@ -102,12 +102,6 @@ namespace HordeServer
 				{
 					_streamLookup.Add(stream.Id, stream);
 				}
-			}
-
-			_artifactTypeLookup.Clear();
-			foreach (ArtifactTypeConfig artifactType in ArtifactTypes)
-			{
-				_artifactTypeLookup.Add(artifactType.Type, artifactType);
 			}
 
 			UpdateWorkspacesForPools(configOptions.Plugins);
@@ -178,12 +172,36 @@ namespace HordeServer
 		}
 
 		/// <summary>
-		/// Attempts to get configuration for a specific artifact type
+		/// Authorize an action to perform on an artifact
 		/// </summary>
-		/// <param name="type">The artifact type name</param>
-		/// <param name="config">Configuration for the stream</param>
-		/// <returns>True if the stream configuration was found</returns>
-		public bool TryGetArtifactType(ArtifactType type, [NotNullWhen(true)] out ArtifactTypeConfig? config) => _artifactTypeLookup.TryGetValue(type, out config);
+		public bool AuthorizeArtifact(ArtifactType type, StreamId streamId, AclAction action, ClaimsPrincipal user)
+		{
+			if (user.HasAdminClaim())
+			{
+				return true;
+			}
+
+			bool? auth = null;
+			if (TryGetStream(streamId, out StreamConfig? streamConfig))
+			{
+				auth = AuthorizeArtifactType(streamConfig.ArtifactTypes, type, action, user);
+				auth ??= streamConfig.Acl.AuthorizeSingleScope(action, user);
+
+				ProjectConfig projectConfig = streamConfig.ProjectConfig;
+
+				auth ??= AuthorizeArtifactType(projectConfig.ArtifactTypes, type, action, user);
+				auth ??= projectConfig.Acl.AuthorizeSingleScope(action, user);
+			}
+
+			auth ??= AuthorizeArtifactType(ArtifactTypes, type, action, user);
+			return auth ?? Acl.Authorize(action, user);
+		}
+
+		static bool? AuthorizeArtifactType(IReadOnlyList<ArtifactTypeAclConfig> artifactTypes, ArtifactType artifactType, AclAction action, ClaimsPrincipal user)
+		{
+			ArtifactTypeAclConfig? config = artifactTypes.FirstOrDefault(x => x.Type == artifactType);
+			return config?.Acl?.AuthorizeSingleScope(action, user);
+		}
 
 		/// <summary>
 		/// Attempts to get configuration for a project from this object
@@ -285,15 +303,26 @@ namespace HordeServer
 	}
 
 	/// <summary>
-	/// Configuration for an artifact
+	/// ACL configuration for an artifact type
 	/// </summary>
-	public class ArtifactTypeConfig
+	public class ArtifactTypeAclConfig
 	{
 		/// <summary>
 		/// Name of the artifact type
 		/// </summary>
 		public ArtifactType Type { get; set; }
 
+		/// <summary>
+		/// Acl for the artifact type
+		/// </summary>
+		public AclConfig? Acl { get; set; }
+	}
+
+	/// <summary>
+	/// Configuration for an artifact
+	/// </summary>
+	public class ArtifactTypeConfig : ArtifactTypeAclConfig
+	{
 		/// <summary>
 		/// Legacy 'Name' property
 		/// </summary>

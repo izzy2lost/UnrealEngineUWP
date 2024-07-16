@@ -106,6 +106,11 @@ namespace HordeServer.Projects
 		public List<StreamConfig> Streams { get; set; } = new List<StreamConfig>();
 
 		/// <summary>
+		/// Permissions for artifact types
+		/// </summary>
+		public List<ArtifactTypeAclConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeAclConfig>();
+
+		/// <summary>
 		/// Acl entries
 		/// </summary>
 		public AclConfig Acl { get; set; } = new AclConfig();
