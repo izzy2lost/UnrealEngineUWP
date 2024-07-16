@@ -165,9 +165,9 @@ struct OPTIMUSCORE_API FOptimusDataTypeRef
 	UPROPERTY(EditAnywhere, Category=Type)
 	FName TypeName;
 
-	// A weak pointer to the type object helps enforce asset dependency
+	// A soft pointer to the type object helps enforce asset dependency
 	UPROPERTY(EditAnywhere, Category=Type)
-	TWeakObjectPtr<UObject> TypeObject;
+	TSoftObjectPtr<UObject> TypeObject;
 	
 	void PostSerialize(const FArchive& Ar);
 };

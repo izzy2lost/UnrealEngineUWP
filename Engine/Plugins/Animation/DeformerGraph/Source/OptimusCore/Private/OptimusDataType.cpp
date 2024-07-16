@@ -24,7 +24,7 @@ void FOptimusDataTypeRef::Set(
 	if (InTypeHandle.IsValid())
 	{
 		TypeName = InTypeHandle->TypeName;
-		TypeObject = InTypeHandle->TypeObject;
+		TypeObject = InTypeHandle->TypeObject.Get();
 		checkSlow(FOptimusDataTypeRegistry::Get().FindType(TypeName) != nullptr);
 	}
 	else
@@ -66,7 +66,7 @@ void FOptimusDataTypeRef::PostSerialize(const FArchive& Ar)
 		const FOptimusDataTypeHandle TypeHandle = FOptimusDataTypeRegistry::Get().FindType(TypeName);
 		if (TypeHandle.IsValid())
 		{
-			TypeObject = TypeHandle->TypeObject;
+			TypeObject = TypeHandle->TypeObject.Get();
 		}
 	}
 }
